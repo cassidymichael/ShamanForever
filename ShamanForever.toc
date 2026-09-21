@@ -1,0 +1,10 @@
+## Interface: 16001
+## Title: Shaman Forever
+## Notes: Lightning Shield charge tracker and shock cooldown/range/mana indicator for WoW: Forever. /sf
+## Author: Michael Cassidy
+## Version: 0.1.0
+## SavedVariables: ShamanForeverDB, ForeverShamanDB
+## IconTexture: Interface\Icons\Spell_Nature_LightningShield
+
+ShamanForever.lua
+ShamanForever_Options.lua
