@@ -127,6 +127,12 @@ function ns.BuildOptions()
 	checkbox("EmptyRing", "No shield: red ring", "emptyRing", "Red ring inside the icon edge when the shield is down.", relayout)
 	checkbox("EmptyGrey", "No shield: grey icon", "emptyGrey", "Desaturate the icon when the shield is down.", relayout)
 	checkbox("EmptyTint", "No shield: red tint", "emptyTint", "Red tint on the icon when the shield is down.", relayout)
+	slider("UnderlayUp", "No shield: combat fallback", "underlayUp", 0, 1, 0.05, pct,
+		"How much of the no-shield look stays underneath while the shield is up. Blizzard's icon compensates so the overall opacity matches the shock icon. If the shield drops mid-fight before you recast, this is how strongly the no-shield look shows until combat ends.", relayout)
+	slider("ShieldSwipe", "Shielded: duration swipe", "shieldSwipe", 0, 1, 0.05, pct,
+		"Darkness of the swipe Blizzard draws over the shield icon for the buff's remaining duration. Zero turns the swipe off.", relayout)
+	slider("ShieldIconAlpha", "Shielded: icon opacity", "shieldIconAlpha", 0.5, 1, 0.05, pct,
+		"Manual multiplier on the shield icon's opacity, applied after the underlay compensation. Cannot brighten past the display opacity.", relayout)
 
 	header(layout, "Shock")
 	local shockChoices = {}

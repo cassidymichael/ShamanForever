@@ -32,6 +32,9 @@ local DEFAULTS = {
 	emptyRing = true,       -- no-shield look
 	emptyGrey = true,
 	emptyTint = false,
+	underlayUp = 0.25,      -- underlay strength while the shield is believed up (0 = none)
+	shieldSwipe = 0.5,      -- darkness of the duration swipe over the shield icon (0 = no swipe)
+	shieldIconAlpha = 1,    -- manual multiplier on the compensated shield icon alpha
 	-- shock
 	shock = "earth",        -- which shock the icon tracks
 	manaSpell = "tracked",  -- tracked | earth | flame | frost
@@ -241,16 +244,33 @@ end
 ------------------------------------------------------------------------
 local shieldSpellID, shieldAuraSpellID
 local believedUp = false      -- last known shield state (exact out of combat, from events in combat)
-local native = { container = nil, button = nil, fs = nil, cd = nil, bar = nil, ticks = nil, overlay = nil,
+local native = { container = nil, button = nil, icon = nil, fs = nil, cd = nil, bar = nil, ticks = nil, overlay = nil,
 	err = nil, ids = {} }
 
--- The underlay is only ever visible when Blizzard's button is hidden, i.e. when the shield is down,
--- so grey and tint apply unconditionally. The engine does not tell us about the hide in combat, so
--- the ring (which would bleed through a translucent icon) follows our belief instead.
+-- The underlay is meant to show only when Blizzard's button is hidden, i.e. when the shield is down,
+-- so grey and tint apply unconditionally. Frame alpha is applied per texture, so while the shield is
+-- up the translucent button stacks on the underlay and reads darker than the shock icon. The engine
+-- does not tell us about the hide in combat, so the ring and the underlay strength follow our belief:
+-- faded while believed up, full when believed down. Blizzard's icon alpha then compensates for the
+-- remaining bleed-through (see nativeIconAlpha) so the stack sums to the display opacity exactly.
 local function applyEmptyLook()
 	shield.tex:SetDesaturated(db.emptyGrey)
 	if db.emptyTint then shield.tex:SetVertexColor(1, 0.35, 0.35) else shield.tex:SetVertexColor(1, 1, 1) end
+	shield.tex:SetAlpha(believedUp and db.underlayUp or 1)
 	shield:SetRingShown(not believedUp and db.emptyRing)
+end
+
+-- With display opacity a and underlay strength u, an icon alpha b gives a stacked result of
+-- a*b + (1 - a*b)*a*u; solving that for a yields b = (1 - u) / (1 - a*u).
+local function nativeIconAlpha()
+	local a, u = db.alpha, db.underlayUp
+	local b = u > 0 and (1 - u) / (1 - a * u) or 1
+	return math.min(math.max(b * db.shieldIconAlpha, 0.05), 1)
+end
+
+local function styleSwipe(cd)
+	cd:SetDrawSwipe(db.shieldSwipe > 0)
+	cd:SetSwipeColor(0, 0, 0, db.shieldSwipe)
 end
 
 local function setBelievedUp(up)
@@ -290,6 +310,7 @@ local function styleNative()
 			t:SetPoint("TOP", native.ticks, "TOPLEFT", size * i / native.maxCharges, 0)
 			t:SetPoint("BOTTOM", native.ticks, "BOTTOMLEFT", size * i / native.maxCharges, 0)
 		end
+		native.icon:SetAlpha(nativeIconAlpha())
 		native.bar:SetAlpha(db.showBar and 1 or 0)
 		native.ticks:SetAlpha(db.showBar and 1 or 0)
 		native.fs:SetAlpha(db.showCount and 1 or 0)
@@ -302,6 +323,7 @@ local function styleNative()
 		end
 		native.cd:SetCountdownFont(CD_FONT)
 		native.cd:SetHideCountdownNumbers(true)
+		styleSwipe(native.cd)
 	end)
 end
 
@@ -319,13 +341,16 @@ local function initNativeButton(button)
 	local tex = button:CreateTexture(nil, "ARTWORK")
 	tex:SetAllPoints()
 	tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	tex:SetAlpha(nativeIconAlpha())
 	button:SetIcon(tex)
+	native.icon = tex
 
 	local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
 	cd:SetAllPoints()
 	cd:SetDrawEdge(false)
 	cd:SetCountdownFont(CD_FONT)
 	cd:SetHideCountdownNumbers(true)
+	styleSwipe(cd)
 	button:SetDurationCooldown(cd)
 	native.cd = cd
 
@@ -388,8 +413,10 @@ local function setupNative()
 		local c = CreateFrame("AuraContainer", "ShamanForeverAuraContainer", shield, "CustomAuraContainerTemplate")
 		c:SetPoint("TOPLEFT", shield, "TOPLEFT", 0, 0)
 		c:SetSize(db.iconSize, db.iconSize)
-		c:SetFrameStrata("HIGH")   -- intrinsic frames do not sit where you expect; force it above the underlay
-		c:SetFrameLevel(20)
+		-- Intrinsic frames do not inherit placement; match the HUD's strata (HIGH would float over other
+		-- addons' dialogs) and use frame level alone to sit above the underlay and its ring.
+		c:SetFrameStrata(shield:GetFrameStrata())
+		c:SetFrameLevel(shield.textFrame:GetFrameLevel() + 5)
 		c:SetUnit("player")
 		native.container = c
 		c:AddAuraSlot("shield", "HELPFUL", {

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3 (2026-09-22)
+
+- The Lightning Shield icon no longer floats above other addons' windows: it now sits in the same strata as the rest of the display.
+- The Lightning Shield icon no longer reads darker than the shock icon: the no-shield underlay fades while the shield is up and Blizzard's icon alpha compensates so the two layers sum to the display opacity. New slider "No shield: combat fallback" sets how strongly the no-shield look shows if the shield drops mid-fight.
+- New Lightning Shield sliders "Shielded: duration swipe" (zero turns the swipe off) and "Shielded: icon opacity".
+
 ## 0.1.2 (2026-09-22)
 
 - Each element can be shown or hidden: "Elements" section in the options, or `/sf show|hide shield|shock`. Hidden elements keep their position and the display shrinks around them.
