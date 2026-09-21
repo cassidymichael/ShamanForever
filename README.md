@@ -9,7 +9,7 @@ A small HUD for shamans on World of Warcraft: Forever.
 - **Lightning Shield**: icon, charge number and a segmented charge bar, exact in combat. The buff is drawn by Blizzard's secure aura container, so it is not subject to the addon aura restrictions. When the shield is down the icon greys out and, once combat ends, gets a red ring.
 - **Shock**: the shock of your choice (Earth, Flame or Frost, highest rank known) with its cooldown and countdown, red when your target is out of range, blue with a blue ring when you cannot afford it.
 
-Options: Escape > Options > AddOns > Shaman Forever, or `/sf` (alias `/shf`). Sections for display (lock, opacity, scale, only show in combat), layout (icon size, spacing, row or column, growth direction, icon order), Lightning Shield look and Shock looks. Slash forms: `/sf lock|unlock`, `/sf alpha 0.65`, `/sf scale 1.2`, `/sf combat on|off`, `/sf shock earth|flame|frost`, `/sf reset`, `/sf debug`.
+Options: Escape > Options > AddOns > Shaman Forever, or `/sf` (alias `/shf`). Sections for display (lock, opacity, scale, only show in combat), elements (show or hide each one), layout (icon size, spacing, row or column, growth direction, icon order), Lightning Shield look and Shock looks. Slash forms: `/sf lock|unlock`, `/sf alpha 0.65`, `/sf scale 1.2`, `/sf combat on|off`, `/sf show|hide shield|shock`, `/sf shock earth|flame|frost`, `/sf reset`, `/sf debug`.
 
 Requires interface 16001 (WoW: Forever). Settings live in `ShamanForeverDB`.
 

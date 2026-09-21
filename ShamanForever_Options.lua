@@ -69,6 +69,17 @@ function ns.BuildOptions()
 	slider("Alpha", "Opacity", "alpha", 0.1, 1, 0.01, pct, "Transparency of the whole display.", relayout)
 	slider("Scale", "Scale", "scale", 0.5, 3, 0.02, times, "Size of the whole display. Text sizes below are multiplied by this.", relayout)
 
+	header(layout, "Elements")
+	for _, key in ipairs(ns.ELEMENT_KEYS) do
+		local e = ns.ELEMENTS[key]
+		local s = Settings.RegisterProxySetting(category, "ShamanForever_Show_" .. key, Settings.VarType.Boolean,
+			"Show " .. e.label, true,
+			function() return ns.isEnabled(key) end,
+			function(value) db.enabled[key] = value; ns.applyLayout() end)
+		Settings.CreateCheckbox(category, s, "Display the " .. e.label .. " element.")
+		table.insert(settings, s)
+	end
+
 	header(layout, "Layout")
 	slider("IconSize", "Icon size", "iconSize", 24, 96, 1, int, "Size of each icon. Text sizes are separate.", relayout)
 	slider("Spacing", "Spacing", "spacing", 0, 40, 1, int, "Gap between icons.", relayout)
@@ -76,17 +87,17 @@ function ns.BuildOptions()
 		"Lay the icons out in a row or a column.", relayout)
 	dropdown("Growth", "Growth direction", "growth", { { "forward", "Right / down" }, { "backward", "Left / up" } },
 		"Which way the row or column extends from the first icon.", relayout)
-	-- One dropdown per slot; picking an icon swaps it with whatever was in that slot.
+	-- One dropdown per slot; picking an element swaps it with whatever was in that slot.
 	local slotSettings = {}
 	local function refreshSlots() for _, s in ipairs(slotSettings) do s:NotifyUpdate() end end
-	local iconChoices = {}
-	for _, key in ipairs(ns.ICON_KEYS) do table.insert(iconChoices, { key, ns.ICONS[key].label }) end
-	for slot = 1, #ns.ICON_KEYS do
+	local elementChoices = {}
+	for _, key in ipairs(ns.ELEMENT_KEYS) do table.insert(elementChoices, { key, ns.ELEMENTS[key].label }) end
+	for slot = 1, #ns.ELEMENT_KEYS do
 		local s = Settings.RegisterProxySetting(category, "ShamanForever_Slot" .. slot, Settings.VarType.String,
-			"Position " .. slot, ns.ICON_KEYS[slot],
-			function() return ns.iconOrder()[slot] end,
+			"Position " .. slot, ns.ELEMENT_KEYS[slot],
+			function() return ns.elementOrder()[slot] end,
 			function(value)
-				local order = ns.iconOrder()
+				local order = ns.elementOrder()
 				local from
 				for i, key in ipairs(order) do if key == value then from = i end end
 				if from and from ~= slot then order[from], order[slot] = order[slot], order[from] end
@@ -95,10 +106,10 @@ function ns.BuildOptions()
 			end)
 		local function getOptions()
 			local container = Settings.CreateControlTextContainer()
-			for _, c in ipairs(iconChoices) do container:Add(c[1], c[2]) end
+			for _, c in ipairs(elementChoices) do container:Add(c[1], c[2]) end
 			return container:GetData()
 		end
-		Settings.CreateDropdown(category, s, getOptions, "Which icon sits in this position. Choosing one swaps it with the icon currently there.")
+		Settings.CreateDropdown(category, s, getOptions, "Which element sits in this position. Choosing one swaps it with the element currently there. Hidden elements keep their position.")
 		table.insert(settings, s)
 		table.insert(slotSettings, s)
 	end

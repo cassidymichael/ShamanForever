@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2 (2026-09-22)
+
+- Each element can be shown or hidden: "Elements" section in the options, or `/sf show|hide shield|shock`. Hidden elements keep their position and the display shrinks around them.
+- Elements are laid out by their own size and centred on the cross axis, so future non-icon elements fit the row or column.
+
 ## 0.1.1 (2026-09-22)
 
 - New display option "Only show in combat" (also `/sf combat on|off`). Off by default; the display stays visible while unlocked so it can be moved.

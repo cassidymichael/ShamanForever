@@ -23,6 +23,7 @@ local DEFAULTS = {
 	orientation = "horizontal",  -- horizontal | vertical
 	growth = "forward",          -- forward (right / down) | backward (left / up)
 	order = { "shield", "shock" },
+	enabled = {},           -- element key -> false to hide it; missing means shown
 	-- shield
 	countPos = "center",    -- corner | center
 	countSize = 20,
@@ -167,51 +168,72 @@ shield.count:Hide()
 local shock = makeIcon(root, DEFAULTS.size)
 shock.count:Hide()
 
--- Icon registry: every HUD icon lives here; db.order holds the keys in display order.
-local ICONS = {
-	shield = { frame = shield, label = "Lightning Shield" },
-	shock  = { frame = shock,  label = "Shock" },
+-- Element registry: every HUD element lives here. db.order holds the keys in display order and
+-- db.enabled[key] == false hides one. Each entry owns its size, so elements need not be square icons.
+local function iconSize() return db.iconSize, db.iconSize end
+local ELEMENTS = {
+	shield = { frame = shield, label = "Lightning Shield", getSize = iconSize },
+	shock  = { frame = shock,  label = "Shock",            getSize = iconSize },
 }
-local ICON_KEYS = { "shield", "shock" }   -- registration order, used to fill gaps in db.order
+local ELEMENT_KEYS = { "shield", "shock" }   -- registration order, used to fill gaps in db.order
 
--- Returns db.order cleaned up: unknown keys dropped, missing icons appended.
-local function iconOrder()
+local function isEnabled(key) return db.enabled[key] ~= false end
+
+-- Returns db.order cleaned up: unknown keys dropped, missing elements appended.
+local function elementOrder()
 	local seen, order = {}, {}
 	for _, key in ipairs(db.order or {}) do
-		if ICONS[key] and not seen[key] then table.insert(order, key); seen[key] = true end
+		if ELEMENTS[key] and not seen[key] then table.insert(order, key); seen[key] = true end
 	end
-	for _, key in ipairs(ICON_KEYS) do
+	for _, key in ipairs(ELEMENT_KEYS) do
 		if not seen[key] then table.insert(order, key) end
 	end
 	db.order = order
 	return order
 end
 
--- Sizes and anchors every icon in one pass; the root shrinks to fit so dragging feels right.
-local function layoutIcons()
-	local size, gap = db.iconSize, db.spacing
+-- Sizes and anchors every enabled element in one pass, centred on the cross axis; the root shrinks
+-- to fit so dragging feels right. Deferred in combat: the shield frame is an ancestor of Blizzard's
+-- protected aura button, so showing, hiding or moving it in combat is silently dropped.
+local layoutPending = false
+local function layoutElements()
+	if InCombatLockdown() then layoutPending = true return end
+	layoutPending = false
+	local gap = db.spacing
 	local horizontal = db.orientation == "horizontal"
 	local forward = db.growth ~= "backward"
-	local order = iconOrder()
-	local prev
-	for _, key in ipairs(order) do
-		local f = ICONS[key].frame
-		f:SetSize(size, size)
-		f:ClearAllPoints()
-		if not prev then
-			-- First icon sits in the corner the row grows away from.
-			local corner = horizontal and (forward and "TOPLEFT" or "TOPRIGHT") or (forward and "TOPLEFT" or "BOTTOMLEFT")
-			f:SetPoint(corner, root, corner, 0, 0)
-		elseif horizontal then
-			if forward then f:SetPoint("LEFT", prev, "RIGHT", gap, 0) else f:SetPoint("RIGHT", prev, "LEFT", -gap, 0) end
+	local prev, n, along, across = nil, 0, 0, 0
+	for _, key in ipairs(elementOrder()) do
+		local e = ELEMENTS[key]
+		local f = e.frame
+		if not isEnabled(key) then
+			f:Hide()
 		else
-			if forward then f:SetPoint("TOP", prev, "BOTTOM", 0, -gap) else f:SetPoint("BOTTOM", prev, "TOP", 0, gap) end
+			local w, h = e.getSize()
+			f:SetSize(w, h)
+			f:ClearAllPoints()
+			if horizontal then
+				if not prev then
+					local edge = forward and "LEFT" or "RIGHT"
+					f:SetPoint(edge, root, edge, 0, 0)
+				elseif forward then f:SetPoint("LEFT", prev, "RIGHT", gap, 0)
+				else f:SetPoint("RIGHT", prev, "LEFT", -gap, 0) end
+				along, across = along + w, math.max(across, h)
+			else
+				if not prev then
+					local edge = forward and "TOP" or "BOTTOM"
+					f:SetPoint(edge, root, edge, 0, 0)
+				elseif forward then f:SetPoint("TOP", prev, "BOTTOM", 0, -gap)
+				else f:SetPoint("BOTTOM", prev, "TOP", 0, gap) end
+				along, across = along + h, math.max(across, w)
+			end
+			f:Show()
+			prev, n = f, n + 1
 		end
-		prev = f
 	end
-	local n = #order
-	local extent = n * size + math.max(n - 1, 0) * gap
-	if horizontal then root:SetSize(extent, size) else root:SetSize(size, extent) end
+	along = math.max(along + math.max(n - 1, 0) * gap, 1)
+	across = math.max(across, 1)
+	if horizontal then root:SetSize(along, across) else root:SetSize(across, along) end
 end
 
 ------------------------------------------------------------------------
@@ -425,19 +447,20 @@ local function updateShockTint()
 end
 
 local function refreshShockCooldown()
-	if not shockSpellID then return end
+	if not shockSpellID or not isEnabled("shock") then return end
 	local ok, dur = safe(C_Spell.GetSpellCooldownDuration, shockSpellID)
 	if ok and dur then pcall(shock.cd.SetCooldownFromDurationObject, shock.cd, dur) end
 end
 
 local function refreshShockRange()
-	if not shockSpellID then return end
+	if not shockSpellID or not isEnabled("shock") then return end
 	local ok, r = safe(C_Spell.IsSpellInRange, shockSpellID, "target")
 	shockState.outOfRange = ok and not isSecret(r) and r == false
 	updateShockTint()
 end
 
 local function refreshShockMana()
+	if not isEnabled("shock") then return end
 	local ok, _, noPower = safe(C_Spell.IsSpellUsable, manaSpellID)
 	shockState.noMana = ok and not isSecret(noPower) and noPower == true
 	updateShockTint()
@@ -504,7 +527,7 @@ local function applyLayout()
 		root:SetBackdropBorderColor(0.2, 0.6, 1, 0.9)
 		root.label:Show()
 	end
-	layoutIcons()
+	layoutElements()
 	applyVisibility()
 	cdFont:SetFont(STANDARD_TEXT_FONT, db.cdTextSize, "OUTLINE")
 	shock.cd:SetCountdownFont(CD_FONT)
@@ -524,7 +547,7 @@ end
 
 -- Shared with ShamanForever_Options.lua
 ns.DEFAULTS, ns.SHOCKS, ns.SHOCK_ORDER = DEFAULTS, SHOCKS, SHOCK_ORDER
-ns.ICONS, ns.ICON_KEYS, ns.iconOrder = ICONS, ICON_KEYS, iconOrder
+ns.ELEMENTS, ns.ELEMENT_KEYS, ns.elementOrder, ns.isEnabled = ELEMENTS, ELEMENT_KEYS, elementOrder, isEnabled
 ns.getDB = function() return db end
 ns.applyLayout, ns.resolveSpells, ns.refreshAll = applyLayout, resolveSpells, refreshAll
 ns.applyVisibility = applyVisibility
@@ -591,6 +614,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		applyLayout()
 		refreshAll()
 	elseif event == "PLAYER_REGEN_ENABLED" then
+		if layoutPending then layoutElements() end
 		if visibilityPending then applyVisibility() end
 		if nativeStylePending then styleNative() end
 		refreshAll()
@@ -613,6 +637,13 @@ SlashCmdList.SHAMANFOREVER = function(msg)
 	elseif cmd == "scale" then
 		local s = tonumber(arg)
 		if s and s >= 0.5 and s <= 3 then db.scale = s; applyLayout(); say("scale %.2f", s) else say("usage: /sf scale 0.5-3") end
+	elseif cmd == "show" or cmd == "hide" then
+		local key, state = arg:lower():match("^(%S*)%s*(%S*)$")
+		if not ELEMENTS[key] then say("usage: /sf show|hide <%s> [on|off]", table.concat(ELEMENT_KEYS, "|")); return end
+		if state ~= "on" and state ~= "off" then state = (cmd == "hide") and "off" or "on" end
+		db.enabled[key] = state == "on"
+		applyLayout()
+		say("%s %s", ELEMENTS[key].label, isEnabled(key) and "shown" or "hidden")
 	elseif cmd == "combat" then
 		arg = arg:lower()
 		if arg == "on" then db.combatOnly = true
@@ -648,6 +679,7 @@ SlashCmdList.SHAMANFOREVER = function(msg)
 	elseif cmd == "" or cmd == "options" or cmd == "config" then
 		if ns.OpenOptions then ns.OpenOptions() else say("options panel unavailable") end
 	else
-		say("commands (/sf or /shf): options, lock, unlock, alpha <0.1-1>, scale <0.5-3>, combat <on|off>, shock <earth|flame|frost>, reset, debug")
+		say("commands (/sf or /shf): options, lock, unlock, alpha <0.1-1>, scale <0.5-3>, combat <on|off>, show|hide <%s>, shock <earth|flame|frost>, reset, debug",
+			table.concat(ELEMENT_KEYS, "|"))
 	end
 end
