@@ -2,6 +2,8 @@
 
 A small HUD for shamans on World of Warcraft: Forever.
 
+![ShamanForever HUD: Lightning Shield with charge bar next to the shock icon](screenshot.png)
+
 - **Lightning Shield**: icon, charge number and a segmented charge bar, exact in combat. The buff is drawn by Blizzard's secure aura container, so it is not subject to the addon aura restrictions. When the shield is down the icon greys out and, once combat ends, gets a red ring.
 - **Shock**: the shock of your choice (Earth, Flame or Frost, highest rank known) with its cooldown and countdown, red when your target is out of range, blue with a blue ring when you cannot afford it.
 
