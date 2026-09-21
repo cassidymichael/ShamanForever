@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 (2026-09-22)
+
+- New display option "Only show in combat" (also `/sf combat on|off`). Off by default; the display stays visible while unlocked so it can be moved.
+
 ## 0.1.0 (2026-09-22)
 
 First release, for the World of Warcraft: Forever beta (interface 16001).

@@ -64,6 +64,8 @@ function ns.BuildOptions()
 	header(layout, "Display")
 	checkbox("Locked", "Lock frame", "locked",
 		"Unlock to drag the icons around the screen. Lock when done so clicks pass through.", relayout)
+	checkbox("CombatOnly", "Only show in combat", "combatOnly",
+		"Hide the display out of combat. It always shows while the frame is unlocked so you can move it.", ns.applyVisibility)
 	slider("Alpha", "Opacity", "alpha", 0.1, 1, 0.01, pct, "Transparency of the whole display.", relayout)
 	slider("Scale", "Scale", "scale", 0.5, 3, 0.02, times, "Size of the whole display. Text sizes below are multiplied by this.", relayout)
 

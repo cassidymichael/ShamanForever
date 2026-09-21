@@ -16,6 +16,7 @@ local CD_FONT = "ShamanForeverCDFont"
 
 local DEFAULTS = {
 	point = "CENTER", x = 0, y = -160, alpha = 0.65, scale = 1, locked = true, size = 56,
+	combatOnly = false,     -- hide the whole display out of combat (always shown while unlocked)
 	-- layout
 	iconSize = 40,
 	spacing = 10,
@@ -463,6 +464,30 @@ local function resolveSpells()
 	if shieldSpellID then learnShieldID(shieldSpellID) end
 end
 
+-- Combat-only visibility uses Blizzard's secure state driver, the standard technique for this.
+-- root is an ancestor of Blizzard's protected aura button, so an addon Show/Hide/SetAlpha on it is
+-- silently dropped in combat (tested: alpha 0 out of combat never came back). The driver's manager
+-- shows and hides the frame from untainted code instead. It only needs SecureCmdOptionParse, not a
+-- compiled snippet, so it survives this build's missing loadstring_untainted. Registering with the
+-- manager is itself done out of combat. An unlocked frame is never driven, so it can be dragged.
+local visibilityPending = false
+local driverActive = false
+local function applyVisibility()
+	if InCombatLockdown() then visibilityPending = true return end
+	visibilityPending = false
+	local want = db.combatOnly and db.locked
+	if want == driverActive then return end
+	if want then
+		if not RegisterStateDriver then say("state driver unavailable on this client; cannot hide out of combat") return end
+		local ok, err = pcall(RegisterStateDriver, root, "visibility", "[combat] show; hide")
+		if not ok then say("state driver failed: %s", tostring(err)); return end
+	else
+		pcall(UnregisterStateDriver, root, "visibility")
+		root:Show()
+	end
+	driverActive = want
+end
+
 local function applyLayout()
 	root:ClearAllPoints()
 	root:SetPoint(db.point, UIParent, db.point, db.x, db.y)
@@ -480,6 +505,7 @@ local function applyLayout()
 		root.label:Show()
 	end
 	layoutIcons()
+	applyVisibility()
 	cdFont:SetFont(STANDARD_TEXT_FONT, db.cdTextSize, "OUTLINE")
 	shock.cd:SetCountdownFont(CD_FONT)
 	shock.cd:SetHideCountdownNumbers(not db.cdText)
@@ -501,6 +527,7 @@ ns.DEFAULTS, ns.SHOCKS, ns.SHOCK_ORDER = DEFAULTS, SHOCKS, SHOCK_ORDER
 ns.ICONS, ns.ICON_KEYS, ns.iconOrder = ICONS, ICON_KEYS, iconOrder
 ns.getDB = function() return db end
 ns.applyLayout, ns.resolveSpells, ns.refreshAll = applyLayout, resolveSpells, refreshAll
+ns.applyVisibility = applyVisibility
 ns.say = say
 
 ------------------------------------------------------------------------
@@ -564,6 +591,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		applyLayout()
 		refreshAll()
 	elseif event == "PLAYER_REGEN_ENABLED" then
+		if visibilityPending then applyVisibility() end
 		if nativeStylePending then styleNative() end
 		refreshAll()
 	end
@@ -585,6 +613,15 @@ SlashCmdList.SHAMANFOREVER = function(msg)
 	elseif cmd == "scale" then
 		local s = tonumber(arg)
 		if s and s >= 0.5 and s <= 3 then db.scale = s; applyLayout(); say("scale %.2f", s) else say("usage: /sf scale 0.5-3") end
+	elseif cmd == "combat" then
+		arg = arg:lower()
+		if arg == "on" then db.combatOnly = true
+		elseif arg == "off" then db.combatOnly = false
+		elseif arg == "" or arg == "toggle" then db.combatOnly = not db.combatOnly
+		else say("usage: /sf combat on|off"); return end
+		applyVisibility()
+		say(db.combatOnly and "shown only in combat%s" or "shown all the time",
+			(db.combatOnly and not db.locked) and " (once locked)" or "")
 	elseif cmd == "shock" then
 		arg = arg:lower()
 		if SHOCKS[arg] then db.shock = arg; resolveSpells(); refreshAll(); say("shock icon now %s", SHOCKS[arg])
@@ -593,9 +630,9 @@ SlashCmdList.SHAMANFOREVER = function(msg)
 		for k, v in pairs(DEFAULTS) do db[k] = type(v) == "table" and CopyTable(v) or v end
 		resolveSpells(); applyLayout(); refreshAll(); say("reset")
 	elseif cmd == "debug" then
-		say("shield spell %s (aura spell %s), shock spell %s (%s), mana spell %s, believed up %s, in combat %s",
+		say("shield spell %s (aura spell %s), shock spell %s (%s), mana spell %s, believed up %s, in combat %s, combat only %s",
 			tostring(shieldSpellID), tostring(shieldAuraSpellID), tostring(shockSpellID), db.shock,
-			tostring(manaSpellID), tostring(believedUp), tostring(InCombatLockdown()))
+			tostring(manaSpellID), tostring(believedUp), tostring(InCombatLockdown()), tostring(db.combatOnly))
 		local e = book[SHIELD_NAME]
 		say("spellbook: %s rank %s", SHIELD_NAME, e and e.rank or "?")
 		say("aura container %s%s", native.container and "created" or "not created",
@@ -611,6 +648,6 @@ SlashCmdList.SHAMANFOREVER = function(msg)
 	elseif cmd == "" or cmd == "options" or cmd == "config" then
 		if ns.OpenOptions then ns.OpenOptions() else say("options panel unavailable") end
 	else
-		say("commands (/sf or /shf): options, lock, unlock, alpha <0.1-1>, scale <0.5-3>, shock <earth|flame|frost>, reset, debug")
+		say("commands (/sf or /shf): options, lock, unlock, alpha <0.1-1>, scale <0.5-3>, combat <on|off>, shock <earth|flame|frost>, reset, debug")
 	end
 end
