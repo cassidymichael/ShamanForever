@@ -1,0 +1,5 @@
+package-as: ShamanForever
+enable-nolib-creation: no
+ignore:
+  - screenshot.png
+  - CHANGELOG.md
