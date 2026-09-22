@@ -6,7 +6,7 @@
 ## X-License: MIT
 ## X-Website: https://github.com/cassidymichael/ShamanForever
 ## X-Curse-Project-ID: 1706929
-## SavedVariables: ShamanForeverDB, ForeverShamanDB
+## SavedVariables: ShamanForeverDB
 ## IconTexture: Interface\Icons\Spell_Nature_LightningShield
 
 ShamanForever.lua

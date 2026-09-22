@@ -597,8 +597,6 @@ reg("PLAYER_LOGIN")
 ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 	if event == "ADDON_LOADED" then
 		if arg1 ~= ADDON then return end
-		-- One-time migration from the addon's earlier name.
-		if ShamanForeverDB == nil and type(ForeverShamanDB) == "table" then ShamanForeverDB = ForeverShamanDB end
 		ShamanForeverDB = ShamanForeverDB or {}
 		db = ShamanForeverDB
 		for k, v in pairs(DEFAULTS) do
