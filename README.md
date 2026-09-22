@@ -2,14 +2,14 @@
 
 A small HUD for shamans on World of Warcraft: Forever.
 
-![ShamanForever HUD: Lightning Shield with charge bar next to the shock icon](screenshot.png)
+> This quick addon was created by AI, with minimal oversight by a human. Feedback and requests are welcome.
 
-> This quick addon was created by Claude, with minimal oversight by a human. Feedback and requests are welcome.
+![ShamanForever HUD: Lightning Shield with charge bar next to the shock icon](screenshot.png)
 
 - **Lightning Shield**: icon, charge number and a segmented charge bar, exact in combat. The buff is drawn by Blizzard's secure aura container, so it is not subject to the addon aura restrictions. When the shield is down the icon greys out and, once combat ends, gets a red ring.
 - **Shock**: the shock of your choice (Earth, Flame or Frost, highest rank known) with its cooldown and countdown, red when your target is out of range, blue with a blue ring when you cannot afford it.
 
-Options: Escape > Options > AddOns > Shaman Forever, or `/sf` (alias `/shf`). Sections for display (lock, opacity, scale, only show in combat), elements (show or hide each one), layout (icon size, spacing, row or column, growth direction, icon order), Lightning Shield look and Shock looks. Slash forms: `/sf lock|unlock`, `/sf alpha 0.65`, `/sf scale 1.2`, `/sf combat on|off`, `/sf show|hide shield|shock`, `/sf shock earth|flame|frost`, `/sf reset`, `/sf debug`.
+Options: Escape > Options > AddOns > Shaman Forever, or `/sf` (alias `/shf`).
 
 Requires interface 16001 (WoW: Forever). Settings live in `ShamanForeverDB`.
 
@@ -38,6 +38,11 @@ c:AddAuraSlot("key", "HELPFUL", {
 
 Gotchas: registered parts must be descendants of the button; script handlers (OnShow/OnHide etc.) on anything under the button never run, so you cannot learn when the aura disappears in combat (keep an always-visible underlay for the empty state); the count text only prints for two or more applications (no formatter constructor found); the button and its parts are off limits to addon code in combat (change alpha/fonts out of combat); everything readable about the button is secret, even out of combat.
 
+
+## Releases
+
+Releases are built by the BigWigs packager on tag push; see `.github/workflows/release.yml`.
+
 ## Licence
 
-MIT, see LICENSE. Releases are built by the BigWigs packager on tag push; see `.github/workflows/release.yml`.
+MIT, see LICENSE. 
