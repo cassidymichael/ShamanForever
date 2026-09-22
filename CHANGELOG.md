@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4 (2026-09-22)
+
+- Now published on CurseForge. No gameplay changes.
+
 ## 0.1.3 (2026-09-22)
 
 - The Lightning Shield icon no longer floats above other addons' windows: it now sits in the same strata as the rest of the display.
