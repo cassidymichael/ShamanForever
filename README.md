@@ -13,6 +13,8 @@ Options: Escape > Options > AddOns > Shaman Forever, or `/sf` (alias `/shf`).
 
 Requires interface 16001 (WoW: Forever). Settings live in `ShamanForeverDB`.
 
+> **Beta caveat, not specific to this addon:** the Forever client writes SavedVariables on logout but never loads them again, so every addon's settings reset to their defaults when you restart the client. Within a session `/reload` keeps them, which is why it can look fine until you quit. Blizzard has not fixed it yet; community workarounds such as [ForeverSVFix](https://github.com/nobewayo/ForeverSVFix) restore them in the meantime.
+
 ## Showing auras in combat: Blizzard's CustomAuraContainer
 
 Addon code cannot read player auras in combat on this client (every read throws "Auras cannot be accessed when secret"). The sanctioned route is the `AuraContainer` intrinsic with `CustomAuraContainerTemplate` from `Blizzard_AuraContainer`. Its Lua runs untainted, so it reads the aura and drives widgets the addon supplies. Verified working on build 69913 in this addon:
