@@ -7,6 +7,10 @@
 - New resizable options window (`/sf`). Assign elements to groups by dragging them on the Layout page.
 - While unlocked: drag a group to move it, mouse wheel to scale, shift + wheel to change opacity. Optional grid and snapping.
 - Slash commands trimmed to `lock`, `unlock` and `debug`; everything else is in the options window.
+- New element: Weapon Imbue. Warns while no Rockbiter, Flametongue, Frostbrand or Windfury imbue is on your main hand, shows which one is, and its time left once under 5 minutes.
+- Lightning Shield icon pulses while the shield is down (can be turned off).
+- New cooldown elements: Earthbind Totem and Stoneclaw Totem (cooldown, plus a bar and timer while the totem is down) and Fire Nova (cooldown, greyed with a red ring while no fire totem is out).
+- Beta: Blizzard's Issue Reporter button now remembers where you drag it, and can be hidden (General page).
 
 ## 0.1.4 (2026-09-22)
 

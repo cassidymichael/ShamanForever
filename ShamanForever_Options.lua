@@ -238,6 +238,18 @@ local function buildGeneral(p)
 	p:slider("Global icon size", "Base size of every element, in pixels before scaling. Size is shared by all elements; each group's scale then multiplies it.", 24, 96, 1, int,
 		get("iconSize"), set("iconSize"))
 
+	p:header("Cooldown numbers")
+	p:checkbox("Show countdown", "Countdown numbers on every cooldown (Shock and the cooldown elements).", get("cdText"), set("cdText"))
+	p:slider("Countdown text size", "Font size of the countdown numbers. A totem's active time uses a smaller size of the same font.",
+		8, 48, 1, int, get("cdTextSize"), set("cdTextSize"))
+
+	p:header("Beta: Issue Reporter", function() return ns.hasIssueReporter and ns.hasIssueReporter() end)
+	p:text("Blizzard's Issue Reporter button forgets where you put it on this beta. Shaman Forever remembers it: drag it once and it stays there.",
+		function() return ns.hasIssueReporter and ns.hasIssueReporter() end)
+	p:checkbox("Hide the Issue Reporter", "Hides Blizzard's beta Issue Reporter button. Turn this off to bring it back; /ptr still works while it is hidden.",
+		get("hideIssueReporter"), function(v) db().hideIssueReporter = v; ns.applyIssueReporter() end,
+		function() return ns.hasIssueReporter and ns.hasIssueReporter() end)
+
 	p:header("Testing")
 	p:checkbox("Test elements", "Adds five coloured placeholder elements (A to E, including a wide and a tall one) in their own group, for trying out layouts. Turning this off removes them.",
 		get("testMode"), function(v) ns.setTestMode(v) end)
@@ -337,6 +349,8 @@ local function chipMenu(chip)
 	local key = chip.key
 	MenuUtil.CreateContextMenu(chip, function(_, root)
 		root:CreateTitle(ns.ELEMENTS[key].label)
+		root:CreateButton("Open settings", function() ns.OpenElementOptions(key) end)
+		root:CreateDivider()
 		local gi, i = ns.findElement(key)
 		if gi and i > 1 then root:CreateButton("Move earlier", function() ns.placeElement(key, gi, i - 1) end) end
 		if gi and i < #db().groups[gi].members then root:CreateButton("Move later", function() ns.placeElement(key, gi, i + 1) end) end
@@ -630,6 +644,8 @@ local function buildShield(p)
 	p:checkbox("Red ring", "Red ring inside the icon edge when the shield is down.", get("emptyRing"), set("emptyRing"))
 	p:checkbox("Grey icon", "Desaturate the icon when the shield is down.", get("emptyGrey"), set("emptyGrey"))
 	p:checkbox("Red tint", "Red tint on the icon when the shield is down.", get("emptyTint"), set("emptyTint"))
+	p:checkbox("Pulse", "Fade the icon in and out when the shield is down. In combat this starts once the addon knows the shield is gone (when combat ends), like the red ring.",
+		get("emptyPulse"), set("emptyPulse"))
 	p:slider("Combat fallback", "How much of the no-shield look stays underneath while the shield is up. Blizzard's icon compensates so the overall opacity matches the group's. If the shield drops mid-fight before you recast, this is how strongly the no-shield look shows until combat ends.",
 		0, 1, 0.05, pct, get("underlayUp"), set("underlayUp"))
 
@@ -651,10 +667,6 @@ local function buildShock(p)
 	p:dropdown("Mana check uses", "Which spell's cost decides when the icon turns blue. Always the highest rank you know.",
 		manaChoices, get("manaSpell"), set("manaSpell", respell))
 
-	p:header("Cooldown")
-	p:checkbox("Show countdown", "Countdown numbers on the shock cooldown.", get("cdText"), set("cdText"))
-	p:slider("Countdown text size", "Font size of the countdown numbers.", 8, 48, 1, int, get("cdTextSize"), set("cdTextSize"))
-
 	local looks = { { "tint", "Tint" }, { "overlay", "Coloured overlay" }, { "both", "Overlay and tint" } }
 	p:header("Not enough mana")
 	p:dropdown("Look", "Blue on the icon itself when you cannot afford the mana-check spell. If you are also out of range, the icon goes red instead and only the blue ring remains.",
@@ -669,6 +681,58 @@ local function buildShock(p)
 		looks, get("rangeStyle"), set("rangeStyle"))
 	p:slider("Overlay strength", "Opacity of the red overlay.", 0.1, 1, 0.05, pct, get("rangeIntensity"), set("rangeIntensity"))
 	p:slider("Tint strength", "How strongly the red tint removes the other colours.", 0.1, 1, 0.05, pct, get("rangeTint"), set("rangeTint"))
+end
+
+local function buildImbue(p)
+	elementDisplay(p, "imbue")
+	p:text("Tracks the Rockbiter, Flametongue, Frostbrand or Windfury imbue on your main-hand weapon.")
+
+	p:header("No imbue on")
+	local iconChoices = { { "last", "Last one used" } }
+	for _, key in ipairs(ns.IMBUE_ORDER) do table.insert(iconChoices, { key, ns.IMBUES[key].name }) end
+	p:dropdown("Icon", "Which imbue's icon stands in while none is on.", iconChoices, get("imbuePreferred"), set("imbuePreferred"))
+	p:checkbox("Red ring", "Red ring inside the icon edge while no imbue is on.", get("imbueMissingRing"), set("imbueMissingRing"))
+	p:checkbox("Grey icon", "Desaturate the icon while no imbue is on.", get("imbueMissingGrey"), set("imbueMissingGrey"))
+	p:checkbox("Pulse", "Fade the icon in and out while no imbue is on.", get("imbuePulse"), set("imbuePulse"))
+
+	p:header("Imbue on")
+	p:slider("Show time left under", "Show the minutes (then seconds) left once the imbue has less than this. Zero never shows it.",
+		0, 30, 1, function(v) return v == 0 and "Never" or string.format("%d min", v) end, get("imbueWarnMins"), set("imbueWarnMins"))
+	p:slider("Time text size", "Font size of the time left.", 8, 48, 1, int, get("imbueTextSize"), set("imbueTextSize"))
+	p:checkbox("Hide until it runs low", "While an imbue is on, keep the icon invisible until its time left shows. It keeps its place in the group.",
+		get("imbueHideActive"), set("imbueHideActive"))
+end
+
+-- One page per cooldown element; the options depend on what the element tracks.
+local function buildCooldown(p, def)
+	local key = def.key
+	elementDisplay(p, key)
+	local function optGet(name, default) return function()
+		local v = ns.elementOpts(key)[name]
+		if v == nil then return default end
+		return v
+	end end
+	local function optSet(name) return function(v) ns.elementOpts(key)[name] = v; relayout() end end
+	p:text("Shows " .. def.spell .. "'s cooldown. Countdown number settings are on the General page.")
+	if def.totemSlot then
+		p:header("Totem active")
+		p:checkbox("Time bar", "A bar along the bottom that drains while your " .. def.spell .. " is down.",
+			optGet("activeBar", true), optSet("activeBar"))
+		p:checkbox("Time left", "Small numbers in the top-left corner counting down while your " .. def.spell .. " is down.",
+			optGet("activeText", true), optSet("activeText"))
+	end
+	if def.needsTotem then
+		p:header("No fire totem")
+		p:text(def.spell .. " only works while one of your fire totems is out.")
+		p:checkbox("Grey icon", "Desaturate the icon while no fire totem is out.", optGet("blockedGrey", true), optSet("blockedGrey"))
+		p:checkbox("Red ring", "Red ring inside the icon edge while no fire totem is out.", optGet("blockedRing", true), optSet("blockedRing"))
+		p:checkbox("Pulse", "Fade the icon in and out while no fire totem is out.", optGet("blockedPulse", false), optSet("blockedPulse"))
+		p:header("Fire totem out")
+		p:checkbox("Time bar", "A bar along the bottom that drains while a fire totem is out, so you know how long " .. def.spell .. " can still be cast.",
+			optGet("activeBar", true), optSet("activeBar"))
+		p:checkbox("Time left", "Small numbers in the top-left corner counting down the fire totem's time.",
+			optGet("activeText", true), optSet("activeText"))
+	end
 end
 
 ------------------------------------------------------------------------
@@ -752,6 +816,8 @@ local function buildWindow()
 	buildElements(newPage("elements", "Elements"))
 	buildShield(newPage("shield", "Lightning Shield", true))
 	buildShock(newPage("shock", "Shock", true))
+	buildImbue(newPage("imbue", "Weapon Imbue", true))
+	for _, def in ipairs(ns.COOLDOWNS) do buildCooldown(newPage(def.key, def.spell, true), def) end
 
 	for i, p in ipairs(pageOrder) do
 		local indent = p.indent and 14 or 0
@@ -799,6 +865,12 @@ function ns.OpenOptions(page, groupIndex)
 	if groupIndex then selectedGroup = groupIndex end
 	win:Show()
 	showPage(page or currentPage or "general")
+end
+
+-- An element's own page, or the Elements overview for one without a page (test elements).
+function ns.OpenElementOptions(key)
+	if not win then buildWindow() end
+	ns.OpenOptions(ELEMENT_PAGES[key] or "elements")
 end
 
 function ns.ToggleOptions()

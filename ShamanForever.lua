@@ -1,8 +1,9 @@
--- ShamanForever: Lightning Shield charges + shock cooldown/range/mana HUD for the WoW: Forever beta.
+-- ShamanForever: shaman HUD (Lightning Shield, shock, weapon imbue, totem cooldowns) for the WoW: Forever beta.
 --
--- Addon code cannot read player auras in combat on this client, so the shield is drawn by Blizzard's
--- secure CustomAuraContainer: we hand it widgets, its untainted code fills them. Everything else here
--- is plain UI. Rule for this client: never do Lua math or comparisons on a possibly-secret value.
+-- Rule for this client: never do Lua math or comparisons on a possibly-secret value. In combat, show
+-- state through Blizzard's own widgets instead: the aura container for the shield, duration objects
+-- for cooldowns and totem timers, curves and SetAlpha for anything that must appear or disappear.
+-- The only inference anywhere is the Lightning Shield's in-combat "up" state; its section explains it.
 
 local ADDON, ns = ...
 local PREFIX = "|cff3399ffShamanForever|r: "
@@ -31,6 +32,7 @@ local DEFAULTS = {
 	snap = false,           -- unlocked drags snap to other groups, the screen centre and the grid
 	grid = false,           -- grid over the screen while unlocked
 	gridSize = 32,
+	hideIssueReporter = false,  -- beta: hide Blizzard's Issue Reporter button (its position is kept either way)
 	iconSize = 40,          -- base element size; each group scales it
 	groups = { { point = "CENTER", x = 0, y = -160, scale = 1, alpha = 0.65, orientation = "horizontal",
 		growth = "forward", spacing = 10, members = { "shield", "shock" } } },
@@ -44,6 +46,7 @@ local DEFAULTS = {
 	emptyRing = true,       -- no-shield look
 	emptyGrey = true,
 	emptyTint = false,
+	emptyPulse = true,
 	underlayUp = 0.25,      -- underlay strength while the shield is believed up (0 = none)
 	shieldSwipe = 0.5,      -- darkness of the duration swipe over the shield icon (0 = no swipe)
 	shieldIconAlpha = 1,    -- manual multiplier on the compensated shield icon alpha
@@ -59,6 +62,16 @@ local DEFAULTS = {
 	rangeStyle = "tint",    -- out of range: overlay | tint | both, painted on the icon body
 	rangeIntensity = 0.45,
 	rangeTint = 0.7,
+	-- weapon imbue
+	imbuePreferred = "last",  -- icon while none is on: last | rockbiter | flametongue | frostbrand | windfury
+	imbueMissingRing = true,
+	imbueMissingGrey = true,
+	imbuePulse = true,
+	imbueWarnMins = 5,        -- show time left below this many minutes (0 = never)
+	imbueTextSize = 16,
+	imbueHideActive = false,  -- while an imbue is on, only show once its time left shows
+	imbueIDs = {},            -- learned enchant ID -> imbue key
+	totemLifetimes = {},      -- learned totem lifetime in seconds, by cooldown element key
 }
 -- Pre-groups layout keys, folded into a single group on first load.
 local LEGACY_KEYS = { "point", "x", "y", "alpha", "scale", "size", "spacing", "orientation", "growth", "order", "enabled" }
@@ -163,6 +176,18 @@ local function makeIcon(parent, size)
 	edge("BOTTOMLEFT", "BOTTOMRIGHT", nil, 3)
 	edge("TOPLEFT", "BOTTOMLEFT", 3, nil)
 	edge("TOPRIGHT", "BOTTOMRIGHT", 3, nil)
+	-- Pulse: the icon fades in and out, used for "missing" warnings.
+	f.pulse = f.tex:CreateAnimationGroup()
+	f.pulse:SetLooping("BOUNCE")
+	local fade = f.pulse:CreateAnimation("Alpha")
+	fade:SetFromAlpha(1)
+	fade:SetToAlpha(0.35)
+	fade:SetDuration(0.8)
+	fade:SetSmoothing("IN_OUT")
+	f.SetPulsing = function(self, on)
+		if not on then self.pulse:Stop()
+		elseif not self.pulse:IsPlaying() then self.pulse:Play() end
+	end
 	f.SetRingShown = function(self, shown, r, g, b, a)
 		for _, t in ipairs(self.ring) do
 			if shown then t:SetColorTexture(r or 1, g or 0, b or 0, a or 0.9); t:Show() else t:Hide() end
@@ -176,6 +201,88 @@ shield.count:Hide()
 
 local shock = makeIcon(root, DEFAULTS.iconSize)
 shock.count:Hide()
+
+local imbue = makeIcon(root, DEFAULTS.iconSize)
+imbue.count:Hide()
+
+-- Cooldown elements: a spell's cooldown, plus for a totem the active time of ours in its slot, or for
+-- Fire Nova whether the fire totem it needs is out. Totem slots: 1 fire, 2 earth, 3 water, 4 air.
+-- Adding one is a line here; icon is the fallback until the spellbook has the spell, duration the
+-- totem's lifetime in seconds until one is learned out of combat (see refreshCooldown).
+local COOLDOWNS = {
+	{ key = "earthbind", spell = "Earthbind Totem", icon = 136102, totemSlot = 2, duration = 45 },
+	{ key = "stoneclaw", spell = "Stoneclaw Totem", icon = 136097, totemSlot = 2, duration = 15 },
+	{ key = "firenova",  spell = "Fire Nova",       icon = 135824, needsTotem = 1 },
+}
+local ACTIVE_FONT = "ShamanForeverActiveFont"
+local activeFont = CreateFont(ACTIVE_FONT)
+
+for _, def in ipairs(COOLDOWNS) do
+	local f = makeIcon(root, DEFAULTS.iconSize)
+	f.count:Hide()
+	f.tex:SetTexture(def.icon)
+	if def.totemSlot or def.needsTotem then
+		-- A totem's active time (its own, or for Fire Nova whichever fire totem is out), as a draining
+		-- bar along the bottom and small numbers in the top-left corner. Both take the totem's duration
+		-- object, so the time itself is never read. They share a holder so one alpha can hide both.
+		f.activeHolder = CreateFrame("Frame", nil, f.textFrame)
+		f.activeHolder:SetAllPoints()
+		f.active = CreateFrame("StatusBar", nil, f.activeHolder)
+		f.active:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
+		f.active:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+		f.active:SetHeight(5)
+		f.active:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+		f.active:SetStatusBarColor(0.4, 0.9, 0.3)
+		f.active.bg = f.active:CreateTexture(nil, "BACKGROUND")
+		f.active.bg:SetAllPoints()
+		f.active.bg:SetColorTexture(0, 0, 0, 0.6)
+		f.active:Hide()
+		f.activeCD = CreateFrame("Cooldown", nil, f.activeHolder, "CooldownFrameTemplate")
+		f.activeCD:SetAllPoints()
+		f.activeCD:SetDrawSwipe(false)
+		f.activeCD:SetDrawEdge(false)
+		f.activeCD:SetDrawBling(false)
+		f.activeCD:SetCountdownFont(ACTIVE_FONT)
+		local ok, fs = pcall(f.activeCD.GetCountdownFontString, f.activeCD)
+		if ok and fs then
+			fs:ClearAllPoints()
+			fs:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -1)
+		end
+	end
+	if def.needsTotem then
+		-- "No totem" warning layer: a grey copy of the icon and a red ring, above the icon and below the
+		-- cooldown swipe. Its alpha is set from a possibly-secret boolean (see refreshCooldown), so it
+		-- always pulses and is simply invisible while a totem is out.
+		f.warn = CreateFrame("Frame", nil, f)
+		f.warn:SetAllPoints()
+		f.warn:SetFrameLevel(f:GetFrameLevel() + 1)
+		f.cd:SetFrameLevel(f.warn:GetFrameLevel() + 1)
+		f.warn.grey = f.warn:CreateTexture(nil, "ARTWORK")
+		f.warn.grey:SetAllPoints(f.tex)
+		f.warn.grey:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+		f.warn.grey:SetDesaturated(true)
+		f.warn.ring = {}
+		for _, e in ipairs({ { "TOPLEFT", "TOPRIGHT", nil, 3 }, { "BOTTOMLEFT", "BOTTOMRIGHT", nil, 3 },
+				{ "TOPLEFT", "BOTTOMLEFT", 3, nil }, { "TOPRIGHT", "BOTTOMRIGHT", 3, nil } }) do
+			local t = f.warn:CreateTexture(nil, "OVERLAY")
+			t:SetColorTexture(1, 0, 0, 0.9)
+			t:SetPoint(e[1], f.tex, e[1], 0, 0)
+			t:SetPoint(e[2], f.tex, e[2], 0, 0)
+			if e[3] then t:SetWidth(e[3]) end
+			if e[4] then t:SetHeight(e[4]) end
+			table.insert(f.warn.ring, t)
+		end
+		f.warn.pulse = f.warn.grey:CreateAnimationGroup()
+		f.warn.pulse:SetLooping("BOUNCE")
+		local fade = f.warn.pulse:CreateAnimation("Alpha")
+		fade:SetFromAlpha(1)
+		fade:SetToAlpha(0.35)
+		fade:SetDuration(0.8)
+		fade:SetSmoothing("IN_OUT")
+		f.warn:SetAlpha(0)
+	end
+	def.frame = f
+end
 
 -- Placeholder elements for trying out layouts, available only in test mode. Sizes are multiples of
 -- the icon size, with one wide and one tall shape to exercise non-square layout.
@@ -207,8 +314,14 @@ local function iconSize() return db.iconSize, db.iconSize end
 local ELEMENTS = {
 	shield = { frame = shield, label = "Lightning Shield", getSize = iconSize, paint = function(t) t:SetTexture(shieldIcon) end },
 	shock  = { frame = shock,  label = "Shock",            getSize = iconSize, paint = function(t) t:SetTexture(shockIcon) end },
+	imbue  = { frame = imbue,  label = "Weapon Imbue",     getSize = iconSize, paint = function(t) t:SetTexture(ns.imbueIcon()) end },
 }
-local ELEMENT_KEYS = { "shield", "shock" }   -- registration order
+local ELEMENT_KEYS = { "shield", "shock", "imbue" }   -- registration order
+for _, def in ipairs(COOLDOWNS) do
+	ELEMENTS[def.key] = { frame = def.frame, label = def.spell, getSize = iconSize, cooldown = def,
+		paint = function(t) t:SetTexture(def.iconID or def.icon) end }
+	table.insert(ELEMENT_KEYS, def.key)
+end
 for _, p in ipairs(PLACEHOLDERS) do
 	local c = p.color
 	ELEMENTS[p.key] = { frame = makePlaceholder(p), label = "Test " .. p.letter, placeholder = true,
@@ -609,8 +722,16 @@ groupFrameScripts = function(f)
 		layoutElements()
 		self.label:SetText(string.format("Group %d: scale %.2f, opacity %.0f%%", self.index, g.scale, g.alpha * 100))
 	end)
+	-- Right-click: the group's settings. Shift-right-click: the settings of the element under the cursor.
 	f:SetScript("OnMouseUp", function(self, button)
-		if button == "RightButton" and not db.locked and ns.OpenOptions then ns.OpenOptions("layout", self.index) end
+		if button ~= "RightButton" or db.locked or not ns.OpenOptions then return end
+		if IsShiftKeyDown() then
+			for _, key in ipairs(db.groups[self.index].members) do
+				local e = ELEMENTS[key].frame
+				if e:IsShown() and e:IsMouseOver() then ns.OpenElementOptions(key) return end
+			end
+		end
+		ns.OpenOptions("layout", self.index)
 	end)
 end
 
@@ -638,8 +759,11 @@ do
 	tray.hint:SetWidth(480)
 	tray.hint:SetJustifyH("LEFT")
 	tray.hint:SetSpacing(2)
-	tray.hint:SetText("Drag a group to move it. Mouse wheel over a group: scale. Shift + wheel: opacity.\n" ..
-		"Right-click a group, or press Options, to change which elements it holds.")
+	tray.hint:SetText("Drag a group to move it.\n" ..
+		"Mouse wheel over a group: scale. Shift + wheel: opacity.\n" ..
+		"Right-click a group: its settings.\n" ..
+		"Shift-right-click an element: its own settings.\n" ..
+		"Options: choose which elements each group holds.")
 	-- Controls sit on a row under the hint, so a longer hint pushes them down instead of overlapping.
 	local row = CreateFrame("Frame", nil, tray)
 	row:SetPoint("TOPLEFT", tray.hint, "BOTTOMLEFT", 0, -10)
@@ -690,9 +814,32 @@ end
 
 ------------------------------------------------------------------------
 -- Lightning Shield: underlay (our "no shield" look) + Blizzard's secure aura button on top
+--
+-- How it works, and the one inference it makes (reviewed 2026-09-23):
+-- 1. Blizzard's CustomAuraContainer draws the shield: icon, charge count, charge bar and duration
+--    swipe. Its untainted code reads the aura, so all of this is exact in combat. Sanctioned.
+-- 2. Under Blizzard's button sits our underlay: the grey icon, red ring and pulse that say "no
+--    shield". It should show only when Blizzard's button is hidden, but nothing tells addon code
+--    when that happens in combat: every aura API throws for tainted code in combat, even
+--    GetAuraDuration and GetUnitAuraInstanceIDs, UNIT_AURA stops reaching the addon, script
+--    handlers under the button never run, and the button only animates its own descendants
+--    (all tested 2026-09-23). So the underlay follows `believedUp`:
+--    * out of combat: exact, read from the aura (refreshShield);
+--    * in combat: set to up when UNIT_SPELLCAST_SUCCEEDED reports our own Lightning Shield cast.
+--      Our own cast events are documented as never secret (SecretWhenUnitSpellCastRestricted
+--      only hides other units' casts); the combat log is never read. The inference is only
+--      "a successful Lightning Shield cast means the shield is up".
+--    * Nothing can set it to down in combat. A shield that drops mid-fight shows the underlay at
+--      the "No shield: combat fallback" strength (underlayUp) until the recast or combat ends.
+--    * Why keep the inference: without it, entering combat with no shield and casting one mid-fight
+--      leaves the full "no shield" look bleeding through the live shield until combat ends
+--      (at group opacity below 100%). Tried and kept, 2026-09-23.
+-- 3. The underlay matters at all only because the group's opacity makes Blizzard's button
+--    translucent, so the underlay bleeds through it; nativeIconAlpha compensates so the stack
+--    matches the group's opacity. At 100% group opacity the button hides the underlay completely.
 ------------------------------------------------------------------------
 local shieldSpellID, shieldAuraSpellID
-local believedUp = false      -- last known shield state (exact out of combat, from events in combat)
+local believedUp = false      -- see above: exact out of combat, set up by our own cast in combat
 local native = { container = nil, button = nil, icon = nil, fs = nil, cd = nil, bar = nil, ticks = nil, overlay = nil,
 	err = nil, ids = {} }
 
@@ -707,6 +854,8 @@ local function applyEmptyLook()
 	if db.emptyTint then shield.tex:SetVertexColor(1, 0.35, 0.35) else shield.tex:SetVertexColor(1, 1, 1) end
 	shield.tex:SetAlpha(believedUp and db.underlayUp or 1)
 	shield:SetRingShown(not believedUp and db.emptyRing)
+	-- Only while known down: in combat a drop is not seen until the recast or combat ends.
+	shield:SetPulsing(not believedUp and db.emptyPulse)
 end
 
 -- With display opacity a and underlay strength u, an icon alpha b gives a stacked result of
@@ -950,6 +1099,302 @@ local function refreshShockMana()
 end
 
 ------------------------------------------------------------------------
+-- Weapon imbue (main hand): warns while no shaman imbue is on, shows which one is and, near the end,
+-- its time left. Imbues are item data, not auras: C_Item.GetWeaponEnchantInfo lists them with
+-- enchantType Imbue (C_PaperDollInfo.GetTemporaryEnchantmentInfo only covers stones and oils, tested
+-- 2026-09-23). The API is not documented as secret, so it is read directly every time. If a read fails (for example in combat) the icon shows
+-- "?" rather than guessing, and /sf debug says what came back; fallbacks wait until the limits are known.
+------------------------------------------------------------------------
+local IMBUES = {
+	rockbiter   = { name = "Rockbiter Weapon",   icon = 136086, ids = { 29, 6, 1, 503, 1663, 683, 1664 } },
+	flametongue = { name = "Flametongue Weapon", icon = 135814, ids = { 5, 4, 3, 523, 1665, 1666 } },
+	frostbrand  = { name = "Frostbrand Weapon",  icon = 135847, ids = { 2, 12, 524, 1667, 1668 } },
+	windfury    = { name = "Windfury Weapon",    icon = 136018, ids = { 283, 284, 525, 1669 } },
+}
+local IMBUE_ORDER = { "rockbiter", "flametongue", "frostbrand", "windfury" }
+local MAIN_HAND = Enum and Enum.WeaponSlot and Enum.WeaponSlot.MainHand or 0
+local IMBUE_TYPE = Enum and Enum.ItemEnchantType and Enum.ItemEnchantType.Imbue or 3
+
+-- Recognised by enchant ID (seeded from the vanilla ranks), else by icon, else learned from our own cast.
+local imbueByName, imbueByID = {}, {}
+for key, m in pairs(IMBUES) do
+	imbueByName[m.name] = key
+	for _, id in ipairs(m.ids) do imbueByID[id] = key end
+end
+
+-- key: the imbue on (nil = none); unreadable: the last read failed; read: what it said, for /sf debug.
+local imbueState = { key = nil, expiresAt = nil, unreadable = false, read = "not checked", castKey = nil, castAt = 0 }
+
+imbue.timer = imbue.textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
+imbue.timer:SetPoint("CENTER")
+
+local function imbueIconFor(key)
+	local m = IMBUES[key] or IMBUES.rockbiter
+	local _, icon = knownSpell(m.name)
+	return icon or m.icon
+end
+
+-- The main hand's imbue entry (enchantID, timeLeft in ms, enchantIconID), false when none is on,
+-- nil when it cannot be read.
+local function readMainHand()
+	if not (C_Item and C_Item.GetWeaponEnchantInfo) then return nil end
+	local ok, list = pcall(C_Item.GetWeaponEnchantInfo, MAIN_HAND)
+	if not ok or isSecret(list) or type(list) ~= "table" then return nil end
+	for _, w in ipairs(list) do
+		if isSecret(w.hasEnchant) or isSecret(w.enchantType) then return nil end
+		if w.hasEnchant and w.enchantType == IMBUE_TYPE then
+			if isSecret(w.enchantID) or isSecret(w.timeLeft) or isSecret(w.enchantIconID) then return nil end
+			return w
+		end
+	end
+	return false
+end
+
+local function imbueKeyFor(w)
+	local key = db.imbueIDs[w.enchantID] or imbueByID[w.enchantID]
+	if key then return key end
+	for k, m in pairs(IMBUES) do
+		if w.enchantIconID == m.icon or w.enchantIconID == imbueIconFor(k) then return k end
+	end
+end
+
+local function formatLeft(s)
+	if s >= 60 then return string.format("%dm", math.ceil(s / 60)) end
+	return string.format("%d", math.max(math.ceil(s), 0))
+end
+
+local imbueIcon = imbueIconFor("rockbiter")
+
+local function paintImbue(now)
+	local key = imbueState.key
+	local unreadable = imbueState.unreadable
+	local left = key and imbueState.expiresAt and imbueState.expiresAt - now
+	local warnAt = db.imbueWarnMins * 60
+	local showTime = left ~= nil and warnAt > 0 and left <= warnAt
+	if key then
+		imbueIcon = imbueIconFor(key)
+		imbue.tex:SetDesaturated(false)
+		imbue:SetRingShown(false)
+		imbue:SetPulsing(false)
+	else
+		imbueIcon = imbueIconFor(db.imbuePreferred == "last" and (db.imbueLast or "rockbiter") or db.imbuePreferred)
+		imbue.tex:SetDesaturated(db.imbueMissingGrey)
+		imbue:SetRingShown(db.imbueMissingRing)
+		imbue:SetPulsing(db.imbuePulse)
+	end
+	imbue.tex:SetTexture(imbueIcon)
+	if unreadable then
+		imbue:SetRingShown(false)
+		imbue:SetPulsing(false)
+		imbue.timer:SetText("?")
+		imbue.timer:SetTextColor(1, 0.82, 0)
+	elseif showTime then
+		imbue.timer:SetText(formatLeft(left))
+		if left < 60 then imbue.timer:SetTextColor(1, 0.3, 0.3) else imbue.timer:SetTextColor(1, 1, 1) end
+	end
+	imbue.timer:SetShown(unreadable or showTime)
+	-- Hidden by alpha, not Hide, so it keeps its place in the group and shows again at once.
+	imbue:SetAlpha((db.locked and key and db.imbueHideActive and not showTime and not unreadable) and 0 or 1)
+end
+
+local function refreshImbue()
+	if not isEnabled("imbue") then return end
+	local now = GetTime()
+	local r = readMainHand()
+	imbueState.unreadable = r == nil
+	imbueState.key, imbueState.expiresAt = nil, nil
+	if r == nil then
+		imbueState.read = "unreadable" .. (InCombatLockdown() and " (in combat)" or "")
+	elseif r == false then
+		imbueState.read = "no imbue"
+	else
+		local key = imbueKeyFor(r)
+		if not key and now - imbueState.castAt < 3 then key = imbueState.castKey; db.imbueIDs[r.enchantID] = key end
+		imbueState.read = string.format("enchant %d, icon %d, %s", r.enchantID, r.enchantIconID, key or "not recognised")
+		imbueState.key = key
+		imbueState.expiresAt = r.timeLeft > 0 and now + r.timeLeft / 1000 or nil
+		if key then db.imbueLast = key end
+	end
+	paintImbue(now)
+end
+
+-- Remembers our own imbue cast, so an imbue not recognised by ID or icon is learned on the next read.
+local function imbueCast(spellID)
+	local ok, name = safe(C_Spell.GetSpellName, spellID)
+	local key = ok and not isSecret(name) and imbueByName[name]
+	if not key then return end
+	imbueState.castKey, imbueState.castAt = key, GetTime()
+	refreshImbue()
+end
+
+------------------------------------------------------------------------
+-- Cooldown elements (see COOLDOWNS). Nothing here reads a secret value:
+-- * The spell cooldown and a totem's time are duration objects that Blizzard widgets draw (cooldown
+--   swipe, countdown numbers, timer bar), as with the shock.
+-- * Fire Nova's "no fire totem" warning: the fire slot's duration object evaluates its remaining time
+--   through a curve (0s -> 1, anything more -> 0) and the result, secret or not, goes straight to
+--   SetAlpha, which accepts secrets. An empty slot returns no duration object at all (seen
+--   2026-09-23), which is plainly "no totem"; an expired one evaluates to 0s remaining.
+--   (IsZero was tried first and did not work: an expired totem's duration is not a zero time span.)
+--   The addon never branches on it.
+-- * Earthbind / Stoneclaw must tell their totem from any other earth totem, and in combat everything
+--   GetTotemInfo returns is secret, even for totems flagged never-secret out of combat (tested
+--   2026-09-23). The earth slot's duration object still exists, so the timer is identified by its
+--   TOTAL duration instead: the bar and numbers always take the slot's duration object, and their
+--   holder's alpha is the total duration evaluated through a curve that is 1 only within half a
+--   second of this totem's lifetime and 0 otherwise. Both calls accept secrets.
+--   ASSUMPTION: no two earth totems share a lifetime (vanilla: Earthbind 45s, Stoneclaw 15s, the
+--   rest 120s). Lifetimes are learned out of combat, where the slot's name and duration are
+--   readable, so a changed duration corrects itself the first time the totem is dropped out of
+--   combat. If Forever ever gives two earth totems the same lifetime, both would show the timer.
+------------------------------------------------------------------------
+local TIMER_REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime or 1
+local TIMER_IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
+
+-- Remaining seconds -> alpha: fully shown at 0s, hidden from 0.05s up.
+local noTimeLeftCurve
+if C_CurveUtil and C_CurveUtil.CreateCurve then
+	noTimeLeftCurve = C_CurveUtil.CreateCurve()
+	if Enum and Enum.LuaCurveType then noTimeLeftCurve:SetType(Enum.LuaCurveType.Linear) end
+	noTimeLeftCurve:AddPoint(0, 1)
+	noTimeLeftCurve:AddPoint(0.05, 0)
+end
+-- The reverse, for the timer bar's background: hidden at 0s, shown from 0.05s up.
+local timeLeftCurve
+if C_CurveUtil and C_CurveUtil.CreateCurve then
+	timeLeftCurve = C_CurveUtil.CreateCurve()
+	if Enum and Enum.LuaCurveType then timeLeftCurve:SetType(Enum.LuaCurveType.Linear) end
+	timeLeftCurve:AddPoint(0, 0)
+	timeLeftCurve:AddPoint(0.05, 1)
+end
+
+-- Per-element option with its default.
+local function cdOpt(key, name, default)
+	local v = elementOpts(key)[name]
+	if v == nil then return default end
+	return v
+end
+
+-- Whether a totem is out in a slot, its name and total duration; nil when the slot cannot be read. haveTotem alone
+-- is not enough: on Forever an empty slot reports haveTotem true with a blank name, and a slot can
+-- also return nothing at all (both seen 2026-09-23). So a totem is out only when it has a name.
+local function readTotem(slot)
+	if not GetTotemInfo then return nil end
+	local ok, have, name, _, duration = pcall(GetTotemInfo, slot)
+	if not ok or isSecret(have) or isSecret(name) or isSecret(duration) then return nil end
+	if not have or type(name) ~= "string" or name == "" then return false end
+	return true, name, duration
+end
+
+-- Total duration -> alpha: 1 within half a second of seconds, 0 elsewhere.
+local function lifetimeCurve(seconds)
+	if not (C_CurveUtil and C_CurveUtil.CreateCurve) then return nil end
+	local c = C_CurveUtil.CreateCurve()
+	if Enum and Enum.LuaCurveType then c:SetType(Enum.LuaCurveType.Linear) end
+	c:AddPoint(0, 0)
+	c:AddPoint(math.max(seconds - 0.5, 0.01), 0)
+	c:AddPoint(seconds - 0.4, 1)
+	c:AddPoint(seconds + 0.4, 1)
+	c:AddPoint(seconds + 0.5, 0)
+	return c
+end
+
+local function refreshCooldown(def)
+	if not isEnabled(def.key) then return end
+	local f = def.frame
+	f.tex:SetTexture(def.iconID or def.icon)
+	if not def.spellID then
+		-- Not learned yet: a plain grey icon.
+		f.tex:SetDesaturated(true)
+		f:SetRingShown(false)
+		f:SetPulsing(false)
+		f.cd:Clear()
+		if f.active then f.active:Hide(); f.activeCD:Clear() end
+		if f.warn then f.warn:SetAlpha(0) end
+		return
+	end
+	local ok, dur = safe(C_Spell.GetSpellCooldownDuration, def.spellID)
+	if ok and dur then pcall(f.cd.SetCooldownFromDurationObject, f.cd, dur) end
+	f.tex:SetDesaturated(false)
+	if def.needsTotem then
+		-- Fire Nova: the slot's duration object drives everything, secret or not. An empty slot's
+		-- duration is zero, so the timer widgets draw nothing and the warning layer shows.
+		local slot = def.needsTotem
+		local tok, tdur = safe(GetTotemDuration, slot)
+		local aok, alpha = false, nil
+		if tok and tdur and noTimeLeftCurve then aok, alpha = pcall(tdur.EvaluateRemainingDuration, tdur, noTimeLeftCurve) end
+		f.activeHolder:SetAlpha(1)   -- any fire totem counts, so its timer always shows
+		local w = f.warn
+		-- Icon, then warning layer, then swipe, then text; restated as regrouping reparents the icon.
+		w:SetFrameLevel(f:GetFrameLevel() + 1)
+		f.cd:SetFrameLevel(f:GetFrameLevel() + 2)
+		f.textFrame:SetFrameLevel(f:GetFrameLevel() + 4)
+		w.grey:SetTexture(def.iconID or def.icon)
+		w.grey:SetShown(cdOpt(def.key, "blockedGrey", true))
+		for _, t in ipairs(w.ring) do t:SetShown(cdOpt(def.key, "blockedRing", true)) end
+		if cdOpt(def.key, "blockedPulse", false) then
+			if not w.pulse:IsPlaying() then w.pulse:Play() end
+		else w.pulse:Stop() end
+		if tok and tdur == nil then
+			-- Nothing in the slot: no duration object to evaluate.
+			w:SetAlpha(1)
+			f.active.bg:SetAlpha(0)
+			def.read = "no fire totem (no duration)"
+		elseif aok and alpha ~= nil then
+			w:SetAlpha(alpha)
+			local bok, bgAlpha = pcall(tdur.EvaluateRemainingDuration, tdur, timeLeftCurve)
+			f.active.bg:SetAlpha(bok and bgAlpha or 1)
+			def.read = "warning alpha " .. describeArg(alpha)
+		else
+			w:SetAlpha(0)
+			def.read = string.format("fire slot duration %s, curve %s: %s", tok and "ok" or "error",
+				noTimeLeftCurve and "ok" or "missing", describeArg(alpha))
+		end
+		if tok and tdur and cdOpt(def.key, "activeBar", true) then
+			pcall(f.active.SetTimerDuration, f.active, tdur, TIMER_IMMEDIATE, TIMER_REMAINING)
+			f.active:Show()
+		else f.active:Hide() end
+		if tok and tdur and cdOpt(def.key, "activeText", true) then
+			pcall(f.activeCD.SetCooldownFromDurationObject, f.activeCD, tdur, true)
+		else f.activeCD:Clear() end
+	elseif def.totemSlot then
+		-- Earthbind / Stoneclaw: the slot's timer, shown only when its total matches this totem's
+		-- lifetime (see the section comment). Out of combat the lifetime is learned from the slot.
+		local slot = def.totemSlot
+		local have, name, duration = readTotem(slot)
+		if have and name:find(def.spell, 1, true) == 1 and type(duration) == "number" and duration > 0 then
+			db.totemLifetimes[def.key] = duration
+		end
+		local lifetime = db.totemLifetimes[def.key] or def.duration
+		if def.curveFor ~= lifetime then def.curve, def.curveFor = lifetimeCurve(lifetime), lifetime end
+		local tok, tdur = safe(GetTotemDuration, slot)
+		if tok and tdur and def.curve then
+			local aok, alpha = pcall(tdur.EvaluateTotalDuration, tdur, def.curve)
+			f.activeHolder:SetAlpha(aok and alpha or 0)
+			local bok, bgAlpha = pcall(tdur.EvaluateRemainingDuration, tdur, timeLeftCurve)
+			f.active.bg:SetAlpha(bok and bgAlpha or 1)
+			if cdOpt(def.key, "activeBar", true) then
+				pcall(f.active.SetTimerDuration, f.active, tdur, TIMER_IMMEDIATE, TIMER_REMAINING)
+				f.active:Show()
+			else f.active:Hide() end
+			if cdOpt(def.key, "activeText", true) then
+				pcall(f.activeCD.SetCooldownFromDurationObject, f.activeCD, tdur, true)
+			else f.activeCD:Clear() end
+			def.read = string.format("earth slot timer, lifetime %ss, match alpha %s", tostring(lifetime), aok and describeArg(alpha) or "error")
+		else
+			f.activeHolder:SetAlpha(0)
+			f.active:Hide()
+			f.activeCD:Clear()
+			def.read = string.format("no earth totem (lifetime %ss)", tostring(lifetime))
+		end
+	end
+end
+
+local function refreshCooldowns()
+	for _, def in ipairs(COOLDOWNS) do refreshCooldown(def) end
+end
+
+------------------------------------------------------------------------
 -- Spell resolution and layout
 ------------------------------------------------------------------------
 local function resolveSpells()
@@ -970,6 +1415,10 @@ local function resolveSpells()
 	manaSpellID = (db.manaSpell ~= "tracked" and shockIDs[db.manaSpell]) or shockSpellID
 	if shockSpellID and C_Spell.EnableSpellRangeCheck then safe(C_Spell.EnableSpellRangeCheck, shockSpellID, true) end
 	if shieldSpellID then learnShieldID(shieldSpellID) end
+	for _, def in ipairs(COOLDOWNS) do
+		local cid, cicon = knownSpell(def.spell)
+		def.spellID, def.iconID = cid, cicon
+	end
 end
 
 local function applyLayout()
@@ -977,7 +1426,16 @@ local function applyLayout()
 	cdFont:SetFont(STANDARD_TEXT_FONT, db.cdTextSize, "OUTLINE")
 	shock.cd:SetCountdownFont(CD_FONT)
 	shock.cd:SetHideCountdownNumbers(not db.cdText)
+	activeFont:SetFont(STANDARD_TEXT_FONT, math.max(math.floor(db.cdTextSize * 0.55), 8), "OUTLINE")
+	activeFont:SetTextColor(0.5, 1, 0.4)
+	for _, def in ipairs(COOLDOWNS) do
+		def.frame.cd:SetCountdownFont(CD_FONT)
+		def.frame.cd:SetHideCountdownNumbers(not db.cdText)
+	end
 	refreshShockMana()
+	imbue.timer:SetFont(STANDARD_TEXT_FONT, db.imbueTextSize, "OUTLINE")
+	refreshImbue()
+	refreshCooldowns()
 	if not native.container then setupNative() end
 	styleNative()
 	applyEmptyLook()
@@ -988,6 +1446,8 @@ local function refreshAll()
 	refreshShockCooldown()
 	refreshShockRange()
 	refreshShockMana()
+	refreshImbue()
+	refreshCooldowns()
 end
 
 -- Layout edits used by the options window. Each leaves db.groups consistent and relays out.
@@ -1071,6 +1531,8 @@ ns.getDB = function() return db end
 ns.applyLayout, ns.resolveSpells, ns.refreshAll, ns.elementOpts = applyLayout, resolveSpells, refreshAll, elementOpts
 ns.placeElement, ns.splitGroup, ns.hideGroup, ns.centerGroup = placeElement, splitGroup, hideGroup, centerGroup
 ns.setShow, ns.showMode = setShow, showMode
+ns.COOLDOWNS = COOLDOWNS
+ns.IMBUES, ns.IMBUE_ORDER, ns.imbueIcon = IMBUES, IMBUE_ORDER, function() return imbueIcon end
 ns.setTestMode = function(on) edit(setTestMode)(on) end
 ns.resetAll = resetAll
 ns.say = say
@@ -1131,6 +1593,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		sanitize()
 		if ns.BuildOptions then ns.BuildOptions() end
 	elseif event == "PLAYER_LOGIN" then
+		if ns.applyIssueReporter then ns.applyIssueReporter() end   -- any class
 		local _, class = UnitClass("player")
 		if class ~= "SHAMAN" then root:Hide(); return end
 		isShaman = true
@@ -1143,25 +1606,36 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		reg("SPELLS_CHANGED")
 		reg("PLAYER_REGEN_ENABLED")
 		reg("SPELL_RANGE_CHECK_UPDATE")
+		reg("UNIT_INVENTORY_CHANGED", "player")
+		reg("PLAYER_EQUIPMENT_CHANGED")
+		reg("PLAYER_TOTEM_UPDATE")
 		resolveSpells()
 		applyLayout()
 		refreshAll()
 		C_Timer.NewTicker(0.25, refreshShockRange)
+		C_Timer.NewTicker(1, function() refreshImbue(); refreshCooldowns() end)
 		root:Show()
 	elseif event == "UNIT_AURA" then
 		refreshShield()
 	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
 		local spellID = arg3   -- args: unit, castGUID, spellID
 		if not isSecret(spellID) and (spellID == shieldSpellID or spellID == shieldAuraSpellID) then
-			setBelievedUp(true)  -- our own cast events stay readable in combat
+			setBelievedUp(true)  -- the one inference: our cast means the shield is up (see the Lightning Shield section)
 		end
+		if not isSecret(spellID) then imbueCast(spellID) end   -- only to learn an unknown imbue enchant ID
 		refreshShockCooldown()
+		refreshCooldowns()
 	elseif event == "SPELL_UPDATE_COOLDOWN" then
 		refreshShockCooldown()
+		refreshCooldowns()
 	elseif event == "SPELL_UPDATE_USABLE" or event == "UNIT_POWER_UPDATE" then
 		refreshShockMana()
 	elseif event == "PLAYER_TARGET_CHANGED" or event == "SPELL_RANGE_CHECK_UPDATE" then
 		refreshShockRange()
+	elseif event == "PLAYER_TOTEM_UPDATE" then
+		refreshCooldowns()
+	elseif event == "UNIT_INVENTORY_CHANGED" or event == "PLAYER_EQUIPMENT_CHANGED" then
+		refreshImbue()
 	elseif event == "SPELLS_CHANGED" then
 		resolveSpells()
 		applyLayout()
@@ -1198,6 +1672,38 @@ SlashCmdList.SHAMANFOREVER = function(msg)
 			native.err and (", error: " .. native.err) or "")
 		local t = {} for id in pairs(shieldIDMap()) do table.insert(t, tostring(id)) end table.sort(t)
 		say("tracked spell IDs: %s", table.concat(t, ","))
+		local r = readMainHand()
+		say("main hand imbue now: %s; last ticker read: %s", r == nil and "unreadable" .. (InCombatLockdown() and " (in combat)" or "")
+			or r == false and "none" or string.format("enchant %d, icon %d, %.0fs left", r.enchantID, r.enchantIconID, r.timeLeft / 1000),
+			imbueState.read)
+		for slot = 1, 4 do
+			local ok, have, name, start, duration, icon, modRate, spellID = pcall(GetTotemInfo, slot)
+			say("totem slot %d: %s", slot, ok and string.format("have=%s name=%s start=%s duration=%s icon=%s spellID=%s",
+				describeArg(have), describeArg(name), describeArg(start), describeArg(duration), describeArg(icon), describeArg(spellID))
+				or ("error " .. tostring(have)))
+			local dok, d = pcall(GetTotemDuration, slot)
+			if dok and d then
+				local rok, r = pcall(d.GetRemainingDuration, d)
+				local tok2, t = pcall(d.GetTotalDuration, d)
+				say("  duration object: remaining=%s total=%s", rok and describeArg(r) or "error", tok2 and describeArg(t) or "error")
+			end
+		end
+		for _, def in ipairs(COOLDOWNS) do
+			local secret = "?"
+			if def.spellID and C_Secrets and C_Secrets.ShouldTotemSpellBeSecret then
+				local ok, v = pcall(C_Secrets.ShouldTotemSpellBeSecret, def.spellID)
+				secret = ok and describeArg(v) or "error"
+			end
+			say("%s: spell %s, totem spell secret=%s, %s", def.spell, tostring(def.spellID), secret, def.read or "not checked")
+		end
+		if C_Secrets and C_Secrets.ShouldTotemSlotBeSecret then
+			local t = {}
+			for slot = 1, 4 do
+				local ok, v = pcall(C_Secrets.ShouldTotemSlotBeSecret, slot)
+				t[slot] = ok and describeArg(v) or "error"
+			end
+			say("totem slots secret now: %s", table.concat(t, ", "))
+		end
 		for key, id in pairs(shockIDs) do
 			local ok, usable, noPower = safe(C_Spell.IsSpellUsable, id)
 			local _, r = safe(C_Spell.IsSpellInRange, id, "target")

@@ -11,3 +11,4 @@
 
 ShamanForever.lua
 ShamanForever_Options.lua
+ShamanForever_IssueReporter.lua
