@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Icon borders: 1 px black by default, with size, colour and on/off settings (General page), and an optional custom border per group (Layout page).
+
 ## 0.2.0 (2026-09-23)
 
 - Elements are arranged in groups, each a row or column with its own position, scale and opacity. Your current layout carries over as one group.

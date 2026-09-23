@@ -1,0 +1,55 @@
+# Combat techniques
+
+How ShamanForever shows state in combat on WoW: Forever, where addon code cannot read most combat data (Midnight "secret values"). The rule throughout: never do Lua math or comparisons on a possibly-secret value; hand Blizzard's objects to Blizzard's widgets instead. Findings are from build 69913 and are dated where they matter.
+
+## Showing auras: Blizzard's CustomAuraContainer
+
+Addon code cannot read player auras in combat on this client (every read throws "Auras cannot be accessed when secret"). The sanctioned route is the `AuraContainer` intrinsic with `CustomAuraContainerTemplate` from `Blizzard_AuraContainer`. Its Lua runs untainted, so it reads the aura and drives widgets the addon supplies. Verified working on build 69913 in this addon:
+
+```lua
+local c = CreateFrame("AuraContainer", nil, parent, "CustomAuraContainerTemplate")
+c:SetFrameStrata("HIGH")          -- intrinsic does not sit where you expect; set it explicitly
+c:SetUnit("player")
+c:AddAuraSlot("key", "HELPFUL", {
+  candidateFilters = { includeSpellIDs = { [324] = true, [325] = true } },  -- map, not list
+  initializeFrame = function(button)
+    button:SetSize(56, 56)
+    button:SetPoint("TOPLEFT")      -- slot frames are NOT laid out by the container; anchor them yourself
+    local tex = button:CreateTexture(nil, "ARTWORK"); tex:SetAllPoints(); button:SetIcon(tex)
+    local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate"); cd:SetAllPoints(); button:SetDurationCooldown(cd)
+    local fs = button:CreateFontString(nil, "OVERLAY"); fs:SetFont(STANDARD_TEXT_FONT, 24, "OUTLINE"); fs:SetPoint("CENTER")
+    button:SetApplicationCount(fs)  -- font MUST be set first: Blizzard writes text immediately
+    local bar = CreateFrame("StatusBar", nil, button); bar:SetPoint("BOTTOMLEFT"); bar:SetPoint("BOTTOMRIGHT"); bar:SetHeight(7)
+    button:SetApplicationBar(bar, { minApplications = 0, maxApplications = 3 })  -- min 0 or one charge shows empty
+  end,
+})
+```
+
+Gotchas: registered parts must be descendants of the button; script handlers (OnShow/OnHide etc.) on anything under the button never run, so you cannot learn when the aura disappears in combat (keep an always-visible underlay for the empty state); the count text only prints for two or more applications (no formatter constructor found); the button and its parts are off limits to addon code in combat (change alpha/fonts out of combat); everything readable about the button is secret, even out of combat.
+
+## The "no shield" look, and the one inference ShamanForever makes
+
+Blizzard's button hides when the aura is gone, but addon code has no sanctioned way to learn that in combat. Tested on build 69913 (2026-09-23):
+
+- every `C_UnitAuras` call throws for addon code in combat, including `GetAuraDuration` and `GetUnitAuraInstanceIDs`, which are not flagged secret in the API docs;
+- `UNIT_AURA` stops reaching the addon in combat;
+- script handlers under the button never run, and the button only plays animations on its own descendants, which hide with it.
+
+So the grey icon, red ring and pulse sit in an underlay beneath Blizzard's button, driven by a belief:
+
+- **Out of combat** it is exact, read from the aura.
+- **In combat** your own successful Lightning Shield cast (`UNIT_SPELLCAST_SUCCEEDED`) sets it to "up". Your own cast events are documented as never secret; only other units' casts are restricted. The combat log is never read. The inference is only that a successful cast means the shield is up.
+- **Nothing can set it to "down" in combat.** If the shield drops mid-fight, the underlay shows at the "No shield: combat fallback" strength until you recast or combat ends.
+- **Why keep it:** without it, entering combat with no shield and casting one mid-fight would leave the full "no shield" look showing through the live shield until combat ends, whenever the group opacity is below 100%.
+
+The underlay matters only because a group opacity below 100% makes Blizzard's button translucent, so the underlay would show through it. The addon fades the underlay while the shield is believed up, and Blizzard's icon opacity is raised to compensate so the stack matches the group's opacity. At 100% group opacity the button covers the underlay completely.
+
+## Timers and warnings in combat without reading secrets
+
+Totem and cooldown elements never read a secret value. They hand Blizzard's objects to Blizzard's widgets:
+
+- **Cooldowns and totem timers:** `C_Spell.GetSpellCooldownDuration` and `GetTotemDuration` return duration objects, which `Cooldown:SetCooldownFromDurationObject` and `StatusBar:SetTimerDuration` draw.
+- **Appear/disappear on a secret condition:** a duration object evaluates its remaining or total time through a `C_CurveUtil` curve, and the (possibly secret) result goes straight to `SetAlpha`. Fire Nova's "no fire totem" warning is a curve on the fire slot's remaining time (0 s → shown). An empty slot returns no duration object at all, which is plainly "no totem".
+- **Which earth totem is out:** in combat everything `GetTotemInfo` returns is secret, so Earthbind and Stoneclaw identify their timer by its total duration: a curve that is 1 only within half a second of that totem's lifetime (45 s and 15 s, learned out of combat). This assumes no two earth totems share a lifetime, which holds for vanilla.
+
+Weapon imbues are item data (`C_Item.GetWeaponEnchantInfo`, enchant type `Imbue`) and stay readable in combat.

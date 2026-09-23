@@ -34,6 +34,7 @@ local DEFAULTS = {
 	gridSize = 32,
 	hideIssueReporter = false,  -- beta: hide Blizzard's Issue Reporter button (its position is kept either way)
 	iconSize = 40,          -- base element size; each group scales it
+	border = { show = true, size = 1, color = { 0, 0, 0, 1 } },   -- around every element; a group can override (g.border)
 	groups = { { point = "CENTER", x = 0, y = -160, scale = 1, alpha = 0.65, orientation = "horizontal",
 		growth = "forward", spacing = 10, members = { "shield", "shock" } } },
 	known = {},             -- element keys placed at least once; new ones join the first group
@@ -365,6 +366,7 @@ end
 local function newGroup(template)
 	local g = {}
 	for k, v in pairs(GROUP_DEFAULTS) do g[k] = template and template[k] or v end
+	if template and template.border then g.border = CopyTable(template.border) end
 	g.members = {}
 	table.insert(db.groups, g)
 	return g
@@ -496,6 +498,42 @@ local function hideFrame(frame)
 	frame:Hide()
 end
 
+-- Border drawn just outside an element's edge, so it never covers the rings inside the icon or
+-- Blizzard's shield button. size is in physical pixels, so 1 stays one crisp pixel at any scale.
+local function applyBorder(f, b)
+	if not (b and b.show and b.size and b.size > 0) then
+		if f.border then for _, t in ipairs(f.border) do t:Hide() end end
+		return
+	end
+	if not f.border then
+		f.border = {}
+		for i = 1, 4 do f.border[i] = f:CreateTexture(nil, "BACKGROUND", nil, -8) end
+	end
+	local _, physicalHeight = GetPhysicalScreenSize()
+	local px = (768 / (physicalHeight or 768)) / f:GetEffectiveScale()
+	local s = b.size * px
+	local c = b.color or { 0, 0, 0, 1 }
+	local top, bottom, left, right = f.border[1], f.border[2], f.border[3], f.border[4]
+	for _, t in ipairs(f.border) do
+		t:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
+		t:ClearAllPoints()
+		t:Show()
+	end
+	-- Top and bottom span the corners; left and right fill between them.
+	top:SetPoint("BOTTOMLEFT", f, "TOPLEFT", -s, 0)
+	top:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", s, 0)
+	top:SetHeight(s)
+	bottom:SetPoint("TOPLEFT", f, "BOTTOMLEFT", -s, 0)
+	bottom:SetPoint("TOPRIGHT", f, "BOTTOMRIGHT", s, 0)
+	bottom:SetHeight(s)
+	left:SetPoint("TOPRIGHT", f, "TOPLEFT", 0, 0)
+	left:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", 0, 0)
+	left:SetWidth(s)
+	right:SetPoint("TOPLEFT", f, "TOPRIGHT", 0, 0)
+	right:SetPoint("BOTTOMLEFT", f, "BOTTOMRIGHT", 0, 0)
+	right:SetWidth(s)
+end
+
 -- Sizes and anchors a group's members in one pass, centred on the cross axis; the group frame
 -- shrinks to fit so dragging feels right.
 local function layoutGroup(gi)
@@ -538,6 +576,8 @@ local function layoutGroup(gi)
 	if horizontal then gf:SetSize(along, across) else gf:SetSize(across, along) end
 	gf:SetScale(g.scale)
 	gf:SetAlpha(g.alpha)
+	-- After the scale, so borders are sized in real pixels.
+	for _, key in ipairs(g.members) do applyBorder(ELEMENTS[key].frame, g.border or db.border) end
 	gf:ClearAllPoints()
 	gf:SetPoint(g.point, UIParent, g.point, g.x, g.y)
 	local unlocked = not db.locked

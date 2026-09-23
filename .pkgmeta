@@ -4,3 +4,4 @@ manual-changelog: CHANGELOG.md
 ignore:
   - screenshot.png
   - CHANGELOG.md
+  - docs

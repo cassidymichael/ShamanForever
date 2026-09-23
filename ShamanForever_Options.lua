@@ -172,6 +172,38 @@ function Page:dropdown(label, tip, choices, get, set, shown, width)
 	return self:add(f, 34, shown, function() dd:GenerateMenu() end)
 end
 
+-- A colour swatch; clicking opens Blizzard's colour picker (with opacity). get/set use { r, g, b, a }.
+function Page:color(label, tip, get, set, shown)
+	local f = self:row(30)
+	self:label(f, label, tip)
+	local b = CreateFrame("Button", nil, f, "BackdropTemplate")
+	b:SetSize(22, 22)
+	b:SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
+	b:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+	b:SetBackdropColor(0.5, 0.5, 0.5, 1)   -- shows through a translucent colour
+	b:SetBackdropBorderColor(1, 1, 1, 0.6)
+	b.swatch = b:CreateTexture(nil, "ARTWORK")
+	b.swatch:SetPoint("TOPLEFT", 2, -2)
+	b.swatch:SetPoint("BOTTOMRIGHT", -2, 2)
+	b:SetScript("OnClick", function()
+		local c = get()
+		local function apply()
+			local r, g, bl = ColorPickerFrame:GetColorRGB()
+			set({ r, g, bl, ColorPickerFrame:GetColorAlpha() })
+		end
+		ColorPickerFrame:SetupColorPickerAndShow({
+			r = c[1], g = c[2], b = c[3], opacity = c[4] or 1, hasOpacity = true,
+			swatchFunc = apply, opacityFunc = apply,
+			cancelFunc = function(prev) set({ prev.r, prev.g, prev.b, prev.a or 1 }) end,
+		})
+	end)
+	setTip(b, label, tip)
+	return self:add(f, 30, shown, function()
+		local c = get()
+		b.swatch:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
+	end)
+end
+
 -- A button whose text follows the settings, e.g. Unlock / Lock.
 function Page:button(textFn, onClick, tip, width, shown)
 	local f = self:row(32)
@@ -242,6 +274,15 @@ local function buildGeneral(p)
 		"Unlocked, groups can be dragged on screen (they snap to the grid and to each other), scaled with the mouse wheel and faded with shift + wheel. Lock when done so clicks pass through.")
 	p:slider("Global icon size", "Base size of every element, in pixels before scaling. Size is shared by all elements; each group's scale then multiplies it.", 24, 96, 1, int,
 		get("iconSize"), set("iconSize"))
+
+	p:header("Icon border")
+	local function bget(k) return function() return db().border[k] end end
+	local function bset(k) return function(v) db().border[k] = v; relayout() end end
+	p:checkbox("Show border", "A border just outside every element's edge. Groups can override this on the Layout page.",
+		bget("show"), bset("show"))
+	p:slider("Border size", "Thickness in screen pixels, the same at any group scale.", 1, 8, 1,
+		function(v) return string.format("%d px", v) end, bget("size"), bset("size"), function() return db().border.show end)
+	p:color("Border colour", "Colour and opacity of the border.", bget("color"), bset("color"), function() return db().border.show end)
 
 	p:header("Cooldown numbers")
 	p:checkbox("Show countdown", "Countdown numbers on every cooldown (Shock and the cooldown elements).", get("cdText"), set("cdText"))
@@ -543,6 +584,21 @@ local function buildLayout(p)
 		end, hasGroups)
 	p:slider("Opacity", "Transparency of the group. Shift + mouse wheel over the group while unlocked does the same.", 0.1, 1, 0.05, pct,
 		groupGet("alpha"), groupSet("alpha"), hasGroups)
+	local function hasGroupBorder() local g = selected(); return g and g.border ~= nil end
+	local function gbget(k) return function() local g = selected(); return g and g.border and g.border[k] end end
+	local function gbset(k) return function(v) local g = selected(); if g and g.border then g.border[k] = v; relayout() end end end
+	p:checkbox("Custom border", "Give this group its own border instead of the global one (General page). Turning this off goes back to the global border.",
+		hasGroupBorder, function(v)
+			local g = selected()
+			if not g then return end
+			g.border = v and CopyTable(db().border) or nil
+			relayout()
+		end, hasGroups)
+	p:checkbox("Show border", "Show this group's border.", gbget("show"), gbset("show"), hasGroupBorder)
+	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1, function(v) return string.format("%d px", v) end,
+		gbget("size"), gbset("size"), function() return hasGroupBorder() and selected().border.show end)
+	p:color("Border colour", "Colour and opacity of this group's border.", gbget("color"), gbset("color"),
+		function() return hasGroupBorder() and selected().border.show end)
 	p:checkbox("Only show in combat", "Hide this group out of combat. Each element also has its own Show setting (Always, In combat, Never) under Elements; an element shows only when both it and its group allow it. Everything visible shows while the layout is unlocked.",
 		groupGet("combatOnly"), groupSet("combatOnly"), hasGroups)
 	p:buttons({
