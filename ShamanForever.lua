@@ -42,6 +42,7 @@ local ACCOUNT_DEFAULTS = {
 	gridSize = 32,
 	hideIssueReporter = false,  -- beta: hide Blizzard's Issue Reporter button (its position is kept either way)
 	minimalArt = false,     -- options window without banners and ornaments; kept ready, no control for now
+	keepOptionsOpen = false,  -- false: the options window steps aside while groups are being moved
 	lastShield = "lightning",  -- the shield last cast or seen; its icon is the no-shield look in "either" mode
 	imbueIDs = {},            -- learned enchant ID -> imbue key
 	totemLifetimes = {},      -- learned totem lifetime in seconds, by cooldown element key
@@ -808,6 +809,7 @@ groupFrameScripts = function(f)
 end
 
 -- A small bar while unlocked: what the mouse does, snapping and grid toggles, Lock and Options.
+local wasUnlocked, optionsSteppedAside = false, false   -- see stepOptionsAside
 local tray = CreateFrame("Frame", "ShamanForeverTray", UIParent, "BackdropTemplate")
 tray:SetSize(560, 120)
 tray:SetFrameStrata("DIALOG")
@@ -842,12 +844,16 @@ do
 	row:SetPoint("RIGHT", tray, "RIGHT", -10, 0)
 	row:SetHeight(26)
 	tray.row = row
-	local function check(label, key, tip)
-		local cb = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
+	local function check(label, key, tip, parent, after)
+		local cb = CreateFrame("CheckButton", nil, parent or row, "UICheckButtonTemplate")
 		cb:SetSize(24, 24)
 		cb.Text:SetFontObject("GameFontHighlightSmall")
 		cb.Text:SetText(label)
-		cb:SetScript("OnClick", function(self) db[key] = self:GetChecked() and true or false; layoutElements() end)
+		cb:SetScript("OnClick", function(self)
+			acct[key] = self:GetChecked() and true or false
+			if after then after(acct[key]) end
+			layoutElements()
+		end)
 		cb:SetScript("OnEnter", function(self)
 			GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
 			GameTooltip:SetText(label)
@@ -892,13 +898,43 @@ do
 	options:SetPoint("RIGHT", lock, "LEFT", -6, 0)
 	options:SetText("Options")
 	options:SetScript("OnClick", function() if ns.OpenOptions then ns.OpenOptions("layout") end end)
+	local row2 = CreateFrame("Frame", nil, tray)
+	row2:SetPoint("TOPLEFT", row, "BOTTOMLEFT", 0, -2)
+	row2:SetPoint("RIGHT", tray, "RIGHT", -10, 0)
+	row2:SetHeight(24)
+	-- Takes effect at once: ticking brings the window back, unticking puts it away until locking.
+	tray.keepOptions = check("Keep options open", "keepOptionsOpen",
+		"Unticked, the options window closes while you move groups and comes back when you lock.", row2,
+		function(keep)
+			if keep then
+				optionsSteppedAside = false
+				if ns.OpenOptions then ns.OpenOptions() end
+			elseif ns.HideOptions and ns.HideOptions() then
+				optionsSteppedAside = true
+			end
+		end)
+	tray.keepOptions:SetPoint("LEFT", -4, 0)
+end
+
+-- Unlocking closes the options window (unless the player keeps it open) and locking brings it back.
+local function stepOptionsAside(unlocked)
+	if unlocked == wasUnlocked then return end
+	wasUnlocked = unlocked
+	if unlocked then
+		optionsSteppedAside = not acct.keepOptionsOpen and ns.HideOptions and ns.HideOptions() or false
+	elseif optionsSteppedAside then
+		optionsSteppedAside = false
+		ns.OpenOptions()
+	end
 end
 
 function updateTray()
 	local unlocked = isShaman and not acct.locked
 	tray:SetShown(unlocked)
-	tray:SetHeight(30 + tray.hint:GetStringHeight() + 10 + 26 + 10)
+	tray:SetHeight(30 + tray.hint:GetStringHeight() + 10 + 26 + 2 + 24 + 8)
 	tray.snap:SetChecked(acct.snap)
+	tray.keepOptions:SetChecked(acct.keepOptionsOpen)
+	stepOptionsAside(unlocked)
 	tray.grid:SetChecked(acct.grid)
 	tray.gridValue:SetText(acct.gridSize)
 	grid:SetShown(unlocked and acct.grid)

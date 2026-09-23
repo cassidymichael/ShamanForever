@@ -1554,6 +1554,13 @@ function ns.OpenGroupSettings(gi)
 	end)
 end
 
+-- Closes the window; true if it was open.
+function ns.HideOptions()
+	if not (win and win:IsShown()) then return false end
+	win:Hide()
+	return true
+end
+
 function ns.ToggleOptions()
 	if win and win:IsShown() then win:Hide() else ns.OpenOptions() end
 end
