@@ -1738,11 +1738,12 @@ local function checkNewName(name)
 	if acct.profiles[name] then return "there is already a profile called " .. name end
 end
 
-local function newProfile(name, copy)
+-- source: settings to copy into it, or nil for defaults.
+local function newProfile(name, source)
 	name = strtrim(name or "")
 	local err = checkNewName(name)
 	if err then return err end
-	acct.profiles[name] = copy and CopyTable(db) or {}
+	acct.profiles[name] = source and CopyTable(source) or {}
 	useProfile(name)
 end
 
@@ -1768,6 +1769,77 @@ local function deleteProfile()
 	useProfile(DEFAULT_PROFILE)
 end
 
+-- Sharing: the active profile as text (CBOR, deflated, base64) behind a prefix, and back.
+local SHARE_PREFIX = "!SF1!"
+
+local function exportProfile()
+	local E = C_EncodingUtil
+	if not E then return nil, "sharing needs a newer game client" end
+	local ok, text = pcall(function()
+		local method = Enum.CompressionMethod and Enum.CompressionMethod.Deflate
+		local packed = E.CompressString(E.SerializeCBOR({ v = SETTINGS_VERSION, profile = db }), method)
+		return SHARE_PREFIX .. E.EncodeBase64(packed)
+	end)
+	if not ok then return nil, "export failed: " .. tostring(text) end
+	return text
+end
+
+local function validBorder(b)
+	return type(b) == "table" and type(b.show) == "boolean" and type(b.size) == "number" and type(b.color) == "table"
+		and type(b.color[1]) == "number" and type(b.color[2]) == "number" and type(b.color[3]) == "number"
+end
+
+-- Keeps only known settings of the right type from shared text; the rest come from defaults.
+local function cleanProfile(t)
+	local out = {}
+	for k, default in pairs(DEFAULTS) do
+		if type(t[k]) == type(default) then out[k] = t[k] end
+	end
+	if out.border and not validBorder(out.border) then out.border = nil end
+	if out.elementOpts then
+		for key, o in pairs(out.elementOpts) do
+			if type(key) ~= "string" or type(o) ~= "table" then out.elementOpts[key] = nil end
+		end
+	end
+	if out.groups then
+		local groups = {}
+		for _, g in ipairs(out.groups) do
+			if type(g) == "table" then
+				local clean = { members = {} }
+				for k, default in pairs(GROUP_DEFAULTS) do
+					if type(g[k]) == type(default) then clean[k] = g[k] end
+				end
+				if validBorder(g.border) then clean.border = g.border end
+				for _, key in ipairs(type(g.members) == "table" and g.members or {}) do
+					if type(key) == "string" then table.insert(clean.members, key) end
+				end
+				table.insert(groups, clean)
+			end
+		end
+		out.groups = groups
+	end
+	return out
+end
+
+-- Returns the settings in shared text, or nil and why not.
+local function decodeProfile(text)
+	local E = C_EncodingUtil
+	if not E then return nil, "sharing needs a newer game client" end
+	text = (text or ""):gsub("%s", "")
+	if text:sub(1, #SHARE_PREFIX) ~= SHARE_PREFIX then return nil, "that isn't a Shaman Forever profile" end
+	local ok, data = pcall(function()
+		local method = Enum.CompressionMethod and Enum.CompressionMethod.Deflate
+		return E.DeserializeCBOR(E.DecompressString(E.DecodeBase64(text:sub(#SHARE_PREFIX + 1)), method))
+	end)
+	if not ok or type(data) ~= "table" or type(data.profile) ~= "table" then
+		return nil, "that profile text is damaged or incomplete"
+	end
+	if type(data.v) == "number" and data.v > SETTINGS_VERSION then
+		return nil, "that profile needs a newer version of Shaman Forever"
+	end
+	return cleanProfile(data.profile)
+end
+
 -- The active profile back to defaults, keeping its name.
 local function resetProfile()
 	wipe(db)
@@ -1785,6 +1857,7 @@ ns.profileName = function() return profileName end
 ns.DEFAULT_PROFILE = DEFAULT_PROFILE
 ns.profileNames, ns.useProfile, ns.newProfile = profileNames, useProfile, newProfile
 ns.renameProfile, ns.deleteProfile, ns.resetProfile = renameProfile, deleteProfile, resetProfile
+ns.exportProfile, ns.decodeProfile = exportProfile, decodeProfile
 ns.applyLayout, ns.resolveSpells, ns.refreshAll, ns.elementOpts = applyLayout, resolveSpells, refreshAll, elementOpts
 ns.placeElement, ns.splitGroup, ns.hideGroup, ns.centerGroup = placeElement, splitGroup, hideGroup, centerGroup
 ns.setShow, ns.showMode = setShow, showMode

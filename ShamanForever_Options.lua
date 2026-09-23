@@ -534,6 +534,7 @@ local function askName(prompt, initial, action)
 	nameAction = { prompt = prompt, initial = initial or "", run = action }
 	StaticPopup_Show("SHAMANFOREVER_PROFILE_NAME", prompt)
 end
+ns.askProfileName = askName
 
 local function buildProfiles(p)
 	local function notDefault() return ns.profileName() ~= ns.DEFAULT_PROFILE end
@@ -546,7 +547,7 @@ local function buildProfiles(p)
 	p:buttons({
 		{ "New", function() askName("Name for the new profile:", nil, function(n) return ns.newProfile(n) end) end,
 			"A new profile with default settings.", 90 },
-		{ "Copy", function() askName("Name for the copy:", ns.profileName() .. " copy", function(n) return ns.newProfile(n, true) end) end,
+		{ "Copy", function() askName("Name for the copy:", ns.profileName() .. " copy", function(n) return ns.newProfile(n, ns.getDB()) end) end,
 			"A new profile with this one's settings.", 90 },
 		{ "Rename", function() askName("New name:", ns.profileName(), ns.renameProfile) end,
 			"Default can't be renamed.", 90, notDefault },
@@ -554,6 +555,12 @@ local function buildProfiles(p)
 			"Characters using it go back to Default. Default can't be deleted.", 90, notDefault },
 		{ "Reset", function() StaticPopup_Show("SHAMANFOREVER_RESET", ns.profileName()) end,
 			"Every setting in this profile back to defaults, including the layout.", 90 },
+	})
+
+	p:header("Share")
+	p:buttons({
+		{ "Export", function() ns.ShowShare("export") end, "This profile as text, to share.", 90 },
+		{ "Import", function() ns.ShowShare("import") end, "Profile text from someone else. It becomes a new profile.", 90 },
 	})
 end
 
@@ -1351,12 +1358,19 @@ StaticPopupDialogs["SHAMANFOREVER_DELETE_PROFILE"] = {
 local function popupEditBox(dialog)
 	return dialog.GetEditBox and dialog:GetEditBox() or dialog.EditBox or dialog.editBox
 end
+-- A name that fails (taken, empty) asks again with the reason, keeping what was typed.
 local function submitName(text)
 	local action = nameAction
 	nameAction = nil
 	if not action then return end
 	local err = action.run(text)
-	if err then ns.say(err) end
+	if err then
+		local prompt = action.retryOf or action.prompt
+		C_Timer.After(0, function()
+			nameAction = { prompt = prompt, retryOf = prompt, initial = text, run = action.run }
+			StaticPopup_Show("SHAMANFOREVER_PROFILE_NAME", "|cffff6060" .. err:gsub("^%l", string.upper) .. ".|r\n" .. prompt)
+		end)
+	end
 end
 StaticPopupDialogs["SHAMANFOREVER_PROFILE_NAME"] = {
 	text = "%s", button1 = ACCEPT, button2 = CANCEL,
@@ -1373,6 +1387,120 @@ StaticPopupDialogs["SHAMANFOREVER_PROFILE_NAME"] = {
 	EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
 	timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
 }
+
+-- Profile sharing: one small window, in export mode (the text, selected for copying) or import mode
+-- (an empty box to paste into).
+local share
+local function buildShare()
+	local f = CreateFrame("Frame", "ShamanForeverShareFrame", UIParent, "BackdropTemplate")
+	f:SetSize(460, 250)
+	f:SetPoint("CENTER")
+	f:SetFrameStrata("FULLSCREEN_DIALOG")
+	f:SetToplevel(true)
+	f:SetClampedToScreen(true)
+	f:SetMovable(true)
+	f:EnableMouse(true)
+	f:RegisterForDrag("LeftButton")
+	f:SetScript("OnDragStart", f.StartMoving)
+	f:SetScript("OnDragStop", f.StopMovingOrSizing)
+	panelBackdrop(f, 0.55, 0.42, 0.22)
+	table.insert(UISpecialFrames, f:GetName())   -- Escape closes it
+
+	f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+	f.title:SetPoint("TOPLEFT", 14, -12)
+	local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+	close:SetPoint("TOPRIGHT", -2, -2)
+
+	local boxBg = CreateFrame("Frame", nil, f, "BackdropTemplate")
+	panelBackdrop(boxBg)
+	boxBg:SetBackdropColor(0, 0, 0, 0.35)
+	boxBg:SetPoint("TOPLEFT", 12, -40)
+	boxBg:SetPoint("BOTTOMRIGHT", -12, 64)
+	local scroll = CreateFrame("ScrollFrame", nil, boxBg, "UIPanelScrollFrameTemplate")
+	scroll:SetPoint("TOPLEFT", 8, -6)
+	scroll:SetPoint("BOTTOMRIGHT", -28, 6)
+	local e = CreateFrame("EditBox", nil, scroll)
+	e:SetMultiLine(true)
+	e:SetAutoFocus(false)
+	e:SetFontObject("ChatFontSmall")
+	e:SetMaxLetters(0)
+	e:SetWidth(460 - 24 - 36)
+	e:SetScript("OnEscapePressed", function() f:Hide() end)
+	scroll:SetScrollChild(e)
+	-- Clicking anywhere in the box starts typing, not just on the lines of text.
+	boxBg:EnableMouse(true)
+	boxBg:SetScript("OnMouseDown", function() e:SetFocus() end)
+	f.edit = e
+
+	f.note = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	f.note:SetPoint("TOPLEFT", boxBg, "BOTTOMLEFT", 2, -8)
+	f.note:SetPoint("RIGHT", -12, 0)
+	f.note:SetJustifyH("LEFT")
+
+	f.primary = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+	f.primary:SetSize(100, 22)
+	f.primary:SetPoint("BOTTOMRIGHT", -12, 12)
+	f.secondary = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+	f.secondary:SetSize(100, 22)
+	f.secondary:SetPoint("RIGHT", f.primary, "LEFT", -6, 0)
+	f.secondary:SetText(CANCEL)
+	f.secondary:SetScript("OnClick", function() f:Hide() end)
+
+	-- Import mode: the Import button waits for some text, and a problem shows in the note.
+	e:SetScript("OnTextChanged", function(self, user)
+		if f.mode == "export" then
+			-- Read-only: typing puts the text back.
+			if user then self:SetText(f.exported); self:HighlightText() end
+			return
+		end
+		f.primary:SetEnabled(strtrim(self:GetText()) ~= "")
+		if user then f.note:SetText("Paste profile text above."); f.note:SetTextColor(0.78, 0.74, 0.68) end
+	end)
+	f.primary:SetScript("OnClick", function()
+		if f.mode == "export" then f:Hide(); return end
+		local settings, err = ns.decodeProfile(e:GetText())
+		if not settings then
+			f.note:SetText(err:gsub("^%l", string.upper) .. ".")
+			f.note:SetTextColor(1, 0.38, 0.38)
+			return
+		end
+		f:Hide()
+		ns.askProfileName("Name for the imported profile:", "Imported", function(n) return ns.newProfile(n, settings) end)
+	end)
+	f:Hide()
+	return f
+end
+
+function ns.ShowShare(mode)
+	share = share or buildShare()
+	share.mode = mode
+	local e = share.edit
+	share.note:SetTextColor(0.78, 0.74, 0.68)
+	if mode == "export" then
+		local text, err = ns.exportProfile()
+		if not text then ns.say(err); return end
+		share.exported = text
+		share.title:SetText("Export " .. ns.profileName())
+		share.note:SetText("Ctrl+C to copy.")
+		share.primary:SetText(CLOSE)
+		share.primary:SetEnabled(true)
+		share.secondary:Hide()
+		share:Show()
+		e:SetText(text)
+		e:SetCursorPosition(0)
+		e:SetFocus()
+		e:HighlightText()
+	else
+		share.title:SetText("Import a profile")
+		share.note:SetText("Paste profile text above.")
+		share.primary:SetText("Import")
+		share.primary:SetEnabled(false)
+		share.secondary:Show()
+		share:Show()
+		e:SetText("")
+		e:SetFocus()
+	end
+end
 
 -- Several changes in one frame (a slider drag, a drop) refresh the visible page once.
 local refreshQueued = false
