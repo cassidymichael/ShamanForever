@@ -5,31 +5,31 @@ local ADDON, ns = ...
 
 local hooked = false
 
-local function db() return ns.getDB() end
+local function acct() return ns.getAccount() end
 
 -- Places the reporter at our saved spot and applies the hide setting. Its own OnShow re-places it
 -- from Blizzard_PTRIssueReporter_Saved, so the position goes there too.
 function ns.applyIssueReporter()
 	local f = PTR_IssueReporter
-	if not (f and f.text and db()) then return end   -- f.text exists once its main view is built
-	local pos = db().issueReporterPos
+	if not (f and f.text and acct()) then return end   -- f.text exists once its main view is built
+	local pos = acct().issueReporterPos
 	if pos and Blizzard_PTRIssueReporter_Saved then
 		Blizzard_PTRIssueReporter_Saved.x, Blizzard_PTRIssueReporter_Saved.y = pos.x, pos.y
 		f:ClearAllPoints()
 		f:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", pos.x, pos.y)
 	end
-	f:SetShown(not db().hideIssueReporter)
+	f:SetShown(not acct().hideIssueReporter)
 end
 
 -- CreateMainView sets the OnShow and OnDragStop scripts, so ours are hooked on after it runs.
 local function afterMainView()
 	local f = PTR_IssueReporter
 	f:HookScript("OnShow", function(self)
-		if db() and db().hideIssueReporter then self:Hide() end
+		if acct() and acct().hideIssueReporter then self:Hide() end
 	end)
 	f:HookScript("OnDragStop", function(self)
 		local left, bottom = self:GetRect()
-		if left and db() then db().issueReporterPos = { x = left, y = bottom } end
+		if left and acct() then acct().issueReporterPos = { x = left, y = bottom } end
 	end)
 	ns.applyIssueReporter()
 end

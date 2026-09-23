@@ -16,6 +16,7 @@ local pages, pageOrder, currentPage = {}, {}, nil
 local selectedGroup = 1
 
 local function db() return ns.getDB() end
+local function acct() return ns.getAccount() end
 local function relayout() ns.applyLayout() end
 local function respell() ns.resolveSpells(); ns.refreshAll() end
 
@@ -284,10 +285,11 @@ function Page:button(textFn, onClick, tip, width, shown)
 	return self:add(f, 32, shown, function() btn:SetText(textFn()) end)
 end
 
--- list: { { text, onClick, tip, width }, ... }
+-- list: { { text, onClick, tip, width, enabled }, ... }; enabled is an optional function.
 function Page:buttons(list, shown)
 	local f = self:row(32)
 	local x = 0
+	local toggles = {}
 	for _, b in ipairs(list) do
 		local w = b[4] or 140
 		local btn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
@@ -296,9 +298,12 @@ function Page:buttons(list, shown)
 		btn:SetText(b[1])
 		btn:SetScript("OnClick", b[2])
 		setTip(btn, b[1], b[3])
+		if b[5] then toggles[btn] = b[5] end
 		x = x + w + 6
 	end
-	return self:add(f, 32, shown)
+	return self:add(f, 32, shown, function()
+		for btn, enabled in pairs(toggles) do btn:SetEnabled(enabled() and true or false) end
+	end)
 end
 
 -- A page header pinned above the page's scrolling area (so an element's preview stays in view while
@@ -471,8 +476,8 @@ local function groupSet(key) return function(v) local g = selected(); if g then 
 ------------------------------------------------------------------------
 -- Page contents
 ------------------------------------------------------------------------
-local function lockText() return db().locked and "Unlock positioning" or "Lock positioning" end
-local function toggleLock() db().locked = not db().locked; relayout() end
+local function lockText() return acct().locked and "Unlock positioning" or "Lock positioning" end
+local function toggleLock() acct().locked = not acct().locked; relayout() end
 local LOCK_TIP = "Unlocked, drag groups on screen, mouse wheel to scale, shift + wheel for opacity. /sf lock does the same."
 
 local aboutExp   -- About's Experimental heading, for ns.ShowExperimental
@@ -488,7 +493,7 @@ local function buildHome(p)
 	p:pin(ns.Look.buildIntro(win, addonVersion()))
 	p:bigButtons({
 		{ "Interface\\Icons\\INV_Misc_Key_03", lockText,
-			function() return db().locked and "Move groups on screen" or "Done moving? Lock them" end, toggleLock },
+			function() return acct().locked and "Move groups on screen" or "Done moving? Lock them" end, toggleLock },
 		{ "Interface\\Icons\\Spell_Nature_Invisibilty", function() return "Layout" end,
 			function() return "Set up groups of elements" end, function() ns.OpenOptions("layout") end },
 	})
@@ -520,15 +525,36 @@ local function buildGeneral(p)
 	local function hasReporter() return ns.hasIssueReporter and ns.hasIssueReporter() end
 	p:header("Beta", hasReporter)
 	p:checkbox("Hide the Issue Reporter button", "Blizzard's beta Issue Reporter button. /ptr still works while it is hidden. Shaman Forever also remembers where you drag it.",
-		get("hideIssueReporter"), function(v) db().hideIssueReporter = v; ns.applyIssueReporter() end, hasReporter)
+		function() return acct().hideIssueReporter end, function(v) acct().hideIssueReporter = v; ns.applyIssueReporter() end, hasReporter)
+end
 
-	p:header("Reset")
-	p:buttons({ { "Reset everything", function() StaticPopup_Show("SHAMANFOREVER_RESET") end,
-		"Restores every option and the default layout.", 160 } })
+-- Asks for a profile name, then passes it to action, which returns an error message or nil.
+local nameAction
+local function askName(prompt, initial, action)
+	nameAction = { prompt = prompt, initial = initial or "", run = action }
+	StaticPopup_Show("SHAMANFOREVER_PROFILE_NAME", prompt)
 end
 
 local function buildProfiles(p)
-	p:text("Coming in a later release: named profiles, a profile per talent spec, and sharing a layout as text.")
+	local function notDefault() return ns.profileName() ~= ns.DEFAULT_PROFILE end
+	p:header("Profile")
+	p:dropdown("This character", "Each character uses one profile. New characters use Default.", function()
+		local t = {}
+		for _, name in ipairs(ns.profileNames()) do table.insert(t, { name, name }) end
+		return t
+	end, ns.profileName, ns.useProfile)
+	p:buttons({
+		{ "New", function() askName("Name for the new profile:", nil, function(n) return ns.newProfile(n) end) end,
+			"A new profile with default settings.", 90 },
+		{ "Copy", function() askName("Name for the copy:", ns.profileName() .. " copy", function(n) return ns.newProfile(n, true) end) end,
+			"A new profile with this one's settings.", 90 },
+		{ "Rename", function() askName("New name:", ns.profileName(), ns.renameProfile) end,
+			"Default can't be renamed.", 90, notDefault },
+		{ "Delete", function() StaticPopup_Show("SHAMANFOREVER_DELETE_PROFILE", ns.profileName()) end,
+			"Characters using it go back to Default. Default can't be deleted.", 90, notDefault },
+		{ "Reset", function() StaticPopup_Show("SHAMANFOREVER_RESET", ns.profileName()) end,
+			"Every setting in this profile back to defaults, including the layout.", 90 },
+	})
 end
 
 local function buildAbout(p)
@@ -811,7 +837,7 @@ end
 local function buildLayout(p)
 	p:button(lockText, toggleLock, LOCK_TIP)
 	p:checkbox("Test elements", "Adds placeholder elements in their own group, for trying out layouts.",
-		get("testMode"), function(v) ns.setTestMode(v) end)
+		function() return acct().testMode end, function(v) ns.setTestMode(v) end)
 	p:header("Groups", nil, "Drag elements between groups. Click one for a menu.")
 	p:add(p:row(6), 6)   -- a little room between the heading's line and the group cards
 	buildBoard(p)
@@ -1212,7 +1238,7 @@ local function buildNav()
 	navDivider:SetPoint("TOPLEFT", 20, y)
 	navDivider:SetWidth(NAV_W - 36)
 	y = y - 14
-	add("profiles", "Profiles", "Interface\\Icons\\INV_Misc_Note_01", nil, "Later")
+	add("profiles", "Profiles", "Interface\\Icons\\INV_Misc_Note_01")
 	add("about", "About", "Interface\\Icons\\INV_Misc_Book_09")
 	local foot = win:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 	foot:SetPoint("BOTTOMLEFT", 16, 14)
@@ -1242,8 +1268,8 @@ local function buildWindow()
 	navEdge:SetWidth(1)
 	navEdge:SetColorTexture(0.23, 0.17, 0.10, 1)
 
-	db().optionsSize = nil   -- from the old resizable window
-	win:SetSize(WIDTH, math.min(math.max(db().optionsHeight or HEIGHT, MIN_H), MAX_H))
+	acct().optionsSize = nil   -- from the old resizable window
+	win:SetSize(WIDTH, math.min(math.max(acct().optionsHeight or HEIGHT, MIN_H), MAX_H))
 	win:SetPoint("CENTER")
 	-- Taller only: the grip changes height, never width, and pins the top edge.
 	local grip = CreateFrame("Button", nil, win)
@@ -1267,7 +1293,7 @@ local function buildWindow()
 	end)
 	grip:SetScript("OnMouseUp", function(self)
 		self:SetScript("OnUpdate", nil)
-		db().optionsHeight = math.floor(win:GetHeight())
+		acct().optionsHeight = math.floor(win:GetHeight())
 	end)
 	win:SetFrameStrata("DIALOG")
 	win:SetToplevel(true)
@@ -1309,9 +1335,42 @@ confirm("SHAMANFOREVER_HIDEALL", "Hide every element in Group %s?\nEach one's Sh
 	function(gi) ns.hideGroup(gi) end)
 
 StaticPopupDialogs["SHAMANFOREVER_RESET"] = {
-	text = "Reset every Shaman Forever option and the layout to defaults?",
+	text = "Reset profile %s to defaults?\nIts layout and every setting are lost.",
 	button1 = YES, button2 = NO,
-	OnAccept = function() ns.resetAll(); ns.say("reset to defaults") end,
+	OnAccept = function() ns.resetProfile(); ns.say("profile reset to defaults") end,
+	timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+}
+StaticPopupDialogs["SHAMANFOREVER_DELETE_PROFILE"] = {
+	text = "Delete profile %s?\nCharacters using it go back to Default.",
+	button1 = "Delete", button2 = CANCEL,
+	OnAccept = function() ns.deleteProfile() end,
+	timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+}
+
+-- The edit box moved from dialog.editBox to dialog.EditBox / GetEditBox() over the Retail versions.
+local function popupEditBox(dialog)
+	return dialog.GetEditBox and dialog:GetEditBox() or dialog.EditBox or dialog.editBox
+end
+local function submitName(text)
+	local action = nameAction
+	nameAction = nil
+	if not action then return end
+	local err = action.run(text)
+	if err then ns.say(err) end
+end
+StaticPopupDialogs["SHAMANFOREVER_PROFILE_NAME"] = {
+	text = "%s", button1 = ACCEPT, button2 = CANCEL,
+	hasEditBox = true, maxLetters = 32,
+	OnShow = function(self)
+		local e = popupEditBox(self)
+		if e then e:SetText(nameAction and nameAction.initial or ""); e:HighlightText(); e:SetFocus() end
+	end,
+	OnAccept = function(self) local e = popupEditBox(self); submitName(e and e:GetText() or "") end,
+	EditBoxOnEnterPressed = function(self)
+		submitName(self:GetText())
+		self:GetParent():Hide()
+	end,
+	EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
 	timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
 }
 

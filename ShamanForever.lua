@@ -32,7 +32,9 @@ local GROUP_DEFAULTS = {
 	combatOnly = false,          -- hide the group out of combat (always shown while unlocked)
 }
 
-local DEFAULTS = {
+-- Settings for the whole account, outside profiles: how the player works with the addon, and what
+-- it has learned about the game.
+local ACCOUNT_DEFAULTS = {
 	locked = true,
 	testMode = false,       -- register placeholder elements for trying out layouts
 	snap = false,           -- unlocked drags snap to other groups, the screen centre and the grid
@@ -40,6 +42,16 @@ local DEFAULTS = {
 	gridSize = 32,
 	hideIssueReporter = false,  -- beta: hide Blizzard's Issue Reporter button (its position is kept either way)
 	minimalArt = false,     -- options window without banners and ornaments; kept ready, no control for now
+	lastShield = "lightning",  -- the shield last cast or seen; its icon is the no-shield look in "either" mode
+	imbueIDs = {},            -- learned enchant ID -> imbue key
+	totemLifetimes = {},      -- learned totem lifetime in seconds, by cooldown element key
+	profiles = {},            -- name -> settings (DEFAULTS below)
+	chars = {},               -- "Name-Realm" -> { profile = name }
+}
+local DEFAULT_PROFILE = "Default"
+
+-- A profile: the layout and how every element looks.
+local DEFAULTS = {
 	iconSize = 40,          -- base element size; each group scales it
 	border = { show = true, size = 1, color = { 0, 0, 0, 1 } },   -- around every element; a group can override (g.border)
 	-- Default layout (the author's, 2026-09-23): shield, shock and Fire Nova under the character,
@@ -56,7 +68,6 @@ local DEFAULTS = {
 	elementOpts = {},       -- per-element settings by key, e.g. { shock = { show = "combat" } }
 	-- shield
 	shieldTrack = "lightning", -- lightning | water | either: which shield counts as "up" (water and either are experimental)
-	lastShield = "lightning",  -- the shield last cast or seen; its icon is the no-shield look in "either" mode
 	countPos = "center",    -- corner | center
 	countSize = 20,
 	showBar = true,         -- charge bar along the bottom of the icon
@@ -88,14 +99,14 @@ local DEFAULTS = {
 	imbueWarnMins = 5,        -- show time left below this many minutes (0 = never)
 	imbueTextSize = 16,
 	imbueHideActive = true,   -- while an imbue is on, only show once its time left shows
-	imbueIDs = {},            -- learned enchant ID -> imbue key
-	totemLifetimes = {},      -- learned totem lifetime in seconds, by cooldown element key
 }
 -- Pre-groups layout keys, folded into a single group on first load.
 local LEGACY_KEYS = { "point", "x", "y", "alpha", "scale", "size", "spacing", "orientation", "growth", "order", "enabled" }
 -- Saved settings format. Bump it and add a step on ADDON_LOADED when a stored value must change.
-local SETTINGS_VERSION = 3
-local db
+local SETTINGS_VERSION = 4
+local acct       -- ShamanForeverDB: account settings, and every profile
+local db         -- the active profile
+local profileName
 
 local function isSecret(v) return issecretvalue and issecretvalue(v) or false end
 local function safe(fn, ...) if not fn then return false end return pcall(fn, ...) end
@@ -353,7 +364,7 @@ end
 ------------------------------------------------------------------------
 local function available(key)
 	local e = ELEMENTS[key]
-	return e ~= nil and (not e.placeholder or db.testMode)
+	return e ~= nil and (not e.placeholder or acct.testMode)
 end
 
 -- Group index and position of an element. Every available element sits in a group; whether it is
@@ -401,7 +412,7 @@ end
 -- into the first group set to never show.
 local function sanitize()
 	if db.shieldTrack ~= "either" and not SHIELDS[db.shieldTrack] then db.shieldTrack = "lightning" end
-	if not SHIELDS[db.lastShield] then db.lastShield = "lightning" end
+	if not SHIELDS[acct.lastShield] then acct.lastShield = "lightning" end
 	if type(db.groups) ~= "table" then db.groups = {} end
 	if type(db.known) ~= "table" then db.known = {} end
 	local seen = {}
@@ -442,9 +453,11 @@ end
 
 -- Test elements are forgotten when switched off, so switching back on puts them in a fresh group.
 local function setTestMode(on)
-	db.testMode = on
+	acct.testMode = on
 	if not on then
-		for _, p in ipairs(PLACEHOLDERS) do db.known[p.key] = nil end
+		for _, prof in pairs(acct.profiles) do
+			for _, p in ipairs(PLACEHOLDERS) do if type(prof.known) == "table" then prof.known[p.key] = nil end end
+		end
 	end
 	sanitize()
 end
@@ -586,7 +599,7 @@ local function layoutGroup(gi)
 				else f:SetPoint("BOTTOM", prev, "TOP", 0, gap) end
 				along, across = along + h, math.max(across, w)
 			end
-			showFrame(f, db.locked and showMode(key) == "combat")
+			showFrame(f, acct.locked and showMode(key) == "combat")
 			prev, n = f, n + 1
 		end
 	end
@@ -599,14 +612,14 @@ local function layoutGroup(gi)
 	for _, key in ipairs(g.members) do applyBorder(ELEMENTS[key].frame, g.border or db.border) end
 	gf:ClearAllPoints()
 	gf:SetPoint(g.point, UIParent, g.point, g.x, g.y)
-	local unlocked = not db.locked
+	local unlocked = not acct.locked
 	gf:EnableMouse(unlocked)
 	gf:EnableMouseWheel(unlocked)
 	gf:SetBackdropColor(0, 0, 0, unlocked and 0.4 or 0)
 	gf:SetBackdropBorderColor(0.2, 0.6, 1, unlocked and 0.9 or 0)
 	gf.label:SetText("Group " .. gi)
 	gf.label:SetShown(unlocked)
-	if n > 0 then showFrame(gf, db.locked and g.combatOnly or false) else hideFrame(gf) end
+	if n > 0 then showFrame(gf, acct.locked and g.combatOnly or false) else hideFrame(gf) end
 end
 
 -- Deferred in combat: the shield's group is an ancestor of Blizzard's protected aura button, so
@@ -645,7 +658,7 @@ grid.lines = {}
 
 local function drawGrid()
 	local w, h = UIParent:GetSize()
-	local gs = db.gridSize
+	local gs = acct.gridSize
 	local n = 0
 	local function line(vertical, offset)
 		n = n + 1
@@ -732,7 +745,7 @@ local function dragUpdate(self)
 	local cx, cy = GetCursorPosition()
 	local x, y = cx / ui + self.dragDX, cy / ui + self.dragDY
 	local gx, gy
-	if db.snap then
+	if acct.snap then
 		local w, h = UIParent:GetSize()
 		local s = self:GetEffectiveScale() / ui
 		local tx, ty = { w / 2 }, { h / 2 }
@@ -745,7 +758,7 @@ local function dragUpdate(self)
 				table.insert(ty, b); table.insert(ty, (b + t) / 2); table.insert(ty, t)
 			end
 		end
-		local gs = db.grid and db.gridSize or nil
+		local gs = acct.grid and acct.gridSize or nil
 		x, gx = snapAxis(x, self:GetWidth() * s / 2, tx, w / 2, gs)
 		y, gy = snapAxis(y, self:GetHeight() * s / 2, ty, h / 2, gs)
 	end
@@ -758,7 +771,7 @@ end
 
 groupFrameScripts = function(f)
 	f:SetScript("OnDragStart", function(self)
-		if db.locked or InCombatLockdown() then return end
+		if acct.locked or InCombatLockdown() then return end
 		local ui = uiScale()
 		local s = self:GetEffectiveScale() / ui
 		local fx, fy = self:GetCenter()
@@ -772,7 +785,7 @@ groupFrameScripts = function(f)
 		if not InCombatLockdown() then layoutElements() end
 	end)
 	f:SetScript("OnMouseWheel", function(self, delta)
-		if db.locked or InCombatLockdown() then return end
+		if acct.locked or InCombatLockdown() then return end
 		local g = db.groups[self.index]
 		local sx, sy = screenCenter(self)
 		if IsShiftKeyDown() then g.alpha = clamp(round2(g.alpha + delta * 0.05), 0.1, 1)
@@ -783,7 +796,7 @@ groupFrameScripts = function(f)
 	end)
 	-- Right-click: the group's settings. Shift-right-click: the settings of the element under the cursor.
 	f:SetScript("OnMouseUp", function(self, button)
-		if button ~= "RightButton" or db.locked or not ns.OpenOptions then return end
+		if button ~= "RightButton" or acct.locked or not ns.OpenOptions then return end
 		if IsShiftKeyDown() then
 			for _, key in ipairs(db.groups[self.index].members) do
 				local e = ELEMENTS[key].frame
@@ -854,7 +867,7 @@ do
 		b:SetSize(22, 20)
 		b:SetText(text)
 		b:SetScript("OnClick", function()
-			db.gridSize = math.min(math.max(db.gridSize + delta, 8), 128)
+			acct.gridSize = math.min(math.max(acct.gridSize + delta, 8), 128)
 			layoutElements()
 		end)
 		return b
@@ -873,7 +886,7 @@ do
 	lock:SetSize(90, 22)
 	lock:SetPoint("RIGHT", 0, 0)
 	lock:SetText("Lock")
-	lock:SetScript("OnClick", function() db.locked = true; ns.applyLayout() end)
+	lock:SetScript("OnClick", function() acct.locked = true; ns.applyLayout() end)
 	local options = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
 	options:SetSize(90, 22)
 	options:SetPoint("RIGHT", lock, "LEFT", -6, 0)
@@ -882,14 +895,14 @@ do
 end
 
 function updateTray()
-	local unlocked = isShaman and not db.locked
+	local unlocked = isShaman and not acct.locked
 	tray:SetShown(unlocked)
 	tray:SetHeight(30 + tray.hint:GetStringHeight() + 10 + 26 + 10)
-	tray.snap:SetChecked(db.snap)
-	tray.grid:SetChecked(db.grid)
-	tray.gridValue:SetText(db.gridSize)
-	grid:SetShown(unlocked and db.grid)
-	if unlocked and db.grid then drawGrid() end
+	tray.snap:SetChecked(acct.snap)
+	tray.grid:SetChecked(acct.grid)
+	tray.gridValue:SetText(acct.gridSize)
+	grid:SetShown(unlocked and acct.grid)
+	if unlocked and acct.grid then drawGrid() end
 	if not unlocked then showGuides() end
 end
 
@@ -937,7 +950,7 @@ local function tracksShield(key) return db.shieldTrack == "either" or db.shieldT
 -- seen, falling back to one the player actually knows.
 local function underlayShield()
 	if SHIELDS[db.shieldTrack] then return db.shieldTrack end
-	if SHIELDS[db.lastShield] and SHIELDS[db.lastShield].known then return db.lastShield end
+	if SHIELDS[acct.lastShield] and SHIELDS[acct.lastShield].known then return acct.lastShield end
 	for _, key in ipairs(SHIELD_ORDER) do if SHIELDS[key].known then return key end end
 	return "lightning"
 end
@@ -1175,7 +1188,7 @@ local function refreshShield()
 			end
 		end
 	end
-	if upKey then db.lastShield = upKey end
+	if upKey then acct.lastShield = upKey end
 	setBelievedUp(upKey ~= nil and tracksShield(upKey))
 end
 
@@ -1283,7 +1296,7 @@ local function readMainHand()
 end
 
 local function imbueKeyFor(w)
-	local key = db.imbueIDs[w.enchantID] or imbueByID[w.enchantID]
+	local key = acct.imbueIDs[w.enchantID] or imbueByID[w.enchantID]
 	if key then return key end
 	for k, m in pairs(IMBUES) do
 		if w.enchantIconID == m.icon or w.enchantIconID == imbueIconFor(k) then return k end
@@ -1309,7 +1322,7 @@ local function paintImbue(now)
 		imbue:SetRingShown(false)
 		imbue:SetPulsing(false)
 	else
-		imbueIcon = imbueIconFor(db.imbuePreferred == "last" and (db.imbueLast or "rockbiter") or db.imbuePreferred)
+		imbueIcon = imbueIconFor(db.imbuePreferred == "last" and (acct.imbueLast or "rockbiter") or db.imbuePreferred)
 		imbue.tex:SetDesaturated(db.imbueMissingGrey)
 		imbue:SetRingShown(db.imbueMissingRing)
 		imbue:SetPulsing(db.imbuePulse)
@@ -1326,7 +1339,7 @@ local function paintImbue(now)
 	end
 	imbue.timer:SetShown(unreadable or showTime)
 	-- Hidden by alpha, not Hide, so it keeps its place in the group and shows again at once.
-	imbue:SetAlpha((db.locked and key and db.imbueHideActive and not showTime and not unreadable) and 0 or 1)
+	imbue:SetAlpha((acct.locked and key and db.imbueHideActive and not showTime and not unreadable) and 0 or 1)
 end
 
 local function refreshImbue()
@@ -1341,11 +1354,11 @@ local function refreshImbue()
 		imbueState.read = "no imbue"
 	else
 		local key = imbueKeyFor(r)
-		if not key and now - imbueState.castAt < 3 then key = imbueState.castKey; db.imbueIDs[r.enchantID] = key end
+		if not key and now - imbueState.castAt < 3 then key = imbueState.castKey; acct.imbueIDs[r.enchantID] = key end
 		imbueState.read = string.format("enchant %d, icon %d, %s", r.enchantID, r.enchantIconID, key or "not recognised")
 		imbueState.key = key
 		imbueState.expiresAt = r.timeLeft > 0 and now + r.timeLeft / 1000 or nil
-		if key then db.imbueLast = key end
+		if key then acct.imbueLast = key end
 	end
 	paintImbue(now)
 end
@@ -1495,9 +1508,9 @@ local function refreshCooldown(def)
 		local slot = def.totemSlot
 		local have, name, duration = readTotem(slot)
 		if have and name:find(def.spell, 1, true) == 1 and type(duration) == "number" and duration > 0 then
-			db.totemLifetimes[def.key] = duration
+			acct.totemLifetimes[def.key] = duration
 		end
-		local lifetime = db.totemLifetimes[def.key] or def.duration
+		local lifetime = acct.totemLifetimes[def.key] or def.duration
 		if def.curveFor ~= lifetime then def.curve, def.curveFor = lifetimeCurve(lifetime), lifetime end
 		local tok, tdur = safe(GetTotemDuration, slot)
 		if tok and tdur and def.curve then
@@ -1673,10 +1686,93 @@ local centerGroup = edit(function(gi)
 	if g then g.point, g.x, g.y = "CENTER", 0, 0 end
 end)
 
-local function resetAll()
-	for k, v in pairs(DEFAULTS) do db[k] = type(v) == "table" and CopyTable(v) or v end
+------------------------------------------------------------------------
+-- Profiles: named sets of settings in acct.profiles. Each character picks one (acct.chars); new
+-- characters start on Default.
+------------------------------------------------------------------------
+local function charKey()
+	local name, realm = UnitName("player"), GetNormalizedRealmName and GetNormalizedRealmName()
+	if not realm or realm == "" then realm = GetRealmName() end
+	if name and realm then return name .. "-" .. realm end
+end
+
+local function fillDefaults(t, defaults)
+	for k, v in pairs(defaults) do
+		if t[k] == nil then t[k] = type(v) == "table" and CopyTable(v) or v end
+	end
+end
+
+-- Makes name the active profile (created from defaults if new) and remembers it for this character.
+local function selectProfile(name)
+	if type(acct.profiles[name]) ~= "table" then acct.profiles[name] = {} end
+	profileName, db = name, acct.profiles[name]
+	fillDefaults(db, DEFAULTS)
 	sanitize()
+	local key = charKey()
+	if key then
+		acct.chars[key] = acct.chars[key] or {}
+		acct.chars[key].profile = name
+	end
+end
+
+local function redraw()
 	resolveSpells(); applyLayout(); refreshAll()
+	if ns.RefreshOptions then ns.RefreshOptions() end
+end
+
+local function useProfile(name)
+	selectProfile(name)
+	redraw()
+end
+
+local function profileNames()
+	local t = {}
+	for name in pairs(acct.profiles) do table.insert(t, name) end
+	table.sort(t, function(a, b) return a:lower() < b:lower() end)
+	return t
+end
+
+-- Returns an error message, or nil once done.
+local function checkNewName(name)
+	if name == "" then return "a profile needs a name" end
+	if acct.profiles[name] then return "there is already a profile called " .. name end
+end
+
+local function newProfile(name, copy)
+	name = strtrim(name or "")
+	local err = checkNewName(name)
+	if err then return err end
+	acct.profiles[name] = copy and CopyTable(db) or {}
+	useProfile(name)
+end
+
+-- Default keeps its name: it is the profile new characters start on.
+local function renameProfile(name)
+	if profileName == DEFAULT_PROFILE then return end
+	name = strtrim(name or "")
+	local err = checkNewName(name)
+	if err then return err end
+	local old = profileName
+	acct.profiles[name], acct.profiles[old] = acct.profiles[old], nil
+	for _, c in pairs(acct.chars) do if c.profile == old then c.profile = name end end
+	profileName = name
+	if ns.RefreshOptions then ns.RefreshOptions() end
+end
+
+-- Deletes the active profile; characters that used it go back to Default, which cannot be deleted.
+local function deleteProfile()
+	local name = profileName
+	if name == DEFAULT_PROFILE then return end
+	acct.profiles[name] = nil
+	for _, c in pairs(acct.chars) do if c.profile == name then c.profile = nil end end
+	useProfile(DEFAULT_PROFILE)
+end
+
+-- The active profile back to defaults, keeping its name.
+local function resetProfile()
+	wipe(db)
+	selectProfile(profileName)
+	redraw()
 end
 
 -- Shared with ShamanForever_Options.lua
@@ -1684,6 +1780,11 @@ ns.DEFAULTS, ns.GROUP_DEFAULTS, ns.SHOCKS, ns.SHOCK_ORDER = DEFAULTS, GROUP_DEFA
 ns.SHIELDS, ns.SHIELD_ORDER = SHIELDS, SHIELD_ORDER
 ns.ELEMENTS, ns.ELEMENT_KEYS, ns.available, ns.findElement = ELEMENTS, ELEMENT_KEYS, available, findElement
 ns.getDB = function() return db end
+ns.getAccount = function() return acct end
+ns.profileName = function() return profileName end
+ns.DEFAULT_PROFILE = DEFAULT_PROFILE
+ns.profileNames, ns.useProfile, ns.newProfile = profileNames, useProfile, newProfile
+ns.renameProfile, ns.deleteProfile, ns.resetProfile = renameProfile, deleteProfile, resetProfile
 ns.applyLayout, ns.resolveSpells, ns.refreshAll, ns.elementOpts = applyLayout, resolveSpells, refreshAll, elementOpts
 ns.placeElement, ns.splitGroup, ns.hideGroup, ns.centerGroup = placeElement, splitGroup, hideGroup, centerGroup
 ns.setShow, ns.showMode = setShow, showMode
@@ -1691,7 +1792,6 @@ ns.COOLDOWNS = COOLDOWNS
 ns.makeIcon = makeIcon   -- the options previews draw with the HUD's own icon
 ns.IMBUES, ns.IMBUE_ORDER, ns.imbueIcon = IMBUES, IMBUE_ORDER, function() return imbueIcon end
 ns.setTestMode = function(on) edit(setTestMode)(on) end
-ns.resetAll = resetAll
 ns.say = say
 
 ------------------------------------------------------------------------
@@ -1712,42 +1812,52 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 	if event == "ADDON_LOADED" then
 		if arg1 ~= ADDON then return end
 		ShamanForeverDB = ShamanForeverDB or {}
-		db = ShamanForeverDB
+		acct = ShamanForeverDB
+		-- Steps 1 to 3 are for saves from before profiles, where every setting sat in ShamanForeverDB.
+		local legacy = acct
 		-- Pre-groups saves: one row or column, with hidden elements in db.enabled.
-		if db.groups == nil and (db.order or db.point) then
+		if legacy.groups == nil and (legacy.order or legacy.point) then
 			local g = {}
-			for k, v in pairs(GROUP_DEFAULTS) do if db[k] ~= nil then g[k] = db[k] else g[k] = v end end
-			g.members, db.known = {}, {}
-			for _, key in ipairs(db.order or { "shield", "shock" }) do
-				db.known[key] = true
-				if not (db.enabled and db.enabled[key] == false) then table.insert(g.members, key) end
+			for k, v in pairs(GROUP_DEFAULTS) do if legacy[k] ~= nil then g[k] = legacy[k] else g[k] = v end end
+			g.members, legacy.known = {}, {}
+			for _, key in ipairs(legacy.order or { "shield", "shock" }) do
+				legacy.known[key] = true
+				if not (legacy.enabled and legacy.enabled[key] == false) then table.insert(g.members, key) end
 			end
-			db.groups = { g }
+			legacy.groups = { g }
 		end
-		for _, k in ipairs(LEGACY_KEYS) do db[k] = nil end
+		if (acct.settingsVersion or 0) < 4 then
+			for _, k in ipairs(LEGACY_KEYS) do legacy[k] = nil end
+		end
 		-- 1: snapping and the grid briefly defaulted to on during 0.2.0 development; start them off
 		-- once, after which the saved choice is kept.
-		if (db.settingsVersion or 0) < 1 then db.snap, db.grid = false, false end
+		if (acct.settingsVersion or 0) < 1 then acct.snap, acct.grid = false, false end
 		-- 2: "only show in combat" moved from the whole display to each group (and element).
-		if (db.settingsVersion or 0) < 2 then
-			if db.combatOnly and type(db.groups) == "table" then
-				for _, g in ipairs(db.groups) do g.combatOnly = true end
+		if (acct.settingsVersion or 0) < 2 then
+			if legacy.combatOnly and type(legacy.groups) == "table" then
+				for _, g in ipairs(legacy.groups) do g.combatOnly = true end
 			end
-			db.combatOnly = nil
+			legacy.combatOnly = nil
 		end
 		-- 3: per-element "only in combat" became the element's show mode (always | combat | never).
 		-- Elements hidden by being in no group are placed by sanitize below, set to never.
-		if (db.settingsVersion or 0) < 3 and type(db.elementOpts) == "table" then
-			for _, o in pairs(db.elementOpts) do
+		if (acct.settingsVersion or 0) < 3 and type(legacy.elementOpts) == "table" then
+			for _, o in pairs(legacy.elementOpts) do
 				if o.combatOnly then o.show = "combat" end
 				o.combatOnly = nil
 			end
 		end
-		db.settingsVersion = SETTINGS_VERSION
-		for k, v in pairs(DEFAULTS) do
-			if db[k] == nil then db[k] = type(v) == "table" and CopyTable(v) or v end
+		-- 4: profiles. The settings so far become the Default profile, which every character uses.
+		if (acct.settingsVersion or 0) < 4 then
+			local p = {}
+			for k in pairs(DEFAULTS) do p[k], acct[k] = acct[k], nil end
+			acct.profiles = { [DEFAULT_PROFILE] = p }
 		end
-		sanitize()
+		acct.settingsVersion = SETTINGS_VERSION
+		fillDefaults(acct, ACCOUNT_DEFAULTS)
+		local c = charKey() and acct.chars[charKey()]
+		local name = c and c.profile
+		selectProfile(name and acct.profiles[name] and name or DEFAULT_PROFILE)
 		if ns.BuildOptions then ns.BuildOptions() end
 	elseif event == "PLAYER_LOGIN" then
 		if ns.applyIssueReporter then ns.applyIssueReporter() end   -- any class
@@ -1779,7 +1889,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		local cast = not isSecret(spellID) and shieldForSpell(spellID)
 		if cast then
 			-- The one inference: our cast means that shield is up and the other is gone (see the Shield section).
-			db.lastShield = cast
+			acct.lastShield = cast
 			setBelievedUp(tracksShield(cast))
 		end
 		if not isSecret(spellID) then imbueCast(spellID) end   -- only to learn an unknown imbue enchant ID
@@ -1819,15 +1929,15 @@ SlashCmdList.SHAMANFOREVER = function(msg)
 	if cmd == "" or cmd == "options" or cmd == "config" then
 		if ns.ToggleOptions then ns.ToggleOptions() else say("options window unavailable") end
 	elseif cmd == "lock" then   -- toggles; /sf unlock still works but is no longer advertised
-		db.locked = not db.locked; applyLayout()
-		say(db.locked and "positioning locked" or "positioning unlocked: drag groups to move them, /sf lock when done")
-	elseif cmd == "unlock" then db.locked = false; applyLayout(); say("positioning unlocked: drag groups to move them, /sf lock when done")
+		acct.locked = not acct.locked; applyLayout()
+		say(acct.locked and "positioning locked" or "positioning unlocked: drag groups to move them, /sf lock when done")
+	elseif cmd == "unlock" then acct.locked = false; applyLayout(); say("positioning unlocked: drag groups to move them, /sf lock when done")
 	elseif cmd == "test" then
-		ns.setTestMode(not db.testMode)
-		say("test elements %s", db.testMode and "on" or "off")
+		ns.setTestMode(not acct.testMode)
+		say("test elements %s", acct.testMode and "on" or "off")
 	elseif cmd == "debug" then
 		say("shield tracking %s (last %s), believed up %s; shock spell %s (%s), mana spell %s, in combat %s",
-			db.shieldTrack, db.lastShield, tostring(believedUp), tostring(shockSpellID), db.shock,
+			db.shieldTrack, acct.lastShield, tostring(believedUp), tostring(shockSpellID), db.shock,
 			tostring(manaSpellID), tostring(InCombatLockdown()))
 		for _, key in ipairs(SHIELD_ORDER) do
 			local s, e = SHIELDS[key], book[SHIELDS[key].name]
@@ -1876,6 +1986,26 @@ SlashCmdList.SHAMANFOREVER = function(msg)
 			local _, r = safe(C_Spell.IsSpellInRange, id, "target")
 			say("%s id %s rank %s usable=%s noPower=%s inRange=%s", SHOCKS[key], tostring(id),
 				book[SHOCKS[key]] and book[SHOCKS[key]].rank or "?", describeArg(usable), describeArg(noPower), describeArg(r))
+		end
+		-- Probe: does Forever have specs or dual spec? Decides whether profiles can follow the spec.
+		local function probe(label, fn, ...)
+			if not fn then return label .. "=missing" end
+			local n = select("#", pcall(fn, ...))
+			local res = { pcall(fn, ...) }
+			if not res[1] then return label .. "=error" end
+			local out = {}
+			for i = 2, n do out[#out + 1] = describeArg(res[i]) end
+			return label .. "=" .. (#out > 0 and table.concat(out, "/") or "nothing")
+		end
+		local spec = C_SpecializationInfo or {}
+		say("profile %s; specs: %s, %s, %s, %s, %s, %s", tostring(profileName),
+			probe("GetSpecialization", _G.GetSpecialization), probe("GetNumSpecializations", _G.GetNumSpecializations),
+			probe("GetActiveSpecGroup", _G.GetActiveSpecGroup), probe("GetNumSpecGroups", GetNumSpecGroups),
+			probe("C_SpecializationInfo.GetSpecialization", spec.GetSpecialization),
+			probe("C_SpecializationInfo.GetActiveSpecGroup", spec.GetActiveSpecGroup))
+		local cur = _G.GetSpecialization and select(2, pcall(_G.GetSpecialization))
+		if type(cur) == "number" and _G.GetSpecializationInfo then
+			say("  current spec: %s", probe("GetSpecializationInfo", _G.GetSpecializationInfo, cur))
 		end
 		for gi, g in ipairs(db.groups) do
 			local names = {}

@@ -44,7 +44,8 @@ L.ELEMENT = {
 }
 
 local function db() return ns.getDB() end
-function L.minimal() return db().minimalArt end
+local function acct() return ns.getAccount() end
+function L.minimal() return acct().minimalArt end
 
 ------------------------------------------------------------------------
 -- Ornaments
