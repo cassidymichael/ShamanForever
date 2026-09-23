@@ -1,6 +1,6 @@
 ## Interface: 16001
 ## Title: Shaman Forever
-## Notes: Lightning Shield charge tracker and shock cooldown/range/mana indicator for WoW: Forever. /sf
+## Notes: Shaman HUD for WoW: Forever: shields, shocks, weapon imbues and totem cooldowns. /sf
 ## Author: Michael Cassidy
 ## Version: @project-version@
 ## X-License: MIT
@@ -10,5 +10,6 @@
 ## IconTexture: Interface\Icons\Spell_Nature_LightningShield
 
 ShamanForever.lua
+ShamanForever_OptionsLook.lua
 ShamanForever_Options.lua
 ShamanForever_IssueReporter.lua

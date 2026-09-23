@@ -2,10 +2,12 @@
 -- Settings list is built once, so it cannot follow groups being added and removed.
 local ADDON, ns = ...
 
-local WIDTH, HEIGHT, NAV_W = 800, 660, 150       -- default size; the window is resizable
-local MIN_W, MIN_H, MAX_W, MAX_H = 700, 420, 1600, 1200
+-- A fixed width, the one the art is made for; the player may make it taller.
+local WIDTH, HEIGHT, NAV_W = 864, 700, 190
+local MIN_H, MAX_H = 560, 1300
+local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
 local ROW_W = WIDTH - NAV_W - 64                  -- initial row width; rows then follow the window
-local LABEL_W = 180
+local LABEL_W = 150
 local SLIDER_MAX_W, SLIDER_VALUE_W = 360, 56   -- the value text sits right of the slider
 
 local win
@@ -35,9 +37,19 @@ local Page = {}
 Page.__index = Page
 
 local function newPage(key, title, indent)
-	local scroll = CreateFrame("ScrollFrame", "ShamanForeverOptionsScroll_" .. key, win, "UIPanelScrollFrameTemplate")
-	scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 20, -44)
-	scroll:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -34, 14)
+	-- Blizzard's modern scroll frame and slim bar; the old one if this client lacks it.
+	local ok, scroll = pcall(CreateFrame, "ScrollFrame", "ShamanForeverOptionsScroll_" .. key, win, "ScrollFrameTemplate")
+	if not (ok and scroll and scroll.ScrollBar) then
+		scroll = CreateFrame("ScrollFrame", "ShamanForeverOptionsScroll_" .. key .. "Old", win, "UIPanelScrollFrameTemplate")
+	else
+		if scroll.ScrollBar.SetHideIfUnscrollable then scroll.ScrollBar:SetHideIfUnscrollable(true) end
+		-- A clear gutter between the page and the slim bar.
+		scroll.ScrollBar:ClearAllPoints()
+		scroll.ScrollBar:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 14, 0)
+		scroll.ScrollBar:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", 14, 0)
+	end
+	scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, -38)
+	scroll:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -40, 12)
 	local content = CreateFrame("Frame", nil, scroll)
 	content:SetSize(ROW_W, 1)
 	scroll:SetScrollChild(content)
@@ -101,8 +113,9 @@ function Page:header(text, shown, note)
 		f.note:SetText(note)
 	end
 	local line = f:CreateTexture(nil, "ARTWORK")
-	line:SetColorTexture(1, 0.82, 0, 0.3)
+	line:SetColorTexture(1, 1, 1, 1)
 	line:SetHeight(1)
+	pcall(line.SetGradient, line, "HORIZONTAL", CreateColor(0.85, 0.71, 0.42, 0.45), CreateColor(0.85, 0.71, 0.42, 0))
 	line:SetPoint("BOTTOMLEFT", 0, 3)
 	line:SetPoint("BOTTOMRIGHT", 0, 3)
 	return self:add(f, 36, shown)
@@ -238,6 +251,139 @@ function Page:buttons(list, shown)
 	return self:add(f, 32, shown)
 end
 
+-- An element page's header (ShamanForever_OptionsLook.lua): art, identity and a live preview.
+function Page:hero(key)
+	local h = ns.Look.buildHero(self.content, key)
+	return self:add(h, ns.Look.HERO_H, nil, function() h:refresh() end)
+end
+
+local function panelBackdrop(f, r, g, b)
+	f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+	f:SetBackdropColor(0.09, 0.075, 0.06, 1)
+	f:SetBackdropBorderColor(r or 0.23, g or 0.17, b or 0.10, 1)
+end
+
+-- Pick one value from a row of icon cards. choices: { value, text, icon, experimental feature name }.
+local CARD_W, CARD_H = 84, 84
+function Page:cards(label, tip, choices, get, set, shown)
+	local f = self:row(CARD_H + 8)
+	self:label(f, label, tip)
+	f.cards = {}
+	for i, c in ipairs(choices) do
+		local b = CreateFrame("Button", nil, f, "BackdropTemplate")
+		b:SetSize(CARD_W, CARD_H)
+		b:SetPoint("LEFT", f, "LEFT", LABEL_W + (i - 1) * (CARD_W + 6), 0)
+		panelBackdrop(b)
+		b.icon = b:CreateTexture(nil, "ARTWORK")
+		b.icon:SetSize(34, 34)
+		b.icon:SetPoint("TOP", 0, -8)
+		b.icon:SetTexture(c[3])
+		b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+		b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		b.text:SetPoint("TOP", b.icon, "BOTTOM", 0, -5)
+		b.text:SetWidth(CARD_W - 6)
+		b.text:SetText(c[2])
+		if c[4] then
+			local badge = ns.Look.expBadge(b, c[4])
+			badge:SetScale(0.8)
+			badge:SetPoint("BOTTOM", 0, 5)
+		end
+		b.value = c[1]
+		b:SetScript("OnClick", function() set(c[1]); ns.RefreshOptions() end)
+		f.cards[i] = b
+	end
+	setTip(f, label, tip)
+	return self:add(f, CARD_H + 8, shown, function()
+		local v = get()
+		for _, b in ipairs(f.cards) do
+			local on = b.value == v
+			b:SetBackdropBorderColor(on and 0.88 or 0.23, on and 0.66 or 0.17, on and 0.29 or 0.10, 1)
+			b.icon:SetDesaturated(not on)
+			b.icon:SetAlpha(on and 1 or 0.7)
+			b.text:SetTextColor(on and 1 or 0.75, on and 0.84 or 0.72, on and 0.5 or 0.68)
+		end
+	end)
+end
+
+-- Big buttons side by side, for the most common actions. list: { icon, titleFn, subtitleFn, onClick }.
+function Page:bigButtons(list)
+	local H, GAP = 56, 10
+	local f = self:row(H + 8)
+	local buttons = {}
+	for i, t in ipairs(list) do
+		local b = CreateFrame("Button", nil, f, "BackdropTemplate")
+		panelBackdrop(b, 0.55, 0.42, 0.22)
+		b.icon = b:CreateTexture(nil, "ARTWORK")
+		b.icon:SetSize(36, 36)
+		b.icon:SetPoint("LEFT", 12, 0)
+		b.icon:SetTexture(t[1])
+		b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+		b.title = b:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+		b.title:SetPoint("TOPLEFT", b.icon, "TOPRIGHT", 10, -1)
+		b.sub = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		b.sub:SetPoint("BOTTOMLEFT", b.icon, "BOTTOMRIGHT", 10, 1)
+		b.sub:SetTextColor(0.78, 0.74, 0.68)
+		local hl = b:CreateTexture(nil, "HIGHLIGHT")
+		hl:SetAllPoints()
+		hl:SetColorTexture(0.88, 0.66, 0.29, 0.10)
+		b:SetScript("OnClick", t[4])
+		b.titleFn, b.subFn = t[2], t[3]
+		buttons[i] = b
+	end
+	return self:add(f, H + 8, nil, function()
+		local w = (self.content:GetWidth() - (#buttons - 1) * GAP) / #buttons
+		for i, b in ipairs(buttons) do
+			b:SetSize(w, H)
+			b:ClearAllPoints()
+			b:SetPoint("TOPLEFT", (i - 1) * (w + GAP), 0)
+			b.title:SetText(b.titleFn())
+			b.sub:SetText(b.subFn())
+		end
+	end)
+end
+
+-- A boxed notice, e.g. the beta warning.
+function Page:callout(text, shown)
+	local f = CreateFrame("Frame", nil, self.content, "BackdropTemplate")
+	panelBackdrop(f, 0.95, 0.59, 0.24)
+	f:SetBackdropColor(0.95, 0.59, 0.24, 0.08)
+	f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	f.text:SetPoint("TOPLEFT", 12, -10)
+	f.text:SetJustifyH("LEFT")
+	f.text:SetText(text)
+	return self:add(f, function() return f.text:GetStringHeight() + 30 end, shown, function()
+		f.text:SetWidth(self.content:GetWidth() - 24)
+		f:SetHeight(f.text:GetStringHeight() + 20)
+	end)
+end
+
+-- Read-only text the player can select and copy (links cannot be clicked in game).
+function Page:copyField(label, value)
+	local f = self:row(30)
+	self:label(f, label)
+	local e = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+	e:SetSize(380, 20)
+	e:SetPoint("LEFT", f, "LEFT", LABEL_W + 6, 0)
+	e:SetAutoFocus(false)
+	e:SetText(value)
+	e:SetCursorPosition(0)
+	e:SetScript("OnTextChanged", function(self, user) if user then self:SetText(value); self:HighlightText() end end)
+	e:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
+	e:SetScript("OnEscapePressed", e.ClearFocus)
+	return self:add(f, 30)
+end
+
+-- An experimental feature, where to find it, and its feedback badge.
+function Page:experimental(name, where)
+	local f = self:row(28)
+	self:label(f, name)
+	local w = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	w:SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
+	w:SetText(where)
+	ns.Look.expBadge(f, name, "Give feedback"):SetPoint("LEFT", w, "RIGHT", 10, 0)
+	return self:add(f, 28)
+end
+
 ------------------------------------------------------------------------
 -- Settings helpers
 ------------------------------------------------------------------------
@@ -262,47 +408,97 @@ local function groupSet(key) return function(v) local g = selected(); if g then 
 ------------------------------------------------------------------------
 -- Page contents
 ------------------------------------------------------------------------
-local function buildGeneral(p)
-	-- TEMPORARY: remove once Blizzard fixes the beta's SavedVariables loading.
-	p:text("|cffff9933Beta issue:|r the WoW: Forever client currently does not load addon settings after a full " ..
-		"restart, so ShamanForever (like every addon) returns to its defaults each time you start the game. " ..
-		"/reload keeps them. Community workarounds such as ForeverSVFix can restore them; ShamanForever does not include one.")
+local function lockText() return db().locked and "Unlock layout" or "Lock layout" end
+local function toggleLock() db().locked = not db().locked; relayout() end
+local LOCK_TIP = "Unlocked, drag groups on screen, mouse wheel to scale, shift + wheel for opacity. /sf lock does the same."
 
+local aboutExp   -- About's Experimental heading, for ns.ShowExperimental
+
+local function addonVersion()
+	local getMeta = C_AddOns and C_AddOns.GetAddOnMetadata or GetAddOnMetadata
+	return getMeta and getMeta(ADDON, "Version") or "?"
+end
+
+-- Home, the page the window opens on: name, version, warnings and where to send feedback.
+local function buildHome(p)
+	local intro = ns.Look.buildIntro(p.content, addonVersion())
+	p:add(intro, ns.Look.HERO_H, nil, function() intro:refresh() end)
+	p:bigButtons({
+		{ "Interface\\Icons\\INV_Misc_Key_03", lockText,
+			function() return db().locked and "Move groups on screen" or "Done moving? Lock them" end, toggleLock },
+		{ "Interface\\Icons\\Spell_Nature_Invisibilty", function() return "Layout" end,
+			function() return "Set up groups of elements" end, function() ns.OpenOptions("layout") end },
+	})
+	-- TEMPORARY: remove once Blizzard fixes the beta's SavedVariables loading.
+	p:callout("|cffff9933Beta:|r saved settings don't load on startup yet. ForeverSVFix works around it.")
+	p:header("Feedback")
+	p:text("Ideas, requests or problems? Open an issue on GitHub:")
+	p:copyField("Issues", ns.Look.REPO .. "/issues")
+end
+
+local function buildGeneral(p)
 	p:header("Display")
-	p:button(function() return db().locked and "Unlock layout" or "Lock layout" end,
-		function() db().locked = not db().locked; relayout() end,
-		"Unlocked, groups can be dragged on screen (they snap to the grid and to each other), scaled with the mouse wheel and faded with shift + wheel. Lock when done so clicks pass through.")
-	p:slider("Global icon size", "Base size of every element, in pixels before scaling. Size is shared by all elements; each group's scale then multiplies it.", 24, 96, 1, int,
+	p:button(lockText, toggleLock, LOCK_TIP)
+	p:slider("Icon size", "Base size of every element. Each group's scale multiplies it.", 24, 96, 1, int,
 		get("iconSize"), set("iconSize"))
 
 	p:header("Icon border")
 	local function bget(k) return function() return db().border[k] end end
 	local function bset(k) return function(v) db().border[k] = v; relayout() end end
-	p:checkbox("Show border", "A border just outside every element's edge. Groups can override this on the Layout page.",
+	p:checkbox("Border", "A border around every element. Groups can override it on the Layout page.",
 		bget("show"), bset("show"))
-	p:slider("Border size", "Thickness in screen pixels, the same at any group scale.", 1, 8, 1,
+	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1,
 		function(v) return string.format("%d px", v) end, bget("size"), bset("size"), function() return db().border.show end)
-	p:color("Border colour", "Colour and opacity of the border.", bget("color"), bset("color"), function() return db().border.show end)
+	p:color("Border colour", "Colour and opacity.", bget("color"), bset("color"), function() return db().border.show end)
 
-	p:header("Cooldown numbers")
-	p:checkbox("Show countdown", "Countdown numbers on every cooldown (Shock and the cooldown elements).", get("cdText"), set("cdText"))
-	p:slider("Countdown text size", "Font size of the countdown numbers. A totem's active time uses a smaller size of the same font.",
-		8, 48, 1, int, get("cdTextSize"), set("cdTextSize"))
+	p:header("Countdown")
+	p:checkbox("Countdown text", "Numbers on every cooldown.", get("cdText"), set("cdText"))
+	p:slider("Text size", "Elements can set their own on their page.", 8, 48, 1, int, get("cdTextSize"), set("cdTextSize"))
 
-	p:header("Beta: Issue Reporter", function() return ns.hasIssueReporter and ns.hasIssueReporter() end)
-	p:text("Blizzard's Issue Reporter button forgets where you put it on this beta. Shaman Forever remembers it: drag it once and it stays there.",
-		function() return ns.hasIssueReporter and ns.hasIssueReporter() end)
-	p:checkbox("Hide the Issue Reporter", "Hides Blizzard's beta Issue Reporter button. Turn this off to bring it back; /ptr still works while it is hidden.",
+	p:header("Beta", function() return ns.hasIssueReporter and ns.hasIssueReporter() end)
+	p:checkbox("Hide the Issue Reporter button", "Blizzard's beta Issue Reporter button. /ptr still works while it is hidden. Shaman Forever also remembers where you drag it.",
 		get("hideIssueReporter"), function(v) db().hideIssueReporter = v; ns.applyIssueReporter() end,
 		function() return ns.hasIssueReporter and ns.hasIssueReporter() end)
 
 	p:header("Testing")
-	p:checkbox("Test elements", "Adds five coloured placeholder elements (A to E, including a wide and a tall one) in their own group, for trying out layouts. Turning this off removes them.",
+	p:checkbox("Test elements", "Adds placeholder elements in their own group, for trying out layouts.",
 		get("testMode"), function(v) ns.setTestMode(v) end)
 
 	p:header("Reset")
 	p:buttons({ { "Reset everything", function() StaticPopup_Show("SHAMANFOREVER_RESET") end,
 		"Restores every option and the default layout.", 160 } })
+end
+
+local function buildProfiles(p)
+	p:text("Coming in a later release: named profiles, a profile per talent spec, and sharing a layout as text.")
+end
+
+local function buildAbout(p)
+	p:header("Shaman Forever")
+	p:text(function() return "Version " .. addonVersion() .. ". A shaman HUD for WoW Forever." end)
+	p:copyField("Source and issues", ns.Look.REPO)
+	p:copyField("CurseForge", "https://www.curseforge.com/wow/addons/shamanforever")
+	local expHeader = p:header("Experimental")
+	-- A gold glow ns.ShowExperimental flashes over the heading.
+	local glow = expHeader:CreateTexture(nil, "BACKGROUND")
+	glow:SetPoint("TOPLEFT", -6, 2)
+	glow:SetPoint("BOTTOMRIGHT", 6, -2)
+	glow:SetColorTexture(0.88, 0.66, 0.29, 0.35)
+	glow:SetAlpha(0)
+	local flash = glow:CreateAnimationGroup()
+	local up = flash:CreateAnimation("Alpha")
+	up:SetFromAlpha(0); up:SetToAlpha(1); up:SetDuration(0.35); up:SetOrder(1)
+	local down = flash:CreateAnimation("Alpha")
+	down:SetFromAlpha(1); down:SetToAlpha(0); down:SetDuration(0.9); down:SetOrder(2)
+	flash:SetLooping("NONE")
+	aboutExp = { page = p, header = expHeader, flash = flash }
+	p:text("I can't test these in game yet. If you can, please try them and tell me whether they work and what could be improved.")
+	p:experimental("Water Shield", "Shields > Track")
+	p:experimental("Either shield", "Shields > Track")
+	p:header("Art")
+	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
+		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
+		"Francisque Millet, Mountain Landscape with Lightning (air). Corner and divider ornaments: public domain / CC0, Wikimedia Commons.")
 end
 
 ------------------------------------------------------------------------
@@ -550,23 +746,19 @@ local function buildBoard(p)
 end
 
 local function buildLayout(p)
-	p:text("Drag elements between groups, or click one for a menu. Click a group's title to edit it below. " ..
-		"To place groups on screen, unlock: drag a group to move it, mouse wheel to scale, shift + wheel for opacity.")
-	p:button(function() return db().locked and "Unlock layout" or "Lock layout" end,
-		function() db().locked = not db().locked; relayout() end,
-		"Unlocked, groups can be dragged on screen (they snap to the grid and to each other), scaled with the mouse wheel and faded with shift + wheel. Lock when done so clicks pass through.")
+	p:button(lockText, toggleLock, LOCK_TIP)
 	p:checkbox("Snapping", "While dragging, groups snap to other groups' edges and centres, the screen centre, and the grid when it is shown.",
 		get("snap"), set("snap"))
 	p:checkbox("Show grid while unlocked", "A grid over the whole screen while the layout is unlocked. With snapping on, groups snap to it.",
 		get("grid"), set("grid"))
 	p:slider("Grid size", "Distance between grid lines.", 8, 128, 4, int, get("gridSize"), set("gridSize"))
-	p:header("Groups")
+	p:header("Groups", nil, "Drag elements between groups. Click one for a menu.")
 	buildBoard(p)
 
-	local settingsHeader = p:header("Group settings", hasGroups, "Click a group title above to edit settings for that group.")
+	local settingsHeader = p:header("Group settings", hasGroups, "Click a group above to edit it.")
 	p.items[#p.items].refresh = function()
 		selected()
-		settingsHeader.text:SetText(string.format("Group %d settings", selectedGroup))
+		settingsHeader.text:SetText(string.format("Group %d", selectedGroup))
 	end
 	p:dropdown("Direction", "Lay the group out as a row or a column.",
 		{ { "horizontal", "Row" }, { "vertical", "Column" } }, groupGet("orientation"), groupSet("orientation"), hasGroups)
@@ -619,7 +811,6 @@ local function groupText(key)
 end
 
 local function buildElements(p)
-	p:text("Every element the addon can show, which group it sits in and when it shows. The Layout page arranges groups on screen; each element's own look is on its page below Elements.")
 	p:header("Elements")
 	local GROUP_X, SHOW_X = 150, 260   -- sized to fit beside the Settings button at the minimum width
 	do
@@ -683,97 +874,111 @@ local function buildElements(p)
 	end
 end
 
--- The block every element page starts with.
+-- Every element page: its header, then Display (Show, Group), then its own settings, then its
+-- standard blocks (Warning: Grey icon, Red ring, Pulse; Timer: Time bar, Time left).
 local function elementDisplay(p, key)
 	ELEMENT_PAGES[key] = p.key
+	p:hero(key)
 	p:header("Display")
-	p:text(function() return "In " .. groupText(key) .. ". Change groups on the Layout page." end)
 	p:dropdown("Show", SHOW_TIP, SHOW_CHOICES, function() return ns.showMode(key) end,
 		function(v) ns.setShow(key, v) end, nil, 140)
+	p:text(function() return groupText(key) .. ". Groups are on the Layout page." end)
+end
+
+-- Standard block: the look while something is missing (the three settings every warning shares).
+local function warningBlock(p, title, greyGet, greySet, ringGet, ringSet, pulseGet, pulseSet)
+	p:header(title)
+	p:checkbox("Grey icon", "Desaturate the icon.", greyGet, greySet)
+	p:checkbox("Red ring", "A red ring inside the icon edge.", ringGet, ringSet)
+	p:checkbox("Pulse", "Fade the icon in and out.", pulseGet, pulseSet)
+end
+
+-- Standard block: a running timer.
+local function timerBlock(p, title, optGet, optSet)
+	p:header(title)
+	p:checkbox("Time bar", "A bar along the bottom that drains.", optGet("activeBar", true), optSet("activeBar"))
+	p:checkbox("Time left", "Small numbers in the top-left corner.", optGet("activeText", true), optSet("activeText"))
+end
+
+-- Standard block: countdown text, with an optional size of the element's own.
+local function countdownBlock(p, key)
+	local function own() return ns.elementOpts(key).cdTextSize ~= nil end
+	p:header("Countdown")
+	p:checkbox("Own text size", "Off: the size on the General page.", own, function(v)
+		ns.elementOpts(key).cdTextSize = v and db().cdTextSize or nil
+		relayout()
+	end)
+	p:slider("Text size", nil, 8, 48, 1, int, function() return ns.elementOpts(key).cdTextSize or db().cdTextSize end,
+		function(v) ns.elementOpts(key).cdTextSize = v; relayout() end, own)
 end
 
 local function buildShield(p)
 	elementDisplay(p, "shield")
 	p:header("Shield")
 	-- Lightning Shield is the tested default; the Water Shield modes are experimental until tested in game.
-	local trackChoices = {
-		{ "lightning", "Lightning Shield" },
-		{ "water", "Water Shield (experimental)" },
-		{ "either", "Either shield (experimental)" },
-	}
-	p:dropdown("Track", "Which shield counts as up. Only one elemental shield can be on you at a time. With one shield chosen, the other one counts as no shield. Either shield (experimental): the icon shows whichever shield is up, and the no-shield look shows the one you last had. The Water Shield modes have not been tested in game yet.",
-		trackChoices, get("shieldTrack"), set("shieldTrack", respell))
+	p:cards("Track", "Only one shield can be active at a time. With one chosen, the other counts as no shield.", {
+		{ "lightning", "Lightning Shield", 136051 },
+		{ "water", "Water Shield", 132315, "Water Shield" },
+		{ "either", "Either", 136051, "Either shield" },
+	}, get("shieldTrack"), set("shieldTrack", respell))
 	p:header("Charges")
-	p:dropdown("Charge number position", "Where the charge count sits on the shield icon.",
-		{ { "corner", "Bottom right corner" }, { "center", "Centred" } }, get("countPos"), set("countPos"))
-	p:slider("Charge number size", "Font size of the charge count.", 8, 64, 1, int, get("countSize"), set("countSize"))
-	p:checkbox("Show charge bar", "A bar along the bottom of the icon, one segment per charge.", get("showBar"), set("showBar"))
-	p:checkbox("Show charge number", "The charge count text (Blizzard only prints it for two or more).", get("showCount"), set("showCount"))
+	p:checkbox("Charge bar", "One segment per charge.", get("showBar"), set("showBar"))
+	p:checkbox("Charge number", "Shown for 2 or more charges.", get("showCount"), set("showCount"))
+	p:dropdown("Number position", nil, { { "corner", "Corner" }, { "center", "Centre" } }, get("countPos"), set("countPos"))
+	p:slider("Number size", nil, 8, 64, 1, int, get("countSize"), set("countSize"))
 
-	p:header("No shield")
-	p:checkbox("Red ring", "Red ring inside the icon edge when the shield is down.", get("emptyRing"), set("emptyRing"))
-	p:checkbox("Grey icon", "Desaturate the icon when the shield is down.", get("emptyGrey"), set("emptyGrey"))
-	p:checkbox("Red tint", "Red tint on the icon when the shield is down.", get("emptyTint"), set("emptyTint"))
-	p:checkbox("Pulse", "Fade the icon in and out when the shield is down. In combat this starts once the addon knows the shield is gone (when combat ends), like the red ring.",
-		get("emptyPulse"), set("emptyPulse"))
-	p:slider("Combat fallback", "How much of the no-shield look stays underneath while the shield is up. Blizzard's icon compensates so the overall opacity matches the group's. If the shield drops mid-fight before you recast, this is how strongly the no-shield look shows until combat ends.",
+	warningBlock(p, "No shield", get("emptyGrey"), set("emptyGrey"), get("emptyRing"), set("emptyRing"), get("emptyPulse"), set("emptyPulse"))
+	p:checkbox("Red tint", "Tint the icon red.", get("emptyTint"), set("emptyTint"))
+	p:slider("In-combat fallback", "A drop in combat is only known when you recast or combat ends. Until then the no-shield look shows this strongly.",
 		0, 1, 0.05, pct, get("underlayUp"), set("underlayUp"))
 
-	p:header("Shielded")
-	p:slider("Duration swipe", "Darkness of the swipe Blizzard draws over the shield icon for the buff's remaining duration. Zero turns the swipe off.",
-		0, 1, 0.05, pct, get("shieldSwipe"), set("shieldSwipe"))
-	p:slider("Icon opacity", "Manual multiplier on the shield icon's opacity, applied after the underlay compensation. Cannot brighten past the group's opacity.",
-		0.5, 1, 0.05, pct, get("shieldIconAlpha"), set("shieldIconAlpha"))
+	p:header("Shield up")
+	p:slider("Duration swipe", "Darkness of the time-left swipe. Zero turns it off.", 0, 1, 0.05, pct, get("shieldSwipe"), set("shieldSwipe"))
+	p:slider("Icon opacity", "Cannot go brighter than the group's opacity.", 0.5, 1, 0.05, pct, get("shieldIconAlpha"), set("shieldIconAlpha"))
 end
 
 local function buildShock(p)
 	elementDisplay(p, "shock")
-	p:header("Spell")
-	local shockChoices = {}
-	for _, key in ipairs(ns.SHOCK_ORDER) do table.insert(shockChoices, { key, ns.SHOCKS[key] }) end
-	p:dropdown("Tracked shock", "Which shock the icon shows, with its cooldown and range.", shockChoices, get("shock"), set("shock", respell))
+	p:header("Shock")
+	local icons = { earth = 136026, flame = 135813, frost = 135849 }
+	local cards = {}
+	for _, key in ipairs(ns.SHOCK_ORDER) do table.insert(cards, { key, ns.SHOCKS[key], icons[key] }) end
+	p:cards("Track", "Its cooldown and range.", cards, get("shock"), set("shock", respell))
 	local manaChoices = { { "tracked", "Tracked shock" } }
-	for _, c in ipairs(shockChoices) do table.insert(manaChoices, c) end
-	p:dropdown("Mana check uses", "Which spell's cost decides when the icon turns blue. Always the highest rank you know.",
-		manaChoices, get("manaSpell"), set("manaSpell", respell))
+	for _, key in ipairs(ns.SHOCK_ORDER) do table.insert(manaChoices, { key, ns.SHOCKS[key] }) end
+	p:dropdown("Mana check", "Which spell's cost turns the icon blue.", manaChoices, get("manaSpell"), set("manaSpell", respell))
 
-	local looks = { { "tint", "Tint" }, { "overlay", "Coloured overlay" }, { "both", "Overlay and tint" } }
-	p:header("Not enough mana")
-	p:dropdown("Look", "Blue on the icon itself when you cannot afford the mana-check spell. If you are also out of range, the icon goes red instead and only the blue ring remains.",
-		looks, get("manaStyle"), set("manaStyle"))
-	p:slider("Overlay strength", "Opacity of the blue overlay.", 0.1, 1, 0.05, pct, get("manaIntensity"), set("manaIntensity"))
-	p:slider("Tint strength", "How strongly the blue tint removes the other colours.", 0.1, 1, 0.05, pct, get("manaTint"), set("manaTint"))
-	p:slider("Ring", "A blue ring inside the icon edge whenever you cannot afford the mana-check spell. This is its opacity.",
-		0.1, 1, 0.05, pct, get("manaRing"), set("manaRing"))
+	local looks = { { "tint", "Tint" }, { "overlay", "Overlay" }, { "both", "Both" } }
+	p:header("No mana")
+	p:dropdown("Look", "Out of range wins over this look.", looks, get("manaStyle"), set("manaStyle"))
+	p:slider("Overlay", nil, 0.1, 1, 0.05, pct, get("manaIntensity"), set("manaIntensity"))
+	p:slider("Tint", nil, 0.1, 1, 0.05, pct, get("manaTint"), set("manaTint"))
+	p:slider("Ring", "The blue ring, shown even when out of range.", 0.1, 1, 0.05, pct, get("manaRing"), set("manaRing"))
 
 	p:header("Out of range")
-	p:dropdown("Look", "Red on the icon itself when your target is out of range. Takes the icon body over the mana look.",
-		looks, get("rangeStyle"), set("rangeStyle"))
-	p:slider("Overlay strength", "Opacity of the red overlay.", 0.1, 1, 0.05, pct, get("rangeIntensity"), set("rangeIntensity"))
-	p:slider("Tint strength", "How strongly the red tint removes the other colours.", 0.1, 1, 0.05, pct, get("rangeTint"), set("rangeTint"))
+	p:dropdown("Look", nil, looks, get("rangeStyle"), set("rangeStyle"))
+	p:slider("Overlay", nil, 0.1, 1, 0.05, pct, get("rangeIntensity"), set("rangeIntensity"))
+	p:slider("Tint", nil, 0.1, 1, 0.05, pct, get("rangeTint"), set("rangeTint"))
+	countdownBlock(p, "shock")
 end
 
 local function buildImbue(p)
 	elementDisplay(p, "imbue")
-	p:text("Tracks the Rockbiter, Flametongue, Frostbrand or Windfury imbue on your main-hand weapon.")
+	p:header("Imbue")
+	local cards = { { "last", "Last used", 136086 } }
+	for _, key in ipairs(ns.IMBUE_ORDER) do table.insert(cards, { key, (ns.IMBUES[key].name:gsub(" Weapon", "")), ns.IMBUES[key].icon }) end
+	p:cards("Icon when missing", nil, cards, get("imbuePreferred"), set("imbuePreferred"))
 
-	p:header("No imbue on")
-	local iconChoices = { { "last", "Last one used" } }
-	for _, key in ipairs(ns.IMBUE_ORDER) do table.insert(iconChoices, { key, ns.IMBUES[key].name }) end
-	p:dropdown("Icon", "Which imbue's icon stands in while none is on.", iconChoices, get("imbuePreferred"), set("imbuePreferred"))
-	p:checkbox("Red ring", "Red ring inside the icon edge while no imbue is on.", get("imbueMissingRing"), set("imbueMissingRing"))
-	p:checkbox("Grey icon", "Desaturate the icon while no imbue is on.", get("imbueMissingGrey"), set("imbueMissingGrey"))
-	p:checkbox("Pulse", "Fade the icon in and out while no imbue is on.", get("imbuePulse"), set("imbuePulse"))
+	warningBlock(p, "No imbue", get("imbueMissingGrey"), set("imbueMissingGrey"), get("imbueMissingRing"), set("imbueMissingRing"), get("imbuePulse"), set("imbuePulse"))
 
 	p:header("Imbue on")
-	p:slider("Show time left under", "Show the minutes (then seconds) left once the imbue has less than this. Zero never shows it.",
-		0, 30, 1, function(v) return v == 0 and "Never" or string.format("%d min", v) end, get("imbueWarnMins"), set("imbueWarnMins"))
-	p:slider("Time text size", "Font size of the time left.", 8, 48, 1, int, get("imbueTextSize"), set("imbueTextSize"))
-	p:checkbox("Hide until it runs low", "While an imbue is on, keep the icon invisible until its time left shows. It keeps its place in the group.",
-		get("imbueHideActive"), set("imbueHideActive"))
+	p:slider("Show time left under", "Zero never shows it.", 0, 30, 1, function(v) return v == 0 and "Never" or string.format("%d min", v) end,
+		get("imbueWarnMins"), set("imbueWarnMins"))
+	p:slider("Time text size", nil, 8, 48, 1, int, get("imbueTextSize"), set("imbueTextSize"))
+	p:checkbox("Hide until low", "Keeps its place in the group.", get("imbueHideActive"), set("imbueHideActive"))
 end
 
--- One page per cooldown element; the options depend on what the element tracks.
+-- One page per cooldown element; the blocks depend on what the element tracks.
 local function buildCooldown(p, def)
 	local key = def.key
 	elementDisplay(p, key)
@@ -783,46 +988,117 @@ local function buildCooldown(p, def)
 		return v
 	end end
 	local function optSet(name) return function(v) ns.elementOpts(key)[name] = v; relayout() end end
-	p:text("Shows " .. def.spell .. "'s cooldown. Countdown number settings are on the General page.")
-	if def.totemSlot then
-		p:header("Totem active")
-		p:checkbox("Time bar", "A bar along the bottom that drains while your " .. def.spell .. " is down.",
-			optGet("activeBar", true), optSet("activeBar"))
-		p:checkbox("Time left", "Small numbers in the top-left corner counting down while your " .. def.spell .. " is down.",
-			optGet("activeText", true), optSet("activeText"))
-	end
+	countdownBlock(p, key)
+	if def.totemSlot then timerBlock(p, "Totem down", optGet, optSet) end
 	if def.needsTotem then
-		p:header("No fire totem")
-		p:text(def.spell .. " only works while one of your fire totems is out.")
-		p:checkbox("Grey icon", "Desaturate the icon while no fire totem is out.", optGet("blockedGrey", true), optSet("blockedGrey"))
-		p:checkbox("Red ring", "Red ring inside the icon edge while no fire totem is out.", optGet("blockedRing", true), optSet("blockedRing"))
-		p:checkbox("Pulse", "Fade the icon in and out while no fire totem is out.", optGet("blockedPulse", false), optSet("blockedPulse"))
-		p:header("Fire totem out")
-		p:checkbox("Time bar", "A bar along the bottom that drains while a fire totem is out, so you know how long " .. def.spell .. " can still be cast.",
-			optGet("activeBar", true), optSet("activeBar"))
-		p:checkbox("Time left", "Small numbers in the top-left corner counting down the fire totem's time.",
-			optGet("activeText", true), optSet("activeText"))
+		warningBlock(p, "No fire totem", optGet("blockedGrey", true), optSet("blockedGrey"), optGet("blockedRing", true), optSet("blockedRing"),
+			optGet("blockedPulse", false), optSet("blockedPulse"))
+		timerBlock(p, "Fire totem out", optGet, optSet)
 	end
 end
 
 ------------------------------------------------------------------------
 -- Window
 ------------------------------------------------------------------------
+local navButtons, navDivider = {}, nil
+
 local function showPage(key)
 	currentPage = key
-	for _, p in ipairs(pageOrder) do
-		local on = p.key == key
-		p.scroll:SetShown(on)
-		p.nav.bg:SetShown(on)
+	for _, p in ipairs(pageOrder) do p.scroll:SetShown(p.key == key) end
+	for _, b in ipairs(navButtons) do
+		local on = b.page == key
+		b.sel:SetShown(on)
+		b.accent:SetShown(on)
+		b.label:SetTextColor(on and 1 or (b.sub and 0.9 or 1), on and 0.84 or (b.sub and 0.88 or 0.82), on and 0.5 or (b.sub and 0.84 or 0))
 	end
+	if navDivider then navDivider.refresh() end
 	pages[key]:refresh()
 end
 
+-- The nav: main pages, then every element's page (indented), then Profiles and About.
+local function buildNav()
+	local y = -66   -- below the portrait
+	local function add(pageKey, text, icon, sub, extra)
+		local b = CreateFrame("Button", nil, win)
+		local indent = sub and 16 or 0
+		b:SetSize(NAV_W - 20 - indent, sub and 24 or 28)
+		b:SetPoint("TOPLEFT", 12 + indent, y)
+		y = y - (sub and 26 or 30)
+		b.sel = b:CreateTexture(nil, "BACKGROUND")
+		b.sel:SetAllPoints()
+		b.sel:SetColorTexture(0.88, 0.66, 0.29, 0.16)
+		b.accent = b:CreateTexture(nil, "ARTWORK")
+		b.accent:SetPoint("TOPLEFT", -8 - indent, -4)
+		b.accent:SetPoint("BOTTOMLEFT", -8 - indent, 4)
+		b.accent:SetWidth(3)
+		b.accent:SetColorTexture(0.88, 0.66, 0.29, 1)
+		local hl = b:CreateTexture(nil, "HIGHLIGHT")
+		hl:SetAllPoints()
+		hl:SetColorTexture(1, 1, 1, 0.05)
+		b.icon = b:CreateTexture(nil, "ARTWORK")
+		b.icon:SetSize(sub and 18 or 20, sub and 18 or 20)
+		b.icon:SetPoint("LEFT", 6, 0)
+		b.icon:SetTexture(icon)
+		b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+		b.label = b:CreateFontString(nil, "OVERLAY", sub and "GameFontHighlight" or "GameFontNormal")
+		b.label:SetPoint("LEFT", b.icon, "RIGHT", 8, 0)
+		b.label:SetText(text)
+		if extra then
+			local t = b:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+			t:SetPoint("RIGHT", -6, 0)
+			t:SetText(extra)
+		end
+		b.page, b.sub = pageKey, sub
+		b:SetScript("OnClick", function() showPage(pageKey) end)
+		table.insert(navButtons, b)
+	end
+	add("home", "Home", "Interface\\Icons\\ClassIcon_Shaman")
+	add("general", "General", "Interface\\Icons\\INV_Misc_Gear_01")
+	add("layout", "Layout", "Interface\\Icons\\Spell_Nature_Invisibilty")
+	add("elements", "Elements", ART .. "Elements.tga")
+	for _, p in ipairs(pageOrder) do
+		local e = ns.Look.ELEMENT[p.key]
+		if e then add(p.key, e.name, e.icon, true) end
+	end
+	y = y - 4
+	navDivider = ns.Look.divider(win)
+	navDivider:SetPoint("TOPLEFT", 20, y)
+	navDivider:SetWidth(NAV_W - 36)
+	y = y - 14
+	add("profiles", "Profiles", "Interface\\Icons\\INV_Misc_Note_01", nil, "Later")
+	add("about", "About", "Interface\\Icons\\INV_Misc_Book_09")
+	local foot = win:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	foot:SetPoint("BOTTOMLEFT", 16, 14)
+	foot:SetText("/sf  ·  /sf lock")
+end
+
 local function buildWindow()
-	win = CreateFrame("Frame", "ShamanForeverOptionsFrame", UIParent, "BackdropTemplate")
-	local saved = db().optionsSize
-	win:SetSize(saved and saved.w or WIDTH, saved and saved.h or HEIGHT)
+	-- Blizzard's portrait window: gold frame, round portrait, title and close button.
+	win = CreateFrame("Frame", "ShamanForeverOptionsFrame", UIParent, "ButtonFrameTemplate")
+	if ButtonFrameTemplate_HideButtonBar then pcall(ButtonFrameTemplate_HideButtonBar, win) end
+	if win.Inset then win.Inset:Hide() end
+	if win.SetTitle then win:SetTitle("Shaman Forever") end
+	if win.SetPortraitToAsset then pcall(win.SetPortraitToAsset, win, "Interface\\Icons\\ClassIcon_Shaman") end
+	-- Our warm charcoal inside the frame.
+	local bg = win:CreateTexture(nil, "BACKGROUND", nil, 2)
+	bg:SetPoint("TOPLEFT", 2, -22)
+	bg:SetPoint("BOTTOMRIGHT", -2, 2)
+	bg:SetColorTexture(23 / 255, 19 / 255, 15 / 255, 0.97)
+	local navBg = win:CreateTexture(nil, "BACKGROUND", nil, 3)
+	navBg:SetPoint("TOPLEFT", bg, "TOPLEFT")
+	navBg:SetPoint("BOTTOMLEFT", bg, "BOTTOMLEFT")
+	navBg:SetWidth(NAV_W)
+	navBg:SetColorTexture(0, 0, 0, 0.25)
+	local navEdge = win:CreateTexture(nil, "BACKGROUND", nil, 4)
+	navEdge:SetPoint("TOPLEFT", navBg, "TOPRIGHT")
+	navEdge:SetPoint("BOTTOMLEFT", navBg, "BOTTOMRIGHT")
+	navEdge:SetWidth(1)
+	navEdge:SetColorTexture(0.23, 0.17, 0.10, 1)
+
+	db().optionsSize = nil   -- from the old resizable window
+	win:SetSize(WIDTH, math.min(math.max(db().optionsHeight or HEIGHT, MIN_H), MAX_H))
 	win:SetPoint("CENTER")
+	-- Taller only: the grip changes height, never width, and pins the top edge.
 	local grip = CreateFrame("Button", nil, win)
 	grip:SetSize(16, 16)
 	grip:SetPoint("BOTTOMRIGHT", -3, 3)
@@ -830,27 +1106,21 @@ local function buildWindow()
 	grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
 	grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
 	grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
-	-- Sized by hand rather than with StartSizing: the size always follows the cursor's distance from
-	-- where the grip was grabbed, so dragging past a limit and back only grows the window once the
-	-- cursor returns past that limit (StartSizing grows as soon as the direction reverses).
 	local function sizeToCursor()
-		local s = win:GetEffectiveScale()
-		local x, y = GetCursorPosition()
-		win:SetSize(math.min(math.max(grip.startW + (x - grip.startX) / s, MIN_W), MAX_W),
-			math.min(math.max(grip.startH + (grip.startY - y) / s, MIN_H), MAX_H))
+		local _, y = GetCursorPosition()
+		win:SetHeight(math.min(math.max(grip.startH + (grip.startY - y) / win:GetEffectiveScale(), MIN_H), MAX_H))
 	end
 	grip:SetScript("OnMouseDown", function(self)
-		-- Pin the top-left corner so the window grows right and down.
 		local left, top = win:GetLeft(), win:GetTop()
 		win:ClearAllPoints()
 		win:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
-		self.startX, self.startY = GetCursorPosition()
-		self.startW, self.startH = win:GetSize()
+		self.startY = select(2, GetCursorPosition())
+		self.startH = win:GetHeight()
 		self:SetScript("OnUpdate", sizeToCursor)
 	end)
 	grip:SetScript("OnMouseUp", function(self)
 		self:SetScript("OnUpdate", nil)
-		db().optionsSize = { w = math.floor(win:GetWidth()), h = math.floor(win:GetHeight()) }
+		db().optionsHeight = math.floor(win:GetHeight())
 	end)
 	win:SetFrameStrata("DIALOG")
 	win:SetToplevel(true)
@@ -860,53 +1130,19 @@ local function buildWindow()
 	win:RegisterForDrag("LeftButton")
 	win:SetScript("OnDragStart", win.StartMoving)
 	win:SetScript("OnDragStop", win.StopMovingOrSizing)
-	win:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
-	win:SetBackdropColor(0.06, 0.06, 0.08, 0.96)
-	win:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
 	table.insert(UISpecialFrames, win:GetName())   -- Escape closes it
 
-	local title = win:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-	title:SetPoint("TOPLEFT", 16, -14)
-	title:SetText("Shaman Forever")
-	local version = win:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-	version:SetPoint("LEFT", title, "RIGHT", 8, -1)
-	local getMeta = C_AddOns and C_AddOns.GetAddOnMetadata or GetAddOnMetadata
-	version:SetText(getMeta and getMeta(ADDON, "Version") or "")
-	local close = CreateFrame("Button", nil, win, "UIPanelCloseButton")
-	close:SetPoint("TOPRIGHT", -2, -2)
-
-	local divider = win:CreateTexture(nil, "ARTWORK")
-	divider:SetColorTexture(1, 1, 1, 0.1)
-	divider:SetWidth(1)
-	divider:SetPoint("TOPLEFT", NAV_W + 8, -40)
-	divider:SetPoint("BOTTOMLEFT", NAV_W + 8, 12)
-
+	buildHome(newPage("home", "Home"))
 	buildGeneral(newPage("general", "General"))
 	buildLayout(newPage("layout", "Layout"))
 	buildElements(newPage("elements", "Elements"))
-	buildShield(newPage("shield", "Shield", true))
-	buildShock(newPage("shock", "Shock", true))
+	buildShield(newPage("shield", "Shields", true))
+	buildShock(newPage("shock", "Shocks", true))
 	buildImbue(newPage("imbue", "Weapon Imbue", true))
 	for _, def in ipairs(ns.COOLDOWNS) do buildCooldown(newPage(def.key, def.spell, true), def) end
-
-	for i, p in ipairs(pageOrder) do
-		local indent = p.indent and 14 or 0
-		local b = CreateFrame("Button", nil, win)
-		b:SetSize(NAV_W - 12 - indent, p.indent and 22 or 26)
-		b:SetPoint("TOPLEFT", 10 + indent, -44 - (i - 1) * 28)
-		b.bg = b:CreateTexture(nil, "BACKGROUND")
-		b.bg:SetAllPoints()
-		b.bg:SetColorTexture(0.2, 0.6, 1, 0.25)
-		b.bg:Hide()
-		local hl = b:CreateTexture(nil, "HIGHLIGHT")
-		hl:SetAllPoints()
-		hl:SetColorTexture(1, 1, 1, 0.08)
-		local fs = b:CreateFontString(nil, "OVERLAY", p.indent and "GameFontHighlightSmall" or "GameFontNormal")
-		fs:SetPoint("LEFT", 8, 0)
-		fs:SetText(p.title)
-		b:SetScript("OnClick", function() showPage(p.key) end)
-		p.nav = b
-	end
+	buildProfiles(newPage("profiles", "Profiles"))
+	buildAbout(newPage("about", "About"))
+	buildNav()
 	win:Hide()
 end
 
@@ -925,6 +1161,7 @@ function ns.RefreshOptions()
 	C_Timer.After(0, function()
 		refreshQueued = false
 		if win:IsShown() and currentPage then pages[currentPage]:refresh() end
+		if navDivider then navDivider.refresh() end
 	end)
 end
 
@@ -934,13 +1171,26 @@ function ns.OpenOptions(page, groupIndex)
 	if SettingsPanel and SettingsPanel:IsShown() then pcall(HideUIPanel, SettingsPanel) end
 	if groupIndex then selectedGroup = groupIndex end
 	win:Show()
-	showPage(page or currentPage or "general")
+	showPage(page or currentPage or "home")
 end
 
 -- An element's own page, or the Elements overview for one without a page (test elements).
 function ns.OpenElementOptions(key)
 	if not win then buildWindow() end
 	ns.OpenOptions(ELEMENT_PAGES[key] or "elements")
+end
+
+-- From an EXPERIMENTAL badge: About, scrolled to its Experimental section, which glows briefly.
+function ns.ShowExperimental()
+	ns.OpenOptions("about")
+	C_Timer.After(0, function()
+		if not aboutExp then return end
+		local p, h = aboutExp.page, aboutExp.header
+		local top, y = p.content:GetTop(), h:GetTop()
+		if top and y then p.scroll:SetVerticalScroll(math.max(0, math.min(top - y - 8, p.scroll:GetVerticalScrollRange()))) end
+		aboutExp.flash:Stop()
+		aboutExp.flash:Play()
+	end)
 end
 
 function ns.ToggleOptions()

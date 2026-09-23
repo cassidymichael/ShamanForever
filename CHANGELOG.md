@@ -1,8 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-09-23)
 
-- Experimental Water Shield support: a new "Track" setting on the Shield page adds Water Shield and Either shield (shows whichever is up). Lightning Shield stays the default.
+- Redesigned options window: a Home page, a page per element with a painted banner and a live preview of each look, and an About page with credits.
+- Shields can track Water Shield or either shield (experimental). Lightning Shield stays the default.
+- Elements with a countdown can have their own countdown text size.
+- The window has a fixed width and can be made taller.
+- `/sf lock` now toggles between locked and unlocked.
 
 ## 0.2.1 (2026-09-23)
 

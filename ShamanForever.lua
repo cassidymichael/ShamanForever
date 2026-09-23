@@ -39,6 +39,7 @@ local DEFAULTS = {
 	grid = false,           -- grid over the screen while unlocked
 	gridSize = 32,
 	hideIssueReporter = false,  -- beta: hide Blizzard's Issue Reporter button (its position is kept either way)
+	minimalArt = false,     -- options window without banners and ornaments; kept ready, no control for now
 	iconSize = 40,          -- base element size; each group scales it
 	border = { show = true, size = 1, color = { 0, 0, 0, 1 } },   -- around every element; a group can override (g.border)
 	-- Default layout (the author's, 2026-09-23): shield, shock and Fire Nova under the character,
@@ -329,8 +330,8 @@ local shockIcon = 136026
 -- need not be square, and paints a texture that stands in for it in the unlock tray and while dragging.
 local function iconSize() return db.iconSize, db.iconSize end
 local ELEMENTS = {
-	shield = { frame = shield, label = "Shield",           getSize = iconSize, paint = function(t) t:SetTexture(ns.shieldIcon()) end },
-	shock  = { frame = shock,  label = "Shock",            getSize = iconSize, paint = function(t) t:SetTexture(shockIcon) end },
+	shield = { frame = shield, label = "Shields",          getSize = iconSize, paint = function(t) t:SetTexture(ns.shieldIcon()) end },
+	shock  = { frame = shock,  label = "Shocks",           getSize = iconSize, paint = function(t) t:SetTexture(shockIcon) end },
 	imbue  = { frame = imbue,  label = "Weapon Imbue",     getSize = iconSize, paint = function(t) t:SetTexture(ns.imbueIcon()) end },
 }
 local ELEMENT_KEYS = { "shield", "shock", "imbue" }   -- registration order
@@ -1532,16 +1533,37 @@ local function resolveSpells()
 	end
 end
 
+-- Countdown text per element: its own size (elementOpts(key).cdTextSize) or the general one. A
+-- totem's active time uses a smaller size of the same. Returns the font object names.
+local elementFonts = {}
+local function cdFontFor(key)
+	local f = elementFonts[key]
+	if not f then
+		f = { cd = CD_FONT .. "_" .. key, active = ACTIVE_FONT .. "_" .. key }
+		CreateFont(f.cd)
+		CreateFont(f.active)
+		elementFonts[key] = f
+	end
+	local size = elementOpts(key).cdTextSize or db.cdTextSize
+	_G[f.cd]:SetFont(STANDARD_TEXT_FONT, size, "OUTLINE")
+	_G[f.active]:SetFont(STANDARD_TEXT_FONT, math.max(math.floor(size * 0.55), 8), "OUTLINE")
+	_G[f.active]:SetTextColor(0.5, 1, 0.4)
+	return f.cd, f.active
+end
+ns.cdFontFor = cdFontFor
+
 local function applyLayout()
 	layoutElements()
 	cdFont:SetFont(STANDARD_TEXT_FONT, db.cdTextSize, "OUTLINE")
-	shock.cd:SetCountdownFont(CD_FONT)
+	shock.cd:SetCountdownFont((cdFontFor("shock")))
 	shock.cd:SetHideCountdownNumbers(not db.cdText)
 	activeFont:SetFont(STANDARD_TEXT_FONT, math.max(math.floor(db.cdTextSize * 0.55), 8), "OUTLINE")
 	activeFont:SetTextColor(0.5, 1, 0.4)
 	for _, def in ipairs(COOLDOWNS) do
-		def.frame.cd:SetCountdownFont(CD_FONT)
+		local cdName, activeName = cdFontFor(def.key)
+		def.frame.cd:SetCountdownFont(cdName)
 		def.frame.cd:SetHideCountdownNumbers(not db.cdText)
+		if def.frame.activeCD then def.frame.activeCD:SetCountdownFont(activeName) end
 	end
 	refreshShockMana()
 	imbue.timer:SetFont(STANDARD_TEXT_FONT, db.imbueTextSize, "OUTLINE")
@@ -1644,6 +1666,7 @@ ns.applyLayout, ns.resolveSpells, ns.refreshAll, ns.elementOpts = applyLayout, r
 ns.placeElement, ns.splitGroup, ns.hideGroup, ns.centerGroup = placeElement, splitGroup, hideGroup, centerGroup
 ns.setShow, ns.showMode = setShow, showMode
 ns.COOLDOWNS = COOLDOWNS
+ns.makeIcon = makeIcon   -- the options previews draw with the HUD's own icon
 ns.IMBUES, ns.IMBUE_ORDER, ns.imbueIcon = IMBUES, IMBUE_ORDER, function() return imbueIcon end
 ns.setTestMode = function(on) edit(setTestMode)(on) end
 ns.resetAll = resetAll
@@ -1773,8 +1796,10 @@ SlashCmdList.SHAMANFOREVER = function(msg)
 	cmd = (cmd or ""):lower()
 	if cmd == "" or cmd == "options" or cmd == "config" then
 		if ns.ToggleOptions then ns.ToggleOptions() else say("options window unavailable") end
-	elseif cmd == "lock" then db.locked = true; applyLayout(); say("locked")
-	elseif cmd == "unlock" then db.locked = false; applyLayout(); say("unlocked: drag groups to move them")
+	elseif cmd == "lock" then   -- toggles; /sf unlock still works but is no longer advertised
+		db.locked = not db.locked; applyLayout()
+		say(db.locked and "locked" or "unlocked: drag groups to move them, /sf lock when done")
+	elseif cmd == "unlock" then db.locked = false; applyLayout(); say("unlocked: drag groups to move them, /sf lock when done")
 	elseif cmd == "test" then
 		ns.setTestMode(not db.testMode)
 		say("test elements %s", db.testMode and "on" or "off")
@@ -1840,6 +1865,6 @@ SlashCmdList.SHAMANFOREVER = function(msg)
 				g.orientation, g.scale, g.alpha, g.point, g.x, g.y, g.combatOnly and ", combat only" or "")
 		end
 	else
-		say("/sf opens the options. Also: /sf lock, /sf unlock, /sf test (placeholder elements), /sf debug")
+		say("/sf opens the options. Also: /sf lock (lock or unlock the layout), /sf test (placeholder elements), /sf debug")
 	end
 end
