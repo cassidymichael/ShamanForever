@@ -421,7 +421,8 @@ function L.buildHero(parent, key)
 
 	function h:refresh()
 		local minimal = L.minimal()
-		local w = parent:GetWidth()
+		local w = self:GetWidth()
+		if not w or w <= 0 then w = parent:GetWidth() end
 		self.banner:SetTexCoord(coverCoords(w - 2, L.HERO_H - 16))
 		self.blurb:SetWidth(math.max(w - 40 - 60 - 14 - 40 - PANEL_W - 12, 120))
 		self.banner:SetShown(not minimal)

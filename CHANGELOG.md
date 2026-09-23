@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Element pages keep their header and preview in view while the settings below scroll.
+
 ## 0.3.0 (2026-09-23)
 
 - Redesigned options window: a Home page, a page per element with a painted banner and a live preview of each look, and an About page with credits.

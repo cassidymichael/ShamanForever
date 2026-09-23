@@ -5,6 +5,7 @@ local ADDON, ns = ...
 -- A fixed width, the one the art is made for; the player may make it taller.
 local WIDTH, HEIGHT, NAV_W = 864, 700, 190
 local MIN_H, MAX_H = 560, 1300
+local PAGE_TOP = -38   -- pages start below the title bar
 local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
 local ROW_W = WIDTH - NAV_W - 64                  -- initial row width; rows then follow the window
 local LABEL_W = 150
@@ -48,7 +49,7 @@ local function newPage(key, title, indent)
 		scroll.ScrollBar:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 14, 0)
 		scroll.ScrollBar:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", 14, 0)
 	end
-	scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, -38)
+	scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, PAGE_TOP)
 	scroll:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -40, 12)
 	local content = CreateFrame("Frame", nil, scroll)
 	content:SetSize(ROW_W, 1)
@@ -70,6 +71,7 @@ function Page:add(frame, height, shown, refresh)
 end
 
 function Page:refresh()
+	if self.fixed then self.fixed:refresh() end
 	local y = 0
 	for _, it in ipairs(self.items) do
 		local show = not it.shown or it.shown()
@@ -251,10 +253,16 @@ function Page:buttons(list, shown)
 	return self:add(f, 32, shown)
 end
 
--- An element page's header (ShamanForever_OptionsLook.lua): art, identity and a live preview.
+-- An element page's header (ShamanForever_OptionsLook.lua): art, identity and a live preview. It is
+-- pinned above the page's scrolling area, so the preview stays in view while settings change.
 function Page:hero(key)
-	local h = ns.Look.buildHero(self.content, key)
-	return self:add(h, ns.Look.HERO_H, nil, function() h:refresh() end)
+	local h = ns.Look.buildHero(win, key)
+	h:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, PAGE_TOP)
+	h:SetPoint("TOPRIGHT", win, "TOPRIGHT", -40, PAGE_TOP)
+	h:Hide()
+	self.fixed = h
+	self.scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, PAGE_TOP - ns.Look.HERO_H)
+	return h
 end
 
 local function panelBackdrop(f, r, g, b)
@@ -1004,7 +1012,10 @@ local navButtons, navDivider = {}, nil
 
 local function showPage(key)
 	currentPage = key
-	for _, p in ipairs(pageOrder) do p.scroll:SetShown(p.key == key) end
+	for _, p in ipairs(pageOrder) do
+		p.scroll:SetShown(p.key == key)
+		if p.fixed then p.fixed:SetShown(p.key == key) end
+	end
 	for _, b in ipairs(navButtons) do
 		local on = b.page == key
 		b.sel:SetShown(on)
