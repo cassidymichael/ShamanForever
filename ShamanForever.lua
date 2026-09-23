@@ -14,16 +14,28 @@ local SHOCKS = { earth = "Earth Shock", flame = "Flame Shock", frost = "Frost Sh
 local SHOCK_ORDER = { "earth", "flame", "frost" }
 local CD_FONT = "ShamanForeverCDFont"
 
-local DEFAULTS = {
-	point = "CENTER", x = 0, y = -160, alpha = 0.65, scale = 1, locked = true, size = 56,
-	combatOnly = false,     -- hide the whole display out of combat (always shown while unlocked)
-	-- layout
-	iconSize = 40,
-	spacing = 10,
+-- Every element belongs to exactly one group, which owns its position, scale, opacity and flow;
+-- whether the element is drawn (always, in combat, never) is its own setting in db.elementOpts.
+-- Positions are offsets in the group's own (scaled) units.
+local GROUP_DEFAULTS = {
+	point = "CENTER", x = 0, y = -160, scale = 1, alpha = 0.65,
 	orientation = "horizontal",  -- horizontal | vertical
 	growth = "forward",          -- forward (right / down) | backward (left / up)
-	order = { "shield", "shock" },
-	enabled = {},           -- element key -> false to hide it; missing means shown
+	spacing = 10,
+	combatOnly = false,          -- hide the group out of combat (always shown while unlocked)
+}
+
+local DEFAULTS = {
+	locked = true,
+	testMode = false,       -- register placeholder elements for trying out layouts
+	snap = false,           -- unlocked drags snap to other groups, the screen centre and the grid
+	grid = false,           -- grid over the screen while unlocked
+	gridSize = 32,
+	iconSize = 40,          -- base element size; each group scales it
+	groups = { { point = "CENTER", x = 0, y = -160, scale = 1, alpha = 0.65, orientation = "horizontal",
+		growth = "forward", spacing = 10, members = { "shield", "shock" } } },
+	known = {},             -- element keys placed at least once; new ones join the first group
+	elementOpts = {},       -- per-element settings by key, e.g. { shock = { show = "combat" } }
 	-- shield
 	countPos = "center",    -- corner | center
 	countSize = 20,
@@ -48,6 +60,10 @@ local DEFAULTS = {
 	rangeIntensity = 0.45,
 	rangeTint = 0.7,
 }
+-- Pre-groups layout keys, folded into a single group on first load.
+local LEGACY_KEYS = { "point", "x", "y", "alpha", "scale", "size", "spacing", "orientation", "growth", "order", "enabled" }
+-- Saved settings format. Bump it and add a step on ADDON_LOADED when a stored value must change.
+local SETTINGS_VERSION = 3
 local db
 
 local function isSecret(v) return issecretvalue and issecretvalue(v) or false end
@@ -102,21 +118,11 @@ end
 ------------------------------------------------------------------------
 local cdFont = CreateFont(CD_FONT)
 
-local root = CreateFrame("Frame", "ShamanForeverFrame", UIParent, "BackdropTemplate")
-root:SetSize(130, 80)
-root:SetMovable(true)
-root:SetClampedToScreen(true)
-root:RegisterForDrag("LeftButton")
-root:SetScript("OnDragStart", function(self) if not db.locked then self:StartMoving() end end)
-root:SetScript("OnDragStop", function(self)
-	self:StopMovingOrSizing()
-	local point, _, _, x, y = self:GetPoint()
-	db.point, db.x, db.y = point, x, y
-end)
-root:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
-root.label = root:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-root.label:SetPoint("BOTTOM", root, "TOP", 0, 2)
-root.label:SetText("ShamanForever: drag me, then lock in /sf")
+-- root spans the screen and takes no input: the parent of every group (each anchored to UIParent),
+-- hidden as a whole for other classes. Not the old
+-- ShamanForeverFrame name: that frame was dragged, so the client's layout cache would re-anchor it.
+local root = CreateFrame("Frame", "ShamanForeverRoot", UIParent)
+root:SetAllPoints(UIParent)
 
 local function makeIcon(parent, size)
 	local f = CreateFrame("Frame", nil, parent)
@@ -165,52 +171,232 @@ local function makeIcon(parent, size)
 	return f
 end
 
-local shield = makeIcon(root, DEFAULTS.size)
+local shield = makeIcon(root, DEFAULTS.iconSize)
 shield.count:Hide()
 
-local shock = makeIcon(root, DEFAULTS.size)
+local shock = makeIcon(root, DEFAULTS.iconSize)
 shock.count:Hide()
 
--- Element registry: every HUD element lives here. db.order holds the keys in display order and
--- db.enabled[key] == false hides one. Each entry owns its size, so elements need not be square icons.
-local function iconSize() return db.iconSize, db.iconSize end
-local ELEMENTS = {
-	shield = { frame = shield, label = "Lightning Shield", getSize = iconSize },
-	shock  = { frame = shock,  label = "Shock",            getSize = iconSize },
+-- Placeholder elements for trying out layouts, available only in test mode. Sizes are multiples of
+-- the icon size, with one wide and one tall shape to exercise non-square layout.
+local PLACEHOLDERS = {
+	{ key = "testA", letter = "A", color = { 0.85, 0.25, 0.25 }, w = 1, h = 1 },
+	{ key = "testB", letter = "B", color = { 0.25, 0.7, 0.3 }, w = 1, h = 1 },
+	{ key = "testC", letter = "C", color = { 0.3, 0.45, 0.9 }, w = 1, h = 1 },
+	{ key = "testD", letter = "D", color = { 0.85, 0.7, 0.2 }, w = 2.5, h = 0.5 },
+	{ key = "testE", letter = "E", color = { 0.65, 0.3, 0.8 }, w = 0.5, h = 1.5 },
 }
-local ELEMENT_KEYS = { "shield", "shock" }   -- registration order, used to fill gaps in db.order
 
-local function isEnabled(key) return db.enabled[key] ~= false end
-
--- Returns db.order cleaned up: unknown keys dropped, missing elements appended.
-local function elementOrder()
-	local seen, order = {}, {}
-	for _, key in ipairs(db.order or {}) do
-		if ELEMENTS[key] and not seen[key] then table.insert(order, key); seen[key] = true end
-	end
-	for _, key in ipairs(ELEMENT_KEYS) do
-		if not seen[key] then table.insert(order, key) end
-	end
-	db.order = order
-	return order
+local function makePlaceholder(p)
+	local f = CreateFrame("Frame", nil, root)
+	f.tex = f:CreateTexture(nil, "ARTWORK")
+	f.tex:SetAllPoints()
+	f.tex:SetColorTexture(p.color[1], p.color[2], p.color[3], 0.9)
+	f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
+	f.text:SetPoint("CENTER")
+	f.text:SetText(p.letter)
+	f:Hide()
+	return f
 end
 
--- Sizes and anchors every enabled element in one pass, centred on the cross axis; the root shrinks
--- to fit so dragging feels right. Deferred in combat: the shield frame is an ancestor of Blizzard's
--- protected aura button, so showing, hiding or moving it in combat is silently dropped.
-local layoutPending = false
-local function layoutElements()
-	if InCombatLockdown() then layoutPending = true return end
-	layoutPending = false
-	local gap = db.spacing
-	local horizontal = db.orientation == "horizontal"
-	local forward = db.growth ~= "backward"
+local shieldIcon, shockIcon = 136051, 136026
+
+-- Element registry. db.groups decides where each one shows. Each entry owns its size, so elements
+-- need not be square, and paints a texture that stands in for it in the unlock tray and while dragging.
+local function iconSize() return db.iconSize, db.iconSize end
+local ELEMENTS = {
+	shield = { frame = shield, label = "Lightning Shield", getSize = iconSize, paint = function(t) t:SetTexture(shieldIcon) end },
+	shock  = { frame = shock,  label = "Shock",            getSize = iconSize, paint = function(t) t:SetTexture(shockIcon) end },
+}
+local ELEMENT_KEYS = { "shield", "shock" }   -- registration order
+for _, p in ipairs(PLACEHOLDERS) do
+	local c = p.color
+	ELEMENTS[p.key] = { frame = makePlaceholder(p), label = "Test " .. p.letter, placeholder = true,
+		getSize = function() return db.iconSize * p.w, db.iconSize * p.h end,
+		paint = function(t) t:SetColorTexture(c[1], c[2], c[3], 0.9) end }
+	table.insert(ELEMENT_KEYS, p.key)
+end
+
+------------------------------------------------------------------------
+-- Groups
+------------------------------------------------------------------------
+local function available(key)
+	local e = ELEMENTS[key]
+	return e ~= nil and (not e.placeholder or db.testMode)
+end
+
+-- Group index and position of an element. Every available element sits in a group; whether it is
+-- drawn is its own "show" setting, so hiding one keeps its place.
+local function findElement(key)
+	for gi, g in ipairs(db.groups) do
+		for i, k in ipairs(g.members) do if k == key then return gi, i end end
+	end
+end
+
+local function elementOpts(key)
+	local o = db.elementOpts[key]
+	if not o then o = {}; db.elementOpts[key] = o end
+	return o
+end
+
+-- always | combat | never
+local function showMode(key) return elementOpts(key).show or "always" end
+
+local function isEnabled(key) return findElement(key) ~= nil and showMode(key) ~= "never" end
+
+local function removeElement(key)
+	local gi, i = findElement(key)
+	if gi then table.remove(db.groups[gi].members, i) end
+end
+
+local function newGroup(template)
+	local g = {}
+	for k, v in pairs(GROUP_DEFAULTS) do g[k] = template and template[k] or v end
+	g.members = {}
+	table.insert(db.groups, g)
+	return g
+end
+
+local function pruneGroups()
+	for gi = #db.groups, 1, -1 do
+		if #db.groups[gi].members == 0 then table.remove(db.groups, gi) end
+	end
+end
+
+-- Makes db.groups consistent: fills missing group fields, drops unknown, unavailable and duplicate
+-- members, and places every element that is in no group. Elements never seen before (new in an
+-- update, or test ones) show; ones seen before were hidden under the old rule, so they come back
+-- into the first group set to never show.
+local function sanitize()
+	if type(db.groups) ~= "table" then db.groups = {} end
+	if type(db.known) ~= "table" then db.known = {} end
+	local seen = {}
+	for _, g in ipairs(db.groups) do
+		for k, v in pairs(GROUP_DEFAULTS) do if g[k] == nil then g[k] = v end end
+		local kept = {}
+		for _, key in ipairs(type(g.members) == "table" and g.members or {}) do
+			if available(key) and not seen[key] then
+				table.insert(kept, key)
+				seen[key], db.known[key] = true, true
+			end
+		end
+		g.members = kept
+	end
+	pruneGroups()
+	local fresh, freshTest = {}, {}
+	for _, key in ipairs(ELEMENT_KEYS) do
+		if available(key) and not seen[key] then
+			if not db.known[key] then
+				table.insert(ELEMENTS[key].placeholder and freshTest or fresh, key)
+				db.known[key] = true
+			else
+				elementOpts(key).show = "never"
+				table.insert(fresh, key)
+			end
+		end
+	end
+	if #fresh > 0 then
+		local g = db.groups[1] or newGroup()
+		for _, key in ipairs(fresh) do table.insert(g.members, key) end
+	end
+	if #freshTest > 0 then
+		local g = newGroup(db.groups[1])
+		g.point, g.x, g.y = "CENTER", 0, -40
+		g.members = freshTest
+	end
+end
+
+-- Test elements are forgotten when switched off, so switching back on puts them in a fresh group.
+local function setTestMode(on)
+	db.testMode = on
+	if not on then
+		for _, p in ipairs(PLACEHOLDERS) do db.known[p.key] = nil end
+	end
+	sanitize()
+end
+
+-- Places a group so its centre sits at screen coordinates (the units GetCursorPosition returns).
+local function setGroupCenter(g, sx, sy)
+	local ui = UIParent:GetEffectiveScale()
+	local w, h = UIParent:GetSize()
+	g.point = "CENTER"
+	g.x = (sx / ui - w / 2) / g.scale
+	g.y = (sy / ui - h / 2) / g.scale
+end
+
+local function screenCenter(f)
+	local x, y = f:GetCenter()
+	if not x then return nil end
+	local s = f:GetEffectiveScale()
+	return x * s, y * s
+end
+
+local groupFrames = {}
+local groupFrameScripts   -- unlock-mode handlers, assigned below
+
+local function groupFrame(gi)
+	local f = groupFrames[gi]
+	if f then return f end
+	f = CreateFrame("Frame", nil, root, "BackdropTemplate")
+	f:SetSize(1, 1)
+	f:SetMovable(true)
+	f:SetClampedToScreen(true)
+	f:RegisterForDrag("LeftButton")
+	f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+	f.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	f.label:SetPoint("BOTTOMLEFT", f, "TOPLEFT", 0, 2)
+	f.index = gi
+	groupFrameScripts(f)
+	groupFrames[gi] = f
+	return f
+end
+
+-- Combat-only visibility uses Blizzard's secure state driver, the standard technique for this. The
+-- shield's group and element frames are ancestors of Blizzard's protected aura button, so an addon
+-- Show/Hide/SetAlpha on them is silently dropped in combat (tested: alpha 0 out of combat never came
+-- back). The driver's manager shows and hides from untainted code instead; its visibility path
+-- needs only SecureCmdOptionParse, not a compiled snippet, so it survives this build's missing
+-- loadstring_untainted. Groups and elements are driven separately, so an element shows only when
+-- both allow it. The manager re-applies its state every 0.2s and does not show a frame it lets go
+-- of, so a driven frame is never shown or hidden by hand. Only called out of combat.
+local driven = {}
+local function setDriven(frame, want)
+	if want == (driven[frame] or false) then return end
+	if want then
+		local ok, err = pcall(RegisterStateDriver, frame, "visibility", "[combat] show; hide")
+		if not ok then say("state driver failed: %s", tostring(err)); return end
+		driven[frame] = true
+	else
+		pcall(UnregisterStateDriver, frame, "visibility")
+		driven[frame] = nil
+	end
+end
+
+-- Shows a frame, or hands it to the driver when it should only show in combat.
+local function showFrame(frame, combatOnly)
+	setDriven(frame, combatOnly)
+	if not combatOnly then frame:Show() end
+end
+
+local function hideFrame(frame)
+	setDriven(frame, false)
+	frame:Hide()
+end
+
+-- Sizes and anchors a group's members in one pass, centred on the cross axis; the group frame
+-- shrinks to fit so dragging feels right.
+local function layoutGroup(gi)
+	local g, gf = db.groups[gi], groupFrame(gi)
+	local gap = g.spacing
+	local horizontal = g.orientation == "horizontal"
+	local forward = g.growth ~= "backward"
 	local prev, n, along, across = nil, 0, 0, 0
-	for _, key in ipairs(elementOrder()) do
+	for _, key in ipairs(g.members) do
 		local e = ELEMENTS[key]
 		local f = e.frame
-		if not isEnabled(key) then
-			f:Hide()
+		if f:GetParent() ~= gf then f:SetParent(gf) end
+		if showMode(key) == "never" then
+			hideFrame(f)
 		else
 			local w, h = e.getSize()
 			f:SetSize(w, h)
@@ -218,25 +404,288 @@ local function layoutElements()
 			if horizontal then
 				if not prev then
 					local edge = forward and "LEFT" or "RIGHT"
-					f:SetPoint(edge, root, edge, 0, 0)
+					f:SetPoint(edge, gf, edge, 0, 0)
 				elseif forward then f:SetPoint("LEFT", prev, "RIGHT", gap, 0)
 				else f:SetPoint("RIGHT", prev, "LEFT", -gap, 0) end
 				along, across = along + w, math.max(across, h)
 			else
 				if not prev then
 					local edge = forward and "TOP" or "BOTTOM"
-					f:SetPoint(edge, root, edge, 0, 0)
+					f:SetPoint(edge, gf, edge, 0, 0)
 				elseif forward then f:SetPoint("TOP", prev, "BOTTOM", 0, -gap)
 				else f:SetPoint("BOTTOM", prev, "TOP", 0, gap) end
 				along, across = along + h, math.max(across, w)
 			end
-			f:Show()
+			showFrame(f, db.locked and showMode(key) == "combat")
 			prev, n = f, n + 1
 		end
 	end
 	along = math.max(along + math.max(n - 1, 0) * gap, 1)
 	across = math.max(across, 1)
-	if horizontal then root:SetSize(along, across) else root:SetSize(across, along) end
+	if horizontal then gf:SetSize(along, across) else gf:SetSize(across, along) end
+	gf:SetScale(g.scale)
+	gf:SetAlpha(g.alpha)
+	gf:ClearAllPoints()
+	gf:SetPoint(g.point, UIParent, g.point, g.x, g.y)
+	local unlocked = not db.locked
+	gf:EnableMouse(unlocked)
+	gf:EnableMouseWheel(unlocked)
+	gf:SetBackdropColor(0, 0, 0, unlocked and 0.4 or 0)
+	gf:SetBackdropBorderColor(0.2, 0.6, 1, unlocked and 0.9 or 0)
+	gf.label:SetText("Group " .. gi)
+	gf.label:SetShown(unlocked)
+	if n > 0 then showFrame(gf, db.locked and g.combatOnly or false) else hideFrame(gf) end
+end
+
+-- Deferred in combat: the shield's group is an ancestor of Blizzard's protected aura button, so
+-- showing, hiding, moving or reparenting it in combat is silently dropped.
+local styleNative, updateTray   -- defined further down
+local layoutPending = false
+local function layoutElements()
+	if InCombatLockdown() then layoutPending = true return end
+	layoutPending = false
+	for key, e in pairs(ELEMENTS) do
+		if not isEnabled(key) then hideFrame(e.frame) end
+	end
+	for gi in ipairs(db.groups) do layoutGroup(gi) end
+	for gi = #db.groups + 1, #groupFrames do hideFrame(groupFrames[gi]) end
+	styleNative()   -- the shield's alpha compensation follows its group's opacity
+	updateTray()
+	if ns.RefreshOptions then ns.RefreshOptions() end
+end
+
+------------------------------------------------------------------------
+-- Unlock mode: drag a group to move it (snapping to the grid and to other groups), wheel for scale
+-- and opacity, right-click for its settings. Group membership is edited in the options window.
+------------------------------------------------------------------------
+local isShaman = false
+local SNAP = 8   -- UI units: how close an edge must come to another group's edge or centre to snap
+local function round2(v) return math.floor(v * 100 + 0.5) / 100 end
+local function clamp(v, lo, hi) return math.min(math.max(v, lo), hi) end
+local function uiScale() return UIParent:GetEffectiveScale() end
+
+-- Grid over the whole screen while unlocked, measured from the screen centre in UIParent units.
+local grid = CreateFrame("Frame", nil, UIParent)
+grid:SetAllPoints(UIParent)
+grid:SetFrameStrata("BACKGROUND")
+grid:Hide()
+grid.lines = {}
+
+local function drawGrid()
+	local w, h = UIParent:GetSize()
+	local gs = db.gridSize
+	local n = 0
+	local function line(vertical, offset)
+		n = n + 1
+		local t = grid.lines[n]
+		if not t then t = grid:CreateTexture(nil, "BACKGROUND"); grid.lines[n] = t end
+		t:ClearAllPoints()
+		if offset == 0 then t:SetColorTexture(0.2, 0.6, 1, 0.5) else t:SetColorTexture(1, 1, 1, 0.1) end
+		if vertical then
+			t:SetPoint("TOP", grid, "TOP", offset, 0)
+			t:SetPoint("BOTTOM", grid, "BOTTOM", offset, 0)
+			t:SetWidth(1)
+		else
+			t:SetPoint("LEFT", grid, "LEFT", 0, offset)
+			t:SetPoint("RIGHT", grid, "RIGHT", 0, offset)
+			t:SetHeight(1)
+		end
+		t:Show()
+	end
+	for k = 0, math.floor(w / 2 / gs) do
+		line(true, k * gs)
+		if k > 0 then line(true, -k * gs) end
+	end
+	for k = 0, math.floor(h / 2 / gs) do
+		line(false, k * gs)
+		if k > 0 then line(false, -k * gs) end
+	end
+	for i = n + 1, #grid.lines do grid.lines[i]:Hide() end
+end
+
+-- Gold lines showing what a dragged group has snapped to.
+local guides = CreateFrame("Frame", nil, UIParent)
+guides:SetAllPoints(UIParent)
+guides:SetFrameStrata("BACKGROUND")
+guides:SetFrameLevel(grid:GetFrameLevel() + 5)
+guides.x = guides:CreateTexture(nil, "ARTWORK")
+guides.x:SetColorTexture(1, 0.82, 0, 0.8)
+guides.x:SetWidth(1)
+guides.y = guides:CreateTexture(nil, "ARTWORK")
+guides.y:SetColorTexture(1, 0.82, 0, 0.8)
+guides.y:SetHeight(1)
+
+local function showGuides(gx, gy)
+	guides.x:SetShown(gx ~= nil)
+	guides.y:SetShown(gy ~= nil)
+	if gx then
+		guides.x:ClearAllPoints()
+		guides.x:SetPoint("TOP", guides, "TOPLEFT", gx, 0)
+		guides.x:SetPoint("BOTTOM", guides, "BOTTOMLEFT", gx, 0)
+	end
+	if gy then
+		guides.y:ClearAllPoints()
+		guides.y:SetPoint("LEFT", guides, "BOTTOMLEFT", 0, gy)
+		guides.y:SetPoint("RIGHT", guides, "BOTTOMRIGHT", 0, gy)
+	end
+end
+
+-- Snaps one axis. pos is the group's centre, half its half-extent, targets the edges and centres of
+-- other groups (and the screen centre). A group target within SNAP wins and returns a guide line;
+-- otherwise, with a grid, the nearest of the group's two edges and centre lands on a grid line.
+local function snapAxis(pos, half, targets, origin, gs)
+	local bestAbs, shift, guide = SNAP, nil, nil
+	for _, t in ipairs(targets) do
+		for _, e in ipairs({ -half, 0, half }) do
+			local d = t - (pos + e)
+			if math.abs(d) <= bestAbs then bestAbs, shift, guide = math.abs(d), d, t end
+		end
+	end
+	if shift then return pos + shift, guide end
+	if gs then
+		for _, e in ipairs({ -half, 0, half }) do
+			local p = pos + e
+			local d = origin + math.floor((p - origin) / gs + 0.5) * gs - p
+			if not shift or math.abs(d) < math.abs(shift) then shift = d end
+		end
+		return pos + shift
+	end
+	return pos
+end
+
+-- Groups are dragged by hand rather than with StartMoving so they can snap while moving.
+local function dragUpdate(self)
+	if InCombatLockdown() then self:SetScript("OnUpdate", nil); showGuides(); return end
+	local ui = uiScale()
+	local cx, cy = GetCursorPosition()
+	local x, y = cx / ui + self.dragDX, cy / ui + self.dragDY
+	local gx, gy
+	if db.snap then
+		local w, h = UIParent:GetSize()
+		local s = self:GetEffectiveScale() / ui
+		local tx, ty = { w / 2 }, { h / 2 }
+		for gi = 1, #db.groups do
+			local f = groupFrames[gi]
+			if gi ~= self.index and f and f:IsShown() and f:GetLeft() then
+				local fs = f:GetEffectiveScale() / ui
+				local l, r, b, t = f:GetLeft() * fs, f:GetRight() * fs, f:GetBottom() * fs, f:GetTop() * fs
+				table.insert(tx, l); table.insert(tx, (l + r) / 2); table.insert(tx, r)
+				table.insert(ty, b); table.insert(ty, (b + t) / 2); table.insert(ty, t)
+			end
+		end
+		local gs = db.grid and db.gridSize or nil
+		x, gx = snapAxis(x, self:GetWidth() * s / 2, tx, w / 2, gs)
+		y, gy = snapAxis(y, self:GetHeight() * s / 2, ty, h / 2, gs)
+	end
+	showGuides(gx, gy)
+	local g = db.groups[self.index]
+	setGroupCenter(g, x * ui, y * ui)
+	self:ClearAllPoints()
+	self:SetPoint("CENTER", UIParent, "CENTER", g.x, g.y)
+end
+
+groupFrameScripts = function(f)
+	f:SetScript("OnDragStart", function(self)
+		if db.locked or InCombatLockdown() then return end
+		local ui = uiScale()
+		local s = self:GetEffectiveScale() / ui
+		local fx, fy = self:GetCenter()
+		local cx, cy = GetCursorPosition()
+		self.dragDX, self.dragDY = fx * s - cx / ui, fy * s - cy / ui
+		self:SetScript("OnUpdate", dragUpdate)
+	end)
+	f:SetScript("OnDragStop", function(self)
+		self:SetScript("OnUpdate", nil)
+		showGuides()
+		if not InCombatLockdown() then layoutElements() end
+	end)
+	f:SetScript("OnMouseWheel", function(self, delta)
+		if db.locked or InCombatLockdown() then return end
+		local g = db.groups[self.index]
+		local sx, sy = screenCenter(self)
+		if IsShiftKeyDown() then g.alpha = clamp(round2(g.alpha + delta * 0.05), 0.1, 1)
+		else g.scale = clamp(round2(g.scale + delta * 0.05), 0.5, 3) end
+		if sx then setGroupCenter(g, sx, sy) end   -- scale about the centre, not the anchor
+		layoutElements()
+		self.label:SetText(string.format("Group %d: scale %.2f, opacity %.0f%%", self.index, g.scale, g.alpha * 100))
+	end)
+	f:SetScript("OnMouseUp", function(self, button)
+		if button == "RightButton" and not db.locked and ns.OpenOptions then ns.OpenOptions("layout", self.index) end
+	end)
+end
+
+-- A small bar while unlocked: what the mouse does, snapping and grid toggles, Lock and Options.
+local tray = CreateFrame("Frame", "ShamanForeverTray", UIParent, "BackdropTemplate")
+tray:SetSize(500, 120)
+tray:SetFrameStrata("DIALOG")
+tray:SetPoint("TOP", UIParent, "TOP", 0, -120)
+tray:SetMovable(true)
+tray:SetClampedToScreen(true)
+tray:EnableMouse(true)
+tray:RegisterForDrag("LeftButton")
+tray:SetScript("OnDragStart", tray.StartMoving)
+tray:SetScript("OnDragStop", tray.StopMovingOrSizing)
+tray:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+tray:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
+tray:SetBackdropBorderColor(0.2, 0.6, 1, 0.9)
+tray:Hide()
+do
+	local title = tray:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	title:SetPoint("TOPLEFT", 10, -10)
+	title:SetText("ShamanForever: layout unlocked")
+	tray.hint = tray:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	tray.hint:SetPoint("TOPLEFT", 10, -30)
+	tray.hint:SetWidth(480)
+	tray.hint:SetJustifyH("LEFT")
+	tray.hint:SetSpacing(2)
+	tray.hint:SetText("Drag a group to move it. Mouse wheel over a group: scale. Shift + wheel: opacity.\n" ..
+		"Right-click a group, or press Options, to change which elements it holds.")
+	-- Controls sit on a row under the hint, so a longer hint pushes them down instead of overlapping.
+	local row = CreateFrame("Frame", nil, tray)
+	row:SetPoint("TOPLEFT", tray.hint, "BOTTOMLEFT", 0, -10)
+	row:SetPoint("RIGHT", tray, "RIGHT", -10, 0)
+	row:SetHeight(26)
+	tray.row = row
+	local function check(label, key, tip)
+		local cb = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
+		cb:SetSize(24, 24)
+		cb.Text:SetFontObject("GameFontHighlightSmall")
+		cb.Text:SetText(label)
+		cb:SetScript("OnClick", function(self) db[key] = self:GetChecked() and true or false; layoutElements() end)
+		cb:SetScript("OnEnter", function(self)
+			GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+			GameTooltip:SetText(label)
+			GameTooltip:AddLine(tip, 1, 1, 1, true)
+			GameTooltip:Show()
+		end)
+		cb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+		return cb
+	end
+	tray.snap = check("Snapping", "snap", "While dragging, groups snap to other groups' edges and centres, the screen centre, and the grid when it is shown.")
+	tray.snap:SetPoint("LEFT", -4, 0)
+	tray.grid = check("Show grid", "grid", "A grid over the whole screen while unlocked. With snapping on, groups snap to it.")
+	tray.grid:SetPoint("LEFT", tray.snap.Text, "RIGHT", 16, 0)
+	local lock = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+	lock:SetSize(90, 22)
+	lock:SetPoint("RIGHT", 0, 0)
+	lock:SetText("Lock")
+	lock:SetScript("OnClick", function() db.locked = true; ns.applyLayout() end)
+	local options = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+	options:SetSize(90, 22)
+	options:SetPoint("RIGHT", lock, "LEFT", -6, 0)
+	options:SetText("Options")
+	options:SetScript("OnClick", function() if ns.OpenOptions then ns.OpenOptions("layout") end end)
+end
+
+function updateTray()
+	local unlocked = isShaman and not db.locked
+	tray:SetShown(unlocked)
+	tray:SetHeight(30 + tray.hint:GetStringHeight() + 10 + 26 + 10)
+	tray.snap:SetChecked(db.snap)
+	tray.grid:SetChecked(db.grid)
+	grid:SetShown(unlocked and db.grid)
+	if unlocked and db.grid then drawGrid() end
+	if not unlocked then showGuides() end
 end
 
 ------------------------------------------------------------------------
@@ -261,9 +710,11 @@ local function applyEmptyLook()
 end
 
 -- With display opacity a and underlay strength u, an icon alpha b gives a stacked result of
--- a*b + (1 - a*b)*a*u; solving that for a yields b = (1 - u) / (1 - a*u).
+-- a*b + (1 - a*b)*a*u; solving that for a yields b = (1 - u) / (1 - a*u). The display opacity is
+-- that of the shield's group.
 local function nativeIconAlpha()
-	local a, u = db.alpha, db.underlayUp
+	local gi = findElement("shield")
+	local a, u = gi and db.groups[gi].alpha or 1, db.underlayUp
 	local b = u > 0 and (1 - u) / (1 - a * u) or 1
 	return math.min(math.max(b * db.shieldIconAlpha, 0.05), 1)
 end
@@ -297,13 +748,17 @@ end
 
 -- Blizzard's button and its parts are off limits to addon code in combat; defer until it ends.
 local nativeStylePending = false
-local function styleNative()
+function styleNative()
 	if not native.button then return end
 	if InCombatLockdown() then nativeStylePending = true return end
 	nativeStylePending = false
 	pcall(function()
 		local size = db.iconSize
 		native.container:SetSize(size, size)
+		-- Moving the shield to another group reparents it, which can drop the container back under
+		-- the underlay and its ring; restate the placement from setupNative.
+		native.container:SetFrameStrata(shield:GetFrameStrata())
+		native.container:SetFrameLevel(shield.textFrame:GetFrameLevel() + 5)
 		native.button:SetSize(size, size)
 		for i, t in ipairs(native.tickTextures or {}) do
 			t:ClearAllPoints()
@@ -418,6 +873,7 @@ local function setupNative()
 		c:SetFrameStrata(shield:GetFrameStrata())
 		c:SetFrameLevel(shield.textFrame:GetFrameLevel() + 5)
 		c:SetUnit("player")
+		pcall(c.EnableMouse, c, false)   -- unlocked drags start on the group frame underneath
 		native.container = c
 		c:AddAuraSlot("shield", "HELPFUL", {
 			candidateFilters = { includeSpellIDs = shieldIDMap() },
@@ -500,7 +956,8 @@ local function resolveSpells()
 	scanSpellbook()
 	local icon
 	shieldSpellID, icon = knownSpell(SHIELD_NAME)
-	shield.tex:SetTexture(icon or 136051)
+	shieldIcon = icon or 136051
+	shield.tex:SetTexture(shieldIcon)
 	shockIDs = {}
 	for key, name in pairs(SHOCKS) do
 		local id = knownSpell(name)
@@ -508,54 +965,15 @@ local function resolveSpells()
 	end
 	local id, ic = knownSpell(SHOCKS[db.shock] or SHOCKS.earth)
 	shockSpellID = id
-	shock.tex:SetTexture(ic or 136026)
+	shockIcon = ic or 136026
+	shock.tex:SetTexture(shockIcon)
 	manaSpellID = (db.manaSpell ~= "tracked" and shockIDs[db.manaSpell]) or shockSpellID
 	if shockSpellID and C_Spell.EnableSpellRangeCheck then safe(C_Spell.EnableSpellRangeCheck, shockSpellID, true) end
 	if shieldSpellID then learnShieldID(shieldSpellID) end
 end
 
--- Combat-only visibility uses Blizzard's secure state driver, the standard technique for this.
--- root is an ancestor of Blizzard's protected aura button, so an addon Show/Hide/SetAlpha on it is
--- silently dropped in combat (tested: alpha 0 out of combat never came back). The driver's manager
--- shows and hides the frame from untainted code instead. It only needs SecureCmdOptionParse, not a
--- compiled snippet, so it survives this build's missing loadstring_untainted. Registering with the
--- manager is itself done out of combat. An unlocked frame is never driven, so it can be dragged.
-local visibilityPending = false
-local driverActive = false
-local function applyVisibility()
-	if InCombatLockdown() then visibilityPending = true return end
-	visibilityPending = false
-	local want = db.combatOnly and db.locked
-	if want == driverActive then return end
-	if want then
-		if not RegisterStateDriver then say("state driver unavailable on this client; cannot hide out of combat") return end
-		local ok, err = pcall(RegisterStateDriver, root, "visibility", "[combat] show; hide")
-		if not ok then say("state driver failed: %s", tostring(err)); return end
-	else
-		pcall(UnregisterStateDriver, root, "visibility")
-		root:Show()
-	end
-	driverActive = want
-end
-
 local function applyLayout()
-	root:ClearAllPoints()
-	root:SetPoint(db.point, UIParent, db.point, db.x, db.y)
-	root:SetAlpha(db.alpha)
-	root:SetScale(db.scale)
-	if db.locked then
-		root:EnableMouse(false)
-		root:SetBackdropColor(0, 0, 0, 0)
-		root:SetBackdropBorderColor(0, 0, 0, 0)
-		root.label:Hide()
-	else
-		root:EnableMouse(true)
-		root:SetBackdropColor(0, 0, 0, 0.4)
-		root:SetBackdropBorderColor(0.2, 0.6, 1, 0.9)
-		root.label:Show()
-	end
 	layoutElements()
-	applyVisibility()
 	cdFont:SetFont(STANDARD_TEXT_FONT, db.cdTextSize, "OUTLINE")
 	shock.cd:SetCountdownFont(CD_FONT)
 	shock.cd:SetHideCountdownNumbers(not db.cdText)
@@ -572,12 +990,89 @@ local function refreshAll()
 	refreshShockMana()
 end
 
+-- Layout edits used by the options window. Each leaves db.groups consistent and relays out.
+local function edit(fn)
+	return function(...)
+		if InCombatLockdown() then say("layout changes wait until combat ends"); return end
+		fn(...)
+		pruneGroups()
+		layoutElements()
+	end
+end
+
+-- Puts key into target (a group index or "new"). index is its position among the target's other
+-- members; nil appends.
+local placeElement = edit(function(key, target, index)
+	local gi = findElement(key)
+	local src = gi and db.groups[gi]
+	if target == "new" then
+		if src and #src.members == 1 then return end
+		removeElement(key)
+		local g = newGroup(src or db.groups[1])
+		g.members = { key }
+		-- Screen centre, stepping down past any group already parked there.
+		g.point, g.x, g.y = "CENTER", 0, 0
+		local taken = true
+		while taken do
+			taken = false
+			for _, o in ipairs(db.groups) do
+				if o ~= g and o.point == "CENTER" and o.x == g.x and o.y == g.y then taken = true end
+			end
+			if taken then g.y = g.y - 60 end
+		end
+	elseif db.groups[target] then
+		local g = db.groups[target]
+		local list = {}
+		for _, k in ipairs(g.members) do if k ~= key then table.insert(list, k) end end
+		index = math.min(math.max(index or #list + 1, 1), #list + 1)
+		table.insert(list, index, key)
+		removeElement(key)
+		g.members = list
+	end
+end)
+
+-- Splits a group into single-element groups, each left exactly where it is on screen.
+local splitGroup = edit(function(gi)
+	local g = db.groups[gi]
+	if not g or #g.members < 2 then return end
+	for i = #g.members, 2, -1 do
+		local key = g.members[i]
+		local sx, sy = screenCenter(ELEMENTS[key].frame)
+		table.remove(g.members, i)
+		local ng = newGroup(g)
+		ng.members = { key }
+		if sx then setGroupCenter(ng, sx, sy) end
+	end
+	local sx, sy = screenCenter(ELEMENTS[g.members[1]].frame)
+	if sx then setGroupCenter(g, sx, sy) end
+end)
+
+local setShow = edit(function(key, mode) elementOpts(key).show = mode ~= "always" and mode or nil end)
+
+-- Hides every element in the group; the group keeps them, so showing one brings it back in place.
+local hideGroup = edit(function(gi)
+	for _, key in ipairs(db.groups[gi] and db.groups[gi].members or {}) do elementOpts(key).show = "never" end
+end)
+local centerGroup = edit(function(gi)
+	local g = db.groups[gi]
+	if g then g.point, g.x, g.y = "CENTER", 0, 0 end
+end)
+
+local function resetAll()
+	for k, v in pairs(DEFAULTS) do db[k] = type(v) == "table" and CopyTable(v) or v end
+	sanitize()
+	resolveSpells(); applyLayout(); refreshAll()
+end
+
 -- Shared with ShamanForever_Options.lua
-ns.DEFAULTS, ns.SHOCKS, ns.SHOCK_ORDER = DEFAULTS, SHOCKS, SHOCK_ORDER
-ns.ELEMENTS, ns.ELEMENT_KEYS, ns.elementOrder, ns.isEnabled = ELEMENTS, ELEMENT_KEYS, elementOrder, isEnabled
+ns.DEFAULTS, ns.GROUP_DEFAULTS, ns.SHOCKS, ns.SHOCK_ORDER = DEFAULTS, GROUP_DEFAULTS, SHOCKS, SHOCK_ORDER
+ns.ELEMENTS, ns.ELEMENT_KEYS, ns.available, ns.findElement = ELEMENTS, ELEMENT_KEYS, available, findElement
 ns.getDB = function() return db end
-ns.applyLayout, ns.resolveSpells, ns.refreshAll = applyLayout, resolveSpells, refreshAll
-ns.applyVisibility = applyVisibility
+ns.applyLayout, ns.resolveSpells, ns.refreshAll, ns.elementOpts = applyLayout, resolveSpells, refreshAll, elementOpts
+ns.placeElement, ns.splitGroup, ns.hideGroup, ns.centerGroup = placeElement, splitGroup, hideGroup, centerGroup
+ns.setShow, ns.showMode = setShow, showMode
+ns.setTestMode = function(on) edit(setTestMode)(on) end
+ns.resetAll = resetAll
 ns.say = say
 
 ------------------------------------------------------------------------
@@ -599,13 +1094,46 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		if arg1 ~= ADDON then return end
 		ShamanForeverDB = ShamanForeverDB or {}
 		db = ShamanForeverDB
+		-- Pre-groups saves: one row or column, with hidden elements in db.enabled.
+		if db.groups == nil and (db.order or db.point) then
+			local g = {}
+			for k, v in pairs(GROUP_DEFAULTS) do if db[k] ~= nil then g[k] = db[k] else g[k] = v end end
+			g.members, db.known = {}, {}
+			for _, key in ipairs(db.order or { "shield", "shock" }) do
+				db.known[key] = true
+				if not (db.enabled and db.enabled[key] == false) then table.insert(g.members, key) end
+			end
+			db.groups = { g }
+		end
+		for _, k in ipairs(LEGACY_KEYS) do db[k] = nil end
+		-- 1: snapping and the grid briefly defaulted to on during 0.2.0 development; start them off
+		-- once, after which the saved choice is kept.
+		if (db.settingsVersion or 0) < 1 then db.snap, db.grid = false, false end
+		-- 2: "only show in combat" moved from the whole display to each group (and element).
+		if (db.settingsVersion or 0) < 2 then
+			if db.combatOnly and type(db.groups) == "table" then
+				for _, g in ipairs(db.groups) do g.combatOnly = true end
+			end
+			db.combatOnly = nil
+		end
+		-- 3: per-element "only in combat" became the element's show mode (always | combat | never).
+		-- Elements hidden by being in no group are placed by sanitize below, set to never.
+		if (db.settingsVersion or 0) < 3 and type(db.elementOpts) == "table" then
+			for _, o in pairs(db.elementOpts) do
+				if o.combatOnly then o.show = "combat" end
+				o.combatOnly = nil
+			end
+		end
+		db.settingsVersion = SETTINGS_VERSION
 		for k, v in pairs(DEFAULTS) do
 			if db[k] == nil then db[k] = type(v) == "table" and CopyTable(v) or v end
 		end
+		sanitize()
 		if ns.BuildOptions then ns.BuildOptions() end
 	elseif event == "PLAYER_LOGIN" then
 		local _, class = UnitClass("player")
 		if class ~= "SHAMAN" then root:Hide(); return end
+		isShaman = true
 		reg("UNIT_AURA", "player")
 		reg("UNIT_SPELLCAST_SUCCEEDED", "player")
 		reg("SPELL_UPDATE_COOLDOWN")
@@ -640,7 +1168,6 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		refreshAll()
 	elseif event == "PLAYER_REGEN_ENABLED" then
 		if layoutPending then layoutElements() end
-		if visibilityPending then applyVisibility() end
 		if nativeStylePending then styleNative() end
 		refreshAll()
 	end
@@ -654,41 +1181,17 @@ SLASH_SHAMANFOREVER2 = "/shf"
 SlashCmdList.SHAMANFOREVER = function(msg)
 	local cmd, arg = msg:match("^(%S*)%s*(.-)$")
 	cmd = (cmd or ""):lower()
-	if cmd == "lock" then db.locked = true; applyLayout(); say("locked")
-	elseif cmd == "unlock" then db.locked = false; applyLayout(); say("unlocked: drag the frame")
-	elseif cmd == "alpha" then
-		local a = tonumber(arg)
-		if a and a > 0 and a <= 1 then db.alpha = a; applyLayout(); say("alpha %.2f", a) else say("usage: /sf alpha 0.1-1") end
-	elseif cmd == "scale" then
-		local s = tonumber(arg)
-		if s and s >= 0.5 and s <= 3 then db.scale = s; applyLayout(); say("scale %.2f", s) else say("usage: /sf scale 0.5-3") end
-	elseif cmd == "show" or cmd == "hide" then
-		local key, state = arg:lower():match("^(%S*)%s*(%S*)$")
-		if not ELEMENTS[key] then say("usage: /sf show|hide <%s> [on|off]", table.concat(ELEMENT_KEYS, "|")); return end
-		if state ~= "on" and state ~= "off" then state = (cmd == "hide") and "off" or "on" end
-		db.enabled[key] = state == "on"
-		applyLayout()
-		say("%s %s", ELEMENTS[key].label, isEnabled(key) and "shown" or "hidden")
-	elseif cmd == "combat" then
-		arg = arg:lower()
-		if arg == "on" then db.combatOnly = true
-		elseif arg == "off" then db.combatOnly = false
-		elseif arg == "" or arg == "toggle" then db.combatOnly = not db.combatOnly
-		else say("usage: /sf combat on|off"); return end
-		applyVisibility()
-		say(db.combatOnly and "shown only in combat%s" or "shown all the time",
-			(db.combatOnly and not db.locked) and " (once locked)" or "")
-	elseif cmd == "shock" then
-		arg = arg:lower()
-		if SHOCKS[arg] then db.shock = arg; resolveSpells(); refreshAll(); say("shock icon now %s", SHOCKS[arg])
-		else say("usage: /sf shock earth|flame|frost") end
-	elseif cmd == "reset" then
-		for k, v in pairs(DEFAULTS) do db[k] = type(v) == "table" and CopyTable(v) or v end
-		resolveSpells(); applyLayout(); refreshAll(); say("reset")
+	if cmd == "" or cmd == "options" or cmd == "config" then
+		if ns.ToggleOptions then ns.ToggleOptions() else say("options window unavailable") end
+	elseif cmd == "lock" then db.locked = true; applyLayout(); say("locked")
+	elseif cmd == "unlock" then db.locked = false; applyLayout(); say("unlocked: drag groups to move them")
+	elseif cmd == "test" then
+		ns.setTestMode(not db.testMode)
+		say("test elements %s", db.testMode and "on" or "off")
 	elseif cmd == "debug" then
-		say("shield spell %s (aura spell %s), shock spell %s (%s), mana spell %s, believed up %s, in combat %s, combat only %s",
+		say("shield spell %s (aura spell %s), shock spell %s (%s), mana spell %s, believed up %s, in combat %s",
 			tostring(shieldSpellID), tostring(shieldAuraSpellID), tostring(shockSpellID), db.shock,
-			tostring(manaSpellID), tostring(believedUp), tostring(InCombatLockdown()), tostring(db.combatOnly))
+			tostring(manaSpellID), tostring(believedUp), tostring(InCombatLockdown()))
 		local e = book[SHIELD_NAME]
 		say("spellbook: %s rank %s", SHIELD_NAME, e and e.rank or "?")
 		say("aura container %s%s", native.container and "created" or "not created",
@@ -701,10 +1204,16 @@ SlashCmdList.SHAMANFOREVER = function(msg)
 			say("%s id %s rank %s usable=%s noPower=%s inRange=%s", SHOCKS[key], tostring(id),
 				book[SHOCKS[key]] and book[SHOCKS[key]].rank or "?", describeArg(usable), describeArg(noPower), describeArg(r))
 		end
-	elseif cmd == "" or cmd == "options" or cmd == "config" then
-		if ns.OpenOptions then ns.OpenOptions() else say("options panel unavailable") end
+		for gi, g in ipairs(db.groups) do
+			local names = {}
+			for _, key in ipairs(g.members) do
+				local mode = showMode(key)
+				table.insert(names, mode == "always" and key or (key .. " (" .. mode .. ")"))
+			end
+			say("group %d: %s, %s, scale %.2f, opacity %.2f, at %s %.0f,%.0f%s", gi, table.concat(names, ","),
+				g.orientation, g.scale, g.alpha, g.point, g.x, g.y, g.combatOnly and ", combat only" or "")
+		end
 	else
-		say("commands (/sf or /shf): options, lock, unlock, alpha <0.1-1>, scale <0.5-3>, combat <on|off>, show|hide <%s>, shock <earth|flame|frost>, reset, debug",
-			table.concat(ELEMENT_KEYS, "|"))
+		say("/sf opens the options. Also: /sf lock, /sf unlock, /sf test (placeholder elements), /sf debug")
 	end
 end

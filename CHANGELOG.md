@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0
+
+- Elements are arranged in groups, each a row or column with its own position, scale and opacity. Your current layout carries over as one group.
+- Each element can show Always, In combat or Never, and each group can be set to combat only.
+- New resizable options window (`/sf`). Assign elements to groups by dragging them on the Layout page.
+- While unlocked: drag a group to move it, mouse wheel to scale, shift + wheel to change opacity. Optional grid and snapping.
+- Slash commands trimmed to `lock`, `unlock` and `debug`; everything else is in the options window.
+
 ## 0.1.4 (2026-09-22)
 
 - Now published on CurseForge. No gameplay changes.
