@@ -230,6 +230,7 @@ function Page:dropdown(label, tip, choices, get, set, shown, width)
 			rootDescription:CreateRadio(c[2], function() return get() == c[1] end, function() set(c[1]) end)
 		end
 	end)
+	f.dropdown = dd
 	return self:add(f, 34, shown, function() dd:GenerateMenu() end)
 end
 
@@ -475,6 +476,7 @@ local function toggleLock() db().locked = not db().locked; relayout() end
 local LOCK_TIP = "Unlocked, drag groups on screen, mouse wheel to scale, shift + wheel for opacity. /sf lock does the same."
 
 local aboutExp   -- About's Experimental heading, for ns.ShowExperimental
+local groupPanel -- Layout's selected-group panel, for ns.OpenGroupSettings
 
 local function addonVersion()
 	local getMeta = C_AddOns and C_AddOns.GetAddOnMetadata or GetAddOnMetadata
@@ -895,13 +897,15 @@ local function buildLayout(p)
 	p:checkbox("Only show in combat", "Hide this group out of combat. Each element also has its own Show setting (Always, In combat, Never) under Elements; an element shows only when both it and its group allow it. Everything visible shows while the layout is unlocked.",
 		groupGet("combatOnly"), groupSet("combatOnly"), hasGroups)
 	local lastRow = p:buttons({
-		{ "Centre on screen", function() ns.centerGroup(selectedGroup) end, "Moves the group to the middle of the screen.", 130 },
-		{ "Split up", function() ns.splitGroup(selectedGroup) end, "Gives every element in the group a group of its own, left where it is.", 100 },
-		{ "Hide all", function() ns.hideGroup(selectedGroup) end, "Sets every element in the group to never show. They keep their places; set one back to Always to bring it back.", 100 },
+		-- Hard to undo, so each asks first.
+		{ "Centre on screen", function() StaticPopup_Show("SHAMANFOREVER_CENTER", selectedGroup, nil, selectedGroup) end, "Moves the group to the middle of the screen.", 130 },
+		{ "Split up", function() StaticPopup_Show("SHAMANFOREVER_SPLIT", selectedGroup, nil, selectedGroup) end, "Gives every element in the group a group of its own, left where it is.", 100 },
+		{ "Hide all", function() StaticPopup_Show("SHAMANFOREVER_HIDEALL", selectedGroup, nil, selectedGroup) end, "Sets every element in the group to never show. They keep their places; set one back to Always to bring it back.", 100 },
 	}, hasGroups)
 	p:add(p:row(10), 10, hasGroups)
 	p.rowIndent = nil
 
+	groupPanel = { page = p, frame = panel }
 	p.afterRefresh = function()
 		panel:SetShown(hasGroups())
 		if not hasGroups() then return end
@@ -1005,6 +1009,13 @@ local function elementDisplay(p, key)
 		table.insert(list, { "new", "New group" })
 		return list
 	end, function() return ns.findElement(key) end, function(v) ns.placeElement(key, v) end, nil, 140)
+	local groupRow = p.items[#p.items].frame
+	local edit = CreateFrame("Button", nil, groupRow, "UIPanelButtonTemplate")
+	edit:SetSize(96, 22)
+	edit:SetPoint("LEFT", groupRow.dropdown, "RIGHT", 8, 0)
+	edit:SetText("Edit group")
+	edit:SetScript("OnClick", function() local gi = ns.findElement(key); if gi then ns.OpenGroupSettings(gi) end end)
+	setTip(edit, "Edit group", "This group's settings on the Layout page.")
 end
 
 -- Standard block: the look while something is missing. first: an optional row before the three.
@@ -1282,6 +1293,21 @@ local function buildWindow()
 	win:Hide()
 end
 
+-- Confirmations for the Layout page's group actions; data is the group number.
+local function confirm(which, text, button, action)
+	StaticPopupDialogs[which] = {
+		text = text, button1 = button, button2 = CANCEL,
+		OnAccept = function(_, gi) action(gi) end,
+		timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+	}
+end
+confirm("SHAMANFOREVER_CENTER", "Move Group %s to the middle of the screen?\nIts current position is lost.", "Centre",
+	function(gi) ns.centerGroup(gi) end)
+confirm("SHAMANFOREVER_SPLIT", "Split Group %s into one group per element?\nPutting them back together is done by hand.", "Split up",
+	function(gi) ns.splitGroup(gi) end)
+confirm("SHAMANFOREVER_HIDEALL", "Hide every element in Group %s?\nEach one's Show setting becomes Never.", "Hide all",
+	function(gi) ns.hideGroup(gi) end)
+
 StaticPopupDialogs["SHAMANFOREVER_RESET"] = {
 	text = "Reset every Shaman Forever option and the layout to defaults?",
 	button1 = YES, button2 = NO,
@@ -1326,6 +1352,18 @@ function ns.ShowExperimental()
 		if top and y then p.scroll:SetVerticalScroll(math.max(0, math.min(top - y - 8, p.scroll:GetVerticalScrollRange()))) end
 		aboutExp.flash:Stop()
 		aboutExp.flash:Play()
+	end)
+end
+
+-- From an element's page: Layout with that group selected, scrolled to its settings, which flash.
+function ns.OpenGroupSettings(gi)
+	board.flashPanel = true
+	ns.OpenOptions("layout", gi)
+	C_Timer.After(0, function()
+		if not (groupPanel and groupPanel.frame:IsShown()) then return end
+		local p = groupPanel.page
+		local top, y = p.content:GetTop(), groupPanel.frame:GetTop()
+		if top and y then p.scroll:SetVerticalScroll(math.max(0, math.min(top - y - 8, p.scroll:GetVerticalScrollRange()))) end
 	end)
 end
 

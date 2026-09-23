@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2 (2026-09-23)
+
+- Centre on screen, Split up and Hide all ask for confirmation first.
+- An element's options page has an Edit group button that opens its group's settings.
+
 ## 0.3.1 (2026-09-23)
 
 - An element can be moved to another group from its own options page.
