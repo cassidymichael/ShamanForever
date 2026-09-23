@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.2.1 (2026-09-23)
 
 - Icon borders: 1 px black by default, with size, colour and on/off settings (General page), and an optional custom border per group (Layout page).
+- New defaults for fresh installs (existing settings are kept): elements start in three groups, the Lightning Shield charge number is off (the charge bar shows the charges), and the Weapon Imbue icon stays hidden until the imbue is missing or running low.
 
 ## 0.2.0 (2026-09-23)
 

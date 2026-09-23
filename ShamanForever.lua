@@ -35,15 +35,23 @@ local DEFAULTS = {
 	hideIssueReporter = false,  -- beta: hide Blizzard's Issue Reporter button (its position is kept either way)
 	iconSize = 40,          -- base element size; each group scales it
 	border = { show = true, size = 1, color = { 0, 0, 0, 1 } },   -- around every element; a group can override (g.border)
-	groups = { { point = "CENTER", x = 0, y = -160, scale = 1, alpha = 0.65, orientation = "horizontal",
-		growth = "forward", spacing = 10, members = { "shield", "shock" } } },
+	-- Default layout (the author's, 2026-09-23): shield, shock and Fire Nova under the character,
+	-- the imbue below-left, the earth totems further left.
+	groups = {
+		{ point = "CENTER", x = 0, y = -216, scale = 0.98, alpha = 0.65, orientation = "horizontal",
+			growth = "forward", spacing = 10, members = { "shield", "shock", "firenova" } },
+		{ point = "CENTER", x = -176, y = -265, scale = 1, alpha = 0.65, orientation = "horizontal",
+			growth = "forward", spacing = 10, members = { "imbue" } },
+		{ point = "CENTER", x = -310, y = -174, scale = 0.93, alpha = 0.65, orientation = "horizontal",
+			growth = "forward", spacing = 10, members = { "earthbind", "stoneclaw" } },
+	},
 	known = {},             -- element keys placed at least once; new ones join the first group
 	elementOpts = {},       -- per-element settings by key, e.g. { shock = { show = "combat" } }
 	-- shield
 	countPos = "center",    -- corner | center
 	countSize = 20,
 	showBar = true,         -- charge bar along the bottom of the icon
-	showCount = true,       -- charge number (Blizzard prints it for two or more)
+	showCount = false,      -- charge number (Blizzard prints it for two or more); the charge bar shows it anyway
 	emptyRing = true,       -- no-shield look
 	emptyGrey = true,
 	emptyTint = false,
@@ -70,7 +78,7 @@ local DEFAULTS = {
 	imbuePulse = true,
 	imbueWarnMins = 5,        -- show time left below this many minutes (0 = never)
 	imbueTextSize = 16,
-	imbueHideActive = false,  -- while an imbue is on, only show once its time left shows
+	imbueHideActive = true,   -- while an imbue is on, only show once its time left shows
 	imbueIDs = {},            -- learned enchant ID -> imbue key
 	totemLifetimes = {},      -- learned totem lifetime in seconds, by cooldown element key
 }
