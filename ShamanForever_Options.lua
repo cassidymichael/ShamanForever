@@ -694,6 +694,15 @@ end
 
 local function buildShield(p)
 	elementDisplay(p, "shield")
+	p:header("Shield")
+	-- Lightning Shield is the tested default; the Water Shield modes are experimental until tested in game.
+	local trackChoices = {
+		{ "lightning", "Lightning Shield" },
+		{ "water", "Water Shield (experimental)" },
+		{ "either", "Either shield (experimental)" },
+	}
+	p:dropdown("Track", "Which shield counts as up. Only one elemental shield can be on you at a time. With one shield chosen, the other one counts as no shield. Either shield (experimental): the icon shows whichever shield is up, and the no-shield look shows the one you last had. The Water Shield modes have not been tested in game yet.",
+		trackChoices, get("shieldTrack"), set("shieldTrack", respell))
 	p:header("Charges")
 	p:dropdown("Charge number position", "Where the charge count sits on the shield icon.",
 		{ { "corner", "Bottom right corner" }, { "center", "Centred" } }, get("countPos"), set("countPos"))
@@ -875,7 +884,7 @@ local function buildWindow()
 	buildGeneral(newPage("general", "General"))
 	buildLayout(newPage("layout", "Layout"))
 	buildElements(newPage("elements", "Elements"))
-	buildShield(newPage("shield", "Lightning Shield", true))
+	buildShield(newPage("shield", "Shield", true))
 	buildShock(newPage("shock", "Shock", true))
 	buildImbue(newPage("imbue", "Weapon Imbue", true))
 	for _, def in ipairs(ns.COOLDOWNS) do buildCooldown(newPage(def.key, def.spell, true), def) end

@@ -1,16 +1,22 @@
--- ShamanForever: shaman HUD (Lightning Shield, shock, weapon imbue, totem cooldowns) for the WoW: Forever beta.
+-- ShamanForever: shaman HUD (Lightning or Water Shield, shock, weapon imbue, totem cooldowns) for the WoW: Forever beta.
 --
 -- Rule for this client: never do Lua math or comparisons on a possibly-secret value. In combat, show
 -- state through Blizzard's own widgets instead: the aura container for the shield, duration objects
 -- for cooldowns and totem timers, curves and SetAlpha for anything that must appear or disappear.
--- The only inference anywhere is the Lightning Shield's in-combat "up" state; its section explains it.
+-- The only inference anywhere is the shield's in-combat "up" state; its section explains it.
 
 local ADDON, ns = ...
 local PREFIX = "|cff3399ffShamanForever|r: "
 local function say(fmt, ...) print(PREFIX .. string.format(fmt, ...)) end
 
-local SHIELD_NAME = "Lightning Shield"
-local VANILLA_SHIELD_IDS = { 324, 325, 905, 945, 8134, 10431, 10432 }
+-- Elemental shields. Only one can be on the shaman at a time (Water Shield's tooltip says so), so one
+-- element shows whichever is up. Water Shield is a Restoration talent on Forever; 408510 is both its
+-- cast and its buff (wowhead.com/forever). Spellbook and live aura IDs are added at runtime.
+local SHIELDS = {
+	lightning = { name = "Lightning Shield", ids = { 324, 325, 905, 945, 8134, 10431, 10432 }, icon = 136051 },
+	water     = { name = "Water Shield",     ids = { 408510 },                                 icon = 132315 },
+}
+local SHIELD_ORDER = { "lightning", "water" }
 local SHOCKS = { earth = "Earth Shock", flame = "Flame Shock", frost = "Frost Shock" }
 local SHOCK_ORDER = { "earth", "flame", "frost" }
 local CD_FONT = "ShamanForeverCDFont"
@@ -48,6 +54,8 @@ local DEFAULTS = {
 	known = {},             -- element keys placed at least once; new ones join the first group
 	elementOpts = {},       -- per-element settings by key, e.g. { shock = { show = "combat" } }
 	-- shield
+	shieldTrack = "lightning", -- lightning | water | either: which shield counts as "up" (water and either are experimental)
+	lastShield = "lightning",  -- the shield last cast or seen; its icon is the no-shield look in "either" mode
 	countPos = "center",    -- corner | center
 	countSize = 20,
 	showBar = true,         -- charge bar along the bottom of the icon
@@ -315,13 +323,13 @@ local function makePlaceholder(p)
 	return f
 end
 
-local shieldIcon, shockIcon = 136051, 136026
+local shockIcon = 136026
 
 -- Element registry. db.groups decides where each one shows. Each entry owns its size, so elements
 -- need not be square, and paints a texture that stands in for it in the unlock tray and while dragging.
 local function iconSize() return db.iconSize, db.iconSize end
 local ELEMENTS = {
-	shield = { frame = shield, label = "Lightning Shield", getSize = iconSize, paint = function(t) t:SetTexture(shieldIcon) end },
+	shield = { frame = shield, label = "Shield",           getSize = iconSize, paint = function(t) t:SetTexture(ns.shieldIcon()) end },
 	shock  = { frame = shock,  label = "Shock",            getSize = iconSize, paint = function(t) t:SetTexture(shockIcon) end },
 	imbue  = { frame = imbue,  label = "Weapon Imbue",     getSize = iconSize, paint = function(t) t:SetTexture(ns.imbueIcon()) end },
 }
@@ -391,6 +399,8 @@ end
 -- update, or test ones) show; ones seen before were hidden under the old rule, so they come back
 -- into the first group set to never show.
 local function sanitize()
+	if db.shieldTrack ~= "either" and not SHIELDS[db.shieldTrack] then db.shieldTrack = "lightning" end
+	if not SHIELDS[db.lastShield] then db.lastShield = "lightning" end
 	if type(db.groups) ~= "table" then db.groups = {} end
 	if type(db.known) ~= "table" then db.known = {} end
 	local seen = {}
@@ -861,7 +871,11 @@ function updateTray()
 end
 
 ------------------------------------------------------------------------
--- Lightning Shield: underlay (our "no shield" look) + Blizzard's secure aura button on top
+-- Shield (Lightning or Water): underlay (our "no shield" look) + Blizzard's secure aura button on top
+--
+-- The two shields exclude each other, so one aura slot matches every shield the player tracks
+-- (db.shieldTrack) and Blizzard shows whichever is up, switching exactly when the player swaps
+-- mid-fight. Both have 3 charges, so one charge bar fits both.
 --
 -- How it works, and the one inference it makes (reviewed 2026-09-23):
 -- 1. Blizzard's CustomAuraContainer draws the shield: icon, charge count, charge bar and duration
@@ -873,11 +887,12 @@ end
 --    handlers under the button never run, and the button only animates its own descendants
 --    (all tested 2026-09-23). So the underlay follows `believedUp`:
 --    * out of combat: exact, read from the aura (refreshShield);
---    * in combat: set to up when UNIT_SPELLCAST_SUCCEEDED reports our own Lightning Shield cast.
+--    * in combat: set to up when UNIT_SPELLCAST_SUCCEEDED reports our own cast of a tracked shield.
 --      Our own cast events are documented as never secret (SecretWhenUnitSpellCastRestricted
 --      only hides other units' casts); the combat log is never read. The inference is only
---      "a successful Lightning Shield cast means the shield is up".
---    * Nothing can set it to down in combat. A shield that drops mid-fight shows the underlay at
+--      "a successful shield cast means that shield is up". Casting an untracked shield sets it to
+--      down, since that shield replaces the tracked one (the same inference, applied to exclusivity).
+--    * Nothing else can set it to down in combat. A shield that drops mid-fight shows the underlay at
 --      the "No shield: combat fallback" strength (underlayUp) until the recast or combat ends.
 --    * Why keep the inference: without it, entering combat with no shield and casting one mid-fight
 --      leaves the full "no shield" look bleeding through the live shield until combat ends
@@ -886,10 +901,36 @@ end
 --    translucent, so the underlay bleeds through it; nativeIconAlpha compensates so the stack
 --    matches the group's opacity. At 100% group opacity the button hides the underlay completely.
 ------------------------------------------------------------------------
-local shieldSpellID, shieldAuraSpellID
+-- Per shield at runtime: spellID (spellbook), known (in the spellbook), auraIDs (every ID seen
+-- for it, learned from the spellbook and the live aura).
+for _, s in pairs(SHIELDS) do s.auraIDs = {} end
 local believedUp = false      -- see above: exact out of combat, set up by our own cast in combat
 local native = { container = nil, button = nil, icon = nil, fs = nil, cd = nil, bar = nil, ticks = nil, overlay = nil,
-	err = nil, ids = {} }
+	err = nil }
+
+local function tracksShield(key) return db.shieldTrack == "either" or db.shieldTrack == key end
+
+-- Which shield the no-shield look shows: the tracked one, or in "either" mode the one last cast or
+-- seen, falling back to one the player actually knows.
+local function underlayShield()
+	if SHIELDS[db.shieldTrack] then return db.shieldTrack end
+	if SHIELDS[db.lastShield] and SHIELDS[db.lastShield].known then return db.lastShield end
+	for _, key in ipairs(SHIELD_ORDER) do if SHIELDS[key].known then return key end end
+	return "lightning"
+end
+function ns.shieldIcon()
+	local s = SHIELDS[underlayShield()]
+	return s.bookIcon or s.icon
+end
+
+-- The shield an own cast belongs to, if any.
+local function shieldForSpell(id)
+	for _, key in ipairs(SHIELD_ORDER) do
+		local s = SHIELDS[key]
+		if id == s.spellID or s.auraIDs[id] then return key end
+		for _, v in ipairs(s.ids) do if id == v then return key end end
+	end
+end
 
 -- The underlay is meant to show only when Blizzard's button is hidden, i.e. when the shield is down,
 -- so grey and tint apply unconditionally. Frame alpha is applied per texture, so while the shield is
@@ -898,6 +939,7 @@ local native = { container = nil, button = nil, icon = nil, fs = nil, cd = nil, 
 -- faded while believed up, full when believed down. Blizzard's icon alpha then compensates for the
 -- remaining bleed-through (see nativeIconAlpha) so the stack sums to the display opacity exactly.
 local function applyEmptyLook()
+	shield.tex:SetTexture(ns.shieldIcon())
 	shield.tex:SetDesaturated(db.emptyGrey)
 	if db.emptyTint then shield.tex:SetVertexColor(1, 0.35, 0.35) else shield.tex:SetVertexColor(1, 1, 1) end
 	shield.tex:SetAlpha(believedUp and db.underlayUp or 1)
@@ -926,21 +968,32 @@ local function setBelievedUp(up)
 	applyEmptyLook()
 end
 
+-- Every spell ID of every tracked shield: what Blizzard's aura slot matches.
 local function shieldIDMap()
 	local map = {}
-	for _, id in ipairs(VANILLA_SHIELD_IDS) do map[id] = true end
-	for id in pairs(native.ids) do map[id] = true end
-	if shieldSpellID then map[shieldSpellID] = true end
-	if shieldAuraSpellID then map[shieldAuraSpellID] = true end
+	for key, s in pairs(SHIELDS) do
+		if tracksShield(key) then
+			for _, id in ipairs(s.ids) do map[id] = true end
+			for id in pairs(s.auraIDs) do map[id] = true end
+		end
+	end
 	return map
 end
 
-local function learnShieldID(id)
-	if not id or isSecret(id) or native.ids[id] then return end
-	native.ids[id] = true
-	if native.container and not native.err and not InCombatLockdown() then
-		pcall(native.container.SetAuraSlotCandidateFilters, native.container, "shield", { includeSpellIDs = shieldIDMap() })
-	end
+-- The slot's filter can only change out of combat; a change in combat waits for it to end.
+local filterPending = false
+local function applyShieldFilter()
+	if not native.container or native.err then return end
+	if InCombatLockdown() then filterPending = true return end
+	filterPending = false
+	pcall(native.container.SetAuraSlotCandidateFilters, native.container, "shield", { includeSpellIDs = shieldIDMap() })
+end
+
+local function learnShieldID(key, id)
+	local s = SHIELDS[key]
+	if not id or isSecret(id) or s.auraIDs[id] then return end
+	s.auraIDs[id] = true
+	if tracksShield(key) then applyShieldFilter() end
 end
 
 -- Blizzard's button and its parts are off limits to addon code in combat; defer until it ends.
@@ -1084,15 +1137,23 @@ local function setupNative()
 	end
 end
 
--- Out of combat the aura is readable: sync our belief and learn the live spell ID.
+-- Out of combat the auras are readable: sync our belief and learn the live spell IDs.
 local function refreshShield()
-	if not shieldSpellID or InCombatLockdown() then return end
-	local ok, aura = safe(C_UnitAuras.GetAuraDataBySpellName, "player", SHIELD_NAME, "HELPFUL")
-	if not ok then return end
-	setBelievedUp(aura ~= nil)
-	if aura then
-		if not isSecret(aura.spellId) then shieldAuraSpellID = aura.spellId; learnShieldID(aura.spellId) end
+	if InCombatLockdown() then return end
+	local upKey
+	for _, key in ipairs(SHIELD_ORDER) do
+		local s = SHIELDS[key]
+		if s.known then
+			local ok, aura = safe(C_UnitAuras.GetAuraDataBySpellName, "player", s.name, "HELPFUL")
+			if not ok then return end
+			if aura then
+				upKey = key
+				if not isSecret(aura.spellId) then learnShieldID(key, aura.spellId) end
+			end
+		end
 	end
+	if upKey then db.lastShield = upKey end
+	setBelievedUp(upKey ~= nil and tracksShield(upKey))
 end
 
 ------------------------------------------------------------------------
@@ -1447,10 +1508,13 @@ end
 ------------------------------------------------------------------------
 local function resolveSpells()
 	scanSpellbook()
-	local icon
-	shieldSpellID, icon = knownSpell(SHIELD_NAME)
-	shieldIcon = icon or 136051
-	shield.tex:SetTexture(shieldIcon)
+	for key, s in pairs(SHIELDS) do
+		s.known = book[s.name] ~= nil
+		s.spellID, s.bookIcon = nil, nil
+		if s.known then s.spellID, s.bookIcon = book[s.name].id, book[s.name].icon end
+		if s.spellID then learnShieldID(key, s.spellID) end
+	end
+	applyShieldFilter()   -- the tracked shields may have changed
 	shockIDs = {}
 	for key, name in pairs(SHOCKS) do
 		local id = knownSpell(name)
@@ -1462,7 +1526,6 @@ local function resolveSpells()
 	shock.tex:SetTexture(shockIcon)
 	manaSpellID = (db.manaSpell ~= "tracked" and shockIDs[db.manaSpell]) or shockSpellID
 	if shockSpellID and C_Spell.EnableSpellRangeCheck then safe(C_Spell.EnableSpellRangeCheck, shockSpellID, true) end
-	if shieldSpellID then learnShieldID(shieldSpellID) end
 	for _, def in ipairs(COOLDOWNS) do
 		local cid, cicon = knownSpell(def.spell)
 		def.spellID, def.iconID = cid, cicon
@@ -1574,6 +1637,7 @@ end
 
 -- Shared with ShamanForever_Options.lua
 ns.DEFAULTS, ns.GROUP_DEFAULTS, ns.SHOCKS, ns.SHOCK_ORDER = DEFAULTS, GROUP_DEFAULTS, SHOCKS, SHOCK_ORDER
+ns.SHIELDS, ns.SHIELD_ORDER = SHIELDS, SHIELD_ORDER
 ns.ELEMENTS, ns.ELEMENT_KEYS, ns.available, ns.findElement = ELEMENTS, ELEMENT_KEYS, available, findElement
 ns.getDB = function() return db end
 ns.applyLayout, ns.resolveSpells, ns.refreshAll, ns.elementOpts = applyLayout, resolveSpells, refreshAll, elementOpts
@@ -1667,8 +1731,11 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		refreshShield()
 	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
 		local spellID = arg3   -- args: unit, castGUID, spellID
-		if not isSecret(spellID) and (spellID == shieldSpellID or spellID == shieldAuraSpellID) then
-			setBelievedUp(true)  -- the one inference: our cast means the shield is up (see the Lightning Shield section)
+		local cast = not isSecret(spellID) and shieldForSpell(spellID)
+		if cast then
+			-- The one inference: our cast means that shield is up and the other is gone (see the Shield section).
+			db.lastShield = cast
+			setBelievedUp(tracksShield(cast))
 		end
 		if not isSecret(spellID) then imbueCast(spellID) end   -- only to learn an unknown imbue enchant ID
 		refreshShockCooldown()
@@ -1691,6 +1758,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 	elseif event == "PLAYER_REGEN_ENABLED" then
 		if layoutPending then layoutElements() end
 		if nativeStylePending then styleNative() end
+		if filterPending then applyShieldFilter() end
 		refreshAll()
 	end
 end)
@@ -1711,11 +1779,15 @@ SlashCmdList.SHAMANFOREVER = function(msg)
 		ns.setTestMode(not db.testMode)
 		say("test elements %s", db.testMode and "on" or "off")
 	elseif cmd == "debug" then
-		say("shield spell %s (aura spell %s), shock spell %s (%s), mana spell %s, believed up %s, in combat %s",
-			tostring(shieldSpellID), tostring(shieldAuraSpellID), tostring(shockSpellID), db.shock,
-			tostring(manaSpellID), tostring(believedUp), tostring(InCombatLockdown()))
-		local e = book[SHIELD_NAME]
-		say("spellbook: %s rank %s", SHIELD_NAME, e and e.rank or "?")
+		say("shield tracking %s (last %s), believed up %s; shock spell %s (%s), mana spell %s, in combat %s",
+			db.shieldTrack, db.lastShield, tostring(believedUp), tostring(shockSpellID), db.shock,
+			tostring(manaSpellID), tostring(InCombatLockdown()))
+		for _, key in ipairs(SHIELD_ORDER) do
+			local s, e = SHIELDS[key], book[SHIELDS[key].name]
+			local ids = {} for id in pairs(s.auraIDs) do table.insert(ids, tostring(id)) end table.sort(ids)
+			say("%s: %s, spell %s rank %s, seen IDs %s", s.name, s.known and "known" or "not known",
+				tostring(s.spellID), e and e.rank or "?", #ids > 0 and table.concat(ids, ",") or "none")
+		end
 		say("aura container %s%s", native.container and "created" or "not created",
 			native.err and (", error: " .. native.err) or "")
 		local t = {} for id in pairs(shieldIDMap()) do table.insert(t, tostring(id)) end table.sort(t)

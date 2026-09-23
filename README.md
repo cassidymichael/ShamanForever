@@ -8,7 +8,7 @@ A configurable HUD for shamans on World of Warcraft: Forever: the buffs, imbues 
 
 ## Features
 
-- **Elements** for Lightning Shield, shocks, weapon imbues and totem cooldowns, each with its own look and warning settings. The Elements page in the options lists what the current version tracks.
+- **Elements** for Lightning or Water Shield, shocks, weapon imbues and totem cooldowns, each with its own look and warning settings. The Elements page in the options lists what the current version tracks.
 - **Groups**: arrange elements into rows and columns, each with its own position, scale, opacity and border, or hide elements you don't use.
 - **Combat aware**: show any element or group always, only in combat, or never. Everything stays accurate in combat using Blizzard's own display widgets (see [docs/combat-techniques.md](docs/combat-techniques.md)).
 

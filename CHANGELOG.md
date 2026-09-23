@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Experimental Water Shield support: a new "Track" setting on the Shield page adds Water Shield and Either shield (shows whichever is up). Lightning Shield stays the default.
+
 ## 0.2.1 (2026-09-23)
 
 - Icon borders: 1 px black by default, with size, colour and on/off settings (General page), and an optional custom border per group (Layout page).

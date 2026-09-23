@@ -38,7 +38,7 @@ Blizzard's button hides when the aura is gone, but addon code has no sanctioned 
 So the grey icon, red ring and pulse sit in an underlay beneath Blizzard's button, driven by a belief:
 
 - **Out of combat** it is exact, read from the aura.
-- **In combat** your own successful Lightning Shield cast (`UNIT_SPELLCAST_SUCCEEDED`) sets it to "up". Your own cast events are documented as never secret; only other units' casts are restricted. The combat log is never read. The inference is only that a successful cast means the shield is up.
+- **In combat** your own successful cast of a tracked shield (`UNIT_SPELLCAST_SUCCEEDED`) sets it to "up". Your own cast events are documented as never secret; only other units' casts are restricted. The combat log is never read. The inference is only that a successful cast means that shield is up. Since only one elemental shield can be on you at a time, casting a shield you don't track sets it to "down".
 - **Nothing can set it to "down" in combat.** If the shield drops mid-fight, the underlay shows at the "No shield: combat fallback" strength until you recast or combat ends.
 - **Why keep it:** without it, entering combat with no shield and casting one mid-fight would leave the full "no shield" look showing through the live shield until combat ends, whenever the group opacity is below 100%.
 
