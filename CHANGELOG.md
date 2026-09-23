@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 (2026-09-24)
+
+- Profiles. Each character uses one, and new characters start on Default. Your current settings become the Default profile.
+- Profiles can be shared as text: export one, import someone else's.
+- The options window closes while positioning is unlocked and comes back when you lock. Tick Keep options open in the unlock panel to keep it open.
+- Reset is now on the Profiles page and resets only the active profile.
+
 ## 0.3.2 (2026-09-23)
 
 - Centre on screen, Split up and Hide all ask for confirmation first.
