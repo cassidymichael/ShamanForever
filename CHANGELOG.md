@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0
+## 0.2.0 (2026-09-23)
 
 - Elements are arranged in groups, each a row or column with its own position, scale and opacity. Your current layout carries over as one group.
 - Each element can show Always, In combat or Never, and each group can be set to combat only.

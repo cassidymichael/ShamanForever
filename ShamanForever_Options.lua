@@ -231,6 +231,11 @@ local function groupSet(key) return function(v) local g = selected(); if g then 
 -- Page contents
 ------------------------------------------------------------------------
 local function buildGeneral(p)
+	-- TEMPORARY: remove once Blizzard fixes the beta's SavedVariables loading.
+	p:text("|cffff9933Beta issue:|r the WoW: Forever client currently does not load addon settings after a full " ..
+		"restart, so ShamanForever (like every addon) returns to its defaults each time you start the game. " ..
+		"/reload keeps them. Community workarounds such as ForeverSVFix can restore them; ShamanForever does not include one.")
+
 	p:header("Display")
 	p:button(function() return db().locked and "Unlock layout" or "Lock layout" end,
 		function() db().locked = not db().locked; relayout() end,
