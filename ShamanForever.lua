@@ -796,7 +796,7 @@ end
 
 -- A small bar while unlocked: what the mouse does, snapping and grid toggles, Lock and Options.
 local tray = CreateFrame("Frame", "ShamanForeverTray", UIParent, "BackdropTemplate")
-tray:SetSize(500, 120)
+tray:SetSize(560, 120)
 tray:SetFrameStrata("DIALOG")
 tray:SetPoint("TOP", UIParent, "TOP", 0, -120)
 tray:SetMovable(true)
@@ -812,10 +812,10 @@ tray:Hide()
 do
 	local title = tray:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	title:SetPoint("TOPLEFT", 10, -10)
-	title:SetText("ShamanForever: layout unlocked")
+	title:SetText("ShamanForever: positioning unlocked")
 	tray.hint = tray:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	tray.hint:SetPoint("TOPLEFT", 10, -30)
-	tray.hint:SetWidth(480)
+	tray.hint:SetWidth(540)
 	tray.hint:SetJustifyH("LEFT")
 	tray.hint:SetSpacing(2)
 	tray.hint:SetText("Drag a group to move it.\n" ..
@@ -848,6 +848,27 @@ do
 	tray.snap:SetPoint("LEFT", -4, 0)
 	tray.grid = check("Show grid", "grid", "A grid over the whole screen while unlocked. With snapping on, groups snap to it.")
 	tray.grid:SetPoint("LEFT", tray.snap.Text, "RIGHT", 16, 0)
+	-- Grid size: - value +, in steps of 4.
+	local function stepper(text, delta)
+		local b = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+		b:SetSize(22, 20)
+		b:SetText(text)
+		b:SetScript("OnClick", function()
+			db.gridSize = math.min(math.max(db.gridSize + delta, 8), 128)
+			layoutElements()
+		end)
+		return b
+	end
+	tray.gridLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	tray.gridLabel:SetPoint("LEFT", tray.grid.Text, "RIGHT", 16, 0)
+	tray.gridLabel:SetText("Grid size")
+	tray.gridDown = stepper("-", -4)
+	tray.gridDown:SetPoint("LEFT", tray.gridLabel, "RIGHT", 6, 0)
+	tray.gridValue = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	tray.gridValue:SetPoint("LEFT", tray.gridDown, "RIGHT", 4, 0)
+	tray.gridValue:SetWidth(26)
+	tray.gridUp = stepper("+", 4)
+	tray.gridUp:SetPoint("LEFT", tray.gridValue, "RIGHT", 4, 0)
 	local lock = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
 	lock:SetSize(90, 22)
 	lock:SetPoint("RIGHT", 0, 0)
@@ -866,6 +887,7 @@ function updateTray()
 	tray:SetHeight(30 + tray.hint:GetStringHeight() + 10 + 26 + 10)
 	tray.snap:SetChecked(db.snap)
 	tray.grid:SetChecked(db.grid)
+	tray.gridValue:SetText(db.gridSize)
 	grid:SetShown(unlocked and db.grid)
 	if unlocked and db.grid then drawGrid() end
 	if not unlocked then showGuides() end
@@ -1798,8 +1820,8 @@ SlashCmdList.SHAMANFOREVER = function(msg)
 		if ns.ToggleOptions then ns.ToggleOptions() else say("options window unavailable") end
 	elseif cmd == "lock" then   -- toggles; /sf unlock still works but is no longer advertised
 		db.locked = not db.locked; applyLayout()
-		say(db.locked and "locked" or "unlocked: drag groups to move them, /sf lock when done")
-	elseif cmd == "unlock" then db.locked = false; applyLayout(); say("unlocked: drag groups to move them, /sf lock when done")
+		say(db.locked and "positioning locked" or "positioning unlocked: drag groups to move them, /sf lock when done")
+	elseif cmd == "unlock" then db.locked = false; applyLayout(); say("positioning unlocked: drag groups to move them, /sf lock when done")
 	elseif cmd == "test" then
 		ns.setTestMode(not db.testMode)
 		say("test elements %s", db.testMode and "on" or "off")
@@ -1865,6 +1887,6 @@ SlashCmdList.SHAMANFOREVER = function(msg)
 				g.orientation, g.scale, g.alpha, g.point, g.x, g.y, g.combatOnly and ", combat only" or "")
 		end
 	else
-		say("/sf opens the options. Also: /sf lock (lock or unlock the layout), /sf test (placeholder elements), /sf debug")
+		say("/sf opens the options. Also: /sf lock (lock or unlock positioning), /sf test (placeholder elements), /sf debug")
 	end
 end

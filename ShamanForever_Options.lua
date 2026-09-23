@@ -65,26 +65,72 @@ local function newPage(key, title, indent)
 	return p
 end
 
+-- shown: nil, a function (the row is hidden while it returns false), or dimWhen(...) (the row stays
+-- in place but greys out, and does nothing, while another setting makes it irrelevant).
 function Page:add(frame, height, shown, refresh)
-	table.insert(self.items, { frame = frame, height = height, shown = shown, refresh = refresh })
+	local dim
+	if type(shown) == "table" then dim, shown = shown, shown.shown end
+	table.insert(self.items, { frame = frame, height = height, shown = shown, dim = dim, refresh = refresh, rowIndent = self.rowIndent })
 	return frame
 end
 
+-- Grey a row out unless active() is true; reason shows in its tooltip.
+local function dimWhen(active, reason, shown) return { active = active, reason = reason, shown = shown } end
+
+-- A clear cover over a greyed-out row: swallows clicks and wheel, and says why.
+local function applyDim(frame, dim)
+	local on = dim.active()
+	frame:SetAlpha(on and 1 or 0.4)
+	if not frame.dimCover then
+		local c = CreateFrame("Frame", nil, frame)
+		c:SetAllPoints()
+		c:SetFrameLevel(frame:GetFrameLevel() + 30)
+		c:EnableMouse(true)
+		c:EnableMouseWheel(true)
+		c:SetScript("OnMouseWheel", function() end)
+		c:SetScript("OnEnter", function(self)
+			if not dim.reason then return end
+			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+			GameTooltip:SetText(dim.reason, 1, 1, 1, true)
+			GameTooltip:Show()
+		end)
+		c:SetScript("OnLeave", function() GameTooltip:Hide() end)
+		frame.dimCover = c
+	end
+	frame.dimCover:SetShown(not on)
+end
+
 function Page:refresh()
-	if self.fixed then self.fixed:refresh() end
+	if self.fixed then
+		local ok, err = pcall(self.fixed.refresh, self.fixed)
+		if not ok and not self.fixedReported then
+			self.fixedReported = true
+			ns.say("options: the %s page header failed to update: %s", self.key, tostring(err))
+		end
+	end
 	local y = 0
 	for _, it in ipairs(self.items) do
 		local show = not it.shown or it.shown()
 		it.frame:SetShown(show)
 		if show then
-			if it.refresh then it.refresh() end
+			-- One failing row must not blank the rest of the page: report it once and carry on.
+			if it.refresh then
+				local ok, err = pcall(it.refresh)
+				if not ok and not it.reported then
+					it.reported = true
+					ns.say("options: a row on the %s page failed to update: %s", self.key, tostring(err))
+				end
+			end
 			it.frame:ClearAllPoints()
-			it.frame:SetPoint("TOPLEFT", self.content, "TOPLEFT", 0, -y)
-			it.frame:SetPoint("TOPRIGHT", self.content, "TOPRIGHT", 0, -y)
+			if it.dim then applyDim(it.frame, it.dim) end
+			local indent = it.rowIndent or 0   -- rows inside a panel (Layout's group settings)
+			it.frame:SetPoint("TOPLEFT", self.content, "TOPLEFT", indent, -y)
+			it.frame:SetPoint("TOPRIGHT", self.content, "TOPRIGHT", -indent, -y)
 			y = y + (type(it.height) == "function" and it.height() or it.height)
 		end
 	end
 	self.content:SetHeight(math.max(y, 1))
+	if self.afterRefresh then self.afterRefresh() end
 end
 
 function Page:row(height)
@@ -202,6 +248,7 @@ function Page:color(label, tip, get, set, shown)
 	b.swatch:SetPoint("BOTTOMRIGHT", -2, 2)
 	b:SetScript("OnClick", function()
 		local c = get()
+		if not c then return end
 		local function apply()
 			local r, g, bl = ColorPickerFrame:GetColorRGB()
 			set({ r, g, bl, ColorPickerFrame:GetColorAlpha() })
@@ -214,7 +261,7 @@ function Page:color(label, tip, get, set, shown)
 	end)
 	setTip(b, label, tip)
 	return self:add(f, 30, shown, function()
-		local c = get()
+		local c = get() or { 0.5, 0.5, 0.5, 1 }
 		b.swatch:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
 	end)
 end
@@ -253,16 +300,23 @@ function Page:buttons(list, shown)
 	return self:add(f, 32, shown)
 end
 
--- An element page's header (ShamanForever_OptionsLook.lua): art, identity and a live preview. It is
--- pinned above the page's scrolling area, so the preview stays in view while settings change.
-function Page:hero(key)
-	local h = ns.Look.buildHero(win, key)
+-- A page header pinned above the page's scrolling area (so an element's preview stays in view while
+-- settings change). The scrollbar starts below it, so the header spans the full page width, with
+-- the same margin on the right (from the window's inner edge) as on the left (from the nav).
+function Page:pin(h)
+	h:SetParent(win)
+	h:ClearAllPoints()
 	h:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, PAGE_TOP)
-	h:SetPoint("TOPRIGHT", win, "TOPRIGHT", -40, PAGE_TOP)
+	h:SetPoint("TOPRIGHT", win, "TOPRIGHT", -22, PAGE_TOP)
 	h:Hide()
 	self.fixed = h
 	self.scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, PAGE_TOP - ns.Look.HERO_H)
 	return h
+end
+
+-- An element page's header (ShamanForever_OptionsLook.lua): art, identity and a live preview.
+function Page:hero(key)
+	return self:pin(ns.Look.buildHero(win, key))
 end
 
 local function panelBackdrop(f, r, g, b)
@@ -416,7 +470,7 @@ local function groupSet(key) return function(v) local g = selected(); if g then 
 ------------------------------------------------------------------------
 -- Page contents
 ------------------------------------------------------------------------
-local function lockText() return db().locked and "Unlock layout" or "Lock layout" end
+local function lockText() return db().locked and "Unlock positioning" or "Lock positioning" end
 local function toggleLock() db().locked = not db().locked; relayout() end
 local LOCK_TIP = "Unlocked, drag groups on screen, mouse wheel to scale, shift + wheel for opacity. /sf lock does the same."
 
@@ -429,8 +483,7 @@ end
 
 -- Home, the page the window opens on: name, version, warnings and where to send feedback.
 local function buildHome(p)
-	local intro = ns.Look.buildIntro(p.content, addonVersion())
-	p:add(intro, ns.Look.HERO_H, nil, function() intro:refresh() end)
+	p:pin(ns.Look.buildIntro(win, addonVersion()))
 	p:bigButtons({
 		{ "Interface\\Icons\\INV_Misc_Key_03", lockText,
 			function() return db().locked and "Move groups on screen" or "Done moving? Lock them" end, toggleLock },
@@ -444,33 +497,28 @@ local function buildHome(p)
 	p:copyField("Issues", ns.Look.REPO .. "/issues")
 end
 
+-- General: the defaults every element inherits, then housekeeping.
 local function buildGeneral(p)
-	p:header("Display")
-	p:button(lockText, toggleLock, LOCK_TIP)
+	p:header("Defaults for all elements")
+	p:text("Elements and groups can override some of these on their own pages.")
 	p:slider("Icon size", "Base size of every element. Each group's scale multiplies it.", 24, 96, 1, int,
 		get("iconSize"), set("iconSize"))
-
-	p:header("Icon border")
 	local function bget(k) return function() return db().border[k] end end
 	local function bset(k) return function(v) db().border[k] = v; relayout() end end
-	p:checkbox("Border", "A border around every element. Groups can override it on the Layout page.",
+	local function bordered() return db().border.show end
+	p:checkbox("Border", "A border around every element. Groups can have their own on the Layout page.",
 		bget("show"), bset("show"))
 	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1,
-		function(v) return string.format("%d px", v) end, bget("size"), bset("size"), function() return db().border.show end)
-	p:color("Border colour", "Colour and opacity.", bget("color"), bset("color"), function() return db().border.show end)
-
-	p:header("Countdown")
+		function(v) return string.format("%d px", v) end, bget("size"), bset("size"), dimWhen(bordered, "Turn on Border to use this."))
+	p:color("Border colour", "Colour and opacity.", bget("color"), bset("color"), dimWhen(bordered, "Turn on Border to use this."))
 	p:checkbox("Countdown text", "Numbers on every cooldown.", get("cdText"), set("cdText"))
-	p:slider("Text size", "Elements can set their own on their page.", 8, 48, 1, int, get("cdTextSize"), set("cdTextSize"))
+	p:slider("Countdown size", "Elements can set their own on their page.", 8, 48, 1, int,
+		get("cdTextSize"), set("cdTextSize"), dimWhen(function() return db().cdText end, "Turn on Countdown text to use this."))
 
-	p:header("Beta", function() return ns.hasIssueReporter and ns.hasIssueReporter() end)
+	local function hasReporter() return ns.hasIssueReporter and ns.hasIssueReporter() end
+	p:header("Beta", hasReporter)
 	p:checkbox("Hide the Issue Reporter button", "Blizzard's beta Issue Reporter button. /ptr still works while it is hidden. Shaman Forever also remembers where you drag it.",
-		get("hideIssueReporter"), function(v) db().hideIssueReporter = v; ns.applyIssueReporter() end,
-		function() return ns.hasIssueReporter and ns.hasIssueReporter() end)
-
-	p:header("Testing")
-	p:checkbox("Test elements", "Adds placeholder elements in their own group, for trying out layouts.",
-		get("testMode"), function(v) ns.setTestMode(v) end)
+		get("hideIssueReporter"), function(v) db().hideIssueReporter = v; ns.applyIssueReporter() end, hasReporter)
 
 	p:header("Reset")
 	p:buttons({ { "Reset everything", function() StaticPopup_Show("SHAMANFOREVER_RESET") end,
@@ -541,10 +589,11 @@ local function dropIndex(c, key)
 	return at, others
 end
 
+-- Gold marks the selected group, as it marks the current page in the nav; white is drop feedback.
 local function cardBorder(c)
-	if board.dragKey and c == board.hover then c:SetBackdropBorderColor(1, 0.82, 0, 1)
-	elseif type(c.target) == "number" and c.target == selectedGroup then c:SetBackdropBorderColor(0.2, 0.6, 1, 1)
-	else c:SetBackdropBorderColor(0.35, 0.35, 0.4, 1) end
+	if board.dragKey and c == board.hover then c:SetBackdropBorderColor(0.95, 0.95, 0.95, 1)
+	elseif type(c.target) == "number" and c.target == selectedGroup then c:SetBackdropBorderColor(0.88, 0.66, 0.29, 1)
+	else c:SetBackdropBorderColor(0.23, 0.17, 0.10, 1) end
 end
 
 local function updateDragFeedback()
@@ -623,7 +672,7 @@ local function getCard(i)
 	if c then return c end
 	c = CreateFrame("Button", nil, board.frame, "BackdropTemplate")
 	c:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
-	c:SetBackdropColor(0.1, 0.1, 0.13, 0.9)
+	c:SetBackdropColor(0.09, 0.075, 0.06, 1)
 	c.title = c:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	c.title:SetPoint("TOPLEFT", 8, -8)
 	c.sub = c:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
@@ -633,7 +682,11 @@ local function getCard(i)
 	c.empty:SetPoint("RIGHT", -10, 0)
 	c.empty:SetJustifyH("LEFT")
 	c:SetScript("OnClick", function(self)
-		if type(self.target) == "number" then selectedGroup = self.target; ns.RefreshOptions() end
+		if type(self.target) == "number" then
+			if self.target ~= selectedGroup then board.flashPanel = true end
+			selectedGroup = self.target
+			ns.RefreshOptions()
+		end
 	end)
 	c.chips = {}
 	board.cards[i] = c
@@ -728,7 +781,7 @@ local function buildBoard(p)
 	board.page = p
 	board.frame = p:row(10)
 	board.indicator = board.frame:CreateTexture(nil, "OVERLAY")
-	board.indicator:SetColorTexture(0.2, 0.6, 1, 1)
+	board.indicator:SetColorTexture(0.95, 0.95, 0.95, 1)
 	board.indicator:SetHeight(2)
 	board.indicator:SetDrawLayer("OVERLAY", 7)
 	local ghost = CreateFrame("Frame", nil, UIParent)
@@ -755,18 +808,51 @@ end
 
 local function buildLayout(p)
 	p:button(lockText, toggleLock, LOCK_TIP)
-	p:checkbox("Snapping", "While dragging, groups snap to other groups' edges and centres, the screen centre, and the grid when it is shown.",
-		get("snap"), set("snap"))
-	p:checkbox("Show grid while unlocked", "A grid over the whole screen while the layout is unlocked. With snapping on, groups snap to it.",
-		get("grid"), set("grid"))
-	p:slider("Grid size", "Distance between grid lines.", 8, 128, 4, int, get("gridSize"), set("gridSize"))
+	p:checkbox("Test elements", "Adds placeholder elements in their own group, for trying out layouts.",
+		get("testMode"), function(v) ns.setTestMode(v) end)
 	p:header("Groups", nil, "Drag elements between groups. Click one for a menu.")
+	p:add(p:row(6), 6)   -- a little room between the heading's line and the group cards
 	buildBoard(p)
 
-	local settingsHeader = p:header("Group settings", hasGroups, "Click a group above to edit it.")
+	-- The selected group's settings sit in a panel edged in the same gold as its card, titled with the
+	-- group's number, direction and element icons, and flash when another group is picked.
+	local panel = CreateFrame("Frame", nil, p.content, "BackdropTemplate")
+	panel:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+	panel:SetBackdropColor(0.11, 0.09, 0.07, 0.9)
+	panel:SetBackdropBorderColor(0.88, 0.66, 0.29, 0.9)
+	panel:SetFrameLevel(p.content:GetFrameLevel())
+	local glow = panel:CreateTexture(nil, "BORDER")
+	glow:SetAllPoints()
+	glow:SetColorTexture(0.88, 0.66, 0.29, 0.22)
+	glow:SetAlpha(0)
+	local flash = glow:CreateAnimationGroup()
+	local up = flash:CreateAnimation("Alpha")
+	up:SetFromAlpha(0); up:SetToAlpha(1); up:SetDuration(0.15); up:SetOrder(1)
+	local down = flash:CreateAnimation("Alpha")
+	down:SetFromAlpha(1); down:SetToAlpha(0); down:SetDuration(0.6); down:SetOrder(2)
+
+	p:add(p:row(22), 22, hasGroups)   -- clear space between the board and the group panel
+	p.rowIndent = 12
+	local settingsHeader = p:header("Group", hasGroups)
+	settingsHeader.icons = {}
 	p.items[#p.items].refresh = function()
-		selected()
-		settingsHeader.text:SetText(string.format("Group %d", selectedGroup))
+		local g = selected()
+		if not g then return end
+		settingsHeader.text:SetText(string.format("Group %d  |cffa89880·  %s|r", selectedGroup, g.orientation == "vertical" and "Column" or "Row"))
+		for i, key in ipairs(g.members) do
+			local t = settingsHeader.icons[i]
+			if not t then
+				t = settingsHeader:CreateTexture(nil, "ARTWORK")
+				t:SetSize(18, 18)
+				t:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+				settingsHeader.icons[i] = t
+			end
+			t:ClearAllPoints()
+			t:SetPoint("LEFT", settingsHeader.text, "RIGHT", 10 + (i - 1) * 21, 0)
+			ns.ELEMENTS[key].paint(t)
+			t:Show()
+		end
+		for i = #g.members + 1, #settingsHeader.icons do settingsHeader.icons[i]:Hide() end
 	end
 	p:dropdown("Direction", "Lay the group out as a row or a column.",
 		{ { "horizontal", "Row" }, { "vertical", "Column" } }, groupGet("orientation"), groupSet("orientation"), hasGroups)
@@ -785,7 +871,12 @@ local function buildLayout(p)
 	p:slider("Opacity", "Transparency of the group. Shift + mouse wheel over the group while unlocked does the same.", 0.1, 1, 0.05, pct,
 		groupGet("alpha"), groupSet("alpha"), hasGroups)
 	local function hasGroupBorder() local g = selected(); return g and g.border ~= nil end
-	local function gbget(k) return function() local g = selected(); return g and g.border and g.border[k] end end
+	-- Without a custom border the (greyed) rows show the general border the group actually uses.
+	local function gbget(k) return function()
+		local g = selected()
+		if g and g.border then return g.border[k] end
+		return db().border[k]
+	end end
 	local function gbset(k) return function(v) local g = selected(); if g and g.border then g.border[k] = v; relayout() end end end
 	p:checkbox("Custom border", "Give this group its own border instead of the global one (General page). Turning this off goes back to the global border.",
 		hasGroupBorder, function(v)
@@ -794,18 +885,36 @@ local function buildLayout(p)
 			g.border = v and CopyTable(db().border) or nil
 			relayout()
 		end, hasGroups)
-	p:checkbox("Show border", "Show this group's border.", gbget("show"), gbset("show"), hasGroupBorder)
+	local function groupBorderShown() return hasGroupBorder() and selected().border.show end
+	p:checkbox("Show border", "Show this group's border.", gbget("show"), gbset("show"),
+		dimWhen(hasGroupBorder, "Turn on Custom border to use this.", hasGroups))
 	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1, function(v) return string.format("%d px", v) end,
-		gbget("size"), gbset("size"), function() return hasGroupBorder() and selected().border.show end)
+		gbget("size"), gbset("size"), dimWhen(groupBorderShown, "Turn on Custom border and Show border to use this.", hasGroups))
 	p:color("Border colour", "Colour and opacity of this group's border.", gbget("color"), gbset("color"),
-		function() return hasGroupBorder() and selected().border.show end)
+		dimWhen(groupBorderShown, "Turn on Custom border and Show border to use this.", hasGroups))
 	p:checkbox("Only show in combat", "Hide this group out of combat. Each element also has its own Show setting (Always, In combat, Never) under Elements; an element shows only when both it and its group allow it. Everything visible shows while the layout is unlocked.",
 		groupGet("combatOnly"), groupSet("combatOnly"), hasGroups)
-	p:buttons({
+	local lastRow = p:buttons({
 		{ "Centre on screen", function() ns.centerGroup(selectedGroup) end, "Moves the group to the middle of the screen.", 130 },
 		{ "Split up", function() ns.splitGroup(selectedGroup) end, "Gives every element in the group a group of its own, left where it is.", 100 },
 		{ "Hide all", function() ns.hideGroup(selectedGroup) end, "Sets every element in the group to never show. They keep their places; set one back to Always to bring it back.", 100 },
 	}, hasGroups)
+	p:add(p:row(10), 10, hasGroups)
+	p.rowIndent = nil
+
+	p.afterRefresh = function()
+		panel:SetShown(hasGroups())
+		if not hasGroups() then return end
+		panel:ClearAllPoints()
+		panel:SetPoint("TOPLEFT", settingsHeader, "TOPLEFT", -12, 2)
+		panel:SetPoint("TOPRIGHT", settingsHeader, "TOPRIGHT", 12, 2)
+		panel:SetPoint("BOTTOM", lastRow, "BOTTOM", 0, -8)
+		if board.flashPanel then
+			board.flashPanel = false
+			flash:Stop()
+			flash:Play()
+		end
+	end
 end
 
 ------------------------------------------------------------------------
@@ -882,20 +991,26 @@ local function buildElements(p)
 	end
 end
 
--- Every element page: its header, then Display (Show, Group), then its own settings, then its
--- standard blocks (Warning: Grey icon, Red ring, Pulse; Timer: Time bar, Time left).
+-- Every element page, in one order: its header, Display (Show, Group), its own settings, then the
+-- standard blocks: Warning (Grey icon, Red ring, Pulse), Timer (Time bar, Time left), Countdown.
 local function elementDisplay(p, key)
 	ELEMENT_PAGES[key] = p.key
 	p:hero(key)
 	p:header("Display")
 	p:dropdown("Show", SHOW_TIP, SHOW_CHOICES, function() return ns.showMode(key) end,
 		function(v) ns.setShow(key, v) end, nil, 140)
-	p:text(function() return groupText(key) .. ". Groups are on the Layout page." end)
+	p:dropdown("Group", "Which group it sits in. Groups are arranged on the Layout page.", function()
+		local list = {}
+		for gi = 1, groupCount() do table.insert(list, { gi, "Group " .. gi }) end
+		table.insert(list, { "new", "New group" })
+		return list
+	end, function() return ns.findElement(key) end, function(v) ns.placeElement(key, v) end, nil, 140)
 end
 
--- Standard block: the look while something is missing (the three settings every warning shares).
-local function warningBlock(p, title, greyGet, greySet, ringGet, ringSet, pulseGet, pulseSet)
+-- Standard block: the look while something is missing. first: an optional row before the three.
+local function warningBlock(p, title, greyGet, greySet, ringGet, ringSet, pulseGet, pulseSet, first)
 	p:header(title)
+	if first then first() end
 	p:checkbox("Grey icon", "Desaturate the icon.", greyGet, greySet)
 	p:checkbox("Red ring", "A red ring inside the icon edge.", ringGet, ringSet)
 	p:checkbox("Pulse", "Fade the icon in and out.", pulseGet, pulseSet)
@@ -917,12 +1032,15 @@ local function countdownBlock(p, key)
 		relayout()
 	end)
 	p:slider("Text size", nil, 8, 48, 1, int, function() return ns.elementOpts(key).cdTextSize or db().cdTextSize end,
-		function(v) ns.elementOpts(key).cdTextSize = v; relayout() end, own)
+		function(v) ns.elementOpts(key).cdTextSize = v; relayout() end, dimWhen(own, "Turn on Own text size to use this."))
 end
+
+-- A look choice (tint, overlay, both) greys out the strength it does not use.
+local function lookUses(key, part) return function() local v = db()[key]; return v == part or v == "both" end end
 
 local function buildShield(p)
 	elementDisplay(p, "shield")
-	p:header("Shield")
+	p:header("Tracking")
 	-- Lightning Shield is the tested default; the Water Shield modes are experimental until tested in game.
 	p:cards("Track", "Only one shield can be active at a time. With one chosen, the other counts as no shield.", {
 		{ "lightning", "Lightning Shield", 136051 },
@@ -932,8 +1050,9 @@ local function buildShield(p)
 	p:header("Charges")
 	p:checkbox("Charge bar", "One segment per charge.", get("showBar"), set("showBar"))
 	p:checkbox("Charge number", "Shown for 2 or more charges.", get("showCount"), set("showCount"))
-	p:dropdown("Number position", nil, { { "corner", "Corner" }, { "center", "Centre" } }, get("countPos"), set("countPos"))
-	p:slider("Number size", nil, 8, 64, 1, int, get("countSize"), set("countSize"))
+	local numberOn = dimWhen(get("showCount"), "Turn on Charge number to use this.")
+	p:dropdown("Number position", nil, { { "corner", "Corner" }, { "center", "Centre" } }, get("countPos"), set("countPos"), numberOn)
+	p:slider("Number size", nil, 8, 64, 1, int, get("countSize"), set("countSize"), numberOn)
 
 	warningBlock(p, "No shield", get("emptyGrey"), set("emptyGrey"), get("emptyRing"), set("emptyRing"), get("emptyPulse"), set("emptyPulse"))
 	p:checkbox("Red tint", "Tint the icon red.", get("emptyTint"), set("emptyTint"))
@@ -942,12 +1061,12 @@ local function buildShield(p)
 
 	p:header("Shield up")
 	p:slider("Duration swipe", "Darkness of the time-left swipe. Zero turns it off.", 0, 1, 0.05, pct, get("shieldSwipe"), set("shieldSwipe"))
-	p:slider("Icon opacity", "Cannot go brighter than the group's opacity.", 0.5, 1, 0.05, pct, get("shieldIconAlpha"), set("shieldIconAlpha"))
+	p:slider("Icon opacity", "Fine-tunes brightness at low group opacity. Most can leave it at 100%.", 0.5, 1, 0.05, pct, get("shieldIconAlpha"), set("shieldIconAlpha"))
 end
 
 local function buildShock(p)
 	elementDisplay(p, "shock")
-	p:header("Shock")
+	p:header("Tracking")
 	local icons = { earth = 136026, flame = 135813, frost = 135849 }
 	local cards = {}
 	for _, key in ipairs(ns.SHOCK_ORDER) do table.insert(cards, { key, ns.SHOCKS[key], icons[key] }) end
@@ -959,31 +1078,37 @@ local function buildShock(p)
 	local looks = { { "tint", "Tint" }, { "overlay", "Overlay" }, { "both", "Both" } }
 	p:header("No mana")
 	p:dropdown("Look", "Out of range wins over this look.", looks, get("manaStyle"), set("manaStyle"))
-	p:slider("Overlay", nil, 0.1, 1, 0.05, pct, get("manaIntensity"), set("manaIntensity"))
-	p:slider("Tint", nil, 0.1, 1, 0.05, pct, get("manaTint"), set("manaTint"))
+	p:slider("Overlay", nil, 0.1, 1, 0.05, pct, get("manaIntensity"), set("manaIntensity"),
+		dimWhen(lookUses("manaStyle", "overlay"), "Choose Overlay or Both as the look to use this."))
+	p:slider("Tint", nil, 0.1, 1, 0.05, pct, get("manaTint"), set("manaTint"),
+		dimWhen(lookUses("manaStyle", "tint"), "Choose Tint or Both as the look to use this."))
 	p:slider("Ring", "The blue ring, shown even when out of range.", 0.1, 1, 0.05, pct, get("manaRing"), set("manaRing"))
 
 	p:header("Out of range")
 	p:dropdown("Look", nil, looks, get("rangeStyle"), set("rangeStyle"))
-	p:slider("Overlay", nil, 0.1, 1, 0.05, pct, get("rangeIntensity"), set("rangeIntensity"))
-	p:slider("Tint", nil, 0.1, 1, 0.05, pct, get("rangeTint"), set("rangeTint"))
+	p:slider("Overlay", nil, 0.1, 1, 0.05, pct, get("rangeIntensity"), set("rangeIntensity"),
+		dimWhen(lookUses("rangeStyle", "overlay"), "Choose Overlay or Both as the look to use this."))
+	p:slider("Tint", nil, 0.1, 1, 0.05, pct, get("rangeTint"), set("rangeTint"),
+		dimWhen(lookUses("rangeStyle", "tint"), "Choose Tint or Both as the look to use this."))
 	countdownBlock(p, "shock")
 end
 
 local function buildImbue(p)
 	elementDisplay(p, "imbue")
-	p:header("Imbue")
-	local cards = { { "last", "Last used", 136086 } }
-	for _, key in ipairs(ns.IMBUE_ORDER) do table.insert(cards, { key, (ns.IMBUES[key].name:gsub(" Weapon", "")), ns.IMBUES[key].icon }) end
-	p:cards("Icon when missing", nil, cards, get("imbuePreferred"), set("imbuePreferred"))
+	warningBlock(p, "No imbue", get("imbueMissingGrey"), set("imbueMissingGrey"), get("imbueMissingRing"), set("imbueMissingRing"),
+		get("imbuePulse"), set("imbuePulse"), function()
+			local cards = { { "last", "Last used", 136086 } }
+			for _, key in ipairs(ns.IMBUE_ORDER) do table.insert(cards, { key, (ns.IMBUES[key].name:gsub(" Weapon", "")), ns.IMBUES[key].icon }) end
+			p:cards("Icon", "Which imbue's icon shows while none is on.", cards, get("imbuePreferred"), set("imbuePreferred"))
+		end)
 
-	warningBlock(p, "No imbue", get("imbueMissingGrey"), set("imbueMissingGrey"), get("imbueMissingRing"), set("imbueMissingRing"), get("imbuePulse"), set("imbuePulse"))
-
-	p:header("Imbue on")
-	p:slider("Show time left under", "Zero never shows it.", 0, 30, 1, function(v) return v == 0 and "Never" or string.format("%d min", v) end,
-		get("imbueWarnMins"), set("imbueWarnMins"))
-	p:slider("Time text size", nil, 8, 48, 1, int, get("imbueTextSize"), set("imbueTextSize"))
-	p:checkbox("Hide until low", "Keeps its place in the group.", get("imbueHideActive"), set("imbueHideActive"))
+	p:header("Time left")
+	p:slider("Show under", "Show the time left once under this. Zero never shows it.", 0, 30, 1,
+		function(v) return v == 0 and "Never" or string.format("%d min", v) end, get("imbueWarnMins"), set("imbueWarnMins"))
+	p:slider("Text size", nil, 8, 48, 1, int, get("imbueTextSize"), set("imbueTextSize"),
+		dimWhen(function() return db().imbueWarnMins > 0 end, "Set Show under above zero to use this."))
+	p:checkbox("Hide until low", "While an imbue is on, stay hidden until the time left shows. Keeps its place in the group.",
+		get("imbueHideActive"), set("imbueHideActive"))
 end
 
 -- One page per cooldown element; the blocks depend on what the element tracks.
@@ -996,13 +1121,13 @@ local function buildCooldown(p, def)
 		return v
 	end end
 	local function optSet(name) return function(v) ns.elementOpts(key)[name] = v; relayout() end end
-	countdownBlock(p, key)
-	if def.totemSlot then timerBlock(p, "Totem down", optGet, optSet) end
 	if def.needsTotem then
 		warningBlock(p, "No fire totem", optGet("blockedGrey", true), optSet("blockedGrey"), optGet("blockedRing", true), optSet("blockedRing"),
 			optGet("blockedPulse", false), optSet("blockedPulse"))
 		timerBlock(p, "Fire totem out", optGet, optSet)
 	end
+	if def.totemSlot then timerBlock(p, "Totem down", optGet, optSet) end
+	countdownBlock(p, key)
 end
 
 ------------------------------------------------------------------------

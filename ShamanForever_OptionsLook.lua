@@ -471,7 +471,9 @@ function L.buildIntro(parent, version)
 	h.version:SetShadowOffset(1, -1)
 	function h:refresh()
 		local minimal = L.minimal()
-		self.banner:SetTexCoord(coverCoords(parent:GetWidth() - 2, L.HERO_H - 16))
+		local w = self:GetWidth()
+		if not w or w <= 0 then w = parent:GetWidth() end
+		self.banner:SetTexCoord(coverCoords(w - 2, L.HERO_H - 16))
 		self.banner:SetShown(not minimal)
 		self.shade:SetShown(not minimal)
 		for _, c in ipairs(self.corners) do c:SetShown(not minimal) end

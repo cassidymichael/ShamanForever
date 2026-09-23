@@ -1,16 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.3.1 (2026-09-23)
 
-- Element pages keep their header and preview in view while the settings below scroll.
+- An element can be moved to another group from its own options page.
+- Minor options window improvements.
 
 ## 0.3.0 (2026-09-23)
 
-- Redesigned options window: a Home page, a page per element with a painted banner and a live preview of each look, and an About page with credits.
-- Shields can track Water Shield or either shield (experimental). Lightning Shield stays the default.
+- Shields can track Water Shield, or whichever shield is up (experimental, not yet tested in game). Lightning Shield stays the default.
 - Elements with a countdown can have their own countdown text size.
-- The window has a fixed width and can be made taller.
-- `/sf lock` now toggles between locked and unlocked.
+- The options show a live preview of each element's looks, such as shield down or out of range.
+- `/sf lock` now toggles.
+- Redesigned options window.
 
 ## 0.2.1 (2026-09-23)
 

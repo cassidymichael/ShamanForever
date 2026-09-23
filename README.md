@@ -15,7 +15,7 @@ A configurable HUD for shamans on World of Warcraft: Forever: the buffs, imbues 
 ## Usage
 
 - `/sf` opens the options window (also under Escape > Options > AddOns).
-- `/sf lock` to unlock the layout and move and scale groups on screen (the bar that appears lists the controls), `/sf lock` again when done.
+- `/sf lock` to unlock positioning and move and scale groups on screen (the bar that appears lists the controls), `/sf lock` again when done.
 
 Requires WoW: Forever (interface 16001).
 
