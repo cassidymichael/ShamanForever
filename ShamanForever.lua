@@ -99,6 +99,7 @@ local DEFAULTS = {
 	imbueWarnMins = 5,        -- show time left below this many minutes (0 = never)
 	imbueTextSize = 16,
 	imbueHideActive = true,   -- while an imbue is on, only show once its time left shows
+	totemBar = {},            -- the totem bar's settings (ShamanForever_TotemBar.lua fills its defaults)
 }
 -- Pre-groups layout keys, folded into a single group on first load.
 local LEGACY_KEYS = { "point", "x", "y", "alpha", "scale", "size", "spacing", "orientation", "growth", "order", "enabled" }
@@ -638,6 +639,7 @@ local function layoutElements()
 	for gi = #db.groups + 1, #groupFrames do hideFrame(groupFrames[gi]) end
 	styleNative()   -- the shield's alpha compensation follows its group's opacity
 	updateTray()
+	if ns.TotemBar then ns.TotemBar.layout() end
 	if ns.RefreshOptions then ns.RefreshOptions() end
 end
 
@@ -1033,6 +1035,7 @@ function ns.lockInCombat()
 	showGuides()
 	updateTray()
 	layoutPending = true
+	if ns.TotemBar then ns.TotemBar.lockInCombat() end
 	if ns.RefreshOptions then ns.RefreshOptions() end
 end
 
@@ -1567,6 +1570,7 @@ end
 -- The totem in each slot, from our own casts: slot -> cooldown element key, or "other" for any other
 -- totem of that slot; nil while unknown. Totem names by slot come from the multi-cast bar's lists.
 local totemOwner = {}
+local totemNames = {}   -- slot -> name of the totem we last cast into it
 local totemSlotByName = {}
 local CALL_SPELLS = { [66842] = true, [66843] = true, [66844] = true }   -- Call of the Elements/Ancestors/Spirits
 
@@ -1586,7 +1590,7 @@ end
 
 -- Our own cast: if it put a totem in a slot, remember which.
 local function totemCast(spellID)
-	if CALL_SPELLS[spellID] then wipe(totemOwner) return end   -- places a set; which totems is not known here
+	if CALL_SPELLS[spellID] then wipe(totemOwner); wipe(totemNames) return end   -- places a set; which totems is not known here
 	local ok, name = safe(C_Spell.GetSpellName, spellID)
 	if not ok or type(name) ~= "string" or isSecret(name) then return end
 	local slot = totemSlotByName[name]
@@ -1596,7 +1600,9 @@ local function totemCast(spellID)
 		if def.totemSlot == slot and name == def.spell then owner = def.key end
 	end
 	totemOwner[slot] = owner
+	totemNames[slot] = name
 end
+function ns.totemNameInSlot(slot) return totemNames[slot] end
 
 -- Total duration -> alpha: 1 within half a second of seconds, 0 elsewhere.
 local function lifetimeCurve(seconds)
@@ -2052,6 +2058,7 @@ ns.placeElement, ns.splitGroup, ns.hideGroup, ns.centerGroup = placeElement, spl
 ns.setShow, ns.showMode = setShow, showMode
 ns.COOLDOWNS = COOLDOWNS
 ns.makeIcon = makeIcon   -- the options previews draw with the HUD's own icon
+ns.applyBorder = applyBorder
 ns.IMBUES, ns.IMBUE_ORDER, ns.imbueIcon = IMBUES, IMBUE_ORDER, function() return imbueIcon end
 ns.setTestMode = function(on) edit(setTestMode)(on) end
 ns.say = say
@@ -2275,6 +2282,7 @@ SlashCmdList.SHAMANFOREVER = function(msg)
 		if type(cur) == "number" and _G.GetSpecializationInfo then
 			say("  current spec: %s", probe("GetSpecializationInfo", _G.GetSpecializationInfo, cur))
 		end
+		if ns.TotemBar then say("%s", ns.TotemBar.debug()) end
 		for gi, g in ipairs(db.groups) do
 			local names = {}
 			for _, key in ipairs(g.members) do

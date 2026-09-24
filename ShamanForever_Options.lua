@@ -92,7 +92,9 @@ local function applyDim(frame, dim)
 		c:SetScript("OnEnter", function(self)
 			if not dim.reason then return end
 			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-			GameTooltip:SetText(dim.reason, 1, 1, 1, true)
+			-- This client's SetText takes (text, color, alpha, wrap), not r, g, b.
+			if HIGHLIGHT_FONT_COLOR then GameTooltip:SetText(dim.reason, HIGHLIGHT_FONT_COLOR, 1, true)
+			else GameTooltip:SetText(dim.reason) end
 			GameTooltip:Show()
 		end)
 		c:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -957,6 +959,153 @@ end
 ------------------------------------------------------------------------
 -- Elements: an overview of every element, and one page per real element under it in the nav.
 ------------------------------------------------------------------------
+------------------------------------------------------------------------
+-- Totem bar (ShamanForever_TotemBar.lua; design in the workspace's design/totem-bar.md)
+------------------------------------------------------------------------
+-- Every totem on Forever, for the per-totem warning times (rows show only once one is set).
+local TOTEM_NAMES = {
+	"Stoneskin Totem", "Earthbind Totem", "Stoneclaw Totem", "Strength of Earth Totem", "Tremor Totem",
+	"Searing Totem", "Magma Totem", "Flametongue Totem", "Frost Resistance Totem",
+	"Healing Stream Totem", "Mana Spring Totem", "Poison Cleansing Totem", "Fire Resistance Totem",
+	"Disease Cleansing Totem", "Mana Tide Totem",
+	"Windfury Totem", "Grace of Air Totem", "Grounding Totem", "Nature Resistance Totem", "Sentry Totem",
+	"Windwall Totem",
+}
+
+local function buildTotemBar(p)
+	local TB = ns.TotemBar
+	local function c() return TB.cfg() end
+	local function changed() TB.apply(); if ns.RefreshOptions then ns.RefreshOptions() end end
+	local function tget(key) return function() return c()[key] end end
+	local function tset(key) return function(v) c()[key] = v; changed() end end
+	local on = function() return c().enabled end
+
+	p:hero("totembar")
+	p:header("Display")
+	p:checkbox("Show the totem bar", "Your totems, their timers and a pick for each element.", tget("enabled"), tset("enabled"))
+	p:dropdown("Setup", "Everything replaces both of Blizzard's totem bars. Active totems only keeps Blizzard's Totem Action Bar for picking.",
+		function()
+			local list = { { "everything", "Everything" }, { "active", "Active totems only" } }
+			if TB.setup() == "custom" then table.insert(list, { "custom", "Custom" }) end
+			return list
+		end, function() return TB.setup() end, function(v)
+			if v ~= "custom" then TB.applySetup(v); changed() end
+		end, dimWhen(on, "Turn on the totem bar first."), 200)
+	p:dropdown("Show", "When the bar is on screen. It always shows while positioning is unlocked.",
+		{ { "always", "Always" }, { "active", "In combat or a totem down" }, { "combat", "In combat" }, { "never", "Never" } },
+		tget("show"), tset("show"), nil, 200)
+	p:slider("Scale", "Mouse wheel over the bar while positioning is unlocked does the same.", 0.5, 3, 0.05,
+		function(v) return string.format("%.2f", v) end, tget("scale"), tset("scale"))
+	p:slider("Opacity", "Shift + mouse wheel over the bar while positioning is unlocked does the same.", 0.1, 1, 0.05,
+		function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end, tget("alpha"), tset("alpha"))
+
+	p:header("Slots")
+	-- One row per position in the bar: the element there, whether it shows, and moving it.
+	for i = 1, 4 do
+		local f = p:row(30)
+		local cb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+		cb:SetSize(26, 26)
+		cb:SetPoint("LEFT", 0, 0)
+		cb.Text:SetFontObject("GameFontHighlight")
+		cb:SetScript("OnClick", function(self)
+			c().hidden[c().order[i]] = not self:GetChecked() or nil
+			changed()
+		end)
+		setTip(cb, "Slot", "Show this element's slot.")
+		local function mover(text, d, x)
+			local b = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+			b:SetSize(28, 22)
+			b:SetPoint("LEFT", f, "LEFT", LABEL_W + x, 0)
+			b:SetText(text)
+			b:SetScript("OnClick", function()
+				local o = c().order
+				o[i], o[i + d] = o[i + d], o[i]
+				changed()
+			end)
+			return b
+		end
+		local up, down = mover("<", -1, 0), mover(">", 1, 32)
+		p:add(f, 30, nil, function()
+			local el = c().order[i]
+			cb.Text:SetText(TB.NAME[el])
+			cb:SetChecked(not c().hidden[el])
+			up:SetEnabled(i > 1)
+			down:SetEnabled(i < 4)
+			local row = c().dir == "row"
+			up:SetText(row and "<" or "^")
+			down:SetText(row and ">" or "v")
+		end)
+	end
+	p:dropdown("Direction", nil, { { "row", "Row" }, { "column", "Column" } }, tget("dir"), function(v)
+		c().dir = v
+		c().pop = v == "row" and "up" or "right"
+		changed()
+	end, nil, 140)
+	p:dropdown("Pickers open", "Which way the totem picker opens from a slot.", function()
+		if c().dir == "row" then return { { "up", "Up" }, { "down", "Down" } } end
+		return { { "right", "Right" }, { "left", "Left" } }
+	end, tget("pop"), tset("pop"), nil, 140)
+	p:slider("Spacing", nil, 0, 20, 1, function(v) return string.format("%d px", v) end, tget("spacing"), tset("spacing"))
+
+	p:header("Clicks")
+	p:checkbox("Left-click casts your pick", "Left-click a slot to drop that element's picked totem.", tget("cast"), tset("cast"))
+	p:checkbox("Arrow opens a totem picker", "A tab on each slot opens its totems. Works in combat.", tget("arrows"), tset("arrows"))
+	p:slider("Arrow size", "How deep the tab is.", 8, 32, 1, function(v) return string.format("%d px", v) end,
+		tget("arrowSize"), tset("arrowSize"), dimWhen(function() return c().arrows end, "Turn on the arrow to use this."))
+	p:dropdown("Tooltips", nil, { { "always", "Always" }, { "ooc", "Out of combat" }, { "never", "Never" } },
+		tget("tips"), tset("tips"), nil, 160)
+	p:text("Right-click a totem to dismiss it. Alt+click a slot to pick its totem.")
+
+	p:header("Blizzard's totem bars")
+	p:checkbox("Hide the Totem Action Bar (picks)", "While the totem bar is on.", tget("hideActionBar"), tset("hideActionBar"))
+	p:checkbox("Hide the totems under the player frame", "While the totem bar is on. Left alone if another addon has moved them.",
+		tget("hideTotemFrame"), tset("hideTotemFrame"))
+
+	p:header("Look")
+	local own = function() return not c().follow end
+	local WHY = "Turn off Same as General to use this."
+	p:checkbox("Same as General", "Icon size, border and countdown size from the General page.", tget("follow"), tset("follow"))
+	p:slider("Icon size", nil, 24, 96, 1, function(v) return string.format("%d px", v) end, tget("size"), tset("size"), dimWhen(own, WHY))
+	p:checkbox("Border", nil, function() return c().border.show end, function(v) c().border.show = v; changed() end, dimWhen(own, WHY))
+	local bordered = function() return own() and c().border.show end
+	p:slider("Border size", nil, 1, 8, 1, function(v) return string.format("%d px", v) end,
+		function() return c().border.size end, function(v) c().border.size = v; changed() end, dimWhen(bordered, "Turn on Border to use this."))
+	p:color("Border colour", "Colour and opacity.", function() return c().border.color end,
+		function(v) c().border.color = v; changed() end, dimWhen(bordered, "Turn on Border to use this."))
+	p:slider("Countdown size", nil, 8, 48, 1, function(v) return string.format("%d", v) end, tget("cdSize"), tset("cdSize"), dimWhen(own, WHY))
+	p:dropdown("Empty slot", "How a slot looks with no totem down.",
+		{ { "pick", "Your pick, greyed" }, { "frame", "Element colour" }, { "blank", "Blank" } }, tget("empty"), tset("empty"), nil, 180)
+	p:dropdown("Timer", nil, { { "swipe", "Swipe and number" }, { "bar", "Time bar" }, { "both", "Both" }, { "num", "Number only" } },
+		tget("timer"), tset("timer"), nil, 180)
+
+	p:header("Expiring")
+	p:checkbox("Grey icon", "Desaturate the icon.", tget("warnGrey"), tset("warnGrey"))
+	p:checkbox("Red ring", "A red ring inside the icon edge.", tget("warnRing"), tset("warnRing"))
+	p:checkbox("Pulse", "Fade the icon in and out.", tget("warnPulse"), tset("warnPulse"))
+	local secs = function(v) return v == 0 and "Off" or string.format("%d s", v) end
+	p:slider("Warn in the last", nil, 0, 30, 1, secs, tget("warn"), tset("warn"))
+	p:text("Totems with their own warning time, instead of the default:", function() return next(c().warnOver) ~= nil end)
+	-- Slide to the far left ("Default") to drop a totem's own time.
+	local ownSecs = function(v) return v < 0 and "Default" or secs(v) end
+	for _, name in ipairs(TOTEM_NAMES) do
+		p:slider((name:gsub(" Totem$", "")), "Slide to Default to use the time above.", -1, 30, 1, ownSecs,
+			function() return c().warnOver[name] or c().warn end,
+			function(v) c().warnOver[name] = v >= 0 and v or nil; changed() end,
+			function() return c().warnOver[name] ~= nil end)
+	end
+	p:dropdown("Add a totem", "Give a totem its own warning time.", function()
+		local list = {}
+		for slot = 1, 4 do
+			local ok, ids = pcall(function() return { GetMultiCastTotemSpells(slot) } end)
+			for _, id in ipairs(ok and ids or {}) do
+				local name = C_Spell.GetSpellName(id)
+				if name and c().warnOver[name] == nil and tContains(TOTEM_NAMES, name) then table.insert(list, { name, name }) end
+			end
+		end
+		return list
+	end, function() return nil end, function(v) c().warnOver[v] = c().warn; changed() end, nil, 220)
+end
+
 local ELEMENT_PAGES = {}   -- key -> page key, filled as element pages are built
 
 local function groupText(key)
@@ -1235,10 +1384,11 @@ local function buildNav()
 	add("home", "Home", "Interface\\Icons\\ClassIcon_Shaman")
 	add("general", "General", "Interface\\Icons\\INV_Misc_Gear_01")
 	add("layout", "Layout", "Interface\\Icons\\Spell_Nature_Invisibilty")
+	add("totembar", "Totem bar", "Interface\\Icons\\Spell_Shaman_DropAll_01")
 	add("elements", "Elements", ART .. "Elements.tga")
 	for _, p in ipairs(pageOrder) do
 		local e = ns.Look.ELEMENT[p.key]
-		if e then add(p.key, e.name, e.icon, true) end
+		if e and not e.page then add(p.key, e.name, e.icon, true) end
 	end
 	y = y - 4
 	navDivider = ns.Look.divider(win)
@@ -1315,6 +1465,7 @@ local function buildWindow()
 	buildHome(newPage("home", "Home"))
 	buildGeneral(newPage("general", "General"))
 	buildLayout(newPage("layout", "Layout"))
+	buildTotemBar(newPage("totembar", "Totem bar"))
 	buildElements(newPage("elements", "Elements"))
 	buildShield(newPage("shield", "Shields", true))
 	buildShock(newPage("shock", "Shocks", true))

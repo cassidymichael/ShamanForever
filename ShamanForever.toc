@@ -10,6 +10,7 @@
 ## IconTexture: Interface\Icons\Spell_Nature_LightningShield
 
 ShamanForever.lua
+ShamanForever_TotemBar.lua
 ShamanForever_OptionsLook.lua
 ShamanForever_Options.lua
 ShamanForever_IssueReporter.lua

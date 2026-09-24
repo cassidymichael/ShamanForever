@@ -41,6 +41,15 @@ L.ELEMENT = {
 	earthbind = { name = "Earthbind Totem", icon = 136102, school = "earth",  blurb = "Cooldown, and time left while it's down." },
 	stoneclaw = { name = "Stoneclaw Totem", icon = 136097, school = "earth",  blurb = "Cooldown, and time left while it's down." },
 	firenova  = { name = "Fire Nova",       icon = 135824, school = "fire",   blurb = "Cooldown. Needs a fire totem." },
+	-- Not an element: its own page, with the same kind of header. page = true keeps it out of the
+	-- nav's element list.
+	totembar  = { name = "Totem bar", icon = "Interface\\Icons\\Spell_Shaman_DropAll_01", school = "spirit", page = true,
+		blurb = "Your totems, their timers, and a pick for each element.",
+		tags = function()
+			local c = ns.TotemBar.cfg()
+			local shows = { always = "Always", active = "In combat or a totem down", combat = "In combat", never = "Never" }
+			return string.format("%s  ·  %s  ·  %s", c.enabled and "On" or "Off", ns.TotemBar.setupName(), shows[c.show] or "")
+		end },
 }
 
 local function db() return ns.getDB() end
@@ -333,6 +342,46 @@ for _, def in ipairs(ns.COOLDOWNS or {}) do
 	if def.totemSlot and not L.PREVIEW[def.key] then L.PREVIEW[def.key] = totemPreview(def) end
 end
 
+-- The totem bar: its four slots in their order, drawn with the bar's own settings.
+local TOTEM_ICON = { earth = 136098, fire = 135825, water = 135127, air = 136114 }   -- Stoneskin, Searing, Healing Stream, Windfury
+L.PREVIEW.totembar = {
+	count = 4, size = 30, panelW = 256,
+	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" } },
+	render = function(icons, st)
+		local TB = ns.TotemBar
+		local c = TB.cfg()
+		for i, ic in ipairs(icons) do
+			local el = c.order[i]
+			local shown = not c.hidden[el]
+			ic:SetShown(shown)
+			if shown then
+				local pick = GetActionTexture and TB.pickTexture(el)
+				reset(ic, pick or TOTEM_ICON[el])
+				local col = L.SCHOOL[el]
+				if st == "idle" then
+					if c.empty == "pick" and pick then
+						ic.tex:SetDesaturated(true); ic.tex:SetAlpha(0.45)
+					elseif c.empty == "blank" then ic.tex:SetAlpha(0)
+					else ic.tex:SetColorTexture(col[1] * 0.35, col[2] * 0.35, col[3] * 0.35, 0.8) end
+				else
+					local frac = (st == "expiring" and i == 2) and 0.95 or 0.3 + 0.12 * i
+					local swipe = c.timer == "swipe" or c.timer == "both"
+					if swipe or c.timer == "num" then
+						frozenCooldown(ic, frac, true, swipe and 0.6 or 0)
+						ic.cd:SetCountdownFont("ShamanForeverTotemBarFont")
+					end
+					if c.timer == "bar" or c.timer == "both" then setBar(ic, 1, 1 - frac, col[1], col[2], col[3]) end
+					if st == "expiring" and i == 2 then
+						if c.warnGrey then ic.tex:SetDesaturated(true) end
+						ic:SetRingShown(c.warnRing)
+						ic:SetPulsing(c.warnPulse)
+					end
+				end
+			end
+		end
+	end,
+}
+
 ------------------------------------------------------------------------
 -- Element page header: banner, corners, icon, name, blurb, tags, preview with state buttons.
 ------------------------------------------------------------------------
@@ -388,7 +437,7 @@ function L.buildHero(parent, key)
 	-- Preview panel, pinned right inside the corner zone: the icon on the left, its states listed
 	-- on the right as small flat buttons (the selected one outlined in gold).
 	local def = L.PREVIEW[key]
-	local PANEL_W, PANEL_H, BTN_W, BTN_H = 196, L.HERO_H - 14 - 24, 108, 17
+	local PANEL_W, PANEL_H, BTN_W, BTN_H = def.panelW or 196, L.HERO_H - 14 - 24, 108, 17
 	local p = CreateFrame("Frame", nil, h, "BackdropTemplate")
 	p:SetSize(PANEL_W, PANEL_H)
 	p:SetPoint("RIGHT", -40, 0)
@@ -398,8 +447,19 @@ function L.buildHero(parent, key)
 	local cap = p:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 	cap:SetPoint("TOPLEFT", 10, -8)
 	cap:SetText("PREVIEW")
-	h.previewIcon = makePreviewIcon(p)
-	h.previewIcon:SetPoint("LEFT", 16, -6)
+	if def.count then
+		-- Several icons in a row (the totem bar).
+		h.previewIcons = {}
+		for i = 1, def.count do
+			local ic = makePreviewIcon(p)
+			ic:SetSize(def.size, def.size)
+			ic:SetPoint("LEFT", 12 + (i - 1) * (def.size + 3), -6)
+			h.previewIcons[i] = ic
+		end
+	else
+		h.previewIcon = makePreviewIcon(p)
+		h.previewIcon:SetPoint("LEFT", 16, -6)
+	end
 	h.stateButtons = {}
 	previewState[key] = previewState[key] or def.states[1][1]
 	local listH = #def.states * (BTN_H + 3) - 3
@@ -429,16 +489,18 @@ function L.buildHero(parent, key)
 		self.banner:SetShown(not minimal)
 		self.shade:SetShown(not minimal)
 		for _, c in ipairs(self.corners) do c:SetShown(not minimal) end
-		local gi = ns.findElement(key)
-		local shows = { always = "Always", combat = "In combat", never = "Never" }
-		self.tags:SetText(string.format("%s  ·  %s", gi and ("Group " .. gi) or "No group", shows[ns.showMode(key)] or ""))
+		if e.tags then self.tags:SetText(e.tags()) else
+			local gi = ns.findElement(key)
+			local shows = { always = "Always", combat = "In combat", never = "Never" }
+			self.tags:SetText(string.format("%s  ·  %s", gi and ("Group " .. gi) or "No group", shows[ns.showMode(key)] or ""))
+		end
 		for _, b in ipairs(self.stateButtons) do
 			local on = b.state == previewState[key]
 			b:SetBackdropColor(on and 0.88 or 0.09, on and 0.66 or 0.075, on and 0.29 or 0.06, on and 0.16 or 1)
 			b:SetBackdropBorderColor(on and 0.88 or 0.23, on and 0.66 or 0.17, on and 0.29 or 0.10, 1)
 			b.text:SetTextColor(on and 1 or 0.78, on and 0.84 or 0.74, on and 0.5 or 0.68)
 		end
-		def.render(self.previewIcon, previewState[key])
+		def.render(self.previewIcons or self.previewIcon, previewState[key])
 	end
 	return h
 end
