@@ -17,7 +17,7 @@ ns.Timer = T
 T.KINDS = { "cooldown", "uptime" }
 T.DEFAULTS = {
 	cooldown = {
-		text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", abbrev = 0,
+		text = true, textSize = 20, textColor = { 1, 1, 1, 1 }, textPos = "center", abbrev = 0,
 		swipe = true, swipeAlpha = 0.65, swipeReverse = false,
 		bar = false, barHeight = 8, barElement = true, barColor = { 0.9, 0.8, 0.3, 1 }, barEdge = "top",
 	},
@@ -32,9 +32,6 @@ T.DEFAULTS = {
 T.ELEMENT_DEFAULTS = {
 	shield = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
 	imbue = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = false } },
-	-- The cooldown's number is enough text on these; their time left shows as the bar alone.
-	earthbind = { uptime = { text = false } },
-	stoneclaw = { uptime = { text = false } },
 }
 -- Parts the game cannot do for an element, and why (shown on its page).
 T.CANT = {
@@ -153,7 +150,7 @@ local fonts = 0
 --   noBar  = never make a bar (Blizzard's shield button: no frames of ours created in its callback)
 function T.new(parent, key, kind, opts)
 	opts = opts or {}
-	local t = setmetatable({ key = key, kind = kind, anchor = opts.anchor or parent, dual = opts.dual, school = opts.school }, Timer)
+	local t = setmetatable({ key = key, kind = kind, parent = parent, anchor = opts.anchor or parent, dual = opts.dual, school = opts.school }, Timer)
 	local cd = opts.cd
 	if not cd then
 		cd = CreateFrame("Cooldown", nil, parent, "CooldownFrameTemplate")
@@ -285,6 +282,7 @@ end
 
 function Timer:clear()
 	self.last = nil
+	if self.exp then self.exp:SetAlpha(0) end
 	self.cd:Clear()
 	if self.bar then self.bar:Hide() end
 end
@@ -300,4 +298,93 @@ function Timer:static(frac, length)
 		self.bar:SetAlpha(1)
 		self.bar:SetShown(self.barOn)
 	end
+end
+
+------------------------------------------------------------------------
+-- Expiring: a warning over the icon in a timer's last seconds (grey icon, red ring, pulse, any
+-- mix). Its alpha is the remaining time through a curve (1 inside the last `secs`, else 0), so it
+-- works in combat; evaluated ten times a second for every timer that has one.
+------------------------------------------------------------------------
+local expireCurves = {}
+local function expireCurve(secs)
+	if not (C_CurveUtil and C_CurveUtil.CreateCurve) then return nil end
+	local c = expireCurves[secs]
+	if not c then
+		c = C_CurveUtil.CreateCurve()
+		if Enum and Enum.LuaCurveType then c:SetType(Enum.LuaCurveType.Linear) end
+		c:AddPoint(0, 0)   -- run out (an expired duration can linger): no warning
+		c:AddPoint(0.05, 1)
+		c:AddPoint(secs, 1)
+		c:AddPoint(secs + 0.05, 0)
+		expireCurves[secs] = c
+	end
+	return c
+end
+
+local warning = {}   -- timers with an expiry warning
+local ticker = CreateFrame("Frame")
+ticker.t = 0
+ticker:SetScript("OnUpdate", function(self, elapsed)
+	self.t = self.t + elapsed
+	if self.t < 0.1 then return end
+	self.t = 0
+	for t in pairs(warning) do
+		local d = t.last
+		if d then
+			local ok, a = pcall(d.EvaluateRemainingDuration, d, t.expCurve)
+			if ok then t.exp:SetAlpha(a) else t.exp:SetAlpha(0) end
+		else t.exp:SetAlpha(0) end
+	end
+end)
+
+T.EXPIRE_DEFAULTS = { secs = 5, grey = false, ring = false, pulse = true }
+
+-- e: { secs, grey, ring, pulse } (secs 0 turns it off); icon: the texture the grey copy shows.
+function Timer:setExpire(e, icon)
+	if not e or e.secs <= 0 or not expireCurve(e.secs) then
+		warning[self] = nil
+		if self.exp then self.exp:SetAlpha(0) end
+		return
+	end
+	local x = self.exp
+	if not x then
+		x = CreateFrame("Frame", nil, self.parent)
+		x:SetAllPoints(self.anchor)
+		x:SetFrameLevel(self.cd:GetFrameLevel() + 1)
+		x:SetAlpha(0)
+		x.grey = x:CreateTexture(nil, "ARTWORK")
+		x.grey:SetAllPoints()
+		x.grey:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+		x.grey:SetDesaturated(true)
+		x.ring = {}
+		for _, edge in ipairs({ { "TOPLEFT", "TOPRIGHT", nil, 3 }, { "BOTTOMLEFT", "BOTTOMRIGHT", nil, 3 },
+				{ "TOPLEFT", "BOTTOMLEFT", 3, nil }, { "TOPRIGHT", "BOTTOMRIGHT", 3, nil } }) do
+			local r = x:CreateTexture(nil, "OVERLAY", nil, 6)
+			r:SetColorTexture(1, 0, 0, 0.9)
+			local inset = edge[3] or 0   -- side edges between the top and bottom ones
+			r:SetPoint(edge[1], x, edge[1], 0, -inset)
+			r:SetPoint(edge[2], x, edge[2], 0, inset)
+			if edge[3] then r:SetWidth(edge[3]) end
+			if edge[4] then r:SetHeight(edge[4]) end
+			table.insert(x.ring, r)
+		end
+		x.dim = x:CreateTexture(nil, "OVERLAY")
+		x.dim:SetAllPoints()
+		x.dim:SetColorTexture(0, 0, 0, 1)
+		x.dim:SetAlpha(0)
+		x.pulse = x.dim:CreateAnimationGroup()
+		x.pulse:SetLooping("BOUNCE")
+		local a = x.pulse:CreateAnimation("Alpha")
+		a:SetFromAlpha(0)
+		a:SetToAlpha(0.55)
+		a:SetDuration(0.6)
+		a:SetSmoothing("IN_OUT")
+		self.exp = x
+	end
+	if icon then x.grey:SetTexture(icon) end
+	x.grey:SetShown(e.grey)
+	for _, r in ipairs(x.ring) do r:SetShown(e.ring) end
+	if e.pulse then x.pulse:Play() else x.pulse:Stop(); x.dim:SetAlpha(0) end
+	self.expCurve = expireCurve(e.secs)
+	warning[self] = true
 end

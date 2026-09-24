@@ -61,11 +61,13 @@ local DEFAULTS = {
 			growth = "forward", spacing = 6, members = { "shield", "shock", "firenova" } },
 		{ point = "CENTER", x = -110, y = -40, scale = 1, alpha = 0.75, orientation = "horizontal",
 			growth = "forward", spacing = 6, members = { "imbue" } },
-		{ point = "CENTER", x = 145, y = -44, scale = 0.9, alpha = 0.6, orientation = "horizontal",
+		{ point = "CENTER", x = 120, y = -44, scale = 0.9, alpha = 0.6, orientation = "horizontal",
 			growth = "forward", spacing = 6, members = { "earthbind", "stoneclaw" } },
 	},
 	known = {},             -- element keys placed at least once; new ones join the first group
-	elementOpts = {},       -- per-element settings by key, e.g. { shock = { show = "combat" } }
+	elementOpts = {         -- per-element settings by key, e.g. { shock = { show = "combat" } }
+		stoneclaw = { show = "never" },   -- rarely used: starts hidden, beside Earthbind
+	},
 	-- shield
 	shieldTrack = "lightning", -- lightning | water | either: which shield counts as "up" (water and either are experimental)
 	countPos = "center",    -- corner | center
@@ -1711,7 +1713,10 @@ local function applyLayout()
 	shock.cdTimer:apply()
 	for _, def in ipairs(COOLDOWNS) do
 		def.frame.cdTimer:apply()
-		if def.frame.upTimer then def.frame.upTimer:apply() end
+		if def.frame.upTimer then
+			def.frame.upTimer:apply()
+			def.frame.upTimer:setExpire(ns.expireOpts(def.key), def.iconID or def.icon)
+		end
 	end
 	imbue.upTimer:apply()
 	refreshShockMana()
@@ -1990,6 +1995,15 @@ ns.setShow, ns.showMode = setShow, showMode
 ns.COOLDOWNS = COOLDOWNS
 ns.makeIcon = makeIcon   -- the options previews draw with the HUD's own icon
 ns.applyBorder = applyBorder
+-- An element's expiring warning (its time left's last seconds): its own settings over the defaults.
+function ns.expireOpts(key)
+	local o = elementOpts(key).expire
+	local out = {}
+	for k, v in pairs(ns.Timer.EXPIRE_DEFAULTS) do
+		out[k] = (type(o) == "table" and type(o[k]) == type(v)) and o[k] or v
+	end
+	return out
+end
 ns.IMBUES, ns.IMBUE_ORDER, ns.imbueIcon = IMBUES, IMBUE_ORDER, function() return imbueIcon end
 ns.setTestMode = function(on) edit(setTestMode)(on) end
 ns.say = say

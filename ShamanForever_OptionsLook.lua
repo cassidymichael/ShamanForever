@@ -44,6 +44,7 @@ L.ELEMENT = {
 	-- Not an element: its own page, with the same kind of header. page = true keeps it out of the
 	-- nav's element list.
 	totembar  = { name = "Totem bar", icon = "Interface\\Icons\\Spell_Shaman_DropAll_01", school = "spirit", page = true,
+		experimental = "Totem bar",
 		blurb = "Your totems, their timers, and a pick for each element.",
 		tags = function()
 			local c = ns.TotemBar.cfg()
@@ -362,7 +363,7 @@ local function tabArrow(parent)
 end
 L.PREVIEW.totembar = {
 	stage = true, heroH = 280,
-	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" }, { "picking", "Picking" } },
+	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" }, { "offpick", "Not your pick" }, { "picking", "Picking" } },
 	build = function(h)
 		-- The preview area: below the title band and its divider, above the state buttons.
 		h.area = CreateFrame("Frame", nil, h)
@@ -373,7 +374,15 @@ L.PREVIEW.totembar = {
 		bar:SetFrameLevel(h:GetFrameLevel() + 5)
 		h.barFrame = bar
 		h.slots = {}
-		for i = 1, 4 do h.slots[i] = makePreviewIcon(bar, "totembar") end
+		for i = 1, 4 do
+			local ic = makePreviewIcon(bar, "totembar")
+			ic.badge = CreateFrame("Frame", nil, bar)
+			ic.badge:SetFrameLevel(ic:GetFrameLevel() + 6)
+			ic.badge.icon = ic.badge:CreateTexture(nil, "ARTWORK")
+			ic.badge.icon:SetAllPoints()
+			ic.badge.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+			h.slots[i] = ic
+		end
 		h.tab = tabArrow(bar)
 		h.pop = CreateFrame("Frame", nil, bar)
 		h.pop.bg = h.pop:CreateTexture(nil, "BACKGROUND")
@@ -407,7 +416,8 @@ L.PREVIEW.totembar = {
 		local items = math.min(POP_ITEMS, 1 + #known)
 		local popLen = 3 + items * (psz + 3)
 		local along = n * size + (n - 1) * c.spacing
-		local across = size + (picking and (c.arrowSize + 4 + popLen) or 0)
+		local badge = st == "offpick" and c.offPick and math.max(math.floor(size * c.badgeSize + 0.5), 8) + 3 or 0
+		local across = size + (picking and (c.arrowSize + 4 + popLen) or 0) + badge
 		-- Room: the preview area between the title band and the state buttons.
 		local w = h:GetWidth()
 		if not w or w <= 0 then w = 600 end
@@ -436,21 +446,45 @@ L.PREVIEW.totembar = {
 				ic:SetSize(size, size)
 				ic:ClearAllPoints()
 				local off = (i - 1) * (size + c.spacing)
+				-- Slots sit on the side the pickers open away from, leaving room for the badge (which
+				-- hangs opposite the picker) inside the box.
 				if row then
-					if dir == "down" then ic:SetPoint("TOPLEFT", bar, "TOPLEFT", off, 0)
-					else ic:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", off, 0) end
+					if dir == "down" then ic:SetPoint("TOPLEFT", bar, "TOPLEFT", off, -badge)
+					else ic:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", off, badge) end
 				else
-					if dir == "left" then ic:SetPoint("TOPRIGHT", bar, "TOPRIGHT", 0, -off)
-					else ic:SetPoint("TOPLEFT", bar, "TOPLEFT", 0, -off) end
+					if dir == "left" then ic:SetPoint("TOPRIGHT", bar, "TOPRIGHT", -badge, -off)
+					else ic:SetPoint("TOPLEFT", bar, "TOPLEFT", badge, -off) end
 				end
 				if ns.applyBorder then ns.applyBorder(ic, border) end
 				local pick = GetActionTexture and TB.pickTexture(el)
 				reset(ic, pick or TOTEM_ICON[el])
+				ic.badge:Hide()
+				if st == "offpick" and i == 1 then
+					-- Another of the element's totems down, with the pick shown small beside it.
+					local other
+					for _, id in ipairs(TB.known(el)) do
+						local tex = C_Spell.GetSpellTexture(id)
+						if tex and tex ~= pick then other = tex break end
+					end
+					ic.tex:SetTexture(other or TOTEM_ICON[el])
+					if c.offPick and pick then
+						local bs = math.max(math.floor(size * c.badgeSize + 0.5), 8)
+						ic.badge:SetSize(bs, bs)
+						ic.badge.icon:SetTexture(pick)
+						ic.badge:ClearAllPoints()
+						if dir == "up" then ic.badge:SetPoint("TOP", ic, "BOTTOM", 0, -3)
+						elseif dir == "down" then ic.badge:SetPoint("BOTTOM", ic, "TOP", 0, 3)
+						elseif dir == "right" then ic.badge:SetPoint("RIGHT", ic, "LEFT", -3, 0)
+						else ic.badge:SetPoint("LEFT", ic, "RIGHT", 3, 0) end
+						if ns.applyBorder then ns.applyBorder(ic.badge, border.show and { show = true, size = 1, color = border.color } or border) end
+						ic.badge:Show()
+					end
+				end
 				local col = L.SCHOOL[el]
 				ic.upT.school = el
 				if st == "idle" or (picking and i == 1) then
 					if c.empty == "pick" and pick then
-						ic.tex:SetDesaturated(true); ic.tex:SetAlpha(0.45)
+						ic.tex:SetDesaturated(c.idleGrey); ic.tex:SetAlpha(c.idleAlpha)
 					elseif c.empty == "blank" then ic.tex:SetAlpha(0)
 					else ic.tex:SetColorTexture(col[1] * 0.35, col[2] * 0.35, col[3] * 0.35, 0.8) end
 				else
@@ -572,6 +606,11 @@ function L.buildHero(parent, key)
 		h.rule:SetPoint("TOPRIGHT", h, "TOPRIGHT", -40, -50)
 		pcall(h.rule.SetGradient, h.rule, "HORIZONTAL", CreateColor(0.85, 0.71, 0.42, 0.45), CreateColor(0.85, 0.71, 0.42, 0))
 	end
+	if e.experimental then
+		h.exp = L.expBadge(h, e.experimental)
+		h.exp:SetPoint("LEFT", h.tags, "RIGHT", 12, 0)
+		h.exp:SetFrameLevel(h:GetFrameLevel() + 6)
+	end
 
 	-- Preview panel, pinned right inside the corner zone: the icon on the left, its states listed
 	-- on the right as small flat buttons (the selected one outlined in gold). A stage (the totem
@@ -630,7 +669,7 @@ function L.buildHero(parent, key)
 		for _, c in ipairs(self.corners) do c:SetShown(not minimal) end
 		if e.tags then self.tags:SetText(e.tags()) else
 			local gi = ns.findElement(key)
-			local shows = { always = "Always", combat = "In combat", never = "Never" }
+			local shows = { always = "Always", combat = "In combat", never = "Hidden" }
 			self.tags:SetText(string.format("%s  ·  %s", gi and ("Group " .. gi) or "No group", shows[ns.showMode(key)] or ""))
 		end
 		for _, b in ipairs(self.stateButtons) do

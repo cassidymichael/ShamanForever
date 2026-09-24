@@ -663,6 +663,7 @@ local function buildAbout(p)
 	p:text("I can't test these in game yet. If you can, please try them and tell me whether they work and what could be improved.")
 	p:experimental("Water Shield", "Shields > Track")
 	p:experimental("Either shield", "Shields > Track")
+	p:experimental("Totem bar", "Totem bar page")
 	p:header("Art")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
 		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
@@ -670,14 +671,23 @@ local function buildAbout(p)
 end
 
 ------------------------------------------------------------------------
--- Group board (Layout page): one card per group plus "New group". Drag an element's chip onto a card
--- to move it there, at the position the blue line shows; click a chip for a menu. Hidden elements
--- stay in their group, dimmed.
+-- Group board (Layout page): one card per group, "New group" and "Hidden". Drag an element's chip
+-- onto a card to move it there, at the position the line shows; click a chip for a menu.
+-- Hidden is a place in the UI only: underneath, a hidden element is Show "never" and still belongs
+-- to its group, so showing it again (other than by dropping it on a group) puts it back there.
 ------------------------------------------------------------------------
-local SHOW_CHOICES = { { "always", "Always" }, { "combat", "In combat" }, { "never", "Never" } }
-local SHOW_TIP = "When the element is drawn. Never keeps its place in its group, so choosing Always or In combat again puts it back where it was. Groups can also be set to show only in combat on the Layout page; an element shows only when both it and its group allow it. Everything visible shows while the layout is unlocked."
+local SHOW_CHOICES = { { "always", "Always" }, { "combat", "In combat" }, { "never", "Hidden" } }
+local SHOW_TIP = "When the element is drawn. Hidden keeps its place in its group, so choosing Always or In combat again puts it back where it was. Groups can also be set to show only in combat on the Layout page; an element shows only when both it and its group allow it. Everything visible shows while the layout is unlocked."
 
 local CARD_GAP, CHIP_H, CARD_HEAD = 8, 26, 28
+
+local function isHidden(key) return ns.showMode(key) == "never" end
+-- Into a group (or a new one) and shown: dropping a hidden element on a group shows it there.
+local function placeShown(key, target, index)
+	local hidden = isHidden(key)
+	ns.placeElement(key, target, index)
+	if hidden then ns.setShow(key, "always") end
+end
 local board = { cards = {}, chips = {} }
 
 local function cardUnderCursor()
@@ -748,8 +758,19 @@ local function finishDrag()
 	if not key then return end
 	local c = cardUnderCursor()
 	if c then
-		if type(c.target) == "number" then ns.placeElement(key, c.target, (dropIndex(c, key)))
-		else ns.placeElement(key, c.target) end
+		if c.target == "hidden" then ns.setShow(key, "never")
+		elseif type(c.target) == "number" then
+			-- The drop position counts only the visible chips; hidden members keep their places.
+			local at, others = dropIndex(c, key)
+			local rest = {}
+			for _, k in ipairs(db().groups[c.target].members) do if k ~= key then table.insert(rest, k) end end
+			local index = #rest + 1
+			local anchor = others[at] or others[#others]
+			for i, k in ipairs(rest) do
+				if anchor and k == anchor.key then index = others[at] and i or i + 1 end
+			end
+			placeShown(key, c.target, index)
+		else placeShown(key, c.target) end
 	end
 	ns.RefreshOptions()   -- also restores the dimmed chip when nothing moved
 end
@@ -828,7 +849,7 @@ local function getChip(i)
 	chip:SetScript("OnClick", chipMenu)
 	chip:SetScript("OnDragStart", startDrag)
 	chip:SetScript("OnDragStop", finishDrag)
-	setTip(chip, "Move element", "Drag onto another group or New group. Drop between elements to set the order. Click for a menu, including when it shows.")
+	setTip(chip, "Move element", "Drag onto another group, New group or Hidden. Drop between elements to set the order. Click for a menu.")
 	board.chips[i] = chip
 	return chip
 end
@@ -852,9 +873,8 @@ local function layoutBoard()
 			chip.key = key
 			ns.ELEMENTS[key].paint(chip.icon)
 			local mode = ns.showMode(key)
-			chip.text:SetText(ns.ELEMENTS[key].label .. (mode == "never" and "  |cff888888(hidden)|r"
-				or mode == "combat" and "  |cff888888(in combat)|r" or ""))
-			chip:SetAlpha(mode == "never" and 0.5 or 1)
+			chip.text:SetText(ns.ELEMENTS[key].label .. (mode == "combat" and "  |cff888888(in combat)|r" or ""))
+			chip:SetAlpha(target == "hidden" and 0.6 or 1)
 			chip:ClearAllPoints()
 			chip:SetPoint("TOPLEFT", c, "TOPLEFT", 6, -CARD_HEAD - (i - 1) * CHIP_H)
 			chip:SetPoint("RIGHT", c, "RIGHT", -6, 0)
@@ -872,17 +892,28 @@ local function layoutBoard()
 		c:ClearAllPoints()
 		c:SetPoint("TOPLEFT", board.frame, "TOPLEFT", x, -y)
 	end
-	-- Groups fill two columns, each card going into the shorter one.
+	-- Groups fill two columns, each card going into the shorter one. A group lists its visible
+	-- elements; one with nothing visible stays out of the way until something in it shows again.
 	local colY = { 0, 0 }
+	local hidden = {}
 	for gi, g in ipairs(groups) do
-		local c, h = fill(gi, g.members, "Group " .. gi, g.orientation == "vertical" and "Column" or "Row")
-		local col = colY[1] <= colY[2] and 1 or 2
-		place(c, (col - 1) * (colW + CARD_GAP), colY[col])
-		colY[col] = colY[col] + h + CARD_GAP
+		local shown = {}
+		for _, key in ipairs(g.members) do
+			if isHidden(key) then table.insert(hidden, key) else table.insert(shown, key) end
+		end
+		if #shown > 0 then
+			local c, h = fill(gi, shown, "Group " .. gi, g.orientation == "vertical" and "Column" or "Row")
+			local col = colY[1] <= colY[2] and 1 or 2
+			place(c, (col - 1) * (colW + CARD_GAP), colY[col])
+			colY[col] = colY[col] + h + CARD_GAP
+		end
 	end
 	local y = math.max(colY[1], colY[2])
 	local newCard, h = fill("new", {}, "New group", nil, "Drop an element here to give it a group of its own.")
 	place(newCard, 0, y)
+	local hiddenCard, hh = fill("hidden", hidden, "Hidden", nil, "Drop an element here to hide it.")
+	place(hiddenCard, colW + CARD_GAP, y)
+	h = math.max(h, hh)
 	for i = nCard + 1, #board.cards do board.cards[i]:Hide() end
 	for i = nChip + 1, #board.chips do board.chips[i]:Hide() end
 	board.height = y + h
@@ -1039,12 +1070,11 @@ end
 ------------------------------------------------------------------------
 -- Every totem on Forever, for the per-totem warning times (rows show only once one is set).
 local TOTEM_NAMES = {
-	"Stoneskin Totem", "Earthbind Totem", "Stoneclaw Totem", "Strength of Earth Totem", "Tremor Totem",
-	"Searing Totem", "Magma Totem", "Flametongue Totem", "Frost Resistance Totem",
-	"Healing Stream Totem", "Mana Spring Totem", "Poison Cleansing Totem", "Fire Resistance Totem",
-	"Disease Cleansing Totem", "Mana Tide Totem",
-	"Windfury Totem", "Grace of Air Totem", "Grounding Totem", "Nature Resistance Totem", "Sentry Totem",
-	"Windwall Totem",
+	"Disease Cleansing Totem", "Earthbind Totem", "Fire Resistance Totem", "Flametongue Totem",
+	"Frost Resistance Totem", "Grace of Air Totem", "Grounding Totem", "Healing Stream Totem",
+	"Magma Totem", "Mana Spring Totem", "Mana Tide Totem", "Nature Resistance Totem",
+	"Poison Cleansing Totem", "Searing Totem", "Sentry Totem", "Stoneclaw Totem", "Stoneskin Totem",
+	"Strength of Earth Totem", "Tremor Totem", "Windfury Totem", "Windwall Totem",
 }
 
 local function buildTotemBar(p)
@@ -1147,9 +1177,22 @@ local function buildTotemBar(p)
 		function() return c().border.size end, function(v) c().border.size = v; changed() end, dimWhen(bordered, "Turn on Border to use this."))
 	p:color("Border colour", "Colour and opacity.", function() return c().border.color end,
 		function(v) c().border.color = v; changed() end, dimWhen(bordered, "Turn on Border to use this."))
-	p:dropdown("Empty slot", "How a slot looks with no totem down.",
-		{ { "pick", "Your pick, greyed" }, { "frame", "Element colour" }, { "blank", "Blank" } }, tget("empty"), tset("empty"), nil, 180)
 	timerSettings(p, "Time left", "totembar", "uptime", changed)
+
+	p:header("Totem not down")
+	p:dropdown("Look", "How a slot looks while its totem isn't down.",
+		{ { "pick", "Your pick" }, { "frame", "Element colour" }, { "blank", "Blank" } }, tget("empty"), tset("empty"), nil, 180)
+	local pickLook = dimWhen(function() return c().empty == "pick" end)
+	p:checkbox("Greyed", "Off: the pick in colour.", tget("idleGrey"), tset("idleGrey"), pickLook)
+	p:slider("Opacity", nil, 0.1, 1, 0.05, function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end,
+		tget("idleAlpha"), tset("idleAlpha"), pickLook)
+	p:text("With No totem picked, the slot shows its element colour.", pickLook)
+
+	p:header("Not your pick")
+	p:checkbox("Show your pick", "When a different totem is down, your pick shows small beside the slot, on the side away from the picker.",
+		tget("offPick"), tset("offPick"))
+	p:slider("Size", nil, 0.25, 0.8, 0.05, function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end,
+		tget("badgeSize"), tset("badgeSize"), dimWhen(tget("offPick")))
 
 	p:header("Expiring")
 	p:checkbox("Grey icon", "Desaturate the icon.", tget("warnGrey"), tset("warnGrey"))
@@ -1158,25 +1201,38 @@ local function buildTotemBar(p)
 	local secs = function(v) return v == 0 and "Off" or string.format("%d s", v) end
 	p:slider("Warn in the last", nil, 0, 30, 1, secs, tget("warn"), tset("warn"))
 	p:text("Totems with their own warning time, instead of the default:", function() return next(c().warnOver) ~= nil end)
-	-- Slide to the far left ("Default") to drop a totem's own time.
-	local ownSecs = function(v) return v < 0 and "Default" or secs(v) end
+	-- Each totem's own time, with a small X at the end of its row to drop it.
 	for _, name in ipairs(TOTEM_NAMES) do
-		p:slider((name:gsub(" Totem$", "")), "Slide to Default to use the time above.", -1, 30, 1, ownSecs,
+		local row = p:slider((name:gsub(" Totem$", "")), nil, 0, 30, 1, secs,
 			function() return c().warnOver[name] or c().warn end,
-			function(v) c().warnOver[name] = v >= 0 and v or nil; changed() end,
+			function(v) c().warnOver[name] = v; changed() end,
 			function() return c().warnOver[name] ~= nil end)
+		local x = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+		x:SetSize(24, 22)
+		x:SetPoint("RIGHT", row, "RIGHT", -2, 0)
+		x:SetText("X")
+		x:SetScript("OnClick", function() c().warnOver[name] = nil; changed() end)
+		setTip(x, "Remove", "Use the time above for this totem.")
 	end
-	p:dropdown("Add a totem", "Give a totem its own warning time.", function()
-		local list = {}
+	-- Adding is an action, not a choice kept: plain entries under a prompt, not radio buttons.
+	local add = p:dropdown("Add a totem", "Give a totem its own warning time.", {}, function() return nil end, function() end, nil, 220)
+	local dd = add.dropdown
+	pcall(dd.SetDefaultText, dd, "Choose a totem")
+	dd:SetupMenu(function(_, root)
+		local names = {}
 		for slot = 1, 4 do
-			local ok, ids = pcall(function() return { GetMultiCastTotemSpells(slot) } end)
-			for _, id in ipairs(ok and ids or {}) do
+			for _, id in ipairs(TB.knownTotems(slot)) do
 				local name = C_Spell.GetSpellName(id)
-				if name and c().warnOver[name] == nil and tContains(TOTEM_NAMES, name) then table.insert(list, { name, name }) end
+				if name and c().warnOver[name] == nil and tContains(TOTEM_NAMES, name) then table.insert(names, name) end
 			end
 		end
-		return list
-	end, function() return nil end, function(v) c().warnOver[v] = c().warn; changed() end, nil, 220)
+		table.sort(names)
+		local any = #names > 0
+		for _, name in ipairs(names) do
+			root:CreateButton(name, function() c().warnOver[name] = c().warn; changed() end)
+		end
+		if not any then root:CreateTitle("Every totem you know has its own time") end
+	end)
 end
 
 local ELEMENT_PAGES = {}   -- key -> page key, filled as element pages are built
@@ -1216,10 +1272,11 @@ local function buildElements(p)
 		group:SetWidth(100)
 		group:SetupMenu(function(_, rootDescription)
 			for gi = 1, groupCount() do
-				rootDescription:CreateRadio("Group " .. gi, function() return ns.findElement(key) == gi end,
-					function() ns.placeElement(key, gi) end)
+				rootDescription:CreateRadio("Group " .. gi, function() return not isHidden(key) and ns.findElement(key) == gi end,
+					function() placeShown(key, gi) end)
 			end
-			rootDescription:CreateRadio("New group", function() return false end, function() ns.placeElement(key, "new") end)
+			rootDescription:CreateRadio("New group", function() return false end, function() placeShown(key, "new") end)
+			rootDescription:CreateRadio("Hidden", function() return isHidden(key) end, function() ns.setShow(key, "never") end)
 		end)
 		local show = CreateFrame("DropdownButton", nil, f, "WowStyle1DropdownTemplate")
 		show:SetPoint("LEFT", SHOW_X, 0)
@@ -1262,8 +1319,11 @@ local function elementDisplay(p, key)
 		local list = {}
 		for gi = 1, groupCount() do table.insert(list, { gi, "Group " .. gi }) end
 		table.insert(list, { "new", "New group" })
+		table.insert(list, { "hidden", "Hidden" })
 		return list
-	end, function() return ns.findElement(key) end, function(v) ns.placeElement(key, v) end, nil, 140)
+	end, function() return isHidden(key) and "hidden" or ns.findElement(key) end, function(v)
+		if v == "hidden" then ns.setShow(key, "never") else placeShown(key, v) end
+	end, nil, 140)
 	local groupRow = p.items[#p.items].frame
 	local edit = CreateFrame("Button", nil, groupRow, "UIPanelButtonTemplate")
 	edit:SetSize(96, 22)
@@ -1377,6 +1437,23 @@ local function buildCooldown(p, def)
 	timerSettings(p, "Cooldown", key, "cooldown")
 	if def.needsTotem then timerSettings(p, "Fire totem's time left", key, "uptime")
 	elseif def.totemSlot then timerSettings(p, "Time left", key, "uptime") end
+	if def.needsTotem or def.totemSlot then
+		-- Expiring: a warning in the totem's last seconds.
+		local function eget(k) return function() return ns.expireOpts(key)[k] end end
+		local function eset(k) return function(v)
+			local o = ns.elementOpts(key)
+			if type(o.expire) ~= "table" then o.expire = {} end
+			o.expire[k] = v
+			relayout()
+		end end
+		local on = dimWhen(function() return ns.expireOpts(key).secs > 0 end, "Set Warn in the last above zero to use this.")
+		p:header("Expiring")
+		p:slider("Warn in the last", "Seconds before the totem runs out. Zero turns the warning off.", 0, 30, 1,
+			function(v) return v == 0 and "Off" or string.format("%d s", v) end, eget("secs"), eset("secs"))
+		p:checkbox("Grey icon", "Desaturate the icon.", eget("grey"), eset("grey"), on)
+		p:checkbox("Red ring", "A red ring inside the icon edge.", eget("ring"), eset("ring"), on)
+		p:checkbox("Pulse", "Fade the icon in and out.", eget("pulse"), eset("pulse"), on)
+	end
 end
 
 ------------------------------------------------------------------------

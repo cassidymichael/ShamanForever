@@ -51,13 +51,17 @@ TB.DEFAULTS = {
 	follow = true,            -- icon size and border from General
 	size = 44,
 	border = { show = true, size = 2, color = { 0, 0, 0, 1 } },
-	empty = "pick",           -- pick (greyed) | frame (element colour) | blank
+	empty = "pick",           -- a totem not down: pick (the element's pick) | frame (element colour) | blank
+	idleGrey = false,         -- the pick, greyed (off: in colour)
+	idleAlpha = 0.4,          -- the pick's opacity
+	offPick = true,           -- a totem down that isn't the pick: show the pick small beside the slot
+	badgeSize = 0.45,         -- that badge, as a share of the slot's size
 	-- timers: the slots' "Time left" timer, if the bar has its own (ShamanForever_Timers.lua)
 	warnGrey = false,
 	warnRing = false,
 	warnPulse = true,
-	warn = 5,                 -- seconds before the end (0 = off)
-	warnOver = {},            -- totem name -> seconds, instead of warn
+	warn = 10,                -- seconds before the end (0 = off)
+	warnOver = { ["Earthbind Totem"] = 5, ["Stoneclaw Totem"] = 5 },   -- totem name -> seconds, instead of warn (short-lived ones)
 }
 
 local function isSecret(v) return issecretvalue and issecretvalue(v) or false end
@@ -103,12 +107,30 @@ local function multiAction(slot)
 	return (bar - 1) * 12 + slot
 end
 
--- The totems known for an element, by spell ID (Blizzard's lists for its popouts).
+-- A spell's rank number (1 when it has none), from its subtext ("Rank 2").
+local function rankOf(id)
+	local ok, sub = pcall(C_Spell.GetSpellSubtext, id)
+	return ok and type(sub) == "string" and tonumber(sub:match("(%d+)")) or 1
+end
+
+-- The totems known for an element, by spell ID, in Blizzard's order; a totem known at several
+-- ranks is listed once, at its highest.
 local function knownTotems(slot)
 	if not GetMultiCastTotemSpells then return {} end
 	local ok, ids = pcall(function() return { GetMultiCastTotemSpells(slot) } end)
-	return ok and ids or {}
+	if not ok then return {} end
+	local out, at = {}, {}
+	for _, id in ipairs(ids) do
+		local name = C_Spell.GetSpellName(id)
+		if name then
+			local i = at[name]
+			if not i then table.insert(out, id); at[name] = #out
+			elseif rankOf(id) > rankOf(out[i]) then out[i] = id end
+		end
+	end
+	return out
 end
+TB.knownTotems = knownTotems
 
 ------------------------------------------------------------------------
 -- Frames. Created when the file loads, which is allowed even during a /reload in combat.
@@ -178,6 +200,14 @@ for _, el in ipairs(ELEMENTS) do
 	v:SetFrameLevel(b:GetFrameLevel() + 2)
 	v:EnableMouse(false)
 	s.vis = v
+	-- "Not your pick": the element's pick, small, on the side away from the picker (a plain frame).
+	local badge = CreateFrame("Frame", nil, bar)
+	badge:SetFrameLevel(b:GetFrameLevel() + 6)
+	badge.icon = badge:CreateTexture(nil, "ARTWORK")
+	badge.icon:SetAllPoints()
+	badge.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	badge:Hide()
+	s.badge = badge
 	v.bg = v:CreateTexture(nil, "BACKGROUND")
 	v.bg:SetAllPoints()
 	v.icon = v:CreateTexture(nil, "ARTWORK")
@@ -287,7 +317,8 @@ local function warnCurve(secs)
 	if not c then
 		c = C_CurveUtil.CreateCurve()
 		if Enum and Enum.LuaCurveType then c:SetType(Enum.LuaCurveType.Linear) end
-		c:AddPoint(0, 1)
+		c:AddPoint(0, 0)   -- run out (an expired duration can linger): no warning
+		c:AddPoint(0.05, 1)
 		c:AddPoint(secs, 1)
 		c:AddPoint(secs + 0.05, 0)
 		warnCurves[secs] = c
@@ -304,10 +335,20 @@ if C_CurveUtil and C_CurveUtil.CreateCurve then
 end
 
 -- The totem's name, if known: our own cast, or out of combat the slot itself.
+-- The element's pick, by name (nil for "No totem").
+local function pickName(slot)
+	local ok, kind, id = pcall(GetActionInfo, multiAction(slot))
+	if not ok or isSecret(kind) or isSecret(id) or kind ~= "spell" or type(id) ~= "number" then return nil end
+	return C_Spell.GetSpellName(id)
+end
+
+-- Without its rank: the slot names a rank 2 Stoneclaw "Stoneclaw Totem II", its spell "Stoneclaw Totem".
 local function totemName(slot)
 	local ok, _, n = pcall(GetTotemInfo, slot)
-	if ok and not isSecret(n) and type(n) == "string" and n ~= "" then return n end
-	return ns.totemNameInSlot and ns.totemNameInSlot(slot)
+	if not (ok and not isSecret(n) and type(n) == "string" and n ~= "") then
+		n = ns.totemNameInSlot and ns.totemNameInSlot(slot)
+	end
+	return n and (n:gsub(" [IVX]+$", ""))
 end
 
 local anyDown = false
@@ -339,21 +380,31 @@ local function drawSlot(s)
 		v.icon:SetAlpha(1)
 		v.bg:SetColorTexture(0, 0, 0, 1)
 		s.timer:set(d)
+		-- Not the element's pick? Only when both are known: the totem down (our cast, or its name out
+		-- of combat) and a pick (not "No totem").
+		local pick = c.offPick and pickName(s.slot)
+		local down = pick and totemName(s.slot)
+		if down and down ~= pick then
+			pcall(s.badge.icon.SetTexture, s.badge.icon, GetActionTexture(multiAction(s.slot)))
+			s.badge:Show()
+		else s.badge:Hide() end
 		s.dur = d
 		s.curve = warnCurve(c.warnOver[totemName(s.slot) or ""] or c.warn)
 		TB.alphas(s)
 		return true
 	end
 	s.dur, s.curve = nil, nil
-	-- Empty: the element's pick, greyed, or its colour, or nothing.
+	s.badge:Hide()
+	-- Not down: the element's pick (greyed or in colour, at its opacity), or its colour, or nothing.
+	-- With nothing picked, "pick" falls back to the element colour.
 	s.timer:clear()
 	v.warn:SetAlpha(0)
 	local tex = c.empty == "pick" and GetActionTexture and GetActionTexture(multiAction(s.slot))
 	if isSecret(tex) or tex then
 		pcall(v.icon.SetTexture, v.icon, tex)
-		v.icon:SetDesaturated(true)
-		v.icon:SetAlpha(0.45)
-		v.bg:SetColorTexture(0, 0, 0, 0.6)
+		v.icon:SetDesaturated(c.idleGrey)
+		v.icon:SetAlpha(c.idleAlpha)
+		v.bg:SetColorTexture(0, 0, 0, 0.6 * c.idleAlpha)
 	elseif c.empty ~= "blank" then
 		local col = COLOR[s.el]
 		v.icon:SetTexture(nil)
@@ -502,6 +553,20 @@ local function layoutPopout(s, size)
 	if not c.arrows then RegisterStateDriver(pop, "visibility", "hide") end
 end
 
+-- The badge sits opposite the picker: below a row whose pickers open up, and so on.
+local function layoutBadge(s, size, border)
+	local c, bd, b = cfg(), s.badge, s.button
+	local bs = math.max(math.floor(size * c.badgeSize + 0.5), 8)
+	bd:SetSize(bs, bs)
+	bd:ClearAllPoints()
+	local gap = 3
+	if c.pop == "up" then bd:SetPoint("TOP", b, "BOTTOM", 0, -gap)
+	elseif c.pop == "down" then bd:SetPoint("BOTTOM", b, "TOP", 0, gap)
+	elseif c.pop == "right" then bd:SetPoint("RIGHT", b, "LEFT", -gap, 0)
+	else bd:SetPoint("LEFT", b, "RIGHT", gap, 0) end
+	if ns.applyBorder then ns.applyBorder(bd, border and border.show and { show = true, size = 1, color = border.color } or border) end
+end
+
 local function layoutArrow(s)
 	local c, ar, b = cfg(), s.arrow, s.button
 	local tab = c.arrowSize
@@ -558,6 +623,7 @@ local function layout()
 		for _, t in ipairs(s.vis.warn.ring) do t:SetShown(c.warnRing) end
 		if c.warnPulse then s.vis.warn.pulse:Play() else s.vis.warn.pulse:Stop(); s.vis.warn.dim:SetAlpha(0) end
 		layoutArrow(s)
+		layoutBadge(s, size, border)
 		layoutPopout(s, size)
 	end
 	local n = math.max(#shown, 1)
