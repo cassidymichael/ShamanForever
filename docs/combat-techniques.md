@@ -53,3 +53,14 @@ Totem and cooldown elements never read a secret value. They hand Blizzard's obje
 - **Which earth totem is out:** in combat everything `GetTotemInfo` returns is secret, but our own `UNIT_SPELLCAST_SUCCEEDED` is not: it gives the spell, in the same frame as the `PLAYER_TOTEM_UPDATE` that fills the slot. So the totem in a slot is the last totem we cast into it (slots by name from `GetMultiCastTotemSpells`), and Earthbind and Stoneclaw show their timer only when it is theirs. When that is unknown (a `/reload` with a totem already out, Call of the Elements), out of combat the slot's name decides, and in combat the slot's total duration through a curve that is 1 only near that totem's lifetime (45 s, 15 s; every other earth totem lasts 5 min on Forever). Lifetimes are not learned from the slot: right after a cast it can pair the old totem's name with the new totem's duration.
 
 Weapon imbues are item data (`C_Item.GetWeaponEnchantInfo`, enchant type `Imbue`) and stay readable in combat.
+
+## The totem bar in combat (experimental)
+
+Secure snippets don't run on Forever, so every click goes through one of Blizzard's built-in secure actions, set up out of combat:
+
+- **Dismiss:** a `SecureActionButtonTemplate` button with `*type2 = "destroytotem"` and `totem-slot`. Attributes use the `*` form (`*type2`, `*type1`): a plain `type2` is only used when no modifier key is held.
+- **Cast the element's pick:** `*type1 = "action"` on the element's multi-cast action slot (the one Blizzard's Totem Action Bar and Call of the Elements use), so it follows the pick wherever it is changed.
+- **Open a picker, in combat too:** Blizzard's `SecureStateDriverManager` takes its instructions as attributes (`setframe`, then `setstate` = `"state-visibility show"`), and the built-in `attribute` action can set them. A button with `pressAndHoldAction` runs its `type` action on press and its `typerelease` action on release, so one click does both writes: the arrow tab (and Alt+click on a slot) names the picker on press and shows it on release. The picker's buttons use `multispell` (spell `0` is "No totem"), then hide the picker on release; an invisible screen-wide button inside the picker closes it on any other click.
+- **Which totem is down:** the slot's icon is secret in combat, but `SetTexture` accepts the secret value and draws it. Timers come from `GetTotemDuration`, and the expiring warning and "not your pick" badge follow the same rules as above (curves into `SetAlpha`; our own casts for the totem's name, matched without its rank).
+- **Layout** (showing, hiding, moving the bar's buttons) only changes out of combat; changes made in combat wait for it to end.
+

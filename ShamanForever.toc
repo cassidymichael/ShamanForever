@@ -1,6 +1,6 @@
 ## Interface: 16001
 ## Title: Shaman Forever
-## Notes: Shaman HUD for WoW: Forever: shields, shocks, weapon imbues and totem cooldowns. /sf
+## Notes: Shaman HUD for WoW: Forever: shields, shocks, weapon imbues, totem cooldowns and a totem bar. /sf
 ## Author: Michael Cassidy
 ## Version: @project-version@
 ## X-License: MIT

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0 (2026-09-24)
+
+- Totem bar (experimental): left-click drops the element's picked totem, right-click dismisses it, and the arrow tab or Alt+click picks a totem, in combat too. It can replace Blizzard's totem bars, and it's on by default.
+- Timers: countdown text, swipe and time bar can each be on or off and styled (size, colour, position, time format, bar height and colour) for every cooldown and time left. Defaults on the General page, overrides on each element's page.
+- Earthbind, Stoneclaw and Fire Nova can warn in their totem's last seconds.
+- The Layout page has a Hidden card: drag an element there to hide it.
+- Shields: charge bar height and colour.
+- New defaults: larger icons, groups near the centre of the screen, 2 px borders. Profiles → Reset applies them. Countdown and timer settings from earlier versions aren't carried over.
+- Fixed: logging in again sometimes switched a character back to an older profile.
+- Minor: a lock/unlock button in the options footer, settings that don't apply are hidden, cleaner warning rings, and fixes.
+
 ## 0.4.1 (2026-09-24)
 
 - Fixed: Earthbind and Stoneclaw sometimes showed a timer while a different earth totem was down.

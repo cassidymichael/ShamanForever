@@ -1821,10 +1821,28 @@ end)
 -- Profiles: named sets of settings in acct.profiles. Each character picks one (acct.chars); new
 -- characters start on Default.
 ------------------------------------------------------------------------
+-- "Name-Realm", with the realm's spaces and dashes removed (as GetNormalizedRealmName gives it).
+-- Built from GetRealmName every time: GetNormalizedRealmName isn't ready when settings load, and a
+-- fallback there wrote a second, spaced key that won at login (the profile chosen later was lost).
 local function charKey()
-	local name, realm = UnitName("player"), GetNormalizedRealmName and GetNormalizedRealmName()
-	if not realm or realm == "" then realm = GetRealmName() end
-	if name and realm then return name .. "-" .. realm end
+	local name, realm = UnitName("player"), GetRealmName()
+	if name and realm and realm ~= "" then return name .. "-" .. realm:gsub("[%s%-]", "") end
+end
+
+-- Keys saved before that fix, with the realm's spaces: merged into the normalized ones (which hold
+-- the latest choice when both exist).
+local function mergeCharKeys()
+	local old = {}
+	for key in pairs(acct.chars) do
+		local realm = key:match("^.-%-(.+)$")
+		if realm and realm:find("[%s%-]") then table.insert(old, key) end
+	end
+	for _, key in ipairs(old) do
+		local name, realm = key:match("^(.-)%-(.+)$")
+		local norm = name .. "-" .. realm:gsub("[%s%-]", "")
+		if acct.chars[norm] == nil then acct.chars[norm] = acct.chars[key] end
+		acct.chars[key] = nil
+	end
 end
 
 local function fillDefaults(t, defaults)
@@ -2071,6 +2089,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		acct.settingsVersion = SETTINGS_VERSION
 		fillDefaults(acct, ACCOUNT_DEFAULTS)
 		acct.totemLifetimes = nil   -- learned lifetimes (0.4.0 and earlier) could be wrong; no longer used
+		mergeCharKeys()
 		local c = charKey() and acct.chars[charKey()]
 		local name = c and c.profile
 		selectProfile(name and acct.profiles[name] and name or DEFAULT_PROFILE)

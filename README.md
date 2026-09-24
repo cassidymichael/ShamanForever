@@ -9,6 +9,8 @@ A configurable HUD for shamans on World of Warcraft: Forever: the buffs, imbues 
 ## Features
 
 - **Elements** for shields, shocks, weapon imbues and totem cooldowns, each with its own look and warning settings, and a live preview in the options. Water Shield tracking is experimental.
+- **Totem bar** (experimental): your totems and their timers; left-click drops each element's picked totem, right-click dismisses it, and a picker changes the pick, in combat too. It can replace Blizzard's totem bars.
+- **Timers**: countdown text, swipe and time bar, each on or off and styled, for every cooldown and time left, with defaults for all and overrides per element.
 - **Groups**: arrange elements into rows and columns, each with its own position, scale, opacity and border, or hide elements you don't use.
 - **Combat aware**: show any element or group always, only in combat, or never. Everything stays accurate in combat using Blizzard's own display widgets (see [docs/combat-techniques.md](docs/combat-techniques.md)).
 
