@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1 (2026-09-24)
+
+- Fixed: Earthbind and Stoneclaw sometimes showed a timer while a different earth totem was down.
+
 ## 0.4.0 (2026-09-24)
 
 - Profiles. Each character uses one, and new characters start on Default. Your current settings become the Default profile.

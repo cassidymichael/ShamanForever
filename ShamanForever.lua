@@ -45,7 +45,6 @@ local ACCOUNT_DEFAULTS = {
 	keepOptionsOpen = false,  -- false: the options window steps aside while groups are being moved
 	lastShield = "lightning",  -- the shield last cast or seen; its icon is the no-shield look in "either" mode
 	imbueIDs = {},            -- learned enchant ID -> imbue key
-	totemLifetimes = {},      -- learned totem lifetime in seconds, by cooldown element key
 	profiles = {},            -- name -> settings (DEFAULTS below)
 	chars = {},               -- "Name-Realm" -> { profile = name }
 }
@@ -238,7 +237,7 @@ imbue.count:Hide()
 -- Cooldown elements: a spell's cooldown, plus for a totem the active time of ours in its slot, or for
 -- Fire Nova whether the fire totem it needs is out. Totem slots: 1 fire, 2 earth, 3 water, 4 air.
 -- Adding one is a line here; icon is the fallback until the spellbook has the spell, duration the
--- totem's lifetime in seconds until one is learned out of combat (see refreshCooldown).
+-- totem's lifetime in seconds (only a fallback, see refreshCooldown).
 local COOLDOWNS = {
 	{ key = "earthbind", spell = "Earthbind Totem", icon = 136102, totemSlot = 2, duration = 45 },
 	{ key = "stoneclaw", spell = "Stoneclaw Totem", icon = 136097, totemSlot = 2, duration = 15 },
@@ -1419,15 +1418,18 @@ end
 --   (IsZero was tried first and did not work: an expired totem's duration is not a zero time span.)
 --   The addon never branches on it.
 -- * Earthbind / Stoneclaw must tell their totem from any other earth totem, and in combat everything
---   GetTotemInfo returns is secret, even for totems flagged never-secret out of combat (tested
---   2026-09-23). The earth slot's duration object still exists, so the timer is identified by its
---   TOTAL duration instead: the bar and numbers always take the slot's duration object, and their
---   holder's alpha is the total duration evaluated through a curve that is 1 only within half a
---   second of this totem's lifetime and 0 otherwise. Both calls accept secrets.
---   ASSUMPTION: no two earth totems share a lifetime (vanilla: Earthbind 45s, Stoneclaw 15s, the
---   rest 120s). Lifetimes are learned out of combat, where the slot's name and duration are
---   readable, so a changed duration corrects itself the first time the totem is dropped out of
---   combat. If Forever ever gives two earth totems the same lifetime, both would show the timer.
+--   GetTotemInfo returns is secret (tested 2026-09-23). Our own UNIT_SPELLCAST_SUCCEEDED is not: it
+--   gives the spell, in combat too, in the same frame as the PLAYER_TOTEM_UPDATE that fills the
+--   slot (tested 2026-09-24). So the totem in each slot is the last totem we cast into it
+--   (totemOwner), and the timer's holder is shown only when that is this element's totem. The
+--   slot's duration object still drives the timer, and an empty slot has none.
+--   Fallback when the owner is unknown (a /reload with a totem already out, Call of the
+--   Elements): out of combat the slot's name; in combat the slot's total duration through a curve
+--   that is 1 only within half a second of this totem's lifetime (Earthbind 45s, Stoneclaw 15s;
+--   every other earth totem 5 min on Forever).
+--   Lifetimes used to be learned from the slot right after a cast, but at that moment the slot
+--   can pair the old totem's name with the new totem's duration, which taught Stoneclaw 45s and
+--   Earthbind 300s (seen 2026-09-24). Nothing is learned now.
 ------------------------------------------------------------------------
 local TIMER_REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime or 1
 local TIMER_IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
@@ -1465,6 +1467,40 @@ local function readTotem(slot)
 	if not ok or isSecret(have) or isSecret(name) or isSecret(duration) then return nil end
 	if not have or type(name) ~= "string" or name == "" then return false end
 	return true, name, duration
+end
+
+-- The totem in each slot, from our own casts: slot -> cooldown element key, or "other" for any other
+-- totem of that slot; nil while unknown. Totem names by slot come from the multi-cast bar's lists.
+local totemOwner = {}
+local totemSlotByName = {}
+local CALL_SPELLS = { [66842] = true, [66843] = true, [66844] = true }   -- Call of the Elements/Ancestors/Spirits
+
+local function scanTotemSlots()
+	if not GetMultiCastTotemSpells then return end
+	local map = {}
+	for slot = 1, 4 do
+		local ok, ids = pcall(function() return { GetMultiCastTotemSpells(slot) } end)
+		if not ok then return end   -- keep the last good map
+		for _, id in ipairs(ids) do
+			local nok, name = safe(C_Spell.GetSpellName, id)
+			if nok and type(name) == "string" and not isSecret(name) then map[name] = slot end
+		end
+	end
+	totemSlotByName = map
+end
+
+-- Our own cast: if it put a totem in a slot, remember which.
+local function totemCast(spellID)
+	if CALL_SPELLS[spellID] then wipe(totemOwner) return end   -- places a set; which totems is not known here
+	local ok, name = safe(C_Spell.GetSpellName, spellID)
+	if not ok or type(name) ~= "string" or isSecret(name) then return end
+	local slot = totemSlotByName[name]
+	if not slot then return end
+	local owner = "other"
+	for _, def in ipairs(COOLDOWNS) do
+		if def.totemSlot == slot and name == def.spell then owner = def.key end
+	end
+	totemOwner[slot] = owner
 end
 
 -- Total duration -> alpha: 1 within half a second of seconds, 0 elsewhere.
@@ -1539,19 +1575,27 @@ local function refreshCooldown(def)
 			pcall(f.activeCD.SetCooldownFromDurationObject, f.activeCD, tdur, true)
 		else f.activeCD:Clear() end
 	elseif def.totemSlot then
-		-- Earthbind / Stoneclaw: the slot's timer, shown only when its total matches this totem's
-		-- lifetime (see the section comment). Out of combat the lifetime is learned from the slot.
+		-- Earthbind / Stoneclaw: the slot's timer, shown only while this totem is the one in the slot
+		-- (see the section comment).
 		local slot = def.totemSlot
-		local have, name, duration = readTotem(slot)
-		if have and name:find(def.spell, 1, true) == 1 and type(duration) == "number" and duration > 0 then
-			acct.totemLifetimes[def.key] = duration
-		end
-		local lifetime = acct.totemLifetimes[def.key] or def.duration
-		if def.curveFor ~= lifetime then def.curve, def.curveFor = lifetimeCurve(lifetime), lifetime end
 		local tok, tdur = safe(GetTotemDuration, slot)
-		if tok and tdur and def.curve then
-			local aok, alpha = pcall(tdur.EvaluateTotalDuration, tdur, def.curve)
-			f.activeHolder:SetAlpha(aok and alpha or 0)
+		if tok and tdur then
+			local owner = totemOwner[slot]
+			local match, how
+			if owner then
+				match, how = owner == def.key and 1 or 0, "cast " .. owner
+			else
+				local have, name = readTotem(slot)
+				if have then
+					match, how = name:find(def.spell, 1, true) == 1 and 1 or 0, "name " .. name
+				else
+					if def.curveFor ~= def.duration then def.curve, def.curveFor = lifetimeCurve(def.duration), def.duration end
+					local aok, alpha = false, nil
+					if def.curve then aok, alpha = pcall(tdur.EvaluateTotalDuration, tdur, def.curve) end
+					match, how = aok and alpha or 0, string.format("lifetime %ss curve", def.duration)
+				end
+			end
+			f.activeHolder:SetAlpha(match)
 			local bok, bgAlpha = pcall(tdur.EvaluateRemainingDuration, tdur, timeLeftCurve)
 			f.active.bg:SetAlpha(bok and bgAlpha or 1)
 			if cdOpt(def.key, "activeBar", true) then
@@ -1561,12 +1605,12 @@ local function refreshCooldown(def)
 			if cdOpt(def.key, "activeText", true) then
 				pcall(f.activeCD.SetCooldownFromDurationObject, f.activeCD, tdur, true)
 			else f.activeCD:Clear() end
-			def.read = string.format("earth slot timer, lifetime %ss, match alpha %s", tostring(lifetime), aok and describeArg(alpha) or "error")
+			def.read = string.format("earth slot timer, by %s, match %s", how, describeArg(match))
 		else
 			f.activeHolder:SetAlpha(0)
 			f.active:Hide()
 			f.activeCD:Clear()
-			def.read = string.format("no earth totem (lifetime %ss)", tostring(lifetime))
+			def.read = string.format("no earth totem (owner %s)", tostring(totemOwner[slot]))
 		end
 	end
 end
@@ -1602,6 +1646,7 @@ local function resolveSpells()
 		local cid, cicon = knownSpell(def.spell)
 		def.spellID, def.iconID = cid, cicon
 	end
+	scanTotemSlots()
 end
 
 -- Countdown text per element: its own size (elementOpts(key).cdTextSize) or the general one. A
@@ -1964,6 +2009,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		end
 		acct.settingsVersion = SETTINGS_VERSION
 		fillDefaults(acct, ACCOUNT_DEFAULTS)
+		acct.totemLifetimes = nil   -- learned lifetimes (0.4.0 and earlier) could be wrong; no longer used
 		local c = charKey() and acct.chars[charKey()]
 		local name = c and c.profile
 		selectProfile(name and acct.profiles[name] and name or DEFAULT_PROFILE)
@@ -2001,7 +2047,10 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 			acct.lastShield = cast
 			setBelievedUp(tracksShield(cast))
 		end
-		if not isSecret(spellID) then imbueCast(spellID) end   -- only to learn an unknown imbue enchant ID
+		if not isSecret(spellID) then
+			imbueCast(spellID)   -- only to learn an unknown imbue enchant ID
+			totemCast(spellID)
+		end
 		refreshShockCooldown()
 		refreshCooldowns()
 	elseif event == "SPELL_UPDATE_COOLDOWN" then
