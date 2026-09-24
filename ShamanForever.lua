@@ -19,16 +19,15 @@ local SHIELDS = {
 local SHIELD_ORDER = { "lightning", "water" }
 local SHOCKS = { earth = "Earth Shock", flame = "Flame Shock", frost = "Frost Shock" }
 local SHOCK_ORDER = { "earth", "flame", "frost" }
-local CD_FONT = "ShamanForeverCDFont"
 
 -- Every element belongs to exactly one group, which owns its position, scale, opacity and flow;
 -- whether the element is drawn (always, in combat, never) is its own setting in db.elementOpts.
 -- Positions are offsets in the group's own (scaled) units.
 local GROUP_DEFAULTS = {
-	point = "CENTER", x = 0, y = -160, scale = 1, alpha = 0.65,
+	point = "CENTER", x = 0, y = -160, scale = 1, alpha = 0.75,
 	orientation = "horizontal",  -- horizontal | vertical
 	growth = "forward",          -- forward (right / down) | backward (left / up)
-	spacing = 10,
+	spacing = 6,
 	combatOnly = false,          -- hide the group out of combat (always shown while unlocked)
 }
 
@@ -52,17 +51,18 @@ local DEFAULT_PROFILE = "Default"
 
 -- A profile: the layout and how every element looks.
 local DEFAULTS = {
-	iconSize = 40,          -- base element size; each group scales it
-	border = { show = true, size = 1, color = { 0, 0, 0, 1 } },   -- around every element; a group can override (g.border)
-	-- Default layout (the author's, 2026-09-23): shield, shock and Fire Nova under the character,
-	-- the imbue below-left, the earth totems further left.
+	iconSize = 44,          -- base element size; each group scales it
+	border = { show = true, size = 2, color = { 0, 0, 0, 1 } },   -- around every element; a group can override (g.border)
+	-- Default layout: just below the centre of the screen, side by side 16 px apart, ready to be
+	-- dragged where the player wants them (the totem bar sits below, see TotemBar.lua). Offsets are
+	-- in each group's scaled units, so the third group's are divided by its 0.9 scale.
 	groups = {
-		{ point = "CENTER", x = 0, y = -216, scale = 0.98, alpha = 0.65, orientation = "horizontal",
-			growth = "forward", spacing = 10, members = { "shield", "shock", "firenova" } },
-		{ point = "CENTER", x = -176, y = -265, scale = 1, alpha = 0.65, orientation = "horizontal",
-			growth = "forward", spacing = 10, members = { "imbue" } },
-		{ point = "CENTER", x = -310, y = -174, scale = 0.93, alpha = 0.65, orientation = "horizontal",
-			growth = "forward", spacing = 10, members = { "earthbind", "stoneclaw" } },
+		{ point = "CENTER", x = 0, y = -40, scale = 1, alpha = 0.75, orientation = "horizontal",
+			growth = "forward", spacing = 6, members = { "shield", "shock", "firenova" } },
+		{ point = "CENTER", x = -110, y = -40, scale = 1, alpha = 0.75, orientation = "horizontal",
+			growth = "forward", spacing = 6, members = { "imbue" } },
+		{ point = "CENTER", x = 145, y = -44, scale = 0.9, alpha = 0.6, orientation = "horizontal",
+			growth = "forward", spacing = 6, members = { "earthbind", "stoneclaw" } },
 	},
 	known = {},             -- element keys placed at least once; new ones join the first group
 	elementOpts = {},       -- per-element settings by key, e.g. { shock = { show = "combat" } }
@@ -71,19 +71,18 @@ local DEFAULTS = {
 	countPos = "center",    -- corner | center
 	countSize = 20,
 	showBar = true,         -- charge bar along the bottom of the icon
+	chargeBarHeight = 8,
+	chargeBarColor = { 0.35, 0.75, 1, 1 },
 	showCount = false,      -- charge number (Blizzard prints it for two or more); the charge bar shows it anyway
 	emptyRing = true,       -- no-shield look
 	emptyGrey = true,
 	emptyTint = false,
 	emptyPulse = true,
 	underlayUp = 0.25,      -- underlay strength while the shield is believed up (0 = none)
-	shieldSwipe = 0.5,      -- darkness of the duration swipe over the shield icon (0 = no swipe)
 	shieldIconAlpha = 1,    -- manual multiplier on the compensated shield icon alpha
 	-- shock
 	shock = "earth",        -- which shock the icon tracks
 	manaSpell = "tracked",  -- tracked | earth | flame | frost
-	cdText = true,
-	cdTextSize = 22,
 	manaRing = 0.6,         -- not enough mana: blue ring inside the icon edge, this opaque
 	manaStyle = "both",     -- not enough mana (alone): overlay | tint | both on the icon body
 	manaIntensity = 0.25,
@@ -97,14 +96,16 @@ local DEFAULTS = {
 	imbueMissingGrey = true,
 	imbuePulse = true,
 	imbueWarnMins = 5,        -- show time left below this many minutes (0 = never)
-	imbueTextSize = 16,
 	imbueHideActive = true,   -- while an imbue is on, only show once its time left shows
 	totemBar = {},            -- the totem bar's settings (ShamanForever_TotemBar.lua fills its defaults)
+	-- General's timer styles, one per kind (ShamanForever_Timers.lua); elements and the totem bar
+	-- follow them unless they have their own.
+	timers = { cooldown = CopyTable(ns.Timer.DEFAULTS.cooldown), uptime = CopyTable(ns.Timer.DEFAULTS.uptime) },
 }
 -- Pre-groups layout keys, folded into a single group on first load.
 local LEGACY_KEYS = { "point", "x", "y", "alpha", "scale", "size", "spacing", "orientation", "growth", "order", "enabled" }
 -- Saved settings format. Bump it and add a step on ADDON_LOADED when a stored value must change.
-local SETTINGS_VERSION = 4
+local SETTINGS_VERSION = 6
 local acct       -- ShamanForeverDB: account settings, and every profile
 local db         -- the active profile
 local profileName
@@ -159,7 +160,6 @@ end
 ------------------------------------------------------------------------
 -- Frames
 ------------------------------------------------------------------------
-local cdFont = CreateFont(CD_FONT)
 
 -- root spans the screen and takes no input: the parent of every group (each anchored to UIParent),
 -- hidden as a whole for other classes. Not the old
@@ -195,8 +195,10 @@ local function makeIcon(parent, size)
 	local function edge(p1, p2, w, h)
 		local t = f.textFrame:CreateTexture(nil, "OVERLAY", nil, 6)
 		t:SetColorTexture(1, 0, 0, 0.9)
-		t:SetPoint(p1, f.tex, p1, 0, 0)
-		t:SetPoint(p2, f.tex, p2, 0, 0)
+		-- Side edges run between the top and bottom ones, so no corner is drawn twice (and darker).
+		local inset = w and 3 or 0
+		t:SetPoint(p1, f.tex, p1, 0, -inset)
+		t:SetPoint(p2, f.tex, p2, 0, inset)
 		if w then t:SetWidth(w) end
 		if h then t:SetHeight(h) end
 		t:Hide()
@@ -231,6 +233,7 @@ shield.count:Hide()
 
 local shock = makeIcon(root, DEFAULTS.iconSize)
 shock.count:Hide()
+shock.cdTimer = ns.Timer.new(shock, "shock", "cooldown", { cd = shock.cd, school = "spirit" })
 
 local imbue = makeIcon(root, DEFAULTS.iconSize)
 imbue.count:Hide()
@@ -240,45 +243,24 @@ imbue.count:Hide()
 -- Adding one is a line here; icon is the fallback until the spellbook has the spell, duration the
 -- totem's lifetime in seconds (only a fallback, see refreshCooldown).
 local COOLDOWNS = {
-	{ key = "earthbind", spell = "Earthbind Totem", icon = 136102, totemSlot = 2, duration = 45 },
-	{ key = "stoneclaw", spell = "Stoneclaw Totem", icon = 136097, totemSlot = 2, duration = 15 },
-	{ key = "firenova",  spell = "Fire Nova",       icon = 135824, needsTotem = 1 },
+	{ key = "earthbind", spell = "Earthbind Totem", icon = 136102, totemSlot = 2, duration = 45, school = "earth" },
+	{ key = "stoneclaw", spell = "Stoneclaw Totem", icon = 136097, totemSlot = 2, duration = 15, school = "earth" },
+	{ key = "firenova",  spell = "Fire Nova",       icon = 135824, needsTotem = 1, school = "fire" },
 }
-local ACTIVE_FONT = "ShamanForeverActiveFont"
-local activeFont = CreateFont(ACTIVE_FONT)
 
 for _, def in ipairs(COOLDOWNS) do
 	local f = makeIcon(root, DEFAULTS.iconSize)
 	f.count:Hide()
 	f.tex:SetTexture(def.icon)
 	if def.totemSlot or def.needsTotem then
-		-- A totem's active time (its own, or for Fire Nova whichever fire totem is out), as a draining
-		-- bar along the bottom and small numbers in the top-left corner. Both take the totem's duration
-		-- object, so the time itself is never read. They share a holder so one alpha can hide both.
+		-- A totem's time left (its own, or for Fire Nova whichever fire totem is out): a timer of the
+		-- "uptime" kind beside the spell's cooldown. Its parts sit in a holder so one alpha can hide
+		-- them all (Earthbind and Stoneclaw show it only while the earth totem out is theirs).
 		f.activeHolder = CreateFrame("Frame", nil, f.textFrame)
 		f.activeHolder:SetAllPoints()
-		f.active = CreateFrame("StatusBar", nil, f.activeHolder)
-		f.active:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
-		f.active:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
-		f.active:SetHeight(5)
-		f.active:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
-		f.active:SetStatusBarColor(0.4, 0.9, 0.3)
-		f.active.bg = f.active:CreateTexture(nil, "BACKGROUND")
-		f.active.bg:SetAllPoints()
-		f.active.bg:SetColorTexture(0, 0, 0, 0.6)
-		f.active:Hide()
-		f.activeCD = CreateFrame("Cooldown", nil, f.activeHolder, "CooldownFrameTemplate")
-		f.activeCD:SetAllPoints()
-		f.activeCD:SetDrawSwipe(false)
-		f.activeCD:SetDrawEdge(false)
-		f.activeCD:SetDrawBling(false)
-		f.activeCD:SetCountdownFont(ACTIVE_FONT)
-		local ok, fs = pcall(f.activeCD.GetCountdownFontString, f.activeCD)
-		if ok and fs then
-			fs:ClearAllPoints()
-			fs:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -1)
-		end
+		f.upTimer = ns.Timer.new(f.activeHolder, def.key, "uptime", { anchor = f, dual = true, school = def.school })
 	end
+	f.cdTimer = ns.Timer.new(f, def.key, "cooldown", { cd = f.cd, school = def.school })
 	if def.needsTotem then
 		-- "No totem" warning layer: a grey copy of the icon and a red ring, above the icon and below the
 		-- cooldown swipe. Its alpha is set from a possibly-secret boolean (see refreshCooldown), so it
@@ -296,8 +278,9 @@ for _, def in ipairs(COOLDOWNS) do
 				{ "TOPLEFT", "BOTTOMLEFT", 3, nil }, { "TOPRIGHT", "BOTTOMRIGHT", 3, nil } }) do
 			local t = f.warn:CreateTexture(nil, "OVERLAY")
 			t:SetColorTexture(1, 0, 0, 0.9)
-			t:SetPoint(e[1], f.tex, e[1], 0, 0)
-			t:SetPoint(e[2], f.tex, e[2], 0, 0)
+			local inset = e[3] or 0   -- side edges between the top and bottom ones (no doubled corners)
+			t:SetPoint(e[1], f.tex, e[1], 0, -inset)
+			t:SetPoint(e[2], f.tex, e[2], 0, inset)
 			if e[3] then t:SetWidth(e[3]) end
 			if e[4] then t:SetHeight(e[4]) end
 			table.insert(f.warn.ring, t)
@@ -1127,11 +1110,6 @@ local function nativeIconAlpha()
 	return math.min(math.max(b * db.shieldIconAlpha, 0.05), 1)
 end
 
-local function styleSwipe(cd)
-	cd:SetDrawSwipe(db.shieldSwipe > 0)
-	cd:SetSwipeColor(0, 0, 0, db.shieldSwipe)
-end
-
 local function setBelievedUp(up)
 	believedUp = up
 	applyEmptyLook()
@@ -1185,6 +1163,8 @@ function styleNative()
 			t:SetPoint("BOTTOM", native.ticks, "BOTTOMLEFT", size * i / native.maxCharges, 0)
 		end
 		native.icon:SetAlpha(nativeIconAlpha())
+		native.bar:SetHeight(db.chargeBarHeight)
+		native.bar:SetStatusBarColor(db.chargeBarColor[1], db.chargeBarColor[2], db.chargeBarColor[3], db.chargeBarColor[4] or 1)
 		native.bar:SetAlpha(db.showBar and 1 or 0)
 		native.ticks:SetAlpha(db.showBar and 1 or 0)
 		native.fs:SetAlpha(db.showCount and 1 or 0)
@@ -1195,9 +1175,7 @@ function styleNative()
 		else
 			native.fs:SetPoint("BOTTOMRIGHT", native.button, "BOTTOMRIGHT", 2, -2); native.fs:SetJustifyH("RIGHT")
 		end
-		native.cd:SetCountdownFont(CD_FONT)
-		native.cd:SetHideCountdownNumbers(true)
-		styleSwipe(native.cd)
+		if native.timer then native.timer:apply() end
 	end)
 end
 
@@ -1221,10 +1199,9 @@ local function initNativeButton(button)
 
 	local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
 	cd:SetAllPoints()
-	cd:SetDrawEdge(false)
-	cd:SetCountdownFont(CD_FONT)
-	cd:SetHideCountdownNumbers(true)
-	styleSwipe(cd)
+	-- Its timer: swipe and countdown text only (no bar: nothing of ours can follow Blizzard's time).
+	native.timer = ns.Timer.new(button, "shield", "uptime", { cd = cd, anchor = button, noBar = true })
+	native.timer:apply()
 	button:SetDurationCooldown(cd)
 	native.cd = cd
 
@@ -1249,9 +1226,9 @@ local function initNativeButton(button)
 	local bar = CreateFrame("StatusBar", nil, overlay)
 	bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 0, 0)
 	bar:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 0)
-	bar:SetHeight(7)
+	bar:SetHeight(db.chargeBarHeight)
 	bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
-	bar:SetStatusBarColor(0.35, 0.75, 1)
+	bar:SetStatusBarColor(db.chargeBarColor[1], db.chargeBarColor[2], db.chargeBarColor[3], db.chargeBarColor[4] or 1)
 	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
 	bar.bg:SetAllPoints()
 	bar.bg:SetColorTexture(0, 0, 0, 0.6)
@@ -1359,7 +1336,7 @@ end
 local function refreshShockCooldown()
 	if not shockSpellID or not isEnabled("shock") then return end
 	local ok, dur = safe(C_Spell.GetSpellCooldownDuration, shockSpellID)
-	if ok and dur then pcall(shock.cd.SetCooldownFromDurationObject, shock.cd, dur) end
+	if ok and dur then shock.cdTimer:set(dur) end
 end
 
 local function refreshShockRange()
@@ -1401,9 +1378,13 @@ for key, m in pairs(IMBUES) do
 end
 
 -- key: the imbue on (nil = none); unreadable: the last read failed; read: what it said, for /sf debug.
-local imbueState = { key = nil, expiresAt = nil, unreadable = false, read = "not checked", castKey = nil, castAt = 0 }
+-- total: the longest time left seen for this imbue, its full length as far as we know (swipe and bar).
+local imbueState = { key = nil, expiresAt = nil, total = nil, unreadable = false, read = "not checked", castKey = nil, castAt = 0 }
 
+-- Time left: a timer fed the imbue's readable time. imbue.timer only shows "?" when unreadable.
+imbue.upTimer = ns.Timer.new(imbue, "imbue", "uptime", { cd = imbue.cd, school = "spirit" })
 imbue.timer = imbue.textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
+imbue.timer:SetFont(STANDARD_TEXT_FONT, 16, "OUTLINE")
 imbue.timer:SetPoint("CENTER")
 
 local function imbueIconFor(key)
@@ -1436,11 +1417,6 @@ local function imbueKeyFor(w)
 	end
 end
 
-local function formatLeft(s)
-	if s >= 60 then return string.format("%dm", math.ceil(s / 60)) end
-	return string.format("%d", math.max(math.ceil(s), 0))
-end
-
 local imbueIcon = imbueIconFor("rockbiter")
 
 local function paintImbue(now)
@@ -1466,11 +1442,15 @@ local function paintImbue(now)
 		imbue:SetPulsing(false)
 		imbue.timer:SetText("?")
 		imbue.timer:SetTextColor(1, 0.82, 0)
-	elseif showTime then
-		imbue.timer:SetText(formatLeft(left))
-		if left < 60 then imbue.timer:SetTextColor(1, 0.3, 0.3) else imbue.timer:SetTextColor(1, 1, 1) end
 	end
-	imbue.timer:SetShown(unreadable or showTime)
+	imbue.timer:SetShown(unreadable)
+	if showTime and not unreadable then
+		local total = math.max(imbueState.total or left, left)
+		imbue.upTimer:setTime(imbueState.expiresAt - total, total)
+		if left < 60 then imbue.upTimer:setTint(1, 0.3, 0.3) else imbue.upTimer:setTint(nil) end
+	else
+		imbue.upTimer:clear()
+	end
 	-- Hidden by alpha, not Hide, so it keeps its place in the group and shows again at once.
 	imbue:SetAlpha((acct.locked and key and db.imbueHideActive and not showTime and not unreadable) and 0 or 1)
 end
@@ -1489,8 +1469,11 @@ local function refreshImbue()
 		local key = imbueKeyFor(r)
 		if not key and now - imbueState.castAt < 3 then key = imbueState.castKey; acct.imbueIDs[r.enchantID] = key end
 		imbueState.read = string.format("enchant %d, icon %d, %s", r.enchantID, r.enchantIconID, key or "not recognised")
+		local left = r.timeLeft / 1000
+		if key ~= imbueState.lastKey or left > (imbueState.total or 0) then imbueState.total = left end
+		imbueState.lastKey = key
 		imbueState.key = key
-		imbueState.expiresAt = r.timeLeft > 0 and now + r.timeLeft / 1000 or nil
+		imbueState.expiresAt = r.timeLeft > 0 and now + left or nil
 		if key then acct.imbueLast = key end
 	end
 	paintImbue(now)
@@ -1529,9 +1512,6 @@ end
 --   can pair the old totem's name with the new totem's duration, which taught Stoneclaw 45s and
 --   Earthbind 300s (seen 2026-09-24). Nothing is learned now.
 ------------------------------------------------------------------------
-local TIMER_REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime or 1
-local TIMER_IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
-
 -- Remaining seconds -> alpha: fully shown at 0s, hidden from 0.05s up.
 local noTimeLeftCurve
 if C_CurveUtil and C_CurveUtil.CreateCurve then
@@ -1539,14 +1519,6 @@ if C_CurveUtil and C_CurveUtil.CreateCurve then
 	if Enum and Enum.LuaCurveType then noTimeLeftCurve:SetType(Enum.LuaCurveType.Linear) end
 	noTimeLeftCurve:AddPoint(0, 1)
 	noTimeLeftCurve:AddPoint(0.05, 0)
-end
--- The reverse, for the timer bar's background: hidden at 0s, shown from 0.05s up.
-local timeLeftCurve
-if C_CurveUtil and C_CurveUtil.CreateCurve then
-	timeLeftCurve = C_CurveUtil.CreateCurve()
-	if Enum and Enum.LuaCurveType then timeLeftCurve:SetType(Enum.LuaCurveType.Linear) end
-	timeLeftCurve:AddPoint(0, 0)
-	timeLeftCurve:AddPoint(0.05, 1)
 end
 
 -- Per-element option with its default.
@@ -1626,13 +1598,13 @@ local function refreshCooldown(def)
 		f.tex:SetDesaturated(true)
 		f:SetRingShown(false)
 		f:SetPulsing(false)
-		f.cd:Clear()
-		if f.active then f.active:Hide(); f.activeCD:Clear() end
+		f.cdTimer:clear()
+		if f.upTimer then f.upTimer:clear() end
 		if f.warn then f.warn:SetAlpha(0) end
 		return
 	end
 	local ok, dur = safe(C_Spell.GetSpellCooldownDuration, def.spellID)
-	if ok and dur then pcall(f.cd.SetCooldownFromDurationObject, f.cd, dur) end
+	if ok and dur then f.cdTimer:set(dur) end
 	f.tex:SetDesaturated(false)
 	if def.needsTotem then
 		-- Fire Nova: the slot's duration object drives everything, secret or not. An empty slot's
@@ -1646,35 +1618,27 @@ local function refreshCooldown(def)
 		-- Icon, then warning layer, then swipe, then text; restated as regrouping reparents the icon.
 		w:SetFrameLevel(f:GetFrameLevel() + 1)
 		f.cd:SetFrameLevel(f:GetFrameLevel() + 2)
+		f.cdTimer.bar:SetFrameLevel(f:GetFrameLevel() + 3)
 		f.textFrame:SetFrameLevel(f:GetFrameLevel() + 4)
 		w.grey:SetTexture(def.iconID or def.icon)
 		w.grey:SetShown(cdOpt(def.key, "blockedGrey", true))
-		for _, t in ipairs(w.ring) do t:SetShown(cdOpt(def.key, "blockedRing", true)) end
+		for _, t in ipairs(w.ring) do t:SetShown(cdOpt(def.key, "blockedRing", false)) end
 		if cdOpt(def.key, "blockedPulse", false) then
 			if not w.pulse:IsPlaying() then w.pulse:Play() end
 		else w.pulse:Stop() end
 		if tok and tdur == nil then
 			-- Nothing in the slot: no duration object to evaluate.
 			w:SetAlpha(1)
-			f.active.bg:SetAlpha(0)
 			def.read = "no fire totem (no duration)"
 		elseif aok and alpha ~= nil then
 			w:SetAlpha(alpha)
-			local bok, bgAlpha = pcall(tdur.EvaluateRemainingDuration, tdur, timeLeftCurve)
-			f.active.bg:SetAlpha(bok and bgAlpha or 1)
 			def.read = "warning alpha " .. describeArg(alpha)
 		else
 			w:SetAlpha(0)
 			def.read = string.format("fire slot duration %s, curve %s: %s", tok and "ok" or "error",
 				noTimeLeftCurve and "ok" or "missing", describeArg(alpha))
 		end
-		if tok and tdur and cdOpt(def.key, "activeBar", true) then
-			pcall(f.active.SetTimerDuration, f.active, tdur, TIMER_IMMEDIATE, TIMER_REMAINING)
-			f.active:Show()
-		else f.active:Hide() end
-		if tok and tdur and cdOpt(def.key, "activeText", true) then
-			pcall(f.activeCD.SetCooldownFromDurationObject, f.activeCD, tdur, true)
-		else f.activeCD:Clear() end
+		f.upTimer:set(tok and tdur or nil)
 	elseif def.totemSlot then
 		-- Earthbind / Stoneclaw: the slot's timer, shown only while this totem is the one in the slot
 		-- (see the section comment).
@@ -1697,20 +1661,11 @@ local function refreshCooldown(def)
 				end
 			end
 			f.activeHolder:SetAlpha(match)
-			local bok, bgAlpha = pcall(tdur.EvaluateRemainingDuration, tdur, timeLeftCurve)
-			f.active.bg:SetAlpha(bok and bgAlpha or 1)
-			if cdOpt(def.key, "activeBar", true) then
-				pcall(f.active.SetTimerDuration, f.active, tdur, TIMER_IMMEDIATE, TIMER_REMAINING)
-				f.active:Show()
-			else f.active:Hide() end
-			if cdOpt(def.key, "activeText", true) then
-				pcall(f.activeCD.SetCooldownFromDurationObject, f.activeCD, tdur, true)
-			else f.activeCD:Clear() end
+			f.upTimer:set(tdur)
 			def.read = string.format("earth slot timer, by %s, match %s", how, describeArg(match))
 		else
 			f.activeHolder:SetAlpha(0)
-			f.active:Hide()
-			f.activeCD:Clear()
+			f.upTimer:clear()
 			def.read = string.format("no earth totem (owner %s)", tostring(totemOwner[slot]))
 		end
 	end
@@ -1750,40 +1705,16 @@ local function resolveSpells()
 	scanTotemSlots()
 end
 
--- Countdown text per element: its own size (elementOpts(key).cdTextSize) or the general one. A
--- totem's active time uses a smaller size of the same. Returns the font object names.
-local elementFonts = {}
-local function cdFontFor(key)
-	local f = elementFonts[key]
-	if not f then
-		f = { cd = CD_FONT .. "_" .. key, active = ACTIVE_FONT .. "_" .. key }
-		CreateFont(f.cd)
-		CreateFont(f.active)
-		elementFonts[key] = f
-	end
-	local size = elementOpts(key).cdTextSize or db.cdTextSize
-	_G[f.cd]:SetFont(STANDARD_TEXT_FONT, size, "OUTLINE")
-	_G[f.active]:SetFont(STANDARD_TEXT_FONT, math.max(math.floor(size * 0.55), 8), "OUTLINE")
-	_G[f.active]:SetTextColor(0.5, 1, 0.4)
-	return f.cd, f.active
-end
-ns.cdFontFor = cdFontFor
-
 local function applyLayout()
 	layoutElements()
-	cdFont:SetFont(STANDARD_TEXT_FONT, db.cdTextSize, "OUTLINE")
-	shock.cd:SetCountdownFont((cdFontFor("shock")))
-	shock.cd:SetHideCountdownNumbers(not db.cdText)
-	activeFont:SetFont(STANDARD_TEXT_FONT, math.max(math.floor(db.cdTextSize * 0.55), 8), "OUTLINE")
-	activeFont:SetTextColor(0.5, 1, 0.4)
+	-- Every timer takes its current style (General's or its own); the shield's in styleNative.
+	shock.cdTimer:apply()
 	for _, def in ipairs(COOLDOWNS) do
-		local cdName, activeName = cdFontFor(def.key)
-		def.frame.cd:SetCountdownFont(cdName)
-		def.frame.cd:SetHideCountdownNumbers(not db.cdText)
-		if def.frame.activeCD then def.frame.activeCD:SetCountdownFont(activeName) end
+		def.frame.cdTimer:apply()
+		if def.frame.upTimer then def.frame.upTimer:apply() end
 	end
+	imbue.upTimer:apply()
 	refreshShockMana()
-	imbue.timer:SetFont(STANDARD_TEXT_FONT, db.imbueTextSize, "OUTLINE")
 	refreshImbue()
 	refreshCooldowns()
 	if not native.container then setupNative() end
@@ -2122,6 +2053,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 			for k in pairs(DEFAULTS) do p[k], acct[k] = acct[k], nil end
 			acct.profiles = { [DEFAULT_PROFILE] = p }
 		end
+		-- 5 and 6 (timers) had upgrade steps during development; the only save then was the author's.
 		acct.settingsVersion = SETTINGS_VERSION
 		fillDefaults(acct, ACCOUNT_DEFAULTS)
 		acct.totemLifetimes = nil   -- learned lifetimes (0.4.0 and earlier) could be wrong; no longer used
@@ -2150,7 +2082,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		applyLayout()
 		refreshAll()
 		C_Timer.NewTicker(0.25, refreshShockRange)
-		C_Timer.NewTicker(1, function() refreshImbue(); refreshCooldowns() end)
+		C_Timer.NewTicker(1, function() refreshImbue(); refreshCooldowns(); refreshShockCooldown() end)
 		root:Show()
 	elseif event == "UNIT_AURA" then
 		refreshShield()

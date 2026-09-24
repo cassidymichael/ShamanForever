@@ -66,11 +66,16 @@ local function newPage(key, title, indent)
 	return p
 end
 
--- shown: nil, a function (the row is hidden while it returns false), or dimWhen(...) (the row stays
--- in place but greys out, and does nothing, while another setting makes it irrelevant).
+-- shown: nil, a function (the row is hidden while it returns false), or dimWhen(...): the row only
+-- shows while it applies (it used to grey out; with blocks like Same as General greying a dozen
+-- rows at once, hiding them reads better).
 function Page:add(frame, height, shown, refresh)
 	local dim
-	if type(shown) == "table" then dim, shown = shown, shown.shown end
+	if type(shown) == "table" then
+		dim = shown
+		local also = dim.shown
+		shown = function() return (not also or also()) and dim.active() and true or false end
+	end
 	table.insert(self.items, { frame = frame, height = height, shown = shown, dim = dim, refresh = refresh, rowIndent = self.rowIndent })
 	return frame
 end
@@ -87,14 +92,24 @@ local function applyDim(frame, dim)
 		c:SetAllPoints()
 		c:SetFrameLevel(frame:GetFrameLevel() + 30)
 		c:EnableMouse(true)
+		-- The wheel scrolls the page (it would otherwise stop dead over greyed rows), and never
+		-- reaches the control under the cover.
 		c:EnableMouseWheel(true)
-		c:SetScript("OnMouseWheel", function() end)
+		c:SetScript("OnMouseWheel", function(self, delta)
+			local sf = self:GetParent()
+			while sf and sf:GetObjectType() ~= "ScrollFrame" do sf = sf:GetParent() end
+			if not sf then return end
+			local handler = sf:GetScript("OnMouseWheel")
+			if handler then handler(sf, delta)
+			else sf:SetVerticalScroll(math.min(math.max(sf:GetVerticalScroll() - delta * 40, 0), sf:GetVerticalScrollRange())) end
+		end)
 		c:SetScript("OnEnter", function(self)
-			if not dim.reason then return end
+			local reason = type(dim.reason) == "function" and dim.reason() or dim.reason
+			if not reason then return end
 			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-			-- This client's SetText takes (text, color, alpha, wrap), not r, g, b.
-			if HIGHLIGHT_FONT_COLOR then GameTooltip:SetText(dim.reason, HIGHLIGHT_FONT_COLOR, 1, true)
-			else GameTooltip:SetText(dim.reason) end
+			-- This client's SetText rejects r, g, b (and HIGHLIGHT_FONT_COLOR); AddLine takes them.
+			GameTooltip:ClearLines()
+			GameTooltip:AddLine(reason, 1, 1, 1, true)
 			GameTooltip:Show()
 		end)
 		c:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -318,7 +333,7 @@ function Page:pin(h)
 	h:SetPoint("TOPRIGHT", win, "TOPRIGHT", -22, PAGE_TOP)
 	h:Hide()
 	self.fixed = h
-	self.scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, PAGE_TOP - ns.Look.HERO_H)
+	self.scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, PAGE_TOP - (h.heroH or ns.Look.HERO_H))
 	return h
 end
 
@@ -461,6 +476,63 @@ local function pct(v) return string.format("%.0f%%", v * 100) end
 local function times(v) return string.format("%.2fx", v) end
 local function int(v) return string.format("%d", v) end
 
+-- Standard block: a timer's look (ShamanForever_Timers.lua). key nil: General's defaults for the
+-- kind; otherwise an element's own ("totembar" for the totem bar), with Same as General.
+local TEXT_POS = { { "auto", "Auto" }, { "center", "Centre" }, { "topleft", "Top left" }, { "bottom", "Bottom" } }
+local function timerSettings(p, title, key, kind, after)
+	local T = ns.Timer
+	local cant = key and T.CANT[key] or {}
+	local function style() return key and T.style(key, kind) or T.general(kind) end
+	local function tg(field) return function() return style()[field] end end
+	local function ts(field) return function(v) T.set(key, kind, field, v); (after or relayout)() end end
+	local function own() return not key or not T.follows(key, kind) end
+	-- A row greys out while following General, while its part is off, or when the game can't do it.
+	local function dim(part, needs)
+		return dimWhen(function()
+			if cant[part] or not own() then return false end
+			if needs and not style()[needs] then return false end
+			return true
+		end, function()
+			if cant[part] then return cant[part] end
+			if not own() then return "Turn off Same as General to change this." end
+			if needs then return "Turn on " .. ({ text = "Countdown text", swipe = "Swipe", bar = "Time bar" })[needs] .. " to change this." end
+		end)
+	end
+	local function secs(v) return string.format("%d", v) end
+	local function px(v) return string.format("%d px", v) end
+	p:header(title)
+	if key then
+		p:checkbox("Same as General", "Use the timer settings on the General page.",
+			function() return T.follows(key, kind) end, function(v) T.setFollow(key, kind, v); (after or relayout)() end)
+	end
+	-- What the game can't do here, said once instead of showing rows that could never apply.
+	for _, why in pairs(cant) do p:text(why, own) end
+	p:checkbox("Countdown text", "Numbers counting down.", tg("text"), ts("text"), dim("text"))
+	p:slider("Text size", nil, 6, 48, 1, secs, tg("textSize"), ts("textSize"), dim("text", "text"))
+	p:color("Text colour", nil, tg("textColor"), ts("textColor"), dim("text", "text"))
+	p:dropdown("Text position", "Auto: centred, or top-left on an icon that also shows a cooldown.", TEXT_POS,
+		tg("textPos"), ts("textPos"), dim("text", "text"), 140)
+	p:dropdown("Time format", "How minutes show. The last minute always counts seconds.", {
+		{ 0, "2m, then seconds" }, { 120, "1:31 in the last 2 minutes" },
+		{ 300, "1:31 in the last 5 minutes" }, { 600, "1:31 in the last 10 minutes" },
+	}, tg("abbrev"), ts("abbrev"), dim("text", "text"), 220)
+	p:checkbox("Swipe", "A shade that sweeps round the icon.", tg("swipe"), ts("swipe"), dim("swipe"))
+	p:slider("Swipe darkness", nil, 0.1, 1, 0.05, function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end,
+		tg("swipeAlpha"), ts("swipeAlpha"), dim("swipe", "swipe"))
+	p:checkbox("Swipe darkens as time runs out", "Off: it lightens, like most cooldowns.", tg("swipeReverse"), ts("swipeReverse"), dim("swipe", "swipe"))
+	p:checkbox("Time bar", "A bar along an edge that drains.", tg("bar"), ts("bar"), dim("bar"))
+	p:slider("Bar height", nil, 1, 20, 1, px, tg("barHeight"), ts("barHeight"), dim("bar", "bar"))
+	p:dropdown("Bar edge", nil, { { "bottom", "Bottom" }, { "top", "Top" } }, tg("barEdge"), ts("barEdge"), dim("bar", "bar"), 140)
+	p:dropdown("Bar colour", nil, { { true, "Element colour" }, { false, "Custom" } }, tg("barElement"), ts("barElement"), dim("bar", "bar"), 160)
+	p:color("Custom bar colour", nil, tg("barColor"), ts("barColor"), dimWhen(function()
+		return not cant.bar and own() and style().bar and not style().barElement
+	end, function()
+		if cant.bar then return cant.bar end
+		if not own() then return "Turn off Same as General to change this." end
+		return "Choose Custom as the bar colour to change this."
+	end))
+end
+
 local function get(key) return function() return db()[key] end end
 local function set(key, after) return function(v) db()[key] = v; (after or relayout)() end end
 
@@ -499,8 +571,10 @@ local function buildHome(p)
 		{ "Interface\\Icons\\Spell_Nature_Invisibilty", function() return "Layout" end,
 			function() return "Set up groups of elements" end, function() ns.OpenOptions("layout") end },
 	})
+	p:add(p:row(14), 14)   -- room between the big buttons and the notice
 	-- TEMPORARY: remove once Blizzard fixes the beta's SavedVariables loading.
 	p:callout("|cffff9933Beta:|r saved settings don't load on startup yet. ForeverSVFix works around it.")
+	p:add(p:row(14), 14)   -- and between the notice and Feedback
 	p:header("Feedback")
 	p:text("Ideas, requests or problems? Open an issue on GitHub:")
 	p:copyField("Issues", ns.Look.REPO .. "/issues")
@@ -520,9 +594,10 @@ local function buildGeneral(p)
 	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1,
 		function(v) return string.format("%d px", v) end, bget("size"), bset("size"), dimWhen(bordered, "Turn on Border to use this."))
 	p:color("Border colour", "Colour and opacity.", bget("color"), bset("color"), dimWhen(bordered, "Turn on Border to use this."))
-	p:checkbox("Countdown text", "Numbers on every cooldown.", get("cdText"), set("cdText"))
-	p:slider("Countdown size", "Elements can set their own on their page.", 8, 48, 1, int,
-		get("cdTextSize"), set("cdTextSize"), dimWhen(function() return db().cdText end, "Turn on Countdown text to use this."))
+	timerSettings(p, "Cooldowns", nil, "cooldown")
+	p:text("A spell you can't cast yet. Elements can have their own on their page.")
+	timerSettings(p, "Time left", nil, "uptime")
+	p:text("A totem, shield or imbue running. Elements and the totem bar can have their own.")
 
 	local function hasReporter() return ns.hasIssueReporter and ns.hasIssueReporter() end
 	p:header("Beta", hasReporter)
@@ -1064,7 +1139,7 @@ local function buildTotemBar(p)
 	p:header("Look")
 	local own = function() return not c().follow end
 	local WHY = "Turn off Same as General to use this."
-	p:checkbox("Same as General", "Icon size, border and countdown size from the General page.", tget("follow"), tset("follow"))
+	p:checkbox("Same as General", "Icon size and border from the General page.", tget("follow"), tset("follow"))
 	p:slider("Icon size", nil, 24, 96, 1, function(v) return string.format("%d px", v) end, tget("size"), tset("size"), dimWhen(own, WHY))
 	p:checkbox("Border", nil, function() return c().border.show end, function(v) c().border.show = v; changed() end, dimWhen(own, WHY))
 	local bordered = function() return own() and c().border.show end
@@ -1072,11 +1147,9 @@ local function buildTotemBar(p)
 		function() return c().border.size end, function(v) c().border.size = v; changed() end, dimWhen(bordered, "Turn on Border to use this."))
 	p:color("Border colour", "Colour and opacity.", function() return c().border.color end,
 		function(v) c().border.color = v; changed() end, dimWhen(bordered, "Turn on Border to use this."))
-	p:slider("Countdown size", nil, 8, 48, 1, function(v) return string.format("%d", v) end, tget("cdSize"), tset("cdSize"), dimWhen(own, WHY))
 	p:dropdown("Empty slot", "How a slot looks with no totem down.",
 		{ { "pick", "Your pick, greyed" }, { "frame", "Element colour" }, { "blank", "Blank" } }, tget("empty"), tset("empty"), nil, 180)
-	p:dropdown("Timer", nil, { { "swipe", "Swipe and number" }, { "bar", "Time bar" }, { "both", "Both" }, { "num", "Number only" } },
-		tget("timer"), tset("timer"), nil, 180)
+	timerSettings(p, "Time left", "totembar", "uptime", changed)
 
 	p:header("Expiring")
 	p:checkbox("Grey icon", "Desaturate the icon.", tget("warnGrey"), tset("warnGrey"))
@@ -1209,25 +1282,6 @@ local function warningBlock(p, title, greyGet, greySet, ringGet, ringSet, pulseG
 	p:checkbox("Pulse", "Fade the icon in and out.", pulseGet, pulseSet)
 end
 
--- Standard block: a running timer.
-local function timerBlock(p, title, optGet, optSet)
-	p:header(title)
-	p:checkbox("Time bar", "A bar along the bottom that drains.", optGet("activeBar", true), optSet("activeBar"))
-	p:checkbox("Time left", "Small numbers in the top-left corner.", optGet("activeText", true), optSet("activeText"))
-end
-
--- Standard block: countdown text, with an optional size of the element's own.
-local function countdownBlock(p, key)
-	local function own() return ns.elementOpts(key).cdTextSize ~= nil end
-	p:header("Countdown")
-	p:checkbox("Own text size", "Off: the size on the General page.", own, function(v)
-		ns.elementOpts(key).cdTextSize = v and db().cdTextSize or nil
-		relayout()
-	end)
-	p:slider("Text size", nil, 8, 48, 1, int, function() return ns.elementOpts(key).cdTextSize or db().cdTextSize end,
-		function(v) ns.elementOpts(key).cdTextSize = v; relayout() end, dimWhen(own, "Turn on Own text size to use this."))
-end
-
 -- A look choice (tint, overlay, both) greys out the strength it does not use.
 local function lookUses(key, part) return function() local v = db()[key]; return v == part or v == "both" end end
 
@@ -1242,6 +1296,9 @@ local function buildShield(p)
 	}, get("shieldTrack"), set("shieldTrack", respell))
 	p:header("Charges")
 	p:checkbox("Charge bar", "One segment per charge.", get("showBar"), set("showBar"))
+	p:slider("Bar height", nil, 1, 20, 1, function(v) return string.format("%d px", v) end, get("chargeBarHeight"), set("chargeBarHeight"),
+		dimWhen(get("showBar"), "Turn on Charge bar to use this."))
+	p:color("Bar colour", nil, get("chargeBarColor"), set("chargeBarColor"), dimWhen(get("showBar"), "Turn on Charge bar to use this."))
 	p:checkbox("Charge number", "Shown for 2 or more charges.", get("showCount"), set("showCount"))
 	local numberOn = dimWhen(get("showCount"), "Turn on Charge number to use this.")
 	p:dropdown("Number position", nil, { { "corner", "Corner" }, { "center", "Centre" } }, get("countPos"), set("countPos"), numberOn)
@@ -1253,8 +1310,8 @@ local function buildShield(p)
 		0, 1, 0.05, pct, get("underlayUp"), set("underlayUp"))
 
 	p:header("Shield up")
-	p:slider("Duration swipe", "Darkness of the time-left swipe. Zero turns it off.", 0, 1, 0.05, pct, get("shieldSwipe"), set("shieldSwipe"))
 	p:slider("Icon opacity", "Fine-tunes brightness at low group opacity. Most can leave it at 100%.", 0.5, 1, 0.05, pct, get("shieldIconAlpha"), set("shieldIconAlpha"))
+	timerSettings(p, "Time left", "shield", "uptime")
 end
 
 local function buildShock(p)
@@ -1283,7 +1340,7 @@ local function buildShock(p)
 		dimWhen(lookUses("rangeStyle", "overlay"), "Choose Overlay or Both as the look to use this."))
 	p:slider("Tint", nil, 0.1, 1, 0.05, pct, get("rangeTint"), set("rangeTint"),
 		dimWhen(lookUses("rangeStyle", "tint"), "Choose Tint or Both as the look to use this."))
-	countdownBlock(p, "shock")
+	timerSettings(p, "Cooldown", "shock", "cooldown")
 end
 
 local function buildImbue(p)
@@ -1298,10 +1355,9 @@ local function buildImbue(p)
 	p:header("Time left")
 	p:slider("Show under", "Show the time left once under this. Zero never shows it.", 0, 30, 1,
 		function(v) return v == 0 and "Never" or string.format("%d min", v) end, get("imbueWarnMins"), set("imbueWarnMins"))
-	p:slider("Text size", nil, 8, 48, 1, int, get("imbueTextSize"), set("imbueTextSize"),
-		dimWhen(function() return db().imbueWarnMins > 0 end, "Set Show under above zero to use this."))
 	p:checkbox("Hide until low", "While an imbue is on, stay hidden until the time left shows. Keeps its place in the group.",
 		get("imbueHideActive"), set("imbueHideActive"))
+	timerSettings(p, "Timer", "imbue", "uptime")
 end
 
 -- One page per cooldown element; the blocks depend on what the element tracks.
@@ -1315,18 +1371,18 @@ local function buildCooldown(p, def)
 	end end
 	local function optSet(name) return function(v) ns.elementOpts(key)[name] = v; relayout() end end
 	if def.needsTotem then
-		warningBlock(p, "No fire totem", optGet("blockedGrey", true), optSet("blockedGrey"), optGet("blockedRing", true), optSet("blockedRing"),
+		warningBlock(p, "No fire totem", optGet("blockedGrey", true), optSet("blockedGrey"), optGet("blockedRing", false), optSet("blockedRing"),
 			optGet("blockedPulse", false), optSet("blockedPulse"))
-		timerBlock(p, "Fire totem out", optGet, optSet)
 	end
-	if def.totemSlot then timerBlock(p, "Totem down", optGet, optSet) end
-	countdownBlock(p, key)
+	timerSettings(p, "Cooldown", key, "cooldown")
+	if def.needsTotem then timerSettings(p, "Fire totem's time left", key, "uptime")
+	elseif def.totemSlot then timerSettings(p, "Time left", key, "uptime") end
 end
 
 ------------------------------------------------------------------------
 -- Window
 ------------------------------------------------------------------------
-local navButtons, navDivider = {}, nil
+local navButtons, navDivider, navLock = {}, nil, nil
 
 local function showPage(key)
 	currentPage = key
@@ -1341,6 +1397,7 @@ local function showPage(key)
 		b.label:SetTextColor(on and 1 or (b.sub and 0.9 or 1), on and 0.84 or (b.sub and 0.88 or 0.82), on and 0.5 or (b.sub and 0.84 or 0))
 	end
 	if navDivider then navDivider.refresh() end
+	if navLock then navLock.refresh() end
 	pages[key]:refresh()
 end
 
@@ -1397,9 +1454,14 @@ local function buildNav()
 	y = y - 14
 	add("profiles", "Profiles", "Interface\\Icons\\INV_Misc_Note_01")
 	add("about", "About", "Interface\\Icons\\INV_Misc_Book_09")
-	local foot = win:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-	foot:SetPoint("BOTTOMLEFT", 16, 14)
-	foot:SetText("/sf  ·  /sf lock")
+	-- Footer: positioning's lock, one click either way (as /sf lock); its label says what it does.
+	navLock = CreateFrame("Button", nil, win, "UIPanelButtonTemplate")
+	navLock:SetSize(NAV_W - 32, 22)
+	navLock:SetPoint("BOTTOMLEFT", 16, 12)
+	navLock:SetScript("OnClick", function() ns.setLocked(not acct().locked) end)
+	setTip(navLock, "Positioning", "Unlocked, drag groups and the totem bar on screen. /sf lock does the same.")
+	function navLock.refresh() navLock:SetText(acct().locked and "Unlock positioning" or "Lock positioning") end
+	navLock.refresh()
 end
 
 local function buildWindow()
@@ -1662,6 +1724,7 @@ function ns.RefreshOptions()
 		refreshQueued = false
 		if win:IsShown() and currentPage then pages[currentPage]:refresh() end
 		if navDivider then navDivider.refresh() end
+		if navLock then navLock.refresh() end
 	end)
 end
 

@@ -166,10 +166,20 @@ function L.expBadge(parent, feature, label)
 end
 
 ------------------------------------------------------------------------
--- Preview icons: the HUD's icon plus the pieces some elements add (charge bar, time text).
+-- Preview icons: the HUD's icon plus the pieces some elements add (charge bar), and the same
+-- timers the HUD uses (ShamanForever_Timers.lua), frozen.
 ------------------------------------------------------------------------
-local function makePreviewIcon(parent)
+local HAS_COOLDOWN = { shock = true, earthbind = true, stoneclaw = true, firenova = true }
+local HAS_UPTIME = { shield = true, imbue = true, earthbind = true, stoneclaw = true, firenova = true, totembar = true }
+local function makePreviewIcon(parent, key)
 	local ic = ns.makeIcon(parent, 56)
+	local e = L.ELEMENT[key]
+	local school = e and e.school
+	if HAS_COOLDOWN[key] then ic.cdT = ns.Timer.new(ic, key, "cooldown", { cd = ic.cd, school = school }) end
+	if HAS_UPTIME[key] then
+		ic.upT = ns.Timer.new(ic.textFrame, key, "uptime", { anchor = ic, dual = HAS_COOLDOWN[key],
+			cd = not HAS_COOLDOWN[key] and ic.cd or nil, school = school })
+	end
 	ic.bar = CreateFrame("Frame", nil, ic.textFrame)
 	ic.bar:SetPoint("BOTTOMLEFT", ic, "BOTTOMLEFT", 0, 0)
 	ic.bar:SetPoint("BOTTOMRIGHT", ic, "BOTTOMRIGHT", 0, 0)
@@ -184,10 +194,6 @@ local function makePreviewIcon(parent)
 		t:SetPoint("BOTTOM")
 		ic.bar.segs[i] = t
 	end
-	ic.time = ic.textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
-	ic.time:SetFont(STANDARD_TEXT_FONT, 12, "OUTLINE")
-	ic.time:SetTextColor(0.5, 1, 0.4)
-	ic.time:SetPoint("TOPLEFT", 2, -2)
 	return ic
 end
 
@@ -219,20 +225,17 @@ local function reset(ic, icon)
 	ic:SetRingShown(false)
 	ic:SetPulsing(false)
 	pcall(ic.cd.Clear, ic.cd)
+	if ic.cdT then ic.cdT:clear() end
+	if ic.upT then ic.upT:clear() end
 	ic.count:Hide()
 	ic.bar:Hide()
-	ic.time:SetText("")
 end
 
--- A frozen cooldown: frac of the time gone, optionally with its countdown number.
-local function frozenCooldown(ic, frac, showNumber, dark, key)
-	local cd = ic.cd
-	cd:SetDrawSwipe(true)
-	cd:SetSwipeColor(0, 0, 0, dark or 0.65)
-	cd:SetHideCountdownNumbers(not showNumber)
-	cd:SetCountdownFont(key and ns.cdFontFor and (ns.cdFontFor(key)) or "ShamanForeverCDFont")
-	cd:SetCooldown(GetTime() - frac * 10, 10)
-	pcall(cd.Pause, cd)
+-- A timer frozen in its current style: frac of a span `length` seconds long gone.
+local function frozen(t, frac, length)
+	if not t then return end
+	t:apply()
+	t:static(frac, length)
 end
 
 local function paintBody(ic, style, r, g, b, overlayAlpha, tint)
@@ -250,14 +253,9 @@ local function totemPreview(def)
 	return {
 		states = { { "ready", "Ready" }, { "active", "Totem down" }, { "cd", "Cooldown" } },
 		render = function(ic, st)
-			local o = ns.elementOpts(def.key)
 			reset(ic, def.iconID or def.icon)
-			if st == "active" then
-				if o.activeBar ~= false then setBar(ic, 1, 0.55, 0.4, 0.9, 0.3) end
-				if o.activeText ~= false then ic.time:SetText("0:24") end
-			elseif st == "cd" then
-				frozenCooldown(ic, 0.4, db().cdText, nil, def.key)
-			end
+			if st == "active" then frozen(ic.upT, 0.45, def.duration or 45)
+			elseif st == "cd" then frozen(ic.cdT, 0.4, 15) end
 		end,
 	}
 end
@@ -282,8 +280,12 @@ L.PREVIEW = {
 			end
 			local n = st == "up3" and 3 or 1
 			ic.tex:SetAlpha(d.shieldIconAlpha)
-			if d.shieldSwipe > 0 then frozenCooldown(ic, 0.38, false, d.shieldSwipe) end
-			if d.showBar then setBar(ic, 3, n, 0.35, 0.75, 1) end
+			frozen(ic.upT, 0.38, 600)
+			if d.showBar then
+				local c = d.chargeBarColor or { 0.35, 0.75, 1 }
+				ic.bar:SetHeight(d.chargeBarHeight or 8)
+				setBar(ic, 3, n, c[1], c[2], c[3])
+			end
 			if d.showCount and n >= 2 then
 				ic.count:SetFont(STANDARD_TEXT_FONT, d.countSize, "OUTLINE")
 				ic.count:ClearAllPoints()
@@ -299,7 +301,7 @@ L.PREVIEW = {
 			local d = db()
 			local icons = { earth = 136026, flame = 135813, frost = 135849 }
 			reset(ic, icons[d.shock] or 136026)
-			if st == "cd" then frozenCooldown(ic, 0.4, d.cdText, nil, "shock")
+			if st == "cd" then frozen(ic.cdT, 0.4, 6)
 			elseif st == "range" or st == "both" then paintBody(ic, d.rangeStyle, 1, 0.25, 0.25, d.rangeIntensity, d.rangeTint)
 			elseif st == "mana" then paintBody(ic, d.manaStyle, 0.2, 0.45, 1, d.manaIntensity, d.manaTint) end
 			if st == "mana" or st == "both" then ic:SetRingShown(true, 0.2, 0.45, 1, d.manaRing) end
@@ -317,7 +319,7 @@ L.PREVIEW = {
 				ic:SetPulsing(d.imbuePulse)
 			else
 				reset(ic, 136018)
-				if st == "low" and d.imbueWarnMins > 0 then ic.time:SetText("3:12") end
+				if st == "low" and d.imbueWarnMins > 0 then frozen(ic.upT, 0.95, 3600) end
 				if st == "fine" and d.imbueHideActive then ic:SetAlpha(0.15) end
 			end
 		end,
@@ -329,11 +331,10 @@ L.PREVIEW = {
 			reset(ic, 135824)
 			if st == "nototem" then
 				ic.tex:SetDesaturated(o.blockedGrey ~= false)
-				ic:SetRingShown(o.blockedRing ~= false)
+				ic:SetRingShown(o.blockedRing == true)
 				ic:SetPulsing(o.blockedPulse == true)
 			elseif st == "out" then
-				if o.activeBar ~= false then setBar(ic, 1, 0.8, 0.4, 0.9, 0.3) end
-				if o.activeText ~= false then ic.time:SetText("0:48") end
+				frozen(ic.upT, 0.2, 55)
 			end
 		end,
 	},
@@ -342,40 +343,161 @@ for _, def in ipairs(ns.COOLDOWNS or {}) do
 	if def.totemSlot and not L.PREVIEW[def.key] then L.PREVIEW[def.key] = totemPreview(def) end
 end
 
--- The totem bar: its four slots in their order, drawn with the bar's own settings.
+-- The totem bar: the header is its stage. The bar is drawn at its real size (icon size × the
+-- bar's scale, inside a frame with that scale, so text, borders and spacing match the game),
+-- shrunk only as much as needed to fit; the picking state shows a short popout.
 local TOTEM_ICON = { earth = 136098, fire = 135825, water = 135127, air = 136114 }   -- Stoneskin, Searing, Healing Stream, Windfury
+local POP_ITEMS = 3   -- "No totem" and two totems: enough to show the look within the header
+local function tabArrow(parent)
+	local t = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+	t:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+	t:SetBackdropColor(0.06, 0.05, 0.03, 0.92)
+	t:SetBackdropBorderColor(0.85, 0.71, 0.42, 0.9)
+	t.glyph = t:CreateTexture(nil, "OVERLAY")
+	t.glyph:SetTexture("Interface\\Buttons\\UI-TotemBar")
+	t.glyph:SetTexCoord(0.5625, 0.71875, 0.34375, 0.3828125)
+	t.glyph:SetBlendMode("ADD")
+	t.glyph:SetPoint("CENTER")
+	return t
+end
 L.PREVIEW.totembar = {
-	count = 4, size = 30, panelW = 256,
-	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" } },
-	render = function(icons, st)
+	stage = true, heroH = 280,
+	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" }, { "picking", "Picking" } },
+	build = function(h)
+		-- The preview area: below the title band and its divider, above the state buttons.
+		h.area = CreateFrame("Frame", nil, h)
+		h.area:SetPoint("TOPLEFT", h, "TOPLEFT", 40, -58)
+		h.area:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -40, 36)
+		local bar = CreateFrame("Frame", nil, h)
+		bar:SetSize(1, 1)
+		bar:SetFrameLevel(h:GetFrameLevel() + 5)
+		h.barFrame = bar
+		h.slots = {}
+		for i = 1, 4 do h.slots[i] = makePreviewIcon(bar, "totembar") end
+		h.tab = tabArrow(bar)
+		h.pop = CreateFrame("Frame", nil, bar)
+		h.pop.bg = h.pop:CreateTexture(nil, "BACKGROUND")
+		h.pop.bg:SetAllPoints()
+		h.pop.bg:SetColorTexture(0, 0, 0, 0.72)
+		h.pop.items = {}
+		for i = 1, POP_ITEMS do
+			local it = CreateFrame("Frame", nil, h.pop)
+			it.tex = it:CreateTexture(nil, "ARTWORK")
+			it.tex:SetAllPoints()
+			it.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+			it.x = it:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+			it.x:SetPoint("CENTER")
+			it.x:SetText("X")
+			h.pop.items[i] = it
+		end
+		h.fitNote = h:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+		h.fitNote:SetPoint("TOPRIGHT", h.area, "TOPRIGHT", 0, 0)
+	end,
+	render = function(h, st)
 		local TB = ns.TotemBar
 		local c = TB.cfg()
-		for i, ic in ipairs(icons) do
-			local el = c.order[i]
-			local shown = not c.hidden[el]
-			ic:SetShown(shown)
-			if shown then
+		local size, border = TB.look()
+		local els = {}
+		for _, el in ipairs(c.order) do if not c.hidden[el] then table.insert(els, el) end end
+		local n = math.max(#els, 1)
+		local row = c.dir == "row"
+		local picking = st == "picking" and #els > 0
+		local psz = math.floor(size * 0.8 + 0.5)
+		local known = picking and TB.known(els[1]) or {}
+		local items = math.min(POP_ITEMS, 1 + #known)
+		local popLen = 3 + items * (psz + 3)
+		local along = n * size + (n - 1) * c.spacing
+		local across = size + (picking and (c.arrowSize + 4 + popLen) or 0)
+		-- Room: the preview area between the title band and the state buttons.
+		local w = h:GetWidth()
+		if not w or w <= 0 then w = 600 end
+		local availW, availH = w - 80, h.heroH - 14 - 58 - 36
+		local needW, needH = row and along or across, row and across or along
+		local real = c.scale
+		local fit = math.min(1, availW / (needW * real), availH / (needH * real))
+		local scale = real * fit
+		local bar = h.barFrame
+		bar:SetScale(scale)
+		h.fitNote:SetText(fit < 0.999 and string.format("Shown at %d%% to fit", math.floor(fit * 100 + 0.5)) or "")
+		-- The bar's box (its popout included), in its own scaled units, centred in the area; a row
+		-- sits on the side its pickers open away from, so it stays put while picking.
+		local bw, bh = (row and along or across), (row and across or along)
+		bar:SetSize(bw, bh)
+		bar:ClearAllPoints()
+		local dir = c.pop
+		if row and dir == "down" then bar:SetPoint("TOP", h.area, "TOP", 0, 0)
+		elseif row then bar:SetPoint("BOTTOM", h.area, "BOTTOM", 0, 0)
+		else bar:SetPoint("CENTER", h.area, "CENTER", 0, 0) end
+		-- Slots along the bar's axis; the popout grows away from them (up, down, right or left).
+		for i, ic in ipairs(h.slots) do
+			local el = els[i]
+			ic:SetShown(el ~= nil)
+			if el then
+				ic:SetSize(size, size)
+				ic:ClearAllPoints()
+				local off = (i - 1) * (size + c.spacing)
+				if row then
+					if dir == "down" then ic:SetPoint("TOPLEFT", bar, "TOPLEFT", off, 0)
+					else ic:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", off, 0) end
+				else
+					if dir == "left" then ic:SetPoint("TOPRIGHT", bar, "TOPRIGHT", 0, -off)
+					else ic:SetPoint("TOPLEFT", bar, "TOPLEFT", 0, -off) end
+				end
+				if ns.applyBorder then ns.applyBorder(ic, border) end
 				local pick = GetActionTexture and TB.pickTexture(el)
 				reset(ic, pick or TOTEM_ICON[el])
 				local col = L.SCHOOL[el]
-				if st == "idle" then
+				ic.upT.school = el
+				if st == "idle" or (picking and i == 1) then
 					if c.empty == "pick" and pick then
 						ic.tex:SetDesaturated(true); ic.tex:SetAlpha(0.45)
 					elseif c.empty == "blank" then ic.tex:SetAlpha(0)
 					else ic.tex:SetColorTexture(col[1] * 0.35, col[2] * 0.35, col[3] * 0.35, 0.8) end
 				else
-					local frac = (st == "expiring" and i == 2) and 0.95 or 0.3 + 0.12 * i
-					local swipe = c.timer == "swipe" or c.timer == "both"
-					if swipe or c.timer == "num" then
-						frozenCooldown(ic, frac, true, swipe and 0.6 or 0)
-						ic.cd:SetCountdownFont("ShamanForeverTotemBarFont")
-					end
-					if c.timer == "bar" or c.timer == "both" then setBar(ic, 1, 1 - frac, col[1], col[2], col[3]) end
+					local frac = (st == "expiring" and i == 2) and 0.97 or 0.3 + 0.12 * i
+					frozen(ic.upT, frac, 300)
 					if st == "expiring" and i == 2 then
 						if c.warnGrey then ic.tex:SetDesaturated(true) end
 						ic:SetRingShown(c.warnRing)
 						ic:SetPulsing(c.warnPulse)
 					end
+				end
+			end
+		end
+		-- Picking: the first slot's arrow tab and a short popout of its totems.
+		h.tab:SetShown(picking and c.arrows)
+		h.pop:SetShown(picking)
+		if picking then
+			local first, tab = h.slots[1], c.arrowSize
+			local t = h.tab
+			t:ClearAllPoints()
+			local g = t.glyph
+			if dir == "up" then t:SetPoint("BOTTOMLEFT", first, "TOPLEFT", 1, 1); t:SetPoint("BOTTOMRIGHT", first, "TOPRIGHT", -1, 1); t:SetHeight(tab)
+			elseif dir == "down" then t:SetPoint("TOPLEFT", first, "BOTTOMLEFT", 1, -1); t:SetPoint("TOPRIGHT", first, "BOTTOMRIGHT", -1, -1); t:SetHeight(tab)
+			elseif dir == "right" then t:SetPoint("TOPLEFT", first, "TOPRIGHT", 1, -1); t:SetPoint("BOTTOMLEFT", first, "BOTTOMRIGHT", 1, 1); t:SetWidth(tab)
+			else t:SetPoint("TOPRIGHT", first, "TOPLEFT", -1, -1); t:SetPoint("BOTTOMRIGHT", first, "BOTTOMLEFT", -1, 1); t:SetWidth(tab) end
+			g:SetSize(math.max(tab * 1.1, 10), math.max(tab * 0.6, 6))
+			g:SetRotation(({ up = 0, down = math.pi, right = -math.pi / 2, left = math.pi / 2 })[dir])
+			local p = h.pop
+			p:ClearAllPoints()
+			local thick = psz + 6
+			if dir == "up" then p:SetSize(thick, popLen); p:SetPoint("BOTTOM", first, "TOP", 0, tab + 4)
+			elseif dir == "down" then p:SetSize(thick, popLen); p:SetPoint("TOP", first, "BOTTOM", 0, -tab - 4)
+			elseif dir == "right" then p:SetSize(popLen, thick); p:SetPoint("LEFT", first, "RIGHT", tab + 4, 0)
+			else p:SetSize(popLen, thick); p:SetPoint("RIGHT", first, "LEFT", -tab - 4, 0) end
+			for i, it in ipairs(p.items) do
+				it:SetShown(i <= items)
+				it:SetSize(psz, psz)
+				it:ClearAllPoints()
+				local off = 3 + (i - 1) * (psz + 3)
+				if dir == "up" then it:SetPoint("BOTTOM", p, "BOTTOM", 0, off)
+				elseif dir == "down" then it:SetPoint("TOP", p, "TOP", 0, -off)
+				elseif dir == "right" then it:SetPoint("LEFT", p, "LEFT", off, 0)
+				else it:SetPoint("RIGHT", p, "RIGHT", -off, 0) end
+				if i == 1 then it.tex:SetColorTexture(0.1, 0.1, 0.1, 1); it.x:Show()
+				elseif known[i - 1] then
+					it.tex:SetTexture(C_Spell.GetSpellTexture(known[i - 1]))
+					it.x:Hide()
 				end
 			end
 		end
@@ -391,8 +513,11 @@ local previewState = {}
 function L.buildHero(parent, key)
 	local e = L.ELEMENT[key]
 	local school = L.SCHOOL[e.school]
+	local def = L.PREVIEW[key]
+	local heroH = def.heroH or L.HERO_H
 	local h = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-	h:SetHeight(L.HERO_H - 14)
+	h:SetHeight(heroH - 14)
+	h.heroH = heroH
 	h:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
 	h:SetBackdropColor(L.PANEL[1], L.PANEL[2], L.PANEL[3], 1)
 	h:SetBackdropBorderColor(0.36, 0.28, 0.17, 1)
@@ -413,7 +538,7 @@ function L.buildHero(parent, key)
 	-- 40px sides keep content clear of the corner ornaments.
 	h.icon = h:CreateTexture(nil, "ARTWORK")
 	h.icon:SetSize(60, 60)
-	h.icon:SetPoint("LEFT", 40, 0)
+	if def.stage then h.icon:SetPoint("TOPLEFT", 40, -24) else h.icon:SetPoint("LEFT", 40, 0) end
 	h.icon:SetTexture(e.icon)
 	h.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 	h.iconEdge = h:CreateTexture(nil, "BORDER")
@@ -433,11 +558,25 @@ function L.buildHero(parent, key)
 	h.blurb:SetJustifyH("LEFT")
 	h.tags = h:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 	h.tags:SetPoint("TOPLEFT", h.blurb, "BOTTOMLEFT", 0, -7)
+	if def.stage then
+		-- A title band: the name and its tags on one line, then a faint gold rule above the stage.
+		h.icon:Hide(); h.iconEdge:Hide(); h.blurb:Hide()
+		h.title:ClearAllPoints()
+		h.title:SetPoint("TOPLEFT", h, "TOPLEFT", 40, -18)
+		h.tags:ClearAllPoints()
+		h.tags:SetPoint("BOTTOMLEFT", h.title, "BOTTOMRIGHT", 16, 2)
+		h.rule = h:CreateTexture(nil, "ARTWORK")
+		h.rule:SetColorTexture(1, 1, 1, 1)
+		h.rule:SetHeight(1)
+		h.rule:SetPoint("TOPLEFT", h, "TOPLEFT", 40, -50)
+		h.rule:SetPoint("TOPRIGHT", h, "TOPRIGHT", -40, -50)
+		pcall(h.rule.SetGradient, h.rule, "HORIZONTAL", CreateColor(0.85, 0.71, 0.42, 0.45), CreateColor(0.85, 0.71, 0.42, 0))
+	end
 
 	-- Preview panel, pinned right inside the corner zone: the icon on the left, its states listed
-	-- on the right as small flat buttons (the selected one outlined in gold).
-	local def = L.PREVIEW[key]
-	local PANEL_W, PANEL_H, BTN_W, BTN_H = def.panelW or 196, L.HERO_H - 14 - 24, 108, 17
+	-- on the right as small flat buttons (the selected one outlined in gold). A stage (the totem
+	-- bar) has no panel: the preview draws on the header itself and the states run along its foot.
+	local PANEL_W, PANEL_H, BTN_W, BTN_H = def.stage and 0 or (def.panelW or 196), heroH - 14 - 24, 108, 17
 	local p = CreateFrame("Frame", nil, h, "BackdropTemplate")
 	p:SetSize(PANEL_W, PANEL_H)
 	p:SetPoint("RIGHT", -40, 0)
@@ -447,26 +586,26 @@ function L.buildHero(parent, key)
 	local cap = p:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 	cap:SetPoint("TOPLEFT", 10, -8)
 	cap:SetText("PREVIEW")
-	if def.count then
-		-- Several icons in a row (the totem bar).
-		h.previewIcons = {}
-		for i = 1, def.count do
-			local ic = makePreviewIcon(p)
-			ic:SetSize(def.size, def.size)
-			ic:SetPoint("LEFT", 12 + (i - 1) * (def.size + 3), -6)
-			h.previewIcons[i] = ic
-		end
+	if def.stage then
+		p:Hide()
+		def.build(h)
 	else
-		h.previewIcon = makePreviewIcon(p)
+		h.previewIcon = makePreviewIcon(p, key)
 		h.previewIcon:SetPoint("LEFT", 16, -6)
 	end
 	h.stateButtons = {}
 	previewState[key] = previewState[key] or def.states[1][1]
 	local listH = #def.states * (BTN_H + 3) - 3
 	for i, st in ipairs(def.states) do
-		local b = CreateFrame("Button", nil, p, "BackdropTemplate")
-		b:SetSize(BTN_W, BTN_H)
-		b:SetPoint("TOPRIGHT", -8, -(PANEL_H - listH) / 2 - (i - 1) * (BTN_H + 3))
+		local b = CreateFrame("Button", nil, def.stage and h or p, "BackdropTemplate")
+		if def.stage then
+			b:SetSize(96, BTN_H)
+			b:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 40 + (i - 1) * 100, 12)
+			b:SetFrameLevel(h:GetFrameLevel() + 6)
+		else
+			b:SetSize(BTN_W, BTN_H)
+			b:SetPoint("TOPRIGHT", -8, -(PANEL_H - listH) / 2 - (i - 1) * (BTN_H + 3))
+		end
 		b:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
 		b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		b.text:SetPoint("LEFT", 7, 0)
@@ -484,8 +623,8 @@ function L.buildHero(parent, key)
 		local minimal = L.minimal()
 		local w = self:GetWidth()
 		if not w or w <= 0 then w = parent:GetWidth() end
-		self.banner:SetTexCoord(coverCoords(w - 2, L.HERO_H - 16))
-		self.blurb:SetWidth(math.max(w - 40 - 60 - 14 - 40 - PANEL_W - 12, 120))
+		self.banner:SetTexCoord(coverCoords(w - 2, heroH - 16))
+		self.blurb:SetWidth(def.stage and 300 or math.max(w - 40 - 60 - 14 - 40 - PANEL_W - 12, 120))
 		self.banner:SetShown(not minimal)
 		self.shade:SetShown(not minimal)
 		for _, c in ipairs(self.corners) do c:SetShown(not minimal) end
@@ -500,7 +639,7 @@ function L.buildHero(parent, key)
 			b:SetBackdropBorderColor(on and 0.88 or 0.23, on and 0.66 or 0.17, on and 0.29 or 0.10, 1)
 			b.text:SetTextColor(on and 1 or 0.78, on and 0.84 or 0.74, on and 0.5 or 0.68)
 		end
-		def.render(self.previewIcons or self.previewIcon, previewState[key])
+		if def.stage then def.render(self, previewState[key]) else def.render(self.previewIcon, previewState[key]) end
 	end
 	return h
 end

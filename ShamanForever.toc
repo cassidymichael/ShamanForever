@@ -9,6 +9,7 @@
 ## SavedVariables: ShamanForeverDB
 ## IconTexture: Interface\Icons\Spell_Nature_LightningShield
 
+ShamanForever_Timers.lua
 ShamanForever.lua
 ShamanForever_TotemBar.lua
 ShamanForever_OptionsLook.lua

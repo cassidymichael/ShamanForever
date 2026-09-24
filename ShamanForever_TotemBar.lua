@@ -32,8 +32,8 @@ TB.ELEMENTS, TB.NAME, TB.SLOT = ELEMENTS, NAME, SLOT
 
 -- Per profile, in db.totemBar.
 TB.DEFAULTS = {
-	enabled = false,
-	point = "CENTER", x = 0, y = -120,   -- x, y in UIParent units, so scaling keeps the centre
+	enabled = true,           -- on by default, in the Everything setup
+	point = "CENTER", x = 0, y = -100,   -- x, y in UIParent units, so scaling keeps the centre
 	scale = 1,
 	alpha = 1,
 	show = "always",          -- always | active (in combat or a totem down) | combat | never
@@ -41,19 +41,18 @@ TB.DEFAULTS = {
 	hidden = {},              -- element -> true to leave its slot out
 	dir = "row",              -- row | column
 	pop = "up",               -- where pickers open: up | down (row), right | left (column)
-	spacing = 4,
+	spacing = 6,
 	cast = true,              -- left-click casts the element's pick
 	arrows = true,            -- arrow tab opens the element's picker
 	arrowSize = 18,
 	tips = "always",          -- always | ooc | never
 	hideTotemFrame = true,    -- Blizzard's totems under the player frame
 	hideActionBar = true,     -- Blizzard's Totem Action Bar
-	follow = true,            -- icon size, border and countdown size from General
-	size = 40,
-	border = { show = true, size = 1, color = { 0, 0, 0, 1 } },
-	cdSize = 22,
+	follow = true,            -- icon size and border from General
+	size = 44,
+	border = { show = true, size = 2, color = { 0, 0, 0, 1 } },
 	empty = "pick",           -- pick (greyed) | frame (element colour) | blank
-	timer = "swipe",          -- swipe | bar | both | num
+	-- timers: the slots' "Time left" timer, if the bar has its own (ShamanForever_Timers.lua)
 	warnGrey = false,
 	warnRing = false,
 	warnPulse = true,
@@ -93,8 +92,8 @@ TB.cfg = cfg
 -- The look: the bar's own, or General's.
 local function look()
 	local c, db = cfg(), ns.getDB()
-	if c.follow then return db.iconSize, db.border, db.cdText and db.cdTextSize or nil end
-	return c.size, c.border, c.cdSize
+	if c.follow then return db.iconSize, db.border end
+	return c.size, c.border
 end
 
 -- An element's multi-cast action slot (Call of the Elements' page, the first set).
@@ -132,8 +131,6 @@ local function stateHelper(value)
 end
 local showHelper, hideHelper = stateHelper("show"), stateHelper("hide")
 
-local FONT = "ShamanForeverTotemBarFont"
-local font = CreateFont(FONT)
 
 local slots = {}   -- element -> slot record
 
@@ -143,8 +140,9 @@ local function edgeRing(parent, anchor)
 			{ "TOPLEFT", "BOTTOMLEFT", 2, nil }, { "TOPRIGHT", "BOTTOMRIGHT", 2, nil } }) do
 		local t = parent:CreateTexture(nil, "OVERLAY", nil, 6)
 		t:SetColorTexture(0.88, 0.2, 0.17, 1)
-		t:SetPoint(e[1], anchor, e[1])
-		t:SetPoint(e[2], anchor, e[2])
+		local inset = e[3] or 0   -- side edges between the top and bottom ones (no doubled corners)
+		t:SetPoint(e[1], anchor, e[1], 0, -inset)
+		t:SetPoint(e[2], anchor, e[2], 0, inset)
 		if e[3] then t:SetWidth(e[3]) end
 		if e[4] then t:SetHeight(e[4]) end
 		table.insert(ring, t)
@@ -185,23 +183,11 @@ for _, el in ipairs(ELEMENTS) do
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
 	v.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-	v.cd = CreateFrame("Cooldown", nil, v, "CooldownFrameTemplate")
-	v.cd:SetAllPoints()
-	v.cd:SetFrameLevel(v:GetFrameLevel() + 3)
-	v.cd:SetDrawEdge(false)
-	v.cd:SetDrawBling(false)
-	v.cd:SetCountdownFont(FONT)
-	v.timer = CreateFrame("StatusBar", nil, v)
-	v.timer:SetPoint("BOTTOMLEFT")
-	v.timer:SetPoint("BOTTOMRIGHT")
-	v.timer:SetHeight(5)
-	v.timer:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
-	v.timer:SetStatusBarColor(COLOR[el][1], COLOR[el][2], COLOR[el][3])
-	v.timer.bg = v.timer:CreateTexture(nil, "BACKGROUND")
-	v.timer.bg:SetAllPoints()
-	v.timer.bg:SetColorTexture(0, 0, 0, 0.6)
-	v.timer:SetFrameLevel(v.cd:GetFrameLevel() + 1)
-	v.timer:Hide()
+	-- Time left: a timer (text, swipe, bar), above the warning layer so it stays readable.
+	s.timer = ns.Timer.new(v, "totembar", "uptime", { anchor = v, school = el })
+	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + 3)
+	s.timer.bar:SetFrameLevel(v:GetFrameLevel() + 4)
+	v.cd = s.timer.cd
 	-- The expiring warning: its alpha is the remaining time through a curve, so it can appear and
 	-- disappear in combat. A grey copy of the icon, a red ring, and a dark layer that pulses; it sits
 	-- above the icon and below the cooldown, so the swipe and countdown stay readable.
@@ -316,8 +302,6 @@ if C_CurveUtil and C_CurveUtil.CreateCurve then
 	liveCurve:AddPoint(0, 0)
 	liveCurve:AddPoint(0.05, 1)
 end
-local TIMER_REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime or 1
-local TIMER_IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
 
 -- The totem's name, if known: our own cast, or out of combat the slot itself.
 local function totemName(slot)
@@ -337,9 +321,10 @@ function TB.alphas(s)
 		local ok, a = pcall(d.EvaluateRemainingDuration, d, s.curve)
 		if ok then v.warn:SetAlpha(a) else v.warn:SetAlpha(0) end
 	else v.warn:SetAlpha(0) end
-	if liveCurve and v.timer:IsShown() then
+	local tbar = s.timer.bar
+	if liveCurve and tbar:IsShown() then
 		local ok, a = pcall(d.EvaluateRemainingDuration, d, liveCurve)
-		if ok then v.timer:SetAlpha(a) end
+		if ok then tbar:SetAlpha(a) end
 	end
 end
 
@@ -353,13 +338,7 @@ local function drawSlot(s)
 		v.icon:SetDesaturated(false)
 		v.icon:SetAlpha(1)
 		v.bg:SetColorTexture(0, 0, 0, 1)
-		local swipe = c.timer == "swipe" or c.timer == "both"
-		v.cd:SetDrawSwipe(swipe)
-		pcall(v.cd.SetCooldownFromDurationObject, v.cd, d, true)
-		if c.timer == "bar" or c.timer == "both" then
-			pcall(v.timer.SetTimerDuration, v.timer, d, TIMER_IMMEDIATE, TIMER_REMAINING)
-			v.timer:Show()
-		else v.timer:Hide() end
+		s.timer:set(d)
 		s.dur = d
 		s.curve = warnCurve(c.warnOver[totemName(s.slot) or ""] or c.warn)
 		TB.alphas(s)
@@ -367,8 +346,7 @@ local function drawSlot(s)
 	end
 	s.dur, s.curve = nil, nil
 	-- Empty: the element's pick, greyed, or its colour, or nothing.
-	v.cd:Clear()
-	v.timer:Hide()
+	s.timer:clear()
 	v.warn:SetAlpha(0)
 	local tex = c.empty == "pick" and GetActionTexture and GetActionTexture(multiAction(s.slot))
 	if isSecret(tex) or tex then
@@ -553,8 +531,7 @@ local function layout()
 	if InCombatLockdown() then pending = true return end
 	pending = false
 	local c = cfg()
-	local size, border, cdSize = look()
-	font:SetFont(STANDARD_TEXT_FONT, cdSize or 12, "OUTLINE")
+	local size, border = look()
 	local shown = {}
 	for _, el in ipairs(c.order) do
 		local s = slots[el]
@@ -576,8 +553,7 @@ local function layout()
 		b:SetAttribute("*type1", c.cast and "action" or nil)
 		b:SetAttribute("action", multiAction(s.slot))
 		if ns.applyBorder then ns.applyBorder(s.vis, border) end
-		s.cdShown = cdSize ~= nil
-		s.vis.cd:SetHideCountdownNumbers(cdSize == nil)
+		s.timer:apply()
 		s.vis.warn.grey:SetShown(c.warnGrey)
 		for _, t in ipairs(s.vis.warn.ring) do t:SetShown(c.warnRing) end
 		if c.warnPulse then s.vis.warn.pulse:Play() else s.vis.warn.pulse:Stop(); s.vis.warn.dim:SetAlpha(0) end
@@ -749,8 +725,18 @@ function TB.setupName() return ({ everything = "Everything", active = "Active to
 function TB.applySetup(name)
 	for k, v in pairs(SETUPS[name] or {}) do cfg()[k] = v end
 end
--- An element's pick, as a texture (the options preview).
+-- For the options preview: an element's pick as a texture, its known totems, and the look.
 function TB.pickTexture(el) return GetActionTexture(multiAction(SLOT[el])) end
+function TB.known(el)
+	-- The real picker's list when it is built (it matches the bar exactly), else Blizzard's.
+	local ids = {}
+	for _, p in ipairs(slots[el].popout.buttons) do
+		if p:IsShown() and p.spellID and p.spellID ~= 0 then table.insert(ids, p.spellID) end
+	end
+	if #ids > 0 then return ids end
+	return knownTotems(SLOT[el])
+end
+TB.look = look
 
 -- For /sf debug.
 function TB.debug()
