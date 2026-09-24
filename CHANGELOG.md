@@ -3,6 +3,8 @@
 ## 0.4.1 (2026-09-24)
 
 - Fixed: Earthbind and Stoneclaw sometimes showed a timer while a different earth totem was down.
+- In positioning mode, click a group and use the arrow keys to move it (Shift: 10 at a time).
+- Positioning locks when combat starts.
 
 ## 0.4.0 (2026-09-24)
 

@@ -477,7 +477,7 @@ local function groupSet(key) return function(v) local g = selected(); if g then 
 -- Page contents
 ------------------------------------------------------------------------
 local function lockText() return acct().locked and "Unlock positioning" or "Lock positioning" end
-local function toggleLock() acct().locked = not acct().locked; relayout() end
+local function toggleLock() ns.setLocked(not acct().locked) end
 local LOCK_TIP = "Unlocked, drag groups on screen, mouse wheel to scale, shift + wheel for opacity. /sf lock does the same."
 
 local aboutExp   -- About's Experimental heading, for ns.ShowExperimental

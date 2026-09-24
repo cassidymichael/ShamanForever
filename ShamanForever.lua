@@ -480,6 +480,7 @@ end
 
 local groupFrames = {}
 local groupFrameScripts   -- unlock-mode handlers, assigned below
+local selectedGroup       -- unlocked: the group the arrow keys move (see the nudge section)
 
 local function groupFrame(gi)
 	local f = groupFrames[gi]
@@ -616,8 +617,9 @@ local function layoutGroup(gi)
 	gf:EnableMouse(unlocked)
 	gf:EnableMouseWheel(unlocked)
 	gf:SetBackdropColor(0, 0, 0, unlocked and 0.4 or 0)
-	gf:SetBackdropBorderColor(0.2, 0.6, 1, unlocked and 0.9 or 0)
-	gf.label:SetText("Group " .. gi)
+	if unlocked and selectedGroup == gi then gf:SetBackdropBorderColor(1, 0.82, 0, 1)
+	else gf:SetBackdropBorderColor(0.2, 0.6, 1, unlocked and 0.9 or 0) end
+	gf.label:SetText(unlocked and selectedGroup == gi and ("Group " .. gi .. " (arrow keys move it)") or ("Group " .. gi))
 	gf.label:SetShown(unlocked)
 	if n > 0 then showFrame(gf, acct.locked and g.combatOnly or false) else hideFrame(gf) end
 end
@@ -772,6 +774,7 @@ end
 groupFrameScripts = function(f)
 	f:SetScript("OnDragStart", function(self)
 		if acct.locked or InCombatLockdown() then return end
+		ns.selectGroup(self.index)
 		local ui = uiScale()
 		local s = self:GetEffectiveScale() / ui
 		local fx, fy = self:GetCenter()
@@ -796,6 +799,7 @@ groupFrameScripts = function(f)
 	end)
 	-- Right-click: the group's settings. Shift-right-click: the settings of the element under the cursor.
 	f:SetScript("OnMouseUp", function(self, button)
+		if button == "LeftButton" and not acct.locked and not InCombatLockdown() then ns.selectGroup(self.index) return end
 		if button ~= "RightButton" or acct.locked or not ns.OpenOptions then return end
 		if IsShiftKeyDown() then
 			for _, key in ipairs(db.groups[self.index].members) do
@@ -806,6 +810,74 @@ groupFrameScripts = function(f)
 		ns.OpenOptions("layout", self.index)
 	end)
 end
+
+-- Nudging: while unlocked, the arrow keys move the selected group by 1 (Shift: 10), repeating while
+-- held; Escape deselects. Out of combat only, like dragging. Keyboard capture is restricted in combat
+-- (EnableKeyboard is protected, SetPropagateKeyboardInput restricted), and a frame left swallowing
+-- keys when combat starts would block every key for the fight. So: only the arrows (and Escape) are
+-- kept, and only for the key press itself (propagation goes back on the next frame); the frame is
+-- shown only while a group is selected out of combat; and it hides itself when combat starts, which
+-- is always allowed for our own frame and stops all capture.
+local NUDGE_KEYS = { UP = { 0, 1 }, DOWN = { 0, -1 }, LEFT = { -1, 0 }, RIGHT = { 1, 0 } }
+local nudger = CreateFrame("Frame", "ShamanForeverNudge", UIParent)
+nudger:Hide()
+nudger:EnableKeyboard(true)
+nudger:SetPropagateKeyboardInput(true)
+
+local function nudge(key)
+	local g, d = selectedGroup and db.groups[selectedGroup], NUDGE_KEYS[key]
+	local f = selectedGroup and groupFrames[selectedGroup]
+	if not (g and d and f) then return end
+	local step = IsShiftKeyDown() and 10 or 1
+	g.x = g.x + d[1] * step / g.scale   -- offsets are in the group's scaled units
+	g.y = g.y + d[2] * step / g.scale
+	f:ClearAllPoints()
+	f:SetPoint(g.point, UIParent, g.point, g.x, g.y)
+end
+
+local function syncNudger()
+	local on = selectedGroup ~= nil and not acct.locked and not InCombatLockdown()
+	if on then nudger:Show() else nudger:Hide() end
+end
+
+function ns.selectGroup(gi)
+	if selectedGroup == gi then return end
+	selectedGroup = gi
+	syncNudger()
+	layoutElements()
+end
+
+nudger:SetScript("OnKeyDown", function(self, key)
+	if InCombatLockdown() then self:Hide() return end
+	if NUDGE_KEYS[key] or key == "ESCAPE" then
+		self:SetPropagateKeyboardInput(false)
+		C_Timer.After(0, function() if not InCombatLockdown() then self:SetPropagateKeyboardInput(true) end end)
+		if key == "ESCAPE" then ns.selectGroup(nil) return end
+		nudge(key)
+		self.held, self.wait = key, 0.4
+	end
+end)
+nudger:SetScript("OnKeyUp", function(self, key)
+	if key == self.held then self.held = nil end
+end)
+nudger:SetScript("OnUpdate", function(self, elapsed)
+	if not self.held then return end
+	self.wait = self.wait - elapsed
+	if self.wait <= 0 then
+		nudge(self.held)
+		self.wait = 0.04
+	end
+end)
+nudger:SetScript("OnHide", function(self) self.held = nil end)
+-- Hidden frames still get events: hide at the start of combat, come back after it.
+nudger:SetScript("OnEvent", function(self, event)
+	if event == "PLAYER_REGEN_DISABLED" then
+		self:Hide()
+		if not acct.locked and ns.lockInCombat then ns.lockInCombat(); say("positioning locked for combat") end
+	else syncNudger() end
+end)
+nudger:RegisterEvent("PLAYER_REGEN_DISABLED")
+nudger:RegisterEvent("PLAYER_REGEN_ENABLED")
 
 -- A small bar while unlocked: what the mouse does, snapping and grid toggles, Lock and Options.
 local wasUnlocked, optionsSteppedAside = false, false   -- see stepOptionsAside
@@ -832,7 +904,7 @@ do
 	tray.hint:SetWidth(540)
 	tray.hint:SetJustifyH("LEFT")
 	tray.hint:SetSpacing(2)
-	tray.hint:SetText("Drag a group to move it.\n" ..
+	tray.hint:SetText("Drag a group to move it, or click it and use the arrow keys (Shift: 10x).\n" ..
 		"Mouse wheel over a group: scale. Shift + wheel: opacity.\n" ..
 		"Right-click a group: its settings.\n" ..
 		"Shift-right-click an element: its own settings.\n" ..
@@ -891,7 +963,7 @@ do
 	lock:SetSize(90, 22)
 	lock:SetPoint("RIGHT", 0, 0)
 	lock:SetText("Lock")
-	lock:SetScript("OnClick", function() acct.locked = true; ns.applyLayout() end)
+	lock:SetScript("OnClick", function() ns.setLocked(true) end)
 	local options = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
 	options:SetSize(90, 22)
 	options:SetPoint("RIGHT", lock, "LEFT", -6, 0)
@@ -929,6 +1001,9 @@ end
 
 function updateTray()
 	local unlocked = isShaman and not acct.locked
+	if not unlocked then selectedGroup = nil end
+	if selectedGroup and not db.groups[selectedGroup] then selectedGroup = nil end
+	syncNudger()
 	tray:SetShown(unlocked)
 	tray:SetHeight(30 + tray.hint:GetStringHeight() + 10 + 26 + 2 + 24 + 8)
 	tray.snap:SetChecked(acct.snap)
@@ -939,6 +1014,26 @@ function updateTray()
 	grid:SetShown(unlocked and acct.grid)
 	if unlocked and acct.grid then drawGrid() end
 	if not unlocked then showGuides() end
+end
+
+-- Combat locks positioning, and it cannot be unlocked until combat ends (setLocked). Showing, moving
+-- and mouse changes on group frames are dropped in combat (the shield's group holds Blizzard's
+-- protected aura button), so only the looks change now: tray, grid, guides, outlines, labels and
+-- the selection. The full layout runs when combat ends.
+function ns.lockInCombat()
+	acct.locked = true
+	optionsSteppedAside = false   -- no options window popping up mid-fight
+	selectedGroup = nil
+	for _, gf in ipairs(groupFrames) do
+		gf:SetScript("OnUpdate", nil)
+		gf:SetBackdropColor(0, 0, 0, 0)
+		gf:SetBackdropBorderColor(0, 0, 0, 0)
+		gf.label:Hide()
+	end
+	showGuides()
+	updateTray()
+	layoutPending = true
+	if ns.RefreshOptions then ns.RefreshOptions() end
 end
 
 ------------------------------------------------------------------------
@@ -1690,6 +1785,19 @@ local function applyLayout()
 	applyEmptyLook()
 end
 
+-- Every lock and unlock goes through here: in combat, locking takes the combat path and unlocking
+-- is refused. Returns whether the state changed as asked.
+function ns.setLocked(locked)
+	if InCombatLockdown() then
+		if not locked then say("positioning can't be unlocked in combat") return false end
+		if not acct.locked then ns.lockInCombat() end
+		return true
+	end
+	acct.locked = locked
+	applyLayout()
+	return true
+end
+
 local function refreshAll()
 	refreshShield()
 	refreshShockCooldown()
@@ -2087,9 +2195,11 @@ SlashCmdList.SHAMANFOREVER = function(msg)
 	if cmd == "" or cmd == "options" or cmd == "config" then
 		if ns.ToggleOptions then ns.ToggleOptions() else say("options window unavailable") end
 	elseif cmd == "lock" then   -- toggles; /sf unlock still works but is no longer advertised
-		acct.locked = not acct.locked; applyLayout()
-		say(acct.locked and "positioning locked" or "positioning unlocked: drag groups to move them, /sf lock when done")
-	elseif cmd == "unlock" then acct.locked = false; applyLayout(); say("positioning unlocked: drag groups to move them, /sf lock when done")
+		if ns.setLocked(not acct.locked) then
+			say(acct.locked and "positioning locked" or "positioning unlocked: drag groups to move them, /sf lock when done")
+		end
+	elseif cmd == "unlock" then
+		if ns.setLocked(false) then say("positioning unlocked: drag groups to move them, /sf lock when done") end
 	elseif cmd == "test" then
 		ns.setTestMode(not acct.testMode)
 		say("test elements %s", acct.testMode and "on" or "off")
