@@ -44,12 +44,12 @@ L.ELEMENT = {
 	-- Not an element: its own page, with the same kind of header. page = true keeps it out of the
 	-- nav's element list.
 	totembar  = { name = "Totem bar", icon = "Interface\\Icons\\Spell_Shaman_DropAll_01", school = "spirit", page = true,
-		experimental = "Totem bar",
 		blurb = "Your totems, their timers, and a pick for each element.",
 		tags = function()
 			local c = ns.TotemBar.cfg()
-			local shows = { always = "Always", active = "In combat or a totem down", combat = "In combat", never = "Never" }
-			return string.format("%s  ·  %s  ·  %s", c.enabled and "On" or "Off", ns.TotemBar.setupName(), shows[c.show] or "")
+			local shows = { always = "Always", active = "In combat or a totem down", combat = "In combat" }
+			if c.mode == "blizzard" then return ns.TotemBar.modeName() end
+			return string.format("%s  ·  %s", ns.TotemBar.modeName(), shows[c.show] or "")
 		end },
 }
 
@@ -225,6 +225,7 @@ local function reset(ic, icon)
 	ic.manaOverlay:Hide()
 	ic:SetRingShown(false)
 	ic:SetPulsing(false)
+	ic:SetGlowShown(false)
 	pcall(ic.cd.Clear, ic.cd)
 	if ic.cdT then ic.cdT:clear() end
 	if ic.upT then ic.upT:clear() end
@@ -250,13 +251,47 @@ local function paintBody(ic, style, r, g, b, overlayAlpha, tint)
 	end
 end
 
+-- An element's Expiring look (its Expiring block's settings), over a timer in its last seconds.
+local function expiringLook(ic, key, length)
+	local e = ns.expireOpts(key)
+	frozen(ic.upT, 1 - math.min(e.secs > 0 and e.secs or 5, length) / length, length)
+	if e.secs <= 0 then return end
+	if e.grey then ic.tex:SetDesaturated(true) end
+	ic:SetRingShown(e.ring)
+	ic:SetPulsing(e.pulse)
+	ic:SetGlowShown(e.glow)
+end
+local function readyPopOn(key) return ns.elementOpts(key).readyPop ~= false end
+
 local function totemPreview(def)
 	return {
-		states = { { "ready", "Ready" }, { "active", "Totem down" }, { "cd", "Cooldown" } },
+		states = { { "ready", "Ready" }, { "active", "Totem down" }, { "expiring", "Expiring" }, { "cd", "Cooldown" }, { "killed", "Killed early" } },
+		pop = function(ic, st)
+			if (st == "ready" and readyPopOn(def.key)) or (st == "killed" and ns.elementOpts(def.key).killed ~= false) then ic:Pop() end
+		end,
 		render = function(ic, st)
 			reset(ic, def.iconID or def.icon)
-			if st == "active" then frozen(ic.upT, 0.45, def.duration or 45)
-			elseif st == "cd" then frozen(ic.cdT, 0.4, 15) end
+			if ic.killX then ic.killX:Hide() end
+			if st == "expiring" then expiringLook(ic, def.key, def.duration or 45)
+			elseif st == "active" then frozen(ic.upT, 0.45, def.duration or 45)
+			elseif st == "cd" then frozen(ic.cdT, 0.4, 15)
+			elseif st == "killed" then
+				frozen(ic.cdT, 0.4, 15)
+				if ns.elementOpts(def.key).killed ~= false then
+					-- The flash at its brightest: greyed under red, red glow, the cross.
+					ic.tex:SetDesaturated(true)
+					ic.manaOverlay:SetColorTexture(0.95, 0.12, 0.08, 0.7)
+					ic.manaOverlay:Show()
+					ic:SetGlowShown(true, 1, 0.12, 0.08)
+					if not ic.killX then
+						ic.killX = ic.textFrame:CreateTexture(nil, "OVERLAY")
+						ic.killX:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
+						ic.killX:SetPoint("CENTER")
+					end
+					ic.killX:SetSize(ic:GetWidth() * 0.7, ic:GetWidth() * 0.7)
+					ic.killX:Show()
+				end
+			end
 		end,
 	}
 end
@@ -298,10 +333,12 @@ L.PREVIEW = {
 	},
 	shock = {
 		states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" }, { "range", "Out of range" }, { "both", "Both" } },
+		pop = function(ic, st) if st == "ready" and readyPopOn("shock") then ic:Pop() end end,
 		render = function(ic, st)
 			local d = db()
 			local icons = { earth = 136026, flame = 135813, frost = 135849 }
 			reset(ic, icons[d.shock] or 136026)
+			if st == "ready" then ic:SetGlowShown(ns.elementOpts("shock").readyGlow == true) end
 			if st == "cd" then frozen(ic.cdT, 0.4, 6)
 			elseif st == "range" or st == "both" then paintBody(ic, d.rangeStyle, 1, 0.25, 0.25, d.rangeIntensity, d.rangeTint)
 			elseif st == "mana" then paintBody(ic, d.manaStyle, 0.2, 0.45, 1, d.manaIntensity, d.manaTint) end
@@ -310,6 +347,7 @@ L.PREVIEW = {
 	},
 	imbue = {
 		states = { { "missing", "No imbue" }, { "low", "Running low" }, { "fine", "Plenty left" } },
+		pop = function(ic, st) if st == "missing" and db().imbuePop then ic:Pop() end end,
 		render = function(ic, st)
 			local d = db()
 			local icons = { rockbiter = 136086, flametongue = 135814, frostbrand = 135847, windfury = 136018 }
@@ -318,6 +356,7 @@ L.PREVIEW = {
 				ic.tex:SetDesaturated(d.imbueMissingGrey)
 				ic:SetRingShown(d.imbueMissingRing)
 				ic:SetPulsing(d.imbuePulse)
+				ic:SetGlowShown(d.imbueGlow)
 			else
 				reset(ic, 136018)
 				if st == "low" and d.imbueWarnMins > 0 then frozen(ic.upT, 0.95, 3600) end
@@ -326,16 +365,19 @@ L.PREVIEW = {
 		end,
 	},
 	firenova = {
-		states = { { "ready", "Ready" }, { "nototem", "No fire totem" }, { "out", "Fire totem out" } },
+		states = { { "ready", "Ready" }, { "nototem", "No fire totem" }, { "out", "Fire totem out" }, { "expiring", "Totem expiring" } },
+		pop = function(ic, st) if st == "out" and readyPopOn("firenova") then ic:Pop() end end,
 		render = function(ic, st)
 			local o = ns.elementOpts("firenova")
 			reset(ic, 135824)
+			if st == "expiring" then expiringLook(ic, "firenova", 55) return end
 			if st == "nototem" then
 				ic.tex:SetDesaturated(o.blockedGrey ~= false)
 				ic:SetRingShown(o.blockedRing == true)
 				ic:SetPulsing(o.blockedPulse == true)
 			elseif st == "out" then
 				frozen(ic.upT, 0.2, 55)
+				ic:SetGlowShown(o.readyGlow == true)   -- off cooldown with a fire totem down: castable
 			end
 		end,
 	},
@@ -348,6 +390,10 @@ end
 -- bar's scale, inside a frame with that scale, so text, borders and spacing match the game),
 -- shrunk only as much as needed to fit; the picking state shows a short popout.
 local TOTEM_ICON = { earth = 136098, fire = 135825, water = 135127, air = 136114 }   -- Stoneskin, Searing, Healing Stream, Windfury
+-- Preview time left per element and its totem's lifetime (s): a spread that shows every Time format
+-- ("5m" or 4:10, 38, "2m" or 1:23, "3m" or 2:45). Expiring puts the fire totem (else the first
+-- slot) at 5 s; Killed early shows it just killed.
+local PREVIEW_LEFT = { earth = { 250, 300 }, fire = { 38, 55 }, water = { 83, 300 }, air = { 165, 300 } }
 local POP_ITEMS = 3   -- "No totem" and two totems: enough to show the look within the header
 local function tabArrow(parent)
 	local t = CreateFrame("Frame", nil, parent, "BackdropTemplate")
@@ -363,7 +409,16 @@ local function tabArrow(parent)
 end
 L.PREVIEW.totembar = {
 	stage = true, heroH = 280,
-	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" }, { "offpick", "Not your pick" }, { "picking", "Picking" } },
+	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" }, { "killed", "Killed early" }, { "offpick", "Not your pick" }, { "picking", "Picking" } },
+	-- Blizzard's: nothing to preview. Active totems: only totems that are down, so no picking.
+	stateShown = function(st)
+		local mode = ns.TotemBar.cfg().mode
+		if mode == "blizzard" then return false end
+		return mode == "everything" or (st ~= "offpick" and st ~= "picking")
+	end,
+	fallback = "down",
+	-- Killed early: the dead totem pops as in game.
+	pop = function(h, st) if st == "killed" and h.popIcon then h.popIcon:Pop() end end,
 	build = function(h)
 		-- The preview area: below the title band and its divider, above the state buttons.
 		h.area = CreateFrame("Frame", nil, h)
@@ -383,6 +438,16 @@ L.PREVIEW.totembar = {
 			ic.badge.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 			h.slots[i] = ic
 		end
+		h.extras = {}
+		for _, key in ipairs({ "Call", "Recall" }) do
+			h.extras[key] = ns.makeIcon(bar, 56)
+		end
+		-- Killed early: the glow and the cross, placed over the killed slot.
+		h.kMark = CreateFrame("Frame", nil, bar)
+		h.kMark:SetFrameLevel(bar:GetFrameLevel() + 20)
+		h.kMark.x = h.kMark:CreateTexture(nil, "OVERLAY")
+		h.kMark.x:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
+		h.kMark.x:SetPoint("CENTER")
 		h.tab = tabArrow(bar)
 		h.pop = CreateFrame("Frame", nil, bar)
 		h.pop.bg = h.pop:CreateTexture(nil, "BACKGROUND")
@@ -406,6 +471,9 @@ L.PREVIEW.totembar = {
 		local TB = ns.TotemBar
 		local c = TB.cfg()
 		local size, border = TB.look()
+		h.barFrame:SetShown(c.mode ~= "blizzard")
+		if c.mode == "blizzard" then h.fitNote:SetText("") return end
+		local full = c.mode == "everything"
 		local els = {}
 		for _, el in ipairs(c.order) do if not c.hidden[el] then table.insert(els, el) end end
 		local n = math.max(#els, 1)
@@ -415,7 +483,14 @@ L.PREVIEW.totembar = {
 		local known = picking and TB.known(els[1]) or {}
 		local items = math.min(POP_ITEMS, 1 + #known)
 		local popLen = 3 + items * (psz + 3)
-		local along = n * size + (n - 1) * c.spacing
+		-- Call and Recall: before and after the slots, as on the bar.
+		local before, after = TB.extraSides()
+		local eg = c.spacing + TB.EXTRA_GAP
+		local esz = math.floor(size * c.extrasScale + 0.5)
+		local function run(k, sz) return k > 0 and k * (sz or size) + (k - 1) * c.spacing or 0 end
+		local slotsLen = n * size + (n - 1) * c.spacing
+		local leadLen = #before > 0 and run(#before, esz) + eg or 0
+		local along = leadLen + slotsLen + (#after > 0 and eg + run(#after, esz) or 0)
 		local badge = st == "offpick" and c.offPick and math.max(math.floor(size * c.badgeSize + 0.5), 8) + 3 or 0
 		local across = size + (picking and (c.arrowSize + 4 + popLen) or 0) + badge
 		-- Room: the preview area between the title band and the state buttons.
@@ -429,15 +504,46 @@ L.PREVIEW.totembar = {
 		local bar = h.barFrame
 		bar:SetScale(scale)
 		h.fitNote:SetText(fit < 0.999 and string.format("Shown at %d%% to fit", math.floor(fit * 100 + 0.5)) or "")
-		-- The bar's box (its popout included), in its own scaled units, centred in the area; a row
-		-- sits on the side its pickers open away from, so it stays put while picking.
+		-- The bar's box (its popout and badge included), in its own scaled units, centred in the
+		-- area both ways.
 		local bw, bh = (row and along or across), (row and across or along)
 		bar:SetSize(bw, bh)
 		bar:ClearAllPoints()
 		local dir = c.pop
-		if row and dir == "down" then bar:SetPoint("TOP", h.area, "TOP", 0, 0)
-		elseif row then bar:SetPoint("BOTTOM", h.area, "BOTTOM", 0, 0)
-		else bar:SetPoint("CENTER", h.area, "CENTER", 0, 0) end
+		bar:SetPoint("CENTER", h.area, "CENTER", 0, 0)
+		-- Slots sit on the side the pickers open away from, leaving room for the badge (which hangs
+		-- opposite the picker) inside the box. off: along the bar's axis.
+		-- cross: extra room on the far side of the line (to centre a smaller Call / Recall on it).
+		local function place(ic, off, cross)
+			local x = badge + (cross or 0)
+			if row then
+				if dir == "down" then ic:SetPoint("TOPLEFT", bar, "TOPLEFT", off, -x)
+				else ic:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", off, x) end
+			else
+				if dir == "left" then ic:SetPoint("TOPRIGHT", bar, "TOPRIGHT", -x, -off)
+				else ic:SetPoint("TOPLEFT", bar, "TOPLEFT", x, -off) end
+			end
+		end
+		for _, ic in pairs(h.extras) do ic:Hide() end
+		local function placeExtras(keys, start)
+			for j, key in ipairs(keys) do
+				local ic = h.extras[key]
+				ic:SetSize(esz, esz)
+				ic:ClearAllPoints()
+				place(ic, start + (j - 1) * (esz + c.spacing), (size - esz) / 2)
+				if ns.applyBorder then ns.applyBorder(ic, border) end
+				local learned = TB.extraLearned(key)
+				ic.tex:SetTexture(TB.extraTexture(key))
+				ic.tex:SetDesaturated(not learned)
+				ic.tex:SetAlpha(learned and 1 or 0.6)
+				ic:Show()
+			end
+		end
+		placeExtras(before, 0)
+		placeExtras(after, leadLen + slotsLen + eg)
+		local expEl = tContains(els, "fire") and "fire" or els[1]
+		h.popIcon = nil   -- the icon a click on this state pops (see def.pop)
+		h.kMark:Hide()
 		-- Slots along the bar's axis; the popout grows away from them (up, down, right or left).
 		for i, ic in ipairs(h.slots) do
 			local el = els[i]
@@ -445,16 +551,7 @@ L.PREVIEW.totembar = {
 			if el then
 				ic:SetSize(size, size)
 				ic:ClearAllPoints()
-				local off = (i - 1) * (size + c.spacing)
-				-- Slots sit on the side the pickers open away from, leaving room for the badge (which
-				-- hangs opposite the picker) inside the box.
-				if row then
-					if dir == "down" then ic:SetPoint("TOPLEFT", bar, "TOPLEFT", off, -badge)
-					else ic:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", off, badge) end
-				else
-					if dir == "left" then ic:SetPoint("TOPRIGHT", bar, "TOPRIGHT", -badge, -off)
-					else ic:SetPoint("TOPLEFT", bar, "TOPLEFT", badge, -off) end
-				end
+				place(ic, leadLen + (i - 1) * (size + c.spacing))
 				if ns.applyBorder then ns.applyBorder(ic, border) end
 				local pick = GetActionTexture and TB.pickTexture(el)
 				reset(ic, pick or TOTEM_ICON[el])
@@ -482,24 +579,44 @@ L.PREVIEW.totembar = {
 				end
 				local col = L.SCHOOL[el]
 				ic.upT.school = el
-				if st == "idle" or (picking and i == 1) then
+				if st == "idle" and not full then
+					ic:Hide()   -- Active totems: an empty slot shows nothing
+				elseif st == "killed" and el == expEl then
+					h.popIcon = c.killed and c.killedPop and ic or nil
+					-- The flash at its brightest: the dead totem greyed under red (or nothing, if off).
+					if c.killed then
+						ic.tex:SetDesaturated(true)
+						ic.manaOverlay:SetColorTexture(0.95, 0.12, 0.08, 0.7)
+						ic.manaOverlay:Show()
+						if c.killedGlow then ic:SetGlowShown(true, 1, 0.12, 0.08) end
+						if c.killedMark then
+							h.kMark:ClearAllPoints(); h.kMark:SetAllPoints(ic)
+							h.kMark.x:SetSize(size * 0.7, size * 0.7); h.kMark:Show()
+						end
+					elseif full then
+						ic.tex:SetDesaturated(c.idleGrey); ic.tex:SetAlpha(c.idleAlpha)
+					else ic:Hide() end
+				elseif st == "idle" or (picking and i == 1) then
 					if c.empty == "pick" and pick then
 						ic.tex:SetDesaturated(c.idleGrey); ic.tex:SetAlpha(c.idleAlpha)
 					elseif c.empty == "blank" then ic.tex:SetAlpha(0)
 					else ic.tex:SetColorTexture(col[1] * 0.35, col[2] * 0.35, col[3] * 0.35, 0.8) end
 				else
-					local frac = (st == "expiring" and i == 2) and 0.97 or 0.3 + 0.12 * i
-					frozen(ic.upT, frac, 300)
-					if st == "expiring" and i == 2 then
+					local expiring = st == "expiring" and el == expEl
+					local left, life = PREVIEW_LEFT[el][1], PREVIEW_LEFT[el][2]
+					if expiring then left = 5 end
+					frozen(ic.upT, 1 - left / life, life)
+					if expiring then
 						if c.warnGrey then ic.tex:SetDesaturated(true) end
 						ic:SetRingShown(c.warnRing)
 						ic:SetPulsing(c.warnPulse)
+						ic:SetGlowShown(c.warnGlow)
 					end
 				end
 			end
 		end
 		-- Picking: the first slot's arrow tab and a short popout of its totems.
-		h.tab:SetShown(picking and c.arrows)
+		h.tab:SetShown(picking and TB.feat("arrows"))
 		h.pop:SetShown(picking)
 		if picking then
 			local first, tab = h.slots[1], c.arrowSize
@@ -653,7 +770,12 @@ function L.buildHero(parent, key)
 		hl:SetAllPoints()
 		hl:SetColorTexture(1, 1, 1, 0.06)
 		b.state = st[1]
-		b:SetScript("OnClick", function(self) previewState[key] = self.state; h:refresh() end)
+		b:SetScript("OnClick", function(self)
+			previewState[key] = self.state
+			h:refresh()
+			-- A state with a moment (killed, ready, dropped) plays its pop once, as in game.
+			if def.pop then def.pop(def.stage and h or h.previewIcon, self.state) end
+		end)
 		table.insert(h.stateButtons, b)
 	end
 	h.preview = p
@@ -671,6 +793,30 @@ function L.buildHero(parent, key)
 			local gi = ns.findElement(key)
 			local shows = { always = "Always", combat = "In combat", never = "Hidden" }
 			self.tags:SetText(string.format("%s  ·  %s", gi and ("Group " .. gi) or "No group", shows[ns.showMode(key)] or ""))
+		end
+		-- A stage can offer only some states (the totem bar's mode): the others hide, the rest close
+		-- up, and a state that no longer applies falls back to def.fallback or the first one left.
+		if def.stage and def.stateShown then
+			-- They share the width between the corner ornaments (40 px each side), 96 px at most.
+			local count = 0
+			for _, b in ipairs(self.stateButtons) do if def.stateShown(b.state) then count = count + 1 end end
+			local bw = math.min(96, math.floor(((w - 80) - (count - 1) * 4) / math.max(count, 1)))
+			local n, first, cur = 0, nil, false
+			for _, b in ipairs(self.stateButtons) do
+				local show = def.stateShown(b.state)
+				b:SetShown(show)
+				if show then
+					b:SetWidth(bw)
+					b:ClearAllPoints()
+					b:SetPoint("BOTTOMLEFT", self, "BOTTOMLEFT", 40 + n * (bw + 4), 12)
+					n = n + 1
+					first = first or b.state
+					if b.state == previewState[key] then cur = true end
+				end
+			end
+			if not cur and first then
+				previewState[key] = (def.fallback and def.stateShown(def.fallback)) and def.fallback or first
+			end
 		end
 		for _, b in ipairs(self.stateButtons) do
 			local on = b.state == previewState[key]

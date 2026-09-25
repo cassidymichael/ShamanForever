@@ -8,7 +8,14 @@
 ## X-Curse-Project-ID: 1706929
 ## SavedVariables: ShamanForeverDB
 ## IconTexture: Interface\Icons\Spell_Nature_LightningShield
+## AddonCompartmentFunc: ShamanForever_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: ShamanForever_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: ShamanForever_OnAddonCompartmentLeave
 
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
+Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
+Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 ShamanForever_Timers.lua
 ShamanForever.lua
 ShamanForever_TotemBar.lua

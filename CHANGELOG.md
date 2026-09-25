@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.0 (2026-09-25)
+
+- Totem bar is out of experimental. At the top of its page, choose Blizzard's, Active totems (replaces only the totems under the player frame) or Everything (replaces both of Blizzard's totem bars).
+- Totem bar: Call of the Elements and Totemic Recall buttons, at both ends of the bar or together before or after the slots, with their own size. Right-click Recall to dismiss every totem (no global cooldown, no mana back), even before you learn it.
+- Key bindings (Options > Keybindings > Shaman Forever): cast each element's totem, dismiss each totem or all of them, Call of the Elements, Totemic Recall.
+- Killed early: a totem that dies before its time flashes red with a pop, a glow and a cross until you recast it. On the totem bar, Earthbind and Stoneclaw.
+- Pulsing glows: expiring totems, a missing imbue, and optionally Shocks and Fire Nova when they're ready to cast. Colour, speed and size on the General page.
+- Pops: a spell coming off cooldown, a totem running out, and your imbue dropping.
+- Minimap button (and the minimap's addon menu): click for the options, right-click to lock or unlock positioning. The options reopen on the last page you had open.
+- Earthbind and Stoneclaw show their time left as a bar only, and only the cooldown sweeps on them and on Fire Nova.
+- Minor: "Pulse" is now "Fade in and out", a reworked Layout page, and fixes.
+
 ## 0.5.0 (2026-09-24)
 
 - Totem bar (experimental): left-click drops the element's picked totem, right-click dismisses it, and the arrow tab or Alt+click picks a totem, in combat too. It can replace Blizzard's totem bars, and it's on by default.

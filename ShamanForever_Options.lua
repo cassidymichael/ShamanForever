@@ -76,6 +76,12 @@ function Page:add(frame, height, shown, refresh)
 		local also = dim.shown
 		shown = function() return (not also or also()) and dim.active() and true or false end
 	end
+	-- A page-wide gate (set around a run of rows) hides them all while it returns false.
+	local gate = self.gate
+	if gate then
+		local inner = shown
+		shown = function() return gate() and (not inner or inner()) and true or false end
+	end
 	table.insert(self.items, { frame = frame, height = height, shown = shown, dim = dim, refresh = refresh, rowIndent = self.rowIndent })
 	return frame
 end
@@ -209,6 +215,7 @@ function Page:checkbox(label, tip, get, set, shown)
 	cb.Text:SetText(label)
 	cb:SetScript("OnClick", function(self) set(self:GetChecked() and true or false) end)
 	setTip(cb, label, tip)
+	f.check = cb
 	return self:add(f, 30, shown, function() cb:SetChecked(get() and true or false) end)
 end
 
@@ -481,7 +488,7 @@ local function int(v) return string.format("%d", v) end
 local TEXT_POS = { { "auto", "Auto" }, { "center", "Centre" }, { "topleft", "Top left" }, { "bottom", "Bottom" } }
 local function timerSettings(p, title, key, kind, after)
 	local T = ns.Timer
-	local cant = key and T.CANT[key] or {}
+	local cant = T.cant(key, kind)
 	local function style() return key and T.style(key, kind) or T.general(kind) end
 	local function tg(field) return function() return style()[field] end end
 	local function ts(field) return function(v) T.set(key, kind, field, v); (after or relayout)() end end
@@ -512,7 +519,7 @@ local function timerSettings(p, title, key, kind, after)
 	p:color("Text colour", nil, tg("textColor"), ts("textColor"), dim("text", "text"))
 	p:dropdown("Text position", "Auto: centred, or top-left on an icon that also shows a cooldown.", TEXT_POS,
 		tg("textPos"), ts("textPos"), dim("text", "text"), 140)
-	p:dropdown("Time format", "How minutes show. The last minute always counts seconds.", {
+	p:dropdown("Time format", "How minutes show. Minutes round up; the last minute always counts seconds.", {
 		{ 0, "2m, then seconds" }, { 120, "1:31 in the last 2 minutes" },
 		{ 300, "1:31 in the last 5 minutes" }, { 600, "1:31 in the last 10 minutes" },
 	}, tg("abbrev"), ts("abbrev"), dim("text", "text"), 220)
@@ -552,7 +559,7 @@ local function groupSet(key) return function(v) local g = selected(); if g then 
 ------------------------------------------------------------------------
 local function lockText() return acct().locked and "Unlock positioning" or "Lock positioning" end
 local function toggleLock() ns.setLocked(not acct().locked) end
-local LOCK_TIP = "Unlocked, drag groups on screen, mouse wheel to scale, shift + wheel for opacity. /sf lock does the same."
+local function lockSub() return acct().locked and "Move groups and the totem bar on screen" or "Done moving? Lock them" end
 
 local aboutExp   -- About's Experimental heading, for ns.ShowExperimental
 local groupPanel -- Layout's selected-group panel, for ns.OpenGroupSettings
@@ -566,8 +573,7 @@ end
 local function buildHome(p)
 	p:pin(ns.Look.buildIntro(win, addonVersion()))
 	p:bigButtons({
-		{ "Interface\\Icons\\INV_Misc_Key_03", lockText,
-			function() return acct().locked and "Move groups on screen" or "Done moving? Lock them" end, toggleLock },
+		{ "Interface\\Icons\\INV_Misc_Key_03", lockText, lockSub, toggleLock },
 		{ "Interface\\Icons\\Spell_Nature_Invisibilty", function() return "Layout" end,
 			function() return "Set up groups of elements" end, function() ns.OpenOptions("layout") end },
 	})
@@ -598,6 +604,26 @@ local function buildGeneral(p)
 	p:text("A spell you can't cast yet. Elements can have their own on their page.")
 	timerSettings(p, "Time left", nil, "uptime")
 	p:text("A totem, shield or imbue running. Elements and the totem bar can have their own.")
+
+	p:header("Pulsing glow")
+	p:text("The style of every pulsing glow. Elements turn their own glows on or off.")
+	local function gset(k) return function(v) db()[k] = v; ns.applyGlowStyle(); if ns.RefreshOptions then ns.RefreshOptions() end end end
+	p:color("Colour", "Colour and opacity. Killed early keeps its red.", get("glowColor"), gset("glowColor"))
+	p:slider("Pulse length", "One pulse, in seconds.", 0.2, 2, 0.1, function(v) return string.format("%.1f s", v) end,
+		get("glowSpeed"), gset("glowSpeed"))
+	p:slider("Fades to", "How faint it gets between pulses. 100% is steady.", 0, 1, 0.05,
+		function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end, get("glowLow"), gset("glowLow"))
+	p:slider("Size", "How far it reaches beyond the icon.", 1.3, 2.5, 0.1, function(v) return string.format("%.1fx", v) end,
+		get("glowSize"), gset("glowSize"))
+
+	p:header("Minimap")
+	p:checkbox("Show the minimap button", "Click it to open these options. Also listed in the minimap's addon menu.",
+		function() return not (acct().minimap and acct().minimap.hide) end,
+		function(v)
+			if type(acct().minimap) ~= "table" then acct().minimap = {} end
+			acct().minimap.hide = not v
+			ns.applyMinimapButton()
+		end)
 
 	local function hasReporter() return ns.hasIssueReporter and ns.hasIssueReporter() end
 	p:header("Beta", hasReporter)
@@ -663,7 +689,6 @@ local function buildAbout(p)
 	p:text("I can't test these in game yet. If you can, please try them and tell me whether they work and what could be improved.")
 	p:experimental("Water Shield", "Shields > Track")
 	p:experimental("Either shield", "Shields > Track")
-	p:experimental("Totem bar", "Totem bar page")
 	p:header("Art")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
 		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
@@ -950,10 +975,16 @@ local function buildBoard(p)
 end
 
 local function buildLayout(p)
-	p:button(lockText, toggleLock, LOCK_TIP)
+	-- Positioning covers the groups and the totem bar; the totem bar's own layout is on its page.
+	p:bigButtons({
+		{ "Interface\\Icons\\INV_Misc_Key_03", lockText, lockSub, toggleLock },
+		{ "Interface\\Icons\\Spell_Shaman_DropAll_01", function() return "Totem bar" end,
+			function() return "Its layout is on its own page" end, function() ns.OpenOptions("totembar") end },
+	})
+	p:header("Elements layout")
+	p:text("Shaman Forever calls each indicator an element, and every element sits in one group. Drag elements between groups; click one for a menu.")
 	p:checkbox("Test elements", "Adds placeholder elements in their own group, for trying out layouts.",
 		function() return acct().testMode end, function(v) ns.setTestMode(v) end)
-	p:header("Groups", nil, "Drag elements between groups. Click one for a menu.")
 	p:add(p:row(6), 6)   -- a little room between the heading's line and the group cards
 	buildBoard(p)
 
@@ -1083,28 +1114,32 @@ local function buildTotemBar(p)
 	local function changed() TB.apply(); if ns.RefreshOptions then ns.RefreshOptions() end end
 	local function tget(key) return function() return c()[key] end end
 	local function tset(key) return function(v) c()[key] = v; changed() end end
-	local on = function() return c().enabled end
 
 	p:hero("totembar")
-	p:header("Display")
-	p:checkbox("Show the totem bar", "Your totems, their timers and a pick for each element.", tget("enabled"), tset("enabled"))
-	p:dropdown("Setup", "Everything replaces both of Blizzard's totem bars. Active totems only keeps Blizzard's Totem Action Bar for picking.",
-		function()
-			local list = { { "everything", "Everything" }, { "active", "Active totems only" } }
-			if TB.setup() == "custom" then table.insert(list, { "custom", "Custom" }) end
-			return list
-		end, function() return TB.setup() end, function(v)
-			if v ~= "custom" then TB.applySetup(v); changed() end
-		end, dimWhen(on, "Turn on the totem bar first."), 200)
-	p:dropdown("Show", "When the bar is on screen. It always shows while positioning is unlocked.",
-		{ { "always", "Always" }, { "active", "In combat or a totem down" }, { "combat", "In combat" }, { "never", "Never" } },
-		tget("show"), tset("show"), nil, 200)
-	p:slider("Scale", "Mouse wheel over the bar while positioning is unlocked does the same.", 0.5, 3, 0.05,
-		function(v) return string.format("%.2f", v) end, tget("scale"), tset("scale"))
-	p:slider("Opacity", "Shift + mouse wheel over the bar while positioning is unlocked does the same.", 0.1, 1, 0.05,
-		function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end, tget("alpha"), tset("alpha"))
+	-- The Totems cards decide which of ours and Blizzard's totem frames show; the sections below
+	-- show only where they apply (Buttons in Everything, the rest while our bar is on).
+	local full = function() return c().mode == "everything" end
+	p:header("Totems")
+	p:cards("Use", nil, {
+		{ "blizzard", "Blizzard's", "Interface\\Icons\\INV_Misc_Gear_01" },
+		{ "active", "Active totems", "Interface\\Icons\\Spell_Nature_TimeStop" },
+		{ "everything", "Everything", "Interface\\Icons\\Spell_Shaman_DropAll_01" },
+	}, tget("mode"), function(v) TB.setMode(v); changed() end)
+	p:text("Shaman Forever's totem bar is off. Blizzard's totem bar and active totems display are on.", function() return c().mode == "blizzard" end)
+	p:text("Keeps Blizzard's totem bar, but replaces Blizzard's active totems display usually shown under the player frame.", function() return c().mode == "active" end)
+	p:text("Both of Blizzard's totem frames are replaced by Shaman Forever.", full)
 
-	p:header("Slots")
+	p.gate = TB.barOn
+	p:header("Display")
+	p:dropdown("Show", "When the bar is on screen. It always shows while positioning is unlocked.",
+		{ { "always", "Always" }, { "active", "In combat or a totem down" }, { "combat", "In combat" } },
+		tget("show"), tset("show"), nil, 200)
+	p:dropdown("Tooltips", nil, { { "always", "Always" }, { "ooc", "Out of combat" }, { "never", "Never" } },
+		tget("tips"), tset("tips"), nil, 160)
+	p:text("Right-click a totem to dismiss it. Alt+click a slot to pick its totem. Keys: Options > Keybindings > Shaman Forever.", full)
+	p:text("Right-click a totem to dismiss it. Keys: Options > Keybindings > Shaman Forever.", function() return c().mode == "active" end)
+
+	p:header("Layout")
 	-- One row per position in the bar: the element there, whether it shows, and moving it.
 	for i = 1, 4 do
 		local f = p:row(30)
@@ -1149,23 +1184,28 @@ local function buildTotemBar(p)
 	p:dropdown("Pickers open", "Which way the totem picker opens from a slot.", function()
 		if c().dir == "row" then return { { "up", "Up" }, { "down", "Down" } } end
 		return { { "right", "Right" }, { "left", "Left" } }
-	end, tget("pop"), tset("pop"), nil, 140)
+	end, tget("pop"), tset("pop"), full, 140)
 	p:slider("Spacing", nil, 0, 20, 1, function(v) return string.format("%d px", v) end, tget("spacing"), tset("spacing"))
+	p:dropdown("Call and Recall", "Where they sit on the bar.", { { "ends", "Both ends" }, { "before", "Before the slots" }, { "after", "After the slots" } },
+		tget("extras"), tset("extras"), dimWhen(function() return c().call or c().recall end, nil, full), 180)
+	p:slider("Call and Recall size", "As a share of the slots' size.", 0.5, 1.5, 0.05,
+		function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end, tget("extrasScale"), tset("extrasScale"),
+		dimWhen(function() return c().call or c().recall end, nil, full))
+	p:slider("Scale", "Mouse wheel over the bar while positioning is unlocked does the same.", 0.5, 3, 0.05,
+		function(v) return string.format("%.2f", v) end, tget("scale"), tset("scale"))
+	p:slider("Opacity", "Shift + mouse wheel over the bar while positioning is unlocked does the same.", 0.1, 1, 0.05,
+		function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end, tget("alpha"), tset("alpha"))
 
-	p:header("Clicks")
+	p.gate = full
+	p:header("Buttons")
 	p:checkbox("Left-click casts your pick", "Left-click a slot to drop that element's picked totem.", tget("cast"), tset("cast"))
 	p:checkbox("Arrow opens a totem picker", "A tab on each slot opens its totems. Works in combat.", tget("arrows"), tset("arrows"))
 	p:slider("Arrow size", "How deep the tab is.", 8, 32, 1, function(v) return string.format("%d px", v) end,
 		tget("arrowSize"), tset("arrowSize"), dimWhen(function() return c().arrows end, "Turn on the arrow to use this."))
-	p:dropdown("Tooltips", nil, { { "always", "Always" }, { "ooc", "Out of combat" }, { "never", "Never" } },
-		tget("tips"), tset("tips"), nil, 160)
-	p:text("Right-click a totem to dismiss it. Alt+click a slot to pick its totem.")
+	p:checkbox("Call of the Elements", "Shows once you know it.", tget("call"), tset("call"))
+	p:checkbox("Totemic Recall", "Right-click dismisses all totems, even before you learn it.", tget("recall"), tset("recall"))
 
-	p:header("Blizzard's totem bars")
-	p:checkbox("Hide the Totem Action Bar (picks)", "While the totem bar is on.", tget("hideActionBar"), tset("hideActionBar"))
-	p:checkbox("Hide the totems under the player frame", "While the totem bar is on. Left alone if another addon has moved them.",
-		tget("hideTotemFrame"), tset("hideTotemFrame"))
-
+	p.gate = TB.barOn
 	p:header("Look")
 	local own = function() return not c().follow end
 	local WHY = "Turn off Same as General to use this."
@@ -1179,6 +1219,7 @@ local function buildTotemBar(p)
 		function(v) c().border.color = v; changed() end, dimWhen(bordered, "Turn on Border to use this."))
 	timerSettings(p, "Time left", "totembar", "uptime", changed)
 
+	p.gate = full
 	p:header("Totem not down")
 	p:dropdown("Look", "How a slot looks while its totem isn't down.",
 		{ { "pick", "Your pick" }, { "frame", "Element colour" }, { "blank", "Blank" } }, tget("empty"), tset("empty"), nil, 180)
@@ -1194,10 +1235,13 @@ local function buildTotemBar(p)
 	p:slider("Size", nil, 0.25, 0.8, 0.05, function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end,
 		tget("badgeSize"), tset("badgeSize"), dimWhen(tget("offPick")))
 
+	p.gate = TB.barOn
 	p:header("Expiring")
 	p:checkbox("Grey icon", "Desaturate the icon.", tget("warnGrey"), tset("warnGrey"))
 	p:checkbox("Red ring", "A red ring inside the icon edge.", tget("warnRing"), tset("warnRing"))
-	p:checkbox("Pulse", "Fade the icon in and out.", tget("warnPulse"), tset("warnPulse"))
+	p:checkbox("Fade in and out", nil, tget("warnPulse"), tset("warnPulse"))
+	p:checkbox("Pulsing glow", "A gold glow around the slot that pulses.", tget("warnGlow"), tset("warnGlow"))
+	p:checkbox("Pop when it runs out", "The totem bursts bigger and fades the moment it runs out.", tget("expiredPop"), tset("expiredPop"))
 	local secs = function(v) return v == 0 and "Off" or string.format("%d s", v) end
 	p:slider("Warn in the last", nil, 0, 30, 1, secs, tget("warn"), tset("warn"))
 	p:text("Totems with their own warning time, instead of the default:", function() return next(c().warnOver) ~= nil end)
@@ -1233,14 +1277,18 @@ local function buildTotemBar(p)
 		end
 		if not any then root:CreateTitle("Every totem you know has its own time") end
 	end)
+
+	p:header("Killed early")
+	p:checkbox("Flash when a totem dies early", "The dead totem flashes red over its slot. Not when you dismiss it or it runs out.",
+		tget("killed"), tset("killed"))
+	local killedOn = dimWhen(tget("killed"))
+	p:checkbox("Pop", "The slot bursts bigger for a moment.", tget("killedPop"), tset("killedPop"), killedOn)
+	p:checkbox("Glow", "A red glow around the slot.", tget("killedGlow"), tset("killedGlow"), killedOn)
+	p:checkbox("Cross until recast", "A red cross stays over the slot until you recast it, up to 5 s.", tget("killedMark"), tset("killedMark"), killedOn)
+	p.gate = nil
 end
 
 local ELEMENT_PAGES = {}   -- key -> page key, filled as element pages are built
-
-local function groupText(key)
-	local gi = ns.findElement(key)
-	return gi and ("Group " .. gi) or "No group"
-end
 
 local function buildElements(p)
 	p:header("Elements")
@@ -1334,12 +1382,25 @@ local function elementDisplay(p, key)
 end
 
 -- Standard block: the look while something is missing. first: an optional row before the three.
+-- "Pop when ready" under an element's Cooldown block, and with glowTip a "use me" glow (Shocks, Fire
+-- Nova; off by default).
+local function readyPop(p, key, glowTip)
+	p:checkbox("Pop when ready", "The icon bursts bigger the moment the cooldown ends.",
+		function() local v = ns.elementOpts(key).readyPop; return v == nil or v end,
+		function(v) ns.elementOpts(key).readyPop = v; ns.RefreshOptions() end)
+	if glowTip then
+		p:checkbox("Pulsing glow when ready", glowTip,
+			function() return ns.elementOpts(key).readyGlow == true end,
+			function(v) ns.elementOpts(key).readyGlow = v; ns.RefreshOptions() end)
+	end
+end
+
 local function warningBlock(p, title, greyGet, greySet, ringGet, ringSet, pulseGet, pulseSet, first)
 	p:header(title)
 	if first then first() end
 	p:checkbox("Grey icon", "Desaturate the icon.", greyGet, greySet)
 	p:checkbox("Red ring", "A red ring inside the icon edge.", ringGet, ringSet)
-	p:checkbox("Pulse", "Fade the icon in and out.", pulseGet, pulseSet)
+	p:checkbox("Fade in and out", nil, pulseGet, pulseSet)
 end
 
 -- A look choice (tint, overlay, both) greys out the strength it does not use.
@@ -1401,6 +1462,7 @@ local function buildShock(p)
 	p:slider("Tint", nil, 0.1, 1, 0.05, pct, get("rangeTint"), set("rangeTint"),
 		dimWhen(lookUses("rangeStyle", "tint"), "Choose Tint or Both as the look to use this."))
 	timerSettings(p, "Cooldown", "shock", "cooldown")
+	readyPop(p, "shock", "While it's off cooldown.")
 end
 
 local function buildImbue(p)
@@ -1411,6 +1473,8 @@ local function buildImbue(p)
 			for _, key in ipairs(ns.IMBUE_ORDER) do table.insert(cards, { key, (ns.IMBUES[key].name:gsub(" Weapon", "")), ns.IMBUES[key].icon }) end
 			p:cards("Icon", "Which imbue's icon shows while none is on.", cards, get("imbuePreferred"), set("imbuePreferred"))
 		end)
+	p:checkbox("Pulsing glow", "A gold glow around the icon that pulses.", get("imbueGlow"), set("imbueGlow"))
+	p:checkbox("Pop when it drops", "The icon bursts bigger the moment your imbue runs out or is lost.", get("imbuePop"), set("imbuePop"))
 
 	p:header("Time left")
 	p:slider("Show under", "Show the time left once under this. Zero never shows it.", 0, 30, 1,
@@ -1435,6 +1499,7 @@ local function buildCooldown(p, def)
 			optGet("blockedPulse", false), optSet("blockedPulse"))
 	end
 	timerSettings(p, "Cooldown", key, "cooldown")
+	readyPop(p, key, def.needsTotem and "While it's off cooldown and a fire totem is down.")
 	if def.needsTotem then timerSettings(p, "Fire totem's time left", key, "uptime")
 	elseif def.totemSlot then timerSettings(p, "Time left", key, "uptime") end
 	if def.needsTotem or def.totemSlot then
@@ -1452,7 +1517,13 @@ local function buildCooldown(p, def)
 			function(v) return v == 0 and "Off" or string.format("%d s", v) end, eget("secs"), eset("secs"))
 		p:checkbox("Grey icon", "Desaturate the icon.", eget("grey"), eset("grey"), on)
 		p:checkbox("Red ring", "A red ring inside the icon edge.", eget("ring"), eset("ring"), on)
-		p:checkbox("Pulse", "Fade the icon in and out.", eget("pulse"), eset("pulse"), on)
+		p:checkbox("Fade in and out", nil, eget("pulse"), eset("pulse"), on)
+		p:checkbox("Pulsing glow", nil, eget("glow"), eset("glow"), on)
+	end
+	if def.totemSlot then
+		p:header("Killed early")
+		p:checkbox("Flash when it dies early", "A red flash with a pop and glow, and a cross until you recast it, up to 5 s. Not when you dismiss it or it runs out.",
+			optGet("killed", true), optSet("killed"))
 	end
 end
 
@@ -1463,6 +1534,7 @@ local navButtons, navDivider, navLock = {}, nil, nil
 
 local function showPage(key)
 	currentPage = key
+	acct().optionsPage = key   -- reopened next time, across reloads (account-wide, like the window height)
 	for _, p in ipairs(pageOrder) do
 		p.scroll:SetShown(p.key == key)
 		if p.fixed then p.fixed:SetShown(p.key == key) end
@@ -1811,7 +1883,8 @@ function ns.OpenOptions(page, groupIndex)
 	if SettingsPanel and SettingsPanel:IsShown() then pcall(HideUIPanel, SettingsPanel) end
 	if groupIndex then selectedGroup = groupIndex end
 	win:Show()
-	showPage(page or currentPage or "home")
+	local last = acct().optionsPage
+	showPage(page or currentPage or (last and pages[last] and last) or "home")
 end
 
 -- An element's own page, or the Elements overview for one without a page (test elements).

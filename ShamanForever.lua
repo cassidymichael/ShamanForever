@@ -53,6 +53,12 @@ local DEFAULT_PROFILE = "Default"
 local DEFAULTS = {
 	iconSize = 44,          -- base element size; each group scales it
 	border = { show = true, size = 2, color = { 0, 0, 0, 1 } },   -- around every element; a group can override (g.border)
+	-- Every pulsing glow (makeGlow): colour, one pulse's length (s), how faint it gets between
+	-- pulses, and its size as a multiple of the icon. Killed early's glow keeps its red.
+	glowColor = { 1, 0.8, 0.25, 1 },
+	glowSpeed = 0.6,
+	glowLow = 0.35,
+	glowSize = 1.9,
 	-- Default layout: just below the centre of the screen, side by side 16 px apart, ready to be
 	-- dragged where the player wants them (the totem bar sits below, see TotemBar.lua). Offsets are
 	-- in each group's scaled units, so the third group's are divided by its 0.9 scale.
@@ -97,6 +103,8 @@ local DEFAULTS = {
 	imbueMissingRing = true,
 	imbueMissingGrey = true,
 	imbuePulse = true,
+	imbueGlow = true,         -- a pulsing glow while no imbue is on
+	imbuePop = true,          -- the icon bursts bigger the moment the imbue drops
 	imbueWarnMins = 5,        -- show time left below this many minutes (0 = never)
 	imbueHideActive = true,   -- while an imbue is on, only show once its time left shows
 	totemBar = {},            -- the totem bar's settings (ShamanForever_TotemBar.lua fills its defaults)
@@ -169,6 +177,163 @@ end
 local root = CreateFrame("Frame", "ShamanForeverRoot", UIParent)
 root:SetAllPoints(UIParent)
 
+-- A halo beyond a frame's edges, breathing: Blizzard's glowing button border, tinted and added on
+-- top (its middle is clear). fit(size) sizes it for an icon of that size.
+local glows = {}   -- every glow made, restyled by ns.applyGlowStyle
+local function glowStyle()
+	local d = ns.getDB and ns.getDB()
+	if not d then return { 1, 0.8, 0.25, 1 }, 0.6, 0.35, 1.9 end
+	return d.glowColor, d.glowSpeed, d.glowLow, d.glowSize
+end
+local function makeGlow(parent)
+	local g = CreateFrame("Frame", nil, parent)
+	table.insert(glows, g)
+	g:SetPoint("CENTER")
+	g:EnableMouse(false)
+	g.tex = g:CreateTexture(nil, "OVERLAY")
+	g.tex:SetAllPoints()
+	g.tex:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+	g.tex:SetBlendMode("ADD")
+	g.anim = g.tex:CreateAnimationGroup()
+	g.anim:SetLooping("BOUNCE")
+	g.fade = g.anim:CreateAnimation("Alpha")
+	g.fade:SetFromAlpha(1); g.fade:SetSmoothing("IN_OUT")
+	g:SetScript("OnShow", function(self) self.anim:Play() end)
+	g:SetScript("OnHide", function(self) self.anim:Stop() end)
+	-- The General page's style; a fixed colour (killed early's red) wins over it.
+	function g:restyle()
+		local c, speed, low = glowStyle()
+		self.fade:SetDuration(speed)
+		self.fade:SetToAlpha(low)
+		local k = self.fixed or c
+		self.tex:SetVertexColor(k[1], k[2], k[3], k[4] or 1)
+		if self.iconSize then self:fit(self.iconSize) end
+		if self:IsShown() then self.anim:Stop(); self.anim:Play() end
+	end
+	function g:fit(size)
+		self.iconSize = size
+		local _, _, _, mult = glowStyle()
+		self:SetSize(size * mult, size * mult)
+	end
+	function g:color(r, gg, b) self.fixed = { r, gg, b, 1 }; self:restyle() end
+	g:restyle()
+	g:Hide()
+	return g
+end
+ns.makeGlow = makeGlow
+function ns.applyGlowStyle() for _, g in ipairs(glows) do g:restyle() end end
+
+-- Pop: a frame bursts to 1.4x and settles back.
+local function addPop(f)
+	local g = f:CreateAnimationGroup()
+	local up = g:CreateAnimation("Scale")
+	up:SetScaleFrom(1, 1); up:SetScaleTo(1.4, 1.4); up:SetDuration(0.12); up:SetOrder(1); up:SetSmoothing("OUT")
+	local back = g:CreateAnimation("Scale")
+	back:SetScaleFrom(1.4, 1.4); back:SetScaleTo(1, 1); back:SetDuration(0.25); back:SetOrder(2); back:SetSmoothing("IN_OUT")
+	return g
+end
+
+-- The end of a totem, over `anchor`. Nothing here reads a secret: play() hands the gone totem's
+-- last duration object to a curve and the result to the frame's SetAlpha.
+-- * Killed early (it died with time left; curve 1 above 1.5 s left, 0 under 1 s): the dead totem
+--   greyed under red flashing, with an optional pop, red glow and a red cross that stays up to 5 s.
+--   Used by the totem bar's slots and the Earthbind / Stoneclaw elements.
+-- * Ran out (opts.expired; the opposite curve, 1 up to 1.2 s left): the totem's icon pops and fades.
+-- A totem that ran out never shows the first, one that was killed never the second.
+local killedCurve
+if C_CurveUtil and C_CurveUtil.CreateCurve then
+	killedCurve = C_CurveUtil.CreateCurve()
+	if Enum and Enum.LuaCurveType then killedCurve:SetType(Enum.LuaCurveType.Linear) end
+	killedCurve:AddPoint(0, 0)
+	killedCurve:AddPoint(1.2, 0)
+	killedCurve:AddPoint(1.25, 1)
+	killedCurve:AddPoint(36000, 1)
+end
+local expiredCurve
+if C_CurveUtil and C_CurveUtil.CreateCurve then
+	expiredCurve = C_CurveUtil.CreateCurve()
+	if Enum and Enum.LuaCurveType then expiredCurve:SetType(Enum.LuaCurveType.Linear) end
+	expiredCurve:AddPoint(0, 1)
+	expiredCurve:AddPoint(1.2, 1)
+	expiredCurve:AddPoint(1.25, 0)
+	expiredCurve:AddPoint(36000, 0)
+end
+function ns.makeEndFlash(parent, anchor)
+	local kf = CreateFrame("Frame", nil, parent)
+	kf:SetAllPoints(anchor)
+	kf:SetFrameLevel(anchor:GetFrameLevel() + 8)
+	kf:EnableMouse(false)
+	kf.pop = CreateFrame("Frame", nil, kf)
+	kf.pop:SetAllPoints()
+	kf.popAnim = addPop(kf.pop)
+	kf.body = CreateFrame("Frame", nil, kf.pop)
+	kf.body:SetAllPoints()
+	kf.body:SetAlpha(0)
+	kf.glow = makeGlow(kf.body)
+	kf.glow:color(1, 0.12, 0.08)
+	kf.icon = kf.body:CreateTexture(nil, "ARTWORK")
+	kf.icon:SetAllPoints()
+	kf.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	kf.icon:SetDesaturated(true)
+	kf.red = kf.body:CreateTexture(nil, "OVERLAY")
+	kf.red:SetAllPoints()
+	kf.red:SetColorTexture(0.95, 0.12, 0.08, 0.7)
+	kf.flash = kf.body:CreateAnimationGroup()
+	local inA = kf.flash:CreateAnimation("Alpha")
+	inA:SetFromAlpha(0); inA:SetToAlpha(1); inA:SetDuration(0.12); inA:SetOrder(1)
+	local outA = kf.flash:CreateAnimation("Alpha")
+	outA:SetFromAlpha(1); outA:SetToAlpha(0); outA:SetDuration(1.4); outA:SetStartDelay(0.5); outA:SetOrder(2)
+	kf.flash:SetScript("OnFinished", function() kf.body:SetAlpha(0); kf.glow:Hide() end)
+	-- Ran out: quicker, in colour.
+	kf.quick = kf.body:CreateAnimationGroup()
+	local qIn = kf.quick:CreateAnimation("Alpha")
+	qIn:SetFromAlpha(0); qIn:SetToAlpha(1); qIn:SetDuration(0.05); qIn:SetOrder(1)
+	local qOut = kf.quick:CreateAnimation("Alpha")
+	qOut:SetFromAlpha(1); qOut:SetToAlpha(0); qOut:SetDuration(0.5); qOut:SetStartDelay(0.2); qOut:SetOrder(2)
+	kf.quick:SetScript("OnFinished", function() kf.body:SetAlpha(0); kf.glow:Hide() end)
+	kf.mark = CreateFrame("Frame", nil, kf)
+	kf.mark:SetAllPoints()
+	kf.mark:Hide()
+	kf.mark.icon = kf.mark:CreateTexture(nil, "ARTWORK")
+	kf.mark.icon:SetAllPoints()
+	kf.mark.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	kf.mark.icon:SetDesaturated(true)
+	kf.mark.icon:SetAlpha(0.6)
+	kf.mark.x = kf.mark:CreateTexture(nil, "OVERLAY")
+	kf.mark.x:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
+	kf.mark.x:SetPoint("CENTER")
+	-- The dead totem's icon (secret in combat is fine: SetTexture takes it).
+	function kf:setIcon(icon)
+		pcall(self.icon.SetTexture, self.icon, icon)
+		pcall(self.mark.icon.SetTexture, self.mark.icon, icon)
+	end
+	-- dur: the gone totem's last duration object. opts: expired (ran out, else killed early), and
+	-- for killed early pop, glow, mark (booleans).
+	function kf:play(dur, opts)
+		local curve = opts.expired and expiredCurve or killedCurve
+		if not curve then return end
+		local ok, a = pcall(dur.EvaluateRemainingDuration, dur, curve)
+		if not ok then return end
+		self:SetAlpha(a)
+		local size = anchor:GetWidth()
+		self.glow:fit(size)
+		self.glow:SetShown(opts.glow and true or false)
+		self.red:SetShown(not opts.expired)
+		self.icon:SetDesaturated(not opts.expired)
+		self.mark.x:SetSize(size * 0.7, size * 0.7)
+		self.flash:Stop(); self.quick:Stop(); self.popAnim:Stop()
+		if opts.expired then self.quick:Play() else self.flash:Play() end
+		if opts.pop then self.popAnim:Play() end
+		if opts.mark then
+			self.mark:Show()
+			local token = {}
+			self.markToken = token
+			C_Timer.After(5, function() if self.markToken == token then self.mark:Hide() end end)
+		else self.mark:Hide() end
+	end
+	return kf
+end
+
 local function makeIcon(parent, size)
 	local f = CreateFrame("Frame", nil, parent)
 	f:SetSize(size, size)
@@ -227,6 +392,17 @@ local function makeIcon(parent, size)
 			if shown then t:SetColorTexture(r or 1, g or 0, b or 0, a or 0.9); t:Show() else t:Hide() end
 		end
 	end
+	-- Glow (gold by default) and pop, for warnings and moments worth catching the eye.
+	f.glowF = makeGlow(f)
+	f.SetGlowShown = function(self, shown, r, g, b)
+		if shown then
+			self.glowF:fit(self:GetWidth())
+			if r then self.glowF:color(r, g, b) elseif self.glowF.fixed then self.glowF.fixed = nil; self.glowF:restyle() end
+		end
+		self.glowF:SetShown(shown and true or false)
+	end
+	f.popAnim = addPop(f)
+	f.Pop = function(self) self.popAnim:Stop(); self.popAnim:Play() end
 	return f
 end
 
@@ -263,6 +439,13 @@ for _, def in ipairs(COOLDOWNS) do
 		f.upTimer = ns.Timer.new(f.activeHolder, def.key, "uptime", { anchor = f, dual = true, school = def.school })
 	end
 	f.cdTimer = ns.Timer.new(f, def.key, "cooldown", { cd = f.cd, school = def.school })
+	if def.needsTotem then
+		-- Ready glow (updateReadyGlow): the gate's alpha is "a fire totem is down", the glow's is "off
+		-- cooldown"; nested, the two multiply.
+		f.readyGate = CreateFrame("Frame", nil, f)
+		f.readyGate:SetAllPoints()
+		f.readyGlow = makeGlow(f.readyGate)
+	end
 	if def.needsTotem then
 		-- "No totem" warning layer: a grey copy of the icon and a red ring, above the icon and below the
 		-- cooldown swipe. Its alpha is set from a possibly-secret boolean (see refreshCooldown), so it
@@ -1432,11 +1615,13 @@ local function paintImbue(now)
 		imbue.tex:SetDesaturated(false)
 		imbue:SetRingShown(false)
 		imbue:SetPulsing(false)
+		imbue:SetGlowShown(false)
 	else
 		imbueIcon = imbueIconFor(db.imbuePreferred == "last" and (acct.imbueLast or "rockbiter") or db.imbuePreferred)
 		imbue.tex:SetDesaturated(db.imbueMissingGrey)
 		imbue:SetRingShown(db.imbueMissingRing)
 		imbue:SetPulsing(db.imbuePulse)
+		imbue:SetGlowShown(db.imbueGlow and not unreadable)
 	end
 	imbue.tex:SetTexture(imbueIcon)
 	if unreadable then
@@ -1461,6 +1646,7 @@ local function refreshImbue()
 	if not isEnabled("imbue") then return end
 	local now = GetTime()
 	local r = readMainHand()
+	local had = imbueState.key
 	imbueState.unreadable = r == nil
 	imbueState.key, imbueState.expiresAt = nil, nil
 	if r == nil then
@@ -1479,6 +1665,8 @@ local function refreshImbue()
 		if key then acct.imbueLast = key end
 	end
 	paintImbue(now)
+	-- The moment it drops (imbues stay readable in combat): pop.
+	if had and r == false and db.imbuePop then imbue:Pop() end
 end
 
 -- Remembers our own imbue cast, so an imbue not recognised by ID or icon is learned on the next read.
@@ -1506,8 +1694,9 @@ end
 --   slot (tested 2026-09-24). So the totem in each slot is the last totem we cast into it
 --   (totemOwner), and the timer's holder is shown only when that is this element's totem. The
 --   slot's duration object still drives the timer, and an empty slot has none.
---   Fallback when the owner is unknown (a /reload with a totem already out, Call of the
---   Elements): out of combat the slot's name; in combat the slot's total duration through a curve
+--   Call of the Elements fires one cast per totem it drops, after its own (tested 2026-09-25), so
+--   its totems are bound like any other. Fallback when the owner is unknown (a /reload with a
+--   totem already out): out of combat the slot's name; in combat the slot's total duration through a curve
 --   that is 1 only within half a second of this totem's lifetime (Earthbind 45s, Stoneclaw 15s;
 --   every other earth totem 5 min on Forever).
 --   Lifetimes used to be learned from the slot right after a cast, but at that moment the slot
@@ -1546,7 +1735,6 @@ end
 local totemOwner = {}
 local totemNames = {}   -- slot -> name of the totem we last cast into it
 local totemSlotByName = {}
-local CALL_SPELLS = { [66842] = true, [66843] = true, [66844] = true }   -- Call of the Elements/Ancestors/Spirits
 
 local function scanTotemSlots()
 	if not GetMultiCastTotemSpells then return end
@@ -1564,7 +1752,6 @@ end
 
 -- Our own cast: if it put a totem in a slot, remember which.
 local function totemCast(spellID)
-	if CALL_SPELLS[spellID] then wipe(totemOwner); wipe(totemNames) return end   -- places a set; which totems is not known here
 	local ok, name = safe(C_Spell.GetSpellName, spellID)
 	if not ok or type(name) ~= "string" or isSecret(name) then return end
 	local slot = totemSlotByName[name]
@@ -1575,8 +1762,27 @@ local function totemCast(spellID)
 	end
 	totemOwner[slot] = owner
 	totemNames[slot] = name
+	-- Recast: that element's killed-early cross goes.
+	for _, def in ipairs(COOLDOWNS) do
+		if def.key == owner and def.frame.killed then def.frame.killed.mark:Hide() end
+	end
 end
 function ns.totemNameInSlot(slot) return totemNames[slot] end
+
+-- Killed early on the Earthbind / Stoneclaw elements: the totem bar reports a slot that emptied
+-- without our dismissing or replacing it (ShamanForever_TotemBar.lua); the element whose totem it
+-- was (our last cast into the slot) flashes, gated on the time it had left (ns.makeEndFlash).
+function ns.onTotemKilled(slot, dur)
+	local owner = totemOwner[slot]
+	for _, def in ipairs(COOLDOWNS) do
+		if def.totemSlot == slot and owner == def.key and isEnabled(def.key) and cdOpt(def.key, "killed", true) then
+			local f = def.frame
+			if not f.killed then f.killed = ns.makeEndFlash(f, f) end
+			f.killed:setIcon(def.iconID or def.icon)
+			f.killed:play(dur, { pop = true, glow = true, mark = true })
+		end
+	end
+end
 
 -- Total duration -> alpha: 1 within half a second of seconds, 0 elsewhere.
 local function lifetimeCurve(seconds)
@@ -1594,6 +1800,7 @@ end
 local function refreshCooldown(def)
 	if not isEnabled(def.key) then return end
 	local f = def.frame
+	if f.killed and not cdOpt(def.key, "killed", true) then f.killed.mark:Hide() end
 	f.tex:SetTexture(def.iconID or def.icon)
 	if not def.spellID then
 		-- Not learned yet: a plain grey icon.
@@ -1677,6 +1884,66 @@ local function refreshCooldowns()
 	for _, def in ipairs(COOLDOWNS) do refreshCooldown(def) end
 end
 
+-- Pop when ready: Blizzard's cooldown widget says when its swipe finishes (OnCooldownDone), a
+-- moment with no secret in it, so the icon can pop right then, in combat too.
+local function popWhenReady(f, key)
+	f.cd:HookScript("OnCooldownDone", function()
+		if isEnabled(key) and cdOpt(key, "readyPop", true) then f:Pop() end
+	end)
+end
+popWhenReady(shock, "shock")
+for _, def in ipairs(COOLDOWNS) do popWhenReady(def.frame, def.key) end
+
+-- Ready glows ("use me"), both off by default. Fire Nova: while it is off cooldown and a fire totem
+-- is down, the moment it can be cast; both are secret in combat, so each goes through a curve into
+-- one of two nested frames' alphas. Shocks: while the shock is off cooldown. Re-read ten times a
+-- second, so they follow a cooldown ending or a totem running out without waiting for an event.
+local hasTimeLeftCurve
+if C_CurveUtil and C_CurveUtil.CreateCurve then
+	hasTimeLeftCurve = C_CurveUtil.CreateCurve()
+	if Enum and Enum.LuaCurveType then hasTimeLeftCurve:SetType(Enum.LuaCurveType.Linear) end
+	hasTimeLeftCurve:AddPoint(0, 0)
+	hasTimeLeftCurve:AddPoint(0.05, 1)
+end
+-- 1 while the spell is off cooldown (possibly secret: only ever handed to SetAlpha).
+local function readyAlpha(spellID)
+	local ok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID)
+	if not (ok and dur) then return 1 end   -- no cooldown running
+	local rok, r = pcall(dur.EvaluateRemainingDuration, dur, noTimeLeftCurve)
+	if rok then return r end
+	return 0
+end
+local function updateShockGlow()
+	local on = shockSpellID and isEnabled("shock") and cdOpt("shock", "readyGlow", false) and noTimeLeftCurve
+	shock.glowF:SetShown(on and true or false)
+	if not on then return end
+	shock.glowF:fit(shock:GetWidth())
+	shock.glowF:SetAlpha(readyAlpha(shockSpellID))
+end
+local function updateReadyGlow(def)
+	local f = def.frame
+	local on = def.spellID and isEnabled(def.key) and cdOpt(def.key, "readyGlow", false) and hasTimeLeftCurve and noTimeLeftCurve
+	f.readyGlow:SetShown(on and true or false)
+	if not on then return end
+	f.readyGlow:fit(f:GetWidth())
+	local tok, tdur = safe(GetTotemDuration, def.needsTotem)
+	if not (tok and tdur) then f.readyGate:SetAlpha(0) return end   -- no fire totem
+	local gok, g = pcall(tdur.EvaluateRemainingDuration, tdur, hasTimeLeftCurve)
+	if gok then f.readyGate:SetAlpha(g) else f.readyGate:SetAlpha(0) end
+	f.readyGlow:SetAlpha(readyAlpha(def.spellID))
+end
+local readyTicker = CreateFrame("Frame")
+readyTicker.t = 0
+readyTicker:SetScript("OnUpdate", function(self, elapsed)
+	self.t = self.t + elapsed
+	if self.t < 0.1 or not isShaman then return end
+	self.t = 0
+	for _, def in ipairs(COOLDOWNS) do
+		if def.needsTotem then updateReadyGlow(def) end
+	end
+	updateShockGlow()
+end)
+
 ------------------------------------------------------------------------
 -- Spell resolution and layout
 ------------------------------------------------------------------------
@@ -1708,6 +1975,7 @@ local function resolveSpells()
 end
 
 local function applyLayout()
+	ns.applyGlowStyle()   -- the profile's glow (a profile switch comes through here too)
 	layoutElements()
 	-- Every timer takes its current style (General's or its own); the shield's in styleNative.
 	shock.cdTimer:apply()
@@ -2018,7 +2286,8 @@ function ns.expireOpts(key)
 	local o = elementOpts(key).expire
 	local out = {}
 	for k, v in pairs(ns.Timer.EXPIRE_DEFAULTS) do
-		out[k] = (type(o) == "table" and type(o[k]) == type(v)) and o[k] or v
+		if k == "glow" and key == "firenova" then v = false end   -- Fire Nova's glow is off by default
+		if type(o) == "table" and type(o[k]) == type(v) then out[k] = o[k] else out[k] = v end   -- a saved false counts
 	end
 	return out
 end
@@ -2099,6 +2368,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		local _, class = UnitClass("player")
 		if class ~= "SHAMAN" then root:Hide(); return end
 		isShaman = true
+		ns.applyMinimapButton()
 		reg("UNIT_AURA", "player")
 		reg("UNIT_SPELLCAST_SUCCEEDED", "player")
 		reg("SPELL_UPDATE_COOLDOWN")
@@ -2161,15 +2431,63 @@ end)
 ------------------------------------------------------------------------
 SLASH_SHAMANFOREVER1 = "/sf"
 SLASH_SHAMANFOREVER2 = "/shf"
+-- The minimap button (LibDBIcon, as BugSack and most addons use): minimap button collectors such
+-- as EllesmereUI's pick it up. Its position and hidden flag live in acct.minimap (account-wide).
+-- /sf lock: toggles positioning and says so. Also right-click on the minimap button or drawer entry.
+local function toggleLock()
+	if ns.setLocked(not acct.locked) then
+		say(acct.locked and "positioning locked" or "positioning unlocked: drag groups to move them, /sf lock when done")
+	end
+end
+local function onLauncherClick(button)
+	if button == "RightButton" then toggleLock()
+	elseif ns.ToggleOptions then ns.ToggleOptions() end
+end
+local function launcherTip(tt)
+	tt:AddLine("Click: options", 1, 0.82, 0)
+	tt:AddLine(acct.locked and "Right-click: unlock positioning" or "Right-click: lock positioning", 1, 0.82, 0)
+end
+
+local minimapIcon
+function ns.applyMinimapButton()
+	local LibStub = _G.LibStub
+	local ldb = LibStub and LibStub("LibDataBroker-1.1", true)
+	local icon = LibStub and LibStub("LibDBIcon-1.0", true)
+	if not (ldb and icon and acct) then return end
+	if type(acct.minimap) ~= "table" then acct.minimap = {} end
+	if not minimapIcon then
+		local obj = ldb:NewDataObject("ShamanForever", {
+			type = "launcher", text = "Shaman Forever", icon = "Interface\\Icons\\Spell_Nature_LightningShield",
+			OnClick = function(_, button) onLauncherClick(button) end,
+			OnTooltipShow = function(tt)
+				tt:AddLine("Shaman Forever")
+				launcherTip(tt)
+			end,
+		})
+		icon:Register("ShamanForever", obj, acct.minimap)
+		minimapIcon = icon
+	end
+	if acct.minimap.hide then minimapIcon:Hide("ShamanForever") else minimapIcon:Show("ShamanForever") end
+end
+
+-- The minimap's addon drawer (Addon Compartment): the TOC names these; a click opens or closes the
+-- options, as /sf does.
+_G.ShamanForever_OnAddonCompartmentClick = function(_, button) onLauncherClick(button) end
+_G.ShamanForever_OnAddonCompartmentEnter = function(_, button)
+	GameTooltip:SetOwner(button, "ANCHOR_LEFT")
+	GameTooltip:SetText("Shaman Forever")
+	launcherTip(GameTooltip)
+	GameTooltip:Show()
+end
+_G.ShamanForever_OnAddonCompartmentLeave = function() GameTooltip:Hide() end
+
 SlashCmdList.SHAMANFOREVER = function(msg)
 	local cmd, arg = msg:match("^(%S*)%s*(.-)$")
 	cmd = (cmd or ""):lower()
 	if cmd == "" or cmd == "options" or cmd == "config" then
 		if ns.ToggleOptions then ns.ToggleOptions() else say("options window unavailable") end
 	elseif cmd == "lock" then   -- toggles; /sf unlock still works but is no longer advertised
-		if ns.setLocked(not acct.locked) then
-			say(acct.locked and "positioning locked" or "positioning unlocked: drag groups to move them, /sf lock when done")
-		end
+		toggleLock()
 	elseif cmd == "unlock" then
 		if ns.setLocked(false) then say("positioning unlocked: drag groups to move them, /sf lock when done") end
 	elseif cmd == "test" then

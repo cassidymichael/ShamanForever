@@ -1,3 +1,6 @@
 *.swp
 .DS_Store
 Thumbs.db
+
+# Libraries: the packager pulls them via .pkgmeta externals (local copies for testing only)
+Libs/

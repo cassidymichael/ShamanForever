@@ -32,11 +32,27 @@ T.DEFAULTS = {
 T.ELEMENT_DEFAULTS = {
 	shield = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
 	imbue = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = false } },
+	-- Their time left as a bar only (whatever General says): the countdown shows the cooldown.
+	earthbind = { uptime = { text = false, bar = true } },
+	stoneclaw = { uptime = { text = false, bar = true } },
 }
--- Parts the game cannot do for an element, and why (shown on its page).
+-- Parts an element's timer can't have, and why (shown on its page): for every kind, or under a
+-- kind's name for that kind only.
+local ONE_SWIPE = "The cooldown has the swipe; time left shows as text or a bar."
 T.CANT = {
 	shield = { bar = "The shield's timer is Blizzard's own; a time bar can't follow it." },
+	-- One icon, two timers: only the cooldown sweeps.
+	earthbind = { uptime = { swipe = ONE_SWIPE } },
+	stoneclaw = { uptime = { swipe = ONE_SWIPE } },
+	firenova = { uptime = { swipe = ONE_SWIPE } },
 }
+function T.cant(key, kind)
+	local c, out = key and T.CANT[key], {}
+	if not c then return out end
+	for k, v in pairs(c) do if type(v) == "string" then out[k] = v end end
+	if type(c[kind]) == "table" then for k, v in pairs(c[kind]) do out[k] = v end end
+	return out
+end
 
 local WHITE = "Interface\\Buttons\\WHITE8x8"
 local TIMER_REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime or 1
@@ -193,7 +209,7 @@ end
 -- only out of combat by its caller.
 function Timer:apply()
 	local s = T.style(self.key, self.kind)
-	local cant = T.CANT[self.key] or {}
+	local cant = T.cant(self.key, self.kind)
 	self.s = s
 	local cd = self.cd
 	cd:SetDrawSwipe(s.swipe and not cant.swipe)
@@ -301,8 +317,8 @@ function Timer:static(frac, length)
 end
 
 ------------------------------------------------------------------------
--- Expiring: a warning over the icon in a timer's last seconds (grey icon, red ring, pulse, any
--- mix). Its alpha is the remaining time through a curve (1 inside the last `secs`, else 0), so it
+-- Expiring: a warning over the icon in a timer's last seconds (grey icon, red ring, fade in and
+-- out, pulsing glow, any mix). Its alpha is the remaining time through a curve (1 inside the last `secs`, else 0), so it
 -- works in combat; evaluated ten times a second for every timer that has one.
 ------------------------------------------------------------------------
 local expireCurves = {}
@@ -337,9 +353,9 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 	end
 end)
 
-T.EXPIRE_DEFAULTS = { secs = 5, grey = false, ring = false, pulse = true }
+T.EXPIRE_DEFAULTS = { secs = 5, grey = false, ring = false, pulse = true, glow = true }
 
--- e: { secs, grey, ring, pulse } (secs 0 turns it off); icon: the texture the grey copy shows.
+-- e: { secs, grey, ring, pulse, glow } (secs 0 turns it off); icon: the texture the grey copy shows.
 function Timer:setExpire(e, icon)
 	if not e or e.secs <= 0 or not expireCurve(e.secs) then
 		warning[self] = nil
@@ -379,8 +395,11 @@ function Timer:setExpire(e, icon)
 		a:SetToAlpha(0.55)
 		a:SetDuration(0.6)
 		a:SetSmoothing("IN_OUT")
+		x.glow = ns.makeGlow(x)   -- ShamanForever.lua; made on first use, after it has loaded
 		self.exp = x
 	end
+	x.glow:fit(self.anchor:GetWidth())
+	x.glow:SetShown(e.glow)
 	if icon then x.grey:SetTexture(icon) end
 	x.grey:SetShown(e.grey)
 	for _, r in ipairs(x.ring) do r:SetShown(e.ring) end

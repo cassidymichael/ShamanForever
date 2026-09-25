@@ -50,11 +50,11 @@ Totem and cooldown elements never read a secret value. They hand Blizzard's obje
 
 - **Cooldowns and totem timers:** `C_Spell.GetSpellCooldownDuration` and `GetTotemDuration` return duration objects, which `Cooldown:SetCooldownFromDurationObject` and `StatusBar:SetTimerDuration` draw.
 - **Appear/disappear on a secret condition:** a duration object evaluates its remaining or total time through a `C_CurveUtil` curve, and the (possibly secret) result goes straight to `SetAlpha`. Fire Nova's "no fire totem" warning is a curve on the fire slot's remaining time (0 s → shown). An empty slot returns no duration object at all, which is plainly "no totem".
-- **Which earth totem is out:** in combat everything `GetTotemInfo` returns is secret, but our own `UNIT_SPELLCAST_SUCCEEDED` is not: it gives the spell, in the same frame as the `PLAYER_TOTEM_UPDATE` that fills the slot. So the totem in a slot is the last totem we cast into it (slots by name from `GetMultiCastTotemSpells`), and Earthbind and Stoneclaw show their timer only when it is theirs. When that is unknown (a `/reload` with a totem already out, Call of the Elements), out of combat the slot's name decides, and in combat the slot's total duration through a curve that is 1 only near that totem's lifetime (45 s, 15 s; every other earth totem lasts 5 min on Forever). Lifetimes are not learned from the slot: right after a cast it can pair the old totem's name with the new totem's duration.
+- **Which earth totem is out:** in combat everything `GetTotemInfo` returns is secret, but our own `UNIT_SPELLCAST_SUCCEEDED` is not: it gives the spell, in the same frame as the `PLAYER_TOTEM_UPDATE` that fills the slot. So the totem in a slot is the last totem we cast into it (slots by name from `GetMultiCastTotemSpells`), and Earthbind and Stoneclaw show their timer only when it is theirs. Call of the Elements reports each totem it drops as its own cast, so it binds the same way. When that is unknown (a `/reload` with a totem already out), out of combat the slot's name decides, and in combat the slot's total duration through a curve that is 1 only near that totem's lifetime (45 s, 15 s; every other earth totem lasts 5 min on Forever). Lifetimes are not learned from the slot: right after a cast it can pair the old totem's name with the new totem's duration.
 
 Weapon imbues are item data (`C_Item.GetWeaponEnchantInfo`, enchant type `Imbue`) and stay readable in combat.
 
-## The totem bar in combat (experimental)
+## The totem bar in combat
 
 Secure snippets don't run on Forever, so every click goes through one of Blizzard's built-in secure actions, set up out of combat:
 
@@ -63,4 +63,12 @@ Secure snippets don't run on Forever, so every click goes through one of Blizzar
 - **Open a picker, in combat too:** Blizzard's `SecureStateDriverManager` takes its instructions as attributes (`setframe`, then `setstate` = `"state-visibility show"`), and the built-in `attribute` action can set them. A button with `pressAndHoldAction` runs its `type` action on press and its `typerelease` action on release, so one click does both writes: the arrow tab (and Alt+click on a slot) names the picker on press and shows it on release. The picker's buttons use `multispell` (spell `0` is "No totem"), then hide the picker on release; an invisible screen-wide button inside the picker closes it on any other click.
 - **Which totem is down:** the slot's icon is secret in combat, but `SetTexture` accepts the secret value and draws it. Timers come from `GetTotemDuration`, and the expiring warning and "not your pick" badge follow the same rules as above (curves into `SetAlpha`; our own casts for the totem's name, matched without its rank).
 - **Layout** (showing, hiding, moving the bar's buttons) only changes out of combat; changes made in combat wait for it to end.
+- **Call of the Elements and Totemic Recall:** plain `type = "spell"` buttons. Recall's right-click dismisses every totem without a spell: a secure button does one action per click, so it runs a macro that `/click`s four `destroytotem` helpers (`/click` sends a release, so they act on release). The key bindings are `CLICK` bindings to invisible buttons of their own (Bindings.xml).
+- **Killed early and ran out:** when a slot empties, its last duration object still says how much time the totem had left. It goes through a curve into a flash's `SetAlpha`: one curve shows the red "killed early" flash only with more than 1.25 s left, the opposite curve shows the "ran out" pop only up to 1.2 s. Our own dismissals are left out: every one goes through `DestroyTotem` (`hooksecurefunc`), and Totemic Recall is our own cast.
+
+## Glows and pops
+
+- **Two secret conditions at once** (Fire Nova's ready glow: off cooldown *and* a fire totem down): each drives the alpha of one of two nested frames, and nested alphas multiply.
+- **Pop when a cooldown is ready:** the Cooldown widget's `OnCooldownDone` script fires when its swipe finishes, a moment with nothing secret in it.
+- **Pop when an imbue drops:** imbues are readable, so the change is seen directly.
 
