@@ -6,6 +6,8 @@ A configurable HUD for shamans on World of Warcraft: Forever: the buffs, imbues 
 
 ![ShamanForever in game](screenshot.png)
 
+More screenshots: [options gallery](docs/gallery/README.md).
+
 ## Features
 
 - **Elements** for shields, shocks, weapon imbues and totem cooldowns, each with its own look and warning settings, and a live preview in the options. Water Shield tracking is experimental.

@@ -1,11 +1,7 @@
-# Gallery (experimental)
+# Gallery
 
-Screenshots of Shaman Forever's options window, taken automatically in game. This is a first
-trial of automated gallery shots: some pages are cut off or scrolled part way, and the set will
-change. Taken with the development version after 0.6.1 (not released yet) on the World of
-Warcraft: Forever beta; the Shields page is from 0.6.1.
-
-These images are not part of the addon download.
+Screenshots of Shaman Forever 0.6.2's options window, taken automatically in game on the World of
+Warcraft: Forever beta. These images are not part of the addon download.
 
 ## General
 
