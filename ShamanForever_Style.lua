@@ -6,8 +6,8 @@
 -- An owner is nil (General), an element key, "totembar", or a group's table. A kind's settings sit
 -- at the same path under each holder: the profile for General (db.glowStyle, db.timers.cooldown), else
 -- the element's options, the totem bar's settings or the group itself. An owner's own table also
--- holds `follow`; turning it off the first time starts from the look it had, and turning it back on
--- keeps its own values for later.
+-- holds `follow`; turning it off the first time starts from General's look (with the owner's own
+-- defaults on top), and turning it back on keeps its own values for later.
 
 local _, ns = ...
 
@@ -132,8 +132,8 @@ function S.get(owner, kind)
 	return clean(S.override(owner, kind), base(owner, kind))
 end
 
--- Stop following General: the owner keeps the look it has now, as its own. Follow again: its own
--- values are kept for later.
+-- Stop following General: the first time, the owner starts from General's look with its own
+-- defaults on top (for most owners, the look it had). Follow again: its own values are kept for later.
 function S.setFollow(owner, kind, follow)
 	local o = S.override(owner, kind, true)
 	if not o then return end

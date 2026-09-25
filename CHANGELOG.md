@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.2 (2026-09-25)
+
+- Elements and the totem bar can have their own glow and pop style, or keep using General's ("Same as General" on their pages). Groups and the totem bar can do the same with their border, and the totem bar's icon size is set separately from its border.
+- Earthbind and Stoneclaw: killed early's pop, glow and cross can each be turned on or off, as on the totem bar, and they pop when their totem runs out.
+- "Edit General" buttons lead from any "Same as General" to its settings, and the General page lists what has its own style.
+- Glow and pop settings from 0.6.1 go back to their defaults.
+- Minor: Ready and Killed early sections on element pages, element previews wear their group's border, Shields' time left starts without a swipe on new profiles, and the beta warning about saved settings is gone.
+
 ## 0.6.1 (2026-09-25)
 
 - Fixed: after restarting the game, a character could load the Default profile instead of its own.

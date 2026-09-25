@@ -31,7 +31,7 @@ T.DEFAULTS = {
 -- Elements that look different from General until the player says otherwise: applied over
 -- General's style, and they do not follow it by default.
 T.ELEMENT_DEFAULTS = {
-	shield = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
+	shield = { uptime = { text = false, swipe = false, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
 	imbue = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = false } },
 	-- Their time left as a bar only (whatever General says): the countdown shows the cooldown.
 	earthbind = { uptime = { text = false, bar = true } },

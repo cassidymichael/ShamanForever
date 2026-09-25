@@ -543,9 +543,9 @@ local function styleRows(owner, kind, after)
 	return r
 end
 
--- General's list of what has its own, under a style's rows.
+-- General's lookup of what currently has its own, under a style's rows.
 local function ownLine(p, kind)
-	p:text(function() return "Own style: " .. table.concat(ns.Style.ownStyles(kind), ", ") .. "." end,
+	p:text(function() return "Currently using their own: " .. table.concat(ns.Style.ownStyles(kind), ", ") end,
 		function() return #ns.Style.ownStyles(kind) > 0 end)
 end
 
@@ -728,7 +728,7 @@ local function buildGeneral(p)
 	p:text("Elements, groups and the totem bar use these unless they have their own.")
 	p:slider("Icon size", "Base size of every element. Each group's scale multiplies it.", 24, 96, 1, int,
 		get("iconSize"), set("iconSize"))
-	p:text("Own size: Totem bar.", function() return ns.TotemBar.barOn() and not ns.TotemBar.cfg().sizeFollow end)
+	p:text("Currently using their own: Totem bar", function() return ns.TotemBar.barOn() and not ns.TotemBar.cfg().sizeFollow end)
 	p:header("Border")
 	p:anchor("border")
 	borderRows(p, nil)
