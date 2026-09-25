@@ -15,6 +15,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # The release notes (GitHub release body and CurseForge changelog) are this version's
+      # CHANGELOG.md section only, so the download isn't buried under every earlier version.
+      - name: Release notes
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '/^## /{f = ($2 == v)} f' CHANGELOG.md > RELEASE_NOTES.md
+          [ -s RELEASE_NOTES.md ] || { echo "CHANGELOG.md has no '## $version' section" >&2; exit 1; }
+          printf '\nEarlier versions: [CHANGELOG.md](https://github.com/%s/blob/%s/CHANGELOG.md)\n' \
+            "$GITHUB_REPOSITORY" "$GITHUB_REF_NAME" >> RELEASE_NOTES.md
       - name: Package and release
         uses: BigWigsMods/packager@v2
         env:
