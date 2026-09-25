@@ -577,10 +577,7 @@ local function buildHome(p)
 		{ "Interface\\Icons\\Spell_Nature_Invisibilty", function() return "Layout" end,
 			function() return "Set up groups of elements" end, function() ns.OpenOptions("layout") end },
 	})
-	p:add(p:row(14), 14)   -- room between the big buttons and the notice
-	-- TEMPORARY: remove once Blizzard fixes the beta's SavedVariables loading.
-	p:callout("|cffff9933Beta:|r saved settings don't load on startup yet. ForeverSVFix works around it.")
-	p:add(p:row(14), 14)   -- and between the notice and Feedback
+	p:add(p:row(14), 14)   -- room between the big buttons and Feedback
 	p:header("Feedback")
 	p:text("Ideas, requests or problems? Open an issue on GitHub:")
 	p:copyField("Issues", ns.Look.REPO .. "/issues")

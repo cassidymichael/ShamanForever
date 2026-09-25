@@ -23,8 +23,6 @@ A configurable HUD for shamans on World of Warcraft: Forever: the buffs, imbues 
 
 Requires WoW: Forever (interface 16001).
 
-> **Beta caveat, not specific to this addon:** the Forever client does not load addon settings after a full restart, so settings return to their defaults each time you start the game; `/reload` keeps them. Community workarounds such as [ForeverSVFix](https://github.com/nobewayo/ForeverSVFix) restore them in the meantime.
-
 ## More
 
 - [CHANGELOG.md](CHANGELOG.md): what changed in each version.
