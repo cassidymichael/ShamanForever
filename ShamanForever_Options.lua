@@ -607,14 +607,48 @@ local function buildGeneral(p)
 
 	p:header("Pulsing glow")
 	p:text("The style of every pulsing glow. Elements turn their own glows on or off.")
+	-- A test icon glowing all the time: it follows every change here at once.
+	local gf = p:row(64)
+	p:label(gf, "Preview")
+	local gi = ns.makeIcon(gf, 40)
+	gi:SetPoint("LEFT", gf, "LEFT", LABEL_W + 24, 0)
+	gi.tex:SetTexture(136026)
+	p:add(gf, 64, nil, function() ns.applyBorder(gi, db().border); gi:SetGlowShown(true) end)
 	local function gset(k) return function(v) db()[k] = v; ns.applyGlowStyle(); if ns.RefreshOptions then ns.RefreshOptions() end end end
 	p:color("Colour", "Colour and opacity. Killed early keeps its red.", get("glowColor"), gset("glowColor"))
 	p:slider("Pulse length", "One pulse, in seconds.", 0.2, 2, 0.1, function(v) return string.format("%.1f s", v) end,
 		get("glowSpeed"), gset("glowSpeed"))
-	p:slider("Fades to", "How faint it gets between pulses. 100% is steady.", 0, 1, 0.05,
-		function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end, get("glowLow"), gset("glowLow"))
-	p:slider("Size", "How far it reaches beyond the icon.", 1.3, 2.5, 0.1, function(v) return string.format("%.1fx", v) end,
-		get("glowSize"), gset("glowSize"))
+	p:slider("Pulse depth", "How much it fades between pulses. 0% is steady.", 0, 1, 0.05,
+		function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end,
+		function() return 1 - db().glowLow end, function(v) db().glowLow = 1 - v; ns.applyGlowStyle(); ns.RefreshOptions() end)
+	p:slider("Thickness", "How far in from the edges it reaches.", 0.1, 0.5, 0.05,
+		function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end, get("glowWidth"), gset("glowWidth"))
+
+	p:header("Pop")
+	p:text("The burst when something happens: a cooldown ready, an imbue dropping, a totem ending. Elements turn their own pops on or off.")
+	-- A test icon: it pops on every change here, and on Play.
+	local tf = p:row(56)
+	p:label(tf, "Try it")
+	local ti = ns.makeIcon(tf, 40)
+	ti:SetPoint("LEFT", tf, "LEFT", LABEL_W + 16, 0)
+	ti.tex:SetTexture(136026)
+	local play = CreateFrame("Button", nil, tf, "UIPanelButtonTemplate")
+	play:SetSize(80, 22)
+	play:SetPoint("LEFT", ti, "RIGHT", 24, 0)
+	play:SetText("Play")
+	play:SetScript("OnClick", function() ti:Pop("ready") end)
+	p:add(tf, 56, nil, function() ns.applyBorder(ti, db().border) end)
+	local function pset(k) return function(v) db()[k] = v; ns.RefreshOptions(); ti:Pop("ready") end end
+	local pctOf = function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end
+	p:dropdown("Motion", nil, { { "pop", "Grow" }, { "bounce", "Bounce" }, { "hop", "Hop" }, { "shake", "Shake side to side" }, { "shakeV", "Shake up and down" } },
+		get("popMotion"), pset("popMotion"), nil, 190)
+	p:slider("Motion distance", "How far it grows, hops or shakes.", 1.1, 1.8, 0.05, pctOf, get("popSize"), pset("popSize"))
+	p:slider("Motion speed", nil, 0.5, 2, 0.1, pctOf, get("popSpeed"), pset("popSpeed"))
+	p:checkbox("Flash", "A quick flash of light over the icon.", get("popFlash"), pset("popFlash"))
+	p:checkbox("Ring burst", "A ring that spreads out from the icon.", get("popRing"), pset("popRing"))
+	p:checkbox("Star burst", "A star of light behind the icon.", get("popStar"), pset("popStar"))
+	p:checkbox("Colour by event", "Gold when ready, blue for the imbue, white when a totem runs out, red when killed. Off: white.",
+		get("popTint"), pset("popTint"))
 
 	p:header("Minimap")
 	p:checkbox("Show the minimap button", "Click it to open these options. Also listed in the minimap's addon menu.",
@@ -1234,6 +1268,10 @@ local function buildTotemBar(p)
 		tget("offPick"), tset("offPick"))
 	p:slider("Size", nil, 0.25, 0.8, 0.05, function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end,
 		tget("badgeSize"), tset("badgeSize"), dimWhen(tget("offPick")))
+	p:slider("Opacity", nil, 0.1, 1, 0.05, function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end,
+		tget("badgeAlpha"), tset("badgeAlpha"), dimWhen(tget("offPick")))
+	p:slider("Colour", "0% is grey, 100% full colour.", 0, 1, 0.05, function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end,
+		tget("badgeSat"), tset("badgeSat"), dimWhen(tget("offPick")))
 
 	p.gate = TB.barOn
 	p:header("Expiring")

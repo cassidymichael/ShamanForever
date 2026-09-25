@@ -53,12 +53,22 @@ local DEFAULT_PROFILE = "Default"
 local DEFAULTS = {
 	iconSize = 44,          -- base element size; each group scales it
 	border = { show = true, size = 2, color = { 0, 0, 0, 1 } },   -- around every element; a group can override (g.border)
-	-- Every pulsing glow (makeGlow): colour, one pulse's length (s), how faint it gets between
-	-- pulses, and its size as a multiple of the icon. Killed early's glow keeps its red.
+	-- Every pulsing glow (makeGlow): colour, one pulse's length (s), the dimmest it gets between
+	-- pulses, and how far in from the edges it reaches (share of the icon). Killed early's glow keeps
+	-- its red.
 	glowColor = { 1, 0.8, 0.25, 1 },
-	glowSpeed = 0.6,
-	glowLow = 0.35,
-	glowSize = 1.9,
+	glowSpeed = 0.5,
+	glowLow = 0.25,
+	glowWidth = 0.2,
+	-- Every pop (ns.playPop): motion (pop = grow, bounce, hop, shake, shakeV) with its distance and
+	-- speed, and light.
+	popMotion = "shakeV",
+	popSize = 1.4,
+	popSpeed = 1,
+	popFlash = true,
+	popRing = false,
+	popStar = true,
+	popTint = true,       -- the light's colour by what happened (off: white)
 	-- Default layout: just below the centre of the screen, side by side 16 px apart, ready to be
 	-- dragged where the player wants them (the totem bar sits below, see TotemBar.lua). Offsets are
 	-- in each group's scaled units, so the third group's are divided by its 0.9 scale.
@@ -177,24 +187,31 @@ end
 local root = CreateFrame("Frame", "ShamanForeverRoot", UIParent)
 root:SetAllPoints(UIParent)
 
--- A halo beyond a frame's edges, breathing: Blizzard's glowing button border, tinted and added on
--- top (its middle is clear). fit(size) sizes it for an icon of that size.
-local glows = {}   -- every glow made, restyled by ns.applyGlowStyle
+-- A pulsing glow inside an icon: soft light running in from its four edges, over the icon's art and
+-- inside its border, breathing. `over` is the icon it covers (default: the parent). The General
+-- page's style: colour, pulse length, pulse depth (glowLow is the dimmest it gets) and thickness (how
+-- far in it reaches, as a share of the icon). fit(size) lays it out for an icon of that size.
+local glows = {}
 local function glowStyle()
 	local d = ns.getDB and ns.getDB()
-	if not d then return { 1, 0.8, 0.25, 1 }, 0.6, 0.35, 1.9 end
-	return d.glowColor, d.glowSpeed, d.glowLow, d.glowSize
+	if not d then return { 1, 0.8, 0.25, 1 }, 0.5, 0.25, 0.2 end
+	return d.glowColor, d.glowSpeed, d.glowLow, d.glowWidth
 end
-local function makeGlow(parent)
+local function makeGlow(parent, over)
 	local g = CreateFrame("Frame", nil, parent)
 	table.insert(glows, g)
-	g:SetPoint("CENTER")
+	g:SetAllPoints(over or parent)
 	g:EnableMouse(false)
-	g.tex = g:CreateTexture(nil, "OVERLAY")
-	g.tex:SetAllPoints()
-	g.tex:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
-	g.tex:SetBlendMode("ADD")
-	g.anim = g.tex:CreateAnimationGroup()
+	g.inner = CreateFrame("Frame", nil, g)   -- the breathing; g's own alpha stays free for a gate
+	g.inner:SetAllPoints()
+	g.edges = {}
+	for _, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
+		local t = g.inner:CreateTexture(nil, "OVERLAY")
+		t:SetTexture("Interface\\Buttons\\WHITE8x8")
+		t:SetBlendMode("ADD")
+		g.edges[side] = t
+	end
+	g.anim = g.inner:CreateAnimationGroup()
 	g.anim:SetLooping("BOUNCE")
 	g.fade = g.anim:CreateAnimation("Alpha")
 	g.fade:SetFromAlpha(1); g.fade:SetSmoothing("IN_OUT")
@@ -206,14 +223,26 @@ local function makeGlow(parent)
 		self.fade:SetDuration(speed)
 		self.fade:SetToAlpha(low)
 		local k = self.fixed or c
-		self.tex:SetVertexColor(k[1], k[2], k[3], k[4] or 1)
+		local on, off = CreateColor(k[1], k[2], k[3], k[4] or 1), CreateColor(k[1], k[2], k[3], 0)
+		local e = self.edges
+		-- Bright at the edge, clear inward (vertical gradients run bottom to top, horizontal left to right).
+		e.TOP:SetGradient("VERTICAL", off, on)
+		e.BOTTOM:SetGradient("VERTICAL", on, off)
+		e.LEFT:SetGradient("HORIZONTAL", on, off)
+		e.RIGHT:SetGradient("HORIZONTAL", off, on)
 		if self.iconSize then self:fit(self.iconSize) end
 		if self:IsShown() then self.anim:Stop(); self.anim:Play() end
 	end
 	function g:fit(size)
 		self.iconSize = size
-		local _, _, _, mult = glowStyle()
-		self:SetSize(size * mult, size * mult)
+		local _, _, _, width = glowStyle()
+		local th = math.max(size * (width or 0.2), 1)
+		local e = self.edges
+		for _, t in pairs(e) do t:ClearAllPoints() end
+		e.TOP:SetPoint("TOPLEFT"); e.TOP:SetPoint("TOPRIGHT"); e.TOP:SetHeight(th)
+		e.BOTTOM:SetPoint("BOTTOMLEFT"); e.BOTTOM:SetPoint("BOTTOMRIGHT"); e.BOTTOM:SetHeight(th)
+		e.LEFT:SetPoint("TOPLEFT"); e.LEFT:SetPoint("BOTTOMLEFT"); e.LEFT:SetWidth(th)
+		e.RIGHT:SetPoint("TOPRIGHT"); e.RIGHT:SetPoint("BOTTOMRIGHT"); e.RIGHT:SetWidth(th)
 	end
 	function g:color(r, gg, b) self.fixed = { r, gg, b, 1 }; self:restyle() end
 	g:restyle()
@@ -223,14 +252,145 @@ end
 ns.makeGlow = makeGlow
 function ns.applyGlowStyle() for _, g in ipairs(glows) do g:restyle() end end
 
--- Pop: a frame bursts to 1.4x and settles back.
-local function addPop(f)
-	local g = f:CreateAnimationGroup()
-	local up = g:CreateAnimation("Scale")
-	up:SetScaleFrom(1, 1); up:SetScaleTo(1.4, 1.4); up:SetDuration(0.12); up:SetOrder(1); up:SetSmoothing("OUT")
-	local back = g:CreateAnimation("Scale")
-	back:SetScaleFrom(1.4, 1.4); back:SetScaleTo(1, 1); back:SetDuration(0.25); back:SetOrder(2); back:SetSmoothing("IN_OUT")
-	return g
+-- Pop: the burst when something happens (a cooldown ready, an imbue dropping, a totem ending).
+-- One style for all, on General: a motion (grow, bounce, hop, shake) with a size and speed, and
+-- optional light (a flash over the icon, a ring spreading out, a star behind it), tinted by what
+-- happened. Every part is built on the frame the first time it pops.
+local POP_TINT = { ready = { 1, 0.82, 0.25 }, imbue = { 0.35, 0.65, 1 }, expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 } }
+local function popStyle()
+	local d = ns.getDB and ns.getDB()
+	if not d then return { popMotion = "shakeV", popSize = 1.4, popSpeed = 1, popFlash = true, popRing = false, popStar = true, popTint = true } end
+	return d
+end
+-- An atlas if the client has it, else a plain texture.
+local function atlasOr(t, atlas, file)
+	local ok = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas)
+	if ok then t:SetAtlas(atlas) else t:SetTexture(file) end
+end
+local function anim(g, kind, order, smoothing)
+	local a = g:CreateAnimation(kind)
+	a:SetOrder(order)
+	if smoothing then a:SetSmoothing(smoothing) end
+	return a
+end
+local function popFx(f)
+	if f.popFx then return f.popFx end
+	local x = {}
+	-- Motions: one group each, values set on every play (size and speed can change).
+	x.grow = f:CreateAnimationGroup()
+	x.grow.a = { anim(x.grow, "Scale", 1, "OUT"), anim(x.grow, "Scale", 2, "IN_OUT") }
+	x.bounce = f:CreateAnimationGroup()
+	x.bounce.a = { anim(x.bounce, "Scale", 1, "OUT"), anim(x.bounce, "Scale", 2, "IN_OUT"), anim(x.bounce, "Scale", 3, "IN_OUT"), anim(x.bounce, "Scale", 4, "IN") }
+	x.hop = f:CreateAnimationGroup()
+	x.hop.a = { anim(x.hop, "Translation", 1, "OUT"), anim(x.hop, "Translation", 2, "IN") }
+	x.shake = f:CreateAnimationGroup()
+	x.shake.a = { anim(x.shake, "Translation", 1), anim(x.shake, "Translation", 2), anim(x.shake, "Translation", 3), anim(x.shake, "Translation", 4) }
+	x.shakeV = f:CreateAnimationGroup()
+	x.shakeV.a = { anim(x.shakeV, "Translation", 1), anim(x.shakeV, "Translation", 2), anim(x.shakeV, "Translation", 3), anim(x.shakeV, "Translation", 4) }
+	-- Light, on a frame above the icon's text.
+	local fx = CreateFrame("Frame", nil, f)
+	fx:SetAllPoints()
+	fx:SetFrameLevel(f:GetFrameLevel() + 12)
+	fx:EnableMouse(false)
+	x.fx = fx
+	x.flash = fx:CreateTexture(nil, "OVERLAY")
+	x.flash:SetAllPoints()
+	x.flash:SetTexture("Interface\\Buttons\\WHITE8x8")
+	x.flash:SetBlendMode("ADD")
+	x.flash:SetAlpha(0)
+	x.flashAnim = x.flash:CreateAnimationGroup()
+	x.flashAnim.a = { anim(x.flashAnim, "Alpha", 1), anim(x.flashAnim, "Alpha", 2, "OUT") }
+	x.flashAnim:SetScript("OnFinished", function() x.flash:SetAlpha(0) end)
+	-- Ring and star: sized frame by frame (not scale animations), so they never reach further than
+	-- the sizes given here, a couple of icon widths.
+	x.ring = fx:CreateTexture(nil, "OVERLAY")
+	x.ring:SetPoint("CENTER")
+	atlasOr(x.ring, "ArtifactsFX-YellowRing", "Interface\\Buttons\\UI-ActionButton-Border")
+	x.ring:SetBlendMode("ADD")
+	x.ring:Hide()
+	x.star = fx:CreateTexture(nil, "BACKGROUND")
+	x.star:SetPoint("CENTER")
+	atlasOr(x.star, "AftLevelup-WhiteStarBurst", "Interface\\Cooldown\\star4")
+	x.star:SetBlendMode("ADD")
+	x.star:Hide()
+	x.bursts = {}   -- texture -> { t (elapsed), dur, from, to (sizes), spin (radians) }
+	fx:SetScript("OnUpdate", function(_, elapsed)
+		for tex, b in pairs(x.bursts) do
+			b.t = b.t + elapsed
+			local p = math.min(b.t / b.dur, 1)
+			local e = 1 - (1 - p) * (1 - p)   -- ease out
+			local size = b.from + (b.to - b.from) * e
+			tex:SetSize(size, size)
+			tex:SetAlpha(1 - p)
+			if b.spin then tex:SetRotation(b.spin * e) end
+			if p >= 1 then tex:Hide(); x.bursts[tex] = nil end
+		end
+	end)
+	f.popFx = x
+	return x
+end
+-- kind: ready | imbue | expired | killed (the tint).
+function ns.playPop(f, kind)
+	local st = popStyle()
+	local x = popFx(f)
+	local S = st.popSize or 1.4
+	local k = 1 / math.max(st.popSpeed or 1, 0.1)   -- duration multiplier
+	local h = math.max(f:GetHeight(), 8)
+	for _, m in ipairs({ "grow", "bounce", "hop", "shake", "shakeV" }) do x[m]:Stop() end
+	local motion = st.popMotion
+	if motion == "pop" then
+		local a = x.grow.a
+		a[1]:SetScaleFrom(1, 1); a[1]:SetScaleTo(S, S); a[1]:SetDuration(0.12 * k)
+		a[2]:SetScaleFrom(S, S); a[2]:SetScaleTo(1, 1); a[2]:SetDuration(0.25 * k)
+		x.grow:Play()
+	elseif motion == "hop" then
+		local a, up = x.hop.a, h * (S - 1) * 0.8
+		a[1]:SetOffset(0, up); a[1]:SetDuration(0.12 * k)
+		a[2]:SetOffset(0, -up); a[2]:SetDuration(0.2 * k)
+		x.hop:Play()
+	elseif motion == "shake" or motion == "shakeV" then   -- side to side, or up and down
+		local g, d = x[motion], h * (S - 1) * 0.3
+		local sx, sy = motion == "shake" and 1 or 0, motion == "shakeV" and 1 or 0
+		local a = g.a
+		a[1]:SetOffset(d * sx, d * sy); a[1]:SetDuration(0.04 * k)
+		a[2]:SetOffset(-2 * d * sx, -2 * d * sy); a[2]:SetDuration(0.07 * k)
+		a[3]:SetOffset(2 * d * sx, 2 * d * sy); a[3]:SetDuration(0.07 * k)
+		a[4]:SetOffset(-d * sx, -d * sy); a[4]:SetDuration(0.05 * k)
+		g:Play()
+	else   -- bounce: overshoot, dip, settle
+		local a, u, o = x.bounce.a, 1 - (S - 1) * 0.25, 1 + (S - 1) * 0.15
+		a[1]:SetScaleFrom(1, 1); a[1]:SetScaleTo(S, S); a[1]:SetDuration(0.12 * k)
+		a[2]:SetScaleFrom(S, S); a[2]:SetScaleTo(u, u); a[2]:SetDuration(0.12 * k)
+		a[3]:SetScaleFrom(u, u); a[3]:SetScaleTo(o, o); a[3]:SetDuration(0.1 * k)
+		a[4]:SetScaleFrom(o, o); a[4]:SetScaleTo(1, 1); a[4]:SetDuration(0.08 * k)
+		x.bounce:Play()
+	end
+	local c = st.popTint and POP_TINT[kind or "ready"] or { 1, 1, 1 }
+	x.flashAnim:Stop()
+	if st.popFlash then
+		x.flash:SetVertexColor(c[1], c[2], c[3])
+		local a = x.flashAnim.a
+		a[1]:SetFromAlpha(0); a[1]:SetToAlpha(0.8); a[1]:SetDuration(0.06 * k)
+		a[2]:SetFromAlpha(0.8); a[2]:SetToAlpha(0); a[2]:SetDuration(0.3 * k)
+		x.flashAnim:Play()
+	end
+	-- The ring spreads from just inside the icon to 2.2 icon widths; the star from 1.2 to 3.5.
+	x.bursts[x.ring], x.bursts[x.star] = nil, nil
+	x.ring:Hide(); x.star:Hide()
+	if st.popRing then
+		x.ring:SetDesaturated(true)
+		x.ring:SetVertexColor(c[1], c[2], c[3])
+		x.ring:SetSize(h * 0.9, h * 0.9)
+		x.ring:Show()
+		x.bursts[x.ring] = { t = 0, dur = 0.45 * k, from = h * 0.9, to = h * 2.2 }
+	end
+	if st.popStar then
+		x.star:SetDesaturated(true)
+		x.star:SetVertexColor(c[1], c[2], c[3])
+		x.star:SetSize(h, h)
+		x.star:Show()
+		x.bursts[x.star] = { t = 0, dur = 0.45 * k, from = h * 1.2, to = h * 3.5, spin = -0.5 }
+	end
 end
 
 -- The end of a totem, over `anchor`. Nothing here reads a secret: play() hands the gone totem's
@@ -265,11 +425,10 @@ function ns.makeEndFlash(parent, anchor)
 	kf:EnableMouse(false)
 	kf.pop = CreateFrame("Frame", nil, kf)
 	kf.pop:SetAllPoints()
-	kf.popAnim = addPop(kf.pop)
 	kf.body = CreateFrame("Frame", nil, kf.pop)
 	kf.body:SetAllPoints()
 	kf.body:SetAlpha(0)
-	kf.glow = makeGlow(kf.body)
+	kf.glow = makeGlow(kf.body, kf.body)
 	kf.glow:color(1, 0.12, 0.08)
 	kf.icon = kf.body:CreateTexture(nil, "ARTWORK")
 	kf.icon:SetAllPoints()
@@ -321,9 +480,9 @@ function ns.makeEndFlash(parent, anchor)
 		self.red:SetShown(not opts.expired)
 		self.icon:SetDesaturated(not opts.expired)
 		self.mark.x:SetSize(size * 0.7, size * 0.7)
-		self.flash:Stop(); self.quick:Stop(); self.popAnim:Stop()
+		self.flash:Stop(); self.quick:Stop()
 		if opts.expired then self.quick:Play() else self.flash:Play() end
-		if opts.pop then self.popAnim:Play() end
+		if opts.pop then ns.playPop(self.pop, opts.expired and "expired" or "killed") end
 		if opts.mark then
 			self.mark:Show()
 			local token = {}
@@ -393,7 +552,7 @@ local function makeIcon(parent, size)
 		end
 	end
 	-- Glow (gold by default) and pop, for warnings and moments worth catching the eye.
-	f.glowF = makeGlow(f)
+	f.glowF = makeGlow(f, f)
 	f.SetGlowShown = function(self, shown, r, g, b)
 		if shown then
 			self.glowF:fit(self:GetWidth())
@@ -401,8 +560,7 @@ local function makeIcon(parent, size)
 		end
 		self.glowF:SetShown(shown and true or false)
 	end
-	f.popAnim = addPop(f)
-	f.Pop = function(self) self.popAnim:Stop(); self.popAnim:Play() end
+	f.Pop = function(self, kind) ns.playPop(self, kind or "ready") end
 	return f
 end
 
@@ -444,7 +602,7 @@ for _, def in ipairs(COOLDOWNS) do
 		-- cooldown"; nested, the two multiply.
 		f.readyGate = CreateFrame("Frame", nil, f)
 		f.readyGate:SetAllPoints()
-		f.readyGlow = makeGlow(f.readyGate)
+		f.readyGlow = makeGlow(f.readyGate, f)
 	end
 	if def.needsTotem then
 		-- "No totem" warning layer: a grey copy of the icon and a red ring, above the icon and below the
@@ -1518,10 +1676,26 @@ local function updateShockTint()
 	shock:SetRingShown(shockState.noMana, 0.2, 0.45, 1, db.manaRing)
 end
 
+-- The global cooldown: while it runs, every spell reads as on cooldown, so the swipe, the ready pop
+-- and the ready glows would react to each cast. isOnGCD says so, when it's readable (if it's secret
+-- in combat, this falls back to treating it as a real cooldown).
+local function onGCD(spellID)
+	local ok, info = safe(C_Spell.GetSpellCooldown, spellID)
+	if not ok or type(info) ~= "table" or isSecret(info.isOnGCD) then return false end
+	return info.isOnGCD == true
+end
+-- Before a cooldown timer takes a new duration: a global-cooldown sweep gets no bling, and the
+-- ready pop that fires when it ends is skipped (f.gcdUntil).
+local function noteGCD(f, spellID)
+	local g = onGCD(spellID)
+	if g then f.gcdUntil = GetTime() + 1.6 end
+	f.cd:SetDrawBling(not g)
+end
+
 local function refreshShockCooldown()
 	if not shockSpellID or not isEnabled("shock") then return end
 	local ok, dur = safe(C_Spell.GetSpellCooldownDuration, shockSpellID)
-	if ok and dur then shock.cdTimer:set(dur) end
+	if ok and dur then noteGCD(shock, shockSpellID); shock.cdTimer:set(dur) end
 end
 
 local function refreshShockRange()
@@ -1666,7 +1840,7 @@ local function refreshImbue()
 	end
 	paintImbue(now)
 	-- The moment it drops (imbues stay readable in combat): pop.
-	if had and r == false and db.imbuePop then imbue:Pop() end
+	if had and r == false and db.imbuePop then imbue:Pop("imbue") end
 end
 
 -- Remembers our own imbue cast, so an imbue not recognised by ID or icon is learned on the next read.
@@ -1813,7 +1987,7 @@ local function refreshCooldown(def)
 		return
 	end
 	local ok, dur = safe(C_Spell.GetSpellCooldownDuration, def.spellID)
-	if ok and dur then f.cdTimer:set(dur) end
+	if ok and dur then noteGCD(f, def.spellID); f.cdTimer:set(dur) end
 	f.tex:SetDesaturated(false)
 	if def.needsTotem then
 		-- Fire Nova: the slot's duration object drives everything, secret or not. An empty slot's
@@ -1888,6 +2062,7 @@ end
 -- moment with no secret in it, so the icon can pop right then, in combat too.
 local function popWhenReady(f, key)
 	f.cd:HookScript("OnCooldownDone", function()
+		if f.gcdUntil and GetTime() <= f.gcdUntil then return end   -- a global cooldown ended
 		if isEnabled(key) and cdOpt(key, "readyPop", true) then f:Pop() end
 	end)
 end
@@ -1907,6 +2082,7 @@ if C_CurveUtil and C_CurveUtil.CreateCurve then
 end
 -- 1 while the spell is off cooldown (possibly secret: only ever handed to SetAlpha).
 local function readyAlpha(spellID)
+	if onGCD(spellID) then return 1 end   -- only the global cooldown: still ready
 	local ok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID)
 	if not (ok and dur) then return 1 end   -- no cooldown running
 	local rok, r = pcall(dur.EvaluateRemainingDuration, dur, noTimeLeftCurve)
@@ -2092,9 +2268,13 @@ end)
 -- "Name-Realm", with the realm's spaces and dashes removed (as GetNormalizedRealmName gives it).
 -- Built from GetRealmName every time: GetNormalizedRealmName isn't ready when settings load, and a
 -- fallback there wrote a second, spaced key that won at login (the profile chosen later was lost).
+-- nil until the game knows the character: on a cold start the name reads "Unknown" when settings
+-- load (seen 2026-09-25), so the profile is looked up again at PLAYER_LOGIN.
+local UNKNOWN = _G.UNKNOWNOBJECT or "Unknown"
 local function charKey()
 	local name, realm = UnitName("player"), GetRealmName()
-	if name and realm and realm ~= "" then return name .. "-" .. realm:gsub("[%s%-]", "") end
+	if not name or name == "" or name == UNKNOWN then return nil end
+	if realm and realm ~= "" then return name .. "-" .. realm:gsub("[%s%-]", "") end
 end
 
 -- Keys saved before that fix, with the realm's spaces: merged into the normalized ones (which hold
@@ -2111,6 +2291,17 @@ local function mergeCharKeys()
 		if acct.chars[norm] == nil then acct.chars[norm] = acct.chars[key] end
 		acct.chars[key] = nil
 	end
+	-- Entries saved under "Unknown" before the name was known: they belong to no one.
+	for key in pairs(acct.chars) do
+		if key:sub(1, #UNKNOWN + 1) == UNKNOWN .. "-" then acct.chars[key] = nil end
+	end
+end
+
+-- The profile this character last used (Default if none, or if it was deleted).
+local function savedProfile()
+	local key = charKey()
+	local name = key and acct.chars[key] and acct.chars[key].profile
+	return name and acct.profiles[name] and name or DEFAULT_PROFILE
 end
 
 local function fillDefaults(t, defaults)
@@ -2359,11 +2550,12 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		fillDefaults(acct, ACCOUNT_DEFAULTS)
 		acct.totemLifetimes = nil   -- learned lifetimes (0.4.0 and earlier) could be wrong; no longer used
 		mergeCharKeys()
-		local c = charKey() and acct.chars[charKey()]
-		local name = c and c.profile
-		selectProfile(name and acct.profiles[name] and name or DEFAULT_PROFILE)
+		selectProfile(savedProfile())   -- a guess on a cold start (no name yet): checked at PLAYER_LOGIN
 		if ns.BuildOptions then ns.BuildOptions() end
 	elseif event == "PLAYER_LOGIN" then
+		-- The name is known now: switch to this character's own profile if loading couldn't tell.
+		local want = savedProfile()
+		if want ~= profileName then selectProfile(want) end
 		if ns.applyIssueReporter then ns.applyIssueReporter() end   -- any class
 		local _, class = UnitClass("player")
 		if class ~= "SHAMAN" then root:Hide(); return end

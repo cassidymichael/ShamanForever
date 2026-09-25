@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.1 (2026-09-25)
+
+- Fixed: after restarting the game, a character could load the Default profile instead of its own.
+- Fixed: icons popped after every cast (the global cooldown), and "Pulsing glow when ready" blinked off during it.
+- Pulsing glows now sit inside the icon, running in from its edges, so they show at any icon opacity. Set colour, pulse length, pulse depth and thickness on the General page, with a live preview.
+- Pops have their own settings on the General page: motion (grow, bounce, hop, or shake side to side or up and down), how far and how fast, plus an optional flash, ring burst and star burst, coloured by what happened. A test icon plays your choice. The new default is a shake up and down with a star and a flash.
+- Totem bar: "Not your pick" has opacity and colour settings.
+- Previews in the options use your border settings.
+
 ## 0.6.0 (2026-09-25)
 
 - Totem bar is out of experimental. At the top of its page, choose Blizzard's, Active totems (replaces only the totems under the player frame) or Everything (replaces both of Blizzard's totem bars).

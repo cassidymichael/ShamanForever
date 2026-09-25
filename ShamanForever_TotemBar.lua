@@ -59,6 +59,8 @@ TB.DEFAULTS = {
 	idleAlpha = 0.4,          -- the pick's opacity
 	offPick = true,           -- a totem down that isn't the pick: show the pick small beside the slot
 	badgeSize = 0.45,         -- that badge, as a share of the slot's size
+	badgeAlpha = 0.75,        -- its opacity
+	badgeSat = 0.5,           -- its colour (0 grey, 1 full colour)
 	-- timers: the slots' "Time left" timer, if the bar has its own (ShamanForever_Timers.lua)
 	warnGrey = false,
 	warnRing = false,
@@ -269,7 +271,7 @@ for _, el in ipairs(ELEMENTS) do
 	a:SetSmoothing("IN_OUT")
 	v.warn.pulse = pulse
 	-- Glow: a gold halo beyond the slot's edges, breathing; under the same gate as the rest.
-	v.warn.glowF = ns.makeGlow(v.warn)
+	v.warn.glowF = ns.makeGlow(v.warn, v)
 
 	-- Arrow tab (secure) and its look (plain, shown while the mouse is over the slot or the tab).
 	local ar = CreateFrame("Button", nil, bar, "SecureActionButtonTemplate")
@@ -678,10 +680,17 @@ local function layoutPopout(s, size)
 end
 
 -- The badge sits opposite the picker: below a row whose pickers open up, and so on.
+-- A texture's colour, from grey (0) to full (1); all or nothing where partial desaturation is missing.
+function TB.saturate(tex, sat)
+	if not pcall(tex.SetDesaturation, tex, 1 - sat) then tex:SetDesaturated(sat < 0.5) end
+end
+
 local function layoutBadge(s, size, border)
 	local c, bd, b = cfg(), s.badge, s.button
 	local bs = math.max(math.floor(size * c.badgeSize + 0.5), 8)
 	bd:SetSize(bs, bs)
+	bd:SetAlpha(c.badgeAlpha)
+	TB.saturate(bd.icon, c.badgeSat)
 	bd:ClearAllPoints()
 	local gap = 3
 	if c.pop == "up" then bd:SetPoint("TOP", b, "BOTTOM", 0, -gap)

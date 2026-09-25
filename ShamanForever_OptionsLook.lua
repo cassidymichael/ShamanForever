@@ -267,7 +267,7 @@ local function totemPreview(def)
 	return {
 		states = { { "ready", "Ready" }, { "active", "Totem down" }, { "expiring", "Expiring" }, { "cd", "Cooldown" }, { "killed", "Killed early" } },
 		pop = function(ic, st)
-			if (st == "ready" and readyPopOn(def.key)) or (st == "killed" and ns.elementOpts(def.key).killed ~= false) then ic:Pop() end
+			if (st == "ready" and readyPopOn(def.key)) or (st == "killed" and ns.elementOpts(def.key).killed ~= false) then ic:Pop(st == "killed" and "killed" or "ready") end
 		end,
 		render = function(ic, st)
 			reset(ic, def.iconID or def.icon)
@@ -347,7 +347,7 @@ L.PREVIEW = {
 	},
 	imbue = {
 		states = { { "missing", "No imbue" }, { "low", "Running low" }, { "fine", "Plenty left" } },
-		pop = function(ic, st) if st == "missing" and db().imbuePop then ic:Pop() end end,
+		pop = function(ic, st) if st == "missing" and db().imbuePop then ic:Pop("imbue") end end,
 		render = function(ic, st)
 			local d = db()
 			local icons = { rockbiter = 136086, flametongue = 135814, frostbrand = 135847, windfury = 136018 }
@@ -418,7 +418,7 @@ L.PREVIEW.totembar = {
 	end,
 	fallback = "down",
 	-- Killed early: the dead totem pops as in game.
-	pop = function(h, st) if st == "killed" and h.popIcon then h.popIcon:Pop() end end,
+	pop = function(h, st) if st == "killed" and h.popIcon then h.popIcon:Pop("killed") end end,
 	build = function(h)
 		-- The preview area: below the title band and its divider, above the state buttons.
 		h.area = CreateFrame("Frame", nil, h)
@@ -568,6 +568,8 @@ L.PREVIEW.totembar = {
 						local bs = math.max(math.floor(size * c.badgeSize + 0.5), 8)
 						ic.badge:SetSize(bs, bs)
 						ic.badge.icon:SetTexture(pick)
+						ic.badge:SetAlpha(c.badgeAlpha)
+						TB.saturate(ic.badge.icon, c.badgeSat)
 						ic.badge:ClearAllPoints()
 						if dir == "up" then ic.badge:SetPoint("TOP", ic, "BOTTOM", 0, -3)
 						elseif dir == "down" then ic.badge:SetPoint("BOTTOM", ic, "TOP", 0, 3)
@@ -824,7 +826,11 @@ function L.buildHero(parent, key)
 			b:SetBackdropBorderColor(on and 0.88 or 0.23, on and 0.66 or 0.17, on and 0.29 or 0.10, 1)
 			b.text:SetTextColor(on and 1 or 0.78, on and 0.84 or 0.74, on and 0.5 or 0.68)
 		end
-		if def.stage then def.render(self, previewState[key]) else def.render(self.previewIcon, previewState[key]) end
+		if def.stage then def.render(self, previewState[key]) else
+			-- An element's preview wears General's border (the totem bar's stage draws its own).
+			if ns.applyBorder then ns.applyBorder(self.previewIcon, db().border) end
+			def.render(self.previewIcon, previewState[key])
+		end
 	end
 	return h
 end

@@ -395,7 +395,7 @@ function Timer:setExpire(e, icon)
 		a:SetToAlpha(0.55)
 		a:SetDuration(0.6)
 		a:SetSmoothing("IN_OUT")
-		x.glow = ns.makeGlow(x)   -- ShamanForever.lua; made on first use, after it has loaded
+		x.glow = ns.makeGlow(x, self.anchor)   -- ShamanForever.lua; made on first use, after it has loaded
 		self.exp = x
 	end
 	x.glow:fit(self.anchor:GetWidth())
