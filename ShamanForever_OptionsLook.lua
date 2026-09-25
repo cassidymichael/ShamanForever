@@ -662,6 +662,7 @@ L.PREVIEW.totembar = {
 ------------------------------------------------------------------------
 L.HERO_H = 160
 local previewState = {}
+local heroes = {}   -- element key -> its header, for L.setPreview
 
 function L.buildHero(parent, key)
 	local e = L.ELEMENT[key]
@@ -781,6 +782,7 @@ function L.buildHero(parent, key)
 		table.insert(h.stateButtons, b)
 	end
 	h.preview = p
+	heroes[key] = h
 
 	function h:refresh()
 		local minimal = L.minimal()
@@ -833,6 +835,16 @@ function L.buildHero(parent, key)
 		end
 	end
 	return h
+end
+
+-- Picks an element's preview state as its button does (for scripted screenshots); true if found.
+function L.setPreview(key, state)
+	local h = heroes[key]
+	if not h then return false end
+	for _, b in ipairs(h.stateButtons) do
+		if b.state == state then b:Click() return true end
+	end
+	return false
 end
 
 -- Home's header: the spirit banner with the addon's name and version.
