@@ -51,9 +51,8 @@ TB.DEFAULTS = {
 	recall = true,            -- Totemic Recall button: right-click dismisses all; left-click casts it once learned
 	extras = "ends",          -- where they sit: ends (Call first, Recall last, as Blizzard's) | before | after the slots
 	extrasScale = 0.8,        -- their size, as a share of the slots' (centred on the slots' line)
-	follow = true,            -- icon size and border from General
-	size = 44,
-	border = { show = true, size = 2, color = { 0, 0, 0, 1 } },
+	sizeFollow = true,        -- icon size from General; off: size (set from General's the first time)
+	-- border, glow, pop, timers: the bar's own styles, if it has them (ShamanForever_Style.lua)
 	empty = "pick",           -- a totem not down: pick (the element's pick) | frame (element colour) | blank
 	idleGrey = false,         -- the pick, greyed (off: in colour)
 	idleAlpha = 0.4,          -- the pick's opacity
@@ -61,11 +60,10 @@ TB.DEFAULTS = {
 	badgeSize = 0.45,         -- that badge, as a share of the slot's size
 	badgeAlpha = 0.75,        -- its opacity
 	badgeSat = 0.5,           -- its colour (0 grey, 1 full colour)
-	-- timers: the slots' "Time left" timer, if the bar has its own (ShamanForever_Timers.lua)
 	warnGrey = false,
 	warnRing = false,
 	warnPulse = true,
-	warnGlow = true,          -- a pulsing glow around the slot (General's Pulsing glow style)
+	warnGlow = true,          -- a pulsing glow inside the slot (the bar's glow style)
 	expiredPop = true,        -- the totem pops and fades the moment it runs out
 	warn = 10,                -- seconds before the end (0 = off)
 	warnOver = { ["Earthbind Totem"] = 5, ["Stoneclaw Totem"] = 5 },   -- totem name -> seconds, instead of warn (short-lived ones)
@@ -86,7 +84,12 @@ local function cfg()
 	if t ~= cfgTable then
 		-- Before the Totems cards (2026-09-25): "enabled" and Show "never" meant our bar off.
 		if t.mode == nil and (t.enabled == false or t.show == "never") then t.mode = "blizzard" end
-		t.enabled, t.hideTotemFrame, t.hideActionBar, t.killedPulse = nil, nil, nil, nil
+		-- Before styles (0.6.1 and earlier) one switch covered size and border: keep an own look as own.
+		if t.follow == false then
+			t.sizeFollow = false
+			if type(t.border) == "table" then t.border.follow = false end
+		elseif t.follow == true then t.size, t.border = nil, nil end
+		t.enabled, t.hideTotemFrame, t.hideActionBar, t.killedPulse, t.follow = nil, nil, nil, nil, nil
 		if t.mode ~= "blizzard" and t.mode ~= "active" and t.mode ~= "everything" then t.mode = nil end
 		if t.show ~= "always" and t.show ~= "active" and t.show ~= "combat" then t.show = nil end
 		for k, v in pairs(TB.DEFAULTS) do
@@ -101,8 +104,7 @@ local function cfg()
 		for name, v in pairs(t.warnOver) do
 			if type(name) ~= "string" or type(v) ~= "number" then t.warnOver[name] = nil end
 		end
-		local b = t.border
-		if type(b.show) ~= "boolean" or type(b.size) ~= "number" or type(b.color) ~= "table" then t.border = CopyTable(TB.DEFAULTS.border) end
+		if type(t.size) ~= "number" then t.size = nil end
 		cfgTable = t
 	end
 	return t
@@ -116,11 +118,16 @@ local function barOn() return isShaman() and cfg().mode ~= "blizzard" end
 local function feat(key) local c = cfg(); return barOn() and c.mode == "everything" and c[key] or false end
 TB.barOn, TB.feat = barOn, feat
 
--- The look: the bar's own, or General's.
+-- The slots' size and border: each General's, or the bar's own.
 local function look()
 	local c, db = cfg(), ns.getDB()
-	if c.follow then return db.iconSize, db.border end
-	return c.size, c.border
+	return (not c.sizeFollow and c.size) or db.iconSize, ns.Style.get("totembar", "border")
+end
+-- Own icon size from General's current one, the first time; later its own is kept.
+function TB.setSizeFollow(follow)
+	local c = cfg()
+	if not follow and not c.size then c.size = ns.getDB().iconSize end
+	c.sizeFollow = follow
 end
 
 -- An element's multi-cast action slot (Call of the Elements' page, the first set).
@@ -233,8 +240,8 @@ for _, el in ipairs(ELEMENTS) do
 	s.badge = badge
 	-- Killed early and ran out (ns.makeEndFlash): on their own frames, since the slot's look can be
 	-- invisible (Active totems). Two frames: each has its own secret gate.
-	local kf = ns.makeEndFlash(bar, b)
-	s.expired = ns.makeEndFlash(bar, b)
+	local kf = ns.makeEndFlash(bar, b, "totembar")
+	s.expired = ns.makeEndFlash(bar, b, "totembar")
 	s.killed = kf
 	v.bg = v:CreateTexture(nil, "BACKGROUND")
 	v.bg:SetAllPoints()
@@ -270,8 +277,8 @@ for _, el in ipairs(ELEMENTS) do
 	a:SetDuration(0.6)
 	a:SetSmoothing("IN_OUT")
 	v.warn.pulse = pulse
-	-- Glow: a gold halo beyond the slot's edges, breathing; under the same gate as the rest.
-	v.warn.glowF = ns.makeGlow(v.warn, v)
+	-- Glow: a pulsing glow inside the slot's edges; under the same gate as the rest.
+	v.warn.glowF = ns.makeGlow(v.warn, v, "totembar")
 
 	-- Arrow tab (secure) and its look (plain, shown while the mouse is over the slot or the tab).
 	local ar = CreateFrame("Button", nil, bar, "SecureActionButtonTemplate")
@@ -956,7 +963,7 @@ function slotEmptied(s, was)
 		local ok, d = pcall(GetTotemDuration, s.slot)
 		local refilled = ok and d ~= nil
 		if mine or refilled then return end
-		if ns.onTotemKilled then ns.onTotemKilled(s.slot, was) end   -- Earthbind / Stoneclaw elements
+		if ns.onTotemGone then ns.onTotemGone(s.slot, was) end   -- Earthbind / Stoneclaw elements
 		local c = cfg()
 		if not s.button:IsShown() then return end
 		if c.expiredPop then s.expired:play(was, { expired = true, pop = true }) end

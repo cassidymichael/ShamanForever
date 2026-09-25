@@ -193,6 +193,12 @@ function Page:header(text, shown, note)
 	return self:add(f, 36, shown)
 end
 
+-- Names the last row added, for ns.OpenGeneral and the like to scroll to.
+function Page:anchor(name)
+	self.anchors = self.anchors or {}
+	self.anchors[name] = self.items[#self.items].frame
+end
+
 -- Wraps to the page width; the row grows to fit. str may be a function, re-read on every refresh.
 function Page:text(str, shown)
 	local f = self:row(20)
@@ -483,34 +489,170 @@ local function pct(v) return string.format("%.0f%%", v * 100) end
 local function times(v) return string.format("%.2fx", v) end
 local function int(v) return string.format("%d", v) end
 
--- Standard block: a timer's look (ShamanForever_Timers.lua). key nil: General's defaults for the
--- kind; otherwise an element's own ("totembar" for the totem bar), with Same as General.
+------------------------------------------------------------------------
+-- Styles (ShamanForever_Style.lua): General sets each one; an element, a group or the totem bar can
+-- have its own. owner: nil for General, an element key, "totembar", or a function returning the
+-- selected group (nil while there is none).
+------------------------------------------------------------------------
+local function resolve(owner) if type(owner) == "function" then return owner() end return owner end
+
+-- A switch to use General's settings, with a button to them (General's page, scrolled to anchor).
+local function generalRow(p, label, tip, get, set, anchor, shown)
+	local row = p:checkbox(label, tip, get, set, shown)
+	local b = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+	b:SetSize(100, 22)
+	b:SetPoint("LEFT", row.check.Text, "RIGHT", 12, 0)
+	b:SetText("Edit General")
+	b:SetScript("OnClick", function() ns.OpenGeneral(anchor) end)
+	setTip(b, "Edit General", "These settings on the General page.")
+	return row
+end
+
+-- "Same as General" for a style: on, the rows under it hide; off the first time, the owner keeps
+-- the look it has as its own, and later its own values come back.
+local function followRow(p, owner, kind, after, label, shown)
+	if type(owner) == "string" then ns.Style.addUser(kind, owner) end
+	return generalRow(p, label or "Same as General", "Use the settings on the General page.",
+		function() local o = resolve(owner); return o ~= nil and ns.Style.follows(o, kind) end,
+		function(v)
+			local o = resolve(owner)
+			if o == nil then return end
+			ns.Style.setFollow(o, kind, v)
+			after()
+		end, kind, shown)
+end
+
+-- A style's rows: style() now, get(field) and set(field) for controls, and own(), whether the rows
+-- apply (General's, or an owner with its own).
+local function styleRows(owner, kind, after)
+	local St = ns.Style
+	local r = {}
+	function r.style()
+		local o = resolve(owner)
+		if o == nil then return St.general(kind) end
+		return St.get(o, kind)
+	end
+	function r.own() local o = resolve(owner); return o == nil or not St.follows(o, kind) end
+	function r.get(field) return function() return r.style()[field] end end
+	function r.set(field) return function(v)
+		local o = resolve(owner)
+		if o == nil and owner ~= nil then return end   -- no group selected
+		St.set(o, kind, field, v)
+		after()
+	end end
+	return r
+end
+
+-- General's list of what has its own, under a style's rows.
+local function ownLine(p, kind)
+	p:text(function() return "Own style: " .. table.concat(ns.Style.ownStyles(kind), ", ") .. "." end,
+		function() return #ns.Style.ownStyles(kind) > 0 end)
+end
+
+local function px(v) return string.format("%d px", v) end
+
+-- Standard rows: the border around icons, General's or an owner's (a group, the totem bar).
+local function borderRows(p, owner, after, label, shown)
+	after = after or relayout
+	local r = styleRows(owner, "border", after)
+	if owner ~= nil then followRow(p, owner, "border", after, label, shown) end
+	local bordered = function() return r.own() and r.style().show end
+	p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"), dimWhen(r.own, nil, shown))
+	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("size"), r.set("size"), dimWhen(bordered, nil, shown))
+	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), dimWhen(bordered, nil, shown))
+end
+
+-- The border a preview icon wears: its owner's.
+local function previewBorder(owner)
+	if owner == nil then return ns.Style.general("border") end
+	if owner == "totembar" then local _, b = ns.TotemBar.look(); return b end
+	return ns.borderFor(owner)
+end
+
+-- Standard block: the pulsing glow's style, with an icon glowing all the time that follows every
+-- change at once.
+local function glowBlock(p, owner, icon)
+	local function after() ns.applyGlowStyle(); ns.RefreshOptions() end
+	local r = styleRows(owner, "glow", after)
+	p:header("Glow style")
+	if owner == nil then
+		p:anchor("glow")
+		p:text("Every pulsing glow. Elements and the totem bar can have their own.")
+	else followRow(p, owner, "glow", after) end
+	local own = dimWhen(r.own)
+	local f = p:row(64)
+	p:label(f, "Preview")
+	local ic = ns.makeIcon(f, 40, owner)
+	ic:SetPoint("LEFT", f, "LEFT", LABEL_W + 24, 0)
+	ic.tex:SetTexture(icon)
+	p:add(f, 64, own, function() ns.applyBorder(ic, previewBorder(owner)); ic:SetGlowShown(true) end)
+	p:color("Colour", "Colour and opacity. Killed early keeps its red.", r.get("color"), r.set("color"), own)
+	p:slider("Pulse length", "One pulse, in seconds.", 0.2, 2, 0.1, function(v) return string.format("%.1f s", v) end,
+		r.get("speed"), r.set("speed"), own)
+	local setLow = r.set("low")
+	p:slider("Pulse depth", "How much it fades between pulses. 0% is steady.", 0, 1, 0.05, pct,
+		function() return 1 - r.style().low end, function(v) setLow(1 - v) end, own)
+	p:slider("Thickness", "How far in from the edges it reaches.", 0.1, 0.5, 0.05, pct, r.get("width"), r.set("width"), own)
+	if owner == nil then ownLine(p, "glow") end
+end
+
+-- Standard block: the pop's style, with an icon that pops on every change and on Play. kind: the
+-- light's colour the icon shows (ready, imbue, expired, killed).
+local POP_MOTIONS = { { "pop", "Grow" }, { "bounce", "Bounce" }, { "hop", "Hop" }, { "shake", "Shake side to side" }, { "shakeV", "Shake up and down" } }
+local function popBlock(p, owner, icon, kind)
+	local ic
+	local function after() ns.RefreshOptions(); if ic and ic:IsVisible() then ic:Pop(kind) end end
+	local r = styleRows(owner, "pop", after)
+	p:header("Pop style")
+	if owner == nil then
+		p:anchor("pop")
+		p:text("The burst when something happens: a cooldown ready, an imbue dropping, a totem ending. Elements and the totem bar can have their own.")
+	else followRow(p, owner, "pop", after) end
+	local own = dimWhen(r.own)
+	local f = p:row(56)
+	p:label(f, "Try it")
+	ic = ns.makeIcon(f, 40, owner)
+	ic:SetPoint("LEFT", f, "LEFT", LABEL_W + 16, 0)
+	ic.tex:SetTexture(icon)
+	local play = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+	play:SetSize(80, 22)
+	play:SetPoint("LEFT", ic, "RIGHT", 24, 0)
+	play:SetText("Play")
+	play:SetScript("OnClick", function() ic:Pop(kind) end)
+	p:add(f, 56, own, function() ns.applyBorder(ic, previewBorder(owner)) end)
+	p:dropdown("Motion", nil, POP_MOTIONS, r.get("motion"), r.set("motion"), own, 190)
+	p:slider("Motion distance", "How far it grows, hops or shakes.", 1.1, 1.8, 0.05, pct, r.get("size"), r.set("size"), own)
+	p:slider("Motion speed", nil, 0.5, 2, 0.1, pct, r.get("speed"), r.set("speed"), own)
+	p:checkbox("Flash", "A quick flash of light over the icon.", r.get("flash"), r.set("flash"), own)
+	p:checkbox("Ring burst", "A ring that spreads out from the icon.", r.get("ring"), r.set("ring"), own)
+	p:checkbox("Star burst", "A star of light behind the icon.", r.get("star"), r.set("star"), own)
+	p:checkbox("Colour by event", "Gold when ready, blue for the imbue, white when a totem runs out, red when killed. Off: white.",
+		r.get("tint"), r.set("tint"), own)
+	if owner == nil then ownLine(p, "pop") end
+end
+
+-- Standard block: a timer's look (ShamanForever_Timers.lua). key nil: General's for the kind, with
+-- note under its header; otherwise an element's own ("totembar" for the totem bar), with Same as General.
 local TEXT_POS = { { "auto", "Auto" }, { "center", "Centre" }, { "topleft", "Top left" }, { "bottom", "Bottom" } }
-local function timerSettings(p, title, key, kind, after)
-	local T = ns.Timer
-	local cant = T.cant(key, kind)
-	local function style() return key and T.style(key, kind) or T.general(kind) end
-	local function tg(field) return function() return style()[field] end end
-	local function ts(field) return function(v) T.set(key, kind, field, v); (after or relayout)() end end
-	local function own() return not key or not T.follows(key, kind) end
-	-- A row greys out while following General, while its part is off, or when the game can't do it.
+local function timerSettings(p, title, key, kind, after, note)
+	after = after or relayout
+	local cant = ns.Timer.cant(key, kind)
+	local r = styleRows(key, kind, after)
+	local style, tg, ts, own = r.style, r.get, r.set, r.own
+	-- A row hides while following General, while its part is off, or when the game can't do it.
 	local function dim(part, needs)
 		return dimWhen(function()
 			if cant[part] or not own() then return false end
 			if needs and not style()[needs] then return false end
 			return true
-		end, function()
-			if cant[part] then return cant[part] end
-			if not own() then return "Turn off Same as General to change this." end
-			if needs then return "Turn on " .. ({ text = "Countdown text", swipe = "Swipe", bar = "Time bar" })[needs] .. " to change this." end
 		end)
 	end
 	local function secs(v) return string.format("%d", v) end
-	local function px(v) return string.format("%d px", v) end
 	p:header(title)
-	if key then
-		p:checkbox("Same as General", "Use the timer settings on the General page.",
-			function() return T.follows(key, kind) end, function(v) T.setFollow(key, kind, v); (after or relayout)() end)
+	if key then followRow(p, key, kind, after)
+	else
+		p:anchor(kind)
+		if note then p:text(note) end
 	end
 	-- What the game can't do here, said once instead of showing rows that could never apply.
 	for _, why in pairs(cant) do p:text(why, own) end
@@ -524,8 +666,7 @@ local function timerSettings(p, title, key, kind, after)
 		{ 300, "1:31 in the last 5 minutes" }, { 600, "1:31 in the last 10 minutes" },
 	}, tg("abbrev"), ts("abbrev"), dim("text", "text"), 220)
 	p:checkbox("Swipe", "A shade that sweeps round the icon.", tg("swipe"), ts("swipe"), dim("swipe"))
-	p:slider("Swipe darkness", nil, 0.1, 1, 0.05, function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end,
-		tg("swipeAlpha"), ts("swipeAlpha"), dim("swipe", "swipe"))
+	p:slider("Swipe darkness", nil, 0.1, 1, 0.05, pct, tg("swipeAlpha"), ts("swipeAlpha"), dim("swipe", "swipe"))
 	p:checkbox("Swipe darkens as time runs out", "Off: it lightens, like most cooldowns.", tg("swipeReverse"), ts("swipeReverse"), dim("swipe", "swipe"))
 	p:checkbox("Time bar", "A bar along an edge that drains.", tg("bar"), ts("bar"), dim("bar"))
 	p:slider("Bar height", nil, 1, 20, 1, px, tg("barHeight"), ts("barHeight"), dim("bar", "bar"))
@@ -533,11 +674,8 @@ local function timerSettings(p, title, key, kind, after)
 	p:dropdown("Bar colour", nil, { { true, "Element colour" }, { false, "Custom" } }, tg("barElement"), ts("barElement"), dim("bar", "bar"), 160)
 	p:color("Custom bar colour", nil, tg("barColor"), ts("barColor"), dimWhen(function()
 		return not cant.bar and own() and style().bar and not style().barElement
-	end, function()
-		if cant.bar then return cant.bar end
-		if not own() then return "Turn off Same as General to change this." end
-		return "Choose Custom as the bar colour to change this."
 	end))
+	if not key then ownLine(p, kind) end
 end
 
 local function get(key) return function() return db()[key] end end
@@ -583,69 +721,22 @@ local function buildHome(p)
 	p:copyField("Issues", ns.Look.REPO .. "/issues")
 end
 
--- General: the defaults every element inherits, then housekeeping.
+-- General: the styles everything follows unless it has its own, then housekeeping.
 local function buildGeneral(p)
-	p:header("Defaults for all elements")
-	p:text("Elements and groups can override some of these on their own pages.")
+	p:header("Defaults")
+	p:anchor("size")
+	p:text("Elements, groups and the totem bar use these unless they have their own.")
 	p:slider("Icon size", "Base size of every element. Each group's scale multiplies it.", 24, 96, 1, int,
 		get("iconSize"), set("iconSize"))
-	local function bget(k) return function() return db().border[k] end end
-	local function bset(k) return function(v) db().border[k] = v; relayout() end end
-	local function bordered() return db().border.show end
-	p:checkbox("Border", "A border around every element. Groups can have their own on the Layout page.",
-		bget("show"), bset("show"))
-	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1,
-		function(v) return string.format("%d px", v) end, bget("size"), bset("size"), dimWhen(bordered, "Turn on Border to use this."))
-	p:color("Border colour", "Colour and opacity.", bget("color"), bset("color"), dimWhen(bordered, "Turn on Border to use this."))
-	timerSettings(p, "Cooldowns", nil, "cooldown")
-	p:text("A spell you can't cast yet. Elements can have their own on their page.")
-	timerSettings(p, "Time left", nil, "uptime")
-	p:text("A totem, shield or imbue running. Elements and the totem bar can have their own.")
-
-	p:header("Pulsing glow")
-	p:text("The style of every pulsing glow. Elements turn their own glows on or off.")
-	-- A test icon glowing all the time: it follows every change here at once.
-	local gf = p:row(64)
-	p:label(gf, "Preview")
-	local gi = ns.makeIcon(gf, 40)
-	gi:SetPoint("LEFT", gf, "LEFT", LABEL_W + 24, 0)
-	gi.tex:SetTexture(136026)
-	p:add(gf, 64, nil, function() ns.applyBorder(gi, db().border); gi:SetGlowShown(true) end)
-	local function gset(k) return function(v) db()[k] = v; ns.applyGlowStyle(); if ns.RefreshOptions then ns.RefreshOptions() end end end
-	p:color("Colour", "Colour and opacity. Killed early keeps its red.", get("glowColor"), gset("glowColor"))
-	p:slider("Pulse length", "One pulse, in seconds.", 0.2, 2, 0.1, function(v) return string.format("%.1f s", v) end,
-		get("glowSpeed"), gset("glowSpeed"))
-	p:slider("Pulse depth", "How much it fades between pulses. 0% is steady.", 0, 1, 0.05,
-		function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end,
-		function() return 1 - db().glowLow end, function(v) db().glowLow = 1 - v; ns.applyGlowStyle(); ns.RefreshOptions() end)
-	p:slider("Thickness", "How far in from the edges it reaches.", 0.1, 0.5, 0.05,
-		function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end, get("glowWidth"), gset("glowWidth"))
-
-	p:header("Pop")
-	p:text("The burst when something happens: a cooldown ready, an imbue dropping, a totem ending. Elements turn their own pops on or off.")
-	-- A test icon: it pops on every change here, and on Play.
-	local tf = p:row(56)
-	p:label(tf, "Try it")
-	local ti = ns.makeIcon(tf, 40)
-	ti:SetPoint("LEFT", tf, "LEFT", LABEL_W + 16, 0)
-	ti.tex:SetTexture(136026)
-	local play = CreateFrame("Button", nil, tf, "UIPanelButtonTemplate")
-	play:SetSize(80, 22)
-	play:SetPoint("LEFT", ti, "RIGHT", 24, 0)
-	play:SetText("Play")
-	play:SetScript("OnClick", function() ti:Pop("ready") end)
-	p:add(tf, 56, nil, function() ns.applyBorder(ti, db().border) end)
-	local function pset(k) return function(v) db()[k] = v; ns.RefreshOptions(); ti:Pop("ready") end end
-	local pctOf = function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end
-	p:dropdown("Motion", nil, { { "pop", "Grow" }, { "bounce", "Bounce" }, { "hop", "Hop" }, { "shake", "Shake side to side" }, { "shakeV", "Shake up and down" } },
-		get("popMotion"), pset("popMotion"), nil, 190)
-	p:slider("Motion distance", "How far it grows, hops or shakes.", 1.1, 1.8, 0.05, pctOf, get("popSize"), pset("popSize"))
-	p:slider("Motion speed", nil, 0.5, 2, 0.1, pctOf, get("popSpeed"), pset("popSpeed"))
-	p:checkbox("Flash", "A quick flash of light over the icon.", get("popFlash"), pset("popFlash"))
-	p:checkbox("Ring burst", "A ring that spreads out from the icon.", get("popRing"), pset("popRing"))
-	p:checkbox("Star burst", "A star of light behind the icon.", get("popStar"), pset("popStar"))
-	p:checkbox("Colour by event", "Gold when ready, blue for the imbue, white when a totem runs out, red when killed. Off: white.",
-		get("popTint"), pset("popTint"))
+	p:text("Own size: Totem bar.", function() return ns.TotemBar.barOn() and not ns.TotemBar.cfg().sizeFollow end)
+	p:header("Border")
+	p:anchor("border")
+	borderRows(p, nil)
+	ownLine(p, "border")
+	timerSettings(p, "Cooldowns", nil, "cooldown", nil, "A spell you can't cast yet.")
+	timerSettings(p, "Time left", nil, "uptime", nil, "A totem, shield or imbue running.")
+	glowBlock(p, nil, 136026)
+	popBlock(p, nil, 136026, "ready")
 
 	p:header("Minimap")
 	p:checkbox("Show the minimap button", "Click it to open these options. Also listed in the minimap's addon menu.",
@@ -1075,28 +1166,7 @@ local function buildLayout(p)
 		end, hasGroups)
 	p:slider("Opacity", "Transparency of the group. Shift + mouse wheel over the group while unlocked does the same.", 0.1, 1, 0.05, pct,
 		groupGet("alpha"), groupSet("alpha"), hasGroups)
-	local function hasGroupBorder() local g = selected(); return g and g.border ~= nil end
-	-- Without a custom border the (greyed) rows show the general border the group actually uses.
-	local function gbget(k) return function()
-		local g = selected()
-		if g and g.border then return g.border[k] end
-		return db().border[k]
-	end end
-	local function gbset(k) return function(v) local g = selected(); if g and g.border then g.border[k] = v; relayout() end end end
-	p:checkbox("Custom border", "Give this group its own border instead of the global one (General page). Turning this off goes back to the global border.",
-		hasGroupBorder, function(v)
-			local g = selected()
-			if not g then return end
-			g.border = v and CopyTable(db().border) or nil
-			relayout()
-		end, hasGroups)
-	local function groupBorderShown() return hasGroupBorder() and selected().border.show end
-	p:checkbox("Show border", "Show this group's border.", gbget("show"), gbset("show"),
-		dimWhen(hasGroupBorder, "Turn on Custom border to use this.", hasGroups))
-	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1, function(v) return string.format("%d px", v) end,
-		gbget("size"), gbset("size"), dimWhen(groupBorderShown, "Turn on Custom border and Show border to use this.", hasGroups))
-	p:color("Border colour", "Colour and opacity of this group's border.", gbget("color"), gbset("color"),
-		dimWhen(groupBorderShown, "Turn on Custom border and Show border to use this.", hasGroups))
+	borderRows(p, selected, relayout, "Border same as General", hasGroups)
 	p:checkbox("Only show in combat", "Hide this group out of combat. Each element also has its own Show setting (Always, In combat, Never) under Elements; an element shows only when both it and its group allow it. Everything visible shows while the layout is unlocked.",
 		groupGet("combatOnly"), groupSet("combatOnly"), hasGroups)
 	local lastRow = p:buttons({
@@ -1217,6 +1287,11 @@ local function buildTotemBar(p)
 		return { { "right", "Right" }, { "left", "Left" } }
 	end, tget("pop"), tset("pop"), full, 140)
 	p:slider("Spacing", nil, 0, 20, 1, function(v) return string.format("%d px", v) end, tget("spacing"), tset("spacing"))
+	-- Its own size is not its scale: scale also grows the text, arrows and spacing, never the border.
+	generalRow(p, "Icon size same as General", "Use the icon size on the General page.",
+		tget("sizeFollow"), function(v) TB.setSizeFollow(v); changed() end, "size")
+	p:slider("Icon size", nil, 24, 96, 1, function(v) return string.format("%d px", v) end, tget("size"), tset("size"),
+		dimWhen(function() return not c().sizeFollow end))
 	p:dropdown("Call and Recall", "Where they sit on the bar.", { { "ends", "Both ends" }, { "before", "Before the slots" }, { "after", "After the slots" } },
 		tget("extras"), tset("extras"), dimWhen(function() return c().call or c().recall end, nil, full), 180)
 	p:slider("Call and Recall size", "As a share of the slots' size.", 0.5, 1.5, 0.05,
@@ -1237,17 +1312,8 @@ local function buildTotemBar(p)
 	p:checkbox("Totemic Recall", "Right-click dismisses all totems, even before you learn it.", tget("recall"), tset("recall"))
 
 	p.gate = TB.barOn
-	p:header("Look")
-	local own = function() return not c().follow end
-	local WHY = "Turn off Same as General to use this."
-	p:checkbox("Same as General", "Icon size and border from the General page.", tget("follow"), tset("follow"))
-	p:slider("Icon size", nil, 24, 96, 1, function(v) return string.format("%d px", v) end, tget("size"), tset("size"), dimWhen(own, WHY))
-	p:checkbox("Border", nil, function() return c().border.show end, function(v) c().border.show = v; changed() end, dimWhen(own, WHY))
-	local bordered = function() return own() and c().border.show end
-	p:slider("Border size", nil, 1, 8, 1, function(v) return string.format("%d px", v) end,
-		function() return c().border.size end, function(v) c().border.size = v; changed() end, dimWhen(bordered, "Turn on Border to use this."))
-	p:color("Border colour", "Colour and opacity.", function() return c().border.color end,
-		function(v) c().border.color = v; changed() end, dimWhen(bordered, "Turn on Border to use this."))
+	p:header("Border")
+	borderRows(p, "totembar", changed)
 	timerSettings(p, "Time left", "totembar", "uptime", changed)
 
 	p.gate = full
@@ -1275,8 +1341,8 @@ local function buildTotemBar(p)
 	p:checkbox("Grey icon", "Desaturate the icon.", tget("warnGrey"), tset("warnGrey"))
 	p:checkbox("Red ring", "A red ring inside the icon edge.", tget("warnRing"), tset("warnRing"))
 	p:checkbox("Fade in and out", nil, tget("warnPulse"), tset("warnPulse"))
-	p:checkbox("Pulsing glow", "A gold glow around the slot that pulses.", tget("warnGlow"), tset("warnGlow"))
-	p:checkbox("Pop when it runs out", "The totem bursts bigger and fades the moment it runs out.", tget("expiredPop"), tset("expiredPop"))
+	p:checkbox("Pulsing glow", "A glow inside the slot that pulses.", tget("warnGlow"), tset("warnGlow"))
+	p:checkbox("Pop when it runs out", "The totem pops and fades the moment it runs out.", tget("expiredPop"), tset("expiredPop"))
 	local secs = function(v) return v == 0 and "Off" or string.format("%d s", v) end
 	p:slider("Warn in the last", nil, 0, 30, 1, secs, tget("warn"), tset("warn"))
 	p:text("Totems with their own warning time, instead of the default:", function() return next(c().warnOver) ~= nil end)
@@ -1317,9 +1383,12 @@ local function buildTotemBar(p)
 	p:checkbox("Flash when a totem dies early", "The dead totem flashes red over its slot. Not when you dismiss it or it runs out.",
 		tget("killed"), tset("killed"))
 	local killedOn = dimWhen(tget("killed"))
-	p:checkbox("Pop", "The slot bursts bigger for a moment.", tget("killedPop"), tset("killedPop"), killedOn)
-	p:checkbox("Glow", "A red glow around the slot.", tget("killedGlow"), tset("killedGlow"), killedOn)
+	p:checkbox("Pop", "The slot bursts for a moment.", tget("killedPop"), tset("killedPop"), killedOn)
+	p:checkbox("Pulsing glow", "In red.", tget("killedGlow"), tset("killedGlow"), killedOn)
 	p:checkbox("Cross until recast", "A red cross stays over the slot until you recast it, up to 5 s.", tget("killedMark"), tset("killedMark"), killedOn)
+
+	glowBlock(p, "totembar", 136098)
+	popBlock(p, "totembar", 136098, "expired")
 	p.gate = nil
 end
 
@@ -1416,20 +1485,37 @@ local function elementDisplay(p, key)
 	setTip(edit, "Edit group", "This group's settings on the Layout page.")
 end
 
--- Standard block: the look while something is missing. first: an optional row before the three.
--- "Pop when ready" under an element's Cooldown block, and with glowTip a "use me" glow (Shocks, Fire
+-- An element's own option (db.elementOpts), with its default (ns.elementOpt).
+local function eget(key, name) return function() return ns.elementOpt(key, name) end end
+local function eset(key, name) return function(v) ns.elementOpts(key)[name] = v; relayout() end end
+
+-- Standard block: the moment a cooldown ends. A pop, and with glowTip a "use me" glow (Shocks, Fire
 -- Nova; off by default).
-local function readyPop(p, key, glowTip)
-	p:checkbox("Pop when ready", "The icon bursts bigger the moment the cooldown ends.",
-		function() local v = ns.elementOpts(key).readyPop; return v == nil or v end,
-		function(v) ns.elementOpts(key).readyPop = v; ns.RefreshOptions() end)
-	if glowTip then
-		p:checkbox("Pulsing glow when ready", glowTip,
-			function() return ns.elementOpts(key).readyGlow == true end,
-			function(v) ns.elementOpts(key).readyGlow = v; ns.RefreshOptions() end)
-	end
+local function readyBlock(p, key, glowTip)
+	p:header("Ready")
+	p:checkbox("Pop", "The moment the cooldown ends.", eget(key, "readyPop"), eset(key, "readyPop"))
+	if glowTip then p:checkbox("Pulsing glow", glowTip, eget(key, "readyGlow"), eset(key, "readyGlow")) end
 end
 
+-- Standard block: a totem killed early (Earthbind, Stoneclaw), as on the totem bar.
+local function killedBlock(p, key)
+	p:header("Killed early")
+	p:checkbox("Flash when it dies early", "The dead totem flashes red over the icon. Not when you dismiss it or it runs out.",
+		eget(key, "killed"), eset(key, "killed"))
+	local on = dimWhen(eget(key, "killed"))
+	p:checkbox("Pop", "The icon bursts for a moment.", eget(key, "killedPop"), eset(key, "killedPop"), on)
+	p:checkbox("Pulsing glow", "In red.", eget(key, "killedGlow"), eset(key, "killedGlow"), on)
+	p:checkbox("Cross until recast", "A red cross stays over the icon until you recast it, up to 5 s.", eget(key, "killedMark"), eset(key, "killedMark"), on)
+end
+
+-- Standard blocks at the end of a page with glows or pops: their styles, General's or its own.
+local function effectBlocks(p, key, popKind)
+	local icon = ns.Look.ELEMENT[key].icon
+	glowBlock(p, key, icon)
+	popBlock(p, key, icon, popKind or "ready")
+end
+
+-- Standard block: the look while something is missing. first: an optional row before the three.
 local function warningBlock(p, title, greyGet, greySet, ringGet, ringSet, pulseGet, pulseSet, first)
 	p:header(title)
 	if first then first() end
@@ -1497,7 +1583,8 @@ local function buildShock(p)
 	p:slider("Tint", nil, 0.1, 1, 0.05, pct, get("rangeTint"), set("rangeTint"),
 		dimWhen(lookUses("rangeStyle", "tint"), "Choose Tint or Both as the look to use this."))
 	timerSettings(p, "Cooldown", "shock", "cooldown")
-	readyPop(p, "shock", "While it's off cooldown.")
+	readyBlock(p, "shock", "While it's off cooldown.")
+	effectBlocks(p, "shock")
 end
 
 local function buildImbue(p)
@@ -1508,8 +1595,8 @@ local function buildImbue(p)
 			for _, key in ipairs(ns.IMBUE_ORDER) do table.insert(cards, { key, (ns.IMBUES[key].name:gsub(" Weapon", "")), ns.IMBUES[key].icon }) end
 			p:cards("Icon", "Which imbue's icon shows while none is on.", cards, get("imbuePreferred"), set("imbuePreferred"))
 		end)
-	p:checkbox("Pulsing glow", "A gold glow around the icon that pulses.", get("imbueGlow"), set("imbueGlow"))
-	p:checkbox("Pop when it drops", "The icon bursts bigger the moment your imbue runs out or is lost.", get("imbuePop"), set("imbuePop"))
+	p:checkbox("Pulsing glow", "A glow inside the icon that pulses.", get("imbueGlow"), set("imbueGlow"))
+	p:checkbox("Pop", "The moment your imbue runs out or is lost.", get("imbuePop"), set("imbuePop"))
 
 	p:header("Time left")
 	p:slider("Show under", "Show the time left once under this. Zero never shows it.", 0, 30, 1,
@@ -1517,49 +1604,44 @@ local function buildImbue(p)
 	p:checkbox("Hide until low", "While an imbue is on, stay hidden until the time left shows. Keeps its place in the group.",
 		get("imbueHideActive"), set("imbueHideActive"))
 	timerSettings(p, "Timer", "imbue", "uptime")
+	effectBlocks(p, "imbue", "imbue")
 end
 
 -- One page per cooldown element; the blocks depend on what the element tracks.
 local function buildCooldown(p, def)
 	local key = def.key
 	elementDisplay(p, key)
-	local function optGet(name, default) return function()
-		local v = ns.elementOpts(key)[name]
-		if v == nil then return default end
-		return v
-	end end
-	local function optSet(name) return function(v) ns.elementOpts(key)[name] = v; relayout() end end
 	if def.needsTotem then
-		warningBlock(p, "No fire totem", optGet("blockedGrey", true), optSet("blockedGrey"), optGet("blockedRing", false), optSet("blockedRing"),
-			optGet("blockedPulse", false), optSet("blockedPulse"))
+		warningBlock(p, "No fire totem", eget(key, "blockedGrey"), eset(key, "blockedGrey"), eget(key, "blockedRing"), eset(key, "blockedRing"),
+			eget(key, "blockedPulse"), eset(key, "blockedPulse"))
 	end
 	timerSettings(p, "Cooldown", key, "cooldown")
-	readyPop(p, key, def.needsTotem and "While it's off cooldown and a fire totem is down.")
+	readyBlock(p, key, def.needsTotem and "While it's off cooldown and a fire totem is down.")
 	if def.needsTotem then timerSettings(p, "Fire totem's time left", key, "uptime")
 	elseif def.totemSlot then timerSettings(p, "Time left", key, "uptime") end
 	if def.needsTotem or def.totemSlot then
 		-- Expiring: a warning in the totem's last seconds.
-		local function eget(k) return function() return ns.expireOpts(key)[k] end end
-		local function eset(k) return function(v)
+		local function xget(k) return function() return ns.expireOpts(key)[k] end end
+		local function xset(k) return function(v)
 			local o = ns.elementOpts(key)
 			if type(o.expire) ~= "table" then o.expire = {} end
 			o.expire[k] = v
 			relayout()
 		end end
-		local on = dimWhen(function() return ns.expireOpts(key).secs > 0 end, "Set Warn in the last above zero to use this.")
+		local on = dimWhen(function() return ns.expireOpts(key).secs > 0 end)
 		p:header("Expiring")
 		p:slider("Warn in the last", "Seconds before the totem runs out. Zero turns the warning off.", 0, 30, 1,
-			function(v) return v == 0 and "Off" or string.format("%d s", v) end, eget("secs"), eset("secs"))
-		p:checkbox("Grey icon", "Desaturate the icon.", eget("grey"), eset("grey"), on)
-		p:checkbox("Red ring", "A red ring inside the icon edge.", eget("ring"), eset("ring"), on)
-		p:checkbox("Fade in and out", nil, eget("pulse"), eset("pulse"), on)
-		p:checkbox("Pulsing glow", nil, eget("glow"), eset("glow"), on)
+			function(v) return v == 0 and "Off" or string.format("%d s", v) end, xget("secs"), xset("secs"))
+		p:checkbox("Grey icon", "Desaturate the icon.", xget("grey"), xset("grey"), on)
+		p:checkbox("Red ring", "A red ring inside the icon edge.", xget("ring"), xset("ring"), on)
+		p:checkbox("Fade in and out", nil, xget("pulse"), xset("pulse"), on)
+		p:checkbox("Pulsing glow", "A glow inside the icon that pulses.", xget("glow"), xset("glow"), on)
+		if def.totemSlot then
+			p:checkbox("Pop when it runs out", "The totem pops and fades the moment it runs out.", eget(key, "expiredPop"), eset(key, "expiredPop"))
+		end
 	end
-	if def.totemSlot then
-		p:header("Killed early")
-		p:checkbox("Flash when it dies early", "A red flash with a pop and glow, and a cross until you recast it, up to 5 s. Not when you dismiss it or it runs out.",
-			optGet("killed", true), optSet("killed"))
-	end
+	if def.totemSlot then killedBlock(p, key) end
+	effectBlocks(p, key)
 end
 
 ------------------------------------------------------------------------
@@ -1928,14 +2010,29 @@ function ns.OpenElementOptions(key)
 	ns.OpenOptions(ELEMENT_PAGES[key] or "elements")
 end
 
+-- Scrolls a page so frame (one of its rows) sits at the top, once the page has laid out.
+local function scrollTo(p, frame, after)
+	C_Timer.After(0, function()
+		if not frame:IsVisible() then return end
+		local top, y = p.content:GetTop(), frame:GetTop()
+		if top and y then p.scroll:SetVerticalScroll(math.max(0, math.min(top - y - 8, p.scroll:GetVerticalScrollRange()))) end
+		if after then after() end
+	end)
+end
+
+-- From an Edit General button: General, scrolled to the settings named anchor (a style's kind).
+function ns.OpenGeneral(anchor)
+	ns.OpenOptions("general")
+	local p = pages.general
+	local f = p and p.anchors and p.anchors[anchor]
+	if f then scrollTo(p, f) end
+end
+
 -- From an EXPERIMENTAL badge: About, scrolled to its Experimental section, which glows briefly.
 function ns.ShowExperimental()
 	ns.OpenOptions("about")
-	C_Timer.After(0, function()
-		if not aboutExp then return end
-		local p, h = aboutExp.page, aboutExp.header
-		local top, y = p.content:GetTop(), h:GetTop()
-		if top and y then p.scroll:SetVerticalScroll(math.max(0, math.min(top - y - 8, p.scroll:GetVerticalScrollRange()))) end
+	if not aboutExp then return end
+	scrollTo(aboutExp.page, aboutExp.header, function()
 		aboutExp.flash:Stop()
 		aboutExp.flash:Play()
 	end)
@@ -1945,12 +2042,7 @@ end
 function ns.OpenGroupSettings(gi)
 	board.flashPanel = true
 	ns.OpenOptions("layout", gi)
-	C_Timer.After(0, function()
-		if not (groupPanel and groupPanel.frame:IsShown()) then return end
-		local p = groupPanel.page
-		local top, y = p.content:GetTop(), groupPanel.frame:GetTop()
-		if top and y then p.scroll:SetVerticalScroll(math.max(0, math.min(top - y - 8, p.scroll:GetVerticalScrollRange()))) end
-	end)
+	if groupPanel then scrollTo(groupPanel.page, groupPanel.frame) end
 end
 
 -- Closes the window; true if it was open.

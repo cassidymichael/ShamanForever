@@ -52,23 +52,12 @@ local DEFAULT_PROFILE = "Default"
 -- A profile: the layout and how every element looks.
 local DEFAULTS = {
 	iconSize = 44,          -- base element size; each group scales it
-	border = { show = true, size = 2, color = { 0, 0, 0, 1 } },   -- around every element; a group can override (g.border)
-	-- Every pulsing glow (makeGlow): colour, one pulse's length (s), the dimmest it gets between
-	-- pulses, and how far in from the edges it reaches (share of the icon). Killed early's glow keeps
-	-- its red.
-	glowColor = { 1, 0.8, 0.25, 1 },
-	glowSpeed = 0.5,
-	glowLow = 0.25,
-	glowWidth = 0.2,
-	-- Every pop (ns.playPop): motion (pop = grow, bounce, hop, shake, shakeV) with its distance and
-	-- speed, and light.
-	popMotion = "shakeV",
-	popSize = 1.4,
-	popSpeed = 1,
-	popFlash = true,
-	popRing = false,
-	popStar = true,
-	popTint = true,       -- the light's colour by what happened (off: white)
+	-- General's styles (ShamanForever_Style.lua): the border around every element, the pulsing glow
+	-- and the pop. Groups and the totem bar can have their own border; elements and the totem bar
+	-- their own glow and pop.
+	border = CopyTable(ns.Style.KINDS.border.defaults),
+	glowStyle = CopyTable(ns.Style.KINDS.glow.defaults),
+	popStyle = CopyTable(ns.Style.KINDS.pop.defaults),
 	-- Default layout: just below the centre of the screen, side by side 16 px apart, ready to be
 	-- dragged where the player wants them (the totem bar sits below, see TotemBar.lua). Offsets are
 	-- in each group's scaled units, so the third group's are divided by its 0.9 scale.
@@ -122,6 +111,9 @@ local DEFAULTS = {
 	-- follow them unless they have their own.
 	timers = { cooldown = CopyTable(ns.Timer.DEFAULTS.cooldown), uptime = CopyTable(ns.Timer.DEFAULTS.uptime) },
 }
+-- Settings a profile no longer has: dropped when it loads.
+local RETIRED_KEYS = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "popMotion", "popSize", "popSpeed",
+	"popFlash", "popRing", "popStar", "popTint" }
 -- Pre-groups layout keys, folded into a single group on first load.
 local LEGACY_KEYS = { "point", "x", "y", "alpha", "scale", "size", "spacing", "orientation", "growth", "order", "enabled" }
 -- Saved settings format. Bump it and add a step on ADDON_LOADED when a stored value must change.
@@ -188,17 +180,14 @@ local root = CreateFrame("Frame", "ShamanForeverRoot", UIParent)
 root:SetAllPoints(UIParent)
 
 -- A pulsing glow inside an icon: soft light running in from its four edges, over the icon's art and
--- inside its border, breathing. `over` is the icon it covers (default: the parent). The General
--- page's style: colour, pulse length, pulse depth (glowLow is the dimmest it gets) and thickness (how
--- far in it reaches, as a share of the icon). fit(size) lays it out for an icon of that size.
+-- inside its border, breathing. `over` is the icon it covers (default: the parent). Its style is its
+-- owner's (an element key or "totembar"; nil for General's): colour, pulse length, pulse depth (low
+-- is the dimmest it gets) and thickness (how far in it reaches, as a share of the icon).
+-- fit(size) lays it out for an icon of that size.
 local glows = {}
-local function glowStyle()
-	local d = ns.getDB and ns.getDB()
-	if not d then return { 1, 0.8, 0.25, 1 }, 0.5, 0.25, 0.2 end
-	return d.glowColor, d.glowSpeed, d.glowLow, d.glowWidth
-end
-local function makeGlow(parent, over)
+local function makeGlow(parent, over, owner)
 	local g = CreateFrame("Frame", nil, parent)
+	g.owner = owner
 	table.insert(glows, g)
 	g:SetAllPoints(over or parent)
 	g:EnableMouse(false)
@@ -217,12 +206,13 @@ local function makeGlow(parent, over)
 	g.fade:SetFromAlpha(1); g.fade:SetSmoothing("IN_OUT")
 	g:SetScript("OnShow", function(self) self.anim:Play() end)
 	g:SetScript("OnHide", function(self) self.anim:Stop() end)
-	-- The General page's style; a fixed colour (killed early's red) wins over it.
+	-- The owner's style; a fixed colour (killed early's red) wins over its colour.
 	function g:restyle()
-		local c, speed, low = glowStyle()
-		self.fade:SetDuration(speed)
-		self.fade:SetToAlpha(low)
-		local k = self.fixed or c
+		local st = ns.Style.get(self.owner, "glow")
+		self.width = st.width   -- kept for fit, which the ready glows call ten times a second
+		self.fade:SetDuration(st.speed)
+		self.fade:SetToAlpha(st.low)
+		local k = self.fixed or st.color
 		local on, off = CreateColor(k[1], k[2], k[3], k[4] or 1), CreateColor(k[1], k[2], k[3], 0)
 		local e = self.edges
 		-- Bright at the edge, clear inward (vertical gradients run bottom to top, horizontal left to right).
@@ -235,8 +225,7 @@ local function makeGlow(parent, over)
 	end
 	function g:fit(size)
 		self.iconSize = size
-		local _, _, _, width = glowStyle()
-		local th = math.max(size * (width or 0.2), 1)
+		local th = math.max(size * (self.width or 0.2), 1)
 		local e = self.edges
 		for _, t in pairs(e) do t:ClearAllPoints() end
 		e.TOP:SetPoint("TOPLEFT"); e.TOP:SetPoint("TOPRIGHT"); e.TOP:SetHeight(th)
@@ -253,15 +242,11 @@ ns.makeGlow = makeGlow
 function ns.applyGlowStyle() for _, g in ipairs(glows) do g:restyle() end end
 
 -- Pop: the burst when something happens (a cooldown ready, an imbue dropping, a totem ending).
--- One style for all, on General: a motion (grow, bounce, hop, shake) with a size and speed, and
--- optional light (a flash over the icon, a ring spreading out, a star behind it), tinted by what
--- happened. Every part is built on the frame the first time it pops.
+-- Its style is its owner's (General's, or an element's or the totem bar's own): a motion (grow,
+-- bounce, hop, shake) with a size and speed, and optional light (a flash over the icon, a ring
+-- spreading out, a star behind it), tinted by what happened. Every part is built on the frame the
+-- first time it pops.
 local POP_TINT = { ready = { 1, 0.82, 0.25 }, imbue = { 0.35, 0.65, 1 }, expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 } }
-local function popStyle()
-	local d = ns.getDB and ns.getDB()
-	if not d then return { popMotion = "shakeV", popSize = 1.4, popSpeed = 1, popFlash = true, popRing = false, popStar = true, popTint = true } end
-	return d
-end
 -- An atlas if the client has it, else a plain texture.
 local function atlasOr(t, atlas, file)
 	local ok = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas)
@@ -329,15 +314,15 @@ local function popFx(f)
 	f.popFx = x
 	return x
 end
--- kind: ready | imbue | expired | killed (the tint).
-function ns.playPop(f, kind)
-	local st = popStyle()
+-- kind: ready | imbue | expired | killed (the tint); owner: whose style (nil: General's).
+function ns.playPop(f, kind, owner)
+	local st = ns.Style.get(owner, "pop")
 	local x = popFx(f)
-	local S = st.popSize or 1.4
-	local k = 1 / math.max(st.popSpeed or 1, 0.1)   -- duration multiplier
+	local S = st.size
+	local k = 1 / math.max(st.speed, 0.1)   -- duration multiplier
 	local h = math.max(f:GetHeight(), 8)
 	for _, m in ipairs({ "grow", "bounce", "hop", "shake", "shakeV" }) do x[m]:Stop() end
-	local motion = st.popMotion
+	local motion = st.motion
 	if motion == "pop" then
 		local a = x.grow.a
 		a[1]:SetScaleFrom(1, 1); a[1]:SetScaleTo(S, S); a[1]:SetDuration(0.12 * k)
@@ -365,9 +350,9 @@ function ns.playPop(f, kind)
 		a[4]:SetScaleFrom(o, o); a[4]:SetScaleTo(1, 1); a[4]:SetDuration(0.08 * k)
 		x.bounce:Play()
 	end
-	local c = st.popTint and POP_TINT[kind or "ready"] or { 1, 1, 1 }
+	local c = st.tint and POP_TINT[kind or "ready"] or { 1, 1, 1 }
 	x.flashAnim:Stop()
-	if st.popFlash then
+	if st.flash then
 		x.flash:SetVertexColor(c[1], c[2], c[3])
 		local a = x.flashAnim.a
 		a[1]:SetFromAlpha(0); a[1]:SetToAlpha(0.8); a[1]:SetDuration(0.06 * k)
@@ -377,14 +362,14 @@ function ns.playPop(f, kind)
 	-- The ring spreads from just inside the icon to 2.2 icon widths; the star from 1.2 to 3.5.
 	x.bursts[x.ring], x.bursts[x.star] = nil, nil
 	x.ring:Hide(); x.star:Hide()
-	if st.popRing then
+	if st.ring then
 		x.ring:SetDesaturated(true)
 		x.ring:SetVertexColor(c[1], c[2], c[3])
 		x.ring:SetSize(h * 0.9, h * 0.9)
 		x.ring:Show()
 		x.bursts[x.ring] = { t = 0, dur = 0.45 * k, from = h * 0.9, to = h * 2.2 }
 	end
-	if st.popStar then
+	if st.star then
 		x.star:SetDesaturated(true)
 		x.star:SetVertexColor(c[1], c[2], c[3])
 		x.star:SetSize(h, h)
@@ -418,7 +403,7 @@ if C_CurveUtil and C_CurveUtil.CreateCurve then
 	expiredCurve:AddPoint(1.25, 0)
 	expiredCurve:AddPoint(36000, 0)
 end
-function ns.makeEndFlash(parent, anchor)
+function ns.makeEndFlash(parent, anchor, owner)
 	local kf = CreateFrame("Frame", nil, parent)
 	kf:SetAllPoints(anchor)
 	kf:SetFrameLevel(anchor:GetFrameLevel() + 8)
@@ -428,7 +413,7 @@ function ns.makeEndFlash(parent, anchor)
 	kf.body = CreateFrame("Frame", nil, kf.pop)
 	kf.body:SetAllPoints()
 	kf.body:SetAlpha(0)
-	kf.glow = makeGlow(kf.body, kf.body)
+	kf.glow = makeGlow(kf.body, kf.body, owner)
 	kf.glow:color(1, 0.12, 0.08)
 	kf.icon = kf.body:CreateTexture(nil, "ARTWORK")
 	kf.icon:SetAllPoints()
@@ -482,7 +467,7 @@ function ns.makeEndFlash(parent, anchor)
 		self.mark.x:SetSize(size * 0.7, size * 0.7)
 		self.flash:Stop(); self.quick:Stop()
 		if opts.expired then self.quick:Play() else self.flash:Play() end
-		if opts.pop then ns.playPop(self.pop, opts.expired and "expired" or "killed") end
+		if opts.pop then ns.playPop(self.pop, opts.expired and "expired" or "killed", owner) end
 		if opts.mark then
 			self.mark:Show()
 			local token = {}
@@ -493,8 +478,10 @@ function ns.makeEndFlash(parent, anchor)
 	return kf
 end
 
-local function makeIcon(parent, size)
+-- owner: whose glow and pop style it uses (an element key, "totembar", or nil for General's).
+local function makeIcon(parent, size, owner)
 	local f = CreateFrame("Frame", nil, parent)
+	f.owner = owner
 	f:SetSize(size, size)
 	f.tex = f:CreateTexture(nil, "ARTWORK")
 	f.tex:SetAllPoints()
@@ -552,7 +539,7 @@ local function makeIcon(parent, size)
 		end
 	end
 	-- Glow (gold by default) and pop, for warnings and moments worth catching the eye.
-	f.glowF = makeGlow(f, f)
+	f.glowF = makeGlow(f, f, owner)
 	f.SetGlowShown = function(self, shown, r, g, b)
 		if shown then
 			self.glowF:fit(self:GetWidth())
@@ -560,18 +547,18 @@ local function makeIcon(parent, size)
 		end
 		self.glowF:SetShown(shown and true or false)
 	end
-	f.Pop = function(self, kind) ns.playPop(self, kind or "ready") end
+	f.Pop = function(self, kind) ns.playPop(self, kind or "ready", self.owner) end
 	return f
 end
 
-local shield = makeIcon(root, DEFAULTS.iconSize)
+local shield = makeIcon(root, DEFAULTS.iconSize, "shield")
 shield.count:Hide()
 
-local shock = makeIcon(root, DEFAULTS.iconSize)
+local shock = makeIcon(root, DEFAULTS.iconSize, "shock")
 shock.count:Hide()
 shock.cdTimer = ns.Timer.new(shock, "shock", "cooldown", { cd = shock.cd, school = "spirit" })
 
-local imbue = makeIcon(root, DEFAULTS.iconSize)
+local imbue = makeIcon(root, DEFAULTS.iconSize, "imbue")
 imbue.count:Hide()
 
 -- Cooldown elements: a spell's cooldown, plus for a totem the active time of ours in its slot, or for
@@ -585,7 +572,7 @@ local COOLDOWNS = {
 }
 
 for _, def in ipairs(COOLDOWNS) do
-	local f = makeIcon(root, DEFAULTS.iconSize)
+	local f = makeIcon(root, DEFAULTS.iconSize, def.key)
 	f.count:Hide()
 	f.tex:SetTexture(def.icon)
 	if def.totemSlot or def.needsTotem then
@@ -602,7 +589,7 @@ for _, def in ipairs(COOLDOWNS) do
 		-- cooldown"; nested, the two multiply.
 		f.readyGate = CreateFrame("Frame", nil, f)
 		f.readyGate:SetAllPoints()
-		f.readyGlow = makeGlow(f.readyGate, f)
+		f.readyGlow = makeGlow(f.readyGate, f, def.key)
 	end
 	if def.needsTotem then
 		-- "No totem" warning layer: a grey copy of the icon and a red ring, above the icon and below the
@@ -745,6 +732,8 @@ local function sanitize()
 	local seen = {}
 	for _, g in ipairs(db.groups) do
 		for k, v in pairs(GROUP_DEFAULTS) do if g[k] == nil then g[k] = v end end
+		-- A border saved before styles (0.6.1 and earlier) was the group's own.
+		if type(g.border) == "table" and g.border.follow == nil then g.border.follow = false end
 		local kept = {}
 		for _, key in ipairs(type(g.members) == "table" and g.members or {}) do
 			if available(key) and not seen[key] then
@@ -937,7 +926,8 @@ local function layoutGroup(gi)
 	gf:SetScale(g.scale)
 	gf:SetAlpha(g.alpha)
 	-- After the scale, so borders are sized in real pixels.
-	for _, key in ipairs(g.members) do applyBorder(ELEMENTS[key].frame, g.border or db.border) end
+	local border = ns.Style.get(g, "border")
+	for _, key in ipairs(g.members) do applyBorder(ELEMENTS[key].frame, border) end
 	gf:ClearAllPoints()
 	gf:SetPoint(g.point, UIParent, g.point, g.x, g.y)
 	local unlocked = not acct.locked
@@ -1886,12 +1876,20 @@ if C_CurveUtil and C_CurveUtil.CreateCurve then
 	noTimeLeftCurve:AddPoint(0.05, 0)
 end
 
--- Per-element option with its default.
-local function cdOpt(key, name, default)
+-- An element's option (db.elementOpts[key]) with its default: an element's own default, else
+-- everyone's. Every element starts with its pops on and its "use me" glows off.
+local ELEMENT_OPT_DEFAULTS = {
+	readyPop = true, readyGlow = false,                          -- Ready (cooldowns)
+	blockedGrey = true, blockedRing = false, blockedPulse = false,  -- No fire totem (Fire Nova)
+	expiredPop = true,                                           -- a totem ran out
+	killed = true, killedPop = true, killedGlow = true, killedMark = true,   -- a totem killed early
+}
+local function cdOpt(key, name)
 	local v = elementOpts(key)[name]
-	if v == nil then return default end
+	if v == nil then return ELEMENT_OPT_DEFAULTS[name] end
 	return v
 end
+ns.elementOpt = cdOpt
 
 -- Whether a totem is out in a slot, its name and total duration; nil when the slot cannot be read. haveTotem alone
 -- is not enough: on Forever an empty slot reports haveTotem true with a blank name, and a slot can
@@ -1943,17 +1941,25 @@ local function totemCast(spellID)
 end
 function ns.totemNameInSlot(slot) return totemNames[slot] end
 
--- Killed early on the Earthbind / Stoneclaw elements: the totem bar reports a slot that emptied
--- without our dismissing or replacing it (ShamanForever_TotemBar.lua); the element whose totem it
--- was (our last cast into the slot) flashes, gated on the time it had left (ns.makeEndFlash).
-function ns.onTotemKilled(slot, dur)
+-- The end of an Earthbind / Stoneclaw totem: the totem bar reports a slot that emptied without our
+-- dismissing or replacing it (ShamanForever_TotemBar.lua); the element whose totem it was (our last
+-- cast into the slot) plays its ends, each gated on the time the totem had left (ns.makeEndFlash):
+-- killed early, or ran out.
+function ns.onTotemGone(slot, dur)
 	local owner = totemOwner[slot]
 	for _, def in ipairs(COOLDOWNS) do
-		if def.totemSlot == slot and owner == def.key and isEnabled(def.key) and cdOpt(def.key, "killed", true) then
-			local f = def.frame
-			if not f.killed then f.killed = ns.makeEndFlash(f, f) end
-			f.killed:setIcon(def.iconID or def.icon)
-			f.killed:play(dur, { pop = true, glow = true, mark = true })
+		if def.totemSlot == slot and owner == def.key and isEnabled(def.key) then
+			local f, key = def.frame, def.key
+			if cdOpt(key, "expiredPop") then
+				if not f.expired then f.expired = ns.makeEndFlash(f, f, key) end
+				f.expired:setIcon(def.iconID or def.icon)
+				f.expired:play(dur, { expired = true, pop = true })
+			end
+			if cdOpt(key, "killed") then
+				if not f.killed then f.killed = ns.makeEndFlash(f, f, key) end
+				f.killed:setIcon(def.iconID or def.icon)
+				f.killed:play(dur, { pop = cdOpt(key, "killedPop"), glow = cdOpt(key, "killedGlow"), mark = cdOpt(key, "killedMark") })
+			end
 		end
 	end
 end
@@ -1974,7 +1980,7 @@ end
 local function refreshCooldown(def)
 	if not isEnabled(def.key) then return end
 	local f = def.frame
-	if f.killed and not cdOpt(def.key, "killed", true) then f.killed.mark:Hide() end
+	if f.killed and not (cdOpt(def.key, "killed") and cdOpt(def.key, "killedMark")) then f.killed.mark:Hide() end
 	f.tex:SetTexture(def.iconID or def.icon)
 	if not def.spellID then
 		-- Not learned yet: a plain grey icon.
@@ -2004,9 +2010,9 @@ local function refreshCooldown(def)
 		f.cdTimer.bar:SetFrameLevel(f:GetFrameLevel() + 3)
 		f.textFrame:SetFrameLevel(f:GetFrameLevel() + 4)
 		w.grey:SetTexture(def.iconID or def.icon)
-		w.grey:SetShown(cdOpt(def.key, "blockedGrey", true))
-		for _, t in ipairs(w.ring) do t:SetShown(cdOpt(def.key, "blockedRing", false)) end
-		if cdOpt(def.key, "blockedPulse", false) then
+		w.grey:SetShown(cdOpt(def.key, "blockedGrey"))
+		for _, t in ipairs(w.ring) do t:SetShown(cdOpt(def.key, "blockedRing")) end
+		if cdOpt(def.key, "blockedPulse") then
 			if not w.pulse:IsPlaying() then w.pulse:Play() end
 		else w.pulse:Stop() end
 		if tok and tdur == nil then
@@ -2063,7 +2069,7 @@ end
 local function popWhenReady(f, key)
 	f.cd:HookScript("OnCooldownDone", function()
 		if f.gcdUntil and GetTime() <= f.gcdUntil then return end   -- a global cooldown ended
-		if isEnabled(key) and cdOpt(key, "readyPop", true) then f:Pop() end
+		if isEnabled(key) and cdOpt(key, "readyPop") then f:Pop() end
 	end)
 end
 popWhenReady(shock, "shock")
@@ -2090,7 +2096,7 @@ local function readyAlpha(spellID)
 	return 0
 end
 local function updateShockGlow()
-	local on = shockSpellID and isEnabled("shock") and cdOpt("shock", "readyGlow", false) and noTimeLeftCurve
+	local on = shockSpellID and isEnabled("shock") and cdOpt("shock", "readyGlow") and noTimeLeftCurve
 	shock.glowF:SetShown(on and true or false)
 	if not on then return end
 	shock.glowF:fit(shock:GetWidth())
@@ -2098,7 +2104,7 @@ local function updateShockGlow()
 end
 local function updateReadyGlow(def)
 	local f = def.frame
-	local on = def.spellID and isEnabled(def.key) and cdOpt(def.key, "readyGlow", false) and hasTimeLeftCurve and noTimeLeftCurve
+	local on = def.spellID and isEnabled(def.key) and cdOpt(def.key, "readyGlow") and hasTimeLeftCurve and noTimeLeftCurve
 	f.readyGlow:SetShown(on and true or false)
 	if not on then return end
 	f.readyGlow:fit(f:GetWidth())
@@ -2314,6 +2320,7 @@ end
 local function selectProfile(name)
 	if type(acct.profiles[name]) ~= "table" then acct.profiles[name] = {} end
 	profileName, db = name, acct.profiles[name]
+	for _, k in ipairs(RETIRED_KEYS) do db[k] = nil end
 	fillDefaults(db, DEFAULTS)
 	sanitize()
 	local key = charKey()
@@ -2392,18 +2399,13 @@ local function exportProfile()
 	return text
 end
 
-local function validBorder(b)
-	return type(b) == "table" and type(b.show) == "boolean" and type(b.size) == "number" and type(b.color) == "table"
-		and type(b.color[1]) == "number" and type(b.color[2]) == "number" and type(b.color[3]) == "number"
-end
-
 -- Keeps only known settings of the right type from shared text; the rest come from defaults.
 local function cleanProfile(t)
 	local out = {}
 	for k, default in pairs(DEFAULTS) do
 		if type(t[k]) == type(default) then out[k] = t[k] end
 	end
-	if out.border and not validBorder(out.border) then out.border = nil end
+	-- General's styles are cleaned when read (ShamanForever_Style.lua); so are elements' own.
 	if out.elementOpts then
 		for key, o in pairs(out.elementOpts) do
 			if type(key) ~= "string" or type(o) ~= "table" then out.elementOpts[key] = nil end
@@ -2417,7 +2419,7 @@ local function cleanProfile(t)
 				for k, default in pairs(GROUP_DEFAULTS) do
 					if type(g[k]) == type(default) then clean[k] = g[k] end
 				end
-				if validBorder(g.border) then clean.border = g.border end
+				clean.border = ns.Style.cleanOwn(g.border, "border")
 				for _, key in ipairs(type(g.members) == "table" and g.members or {}) do
 					if type(key) == "string" then table.insert(clean.members, key) end
 				end
@@ -2475,12 +2477,18 @@ ns.applyBorder = applyBorder
 -- An element's expiring warning (its time left's last seconds): its own settings over the defaults.
 function ns.expireOpts(key)
 	local o = elementOpts(key).expire
+	local own = ns.Timer.EXPIRE_ELEMENT[key] or {}
 	local out = {}
 	for k, v in pairs(ns.Timer.EXPIRE_DEFAULTS) do
-		if k == "glow" and key == "firenova" then v = false end   -- Fire Nova's glow is off by default
+		if own[k] ~= nil then v = own[k] end
 		if type(o) == "table" and type(o[k]) == type(v) then out[k] = o[k] else out[k] = v end   -- a saved false counts
 	end
 	return out
+end
+-- The border an element wears: its group's.
+function ns.borderFor(key)
+	local gi = findElement(key)
+	return ns.Style.get(gi and db.groups[gi] or nil, "border")
 end
 ns.IMBUES, ns.IMBUE_ORDER, ns.imbueIcon = IMBUES, IMBUE_ORDER, function() return imbueIcon end
 ns.setTestMode = function(on) edit(setTestMode)(on) end

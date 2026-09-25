@@ -2,8 +2,9 @@
 --
 -- A timer has three parts, each on or off: countdown text, swipe and time bar. There are two kinds:
 -- "cooldown" (a spell not ready yet) and "uptime" (a totem, shield or imbue running, "Time left"
--- in the UI). General holds a style for each kind (db.timers); an element, or the totem bar, can
--- have its own (elementOpts(key).timers[kind], db.totemBar.timers[kind]) or follow General.
+-- in the UI). Each kind is a style (ShamanForever_Style.lua): General holds one (db.timers); an
+-- element, or the totem bar, can have its own (elementOpts(key).timers[kind],
+-- db.totemBar.timers[kind]) or follow General.
 --
 -- Every timer is fed a duration object, so nothing here reads a time: Cooldown and StatusBar take
 -- the object, and the bar's "run out" alpha comes from a curve (secret values go straight to
@@ -58,88 +59,15 @@ local WHITE = "Interface\\Buttons\\WHITE8x8"
 local TIMER_REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime or 1
 local TIMER_IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
 
-local function isColor(v) return type(v) == "table" and type(v[1]) == "number" and type(v[2]) == "number" and type(v[3]) == "number" end
-
--- A clean copy of t: every field of def, taken from t where it has the right type.
-local function clean(t, def)
-	local out = {}
-	for k, v in pairs(def) do
-		local x = type(t) == "table" and t[k]
-		if type(v) == "table" then out[k] = isColor(x) and { x[1], x[2], x[3], x[4] or 1 } or CopyTable(v)
-		elseif type(x) == type(v) then out[k] = x
-		else out[k] = v end
-	end
-	return out
-end
-T.clean = clean
-
--- General's style for a kind.
-function T.general(kind)
-	local db = ns.getDB()
-	if type(db.timers) ~= "table" then db.timers = {} end
-	return clean(db.timers[kind], T.DEFAULTS[kind])
-end
-
--- The stored style of an element (or "totembar") for a kind; nil if it has none.
-function T.override(key, kind, create)
-	local holder
-	if key == "totembar" then holder = ns.TotemBar and ns.TotemBar.cfg()
-	else holder = ns.elementOpts(key) end
-	if not holder then return nil end
-	if type(holder.timers) ~= "table" then
-		if not create then return nil end
-		holder.timers = {}
-	end
-	local o = holder.timers[kind]
-	if type(o) ~= "table" then
-		if not create then return nil end
-		o = {}
-		holder.timers[kind] = o
-	end
-	return o
-end
-
--- Whether an element's timer follows General.
-function T.follows(key, kind)
-	local o = T.override(key, kind)
-	if o and type(o.follow) == "boolean" then return o.follow end
-	return not (T.ELEMENT_DEFAULTS[key] and T.ELEMENT_DEFAULTS[key][kind])
-end
-
--- An element's own style before any change: General with the element's defaults on top.
-local function base(key, kind)
-	local s = T.general(kind)
-	local d = T.ELEMENT_DEFAULTS[key] and T.ELEMENT_DEFAULTS[key][kind]
-	if d then for k, v in pairs(d) do s[k] = type(v) == "table" and CopyTable(v) or v end end
-	return s
-end
-
--- The style an element's timer uses now.
-function T.style(key, kind)
-	if T.follows(key, kind) then return T.general(kind) end
-	return clean(T.override(key, kind), base(key, kind))
-end
-
--- Stop following General: the element keeps the look it has now, as its own. Follow again: its
--- own values are kept for later.
-function T.setFollow(key, kind, follow)
-	local start = base(key, kind)   -- General's, with the element's own defaults on top
-	local o = T.override(key, kind, true)
-	if not follow then for k, v in pairs(start) do if o[k] == nil then o[k] = type(v) == "table" and CopyTable(v) or v end end end
-	o.follow = follow
-end
-
--- Change one part of a style: General's (key nil) or an element's own.
-function T.set(key, kind, field, value)
-	if not key then
-		local db = ns.getDB()
-		if type(db.timers) ~= "table" then db.timers = {} end
-		db.timers[kind] = clean(db.timers[kind], T.DEFAULTS[kind])
-		db.timers[kind][field] = value
-		return
-	end
-	T.setFollow(key, kind, false)
-	T.override(key, kind, true)[field] = value
+-- Both kinds are styles (ShamanForever_Style.lua): General's in db.timers[kind], an element's or the
+-- totem bar's own in its timers[kind].
+local S = ns.Style
+for _, kind in ipairs(T.KINDS) do
+	local own = {}
+	for key, d in pairs(T.ELEMENT_DEFAULTS) do own[key] = d[kind] end
+	S.register(kind, {
+		defaults = T.DEFAULTS[kind], path = { "timers", kind }, ownerDefaults = own,
+	})
 end
 
 ------------------------------------------------------------------------
@@ -208,7 +136,7 @@ end
 -- Takes the current style. Safe any time for our own frames; the shield's Cooldown is restyled
 -- only out of combat by its caller.
 function Timer:apply()
-	local s = T.style(self.key, self.kind)
+	local s = S.get(self.key, self.kind)
 	local cant = T.cant(self.key, self.kind)
 	self.s = s
 	local cd = self.cd
@@ -354,6 +282,7 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 end)
 
 T.EXPIRE_DEFAULTS = { secs = 5, grey = false, ring = false, pulse = true, glow = true }
+T.EXPIRE_ELEMENT = { firenova = { glow = false } }   -- elements that start differently
 
 -- e: { secs, grey, ring, pulse, glow } (secs 0 turns it off); icon: the texture the grey copy shows.
 function Timer:setExpire(e, icon)
@@ -395,7 +324,7 @@ function Timer:setExpire(e, icon)
 		a:SetToAlpha(0.55)
 		a:SetDuration(0.6)
 		a:SetSmoothing("IN_OUT")
-		x.glow = ns.makeGlow(x, self.anchor)   -- ShamanForever.lua; made on first use, after it has loaded
+		x.glow = ns.makeGlow(x, self.anchor, self.key)   -- ShamanForever.lua; made on first use, after it has loaded
 		self.exp = x
 	end
 	x.glow:fit(self.anchor:GetWidth())

@@ -173,7 +173,7 @@ end
 local HAS_COOLDOWN = { shock = true, earthbind = true, stoneclaw = true, firenova = true }
 local HAS_UPTIME = { shield = true, imbue = true, earthbind = true, stoneclaw = true, firenova = true, totembar = true }
 local function makePreviewIcon(parent, key)
-	local ic = ns.makeIcon(parent, 56)
+	local ic = ns.makeIcon(parent, 56, key)   -- the element's own glow and pop style
 	local e = L.ELEMENT[key]
 	local school = e and e.school
 	if HAS_COOLDOWN[key] then ic.cdT = ns.Timer.new(ic, key, "cooldown", { cd = ic.cd, school = school }) end
@@ -261,13 +261,15 @@ local function expiringLook(ic, key, length)
 	ic:SetPulsing(e.pulse)
 	ic:SetGlowShown(e.glow)
 end
-local function readyPopOn(key) return ns.elementOpts(key).readyPop ~= false end
+local function opt(key, name) return ns.elementOpt(key, name) end
 
 local function totemPreview(def)
 	return {
-		states = { { "ready", "Ready" }, { "active", "Totem down" }, { "expiring", "Expiring" }, { "cd", "Cooldown" }, { "killed", "Killed early" } },
+		states = { { "ready", "Ready" }, { "active", "Totem down" }, { "expiring", "Expiring" }, { "ranout", "Ran out" }, { "cd", "Cooldown" }, { "killed", "Killed early" } },
 		pop = function(ic, st)
-			if (st == "ready" and readyPopOn(def.key)) or (st == "killed" and ns.elementOpts(def.key).killed ~= false) then ic:Pop(st == "killed" and "killed" or "ready") end
+			if st == "ready" and opt(def.key, "readyPop") then ic:Pop("ready")
+			elseif st == "ranout" and opt(def.key, "expiredPop") then ic:Pop("expired")
+			elseif st == "killed" and opt(def.key, "killed") and opt(def.key, "killedPop") then ic:Pop("killed") end
 		end,
 		render = function(ic, st)
 			reset(ic, def.iconID or def.icon)
@@ -277,19 +279,21 @@ local function totemPreview(def)
 			elseif st == "cd" then frozen(ic.cdT, 0.4, 15)
 			elseif st == "killed" then
 				frozen(ic.cdT, 0.4, 15)
-				if ns.elementOpts(def.key).killed ~= false then
-					-- The flash at its brightest: greyed under red, red glow, the cross.
+				if opt(def.key, "killed") then
+					-- The flash at its brightest: greyed under red, with the red glow and the cross if on.
 					ic.tex:SetDesaturated(true)
 					ic.manaOverlay:SetColorTexture(0.95, 0.12, 0.08, 0.7)
 					ic.manaOverlay:Show()
-					ic:SetGlowShown(true, 1, 0.12, 0.08)
-					if not ic.killX then
-						ic.killX = ic.textFrame:CreateTexture(nil, "OVERLAY")
-						ic.killX:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
-						ic.killX:SetPoint("CENTER")
+					if opt(def.key, "killedGlow") then ic:SetGlowShown(true, 1, 0.12, 0.08) end
+					if opt(def.key, "killedMark") then
+						if not ic.killX then
+							ic.killX = ic.textFrame:CreateTexture(nil, "OVERLAY")
+							ic.killX:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
+							ic.killX:SetPoint("CENTER")
+						end
+						ic.killX:SetSize(ic:GetWidth() * 0.7, ic:GetWidth() * 0.7)
+						ic.killX:Show()
 					end
-					ic.killX:SetSize(ic:GetWidth() * 0.7, ic:GetWidth() * 0.7)
-					ic.killX:Show()
 				end
 			end
 		end,
@@ -333,12 +337,12 @@ L.PREVIEW = {
 	},
 	shock = {
 		states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" }, { "range", "Out of range" }, { "both", "Both" } },
-		pop = function(ic, st) if st == "ready" and readyPopOn("shock") then ic:Pop() end end,
+		pop = function(ic, st) if st == "ready" and opt("shock", "readyPop") then ic:Pop() end end,
 		render = function(ic, st)
 			local d = db()
 			local icons = { earth = 136026, flame = 135813, frost = 135849 }
 			reset(ic, icons[d.shock] or 136026)
-			if st == "ready" then ic:SetGlowShown(ns.elementOpts("shock").readyGlow == true) end
+			if st == "ready" then ic:SetGlowShown(opt("shock", "readyGlow")) end
 			if st == "cd" then frozen(ic.cdT, 0.4, 6)
 			elseif st == "range" or st == "both" then paintBody(ic, d.rangeStyle, 1, 0.25, 0.25, d.rangeIntensity, d.rangeTint)
 			elseif st == "mana" then paintBody(ic, d.manaStyle, 0.2, 0.45, 1, d.manaIntensity, d.manaTint) end
@@ -366,18 +370,17 @@ L.PREVIEW = {
 	},
 	firenova = {
 		states = { { "ready", "Ready" }, { "nototem", "No fire totem" }, { "out", "Fire totem out" }, { "expiring", "Totem expiring" } },
-		pop = function(ic, st) if st == "out" and readyPopOn("firenova") then ic:Pop() end end,
+		pop = function(ic, st) if st == "out" and opt("firenova", "readyPop") then ic:Pop() end end,
 		render = function(ic, st)
-			local o = ns.elementOpts("firenova")
 			reset(ic, 135824)
 			if st == "expiring" then expiringLook(ic, "firenova", 55) return end
 			if st == "nototem" then
-				ic.tex:SetDesaturated(o.blockedGrey ~= false)
-				ic:SetRingShown(o.blockedRing == true)
-				ic:SetPulsing(o.blockedPulse == true)
+				ic.tex:SetDesaturated(opt("firenova", "blockedGrey"))
+				ic:SetRingShown(opt("firenova", "blockedRing"))
+				ic:SetPulsing(opt("firenova", "blockedPulse"))
 			elseif st == "out" then
 				frozen(ic.upT, 0.2, 55)
-				ic:SetGlowShown(o.readyGlow == true)   -- off cooldown with a fire totem down: castable
+				ic:SetGlowShown(opt("firenova", "readyGlow"))   -- off cooldown with a fire totem down: castable
 			end
 		end,
 	},
@@ -829,8 +832,8 @@ function L.buildHero(parent, key)
 			b.text:SetTextColor(on and 1 or 0.78, on and 0.84 or 0.74, on and 0.5 or 0.68)
 		end
 		if def.stage then def.render(self, previewState[key]) else
-			-- An element's preview wears General's border (the totem bar's stage draws its own).
-			if ns.applyBorder then ns.applyBorder(self.previewIcon, db().border) end
+			-- An element's preview wears its group's border (the totem bar's stage draws its own).
+			if ns.applyBorder then ns.applyBorder(self.previewIcon, ns.borderFor(key)) end
 			def.render(self.previewIcon, previewState[key])
 		end
 	end
