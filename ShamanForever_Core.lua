@@ -174,6 +174,10 @@ local DEFS = {
 	rageOfTheFarseer = { ids = { 425336 }, en = "Rage of the Farseer" },   -- Forever's own
 	totemicProjection = { ids = { 437009 }, en = "Totemic Projection" },
 	reincarnation   = { ids = { 20608 }, en = "Reincarnation" },
+	waterWalking    = { ids = { 546 }, en = "Water Walking" },   -- the buffs have the same IDs
+	waterBreathing  = { ids = { 131 }, en = "Water Breathing" },
+	elementalFocus  = { ids = { 16164 }, en = "Elemental Focus" },   -- a passive talent
+	clearcasting    = { ids = { 16246 }, en = "Clearcasting" },      -- its buff
 	-- Spells that spend a primed buff (Nature's Swiftness, Stormstrike's charges).
 	healingWave     = { ids = { 331 }, en = "Healing Wave" },
 	lesserHealingWave = { ids = { 8004 }, en = "Lesser Healing Wave" },

@@ -320,6 +320,7 @@ local function fadeTo(def, alpha)
 	fading[def] = alpha
 	fader:Show()
 end
+CD.fadeTo = fadeTo   -- any element with a frame (the buffs too)
 
 -- totemBusy: our totem is down (Earthbind, Stoneclaw), or any fire totem is (Fire Nova).
 local function applyIdle(def, totemBusy, inEvent)
@@ -519,6 +520,7 @@ local function refreshReagent(def)
 	f:SetPulsing(out and setting(key, "reagentPulse"))
 	return low and setting(key, "reagentShow")
 end
+CD.refreshReagent = refreshReagent   -- any element with key, frame, spellID and reagent (the buffs too)
 
 function refreshCooldown(def, inEvent)
 	if not ns.isEnabled(def.key) then def.cdRunning = nil return end   -- read afresh when it's back

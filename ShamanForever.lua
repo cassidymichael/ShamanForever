@@ -38,13 +38,14 @@ local DEFAULTS = {
 	-- dragged where the player wants them (the totem bar sits below, see TotemBar.lua). Offsets are
 	-- in each group's scaled units, so the third and fourth groups' are divided by their 0.9 scale.
 	-- An example more than a plan: players make their own groups. Elements not learned yet take no
-	-- room, so a new character sees only the first few. Rotation spells join the first group; the
-	-- big cooldowns sit in a row above it.
+	-- room, so a new character sees only the first few. Rotation spells and the Clearcasting proc
+	-- (last, so its empty spot is at the end) join the first group, the water buffs the imbue's, and
+	-- the big cooldowns sit in a row above.
 	groups = {
 		{ point = "CENTER", x = 0, y = -40, scale = 1, alpha = 0.75, orientation = "horizontal",
-			growth = "forward", spacing = 6, members = { "shield", "shock", "firenova", "stormstrike", "riptide" } },
+			growth = "forward", spacing = 6, members = { "shield", "shock", "firenova", "stormstrike", "riptide", "elementalfocus" } },
 		{ point = "CENTER", x = -110, y = -40, scale = 1, alpha = 0.75, orientation = "horizontal",
-			growth = "forward", spacing = 6, members = { "imbue" } },
+			growth = "forward", spacing = 6, members = { "imbue", "waterwalking", "waterbreathing" } },
 		{ point = "CENTER", x = 120, y = -44, scale = 0.9, alpha = 0.6, orientation = "horizontal",
 			growth = "forward", spacing = 6, members = { "earthbind", "stoneclaw", "grounding", "projection" } },
 		{ point = "CENTER", x = 0, y = 11, scale = 0.9, alpha = 0.75, orientation = "horizontal",
@@ -110,7 +111,7 @@ local root = CreateFrame("Frame", "ShamanForeverRoot", UIParent)
 root:SetAllPoints(UIParent)
 
 -- Every element, in the order the options list them. Each is made and registered by its module
--- (ShamanForever_Shield, _Imbue, _Cooldowns); the test placeholders below are this file's own.
+-- (ShamanForever_Shield, _Imbue, _Cooldowns, _Buffs); the test placeholders below are this file's own.
 local ELEMENT_KEYS = { "shield", "shock", "imbue", "earthbind", "stoneclaw", "firenova" }
 -- key -> { frame, label, paint(texture), getSize(size), stack(), cooldown, placeholder, learned(),
 -- defaults }. db.groups decides where each one shows. getSize gives its width and height for its
@@ -230,6 +231,7 @@ local ELEMENT_OPT_DEFAULTS = {
 	grounded = true, groundedPop = true, groundedGlow = true,     -- Grounded (Grounding's early end)
 	reagentCount = true, reagentLow = 2, reagentShow = true,     -- Reagent (Reincarnation's Ankh)
 	reagentGrey = true, reagentRing = true, reagentPulse = false,
+	breathWarn = true, breathGrey = true, breathRing = true, breathPulse = true,   -- Under water (Water Breathing)
 }
 local function elementDefault(key, name)
 	local own = ELEMENTS[key] and ELEMENTS[key].defaults

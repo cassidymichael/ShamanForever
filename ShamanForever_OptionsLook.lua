@@ -65,12 +65,19 @@ local BLURB = {
 	farseer = "Cooldown, and time left while it's on.",
 	projection = "Cooldown.",
 	reincarnation = "Cooldown, and your Ankhs when they run low.",
+	waterwalking = "Time left while it's up.",
+	waterbreathing = "Time left while it's up. Warns under water without it.",
+	elementalfocus = "Shows while Clearcasting is up.",
 }
 for _, def in ipairs(ns.Cooldowns.COOLDOWNS) do
 	if def.new then
 		L.ELEMENT[def.key] = { name = def.spell, spell = def.spellKey, icon = def.icon, school = def.school,
 			blurb = BLURB[def.key], experimental = def.experimental }
 	end
+end
+for _, def in ipairs(ns.Buffs.BUFFS) do
+	L.ELEMENT[def.key] = { name = def.spell, spell = def.spellKey, icon = def.icon, school = def.school,
+		blurb = BLURB[def.key], experimental = def.experimental }
 end
 
 -- An element's name: a spell's in the client's language (name is the fallback), else its own.
@@ -222,6 +229,7 @@ for _, def in ipairs(ns.Cooldowns.COOLDOWNS) do
 	HAS_COOLDOWN[def.key] = true
 	if def.totemSlot or def.needsTotem or def.window or (def.primed and def.primed.duration) then HAS_UPTIME[def.key] = true end
 end
+for _, def in ipairs(ns.Buffs.BUFFS) do HAS_UPTIME[def.key] = true end
 local function makePreviewIcon(parent, key)
 	local ic = ns.makeIcon(parent, 56, key)   -- the element's own glow and pop style
 	local e = L.ELEMENT[key]
@@ -491,6 +499,41 @@ for _, def in ipairs(ns.Cooldowns.COOLDOWNS) do
 		L.PREVIEW[def.key] = def.totemSlot and totemPreview(def) or cooldownPreview(def)
 	end
 end
+
+-- A buff element: up, expiring and not up (its idle look), plus the proc's glow or the water
+-- buffs' warnings.
+local function buffPreview(def)
+	local key = def.key
+	local states = { { "up", def.proc and "Clearcasting" or "Up" } }
+	if not def.proc then table.insert(states, { "expiring", "Expiring" }) end
+	table.insert(states, { "idle", "Not up" })
+	if def.breath then table.insert(states, { "underwater", "Under water" }) end
+	return {
+		states = states,
+		pop = function(ic, st) if st == "up" and def.proc and opt(key, "primedPop") then ic:Pop("ready") end end,
+		render = function(ic, st)
+			reset(ic, def.icon)
+			if st == "up" then
+				if def.proc then
+					frozen(ic.upT, 0.3, 15)
+					ic:SetGlowShown(opt(key, "primedGlow"))
+				else frozen(ic.upT, 0.3, 600) end
+			elseif st == "expiring" then expiringLook(ic, key, 600)
+			elseif st == "idle" then
+				-- Idle opacity, but never quite invisible here: 0 shows as a faint outline.
+				local a = opt(key, "idleAlpha")
+				ic:SetAlpha(math.max(type(a) == "number" and a or 0, 0.12))
+			elseif st == "underwater" then
+				if opt(key, "breathWarn") then
+					ic.tex:SetDesaturated(opt(key, "breathGrey"))
+					ic:SetRingShown(opt(key, "breathRing"))
+					ic:SetPulsing(opt(key, "breathPulse"))
+				else ic:SetAlpha(0.12) end
+			end
+		end,
+	}
+end
+for _, def in ipairs(ns.Buffs.BUFFS) do L.PREVIEW[def.key] = buffPreview(def) end
 
 -- The totem bar: the header is its stage. The bar is drawn at its real size (icon size × the
 -- bar's scale, inside a frame with that scale, so text, borders and spacing match the game),

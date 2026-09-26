@@ -473,6 +473,7 @@ local function buildAbout(p)
 	for _, def in ipairs(ns.Cooldowns.COOLDOWNS) do
 		if def.experimental then p:experimental(def.experimental, "Elements > " .. def.spell) end
 	end
+	for _, def in ipairs(ns.Buffs.BUFFS) do p:experimental(def.experimental, "Elements > " .. def.spell) end
 	gap()
 	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
@@ -1499,6 +1500,45 @@ local function buildCooldown(p, def)
 	effectBlocks(p, key)
 end
 
+-- One page per buff element (ShamanForever_Buffs.lua).
+local function buildBuff(p, def)
+	local key = def.key
+	elementDisplay(p, key)
+	if def.reagent then reagentBlocks(p, def) end
+	if def.breath then
+		p:header("Under water")
+		p:checkbox("Warn without it", "When your breath bar starts and it isn't up.", eget(key, "breathWarn"), eset(key, "breathWarn"))
+		local on = showWhen(eget(key, "breathWarn"))
+		p:checkbox("Grey icon", "Desaturate the icon.", eget(key, "breathGrey"), eset(key, "breathGrey"), on)
+		p:checkbox("Red ring", "A red ring inside the icon edge.", eget(key, "breathRing"), eset(key, "breathRing"), on)
+		p:checkbox("Fade in and out", nil, eget(key, "breathPulse"), eset(key, "breathPulse"), on)
+	end
+	p:header("Idle")
+	p:text((def.proc and "Idle is when Clearcasting isn't up." or "Idle is when it isn't up.") ..
+		" At 0% it's hidden and keeps its place in the group.")
+	p:slider("Idle opacity", "The icon's opacity while idle.", 0, 1, 0.05, pct, eget(key, "idleAlpha"), eset(key, "idleAlpha"))
+	timerSettings(p, "Time left", key, "uptime")
+	if def.proc then
+		p:header("Clearcasting")
+		p:checkbox("Pop", "The moment it procs. The icon grows and settles, at the Pop style's size and speed.",
+			eget(key, "primedPop"), eset(key, "primedPop"))
+		p:checkbox("Pulsing glow", "While it's up.", eget(key, "primedGlow"), eset(key, "primedGlow"))
+	else
+		local function xget(k) return function() return ns.Timer.expireOpts(key)[k] end end
+		local function xset(k) return function(v)
+			local o = ns.elementOpts(key)
+			if type(o.expire) ~= "table" then o.expire = {} end
+			o.expire[k] = v
+			relayout()
+		end end
+		p:header("Expiring")
+		p:slider("Warn in the last", "Seconds before it runs out. Zero turns the warning off.", 0, 120, 5,
+			function(v) return v == 0 and "Off" or string.format("%d s", v) end, xget("secs"), xset("secs"))
+		expiringLooks(p, xget, xset, "icon", showWhen(function() return ns.Timer.expireOpts(key).secs > 0 end))
+	end
+	effectBlocks(p, key)
+end
+
 ------------------------------------------------------------------------
 -- Window
 ------------------------------------------------------------------------
@@ -1730,6 +1770,7 @@ local function buildWindow()
 	buildShock(newPage("shock", "Shocks", true))
 	buildImbue(newPage("imbue", "Weapon Imbue", true))
 	for _, def in ipairs(ns.Cooldowns.COOLDOWNS) do buildCooldown(newPage(def.key, def.spell, true), def) end
+	for _, def in ipairs(ns.Buffs.BUFFS) do buildBuff(newPage(def.key, def.spell, true), def) end
 	buildProfiles(newPage("profiles", "Profiles"))
 	buildAbout(newPage("about", "About"))
 	buildNav()
