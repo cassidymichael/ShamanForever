@@ -39,6 +39,39 @@ end
 function ns.try(site, fn, ...) return checked(site, pcall(fn, ...)) end
 
 ------------------------------------------------------------------------
+-- Work that must wait for combat to end: protected frames (the shield's group, the totem bar's
+-- secure buttons) and Blizzard's aura container refuse addon changes in combat. A function starts
+-- with `if ns.deferInCombat(key, fn) then return end`: in combat fn is queued (once per key) and
+-- runs when combat ends; out of combat it runs now, so any queued copy is dropped. ns.retryAfterCombat
+-- queues a call that failed. Queued work runs in the order it was first queued, at
+-- PLAYER_REGEN_ENABLED, which comes after the combat restrictions lift (probed 2026-09-26). This
+-- file loads first, so its handler runs before any other file's.
+------------------------------------------------------------------------
+local queued, queueOrder, listed = {}, {}, {}
+function ns.retryAfterCombat(key, fn)
+	if not listed[key] then listed[key] = true; table.insert(queueOrder, key) end
+	queued[key] = fn
+end
+function ns.deferInCombat(key, fn)
+	if InCombatLockdown() then ns.retryAfterCombat(key, fn) return true end
+	queued[key] = nil
+	return false
+end
+local combatEnd = CreateFrame("Frame")
+combatEnd:RegisterEvent("PLAYER_REGEN_ENABLED")
+combatEnd:SetScript("OnEvent", function()
+	local order = queueOrder
+	queueOrder, listed = {}, {}
+	for _, key in ipairs(order) do
+		local fn = queued[key]
+		if fn then
+			queued[key] = nil
+			ns.try(key, fn)
+		end
+	end
+end)
+
+------------------------------------------------------------------------
 -- Curves: a duration's remaining (or total) time -> a value for SetAlpha. The way to show or hide
 -- something on a time that may be secret.
 ------------------------------------------------------------------------

@@ -2,18 +2,13 @@
 -- frame (timers, right-click dismiss) and the Totem Action Bar (a pick per element, arrow popouts).
 -- Design: workspace design/totem-bar.md; what was tested in game: design/totem-research.md.
 --
--- Every click goes through Blizzard's own secure actions, set up out of combat; nothing here runs a
--- secure snippet (they are broken on Forever):
+-- Every click is a secure button set up out of combat, so it works in combat too:
 -- * slot button: right-click "destroytotem" (totem-slot), left-click "action" on the element's
 --   multi-cast action slot, so it casts whatever the element's pick is, and follows it.
--- * arrow tab: a press-and-hold button whose release opens the element's popout (right-click:
---   closes it) through SecureStateDriverManager: "setframe" names the popout, "setstate" shows or
---   hides it. This works in combat too.
--- * popout: "multispell" buttons (spell 0 is "No totem") that change the pick; on release they run
---   a macro that /clicks two helpers: one points "setframe" at their own popout, the other hides
---   it. "setframe" is shared by every state driver in the game, so a release never trusts what an
---   earlier press left there. The arrow tab, the catch button behind an open popout and Alt+click
---   on a slot release the same way.
+-- * pickers: a secure header's snippets open and close the popouts (secure snippets work on Forever
+--   since build 70009). The arrow tab toggles its popout, Alt+click on a slot opens it, and a click
+--   outside it (the catch button) closes it.
+-- * popout: "multispell" buttons (spell 0 is "No totem") that change the pick, then close it.
 -- Layout, attributes and anything that shows, hides or moves a secure button change only out of
 -- combat; changes asked for in combat wait for it to end. Every layout, and the end of combat,
 -- closes any open picker. Drawing sits on plain frames over the secure buttons, so it can change
@@ -212,59 +207,64 @@ bar:SetPoint("CENTER", 0, -120)
 bar:SetFrameStrata("MEDIUM")
 bar:Hide()
 
--- Helpers: invisible secure buttons that each write one attribute on SecureStateDriverManager when
--- clicked, with Blizzard's own "attribute" action (no snippet). They act on the release
--- (useOnKeyDown false), which is what both a "click" action and a macro's /click send. Their
--- attributes have no modifier or button suffix, so they apply whatever modifier is held.
--- Named, so a macro can /click them.
-local function attributeHelper(name, attr, value)
-	local h = CreateFrame("Button", name, UIParent, "SecureActionButtonTemplate")
-	h:RegisterForClicks("AnyDown", "AnyUp")
-	h:SetAttribute("useOnKeyDown", false)
-	h:SetAttribute("type", "attribute")
-	h:SetAttribute("attribute-frame", SecureStateDriverManager)
-	h:SetAttribute("attribute-name", attr)
-	h:SetAttribute("attribute-value", value)
-	return h
-end
--- Show or hide whatever frame "setframe" names right now. Every release that opens or closes a picker
--- (arrow tab, catch button, picker, Alt+click) reaches them through a macro that first clicks the
--- element's target helper (below).
--- Short names: an arrow's open macro clicks nine of these, and macro text is kept under 255 characters.
-local SHOW_HELPER, HIDE_HELPER = "SFTotemPickShow", "SFTotemPickHide"
-local function targetName(el) return "SFTotemPick" .. NAME[el] end
-attributeHelper(SHOW_HELPER, "setstate", "state-visibility show")   -- used by name, from macros
-attributeHelper(HIDE_HELPER, "setstate", "state-visibility hide")
+-- The pickers' header. Each popout is a protected frame it holds a reference to ("pop1".."pop4", by
+-- the element's index in ELEMENTS); each button that opens or closes one carries that index
+-- ("sf-pick") and, from its click, runs one of these snippets: open shows that popout and hides the
+-- others (open 0 hides them all), close hides it.
+local picker = CreateFrame("Frame", nil, UIParent, "SecureHandlerBaseTemplate")
+picker:SetAttribute("sf-open", [[
+	local open = ...
+	for i = 1, 4 do
+		local pop = self:GetFrameRef("pop" .. i)
+		if i == open then pop:Show() else pop:Hide() end
+	end
+]])
+picker:SetAttribute("sf-close", [[ self:GetFrameRef("pop" .. (...)):Hide() ]])
+-- Snippets run round each button's own click (SecureHandlerWrapScript). Returning false skips the
+-- button's own action; a second return value runs the post-snippet with it, after the action.
+local ARROW_CLICK = [[
+	local i = self:GetAttribute("sf-pick")
+	if button == "RightButton" then owner:RunAttribute("sf-open", 0)   -- closes any open picker
+	elseif owner:GetFrameRef("pop" .. i):IsShown() then owner:RunAttribute("sf-close", i)
+	else owner:RunAttribute("sf-open", i) end
+	return false
+]]
+local CATCH_CLICK = [[
+	owner:RunAttribute("sf-close", self:GetAttribute("sf-pick"))
+	return false
+]]
+-- Alt+left-click on a slot opens its picker instead of casting (when "sf-altpick" is on). Slots act
+-- on the press (press-and-hold), so the press is skipped too; the picker opens on the release.
+local SLOT_CLICK = [[
+	if button == "LeftButton" and IsAltKeyDown() and self:GetAttribute("sf-altpick") then
+		if not down then owner:RunAttribute("sf-open", self:GetAttribute("sf-pick")) end
+		return false
+	end
+]]
+local PICK_CLICK, PICK_AFTER = [[ return nil, self:GetAttribute("sf-pick") ]], [[ owner:RunAttribute("sf-close", message) ]]
+local function wrapClick(b, pre, post) SecureHandlerWrapScript(b, "OnClick", picker, pre, post) end
 
 
 local slots = {}   -- element -> slot record
 TB.slots, TB.frame = slots, bar
 
 
-for _, el in ipairs(ELEMENTS) do
+for index, el in ipairs(ELEMENTS) do
 	local slot = SLOT[el]
-	local s = { el = el, slot = slot }
+	local s = { el = el, slot = slot, index = index }
 	slots[el] = s
 
 	-- The click area: right-click dismisses, left-click casts the pick, Alt+click opens the
-	-- element's picker. Press-and-hold gives the one click two actions, which Alt+click needs (the
-	-- press names the popout, the release shows it), so casts and dismissals happen on the press.
+	-- element's picker (SLOT_CLICK; layout() turns it off outside Everything). Casts and dismissals
+	-- happen on the press (press-and-hold).
 	local b = CreateFrame("Button", "ShamanForeverTotem" .. NAME[el], bar, "SecureActionButtonTemplate")
 	b:RegisterForClicks("AnyUp", "AnyDown")
 	b:SetAttribute("pressAndHoldAction", true)
-	-- "*" matches any modifier (a plain "type2" is only used with none held); Alt+left-click's own
-	-- "alt-type1" is more specific, so it still wins.
+	-- "*" matches any modifier (a plain "type2" is only used with none held).
 	b:SetAttribute("*type2", "destroytotem")
 	b:SetAttribute("totem-slot", slot)
-	-- Alt+left-click. The press points "setframe" at the popout (its main job is to take Alt's press
-	-- away from "*type1", which would cast). The release doesn't trust that: Alt may have been
-	-- pressed only after a plain press, or anything may have moved "setframe" since. Its macro
-	-- points "setframe" at the popout again and then shows it (the macro text is set below, once
-	-- the popout's target helper exists; layout() turns both off outside Everything).
-	b:SetAttribute("alt-type1", "attribute")
-	b:SetAttribute("alt-attribute-frame1", SecureStateDriverManager)
-	b:SetAttribute("alt-attribute-name1", "setframe")
-	b:SetAttribute("alt-typerelease1", "macro")
+	b:SetAttribute("sf-pick", index)
+	wrapClick(b, SLOT_CLICK)
 	s.button = b
 
 	-- What the player sees, on a plain frame over the button.
@@ -300,19 +300,15 @@ for _, el in ipairs(ELEMENTS) do
 	-- red ring, a dark pulsing layer and a glow, above the icon and below the cooldown, in the slot's
 	-- last seconds. drawSlot gives it the totem's own warning time and icon.
 
-	-- Arrow tab (secure) and its look (plain, shown while the mouse is over the slot or the tab).
+	-- Arrow tab (secure, no action of its own: ARROW_CLICK toggles the popout; right-click closes any)
+	-- and its look (plain, shown while the mouse is over the slot or the tab).
 	local ar = CreateFrame("Button", nil, bar, "SecureActionButtonTemplate")
-	-- Above the open picker's catch button (layoutArrow sets the level), so another slot's arrow
-	-- opens its picker in one click (its open macro closes the others first).
+	-- Above every open picker's catch button (layoutArrow sets the level), so another slot's arrow
+	-- opens its picker in one click and its own arrow closes it.
 	ar:SetFrameStrata("HIGH")
-	ar:RegisterForClicks("AnyUp", "AnyDown")
-	ar:SetAttribute("pressAndHoldAction", true)
-	ar:SetAttribute("type", "attribute")
-	ar:SetAttribute("attribute-frame", SecureStateDriverManager)
-	ar:SetAttribute("attribute-name", "setframe")
-	-- Release: the popout's open (left) or close (right) macro, set below once they exist.
-	ar:SetAttribute("*typerelease1", "macro")
-	ar:SetAttribute("*typerelease2", "macro")
+	ar:RegisterForClicks("AnyUp")
+	ar:SetAttribute("sf-pick", index)
+	wrapClick(ar, ARROW_CLICK)
 	s.arrow = ar
 	local av = CreateFrame("Frame", nil, bar, "BackdropTemplate")
 	av:SetAllPoints(ar)
@@ -331,8 +327,9 @@ for _, el in ipairs(ELEMENTS) do
 	av:SetAlpha(0)
 	s.arrowVis = av
 
-	-- Popout: its visibility belongs to the state driver, driven by the arrow tab and the pickers.
-	local pop = CreateFrame("Frame", "ShamanForeverTotemPopout" .. NAME[el], bar)
+	-- Popout: protected, so the header's snippets can show and hide it in combat.
+	local pop = CreateFrame("Frame", "ShamanForeverTotemPopout" .. NAME[el], bar, "SecureFrameTemplate")
+	pop:Hide()
 	pop:SetSize(1, 1)
 	pop.bg = pop:CreateTexture(nil, "BACKGROUND")
 	pop.bg:SetAllPoints()
@@ -340,58 +337,23 @@ for _, el in ipairs(ELEMENTS) do
 	pop:SetFrameStrata("HIGH")
 	pop.buttons = {}
 	s.popout = pop
-	b:SetAttribute("alt-attribute-value1", pop)
+	SecureHandlerSetFrameRef(picker, "pop" .. index, pop)
 	-- While the popout is open, a click anywhere else (left or right; not the arrow tabs, which sit
-	-- above it) lands on this invisible, screen-wide button under the pickers, and closes it the same way.
+	-- above it) lands on this invisible, screen-wide button under the pickers, and closes it.
 	local catch = CreateFrame("Button", nil, pop, "SecureActionButtonTemplate")
 	catch:SetAllPoints(UIParent)
 	catch:SetFrameLevel(pop:GetFrameLevel() + 1)
-	catch:RegisterForClicks("AnyUp", "AnyDown")
-	catch:SetAttribute("pressAndHoldAction", true)
-	catch:SetAttribute("type", "attribute")
-	catch:SetAttribute("attribute-frame", SecureStateDriverManager)
-	catch:SetAttribute("attribute-name", "setframe")
-	catch:SetAttribute("attribute-value", pop)
-	catch:SetAttribute("typerelease", "macro")   -- the close macro, set below
+	catch:RegisterForClicks("AnyUp")
+	catch:SetAttribute("sf-pick", index)
+	wrapClick(catch, CATCH_CLICK)
 	pop.catch = catch
-	-- Over its own arrow tab while open: a click there closes it (the tab itself would reopen it).
-	local closer = CreateFrame("Button", nil, pop, "SecureActionButtonTemplate")
-	closer:SetAllPoints(ar)
-	closer:RegisterForClicks("AnyUp", "AnyDown")
-	closer:SetAttribute("useOnKeyDown", false)
-	closer:SetAttribute("type", "macro")   -- the close macro, set below
-	pop.closer = closer
-	RegisterStateDriver(pop, "visibility", "hide")
-	ar:SetAttribute("attribute-value", pop)
-	-- The popout's target helper points "setframe" at this popout. A release that opens or closes
-	-- it runs one of these macros: target first, then show or hide, so it can only ever act on this
-	-- popout, whatever "setframe" held before (another element's popout, our bar or HUD frames after
-	-- a layout, another addon's frame).
-	local target = targetName(el)
-	attributeHelper(target, "setframe", pop)
-	-- Opening closes the other pickers first (a click on another slot's arrow while one is open).
-	local open = {}
-	for _, other in ipairs(ELEMENTS) do
-		if other ~= el then table.insert(open, "/click " .. targetName(other) .. "\n/click " .. HIDE_HELPER) end
-	end
-	table.insert(open, "/click " .. target .. "\n/click " .. SHOW_HELPER)
-	s.openMacro = table.concat(open, "\n")
-	s.closeMacro = "/click " .. target .. "\n/click " .. HIDE_HELPER
-	b:SetAttribute("alt-macrotext1", s.openMacro)
-	-- The arrow tab and the catch button re-target on release too: a layout between their press and
-	-- release (out of combat) re-points "setframe".
-	ar:SetAttribute("*macrotext1", s.openMacro)
-	ar:SetAttribute("*macrotext2", s.closeMacro)
-	catch:SetAttribute("macrotext", s.closeMacro)
-	closer:SetAttribute("macrotext", s.closeMacro)
 end
 
--- Close every picker (out of combat only). Its own driver stays "show" once opened, so a picker is
--- otherwise hidden only through the bar, and would come back open, with its screen-wide catch
--- button, the next time the bar shows.
+-- Close every picker (out of combat only). A picker hidden only through the bar would come back
+-- open, with its screen-wide catch button, the next time the bar shows.
 local function closePopouts()
 	if InCombatLockdown() then return end
-	for _, el in ipairs(ELEMENTS) do RegisterStateDriver(slots[el].popout, "visibility", "hide") end
+	for _, el in ipairs(ELEMENTS) do slots[el].popout:Hide() end
 end
 
 ------------------------------------------------------------------------
@@ -615,13 +577,11 @@ TB.draw = drawAll
 
 -- Redraw (any time), and when the first totem goes down or the last one goes, the bar's driver
 -- for "In combat or a totem down" (out of combat only).
-local layout, pending   -- Layout, below
+local layout   -- Layout, below
 local function redraw()
 	local wasDown = anyDown
 	drawAll()
-	if anyDown ~= wasDown and cfg().show == "active" then
-		if InCombatLockdown() then pending = true else layout() end
-	end
+	if anyDown ~= wasDown and cfg().show == "active" then layout() end
 end
 
 -- The warnings follow the remaining time, so they are re-evaluated a few times a second.
@@ -693,7 +653,6 @@ end
 ------------------------------------------------------------------------
 -- Layout (out of combat only)
 ------------------------------------------------------------------------
-pending = false
 local mover
 local saidWait = false   -- "changes wait until combat ends" said this combat
 local classDone = false  -- not a shaman: laid out hidden once, nothing more to do
@@ -711,13 +670,12 @@ local function layoutPopout(s, size, known)
 		local p = pop.buttons[i]
 		if not p then
 			p = CreateFrame("Button", nil, pop, "SecureActionButtonTemplate")
-			p:RegisterForClicks("AnyUp", "AnyDown")
-			p:SetAttribute("pressAndHoldAction", true)
-			p:SetAttribute("*type1", "multispell")   -- right-click has no press action: it only closes
-			-- Release (any button, any modifier): point "setframe" at this popout, then hide it. See
-			-- the popout's target helper.
-			p:SetAttribute("typerelease", "macro")
-			p:SetAttribute("macrotext", s.closeMacro)
+			-- On the release, whatever the "cast on key down" setting: it is the only click registered.
+			p:RegisterForClicks("AnyUp")
+			p:SetAttribute("useOnKeyDown", false)
+			p:SetAttribute("*type1", "multispell")   -- right-click has no action: it only closes
+			p:SetAttribute("sf-pick", s.index)
+			wrapClick(p, PICK_CLICK, PICK_AFTER)   -- then the popout closes
 			p:SetFrameLevel(pop:GetFrameLevel() + 5)
 			p.icon = p:CreateTexture(nil, "ARTWORK")
 			p.icon:SetAllPoints()
@@ -794,10 +752,8 @@ local function layoutArrow(s)
 	elseif c.pop == "right" then ar:SetPoint("TOPLEFT", b, "TOPRIGHT", 1, -1); ar:SetPoint("BOTTOMLEFT", b, "BOTTOMRIGHT", 1, 1); ar:SetWidth(tab)
 	else ar:SetPoint("TOPRIGHT", b, "TOPLEFT", -1, -1); ar:SetPoint("BOTTOMRIGHT", b, "BOTTOMLEFT", -1, 1); ar:SetWidth(tab) end
 	ar:SetShown(feat("arrows"))
-	-- Above every open picker's catch button (same strata), below the picker's own buttons and its
-	-- closer over this tab.
+	-- Above every open picker's catch button (same strata), below the picker's own buttons.
 	ar:SetFrameLevel(s.popout.catch:GetFrameLevel() + 2)
-	s.popout.closer:SetFrameLevel(ar:GetFrameLevel() + 1)
 	local g = s.arrowVis.glyph
 	g:SetSize(math.max(tab * 1.1, 10), math.max(tab * 0.6, 6))
 	g:SetRotation(({ up = 0, down = math.pi, right = -math.pi / 2, left = math.pi / 2 })[c.pop])
@@ -815,11 +771,10 @@ end
 local lastDriver
 
 function layout()
-	if InCombatLockdown() then pending = true return end
-	pending = false
+	if ns.deferInCombat("totem bar layout", layout) then return end
 	if classDone then return end
 	-- Any open picker closes first: a layout can hide the bar or a slot under it (it would come back
-	-- open later), and our own driver registrations below move "setframe".
+	-- open later).
 	closePopouts()
 	local c = cfg()
 	local size, border = look()
@@ -877,10 +832,9 @@ function layout()
 	for _, s in ipairs(shown) do
 		local b = s.button
 		b:SetAttribute("*type1", feat("cast") and "action" or nil)
-		-- Alt+click picks only in Everything (in Active totems an empty slot is invisible).
-		local pickByAlt = barOn() and cfg().mode == "everything"
-		b:SetAttribute("alt-type1", pickByAlt and "attribute" or nil)
-		b:SetAttribute("alt-typerelease1", pickByAlt and "macro" or nil)   -- off: Alt+click casts like a plain click
+		-- Alt+click picks only in Everything (in Active totems an empty slot is invisible); off, it
+		-- casts like a plain click.
+		b:SetAttribute("sf-altpick", barOn() and cfg().mode == "everything")
 		b:SetAttribute("action", multiAction(s.slot))
 		castKeys[s.el]:SetAttribute("action", multiAction(s.slot))
 		if ns.applyBorder then ns.applyBorder(s.vis, border) end
@@ -924,7 +878,6 @@ function TB.apply()
 		for _, el in ipairs(ELEMENTS) do slots[el].killed.mark:Hide() end
 	end
 	if InCombatLockdown() then
-		pending = true
 		-- Once per combat: sliders call this on every step.
 		if not saidWait then
 			saidWait = true
@@ -999,7 +952,7 @@ end
 -- Combat started while unlocked: the handle goes at once (it is a plain frame).
 function TB.lockInCombat()
 	mover:Hide()
-	pending = true
+	ns.retryAfterCombat("totem bar layout", layout)
 end
 
 ------------------------------------------------------------------------
@@ -1122,11 +1075,10 @@ ev:SetScript("OnEvent", function(_, event, arg1, ...)
 		if not isSecret(arg1) and type(arg1) == "number" and (arg1 == 0 or (arg1 > base and arg1 <= base + 12)) then redraw() end
 	elseif event == "PLAYER_REGEN_ENABLED" then
 		saidWait = false
-		if pending then layout()
-		else
-			closePopouts()   -- a picker opened in combat and left open (layout() does this too)
-			if mover then mover.update() end
-		end
+		-- A queued layout has run already (ns.deferInCombat). A picker opened in combat and left open
+		-- closes now.
+		closePopouts()
+		if mover then mover.update() end
 	else
 		if event == "PLAYER_LOGIN" or event == "SPELLS_CHANGED" then nameBindings() end
 		layout()

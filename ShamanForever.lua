@@ -732,9 +732,7 @@ end
 -- Combat-only visibility uses Blizzard's secure state driver, the standard technique for this. The
 -- shield's group and element frames are ancestors of Blizzard's protected aura button, so an addon
 -- Show/Hide/SetAlpha on them is silently dropped in combat (tested: alpha 0 out of combat never came
--- back). The driver's manager shows and hides from untainted code instead; its visibility path
--- needs only SecureCmdOptionParse, not a compiled snippet, so it survives this build's missing
--- loadstring_untainted. Groups and elements are driven separately, so an element shows only when
+-- back). The driver's manager shows and hides from untainted code instead. Groups and elements are driven separately, so an element shows only when
 -- both allow it. The manager re-applies its state every 0.2s and does not show a frame it lets go
 -- of, so a driven frame is never shown or hidden by hand. Only called out of combat.
 local driven = {}
@@ -796,13 +794,15 @@ local function applyBorder(f, b)
 end
 
 -- Sizes and anchors a group's members in one pass, centred on the cross axis; the group frame
--- shrinks to fit so dragging feels right.
+-- shrinks to fit so dragging feels right. Every member anchors to the group frame, never to another
+-- member: a frame a protected frame anchors to may turn protected too, and the shield is protected
+-- (Blizzard's aura button), so a chain could stop the members before it changing in combat.
 local function layoutGroup(gi)
 	local g, gf = db.groups[gi], groupFrame(gi)
 	local gap = g.spacing
 	local horizontal = g.orientation == "horizontal"
 	local forward = g.growth ~= "backward"
-	local prev, n, along, across = nil, 0, 0, 0
+	local n, along, across = 0, 0, 0
 	for _, key in ipairs(g.members) do
 		local e = ELEMENTS[key]
 		local f = e.frame
@@ -814,23 +814,18 @@ local function layoutGroup(gi)
 			local w, h = e.getSize(groupSize(g))
 			f:SetSize(w, h)
 			f:ClearAllPoints()
+			local offset = along + n * gap   -- from the group's leading edge
 			if horizontal then
-				if not prev then
-					local edge = forward and "LEFT" or "RIGHT"
-					f:SetPoint(edge, gf, edge, 0, 0)
-				elseif forward then f:SetPoint("LEFT", prev, "RIGHT", gap, 0)
-				else f:SetPoint("RIGHT", prev, "LEFT", -gap, 0) end
+				if forward then f:SetPoint("LEFT", gf, "LEFT", offset, 0)
+				else f:SetPoint("RIGHT", gf, "RIGHT", -offset, 0) end
 				along, across = along + w, math.max(across, h)
 			else
-				if not prev then
-					local edge = forward and "TOP" or "BOTTOM"
-					f:SetPoint(edge, gf, edge, 0, 0)
-				elseif forward then f:SetPoint("TOP", prev, "BOTTOM", 0, -gap)
-				else f:SetPoint("BOTTOM", prev, "TOP", 0, gap) end
+				if forward then f:SetPoint("TOP", gf, "TOP", 0, -offset)
+				else f:SetPoint("BOTTOM", gf, "BOTTOM", 0, offset) end
 				along, across = along + h, math.max(across, w)
 			end
 			showFrame(f, acct.locked and showMode(key) == "combat")
-			prev, n = f, n + 1
+			n = n + 1
 		end
 	end
 	along = math.max(along + math.max(n - 1, 0) * gap, 1)
@@ -857,10 +852,8 @@ end
 -- Deferred in combat: the shield's group is an ancestor of Blizzard's protected aura button, so
 -- showing, hiding, moving or reparenting it in combat is silently dropped.
 local styleNative, updateTray   -- defined further down
-local layoutPending = false
 local function layoutElements()
-	if InCombatLockdown() then layoutPending = true return end
-	layoutPending = false
+	if ns.deferInCombat("layout", layoutElements) then return end
 	for key, e in pairs(ELEMENTS) do
 		if not isEnabled(key) then hideFrame(e.frame) end
 	end
@@ -1279,7 +1272,7 @@ function ns.lockInCombat()
 	end
 	showGuides()
 	updateTray()
-	layoutPending = true
+	ns.retryAfterCombat("layout", layoutElements)
 	if ns.TotemBar then ns.TotemBar.lockInCombat() end
 	if ns.RefreshOptions then ns.RefreshOptions() end
 end
@@ -1402,16 +1395,14 @@ local function shieldIDMap()
 end
 
 -- The slot's filter can only change out of combat; a change in combat waits for it to end.
-local filterPending = false
 local filtered = {}   -- the IDs last given to the filter
 local function applyShieldFilter()
 	if not native.container or native.err then return end
-	if InCombatLockdown() then filterPending = true return end
+	if ns.deferInCombat("shield filter", applyShieldFilter) then return end
 	local map = shieldIDMap()
 	local ok = ns.try("shield filter", native.container.SetAuraSlotCandidateFilters, native.container, "shield",
 		{ includeSpellIDs = map })
-	filterPending = not ok   -- retried when combat ends
-	if ok then filtered = map end
+	if ok then filtered = map else ns.retryAfterCombat("shield filter", applyShieldFilter) end
 end
 
 local function learnShieldID(key, id)
@@ -1422,13 +1413,12 @@ local function learnShieldID(key, id)
 end
 
 -- Blizzard's button and its parts are off limits to addon code in combat; defer until it ends.
-local nativeStylePending = false
 function styleNative()
 	if not native.button then return end
-	if InCombatLockdown() then nativeStylePending = true return end
+	if ns.deferInCombat("shield style", styleNative) then return end
 	-- One pcall: Blizzard's button can refuse addon calls while auras are secret (in combat, and
 	-- possibly in PvP or encounters); a failure is noted for /sf debug and retried when combat ends.
-	nativeStylePending = not ns.try("shield style", function()
+	local ok = ns.try("shield style", function()
 		local size = sizeOf("shield")
 		native.container:SetSize(size, size)
 		-- Moving the shield to another group reparents it, which can drop the container back under
@@ -1456,6 +1446,7 @@ function styleNative()
 		end
 		if native.timer then native.timer:apply() end
 	end)
+	if not ok then ns.retryAfterCombat("shield style", styleNative) end
 end
 
 -- Called by Blizzard (untainted) once, right after it creates the slot button.
@@ -1537,8 +1528,10 @@ local function initNativeButton(button)
 	native.button = button
 end
 
+-- Out of combat only: made when combat ends after a /reload in combat.
 local function setupNative()
-	if native.container or native.err or InCombatLockdown() then return end
+	if native.container or native.err then return end
+	if ns.deferInCombat("shield container", setupNative) then return end
 	local ok, err = pcall(function()
 		local c = CreateFrame("AuraContainer", "ShamanForeverAuraContainer", shield, "CustomAuraContainerTemplate")
 		c:SetPoint("TOPLEFT", shield, "TOPLEFT", 0, 0)
@@ -1559,6 +1552,8 @@ local function setupNative()
 		native.err = tostring(err)
 		if native.container then native.container:Hide() end
 		say("Blizzard aura container failed on this client; the shield icon will not update: %s", native.err)
+	else
+		styleNative()   -- a layout queued before it (a /reload in combat) found no button to style
 	end
 end
 
@@ -2189,7 +2184,7 @@ local function applyTimers()
 	imbue.upTimer:apply()
 	if ns.TotemBar and ns.TotemBar.applyTimers then ns.TotemBar.applyTimers() end
 	if native.timer then
-		if InCombatLockdown() then nativeStylePending = true   -- styleNative applies it when combat ends
+		if InCombatLockdown() then ns.retryAfterCombat("shield style", styleNative)   -- which applies it
 		else ns.try("shield timer", native.timer.apply, native.timer) end
 	end
 end
@@ -2471,12 +2466,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		if found ~= lastSpells then lastSpells = found; applyLayout() end
 		refreshAll()
 	elseif event == "PLAYER_REGEN_ENABLED" then
-		-- The shield's container is made out of combat only; if that never happened (a /reload in
-		-- combat), now. Before the layout, so it styles the new button too.
-		if not native.container then setupNative() end
-		if layoutPending then layoutElements() end
-		if nativeStylePending then styleNative() end
-		if filterPending then applyShieldFilter() end
+		-- Anything held back in combat has run already (ns.deferInCombat).
 		refreshAll()
 	end
 end)
