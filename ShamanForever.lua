@@ -6,18 +6,22 @@
 -- The only inference anywhere is the shield's in-combat "up" state; its section explains it.
 
 local ADDON, ns = ...
-local PREFIX = "|cff3399ffShamanForever|r: "
-local function say(fmt, ...) print(PREFIX .. string.format(fmt, ...)) end
+local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
+local Spells = ns.Spells
 
 -- Elemental shields. Only one can be on the shaman at a time (Water Shield's tooltip says so), so one
 -- element shows whichever is up. Water Shield is a Restoration talent on Forever; 408510 is both its
--- cast and its buff (wowhead.com/forever). Spellbook and live aura IDs are added at runtime.
+-- cast and its buff (wowhead.com/forever). Spells by key in ns.Spells (ShamanForever_Core.lua); the
+-- IDs the aura slot matches grow with the spellbook's and the live aura's.
 local SHIELDS = {
-	lightning = { name = "Lightning Shield", ids = { 324, 325, 905, 945, 8134, 10431, 10432 }, icon = 136051 },
-	water     = { name = "Water Shield",     ids = { 408510 },                                 icon = 132315 },
+	lightning = { spell = "lightningShield", icon = 136051 },
+	water     = { spell = "waterShield",     icon = 132315 },
 }
 local SHIELD_ORDER = { "lightning", "water" }
-local SHOCKS = { earth = "Earth Shock", flame = "Flame Shock", frost = "Frost Shock" }
+-- Shock choice -> spell key; SHOCKS holds the display names (the client's, set by resolveSpells).
+local SHOCK_SPELL = { earth = "earthShock", flame = "flameShock", frost = "frostShock" }
+local SHOCKS = {}
+for key, spell in pairs(SHOCK_SPELL) do SHOCKS[key] = Spells.name(spell) end
 local SHOCK_ORDER = { "earth", "flame", "frost" }
 
 -- Every element belongs to exactly one group, which owns its position, scale, opacity and flow;
@@ -30,24 +34,6 @@ local GROUP_DEFAULTS = {
 	spacing = 6,
 	combatOnly = false,          -- hide the group out of combat (always shown while unlocked)
 }
-
--- Settings for the whole account, outside profiles: how the player works with the addon, and what
--- it has learned about the game.
-local ACCOUNT_DEFAULTS = {
-	locked = true,
-	testMode = false,       -- register placeholder elements for trying out layouts
-	snap = false,           -- unlocked drags snap to other groups, the screen centre and the grid
-	grid = false,           -- grid over the screen while unlocked
-	gridSize = 32,
-	hideIssueReporter = false,  -- beta: hide Blizzard's Issue Reporter button (its position is kept either way)
-	minimalArt = false,     -- options window without banners and ornaments; kept ready, no control for now
-	keepOptionsOpen = false,  -- false: the options window steps aside while groups are being moved
-	lastShield = "lightning",  -- the shield last cast or seen; its icon is the no-shield look in "either" mode
-	imbueIDs = {},            -- learned enchant ID -> imbue key
-	profiles = {},            -- name -> settings (DEFAULTS below)
-	chars = {},               -- "Name-Realm" -> { profile = name }
-}
-local DEFAULT_PROFILE = "Default"
 
 -- A profile: the layout and how every element looks.
 local DEFAULTS = {
@@ -114,60 +100,9 @@ local DEFAULTS = {
 -- Settings a profile no longer has: dropped when it loads.
 local RETIRED_KEYS = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "popMotion", "popSize", "popSpeed",
 	"popFlash", "popRing", "popStar", "popTint" }
--- Pre-groups layout keys, folded into a single group on first load.
-local LEGACY_KEYS = { "point", "x", "y", "alpha", "scale", "size", "spacing", "orientation", "growth", "order", "enabled" }
--- Saved settings format. Bump it and add a step on ADDON_LOADED when a stored value must change.
-local SETTINGS_VERSION = 6
 local acct       -- ShamanForeverDB: account settings, and every profile
 local db         -- the active profile
 local profileName
-
-local function isSecret(v) return issecretvalue and issecretvalue(v) or false end
-local function safe(fn, ...) if not fn then return false end return pcall(fn, ...) end
-local function describeArg(v) if isSecret(v) then return "<secret>" end return tostring(v) end
-
-------------------------------------------------------------------------
--- Spellbook: highest known rank of each spell, by name
-------------------------------------------------------------------------
-local book = {}
-
-local function rankOf(item)
-	local sub = item.subName
-	if (not sub or sub == "") and C_Spell.GetSpellSubtext then
-		local ok, s = safe(C_Spell.GetSpellSubtext, item.spellID)
-		if ok then sub = s end
-	end
-	return tonumber((sub or ""):match("(%d+)")) or 0
-end
-
-local function scanSpellbook()
-	book = {}
-	if not (C_SpellBook and C_SpellBook.GetNumSpellBookSkillLines) then return end
-	local bank = Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player or 0
-	for line = 1, C_SpellBook.GetNumSpellBookSkillLines() do
-		local info = C_SpellBook.GetSpellBookSkillLineInfo(line)
-		if info then
-			for i = info.itemIndexOffset + 1, info.itemIndexOffset + info.numSpellBookItems do
-				local ok, item = safe(C_SpellBook.GetSpellBookItemInfo, i, bank)
-				if ok and item and item.spellID and item.name and not item.isPassive then
-					local rank = rankOf(item)
-					local cur = book[item.name]
-					if not cur or rank > cur.rank then
-						book[item.name] = { id = item.spellID, icon = item.iconID, rank = rank }
-					end
-				end
-			end
-		end
-	end
-end
-
-local function knownSpell(name)
-	local e = book[name]
-	if e then return e.id, e.icon end
-	local ok, info = safe(C_Spell.GetSpellInfo, name)
-	if ok and type(info) == "table" and info.spellID then return info.spellID, info.iconID end
-	return nil
-end
 
 ------------------------------------------------------------------------
 -- Frames
@@ -210,6 +145,9 @@ local function makeGlow(parent, over, owner)
 	function g:restyle()
 		local st = ns.Style.get(self.owner, "glow")
 		self.width = st.width   -- kept for fit, which the ready glows call ten times a second
+		-- A running pulse restarts only when its timing changed, so other changes don't make it jump.
+		local retime = st.speed ~= self.speed or st.low ~= self.low
+		self.speed, self.low = st.speed, st.low
 		self.fade:SetDuration(st.speed)
 		self.fade:SetToAlpha(st.low)
 		local k = self.fixed or st.color
@@ -221,10 +159,11 @@ local function makeGlow(parent, over, owner)
 		e.LEFT:SetGradient("HORIZONTAL", on, off)
 		e.RIGHT:SetGradient("HORIZONTAL", off, on)
 		if self.iconSize then self:fit(self.iconSize) end
-		if self:IsShown() then self.anim:Stop(); self.anim:Play() end
+		if retime and self:IsShown() then self.anim:Stop(); self.anim:Play() end
 	end
 	function g:fit(size)
-		self.iconSize = size
+		if size == self.iconSize and self.width == self.fitWidth then return end
+		self.iconSize, self.fitWidth = size, self.width
 		local th = math.max(size * (self.width or 0.2), 1)
 		local e = self.edges
 		for _, t in pairs(e) do t:ClearAllPoints() end
@@ -299,7 +238,8 @@ local function popFx(f)
 	x.star:SetBlendMode("ADD")
 	x.star:Hide()
 	x.bursts = {}   -- texture -> { t (elapsed), dur, from, to (sizes), spin (radians) }
-	fx:SetScript("OnUpdate", function(_, elapsed)
+	-- Runs only while a burst does (set by playPop).
+	x.step = function(self, elapsed)
 		for tex, b in pairs(x.bursts) do
 			b.t = b.t + elapsed
 			local p = math.min(b.t / b.dur, 1)
@@ -310,7 +250,8 @@ local function popFx(f)
 			if b.spin then tex:SetRotation(b.spin * e) end
 			if p >= 1 then tex:Hide(); x.bursts[tex] = nil end
 		end
-	end)
+		if next(x.bursts) == nil then self:SetScript("OnUpdate", nil) end
+	end
 	f.popFx = x
 	return x
 end
@@ -376,6 +317,7 @@ function ns.playPop(f, kind, owner)
 		x.star:Show()
 		x.bursts[x.star] = { t = 0, dur = 0.45 * k, from = h * 1.2, to = h * 3.5, spin = -0.5 }
 	end
+	if next(x.bursts) ~= nil then x.fx:SetScript("OnUpdate", x.step) end
 end
 
 -- The end of a totem, over `anchor`. Nothing here reads a secret: play() hands the gone totem's
@@ -385,24 +327,8 @@ end
 --   Used by the totem bar's slots and the Earthbind / Stoneclaw elements.
 -- * Ran out (opts.expired; the opposite curve, 1 up to 1.2 s left): the totem's icon pops and fades.
 -- A totem that ran out never shows the first, one that was killed never the second.
-local killedCurve
-if C_CurveUtil and C_CurveUtil.CreateCurve then
-	killedCurve = C_CurveUtil.CreateCurve()
-	if Enum and Enum.LuaCurveType then killedCurve:SetType(Enum.LuaCurveType.Linear) end
-	killedCurve:AddPoint(0, 0)
-	killedCurve:AddPoint(1.2, 0)
-	killedCurve:AddPoint(1.25, 1)
-	killedCurve:AddPoint(36000, 1)
-end
-local expiredCurve
-if C_CurveUtil and C_CurveUtil.CreateCurve then
-	expiredCurve = C_CurveUtil.CreateCurve()
-	if Enum and Enum.LuaCurveType then expiredCurve:SetType(Enum.LuaCurveType.Linear) end
-	expiredCurve:AddPoint(0, 1)
-	expiredCurve:AddPoint(1.2, 1)
-	expiredCurve:AddPoint(1.25, 0)
-	expiredCurve:AddPoint(36000, 0)
-end
+local killedCurve = ns.curve({ 0, 0, 1.2, 0, 1.25, 1, 36000, 1 })
+local expiredCurve = ns.curve({ 0, 1, 1.2, 1, 1.25, 0, 36000, 0 })
 function ns.makeEndFlash(parent, anchor, owner)
 	local kf = CreateFrame("Frame", nil, parent)
 	kf:SetAllPoints(anchor)
@@ -456,7 +382,7 @@ function ns.makeEndFlash(parent, anchor, owner)
 	function kf:play(dur, opts)
 		local curve = opts.expired and expiredCurve or killedCurve
 		if not curve then return end
-		local ok, a = pcall(dur.EvaluateRemainingDuration, dur, curve)
+		local ok, a = ns.try("end flash", dur.EvaluateRemainingDuration, dur, curve)
 		if not ok then return end
 		self:SetAlpha(a)
 		local size = anchor:GetWidth()
@@ -563,13 +489,15 @@ imbue.count:Hide()
 
 -- Cooldown elements: a spell's cooldown, plus for a totem the active time of ours in its slot, or for
 -- Fire Nova whether the fire totem it needs is out. Totem slots: 1 fire, 2 earth, 3 water, 4 air.
--- Adding one is a line here; icon is the fallback until the spellbook has the spell, duration the
--- totem's lifetime in seconds (only a fallback, see refreshCooldown).
+-- Adding one is a line here; spellKey is its spell in ns.Spells, icon the fallback until the
+-- spellbook has it, duration the totem's lifetime in seconds (for the options previews).
+-- spell is the display name (the client's).
 local COOLDOWNS = {
-	{ key = "earthbind", spell = "Earthbind Totem", icon = 136102, totemSlot = 2, duration = 45, school = "earth" },
-	{ key = "stoneclaw", spell = "Stoneclaw Totem", icon = 136097, totemSlot = 2, duration = 15, school = "earth" },
-	{ key = "firenova",  spell = "Fire Nova",       icon = 135824, needsTotem = 1, school = "fire" },
+	{ key = "earthbind", spellKey = "earthbind", icon = 136102, totemSlot = 2, duration = 45, school = "earth" },
+	{ key = "stoneclaw", spellKey = "stoneclaw", icon = 136097, totemSlot = 2, duration = 15, school = "earth" },
+	{ key = "firenova",  spellKey = "fireNova",  icon = 135824, needsTotem = 1, school = "fire" },
 }
+for _, def in ipairs(COOLDOWNS) do def.spell = Spells.name(def.spellKey) end
 
 for _, def in ipairs(COOLDOWNS) do
 	local f = makeIcon(root, DEFAULTS.iconSize, def.key)
@@ -597,8 +525,6 @@ for _, def in ipairs(COOLDOWNS) do
 		-- always pulses and is simply invisible while a totem is out.
 		f.warn = CreateFrame("Frame", nil, f)
 		f.warn:SetAllPoints()
-		f.warn:SetFrameLevel(f:GetFrameLevel() + 1)
-		f.cd:SetFrameLevel(f.warn:GetFrameLevel() + 1)
 		f.warn.grey = f.warn:CreateTexture(nil, "ARTWORK")
 		f.warn.grey:SetAllPoints(f.tex)
 		f.warn.grey:SetTexCoord(0.08, 0.92, 0.08, 0.92)
@@ -623,7 +549,20 @@ for _, def in ipairs(COOLDOWNS) do
 		fade:SetDuration(0.8)
 		fade:SetSmoothing("IN_OUT")
 		f.warn:SetAlpha(0)
+		-- Hiding a frame (a combat-only group out of combat) stops its animations.
+		f.warn:SetScript("OnShow", function(w) if w.pulseOn and not w.pulse:IsPlaying() then w.pulse:Play() end end)
 	end
+	-- Layers, bottom up: icon, Fire Nova's warning layer and the expiring warning, the swipe, the timer
+	-- bar, text. Restated after regrouping (layoutGroup), since reparenting moves frame levels.
+	function f.stack()
+		local base = f:GetFrameLevel()
+		if f.warn then f.warn:SetFrameLevel(base + 1) end
+		f.cd:SetFrameLevel(base + 2)
+		if f.cdTimer.bar then f.cdTimer.bar:SetFrameLevel(base + 3) end
+		f.textFrame:SetFrameLevel(base + 4)
+		if f.upTimer and f.upTimer.restack then f.upTimer:restack() end
+	end
+	f.stack()
 	def.frame = f
 end
 
@@ -661,7 +600,7 @@ local ELEMENTS = {
 }
 local ELEMENT_KEYS = { "shield", "shock", "imbue" }   -- registration order
 for _, def in ipairs(COOLDOWNS) do
-	ELEMENTS[def.key] = { frame = def.frame, label = def.spell, getSize = iconSize, cooldown = def,
+	ELEMENTS[def.key] = { frame = def.frame, label = def.spell, getSize = iconSize, cooldown = def, stack = def.frame.stack,
 		paint = function(t) t:SetTexture(def.iconID or def.icon) end }
 	table.insert(ELEMENT_KEYS, def.key)
 end
@@ -895,6 +834,7 @@ local function layoutGroup(gi)
 		local e = ELEMENTS[key]
 		local f = e.frame
 		if f:GetParent() ~= gf then f:SetParent(gf) end
+		if e.stack then e.stack() end
 		if showMode(key) == "never" then
 			hideFrame(f)
 		else
@@ -1139,8 +1079,6 @@ end
 local NUDGE_KEYS = { UP = { 0, 1 }, DOWN = { 0, -1 }, LEFT = { -1, 0 }, RIGHT = { 1, 0 } }
 local nudger = CreateFrame("Frame", "ShamanForeverNudge", UIParent)
 nudger:Hide()
-nudger:EnableKeyboard(true)
-nudger:SetPropagateKeyboardInput(true)
 
 local function nudge(key)
 	local g, d = selectedGroup and db.groups[selectedGroup], NUDGE_KEYS[key]
@@ -1155,6 +1093,13 @@ end
 
 local function syncNudger()
 	local on = selectedGroup ~= nil and not acct.locked and not InCombatLockdown()
+	if on and not nudger.keys then
+		-- Out of combat only (both are restricted in combat), so not at file load: a /reload in
+		-- combat would lose them for the session.
+		nudger:EnableKeyboard(true)
+		nudger:SetPropagateKeyboardInput(true)
+		nudger.keys = true
+	end
 	if on then nudger:Show() else nudger:Hide() end
 end
 
@@ -1191,7 +1136,7 @@ nudger:SetScript("OnHide", function(self) self.held = nil end)
 nudger:SetScript("OnEvent", function(self, event)
 	if event == "PLAYER_REGEN_DISABLED" then
 		self:Hide()
-		if not acct.locked and ns.lockInCombat then ns.lockInCombat(); say("positioning locked for combat") end
+		if isShaman and not acct.locked and ns.lockInCombat then ns.lockInCombat(); say("positioning locked for combat") end
 	else syncNudger() end
 end)
 nudger:RegisterEvent("PLAYER_REGEN_DISABLED")
@@ -1337,12 +1282,16 @@ end
 -- Combat locks positioning, and it cannot be unlocked until combat ends (setLocked). Showing, moving
 -- and mouse changes on group frames are dropped in combat (the shield's group holds Blizzard's
 -- protected aura button), so only the looks change now: tray, grid, guides, outlines, labels and
--- the selection. The full layout runs when combat ends.
+-- the selection. The full layout runs when combat ends. Called from PLAYER_REGEN_DISABLED, which comes
+-- before lockdown: then the groups also stop taking the mouse, or they would eat clicks, camera drags
+-- and wheel zoom for the whole fight.
 function ns.lockInCombat()
 	acct.locked = true
 	optionsSteppedAside = false   -- no options window popping up mid-fight
 	selectedGroup = nil
+	local free = not InCombatLockdown()
 	for _, gf in ipairs(groupFrames) do
+		if free then gf:EnableMouse(false); gf:EnableMouseWheel(false) end
 		gf:SetScript("OnUpdate", nil)
 		gf:SetBackdropColor(0, 0, 0, 0)
 		gf:SetBackdropBorderColor(0, 0, 0, 0)
@@ -1386,9 +1335,9 @@ end
 --    translucent, so the underlay bleeds through it; nativeIconAlpha compensates so the stack
 --    matches the group's opacity. At 100% group opacity the button hides the underlay completely.
 ------------------------------------------------------------------------
--- Per shield at runtime: spellID (spellbook), known (in the spellbook), auraIDs (every ID seen
--- for it, learned from the spellbook and the live aura).
-for _, s in pairs(SHIELDS) do s.auraIDs = {} end
+-- Per shield at runtime: name (the client's), spellID and bookIcon (highest known rank), known. The IDs
+-- that count as it are ns.Spells' (seeds, spellbook, and the live aura's, learned here).
+for _, s in pairs(SHIELDS) do s.name = Spells.name(s.spell) end
 local believedUp = false      -- see above: exact out of combat, set up by our own cast in combat
 local native = { container = nil, button = nil, icon = nil, fs = nil, cd = nil, bar = nil, ticks = nil, overlay = nil,
 	err = nil }
@@ -1408,12 +1357,11 @@ function ns.shieldIcon()
 	return s.bookIcon or s.icon
 end
 
--- The shield an own cast belongs to, if any.
+-- The shield an own cast belongs to, if any (any rank: ns.Spells matches by ID, then by the client's name).
 local function shieldForSpell(id)
+	local spell = Spells.keyOf(id)
 	for _, key in ipairs(SHIELD_ORDER) do
-		local s = SHIELDS[key]
-		if id == s.spellID or s.auraIDs[id] then return key end
-		for _, v in ipairs(s.ids) do if id == v then return key end end
+		if SHIELDS[key].spell == spell then return key end
 	end
 end
 
@@ -1423,8 +1371,21 @@ end
 -- does not tell us about the hide in combat, so the ring and the underlay strength follow our belief:
 -- faded while believed up, full when believed down. Blizzard's icon alpha then compensates for the
 -- remaining bleed-through (see nativeIconAlpha) so the stack sums to the display opacity exactly.
+local function anyTrackedShieldKnown()
+	for key, s in pairs(SHIELDS) do if tracksShield(key) and s.known then return true end end
+	return false
+end
 local function applyEmptyLook()
 	shield.tex:SetTexture(ns.shieldIcon())
+	if not anyTrackedShieldKnown() then
+		-- Not learned yet (or Water Shield without its talent): a plain grey icon, as for cooldowns.
+		shield.tex:SetDesaturated(true)
+		shield.tex:SetVertexColor(1, 1, 1)
+		shield.tex:SetAlpha(1)
+		shield:SetRingShown(false)
+		shield:SetPulsing(false)
+		return
+	end
 	shield.tex:SetDesaturated(db.emptyGrey)
 	if db.emptyTint then shield.tex:SetVertexColor(1, 0.35, 0.35) else shield.tex:SetVertexColor(1, 1, 1) end
 	shield.tex:SetAlpha(believedUp and db.underlayUp or 1)
@@ -1439,7 +1400,8 @@ end
 local function nativeIconAlpha()
 	local gi = findElement("shield")
 	local a, u = gi and db.groups[gi].alpha or 1, db.underlayUp
-	local b = u > 0 and (1 - u) / (1 - a * u) or 1
+	local d = 1 - a * u   -- 0 at full opacity and full underlay: then any b stacks the same, and 1 is natural
+	local b = (u > 0 and d > 0) and (1 - u) / d or 1
 	return math.min(math.max(b * db.shieldIconAlpha, 0.05), 1)
 end
 
@@ -1453,8 +1415,7 @@ local function shieldIDMap()
 	local map = {}
 	for key, s in pairs(SHIELDS) do
 		if tracksShield(key) then
-			for _, id in ipairs(s.ids) do map[id] = true end
-			for id in pairs(s.auraIDs) do map[id] = true end
+			for id in pairs(Spells.ids(s.spell)) do map[id] = true end
 		end
 	end
 	return map
@@ -1462,18 +1423,22 @@ end
 
 -- The slot's filter can only change out of combat; a change in combat waits for it to end.
 local filterPending = false
+local filtered = {}   -- the IDs last given to the filter
 local function applyShieldFilter()
 	if not native.container or native.err then return end
 	if InCombatLockdown() then filterPending = true return end
-	filterPending = false
-	pcall(native.container.SetAuraSlotCandidateFilters, native.container, "shield", { includeSpellIDs = shieldIDMap() })
+	local map = shieldIDMap()
+	local ok = ns.try("shield filter", native.container.SetAuraSlotCandidateFilters, native.container, "shield",
+		{ includeSpellIDs = map })
+	filterPending = not ok   -- retried when combat ends
+	if ok then filtered = map end
 end
 
 local function learnShieldID(key, id)
 	local s = SHIELDS[key]
-	if not id or isSecret(id) or s.auraIDs[id] then return end
-	s.auraIDs[id] = true
-	if tracksShield(key) then applyShieldFilter() end
+	if type(id) ~= "number" or isSecret(id) then return end
+	Spells.learn(s.spell, id)
+	if tracksShield(key) and not filtered[id] then applyShieldFilter() end
 end
 
 -- Blizzard's button and its parts are off limits to addon code in combat; defer until it ends.
@@ -1481,8 +1446,9 @@ local nativeStylePending = false
 function styleNative()
 	if not native.button then return end
 	if InCombatLockdown() then nativeStylePending = true return end
-	nativeStylePending = false
-	pcall(function()
+	-- One pcall: Blizzard's button can refuse addon calls while auras are secret (in combat, and
+	-- possibly in PvP or encounters); a failure is noted for /sf debug and retried when combat ends.
+	nativeStylePending = not ns.try("shield style", function()
 		local size = db.iconSize
 		native.container:SetSize(size, size)
 		-- Moving the shield to another group reparents it, which can drop the container back under
@@ -1616,9 +1582,17 @@ local function setupNative()
 	end
 end
 
--- Out of combat the auras are readable: sync our belief and learn the live spell IDs.
+-- Auras can be secret out of combat too (PvP matches, encounters): then keep the belief.
+local function aurasReadable()
+	if InCombatLockdown() then return false end
+	local ok, secret = safe(C_Secrets and C_Secrets.ShouldAurasBeSecret)
+	return not (ok and (isSecret(secret) or secret))
+end
+
+-- Out of combat the auras are readable: sync our belief and learn the live spell IDs. Looked up by
+-- the client's name for the shield, which every rank shares.
 local function refreshShield()
-	if InCombatLockdown() then return end
+	if not aurasReadable() then return end
 	local upKey
 	for _, key in ipairs(SHIELD_ORDER) do
 		local s = SHIELDS[key]
@@ -1655,7 +1629,11 @@ local function paintBody(style, r, g, b, overlayAlpha, tintStrength)
 	end
 end
 
+local shockPainted   -- what updateShockTint last drew; repainted only on a change
 local function updateShockTint()
+	local now = (shockState.outOfRange and "r" or "") .. (shockState.noMana and "m" or "")
+	if now == shockPainted then return end
+	shockPainted = now
 	shock.manaOverlay:Hide()
 	shock.tex:SetVertexColor(1, 1, 1)
 	if shockState.outOfRange then
@@ -1668,17 +1646,28 @@ end
 
 -- The global cooldown: while it runs, every spell reads as on cooldown, so the swipe, the ready pop
 -- and the ready glows would react to each cast. isOnGCD says so, when it's readable (if it's secret
--- in combat, this falls back to treating it as a real cooldown).
+-- in combat, this falls back to treating it as a real cooldown). Blizzard only vouches for it inside
+-- SPELL_UPDATE_COOLDOWN; the timers keep the GCD sweep, so they still read it (tested 2026-09-25).
 local function onGCD(spellID)
 	local ok, info = safe(C_Spell.GetSpellCooldown, spellID)
 	if not ok or type(info) ~= "table" or isSecret(info.isOnGCD) then return false end
 	return info.isOnGCD == true
 end
+-- The spell's own cooldown without the GCD (ignoreGCD, on Forever since 12.0.5): true when none is
+-- running, false when one is, nil when that can't be told (secret, or an older client).
+local function ownCooldownOver(spellID)
+	local ok, d = safe(C_Spell.GetSpellCooldownDuration, spellID, true)
+	if not ok then return nil end
+	if not d then return true end
+	local zok, z = pcall(d.IsZero, d)
+	if zok and not isSecret(z) and type(z) == "boolean" then return z end
+end
 -- Before a cooldown timer takes a new duration: a global-cooldown sweep gets no bling, and the
--- ready pop that fires when it ends is skipped (f.gcdUntil).
+-- ready pop that fires when it ends is skipped (f.gcdUntil), unless the spell's own cooldown is
+-- running under the GCD: then its end is a real "ready".
 local function noteGCD(f, spellID)
 	local g = onGCD(spellID)
-	if g then f.gcdUntil = GetTime() + 1.6 end
+	if g and ownCooldownOver(spellID) ~= false then f.gcdUntil = GetTime() + 1.6 end
 	f.cd:SetDrawBling(not g)
 end
 
@@ -1690,6 +1679,7 @@ end
 
 local function refreshShockRange()
 	if not shockSpellID or not isEnabled("shock") then return end
+	-- The event also fires for other spells' checks; the 4 Hz ticker covers ours either way.
 	local ok, r = safe(C_Spell.IsSpellInRange, shockSpellID, "target")
 	shockState.outOfRange = ok and not isSecret(r) and r == false
 	updateShockTint()
@@ -1709,26 +1699,31 @@ end
 -- 2026-09-23). The API is not documented as secret, so it is read directly every time. If a read fails (for example in combat) the icon shows
 -- "?" rather than guessing, and /sf debug says what came back; fallbacks wait until the limits are known.
 ------------------------------------------------------------------------
+-- The key is also the spell's key in ns.Spells; name is its display name (the client's). ids are
+-- enchant IDs (item data), not spell IDs.
 local IMBUES = {
-	rockbiter   = { name = "Rockbiter Weapon",   icon = 136086, ids = { 29, 6, 1, 503, 1663, 683, 1664 } },
-	flametongue = { name = "Flametongue Weapon", icon = 135814, ids = { 5, 4, 3, 523, 1665, 1666 } },
-	frostbrand  = { name = "Frostbrand Weapon",  icon = 135847, ids = { 2, 12, 524, 1667, 1668 } },
-	windfury    = { name = "Windfury Weapon",    icon = 136018, ids = { 283, 284, 525, 1669 } },
+	rockbiter   = { icon = 136086, ids = { 29, 6, 1, 503, 1663, 683, 1664 } },
+	flametongue = { icon = 135814, ids = { 5, 4, 3, 523, 1665, 1666 } },
+	frostbrand  = { icon = 135847, ids = { 2, 12, 524, 1667, 1668 } },
+	windfury    = { icon = 136018, ids = { 283, 284, 525, 1669 } },
 }
+for key, m in pairs(IMBUES) do m.name = Spells.name(key) end
 local IMBUE_ORDER = { "rockbiter", "flametongue", "frostbrand", "windfury" }
 local MAIN_HAND = Enum and Enum.WeaponSlot and Enum.WeaponSlot.MainHand or 0
 local IMBUE_TYPE = Enum and Enum.ItemEnchantType and Enum.ItemEnchantType.Imbue or 3
 
 -- Recognised by enchant ID (seeded from the vanilla ranks), else by icon, else learned from our own cast.
-local imbueByName, imbueByID = {}, {}
+local imbueByID = {}
 for key, m in pairs(IMBUES) do
-	imbueByName[m.name] = key
 	for _, id in ipairs(m.ids) do imbueByID[id] = key end
 end
 
 -- key: the imbue on (nil = none); unreadable: the last read failed; read: what it said, for /sf debug.
 -- total: the longest time left seen for this imbue, its full length as far as we know (swipe and bar).
-local imbueState = { key = nil, expiresAt = nil, total = nil, unreadable = false, read = "not checked", castKey = nil, castAt = 0 }
+-- castKey, castAt: our last imbue cast and when. changedAt: when the weapon's imbue last changed (a
+-- new enchant, or its time going up: a recast); lastID, lastLeft: the read before.
+local imbueState = { key = nil, expiresAt = nil, total = nil, unreadable = false, read = "not checked", castKey = nil, castAt = 0,
+	changedAt = 0 }
 
 -- Time left: a timer fed the imbue's readable time. imbue.timer only shows "?" when unreadable.
 imbue.upTimer = ns.Timer.new(imbue, "imbue", "uptime", { cd = imbue.cd, school = "spirit" })
@@ -1737,9 +1732,9 @@ imbue.timer:SetFont(STANDARD_TEXT_FONT, 16, "OUTLINE")
 imbue.timer:SetPoint("CENTER")
 
 local function imbueIconFor(key)
-	local m = IMBUES[key] or IMBUES.rockbiter
-	local _, icon = knownSpell(m.name)
-	return icon or m.icon
+	if not IMBUES[key] then key = "rockbiter" end
+	local _, icon = Spells.known(key)
+	return icon or IMBUES[key].icon
 end
 
 -- The main hand's imbue entry (enchantID, timeLeft in ms, enchantIconID), false when none is on,
@@ -1767,6 +1762,11 @@ local function imbueKeyFor(w)
 end
 
 local imbueIcon = imbueIconFor("rockbiter")
+-- The icon while no imbue is on: the player's pick, or the last one used.
+local function preferredImbueIcon()
+	return imbueIconFor(db.imbuePreferred == "last" and (acct.imbueLast or "rockbiter") or db.imbuePreferred)
+end
+ns.preferredImbueIcon = preferredImbueIcon
 
 local function paintImbue(now)
 	local key = imbueState.key
@@ -1781,7 +1781,7 @@ local function paintImbue(now)
 		imbue:SetPulsing(false)
 		imbue:SetGlowShown(false)
 	else
-		imbueIcon = imbueIconFor(db.imbuePreferred == "last" and (acct.imbueLast or "rockbiter") or db.imbuePreferred)
+		imbueIcon = preferredImbueIcon()
 		imbue.tex:SetDesaturated(db.imbueMissingGrey)
 		imbue:SetRingShown(db.imbueMissingRing)
 		imbue:SetPulsing(db.imbuePulse)
@@ -1817,11 +1817,18 @@ local function refreshImbue()
 		imbueState.read = "unreadable" .. (InCombatLockdown() and " (in combat)" or "")
 	elseif r == false then
 		imbueState.read = "no imbue"
+		imbueState.lastID, imbueState.lastLeft = nil, nil
 	else
 		local key = imbueKeyFor(r)
-		if not key and now - imbueState.castAt < 3 then key = imbueState.castKey; acct.imbueIDs[r.enchantID] = key end
-		imbueState.read = string.format("enchant %d, icon %d, %s", r.enchantID, r.enchantIconID, key or "not recognised")
 		local left = r.timeLeft / 1000
+		if r.enchantID ~= imbueState.lastID or left > (imbueState.lastLeft or 0) + 1 then imbueState.changedAt = now end
+		imbueState.lastID, imbueState.lastLeft = r.enchantID, left
+		-- Unknown enchant that changed within 3 s of our cast: it is that imbue. (One that didn't change
+		-- is still the old imbue, which must not be learned under the new name.)
+		if not key and math.abs(now - imbueState.castAt) < 3 and math.abs(imbueState.changedAt - imbueState.castAt) < 3 then
+			key = imbueState.castKey; acct.imbueIDs[r.enchantID] = key
+		end
+		imbueState.read = string.format("enchant %d, icon %d, %s", r.enchantID, r.enchantIconID, key or "not recognised")
 		if key ~= imbueState.lastKey or left > (imbueState.total or 0) then imbueState.total = left end
 		imbueState.lastKey = key
 		imbueState.key = key
@@ -1835,9 +1842,8 @@ end
 
 -- Remembers our own imbue cast, so an imbue not recognised by ID or icon is learned on the next read.
 local function imbueCast(spellID)
-	local ok, name = safe(C_Spell.GetSpellName, spellID)
-	local key = ok and not isSecret(name) and imbueByName[name]
-	if not key then return end
+	local key = Spells.keyOf(spellID)
+	if not IMBUES[key] then return end
 	imbueState.castKey, imbueState.castAt = key, GetTime()
 	refreshImbue()
 end
@@ -1859,22 +1865,14 @@ end
 --   (totemOwner), and the timer's holder is shown only when that is this element's totem. The
 --   slot's duration object still drives the timer, and an empty slot has none.
 --   Call of the Elements fires one cast per totem it drops, after its own (tested 2026-09-25), so
---   its totems are bound like any other. Fallback when the owner is unknown (a /reload with a
---   totem already out): out of combat the slot's name; in combat the slot's total duration through a curve
---   that is 1 only within half a second of this totem's lifetime (Earthbind 45s, Stoneclaw 15s;
---   every other earth totem 5 min on Forever).
---   Lifetimes used to be learned from the slot right after a cast, but at that moment the slot
---   can pair the old totem's name with the new totem's duration, which taught Stoneclaw 45s and
---   Earthbind 300s (seen 2026-09-24). Nothing is learned now.
+--   its totems are bound like any other. When the owner is unknown (a /reload with a totem already
+--   out), out of combat the slot says which totem it is (its spell ID, else its icon), and that is
+--   kept as the owner. In combat the slot is secret, so the timer stays hidden until combat ends or
+--   the totem is recast: a /reload in combat isn't worth guessing for (a lifetime curve did, until
+--   2026-09-26).
 ------------------------------------------------------------------------
 -- Remaining seconds -> alpha: fully shown at 0s, hidden from 0.05s up.
-local noTimeLeftCurve
-if C_CurveUtil and C_CurveUtil.CreateCurve then
-	noTimeLeftCurve = C_CurveUtil.CreateCurve()
-	if Enum and Enum.LuaCurveType then noTimeLeftCurve:SetType(Enum.LuaCurveType.Linear) end
-	noTimeLeftCurve:AddPoint(0, 1)
-	noTimeLeftCurve:AddPoint(0.05, 0)
-end
+local noTimeLeftCurve = ns.CURVE_OVER
 
 -- An element's option (db.elementOpts[key]) with its default: an element's own default, else
 -- everyone's. Every element starts with its pops on and its "use me" glows off.
@@ -1891,55 +1889,67 @@ local function cdOpt(key, name)
 end
 ns.elementOpt = cdOpt
 
--- Whether a totem is out in a slot, its name and total duration; nil when the slot cannot be read. haveTotem alone
--- is not enough: on Forever an empty slot reports haveTotem true with a blank name, and a slot can
--- also return nothing at all (both seen 2026-09-23). So a totem is out only when it has a name.
+-- Whether a totem is out in a slot, its spell ID and icon (each nil if not given); nil when the slot
+-- cannot be read. haveTotem alone is not enough: on Forever an empty slot reports haveTotem true with a
+-- blank name, and a slot can also return nothing at all (both seen 2026-09-23). So a totem is out
+-- only when it has a name. The name itself is never used to tell totems apart (it is in the
+-- client's language and carries the rank, "Stoneclaw Totem II").
 local function readTotem(slot)
 	if not GetTotemInfo then return nil end
-	local ok, have, name, _, duration = pcall(GetTotemInfo, slot)
-	if not ok or isSecret(have) or isSecret(name) or isSecret(duration) then return nil end
+	local ok, have, name, _, _, icon, _, spellID = pcall(GetTotemInfo, slot)
+	if not ok or isSecret(have) or isSecret(name) then return nil end
 	if not have or type(name) ~= "string" or name == "" then return false end
-	return true, name, duration
+	if isSecret(spellID) or type(spellID) ~= "number" then spellID = nil end
+	if isSecret(icon) or type(icon) ~= "number" then icon = nil end
+	return true, spellID, icon
 end
 
 -- The totem in each slot, from our own casts: slot -> cooldown element key, or "other" for any other
--- totem of that slot; nil while unknown. Totem names by slot come from the multi-cast bar's lists.
+-- totem of that slot; nil while unknown. Which slot a totem spell fills comes from the multi-cast
+-- bar's lists, by ID, and for a rank not listed there by the client's name (ranks share it).
 local totemOwner = {}
-local totemNames = {}   -- slot -> name of the totem we last cast into it
-local totemSlotByName = {}
+local totemSpells = {}   -- slot -> spell ID of the totem we last cast into it
+local totemSlotByID, totemSlotByName = {}, {}
 
 local function scanTotemSlots()
 	if not GetMultiCastTotemSpells then return end
-	local map = {}
+	local byID, byName = {}, {}
 	for slot = 1, 4 do
 		local ok, ids = pcall(function() return { GetMultiCastTotemSpells(slot) } end)
 		if not ok then return end   -- keep the last good map
 		for _, id in ipairs(ids) do
-			local nok, name = safe(C_Spell.GetSpellName, id)
-			if nok and type(name) == "string" and not isSecret(name) then map[name] = slot end
+			if type(id) == "number" and not isSecret(id) then
+				byID[id] = slot
+				local name = Spells.nameOf(id)
+				if name then byName[name] = slot end
+			end
 		end
 	end
-	totemSlotByName = map
+	totemSlotByID, totemSlotByName = byID, byName
 end
 
 -- Our own cast: if it put a totem in a slot, remember which.
 local function totemCast(spellID)
-	local ok, name = safe(C_Spell.GetSpellName, spellID)
-	if not ok or type(name) ~= "string" or isSecret(name) then return end
-	local slot = totemSlotByName[name]
-	if not slot then return end
+	local slot = totemSlotByID[spellID]
+	if not slot then
+		local name = Spells.nameOf(spellID)
+		slot = name and totemSlotByName[name]
+		if not slot then return end
+		totemSlotByID[spellID] = slot
+	end
+	local key = Spells.keyOf(spellID)
 	local owner = "other"
 	for _, def in ipairs(COOLDOWNS) do
-		if def.totemSlot == slot and name == def.spell then owner = def.key end
+		if def.totemSlot == slot and key == def.spellKey then owner = def.key end
 	end
 	totemOwner[slot] = owner
-	totemNames[slot] = name
+	totemSpells[slot] = spellID
 	-- Recast: that element's killed-early cross goes.
 	for _, def in ipairs(COOLDOWNS) do
 		if def.key == owner and def.frame.killed then def.frame.killed.mark:Hide() end
 	end
 end
-function ns.totemNameInSlot(slot) return totemNames[slot] end
+function ns.totemSpellInSlot(slot) return totemSpells[slot] end
 
 -- The end of an Earthbind / Stoneclaw totem: the totem bar reports a slot that emptied without our
 -- dismissing or replacing it (ShamanForever_TotemBar.lua); the element whose totem it was (our last
@@ -1964,24 +1974,27 @@ function ns.onTotemGone(slot, dur)
 	end
 end
 
--- Total duration -> alpha: 1 within half a second of seconds, 0 elsewhere.
-local function lifetimeCurve(seconds)
-	if not (C_CurveUtil and C_CurveUtil.CreateCurve) then return nil end
-	local c = C_CurveUtil.CreateCurve()
-	if Enum and Enum.LuaCurveType then c:SetType(Enum.LuaCurveType.Linear) end
-	c:AddPoint(0, 0)
-	c:AddPoint(math.max(seconds - 0.5, 0.01), 0)
-	c:AddPoint(seconds - 0.4, 1)
-	c:AddPoint(seconds + 0.4, 1)
-	c:AddPoint(seconds + 0.5, 0)
-	return c
+-- Looks that change only with the spellbook and settings (applyLayout): the icon, and Fire Nova's
+-- warning layer.
+local function styleCooldown(def)
+	local f = def.frame
+	f.tex:SetTexture(def.iconID or def.icon)
+	local w = f.warn
+	if not w then return end
+	w.grey:SetTexture(def.iconID or def.icon)
+	w.grey:SetShown(cdOpt(def.key, "blockedGrey"))
+	for _, t in ipairs(w.ring) do t:SetShown(cdOpt(def.key, "blockedRing")) end
+	w.pulseOn = cdOpt(def.key, "blockedPulse")   -- OnShow restarts it after the group was hidden
+	if w.pulseOn then
+		if not w.pulse:IsPlaying() then w.pulse:Play() end
+	else w.pulse:Stop() end
 end
 
+-- def.read (for /sf debug) is kept as parts and only formatted there.
 local function refreshCooldown(def)
 	if not isEnabled(def.key) then return end
 	local f = def.frame
 	if f.killed and not (cdOpt(def.key, "killed") and cdOpt(def.key, "killedMark")) then f.killed.mark:Hide() end
-	f.tex:SetTexture(def.iconID or def.icon)
 	if not def.spellID then
 		-- Not learned yet: a plain grey icon.
 		f.tex:SetDesaturated(true)
@@ -1998,34 +2011,24 @@ local function refreshCooldown(def)
 	if def.needsTotem then
 		-- Fire Nova: the slot's duration object drives everything, secret or not. An empty slot's
 		-- duration is zero, so the timer widgets draw nothing and the warning layer shows.
-		local slot = def.needsTotem
-		local tok, tdur = safe(GetTotemDuration, slot)
-		local aok, alpha = false, nil
-		if tok and tdur and noTimeLeftCurve then aok, alpha = pcall(tdur.EvaluateRemainingDuration, tdur, noTimeLeftCurve) end
+		local tok, tdur = safe(GetTotemDuration, def.needsTotem)
 		f.activeHolder:SetAlpha(1)   -- any fire totem counts, so its timer always shows
-		local w = f.warn
-		-- Icon, then warning layer, then swipe, then text; restated as regrouping reparents the icon.
-		w:SetFrameLevel(f:GetFrameLevel() + 1)
-		f.cd:SetFrameLevel(f:GetFrameLevel() + 2)
-		f.cdTimer.bar:SetFrameLevel(f:GetFrameLevel() + 3)
-		f.textFrame:SetFrameLevel(f:GetFrameLevel() + 4)
-		w.grey:SetTexture(def.iconID or def.icon)
-		w.grey:SetShown(cdOpt(def.key, "blockedGrey"))
-		for _, t in ipairs(w.ring) do t:SetShown(cdOpt(def.key, "blockedRing")) end
-		if cdOpt(def.key, "blockedPulse") then
-			if not w.pulse:IsPlaying() then w.pulse:Play() end
-		else w.pulse:Stop() end
 		if tok and tdur == nil then
 			-- Nothing in the slot: no duration object to evaluate.
-			w:SetAlpha(1)
+			f.warn:SetAlpha(1)
 			def.read = "no fire totem (no duration)"
-		elseif aok and alpha ~= nil then
-			w:SetAlpha(alpha)
-			def.read = "warning alpha " .. describeArg(alpha)
 		else
-			w:SetAlpha(0)
-			def.read = string.format("fire slot duration %s, curve %s: %s", tok and "ok" or "error",
-				noTimeLeftCurve and "ok" or "missing", describeArg(alpha))
+			local aok, alpha = false, nil
+			if tok and tdur and noTimeLeftCurve then
+				aok, alpha = ns.try("fire nova warning", tdur.EvaluateRemainingDuration, tdur, noTimeLeftCurve)
+			end
+			if aok and alpha ~= nil then
+				f.warn:SetAlpha(alpha)
+				def.read = alpha   -- possibly secret; described by /sf debug
+			else
+				f.warn:SetAlpha(0)
+				def.read = tok and "fire slot duration unreadable" or "fire slot duration error"
+			end
 		end
 		f.upTimer:set(tok and tdur or nil)
 	elseif def.totemSlot then
@@ -2037,25 +2040,32 @@ local function refreshCooldown(def)
 			local owner = totemOwner[slot]
 			local match, how
 			if owner then
-				match, how = owner == def.key and 1 or 0, "cast " .. owner
+				match, how = owner == def.key and 1 or 0, "cast"
 			else
-				local have, name = readTotem(slot)
-				if have then
-					match, how = name:find(def.spell, 1, true) == 1 and 1 or 0, "name " .. name
+				-- Not known from our casts (a /reload with the totem already down): out of combat the
+				-- slot's spell, else its icon (every rank shares it); kept as the owner, so it holds
+				-- into combat. In combat: unknown, hidden.
+				local have, spellID, icon = readTotem(slot)
+				local mine
+				if have and spellID then mine, how = Spells.keyOf(spellID) == def.spellKey, "slot spell"
+				elseif have and icon then mine, how = icon == def.iconID or icon == def.icon, "slot icon" end
+				if mine ~= nil then
+					match = mine and 1 or 0
+					if mine then
+						totemOwner[slot] = def.key
+						if spellID then totemSpells[slot] = spellID end
+					end
 				else
-					if def.curveFor ~= def.duration then def.curve, def.curveFor = lifetimeCurve(def.duration), def.duration end
-					local aok, alpha = false, nil
-					if def.curve then aok, alpha = pcall(tdur.EvaluateTotalDuration, tdur, def.curve) end
-					match, how = aok and alpha or 0, string.format("lifetime %ss curve", def.duration)
+					match, how = 0, "unknown"
 				end
 			end
 			f.activeHolder:SetAlpha(match)
 			f.upTimer:set(tdur)
-			def.read = string.format("earth slot timer, by %s, match %s", how, describeArg(match))
+			def.read, def.readHow = match, how
 		else
 			f.activeHolder:SetAlpha(0)
 			f.upTimer:clear()
-			def.read = string.format("no earth totem (owner %s)", tostring(totemOwner[slot]))
+			def.read, def.readHow = "no earth totem", nil
 		end
 	end
 end
@@ -2078,20 +2088,15 @@ for _, def in ipairs(COOLDOWNS) do popWhenReady(def.frame, def.key) end
 -- Ready glows ("use me"), both off by default. Fire Nova: while it is off cooldown and a fire totem
 -- is down, the moment it can be cast; both are secret in combat, so each goes through a curve into
 -- one of two nested frames' alphas. Shocks: while the shock is off cooldown. Re-read ten times a
--- second, so they follow a cooldown ending or a totem running out without waiting for an event.
-local hasTimeLeftCurve
-if C_CurveUtil and C_CurveUtil.CreateCurve then
-	hasTimeLeftCurve = C_CurveUtil.CreateCurve()
-	if Enum and Enum.LuaCurveType then hasTimeLeftCurve:SetType(Enum.LuaCurveType.Linear) end
-	hasTimeLeftCurve:AddPoint(0, 0)
-	hasTimeLeftCurve:AddPoint(0.05, 1)
-end
--- 1 while the spell is off cooldown (possibly secret: only ever handed to SetAlpha).
+-- second while any is on, so they follow a cooldown ending or a totem running out without waiting for
+-- an event.
+local hasTimeLeftCurve = ns.CURVE_LIVE
+-- 1 while the spell is off cooldown (possibly secret: only ever handed to SetAlpha). Its own
+-- cooldown, without the GCD (ignoreGCD), so the glow doesn't blink with every cast.
 local function readyAlpha(spellID)
-	if onGCD(spellID) then return 1 end   -- only the global cooldown: still ready
-	local ok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID)
+	local ok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID, true)
 	if not (ok and dur) then return 1 end   -- no cooldown running
-	local rok, r = pcall(dur.EvaluateRemainingDuration, dur, noTimeLeftCurve)
+	local rok, r = ns.try("ready glow", dur.EvaluateRemainingDuration, dur, ns.CURVE_OVER)
 	if rok then return r end
 	return 0
 end
@@ -2110,56 +2115,89 @@ local function updateReadyGlow(def)
 	f.readyGlow:fit(f:GetWidth())
 	local tok, tdur = safe(GetTotemDuration, def.needsTotem)
 	if not (tok and tdur) then f.readyGate:SetAlpha(0) return end   -- no fire totem
-	local gok, g = pcall(tdur.EvaluateRemainingDuration, tdur, hasTimeLeftCurve)
+	local gok, g = ns.try("ready gate", tdur.EvaluateRemainingDuration, tdur, hasTimeLeftCurve)
 	if gok then f.readyGate:SetAlpha(g) else f.readyGate:SetAlpha(0) end
 	f.readyGlow:SetAlpha(readyAlpha(def.spellID))
 end
 local readyTicker = CreateFrame("Frame")
+readyTicker:Hide()
 readyTicker.t = 0
 readyTicker:SetScript("OnUpdate", function(self, elapsed)
 	self.t = self.t + elapsed
-	if self.t < 0.1 or not isShaman then return end
+	if self.t < 0.1 then return end
 	self.t = 0
 	for _, def in ipairs(COOLDOWNS) do
 		if def.needsTotem then updateReadyGlow(def) end
 	end
 	updateShockGlow()
 end)
+-- Runs only while a ready glow is turned on (checked on every layout, i.e. every settings change).
+local function syncReadyTicker()
+	local want = false
+	if isShaman then
+		want = isEnabled("shock") and cdOpt("shock", "readyGlow")
+		for _, def in ipairs(COOLDOWNS) do
+			if def.needsTotem and isEnabled(def.key) and cdOpt(def.key, "readyGlow") then want = true end
+		end
+	end
+	readyTicker:SetShown(want and true or false)
+	if not want then
+		-- One last pass turns the glows off.
+		updateShockGlow()
+		for _, def in ipairs(COOLDOWNS) do if def.needsTotem then updateReadyGlow(def) end end
+	end
+end
 
 ------------------------------------------------------------------------
 -- Spell resolution and layout
 ------------------------------------------------------------------------
+-- Looks up every tracked spell: display names in the client's language, the highest rank known, the
+-- shock's range check. Returns a signature of what it found, so callers can skip a relayout when
+-- nothing changed (SPELLS_CHANGED fires often).
+local rangeCheckID   -- the spell whose range check is on
 local function resolveSpells()
-	scanSpellbook()
+	Spells.scan()
+	local sig = {}
 	for key, s in pairs(SHIELDS) do
-		s.known = book[s.name] ~= nil
-		s.spellID, s.bookIcon = nil, nil
-		if s.known then s.spellID, s.bookIcon = book[s.name].id, book[s.name].icon end
+		s.name = Spells.name(s.spell)
+		local e = Spells.bookEntry(s.spell)
+		s.known = e ~= nil
+		s.spellID, s.bookIcon = e and e.id, e and e.icon
 		if s.spellID then learnShieldID(key, s.spellID) end
+		table.insert(sig, tostring(s.spellID))
 	end
 	applyShieldFilter()   -- the tracked shields may have changed
 	shockIDs = {}
-	for key, name in pairs(SHOCKS) do
-		local id = knownSpell(name)
+	for key, spell in pairs(SHOCK_SPELL) do
+		SHOCKS[key] = Spells.name(spell)
+		local id = Spells.known(spell)
 		if id then shockIDs[key] = id end
 	end
-	local id, ic = knownSpell(SHOCKS[db.shock] or SHOCKS.earth)
+	local id, ic = Spells.known(SHOCK_SPELL[db.shock] or SHOCK_SPELL.earth)
 	shockSpellID = id
 	shockIcon = ic or 136026
 	shock.tex:SetTexture(shockIcon)
 	manaSpellID = (db.manaSpell ~= "tracked" and shockIDs[db.manaSpell]) or shockSpellID
-	if shockSpellID and C_Spell.EnableSpellRangeCheck then safe(C_Spell.EnableSpellRangeCheck, shockSpellID, true) end
-	for _, def in ipairs(COOLDOWNS) do
-		local cid, cicon = knownSpell(def.spell)
-		def.spellID, def.iconID = cid, cicon
+	if rangeCheckID ~= shockSpellID and C_Spell.EnableSpellRangeCheck then
+		if rangeCheckID then safe(C_Spell.EnableSpellRangeCheck, rangeCheckID, false) end
+		if shockSpellID then safe(C_Spell.EnableSpellRangeCheck, shockSpellID, true) end
+		rangeCheckID = shockSpellID
 	end
+	table.insert(sig, tostring(shockSpellID)); table.insert(sig, tostring(manaSpellID))
+	for _, def in ipairs(COOLDOWNS) do
+		def.spell = Spells.name(def.spellKey)
+		ELEMENTS[def.key].label = def.spell
+		def.spellID, def.iconID = Spells.known(def.spellKey)
+		table.insert(sig, tostring(def.spellID)); table.insert(sig, tostring(def.iconID))
+	end
+	for key, m in pairs(IMBUES) do m.name = Spells.name(key) end
 	scanTotemSlots()
+	return table.concat(sig, ",")
 end
 
-local function applyLayout()
-	ns.applyGlowStyle()   -- the profile's glow (a profile switch comes through here too)
-	layoutElements()
-	-- Every timer takes its current style (General's or its own); the shield's in styleNative.
+-- Every timer takes its current style (General's or its own). The shield's sits on Blizzard's
+-- button, so only out of combat (styleNative also does it).
+local function applyTimers()
 	shock.cdTimer:apply()
 	for _, def in ipairs(COOLDOWNS) do
 		def.frame.cdTimer:apply()
@@ -2169,17 +2207,33 @@ local function applyLayout()
 		end
 	end
 	imbue.upTimer:apply()
+	if ns.TotemBar and ns.TotemBar.applyTimers then ns.TotemBar.applyTimers() end
+	if native.timer then
+		if InCombatLockdown() then nativeStylePending = true   -- styleNative applies it when combat ends
+		else ns.try("shield timer", native.timer.apply, native.timer) end
+	end
+end
+ns.applyTimers = applyTimers
+
+local function applyLayout()
+	layoutElements()
+	applyTimers()
+	for _, def in ipairs(COOLDOWNS) do styleCooldown(def) end
+	shockPainted = nil   -- the looks may have changed
+	updateShockTint()
 	refreshShockMana()
 	refreshImbue()
 	refreshCooldowns()
 	if not native.container then setupNative() end
 	styleNative()
 	applyEmptyLook()
+	syncReadyTicker()
 end
 
 -- Every lock and unlock goes through here: in combat, locking takes the combat path and unlocking
--- is refused. Returns whether the state changed as asked.
+-- is refused. Returns whether the state changed as asked. Only shamans have anything to position.
 function ns.setLocked(locked)
+	if not isShaman then say("positioning is for shamans only") return false end
 	if InCombatLockdown() then
 		if not locked then say("positioning can't be unlocked in combat") return false end
 		if not acct.locked then ns.lockInCombat() end
@@ -2199,13 +2253,33 @@ local function refreshAll()
 	refreshCooldowns()
 end
 
+-- A cast, a cooldown update and a totem update come in the same frame (three or more events per
+-- cast). SPELL_UPDATE_COOLDOWN refreshes at once (isOnGCD is only vouched for inside it); the others
+-- wait for the next frame, by then with the cast's totem owner, and are skipped if that event came.
+local cooldownsDirty = false
+local function flushCooldowns()
+	cooldownsDirty = false
+	refreshShockCooldown()
+	refreshCooldowns()
+end
+local function flushIfDirty() if cooldownsDirty then flushCooldowns() end end
+local function refreshCooldownsSoon()
+	if cooldownsDirty then return end
+	cooldownsDirty = true
+	C_Timer.After(0, flushIfDirty)
+end
+
 -- Layout edits used by the options window. Each leaves db.groups consistent and relays out.
 local function edit(fn)
 	return function(...)
-		if InCombatLockdown() then say("layout changes wait until combat ends"); return end
+		if InCombatLockdown() then say("layout changes wait until combat ends"); return false end
+		local groups = #db.groups
 		fn(...)
 		pruneGroups()
+		-- Groups renumbered: the selection (an index) would jump to another group.
+		if #db.groups ~= groups then selectedGroup = nil; syncNudger() end
 		layoutElements()
+		return true
 	end
 end
 
@@ -2268,48 +2342,8 @@ local centerGroup = edit(function(gi)
 end)
 
 ------------------------------------------------------------------------
--- Profiles: named sets of settings in acct.profiles. Each character picks one (acct.chars); new
--- characters start on Default.
+-- The active profile (the rest of profiles: ShamanForever_Profiles.lua)
 ------------------------------------------------------------------------
--- "Name-Realm", with the realm's spaces and dashes removed (as GetNormalizedRealmName gives it).
--- Built from GetRealmName every time: GetNormalizedRealmName isn't ready when settings load, and a
--- fallback there wrote a second, spaced key that won at login (the profile chosen later was lost).
--- nil until the game knows the character: on a cold start the name reads "Unknown" when settings
--- load (seen 2026-09-25), so the profile is looked up again at PLAYER_LOGIN.
-local UNKNOWN = _G.UNKNOWNOBJECT or "Unknown"
-local function charKey()
-	local name, realm = UnitName("player"), GetRealmName()
-	if not name or name == "" or name == UNKNOWN then return nil end
-	if realm and realm ~= "" then return name .. "-" .. realm:gsub("[%s%-]", "") end
-end
-
--- Keys saved before that fix, with the realm's spaces: merged into the normalized ones (which hold
--- the latest choice when both exist).
-local function mergeCharKeys()
-	local old = {}
-	for key in pairs(acct.chars) do
-		local realm = key:match("^.-%-(.+)$")
-		if realm and realm:find("[%s%-]") then table.insert(old, key) end
-	end
-	for _, key in ipairs(old) do
-		local name, realm = key:match("^(.-)%-(.+)$")
-		local norm = name .. "-" .. realm:gsub("[%s%-]", "")
-		if acct.chars[norm] == nil then acct.chars[norm] = acct.chars[key] end
-		acct.chars[key] = nil
-	end
-	-- Entries saved under "Unknown" before the name was known: they belong to no one.
-	for key in pairs(acct.chars) do
-		if key:sub(1, #UNKNOWN + 1) == UNKNOWN .. "-" then acct.chars[key] = nil end
-	end
-end
-
--- The profile this character last used (Default if none, or if it was deleted).
-local function savedProfile()
-	local key = charKey()
-	local name = key and acct.chars[key] and acct.chars[key].profile
-	return name and acct.profiles[name] and name or DEFAULT_PROFILE
-end
-
 local function fillDefaults(t, defaults)
 	for k, v in pairs(defaults) do
 		if t[k] == nil then t[k] = type(v) == "table" and CopyTable(v) or v end
@@ -2323,137 +2357,17 @@ local function selectProfile(name)
 	for _, k in ipairs(RETIRED_KEYS) do db[k] = nil end
 	fillDefaults(db, DEFAULTS)
 	sanitize()
-	local key = charKey()
-	if key then
-		acct.chars[key] = acct.chars[key] or {}
-		acct.chars[key].profile = name
-	end
+	ns.Profiles.remember(name)
 end
 
+-- Everything drawn again from the active profile.
 local function redraw()
-	resolveSpells(); applyLayout(); refreshAll()
+	resolveSpells(); ns.applyGlowStyle(); applyLayout(); refreshAll()
 	if ns.RefreshOptions then ns.RefreshOptions() end
 end
 
 local function useProfile(name)
 	selectProfile(name)
-	redraw()
-end
-
-local function profileNames()
-	local t = {}
-	for name in pairs(acct.profiles) do table.insert(t, name) end
-	table.sort(t, function(a, b) return a:lower() < b:lower() end)
-	return t
-end
-
--- Returns an error message, or nil once done.
-local function checkNewName(name)
-	if name == "" then return "a profile needs a name" end
-	if acct.profiles[name] then return "there is already a profile called " .. name end
-end
-
--- source: settings to copy into it, or nil for defaults.
-local function newProfile(name, source)
-	name = strtrim(name or "")
-	local err = checkNewName(name)
-	if err then return err end
-	acct.profiles[name] = source and CopyTable(source) or {}
-	useProfile(name)
-end
-
--- Default keeps its name: it is the profile new characters start on.
-local function renameProfile(name)
-	if profileName == DEFAULT_PROFILE then return end
-	name = strtrim(name or "")
-	local err = checkNewName(name)
-	if err then return err end
-	local old = profileName
-	acct.profiles[name], acct.profiles[old] = acct.profiles[old], nil
-	for _, c in pairs(acct.chars) do if c.profile == old then c.profile = name end end
-	profileName = name
-	if ns.RefreshOptions then ns.RefreshOptions() end
-end
-
--- Deletes the active profile; characters that used it go back to Default, which cannot be deleted.
-local function deleteProfile()
-	local name = profileName
-	if name == DEFAULT_PROFILE then return end
-	acct.profiles[name] = nil
-	for _, c in pairs(acct.chars) do if c.profile == name then c.profile = nil end end
-	useProfile(DEFAULT_PROFILE)
-end
-
--- Sharing: the active profile as text (CBOR, deflated, base64) behind a prefix, and back.
-local SHARE_PREFIX = "!SF1!"
-
-local function exportProfile()
-	local E = C_EncodingUtil
-	if not E then return nil, "sharing needs a newer game client" end
-	local ok, text = pcall(function()
-		local method = Enum.CompressionMethod and Enum.CompressionMethod.Deflate
-		local packed = E.CompressString(E.SerializeCBOR({ v = SETTINGS_VERSION, profile = db }), method)
-		return SHARE_PREFIX .. E.EncodeBase64(packed)
-	end)
-	if not ok then return nil, "export failed: " .. tostring(text) end
-	return text
-end
-
--- Keeps only known settings of the right type from shared text; the rest come from defaults.
-local function cleanProfile(t)
-	local out = {}
-	for k, default in pairs(DEFAULTS) do
-		if type(t[k]) == type(default) then out[k] = t[k] end
-	end
-	-- General's styles are cleaned when read (ShamanForever_Style.lua); so are elements' own.
-	if out.elementOpts then
-		for key, o in pairs(out.elementOpts) do
-			if type(key) ~= "string" or type(o) ~= "table" then out.elementOpts[key] = nil end
-		end
-	end
-	if out.groups then
-		local groups = {}
-		for _, g in ipairs(out.groups) do
-			if type(g) == "table" then
-				local clean = { members = {} }
-				for k, default in pairs(GROUP_DEFAULTS) do
-					if type(g[k]) == type(default) then clean[k] = g[k] end
-				end
-				clean.border = ns.Style.cleanOwn(g.border, "border")
-				for _, key in ipairs(type(g.members) == "table" and g.members or {}) do
-					if type(key) == "string" then table.insert(clean.members, key) end
-				end
-				table.insert(groups, clean)
-			end
-		end
-		out.groups = groups
-	end
-	return out
-end
-
--- Returns the settings in shared text, or nil and why not.
-local function decodeProfile(text)
-	local E = C_EncodingUtil
-	if not E then return nil, "sharing needs a newer game client" end
-	text = (text or ""):gsub("%s", "")
-	if text:sub(1, #SHARE_PREFIX) ~= SHARE_PREFIX then return nil, "that isn't a Shaman Forever profile" end
-	local ok, data = pcall(function()
-		local method = Enum.CompressionMethod and Enum.CompressionMethod.Deflate
-		return E.DeserializeCBOR(E.DecompressString(E.DecodeBase64(text:sub(#SHARE_PREFIX + 1)), method))
-	end)
-	if not ok or type(data) ~= "table" or type(data.profile) ~= "table" then
-		return nil, "that profile text is damaged or incomplete"
-	end
-	if type(data.v) == "number" and data.v > SETTINGS_VERSION then
-		return nil, "that profile needs a newer version of Shaman Forever"
-	end
-	return cleanProfile(data.profile)
-end
-
--- The active profile back to defaults, keeping its name.
-local function resetProfile()
-	wipe(db)
-	selectProfile(profileName)
 	redraw()
 end
 
@@ -2464,10 +2378,7 @@ ns.ELEMENTS, ns.ELEMENT_KEYS, ns.available, ns.findElement = ELEMENTS, ELEMENT_K
 ns.getDB = function() return db end
 ns.getAccount = function() return acct end
 ns.profileName = function() return profileName end
-ns.DEFAULT_PROFILE = DEFAULT_PROFILE
-ns.profileNames, ns.useProfile, ns.newProfile = profileNames, useProfile, newProfile
-ns.renameProfile, ns.deleteProfile, ns.resetProfile = renameProfile, deleteProfile, resetProfile
-ns.exportProfile, ns.decodeProfile = exportProfile, decodeProfile
+ns.useProfile, ns.selectProfile, ns.fillDefaults = useProfile, selectProfile, fillDefaults
 ns.applyLayout, ns.resolveSpells, ns.refreshAll, ns.elementOpts = applyLayout, resolveSpells, refreshAll, elementOpts
 ns.placeElement, ns.splitGroup, ns.hideGroup, ns.centerGroup = placeElement, splitGroup, hideGroup, centerGroup
 ns.setShow, ns.showMode = setShow, showMode
@@ -2491,13 +2402,14 @@ function ns.borderFor(key)
 	return ns.Style.get(gi and db.groups[gi] or nil, "border")
 end
 ns.IMBUES, ns.IMBUE_ORDER, ns.imbueIcon = IMBUES, IMBUE_ORDER, function() return imbueIcon end
-ns.setTestMode = function(on) edit(setTestMode)(on) end
+ns.setTestMode = function(on) return edit(setTestMode)(on) end
 ns.say = say
 
 ------------------------------------------------------------------------
 -- Events
 ------------------------------------------------------------------------
 local ev = CreateFrame("Frame")
+local lastSpells   -- resolveSpells' last signature
 local function reg(event, unit)
 	local ok = pcall(function()
 		if unit then ev:RegisterUnitEvent(event, unit) else ev:RegisterEvent(event) end
@@ -2511,58 +2423,12 @@ reg("PLAYER_LOGIN")
 ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 	if event == "ADDON_LOADED" then
 		if arg1 ~= ADDON then return end
-		ShamanForeverDB = ShamanForeverDB or {}
-		acct = ShamanForeverDB
-		-- Steps 1 to 3 are for saves from before profiles, where every setting sat in ShamanForeverDB.
-		local legacy = acct
-		-- Pre-groups saves: one row or column, with hidden elements in db.enabled.
-		if legacy.groups == nil and (legacy.order or legacy.point) then
-			local g = {}
-			for k, v in pairs(GROUP_DEFAULTS) do if legacy[k] ~= nil then g[k] = legacy[k] else g[k] = v end end
-			g.members, legacy.known = {}, {}
-			for _, key in ipairs(legacy.order or { "shield", "shock" }) do
-				legacy.known[key] = true
-				if not (legacy.enabled and legacy.enabled[key] == false) then table.insert(g.members, key) end
-			end
-			legacy.groups = { g }
-		end
-		if (acct.settingsVersion or 0) < 4 then
-			for _, k in ipairs(LEGACY_KEYS) do legacy[k] = nil end
-		end
-		-- 1: snapping and the grid briefly defaulted to on during 0.2.0 development; start them off
-		-- once, after which the saved choice is kept.
-		if (acct.settingsVersion or 0) < 1 then acct.snap, acct.grid = false, false end
-		-- 2: "only show in combat" moved from the whole display to each group (and element).
-		if (acct.settingsVersion or 0) < 2 then
-			if legacy.combatOnly and type(legacy.groups) == "table" then
-				for _, g in ipairs(legacy.groups) do g.combatOnly = true end
-			end
-			legacy.combatOnly = nil
-		end
-		-- 3: per-element "only in combat" became the element's show mode (always | combat | never).
-		-- Elements hidden by being in no group are placed by sanitize below, set to never.
-		if (acct.settingsVersion or 0) < 3 and type(legacy.elementOpts) == "table" then
-			for _, o in pairs(legacy.elementOpts) do
-				if o.combatOnly then o.show = "combat" end
-				o.combatOnly = nil
-			end
-		end
-		-- 4: profiles. The settings so far become the Default profile, which every character uses.
-		if (acct.settingsVersion or 0) < 4 then
-			local p = {}
-			for k in pairs(DEFAULTS) do p[k], acct[k] = acct[k], nil end
-			acct.profiles = { [DEFAULT_PROFILE] = p }
-		end
-		-- 5 and 6 (timers) had upgrade steps during development; the only save then was the author's.
-		acct.settingsVersion = SETTINGS_VERSION
-		fillDefaults(acct, ACCOUNT_DEFAULTS)
-		acct.totemLifetimes = nil   -- learned lifetimes (0.4.0 and earlier) could be wrong; no longer used
-		mergeCharKeys()
-		selectProfile(savedProfile())   -- a guess on a cold start (no name yet): checked at PLAYER_LOGIN
+		acct = ns.Profiles.load()
+		selectProfile(ns.Profiles.saved())   -- a guess on a cold start (no name yet): checked at PLAYER_LOGIN
 		if ns.BuildOptions then ns.BuildOptions() end
 	elseif event == "PLAYER_LOGIN" then
 		-- The name is known now: switch to this character's own profile if loading couldn't tell.
-		local want = savedProfile()
+		local want = ns.Profiles.saved()
 		if want ~= profileName then selectProfile(want) end
 		if ns.applyIssueReporter then ns.applyIssueReporter() end   -- any class
 		local _, class = UnitClass("player")
@@ -2581,11 +2447,18 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		reg("UNIT_INVENTORY_CHANGED", "player")
 		reg("PLAYER_EQUIPMENT_CHANGED")
 		reg("PLAYER_TOTEM_UPDATE")
-		resolveSpells()
+		-- Tickers first, each refresher on its own: one that errors can't stop the others, and an
+		-- error at login can't leave the HUD without its tickers.
+		C_Timer.NewTicker(0.25, function() ns.try("range refresh", refreshShockRange) end)
+		C_Timer.NewTicker(1, function()
+			ns.try("imbue refresh", refreshImbue)
+			ns.try("cooldown refresh", refreshCooldowns)
+			ns.try("shock refresh", refreshShockCooldown)
+		end)
+		lastSpells = resolveSpells()
+		ns.applyGlowStyle()
 		applyLayout()
 		refreshAll()
-		C_Timer.NewTicker(0.25, refreshShockRange)
-		C_Timer.NewTicker(1, function() refreshImbue(); refreshCooldowns(); refreshShockCooldown() end)
 		root:Show()
 	elseif event == "UNIT_AURA" then
 		refreshShield()
@@ -2601,24 +2474,26 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 			imbueCast(spellID)   -- only to learn an unknown imbue enchant ID
 			totemCast(spellID)
 		end
-		refreshShockCooldown()
-		refreshCooldowns()
+		refreshCooldownsSoon()
 	elseif event == "SPELL_UPDATE_COOLDOWN" then
-		refreshShockCooldown()
-		refreshCooldowns()
+		flushCooldowns()
 	elseif event == "SPELL_UPDATE_USABLE" or event == "UNIT_POWER_UPDATE" then
 		refreshShockMana()
 	elseif event == "PLAYER_TARGET_CHANGED" or event == "SPELL_RANGE_CHECK_UPDATE" then
 		refreshShockRange()
 	elseif event == "PLAYER_TOTEM_UPDATE" then
-		refreshCooldowns()
+		refreshCooldownsSoon()
 	elseif event == "UNIT_INVENTORY_CHANGED" or event == "PLAYER_EQUIPMENT_CHANGED" then
 		refreshImbue()
 	elseif event == "SPELLS_CHANGED" then
-		resolveSpells()
-		applyLayout()
+		-- Fires often (shapeshifts, zoning, ...): a relayout only when a tracked spell changed.
+		local found = resolveSpells()
+		if found ~= lastSpells then lastSpells = found; applyLayout() end
 		refreshAll()
 	elseif event == "PLAYER_REGEN_ENABLED" then
+		-- The shield's container is made out of combat only; if that never happened (a /reload in
+		-- combat), now. Before the layout, so it styles the new button too.
+		if not native.container then setupNative() end
 		if layoutPending then layoutElements() end
 		if nativeStylePending then styleNative() end
 		if filterPending then applyShieldFilter() end
@@ -2627,155 +2502,83 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 end)
 
 ------------------------------------------------------------------------
--- Slash commands
+-- /sf debug (ShamanForever_Slash.lua): what the addon sees right now
 ------------------------------------------------------------------------
-SLASH_SHAMANFOREVER1 = "/sf"
-SLASH_SHAMANFOREVER2 = "/shf"
--- The minimap button (LibDBIcon, as BugSack and most addons use): minimap button collectors such
--- as EllesmereUI's pick it up. Its position and hidden flag live in acct.minimap (account-wide).
--- /sf lock: toggles positioning and says so. Also right-click on the minimap button or drawer entry.
-local function toggleLock()
-	if ns.setLocked(not acct.locked) then
-		say(acct.locked and "positioning locked" or "positioning unlocked: drag groups to move them, /sf lock when done")
+function ns.debugReport()
+	say("shield tracking %s (last %s), believed up %s; shock spell %s (%s), mana spell %s, in combat %s",
+		db.shieldTrack, acct.lastShield, tostring(believedUp), tostring(shockSpellID), db.shock,
+		tostring(manaSpellID), tostring(InCombatLockdown()))
+	for _, key in ipairs(SHIELD_ORDER) do
+		local s = SHIELDS[key]
+		local e = Spells.bookEntry(s.spell)
+		say("%s: %s, spell %s rank %s", s.name, s.known and "known" or "not known", tostring(s.spellID), e and e.rank or "?")
 	end
-end
-local function onLauncherClick(button)
-	if button == "RightButton" then toggleLock()
-	elseif ns.ToggleOptions then ns.ToggleOptions() end
-end
-local function launcherTip(tt)
-	tt:AddLine("Click: options", 1, 0.82, 0)
-	tt:AddLine(acct.locked and "Right-click: unlock positioning" or "Right-click: lock positioning", 1, 0.82, 0)
-end
-
-local minimapIcon
-function ns.applyMinimapButton()
-	local LibStub = _G.LibStub
-	local ldb = LibStub and LibStub("LibDataBroker-1.1", true)
-	local icon = LibStub and LibStub("LibDBIcon-1.0", true)
-	if not (ldb and icon and acct) then return end
-	if type(acct.minimap) ~= "table" then acct.minimap = {} end
-	if not minimapIcon then
-		local obj = ldb:NewDataObject("ShamanForever", {
-			type = "launcher", text = "Shaman Forever", icon = "Interface\\Icons\\Spell_Nature_LightningShield",
-			OnClick = function(_, button) onLauncherClick(button) end,
-			OnTooltipShow = function(tt)
-				tt:AddLine("Shaman Forever")
-				launcherTip(tt)
-			end,
-		})
-		icon:Register("ShamanForever", obj, acct.minimap)
-		minimapIcon = icon
+	-- Every tracked spell: the client's name and the rank known (by spell ID, not name).
+	local known = {}
+	for key in pairs(Spells.DEFS) do
+		local id = Spells.known(key)
+		table.insert(known, string.format("%s=%s", Spells.name(key), id and tostring(id) or "-"))
 	end
-	if acct.minimap.hide then minimapIcon:Hide("ShamanForever") else minimapIcon:Show("ShamanForever") end
-end
-
--- The minimap's addon drawer (Addon Compartment): the TOC names these; a click opens or closes the
--- options, as /sf does.
-_G.ShamanForever_OnAddonCompartmentClick = function(_, button) onLauncherClick(button) end
-_G.ShamanForever_OnAddonCompartmentEnter = function(_, button)
-	GameTooltip:SetOwner(button, "ANCHOR_LEFT")
-	GameTooltip:SetText("Shaman Forever")
-	launcherTip(GameTooltip)
-	GameTooltip:Show()
-end
-_G.ShamanForever_OnAddonCompartmentLeave = function() GameTooltip:Hide() end
-
-SlashCmdList.SHAMANFOREVER = function(msg)
-	local cmd, arg = msg:match("^(%S*)%s*(.-)$")
-	cmd = (cmd or ""):lower()
-	if cmd == "" or cmd == "options" or cmd == "config" then
-		if ns.ToggleOptions then ns.ToggleOptions() else say("options window unavailable") end
-	elseif cmd == "lock" then   -- toggles; /sf unlock still works but is no longer advertised
-		toggleLock()
-	elseif cmd == "unlock" then
-		if ns.setLocked(false) then say("positioning unlocked: drag groups to move them, /sf lock when done") end
-	elseif cmd == "test" then
-		ns.setTestMode(not acct.testMode)
-		say("test elements %s", acct.testMode and "on" or "off")
-	elseif cmd == "debug" then
-		say("shield tracking %s (last %s), believed up %s; shock spell %s (%s), mana spell %s, in combat %s",
-			db.shieldTrack, acct.lastShield, tostring(believedUp), tostring(shockSpellID), db.shock,
-			tostring(manaSpellID), tostring(InCombatLockdown()))
-		for _, key in ipairs(SHIELD_ORDER) do
-			local s, e = SHIELDS[key], book[SHIELDS[key].name]
-			local ids = {} for id in pairs(s.auraIDs) do table.insert(ids, tostring(id)) end table.sort(ids)
-			say("%s: %s, spell %s rank %s, seen IDs %s", s.name, s.known and "known" or "not known",
-				tostring(s.spellID), e and e.rank or "?", #ids > 0 and table.concat(ids, ",") or "none")
+	table.sort(known)
+	say("spells: %s", table.concat(known, ", "))
+	say("aura container %s%s", native.container and "created" or "not created",
+		native.err and (", error: " .. native.err) or "")
+	local t = {} for id in pairs(shieldIDMap()) do table.insert(t, tostring(id)) end table.sort(t)
+	say("tracked spell IDs: %s", table.concat(t, ","))
+	local r = readMainHand()
+	say("main hand imbue now: %s; last ticker read: %s", r == nil and "unreadable" .. (InCombatLockdown() and " (in combat)" or "")
+		or r == false and "none" or string.format("enchant %d, icon %d, %.0fs left", r.enchantID, r.enchantIconID, r.timeLeft / 1000),
+		imbueState.read)
+	for slot = 1, 4 do
+		local ok, have, name, start, duration, icon, modRate, spellID = pcall(GetTotemInfo, slot)
+		say("totem slot %d: %s", slot, ok and string.format("have=%s name=%s start=%s duration=%s icon=%s spellID=%s",
+			describeArg(have), describeArg(name), describeArg(start), describeArg(duration), describeArg(icon), describeArg(spellID))
+			or ("error " .. tostring(have)))
+		local dok, d = pcall(GetTotemDuration, slot)
+		if dok and d then
+			local rok, r = pcall(d.GetRemainingDuration, d)
+			local tok2, t = pcall(d.GetTotalDuration, d)
+			say("  duration object: remaining=%s total=%s", rok and describeArg(r) or "error", tok2 and describeArg(t) or "error")
 		end
-		say("aura container %s%s", native.container and "created" or "not created",
-			native.err and (", error: " .. native.err) or "")
-		local t = {} for id in pairs(shieldIDMap()) do table.insert(t, tostring(id)) end table.sort(t)
-		say("tracked spell IDs: %s", table.concat(t, ","))
-		local r = readMainHand()
-		say("main hand imbue now: %s; last ticker read: %s", r == nil and "unreadable" .. (InCombatLockdown() and " (in combat)" or "")
-			or r == false and "none" or string.format("enchant %d, icon %d, %.0fs left", r.enchantID, r.enchantIconID, r.timeLeft / 1000),
-			imbueState.read)
+	end
+	for _, def in ipairs(COOLDOWNS) do
+		local secret = "?"
+		if def.spellID and C_Secrets and C_Secrets.ShouldTotemSpellBeSecret then
+			local ok, v = pcall(C_Secrets.ShouldTotemSpellBeSecret, def.spellID)
+			secret = ok and describeArg(v) or "error"
+		end
+		local read = def.read == nil and "not checked" or describeArg(def.read)
+		if def.readHow then read = string.format("earth slot timer, by %s, match %s", def.readHow, read)
+		elseif def.needsTotem and type(def.read) ~= "string" and def.read ~= nil then read = "warning alpha " .. read end
+		say("%s: spell %s, totem spell secret=%s, %s", def.spell, tostring(def.spellID), secret, read)
+	end
+	if C_Secrets and C_Secrets.ShouldTotemSlotBeSecret then
+		local t = {}
 		for slot = 1, 4 do
-			local ok, have, name, start, duration, icon, modRate, spellID = pcall(GetTotemInfo, slot)
-			say("totem slot %d: %s", slot, ok and string.format("have=%s name=%s start=%s duration=%s icon=%s spellID=%s",
-				describeArg(have), describeArg(name), describeArg(start), describeArg(duration), describeArg(icon), describeArg(spellID))
-				or ("error " .. tostring(have)))
-			local dok, d = pcall(GetTotemDuration, slot)
-			if dok and d then
-				local rok, r = pcall(d.GetRemainingDuration, d)
-				local tok2, t = pcall(d.GetTotalDuration, d)
-				say("  duration object: remaining=%s total=%s", rok and describeArg(r) or "error", tok2 and describeArg(t) or "error")
-			end
+			local ok, v = pcall(C_Secrets.ShouldTotemSlotBeSecret, slot)
+			t[slot] = ok and describeArg(v) or "error"
 		end
-		for _, def in ipairs(COOLDOWNS) do
-			local secret = "?"
-			if def.spellID and C_Secrets and C_Secrets.ShouldTotemSpellBeSecret then
-				local ok, v = pcall(C_Secrets.ShouldTotemSpellBeSecret, def.spellID)
-				secret = ok and describeArg(v) or "error"
-			end
-			say("%s: spell %s, totem spell secret=%s, %s", def.spell, tostring(def.spellID), secret, def.read or "not checked")
-		end
-		if C_Secrets and C_Secrets.ShouldTotemSlotBeSecret then
-			local t = {}
-			for slot = 1, 4 do
-				local ok, v = pcall(C_Secrets.ShouldTotemSlotBeSecret, slot)
-				t[slot] = ok and describeArg(v) or "error"
-			end
-			say("totem slots secret now: %s", table.concat(t, ", "))
-		end
-		for key, id in pairs(shockIDs) do
-			local ok, usable, noPower = safe(C_Spell.IsSpellUsable, id)
-			local _, r = safe(C_Spell.IsSpellInRange, id, "target")
-			say("%s id %s rank %s usable=%s noPower=%s inRange=%s", SHOCKS[key], tostring(id),
-				book[SHOCKS[key]] and book[SHOCKS[key]].rank or "?", describeArg(usable), describeArg(noPower), describeArg(r))
-		end
-		-- Probe: does Forever have specs or dual spec? Decides whether profiles can follow the spec.
-		local function probe(label, fn, ...)
-			if not fn then return label .. "=missing" end
-			local n = select("#", pcall(fn, ...))
-			local res = { pcall(fn, ...) }
-			if not res[1] then return label .. "=error" end
-			local out = {}
-			for i = 2, n do out[#out + 1] = describeArg(res[i]) end
-			return label .. "=" .. (#out > 0 and table.concat(out, "/") or "nothing")
-		end
-		local spec = C_SpecializationInfo or {}
-		say("profile %s; specs: %s, %s, %s, %s, %s, %s", tostring(profileName),
-			probe("GetSpecialization", _G.GetSpecialization), probe("GetNumSpecializations", _G.GetNumSpecializations),
-			probe("GetActiveSpecGroup", _G.GetActiveSpecGroup), probe("GetNumSpecGroups", GetNumSpecGroups),
-			probe("C_SpecializationInfo.GetSpecialization", spec.GetSpecialization),
-			probe("C_SpecializationInfo.GetActiveSpecGroup", spec.GetActiveSpecGroup))
-		local cur = _G.GetSpecialization and select(2, pcall(_G.GetSpecialization))
-		if type(cur) == "number" and _G.GetSpecializationInfo then
-			say("  current spec: %s", probe("GetSpecializationInfo", _G.GetSpecializationInfo, cur))
-		end
-		if ns.TotemBar then say("%s", ns.TotemBar.debug()) end
-		for gi, g in ipairs(db.groups) do
-			local names = {}
-			for _, key in ipairs(g.members) do
-				local mode = showMode(key)
-				table.insert(names, mode == "always" and key or (key .. " (" .. mode .. ")"))
-			end
-			say("group %d: %s, %s, scale %.2f, opacity %.2f, at %s %.0f,%.0f%s", gi, table.concat(names, ","),
-				g.orientation, g.scale, g.alpha, g.point, g.x, g.y, g.combatOnly and ", combat only" or "")
-		end
-	else
-		say("/sf opens the options. Also: /sf lock (lock or unlock positioning), /sf test (placeholder elements), /sf debug")
+		say("totem slots secret now: %s", table.concat(t, ", "))
 	end
+	for key, id in pairs(shockIDs) do
+		local ok, usable, noPower = safe(C_Spell.IsSpellUsable, id)
+		local _, r = safe(C_Spell.IsSpellInRange, id, "target")
+		local e = Spells.bookEntry(SHOCK_SPELL[key])
+		say("%s id %s rank %s usable=%s noPower=%s inRange=%s", SHOCKS[key], tostring(id),
+			e and e.rank or "?", describeArg(usable), describeArg(noPower), describeArg(r))
+	end
+	say("profile %s", tostring(profileName))
+	if ns.TotemBar then say("%s", ns.TotemBar.debug()) end
+	for gi, g in ipairs(db.groups) do
+		local names = {}
+		for _, key in ipairs(g.members) do
+			local mode = showMode(key)
+			table.insert(names, mode == "always" and key or (key .. " (" .. mode .. ")"))
+		end
+		say("group %d: %s, %s, scale %.2f, opacity %.2f, at %s %.0f,%.0f%s", gi, table.concat(names, ","),
+			g.orientation, g.scale, g.alpha, g.point, g.x, g.y, g.combatOnly and ", combat only" or "")
+	end
+	local errs = ns.errorLines()
+	if #errs == 0 then say("no caught errors")
+	else for _, line in ipairs(errs) do say("caught error: %s", line) end end
 end

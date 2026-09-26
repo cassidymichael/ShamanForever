@@ -11,7 +11,7 @@ More screenshots: [options gallery](docs/gallery/README.md).
 ## Features
 
 - **Elements** for shields, shocks, weapon imbues and totem cooldowns, each with its own look and warning settings, and a live preview in the options. Water Shield tracking is experimental.
-- **Totem bar**: your totems and their timers; left-click drops each element's picked totem, right-click dismisses it, and a picker changes the pick, in combat too. Call of the Elements and Totemic Recall buttons (right-click Recall to dismiss every totem), key bindings, and a flash when a totem is killed early. It can replace either or both of Blizzard's totem bars.
+- **Totem bar**: your totems and their timers; left-click drops each element's picked totem, right-click dismisses it, and a picker changes the pick, in combat too. Call of the Elements and Totemic Recall buttons (right-click Recall to dismiss every totem), key bindings, a flash when a totem is killed early, and a strip that turns red when you're out of range of your own totem's buff. It can replace either or both of Blizzard's totem bars.
 - **Warnings that catch the eye**: pulsing glows and pops for expiring totems, a lost imbue, and spells coming off cooldown.
 - **Timers**: countdown text, swipe and time bar, each on or off and styled, for every cooldown and time left, with defaults for all and overrides per element.
 - **Groups**: arrange elements into rows and columns, each with its own position, scale, opacity and border, or hide elements you don't use.

@@ -17,8 +17,26 @@ local selectedGroup = 1
 
 local function db() return ns.getDB() end
 local function acct() return ns.getAccount() end
-local function relayout() ns.applyLayout() end
-local function respell() ns.resolveSpells(); ns.refreshAll() end
+-- Settings are written at once; the HUD's layout and the page's repaint follow once per frame, so a
+-- slider drag or a colour-picker move lays out once a frame, not once per step. The repaint also
+-- covers combat, where the layout itself waits for combat to end.
+local relayoutQueued = false
+local function relayout()
+	if relayoutQueued then return end
+	relayoutQueued = true
+	C_Timer.After(0, function()
+		relayoutQueued = false
+		ns.applyLayout()
+		ns.RefreshOptions()
+	end)
+end
+-- Timer rows: only the timers take the new look (the full layout when main has no timers-only path).
+local function retime()
+	if not ns.applyTimers then return relayout() end
+	ns.applyTimers()
+	ns.RefreshOptions()
+end
+local function respell() ns.resolveSpells(); ns.refreshAll(); ns.RefreshOptions() end
 
 local function setTip(frame, title, text)
 	if not text then return end
@@ -66,62 +84,21 @@ local function newPage(key, title, indent)
 	return p
 end
 
--- shown: nil, a function (the row is hidden while it returns false), or dimWhen(...): the row only
--- shows while it applies (it used to grey out; with blocks like Same as General greying a dozen
--- rows at once, hiding them reads better).
+-- shown: nil, or a function: the row is hidden while it returns false.
 function Page:add(frame, height, shown, refresh)
-	local dim
-	if type(shown) == "table" then
-		dim = shown
-		local also = dim.shown
-		shown = function() return (not also or also()) and dim.active() and true or false end
-	end
 	-- A page-wide gate (set around a run of rows) hides them all while it returns false.
 	local gate = self.gate
 	if gate then
 		local inner = shown
 		shown = function() return gate() and (not inner or inner()) and true or false end
 	end
-	table.insert(self.items, { frame = frame, height = height, shown = shown, dim = dim, refresh = refresh, rowIndent = self.rowIndent })
+	table.insert(self.items, { frame = frame, height = height, shown = shown, refresh = refresh, rowIndent = self.rowIndent })
 	return frame
 end
 
--- Grey a row out unless active() is true; reason shows in its tooltip.
-local function dimWhen(active, reason, shown) return { active = active, reason = reason, shown = shown } end
-
--- A clear cover over a greyed-out row: swallows clicks and wheel, and says why.
-local function applyDim(frame, dim)
-	local on = dim.active()
-	frame:SetAlpha(on and 1 or 0.4)
-	if not frame.dimCover then
-		local c = CreateFrame("Frame", nil, frame)
-		c:SetAllPoints()
-		c:SetFrameLevel(frame:GetFrameLevel() + 30)
-		c:EnableMouse(true)
-		-- The wheel scrolls the page (it would otherwise stop dead over greyed rows), and never
-		-- reaches the control under the cover.
-		c:EnableMouseWheel(true)
-		c:SetScript("OnMouseWheel", function(self, delta)
-			local sf = self:GetParent()
-			while sf and sf:GetObjectType() ~= "ScrollFrame" do sf = sf:GetParent() end
-			if not sf then return end
-			local handler = sf:GetScript("OnMouseWheel")
-			if handler then handler(sf, delta)
-			else sf:SetVerticalScroll(math.min(math.max(sf:GetVerticalScroll() - delta * 40, 0), sf:GetVerticalScrollRange())) end
-		end)
-		c:SetScript("OnEnter", function(self)
-			local reason = type(dim.reason) == "function" and dim.reason() or dim.reason
-			if not reason then return end
-			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-			-- This client's SetText rejects r, g, b (and HIGHLIGHT_FONT_COLOR); AddLine takes them.
-			GameTooltip:ClearLines()
-			GameTooltip:AddLine(reason, 1, 1, 1, true)
-			GameTooltip:Show()
-		end)
-		c:SetScript("OnLeave", function() GameTooltip:Hide() end)
-		frame.dimCover = c
-	end
-	frame.dimCover:SetShown(not on)
+-- A row that shows only while active() is true (and shown(), if given).
+local function showWhen(active, shown)
+	return function() return (not shown or shown()) and active() and true or false end
 end
 
 function Page:refresh()
@@ -146,7 +123,6 @@ function Page:refresh()
 				end
 			end
 			it.frame:ClearAllPoints()
-			if it.dim then applyDim(it.frame, it.dim) end
 			local indent = it.rowIndent or 0   -- rows inside a panel (Layout's group settings)
 			it.frame:SetPoint("TOPLEFT", self.content, "TOPLEFT", indent, -y)
 			it.frame:SetPoint("TOPRIGHT", self.content, "TOPRIGHT", -indent, -y)
@@ -227,7 +203,7 @@ end
 
 function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown)
 	local f = self:row(34)
-	self:label(f, label, tip)
+	f.label = self:label(f, label, tip)
 	local s = CreateFrame("Frame", nil, f, "MinimalSliderWithSteppersTemplate")
 	s:SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
 	local updating = true
@@ -557,9 +533,9 @@ local function borderRows(p, owner, after, label, shown)
 	local r = styleRows(owner, "border", after)
 	if owner ~= nil then followRow(p, owner, "border", after, label, shown) end
 	local bordered = function() return r.own() and r.style().show end
-	p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"), dimWhen(r.own, nil, shown))
-	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("size"), r.set("size"), dimWhen(bordered, nil, shown))
-	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), dimWhen(bordered, nil, shown))
+	p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"), showWhen(r.own, shown))
+	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("size"), r.set("size"), showWhen(bordered, shown))
+	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), showWhen(bordered, shown))
 end
 
 -- The border a preview icon wears: its owner's.
@@ -579,7 +555,7 @@ local function glowBlock(p, owner, icon)
 		p:anchor("glow")
 		p:text("Every pulsing glow. Elements and the totem bar can have their own.")
 	else followRow(p, owner, "glow", after) end
-	local own = dimWhen(r.own)
+	local own = showWhen(r.own)
 	local f = p:row(64)
 	p:label(f, "Preview")
 	local ic = ns.makeIcon(f, 40, owner)
@@ -608,7 +584,7 @@ local function popBlock(p, owner, icon, kind)
 		p:anchor("pop")
 		p:text("The burst when something happens: a cooldown ready, an imbue dropping, a totem ending. Elements and the totem bar can have their own.")
 	else followRow(p, owner, "pop", after) end
-	local own = dimWhen(r.own)
+	local own = showWhen(r.own)
 	local f = p:row(56)
 	p:label(f, "Try it")
 	ic = ns.makeIcon(f, 40, owner)
@@ -635,13 +611,13 @@ end
 -- note under its header; otherwise an element's own ("totembar" for the totem bar), with Same as General.
 local TEXT_POS = { { "auto", "Auto" }, { "center", "Centre" }, { "topleft", "Top left" }, { "bottom", "Bottom" } }
 local function timerSettings(p, title, key, kind, after, note)
-	after = after or relayout
+	after = after or retime
 	local cant = ns.Timer.cant(key, kind)
 	local r = styleRows(key, kind, after)
 	local style, tg, ts, own = r.style, r.get, r.set, r.own
 	-- A row hides while following General, while its part is off, or when the game can't do it.
 	local function dim(part, needs)
-		return dimWhen(function()
+		return showWhen(function()
 			if cant[part] or not own() then return false end
 			if needs and not style()[needs] then return false end
 			return true
@@ -672,7 +648,7 @@ local function timerSettings(p, title, key, kind, after, note)
 	p:slider("Bar height", nil, 1, 20, 1, px, tg("barHeight"), ts("barHeight"), dim("bar", "bar"))
 	p:dropdown("Bar edge", nil, { { "bottom", "Bottom" }, { "top", "Top" } }, tg("barEdge"), ts("barEdge"), dim("bar", "bar"), 140)
 	p:dropdown("Bar colour", nil, { { true, "Element colour" }, { false, "Custom" } }, tg("barElement"), ts("barElement"), dim("bar", "bar"), 160)
-	p:color("Custom bar colour", nil, tg("barColor"), ts("barColor"), dimWhen(function()
+	p:color("Custom bar colour", nil, tg("barColor"), ts("barColor"), showWhen(function()
 		return not cant.bar and own() and style().bar and not style().barElement
 	end))
 	if not key then ownLine(p, kind) end
@@ -696,7 +672,7 @@ local function groupSet(key) return function(v) local g = selected(); if g then 
 -- Page contents
 ------------------------------------------------------------------------
 local function lockText() return acct().locked and "Unlock positioning" or "Lock positioning" end
-local function toggleLock() ns.setLocked(not acct().locked) end
+local function toggleLock() ns.setLocked(not acct().locked); ns.RefreshOptions() end
 local function lockSub() return acct().locked and "Move groups and the totem bar on screen" or "Done moving? Lock them" end
 
 local aboutExp   -- About's Experimental heading, for ns.ShowExperimental
@@ -1106,7 +1082,7 @@ local function buildLayout(p)
 	p:header("Elements layout")
 	p:text("Shaman Forever calls each indicator an element, and every element sits in one group. Drag elements between groups; click one for a menu.")
 	p:checkbox("Test elements", "Adds placeholder elements in their own group, for trying out layouts.",
-		function() return acct().testMode end, function(v) ns.setTestMode(v) end)
+		function() return acct().testMode end, function(v) ns.setTestMode(v); ns.RefreshOptions() end)
 	p:add(p:row(6), 6)   -- a little room between the heading's line and the group cards
 	buildBoard(p)
 
@@ -1167,13 +1143,13 @@ local function buildLayout(p)
 	p:slider("Opacity", "Transparency of the group. Shift + mouse wheel over the group while unlocked does the same.", 0.1, 1, 0.05, pct,
 		groupGet("alpha"), groupSet("alpha"), hasGroups)
 	borderRows(p, selected, relayout, "Border same as General", hasGroups)
-	p:checkbox("Only show in combat", "Hide this group out of combat. Each element also has its own Show setting (Always, In combat, Never) under Elements; an element shows only when both it and its group allow it. Everything visible shows while the layout is unlocked.",
+	p:checkbox("Only show in combat", "Hide this group out of combat. Each element also has its own Show setting (Always, In combat, Hidden) under Elements; an element shows only when both it and its group allow it. Everything visible shows while the layout is unlocked.",
 		groupGet("combatOnly"), groupSet("combatOnly"), hasGroups)
 	local lastRow = p:buttons({
 		-- Hard to undo, so each asks first.
 		{ "Centre on screen", function() StaticPopup_Show("SHAMANFOREVER_CENTER", selectedGroup, nil, selectedGroup) end, "Moves the group to the middle of the screen.", 130 },
 		{ "Split up", function() StaticPopup_Show("SHAMANFOREVER_SPLIT", selectedGroup, nil, selectedGroup) end, "Gives every element in the group a group of its own, left where it is.", 100 },
-		{ "Hide all", function() StaticPopup_Show("SHAMANFOREVER_HIDEALL", selectedGroup, nil, selectedGroup) end, "Sets every element in the group to never show. They keep their places; set one back to Always to bring it back.", 100 },
+		{ "Hide all", function() StaticPopup_Show("SHAMANFOREVER_HIDEALL", selectedGroup, nil, selectedGroup) end, "Sets every element in the group to Hidden. They keep their places; set one back to Always to bring it back.", 100 },
 	}, hasGroups)
 	p:add(p:row(10), 10, hasGroups)
 	p.rowIndent = nil
@@ -1200,14 +1176,8 @@ end
 ------------------------------------------------------------------------
 -- Totem bar (ShamanForever_TotemBar.lua; design in the workspace's design/totem-bar.md)
 ------------------------------------------------------------------------
--- Every totem on Forever, for the per-totem warning times (rows show only once one is set).
-local TOTEM_NAMES = {
-	"Disease Cleansing Totem", "Earthbind Totem", "Fire Resistance Totem", "Flametongue Totem",
-	"Frost Resistance Totem", "Grace of Air Totem", "Grounding Totem", "Healing Stream Totem",
-	"Magma Totem", "Mana Spring Totem", "Mana Tide Totem", "Nature Resistance Totem",
-	"Poison Cleansing Totem", "Searing Totem", "Sentry Totem", "Stoneclaw Totem", "Stoneskin Totem",
-	"Strength of Earth Totem", "Tremor Totem", "Windfury Totem", "Windwall Totem",
-}
+-- Rows for the per-totem warning times: one per totem given its own time, at most this many.
+local MAX_WARN_ROWS = 32
 
 local function buildTotemBar(p)
 	local TB = ns.TotemBar
@@ -1241,42 +1211,121 @@ local function buildTotemBar(p)
 	p:text("Right-click a totem to dismiss it. Keys: Options > Keybindings > Shaman Forever.", function() return c().mode == "active" end)
 
 	p:header("Layout")
-	-- One row per position in the bar: the element there, whether it shows, and moving it.
+	-- The elements in bar order (first: the left end of a row, the top of a column). Drag one to move
+	-- it; the box shows or hides its slot. The drag follows the group board's: a ghost on the cursor
+	-- and a white line where it will land.
+	local ORDER_H, ORDER_W = 28, 260
+	p:text("Drag to reorder.")
+	local list = p:row(4 * ORDER_H)
+	local rows, dragFrom = {}, nil
+	local ghost = CreateFrame("Frame", nil, UIParent)
+	ghost:SetFrameStrata("TOOLTIP")
+	ghost:SetSize(180, 24)
+	ghost:SetAlpha(0.9)
+	ghost.icon = ghost:CreateTexture(nil, "ARTWORK")
+	ghost.icon:SetSize(20, 20)
+	ghost.icon:SetPoint("LEFT", 2, 0)
+	ghost.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	ghost.text = ghost:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	ghost.text:SetPoint("LEFT", ghost.icon, "RIGHT", 6, 0)
+	ghost:Hide()
+	local line = list:CreateTexture(nil, "OVERLAY", nil, 7)
+	line:SetColorTexture(0.95, 0.95, 0.95, 1)
+	line:SetHeight(2)
+	line:Hide()
+	-- Where the dragged element would land: its place among the other three, by the cursor's height.
+	local function dropAt()
+		local _, cy = GetCursorPosition()
+		local at, others = 1, {}
+		for j, r in ipairs(rows) do
+			if j ~= dragFrom then
+				table.insert(others, r)
+				local _, y = r:GetCenter()
+				if y and y * r:GetEffectiveScale() > cy then at = #others + 1 end
+			end
+		end
+		return at, others
+	end
+	ghost:SetScript("OnUpdate", function(self)
+		local x, y = GetCursorPosition()
+		local sc = self:GetEffectiveScale()
+		self:ClearAllPoints()
+		self:SetPoint("LEFT", UIParent, "BOTTOMLEFT", x / sc + 8, y / sc)
+		local at, others = dropAt()
+		line:ClearAllPoints()
+		if at <= #others then
+			line:SetPoint("BOTTOMLEFT", others[at], "TOPLEFT", 0, 0)
+			line:SetPoint("BOTTOMRIGHT", others[at], "TOPRIGHT", 0, 0)
+		else
+			line:SetPoint("TOPLEFT", others[#others], "BOTTOMLEFT", 0, 0)
+			line:SetPoint("TOPRIGHT", others[#others], "BOTTOMRIGHT", 0, 0)
+		end
+		line:Show()
+	end)
+	local function endDrag(drop)
+		local from = dragFrom
+		dragFrom = nil
+		ghost:Hide()
+		line:Hide()
+		if not from then return end
+		if drop then
+			local at = dropAt()
+			local o = c().order
+			local el = table.remove(o, from)
+			table.insert(o, at, el)
+			changed()
+		end
+		if ns.RefreshOptions then ns.RefreshOptions() end   -- also restores the dimmed row
+	end
+	-- Leaving the page or closing the window mid-drag drops nothing.
+	list:SetScript("OnHide", function() endDrag(false) end)
 	for i = 1, 4 do
-		local f = p:row(30)
-		local cb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+		local r = CreateFrame("Button", nil, list)
+		r:SetSize(ORDER_W, ORDER_H - 2)
+		r:SetPoint("TOPLEFT", list, "TOPLEFT", 0, -(i - 1) * ORDER_H)
+		local bg = r:CreateTexture(nil, "BACKGROUND")
+		bg:SetAllPoints()
+		bg:SetColorTexture(1, 1, 1, 0.06)
+		local hl = r:CreateTexture(nil, "HIGHLIGHT")
+		hl:SetAllPoints()
+		hl:SetColorTexture(1, 1, 1, 0.12)
+		local cb = CreateFrame("CheckButton", nil, r, "UICheckButtonTemplate")
 		cb:SetSize(26, 26)
 		cb:SetPoint("LEFT", 0, 0)
-		cb.Text:SetFontObject("GameFontHighlight")
 		cb:SetScript("OnClick", function(self)
-			c().hidden[c().order[i]] = not self:GetChecked() or nil
+			c().hidden[r.el] = not self:GetChecked() or nil
 			changed()
 		end)
 		setTip(cb, "Slot", "Show this element's slot.")
-		local function mover(text, d, x)
-			local b = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-			b:SetSize(28, 22)
-			b:SetPoint("LEFT", f, "LEFT", LABEL_W + x, 0)
-			b:SetText(text)
-			b:SetScript("OnClick", function()
-				local o = c().order
-				o[i], o[i + d] = o[i + d], o[i]
-				changed()
-			end)
-			return b
-		end
-		local up, down = mover("<", -1, 0), mover(">", 1, 32)
-		p:add(f, 30, nil, function()
-			local el = c().order[i]
-			cb.Text:SetText(TB.NAME[el])
-			cb:SetChecked(not c().hidden[el])
-			up:SetEnabled(i > 1)
-			down:SetEnabled(i < 4)
-			local row = c().dir == "row"
-			up:SetText(row and "<" or "^")
-			down:SetText(row and ">" or "v")
+		r.cb = cb
+		r.icon = r:CreateTexture(nil, "ARTWORK")
+		r.icon:SetSize(20, 20)
+		r.icon:SetPoint("LEFT", cb, "RIGHT", 4, 0)
+		r.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+		r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		r.text:SetPoint("LEFT", r.icon, "RIGHT", 6, 0)
+		r:RegisterForDrag("LeftButton")
+		r:SetScript("OnDragStart", function(self)
+			dragFrom = i
+			self:SetAlpha(0.35)
+			ghost.icon:SetTexture(self.icon:GetTexture())
+			ghost.text:SetText(self.text:GetText())
+			ghost:Show()
 		end)
+		r:SetScript("OnDragStop", function() endDrag(true) end)
+		setTip(r, "Order", "Drag to change where the element sits on the bar.")
+		rows[i] = r
 	end
+	p:add(list, 4 * ORDER_H, nil, function()
+		for i, r in ipairs(rows) do
+			local el = c().order[i]
+			r.el = el
+			r.icon:SetTexture(ns.Look.TOTEM_ICON[el])
+			r.text:SetText(TB.NAME[el])
+			r.cb:SetChecked(not c().hidden[el])
+			r:SetAlpha(1)
+		end
+	end)
 	p:dropdown("Direction", nil, { { "row", "Row" }, { "column", "Column" } }, tget("dir"), function(v)
 		c().dir = v
 		c().pop = v == "row" and "up" or "right"
@@ -1291,12 +1340,12 @@ local function buildTotemBar(p)
 	generalRow(p, "Icon size same as General", "Use the icon size on the General page.",
 		tget("sizeFollow"), function(v) TB.setSizeFollow(v); changed() end, "size")
 	p:slider("Icon size", nil, 24, 96, 1, function(v) return string.format("%d px", v) end, tget("size"), tset("size"),
-		dimWhen(function() return not c().sizeFollow end))
+		showWhen(function() return not c().sizeFollow end))
 	p:dropdown("Call and Recall", "Where they sit on the bar.", { { "ends", "Both ends" }, { "before", "Before the slots" }, { "after", "After the slots" } },
-		tget("extras"), tset("extras"), dimWhen(function() return c().call or c().recall end, nil, full), 180)
+		tget("extras"), tset("extras"), showWhen(function() return c().call or c().recall end, full), 180)
 	p:slider("Call and Recall size", "As a share of the slots' size.", 0.5, 1.5, 0.05,
 		function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end, tget("extrasScale"), tset("extrasScale"),
-		dimWhen(function() return c().call or c().recall end, nil, full))
+		showWhen(function() return c().call or c().recall end, full))
 	p:slider("Scale", "Mouse wheel over the bar while positioning is unlocked does the same.", 0.5, 3, 0.05,
 		function(v) return string.format("%.2f", v) end, tget("scale"), tset("scale"))
 	p:slider("Opacity", "Shift + mouse wheel over the bar while positioning is unlocked does the same.", 0.1, 1, 0.05,
@@ -1307,9 +1356,9 @@ local function buildTotemBar(p)
 	p:checkbox("Left-click casts your pick", "Left-click a slot to drop that element's picked totem.", tget("cast"), tset("cast"))
 	p:checkbox("Arrow opens a totem picker", "A tab on each slot opens its totems. Works in combat.", tget("arrows"), tset("arrows"))
 	p:slider("Arrow size", "How deep the tab is.", 8, 32, 1, function(v) return string.format("%d px", v) end,
-		tget("arrowSize"), tset("arrowSize"), dimWhen(function() return c().arrows end, "Turn on the arrow to use this."))
-	p:checkbox("Call of the Elements", "Shows once you know it.", tget("call"), tset("call"))
-	p:checkbox("Totemic Recall", "Right-click dismisses all totems, even before you learn it.", tget("recall"), tset("recall"))
+		tget("arrowSize"), tset("arrowSize"), showWhen(function() return c().arrows end))
+	p:checkbox(ns.Spells.name("call"), "Shows once you know it.", tget("call"), tset("call"))
+	p:checkbox(ns.Spells.name("recall"), "Right-click dismisses all totems, even before you learn it.", tget("recall"), tset("recall"))
 
 	p.gate = TB.barOn
 	p:header("Border")
@@ -1320,7 +1369,7 @@ local function buildTotemBar(p)
 	p:header("Totem not down")
 	p:dropdown("Look", "How a slot looks while its totem isn't down.",
 		{ { "pick", "Your pick" }, { "frame", "Element colour" }, { "blank", "Blank" } }, tget("empty"), tset("empty"), nil, 180)
-	local pickLook = dimWhen(function() return c().empty == "pick" end)
+	local pickLook = showWhen(function() return c().empty == "pick" end)
 	p:checkbox("Greyed", "Off: the pick in colour.", tget("idleGrey"), tset("idleGrey"), pickLook)
 	p:slider("Opacity", nil, 0.1, 1, 0.05, function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end,
 		tget("idleAlpha"), tset("idleAlpha"), pickLook)
@@ -1330,13 +1379,23 @@ local function buildTotemBar(p)
 	p:checkbox("Show your pick", "When a different totem is down, your pick shows small beside the slot, on the side away from the picker.",
 		tget("offPick"), tset("offPick"))
 	p:slider("Size", nil, 0.25, 0.8, 0.05, function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end,
-		tget("badgeSize"), tset("badgeSize"), dimWhen(tget("offPick")))
+		tget("badgeSize"), tset("badgeSize"), showWhen(tget("offPick")))
 	p:slider("Opacity", nil, 0.1, 1, 0.05, function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end,
-		tget("badgeAlpha"), tset("badgeAlpha"), dimWhen(tget("offPick")))
+		tget("badgeAlpha"), tset("badgeAlpha"), showWhen(tget("offPick")))
 	p:slider("Colour", "0% is grey, 100% full colour.", 0, 1, 0.05, function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end,
-		tget("badgeSat"), tset("badgeSat"), dimWhen(tget("offPick")))
+		tget("badgeSat"), tset("badgeSat"), showWhen(tget("offPick")))
 
 	p.gate = TB.barOn
+	p:header("Out of range")
+	local rangeOn = tget("range")
+	p:checkbox("Show", "A strip along the top of the slot: whether you're getting your own totem's buff, for totems that buff you.",
+		rangeOn, tset("range"))
+	p:slider("Height", "In pixels.", 1, 12, 1, function(v) return string.format("%d px", v) end,
+		tget("rangeHeight"), tset("rangeHeight"), showWhen(rangeOn))
+	p:color("In range", "Colour and opacity. At 0% opacity nothing shows while you're in range.", tget("rangeIn"), tset("rangeIn"), showWhen(rangeOn))
+	p:color("Out of range", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"), showWhen(rangeOn))
+	p:text("A buff lingers a few seconds after you leave its range. Another shaman's totem of the same type can replace your buff, so yours shows as out of range.", rangeOn)
+
 	p:header("Expiring")
 	p:checkbox("Grey icon", "Desaturate the icon.", tget("warnGrey"), tset("warnGrey"))
 	p:checkbox("Red ring", "A red ring inside the icon edge.", tget("warnRing"), tset("warnRing"))
@@ -1346,17 +1405,33 @@ local function buildTotemBar(p)
 	local secs = function(v) return v == 0 and "Off" or string.format("%d s", v) end
 	p:slider("Warn in the last", nil, 0, 30, 1, secs, tget("warn"), tset("warn"))
 	p:text("Totems with their own warning time, instead of the default:", function() return next(c().warnOver) ~= nil end)
-	-- Each totem's own time, with a small X at the end of its row to drop it.
-	for _, name in ipairs(TOTEM_NAMES) do
-		local row = p:slider((name:gsub(" Totem$", "")), nil, 0, 30, 1, secs,
-			function() return c().warnOver[name] or c().warn end,
-			function(v) c().warnOver[name] = v; changed() end,
-			function() return c().warnOver[name] ~= nil end)
+	-- Each totem's own time, with a small X at the end of its row to drop it. Totems are kept by the
+	-- client's name for them (any rank), so row i shows the i-th name in order.
+	local function overName(i)
+		local names = {}
+		for name in pairs(c().warnOver) do table.insert(names, name) end
+		table.sort(names)
+		return names[i]
+	end
+	for i = 1, MAX_WARN_ROWS do
+		local row = p:slider("", nil, 0, 30, 1, secs,
+			function() local name = overName(i); return name and c().warnOver[name] or c().warn end,
+			function(v) local name = overName(i); if name then c().warnOver[name] = v; changed() end end,
+			function() return overName(i) ~= nil end)
+		local item = p.items[#p.items]
+		local refresh = item.refresh
+		item.refresh = function()
+			row.label:SetText(((overName(i) or ""):gsub(" Totem$", "")))
+			refresh()
+		end
 		local x = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
 		x:SetSize(24, 22)
 		x:SetPoint("RIGHT", row, "RIGHT", -2, 0)
 		x:SetText("X")
-		x:SetScript("OnClick", function() c().warnOver[name] = nil; changed() end)
+		x:SetScript("OnClick", function()
+			local name = overName(i)
+			if name then c().warnOver[name] = nil; changed() end
+		end)
 		setTip(x, "Remove", "Use the time above for this totem.")
 	end
 	-- Adding is an action, not a choice kept: plain entries under a prompt, not radio buttons.
@@ -1364,25 +1439,27 @@ local function buildTotemBar(p)
 	local dd = add.dropdown
 	pcall(dd.SetDefaultText, dd, "Choose a totem")
 	dd:SetupMenu(function(_, root)
-		local names = {}
+		local names, seen = {}, {}
 		for slot = 1, 4 do
 			for _, id in ipairs(TB.knownTotems(slot)) do
-				local name = C_Spell.GetSpellName(id)
-				if name and c().warnOver[name] == nil and tContains(TOTEM_NAMES, name) then table.insert(names, name) end
+				local name = ns.Spells.nameOf(id)
+				if name and not seen[name] and c().warnOver[name] == nil then
+					seen[name] = true
+					table.insert(names, name)
+				end
 			end
 		end
 		table.sort(names)
-		local any = #names > 0
 		for _, name in ipairs(names) do
 			root:CreateButton(name, function() c().warnOver[name] = c().warn; changed() end)
 		end
-		if not any then root:CreateTitle("Every totem you know has its own time") end
+		if #names == 0 then root:CreateTitle("Every totem you know has its own time") end
 	end)
 
 	p:header("Killed early")
 	p:checkbox("Flash when a totem dies early", "The dead totem flashes red over its slot. Not when you dismiss it or it runs out.",
 		tget("killed"), tset("killed"))
-	local killedOn = dimWhen(tget("killed"))
+	local killedOn = showWhen(tget("killed"))
 	p:checkbox("Pop", "The slot bursts for a moment.", tget("killedPop"), tset("killedPop"), killedOn)
 	p:checkbox("Pulsing glow", "In red.", tget("killedGlow"), tset("killedGlow"), killedOn)
 	p:checkbox("Cross until recast", "A red cross stays over the slot until you recast it, up to 5 s.", tget("killedMark"), tset("killedMark"), killedOn)
@@ -1502,7 +1579,7 @@ local function killedBlock(p, key)
 	p:header("Killed early")
 	p:checkbox("Flash when it dies early", "The dead totem flashes red over the icon. Not when you dismiss it or it runs out.",
 		eget(key, "killed"), eset(key, "killed"))
-	local on = dimWhen(eget(key, "killed"))
+	local on = showWhen(eget(key, "killed"))
 	p:checkbox("Pop", "The icon bursts for a moment.", eget(key, "killedPop"), eset(key, "killedPop"), on)
 	p:checkbox("Pulsing glow", "In red.", eget(key, "killedGlow"), eset(key, "killedGlow"), on)
 	p:checkbox("Cross until recast", "A red cross stays over the icon until you recast it, up to 5 s.", eget(key, "killedMark"), eset(key, "killedMark"), on)
@@ -1532,17 +1609,17 @@ local function buildShield(p)
 	p:header("Tracking")
 	-- Lightning Shield is the tested default; the Water Shield modes are experimental until tested in game.
 	p:cards("Track", "Only one shield can be active at a time. With one chosen, the other counts as no shield.", {
-		{ "lightning", "Lightning Shield", 136051 },
-		{ "water", "Water Shield", 132315, "Water Shield" },
+		{ "lightning", ns.Spells.name("lightningShield"), 136051 },
+		{ "water", ns.Spells.name("waterShield"), 132315, "Water Shield" },
 		{ "either", "Either", 136051, "Either shield" },
 	}, get("shieldTrack"), set("shieldTrack", respell))
 	p:header("Charges")
 	p:checkbox("Charge bar", "One segment per charge.", get("showBar"), set("showBar"))
 	p:slider("Bar height", nil, 1, 20, 1, function(v) return string.format("%d px", v) end, get("chargeBarHeight"), set("chargeBarHeight"),
-		dimWhen(get("showBar"), "Turn on Charge bar to use this."))
-	p:color("Bar colour", nil, get("chargeBarColor"), set("chargeBarColor"), dimWhen(get("showBar"), "Turn on Charge bar to use this."))
+		showWhen(get("showBar")))
+	p:color("Bar colour", nil, get("chargeBarColor"), set("chargeBarColor"), showWhen(get("showBar")))
 	p:checkbox("Charge number", "Shown for 2 or more charges.", get("showCount"), set("showCount"))
-	local numberOn = dimWhen(get("showCount"), "Turn on Charge number to use this.")
+	local numberOn = showWhen(get("showCount"))
 	p:dropdown("Number position", nil, { { "corner", "Corner" }, { "center", "Centre" } }, get("countPos"), set("countPos"), numberOn)
 	p:slider("Number size", nil, 8, 64, 1, int, get("countSize"), set("countSize"), numberOn)
 
@@ -1571,17 +1648,17 @@ local function buildShock(p)
 	p:header("No mana")
 	p:dropdown("Look", "Out of range wins over this look.", looks, get("manaStyle"), set("manaStyle"))
 	p:slider("Overlay", nil, 0.1, 1, 0.05, pct, get("manaIntensity"), set("manaIntensity"),
-		dimWhen(lookUses("manaStyle", "overlay"), "Choose Overlay or Both as the look to use this."))
+		showWhen(lookUses("manaStyle", "overlay")))
 	p:slider("Tint", nil, 0.1, 1, 0.05, pct, get("manaTint"), set("manaTint"),
-		dimWhen(lookUses("manaStyle", "tint"), "Choose Tint or Both as the look to use this."))
+		showWhen(lookUses("manaStyle", "tint")))
 	p:slider("Ring", "The blue ring, shown even when out of range.", 0.1, 1, 0.05, pct, get("manaRing"), set("manaRing"))
 
 	p:header("Out of range")
 	p:dropdown("Look", nil, looks, get("rangeStyle"), set("rangeStyle"))
 	p:slider("Overlay", nil, 0.1, 1, 0.05, pct, get("rangeIntensity"), set("rangeIntensity"),
-		dimWhen(lookUses("rangeStyle", "overlay"), "Choose Overlay or Both as the look to use this."))
+		showWhen(lookUses("rangeStyle", "overlay")))
 	p:slider("Tint", nil, 0.1, 1, 0.05, pct, get("rangeTint"), set("rangeTint"),
-		dimWhen(lookUses("rangeStyle", "tint"), "Choose Tint or Both as the look to use this."))
+		showWhen(lookUses("rangeStyle", "tint")))
 	timerSettings(p, "Cooldown", "shock", "cooldown")
 	readyBlock(p, "shock", "While it's off cooldown.")
 	effectBlocks(p, "shock")
@@ -1592,7 +1669,8 @@ local function buildImbue(p)
 	warningBlock(p, "No imbue", get("imbueMissingGrey"), set("imbueMissingGrey"), get("imbueMissingRing"), set("imbueMissingRing"),
 		get("imbuePulse"), set("imbuePulse"), function()
 			local cards = { { "last", "Last used", 136086 } }
-			for _, key in ipairs(ns.IMBUE_ORDER) do table.insert(cards, { key, (ns.IMBUES[key].name:gsub(" Weapon", "")), ns.IMBUES[key].icon }) end
+			-- The client's names; " Weapon" is trimmed where it has one (English).
+		for _, key in ipairs(ns.IMBUE_ORDER) do table.insert(cards, { key, (ns.IMBUES[key].name:gsub(" Weapon$", "")), ns.IMBUES[key].icon }) end
 			p:cards("Icon", "Which imbue's icon shows while none is on.", cards, get("imbuePreferred"), set("imbuePreferred"))
 		end)
 	p:checkbox("Pulsing glow", "A glow inside the icon that pulses.", get("imbueGlow"), set("imbueGlow"))
@@ -1628,7 +1706,7 @@ local function buildCooldown(p, def)
 			o.expire[k] = v
 			relayout()
 		end end
-		local on = dimWhen(function() return ns.expireOpts(key).secs > 0 end)
+		local on = showWhen(function() return ns.expireOpts(key).secs > 0 end)
 		p:header("Expiring")
 		p:slider("Warn in the last", "Seconds before the totem runs out. Zero turns the warning off.", 0, 30, 1,
 			function(v) return v == 0 and "Off" or string.format("%d s", v) end, xget("secs"), xset("secs"))
@@ -1711,7 +1789,7 @@ local function buildNav()
 	add("elements", "Elements", ART .. "Elements.tga")
 	for _, p in ipairs(pageOrder) do
 		local e = ns.Look.ELEMENT[p.key]
-		if e and not e.page then add(p.key, e.name, e.icon, true) end
+		if e and not e.page then add(p.key, ns.Look.elementName(p.key), e.icon, true) end
 	end
 	y = y - 4
 	navDivider = ns.Look.divider(win)
@@ -1776,9 +1854,20 @@ local function buildWindow()
 		self.startH = win:GetHeight()
 		self:SetScript("OnUpdate", sizeToCursor)
 	end)
-	grip:SetScript("OnMouseUp", function(self)
-		self:SetScript("OnUpdate", nil)
+	local function endResize()
+		grip:SetScript("OnUpdate", nil)
 		acct().optionsHeight = math.floor(win:GetHeight())
+	end
+	grip:SetScript("OnMouseUp", endResize)
+	-- Closed mid-drag (Escape, the key binding), the release may never come: end a chip drag and a
+	-- resize here, or the ghost stays on the cursor and the height follows it on reopening.
+	win:HookScript("OnHide", function()
+		if board.dragKey then
+			board.dragKey = nil
+			board.ghost:Hide()
+			board.indicator:Hide()
+		end
+		if grip:GetScript("OnUpdate") then endResize() end
 	end)
 	win:SetFrameStrata("DIALOG")
 	win:SetToplevel(true)
@@ -1817,7 +1906,7 @@ confirm("SHAMANFOREVER_CENTER", "Move Group %s to the middle of the screen?\nIts
 	function(gi) ns.centerGroup(gi) end)
 confirm("SHAMANFOREVER_SPLIT", "Split Group %s into one group per element?\nPutting them back together is done by hand.", "Split up",
 	function(gi) ns.splitGroup(gi) end)
-confirm("SHAMANFOREVER_HIDEALL", "Hide every element in Group %s?\nEach one's Show setting becomes Never.", "Hide all",
+confirm("SHAMANFOREVER_HIDEALL", "Hide every element in Group %s?\nEach one's Show setting becomes Hidden.", "Hide all",
 	function(gi) ns.hideGroup(gi) end)
 
 StaticPopupDialogs["SHAMANFOREVER_RESET"] = {
@@ -1997,7 +2086,8 @@ end
 function ns.OpenOptions(page, groupIndex)
 	if not ns.getDB() then return end
 	if not win then buildWindow() end
-	if SettingsPanel and SettingsPanel:IsShown() then pcall(HideUIPanel, SettingsPanel) end
+	-- In combat HideUIPanel is blocked (and says so); Settings then stays open under the window.
+	if SettingsPanel and SettingsPanel:IsShown() and not InCombatLockdown() then HideUIPanel(SettingsPanel) end
 	if groupIndex then selectedGroup = groupIndex end
 	win:Show()
 	local last = acct().optionsPage

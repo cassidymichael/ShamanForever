@@ -45,7 +45,11 @@ S.register("border", {
 	path = { "border" },
 })
 
-local function isColor(v) return type(v) == "table" and type(v[1]) == "number" and type(v[2]) == "number" and type(v[3]) == "number" end
+-- { r, g, b } or { r, g, b, a }: numbers only (a shared profile can hold anything).
+local function isColor(v)
+	return type(v) == "table" and type(v[1]) == "number" and type(v[2]) == "number" and type(v[3]) == "number"
+		and (v[4] == nil or type(v[4]) == "number")
+end
 
 -- A clean copy of t: every field of def, taken from t where it has the right type.
 local function clean(t, def)
@@ -53,7 +57,7 @@ local function clean(t, def)
 	for k, v in pairs(def) do
 		local x   -- not `type(t) == "table" and t[k]`: with no t, that false would win over a true default
 		if type(t) == "table" then x = t[k] end
-		if type(v) == "table" then out[k] = isColor(x) and { x[1], x[2], x[3], x[4] or 1 } or CopyTable(v)
+		if type(v) == "table" then out[k] = isColor(x) and { x[1], x[2], x[3], type(x[4]) == "number" and x[4] or 1 } or CopyTable(v)
 		elseif type(x) == type(v) then out[k] = x
 		else out[k] = v end
 	end
@@ -172,8 +176,8 @@ function S.ownerName(owner)
 		return "A group"
 	end
 	if owner == "totembar" then return "Totem bar" end
-	local e = ns.Look and ns.Look.ELEMENT[owner]
-	return e and e.name or owner
+	if ns.Look and ns.Look.elementName then return ns.Look.elementName(owner) end
+	return owner
 end
 
 -- Everything with its own style for a kind (names, in the options' order): General's "Own style" line.

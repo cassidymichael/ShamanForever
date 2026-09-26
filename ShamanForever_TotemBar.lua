@@ -6,18 +6,22 @@
 -- secure snippet (they are broken on Forever):
 -- * slot button: right-click "destroytotem" (totem-slot), left-click "action" on the element's
 --   multi-cast action slot, so it casts whatever the element's pick is, and follows it.
--- * arrow tab: a press-and-hold button. Press sets SecureStateDriverManager's "setframe" to the
---   element's popout, release clicks a helper that sets "setstate" to "state-visibility show".
---   This opens the popout in combat too. Right-click on the tab closes it the same way.
--- * popout: "multispell" buttons (spell 0 is "No totem") that change the pick; on release they
---   click the helper that hides the popout.
+-- * arrow tab: a press-and-hold button whose release opens the element's popout (right-click:
+--   closes it) through SecureStateDriverManager: "setframe" names the popout, "setstate" shows or
+--   hides it. This works in combat too.
+-- * popout: "multispell" buttons (spell 0 is "No totem") that change the pick; on release they run
+--   a macro that /clicks two helpers: one points "setframe" at their own popout, the other hides
+--   it. "setframe" is shared by every state driver in the game, so a release never trusts what an
+--   earlier press left there. The arrow tab, the catch button behind an open popout and Alt+click
+--   on a slot release the same way.
 -- Layout, attributes and anything that shows, hides or moves a secure button change only out of
--- combat; changes asked for in combat wait for it to end. Drawing sits on plain frames over the
--- secure buttons, so it can change any time.
+-- combat; changes asked for in combat wait for it to end. Every layout, and the end of combat,
+-- closes any open picker. Drawing sits on plain frames over the secure buttons, so it can change
+-- any time.
 -- In combat, which totem is in a slot is secret: its icon is drawn by handing the secret icon to
 -- SetTexture, timers come from the slot's duration object, and warnings are the remaining time
--- through a curve into SetAlpha. The totem's name (for per-totem warning times) comes from our own
--- casts (ns.totemNameInSlot).
+-- through a curve into SetAlpha. Which totem it is (per-totem warning times, "not your pick") comes
+-- from our own casts (ns.totemSpellInSlot), by spell ID.
 
 local _, ns = ...
 
@@ -66,16 +70,34 @@ TB.DEFAULTS = {
 	warnGlow = true,          -- a pulsing glow inside the slot (the bar's glow style)
 	expiredPop = true,        -- the totem pops and fades the moment it runs out
 	warn = 10,                -- seconds before the end (0 = off)
-	warnOver = { ["Earthbind Totem"] = 5, ["Stoneclaw Totem"] = 5 },   -- totem name -> seconds, instead of warn (short-lived ones)
+	-- Totem -> seconds, instead of warn (short-lived ones). Keyed by the client's rank-less spell
+	-- name; the defaults (Earthbind and Stoneclaw, 5 s) are filled by cfg(), in the client's language.
+	warnOver = {},
 	killed = true,            -- flash when a totem dies with time left, made of:
 	killedPop = true,         --   the slot bursts bigger for a moment
 	killedGlow = true,        --   a red glow around the slot
 	killedMark = true,        --   a red cross over the slot until it is recast, up to 5 s
+	range = true,             -- a strip along the top: are you in range of your own totem's buff (ShamanForever_TotemRange.lua)
+	rangeHeight = 4,          --   its height in physical pixels
+	rangeIn = { 0.2, 0.8, 0.25, 0 },       --   with the buff (0: nothing shows in range)
+	rangeOut = { 0.9, 0.12, 0.08, 0.85 },  --   without it
 }
 
-local function isSecret(v) return issecretvalue and issecretvalue(v) or false end
+local isSecret = ns.isSecret
 
--- The profile's bar settings, with defaults filled and wrong types reset (imported profiles).
+-- Number settings: the options sliders' ranges. Anything outside (a damaged or hand-made import)
+-- is clamped, so layout() never gets a scale of 0 or a NaN.
+local RANGES = {
+	scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { 0, 20 }, size = { 24, 96 },
+	arrowSize = { 8, 32 }, extrasScale = { 0.5, 1.5 }, idleAlpha = { 0.1, 1 },
+	badgeSize = { 0.25, 0.8 }, badgeAlpha = { 0.1, 1 }, badgeSat = { 0, 1 }, warn = { 0, 30 }, rangeHeight = { 1, 12 },
+}
+local POINTS = { CENTER = true, TOP = true, BOTTOM = true, LEFT = true, RIGHT = true,
+	TOPLEFT = true, TOPRIGHT = true, BOTTOMLEFT = true, BOTTOMRIGHT = true }
+local function finite(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
+local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
+
+-- The profile's bar settings, with defaults filled and wrong types or values reset (imported profiles).
 local cfgTable
 local function cfg()
 	local db = ns.getDB()
@@ -92,9 +114,22 @@ local function cfg()
 		t.enabled, t.hideTotemFrame, t.hideActionBar, t.killedPulse, t.follow = nil, nil, nil, nil, nil
 		if t.mode ~= "blizzard" and t.mode ~= "active" and t.mode ~= "everything" then t.mode = nil end
 		if t.show ~= "always" and t.show ~= "active" and t.show ~= "combat" then t.show = nil end
+		-- The default per-totem times, by the client's names (English until they have loaded; the
+		-- lookup in warnSecs also takes the English name, so either works).
+		if type(t.warnOver) ~= "table" then
+			t.warnOver = { [ns.Spells.name("earthbind")] = 5, [ns.Spells.name("stoneclaw")] = 5 }
+		end
 		for k, v in pairs(TB.DEFAULTS) do
 			if type(t[k]) ~= type(v) then t[k] = type(v) == "table" and CopyTable(v) or v end
 		end
+		for k, r in pairs(RANGES) do
+			if type(t[k]) == "number" then
+				if t[k] ~= t[k] then t[k] = TB.DEFAULTS[k] else t[k] = clamp(t[k], r) end
+			end
+		end
+		if not finite(t.x) then t.x = TB.DEFAULTS.x end
+		if not finite(t.y) then t.y = TB.DEFAULTS.y end
+		if not POINTS[t.point] then t.point, t.x, t.y = TB.DEFAULTS.point, TB.DEFAULTS.x, TB.DEFAULTS.y end
 		local seen, order = {}, {}
 		for _, el in ipairs(t.order) do
 			if SLOT[el] and not seen[el] then seen[el] = true; table.insert(order, el) end
@@ -102,9 +137,16 @@ local function cfg()
 		for _, el in ipairs(ELEMENTS) do if not seen[el] then table.insert(order, el) end end
 		t.order = order
 		for name, v in pairs(t.warnOver) do
-			if type(name) ~= "string" or type(v) ~= "number" then t.warnOver[name] = nil end
+			if type(name) ~= "string" or type(v) ~= "number" or v ~= v then t.warnOver[name] = nil
+			else t.warnOver[name] = clamp(v, RANGES.warn) end
 		end
 		if type(t.size) ~= "number" then t.size = nil end
+		for _, k in ipairs({ "rangeIn", "rangeOut" }) do
+			local v = t[k]
+			local ok = type(v) == "table" and type(v[1]) == "number" and type(v[2]) == "number" and type(v[3]) == "number"
+				and (v[4] == nil or type(v[4]) == "number")
+			if not ok then t[k] = CopyTable(TB.DEFAULTS[k]) end
+		end
 		cfgTable = t
 	end
 	return t
@@ -113,8 +155,13 @@ TB.cfg = cfg
 
 -- What the mode allows: our bar at all (active or everything), and the Buttons settings (everything).
 -- Only shamans get the bar: for any other class it stays hidden and Blizzard's frames are left alone.
-local function isShaman() return select(2, UnitClass("player")) == "SHAMAN" end
+local playerClass   -- cached once known: it never changes
+local function isShaman()
+	if not playerClass then playerClass = select(2, UnitClass("player")) end
+	return playerClass == "SHAMAN"
+end
 local function barOn() return isShaman() and cfg().mode ~= "blizzard" end
+TB.isShaman = isShaman
 local function feat(key) local c = cfg(); return barOn() and c.mode == "everything" and c[key] or false end
 TB.barOn, TB.feat = barOn, feat
 
@@ -132,30 +179,24 @@ end
 
 -- An element's multi-cast action slot (Call of the Elements' page, the first set).
 local function multiAction(slot)
-	local ok, bar = pcall(C_ActionBar.GetMultiCastBarIndex)
+	local ok, bar = ns.try("totem bar: multi-cast page", C_ActionBar.GetMultiCastBarIndex)
 	if not ok or type(bar) ~= "number" or isSecret(bar) then bar = 12 end
 	return (bar - 1) * 12 + slot
 end
 
--- A spell's rank number (1 when it has none), from its subtext ("Rank 2").
-local function rankOf(id)
-	local ok, sub = pcall(C_Spell.GetSpellSubtext, id)
-	return ok and type(sub) == "string" and tonumber(sub:match("(%d+)")) or 1
-end
-
 -- The totems known for an element, by spell ID, in Blizzard's order; a totem known at several
--- ranks is listed once, at its highest.
+-- ranks (one name in the client's language) is listed once, at its highest.
 local function knownTotems(slot)
 	if not GetMultiCastTotemSpells then return {} end
 	local ok, ids = pcall(function() return { GetMultiCastTotemSpells(slot) } end)
 	if not ok then return {} end
 	local out, at = {}, {}
 	for _, id in ipairs(ids) do
-		local name = C_Spell.GetSpellName(id)
+		local name = ns.Spells.nameOf(id)
 		if name then
 			local i = at[name]
 			if not i then table.insert(out, id); at[name] = #out
-			elseif rankOf(id) > rankOf(out[i]) then out[i] = id end
+			elseif ns.Spells.rank(id) > ns.Spells.rank(out[i]) then out[i] = id end
 		end
 	end
 	return out
@@ -171,20 +212,33 @@ bar:SetPoint("CENTER", 0, -120)
 bar:SetFrameStrata("MEDIUM")
 bar:Hide()
 
--- Helpers the arrow tabs and pickers click to show or hide the popout named in setframe.
-local function stateHelper(value)
-	local h = CreateFrame("Button", nil, UIParent, "SecureActionButtonTemplate")
+-- Helpers: invisible secure buttons that each write one attribute on SecureStateDriverManager when
+-- clicked, with Blizzard's own "attribute" action (no snippet). They act on the release
+-- (useOnKeyDown false), which is what both a "click" action and a macro's /click send. Their
+-- attributes have no modifier or button suffix, so they apply whatever modifier is held.
+-- Named, so a macro can /click them.
+local function attributeHelper(name, attr, value)
+	local h = CreateFrame("Button", name, UIParent, "SecureActionButtonTemplate")
+	h:RegisterForClicks("AnyDown", "AnyUp")
 	h:SetAttribute("useOnKeyDown", false)
 	h:SetAttribute("type", "attribute")
 	h:SetAttribute("attribute-frame", SecureStateDriverManager)
-	h:SetAttribute("attribute-name", "setstate")
-	h:SetAttribute("attribute-value", "state-visibility " .. value)
+	h:SetAttribute("attribute-name", attr)
+	h:SetAttribute("attribute-value", value)
 	return h
 end
-local showHelper, hideHelper = stateHelper("show"), stateHelper("hide")
+-- Show or hide whatever frame "setframe" names right now. Every release that opens or closes a picker
+-- (arrow tab, catch button, picker, Alt+click) reaches them through a macro that first clicks the
+-- element's target helper (below).
+-- Short names: an arrow's open macro clicks nine of these, and macro text is kept under 255 characters.
+local SHOW_HELPER, HIDE_HELPER = "SFTotemPickShow", "SFTotemPickHide"
+local function targetName(el) return "SFTotemPick" .. NAME[el] end
+attributeHelper(SHOW_HELPER, "setstate", "state-visibility show")   -- used by name, from macros
+attributeHelper(HIDE_HELPER, "setstate", "state-visibility hide")
 
 
 local slots = {}   -- element -> slot record
+TB.slots, TB.frame = slots, bar
 
 local function edgeRing(parent, anchor)
 	local ring = {}
@@ -217,11 +271,15 @@ for _, el in ipairs(ELEMENTS) do
 	-- "alt-type1" is more specific, so it still wins.
 	b:SetAttribute("*type2", "destroytotem")
 	b:SetAttribute("totem-slot", slot)
+	-- Alt+left-click. The press points "setframe" at the popout (its main job is to take Alt's press
+	-- away from "*type1", which would cast). The release doesn't trust that: Alt may have been
+	-- pressed only after a plain press, or anything may have moved "setframe" since. Its macro
+	-- points "setframe" at the popout again and then shows it (the macro text is set below, once
+	-- the popout's target helper exists; layout() turns both off outside Everything).
 	b:SetAttribute("alt-type1", "attribute")
 	b:SetAttribute("alt-attribute-frame1", SecureStateDriverManager)
 	b:SetAttribute("alt-attribute-name1", "setframe")
-	b:SetAttribute("alt-typerelease1", "click")
-	b:SetAttribute("alt-clickbutton1", showHelper)
+	b:SetAttribute("alt-typerelease1", "macro")
 	s.button = b
 
 	-- What the player sees, on a plain frame over the button.
@@ -277,20 +335,25 @@ for _, el in ipairs(ELEMENTS) do
 	a:SetDuration(0.6)
 	a:SetSmoothing("IN_OUT")
 	v.warn.pulse = pulse
+	-- A looping animation doesn't come back by itself after the bar was hidden (state driver,
+	-- Alt+Z): restart it whenever the layer shows again, if it is on (layout() sets pulseOn).
+	v.warn:SetScript("OnShow", function(w) if w.pulseOn then w.pulse:Play() end end)
 	-- Glow: a pulsing glow inside the slot's edges; under the same gate as the rest.
 	v.warn.glowF = ns.makeGlow(v.warn, v, "totembar")
 
 	-- Arrow tab (secure) and its look (plain, shown while the mouse is over the slot or the tab).
 	local ar = CreateFrame("Button", nil, bar, "SecureActionButtonTemplate")
+	-- Above the open picker's catch button (layoutArrow sets the level), so another slot's arrow
+	-- opens its picker in one click (its open macro closes the others first).
+	ar:SetFrameStrata("HIGH")
 	ar:RegisterForClicks("AnyUp", "AnyDown")
 	ar:SetAttribute("pressAndHoldAction", true)
 	ar:SetAttribute("type", "attribute")
 	ar:SetAttribute("attribute-frame", SecureStateDriverManager)
 	ar:SetAttribute("attribute-name", "setframe")
-	ar:SetAttribute("*typerelease1", "click")
-	ar:SetAttribute("*clickbutton1", showHelper)
-	ar:SetAttribute("*typerelease2", "click")
-	ar:SetAttribute("*clickbutton2", hideHelper)
+	-- Release: the popout's open (left) or close (right) macro, set below once they exist.
+	ar:SetAttribute("*typerelease1", "macro")
+	ar:SetAttribute("*typerelease2", "macro")
 	s.arrow = ar
 	local av = CreateFrame("Frame", nil, bar, "BackdropTemplate")
 	av:SetAllPoints(ar)
@@ -319,8 +382,8 @@ for _, el in ipairs(ELEMENTS) do
 	pop.buttons = {}
 	s.popout = pop
 	b:SetAttribute("alt-attribute-value1", pop)
-	-- While the popout is open, a click anywhere else (left or right, the arrow tab included) lands
-	-- on this invisible, screen-wide button under the pickers, and closes it the same way.
+	-- While the popout is open, a click anywhere else (left or right; not the arrow tabs, which sit
+	-- above it) lands on this invisible, screen-wide button under the pickers, and closes it the same way.
 	local catch = CreateFrame("Button", nil, pop, "SecureActionButtonTemplate")
 	catch:SetAllPoints(UIParent)
 	catch:SetFrameLevel(pop:GetFrameLevel() + 1)
@@ -330,11 +393,46 @@ for _, el in ipairs(ELEMENTS) do
 	catch:SetAttribute("attribute-frame", SecureStateDriverManager)
 	catch:SetAttribute("attribute-name", "setframe")
 	catch:SetAttribute("attribute-value", pop)
-	catch:SetAttribute("typerelease", "click")
-	catch:SetAttribute("clickbutton", hideHelper)
+	catch:SetAttribute("typerelease", "macro")   -- the close macro, set below
 	pop.catch = catch
+	-- Over its own arrow tab while open: a click there closes it (the tab itself would reopen it).
+	local closer = CreateFrame("Button", nil, pop, "SecureActionButtonTemplate")
+	closer:SetAllPoints(ar)
+	closer:RegisterForClicks("AnyUp", "AnyDown")
+	closer:SetAttribute("useOnKeyDown", false)
+	closer:SetAttribute("type", "macro")   -- the close macro, set below
+	pop.closer = closer
 	RegisterStateDriver(pop, "visibility", "hide")
 	ar:SetAttribute("attribute-value", pop)
+	-- The popout's target helper points "setframe" at this popout. A release that opens or closes
+	-- it runs one of these macros: target first, then show or hide, so it can only ever act on this
+	-- popout, whatever "setframe" held before (another element's popout, our bar or HUD frames after
+	-- a layout, another addon's frame).
+	local target = targetName(el)
+	attributeHelper(target, "setframe", pop)
+	-- Opening closes the other pickers first (a click on another slot's arrow while one is open).
+	local open = {}
+	for _, other in ipairs(ELEMENTS) do
+		if other ~= el then table.insert(open, "/click " .. targetName(other) .. "\n/click " .. HIDE_HELPER) end
+	end
+	table.insert(open, "/click " .. target .. "\n/click " .. SHOW_HELPER)
+	s.openMacro = table.concat(open, "\n")
+	s.closeMacro = "/click " .. target .. "\n/click " .. HIDE_HELPER
+	b:SetAttribute("alt-macrotext1", s.openMacro)
+	-- The arrow tab and the catch button re-target on release too: a layout between their press and
+	-- release (out of combat) re-points "setframe".
+	ar:SetAttribute("*macrotext1", s.openMacro)
+	ar:SetAttribute("*macrotext2", s.closeMacro)
+	catch:SetAttribute("macrotext", s.closeMacro)
+	closer:SetAttribute("macrotext", s.closeMacro)
+end
+
+-- Close every picker (out of combat only). Its own driver stays "show" once opened, so a picker is
+-- otherwise hidden only through the bar, and would come back open, with its screen-wide catch
+-- button, the next time the bar shows.
+local function closePopouts()
+	if InCombatLockdown() then return end
+	for _, el in ipairs(ELEMENTS) do RegisterStateDriver(slots[el].popout, "visibility", "hide") end
 end
 
 ------------------------------------------------------------------------
@@ -345,11 +443,15 @@ end
 -- action per click, so "dismiss all" runs a macro that /clicks four dismiss helpers; /click sends a
 -- release, so those act on release. That dismisses without a spell: no global cooldown, no mana back.
 ------------------------------------------------------------------------
-local CALL, RECALL = 66842, 36936
+local CALL, RECALL = ns.Spells.DEFS.call.ids[1], ns.Spells.DEFS.recall.ids[1]
 _G.BINDING_HEADER_SHAMANFOREVER_TOTEMS = "Totems"
-_G["BINDING_NAME_CLICK ShamanForeverKeyCall:LeftButton"] = C_Spell.GetSpellName(CALL) or "Call of the Elements"
-_G["BINDING_NAME_CLICK ShamanForeverKeyRecall:LeftButton"] = C_Spell.GetSpellName(RECALL) or "Totemic Recall"
 _G["BINDING_NAME_CLICK ShamanForeverKeyDismissAll:LeftButton"] = "Dismiss all totems"
+-- In the client's language; again at login, as names can come late on a cold start.
+local function nameBindings()
+	_G["BINDING_NAME_CLICK ShamanForeverKeyCall:LeftButton"] = ns.Spells.name("call")
+	_G["BINDING_NAME_CLICK ShamanForeverKeyRecall:LeftButton"] = ns.Spells.name("recall")
+end
+nameBindings()
 
 local function keyButton(name, kind)
 	local b = CreateFrame("Button", name, UIParent, "SecureActionButtonTemplate")
@@ -420,54 +522,48 @@ function TB.extraTexture(key) return C_Spell.GetSpellTexture(key == "Call" and C
 function TB.extraLearned(key) return knows(key == "Call" and CALL or RECALL) end
 
 -- Hover: the arrow tab's look shows while the mouse is over the slot, the tab or the open popout.
-local function hover(s)
+-- arrows: feat("arrows"), when the caller already has it.
+local function hover(s, arrows)
+	if arrows == nil then arrows = feat("arrows") end
 	local over = s.button:IsMouseOver() or s.arrow:IsMouseOver() or (s.popout:IsShown() and s.popout:IsMouseOver())
-	s.arrowVis:SetAlpha((over or s.popout:IsShown()) and feat("arrows") and 1 or 0)
+	s.arrowVis:SetAlpha((over or s.popout:IsShown()) and arrows and 1 or 0)
 end
 
 ------------------------------------------------------------------------
 -- Drawing (any time, combat included)
 ------------------------------------------------------------------------
--- Remaining time -> 1 inside the last `secs` seconds, else 0. One curve per value.
-local warnCurves = {}
-local function warnCurve(secs)
-	if not (C_CurveUtil and C_CurveUtil.CreateCurve) or secs <= 0 then return nil end
-	local c = warnCurves[secs]
-	if not c then
-		c = C_CurveUtil.CreateCurve()
-		if Enum and Enum.LuaCurveType then c:SetType(Enum.LuaCurveType.Linear) end
-		c:AddPoint(0, 0)   -- run out (an expired duration can linger): no warning
-		c:AddPoint(0.05, 1)
-		c:AddPoint(secs, 1)
-		c:AddPoint(secs + 0.05, 0)
-		warnCurves[secs] = c
-	end
-	return c
-end
--- Remaining time -> 0 once it has run out (an expired duration object may linger).
-local liveCurve
-if C_CurveUtil and C_CurveUtil.CreateCurve then
-	liveCurve = C_CurveUtil.CreateCurve()
-	if Enum and Enum.LuaCurveType then liveCurve:SetType(Enum.LuaCurveType.Linear) end
-	liveCurve:AddPoint(0, 0)
-	liveCurve:AddPoint(0.05, 1)
-end
-
--- The totem's name, if known: our own cast, or out of combat the slot itself.
--- The element's pick, by name (nil for "No totem").
-local function pickName(slot)
-	local ok, kind, id = pcall(GetActionInfo, multiAction(slot))
+-- The element's pick, by spell ID (nil for "No totem").
+local function pickSpell(slot)
+	local ok, kind, id = ns.try("totem bar: pick", GetActionInfo, multiAction(slot))
 	if not ok or isSecret(kind) or isSecret(id) or kind ~= "spell" or type(id) ~= "number" then return nil end
-	return C_Spell.GetSpellName(id)
+	return id
 end
 
--- Without its rank: the slot names a rank 2 Stoneclaw "Stoneclaw Totem II", its spell "Stoneclaw Totem".
-local function totemName(slot)
-	local ok, _, n = pcall(GetTotemInfo, slot)
-	if not (ok and not isSecret(n) and type(n) == "string" and n ~= "") then
-		n = ns.totemNameInSlot and ns.totemNameInSlot(slot)
+-- The totem down in a slot, by spell ID: our own last cast into it (exact, in combat too), else, out
+-- of combat, the slot's own spell ID (after a /reload, before we have cast). Never the slot's name:
+-- right after a cast it can still be the previous totem's. nil when unknown.
+local function downSpell(slot)
+	local id = ns.totemSpellInSlot and ns.totemSpellInSlot(slot)
+	if id then return id end
+	if InCombatLockdown() then return nil end
+	local ok, _, _, _, _, _, _, sid = ns.try("totem bar: totem info", GetTotemInfo, slot)
+	if ok and not isSecret(sid) and type(sid) == "number" and sid > 0 then return sid end
+end
+TB.downSpell = downSpell
+
+-- A totem's own warning time (warnOver), else the bar's. warnOver is keyed by the client's rank-less
+-- spell name; for the spells the addon tracks, the English name counts too (older profiles, and
+-- defaults filled before the client's names had loaded).
+local function warnSecs(c, id)
+	if not id then return c.warn end
+	local name = ns.Spells.nameOf(id)
+	local v = name and c.warnOver[name]
+	if v == nil then
+		local key = ns.Spells.keyOf(id)
+		local def = key and ns.Spells.DEFS[key]
+		v = def and c.warnOver[def.en]
 	end
-	return n and (n:gsub(" [IVX]+$", ""))
+	return v or c.warn
 end
 
 local anyDown = false
@@ -478,14 +574,15 @@ function TB.alphas(s)
 	local d, v = s.dur, s.vis
 	if not d then return end
 	if s.curve then
-		local ok, a = pcall(d.EvaluateRemainingDuration, d, s.curve)
+		local ok, a = ns.try("totem bar: warning", d.EvaluateRemainingDuration, d, s.curve)
 		if ok then v.warn:SetAlpha(a) else v.warn:SetAlpha(0) end
 	else v.warn:SetAlpha(0) end
 	local tbar = s.timer.bar
-	if liveCurve and tbar:IsShown() then
-		local ok, a = pcall(d.EvaluateRemainingDuration, d, liveCurve)
+	if ns.CURVE_LIVE and tbar:IsShown() then
+		local ok, a = ns.try("totem bar: time bar", d.EvaluateRemainingDuration, d, ns.CURVE_LIVE)
 		if ok then tbar:SetAlpha(a) end
 	end
+	if TB.range then TB.range.alphas(s) end
 end
 
 local slotEmptied   -- Killed early, below
@@ -493,13 +590,13 @@ local slotEmptied   -- Killed early, below
 local function drawSlot(s)
 	local c, v = cfg(), s.vis
 	local was = s.dur   -- a slot that had a totem and now has none ended it: see slotEmptied
-	local ok, d = pcall(GetTotemDuration, s.slot)
+	local ok, d = ns.try("totem bar: duration", GetTotemDuration, s.slot)
 	if ok and d then
 		-- A totem is down.
-		local iok, _, _, _, _, icon = pcall(GetTotemInfo, s.slot)
+		local iok, _, _, _, _, icon = ns.try("totem bar: totem info", GetTotemInfo, s.slot)
 		if iok and (isSecret(icon) or icon) then
-			pcall(v.icon.SetTexture, v.icon, icon)
-			pcall(v.warn.grey.SetTexture, v.warn.grey, icon)
+			ns.try("totem bar: icon", v.icon.SetTexture, v.icon, icon)
+			ns.try("totem bar: icon", v.warn.grey.SetTexture, v.warn.grey, icon)
 			s.killed:setIcon(icon)
 			s.expired:setIcon(icon)
 		end
@@ -509,16 +606,16 @@ local function drawSlot(s)
 		v.icon:SetAlpha(1)
 		v.bg:SetColorTexture(0, 0, 0, 1)
 		s.timer:set(d)
-		-- Not the element's pick? Only when both are known: the totem down (our cast, or its name out
-		-- of combat) and a pick (not "No totem").
-		local pick = c.offPick and c.mode == "everything" and pickName(s.slot)
-		local down = pick and totemName(s.slot)
-		if down and down ~= pick then
-			pcall(s.badge.icon.SetTexture, s.badge.icon, GetActionTexture(multiAction(s.slot)))
+		-- Not the element's pick? Only when both are known: the totem down (see downSpell) and a pick
+		-- (not "No totem"); any rank of the pick counts as the pick.
+		local down = downSpell(s.slot)
+		local pick = down and c.offPick and c.mode == "everything" and pickSpell(s.slot)
+		if pick and not ns.Spells.same(down, pick) then
+			ns.try("totem bar: badge", s.badge.icon.SetTexture, s.badge.icon, GetActionTexture(multiAction(s.slot)))
 			s.badge:Show()
 		else s.badge:Hide() end
 		s.dur = d
-		s.curve = warnCurve(c.warnOver[totemName(s.slot) or ""] or c.warn)
+		s.curve = ns.lastSeconds(warnSecs(c, down))
 		TB.alphas(s)
 		return true
 	end
@@ -534,7 +631,7 @@ local function drawSlot(s)
 	v:SetAlpha(c.mode == "everything" and 1 or 0)
 	local tex = c.empty == "pick" and GetActionTexture and GetActionTexture(multiAction(s.slot))
 	if isSecret(tex) or tex then
-		pcall(v.icon.SetTexture, v.icon, tex)
+		ns.try("totem bar: pick icon", v.icon.SetTexture, v.icon, tex)
 		v.icon:SetDesaturated(c.idleGrey)
 		v.icon:SetAlpha(c.idleAlpha)
 		v.bg:SetColorTexture(0, 0, 0, 0.6 * c.idleAlpha)
@@ -555,10 +652,22 @@ local function drawAll()
 		local s = slots[el]
 		s.down = drawSlot(s)
 		if s.down then down = true end
+		if TB.range then TB.range.draw(s) end
 	end
 	anyDown = down
 end
 TB.draw = drawAll
+
+-- Redraw (any time), and when the first totem goes down or the last one goes, the bar's driver
+-- for "In combat or a totem down" (out of combat only).
+local layout, pending   -- Layout, below
+local function redraw()
+	local wasDown = anyDown
+	drawAll()
+	if anyDown ~= wasDown and cfg().show == "active" then
+		if InCombatLockdown() then pending = true else layout() end
+	end
+end
 
 -- The warnings follow the remaining time, so they are re-evaluated a few times a second.
 local ticker = CreateFrame("Frame")
@@ -568,9 +677,10 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 	if self.t < 0.1 then return end
 	self.t = 0
 	if not bar:IsShown() then return end
+	local arrows = feat("arrows")
 	for _, el in ipairs(ELEMENTS) do
 		local s = slots[el]
-		hover(s)
+		hover(s, arrows)
 		if s.down then TB.alphas(s) end
 	end
 end)
@@ -588,15 +698,24 @@ local function totemFrameOurs()
 	return name == "PlayerFrame" or name:find("^PlayerFrame") ~= nil or name:find("ManagedFrame") ~= nil
 end
 local totemFrameHidden = false
-local function applyTotemFrame()
-	if not TotemFrame or not totemFrameOurs() then return end
-	local hide = barOn()
-	if not hide and not totemFrameHidden then return end
+local function setTotemFrameHidden(hide)
 	totemFrameHidden = hide
 	TotemFrame:SetAlpha(hide and 0 or 1)
 	for _, child in ipairs({ TotemFrame:GetChildren() }) do
 		if child.EnableMouse and not (child.IsProtected and child:IsProtected()) then child:EnableMouse(not hide) end
 	end
+end
+local function applyTotemFrame()
+	if not TotemFrame then return end
+	if not totemFrameOurs() then
+		-- Another addon took it over after we had hidden it (EllesmereUI's totem bar switched on
+		-- mid-session): give it back visible. TotemFrame isn't protected, so this is fine in combat.
+		if totemFrameHidden then setTotemFrameHidden(false) end
+		return
+	end
+	local hide = barOn()
+	if not hide and not totemFrameHidden then return end
+	setTotemFrameHidden(hide)
 end
 if TotemFrame and TotemFrame.Update then hooksecurefunc(TotemFrame, "Update", applyTotemFrame) end
 
@@ -619,15 +738,18 @@ end
 ------------------------------------------------------------------------
 -- Layout (out of combat only)
 ------------------------------------------------------------------------
-local pending = false
+pending = false
 local mover
+local saidWait = false   -- "changes wait until combat ends" said this combat
+local classDone = false  -- not a shaman: laid out hidden once, nothing more to do
 
 local POP_STEP = 3
-local function layoutPopout(s, size)
+-- known: the element's knownTotems, from layout().
+local function layoutPopout(s, size, known)
 	local c, pop = cfg(), s.popout
 	local slot = s.slot
-	local ids = knownTotems(slot)
-	table.insert(ids, 1, 0)   -- "No totem" first, nearest the slot (as Blizzard's)
+	local ids = { 0 }   -- "No totem" first, nearest the slot (as Blizzard's)
+	for _, id in ipairs(known) do table.insert(ids, id) end
 	local psz = math.floor(size * 0.8 + 0.5)
 	local action = multiAction(slot)
 	for i, id in ipairs(ids) do
@@ -637,8 +759,10 @@ local function layoutPopout(s, size)
 			p:RegisterForClicks("AnyUp", "AnyDown")
 			p:SetAttribute("pressAndHoldAction", true)
 			p:SetAttribute("*type1", "multispell")   -- right-click has no press action: it only closes
-			p:SetAttribute("typerelease", "click")
-			p:SetAttribute("clickbutton", hideHelper)
+			-- Release (any button, any modifier): point "setframe" at this popout, then hide it. See
+			-- the popout's target helper.
+			p:SetAttribute("typerelease", "macro")
+			p:SetAttribute("macrotext", s.closeMacro)
 			p:SetFrameLevel(pop:GetFrameLevel() + 5)
 			p.icon = p:CreateTexture(nil, "ARTWORK")
 			p.icon:SetAllPoints()
@@ -683,7 +807,6 @@ local function layoutPopout(s, size)
 	elseif c.pop == "down" then pop:SetSize(psz + 2 * POP_STEP, len); pop:SetPoint("TOP", s.button, "BOTTOM", 0, -tab - 4)
 	elseif c.pop == "right" then pop:SetSize(len, psz + 2 * POP_STEP); pop:SetPoint("LEFT", s.button, "RIGHT", tab + 4, 0)
 	else pop:SetSize(len, psz + 2 * POP_STEP); pop:SetPoint("RIGHT", s.button, "LEFT", -tab - 4, 0) end
-	if not feat("arrows") then RegisterStateDriver(pop, "visibility", "hide") end
 end
 
 -- The badge sits opposite the picker: below a row whose pickers open up, and so on.
@@ -716,6 +839,10 @@ local function layoutArrow(s)
 	elseif c.pop == "right" then ar:SetPoint("TOPLEFT", b, "TOPRIGHT", 1, -1); ar:SetPoint("BOTTOMLEFT", b, "BOTTOMRIGHT", 1, 1); ar:SetWidth(tab)
 	else ar:SetPoint("TOPRIGHT", b, "TOPLEFT", -1, -1); ar:SetPoint("BOTTOMRIGHT", b, "BOTTOMLEFT", -1, 1); ar:SetWidth(tab) end
 	ar:SetShown(feat("arrows"))
+	-- Above every open picker's catch button (same strata), below the picker's own buttons and its
+	-- closer over this tab.
+	ar:SetFrameLevel(s.popout.catch:GetFrameLevel() + 2)
+	s.popout.closer:SetFrameLevel(ar:GetFrameLevel() + 1)
 	local g = s.arrowVis.glyph
 	g:SetSize(math.max(tab * 1.1, 10), math.max(tab * 0.6, 6))
 	g:SetRotation(({ up = 0, down = math.pi, right = -math.pi / 2, left = math.pi / 2 })[c.pop])
@@ -732,20 +859,24 @@ local function visibilityDriver()
 end
 local lastDriver
 
-local function layout()
+function layout()
 	if InCombatLockdown() then pending = true return end
 	pending = false
+	if classDone then return end
+	-- Any open picker closes first: a layout can hide the bar or a slot under it (it would come back
+	-- open later), and our own driver registrations below move "setframe".
+	closePopouts()
 	local c = cfg()
 	local size, border = look()
-	local shown = {}
+	local shown, known = {}, {}
 	for _, el in ipairs(c.order) do
 		local s = slots[el]
-		local known = #knownTotems(s.slot) > 0 or not GetMultiCastTotemSpells
-		local on = barOn() and not c.hidden[el] and known
+		known[el] = knownTotems(s.slot)
+		local on = barOn() and not c.hidden[el] and (#known[el] > 0 or not GetMultiCastTotemSpells)
 		s.button:SetShown(on)
 		s.vis:SetShown(on)
 		if not on then s.killed.mark:Hide() end   -- a slot taken off the bar takes its cross along
-		if on then table.insert(shown, s) else s.arrow:Hide(); s.arrowVis:Hide(); RegisterStateDriver(s.popout, "visibility", "hide") end
+		if on then table.insert(shown, s) else s.arrow:Hide(); s.arrowVis:Hide() end
 	end
 	local row = c.dir == "row"
 	if row and c.pop ~= "up" and c.pop ~= "down" then c.pop = "up" end
@@ -790,19 +921,21 @@ local function layout()
 		-- Alt+click picks only in Everything (in Active totems an empty slot is invisible).
 		local pickByAlt = barOn() and cfg().mode == "everything"
 		b:SetAttribute("alt-type1", pickByAlt and "attribute" or nil)
-		b:SetAttribute("alt-typerelease1", pickByAlt and "click" or nil)   -- else its release would show the last picker
+		b:SetAttribute("alt-typerelease1", pickByAlt and "macro" or nil)   -- off: Alt+click casts like a plain click
 		b:SetAttribute("action", multiAction(s.slot))
 		castKeys[s.el]:SetAttribute("action", multiAction(s.slot))
 		if ns.applyBorder then ns.applyBorder(s.vis, border) end
 		s.timer:apply()
-		s.vis.warn.grey:SetShown(c.warnGrey)
-		for _, t in ipairs(s.vis.warn.ring) do t:SetShown(c.warnRing) end
-		if c.warnPulse then s.vis.warn.pulse:Play() else s.vis.warn.pulse:Stop(); s.vis.warn.dim:SetAlpha(0) end
-		s.vis.warn.glowF:fit(size)
-		s.vis.warn.glowF:SetShown(c.warnGlow)
+		local w = s.vis.warn
+		w.grey:SetShown(c.warnGrey)
+		for _, t in ipairs(w.ring) do t:SetShown(c.warnRing) end
+		w.pulseOn = c.warnPulse   -- OnShow restarts it after the bar was hidden
+		if c.warnPulse then w.pulse:Play() else w.pulse:Stop(); w.dim:SetAlpha(0) end
+		w.glowF:fit(size)
+		w.glowF:SetShown(c.warnGlow)
 		layoutArrow(s)
 		layoutBadge(s, size, border)
-		layoutPopout(s, size)
+		layoutPopout(s, size, known[s.el])
 	end
 	long = math.max(long, size)
 	local across = (#before + #after > 0) and math.max(size, esz) or size
@@ -812,6 +945,7 @@ local function layout()
 	bar:SetAlpha(c.alpha)
 	bar:ClearAllPoints()
 	bar:SetPoint(c.point, UIParent, c.point, c.x / c.scale, c.y / c.scale)
+	if TB.range then TB.range.layout(size) end   -- after the scale: its height is in physical pixels
 	drawAll()
 	local driver = visibilityDriver()
 	if driver ~= lastDriver then
@@ -821,10 +955,17 @@ local function layout()
 	applyTotemFrame()
 	applyActionBar()
 	if mover then mover.update() end
+	-- Not a shaman: the bar is laid out hidden; nothing else will change that.
+	if playerClass and not isShaman() then classDone = true end
 end
 TB.layout = layout
 
 -- Settings changed (options page): relayout now, or when combat ends.
+-- The slots' timers take their current style (General's or the bar's own). Plain frames, so any time.
+function TB.applyTimers()
+	for _, el in ipairs(ELEMENTS) do slots[el].timer:apply() end
+end
+
 function TB.apply()
 	cfgTable = nil
 	-- Crosses go at once when switched off (plain frames: fine in combat, unlike the layout).
@@ -834,7 +975,11 @@ function TB.apply()
 	end
 	if InCombatLockdown() then
 		pending = true
-		ns.say("totem bar changes wait until combat ends")
+		-- Once per combat: sliders call this on every step.
+		if not saidWait then
+			saidWait = true
+			ns.say("totem bar changes wait until combat ends")
+		end
 	end
 	layout()
 end
@@ -877,9 +1022,8 @@ end)
 mover:SetScript("OnMouseWheel", function(self, delta)
 	if InCombatLockdown() then return end
 	local c = cfg()
-	local function clamp(v, lo, hi) return math.min(math.max(math.floor(v * 100 + 0.5) / 100, lo), hi) end
-	if IsShiftKeyDown() then c.alpha = clamp(c.alpha + delta * 0.05, 0.1, 1)
-	else c.scale = clamp(c.scale + delta * 0.05, 0.5, 3) end
+	local function step(key) c[key] = clamp(math.floor((c[key] + delta * 0.05) * 100 + 0.5) / 100, RANGES[key]) end
+	step(IsShiftKeyDown() and "alpha" or "scale")
 	layout()
 	self.label:SetText(string.format("Totem bar: scale %.2f, opacity %.0f%%", c.scale, c.alpha * 100))
 	if ns.RefreshOptions then ns.RefreshOptions() end
@@ -960,7 +1104,7 @@ local function recalled() for slot = 1, 4 do dismissedAt[slot] = GetTime() end e
 function slotEmptied(s, was)
 	C_Timer.After(0.1, function()
 		local mine = dismissedAt[s.slot] and GetTime() - dismissedAt[s.slot] < 1.5
-		local ok, d = pcall(GetTotemDuration, s.slot)
+		local ok, d = ns.try("totem bar: duration", GetTotemDuration, s.slot)
 		local refilled = ok and d ~= nil
 		if mine or refilled then return end
 		if ns.onTotemGone then ns.onTotemGone(s.slot, was) end   -- Earthbind / Stoneclaw elements
@@ -977,27 +1121,57 @@ for _, e in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_TOTEM_UPDA
 	pcall(ev.RegisterEvent, ev, e)
 end
 pcall(ev.RegisterUnitEvent, ev, "UNIT_SPELLCAST_SUCCEEDED", "player")
+-- After one of our casts: redraw once the main file has recorded which totem went into which slot
+-- (ns.totemSpellInSlot; its handler may run after ours), so the order of this event and
+-- PLAYER_TOTEM_UPDATE no longer matters. Plain frames only, so fine in combat.
+local casts, redrawQueued = {}, false   -- spell IDs cast since the last check
+local function redrawAfterCast(spell)
+	casts[spell] = true
+	if redrawQueued then return end
+	redrawQueued = true
+	C_Timer.After(0, function()
+		redrawQueued = false
+		local totem = not ns.totemSpellInSlot   -- can't tell: redraw anyway
+		for slot = 1, 4 do
+			local id = not totem and ns.totemSpellInSlot(slot)
+			if id and casts[id] then totem = true end
+		end
+		wipe(casts)
+		if totem then redraw() end
+	end)
+end
+
 ev:SetScript("OnEvent", function(_, event, arg1, ...)
 	if not ns.getDB() then return end
-	if event == "PLAYER_TOTEM_UPDATE" then
-		local wasDown = anyDown
-		for _, el in ipairs(ELEMENTS) do slots[el].down = drawSlot(slots[el]) end
-		local down = false
-		for _, el in ipairs(ELEMENTS) do if slots[el].down then down = true end end
-		anyDown = down
-		-- "In combat or a totem down": the driver changes out of combat only.
-		if down ~= wasDown and cfg().show == "active" then
-			if InCombatLockdown() then pending = true else layout() end
+	if not isShaman() and playerClass then
+		-- Only shamans get the bar: lay it out hidden once, then stop listening.
+		layout()
+		if classDone then
+			ev:UnregisterAllEvents()
+			ticker:SetScript("OnUpdate", nil)
 		end
+		return
+	end
+	if event == "PLAYER_TOTEM_UPDATE" then
+		redraw()
 	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
 		local _, spell = ...   -- unit, castGUID, spellID
-		if not isSecret(spell) and spell == RECALL then recalled() end
+		if isSecret(spell) or type(spell) ~= "number" then return end
+		if ns.Spells.keyOf(spell) == "recall" then recalled() end
+		redrawAfterCast(spell)
 	elseif event == "ACTIONBAR_SLOT_CHANGED" then
+		-- The element's multi-cast slots, or 0 (every slot).
 		local base = multiAction(1) - 1
-		if not isSecret(arg1) and type(arg1) == "number" and arg1 > base and arg1 <= base + 12 then drawAll() end
+		if not isSecret(arg1) and type(arg1) == "number" and (arg1 == 0 or (arg1 > base and arg1 <= base + 12)) then redraw() end
 	elseif event == "PLAYER_REGEN_ENABLED" then
-		if pending then layout() elseif mover then mover.update() end
+		saidWait = false
+		if pending then layout()
+		else
+			closePopouts()   -- a picker opened in combat and left open (layout() does this too)
+			if mover then mover.update() end
+		end
 	else
+		if event == "PLAYER_LOGIN" or event == "SPELLS_CHANGED" then nameBindings() end
 		layout()
 	end
 end)

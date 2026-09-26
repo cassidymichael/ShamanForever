@@ -1,7 +1,9 @@
--- Beta only: tames Blizzard's "Issue Reporter" button (Blizzard_PTRFeedback). It saves its position
--- in its own SavedVariables, which this beta never loads, so it returns to the middle of the screen
--- on every login. We keep the position in our settings instead and hand it back, and can hide it.
-local ADDON, ns = ...
+-- Beta only: tames Blizzard's "Issue Reporter" button (Blizzard_PTRFeedback), and can hide it. It
+-- saves its position in its own SavedVariables, which the beta didn't load before build 70009, so it
+-- came back to the middle of the screen on every login; we keep a copy in our settings and hand it
+-- back. Since 70009 its own save may be enough: check (move it with ShamanForever off, restart) before
+-- dropping the copy.
+local _, ns = ...
 
 local hooked = false
 

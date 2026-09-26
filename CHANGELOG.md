@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0 (2026-09-26)
+
+- Totem bar: out of range. A strip along the top of a slot turns red while one of your totems is down but you aren't getting its buff, in combat too. For totems that buff you, such as Strength of Earth, Stoneskin and Healing Stream. On by default; set its height and colours (with opacity, including one for in range) on the totem bar page.
+- Totem bar: with a picker open, clicking another slot's arrow opens that picker in one click.
+- Fixed: picking a totem could hide the totem bar until the end of a fight, and a picker left open could come back with the bar and swallow the next click.
+- Fixed: the expiring warning covered the cooldown sweep and numbers on Fire Nova, Earthbind and Stoneclaw.
+- Fixed: a fight that started while positioning was unlocked blocked clicks, camera turning and zoom over your groups.
+- Spells are recognised by their ID instead of their English name, so Shaman Forever should work in other game languages (its options stay in English).
+- Minor: drag and drop to order the totem bar's elements, the totem bar preview lists its states down the side, options changed in combat show at once, less work per frame, and fixes.
+
 ## 0.6.2 (2026-09-25)
 
 - Elements and the totem bar can have their own glow and pop style, or keep using General's ("Same as General" on their pages). Groups and the totem bar can do the same with their border, and the totem bar's icon size is set separately from its border.

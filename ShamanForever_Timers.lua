@@ -73,15 +73,6 @@ end
 ------------------------------------------------------------------------
 -- The widget
 ------------------------------------------------------------------------
--- Remaining time -> 0 once run out: an expired duration object can linger on the bar.
-local liveCurve
-if C_CurveUtil and C_CurveUtil.CreateCurve then
-	liveCurve = C_CurveUtil.CreateCurve()
-	if Enum and Enum.LuaCurveType then liveCurve:SetType(Enum.LuaCurveType.Linear) end
-	liveCurve:AddPoint(0, 0)
-	liveCurve:AddPoint(0.05, 1)
-end
-
 local Timer = {}
 Timer.__index = Timer
 local fonts = 0
@@ -196,12 +187,13 @@ end
 function Timer:set(d)
 	if not d then return self:clear() end
 	self.last = d
-	pcall(self.cd.SetCooldownFromDurationObject, self.cd, d, true)
+	ns.try("timer cooldown", self.cd.SetCooldownFromDurationObject, self.cd, d, true)
 	local bar = self.bar
 	if bar and self.barOn then
-		pcall(bar.SetTimerDuration, bar, d, TIMER_IMMEDIATE, TIMER_REMAINING)
-		if liveCurve then
-			local ok, a = pcall(d.EvaluateRemainingDuration, d, liveCurve)
+		ns.try("timer bar", bar.SetTimerDuration, bar, d, TIMER_IMMEDIATE, TIMER_REMAINING)
+		-- 0 once run out: an expired duration object can linger on the bar.
+		if ns.CURVE_LIVE then
+			local ok, a = ns.try("timer bar alpha", d.EvaluateRemainingDuration, d, ns.CURVE_LIVE)
 			if ok then bar:SetAlpha(a) else bar:SetAlpha(1) end
 		end
 		bar:Show()
@@ -212,7 +204,7 @@ end
 function Timer:setTime(start, length)
 	if C_DurationUtil and C_DurationUtil.CreateDuration then
 		self.own = self.own or C_DurationUtil.CreateDuration()
-		local ok = pcall(self.own.SetTimeFromStart, self.own, start, length)
+		local ok = ns.try("timer time", self.own.SetTimeFromStart, self.own, start, length)
 		if ok then return self:set(self.own) end
 	end
 	self.cd:SetCooldown(start, length)
@@ -246,28 +238,15 @@ end
 
 ------------------------------------------------------------------------
 -- Expiring: a warning over the icon in a timer's last seconds (grey icon, red ring, fade in and
--- out, pulsing glow, any mix). Its alpha is the remaining time through a curve (1 inside the last `secs`, else 0), so it
--- works in combat; evaluated ten times a second for every timer that has one.
+-- out, pulsing glow, any mix). Its alpha is the remaining time through a curve (1 inside the last
+-- `secs`, else 0: ns.lastSeconds), so it works in combat; evaluated ten times a second for every
+-- timer that has one. It sits just above the icon, below the cooldowns and their countdowns, so
+-- those stay readable (the totem bar does the same).
 ------------------------------------------------------------------------
-local expireCurves = {}
-local function expireCurve(secs)
-	if not (C_CurveUtil and C_CurveUtil.CreateCurve) then return nil end
-	local c = expireCurves[secs]
-	if not c then
-		c = C_CurveUtil.CreateCurve()
-		if Enum and Enum.LuaCurveType then c:SetType(Enum.LuaCurveType.Linear) end
-		c:AddPoint(0, 0)   -- run out (an expired duration can linger): no warning
-		c:AddPoint(0.05, 1)
-		c:AddPoint(secs, 1)
-		c:AddPoint(secs + 0.05, 0)
-		expireCurves[secs] = c
-	end
-	return c
-end
-
 local warning = {}   -- timers with an expiry warning
-local ticker = CreateFrame("Frame")
+local ticker = CreateFrame("Frame")   -- shown only while some timer has a warning
 ticker.t = 0
+ticker:Hide()
 ticker:SetScript("OnUpdate", function(self, elapsed)
 	self.t = self.t + elapsed
 	if self.t < 0.1 then return end
@@ -275,8 +254,9 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 	for t in pairs(warning) do
 		local d = t.last
 		if d then
+			-- pcall, not ns.try: this runs ten times a second and must not allocate.
 			local ok, a = pcall(d.EvaluateRemainingDuration, d, t.expCurve)
-			if ok then t.exp:SetAlpha(a) else t.exp:SetAlpha(0) end
+			if ok then t.exp:SetAlpha(a) else t.exp:SetAlpha(0); ns.noteError("timer expiring", a) end
 		else t.exp:SetAlpha(0) end
 	end
 end)
@@ -286,16 +266,25 @@ T.EXPIRE_ELEMENT = { firenova = { glow = false } }   -- elements that start diff
 
 -- e: { secs, grey, ring, pulse, glow } (secs 0 turns it off); icon: the texture the grey copy shows.
 function Timer:setExpire(e, icon)
-	if not e or e.secs <= 0 or not expireCurve(e.secs) then
+	if not e or e.secs <= 0 or not ns.lastSeconds(e.secs) then
 		warning[self] = nil
-		if self.exp then self.exp:SetAlpha(0) end
+		if next(warning) == nil then ticker:Hide() end
+		local x = self.exp
+		if x then
+			x:SetAlpha(0)
+			x.pulseOn = false
+			x.pulse:Stop(); x.dim:SetAlpha(0)
+			x.glow:Hide()
+		end
 		return
 	end
 	local x = self.exp
 	if not x then
+		-- On the timer's parent (so an owner's alpha still gates it), but at the icon's level + 1:
+		-- below the cooldowns, which the caller keeps above it.
 		x = CreateFrame("Frame", nil, self.parent)
 		x:SetAllPoints(self.anchor)
-		x:SetFrameLevel(self.cd:GetFrameLevel() + 1)
+		x:SetFrameLevel(self.anchor:GetFrameLevel() + 1)
 		x:SetAlpha(0)
 		x.grey = x:CreateTexture(nil, "ARTWORK")
 		x.grey:SetAllPoints()
@@ -324,6 +313,8 @@ function Timer:setExpire(e, icon)
 		a:SetToAlpha(0.55)
 		a:SetDuration(0.6)
 		a:SetSmoothing("IN_OUT")
+		-- A hidden ancestor (combat-only visibility, Alt-Z) stops the pulse; start it again on show.
+		x:SetScript("OnShow", function(s) if s.pulseOn then s.pulse:Play() end end)
 		x.glow = ns.makeGlow(x, self.anchor, self.key)   -- ShamanForever.lua; made on first use, after it has loaded
 		self.exp = x
 	end
@@ -332,7 +323,20 @@ function Timer:setExpire(e, icon)
 	if icon then x.grey:SetTexture(icon) end
 	x.grey:SetShown(e.grey)
 	for _, r in ipairs(x.ring) do r:SetShown(e.ring) end
+	x.pulseOn = e.pulse and true or false
 	if e.pulse then x.pulse:Play() else x.pulse:Stop(); x.dim:SetAlpha(0) end
-	self.expCurve = expireCurve(e.secs)
+	self.expCurve = ns.lastSeconds(e.secs)
 	warning[self] = true
+	ticker:Show()
+end
+
+-- Frame levels again, after the caller moved the icon (regrouping): the warning just above the
+-- anchor, the bar just above the timer's Cooldown.
+function Timer:restack()
+	local x = self.exp
+	if x then
+		x:SetFrameLevel(self.anchor:GetFrameLevel() + 1)
+		x.glow:SetFrameLevel(x:GetFrameLevel() + 1)
+	end
+	if self.bar then self.bar:SetFrameLevel(self.cd:GetFrameLevel() + 1) end
 end

@@ -38,9 +38,9 @@ L.ELEMENT = {
 	shield    = { name = "Shields",         icon = 136051, school = "spirit", blurb = "Charges and time left. Warns when it's gone." },
 	shock     = { name = "Shocks",          icon = 136026, school = "spirit", blurb = "Cooldown, range and mana." },
 	imbue     = { name = "Weapon Imbue",    icon = 136086, school = "spirit", blurb = "Warns when your main hand has no imbue." },
-	earthbind = { name = "Earthbind Totem", icon = 136102, school = "earth",  blurb = "Cooldown, and time left while it's down." },
-	stoneclaw = { name = "Stoneclaw Totem", icon = 136097, school = "earth",  blurb = "Cooldown, and time left while it's down." },
-	firenova  = { name = "Fire Nova",       icon = 135824, school = "fire",   blurb = "Cooldown. Needs a fire totem." },
+	earthbind = { name = "Earthbind Totem", spell = "earthbind", icon = 136102, school = "earth",  blurb = "Cooldown, and time left while it's down." },
+	stoneclaw = { name = "Stoneclaw Totem", spell = "stoneclaw", icon = 136097, school = "earth",  blurb = "Cooldown, and time left while it's down." },
+	firenova  = { name = "Fire Nova",       spell = "fireNova",  icon = 135824, school = "fire",   blurb = "Cooldown. Needs a fire totem." },
 	-- Not an element: its own page, with the same kind of header. page = true keeps it out of the
 	-- nav's element list.
 	totembar  = { name = "Totem bar", icon = "Interface\\Icons\\Spell_Shaman_DropAll_01", school = "spirit", page = true,
@@ -52,6 +52,13 @@ L.ELEMENT = {
 			return string.format("%s  ·  %s", ns.TotemBar.modeName(), shows[c.show] or "")
 		end },
 }
+
+-- An element's name: a spell's in the client's language (name is the fallback), else its own.
+function L.elementName(key)
+	local e = L.ELEMENT[key]
+	if not e then return key end
+	return e.spell and ns.Spells.name(e.spell) or e.name
+end
 
 local function db() return ns.getDB() end
 local function acct() return ns.getAccount() end
@@ -356,13 +363,14 @@ L.PREVIEW = {
 			local d = db()
 			local icons = { rockbiter = 136086, flametongue = 135814, frostbrand = 135847, windfury = 136018 }
 			if st == "missing" then
-				reset(ic, icons[d.imbuePreferred] or 136018)
+				-- The HUD's own choice: the preferred imbue, or the last one used.
+				reset(ic, ns.preferredImbueIcon and ns.preferredImbueIcon() or icons[d.imbuePreferred] or 136018)
 				ic.tex:SetDesaturated(d.imbueMissingGrey)
 				ic:SetRingShown(d.imbueMissingRing)
 				ic:SetPulsing(d.imbuePulse)
 				ic:SetGlowShown(d.imbueGlow)
 			else
-				reset(ic, 136018)
+				reset(ic, ns.imbueIcon and ns.imbueIcon() or 136018)
 				if st == "low" and d.imbueWarnMins > 0 then frozen(ic.upT, 0.95, 3600) end
 				if st == "fine" and d.imbueHideActive then ic:SetAlpha(0.15) end
 			end
@@ -393,6 +401,7 @@ end
 -- bar's scale, inside a frame with that scale, so text, borders and spacing match the game),
 -- shrunk only as much as needed to fit; the picking state shows a short popout.
 local TOTEM_ICON = { earth = 136098, fire = 135825, water = 135127, air = 136114 }   -- Stoneskin, Searing, Healing Stream, Windfury
+L.TOTEM_ICON = TOTEM_ICON
 -- Preview time left per element and its totem's lifetime (s): a spread that shows every Time format
 -- ("5m" or 4:10, 38, "2m" or 1:23, "3m" or 2:45). Expiring puts the fire totem (else the first
 -- slot) at 5 s; Killed early shows it just killed.
@@ -412,21 +421,25 @@ local function tabArrow(parent)
 end
 L.PREVIEW.totembar = {
 	stage = true, heroH = 280,
-	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" }, { "killed", "Killed early" }, { "offpick", "Not your pick" }, { "picking", "Picking" } },
-	-- Blizzard's: nothing to preview. Active totems: only totems that are down, so no picking.
+	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" }, { "killed", "Killed early" },
+		{ "range", "Out of range" }, { "offpick", "Not your pick" }, { "picking", "Picking" } },
+	-- Blizzard's: nothing to preview. Active totems: only totems that are down, so no picking. Out of
+	-- range only while its strip is on.
 	stateShown = function(st)
-		local mode = ns.TotemBar.cfg().mode
+		local c = ns.TotemBar.cfg()
+		local mode = c.mode
 		if mode == "blizzard" then return false end
+		if st == "range" then return c.range end
 		return mode == "everything" or (st ~= "offpick" and st ~= "picking")
 	end,
 	fallback = "down",
 	-- Killed early: the dead totem pops as in game.
 	pop = function(h, st) if st == "killed" and h.popIcon then h.popIcon:Pop("killed") end end,
 	build = function(h)
-		-- The preview area: below the title band and its divider, above the state buttons.
+		-- The preview area: below the title band and its divider, left of the state buttons.
 		h.area = CreateFrame("Frame", nil, h)
 		h.area:SetPoint("TOPLEFT", h, "TOPLEFT", 40, -58)
-		h.area:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -40, 36)
+		h.area:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -40, 12)   -- refresh makes room for the states
 		local bar = CreateFrame("Frame", nil, h)
 		bar:SetSize(1, 1)
 		bar:SetFrameLevel(h:GetFrameLevel() + 5)
@@ -439,6 +452,11 @@ L.PREVIEW.totembar = {
 			ic.badge.icon = ic.badge:CreateTexture(nil, "ARTWORK")
 			ic.badge.icon:SetAllPoints()
 			ic.badge.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+			-- Out of range: the strip along the top (ShamanForever_TotemRange.lua).
+			ic.rangeF = CreateFrame("Frame", nil, bar)
+			ic.rangeF:SetFrameLevel(ic:GetFrameLevel() + 7)
+			ic.rangeF.bg = ic.rangeF:CreateTexture(nil, "ARTWORK")
+			ic.rangeF.bg:SetAllPoints()
 			h.slots[i] = ic
 		end
 		h.extras = {}
@@ -478,7 +496,11 @@ L.PREVIEW.totembar = {
 		if c.mode == "blizzard" then h.fitNote:SetText("") return end
 		local full = c.mode == "everything"
 		local els = {}
-		for _, el in ipairs(c.order) do if not c.hidden[el] then table.insert(els, el) end end
+		-- As on the bar: a slot shows only for an element with a totem known.
+		local canList = GetMultiCastTotemSpells ~= nil
+		for _, el in ipairs(c.order) do
+			if not c.hidden[el] and (not canList or #TB.knownTotems(TB.SLOT[el]) > 0) then table.insert(els, el) end
+		end
 		local n = math.max(#els, 1)
 		local row = c.dir == "row"
 		local picking = st == "picking" and #els > 0
@@ -495,11 +517,13 @@ L.PREVIEW.totembar = {
 		local leadLen = #before > 0 and run(#before, esz) + eg or 0
 		local along = leadLen + slotsLen + (#after > 0 and eg + run(#after, esz) or 0)
 		local badge = st == "offpick" and c.offPick and math.max(math.floor(size * c.badgeSize + 0.5), 8) + 3 or 0
-		local across = size + (picking and (c.arrowSize + 4 + popLen) or 0) + badge
+		-- The bar's line is as thick as its largest button; every button is centred on it.
+		local line = (#before + #after > 0) and math.max(size, esz) or size
+		local across = line + (picking and (c.arrowSize + 4 + popLen) or 0) + badge
 		-- Room: the preview area between the title band and the state buttons.
 		local w = h:GetWidth()
 		if not w or w <= 0 then w = 600 end
-		local availW, availH = w - 80, h.heroH - 14 - 58 - 36
+		local availW, availH = w - 80 - (h.stateW or 0), h.heroH - 14 - 58 - 12
 		local needW, needH = row and along or across, row and across or along
 		local real = c.scale
 		local fit = math.min(1, availW / (needW * real), availH / (needH * real))
@@ -516,7 +540,7 @@ L.PREVIEW.totembar = {
 		bar:SetPoint("CENTER", h.area, "CENTER", 0, 0)
 		-- Slots sit on the side the pickers open away from, leaving room for the badge (which hangs
 		-- opposite the picker) inside the box. off: along the bar's axis.
-		-- cross: extra room on the far side of the line (to centre a smaller Call / Recall on it).
+		-- cross: its offset across the line, which centres it there (slots and Call / Recall can differ in size).
 		local function place(ic, off, cross)
 			local x = badge + (cross or 0)
 			if row then
@@ -533,7 +557,7 @@ L.PREVIEW.totembar = {
 				local ic = h.extras[key]
 				ic:SetSize(esz, esz)
 				ic:ClearAllPoints()
-				place(ic, start + (j - 1) * (esz + c.spacing), (size - esz) / 2)
+				place(ic, start + (j - 1) * (esz + c.spacing), (line - esz) / 2)
 				if ns.applyBorder then ns.applyBorder(ic, border) end
 				local learned = TB.extraLearned(key)
 				ic.tex:SetTexture(TB.extraTexture(key))
@@ -551,20 +575,33 @@ L.PREVIEW.totembar = {
 		for i, ic in ipairs(h.slots) do
 			local el = els[i]
 			ic:SetShown(el ~= nil)
+			ic.rangeF:Hide()
 			if el then
 				ic:SetSize(size, size)
 				ic:ClearAllPoints()
-				place(ic, leadLen + (i - 1) * (size + c.spacing))
+				place(ic, leadLen + (i - 1) * (size + c.spacing), (line - size) / 2)
 				if ns.applyBorder then ns.applyBorder(ic, border) end
 				local pick = GetActionTexture and TB.pickTexture(el)
+				if ns.isSecret(pick) then pick = nil end   -- never compared while secret (combat)
 				reset(ic, pick or TOTEM_ICON[el])
 				ic.badge:Hide()
+				if st == "range" then
+					-- The first slot out of range, the others in range. Height in physical pixels, as on the bar.
+					local _, physicalHeight = GetPhysicalScreenSize()
+					local px = (768 / (physicalHeight or 768)) / ic:GetEffectiveScale()
+					local k = i == 1 and c.rangeOut or c.rangeIn
+					ic.rangeF:ClearAllPoints()
+					ic.rangeF:SetPoint("TOPLEFT", ic, "TOPLEFT", 0, 0)
+					ic.rangeF:SetSize(size, c.rangeHeight * px)
+					ic.rangeF.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
+					ic.rangeF:Show()
+				end
 				if st == "offpick" and i == 1 then
 					-- Another of the element's totems down, with the pick shown small beside it.
 					local other
 					for _, id in ipairs(TB.known(el)) do
 						local tex = C_Spell.GetSpellTexture(id)
-						if tex and tex ~= pick then other = tex break end
+						if tex and not ns.isSecret(tex) and tex ~= pick then other = tex break end
 					end
 					ic.tex:SetTexture(other or TOTEM_ICON[el])
 					if c.offPick and pick then
@@ -705,7 +742,7 @@ function L.buildHero(parent, key)
 
 	h.title = h:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
 	h.title:SetPoint("TOPLEFT", h.icon, "TOPRIGHT", 14, -4)
-	h.title:SetText(e.name)
+	h.title:SetText(L.elementName(key))
 	h.title:SetShadowOffset(1, -1)
 	h.blurb = h:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	h.blurb:SetPoint("TOPLEFT", h.title, "BOTTOMLEFT", 0, -5)
@@ -737,7 +774,7 @@ function L.buildHero(parent, key)
 
 	-- Preview panel, pinned right inside the corner zone: the icon on the left, its states listed
 	-- on the right as small flat buttons (the selected one outlined in gold). A stage (the totem
-	-- bar) has no panel: the preview draws on the header itself and the states run along its foot.
+	-- bar) has no panel: the preview draws on the header itself, its states listed down the right.
 	local PANEL_W, PANEL_H, BTN_W, BTN_H = def.stage and 0 or (def.panelW or 196), heroH - 14 - 24, 108, 17
 	local p = CreateFrame("Frame", nil, h, "BackdropTemplate")
 	p:SetSize(PANEL_W, PANEL_H)
@@ -761,8 +798,7 @@ function L.buildHero(parent, key)
 	for i, st in ipairs(def.states) do
 		local b = CreateFrame("Button", nil, def.stage and h or p, "BackdropTemplate")
 		if def.stage then
-			b:SetSize(96, BTN_H)
-			b:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 40 + (i - 1) * 100, 12)
+			b:SetSize(BTN_W, BTN_H)   -- placed by refresh
 			b:SetFrameLevel(h:GetFrameLevel() + 6)
 		else
 			b:SetSize(BTN_W, BTN_H)
@@ -804,18 +840,21 @@ function L.buildHero(parent, key)
 		-- A stage can offer only some states (the totem bar's mode): the others hide, the rest close
 		-- up, and a state that no longer applies falls back to def.fallback or the first one left.
 		if def.stage and def.stateShown then
-			-- They share the width between the corner ornaments (40 px each side), 96 px at most.
+			-- A column down the right, inside the corner ornaments, centred under the title band (58 px);
+			-- the preview area gives up its width (stateW).
 			local count = 0
 			for _, b in ipairs(self.stateButtons) do if def.stateShown(b.state) then count = count + 1 end end
-			local bw = math.min(96, math.floor(((w - 80) - (count - 1) * 4) / math.max(count, 1)))
+			local colH = count * (BTN_H + 3) - 3
+			local top = 58 + math.max(((heroH - 14) - 58 - 12 - colH) / 2, 0)
+			self.stateW = BTN_W + 16
+			if self.area then self.area:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -40 - self.stateW, 12) end
 			local n, first, cur = 0, nil, false
 			for _, b in ipairs(self.stateButtons) do
 				local show = def.stateShown(b.state)
 				b:SetShown(show)
 				if show then
-					b:SetWidth(bw)
 					b:ClearAllPoints()
-					b:SetPoint("BOTTOMLEFT", self, "BOTTOMLEFT", 40 + n * (bw + 4), 12)
+					b:SetPoint("TOPRIGHT", self, "TOPRIGHT", -40, -(top + n * (BTN_H + 3)))
 					n = n + 1
 					first = first or b.state
 					if b.state == previewState[key] then cur = true end
