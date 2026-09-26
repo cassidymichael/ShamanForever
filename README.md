@@ -1,6 +1,6 @@
 ![ShamanForever: a shaman HUD for World of Warcraft: Forever](docs/banner.png)
 
-A configurable HUD for shamans on World of Warcraft: Forever: the buffs, imbues and cooldowns a shaman watches, as icons you can arrange anywhere.
+A configurable HUD for shamans on World of Warcraft: Forever: the buffs, imbues and cooldowns a shaman watches, as icons you can arrange anywhere. Requires WoW: Forever (interface 16001).
 
 ![ShamanForever in game](screenshot.png)
 
@@ -27,8 +27,6 @@ More screenshots: [options gallery](docs/gallery/README.md).
 - Key bindings for the totem bar: Escape > Options > Keybindings > ShamanForever, or hover the bar in Quick Keybind Mode. Each button can show its key.
 - `/sf lock` to unlock positioning and move and scale groups on screen (the bar that appears lists the controls), `/sf lock` again when done.
 
-Requires WoW: Forever (interface 16001).
-
 ## Feedback
 
 Ideas, requests or problems are welcome, any of these ways:
@@ -37,10 +35,15 @@ Ideas, requests or problems are welcome, any of these ways:
 - A comment on [CurseForge](https://www.curseforge.com/wow/addons/shamanforever/comments).
 - An [issue on GitHub](https://github.com/cassidymichael/ShamanForever/issues).
 
-## More
+## How it works
+
+In combat, Forever hides most of what an addon could read about auras, totems and cooldowns. ShamanForever stays accurate by handing that information to Blizzard's own display widgets instead of reading it. [docs/combat-techniques.md](docs/combat-techniques.md) explains each technique and the one inference the addon makes.
+
+## Development
+
+ShamanForever is created and maintained with the help of AI tools.
 
 - [CHANGELOG.md](CHANGELOG.md): what changed in each version.
-- [docs/combat-techniques.md](docs/combat-techniques.md): how auras, totems and cooldowns are shown in combat, and the one inference the addon makes.
 - [docs/releasing.md](docs/releasing.md): how a release is cut.
 
 ## Art

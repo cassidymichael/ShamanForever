@@ -1,0 +1,28 @@
+name: Bug report
+description: Something in ShamanForever doesn't work.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: ShamanForever version
+      description: On the About page (/sf).
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen
+      description: In combat or out? Which element or totem?
+  - type: textarea
+    id: errors
+    attributes:
+      label: Lua errors or /sf debug output
+      description: The error text (from BugSack, for example), or what /sf debug prints.
+      render: text

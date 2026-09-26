@@ -1,0 +1,17 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  luacheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # .luacheckrc holds the WoW: Forever API names the addon uses.
+      - name: Install luacheck
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lua-check
+      - name: Luacheck
+        run: luacheck . --no-color
