@@ -2005,7 +2005,6 @@ local function buildWindow()
 	navEdge:SetWidth(1)
 	navEdge:SetColorTexture(0.23, 0.17, 0.10, 1)
 
-	acct().optionsSize = nil   -- from the old resizable window
 	win:SetSize(WIDTH, math.min(math.max(acct().optionsHeight or HEIGHT, MIN_H), MAX_H))
 	win:SetPoint("CENTER")
 	-- Taller only: the grip changes height, never width, and pins the top edge.
