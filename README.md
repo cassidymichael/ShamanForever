@@ -44,7 +44,7 @@ In combat, Forever hides most of what an addon could read about auras, totems an
 ShamanForever is created and maintained with the help of AI tools.
 
 - [CHANGELOG.md](CHANGELOG.md): what changed in each version.
-- [docs/releasing.md](docs/releasing.md): how a release is cut.
+- [docs/releasing.md](docs/releasing.md): how work reaches main, and how a release is cut.
 
 ## Art
 
