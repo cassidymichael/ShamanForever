@@ -1,6 +1,6 @@
 # Gallery
 
-Screenshots of Shaman Forever 0.6.2's options window, taken automatically in game on the World of
+Screenshots of ShamanForever 0.6.2's options window, taken automatically in game on the World of
 Warcraft: Forever beta. These images are not part of the addon download.
 
 ## General

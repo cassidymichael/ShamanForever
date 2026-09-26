@@ -67,7 +67,7 @@ TB.DEFAULTS = {
 	warnGrey = false,
 	warnRing = false,
 	warnPulse = true,
-	warnGlow = true,          -- a pulsing glow inside the slot (the bar's glow style)
+	warnGlow = false,         -- a pulsing glow inside the slot (the bar's glow style)
 	expiredPop = true,        -- the totem pops and fades the moment it runs out
 	warn = 10,                -- seconds before the end (0 = off)
 	-- Totem -> seconds, instead of warn (short-lived ones). Keyed by the client's rank-less spell
@@ -240,21 +240,6 @@ attributeHelper(HIDE_HELPER, "setstate", "state-visibility hide")
 local slots = {}   -- element -> slot record
 TB.slots, TB.frame = slots, bar
 
-local function edgeRing(parent, anchor)
-	local ring = {}
-	for _, e in ipairs({ { "TOPLEFT", "TOPRIGHT", nil, 2 }, { "BOTTOMLEFT", "BOTTOMRIGHT", nil, 2 },
-			{ "TOPLEFT", "BOTTOMLEFT", 2, nil }, { "TOPRIGHT", "BOTTOMRIGHT", 2, nil } }) do
-		local t = parent:CreateTexture(nil, "OVERLAY", nil, 6)
-		t:SetColorTexture(0.88, 0.2, 0.17, 1)
-		local inset = e[3] or 0   -- side edges between the top and bottom ones (no doubled corners)
-		t:SetPoint(e[1], anchor, e[1], 0, -inset)
-		t:SetPoint(e[2], anchor, e[2], 0, inset)
-		if e[3] then t:SetWidth(e[3]) end
-		if e[4] then t:SetHeight(e[4]) end
-		table.insert(ring, t)
-	end
-	return ring
-end
 
 for _, el in ipairs(ELEMENTS) do
 	local slot = SLOT[el]
@@ -311,35 +296,9 @@ for _, el in ipairs(ELEMENTS) do
 	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + 3)
 	s.timer.bar:SetFrameLevel(v:GetFrameLevel() + 4)
 	v.cd = s.timer.cd
-	-- The expiring warning: its alpha is the remaining time through a curve, so it can appear and
-	-- disappear in combat. A grey copy of the icon, a red ring, and a dark layer that pulses; it sits
-	-- above the icon and below the cooldown, so the swipe and countdown stay readable.
-	v.warn = CreateFrame("Frame", nil, v)
-	v.warn:SetAllPoints()
-	v.warn:SetFrameLevel(v:GetFrameLevel() + 1)
-	v.warn:SetAlpha(0)
-	v.warn.grey = v.warn:CreateTexture(nil, "ARTWORK")
-	v.warn.grey:SetAllPoints()
-	v.warn.grey:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-	v.warn.grey:SetDesaturated(true)
-	v.warn.ring = edgeRing(v.warn, v)
-	v.warn.dim = v.warn:CreateTexture(nil, "OVERLAY")
-	v.warn.dim:SetAllPoints()
-	v.warn.dim:SetColorTexture(0, 0, 0, 1)
-	v.warn.dim:SetAlpha(0)
-	local pulse = v.warn.dim:CreateAnimationGroup()
-	pulse:SetLooping("BOUNCE")
-	local a = pulse:CreateAnimation("Alpha")
-	a:SetFromAlpha(0)
-	a:SetToAlpha(0.55)
-	a:SetDuration(0.6)
-	a:SetSmoothing("IN_OUT")
-	v.warn.pulse = pulse
-	-- A looping animation doesn't come back by itself after the bar was hidden (state driver,
-	-- Alt+Z): restart it whenever the layer shows again, if it is on (layout() sets pulseOn).
-	v.warn:SetScript("OnShow", function(w) if w.pulseOn then w.pulse:Play() end end)
-	-- Glow: a pulsing glow inside the slot's edges; under the same gate as the rest.
-	v.warn.glowF = ns.makeGlow(v.warn, v, "totembar")
+	-- The expiring warning is the timer's (Timer:setExpire, as on the HUD): a grey copy of the icon, a
+	-- red ring, a dark pulsing layer and a glow, above the icon and below the cooldown, in the slot's
+	-- last seconds. drawSlot gives it the totem's own warning time and icon.
 
 	-- Arrow tab (secure) and its look (plain, shown while the mouse is over the slot or the tab).
 	local ar = CreateFrame("Button", nil, bar, "SecureActionButtonTemplate")
@@ -436,7 +395,7 @@ local function closePopouts()
 end
 
 ------------------------------------------------------------------------
--- Key bindings (Bindings.xml; Key Bindings > Shaman Forever). Each is a CLICK binding to its own
+-- Key bindings (Bindings.xml; Key Bindings > ShamanForever). Each is a CLICK binding to its own
 -- invisible secure button, so keys work whatever the bar's settings, and even with the bar off:
 -- cast an element's pick ("action" on its multi-cast slot), dismiss one slot ("destroytotem"),
 -- Call of the Elements and Totemic Recall ("spell"), and dismiss all. A secure button does one
@@ -568,15 +527,12 @@ end
 
 local anyDown = false
 
--- The parts that follow the remaining time: the warning, and the time bar once it has run out.
+-- The parts that follow the remaining time: the time bar once it has run out, and the range strip.
+-- (The expiring warning follows it in Timers' own ticker.)
 -- Values from the duration object may be secret, so they only ever go straight to SetAlpha.
 function TB.alphas(s)
-	local d, v = s.dur, s.vis
+	local d = s.dur
 	if not d then return end
-	if s.curve then
-		local ok, a = ns.try("totem bar: warning", d.EvaluateRemainingDuration, d, s.curve)
-		if ok then v.warn:SetAlpha(a) else v.warn:SetAlpha(0) end
-	else v.warn:SetAlpha(0) end
 	local tbar = s.timer.bar
 	if ns.CURVE_LIVE and tbar:IsShown() then
 		local ok, a = ns.try("totem bar: time bar", d.EvaluateRemainingDuration, d, ns.CURVE_LIVE)
@@ -596,7 +552,6 @@ local function drawSlot(s)
 		local iok, _, _, _, _, icon = ns.try("totem bar: totem info", GetTotemInfo, s.slot)
 		if iok and (isSecret(icon) or icon) then
 			ns.try("totem bar: icon", v.icon.SetTexture, v.icon, icon)
-			ns.try("totem bar: icon", v.warn.grey.SetTexture, v.warn.grey, icon)
 			s.killed:setIcon(icon)
 			s.expired:setIcon(icon)
 		end
@@ -615,17 +570,17 @@ local function drawSlot(s)
 			s.badge:Show()
 		else s.badge:Hide() end
 		s.dur = d
-		s.curve = ns.lastSeconds(warnSecs(c, down))
+		s.timer:setExpire({ secs = warnSecs(c, down), grey = c.warnGrey, ring = c.warnRing, pulse = c.warnPulse, glow = c.warnGlow })
+		if iok and (isSecret(icon) or icon) then s.timer:setExpireIcon(icon) end
 		TB.alphas(s)
 		return true
 	end
-	s.dur, s.curve = nil, nil
+	s.dur = nil
 	if was then slotEmptied(s, was) end
 	s.badge:Hide()
 	-- Not down: the element's pick (greyed or in colour, at its opacity), or its colour, or nothing.
 	-- With nothing picked, "pick" falls back to the element colour.
 	s.timer:clear()
-	v.warn:SetAlpha(0)
 	-- Active totems: only totems that are down show (the slot keeps its place; secure buttons can't
 	-- move in combat). A plain frame's alpha, so this works in combat too.
 	v:SetAlpha(c.mode == "everything" and 1 or 0)
@@ -868,6 +823,10 @@ function layout()
 	closePopouts()
 	local c = cfg()
 	local size, border = look()
+	-- Scale and opacity first: borders below are lines, sized for the bar's scale. Out of combat
+	-- only, like everything on a frame holding secure buttons.
+	bar:SetScale(c.scale)
+	bar:SetAlpha(c.alpha)
 	local shown, known = {}, {}
 	for _, el in ipairs(c.order) do
 		local s = slots[el]
@@ -926,13 +885,6 @@ function layout()
 		castKeys[s.el]:SetAttribute("action", multiAction(s.slot))
 		if ns.applyBorder then ns.applyBorder(s.vis, border) end
 		s.timer:apply()
-		local w = s.vis.warn
-		w.grey:SetShown(c.warnGrey)
-		for _, t in ipairs(w.ring) do t:SetShown(c.warnRing) end
-		w.pulseOn = c.warnPulse   -- OnShow restarts it after the bar was hidden
-		if c.warnPulse then w.pulse:Play() else w.pulse:Stop(); w.dim:SetAlpha(0) end
-		w.glowF:fit(size)
-		w.glowF:SetShown(c.warnGlow)
 		layoutArrow(s)
 		layoutBadge(s, size, border)
 		layoutPopout(s, size, known[s.el])
@@ -940,13 +892,11 @@ function layout()
 	long = math.max(long, size)
 	local across = (#before + #after > 0) and math.max(size, esz) or size
 	if row then bar:SetSize(long, across) else bar:SetSize(across, long) end
-	-- Scale and opacity: out of combat only, like everything on a frame holding secure buttons.
-	bar:SetScale(c.scale)
-	bar:SetAlpha(c.alpha)
 	bar:ClearAllPoints()
 	bar:SetPoint(c.point, UIParent, c.point, c.x / c.scale, c.y / c.scale)
-	if TB.range then TB.range.layout(size) end   -- after the scale: its height is in physical pixels
+	if TB.range then TB.range.layout(size) end   -- after the scale: its height is a line's
 	drawAll()
+	ns.refitRings()
 	local driver = visibilityDriver()
 	if driver ~= lastDriver then
 		lastDriver = driver
@@ -1018,14 +968,21 @@ end)
 mover:SetScript("OnMouseUp", function(_, button)
 	if button == "RightButton" and ns.OpenOptions then ns.OpenOptions("totembar") end
 end)
--- Mouse wheel: scale. Shift + wheel: opacity. As for groups.
+-- As for groups: mouse wheel, icon size (lines stay crisp); Ctrl + wheel, scale (everything grows,
+-- lines too); Shift + wheel, opacity.
 mover:SetScript("OnMouseWheel", function(self, delta)
 	if InCombatLockdown() then return end
 	local c = cfg()
 	local function step(key) c[key] = clamp(math.floor((c[key] + delta * 0.05) * 100 + 0.5) / 100, RANGES[key]) end
-	step(IsShiftKeyDown() and "alpha" or "scale")
+	if IsShiftKeyDown() then step("alpha")
+	elseif IsControlKeyDown() then step("scale")
+	else
+		local from = look()   -- the size it has now, General's or its own
+		c.sizeFollow = false
+		c.size = clamp(from + delta * 2, RANGES.size)
+	end
 	layout()
-	self.label:SetText(string.format("Totem bar: scale %.2f, opacity %.0f%%", c.scale, c.alpha * 100))
+	self.label:SetText(string.format("Totem bar: size %d, scale %.2f, opacity %.0f%%", (look()), c.scale, c.alpha * 100))
 	if ns.RefreshOptions then ns.RefreshOptions() end
 end)
 function mover.update()

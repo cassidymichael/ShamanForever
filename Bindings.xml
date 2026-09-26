@@ -1,13 +1,13 @@
 <Bindings>
-	<Binding name="CLICK ShamanForeverKeyCastEarth:LeftButton" header="SHAMANFOREVER_TOTEMS" category="Shaman Forever"/>
-	<Binding name="CLICK ShamanForeverKeyCastFire:LeftButton" category="Shaman Forever"/>
-	<Binding name="CLICK ShamanForeverKeyCastWater:LeftButton" category="Shaman Forever"/>
-	<Binding name="CLICK ShamanForeverKeyCastAir:LeftButton" category="Shaman Forever"/>
-	<Binding name="CLICK ShamanForeverKeyCall:LeftButton" category="Shaman Forever"/>
-	<Binding name="CLICK ShamanForeverKeyDismissEarth:LeftButton" category="Shaman Forever"/>
-	<Binding name="CLICK ShamanForeverKeyDismissFire:LeftButton" category="Shaman Forever"/>
-	<Binding name="CLICK ShamanForeverKeyDismissWater:LeftButton" category="Shaman Forever"/>
-	<Binding name="CLICK ShamanForeverKeyDismissAir:LeftButton" category="Shaman Forever"/>
-	<Binding name="CLICK ShamanForeverKeyDismissAll:LeftButton" category="Shaman Forever"/>
-	<Binding name="CLICK ShamanForeverKeyRecall:LeftButton" category="Shaman Forever"/>
+	<Binding name="CLICK ShamanForeverKeyCastEarth:LeftButton" header="SHAMANFOREVER_TOTEMS" category="ShamanForever"/>
+	<Binding name="CLICK ShamanForeverKeyCastFire:LeftButton" category="ShamanForever"/>
+	<Binding name="CLICK ShamanForeverKeyCastWater:LeftButton" category="ShamanForever"/>
+	<Binding name="CLICK ShamanForeverKeyCastAir:LeftButton" category="ShamanForever"/>
+	<Binding name="CLICK ShamanForeverKeyCall:LeftButton" category="ShamanForever"/>
+	<Binding name="CLICK ShamanForeverKeyDismissEarth:LeftButton" category="ShamanForever"/>
+	<Binding name="CLICK ShamanForeverKeyDismissFire:LeftButton" category="ShamanForever"/>
+	<Binding name="CLICK ShamanForeverKeyDismissWater:LeftButton" category="ShamanForever"/>
+	<Binding name="CLICK ShamanForeverKeyDismissAir:LeftButton" category="ShamanForever"/>
+	<Binding name="CLICK ShamanForeverKeyDismissAll:LeftButton" category="ShamanForever"/>
+	<Binding name="CLICK ShamanForeverKeyRecall:LeftButton" category="ShamanForever"/>
 </Bindings>

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.1 (2026-09-26)
+
+- Groups have their own icon size, or follow General's. Icon size keeps borders and rings crisp; Scale grows everything, borders and rings included. The same goes for the totem bar.
+- Positioning: the mouse wheel over a group or the totem bar changes its icon size, Ctrl + wheel its scale, Shift + wheel its opacity.
+- Warning rings look the same everywhere: red, 3 pixels, crisp at any icon size. The totem bar's was thinner.
+- New defaults for expiring totems: fade in and out, and a pop when it runs out. Grey icon, red ring and pulsing glow start off. Settings you've already changed keep your choice.
+
 ## 0.7.0 (2026-09-26)
 
 - Totem bar: out of range. A strip along the top of a slot turns red while one of your totems is down but you aren't getting its buff, in combat too. For totems that buff you, such as Strength of Earth, Stoneskin and Healing Stream. On by default; set its height and colours (with opacity, including one for in range) on the totem bar page.
@@ -7,7 +14,7 @@
 - Fixed: picking a totem could hide the totem bar until the end of a fight, and a picker left open could come back with the bar and swallow the next click.
 - Fixed: the expiring warning covered the cooldown sweep and numbers on Fire Nova, Earthbind and Stoneclaw.
 - Fixed: a fight that started while positioning was unlocked blocked clicks, camera turning and zoom over your groups.
-- Spells are recognised by their ID instead of their English name, so Shaman Forever should work in other game languages (its options stay in English).
+- Spells are recognised by their ID instead of their English name, so ShamanForever should work in other game languages (its options stay in English).
 - Minor: drag and drop to order the totem bar's elements, the totem bar preview lists its states down the side, options changed in combat show at once, less work per frame, and fixes.
 
 ## 0.6.2 (2026-09-25)
@@ -31,7 +38,7 @@
 
 - Totem bar is out of experimental. At the top of its page, choose Blizzard's, Active totems (replaces only the totems under the player frame) or Everything (replaces both of Blizzard's totem bars).
 - Totem bar: Call of the Elements and Totemic Recall buttons, at both ends of the bar or together before or after the slots, with their own size. Right-click Recall to dismiss every totem (no global cooldown, no mana back), even before you learn it.
-- Key bindings (Options > Keybindings > Shaman Forever): cast each element's totem, dismiss each totem or all of them, Call of the Elements, Totemic Recall.
+- Key bindings (Options > Keybindings > ShamanForever): cast each element's totem, dismiss each totem or all of them, Call of the Elements, Totemic Recall.
 - Killed early: a totem that dies before its time flashes red with a pop, a glow and a cross until you recast it. On the totem bar, Earthbind and Stoneclaw.
 - Pulsing glows: expiring totems, a missing imbue, and optionally Shocks and Fire Nova when they're ready to cast. Colour, speed and size on the General page.
 - Pops: a spell coming off cooldown, a totem running out, and your imbue dropping.

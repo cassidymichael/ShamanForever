@@ -586,13 +586,11 @@ L.PREVIEW.totembar = {
 				reset(ic, pick or TOTEM_ICON[el])
 				ic.badge:Hide()
 				if st == "range" then
-					-- The first slot out of range, the others in range. Height in physical pixels, as on the bar.
-					local _, physicalHeight = GetPhysicalScreenSize()
-					local px = (768 / (physicalHeight or 768)) / ic:GetEffectiveScale()
+					-- The first slot out of range, the others in range. Its height is a line's, as on the bar.
 					local k = i == 1 and c.rangeOut or c.rangeIn
 					ic.rangeF:ClearAllPoints()
 					ic.rangeF:SetPoint("TOPLEFT", ic, "TOPLEFT", 0, 0)
-					ic.rangeF:SetSize(size, c.rangeHeight * px)
+					ic.rangeF:SetSize(size, ns.linePx(ic, c.rangeHeight))
 					ic.rangeF.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
 					ic.rangeF:Show()
 				end
@@ -909,7 +907,7 @@ function L.buildIntro(parent, version)
 	h.corners = L.addCorners(h)
 	h.title = h:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
 	h.title:SetPoint("LEFT", 40, 8)
-	h.title:SetText("Shaman Forever")
+	h.title:SetText("ShamanForever")
 	h.title:SetShadowOffset(1, -1)
 	h.version = h:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	h.version:SetPoint("TOPLEFT", h.title, "BOTTOMLEFT", 0, -6)

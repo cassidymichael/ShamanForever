@@ -29,6 +29,8 @@ local SHOCK_ORDER = { "earth", "flame", "frost" }
 -- Positions are offsets in the group's own (scaled) units.
 local GROUP_DEFAULTS = {
 	point = "CENTER", x = 0, y = -160, scale = 1, alpha = 0.75,
+	-- Icon size: General's, or the group's own (Size keeps lines crisp; Scale grows everything).
+	sizeFollow = true, size = 44,
 	orientation = "horizontal",  -- horizontal | vertical
 	growth = "forward",          -- forward (right / down) | backward (left / up)
 	spacing = 6,
@@ -37,7 +39,7 @@ local GROUP_DEFAULTS = {
 
 -- A profile: the layout and how every element looks.
 local DEFAULTS = {
-	iconSize = 44,          -- base element size; each group scales it
+	iconSize = 44,          -- base element size; a group can have its own, and its scale multiplies it
 	-- General's styles (ShamanForever_Style.lua): the border around every element, the pulsing glow
 	-- and the pop. Groups and the totem bar can have their own border; elements and the totem bar
 	-- their own glow and pop.
@@ -429,40 +431,18 @@ local function makeIcon(parent, size, owner)
 	f.count:SetJustifyH("RIGHT")
 	local okFS, cdText = pcall(f.cd.GetCountdownFontString, f.cd)
 	if okFS and cdText then pcall(cdText.SetDrawLayer, cdText, "OVERLAY", 7) end
-	-- Red ring just inside the icon edge, so an exact-size frame on top covers it completely.
-	f.ring = {}
-	local function edge(p1, p2, w, h)
-		local t = f.textFrame:CreateTexture(nil, "OVERLAY", nil, 6)
-		t:SetColorTexture(1, 0, 0, 0.9)
-		-- Side edges run between the top and bottom ones, so no corner is drawn twice (and darker).
-		local inset = w and 3 or 0
-		t:SetPoint(p1, f.tex, p1, 0, -inset)
-		t:SetPoint(p2, f.tex, p2, 0, inset)
-		if w then t:SetWidth(w) end
-		if h then t:SetHeight(h) end
-		t:Hide()
-		table.insert(f.ring, t)
-	end
-	edge("TOPLEFT", "TOPRIGHT", nil, 3)
-	edge("BOTTOMLEFT", "BOTTOMRIGHT", nil, 3)
-	edge("TOPLEFT", "BOTTOMLEFT", 3, nil)
-	edge("TOPRIGHT", "BOTTOMRIGHT", 3, nil)
+	-- Red ring just inside the icon edge (ns.makeRing), so an exact-size frame on top covers it completely.
+	f.ring = ns.makeRing(f.textFrame, f.tex)
 	-- Pulse: the icon fades in and out, used for "missing" warnings.
-	f.pulse = f.tex:CreateAnimationGroup()
-	f.pulse:SetLooping("BOUNCE")
-	local fade = f.pulse:CreateAnimation("Alpha")
-	fade:SetFromAlpha(1)
-	fade:SetToAlpha(0.35)
-	fade:SetDuration(0.8)
-	fade:SetSmoothing("IN_OUT")
+	f.pulse = ns.makePulse(f.tex, "fade")
 	f.SetPulsing = function(self, on)
 		if not on then self.pulse:Stop()
 		elseif not self.pulse:IsPlaying() then self.pulse:Play() end
 	end
+	-- r, g, b, a: a colour other than the warning red (the shock's blue "no mana" ring).
 	f.SetRingShown = function(self, shown, r, g, b, a)
-		for _, t in ipairs(self.ring) do
-			if shown then t:SetColorTexture(r or 1, g or 0, b or 0, a or 0.9); t:Show() else t:Hide() end
-		end
+		if shown then self.ring:color(r, g, b, a) end
+		self.ring:show(shown)
 	end
 	-- Glow (gold by default) and pop, for warnings and moments worth catching the eye.
 	f.glowF = makeGlow(f, f, owner)
@@ -529,25 +509,8 @@ for _, def in ipairs(COOLDOWNS) do
 		f.warn.grey:SetAllPoints(f.tex)
 		f.warn.grey:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 		f.warn.grey:SetDesaturated(true)
-		f.warn.ring = {}
-		for _, e in ipairs({ { "TOPLEFT", "TOPRIGHT", nil, 3 }, { "BOTTOMLEFT", "BOTTOMRIGHT", nil, 3 },
-				{ "TOPLEFT", "BOTTOMLEFT", 3, nil }, { "TOPRIGHT", "BOTTOMRIGHT", 3, nil } }) do
-			local t = f.warn:CreateTexture(nil, "OVERLAY")
-			t:SetColorTexture(1, 0, 0, 0.9)
-			local inset = e[3] or 0   -- side edges between the top and bottom ones (no doubled corners)
-			t:SetPoint(e[1], f.tex, e[1], 0, -inset)
-			t:SetPoint(e[2], f.tex, e[2], 0, inset)
-			if e[3] then t:SetWidth(e[3]) end
-			if e[4] then t:SetHeight(e[4]) end
-			table.insert(f.warn.ring, t)
-		end
-		f.warn.pulse = f.warn.grey:CreateAnimationGroup()
-		f.warn.pulse:SetLooping("BOUNCE")
-		local fade = f.warn.pulse:CreateAnimation("Alpha")
-		fade:SetFromAlpha(1)
-		fade:SetToAlpha(0.35)
-		fade:SetDuration(0.8)
-		fade:SetSmoothing("IN_OUT")
+		f.warn.ring = ns.makeRing(f.warn, f.tex)
+		f.warn.pulse = ns.makePulse(f.warn.grey, "fade")
 		f.warn:SetAlpha(0)
 		-- Hiding a frame (a combat-only group out of combat) stops its animations.
 		f.warn:SetScript("OnShow", function(w) if w.pulseOn and not w.pulse:IsPlaying() then w.pulse:Play() end end)
@@ -592,7 +555,8 @@ local shockIcon = 136026
 
 -- Element registry. db.groups decides where each one shows. Each entry owns its size, so elements
 -- need not be square, and paints a texture that stands in for it in the unlock tray and while dragging.
-local function iconSize() return db.iconSize, db.iconSize end
+-- getSize(size): the element's width and height for its group's icon size.
+local function iconSize(size) return size, size end
 local ELEMENTS = {
 	shield = { frame = shield, label = "Shields",          getSize = iconSize, paint = function(t) t:SetTexture(ns.shieldIcon()) end },
 	shock  = { frame = shock,  label = "Shocks",           getSize = iconSize, paint = function(t) t:SetTexture(shockIcon) end },
@@ -607,7 +571,7 @@ end
 for _, p in ipairs(PLACEHOLDERS) do
 	local c = p.color
 	ELEMENTS[p.key] = { frame = makePlaceholder(p), label = "Test " .. p.letter, placeholder = true,
-		getSize = function() return db.iconSize * p.w, db.iconSize * p.h end,
+		getSize = function(size) return size * p.w, size * p.h end,
 		paint = function(t) t:SetColorTexture(c[1], c[2], c[3], 0.9) end }
 	table.insert(ELEMENT_KEYS, p.key)
 end
@@ -637,6 +601,15 @@ end
 -- always | combat | never
 local function showMode(key) return elementOpts(key).show or "always" end
 
+-- A group's icon size: its own, or General's.
+local function groupSize(g) return (g and not g.sizeFollow and g.size) or db.iconSize end
+-- An element's: its group's.
+local function sizeOf(key)
+	local gi = findElement(key)
+	return groupSize(gi and db.groups[gi])
+end
+ns.groupSize, ns.sizeOf = groupSize, sizeOf
+
 local function isEnabled(key) return findElement(key) ~= nil and showMode(key) ~= "never" end
 
 local function removeElement(key)
@@ -646,7 +619,9 @@ end
 
 local function newGroup(template)
 	local g = {}
-	for k, v in pairs(GROUP_DEFAULTS) do g[k] = template and template[k] or v end
+	for k, v in pairs(GROUP_DEFAULTS) do
+		if template and template[k] ~= nil then g[k] = template[k] else g[k] = v end   -- a template's false counts
+	end
 	if template and template.border then g.border = CopyTable(template.border) end
 	g.members = {}
 	table.insert(db.groups, g)
@@ -787,7 +762,7 @@ local function hideFrame(frame)
 end
 
 -- Border drawn just outside an element's edge, so it never covers the rings inside the icon or
--- Blizzard's shield button. size is in physical pixels, so 1 stays one crisp pixel at any scale.
+-- Blizzard's shield button. size is a line's (ns.linePx): screen pixels, grown by Scale, not by Size.
 local function applyBorder(f, b)
 	if not (b and b.show and b.size and b.size > 0) then
 		if f.border then for _, t in ipairs(f.border) do t:Hide() end end
@@ -797,9 +772,7 @@ local function applyBorder(f, b)
 		f.border = {}
 		for i = 1, 4 do f.border[i] = f:CreateTexture(nil, "BACKGROUND", nil, -8) end
 	end
-	local _, physicalHeight = GetPhysicalScreenSize()
-	local px = (768 / (physicalHeight or 768)) / f:GetEffectiveScale()
-	local s = b.size * px
+	local s = ns.linePx(f, b.size)
 	local c = b.color or { 0, 0, 0, 1 }
 	local top, bottom, left, right = f.border[1], f.border[2], f.border[3], f.border[4]
 	for _, t in ipairs(f.border) do
@@ -838,7 +811,7 @@ local function layoutGroup(gi)
 		if showMode(key) == "never" then
 			hideFrame(f)
 		else
-			local w, h = e.getSize()
+			local w, h = e.getSize(groupSize(g))
 			f:SetSize(w, h)
 			f:ClearAllPoints()
 			if horizontal then
@@ -894,6 +867,7 @@ local function layoutElements()
 	for gi in ipairs(db.groups) do layoutGroup(gi) end
 	for gi = #db.groups + 1, #groupFrames do hideFrame(groupFrames[gi]) end
 	styleNative()   -- the shield's alpha compensation follows its group's opacity
+	ns.refitRings()
 	updateTray()
 	if ns.TotemBar then ns.TotemBar.layout() end
 	if ns.RefreshOptions then ns.RefreshOptions() end
@@ -1045,15 +1019,20 @@ groupFrameScripts = function(f)
 		showGuides()
 		if not InCombatLockdown() then layoutElements() end
 	end)
+	-- Wheel: icon size (lines stay crisp); Ctrl: scale (everything grows, lines too); Shift: opacity.
 	f:SetScript("OnMouseWheel", function(self, delta)
 		if acct.locked or InCombatLockdown() then return end
 		local g = db.groups[self.index]
 		local sx, sy = screenCenter(self)
 		if IsShiftKeyDown() then g.alpha = clamp(round2(g.alpha + delta * 0.05), 0.1, 1)
-		else g.scale = clamp(round2(g.scale + delta * 0.05), 0.5, 3) end
-		if sx then setGroupCenter(g, sx, sy) end   -- scale about the centre, not the anchor
+		elseif IsControlKeyDown() then g.scale = clamp(round2(g.scale + delta * 0.05), 0.5, 3)
+		else
+			if g.sizeFollow then g.sizeFollow, g.size = false, db.iconSize end   -- its own from here on
+			g.size = clamp(g.size + delta * 2, 24, 96)
+		end
+		if sx then setGroupCenter(g, sx, sy) end   -- grow about the centre, not the anchor
 		layoutElements()
-		self.label:SetText(string.format("Group %d: scale %.2f, opacity %.0f%%", self.index, g.scale, g.alpha * 100))
+		self.label:SetText(string.format("Group %d: size %d, scale %.2f, opacity %.0f%%", self.index, groupSize(g), g.scale, g.alpha * 100))
 	end)
 	-- Right-click: the group's settings. Shift-right-click: the settings of the element under the cursor.
 	f:SetScript("OnMouseUp", function(self, button)
@@ -1168,7 +1147,8 @@ do
 	tray.hint:SetJustifyH("LEFT")
 	tray.hint:SetSpacing(2)
 	tray.hint:SetText("Drag a group to move it, or click it and use the arrow keys (Shift: 10x).\n" ..
-		"Mouse wheel over a group: scale. Shift + wheel: opacity.\n" ..
+		"Mouse wheel over a group: icon size (borders stay crisp).\n" ..
+		"Ctrl + wheel: scale (everything grows, borders too). Shift + wheel: opacity.\n" ..
 		"Right-click a group: its settings.\n" ..
 		"Shift-right-click an element: its own settings.\n" ..
 		"Options: choose which elements each group holds.")
@@ -1449,7 +1429,7 @@ function styleNative()
 	-- One pcall: Blizzard's button can refuse addon calls while auras are secret (in combat, and
 	-- possibly in PvP or encounters); a failure is noted for /sf debug and retried when combat ends.
 	nativeStylePending = not ns.try("shield style", function()
-		local size = db.iconSize
+		local size = sizeOf("shield")
 		native.container:SetSize(size, size)
 		-- Moving the shield to another group reparents it, which can drop the container back under
 		-- the underlay and its ring; restate the placement from setupNative.
@@ -1480,7 +1460,7 @@ end
 
 -- Called by Blizzard (untainted) once, right after it creates the slot button.
 local function initNativeButton(button)
-	local size = db.iconSize
+	local size = sizeOf("shield")
 	button:SetSize(size, size)
 	-- Slot frames are positioned by the caller, not by the container's flow layout.
 	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
@@ -1562,7 +1542,7 @@ local function setupNative()
 	local ok, err = pcall(function()
 		local c = CreateFrame("AuraContainer", "ShamanForeverAuraContainer", shield, "CustomAuraContainerTemplate")
 		c:SetPoint("TOPLEFT", shield, "TOPLEFT", 0, 0)
-		c:SetSize(db.iconSize, db.iconSize)
+		c:SetSize(sizeOf("shield"), sizeOf("shield"))
 		-- Intrinsic frames do not inherit placement; match the HUD's strata (HIGH would float over other
 		-- addons' dialogs) and use frame level alone to sit above the underlay and its ring.
 		c:SetFrameStrata(shield:GetFrameStrata())
@@ -1983,7 +1963,7 @@ local function styleCooldown(def)
 	if not w then return end
 	w.grey:SetTexture(def.iconID or def.icon)
 	w.grey:SetShown(cdOpt(def.key, "blockedGrey"))
-	for _, t in ipairs(w.ring) do t:SetShown(cdOpt(def.key, "blockedRing")) end
+	w.ring:show(cdOpt(def.key, "blockedRing"))
 	w.pulseOn = cdOpt(def.key, "blockedPulse")   -- OnShow restarts it after the group was hidden
 	if w.pulseOn then
 		if not w.pulse:IsPlaying() then w.pulse:Play() end
@@ -2575,8 +2555,9 @@ function ns.debugReport()
 			local mode = showMode(key)
 			table.insert(names, mode == "always" and key or (key .. " (" .. mode .. ")"))
 		end
-		say("group %d: %s, %s, scale %.2f, opacity %.2f, at %s %.0f,%.0f%s", gi, table.concat(names, ","),
-			g.orientation, g.scale, g.alpha, g.point, g.x, g.y, g.combatOnly and ", combat only" or "")
+		say("group %d: %s, %s, size %d%s, scale %.2f, opacity %.2f, at %s %.0f,%.0f%s", gi, table.concat(names, ","),
+			g.orientation, groupSize(g), g.sizeFollow and " (General)" or "", g.scale, g.alpha, g.point, g.x, g.y,
+			g.combatOnly and ", combat only" or "")
 	end
 	local errs = ns.errorLines()
 	if #errs == 0 then say("no caught errors")

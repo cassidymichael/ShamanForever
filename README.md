@@ -1,8 +1,6 @@
-# ShamanForever
+![ShamanForever: a shaman HUD for World of Warcraft: Forever](docs/banner.png)
 
 A configurable HUD for shamans on World of Warcraft: Forever: the buffs, imbues and cooldowns a shaman watches, as icons you can arrange anywhere.
-
-> This addon was created by AI, with minimal oversight by a human. Feedback and requests are welcome.
 
 ![ShamanForever in game](screenshot.png)
 
@@ -20,7 +18,7 @@ More screenshots: [options gallery](docs/gallery/README.md).
 ## Usage
 
 - `/sf` opens the options window (also the minimap button, and under Escape > Options > AddOns). Right-click the minimap button to lock or unlock positioning.
-- Key bindings for the totem bar: Escape > Options > Keybindings > Shaman Forever.
+- Key bindings for the totem bar: Escape > Options > Keybindings > ShamanForever.
 - `/sf lock` to unlock positioning and move and scale groups on screen (the bar that appears lists the controls), `/sf lock` again when done.
 
 Requires WoW: Forever (interface 16001).
@@ -33,7 +31,7 @@ Requires WoW: Forever (interface 16001).
 
 ## Art
 
-The options banners are public-domain paintings: Thomas Moran, *The Chasm of the Colorado*; Joseph Wright of Derby, *Vesuvius from Portici*; Frederic Edwin Church, *Rainy Season in the Tropics* and *Aurora Borealis*; Francisque Millet, *Mountain Landscape with Lightning*. The corner and divider ornaments are public domain / CC0 (Wikimedia Commons). Spell icons are Blizzard's, from the game.
+The options banners are public-domain paintings: Thomas Moran, *The Chasm of the Colorado*; Joseph Wright of Derby, *Vesuvius from Portici*; Frederic Edwin Church, *Rainy Season in the Tropics* and *Aurora Borealis*; Francisque Millet, *Mountain Landscape with Lightning*. The corner and divider ornaments are public domain / CC0 (Wikimedia Commons). The logo is Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky's *Breaking Wave*, with a CC0 wood texture from ambientCG. Spell icons are Blizzard's, from the game.
 
 ## Licence
 

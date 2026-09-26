@@ -215,7 +215,7 @@ local RANGES = {
 	underlayUp = { 0, 1 }, shieldIconAlpha = { 0, 1 }, manaRing = { 0, 1 }, manaIntensity = { 0, 1 },
 	manaTint = { 0, 1 }, rangeIntensity = { 0, 1 }, rangeTint = { 0, 1 }, imbueWarnMins = { 0, 60 },
 }
-local GROUP_RANGES = { scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { 0, 64 }, x = { -10000, 10000 }, y = { -10000, 10000 } }
+local GROUP_RANGES = { scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { 0, 64 }, size = { 16, 128 }, x = { -10000, 10000 }, y = { -10000, 10000 } }
 local POINTS = { CENTER = true, TOP = true, BOTTOM = true, LEFT = true, RIGHT = true,
 	TOPLEFT = true, TOPRIGHT = true, BOTTOMLEFT = true, BOTTOMRIGHT = true }
 local function clampNumbers(t, ranges, defaults)
@@ -274,7 +274,7 @@ function P.decode(text)
 	local E = C_EncodingUtil
 	if not E then return nil, "sharing needs a newer game client" end
 	text = (text or ""):gsub("%s", "")
-	if text:sub(1, #SHARE_PREFIX) ~= SHARE_PREFIX then return nil, "that isn't a Shaman Forever profile" end
+	if text:sub(1, #SHARE_PREFIX) ~= SHARE_PREFIX then return nil, "that isn't a ShamanForever profile" end
 	local ok, data = pcall(function()
 		local method = Enum.CompressionMethod and Enum.CompressionMethod.Deflate
 		return E.DeserializeCBOR(E.DecompressString(E.DecodeBase64(text:sub(#SHARE_PREFIX + 1)), method))
@@ -283,7 +283,7 @@ function P.decode(text)
 		return nil, "that profile text is damaged or incomplete"
 	end
 	if type(data.v) == "number" and data.v > SETTINGS_VERSION then
-		return nil, "that profile needs a newer version of Shaman Forever"
+		return nil, "that profile needs a newer version of ShamanForever"
 	end
 	return cleanProfile(data.profile)
 end

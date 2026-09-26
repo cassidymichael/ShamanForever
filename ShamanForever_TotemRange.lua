@@ -160,15 +160,12 @@ local function makeContainer(s)
 	end
 end
 
--- Size, place and colour both parts (out of combat). The height is in physical pixels, so it stays
--- crisp at any scale (as borders are).
+-- Size, place and colour both parts (out of combat). The height is a line's (ns.linePx), as borders are.
 local function place(s, size)
 	local c, b, gate = TB.cfg(), s.button, s.rangeGate
 	gate:ClearAllPoints()
 	gate:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
-	local _, physicalHeight = GetPhysicalScreenSize()
-	local px = (768 / (physicalHeight or 768)) / gate:GetEffectiveScale()
-	local w, h = size, c.rangeHeight * px
+	local w, h = size, ns.linePx(gate, c.rangeHeight)
 	gate:SetSize(w, h)
 	local k = c.rangeOut
 	s.rangeMark.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)

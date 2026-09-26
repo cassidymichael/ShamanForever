@@ -4,6 +4,7 @@ local ADDON, ns = ...
 
 -- A fixed width, the one the art is made for; the player may make it taller.
 local WIDTH, HEIGHT, NAV_W = 864, 700, 190
+local LOGO_SIZE, LOGO_X, LOGO_Y = 112, -19, 24   -- the logo badge over the window's top-left corner
 local MIN_H, MAX_H = 560, 1300
 local PAGE_TOP = -38   -- pages start below the title bar
 local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
@@ -702,9 +703,17 @@ local function buildGeneral(p)
 	p:header("Defaults")
 	p:anchor("size")
 	p:text("Elements, groups and the totem bar use these unless they have their own.")
-	p:slider("Icon size", "Base size of every element. Each group's scale multiplies it.", 24, 96, 1, int,
+	p:slider("Icon size", "Every group's and the totem bar's, unless it has its own.", 24, 96, 1, int,
 		get("iconSize"), set("iconSize"))
-	p:text("Currently using their own: Totem bar", function() return ns.TotemBar.barOn() and not ns.TotemBar.cfg().sizeFollow end)
+	-- Who has an own icon size: groups by number, then the totem bar.
+	local function ownSizes()
+		local out = {}
+		for gi, g in ipairs(db().groups) do if not g.sizeFollow then table.insert(out, "Group " .. gi) end end
+		if ns.TotemBar.barOn() and not ns.TotemBar.cfg().sizeFollow then table.insert(out, "Totem bar") end
+		return out
+	end
+	p:text(function() return "Currently using their own: " .. table.concat(ownSizes(), ", ") end,
+		function() return #ownSizes() > 0 end)
 	p:header("Border")
 	p:anchor("border")
 	borderRows(p, nil)
@@ -725,7 +734,7 @@ local function buildGeneral(p)
 
 	local function hasReporter() return ns.hasIssueReporter and ns.hasIssueReporter() end
 	p:header("Beta", hasReporter)
-	p:checkbox("Hide the Issue Reporter button", "Blizzard's beta Issue Reporter button. /ptr still works while it is hidden. Shaman Forever also remembers where you drag it.",
+	p:checkbox("Hide the Issue Reporter button", "Blizzard's beta Issue Reporter button. /ptr still works while it is hidden. ShamanForever also remembers where you drag it.",
 		function() return acct().hideIssueReporter end, function(v) acct().hideIssueReporter = v; ns.applyIssueReporter() end, hasReporter)
 end
 
@@ -766,7 +775,7 @@ local function buildProfiles(p)
 end
 
 local function buildAbout(p)
-	p:header("Shaman Forever")
+	p:header("ShamanForever")
 	p:text(function() return "Version " .. addonVersion() .. ". A shaman HUD for WoW Forever." end)
 	p:copyField("Source and issues", ns.Look.REPO)
 	p:copyField("CurseForge", "https://www.curseforge.com/wow/addons/shamanforever")
@@ -790,7 +799,8 @@ local function buildAbout(p)
 	p:header("Art")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
 		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
-		"Francisque Millet, Mountain Landscape with Lightning (air). Corner and divider ornaments: public domain / CC0, Wikimedia Commons.")
+		"Francisque Millet, Mountain Landscape with Lightning (air). Corner and divider ornaments: public domain / CC0, Wikimedia Commons. " ..
+		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood texture CC0, ambientCG.")
 end
 
 ------------------------------------------------------------------------
@@ -1080,7 +1090,7 @@ local function buildLayout(p)
 			function() return "Its layout is on its own page" end, function() ns.OpenOptions("totembar") end },
 	})
 	p:header("Elements layout")
-	p:text("Shaman Forever calls each indicator an element, and every element sits in one group. Drag elements between groups; click one for a menu.")
+	p:text("ShamanForever calls each indicator an element, and every element sits in one group. Drag elements between groups; click one for a menu.")
 	p:checkbox("Test elements", "Adds placeholder elements in their own group, for trying out layouts.",
 		function() return acct().testMode end, function(v) ns.setTestMode(v); ns.RefreshOptions() end)
 	p:add(p:row(6), 6)   -- a little room between the heading's line and the group cards
@@ -1131,7 +1141,19 @@ local function buildLayout(p)
 	p:dropdown("Growth", "Which way the row or column extends from its first element.",
 		{ { "forward", "Right / down" }, { "backward", "Left / up" } }, groupGet("growth"), groupSet("growth"), hasGroups)
 	p:slider("Spacing", "Gap between the group's elements.", 0, 40, 1, int, groupGet("spacing"), groupSet("spacing"), hasGroups)
-	p:slider("Scale", "Size of the whole group. Mouse wheel over the group while unlocked does the same.", 0.5, 3, 0.05, times,
+	generalRow(p, "Icon size same as General", "Use the icon size on the General page.",
+		function() local g = selected(); return g and g.sizeFollow end,
+		function(v)
+			local g = selected()
+			if not g then return end
+			if not v then g.size = db().iconSize end   -- its own starts from General's, so nothing jumps
+			g.sizeFollow = v
+			relayout()
+		end, "size", hasGroups)
+	p:slider("Icon size", "Mouse wheel over the group while unlocked does the same.", 24, 96, 1, int,
+		groupGet("size"), groupSet("size"), showWhen(function() local g = selected(); return g and not g.sizeFollow end, hasGroups))
+	p:text("Icon size keeps borders and rings crisp. Scale grows everything, borders and rings included.", hasGroups)
+	p:slider("Scale", "Grows everything in the group, borders and rings too. Ctrl + mouse wheel over the group while unlocked does the same.", 0.5, 3, 0.05, times,
 		groupGet("scale"), function(v)
 			local g = selected()
 			if not g then return end
@@ -1196,9 +1218,9 @@ local function buildTotemBar(p)
 		{ "active", "Active totems", "Interface\\Icons\\Spell_Nature_TimeStop" },
 		{ "everything", "Everything", "Interface\\Icons\\Spell_Shaman_DropAll_01" },
 	}, tget("mode"), function(v) TB.setMode(v); changed() end)
-	p:text("Shaman Forever's totem bar is off. Blizzard's totem bar and active totems display are on.", function() return c().mode == "blizzard" end)
+	p:text("ShamanForever's totem bar is off. Blizzard's totem bar and active totems display are on.", function() return c().mode == "blizzard" end)
 	p:text("Keeps Blizzard's totem bar, but replaces Blizzard's active totems display usually shown under the player frame.", function() return c().mode == "active" end)
-	p:text("Both of Blizzard's totem frames are replaced by Shaman Forever.", full)
+	p:text("Both of Blizzard's totem frames are replaced by ShamanForever.", full)
 
 	p.gate = TB.barOn
 	p:header("Display")
@@ -1207,8 +1229,8 @@ local function buildTotemBar(p)
 		tget("show"), tset("show"), nil, 200)
 	p:dropdown("Tooltips", nil, { { "always", "Always" }, { "ooc", "Out of combat" }, { "never", "Never" } },
 		tget("tips"), tset("tips"), nil, 160)
-	p:text("Right-click a totem to dismiss it. Alt+click a slot to pick its totem. Keys: Options > Keybindings > Shaman Forever.", full)
-	p:text("Right-click a totem to dismiss it. Keys: Options > Keybindings > Shaman Forever.", function() return c().mode == "active" end)
+	p:text("Right-click a totem to dismiss it. Alt+click a slot to pick its totem. Keys: Options > Keybindings > ShamanForever.", full)
+	p:text("Right-click a totem to dismiss it. Keys: Options > Keybindings > ShamanForever.", function() return c().mode == "active" end)
 
 	p:header("Layout")
 	-- The elements in bar order (first: the left end of a row, the top of a column). Drag one to move
@@ -1336,17 +1358,17 @@ local function buildTotemBar(p)
 		return { { "right", "Right" }, { "left", "Left" } }
 	end, tget("pop"), tset("pop"), full, 140)
 	p:slider("Spacing", nil, 0, 20, 1, function(v) return string.format("%d px", v) end, tget("spacing"), tset("spacing"))
-	-- Its own size is not its scale: scale also grows the text, arrows and spacing, never the border.
+	-- Its own size is not its scale: scale grows everything, text, arrows, spacing and lines included.
 	generalRow(p, "Icon size same as General", "Use the icon size on the General page.",
 		tget("sizeFollow"), function(v) TB.setSizeFollow(v); changed() end, "size")
-	p:slider("Icon size", nil, 24, 96, 1, function(v) return string.format("%d px", v) end, tget("size"), tset("size"),
+	p:slider("Icon size", "Mouse wheel over the bar while positioning is unlocked does the same.", 24, 96, 1, function(v) return string.format("%d px", v) end, tget("size"), tset("size"),
 		showWhen(function() return not c().sizeFollow end))
 	p:dropdown("Call and Recall", "Where they sit on the bar.", { { "ends", "Both ends" }, { "before", "Before the slots" }, { "after", "After the slots" } },
 		tget("extras"), tset("extras"), showWhen(function() return c().call or c().recall end, full), 180)
 	p:slider("Call and Recall size", "As a share of the slots' size.", 0.5, 1.5, 0.05,
 		function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end, tget("extrasScale"), tset("extrasScale"),
 		showWhen(function() return c().call or c().recall end, full))
-	p:slider("Scale", "Mouse wheel over the bar while positioning is unlocked does the same.", 0.5, 3, 0.05,
+	p:slider("Scale", "Grows everything on the bar, borders too. Ctrl + mouse wheel over the bar while positioning is unlocked does the same.", 0.5, 3, 0.05,
 		function(v) return string.format("%.2f", v) end, tget("scale"), tset("scale"))
 	p:slider("Opacity", "Shift + mouse wheel over the bar while positioning is unlocked does the same.", 0.1, 1, 0.05,
 		function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end, tget("alpha"), tset("alpha"))
@@ -1747,7 +1769,7 @@ end
 
 -- The nav: main pages, then every element's page (indented), then Profiles and About.
 local function buildNav()
-	local y = -66   -- below the portrait
+	local y = LOGO_Y - LOGO_SIZE - 1   -- just below the logo
 	local function add(pageKey, text, icon, sub, extra)
 		local b = CreateFrame("Button", nil, win)
 		local indent = sub and 16 or 0
@@ -1813,8 +1835,24 @@ local function buildWindow()
 	win = CreateFrame("Frame", "ShamanForeverOptionsFrame", UIParent, "ButtonFrameTemplate")
 	if ButtonFrameTemplate_HideButtonBar then pcall(ButtonFrameTemplate_HideButtonBar, win) end
 	if win.Inset then win.Inset:Hide() end
-	if win.SetTitle then win:SetTitle("Shaman Forever") end
-	if win.SetPortraitToAsset then pcall(win.SetPortraitToAsset, win, "Interface\\Icons\\ClassIcon_Shaman") end
+	if win.SetTitle then win:SetTitle("ShamanForever") end
+	-- The logo: the crest alone (Art/Logo-Icon, with alpha) as a badge over the top-left corner, on
+	-- Blizzard's plain-cornered border. At the portrait's size (62 px, inside the ring) its detail was
+	-- lost; the ring can't grow (it is part of the frame's corner art). A soft shadow lifts it off the frame.
+	if ButtonFrameTemplate_HidePortrait then pcall(ButtonFrameTemplate_HidePortrait, win) end
+	local logo = CreateFrame("Frame", nil, win)
+	logo:SetSize(LOGO_SIZE, LOGO_SIZE)
+	logo:SetPoint("TOPLEFT", win, "TOPLEFT", LOGO_X, LOGO_Y)
+	logo:SetFrameLevel(600)   -- above the frame's border and title bar
+	local LOGO = "Interface\\AddOns\\ShamanForever\\Art\\Logo-Icon"
+	logo.shadow = logo:CreateTexture(nil, "BACKGROUND")
+	logo.shadow:SetTexture(LOGO)
+	logo.shadow:SetVertexColor(0, 0, 0, 0.7)
+	logo.shadow:SetPoint("TOPLEFT", 3, -4)
+	logo.shadow:SetPoint("BOTTOMRIGHT", 3, -4)
+	logo.tex = logo:CreateTexture(nil, "ARTWORK")
+	logo.tex:SetTexture(LOGO)
+	logo.tex:SetAllPoints()
 	-- Our warm charcoal inside the frame.
 	local bg = win:CreateTexture(nil, "BACKGROUND", nil, 2)
 	bg:SetPoint("TOPLEFT", 2, -22)
@@ -2146,22 +2184,22 @@ function ns.ToggleOptions()
 	if win and win:IsShown() then win:Hide() else ns.OpenOptions() end
 end
 
--- Escape > Options > AddOns > Shaman Forever: a pointer to the window above.
+-- Escape > Options > AddOns > ShamanForever: a pointer to the window above.
 local category
 function ns.BuildOptions()
 	if category or not (Settings and Settings.RegisterCanvasLayoutCategory) then return end
 	local panel = CreateFrame("Frame")
 	local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	title:SetPoint("TOPLEFT", 16, -16)
-	title:SetText("Shaman Forever")
+	title:SetText("ShamanForever")
 	local text = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	text:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -10)
-	text:SetText("Shaman Forever has its own options window. You can also open it by typing /sf.")
+	text:SetText("ShamanForever has its own options window. You can also open it by typing /sf.")
 	local button = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
 	button:SetSize(180, 26)
 	button:SetPoint("TOPLEFT", text, "BOTTOMLEFT", 0, -14)
 	button:SetText("Open options")
 	button:SetScript("OnClick", function() ns.OpenOptions() end)
-	category = Settings.RegisterCanvasLayoutCategory(panel, "Shaman Forever")
+	category = Settings.RegisterCanvasLayoutCategory(panel, "ShamanForever")
 	Settings.RegisterAddOnCategory(category)
 end

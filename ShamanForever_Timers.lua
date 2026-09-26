@@ -261,8 +261,8 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 	end
 end)
 
-T.EXPIRE_DEFAULTS = { secs = 5, grey = false, ring = false, pulse = true, glow = true }
-T.EXPIRE_ELEMENT = { firenova = { glow = false } }   -- elements that start differently
+T.EXPIRE_DEFAULTS = { secs = 5, grey = false, ring = false, pulse = true, glow = false }
+T.EXPIRE_ELEMENT = {}   -- elements that start differently: key -> fields
 
 -- e: { secs, grey, ring, pulse, glow } (secs 0 turns it off); icon: the texture the grey copy shows.
 function Timer:setExpire(e, icon)
@@ -290,29 +290,12 @@ function Timer:setExpire(e, icon)
 		x.grey:SetAllPoints()
 		x.grey:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 		x.grey:SetDesaturated(true)
-		x.ring = {}
-		for _, edge in ipairs({ { "TOPLEFT", "TOPRIGHT", nil, 3 }, { "BOTTOMLEFT", "BOTTOMRIGHT", nil, 3 },
-				{ "TOPLEFT", "BOTTOMLEFT", 3, nil }, { "TOPRIGHT", "BOTTOMRIGHT", 3, nil } }) do
-			local r = x:CreateTexture(nil, "OVERLAY", nil, 6)
-			r:SetColorTexture(1, 0, 0, 0.9)
-			local inset = edge[3] or 0   -- side edges between the top and bottom ones
-			r:SetPoint(edge[1], x, edge[1], 0, -inset)
-			r:SetPoint(edge[2], x, edge[2], 0, inset)
-			if edge[3] then r:SetWidth(edge[3]) end
-			if edge[4] then r:SetHeight(edge[4]) end
-			table.insert(x.ring, r)
-		end
+		x.ring = ns.makeRing(x, x)
 		x.dim = x:CreateTexture(nil, "OVERLAY")
 		x.dim:SetAllPoints()
 		x.dim:SetColorTexture(0, 0, 0, 1)
 		x.dim:SetAlpha(0)
-		x.pulse = x.dim:CreateAnimationGroup()
-		x.pulse:SetLooping("BOUNCE")
-		local a = x.pulse:CreateAnimation("Alpha")
-		a:SetFromAlpha(0)
-		a:SetToAlpha(0.55)
-		a:SetDuration(0.6)
-		a:SetSmoothing("IN_OUT")
+		x.pulse = ns.makePulse(x.dim, "dim")
 		-- A hidden ancestor (combat-only visibility, Alt-Z) stops the pulse; start it again on show.
 		x:SetScript("OnShow", function(s) if s.pulseOn then s.pulse:Play() end end)
 		x.glow = ns.makeGlow(x, self.anchor, self.key)   -- ShamanForever.lua; made on first use, after it has loaded
@@ -322,12 +305,26 @@ function Timer:setExpire(e, icon)
 	x.glow:SetShown(e.glow)
 	if icon then x.grey:SetTexture(icon) end
 	x.grey:SetShown(e.grey)
-	for _, r in ipairs(x.ring) do r:SetShown(e.ring) end
+	x.ring:show(e.ring)
 	x.pulseOn = e.pulse and true or false
-	if e.pulse then x.pulse:Play() else x.pulse:Stop(); x.dim:SetAlpha(0) end
+	-- Callers repeat this (the totem bar on every totem change): a running pulse isn't restarted.
+	if not e.pulse then x.pulse:Stop(); x.dim:SetAlpha(0)
+	elseif not x.pulse:IsPlaying() then x.pulse:Play() end
 	self.expCurve = ns.lastSeconds(e.secs)
 	warning[self] = true
 	ticker:Show()
+	-- At once, not on the next tick (a totem recast in its last seconds drops the old warning now).
+	local d = self.last
+	if d then
+		local ok, a = pcall(d.EvaluateRemainingDuration, d, self.expCurve)
+		if ok then x:SetAlpha(a) else x:SetAlpha(0) end   -- a may be secret: never tested, only handed on
+	end
+end
+
+-- The grey copy's icon, when it changes with what is shown (the totem bar's totem; a secret icon
+-- in combat is fine, SetTexture takes it).
+function Timer:setExpireIcon(icon)
+	if self.exp then ns.try("timer expiring icon", self.exp.grey.SetTexture, self.exp.grey, icon) end
 end
 
 -- Frame levels again, after the caller moved the icon (regrouping): the warning just above the

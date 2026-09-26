@@ -33,10 +33,10 @@ function ns.applyMinimapButton()
 	if type(acct.minimap) ~= "table" then acct.minimap = {} end
 	if not minimapIcon then
 		local obj = ldb:NewDataObject("ShamanForever", {
-			type = "launcher", text = "Shaman Forever", icon = "Interface\\Icons\\Spell_Nature_LightningShield",
+			type = "launcher", text = "ShamanForever", icon = "Interface\\AddOns\\ShamanForever\\Art\\Logo-Icon",
 			OnClick = function(_, button) onLauncherClick(button) end,
 			OnTooltipShow = function(tt)
-				tt:AddLine("Shaman Forever")
+				tt:AddLine("ShamanForever")
 				launcherTip(tt)
 			end,
 		})
@@ -51,7 +51,7 @@ end
 _G.ShamanForever_OnAddonCompartmentClick = function(_, button) onLauncherClick(button) end
 _G.ShamanForever_OnAddonCompartmentEnter = function(_, button)
 	GameTooltip:SetOwner(button, "ANCHOR_LEFT")
-	GameTooltip:SetText("Shaman Forever")
+	GameTooltip:SetText("ShamanForever")
 	launcherTip(GameTooltip)
 	GameTooltip:Show()
 end

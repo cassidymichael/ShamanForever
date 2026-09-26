@@ -65,6 +65,82 @@ function ns.lastSeconds(secs)
 end
 
 ------------------------------------------------------------------------
+-- Lines (borders, warning rings, the range strip) are measured in screen pixels, so they stay crisp:
+-- n pixels at scale 1. A Scale between the screen and the frame (a group's, the totem bar's, a
+-- preview's) grows them with everything else, rounded to whole pixels. Icon Size doesn't.
+------------------------------------------------------------------------
+-- The length, in the frame's own units, of n screen pixels grown by the frame's Scale.
+function ns.linePx(frame, n)
+	local eff = frame:GetEffectiveScale()
+	local count = math.floor(n * eff / UIParent:GetEffectiveScale() + 0.5)
+	if n > 0 and count < 1 then count = 1 end
+	local _, physicalHeight = GetPhysicalScreenSize()
+	return count * (768 / (physicalHeight or 768)) / eff
+end
+
+------------------------------------------------------------------------
+-- Warning looks shared by the HUD, the totem bar and the options previews
+------------------------------------------------------------------------
+-- A ring just inside an icon's edge: four textures, the side ones between the top and bottom ones
+-- (no doubled corners). Its thickness is a line's (ns.linePx): crisp, the same at any icon size.
+ns.RING_PX = 3
+ns.RING_COLOR = { 1, 0, 0, 0.9 }
+local Ring = {}
+Ring.__index = Ring
+local rings = setmetatable({}, { __mode = "k" })
+function ns.makeRing(parent, anchor)
+	local r = setmetatable({ anchor = anchor, edges = {} }, Ring)
+	rings[r] = true
+	for i = 1, 4 do
+		local t = parent:CreateTexture(nil, "OVERLAY", nil, 6)
+		t:Hide()
+		r.edges[i] = t
+	end
+	r:color()
+	return r
+end
+-- A colour other than the warning red (the shock's blue "no mana" ring); no arguments: the red.
+function Ring:color(red, g, b, a)
+	local k = ns.RING_COLOR
+	for _, t in ipairs(self.edges) do t:SetColorTexture(red or k[1], g or k[2], b or k[3], a or k[4]) end
+end
+-- Sizes the edges for the anchor's current scale; re-anchors only when that changed.
+function Ring:fit()
+	local w = ns.linePx(self.anchor, ns.RING_PX)
+	if w == self.width then return end
+	self.width = w
+	local a, top, bottom, left, right = self.anchor, self.edges[1], self.edges[2], self.edges[3], self.edges[4]
+	for _, t in ipairs(self.edges) do t:ClearAllPoints() end
+	top:SetPoint("TOPLEFT", a, "TOPLEFT", 0, 0); top:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, 0); top:SetHeight(w)
+	bottom:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, 0); bottom:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, 0); bottom:SetHeight(w)
+	left:SetPoint("TOPLEFT", a, "TOPLEFT", 0, -w); left:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, w); left:SetWidth(w)
+	right:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, -w); right:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, w); right:SetWidth(w)
+end
+function Ring:show(on)
+	if on then self:fit() end
+	for _, t in ipairs(self.edges) do t:SetShown(on and true or false) end
+end
+-- After a layout (a group's or the bar's Scale may have changed): every ring on screen re-measures.
+function ns.refitRings()
+	for r in pairs(rings) do
+		if r.edges[1]:IsShown() then r:fit() end
+	end
+end
+
+-- A looping pulse on a region. "fade": the region itself breathes, 100% to 35% over 0.8 s (missing
+-- looks). "dim": a dark layer from 0 to 55% over 0.6 s (expiring; it dims the icon, never the text
+-- above it). Returns the animation group.
+function ns.makePulse(region, kind)
+	local g = region:CreateAnimationGroup()
+	g:SetLooping("BOUNCE")
+	local a = g:CreateAnimation("Alpha")
+	if kind == "dim" then a:SetFromAlpha(0); a:SetToAlpha(0.55); a:SetDuration(0.6)
+	else a:SetFromAlpha(1); a:SetToAlpha(0.35); a:SetDuration(0.8) end
+	a:SetSmoothing("IN_OUT")
+	return g
+end
+
+------------------------------------------------------------------------
 -- Spells, by ID. Each tracked spell has seed IDs (any rank; the first is the one its name comes
 -- from) and an English name used only when no seed exists on the client. Everything else is looked
 -- up: the name in the client's own language, the ranks the player knows (spellbook), and which spell
