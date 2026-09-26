@@ -487,7 +487,7 @@ local function gcdOf(getInfo, getDuration, id)
 end
 local function drawGCD()
 	-- Not gated on the bar being shown: the cast that brings it up (in combat, a first totem) sweeps too.
-	local on = ns.Style.get("totembar", "gcd").show
+	local on = ns.Style.value("totembar", "gcd", "show")
 	for _, el in ipairs(ELEMENTS) do
 		local s = slots[el]
 		local action = multiAction(s.slot)

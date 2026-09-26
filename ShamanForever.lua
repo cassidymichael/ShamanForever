@@ -1660,7 +1660,7 @@ end
 -- sweeps it, as on action bars); off, its own cooldown only (ignoreGCD), which its own cast starts,
 -- so other spells don't sweep it. nil when none can be read.
 local function cooldownFor(f, key, spellID)
-	if ns.Style.get(key, "gcd").show then
+	if ns.Style.value(key, "gcd", "show") then
 		local ok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID)
 		if not (ok and dur) then return nil end
 		noteGCD(f, spellID)
@@ -1686,7 +1686,7 @@ shieldGCD:SetHideCountdownNumbers(true)
 shieldGCD:SetSwipeTexture("Interface\\Buttons\\WHITE8x8")
 shieldGCD:SetSwipeColor(0, 0, 0, 0.6)
 local function refreshShieldGCD()
-	local id = isEnabled("shield") and ns.Style.get("shield", "gcd").show and Spells.known(SHIELDS[underlayShield()].spell)
+	local id = isEnabled("shield") and ns.Style.value("shield", "gcd", "show") and Spells.known(SHIELDS[underlayShield()].spell)
 	local d
 	if id and onGCD(id) then
 		local ok, dur = safe(C_Spell.GetSpellCooldownDuration, id)

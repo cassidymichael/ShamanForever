@@ -143,6 +143,21 @@ function S.get(owner, kind)
 	return clean(S.override(owner, kind), base(owner, kind))
 end
 
+-- One plain (not table) field of the style an owner uses now, as S.get would give it, without
+-- building the style: for callers that run on every cooldown event.
+function S.value(owner, kind, field)
+	local spec = S.KINDS[kind]
+	local v = spec.defaults[field]
+	local g = at(holder(nil), spec.path)
+	if type(g) == "table" and type(g[field]) == type(v) then v = g[field] end
+	if S.follows(owner, kind) then return v end
+	local d = ownerDefaults(owner, kind)
+	if d and d[field] ~= nil then v = d[field] end
+	local o = S.override(owner, kind)
+	if type(o) == "table" and type(o[field]) == type(v) then v = o[field] end
+	return v
+end
+
 -- Stop following General: the first time, the owner starts from General's look with its own
 -- defaults on top (for most owners, the look it had). Follow again: its own values are kept for later.
 function S.setFollow(owner, kind, follow)
