@@ -35,3 +35,27 @@ jobs:
           # Wago project rN4rkrKD (## X-Wago-ID in the TOC).
           # WoWInterface has no Forever category, so the addon isn't published there.
           WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
+      # Posts the same notes to the Discord server's #announcements, through the webhook in the
+      # DISCORD_WEBHOOK_URL secret, with pings off. Plain vX.Y.Z tags only. The release is out by
+      # now, so a failed post only warns: post it by hand.
+      - name: Announce on Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Pre-release: not announced"; exit 0; }
+          release="https://github.com/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME"
+          # The notes without their "## X.Y.Z (date)" heading (the title has it) or the
+          # "Earlier versions" line.
+          notes=$(sed -e '1d' -e '/^Earlier versions: /d' RELEASE_NOTES.md | sed '/./,$!d')
+          jq -n --arg title "ShamanForever ${GITHUB_REF_NAME#v} is out" --arg url "$release" --arg notes "$notes" '{
+            allowed_mentions: {parse: []},
+            embeds: [{
+              title: $title, color: 28894,
+              description: ("**Download:** "
+                + "[CurseForge](https://www.curseforge.com/wow/addons/shamanforever) (can take 10 minutes to appear) · "
+                + "[Wago](https://addons.wago.io/addons/shamanforever) · [GitHub](" + $url + ")"
+                + "\n\n**Changelog**\n" + ($notes | if length > 3700 then .[0:3700] + "…" else . end))
+            }]
+          }' > discord.json
+          curl -fsS -H 'Content-Type: application/json' --data @discord.json "$DISCORD_WEBHOOK_URL" \
+            || echo "::warning::Discord announcement failed; post it by hand"
