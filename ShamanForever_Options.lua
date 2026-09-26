@@ -159,10 +159,18 @@ function Page:label(f, text, tip)
 	return fs
 end
 
-function Page:header(text, shown, note)
+-- icon: an optional texture before the text.
+function Page:header(text, shown, note, icon)
 	local f = self:row(36)
 	f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-	f.text:SetPoint("BOTTOMLEFT", 0, 7)
+	f.text:SetPoint("BOTTOMLEFT", icon and 26 or 0, 7)
+	if icon then
+		f.icon = f:CreateTexture(nil, "ARTWORK")
+		f.icon:SetSize(20, 20)
+		f.icon:SetPoint("BOTTOMLEFT", 0, 5)
+		f.icon:SetTexture(icon)
+		f.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	end
 	f.text:SetText(text)
 	if note then
 		f.note = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
@@ -443,9 +451,20 @@ function Page:callout(text, shown)
 end
 
 -- Read-only text the player can select and copy (links cannot be clicked in game).
-function Page:copyField(label, value)
+-- icon, color: an optional small icon before the label (a white one tinted, e.g. a site's logo).
+function Page:copyField(label, value, icon, color)
 	local f = self:row(30)
-	self:label(f, label)
+	local fs = self:label(f, label)
+	if icon then
+		local t = f:CreateTexture(nil, "ARTWORK")
+		t:SetSize(18, 18)
+		t:SetPoint("LEFT", 4, 0)
+		t:SetTexture(icon)
+		if color then t:SetVertexColor(color[1], color[2], color[3]) end
+		fs:ClearAllPoints()
+		fs:SetPoint("LEFT", 30, 0)
+		fs:SetWidth(LABEL_W - 34)
+	end
 	local e = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
 	e:SetSize(380, 20)
 	e:SetPoint("LEFT", f, "LEFT", LABEL_W + 6, 0)
@@ -665,6 +684,21 @@ local function timerSettings(p, title, key, kind, after, note)
 	if not key then ownLine(p, kind) end
 end
 
+-- Standard block: the global cooldown's sweep, on or off (the gcd style). key nil: General's;
+-- otherwise an element's or the totem bar's, with Same as General.
+local function gcdBlock(p, key)
+	local function after() ns.refreshAll(); ns.TotemBar.drawGCD(); ns.RefreshOptions() end
+	local r = styleRows(key, "gcd", after)
+	p:header("Global cooldown")
+	if key then followRow(p, key, "gcd", after)
+	else
+		p:anchor("gcd")
+		p:text("Elements and the totem bar can have their own.")
+	end
+	p:checkbox("Show global cooldown", "The sweep after every cast, as on action bars.", r.get("show"), r.set("show"), showWhen(r.own))
+	if not key then ownLine(p, "gcd") end
+end
+
 local function get(key) return function() return db()[key] end end
 local function set(key, after) return function(v) db()[key] = v; (after or relayout)() end end
 
@@ -686,7 +720,7 @@ local function lockText() return acct().locked and "Unlock positioning" or "Lock
 local function toggleLock() ns.setLocked(not acct().locked); ns.RefreshOptions() end
 local function lockSub() return acct().locked and "Move groups and the totem bar on screen" or "Done moving? Lock them" end
 
-local aboutExp   -- About's Experimental heading, for ns.ShowExperimental
+local aboutExp, aboutFeedback   -- About's flashing headings (ns.ShowExperimental, ns.ShowFeedback)
 local groupPanel -- Layout's selected-group panel, for ns.OpenGroupSettings
 
 local function addonVersion()
@@ -702,11 +736,16 @@ local function buildHome(p)
 		{ "Interface\\Icons\\Spell_Nature_Invisibilty", function() return "Layout" end,
 			function() return "Set up groups of elements" end, function() ns.OpenOptions("layout") end },
 	})
-	p:add(p:row(14), 14)   -- room between the big buttons and Feedback
-	p:header("Feedback")
-	p:text("Ideas, requests or problems? Leave a comment on CurseForge, or open an issue on GitHub. Click a link, then Ctrl+C to copy.")
-	p:copyField("CurseForge", ns.Look.CURSEFORGE .. "/comments")
-	p:copyField("GitHub", ns.Look.REPO .. "/issues")
+	p:add(p:row(24), 24)   -- room between the big buttons and Feedback
+	-- Feedback, in large type: it matters most on this page.
+	local lead = p:text("Ideas, requests, bugs? Please let me know!")
+	lead.text:SetFontObject("GameFontHighlightMedium")
+	lead.text:SetTextColor(1, 0.92, 0.75)
+	p:add(p:row(4), 4)
+	p:bigButtons({
+		{ "Interface\\Icons\\INV_Letter_15", function() return "Give feedback" end,
+			function() return "Discord, CurseForge or GitHub" end, function() ns.ShowFeedback() end },
+	})
 end
 
 -- General: the styles everything follows unless it has its own, then housekeeping.
@@ -731,6 +770,7 @@ local function buildGeneral(p)
 	ownLine(p, "border")
 	timerSettings(p, "Cooldowns", nil, "cooldown", nil, "A spell you can't cast yet.")
 	timerSettings(p, "Time left", nil, "uptime", nil, "A totem, shield or imbue running.")
+	gcdBlock(p, nil)
 	glowBlock(p, nil, 136026)
 	popBlock(p, nil, 136026, "ready")
 
@@ -786,15 +826,10 @@ local function buildProfiles(p)
 	})
 end
 
-local function buildAbout(p)
-	p:header("ShamanForever")
-	p:text(function() return "Version " .. addonVersion() .. ". A shaman HUD for WoW Forever." end)
-	p:copyField("CurseForge", ns.Look.CURSEFORGE)
-	p:copyField("Wago", ns.Look.WAGO)
-	p:copyField("GitHub", ns.Look.REPO)
-	local expHeader = p:header("Experimental")
-	-- A gold glow ns.ShowExperimental flashes over the heading.
-	local glow = expHeader:CreateTexture(nil, "BACKGROUND")
+-- A heading with a gold glow that flashes when a button elsewhere brings the reader to it.
+local function flashingHeader(p, text, icon)
+	local header = p:header(text, nil, nil, icon)
+	local glow = header:CreateTexture(nil, "BACKGROUND")
 	glow:SetPoint("TOPLEFT", -6, 2)
 	glow:SetPoint("BOTTOMRIGHT", 6, -2)
 	glow:SetColorTexture(0.88, 0.66, 0.29, 0.35)
@@ -805,15 +840,62 @@ local function buildAbout(p)
 	local down = flash:CreateAnimation("Alpha")
 	down:SetFromAlpha(1); down:SetToAlpha(0); down:SetDuration(0.9); down:SetOrder(2)
 	flash:SetLooping("NONE")
-	aboutExp = { page = p, header = expHeader, flash = flash }
+	return { page = p, header = header, flash = flash }
+end
+
+-- Link icons: white site logos (Simple Icons, CC0), tinted with each site's colour. PNG paths need
+-- their extension (the client only adds .tga or .blp itself).
+local LINKS = {
+	discord = { ART .. "Link-Discord.png", { 0.35, 0.40, 0.95 } },
+	curseforge = { ART .. "Link-CurseForge.png", { 0.95, 0.39, 0.21 } },
+	github = { ART .. "Link-GitHub.png", { 0.92, 0.92, 0.92 } },
+	kofi = { ART .. "Link-Kofi.png", { 1, 0.37, 0.36 } },
+}
+local function link(p, label, url, site) p:copyField(label, url, LINKS[site][1], LINKS[site][2]) end
+
+-- About's title card: the logo, the name, the version and what it is.
+local function aboutCard(p)
+	local f = CreateFrame("Frame", nil, p.content, "BackdropTemplate")
+	f:SetHeight(78)
+	panelBackdrop(f, 0.55, 0.42, 0.22)
+	f.logo = f:CreateTexture(nil, "ARTWORK")
+	f.logo:SetSize(64, 64)
+	f.logo:SetPoint("LEFT", 10, 0)
+	f.logo:SetTexture(ART .. "Logo-Icon")
+	f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+	f.title:SetPoint("TOPLEFT", f.logo, "TOPRIGHT", 14, -8)
+	f.title:SetText("ShamanForever")
+	f.sub = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	f.sub:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -6)
+	f.sub:SetTextColor(0.80, 0.74, 0.66)
+	return p:add(f, 84, nil, function() f.sub:SetText("Version " .. addonVersion() .. ". A shaman HUD for WoW Forever.") end)
+end
+
+local function buildAbout(p)
+	local function gap() p:add(p:row(12), 12) end   -- a little room above each heading
+	p:add(p:row(6), 6)
+	aboutCard(p)
+	gap()
+	aboutFeedback = flashingHeader(p, "Feedback", "Interface\\Icons\\INV_Letter_15")
+	p:text("Ideas, requests or problems? Post in #feedback on Discord, comment on CurseForge, or open an issue on GitHub. Click a link, then Ctrl+C to copy.")
+	link(p, "Discord", ns.Look.DISCORD, "discord")
+	link(p, "CurseForge", ns.Look.CURSEFORGE .. "/comments", "curseforge")
+	link(p, "GitHub", ns.Look.REPO .. "/issues", "github")
+	gap()
+	p:header("Support", nil, nil, "Interface\\Icons\\INV_Misc_Coin_01")
+	p:text("If you'd like to support this addon, you can buy me a coffee. Thanks!")
+	link(p, "Ko-fi", ns.Look.KOFI, "kofi")
+	gap()
+	aboutExp = flashingHeader(p, "Experimental", "Interface\\Icons\\INV_Gizmo_02")
 	p:text("I can't test these in game yet. If you can, please try them and tell me whether they work and what could be improved.")
 	p:experimental("Water Shield", "Shields > Track")
 	p:experimental("Either shield", "Shields > Track")
-	p:header("Art")
+	gap()
+	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
 		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
 		"Francisque Millet, Mountain Landscape with Lightning (air). Corner and divider ornaments: public domain / CC0, Wikimedia Commons. " ..
-		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood texture CC0, ambientCG.")
+		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood texture CC0, ambientCG. Link icons: Simple Icons, CC0.")
 end
 
 ------------------------------------------------------------------------
@@ -1237,12 +1319,13 @@ local function buildTotemBar(p)
 	}, tget("mode"), function(v) TB.setMode(v); changed() end)
 	-- What the mode does, then how the bar is used in it.
 	local KEYS = "Keys: Options > Keybindings > ShamanForever."
+	local BAR_KEYS = "Keys: Options > Keybindings > ShamanForever, or hover the bar in Quick Keybind Mode."
 	p:text("ShamanForever's totem bar is off. Blizzard's totem bar and active totems display are on.\n"
 		.. "The totem key bindings still work. " .. KEYS, function() return c().mode == "blizzard" end)
 	p:text("Keeps Blizzard's totem bar, but replaces Blizzard's active totems display usually shown under the player frame.\n"
-		.. "Right-click a totem to dismiss it. " .. KEYS, function() return c().mode == "active" end)
+		.. "Right-click a totem to dismiss it. " .. BAR_KEYS, function() return c().mode == "active" end)
 	p:text("Both of Blizzard's totem frames are replaced by ShamanForever.\n"
-		.. "Right-click a totem to dismiss it. Alt+click a slot to pick its totem. " .. KEYS, full)
+		.. "Right-click a totem to dismiss it. Alt+click a slot to pick its totem. " .. BAR_KEYS, full)
 
 	p.gate = TB.barOn
 	p:header("Display")
@@ -1251,6 +1334,7 @@ local function buildTotemBar(p)
 		tget("show"), tset("show"), nil, 200)
 	p:dropdown("Tooltips", nil, { { "always", "Always" }, { "ooc", "Out of combat" }, { "never", "Never" } },
 		tget("tips"), tset("tips"), nil, 160)
+	p:checkbox("Show keybinding text", "Each button's key, in its corner.", tget("keys"), tset("keys"))
 
 	p:header("Layout")
 	-- The elements in bar order (first: the left end of a row, the top of a column). Drag one to move
@@ -1412,6 +1496,7 @@ local function buildTotemBar(p)
 	timerSettings(p, "Time left", "totembar", "uptime", changed)
 
 	p.gate = full
+	gcdBlock(p, "totembar")
 	p:header("Totem not down")
 	p:dropdown("Look", "How a slot looks while its totem isn't down.",
 		{ { "pick", "Your pick" }, { "frame", "Element colour" }, { "blank", "Blank" } }, tget("empty"), tset("empty"), nil, 180)
@@ -1697,6 +1782,7 @@ local function buildShield(p)
 	p:slider("Icon opacity", nil, 0.5, 1, 0.05, pct, get("shieldIconAlpha"), set("shieldIconAlpha"))
 	p:text("Only matters at low group opacity. Most can leave it at 100%.")
 	timerSettings(p, "Time left", "shield", "uptime")
+	gcdBlock(p, "shield")
 end
 
 local function buildShock(p)
@@ -1727,6 +1813,7 @@ local function buildShock(p)
 	p:slider("Tint", nil, 0.1, 1, 0.05, pct, get("rangeTint"), set("rangeTint"),
 		showWhen(lookUses("rangeStyle", "tint")))
 	timerSettings(p, "Cooldown", "shock", "cooldown")
+	gcdBlock(p, "shock")
 	readyBlock(p, "shock", "While it's off cooldown.")
 	effectBlocks(p, "shock")
 end
@@ -1764,6 +1851,7 @@ local function buildCooldown(p, def)
 	end
 	idleBlock(p, key, def.needsTotem)
 	timerSettings(p, "Cooldown", key, "cooldown")
+	gcdBlock(p, key)
 	readyBlock(p, key, def.needsTotem and "While it's off cooldown and a fire totem is down.")
 	if def.needsTotem then timerSettings(p, "Fire totem's time left", key, "uptime")
 	elseif def.totemSlot then timerSettings(p, "Time left", key, "uptime") end
@@ -2204,15 +2292,20 @@ function ns.OpenGeneral(anchor)
 	if f then scrollTo(p, f) end
 end
 
--- From an EXPERIMENTAL badge: About, scrolled to its Experimental section, which glows briefly.
-function ns.ShowExperimental()
+-- About, scrolled to one of its flashing headings, which glows briefly.
+local function showAboutSection(section)
 	ns.OpenOptions("about")
-	if not aboutExp then return end
-	scrollTo(aboutExp.page, aboutExp.header, function()
-		aboutExp.flash:Stop()
-		aboutExp.flash:Play()
+	if not section then return end
+	scrollTo(section.page, section.header, function()
+		section.flash:Stop()
+		section.flash:Play()
 	end)
 end
+-- From an EXPERIMENTAL badge: About's Experimental section.
+function ns.ShowExperimental() showAboutSection(aboutExp) end
+-- From Home's Give feedback button: About's Feedback section.
+function ns.ShowFeedback() showAboutSection(aboutFeedback) end
+
 
 -- From an element's page: Layout with that group selected, scrolled to its settings, which flash.
 function ns.OpenGroupSettings(gi)

@@ -337,6 +337,7 @@ end
 -- Forever patch that changes spell IDs shows at once instead of an element quietly going blank.
 -- Other files add their own lists (the totem bar's buff IDs).
 local checks = {}
+Spells.CHECKS = checks   -- every seed list, labelled (also read by the workspace's spell ID harvest)
 function Spells.addCheck(label, ids) table.insert(checks, { label = label, ids = ids }) end
 for _, d in pairs(DEFS) do Spells.addCheck(d.en, d.ids) end
 function Spells.selfCheck()

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.2 (2026-09-26)
+
+- Idle: Earthbind, Stoneclaw and Fire Nova can fade while they have nothing going on (off cooldown, and their totem isn't down). Set the idle opacity on each page, down to hidden; icons keep their place, and their pops and glows still show at full. Earthbind and Stoneclaw fade to 35% by default. Fire Nova lets you choose when it counts as idle, and is never idle by default.
+- Totem bar: bind its keys by hovering it in Quick Keybind Mode (/kb, or Options > Keybindings). Each button can show its key: "Show keybinding text", under Display.
+- Global cooldown: a new setting on General, off by default, which Shields, Shocks, the cooldown elements and the totem bar can each override. On, every cast sweeps, as on action bars. Off, shocks and cooldowns show only their own cooldown.
+- Totem bar: an arrow opens and closes its picker, right-clicking any arrow closes an open picker, and a pick happens when you release the mouse button.
+- Fixed: in PvP and some boss fights, changes to the shield or the out-of-range strip made between fights could wait until after your next fight to apply.
+- Feedback: ShamanForever has a Discord server. The About page links it, CurseForge comments and GitHub issues, and Home's Give feedback button takes you there. You can also support the addon on Ko-fi, from About.
+- Minor: options explain more on the page itself instead of in tooltips, faster mouse-wheel scrolling, and a redesigned About page.
+
 ## 0.7.1 (2026-09-26)
 
 - Groups have their own icon size, or follow General's. Icon size keeps borders and rings crisp; Scale grows everything, borders and rings included. The same goes for the totem bar.

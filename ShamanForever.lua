@@ -46,6 +46,7 @@ local DEFAULTS = {
 	border = CopyTable(ns.Style.KINDS.border.defaults),
 	glowStyle = CopyTable(ns.Style.KINDS.glow.defaults),
 	popStyle = CopyTable(ns.Style.KINDS.pop.defaults),
+	gcdStyle = CopyTable(ns.Style.KINDS.gcd.defaults),
 	-- Default layout: just below the centre of the screen, side by side 16 px apart, ready to be
 	-- dragged where the player wants them (the totem bar sits below, see TotemBar.lua). Offsets are
 	-- in each group's scaled units, so the third group's are divided by its 0.9 scale.
@@ -1632,6 +1633,7 @@ end
 -- and the ready glows would react to each cast. isOnGCD says so, when it's readable (if it's secret
 -- in combat, this falls back to treating it as a real cooldown). Blizzard only vouches for it inside
 -- SPELL_UPDATE_COOLDOWN; the timers keep the GCD sweep, so they still read it (tested 2026-09-25).
+local inCooldownEvent = false   -- set while SPELL_UPDATE_COOLDOWN refreshes (the event handler)
 local function onGCD(spellID)
 	local ok, info = safe(C_Spell.GetSpellCooldown, spellID)
 	if not ok or type(info) ~= "table" or isSecret(info.isOnGCD) then return false end
@@ -1654,11 +1656,57 @@ local function noteGCD(f, spellID)
 	if g and ownCooldownOver(spellID) ~= false then f.gcdUntil = GetTime() + 1.6 end
 	f.cd:SetDrawBling(not g)
 end
+-- A cooldown timer's duration, by the element's Global cooldown style: on, with the GCD (every cast
+-- sweeps it, as on action bars); off, its own cooldown only (ignoreGCD), which its own cast starts,
+-- so other spells don't sweep it. nil when none can be read.
+local function cooldownFor(f, key, spellID)
+	if ns.Style.get(key, "gcd").show then
+		local ok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID)
+		if not (ok and dur) then return nil end
+		noteGCD(f, spellID)
+		return dur
+	end
+	f.gcdUntil = nil
+	f.cd:SetDrawBling(true)
+	local ok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID, true)
+	-- None running: clear what an earlier read (a GCD sweep from before the style changed) left.
+	if ok and not dur then f.cdTimer:clear() end
+	return ok and dur or nil
+end
+
+-- The global cooldown on the shield, when its Global cooldown style is on. The shield's time left
+-- is Blizzard's aura button's own cooldown, so the GCD gets its own sweep, above that button (it
+-- darkens the charges too, for the GCD's length). Timed by the shown shield's spell, while that is on
+-- the GCD (read in SPELL_UPDATE_COOLDOWN, as the timers are).
+local shieldGCD = CreateFrame("Cooldown", nil, shield, "CooldownFrameTemplate")
+shieldGCD:SetAllPoints()
+shieldGCD:SetDrawEdge(false)
+shieldGCD:SetDrawBling(false)
+shieldGCD:SetHideCountdownNumbers(true)
+shieldGCD:SetSwipeTexture("Interface\\Buttons\\WHITE8x8")
+shieldGCD:SetSwipeColor(0, 0, 0, 0.6)
+local function refreshShieldGCD()
+	local id = isEnabled("shield") and ns.Style.get("shield", "gcd").show and Spells.known(SHIELDS[underlayShield()].spell)
+	local d
+	if id and onGCD(id) then
+		local ok, dur = safe(C_Spell.GetSpellCooldownDuration, id)
+		d = ok and dur or nil
+	end
+	if not d then
+		-- isOnGCD is only vouched for inside SPELL_UPDATE_COOLDOWN: elsewhere a running sweep stays
+		-- (it ends on its own), unless the sweep is off.
+		if inCooldownEvent or not id then shieldGCD:Clear() end
+		return
+	end
+	-- Above Blizzard's button, wherever regrouping left the container.
+	shieldGCD:SetFrameLevel((native.container or shield.textFrame):GetFrameLevel() + 10)
+	shieldGCD:SetCooldownFromDurationObject(d)
+end
 
 local function refreshShockCooldown()
 	if not shockSpellID or not isEnabled("shock") then return end
-	local ok, dur = safe(C_Spell.GetSpellCooldownDuration, shockSpellID)
-	if ok and dur then noteGCD(shock, shockSpellID); shock.cdTimer:set(dur) end
+	local dur = cooldownFor(shock, "shock", shockSpellID)
+	if dur then shock.cdTimer:set(dur) end
 end
 
 local function refreshShockRange()
@@ -1985,7 +2033,6 @@ end
 -- its answer is kept (def.cdRunning) and only re-read there; isActive false needs no such care.
 -- Going idle waits IDLE_DELAY at full opacity first, so a ready or run-out pop plays at full.
 local IDLE_DELAY = 1.5
-local inCooldownEvent = false   -- set while SPELL_UPDATE_COOLDOWN refreshes (the event handler)
 local refreshCooldown           -- below
 local function ownCooldownRunning(def)
 	local ok, info = safe(C_Spell.GetSpellCooldown, def.spellID)
@@ -2061,8 +2108,8 @@ function refreshCooldown(def)
 		if f.warn then f.warn:SetAlpha(0) end
 		return
 	end
-	local ok, dur = safe(C_Spell.GetSpellCooldownDuration, def.spellID)
-	if ok and dur then noteGCD(f, def.spellID); f.cdTimer:set(dur) end
+	local dur = cooldownFor(f, def.key, def.spellID)
+	if dur then f.cdTimer:set(dur) end
 	f.tex:SetDesaturated(false)
 	if def.needsTotem then
 		-- Fire Nova: the slot's duration object drives everything, secret or not. An empty slot's
@@ -2309,6 +2356,7 @@ end
 
 local function refreshAll()
 	refreshShield()
+	refreshShieldGCD()
 	refreshShockCooldown()
 	refreshShockRange()
 	refreshShockMana()
@@ -2322,6 +2370,7 @@ end
 local cooldownsDirty = false
 local function flushCooldowns()
 	cooldownsDirty = false
+	refreshShieldGCD()
 	refreshShockCooldown()
 	refreshCooldowns()
 end

@@ -46,6 +46,7 @@ TB.DEFAULTS = {
 	arrows = true,            -- arrow tab opens the element's picker
 	arrowSize = 18,
 	tips = "always",          -- always | ooc | never
+	keys = false,             -- each button's key, in its corner
 	call = true,              -- Call of the Elements button, once learned
 	recall = true,            -- Totemic Recall button: right-click dismisses all; left-click casts it once learned
 	extras = "ends",          -- where they sit: ends (Call first, Recall last, as Blizzard's) | before | after the slots
@@ -248,6 +249,39 @@ local function wrapClick(b, pre, post) SecureHandlerWrapScript(b, "OnClick", pic
 local slots = {}   -- element -> slot record
 TB.slots, TB.frame = slots, bar
 
+-- Over a button's look (above its timer, and inside the look so it fades with it): the key bound to
+-- it, in the top corner, and its highlight while Blizzard's Quick Keybind Mode is open.
+local KEY_HIGHLIGHT = "UI-HUD-ActionBar-IconFrame-Mouseover"
+local function keyLayer(v)
+	local f = CreateFrame("Frame", nil, v)
+	f:SetAllPoints()
+	f:SetFrameLevel(v:GetFrameLevel() + 6)
+	f.text = f:CreateFontString(nil, "OVERLAY")
+	f.text:SetFont(STANDARD_TEXT_FONT, 12, "OUTLINE")
+	f.text:SetPoint("TOPRIGHT", -2, -2)
+	f.text:SetTextColor(0.85, 0.85, 0.85)
+	f.glow = f:CreateTexture(nil, "OVERLAY")
+	f.glow:SetAllPoints()
+	if C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(KEY_HIGHLIGHT) then f.glow:SetAtlas(KEY_HIGHLIGHT)
+	else f.glow:SetColorTexture(1, 0.82, 0, 0.3) end
+	f.glow:Hide()
+	return f
+end
+
+-- The global cooldown's sweep, as on action bars: on its own Cooldown over the icon (and the expiring
+-- warning), below the button's timer, so the time left stays readable.
+local function gcdSweep(v)
+	local cd = CreateFrame("Cooldown", nil, v, "CooldownFrameTemplate")
+	cd:SetAllPoints()
+	cd:SetFrameLevel(v:GetFrameLevel() + 2)
+	cd:SetDrawEdge(false)
+	cd:SetDrawBling(false)
+	cd:SetHideCountdownNumbers(true)
+	cd:SetSwipeTexture("Interface\\Buttons\\WHITE8x8")
+	cd:SetSwipeColor(0, 0, 0, 0.6)
+	return cd
+end
+
 
 for index, el in ipairs(ELEMENTS) do
 	local slot = SLOT[el]
@@ -296,6 +330,9 @@ for index, el in ipairs(ELEMENTS) do
 	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + 3)
 	s.timer.bar:SetFrameLevel(v:GetFrameLevel() + 4)
 	v.cd = s.timer.cd
+	s.keys = keyLayer(v)
+	s.gcd = gcdSweep(v)
+	s.command = "CLICK ShamanForeverKeyCast" .. NAME[el] .. ":LeftButton"   -- its key (Key bindings, below)
 	-- The expiring warning is the timer's (Timer:setExpire, as on the HUD): a grey copy of the icon, a
 	-- red ring, a dark pulsing layer and a glow, above the icon and below the cooldown, in the slot's
 	-- last seconds. drawSlot gives it the totem's own warning time and icon.
@@ -420,10 +457,55 @@ for _, e in ipairs({ { "Call", CALL }, { "Recall", RECALL } }) do
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
 	v.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-	extras[key] = { key = key, spell = spell, button = b, vis = v }
+	extras[key] = { key = key, spell = spell, button = b, vis = v, keys = keyLayer(v), gcd = gcdSweep(v),
+		command = "CLICK ShamanForeverKey" .. key .. ":LeftButton" }
 end
 extras.Recall.button:SetAttribute("*type2", "macro")
 extras.Recall.button:SetAttribute("macrotext", DISMISS_ALL)
+
+-- Each button's key, in its corner (any time: plain frames).
+local function drawKeys()
+	local on = cfg().keys
+	local function draw(layer, command)
+		local key = on and GetBindingKey(command)
+		layer.text:SetText(key and GetBindingText(key, 1) or "")
+	end
+	for _, el in ipairs(ELEMENTS) do draw(slots[el].keys, slots[el].command) end
+	for _, e in pairs(extras) do draw(e.keys, e.command) end
+end
+
+-- The global cooldown on each button that casts, when the bar's Global cooldown style is on: the
+-- slots (their pick, by the multi-cast action) and Call and Recall once learned. Only while the
+-- button's own cooldown is the GCD (isOnGCD, readable in combat; Blizzard vouches for it inside
+-- SPELL_UPDATE_COOLDOWN, where this runs), so a totem's own longer cooldown isn't shown. A duration
+-- object, so fine in combat.
+local function gcdOf(getInfo, getDuration, id)
+	local ok, info = pcall(getInfo, id)
+	if not ok or type(info) ~= "table" or isSecret(info.isOnGCD) or info.isOnGCD ~= true then return nil end
+	local dok, d = ns.try("totem bar: GCD", getDuration, id)
+	return dok and d or nil
+end
+local function drawGCD()
+	-- Not gated on the bar being shown: the cast that brings it up (in combat, a first totem) sweeps too.
+	local on = ns.Style.get("totembar", "gcd").show
+	for _, el in ipairs(ELEMENTS) do
+		local s = slots[el]
+		local action = multiAction(s.slot)
+		local d = on and feat("cast") and HasAction(action)
+			and gcdOf(C_ActionBar.GetActionCooldown, C_ActionBar.GetActionCooldownDuration, action)
+		if d then s.gcd:SetCooldownFromDurationObject(d) else s.gcd:Clear() end
+	end
+	for _, e in pairs(extras) do
+		local d = on and e.button:IsShown() and knows(e.spell)
+			and gcdOf(C_Spell.GetSpellCooldown, C_Spell.GetSpellCooldownDuration, e.spell)
+		if d then e.gcd:SetCooldownFromDurationObject(d) else e.gcd:Clear() end
+	end
+end
+TB.drawGCD = drawGCD
+
+local keyTexts = {}   -- button -> its key label, for layout()
+for _, el in ipairs(ELEMENTS) do keyTexts[slots[el].button] = slots[el].keys.text end
+for _, e in pairs(extras) do keyTexts[e.button] = e.keys.text end
 
 -- Which extras show, and where: the keys before the slots and the keys after them.
 local function extraSides()
@@ -488,6 +570,7 @@ local function warnSecs(c, id)
 end
 
 local anyDown = false
+local kbOpen = false   -- Blizzard's Quick Keybind Mode is open (Quick Keybind Mode, below)
 
 -- The parts that follow the remaining time: the time bar once it has run out, and the range strip.
 -- (The expiring warning follows it in Timers' own ticker.)
@@ -544,8 +627,9 @@ local function drawSlot(s)
 	-- With nothing picked, "pick" falls back to the element colour.
 	s.timer:clear()
 	-- Active totems: only totems that are down show (the slot keeps its place; secure buttons can't
-	-- move in combat). A plain frame's alpha, so this works in combat too.
-	v:SetAlpha(c.mode == "everything" and 1 or 0)
+	-- move in combat). A plain frame's alpha, so this works in combat too. In Quick Keybind Mode they
+	-- show, to be bound.
+	v:SetAlpha((c.mode == "everything" or kbOpen) and 1 or 0)
 	local tex = c.empty == "pick" and GetActionTexture and GetActionTexture(multiAction(s.slot))
 	if isSecret(tex) or tex then
 		ns.try("totem bar: pick icon", v.icon.SetTexture, v.icon, tex)
@@ -763,7 +847,7 @@ end
 local function visibilityDriver()
 	local c = cfg()
 	if not barOn() then return "hide" end
-	if not ns.getAccount().locked then return "show" end
+	if kbOpen or not ns.getAccount().locked then return "show" end
 	if c.show == "combat" then return "[petbattle] hide; [combat] show; hide" end
 	if c.show == "active" then return "[petbattle] hide; [combat] show; " .. (anyDown and "show" or "hide") end
 	return "[petbattle] hide; show"
@@ -809,6 +893,8 @@ function layout()
 		local b, sz = item[1], item[3]
 		long = long + item[2]
 		b:SetSize(sz, sz)
+		-- Its key label scales with the icon.
+		if keyTexts[b] then keyTexts[b]:SetFont(STANDARD_TEXT_FONT, math.max(8, math.floor(sz * 0.3 + 0.5)), "OUTLINE") end
 		b:ClearAllPoints()
 		if row then b:SetPoint("LEFT", bar, "LEFT", long, 0) else b:SetPoint("TOP", bar, "TOP", 0, -long) end
 		long = long + sz
@@ -850,6 +936,8 @@ function layout()
 	bar:SetPoint(c.point, UIParent, c.point, c.x / c.scale, c.y / c.scale)
 	if TB.range then TB.range.layout(size) end   -- after the scale: its height is a line's
 	drawAll()
+	drawKeys()
+	drawGCD()
 	ns.refitRings()
 	local driver = visibilityDriver()
 	if driver ~= lastDriver then
@@ -956,12 +1044,147 @@ function TB.lockInCombat()
 end
 
 ------------------------------------------------------------------------
+-- Quick Keybind Mode (Blizzard's, from Options > Keybindings; EllesmereUI's /kb opens it). While it is
+-- open, the bar shows, empty slots included, and hovering a button and pressing a key binds that key
+-- to the button's own binding (the slots: cast the pick; Call; Recall).
+-- The keys are caught on our own plain frame parked over the hovered button, and bound with
+-- SetBinding, not through Blizzard's QuickKeybindButtonTemplateMixin: calling that from addon code
+-- taints Blizzard's key handling (EllesmereUI found keys it passes on, like the screenshot key, then
+-- blocked). As Blizzard's: the key replaces the first key and keeps the second, Escape clears the
+-- first, and OK saves (SaveBindings) or Cancel undoes (LoadBindings) our changes along with its own.
+------------------------------------------------------------------------
+local catcher = CreateFrame("Frame", nil, UIParent)
+catcher:SetFrameStrata("FULLSCREEN_DIALOG")
+catcher:EnableMouse(true)   -- also stops clicks casting while binding
+catcher:EnableKeyboard(true)
+catcher:EnableMouseWheel(true)
+catcher:Hide()
+
+local function kbTooltip()
+	local tip, command = QuickKeybindTooltip, catcher.command
+	if not (tip and command) then return end
+	tip:SetOwner(catcher, "ANCHOR_RIGHT")
+	GameTooltip_AddHighlightLine(tip, GetBindingName(command))
+	local key = GetBindingKey(command)
+	if key then
+		GameTooltip_AddInstructionLine(tip, GetBindingText(key))
+		GameTooltip_AddNormalLine(tip, ESCAPE_TO_UNBIND)
+	else
+		GameTooltip_AddErrorLine(tip, NOT_BOUND)
+		GameTooltip_AddNormalLine(tip, PRESS_KEY_TO_BIND)
+	end
+	tip:Show()
+end
+
+local function kbLeave()
+	if catcher.layer then catcher.layer.glow:SetAlpha(0.5) end
+	catcher.command, catcher.layer = nil, nil
+	catcher:Hide()
+	if QuickKeybindTooltip then QuickKeybindTooltip:Hide() end
+end
+
+-- Hovering a bar button: true when Quick Keybind Mode took the hover (no normal tooltip then).
+local function kbEnter(button, command, layer)
+	if not kbOpen or InCombatLockdown() then return false end
+	catcher.command, catcher.layer = command, layer
+	catcher:ClearAllPoints()
+	catcher:SetAllPoints(button)
+	catcher:Show()
+	layer.glow:SetAlpha(1)
+	kbTooltip()
+	return true
+end
+
+local function kbSay(text)
+	if QuickKeybindFrame and QuickKeybindFrame.SetOutputText then QuickKeybindFrame:SetOutputText(text) end
+end
+
+local function kbBind(input)
+	local command = catcher.command
+	if not command or InCombatLockdown() then return end
+	local ctx = C_KeyBindings and C_KeyBindings.GetBindingContextForAction and C_KeyBindings.GetBindingContextForAction(command)
+	local key1, key2 = GetBindingKey(command, nil, ctx)
+	if input == "ESCAPE" then
+		if not key1 then return end
+		SetBinding(key1, nil, ctx)
+		if key2 then SetBinding(key2, command, ctx) end
+		kbSay(KEY_UNBOUND)
+	else
+		-- The screenshot key stays the screenshot key; lone modifiers wait for the key they go with.
+		if GetBindingFromClick and GetBindingFromClick(input) == "SCREENSHOT" then return end
+		local key = GetConvertedKeyOrButton and GetConvertedKeyOrButton(input) or input
+		if IsKeyPressIgnoredForBinding and IsKeyPressIgnoredForBinding(key) then return end
+		key = CreateKeyChordStringUsingMetaKeyState and CreateKeyChordStringUsingMetaKeyState(key) or key
+		local was = GetBindingAction(key)   -- what the key did before, if anything: now unbound
+		if key1 then SetBinding(key1, nil, ctx) end
+		if key2 then SetBinding(key2, nil, ctx) end
+		if SetBinding(key, command, ctx) then
+			if key2 and key2 ~= key then SetBinding(key2, command, ctx) end
+			-- Warn only when the key's old action is left with no key at all.
+			local lost = was and was ~= "" and was ~= command and not GetBindingKey(was, nil, ctx)
+			if lost then kbSay(KEY_UNBOUND_ERROR:format(GetBindingName(was))) else kbSay(KEY_BOUND) end
+		else
+			if key1 then SetBinding(key1, command, ctx) end
+			if key2 then SetBinding(key2, command, ctx) end
+		end
+	end
+	drawKeys()
+	kbTooltip()
+end
+
+catcher:SetScript("OnLeave", kbLeave)
+catcher:SetScript("OnKeyDown", function(_, key) kbBind(key) end)
+catcher:SetScript("OnMouseUp", function(_, button)
+	if button ~= "LeftButton" and button ~= "RightButton" then kbBind(button) end
+end)
+catcher:SetScript("OnMouseWheel", function(_, delta) kbBind(delta > 0 and "MOUSEWHEELUP" or "MOUSEWHEELDOWN") end)
+
+local function setKeybindMode(open)
+	kbOpen = open
+	if not open then kbLeave() end
+	for _, el in ipairs(ELEMENTS) do
+		slots[el].keys.glow:SetShown(open)
+		slots[el].keys.glow:SetAlpha(0.5)
+	end
+	for _, e in pairs(extras) do
+		e.keys.glow:SetShown(open)
+		e.keys.glow:SetAlpha(0.5)
+	end
+	drawAll()  -- the empty slots' look, at once (also in combat, where the layout waits)
+	layout()   -- shows the bar and its empty slots, or puts them back (after combat, if in it)
+end
+
+-- QuickKeybindFrame can load after PLAYER_LOGIN: hooked once it exists.
+local kbHooked = false
+local function hookQuickKeybind()
+	local f = QuickKeybindFrame
+	if kbHooked or not f then return end
+	kbHooked = true
+	f:HookScript("OnShow", function() setKeybindMode(true) end)
+	f:HookScript("OnHide", function() setKeybindMode(false) end)
+	if f:IsShown() then setKeybindMode(true) end
+end
+local kbEvents = CreateFrame("Frame")
+kbEvents:RegisterEvent("PLAYER_LOGIN")
+kbEvents:RegisterEvent("ADDON_LOADED")
+kbEvents:RegisterEvent("PLAYER_REGEN_DISABLED")
+kbEvents:SetScript("OnEvent", function(self, event, name)
+	if event == "PLAYER_REGEN_DISABLED" then
+		kbLeave()   -- never left over the bar in combat, taking the keyboard
+	elseif event == "PLAYER_LOGIN" or name == "Blizzard_QuickKeybind" then
+		hookQuickKeybind()
+		if kbHooked then self:UnregisterEvent("PLAYER_LOGIN"); self:UnregisterEvent("ADDON_LOADED") end
+	end
+end)
+
+------------------------------------------------------------------------
 -- Tooltips and hover on the slot buttons
 ------------------------------------------------------------------------
 for _, el in ipairs(ELEMENTS) do
 	local s = slots[el]
 	s.button:SetScript("OnEnter", function(self)
 		hover(s)
+		if kbEnter(self, s.command, s.keys) then return end
 		local c = cfg()
 		if c.tips == "never" or (c.tips == "ooc" and InCombatLockdown()) then return end
 		local ok, d = pcall(GetTotemDuration, s.slot)
@@ -983,6 +1206,7 @@ end
 
 for _, e in pairs(extras) do
 	e.button:SetScript("OnEnter", function(self)
+		if kbEnter(self, e.command, e.keys) then return end
 		local c = cfg()
 		if c.tips == "never" or (c.tips == "ooc" and InCombatLockdown()) then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -1027,7 +1251,7 @@ end
 
 local ev = CreateFrame("Frame")
 for _, e in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_TOTEM_UPDATE", "PLAYER_REGEN_ENABLED",
-		"SPELLS_CHANGED", "ACTIONBAR_SLOT_CHANGED", "UPDATE_MULTI_CAST_ACTIONBAR" }) do
+		"SPELLS_CHANGED", "ACTIONBAR_SLOT_CHANGED", "UPDATE_MULTI_CAST_ACTIONBAR", "UPDATE_BINDINGS", "SPELL_UPDATE_COOLDOWN" }) do
 	pcall(ev.RegisterEvent, ev, e)
 end
 pcall(ev.RegisterUnitEvent, ev, "UNIT_SPELLCAST_SUCCEEDED", "player")
@@ -1073,6 +1297,10 @@ ev:SetScript("OnEvent", function(_, event, arg1, ...)
 		-- The element's multi-cast slots, or 0 (every slot).
 		local base = multiAction(1) - 1
 		if not isSecret(arg1) and type(arg1) == "number" and (arg1 == 0 or (arg1 > base and arg1 <= base + 12)) then redraw() end
+	elseif event == "UPDATE_BINDINGS" then
+		drawKeys()
+	elseif event == "SPELL_UPDATE_COOLDOWN" then
+		drawGCD()
 	elseif event == "PLAYER_REGEN_ENABLED" then
 		saidWait = false
 		-- A queued layout has run already (ns.deferInCombat). A picker opened in combat and left open
@@ -1114,8 +1342,12 @@ TB.look = look
 function TB.debug()
 	local c = cfg()
 	local mc = MultiCastActionBarFrame
-	return string.format("totem bar mode %s, show %s, driver %s, shown %s; TotemFrame parent %s alpha %s; Totem Action Bar parent %s",
-		c.mode, c.show, tostring(lastDriver), tostring(bar:IsShown()),
+	-- The GCD sweep's test: is the first slot's isOnGCD readable (in combat too)?
+	local gok, ginfo = pcall(C_ActionBar.GetActionCooldown, multiAction(SLOT.earth))
+	local g = not gok and "error" or type(ginfo) ~= "table" and "none"
+		or isSecret(ginfo.isOnGCD) and "secret" or tostring(ginfo.isOnGCD)
+	return string.format("totem bar mode %s, show %s, driver %s, shown %s, earth isOnGCD %s; TotemFrame parent %s alpha %s; Totem Action Bar parent %s",
+		c.mode, c.show, tostring(lastDriver), tostring(bar:IsShown()), g,
 		TotemFrame and TotemFrame:GetParent() and (TotemFrame:GetParent():GetName() or "?") or "none",
 		TotemFrame and string.format("%.2f", TotemFrame:GetAlpha()) or "-",
 		mc and (mc:GetParent() == hiddenParent and "hidden" or (mc:GetParent() and mc:GetParent():GetName() or "?")) or "none")

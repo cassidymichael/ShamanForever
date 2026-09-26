@@ -3,6 +3,7 @@
 --   cooldown, uptime  timers (ShamanForever_Timers.lua); elements and the totem bar
 --   glow, pop         the pulsing glow and the pop (ShamanForever.lua); elements and the totem bar
 --   border            the edge around icons; groups and the totem bar
+--   gcd               the global cooldown's sweep, on or off; the cooldown elements and the totem bar
 -- An owner is nil (General), an element key, "totembar", or a group's table. A kind's settings sit
 -- at the same path under each holder: the profile for General (db.glowStyle, db.timers.cooldown), else
 -- the element's options, the totem bar's settings or the group itself. An owner's own table also
@@ -39,6 +40,12 @@ S.register("pop", {
 	-- flash, a ring, a star, coloured by what happened (tint) or white.
 	defaults = { motion = "shakeV", size = 1.4, speed = 1, flash = true, ring = false, star = true, tint = true },
 	path = { "popStyle" },   -- not "pop": the totem bar's pop is where its pickers open
+})
+-- Whether buttons show the global cooldown's sweep after every cast, as action bars do. Off, an
+-- element with a cooldown of its own still shows that cooldown, which its own cast starts.
+S.register("gcd", {
+	defaults = { show = false },
+	path = { "gcdStyle" },
 })
 S.register("border", {
 	defaults = { show = true, size = 2, color = { 0, 0, 0, 1 } },

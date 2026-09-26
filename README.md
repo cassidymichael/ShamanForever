@@ -24,15 +24,16 @@ More screenshots: [options gallery](docs/gallery/README.md).
 ## Usage
 
 - `/sf` opens the options window (also the minimap button, and under Escape > Options > AddOns). Right-click the minimap button to lock or unlock positioning.
-- Key bindings for the totem bar: Escape > Options > Keybindings > ShamanForever.
+- Key bindings for the totem bar: Escape > Options > Keybindings > ShamanForever, or hover the bar in Quick Keybind Mode. Each button can show its key.
 - `/sf lock` to unlock positioning and move and scale groups on screen (the bar that appears lists the controls), `/sf lock` again when done.
 
 Requires WoW: Forever (interface 16001).
 
 ## Feedback
 
-Ideas, requests or problems are welcome, either way:
+Ideas, requests or problems are welcome, any of these ways:
 
+- A post in `#feedback` on [Discord](https://discord.gg/VaXH8CQZFG).
 - A comment on [CurseForge](https://www.curseforge.com/wow/addons/shamanforever/comments).
 - An [issue on GitHub](https://github.com/cassidymichael/ShamanForever/issues).
 
@@ -44,7 +45,7 @@ Ideas, requests or problems are welcome, either way:
 
 ## Art
 
-The options banners are public-domain paintings: Thomas Moran, *The Chasm of the Colorado*; Joseph Wright of Derby, *Vesuvius from Portici*; Frederic Edwin Church, *Rainy Season in the Tropics* and *Aurora Borealis*; Francisque Millet, *Mountain Landscape with Lightning*. The corner and divider ornaments are public domain / CC0 (Wikimedia Commons). The logo is Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky's *Breaking Wave*, with a CC0 wood texture from ambientCG. Spell icons are Blizzard's, from the game.
+The options banners are public-domain paintings: Thomas Moran, *The Chasm of the Colorado*; Joseph Wright of Derby, *Vesuvius from Portici*; Frederic Edwin Church, *Rainy Season in the Tropics* and *Aurora Borealis*; Francisque Millet, *Mountain Landscape with Lightning*. The corner and divider ornaments are public domain / CC0 (Wikimedia Commons). The logo is Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky's *Breaking Wave*, with a CC0 wood texture from ambientCG. The link icons on the About page are from Simple Icons (CC0). Spell icons are Blizzard's, from the game.
 
 ## Licence
 

@@ -10,6 +10,8 @@ L.GOLD = { 0.85, 0.71, 0.42 }
 L.REPO = "https://github.com/cassidymichael/ShamanForever"
 L.CURSEFORGE = "https://www.curseforge.com/wow/addons/shamanforever"
 L.WAGO = "https://addons.wago.io/addons/shamanforever"
+L.DISCORD = "https://discord.gg/VaXH8CQZFG"
+L.KOFI = "https://ko-fi.com/cassidycloud"
 
 -- Five art schools; spirit covers anything mixed, all or neither.
 L.SCHOOL = {
@@ -103,8 +105,8 @@ function L.divider(parent)
 end
 
 ------------------------------------------------------------------------
--- Experimental badge: click for copyable feedback links (links cannot be clicked in game): the
--- CurseForge comments (no account needed beyond CurseForge's), or a GitHub issue filled in for it.
+-- Experimental badge: click for copyable feedback links (links cannot be clicked in game): Discord,
+-- the CurseForge comments, or a GitHub issue filled in for it.
 ------------------------------------------------------------------------
 local pop
 local function linkBox(label, anchor, y)
@@ -125,7 +127,7 @@ end
 local function showFeedback(anchor, feature)
 	if not pop then
 		pop = CreateFrame("Frame", "ShamanForeverFeedback", UIParent, "BackdropTemplate")
-		pop:SetSize(372, 128)
+		pop:SetSize(372, 154)
 		pop:SetFrameStrata("TOOLTIP")
 		pop:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
 		pop:SetBackdropColor(0.06, 0.05, 0.04, 0.98)
@@ -135,9 +137,13 @@ local function showFeedback(anchor, feature)
 		pop.title:SetPoint("TOPLEFT", 12, -10)
 		pop.text = pop:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		pop.text:SetPoint("TOPLEFT", pop.title, "BOTTOMLEFT", 0, -6)
-		pop.text:SetText("Not tested in game yet. Tell us how it went, either place:")
+		pop.text:SetText("Not tested in game yet. Tell us how it went, any of these ways:")
+		local dcLabel, dc = linkBox("Discord", pop.text, -12)
+		dc.url = L.DISCORD
+		dc:SetText(dc.url)
+		pop.dc = dc
 		local cfLabel
-		cfLabel, pop.cf = linkBox("CurseForge", pop.text, -12)
+		cfLabel, pop.cf = linkBox("CurseForge", dcLabel, -16)
 		pop.cf.url = L.CURSEFORGE .. "/comments"
 		pop.cf:SetText(pop.cf.url)
 		local ghLabel
@@ -153,6 +159,7 @@ local function showFeedback(anchor, feature)
 	pop.title:SetText("|cffe0b060Experimental:|r " .. feature)
 	pop.edit.url = url
 	pop.edit:SetText(url)
+	pop.dc:SetCursorPosition(0)
 	pop.cf:SetCursorPosition(0)
 	pop.edit:SetCursorPosition(0)
 	pop:ClearAllPoints()
