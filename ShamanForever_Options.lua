@@ -1385,12 +1385,13 @@ local function buildTotemBar(p)
 	end)
 	local function endDrag(drop)
 		local from = dragFrom
+		-- Where it lands, read while the dragged row is still left out of the others.
+		local at = from and drop and dropAt()
 		dragFrom = nil
 		ghost:Hide()
 		line:Hide()
 		if not from then return end
-		if drop then
-			local at = dropAt()
+		if at then
 			local o = c().order
 			local el = table.remove(o, from)
 			table.insert(o, at, el)
