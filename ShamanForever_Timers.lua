@@ -81,7 +81,7 @@ local fonts = 0
 --   anchor = the icon the parts cover (default parent)
 --   cd     = an existing Cooldown to use (its frame level is kept)
 --   dual   = the icon also shows the other kind of timer ("auto" text then goes top-left)
---   school = colour for "element colour" bars (a key of ns.Look.SCHOOL), or a function returning one
+--   school = colour for "element colour" bars (a key of ns.SCHOOL_COLOR), or a function returning one
 --   noBar  = never make a bar (Blizzard's shield button: no frames of ours created in its callback)
 function T.new(parent, key, kind, opts)
 	opts = opts or {}
@@ -120,7 +120,7 @@ end
 
 local function schoolColor(t)
 	local school = type(t.school) == "function" and t.school() or t.school
-	local c = school and ns.Look and ns.Look.SCHOOL[school]
+	local c = school and ns.SCHOOL_COLOR[school]
 	return c or { 0.4, 0.9, 0.3 }
 end
 
@@ -262,7 +262,16 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 end)
 
 T.EXPIRE_DEFAULTS = { secs = 5, grey = false, ring = false, pulse = true, glow = false }
-T.EXPIRE_ELEMENT = {}   -- elements that start differently: key -> fields
+
+-- An element's expiring warning (its time left's last seconds): its own settings over the defaults.
+function T.expireOpts(key)
+	local o = ns.elementOpts(key).expire
+	local out = {}
+	for k, v in pairs(T.EXPIRE_DEFAULTS) do
+		if type(o) == "table" and type(o[k]) == type(v) then out[k] = o[k] else out[k] = v end   -- a saved false counts
+	end
+	return out
+end
 
 -- e: { secs, grey, ring, pulse, glow } (secs 0 turns it off); icon: the texture the grey copy shows.
 function Timer:setExpire(e, icon)
@@ -288,7 +297,7 @@ function Timer:setExpire(e, icon)
 		x:SetAlpha(0)
 		x.grey = x:CreateTexture(nil, "ARTWORK")
 		x.grey:SetAllPoints()
-		x.grey:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+		ns.cropIcon(x.grey)
 		x.grey:SetDesaturated(true)
 		x.ring = ns.makeRing(x, x)
 		x.dim = x:CreateTexture(nil, "OVERLAY")

@@ -13,14 +13,11 @@ L.WAGO = "https://addons.wago.io/addons/shamanforever"
 L.DISCORD = "https://discord.gg/VaXH8CQZFG"
 L.KOFI = "https://ko-fi.com/cassidycloud"
 
--- Five art schools; spirit covers anything mixed, all or neither.
-L.SCHOOL = {
-	earth  = { 0.75, 0.54, 0.24, banner = "Banner-Earth.jpg" },
-	fire   = { 0.89, 0.38, 0.18, banner = "Banner-Fire.jpg" },
-	water  = { 0.25, 0.69, 0.77, banner = "Banner-Water.jpg" },
-	air    = { 0.56, 0.76, 0.92, banner = "Banner-Air.jpg" },
-	spirit = { 0.73, 0.64, 0.90, banner = "Banner-Spirit.jpg" },
-}
+-- Five art schools (colours: ns.SCHOOL_COLOR); spirit covers anything mixed, all or neither.
+L.SCHOOL = {}
+for school, c in pairs(ns.SCHOOL_COLOR) do
+	L.SCHOOL[school] = { c[1], c[2], c[3], banner = "Banner-" .. school:gsub("^%l", string.upper) .. ".jpg" }
+end
 -- Banners are 1400x260 art in the top-left of a 2048x512 file. They fill the header, cropped
 -- (never stretched) to its shape, keeping the right-hand side where the art is strongest.
 local ART_W, ART_H, FILE_W, FILE_H = 1400, 260, 2048, 512
@@ -129,7 +126,7 @@ local function showFeedback(anchor, feature)
 		pop = CreateFrame("Frame", "ShamanForeverFeedback", UIParent, "BackdropTemplate")
 		pop:SetSize(372, 154)
 		pop:SetFrameStrata("TOOLTIP")
-		pop:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+		pop:SetBackdrop(ns.BACKDROP)
 		pop:SetBackdropColor(0.06, 0.05, 0.04, 0.98)
 		pop:SetBackdropBorderColor(0.73, 0.55, 0.22, 1)
 		pop:EnableMouse(true)
@@ -170,7 +167,7 @@ end
 -- EXPERIMENTAL, marking an untested choice, and leads to About's Experimental section.
 function L.expBadge(parent, feature, label)
 	local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
-	b:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+	b:SetBackdrop(ns.BACKDROP)
 	b:SetBackdropColor(0.95, 0.77, 0.42, 0.08)
 	b:SetBackdropBorderColor(0.95, 0.77, 0.42, 0.5)
 	b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -180,7 +177,7 @@ function L.expBadge(parent, feature, label)
 	b:SetSize(b.text:GetStringWidth() + 12, 16)
 	b.feature = feature
 	b:SetScript("OnClick", function(self)
-		if label then showFeedback(self, self.feature) else ns.ShowExperimental() end
+		if label then showFeedback(self, self.feature) else ns.Options.showExperimental() end
 	end)
 	b:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -270,20 +267,9 @@ local function frozen(t, frac, length)
 	t:static(frac, length)
 end
 
-local function paintBody(ic, style, r, g, b, overlayAlpha, tint)
-	if style == "overlay" or style == "both" then
-		ic.manaOverlay:SetColorTexture(r, g, b, overlayAlpha)
-		ic.manaOverlay:Show()
-	end
-	if style == "tint" or style == "both" then
-		local k = 1 - tint
-		ic.tex:SetVertexColor(r == 1 and 1 or k, g == 1 and 1 or k, b == 1 and 1 or k)
-	end
-end
-
 -- An element's Expiring look (its Expiring block's settings), over a timer in its last seconds.
 local function expiringLook(ic, key, length)
-	local e = ns.expireOpts(key)
+	local e = ns.Timer.expireOpts(key)
 	frozen(ic.upT, 1 - math.min(e.secs > 0 and e.secs or 5, length) / length, length)
 	if e.secs <= 0 then return end
 	if e.grey then ic.tex:SetDesaturated(true) end
@@ -374,8 +360,8 @@ L.PREVIEW = {
 			reset(ic, icons[d.shock] or 136026)
 			if st == "ready" then ic:SetGlowShown(opt("shock", "readyGlow")) end
 			if st == "cd" then frozen(ic.cdT, 0.4, 6)
-			elseif st == "range" or st == "both" then paintBody(ic, d.rangeStyle, 1, 0.25, 0.25, d.rangeIntensity, d.rangeTint)
-			elseif st == "mana" then paintBody(ic, d.manaStyle, 0.2, 0.45, 1, d.manaIntensity, d.manaTint) end
+			elseif st == "range" or st == "both" then ic:SetBodyPaint(d.rangeStyle, 1, 0.25, 0.25, d.rangeIntensity, d.rangeTint)
+			elseif st == "mana" then ic:SetBodyPaint(d.manaStyle, 0.2, 0.45, 1, d.manaIntensity, d.manaTint) end
 			if st == "mana" or st == "both" then ic:SetRingShown(true, 0.2, 0.45, 1, d.manaRing) end
 		end,
 	},
@@ -386,13 +372,13 @@ L.PREVIEW = {
 			local d = db()
 			if st == "missing" then
 				-- The HUD's own choice: the preferred imbue, or the last one used.
-				reset(ic, ns.preferredImbueIcon())
+				reset(ic, ns.Imbue.preferredIcon())
 				ic.tex:SetDesaturated(d.imbueMissingGrey)
 				ic:SetRingShown(d.imbueMissingRing)
 				ic:SetPulsing(d.imbuePulse)
 				ic:SetGlowShown(d.imbueGlow)
 			else
-				reset(ic, ns.imbueIcon())
+				reset(ic, ns.Imbue.icon())
 				if st == "low" and d.imbueWarnMins > 0 then frozen(ic.upT, 0.95, 3600) end
 				if st == "fine" and d.imbueHideActive then ic:SetAlpha(0.15) end
 			end
@@ -415,7 +401,7 @@ L.PREVIEW = {
 		end,
 	},
 }
-for _, def in ipairs(ns.COOLDOWNS or {}) do
+for _, def in ipairs(ns.Cooldowns.COOLDOWNS) do
 	if def.totemSlot and not L.PREVIEW[def.key] then L.PREVIEW[def.key] = totemPreview(def) end
 end
 
@@ -431,7 +417,7 @@ local PREVIEW_LEFT = { earth = { 250, 300 }, fire = { 38, 55 }, water = { 83, 30
 local POP_ITEMS = 3   -- "No totem" and two totems: enough to show the look within the header
 local function tabArrow(parent)
 	local t = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-	t:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+	t:SetBackdrop(ns.BACKDROP)
 	t:SetBackdropColor(0.06, 0.05, 0.03, 0.92)
 	t:SetBackdropBorderColor(0.85, 0.71, 0.42, 0.9)
 	t.glyph = t:CreateTexture(nil, "OVERLAY")
@@ -473,7 +459,7 @@ L.PREVIEW.totembar = {
 			ic.badge:SetFrameLevel(ic:GetFrameLevel() + 6)
 			ic.badge.icon = ic.badge:CreateTexture(nil, "ARTWORK")
 			ic.badge.icon:SetAllPoints()
-			ic.badge.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+			ns.cropIcon(ic.badge.icon)
 			-- Out of range: the strip along the top (ShamanForever_TotemRange.lua).
 			ic.rangeF = CreateFrame("Frame", nil, bar)
 			ic.rangeF:SetFrameLevel(ic:GetFrameLevel() + 7)
@@ -501,7 +487,7 @@ L.PREVIEW.totembar = {
 			local it = CreateFrame("Frame", nil, h.pop)
 			it.tex = it:CreateTexture(nil, "ARTWORK")
 			it.tex:SetAllPoints()
-			it.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+			ns.cropIcon(it.tex)
 			it.x = it:CreateFontString(nil, "OVERLAY", "GameFontDisable")
 			it.x:SetPoint("CENTER")
 			it.x:SetText("X")
@@ -732,7 +718,7 @@ function L.buildHero(parent, key)
 	local h = CreateFrame("Frame", nil, parent, "BackdropTemplate")
 	h:SetHeight(heroH - 14)
 	h.heroH = heroH
-	h:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+	h:SetBackdrop(ns.BACKDROP)
 	h:SetBackdropColor(L.PANEL[1], L.PANEL[2], L.PANEL[3], 1)
 	h:SetBackdropBorderColor(0.36, 0.28, 0.17, 1)
 
@@ -754,7 +740,7 @@ function L.buildHero(parent, key)
 	h.icon:SetSize(60, 60)
 	if def.stage then h.icon:SetPoint("TOPLEFT", 40, -24) else h.icon:SetPoint("LEFT", 40, 0) end
 	h.icon:SetTexture(e.icon)
-	h.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	ns.cropIcon(h.icon)
 	h.iconEdge = h:CreateTexture(nil, "BORDER")
 	h.iconEdge:SetPoint("TOPLEFT", h.icon, -2, 2)
 	h.iconEdge:SetPoint("BOTTOMRIGHT", h.icon, 2, -2)
@@ -799,7 +785,7 @@ function L.buildHero(parent, key)
 	local p = CreateFrame("Frame", nil, h, "BackdropTemplate")
 	p:SetSize(PANEL_W, PANEL_H)
 	p:SetPoint("RIGHT", -40, 0)
-	p:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+	p:SetBackdrop(ns.BACKDROP)
 	p:SetBackdropColor(0, 0, 0, 0.5)
 	p:SetBackdropBorderColor(0.23, 0.17, 0.10, 1)
 	local cap = p:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
@@ -824,7 +810,7 @@ function L.buildHero(parent, key)
 			b:SetSize(BTN_W, BTN_H)
 			b:SetPoint("TOPRIGHT", -8, -(PANEL_H - listH) / 2 - (i - 1) * (BTN_H + 3))
 		end
-		b:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+		b:SetBackdrop(ns.BACKDROP)
 		b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		b.text:SetPoint("LEFT", 7, 0)
 		b.text:SetText(st[2])
@@ -913,7 +899,7 @@ end
 function L.buildIntro(parent, version)
 	local h = CreateFrame("Frame", nil, parent, "BackdropTemplate")
 	h:SetHeight(L.HERO_H - 14)
-	h:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+	h:SetBackdrop(ns.BACKDROP)
 	h:SetBackdropColor(L.PANEL[1], L.PANEL[2], L.PANEL[3], 1)
 	h:SetBackdropBorderColor(0.36, 0.28, 0.17, 1)
 	h.banner = h:CreateTexture(nil, "BACKGROUND", nil, 1)

@@ -14,7 +14,7 @@ local function toggleLock()
 end
 local function onLauncherClick(button)
 	if button == "RightButton" then toggleLock()
-	else ns.ToggleOptions() end
+	else ns.Options.toggle() end
 end
 local function launcherTip(tt)
 	tt:AddLine("Click: options", 1, 0.82, 0)
@@ -60,7 +60,7 @@ _G.ShamanForever_OnAddonCompartmentLeave = function() GameTooltip:Hide() end
 SlashCmdList.SHAMANFOREVER = function(msg)
 	local cmd = (msg:match("^(%S*)") or ""):lower()
 	if cmd == "" or cmd == "options" or cmd == "config" then
-		ns.ToggleOptions()
+		ns.Options.toggle()
 	elseif cmd == "lock" then   -- toggles (/sf unlock also works, unlisted)
 		toggleLock()
 	elseif cmd == "unlock" then

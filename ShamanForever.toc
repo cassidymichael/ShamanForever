@@ -24,10 +24,14 @@ ShamanForever_Timers.lua
 ShamanForever.lua
 ShamanForever_Shield.lua
 ShamanForever_Imbue.lua
+ShamanForever_Totems.lua
+ShamanForever_Cooldowns.lua
+ShamanForever_Positioning.lua
 ShamanForever_Profiles.lua
 ShamanForever_Slash.lua
 ShamanForever_TotemBar.lua
 ShamanForever_TotemRange.lua
 ShamanForever_OptionsLook.lua
+ShamanForever_OptionsPage.lua
 ShamanForever_Options.lua
 ShamanForever_IssueReporter.lua

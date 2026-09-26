@@ -141,6 +141,7 @@ end
 
 -- One plain (not table) field of the style an owner uses now, as S.get would give it, without
 -- building the style: for callers that run on every cooldown event.
+-- It repeats S.get's order (General, the owner's defaults, its own values): change both together.
 function S.value(owner, kind, field)
 	local spec = S.KINDS[kind]
 	local v = spec.defaults[field]

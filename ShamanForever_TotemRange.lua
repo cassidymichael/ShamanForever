@@ -198,8 +198,7 @@ end
 local names = {}   -- the client's buff name -> element
 local function learn()
 	if InCombatLockdown() or not TB.isShaman() or not enabled() then return end
-	local ok, secret = ns.safe(C_Secrets and C_Secrets.ShouldAurasBeSecret)
-	if ok and (isSecret(secret) or secret) then return end
+	if ns.aurasSecret() then return end
 	if next(names) == nil then
 		for el, list in pairs(BUFF_TOTEMS) do
 			for _, e in ipairs(list) do
@@ -266,5 +265,5 @@ function R.alphas(s)
 end
 
 local ev = CreateFrame("Frame")
-ev:RegisterUnitEvent("UNIT_AURA", "player")
+ns.registerEvent(ev, "UNIT_AURA", "player")
 ev:SetScript("OnEvent", learn)

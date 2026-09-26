@@ -28,14 +28,13 @@
 --    translucent, so the underlay bleeds through it; nativeIconAlpha compensates so the stack
 --    matches the group's opacity. At 100% group opacity the button hides the underlay completely.
 --
--- The element's frame (the underlay) is made with the others in ShamanForever.lua, which calls in
--- here (ns.Shield) from its layout, refreshes and events.
+-- ShamanForever.lua calls in through the module hooks (ns.registerModule).
 
 local _, ns = ...
 local say, isSecret, safe = ns.say, ns.isSecret, ns.safe
 local Spells = ns.Spells
 
-local SH = {}
+local SH = { name = "shield" }
 ns.Shield = SH
 
 -- Elemental shields. Only one can be on the shaman at a time (Water Shield's tooltip says so), so one
@@ -48,7 +47,8 @@ local SHIELDS = {
 }
 local SHIELD_ORDER = { "lightning", "water" }
 
-local shield = ns.ELEMENTS.shield.frame
+local shield = ns.newElementIcon("shield")   -- the underlay
+ns.registerElement("shield", { frame = shield, label = "Shields", paint = function(t) t:SetTexture(SH.icon()) end })
 
 -- Per shield at runtime: name (the client's), spellID and bookIcon (highest known rank), known. The IDs
 -- that count as it are ns.Spells' (seeds, spellbook, and the live aura's, learned here).
@@ -77,7 +77,7 @@ local function underlayShield()
 	for _, key in ipairs(SHIELD_ORDER) do if SHIELDS[key].known then return key end end
 	return "lightning"
 end
-function ns.shieldIcon()
+function SH.icon()
 	local s = SHIELDS[underlayShield()]
 	return s.bookIcon or s.icon
 end
@@ -103,7 +103,7 @@ end
 -- remaining bleed-through (see nativeIconAlpha) so the stack sums to the display opacity exactly.
 function SH.applyEmptyLook()
 	local db = ns.getDB()
-	shield.tex:SetTexture(ns.shieldIcon())
+	shield.tex:SetTexture(SH.icon())
 	if not anyTrackedShieldKnown() then
 		-- Not learned yet (or Water Shield without its talent): a plain grey icon, as for cooldowns.
 		shield.tex:SetDesaturated(true)
@@ -224,7 +224,7 @@ end
 
 -- The shield's timer takes its current style (ns.applyTimers). It sits on Blizzard's button, so only
 -- out of combat (SH.style also does it).
-function SH.applyTimer()
+function SH.applyTimers()
 	if not native.timer then return end
 	if InCombatLockdown() or ns.aurasSecret() then ns.retryAfterCombat("shield style", SH.style)   -- which applies it
 	else ns.try("shield timer", native.timer.apply, native.timer) end
@@ -244,7 +244,7 @@ local function initNativeButton(button)
 
 	local tex = button:CreateTexture(nil, "ARTWORK")
 	tex:SetAllPoints()
-	tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	ns.cropIcon(tex)
 	tex:SetAlpha(nativeIconAlpha())
 	button:SetIcon(tex)
 	native.icon = tex
@@ -338,14 +338,13 @@ local function setupNative()
 		SH.style()   -- a layout queued before it (a /reload in combat) found no button to style
 	end
 end
-SH.setup = setupNative
 
 -- Auras can be secret out of combat too (PvP matches, encounters): then keep the belief.
 local function aurasReadable() return not InCombatLockdown() and not ns.aurasSecret() end
 
 -- Out of combat the auras are readable: sync our belief and learn the live spell IDs. Looked up by
 -- the client's name for the shield, which every rank shares.
-function SH.refresh()
+local function refreshAura()
 	if not aurasReadable() then return end
 	local upKey
 	for _, key in ipairs(SHIELD_ORDER) do
@@ -376,18 +375,12 @@ end
 -- is Blizzard's aura button's own cooldown, so the GCD gets its own sweep, above that button (it
 -- darkens the charges too, for the GCD's length). Timed by the shown shield's spell, while that is on
 -- the GCD (read in SPELL_UPDATE_COOLDOWN, as the timers are).
-local shieldGCD = CreateFrame("Cooldown", nil, shield, "CooldownFrameTemplate")
-shieldGCD:SetAllPoints()
-shieldGCD:SetDrawEdge(false)
-shieldGCD:SetDrawBling(false)
-shieldGCD:SetHideCountdownNumbers(true)
-shieldGCD:SetSwipeTexture("Interface\\Buttons\\WHITE8x8")
-shieldGCD:SetSwipeColor(0, 0, 0, 0.6)
+local shieldGCD = ns.makeGCDSweep(shield)
 -- inCooldownEvent: called from SPELL_UPDATE_COOLDOWN, the only place isOnGCD is vouched for.
-function SH.refreshGCD(inCooldownEvent)
+local function refreshGCD(inCooldownEvent)
 	local id = ns.isEnabled("shield") and ns.Style.value("shield", "gcd", "show") and Spells.known(SHIELDS[underlayShield()].spell)
 	local d
-	if id and ns.onGCD(id) then
+	if id and ns.Cooldowns.onGCD(id) then
 		local ok, dur = safe(C_Spell.GetSpellCooldownDuration, id)
 		d = ok and dur or nil
 	end
@@ -399,6 +392,28 @@ function SH.refreshGCD(inCooldownEvent)
 	-- Above Blizzard's button, wherever regrouping left the container.
 	shieldGCD:SetFrameLevel((native.container or shield.textFrame):GetFrameLevel() + 10)
 	shieldGCD:SetCooldownFromDurationObject(d)
+end
+
+------------------------------------------------------------------------
+-- Hooks (ShamanForever.lua calls them; see ns.registerModule)
+------------------------------------------------------------------------
+-- After a layout (settings may have changed): Blizzard's container made once, then its looks.
+function SH.applyLayout()
+	setupNative()
+	SH.style()
+	SH.applyEmptyLook()
+end
+SH.afterGroups = SH.style   -- the alpha compensation follows the group's opacity
+function SH.refresh()
+	refreshAura()
+	refreshGCD(false)
+end
+SH.onCooldowns = refreshGCD
+-- A shaman logged in: the aura, read again whenever it changes (out of combat).
+function SH.start()
+	local ev = CreateFrame("Frame")
+	ns.registerEvent(ev, "UNIT_AURA", "player")
+	ev:SetScript("OnEvent", refreshAura)
 end
 
 -- /sf debug
@@ -415,3 +430,5 @@ function SH.debug()
 	local t = {} for id in pairs(shieldIDMap()) do table.insert(t, tostring(id)) end table.sort(t)
 	say("tracked spell IDs: %s", table.concat(t, ","))
 end
+
+ns.registerModule(SH)

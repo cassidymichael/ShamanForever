@@ -4,13 +4,16 @@
 -- back. Since 70009 its own save may be enough; the copy stays until that is confirmed.
 local _, ns = ...
 
+local IR = {}
+ns.IssueReporter = IR
+
 local hooked = false
 
 local function acct() return ns.getAccount() end
 
 -- Places the reporter at our saved spot and applies the hide setting. Its own OnShow re-places it
 -- from Blizzard_PTRIssueReporter_Saved, so the position goes there too.
-function ns.applyIssueReporter()
+function IR.apply()
 	local f = PTR_IssueReporter
 	if not (f and f.text and acct()) then return end   -- f.text exists once its main view is built
 	local pos = acct().issueReporterPos
@@ -32,7 +35,7 @@ local function afterMainView()
 		local left, bottom = self:GetRect()
 		if left and acct() then acct().issueReporterPos = { x = left, y = bottom } end
 	end)
-	ns.applyIssueReporter()
+	IR.apply()
 end
 
 local function hook()
@@ -42,11 +45,11 @@ local function hook()
 	else hooksecurefunc(PTR_IssueReporter, "CreateMainView", afterMainView) end
 end
 
-function ns.hasIssueReporter() return PTR_IssueReporter ~= nil end
+function IR.has() return PTR_IssueReporter ~= nil end
 
 hook()
 local ev = CreateFrame("Frame")
-ev:RegisterEvent("ADDON_LOADED")
+ns.registerEvent(ev, "ADDON_LOADED")
 ev:SetScript("OnEvent", function(_, _, name)
 	if name == "Blizzard_PTRFeedback" then hook() end
 end)

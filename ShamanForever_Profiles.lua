@@ -130,7 +130,7 @@ function P.rename(name)
 	a.profiles[name], a.profiles[old] = a.profiles[old], nil
 	for _, c in pairs(a.chars) do if c.profile == old then c.profile = name end end
 	ns.selectProfile(name)
-	ns.RefreshOptions()
+	ns.Options.refresh()
 end
 
 -- Deletes the active profile; characters that used it go back to Default, which cannot be deleted.

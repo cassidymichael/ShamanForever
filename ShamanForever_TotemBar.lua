@@ -16,7 +16,7 @@
 -- In combat, which totem is in a slot is secret: its icon is drawn by handing the secret icon to
 -- SetTexture, timers come from the slot's duration object, and warnings are the remaining time
 -- through a curve into SetAlpha. Which totem it is (per-totem warning times, "not your pick") comes
--- from our own casts (ns.totemSpellInSlot), by spell ID.
+-- from our own casts (ns.Totems), by spell ID.
 
 local _, ns = ...
 
@@ -26,7 +26,6 @@ ns.TotemBar = TB
 local ELEMENTS = { "earth", "fire", "water", "air" }
 local SLOT = { fire = 1, earth = 2, water = 3, air = 4 }   -- Blizzard's totem slots
 local NAME = { earth = "Earth", fire = "Fire", water = "Water", air = "Air" }
-local COLOR = { earth = { 0.75, 0.54, 0.24 }, fire = { 0.89, 0.38, 0.18 }, water = { 0.25, 0.69, 0.77 }, air = { 0.56, 0.76, 0.92 } }
 TB.ELEMENTS, TB.NAME, TB.SLOT = ELEMENTS, NAME, SLOT
 
 -- Per profile, in db.totemBar.
@@ -263,17 +262,11 @@ local function keyLayer(v)
 	return f
 end
 
--- The global cooldown's sweep, as on action bars: on its own Cooldown over the icon (and the expiring
--- warning), below the button's timer, so the time left stays readable.
+-- The global cooldown's sweep over the icon (and the expiring warning), below the button's timer, so
+-- the time left stays readable.
 local function gcdSweep(v)
-	local cd = CreateFrame("Cooldown", nil, v, "CooldownFrameTemplate")
-	cd:SetAllPoints()
+	local cd = ns.makeGCDSweep(v)
 	cd:SetFrameLevel(v:GetFrameLevel() + 2)
-	cd:SetDrawEdge(false)
-	cd:SetDrawBling(false)
-	cd:SetHideCountdownNumbers(true)
-	cd:SetSwipeTexture("Interface\\Buttons\\WHITE8x8")
-	cd:SetSwipeColor(0, 0, 0, 0.6)
 	return cd
 end
 
@@ -307,7 +300,7 @@ for index, el in ipairs(ELEMENTS) do
 	badge:SetFrameLevel(b:GetFrameLevel() + 6)
 	badge.icon = badge:CreateTexture(nil, "ARTWORK")
 	badge.icon:SetAllPoints()
-	badge.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	ns.cropIcon(badge.icon)
 	badge:Hide()
 	s.badge = badge
 	-- Killed early and ran out (ns.makeEndFlash): on their own frames, since the slot's look can be
@@ -319,7 +312,7 @@ for index, el in ipairs(ELEMENTS) do
 	v.bg:SetAllPoints()
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
-	v.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	ns.cropIcon(v.icon)
 	-- Time left: a timer (text, swipe, bar), above the warning layer so it stays readable.
 	s.timer = ns.Timer.new(v, "totembar", "uptime", { anchor = v, school = el })
 	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + 3)
@@ -346,7 +339,7 @@ for index, el in ipairs(ELEMENTS) do
 	av:SetAllPoints(ar)
 	av:SetFrameLevel(ar:GetFrameLevel() + 2)
 	av:EnableMouse(false)
-	av:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+	av:SetBackdrop(ns.BACKDROP)
 	av:SetBackdropColor(0.06, 0.05, 0.03, 0.92)
 	av:SetBackdropBorderColor(0.85, 0.71, 0.42, 0.9)
 	-- The arrow from Blizzard's own totem bar art (its flyout button highlight), turned to point
@@ -451,7 +444,7 @@ for _, e in ipairs({ { "Call", CALL }, { "Recall", RECALL } }) do
 	v:SetFrameLevel(b:GetFrameLevel() + 2)
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
-	v.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	ns.cropIcon(v.icon)
 	extras[key] = { key = key, spell = spell, button = b, vis = v, keys = keyLayer(v), gcd = gcdSweep(v),
 		command = "CLICK ShamanForeverKey" .. key .. ":LeftButton" }
 end
@@ -541,7 +534,7 @@ end
 -- of combat, the slot's own spell ID (after a /reload, before we have cast). Never the slot's name:
 -- right after a cast it can still be the previous totem's. nil when unknown.
 local function downSpell(slot)
-	local id = ns.totemSpellInSlot(slot)
+	local id = ns.Totems.spellInSlot(slot)
 	if id then return id end
 	if InCombatLockdown() then return nil end
 	local ok, _, _, _, _, _, _, sid = ns.try("totem bar: totem info", GetTotemInfo, slot)
@@ -632,7 +625,7 @@ local function drawSlot(s)
 		v.icon:SetAlpha(c.idleAlpha)
 		v.bg:SetColorTexture(0, 0, 0, 0.6 * c.idleAlpha)
 	elseif c.empty ~= "blank" then
-		local col = COLOR[s.el]
+		local col = ns.SCHOOL_COLOR[s.el]
 		v.icon:SetTexture(nil)
 		v.bg:SetColorTexture(col[1] * 0.35, col[2] * 0.35, col[3] * 0.35, 0.8)
 	else
@@ -652,7 +645,6 @@ local function drawAll()
 	end
 	anyDown = down
 end
-TB.draw = drawAll
 
 -- Redraw (any time), and when the first totem goes down or the last one goes, the bar's driver
 -- for "In combat or a totem down" (out of combat only).
@@ -758,7 +750,7 @@ local function layoutPopout(s, size, known)
 			p:SetFrameLevel(pop:GetFrameLevel() + 5)
 			p.icon = p:CreateTexture(nil, "ARTWORK")
 			p.icon:SetAllPoints()
-			p.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+			ns.cropIcon(p.icon)
 			p.none = p:CreateFontString(nil, "OVERLAY", "GameFontDisable")
 			p.none:SetPoint("CENTER")
 			p.none:SetText("X")
@@ -975,7 +967,7 @@ end
 ------------------------------------------------------------------------
 mover = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
 mover:SetFrameStrata("DIALOG")
-mover:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+mover:SetBackdrop(ns.BACKDROP)
 mover:SetBackdropColor(0, 0, 0, 0.4)
 mover:SetBackdropBorderColor(0.2, 0.6, 1, 0.9)
 mover:EnableMouse(true)
@@ -1002,7 +994,7 @@ mover:SetScript("OnDragStop", function(self)
 	layout()
 end)
 mover:SetScript("OnMouseUp", function(_, button)
-	if button == "RightButton" and ns.OpenOptions then ns.OpenOptions("totembar") end
+	if button == "RightButton" and ns.Options.open then ns.Options.open("totembar") end
 end)
 -- As for groups: mouse wheel, icon size (lines stay crisp); Ctrl + wheel, scale (everything grows,
 -- lines too); Shift + wheel, opacity.
@@ -1019,7 +1011,7 @@ mover:SetScript("OnMouseWheel", function(self, delta)
 	end
 	layout()
 	self.label:SetText(string.format("Totem bar: size %d, scale %.2f, opacity %.0f%%", (look()), c.scale, c.alpha * 100))
-	ns.RefreshOptions()
+	ns.Options.refresh()
 end)
 function mover.update()
 	local on = barOn() and not ns.getAccount().locked and not InCombatLockdown()
@@ -1175,9 +1167,7 @@ local function hookQuickKeybind()
 	if f:IsShown() then setKeybindMode(true) end
 end
 local kbEvents = CreateFrame("Frame")
-kbEvents:RegisterEvent("PLAYER_LOGIN")
-kbEvents:RegisterEvent("ADDON_LOADED")
-kbEvents:RegisterEvent("PLAYER_REGEN_DISABLED")
+for _, e in ipairs({ "PLAYER_LOGIN", "ADDON_LOADED", "PLAYER_REGEN_DISABLED" }) do ns.registerEvent(kbEvents, e) end
 kbEvents:SetScript("OnEvent", function(self, event, name)
 	if event == "PLAYER_REGEN_DISABLED" then
 		kbLeave()   -- never left over the bar in combat, taking the keyboard
@@ -1249,7 +1239,7 @@ function slotEmptied(s, was)
 		local ok, d = ns.try("totem bar: duration", GetTotemDuration, s.slot)
 		local refilled = ok and d ~= nil
 		if mine or refilled then return end
-		ns.onTotemGone(s.slot, was)   -- Earthbind / Stoneclaw elements
+		ns.Totems.slotEmptied(s.slot, was)   -- Earthbind / Stoneclaw elements
 		local c = cfg()
 		if not s.button:IsShown() then return end
 		if c.expiredPop then s.expired:play(was, { expired = true, pop = true }) end
@@ -1263,11 +1253,11 @@ end
 local ev = CreateFrame("Frame")
 for _, e in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_TOTEM_UPDATE", "PLAYER_REGEN_ENABLED",
 		"SPELLS_CHANGED", "ACTIONBAR_SLOT_CHANGED", "UPDATE_MULTI_CAST_ACTIONBAR", "UPDATE_BINDINGS", "SPELL_UPDATE_COOLDOWN" }) do
-	pcall(ev.RegisterEvent, ev, e)
+	ns.registerEvent(ev, e)
 end
-pcall(ev.RegisterUnitEvent, ev, "UNIT_SPELLCAST_SUCCEEDED", "player")
--- After one of our casts: redraw once the main file has recorded which totem went into which slot
--- (ns.totemSpellInSlot; its handler may run after ours), so the order of this event and
+ns.registerEvent(ev, "UNIT_SPELLCAST_SUCCEEDED", "player")
+-- After one of our casts: redraw once ShamanForever_Totems.lua has recorded which totem went into which slot
+-- (ns.Totems; its handler may run after ours), so the order of this event and
 -- PLAYER_TOTEM_UPDATE doesn't matter. Plain frames only, so fine in combat.
 local casts, redrawQueued = {}, false   -- spell IDs cast since the last check
 local function redrawAfterCast(spell)
@@ -1278,7 +1268,7 @@ local function redrawAfterCast(spell)
 		redrawQueued = false
 		local totem = false
 		for slot = 1, 4 do
-			local id = not totem and ns.totemSpellInSlot(slot)
+			local id = not totem and ns.Totems.spellInSlot(slot)
 			if id and casts[id] then totem = true end
 		end
 		wipe(casts)

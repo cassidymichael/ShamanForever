@@ -4,6 +4,146 @@
 
 local _, ns = ...
 
+-- The five element schools' colours (spirit covers anything mixed): time bars in "element colour",
+-- the totem bar's slots, the options' art.
+ns.SCHOOL_COLOR = {
+	earth  = { 0.75, 0.54, 0.24 },
+	fire   = { 0.89, 0.38, 0.18 },
+	water  = { 0.25, 0.69, 0.77 },
+	air    = { 0.56, 0.76, 0.92 },
+	spirit = { 0.73, 0.64, 0.90 },
+}
+
+-- A flat backdrop: a solid fill and a 1 px edge, coloured by the caller.
+ns.BACKDROP = { bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 }
+
+-- A spell icon without Blizzard's built-in border.
+function ns.cropIcon(tex) tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
+
+------------------------------------------------------------------------
+-- Lines (borders, warning rings, the range strip) are measured in screen pixels, so they stay crisp:
+-- n pixels at scale 1. A Scale between the screen and the frame (a group's, the totem bar's, a
+-- preview's) grows them with everything else, rounded to whole pixels. Icon Size doesn't.
+------------------------------------------------------------------------
+-- The length, in the frame's own units, of n screen pixels grown by the frame's Scale.
+function ns.linePx(frame, n)
+	local eff = frame:GetEffectiveScale()
+	local count = math.floor(n * eff / UIParent:GetEffectiveScale() + 0.5)
+	if n > 0 and count < 1 then count = 1 end
+	local _, physicalHeight = GetPhysicalScreenSize()
+	return count * (768 / (physicalHeight or 768)) / eff
+end
+
+------------------------------------------------------------------------
+-- Warning looks shared by the HUD, the totem bar and the options previews
+------------------------------------------------------------------------
+-- A ring just inside an icon's edge: four textures, the side ones between the top and bottom ones
+-- (no doubled corners). Its thickness is a line's (ns.linePx): crisp, the same at any icon size.
+local RING_PX = 3
+local RING_COLOR = { 1, 0, 0, 0.9 }
+local Ring = {}
+Ring.__index = Ring
+local rings = setmetatable({}, { __mode = "k" })
+function ns.makeRing(parent, anchor)
+	local r = setmetatable({ anchor = anchor, edges = {} }, Ring)
+	rings[r] = true
+	for i = 1, 4 do
+		local t = parent:CreateTexture(nil, "OVERLAY", nil, 6)
+		t:Hide()
+		r.edges[i] = t
+	end
+	r:color()
+	return r
+end
+-- A colour other than the warning red (the shock's blue "no mana" ring); no arguments: the red.
+function Ring:color(red, g, b, a)
+	local k = RING_COLOR
+	for _, t in ipairs(self.edges) do t:SetColorTexture(red or k[1], g or k[2], b or k[3], a or k[4]) end
+end
+-- Sizes the edges for the anchor's current scale; re-anchors only when that changed.
+function Ring:fit()
+	local w = ns.linePx(self.anchor, RING_PX)
+	if w == self.width then return end
+	self.width = w
+	local a, top, bottom, left, right = self.anchor, self.edges[1], self.edges[2], self.edges[3], self.edges[4]
+	for _, t in ipairs(self.edges) do t:ClearAllPoints() end
+	top:SetPoint("TOPLEFT", a, "TOPLEFT", 0, 0); top:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, 0); top:SetHeight(w)
+	bottom:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, 0); bottom:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, 0); bottom:SetHeight(w)
+	left:SetPoint("TOPLEFT", a, "TOPLEFT", 0, -w); left:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, w); left:SetWidth(w)
+	right:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, -w); right:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, w); right:SetWidth(w)
+end
+function Ring:show(on)
+	if on then self:fit() end
+	for _, t in ipairs(self.edges) do t:SetShown(on and true or false) end
+end
+-- After a layout (a group's or the bar's Scale may have changed): every ring on screen re-measures.
+function ns.refitRings()
+	for r in pairs(rings) do
+		if r.edges[1]:IsShown() then r:fit() end
+	end
+end
+
+-- A looping pulse on a region. "fade": the region itself breathes, 100% to 35% over 0.8 s (missing
+-- looks). "dim": a dark layer from 0 to 55% over 0.6 s (expiring; it dims the icon, never the text
+-- above it). Returns the animation group.
+function ns.makePulse(region, kind)
+	local g = region:CreateAnimationGroup()
+	g:SetLooping("BOUNCE")
+	local a = g:CreateAnimation("Alpha")
+	if kind == "dim" then a:SetFromAlpha(0); a:SetToAlpha(0.55); a:SetDuration(0.6)
+	else a:SetFromAlpha(1); a:SetToAlpha(0.35); a:SetDuration(0.8) end
+	a:SetSmoothing("IN_OUT")
+	return g
+end
+
+-- Border drawn just outside an element's edge, so it never covers the rings inside the icon or
+-- Blizzard's shield button. size is a line's (ns.linePx): screen pixels, grown by Scale, not by Size.
+function ns.applyBorder(f, b)
+	if not (b and b.show and b.size and b.size > 0) then
+		if f.border then for _, t in ipairs(f.border) do t:Hide() end end
+		return
+	end
+	if not f.border then
+		f.border = {}
+		for i = 1, 4 do f.border[i] = f:CreateTexture(nil, "BACKGROUND", nil, -8) end
+	end
+	local s = ns.linePx(f, b.size)
+	local c = b.color or { 0, 0, 0, 1 }
+	local top, bottom, left, right = f.border[1], f.border[2], f.border[3], f.border[4]
+	for _, t in ipairs(f.border) do
+		t:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
+		t:ClearAllPoints()
+		t:Show()
+	end
+	-- Top and bottom span the corners; left and right fill between them.
+	top:SetPoint("BOTTOMLEFT", f, "TOPLEFT", -s, 0)
+	top:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", s, 0)
+	top:SetHeight(s)
+	bottom:SetPoint("TOPLEFT", f, "BOTTOMLEFT", -s, 0)
+	bottom:SetPoint("TOPRIGHT", f, "BOTTOMRIGHT", s, 0)
+	bottom:SetHeight(s)
+	left:SetPoint("TOPRIGHT", f, "TOPLEFT", 0, 0)
+	left:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", 0, 0)
+	left:SetWidth(s)
+	right:SetPoint("TOPLEFT", f, "TOPRIGHT", 0, 0)
+	right:SetPoint("BOTTOMLEFT", f, "BOTTOMRIGHT", 0, 0)
+	right:SetWidth(s)
+end
+
+-- The global cooldown's sweep, as on action bars: its own Cooldown over an icon, a dark swipe with no
+-- edge, bling or numbers. The caller sets its frame level.
+function ns.makeGCDSweep(parent)
+	local cd = CreateFrame("Cooldown", nil, parent, "CooldownFrameTemplate")
+	cd:SetAllPoints()
+	cd:SetDrawEdge(false)
+	cd:SetDrawBling(false)
+	cd:SetHideCountdownNumbers(true)
+	cd:SetSwipeTexture("Interface\\Buttons\\WHITE8x8")
+	cd:SetSwipeColor(0, 0, 0, 0.6)
+	return cd
+end
+
+
 -- A pulsing glow inside an icon: soft light running in from its four edges, over the icon's art and
 -- inside its border, breathing. `over` is the icon it covers (default: the parent). Its style is its
 -- owner's (an element key or "totembar"; nil for General's): colour, pulse length, pulse depth (low
@@ -233,7 +373,7 @@ function ns.makeEndFlash(parent, anchor, owner)
 	kf.glow:color(1, 0.12, 0.08)
 	kf.icon = kf.body:CreateTexture(nil, "ARTWORK")
 	kf.icon:SetAllPoints()
-	kf.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	ns.cropIcon(kf.icon)
 	kf.icon:SetDesaturated(true)
 	kf.red = kf.body:CreateTexture(nil, "OVERLAY")
 	kf.red:SetAllPoints()
@@ -256,7 +396,7 @@ function ns.makeEndFlash(parent, anchor, owner)
 	kf.mark:Hide()
 	kf.mark.icon = kf.mark:CreateTexture(nil, "ARTWORK")
 	kf.mark.icon:SetAllPoints()
-	kf.mark.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	ns.cropIcon(kf.mark.icon)
 	kf.mark.icon:SetDesaturated(true)
 	kf.mark.icon:SetAlpha(0.6)
 	kf.mark.x = kf.mark:CreateTexture(nil, "OVERLAY")
@@ -301,11 +441,23 @@ function ns.makeIcon(parent, size, owner)
 	f:SetSize(size, size)
 	f.tex = f:CreateTexture(nil, "ARTWORK")
 	f.tex:SetAllPoints()
-	f.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	ns.cropIcon(f.tex)
 	f.manaOverlay = f:CreateTexture(nil, "ARTWORK", nil, 2)
 	f.manaOverlay:SetAllPoints(f.tex)
 	f.manaOverlay:SetColorTexture(0.2, 0.45, 1, 0.55)
 	f.manaOverlay:Hide()
+	-- The shock's body colour (out of range, no mana): an overlay over the art, a tint of the art, or
+	-- both. style: overlay | tint | both; the caller clears it first.
+	f.SetBodyPaint = function(self, style, r, g, b, overlayAlpha, tintStrength)
+		if style == "overlay" or style == "both" then
+			self.manaOverlay:SetColorTexture(r, g, b, overlayAlpha)
+			self.manaOverlay:Show()
+		end
+		if style == "tint" or style == "both" then
+			local k = 1 - tintStrength
+			self.tex:SetVertexColor(r == 1 and 1 or k, g == 1 and 1 or k, b == 1 and 1 or k)
+		end
+	end
 	f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
 	f.cd:SetAllPoints()
 	f.cd:SetDrawEdge(false)
