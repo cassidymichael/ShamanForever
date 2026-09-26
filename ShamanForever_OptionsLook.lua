@@ -8,6 +8,8 @@ ns.Look = L
 local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
 L.GOLD = { 0.85, 0.71, 0.42 }
 L.REPO = "https://github.com/cassidymichael/ShamanForever"
+L.CURSEFORGE = "https://www.curseforge.com/wow/addons/shamanforever"
+L.WAGO = "https://addons.wago.io/addons/shamanforever"
 
 -- Five art schools; spirit covers anything mixed, all or neither.
 L.SCHOOL = {
@@ -101,13 +103,29 @@ function L.divider(parent)
 end
 
 ------------------------------------------------------------------------
--- Experimental badge: click for a copyable feedback link (links cannot be clicked in game).
+-- Experimental badge: click for copyable feedback links (links cannot be clicked in game): the
+-- CurseForge comments (no account needed beyond CurseForge's), or a GitHub issue filled in for it.
 ------------------------------------------------------------------------
 local pop
+local function linkBox(label, anchor, y)
+	local fs = pop:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	fs:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, y)
+	fs:SetWidth(70)
+	fs:SetJustifyH("LEFT")
+	fs:SetText(label)
+	local e = CreateFrame("EditBox", nil, pop, "InputBoxTemplate")
+	e:SetSize(270, 22)
+	e:SetPoint("LEFT", fs, "RIGHT", 6, 0)
+	e:SetAutoFocus(false)
+	e:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
+	e:SetScript("OnEscapePressed", function() pop:Hide() end)
+	e:SetScript("OnTextChanged", function(self, user) if user then self:SetText(self.url); self:HighlightText() end end)
+	return fs, e
+end
 local function showFeedback(anchor, feature)
 	if not pop then
 		pop = CreateFrame("Frame", "ShamanForeverFeedback", UIParent, "BackdropTemplate")
-		pop:SetSize(360, 112)
+		pop:SetSize(372, 128)
 		pop:SetFrameStrata("TOOLTIP")
 		pop:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
 		pop:SetBackdropColor(0.06, 0.05, 0.04, 0.98)
@@ -117,17 +135,16 @@ local function showFeedback(anchor, feature)
 		pop.title:SetPoint("TOPLEFT", 12, -10)
 		pop.text = pop:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		pop.text:SetPoint("TOPLEFT", pop.title, "BOTTOMLEFT", 0, -6)
-		pop.text:SetText("Not tested in game yet. Tell us how it went.")
-		pop.edit = CreateFrame("EditBox", nil, pop, "InputBoxTemplate")
-		pop.edit:SetSize(330, 22)
-		pop.edit:SetPoint("TOPLEFT", pop.text, "BOTTOMLEFT", 6, -8)
-		pop.edit:SetAutoFocus(false)
-		pop.edit:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
-		pop.edit:SetScript("OnEscapePressed", function() pop:Hide() end)
-		pop.edit:SetScript("OnTextChanged", function(self, user) if user then self:SetText(self.url); self:HighlightText() end end)
+		pop.text:SetText("Not tested in game yet. Tell us how it went, either place:")
+		local cfLabel
+		cfLabel, pop.cf = linkBox("CurseForge", pop.text, -12)
+		pop.cf.url = L.CURSEFORGE .. "/comments"
+		pop.cf:SetText(pop.cf.url)
+		local ghLabel
+		ghLabel, pop.edit = linkBox("GitHub", cfLabel, -16)
 		pop.hint = pop:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-		pop.hint:SetPoint("TOPLEFT", pop.edit, "BOTTOMLEFT", -6, -6)
-		pop.hint:SetText("Ctrl+C to copy")
+		pop.hint:SetPoint("TOPLEFT", ghLabel, "BOTTOMLEFT", 0, -12)
+		pop.hint:SetText("Click a link, then Ctrl+C to copy")
 		local close = CreateFrame("Button", nil, pop, "UIPanelCloseButtonNoScripts")
 		close:SetPoint("TOPRIGHT", 0, 0)
 		close:SetScript("OnClick", function() pop:Hide() end)
@@ -136,11 +153,11 @@ local function showFeedback(anchor, feature)
 	pop.title:SetText("|cffe0b060Experimental:|r " .. feature)
 	pop.edit.url = url
 	pop.edit:SetText(url)
+	pop.cf:SetCursorPosition(0)
+	pop.edit:SetCursorPosition(0)
 	pop:ClearAllPoints()
 	pop:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -4)
 	pop:Show()
-	pop.edit:SetFocus()
-	pop.edit:HighlightText()
 end
 
 -- With a label ("Give feedback", on About) the badge opens the feedback link. Without one it reads

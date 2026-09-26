@@ -46,6 +46,10 @@ function ns.try(site, fn, ...) return checked(site, pcall(fn, ...)) end
 -- queues a call that failed. Queued work runs in the order it was first queued, at
 -- PLAYER_REGEN_ENABLED, which comes after the combat restrictions lift (probed 2026-09-26). This
 -- file loads first, so its handler runs before any other file's.
+-- Blizzard's aura containers (the shield, the totem range strip) also refuse addon calls while
+-- auras are secret, which can happen out of combat (PvP, encounters, addonCombatRestrictionsForced):
+-- their work uses ns.deferWhileAurasSecret, and the queue also runs whenever an addon restriction
+-- ends (ADDON_RESTRICTION_STATE_CHANGED, Inactive). Anything still blocked then queues itself again.
 ------------------------------------------------------------------------
 local queued, queueOrder, listed = {}, {}, {}
 function ns.retryAfterCombat(key, fn)
@@ -57,9 +61,20 @@ function ns.deferInCombat(key, fn)
 	queued[key] = nil
 	return false
 end
+function ns.aurasSecret()
+	local ok, v = safe(C_Secrets and C_Secrets.ShouldAurasBeSecret)
+	return ok and (isSecret(v) or v == true) or false
+end
+function ns.deferWhileAurasSecret(key, fn)
+	if InCombatLockdown() or ns.aurasSecret() then ns.retryAfterCombat(key, fn) return true end
+	queued[key] = nil
+	return false
+end
+local INACTIVE = Enum and Enum.AddOnRestrictionState and Enum.AddOnRestrictionState.Inactive or 0
 local combatEnd = CreateFrame("Frame")
 combatEnd:RegisterEvent("PLAYER_REGEN_ENABLED")
-combatEnd:SetScript("OnEvent", function()
+pcall(combatEnd.RegisterEvent, combatEnd, "ADDON_RESTRICTION_STATE_CHANGED")
+local function runQueue()
 	local order = queueOrder
 	queueOrder, listed = {}, {}
 	for _, key in ipairs(order) do
@@ -69,6 +84,14 @@ combatEnd:SetScript("OnEvent", function()
 			ns.try(key, fn)
 		end
 	end
+end
+combatEnd:SetScript("OnEvent", function(_, event, _, state)
+	if event == "ADDON_RESTRICTION_STATE_CHANGED" then
+		if isSecret(state) or state ~= INACTIVE or InCombatLockdown() then return end
+		-- Auras may still read as secret while this is dispatched: again on the next frame.
+		C_Timer.After(0, runQueue)
+	end
+	runQueue()
 end)
 
 ------------------------------------------------------------------------
@@ -191,7 +214,7 @@ local DEFS = {
 	frostShock      = { ids = { 8056 }, en = "Frost Shock" },
 	earthbind       = { ids = { 2484 }, en = "Earthbind Totem" },
 	stoneclaw       = { ids = { 5730 }, en = "Stoneclaw Totem" },
-	fireNova        = { ids = { 1535 }, en = "Fire Nova" },
+	fireNova        = { ids = { 408341 }, en = "Fire Nova" },   -- Forever's own (Classic's 1535 isn't on the client)
 	rockbiter       = { ids = { 8017 }, en = "Rockbiter Weapon" },
 	flametongue     = { ids = { 8024 }, en = "Flametongue Weapon" },
 	frostbrand      = { ids = { 8033 }, en = "Frostbrand Weapon" },
@@ -308,4 +331,24 @@ end
 function Spells.has(key, id) return keyByID[id] == key end
 function Spells.learn(key, id)
 	if type(id) == "number" and not isSecret(id) and DEFS[key] then keyByID[id] = key end
+end
+
+-- Self-check, once at login: seed IDs the client doesn't have go to the error log (/sf debug), so a
+-- Forever patch that changes spell IDs shows at once instead of an element quietly going blank.
+-- Other files add their own lists (the totem bar's buff IDs).
+local checks = {}
+function Spells.addCheck(label, ids) table.insert(checks, { label = label, ids = ids }) end
+for _, d in pairs(DEFS) do Spells.addCheck(d.en, d.ids) end
+function Spells.selfCheck()
+	if not (C_Spell and C_Spell.DoesSpellExist) then return end
+	for _, c in ipairs(checks) do
+		local missing = {}
+		for _, id in ipairs(c.ids) do
+			local ok, exists = safe(C_Spell.DoesSpellExist, id)
+			if ok and exists == false then table.insert(missing, id) end
+		end
+		if #missing > 0 then
+			ns.noteError("spell IDs: " .. c.label, "not on this client: " .. table.concat(missing, ", "))
+		end
+	end
 end

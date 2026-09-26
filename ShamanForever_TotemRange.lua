@@ -42,7 +42,7 @@ local BUFF_TOTEMS = {
 		{ totem = 8835, buffs = { 8836, 10626, 25360 } },                      -- Grace of Air
 		{ totem = 10595, buffs = { 10596, 10598, 10599 } },                    -- Nature Resistance
 		{ totem = 15107, buffs = { 15108, 15109, 15110 } },                    -- Windwall
-		{ totem = 25908, buffs = { 25909 } },                                  -- Tranquil Air
+		-- Tranquil Air (25908) isn't on Forever's client (spell ID self-check, 2026-09-26).
 	},
 }
 
@@ -50,9 +50,12 @@ local buffIDs = {}      -- element -> { [buff spell ID] = true }: what its aura 
 local buffTotem = {}    -- totem spell ID -> whether it buffs the player (cached; ranks by the client's name)
 for el, list in pairs(BUFF_TOTEMS) do
 	buffIDs[el] = {}
+	local all = {}   -- for the spell ID self-check
 	for _, e in ipairs(list) do
-		for _, id in ipairs(e.buffs) do buffIDs[el][id] = true end
+		table.insert(all, e.totem)
+		for _, id in ipairs(e.buffs) do buffIDs[el][id] = true; table.insert(all, id) end
 	end
+	ns.Spells.addCheck(el .. " totems and buffs", all)
 end
 
 local function enabled() return ns.getDB() ~= nil and TB.cfg().range end
@@ -161,7 +164,8 @@ local function makeContainer(s)
 end
 
 -- Size, place and colour both parts (out of combat). The height is a line's (ns.linePx), as borders are.
-local function place(s, size)
+-- ownOnly: our strip only, not Blizzard's container (auras are secret).
+local function place(s, size, ownOnly)
 	local c, b, gate = TB.cfg(), s.button, s.rangeGate
 	gate:ClearAllPoints()
 	gate:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
@@ -171,7 +175,7 @@ local function place(s, size)
 	s.rangeMark.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
 	s.rangeW, s.rangeH, s.rangeSize = w, h, size
 	local ct = s.rangeContainer
-	if not ct then return end
+	if not ct or ownOnly then return end
 	ct:ClearAllPoints()
 	ct:SetPoint("TOPLEFT", gate, "TOPLEFT", 0, 0)
 	ct:SetSize(w, h)
@@ -181,7 +185,7 @@ end
 
 local function applyFilter(s)
 	local c = s.rangeContainer
-	if not c or InCombatLockdown() then return end
+	if not c or InCombatLockdown() or ns.aurasSecret() then return end   -- R.layout runs again then
 	for _, part in ipairs(PARTS) do
 		if s.rangeSlots[part.key] then
 			ns.try("totem range: filter", c.SetAuraSlotCandidateFilters, c, part.key, { includeSpellIDs = CopyTable(buffIDs[s.el]) })
@@ -223,17 +227,23 @@ end
 ------------------------------------------------------------------------
 -- layout (out of combat): make, place or hide everything.
 function R.layout(size)
+	-- Blizzard's containers refuse addon calls while auras are secret: their part waits and the whole
+	-- layout runs again once that ends. Our own strip (the mark) is laid out now.
+	local blocked = ns.deferWhileAurasSecret("totem range layout", function() R.layout(size) end)
 	local want = enabled() and TB.isShaman()
 	for _, el in ipairs(TB.ELEMENTS) do
 		local s = TB.slots[el]
 		local on = want and s.button:IsShown()
 		if on and not s.rangeGate then makeMark(s) end
-		if on and not s.rangeContainer and not s.rangeError then makeContainer(s) end
+		if not blocked and on and not s.rangeContainer and not s.rangeError then makeContainer(s) end
 		if s.rangeGate then s.rangeGate:SetShown(on) end
-		if s.rangeContainer and not on then s.rangeContainer:Hide() end
-		if on then place(s, size); applyFilter(s) end
+		if not blocked and s.rangeContainer and not on then s.rangeContainer:Hide() end
+		if on then
+			place(s, size, blocked)
+			if not blocked then applyFilter(s) end
+		end
 	end
-	learn()
+	if not blocked then learn() end
 end
 
 -- draw (any time): the mark's gate, from which totem of yours is down.

@@ -214,7 +214,7 @@ local function popFx(f)
 	x.shakeV = f:CreateAnimationGroup()
 	x.shakeV.a = { anim(x.shakeV, "Translation", 1), anim(x.shakeV, "Translation", 2), anim(x.shakeV, "Translation", 3), anim(x.shakeV, "Translation", 4) }
 	-- Light, on a frame above the icon's text.
-	local fx = CreateFrame("Frame", nil, f)
+	local fx = CreateFrame("Frame", nil, f.effects or f)
 	fx:SetAllPoints()
 	fx:SetFrameLevel(f:GetFrameLevel() + 12)
 	fx:EnableMouse(false)
@@ -483,6 +483,12 @@ for _, def in ipairs(COOLDOWNS) do
 	local f = makeIcon(root, DEFAULTS.iconSize, def.key)
 	f.count:Hide()
 	f.tex:SetTexture(def.icon)
+	-- Effects (the glows, the pops' light, the end flashes) on a layer that ignores the icon's alpha,
+	-- so an idle icon (applyIdle) doesn't fade them. It takes its group's opacity instead (layoutGroup).
+	f.effects = CreateFrame("Frame", nil, f)
+	f.effects:SetAllPoints()
+	f.effects:SetIgnoreParentAlpha(true)
+	f.glowF:SetParent(f.effects)
 	if def.totemSlot or def.needsTotem then
 		-- A totem's time left (its own, or for Fire Nova whichever fire totem is out): a timer of the
 		-- "uptime" kind beside the spell's cooldown. Its parts sit in a holder so one alpha can hide
@@ -495,7 +501,7 @@ for _, def in ipairs(COOLDOWNS) do
 	if def.needsTotem then
 		-- Ready glow (updateReadyGlow): the gate's alpha is "a fire totem is down", the glow's is "off
 		-- cooldown"; nested, the two multiply.
-		f.readyGate = CreateFrame("Frame", nil, f)
+		f.readyGate = CreateFrame("Frame", nil, f.effects)
 		f.readyGate:SetAllPoints()
 		f.readyGlow = makeGlow(f.readyGate, f, def.key)
 	end
@@ -519,6 +525,8 @@ for _, def in ipairs(COOLDOWNS) do
 	-- bar, text. Restated after regrouping (layoutGroup), since reparenting moves frame levels.
 	function f.stack()
 		local base = f:GetFrameLevel()
+		f.effects:SetFrameLevel(base)
+		f.glowF:SetFrameLevel(base + 1)
 		if f.warn then f.warn:SetFrameLevel(base + 1) end
 		f.cd:SetFrameLevel(base + 2)
 		if f.cdTimer.bar then f.cdTimer.bar:SetFrameLevel(base + 3) end
@@ -833,6 +841,10 @@ local function layoutGroup(gi)
 	if horizontal then gf:SetSize(along, across) else gf:SetSize(across, along) end
 	gf:SetScale(g.scale)
 	gf:SetAlpha(g.alpha)
+	for _, key in ipairs(g.members) do   -- effects layers ignore their icon's alpha, so they take the group's
+		local fx = ELEMENTS[key].frame.effects
+		if fx then fx:SetAlpha(g.alpha) end
+	end
 	-- After the scale, so borders are sized in real pixels.
 	local border = ns.Style.get(g, "border")
 	for _, key in ipairs(g.members) do applyBorder(ELEMENTS[key].frame, border) end
@@ -1398,7 +1410,7 @@ end
 local filtered = {}   -- the IDs last given to the filter
 local function applyShieldFilter()
 	if not native.container or native.err then return end
-	if ns.deferInCombat("shield filter", applyShieldFilter) then return end
+	if ns.deferWhileAurasSecret("shield filter", applyShieldFilter) then return end
 	local map = shieldIDMap()
 	local ok = ns.try("shield filter", native.container.SetAuraSlotCandidateFilters, native.container, "shield",
 		{ includeSpellIDs = map })
@@ -1412,10 +1424,11 @@ local function learnShieldID(key, id)
 	if tracksShield(key) and not filtered[id] then applyShieldFilter() end
 end
 
--- Blizzard's button and its parts are off limits to addon code in combat; defer until it ends.
+-- Blizzard's button and its parts are off limits to addon code in combat, and while auras are
+-- secret; defer until that ends.
 function styleNative()
 	if not native.button then return end
-	if ns.deferInCombat("shield style", styleNative) then return end
+	if ns.deferWhileAurasSecret("shield style", styleNative) then return end
 	-- One pcall: Blizzard's button can refuse addon calls while auras are secret (in combat, and
 	-- possibly in PvP or encounters); a failure is noted for /sf debug and retried when combat ends.
 	local ok = ns.try("shield style", function()
@@ -1531,7 +1544,7 @@ end
 -- Out of combat only: made when combat ends after a /reload in combat.
 local function setupNative()
 	if native.container or native.err then return end
-	if ns.deferInCombat("shield container", setupNative) then return end
+	if ns.deferWhileAurasSecret("shield container", setupNative) then return end
 	local ok, err = pcall(function()
 		local c = CreateFrame("AuraContainer", "ShamanForeverAuraContainer", shield, "CustomAuraContainerTemplate")
 		c:SetPoint("TOPLEFT", shield, "TOPLEFT", 0, 0)
@@ -1558,11 +1571,7 @@ local function setupNative()
 end
 
 -- Auras can be secret out of combat too (PvP matches, encounters): then keep the belief.
-local function aurasReadable()
-	if InCombatLockdown() then return false end
-	local ok, secret = safe(C_Secrets and C_Secrets.ShouldAurasBeSecret)
-	return not (ok and (isSecret(secret) or secret))
-end
+local function aurasReadable() return not InCombatLockdown() and not ns.aurasSecret() end
 
 -- Out of combat the auras are readable: sync our belief and learn the live spell IDs. Looked up by
 -- the client's name for the shield, which every rank shares.
@@ -1856,6 +1865,7 @@ local ELEMENT_OPT_DEFAULTS = {
 	blockedGrey = true, blockedRing = false, blockedPulse = false,  -- No fire totem (Fire Nova)
 	expiredPop = true,                                           -- a totem ran out
 	killed = true, killedPop = true, killedGlow = true, killedMark = true,   -- a totem killed early
+	idleAlpha = 0.35, idleWhen = "never",                        -- Idle (idleWhen: Fire Nova's rule)
 }
 local function cdOpt(key, name)
 	local v = elementOpts(key)[name]
@@ -1936,12 +1946,12 @@ function ns.onTotemGone(slot, dur)
 		if def.totemSlot == slot and owner == def.key and isEnabled(def.key) then
 			local f, key = def.frame, def.key
 			if cdOpt(key, "expiredPop") then
-				if not f.expired then f.expired = ns.makeEndFlash(f, f, key) end
+				if not f.expired then f.expired = ns.makeEndFlash(f.effects or f, f, key) end
 				f.expired:setIcon(def.iconID or def.icon)
 				f.expired:play(dur, { expired = true, pop = true })
 			end
 			if cdOpt(key, "killed") then
-				if not f.killed then f.killed = ns.makeEndFlash(f, f, key) end
+				if not f.killed then f.killed = ns.makeEndFlash(f.effects or f, f, key) end
 				f.killed:setIcon(def.iconID or def.icon)
 				f.killed:play(dur, { pop = cdOpt(key, "killedPop"), glow = cdOpt(key, "killedGlow"), mark = cdOpt(key, "killedMark") })
 			end
@@ -1965,13 +1975,84 @@ local function styleCooldown(def)
 	else w.pulse:Stop() end
 end
 
+-- Idle (Earthbind, Stoneclaw, Fire Nova): off cooldown, with nothing of its own going on. Both halves
+-- are plain values in combat (probed 2026-09-26): the spell's own cooldown from GetSpellCooldown's
+-- isActive and isOnGCD (a global cooldown shows as active and on the GCD; the duration object is
+-- secret), and a totem from its slot having a duration at all (nil the moment it's gone) plus our
+-- own casts. An idle icon takes its "Opacity when idle" and keeps its place in the group; it is
+-- always full while positioning is unlocked. The end of a cooldown fires no event: OnCooldownDone
+-- (below) and the 1 s ticker catch it. isOnGCD is only vouched for inside SPELL_UPDATE_COOLDOWN, so
+-- its answer is kept (def.cdRunning) and only re-read there; isActive false needs no such care.
+-- Going idle waits IDLE_DELAY at full opacity first, so a ready or run-out pop plays at full.
+local IDLE_DELAY = 1.5
+local inCooldownEvent = false   -- set while SPELL_UPDATE_COOLDOWN refreshes (the event handler)
+local refreshCooldown           -- below
+local function ownCooldownRunning(def)
+	local ok, info = safe(C_Spell.GetSpellCooldown, def.spellID)
+	if not ok or type(info) ~= "table" or isSecret(info.isActive) then return true end   -- can't tell: not idle
+	if info.isActive == false then def.cdRunning = false return false end
+	if inCooldownEvent or def.cdRunning == nil then
+		if isSecret(info.isOnGCD) then return true end
+		def.cdRunning = info.isOnGCD ~= true
+	end
+	return def.cdRunning
+end
+local function idleAlpha(key)
+	local v = cdOpt(key, "idleAlpha")
+	if type(v) ~= "number" or v ~= v then return 1 end
+	return math.min(math.max(v, 0), 1)
+end
+-- The icon eases to its new opacity: slowly into idle, quickly back (each rate covers 0 to 1).
+local FADE_OUT, FADE_IN = 0.8, 0.15
+local fading = {}   -- def -> target alpha
+local fader = CreateFrame("Frame")
+fader:Hide()
+fader:SetScript("OnUpdate", function(self, elapsed)
+	for def, target in pairs(fading) do
+		local a = def.frame:GetAlpha()
+		if target < a then a = math.max(target, a - elapsed / FADE_OUT)
+		else a = math.min(target, a + elapsed / FADE_IN) end
+		def.frame:SetAlpha(a)
+		if a == target then fading[def] = nil end
+	end
+	if next(fading) == nil then self:Hide() end
+end)
+local function fadeTo(def, alpha)
+	if math.abs(def.frame:GetAlpha() - alpha) < 0.005 then
+		fading[def] = nil
+		def.frame:SetAlpha(alpha)
+		return
+	end
+	fading[def] = alpha
+	fader:Show()
+end
+
+-- totemBusy: our totem is down (Earthbind, Stoneclaw), or any fire totem is (Fire Nova).
+local function applyIdle(def, totemBusy)
+	local when = def.needsTotem and cdOpt(def.key, "idleWhen")   -- Fire Nova: never | nototem | offcd
+	local cdRunning = ownCooldownRunning(def)   -- always, so its kept answer stays current
+	local busy = not acct.locked or when == "never" or cdRunning
+	if not busy and totemBusy then busy = when ~= "offcd" end
+	if busy then def.idleAt = nil
+	elseif def.idle == false then
+		-- Just went idle: full for a moment, then refresh to fade.
+		def.idleAt = GetTime() + IDLE_DELAY
+		C_Timer.After(IDLE_DELAY + 0.05, function() refreshCooldown(def) end)
+	end
+	local waiting = def.idleAt and GetTime() < def.idleAt
+	fadeTo(def, (busy or waiting) and 1 or idleAlpha(def.key))
+	def.idle = not busy
+end
+
 -- def.read (for /sf debug) is kept as parts and only formatted there.
-local function refreshCooldown(def)
-	if not isEnabled(def.key) then return end
+function refreshCooldown(def)
+	if not isEnabled(def.key) then def.cdRunning = nil return end   -- read afresh when it's back
 	local f = def.frame
 	if f.killed and not (cdOpt(def.key, "killed") and cdOpt(def.key, "killedMark")) then f.killed.mark:Hide() end
 	if not def.spellID then
 		-- Not learned yet: a plain grey icon.
+		fadeTo(def, 1)
+		def.idle = nil
 		f.tex:SetDesaturated(true)
 		f:SetRingShown(false)
 		f:SetPulsing(false)
@@ -1987,6 +2068,7 @@ local function refreshCooldown(def)
 		-- Fire Nova: the slot's duration object drives everything, secret or not. An empty slot's
 		-- duration is zero, so the timer widgets draw nothing and the warning layer shows.
 		local tok, tdur = safe(GetTotemDuration, def.needsTotem)
+		applyIdle(def, tok and tdur ~= nil)
 		f.activeHolder:SetAlpha(1)   -- any fire totem counts, so its timer always shows
 		if tok and tdur == nil then
 			-- Nothing in the slot: no duration object to evaluate.
@@ -2037,10 +2119,12 @@ local function refreshCooldown(def)
 			f.activeHolder:SetAlpha(match)
 			f.upTimer:set(tdur)
 			def.read, def.readHow = match, how
+			applyIdle(def, match == 1)
 		else
 			f.activeHolder:SetAlpha(0)
 			f.upTimer:clear()
 			def.read, def.readHow = "no earth totem", nil
+			applyIdle(def, false)
 		end
 	end
 end
@@ -2058,7 +2142,11 @@ local function popWhenReady(f, key)
 	end)
 end
 popWhenReady(shock, "shock")
-for _, def in ipairs(COOLDOWNS) do popWhenReady(def.frame, def.key) end
+for _, def in ipairs(COOLDOWNS) do
+	popWhenReady(def.frame, def.key)
+	-- A cooldown ending can make it idle (see applyIdle); read on the next frame.
+	def.frame.cd:HookScript("OnCooldownDone", function() C_Timer.After(0, function() refreshCooldown(def) end) end)
+end
 
 -- Ready glows ("use me"), both off by default. Fire Nova: while it is off cooldown and a fire totem
 -- is down, the moment it can be cast; both are secret in combat, so each goes through a curve into
@@ -2184,7 +2272,7 @@ local function applyTimers()
 	imbue.upTimer:apply()
 	if ns.TotemBar and ns.TotemBar.applyTimers then ns.TotemBar.applyTimers() end
 	if native.timer then
-		if InCombatLockdown() then ns.retryAfterCombat("shield style", styleNative)   -- which applies it
+		if InCombatLockdown() or ns.aurasSecret() then ns.retryAfterCombat("shield style", styleNative)   -- which applies it
 		else ns.try("shield timer", native.timer.apply, native.timer) end
 	end
 end
@@ -2409,6 +2497,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		local _, class = UnitClass("player")
 		if class ~= "SHAMAN" then root:Hide(); return end
 		isShaman = true
+		ns.try("spell self-check", Spells.selfCheck)   -- unknown seed IDs go to the error log (/sf debug)
 		ns.applyMinimapButton()
 		reg("UNIT_AURA", "player")
 		reg("UNIT_SPELLCAST_SUCCEEDED", "player")
@@ -2451,7 +2540,9 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		end
 		refreshCooldownsSoon()
 	elseif event == "SPELL_UPDATE_COOLDOWN" then
-		flushCooldowns()
+		inCooldownEvent = true
+		ns.try("cooldown refresh", flushCooldowns)
+		inCooldownEvent = false
 	elseif event == "SPELL_UPDATE_USABLE" or event == "UNIT_POWER_UPDATE" then
 		refreshShockMana()
 	elseif event == "PLAYER_TARGET_CHANGED" or event == "SPELL_RANGE_CHECK_UPDATE" then
@@ -2520,7 +2611,7 @@ function ns.debugReport()
 		local read = def.read == nil and "not checked" or describeArg(def.read)
 		if def.readHow then read = string.format("earth slot timer, by %s, match %s", def.readHow, read)
 		elseif def.needsTotem and type(def.read) ~= "string" and def.read ~= nil then read = "warning alpha " .. read end
-		say("%s: spell %s, totem spell secret=%s, %s", def.spell, tostring(def.spellID), secret, read)
+		say("%s: spell %s, totem spell secret=%s, %s, idle %s", def.spell, tostring(def.spellID), secret, read, tostring(def.idle))
 	end
 	if C_Secrets and C_Secrets.ShouldTotemSlotBeSecret then
 		local t = {}

@@ -6,6 +6,12 @@ A configurable HUD for shamans on World of Warcraft: Forever: the buffs, imbues 
 
 More screenshots: [options gallery](docs/gallery/README.md).
 
+## Download
+
+- [CurseForge](https://www.curseforge.com/wow/addons/shamanforever)
+- [Wago](https://addons.wago.io/addons/shamanforever)
+- [GitHub releases](https://github.com/cassidymichael/ShamanForever/releases)
+
 ## Features
 
 - **Elements** for shields, shocks, weapon imbues and totem cooldowns, each with its own look and warning settings, and a live preview in the options. Water Shield tracking is experimental.
@@ -22,6 +28,13 @@ More screenshots: [options gallery](docs/gallery/README.md).
 - `/sf lock` to unlock positioning and move and scale groups on screen (the bar that appears lists the controls), `/sf lock` again when done.
 
 Requires WoW: Forever (interface 16001).
+
+## Feedback
+
+Ideas, requests or problems are welcome, either way:
+
+- A comment on [CurseForge](https://www.curseforge.com/wow/addons/shamanforever/comments).
+- An [issue on GitHub](https://github.com/cassidymichael/ShamanForever/issues).
 
 ## More
 

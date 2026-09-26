@@ -39,10 +39,16 @@ local function retime()
 end
 local function respell() ns.resolveSpells(); ns.refreshAll(); ns.RefreshOptions() end
 
-local function setTip(frame, title, text)
+-- above: over the frame's top-left corner, for full-width rows, whose right edge is far from the
+-- mouse on the label; otherwise to the right of the frame.
+local function setTip(frame, title, text, above)
 	if not text then return end
 	frame:SetScript("OnEnter", function(self)
-		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		if above then
+			GameTooltip:SetOwner(self, "ANCHOR_NONE")
+			GameTooltip:ClearAllPoints()
+			GameTooltip:SetPoint("BOTTOMLEFT", self, "TOPLEFT", 0, 2)
+		else GameTooltip:SetOwner(self, "ANCHOR_RIGHT") end
 		GameTooltip:SetText(title)
 		GameTooltip:AddLine(text, 1, 1, 1, true)
 		GameTooltip:Show()
@@ -68,6 +74,8 @@ local function newPage(key, title, indent)
 		scroll.ScrollBar:ClearAllPoints()
 		scroll.ScrollBar:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 14, 0)
 		scroll.ScrollBar:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", 14, 0)
+		-- A mouse wheel step: Blizzard's default is 30 px, about one row; two rows feels right.
+		if scroll.SetPanExtent then scroll:SetPanExtent(64) end
 	end
 	scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, PAGE_TOP)
 	scroll:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -40, 12)
@@ -142,7 +150,7 @@ end
 
 function Page:label(f, text, tip)
 	f:EnableMouse(true)
-	setTip(f, text, tip)
+	setTip(f, text, tip, true)
 	local fs = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	fs:SetPoint("LEFT", 4, 0)
 	fs:SetWidth(LABEL_W - 8)
@@ -177,9 +185,12 @@ function Page:anchor(name)
 end
 
 -- Wraps to the page width; the row grows to fit. str may be a function, re-read on every refresh.
+-- Helper text, in grey so it reads apart from the controls.
+local HELP_GREY = 0.72
 function Page:text(str, shown)
 	local f = self:row(20)
 	f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	f.text:SetTextColor(HELP_GREY, HELP_GREY, HELP_GREY)
 	f.text:SetPoint("TOPLEFT", 4, -4)
 	f.text:SetJustifyH("LEFT")
 	f.text:SetSpacing(2)
@@ -367,7 +378,6 @@ function Page:cards(label, tip, choices, get, set, shown)
 		b:SetScript("OnClick", function() set(c[1]); ns.RefreshOptions() end)
 		f.cards[i] = b
 	end
-	setTip(f, label, tip)
 	return self:add(f, CARD_H + 8, shown, function()
 		local v = get()
 		for _, b in ipairs(f.cards) do
@@ -694,8 +704,9 @@ local function buildHome(p)
 	})
 	p:add(p:row(14), 14)   -- room between the big buttons and Feedback
 	p:header("Feedback")
-	p:text("Ideas, requests or problems? Open an issue on GitHub:")
-	p:copyField("Issues", ns.Look.REPO .. "/issues")
+	p:text("Ideas, requests or problems? Leave a comment on CurseForge, or open an issue on GitHub. Click a link, then Ctrl+C to copy.")
+	p:copyField("CurseForge", ns.Look.CURSEFORGE .. "/comments")
+	p:copyField("GitHub", ns.Look.REPO .. "/issues")
 end
 
 -- General: the styles everything follows unless it has its own, then housekeeping.
@@ -734,7 +745,7 @@ local function buildGeneral(p)
 
 	local function hasReporter() return ns.hasIssueReporter and ns.hasIssueReporter() end
 	p:header("Beta", hasReporter)
-	p:checkbox("Hide the Issue Reporter button", "Blizzard's beta Issue Reporter button. /ptr still works while it is hidden. ShamanForever also remembers where you drag it.",
+	p:checkbox("Hide the Issue Reporter button", "Blizzard's beta Issue Reporter button. ShamanForever also remembers where you drag it.",
 		function() return acct().hideIssueReporter end, function(v) acct().hideIssueReporter = v; ns.applyIssueReporter() end, hasReporter)
 end
 
@@ -749,7 +760,8 @@ ns.askProfileName = askName
 local function buildProfiles(p)
 	local function notDefault() return ns.profileName() ~= ns.DEFAULT_PROFILE end
 	p:header("Profile")
-	p:dropdown("This character", "Each character uses one profile. New characters use Default.", function()
+	p:text("Each character uses one profile. New characters start on Default.")
+	p:dropdown("This character", nil, function()
 		local t = {}
 		for _, name in ipairs(ns.profileNames()) do table.insert(t, { name, name }) end
 		return t
@@ -777,8 +789,9 @@ end
 local function buildAbout(p)
 	p:header("ShamanForever")
 	p:text(function() return "Version " .. addonVersion() .. ". A shaman HUD for WoW Forever." end)
-	p:copyField("Source and issues", ns.Look.REPO)
-	p:copyField("CurseForge", "https://www.curseforge.com/wow/addons/shamanforever")
+	p:copyField("CurseForge", ns.Look.CURSEFORGE)
+	p:copyField("Wago", ns.Look.WAGO)
+	p:copyField("GitHub", ns.Look.REPO)
 	local expHeader = p:header("Experimental")
 	-- A gold glow ns.ShowExperimental flashes over the heading.
 	local glow = expHeader:CreateTexture(nil, "BACKGROUND")
@@ -810,6 +823,8 @@ end
 -- to its group, so showing it again (other than by dropping it on a group) puts it back there.
 ------------------------------------------------------------------------
 local SHOW_CHOICES = { { "always", "Always" }, { "combat", "In combat" }, { "never", "Hidden" } }
+-- On an element's page, where "Hidden keeps its place" is shown as text under the control.
+local SHOW_TIP_PAGE = "Choosing Always or In combat again puts it back where it was. Groups can also be set to show only in combat on the Layout page; an element shows only when both allow it. Everything visible shows while positioning is unlocked."
 local SHOW_TIP = "When the element is drawn. Hidden keeps its place in its group, so choosing Always or In combat again puts it back where it was. Groups can also be set to show only in combat on the Layout page; an element shows only when both it and its group allow it. Everything visible shows while the layout is unlocked."
 
 local CARD_GAP, CHIP_H, CARD_HEAD = 8, 26, 28
@@ -1090,9 +1105,10 @@ local function buildLayout(p)
 			function() return "Its layout is on its own page" end, function() ns.OpenOptions("totembar") end },
 	})
 	p:header("Elements layout")
-	p:text("ShamanForever calls each indicator an element, and every element sits in one group. Drag elements between groups; click one for a menu.")
-	p:checkbox("Test elements", "Adds placeholder elements in their own group, for trying out layouts.",
+	p:text("ShamanForever calls each indicator an element, and every element sits in one group. Drag elements between groups; click one for a menu. Drop one between two others to change the order.")
+	p:checkbox("Test elements", nil,
 		function() return acct().testMode end, function(v) ns.setTestMode(v); ns.RefreshOptions() end)
+	p:text("Adds placeholder elements in their own group, for trying out layouts.")
 	p:add(p:row(6), 6)   -- a little room between the heading's line and the group cards
 	buildBoard(p)
 
@@ -1165,8 +1181,9 @@ local function buildLayout(p)
 	p:slider("Opacity", "Transparency of the group. Shift + mouse wheel over the group while unlocked does the same.", 0.1, 1, 0.05, pct,
 		groupGet("alpha"), groupSet("alpha"), hasGroups)
 	borderRows(p, selected, relayout, "Border same as General", hasGroups)
-	p:checkbox("Only show in combat", "Hide this group out of combat. Each element also has its own Show setting (Always, In combat, Hidden) under Elements; an element shows only when both it and its group allow it. Everything visible shows while the layout is unlocked.",
+	p:checkbox("Only show in combat", "Everything visible shows while positioning is unlocked.",
 		groupGet("combatOnly"), groupSet("combatOnly"), hasGroups)
+	p:text("Elements have their own Show setting too. An element shows only when both allow it.", hasGroups)
 	local lastRow = p:buttons({
 		-- Hard to undo, so each asks first.
 		{ "Centre on screen", function() StaticPopup_Show("SHAMANFOREVER_CENTER", selectedGroup, nil, selectedGroup) end, "Moves the group to the middle of the screen.", 130 },
@@ -1218,9 +1235,14 @@ local function buildTotemBar(p)
 		{ "active", "Active totems", "Interface\\Icons\\Spell_Nature_TimeStop" },
 		{ "everything", "Everything", "Interface\\Icons\\Spell_Shaman_DropAll_01" },
 	}, tget("mode"), function(v) TB.setMode(v); changed() end)
-	p:text("ShamanForever's totem bar is off. Blizzard's totem bar and active totems display are on.", function() return c().mode == "blizzard" end)
-	p:text("Keeps Blizzard's totem bar, but replaces Blizzard's active totems display usually shown under the player frame.", function() return c().mode == "active" end)
-	p:text("Both of Blizzard's totem frames are replaced by ShamanForever.", full)
+	-- What the mode does, then how the bar is used in it.
+	local KEYS = "Keys: Options > Keybindings > ShamanForever."
+	p:text("ShamanForever's totem bar is off. Blizzard's totem bar and active totems display are on.\n"
+		.. "The totem key bindings still work. " .. KEYS, function() return c().mode == "blizzard" end)
+	p:text("Keeps Blizzard's totem bar, but replaces Blizzard's active totems display usually shown under the player frame.\n"
+		.. "Right-click a totem to dismiss it. " .. KEYS, function() return c().mode == "active" end)
+	p:text("Both of Blizzard's totem frames are replaced by ShamanForever.\n"
+		.. "Right-click a totem to dismiss it. Alt+click a slot to pick its totem. " .. KEYS, full)
 
 	p.gate = TB.barOn
 	p:header("Display")
@@ -1229,8 +1251,6 @@ local function buildTotemBar(p)
 		tget("show"), tset("show"), nil, 200)
 	p:dropdown("Tooltips", nil, { { "always", "Always" }, { "ooc", "Out of combat" }, { "never", "Never" } },
 		tget("tips"), tset("tips"), nil, 160)
-	p:text("Right-click a totem to dismiss it. Alt+click a slot to pick its totem. Keys: Options > Keybindings > ShamanForever.", full)
-	p:text("Right-click a totem to dismiss it. Keys: Options > Keybindings > ShamanForever.", function() return c().mode == "active" end)
 
 	p:header("Layout")
 	-- The elements in bar order (first: the left end of a row, the top of a column). Drag one to move
@@ -1379,8 +1399,12 @@ local function buildTotemBar(p)
 	p:checkbox("Arrow opens a totem picker", "A tab on each slot opens its totems. Works in combat.", tget("arrows"), tset("arrows"))
 	p:slider("Arrow size", "How deep the tab is.", 8, 32, 1, function(v) return string.format("%d px", v) end,
 		tget("arrowSize"), tset("arrowSize"), showWhen(function() return c().arrows end))
-	p:checkbox(ns.Spells.name("call"), "Shows once you know it.", tget("call"), tset("call"))
-	p:checkbox(ns.Spells.name("recall"), "Right-click dismisses all totems, even before you learn it.", tget("recall"), tset("recall"))
+	p:checkbox(ns.Spells.name("call"), nil, tget("call"), tset("call"))
+	p:checkbox(ns.Spells.name("recall"), nil, tget("recall"), tset("recall"))
+	p:text(function()
+		return string.format("%s shows once you know it. Right-click %s to dismiss all totems, even before you learn it.",
+			ns.Spells.name("call"), ns.Spells.name("recall"))
+	end)
 
 	p.gate = TB.barOn
 	p:header("Border")
@@ -1398,7 +1422,8 @@ local function buildTotemBar(p)
 	p:text("With No totem picked, the slot shows its element colour.", pickLook)
 
 	p:header("Not your pick")
-	p:checkbox("Show your pick", "When a different totem is down, your pick shows small beside the slot, on the side away from the picker.",
+	p:text("When a different totem is down, your pick shows small beside the slot.")
+	p:checkbox("Show your pick", "On the side away from the picker.",
 		tget("offPick"), tset("offPick"))
 	p:slider("Size", nil, 0.25, 0.8, 0.05, function(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end,
 		tget("badgeSize"), tset("badgeSize"), showWhen(tget("offPick")))
@@ -1410,11 +1435,11 @@ local function buildTotemBar(p)
 	p.gate = TB.barOn
 	p:header("Out of range")
 	local rangeOn = tget("range")
-	p:checkbox("Show", "A strip along the top of the slot: whether you're getting your own totem's buff, for totems that buff you.",
-		rangeOn, tset("range"))
+	p:text("A strip along the top of a slot shows whether you're getting your own totem's buff, for totems that buff you. In range shows nothing at 0% opacity, the default.")
+	p:checkbox("Show", nil, rangeOn, tset("range"))
 	p:slider("Height", "In pixels.", 1, 12, 1, function(v) return string.format("%d px", v) end,
 		tget("rangeHeight"), tset("rangeHeight"), showWhen(rangeOn))
-	p:color("In range", "Colour and opacity. At 0% opacity nothing shows while you're in range.", tget("rangeIn"), tset("rangeIn"), showWhen(rangeOn))
+	p:color("In range", "Colour and opacity.", tget("rangeIn"), tset("rangeIn"), showWhen(rangeOn))
 	p:color("Out of range", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"), showWhen(rangeOn))
 	p:text("A buff lingers a few seconds after you leave its range. Another shaman's totem of the same type can replace your buff, so yours shows as out of range.", rangeOn)
 
@@ -1564,8 +1589,9 @@ local function elementDisplay(p, key)
 	ELEMENT_PAGES[key] = p.key
 	p:hero(key)
 	p:header("Display")
-	p:dropdown("Show", SHOW_TIP, SHOW_CHOICES, function() return ns.showMode(key) end,
+	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return ns.showMode(key) end,
 		function(v) ns.setShow(key, v) end, nil, 140)
+	p:text("Hidden keeps its place in its group.")
 	p:dropdown("Group", "Which group it sits in. Groups are arranged on the Layout page.", function()
 		local list = {}
 		for gi = 1, groupCount() do table.insert(list, { gi, "Group " .. gi }) end
@@ -1594,6 +1620,22 @@ local function readyBlock(p, key, glowTip)
 	p:header("Ready")
 	p:checkbox("Pop", "The moment the cooldown ends.", eget(key, "readyPop"), eset(key, "readyPop"))
 	if glowTip then p:checkbox("Pulsing glow", glowTip, eget(key, "readyGlow"), eset(key, "readyGlow")) end
+end
+
+-- Standard block: the look while the element has nothing going on (Earthbind, Stoneclaw, Fire Nova).
+local IDLE_WHEN = { { "never", "Never" }, { "nototem", "Off cooldown, no fire totem" }, { "offcd", "Off cooldown" } }
+local function idleBlock(p, key, fireNova)
+	p:header("Idle")
+	if fireNova then
+		p:text("Idle is when there's nothing to track. At 0% it's hidden and keeps its place in the group.")
+		p:dropdown("Idle when", "Off cooldown, no fire totem: it can't be cast. Off cooldown: whether a fire totem is down or not.",
+			IDLE_WHEN, eget(key, "idleWhen"), eset(key, "idleWhen"), nil, 210)
+	else
+		p:text("Idle is when it's off cooldown and its totem isn't down. At 0% it's hidden and keeps its place in the group.")
+	end
+	p:slider("Idle opacity", "The icon's opacity while idle.",
+		0, 1, 0.05, pct, eget(key, "idleAlpha"), eset(key, "idleAlpha"),
+		fireNova and showWhen(function() return ns.elementOpt(key, "idleWhen") ~= "never" end) or nil)
 end
 
 -- Standard block: a totem killed early (Earthbind, Stoneclaw), as on the totem bar.
@@ -1630,11 +1672,12 @@ local function buildShield(p)
 	elementDisplay(p, "shield")
 	p:header("Tracking")
 	-- Lightning Shield is the tested default; the Water Shield modes are experimental until tested in game.
-	p:cards("Track", "Only one shield can be active at a time. With one chosen, the other counts as no shield.", {
+	p:cards("Track", nil, {
 		{ "lightning", ns.Spells.name("lightningShield"), 136051 },
 		{ "water", ns.Spells.name("waterShield"), 132315, "Water Shield" },
 		{ "either", "Either", 136051, "Either shield" },
 	}, get("shieldTrack"), set("shieldTrack", respell))
+	p:text("Only one shield can be up at a time. With one chosen, the other counts as no shield.")
 	p:header("Charges")
 	p:checkbox("Charge bar", "One segment per charge.", get("showBar"), set("showBar"))
 	p:slider("Bar height", nil, 1, 20, 1, function(v) return string.format("%d px", v) end, get("chargeBarHeight"), set("chargeBarHeight"),
@@ -1647,11 +1690,12 @@ local function buildShield(p)
 
 	warningBlock(p, "No shield", get("emptyGrey"), set("emptyGrey"), get("emptyRing"), set("emptyRing"), get("emptyPulse"), set("emptyPulse"))
 	p:checkbox("Red tint", "Tint the icon red.", get("emptyTint"), set("emptyTint"))
-	p:slider("In-combat fallback", "A drop in combat is only known when you recast or combat ends. Until then the no-shield look shows this strongly.",
-		0, 1, 0.05, pct, get("underlayUp"), set("underlayUp"))
+	p:slider("In-combat fallback", nil, 0, 1, 0.05, pct, get("underlayUp"), set("underlayUp"))
+	p:text("A shield that drops in combat is only noticed when you recast it or combat ends. Until then, the no-shield look shows at this strength.")
 
 	p:header("Shield up")
-	p:slider("Icon opacity", "Fine-tunes brightness at low group opacity. Most can leave it at 100%.", 0.5, 1, 0.05, pct, get("shieldIconAlpha"), set("shieldIconAlpha"))
+	p:slider("Icon opacity", nil, 0.5, 1, 0.05, pct, get("shieldIconAlpha"), set("shieldIconAlpha"))
+	p:text("Only matters at low group opacity. Most can leave it at 100%.")
 	timerSettings(p, "Time left", "shield", "uptime")
 end
 
@@ -1664,7 +1708,8 @@ local function buildShock(p)
 	p:cards("Track", "Its cooldown and range.", cards, get("shock"), set("shock", respell))
 	local manaChoices = { { "tracked", "Tracked shock" } }
 	for _, key in ipairs(ns.SHOCK_ORDER) do table.insert(manaChoices, { key, ns.SHOCKS[key] }) end
-	p:dropdown("Mana check", "Which spell's cost turns the icon blue.", manaChoices, get("manaSpell"), set("manaSpell", respell))
+	p:dropdown("Mana check", nil, manaChoices, get("manaSpell"), set("manaSpell", respell))
+	p:text("The spell whose cost turns the icon blue when you're short of mana.")
 
 	local looks = { { "tint", "Tint" }, { "overlay", "Overlay" }, { "both", "Both" } }
 	p:header("No mana")
@@ -1693,16 +1738,18 @@ local function buildImbue(p)
 			local cards = { { "last", "Last used", 136086 } }
 			-- The client's names; " Weapon" is trimmed where it has one (English).
 		for _, key in ipairs(ns.IMBUE_ORDER) do table.insert(cards, { key, (ns.IMBUES[key].name:gsub(" Weapon$", "")), ns.IMBUES[key].icon }) end
-			p:cards("Icon", "Which imbue's icon shows while none is on.", cards, get("imbuePreferred"), set("imbuePreferred"))
+			p:cards("Icon", nil, cards, get("imbuePreferred"), set("imbuePreferred"))
+			p:text("The icon shown while no imbue is on.")
 		end)
 	p:checkbox("Pulsing glow", "A glow inside the icon that pulses.", get("imbueGlow"), set("imbueGlow"))
 	p:checkbox("Pop", "The moment your imbue runs out or is lost.", get("imbuePop"), set("imbuePop"))
 
 	p:header("Time left")
-	p:slider("Show under", "Show the time left once under this. Zero never shows it.", 0, 30, 1,
+	p:slider("Show under", nil, 0, 30, 1,
 		function(v) return v == 0 and "Never" or string.format("%d min", v) end, get("imbueWarnMins"), set("imbueWarnMins"))
-	p:checkbox("Hide until low", "While an imbue is on, stay hidden until the time left shows. Keeps its place in the group.",
-		get("imbueHideActive"), set("imbueHideActive"))
+	p:text("Time left shows once it's below this. 0 never shows it.")
+	p:checkbox("Hide until low", nil, get("imbueHideActive"), set("imbueHideActive"))
+	p:text("While an imbue is on, the icon stays hidden until the time left shows. It keeps its place in the group.")
 	timerSettings(p, "Timer", "imbue", "uptime")
 	effectBlocks(p, "imbue", "imbue")
 end
@@ -1715,6 +1762,7 @@ local function buildCooldown(p, def)
 		warningBlock(p, "No fire totem", eget(key, "blockedGrey"), eset(key, "blockedGrey"), eget(key, "blockedRing"), eset(key, "blockedRing"),
 			eget(key, "blockedPulse"), eset(key, "blockedPulse"))
 	end
+	idleBlock(p, key, def.needsTotem)
 	timerSettings(p, "Cooldown", key, "cooldown")
 	readyBlock(p, key, def.needsTotem and "While it's off cooldown and a fire totem is down.")
 	if def.needsTotem then timerSettings(p, "Fire totem's time left", key, "uptime")
