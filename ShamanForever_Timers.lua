@@ -36,6 +36,10 @@ T.ELEMENT_DEFAULTS = {
 	-- Their time left as a bar only (whatever General says): the countdown shows the cooldown.
 	earthbind = { uptime = { text = false, bar = true } },
 	stoneclaw = { uptime = { text = false, bar = true } },
+	manatide = { uptime = { text = false, bar = true } },
+	grounding = { uptime = { text = false, bar = true } },
+	-- Stormstrike's time left is how long its empowered spell waits: a bar only.
+	stormstrike = { uptime = { text = false, bar = true } },
 }
 -- Parts an element's timer can't have, and why (shown on its page): for every kind, or under a
 -- kind's name for that kind only.
@@ -46,6 +50,10 @@ T.CANT = {
 	earthbind = { uptime = { swipe = ONE_SWIPE } },
 	stoneclaw = { uptime = { swipe = ONE_SWIPE } },
 	firenova = { uptime = { swipe = ONE_SWIPE } },
+	manatide = { uptime = { swipe = ONE_SWIPE } },
+	grounding = { uptime = { swipe = ONE_SWIPE } },
+	farseer = { uptime = { swipe = ONE_SWIPE } },
+	stormstrike = { uptime = { swipe = ONE_SWIPE } },
 }
 function T.cant(key, kind)
 	local c, out = key and T.CANT[key], {}
@@ -263,11 +271,14 @@ end)
 
 T.EXPIRE_DEFAULTS = { secs = 5, grey = false, ring = false, pulse = true, glow = false }
 
--- An element's expiring warning (its time left's last seconds): its own settings over the defaults.
+-- An element's expiring warning (its time left's last seconds): its own settings over its own
+-- defaults (ns.elementDefault's "expire") over everyone's.
 function T.expireOpts(key)
 	local o = ns.elementOpts(key).expire
+	local own = ns.elementDefault(key, "expire")
 	local out = {}
 	for k, v in pairs(T.EXPIRE_DEFAULTS) do
+		if type(own) == "table" and type(own[k]) == type(v) then v = own[k] end
 		if type(o) == "table" and type(o[k]) == type(v) then out[k] = o[k] else out[k] = v end   -- a saved false counts
 	end
 	return out

@@ -17,6 +17,11 @@
 --   combat the slot says which totem it is (its spell ID, else its icon), and that is kept as the
 --   owner. In combat the slot is secret, so the timer stays hidden until combat ends or the totem is
 --   recast: a /reload in combat isn't worth guessing for.
+-- * Buff windows and primed states come from our own casts, which are readable in combat: Rage of the
+--   Farseer's window runs a fixed time from its cast; Nature's Swiftness and Stormstrike are primed
+--   from their cast until our casts of the spells that spend them (or its time runs out). That is an
+--   inference, like the shield's; Nature's Swiftness is corrected from its buff whenever auras are
+--   readable (out of combat).
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
@@ -45,14 +50,48 @@ ns.registerElement("shock", { frame = shock, label = "Shocks", paint = function(
 
 -- Cooldown elements: a spell's cooldown, plus for a totem the active time of ours in its slot, or for
 -- Fire Nova whether the fire totem it needs is out. Totem slots: 1 fire, 2 earth, 3 water, 4 air.
--- Adding one starts with a line here and its key in ShamanForever.lua's ELEMENT_KEYS (its look and
--- page go in the Options files); spellKey is its spell in ns.Spells, icon the fallback until the
--- spellbook has it, duration the totem's lifetime in seconds (for the options previews). spell is
--- the display name (the client's).
+-- Adding one starts with a line here (its look and page go in the Options files); the first three
+-- are in ShamanForever.lua's ELEMENT_KEYS, the rest add themselves after them. spellKey is its
+-- spell in ns.Spells, icon the fallback until the client has it, duration the totem's lifetime in
+-- seconds (for the options previews). spell is the display name (the client's).
+-- Optional parts:
+--   grounded = true     the totem's early end is a success (Grounding): a Grounded flash, not Killed early
+--   window = seconds    a buff window timed from our cast (Rage of the Farseer), shown as time left
+--   primed = { spends = { spell keys }, charges = n (1), duration = seconds or nil (until spent),
+--              buffKey = spell key of a buff on us, read when auras are readable }: an effect that
+--              waits to be spent (Nature's Swiftness, Stormstrike); see the file's header
+--   reagent = item ID   the spell's reagent (Reincarnation's Ankh): a count, low and out looks
+--   defaults = { ... }  its own option defaults (ns.elementSetting), e.g. idleAlpha
+--   experimental        a feature name: not tested in game (the level cap is 20)
 local COOLDOWNS = {
 	{ key = "earthbind", spellKey = "earthbind", icon = 136102, totemSlot = 2, duration = 45, school = "earth" },
 	{ key = "stoneclaw", spellKey = "stoneclaw", icon = 136097, totemSlot = 2, duration = 15, school = "earth" },
 	{ key = "firenova",  spellKey = "fireNova",  icon = 135824, needsTotem = 1, school = "fire" },
+	-- Emergency cooldowns: plainly visible while ready.
+	{ key = "naturesswiftness", spellKey = "naturesSwiftness", icon = 136076, school = "water", new = true,
+		primed = { spends = { "healingWave", "lesserHealingWave", "chainHeal", "lightningBolt", "chainLightning" },
+			buffKey = "naturesSwiftness" },
+		defaults = { idleAlpha = 1 }, experimental = "Nature's Swiftness" },
+	{ key = "manatide", spellKey = "manaTide", icon = 135861, totemSlot = 3, duration = 12, school = "water", new = true,
+		defaults = { idleAlpha = 1, expire = { secs = 3, glow = true, pulse = false } }, experimental = "Mana Tide Totem" },
+	{ key = "grounding", spellKey = "grounding", icon = 136039, totemSlot = 4, duration = 45, school = "air", new = true,
+		grounded = true, experimental = "Grounding Totem" },
+	-- Rotation: full while ready, like the shocks.
+	-- On Forever, Stormstrike leaves the target taking 20% more from the next 2 Nature hits for 12 s:
+	-- a debuff on the target, so it's timed from the cast and spent by our own casts only (Lightning
+	-- Shield's hits and other shamans' spells can take the charges unseen).
+	{ key = "stormstrike", spellKey = "stormstrike", icon = 135963, school = "air", new = true,
+		primed = { spends = { "lightningBolt", "chainLightning", "earthShock" }, charges = 2, duration = 12 },
+		defaults = { idleAlpha = 1, primedPop = false, primedGlow = false, expire = { secs = 0 } }, experimental = "Stormstrike" },
+	{ key = "riptide", spellKey = "riptide", icon = 252995, school = "water", new = true,
+		defaults = { idleAlpha = 1 }, experimental = "Riptide" },
+	{ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, window = 25, school = "air", new = true,
+		defaults = { idleAlpha = 1 }, experimental = "Rage of the Farseer" },
+	{ key = "projection", spellKey = "totemicProjection", icon = 136099, school = "spirit", new = true,
+		experimental = "Totemic Projection" },
+	-- Out of sight while ready: seen on cooldown, or when Ankhs run low.
+	{ key = "reincarnation", spellKey = "reincarnation", icon = 136080, school = "spirit", new = true,
+		reagent = 17030, defaults = { idleAlpha = 0 }, experimental = "Reincarnation" },
 }
 CD.COOLDOWNS = COOLDOWNS
 
@@ -65,10 +104,11 @@ local function makeCooldownIcon(def)
 	f.effects:SetAllPoints()
 	f.effects:SetIgnoreParentAlpha(true)
 	f.glowF:SetParent(f.effects)
-	if def.totemSlot or def.needsTotem then
-		-- A totem's time left (its own, or for Fire Nova whichever fire totem is out): a timer of the
-		-- "uptime" kind beside the spell's cooldown. Its parts sit in a holder so one alpha can hide
-		-- them all (Earthbind and Stoneclaw show it only while the earth totem out is theirs).
+	if def.totemSlot or def.needsTotem or def.window or (def.primed and def.primed.duration) then
+		-- A totem's time left (its own, or for Fire Nova whichever fire totem is out), a buff window's
+		-- or a primed buff's: a timer of the "uptime" kind beside the spell's cooldown. Its parts sit
+		-- in a holder so one alpha can hide them all (Earthbind and Stoneclaw show it only while the
+		-- earth totem out is theirs).
 		f.activeHolder = CreateFrame("Frame", nil, f.textFrame)
 		f.activeHolder:SetAllPoints()
 		f.upTimer = ns.Timer.new(f.activeHolder, def.key, "uptime", { anchor = f, dual = true, school = def.school })
@@ -113,9 +153,12 @@ end
 
 for _, def in ipairs(COOLDOWNS) do
 	def.spell = Spells.name(def.spellKey)
+	def.icon = Spells.icon(def.spellKey) or def.icon
 	def.frame = makeCooldownIcon(def)
 	ns.registerElement(def.key, { frame = def.frame, label = def.spell, cooldown = def, stack = def.frame.stack,
+		defaults = def.defaults, learned = function() return def.spellID ~= nil end,
 		paint = function(t) t:SetTexture(def.iconID or def.icon) end })
+	if def.new then ns.addElementKey(def.key) end
 end
 
 ------------------------------------------------------------------------
@@ -344,8 +387,9 @@ local function slotMatch(def, slot)
 	return mine and 1 or 0, how
 end
 
--- Earthbind / Stoneclaw: the slot's timer, shown only while this totem is the one in the slot.
-local function refreshEarthTotem(def, inEvent)
+-- A totem element (Earthbind, Stoneclaw, Mana Tide, Grounding): the slot's timer, shown only while
+-- this totem is the one in the slot. held: something else of its own keeps it from going idle.
+local function refreshTotem(def, inEvent, held)
 	local f = def.frame
 	local tok, tdur = safe(GetTotemDuration, def.totemSlot)
 	if tok and tdur then
@@ -353,13 +397,127 @@ local function refreshEarthTotem(def, inEvent)
 		f.activeHolder:SetAlpha(match)
 		f.upTimer:set(tdur)
 		def.read, def.readHow = match, how
-		applyIdle(def, match == 1, inEvent)
+		applyIdle(def, match == 1 or held, inEvent)
 	else
 		f.activeHolder:SetAlpha(0)
 		f.upTimer:clear()
-		def.read, def.readHow = "no earth totem", nil
-		applyIdle(def, false, inEvent)
+		def.read, def.readHow = "no totem in its slot", nil
+		applyIdle(def, held, inEvent)
 	end
+end
+
+------------------------------------------------------------------------
+-- Buff windows and primed buffs (see the file's header)
+------------------------------------------------------------------------
+-- def.activeUntil: when the window or the primed buff ends (GetTime's clock; math.huge until it's
+-- spent), nil while there is none. Only ever plain numbers from our own casts or readable auras.
+local function showPrimed(def, on, pop)
+	local f, key = def.frame, def.key
+	f:SetGlowShown(on and setting(key, "primedGlow"))
+	if on and pop and setting(key, "primedPop") then f:Pop("ready") end
+end
+
+local function endActive(def)
+	if not def.activeUntil then return end
+	def.activeUntil, def.activeToken = nil, nil
+	local f = def.frame
+	if f.upTimer then f.upTimer:clear(); f.activeHolder:SetAlpha(0) end
+	if def.primed then showPrimed(def, false) end
+end
+
+-- start and length on GetTime's clock; length nil: until spent. quiet: already known (an aura read
+-- confirming it), so no pop.
+local function startActive(def, start, length, quiet)
+	local f = def.frame
+	def.activeUntil = length and start + length or math.huge
+	local token = {}
+	def.activeToken = token
+	if f.upTimer then
+		if length then f.upTimer:setTime(start, length); f.activeHolder:SetAlpha(1)
+		else f.upTimer:clear(); f.activeHolder:SetAlpha(0) end
+	end
+	if def.primed then showPrimed(def, true, not quiet) end
+	if length then
+		C_Timer.After(math.max(start + length - GetTime(), 0) + 0.05, function()
+			if def.activeToken == token then endActive(def); refreshCooldown(def) end
+		end)
+	end
+end
+
+local function isActive(def)
+	if def.activeUntil and GetTime() >= def.activeUntil then endActive(def) end
+	return def.activeUntil ~= nil
+end
+
+-- Out of combat, the primed buff itself says whether it's up and for how long.
+local function readPrimedBuff(def)
+	local buffKey = def.primed and def.primed.buffKey
+	if not buffKey or InCombatLockdown() or ns.aurasSecret() or not C_UnitAuras then return end
+	local found
+	for id in pairs(Spells.ids(buffKey)) do
+		local ok, a = safe(C_UnitAuras.GetPlayerAuraBySpellID, id)
+		if ok and type(a) == "table" and not isSecret(a.expirationTime) and not isSecret(a.duration) then found = a break end
+	end
+	if not found then endActive(def) return end
+	local exp, dur = found.expirationTime, found.duration
+	local was = def.activeUntil ~= nil
+	if type(exp) == "number" and type(dur) == "number" and exp > 0 and dur > 0 then
+		if not was or math.abs(def.activeUntil - exp) > 0.2 then startActive(def, exp - dur, dur, was) end
+	elseif not was then startActive(def, GetTime(), nil, false) end
+end
+
+------------------------------------------------------------------------
+-- Reagents (Reincarnation's Ankh): a count on the icon, red at or below the Low mark, and the
+-- missing look when there are none. While low it isn't idle, so it shows even at Idle opacity 0.
+------------------------------------------------------------------------
+local function reagentCount(def)
+	local ok, n = safe(C_Item and C_Item.GetItemCount, def.reagent)
+	if ok and type(n) == "number" and not isSecret(n) then return n end
+end
+
+-- Whether the spell still takes its reagent: Forever dropped some (its Water Walking and Water
+-- Breathing list none), so the spell's tooltip must name the item. Read out of combat and kept
+-- until the spellbook changes; nil while it can't be told (then the reagent counts).
+local function takesReagent(def)
+	if def.takesReagent ~= nil or InCombatLockdown() then return def.takesReagent end
+	if not (def.spellID and C_TooltipInfo and C_TooltipInfo.GetSpellByID and C_Item and C_Item.GetItemNameByID) then return nil end
+	local ok, item = safe(C_Item.GetItemNameByID, def.reagent)
+	if not ok or type(item) ~= "string" or isSecret(item) then
+		safe(C_Item.RequestLoadItemDataByID, def.reagent)   -- asked again on the next refresh
+		return nil
+	end
+	local tok, data = safe(C_TooltipInfo.GetSpellByID, def.spellID)
+	if not tok or type(data) ~= "table" or type(data.lines) ~= "table" then return nil end
+	def.takesReagent = false
+	for _, line in ipairs(data.lines) do
+		for _, t in ipairs({ line.leftText or false, line.rightText or false }) do
+			if type(t) == "string" and not isSecret(t) and t:find(item, 1, true) then def.takesReagent = true end
+		end
+	end
+	return def.takesReagent
+end
+
+-- Returns whether the reagent is low enough to hold the element out of idle.
+local function refreshReagent(def)
+	local f, key = def.frame, def.key
+	local n = def.reagent and takesReagent(def) ~= false and reagentCount(def)
+	def.reagentRead = n
+	if not n then
+		f.count:Hide()
+		return false
+	end
+	local lowAt = setting(key, "reagentLow")
+	local low = n <= (type(lowAt) == "number" and lowAt or 2)   -- shared text can hold anything
+	if setting(key, "reagentCount") then
+		f.count:SetText(n)
+		if low then f.count:SetTextColor(1, 0.25, 0.2) else f.count:SetTextColor(1, 1, 1) end
+		f.count:Show()
+	else f.count:Hide() end
+	local out = n == 0
+	f.tex:SetDesaturated(out and setting(key, "reagentGrey"))
+	f:SetRingShown(out and setting(key, "reagentRing"))
+	f:SetPulsing(out and setting(key, "reagentPulse"))
+	return low and setting(key, "reagentShow")
 end
 
 function refreshCooldown(def, inEvent)
@@ -374,6 +532,8 @@ function refreshCooldown(def, inEvent)
 		f:SetRingShown(false)
 		f:SetPulsing(false)
 		f.cdTimer:clear()
+		f.count:Hide()
+		endActive(def)
 		if f.upTimer then f.upTimer:clear() end
 		if f.warn then f.warn:SetAlpha(0) end
 		return
@@ -381,8 +541,12 @@ function refreshCooldown(def, inEvent)
 	local dur = cooldownFor(f, def.key, def.spellID)
 	if dur then f.cdTimer:set(dur) end
 	f.tex:SetDesaturated(false)
+	local held = isActive(def)
+	if def.primed then showPrimed(def, held) end   -- a settings change shows at once
+	if def.reagent and refreshReagent(def) then held = true end
 	if def.needsTotem then refreshFireNova(def, inEvent)
-	elseif def.totemSlot then refreshEarthTotem(def, inEvent) end
+	elseif def.totemSlot then refreshTotem(def, inEvent, held)
+	else applyIdle(def, held, inEvent) end
 end
 
 local function refreshCooldowns(inEvent)
@@ -390,6 +554,10 @@ local function refreshCooldowns(inEvent)
 end
 
 for _, def in ipairs(COOLDOWNS) do
+	if def.primed then
+		def.spends = {}
+		for _, k in ipairs(def.primed.spends) do def.spends[k] = true end
+	end
 	popWhenReady(def.frame, def.key)
 	-- A cooldown ending can make it idle (see applyIdle); read on the next frame.
 	def.frame.cd:HookScript("OnCooldownDone", function() C_Timer.After(0, function() refreshCooldown(def) end) end)
@@ -411,8 +579,8 @@ local function styleCooldown(def)
 end
 
 -- Our totems (ShamanForever_Totems.lua): a recast takes away the element's killed-early cross; the
--- end of an Earthbind / Stoneclaw totem plays its ends, each gated on the time the totem had left
--- (ns.makeEndFlash): killed early, or ran out.
+-- end of a totem element's totem plays its ends, each gated on the time the totem had left
+-- (ns.makeEndFlash): killed early (Grounded for Grounding), or ran out.
 Totems.subscribe(function(event, slot, arg)
 	for _, def in ipairs(COOLDOWNS) do
 		if def.totemSlot == slot then
@@ -426,7 +594,14 @@ Totems.subscribe(function(event, slot, arg)
 					f.expired:setIcon(def.iconID or def.icon)
 					f.expired:play(dur, { expired = true, pop = true })
 				end
-				if setting(key, "killed") then
+				if def.grounded then
+					-- Grounding's early end: it took a spell (or was destroyed), shown as a success.
+					if setting(key, "grounded") then
+						if not f.killed then f.killed = ns.makeEndFlash(f.effects, f, key) end
+						f.killed:setIcon(def.iconID or def.icon)
+						f.killed:play(dur, { grounded = true, pop = setting(key, "groundedPop"), glow = setting(key, "groundedGlow") })
+					end
+				elseif setting(key, "killed") then
 					if not f.killed then f.killed = ns.makeEndFlash(f.effects, f, key) end
 					f.killed:setIcon(def.iconID or def.icon)
 					f.killed:play(dur, { pop = setting(key, "killedPop"), glow = setting(key, "killedGlow"),
@@ -529,7 +704,9 @@ function CD.resolve()
 	for _, def in ipairs(COOLDOWNS) do
 		def.spell = Spells.name(def.spellKey)
 		ns.ELEMENTS[def.key].label = def.spell
-		def.spellID, def.iconID = Spells.known(def.spellKey)
+		local known, knownIcon = Spells.known(def.spellKey)
+		if known ~= def.spellID then def.takesReagent = nil end   -- a new rank: read its tooltip again
+		def.spellID, def.iconID = known, knownIcon
 		table.insert(sig, tostring(def.spellID)); table.insert(sig, tostring(def.iconID))
 	end
 	return table.concat(sig, ",")
@@ -559,10 +736,35 @@ function CD.applyLayout()
 end
 
 function CD.refresh()
+	for _, def in ipairs(COOLDOWNS) do
+		if def.spellID and def.primed then readPrimedBuff(def) end
+	end
 	refreshShockCooldown()
 	refreshShockRange()
 	refreshShockMana()
 	refreshCooldowns()
+end
+
+-- Our own cast: a buff window or a primed buff starts, or a spell spends one.
+function CD.onCast(spellID)
+	local key = Spells.keyOf(spellID)
+	if not key then return end
+	local now = GetTime()
+	for _, def in ipairs(COOLDOWNS) do
+		if def.spellID and ns.isEnabled(def.key) then
+			if def.window and key == def.spellKey then
+				startActive(def, now, def.window)
+			elseif def.primed then
+				if key == def.spellKey then
+					def.charges = def.primed.charges or 1
+					startActive(def, now, def.primed.duration)
+				elseif def.activeUntil and def.spends[key] then
+					def.charges = (def.charges or 1) - 1
+					if def.charges <= 0 then endActive(def) end
+				end
+			end
+		end
+	end
 end
 
 -- A cooldown or totem changed; inEvent: from SPELL_UPDATE_COOLDOWN (see the global cooldown above).
@@ -577,15 +779,24 @@ function CD.tick()
 	ns.try("shock refresh", refreshShockCooldown)
 end
 
--- A shaman logged in: the shock's own events, and its range four times a second.
+-- A shaman logged in: the shock's own events and its range four times a second, reagent counts, and
+-- the primed buffs whenever auras are readable.
 function CD.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "SPELL_UPDATE_USABLE")
 	ns.registerEvent(ev, "UNIT_POWER_UPDATE", "player")
 	ns.registerEvent(ev, "PLAYER_TARGET_CHANGED")
 	ns.registerEvent(ev, "SPELL_RANGE_CHECK_UPDATE")
+	ns.registerEvent(ev, "BAG_UPDATE_DELAYED")
+	ns.registerEvent(ev, "UNIT_AURA", "player")
 	ev:SetScript("OnEvent", function(_, event)
 		if event == "SPELL_UPDATE_USABLE" or event == "UNIT_POWER_UPDATE" then refreshShockMana()
+		elseif event == "BAG_UPDATE_DELAYED" then
+			for _, def in ipairs(COOLDOWNS) do if def.reagent then refreshCooldown(def) end end
+		elseif event == "UNIT_AURA" then
+			for _, def in ipairs(COOLDOWNS) do
+				if def.spellID and def.primed and ns.isEnabled(def.key) then readPrimedBuff(def); refreshCooldown(def) end
+			end
 		else refreshShockRange() end
 	end)
 	C_Timer.NewTicker(0.25, function() ns.try("range refresh", refreshShockRange) end)
@@ -610,7 +821,19 @@ function CD.debug()
 		local read = def.read == nil and "not checked" or describeArg(def.read)
 		if def.readHow then read = string.format("earth slot timer, by %s, match %s", def.readHow, read)
 		elseif def.needsTotem and type(def.read) ~= "string" and def.read ~= nil then read = "warning alpha " .. read end
-		say("%s: spell %s, totem spell secret=%s, %s, idle %s", def.spell, tostring(def.spellID), secret, read, tostring(def.idle))
+		local extra = ""
+		if def.window or def.primed then
+			extra = def.activeUntil and string.format(", %s for %s", def.primed and "primed" or "window",
+				def.activeUntil == math.huge and "until spent" or string.format("%.1f s", def.activeUntil - GetTime())) or ", not active"
+		end
+		if def.reagent then
+			extra = string.format("%s, reagent %s (takes it: %s)", extra, describeArg(def.reagentRead), tostring(def.takesReagent))
+		end
+		if def.totemSlot or def.needsTotem then
+			say("%s: spell %s, totem spell secret=%s, %s, idle %s%s", def.spell, tostring(def.spellID), secret, read, tostring(def.idle), extra)
+		else
+			say("%s: spell %s, idle %s%s", def.spell, tostring(def.spellID), tostring(def.idle), extra)
+		end
 	end
 end
 

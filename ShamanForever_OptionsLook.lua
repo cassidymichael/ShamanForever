@@ -54,6 +54,25 @@ L.ELEMENT = {
 		end },
 }
 
+-- The cooldown elements added after the first three (ShamanForever_Cooldowns.lua): their icon and
+-- school come from the element, and each is experimental until tested in game.
+local BLURB = {
+	naturesswiftness = "Cooldown, and a glow while your next Nature spell is instant.",
+	manatide = "Cooldown, and time left while it's down.",
+	grounding = "Cooldown, time left, and a flash when it takes a spell.",
+	stormstrike = "Cooldown, and a bar while your target takes more Nature damage.",
+	riptide = "Cooldown.",
+	farseer = "Cooldown, and time left while it's on.",
+	projection = "Cooldown.",
+	reincarnation = "Cooldown, and your Ankhs when they run low.",
+}
+for _, def in ipairs(ns.Cooldowns.COOLDOWNS) do
+	if def.new then
+		L.ELEMENT[def.key] = { name = def.spell, spell = def.spellKey, icon = def.icon, school = def.school,
+			blurb = BLURB[def.key], experimental = def.experimental }
+	end
+end
+
 -- An element's name: a spell's in the client's language (name is the fallback), else its own.
 function L.elementName(key)
 	local e = L.ELEMENT[key]
@@ -197,8 +216,12 @@ end
 -- Preview icons: the HUD's icon plus the pieces some elements add (charge bar), and the same
 -- timers the HUD uses (ShamanForever_Timers.lua), frozen.
 ------------------------------------------------------------------------
-local HAS_COOLDOWN = { shock = true, earthbind = true, stoneclaw = true, firenova = true }
-local HAS_UPTIME = { shield = true, imbue = true, earthbind = true, stoneclaw = true, firenova = true, totembar = true }
+local HAS_COOLDOWN = { shock = true }
+local HAS_UPTIME = { shield = true, imbue = true, totembar = true }
+for _, def in ipairs(ns.Cooldowns.COOLDOWNS) do
+	HAS_COOLDOWN[def.key] = true
+	if def.totemSlot or def.needsTotem or def.window or (def.primed and def.primed.duration) then HAS_UPTIME[def.key] = true end
+end
 local function makePreviewIcon(parent, key)
 	local ic = ns.makeIcon(parent, 56, key)   -- the element's own glow and pop style
 	local e = L.ELEMENT[key]
@@ -280,11 +303,15 @@ end
 local function opt(key, name) return ns.elementSetting(key, name) end
 
 local function totemPreview(def)
+	local g = def.grounded   -- Grounding: its early end is Grounded, in air blue with no cross
 	return {
-		states = { { "ready", "Ready" }, { "active", "Totem down" }, { "expiring", "Expiring" }, { "ranout", "Ran out" }, { "cd", "Cooldown" }, { "killed", "Killed early" } },
+		states = { { "ready", "Ready" }, { "active", "Totem down" }, { "expiring", "Expiring" }, { "ranout", "Ran out" }, { "cd", "Cooldown" },
+			{ "killed", g and "Grounded" or "Killed early" } },
 		pop = function(ic, st)
 			if st == "ready" and opt(def.key, "readyPop") then ic:Pop("ready")
 			elseif st == "ranout" and opt(def.key, "expiredPop") then ic:Pop("expired")
+			elseif st == "killed" and g then
+				if opt(def.key, "grounded") and opt(def.key, "groundedPop") then ic:Pop("grounded") end
 			elseif st == "killed" and opt(def.key, "killed") and opt(def.key, "killedPop") then ic:Pop("killed") end
 		end,
 		render = function(ic, st)
@@ -293,6 +320,15 @@ local function totemPreview(def)
 			if st == "expiring" then expiringLook(ic, def.key, def.duration or 45)
 			elseif st == "active" then frozen(ic.upT, 0.45, def.duration or 45)
 			elseif st == "cd" then frozen(ic.cdT, 0.4, 15)
+			elseif st == "killed" and g then
+				frozen(ic.cdT, 0.4, 15)
+				if opt(def.key, "grounded") then
+					local c = ns.POP_TINT.grounded
+					ic.tex:SetDesaturated(true)
+					ic.manaOverlay:SetColorTexture(c[1], c[2], c[3], 0.7)
+					ic.manaOverlay:Show()
+					if opt(def.key, "groundedGlow") then ic:SetGlowShown(true, c[1], c[2], c[3]) end
+				end
 			elseif st == "killed" then
 				frozen(ic.cdT, 0.4, 15)
 				if opt(def.key, "killed") then
@@ -401,8 +437,59 @@ L.PREVIEW = {
 		end,
 	},
 }
+-- A cooldown element without a totem (the newer ones): Ready and Cooldown, plus the states of the
+-- parts it has (a primed buff, a buff window, a reagent).
+local function cooldownPreview(def)
+	local key, states = def.key, { { "ready", "Ready" }, { "cd", "Cooldown" } }
+	if def.primed then table.insert(states, { "primed", "Primed" }) end
+	if def.window then
+		table.insert(states, { "active", "Active" })
+		table.insert(states, { "expiring", "Expiring" })
+	end
+	if def.reagent then
+		table.insert(states, { "low", "Few left" })
+		table.insert(states, { "out", "None left" })
+	end
+	local long = def.key == "reincarnation" and 3600 or 60   -- a cooldown's length, for its text
+	return {
+		states = states,
+		pop = function(ic, st)
+			if st == "ready" and opt(key, "readyPop") then ic:Pop("ready")
+			elseif st == "primed" and opt(key, "primedPop") then ic:Pop("ready") end
+		end,
+		render = function(ic, st)
+			reset(ic, def.iconID or def.icon)
+			if st == "cd" then frozen(ic.cdT, 0.4, long)
+			elseif st == "primed" then
+				ic:SetGlowShown(opt(key, "primedGlow"))
+				if def.primed.duration then frozen(ic.upT, 0.3, def.primed.duration) end
+			elseif st == "active" then frozen(ic.upT, 0.3, def.window)
+			elseif st == "expiring" then expiringLook(ic, key, def.window)
+			elseif st == "low" or st == "out" then
+				frozen(ic.cdT, 0.4, long)
+				local out = st == "out"
+				if opt(key, "reagentCount") then
+					ic.count:SetFont(STANDARD_TEXT_FONT, math.floor(ic:GetWidth() * 0.45), "OUTLINE")
+					ic.count:ClearAllPoints()
+					ic.count:SetPoint("BOTTOMRIGHT", 2, -2)
+					ic.count:SetText(out and 0 or math.max(opt(key, "reagentLow"), 1))
+					ic.count:SetTextColor(1, 0.25, 0.2)
+					ic.count:Show()
+				end
+				if out then
+					ic.tex:SetDesaturated(opt(key, "reagentGrey"))
+					ic:SetRingShown(opt(key, "reagentRing"))
+					ic:SetPulsing(opt(key, "reagentPulse"))
+				end
+			end
+		end,
+	}
+end
+
 for _, def in ipairs(ns.Cooldowns.COOLDOWNS) do
-	if def.totemSlot and not L.PREVIEW[def.key] then L.PREVIEW[def.key] = totemPreview(def) end
+	if not L.PREVIEW[def.key] then
+		L.PREVIEW[def.key] = def.totemSlot and totemPreview(def) or cooldownPreview(def)
+	end
 end
 
 -- The totem bar: the header is its stage. The bar is drawn at its real size (icon size × the
@@ -841,7 +928,8 @@ function L.buildHero(parent, key)
 		if e.tags then self.tags:SetText(e.tags()) else
 			local gi = ns.findElement(key)
 			local shows = { always = "Always", combat = "In combat", never = "Hidden" }
-			self.tags:SetText(string.format("%s  ·  %s", gi and ("Group " .. gi) or "No group", shows[ns.showMode(key)] or ""))
+			self.tags:SetText(string.format("%s  ·  %s%s", gi and ("Group " .. gi) or "No group", shows[ns.showMode(key)] or "",
+				ns.isLearned(key) and "" or "  ·  Not learned"))
 		end
 		-- A stage can offer only some states (the totem bar's mode): the others hide, the rest close
 		-- up, and a state that no longer applies falls back to def.fallback or the first one left.

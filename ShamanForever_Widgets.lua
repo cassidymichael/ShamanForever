@@ -215,7 +215,9 @@ function ns.applyGlowStyle() for _, g in ipairs(glows) do g:restyle() end end
 -- bounce, hop, shake) with a size and speed, and optional light (a flash over the icon, a ring
 -- spreading out, a star behind it), tinted by what happened. Every part is built on the frame the
 -- first time it pops.
-local POP_TINT = { ready = { 1, 0.82, 0.25 }, imbue = { 0.35, 0.65, 1 }, expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 } }
+local POP_TINT = { ready = { 1, 0.82, 0.25 }, imbue = { 0.35, 0.65, 1 }, expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 },
+	grounded = { 0.56, 0.76, 0.92 } }
+ns.POP_TINT = POP_TINT
 -- An atlas if the client has it, else a plain texture.
 local function atlasOr(t, atlas, file)
 	local ok = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas)
@@ -285,7 +287,7 @@ local function popFx(f)
 	f.popFx = x
 	return x
 end
--- kind: ready | imbue | expired | killed (the tint); owner: whose style (nil: General's).
+-- kind: ready | imbue | expired | killed | grounded (the tint); owner: whose style (nil: General's).
 function ns.playPop(f, kind, owner)
 	local st = ns.Style.get(owner, "pop")
 	local x = popFx(f)
@@ -357,6 +359,8 @@ end
 --   Used by the totem bar's slots and the Earthbind / Stoneclaw elements.
 -- * Ran out (opts.expired; the opposite curve, 1 up to 1.2 s left): the totem's icon pops and fades.
 -- A totem that ran out never shows the first, one that was killed never the second.
+-- * Grounded (opts.grounded): Grounding Totem's early end is a spell it took for us, so the same
+--   flash in air blue instead of red, with no cross.
 local killedCurve = ns.curve({ 0, 0, 1.2, 0, 1.25, 1, 36000, 1 })
 local expiredCurve = ns.curve({ 0, 1, 1.2, 1, 1.25, 0, 36000, 0 })
 function ns.makeEndFlash(parent, anchor, owner)
@@ -416,6 +420,12 @@ function ns.makeEndFlash(parent, anchor, owner)
 		if not ok then return end
 		self:SetAlpha(a)
 		local size = anchor:GetWidth()
+		if opts.grounded then
+			local c = POP_TINT.grounded
+			self.glow:color(c[1], c[2], c[3]); self.red:SetColorTexture(c[1], c[2], c[3], 0.7)
+		else
+			self.glow:color(1, 0.12, 0.08); self.red:SetColorTexture(0.95, 0.12, 0.08, 0.7)
+		end
 		self.glow:fit(size)
 		self.glow:SetShown(opts.glow and true or false)
 		self.red:SetShown(not opts.expired)
@@ -423,7 +433,7 @@ function ns.makeEndFlash(parent, anchor, owner)
 		self.mark.x:SetSize(size * 0.7, size * 0.7)
 		self.flash:Stop(); self.quick:Stop()
 		if opts.expired then self.quick:Play() else self.flash:Play() end
-		if opts.pop then ns.playPop(self.pop, opts.expired and "expired" or "killed", owner) end
+		if opts.pop then ns.playPop(self.pop, opts.expired and "expired" or opts.grounded and "grounded" or "killed", owner) end
 		if opts.mark then
 			self.mark:Show()
 			local token = {}

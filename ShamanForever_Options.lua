@@ -470,6 +470,9 @@ local function buildAbout(p)
 	p:text("I can't test these in game yet. If you can, please try them and tell me whether they work and what could be improved.")
 	p:experimental("Water Shield", "Shields > Track")
 	p:experimental("Either shield", "Shields > Track")
+	for _, def in ipairs(ns.Cooldowns.COOLDOWNS) do
+		if def.experimental then p:experimental(def.experimental, "Elements > " .. def.spell) end
+	end
 	gap()
 	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
@@ -730,8 +733,11 @@ local function layoutBoard()
 			chip.key = key
 			ns.ELEMENTS[key].paint(chip.icon)
 			local mode = ns.showMode(key)
-			chip.text:SetText(ns.ELEMENTS[key].label .. (mode == "combat" and "  |cff888888(in combat)|r" or ""))
-			chip:SetAlpha(target == "hidden" and 0.6 or 1)
+			local learned = ns.isLearned(key)
+			local note = not learned and "  |cff888888(not learned)|r" or mode == "combat" and "  |cff888888(in combat)|r" or ""
+			chip.text:SetText(ns.ELEMENTS[key].label .. note)
+			chip.icon:SetDesaturated(not learned)
+			chip:SetAlpha((target == "hidden" or not learned) and 0.6 or 1)
 			chip:ClearAllPoints()
 			chip:SetPoint("TOPLEFT", c, "TOPLEFT", 6, -CARD_HEAD - (i - 1) * CHIP_H)
 			chip:SetPoint("RIGHT", c, "RIGHT", -6, 0)
@@ -796,7 +802,7 @@ local function buildLayout(p)
 	p:text("ShamanForever calls each indicator an element, and every element sits in one group. Drag elements between groups; click one for a menu. Drop one between two others to change the order.")
 	p:checkbox("Test elements", nil,
 		function() return acct().testMode end, function(v) ns.setTestMode(v); OP.refresh() end)
-	p:text("Adds placeholder elements in their own group, for trying out layouts.")
+	p:text("Adds placeholder elements in their own group, for trying out layouts, and shows elements you haven't learned yet.")
 	p:add(p:row(6), 6)   -- a little room between the heading's line and the group cards
 	buildBoard(p)
 
@@ -1191,7 +1197,13 @@ local function buildElements(p)
 		ns.cropIcon(icon)
 		local name = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 		name:SetPoint("LEFT", 32, 0)
-		name:SetText(e.label)
+		name:SetWidth(GROUP_X - 36)
+		name:SetJustifyH("LEFT")
+		name:SetWordWrap(false)
+		-- Every element is listed; one the character doesn't know yet says so (the HUD leaves it out).
+		local unknown = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+		unknown:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -1)
+		unknown:SetText("Not learned")
 		local group = CreateFrame("DropdownButton", nil, f, "WowStyle1DropdownTemplate")
 		group:SetPoint("LEFT", GROUP_X, 0)
 		group:SetWidth(100)
@@ -1225,6 +1237,12 @@ local function buildElements(p)
 		open:SetScript("OnClick", function() if ELEMENT_PAGES[key] then OP.open(ELEMENT_PAGES[key]) end end)
 		p:add(f, 34, function() return ns.available(key) end, function()
 			e.paint(icon)
+			local learned = ns.isLearned(key)
+			name:SetText(e.label)
+			name:ClearAllPoints()
+			name:SetPoint("LEFT", 32, learned and 0 or 6)
+			unknown:SetShown(not learned)
+			icon:SetDesaturated(not learned)
 			group:GenerateMenu()
 			show:GenerateMenu()
 			open:SetShown(ELEMENT_PAGES[key] ~= nil)
@@ -1238,6 +1256,8 @@ end
 local function elementDisplay(p, key)
 	ELEMENT_PAGES[key] = p.key
 	p:hero(key)
+	p:callout("Not learned yet. It shows on screen once your character knows the spell.",
+		function() return not ns.isLearned(key) end)
 	p:header("Display")
 	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return ns.showMode(key) end,
 		function(v) ns.setShow(key, v) end, nil, 140)
@@ -1272,16 +1292,19 @@ local function readyBlock(p, key, glowTip)
 	if glowTip then p:checkbox("Pulsing glow", glowTip, eget(key, "readyGlow"), eset(key, "readyGlow")) end
 end
 
--- Standard block: the look while the element has nothing going on (Earthbind, Stoneclaw, Fire Nova).
+-- Standard block: the look while the element has nothing going on (the cooldown elements).
 local IDLE_WHEN = { { "never", "Never" }, { "nototem", "Off cooldown, no fire totem" }, { "offcd", "Off cooldown" } }
-local function idleBlock(p, key, fireNova)
+local function idleBlock(p, def)
+	local key, fireNova = def.key, def.needsTotem
 	p:header("Idle")
 	if fireNova then
 		p:text("Idle is when there's nothing to track. At 0% it's hidden and keeps its place in the group.")
 		p:dropdown("Idle when", "Off cooldown, no fire totem: it can't be cast. Off cooldown: whether a fire totem is down or not.",
 			IDLE_WHEN, eget(key, "idleWhen"), eset(key, "idleWhen"), nil, 210)
 	else
-		p:text("Idle is when it's off cooldown and its totem isn't down. At 0% it's hidden and keeps its place in the group.")
+		local also = def.totemSlot and " and its totem isn't down" or def.primed and " and not primed"
+			or def.window and " and not active" or def.reagent and " with reagents to spare" or ""
+		p:text("Idle is when it's off cooldown" .. also .. ". At 0% it's hidden and keeps its place in the group.")
 	end
 	p:slider("Idle opacity", "The icon's opacity while idle.",
 		0, 1, 0.05, pct, eget(key, "idleAlpha"), eset(key, "idleAlpha"),
@@ -1397,20 +1420,60 @@ local function buildImbue(p)
 end
 
 -- One page per cooldown element; the blocks depend on what the element tracks.
+-- Primed: when it starts (from your cast), what it spends it, and how it looks meanwhile.
+local PRIMED_TEXT = {
+	naturesswiftness = "From your cast until your next Nature spell with a cast time. Out of combat the buff itself is read.",
+	stormstrike = "From your cast for 12 s, or until your second Lightning Bolt, Chain Lightning or Earth Shock. " ..
+		"Other Nature damage on the target also uses it up, which can't be seen.",
+}
+local function primedBlock(p, def)
+	local key = def.key
+	p:header("Primed")
+	if PRIMED_TEXT[key] then p:text(PRIMED_TEXT[key]) end
+	p:checkbox("Pop", "The moment it's primed.", eget(key, "primedPop"), eset(key, "primedPop"))
+	p:checkbox("Pulsing glow", "While it's primed.", eget(key, "primedGlow"), eset(key, "primedGlow"))
+end
+
+-- Reagent: the count on the icon, when it's low, and the look when there are none.
+local function reagentBlocks(p, def)
+	local key = def.key
+	p:header("Reagent")
+	p:checkbox("Count", "How many you carry, on the icon.", eget(key, "reagentCount"), eset(key, "reagentCount"))
+	p:slider("Low at", "The count turns red at this many or fewer.", 0, 10, 1, int, eget(key, "reagentLow"), eset(key, "reagentLow"))
+	p:checkbox("Show when low", "Shown while low, even when Idle hides it.", eget(key, "reagentShow"), eset(key, "reagentShow"))
+	p:text("Only counted if the spell still needs one.")
+	warningBlock(p, "None left", eget(key, "reagentGrey"), eset(key, "reagentGrey"), eget(key, "reagentRing"), eset(key, "reagentRing"),
+		eget(key, "reagentPulse"), eset(key, "reagentPulse"))
+end
+
+-- Grounded: Grounding's early end, which means it took a spell for you.
+local function groundedBlock(p, key)
+	p:header("Grounded")
+	p:checkbox("Flash when it takes a spell", "The totem flashes blue over its icon when it ends early: it took a spell, or was destroyed.",
+		eget(key, "grounded"), eset(key, "grounded"))
+	local on = showWhen(eget(key, "grounded"))
+	p:checkbox("Pop", "The icon bursts for a moment.", eget(key, "groundedPop"), eset(key, "groundedPop"), on)
+	p:checkbox("Pulsing glow", "In blue.", eget(key, "groundedGlow"), eset(key, "groundedGlow"), on)
+end
+
 local function buildCooldown(p, def)
 	local key = def.key
 	elementDisplay(p, key)
+	if def.reagent then reagentBlocks(p, def) end
 	if def.needsTotem then
 		warningBlock(p, "No fire totem", eget(key, "blockedGrey"), eset(key, "blockedGrey"), eget(key, "blockedRing"), eset(key, "blockedRing"),
 			eget(key, "blockedPulse"), eset(key, "blockedPulse"))
 	end
-	idleBlock(p, key, def.needsTotem)
+	idleBlock(p, def)
 	timerSettings(p, "Cooldown", key, "cooldown")
 	gcdBlock(p, key)
 	readyBlock(p, key, def.needsTotem and "While it's off cooldown and a fire totem is down.")
+	if def.primed then primedBlock(p, def) end
+	local timed = def.window or (def.primed and def.primed.duration)
 	if def.needsTotem then timerSettings(p, "Fire totem's time left", key, "uptime")
-	elseif def.totemSlot then timerSettings(p, "Time left", key, "uptime") end
-	if def.needsTotem or def.totemSlot then
+	elseif def.totemSlot or def.window then timerSettings(p, "Time left", key, "uptime")
+	elseif timed then timerSettings(p, "Primed time left", key, "uptime") end
+	if def.needsTotem or def.totemSlot or timed then
 		-- Expiring: a warning in the totem's last seconds.
 		local function xget(k) return function() return ns.Timer.expireOpts(key)[k] end end
 		local function xset(k) return function(v)
@@ -1421,14 +1484,15 @@ local function buildCooldown(p, def)
 		end end
 		local on = showWhen(function() return ns.Timer.expireOpts(key).secs > 0 end)
 		p:header("Expiring")
-		p:slider("Warn in the last", "Seconds before the totem runs out. Zero turns the warning off.", 0, 30, 1,
+		p:slider("Warn in the last", "Seconds before it runs out. Zero turns the warning off.", 0, 30, 1,
 			function(v) return v == 0 and "Off" or string.format("%d s", v) end, xget("secs"), xset("secs"))
 		expiringLooks(p, xget, xset, "icon", on)
 		if def.totemSlot then
 			p:checkbox("Pop when it runs out", "The totem pops and fades the moment it runs out.", eget(key, "expiredPop"), eset(key, "expiredPop"))
 		end
 	end
-	if def.totemSlot then
+	if def.grounded then groundedBlock(p, key)
+	elseif def.totemSlot then
 		killedBlock(p, function(n) return eget(key, n) end, function(n) return eset(key, n) end, "icon",
 			"Flash when it dies early")
 	end
@@ -1438,7 +1502,7 @@ end
 ------------------------------------------------------------------------
 -- Window
 ------------------------------------------------------------------------
-local navButtons, navDivider, navLock = {}, nil, nil
+local navButtons, navDivider, navLock, navList = {}, nil, nil, nil   -- navList: the element pages' list
 
 local function showPage(key)
 	currentPage = key
@@ -1451,22 +1515,25 @@ local function showPage(key)
 		local on = b.page == key
 		b.sel:SetShown(on)
 		b.accent:SetShown(on)
-		b.label:SetTextColor(on and 1 or (b.sub and 0.9 or 1), on and 0.84 or (b.sub and 0.88 or 0.82), on and 0.5 or (b.sub and 0.84 or 0))
+		if on or not b.sub or ns.isLearned(b.page) then
+			b.label:SetTextColor(on and 1 or (b.sub and 0.9 or 1), on and 0.84 or (b.sub and 0.88 or 0.82), on and 0.5 or (b.sub and 0.84 or 0))
+		else b.label:SetTextColor(0.55, 0.53, 0.5) end   -- not learned yet
+		b.icon:SetDesaturated(b.sub and not ns.isLearned(b.page) or false)
+		if on and b.sub and navList then navList.reveal(b) end
 	end
 	if navDivider then navDivider.refresh() end
 	if navLock then navLock.refresh() end
 	pages[key]:refresh()
 end
 
--- The nav: main pages, then every element's page (indented), then Profiles and About.
+-- The nav: main pages, then every element's page (indented) in a list of its own that scrolls when
+-- the window is too short for them all, then Profiles and About at the bottom.
+local NAV_SUB_H, NAV_SUB_STEP = 24, 26
 local function buildNav()
-	local y = LOGO_Y - LOGO_SIZE - 1   -- just below the logo
-	local function add(pageKey, text, icon, sub, extra)
-		local b = CreateFrame("Button", nil, win)
+	local function add(pageKey, text, icon, sub, parent)
+		local b = CreateFrame("Button", nil, parent or win)
 		local indent = sub and 16 or 0
-		b:SetSize(NAV_W - 20 - indent, sub and 24 or 28)
-		b:SetPoint("TOPLEFT", 12 + indent, y)
-		y = y - (sub and 26 or 30)
+		b:SetSize(NAV_W - 20 - indent, sub and NAV_SUB_H or 28)
 		b.sel = b:CreateTexture(nil, "BACKGROUND")
 		b.sel:SetAllPoints()
 		b.sel:SetColorTexture(0.88, 0.66, 0.29, 0.16)
@@ -1485,32 +1552,26 @@ local function buildNav()
 		ns.cropIcon(b.icon)
 		b.label = b:CreateFontString(nil, "OVERLAY", sub and "GameFontHighlight" or "GameFontNormal")
 		b.label:SetPoint("LEFT", b.icon, "RIGHT", 8, 0)
+		b.label:SetPoint("RIGHT", -4, 0)
+		b.label:SetJustifyH("LEFT")
+		b.label:SetWordWrap(false)
 		b.label:SetText(text)
-		if extra then
-			local t = b:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-			t:SetPoint("RIGHT", -6, 0)
-			t:SetText(extra)
-		end
 		b.page, b.sub = pageKey, sub
 		b:SetScript("OnClick", function() showPage(pageKey) end)
 		table.insert(navButtons, b)
+		return b
 	end
-	add("home", "Home", "Interface\\Icons\\ClassIcon_Shaman")
-	add("general", "General", "Interface\\Icons\\INV_Misc_Gear_01")
-	add("layout", "Layout", "Interface\\Icons\\Spell_Nature_Invisibilty")
-	add("totembar", "Totem bar", "Interface\\Icons\\Spell_Shaman_DropAll_01")
-	add("elements", "Elements", ART .. "Elements.tga")
-	for _, p in ipairs(pageOrder) do
-		local e = ns.Look.ELEMENT[p.key]
-		if e and not e.page then add(p.key, ns.Look.elementName(p.key), e.icon, true) end
+	local y = LOGO_Y - LOGO_SIZE - 1   -- just below the logo
+	local function top(...)
+		local b = add(...)
+		b:SetPoint("TOPLEFT", win, "TOPLEFT", 12, y)
+		y = y - 30
 	end
-	y = y - 4
-	navDivider = ns.Look.divider(win)
-	navDivider:SetPoint("TOPLEFT", 20, y)
-	navDivider:SetWidth(NAV_W - 36)
-	y = y - 14
-	add("profiles", "Profiles", "Interface\\Icons\\INV_Misc_Note_01")
-	add("about", "About", "Interface\\Icons\\INV_Misc_Book_09")
+	top("home", "Home", "Interface\\Icons\\ClassIcon_Shaman")
+	top("general", "General", "Interface\\Icons\\INV_Misc_Gear_01")
+	top("layout", "Layout", "Interface\\Icons\\Spell_Nature_Invisibilty")
+	top("totembar", "Totem bar", "Interface\\Icons\\Spell_Shaman_DropAll_01")
+	top("elements", "Elements", ART .. "Elements.tga")
 	-- Footer: positioning's lock, one click either way (as /sf lock); its label says what it does.
 	navLock = CreateFrame("Button", nil, win, "UIPanelButtonTemplate")
 	navLock:SetSize(NAV_W - 32, 22)
@@ -1519,6 +1580,59 @@ local function buildNav()
 	setTip(navLock, "Positioning", "Unlocked, drag groups and the totem bar on screen. /sf lock does the same.")
 	function navLock.refresh() navLock:SetText(acct().locked and "Unlock positioning" or "Lock positioning") end
 	navLock.refresh()
+	-- Profiles and About, up from the footer, under the divider.
+	add("about", "About", "Interface\\Icons\\INV_Misc_Book_09"):SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 12, 44)
+	add("profiles", "Profiles", "Interface\\Icons\\INV_Misc_Note_01"):SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 12, 74)
+	navDivider = ns.Look.divider(win)
+	navDivider:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 20, 110)
+	navDivider:SetWidth(NAV_W - 36)
+	-- The element pages between them. The list starts at the window's edge so the selected page's
+	-- accent (left of its button) isn't clipped.
+	local list = CreateFrame("ScrollFrame", nil, win)
+	list:SetPoint("TOPLEFT", win, "TOPLEFT", 4, y)
+	list:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 4, 122)
+	list:SetWidth(NAV_W - 8)
+	local child = CreateFrame("Frame", nil, list)
+	child:SetWidth(NAV_W - 8)
+	list:SetScrollChild(child)
+	local n = 0
+	for _, p in ipairs(pageOrder) do
+		local e = ns.Look.ELEMENT[p.key]
+		if e and not e.page then
+			local b = add(p.key, ns.Look.elementName(p.key), e.icon, true, child)
+			b.listTop = n * NAV_SUB_STEP
+			b:SetPoint("TOPLEFT", child, "TOPLEFT", 8 + 16, -b.listTop)
+			n = n + 1
+		end
+	end
+	child:SetHeight(math.max(n * NAV_SUB_STEP, 1))
+	-- Shades at an edge with more beyond it.
+	local function shade(point, from, to)
+		local t = list:CreateTexture(nil, "OVERLAY")
+		t:SetPoint(point .. "LEFT"); t:SetPoint(point .. "RIGHT")
+		t:SetHeight(18)
+		t:SetColorTexture(1, 1, 1, 1)
+		t:SetGradient("VERTICAL", CreateColor(0.09, 0.075, 0.06, from), CreateColor(0.09, 0.075, 0.06, to))
+		return t
+	end
+	list.moreAbove, list.moreBelow = shade("TOP", 0, 0.95), shade("BOTTOM", 0.95, 0)
+	function list.maxScroll() return math.max(child:GetHeight() - list:GetHeight(), 0) end
+	function list.scrollTo(v)
+		v = math.min(math.max(v, 0), list.maxScroll())
+		list:SetVerticalScroll(v)
+		list.moreAbove:SetShown(v > 0.5)
+		list.moreBelow:SetShown(v < list.maxScroll() - 0.5)
+	end
+	-- The selected page's button in view.
+	function list.reveal(b)
+		local v, h = list:GetVerticalScroll(), list:GetHeight()
+		if b.listTop < v then list.scrollTo(b.listTop)
+		elseif b.listTop + NAV_SUB_H > v + h then list.scrollTo(b.listTop + NAV_SUB_H - h) end
+	end
+	list:EnableMouseWheel(true)
+	list:SetScript("OnMouseWheel", function(_, delta) list.scrollTo(list:GetVerticalScroll() - delta * NAV_SUB_STEP * 2) end)
+	list:SetScript("OnSizeChanged", function() list.scrollTo(list:GetVerticalScroll()) end)
+	navList = list
 end
 
 local function buildWindow()

@@ -71,6 +71,6 @@ SlashCmdList.SHAMANFOREVER = function(msg)
 	elseif cmd == "debug" then
 		ns.debugReport()
 	else
-		say("/sf opens the options. Also: /sf lock (lock or unlock positioning), /sf test (placeholder elements), /sf debug")
+		say("/sf opens the options. Also: /sf lock (lock or unlock positioning), /sf test (placeholder elements, and elements not learned yet), /sf debug")
 	end
 end

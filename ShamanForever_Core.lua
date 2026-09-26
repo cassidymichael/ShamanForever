@@ -163,6 +163,23 @@ local DEFS = {
 	windfury        = { ids = { 8232 }, en = "Windfury Weapon" },
 	call            = { ids = { 66842 }, en = "Call of the Elements" },
 	recall          = { ids = { 36936 }, en = "Totemic Recall" },
+	-- Talents or above the level-20 cap: seeds from foreverdiff.com (2026-09-27), not yet seen on a
+	-- character. An ID the client lacks shows in /sf debug; the client's name for the spell still
+	-- finds any rank the spellbook has.
+	naturesSwiftness = { ids = { 16188 }, en = "Nature's Swiftness" },   -- the buff has the same ID
+	manaTide        = { ids = { 16190 }, en = "Mana Tide Totem" },
+	grounding       = { ids = { 8177 }, en = "Grounding Totem" },
+	stormstrike     = { ids = { 17364 }, en = "Stormstrike" },
+	riptide         = { ids = { 1239242 }, en = "Riptide" },   -- Forever's own
+	rageOfTheFarseer = { ids = { 425336 }, en = "Rage of the Farseer" },   -- Forever's own
+	totemicProjection = { ids = { 437009 }, en = "Totemic Projection" },
+	reincarnation   = { ids = { 20608 }, en = "Reincarnation" },
+	-- Spells that spend a primed buff (Nature's Swiftness, Stormstrike's charges).
+	healingWave     = { ids = { 331 }, en = "Healing Wave" },
+	lesserHealingWave = { ids = { 8004 }, en = "Lesser Healing Wave" },
+	chainHeal       = { ids = { 1064 }, en = "Chain Heal" },
+	lightningBolt   = { ids = { 403 }, en = "Lightning Bolt" },
+	chainLightning  = { ids = { 421 }, en = "Chain Lightning" },
 }
 Spells.DEFS = DEFS
 
@@ -250,15 +267,39 @@ function Spells.scan()
 	end
 end
 
+-- Whether the player knows a spell ID, by whichever check the client has (true when it has none).
+local function playerKnows(id)
+	local known
+	local checks = { IsPlayerSpell or false, C_SpellBook and C_SpellBook.IsSpellKnown or false, IsSpellKnown or false }
+	for _, fn in ipairs(checks) do
+		local ok, v = safe(fn, id)
+		if ok and not isSecret(v) and v ~= nil then
+			if v then return true end
+			known = false
+		end
+	end
+	return known ~= false
+end
+
 -- The highest known rank's ID and icon, or nil when the player doesn't know the spell.
 function Spells.known(key)
 	local e = book[key]
 	if e then return e.id, e.icon end
-	-- Not in the spellbook view (a talent, or the scan ran early): ask the client by name.
+	-- Not in the spellbook view (a talent, or the scan ran early): ask the client by name, and
+	-- whether the player knows what it names.
 	local ok, info = safe(C_Spell.GetSpellInfo, Spells.name(key))
-	if ok and type(info) == "table" and info.spellID and not isSecret(info.spellID) then
+	if ok and type(info) == "table" and info.spellID and not isSecret(info.spellID) and playerKnows(info.spellID) then
 		keyByID[info.spellID] = key
 		return info.spellID, info.iconID
+	end
+end
+
+-- A spell's icon from its seed IDs, known or not (the options show every element).
+function Spells.icon(key)
+	local d = DEFS[key]
+	for _, id in ipairs(d and d.ids or {}) do
+		local ok, tex = safe(C_Spell.GetSpellTexture, id)
+		if ok and tex and not isSecret(tex) then return tex end
 	end
 end
 function Spells.bookEntry(key) return book[key] end

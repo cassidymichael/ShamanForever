@@ -36,14 +36,19 @@ local DEFAULTS = {
 	gcdStyle = CopyTable(ns.Style.KINDS.gcd.defaults),
 	-- Default layout: just below the centre of the screen, side by side 16 px apart, ready to be
 	-- dragged where the player wants them (the totem bar sits below, see TotemBar.lua). Offsets are
-	-- in each group's scaled units, so the third group's are divided by its 0.9 scale.
+	-- in each group's scaled units, so the third and fourth groups' are divided by their 0.9 scale.
+	-- An example more than a plan: players make their own groups. Elements not learned yet take no
+	-- room, so a new character sees only the first few. Rotation spells join the first group; the
+	-- big cooldowns sit in a row above it.
 	groups = {
 		{ point = "CENTER", x = 0, y = -40, scale = 1, alpha = 0.75, orientation = "horizontal",
-			growth = "forward", spacing = 6, members = { "shield", "shock", "firenova" } },
+			growth = "forward", spacing = 6, members = { "shield", "shock", "firenova", "stormstrike", "riptide" } },
 		{ point = "CENTER", x = -110, y = -40, scale = 1, alpha = 0.75, orientation = "horizontal",
 			growth = "forward", spacing = 6, members = { "imbue" } },
 		{ point = "CENTER", x = 120, y = -44, scale = 0.9, alpha = 0.6, orientation = "horizontal",
-			growth = "forward", spacing = 6, members = { "earthbind", "stoneclaw" } },
+			growth = "forward", spacing = 6, members = { "earthbind", "stoneclaw", "grounding", "projection" } },
+		{ point = "CENTER", x = 0, y = 11, scale = 0.9, alpha = 0.75, orientation = "horizontal",
+			growth = "forward", spacing = 6, members = { "naturesswiftness", "manatide", "farseer", "reincarnation" } },
 	},
 	known = {},             -- element keys placed at least once; new ones join the first group
 	elementOpts = {         -- per-element settings by key, e.g. { shock = { show = "combat" } }
@@ -107,14 +112,24 @@ root:SetAllPoints(UIParent)
 -- Every element, in the order the options list them. Each is made and registered by its module
 -- (ShamanForever_Shield, _Imbue, _Cooldowns); the test placeholders below are this file's own.
 local ELEMENT_KEYS = { "shield", "shock", "imbue", "earthbind", "stoneclaw", "firenova" }
--- key -> { frame, label, paint(texture), getSize(size), stack(), cooldown, placeholder }. db.groups
--- decides where each one shows. getSize gives its width and height for its group's icon size, so
--- elements need not be square; paint draws what stands in for it in the options and while dragging.
+-- key -> { frame, label, paint(texture), getSize(size), stack(), cooldown, placeholder, learned(),
+-- defaults }. db.groups decides where each one shows. getSize gives its width and height for its
+-- group's icon size, so elements need not be square; paint draws what stands in for it in the
+-- options and while dragging. learned() says whether the character knows its spell (none: always);
+-- defaults holds its own defaults for its options (see elementSetting).
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
 function ns.registerElement(key, e)
 	e.getSize = e.getSize or iconSize
 	ELEMENTS[key] = e
+end
+-- Element modules add their keys after the six above (ShamanForever_Cooldowns.lua), in the order the
+-- options list them.
+local firstTestKey   -- the test placeholders stay last (below)
+function ns.addElementKey(key)
+	local at = #ELEMENT_KEYS + 1
+	for i, k in ipairs(ELEMENT_KEYS) do if k == firstTestKey then at = i break end end
+	table.insert(ELEMENT_KEYS, at, key)
 end
 -- An element's icon (ShamanForever_Widgets.lua), on the HUD's root frame.
 function ns.newElementIcon(key)
@@ -169,6 +184,7 @@ for _, p in ipairs(PLACEHOLDERS) do
 		getSize = function(size) return size * p.w, size * p.h end,
 		paint = function(t) t:SetColorTexture(c[1], c[2], c[3], 0.9) end })
 	table.insert(ELEMENT_KEYS, p.key)
+	firstTestKey = firstTestKey or p.key
 end
 
 ------------------------------------------------------------------------
@@ -178,6 +194,15 @@ local function available(key)
 	local e = ELEMENTS[key]
 	return e ~= nil and (not e.placeholder or acct.testMode)
 end
+
+-- Whether the character knows the element's spell. The options list every element, marking the
+-- ones not learned; the HUD leaves those out until they are, except in test mode (/sf test), which
+-- shows them greyed.
+local function isLearned(key)
+	local e = ELEMENTS[key]
+	return e == nil or not e.learned or e.learned() and true or false
+end
+local function onHUD(key) return isLearned(key) or acct.testMode end
 
 -- Group index and position of an element. Every available element sits in a group; whether it is
 -- drawn is its own "show" setting, so hiding one keeps its place.
@@ -193,18 +218,27 @@ local function elementOpts(key)
 	return o
 end
 
--- An element's option (db.elementOpts[key]) with its default: an element's own default, else
--- everyone's. Every element starts with its pops on and its "use me" glows off.
+-- An element's option (db.elementOpts[key]) with its default: the element's own (its registry
+-- entry's defaults), else everyone's. Every element starts with its pops on and its "use me" glows off.
 local ELEMENT_OPT_DEFAULTS = {
 	readyPop = true, readyGlow = false,                          -- Ready (cooldowns)
 	blockedGrey = true, blockedRing = false, blockedPulse = false,  -- No fire totem (Fire Nova)
 	expiredPop = true,                                           -- a totem ran out
 	killed = true, killedPop = true, killedGlow = true, killedMark = true,   -- a totem killed early
 	idleAlpha = 0.35, idleWhen = "never",                        -- Idle (idleWhen: Fire Nova's rule)
+	primedPop = true, primedGlow = true,                         -- Primed (Nature's Swiftness, Stormstrike)
+	grounded = true, groundedPop = true, groundedGlow = true,     -- Grounded (Grounding's early end)
+	reagentCount = true, reagentLow = 2, reagentShow = true,     -- Reagent (Reincarnation's Ankh)
+	reagentGrey = true, reagentRing = true, reagentPulse = false,
 }
+local function elementDefault(key, name)
+	local own = ELEMENTS[key] and ELEMENTS[key].defaults
+	if own and own[name] ~= nil then return own[name] end
+	return ELEMENT_OPT_DEFAULTS[name]
+end
 local function elementSetting(key, name)
 	local v = elementOpts(key)[name]
-	if v == nil then return ELEMENT_OPT_DEFAULTS[name] end
+	if v == nil then return elementDefault(key, name) end
 	return v
 end
 
@@ -219,7 +253,7 @@ local function sizeOf(key)
 	return groupSize(gi and db.groups[gi])
 end
 
-local function isEnabled(key) return findElement(key) ~= nil and showMode(key) ~= "never" end
+local function isEnabled(key) return findElement(key) ~= nil and showMode(key) ~= "never" and onHUD(key) end
 
 local function removeElement(key)
 	local gi, i = findElement(key)
@@ -376,7 +410,7 @@ local function layoutGroup(gi)
 		local f = e.frame
 		if f:GetParent() ~= gf then f:SetParent(gf) end
 		if e.stack then e.stack() end
-		if showMode(key) == "never" then
+		if showMode(key) == "never" or not onHUD(key) then
 			hideFrame(f)
 		else
 			local w, h = e.getSize(groupSize(g))
@@ -603,7 +637,8 @@ ns.DEFAULTS, ns.GROUP_DEFAULTS = DEFAULTS, GROUP_DEFAULTS
 ns.ELEMENTS, ns.ELEMENT_KEYS = ELEMENTS, ELEMENT_KEYS
 ns.isActive = function() return isShaman end   -- a shaman is logged in: the HUD runs
 ns.available, ns.findElement, ns.isEnabled, ns.showMode = available, findElement, isEnabled, showMode
-ns.elementOpts, ns.elementSetting = elementOpts, elementSetting
+ns.isLearned = isLearned
+ns.elementOpts, ns.elementSetting, ns.elementDefault = elementOpts, elementSetting, elementDefault
 -- Groups and layout.
 ns.groupFrames, ns.groupSize, ns.sizeOf = groupFrames, groupSize, sizeOf
 ns.setGroupCenter, ns.screenCenter = setGroupCenter, screenCenter
@@ -702,7 +737,7 @@ function ns.debugReport()
 	for gi, g in ipairs(db.groups) do
 		local names = {}
 		for _, key in ipairs(g.members) do
-			local mode = showMode(key)
+			local mode = isLearned(key) and showMode(key) or "not learned"
 			table.insert(names, mode == "always" and key or (key .. " (" .. mode .. ")"))
 		end
 		say("group %d: %s, %s, size %d%s, scale %.2f, opacity %.2f, at %s %.0f,%.0f%s", gi, table.concat(names, ","),
