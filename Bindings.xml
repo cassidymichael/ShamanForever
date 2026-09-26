@@ -1,3 +1,4 @@
+<!-- Totem bar key bindings (their names are set in ShamanForever_TotemBar.lua) -->
 <Bindings>
 	<Binding name="CLICK ShamanForeverKeyCastEarth:LeftButton" header="SHAMANFOREVER_TOTEMS" category="ShamanForever"/>
 	<Binding name="CLICK ShamanForeverKeyCastFire:LeftButton" category="ShamanForever"/>

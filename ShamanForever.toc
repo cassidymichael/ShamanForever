@@ -19,11 +19,13 @@ Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
 Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 ShamanForever_Core.lua
 ShamanForever_Style.lua
+ShamanForever_Widgets.lua
 ShamanForever_Timers.lua
 ShamanForever.lua
+ShamanForever_Shield.lua
+ShamanForever_Imbue.lua
 ShamanForever_Profiles.lua
 ShamanForever_Slash.lua
-ShamanForever_Probe.lua
 ShamanForever_TotemBar.lua
 ShamanForever_TotemRange.lua
 ShamanForever_OptionsLook.lua

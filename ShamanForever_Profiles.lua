@@ -1,6 +1,6 @@
 -- Saved settings: the account table (ShamanForeverDB) and its upgrades, and profiles: named sets of
 -- settings in acct.profiles. Each character picks one (acct.chars); new characters start on Default.
--- Sharing a profile as text lives here too. The active profile itself is main's (ns.selectProfile).
+-- Sharing a profile as text lives here too. The active profile itself is ShamanForever.lua's (ns.selectProfile).
 
 local _, ns = ...
 local P = {}
@@ -19,7 +19,7 @@ local ACCOUNT_DEFAULTS = {
 	keepOptionsOpen = false,  -- false: the options window steps aside while groups are being moved
 	lastShield = "lightning",  -- the shield last cast or seen; its icon is the no-shield look in "either" mode
 	imbueIDs = {},            -- learned enchant ID -> imbue key
-	profiles = {},            -- name -> settings (main's DEFAULTS)
+	profiles = {},            -- name -> settings (ShamanForever.lua's DEFAULTS)
 	chars = {},               -- "Name-Realm" -> { profile = name }
 }
 local DEFAULT_PROFILE = "Default"
@@ -46,7 +46,7 @@ local function charKey()
 	if realm and realm ~= "" then return name .. "-" .. realm:gsub("[%s%-]", "") end
 end
 
--- Keys saved before that fix, with the realm's spaces: merged into the normalized ones (which hold
+-- Keys saved before that fix, with the realm's spaces: merged into the normalised ones (which hold
 -- the latest choice when both exist).
 local function mergeCharKeys(a)
 	local old = {}
@@ -128,7 +128,7 @@ function P.load()
 		for k in pairs(ns.DEFAULTS) do p[k], a[k] = a[k], nil end
 		a.profiles = { [DEFAULT_PROFILE] = p }
 	end
-	-- 5 and 6 (timers) had upgrade steps during development; the only save then was the author's.
+	-- 5 and 6: no upgrade step needed.
 	a.settingsVersion = SETTINGS_VERSION
 	ns.fillDefaults(a, ACCOUNT_DEFAULTS)
 	a.totemLifetimes = nil   -- learned lifetimes (0.4.0 and earlier) could be wrong; no longer used
@@ -172,7 +172,7 @@ function P.rename(name)
 	a.profiles[name], a.profiles[old] = a.profiles[old], nil
 	for _, c in pairs(a.chars) do if c.profile == old then c.profile = name end end
 	ns.selectProfile(name)
-	if ns.RefreshOptions then ns.RefreshOptions() end
+	ns.RefreshOptions()
 end
 
 -- Deletes the active profile; characters that used it go back to Default, which cannot be deleted.
@@ -216,8 +216,6 @@ local RANGES = {
 	manaTint = { 0, 1 }, rangeIntensity = { 0, 1 }, rangeTint = { 0, 1 }, imbueWarnMins = { 0, 60 },
 }
 local GROUP_RANGES = { scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { 0, 64 }, size = { 16, 128 }, x = { -10000, 10000 }, y = { -10000, 10000 } }
-local POINTS = { CENTER = true, TOP = true, BOTTOM = true, LEFT = true, RIGHT = true,
-	TOPLEFT = true, TOPRIGHT = true, BOTTOMLEFT = true, BOTTOMRIGHT = true }
 local function clampNumbers(t, ranges, defaults)
 	for k, r in pairs(ranges) do
 		local v = t[k]
@@ -225,10 +223,6 @@ local function clampNumbers(t, ranges, defaults)
 			if v ~= v then t[k] = defaults[k] else t[k] = math.min(math.max(v, r[1]), r[2]) end
 		end
 	end
-end
-local function isColor(v)
-	return type(v) == "table" and type(v[1]) == "number" and type(v[2]) == "number" and type(v[3]) == "number"
-		and (v[4] == nil or type(v[4]) == "number")
 end
 
 -- Keeps only known settings of the right type and range from shared text; the rest come from defaults.
@@ -239,7 +233,7 @@ local function cleanProfile(t)
 		if type(t[k]) == type(default) then out[k] = t[k] end
 	end
 	clampNumbers(out, RANGES, DEFAULTS)
-	if out.chargeBarColor and not isColor(out.chargeBarColor) then out.chargeBarColor = nil end
+	if out.chargeBarColor and not ns.isColor(out.chargeBarColor) then out.chargeBarColor = nil end
 	-- General's styles are cleaned when read (ShamanForever_Style.lua); so are elements' own, and the
 	-- totem bar's settings (ShamanForever_TotemBar.lua).
 	if out.elementOpts then
@@ -256,7 +250,7 @@ local function cleanProfile(t)
 					if type(g[k]) == type(default) then clean[k] = g[k] end
 				end
 				clampNumbers(clean, GROUP_RANGES, GROUP_DEFAULTS)
-				if clean.point and not POINTS[clean.point] then clean.point = nil end
+				if clean.point and not ns.POINTS[clean.point] then clean.point = nil end
 				clean.border = ns.Style.cleanOwn(g.border, "border")
 				for _, key in ipairs(type(g.members) == "table" and g.members or {}) do
 					if type(key) == "string" then table.insert(clean.members, key) end
@@ -287,8 +281,3 @@ function P.decode(text)
 	end
 	return cleanProfile(data.profile)
 end
-
--- The names the options window uses.
-ns.profileNames, ns.newProfile, ns.renameProfile = P.names, P.new, P.rename
-ns.deleteProfile, ns.resetProfile = P.delete, P.reset
-ns.exportProfile, ns.decodeProfile = P.export, P.decode

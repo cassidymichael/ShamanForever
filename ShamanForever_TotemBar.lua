@@ -1,6 +1,6 @@
 -- Totem bar: one bar that can replace both of Blizzard's totem frames, the totems under the player
 -- frame (timers, right-click dismiss) and the Totem Action Bar (a pick per element, arrow popouts).
--- Design: workspace design/totem-bar.md; what was tested in game: design/totem-research.md.
+-- What works in combat and why: docs/combat-techniques.md.
 --
 -- Every click is a secure button set up out of combat, so it works in combat too:
 -- * slot button: right-click "destroytotem" (totem-slot), left-click "action" on the element's
@@ -74,7 +74,7 @@ TB.DEFAULTS = {
 	killedGlow = true,        --   a red glow around the slot
 	killedMark = true,        --   a red cross over the slot until it is recast, up to 5 s
 	range = true,             -- a strip along the top: are you in range of your own totem's buff (ShamanForever_TotemRange.lua)
-	rangeHeight = 4,          --   its height in physical pixels
+	rangeHeight = 4,          --   its height in screen pixels (ns.linePx)
 	rangeIn = { 0.2, 0.8, 0.25, 0 },       --   with the buff (0: nothing shows in range)
 	rangeOut = { 0.9, 0.12, 0.08, 0.85 },  --   without it
 }
@@ -88,8 +88,6 @@ local RANGES = {
 	arrowSize = { 8, 32 }, extrasScale = { 0.5, 1.5 }, idleAlpha = { 0.1, 1 },
 	badgeSize = { 0.25, 0.8 }, badgeAlpha = { 0.1, 1 }, badgeSat = { 0, 1 }, warn = { 0, 30 }, rangeHeight = { 1, 12 },
 }
-local POINTS = { CENTER = true, TOP = true, BOTTOM = true, LEFT = true, RIGHT = true,
-	TOPLEFT = true, TOPRIGHT = true, BOTTOMLEFT = true, BOTTOMRIGHT = true }
 local function finite(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
 
@@ -100,7 +98,7 @@ local function cfg()
 	if type(db.totemBar) ~= "table" then db.totemBar = {} end
 	local t = db.totemBar
 	if t ~= cfgTable then
-		-- Before the Totems cards (2026-09-25): "enabled" and Show "never" meant our bar off.
+		-- Saves from before the Totems cards: "enabled" and Show "never" meant our bar off.
 		if t.mode == nil and (t.enabled == false or t.show == "never") then t.mode = "blizzard" end
 		-- Before styles (0.6.1 and earlier) one switch covered size and border: keep an own look as own.
 		if t.follow == false then
@@ -125,7 +123,7 @@ local function cfg()
 		end
 		if not finite(t.x) then t.x = TB.DEFAULTS.x end
 		if not finite(t.y) then t.y = TB.DEFAULTS.y end
-		if not POINTS[t.point] then t.point, t.x, t.y = TB.DEFAULTS.point, TB.DEFAULTS.x, TB.DEFAULTS.y end
+		if not ns.POINTS[t.point] then t.point, t.x, t.y = TB.DEFAULTS.point, TB.DEFAULTS.x, TB.DEFAULTS.y end
 		local seen, order = {}, {}
 		for _, el in ipairs(t.order) do
 			if SLOT[el] and not seen[el] then seen[el] = true; table.insert(order, el) end
@@ -138,10 +136,7 @@ local function cfg()
 		end
 		if type(t.size) ~= "number" then t.size = nil end
 		for _, k in ipairs({ "rangeIn", "rangeOut" }) do
-			local v = t[k]
-			local ok = type(v) == "table" and type(v[1]) == "number" and type(v[2]) == "number" and type(v[3]) == "number"
-				and (v[4] == nil or type(v[4]) == "number")
-			if not ok then t[k] = CopyTable(TB.DEFAULTS[k]) end
+			if not ns.isColor(t[k]) then t[k] = CopyTable(TB.DEFAULTS[k]) end
 		end
 		cfgTable = t
 	end
@@ -546,7 +541,7 @@ end
 -- of combat, the slot's own spell ID (after a /reload, before we have cast). Never the slot's name:
 -- right after a cast it can still be the previous totem's. nil when unknown.
 local function downSpell(slot)
-	local id = ns.totemSpellInSlot and ns.totemSpellInSlot(slot)
+	local id = ns.totemSpellInSlot(slot)
 	if id then return id end
 	if InCombatLockdown() then return nil end
 	local ok, _, _, _, _, _, _, sid = ns.try("totem bar: totem info", GetTotemInfo, slot)
@@ -668,7 +663,7 @@ local function redraw()
 	if anyDown ~= wasDown and cfg().show == "active" then layout() end
 end
 
--- The warnings follow the remaining time, so they are re-evaluated a few times a second.
+-- Ten times a second: the time bar's run-out alpha, the range strip, and the arrow tabs' hover.
 local ticker = CreateFrame("Frame")
 ticker.t = 0
 ticker:SetScript("OnUpdate", function(self, elapsed)
@@ -806,12 +801,12 @@ local function layoutPopout(s, size, known)
 	else pop:SetSize(len, psz + 2 * POP_STEP); pop:SetPoint("RIGHT", s.button, "LEFT", -tab - 4, 0) end
 end
 
--- The badge sits opposite the picker: below a row whose pickers open up, and so on.
 -- A texture's colour, from grey (0) to full (1); all or nothing where partial desaturation is missing.
 function TB.saturate(tex, sat)
 	if not pcall(tex.SetDesaturation, tex, 1 - sat) then tex:SetDesaturated(sat < 0.5) end
 end
 
+-- The badge sits opposite the picker: below a row whose pickers open up, and so on.
 local function layoutBadge(s, size, border)
 	local c, bd, b = cfg(), s.badge, s.button
 	local bs = math.max(math.floor(size * c.badgeSize + 0.5), 8)
@@ -824,7 +819,7 @@ local function layoutBadge(s, size, border)
 	elseif c.pop == "down" then bd:SetPoint("BOTTOM", b, "TOP", 0, gap)
 	elseif c.pop == "right" then bd:SetPoint("RIGHT", b, "LEFT", -gap, 0)
 	else bd:SetPoint("LEFT", b, "RIGHT", gap, 0) end
-	if ns.applyBorder then ns.applyBorder(bd, border and border.show and { show = true, size = 1, color = border.color } or border) end
+	ns.applyBorder(bd, border and border.show and { show = true, size = 1, color = border.color } or border)
 end
 
 local function layoutArrow(s)
@@ -912,7 +907,7 @@ function layout()
 			e.vis.icon:SetTexture(C_Spell.GetSpellTexture(e.spell))
 			e.vis.icon:SetDesaturated(not learned)
 			e.vis.icon:SetAlpha(learned and 1 or 0.6)
-			if ns.applyBorder then ns.applyBorder(e.vis, border) end
+			ns.applyBorder(e.vis, border)
 		end
 	end
 	for _, s in ipairs(shown) do
@@ -923,7 +918,7 @@ function layout()
 		b:SetAttribute("sf-altpick", barOn() and cfg().mode == "everything")
 		b:SetAttribute("action", multiAction(s.slot))
 		castKeys[s.el]:SetAttribute("action", multiAction(s.slot))
-		if ns.applyBorder then ns.applyBorder(s.vis, border) end
+		ns.applyBorder(s.vis, border)
 		s.timer:apply()
 		layoutArrow(s)
 		layoutBadge(s, size, border)
@@ -952,12 +947,12 @@ function layout()
 end
 TB.layout = layout
 
--- Settings changed (options page): relayout now, or when combat ends.
 -- The slots' timers take their current style (General's or the bar's own). Plain frames, so any time.
 function TB.applyTimers()
 	for _, el in ipairs(ELEMENTS) do slots[el].timer:apply() end
 end
 
+-- Settings changed (options page): relayout now, or when combat ends.
 function TB.apply()
 	cfgTable = nil
 	-- Crosses go at once when switched off (plain frames: fine in combat, unlike the layout).
@@ -1024,7 +1019,7 @@ mover:SetScript("OnMouseWheel", function(self, delta)
 	end
 	layout()
 	self.label:SetText(string.format("Totem bar: size %d, scale %.2f, opacity %.0f%%", (look()), c.scale, c.alpha * 100))
-	if ns.RefreshOptions then ns.RefreshOptions() end
+	ns.RefreshOptions()
 end)
 function mover.update()
 	local on = barOn() and not ns.getAccount().locked and not InCombatLockdown()
@@ -1049,8 +1044,8 @@ end
 -- to the button's own binding (the slots: cast the pick; Call; Recall).
 -- The keys are caught on our own plain frame parked over the hovered button, and bound with
 -- SetBinding, not through Blizzard's QuickKeybindButtonTemplateMixin: calling that from addon code
--- taints Blizzard's key handling (EllesmereUI found keys it passes on, like the screenshot key, then
--- blocked). As Blizzard's: the key replaces the first key and keeps the second, Escape clears the
+-- taints Blizzard's key handling (EllesmereUI saw keys it passes on, such as the screenshot key,
+-- blocked afterwards). As Blizzard's: the key replaces the first key and keeps the second, Escape clears the
 -- first, and OK saves (SaveBindings) or Cancel undoes (LoadBindings) our changes along with its own.
 -- Controller buttons bind the same way.
 ------------------------------------------------------------------------
@@ -1236,15 +1231,13 @@ for _, e in pairs(extras) do
 end
 
 ------------------------------------------------------------------------
--- Events
-------------------------------------------------------------------------
-------------------------------------------------------------------------
 -- Killed early. When a slot empties, its last duration object still says how much time the totem
 -- had left (tested 2026-09-25); ns.makeEndFlash turns that into the flash's alpha through a curve,
--- so a totem that simply ran out stays invisible. Our own dismissals don't flash: every one goes through
--- DestroyTotem (right-click, keys, dismiss all, Blizzard's frame), and Totemic Recall is our own
--- cast. A slot that fills again at once (a new totem cast over it) doesn't flash either. The cross
--- (killedMark) sits under the same gate and goes on a recast or after 5 s.
+-- so for a totem that simply ran out the flash stays invisible (its run-out pop plays instead).
+-- Our own dismissals don't flash: every one goes through DestroyTotem (right-click, keys, dismiss
+-- all, Blizzard's frame), and Totemic Recall is our own cast. A slot that fills again at once (a new
+-- totem cast over it) doesn't flash either. The cross (killedMark) sits under the same gate and goes
+-- on a recast or after 5 s.
 ------------------------------------------------------------------------
 local dismissedAt = {}   -- slot -> GetTime() of our last dismissal
 if DestroyTotem then hooksecurefunc("DestroyTotem", function(slot) dismissedAt[slot] = GetTime() end) end
@@ -1256,7 +1249,7 @@ function slotEmptied(s, was)
 		local ok, d = ns.try("totem bar: duration", GetTotemDuration, s.slot)
 		local refilled = ok and d ~= nil
 		if mine or refilled then return end
-		if ns.onTotemGone then ns.onTotemGone(s.slot, was) end   -- Earthbind / Stoneclaw elements
+		ns.onTotemGone(s.slot, was)   -- Earthbind / Stoneclaw elements
 		local c = cfg()
 		if not s.button:IsShown() then return end
 		if c.expiredPop then s.expired:play(was, { expired = true, pop = true }) end
@@ -1264,6 +1257,9 @@ function slotEmptied(s, was)
 	end)
 end
 
+------------------------------------------------------------------------
+-- Events
+------------------------------------------------------------------------
 local ev = CreateFrame("Frame")
 for _, e in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_TOTEM_UPDATE", "PLAYER_REGEN_ENABLED",
 		"SPELLS_CHANGED", "ACTIONBAR_SLOT_CHANGED", "UPDATE_MULTI_CAST_ACTIONBAR", "UPDATE_BINDINGS", "SPELL_UPDATE_COOLDOWN" }) do
@@ -1272,7 +1268,7 @@ end
 pcall(ev.RegisterUnitEvent, ev, "UNIT_SPELLCAST_SUCCEEDED", "player")
 -- After one of our casts: redraw once the main file has recorded which totem went into which slot
 -- (ns.totemSpellInSlot; its handler may run after ours), so the order of this event and
--- PLAYER_TOTEM_UPDATE no longer matters. Plain frames only, so fine in combat.
+-- PLAYER_TOTEM_UPDATE doesn't matter. Plain frames only, so fine in combat.
 local casts, redrawQueued = {}, false   -- spell IDs cast since the last check
 local function redrawAfterCast(spell)
 	casts[spell] = true
@@ -1280,7 +1276,7 @@ local function redrawAfterCast(spell)
 	redrawQueued = true
 	C_Timer.After(0, function()
 		redrawQueued = false
-		local totem = not ns.totemSpellInSlot   -- can't tell: redraw anyway
+		local totem = false
 		for slot = 1, 4 do
 			local id = not totem and ns.totemSpellInSlot(slot)
 			if id and casts[id] then totem = true end

@@ -1,8 +1,7 @@
 -- Beta only: tames Blizzard's "Issue Reporter" button (Blizzard_PTRFeedback), and can hide it. It
 -- saves its position in its own SavedVariables, which the beta didn't load before build 70009, so it
 -- came back to the middle of the screen on every login; we keep a copy in our settings and hand it
--- back. Since 70009 its own save may be enough: check (move it with ShamanForever off, restart) before
--- dropping the copy.
+-- back. Since 70009 its own save may be enough; the copy stays until that is confirmed.
 local _, ns = ...
 
 local hooked = false

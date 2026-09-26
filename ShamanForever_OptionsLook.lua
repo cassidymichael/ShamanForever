@@ -1,6 +1,6 @@
 -- The options window's look: school art, element page headers with a live preview, and the
 -- experimental badge. Previews use the HUD's own icon (ns.makeIcon) on frames of their own, never the
--- live elements. Art sources and licences: README, Credits.
+-- live elements. Art sources and licences: README (Art) and About > Art.
 local ADDON, ns = ...
 local L = {}
 ns.Look = L
@@ -106,7 +106,7 @@ end
 
 ------------------------------------------------------------------------
 -- Experimental badge: click for copyable feedback links (links cannot be clicked in game): Discord,
--- the CurseForge comments, or a GitHub issue filled in for it.
+-- the CurseForge comments, or GitHub issues.
 ------------------------------------------------------------------------
 local pop
 local function linkBox(label, anchor, y)
@@ -148,6 +148,8 @@ local function showFeedback(anchor, feature)
 		pop.cf:SetText(pop.cf.url)
 		local ghLabel
 		ghLabel, pop.edit = linkBox("GitHub", cfLabel, -16)
+		pop.edit.url = L.REPO .. "/issues"
+		pop.edit:SetText(pop.edit.url)
 		pop.hint = pop:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 		pop.hint:SetPoint("TOPLEFT", ghLabel, "BOTTOMLEFT", 0, -12)
 		pop.hint:SetText("Click a link, then Ctrl+C to copy")
@@ -155,10 +157,7 @@ local function showFeedback(anchor, feature)
 		close:SetPoint("TOPRIGHT", 0, 0)
 		close:SetScript("OnClick", function() pop:Hide() end)
 	end
-	local url = L.REPO .. "/issues/new?labels=experimental&title=" .. feature:gsub(" ", "+") .. ":+feedback"
 	pop.title:SetText("|cffe0b060Experimental:|r " .. feature)
-	pop.edit.url = url
-	pop.edit:SetText(url)
 	pop.dc:SetCursorPosition(0)
 	pop.cf:SetCursorPosition(0)
 	pop.edit:SetCursorPosition(0)
@@ -181,7 +180,7 @@ function L.expBadge(parent, feature, label)
 	b:SetSize(b.text:GetStringWidth() + 12, 16)
 	b.feature = feature
 	b:SetScript("OnClick", function(self)
-		if label then showFeedback(self, self.feature) elseif ns.ShowExperimental then ns.ShowExperimental() end
+		if label then showFeedback(self, self.feature) else ns.ShowExperimental() end
 	end)
 	b:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -292,7 +291,7 @@ local function expiringLook(ic, key, length)
 	ic:SetPulsing(e.pulse)
 	ic:SetGlowShown(e.glow)
 end
-local function opt(key, name) return ns.elementOpt(key, name) end
+local function opt(key, name) return ns.elementSetting(key, name) end
 
 local function totemPreview(def)
 	return {
@@ -385,16 +384,15 @@ L.PREVIEW = {
 		pop = function(ic, st) if st == "missing" and db().imbuePop then ic:Pop("imbue") end end,
 		render = function(ic, st)
 			local d = db()
-			local icons = { rockbiter = 136086, flametongue = 135814, frostbrand = 135847, windfury = 136018 }
 			if st == "missing" then
 				-- The HUD's own choice: the preferred imbue, or the last one used.
-				reset(ic, ns.preferredImbueIcon and ns.preferredImbueIcon() or icons[d.imbuePreferred] or 136018)
+				reset(ic, ns.preferredImbueIcon())
 				ic.tex:SetDesaturated(d.imbueMissingGrey)
 				ic:SetRingShown(d.imbueMissingRing)
 				ic:SetPulsing(d.imbuePulse)
 				ic:SetGlowShown(d.imbueGlow)
 			else
-				reset(ic, ns.imbueIcon and ns.imbueIcon() or 136018)
+				reset(ic, ns.imbueIcon())
 				if st == "low" and d.imbueWarnMins > 0 then frozen(ic.upT, 0.95, 3600) end
 				if st == "fine" and d.imbueHideActive then ic:SetAlpha(0.15) end
 			end
@@ -582,7 +580,7 @@ L.PREVIEW.totembar = {
 				ic:SetSize(esz, esz)
 				ic:ClearAllPoints()
 				place(ic, start + (j - 1) * (esz + c.spacing), (line - esz) / 2)
-				if ns.applyBorder then ns.applyBorder(ic, border) end
+				ns.applyBorder(ic, border)
 				local learned = TB.extraLearned(key)
 				ic.tex:SetTexture(TB.extraTexture(key))
 				ic.tex:SetDesaturated(not learned)
@@ -604,7 +602,7 @@ L.PREVIEW.totembar = {
 				ic:SetSize(size, size)
 				ic:ClearAllPoints()
 				place(ic, leadLen + (i - 1) * (size + c.spacing), (line - size) / 2)
-				if ns.applyBorder then ns.applyBorder(ic, border) end
+				ns.applyBorder(ic, border)
 				local pick = GetActionTexture and TB.pickTexture(el)
 				if ns.isSecret(pick) then pick = nil end   -- never compared while secret (combat)
 				reset(ic, pick or TOTEM_ICON[el])
@@ -637,7 +635,7 @@ L.PREVIEW.totembar = {
 						elseif dir == "down" then ic.badge:SetPoint("BOTTOM", ic, "TOP", 0, 3)
 						elseif dir == "right" then ic.badge:SetPoint("RIGHT", ic, "LEFT", -3, 0)
 						else ic.badge:SetPoint("LEFT", ic, "RIGHT", 3, 0) end
-						if ns.applyBorder then ns.applyBorder(ic.badge, border.show and { show = true, size = 1, color = border.color } or border) end
+						ns.applyBorder(ic.badge, border.show and { show = true, size = 1, color = border.color } or border)
 						ic.badge:Show()
 					end
 				end
@@ -894,7 +892,7 @@ function L.buildHero(parent, key)
 		end
 		if def.stage then def.render(self, previewState[key]) else
 			-- An element's preview wears its group's border (the totem bar's stage draws its own).
-			if ns.applyBorder then ns.applyBorder(self.previewIcon, ns.borderFor(key)) end
+			ns.applyBorder(self.previewIcon, ns.borderFor(key))
 			def.render(self.previewIcon, previewState[key])
 		end
 	end

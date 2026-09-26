@@ -52,11 +52,7 @@ S.register("border", {
 	path = { "border" },
 })
 
--- { r, g, b } or { r, g, b, a }: numbers only (a shared profile can hold anything).
-local function isColor(v)
-	return type(v) == "table" and type(v[1]) == "number" and type(v[2]) == "number" and type(v[3]) == "number"
-		and (v[4] == nil or type(v[4]) == "number")
-end
+local isColor = ns.isColor
 
 -- A clean copy of t: every field of def, taken from t where it has the right type.
 local function clean(t, def)

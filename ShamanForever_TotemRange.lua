@@ -13,7 +13,7 @@
 -- * A buff lingers a few seconds after you leave a totem's range, so "out of range" shows late.
 -- * Totems that give you no buff (Searing, Earthbind, Tremor, ...) get no mark.
 -- * The same buff from two shamans doesn't stack: when another shaman's is the one on you, yours
---   reads out of range. Showing theirs too (a third colour) was tried and dropped (2026-09-26):
+--   reads out of range. Showing theirs too (a third colour) doesn't work:
 --   Blizzard's parts can't be hidden in combat, so it also showed on slots holding other totems.
 
 local _, ns = ...
@@ -148,7 +148,7 @@ local function makeContainer(s)
 		c:SetUnit("player")
 		pcall(c.EnableMouse, c, false)
 		s.rangeContainer = c
-		-- Each part on its own: one the client refuses (a filter it doesn't take) leaves the other.
+		-- Each part on its own, so one the client refuses (a filter it doesn't take) can't stop the rest.
 		for _, part in ipairs(PARTS) do
 			s.rangeSlots[part.key] = ns.try("totem range: " .. part.key .. " slot", c.AddAuraSlot, c, part.key, part.filter, {
 				candidateFilters = { includeSpellIDs = CopyTable(buffIDs[s.el]) },
@@ -163,7 +163,7 @@ local function makeContainer(s)
 	end
 end
 
--- Size, place and colour both parts (out of combat). The height is a line's (ns.linePx), as borders are.
+-- Size, place and colour our strip and Blizzard's part (out of combat). The height is a line's (ns.linePx), as borders are.
 -- ownOnly: our strip only, not Blizzard's container (auras are secret).
 local function place(s, size, ownOnly)
 	local c, b, gate = TB.cfg(), s.button, s.rangeGate

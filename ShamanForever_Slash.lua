@@ -5,8 +5,6 @@ local say = ns.say
 
 SLASH_SHAMANFOREVER1 = "/sf"
 SLASH_SHAMANFOREVER2 = "/shf"
--- The minimap button (LibDBIcon, as BugSack and most addons use): minimap button collectors such
--- as EllesmereUI's pick it up. Its position and hidden flag live in acct.minimap (account-wide).
 -- /sf lock: toggles positioning and says so. Also right-click on the minimap button or drawer entry.
 local function toggleLock()
 	local acct = ns.getAccount()
@@ -16,13 +14,15 @@ local function toggleLock()
 end
 local function onLauncherClick(button)
 	if button == "RightButton" then toggleLock()
-	elseif ns.ToggleOptions then ns.ToggleOptions() end
+	else ns.ToggleOptions() end
 end
 local function launcherTip(tt)
 	tt:AddLine("Click: options", 1, 0.82, 0)
 	tt:AddLine(ns.getAccount().locked and "Right-click: unlock positioning" or "Right-click: lock positioning", 1, 0.82, 0)
 end
 
+-- The minimap button (LibDBIcon, as BugSack and most addons use): minimap button collectors such
+-- as EllesmereUI's pick it up. Its position and hidden flag live in acct.minimap (account-wide).
 local minimapIcon
 function ns.applyMinimapButton()
 	local acct = ns.getAccount()
@@ -58,11 +58,10 @@ end
 _G.ShamanForever_OnAddonCompartmentLeave = function() GameTooltip:Hide() end
 
 SlashCmdList.SHAMANFOREVER = function(msg)
-	local cmd, arg = msg:match("^(%S*)%s*(.-)%s*$")
-	cmd, arg = (cmd or ""):lower(), (arg or ""):lower()
+	local cmd = (msg:match("^(%S*)") or ""):lower()
 	if cmd == "" or cmd == "options" or cmd == "config" then
-		if ns.ToggleOptions then ns.ToggleOptions() else say("options window unavailable") end
-	elseif cmd == "lock" then   -- toggles; /sf unlock still works but is no longer advertised
+		ns.ToggleOptions()
+	elseif cmd == "lock" then   -- toggles (/sf unlock also works, unlisted)
 		toggleLock()
 	elseif cmd == "unlock" then
 		if ns.setLocked(false) then say("positioning unlocked: drag groups to move them, /sf lock when done") end
@@ -70,8 +69,7 @@ SlashCmdList.SHAMANFOREVER = function(msg)
 		local acct = ns.getAccount()
 		if ns.setTestMode(not acct.testMode) then say("test elements %s", acct.testMode and "on" or "off") end
 	elseif cmd == "debug" then
-		if arg == "auras" or arg == "auras watch" then ns.probeAuras(arg == "auras watch" and "watch" or nil)
-		else ns.debugReport() end
+		ns.debugReport()
 	else
 		say("/sf opens the options. Also: /sf lock (lock or unlock positioning), /sf test (placeholder elements), /sf debug")
 	end

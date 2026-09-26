@@ -3,21 +3,12 @@
 -- Rule for this client: never do Lua math or comparisons on a possibly-secret value. In combat, show
 -- state through Blizzard's own widgets instead: the aura container for the shield, duration objects
 -- for cooldowns and totem timers, curves and SetAlpha for anything that must appear or disappear.
--- The only inference anywhere is the shield's in-combat "up" state; its section explains it.
+-- The only inference anywhere is the shield's in-combat "up" state; ShamanForever_Shield.lua explains it.
 
 local ADDON, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
 local Spells = ns.Spells
 
--- Elemental shields. Only one can be on the shaman at a time (Water Shield's tooltip says so), so one
--- element shows whichever is up. Water Shield is a Restoration talent on Forever; 408510 is both its
--- cast and its buff (wowhead.com/forever). Spells by key in ns.Spells (ShamanForever_Core.lua); the
--- IDs the aura slot matches grow with the spellbook's and the live aura's.
-local SHIELDS = {
-	lightning = { spell = "lightningShield", icon = 136051 },
-	water     = { spell = "waterShield",     icon = 132315 },
-}
-local SHIELD_ORDER = { "lightning", "water" }
 -- Shock choice -> spell key; SHOCKS holds the display names (the client's, set by resolveSpells).
 local SHOCK_SPELL = { earth = "earthShock", flame = "flameShock", frost = "frostShock" }
 local SHOCKS = {}
@@ -112,351 +103,12 @@ local profileName
 ------------------------------------------------------------------------
 
 -- root spans the screen and takes no input: the parent of every group (each anchored to UIParent),
--- hidden as a whole for other classes. Not the old
--- ShamanForeverFrame name: that frame was dragged, so the client's layout cache would re-anchor it.
+-- hidden as a whole for other classes. Not named ShamanForeverFrame: older versions dragged a frame
+-- of that name, and the client's layout cache would re-anchor it.
 local root = CreateFrame("Frame", "ShamanForeverRoot", UIParent)
 root:SetAllPoints(UIParent)
 
--- A pulsing glow inside an icon: soft light running in from its four edges, over the icon's art and
--- inside its border, breathing. `over` is the icon it covers (default: the parent). Its style is its
--- owner's (an element key or "totembar"; nil for General's): colour, pulse length, pulse depth (low
--- is the dimmest it gets) and thickness (how far in it reaches, as a share of the icon).
--- fit(size) lays it out for an icon of that size.
-local glows = {}
-local function makeGlow(parent, over, owner)
-	local g = CreateFrame("Frame", nil, parent)
-	g.owner = owner
-	table.insert(glows, g)
-	g:SetAllPoints(over or parent)
-	g:EnableMouse(false)
-	g.inner = CreateFrame("Frame", nil, g)   -- the breathing; g's own alpha stays free for a gate
-	g.inner:SetAllPoints()
-	g.edges = {}
-	for _, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
-		local t = g.inner:CreateTexture(nil, "OVERLAY")
-		t:SetTexture("Interface\\Buttons\\WHITE8x8")
-		t:SetBlendMode("ADD")
-		g.edges[side] = t
-	end
-	g.anim = g.inner:CreateAnimationGroup()
-	g.anim:SetLooping("BOUNCE")
-	g.fade = g.anim:CreateAnimation("Alpha")
-	g.fade:SetFromAlpha(1); g.fade:SetSmoothing("IN_OUT")
-	g:SetScript("OnShow", function(self) self.anim:Play() end)
-	g:SetScript("OnHide", function(self) self.anim:Stop() end)
-	-- The owner's style; a fixed colour (killed early's red) wins over its colour.
-	function g:restyle()
-		local st = ns.Style.get(self.owner, "glow")
-		self.width = st.width   -- kept for fit, which the ready glows call ten times a second
-		-- A running pulse restarts only when its timing changed, so other changes don't make it jump.
-		local retime = st.speed ~= self.speed or st.low ~= self.low
-		self.speed, self.low = st.speed, st.low
-		self.fade:SetDuration(st.speed)
-		self.fade:SetToAlpha(st.low)
-		local k = self.fixed or st.color
-		local on, off = CreateColor(k[1], k[2], k[3], k[4] or 1), CreateColor(k[1], k[2], k[3], 0)
-		local e = self.edges
-		-- Bright at the edge, clear inward (vertical gradients run bottom to top, horizontal left to right).
-		e.TOP:SetGradient("VERTICAL", off, on)
-		e.BOTTOM:SetGradient("VERTICAL", on, off)
-		e.LEFT:SetGradient("HORIZONTAL", on, off)
-		e.RIGHT:SetGradient("HORIZONTAL", off, on)
-		if self.iconSize then self:fit(self.iconSize) end
-		if retime and self:IsShown() then self.anim:Stop(); self.anim:Play() end
-	end
-	function g:fit(size)
-		if size == self.iconSize and self.width == self.fitWidth then return end
-		self.iconSize, self.fitWidth = size, self.width
-		local th = math.max(size * (self.width or 0.2), 1)
-		local e = self.edges
-		for _, t in pairs(e) do t:ClearAllPoints() end
-		e.TOP:SetPoint("TOPLEFT"); e.TOP:SetPoint("TOPRIGHT"); e.TOP:SetHeight(th)
-		e.BOTTOM:SetPoint("BOTTOMLEFT"); e.BOTTOM:SetPoint("BOTTOMRIGHT"); e.BOTTOM:SetHeight(th)
-		e.LEFT:SetPoint("TOPLEFT"); e.LEFT:SetPoint("BOTTOMLEFT"); e.LEFT:SetWidth(th)
-		e.RIGHT:SetPoint("TOPRIGHT"); e.RIGHT:SetPoint("BOTTOMRIGHT"); e.RIGHT:SetWidth(th)
-	end
-	function g:color(r, gg, b) self.fixed = { r, gg, b, 1 }; self:restyle() end
-	g:restyle()
-	g:Hide()
-	return g
-end
-ns.makeGlow = makeGlow
-function ns.applyGlowStyle() for _, g in ipairs(glows) do g:restyle() end end
-
--- Pop: the burst when something happens (a cooldown ready, an imbue dropping, a totem ending).
--- Its style is its owner's (General's, or an element's or the totem bar's own): a motion (grow,
--- bounce, hop, shake) with a size and speed, and optional light (a flash over the icon, a ring
--- spreading out, a star behind it), tinted by what happened. Every part is built on the frame the
--- first time it pops.
-local POP_TINT = { ready = { 1, 0.82, 0.25 }, imbue = { 0.35, 0.65, 1 }, expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 } }
--- An atlas if the client has it, else a plain texture.
-local function atlasOr(t, atlas, file)
-	local ok = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas)
-	if ok then t:SetAtlas(atlas) else t:SetTexture(file) end
-end
-local function anim(g, kind, order, smoothing)
-	local a = g:CreateAnimation(kind)
-	a:SetOrder(order)
-	if smoothing then a:SetSmoothing(smoothing) end
-	return a
-end
-local function popFx(f)
-	if f.popFx then return f.popFx end
-	local x = {}
-	-- Motions: one group each, values set on every play (size and speed can change).
-	x.grow = f:CreateAnimationGroup()
-	x.grow.a = { anim(x.grow, "Scale", 1, "OUT"), anim(x.grow, "Scale", 2, "IN_OUT") }
-	x.bounce = f:CreateAnimationGroup()
-	x.bounce.a = { anim(x.bounce, "Scale", 1, "OUT"), anim(x.bounce, "Scale", 2, "IN_OUT"), anim(x.bounce, "Scale", 3, "IN_OUT"), anim(x.bounce, "Scale", 4, "IN") }
-	x.hop = f:CreateAnimationGroup()
-	x.hop.a = { anim(x.hop, "Translation", 1, "OUT"), anim(x.hop, "Translation", 2, "IN") }
-	x.shake = f:CreateAnimationGroup()
-	x.shake.a = { anim(x.shake, "Translation", 1), anim(x.shake, "Translation", 2), anim(x.shake, "Translation", 3), anim(x.shake, "Translation", 4) }
-	x.shakeV = f:CreateAnimationGroup()
-	x.shakeV.a = { anim(x.shakeV, "Translation", 1), anim(x.shakeV, "Translation", 2), anim(x.shakeV, "Translation", 3), anim(x.shakeV, "Translation", 4) }
-	-- Light, on a frame above the icon's text.
-	local fx = CreateFrame("Frame", nil, f.effects or f)
-	fx:SetAllPoints()
-	fx:SetFrameLevel(f:GetFrameLevel() + 12)
-	fx:EnableMouse(false)
-	x.fx = fx
-	x.flash = fx:CreateTexture(nil, "OVERLAY")
-	x.flash:SetAllPoints()
-	x.flash:SetTexture("Interface\\Buttons\\WHITE8x8")
-	x.flash:SetBlendMode("ADD")
-	x.flash:SetAlpha(0)
-	x.flashAnim = x.flash:CreateAnimationGroup()
-	x.flashAnim.a = { anim(x.flashAnim, "Alpha", 1), anim(x.flashAnim, "Alpha", 2, "OUT") }
-	x.flashAnim:SetScript("OnFinished", function() x.flash:SetAlpha(0) end)
-	-- Ring and star: sized frame by frame (not scale animations), so they never reach further than
-	-- the sizes given here, a couple of icon widths.
-	x.ring = fx:CreateTexture(nil, "OVERLAY")
-	x.ring:SetPoint("CENTER")
-	atlasOr(x.ring, "ArtifactsFX-YellowRing", "Interface\\Buttons\\UI-ActionButton-Border")
-	x.ring:SetBlendMode("ADD")
-	x.ring:Hide()
-	x.star = fx:CreateTexture(nil, "BACKGROUND")
-	x.star:SetPoint("CENTER")
-	atlasOr(x.star, "AftLevelup-WhiteStarBurst", "Interface\\Cooldown\\star4")
-	x.star:SetBlendMode("ADD")
-	x.star:Hide()
-	x.bursts = {}   -- texture -> { t (elapsed), dur, from, to (sizes), spin (radians) }
-	-- Runs only while a burst does (set by playPop).
-	x.step = function(self, elapsed)
-		for tex, b in pairs(x.bursts) do
-			b.t = b.t + elapsed
-			local p = math.min(b.t / b.dur, 1)
-			local e = 1 - (1 - p) * (1 - p)   -- ease out
-			local size = b.from + (b.to - b.from) * e
-			tex:SetSize(size, size)
-			tex:SetAlpha(1 - p)
-			if b.spin then tex:SetRotation(b.spin * e) end
-			if p >= 1 then tex:Hide(); x.bursts[tex] = nil end
-		end
-		if next(x.bursts) == nil then self:SetScript("OnUpdate", nil) end
-	end
-	f.popFx = x
-	return x
-end
--- kind: ready | imbue | expired | killed (the tint); owner: whose style (nil: General's).
-function ns.playPop(f, kind, owner)
-	local st = ns.Style.get(owner, "pop")
-	local x = popFx(f)
-	local S = st.size
-	local k = 1 / math.max(st.speed, 0.1)   -- duration multiplier
-	local h = math.max(f:GetHeight(), 8)
-	for _, m in ipairs({ "grow", "bounce", "hop", "shake", "shakeV" }) do x[m]:Stop() end
-	local motion = st.motion
-	if motion == "pop" then
-		local a = x.grow.a
-		a[1]:SetScaleFrom(1, 1); a[1]:SetScaleTo(S, S); a[1]:SetDuration(0.12 * k)
-		a[2]:SetScaleFrom(S, S); a[2]:SetScaleTo(1, 1); a[2]:SetDuration(0.25 * k)
-		x.grow:Play()
-	elseif motion == "hop" then
-		local a, up = x.hop.a, h * (S - 1) * 0.8
-		a[1]:SetOffset(0, up); a[1]:SetDuration(0.12 * k)
-		a[2]:SetOffset(0, -up); a[2]:SetDuration(0.2 * k)
-		x.hop:Play()
-	elseif motion == "shake" or motion == "shakeV" then   -- side to side, or up and down
-		local g, d = x[motion], h * (S - 1) * 0.3
-		local sx, sy = motion == "shake" and 1 or 0, motion == "shakeV" and 1 or 0
-		local a = g.a
-		a[1]:SetOffset(d * sx, d * sy); a[1]:SetDuration(0.04 * k)
-		a[2]:SetOffset(-2 * d * sx, -2 * d * sy); a[2]:SetDuration(0.07 * k)
-		a[3]:SetOffset(2 * d * sx, 2 * d * sy); a[3]:SetDuration(0.07 * k)
-		a[4]:SetOffset(-d * sx, -d * sy); a[4]:SetDuration(0.05 * k)
-		g:Play()
-	else   -- bounce: overshoot, dip, settle
-		local a, u, o = x.bounce.a, 1 - (S - 1) * 0.25, 1 + (S - 1) * 0.15
-		a[1]:SetScaleFrom(1, 1); a[1]:SetScaleTo(S, S); a[1]:SetDuration(0.12 * k)
-		a[2]:SetScaleFrom(S, S); a[2]:SetScaleTo(u, u); a[2]:SetDuration(0.12 * k)
-		a[3]:SetScaleFrom(u, u); a[3]:SetScaleTo(o, o); a[3]:SetDuration(0.1 * k)
-		a[4]:SetScaleFrom(o, o); a[4]:SetScaleTo(1, 1); a[4]:SetDuration(0.08 * k)
-		x.bounce:Play()
-	end
-	local c = st.tint and POP_TINT[kind or "ready"] or { 1, 1, 1 }
-	x.flashAnim:Stop()
-	if st.flash then
-		x.flash:SetVertexColor(c[1], c[2], c[3])
-		local a = x.flashAnim.a
-		a[1]:SetFromAlpha(0); a[1]:SetToAlpha(0.8); a[1]:SetDuration(0.06 * k)
-		a[2]:SetFromAlpha(0.8); a[2]:SetToAlpha(0); a[2]:SetDuration(0.3 * k)
-		x.flashAnim:Play()
-	end
-	-- The ring spreads from just inside the icon to 2.2 icon widths; the star from 1.2 to 3.5.
-	x.bursts[x.ring], x.bursts[x.star] = nil, nil
-	x.ring:Hide(); x.star:Hide()
-	if st.ring then
-		x.ring:SetDesaturated(true)
-		x.ring:SetVertexColor(c[1], c[2], c[3])
-		x.ring:SetSize(h * 0.9, h * 0.9)
-		x.ring:Show()
-		x.bursts[x.ring] = { t = 0, dur = 0.45 * k, from = h * 0.9, to = h * 2.2 }
-	end
-	if st.star then
-		x.star:SetDesaturated(true)
-		x.star:SetVertexColor(c[1], c[2], c[3])
-		x.star:SetSize(h, h)
-		x.star:Show()
-		x.bursts[x.star] = { t = 0, dur = 0.45 * k, from = h * 1.2, to = h * 3.5, spin = -0.5 }
-	end
-	if next(x.bursts) ~= nil then x.fx:SetScript("OnUpdate", x.step) end
-end
-
--- The end of a totem, over `anchor`. Nothing here reads a secret: play() hands the gone totem's
--- last duration object to a curve and the result to the frame's SetAlpha.
--- * Killed early (it died with time left; curve 1 above 1.5 s left, 0 under 1 s): the dead totem
---   greyed under red flashing, with an optional pop, red glow and a red cross that stays up to 5 s.
---   Used by the totem bar's slots and the Earthbind / Stoneclaw elements.
--- * Ran out (opts.expired; the opposite curve, 1 up to 1.2 s left): the totem's icon pops and fades.
--- A totem that ran out never shows the first, one that was killed never the second.
-local killedCurve = ns.curve({ 0, 0, 1.2, 0, 1.25, 1, 36000, 1 })
-local expiredCurve = ns.curve({ 0, 1, 1.2, 1, 1.25, 0, 36000, 0 })
-function ns.makeEndFlash(parent, anchor, owner)
-	local kf = CreateFrame("Frame", nil, parent)
-	kf:SetAllPoints(anchor)
-	kf:SetFrameLevel(anchor:GetFrameLevel() + 8)
-	kf:EnableMouse(false)
-	kf.pop = CreateFrame("Frame", nil, kf)
-	kf.pop:SetAllPoints()
-	kf.body = CreateFrame("Frame", nil, kf.pop)
-	kf.body:SetAllPoints()
-	kf.body:SetAlpha(0)
-	kf.glow = makeGlow(kf.body, kf.body, owner)
-	kf.glow:color(1, 0.12, 0.08)
-	kf.icon = kf.body:CreateTexture(nil, "ARTWORK")
-	kf.icon:SetAllPoints()
-	kf.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-	kf.icon:SetDesaturated(true)
-	kf.red = kf.body:CreateTexture(nil, "OVERLAY")
-	kf.red:SetAllPoints()
-	kf.red:SetColorTexture(0.95, 0.12, 0.08, 0.7)
-	kf.flash = kf.body:CreateAnimationGroup()
-	local inA = kf.flash:CreateAnimation("Alpha")
-	inA:SetFromAlpha(0); inA:SetToAlpha(1); inA:SetDuration(0.12); inA:SetOrder(1)
-	local outA = kf.flash:CreateAnimation("Alpha")
-	outA:SetFromAlpha(1); outA:SetToAlpha(0); outA:SetDuration(1.4); outA:SetStartDelay(0.5); outA:SetOrder(2)
-	kf.flash:SetScript("OnFinished", function() kf.body:SetAlpha(0); kf.glow:Hide() end)
-	-- Ran out: quicker, in colour.
-	kf.quick = kf.body:CreateAnimationGroup()
-	local qIn = kf.quick:CreateAnimation("Alpha")
-	qIn:SetFromAlpha(0); qIn:SetToAlpha(1); qIn:SetDuration(0.05); qIn:SetOrder(1)
-	local qOut = kf.quick:CreateAnimation("Alpha")
-	qOut:SetFromAlpha(1); qOut:SetToAlpha(0); qOut:SetDuration(0.5); qOut:SetStartDelay(0.2); qOut:SetOrder(2)
-	kf.quick:SetScript("OnFinished", function() kf.body:SetAlpha(0); kf.glow:Hide() end)
-	kf.mark = CreateFrame("Frame", nil, kf)
-	kf.mark:SetAllPoints()
-	kf.mark:Hide()
-	kf.mark.icon = kf.mark:CreateTexture(nil, "ARTWORK")
-	kf.mark.icon:SetAllPoints()
-	kf.mark.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-	kf.mark.icon:SetDesaturated(true)
-	kf.mark.icon:SetAlpha(0.6)
-	kf.mark.x = kf.mark:CreateTexture(nil, "OVERLAY")
-	kf.mark.x:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
-	kf.mark.x:SetPoint("CENTER")
-	-- The dead totem's icon (secret in combat is fine: SetTexture takes it).
-	function kf:setIcon(icon)
-		pcall(self.icon.SetTexture, self.icon, icon)
-		pcall(self.mark.icon.SetTexture, self.mark.icon, icon)
-	end
-	-- dur: the gone totem's last duration object. opts: expired (ran out, else killed early), and
-	-- for killed early pop, glow, mark (booleans).
-	function kf:play(dur, opts)
-		local curve = opts.expired and expiredCurve or killedCurve
-		if not curve then return end
-		local ok, a = ns.try("end flash", dur.EvaluateRemainingDuration, dur, curve)
-		if not ok then return end
-		self:SetAlpha(a)
-		local size = anchor:GetWidth()
-		self.glow:fit(size)
-		self.glow:SetShown(opts.glow and true or false)
-		self.red:SetShown(not opts.expired)
-		self.icon:SetDesaturated(not opts.expired)
-		self.mark.x:SetSize(size * 0.7, size * 0.7)
-		self.flash:Stop(); self.quick:Stop()
-		if opts.expired then self.quick:Play() else self.flash:Play() end
-		if opts.pop then ns.playPop(self.pop, opts.expired and "expired" or "killed", owner) end
-		if opts.mark then
-			self.mark:Show()
-			local token = {}
-			self.markToken = token
-			C_Timer.After(5, function() if self.markToken == token then self.mark:Hide() end end)
-		else self.mark:Hide() end
-	end
-	return kf
-end
-
--- owner: whose glow and pop style it uses (an element key, "totembar", or nil for General's).
-local function makeIcon(parent, size, owner)
-	local f = CreateFrame("Frame", nil, parent)
-	f.owner = owner
-	f:SetSize(size, size)
-	f.tex = f:CreateTexture(nil, "ARTWORK")
-	f.tex:SetAllPoints()
-	f.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-	f.manaOverlay = f:CreateTexture(nil, "ARTWORK", nil, 2)
-	f.manaOverlay:SetAllPoints(f.tex)
-	f.manaOverlay:SetColorTexture(0.2, 0.45, 1, 0.55)
-	f.manaOverlay:Hide()
-	f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
-	f.cd:SetAllPoints()
-	f.cd:SetDrawEdge(false)
-	-- Text sits on its own frame above the cooldown so the swipe never dims it.
-	f.textFrame = CreateFrame("Frame", nil, f)
-	f.textFrame:SetAllPoints()
-	f.textFrame:SetFrameLevel(f.cd:GetFrameLevel() + 2)
-	f.count = f.textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
-	f.count:SetFont(STANDARD_TEXT_FONT, math.floor(size * 0.45), "OUTLINE")
-	f.count:SetPoint("BOTTOMRIGHT", 2, -2)
-	f.count:SetJustifyH("RIGHT")
-	local okFS, cdText = pcall(f.cd.GetCountdownFontString, f.cd)
-	if okFS and cdText then pcall(cdText.SetDrawLayer, cdText, "OVERLAY", 7) end
-	-- Red ring just inside the icon edge (ns.makeRing), so an exact-size frame on top covers it completely.
-	f.ring = ns.makeRing(f.textFrame, f.tex)
-	-- Pulse: the icon fades in and out, used for "missing" warnings.
-	f.pulse = ns.makePulse(f.tex, "fade")
-	f.SetPulsing = function(self, on)
-		if not on then self.pulse:Stop()
-		elseif not self.pulse:IsPlaying() then self.pulse:Play() end
-	end
-	-- r, g, b, a: a colour other than the warning red (the shock's blue "no mana" ring).
-	f.SetRingShown = function(self, shown, r, g, b, a)
-		if shown then self.ring:color(r, g, b, a) end
-		self.ring:show(shown)
-	end
-	-- Glow (gold by default) and pop, for warnings and moments worth catching the eye.
-	f.glowF = makeGlow(f, f, owner)
-	f.SetGlowShown = function(self, shown, r, g, b)
-		if shown then
-			self.glowF:fit(self:GetWidth())
-			if r then self.glowF:color(r, g, b) elseif self.glowF.fixed then self.glowF.fixed = nil; self.glowF:restyle() end
-		end
-		self.glowF:SetShown(shown and true or false)
-	end
-	f.Pop = function(self, kind) ns.playPop(self, kind or "ready", self.owner) end
-	return f
-end
+local makeIcon = ns.makeIcon   -- ShamanForever_Widgets.lua
 
 local shield = makeIcon(root, DEFAULTS.iconSize, "shield")
 shield.count:Hide()
@@ -470,8 +122,9 @@ imbue.count:Hide()
 
 -- Cooldown elements: a spell's cooldown, plus for a totem the active time of ours in its slot, or for
 -- Fire Nova whether the fire totem it needs is out. Totem slots: 1 fire, 2 earth, 3 water, 4 air.
--- Adding one is a line here; spellKey is its spell in ns.Spells, icon the fallback until the
--- spellbook has it, duration the totem's lifetime in seconds (for the options previews).
+-- Adding one starts with a line here (its look and page go in the Options files); spellKey is its
+-- spell in ns.Spells, icon the fallback until the spellbook has it, duration the totem's lifetime in
+-- seconds (for the options previews).
 -- spell is the display name (the client's).
 local COOLDOWNS = {
 	{ key = "earthbind", spellKey = "earthbind", icon = 136102, totemSlot = 2, duration = 45, school = "earth" },
@@ -504,9 +157,7 @@ for _, def in ipairs(COOLDOWNS) do
 		-- cooldown"; nested, the two multiply.
 		f.readyGate = CreateFrame("Frame", nil, f.effects)
 		f.readyGate:SetAllPoints()
-		f.readyGlow = makeGlow(f.readyGate, f, def.key)
-	end
-	if def.needsTotem then
+		f.readyGlow = ns.makeGlow(f.readyGate, f, def.key)
 		-- "No totem" warning layer: a grey copy of the icon and a red ring, above the icon and below the
 		-- cooldown swipe. Its alpha is set from a possibly-secret boolean (see refreshCooldown), so it
 		-- always pulses and is simply invisible while a totem is out.
@@ -617,7 +268,7 @@ local function sizeOf(key)
 	local gi = findElement(key)
 	return groupSize(gi and db.groups[gi])
 end
-ns.groupSize, ns.sizeOf = groupSize, sizeOf
+ns.sizeOf = sizeOf
 
 local function isEnabled(key) return findElement(key) ~= nil and showMode(key) ~= "never" end
 
@@ -645,11 +296,10 @@ end
 
 -- Makes db.groups consistent: fills missing group fields, drops unknown, unavailable and duplicate
 -- members, and places every element that is in no group. Elements never seen before (new in an
--- update, or test ones) show; ones seen before were hidden under the old rule, so they come back
--- into the first group set to never show.
+-- update, or test ones) show; ones seen before but in no group (older saves
+-- hid an element that way) come back into the first group, set to never show.
 local function sanitize()
-	if db.shieldTrack ~= "either" and not SHIELDS[db.shieldTrack] then db.shieldTrack = "lightning" end
-	if not SHIELDS[acct.lastShield] then acct.lastShield = "lightning" end
+	ns.Shield.sanitize(db, acct)
 	if type(db.groups) ~= "table" then db.groups = {} end
 	if type(db.known) ~= "table" then db.known = {} end
 	local seen = {}
@@ -741,9 +391,10 @@ end
 -- Combat-only visibility uses Blizzard's secure state driver, the standard technique for this. The
 -- shield's group and element frames are ancestors of Blizzard's protected aura button, so an addon
 -- Show/Hide/SetAlpha on them is silently dropped in combat (tested: alpha 0 out of combat never came
--- back). The driver's manager shows and hides from untainted code instead. Groups and elements are driven separately, so an element shows only when
--- both allow it. The manager re-applies its state every 0.2s and does not show a frame it lets go
--- of, so a driven frame is never shown or hidden by hand. Only called out of combat.
+-- back). The driver's manager shows and hides from untainted code instead.
+-- Groups and elements are driven separately, so an element shows only when both allow it. The
+-- manager re-applies its state every 0.2s and does not show a frame it lets go of, so a driven frame
+-- is never shown or hidden by hand. Only called out of combat.
 local driven = {}
 local function setDriven(frame, want)
 	if want == (driven[frame] or false) then return end
@@ -864,7 +515,7 @@ end
 
 -- Deferred in combat: the shield's group is an ancestor of Blizzard's protected aura button, so
 -- showing, hiding, moving or reparenting it in combat is silently dropped.
-local styleNative, updateTray   -- defined further down
+local updateTray   -- defined further down
 local function layoutElements()
 	if ns.deferInCombat("layout", layoutElements) then return end
 	for key, e in pairs(ELEMENTS) do
@@ -872,11 +523,11 @@ local function layoutElements()
 	end
 	for gi in ipairs(db.groups) do layoutGroup(gi) end
 	for gi = #db.groups + 1, #groupFrames do hideFrame(groupFrames[gi]) end
-	styleNative()   -- the shield's alpha compensation follows its group's opacity
+	ns.Shield.style()   -- the shield's alpha compensation follows its group's opacity
 	ns.refitRings()
 	updateTray()
-	if ns.TotemBar then ns.TotemBar.layout() end
-	if ns.RefreshOptions then ns.RefreshOptions() end
+	ns.TotemBar.layout()
+	ns.RefreshOptions()
 end
 
 ------------------------------------------------------------------------
@@ -1217,7 +868,7 @@ do
 	options:SetSize(90, 22)
 	options:SetPoint("RIGHT", lock, "LEFT", -6, 0)
 	options:SetText("Options")
-	options:SetScript("OnClick", function() if ns.OpenOptions then ns.OpenOptions("layout") end end)
+	options:SetScript("OnClick", function() ns.OpenOptions("layout") end)
 	local row2 = CreateFrame("Frame", nil, tray)
 	row2:SetPoint("TOPLEFT", row, "BOTTOMLEFT", 0, -2)
 	row2:SetPoint("RIGHT", tray, "RIGHT", -10, 0)
@@ -1228,8 +879,8 @@ do
 		function(keep)
 			if keep then
 				optionsSteppedAside = false
-				if ns.OpenOptions then ns.OpenOptions() end
-			elseif ns.HideOptions and ns.HideOptions() then
+				ns.OpenOptions()
+			elseif ns.HideOptions() then
 				optionsSteppedAside = true
 			end
 		end)
@@ -1241,7 +892,7 @@ local function stepOptionsAside(unlocked)
 	if unlocked == wasUnlocked then return end
 	wasUnlocked = unlocked
 	if unlocked then
-		optionsSteppedAside = not acct.keepOptionsOpen and ns.HideOptions and ns.HideOptions() or false
+		optionsSteppedAside = not acct.keepOptionsOpen and ns.HideOptions() or false
 	elseif optionsSteppedAside then
 		optionsSteppedAside = false
 		ns.OpenOptions()
@@ -1286,312 +937,8 @@ function ns.lockInCombat()
 	showGuides()
 	updateTray()
 	ns.retryAfterCombat("layout", layoutElements)
-	if ns.TotemBar then ns.TotemBar.lockInCombat() end
-	if ns.RefreshOptions then ns.RefreshOptions() end
-end
-
-------------------------------------------------------------------------
--- Shield (Lightning or Water): underlay (our "no shield" look) + Blizzard's secure aura button on top
---
--- The two shields exclude each other, so one aura slot matches every shield the player tracks
--- (db.shieldTrack) and Blizzard shows whichever is up, switching exactly when the player swaps
--- mid-fight. Both have 3 charges, so one charge bar fits both.
---
--- How it works, and the one inference it makes (reviewed 2026-09-23):
--- 1. Blizzard's CustomAuraContainer draws the shield: icon, charge count, charge bar and duration
---    swipe. Its untainted code reads the aura, so all of this is exact in combat. Sanctioned.
--- 2. Under Blizzard's button sits our underlay: the grey icon, red ring and pulse that say "no
---    shield". It should show only when Blizzard's button is hidden, but nothing tells addon code
---    when that happens in combat: every aura API throws for tainted code in combat, even
---    GetAuraDuration and GetUnitAuraInstanceIDs, UNIT_AURA stops reaching the addon, script
---    handlers under the button never run, and the button only animates its own descendants
---    (all tested 2026-09-23). So the underlay follows `believedUp`:
---    * out of combat: exact, read from the aura (refreshShield);
---    * in combat: set to up when UNIT_SPELLCAST_SUCCEEDED reports our own cast of a tracked shield.
---      Our own cast events are documented as never secret (SecretWhenUnitSpellCastRestricted
---      only hides other units' casts); the combat log is never read. The inference is only
---      "a successful shield cast means that shield is up". Casting an untracked shield sets it to
---      down, since that shield replaces the tracked one (the same inference, applied to exclusivity).
---    * Nothing else can set it to down in combat. A shield that drops mid-fight shows the underlay at
---      the "No shield: combat fallback" strength (underlayUp) until the recast or combat ends.
---    * Why keep the inference: without it, entering combat with no shield and casting one mid-fight
---      leaves the full "no shield" look bleeding through the live shield until combat ends
---      (at group opacity below 100%). Tried and kept, 2026-09-23.
--- 3. The underlay matters at all only because the group's opacity makes Blizzard's button
---    translucent, so the underlay bleeds through it; nativeIconAlpha compensates so the stack
---    matches the group's opacity. At 100% group opacity the button hides the underlay completely.
-------------------------------------------------------------------------
--- Per shield at runtime: name (the client's), spellID and bookIcon (highest known rank), known. The IDs
--- that count as it are ns.Spells' (seeds, spellbook, and the live aura's, learned here).
-for _, s in pairs(SHIELDS) do s.name = Spells.name(s.spell) end
-local believedUp = false      -- see above: exact out of combat, set up by our own cast in combat
-local native = { container = nil, button = nil, icon = nil, fs = nil, cd = nil, bar = nil, ticks = nil, overlay = nil,
-	err = nil }
-
-local function tracksShield(key) return db.shieldTrack == "either" or db.shieldTrack == key end
-
--- Which shield the no-shield look shows: the tracked one, or in "either" mode the one last cast or
--- seen, falling back to one the player actually knows.
-local function underlayShield()
-	if SHIELDS[db.shieldTrack] then return db.shieldTrack end
-	if SHIELDS[acct.lastShield] and SHIELDS[acct.lastShield].known then return acct.lastShield end
-	for _, key in ipairs(SHIELD_ORDER) do if SHIELDS[key].known then return key end end
-	return "lightning"
-end
-function ns.shieldIcon()
-	local s = SHIELDS[underlayShield()]
-	return s.bookIcon or s.icon
-end
-
--- The shield an own cast belongs to, if any (any rank: ns.Spells matches by ID, then by the client's name).
-local function shieldForSpell(id)
-	local spell = Spells.keyOf(id)
-	for _, key in ipairs(SHIELD_ORDER) do
-		if SHIELDS[key].spell == spell then return key end
-	end
-end
-
--- The underlay is meant to show only when Blizzard's button is hidden, i.e. when the shield is down,
--- so grey and tint apply unconditionally. Frame alpha is applied per texture, so while the shield is
--- up the translucent button stacks on the underlay and reads darker than the shock icon. The engine
--- does not tell us about the hide in combat, so the ring and the underlay strength follow our belief:
--- faded while believed up, full when believed down. Blizzard's icon alpha then compensates for the
--- remaining bleed-through (see nativeIconAlpha) so the stack sums to the display opacity exactly.
-local function anyTrackedShieldKnown()
-	for key, s in pairs(SHIELDS) do if tracksShield(key) and s.known then return true end end
-	return false
-end
-local function applyEmptyLook()
-	shield.tex:SetTexture(ns.shieldIcon())
-	if not anyTrackedShieldKnown() then
-		-- Not learned yet (or Water Shield without its talent): a plain grey icon, as for cooldowns.
-		shield.tex:SetDesaturated(true)
-		shield.tex:SetVertexColor(1, 1, 1)
-		shield.tex:SetAlpha(1)
-		shield:SetRingShown(false)
-		shield:SetPulsing(false)
-		return
-	end
-	shield.tex:SetDesaturated(db.emptyGrey)
-	if db.emptyTint then shield.tex:SetVertexColor(1, 0.35, 0.35) else shield.tex:SetVertexColor(1, 1, 1) end
-	shield.tex:SetAlpha(believedUp and db.underlayUp or 1)
-	shield:SetRingShown(not believedUp and db.emptyRing)
-	-- Only while known down: in combat a drop is not seen until the recast or combat ends.
-	shield:SetPulsing(not believedUp and db.emptyPulse)
-end
-
--- With display opacity a and underlay strength u, an icon alpha b gives a stacked result of
--- a*b + (1 - a*b)*a*u; solving that for a yields b = (1 - u) / (1 - a*u). The display opacity is
--- that of the shield's group.
-local function nativeIconAlpha()
-	local gi = findElement("shield")
-	local a, u = gi and db.groups[gi].alpha or 1, db.underlayUp
-	local d = 1 - a * u   -- 0 at full opacity and full underlay: then any b stacks the same, and 1 is natural
-	local b = (u > 0 and d > 0) and (1 - u) / d or 1
-	return math.min(math.max(b * db.shieldIconAlpha, 0.05), 1)
-end
-
-local function setBelievedUp(up)
-	believedUp = up
-	applyEmptyLook()
-end
-
--- Every spell ID of every tracked shield: what Blizzard's aura slot matches.
-local function shieldIDMap()
-	local map = {}
-	for key, s in pairs(SHIELDS) do
-		if tracksShield(key) then
-			for id in pairs(Spells.ids(s.spell)) do map[id] = true end
-		end
-	end
-	return map
-end
-
--- The slot's filter can only change out of combat; a change in combat waits for it to end.
-local filtered = {}   -- the IDs last given to the filter
-local function applyShieldFilter()
-	if not native.container or native.err then return end
-	if ns.deferWhileAurasSecret("shield filter", applyShieldFilter) then return end
-	local map = shieldIDMap()
-	local ok = ns.try("shield filter", native.container.SetAuraSlotCandidateFilters, native.container, "shield",
-		{ includeSpellIDs = map })
-	if ok then filtered = map else ns.retryAfterCombat("shield filter", applyShieldFilter) end
-end
-
-local function learnShieldID(key, id)
-	local s = SHIELDS[key]
-	if type(id) ~= "number" or isSecret(id) then return end
-	Spells.learn(s.spell, id)
-	if tracksShield(key) and not filtered[id] then applyShieldFilter() end
-end
-
--- Blizzard's button and its parts are off limits to addon code in combat, and while auras are
--- secret; defer until that ends.
-function styleNative()
-	if not native.button then return end
-	if ns.deferWhileAurasSecret("shield style", styleNative) then return end
-	-- One pcall: Blizzard's button can refuse addon calls while auras are secret (in combat, and
-	-- possibly in PvP or encounters); a failure is noted for /sf debug and retried when combat ends.
-	local ok = ns.try("shield style", function()
-		local size = sizeOf("shield")
-		native.container:SetSize(size, size)
-		-- Moving the shield to another group reparents it, which can drop the container back under
-		-- the underlay and its ring; restate the placement from setupNative.
-		native.container:SetFrameStrata(shield:GetFrameStrata())
-		native.container:SetFrameLevel(shield.textFrame:GetFrameLevel() + 5)
-		native.button:SetSize(size, size)
-		for i, t in ipairs(native.tickTextures or {}) do
-			t:ClearAllPoints()
-			t:SetPoint("TOP", native.ticks, "TOPLEFT", size * i / native.maxCharges, 0)
-			t:SetPoint("BOTTOM", native.ticks, "BOTTOMLEFT", size * i / native.maxCharges, 0)
-		end
-		native.icon:SetAlpha(nativeIconAlpha())
-		native.bar:SetHeight(db.chargeBarHeight)
-		native.bar:SetStatusBarColor(db.chargeBarColor[1], db.chargeBarColor[2], db.chargeBarColor[3], db.chargeBarColor[4] or 1)
-		native.bar:SetAlpha(db.showBar and 1 or 0)
-		native.ticks:SetAlpha(db.showBar and 1 or 0)
-		native.fs:SetAlpha(db.showCount and 1 or 0)
-		native.fs:SetFont(STANDARD_TEXT_FONT, db.countSize, "OUTLINE")
-		native.fs:ClearAllPoints()
-		if db.countPos == "center" then
-			native.fs:SetPoint("CENTER", native.button, "CENTER", 0, 0); native.fs:SetJustifyH("CENTER")
-		else
-			native.fs:SetPoint("BOTTOMRIGHT", native.button, "BOTTOMRIGHT", 2, -2); native.fs:SetJustifyH("RIGHT")
-		end
-		if native.timer then native.timer:apply() end
-	end)
-	if not ok then ns.retryAfterCombat("shield style", styleNative) end
-end
-
--- Called by Blizzard (untainted) once, right after it creates the slot button.
-local function initNativeButton(button)
-	local size = sizeOf("shield")
-	button:SetSize(size, size)
-	-- Slot frames are positioned by the caller, not by the container's flow layout.
-	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
-	-- No tooltip and click-through: disable mouse input before Blizzard locks the button down.
-	pcall(button.EnableMouse, button, false)
-	pcall(button.SetMouseClickEnabled, button, false)
-	pcall(button.SetMouseMotionEnabled, button, false)
-
-	local tex = button:CreateTexture(nil, "ARTWORK")
-	tex:SetAllPoints()
-	tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-	tex:SetAlpha(nativeIconAlpha())
-	button:SetIcon(tex)
-	native.icon = tex
-
-	local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
-	cd:SetAllPoints()
-	-- Its timer: swipe and countdown text only (no bar: nothing of ours can follow Blizzard's time).
-	native.timer = ns.Timer.new(button, "shield", "uptime", { cd = cd, anchor = button, noBar = true })
-	native.timer:apply()
-	button:SetDurationCooldown(cd)
-	native.cd = cd
-
-	-- Our parts live on an overlay frame above the cooldown so nothing Blizzard hides takes them along.
-	local overlay = CreateFrame("Frame", nil, button)
-	overlay:SetAllPoints()
-	overlay:SetFrameLevel(cd:GetFrameLevel() + 2)
-	native.overlay = overlay
-
-	-- Blizzard writes the count immediately on registration, so the font must already be set.
-	local fs = overlay:CreateFontString(nil, "OVERLAY", nil, 7)
-	fs:SetFont(STANDARD_TEXT_FONT, db.countSize, "OUTLINE")
-	if db.countPos == "center" then
-		fs:SetPoint("CENTER", button, "CENTER", 0, 0); fs:SetJustifyH("CENTER")
-	else
-		fs:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 2, -2); fs:SetJustifyH("RIGHT")
-	end
-	button:SetApplicationCount(fs)
-	native.fs = fs
-
-	-- Charge bar along the bottom edge: min 0 so one charge is one third, not empty.
-	local bar = CreateFrame("StatusBar", nil, overlay)
-	bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 0, 0)
-	bar:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 0)
-	bar:SetHeight(db.chargeBarHeight)
-	bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
-	bar:SetStatusBarColor(db.chargeBarColor[1], db.chargeBarColor[2], db.chargeBarColor[3], db.chargeBarColor[4] or 1)
-	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
-	bar.bg:SetAllPoints()
-	bar.bg:SetColorTexture(0, 0, 0, 0.6)
-	local maxCharges = 3
-	button:SetApplicationBar(bar, { minApplications = 0, maxApplications = maxCharges })
-	native.bar = bar
-	local ticks = CreateFrame("Frame", nil, overlay)
-	ticks:SetAllPoints(bar)
-	ticks:SetFrameLevel(bar:GetFrameLevel() + 1)
-	native.tickTextures, native.maxCharges = {}, maxCharges
-	for i = 1, maxCharges - 1 do
-		local t = ticks:CreateTexture(nil, "OVERLAY")
-		t:SetColorTexture(0, 0, 0, 0.9)
-		t:SetWidth(1)
-		t:SetPoint("TOP", ticks, "TOPLEFT", size * i / maxCharges, 0)
-		t:SetPoint("BOTTOM", ticks, "BOTTOMLEFT", size * i / maxCharges, 0)
-		table.insert(native.tickTextures, t)
-	end
-	native.ticks = ticks
-
-	-- Note: script handlers on anything under Blizzard's button never run (tested: OnShow/OnHide on a
-	-- child frame fired zero times), so there is no way to learn when the button hides.
-
-	bar:SetAlpha(db.showBar and 1 or 0)
-	ticks:SetAlpha(db.showBar and 1 or 0)
-	fs:SetAlpha(db.showCount and 1 or 0)
-	native.button = button
-end
-
--- Out of combat only: made when combat ends after a /reload in combat.
-local function setupNative()
-	if native.container or native.err then return end
-	if ns.deferWhileAurasSecret("shield container", setupNative) then return end
-	local ok, err = pcall(function()
-		local c = CreateFrame("AuraContainer", "ShamanForeverAuraContainer", shield, "CustomAuraContainerTemplate")
-		c:SetPoint("TOPLEFT", shield, "TOPLEFT", 0, 0)
-		c:SetSize(sizeOf("shield"), sizeOf("shield"))
-		-- Intrinsic frames do not inherit placement; match the HUD's strata (HIGH would float over other
-		-- addons' dialogs) and use frame level alone to sit above the underlay and its ring.
-		c:SetFrameStrata(shield:GetFrameStrata())
-		c:SetFrameLevel(shield.textFrame:GetFrameLevel() + 5)
-		c:SetUnit("player")
-		pcall(c.EnableMouse, c, false)   -- unlocked drags start on the group frame underneath
-		native.container = c
-		c:AddAuraSlot("shield", "HELPFUL", {
-			candidateFilters = { includeSpellIDs = shieldIDMap() },
-			initializeFrame = initNativeButton,
-		})
-	end)
-	if not ok then
-		native.err = tostring(err)
-		if native.container then native.container:Hide() end
-		say("Blizzard aura container failed on this client; the shield icon will not update: %s", native.err)
-	else
-		styleNative()   -- a layout queued before it (a /reload in combat) found no button to style
-	end
-end
-
--- Auras can be secret out of combat too (PvP matches, encounters): then keep the belief.
-local function aurasReadable() return not InCombatLockdown() and not ns.aurasSecret() end
-
--- Out of combat the auras are readable: sync our belief and learn the live spell IDs. Looked up by
--- the client's name for the shield, which every rank shares.
-local function refreshShield()
-	if not aurasReadable() then return end
-	local upKey
-	for _, key in ipairs(SHIELD_ORDER) do
-		local s = SHIELDS[key]
-		if s.known then
-			local ok, aura = safe(C_UnitAuras.GetAuraDataBySpellName, "player", s.name, "HELPFUL")
-			if not ok then return end
-			if aura then
-				upKey = key
-				if not isSecret(aura.spellId) then learnShieldID(key, aura.spellId) end
-			end
-		end
-	end
-	if upKey then acct.lastShield = upKey end
-	setBelievedUp(upKey ~= nil and tracksShield(upKey))
+	ns.TotemBar.lockInCombat()
+	ns.RefreshOptions()
 end
 
 ------------------------------------------------------------------------
@@ -1639,6 +986,7 @@ local function onGCD(spellID)
 	if not ok or type(info) ~= "table" or isSecret(info.isOnGCD) then return false end
 	return info.isOnGCD == true
 end
+ns.onGCD = onGCD
 -- The spell's own cooldown without the GCD (ignoreGCD, on Forever since 12.0.5): true when none is
 -- running, false when one is, nil when that can't be told (secret, or an older client).
 local function ownCooldownOver(spellID)
@@ -1674,35 +1022,6 @@ local function cooldownFor(f, key, spellID)
 	return ok and dur or nil
 end
 
--- The global cooldown on the shield, when its Global cooldown style is on. The shield's time left
--- is Blizzard's aura button's own cooldown, so the GCD gets its own sweep, above that button (it
--- darkens the charges too, for the GCD's length). Timed by the shown shield's spell, while that is on
--- the GCD (read in SPELL_UPDATE_COOLDOWN, as the timers are).
-local shieldGCD = CreateFrame("Cooldown", nil, shield, "CooldownFrameTemplate")
-shieldGCD:SetAllPoints()
-shieldGCD:SetDrawEdge(false)
-shieldGCD:SetDrawBling(false)
-shieldGCD:SetHideCountdownNumbers(true)
-shieldGCD:SetSwipeTexture("Interface\\Buttons\\WHITE8x8")
-shieldGCD:SetSwipeColor(0, 0, 0, 0.6)
-local function refreshShieldGCD()
-	local id = isEnabled("shield") and ns.Style.value("shield", "gcd", "show") and Spells.known(SHIELDS[underlayShield()].spell)
-	local d
-	if id and onGCD(id) then
-		local ok, dur = safe(C_Spell.GetSpellCooldownDuration, id)
-		d = ok and dur or nil
-	end
-	if not d then
-		-- isOnGCD is only vouched for inside SPELL_UPDATE_COOLDOWN: elsewhere a running sweep stays
-		-- (it ends on its own), unless the sweep is off.
-		if inCooldownEvent or not id then shieldGCD:Clear() end
-		return
-	end
-	-- Above Blizzard's button, wherever regrouping left the container.
-	shieldGCD:SetFrameLevel((native.container or shield.textFrame):GetFrameLevel() + 10)
-	shieldGCD:SetCooldownFromDurationObject(d)
-end
-
 local function refreshShockCooldown()
 	if not shockSpellID or not isEnabled("shock") then return end
 	local dur = cooldownFor(shock, "shock", shockSpellID)
@@ -1725,162 +1044,6 @@ local function refreshShockMana()
 end
 
 ------------------------------------------------------------------------
--- Weapon imbue (main hand): warns while no shaman imbue is on, shows which one is and, near the end,
--- its time left. Imbues are item data, not auras: C_Item.GetWeaponEnchantInfo lists them with
--- enchantType Imbue (C_PaperDollInfo.GetTemporaryEnchantmentInfo only covers stones and oils, tested
--- 2026-09-23). The API is not documented as secret, so it is read directly every time. If a read fails (for example in combat) the icon shows
--- "?" rather than guessing, and /sf debug says what came back; fallbacks wait until the limits are known.
-------------------------------------------------------------------------
--- The key is also the spell's key in ns.Spells; name is its display name (the client's). ids are
--- enchant IDs (item data), not spell IDs.
-local IMBUES = {
-	rockbiter   = { icon = 136086, ids = { 29, 6, 1, 503, 1663, 683, 1664 } },
-	flametongue = { icon = 135814, ids = { 5, 4, 3, 523, 1665, 1666 } },
-	frostbrand  = { icon = 135847, ids = { 2, 12, 524, 1667, 1668 } },
-	windfury    = { icon = 136018, ids = { 283, 284, 525, 1669 } },
-}
-for key, m in pairs(IMBUES) do m.name = Spells.name(key) end
-local IMBUE_ORDER = { "rockbiter", "flametongue", "frostbrand", "windfury" }
-local MAIN_HAND = Enum and Enum.WeaponSlot and Enum.WeaponSlot.MainHand or 0
-local IMBUE_TYPE = Enum and Enum.ItemEnchantType and Enum.ItemEnchantType.Imbue or 3
-
--- Recognised by enchant ID (seeded from the vanilla ranks), else by icon, else learned from our own cast.
-local imbueByID = {}
-for key, m in pairs(IMBUES) do
-	for _, id in ipairs(m.ids) do imbueByID[id] = key end
-end
-
--- key: the imbue on (nil = none); unreadable: the last read failed; read: what it said, for /sf debug.
--- total: the longest time left seen for this imbue, its full length as far as we know (swipe and bar).
--- castKey, castAt: our last imbue cast and when. changedAt: when the weapon's imbue last changed (a
--- new enchant, or its time going up: a recast); lastID, lastLeft: the read before.
-local imbueState = { key = nil, expiresAt = nil, total = nil, unreadable = false, read = "not checked", castKey = nil, castAt = 0,
-	changedAt = 0 }
-
--- Time left: a timer fed the imbue's readable time. imbue.timer only shows "?" when unreadable.
-imbue.upTimer = ns.Timer.new(imbue, "imbue", "uptime", { cd = imbue.cd, school = "spirit" })
-imbue.timer = imbue.textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
-imbue.timer:SetFont(STANDARD_TEXT_FONT, 16, "OUTLINE")
-imbue.timer:SetPoint("CENTER")
-
-local function imbueIconFor(key)
-	if not IMBUES[key] then key = "rockbiter" end
-	local _, icon = Spells.known(key)
-	return icon or IMBUES[key].icon
-end
-
--- The main hand's imbue entry (enchantID, timeLeft in ms, enchantIconID), false when none is on,
--- nil when it cannot be read.
-local function readMainHand()
-	if not (C_Item and C_Item.GetWeaponEnchantInfo) then return nil end
-	local ok, list = pcall(C_Item.GetWeaponEnchantInfo, MAIN_HAND)
-	if not ok or isSecret(list) or type(list) ~= "table" then return nil end
-	for _, w in ipairs(list) do
-		if isSecret(w.hasEnchant) or isSecret(w.enchantType) then return nil end
-		if w.hasEnchant and w.enchantType == IMBUE_TYPE then
-			if isSecret(w.enchantID) or isSecret(w.timeLeft) or isSecret(w.enchantIconID) then return nil end
-			return w
-		end
-	end
-	return false
-end
-
-local function imbueKeyFor(w)
-	local key = acct.imbueIDs[w.enchantID] or imbueByID[w.enchantID]
-	if key then return key end
-	for k, m in pairs(IMBUES) do
-		if w.enchantIconID == m.icon or w.enchantIconID == imbueIconFor(k) then return k end
-	end
-end
-
-local imbueIcon = imbueIconFor("rockbiter")
--- The icon while no imbue is on: the player's pick, or the last one used.
-local function preferredImbueIcon()
-	return imbueIconFor(db.imbuePreferred == "last" and (acct.imbueLast or "rockbiter") or db.imbuePreferred)
-end
-ns.preferredImbueIcon = preferredImbueIcon
-
-local function paintImbue(now)
-	local key = imbueState.key
-	local unreadable = imbueState.unreadable
-	local left = key and imbueState.expiresAt and imbueState.expiresAt - now
-	local warnAt = db.imbueWarnMins * 60
-	local showTime = left ~= nil and warnAt > 0 and left <= warnAt
-	if key then
-		imbueIcon = imbueIconFor(key)
-		imbue.tex:SetDesaturated(false)
-		imbue:SetRingShown(false)
-		imbue:SetPulsing(false)
-		imbue:SetGlowShown(false)
-	else
-		imbueIcon = preferredImbueIcon()
-		imbue.tex:SetDesaturated(db.imbueMissingGrey)
-		imbue:SetRingShown(db.imbueMissingRing)
-		imbue:SetPulsing(db.imbuePulse)
-		imbue:SetGlowShown(db.imbueGlow and not unreadable)
-	end
-	imbue.tex:SetTexture(imbueIcon)
-	if unreadable then
-		imbue:SetRingShown(false)
-		imbue:SetPulsing(false)
-		imbue.timer:SetText("?")
-		imbue.timer:SetTextColor(1, 0.82, 0)
-	end
-	imbue.timer:SetShown(unreadable)
-	if showTime and not unreadable then
-		local total = math.max(imbueState.total or left, left)
-		imbue.upTimer:setTime(imbueState.expiresAt - total, total)
-		if left < 60 then imbue.upTimer:setTint(1, 0.3, 0.3) else imbue.upTimer:setTint(nil) end
-	else
-		imbue.upTimer:clear()
-	end
-	-- Hidden by alpha, not Hide, so it keeps its place in the group and shows again at once.
-	imbue:SetAlpha((acct.locked and key and db.imbueHideActive and not showTime and not unreadable) and 0 or 1)
-end
-
-local function refreshImbue()
-	if not isEnabled("imbue") then return end
-	local now = GetTime()
-	local r = readMainHand()
-	local had = imbueState.key
-	imbueState.unreadable = r == nil
-	imbueState.key, imbueState.expiresAt = nil, nil
-	if r == nil then
-		imbueState.read = "unreadable" .. (InCombatLockdown() and " (in combat)" or "")
-	elseif r == false then
-		imbueState.read = "no imbue"
-		imbueState.lastID, imbueState.lastLeft = nil, nil
-	else
-		local key = imbueKeyFor(r)
-		local left = r.timeLeft / 1000
-		if r.enchantID ~= imbueState.lastID or left > (imbueState.lastLeft or 0) + 1 then imbueState.changedAt = now end
-		imbueState.lastID, imbueState.lastLeft = r.enchantID, left
-		-- Unknown enchant that changed within 3 s of our cast: it is that imbue. (One that didn't change
-		-- is still the old imbue, which must not be learned under the new name.)
-		if not key and math.abs(now - imbueState.castAt) < 3 and math.abs(imbueState.changedAt - imbueState.castAt) < 3 then
-			key = imbueState.castKey; acct.imbueIDs[r.enchantID] = key
-		end
-		imbueState.read = string.format("enchant %d, icon %d, %s", r.enchantID, r.enchantIconID, key or "not recognised")
-		if key ~= imbueState.lastKey or left > (imbueState.total or 0) then imbueState.total = left end
-		imbueState.lastKey = key
-		imbueState.key = key
-		imbueState.expiresAt = r.timeLeft > 0 and now + left or nil
-		if key then acct.imbueLast = key end
-	end
-	paintImbue(now)
-	-- The moment it drops (imbues stay readable in combat): pop.
-	if had and r == false and db.imbuePop then imbue:Pop("imbue") end
-end
-
--- Remembers our own imbue cast, so an imbue not recognised by ID or icon is learned on the next read.
-local function imbueCast(spellID)
-	local key = Spells.keyOf(spellID)
-	if not IMBUES[key] then return end
-	imbueState.castKey, imbueState.castAt = key, GetTime()
-	refreshImbue()
-end
-
-------------------------------------------------------------------------
 -- Cooldown elements (see COOLDOWNS). Nothing here reads a secret value:
 -- * The spell cooldown and a totem's time are duration objects that Blizzard widgets draw (cooldown
 --   swipe, countdown numbers, timer bar), as with the shock.
@@ -1888,7 +1051,7 @@ end
 --   through a curve (0s -> 1, anything more -> 0) and the result, secret or not, goes straight to
 --   SetAlpha, which accepts secrets. An empty slot returns no duration object at all (seen
 --   2026-09-23), which is plainly "no totem"; an expired one evaluates to 0s remaining.
---   (IsZero was tried first and did not work: an expired totem's duration is not a zero time span.)
+--   (IsZero doesn't work: an expired totem's duration is not a zero time span.)
 --   The addon never branches on it.
 -- * Earthbind / Stoneclaw must tell their totem from any other earth totem, and in combat everything
 --   GetTotemInfo returns is secret (tested 2026-09-23). Our own UNIT_SPELLCAST_SUCCEEDED is not: it
@@ -1900,8 +1063,7 @@ end
 --   its totems are bound like any other. When the owner is unknown (a /reload with a totem already
 --   out), out of combat the slot says which totem it is (its spell ID, else its icon), and that is
 --   kept as the owner. In combat the slot is secret, so the timer stays hidden until combat ends or
---   the totem is recast: a /reload in combat isn't worth guessing for (a lifetime curve did, until
---   2026-09-26).
+--   the totem is recast: a /reload in combat isn't worth guessing for.
 ------------------------------------------------------------------------
 -- Remaining seconds -> alpha: fully shown at 0s, hidden from 0.05s up.
 local noTimeLeftCurve = ns.CURVE_OVER
@@ -1915,12 +1077,12 @@ local ELEMENT_OPT_DEFAULTS = {
 	killed = true, killedPop = true, killedGlow = true, killedMark = true,   -- a totem killed early
 	idleAlpha = 0.35, idleWhen = "never",                        -- Idle (idleWhen: Fire Nova's rule)
 }
-local function cdOpt(key, name)
+local function elementSetting(key, name)
 	local v = elementOpts(key)[name]
 	if v == nil then return ELEMENT_OPT_DEFAULTS[name] end
 	return v
 end
-ns.elementOpt = cdOpt
+ns.elementSetting = elementSetting
 
 -- Whether a totem is out in a slot, its spell ID and icon (each nil if not given); nil when the slot
 -- cannot be read. haveTotem alone is not enough: on Forever an empty slot reports haveTotem true with a
@@ -1993,15 +1155,15 @@ function ns.onTotemGone(slot, dur)
 	for _, def in ipairs(COOLDOWNS) do
 		if def.totemSlot == slot and owner == def.key and isEnabled(def.key) then
 			local f, key = def.frame, def.key
-			if cdOpt(key, "expiredPop") then
+			if elementSetting(key, "expiredPop") then
 				if not f.expired then f.expired = ns.makeEndFlash(f.effects or f, f, key) end
 				f.expired:setIcon(def.iconID or def.icon)
 				f.expired:play(dur, { expired = true, pop = true })
 			end
-			if cdOpt(key, "killed") then
+			if elementSetting(key, "killed") then
 				if not f.killed then f.killed = ns.makeEndFlash(f.effects or f, f, key) end
 				f.killed:setIcon(def.iconID or def.icon)
-				f.killed:play(dur, { pop = cdOpt(key, "killedPop"), glow = cdOpt(key, "killedGlow"), mark = cdOpt(key, "killedMark") })
+				f.killed:play(dur, { pop = elementSetting(key, "killedPop"), glow = elementSetting(key, "killedGlow"), mark = elementSetting(key, "killedMark") })
 			end
 		end
 	end
@@ -2015,9 +1177,9 @@ local function styleCooldown(def)
 	local w = f.warn
 	if not w then return end
 	w.grey:SetTexture(def.iconID or def.icon)
-	w.grey:SetShown(cdOpt(def.key, "blockedGrey"))
-	w.ring:show(cdOpt(def.key, "blockedRing"))
-	w.pulseOn = cdOpt(def.key, "blockedPulse")   -- OnShow restarts it after the group was hidden
+	w.grey:SetShown(elementSetting(def.key, "blockedGrey"))
+	w.ring:show(elementSetting(def.key, "blockedRing"))
+	w.pulseOn = elementSetting(def.key, "blockedPulse")   -- OnShow restarts it after the group was hidden
 	if w.pulseOn then
 		if not w.pulse:IsPlaying() then w.pulse:Play() end
 	else w.pulse:Stop() end
@@ -2045,7 +1207,7 @@ local function ownCooldownRunning(def)
 	return def.cdRunning
 end
 local function idleAlpha(key)
-	local v = cdOpt(key, "idleAlpha")
+	local v = elementSetting(key, "idleAlpha")
 	if type(v) ~= "number" or v ~= v then return 1 end
 	return math.min(math.max(v, 0), 1)
 end
@@ -2076,7 +1238,7 @@ end
 
 -- totemBusy: our totem is down (Earthbind, Stoneclaw), or any fire totem is (Fire Nova).
 local function applyIdle(def, totemBusy)
-	local when = def.needsTotem and cdOpt(def.key, "idleWhen")   -- Fire Nova: never | nototem | offcd
+	local when = def.needsTotem and elementSetting(def.key, "idleWhen")   -- Fire Nova: never | nototem | offcd
 	local cdRunning = ownCooldownRunning(def)   -- always, so its kept answer stays current
 	local busy = not acct.locked or when == "never" or cdRunning
 	if not busy and totemBusy then busy = when ~= "offcd" end
@@ -2095,7 +1257,7 @@ end
 function refreshCooldown(def)
 	if not isEnabled(def.key) then def.cdRunning = nil return end   -- read afresh when it's back
 	local f = def.frame
-	if f.killed and not (cdOpt(def.key, "killed") and cdOpt(def.key, "killedMark")) then f.killed.mark:Hide() end
+	if f.killed and not (elementSetting(def.key, "killed") and elementSetting(def.key, "killedMark")) then f.killed.mark:Hide() end
 	if not def.spellID then
 		-- Not learned yet: a plain grey icon.
 		fadeTo(def, 1)
@@ -2112,8 +1274,9 @@ function refreshCooldown(def)
 	if dur then f.cdTimer:set(dur) end
 	f.tex:SetDesaturated(false)
 	if def.needsTotem then
-		-- Fire Nova: the slot's duration object drives everything, secret or not. An empty slot's
-		-- duration is zero, so the timer widgets draw nothing and the warning layer shows.
+		-- Fire Nova: the slot's duration object drives everything, secret or not. An empty slot has
+		-- none and an expired one evaluates to 0 s, so the timer widgets draw nothing and the warning
+		-- layer shows.
 		local tok, tdur = safe(GetTotemDuration, def.needsTotem)
 		applyIdle(def, tok and tdur ~= nil)
 		f.activeHolder:SetAlpha(1)   -- any fire totem counts, so its timer always shows
@@ -2185,7 +1348,7 @@ end
 local function popWhenReady(f, key)
 	f.cd:HookScript("OnCooldownDone", function()
 		if f.gcdUntil and GetTime() <= f.gcdUntil then return end   -- a global cooldown ended
-		if isEnabled(key) and cdOpt(key, "readyPop") then f:Pop() end
+		if isEnabled(key) and elementSetting(key, "readyPop") then f:Pop() end
 	end)
 end
 popWhenReady(shock, "shock")
@@ -2211,7 +1374,7 @@ local function readyAlpha(spellID)
 	return 0
 end
 local function updateShockGlow()
-	local on = shockSpellID and isEnabled("shock") and cdOpt("shock", "readyGlow") and noTimeLeftCurve
+	local on = shockSpellID and isEnabled("shock") and elementSetting("shock", "readyGlow") and noTimeLeftCurve
 	shock.glowF:SetShown(on and true or false)
 	if not on then return end
 	shock.glowF:fit(shock:GetWidth())
@@ -2219,7 +1382,7 @@ local function updateShockGlow()
 end
 local function updateReadyGlow(def)
 	local f = def.frame
-	local on = def.spellID and isEnabled(def.key) and cdOpt(def.key, "readyGlow") and hasTimeLeftCurve and noTimeLeftCurve
+	local on = def.spellID and isEnabled(def.key) and elementSetting(def.key, "readyGlow") and hasTimeLeftCurve and noTimeLeftCurve
 	f.readyGlow:SetShown(on and true or false)
 	if not on then return end
 	f.readyGlow:fit(f:GetWidth())
@@ -2245,9 +1408,9 @@ end)
 local function syncReadyTicker()
 	local want = false
 	if isShaman then
-		want = isEnabled("shock") and cdOpt("shock", "readyGlow")
+		want = isEnabled("shock") and elementSetting("shock", "readyGlow")
 		for _, def in ipairs(COOLDOWNS) do
-			if def.needsTotem and isEnabled(def.key) and cdOpt(def.key, "readyGlow") then want = true end
+			if def.needsTotem and isEnabled(def.key) and elementSetting(def.key, "readyGlow") then want = true end
 		end
 	end
 	readyTicker:SetShown(want and true or false)
@@ -2267,16 +1430,7 @@ end
 local rangeCheckID   -- the spell whose range check is on
 local function resolveSpells()
 	Spells.scan()
-	local sig = {}
-	for key, s in pairs(SHIELDS) do
-		s.name = Spells.name(s.spell)
-		local e = Spells.bookEntry(s.spell)
-		s.known = e ~= nil
-		s.spellID, s.bookIcon = e and e.id, e and e.icon
-		if s.spellID then learnShieldID(key, s.spellID) end
-		table.insert(sig, tostring(s.spellID))
-	end
-	applyShieldFilter()   -- the tracked shields may have changed
+	local sig = { ns.Shield.resolve() }
 	shockIDs = {}
 	for key, spell in pairs(SHOCK_SPELL) do
 		SHOCKS[key] = Spells.name(spell)
@@ -2300,13 +1454,12 @@ local function resolveSpells()
 		def.spellID, def.iconID = Spells.known(def.spellKey)
 		table.insert(sig, tostring(def.spellID)); table.insert(sig, tostring(def.iconID))
 	end
-	for key, m in pairs(IMBUES) do m.name = Spells.name(key) end
+	ns.Imbue.resolve()
 	scanTotemSlots()
 	return table.concat(sig, ",")
 end
 
--- Every timer takes its current style (General's or its own). The shield's sits on Blizzard's
--- button, so only out of combat (styleNative also does it).
+-- Every timer takes its current style (General's or its own).
 local function applyTimers()
 	shock.cdTimer:apply()
 	for _, def in ipairs(COOLDOWNS) do
@@ -2316,12 +1469,9 @@ local function applyTimers()
 			def.frame.upTimer:setExpire(ns.expireOpts(def.key), def.iconID or def.icon)
 		end
 	end
-	imbue.upTimer:apply()
-	if ns.TotemBar and ns.TotemBar.applyTimers then ns.TotemBar.applyTimers() end
-	if native.timer then
-		if InCombatLockdown() or ns.aurasSecret() then ns.retryAfterCombat("shield style", styleNative)   -- which applies it
-		else ns.try("shield timer", native.timer.apply, native.timer) end
-	end
+	ns.Imbue.applyTimer()
+	ns.TotemBar.applyTimers()
+	ns.Shield.applyTimer()
 end
 ns.applyTimers = applyTimers
 
@@ -2332,11 +1482,11 @@ local function applyLayout()
 	shockPainted = nil   -- the looks may have changed
 	updateShockTint()
 	refreshShockMana()
-	refreshImbue()
+	ns.Imbue.refresh()
 	refreshCooldowns()
-	if not native.container then setupNative() end
-	styleNative()
-	applyEmptyLook()
+	ns.Shield.setup()
+	ns.Shield.style()
+	ns.Shield.applyEmptyLook()
 	syncReadyTicker()
 end
 
@@ -2355,12 +1505,12 @@ function ns.setLocked(locked)
 end
 
 local function refreshAll()
-	refreshShield()
-	refreshShieldGCD()
+	ns.Shield.refresh()
+	ns.Shield.refreshGCD(inCooldownEvent)
 	refreshShockCooldown()
 	refreshShockRange()
 	refreshShockMana()
-	refreshImbue()
+	ns.Imbue.refresh()
 	refreshCooldowns()
 end
 
@@ -2370,7 +1520,7 @@ end
 local cooldownsDirty = false
 local function flushCooldowns()
 	cooldownsDirty = false
-	refreshShieldGCD()
+	ns.Shield.refreshGCD(inCooldownEvent)
 	refreshShockCooldown()
 	refreshCooldowns()
 end
@@ -2475,7 +1625,7 @@ end
 -- Everything drawn again from the active profile.
 local function redraw()
 	resolveSpells(); ns.applyGlowStyle(); applyLayout(); refreshAll()
-	if ns.RefreshOptions then ns.RefreshOptions() end
+	ns.RefreshOptions()
 end
 
 local function useProfile(name)
@@ -2483,10 +1633,10 @@ local function useProfile(name)
 	redraw()
 end
 
--- Shared with ShamanForever_Options.lua
+-- Shared with the other files
 ns.DEFAULTS, ns.GROUP_DEFAULTS, ns.SHOCKS, ns.SHOCK_ORDER = DEFAULTS, GROUP_DEFAULTS, SHOCKS, SHOCK_ORDER
-ns.SHIELDS, ns.SHIELD_ORDER = SHIELDS, SHIELD_ORDER
 ns.ELEMENTS, ns.ELEMENT_KEYS, ns.available, ns.findElement = ELEMENTS, ELEMENT_KEYS, available, findElement
+ns.isEnabled = isEnabled
 ns.getDB = function() return db end
 ns.getAccount = function() return acct end
 ns.profileName = function() return profileName end
@@ -2495,7 +1645,6 @@ ns.applyLayout, ns.resolveSpells, ns.refreshAll, ns.elementOpts = applyLayout, r
 ns.placeElement, ns.splitGroup, ns.hideGroup, ns.centerGroup = placeElement, splitGroup, hideGroup, centerGroup
 ns.setShow, ns.showMode = setShow, showMode
 ns.COOLDOWNS = COOLDOWNS
-ns.makeIcon = makeIcon   -- the options previews draw with the HUD's own icon
 ns.applyBorder = applyBorder
 -- An element's expiring warning (its time left's last seconds): its own settings over the defaults.
 function ns.expireOpts(key)
@@ -2513,9 +1662,7 @@ function ns.borderFor(key)
 	local gi = findElement(key)
 	return ns.Style.get(gi and db.groups[gi] or nil, "border")
 end
-ns.IMBUES, ns.IMBUE_ORDER, ns.imbueIcon = IMBUES, IMBUE_ORDER, function() return imbueIcon end
 ns.setTestMode = function(on) return edit(setTestMode)(on) end
-ns.say = say
 
 ------------------------------------------------------------------------
 -- Events
@@ -2537,12 +1684,12 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		if arg1 ~= ADDON then return end
 		acct = ns.Profiles.load()
 		selectProfile(ns.Profiles.saved())   -- a guess on a cold start (no name yet): checked at PLAYER_LOGIN
-		if ns.BuildOptions then ns.BuildOptions() end
+		ns.BuildOptions()
 	elseif event == "PLAYER_LOGIN" then
 		-- The name is known now: switch to this character's own profile if loading couldn't tell.
 		local want = ns.Profiles.saved()
 		if want ~= profileName then selectProfile(want) end
-		if ns.applyIssueReporter then ns.applyIssueReporter() end   -- any class
+		ns.applyIssueReporter()   -- any class
 		local _, class = UnitClass("player")
 		if class ~= "SHAMAN" then root:Hide(); return end
 		isShaman = true
@@ -2564,7 +1711,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		-- error at login can't leave the HUD without its tickers.
 		C_Timer.NewTicker(0.25, function() ns.try("range refresh", refreshShockRange) end)
 		C_Timer.NewTicker(1, function()
-			ns.try("imbue refresh", refreshImbue)
+			ns.try("imbue refresh", ns.Imbue.refresh)
 			ns.try("cooldown refresh", refreshCooldowns)
 			ns.try("shock refresh", refreshShockCooldown)
 		end)
@@ -2574,17 +1721,12 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		refreshAll()
 		root:Show()
 	elseif event == "UNIT_AURA" then
-		refreshShield()
+		ns.Shield.refresh()
 	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
 		local spellID = arg3   -- args: unit, castGUID, spellID
-		local cast = not isSecret(spellID) and shieldForSpell(spellID)
-		if cast then
-			-- The one inference: our cast means that shield is up and the other is gone (see the Shield section).
-			acct.lastShield = cast
-			setBelievedUp(tracksShield(cast))
-		end
 		if not isSecret(spellID) then
-			imbueCast(spellID)   -- only to learn an unknown imbue enchant ID
+			ns.Shield.onCast(spellID)   -- the one inference (ShamanForever_Shield.lua)
+			ns.Imbue.onCast(spellID)   -- only to learn an unknown imbue enchant ID
 			totemCast(spellID)
 		end
 		refreshCooldownsSoon()
@@ -2599,7 +1741,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 	elseif event == "PLAYER_TOTEM_UPDATE" then
 		refreshCooldownsSoon()
 	elseif event == "UNIT_INVENTORY_CHANGED" or event == "PLAYER_EQUIPMENT_CHANGED" then
-		refreshImbue()
+		ns.Imbue.refresh()
 	elseif event == "SPELLS_CHANGED" then
 		-- Fires often (shapeshifts, zoning, ...): a relayout only when a tracked spell changed.
 		local found = resolveSpells()
@@ -2615,14 +1757,9 @@ end)
 -- /sf debug (ShamanForever_Slash.lua): what the addon sees right now
 ------------------------------------------------------------------------
 function ns.debugReport()
-	say("shield tracking %s (last %s), believed up %s; shock spell %s (%s), mana spell %s, in combat %s",
-		db.shieldTrack, acct.lastShield, tostring(believedUp), tostring(shockSpellID), db.shock,
-		tostring(manaSpellID), tostring(InCombatLockdown()))
-	for _, key in ipairs(SHIELD_ORDER) do
-		local s = SHIELDS[key]
-		local e = Spells.bookEntry(s.spell)
-		say("%s: %s, spell %s rank %s", s.name, s.known and "known" or "not known", tostring(s.spellID), e and e.rank or "?")
-	end
+	say("in combat %s", tostring(InCombatLockdown()))
+	ns.Shield.debug()
+	say("shock spell %s (%s), mana spell %s", tostring(shockSpellID), db.shock, tostring(manaSpellID))
 	-- Every tracked spell: the client's name and the rank known (by spell ID, not name).
 	local known = {}
 	for key in pairs(Spells.DEFS) do
@@ -2631,24 +1768,17 @@ function ns.debugReport()
 	end
 	table.sort(known)
 	say("spells: %s", table.concat(known, ", "))
-	say("aura container %s%s", native.container and "created" or "not created",
-		native.err and (", error: " .. native.err) or "")
-	local t = {} for id in pairs(shieldIDMap()) do table.insert(t, tostring(id)) end table.sort(t)
-	say("tracked spell IDs: %s", table.concat(t, ","))
-	local r = readMainHand()
-	say("main hand imbue now: %s; last ticker read: %s", r == nil and "unreadable" .. (InCombatLockdown() and " (in combat)" or "")
-		or r == false and "none" or string.format("enchant %d, icon %d, %.0fs left", r.enchantID, r.enchantIconID, r.timeLeft / 1000),
-		imbueState.read)
+	ns.Imbue.debug()
 	for slot = 1, 4 do
-		local ok, have, name, start, duration, icon, modRate, spellID = pcall(GetTotemInfo, slot)
+		local ok, have, name, start, duration, icon, _, spellID = pcall(GetTotemInfo, slot)
 		say("totem slot %d: %s", slot, ok and string.format("have=%s name=%s start=%s duration=%s icon=%s spellID=%s",
 			describeArg(have), describeArg(name), describeArg(start), describeArg(duration), describeArg(icon), describeArg(spellID))
 			or ("error " .. tostring(have)))
 		local dok, d = pcall(GetTotemDuration, slot)
 		if dok and d then
-			local rok, r = pcall(d.GetRemainingDuration, d)
-			local tok2, t = pcall(d.GetTotalDuration, d)
-			say("  duration object: remaining=%s total=%s", rok and describeArg(r) or "error", tok2 and describeArg(t) or "error")
+			local rok, rem = pcall(d.GetRemainingDuration, d)
+			local tok, total = pcall(d.GetTotalDuration, d)
+			say("  duration object: remaining=%s total=%s", rok and describeArg(rem) or "error", tok and describeArg(total) or "error")
 		end
 	end
 	for _, def in ipairs(COOLDOWNS) do
@@ -2671,14 +1801,14 @@ function ns.debugReport()
 		say("totem slots secret now: %s", table.concat(t, ", "))
 	end
 	for key, id in pairs(shockIDs) do
-		local ok, usable, noPower = safe(C_Spell.IsSpellUsable, id)
-		local _, r = safe(C_Spell.IsSpellInRange, id, "target")
+		local _, usable, noPower = safe(C_Spell.IsSpellUsable, id)
+		local _, inRange = safe(C_Spell.IsSpellInRange, id, "target")
 		local e = Spells.bookEntry(SHOCK_SPELL[key])
 		say("%s id %s rank %s usable=%s noPower=%s inRange=%s", SHOCKS[key], tostring(id),
-			e and e.rank or "?", describeArg(usable), describeArg(noPower), describeArg(r))
+			e and e.rank or "?", describeArg(usable), describeArg(noPower), describeArg(inRange))
 	end
 	say("profile %s", tostring(profileName))
-	if ns.TotemBar then say("%s", ns.TotemBar.debug()) end
+	say("%s", ns.TotemBar.debug())
 	for gi, g in ipairs(db.groups) do
 		local names = {}
 		for _, key in ipairs(g.members) do

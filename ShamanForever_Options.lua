@@ -31,9 +31,8 @@ local function relayout()
 		ns.RefreshOptions()
 	end)
 end
--- Timer rows: only the timers take the new look (the full layout when main has no timers-only path).
+-- Timer rows: only the timers take the new look, not the whole layout.
 local function retime()
-	if not ns.applyTimers then return relayout() end
 	ns.applyTimers()
 	ns.RefreshOptions()
 end
@@ -84,7 +83,7 @@ local function newPage(key, title, indent)
 	scroll:SetScrollChild(content)
 	scroll:SetScript("OnSizeChanged", function(_, w)
 		content:SetWidth(w)
-		if ns.RefreshOptions then ns.RefreshOptions() end
+		ns.RefreshOptions()
 	end)
 	scroll:Hide()
 	local p = setmetatable({ key = key, title = title, indent = indent, scroll = scroll, content = content, items = {} }, Page)
@@ -215,7 +214,7 @@ function Page:checkbox(label, tip, get, set, shown)
 	cb:SetPoint("LEFT", 0, 0)
 	cb.Text:SetFontObject("GameFontHighlight")
 	cb.Text:SetText(label)
-	cb:SetScript("OnClick", function(self) set(self:GetChecked() and true or false) end)
+	cb:SetScript("OnClick", function(button) set(button:GetChecked() and true or false) end)
 	setTip(cb, label, tip)
 	f.check = cb
 	return self:add(f, 30, shown, function() cb:SetChecked(get() and true or false) end)
@@ -226,10 +225,9 @@ function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown)
 	f.label = self:label(f, label, tip)
 	local s = CreateFrame("Frame", nil, f, "MinimalSliderWithSteppersTemplate")
 	s:SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
-	local updating = true
+	local updating = false   -- while the page sets the value itself
 	s:Init(get() or minV, minV, maxV, math.floor((maxV - minV) / step + 0.5),
 		{ [MinimalSliderWithSteppersMixin.Label.Right] = fmt })
-	updating = false
 	s:RegisterCallback(MinimalSliderWithSteppersMixin.Event.OnValueChanged, function(_, v)
 		if updating then return end
 		v = math.floor(v / step + 0.5) * step
@@ -301,8 +299,8 @@ function Page:button(textFn, onClick, tip, width, shown)
 	btn:SetSize(width or 160, 22)
 	btn:SetPoint("LEFT", 0, 0)
 	btn:SetScript("OnClick", onClick)
-	btn:SetScript("OnEnter", function(self)
-		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+	btn:SetScript("OnEnter", function(button)
+		GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
 		GameTooltip:SetText(textFn())
 		GameTooltip:AddLine(tip, 1, 1, 1, true)
 		GameTooltip:Show()
@@ -471,8 +469,8 @@ function Page:copyField(label, value, icon, color)
 	e:SetAutoFocus(false)
 	e:SetText(value)
 	e:SetCursorPosition(0)
-	e:SetScript("OnTextChanged", function(self, user) if user then self:SetText(value); self:HighlightText() end end)
-	e:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
+	e:SetScript("OnTextChanged", function(box, user) if user then box:SetText(value); box:HighlightText() end end)
+	e:SetScript("OnEditFocusGained", function(box) box:HighlightText() end)
 	e:SetScript("OnEscapePressed", e.ClearFocus)
 	return self:add(f, 30)
 end
@@ -783,7 +781,7 @@ local function buildGeneral(p)
 			ns.applyMinimapButton()
 		end)
 
-	local function hasReporter() return ns.hasIssueReporter and ns.hasIssueReporter() end
+	local hasReporter = ns.hasIssueReporter
 	p:header("Beta", hasReporter)
 	p:checkbox("Hide the Issue Reporter button", "Blizzard's beta Issue Reporter button. ShamanForever also remembers where you drag it.",
 		function() return acct().hideIssueReporter end, function(v) acct().hideIssueReporter = v; ns.applyIssueReporter() end, hasReporter)
@@ -803,15 +801,15 @@ local function buildProfiles(p)
 	p:text("Each character uses one profile. New characters start on Default.")
 	p:dropdown("This character", nil, function()
 		local t = {}
-		for _, name in ipairs(ns.profileNames()) do table.insert(t, { name, name }) end
+		for _, name in ipairs(ns.Profiles.names()) do table.insert(t, { name, name }) end
 		return t
 	end, ns.profileName, ns.useProfile)
 	p:buttons({
-		{ "New", function() askName("Name for the new profile:", nil, function(n) return ns.newProfile(n) end) end,
+		{ "New", function() askName("Name for the new profile:", nil, function(n) return ns.Profiles.new(n) end) end,
 			"A new profile with default settings.", 90 },
-		{ "Copy", function() askName("Name for the copy:", ns.profileName() .. " copy", function(n) return ns.newProfile(n, ns.getDB()) end) end,
+		{ "Copy", function() askName("Name for the copy:", ns.profileName() .. " copy", function(n) return ns.Profiles.new(n, ns.getDB()) end) end,
 			"A new profile with this one's settings.", 90 },
-		{ "Rename", function() askName("New name:", ns.profileName(), ns.renameProfile) end,
+		{ "Rename", function() askName("New name:", ns.profileName(), ns.Profiles.rename) end,
 			"Default can't be renamed.", 90, notDefault },
 		{ "Delete", function() StaticPopup_Show("SHAMANFOREVER_DELETE_PROFILE", ns.profileName()) end,
 			"Characters using it go back to Default. Default can't be deleted.", 90, notDefault },
@@ -1292,10 +1290,7 @@ local function buildLayout(p)
 end
 
 ------------------------------------------------------------------------
--- Elements: an overview of every element, and one page per real element under it in the nav.
-------------------------------------------------------------------------
-------------------------------------------------------------------------
--- Totem bar (ShamanForever_TotemBar.lua; design in the workspace's design/totem-bar.md)
+-- Totem bar (ShamanForever_TotemBar.lua)
 ------------------------------------------------------------------------
 -- Rows for the per-totem warning times: one per totem given its own time, at most this many.
 local MAX_WARN_ROWS = 32
@@ -1303,7 +1298,7 @@ local MAX_WARN_ROWS = 32
 local function buildTotemBar(p)
 	local TB = ns.TotemBar
 	local function c() return TB.cfg() end
-	local function changed() TB.apply(); if ns.RefreshOptions then ns.RefreshOptions() end end
+	local function changed() TB.apply(); ns.RefreshOptions() end
 	local function tget(key) return function() return c()[key] end end
 	local function tset(key) return function(v) c()[key] = v; changed() end end
 
@@ -1401,7 +1396,7 @@ local function buildTotemBar(p)
 			table.insert(o, at, el)
 			changed()
 		end
-		if ns.RefreshOptions then ns.RefreshOptions() end   -- also restores the dimmed row
+		ns.RefreshOptions()   -- also restores the dimmed row
 	end
 	-- Leaving the page or closing the window mid-drag drops nothing.
 	list:SetScript("OnHide", function() endDrag(false) end)
@@ -1601,6 +1596,9 @@ local function buildTotemBar(p)
 	p.gate = nil
 end
 
+------------------------------------------------------------------------
+-- Elements: an overview of every element, and one page per real element under it in the nav.
+------------------------------------------------------------------------
 local ELEMENT_PAGES = {}   -- key -> page key, filled as element pages are built
 
 local function buildElements(p)
@@ -1669,7 +1667,8 @@ local function buildElements(p)
 end
 
 -- Every element page, in one order: its header, Display (Show, Group), its own settings, then the
--- standard blocks: Warning (Grey icon, Red ring, Pulse), Timer (Time bar, Time left), Countdown.
+-- standard blocks: the missing-look Warning, Idle, the timers (Cooldown, Time left), the event
+-- blocks (Ready, Expiring, Killed early), then Glow style and Pop style.
 local function elementDisplay(p, key)
 	ELEMENT_PAGES[key] = p.key
 	p:hero(key)
@@ -1695,8 +1694,8 @@ local function elementDisplay(p, key)
 	setTip(edit, "Edit group", "This group's settings on the Layout page.")
 end
 
--- An element's own option (db.elementOpts), with its default (ns.elementOpt).
-local function eget(key, name) return function() return ns.elementOpt(key, name) end end
+-- An element's own option (db.elementOpts), with its default (ns.elementSetting).
+local function eget(key, name) return function() return ns.elementSetting(key, name) end end
 local function eset(key, name) return function(v) ns.elementOpts(key)[name] = v; relayout() end end
 
 -- Standard block: the moment a cooldown ends. A pop, and with glowTip a "use me" glow (Shocks, Fire
@@ -1720,7 +1719,7 @@ local function idleBlock(p, key, fireNova)
 	end
 	p:slider("Idle opacity", "The icon's opacity while idle.",
 		0, 1, 0.05, pct, eget(key, "idleAlpha"), eset(key, "idleAlpha"),
-		fireNova and showWhen(function() return ns.elementOpt(key, "idleWhen") ~= "never" end) or nil)
+		fireNova and showWhen(function() return ns.elementSetting(key, "idleWhen") ~= "never" end) or nil)
 end
 
 -- Standard block: a totem killed early (Earthbind, Stoneclaw), as on the totem bar.
@@ -2086,13 +2085,13 @@ confirm("SHAMANFOREVER_HIDEALL", "Hide every element in Group %s?\nEach one's Sh
 StaticPopupDialogs["SHAMANFOREVER_RESET"] = {
 	text = "Reset profile %s to defaults?\nIts layout and every setting are lost.",
 	button1 = YES, button2 = NO,
-	OnAccept = function() ns.resetProfile(); ns.say("profile reset to defaults") end,
+	OnAccept = function() ns.Profiles.reset(); ns.say("profile reset to defaults") end,
 	timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
 }
 StaticPopupDialogs["SHAMANFOREVER_DELETE_PROFILE"] = {
 	text = "Delete profile %s?\nCharacters using it go back to Default.",
 	button1 = "Delete", button2 = CANCEL,
-	OnAccept = function() ns.deleteProfile() end,
+	OnAccept = function() ns.Profiles.delete() end,
 	timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
 }
 
@@ -2200,14 +2199,14 @@ local function buildShare()
 	end)
 	f.primary:SetScript("OnClick", function()
 		if f.mode == "export" then f:Hide(); return end
-		local settings, err = ns.decodeProfile(e:GetText())
+		local settings, err = ns.Profiles.decode(e:GetText())
 		if not settings then
 			f.note:SetText(err:gsub("^%l", string.upper) .. ".")
 			f.note:SetTextColor(1, 0.38, 0.38)
 			return
 		end
 		f:Hide()
-		ns.askProfileName("Name for the imported profile:", "Imported", function(n) return ns.newProfile(n, settings) end)
+		ns.askProfileName("Name for the imported profile:", "Imported", function(n) return ns.Profiles.new(n, settings) end)
 	end)
 	f:Hide()
 	return f
@@ -2219,7 +2218,7 @@ function ns.ShowShare(mode)
 	local e = share.edit
 	share.note:SetTextColor(0.78, 0.74, 0.68)
 	if mode == "export" then
-		local text, err = ns.exportProfile()
+		local text, err = ns.Profiles.export()
 		if not text then ns.say(err); return end
 		share.exported = text
 		share.title:SetText("Export " .. ns.profileName())

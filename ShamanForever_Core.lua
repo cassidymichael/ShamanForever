@@ -11,6 +11,16 @@ function ns.safe(fn, ...) if not fn then return false end return pcall(fn, ...) 
 function ns.describeArg(v) if ns.isSecret(v) then return "<secret>" end return tostring(v) end
 local isSecret, safe = ns.isSecret, ns.safe
 
+-- For settings read from shared text or old saves, which can hold anything.
+-- { r, g, b } or { r, g, b, a }: numbers only.
+function ns.isColor(v)
+	return type(v) == "table" and type(v[1]) == "number" and type(v[2]) == "number" and type(v[3]) == "number"
+		and (v[4] == nil or type(v[4]) == "number")
+end
+-- The anchor points a saved position may use.
+ns.POINTS = { CENTER = true, TOP = true, BOTTOM = true, LEFT = true, RIGHT = true,
+	TOPLEFT = true, TOPRIGHT = true, BOTTOMLEFT = true, BOTTOMRIGHT = true }
+
 ------------------------------------------------------------------------
 -- Errors caught by a pcall around a proven call: the first one per place is kept for /sf debug, so a
 -- change on a new client build doesn't just make a feature vanish.
@@ -139,8 +149,8 @@ end
 ------------------------------------------------------------------------
 -- A ring just inside an icon's edge: four textures, the side ones between the top and bottom ones
 -- (no doubled corners). Its thickness is a line's (ns.linePx): crisp, the same at any icon size.
-ns.RING_PX = 3
-ns.RING_COLOR = { 1, 0, 0, 0.9 }
+local RING_PX = 3
+local RING_COLOR = { 1, 0, 0, 0.9 }
 local Ring = {}
 Ring.__index = Ring
 local rings = setmetatable({}, { __mode = "k" })
@@ -157,12 +167,12 @@ function ns.makeRing(parent, anchor)
 end
 -- A colour other than the warning red (the shock's blue "no mana" ring); no arguments: the red.
 function Ring:color(red, g, b, a)
-	local k = ns.RING_COLOR
+	local k = RING_COLOR
 	for _, t in ipairs(self.edges) do t:SetColorTexture(red or k[1], g or k[2], b or k[3], a or k[4]) end
 end
 -- Sizes the edges for the anchor's current scale; re-anchors only when that changed.
 function Ring:fit()
-	local w = ns.linePx(self.anchor, ns.RING_PX)
+	local w = ns.linePx(self.anchor, RING_PX)
 	if w == self.width then return end
 	self.width = w
 	local a, top, bottom, left, right = self.anchor, self.edges[1], self.edges[2], self.edges[3], self.edges[4]
@@ -337,7 +347,7 @@ end
 -- Forever patch that changes spell IDs shows at once instead of an element quietly going blank.
 -- Other files add their own lists (the totem bar's buff IDs).
 local checks = {}
-Spells.CHECKS = checks   -- every seed list, labelled (also read by the workspace's spell ID harvest)
+Spells.CHECKS = checks   -- every seed list, labelled (also read by external tools)
 function Spells.addCheck(label, ids) table.insert(checks, { label = label, ids = ids }) end
 for _, d in pairs(DEFS) do Spells.addCheck(d.en, d.ids) end
 function Spells.selfCheck()

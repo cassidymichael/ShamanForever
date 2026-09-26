@@ -1,4 +1,4 @@
--- Timers: one way to show a duration everywhere (design: workspace design/timers.md).
+-- Timers: one way to show a duration everywhere.
 --
 -- A timer has three parts, each on or off: countdown text, swipe and time bar. There are two kinds:
 -- "cooldown" (a spell not ready yet) and "uptime" (a totem, shield or imbue running, "Time left"
@@ -92,7 +92,7 @@ function T.new(parent, key, kind, opts)
 		cd:SetAllPoints(t.anchor)
 	end
 	cd:SetDrawEdge(false)
-	cd:SetDrawBling(kind == "cooldown")   -- the ready flash, as cooldowns always had
+	cd:SetDrawBling(kind == "cooldown")   -- the ready flash, for cooldowns only
 	cd:SetSwipeTexture(WHITE)   -- square, so a cropped icon has no bright sliver at the edge
 	t.cd = cd
 	fonts = fonts + 1
@@ -298,7 +298,7 @@ function Timer:setExpire(e, icon)
 		x.pulse = ns.makePulse(x.dim, "dim")
 		-- A hidden ancestor (combat-only visibility, Alt-Z) stops the pulse; start it again on show.
 		x:SetScript("OnShow", function(s) if s.pulseOn then s.pulse:Play() end end)
-		x.glow = ns.makeGlow(x, self.anchor, self.key)   -- ShamanForever.lua; made on first use, after it has loaded
+		x.glow = ns.makeGlow(x, self.anchor, self.key)   -- made on first use
 		self.exp = x
 	end
 	x.glow:fit(self.anchor:GetWidth())
@@ -317,7 +317,7 @@ function Timer:setExpire(e, icon)
 	local d = self.last
 	if d then
 		local ok, a = pcall(d.EvaluateRemainingDuration, d, self.expCurve)
-		if ok then x:SetAlpha(a) else x:SetAlpha(0) end   -- a may be secret: never tested, only handed on
+		if ok then x:SetAlpha(a) else x:SetAlpha(0) end   -- a may be secret: never compared, only handed on
 	end
 end
 
