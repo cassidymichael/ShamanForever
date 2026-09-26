@@ -184,6 +184,8 @@ local DEFS = {
 	chainHeal       = { ids = { 1064 }, en = "Chain Heal" },
 	lightningBolt   = { ids = { 403 }, en = "Lightning Bolt" },
 	chainLightning  = { ids = { 421 }, en = "Chain Lightning" },
+	ghostWolf       = { ids = { 2645 }, en = "Ghost Wolf" },
+	farSight        = { ids = { 6196 }, en = "Far Sight" },
 }
 Spells.DEFS = DEFS
 

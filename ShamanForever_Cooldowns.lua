@@ -55,7 +55,7 @@ ns.registerElement("shock", { frame = shock, label = "Shocks", paint = function(
 -- spell in ns.Spells, icon the fallback until the client has it, duration the totem's lifetime in
 -- seconds (for the options previews). spell is the display name (the client's).
 -- Optional parts:
---   grounded = true     the totem's early end is a success (Grounding): a Grounded flash, not Killed early
+--   grounded = true     its early end is a success (Grounding): a Grounded flash, not Killed early
 --   window = seconds    a buff window timed from our cast (Rage of the Farseer), shown as time left
 --   primed = { spends = { spell keys }, charges = n (1), duration = seconds or nil (until spent),
 --              buffKey = spell key of a buff on us, read when auras are readable }: an effect that
@@ -69,7 +69,8 @@ local COOLDOWNS = {
 	{ key = "firenova",  spellKey = "fireNova",  icon = 135824, needsTotem = 1, school = "fire" },
 	-- Emergency cooldowns: plainly visible while ready.
 	{ key = "naturesswiftness", spellKey = "naturesSwiftness", icon = 136076, school = "water", new = true,
-		primed = { spends = { "healingWave", "lesserHealingWave", "chainHeal", "lightningBolt", "chainLightning" },
+		primed = { spends = { "healingWave", "lesserHealingWave", "chainHeal", "lightningBolt", "chainLightning",
+			"ghostWolf", "farSight" },
 			buffKey = "naturesSwiftness" },
 		defaults = { idleAlpha = 1 }, experimental = "Nature's Swiftness" },
 	{ key = "manatide", spellKey = "manaTide", icon = 135861, totemSlot = 3, duration = 12, school = "water", new = true,
@@ -450,16 +451,29 @@ local function isActive(def)
 	return def.activeUntil ~= nil
 end
 
--- Out of combat, the primed buff itself says whether it's up and for how long.
+-- Out of combat, the primed buff itself says whether it's up and for how long: by its IDs, else by
+-- the client's name for it. Within a moment of our cast, a missing buff doesn't end it (the aura
+-- can arrive after the cast event).
+local CAST_GRACE = 1.5
 local function readPrimedBuff(def)
 	local buffKey = def.primed and def.primed.buffKey
 	if not buffKey or InCombatLockdown() or ns.aurasSecret() or not C_UnitAuras then return end
 	local found
+	local function usable(ok, a)
+		return ok and type(a) == "table" and not isSecret(a.expirationTime) and not isSecret(a.duration)
+	end
 	for id in pairs(Spells.ids(buffKey)) do
 		local ok, a = safe(C_UnitAuras.GetPlayerAuraBySpellID, id)
-		if ok and type(a) == "table" and not isSecret(a.expirationTime) and not isSecret(a.duration) then found = a break end
+		if usable(ok, a) then found = a break end
 	end
-	if not found then endActive(def) return end
+	if not found then
+		local ok, a = safe(C_UnitAuras.GetAuraDataBySpellName, "player", Spells.name(buffKey), "HELPFUL")
+		if usable(ok, a) then found = a end
+	end
+	if not found then
+		if not (def.castAt and GetTime() - def.castAt < CAST_GRACE) then endActive(def) end
+		return
+	end
 	local exp, dur = found.expirationTime, found.duration
 	local was = def.activeUntil ~= nil
 	if type(exp) == "number" and type(dur) == "number" and exp > 0 and dur > 0 then
@@ -477,10 +491,14 @@ local function reagentCount(def)
 end
 
 -- Whether the spell still takes its reagent: Forever dropped some (its Water Walking and Water
--- Breathing list none), so the spell's tooltip must name the item. Read out of combat and kept
--- until the spellbook changes; nil while it can't be told (then the reagent counts).
+-- Breathing list none), so the spell's tooltip must name the item. Read out of combat: a yes is kept
+-- until the spellbook changes, a no is read again every 30 s (a tooltip can be incomplete while the
+-- client loads it); nil while it can't be told (then the reagent counts).
+local REAGENT_RECHECK = 30
 local function takesReagent(def)
-	if def.takesReagent ~= nil or InCombatLockdown() then return def.takesReagent end
+	if def.takesReagent or InCombatLockdown() then return def.takesReagent end
+	if def.takesReagent == false and GetTime() - (def.reagentReadAt or 0) < REAGENT_RECHECK then return false end
+	def.reagentReadAt = GetTime()
 	if not (def.spellID and C_TooltipInfo and C_TooltipInfo.GetSpellByID and C_Item and C_Item.GetItemNameByID) then return nil end
 	local ok, item = safe(C_Item.GetItemNameByID, def.reagent)
 	if not ok or type(item) ~= "string" or isSecret(item) then
@@ -510,8 +528,14 @@ local function refreshReagent(def)
 	local lowAt = setting(key, "reagentLow")
 	local low = n <= (type(lowAt) == "number" and lowAt or 2)   -- shared text can hold anything
 	if setting(key, "reagentCount") then
-		f.count:SetText(n)
-		if low then f.count:SetTextColor(1, 0.25, 0.2) else f.count:SetTextColor(1, 1, 1) end
+		-- Text scales with the icon (its group's size).
+		local size = math.max(math.floor(f:GetWidth() * 0.45), 8)
+		if size ~= f.countSize then f.count:SetFont(STANDARD_TEXT_FONT, size, "OUTLINE"); f.countSize = size end
+		if n ~= f.countShown or low ~= f.countLow then
+			f.count:SetText(n)
+			if low then f.count:SetTextColor(1, 0.25, 0.2) else f.count:SetTextColor(1, 1, 1) end
+			f.countShown, f.countLow = n, low
+		end
 		f.count:Show()
 	else f.count:Hide() end
 	local out = n == 0
@@ -759,7 +783,9 @@ function CD.onCast(spellID)
 			elseif def.primed then
 				if key == def.spellKey then
 					def.charges = def.primed.charges or 1
-					startActive(def, now, def.primed.duration)
+					def.castAt = now
+					-- Quiet if the buff was already read in (its aura can come before the cast event).
+					startActive(def, now, def.primed.duration, def.activeUntil ~= nil)
 				elseif def.activeUntil and def.spends[key] then
 					def.charges = (def.charges or 1) - 1
 					if def.charges <= 0 then endActive(def) end
@@ -796,8 +822,11 @@ function CD.start()
 		elseif event == "BAG_UPDATE_DELAYED" then
 			for _, def in ipairs(COOLDOWNS) do if def.reagent then refreshCooldown(def) end end
 		elseif event == "UNIT_AURA" then
+			if InCombatLockdown() then return end   -- auras are secret: nothing to read
 			for _, def in ipairs(COOLDOWNS) do
-				if def.spellID and def.primed and ns.isEnabled(def.key) then readPrimedBuff(def); refreshCooldown(def) end
+				if def.spellID and def.primed and def.primed.buffKey and ns.isEnabled(def.key) then
+					readPrimedBuff(def); refreshCooldown(def)
+				end
 			end
 		else refreshShockRange() end
 	end)

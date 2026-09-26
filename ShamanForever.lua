@@ -279,10 +279,34 @@ local function pruneGroups()
 	end
 end
 
+-- Where an element new to a profile goes: with the elements it sits beside in the default layout
+-- (the group holding any of them), else in a group made like that default one (once per pass), else
+-- the first group. made: default group -> the group made for it in this pass.
+local function placeNew(key, made)
+	for _, dg in ipairs(DEFAULTS.groups) do
+		for _, k in ipairs(dg.members) do
+			if k == key then
+				for _, other in ipairs(dg.members) do
+					local gi = other ~= key and findElement(other)
+					if gi then table.insert(db.groups[gi].members, key) return end
+				end
+				local g = made[dg]
+				if not g then
+					g = newGroup(dg)
+					made[dg] = g
+				end
+				table.insert(g.members, key)
+				return
+			end
+		end
+	end
+	table.insert((db.groups[1] or newGroup()).members, key)
+end
+
 -- Makes db.groups consistent: fills missing group fields, drops unknown, unavailable and duplicate
 -- members, and places every element that is in no group. Elements never seen before (new in an
--- update, or test ones) show; ones seen before but in no group (older saves hid an element that way)
--- come back into the first group, set to never show.
+-- update, or test ones) show, where the default layout has them (placeNew); ones seen before but in
+-- no group (older saves hid an element that way) come back into the first group, set to never show.
 local function sanitize()
 	each("sanitize", db, acct)
 	if type(db.groups) ~= "table" then db.groups = {} end
@@ -302,7 +326,7 @@ local function sanitize()
 		g.members = kept
 	end
 	pruneGroups()
-	local fresh, freshTest = {}, {}
+	local fresh, freshTest, returning = {}, {}, {}
 	for _, key in ipairs(ELEMENT_KEYS) do
 		if available(key) and not seen[key] then
 			if not db.known[key] then
@@ -310,14 +334,16 @@ local function sanitize()
 				db.known[key] = true
 			else
 				elementOpts(key).show = "never"
-				table.insert(fresh, key)
+				table.insert(returning, key)
 			end
 		end
 	end
-	if #fresh > 0 then
+	if #returning > 0 then
 		local g = db.groups[1] or newGroup()
-		for _, key in ipairs(fresh) do table.insert(g.members, key) end
+		for _, key in ipairs(returning) do table.insert(g.members, key) end
 	end
+	local made = {}
+	for _, key in ipairs(fresh) do placeNew(key, made) end
 	if #freshTest > 0 then
 		local g = newGroup(db.groups[1])
 		g.point, g.x, g.y = "CENTER", 0, -40

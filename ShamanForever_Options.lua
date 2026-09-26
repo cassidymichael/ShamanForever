@@ -1544,6 +1544,21 @@ end
 ------------------------------------------------------------------------
 local navButtons, navDivider, navLock, navList = {}, nil, nil, nil   -- navList: the element pages' list
 
+-- The nav's looks: the current page marked, and element pages not learned yet greyed.
+local function refreshNav()
+	for _, b in ipairs(navButtons) do
+		local on = b.page == currentPage
+		b.sel:SetShown(on)
+		b.accent:SetShown(on)
+		if on or not b.sub or ns.isLearned(b.page) then
+			b.label:SetTextColor(on and 1 or (b.sub and 0.9 or 1), on and 0.84 or (b.sub and 0.88 or 0.82), on and 0.5 or (b.sub and 0.84 or 0))
+		else b.label:SetTextColor(0.55, 0.53, 0.5) end
+		b.icon:SetDesaturated(b.sub and not ns.isLearned(b.page) or false)
+	end
+	if navDivider then navDivider.refresh() end
+	if navLock then navLock.refresh() end
+end
+
 local function showPage(key)
 	currentPage = key
 	acct().optionsPage = key   -- reopened next time, across reloads (account-wide, like the window height)
@@ -1551,18 +1566,10 @@ local function showPage(key)
 		p.scroll:SetShown(p.key == key)
 		if p.fixed then p.fixed:SetShown(p.key == key) end
 	end
+	refreshNav()
 	for _, b in ipairs(navButtons) do
-		local on = b.page == key
-		b.sel:SetShown(on)
-		b.accent:SetShown(on)
-		if on or not b.sub or ns.isLearned(b.page) then
-			b.label:SetTextColor(on and 1 or (b.sub and 0.9 or 1), on and 0.84 or (b.sub and 0.88 or 0.82), on and 0.5 or (b.sub and 0.84 or 0))
-		else b.label:SetTextColor(0.55, 0.53, 0.5) end   -- not learned yet
-		b.icon:SetDesaturated(b.sub and not ns.isLearned(b.page) or false)
-		if on and b.sub and navList then navList.reveal(b) end
+		if b.page == key and b.sub and navList then navList.reveal(b) end
 	end
-	if navDivider then navDivider.refresh() end
-	if navLock then navLock.refresh() end
 	pages[key]:refresh()
 end
 
@@ -1646,9 +1653,12 @@ local function buildNav()
 		end
 	end
 	child:SetHeight(math.max(n * NAV_SUB_STEP, 1))
-	-- Shades at an edge with more beyond it.
+	-- Shades at an edge with more beyond it, on a frame above the buttons.
+	local over = CreateFrame("Frame", nil, list)
+	over:SetAllPoints()
+	over:SetFrameLevel(child:GetFrameLevel() + 5)
 	local function shade(point, from, to)
-		local t = list:CreateTexture(nil, "OVERLAY")
+		local t = over:CreateTexture(nil, "OVERLAY")
 		t:SetPoint(point .. "LEFT"); t:SetPoint(point .. "RIGHT")
 		t:SetHeight(18)
 		t:SetColorTexture(1, 1, 1, 1)
@@ -1953,8 +1963,7 @@ function OP.refresh()
 	C_Timer.After(0, function()
 		refreshQueued = false
 		if win:IsShown() and currentPage then pages[currentPage]:refresh() end
-		if navDivider then navDivider.refresh() end
-		if navLock then navLock.refresh() end
+		refreshNav()
 	end)
 end
 
