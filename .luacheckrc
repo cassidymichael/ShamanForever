@@ -65,6 +65,7 @@ read_globals = {
     "GetBindingText",
     "GetConvertedKeyOrButton",
     "GetCursorPosition",
+    "GetMirrorTimerInfo",
     "GetMultiCastBarIndex",
     "GetMultiCastTotemSpells",
     "GetNormalizedRealmName",

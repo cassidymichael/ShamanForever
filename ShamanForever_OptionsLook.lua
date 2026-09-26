@@ -67,7 +67,7 @@ local BLURB = {
 	reincarnation = "Cooldown, and your Ankhs when they run low.",
 	waterwalking = "Time left while it's up.",
 	waterbreathing = "Time left while it's up. Warns under water without it.",
-	elementalfocus = "Shows while Clearcasting is up.",
+	elementalfocus = "Shows while " .. ns.Spells.name("clearcasting") .. " is up.",
 }
 for _, def in ipairs(ns.Cooldowns.COOLDOWNS) do
 	if def.new then
@@ -504,7 +504,7 @@ end
 -- buffs' warnings.
 local function buffPreview(def)
 	local key = def.key
-	local states = { { "up", def.proc and "Clearcasting" or "Up" } }
+	local states = { { "up", def.proc and ns.Spells.name("clearcasting") or "Up" } }
 	if not def.proc then table.insert(states, { "expiring", "Expiring" }) end
 	table.insert(states, { "idle", "Not up" })
 	if def.breath then table.insert(states, { "underwater", "Under water" }) end

@@ -38,18 +38,25 @@ local DEFAULTS = {
 	-- dragged where the player wants them (the totem bar sits below, see TotemBar.lua). Offsets are
 	-- in each group's scaled units, so the third and fourth groups' are divided by their 0.9 scale.
 	-- An example more than a plan: players make their own groups. Elements not learned yet take no
-	-- room, so a new character sees only the first few. Rotation spells and the Clearcasting proc
-	-- (last, so its empty spot is at the end) join the first group, the water buffs the imbue's, and
-	-- the big cooldowns sit in a row above.
+	-- room, so a new character sees only the first row. Groups are centred on their position and grow
+	-- both ways, so the later elements get groups of their own, in two rows above the first: the big
+	-- cooldowns in the middle with the water buffs left and Grounding and Totemic Projection right,
+	-- then Stormstrike, Riptide and the Clearcasting proc above those.
 	groups = {
 		{ point = "CENTER", x = 0, y = -40, scale = 1, alpha = 0.75, orientation = "horizontal",
-			growth = "forward", spacing = 6, members = { "shield", "shock", "firenova", "stormstrike", "riptide", "elementalfocus" } },
+			growth = "forward", spacing = 6, members = { "shield", "shock", "firenova" } },
 		{ point = "CENTER", x = -110, y = -40, scale = 1, alpha = 0.75, orientation = "horizontal",
-			growth = "forward", spacing = 6, members = { "imbue", "waterwalking", "waterbreathing" } },
+			growth = "forward", spacing = 6, members = { "imbue" } },
 		{ point = "CENTER", x = 120, y = -44, scale = 0.9, alpha = 0.6, orientation = "horizontal",
-			growth = "forward", spacing = 6, members = { "earthbind", "stoneclaw", "grounding", "projection" } },
+			growth = "forward", spacing = 6, members = { "earthbind", "stoneclaw" } },
 		{ point = "CENTER", x = 0, y = 11, scale = 0.9, alpha = 0.75, orientation = "horizontal",
 			growth = "forward", spacing = 6, members = { "naturesswiftness", "manatide", "farseer", "reincarnation" } },
+		{ point = "CENTER", x = -167, y = 11, scale = 0.9, alpha = 0.75, orientation = "horizontal",
+			growth = "forward", spacing = 6, members = { "waterwalking", "waterbreathing" } },
+		{ point = "CENTER", x = 167, y = 11, scale = 0.9, alpha = 0.6, orientation = "horizontal",
+			growth = "forward", spacing = 6, members = { "grounding", "projection" } },
+		{ point = "CENTER", x = 0, y = 62, scale = 0.9, alpha = 0.75, orientation = "horizontal",
+			growth = "forward", spacing = 6, members = { "stormstrike", "riptide", "elementalfocus" } },
 	},
 	known = {},             -- element keys placed at least once; new ones join the first group
 	elementOpts = {         -- per-element settings by key, e.g. { shock = { show = "combat" } }

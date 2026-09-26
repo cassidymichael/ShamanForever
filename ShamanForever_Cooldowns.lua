@@ -474,6 +474,8 @@ local function readPrimedBuff(def)
 		if not (def.castAt and GetTime() - def.castAt < CAST_GRACE) then endActive(def) end
 		return
 	end
+	-- Just spent: an aura event can still carry the buff for a moment; don't bring it back.
+	if not def.activeUntil and def.spentAt and GetTime() - def.spentAt < CAST_GRACE then return end
 	local exp, dur = found.expirationTime, found.duration
 	local was = def.activeUntil ~= nil
 	if type(exp) == "number" and type(dur) == "number" and exp > 0 and dur > 0 then
@@ -788,7 +790,7 @@ function CD.onCast(spellID)
 					startActive(def, now, def.primed.duration, def.activeUntil ~= nil)
 				elseif def.activeUntil and def.spends[key] then
 					def.charges = (def.charges or 1) - 1
-					if def.charges <= 0 then endActive(def) end
+					if def.charges <= 0 then def.spentAt = now; endActive(def) end
 				end
 			end
 		end

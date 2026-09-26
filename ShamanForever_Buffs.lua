@@ -11,7 +11,9 @@
 --   "BREATH") starting while the buff isn't up.
 -- * Elemental Focus: a proc can't be foreseen, so in combat only Blizzard's aura container can
 --   show it (as for the shield, ShamanForever_Shield.lua). Its button draws the icon and time left;
---   our glow is a child of that button, so it shows exactly when the button does. Script handlers
+--   our glow is a child of that button, so it shows exactly when the button does. The container
+--   sits on the effects layer, which ignores the icon's alpha: Idle fades only the icon under it
+--   (the look while no proc is up), never the proc itself. Script handlers
 --   under the button never run, but the button plays animations handed to it
 --   (Blizzard_CustomAuraButton.lua): AddAuraShownAnimation runs the glow's pulse while the proc
 --   shows, AddAuraAssignedAnimation our pop each time a proc arrives. Not yet tested in game; on a
@@ -34,7 +36,7 @@ local BUFFS = {
 	{ key = "waterbreathing", spellKey = "waterBreathing", icon = 136148, school = "water", reagent = 17057, duration = 600,
 		breath = true,
 		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, pulse = false } }, experimental = "Water Breathing" },
-	{ key = "elementalfocus", spellKey = "elementalFocus", buffKey = "clearcasting", icon = 136170, school = "fire",
+	{ key = "elementalfocus", spellKey = "elementalFocus", buffKey = "clearcasting", icon = 136170, school = "spirit",
 		proc = true, defaults = { idleAlpha = 0 }, experimental = "Elemental Focus" },
 }
 B.BUFFS = BUFFS
@@ -61,10 +63,7 @@ local function makeBuffIcon(def)
 		f.cd:SetFrameLevel(base + 2)
 		f.textFrame:SetFrameLevel(base + 4)
 		if f.upTimer then f.upTimer:restack() end
-		if def.container then
-			def.container:SetFrameStrata(f:GetFrameStrata())
-			def.container:SetFrameLevel(f.textFrame:GetFrameLevel() + 5)
-		end
+		-- Elemental Focus's container is placed by styleProc, which may touch it.
 	end
 	f.stack()
 	return f
@@ -153,7 +152,7 @@ local function initProcButton(def, button)
 	button:SetDurationCooldown(cd)
 	-- Our glow, above the cooldown: a child of the button, so it shows exactly when the button does.
 	-- Its OnShow can't start the pulse under the button, so the button plays it.
-	def.glow = ns.makeGlow(button, button, def.key)
+	def.glow = ns.makeGlow(button, button, def.key, true)
 	def.glow:SetFrameLevel(cd:GetFrameLevel() + 2)
 	if button.AddAuraShownAnimation then ns.try("proc glow", button.AddAuraShownAnimation, button, def.glow.anim) end
 	-- The pop: the icon grows and settles, played by the button on each new proc. Sized by the pop
@@ -163,19 +162,20 @@ local function initProcButton(def, button)
 	up:SetOrder(1); up:SetDuration(0.12); up:SetOrigin("CENTER", 0, 0)
 	local down = pop:CreateAnimation("Scale")
 	down:SetOrder(2); down:SetDuration(0.25); down:SetOrigin("CENTER", 0, 0)
-	def.popUp, def.popDown = up, down
+	def.popUp, def.popDown, def.popAnim = up, down, pop
 	if button.AddAuraAssignedAnimation then
 		def.buttonPops = ns.try("proc pop", button.AddAuraAssignedAnimation, button, pop)
 	end
 	def.button = button
 end
 
+local styleProc   -- below
 local function setupProc(def)
 	if def.container or def.err then return end
 	if ns.deferWhileAurasSecret("proc container " .. def.key, function() setupProc(def) end) then return end
 	local f = def.frame
 	local ok, err = pcall(function()
-		local c = CreateFrame("AuraContainer", nil, f, "CustomAuraContainerTemplate")
+		local c = CreateFrame("AuraContainer", nil, f.effects, "CustomAuraContainerTemplate")
 		c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
 		c:SetSize(ns.sizeOf(def.key), ns.sizeOf(def.key))
 		c:SetFrameStrata(f:GetFrameStrata())
@@ -192,11 +192,13 @@ local function setupProc(def)
 		def.err = tostring(err)
 		if def.container then def.container:Hide() end
 		ns.noteError("proc container " .. def.key, def.err)
+	else
+		styleProc(def)   -- a layout queued before it (a /reload in combat) found no button to style
 	end
 end
 
 -- Blizzard's button and its parts: out of combat only, and not while auras are secret.
-local function styleProc(def)
+function styleProc(def)
 	if not def.button then return end
 	if ns.deferWhileAurasSecret("proc style " .. def.key, function() styleProc(def) end) then return end
 	local ok = ns.try("proc style", function()
@@ -206,6 +208,7 @@ local function styleProc(def)
 		def.container:SetFrameLevel(def.frame.textFrame:GetFrameLevel() + 5)
 		def.button:SetSize(size, size)
 		def.timer:apply()
+		def.glow:restyle()
 		def.glow:fit(size)
 		def.glow:SetShown(setting(def.key, "primedGlow") and true or false)
 		local st = ns.Style.get(def.key, "pop")
@@ -225,8 +228,8 @@ local function readProc(def)
 		local ok, a = safe(C_UnitAuras.GetPlayerAuraBySpellID, id)
 		if ok and type(a) == "table" then up = true break end
 	end
-	if up and def.procUp == false and not def.buttonPops and ns.isEnabled(def.key) and setting(def.key, "primedPop") then
-		def.frame:Pop("ready")
+	if up and def.procUp == false and not def.buttonPops and def.popAnim and ns.isEnabled(def.key) and setting(def.key, "primedPop") then
+		ns.try("proc pop", def.popAnim.Play, def.popAnim)   -- out of combat, auras readable: allowed
 	end
 	def.procUp = up
 end
@@ -252,8 +255,12 @@ local function refreshBuff(def)
 	f:SetPulsing(false)
 	local held = false
 	if def.proc then
-		-- In combat the button says whether it's up; the icon under it is its idle look.
-		ns.Cooldowns.fadeTo(def, ns.getAccount().locked and setting(key, "idleAlpha") or 1)
+		-- The button says whether it's up; the icon under it is the idle look. The frame is an ancestor
+		-- of Blizzard's button, so its alpha only changes out of combat (it doesn't depend on the proc).
+		if not InCombatLockdown() then
+			local a = setting(key, "idleAlpha")
+			ns.Cooldowns.fadeTo(def, ns.getAccount().locked and (type(a) == "number" and math.min(math.max(a, 0), 1) or 0) or 1)
+		end
 		return
 	end
 	if def.upUntil and GetTime() >= def.upUntil then setDown(def) end
@@ -334,6 +341,13 @@ function B.onCast(spellID)
 end
 
 function B.start()
+	-- Already under water (a /reload): the breath bar is running.
+	for i = 1, 3 do   -- the client's mirror timers: fatigue, breath, feign death
+		local ok, name, _, _, _, paused = safe(GetMirrorTimerInfo, i)
+		if ok and not isSecret(name) and name == "BREATH" and not isSecret(paused) and (paused == 0 or paused == false) then
+			breathing = true
+		end
+	end
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "UNIT_AURA", "player")
 	ns.registerEvent(ev, "MIRROR_TIMER_START")
@@ -342,6 +356,8 @@ function B.start()
 		if event == "UNIT_AURA" then B.refresh() return end
 		if isSecret(timer) or timer ~= "BREATH" then return end
 		breathing = event == "MIRROR_TIMER_START"
+		-- The breath bar only runs without Water Breathing: a dispel or cancel in combat shows here.
+		if breathing then for _, def in ipairs(BUFFS) do if def.breath then setDown(def) end end end
 		refreshAll()
 	end)
 end

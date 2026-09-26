@@ -1514,12 +1514,12 @@ local function buildBuff(p, def)
 		p:checkbox("Fade in and out", nil, eget(key, "breathPulse"), eset(key, "breathPulse"), on)
 	end
 	p:header("Idle")
-	p:text((def.proc and "Idle is when Clearcasting isn't up." or "Idle is when it isn't up.") ..
+	p:text((def.proc and ("Idle is when " .. ns.Spells.name("clearcasting") .. " isn't up.") or "Idle is when it isn't up.") ..
 		" At 0% it's hidden and keeps its place in the group.")
 	p:slider("Idle opacity", "The icon's opacity while idle.", 0, 1, 0.05, pct, eget(key, "idleAlpha"), eset(key, "idleAlpha"))
 	timerSettings(p, "Time left", key, "uptime")
 	if def.proc then
-		p:header("Clearcasting")
+		p:header(ns.Spells.name("clearcasting"))
 		p:checkbox("Pop", "The moment it procs. The icon grows and settles, at the Pop style's size and speed.",
 			eget(key, "primedPop"), eset(key, "primedPop"))
 		p:checkbox("Pulsing glow", "While it's up.", eget(key, "primedGlow"), eset(key, "primedGlow"))

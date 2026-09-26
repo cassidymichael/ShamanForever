@@ -150,10 +150,12 @@ end
 -- is the dimmest it gets) and thickness (how far in it reaches, as a share of the icon).
 -- fit(size) lays it out for an icon of that size.
 local glows = {}
-local function makeGlow(parent, over, owner)
+-- unlisted: left out of ns.applyGlowStyle, for a glow under Blizzard's aura button, which its owner
+-- restyles only when that's allowed (out of combat, auras not secret).
+local function makeGlow(parent, over, owner, unlisted)
 	local g = CreateFrame("Frame", nil, parent)
 	g.owner = owner
-	table.insert(glows, g)
+	if not unlisted then table.insert(glows, g) end
 	g:SetAllPoints(over or parent)
 	g:EnableMouse(false)
 	g.inner = CreateFrame("Frame", nil, g)   -- the breathing; g's own alpha stays free for a gate
