@@ -1052,6 +1052,7 @@ end
 -- taints Blizzard's key handling (EllesmereUI found keys it passes on, like the screenshot key, then
 -- blocked). As Blizzard's: the key replaces the first key and keeps the second, Escape clears the
 -- first, and OK saves (SaveBindings) or Cancel undoes (LoadBindings) our changes along with its own.
+-- Controller buttons bind the same way.
 ------------------------------------------------------------------------
 local catcher = CreateFrame("Frame", nil, UIParent)
 catcher:SetFrameStrata("FULLSCREEN_DIALOG")
@@ -1086,6 +1087,11 @@ end
 -- Hovering a bar button: true when Quick Keybind Mode took the hover (no normal tooltip then).
 local function kbEnter(button, command, layer)
 	if not kbOpen or InCombatLockdown() then return false end
+	if not catcher.pad then
+		-- Out of combat, the first time: controller buttons as well as keys.
+		catcher.pad = true
+		if catcher.EnableGamePadButton then pcall(catcher.EnableGamePadButton, catcher, true) end
+	end
 	catcher.command, catcher.layer = command, layer
 	catcher:ClearAllPoints()
 	catcher:SetAllPoints(button)
@@ -1133,7 +1139,16 @@ local function kbBind(input)
 end
 
 catcher:SetScript("OnLeave", kbLeave)
-catcher:SetScript("OnKeyDown", function(_, key) kbBind(key) end)
+catcher:SetScript("OnKeyDown", function(_, key)
+	-- The screenshot key takes a screenshot, as in Blizzard's own mode: passing the key on wouldn't,
+	-- since Blizzard's keybind frame underneath takes every key.
+	if GetBindingFromClick and GetBindingFromClick(key) == "SCREENSHOT" then
+		if Screenshot then Screenshot() end
+		return
+	end
+	kbBind(key)
+end)
+catcher:SetScript("OnGamePadButtonDown", function(_, button) kbBind(button) end)
 catcher:SetScript("OnMouseUp", function(_, button)
 	if button ~= "LeftButton" and button ~= "RightButton" then kbBind(button) end
 end)
