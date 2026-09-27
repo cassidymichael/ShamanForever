@@ -14,13 +14,45 @@ More screenshots: [options gallery](docs/gallery/README.md).
 
 ## Features
 
-- **Elements** for shields, shocks, weapon imbues and totem cooldowns, each with its own look and warning settings, and a live preview in the options. Water Shield tracking is experimental.
-- **Totem bar**: your totems and their timers; left-click drops each element's picked totem, right-click dismisses it, and a picker changes the pick, in combat too. Call of the Elements and Totemic Recall buttons (right-click Recall to dismiss every totem), key bindings, a flash when a totem is killed early, and a strip that turns red when you're out of range of your own totem's buff. It can replace either or both of Blizzard's totem bars.
-- **Warnings that catch the eye**: pulsing glows and pops for expiring totems, a lost imbue, and spells coming off cooldown.
-- **Tremor Totem**: "Tremor!" when a mob on the Tremor warning watchlist is your target or its nameplate is on screen, and (if you turn it on) when you're feared, charmed or asleep; it can also show the totem's time left while it's down. The watchlist starts with open-world mobs from Classic that cast fear, charm or sleep, and you can add and remove mobs. In dungeons and raids the game hides mob names from addons, so there only the "feared, charmed or asleep" warning works.
-- **Timers**: countdown text, swipe and time bar, each on or off and styled, for every cooldown and time left, with defaults for all and overrides per element.
-- **Groups**: arrange elements into rows and columns, each with its own position, scale, opacity and border, or hide elements you don't use.
-- **Combat aware**: show any element or group always, only in combat, or never. Everything stays accurate in combat using Blizzard's own display widgets (see [docs/combat-techniques.md](docs/combat-techniques.md)).
+### What it tracks
+
+- **Lightning Shield**: charges as a segmented bar, a number, or both, and time left. When the shield is down the icon can go grey, get a red ring, turn red or fade in and out. It can track Water Shield, or whichever shield is up, instead (experimental).
+- **Shock**: Earth, Flame or Frost Shock's cooldown. The icon shows when your target is out of range, and when you're short of mana for the shock (or another shock you choose).
+- **Weapon Imbue**: warns when your main hand has no Rockbiter, Flametongue, Frostbrand or Windfury, shows which one is on, and its time left once it's under 5 minutes. It can stay hidden until the imbue is low or gone.
+- **Earthbind Totem, Stoneclaw Totem and Fire Nova**: their cooldowns. Earthbind and Stoneclaw also show how long their totem has left, warn before it ends and flash if it's killed early. Fire Nova shows when no fire totem is down.
+- **Idle**: cooldown elements can fade, or hide, while there's nothing to act on. They keep their place, and their warnings still show at full.
+
+### Totem bar
+
+- One slot per element. Left-click drops the totem you've picked for it, right-click dismisses it, and the arrow on each slot opens a picker to change the pick, in combat too.
+- Each slot shows its totem's time left, warns as it runs out, and flashes red with a cross if the totem is killed early.
+- A red strip on a slot when your totem is down but you aren't getting its buff, for totems that buff you, such as Strength of Earth or Healing Stream.
+- Call of the Elements and Totemic Recall buttons. Right-click Recall to dismiss every totem at once.
+- Key bindings to drop each element's totem, dismiss one or all, Call and Recall. Bind them by hovering the bar in Quick Keybind Mode; each button can show its key.
+- It can replace Blizzard's active totems display, both of Blizzard's totem bars, or neither.
+- Drag to reorder the slots, and give any totem its own warning time.
+
+### Warnings and timers
+
+- Warning looks for anything missing or running out: grey icon, red ring, fade in and out.
+- A pulsing glow and a pop for the moments that matter: a spell ready, a totem expiring or killed, your imbue dropping. Choose the pop's motion (grow, bounce, hop or shake), with an optional flash, ring or star burst, and the glow's colour, speed and depth.
+- Timers as countdown text, a cooldown swipe, a draining bar, or any mix, each with its own size, colour, position and time format.
+- An optional global cooldown sweep, as on action bars.
+
+### Layout
+
+- Arrange elements into groups: rows or columns, each with its own position, icon size, scale, opacity and border. Drag elements between groups in the options, or hide ones you don't use.
+- Show each element or group always, only in combat, or never.
+- Positioning mode: drag groups and the totem bar, with snapping and a grid. Mouse wheel sets icon size, Ctrl+wheel scale, Shift+wheel opacity, and the arrow keys nudge. It locks itself when combat starts.
+- Borders and warning rings stay pixel-sharp at any icon size.
+
+### Options and profiles
+
+- An options window (`/sf`, the minimap button, or Escape > Options > AddOns) with a page per element and a live preview of each look.
+- Set the style once on the General page, then give any element, group or the totem bar its own where you want something different.
+- Profiles per character: copy, reset, or share one as text with other players.
+- Spells are recognised by ID, so it should work in any game language (the options are in English).
+- Features that haven't been tested in game yet are labelled experimental, with a link to report how they work.
 
 ## Usage
 
@@ -38,7 +70,7 @@ Ideas, requests or problems are welcome, any of these ways:
 
 ## How it works
 
-In combat, Forever hides most of what an addon could read about auras, totems and cooldowns. ShamanForever stays accurate by handing that information to Blizzard's own display widgets instead of reading it. [docs/combat-techniques.md](docs/combat-techniques.md) explains each technique and the one inference the addon makes.
+In combat, Forever hides most of what an addon could read about auras, totems and cooldowns. ShamanForever stays accurate by handing that information to Blizzard's own display widgets instead of reading it. [docs/combat-techniques.md](docs/combat-techniques.md) explains each technique.
 
 ## Development
 

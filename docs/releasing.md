@@ -6,6 +6,8 @@
   per change, each saying what it does. The branch is pushed as a backup, and CI lints it.
 - It is tested in game from the branch, then merged into `main` keeping its commits
   (`git merge --ff-only`, or `--no-ff` for a larger piece of work). The branch is then deleted.
+- A branch that adds, removes or changes something players can do (not just a setting) updates the
+  README's Features section before it is merged. Experimental features are listed as experimental.
 - Changes that don't touch what players get (docs, CI, repo files) can go straight to `main`.
 - A pull request only when a written record of a larger change helps; not for every change.
 
@@ -14,7 +16,11 @@
 1. Merge the tested work into `main` as above.
 2. Add an entry at the top of `CHANGELOG.md`, headed `## X.Y.Z (YYYY-MM-DD)`, listing what players
    will notice. Commit it on its own as `Release X.Y.Z`.
+   Anything new in it should already be in the README's Features section. On a 0.x.0 release, also
+   read the whole list against the options window and drop anything that has gone.
 3. Tag and push: `git tag -a vX.Y.Z -m "ShamanForever X.Y.Z" && git push origin main vX.Y.Z`
+4. If the Features section changed since the last release (`git diff vPREV vX.Y.Z -- README.md`),
+   paste it into the CurseForge and Wago project descriptions. The release doesn't update those.
 
 The tag push runs `.github/workflows/release.yml`:
 

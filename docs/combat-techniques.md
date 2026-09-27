@@ -38,7 +38,7 @@ What the button does for you, in combat too (tested 2026-09-27 on Lightning Shie
 
 Candidate filters by spell ID (`includeSpellIDs`) are refused for harmful auras on units you can assist, unless the spell is flagged never-secret (`AuraContainerUtil.CanApplyIdentityCandidateFilters`), so a debuff on a party member can't be matched by spell. They work for helpful auras and for debuffs on hostile units. `"HARMFUL|CROWD_CONTROL"` does light for crowd control on a friendly unit, but can't tell a fear from a stun.
 
-## The "no shield" look, and the one inference ShamanForever makes
+## The "no shield" look
 
 Blizzard's button hides when the aura is gone, but addon code has no sanctioned way to learn that in combat. Tested on build 69913 (2026-09-23):
 
