@@ -1587,7 +1587,7 @@ local function buildBuff(p, def)
 	effectBlocks(p, key, nil, true, def.proc and "grow" or false)
 end
 
--- Tremor Totem's mob list: a box that searches the list and adds a name, Add target, the list (a
+-- Tremor Totem's watchlist: a box that searches the list and adds a name, Add target, the list (a
 -- remove button on each mob) and a count. The list is a ScrollBox, which recycles its rows, so
 -- hundreds of mobs take a dozen frames.
 local MOB_ROW_H, MOB_ROWS = 22, 12
@@ -1668,10 +1668,10 @@ local function mobList(p)
 	local count = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 	count:SetPoint("TOPLEFT", panel, "BOTTOMLEFT", 4, -10)
 	local restore = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-	restore:SetSize(150, 22)
+	restore:SetSize(180, 22)
 	restore:SetPoint("TOPRIGHT", panel, "BOTTOMRIGHT", 0, -5)
-	restore:SetText("Restore removed")
-	setTip(restore, "Restore removed", "Puts back every mob you took off the addon's list.")
+	restore:SetText("Restore removed defaults")
+	setTip(restore, "Restore removed defaults", "Puts back the mobs you removed from the default list. Mobs you added stay as they are.")
 	restore:SetScript("OnClick", function() T.restore() end)
 
 	local shown = 0   -- rows matching the search
@@ -1685,7 +1685,7 @@ local function mobList(p)
 		local c = T.counts()
 		local parts = { string.format("%d mobs", c.mobs) }
 		if c.added > 0 then table.insert(parts, string.format("%d added", c.added)) end
-		if c.removed > 0 then table.insert(parts, string.format("%d removed", c.removed)) end
+		if c.removed > 0 then table.insert(parts, string.format("%d removed from the defaults", c.removed)) end
 		count:SetText(table.concat(parts, ", "))
 		restore:SetEnabled(c.removed > 0)
 	end
@@ -1707,29 +1707,54 @@ local function mobList(p)
 	return p:add(f, H, nil, fill)
 end
 
+-- A line that reads as a link and opens another part of the options.
+local function linkLine(p, text, tip, onClick)
+	local f = p:row(22)
+	local b = CreateFrame("Button", nil, f)
+	b:SetPoint("LEFT", 4, 0)
+	b:SetNormalFontObject("GameFontNormalSmall")
+	b:SetHighlightFontObject("GameFontHighlightSmall")
+	b:SetText(text)
+	b:SetSize(b:GetFontString():GetStringWidth() + 4, 18)
+	b:SetScript("OnClick", onClick)
+	setTip(b, text, tip)
+	return p:add(f, 22)
+end
+
 -- Tremor Totem's page (ShamanForever_Tremor.lua).
+local WORD_POS = { { "below", "Below the icon" }, { "above", "Above the icon" }, { "center", "On the icon" } }
 local function buildTremor(p)
 	local key = "tremor"
 	elementDisplay(p, key)
+	p:header("Idle")
+	p:text("Idle is when your Tremor Totem isn't down and there's nothing to warn about. At 0% it's hidden and keeps its place in the group.")
+	p:slider("Idle opacity", "The icon's opacity while idle.", 0, 1, 0.05, pct, eget(key, "idleAlpha"), eset(key, "idleAlpha"))
 	p:header("Warn when")
 	p:checkbox("Your target is on the list", nil, eget(key, "tremorTarget"), eset(key, "tremorTarget"))
 	p:checkbox("A mob on the list is near", "Its nameplate is on screen.", eget(key, "tremorPlates"), eset(key, "tremorPlates"))
 	p:text("Needs enemy nameplates on.", showWhen(eget(key, "tremorPlates")))
-	p:checkbox("You're feared, charmed or asleep", "And for 10 seconds after, so you can put it down.",
+	p:checkbox("You're feared, charmed or asleep", "And for 10 seconds after, in case it comes again.",
 		eget(key, "tremorFeared"), eset(key, "tremorFeared"))
 	p:text("Not while your Tremor Totem is down.")
-	p:header("Fear casters")
+	p:header("Tremor warning watchlist")
+	p:callout("In dungeons and raids the game hides mob names from addons, so the watchlist can't work there. "
+		.. "There it warns only when you're feared, charmed or asleep.")
 	p:text("Mobs that cast fear, charm or sleep.")
+	linkLine(p, "Help improve ShamanForever: suggest a mob to add to this default list",
+		"Opens Feedback, on the About page.", function() OP.showFeedback() end)
 	mobList(p)
-	p:text("In dungeons and raids the game hides mob names from addons, so there it warns only when you're feared.")
-	p:header("Idle")
-	p:text("Idle is when there's nothing to warn about, or your Tremor Totem is down. At 0% it's hidden and keeps its place in the group.")
-	p:slider("Idle opacity", "The icon's opacity while idle.", 0, 1, 0.05, pct, eget(key, "idleAlpha"), eset(key, "idleAlpha"))
 	timerSettings(p, "Time left", key, "uptime")
 	p:header("When it warns")
 	p:checkbox("Pop", "The moment it starts warning.", eget(key, "alertPop"), eset(key, "alertPop"))
 	p:checkbox("Pulsing glow", "While it warns.", eget(key, "alertGlow"), eset(key, "alertGlow"))
-	p:checkbox("Text", ns.Tremor.WORD .. " under the icon.", eget(key, "alertText"), eset(key, "alertText"))
+	p:checkbox("Text", ns.Tremor.WORD .. " by the icon.", eget(key, "alertText"), eset(key, "alertText"))
+	local text = showWhen(eget(key, "alertText"))
+	p:slider("Text size", "At the standard icon size; it grows and shrinks with the icon.", 8, 40, 1, int,
+		eget(key, "wordSize"), eset(key, "wordSize"), text)
+	p:color("Text colour", nil, eget(key, "wordColor"), eset(key, "wordColor"), text)
+	p:dropdown("Text position", nil, WORD_POS, eget(key, "wordPos"), eset(key, "wordPos"), text, 160)
+	p:slider("Text X offset", "Pixels right (or left, below zero).", -100, 100, 1, px, eget(key, "wordX"), eset(key, "wordX"), text)
+	p:slider("Text Y offset", "Pixels up (or down, below zero).", -100, 100, 1, px, eget(key, "wordY"), eset(key, "wordY"), text)
 	p:dropdown("Sound", "Plays when it starts warning.", ns.Tremor.SOUNDS, eget(key, "alertSound"), function(v)
 		ns.elementOpts(key).alertSound = v
 		ns.Tremor.playSound(v)

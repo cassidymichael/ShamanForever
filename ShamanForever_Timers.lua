@@ -44,8 +44,8 @@ T.ELEMENT_DEFAULTS = {
 	waterwalking = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
 	waterbreathing = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
 	elementalfocus = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
-	-- Tremor Totem's five minutes while it's down, as on the water buffs.
-	tremor = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = false } },
+	-- Tremor Totem's five minutes while it's down: minutes in the middle and a time bar.
+	tremor = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
 }
 -- Parts an element's timer can't have, and why (shown on its page): for every kind, or under a
 -- kind's name for that kind only.

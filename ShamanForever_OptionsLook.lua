@@ -82,7 +82,7 @@ end
 do
 	local def = ns.Tremor.def
 	L.ELEMENT.tremor = { name = def.spell, spell = def.spellKey, icon = def.icon, school = def.school,
-		blurb = "Warns near mobs that fear, charm or sleep, and when you're feared." }
+		blurb = "Warns near mobs that fear, charm or sleep. Time left while it's down." }
 end
 
 -- An element's name: a spell's in the client's language (name is the fallback), else its own.
@@ -579,9 +579,9 @@ local function buffPreview(def)
 end
 for _, def in ipairs(ns.Buffs.BUFFS) do L.PREVIEW[def.key] = buffPreview(def) end
 
--- Tremor Totem: warning, its totem down (time left, at the idle look) and nothing near (idle).
+-- Tremor Totem: warning, its totem down (time left) and idle (not down, nothing to warn about).
 L.PREVIEW.tremor = {
-	states = { { "warn", "Warning" }, { "down", "Tremor down" }, { "idle", "Nothing near" } },
+	states = { { "warn", "Warning" }, { "down", "Tremor down" }, { "idle", "Not down, no warning" } },
 	pop = function(ic, st) if st == "warn" and opt("tremor", "alertPop") then ic:Pop("ready") end end,
 	render = function(ic, st)
 		local def = ns.Tremor.def
@@ -589,17 +589,16 @@ L.PREVIEW.tremor = {
 		if not ic.word then
 			ic.word = ic.textFrame:CreateFontString(nil, "OVERLAY")
 			ic.word:SetFont(STANDARD_TEXT_FONT, 20, "OUTLINE")
-			ic.word:SetTextColor(1, 0.82, 0)
-			ic.word:SetPoint("TOP", ic, "BOTTOM", 0, -3)
 			ic.word:SetText(ns.Tremor.WORD)
 		end
+		ns.Tremor.styleWord(ic.word, ic, ic:GetWidth())
 		ic.word:Hide()
 		if st == "warn" then
 			ic:SetGlowShown(opt("tremor", "alertGlow"))
 			ic.word:SetShown(opt("tremor", "alertText") and true or false)
 			return
 		end
-		if st == "down" then frozen(ic.upT, 0.3, 300) end
+		if st == "down" then frozen(ic.upT, 0.3, 300) return end
 		-- Idle opacity, but never quite invisible here: 0 shows as a faint outline.
 		local a = opt("tremor", "idleAlpha")
 		ic:SetAlpha(math.max(type(a) == "number" and a or 0, 0.12))
