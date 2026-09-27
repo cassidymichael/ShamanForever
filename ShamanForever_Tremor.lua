@@ -11,8 +11,11 @@
 --   addons in dungeons and raids, in and out of combat (12.0 API notes); in the open world it stays
 --   readable in combat. C_Secrets.ShouldUnitIdentityBeSecret says so per unit, and a mob whose
 --   identity is secret is simply not matched. Nothing here compares a secret.
--- * Loss of control on the player (C_LossOfControl.GetActiveLossOfControlData): not secret. Only
---   other units' loss of control is.
+-- * Loss of control on the player (C_LossOfControl.GetActiveLossOfControlData): not secret, spell
+--   ID included. Only other units' loss of control is. An effect counts when its spell is one
+--   Tremor removes (ns.Tremor.SPELLS: a fear, charm or sleep mechanic in Forever's client data) or
+--   its type says so. The type alone isn't enough: a Wrathtail Priestess's Sleep (15970) came as
+--   STUN (seen 2026-09-27).
 -- * Our Tremor Totem: the earth slot holds the totem we last cast into it (ShamanForever_Totems.lua,
 --   readable in combat), and the slot has a duration object while a totem is out.
 
@@ -29,8 +32,9 @@ local HOLD = 10        -- seconds the warning stays after a fear, charm or sleep
 local SOUND_GAP = 10   -- seconds between sounds, so mobs coming and going don't repeat it
 TR.WORD = "Tremor!"    -- by the icon while it warns
 
--- Loss-of-control types Tremor Totem removes (C_LossOfControl's locType).
+-- Loss-of-control types that name what Tremor Totem removes (C_LossOfControl's locType).
 local TREMOR_TYPES = { FEAR = true, FEAR_MECHANIC = true, CHARM = true, POSSESS = true, SLEEP = true }
+local tremorSpells = {}   -- spell ID -> true, from TR.SPELLS (ShamanForever_TremorList.lua), at start
 
 -- The options' sound choices: value, text, sound kit.
 TR.SOUNDS = {
@@ -254,8 +258,18 @@ local function checkAllPlates()
 	for i = 1, 40 do checkPlate("nameplate" .. i) end
 end
 
-local function noteControl(d)
-	local line = string.format("%s spell %s \"%s\"", describeArg(d.locType), describeArg(d.spellID), describeArg(d.displayText))
+-- Whether a loss of control is one Tremor removes: by its spell, and by its type.
+local function controlMatch(d)
+	local id, t = d.spellID, d.locType
+	local bySpell = type(id) == "number" and not isSecret(id) and tremorSpells[id] == true
+	local byType = type(t) == "string" and not isSecret(t) and TREMOR_TYPES[t] == true
+	return bySpell, byType
+end
+
+local function noteControl(d, bySpell, byType)
+	local rule = bySpell and byType and "by spell and type" or bySpell and "by spell" or byType and "by type" or "no"
+	local line = string.format("%s spell %s \"%s\" (%s)", describeArg(d.locType), describeArg(d.spellID),
+		describeArg(d.displayText), rule)
 	if controlSeen[1] == line then return end
 	table.insert(controlSeen, 1, line)
 	controlSeen[6] = nil
@@ -269,9 +283,9 @@ local function readControl()
 	for i = 1, type(n) == "number" and n or 0 do
 		local d = plain(safe(C.GetActiveLossOfControlData, i))
 		if type(d) == "table" then
-			noteControl(d)
-			local t = d.locType
-			if setting("tremorFeared") and type(t) == "string" and not isSecret(t) and TREMOR_TYPES[t] then feared = true end
+			local bySpell, byType = controlMatch(d)
+			noteControl(d, bySpell, byType)
+			if setting("tremorFeared") and (bySpell or byType) then feared = true end
 		end
 	end
 	if was and not feared then holdUntil = GetTime() + HOLD end
@@ -482,6 +496,7 @@ function TR.tick()
 end
 
 function TR.start()
+	for _, id in ipairs(TR.SPELLS) do tremorSpells[id] = true end
 	rebuild()
 	local ev = CreateFrame("Frame")
 	for _, event in ipairs({ "PLAYER_TARGET_CHANGED", "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED",
@@ -528,7 +543,7 @@ function TR.debug()
 		local ok, map = safe(R.IsAddOnRestrictionActive, Enum.AddOnRestrictionType.Map)
 		say("  map restriction %s, in instance %s", ok and describeArg(map) or "error", tostring(IsInInstance()))
 	end
-	say("  feared now %s, holding %s; losses of control seen: %s", tostring(feared),
+	say("  feared now %s, holding %s; losses of control seen (Tremor removes it?): %s", tostring(feared),
 		tostring(GetTime() < holdUntil), #controlSeen > 0 and table.concat(controlSeen, "; ") or "none")
 end
 
