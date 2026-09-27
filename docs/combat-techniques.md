@@ -27,7 +27,7 @@ c:AddAuraSlot("key", "HELPFUL", {
 
 Gotchas: registered parts must be descendants of the button; script handlers (OnShow/OnHide etc.) on anything under the button never run, so you cannot learn when the aura disappears in combat (keep an always-visible underlay for the empty state); the count text only prints for two or more applications (no formatter constructor found); the button and its parts are off limits to addon code in combat (change alpha/fonts out of combat); everything readable about the button is secret, even out of combat.
 
-## The "no shield" look, and the one inference ShamanForever makes
+## The "no shield" look
 
 Blizzard's button hides when the aura is gone, but addon code has no sanctioned way to learn that in combat. Tested on build 69913 (2026-09-23):
 
