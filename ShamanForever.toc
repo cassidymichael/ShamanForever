@@ -27,6 +27,8 @@ ShamanForever_Imbue.lua
 ShamanForever_Totems.lua
 ShamanForever_Cooldowns.lua
 ShamanForever_Buffs.lua
+ShamanForever_Tremor.lua
+ShamanForever_TremorList.lua
 ShamanForever_Positioning.lua
 ShamanForever_Profiles.lua
 ShamanForever_Slash.lua

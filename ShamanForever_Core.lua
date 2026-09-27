@@ -163,6 +163,7 @@ local DEFS = {
 	windfury        = { ids = { 8232 }, en = "Windfury Weapon" },
 	call            = { ids = { 66842 }, en = "Call of the Elements" },
 	recall          = { ids = { 36936 }, en = "Totemic Recall" },
+	tremor          = { ids = { 8143 }, en = "Tremor Totem" },   -- level 18; the ID foreverdiff.com lists
 	-- Talents or above the level-20 cap: seeds from foreverdiff.com, each found on the client with
 	-- the right name and text (spell harvest, 2026-09-27), not yet seen on a character. The client's
 	-- name for the spell finds any rank the spellbook has.

@@ -42,7 +42,8 @@ local DEFAULTS = {
 	-- room, so a new character sees only the first row. Groups are centred on their position and grow
 	-- both ways, so the later elements get groups of their own, in two rows above the first: the big
 	-- cooldowns in the middle with the water buffs left and Grounding and Totemic Projection right,
-	-- then Stormstrike, Riptide and the Clearcasting proc above those.
+	-- then Stormstrike, Riptide and the Clearcasting proc above those. Tremor Totem's warning sits
+	-- alone above them all, larger and at full opacity; it is unseen until it warns.
 	groups = {
 		{ point = "CENTER", x = 0, y = -40, scale = 1, alpha = 0.75, orientation = "horizontal",
 			growth = "forward", spacing = 6, members = { "shield", "shock", "firenova" } },
@@ -58,6 +59,8 @@ local DEFAULTS = {
 			growth = "forward", spacing = 6, members = { "grounding", "projection" } },
 		{ point = "CENTER", x = 0, y = 62, scale = 0.9, alpha = 0.75, orientation = "horizontal",
 			growth = "forward", spacing = 6, members = { "stormstrike", "riptide", "elementalfocus" } },
+		{ point = "CENTER", x = 0, y = 104, scale = 1.25, alpha = 1, orientation = "horizontal",
+			growth = "forward", spacing = 6, members = { "tremor" } },
 	},
 	known = {},             -- element keys placed at least once; new ones join the first group
 	elementOpts = {         -- per-element settings by key, e.g. { shock = { show = "combat" } }
@@ -119,7 +122,8 @@ local root = CreateFrame("Frame", "ShamanForeverRoot", UIParent)
 root:SetAllPoints(UIParent)
 
 -- Every element, in the order the options list them. Each is made and registered by its module
--- (ShamanForever_Shield, _Imbue, _Cooldowns, _Buffs); the test placeholders below are this file's own.
+-- (ShamanForever_Shield, _Imbue, _Cooldowns, _Buffs, _Tremor); the test placeholders below are this
+-- file's own.
 local ELEMENT_KEYS = { "shield", "shock", "imbue", "earthbind", "stoneclaw", "firenova" }
 -- key -> { frame, label, paint(texture), getSize(size), stack(), placeholder, learned(),
 -- defaults }. db.groups decides where each one shows. getSize gives its width and height for its

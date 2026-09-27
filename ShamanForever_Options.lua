@@ -1587,6 +1587,157 @@ local function buildBuff(p, def)
 	effectBlocks(p, key, nil, true, def.proc and "grow" or false)
 end
 
+-- Tremor Totem's mob list: a box that searches the list and adds a name, Add target, the list (a
+-- remove button on each mob) and a count. The list is a ScrollBox, which recycles its rows, so
+-- hundreds of mobs take a dozen frames.
+local MOB_ROW_H, MOB_ROWS = 22, 12
+local function mobList(p)
+	local T = ns.Tremor
+	local listH = MOB_ROW_H * MOB_ROWS + 8
+	local H = 32 + listH + 32
+	local f = p:row(H)
+	local box = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+	box:SetSize(240, 20)
+	box:SetPoint("TOPLEFT", 8, -5)
+	box:SetAutoFocus(false)
+	box.hint = box:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+	box.hint:SetPoint("LEFT", 2, 0)
+	box.hint:SetText("Search, or type a name to add")
+	local add = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+	add:SetSize(70, 22)
+	add:SetPoint("LEFT", box, "RIGHT", 8, 0)
+	add:SetText("Add")
+	setTip(add, "Add", "Puts the name in the box on the list.")
+	local addTarget = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+	addTarget:SetSize(110, 22)
+	addTarget:SetPoint("LEFT", add, "RIGHT", 6, 0)
+	addTarget:SetText("Add target")
+	setTip(addTarget, "Add target", "Puts the mob you have targeted on the list.")
+
+	local panel = CreateFrame("Frame", nil, f, "BackdropTemplate")
+	panelBackdrop(panel)
+	panel:SetPoint("TOPLEFT", 0, -32)
+	panel:SetPoint("TOPRIGHT", 0, -32)
+	panel:SetHeight(listH)
+	local sb = CreateFrame("Frame", nil, panel, "WowScrollBoxList")
+	sb:SetPoint("TOPLEFT", 4, -4)
+	sb:SetPoint("BOTTOMRIGHT", -22, 4)
+	local bar = CreateFrame("EventFrame", nil, panel, "MinimalScrollBar")
+	bar:SetPoint("TOPLEFT", sb, "TOPRIGHT", 6, 0)
+	bar:SetPoint("BOTTOMLEFT", sb, "BOTTOMRIGHT", 6, 0)
+	local empty = panel:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+	empty:SetPoint("CENTER")
+	empty:SetText("No mob by that name. Add puts it on the list.")
+
+	local view = CreateScrollBoxListLinearView()
+	view:SetElementExtent(MOB_ROW_H)
+	view:SetElementInitializer("Button", function(row, r)
+		if not row.name then
+			local hl = row:CreateTexture(nil, "HIGHLIGHT")
+			hl:SetAllPoints()
+			hl:SetColorTexture(1, 1, 1, 0.05)
+			row.x = CreateFrame("Button", nil, row)
+			row.x:SetSize(20, 20)
+			row.x:SetPoint("RIGHT", -2, 0)
+			row.x:SetNormalFontObject("GameFontNormal")
+			row.x:SetHighlightFontObject("GameFontHighlight")
+			row.x:SetText("X")
+			row.x:SetScript("OnClick", function(self) T.remove(self.lower) end)
+			setTip(row.x, "Remove", "Takes this mob off the list.")
+			row.name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+			row.name:SetPoint("LEFT", 6, 0)
+			row.name:SetPoint("RIGHT", row, "CENTER", 0, 0)
+			row.name:SetJustifyH("LEFT")
+			row.name:SetWordWrap(false)
+			row.info = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+			row.info:SetPoint("LEFT", row, "CENTER", 8, 0)
+			row.info:SetPoint("RIGHT", row.x, "LEFT", -6, 0)
+			row.info:SetJustifyH("LEFT")
+			row.info:SetWordWrap(false)
+		end
+		row.name:SetText(r.name)
+		local info = {}
+		if r.zone then table.insert(info, r.zone) end
+		if r.effects ~= "" then table.insert(info, r.effects) end
+		if r.own then table.insert(info, "added") end
+		row.info:SetText(table.concat(info, "  ·  "))
+		row.x.lower = r.lower
+	end)
+	ScrollUtil.InitScrollBoxListWithScrollBar(sb, bar, view)
+
+	local count = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	count:SetPoint("TOPLEFT", panel, "BOTTOMLEFT", 4, -10)
+	local restore = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+	restore:SetSize(150, 22)
+	restore:SetPoint("TOPRIGHT", panel, "BOTTOMRIGHT", 0, -5)
+	restore:SetText("Restore removed")
+	setTip(restore, "Restore removed", "Puts back every mob you took off the addon's list.")
+	restore:SetScript("OnClick", function() T.restore() end)
+
+	local shown = 0   -- rows matching the search
+	local function fill()
+		local text = box:GetText()
+		box.hint:SetShown(text == "" and not box:HasFocus())
+		local list = T.rows(text)
+		shown = #list
+		sb:SetDataProvider(CreateDataProvider(list), ScrollBoxConstants.RetainScrollPosition)
+		empty:SetShown(shown == 0)
+		local c = T.counts()
+		local parts = { string.format("%d mobs", c.mobs) }
+		if c.added > 0 then table.insert(parts, string.format("%d added", c.added)) end
+		if c.removed > 0 then table.insert(parts, string.format("%d removed", c.removed)) end
+		count:SetText(table.concat(parts, ", "))
+		restore:SetEnabled(c.removed > 0)
+	end
+	local function addTyped()
+		T.add(box:GetText())
+		box:SetText("")
+	end
+	box:SetScript("OnTextChanged", fill)
+	box:SetScript("OnEditFocusGained", fill)
+	box:SetScript("OnEditFocusLost", fill)
+	-- Enter adds only a name the list doesn't have; while the search finds mobs it just closes.
+	box:SetScript("OnEnterPressed", function(self)
+		if shown == 0 then addTyped() end
+		self:ClearFocus()
+	end)
+	box:SetScript("OnEscapePressed", function(self) self:SetText(""); self:ClearFocus() end)
+	add:SetScript("OnClick", addTyped)
+	addTarget:SetScript("OnClick", function() T.addTarget() end)
+	return p:add(f, H, nil, fill)
+end
+
+-- Tremor Totem's page (ShamanForever_Tremor.lua).
+local function buildTremor(p)
+	local key = "tremor"
+	elementDisplay(p, key)
+	p:header("Warn when")
+	p:checkbox("Your target is on the list", nil, eget(key, "tremorTarget"), eset(key, "tremorTarget"))
+	p:checkbox("A mob on the list is near", "Its nameplate is on screen.", eget(key, "tremorPlates"), eset(key, "tremorPlates"))
+	p:text("Needs enemy nameplates on.", showWhen(eget(key, "tremorPlates")))
+	p:checkbox("You're feared, charmed or asleep", "And for 10 seconds after, so you can put it down.",
+		eget(key, "tremorFeared"), eset(key, "tremorFeared"))
+	p:text("Not while your Tremor Totem is down.")
+	p:header("Fear casters")
+	p:text("Mobs that cast fear, charm or sleep.")
+	mobList(p)
+	p:text("In dungeons and raids the game hides mob names from addons, so there it warns only when you're feared.")
+	p:header("Idle")
+	p:text("Idle is when there's nothing to warn about, or your Tremor Totem is down. At 0% it's hidden and keeps its place in the group.")
+	p:slider("Idle opacity", "The icon's opacity while idle.", 0, 1, 0.05, pct, eget(key, "idleAlpha"), eset(key, "idleAlpha"))
+	timerSettings(p, "Time left", key, "uptime")
+	p:header("When it warns")
+	p:checkbox("Pop", "The moment it starts warning.", eget(key, "alertPop"), eset(key, "alertPop"))
+	p:checkbox("Pulsing glow", "While it warns.", eget(key, "alertGlow"), eset(key, "alertGlow"))
+	p:checkbox("Text", ns.Tremor.WORD .. " under the icon.", eget(key, "alertText"), eset(key, "alertText"))
+	p:dropdown("Sound", "Plays when it starts warning.", ns.Tremor.SOUNDS, eget(key, "alertSound"), function(v)
+		ns.elementOpts(key).alertSound = v
+		ns.Tremor.playSound(v)
+		relayout()
+	end, nil, 160)
+	effectBlocks(p, key)
+end
+
 ------------------------------------------------------------------------
 -- Window
 ------------------------------------------------------------------------
@@ -1888,6 +2039,7 @@ local function buildWindow()
 	buildImbue(newPage("imbue", "Weapon Imbue", true))
 	for _, def in ipairs(ns.Cooldowns.COOLDOWNS) do buildCooldown(newPage(def.key, def.spell, true), def) end
 	for _, def in ipairs(ns.Buffs.BUFFS) do buildBuff(newPage(def.key, def.spell, true), def) end
+	buildTremor(newPage("tremor", ns.Tremor.def.spell, true))
 	buildProfiles(newPage("profiles", "Profiles"))
 	buildAbout(newPage("about", "About"))
 	buildNav()
