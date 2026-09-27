@@ -35,32 +35,30 @@ local DEFAULTS = {
 	glowStyle = CopyTable(ns.Style.KINDS.glow.defaults),
 	popStyle = CopyTable(ns.Style.KINDS.pop.defaults),
 	gcdStyle = CopyTable(ns.Style.KINDS.gcd.defaults),
-	-- Default layout: just below the centre of the screen, side by side 16 px apart, ready to be
-	-- dragged where the player wants them (the totem bar sits below, see TotemBar.lua). Offsets are
-	-- in each group's scaled units, so the third and fourth groups' are divided by their 0.9 scale.
-	-- An example more than a plan: players make their own groups. Elements not learned yet take no
-	-- room, so a new character sees only the first row. Groups are centred on their position and grow
-	-- both ways, so the later elements get groups of their own, in two rows above the first: the big
-	-- cooldowns in the middle with the water buffs left and Grounding and Totemic Projection right,
-	-- then Stormstrike, Riptide and the Clearcasting proc above those. Tremor Totem's warning sits
-	-- alone above them all, larger and at full opacity; it is unseen until it warns.
+	-- Default layout: just below the centre of the screen, side by side, ready to be dragged where
+	-- the player wants them (the totem bar sits below, see TotemBar.lua). Offsets are in each group's
+	-- scaled units (a 0.9 group's are divided by 0.9). An example more than a plan: players make their
+	-- own groups. Elements not learned yet take no room, so a new character sees only the first row.
+	-- Groups are centred on their position and grow both ways. Around the first row (shield, shocks,
+	-- Fire Nova; the imbue left; the earth totems and Grounding right): the Clearcasting proc just
+	-- above it, Reincarnation up and left, every other cooldown and buff in a row above, and Tremor
+	-- Totem's warning alone at the top, larger and at full opacity; it is unseen until it warns.
 	groups = {
 		{ point = "CENTER", x = 0, y = -40, scale = 1, alpha = 0.75, orientation = "horizontal",
 			growth = "forward", spacing = 6, members = { "shield", "shock", "firenova" } },
 		{ point = "CENTER", x = -110, y = -40, scale = 1, alpha = 0.75, orientation = "horizontal",
 			growth = "forward", spacing = 6, members = { "imbue" } },
-		{ point = "CENTER", x = 120, y = -44, scale = 0.9, alpha = 0.6, orientation = "horizontal",
-			growth = "forward", spacing = 6, members = { "earthbind", "stoneclaw" } },
+		{ point = "CENTER", x = 156, y = -44, scale = 0.9, alpha = 0.6, orientation = "horizontal",
+			growth = "forward", spacing = 6, members = { "earthbind", "stoneclaw", "grounding" } },
 		{ point = "CENTER", x = 0, y = 11, scale = 0.9, alpha = 0.75, orientation = "horizontal",
-			growth = "forward", spacing = 6, members = { "naturesswiftness", "manatide", "farseer", "reincarnation" } },
-		{ point = "CENTER", x = -167, y = 11, scale = 0.9, alpha = 0.75, orientation = "horizontal",
-			growth = "forward", spacing = 6, members = { "waterwalking", "waterbreathing" } },
-		{ point = "CENTER", x = 167, y = 11, scale = 0.9, alpha = 0.6, orientation = "horizontal",
-			growth = "forward", spacing = 6, members = { "grounding", "projection" } },
-		{ point = "CENTER", x = 0, y = 62, scale = 0.9, alpha = 0.75, orientation = "horizontal",
-			growth = "forward", spacing = 6, members = { "stormstrike", "riptide", "elementalfocus" } },
+			growth = "forward", spacing = 6, members = { "elementalfocus" } },
 		{ point = "CENTER", x = 0, y = 104, scale = 1.25, alpha = 1, orientation = "horizontal",
 			growth = "forward", spacing = 6, members = { "tremor" } },
+		{ point = "CENTER", x = -122, y = 11, scale = 0.9, alpha = 0.75, orientation = "horizontal",
+			growth = "forward", spacing = 6, members = { "reincarnation" } },
+		{ point = "CENTER", x = 0, y = 62, scale = 0.9, alpha = 0.75, orientation = "horizontal",
+			growth = "forward", spacing = 6, members = { "naturesswiftness", "manatide", "stormstrike", "riptide",
+				"farseer", "projection", "waterwalking", "waterbreathing" } },
 	},
 	known = {},             -- element keys placed at least once; new ones join the first group
 	elementOpts = {         -- per-element settings by key, e.g. { shock = { show = "combat" } }
