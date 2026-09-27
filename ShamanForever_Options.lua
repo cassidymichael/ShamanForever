@@ -151,7 +151,7 @@ local function glowBlock(p, owner, icon)
 	ic:SetPoint("LEFT", f, "LEFT", LABEL_W + 24, 0)
 	ic.tex:SetTexture(icon)
 	p:add(f, 64, own, function() ns.applyBorder(ic, previewBorder(owner)); ic:SetGlowShown(true) end)
-	p:color("Colour", "Colour and opacity. Killed early keeps its red.", r.get("color"), r.set("color"), own)
+	p:color("Colour", "Colour and opacity. Killed early, Grounded and Ran out keep their own colours.", r.get("color"), r.set("color"), own)
 	p:slider("Pulse length", "One pulse, in seconds.", 0.2, 2, 0.1, function(v) return string.format("%.1f s", v) end,
 		r.get("speed"), r.set("speed"), own)
 	local setLow = r.set("low")
@@ -164,9 +164,17 @@ end
 -- Standard block: the pop's style, with an icon that pops on every change and on Play. kind: the
 -- light's colour the icon shows (ready, imbue, expired, killed).
 local POP_MOTIONS = { { "pop", "Grow" }, { "bounce", "Bounce" }, { "hop", "Hop" }, { "shake", "Shake side to side" }, { "shakeV", "Shake up and down" } }
-local function popBlock(p, owner, icon, kind)
+-- growOnly: the element's pop is the grow-and-settle Blizzard's aura button plays (Elemental Focus),
+-- so only the motion's size and speed apply.
+local function popBlock(p, owner, icon, kind, growOnly)
 	local ic
-	local function after() OP.refresh(); if ic and ic:IsVisible() then ic:Pop(kind) end end
+	local function playPop()
+		if not growOnly then ic:Pop(kind) return end
+		if not ic.growPop then ic.growPop = ns.makeGrowPop(ic, owner) end
+		ic.growPop:restyle(true)
+		ic.growPop:Play()
+	end
+	local function after() OP.refresh(); if ic and ic:IsVisible() then playPop() end end
 	local r = styleRows(owner, "pop", after)
 	p:header("Pop style")
 	if owner == nil then
@@ -183,15 +191,21 @@ local function popBlock(p, owner, icon, kind)
 	play:SetSize(80, 22)
 	play:SetPoint("LEFT", ic, "RIGHT", 24, 0)
 	play:SetText("Play")
-	play:SetScript("OnClick", function() ic:Pop(kind) end)
+	play:SetScript("OnClick", playPop)
 	p:add(f, 56, own, function() ns.applyBorder(ic, previewBorder(owner)) end)
+	if growOnly then
+		p:text("It grows and settles; only its size and speed can change.", own)
+		p:slider("Motion distance", "How far it grows.", 1.1, 1.8, 0.05, pct, r.get("size"), r.set("size"), own)
+		p:slider("Motion speed", nil, 0.5, 2, 0.1, pct, r.get("speed"), r.set("speed"), own)
+		return
+	end
 	p:dropdown("Motion", nil, POP_MOTIONS, r.get("motion"), r.set("motion"), own, 190)
 	p:slider("Motion distance", "How far it grows, hops or shakes.", 1.1, 1.8, 0.05, pct, r.get("size"), r.set("size"), own)
 	p:slider("Motion speed", nil, 0.5, 2, 0.1, pct, r.get("speed"), r.set("speed"), own)
 	p:checkbox("Flash", "A quick flash of light over the icon.", r.get("flash"), r.set("flash"), own)
 	p:checkbox("Ring burst", "A ring that spreads out from the icon.", r.get("ring"), r.set("ring"), own)
 	p:checkbox("Star burst", "A star of light behind the icon.", r.get("star"), r.set("star"), own)
-	p:checkbox("Colour by event", "Gold when ready, blue for the imbue, white when a totem runs out, red when killed. Off: white.",
+	p:checkbox("Colour by event", "Gold when ready, blue for the imbue, white when a totem runs out, red when killed, pale blue when Grounded. Off: white.",
 		r.get("tint"), r.set("tint"), own)
 	if owner == nil then ownLine(p, "pop") end
 end
@@ -1328,10 +1342,11 @@ end
 
 -- Standard blocks at the end of a page: the pulsing glow's and the pop's styles, General's or its
 -- own. glow, pop: whether the element has any (a block that could change nothing isn't shown).
+-- pop: false for none, "grow" for the grow-and-settle only (Elemental Focus).
 local function effectBlocks(p, key, popKind, glow, pop)
 	local icon = ns.Look.ELEMENT[key].icon
 	if glow ~= false then glowBlock(p, key, icon) end
-	if pop ~= false then popBlock(p, key, icon, popKind or "ready") end
+	if pop ~= false then popBlock(p, key, icon, popKind or "ready", pop == "grow") end
 end
 
 -- Standard block: the look while something is missing. first: an optional row before the three.
@@ -1430,13 +1445,13 @@ local function buildImbue(p)
 	p:text("Time left shows once it's below this. 0 never shows it.")
 	p:checkbox("Hide until low", nil, get("imbueHideActive"), set("imbueHideActive"))
 	p:text("While an imbue is on, the icon stays hidden until the time left shows. It keeps its place in the group.")
-	timerSettings(p, "Timer", "imbue", "uptime")
+	timerSettings(p, "Time left", "imbue", "uptime")
 	effectBlocks(p, "imbue", "imbue")
 end
 
 -- Primed: when it starts (from your cast), what spends it, and how it looks meanwhile.
 local PRIMED_TEXT = {
-	naturesswiftness = "From your cast until your next Nature spell with a cast time. Out of combat the buff itself is read.",
+	naturesswiftness = "From your cast until your next Nature spell with a cast time.",
 	stormstrike = "From your cast for 12 s, or until your second Lightning Bolt, Chain Lightning or Earth Shock. " ..
 		"Other Nature damage on the target also uses it up, which can't be seen.",
 }
@@ -1457,14 +1472,14 @@ local function reagentBlocks(p, def)
 	p:text("Only counted if the spell still needs one.")
 	p:dropdown("Show count", "How many you carry, on the icon.", COUNT_WHEN, eget(key, "reagentCount"), eset(key, "reagentCount"), nil, 170)
 	local counted = showWhen(function() return ns.elementSetting(key, "reagentCount") ~= "never" end)
-	p:slider("Low at", "The count takes the low colour at this many or fewer.", 0, 10, 1, int, eget(key, "reagentLow"), eset(key, "reagentLow"))
+	p:slider("Low at", "At this many or fewer, the count takes the low colour, and Idle can count it as running low.", 0, 10, 1, int, eget(key, "reagentLow"), eset(key, "reagentLow"))
 	p:color("Count colour", "While you have enough.", eget(key, "reagentColor"), eset(key, "reagentColor"), counted)
 	p:color("Low colour", "At the Low mark or below, and at none.", eget(key, "reagentLowColor"), eset(key, "reagentLowColor"), counted)
 	p:slider("Text size", "At the default icon size; it grows with the icon.", 8, 40, 1, int, eget(key, "reagentSize"), eset(key, "reagentSize"), counted)
 	p:dropdown("Position", nil, { { "BOTTOMRIGHT", "Bottom right" }, { "BOTTOMLEFT", "Bottom left" }, { "TOPRIGHT", "Top right" },
 		{ "TOPLEFT", "Top left" }, { "CENTER", "Centre" } }, eget(key, "reagentPos"), eset(key, "reagentPos"), counted, 150)
-	p:slider("X offset", nil, -50, 50, 1, px, eget(key, "reagentX"), eset(key, "reagentX"), counted)
-	p:slider("Y offset", nil, -50, 50, 1, px, eget(key, "reagentY"), eset(key, "reagentY"), counted)
+	p:slider("Text X offset", nil, -50, 50, 1, px, eget(key, "reagentX"), eset(key, "reagentX"), counted)
+	p:slider("Text Y offset", nil, -50, 50, 1, px, eget(key, "reagentY"), eset(key, "reagentY"), counted)
 	p:header("None left")
 	p:checkbox("Red ring", "A red ring inside the icon edge.", eget(key, "reagentRing"), eset(key, "reagentRing"))
 	p:checkbox("Fade in and out", nil, eget(key, "reagentPulse"), eset(key, "reagentPulse"))
@@ -1518,15 +1533,15 @@ local function buildCooldown(p, def)
 	end
 	timerSettings(p, "Cooldown", key, "cooldown")
 	gcdBlock(p, key)
+	local timed = def.window or (def.primed and def.primed.duration)
+	if def.needsTotem then timerSettings(p, "Fire totem's time left", key, "uptime")
+	elseif def.totemSlot or def.window then timerSettings(p, "Time left", key, "uptime")
+	elseif timed then timerSettings(p, "Primed time left", key, "uptime") end
 	if not def.noReady then
 		readyBlock(p, key, def.needsTotem and "While it's off cooldown and a fire totem is down."
 			or def.readyGlow and "While it's off cooldown.")
 	end
 	if def.primed then primedBlock(p, def) end
-	local timed = def.window or (def.primed and def.primed.duration)
-	if def.needsTotem then timerSettings(p, "Fire totem's time left", key, "uptime")
-	elseif def.totemSlot or def.window then timerSettings(p, "Time left", key, "uptime")
-	elseif timed then timerSettings(p, "Primed time left", key, "uptime") end
 	if (def.needsTotem or def.totemSlot or timed) and def.expireLooks ~= false then
 		expiringBlock(p, key, 30, 1, def.expireLooks)
 		if def.ranOut then
@@ -1554,7 +1569,7 @@ local function buildBuff(p, def)
 	if def.reagent then reagentBlocks(p, def) end
 	if def.breath then
 		p:header("Under water")
-		p:checkbox("Warn without it", "When your breath bar starts and it isn't up.", eget(key, "breathWarn"), eset(key, "breathWarn"))
+		p:checkbox("Warn without it", "While your breath bar drains and it isn't up.", eget(key, "breathWarn"), eset(key, "breathWarn"))
 		local on = showWhen(eget(key, "breathWarn"))
 		p:checkbox("Red ring", "A red ring inside the icon edge.", eget(key, "breathRing"), eset(key, "breathRing"), on)
 		p:checkbox("Fade in and out", nil, eget(key, "breathPulse"), eset(key, "breathPulse"), on)
@@ -1568,7 +1583,8 @@ local function buildBuff(p, def)
 	else
 		expiringBlock(p, key, 120, 5)
 	end
-	effectBlocks(p, key)
+	-- The water buffs never pop; Elemental Focus's pop is the grow Blizzard's button plays.
+	effectBlocks(p, key, nil, true, def.proc and "grow" or false)
 end
 
 ------------------------------------------------------------------------
@@ -1776,6 +1792,12 @@ local function buildWindow()
 	if ButtonFrameTemplate_HideButtonBar then pcall(ButtonFrameTemplate_HideButtonBar, win) end
 	if win.Inset then win.Inset:Hide() end
 	if win.SetTitle then win:SetTitle("ShamanForever") end
+	-- The title a little larger than Blizzard's default for this frame.
+	local title = win.TitleContainer and win.TitleContainer.TitleText or win.TitleText
+	if title then
+		local font, size, flags = title:GetFont()
+		if font and size then title:SetFont(font, size + 2, flags) end
+	end
 	-- The logo: the crest alone (Art/Logo-Icon, with alpha) as a badge over the top-left corner, on
 	-- Blizzard's plain-cornered border. At the portrait's size (62 px, inside the ring) its detail was
 	-- lost; the ring can't grow (it is part of the frame's corner art). A soft shadow lifts it off the frame.

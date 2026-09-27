@@ -55,7 +55,7 @@ L.ELEMENT = {
 }
 
 -- The cooldown elements added after the first three (ShamanForever_Cooldowns.lua): their icon and
--- school come from the element, and each is experimental until tested in game.
+-- school come from the element, and its experimental flag says whether it's been tested in game.
 local BLURB = {
 	naturesswiftness = "Cooldown, and a glow while your next Nature spell is instant.",
 	manatide = "Cooldown, and time left while it's down.",
@@ -312,6 +312,20 @@ local function opt(key, name) return ns.elementSetting(key, name) end
 
 local previewState = {}   -- element key -> its header's preview state
 
+-- An idle element as the preview shows it: its Idle opacity, but never quite invisible (0% shows as
+-- a faint icon, so the state can still be seen).
+local FAINT = 0.12
+local function idleLook(ic, key) ic:SetAlpha(math.max(ns.idleAlpha(key), FAINT)) end
+-- Ready, then idle: as on the HUD, the icon holds full for a moment after its ready pop, then fades.
+local IDLE_DELAY = 1.5
+local function idleSoon(ic, key, st)
+	local token = {}
+	ic.idleToken = token
+	C_Timer.After(IDLE_DELAY, function()
+		if ic.idleToken == token and previewState[key] == st then idleLook(ic, key) end
+	end)
+end
+
 local function totemPreview(def)
 	local g = def.grounded   -- Grounding: its early end is Grounded, in air blue with no cross
 	return {
@@ -335,7 +349,9 @@ local function totemPreview(def)
 					frozen(ic.cdT, 0.05, def.cd or 15)
 				end)
 			end
-			if st == "ready" and opt(key, "readyPop") then ic:Pop("ready")
+			if st == "ready" then
+				if opt(key, "readyPop") then ic:Pop("ready") end
+				idleSoon(ic, key, st)
 			elseif st == "ranout" and def.ranOut then
 				flash(opt(key, "ranOutFlash") and { expired = true, ranOut = ns.SCHOOL_COLOR[def.school],
 					pop = opt(key, "ranOutPop"), glow = opt(key, "ranOutGlow") }, 1.4)
@@ -351,8 +367,7 @@ local function totemPreview(def)
 			-- Another state: a flash still playing (or its cross) goes.
 			local e = ic.endFlash
 			if e and st ~= ic.flashState then
-				e.flash:Stop(); e.quick:Stop(); e.soft:Stop()
-				e.body:SetAlpha(0); e.glow:Hide(); e.mark:Hide()
+				e:stop()
 				ic.momentDone = false
 			end
 			ic.flashState = st
@@ -456,21 +471,15 @@ L.PREVIEW = {
 -- An element's reagent count and none-left look in a preview, for n reagents (its Reagent block's
 -- settings: when the count shows, its Low mark, the none-left looks).
 function L.reagentLook(ic, key, n)
-	local lowAt = opt(key, "reagentLow")
-	local low = n <= (type(lowAt) == "number" and lowAt or 2)
-	local show = opt(key, "reagentCount")
-	if show == "always" or (show == "low" and low) then
-		ic.count.placed = nil   -- the shield's preview places this font string its own way
-		ns.Cooldowns.placeReagentCount(ic.count, ic, key)
-		ic.count:SetText(n)
-		local c = opt(key, low and "reagentLowColor" or "reagentColor")
-		if ns.isColor(c) then ic.count:SetTextColor(c[1], c[2], c[3], c[4] or 1) end
-		ic.count:Show()
-	end
-	if n == 0 then
-		ic:SetRingShown(opt(key, "reagentRing"))
-		ic:SetPulsing(opt(key, "reagentPulse"))
-	end
+	local _, ring, pulse = ns.Cooldowns.paintReagent(ic, key, n)
+	ic:SetRingShown(ring)
+	ic:SetPulsing(pulse)
+end
+-- The preview's counts: plenty, "few left" (at the Low mark, at least 1) and none.
+local PLENTY = 15
+local function fewLeft(key)
+	local v = opt(key, "reagentLow")
+	return math.max(type(v) == "number" and v == v and v or 2, 1)
 end
 
 -- A cooldown element without a totem (the newer ones): Ready and Cooldown, plus the states of the
@@ -490,7 +499,9 @@ local function cooldownPreview(def)
 	return {
 		states = states,
 		pop = function(ic, st)
-			if st == "ready" and not def.noReady and opt(key, "readyPop") then ic:Pop("ready")
+			if st == "ready" then
+				if not def.noReady and opt(key, "readyPop") then ic:Pop("ready") end
+				idleSoon(ic, key, st)
 			elseif st == "primed" and def.primedLooks ~= false and opt(key, "primedPop") then ic:Pop("ready") end
 		end,
 		render = function(ic, st)
@@ -503,7 +514,7 @@ local function cooldownPreview(def)
 			elseif st == "active" then frozen(ic.upT, 0.3, def.window)
 			elseif st == "expiring" then expiringLook(ic, key, def.window)
 			elseif st == "low" or st == "out" then frozen(ic.cdT, 0.4, long) end
-			if def.reagent then L.reagentLook(ic, key, st == "out" and 0 or st == "low" and 2 or 15) end
+			if def.reagent then L.reagentLook(ic, key, st == "out" and 0 or st == "low" and fewLeft(key) or PLENTY) end
 		end,
 	}
 end
@@ -528,7 +539,14 @@ local function buffPreview(def)
 	if def.breath then table.insert(states, { "underwater", "Under water" }) end
 	return {
 		states = states,
-		pop = function(ic, st) if st == "up" and def.proc and opt(key, "primedPop") then ic:Pop("ready") end end,
+		-- Elemental Focus's pop is the grow-and-settle Blizzard's button plays (not the full pop).
+		pop = function(ic, st)
+			if st == "up" and def.proc and opt(key, "primedPop") then
+				if not ic.growPop then ic.growPop = ns.makeGrowPop(ic, key) end
+				ic.growPop:restyle(true)
+				ic.growPop:Play()
+			end
+		end,
 		render = function(ic, st)
 			reset(ic, def.icon)
 			if st == "up" then
@@ -537,23 +555,19 @@ local function buffPreview(def)
 					ic:SetGlowShown(opt(key, "primedGlow"))
 				else frozen(ic.upT, 0.3, 600) end
 			elseif st == "expiring" then expiringLook(ic, key, 600)
-			elseif st == "idle" then
-				-- Idle opacity, but never quite invisible here: 0 shows as a faint outline.
-				local a = opt(key, "idleAlpha")
-				ic:SetAlpha(math.max(type(a) == "number" and a or 0, 0.12))
+			elseif st == "idle" then idleLook(ic, key)
 			elseif st == "low" or st == "out" then
 				-- Running low isn't idle when Idle counts reagents (the default).
-				if not opt(key, "reagentShow") then
-					local a = opt(key, "idleAlpha")
-					ic:SetAlpha(math.max(type(a) == "number" and a or 0, 0.12))
-				end
-				L.reagentLook(ic, key, st == "out" and 0 or 2)
+				if not opt(key, "reagentShow") then idleLook(ic, key) end
+				L.reagentLook(ic, key, st == "out" and 0 or fewLeft(key))
 			elseif st == "underwater" then
 				if opt(key, "breathWarn") then
 					ic:SetRingShown(opt(key, "breathRing"))
 					ic:SetPulsing(opt(key, "breathPulse"))
-				else ic:SetAlpha(0.12) end
+				else idleLook(ic, key) end
 			end
+			-- The count shows in every state when set to Always (the default).
+			if def.reagent and st ~= "low" and st ~= "out" then L.reagentLook(ic, key, PLENTY) end
 		end,
 	}
 end
