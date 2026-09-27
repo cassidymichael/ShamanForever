@@ -54,8 +54,7 @@ ns.registerElement("shield", { frame = shield, label = "Shields", paint = functi
 -- that count as it are ns.Spells' (seeds, spellbook, and the live aura's, learned here).
 for _, s in pairs(SHIELDS) do s.name = Spells.name(s.spell) end
 local believedUp = false      -- see above: exact out of combat, set up by our own cast in combat
-local native = { container = nil, button = nil, icon = nil, fs = nil, cd = nil, bar = nil, ticks = nil, overlay = nil,
-	err = nil }
+local native   -- Blizzard's aura container over the underlay, and our parts on its button (below)
 
 local function tracksShield(key)
 	local track = ns.getDB().shieldTrack
@@ -184,43 +183,8 @@ function SH.resolve()
 end
 
 -- Blizzard's button and its parts are off limits to addon code in combat, and while auras are
--- secret; defer until that ends.
-function SH.style()
-	if not native.button then return end
-	if ns.deferWhileAurasSecret("shield style", SH.style) then return end
-	-- One pcall: Blizzard's button can refuse addon calls while auras are secret (in combat, and
-	-- possibly in PvP or encounters); a failure is noted for /sf debug and retried when combat ends.
-	local ok = ns.try("shield style", function()
-		local db = ns.getDB()
-		local size = ns.sizeOf("shield")
-		native.container:SetSize(size, size)
-		-- Moving the shield to another group reparents it, which can drop the container back under
-		-- the underlay and its ring; restate the placement from setupNative.
-		native.container:SetFrameStrata(shield:GetFrameStrata())
-		native.container:SetFrameLevel(shield.textFrame:GetFrameLevel() + 5)
-		native.button:SetSize(size, size)
-		for i, t in ipairs(native.tickTextures or {}) do
-			t:ClearAllPoints()
-			t:SetPoint("TOP", native.ticks, "TOPLEFT", size * i / native.maxCharges, 0)
-			t:SetPoint("BOTTOM", native.ticks, "BOTTOMLEFT", size * i / native.maxCharges, 0)
-		end
-		native.icon:SetAlpha(nativeIconAlpha())
-		native.bar:SetHeight(db.chargeBarHeight)
-		native.bar:SetStatusBarColor(db.chargeBarColor[1], db.chargeBarColor[2], db.chargeBarColor[3], db.chargeBarColor[4] or 1)
-		native.bar:SetAlpha(db.showBar and 1 or 0)
-		native.ticks:SetAlpha(db.showBar and 1 or 0)
-		native.fs:SetAlpha(db.showCount and 1 or 0)
-		native.fs:SetFont(STANDARD_TEXT_FONT, db.countSize, "OUTLINE")
-		native.fs:ClearAllPoints()
-		if db.countPos == "center" then
-			native.fs:SetPoint("CENTER", native.button, "CENTER", 0, 0); native.fs:SetJustifyH("CENTER")
-		else
-			native.fs:SetPoint("BOTTOMRIGHT", native.button, "BOTTOMRIGHT", 2, -2); native.fs:SetJustifyH("RIGHT")
-		end
-		if native.timer then native.timer:apply() end
-	end)
-	if not ok then ns.retryAfterCombat("shield style", SH.style) end
-end
+-- secret: the aura slot's restyle waits until that ends (ns.makeAuraSlot).
+function SH.style() native:style() end
 
 -- The shield's timer takes its current style (ns.applyTimers). It sits on Blizzard's button, so only
 -- out of combat (SH.style also does it).
@@ -230,38 +194,15 @@ function SH.applyTimers()
 	else ns.try("shield timer", native.timer.apply, native.timer) end
 end
 
--- Called by Blizzard (untainted) once, right after it creates the slot button.
-local function initNativeButton(button)
+-- Our parts on Blizzard's button, once it is made: the charge number and the charge bar with its
+-- ticks, on an overlay above the cooldown so nothing Blizzard hides takes them along.
+local function buildNative(slot, button, cd)
 	local db = ns.getDB()
 	local size = ns.sizeOf("shield")
-	button:SetSize(size, size)
-	-- Slot frames are positioned by the caller, not by the container's flow layout.
-	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
-	-- No tooltip and click-through: disable mouse input before Blizzard locks the button down.
-	pcall(button.EnableMouse, button, false)
-	pcall(button.SetMouseClickEnabled, button, false)
-	pcall(button.SetMouseMotionEnabled, button, false)
-
-	local tex = button:CreateTexture(nil, "ARTWORK")
-	tex:SetAllPoints()
-	ns.cropIcon(tex)
-	tex:SetAlpha(nativeIconAlpha())
-	button:SetIcon(tex)
-	native.icon = tex
-
-	local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
-	cd:SetAllPoints()
-	-- Its timer: swipe and countdown text only (no bar: nothing of ours can follow Blizzard's time).
-	native.timer = ns.Timer.new(button, "shield", "uptime", { cd = cd, anchor = button, noBar = true })
-	native.timer:apply()
-	button:SetDurationCooldown(cd)
-	native.cd = cd
-
-	-- Our parts live on an overlay frame above the cooldown so nothing Blizzard hides takes them along.
 	local overlay = CreateFrame("Frame", nil, button)
 	overlay:SetAllPoints()
 	overlay:SetFrameLevel(cd:GetFrameLevel() + 2)
-	native.overlay = overlay
+	slot.overlay = overlay
 
 	-- Blizzard writes the count immediately on registration, so the font must already be set.
 	local fs = overlay:CreateFontString(nil, "OVERLAY", nil, 7)
@@ -272,7 +213,7 @@ local function initNativeButton(button)
 		fs:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 2, -2); fs:SetJustifyH("RIGHT")
 	end
 	button:SetApplicationCount(fs)
-	native.fs = fs
+	slot.fs = fs
 
 	-- Charge bar along the bottom edge: min 0 so one charge is one third, not empty.
 	local bar = CreateFrame("StatusBar", nil, overlay)
@@ -286,58 +227,59 @@ local function initNativeButton(button)
 	bar.bg:SetColorTexture(0, 0, 0, 0.6)
 	local maxCharges = 3
 	button:SetApplicationBar(bar, { minApplications = 0, maxApplications = maxCharges })
-	native.bar = bar
+	slot.bar = bar
 	local ticks = CreateFrame("Frame", nil, overlay)
 	ticks:SetAllPoints(bar)
 	ticks:SetFrameLevel(bar:GetFrameLevel() + 1)
-	native.tickTextures, native.maxCharges = {}, maxCharges
+	slot.tickTextures, slot.maxCharges = {}, maxCharges
 	for i = 1, maxCharges - 1 do
 		local t = ticks:CreateTexture(nil, "OVERLAY")
 		t:SetColorTexture(0, 0, 0, 0.9)
 		t:SetWidth(1)
 		t:SetPoint("TOP", ticks, "TOPLEFT", size * i / maxCharges, 0)
 		t:SetPoint("BOTTOM", ticks, "BOTTOMLEFT", size * i / maxCharges, 0)
-		table.insert(native.tickTextures, t)
+		table.insert(slot.tickTextures, t)
 	end
-	native.ticks = ticks
-
-	-- Note: script handlers on anything under Blizzard's button never run (tested: OnShow/OnHide on a
-	-- child frame fired zero times), so there is no way to learn when the button hides.
+	slot.ticks = ticks
 
 	bar:SetAlpha(db.showBar and 1 or 0)
 	ticks:SetAlpha(db.showBar and 1 or 0)
 	fs:SetAlpha(db.showCount and 1 or 0)
-	native.button = button
 end
 
--- Out of combat only: made when combat ends after a /reload in combat. Once made, it stays.
-local function setupNative()
-	if native.container or native.err then return end
-	if ns.deferWhileAurasSecret("shield container", setupNative) then return end
-	local ok, err = pcall(function()
-		local c = CreateFrame("AuraContainer", "ShamanForeverAuraContainer", shield, "CustomAuraContainerTemplate")
-		c:SetPoint("TOPLEFT", shield, "TOPLEFT", 0, 0)
-		c:SetSize(ns.sizeOf("shield"), ns.sizeOf("shield"))
-		-- Intrinsic frames do not inherit placement; match the HUD's strata (HIGH would float over other
-		-- addons' dialogs) and use frame level alone to sit above the underlay and its ring.
-		c:SetFrameStrata(shield:GetFrameStrata())
-		c:SetFrameLevel(shield.textFrame:GetFrameLevel() + 5)
-		c:SetUnit("player")
-		pcall(c.EnableMouse, c, false)   -- unlocked drags start on the group frame underneath
-		native.container = c
-		c:AddAuraSlot("shield", "HELPFUL", {
-			candidateFilters = { includeSpellIDs = shieldIDMap() },
-			initializeFrame = initNativeButton,
-		})
-	end)
-	if not ok then
-		native.err = tostring(err)
-		if native.container then native.container:Hide() end
-		say("Blizzard aura container failed on this client; the shield icon will not update: %s", native.err)
+-- Our parts again, for the current size and settings (after the aura slot's own restyle).
+local function styleNative(slot, size)
+	local db = ns.getDB()
+	for i, t in ipairs(slot.tickTextures or {}) do
+		t:ClearAllPoints()
+		t:SetPoint("TOP", slot.ticks, "TOPLEFT", size * i / slot.maxCharges, 0)
+		t:SetPoint("BOTTOM", slot.ticks, "BOTTOMLEFT", size * i / slot.maxCharges, 0)
+	end
+	slot.icon:SetAlpha(nativeIconAlpha())
+	slot.bar:SetHeight(db.chargeBarHeight)
+	slot.bar:SetStatusBarColor(db.chargeBarColor[1], db.chargeBarColor[2], db.chargeBarColor[3], db.chargeBarColor[4] or 1)
+	slot.bar:SetAlpha(db.showBar and 1 or 0)
+	slot.ticks:SetAlpha(db.showBar and 1 or 0)
+	slot.fs:SetAlpha(db.showCount and 1 or 0)
+	slot.fs:SetFont(STANDARD_TEXT_FONT, db.countSize, "OUTLINE")
+	slot.fs:ClearAllPoints()
+	if db.countPos == "center" then
+		slot.fs:SetPoint("CENTER", slot.button, "CENTER", 0, 0); slot.fs:SetJustifyH("CENTER")
 	else
-		SH.style()   -- a layout queued before it (a /reload in combat) found no button to style
+		slot.fs:SetPoint("BOTTOMRIGHT", slot.button, "BOTTOMRIGHT", 2, -2); slot.fs:SetJustifyH("RIGHT")
 	end
 end
+
+-- Made out of combat only (after a /reload in combat, when combat ends); once made, it stays.
+native = ns.makeAuraSlot(shield, {
+	key = "shield", slot = "shield", ids = shieldIDMap, name = "ShamanForeverAuraContainer",
+	sites = { container = "shield container", style = "shield style" },
+	iconAlpha = nativeIconAlpha,
+	onButton = buildNative, onStyle = styleNative,
+	onError = function(err)
+		say("Blizzard aura container failed on this client; the shield icon will not update: %s", err)
+	end,
+})
 
 -- Auras can be secret out of combat too (PvP matches, encounters): then keep the belief.
 local function aurasReadable() return not InCombatLockdown() and not ns.aurasSecret() end
@@ -399,7 +341,7 @@ end
 ------------------------------------------------------------------------
 -- After a layout (settings may have changed): Blizzard's container made once, then its looks.
 function SH.applyLayout()
-	setupNative()
+	native:setup()
 	SH.style()
 	SH.applyEmptyLook()
 end

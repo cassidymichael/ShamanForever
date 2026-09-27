@@ -552,6 +552,119 @@ function ns.makeGrowPop(region, owner)
 	return g
 end
 
+------------------------------------------------------------------------
+-- An aura slot: Blizzard's aura container on an element icon, with one aura slot whose button
+-- Blizzard (untainted) shows while an aura it matches is up and draws that aura's icon, time left
+-- and charges, exact in combat too. It is the one way to show an aura in combat: every aura API
+-- throws for addon code then (docs/combat-techniques.md). Used by the shield and Elemental Focus.
+-- What it takes:
+-- * The container and its button refuse addon calls in combat and while auras are secret, which
+--   can also happen out of combat (PvP matches, encounters). So the container is made, and it and
+--   the button restyled, only outside both; anything asked for meanwhile waits for them to end
+--   (ns.deferWhileAurasSecret), and a refused call is noted for /sf debug and tried again then.
+-- * An intrinsic frame doesn't inherit placement: the container takes the icon's strata (HIGH
+--   would float over other addons' dialogs) and a frame level above the icon's text, so it sits
+--   over the icon and its rings. Regrouping reparents the icon, which can drop the container back
+--   under them, so each restyle restates both.
+-- * The slot's button is placed by us (at the container's corner), not by the container's flow.
+-- * Mouse input goes off before Blizzard locks the button down: no tooltip, clicks pass through.
+-- * Script handlers on anything under the button never run (OnShow and OnHide on a child fired
+--   zero times, tested 2026-09-23), so nothing tells addon code when it shows or hides; the button
+--   only plays animations handed to it (Blizzard_CustomAuraButton.lua).
+------------------------------------------------------------------------
+local AuraSlot = {}
+AuraSlot.__index = AuraSlot
+
+-- frame: the element icon it covers. opts:
+--   key          the element: its icon size (ns.sizeOf) and its timer's style
+--   slot, ids()  the aura slot's name, and the spell ID map it matches (read when it is made)
+--   parent       what the container hangs from (default frame); name: a global name, or nil
+--   sites        { container = , style = }: names for its waiting work and caught errors
+--   iconAlpha()  the aura icon's alpha as the button is made (optional)
+--   onButton(slot, button, cd)  the caller's own parts, once Blizzard has made the button
+--   onStyle(slot, size)         the caller's own restyle, after the shared one
+--   onError(err)                the container couldn't be made on this client
+-- Nothing is made until slot:setup(). The slot then holds container, button, icon (the aura's
+-- texture), cd and timer (swipe and countdown only), or err.
+function ns.makeAuraSlot(frame, opts)
+	return setmetatable({ frame = frame, opts = opts }, AuraSlot)
+end
+
+-- Called by Blizzard (untainted) once, right after it makes the slot's button.
+local function initAuraButton(slot, button)
+	local o = slot.opts
+	local size = ns.sizeOf(o.key)
+	button:SetSize(size, size)
+	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
+	pcall(button.EnableMouse, button, false)
+	pcall(button.SetMouseClickEnabled, button, false)
+	pcall(button.SetMouseMotionEnabled, button, false)
+	local tex = button:CreateTexture(nil, "ARTWORK")
+	tex:SetAllPoints()
+	ns.cropIcon(tex)
+	if o.iconAlpha then tex:SetAlpha(o.iconAlpha()) end
+	button:SetIcon(tex)
+	slot.icon = tex
+	local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
+	cd:SetAllPoints()
+	-- Its timer: swipe and countdown text only (no bar: nothing of ours can follow Blizzard's time).
+	slot.timer = ns.Timer.new(button, o.key, "uptime", { cd = cd, anchor = button, noBar = true })
+	slot.timer:apply()
+	button:SetDurationCooldown(cd)
+	slot.cd = cd
+	if o.onButton then o.onButton(slot, button, cd) end
+	slot.button = button
+end
+
+-- Makes the container and its slot, once (out of combat, auras readable; else when that ends).
+-- Once made it stays; a client that refuses it gets err and onError.
+function AuraSlot:setup()
+	if self.container or self.err then return end
+	local o, f = self.opts, self.frame
+	if ns.deferWhileAurasSecret(o.sites.container, function() self:setup() end) then return end
+	local ok, err = pcall(function()
+		local size = ns.sizeOf(o.key)
+		local c = CreateFrame("AuraContainer", o.name, o.parent or f, "CustomAuraContainerTemplate")
+		c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+		c:SetSize(size, size)
+		c:SetFrameStrata(f:GetFrameStrata())
+		c:SetFrameLevel(f.textFrame:GetFrameLevel() + 5)
+		c:SetUnit("player")
+		pcall(c.EnableMouse, c, false)   -- unlocked drags start on the group frame underneath
+		self.container = c
+		c:AddAuraSlot(o.slot, "HELPFUL", {
+			candidateFilters = { includeSpellIDs = o.ids() },
+			initializeFrame = function(button) initAuraButton(self, button) end,
+		})
+	end)
+	if not ok then
+		self.err = tostring(err)
+		if self.container then self.container:Hide() end
+		o.onError(self.err)
+	else
+		self:style()   -- a layout queued before it (a /reload in combat) found no button to style
+	end
+end
+
+-- The container's size and placement, the button's size and its timer's style, then the caller's
+-- own parts (onStyle). Out of combat only, and not while auras are secret: waits for that, and
+-- one refused call (the whole restyle is one pcall) is noted and tried again when combat ends.
+function AuraSlot:style()
+	if not self.button then return end
+	local o = self.opts
+	if ns.deferWhileAurasSecret(o.sites.style, function() self:style() end) then return end
+	local ok = ns.try(o.sites.style, function()
+		local size, f, c = ns.sizeOf(o.key), self.frame, self.container
+		c:SetSize(size, size)
+		c:SetFrameStrata(f:GetFrameStrata())
+		c:SetFrameLevel(f.textFrame:GetFrameLevel() + 5)
+		self.button:SetSize(size, size)
+		self.timer:apply()
+		if o.onStyle then o.onStyle(self, size) end
+	end)
+	if not ok then ns.retryAfterCombat(o.sites.style, function() self:style() end) end
+end
+
 -- owner: whose glow and pop style it uses (an element key, "totembar", or nil for General's).
 function ns.makeIcon(parent, size, owner)
 	local f = CreateFrame("Frame", nil, parent)
