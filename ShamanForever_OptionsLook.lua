@@ -82,7 +82,7 @@ end
 do
 	local def = ns.Tremor.def
 	L.ELEMENT.tremor = { name = def.spell, spell = def.spellKey, icon = def.icon, school = def.school,
-		blurb = "Warns near mobs that fear, charm or sleep, and when you're feared." }
+		blurb = "Warns near mobs that fear, charm or sleep." }
 end
 
 -- An element's name: a spell's in the client's language (name is the fallback), else its own.

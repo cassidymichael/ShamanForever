@@ -1745,10 +1745,12 @@ local function buildTremor(p)
 	p:text("Needs enemy nameplates on.", showWhen(eget(key, "tremorPlates")))
 	p:checkbox("You're feared, charmed or asleep", "And for 10 seconds after, in case it comes again.",
 		eget(key, "tremorFeared"), eset(key, "tremorFeared"))
-	p:text("Not while your Tremor Totem is down.")
+	p:text("The game hides party members' crowd control from addons, so this covers only you. It stays up "
+		.. "10 s after it ends. In dungeons and raids it's the only warning that works.")
+	p:text("None of these while your Tremor Totem is down.")
 	p:header("Tremor warning watchlist")
 	p:callout("In dungeons and raids the game hides mob names from addons, so the watchlist can't work there. "
-		.. "There it warns only when you're feared, charmed or asleep.")
+		.. "Only \"You're feared, charmed or asleep\" can, when it's on.")
 	p:text("Mobs that cast fear, charm or sleep.")
 	mobList(p)
 	linkLine(p, "Help improve ShamanForever: suggest a mob to add to this default list",

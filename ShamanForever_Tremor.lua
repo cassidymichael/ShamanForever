@@ -71,7 +71,7 @@ end
 ------------------------------------------------------------------------
 local def = { key = KEY, spellKey = "tremor", icon = 136108, school = "earth", duration = 300,
 	-- idleWhen: nowarning (idle while nothing warns) | notdown (and the totem isn't down).
-	defaults = { idleAlpha = 0, idleWhen = "nowarning", tremorTarget = true, tremorPlates = true, tremorFeared = true,
+	defaults = { idleAlpha = 0, idleWhen = "nowarning", tremorTarget = true, tremorPlates = true, tremorFeared = false,
 		alertPop = true, alertGlow = true, alertText = true, alertSound = "none",
 		-- The word: its size at a 44 px icon (it scales with the icon), colour, where it sits
 		-- (below | above | center) and an offset in pixels.
