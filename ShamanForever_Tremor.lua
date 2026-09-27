@@ -1,6 +1,7 @@
 -- Tremor Totem: a warning to put it down. It warns while a mob that casts fear, charm or sleep (the
--- effects Tremor Totem removes) is your target or has its nameplate on screen, and while one of those
--- effects is on you (and for a few seconds after); it stays quiet while your Tremor Totem is down.
+-- effects Tremor Totem removes) is your target or has its nameplate on screen, and (if the player
+-- turns it on) while one of those effects is on you and for 10 s after. It stays quiet while your
+-- Tremor Totem is down.
 -- The mobs are a watchlist the player can change on the element's page: open-world mobs from
 -- Classic's database (ShamanForever_TremorList.lua) and the player's own, matched by NPC ID, else by
 -- name. While the totem is down the element shows its time left. It is idle while nothing warns
@@ -9,7 +10,7 @@
 -- What can be read, and when:
 -- * A mob's name and GUID (the GUID holds its NPC ID). Blizzard makes creature identity secret to
 --   addons in dungeons and raids, in and out of combat (12.0 API notes); in the open world it stays
---   readable in combat. C_Secrets.ShouldUnitIdentityBeSecret says so per unit, and a mob whose
+--   readable in combat (tested 2026-09-27). C_Secrets.ShouldUnitIdentityBeSecret says so per unit, and a mob whose
 --   identity is secret is simply not matched. Nothing here compares a secret.
 -- * Loss of control on the player (C_LossOfControl.GetActiveLossOfControlData): not secret, spell
 --   ID included. Only other units' loss of control is. An effect counts when its spell is one
@@ -50,20 +51,21 @@ local function plain(ok, v)
 	if ok and not isSecret(v) then return v end
 end
 
--- The word's look from the element's settings, on the icon `icon` of size `size` (the HUD's, or the
--- options preview's).
+-- The word's look from the element's settings, on the icon `icon` (the HUD's, or the options
+-- preview's): its point, the icon's point it sits against, and the gap between them.
 local WORD_POINTS = { below = { "TOP", "BOTTOM", -4 }, above = { "BOTTOM", "TOP", 4 }, center = { "CENTER", "CENTER", 0 } }
-function TR.styleWord(fs, icon, size)
-	local px = setting("wordSize")
-	if type(px) ~= "number" then px = 16 end
-	fs:SetFont(STANDARD_TEXT_FONT, math.max(math.floor(px * size / 44 + 0.5), 6), "OUTLINE")
-	local c = setting("wordColor")
-	if not ns.isColor(c) then c = { 1, 0.82, 0, 1 } end
-	fs:SetTextColor(c[1], c[2], c[3], c[4] or 1)
+local WORD_COLOR = { 1, 0.82, 0, 1 }
+local function num(name, fallback)
+	local v = setting(name)
+	if type(v) ~= "number" or v ~= v then return fallback end
+	return v
+end
+function TR.styleWord(fs, icon)
 	local pt = WORD_POINTS[setting("wordPos")] or WORD_POINTS.below
-	local x, y = setting("wordX"), setting("wordY")
-	fs:ClearAllPoints()
-	fs:SetPoint(pt[1], icon, pt[2], type(x) == "number" and x or 0, pt[3] + (type(y) == "number" and y or 0))
+	ns.placeScaledText(fs, icon, num("wordSize", 16), pt[1], num("wordX", 0), pt[3] + num("wordY", 0), pt[2])
+	local c = setting("wordColor")
+	if not ns.isColor(c) then c = WORD_COLOR end
+	fs:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 end
 
 ------------------------------------------------------------------------
@@ -75,7 +77,7 @@ local def = { key = KEY, spellKey = "tremor", icon = 136108, school = "earth", d
 		alertPop = true, alertGlow = true, alertText = true, alertSound = "none",
 		-- The word: its size at a 44 px icon (it scales with the icon), colour, where it sits
 		-- (below | above | center) and an offset in pixels.
-		wordSize = 16, wordColor = { 1, 0.82, 0, 1 }, wordPos = "below", wordX = 0, wordY = 0 } }
+		wordSize = 16, wordColor = CopyTable(WORD_COLOR), wordPos = "below", wordX = 0, wordY = 0 } }
 TR.def = def
 def.spell = Spells.name(def.spellKey)
 def.icon = Spells.icon(def.spellKey) or def.icon
@@ -112,7 +114,7 @@ ns.registerElement(KEY, { frame = f, label = def.spell, stack = f.stack, default
 ns.addElementKey(KEY)
 
 ------------------------------------------------------------------------
--- The mob list
+-- The watchlist
 ------------------------------------------------------------------------
 -- The seeds (TR.SEEDS, ShamanForever_TremorList.lua) with the player's edits in acct.fearCasters:
 -- added = { [lower-case name] = { name = as shown, id = NPC ID or nil, zone = zone text or nil } },
@@ -292,19 +294,17 @@ local function readControl()
 end
 
 -- Whether our Tremor Totem is out, and the earth slot's duration object. The slot's totem is the
--- last one we cast into it; unknown (a /reload with it out), out of combat the slot itself says.
+-- last one we cast into it; unknown (a /reload with it out), out of combat the slot itself says, by
+-- its spell or else its icon (Totems.identify).
 local function tremorOut()
 	local dur = plain(safe(GetTotemDuration, EARTH))
 	if dur == nil then return false end
-	local owner = Totems.ownerOf(EARTH)
-	if owner == nil and not InCombatLockdown() then
-		local have, spellID = Totems.read(EARTH)
-		if have and spellID and Spells.keyOf(spellID) == "tremor" then
-			Totems.setOwner(EARTH, "tremor", spellID)
-			owner = "tremor"
-		end
+	local key, how, icon = Totems.identify(EARTH)
+	if key == nil and how == "slot icon" and (icon == def.iconID or icon == def.icon) then
+		Totems.setOwner(EARTH, "tremor")
+		key = "tremor"
 	end
-	return owner == "tremor", dur
+	return key == "tremor", dur
 end
 
 ------------------------------------------------------------------------
@@ -333,12 +333,6 @@ local function setAlert(on)
 	alerting = on
 end
 
-local function idleAlpha()
-	local a = setting("idleAlpha")
-	if type(a) ~= "number" or a ~= a then return 0 end
-	return math.min(math.max(a, 0), 1)
-end
-
 local function refresh()
 	if not ns.isEnabled(KEY) then
 		if alerting then setAlert(false) end
@@ -350,7 +344,7 @@ local function refresh()
 		f.tex:SetDesaturated(true)
 		f.upTimer:clear()
 		setAlert(false)
-		ns.Cooldowns.fadeTo(def, 1)
+		ns.fadeTo(f, 1)
 		return
 	end
 	f.tex:SetDesaturated(false)
@@ -364,7 +358,7 @@ local function refresh()
 	setAlert(want)
 	-- Idle while nothing warns, or (Idle when "notdown") only while the totem isn't down either.
 	local busy = want or not ns.getAccount().locked or (out and setting("idleWhen") == "notdown")
-	ns.Cooldowns.fadeTo(def, busy and 1 or idleAlpha())
+	ns.fadeTo(f, busy and 1 or ns.idleAlpha(KEY))
 end
 TR.refresh = refresh
 
@@ -478,10 +472,10 @@ function TR.applyTimers()
 end
 
 -- The word follows the icon's size and its own settings.
-function TR.afterGroups() TR.styleWord(f.word, f, ns.sizeOf(KEY)) end
+function TR.afterGroups() TR.styleWord(f.word, f) end
 
 function TR.applyLayout()
-	TR.styleWord(f.word, f, ns.sizeOf(KEY))
+	TR.styleWord(f.word, f)
 	checkTarget()
 	checkAllPlates()
 	readControl()
@@ -492,6 +486,7 @@ TR.onCooldowns = refresh   -- a cast or a totem update: our Tremor may have gone
 
 function TR.tick()
 	checkTarget()   -- the target may have died
+	if feared then readControl() end   -- in case its end came with no loss-of-control event
 	refresh()
 end
 
@@ -500,9 +495,12 @@ function TR.start()
 	rebuild()
 	local ev = CreateFrame("Frame")
 	for _, event in ipairs({ "PLAYER_TARGET_CHANGED", "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED",
-		"LOSS_OF_CONTROL_ADDED", "LOSS_OF_CONTROL_UPDATE", "PLAYER_ENTERING_WORLD" }) do
+		"PLAYER_ENTERING_WORLD" }) do
 		ns.registerEvent(ev, event)
 	end
+	-- Ours only, as Blizzard's own loss-of-control frame registers them.
+	ns.registerEvent(ev, "LOSS_OF_CONTROL_ADDED", "player")
+	ns.registerEvent(ev, "LOSS_OF_CONTROL_UPDATE", "player")
 	ev:SetScript("OnEvent", function(_, event, unit)
 		if event == "PLAYER_TARGET_CHANGED" then checkTarget()
 		elseif event == "NAME_PLATE_UNIT_ADDED" then

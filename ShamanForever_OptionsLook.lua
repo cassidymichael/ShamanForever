@@ -588,11 +588,17 @@ L.PREVIEW.tremor = {
 		local def = ns.Tremor.def
 		reset(ic, def.iconID or def.icon)
 		if not ic.word then
-			ic.word = ic.textFrame:CreateFontString(nil, "OVERLAY")
+			-- On a frame that clips to the preview panel, so a large size or offset stays inside the
+			-- header.
+			local clip = CreateFrame("Frame", nil, ic:GetParent())
+			clip:SetAllPoints(ic:GetParent())
+			clip:SetClipsChildren(true)
+			clip:SetFrameLevel(ic.textFrame:GetFrameLevel() + 1)
+			ic.word = clip:CreateFontString(nil, "OVERLAY")
 			ic.word:SetFont(STANDARD_TEXT_FONT, 20, "OUTLINE")
 			ic.word:SetText(ns.Tremor.WORD)
 		end
-		ns.Tremor.styleWord(ic.word, ic, ic:GetWidth())
+		ns.Tremor.styleWord(ic.word, ic)
 		ic.word:Hide()
 		if st == "warn" then
 			ic:SetGlowShown(opt("tremor", "alertGlow"))
@@ -603,9 +609,7 @@ L.PREVIEW.tremor = {
 			frozen(ic.upT, 0.3, 300)
 			if opt("tremor", "idleWhen") == "notdown" then return end
 		end
-		-- Idle opacity, but never quite invisible here: 0 shows as a faint outline.
-		local a = opt("tremor", "idleAlpha")
-		ic:SetAlpha(math.max(type(a) == "number" and a or 0, 0.12))
+		idleLook(ic, "tremor")
 	end,
 }
 
