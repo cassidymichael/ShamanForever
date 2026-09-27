@@ -176,11 +176,16 @@ local RANGES = {
 }
 local GROUP_RANGES = { scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { 0, 40 }, size = { 24, 96 },
 	x = { -10000, 10000 }, y = { -10000, 10000 } }
+-- An element's own numbers (db.elementOpts[key]), and its Expiring warning's.
+local ELEMENT_RANGES = { idleAlpha = { 0, 1 }, reagentLow = { 0, 10 }, reagentSize = { 8, 40 },
+	reagentX = { -50, 50 }, reagentY = { -50, 50 }, wordSize = { 8, 40 }, wordX = { -100, 100 }, wordY = { -100, 100 } }
+local EXPIRE_RANGES = { secs = { 0, 120 } }
+-- defaults nil: a NaN is dropped, so the setting's own default applies.
 local function clampNumbers(t, ranges, defaults)
 	for k, r in pairs(ranges) do
 		local v = t[k]
 		if type(v) == "number" then
-			if v ~= v then t[k] = defaults[k] else t[k] = math.min(math.max(v, r[1]), r[2]) end
+			if v ~= v then t[k] = defaults and defaults[k] or nil else t[k] = math.min(math.max(v, r[1]), r[2]) end
 		end
 	end
 end
@@ -198,7 +203,11 @@ local function cleanProfile(t)
 	-- totem bar's settings (ShamanForever_TotemBar.lua).
 	if out.elementOpts then
 		for key, o in pairs(out.elementOpts) do
-			if type(key) ~= "string" or type(o) ~= "table" then out.elementOpts[key] = nil end
+			if type(key) ~= "string" or type(o) ~= "table" then out.elementOpts[key] = nil
+			else
+				clampNumbers(o, ELEMENT_RANGES)
+				if type(o.expire) == "table" then clampNumbers(o.expire, EXPIRE_RANGES) end
+			end
 		end
 	end
 	if out.groups then

@@ -163,14 +163,16 @@ local DEFS = {
 	windfury        = { ids = { 8232 }, en = "Windfury Weapon" },
 	call            = { ids = { 66842 }, en = "Call of the Elements" },
 	recall          = { ids = { 36936 }, en = "Totemic Recall" },
-	-- Talents or above the level-20 cap: seeds from foreverdiff.com (2026-09-27), not yet seen on a
-	-- character. An ID the client lacks shows in /sf debug; the client's name for the spell still
-	-- finds any rank the spellbook has.
+	-- Talents or above the level-20 cap: seeds from foreverdiff.com, each found on the client with
+	-- the right name and text (spell harvest, 2026-09-27), not yet seen on a character. The client's
+	-- name for the spell finds any rank the spellbook has.
 	naturesSwiftness = { ids = { 16188 }, en = "Nature's Swiftness" },   -- the buff has the same ID
 	manaTide        = { ids = { 16190 }, en = "Mana Tide Totem" },
 	grounding       = { ids = { 8177 }, en = "Grounding Totem" },
-	stormstrike     = { ids = { 17364 }, en = "Stormstrike" },
-	riptide         = { ids = { 1239242 }, en = "Riptide" },   -- Forever's own
+	-- Stormstrike: 410156 is the version whose text matches Forever's (an extra attack, and the next
+	-- 2 Nature hits); which one the talent teaches is still to be seen.
+	stormstrike     = { ids = { 17364, 410156 }, en = "Stormstrike" },
+	riptide         = { ids = { 408521, 1239242, 1239243 }, en = "Riptide" },   -- Forever's own, ranks 1 to 3
 	rageOfTheFarseer = { ids = { 425336 }, en = "Rage of the Farseer" },   -- Forever's own
 	totemicProjection = { ids = { 437009 }, en = "Totemic Projection" },
 	reincarnation   = { ids = { 20608 }, en = "Reincarnation" },
@@ -184,7 +186,7 @@ local DEFS = {
 	chainHeal       = { ids = { 1064 }, en = "Chain Heal" },
 	lightningBolt   = { ids = { 403 }, en = "Lightning Bolt" },
 	chainLightning  = { ids = { 421 }, en = "Chain Lightning" },
-	ghostWolf       = { ids = { 2645 }, en = "Ghost Wolf" },
+	ghostWolf       = { ids = { 2645, 1238640 }, en = "Ghost Wolf" },   -- 1238640: the spellbook's, seen 2026-09-27
 	farSight        = { ids = { 6196 }, en = "Far Sight" },
 }
 Spells.DEFS = DEFS
@@ -273,8 +275,9 @@ function Spells.scan()
 	end
 end
 
--- Whether the player knows a spell ID, by whichever check the client has (true when it has none).
-local function playerKnows(id)
+-- Whether the player knows a spell ID, by whichever check the client has (true when it has none,
+-- unless strict: then only a plain yes counts).
+local function playerKnows(id, strict)
 	local known
 	local checks = { IsPlayerSpell or false, C_SpellBook and C_SpellBook.IsSpellKnown or false, IsSpellKnown or false }
 	for _, fn in ipairs(checks) do
@@ -284,6 +287,7 @@ local function playerKnows(id)
 			known = false
 		end
 	end
+	if strict then return false end
 	return known ~= false
 end
 
@@ -297,6 +301,14 @@ function Spells.known(key)
 	if ok and type(info) == "table" and info.spellID and not isSecret(info.spellID) and playerKnows(info.spellID) then
 		keyByID[info.spellID] = key
 		return info.spellID, info.iconID
+	end
+	-- The name can resolve to another spell of the same name (a passive's active part, another
+	-- series of ranks): any ID on record for the spell that the player knows.
+	for id in pairs(Spells.ids(key)) do
+		if (type(info) ~= "table" or id ~= info.spellID) and playerKnows(id, true) then
+			local tok, tex = safe(C_Spell.GetSpellTexture, id)
+			return id, tok and not isSecret(tex) and tex or nil
+		end
 	end
 end
 
