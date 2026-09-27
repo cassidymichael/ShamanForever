@@ -47,25 +47,13 @@ B.BUFFS = BUFFS
 -- Elements
 ------------------------------------------------------------------------
 local function makeBuffIcon(def)
-	local f = ns.newElementIcon(def.key)
-	f.tex:SetTexture(def.icon)
 	-- Effects on a layer that ignores the icon's alpha (as the cooldown elements do), so an idle
-	-- icon doesn't fade the expiring glow.
-	f.effects = CreateFrame("Frame", nil, f)
-	f.effects:SetAllPoints()
-	f.effects:SetIgnoreParentAlpha(true)
-	f.glowF:SetParent(f.effects)
+	-- icon doesn't fade the expiring glow. Elemental Focus's aura container sits on that layer too;
+	-- its frame level is styleProc's, not f.stack's.
+	local f = ns.newElementIcon(def.key, { effects = true })
+	f.tex:SetTexture(def.icon)
 	if not def.proc then
 		f.upTimer = ns.Timer.new(f, def.key, "uptime", { cd = f.cd, school = def.school })
-	end
-	function f.stack()
-		local base = f:GetFrameLevel()
-		f.effects:SetFrameLevel(base)
-		f.glowF:SetFrameLevel(base + 1)
-		f.cd:SetFrameLevel(base + 2)
-		f.textFrame:SetFrameLevel(base + 4)
-		if f.upTimer then f.upTimer:restack() end
-		-- Elemental Focus's container is placed by styleProc, which may touch it.
 	end
 	f.stack()
 	return f

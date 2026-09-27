@@ -140,10 +140,33 @@ function ns.addElementKey(key)
 	for i, k in ipairs(ELEMENT_KEYS) do if k == firstTestKey then at = i break end end
 	table.insert(ELEMENT_KEYS, at, key)
 end
--- An element's icon (ShamanForever_Widgets.lua), on the HUD's root frame.
-function ns.newElementIcon(key)
+-- An element's icon (ShamanForever_Widgets.lua), on the HUD's root frame. opts.effects gives it an
+-- effects layer (f.effects) that ignores the icon's alpha and holds its glow, so an idle icon's fade
+-- (Idle opacity) leaves the glows, the pops' light and the end flashes at full; the layer takes its
+-- group's opacity instead (layoutGroup). Such an icon has f.stack(), which restates its layers'
+-- frame levels, bottom up: the icon, the effects and glow with any warning layer (f.warn), the swipe,
+-- the cooldown timer's bar (f.cdTimer), the text, and the time left's parts (f.upTimer). Its caller
+-- adds those parts, then calls f.stack(); layoutGroup calls it again after regrouping, since
+-- reparenting moves frame levels.
+function ns.newElementIcon(key, opts)
 	local f = ns.makeIcon(root, DEFAULTS.iconSize, key)
 	f.count:Hide()
+	if opts and opts.effects then
+		f.effects = CreateFrame("Frame", nil, f)
+		f.effects:SetAllPoints()
+		f.effects:SetIgnoreParentAlpha(true)
+		f.glowF:SetParent(f.effects)
+		function f.stack()
+			local base = f:GetFrameLevel()
+			f.effects:SetFrameLevel(base)
+			f.glowF:SetFrameLevel(base + 1)
+			if f.warn then f.warn:SetFrameLevel(base + 1) end
+			f.cd:SetFrameLevel(base + 2)
+			if f.cdTimer and f.cdTimer.bar then f.cdTimer.bar:SetFrameLevel(base + 3) end
+			f.textFrame:SetFrameLevel(base + 4)
+			if f.upTimer then f.upTimer:restack() end
+		end
+	end
 	return f
 end
 

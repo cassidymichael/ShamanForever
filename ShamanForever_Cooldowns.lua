@@ -100,14 +100,10 @@ local COOLDOWNS = {
 CD.COOLDOWNS = COOLDOWNS
 
 local function makeCooldownIcon(def)
-	local f = ns.newElementIcon(def.key)
-	f.tex:SetTexture(def.icon)
 	-- Effects (the glows, the pops' light, the end flashes) on a layer that ignores the icon's alpha,
-	-- so an idle icon (applyIdle) doesn't fade them. It takes its group's opacity instead (layoutGroup).
-	f.effects = CreateFrame("Frame", nil, f)
-	f.effects:SetAllPoints()
-	f.effects:SetIgnoreParentAlpha(true)
-	f.glowF:SetParent(f.effects)
+	-- so an idle icon (applyIdle) doesn't fade them.
+	local f = ns.newElementIcon(def.key, { effects = true })
+	f.tex:SetTexture(def.icon)
 	if def.totemSlot or def.needsTotem or def.window or (def.primed and def.primed.duration) then
 		-- A totem's time left (its own, or for Fire Nova whichever fire totem is out), a buff window's
 		-- or a primed buff's: a timer of the "uptime" kind beside the spell's cooldown. Its parts sit
@@ -142,17 +138,7 @@ local function makeCooldownIcon(def)
 		f.warn:SetScript("OnShow", function(w) if w.pulseOn and not w.pulse:IsPlaying() then w.pulse:Play() end end)
 	end
 	-- Layers, bottom up: icon, Fire Nova's warning layer and the expiring warning, the swipe, the timer
-	-- bar, text. Restated after regrouping (layoutGroup), since reparenting moves frame levels.
-	function f.stack()
-		local base = f:GetFrameLevel()
-		f.effects:SetFrameLevel(base)
-		f.glowF:SetFrameLevel(base + 1)
-		if f.warn then f.warn:SetFrameLevel(base + 1) end
-		f.cd:SetFrameLevel(base + 2)
-		if f.cdTimer.bar then f.cdTimer.bar:SetFrameLevel(base + 3) end
-		f.textFrame:SetFrameLevel(base + 4)
-		if f.upTimer then f.upTimer:restack() end
-	end
+	-- bar, text (ns.newElementIcon).
 	f.stack()
 	return f
 end
