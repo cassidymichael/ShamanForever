@@ -1590,7 +1590,7 @@ end
 -- Tremor Totem's watchlist: a box that searches the list and adds a name, Add target, the list (a
 -- remove button on each mob) and a count. The list is a ScrollBox, which recycles its rows, so
 -- hundreds of mobs take a dozen frames.
-local MOB_ROW_H, MOB_ROWS = 22, 12
+local MOB_ROW_H, MOB_ROWS = 22, 9
 local function mobList(p)
 	local T = ns.Tremor
 	local listH = MOB_ROW_H * MOB_ROWS + 8
@@ -1613,6 +1613,12 @@ local function mobList(p)
 	addTarget:SetPoint("LEFT", add, "RIGHT", 6, 0)
 	addTarget:SetText("Add target")
 	setTip(addTarget, "Add target", "Puts the mob you have targeted on the list.")
+	local ownOnly = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+	ownOnly:SetSize(24, 24)
+	ownOnly.Text:SetFontObject("GameFontHighlight")
+	ownOnly.Text:SetText("Only mobs you added")
+	ownOnly:SetPoint("TOPRIGHT", -(ownOnly.Text:GetStringWidth() + 4), -3)
+	setTip(ownOnly, "Only mobs you added", "Hides the default list's mobs.")
 
 	local panel = CreateFrame("Frame", nil, f, "BackdropTemplate")
 	panelBackdrop(panel)
@@ -1627,7 +1633,7 @@ local function mobList(p)
 	bar:SetPoint("BOTTOMLEFT", sb, "BOTTOMRIGHT", 6, 0)
 	local empty = panel:CreateFontString(nil, "OVERLAY", "GameFontDisable")
 	empty:SetPoint("CENTER")
-	empty:SetText("No mob by that name. Add puts it on the list.")
+	empty:SetText("No mob here. Add puts a name on the list.")
 
 	local view = CreateScrollBoxListLinearView()
 	view:SetElementExtent(MOB_ROW_H)
@@ -1678,7 +1684,7 @@ local function mobList(p)
 	local function fill()
 		local text = box:GetText()
 		box.hint:SetShown(text == "" and not box:HasFocus())
-		local list = T.rows(text)
+		local list = T.rows(text, ownOnly:GetChecked())
 		shown = #list
 		sb:SetDataProvider(CreateDataProvider(list), ScrollBoxConstants.RetainScrollPosition)
 		empty:SetShown(shown == 0)
@@ -1693,6 +1699,7 @@ local function mobList(p)
 		T.add(box:GetText())
 		box:SetText("")
 	end
+	ownOnly:SetScript("OnClick", fill)
 	box:SetScript("OnTextChanged", fill)
 	box:SetScript("OnEditFocusGained", fill)
 	box:SetScript("OnEditFocusLost", fill)
@@ -1723,11 +1730,14 @@ end
 
 -- Tremor Totem's page (ShamanForever_Tremor.lua).
 local WORD_POS = { { "below", "Below the icon" }, { "above", "Above the icon" }, { "center", "On the icon" } }
+local TREMOR_IDLE_WHEN = { { "nowarning", "No warning" }, { "notdown", "Totem not down and no warning" } }
 local function buildTremor(p)
 	local key = "tremor"
 	elementDisplay(p, key)
 	p:header("Idle")
-	p:text("Idle is when your Tremor Totem isn't down and there's nothing to warn about. At 0% it's hidden and keeps its place in the group.")
+	p:text("Idle is when nothing warns. At 0% it's hidden and keeps its place in the group.")
+	p:dropdown("Idle when", "No warning: also while your Tremor Totem is down. Totem not down and no warning: its time left shows while it's down.",
+		TREMOR_IDLE_WHEN, eget(key, "idleWhen"), eset(key, "idleWhen"), nil, 250)
 	p:slider("Idle opacity", "The icon's opacity while idle.", 0, 1, 0.05, pct, eget(key, "idleAlpha"), eset(key, "idleAlpha"))
 	p:header("Warn when")
 	p:checkbox("Your target is on the list", nil, eget(key, "tremorTarget"), eset(key, "tremorTarget"))
@@ -1740,9 +1750,9 @@ local function buildTremor(p)
 	p:callout("In dungeons and raids the game hides mob names from addons, so the watchlist can't work there. "
 		.. "There it warns only when you're feared, charmed or asleep.")
 	p:text("Mobs that cast fear, charm or sleep.")
+	mobList(p)
 	linkLine(p, "Help improve ShamanForever: suggest a mob to add to this default list",
 		"Opens Feedback, on the About page.", function() OP.showFeedback() end)
-	mobList(p)
 	timerSettings(p, "Time left", key, "uptime")
 	p:header("When it warns")
 	p:checkbox("Pop", "The moment it starts warning.", eget(key, "alertPop"), eset(key, "alertPop"))

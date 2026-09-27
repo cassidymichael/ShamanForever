@@ -3,8 +3,8 @@
 -- effects is on you (and for a few seconds after); it stays quiet while your Tremor Totem is down.
 -- The mobs are a watchlist the player can change on the element's page: open-world mobs from
 -- Classic's database (ShamanForever_TremorList.lua) and the player's own, matched by NPC ID, else by
--- name. While the totem is down the element shows its time left; it is idle only while the totem
--- isn't down and there is nothing to warn about.
+-- name. While the totem is down the element shows its time left. It is idle while nothing warns
+-- (the default), or with Idle when set so, only while the totem also isn't down.
 --
 -- What can be read, and when:
 -- * A mob's name and GUID (the GUID holds its NPC ID). Blizzard makes creature identity secret to
@@ -38,7 +38,6 @@ TR.SOUNDS = {
 	{ "raid", "Raid warning", SOUNDKIT.RAID_WARNING },
 	{ "ready", "Ready check", SOUNDKIT.READY_CHECK },
 	{ "alarm", "Alarm clock", SOUNDKIT.ALARM_CLOCK_WARNING_3 },
-	{ "whisper", "Boss whisper", SOUNDKIT.UI_RAID_BOSS_WHISPER_WARNING },
 }
 
 local function setting(name) return ns.elementSetting(KEY, name) end
@@ -67,7 +66,8 @@ end
 -- Element
 ------------------------------------------------------------------------
 local def = { key = KEY, spellKey = "tremor", icon = 136108, school = "earth", duration = 300,
-	defaults = { idleAlpha = 0, tremorTarget = true, tremorPlates = true, tremorFeared = true,
+	-- idleWhen: nowarning (idle while nothing warns) | notdown (and the totem isn't down).
+	defaults = { idleAlpha = 0, idleWhen = "nowarning", tremorTarget = true, tremorPlates = true, tremorFeared = true,
 		alertPop = true, alertGlow = true, alertText = true, alertSound = "none",
 		-- The word: its size at a 44 px icon (it scales with the icon), colour, where it sits
 		-- (below | above | center) and an offset in pixels.
@@ -184,13 +184,14 @@ local function rebuild()
 	for _ in pairs(e.removed) do counts.removed = counts.removed + 1 end
 end
 
--- The list for the options, filtered by a search text (name or zone); counts for its footer.
-function TR.rows(search)
+-- The list for the options, filtered by a search text (name or zone) and, with ownOnly, to the
+-- mobs the player added; counts for its footer.
+function TR.rows(search, ownOnly)
 	search = strtrim((search or "")):lower()
-	if search == "" then return rows end
+	if search == "" and not ownOnly then return rows end
 	local out = {}
 	for _, r in ipairs(rows) do
-		if r.find:find(search, 1, true) then table.insert(out, r) end
+		if (not ownOnly or r.own) and (search == "" or r.find:find(search, 1, true)) then table.insert(out, r) end
 	end
 	return out
 end
@@ -347,8 +348,9 @@ local function refresh()
 		why = targetListed and "target" or next(plates) and "nameplate" or feared and "on you" or "just after"
 	end
 	setAlert(want)
-	-- Idle only while the totem isn't down and there's nothing to warn about.
-	ns.Cooldowns.fadeTo(def, (want or out or not ns.getAccount().locked) and 1 or idleAlpha())
+	-- Idle while nothing warns, or (Idle when "notdown") only while the totem isn't down either.
+	local busy = want or not ns.getAccount().locked or (out and setting("idleWhen") == "notdown")
+	ns.Cooldowns.fadeTo(def, busy and 1 or idleAlpha())
 end
 TR.refresh = refresh
 

@@ -82,7 +82,7 @@ end
 do
 	local def = ns.Tremor.def
 	L.ELEMENT.tremor = { name = def.spell, spell = def.spellKey, icon = def.icon, school = def.school,
-		blurb = "Warns near mobs that fear, charm or sleep. Time left while it's down." }
+		blurb = "Warns near mobs that fear, charm or sleep, and when you're feared." }
 end
 
 -- An element's name: a spell's in the client's language (name is the fallback), else its own.
@@ -579,7 +579,8 @@ local function buffPreview(def)
 end
 for _, def in ipairs(ns.Buffs.BUFFS) do L.PREVIEW[def.key] = buffPreview(def) end
 
--- Tremor Totem: warning, its totem down (time left) and idle (not down, nothing to warn about).
+-- Tremor Totem: warning, its totem down (time left; idle too, unless Idle when says otherwise) and
+-- idle (not down, nothing to warn about).
 L.PREVIEW.tremor = {
 	states = { { "warn", "Warning" }, { "down", "Tremor down" }, { "idle", "Not down, no warning" } },
 	pop = function(ic, st) if st == "warn" and opt("tremor", "alertPop") then ic:Pop("ready") end end,
@@ -598,7 +599,10 @@ L.PREVIEW.tremor = {
 			ic.word:SetShown(opt("tremor", "alertText") and true or false)
 			return
 		end
-		if st == "down" then frozen(ic.upT, 0.3, 300) return end
+		if st == "down" then
+			frozen(ic.upT, 0.3, 300)
+			if opt("tremor", "idleWhen") == "notdown" then return end
+		end
 		-- Idle opacity, but never quite invisible here: 0 shows as a faint outline.
 		local a = opt("tremor", "idleAlpha")
 		ic:SetAlpha(math.max(type(a) == "number" and a or 0, 0.12))
