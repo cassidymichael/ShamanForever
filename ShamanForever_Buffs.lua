@@ -7,8 +7,10 @@
 --   In combat auras are secret: the timer carries on from the last read, and our own cast of the
 --   spell (readable in combat) restarts it when the target is us. A buff dispelled or cancelled
 --   in combat is seen when combat ends.
--- * Water Breathing's underwater warning: the breath bar (a mirror timer, MIRROR_TIMER_START
---   "BREATH") starting while the buff isn't up.
+-- * Water Breathing's underwater warning: the breath bar (a mirror timer, "BREATH") draining while
+--   the buff isn't up. Readable in and out of combat (probed 2026-09-27): MIRROR_TIMER_START comes
+--   with a negative scale while it drains under water, and again with a positive one while it
+--   refills after surfacing; MIRROR_TIMER_STOP only once it's full.
 -- * Elemental Focus: a proc can't be foreseen, so in combat only Blizzard's aura container can
 --   show it (as for the shield, ShamanForever_Shield.lua). Its button draws the icon and time left;
 --   our glow is a child of that button, so it shows exactly when the button does. The container
@@ -120,7 +122,7 @@ end
 ------------------------------------------------------------------------
 -- Water Breathing: under water without it
 ------------------------------------------------------------------------
-local breathing = false   -- the breath bar is running
+local breathing = false   -- the breath bar is draining (under water)
 local function breathWarn(def)
 	return def.breath and breathing and not def.upUntil and setting(def.key, "breathWarn")
 end
@@ -343,8 +345,8 @@ end
 function B.start()
 	-- Already under water (a /reload): the breath bar is running.
 	for i = 1, 3 do   -- the client's mirror timers: fatigue, breath, feign death
-		local ok, name, _, _, _, paused = safe(GetMirrorTimerInfo, i)
-		if ok and not isSecret(name) and name == "BREATH" and not isSecret(paused) and (paused == 0 or paused == false) then
+		local ok, name, _, _, scale = safe(GetMirrorTimerInfo, i)
+		if ok and not isSecret(name) and name == "BREATH" and type(scale) == "number" and not isSecret(scale) and scale < 0 then
 			breathing = true
 		end
 	end
@@ -352,10 +354,11 @@ function B.start()
 	ns.registerEvent(ev, "UNIT_AURA", "player")
 	ns.registerEvent(ev, "MIRROR_TIMER_START")
 	ns.registerEvent(ev, "MIRROR_TIMER_STOP")
-	ev:SetScript("OnEvent", function(_, event, timer)
+	ev:SetScript("OnEvent", function(_, event, timer, _, _, scale)
 		if event == "UNIT_AURA" then B.refresh() return end
 		if isSecret(timer) or timer ~= "BREATH" then return end
-		breathing = event == "MIRROR_TIMER_START"
+		-- Draining (negative scale) is under water; refilling after surfacing is not.
+		breathing = event == "MIRROR_TIMER_START" and type(scale) == "number" and not isSecret(scale) and scale < 0
 		-- The breath bar only runs without Water Breathing: a dispel or cancel in combat shows here.
 		if breathing then for _, def in ipairs(BUFFS) do if def.breath then setDown(def) end end end
 		refreshAll()
