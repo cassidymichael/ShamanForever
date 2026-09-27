@@ -285,7 +285,7 @@ end
 -- Standard block: the global cooldown's sweep, on or off (the gcd style). key nil: General's;
 -- otherwise an element's or the totem bar's, with Same as General.
 local function gcdBlock(p, key)
-	local function after() ns.refreshAll(); ns.TotemBar.drawGCD(); OP.refresh() end
+	local function after() ns.refreshAll(); ns.TotemBar.refreshGCD(); OP.refresh() end
 	local r = styleRows(key, "gcd", after)
 	p:header("Global cooldown")
 	if key then followRow(p, key, "gcd", after)
@@ -927,7 +927,7 @@ local MAX_WARN_ROWS = 32
 local function buildTotemBar(p)
 	local TB = ns.TotemBar
 	local function c() return TB.cfg() end
-	local function changed() TB.apply(); OP.refresh() end
+	local function changed() TB.applySettings(); OP.refresh() end
 	local function tget(key) return function() return c()[key] end end
 	local function tset(key) return function(v) c()[key] = v; changed() end end
 

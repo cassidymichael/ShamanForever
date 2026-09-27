@@ -89,7 +89,7 @@ end
 IM.preferredIcon = preferredImbueIcon
 function IM.icon() return imbueIcon end
 
-local function paintImbue(now)
+local function drawImbue(now)
 	local db, acct = ns.getDB(), ns.getAccount()
 	local key = imbueState.key
 	local unreadable = imbueState.unreadable
@@ -158,7 +158,7 @@ function IM.refresh()
 		imbueState.expiresAt = r.timeLeft > 0 and now + left or nil
 		if key then acct.imbueLast = key end
 	end
-	paintImbue(now)
+	drawImbue(now)
 	-- The moment it drops (imbues stay readable in combat): pop.
 	if had and r == false and db.imbuePop then imbue:Pop("imbue") end
 end

@@ -11,8 +11,9 @@
 -- * popout: "multispell" buttons (spell 0 is "No totem") that change the pick, then close it.
 -- Layout, attributes and anything that shows, hides or moves a secure button change only out of
 -- combat; changes asked for in combat wait for it to end. Every layout, and the end of combat,
--- closes any open picker. Drawing sits on plain frames over the secure buttons, so it can change
--- any time.
+-- closes any open picker. What the player sees sits on plain frames over the secure buttons, so it
+-- can change any time. Verbs, as in the modules: apply (settings changed), layout (out of combat),
+-- refresh (read the slots and show them), draw (show what is known, ten times a second).
 -- In combat, which totem is in a slot is secret: its icon is drawn by handing the secret icon to
 -- SetTexture, timers come from the slot's duration object, and warnings are the remaining time
 -- through a curve into SetAlpha. Which totem it is (per-totem warning times, "not your pick") comes
@@ -411,7 +412,7 @@ for index, el in ipairs(ELEMENTS) do
 	s.command = "CLICK ShamanForeverKeyCast" .. NAME[el] .. ":LeftButton"   -- its key (Key bindings, below)
 	-- The expiring warning is the timer's (Timer:setExpire, as on the HUD): a grey copy of the icon, a
 	-- red ring, a dark pulsing layer and a glow, above the icon and below the cooldown, in the slot's
-	-- last seconds. drawSlot gives it the totem's own warning time and icon.
+	-- last seconds. refreshSlot gives it the totem's own warning time and icon.
 
 	-- Arrow tab (secure, no action of its own: ARROW_CLICK toggles the popout; right-click closes any)
 	-- and its look (plain, shown while the mouse is over the slot or the tab).
@@ -530,7 +531,7 @@ extras.Recall.button:SetAttribute("*type2", "macro")
 extras.Recall.button:SetAttribute("macrotext", DISMISS_ALL)
 
 -- Each button's key, in its corner (any time: plain frames).
-local function drawKeys()
+local function refreshKeys()
 	local on = cfg().keys
 	local function draw(layer, command)
 		local key = on and GetBindingKey(command)
@@ -551,7 +552,7 @@ local function gcdOf(getInfo, getDuration, id)
 	local dok, d = ns.try("totem bar: GCD", getDuration, id)
 	return dok and d or nil
 end
-local function drawGCD()
+local function refreshGCD()
 	-- Not gated on the bar being shown: the cast that brings it up (in combat, a first totem) sweeps too.
 	local on = ns.Style.value("totembar", "gcd", "show")
 	for _, el in ipairs(ELEMENTS) do
@@ -567,7 +568,7 @@ local function drawGCD()
 		if d then e.gcd:SetCooldownFromDurationObject(d) else e.gcd:Clear() end
 	end
 end
-TB.drawGCD = drawGCD
+TB.refreshGCD = refreshGCD
 
 local keyTexts = {}   -- button -> its key label, for layout()
 for _, el in ipairs(ELEMENTS) do keyTexts[slots[el].button] = slots[el].keys.text end
@@ -598,7 +599,7 @@ local function hover(s, arrows)
 end
 
 ------------------------------------------------------------------------
--- Drawing (any time, combat included)
+-- Refreshing the slots (any time, combat included)
 ------------------------------------------------------------------------
 -- The element's pick, by spell ID (nil for "No totem").
 local function pickSpell(slot)
@@ -628,7 +629,7 @@ local kbOpen = false   -- Blizzard's Quick Keybind Mode is open (Quick Keybind M
 -- The parts that follow the remaining time: the time bar once it has run out, and the range strip.
 -- (The expiring warning follows it in Timers' own ticker.)
 -- Values from the duration object may be secret, so they only ever go straight to SetAlpha.
-function TB.alphas(s)
+function TB.drawTimeLeft(s)
 	local d = s.dur
 	if not d then return end
 	local tbar = s.timer.bar
@@ -636,10 +637,10 @@ function TB.alphas(s)
 		local ok, a = ns.try("totem bar: time bar", d.EvaluateRemainingDuration, d, ns.CURVE_LIVE)
 		if ok then tbar:SetAlpha(a) end
 	end
-	if TB.range then TB.range.alphas(s) end
+	if TB.range then TB.range.drawTimeLeft(s) end
 end
 
-local function drawSlot(s)
+local function refreshSlot(s)
 	local c, v = cfg(), s.vis
 	local was = s.dur   -- a slot that had a totem and now has none ended it (Killed early, below)
 	local ok, d = ns.try("totem bar: duration", GetTotemDuration, s.slot)
@@ -668,7 +669,7 @@ local function drawSlot(s)
 		s.dur = d
 		s.timer:setExpire({ secs = warnSecs(c, down), grey = c.warnGrey, ring = c.warnRing, pulse = c.warnPulse, glow = c.warnGlow })
 		if iok and (isSecret(icon) or icon) then s.timer:setExpireIcon(icon) end
-		TB.alphas(s)
+		TB.drawTimeLeft(s)
 		return true
 	end
 	s.dur = nil
@@ -698,23 +699,23 @@ local function drawSlot(s)
 	return false
 end
 
-local function drawAll()
+local function refreshSlots()
 	local down = false
 	for _, el in ipairs(ELEMENTS) do
 		local s = slots[el]
-		s.down = drawSlot(s)
+		s.down = refreshSlot(s)
 		if s.down then down = true end
-		if TB.range then TB.range.draw(s) end
+		if TB.range then TB.range.refresh(s) end
 	end
 	anyDown = down
 end
 
--- Redraw (any time), and when the first totem goes down or the last one goes, the bar's driver
+-- Refresh (any time), and when the first totem goes down or the last one goes, the bar's driver
 -- for "In combat or a totem down" (out of combat only).
 local layout   -- Layout, below
-local function redraw()
+local function refresh()
 	local wasDown = anyDown
-	drawAll()
+	refreshSlots()
 	if anyDown ~= wasDown and cfg().show == "active" then layout() end
 end
 
@@ -730,7 +731,7 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 	for _, el in ipairs(ELEMENTS) do
 		local s = slots[el]
 		hover(s, arrows)
-		if s.down then TB.alphas(s) end
+		if s.down then TB.drawTimeLeft(s) end
 	end
 end)
 
@@ -951,9 +952,9 @@ function layout()
 	bar:ClearAllPoints()
 	bar:SetPoint(c.point, UIParent, c.point, c.x / c.scale, c.y / c.scale)
 	if TB.range then TB.range.layout(size) end   -- after the scale: its height is a line's
-	drawAll()
-	drawKeys()
-	drawGCD()
+	refreshSlots()
+	refreshKeys()
+	refreshGCD()
 	ns.refitRings()
 	local driver = visibilityDriver()
 	if driver ~= lastDriver then
@@ -974,7 +975,7 @@ function TB.applyTimers()
 end
 
 -- Settings changed (options page): relayout now, or when combat ends.
-function TB.apply()
+function TB.applySettings()
 	cfgTable = nil
 	-- Crosses go at once when switched off (plain frames: fine in combat, unlike the layout).
 	local c = cfg()
@@ -1150,7 +1151,7 @@ local function kbBind(input)
 			if key2 then SetBinding(key2, command, ctx) end
 		end
 	end
-	drawKeys()
+	refreshKeys()
 	kbTooltip()
 end
 
@@ -1181,7 +1182,7 @@ local function setKeybindMode(open)
 		e.keys.glow:SetShown(open)
 		e.keys.glow:SetAlpha(0.5)
 	end
-	drawAll()  -- the empty slots' look, at once (also in combat, where the layout waits)
+	refreshSlots()  -- the empty slots' look, at once (also in combat, where the layout waits)
 	layout()   -- shows the bar and its empty slots, or puts them back (after combat, if in it)
 end
 
@@ -1276,23 +1277,23 @@ for _, e in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_TOTEM_UPDA
 	ns.registerEvent(ev, e)
 end
 ns.registerEvent(ev, "UNIT_SPELLCAST_SUCCEEDED", "player")
--- After one of our casts: redraw once ShamanForever_Totems.lua has recorded which totem went into which slot
--- (ns.Totems; its handler may run after ours), so the order of this event and
+-- After one of our casts: refresh once ShamanForever_Totems.lua has recorded which totem went into
+-- which slot (ns.Totems; its handler may run after ours), so the order of this event and
 -- PLAYER_TOTEM_UPDATE doesn't matter. Plain frames only, so fine in combat.
-local casts, redrawQueued = {}, false   -- spell IDs cast since the last check
-local function redrawAfterCast(spell)
+local casts, refreshQueued = {}, false   -- spell IDs cast since the last check
+local function refreshAfterCast(spell)
 	casts[spell] = true
-	if redrawQueued then return end
-	redrawQueued = true
+	if refreshQueued then return end
+	refreshQueued = true
 	C_Timer.After(0, function()
-		redrawQueued = false
+		refreshQueued = false
 		local totem = false
 		for slot = 1, 4 do
 			local id = not totem and ns.Totems.spellInSlot(slot)
 			if id and casts[id] then totem = true end
 		end
 		wipe(casts)
-		if totem then redraw() end
+		if totem then refresh() end
 	end)
 end
 
@@ -1308,19 +1309,19 @@ ev:SetScript("OnEvent", function(_, event, arg1, ...)
 		return
 	end
 	if event == "PLAYER_TOTEM_UPDATE" then
-		redraw()
+		refresh()
 	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
 		local _, spell = ...   -- unit, castGUID, spellID
 		if isSecret(spell) or type(spell) ~= "number" then return end
-		redrawAfterCast(spell)
+		refreshAfterCast(spell)
 	elseif event == "ACTIONBAR_SLOT_CHANGED" then
 		-- The element's multi-cast slots, or 0 (every slot).
 		local base = multiAction(1) - 1
-		if not isSecret(arg1) and type(arg1) == "number" and (arg1 == 0 or (arg1 > base and arg1 <= base + 12)) then redraw() end
+		if not isSecret(arg1) and type(arg1) == "number" and (arg1 == 0 or (arg1 > base and arg1 <= base + 12)) then refresh() end
 	elseif event == "UPDATE_BINDINGS" then
-		drawKeys()
+		refreshKeys()
 	elseif event == "SPELL_UPDATE_COOLDOWN" then
-		drawGCD()
+		refreshGCD()
 	elseif event == "PLAYER_REGEN_ENABLED" then
 		saidWait = false
 		-- A queued layout has run already (ns.deferInCombat). A picker opened in combat and left open
