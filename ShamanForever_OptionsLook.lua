@@ -477,7 +477,7 @@ L.PREVIEW = {
 -- An element's reagent count and none-left look in a preview, for n reagents (its Reagent block's
 -- settings: when the count shows, its Low mark, the none-left looks).
 function L.reagentLook(ic, key, n)
-	local _, ring, pulse = ns.Cooldowns.paintReagent(ic, key, n)
+	local _, ring, pulse = ns.Reagents.draw(ic, key, n)
 	ic:SetRingShown(ring)
 	ic:SetPulsing(pulse)
 end

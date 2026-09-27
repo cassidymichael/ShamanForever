@@ -1396,10 +1396,10 @@ local function buildShock(p)
 	p:header("Tracking")
 	local icons = { earth = 136026, flame = 135813, frost = 135849 }
 	local cards = {}
-	for _, key in ipairs(ns.Cooldowns.SHOCK_ORDER) do table.insert(cards, { key, ns.Cooldowns.SHOCKS[key], icons[key] }) end
+	for _, key in ipairs(ns.Shock.ORDER) do table.insert(cards, { key, ns.Shock.SHOCKS[key], icons[key] }) end
 	p:cards("Track", "Its cooldown and range.", cards, get("shock"), set("shock", respell))
 	local manaChoices = { { "tracked", "Tracked shock" } }
-	for _, key in ipairs(ns.Cooldowns.SHOCK_ORDER) do table.insert(manaChoices, { key, ns.Cooldowns.SHOCKS[key] }) end
+	for _, key in ipairs(ns.Shock.ORDER) do table.insert(manaChoices, { key, ns.Shock.SHOCKS[key] }) end
 	p:dropdown("Mana check", nil, manaChoices, get("manaSpell"), set("manaSpell", respell))
 	p:text("The spell whose cost turns the icon blue when you're short of mana.")
 

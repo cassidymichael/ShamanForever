@@ -258,7 +258,7 @@ local function refreshBuff(def)
 	if def.upUntil and GetTime() >= def.upUntil then setDown(def) end
 	-- Each look decided first, then set once: setting a pulse off and on again restarts it.
 	local held, ring, pulse = false, false, false
-	if def.reagent then held, ring, pulse = ns.Cooldowns.refreshReagent(def) end
+	if def.reagent then held, ring, pulse = ns.Reagents.refresh(def) end
 	if breathWarn(def) then
 		-- Under water without it: the missing look.
 		ring, pulse, held = setting(key, "breathRing"), setting(key, "breathPulse"), true

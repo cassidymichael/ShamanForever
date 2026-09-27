@@ -1,6 +1,8 @@
--- Shocks and the cooldown elements (the totems, Fire Nova, and spells like Nature's Swiftness or
+-- The cooldown elements (the totems, Fire Nova, and spells like Nature's Swiftness or
 -- Reincarnation): a spell's cooldown, the pop and the "use me" glow when it's ready, for a totem its
--- time left and its end, primed states and buff windows, reagents, and an idle look.
+-- time left and its end, primed states and buff windows, reagents (ShamanForever_Reagents.lua), and
+-- an idle look. The global cooldown and ready reads here are shared with the shock
+-- (ShamanForever_Shock.lua) and the shield.
 --
 -- Nothing here reads a secret value:
 -- * The spell cooldown and a totem's time are duration objects that Blizzard widgets draw (cooldown
@@ -26,29 +28,16 @@
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
-local Spells, Totems = ns.Spells, ns.Totems
+local Spells, Totems, Reagents = ns.Spells, ns.Totems, ns.Reagents
 
 local CD = { name = "cooldowns" }
 ns.Cooldowns = CD
 
-local function db() return ns.getDB() end
 local setting = ns.elementSetting
 
 ------------------------------------------------------------------------
 -- Elements
 ------------------------------------------------------------------------
--- Shock choice -> spell key; SHOCKS holds the display names (the client's, set by CD.resolve).
-local SHOCK_SPELL = { earth = "earthShock", flame = "flameShock", frost = "frostShock" }
-local SHOCKS = {}
-for key, spell in pairs(SHOCK_SPELL) do SHOCKS[key] = Spells.name(spell) end
-local SHOCK_ORDER = { "earth", "flame", "frost" }
-CD.SHOCKS, CD.SHOCK_ORDER = SHOCKS, SHOCK_ORDER
-
-local shock = ns.newElementIcon("shock")
-shock.cdTimer = ns.Timer.new(shock, "shock", "cooldown", { cd = shock.cd, school = "spirit" })
-local shockIcon = 136026
-ns.registerElement("shock", { frame = shock, label = "Shocks", paint = function(t) t:SetTexture(shockIcon) end })
-
 -- Cooldown elements: a spell's cooldown, plus for a totem the active time of ours in its slot, or for
 -- Fire Nova whether the fire totem it needs is out. Totem slots: 1 fire, 2 earth, 3 water, 4 air.
 -- Adding one starts with a line here (its look and page go in the Options files); the first three
@@ -130,7 +119,7 @@ local function makeCooldownIcon(def)
 	end
 	f.cdTimer = ns.Timer.new(f, def.key, "cooldown", { cd = f.cd, school = def.school })
 	if def.needsTotem or def.readyGlow then
-		-- Ready glow (updateReadyGlow): the glow's alpha is "off cooldown"; for Fire Nova the gate's is
+		-- Ready glow (refreshReadyGlow): the glow's alpha is "off cooldown"; for Fire Nova the gate's is
 		-- "a fire totem is down", and nested, the two multiply. Others leave the gate at 1.
 		f.readyGate = CreateFrame("Frame", nil, f.effects)
 		f.readyGate:SetAllPoints()
@@ -225,6 +214,7 @@ local function cooldownFor(f, key, spellID)
 	if ok and not dur then f.cdTimer:clear() end
 	return ok and dur or nil
 end
+CD.cooldownFor = cooldownFor
 
 -- Pop when ready: Blizzard's cooldown widget says when its swipe finishes (OnCooldownDone), a
 -- moment with no secret in it, so the icon can pop right then, in combat too.
@@ -234,55 +224,7 @@ local function popWhenReady(f, key)
 		if ns.isEnabled(key) and setting(key, "readyPop") then f:Pop() end
 	end)
 end
-
-------------------------------------------------------------------------
--- Shock
-------------------------------------------------------------------------
-local shockSpellID, manaSpellID
-local shockIDs = {}
-local shockState = { outOfRange = false, noMana = false }
-local rangeCheckID   -- the spell whose range check is on
-
--- Shock looks, fixed rule: out of range paints the body red; not enough mana paints the body blue
--- and adds a blue ring; when both apply the body is red (range) and the ring blue (mana).
-local shockPainted   -- what updateShockTint last drew; repainted only on a change
-local function updateShockTint()
-	local now = (shockState.outOfRange and "r" or "") .. (shockState.noMana and "m" or "")
-	if now == shockPainted then return end
-	shockPainted = now
-	local d = db()
-	shock.manaOverlay:Hide()
-	shock.tex:SetVertexColor(1, 1, 1)
-	if shockState.outOfRange then
-		shock:SetBodyPaint(d.rangeStyle, 1, 0.25, 0.25, d.rangeIntensity, d.rangeTint)
-	elseif shockState.noMana then
-		shock:SetBodyPaint(d.manaStyle, 0.2, 0.45, 1, d.manaIntensity, d.manaTint)
-	end
-	shock:SetRingShown(shockState.noMana, 0.2, 0.45, 1, d.manaRing)
-end
-
-local function refreshShockCooldown()
-	if not shockSpellID or not ns.isEnabled("shock") then return end
-	local dur = cooldownFor(shock, "shock", shockSpellID)
-	if dur then shock.cdTimer:set(dur) end
-end
-
-local function refreshShockRange()
-	if not shockSpellID or not ns.isEnabled("shock") then return end
-	-- The event also fires for other spells' checks; the 4 Hz ticker covers ours either way.
-	local ok, r = safe(C_Spell.IsSpellInRange, shockSpellID, "target")
-	shockState.outOfRange = ok and not isSecret(r) and r == false
-	updateShockTint()
-end
-
-local function refreshShockMana()
-	if not ns.isEnabled("shock") then return end
-	local ok, _, noPower = safe(C_Spell.IsSpellUsable, manaSpellID)
-	shockState.noMana = ok and not isSecret(noPower) and noPower == true
-	updateShockTint()
-end
-
-popWhenReady(shock, "shock")
+CD.popWhenReady = popWhenReady
 
 ------------------------------------------------------------------------
 -- Cooldown elements: idle
@@ -470,92 +412,6 @@ local function readPrimedBuff(def, fromAura)
 	elseif not was then startActive(def, GetTime(), nil, not fromAura) end
 end
 
-------------------------------------------------------------------------
--- Reagents (Reincarnation's Ankh): a count on the icon, red at or below the Low mark, and the
--- missing look when there are none. While low it isn't idle, so it shows even at Idle opacity 0.
-------------------------------------------------------------------------
-local function reagentCount(def)
-	local ok, n = safe(C_Item and C_Item.GetItemCount, def.reagent)
-	if ok and type(n) == "number" and not isSecret(n) then return n end
-end
-
--- Whether the spell still takes its reagent: Forever dropped some (its Water Walking and Water
--- Breathing list none), so the spell's tooltip must name the item. Read out of combat: a yes is kept
--- until the spellbook changes, a no is read again every 30 s (a tooltip can be incomplete while the
--- client loads it); nil while it can't be told (then the reagent counts).
-local REAGENT_RECHECK = 30
-local function takesReagent(def)
-	if def.takesReagent or InCombatLockdown() then return def.takesReagent end
-	if def.takesReagent == false and GetTime() - (def.reagentReadAt or 0) < REAGENT_RECHECK then return false end
-	def.reagentReadAt = GetTime()
-	if not (def.spellID and C_TooltipInfo and C_TooltipInfo.GetSpellByID and C_Item and C_Item.GetItemNameByID) then return nil end
-	local ok, item = safe(C_Item.GetItemNameByID, def.reagent)
-	if not ok or type(item) ~= "string" or isSecret(item) then
-		safe(C_Item.RequestLoadItemDataByID, def.reagent)   -- asked again on the next refresh
-		return nil
-	end
-	local tok, data = safe(C_TooltipInfo.GetSpellByID, def.spellID)
-	if not tok or type(data) ~= "table" or type(data.lines) ~= "table" then return nil end
-	def.takesReagent = false
-	for _, line in ipairs(data.lines) do
-		for _, t in ipairs({ line.leftText or false, line.rightText or false }) do
-			if type(t) == "string" and not isSecret(t) and t:find(item, 1, true) then def.takesReagent = true end
-		end
-	end
-	return def.takesReagent
-end
-
-
--- A number setting, or its default when the saved one isn't a number (shared text can hold anything).
-local function num(key, name)
-	local v = setting(key, name)
-	if type(v) ~= "number" or v ~= v then v = ns.elementDefault(key, name) end
-	return v
-end
-
--- The count for n reagents on an icon (the HUD's and the options' previews), as the element's
--- Reagent settings say: when it shows, its colours (plenty; low or none), size and place. Returns
--- whether n is low, and the none-left looks wanted (ring, pulse), which the caller sets together
--- with any other look on that icon, so a running pulse isn't restarted.
-local COUNT_JUSTIFY = { TOPLEFT = "LEFT", BOTTOMLEFT = "LEFT", TOPRIGHT = "RIGHT", BOTTOMRIGHT = "RIGHT", CENTER = "CENTER" }
-function CD.paintReagent(f, key, n)
-	local low = n <= num(key, "reagentLow")
-	local show = setting(key, "reagentCount")   -- always | low | never
-	local fs = f.count
-	if show == "always" or (show == "low" and low) then
-		local pos = setting(key, "reagentPos")
-		if not COUNT_JUSTIFY[pos] then pos = "BOTTOMRIGHT" end
-		ns.placeScaledText(fs, f, num(key, "reagentSize"), pos, num(key, "reagentX"), num(key, "reagentY"))
-		fs:SetJustifyH(COUNT_JUSTIFY[pos])
-		local name = low and "reagentLowColor" or "reagentColor"
-		local c = setting(key, name)
-		if not ns.isColor(c) then c = ns.elementDefault(key, name) end
-		local shown = string.format("%d%.3f%.3f%.3f%.3f", n, c[1], c[2], c[3], c[4] or 1)
-		if fs.shown ~= shown then   -- the text and colour only when they change
-			fs.shown = shown
-			fs:SetText(n)
-			fs:SetTextColor(c[1], c[2], c[3], c[4] or 1)
-		end
-		fs:Show()
-	else fs:Hide() end
-	local out = n == 0
-	return low, out and setting(key, "reagentRing") or false, out and setting(key, "reagentPulse") or false
-end
-
--- Reads the count and paints it. Returns whether it's low enough to hold the element out of idle
--- (Idle when counts reagents), and the none-left looks wanted (see paintReagent).
-local function refreshReagent(def)
-	local n = def.reagent and takesReagent(def) ~= false and reagentCount(def)
-	def.reagentRead = n
-	if not n then
-		def.frame.count:Hide()
-		return false, false, false
-	end
-	local low, ring, pulse = CD.paintReagent(def.frame, def.key, n)
-	return low and setting(def.key, "reagentShow") and true or false, ring, pulse
-end
-CD.refreshReagent = refreshReagent   -- any element with key, frame, spellID and reagent (the buffs too)
-
 function refreshCooldown(def, inEvent)
 	if not ns.isEnabled(def.key) then def.cdRunning = nil return end   -- read afresh when it's back
 	local f = def.frame
@@ -580,7 +436,7 @@ function refreshCooldown(def, inEvent)
 	local held = isActive(def)
 	if def.primed then showPrimed(def, held) end   -- a settings change shows at once
 	if def.reagent then
-		local hold, ring, pulse = refreshReagent(def)
+		local hold, ring, pulse = Reagents.refresh(def)
 		if hold then held = true end
 		f:SetRingShown(ring)
 		f:SetPulsing(pulse)
@@ -664,10 +520,10 @@ end)
 ------------------------------------------------------------------------
 -- Ready glows ("use me"), all off by default. Fire Nova: while it is off cooldown and a fire totem
 -- is down, the moment it can be cast; both are secret in combat, so each goes through a curve into
--- one of two nested frames' alphas. Shocks and the elements with readyGlow (Stormstrike, Riptide,
--- Rage of the Farseer): while the spell is off cooldown. Re-read ten times a
--- second while any is on, so they follow a cooldown ending or a totem running out without waiting for
--- an event.
+-- one of two nested frames' alphas. The shock (ShamanForever_Shock.lua) and the elements with
+-- readyGlow (Stormstrike, Riptide, Rage of the Farseer): while the spell is off cooldown. Re-read
+-- ten times a second while any is on, so they follow a cooldown ending or a totem running out
+-- without waiting for an event.
 ------------------------------------------------------------------------
 local hasTimeLeftCurve = ns.CURVE_LIVE
 -- 1 while the spell is off cooldown (possibly secret: only ever handed to SetAlpha). Its own
@@ -679,14 +535,21 @@ local function readyAlpha(spellID)
 	if rok then return r end
 	return 0
 end
-local function updateShockGlow()
-	local on = shockSpellID and ns.isEnabled("shock") and setting("shock", "readyGlow") and noTimeLeftCurve
-	shock.glowF:SetShown(on and true or false)
-	if not on then return end
-	shock.glowF:fit(shock:GetWidth())
-	shock.glowF:SetAlpha(readyAlpha(shockSpellID))
+CD.readyAlpha = readyAlpha
+-- A frame that calls update ten times a second while shown; hidden, it costs nothing.
+function CD.readyTicker(update)
+	local ticker = CreateFrame("Frame")
+	ticker:Hide()
+	ticker.t = 0
+	ticker:SetScript("OnUpdate", function(self, elapsed)
+		self.t = self.t + elapsed
+		if self.t < 0.1 then return end
+		self.t = 0
+		update()
+	end)
+	return ticker
 end
-local function updateReadyGlow(def)
+local function refreshReadyGlow(def)
 	local f = def.frame
 	local on = def.spellID and ns.isEnabled(def.key) and setting(def.key, "readyGlow") and hasTimeLeftCurve and noTimeLeftCurve
 	f.readyGlow:SetShown(on and true or false)
@@ -700,59 +563,31 @@ local function updateReadyGlow(def)
 	end
 	f.readyGlow:SetAlpha(readyAlpha(def.spellID))
 end
-local function updateReadyGlows()
+local function refreshReadyGlows()
 	for _, def in ipairs(COOLDOWNS) do
-		if def.frame.readyGate then updateReadyGlow(def) end
+		if def.frame.readyGate then refreshReadyGlow(def) end
 	end
-	updateShockGlow()
 end
-local readyTicker = CreateFrame("Frame")
-readyTicker:Hide()
-readyTicker.t = 0
-readyTicker:SetScript("OnUpdate", function(self, elapsed)
-	self.t = self.t + elapsed
-	if self.t < 0.1 then return end
-	self.t = 0
-	updateReadyGlows()
-end)
+local readyTicker = CD.readyTicker(refreshReadyGlows)
 -- Runs only while a ready glow is turned on (checked on every layout, i.e. every settings change).
 local function syncReadyTicker()
 	local want = false
 	if ns.isActive() then
-		want = ns.isEnabled("shock") and setting("shock", "readyGlow")
 		for _, def in ipairs(COOLDOWNS) do
 			if def.frame.readyGate and ns.isEnabled(def.key) and setting(def.key, "readyGlow") then want = true end
 		end
 	end
 	readyTicker:SetShown(want and true or false)
-	if not want then updateReadyGlows() end   -- one last pass turns the glows off
+	if not want then refreshReadyGlows() end   -- one last pass turns the glows off
 end
 
 ------------------------------------------------------------------------
 -- Hooks (ShamanForever.lua calls them; see ns.registerModule)
 ------------------------------------------------------------------------
--- After a spellbook scan: the shocks' and the elements' names, highest ranks and icons, and the
--- shock's range check. Returns a signature of what it found.
+-- After a spellbook scan: the elements' names, highest ranks and icons. Returns a signature of what
+-- it found.
 function CD.resolve()
-	local d = db()
 	local sig = {}
-	shockIDs = {}
-	for key, spell in pairs(SHOCK_SPELL) do
-		SHOCKS[key] = Spells.name(spell)
-		local id = Spells.known(spell)
-		if id then shockIDs[key] = id end
-	end
-	local id, ic = Spells.known(SHOCK_SPELL[d.shock] or SHOCK_SPELL.earth)
-	shockSpellID = id
-	shockIcon = ic or 136026
-	shock.tex:SetTexture(shockIcon)
-	manaSpellID = (d.manaSpell ~= "tracked" and shockIDs[d.manaSpell]) or shockSpellID
-	if rangeCheckID ~= shockSpellID and C_Spell.EnableSpellRangeCheck then
-		if rangeCheckID then safe(C_Spell.EnableSpellRangeCheck, rangeCheckID, false) end
-		if shockSpellID then safe(C_Spell.EnableSpellRangeCheck, shockSpellID, true) end
-		rangeCheckID = shockSpellID
-	end
-	table.insert(sig, tostring(shockSpellID)); table.insert(sig, tostring(manaSpellID))
 	for _, def in ipairs(COOLDOWNS) do
 		def.spell = Spells.name(def.spellKey)
 		ns.ELEMENTS[def.key].label = def.spell
@@ -766,7 +601,6 @@ end
 
 -- Every timer takes its current style.
 function CD.applyTimers()
-	shock.cdTimer:apply()
 	for _, def in ipairs(COOLDOWNS) do
 		local f = def.frame
 		f.cdTimer:apply()
@@ -780,9 +614,6 @@ end
 -- After a layout (settings may have changed): the looks, then everything read again.
 function CD.applyLayout()
 	for _, def in ipairs(COOLDOWNS) do styleCooldown(def) end
-	shockPainted = nil   -- the looks may have changed
-	updateShockTint()
-	refreshShockMana()
 	refreshCooldowns()
 	syncReadyTicker()
 end
@@ -791,9 +622,6 @@ function CD.refresh()
 	for _, def in ipairs(COOLDOWNS) do
 		if def.spellID and def.primed then readPrimedBuff(def) end
 	end
-	refreshShockCooldown()
-	refreshShockRange()
-	refreshShockMana()
 	refreshCooldowns()
 end
 
@@ -823,29 +651,21 @@ end
 
 -- A cooldown or totem changed; inEvent: from SPELL_UPDATE_COOLDOWN (see the global cooldown above).
 function CD.onCooldowns(inEvent)
-	refreshShockCooldown()
 	refreshCooldowns(inEvent)
 end
 
 -- Once a second: a cooldown's end fires no event.
 function CD.tick()
 	ns.try("cooldown refresh", refreshCooldowns)
-	ns.try("shock refresh", refreshShockCooldown)
 end
 
--- A shaman logged in: the shock's own events and its range four times a second, reagent counts, and
--- the primed buffs whenever auras are readable.
+-- A shaman logged in: reagent counts, and the primed buffs whenever auras are readable.
 function CD.start()
 	local ev = CreateFrame("Frame")
-	ns.registerEvent(ev, "SPELL_UPDATE_USABLE")
-	ns.registerEvent(ev, "UNIT_POWER_UPDATE", "player")
-	ns.registerEvent(ev, "PLAYER_TARGET_CHANGED")
-	ns.registerEvent(ev, "SPELL_RANGE_CHECK_UPDATE")
 	ns.registerEvent(ev, "BAG_UPDATE_DELAYED")
 	ns.registerEvent(ev, "UNIT_AURA", "player")
 	ev:SetScript("OnEvent", function(_, event)
-		if event == "SPELL_UPDATE_USABLE" or event == "UNIT_POWER_UPDATE" then refreshShockMana()
-		elseif event == "BAG_UPDATE_DELAYED" then
+		if event == "BAG_UPDATE_DELAYED" then
 			for _, def in ipairs(COOLDOWNS) do if def.reagent then refreshCooldown(def) end end
 		elseif event == "UNIT_AURA" then
 			if InCombatLockdown() then return end   -- auras are secret: nothing to read
@@ -854,21 +674,12 @@ function CD.start()
 					readPrimedBuff(def, true); refreshCooldown(def)
 				end
 			end
-		else refreshShockRange() end
+		end
 	end)
-	C_Timer.NewTicker(0.25, function() ns.try("range refresh", refreshShockRange) end)
 end
 
 -- /sf debug
 function CD.debug()
-	say("shock spell %s (%s), mana spell %s", tostring(shockSpellID), db().shock, tostring(manaSpellID))
-	for key, id in pairs(shockIDs) do
-		local _, usable, noPower = safe(C_Spell.IsSpellUsable, id)
-		local _, inRange = safe(C_Spell.IsSpellInRange, id, "target")
-		local e = Spells.bookEntry(SHOCK_SPELL[key])
-		say("%s id %s rank %s usable=%s noPower=%s inRange=%s", SHOCKS[key], tostring(id),
-			e and e.rank or "?", describeArg(usable), describeArg(noPower), describeArg(inRange))
-	end
 	for _, def in ipairs(COOLDOWNS) do
 		local secret = "?"
 		if def.spellID and C_Secrets and C_Secrets.ShouldTotemSpellBeSecret then
