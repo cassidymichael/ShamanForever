@@ -46,6 +46,8 @@ S.register("pop", {
 S.register("gcd", {
 	defaults = { show = false },
 	path = { "gcdStyle" },
+	-- Reincarnation's hour-long cooldown never needs the sweep, whatever General says.
+	ownerDefaults = { reincarnation = { show = false } },
 })
 S.register("border", {
 	defaults = { show = true, size = 2, color = { 0, 0, 0, 1 } },

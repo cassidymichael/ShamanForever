@@ -317,6 +317,8 @@ local function totemPreview(def)
 			{ "killed", g and "Grounded" or "Killed early" } },
 		pop = function(ic, st)
 			if st == "ready" and opt(def.key, "readyPop") then ic:Pop("ready")
+			elseif st == "ranout" and def.ranOut then
+				if opt(def.key, "ranOutFlash") and opt(def.key, "ranOutPop") then ic:Pop("expired") end
 			elseif st == "ranout" and opt(def.key, "expiredPop") then ic:Pop("expired")
 			elseif st == "killed" and g then
 				if opt(def.key, "grounded") and opt(def.key, "groundedPop") then ic:Pop("grounded") end
@@ -325,11 +327,30 @@ local function totemPreview(def)
 		render = function(ic, st)
 			reset(ic, def.iconID or def.icon)
 			if ic.killX then ic.killX:Hide() end
+			local cd = def.cd or 15
+			if ic.hourglass then ic.hourglass:Hide() end
 			if st == "expiring" then expiringLook(ic, def.key, def.duration or 45)
 			elseif st == "active" then frozen(ic.upT, 0.45, def.duration or 45)
-			elseif st == "cd" then frozen(ic.cdT, 0.4, 15)
+			elseif st == "cd" then frozen(ic.cdT, 0.4, cd)
+			elseif st == "ranout" and def.ranOut then
+				-- The soft flash at its brightest: greyed under its colour, with the hourglass.
+				frozen(ic.cdT, 0.4, cd)
+				if opt(def.key, "ranOutFlash") then
+					local c = ns.SCHOOL_COLOR[def.school]
+					ic.tex:SetDesaturated(true)
+					ic.manaOverlay:SetColorTexture(c[1], c[2], c[3], 0.45)
+					ic.manaOverlay:Show()
+					if opt(def.key, "ranOutGlow") then ic:SetGlowShown(true, c[1], c[2], c[3]) end
+					if not ic.hourglass then
+						ic.hourglass = ic.textFrame:CreateTexture(nil, "OVERLAY")
+						ic.hourglass:SetTexture("Interface\\Common\\mini-hourglass")
+						ic.hourglass:SetPoint("CENTER")
+					end
+					ic.hourglass:SetSize(ic:GetWidth() * 0.5, ic:GetWidth() * 0.5)
+					ic.hourglass:Show()
+				end
 			elseif st == "killed" and g then
-				frozen(ic.cdT, 0.4, 15)
+				frozen(ic.cdT, 0.4, cd)
 				if opt(def.key, "grounded") then
 					local c = ns.POP_TINT.grounded
 					ic.tex:SetDesaturated(true)
@@ -338,7 +359,7 @@ local function totemPreview(def)
 					if opt(def.key, "groundedGlow") then ic:SetGlowShown(true, c[1], c[2], c[3]) end
 				end
 			elseif st == "killed" then
-				frozen(ic.cdT, 0.4, 15)
+				frozen(ic.cdT, 0.4, cd)
 				if opt(def.key, "killed") then
 					-- The flash at its brightest: greyed under red, with the red glow and the cross if on.
 					ic.tex:SetDesaturated(true)
@@ -445,6 +466,26 @@ L.PREVIEW = {
 		end,
 	},
 }
+-- An element's reagent count and none-left look in a preview, for n reagents (its Reagent block's
+-- settings: when the count shows, its Low mark, the none-left looks).
+function L.reagentLook(ic, key, n)
+	local lowAt = opt(key, "reagentLow")
+	local low = n <= (type(lowAt) == "number" and lowAt or 2)
+	local show = opt(key, "reagentCount")
+	if show == "always" or (show == "low" and low) then
+		ic.count:SetFont(STANDARD_TEXT_FONT, math.floor(ic:GetWidth() * 0.45), "OUTLINE")
+		ic.count:ClearAllPoints()
+		ic.count:SetPoint("BOTTOMRIGHT", 2, -2)
+		ic.count:SetText(n)
+		if low then ic.count:SetTextColor(1, 0.25, 0.2) else ic.count:SetTextColor(1, 1, 1) end
+		ic.count:Show()
+	end
+	if n == 0 then
+		ic:SetRingShown(opt(key, "reagentRing"))
+		ic:SetPulsing(opt(key, "reagentPulse"))
+	end
+end
+
 -- A cooldown element without a totem (the newer ones): Ready and Cooldown, plus the states of the
 -- parts it has (a primed buff, a buff window, a reagent).
 local function cooldownPreview(def)
@@ -458,38 +499,24 @@ local function cooldownPreview(def)
 		table.insert(states, { "low", "Few left" })
 		table.insert(states, { "out", "None left" })
 	end
-	local long = def.key == "reincarnation" and 3600 or 60   -- a cooldown's length, for its text
+	local long = def.cd or 60   -- a cooldown's length, for its text
 	return {
 		states = states,
 		pop = function(ic, st)
-			if st == "ready" and opt(key, "readyPop") then ic:Pop("ready")
-			elseif st == "primed" and opt(key, "primedPop") then ic:Pop("ready") end
+			if st == "ready" and not def.noReady and opt(key, "readyPop") then ic:Pop("ready")
+			elseif st == "primed" and def.primedLooks ~= false and opt(key, "primedPop") then ic:Pop("ready") end
 		end,
 		render = function(ic, st)
 			reset(ic, def.iconID or def.icon)
-			if st == "cd" then frozen(ic.cdT, 0.4, long)
+			if st == "ready" then ic:SetGlowShown(def.readyGlow and opt(key, "readyGlow"))
+			elseif st == "cd" then frozen(ic.cdT, 0.4, long)
 			elseif st == "primed" then
-				ic:SetGlowShown(opt(key, "primedGlow"))
+				ic:SetGlowShown(def.primedLooks ~= false and opt(key, "primedGlow"))
 				if def.primed.duration then frozen(ic.upT, 0.3, def.primed.duration) end
 			elseif st == "active" then frozen(ic.upT, 0.3, def.window)
 			elseif st == "expiring" then expiringLook(ic, key, def.window)
-			elseif st == "low" or st == "out" then
-				frozen(ic.cdT, 0.4, long)
-				local out = st == "out"
-				if opt(key, "reagentCount") then
-					ic.count:SetFont(STANDARD_TEXT_FONT, math.floor(ic:GetWidth() * 0.45), "OUTLINE")
-					ic.count:ClearAllPoints()
-					ic.count:SetPoint("BOTTOMRIGHT", 2, -2)
-					ic.count:SetText(out and 0 or math.max(opt(key, "reagentLow"), 1))
-					ic.count:SetTextColor(1, 0.25, 0.2)
-					ic.count:Show()
-				end
-				if out then
-					ic.tex:SetDesaturated(opt(key, "reagentGrey"))
-					ic:SetRingShown(opt(key, "reagentRing"))
-					ic:SetPulsing(opt(key, "reagentPulse"))
-				end
-			end
+			elseif st == "low" or st == "out" then frozen(ic.cdT, 0.4, long) end
+			if def.reagent then L.reagentLook(ic, key, st == "out" and 0 or st == "low" and 2 or 15) end
 		end,
 	}
 end
@@ -507,6 +534,10 @@ local function buffPreview(def)
 	local states = { { "up", def.proc and ns.Spells.name("clearcasting") or "Up" } }
 	if not def.proc then table.insert(states, { "expiring", "Expiring" }) end
 	table.insert(states, { "idle", "Not up" })
+	if def.reagent then
+		table.insert(states, { "low", "Not up, few left" })
+		table.insert(states, { "out", "Not up, none left" })
+	end
 	if def.breath then table.insert(states, { "underwater", "Under water" }) end
 	return {
 		states = states,
@@ -523,9 +554,15 @@ local function buffPreview(def)
 				-- Idle opacity, but never quite invisible here: 0 shows as a faint outline.
 				local a = opt(key, "idleAlpha")
 				ic:SetAlpha(math.max(type(a) == "number" and a or 0, 0.12))
+			elseif st == "low" or st == "out" then
+				-- Running low isn't idle when Idle counts reagents (the default).
+				if not opt(key, "reagentShow") then
+					local a = opt(key, "idleAlpha")
+					ic:SetAlpha(math.max(type(a) == "number" and a or 0, 0.12))
+				end
+				L.reagentLook(ic, key, st == "out" and 0 or 2)
 			elseif st == "underwater" then
 				if opt(key, "breathWarn") then
-					ic.tex:SetDesaturated(opt(key, "breathGrey"))
 					ic:SetRingShown(opt(key, "breathRing"))
 					ic:SetPulsing(opt(key, "breathPulse"))
 				else ic:SetAlpha(0.12) end
@@ -903,8 +940,9 @@ function L.buildHero(parent, key)
 		pcall(h.rule.SetGradient, h.rule, "HORIZONTAL", CreateColor(0.85, 0.71, 0.42, 0.45), CreateColor(0.85, 0.71, 0.42, 0))
 	end
 	if e.experimental then
+		-- In the banner above the icon, clear of the tags and the preview panel.
 		h.exp = L.expBadge(h, e.experimental)
-		h.exp:SetPoint("LEFT", h.tags, "RIGHT", 12, 0)
+		h.exp:SetPoint("BOTTOMLEFT", h.icon, "TOPLEFT", -2, 6)
 		h.exp:SetFrameLevel(h:GetFrameLevel() + 6)
 	end
 

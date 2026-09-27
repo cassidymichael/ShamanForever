@@ -232,13 +232,14 @@ local ELEMENT_OPT_DEFAULTS = {
 	readyPop = true, readyGlow = false,                          -- Ready (cooldowns)
 	blockedGrey = true, blockedRing = false, blockedPulse = false,  -- No fire totem (Fire Nova)
 	expiredPop = true,                                           -- a totem ran out
+	ranOutFlash = true, ranOutPop = false, ranOutGlow = false,   -- a totem ran out (Mana Tide, Grounding)
 	killed = true, killedPop = true, killedGlow = true, killedMark = true,   -- a totem killed early
 	idleAlpha = 0.35, idleWhen = "never",                        -- Idle (idleWhen: Fire Nova's rule)
 	primedPop = true, primedGlow = true,                         -- Primed (Nature's Swiftness, Stormstrike)
 	grounded = true, groundedPop = true, groundedGlow = true,     -- Grounded (Grounding's early end)
-	reagentCount = true, reagentLow = 2, reagentShow = true,     -- Reagent (Reincarnation's Ankh)
-	reagentGrey = true, reagentRing = true, reagentPulse = false,
-	breathWarn = true, breathGrey = true, breathRing = true, breathPulse = true,   -- Under water (Water Breathing)
+	reagentCount = "always", reagentLow = 2, reagentShow = true,   -- Reagent (count: always | low | never)
+	reagentRing = true, reagentPulse = true,                       -- none left
+	breathWarn = true, breathRing = true, breathPulse = true,     -- Under water (Water Breathing)
 }
 local function elementDefault(key, name)
 	local own = ELEMENTS[key] and ELEMENTS[key].defaults

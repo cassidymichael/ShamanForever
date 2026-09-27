@@ -139,7 +139,7 @@ end
 local function glowBlock(p, owner, icon)
 	local function after() ns.applyGlowStyle(); OP.refresh() end
 	local r = styleRows(owner, "glow", after)
-	p:header("Glow style")
+	p:header("Pulsing glow style")
 	if owner == nil then
 		p:anchor("glow")
 		p:text("Every pulsing glow. Elements and the totem bar can have their own.")
@@ -197,12 +197,17 @@ local function popBlock(p, owner, icon, kind)
 end
 
 -- Standard block rows: the looks of the Expiring warning. get(field) and set(field) make a row's
--- getter and setter for "grey", "ring", "pulse" or "glow"; noun is where the glow sits.
-local function expiringLooks(p, get, set, noun, shown)
-	p:checkbox("Grey icon", "Desaturate the icon.", get("grey"), set("grey"), shown)
-	p:checkbox("Red ring", "A red ring inside the icon edge.", get("ring"), set("ring"), shown)
-	p:checkbox("Fade in and out", nil, get("pulse"), set("pulse"), shown)
-	p:checkbox("Pulsing glow", "A glow inside the " .. noun .. " that pulses.", get("glow"), set("glow"), shown)
+-- getter and setter for "grey", "ring", "pulse" or "glow"; noun is where the glow sits. only: a
+-- list of the looks offered, when not all four.
+local function expiringLooks(p, get, set, noun, shown, only)
+	local offer = {}
+	for _, k in ipairs(only or { "grey", "ring", "pulse", "glow" }) do offer[k] = true end
+	if offer.grey then p:checkbox("Grey icon", "Desaturate the icon.", get("grey"), set("grey"), shown) end
+	if offer.ring then p:checkbox("Red ring", "A red ring inside the icon edge.", get("ring"), set("ring"), shown) end
+	if offer.pulse then p:checkbox("Fade in and out", nil, get("pulse"), set("pulse"), shown) end
+	if offer.glow then
+		p:checkbox("Pulsing glow", "A glow inside the " .. noun .. " that pulses.", get("glow"), set("glow"), shown)
+	end
 end
 
 -- Standard block: Killed early. get(name) and set(name) make a row's getter and setter; noun is what
@@ -1251,9 +1256,10 @@ local function buildElements(p)
 	end
 end
 
--- Every element page, in one order: its header, Display (Show, Group), its own settings, then the
--- standard blocks: the missing-look Warning, Idle, the timers (Cooldown, Time left), the event
--- blocks (Ready, Expiring, Killed early), then Glow style and Pop style.
+-- Every element page, in one order: its header, Display (Show, Group), Idle (where it has one), its
+-- own settings, then the standard blocks: the missing-look Warning, the timers (Cooldown, Time
+-- left), the event blocks (Ready, Expiring, Killed early), then Pulsing glow style and Pop style,
+-- each only where the element has something it applies to.
 local function elementDisplay(p, key)
 	ELEMENT_PAGES[key] = p.key
 	p:hero(key)
@@ -1285,39 +1291,47 @@ end
 local function eget(key, name) return function() return ns.elementSetting(key, name) end end
 local function eset(key, name) return function(v) ns.elementOpts(key)[name] = v; relayout() end end
 
--- Standard block: the moment a cooldown ends. A pop, and with glowTip a "use me" glow (Shocks, Fire
--- Nova; off by default).
+-- Standard block: the moment a cooldown ends. A pop, and with glowTip a "use me" glow (off by
+-- default).
 local function readyBlock(p, key, glowTip)
 	p:header("Ready")
 	p:checkbox("Pop", "The moment the cooldown ends.", eget(key, "readyPop"), eset(key, "readyPop"))
 	if glowTip then p:checkbox("Pulsing glow", glowTip, eget(key, "readyGlow"), eset(key, "readyGlow")) end
 end
 
--- Standard block: the look while the element has nothing going on (the cooldown elements).
+-- Standard block: the look while the element has nothing going on (the cooldown and buff elements),
+-- right under Display. An element with a reagent can count running low as something going on.
 local IDLE_WHEN = { { "never", "Never" }, { "nototem", "Off cooldown, no fire totem" }, { "offcd", "Off cooldown" } }
 local function idleBlock(p, def)
 	local key, fireNova = def.key, def.needsTotem
 	p:header("Idle")
+	local base = def.buff and (def.proc and ("Idle is when " .. ns.Spells.name("clearcasting") .. " isn't up")
+		or "Idle is when it isn't up") or "Idle is when it's off cooldown"
 	if fireNova then
 		p:text("Idle is when there's nothing to track. At 0% it's hidden and keeps its place in the group.")
 		p:dropdown("Idle when", "Off cooldown, no fire totem: it can't be cast. Off cooldown: whether a fire totem is down or not.",
 			IDLE_WHEN, eget(key, "idleWhen"), eset(key, "idleWhen"), nil, 210)
+	elseif def.reagent then
+		p:text(base .. ". At 0% it's hidden and keeps its place in the group.")
+		local what = def.buff and "Not up" or "Off cooldown"
+		p:dropdown("Idle when", "With enough reagents: running low or out shows it, even at 0%.",
+			{ { true, what .. ", enough reagents" }, { false, what } }, eget(key, "reagentShow"), eset(key, "reagentShow"), nil, 230)
 	else
 		local also = def.totemSlot and " and its totem isn't down" or def.primed and " and not primed"
-			or def.window and " and not active" or def.reagent and " with reagents to spare" or ""
-		p:text("Idle is when it's off cooldown" .. also .. ". At 0% it's hidden and keeps its place in the group.")
+			or def.window and " and not active" or ""
+		p:text(base .. also .. ". At 0% it's hidden and keeps its place in the group.")
 	end
 	p:slider("Idle opacity", "The icon's opacity while idle.",
 		0, 1, 0.05, pct, eget(key, "idleAlpha"), eset(key, "idleAlpha"),
 		fireNova and showWhen(function() return ns.elementSetting(key, "idleWhen") ~= "never" end) or nil)
 end
 
--- Standard block: a totem killed early (Earthbind, Stoneclaw), as on the totem bar.
--- Standard blocks at the end of a page with glows or pops: their styles, General's or its own.
-local function effectBlocks(p, key, popKind)
+-- Standard blocks at the end of a page: the pulsing glow's and the pop's styles, General's or its
+-- own. glow, pop: whether the element has any (a block that could change nothing isn't shown).
+local function effectBlocks(p, key, popKind, glow, pop)
 	local icon = ns.Look.ELEMENT[key].icon
-	glowBlock(p, key, icon)
-	popBlock(p, key, icon, popKind or "ready")
+	if glow ~= false then glowBlock(p, key, icon) end
+	if pop ~= false then popBlock(p, key, icon, popKind or "ready") end
 end
 
 -- Standard block: the look while something is missing. first: an optional row before the three.
@@ -1420,8 +1434,7 @@ local function buildImbue(p)
 	effectBlocks(p, "imbue", "imbue")
 end
 
--- One page per cooldown element; the blocks depend on what the element tracks.
--- Primed: when it starts (from your cast), what it spends it, and how it looks meanwhile.
+-- Primed: when it starts (from your cast), what spends it, and how it looks meanwhile.
 local PRIMED_TEXT = {
 	naturesswiftness = "From your cast until your next Nature spell with a cast time. Out of combat the buff itself is read.",
 	stormstrike = "From your cast for 12 s, or until your second Lightning Bolt, Chain Lightning or Earth Shock. " ..
@@ -1431,20 +1444,22 @@ local function primedBlock(p, def)
 	local key = def.key
 	p:header("Primed")
 	if PRIMED_TEXT[key] then p:text(PRIMED_TEXT[key]) end
+	if def.primedLooks == false then return end
 	p:checkbox("Pop", "The moment it's primed.", eget(key, "primedPop"), eset(key, "primedPop"))
 	p:checkbox("Pulsing glow", "While it's primed.", eget(key, "primedGlow"), eset(key, "primedGlow"))
 end
 
--- Reagent: the count on the icon, when it's low, and the look when there are none.
+-- Reagent: the count on the icon and when it's low, then the look when there are none.
+local COUNT_WHEN = { { "always", "Always" }, { "low", "When low or none" }, { "never", "Never" } }
 local function reagentBlocks(p, def)
 	local key = def.key
 	p:header("Reagent")
-	p:checkbox("Count", "How many you carry, on the icon.", eget(key, "reagentCount"), eset(key, "reagentCount"))
-	p:slider("Low at", "The count turns red at this many or fewer.", 0, 10, 1, int, eget(key, "reagentLow"), eset(key, "reagentLow"))
-	p:checkbox("Show when low", "Shown while low, even when Idle hides it.", eget(key, "reagentShow"), eset(key, "reagentShow"))
 	p:text("Only counted if the spell still needs one.")
-	warningBlock(p, "None left", eget(key, "reagentGrey"), eset(key, "reagentGrey"), eget(key, "reagentRing"), eset(key, "reagentRing"),
-		eget(key, "reagentPulse"), eset(key, "reagentPulse"))
+	p:dropdown("Show count", "How many you carry, on the icon.", COUNT_WHEN, eget(key, "reagentCount"), eset(key, "reagentCount"), nil, 170)
+	p:slider("Low at", "The count turns red at this many or fewer.", 0, 10, 1, int, eget(key, "reagentLow"), eset(key, "reagentLow"))
+	p:header("None left")
+	p:checkbox("Red ring", "A red ring inside the icon edge.", eget(key, "reagentRing"), eset(key, "reagentRing"))
+	p:checkbox("Fade in and out", nil, eget(key, "reagentPulse"), eset(key, "reagentPulse"))
 end
 
 -- Grounded: Grounding's early end, which means it took a spell for you.
@@ -1457,38 +1472,61 @@ local function groundedBlock(p, key)
 	p:checkbox("Pulsing glow", "In blue.", eget(key, "groundedGlow"), eset(key, "groundedGlow"), on)
 end
 
+-- Expiring: a warning in the last seconds of its time left. only: the looks offered (all if nil).
+local function expiringBlock(p, key, maxSecs, step, only)
+	local function xget(k) return function() return ns.Timer.expireOpts(key)[k] end end
+	local function xset(k) return function(v)
+		local o = ns.elementOpts(key)
+		if type(o.expire) ~= "table" then o.expire = {} end
+		o.expire[k] = v
+		relayout()
+	end end
+	p:header("Expiring")
+	p:slider("Warn in the last", "Seconds before it runs out. Zero turns the warning off.", 0, maxSecs, step,
+		function(v) return v == 0 and "Off" or string.format("%d s", v) end, xget("secs"), xset("secs"))
+	expiringLooks(p, xget, xset, "icon", showWhen(function() return ns.Timer.expireOpts(key).secs > 0 end), only)
+end
+
+-- Whether a cooldown element has a pulsing glow anywhere (else its Pulsing glow style is left out).
+local function cooldownHasGlow(def)
+	if def.needsTotem or def.totemSlot or def.readyGlow then return true end
+	if def.primed and def.primedLooks ~= false then return true end
+	local looks = def.expireLooks
+	if (def.window or (def.primed and def.primed.duration)) and looks ~= false then
+		if looks == nil or tContains(looks, "glow") then return true end
+	end
+	return false
+end
+
+-- One page per cooldown element; the blocks depend on what the element tracks.
 local function buildCooldown(p, def)
 	local key = def.key
 	elementDisplay(p, key)
+	idleBlock(p, def)
 	if def.reagent then reagentBlocks(p, def) end
 	if def.needsTotem then
 		warningBlock(p, "No fire totem", eget(key, "blockedGrey"), eset(key, "blockedGrey"), eget(key, "blockedRing"), eset(key, "blockedRing"),
 			eget(key, "blockedPulse"), eset(key, "blockedPulse"))
 	end
-	idleBlock(p, def)
 	timerSettings(p, "Cooldown", key, "cooldown")
 	gcdBlock(p, key)
-	readyBlock(p, key, def.needsTotem and "While it's off cooldown and a fire totem is down.")
+	if not def.noReady then
+		readyBlock(p, key, def.needsTotem and "While it's off cooldown and a fire totem is down."
+			or def.readyGlow and "While it's off cooldown.")
+	end
 	if def.primed then primedBlock(p, def) end
 	local timed = def.window or (def.primed and def.primed.duration)
 	if def.needsTotem then timerSettings(p, "Fire totem's time left", key, "uptime")
 	elseif def.totemSlot or def.window then timerSettings(p, "Time left", key, "uptime")
 	elseif timed then timerSettings(p, "Primed time left", key, "uptime") end
-	if def.needsTotem or def.totemSlot or timed then
-		-- Expiring: a warning in the totem's last seconds.
-		local function xget(k) return function() return ns.Timer.expireOpts(key)[k] end end
-		local function xset(k) return function(v)
-			local o = ns.elementOpts(key)
-			if type(o.expire) ~= "table" then o.expire = {} end
-			o.expire[k] = v
-			relayout()
-		end end
-		local on = showWhen(function() return ns.Timer.expireOpts(key).secs > 0 end)
-		p:header("Expiring")
-		p:slider("Warn in the last", "Seconds before it runs out. Zero turns the warning off.", 0, 30, 1,
-			function(v) return v == 0 and "Off" or string.format("%d s", v) end, xget("secs"), xset("secs"))
-		expiringLooks(p, xget, xset, "icon", on)
-		if def.totemSlot then
+	if (def.needsTotem or def.totemSlot or timed) and def.expireLooks ~= false then
+		expiringBlock(p, key, 30, 1, def.expireLooks)
+		if def.ranOut then
+			p:checkbox("Flash when it runs out", "Its icon, greyed under its colour, with an hourglass.", eget(key, "ranOutFlash"), eset(key, "ranOutFlash"))
+			local on = showWhen(eget(key, "ranOutFlash"))
+			p:checkbox("Pop", "The icon bursts for a moment.", eget(key, "ranOutPop"), eset(key, "ranOutPop"), on)
+			p:checkbox("Pulsing glow", "In its colour.", eget(key, "ranOutGlow"), eset(key, "ranOutGlow"), on)
+		elseif def.totemSlot then
 			p:checkbox("Pop when it runs out", "The totem pops and fades the moment it runs out.", eget(key, "expiredPop"), eset(key, "expiredPop"))
 		end
 	end
@@ -1497,26 +1535,22 @@ local function buildCooldown(p, def)
 		killedBlock(p, function(n) return eget(key, n) end, function(n) return eset(key, n) end, "icon",
 			"Flash when it dies early")
 	end
-	effectBlocks(p, key)
+	effectBlocks(p, key, nil, cooldownHasGlow(def), not def.noReady or def.totemSlot ~= nil or def.primed ~= nil)
 end
 
 -- One page per buff element (ShamanForever_Buffs.lua).
 local function buildBuff(p, def)
 	local key = def.key
 	elementDisplay(p, key)
+	idleBlock(p, def)
 	if def.reagent then reagentBlocks(p, def) end
 	if def.breath then
 		p:header("Under water")
 		p:checkbox("Warn without it", "When your breath bar starts and it isn't up.", eget(key, "breathWarn"), eset(key, "breathWarn"))
 		local on = showWhen(eget(key, "breathWarn"))
-		p:checkbox("Grey icon", "Desaturate the icon.", eget(key, "breathGrey"), eset(key, "breathGrey"), on)
 		p:checkbox("Red ring", "A red ring inside the icon edge.", eget(key, "breathRing"), eset(key, "breathRing"), on)
 		p:checkbox("Fade in and out", nil, eget(key, "breathPulse"), eset(key, "breathPulse"), on)
 	end
-	p:header("Idle")
-	p:text((def.proc and ("Idle is when " .. ns.Spells.name("clearcasting") .. " isn't up.") or "Idle is when it isn't up.") ..
-		" At 0% it's hidden and keeps its place in the group.")
-	p:slider("Idle opacity", "The icon's opacity while idle.", 0, 1, 0.05, pct, eget(key, "idleAlpha"), eset(key, "idleAlpha"))
 	timerSettings(p, "Time left", key, "uptime")
 	if def.proc then
 		p:header(ns.Spells.name("clearcasting"))
@@ -1524,17 +1558,7 @@ local function buildBuff(p, def)
 			eget(key, "primedPop"), eset(key, "primedPop"))
 		p:checkbox("Pulsing glow", "While it's up.", eget(key, "primedGlow"), eset(key, "primedGlow"))
 	else
-		local function xget(k) return function() return ns.Timer.expireOpts(key)[k] end end
-		local function xset(k) return function(v)
-			local o = ns.elementOpts(key)
-			if type(o.expire) ~= "table" then o.expire = {} end
-			o.expire[k] = v
-			relayout()
-		end end
-		p:header("Expiring")
-		p:slider("Warn in the last", "Seconds before it runs out. Zero turns the warning off.", 0, 120, 5,
-			function(v) return v == 0 and "Off" or string.format("%d s", v) end, xget("secs"), xset("secs"))
-		expiringLooks(p, xget, xset, "icon", showWhen(function() return ns.Timer.expireOpts(key).secs > 0 end))
+		expiringBlock(p, key, 120, 5)
 	end
 	effectBlocks(p, key)
 end
@@ -1634,7 +1658,8 @@ local function buildNav()
 	navDivider:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 20, 110)
 	navDivider:SetWidth(NAV_W - 36)
 	-- The element pages between them. The list starts at the window's edge so the selected page's
-	-- accent (left of its button) isn't clipped.
+	-- accent (left of its button) isn't clipped. It scrolls by whole rows, so a row is never cut in
+	-- half at the top, with a slim bar down its right edge while there's more than fits.
 	local list = CreateFrame("ScrollFrame", nil, win)
 	list:SetPoint("TOPLEFT", win, "TOPLEFT", 4, y)
 	list:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 4, 122)
@@ -1647,40 +1672,92 @@ local function buildNav()
 		local e = ns.Look.ELEMENT[p.key]
 		if e and not e.page then
 			local b = add(p.key, ns.Look.elementName(p.key), e.icon, true, child)
+			b:SetWidth(NAV_W - 42)   -- room for the bar
 			b.listTop = n * NAV_SUB_STEP
 			b:SetPoint("TOPLEFT", child, "TOPLEFT", 8 + 16, -b.listTop)
 			n = n + 1
 		end
 	end
-	child:SetHeight(math.max(n * NAV_SUB_STEP, 1))
-	-- Shades at an edge with more beyond it, on a frame above the buttons.
+	-- Shades at an edge with more beyond it, and the bar, on a frame above the buttons.
 	local over = CreateFrame("Frame", nil, list)
 	over:SetAllPoints()
 	over:SetFrameLevel(child:GetFrameLevel() + 5)
 	local function shade(point, from, to)
 		local t = over:CreateTexture(nil, "OVERLAY")
-		t:SetPoint(point .. "LEFT"); t:SetPoint(point .. "RIGHT")
+		t:SetPoint(point .. "LEFT"); t:SetPoint(point .. "RIGHT", -8, 0)
 		t:SetHeight(18)
 		t:SetColorTexture(1, 1, 1, 1)
 		t:SetGradient("VERTICAL", CreateColor(0.09, 0.075, 0.06, from), CreateColor(0.09, 0.075, 0.06, to))
 		return t
 	end
 	list.moreAbove, list.moreBelow = shade("TOP", 0, 0.95), shade("BOTTOM", 0.95, 0)
-	function list.maxScroll() return math.max(child:GetHeight() - list:GetHeight(), 0) end
+	local track = CreateFrame("Button", nil, over)
+	track:SetPoint("TOPRIGHT", -1, 0)
+	track:SetPoint("BOTTOMRIGHT", -1, 0)
+	track:SetWidth(5)
+	track.bg = track:CreateTexture(nil, "BACKGROUND")
+	track.bg:SetAllPoints()
+	track.bg:SetColorTexture(1, 1, 1, 0.06)
+	local thumb = CreateFrame("Button", nil, track)
+	thumb:SetWidth(5)
+	thumb.tex = thumb:CreateTexture(nil, "ARTWORK")
+	thumb.tex:SetAllPoints()
+	thumb.tex:SetColorTexture(0.88, 0.66, 0.29, 0.55)
+	thumb:SetScript("OnEnter", function(t) t.tex:SetAlpha(1) end)
+	thumb:SetScript("OnLeave", function(t) if not t.drag then t.tex:SetAlpha(0.55) end end)
+
+	-- The furthest it scrolls: whole rows, enough to bring the last one fully into view.
+	function list.maxScroll()
+		return math.max(math.ceil((n * NAV_SUB_STEP - list:GetHeight()) / NAV_SUB_STEP), 0) * NAV_SUB_STEP
+	end
+	local function place()
+		local h, max = list:GetHeight(), list.maxScroll()
+		child:SetHeight(math.max(h + max, 1))   -- the scroll frame's own range must reach max
+		local scrolls = max > 0
+		track:SetShown(scrolls)
+		if not scrolls then return end
+		local th = math.max(h * h / (h + max), 16)
+		thumb:SetHeight(th)
+		thumb:ClearAllPoints()
+		thumb:SetPoint("TOPRIGHT", track, "TOPRIGHT", 0, -(h - th) * list:GetVerticalScroll() / max)
+	end
 	function list.scrollTo(v)
+		v = math.floor(v / NAV_SUB_STEP + 0.5) * NAV_SUB_STEP
 		v = math.min(math.max(v, 0), list.maxScroll())
 		list:SetVerticalScroll(v)
 		list.moreAbove:SetShown(v > 0.5)
 		list.moreBelow:SetShown(v < list.maxScroll() - 0.5)
+		place()
 	end
 	-- The selected page's button in view.
 	function list.reveal(b)
 		local v, h = list:GetVerticalScroll(), list:GetHeight()
 		if b.listTop < v then list.scrollTo(b.listTop)
-		elseif b.listTop + NAV_SUB_H > v + h then list.scrollTo(b.listTop + NAV_SUB_H - h) end
+		elseif b.listTop + NAV_SUB_H > v + h then
+			list.scrollTo(math.ceil((b.listTop + NAV_SUB_H - h) / NAV_SUB_STEP) * NAV_SUB_STEP)
+		end
 	end
+	-- The bar: drag the thumb, or click the track to jump there.
+	local function scrollToCursor(grab)
+		local _, cy = GetCursorPosition()
+		cy = cy / track:GetEffectiveScale()
+		local h, th = track:GetHeight(), thumb:GetHeight()
+		local frac = (track:GetTop() - cy - grab) / math.max(h - th, 1)
+		list.scrollTo(frac * list.maxScroll())
+	end
+	thumb:SetScript("OnMouseDown", function(t)
+		local _, cy = GetCursorPosition()
+		t.drag = t:GetTop() - cy / t:GetEffectiveScale()   -- where on the thumb it was grabbed
+		t:SetScript("OnUpdate", function() scrollToCursor(t.drag) end)
+	end)
+	thumb:SetScript("OnMouseUp", function(t)
+		t.drag = nil
+		t:SetScript("OnUpdate", nil)
+		if not t:IsMouseOver() then t.tex:SetAlpha(0.55) end
+	end)
+	track:SetScript("OnClick", function() scrollToCursor(thumb:GetHeight() / 2) end)
 	list:EnableMouseWheel(true)
-	list:SetScript("OnMouseWheel", function(_, delta) list.scrollTo(list:GetVerticalScroll() - delta * NAV_SUB_STEP * 2) end)
+	list:SetScript("OnMouseWheel", function(_, delta) list.scrollTo(list:GetVerticalScroll() - delta * NAV_SUB_STEP) end)
 	list:SetScript("OnSizeChanged", function() list.scrollTo(list:GetVerticalScroll()) end)
 	navList = list
 end

@@ -61,6 +61,14 @@ ns.registerElement("shock", { frame = shock, label = "Shocks", paint = function(
 --              buffKey = spell key of a buff on us, read when auras are readable }: an effect that
 --              waits to be spent (Nature's Swiftness, Stormstrike); see the file's header
 --   reagent = item ID   the spell's reagent (Reincarnation's Ankh): a count, low and out looks
+--   readyGlow = true    offers the "use me" glow while off cooldown (off by default)
+--   noReady = true      no ready pop (Reincarnation: nothing to do the moment it's back)
+--   ranOut = true       its totem running out is shown as a flash in its colour with an hourglass
+--                       (Mana Tide, Grounding), not the pop
+--   expireLooks = { ... } the Expiring looks it offers, when not all of them (Rage of the Farseer:
+--                       nothing to recast as it ends, so no glow or ring); false for no Expiring
+--   primedLooks = false no Primed pop or glow, only its time left (Stormstrike)
+--   cd = seconds        its cooldown's length, for the options preview only
 --   defaults = { ... }  its own option defaults (ns.elementSetting), e.g. idleAlpha
 --   experimental        a feature name: not tested in game (the level cap is 20)
 local COOLDOWNS = {
@@ -72,27 +80,31 @@ local COOLDOWNS = {
 		primed = { spends = { "healingWave", "lesserHealingWave", "chainHeal", "lightningBolt", "chainLightning",
 			"ghostWolf", "farSight" },
 			buffKey = "naturesSwiftness" },
-		defaults = { idleAlpha = 1 }, experimental = "Nature's Swiftness" },
+		cd = 180, defaults = { idleAlpha = 1 }, experimental = "Nature's Swiftness" },
 	{ key = "manatide", spellKey = "manaTide", icon = 135861, totemSlot = 3, duration = 12, school = "water", new = true,
+		ranOut = true, cd = 300,
 		defaults = { idleAlpha = 1, expire = { secs = 3, glow = true, pulse = false } }, experimental = "Mana Tide Totem" },
 	{ key = "grounding", spellKey = "grounding", icon = 136039, totemSlot = 4, duration = 45, school = "air", new = true,
-		grounded = true, experimental = "Grounding Totem" },
+		grounded = true, ranOut = true, cd = 15, experimental = "Grounding Totem" },
 	-- Rotation: full while ready, like the shocks.
 	-- On Forever, Stormstrike leaves the target taking 20% more from the next 2 Nature hits for 12 s:
 	-- a debuff on the target, so it's timed from the cast and spent by our own casts only (Lightning
 	-- Shield's hits and other shamans' spells can take the charges unseen).
 	{ key = "stormstrike", spellKey = "stormstrike", icon = 135963, school = "air", new = true,
 		primed = { spends = { "lightningBolt", "chainLightning", "earthShock" }, charges = 2, duration = 12 },
+		primedLooks = false, expireLooks = false, readyGlow = true, cd = 8,
 		defaults = { idleAlpha = 1, primedPop = false, primedGlow = false, expire = { secs = 0 } }, experimental = "Stormstrike" },
 	{ key = "riptide", spellKey = "riptide", icon = 252995, school = "water", new = true,
-		defaults = { idleAlpha = 1 }, experimental = "Riptide" },
+		readyGlow = true, cd = 6, defaults = { idleAlpha = 1 }, experimental = "Riptide" },
 	{ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, window = 25, school = "air", new = true,
+		readyGlow = true, expireLooks = { "grey", "pulse" }, cd = 180,
 		defaults = { idleAlpha = 1 }, experimental = "Rage of the Farseer" },
 	{ key = "projection", spellKey = "totemicProjection", icon = 136099, school = "spirit", new = true,
-		experimental = "Totemic Projection" },
+		cd = 60, experimental = "Totemic Projection" },
 	-- Out of sight while ready: seen on cooldown, or when Ankhs run low.
 	{ key = "reincarnation", spellKey = "reincarnation", icon = 136080, school = "spirit", new = true,
-		reagent = 17030, defaults = { idleAlpha = 0 }, experimental = "Reincarnation" },
+		reagent = 17030, noReady = true, cd = 3600,
+		defaults = { idleAlpha = 0, readyPop = false }, experimental = "Reincarnation" },
 }
 CD.COOLDOWNS = COOLDOWNS
 
@@ -115,12 +127,14 @@ local function makeCooldownIcon(def)
 		f.upTimer = ns.Timer.new(f.activeHolder, def.key, "uptime", { anchor = f, dual = true, school = def.school })
 	end
 	f.cdTimer = ns.Timer.new(f, def.key, "cooldown", { cd = f.cd, school = def.school })
-	if def.needsTotem then
-		-- Ready glow (updateReadyGlow): the gate's alpha is "a fire totem is down", the glow's is "off
-		-- cooldown"; nested, the two multiply.
+	if def.needsTotem or def.readyGlow then
+		-- Ready glow (updateReadyGlow): the glow's alpha is "off cooldown"; for Fire Nova the gate's is
+		-- "a fire totem is down", and nested, the two multiply. Others leave the gate at 1.
 		f.readyGate = CreateFrame("Frame", nil, f.effects)
 		f.readyGate:SetAllPoints()
 		f.readyGlow = ns.makeGlow(f.readyGate, f, def.key)
+	end
+	if def.needsTotem then
 		-- "No totem" warning layer: a grey copy of the icon and a red ring, above the icon and below the
 		-- cooldown swipe. Its alpha is set from a possibly-secret boolean (see refreshFireNova), so it
 		-- always pulses and is simply invisible while a totem is out.
@@ -529,7 +543,8 @@ local function refreshReagent(def)
 	end
 	local lowAt = setting(key, "reagentLow")
 	local low = n <= (type(lowAt) == "number" and lowAt or 2)   -- shared text can hold anything
-	if setting(key, "reagentCount") then
+	local show = setting(key, "reagentCount")   -- always | low | never
+	if show == "always" or (show == "low" and low) then
 		-- Text scales with the icon (its group's size).
 		local size = math.max(math.floor(f:GetWidth() * 0.45), 8)
 		if size ~= f.countSize then f.count:SetFont(STANDARD_TEXT_FONT, size, "OUTLINE"); f.countSize = size end
@@ -541,7 +556,6 @@ local function refreshReagent(def)
 		f.count:Show()
 	else f.count:Hide() end
 	local out = n == 0
-	f.tex:SetDesaturated(out and setting(key, "reagentGrey"))
 	f:SetRingShown(out and setting(key, "reagentRing"))
 	f:SetPulsing(out and setting(key, "reagentPulse"))
 	return low and setting(key, "reagentShow")
@@ -617,7 +631,15 @@ Totems.subscribe(function(event, slot, arg)
 				f.killed.mark:Hide()
 			elseif event == "gone" and Totems.ownerOf(slot) == def.spellKey and ns.isEnabled(key) then
 				local dur = arg
-				if setting(key, "expiredPop") then
+				if def.ranOut then
+					-- Its colour with an hourglass, rather than the pop.
+					if setting(key, "ranOutFlash") then
+						if not f.expired then f.expired = ns.makeEndFlash(f.effects, f, key) end
+						f.expired:setIcon(def.iconID or def.icon)
+						f.expired:play(dur, { expired = true, ranOut = ns.SCHOOL_COLOR[def.school],
+							pop = setting(key, "ranOutPop"), glow = setting(key, "ranOutGlow") })
+					end
+				elseif setting(key, "expiredPop") then
 					if not f.expired then f.expired = ns.makeEndFlash(f.effects, f, key) end
 					f.expired:setIcon(def.iconID or def.icon)
 					f.expired:play(dur, { expired = true, pop = true })
@@ -641,9 +663,10 @@ Totems.subscribe(function(event, slot, arg)
 end)
 
 ------------------------------------------------------------------------
--- Ready glows ("use me"), both off by default. Fire Nova: while it is off cooldown and a fire totem
+-- Ready glows ("use me"), all off by default. Fire Nova: while it is off cooldown and a fire totem
 -- is down, the moment it can be cast; both are secret in combat, so each goes through a curve into
--- one of two nested frames' alphas. Shocks: while the shock is off cooldown. Re-read ten times a
+-- one of two nested frames' alphas. Shocks and the elements with readyGlow (Stormstrike, Riptide,
+-- Rage of the Farseer): while the spell is off cooldown. Re-read ten times a
 -- second while any is on, so they follow a cooldown ending or a totem running out without waiting for
 -- an event.
 ------------------------------------------------------------------------
@@ -670,15 +693,17 @@ local function updateReadyGlow(def)
 	f.readyGlow:SetShown(on and true or false)
 	if not on then return end
 	f.readyGlow:fit(f:GetWidth())
-	local tok, tdur = safe(GetTotemDuration, def.needsTotem)
-	if not (tok and tdur) then f.readyGate:SetAlpha(0) return end   -- no fire totem
-	local gok, g = ns.try("ready gate", tdur.EvaluateRemainingDuration, tdur, hasTimeLeftCurve)
-	if gok then f.readyGate:SetAlpha(g) else f.readyGate:SetAlpha(0) end
+	if def.needsTotem then
+		local tok, tdur = safe(GetTotemDuration, def.needsTotem)
+		if not (tok and tdur) then f.readyGate:SetAlpha(0) return end   -- no fire totem
+		local gok, g = ns.try("ready gate", tdur.EvaluateRemainingDuration, tdur, hasTimeLeftCurve)
+		if gok then f.readyGate:SetAlpha(g) else f.readyGate:SetAlpha(0) end
+	end
 	f.readyGlow:SetAlpha(readyAlpha(def.spellID))
 end
 local function updateReadyGlows()
 	for _, def in ipairs(COOLDOWNS) do
-		if def.needsTotem then updateReadyGlow(def) end
+		if def.frame.readyGate then updateReadyGlow(def) end
 	end
 	updateShockGlow()
 end
@@ -697,7 +722,7 @@ local function syncReadyTicker()
 	if ns.isActive() then
 		want = ns.isEnabled("shock") and setting("shock", "readyGlow")
 		for _, def in ipairs(COOLDOWNS) do
-			if def.needsTotem and ns.isEnabled(def.key) and setting(def.key, "readyGlow") then want = true end
+			if def.frame.readyGate and ns.isEnabled(def.key) and setting(def.key, "readyGlow") then want = true end
 		end
 	end
 	readyTicker:SetShown(want and true or false)

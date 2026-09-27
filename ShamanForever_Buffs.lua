@@ -70,6 +70,7 @@ local function makeBuffIcon(def)
 end
 
 for _, def in ipairs(BUFFS) do
+	def.buff = true   -- for the options: its Idle is "not up", not "off cooldown"
 	def.spell = Spells.name(def.spellKey)
 	def.icon = Spells.icon(def.buffKey or def.spellKey) or def.icon
 	def.frame = makeBuffIcon(def)
@@ -267,7 +268,6 @@ local function refreshBuff(def)
 	if def.reagent and ns.Cooldowns.refreshReagent(def) then held = true end
 	if breathWarn(def) then
 		-- Under water without it: the missing look.
-		f.tex:SetDesaturated(setting(key, "breathGrey"))
 		f:SetRingShown(setting(key, "breathRing"))
 		f:SetPulsing(setting(key, "breathPulse"))
 		held = true

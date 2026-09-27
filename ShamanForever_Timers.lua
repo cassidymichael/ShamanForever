@@ -40,9 +40,9 @@ T.ELEMENT_DEFAULTS = {
 	grounding = { uptime = { text = false, bar = true } },
 	-- Stormstrike's time left is how long its empowered spell waits: a bar only.
 	stormstrike = { uptime = { text = false, bar = true } },
-	-- Ten-minute buffs: minutes in the middle, like the imbue.
-	waterwalking = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = false } },
-	waterbreathing = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = false } },
+	-- Ten-minute buffs: minutes in the middle, and a bar.
+	waterwalking = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
+	waterbreathing = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
 	elementalfocus = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
 }
 -- Parts an element's timer can't have, and why (shown on its page): for every kind, or under a

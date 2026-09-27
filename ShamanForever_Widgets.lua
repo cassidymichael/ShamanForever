@@ -363,6 +363,9 @@ end
 -- A totem that ran out never shows the first, one that was killed never the second.
 -- * Grounded (opts.grounded): Grounding Totem's early end is a spell it took for us, so the same
 --   flash in air blue instead of red, with no cross.
+-- * Ran out, softly (opts.expired with opts.ranOut = { r, g, b }): for totems whose end matters (Mana
+--   Tide, Grounding), the grey icon under a wash of the totem's colour and an hourglass, shorter
+--   than Killed early and without the pop's burst.
 local killedCurve = ns.curve({ 0, 0, 1.2, 0, 1.25, 1, 36000, 1 })
 local expiredCurve = ns.curve({ 0, 1, 1.2, 1, 1.25, 0, 36000, 0 })
 function ns.makeEndFlash(parent, anchor, owner)
@@ -397,6 +400,18 @@ function ns.makeEndFlash(parent, anchor, owner)
 	local qOut = kf.quick:CreateAnimation("Alpha")
 	qOut:SetFromAlpha(1); qOut:SetToAlpha(0); qOut:SetDuration(0.5); qOut:SetStartDelay(0.2); qOut:SetOrder(2)
 	kf.quick:SetScript("OnFinished", function() kf.body:SetAlpha(0); kf.glow:Hide() end)
+	-- Ran out, softly: in quickly, a short hold, out over most of a second.
+	kf.soft = kf.body:CreateAnimationGroup()
+	local sIn = kf.soft:CreateAnimation("Alpha")
+	sIn:SetFromAlpha(0); sIn:SetToAlpha(1); sIn:SetDuration(0.1); sIn:SetOrder(1)
+	local sOut = kf.soft:CreateAnimation("Alpha")
+	sOut:SetFromAlpha(1); sOut:SetToAlpha(0); sOut:SetDuration(0.9); sOut:SetStartDelay(0.3); sOut:SetOrder(2)
+	kf.soft:SetScript("OnFinished", function() kf.body:SetAlpha(0); kf.glow:Hide() end)
+	-- A small white hourglass from the client's common art (tinted by its alpha only).
+	kf.hourglass = kf.body:CreateTexture(nil, "OVERLAY", nil, 2)
+	kf.hourglass:SetTexture("Interface\\Common\\mini-hourglass")
+	kf.hourglass:SetPoint("CENTER")
+	kf.hourglass:Hide()
 	kf.mark = CreateFrame("Frame", nil, kf)
 	kf.mark:SetAllPoints()
 	kf.mark:Hide()
@@ -414,7 +429,7 @@ function ns.makeEndFlash(parent, anchor, owner)
 		pcall(self.mark.icon.SetTexture, self.mark.icon, icon)
 	end
 	-- dur: the gone totem's last duration object. opts: expired (ran out, else killed early), and
-	-- for killed early pop, glow, mark (booleans).
+	-- for killed early pop, glow, mark (booleans); grounded; ranOut (a colour) for the soft ran-out.
 	function kf:play(dur, opts)
 		local curve = opts.expired and expiredCurve or killedCurve
 		if not curve then return end
@@ -422,7 +437,11 @@ function ns.makeEndFlash(parent, anchor, owner)
 		if not ok then return end
 		self:SetAlpha(a)
 		local size = anchor:GetWidth()
-		if opts.grounded then
+		local soft = opts.expired and opts.ranOut
+		if soft then
+			local c = opts.ranOut
+			self.glow:color(c[1], c[2], c[3]); self.red:SetColorTexture(c[1], c[2], c[3], 0.45)
+		elseif opts.grounded then
 			local c = POP_TINT.grounded
 			self.glow:color(c[1], c[2], c[3]); self.red:SetColorTexture(c[1], c[2], c[3], 0.7)
 		else
@@ -430,11 +449,13 @@ function ns.makeEndFlash(parent, anchor, owner)
 		end
 		self.glow:fit(size)
 		self.glow:SetShown(opts.glow and true or false)
-		self.red:SetShown(not opts.expired)
-		self.icon:SetDesaturated(not opts.expired)
+		self.red:SetShown(not opts.expired or soft and true or false)
+		self.icon:SetDesaturated(not opts.expired or soft and true or false)
+		self.hourglass:SetShown(soft and true or false)
+		self.hourglass:SetSize(size * 0.5, size * 0.5)
 		self.mark.x:SetSize(size * 0.7, size * 0.7)
-		self.flash:Stop(); self.quick:Stop()
-		if opts.expired then self.quick:Play() else self.flash:Play() end
+		self.flash:Stop(); self.quick:Stop(); self.soft:Stop()
+		if soft then self.soft:Play() elseif opts.expired then self.quick:Play() else self.flash:Play() end
 		if opts.pop then ns.playPop(self.pop, opts.expired and "expired" or opts.grounded and "grounded" or "killed", owner) end
 		if opts.mark then
 			self.mark:Show()
