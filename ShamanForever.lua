@@ -61,9 +61,7 @@ local DEFAULTS = {
 				"farseer", "projection", "waterwalking", "waterbreathing" } },
 	},
 	known = {},             -- element keys placed at least once; new ones join the first group
-	elementOpts = {         -- per-element settings by key, e.g. { shock = { show = "combat" } }
-		stoneclaw = { show = "never" },   -- rarely used: starts hidden, beside Earthbind
-	},
+	elementOpts = {},       -- per-element settings by key, e.g. { shock = { show = "combat" } }; every element starts shown
 	-- shield
 	shieldTrack = "lightning", -- lightning | water | either: which shield counts as "up" (water and either are experimental)
 	countPos = "center",    -- corner | center
