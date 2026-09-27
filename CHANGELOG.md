@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0 (2026-09-27)
+
+- New elements: Tremor Totem, Nature's Swiftness, Mana Tide Totem, Grounding Totem, Stormstrike, Riptide, Rage of the Farseer, Totemic Projection, Reincarnation (with your Ankh count), Water Walking, Water Breathing (warns under water without it) and Elemental Focus. Most are experimental, not yet tested in game because they need spells or talents I haven't been able to try. If you can try them, each has a feedback link on the About page.
+- Elements for spells you haven't learned are listed in the options, marked "Not learned", and stay off screen until you learn them. `/sf test` shows them greyed.
+- Totem bar: Quick Keybind Mode binds controller buttons as well as keys (not yet tested).
+- Fixed: Blizzard's active totems display could reappear in the Everything and Active totems modes.
+- Minor fixes and improvements, mostly to the options window.
+
 ## 0.7.2 (2026-09-26)
 
 - Idle: Earthbind, Stoneclaw and Fire Nova can fade while they have nothing going on (off cooldown, and their totem isn't down). Set the idle opacity on each page, down to hidden; icons keep their place, and their pops and glows still show at full. Earthbind and Stoneclaw fade to 35% by default. Fire Nova lets you choose when it counts as idle, and is never idle by default.
