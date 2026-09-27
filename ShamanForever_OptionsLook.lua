@@ -317,65 +317,52 @@ local function totemPreview(def)
 	return {
 		states = { { "ready", "Ready" }, { "active", "Totem down" }, { "expiring", "Expiring" }, { "ranout", "Ran out" }, { "cd", "Cooldown" },
 			{ "killed", g and "Grounded" or "Killed early" } },
+		-- Ran out (Mana Tide, Grounding) and Killed early / Grounded play their flash as in game;
+		-- the cooldown the totem left shows once it has played (ic.momentDone).
 		pop = function(ic, st)
-			if st == "ready" and opt(def.key, "readyPop") then ic:Pop("ready")
-			elseif st == "ranout" and def.ranOut then
-				-- The flash itself, as in game; the cooldown shows once it has played.
-				if opt(def.key, "ranOutFlash") then
-					if not ic.endFlash then ic.endFlash = ns.makeEndFlash(ic, ic, def.key) end
+			local key = def.key
+			local function flash(opts, secs)
+				if opts then
+					if not ic.endFlash then ic.endFlash = ns.makeEndFlash(ic, ic, key) end
 					ic.endFlash:setIcon(def.iconID or def.icon)
-					ic.endFlash:play(nil, { expired = true, ranOut = ns.SCHOOL_COLOR[def.school],
-						pop = opt(def.key, "ranOutPop"), glow = opt(def.key, "ranOutGlow") })
+					ic.endFlash:play(nil, opts)
 				end
 				local token = {}
-				ic.ranOutToken, ic.ranOutDone = token, false
-				C_Timer.After(opt(def.key, "ranOutFlash") and 1.4 or 0, function()
-					if ic.ranOutToken ~= token or previewState[def.key] ~= "ranout" then return end
-					ic.ranOutDone = true
-					frozen(ic.cdT, 0.02, def.cd or 15)
+				ic.momentToken, ic.momentDone = token, false
+				C_Timer.After(opts and secs or 0, function()
+					if ic.momentToken ~= token or previewState[key] ~= st then return end
+					ic.momentDone = true
+					frozen(ic.cdT, 0.05, def.cd or 15)
 				end)
-			elseif st == "ranout" and opt(def.key, "expiredPop") then ic:Pop("expired")
+			end
+			if st == "ready" and opt(key, "readyPop") then ic:Pop("ready")
+			elseif st == "ranout" and def.ranOut then
+				flash(opt(key, "ranOutFlash") and { expired = true, ranOut = ns.SCHOOL_COLOR[def.school],
+					pop = opt(key, "ranOutPop"), glow = opt(key, "ranOutGlow") }, 1.4)
+			elseif st == "ranout" and opt(key, "expiredPop") then ic:Pop("expired")
 			elseif st == "killed" and g then
-				if opt(def.key, "grounded") and opt(def.key, "groundedPop") then ic:Pop("grounded") end
-			elseif st == "killed" and opt(def.key, "killed") and opt(def.key, "killedPop") then ic:Pop("killed") end
+				flash(opt(key, "grounded") and { grounded = true, pop = opt(key, "groundedPop"), glow = opt(key, "groundedGlow") }, 2.1)
+			elseif st == "killed" then
+				flash(opt(key, "killed") and { pop = opt(key, "killedPop"), glow = opt(key, "killedGlow"), mark = opt(key, "killedMark") }, 2.1)
+			end
 		end,
 		render = function(ic, st)
 			reset(ic, def.iconID or def.icon)
-			if ic.killX then ic.killX:Hide() end
+			-- Another state: a flash still playing (or its cross) goes.
+			local e = ic.endFlash
+			if e and st ~= ic.flashState then
+				e.flash:Stop(); e.quick:Stop(); e.soft:Stop()
+				e.body:SetAlpha(0); e.glow:Hide(); e.mark:Hide()
+				ic.momentDone = false
+			end
+			ic.flashState = st
 			local cd = def.cd or 15
 			if st == "expiring" then expiringLook(ic, def.key, def.duration or 45)
 			elseif st == "active" then frozen(ic.upT, 0.45, def.duration or 45)
 			elseif st == "cd" then frozen(ic.cdT, 0.4, cd)
-			elseif st == "ranout" and def.ranOut then
+			elseif (st == "ranout" and def.ranOut) or st == "killed" then
 				-- Nothing drawn until the flash has played (pop, above), then the cooldown it left.
-				if ic.ranOutDone then frozen(ic.cdT, 0.02, cd) end
-			elseif st == "killed" and g then
-				frozen(ic.cdT, 0.4, cd)
-				if opt(def.key, "grounded") then
-					local c = ns.POP_TINT.grounded
-					ic.tex:SetDesaturated(true)
-					ic.manaOverlay:SetColorTexture(c[1], c[2], c[3], 0.7)
-					ic.manaOverlay:Show()
-					if opt(def.key, "groundedGlow") then ic:SetGlowShown(true, c[1], c[2], c[3]) end
-				end
-			elseif st == "killed" then
-				frozen(ic.cdT, 0.4, cd)
-				if opt(def.key, "killed") then
-					-- The flash at its brightest: greyed under red, with the red glow and the cross if on.
-					ic.tex:SetDesaturated(true)
-					ic.manaOverlay:SetColorTexture(0.95, 0.12, 0.08, 0.7)
-					ic.manaOverlay:Show()
-					if opt(def.key, "killedGlow") then ic:SetGlowShown(true, 1, 0.12, 0.08) end
-					if opt(def.key, "killedMark") then
-						if not ic.killX then
-							ic.killX = ic.textFrame:CreateTexture(nil, "OVERLAY")
-							ic.killX:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
-							ic.killX:SetPoint("CENTER")
-						end
-						ic.killX:SetSize(ic:GetWidth() * 0.7, ic:GetWidth() * 0.7)
-						ic.killX:Show()
-					end
-				end
+				if ic.momentDone then frozen(ic.cdT, 0.05, cd) end
 			end
 		end,
 	}
@@ -473,9 +460,8 @@ function L.reagentLook(ic, key, n)
 	local low = n <= (type(lowAt) == "number" and lowAt or 2)
 	local show = opt(key, "reagentCount")
 	if show == "always" or (show == "low" and low) then
-		ic.count:SetFont(STANDARD_TEXT_FONT, math.floor(ic:GetWidth() * 0.45), "OUTLINE")
-		ic.count:ClearAllPoints()
-		ic.count:SetPoint("BOTTOMRIGHT", 2, -2)
+		ic.count.placed = nil   -- the shield's preview places this font string its own way
+		ns.Cooldowns.placeReagentCount(ic.count, ic, key)
 		ic.count:SetText(n)
 		local c = opt(key, low and "reagentLowColor" or "reagentColor")
 		if ns.isColor(c) then ic.count:SetTextColor(c[1], c[2], c[3], c[4] or 1) end

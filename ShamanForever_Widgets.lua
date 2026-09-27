@@ -362,7 +362,7 @@ end
 -- * Ran out (opts.expired; the opposite curve, 1 up to 1.2 s left): the totem's icon pops and fades.
 -- A totem that ran out never shows the first, one that was killed never the second.
 -- * Grounded (opts.grounded): Grounding Totem's early end is a spell it took for us, so the same
---   flash in air blue instead of red, with no cross.
+--   flash in air blue instead of red, with a tick (Blizzard's ready-check one) instead of the cross.
 -- * Ran out, softly (opts.expired with opts.ranOut = { r, g, b }): for totems whose end matters (Mana
 --   Tide, Grounding), the grey icon under a wash of the totem's colour and an hourglass, shorter
 --   than Killed early and without the pop's burst.
@@ -412,6 +412,10 @@ function ns.makeEndFlash(parent, anchor, owner)
 	kf.hourglass:SetTexture("Interface\\Common\\mini-hourglass")
 	kf.hourglass:SetPoint("CENTER")
 	kf.hourglass:Hide()
+	kf.tick = kf.body:CreateTexture(nil, "OVERLAY", nil, 2)
+	kf.tick:SetTexture("Interface\\RaidFrame\\ReadyCheck-Ready")
+	kf.tick:SetPoint("CENTER")
+	kf.tick:Hide()
 	kf.mark = CreateFrame("Frame", nil, kf)
 	kf.mark:SetAllPoints()
 	kf.mark:Hide()
@@ -458,6 +462,8 @@ function ns.makeEndFlash(parent, anchor, owner)
 		self.icon:SetDesaturated(not opts.expired or soft and true or false)
 		self.hourglass:SetShown(soft and true or false)
 		self.hourglass:SetSize(size * 0.5, size * 0.5)
+		self.tick:SetShown(opts.grounded and not opts.expired and true or false)
+		self.tick:SetSize(size * 0.6, size * 0.6)
 		self.mark.x:SetSize(size * 0.7, size * 0.7)
 		self.flash:Stop(); self.quick:Stop(); self.soft:Stop()
 		if soft then self.soft:Play() elseif opts.expired then self.quick:Play() else self.flash:Play() end

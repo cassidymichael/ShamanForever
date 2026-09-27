@@ -533,6 +533,25 @@ local function takesReagent(def)
 	return def.takesReagent
 end
 
+-- The count's text: its size (at a 44 px icon; it grows with the icon), a corner or the centre,
+-- and an offset from there. Restated only when one of them changed.
+local COUNT_JUSTIFY = { TOPLEFT = "LEFT", BOTTOMLEFT = "LEFT", TOPRIGHT = "RIGHT", BOTTOMRIGHT = "RIGHT", CENTER = "CENTER" }
+function CD.placeReagentCount(fs, icon, key)
+	local pos = setting(key, "reagentPos")
+	if not COUNT_JUSTIFY[pos] then pos = "BOTTOMRIGHT" end
+	local size, x, y = setting(key, "reagentSize"), setting(key, "reagentX"), setting(key, "reagentY")
+	size = type(size) == "number" and size or 20
+	x, y = type(x) == "number" and x or 0, type(y) == "number" and y or 0
+	local px = math.max(math.floor(size * icon:GetWidth() / 44 + 0.5), 6)
+	local sig = string.format("%s%d,%s,%s", pos, px, x, y)
+	if fs.placed == sig then return end
+	fs.placed = sig
+	fs:SetFont(STANDARD_TEXT_FONT, px, "OUTLINE")
+	fs:ClearAllPoints()
+	fs:SetPoint(pos, icon, pos, x, y)
+	fs:SetJustifyH(COUNT_JUSTIFY[pos])
+end
+
 -- Returns whether the reagent is low enough to hold the element out of idle.
 local function refreshReagent(def)
 	local f, key = def.frame, def.key
@@ -546,9 +565,7 @@ local function refreshReagent(def)
 	local low = n <= (type(lowAt) == "number" and lowAt or 2)   -- shared text can hold anything
 	local show = setting(key, "reagentCount")   -- always | low | never
 	if show == "always" or (show == "low" and low) then
-		-- Text scales with the icon (its group's size).
-		local size = math.max(math.floor(f:GetWidth() * 0.45), 8)
-		if size ~= f.countSize then f.count:SetFont(STANDARD_TEXT_FONT, size, "OUTLINE"); f.countSize = size end
+		CD.placeReagentCount(f.count, f, key)
 		local c = setting(key, low and "reagentLowColor" or "reagentColor")
 		if not ns.isColor(c) then c = ns.elementDefault(key, low and "reagentLowColor" or "reagentColor") end
 		f.count:SetText(n)
