@@ -540,7 +540,7 @@ function CD.placeReagentCount(fs, icon, key)
 	local pos = setting(key, "reagentPos")
 	if not COUNT_JUSTIFY[pos] then pos = "BOTTOMRIGHT" end
 	local size, x, y = setting(key, "reagentSize"), setting(key, "reagentX"), setting(key, "reagentY")
-	size = type(size) == "number" and size or 20
+	size = type(size) == "number" and size or 14
 	x, y = type(x) == "number" and x or 0, type(y) == "number" and y or 0
 	local px = math.max(math.floor(size * icon:GetWidth() / 44 + 0.5), 6)
 	local sig = string.format("%s%d,%s,%s", pos, px, x, y)
