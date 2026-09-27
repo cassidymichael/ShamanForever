@@ -4,16 +4,206 @@
 
 local _, ns = ...
 
+-- The five element schools' colours (spirit covers anything mixed): time bars in "element colour",
+-- the totem bar's slots, the options' art.
+ns.SCHOOL_COLOR = {
+	earth  = { 0.75, 0.54, 0.24 },
+	fire   = { 0.89, 0.38, 0.18 },
+	water  = { 0.25, 0.69, 0.77 },
+	air    = { 0.56, 0.76, 0.92 },
+	spirit = { 0.73, 0.64, 0.90 },
+}
+
+-- A flat backdrop: a solid fill and a 1 px edge, coloured by the caller.
+ns.BACKDROP = { bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 }
+
+-- A spell icon without Blizzard's built-in border.
+function ns.cropIcon(tex) tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
+
+-- The icon size text sizes are given at (the default): text on an icon scales with it from here.
+ns.BASE_ICON_SIZE = 44
+-- A font string on an icon: size at the base icon size (it grows and shrinks with the icon), placed
+-- at a point of the icon (a corner, CENTER, or TOP / BOTTOM for text above or below it) with an
+-- offset. Restated only when something changed; returns the font size used.
+function ns.placeScaledText(fs, icon, size, point, x, y, relPoint)
+	local px = math.max(math.floor(size * icon:GetWidth() / ns.BASE_ICON_SIZE + 0.5), 6)
+	local sig = string.format("%d%s%s%s,%s", px, point, relPoint or point, x, y)
+	if fs.placed == sig then return px end
+	fs.placed = sig
+	fs:SetFont(STANDARD_TEXT_FONT, px, "OUTLINE")
+	fs:ClearAllPoints()
+	fs:SetPoint(point, icon, relPoint or point, x, y)
+	return px
+end
+
+-- An element icon easing to a new opacity: slowly into idle, quickly back (each rate covers 0 to 1).
+-- A frame above Blizzard's protected aura button (frame.aboveProtected) takes no alpha change in
+-- combat, so its fade is dropped then and restated after combat by its owner's refresh.
+local FADE_OUT, FADE_IN = 0.8, 0.15
+local fading = {}   -- frame -> target alpha
+local fader = CreateFrame("Frame")
+fader:Hide()
+fader:SetScript("OnUpdate", function(self, elapsed)
+	local combat = InCombatLockdown()
+	for f, target in pairs(fading) do
+		if combat and f.aboveProtected then fading[f] = nil
+		else
+			local a = f:GetAlpha()
+			if target < a then a = math.max(target, a - elapsed / FADE_OUT)
+			else a = math.min(target, a + elapsed / FADE_IN) end
+			f:SetAlpha(a)
+			if a == target then fading[f] = nil end
+		end
+	end
+	if next(fading) == nil then self:Hide() end
+end)
+function ns.fadeTo(f, alpha)
+	if f.aboveProtected and InCombatLockdown() then return end
+	if math.abs(f:GetAlpha() - alpha) < 0.005 then
+		fading[f] = nil
+		f:SetAlpha(alpha)
+		return
+	end
+	fading[f] = alpha
+	fader:Show()
+end
+
+------------------------------------------------------------------------
+-- Lines (borders, warning rings, the range strip) are measured in screen pixels, so they stay crisp:
+-- n pixels at scale 1. A Scale between the screen and the frame (a group's, the totem bar's, a
+-- preview's) grows them with everything else, rounded to whole pixels. Icon Size doesn't.
+------------------------------------------------------------------------
+-- The length, in the frame's own units, of n screen pixels grown by the frame's Scale.
+function ns.linePx(frame, n)
+	local eff = frame:GetEffectiveScale()
+	local count = math.floor(n * eff / UIParent:GetEffectiveScale() + 0.5)
+	if n > 0 and count < 1 then count = 1 end
+	local _, physicalHeight = GetPhysicalScreenSize()
+	return count * (768 / (physicalHeight or 768)) / eff
+end
+
+------------------------------------------------------------------------
+-- Warning looks shared by the HUD, the totem bar and the options previews
+------------------------------------------------------------------------
+-- A ring just inside an icon's edge: four textures, the side ones between the top and bottom ones
+-- (no doubled corners). Its thickness is a line's (ns.linePx): crisp, the same at any icon size.
+local RING_PX = 3
+local RING_COLOR = { 1, 0, 0, 0.9 }
+local Ring = {}
+Ring.__index = Ring
+local rings = setmetatable({}, { __mode = "k" })
+function ns.makeRing(parent, anchor)
+	local r = setmetatable({ anchor = anchor, edges = {} }, Ring)
+	rings[r] = true
+	for i = 1, 4 do
+		local t = parent:CreateTexture(nil, "OVERLAY", nil, 6)
+		t:Hide()
+		r.edges[i] = t
+	end
+	r:color()
+	return r
+end
+-- A colour other than the warning red (the shock's blue "no mana" ring); no arguments: the red.
+function Ring:color(red, g, b, a)
+	local k = RING_COLOR
+	for _, t in ipairs(self.edges) do t:SetColorTexture(red or k[1], g or k[2], b or k[3], a or k[4]) end
+end
+-- Sizes the edges for the anchor's current scale; re-anchors only when that changed.
+function Ring:fit()
+	local w = ns.linePx(self.anchor, RING_PX)
+	if w == self.width then return end
+	self.width = w
+	local a, top, bottom, left, right = self.anchor, self.edges[1], self.edges[2], self.edges[3], self.edges[4]
+	for _, t in ipairs(self.edges) do t:ClearAllPoints() end
+	top:SetPoint("TOPLEFT", a, "TOPLEFT", 0, 0); top:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, 0); top:SetHeight(w)
+	bottom:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, 0); bottom:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, 0); bottom:SetHeight(w)
+	left:SetPoint("TOPLEFT", a, "TOPLEFT", 0, -w); left:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, w); left:SetWidth(w)
+	right:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, -w); right:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, w); right:SetWidth(w)
+end
+function Ring:show(on)
+	if on then self:fit() end
+	for _, t in ipairs(self.edges) do t:SetShown(on and true or false) end
+end
+-- After a layout (a group's or the bar's Scale may have changed): every ring on screen re-measures.
+function ns.refitRings()
+	for r in pairs(rings) do
+		if r.edges[1]:IsShown() then r:fit() end
+	end
+end
+
+-- A looping pulse on a region. "fade": the region itself breathes, 100% to 35% over 0.8 s (missing
+-- looks). "dim": a dark layer from 0 to 55% over 0.6 s (expiring; it dims the icon, never the text
+-- above it). Returns the animation group.
+function ns.makePulse(region, kind)
+	local g = region:CreateAnimationGroup()
+	g:SetLooping("BOUNCE")
+	local a = g:CreateAnimation("Alpha")
+	if kind == "dim" then a:SetFromAlpha(0); a:SetToAlpha(0.55); a:SetDuration(0.6)
+	else a:SetFromAlpha(1); a:SetToAlpha(0.35); a:SetDuration(0.8) end
+	a:SetSmoothing("IN_OUT")
+	return g
+end
+
+-- Border drawn just outside an element's edge, so it never covers the rings inside the icon or
+-- Blizzard's shield button. size is a line's (ns.linePx): screen pixels, grown by Scale, not by Size.
+function ns.applyBorder(f, b)
+	if not (b and b.show and b.size and b.size > 0) then
+		if f.border then for _, t in ipairs(f.border) do t:Hide() end end
+		return
+	end
+	if not f.border then
+		f.border = {}
+		for i = 1, 4 do f.border[i] = f:CreateTexture(nil, "BACKGROUND", nil, -8) end
+	end
+	local s = ns.linePx(f, b.size)
+	local c = b.color or { 0, 0, 0, 1 }
+	local top, bottom, left, right = f.border[1], f.border[2], f.border[3], f.border[4]
+	for _, t in ipairs(f.border) do
+		t:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
+		t:ClearAllPoints()
+		t:Show()
+	end
+	-- Top and bottom span the corners; left and right fill between them.
+	top:SetPoint("BOTTOMLEFT", f, "TOPLEFT", -s, 0)
+	top:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", s, 0)
+	top:SetHeight(s)
+	bottom:SetPoint("TOPLEFT", f, "BOTTOMLEFT", -s, 0)
+	bottom:SetPoint("TOPRIGHT", f, "BOTTOMRIGHT", s, 0)
+	bottom:SetHeight(s)
+	left:SetPoint("TOPRIGHT", f, "TOPLEFT", 0, 0)
+	left:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", 0, 0)
+	left:SetWidth(s)
+	right:SetPoint("TOPLEFT", f, "TOPRIGHT", 0, 0)
+	right:SetPoint("BOTTOMLEFT", f, "BOTTOMRIGHT", 0, 0)
+	right:SetWidth(s)
+end
+
+-- The global cooldown's sweep, as on action bars: its own Cooldown over an icon, a dark swipe with no
+-- edge, bling or numbers. The caller sets its frame level.
+function ns.makeGCDSweep(parent)
+	local cd = CreateFrame("Cooldown", nil, parent, "CooldownFrameTemplate")
+	cd:SetAllPoints()
+	cd:SetDrawEdge(false)
+	cd:SetDrawBling(false)
+	cd:SetHideCountdownNumbers(true)
+	cd:SetSwipeTexture("Interface\\Buttons\\WHITE8x8")
+	cd:SetSwipeColor(0, 0, 0, 0.6)
+	return cd
+end
+
+
 -- A pulsing glow inside an icon: soft light running in from its four edges, over the icon's art and
 -- inside its border, breathing. `over` is the icon it covers (default: the parent). Its style is its
 -- owner's (an element key or "totembar"; nil for General's): colour, pulse length, pulse depth (low
 -- is the dimmest it gets) and thickness (how far in it reaches, as a share of the icon).
 -- fit(size) lays it out for an icon of that size.
 local glows = {}
-local function makeGlow(parent, over, owner)
+-- unlisted: left out of ns.applyGlowStyle, for a glow under Blizzard's aura button, which its owner
+-- restyles only when that's allowed (out of combat, auras not secret).
+local function makeGlow(parent, over, owner, unlisted)
 	local g = CreateFrame("Frame", nil, parent)
 	g.owner = owner
-	table.insert(glows, g)
+	if not unlisted then table.insert(glows, g) end
 	g:SetAllPoints(over or parent)
 	g:EnableMouse(false)
 	g.inner = CreateFrame("Frame", nil, g)   -- the breathing; g's own alpha stays free for a gate
@@ -75,7 +265,9 @@ function ns.applyGlowStyle() for _, g in ipairs(glows) do g:restyle() end end
 -- bounce, hop, shake) with a size and speed, and optional light (a flash over the icon, a ring
 -- spreading out, a star behind it), tinted by what happened. Every part is built on the frame the
 -- first time it pops.
-local POP_TINT = { ready = { 1, 0.82, 0.25 }, imbue = { 0.35, 0.65, 1 }, expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 } }
+local POP_TINT = { ready = { 1, 0.82, 0.25 }, imbue = { 0.35, 0.65, 1 }, expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 },
+	grounded = { 0.56, 0.76, 0.92 } }
+ns.POP_TINT = POP_TINT
 -- An atlas if the client has it, else a plain texture.
 local function atlasOr(t, atlas, file)
 	local ok = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas)
@@ -145,7 +337,7 @@ local function popFx(f)
 	f.popFx = x
 	return x
 end
--- kind: ready | imbue | expired | killed (the tint); owner: whose style (nil: General's).
+-- kind: ready | imbue | expired | killed | grounded (the tint); owner: whose style (nil: General's).
 function ns.playPop(f, kind, owner)
 	local st = ns.Style.get(owner, "pop")
 	local x = popFx(f)
@@ -214,9 +406,14 @@ end
 -- last duration object to a curve and the result to the frame's SetAlpha.
 -- * Killed early (it died with time left; curve 1 from 1.25 s left, 0 up to 1.2 s): the dead totem
 --   greyed under red flashing, with an optional pop, red glow and a red cross that stays up to 5 s.
---   Used by the totem bar's slots and the Earthbind / Stoneclaw elements.
+--   Used by the totem bar's slots and the totem elements.
 -- * Ran out (opts.expired; the opposite curve, 1 up to 1.2 s left): the totem's icon pops and fades.
 -- A totem that ran out never shows the first, one that was killed never the second.
+-- * Grounded (opts.grounded): Grounding Totem's early end is a spell it took for us, so the same
+--   flash in air blue instead of red, with a tick (Blizzard's ready-check one) instead of the cross.
+-- * Ran out, softly (opts.expired with opts.ranOut = { r, g, b }): for totems whose end matters (Mana
+--   Tide, Grounding), the grey icon under a wash of the totem's colour and an hourglass, shorter
+--   than Killed early and without the pop's burst.
 local killedCurve = ns.curve({ 0, 0, 1.2, 0, 1.25, 1, 36000, 1 })
 local expiredCurve = ns.curve({ 0, 1, 1.2, 1, 1.25, 0, 36000, 0 })
 function ns.makeEndFlash(parent, anchor, owner)
@@ -233,7 +430,7 @@ function ns.makeEndFlash(parent, anchor, owner)
 	kf.glow:color(1, 0.12, 0.08)
 	kf.icon = kf.body:CreateTexture(nil, "ARTWORK")
 	kf.icon:SetAllPoints()
-	kf.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	ns.cropIcon(kf.icon)
 	kf.icon:SetDesaturated(true)
 	kf.red = kf.body:CreateTexture(nil, "OVERLAY")
 	kf.red:SetAllPoints()
@@ -251,12 +448,28 @@ function ns.makeEndFlash(parent, anchor, owner)
 	local qOut = kf.quick:CreateAnimation("Alpha")
 	qOut:SetFromAlpha(1); qOut:SetToAlpha(0); qOut:SetDuration(0.5); qOut:SetStartDelay(0.2); qOut:SetOrder(2)
 	kf.quick:SetScript("OnFinished", function() kf.body:SetAlpha(0); kf.glow:Hide() end)
+	-- Ran out, softly: in quickly, a short hold, out over most of a second.
+	kf.soft = kf.body:CreateAnimationGroup()
+	local sIn = kf.soft:CreateAnimation("Alpha")
+	sIn:SetFromAlpha(0); sIn:SetToAlpha(1); sIn:SetDuration(0.1); sIn:SetOrder(1)
+	local sOut = kf.soft:CreateAnimation("Alpha")
+	sOut:SetFromAlpha(1); sOut:SetToAlpha(0); sOut:SetDuration(0.9); sOut:SetStartDelay(0.3); sOut:SetOrder(2)
+	kf.soft:SetScript("OnFinished", function() kf.body:SetAlpha(0); kf.glow:Hide() end)
+	-- A small white hourglass from the client's common art (tinted by its alpha only).
+	kf.hourglass = kf.body:CreateTexture(nil, "OVERLAY", nil, 2)
+	kf.hourglass:SetTexture("Interface\\Common\\mini-hourglass")
+	kf.hourglass:SetPoint("CENTER")
+	kf.hourglass:Hide()
+	kf.tick = kf.body:CreateTexture(nil, "OVERLAY", nil, 2)
+	kf.tick:SetTexture("Interface\\RaidFrame\\ReadyCheck-Ready")
+	kf.tick:SetPoint("CENTER")
+	kf.tick:Hide()
 	kf.mark = CreateFrame("Frame", nil, kf)
 	kf.mark:SetAllPoints()
 	kf.mark:Hide()
 	kf.mark.icon = kf.mark:CreateTexture(nil, "ARTWORK")
 	kf.mark.icon:SetAllPoints()
-	kf.mark.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	ns.cropIcon(kf.mark.icon)
 	kf.mark.icon:SetDesaturated(true)
 	kf.mark.icon:SetAlpha(0.6)
 	kf.mark.x = kf.mark:CreateTexture(nil, "OVERLAY")
@@ -267,23 +480,42 @@ function ns.makeEndFlash(parent, anchor, owner)
 		pcall(self.icon.SetTexture, self.icon, icon)
 		pcall(self.mark.icon.SetTexture, self.mark.icon, icon)
 	end
-	-- dur: the gone totem's last duration object. opts: expired (ran out, else killed early), and
-	-- for killed early pop, glow, mark (booleans).
+	-- dur: the gone totem's last duration object, or nil to play regardless (the options' previews).
+	-- opts: expired (ran out, else killed early), and for killed early pop, glow, mark (booleans);
+	-- grounded; ranOut (a colour) for the soft ran-out.
 	function kf:play(dur, opts)
-		local curve = opts.expired and expiredCurve or killedCurve
-		if not curve then return end
-		local ok, a = ns.try("end flash", dur.EvaluateRemainingDuration, dur, curve)
-		if not ok then return end
+		local a = 1
+		if dur then
+			local curve = opts.expired and expiredCurve or killedCurve
+			if not curve then return end
+			local ok
+			ok, a = ns.try("end flash", dur.EvaluateRemainingDuration, dur, curve)
+			if not ok then return end
+		end
 		self:SetAlpha(a)
 		local size = anchor:GetWidth()
+		local soft = opts.expired and opts.ranOut
+		if soft then
+			local c = opts.ranOut
+			self.glow:color(c[1], c[2], c[3]); self.red:SetColorTexture(c[1], c[2], c[3], 0.45)
+		elseif opts.grounded then
+			local c = POP_TINT.grounded
+			self.glow:color(c[1], c[2], c[3]); self.red:SetColorTexture(c[1], c[2], c[3], 0.7)
+		else
+			self.glow:color(1, 0.12, 0.08); self.red:SetColorTexture(0.95, 0.12, 0.08, 0.7)
+		end
 		self.glow:fit(size)
 		self.glow:SetShown(opts.glow and true or false)
-		self.red:SetShown(not opts.expired)
-		self.icon:SetDesaturated(not opts.expired)
+		self.red:SetShown(not opts.expired or soft and true or false)
+		self.icon:SetDesaturated(not opts.expired or soft and true or false)
+		self.hourglass:SetShown(soft and true or false)
+		self.hourglass:SetSize(size * 0.5, size * 0.5)
+		self.tick:SetShown(opts.grounded and not opts.expired and true or false)
+		self.tick:SetSize(size * 0.6, size * 0.6)
 		self.mark.x:SetSize(size * 0.7, size * 0.7)
-		self.flash:Stop(); self.quick:Stop()
-		if opts.expired then self.quick:Play() else self.flash:Play() end
-		if opts.pop then ns.playPop(self.pop, opts.expired and "expired" or "killed", owner) end
+		self.flash:Stop(); self.quick:Stop(); self.soft:Stop()
+		if soft then self.soft:Play() elseif opts.expired then self.quick:Play() else self.flash:Play() end
+		if opts.pop then ns.playPop(self.pop, opts.expired and "expired" or opts.grounded and "grounded" or "killed", owner) end
 		if opts.mark then
 			self.mark:Show()
 			local token = {}
@@ -291,7 +523,33 @@ function ns.makeEndFlash(parent, anchor, owner)
 			C_Timer.After(5, function() if self.markToken == token then self.mark:Hide() end end)
 		else self.mark:Hide() end
 	end
+	-- Stops a flash still playing and takes down its cross (the options' previews, on a new state).
+	function kf:stop()
+		self.flash:Stop(); self.quick:Stop(); self.soft:Stop()
+		self.body:SetAlpha(0); self.glow:Hide(); self.mark:Hide()
+		self.markToken = nil
+	end
 	return kf
+end
+
+-- A grow-and-settle pop as an animation group on region (a texture or frame), sized and timed by
+-- owner's pop style: the one kind of pop Blizzard's aura button can play for us (Elemental Focus),
+-- and its previews. restyle() takes the current style; on = false makes it a no-op (scale 1).
+function ns.makeGrowPop(region, owner)
+	local g = region:CreateAnimationGroup()
+	local up = g:CreateAnimation("Scale")
+	up:SetOrder(1); up:SetOrigin("CENTER", 0, 0)
+	local down = g:CreateAnimation("Scale")
+	down:SetOrder(2); down:SetOrigin("CENTER", 0, 0)
+	function g:restyle(on)
+		local st = ns.Style.get(owner, "pop")
+		local s = on == false and 1 or st.size
+		local k = 1 / math.max(st.speed, 0.1)
+		up:SetScaleFrom(1, 1); up:SetScaleTo(s, s); up:SetDuration(0.12 * k)
+		down:SetScaleFrom(s, s); down:SetScaleTo(1, 1); down:SetDuration(0.25 * k)
+	end
+	g:restyle()
+	return g
 end
 
 -- owner: whose glow and pop style it uses (an element key, "totembar", or nil for General's).
@@ -301,11 +559,23 @@ function ns.makeIcon(parent, size, owner)
 	f:SetSize(size, size)
 	f.tex = f:CreateTexture(nil, "ARTWORK")
 	f.tex:SetAllPoints()
-	f.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	ns.cropIcon(f.tex)
 	f.manaOverlay = f:CreateTexture(nil, "ARTWORK", nil, 2)
 	f.manaOverlay:SetAllPoints(f.tex)
 	f.manaOverlay:SetColorTexture(0.2, 0.45, 1, 0.55)
 	f.manaOverlay:Hide()
+	-- The shock's body colour (out of range, no mana): an overlay over the art, a tint of the art, or
+	-- both. style: overlay | tint | both; the caller clears it first.
+	f.SetBodyPaint = function(self, style, r, g, b, overlayAlpha, tintStrength)
+		if style == "overlay" or style == "both" then
+			self.manaOverlay:SetColorTexture(r, g, b, overlayAlpha)
+			self.manaOverlay:Show()
+		end
+		if style == "tint" or style == "both" then
+			local k = 1 - tintStrength
+			self.tex:SetVertexColor(r == 1 and 1 or k, g == 1 and 1 or k, b == 1 and 1 or k)
+		end
+	end
 	f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
 	f.cd:SetAllPoints()
 	f.cd:SetDrawEdge(false)

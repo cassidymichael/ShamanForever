@@ -27,6 +27,17 @@ c:AddAuraSlot("key", "HELPFUL", {
 
 Gotchas: registered parts must be descendants of the button; script handlers (OnShow/OnHide etc.) on anything under the button never run, so you cannot learn when the aura disappears in combat (keep an always-visible underlay for the empty state); the count text only prints for two or more applications (no formatter constructor found); the button and its parts are off limits to addon code in combat (change alpha/fonts out of combat); everything readable about the button is secret, even out of combat.
 
+Never put a script handler or `HookScript` on the button itself: Blizzard shows it with `SetShown` and a secret value, which the client refuses on a button with addon script handlers ("Cannot be called with secrets due to existing script handlers"), and the container stops working (seen 2026-09-27).
+
+What the button does for you, in combat too (tested 2026-09-27 on Lightning Shield, including a recast mid-fight):
+
+- `button:AddAuraShownAnimation(group)`: plays your animation group while the aura shows and stops it when the aura goes (a looping glow). ShamanForever's Elemental Focus glow.
+- `button:AddAuraAssignedAnimation(group)`: plays a one-shot group each time a new aura lands (a pop). Elemental Focus's grow-and-settle pop.
+- `button:SetDurationBar(statusBar, { interpolation, direction })`: drives a status bar of yours from the aura's time.
+- Frames of yours parented to the button show and hide exactly with it.
+
+Candidate filters by spell ID (`includeSpellIDs`) are refused for harmful auras on units you can assist, unless the spell is flagged never-secret (`AuraContainerUtil.CanApplyIdentityCandidateFilters`), so a debuff on a party member can't be matched by spell. They work for helpful auras and for debuffs on hostile units. `"HARMFUL|CROWD_CONTROL"` does light for crowd control on a friendly unit, but can't tell a fear from a stun.
+
 ## The "no shield" look
 
 Blizzard's button hides when the aura is gone, but addon code has no sanctioned way to learn that in combat. Tested on build 69913 (2026-09-23):
@@ -50,9 +61,23 @@ Totem and cooldown elements never read a secret value. They hand Blizzard's obje
 
 - **Cooldowns and totem timers:** `C_Spell.GetSpellCooldownDuration` and `GetTotemDuration` return duration objects, which `Cooldown:SetCooldownFromDurationObject` and `StatusBar:SetTimerDuration` draw.
 - **Appear/disappear on a secret condition:** a duration object evaluates its remaining or total time through a `C_CurveUtil` curve, and the (possibly secret) result goes straight to `SetAlpha`. Fire Nova's "no fire totem" warning is a curve on the fire slot's remaining time (0 s → shown). An empty slot returns no duration object at all, which is plainly "no totem".
-- **Which earth totem is out:** in combat everything `GetTotemInfo` returns is secret, but our own `UNIT_SPELLCAST_SUCCEEDED` is not: it gives the spell, in the same frame as the `PLAYER_TOTEM_UPDATE` that fills the slot. So the totem in a slot is the last totem we cast into it (slots by spell ID from `GetMultiCastTotemSpells`, other ranks by the client's name for the spell), and Earthbind and Stoneclaw show their timer only when it is theirs. Call of the Elements reports each totem it drops as its own cast, so it binds the same way. When that is unknown (a `/reload` with a totem already out), out of combat the slot's spell ID decides, or failing that its icon (never its name, which is localized and carries the rank), and that is kept as if we had cast it. In combat the slot is secret, so after a `/reload` in combat the timer stays hidden until combat ends or the totem is recast; guessing from the totem's lifetime was dropped. Nothing is learned from the slot right after a cast: at that moment it can pair the old totem's name with the new totem's duration.
+- **Which totem is out:** in combat everything `GetTotemInfo` returns is secret, but our own `UNIT_SPELLCAST_SUCCEEDED` is not: it gives the spell, in the same frame as the `PLAYER_TOTEM_UPDATE` that fills the slot. So the totem in a slot is the last totem we cast into it (slots by spell ID from `GetMultiCastTotemSpells`, other ranks by the client's name for the spell), and each totem element (Earthbind, Stoneclaw, Mana Tide, Grounding) shows its timer only when it is its own. Call of the Elements reports each totem it drops as its own cast, so it binds the same way. When that is unknown (a `/reload` with a totem already out), out of combat the slot's spell ID decides, or failing that its icon (never its name, which is localized and carries the rank), and that is kept as if we had cast it. In combat the slot is secret, so after a `/reload` in combat the timer stays hidden until combat ends or the totem is recast; guessing from the totem's lifetime was dropped. Nothing is learned from the slot right after a cast: at that moment it can pair the old totem's name with the new totem's duration.
 
-Weapon imbues are item data (`C_Item.GetWeaponEnchantInfo`, enchant type `Imbue`) and stay readable in combat.
+Weapon imbues are item data (`C_Item.GetWeaponEnchantInfo`, enchant type `Imbue`) and stay readable in combat. So are reagent counts (`C_Item.GetItemCount`, tested 2026-09-27).
+
+## Timed from our own casts
+
+Some effects can't be read in combat at all, but our own casts can, so they are timed from the cast. Each is an inference, corrected from the aura whenever auras are readable (out of combat):
+
+- **Primed:** Nature's Swiftness from its cast until our next Nature spell with a cast time. Stormstrike's effect is a debuff on the target (its next 2 Nature hits), so it runs 12 s from the cast or until our second Lightning Bolt, Chain Lightning or Earth Shock; other Nature damage can spend it unseen.
+- **Buff windows:** Rage of the Farseer's 25 s from its cast.
+- **Water Walking and Water Breathing:** exact out of combat; in combat the time carries on from the last reading, and our own cast restarts it when there's no other friendly target (they can be cast on others).
+
+## Other readable signals
+
+- **The breath bar** (tested 2026-09-27, in and out of combat): `MIRROR_TIMER_START` with the timer `"BREATH"` comes with a negative scale while it drains under water and again with a positive one while it refills after surfacing; `MIRROR_TIMER_STOP` only once it's full. `GetMirrorTimerInfo` reads the same. Water Breathing warns while it drains.
+- **Loss of control on the player** (tested 2026-09-27): `C_LossOfControl` stays readable for the player in combat, spell ID included. The type label can mislead: a Sleep reported as `STUN` (display text "Asleep"), so match on the spell ID. For any other unit its fields are secret.
+- **Enemy casts:** `UNIT_SPELLCAST_START` fires for nameplates and the target, but the spell ID is secret in combat; the caster's name is readable in the open world.
 
 ## The totem bar in combat
 

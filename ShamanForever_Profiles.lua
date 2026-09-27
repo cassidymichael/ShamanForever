@@ -19,13 +19,12 @@ local ACCOUNT_DEFAULTS = {
 	keepOptionsOpen = false,  -- false: the options window steps aside while groups are being moved
 	lastShield = "lightning",  -- the shield last cast or seen; its icon is the no-shield look in "either" mode
 	imbueIDs = {},            -- learned enchant ID -> imbue key
+	fearCasters = {},         -- the player's edits to Tremor's mob list (ShamanForever_Tremor.lua)
 	profiles = {},            -- name -> settings (ShamanForever.lua's DEFAULTS)
 	chars = {},               -- "Name-Realm" -> { profile = name }
 }
 local DEFAULT_PROFILE = "Default"
 ns.DEFAULT_PROFILE = DEFAULT_PROFILE
--- Pre-groups layout keys, folded into a single group on first load.
-local LEGACY_KEYS = { "point", "x", "y", "alpha", "scale", "size", "spacing", "orientation", "growth", "order", "enabled" }
 -- Saved settings format. Bump it and add a step in P.load when a stored value must change.
 local SETTINGS_VERSION = 6
 
@@ -88,50 +87,10 @@ end
 function P.load()
 	ShamanForeverDB = ShamanForeverDB or {}
 	local a = ShamanForeverDB
-	-- Steps 1 to 3 are for saves from before profiles, where every setting sat in ShamanForeverDB.
-	local legacy = a
-	-- Pre-groups saves: one row or column, with hidden elements in db.enabled.
-	if legacy.groups == nil and (legacy.order or legacy.point) then
-		local g = {}
-		for k, v in pairs(ns.GROUP_DEFAULTS) do if legacy[k] ~= nil then g[k] = legacy[k] else g[k] = v end end
-		g.members, legacy.known = {}, {}
-		for _, key in ipairs(legacy.order or { "shield", "shock" }) do
-			legacy.known[key] = true
-			if not (legacy.enabled and legacy.enabled[key] == false) then table.insert(g.members, key) end
-		end
-		legacy.groups = { g }
-	end
-	if (a.settingsVersion or 0) < 4 then
-		for _, k in ipairs(LEGACY_KEYS) do legacy[k] = nil end
-	end
-	-- 1: snapping and the grid briefly defaulted to on during 0.2.0 development; start them off
-	-- once, after which the saved choice is kept.
-	if (a.settingsVersion or 0) < 1 then a.snap, a.grid = false, false end
-	-- 2: "only show in combat" moved from the whole display to each group (and element).
-	if (a.settingsVersion or 0) < 2 then
-		if legacy.combatOnly and type(legacy.groups) == "table" then
-			for _, g in ipairs(legacy.groups) do g.combatOnly = true end
-		end
-		legacy.combatOnly = nil
-	end
-	-- 3: per-element "only in combat" became the element's show mode (always | combat | never).
-	-- Elements hidden by being in no group are placed by sanitize, set to never.
-	if (a.settingsVersion or 0) < 3 and type(legacy.elementOpts) == "table" then
-		for _, o in pairs(legacy.elementOpts) do
-			if o.combatOnly then o.show = "combat" end
-			o.combatOnly = nil
-		end
-	end
-	-- 4: profiles. The settings so far become the Default profile, which every character uses.
-	if (a.settingsVersion or 0) < 4 then
-		local p = {}
-		for k in pairs(ns.DEFAULTS) do p[k], a[k] = a[k], nil end
-		a.profiles = { [DEFAULT_PROFILE] = p }
-	end
-	-- 5 and 6: no upgrade step needed.
+	-- A save from before profiles (0.3 and earlier) isn't upgraded: it starts from defaults.
+	if type(a.profiles) ~= "table" then wipe(a) end
 	a.settingsVersion = SETTINGS_VERSION
 	ns.fillDefaults(a, ACCOUNT_DEFAULTS)
-	a.totemLifetimes = nil   -- learned lifetimes (0.4.0 and earlier) could be wrong; no longer used
 	mergeCharKeys(a)
 	return a
 end
@@ -172,7 +131,7 @@ function P.rename(name)
 	a.profiles[name], a.profiles[old] = a.profiles[old], nil
 	for _, c in pairs(a.chars) do if c.profile == old then c.profile = name end end
 	ns.selectProfile(name)
-	ns.RefreshOptions()
+	ns.Options.refresh()
 end
 
 -- Deletes the active profile; characters that used it go back to Default, which cannot be deleted.
@@ -210,17 +169,24 @@ end
 
 -- Numbers the options limit to a range; anything outside it (hand-made or damaged text) would break
 -- the layout on every draw. Values are clamped, and NaN (v ~= v) falls back to the default.
+-- The same ranges as the options' sliders, so an imported profile can't hold what the options can't set.
 local RANGES = {
-	iconSize = { 16, 128 }, countSize = { 6, 64 }, chargeBarHeight = { 1, 32 },
-	underlayUp = { 0, 1 }, shieldIconAlpha = { 0, 1 }, manaRing = { 0, 1 }, manaIntensity = { 0, 1 },
-	manaTint = { 0, 1 }, rangeIntensity = { 0, 1 }, rangeTint = { 0, 1 }, imbueWarnMins = { 0, 60 },
+	iconSize = { 24, 96 }, countSize = { 8, 64 }, chargeBarHeight = { 1, 20 },
+	underlayUp = { 0, 1 }, shieldIconAlpha = { 0.5, 1 }, manaRing = { 0.1, 1 }, manaIntensity = { 0.1, 1 },
+	manaTint = { 0.1, 1 }, rangeIntensity = { 0.1, 1 }, rangeTint = { 0.1, 1 }, imbueWarnMins = { 0, 30 },
 }
-local GROUP_RANGES = { scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { 0, 64 }, size = { 16, 128 }, x = { -10000, 10000 }, y = { -10000, 10000 } }
+local GROUP_RANGES = { scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { 0, 40 }, size = { 24, 96 },
+	x = { -10000, 10000 }, y = { -10000, 10000 } }
+-- An element's own numbers (db.elementOpts[key]), and its Expiring warning's.
+local ELEMENT_RANGES = { idleAlpha = { 0, 1 }, reagentLow = { 0, 10 }, reagentSize = { 8, 40 },
+	reagentX = { -50, 50 }, reagentY = { -50, 50 }, wordSize = { 8, 40 }, wordX = { -100, 100 }, wordY = { -100, 100 } }
+local EXPIRE_RANGES = { secs = { 0, 120 } }
+-- defaults nil: a NaN is dropped, so the setting's own default applies.
 local function clampNumbers(t, ranges, defaults)
 	for k, r in pairs(ranges) do
 		local v = t[k]
 		if type(v) == "number" then
-			if v ~= v then t[k] = defaults[k] else t[k] = math.min(math.max(v, r[1]), r[2]) end
+			if v ~= v then t[k] = defaults and defaults[k] or nil else t[k] = math.min(math.max(v, r[1]), r[2]) end
 		end
 	end
 end
@@ -238,7 +204,11 @@ local function cleanProfile(t)
 	-- totem bar's settings (ShamanForever_TotemBar.lua).
 	if out.elementOpts then
 		for key, o in pairs(out.elementOpts) do
-			if type(key) ~= "string" or type(o) ~= "table" then out.elementOpts[key] = nil end
+			if type(key) ~= "string" or type(o) ~= "table" then out.elementOpts[key] = nil
+			else
+				clampNumbers(o, ELEMENT_RANGES)
+				if type(o.expire) == "table" then clampNumbers(o.expire, EXPIRE_RANGES) end
+			end
 		end
 	end
 	if out.groups then

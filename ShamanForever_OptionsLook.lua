@@ -13,14 +13,11 @@ L.WAGO = "https://addons.wago.io/addons/shamanforever"
 L.DISCORD = "https://discord.gg/VaXH8CQZFG"
 L.KOFI = "https://ko-fi.com/cassidycloud"
 
--- Five art schools; spirit covers anything mixed, all or neither.
-L.SCHOOL = {
-	earth  = { 0.75, 0.54, 0.24, banner = "Banner-Earth.jpg" },
-	fire   = { 0.89, 0.38, 0.18, banner = "Banner-Fire.jpg" },
-	water  = { 0.25, 0.69, 0.77, banner = "Banner-Water.jpg" },
-	air    = { 0.56, 0.76, 0.92, banner = "Banner-Air.jpg" },
-	spirit = { 0.73, 0.64, 0.90, banner = "Banner-Spirit.jpg" },
-}
+-- Five art schools (colours: ns.SCHOOL_COLOR); spirit covers anything mixed, all or neither.
+L.SCHOOL = {}
+for school, c in pairs(ns.SCHOOL_COLOR) do
+	L.SCHOOL[school] = { c[1], c[2], c[3], banner = "Banner-" .. school:gsub("^%l", string.upper) .. ".jpg" }
+end
 -- Banners are 1400x260 art in the top-left of a 2048x512 file. They fill the header, cropped
 -- (never stretched) to its shape, keeping the right-hand side where the art is strongest.
 local ART_W, ART_H, FILE_W, FILE_H = 1400, 260, 2048, 512
@@ -56,6 +53,37 @@ L.ELEMENT = {
 			return string.format("%s  ·  %s", ns.TotemBar.modeName(), shows[c.show] or "")
 		end },
 }
+
+-- The cooldown elements added after the first three (ShamanForever_Cooldowns.lua): their icon and
+-- school come from the element, and its experimental flag says whether it's been tested in game.
+local BLURB = {
+	naturesswiftness = "Cooldown, and a glow while your next Nature spell is instant.",
+	manatide = "Cooldown, and time left while it's down.",
+	grounding = "Cooldown, time left, and a flash when it takes a spell.",
+	stormstrike = "Cooldown, and a bar while your target takes more Nature damage.",
+	riptide = "Cooldown.",
+	farseer = "Cooldown, and time left while it's on.",
+	projection = "Cooldown.",
+	reincarnation = "Cooldown, and your Ankhs when they run low.",
+	waterwalking = "Time left while it's up.",
+	waterbreathing = "Time left while it's up. Warns under water without it.",
+	elementalfocus = "Shows while " .. ns.Spells.name("clearcasting") .. " is up.",
+}
+for _, def in ipairs(ns.Cooldowns.COOLDOWNS) do
+	if def.new then
+		L.ELEMENT[def.key] = { name = def.spell, spell = def.spellKey, icon = def.icon, school = def.school,
+			blurb = BLURB[def.key], experimental = def.experimental }
+	end
+end
+for _, def in ipairs(ns.Buffs.BUFFS) do
+	L.ELEMENT[def.key] = { name = def.spell, spell = def.spellKey, icon = def.icon, school = def.school,
+		blurb = BLURB[def.key], experimental = def.experimental }
+end
+do
+	local def = ns.Tremor.def
+	L.ELEMENT.tremor = { name = def.spell, spell = def.spellKey, icon = def.icon, school = def.school,
+		blurb = "Warns near mobs that fear, charm or sleep." }
+end
 
 -- An element's name: a spell's in the client's language (name is the fallback), else its own.
 function L.elementName(key)
@@ -129,7 +157,7 @@ local function showFeedback(anchor, feature)
 		pop = CreateFrame("Frame", "ShamanForeverFeedback", UIParent, "BackdropTemplate")
 		pop:SetSize(372, 154)
 		pop:SetFrameStrata("TOOLTIP")
-		pop:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+		pop:SetBackdrop(ns.BACKDROP)
 		pop:SetBackdropColor(0.06, 0.05, 0.04, 0.98)
 		pop:SetBackdropBorderColor(0.73, 0.55, 0.22, 1)
 		pop:EnableMouse(true)
@@ -170,7 +198,7 @@ end
 -- EXPERIMENTAL, marking an untested choice, and leads to About's Experimental section.
 function L.expBadge(parent, feature, label)
 	local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
-	b:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+	b:SetBackdrop(ns.BACKDROP)
 	b:SetBackdropColor(0.95, 0.77, 0.42, 0.08)
 	b:SetBackdropBorderColor(0.95, 0.77, 0.42, 0.5)
 	b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -180,7 +208,7 @@ function L.expBadge(parent, feature, label)
 	b:SetSize(b.text:GetStringWidth() + 12, 16)
 	b.feature = feature
 	b:SetScript("OnClick", function(self)
-		if label then showFeedback(self, self.feature) else ns.ShowExperimental() end
+		if label then showFeedback(self, self.feature) else ns.Options.showExperimental() end
 	end)
 	b:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -200,8 +228,14 @@ end
 -- Preview icons: the HUD's icon plus the pieces some elements add (charge bar), and the same
 -- timers the HUD uses (ShamanForever_Timers.lua), frozen.
 ------------------------------------------------------------------------
-local HAS_COOLDOWN = { shock = true, earthbind = true, stoneclaw = true, firenova = true }
-local HAS_UPTIME = { shield = true, imbue = true, earthbind = true, stoneclaw = true, firenova = true, totembar = true }
+local HAS_COOLDOWN = { shock = true }
+local HAS_UPTIME = { shield = true, imbue = true, totembar = true }
+for _, def in ipairs(ns.Cooldowns.COOLDOWNS) do
+	HAS_COOLDOWN[def.key] = true
+	if def.totemSlot or def.needsTotem or def.window or (def.primed and def.primed.duration) then HAS_UPTIME[def.key] = true end
+end
+for _, def in ipairs(ns.Buffs.BUFFS) do HAS_UPTIME[def.key] = true end
+HAS_UPTIME.tremor = true
 local function makePreviewIcon(parent, key)
 	local ic = ns.makeIcon(parent, 56, key)   -- the element's own glow and pop style
 	local e = L.ELEMENT[key]
@@ -270,20 +304,9 @@ local function frozen(t, frac, length)
 	t:static(frac, length)
 end
 
-local function paintBody(ic, style, r, g, b, overlayAlpha, tint)
-	if style == "overlay" or style == "both" then
-		ic.manaOverlay:SetColorTexture(r, g, b, overlayAlpha)
-		ic.manaOverlay:Show()
-	end
-	if style == "tint" or style == "both" then
-		local k = 1 - tint
-		ic.tex:SetVertexColor(r == 1 and 1 or k, g == 1 and 1 or k, b == 1 and 1 or k)
-	end
-end
-
 -- An element's Expiring look (its Expiring block's settings), over a timer in its last seconds.
 local function expiringLook(ic, key, length)
-	local e = ns.expireOpts(key)
+	local e = ns.Timer.expireOpts(key)
 	frozen(ic.upT, 1 - math.min(e.secs > 0 and e.secs or 5, length) / length, length)
 	if e.secs <= 0 then return end
 	if e.grey then ic.tex:SetDesaturated(true) end
@@ -293,38 +316,74 @@ local function expiringLook(ic, key, length)
 end
 local function opt(key, name) return ns.elementSetting(key, name) end
 
+local previewState = {}   -- element key -> its header's preview state
+
+-- An idle element as the preview shows it: its Idle opacity, but never quite invisible (0% shows as
+-- a faint icon, so the state can still be seen).
+local FAINT = 0.12
+local function idleLook(ic, key) ic:SetAlpha(math.max(ns.idleAlpha(key), FAINT)) end
+-- Ready, then idle: as on the HUD, the icon holds full for a moment after its ready pop, then fades.
+local IDLE_DELAY = 1.5
+local function idleSoon(ic, key, st)
+	local token = {}
+	ic.idleToken = token
+	C_Timer.After(IDLE_DELAY, function()
+		if ic.idleToken == token and previewState[key] == st then idleLook(ic, key) end
+	end)
+end
+
 local function totemPreview(def)
+	local g = def.grounded   -- Grounding: its early end is Grounded, in air blue with no cross
 	return {
-		states = { { "ready", "Ready" }, { "active", "Totem down" }, { "expiring", "Expiring" }, { "ranout", "Ran out" }, { "cd", "Cooldown" }, { "killed", "Killed early" } },
+		states = { { "ready", "Ready" }, { "active", "Totem down" }, { "expiring", "Expiring" }, { "ranout", "Ran out" }, { "cd", "Cooldown" },
+			{ "killed", g and "Grounded" or "Killed early" } },
+		-- Ran out (Mana Tide, Grounding) and Killed early / Grounded play their flash as in game;
+		-- the cooldown the totem left shows once it has played (ic.momentDone).
 		pop = function(ic, st)
-			if st == "ready" and opt(def.key, "readyPop") then ic:Pop("ready")
-			elseif st == "ranout" and opt(def.key, "expiredPop") then ic:Pop("expired")
-			elseif st == "killed" and opt(def.key, "killed") and opt(def.key, "killedPop") then ic:Pop("killed") end
+			local key = def.key
+			local function flash(opts, secs)
+				if opts then
+					if not ic.endFlash then ic.endFlash = ns.makeEndFlash(ic, ic, key) end
+					ic.endFlash:setIcon(def.iconID or def.icon)
+					ic.endFlash:play(nil, opts)
+				end
+				local token = {}
+				ic.momentToken, ic.momentDone = token, false
+				C_Timer.After(opts and secs or 0, function()
+					if ic.momentToken ~= token or previewState[key] ~= st then return end
+					ic.momentDone = true
+					frozen(ic.cdT, 0.05, def.cd or 15)
+				end)
+			end
+			if st == "ready" then
+				if opt(key, "readyPop") then ic:Pop("ready") end
+				idleSoon(ic, key, st)
+			elseif st == "ranout" and def.ranOut then
+				flash(opt(key, "ranOutFlash") and { expired = true, ranOut = ns.SCHOOL_COLOR[def.school],
+					pop = opt(key, "ranOutPop"), glow = opt(key, "ranOutGlow") }, 1.4)
+			elseif st == "ranout" and opt(key, "expiredPop") then ic:Pop("expired")
+			elseif st == "killed" and g then
+				flash(opt(key, "grounded") and { grounded = true, pop = opt(key, "groundedPop"), glow = opt(key, "groundedGlow") }, 2.1)
+			elseif st == "killed" then
+				flash(opt(key, "killed") and { pop = opt(key, "killedPop"), glow = opt(key, "killedGlow"), mark = opt(key, "killedMark") }, 2.1)
+			end
 		end,
 		render = function(ic, st)
 			reset(ic, def.iconID or def.icon)
-			if ic.killX then ic.killX:Hide() end
+			-- Another state: a flash still playing (or its cross) goes.
+			local e = ic.endFlash
+			if e and st ~= ic.flashState then
+				e:stop()
+				ic.momentDone = false
+			end
+			ic.flashState = st
+			local cd = def.cd or 15
 			if st == "expiring" then expiringLook(ic, def.key, def.duration or 45)
 			elseif st == "active" then frozen(ic.upT, 0.45, def.duration or 45)
-			elseif st == "cd" then frozen(ic.cdT, 0.4, 15)
-			elseif st == "killed" then
-				frozen(ic.cdT, 0.4, 15)
-				if opt(def.key, "killed") then
-					-- The flash at its brightest: greyed under red, with the red glow and the cross if on.
-					ic.tex:SetDesaturated(true)
-					ic.manaOverlay:SetColorTexture(0.95, 0.12, 0.08, 0.7)
-					ic.manaOverlay:Show()
-					if opt(def.key, "killedGlow") then ic:SetGlowShown(true, 1, 0.12, 0.08) end
-					if opt(def.key, "killedMark") then
-						if not ic.killX then
-							ic.killX = ic.textFrame:CreateTexture(nil, "OVERLAY")
-							ic.killX:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
-							ic.killX:SetPoint("CENTER")
-						end
-						ic.killX:SetSize(ic:GetWidth() * 0.7, ic:GetWidth() * 0.7)
-						ic.killX:Show()
-					end
-				end
+			elseif st == "cd" then frozen(ic.cdT, 0.4, cd)
+			elseif (st == "ranout" and def.ranOut) or st == "killed" then
+				-- Nothing drawn until the flash has played (pop, above), then the cooldown it left.
+				if ic.momentDone then frozen(ic.cdT, 0.05, cd) end
 			end
 		end,
 	}
@@ -374,8 +433,8 @@ L.PREVIEW = {
 			reset(ic, icons[d.shock] or 136026)
 			if st == "ready" then ic:SetGlowShown(opt("shock", "readyGlow")) end
 			if st == "cd" then frozen(ic.cdT, 0.4, 6)
-			elseif st == "range" or st == "both" then paintBody(ic, d.rangeStyle, 1, 0.25, 0.25, d.rangeIntensity, d.rangeTint)
-			elseif st == "mana" then paintBody(ic, d.manaStyle, 0.2, 0.45, 1, d.manaIntensity, d.manaTint) end
+			elseif st == "range" or st == "both" then ic:SetBodyPaint(d.rangeStyle, 1, 0.25, 0.25, d.rangeIntensity, d.rangeTint)
+			elseif st == "mana" then ic:SetBodyPaint(d.manaStyle, 0.2, 0.45, 1, d.manaIntensity, d.manaTint) end
 			if st == "mana" or st == "both" then ic:SetRingShown(true, 0.2, 0.45, 1, d.manaRing) end
 		end,
 	},
@@ -386,13 +445,13 @@ L.PREVIEW = {
 			local d = db()
 			if st == "missing" then
 				-- The HUD's own choice: the preferred imbue, or the last one used.
-				reset(ic, ns.preferredImbueIcon())
+				reset(ic, ns.Imbue.preferredIcon())
 				ic.tex:SetDesaturated(d.imbueMissingGrey)
 				ic:SetRingShown(d.imbueMissingRing)
 				ic:SetPulsing(d.imbuePulse)
 				ic:SetGlowShown(d.imbueGlow)
 			else
-				reset(ic, ns.imbueIcon())
+				reset(ic, ns.Imbue.icon())
 				if st == "low" and d.imbueWarnMins > 0 then frozen(ic.upT, 0.95, 3600) end
 				if st == "fine" and d.imbueHideActive then ic:SetAlpha(0.15) end
 			end
@@ -415,9 +474,144 @@ L.PREVIEW = {
 		end,
 	},
 }
-for _, def in ipairs(ns.COOLDOWNS or {}) do
-	if def.totemSlot and not L.PREVIEW[def.key] then L.PREVIEW[def.key] = totemPreview(def) end
+-- An element's reagent count and none-left look in a preview, for n reagents (its Reagent block's
+-- settings: when the count shows, its Low mark, the none-left looks).
+function L.reagentLook(ic, key, n)
+	local _, ring, pulse = ns.Cooldowns.paintReagent(ic, key, n)
+	ic:SetRingShown(ring)
+	ic:SetPulsing(pulse)
 end
+-- The preview's counts: plenty, "few left" (at the Low mark, at least 1) and none.
+local PLENTY = 15
+local function fewLeft(key)
+	local v = opt(key, "reagentLow")
+	return math.max(type(v) == "number" and v == v and v or 2, 1)
+end
+
+-- A cooldown element without a totem (the newer ones): Ready and Cooldown, plus the states of the
+-- parts it has (a primed buff, a buff window, a reagent).
+local function cooldownPreview(def)
+	local key, states = def.key, { { "ready", "Ready" }, { "cd", "Cooldown" } }
+	if def.primed then table.insert(states, { "primed", "Primed" }) end
+	if def.window then
+		table.insert(states, { "active", "Active" })
+		table.insert(states, { "expiring", "Expiring" })
+	end
+	if def.reagent then
+		table.insert(states, { "low", "Few left" })
+		table.insert(states, { "out", "None left" })
+	end
+	local long = def.cd or 60   -- a cooldown's length, for its text
+	return {
+		states = states,
+		pop = function(ic, st)
+			if st == "ready" then
+				if not def.noReady and opt(key, "readyPop") then ic:Pop("ready") end
+				idleSoon(ic, key, st)
+			elseif st == "primed" and def.primedLooks ~= false and opt(key, "primedPop") then ic:Pop("ready") end
+		end,
+		render = function(ic, st)
+			reset(ic, def.iconID or def.icon)
+			if st == "ready" then ic:SetGlowShown(def.readyGlow and opt(key, "readyGlow"))
+			elseif st == "cd" then frozen(ic.cdT, 0.4, long)
+			elseif st == "primed" then
+				ic:SetGlowShown(def.primedLooks ~= false and opt(key, "primedGlow"))
+				if def.primed.duration then frozen(ic.upT, 0.3, def.primed.duration) end
+			elseif st == "active" then frozen(ic.upT, 0.3, def.window)
+			elseif st == "expiring" then expiringLook(ic, key, def.window)
+			elseif st == "low" or st == "out" then frozen(ic.cdT, 0.4, long) end
+			if def.reagent then L.reagentLook(ic, key, st == "out" and 0 or st == "low" and fewLeft(key) or PLENTY) end
+		end,
+	}
+end
+
+for _, def in ipairs(ns.Cooldowns.COOLDOWNS) do
+	if not L.PREVIEW[def.key] then
+		L.PREVIEW[def.key] = def.totemSlot and totemPreview(def) or cooldownPreview(def)
+	end
+end
+
+-- A buff element: up, expiring and not up (its idle look), plus the proc's glow or the water
+-- buffs' warnings.
+local function buffPreview(def)
+	local key = def.key
+	local states = { { "up", def.proc and ns.Spells.name("clearcasting") or "Up" } }
+	if not def.proc then table.insert(states, { "expiring", "Expiring" }) end
+	table.insert(states, { "idle", "Not up" })
+	if def.reagent then
+		table.insert(states, { "low", "Not up, few left" })
+		table.insert(states, { "out", "Not up, none left" })
+	end
+	if def.breath then table.insert(states, { "underwater", "Under water" }) end
+	return {
+		states = states,
+		-- Elemental Focus's pop is the grow-and-settle Blizzard's button plays (not the full pop).
+		pop = function(ic, st)
+			if st == "up" and def.proc and opt(key, "primedPop") then
+				if not ic.growPop then ic.growPop = ns.makeGrowPop(ic, key) end
+				ic.growPop:restyle(true)
+				ic.growPop:Play()
+			end
+		end,
+		render = function(ic, st)
+			reset(ic, def.icon)
+			if st == "up" then
+				if def.proc then
+					frozen(ic.upT, 0.3, 15)
+					ic:SetGlowShown(opt(key, "primedGlow"))
+				else frozen(ic.upT, 0.3, 600) end
+			elseif st == "expiring" then expiringLook(ic, key, 600)
+			elseif st == "idle" then idleLook(ic, key)
+			elseif st == "low" or st == "out" then
+				-- Running low isn't idle when Idle counts reagents (the default).
+				if not opt(key, "reagentShow") then idleLook(ic, key) end
+				L.reagentLook(ic, key, st == "out" and 0 or fewLeft(key))
+			elseif st == "underwater" then
+				if opt(key, "breathWarn") then
+					ic:SetRingShown(opt(key, "breathRing"))
+					ic:SetPulsing(opt(key, "breathPulse"))
+				else idleLook(ic, key) end
+			end
+			-- The count shows in every state when set to Always (the default).
+			if def.reagent and st ~= "low" and st ~= "out" then L.reagentLook(ic, key, PLENTY) end
+		end,
+	}
+end
+for _, def in ipairs(ns.Buffs.BUFFS) do L.PREVIEW[def.key] = buffPreview(def) end
+
+-- Tremor Totem: warning, its totem down (time left; idle too, unless Idle when says otherwise) and
+-- idle (not down, nothing to warn about).
+L.PREVIEW.tremor = {
+	states = { { "warn", "Warning" }, { "down", "Tremor down" }, { "idle", "Not down, no warning" } },
+	pop = function(ic, st) if st == "warn" and opt("tremor", "alertPop") then ic:Pop("ready") end end,
+	render = function(ic, st)
+		local def = ns.Tremor.def
+		reset(ic, def.iconID or def.icon)
+		if not ic.word then
+			-- On a frame that clips to the preview panel, so a large size or offset stays inside the
+			-- header.
+			local clip = CreateFrame("Frame", nil, ic:GetParent())
+			clip:SetAllPoints(ic:GetParent())
+			clip:SetClipsChildren(true)
+			clip:SetFrameLevel(ic.textFrame:GetFrameLevel() + 1)
+			ic.word = clip:CreateFontString(nil, "OVERLAY")
+			ic.word:SetFont(STANDARD_TEXT_FONT, 20, "OUTLINE")
+			ic.word:SetText(ns.Tremor.WORD)
+		end
+		ns.Tremor.styleWord(ic.word, ic)
+		ic.word:Hide()
+		if st == "warn" then
+			ic:SetGlowShown(opt("tremor", "alertGlow"))
+			ic.word:SetShown(opt("tremor", "alertText") and true or false)
+			return
+		end
+		if st == "down" then
+			frozen(ic.upT, 0.3, 300)
+			if opt("tremor", "idleWhen") == "notdown" then return end
+		end
+		idleLook(ic, "tremor")
+	end,
+}
 
 -- The totem bar: the header is its stage. The bar is drawn at its real size (icon size × the
 -- bar's scale, inside a frame with that scale, so text, borders and spacing match the game),
@@ -431,7 +625,7 @@ local PREVIEW_LEFT = { earth = { 250, 300 }, fire = { 38, 55 }, water = { 83, 30
 local POP_ITEMS = 3   -- "No totem" and two totems: enough to show the look within the header
 local function tabArrow(parent)
 	local t = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-	t:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+	t:SetBackdrop(ns.BACKDROP)
 	t:SetBackdropColor(0.06, 0.05, 0.03, 0.92)
 	t:SetBackdropBorderColor(0.85, 0.71, 0.42, 0.9)
 	t.glyph = t:CreateTexture(nil, "OVERLAY")
@@ -473,7 +667,7 @@ L.PREVIEW.totembar = {
 			ic.badge:SetFrameLevel(ic:GetFrameLevel() + 6)
 			ic.badge.icon = ic.badge:CreateTexture(nil, "ARTWORK")
 			ic.badge.icon:SetAllPoints()
-			ic.badge.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+			ns.cropIcon(ic.badge.icon)
 			-- Out of range: the strip along the top (ShamanForever_TotemRange.lua).
 			ic.rangeF = CreateFrame("Frame", nil, bar)
 			ic.rangeF:SetFrameLevel(ic:GetFrameLevel() + 7)
@@ -501,7 +695,7 @@ L.PREVIEW.totembar = {
 			local it = CreateFrame("Frame", nil, h.pop)
 			it.tex = it:CreateTexture(nil, "ARTWORK")
 			it.tex:SetAllPoints()
-			it.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+			ns.cropIcon(it.tex)
 			it.x = it:CreateFontString(nil, "OVERLAY", "GameFontDisable")
 			it.x:SetPoint("CENTER")
 			it.x:SetText("X")
@@ -721,18 +915,29 @@ L.PREVIEW.totembar = {
 -- Element page header: banner, corners, icon, name, blurb, tags, preview with state buttons.
 ------------------------------------------------------------------------
 L.HERO_H = 160
-local previewState = {}
 local heroes = {}   -- element key -> its header, for L.setPreview
 
 function L.buildHero(parent, key)
 	local e = L.ELEMENT[key]
 	local school = L.SCHOOL[e.school]
 	local def = L.PREVIEW[key]
-	local heroH = def.heroH or L.HERO_H
+	-- The state buttons fit their longest label (the panel widens to match), and a long list of
+	-- states makes the header taller (the banner art is cropped to fill any shape).
+	local BTN_H, BTN_W = 17, 108
+	do
+		local probe = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		for _, st in ipairs(def.states) do
+			probe:SetText(st[2])
+			BTN_W = math.max(BTN_W, math.ceil(probe:GetStringWidth()) + 16)
+		end
+		probe:Hide()
+	end
+	local listH = #def.states * (BTN_H + 3) - 3
+	local heroH = def.heroH or math.max(L.HERO_H, listH + 14 + 24 + 4)
 	local h = CreateFrame("Frame", nil, parent, "BackdropTemplate")
 	h:SetHeight(heroH - 14)
 	h.heroH = heroH
-	h:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+	h:SetBackdrop(ns.BACKDROP)
 	h:SetBackdropColor(L.PANEL[1], L.PANEL[2], L.PANEL[3], 1)
 	h:SetBackdropBorderColor(0.36, 0.28, 0.17, 1)
 
@@ -754,7 +959,7 @@ function L.buildHero(parent, key)
 	h.icon:SetSize(60, 60)
 	if def.stage then h.icon:SetPoint("TOPLEFT", 40, -24) else h.icon:SetPoint("LEFT", 40, 0) end
 	h.icon:SetTexture(e.icon)
-	h.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	ns.cropIcon(h.icon)
 	h.iconEdge = h:CreateTexture(nil, "BORDER")
 	h.iconEdge:SetPoint("TOPLEFT", h.icon, -2, 2)
 	h.iconEdge:SetPoint("BOTTOMRIGHT", h.icon, 2, -2)
@@ -787,19 +992,20 @@ function L.buildHero(parent, key)
 		pcall(h.rule.SetGradient, h.rule, "HORIZONTAL", CreateColor(0.85, 0.71, 0.42, 0.45), CreateColor(0.85, 0.71, 0.42, 0))
 	end
 	if e.experimental then
+		-- In the banner above the icon, clear of the tags and the preview panel.
 		h.exp = L.expBadge(h, e.experimental)
-		h.exp:SetPoint("LEFT", h.tags, "RIGHT", 12, 0)
+		h.exp:SetPoint("BOTTOMLEFT", h.icon, "TOPLEFT", -2, 6)
 		h.exp:SetFrameLevel(h:GetFrameLevel() + 6)
 	end
 
 	-- Preview panel, pinned right inside the corner zone: the icon on the left, its states listed
 	-- on the right as small flat buttons (the selected one outlined in gold). A stage (the totem
 	-- bar) has no panel: the preview draws on the header itself, its states listed down the right.
-	local PANEL_W, PANEL_H, BTN_W, BTN_H = def.stage and 0 or (def.panelW or 196), heroH - 14 - 24, 108, 17
+	local PANEL_W, PANEL_H = def.stage and 0 or (def.panelW or (88 + BTN_W)), heroH - 14 - 24
 	local p = CreateFrame("Frame", nil, h, "BackdropTemplate")
 	p:SetSize(PANEL_W, PANEL_H)
 	p:SetPoint("RIGHT", -40, 0)
-	p:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+	p:SetBackdrop(ns.BACKDROP)
 	p:SetBackdropColor(0, 0, 0, 0.5)
 	p:SetBackdropBorderColor(0.23, 0.17, 0.10, 1)
 	local cap = p:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
@@ -810,11 +1016,10 @@ function L.buildHero(parent, key)
 		def.build(h)
 	else
 		h.previewIcon = makePreviewIcon(p, key)
-		h.previewIcon:SetPoint("LEFT", 16, -6)
+		h.previewIcon:SetPoint("LEFT", 16, -6)   -- snapped to whole pixels in refresh
 	end
 	h.stateButtons = {}
 	previewState[key] = previewState[key] or def.states[1][1]
-	local listH = #def.states * (BTN_H + 3) - 3
 	for i, st in ipairs(def.states) do
 		local b = CreateFrame("Button", nil, def.stage and h or p, "BackdropTemplate")
 		if def.stage then
@@ -824,7 +1029,7 @@ function L.buildHero(parent, key)
 			b:SetSize(BTN_W, BTN_H)
 			b:SetPoint("TOPRIGHT", -8, -(PANEL_H - listH) / 2 - (i - 1) * (BTN_H + 3))
 		end
-		b:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+		b:SetBackdrop(ns.BACKDROP)
 		b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		b.text:SetPoint("LEFT", 7, 0)
 		b.text:SetText(st[2])
@@ -855,7 +1060,8 @@ function L.buildHero(parent, key)
 		if e.tags then self.tags:SetText(e.tags()) else
 			local gi = ns.findElement(key)
 			local shows = { always = "Always", combat = "In combat", never = "Hidden" }
-			self.tags:SetText(string.format("%s  ·  %s", gi and ("Group " .. gi) or "No group", shows[ns.showMode(key)] or ""))
+			self.tags:SetText(string.format("%s  ·  %s%s", gi and ("Group " .. gi) or "No group", shows[ns.showMode(key)] or "",
+				ns.isLearned(key) and "" or "  ·  Not learned"))
 		end
 		-- A stage can offer only some states (the totem bar's mode): the others hide, the rest close
 		-- up, and a state that no longer applies falls back to def.fallback or the first one left.
@@ -890,6 +1096,21 @@ function L.buildHero(parent, key)
 			b:SetBackdropBorderColor(on and 0.88 or 0.23, on and 0.66 or 0.17, on and 0.29 or 0.10, 1)
 			b.text:SetTextColor(on and 1 or 0.78, on and 0.84 or 0.74, on and 0.5 or 0.68)
 		end
+		if not def.stage then
+			-- On whole screen pixels: a cooldown's swipe snaps to pixels and the icon's texture doesn't,
+			-- so at a fractional position a sliver of the icon shows beside the swipe.
+			local ic = self.previewIcon
+			ic:ClearAllPoints()
+			ic:SetPoint("LEFT", p, "LEFT", 16, -6)
+			local l, t = ic:GetLeft(), ic:GetTop()
+			local ok, _, screenH = pcall(GetPhysicalScreenSize)
+			if l and t and ok and type(screenH) == "number" and screenH > 0 then
+				local px = 768 / screenH / ic:GetEffectiveScale()   -- one screen pixel, in the icon's units
+				local dx = math.floor(l / px + 0.5) * px - l
+				local dy = math.floor(t / px + 0.5) * px - t
+				ic:SetPoint("LEFT", p, "LEFT", 16 + dx, -6 + dy)
+			end
+		end
 		if def.stage then def.render(self, previewState[key]) else
 			-- An element's preview wears its group's border (the totem bar's stage draws its own).
 			ns.applyBorder(self.previewIcon, ns.borderFor(key))
@@ -913,7 +1134,7 @@ end
 function L.buildIntro(parent, version)
 	local h = CreateFrame("Frame", nil, parent, "BackdropTemplate")
 	h:SetHeight(L.HERO_H - 14)
-	h:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+	h:SetBackdrop(ns.BACKDROP)
 	h:SetBackdropColor(L.PANEL[1], L.PANEL[2], L.PANEL[3], 1)
 	h:SetBackdropBorderColor(0.36, 0.28, 0.17, 1)
 	h.banner = h:CreateTexture(nil, "BACKGROUND", nil, 1)

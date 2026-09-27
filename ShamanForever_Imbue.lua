@@ -5,17 +5,17 @@
 -- directly every time. If a read fails the icon shows "?" rather than guessing, and /sf debug says
 -- what came back.
 --
--- The element's frame is made with the others in ShamanForever.lua, which calls in here (ns.Imbue)
--- from its layout, refreshes and events.
+-- ShamanForever.lua calls in through the module hooks (ns.registerModule).
 
 local _, ns = ...
 local say, isSecret = ns.say, ns.isSecret
 local Spells = ns.Spells
 
-local IM = {}
+local IM = { name = "imbue" }
 ns.Imbue = IM
 
-local imbue = ns.ELEMENTS.imbue.frame
+local imbue = ns.newElementIcon("imbue")
+ns.registerElement("imbue", { frame = imbue, label = "Weapon Imbue", paint = function(t) t:SetTexture(IM.icon()) end })
 
 -- The key is also the spell's key in ns.Spells; name is its display name (the client's). ids are
 -- enchant IDs (item data), not spell IDs.
@@ -27,7 +27,7 @@ local IMBUES = {
 }
 for key, m in pairs(IMBUES) do m.name = Spells.name(key) end
 local IMBUE_ORDER = { "rockbiter", "flametongue", "frostbrand", "windfury" }
-ns.IMBUES, ns.IMBUE_ORDER = IMBUES, IMBUE_ORDER
+IM.IMBUES, IM.ORDER = IMBUES, IMBUE_ORDER
 local MAIN_HAND = Enum and Enum.WeaponSlot and Enum.WeaponSlot.MainHand or 0
 local IMBUE_TYPE = Enum and Enum.ItemEnchantType and Enum.ItemEnchantType.Imbue or 3
 
@@ -86,8 +86,8 @@ local function preferredImbueIcon()
 	local db, acct = ns.getDB(), ns.getAccount()
 	return imbueIconFor(db.imbuePreferred == "last" and (acct.imbueLast or "rockbiter") or db.imbuePreferred)
 end
-ns.preferredImbueIcon = preferredImbueIcon
-function ns.imbueIcon() return imbueIcon end
+IM.preferredIcon = preferredImbueIcon
+function IM.icon() return imbueIcon end
 
 local function paintImbue(now)
 	local db, acct = ns.getDB(), ns.getAccount()
@@ -177,7 +177,16 @@ function IM.resolve()
 end
 
 -- The timer takes its current style (ns.applyTimers).
-function IM.applyTimer() imbue.upTimer:apply() end
+function IM.applyTimers() imbue.upTimer:apply() end
+IM.applyLayout = IM.refresh
+IM.tick = IM.refresh   -- once a second: the time left
+-- A shaman logged in: the weapon's own events.
+function IM.start()
+	local ev = CreateFrame("Frame")
+	ns.registerEvent(ev, "UNIT_INVENTORY_CHANGED", "player")
+	ns.registerEvent(ev, "PLAYER_EQUIPMENT_CHANGED")
+	ev:SetScript("OnEvent", function() IM.refresh() end)
+end
 
 -- /sf debug
 function IM.debug()
@@ -186,3 +195,5 @@ function IM.debug()
 		or r == false and "none" or string.format("enchant %d, icon %d, %.0fs left", r.enchantID, r.enchantIconID, r.timeLeft / 1000),
 		imbueState.read)
 end
+
+ns.registerModule(IM)

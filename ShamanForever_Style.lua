@@ -46,6 +46,8 @@ S.register("pop", {
 S.register("gcd", {
 	defaults = { show = false },
 	path = { "gcdStyle" },
+	-- Reincarnation's hour-long cooldown never needs the sweep, whatever General says.
+	ownerDefaults = { reincarnation = { show = false } },
 })
 S.register("border", {
 	defaults = { show = true, size = 2, color = { 0, 0, 0, 1 } },
@@ -141,6 +143,7 @@ end
 
 -- One plain (not table) field of the style an owner uses now, as S.get would give it, without
 -- building the style: for callers that run on every cooldown event.
+-- It repeats S.get's order (General, the owner's defaults, its own values): change both together.
 function S.value(owner, kind, field)
 	local spec = S.KINDS[kind]
 	local v = spec.defaults[field]

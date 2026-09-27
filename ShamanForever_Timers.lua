@@ -36,16 +36,31 @@ T.ELEMENT_DEFAULTS = {
 	-- Their time left as a bar only (whatever General says): the countdown shows the cooldown.
 	earthbind = { uptime = { text = false, bar = true } },
 	stoneclaw = { uptime = { text = false, bar = true } },
+	manatide = { uptime = { text = false, bar = true } },
+	grounding = { uptime = { text = false, bar = true } },
+	-- Stormstrike's time left is how long its empowered spell waits: a bar only.
+	stormstrike = { uptime = { text = false, bar = true } },
+	-- Ten-minute buffs: minutes in the middle, and a bar.
+	waterwalking = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
+	waterbreathing = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
+	elementalfocus = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
+	-- Tremor Totem's five minutes while it's down: minutes in the middle and a time bar.
+	tremor = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
 }
 -- Parts an element's timer can't have, and why (shown on its page): for every kind, or under a
 -- kind's name for that kind only.
 local ONE_SWIPE = "The cooldown has the swipe; time left shows as text or a bar."
 T.CANT = {
 	shield = { bar = "The shield's timer is Blizzard's own; a time bar can't follow it." },
+	elementalfocus = { bar = "Its timer is Blizzard's own; a time bar can't follow it." },
 	-- One icon, two timers: only the cooldown sweeps.
 	earthbind = { uptime = { swipe = ONE_SWIPE } },
 	stoneclaw = { uptime = { swipe = ONE_SWIPE } },
 	firenova = { uptime = { swipe = ONE_SWIPE } },
+	manatide = { uptime = { swipe = ONE_SWIPE } },
+	grounding = { uptime = { swipe = ONE_SWIPE } },
+	farseer = { uptime = { swipe = ONE_SWIPE } },
+	stormstrike = { uptime = { swipe = ONE_SWIPE } },
 }
 function T.cant(key, kind)
 	local c, out = key and T.CANT[key], {}
@@ -81,7 +96,7 @@ local fonts = 0
 --   anchor = the icon the parts cover (default parent)
 --   cd     = an existing Cooldown to use (its frame level is kept)
 --   dual   = the icon also shows the other kind of timer ("auto" text then goes top-left)
---   school = colour for "element colour" bars (a key of ns.Look.SCHOOL), or a function returning one
+--   school = colour for "element colour" bars (a key of ns.SCHOOL_COLOR), or a function returning one
 --   noBar  = never make a bar (Blizzard's shield button: no frames of ours created in its callback)
 function T.new(parent, key, kind, opts)
 	opts = opts or {}
@@ -120,7 +135,7 @@ end
 
 local function schoolColor(t)
 	local school = type(t.school) == "function" and t.school() or t.school
-	local c = school and ns.Look and ns.Look.SCHOOL[school]
+	local c = school and ns.SCHOOL_COLOR[school]
 	return c or { 0.4, 0.9, 0.3 }
 end
 
@@ -262,7 +277,19 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 end)
 
 T.EXPIRE_DEFAULTS = { secs = 5, grey = false, ring = false, pulse = true, glow = false }
-T.EXPIRE_ELEMENT = {}   -- elements that start differently: key -> fields
+
+-- An element's expiring warning (its time left's last seconds): its own settings over its own
+-- defaults (ns.elementDefault's "expire") over everyone's.
+function T.expireOpts(key)
+	local o = ns.elementOpts(key).expire
+	local own = ns.elementDefault(key, "expire")
+	local out = {}
+	for k, v in pairs(T.EXPIRE_DEFAULTS) do
+		if type(own) == "table" and type(own[k]) == type(v) then v = own[k] end
+		if type(o) == "table" and type(o[k]) == type(v) then out[k] = o[k] else out[k] = v end   -- a saved false counts
+	end
+	return out
+end
 
 -- e: { secs, grey, ring, pulse, glow } (secs 0 turns it off); icon: the texture the grey copy shows.
 function Timer:setExpire(e, icon)
@@ -288,7 +315,7 @@ function Timer:setExpire(e, icon)
 		x:SetAlpha(0)
 		x.grey = x:CreateTexture(nil, "ARTWORK")
 		x.grey:SetAllPoints()
-		x.grey:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+		ns.cropIcon(x.grey)
 		x.grey:SetDesaturated(true)
 		x.ring = ns.makeRing(x, x)
 		x.dim = x:CreateTexture(nil, "OVERLAY")
