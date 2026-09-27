@@ -677,19 +677,39 @@ end)
 -- The totems under the player frame: made invisible and click-through rather than hidden, so
 -- nothing moves in Blizzard's player-frame layout (hiding it from here would re-lay that out,
 -- PetFrame included, from addon code). Left alone when another addon has taken it over.
+-- Blizzard's managed-frame layout moves it between PlayerFrame and its layout containers (one has
+-- no name), so "still Blizzard's" means anywhere under PlayerFrame or that container system; and
+-- the same layout sets its alpha back to 1 when it shows its frames, so a hidden TotemFrame hides
+-- again whenever its alpha is set.
 local function totemFrameOurs()
-	if not ns.getDB() then return false end
-	local p = TotemFrame and TotemFrame:GetParent()
-	local name = p and p:GetName() or ""
-	return name == "PlayerFrame" or name:find("^PlayerFrame") ~= nil or name:find("ManagedFrame") ~= nil
+	if not ns.getDB() or not TotemFrame then return false end
+	local roots = { PlayerFrame or false, _G.PlayerBottomManagedFrameContainer or false }
+	local p = TotemFrame:GetParent()
+	while p do
+		for _, r in ipairs(roots) do if r and p == r then return true end end
+		p = p:GetParent()
+	end
+	return false
 end
-local totemFrameHidden = false
+local totemFrameHidden, settingAlpha = false, false
 local function setTotemFrameHidden(hide)
 	totemFrameHidden = hide
+	settingAlpha = true
 	TotemFrame:SetAlpha(hide and 0 or 1)
+	settingAlpha = false
 	for _, child in ipairs({ TotemFrame:GetChildren() }) do
 		if child.EnableMouse and not (child.IsProtected and child:IsProtected()) then child:EnableMouse(not hide) end
 	end
+end
+if TotemFrame then
+	hooksecurefunc(TotemFrame, "SetAlpha", function(self, a)
+		-- Another addon taking it over (and setting its alpha) gets it back visible (applyTotemFrame).
+		if totemFrameHidden and not settingAlpha and (isSecret(a) or a ~= 0) and totemFrameOurs() then
+			settingAlpha = true
+			self:SetAlpha(0)
+			settingAlpha = false
+		end
+	end)
 end
 local function applyTotemFrame()
 	if not TotemFrame then return end
