@@ -76,7 +76,8 @@ for _, def in ipairs(BUFFS) do
 	def.spell = Spells.name(def.spellKey)
 	def.icon = Spells.icon(def.buffKey or def.spellKey) or def.icon
 	def.frame = makeBuffIcon(def)
-	ns.registerElement(def.key, { frame = def.frame, label = def.spell, buff = def, stack = def.frame.stack,
+	def.frame.aboveProtected = def.proc   -- Elemental Focus: Blizzard's aura button sits under it
+	ns.registerElement(def.key, { frame = def.frame, label = def.spell, stack = def.frame.stack,
 		defaults = def.defaults, learned = function() return def.spellID ~= nil end,
 		paint = function(t) t:SetTexture(def.icon) end })
 	ns.addElementKey(def.key)
@@ -130,10 +131,13 @@ end
 ------------------------------------------------------------------------
 -- Elemental Focus: Blizzard's aura container (see the file's header and ShamanForever_Shield.lua)
 ------------------------------------------------------------------------
+-- Every ID of the proc's buff (seeds, and any learned since); made again at each spellbook scan.
 local function procIDMap(def)
-	local map = {}
-	for id in pairs(Spells.ids(def.buffKey)) do map[id] = true end
-	return map
+	if not def.procIDs then
+		def.procIDs = {}
+		for id in pairs(Spells.ids(def.buffKey)) do def.procIDs[id] = true end
+	end
+	return def.procIDs
 end
 
 -- Called by Blizzard (untainted) once, right after it makes the slot's button.
@@ -159,15 +163,10 @@ local function initProcButton(def, button)
 	def.glow:SetFrameLevel(cd:GetFrameLevel() + 2)
 	if button.AddAuraShownAnimation then ns.try("proc glow", button.AddAuraShownAnimation, button, def.glow.anim) end
 	-- The pop: the icon grows and settles, played by the button on each new proc. Sized by the pop
-	-- style (styleProc); 1 when the Pop option is off.
-	local pop = tex:CreateAnimationGroup()
-	local up = pop:CreateAnimation("Scale")
-	up:SetOrder(1); up:SetDuration(0.12); up:SetOrigin("CENTER", 0, 0)
-	local down = pop:CreateAnimation("Scale")
-	down:SetOrder(2); down:SetDuration(0.25); down:SetOrigin("CENTER", 0, 0)
-	def.popUp, def.popDown, def.popAnim = up, down, pop
+	-- style (styleProc); a no-op while the Pop option is off.
+	def.popAnim = ns.makeGrowPop(tex, def.key)
 	if button.AddAuraAssignedAnimation then
-		def.buttonPops = ns.try("proc pop", button.AddAuraAssignedAnimation, button, pop)
+		def.buttonPops = ns.try("proc pop", button.AddAuraAssignedAnimation, button, def.popAnim)
 	end
 	def.button = button
 end
@@ -214,11 +213,7 @@ function styleProc(def)
 		def.glow:restyle()
 		def.glow:fit(size)
 		def.glow:SetShown(setting(def.key, "primedGlow") and true or false)
-		local st = ns.Style.get(def.key, "pop")
-		local s = setting(def.key, "primedPop") and st.size or 1
-		local k = 1 / math.max(st.speed, 0.1)
-		def.popUp:SetScaleFrom(1, 1); def.popUp:SetScaleTo(s, s); def.popUp:SetDuration(0.12 * k)
-		def.popDown:SetScaleFrom(s, s); def.popDown:SetScaleTo(1, 1); def.popDown:SetDuration(0.25 * k)
+		def.popAnim:restyle(setting(def.key, "primedPop") and true or false)
 	end)
 	if not ok then ns.retryAfterCombat("proc style " .. def.key, function() styleProc(def) end) end
 end
@@ -250,33 +245,28 @@ local function refreshBuff(def)
 		f:SetRingShown(false)
 		f:SetPulsing(false)
 		f.count:Hide()
-		ns.Cooldowns.fadeTo(def, 1)
+		ns.fadeTo(f, 1)
 		return
 	end
 	f.tex:SetDesaturated(false)
-	f:SetRingShown(false)
-	f:SetPulsing(false)
-	local held = false
 	if def.proc then
-		-- The button says whether it's up; the icon under it is the idle look. The frame is an ancestor
-		-- of Blizzard's button, so its alpha only changes out of combat (it doesn't depend on the proc).
-		if not InCombatLockdown() then
-			local a = setting(key, "idleAlpha")
-			ns.Cooldowns.fadeTo(def, ns.getAccount().locked and (type(a) == "number" and math.min(math.max(a, 0), 1) or 0) or 1)
-		end
+		-- The button says whether it's up; the icon under it is the idle look. The frame is an
+		-- ancestor of Blizzard's button, so its alpha only changes out of combat (ns.fadeTo).
+		ns.fadeTo(f, ns.getAccount().locked and ns.idleAlpha(key) or 1)
 		return
 	end
 	if def.upUntil and GetTime() >= def.upUntil then setDown(def) end
-	if def.reagent and ns.Cooldowns.refreshReagent(def) then held = true end
+	-- Each look decided first, then set once: setting a pulse off and on again restarts it.
+	local held, ring, pulse = false, false, false
+	if def.reagent then held, ring, pulse = ns.Cooldowns.refreshReagent(def) end
 	if breathWarn(def) then
 		-- Under water without it: the missing look.
-		f:SetRingShown(setting(key, "breathRing"))
-		f:SetPulsing(setting(key, "breathPulse"))
-		held = true
+		ring, pulse, held = setting(key, "breathRing"), setting(key, "breathPulse"), true
 	end
+	f:SetRingShown(ring)
+	f:SetPulsing(pulse)
 	local busy = not ns.getAccount().locked or def.upUntil ~= nil or held
-	local a = setting(key, "idleAlpha")
-	ns.Cooldowns.fadeTo(def, busy and 1 or (type(a) == "number" and math.min(math.max(a, 0), 1) or 0))
+	ns.fadeTo(f, busy and 1 or ns.idleAlpha(key))
 end
 
 local function refreshAll()
@@ -294,6 +284,7 @@ function B.resolve()
 		local known, icon = Spells.known(def.spellKey)
 		if known ~= def.spellID then def.takesReagent = nil end   -- a new rank: read its tooltip again
 		def.spellID = known
+		def.procIDs = nil
 		-- A passive talent (Elemental Focus) has no icon of its own worth showing: keep the buff's.
 		if not def.proc then def.iconID = icon end
 		table.insert(sig, tostring(known))
@@ -321,7 +312,20 @@ function B.applyLayout()
 end
 B.afterGroups = function() for _, def in ipairs(BUFFS) do if def.proc then styleProc(def) end end end
 
+-- Whether the breath bar is draining now (a /reload under water, or after a loading screen that
+-- missed its events): negative scale means draining.
+local function readBreath()
+	breathing = false
+	for i = 1, 3 do   -- the client's mirror timers: fatigue, breath, feign death
+		local ok, name, _, _, scale = safe(GetMirrorTimerInfo, i)
+		if ok and not isSecret(name) and name == "BREATH" and type(scale) == "number" and not isSecret(scale) and scale < 0 then
+			breathing = true
+		end
+	end
+end
+
 function B.refresh()
+	readBreath()
 	for _, def in ipairs(BUFFS) do
 		if def.proc then readProc(def) else readAura(def) end
 	end
@@ -343,19 +347,16 @@ function B.onCast(spellID)
 end
 
 function B.start()
-	-- Already under water (a /reload): the breath bar is running.
-	for i = 1, 3 do   -- the client's mirror timers: fatigue, breath, feign death
-		local ok, name, _, _, scale = safe(GetMirrorTimerInfo, i)
-		if ok and not isSecret(name) and name == "BREATH" and type(scale) == "number" and not isSecret(scale) and scale < 0 then
-			breathing = true
-		end
-	end
+	readBreath()   -- already under water (a /reload)
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "UNIT_AURA", "player")
 	ns.registerEvent(ev, "MIRROR_TIMER_START")
 	ns.registerEvent(ev, "MIRROR_TIMER_STOP")
 	ev:SetScript("OnEvent", function(_, event, timer, _, _, scale)
-		if event == "UNIT_AURA" then B.refresh() return end
+		if event == "UNIT_AURA" then
+			if not InCombatLockdown() then B.refresh() end   -- auras are secret in combat: nothing to read
+			return
+		end
 		if isSecret(timer) or timer ~= "BREATH" then return end
 		-- Draining (negative scale) is under water; refilling after surfacing is not.
 		breathing = event == "MIRROR_TIMER_START" and type(scale) == "number" and not isSecret(scale) and scale < 0

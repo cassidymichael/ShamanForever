@@ -4,8 +4,8 @@
 -- in each slot is the last totem we cast into it. Call of the Elements fires one cast per totem it
 -- drops, after its own (tested 2026-09-25), so its totems are bound like any other.
 --
--- Used by the cooldown elements (Earthbind, Stoneclaw) and the totem bar; the bar reports a slot
--- that emptied without our dismissing it (T.slotEmptied), and the elements hear of it (T.subscribe).
+-- Used by the totem elements and the totem bar; the bar reports a slot that emptied without our
+-- dismissing it (T.slotEmptied), and the elements hear of it (T.subscribe).
 
 local _, ns = ...
 local say, isSecret, describeArg = ns.say, ns.isSecret, ns.describeArg
@@ -46,10 +46,26 @@ end
 function T.ownerOf(slot) return owner[slot] end
 -- The spell ID of our last cast into a slot, nil while unknown.
 function T.spellInSlot(slot) return spells[slot] end
--- Learned some other way (out of combat, from the slot itself: see the cooldown elements).
+-- Learned some other way (out of combat, from the slot itself: see T.identify).
 function T.setOwner(slot, spellKey, spellID)
 	owner[slot] = spellKey
 	if spellID then spells[slot] = spellID end
+end
+
+-- Which of our totems is in a slot: our last cast into it, else, when the slot is readable (out of
+-- combat; a /reload with a totem already down), the slot's own spell, kept as the owner so it holds
+-- into combat. Returns its spell key ("other" for one we don't track) and how it was told ("cast",
+-- "slot spell"); when only the slot's icon can be read, nil, "slot icon" and the icon (every rank
+-- shares it), for the caller to match; nil, "unknown" otherwise.
+function T.identify(slot)
+	if owner[slot] then return owner[slot], "cast" end
+	local have, spellID, icon = T.read(slot)
+	if have and spellID then
+		local key = Spells.keyOf(spellID) or "other"
+		T.setOwner(slot, key, spellID)
+		return key, "slot spell"
+	elseif have and icon then return nil, "slot icon", icon end
+	return nil, "unknown"
 end
 
 -- After a spellbook scan (ns.resolveSpells): which slot each totem spell fills.

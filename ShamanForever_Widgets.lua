@@ -20,6 +20,54 @@ ns.BACKDROP = { bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\
 -- A spell icon without Blizzard's built-in border.
 function ns.cropIcon(tex) tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
 
+-- The icon size text sizes are given at (the default): text on an icon scales with it from here.
+ns.BASE_ICON_SIZE = 44
+-- A font string on an icon: size at the base icon size (it grows and shrinks with the icon), placed
+-- at a point of the icon (a corner, CENTER, or TOP / BOTTOM for text above or below it) with an
+-- offset. Restated only when something changed; returns the font size used.
+function ns.placeScaledText(fs, icon, size, point, x, y, relPoint)
+	local px = math.max(math.floor(size * icon:GetWidth() / ns.BASE_ICON_SIZE + 0.5), 6)
+	local sig = string.format("%d%s%s%s,%s", px, point, relPoint or point, x, y)
+	if fs.placed == sig then return px end
+	fs.placed = sig
+	fs:SetFont(STANDARD_TEXT_FONT, px, "OUTLINE")
+	fs:ClearAllPoints()
+	fs:SetPoint(point, icon, relPoint or point, x, y)
+	return px
+end
+
+-- An element icon easing to a new opacity: slowly into idle, quickly back (each rate covers 0 to 1).
+-- A frame above Blizzard's protected aura button (frame.aboveProtected) takes no alpha change in
+-- combat, so its fade is dropped then and restated after combat by its owner's refresh.
+local FADE_OUT, FADE_IN = 0.8, 0.15
+local fading = {}   -- frame -> target alpha
+local fader = CreateFrame("Frame")
+fader:Hide()
+fader:SetScript("OnUpdate", function(self, elapsed)
+	local combat = InCombatLockdown()
+	for f, target in pairs(fading) do
+		if combat and f.aboveProtected then fading[f] = nil
+		else
+			local a = f:GetAlpha()
+			if target < a then a = math.max(target, a - elapsed / FADE_OUT)
+			else a = math.min(target, a + elapsed / FADE_IN) end
+			f:SetAlpha(a)
+			if a == target then fading[f] = nil end
+		end
+	end
+	if next(fading) == nil then self:Hide() end
+end)
+function ns.fadeTo(f, alpha)
+	if f.aboveProtected and InCombatLockdown() then return end
+	if math.abs(f:GetAlpha() - alpha) < 0.005 then
+		fading[f] = nil
+		f:SetAlpha(alpha)
+		return
+	end
+	fading[f] = alpha
+	fader:Show()
+end
+
 ------------------------------------------------------------------------
 -- Lines (borders, warning rings, the range strip) are measured in screen pixels, so they stay crisp:
 -- n pixels at scale 1. A Scale between the screen and the frame (a group's, the totem bar's, a
@@ -358,7 +406,7 @@ end
 -- last duration object to a curve and the result to the frame's SetAlpha.
 -- * Killed early (it died with time left; curve 1 from 1.25 s left, 0 up to 1.2 s): the dead totem
 --   greyed under red flashing, with an optional pop, red glow and a red cross that stays up to 5 s.
---   Used by the totem bar's slots and the Earthbind / Stoneclaw elements.
+--   Used by the totem bar's slots and the totem elements.
 -- * Ran out (opts.expired; the opposite curve, 1 up to 1.2 s left): the totem's icon pops and fades.
 -- A totem that ran out never shows the first, one that was killed never the second.
 -- * Grounded (opts.grounded): Grounding Totem's early end is a spell it took for us, so the same
@@ -475,7 +523,33 @@ function ns.makeEndFlash(parent, anchor, owner)
 			C_Timer.After(5, function() if self.markToken == token then self.mark:Hide() end end)
 		else self.mark:Hide() end
 	end
+	-- Stops a flash still playing and takes down its cross (the options' previews, on a new state).
+	function kf:stop()
+		self.flash:Stop(); self.quick:Stop(); self.soft:Stop()
+		self.body:SetAlpha(0); self.glow:Hide(); self.mark:Hide()
+		self.markToken = nil
+	end
 	return kf
+end
+
+-- A grow-and-settle pop as an animation group on region (a texture or frame), sized and timed by
+-- owner's pop style: the one kind of pop Blizzard's aura button can play for us (Elemental Focus),
+-- and its previews. restyle() takes the current style; on = false makes it a no-op (scale 1).
+function ns.makeGrowPop(region, owner)
+	local g = region:CreateAnimationGroup()
+	local up = g:CreateAnimation("Scale")
+	up:SetOrder(1); up:SetOrigin("CENTER", 0, 0)
+	local down = g:CreateAnimation("Scale")
+	down:SetOrder(2); down:SetOrigin("CENTER", 0, 0)
+	function g:restyle(on)
+		local st = ns.Style.get(owner, "pop")
+		local s = on == false and 1 or st.size
+		local k = 1 / math.max(st.speed, 0.1)
+		up:SetScaleFrom(1, 1); up:SetScaleTo(s, s); up:SetDuration(0.12 * k)
+		down:SetScaleFrom(s, s); down:SetScaleTo(1, 1); down:SetDuration(0.25 * k)
+	end
+	g:restyle()
+	return g
 end
 
 -- owner: whose glow and pop style it uses (an element key, "totembar", or nil for General's).

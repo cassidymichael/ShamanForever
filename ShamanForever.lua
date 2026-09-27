@@ -5,7 +5,8 @@
 -- Rule for this client: never do Lua math or comparisons on a possibly-secret value. In combat, show
 -- state through Blizzard's own widgets instead: the aura container for the shield, duration objects
 -- for cooldowns and totem timers, curves and SetAlpha for anything that must appear or disappear.
--- The only inference anywhere is the shield's in-combat "up" state; ShamanForever_Shield.lua explains it.
+-- What can't be read in combat is inferred from our own casts, which can: the shield's "up" state
+-- (ShamanForever_Shield.lua), primed states and buff windows (_Cooldowns), the water buffs (_Buffs).
 
 local ADDON, ns = ...
 local say, isSecret = ns.say, ns.isSecret
@@ -26,7 +27,7 @@ local GROUP_DEFAULTS = {
 
 -- A profile: the layout and how every element looks.
 local DEFAULTS = {
-	iconSize = 44,          -- base element size; a group can have its own, and its scale multiplies it
+	iconSize = ns.BASE_ICON_SIZE,   -- base element size; a group can have its own, and its scale multiplies it
 	-- General's styles (ShamanForever_Style.lua): the border around every element, the pulsing glow
 	-- and the pop. Groups and the totem bar can have their own border; elements and the totem bar
 	-- their own glow and pop.
@@ -120,7 +121,7 @@ root:SetAllPoints(UIParent)
 -- Every element, in the order the options list them. Each is made and registered by its module
 -- (ShamanForever_Shield, _Imbue, _Cooldowns, _Buffs); the test placeholders below are this file's own.
 local ELEMENT_KEYS = { "shield", "shock", "imbue", "earthbind", "stoneclaw", "firenova" }
--- key -> { frame, label, paint(texture), getSize(size), stack(), cooldown, placeholder, learned(),
+-- key -> { frame, label, paint(texture), getSize(size), stack(), placeholder, learned(),
 -- defaults }. db.groups decides where each one shows. getSize gives its width and height for its
 -- group's icon size, so elements need not be square; paint draws what stands in for it in the
 -- options and while dragging. learned() says whether the character knows its spell (none: always);
@@ -131,8 +132,8 @@ function ns.registerElement(key, e)
 	e.getSize = e.getSize or iconSize
 	ELEMENTS[key] = e
 end
--- Element modules add their keys after the six above (ShamanForever_Cooldowns.lua), in the order the
--- options list them.
+-- Element modules add their keys after the six above (ShamanForever_Cooldowns.lua, _Buffs), in
+-- the order the options list them.
 local firstTestKey   -- the test placeholders stay last (below)
 function ns.addElementKey(key)
 	local at = #ELEMENT_KEYS + 1
@@ -252,6 +253,12 @@ local function elementSetting(key, name)
 	local v = elementOpts(key)[name]
 	if v == nil then return elementDefault(key, name) end
 	return v
+end
+-- An element's opacity while idle, 0 to 1 (a damaged value falls back to its default).
+local function idleAlpha(key)
+	local v = elementSetting(key, "idleAlpha")
+	if type(v) ~= "number" or v ~= v then v = elementDefault(key, "idleAlpha") end
+	return math.min(math.max(v, 0), 1)
 end
 
 -- always | combat | never
@@ -676,7 +683,7 @@ ns.ELEMENTS, ns.ELEMENT_KEYS = ELEMENTS, ELEMENT_KEYS
 ns.isActive = function() return isShaman end   -- a shaman is logged in: the HUD runs
 ns.available, ns.findElement, ns.isEnabled, ns.showMode = available, findElement, isEnabled, showMode
 ns.isLearned = isLearned
-ns.elementOpts, ns.elementSetting, ns.elementDefault = elementOpts, elementSetting, elementDefault
+ns.elementOpts, ns.elementSetting, ns.elementDefault, ns.idleAlpha = elementOpts, elementSetting, elementDefault, idleAlpha
 -- Groups and layout.
 ns.groupFrames, ns.groupSize, ns.sizeOf = groupFrames, groupSize, sizeOf
 ns.setGroupCenter, ns.screenCenter = setGroupCenter, screenCenter

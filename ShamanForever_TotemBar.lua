@@ -1239,7 +1239,7 @@ function slotEmptied(s, was)
 		local ok, d = ns.try("totem bar: duration", GetTotemDuration, s.slot)
 		local refilled = ok and d ~= nil
 		if mine or refilled then return end
-		ns.Totems.slotEmptied(s.slot, was)   -- Earthbind / Stoneclaw elements
+		ns.Totems.slotEmptied(s.slot, was)   -- the totem elements
 		local c = cfg()
 		if not s.button:IsShown() then return end
 		if c.expiredPop then s.expired:play(was, { expired = true, pop = true }) end

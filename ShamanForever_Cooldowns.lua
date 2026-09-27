@@ -1,5 +1,6 @@
--- Shocks and the cooldown elements (Earthbind, Stoneclaw, Fire Nova): a spell's cooldown, the pop and
--- the "use me" glow when it's ready, and for a totem its time left, its end, and an idle look.
+-- Shocks and the cooldown elements (the totems, Fire Nova, and spells like Nature's Swiftness or
+-- Reincarnation): a spell's cooldown, the pop and the "use me" glow when it's ready, for a totem its
+-- time left and its end, primed states and buff windows, reagents, and an idle look.
 --
 -- Nothing here reads a secret value:
 -- * The spell cooldown and a totem's time are duration objects that Blizzard widgets draw (cooldown
@@ -10,7 +11,7 @@
 --   2026-09-23), which is plainly "no totem"; an expired one evaluates to 0s remaining.
 --   (IsZero doesn't work: an expired totem's duration is not a zero time span.)
 --   The addon never branches on it.
--- * Earthbind / Stoneclaw must tell their totem from any other earth totem: the totem in the slot is
+-- * A totem element must tell its totem from any other in its slot: the totem in the slot is
 --   the last one we cast into it (ShamanForever_Totems.lua), and the timer's holder is shown only
 --   when that is this element's totem. The slot's duration object still drives the timer, and an
 --   empty slot has none. When the owner is unknown (a /reload with a totem already out), out of
@@ -171,7 +172,7 @@ for _, def in ipairs(COOLDOWNS) do
 	def.spell = Spells.name(def.spellKey)
 	def.icon = Spells.icon(def.spellKey) or def.icon
 	def.frame = makeCooldownIcon(def)
-	ns.registerElement(def.key, { frame = def.frame, label = def.spell, cooldown = def, stack = def.frame.stack,
+	ns.registerElement(def.key, { frame = def.frame, label = def.spell, stack = def.frame.stack,
 		defaults = def.defaults, learned = function() return def.spellID ~= nil end,
 		paint = function(t) t:SetTexture(def.iconID or def.icon) end })
 	if def.new then ns.addElementKey(def.key) end
@@ -286,7 +287,7 @@ popWhenReady(shock, "shock")
 ------------------------------------------------------------------------
 -- Cooldown elements: idle
 ------------------------------------------------------------------------
--- Idle (Earthbind, Stoneclaw, Fire Nova): off cooldown, with nothing of its own going on. Both halves
+-- Idle (every cooldown element): off cooldown, with nothing of its own going on. Both halves
 -- are plain values in combat (probed 2026-09-26): the spell's own cooldown from GetSpellCooldown's
 -- isActive and isOnGCD (a global cooldown shows as active and on the GCD; the duration object is
 -- secret), and a totem from its slot having a duration at all (nil the moment it's gone) plus our
@@ -307,36 +308,7 @@ local function ownCooldownRunning(def, inEvent)
 	end
 	return def.cdRunning
 end
-local function idleAlpha(key)
-	local v = setting(key, "idleAlpha")
-	if type(v) ~= "number" or v ~= v then return 1 end
-	return math.min(math.max(v, 0), 1)
-end
--- The icon eases to its new opacity: slowly into idle, quickly back (each rate covers 0 to 1).
-local FADE_OUT, FADE_IN = 0.8, 0.15
-local fading = {}   -- def -> target alpha
-local fader = CreateFrame("Frame")
-fader:Hide()
-fader:SetScript("OnUpdate", function(self, elapsed)
-	for def, target in pairs(fading) do
-		local a = def.frame:GetAlpha()
-		if target < a then a = math.max(target, a - elapsed / FADE_OUT)
-		else a = math.min(target, a + elapsed / FADE_IN) end
-		def.frame:SetAlpha(a)
-		if a == target then fading[def] = nil end
-	end
-	if next(fading) == nil then self:Hide() end
-end)
-local function fadeTo(def, alpha)
-	if math.abs(def.frame:GetAlpha() - alpha) < 0.005 then
-		fading[def] = nil
-		def.frame:SetAlpha(alpha)
-		return
-	end
-	fading[def] = alpha
-	fader:Show()
-end
-CD.fadeTo = fadeTo   -- any element with a frame (the buffs too)
+local function fadeTo(def, alpha) ns.fadeTo(def.frame, alpha) end
 
 -- totemBusy: our totem is down (Earthbind, Stoneclaw), or any fire totem is (Fire Nova).
 local function applyIdle(def, totemBusy, inEvent)
@@ -351,7 +323,7 @@ local function applyIdle(def, totemBusy, inEvent)
 		C_Timer.After(IDLE_DELAY + 0.05, function() refreshCooldown(def) end)
 	end
 	local waiting = def.idleAt and GetTime() < def.idleAt
-	fadeTo(def, (busy or waiting) and 1 or idleAlpha(def.key))
+	fadeTo(def, (busy or waiting) and 1 or ns.idleAlpha(def.key))
 	def.idle = not busy
 end
 
@@ -393,15 +365,14 @@ end
 -- our casts (a /reload with the totem already down): out of combat the slot's spell, else its icon
 -- (every rank shares it), kept as the owner so it holds into combat. In combat: unknown, hidden.
 local function slotMatch(def, slot)
-	local owner = Totems.ownerOf(slot)
-	if owner then return owner == def.spellKey and 1 or 0, "cast" end
-	local have, spellID, icon = Totems.read(slot)
-	local mine, how
-	if have and spellID then mine, how = Spells.keyOf(spellID) == def.spellKey, "slot spell"
-	elseif have and icon then mine, how = icon == def.iconID or icon == def.icon, "slot icon" end
-	if mine == nil then return 0, "unknown" end
-	if mine then Totems.setOwner(slot, def.spellKey, spellID) end
-	return mine and 1 or 0, how
+	local key, how, icon = Totems.identify(slot)
+	if key then return key == def.spellKey and 1 or 0, how end
+	if icon then
+		local mine = icon == def.iconID or icon == def.icon
+		if mine then Totems.setOwner(slot, def.spellKey) end
+		return mine and 1 or 0, how
+	end
+	return 0, how
 end
 
 -- A totem element (Earthbind, Stoneclaw, Mana Tide, Grounding): the slot's timer, shown only while
@@ -468,9 +439,10 @@ end
 
 -- Out of combat, the primed buff itself says whether it's up and for how long: by its IDs, else by
 -- the client's name for it. Within a moment of our cast, a missing buff doesn't end it (the aura
--- can arrive after the cast event).
+-- can arrive after the cast event). fromAura: an aura change, which may pop; a read at login or
+-- after combat finds what was already there, quietly.
 local CAST_GRACE = 1.5
-local function readPrimedBuff(def)
+local function readPrimedBuff(def, fromAura)
 	local buffKey = def.primed and def.primed.buffKey
 	if not buffKey or InCombatLockdown() or ns.aurasSecret() or not C_UnitAuras then return end
 	local found
@@ -494,8 +466,8 @@ local function readPrimedBuff(def)
 	local exp, dur = found.expirationTime, found.duration
 	local was = def.activeUntil ~= nil
 	if type(exp) == "number" and type(dur) == "number" and exp > 0 and dur > 0 then
-		if not was or math.abs(def.activeUntil - exp) > 0.2 then startActive(def, exp - dur, dur, was) end
-	elseif not was then startActive(def, GetTime(), nil, false) end
+		if not was or math.abs(def.activeUntil - exp) > 0.2 then startActive(def, exp - dur, dur, was or not fromAura) end
+	elseif not was then startActive(def, GetTime(), nil, not fromAura) end
 end
 
 ------------------------------------------------------------------------
@@ -533,49 +505,54 @@ local function takesReagent(def)
 	return def.takesReagent
 end
 
--- The count's text: its size (at a 44 px icon; it grows with the icon), a corner or the centre,
--- and an offset from there. Restated only when one of them changed.
-local COUNT_JUSTIFY = { TOPLEFT = "LEFT", BOTTOMLEFT = "LEFT", TOPRIGHT = "RIGHT", BOTTOMRIGHT = "RIGHT", CENTER = "CENTER" }
-function CD.placeReagentCount(fs, icon, key)
-	local pos = setting(key, "reagentPos")
-	if not COUNT_JUSTIFY[pos] then pos = "BOTTOMRIGHT" end
-	local size, x, y = setting(key, "reagentSize"), setting(key, "reagentX"), setting(key, "reagentY")
-	size = type(size) == "number" and size or 14
-	x, y = type(x) == "number" and x or 0, type(y) == "number" and y or 0
-	local px = math.max(math.floor(size * icon:GetWidth() / 44 + 0.5), 6)
-	local sig = string.format("%s%d,%s,%s", pos, px, x, y)
-	if fs.placed == sig then return end
-	fs.placed = sig
-	fs:SetFont(STANDARD_TEXT_FONT, px, "OUTLINE")
-	fs:ClearAllPoints()
-	fs:SetPoint(pos, icon, pos, x, y)
-	fs:SetJustifyH(COUNT_JUSTIFY[pos])
+
+-- A number setting, or its default when the saved one isn't a number (shared text can hold anything).
+local function num(key, name)
+	local v = setting(key, name)
+	if type(v) ~= "number" or v ~= v then v = ns.elementDefault(key, name) end
+	return v
 end
 
--- Returns whether the reagent is low enough to hold the element out of idle.
+-- The count for n reagents on an icon (the HUD's and the options' previews), as the element's
+-- Reagent settings say: when it shows, its colours (plenty; low or none), size and place. Returns
+-- whether n is low, and the none-left looks wanted (ring, pulse), which the caller sets together
+-- with any other look on that icon, so a running pulse isn't restarted.
+local COUNT_JUSTIFY = { TOPLEFT = "LEFT", BOTTOMLEFT = "LEFT", TOPRIGHT = "RIGHT", BOTTOMRIGHT = "RIGHT", CENTER = "CENTER" }
+function CD.paintReagent(f, key, n)
+	local low = n <= num(key, "reagentLow")
+	local show = setting(key, "reagentCount")   -- always | low | never
+	local fs = f.count
+	if show == "always" or (show == "low" and low) then
+		local pos = setting(key, "reagentPos")
+		if not COUNT_JUSTIFY[pos] then pos = "BOTTOMRIGHT" end
+		ns.placeScaledText(fs, f, num(key, "reagentSize"), pos, num(key, "reagentX"), num(key, "reagentY"))
+		fs:SetJustifyH(COUNT_JUSTIFY[pos])
+		local name = low and "reagentLowColor" or "reagentColor"
+		local c = setting(key, name)
+		if not ns.isColor(c) then c = ns.elementDefault(key, name) end
+		local shown = string.format("%d%.3f%.3f%.3f%.3f", n, c[1], c[2], c[3], c[4] or 1)
+		if fs.shown ~= shown then   -- the text and colour only when they change
+			fs.shown = shown
+			fs:SetText(n)
+			fs:SetTextColor(c[1], c[2], c[3], c[4] or 1)
+		end
+		fs:Show()
+	else fs:Hide() end
+	local out = n == 0
+	return low, out and setting(key, "reagentRing") or false, out and setting(key, "reagentPulse") or false
+end
+
+-- Reads the count and paints it. Returns whether it's low enough to hold the element out of idle
+-- (Idle when counts reagents), and the none-left looks wanted (see paintReagent).
 local function refreshReagent(def)
-	local f, key = def.frame, def.key
 	local n = def.reagent and takesReagent(def) ~= false and reagentCount(def)
 	def.reagentRead = n
 	if not n then
-		f.count:Hide()
-		return false
+		def.frame.count:Hide()
+		return false, false, false
 	end
-	local lowAt = setting(key, "reagentLow")
-	local low = n <= (type(lowAt) == "number" and lowAt or 2)   -- shared text can hold anything
-	local show = setting(key, "reagentCount")   -- always | low | never
-	if show == "always" or (show == "low" and low) then
-		CD.placeReagentCount(f.count, f, key)
-		local c = setting(key, low and "reagentLowColor" or "reagentColor")
-		if not ns.isColor(c) then c = ns.elementDefault(key, low and "reagentLowColor" or "reagentColor") end
-		f.count:SetText(n)
-		f.count:SetTextColor(c[1], c[2], c[3], c[4] or 1)
-		f.count:Show()
-	else f.count:Hide() end
-	local out = n == 0
-	f:SetRingShown(out and setting(key, "reagentRing"))
-	f:SetPulsing(out and setting(key, "reagentPulse"))
-	return low and setting(key, "reagentShow")
+	local low, ring, pulse = CD.paintReagent(def.frame, def.key, n)
+	return low and setting(def.key, "reagentShow") and true or false, ring, pulse
 end
 CD.refreshReagent = refreshReagent   -- any element with key, frame, spellID and reagent (the buffs too)
 
@@ -602,7 +579,12 @@ function refreshCooldown(def, inEvent)
 	f.tex:SetDesaturated(false)
 	local held = isActive(def)
 	if def.primed then showPrimed(def, held) end   -- a settings change shows at once
-	if def.reagent and refreshReagent(def) then held = true end
+	if def.reagent then
+		local hold, ring, pulse = refreshReagent(def)
+		if hold then held = true end
+		f:SetRingShown(ring)
+		f:SetPulsing(pulse)
+	end
 	if def.needsTotem then refreshFireNova(def, inEvent)
 	elseif def.totemSlot then refreshTotem(def, inEvent, held)
 	else applyIdle(def, held, inEvent) end
@@ -869,7 +851,7 @@ function CD.start()
 			if InCombatLockdown() then return end   -- auras are secret: nothing to read
 			for _, def in ipairs(COOLDOWNS) do
 				if def.spellID and def.primed and def.primed.buffKey and ns.isEnabled(def.key) then
-					readPrimedBuff(def); refreshCooldown(def)
+					readPrimedBuff(def, true); refreshCooldown(def)
 				end
 			end
 		else refreshShockRange() end
@@ -894,7 +876,7 @@ function CD.debug()
 			secret = ok and describeArg(v) or "error"
 		end
 		local read = def.read == nil and "not checked" or describeArg(def.read)
-		if def.readHow then read = string.format("earth slot timer, by %s, match %s", def.readHow, read)
+		if def.readHow then read = string.format("slot %d timer, by %s, match %s", def.totemSlot, def.readHow, read)
 		elseif def.needsTotem and type(def.read) ~= "string" and def.read ~= nil then read = "warning alpha " .. read end
 		local extra = ""
 		if def.window or def.primed then
