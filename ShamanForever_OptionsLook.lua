@@ -310,6 +310,8 @@ local function expiringLook(ic, key, length)
 end
 local function opt(key, name) return ns.elementSetting(key, name) end
 
+local previewState = {}   -- element key -> its header's preview state
+
 local function totemPreview(def)
 	local g = def.grounded   -- Grounding: its early end is Grounded, in air blue with no cross
 	return {
@@ -318,7 +320,20 @@ local function totemPreview(def)
 		pop = function(ic, st)
 			if st == "ready" and opt(def.key, "readyPop") then ic:Pop("ready")
 			elseif st == "ranout" and def.ranOut then
-				if opt(def.key, "ranOutFlash") and opt(def.key, "ranOutPop") then ic:Pop("expired") end
+				-- The flash itself, as in game; the cooldown shows once it has played.
+				if opt(def.key, "ranOutFlash") then
+					if not ic.endFlash then ic.endFlash = ns.makeEndFlash(ic, ic, def.key) end
+					ic.endFlash:setIcon(def.iconID or def.icon)
+					ic.endFlash:play(nil, { expired = true, ranOut = ns.SCHOOL_COLOR[def.school],
+						pop = opt(def.key, "ranOutPop"), glow = opt(def.key, "ranOutGlow") })
+				end
+				local token = {}
+				ic.ranOutToken, ic.ranOutDone = token, false
+				C_Timer.After(opt(def.key, "ranOutFlash") and 1.4 or 0, function()
+					if ic.ranOutToken ~= token or previewState[def.key] ~= "ranout" then return end
+					ic.ranOutDone = true
+					frozen(ic.cdT, 0.02, def.cd or 15)
+				end)
 			elseif st == "ranout" and opt(def.key, "expiredPop") then ic:Pop("expired")
 			elseif st == "killed" and g then
 				if opt(def.key, "grounded") and opt(def.key, "groundedPop") then ic:Pop("grounded") end
@@ -328,27 +343,12 @@ local function totemPreview(def)
 			reset(ic, def.iconID or def.icon)
 			if ic.killX then ic.killX:Hide() end
 			local cd = def.cd or 15
-			if ic.hourglass then ic.hourglass:Hide() end
 			if st == "expiring" then expiringLook(ic, def.key, def.duration or 45)
 			elseif st == "active" then frozen(ic.upT, 0.45, def.duration or 45)
 			elseif st == "cd" then frozen(ic.cdT, 0.4, cd)
 			elseif st == "ranout" and def.ranOut then
-				-- The soft flash at its brightest: greyed under its colour, with the hourglass.
-				frozen(ic.cdT, 0.4, cd)
-				if opt(def.key, "ranOutFlash") then
-					local c = ns.SCHOOL_COLOR[def.school]
-					ic.tex:SetDesaturated(true)
-					ic.manaOverlay:SetColorTexture(c[1], c[2], c[3], 0.45)
-					ic.manaOverlay:Show()
-					if opt(def.key, "ranOutGlow") then ic:SetGlowShown(true, c[1], c[2], c[3]) end
-					if not ic.hourglass then
-						ic.hourglass = ic.textFrame:CreateTexture(nil, "OVERLAY")
-						ic.hourglass:SetTexture("Interface\\Common\\mini-hourglass")
-						ic.hourglass:SetPoint("CENTER")
-					end
-					ic.hourglass:SetSize(ic:GetWidth() * 0.5, ic:GetWidth() * 0.5)
-					ic.hourglass:Show()
-				end
+				-- Nothing drawn until the flash has played (pop, above), then the cooldown it left.
+				if ic.ranOutDone then frozen(ic.cdT, 0.02, cd) end
 			elseif st == "killed" and g then
 				frozen(ic.cdT, 0.4, cd)
 				if opt(def.key, "grounded") then
@@ -477,7 +477,8 @@ function L.reagentLook(ic, key, n)
 		ic.count:ClearAllPoints()
 		ic.count:SetPoint("BOTTOMRIGHT", 2, -2)
 		ic.count:SetText(n)
-		if low then ic.count:SetTextColor(1, 0.25, 0.2) else ic.count:SetTextColor(1, 1, 1) end
+		local c = opt(key, low and "reagentLowColor" or "reagentColor")
+		if ns.isColor(c) then ic.count:SetTextColor(c[1], c[2], c[3], c[4] or 1) end
 		ic.count:Show()
 	end
 	if n == 0 then
@@ -874,14 +875,25 @@ L.PREVIEW.totembar = {
 -- Element page header: banner, corners, icon, name, blurb, tags, preview with state buttons.
 ------------------------------------------------------------------------
 L.HERO_H = 160
-local previewState = {}
 local heroes = {}   -- element key -> its header, for L.setPreview
 
 function L.buildHero(parent, key)
 	local e = L.ELEMENT[key]
 	local school = L.SCHOOL[e.school]
 	local def = L.PREVIEW[key]
-	local heroH = def.heroH or L.HERO_H
+	-- The state buttons fit their longest label (the panel widens to match), and a long list of
+	-- states makes the header taller (the banner art is cropped to fill any shape).
+	local BTN_H, BTN_W = 17, 108
+	do
+		local probe = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		for _, st in ipairs(def.states) do
+			probe:SetText(st[2])
+			BTN_W = math.max(BTN_W, math.ceil(probe:GetStringWidth()) + 16)
+		end
+		probe:Hide()
+	end
+	local listH = #def.states * (BTN_H + 3) - 3
+	local heroH = def.heroH or math.max(L.HERO_H, listH + 14 + 24 + 4)
 	local h = CreateFrame("Frame", nil, parent, "BackdropTemplate")
 	h:SetHeight(heroH - 14)
 	h.heroH = heroH
@@ -949,7 +961,7 @@ function L.buildHero(parent, key)
 	-- Preview panel, pinned right inside the corner zone: the icon on the left, its states listed
 	-- on the right as small flat buttons (the selected one outlined in gold). A stage (the totem
 	-- bar) has no panel: the preview draws on the header itself, its states listed down the right.
-	local PANEL_W, PANEL_H, BTN_W, BTN_H = def.stage and 0 or (def.panelW or 196), heroH - 14 - 24, 108, 17
+	local PANEL_W, PANEL_H = def.stage and 0 or (def.panelW or (88 + BTN_W)), heroH - 14 - 24
 	local p = CreateFrame("Frame", nil, h, "BackdropTemplate")
 	p:SetSize(PANEL_W, PANEL_H)
 	p:SetPoint("RIGHT", -40, 0)
@@ -964,11 +976,10 @@ function L.buildHero(parent, key)
 		def.build(h)
 	else
 		h.previewIcon = makePreviewIcon(p, key)
-		h.previewIcon:SetPoint("LEFT", 16, -6)
+		h.previewIcon:SetPoint("LEFT", 16, -6)   -- snapped to whole pixels in refresh
 	end
 	h.stateButtons = {}
 	previewState[key] = previewState[key] or def.states[1][1]
-	local listH = #def.states * (BTN_H + 3) - 3
 	for i, st in ipairs(def.states) do
 		local b = CreateFrame("Button", nil, def.stage and h or p, "BackdropTemplate")
 		if def.stage then
@@ -1044,6 +1055,21 @@ function L.buildHero(parent, key)
 			b:SetBackdropColor(on and 0.88 or 0.09, on and 0.66 or 0.075, on and 0.29 or 0.06, on and 0.16 or 1)
 			b:SetBackdropBorderColor(on and 0.88 or 0.23, on and 0.66 or 0.17, on and 0.29 or 0.10, 1)
 			b.text:SetTextColor(on and 1 or 0.78, on and 0.84 or 0.74, on and 0.5 or 0.68)
+		end
+		if not def.stage then
+			-- On whole screen pixels: a cooldown's swipe snaps to pixels and the icon's texture doesn't,
+			-- so at a fractional position a sliver of the icon shows beside the swipe.
+			local ic = self.previewIcon
+			ic:ClearAllPoints()
+			ic:SetPoint("LEFT", p, "LEFT", 16, -6)
+			local l, t = ic:GetLeft(), ic:GetTop()
+			local ok, _, screenH = pcall(GetPhysicalScreenSize)
+			if l and t and ok and type(screenH) == "number" and screenH > 0 then
+				local px = 768 / screenH / ic:GetEffectiveScale()   -- one screen pixel, in the icon's units
+				local dx = math.floor(l / px + 0.5) * px - l
+				local dy = math.floor(t / px + 0.5) * px - t
+				ic:SetPoint("LEFT", p, "LEFT", 16 + dx, -6 + dy)
+			end
 		end
 		if def.stage then def.render(self, previewState[key]) else
 			-- An element's preview wears its group's border (the totem bar's stage draws its own).

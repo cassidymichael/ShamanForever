@@ -428,13 +428,18 @@ function ns.makeEndFlash(parent, anchor, owner)
 		pcall(self.icon.SetTexture, self.icon, icon)
 		pcall(self.mark.icon.SetTexture, self.mark.icon, icon)
 	end
-	-- dur: the gone totem's last duration object. opts: expired (ran out, else killed early), and
-	-- for killed early pop, glow, mark (booleans); grounded; ranOut (a colour) for the soft ran-out.
+	-- dur: the gone totem's last duration object, or nil to play regardless (the options' previews).
+	-- opts: expired (ran out, else killed early), and for killed early pop, glow, mark (booleans);
+	-- grounded; ranOut (a colour) for the soft ran-out.
 	function kf:play(dur, opts)
-		local curve = opts.expired and expiredCurve or killedCurve
-		if not curve then return end
-		local ok, a = ns.try("end flash", dur.EvaluateRemainingDuration, dur, curve)
-		if not ok then return end
+		local a = 1
+		if dur then
+			local curve = opts.expired and expiredCurve or killedCurve
+			if not curve then return end
+			local ok
+			ok, a = ns.try("end flash", dur.EvaluateRemainingDuration, dur, curve)
+			if not ok then return end
+		end
 		self:SetAlpha(a)
 		local size = anchor:GetWidth()
 		local soft = opts.expired and opts.ranOut

@@ -11,7 +11,7 @@ ns.Page = Page
 
 -- The window's geometry, shared with ShamanForever_Options.lua. A fixed width, the one the art is
 -- made for; the player may make it taller.
-Page.WIDTH, Page.NAV_W = 864, 190
+Page.WIDTH, Page.NAV_W = 864, 200   -- the nav: room for its element list's scroll bar
 Page.PAGE_TOP = -38   -- pages start below the title bar
 Page.LABEL_W = 150
 local WIDTH, NAV_W, PAGE_TOP, LABEL_W = Page.WIDTH, Page.NAV_W, Page.PAGE_TOP, Page.LABEL_W

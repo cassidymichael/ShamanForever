@@ -238,6 +238,7 @@ local ELEMENT_OPT_DEFAULTS = {
 	primedPop = true, primedGlow = true,                         -- Primed (Nature's Swiftness, Stormstrike)
 	grounded = true, groundedPop = true, groundedGlow = true,     -- Grounded (Grounding's early end)
 	reagentCount = "always", reagentLow = 2, reagentShow = true,   -- Reagent (count: always | low | never)
+	reagentColor = { 1, 1, 1, 1 }, reagentLowColor = { 1, 0.82, 0, 1 },   -- the count's text: plenty, low or none
 	reagentRing = true, reagentPulse = true,                       -- none left
 	breathWarn = true, breathRing = true, breathPulse = true,     -- Under water (Water Breathing)
 }

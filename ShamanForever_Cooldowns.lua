@@ -98,7 +98,8 @@ local COOLDOWNS = {
 		readyGlow = true, cd = 6, defaults = { idleAlpha = 1 }, experimental = "Riptide" },
 	{ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, window = 25, school = "air", new = true,
 		readyGlow = true, expireLooks = { "grey", "pulse" }, cd = 180,
-		defaults = { idleAlpha = 1 }, experimental = "Rage of the Farseer" },
+		-- Expiring off: nothing to recast as it ends. Turned on, it fades in and out.
+		defaults = { idleAlpha = 1, expire = { secs = 0, pulse = true } }, experimental = "Rage of the Farseer" },
 	{ key = "projection", spellKey = "totemicProjection", icon = 136099, school = "spirit", new = true,
 		cd = 60, experimental = "Totemic Projection" },
 	-- Out of sight while ready: seen on cooldown, or when Ankhs run low.
@@ -548,11 +549,10 @@ local function refreshReagent(def)
 		-- Text scales with the icon (its group's size).
 		local size = math.max(math.floor(f:GetWidth() * 0.45), 8)
 		if size ~= f.countSize then f.count:SetFont(STANDARD_TEXT_FONT, size, "OUTLINE"); f.countSize = size end
-		if n ~= f.countShown or low ~= f.countLow then
-			f.count:SetText(n)
-			if low then f.count:SetTextColor(1, 0.25, 0.2) else f.count:SetTextColor(1, 1, 1) end
-			f.countShown, f.countLow = n, low
-		end
+		local c = setting(key, low and "reagentLowColor" or "reagentColor")
+		if not ns.isColor(c) then c = ns.elementDefault(key, low and "reagentLowColor" or "reagentColor") end
+		f.count:SetText(n)
+		f.count:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 		f.count:Show()
 	else f.count:Hide() end
 	local out = n == 0
