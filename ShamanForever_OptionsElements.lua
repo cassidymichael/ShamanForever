@@ -176,7 +176,7 @@ end
 -- own. glow, pop: whether the element has any (a block that could change nothing isn't shown).
 -- pop: false for none, "grow" for the grow-and-settle only (Elemental Focus).
 local function effectBlocks(p, key, popKind, glow, pop)
-	local icon = ns.Look.ELEMENT[key].icon
+	local icon = ns.ELEMENTS[key].icon
 	if glow ~= false then glowBlock(p, key, icon) end
 	if pop ~= false then popBlock(p, key, icon, popKind or "ready", pop == "grow") end
 end
@@ -606,14 +606,17 @@ local function buildTremor(p)
 	effectBlocks(p, key)
 end
 
+-- Each kind of element's page (the registry's kind); it gets the element's def.
+local PAGE = { shield = buildShield, shock = buildShock, imbue = buildImbue, cooldown = buildCooldown, buff = buildBuff,
+	tremor = buildTremor }
+
 -- Every element's page, in the order the options list them.
 function EP.build(newPage)
-	buildShield(newPage("shield", "Shields", true))
-	buildShock(newPage("shock", "Shocks", true))
-	buildImbue(newPage("imbue", "Weapon Imbue", true))
-	for _, def in ipairs(ns.Cooldowns.COOLDOWNS) do buildCooldown(newPage(def.key, def.spell, true), def) end
-	for _, def in ipairs(ns.Buffs.BUFFS) do buildBuff(newPage(def.key, def.spell, true), def) end
-	buildTremor(newPage("tremor", ns.Tremor.def.spell, true))
+	for _, key in ipairs(ns.ELEMENT_KEYS) do
+		local e = ns.ELEMENTS[key]
+		local build = e.kind and PAGE[e.kind]
+		if build then build(newPage(key, e.label, true), e.def) end
+	end
 end
 
 -- The page key of an element's own page, nil for one without (test elements).

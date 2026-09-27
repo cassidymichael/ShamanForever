@@ -487,10 +487,10 @@ local function buildAbout(p)
 	p:text("I can't test these in game yet. If you can, please try them and tell me whether they work and what could be improved.")
 	p:experimental("Water Shield", "Shields > Track")
 	p:experimental("Either shield", "Shields > Track")
-	for _, def in ipairs(ns.Cooldowns.COOLDOWNS) do
-		if def.experimental then p:experimental(def.experimental, "Elements > " .. def.spell) end
+	for _, key in ipairs(ns.ELEMENT_KEYS) do
+		local e = ns.ELEMENTS[key]
+		if e.experimental then p:experimental(e.experimental, "Elements > " .. e.label) end
 	end
-	for _, def in ipairs(ns.Buffs.BUFFS) do p:experimental(def.experimental, "Elements > " .. def.spell) end
 	gap()
 	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
@@ -1297,8 +1297,8 @@ local function buildNav()
 	list:SetScrollChild(child)
 	local n = 0
 	for _, p in ipairs(pageOrder) do
-		local e = ns.Look.ELEMENT[p.key]
-		if e and not e.page then
+		local e = ns.ELEMENTS[p.key]
+		if e and e.kind then
 			local b = add(p.key, ns.Look.elementName(p.key), e.icon, true, child)
 			b:SetWidth(NAV_W - 42)   -- room for the bar
 			b.listTop = n * NAV_SUB_STEP

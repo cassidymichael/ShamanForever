@@ -34,62 +34,23 @@ local function coverCoords(w, h)
 end
 L.PANEL = { 29 / 255, 24 / 255, 19 / 255 }
 
--- Each element's identity: name, icon and school never change with its settings.
-L.ELEMENT = {
-	shield    = { name = "Shields",         icon = 136051, school = "spirit", blurb = "Charges and time left. Warns when it's gone." },
-	shock     = { name = "Shocks",          icon = 136026, school = "spirit", blurb = "Cooldown, range and mana." },
-	imbue     = { name = "Weapon Imbue",    icon = 136086, school = "spirit", blurb = "Warns when your main hand has no imbue." },
-	earthbind = { name = "Earthbind Totem", spell = "earthbind", icon = 136102, school = "earth",  blurb = "Cooldown, and time left while it's down." },
-	stoneclaw = { name = "Stoneclaw Totem", spell = "stoneclaw", icon = 136097, school = "earth",  blurb = "Cooldown, and time left while it's down." },
-	firenova  = { name = "Fire Nova",       spell = "fireNova",  icon = 135824, school = "fire",   blurb = "Cooldown. Needs a fire totem." },
-	-- Not an element: its own page, with the same kind of header. page = true keeps it out of the
-	-- nav's element list.
-	totembar  = { name = "Totem bar", icon = "Interface\\Icons\\Spell_Shaman_DropAll_01", school = "spirit", page = true,
-		blurb = "Your totems, their timers, and a pick for each element.",
-		tags = function()
-			local c = ns.TotemBar.cfg()
-			local shows = { always = "Always", active = "In combat or a totem down", combat = "In combat" }
-			if c.mode == "blizzard" then return ns.TotemBar.modeName() end
-			return string.format("%s  ·  %s", ns.TotemBar.modeName(), shows[c.show] or "")
-		end },
-}
+-- Each element's identity comes from its registry entry (ns.registerElement): its name, icon and
+-- school never change with its settings. The totem bar's page has the same kind of header.
+local TOTEMBAR = { label = "Totem bar", icon = "Interface\\Icons\\Spell_Shaman_DropAll_01", school = "spirit",
+	blurb = "Your totems, their timers, and a pick for each element.",
+	tags = function()
+		local c = ns.TotemBar.cfg()
+		local shows = { always = "Always", active = "In combat or a totem down", combat = "In combat" }
+		if c.mode == "blizzard" then return ns.TotemBar.modeName() end
+		return string.format("%s  ·  %s", ns.TotemBar.modeName(), shows[c.show] or "")
+	end }
+local function identity(key) return key == "totembar" and TOTEMBAR or ns.ELEMENTS[key] end
 
--- The cooldown elements added after the first three (ShamanForever_Cooldowns.lua): their icon and
--- school come from the element, and its experimental flag says whether it's been tested in game.
-local BLURB = {
-	naturesswiftness = "Cooldown, and a glow while your next Nature spell is instant.",
-	manatide = "Cooldown, and time left while it's down.",
-	grounding = "Cooldown, time left, and a flash when it takes a spell.",
-	stormstrike = "Cooldown, and a bar while your target takes more Nature damage.",
-	riptide = "Cooldown.",
-	farseer = "Cooldown, and time left while it's on.",
-	projection = "Cooldown.",
-	reincarnation = "Cooldown, and your Ankhs when they run low.",
-	waterwalking = "Time left while it's up.",
-	waterbreathing = "Time left while it's up. Warns under water without it.",
-	elementalfocus = "Shows while " .. ns.Spells.name("clearcasting") .. " is up.",
-}
-for _, def in ipairs(ns.Cooldowns.COOLDOWNS) do
-	if def.new then
-		L.ELEMENT[def.key] = { name = def.spell, spell = def.spellKey, icon = def.icon, school = def.school,
-			blurb = BLURB[def.key], experimental = def.experimental }
-	end
-end
-for _, def in ipairs(ns.Buffs.BUFFS) do
-	L.ELEMENT[def.key] = { name = def.spell, spell = def.spellKey, icon = def.icon, school = def.school,
-		blurb = BLURB[def.key], experimental = def.experimental }
-end
-do
-	local def = ns.Tremor.def
-	L.ELEMENT.tremor = { name = def.spell, spell = def.spellKey, icon = def.icon, school = def.school,
-		blurb = "Warns near mobs that fear, charm or sleep." }
-end
-
--- An element's name: a spell's in the client's language (name is the fallback), else its own.
+-- An element's name (or the totem bar's): its spell's in the client's language, else its label.
 function L.elementName(key)
-	local e = L.ELEMENT[key]
+	local e = identity(key)
 	if not e then return key end
-	return e.spell and ns.Spells.name(e.spell) or e.name
+	return e.spell and ns.Spells.name(e.spell) or e.label or key
 end
 
 local function db() return ns.getDB() end
@@ -226,24 +187,17 @@ end
 
 ------------------------------------------------------------------------
 -- Preview icons: the HUD's icon plus the pieces some elements add (charge bar), and the same
--- timers the HUD uses (ShamanForever_Timers.lua), frozen.
+-- timers the HUD uses (ShamanForever_Timers.lua), frozen: the ones its preview has (preview.cooldown,
+-- preview.uptime).
 ------------------------------------------------------------------------
-local HAS_COOLDOWN = { shock = true }
-local HAS_UPTIME = { shield = true, imbue = true, totembar = true }
-for _, def in ipairs(ns.Cooldowns.COOLDOWNS) do
-	HAS_COOLDOWN[def.key] = true
-	if def.totemSlot or def.needsTotem or def.window or (def.primed and def.primed.duration) then HAS_UPTIME[def.key] = true end
-end
-for _, def in ipairs(ns.Buffs.BUFFS) do HAS_UPTIME[def.key] = true end
-HAS_UPTIME.tremor = true
-local function makePreviewIcon(parent, key)
+local function makePreviewIcon(parent, key, preview)
 	local ic = ns.makeIcon(parent, 56, key)   -- the element's own glow and pop style
-	local e = L.ELEMENT[key]
+	local e = identity(key)
 	local school = e and e.school
-	if HAS_COOLDOWN[key] then ic.cdT = ns.Timer.new(ic, key, "cooldown", { cd = ic.cd, school = school }) end
-	if HAS_UPTIME[key] then
-		ic.upT = ns.Timer.new(ic.textFrame, key, "uptime", { anchor = ic, dual = HAS_COOLDOWN[key],
-			cd = not HAS_COOLDOWN[key] and ic.cd or nil, school = school })
+	if preview.cooldown then ic.cdT = ns.Timer.new(ic, key, "cooldown", { cd = ic.cd, school = school }) end
+	if preview.uptime then
+		ic.upT = ns.Timer.new(ic.textFrame, key, "uptime", { anchor = ic, dual = preview.cooldown,
+			cd = not preview.cooldown and ic.cd or nil, school = school })
 	end
 	ic.bar = CreateFrame("Frame", nil, ic.textFrame)
 	ic.bar:SetPoint("BOTTOMLEFT", ic, "BOTTOMLEFT", 0, 0)
@@ -335,6 +289,7 @@ end
 local function totemPreview(def)
 	local g = def.grounded   -- Grounding: its early end is Grounded, in air blue with no cross
 	return {
+		cooldown = true, uptime = true,
 		states = { { "ready", "Ready" }, { "active", "Totem down" }, { "expiring", "Expiring" }, { "ranout", "Ran out" }, { "cd", "Cooldown" },
 			{ "killed", g and "Grounded" or "Killed early" } },
 		-- Ran out (Mana Tide, Grounding) and Killed early / Grounded play their flash as in game;
@@ -389,8 +344,12 @@ local function totemPreview(def)
 	}
 end
 
+-- Every element's preview, by key: states ({ state, label }), render(icon, state), pop(icon, state)
+-- for the states with a moment, and the timers its icon has (cooldown, uptime). An element with
+-- logic of its own has its own here; the others are made from their def by their kind (below).
 L.PREVIEW = {
 	shield = {
+		uptime = true,
 		states = { { "up3", "3 charges" }, { "up1", "1 charge" }, { "down", "No shield" }, { "drop", "Dropped in combat" } },
 		render = function(ic, st)
 			local d = db()
@@ -425,6 +384,7 @@ L.PREVIEW = {
 		end,
 	},
 	shock = {
+		cooldown = true,
 		states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" }, { "range", "Out of range" }, { "both", "Both" } },
 		pop = function(ic, st) if st == "ready" and opt("shock", "readyPop") then ic:Pop() end end,
 		render = function(ic, st)
@@ -439,6 +399,7 @@ L.PREVIEW = {
 		end,
 	},
 	imbue = {
+		uptime = true,
 		states = { { "missing", "No imbue" }, { "low", "Running low" }, { "fine", "Plenty left" } },
 		pop = function(ic, st) if st == "missing" and db().imbuePop then ic:Pop("imbue") end end,
 		render = function(ic, st)
@@ -458,6 +419,7 @@ L.PREVIEW = {
 		end,
 	},
 	firenova = {
+		cooldown = true, uptime = true,
 		states = { { "ready", "Ready" }, { "nototem", "No fire totem" }, { "out", "Fire totem out" }, { "expiring", "Totem expiring" } },
 		pop = function(ic, st) if st == "out" and opt("firenova", "readyPop") then ic:Pop() end end,
 		render = function(ic, st)
@@ -503,6 +465,7 @@ local function cooldownPreview(def)
 	end
 	local long = def.cd or 60   -- a cooldown's length, for its text
 	return {
+		cooldown = true, uptime = (def.window or (def.primed and def.primed.duration)) and true or false,
 		states = states,
 		pop = function(ic, st)
 			if st == "ready" then
@@ -525,12 +488,6 @@ local function cooldownPreview(def)
 	}
 end
 
-for _, def in ipairs(ns.Cooldowns.COOLDOWNS) do
-	if not L.PREVIEW[def.key] then
-		L.PREVIEW[def.key] = def.totemSlot and totemPreview(def) or cooldownPreview(def)
-	end
-end
-
 -- A buff element: up, expiring and not up (its idle look), plus the proc's glow or the water
 -- buffs' warnings.
 local function buffPreview(def)
@@ -544,6 +501,7 @@ local function buffPreview(def)
 	end
 	if def.breath then table.insert(states, { "underwater", "Under water" }) end
 	return {
+		uptime = true,
 		states = states,
 		-- Elemental Focus's pop is the grow-and-settle Blizzard's button plays (not the full pop).
 		pop = function(ic, st)
@@ -577,11 +535,11 @@ local function buffPreview(def)
 		end,
 	}
 end
-for _, def in ipairs(ns.Buffs.BUFFS) do L.PREVIEW[def.key] = buffPreview(def) end
 
 -- Tremor Totem: warning, its totem down (time left; idle too, unless Idle when says otherwise) and
 -- idle (not down, nothing to warn about).
 L.PREVIEW.tremor = {
+	uptime = true,
 	states = { { "warn", "Warning" }, { "down", "Tremor down" }, { "idle", "Not down, no warning" } },
 	pop = function(ic, st) if st == "warn" and opt("tremor", "alertPop") then ic:Pop("ready") end end,
 	render = function(ic, st)
@@ -613,6 +571,17 @@ L.PREVIEW.tremor = {
 	end,
 }
 
+-- The rest, by their kind: a cooldown element's by whether it has a totem, a buff element's.
+local KIND_PREVIEW = {
+	cooldown = function(def) return def.totemSlot and totemPreview(def) or cooldownPreview(def) end,
+	buff = buffPreview,
+}
+for _, key in ipairs(ns.ELEMENT_KEYS) do
+	local e = ns.ELEMENTS[key]
+	local make = e.kind and KIND_PREVIEW[e.kind]
+	if make and not L.PREVIEW[key] then L.PREVIEW[key] = make(e.def) end
+end
+
 -- The totem bar: the header is its stage. The bar is drawn at its real size (icon size × the
 -- bar's scale, inside a frame with that scale, so text, borders and spacing match the game),
 -- shrunk only as much as needed to fit; the picking state shows a short popout.
@@ -624,7 +593,7 @@ L.TOTEM_ICON = TOTEM_ICON
 local PREVIEW_LEFT = { earth = { 250, 300 }, fire = { 38, 55 }, water = { 83, 300 }, air = { 165, 300 } }
 local POP_ITEMS = 3   -- "No totem" and two totems: enough to show the look within the header
 L.PREVIEW.totembar = {
-	stage = true, heroH = 280,
+	stage = true, heroH = 280, uptime = true,
 	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" }, { "killed", "Killed early" },
 		{ "range", "Out of range" }, { "offpick", "Not your pick" }, { "picking", "Picking" } },
 	-- Blizzard's: nothing to preview. Active totems: only totems that are down, so no picking. Out of
@@ -650,7 +619,7 @@ L.PREVIEW.totembar = {
 		h.barFrame = bar
 		h.slots = {}
 		for i = 1, 4 do
-			local ic = makePreviewIcon(bar, "totembar")
+			local ic = makePreviewIcon(bar, "totembar", L.PREVIEW.totembar)
 			ic.badge = CreateFrame("Frame", nil, bar)
 			ic.badge:SetFrameLevel(ic:GetFrameLevel() + 6)
 			ic.badge.icon = ic.badge:CreateTexture(nil, "ARTWORK")
@@ -870,7 +839,7 @@ L.HERO_H = 160
 local heroes = {}   -- element key -> its header, for L.setPreview
 
 function L.buildHero(parent, key)
-	local e = L.ELEMENT[key]
+	local e = identity(key)
 	local school = L.SCHOOL[e.school]
 	local def = L.PREVIEW[key]
 	-- The state buttons fit their longest label (the panel widens to match), and a long list of
@@ -967,7 +936,7 @@ function L.buildHero(parent, key)
 		p:Hide()
 		def.build(h)
 	else
-		h.previewIcon = makePreviewIcon(p, key)
+		h.previewIcon = makePreviewIcon(p, key, def)
 		h.previewIcon:SetPoint("LEFT", 16, -6)   -- snapped to whole pixels in refresh
 	end
 	h.stateButtons = {}

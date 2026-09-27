@@ -15,7 +15,8 @@ local IM = { name = "imbue" }
 ns.Imbue = IM
 
 local imbue = ns.newElementIcon("imbue")
-ns.registerElement("imbue", { frame = imbue, label = "Weapon Imbue", paint = function(t) t:SetTexture(IM.icon()) end })
+ns.registerElement("imbue", { frame = imbue, label = "Weapon Imbue", paint = function(t) t:SetTexture(IM.icon()) end,
+	kind = "imbue", icon = 136086, school = "spirit", blurb = "Warns when your main hand has no imbue." })
 
 -- The key is also the spell's key in ns.Spells; name is its display name (the client's). ids are
 -- enchant IDs (item data), not spell IDs.

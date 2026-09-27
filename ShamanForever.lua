@@ -117,25 +117,35 @@ local isShaman = false   -- set at PLAYER_LOGIN: other classes get no HUD
 local root = CreateFrame("Frame", "ShamanForeverRoot", UIParent)
 root:SetAllPoints(UIParent)
 
--- Every element, in the order the options list them. Each is made and registered by its module
--- (ShamanForever_Shield, _Imbue, _Cooldowns, _Buffs, _Tremor); the test placeholders below are this
--- file's own.
-local ELEMENT_KEYS = { "shield", "shock", "imbue", "earthbind", "stoneclaw", "firenova" }
+-- Every element, in the order the options list them: these three first, then each one as its module
+-- registers it (ns.registerElement), in the order the TOC loads the modules and each lists its own.
+-- Each is made and registered by its module (ShamanForever_Shield, _Shock, _Imbue, _Cooldowns,
+-- _Buffs, _Tremor); the test placeholders below are this file's own, and stay last.
+local ELEMENT_KEYS = { "shield", "shock", "imbue" }
 -- key -> { frame, label, paint(texture), getSize(size), stack(), placeholder, learned(),
--- defaults }. db.groups decides where each one shows. getSize gives its width and height for its
--- group's icon size, so elements need not be square; paint draws what stands in for it in the
--- options and while dragging. learned() says whether the character knows its spell (none: always);
--- defaults holds the defaults of every option it has (see elementSetting).
+-- defaults, and for the options spell, icon, school, blurb, experimental, kind, def }. db.groups
+-- decides where each one shows. getSize gives its width and height for its group's icon size, so
+-- elements need not be square; paint draws what stands in for it in the options and while
+-- dragging; stack is its frame's (ns.newElementIcon). learned() says whether the character knows
+-- its spell (none: always); defaults holds the defaults of every option it has (see
+-- elementSetting). The options show it by its spell's name in the client's language (spell, an
+-- ns.Spells key), else its label, with its icon, its school's art (earth, fire, water, air, spirit),
+-- blurb (a line under its name) and experimental (a feature name: not tested in game); kind picks
+-- its page and preview (ShamanForever_OptionsElements.lua, _OptionsLook.lua), which read def, the
+-- module's own table for it.
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
+local firstTestKey   -- the first test placeholder (below)
 function ns.registerElement(key, e)
 	e.getSize = e.getSize or iconSize
+	e.stack = e.stack or e.frame.stack
 	ELEMENTS[key] = e
-end
--- Element modules add their keys after the six above (ShamanForever_Cooldowns.lua, _Buffs), in
--- the order the options list them.
-local firstTestKey   -- the test placeholders stay last (below)
-function ns.addElementKey(key)
+	if tContains(ELEMENT_KEYS, key) then return end
+	if e.placeholder then
+		table.insert(ELEMENT_KEYS, key)
+		firstTestKey = firstTestKey or key
+		return
+	end
 	local at = #ELEMENT_KEYS + 1
 	for i, k in ipairs(ELEMENT_KEYS) do if k == firstTestKey then at = i break end end
 	table.insert(ELEMENT_KEYS, at, key)
@@ -215,8 +225,6 @@ for _, p in ipairs(PLACEHOLDERS) do
 	ns.registerElement(p.key, { frame = f, label = "Test " .. p.letter, placeholder = true,
 		getSize = function(size) return size * p.w, size * p.h end,
 		paint = function(t) t:SetColorTexture(c[1], c[2], c[3], 0.9) end })
-	table.insert(ELEMENT_KEYS, p.key)
-	firstTestKey = firstTestKey or p.key
 end
 
 ------------------------------------------------------------------------

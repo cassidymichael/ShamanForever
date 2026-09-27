@@ -30,19 +30,21 @@ ns.Buffs = B
 
 local function setting(key, name) return ns.elementSetting(key, name) end
 
--- key, spellKey (ns.Spells), icon (fallback), school, reagent (item ID; counted only while the
--- spell's tooltip names it: Forever's list none), duration (seconds, until an aura read says),
--- defaults (its own option defaults, over its parts': PARTS below).
+-- key, spellKey (ns.Spells), icon (fallback), school, blurb (the line under its name in the
+-- options), reagent (item ID; counted only while the spell's tooltip names it: Forever's list none),
+-- duration (seconds, until an aura read says), defaults (its own option defaults, over its parts':
+-- PARTS below). Adding one is a line here, in the order the options list them.
 local BUFFS = {
 	{ key = "waterwalking", spellKey = "waterWalking", icon = 135863, school = "water", reagent = 17058, duration = 600,
+		blurb = "Time left while it's up.",
 		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, pulse = false } }, experimental = "Water Walking" },
 	{ key = "waterbreathing", spellKey = "waterBreathing", icon = 136148, school = "water", reagent = 17057, duration = 600,
-		breath = true,
+		breath = true, blurb = "Time left while it's up. Warns under water without it.",
 		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, pulse = false } }, experimental = "Water Breathing" },
 	{ key = "elementalfocus", spellKey = "elementalFocus", buffKey = "clearcasting", icon = 136170, school = "spirit",
+		blurb = "Shows while " .. Spells.name("clearcasting") .. " is up.",
 		proc = true, defaults = { idleAlpha = 0 }, experimental = "Elemental Focus" },
 }
-B.BUFFS = BUFFS
 
 ------------------------------------------------------------------------
 -- Elements
@@ -77,10 +79,11 @@ for _, def in ipairs(BUFFS) do
 	end
 	def.frame = makeBuffIcon(def)
 	def.frame.aboveProtected = def.proc   -- Elemental Focus: Blizzard's aura button sits under it
-	ns.registerElement(def.key, { frame = def.frame, label = def.spell, stack = def.frame.stack,
+	ns.registerElement(def.key, { frame = def.frame, label = def.spell,
 		defaults = def.defaults, learned = function() return def.spellID ~= nil end,
-		paint = function(t) t:SetTexture(def.icon) end })
-	ns.addElementKey(def.key)
+		paint = function(t) t:SetTexture(def.icon) end,
+		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
+		experimental = def.experimental })
 end
 
 ------------------------------------------------------------------------

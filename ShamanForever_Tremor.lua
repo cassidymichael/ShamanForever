@@ -96,10 +96,11 @@ f.word:Hide()
 f.stack()
 def.frame = f
 
-ns.registerElement(KEY, { frame = f, label = def.spell, stack = f.stack, defaults = def.defaults,
+ns.registerElement(KEY, { frame = f, label = def.spell, defaults = def.defaults,
 	learned = function() return def.spellID ~= nil end,
-	paint = function(t) t:SetTexture(def.iconID or def.icon) end })
-ns.addElementKey(KEY)
+	paint = function(t) t:SetTexture(def.iconID or def.icon) end,
+	kind = "tremor", def = def, spell = def.spellKey, icon = def.icon, school = def.school,
+	blurb = "Warns near mobs that fear, charm or sleep." })
 
 ------------------------------------------------------------------------
 -- The watchlist

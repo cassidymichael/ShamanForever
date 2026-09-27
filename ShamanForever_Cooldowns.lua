@@ -40,10 +40,11 @@ local setting = ns.elementSetting
 ------------------------------------------------------------------------
 -- Cooldown elements: a spell's cooldown, plus for a totem the active time of ours in its slot, or for
 -- Fire Nova whether the fire totem it needs is out. Totem slots: 1 fire, 2 earth, 3 water, 4 air.
--- Adding one starts with a line here (its look and page go in the Options files); the first three
--- are in ShamanForever.lua's ELEMENT_KEYS, the rest add themselves after them. spellKey is its
--- spell in ns.Spells, icon the fallback until the client has it, duration the totem's lifetime in
--- seconds (for the options previews). spell is the display name (the client's).
+-- Adding one is a line here, in the order the options list them: its options page and preview
+-- follow from the parts it has (ShamanForever_OptionsElements.lua, _OptionsLook.lua). spellKey is
+-- its spell in ns.Spells, icon the fallback until the client has it, school its colour and art,
+-- blurb the line under its name in the options, duration the totem's lifetime in seconds (for the
+-- options previews). spell is the display name (the client's).
 -- Optional parts:
 --   grounded = true     its early end is a success (Grounding): a Grounded flash, not Killed early
 --   window = seconds    a buff window timed from our cast (Rage of the Farseer), shown as time left
@@ -62,42 +63,50 @@ local setting = ns.elementSetting
 --   defaults = { ... }  its own option defaults (ns.elementSetting), over its parts' (PARTS)
 --   experimental        a feature name: not tested in game (the level cap is 20)
 local COOLDOWNS = {
-	{ key = "earthbind", spellKey = "earthbind", icon = 136102, totemSlot = 2, duration = 45, school = "earth" },
-	{ key = "stoneclaw", spellKey = "stoneclaw", icon = 136097, totemSlot = 2, duration = 15, school = "earth" },
-	{ key = "firenova",  spellKey = "fireNova",  icon = 135824, needsTotem = 1, school = "fire" },
+	{ key = "earthbind", spellKey = "earthbind", icon = 136102, totemSlot = 2, duration = 45, school = "earth",
+		blurb = "Cooldown, and time left while it's down." },
+	{ key = "stoneclaw", spellKey = "stoneclaw", icon = 136097, totemSlot = 2, duration = 15, school = "earth",
+		blurb = "Cooldown, and time left while it's down." },
+	{ key = "firenova",  spellKey = "fireNova",  icon = 135824, needsTotem = 1, school = "fire",
+		blurb = "Cooldown. Needs a fire totem." },
 	-- Emergency cooldowns: plainly visible while ready.
-	{ key = "naturesswiftness", spellKey = "naturesSwiftness", icon = 136076, school = "water", new = true,
+	{ key = "naturesswiftness", spellKey = "naturesSwiftness", icon = 136076, school = "water",
+		blurb = "Cooldown, and a glow while your next Nature spell is instant.",
 		primed = { spends = { "healingWave", "lesserHealingWave", "chainHeal", "lightningBolt", "chainLightning",
 			"ghostWolf", "farSight" },
 			buffKey = "naturesSwiftness" },
 		cd = 180, defaults = { idleAlpha = 1 }, experimental = "Nature's Swiftness" },
-	{ key = "manatide", spellKey = "manaTide", icon = 135861, totemSlot = 3, duration = 12, school = "water", new = true,
+	{ key = "manatide", spellKey = "manaTide", icon = 135861, totemSlot = 3, duration = 12, school = "water",
+		blurb = "Cooldown, and time left while it's down.",
 		ranOut = true, cd = 300,
 		defaults = { idleAlpha = 1, expire = { secs = 3, glow = true, pulse = false } }, experimental = "Mana Tide Totem" },
-	{ key = "grounding", spellKey = "grounding", icon = 136039, totemSlot = 4, duration = 45, school = "air", new = true,
+	{ key = "grounding", spellKey = "grounding", icon = 136039, totemSlot = 4, duration = 45, school = "air",
+		blurb = "Cooldown, time left, and a flash when it takes a spell.",
 		grounded = true, ranOut = true, cd = 15, experimental = "Grounding Totem" },
 	-- Rotation: full while ready, like the shocks.
 	-- On Forever, Stormstrike leaves the target taking 20% more from the next 2 Nature hits for 12 s:
 	-- a debuff on the target, so it's timed from the cast and spent by our own casts only (Lightning
 	-- Shield's hits and other shamans' spells can take the charges unseen).
-	{ key = "stormstrike", spellKey = "stormstrike", icon = 135963, school = "air", new = true,
+	{ key = "stormstrike", spellKey = "stormstrike", icon = 135963, school = "air",
+		blurb = "Cooldown, and a bar while your target takes more Nature damage.",
 		primed = { spends = { "lightningBolt", "chainLightning", "earthShock" }, charges = 2, duration = 12 },
 		primedLooks = false, expireLooks = false, readyGlow = true, cd = 8,
 		defaults = { idleAlpha = 1, primedPop = false, primedGlow = false, expire = { secs = 0 } }, experimental = "Stormstrike" },
-	{ key = "riptide", spellKey = "riptide", icon = 252995, school = "water", new = true,
+	{ key = "riptide", spellKey = "riptide", icon = 252995, school = "water", blurb = "Cooldown.",
 		readyGlow = true, cd = 6, defaults = { idleAlpha = 1 }, experimental = "Riptide" },
-	{ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, window = 25, school = "air", new = true,
+	{ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, window = 25, school = "air",
+		blurb = "Cooldown, and time left while it's on.",
 		readyGlow = true, expireLooks = { "grey", "pulse" }, cd = 180,
 		-- Expiring off: nothing to recast as it ends. Turned on, it fades in and out.
 		defaults = { idleAlpha = 1, expire = { secs = 0, pulse = true } }, experimental = "Rage of the Farseer" },
-	{ key = "projection", spellKey = "totemicProjection", icon = 136099, school = "spirit", new = true,
+	{ key = "projection", spellKey = "totemicProjection", icon = 136099, school = "spirit", blurb = "Cooldown.",
 		cd = 60, experimental = "Totemic Projection" },
 	-- Out of sight while ready: seen on cooldown, or when Ankhs run low.
-	{ key = "reincarnation", spellKey = "reincarnation", icon = 136080, school = "spirit", new = true,
+	{ key = "reincarnation", spellKey = "reincarnation", icon = 136080, school = "spirit",
+		blurb = "Cooldown, and your Ankhs when they run low.",
 		reagent = 17030, noReady = true, cd = 3600,
 		defaults = { idleAlpha = 0, readyPop = false }, experimental = "Reincarnation" },
 }
-CD.COOLDOWNS = COOLDOWNS
 
 -- Option defaults (ns.elementSetting) by part: every cooldown element has Ready and Idle, the rest
 -- come with what it has. A def's own defaults win over them.
@@ -172,10 +181,11 @@ for _, def in ipairs(COOLDOWNS) do
 	def.icon = Spells.icon(def.spellKey) or def.icon
 	withParts(def)
 	def.frame = makeCooldownIcon(def)
-	ns.registerElement(def.key, { frame = def.frame, label = def.spell, stack = def.frame.stack,
+	ns.registerElement(def.key, { frame = def.frame, label = def.spell,
 		defaults = def.defaults, learned = function() return def.spellID ~= nil end,
-		paint = function(t) t:SetTexture(def.iconID or def.icon) end })
-	if def.new then ns.addElementKey(def.key) end
+		paint = function(t) t:SetTexture(def.iconID or def.icon) end,
+		kind = "cooldown", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
+		experimental = def.experimental })
 end
 
 ------------------------------------------------------------------------
