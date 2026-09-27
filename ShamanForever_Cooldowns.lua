@@ -49,8 +49,9 @@ local setting = ns.elementSetting
 --   grounded = true     its early end is a success (Grounding): a Grounded flash, not Killed early
 --   window = seconds    a buff window timed from our cast (Rage of the Farseer), shown as time left
 --   primed = { spends = { spell keys }, charges = n (1), duration = seconds or nil (until spent),
---              buffKey = spell key of a buff on us, read when auras are readable }: an effect that
---              waits to be spent (Nature's Swiftness, Stormstrike); see the file's header
+--              buffKey = spell key of a buff on us, read when auras are readable, text = what
+--              starts and spends it, for its options page }: an effect that waits to be spent
+--              (Nature's Swiftness, Stormstrike); see the file's header
 --   reagent = item ID   the spell's reagent (Reincarnation's Ankh): a count, low and out looks
 --   readyGlow = true    offers the "use me" glow while off cooldown (off by default)
 --   noReady = true      no ready pop (Reincarnation: nothing to do the moment it's back)
@@ -74,7 +75,8 @@ local COOLDOWNS = {
 		blurb = "Cooldown, and a glow while your next Nature spell is instant.",
 		primed = { spends = { "healingWave", "lesserHealingWave", "chainHeal", "lightningBolt", "chainLightning",
 			"ghostWolf", "farSight" },
-			buffKey = "naturesSwiftness" },
+			buffKey = "naturesSwiftness",
+			text = "From your cast until your next Nature spell with a cast time." },
 		cd = 180, defaults = { idleAlpha = 1 }, experimental = "Nature's Swiftness" },
 	{ key = "manatide", spellKey = "manaTide", icon = 135861, totemSlot = 3, duration = 12, school = "water",
 		blurb = "Cooldown, and time left while it's down.",
@@ -89,7 +91,9 @@ local COOLDOWNS = {
 	-- Shield's hits and other shamans' spells can take the charges unseen).
 	{ key = "stormstrike", spellKey = "stormstrike", icon = 135963, school = "air",
 		blurb = "Cooldown, and a bar while your target takes more Nature damage.",
-		primed = { spends = { "lightningBolt", "chainLightning", "earthShock" }, charges = 2, duration = 12 },
+		primed = { spends = { "lightningBolt", "chainLightning", "earthShock" }, charges = 2, duration = 12,
+			text = "From your cast for 12 s, or until your second Lightning Bolt, Chain Lightning or Earth Shock. " ..
+				"Other Nature damage on the target also uses it up, which can't be seen." },
 		primedLooks = false, expireLooks = false, readyGlow = true, cd = 8,
 		defaults = { idleAlpha = 1, primedPop = false, primedGlow = false, expire = { secs = 0 } }, experimental = "Stormstrike" },
 	{ key = "riptide", spellKey = "riptide", icon = 252995, school = "water", blurb = "Cooldown.",

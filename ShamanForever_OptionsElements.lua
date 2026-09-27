@@ -282,15 +282,10 @@ local function buildImbue(p)
 end
 
 -- Primed: when it starts (from your cast), what spends it, and how it looks meanwhile.
-local PRIMED_TEXT = {
-	naturesswiftness = "From your cast until your next Nature spell with a cast time.",
-	stormstrike = "From your cast for 12 s, or until your second Lightning Bolt, Chain Lightning or Earth Shock. " ..
-		"Other Nature damage on the target also uses it up, which can't be seen.",
-}
 local function primedBlock(p, def)
 	local key = def.key
 	p:header("Primed")
-	if PRIMED_TEXT[key] then p:text(PRIMED_TEXT[key]) end
+	if def.primed.text then p:text(def.primed.text) end
 	if def.primedLooks == false then return end
 	p:checkbox("Pop", "The moment it's primed.", eget(key, "primedPop"), eset(key, "primedPop"))
 	p:checkbox("Pulsing glow", "While it's primed.", eget(key, "primedGlow"), eset(key, "primedGlow"))
