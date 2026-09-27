@@ -255,11 +255,9 @@ local function timerSettings(p, title, key, kind, after, note)
 	end
 	local function secs(v) return string.format("%d", v) end
 	p:header(title)
-	if key then followRow(p, key, kind, after)
-	else
-		p:anchor(kind)
-		if note then p:text(note) end
-	end
+	if not key then p:anchor(kind) end
+	if note then p:text(note) end
+	if key then followRow(p, key, kind, after) end
 	-- What the game can't do here, said once instead of showing rows that could never apply.
 	for _, why in pairs(cant) do p:text(why, own) end
 	p:checkbox("Countdown text", "Numbers counting down.", tg("text"), ts("text"), dim("text"))
@@ -1633,7 +1631,7 @@ local function mobList(p)
 	bar:SetPoint("BOTTOMLEFT", sb, "BOTTOMRIGHT", 6, 0)
 	local empty = panel:CreateFontString(nil, "OVERLAY", "GameFontDisable")
 	empty:SetPoint("CENTER")
-	empty:SetText("No mob here. Add puts a name on the list.")
+	empty:SetText("No matches. Add puts the name on the list.")
 
 	local view = CreateScrollBoxListLinearView()
 	view:SetElementExtent(MOB_ROW_H)
@@ -1743,30 +1741,29 @@ local function buildTremor(p)
 	p:checkbox("Your target is on the list", nil, eget(key, "tremorTarget"), eset(key, "tremorTarget"))
 	p:checkbox("A mob on the list is near", "Its nameplate is on screen.", eget(key, "tremorPlates"), eset(key, "tremorPlates"))
 	p:text("Needs enemy nameplates on.", showWhen(eget(key, "tremorPlates")))
-	p:checkbox("You're feared, charmed or asleep", "And for 10 seconds after, in case it comes again.",
+	p:checkbox("You're feared, charmed or asleep", "And for 10 s after, in case it comes again.",
 		eget(key, "tremorFeared"), eset(key, "tremorFeared"))
-	p:text("The game hides party members' crowd control from addons, so this covers only you. It stays up "
-		.. "10 s after it ends. In dungeons and raids it's the only warning that works.")
+	p:text("The game hides party members' crowd control, so this covers only you.")
 	p:text("None of these while your Tremor Totem is down.")
 	p:header("Tremor warning watchlist")
 	p:callout("In dungeons and raids the game hides mob names from addons, so the watchlist can't work there. "
 		.. "Only \"You're feared, charmed or asleep\" can, when it's on.")
 	p:text("Mobs that cast fear, charm or sleep.")
 	mobList(p)
-	linkLine(p, "Help improve ShamanForever: suggest a mob to add to this default list",
-		"Opens Feedback, on the About page.", function() OP.showFeedback() end)
-	timerSettings(p, "Time left", key, "uptime")
+	linkLine(p, "Suggest a mob for the default list", "Opens Feedback, on the About page.", function() OP.showFeedback() end)
+	timerSettings(p, "Time left", key, "uptime", nil,
+		"Its time left while it's down. With the default Idle (\"No warning\", 0%) it isn't seen.")
 	p:header("When it warns")
 	p:checkbox("Pop", "The moment it starts warning.", eget(key, "alertPop"), eset(key, "alertPop"))
 	p:checkbox("Pulsing glow", "While it warns.", eget(key, "alertGlow"), eset(key, "alertGlow"))
-	p:checkbox("Text", ns.Tremor.WORD .. " by the icon.", eget(key, "alertText"), eset(key, "alertText"))
+	p:checkbox("Text", "Shows \"" .. ns.Tremor.WORD .. "\" by the icon.", eget(key, "alertText"), eset(key, "alertText"))
 	local text = showWhen(eget(key, "alertText"))
-	p:slider("Text size", "At the standard icon size; it grows and shrinks with the icon.", 8, 40, 1, int,
+	p:slider("Text size", "At the default icon size; it grows with the icon.", 8, 40, 1, int,
 		eget(key, "wordSize"), eset(key, "wordSize"), text)
 	p:color("Text colour", nil, eget(key, "wordColor"), eset(key, "wordColor"), text)
-	p:dropdown("Text position", nil, WORD_POS, eget(key, "wordPos"), eset(key, "wordPos"), text, 160)
-	p:slider("Text X offset", "Pixels right (or left, below zero).", -100, 100, 1, px, eget(key, "wordX"), eset(key, "wordX"), text)
-	p:slider("Text Y offset", "Pixels up (or down, below zero).", -100, 100, 1, px, eget(key, "wordY"), eset(key, "wordY"), text)
+	p:dropdown("Position", nil, WORD_POS, eget(key, "wordPos"), eset(key, "wordPos"), text, 160)
+	p:slider("Text X offset", nil, -100, 100, 1, px, eget(key, "wordX"), eset(key, "wordX"), text)
+	p:slider("Text Y offset", nil, -100, 100, 1, px, eget(key, "wordY"), eset(key, "wordY"), text)
 	p:dropdown("Sound", "Plays when it starts warning.", ns.Tremor.SOUNDS, eget(key, "alertSound"), function(v)
 		ns.elementOpts(key).alertSound = v
 		ns.Tremor.playSound(v)
