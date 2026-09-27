@@ -26,7 +26,8 @@ SK.SHOCKS, SK.ORDER = SHOCKS, SHOCK_ORDER
 local shock = ns.newElementIcon("shock")
 shock.cdTimer = ns.Timer.new(shock, "shock", "cooldown", { cd = shock.cd, school = "spirit" })
 local shockIcon = 136026
-ns.registerElement("shock", { frame = shock, label = "Shocks", paint = function(t) t:SetTexture(shockIcon) end })
+ns.registerElement("shock", { frame = shock, label = "Shocks", paint = function(t) t:SetTexture(shockIcon) end,
+	defaults = { readyPop = true, readyGlow = false } })
 
 local shockSpellID, manaSpellID
 local shockIDs = {}

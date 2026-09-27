@@ -59,7 +59,7 @@ local setting = ns.elementSetting
 --                       nothing to recast as it ends, so no glow or ring); false for no Expiring
 --   primedLooks = false no Primed pop or glow, only its time left (Stormstrike)
 --   cd = seconds        its cooldown's length, for the options preview only
---   defaults = { ... }  its own option defaults (ns.elementSetting), e.g. idleAlpha
+--   defaults = { ... }  its own option defaults (ns.elementSetting), over its parts' (PARTS)
 --   experimental        a feature name: not tested in game (the level cap is 20)
 local COOLDOWNS = {
 	{ key = "earthbind", spellKey = "earthbind", icon = 136102, totemSlot = 2, duration = 45, school = "earth" },
@@ -98,6 +98,30 @@ local COOLDOWNS = {
 		defaults = { idleAlpha = 0, readyPop = false }, experimental = "Reincarnation" },
 }
 CD.COOLDOWNS = COOLDOWNS
+
+-- Option defaults (ns.elementSetting) by part: every cooldown element has Ready and Idle, the rest
+-- come with what it has. A def's own defaults win over them.
+local PARTS = {
+	ready = { readyPop = true, readyGlow = false },
+	idle = { idleAlpha = 0.35 },
+	-- Fire Nova: the no-fire-totem look, and when it counts as idle (never | nototem | offcd).
+	needsTotem = { blockedGrey = true, blockedRing = false, blockedPulse = false, idleWhen = "never" },
+	-- A totem's end: ran out (the pop) or killed early (Killed early's flash and cross).
+	totemSlot = { expiredPop = true, killed = true, killedPop = true, killedGlow = true, killedMark = true },
+	ranOut = { ranOutFlash = true, ranOutPop = false, ranOutGlow = false },   -- ran out, as a flash
+	grounded = { grounded = true, groundedPop = true, groundedGlow = true },  -- Grounding's early end
+	primed = { primedPop = true, primedGlow = true },
+	reagent = Reagents.DEFAULTS,
+}
+local function withParts(def)
+	def.defaults = def.defaults or {}
+	local fill = ns.fillDefaults
+	fill(def.defaults, PARTS.ready)
+	fill(def.defaults, PARTS.idle)
+	for _, part in ipairs({ "needsTotem", "totemSlot", "ranOut", "grounded", "primed", "reagent" }) do
+		if def[part] then fill(def.defaults, PARTS[part]) end
+	end
+end
 
 local function makeCooldownIcon(def)
 	-- Effects (the glows, the pops' light, the end flashes) on a layer that ignores the icon's alpha,
@@ -146,6 +170,7 @@ end
 for _, def in ipairs(COOLDOWNS) do
 	def.spell = Spells.name(def.spellKey)
 	def.icon = Spells.icon(def.spellKey) or def.icon
+	withParts(def)
 	def.frame = makeCooldownIcon(def)
 	ns.registerElement(def.key, { frame = def.frame, label = def.spell, stack = def.frame.stack,
 		defaults = def.defaults, learned = function() return def.spellID ~= nil end,

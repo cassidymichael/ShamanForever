@@ -125,7 +125,7 @@ local ELEMENT_KEYS = { "shield", "shock", "imbue", "earthbind", "stoneclaw", "fi
 -- defaults }. db.groups decides where each one shows. getSize gives its width and height for its
 -- group's icon size, so elements need not be square; paint draws what stands in for it in the
 -- options and while dragging. learned() says whether the character knows its spell (none: always);
--- defaults holds its own defaults for its options (see elementSetting).
+-- defaults holds the defaults of every option it has (see elementSetting).
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
 function ns.registerElement(key, e)
@@ -250,27 +250,12 @@ local function elementOpts(key)
 	return o
 end
 
--- An element's option (db.elementOpts[key]) with its default: the element's own (its registry
--- entry's defaults), else everyone's. Every element starts with its pops on and its "use me" glows off.
-local ELEMENT_OPT_DEFAULTS = {
-	readyPop = true, readyGlow = false,                          -- Ready (cooldowns)
-	blockedGrey = true, blockedRing = false, blockedPulse = false,  -- No fire totem (Fire Nova)
-	expiredPop = true,                                           -- a totem ran out
-	ranOutFlash = true, ranOutPop = false, ranOutGlow = false,   -- a totem ran out (Mana Tide, Grounding)
-	killed = true, killedPop = true, killedGlow = true, killedMark = true,   -- a totem killed early
-	idleAlpha = 0.35, idleWhen = "never",                        -- Idle (idleWhen: Fire Nova's rule)
-	primedPop = true, primedGlow = true,                         -- Primed (Nature's Swiftness, Stormstrike)
-	grounded = true, groundedPop = true, groundedGlow = true,     -- Grounded (Grounding's early end)
-	reagentCount = "always", reagentLow = 2, reagentShow = true,   -- Reagent (count: always | low | never)
-	reagentColor = { 1, 1, 1, 1 }, reagentLowColor = { 1, 0.82, 0, 1 },   -- the count's text: plenty, low or none
-	reagentSize = 14, reagentPos = "BOTTOMRIGHT", reagentX = 0, reagentY = 0,   -- and its size and place
-	reagentRing = true, reagentPulse = true,                       -- none left
-	breathWarn = true, breathRing = true, breathPulse = true,     -- Under water (Water Breathing)
-}
+-- An element's option (db.elementOpts[key]) with its default: its registry entry's defaults, which
+-- its module fills from the parts the element has (a cooldown's Ready, a totem's end, a reagent...)
+-- under its own. Every element starts with its pops on and its "use me" glows off.
 local function elementDefault(key, name)
 	local own = ELEMENTS[key] and ELEMENTS[key].defaults
-	if own and own[name] ~= nil then return own[name] end
-	return ELEMENT_OPT_DEFAULTS[name]
+	if own then return own[name] end
 end
 local function elementSetting(key, name)
 	local v = elementOpts(key)[name]

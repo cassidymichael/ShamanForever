@@ -14,6 +14,16 @@ ns.Reagents = R
 
 local setting = ns.elementSetting
 
+-- A reagent element's option defaults (ns.elementSetting): the count (always | low | never), its Low
+-- mark, whether running low holds it out of idle, the count's text (its colour while plenty and
+-- while low or none, its size and place), and the none-left looks.
+R.DEFAULTS = {
+	reagentCount = "always", reagentLow = 2, reagentShow = true,
+	reagentColor = { 1, 1, 1, 1 }, reagentLowColor = { 1, 0.82, 0, 1 },
+	reagentSize = 14, reagentPos = "BOTTOMRIGHT", reagentX = 0, reagentY = 0,
+	reagentRing = true, reagentPulse = true,
+}
+
 -- How many the player carries, or nil when that can't be read.
 function R.count(def)
 	local ok, n = safe(C_Item and C_Item.GetItemCount, def.reagent)

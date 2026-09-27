@@ -31,7 +31,8 @@ ns.Buffs = B
 local function setting(key, name) return ns.elementSetting(key, name) end
 
 -- key, spellKey (ns.Spells), icon (fallback), school, reagent (item ID; counted only while the
--- spell's tooltip names it: Forever's list none), duration (seconds, until an aura read says).
+-- spell's tooltip names it: Forever's list none), duration (seconds, until an aura read says),
+-- defaults (its own option defaults, over its parts': PARTS below).
 local BUFFS = {
 	{ key = "waterwalking", spellKey = "waterWalking", icon = 135863, school = "water", reagent = 17058, duration = 600,
 		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, pulse = false } }, experimental = "Water Walking" },
@@ -46,6 +47,13 @@ B.BUFFS = BUFFS
 ------------------------------------------------------------------------
 -- Elements
 ------------------------------------------------------------------------
+-- Option defaults (ns.elementSetting) by part; a def's own defaults win over them.
+local PARTS = {
+	reagent = ns.Reagents.DEFAULTS,
+	breath = { breathWarn = true, breathRing = true, breathPulse = true },   -- Under water
+	proc = { primedPop = true, primedGlow = true },                          -- its proc's pop and glow
+}
+
 local function makeBuffIcon(def)
 	-- Effects on a layer that ignores the icon's alpha (as the cooldown elements do), so an idle
 	-- icon doesn't fade the expiring glow. Elemental Focus's aura container sits on that layer too;
@@ -63,6 +71,10 @@ for _, def in ipairs(BUFFS) do
 	def.buff = true   -- for the options: its Idle is "not up", not "off cooldown"
 	def.spell = Spells.name(def.spellKey)
 	def.icon = Spells.icon(def.buffKey or def.spellKey) or def.icon
+	def.defaults = def.defaults or {}
+	for part, defaults in pairs(PARTS) do
+		if def[part] then ns.fillDefaults(def.defaults, defaults) end
+	end
 	def.frame = makeBuffIcon(def)
 	def.frame.aboveProtected = def.proc   -- Elemental Focus: Blizzard's aura button sits under it
 	ns.registerElement(def.key, { frame = def.frame, label = def.spell, stack = def.frame.stack,
