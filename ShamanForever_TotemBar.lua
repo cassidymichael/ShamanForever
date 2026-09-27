@@ -174,25 +174,6 @@ local function multiAction(slot)
 	return (bar - 1) * 12 + slot
 end
 
--- The totems known for an element, by spell ID, in Blizzard's order; a totem known at several
--- ranks (one name in the client's language) is listed once, at its highest.
-local function knownTotems(slot)
-	if not GetMultiCastTotemSpells then return {} end
-	local ok, ids = pcall(function() return { GetMultiCastTotemSpells(slot) } end)
-	if not ok then return {} end
-	local out, at = {}, {}
-	for _, id in ipairs(ids) do
-		local name = ns.Spells.nameOf(id)
-		if name then
-			local i = at[name]
-			if not i then table.insert(out, id); at[name] = #out
-			elseif ns.Spells.rank(id) > ns.Spells.rank(out[i]) then out[i] = id end
-		end
-	end
-	return out
-end
-TB.knownTotems = knownTotems
-
 ------------------------------------------------------------------------
 -- Frames. Created when the file loads, which is allowed even during a /reload in combat.
 ------------------------------------------------------------------------
@@ -240,7 +221,8 @@ local PICK_CLICK, PICK_AFTER = [[ return nil, self:GetAttribute("sf-pick") ]], [
 local function wrapClick(b, pre, post) SecureHandlerWrapScript(b, "OnClick", picker, pre, post) end
 
 
-local slots = {}   -- element -> slot record
+local slots = {}    -- element -> slot record
+local bySlot = {}   -- Blizzard's totem slot -> slot record
 TB.slots, TB.frame = slots, bar
 
 -- Over a button's look (above its timer, and inside the look so it fades with it): the key bound to
@@ -274,7 +256,7 @@ end
 for index, el in ipairs(ELEMENTS) do
 	local slot = SLOT[el]
 	local s = { el = el, slot = slot, index = index }
-	slots[el] = s
+	slots[el], bySlot[slot] = s, s
 
 	-- The click area: right-click dismisses, left-click casts the pick, Alt+click opens the
 	-- element's picker (SLOT_CLICK; layout() turns it off outside Everything). Casts and dismissals
@@ -530,18 +512,6 @@ local function pickSpell(slot)
 	return id
 end
 
--- The totem down in a slot, by spell ID: our own last cast into it (exact, in combat too), else, out
--- of combat, the slot's own spell ID (after a /reload, before we have cast). Never the slot's name:
--- right after a cast it can still be the previous totem's. nil when unknown.
-local function downSpell(slot)
-	local id = ns.Totems.spellInSlot(slot)
-	if id then return id end
-	if InCombatLockdown() then return nil end
-	local ok, _, _, _, _, _, _, sid = ns.try("totem bar: totem info", GetTotemInfo, slot)
-	if ok and not isSecret(sid) and type(sid) == "number" and sid > 0 then return sid end
-end
-TB.downSpell = downSpell
-
 -- A totem's own warning time (warnOver), else the bar's. warnOver is keyed by the client's rank-less
 -- spell name; for the spells the addon tracks, the English name counts too (older profiles, and
 -- defaults filled before the client's names had loaded).
@@ -574,11 +544,9 @@ function TB.alphas(s)
 	if TB.range then TB.range.alphas(s) end
 end
 
-local slotEmptied   -- Killed early, below
-
 local function drawSlot(s)
 	local c, v = cfg(), s.vis
-	local was = s.dur   -- a slot that had a totem and now has none ended it: see slotEmptied
+	local was = s.dur   -- a slot that had a totem and now has none ended it (Killed early, below)
 	local ok, d = ns.try("totem bar: duration", GetTotemDuration, s.slot)
 	if ok and d then
 		-- A totem is down.
@@ -594,9 +562,9 @@ local function drawSlot(s)
 		v.icon:SetAlpha(1)
 		v.bg:SetColorTexture(0, 0, 0, 1)
 		s.timer:set(d)
-		-- Not the element's pick? Only when both are known: the totem down (see downSpell) and a pick
-		-- (not "No totem"); any rank of the pick counts as the pick.
-		local down = downSpell(s.slot)
+		-- Not the element's pick? Only when both are known: the totem down (ns.Totems.downSpell)
+		-- and a pick (not "No totem"); any rank of the pick counts as the pick.
+		local down = ns.Totems.downSpell(s.slot)
 		local pick = down and c.offPick and c.mode == "everything" and pickSpell(s.slot)
 		if pick and not ns.Spells.same(down, pick) then
 			ns.try("totem bar: badge", s.badge.icon.SetTexture, s.badge.icon, GetActionTexture(multiAction(s.slot)))
@@ -609,7 +577,7 @@ local function drawSlot(s)
 		return true
 	end
 	s.dur = nil
-	if was then slotEmptied(s, was) end
+	if was then ns.Totems.slotEmptied(s.slot, was) end
 	s.badge:Hide()
 	-- Not down: the element's pick (greyed or in colour, at its opacity), or its colour, or nothing.
 	-- With nothing picked, "pick" falls back to the element colour.
@@ -749,7 +717,7 @@ local saidWait = false   -- "changes wait until combat ends" said this combat
 local classDone = false  -- not a shaman: laid out hidden once, nothing more to do
 
 local POP_STEP = 3
--- known: the element's knownTotems, from layout().
+-- known: the element's known totems (ns.Totems.knownTotems), from layout().
 local function layoutPopout(s, size, known)
 	local c, pop = cfg(), s.popout
 	local slot = s.slot
@@ -876,7 +844,7 @@ function layout()
 	local shown, known = {}, {}
 	for _, el in ipairs(c.order) do
 		local s = slots[el]
-		known[el] = knownTotems(s.slot)
+		known[el] = ns.Totems.knownTotems(s.slot)
 		local on = barOn() and not c.hidden[el] and (#known[el] > 0 or not GetMultiCastTotemSpells)
 		s.button:SetShown(on)
 		s.vis:SetShown(on)
@@ -1244,28 +1212,19 @@ end
 -- Killed early. When a slot empties, its last duration object still says how much time the totem
 -- had left (tested 2026-09-25); ns.makeEndFlash turns that into the flash's alpha through a curve,
 -- so for a totem that simply ran out the flash stays invisible (its run-out pop plays instead).
--- Our own dismissals don't flash: every one goes through DestroyTotem (right-click, keys, dismiss
--- all, Blizzard's frame), and Totemic Recall is our own cast. A slot that fills again at once (a new
--- totem cast over it) doesn't flash either. The cross (killedMark) sits under the same gate and goes
--- on a recast or after 5 s.
+-- Our own dismissals and a slot that fills again at once (a new totem cast over it) don't flash:
+-- ns.Totems only calls a totem gone without either. The cross (killedMark) sits under the same gate
+-- and goes on a recast or after 5 s.
 ------------------------------------------------------------------------
-local dismissedAt = {}   -- slot -> GetTime() of our last dismissal
-if DestroyTotem then hooksecurefunc("DestroyTotem", function(slot) dismissedAt[slot] = GetTime() end) end
-local function recalled() for slot = 1, 4 do dismissedAt[slot] = GetTime() end end
-
-function slotEmptied(s, was)
-	C_Timer.After(0.1, function()
-		local mine = dismissedAt[s.slot] and GetTime() - dismissedAt[s.slot] < 1.5
-		local ok, d = ns.try("totem bar: duration", GetTotemDuration, s.slot)
-		local refilled = ok and d ~= nil
-		if mine or refilled then return end
-		ns.Totems.slotEmptied(s.slot, was)   -- the totem elements
-		local c = cfg()
-		if not s.button:IsShown() then return end
-		if c.expiredPop then s.expired:play(was, { expired = true, pop = true }) end
-		if c.killed then s.killed:play(was, { pop = c.killedPop, glow = c.killedGlow, mark = c.killedMark }) end
-	end)
-end
+-- Subscribed after the totem elements (ShamanForever_Cooldowns.lua loads first): they hear first.
+ns.Totems.subscribe(function(event, slot, was)
+	if event ~= "gone" then return end
+	local s = bySlot[slot]
+	local c = cfg()
+	if not s.button:IsShown() then return end
+	if c.expiredPop then s.expired:play(was, { expired = true, pop = true }) end
+	if c.killed then s.killed:play(was, { pop = c.killedPop, glow = c.killedGlow, mark = c.killedMark }) end
+end)
 
 ------------------------------------------------------------------------
 -- Events
@@ -1312,7 +1271,6 @@ ev:SetScript("OnEvent", function(_, event, arg1, ...)
 	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
 		local _, spell = ...   -- unit, castGUID, spellID
 		if isSecret(spell) or type(spell) ~= "number" then return end
-		if ns.Spells.keyOf(spell) == "recall" then recalled() end
 		redrawAfterCast(spell)
 	elseif event == "ACTIONBAR_SLOT_CHANGED" then
 		-- The element's multi-cast slots, or 0 (every slot).
@@ -1355,7 +1313,7 @@ function TB.known(el)
 		if p:IsShown() and p.spellID and p.spellID ~= 0 then table.insert(ids, p.spellID) end
 	end
 	if #ids > 0 then return ids end
-	return knownTotems(SLOT[el])
+	return ns.Totems.knownTotems(SLOT[el])
 end
 TB.look = look
 

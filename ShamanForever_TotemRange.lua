@@ -248,7 +248,7 @@ end
 -- draw (any time): the mark's gate, from which totem of yours is down.
 function R.draw(s)
 	if not s.rangeGate then return end
-	local on = s.down and enabled() and isBuffTotem(s.el, TB.downSpell(s.slot))
+	local on = s.down and enabled() and isBuffTotem(s.el, ns.Totems.downSpell(s.slot))
 	s.rangeGate:SetAlpha(on and 1 or 0)
 	R.alphas(s)
 end

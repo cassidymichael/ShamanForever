@@ -715,7 +715,7 @@ L.PREVIEW.totembar = {
 		-- As on the bar: a slot shows only for an element with a totem known.
 		local canList = GetMultiCastTotemSpells ~= nil
 		for _, el in ipairs(c.order) do
-			if not c.hidden[el] and (not canList or #TB.knownTotems(TB.SLOT[el]) > 0) then table.insert(els, el) end
+			if not c.hidden[el] and (not canList or #ns.Totems.knownTotems(TB.SLOT[el]) > 0) then table.insert(els, el) end
 		end
 		local n = math.max(#els, 1)
 		local row = c.dir == "row"

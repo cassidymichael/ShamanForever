@@ -1161,7 +1161,7 @@ local function buildTotemBar(p)
 	dd:SetupMenu(function(_, root)
 		local names, seen = {}, {}
 		for slot = 1, 4 do
-			for _, id in ipairs(TB.knownTotems(slot)) do
+			for _, id in ipairs(ns.Totems.knownTotems(slot)) do
 				local name = ns.Spells.nameOf(id)
 				if name and not seen[name] and c().warnOver[name] == nil then
 					seen[name] = true
