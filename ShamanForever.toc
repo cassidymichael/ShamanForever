@@ -39,4 +39,5 @@ ShamanForever_TotemRange.lua
 ShamanForever_OptionsLook.lua
 ShamanForever_OptionsPage.lua
 ShamanForever_Options.lua
+ShamanForever_OptionsElements.lua
 ShamanForever_IssueReporter.lua
