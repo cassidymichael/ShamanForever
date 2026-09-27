@@ -126,6 +126,7 @@ local PARTS = {
 	primed = { primedPop = true, primedGlow = true },
 	reagent = Reagents.DEFAULTS,
 }
+CD.READY_DEFAULTS = PARTS.ready   -- the shock's too
 local function withParts(def)
 	def.defaults = def.defaults or {}
 	local fill = ns.fillDefaults
