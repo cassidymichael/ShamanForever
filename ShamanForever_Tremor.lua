@@ -1,8 +1,10 @@
 -- Tremor Totem: a warning to put it down. It warns while a mob that casts fear, charm or sleep (the
 -- effects Tremor Totem removes) is your target or has its nameplate on screen, and while one of those
 -- effects is on you (and for a few seconds after); it stays quiet while your Tremor Totem is down.
--- The mobs are a list the player can change on the element's page: mobs from Classic's database
--- (ShamanForever_TremorList.lua) and the player's own, matched by NPC ID, else by name.
+-- The mobs are a watchlist the player can change on the element's page: open-world mobs from
+-- Classic's database (ShamanForever_TremorList.lua) and the player's own, matched by NPC ID, else by
+-- name. While the totem is down the element shows its time left; it is idle only while the totem
+-- isn't down and there is nothing to warn about.
 --
 -- What can be read, and when:
 -- * A mob's name and GUID (the GUID holds its NPC ID). Blizzard makes creature identity secret to
@@ -25,7 +27,7 @@ local KEY = "tremor"
 local EARTH = 2        -- the earth totem slot
 local HOLD = 10        -- seconds the warning stays after a fear, charm or sleep on us ends (the tick ends it)
 local SOUND_GAP = 10   -- seconds between sounds, so mobs coming and going don't repeat it
-TR.WORD = "Tremor!"    -- under the icon while it warns
+TR.WORD = "Tremor!"    -- by the icon while it warns
 
 -- Loss-of-control types Tremor Totem removes (C_LossOfControl's locType).
 local TREMOR_TYPES = { FEAR = true, FEAR_MECHANIC = true, CHARM = true, POSSESS = true, SLEEP = true }
@@ -45,12 +47,31 @@ local function plain(ok, v)
 	if ok and not isSecret(v) then return v end
 end
 
+-- The word's look from the element's settings, on the icon `icon` of size `size` (the HUD's, or the
+-- options preview's).
+local WORD_POINTS = { below = { "TOP", "BOTTOM", -4 }, above = { "BOTTOM", "TOP", 4 }, center = { "CENTER", "CENTER", 0 } }
+function TR.styleWord(fs, icon, size)
+	local px = setting("wordSize")
+	if type(px) ~= "number" then px = 16 end
+	fs:SetFont(STANDARD_TEXT_FONT, math.max(math.floor(px * size / 44 + 0.5), 6), "OUTLINE")
+	local c = setting("wordColor")
+	if not ns.isColor(c) then c = { 1, 0.82, 0, 1 } end
+	fs:SetTextColor(c[1], c[2], c[3], c[4] or 1)
+	local pt = WORD_POINTS[setting("wordPos")] or WORD_POINTS.below
+	local x, y = setting("wordX"), setting("wordY")
+	fs:ClearAllPoints()
+	fs:SetPoint(pt[1], icon, pt[2], type(x) == "number" and x or 0, pt[3] + (type(y) == "number" and y or 0))
+end
+
 ------------------------------------------------------------------------
 -- Element
 ------------------------------------------------------------------------
 local def = { key = KEY, spellKey = "tremor", icon = 136108, school = "earth", duration = 300,
 	defaults = { idleAlpha = 0, tremorTarget = true, tremorPlates = true, tremorFeared = true,
-		alertPop = true, alertGlow = true, alertText = true, alertSound = "raid" } }
+		alertPop = true, alertGlow = true, alertText = true, alertSound = "none",
+		-- The word: its size at a 44 px icon (it scales with the icon), colour, where it sits
+		-- (below | above | center) and an offset in pixels.
+		wordSize = 16, wordColor = { 1, 0.82, 0, 1 }, wordPos = "below", wordX = 0, wordY = 0 } }
 TR.def = def
 def.spell = Spells.name(def.spellKey)
 def.icon = Spells.icon(def.spellKey) or def.icon
@@ -65,11 +86,9 @@ f.effects:SetIgnoreParentAlpha(true)
 f.glowF:SetParent(f.effects)
 -- Our Tremor Totem's time left while it's down. Tremor has no cooldown, so the icon's swipe is free.
 f.upTimer = ns.Timer.new(f, KEY, "uptime", { cd = f.cd, school = def.school })
--- The word under the icon; its size follows the icon's (TR.afterGroups).
+-- The word by the icon; styled by TR.styleWord (TR.afterGroups).
 f.word = f.textFrame:CreateFontString(nil, "OVERLAY")
 f.word:SetFont(STANDARD_TEXT_FONT, 16, "OUTLINE")
-f.word:SetTextColor(1, 0.82, 0)
-f.word:SetPoint("TOP", f, "BOTTOM", 0, -4)
 f.word:SetText(TR.WORD)
 f.word:Hide()
 function f.stack()
@@ -328,7 +347,8 @@ local function refresh()
 		why = targetListed and "target" or next(plates) and "nameplate" or feared and "on you" or "just after"
 	end
 	setAlert(want)
-	ns.Cooldowns.fadeTo(def, (want or not ns.getAccount().locked) and 1 or idleAlpha())
+	-- Idle only while the totem isn't down and there's nothing to warn about.
+	ns.Cooldowns.fadeTo(def, (want or out or not ns.getAccount().locked) and 1 or idleAlpha())
 end
 TR.refresh = refresh
 
@@ -441,13 +461,11 @@ function TR.applyTimers()
 	f.upTimer:apply()
 end
 
--- The word's size follows the icon's.
-function TR.afterGroups()
-	local size = ns.sizeOf(KEY)
-	f.word:SetFont(STANDARD_TEXT_FONT, math.max(math.floor(size * 0.36 + 0.5), 8), "OUTLINE")
-end
+-- The word follows the icon's size and its own settings.
+function TR.afterGroups() TR.styleWord(f.word, f, ns.sizeOf(KEY)) end
 
 function TR.applyLayout()
+	TR.styleWord(f.word, f, ns.sizeOf(KEY))
 	checkTarget()
 	checkAllPlates()
 	readControl()
