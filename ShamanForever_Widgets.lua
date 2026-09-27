@@ -579,13 +579,14 @@ AuraSlot.__index = AuraSlot
 --   key          the element: its icon size (ns.sizeOf) and its timer's style
 --   slot, ids()  the aura slot's name, and the spell ID map it matches (read when it is made)
 --   parent       what the container hangs from (default frame); name: a global name, or nil
---   sites        { container = , style = }: names for its waiting work and caught errors
+--   sites        { container = , style = , filter = }: names for its waiting work and caught errors
 --   iconAlpha()  the aura icon's alpha as the button is made (optional)
 --   onButton(slot, button, cd)  the caller's own parts, once Blizzard has made the button
 --   onStyle(slot, size)         the caller's own restyle, after the shared one
 --   onError(err)                the container couldn't be made on this client
 -- Nothing is made until slot:setup(). The slot then holds container, button, icon (the aura's
--- texture), cd and timer (swipe and countdown only), or err.
+-- texture), cd and timer (swipe and countdown only), or err; and after slot:refilter(), filtered
+-- (the spell IDs it last gave the slot).
 function ns.makeAuraSlot(frame, opts)
 	return setmetatable({ frame = frame, opts = opts }, AuraSlot)
 end
@@ -663,6 +664,19 @@ function AuraSlot:style()
 		if o.onStyle then o.onStyle(self, size) end
 	end)
 	if not ok then ns.retryAfterCombat(o.sites.style, function() self:style() end) end
+end
+
+-- The slot's filter again, from opts.ids() (the IDs that count can grow), once the container is
+-- made. Out of combat only, and not while auras are secret: waits for that, and a refused call is
+-- noted and tried again when combat ends.
+function AuraSlot:refilter()
+	if not self.container or self.err then return end
+	local o = self.opts
+	if ns.deferWhileAurasSecret(o.sites.filter, function() self:refilter() end) then return end
+	local ids = o.ids()
+	local ok = ns.try(o.sites.filter, self.container.SetAuraSlotCandidateFilters, self.container, o.slot,
+		{ includeSpellIDs = ids })
+	if ok then self.filtered = ids else ns.retryAfterCombat(o.sites.filter, function() self:refilter() end) end
 end
 
 -- owner: whose glow and pop style it uses (an element key, "totembar", or nil for General's).

@@ -149,22 +149,15 @@ local function shieldIDMap()
 	return map
 end
 
--- The slot's filter can only change out of combat; a change in combat waits for it to end.
-local filtered = {}   -- the IDs last given to the filter
-local function applyShieldFilter()
-	if not native.container or native.err then return end
-	if ns.deferWhileAurasSecret("shield filter", applyShieldFilter) then return end
-	local map = shieldIDMap()
-	local ok = ns.try("shield filter", native.container.SetAuraSlotCandidateFilters, native.container, "shield",
-		{ includeSpellIDs = map })
-	if ok then filtered = map else ns.retryAfterCombat("shield filter", applyShieldFilter) end
-end
+-- The slot's filter can only change out of combat; a change in combat waits for it to end
+-- (ns.makeAuraSlot).
+local function applyShieldFilter() native:refilter() end
 
 local function learnShieldID(key, id)
 	local s = SHIELDS[key]
 	if type(id) ~= "number" or isSecret(id) then return end
 	Spells.learn(s.spell, id)
-	if tracksShield(key) and not filtered[id] then applyShieldFilter() end
+	if tracksShield(key) and not (native.filtered and native.filtered[id]) then applyShieldFilter() end
 end
 
 -- After a spellbook scan (ns.resolveSpells): each shield's name, highest known rank and icon, and the
@@ -187,13 +180,9 @@ end
 -- secret: the aura slot's restyle waits until that ends (ns.makeAuraSlot).
 function SH.style() native:style() end
 
--- The shield's timer takes its current style (ns.applyTimers). It sits on Blizzard's button, so only
--- out of combat (SH.style also does it).
-function SH.applyTimers()
-	if not native.timer then return end
-	if InCombatLockdown() or ns.aurasSecret() then ns.retryAfterCombat("shield style", SH.style)   -- which applies it
-	else ns.try("shield timer", native.timer.apply, native.timer) end
-end
+-- The shield's timer takes its current style (ns.applyTimers). It sits on Blizzard's button, so it
+-- comes with the button's restyle, which waits for combat to end.
+SH.applyTimers = SH.style
 
 -- Our parts on Blizzard's button, once it is made: the charge number and the charge bar with its
 -- ticks, on an overlay above the cooldown so nothing Blizzard hides takes them along.
@@ -274,7 +263,7 @@ end
 -- Made out of combat only (after a /reload in combat, when combat ends); once made, it stays.
 native = ns.makeAuraSlot(shield, {
 	key = "shield", slot = "shield", ids = shieldIDMap, name = "ShamanForeverAuraContainer",
-	sites = { container = "shield container", style = "shield style" },
+	sites = { container = "shield container", style = "shield style", filter = "shield filter" },
 	iconAlpha = nativeIconAlpha,
 	onButton = buildNative, onStyle = styleNative,
 	onError = function(err)
