@@ -623,18 +623,6 @@ L.TOTEM_ICON = TOTEM_ICON
 -- slot) at 5 s; Killed early shows it just killed.
 local PREVIEW_LEFT = { earth = { 250, 300 }, fire = { 38, 55 }, water = { 83, 300 }, air = { 165, 300 } }
 local POP_ITEMS = 3   -- "No totem" and two totems: enough to show the look within the header
-local function tabArrow(parent)
-	local t = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-	t:SetBackdrop(ns.BACKDROP)
-	t:SetBackdropColor(0.06, 0.05, 0.03, 0.92)
-	t:SetBackdropBorderColor(0.85, 0.71, 0.42, 0.9)
-	t.glyph = t:CreateTexture(nil, "OVERLAY")
-	t.glyph:SetTexture("Interface\\Buttons\\UI-TotemBar")
-	t.glyph:SetTexCoord(0.5625, 0.71875, 0.34375, 0.3828125)
-	t.glyph:SetBlendMode("ADD")
-	t.glyph:SetPoint("CENTER")
-	return t
-end
 L.PREVIEW.totembar = {
 	stage = true, heroH = 280,
 	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" }, { "killed", "Killed early" },
@@ -685,7 +673,7 @@ L.PREVIEW.totembar = {
 		h.kMark.x = h.kMark:CreateTexture(nil, "OVERLAY")
 		h.kMark.x:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
 		h.kMark.x:SetPoint("CENTER")
-		h.tab = tabArrow(bar)
+		h.tab = ns.TotemBar.makeArrowLook(bar)
 		h.pop = CreateFrame("Frame", nil, bar)
 		h.pop.bg = h.pop:CreateTexture(nil, "BACKGROUND")
 		h.pop.bg:SetAllPoints()
@@ -717,24 +705,16 @@ L.PREVIEW.totembar = {
 		for _, el in ipairs(c.order) do
 			if not c.hidden[el] and (not canList or #ns.Totems.knownTotems(TB.SLOT[el]) > 0) then table.insert(els, el) end
 		end
-		local n = math.max(#els, 1)
 		local row = c.dir == "row"
 		local picking = st == "picking" and #els > 0
-		local psz = math.floor(size * 0.8 + 0.5)
+		local psz = TB.popButtonSize(size)
 		local known = picking and TB.known(els[1]) or {}
 		local items = math.min(POP_ITEMS, 1 + #known)
-		local popLen = 3 + items * (psz + 3)
-		-- Call and Recall: before and after the slots, as on the bar.
-		local before, after = TB.extraSides()
-		local eg = c.spacing + TB.EXTRA_GAP
-		local esz = math.floor(size * c.extrasScale + 0.5)
-		local function run(k, sz) return k > 0 and k * (sz or size) + (k - 1) * c.spacing or 0 end
-		local slotsLen = n * size + (n - 1) * c.spacing
-		local leadLen = #before > 0 and run(#before, esz) + eg or 0
-		local along = leadLen + slotsLen + (#after > 0 and eg + run(#after, esz) or 0)
-		local badge = st == "offpick" and c.offPick and math.max(math.floor(size * c.badgeSize + 0.5), 8) + 3 or 0
-		-- The bar's line is as thick as its largest button; every button is centred on it.
-		local line = (#before + #after > 0) and math.max(size, esz) or size
+		local popLen = TB.popLength(items, psz)
+		-- Along the bar as on it (TB.along: Call and Recall before and after the slots), with
+		-- room for one slot even when none shows. Its line is as thick as its largest button.
+		local seq, along, line = TB.along(math.max(#els, 1), size)
+		local badge = st == "offpick" and c.offPick and TB.badgeSize(size) + TB.BADGE_GAP or 0
 		local across = line + (picking and (c.arrowSize + 4 + popLen) or 0) + badge
 		-- Room: the preview area between the title band and the state buttons.
 		local w = h:GetWidth()
@@ -768,22 +748,21 @@ L.PREVIEW.totembar = {
 			end
 		end
 		for _, ic in pairs(h.extras) do ic:Hide() end
-		local function placeExtras(keys, start)
-			for j, key in ipairs(keys) do
-				local ic = h.extras[key]
-				ic:SetSize(esz, esz)
+		local slotAt = {}   -- each slot's place along the bar, by its index
+		for _, it in ipairs(seq) do
+			if it.extra then
+				local ic = h.extras[it.key]
+				ic:SetSize(it.size, it.size)
 				ic:ClearAllPoints()
-				place(ic, start + (j - 1) * (esz + c.spacing), (line - esz) / 2)
+				place(ic, it.offset, (line - it.size) / 2)
 				ns.applyBorder(ic, border)
-				local learned = TB.extraLearned(key)
-				ic.tex:SetTexture(TB.extraTexture(key))
+				local learned = TB.extraLearned(it.key)
+				ic.tex:SetTexture(TB.extraTexture(it.key))
 				ic.tex:SetDesaturated(not learned)
 				ic.tex:SetAlpha(learned and 1 or 0.6)
 				ic:Show()
-			end
+			else slotAt[it.key] = it.offset end
 		end
-		placeExtras(before, 0)
-		placeExtras(after, leadLen + slotsLen + eg)
 		local expEl = tContains(els, "fire") and "fire" or els[1]
 		h.popIcon = nil   -- the icon a click on this state pops (see def.pop)
 		h.kMark:Hide()
@@ -795,7 +774,7 @@ L.PREVIEW.totembar = {
 			if el then
 				ic:SetSize(size, size)
 				ic:ClearAllPoints()
-				place(ic, leadLen + (i - 1) * (size + c.spacing), (line - size) / 2)
+				place(ic, slotAt[i], (line - size) / 2)
 				ns.applyBorder(ic, border)
 				local pick = GetActionTexture and TB.pickTexture(el)
 				if ns.isSecret(pick) then pick = nil end   -- never compared while secret (combat)
@@ -819,17 +798,8 @@ L.PREVIEW.totembar = {
 					end
 					ic.tex:SetTexture(other or TOTEM_ICON[el])
 					if c.offPick and pick then
-						local bs = math.max(math.floor(size * c.badgeSize + 0.5), 8)
-						ic.badge:SetSize(bs, bs)
 						ic.badge.icon:SetTexture(pick)
-						ic.badge:SetAlpha(c.badgeAlpha)
-						TB.saturate(ic.badge.icon, c.badgeSat)
-						ic.badge:ClearAllPoints()
-						if dir == "up" then ic.badge:SetPoint("TOP", ic, "BOTTOM", 0, -3)
-						elseif dir == "down" then ic.badge:SetPoint("BOTTOM", ic, "TOP", 0, 3)
-						elseif dir == "right" then ic.badge:SetPoint("RIGHT", ic, "LEFT", -3, 0)
-						else ic.badge:SetPoint("LEFT", ic, "RIGHT", 3, 0) end
-						ns.applyBorder(ic.badge, border.show and { show = true, size = 1, color = border.color } or border)
+						TB.layoutBadge(ic.badge, ic, size, border)
 						ic.badge:Show()
 					end
 				end
@@ -875,32 +845,14 @@ L.PREVIEW.totembar = {
 		h.tab:SetShown(picking and TB.feat("arrows"))
 		h.pop:SetShown(picking)
 		if picking then
-			local first, tab = h.slots[1], c.arrowSize
-			local t = h.tab
-			t:ClearAllPoints()
-			local g = t.glyph
-			if dir == "up" then t:SetPoint("BOTTOMLEFT", first, "TOPLEFT", 1, 1); t:SetPoint("BOTTOMRIGHT", first, "TOPRIGHT", -1, 1); t:SetHeight(tab)
-			elseif dir == "down" then t:SetPoint("TOPLEFT", first, "BOTTOMLEFT", 1, -1); t:SetPoint("TOPRIGHT", first, "BOTTOMRIGHT", -1, -1); t:SetHeight(tab)
-			elseif dir == "right" then t:SetPoint("TOPLEFT", first, "TOPRIGHT", 1, -1); t:SetPoint("BOTTOMLEFT", first, "BOTTOMRIGHT", 1, 1); t:SetWidth(tab)
-			else t:SetPoint("TOPRIGHT", first, "TOPLEFT", -1, -1); t:SetPoint("BOTTOMRIGHT", first, "BOTTOMLEFT", -1, 1); t:SetWidth(tab) end
-			g:SetSize(math.max(tab * 1.1, 10), math.max(tab * 0.6, 6))
-			g:SetRotation(({ up = 0, down = math.pi, right = -math.pi / 2, left = math.pi / 2 })[dir])
+			-- As on the bar (the same placement): the tab, then the picker past it.
+			local first = h.slots[1]
+			TB.placeArrow(h.tab, first, h.tab.glyph)
 			local p = h.pop
-			p:ClearAllPoints()
-			local thick = psz + 6
-			if dir == "up" then p:SetSize(thick, popLen); p:SetPoint("BOTTOM", first, "TOP", 0, tab + 4)
-			elseif dir == "down" then p:SetSize(thick, popLen); p:SetPoint("TOP", first, "BOTTOM", 0, -tab - 4)
-			elseif dir == "right" then p:SetSize(popLen, thick); p:SetPoint("LEFT", first, "RIGHT", tab + 4, 0)
-			else p:SetSize(popLen, thick); p:SetPoint("RIGHT", first, "LEFT", -tab - 4, 0) end
+			TB.placePopout(p, first, items, psz)
 			for i, it in ipairs(p.items) do
 				it:SetShown(i <= items)
-				it:SetSize(psz, psz)
-				it:ClearAllPoints()
-				local off = 3 + (i - 1) * (psz + 3)
-				if dir == "up" then it:SetPoint("BOTTOM", p, "BOTTOM", 0, off)
-				elseif dir == "down" then it:SetPoint("TOP", p, "TOP", 0, -off)
-				elseif dir == "right" then it:SetPoint("LEFT", p, "LEFT", off, 0)
-				else it:SetPoint("RIGHT", p, "RIGHT", -off, 0) end
+				TB.placePopButton(it, p, i, psz)
 				if i == 1 then it.tex:SetColorTexture(0.1, 0.1, 0.1, 1); it.x:Show()
 				elseif known[i - 1] then
 					it.tex:SetTexture(C_Spell.GetSpellTexture(known[i - 1]))
