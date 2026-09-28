@@ -47,7 +47,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 
 - One slot per element. Left-click drops the totem you've picked for it, and right-click dismisses it. The arrow on each slot (or Alt+click) opens a picker to change the pick, in combat too.
 - Each slot shows its totem's time left and warns as it runs out. You can give any totem its own warning time. If a totem is killed early, its slot flashes red and shows a cross.
-- A red strip on a slot while your totem is down but you aren't getting its buff, for totems that buff you, such as Strength of Earth or Healing Stream. It's off while another shaman is in your group.
+- A red strip on a slot while your totem is down but you aren't getting its buff, for totems that buff you, such as Strength of Earth or Healing Stream.
 - When a different totem is down, your pick can show small beside the slot.
 - Call of the Elements and Totemic Recall buttons. Right-click Recall to dismiss every totem.
 - Key bindings to drop each element's totem, dismiss one or all, and cast Call and Recall. Bind them by hovering the bar in Quick Keybind Mode. Each button can show its key.
