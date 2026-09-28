@@ -92,7 +92,8 @@ end
 IM.preferredIcon = preferredImbueIcon
 function IM.icon() return imbueIcon end
 
-local function drawImbue(now)
+-- quiet: no imbue can be put on now, so a missing one shows grey, without the warning.
+local function drawImbue(now, quiet)
 	local db, acct = ns.getDB(), ns.getAccount()
 	local key = imbueState.key
 	local unreadable = imbueState.unreadable
@@ -108,9 +109,9 @@ local function drawImbue(now)
 	else
 		imbueIcon = preferredImbueIcon()
 		imbue.tex:SetDesaturated(db.imbueMissingGrey)
-		imbue:SetRingShown(db.imbueMissingRing)
-		imbue:SetPulsing(db.imbuePulse)
-		imbue:SetGlowShown(db.imbueGlow and not unreadable)
+		imbue:SetRingShown(db.imbueMissingRing and not quiet)
+		imbue:SetPulsing(db.imbuePulse and not quiet)
+		imbue:SetGlowShown(db.imbueGlow and not quiet and not unreadable)
 	end
 	imbue.tex:SetTexture(imbueIcon)
 	if unreadable then
@@ -175,9 +176,11 @@ function IM.refresh()
 		imbueState.expiresAt = r.timeLeft > 0 and now + left or nil
 		if key then acct.imbueLast = key end
 	end
-	drawImbue(now)
+	-- Dead, a ghost or on a flight path: nothing can be cast.
+	local quiet = ns.cantAct()
+	drawImbue(now, quiet)
 	-- The moment it drops (imbues stay readable in combat): pop.
-	if had and r == false and db.imbuePop then imbue:Pop("imbue") end
+	if had and r == false and db.imbuePop and not quiet then imbue:Pop("imbue") end
 end
 
 -- Our own successful cast: remembered, so an imbue not recognised by ID or icon is learned on the next read.
@@ -212,6 +215,7 @@ function IM.start()
 	ns.registerEvent(ev, "UNIT_INVENTORY_CHANGED", "player")
 	ns.registerEvent(ev, "PLAYER_EQUIPMENT_CHANGED")
 	ev:SetScript("OnEvent", function() IM.refresh() end)
+	ns.onCanActChange(function() IM.refresh() end)   -- death, resurrection, a flight path
 end
 
 -- /sf debug

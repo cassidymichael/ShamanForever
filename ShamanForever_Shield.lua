@@ -132,12 +132,14 @@ function SH.applyEmptyLook()
 		shield:SetPulsing(false)
 		return
 	end
+	-- Dead, a ghost or on a flight path, no shield can be cast: the grey alone, without the warning.
+	local warn = not ns.cantAct()
 	shield.tex:SetDesaturated(db.emptyGrey)
-	if db.emptyTint then shield.tex:SetVertexColor(1, 0.35, 0.35) else shield.tex:SetVertexColor(1, 1, 1) end
+	if db.emptyTint and warn then shield.tex:SetVertexColor(1, 0.35, 0.35) else shield.tex:SetVertexColor(1, 1, 1) end
 	shield.tex:SetAlpha(down and 1 or db.underlayUp)
-	shield:SetRingShown(down and db.emptyRing)
+	shield:SetRingShown(down and db.emptyRing and warn)
 	-- Only while known down: a drop in combat (or a match) is not seen until the recast or its end.
-	shield:SetPulsing(down and db.emptyPulse)
+	shield:SetPulsing(down and db.emptyPulse and warn)
 end
 
 -- With display opacity a and underlay strength u, an icon alpha b gives a stacked result of
@@ -368,6 +370,7 @@ function SH.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "UNIT_AURA", "player")
 	ev:SetScript("OnEvent", refreshAura)
+	ns.onCanActChange(SH.applyEmptyLook)   -- death, resurrection, a flight path
 end
 
 -- /sf debug
