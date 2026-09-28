@@ -114,6 +114,11 @@ for _, def in ipairs(TARGET) do
 		experimental = def.experimental })
 end
 
+-- Their place in the default layout: a group of their own right of Elemental Focus's row, so no
+-- existing group changes when they join a profile. name: the group's name where groups have one.
+table.insert(ns.DEFAULTS.groups, { name = "Target", point = "CENTER", x = 122, y = 11, scale = 0.9, alpha = 0.75,
+	orientation = "horizontal", growth = "forward", spacing = 6, members = { "flameshock", "purge" } })
+
 -- The target's aura slots follow the target: pointed at it while it's something you can attack
 -- (a change of unit refreshes the container), refreshed on a change from one such target to
 -- another, and at no unit otherwise.
@@ -160,26 +165,6 @@ end
 ------------------------------------------------------------------------
 -- Hooks (ShamanForever.lua calls them; see ns.registerModule)
 ------------------------------------------------------------------------
--- A profile loaded: an element never placed before joins Elemental Focus's group (the row of icons
--- that show only while something is up), not the first group, where its empty place would sit in
--- the core row. Without that group, the usual placement applies.
-function T.sanitize(db)
-	if type(db.groups) ~= "table" or type(db.known) ~= "table" then return end
-	local home, placed = nil, {}
-	for _, g in ipairs(db.groups) do
-		if type(g.members) == "table" then
-			for _, key in ipairs(g.members) do
-				placed[key] = true
-				if key == "elementalfocus" then home = g end
-			end
-		end
-	end
-	if not home then return end
-	for _, def in ipairs(TARGET) do
-		if not db.known[def.key] and not placed[def.key] then table.insert(home.members, def.key) end
-	end
-end
-
 function T.resolve()
 	local sig = {}
 	for _, def in ipairs(TARGET) do
