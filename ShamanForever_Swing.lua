@@ -113,6 +113,12 @@ ns.registerElement(KEY, { frame = f, label = "Swing timer", paint = function(t) 
 	getSize = getSize, defaults = SW.DEFAULTS, kind = "swing", def = SW, icon = ICON, school = "spirit",
 	blurb = "Time to your next melee swing.", experimental = "Swing timer" })
 
+-- Its place in the default layout: a group of its own just under the first row (shield, shocks,
+-- Fire Nova) and above the totem bar, as wide as that row. name: the group's name where groups
+-- have one.
+table.insert(ns.DEFAULTS.groups, { name = "Swing", point = "CENTER", x = 0, y = -70, scale = 1, alpha = 0.75,
+	orientation = "horizontal", growth = "forward", spacing = 6, members = { KEY } })
+
 ------------------------------------------------------------------------
 -- The swing
 ------------------------------------------------------------------------
