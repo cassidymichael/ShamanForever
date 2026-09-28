@@ -18,7 +18,7 @@ local function seen()
 end
 
 local function tipsOff()
-	local ok, v = pcall(GetCVarBool, "hideHelptips")
+	local ok, v = pcall(C_CVar.GetCVarBool, "hideHelptips")
 	return ok and v == true
 end
 

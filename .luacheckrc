@@ -15,6 +15,7 @@ read_globals = {
     "CLOSE",
     "C_ActionBar",
     "C_AddOns",
+    "C_CVar",
     "C_CurveUtil",
     "C_DurationUtil",
     "C_EncodingUtil",
