@@ -109,10 +109,10 @@ local function dropIndex()
 end
 
 -- The drop target under the cursor: "new" (the New group button), a group's row, or "members" (the
--- chosen group's elements). Rows scrolled out of the list's view don't count.
+-- chosen group's elements). What's scrolled out of the list's view doesn't count.
 local function targetUnderCursor()
-	if newButton:IsVisible() and newButton:IsMouseOver() then return "new" end
 	if list.scroll:IsMouseOver() then
+		if newButton:IsVisible() and newButton:IsMouseOver() then return "new" end
 		for _, r in ipairs(rows.pool) do
 			if r:IsShown() and r:IsMouseOver() then return r end
 		end
@@ -165,7 +165,7 @@ local function endDrag(drop)
 	if not key then return end
 	if target == "new" then
 		local done, id = ns.placeElement(key, "new")
-		if done and id then chosen = id end
+		if done and id then LP.choose(id) end
 	elseif target == "members" then
 		local g = selected()
 		if g then ns.placeElement(key, g.id, at) end
@@ -198,7 +198,7 @@ local function chipMenu(chip)
 		if not (g and #g.members == 1) then
 			root:CreateButton("Move to a new group", function()
 				local done, id = ns.placeElement(key, "new")
-				if done and id then chosen = id end
+				if done and id then LP.choose(id) end
 				ns.Options.refresh()
 			end)
 		end
@@ -456,6 +456,7 @@ local CAPTION_H = 28   -- the Elements caption above the chips
 local WIDE_AT, MEMBERS_W, COLUMN_GAP = 680, 240, 18
 
 -- The group's name: Enter renames it; Escape, or leaving the box any other way, keeps the old one.
+-- A name being typed belongs to the group chosen when typing began: choosing another drops it.
 local function nameRow(p, shown)
 	local f = p:row(34)
 	p:label(f, "Name", "A name another group has gets a number added.")
@@ -466,19 +467,25 @@ local function nameRow(p, shown)
 	box:SetMaxLetters(32)
 	box:SetFontObject("GameFontHighlight")
 	local function current() local g = selected(); return g and g.name or "" end
-	box:SetScript("OnEditFocusGained", function(b) b:HighlightText() end)
+	box:SetScript("OnEditFocusGained", function(b)
+		b.groupId = chosen
+		b:HighlightText()
+	end)
 	box:SetScript("OnEditFocusLost", function(b)
 		b:HighlightText(0, 0)
 		b:SetText(current())
 	end)
 	box:SetScript("OnEscapePressed", box.ClearFocus)
 	box:SetScript("OnEnterPressed", function(b)
-		local g = selected()
-		if g then ns.renameGroup(g.id, b:GetText()) end
+		if b.groupId then ns.renameGroup(b.groupId, b:GetText()) end
 		b:ClearFocus()
 		ns.Options.refresh()
 	end)
-	return p:add(f, 34, shown, function() if not box:HasFocus() then box:SetText(current()) end end)
+	return p:add(f, 34, shown, function()
+		selected()
+		if box:HasFocus() and box.groupId ~= chosen then box:ClearFocus() end
+		if not box:HasFocus() then box:SetText(current()) end
+	end)
 end
 
 local function buildMembers(p)
@@ -496,8 +503,8 @@ local function buildMembers(p)
 	-- The hint beside the caption, or under it in a narrow column; the chips start below both.
 	local function placeCaption(w)
 		hint:ClearAllPoints()
+		hint:SetWidth(0)   -- unbounded, so it measures its whole line
 		if caption:GetStringWidth() + 10 + hint:GetStringWidth() <= w - 8 then
-			hint:SetWidth(0)
 			hint:SetPoint("LEFT", caption, "RIGHT", 10, 0)
 			members.top = CAPTION_H
 		else
