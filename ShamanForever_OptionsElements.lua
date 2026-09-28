@@ -190,6 +190,10 @@ local function warningBlock(p, title, greyGet, greySet, ringGet, ringSet, pulseG
 	p:checkbox("Fade in and out", nil, pulseGet, pulseSet)
 end
 
+-- Where a number on the icon sits (the shield's charges, a reagent count).
+local COUNT_POINTS = { { "BOTTOMRIGHT", "Bottom right" }, { "BOTTOMLEFT", "Bottom left" }, { "TOPRIGHT", "Top right" },
+	{ "TOPLEFT", "Top left" }, { "CENTER", "Centre" } }
+
 -- A look choice (tint, overlay, both) greys out the strength it does not use.
 local function lookUses(key, part) return function() local v = db()[key]; return v == part or v == "both" end end
 
@@ -210,7 +214,7 @@ local function buildShield(p)
 	p:color("Bar colour", nil, get("chargeBarColor"), set("chargeBarColor"), showWhen(get("showBar")))
 	p:checkbox("Charge number", "Shown for 2 or more charges.", get("showCount"), set("showCount"))
 	local numberOn = showWhen(get("showCount"))
-	p:dropdown("Number position", nil, { { "corner", "Corner" }, { "center", "Centre" } }, get("countPos"), set("countPos"), numberOn)
+	p:dropdown("Number position", nil, COUNT_POINTS, get("countPos"), set("countPos"), numberOn, 150)
 	p:slider("Number size", nil, 8, 64, 1, int, get("countSize"), set("countSize"), numberOn)
 
 	warningBlock(p, "No shield", get("emptyGrey"), set("emptyGrey"), get("emptyRing"), set("emptyRing"), get("emptyPulse"), set("emptyPulse"))
@@ -303,8 +307,7 @@ local function reagentBlocks(p, def)
 	p:color("Count colour", "While you have enough.", eget(key, "reagentColor"), eset(key, "reagentColor"), counted)
 	p:color("Low colour", "At the Low mark or below, and at none.", eget(key, "reagentLowColor"), eset(key, "reagentLowColor"), counted)
 	p:slider("Text size", "At the default icon size; it grows with the icon.", 8, 40, 1, int, eget(key, "reagentSize"), eset(key, "reagentSize"), counted)
-	p:dropdown("Position", nil, { { "BOTTOMRIGHT", "Bottom right" }, { "BOTTOMLEFT", "Bottom left" }, { "TOPRIGHT", "Top right" },
-		{ "TOPLEFT", "Top left" }, { "CENTER", "Centre" } }, eget(key, "reagentPos"), eset(key, "reagentPos"), counted, 150)
+	p:dropdown("Position", nil, COUNT_POINTS, eget(key, "reagentPos"), eset(key, "reagentPos"), counted, 150)
 	p:slider("Text X offset", nil, -50, 50, 1, px, eget(key, "reagentX"), eset(key, "reagentX"), counted)
 	p:slider("Text Y offset", nil, -50, 50, 1, px, eget(key, "reagentY"), eset(key, "reagentY"), counted)
 	p:header("None left")

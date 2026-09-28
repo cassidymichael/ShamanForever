@@ -376,8 +376,7 @@ L.PREVIEW = {
 			end
 			if d.showCount and n >= 2 then
 				ic.count:SetFont(STANDARD_TEXT_FONT, d.countSize, "OUTLINE")
-				ic.count:ClearAllPoints()
-				if d.countPos == "center" then ic.count:SetPoint("CENTER") else ic.count:SetPoint("BOTTOMRIGHT", 2, -2) end
+				ns.Shield.placeCount(ic.count, ic)
 				ic.count:SetText(n)
 				ic.count:Show()
 			end
