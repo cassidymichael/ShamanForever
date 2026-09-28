@@ -379,13 +379,15 @@ local function placeNew(key, made)
 	table.insert((db.groups[1] or newGroup()).members, key)
 end
 
--- Ids: whole numbers, one per group; a group saved without one (before groups had ids) gets the
+-- Ids: whole numbers, one per group, bounded (so two ids can never merge into one past float
+-- precision); a group saved without one (before groups had ids, or with one out of range) gets the
 -- next free one, in list order.
 local function fixIds()
 	local used = {}
 	for _, g in ipairs(db.groups) do
 		local id = g.id
-		if type(id) == "number" and id >= 1 and id % 1 == 0 and not used[id] then used[id] = true
+		if type(id) == "number" and id >= 1 and id <= ns.MAX_GROUP_ID and id % 1 == 0 and not used[id] then
+			used[id] = true
 		else g.id = nil end
 	end
 	for _, g in ipairs(db.groups) do

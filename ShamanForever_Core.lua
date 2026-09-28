@@ -29,6 +29,10 @@ end
 ns.POINTS = { CENTER = true, TOP = true, BOTTOM = true, LEFT = true, RIGHT = true,
 	TOPLEFT = true, TOPRIGHT = true, BOTTOMLEFT = true, BOTTOMRIGHT = true }
 
+-- A group id's upper bound: comfortably above any real number of groups, and well short of where
+-- float precision starts merging ids (nextId's max + 1 stops advancing at 2^53).
+ns.MAX_GROUP_ID = 100000
+
 ------------------------------------------------------------------------
 -- Errors caught by a pcall around a proven call: the first one per place is kept for /sf debug, so a
 -- change on a new client build doesn't just make a feature vanish.
