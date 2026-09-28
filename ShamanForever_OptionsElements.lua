@@ -151,7 +151,7 @@ local IDLE_WHEN = { { "never", "Never" }, { "nototem", "Off cooldown, no fire to
 local function idleBlock(p, def)
 	local key, fireNova = def.key, def.needsTotem
 	p:header("Idle")
-	local base = def.buff and (def.proc and ("Idle is when " .. ns.Spells.name("clearcasting") .. " isn't up")
+	local base = def.buff and (def.idleText or def.proc and ("Idle is when " .. ns.Spells.name("clearcasting") .. " isn't up")
 		or "Idle is when it isn't up") or "Idle is when it's off cooldown"
 	if fireNova then
 		p:text("Idle is when there's nothing to track. At 0% it's hidden and keeps its place in the group.")
@@ -406,10 +406,15 @@ local function buildBuff(p, def)
 	end
 	timerSettings(p, "Time left", key, "uptime")
 	if def.proc then
-		p:header(ns.Spells.name("clearcasting"))
-		p:checkbox("Pop", "The moment it procs. The icon grows and settles, at the Pop style's size and speed.",
+		-- Elemental Focus's texts, unless the def has its own (the target's auras, ShamanForever_Target.lua).
+		p:header(def.procHeader or ns.Spells.name("clearcasting"))
+		if def.skipLong then
+			p:checkbox("Skip long buffs", "Leaves out buffs that last over 2 minutes, or have no end.",
+				eget(key, "skipLong"), eset(key, "skipLong"))
+		end
+		p:checkbox("Pop", def.popTip or "The moment it procs. The icon grows and settles, at the Pop style's size and speed.",
 			eget(key, "primedPop"), eset(key, "primedPop"))
-		p:checkbox("Pulsing glow", "While it's up.", eget(key, "primedGlow"), eset(key, "primedGlow"))
+		p:checkbox("Pulsing glow", def.glowTip or "While it's up.", eget(key, "primedGlow"), eset(key, "primedGlow"))
 	else
 		expiringBlock(p, key, 120, 5)
 	end

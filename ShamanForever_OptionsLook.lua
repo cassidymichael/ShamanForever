@@ -494,7 +494,7 @@ end
 -- buffs' warnings.
 local function buffPreview(def)
 	local key = def.key
-	local states = { { "up", def.proc and ns.Spells.name("clearcasting") or "Up" } }
+	local states = { { "up", def.proc and (def.upLabel or ns.Spells.name("clearcasting")) or "Up" } }
 	if not def.proc then table.insert(states, { "expiring", "Expiring" }) end
 	table.insert(states, { "idle", "Not up" })
 	if def.reagent then
