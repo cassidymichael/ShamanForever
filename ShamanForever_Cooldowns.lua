@@ -725,11 +725,12 @@ function CD.start()
 			for _, def in ipairs(COOLDOWNS) do if def.reagent then refreshCooldown(def) end end
 		elseif event == "UNIT_AURA" then
 			if InCombatLockdown() then return end   -- auras are secret: nothing to read
-			Reagents.auraChanged()   -- Reagent Economy's aura may have come
+			-- Reagent Economy's aura may have come (the buff elements read it on their own refresh).
+			local perkUnknown = Reagents.auraChanged()
 			for _, def in ipairs(COOLDOWNS) do
 				if def.spellID and def.primed and def.primed.buffKey and ns.isEnabled(def.key) then
 					readPrimedBuff(def, true); refreshCooldown(def)
-				elseif def.reagent then refreshCooldown(def) end
+				elseif def.reagent and perkUnknown then refreshCooldown(def) end
 			end
 		end
 	end)

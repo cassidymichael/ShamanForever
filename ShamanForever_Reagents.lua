@@ -61,9 +61,13 @@ local function perkKnown()
 	return perk
 end
 R.perkKnown = perkKnown   -- for /sf debug
--- An aura on the player changed (UNIT_AURA): while the perk isn't known, the next check reads again.
+-- An aura on the player changed (UNIT_AURA, out of combat; one handler calls it): while the perk
+-- isn't known, the next check reads again. Returns whether it will, so the caller refreshes the
+-- reagent elements only then; once the perk is known an aura change can't alter them.
 function R.auraChanged()
-	if not perk then perkReadAt = -math.huge end
+	if perk then return false end
+	perkReadAt = -math.huge
+	return true
 end
 function R.takes(def)
 	if perkKnown() then def.takesReagent = nil return false end
