@@ -120,7 +120,8 @@ local function drawCaps(f, caps, out, b, school)
 	local c = colorOf(caps.color, b, school)
 	for i, corner in ipairs(CORNERS) do
 		local point, x, y = corner[1], corner[2] * o, corner[3] * o
-		local along, down = t[2 * i - 1], t[2 * i]   -- the arm along the top or bottom, the one down the side
+		-- along: the arm along the top or bottom; down: the one down the side.
+		local along, down = t[2 * i - 1], t[2 * i]
 		along:SetSize(len, px)
 		down:SetSize(px, len)
 		for _, a in ipairs({ along, down }) do
@@ -232,7 +233,7 @@ function Looks.auraMask(button, tex, key)
 end
 
 ------------------------------------------------------------------------
--- Frame looks. "line" is the default: the look every profile had before looks existed.
+-- Frame looks. "line" is the default look.
 ------------------------------------------------------------------------
 local GOLD = { 0.71, 0.55, 0.29, 1 }   -- the options window's gold
 local BRONZE_HI, BRONZE_LO, BRONZE_DARK = { 0.85, 0.68, 0.39, 1 }, { 0.43, 0.29, 0.13, 1 }, { 0.10, 0.07, 0.03, 1 }
