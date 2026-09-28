@@ -305,9 +305,12 @@ end
 -- The charge number's last charge (Show the last charge, experimental). Without a formatter
 -- Blizzard prints a count only from 2. Given one (a numeric rule formatter), it prints every count
 -- through it, inside the engine, so no charge is read by us: one rule per count, the last one
--- wrapped in its colour (Blizzard_CustomAuraButton.lua; ShamanPower does the same on Forever).
--- nil: Blizzard's own count. One formatter per colour, made on first use; the few kept are dropped
--- while a colour is being dragged through many (the button keeps the one it was given).
+-- wrapped in its colour (Blizzard_CustomAuraButton.lua; ShamanPower does the same on Forever). nil:
+-- Blizzard's own count. One formatter per colour, made on first use (out of combat, in the slot's
+-- restyle) and tried on the counts 0 to 3 first: Blizzard formats inside the button's aura update,
+-- where an error would stop the rest of it, so one that doesn't give a string for each (the 1 in
+-- its colour) is never handed over. The few kept are dropped while a colour is being dragged
+-- through many (the button keeps the one it was given).
 local lastFormatters, made = {}, 0
 local function byte(v) return math.floor(math.min(math.max(v, 0), 1) * 255 + 0.5) end
 local function countOptions()
@@ -323,6 +326,12 @@ local function countOptions()
 			local new = C_StringUtil.CreateNumericRuleFormatter()
 			new:SetBreakpoints({ { threshold = 0, format = "%d" }, { threshold = 1, format = code .. "%d|r" },
 				{ threshold = 2, format = "%d" } })
+			for n = 0, 3 do
+				local text = new:FormatNumber(n)
+				if type(text) ~= "string" or isSecret(text) or (n == 1 and not text:lower():find(code, 1, true)) then
+					error(string.format("formatted %d as %s", n, tostring(text)))
+				end
+			end
 			return new
 		end)
 		fm = ok and f or false
