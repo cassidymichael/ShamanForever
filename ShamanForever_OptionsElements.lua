@@ -215,6 +215,9 @@ local function buildShield(p)
 		{ "either", "Either", 136051, "Either shield" },
 	}, get("shieldTrack"), set("shieldTrack", respell))
 	p:text("Only one shield can be up at a time. With one chosen, the other counts as no shield.")
+	-- Lightning, the tested default, reads a Water Shield that is up as no shield.
+	p:callout(("You know %s: choose Either to count it."):format(ns.Spells.name("waterShield")),
+		function() return db().shieldTrack == "lightning" and ns.Shield.knows("water") end)
 	p:header("Charges")
 	p:checkbox("Charge bar", "One segment per charge.", get("showBar"), set("showBar"))
 	p:slider("Bar height", nil, 1, 20, 1, px, get("chargeBarHeight"), set("chargeBarHeight"),
@@ -585,7 +588,7 @@ local function buildTremor(p)
 	p:checkbox("You're feared, charmed or asleep", "And for 10 s after, in case it comes again.",
 		eget(key, "tremorFeared"), eset(key, "tremorFeared"))
 	p:text("The game hides party members' crowd control, so this covers only you.")
-	p:text("None of these while your Tremor Totem is down.")
+	p:text("None of these while your Tremor Totem is down, or while you're dead, on a flight path or in a vehicle.")
 	p:header("Tremor warning watchlist")
 	p:callout("In dungeons and raids the game hides mob names from addons, so the watchlist can't work there. "
 		.. "Only \"You're feared, charmed or asleep\" can, when it's on.")

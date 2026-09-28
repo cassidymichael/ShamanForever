@@ -68,6 +68,9 @@ function ns.try(site, fn, ...) return checked(site, pcall(fn, ...)) end
 -- auras are secret, which can happen out of combat (PvP, encounters, addonCombatRestrictionsForced):
 -- their work uses ns.deferWhileAurasSecret, and the queue also runs whenever an addon restriction
 -- ends (ADDON_RESTRICTION_STATE_CHANGED, Inactive). Anything still blocked then queues itself again.
+-- So there are three states: in combat (lockdown; auras, cooldowns and totem slots secret); out of
+-- combat but restricted (a PvP match, an encounter: the same secrets, no lockdown); and readable.
+-- A PvP match's secrets are as Blizzard's API documentation says; not yet seen in a battleground.
 ------------------------------------------------------------------------
 local queued, queueOrder, listed = {}, {}, {}
 function ns.retryAfterCombat(key, fn)
@@ -89,6 +92,10 @@ function ns.deferWhileAurasSecret(key, fn)
 	return false
 end
 local INACTIVE = Enum and Enum.AddOnRestrictionState and Enum.AddOnRestrictionState.Inactive or 0
+-- fn(endedAt) runs on the frame after a restriction ends, once however many end in one frame, after
+-- the queue has run again: endedAt is GetTime() when the first of them ended.
+local afterEnd, endedAt = {}, nil
+function ns.onRestrictionEnd(fn) table.insert(afterEnd, fn) end
 local combatEnd = CreateFrame("Frame")
 ns.registerEvent(combatEnd, "PLAYER_REGEN_ENABLED")
 ns.registerEvent(combatEnd, "ADDON_RESTRICTION_STATE_CHANGED")
@@ -103,16 +110,64 @@ local function runQueue()
 		end
 	end
 end
+local function afterRestriction()
+	local at = endedAt
+	endedAt = nil
+	runQueue()
+	for _, fn in ipairs(afterEnd) do ns.try("restriction end", fn, at) end
+end
 combatEnd:SetScript("OnEvent", function(_, event, _, state)
 	if event == "ADDON_RESTRICTION_STATE_CHANGED" then
 		if isSecret(state) or state ~= INACTIVE or InCombatLockdown() then return end
 		-- Auras may still read as secret while this is dispatched: again on the next frame.
-		C_Timer.After(0, runQueue)
+		if not endedAt then
+			endedAt = GetTime()
+			C_Timer.After(0, afterRestriction)
+		end
 	else
 		-- Before the queue, so a layout waiting in it already finds them staying (ns.AfterCombat).
 		ns.AfterCombat.ended()
 	end
 	runQueue()
+end)
+
+------------------------------------------------------------------------
+-- Whether the player can act on a warning. Dead, a ghost or on a flight path, nothing can be cast,
+-- so a warning that asks for a cast (a shield, an imbue, a totem, a spell that's ready) stays quiet.
+-- None of these reads is secret for the player; one that fails or comes back secret counts as able.
+------------------------------------------------------------------------
+local function plainYes(fn, ...)
+	local ok, v = safe(fn, ...)
+	return ok and not isSecret(v) and v == true
+end
+function ns.cantAct()
+	return plainYes(UnitIsDeadOrGhost, "player") or plainYes(UnitOnTaxi, "player")
+end
+-- fn(event) whenever that may have changed: death, release, resurrection (always passed on), and a
+-- flight path's start and end (the control events, which also come with every fear or stun: passed
+-- on only when ns.cantAct() changed). UnitOnTaxi may not have changed yet when they come
+-- (untested), so they are checked again a second later.
+local actListeners = {}
+local lastCantAct = false
+function ns.onCanActChange(fn)   -- at a module's start (a /reload on a flight path is already on it)
+	table.insert(actListeners, fn)
+	lastCantAct = ns.cantAct()
+end
+local actEvents = CreateFrame("Frame")
+for _, event in ipairs({ "PLAYER_DEAD", "PLAYER_ALIVE", "PLAYER_UNGHOST", "PLAYER_CONTROL_LOST",
+	"PLAYER_CONTROL_GAINED" }) do
+	ns.registerEvent(actEvents, event)
+end
+local function tellAct(event, always)
+	local now = ns.cantAct()
+	if not always and now == lastCantAct then return end
+	lastCantAct = now
+	for _, fn in ipairs(actListeners) do ns.try("can act", fn, event) end
+end
+actEvents:SetScript("OnEvent", function(_, event)
+	local control = event == "PLAYER_CONTROL_LOST" or event == "PLAYER_CONTROL_GAINED"
+	tellAct(event, not control)
+	if control then C_Timer.After(1, function() tellAct(event) end) end
 end)
 
 ------------------------------------------------------------------------
@@ -210,6 +265,9 @@ end
 
 local function fadeOut(o)
 	if InCombatLockdown() then return end
+	-- It may have stopped staying meanwhile (unlocked, Show set to Always, Stay set to 0): no fade.
+	local okSecs, secs = pcall(o.spec.secs)
+	if not (okSecs and type(secs) == "number" and secs > 0) then release(o) return end
 	local ok, shows = pcall(o.spec.shows)
 	if ok and shows then release(o) return end
 	local played = ns.try("after combat fade", function()

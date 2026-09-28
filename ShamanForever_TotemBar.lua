@@ -69,7 +69,8 @@ TB.DEFAULTS = {
 	expiredPop = true,        -- the totem pops and fades the moment it runs out
 	warn = 10,                -- seconds before the end (0 = off)
 	-- Totem -> seconds, instead of warn (short-lived ones). Keyed by the client's rank-less spell
-	-- name; the defaults (Earthbind and Stoneclaw, 5 s) are filled by cfg(), in the client's language.
+	-- name; the defaults (Earthbind and Stoneclaw, 5 s; Mana Tide, 3 s, as on its element: its
+	-- 5-minute cooldown allows no recast) are filled by cfg(), in the client's language.
 	warnOver = {},
 	killed = true,            -- flash when a totem dies with time left, made of:
 	killedPop = true,         --   the slot bursts bigger for a moment
@@ -114,7 +115,8 @@ local function cfg()
 		-- The default per-totem times, by the client's names (English until they have loaded; the
 		-- lookup in warnSecs also takes the English name, so either works).
 		if type(t.warnOver) ~= "table" then
-			t.warnOver = { [ns.Spells.name("earthbind")] = 5, [ns.Spells.name("stoneclaw")] = 5 }
+			t.warnOver = { [ns.Spells.name("earthbind")] = 5, [ns.Spells.name("stoneclaw")] = 5,
+				[ns.Spells.name("manaTide")] = 3 }
 		end
 		for k, v in pairs(TB.DEFAULTS) do
 			if type(t[k]) ~= type(v) then t[k] = type(v) == "table" and CopyTable(v) or v end
@@ -814,6 +816,7 @@ end
 local mover
 local saidWait = false   -- "changes wait until combat ends" said this combat
 local classDone = false  -- not a shaman: laid out hidden once, nothing more to do
+local hasTotems = false  -- a totem of any element is known (layout): until then the bar hides
 
 -- known: the element's known totems (ns.Totems.knownTotems), from layout().
 local function layoutPopout(s, size, known)
@@ -880,7 +883,7 @@ end
 -- (ns.AfterCombat, made with the layout below).
 local function ownDriver()
 	local c = cfg()
-	if not barOn() then return "hide" end
+	if not barOn() or not hasTotems then return "hide" end
 	if kbOpen or not ns.getAccount().locked then return "show" end
 	if c.show == "combat" then return "[petbattle] hide; [combat] show; hide" end
 	if c.show == "target" then return "[petbattle] hide; [combat] show; [@target,exists,harm,nodead] show; hide" end
@@ -916,10 +919,20 @@ function layout()
 	-- only, like everything on a frame holding secure buttons.
 	bar:SetScale(c.scale)
 	bar:SetAlpha(c.alpha)
+	-- A slot shows for an element with a totem known (every element's where the client can't list
+	-- them). With no totem known at all (a new character's first levels) the bar has nothing to show
+	-- and hides, Call and Recall with it, in positioning mode too: like a group whose elements aren't
+	-- learned, it can be placed once there is something in it.
 	local shown, known = {}, {}
+	local had = hasTotems
+	hasTotems = not GetMultiCastTotemSpells
+	for _, el in ipairs(ELEMENTS) do
+		known[el] = ns.Totems.knownTotems(SLOT[el])
+		if #known[el] > 0 then hasTotems = true end
+	end
+	if hasTotems ~= had then ns.Options.refresh() end   -- its page says "Not learned" until then
 	for _, el in ipairs(c.order) do
 		local s = slots[el]
-		known[el] = ns.Totems.knownTotems(s.slot)
 		local on = barOn() and not c.hidden[el] and (#known[el] > 0 or not GetMultiCastTotemSpells)
 		s.button:SetShown(on)
 		s.vis:SetShown(on)
@@ -930,8 +943,10 @@ function layout()
 	if row and c.pop ~= "up" and c.pop ~= "down" then c.pop = "up" end
 	if not row and c.pop ~= "right" and c.pop ~= "left" then c.pop = "right" end
 	-- Everything along the bar, in order: extras before, slots, extras after (TB.along). LEFT / TOP
-	-- anchors keep every button centred on the bar's line, whatever its size.
-	local seq, long, across = TB.along(#shown, size)
+	-- anchors keep every button centred on the bar's line, whatever its size. Nothing while no totem
+	-- is known.
+	local seq, long, across = {}, size, size
+	if hasTotems then seq, long, across = TB.along(#shown, size) end
 	local on = {}   -- the extras that show
 	for _, it in ipairs(seq) do
 		local b, sz = it.extra and extras[it.key].button or shown[it.key].button, it.size
@@ -1073,7 +1088,7 @@ mover:SetScript("OnMouseWheel", function(self, delta)
 	ns.Options.refresh()
 end)
 function mover.update()
-	local on = barOn() and not ns.getAccount().locked and not InCombatLockdown()
+	local on = barOn() and hasTotems and not ns.getAccount().locked and not InCombatLockdown()
 	if on then
 		mover:ClearAllPoints()
 		mover:SetPoint("TOPLEFT", bar, "TOPLEFT", -2, 2)
@@ -1387,6 +1402,8 @@ function TB.known(el)
 	return ns.Totems.knownTotems(SLOT[el])
 end
 TB.look = look
+-- Whether a totem is known, as of the last layout (the options mark the bar "Not learned" until then).
+function TB.hasTotems() return hasTotems end
 
 -- For /sf debug.
 function TB.debug()
@@ -1396,8 +1413,8 @@ function TB.debug()
 	local gok, ginfo = pcall(C_ActionBar.GetActionCooldown, multiAction(SLOT.earth))
 	local g = not gok and "error" or type(ginfo) ~= "table" and "none"
 		or isSecret(ginfo.isOnGCD) and "secret" or tostring(ginfo.isOnGCD)
-	return string.format("totem bar mode %s, show %s, driver %s, shown %s, earth isOnGCD %s; TotemFrame parent %s alpha %s; Totem Action Bar parent %s",
-		c.mode, c.show, tostring(lastDriver), tostring(bar:IsShown()), g,
+	return string.format("totem bar mode %s, show %s, driver %s, shown %s, totems known %s, earth isOnGCD %s; TotemFrame parent %s alpha %s; Totem Action Bar parent %s",
+		c.mode, c.show, tostring(lastDriver), tostring(bar:IsShown()), tostring(hasTotems), g,
 		TotemFrame and TotemFrame:GetParent() and (TotemFrame:GetParent():GetName() or "?") or "none",
 		TotemFrame and string.format("%.2f", TotemFrame:GetAlpha()) or "-",
 		mc and (mc:GetParent() == hiddenParent and "hidden" or (mc:GetParent() and mc:GetParent():GetName() or "?")) or "none")

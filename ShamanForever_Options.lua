@@ -37,7 +37,9 @@ local function retime()
 	ns.applyTimers()
 	OP.refresh()
 end
-local function respell() ns.resolveSpells(); ns.refreshAll(); OP.refresh() end
+-- A spell choice (the shield or shock tracked, the Mana check): the spells looked up again, and a
+-- layout, since the shield's Track decides whether Shields counts as learned.
+local function respell() ns.resolveSpells(); ns.applyLayout(); ns.refreshAll(); OP.refresh() end
 
 local function newPage(key, title, indent)
 	local p = Page.new(win, key, title, indent)
@@ -530,6 +532,8 @@ local function buildTotemBar(p)
 	local function tset(key) return function(v) c()[key] = v; changed() end end
 
 	p:hero("totembar")
+	p:callout("Not learned yet. It shows on screen once your character knows a totem.",
+		function() return TB.barOn() and not TB.hasTotems() end)
 	-- The Totems cards decide which of ours and Blizzard's totem frames show; the sections below
 	-- show only where they apply (Buttons in Everything, the rest while our bar is on).
 	local full = function() return c().mode == "everything" end
