@@ -154,6 +154,7 @@ function ns.makeGCDSweep(parent)
 	cd:SetHideCountdownNumbers(true)
 	cd:SetSwipeTexture("Interface\\Buttons\\WHITE8x8")
 	cd:SetSwipeColor(0, 0, 0, 0.6)
+	ns.Looks.followSwipe(parent, cd)   -- a rounded or cut-corner icon's shape
 	return cd
 end
 

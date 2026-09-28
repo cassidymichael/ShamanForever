@@ -51,7 +51,9 @@ end
 --          screen pixels.
 --   mask   { atlas or file, scale } for the icon's picture and what covers it (its size over the
 --          picture's, centred; default 1).
---   swipe  a file for the icon's cooldown swipe (f.cd), shaped like the mask.
+--   swipe  a file for the icon's cooldown swipes (f.cd, and those Looks.followSwipe registers),
+--          shaped like the mask; swipeInset: or the swipes inset this share of the icon's width
+--          each side, inside the mask's shape, as Blizzard insets its action buttons' cooldowns.
 --   experimental  not tested in game yet (the options badge it).
 -- A look whose Blizzard art is missing from the client draws a plain 1 px black line instead.
 -- A look drawn with AI-made art is credited in the README and About's Art text.
@@ -299,13 +301,42 @@ function Looks.followMask(f, ...)
 	end
 end
 
--- The icon's cooldown swipe in the look's shape; only touched once a look has asked for one.
-local function drawSwipe(f, file)
-	local cd = f.cd
-	if not cd or (file == nil and f.frameSwipe == nil) then return end
+-- Cooldowns other code lays over an icon (a global cooldown sweep), registered with
+-- Looks.followSwipe: their swipes take the icon's look too.
+local swipers = setmetatable({}, { __mode = "k" })   -- icon frame -> { cooldown, ... }
+local swipeLooks = setmetatable({}, { __mode = "k" })   -- icon frame -> the masked look it has now
+
+-- One cooldown over f in look's shape (look nil: the plain square). Only touched once a look has
+-- asked for a shape; its swipe file and its points go back to the square one after.
+local function swipeOne(f, cd, look)
+	local file, inset = look and look.swipe, look and look.swipeInset
+	if not cd or (file == nil and inset == nil and cd.frameSwipe == nil) then return end
 	file = file or WHITE
-	if f.frameSwipe ~= file then cd:SetSwipeTexture(file) end
-	f.frameSwipe = file
+	if cd.frameSwipe ~= file then cd:SetSwipeTexture(file) end
+	cd.frameSwipe = file
+	if inset or cd.frameInset then
+		local d = (inset or 0) * f:GetWidth()
+		cd:ClearAllPoints()
+		cd:SetPoint("TOPLEFT", f, "TOPLEFT", d, -d)
+		cd:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -d, d)
+		cd.frameInset = inset
+	end
+end
+
+-- The icon's cooldown swipes in a masked look's shape (look nil: unmasked).
+local function drawSwipe(f, look)
+	if look == nil and swipeLooks[f] == nil then return end
+	swipeLooks[f] = look
+	swipeOne(f, f.cd, look)
+	for _, cd in ipairs(swipers[f] or {}) do swipeOne(f, cd, look) end
+end
+
+-- Registers a cooldown laid over icon frame f (all its points on f), to take its look's swipe.
+function Looks.followSwipe(f, cd)
+	local list = swipers[f] or {}
+	swipers[f] = list
+	table.insert(list, cd)
+	if swipeLooks[f] then swipeOne(f, cd, swipeLooks[f]) end
 end
 
 -- Draws b (a border style) round f in its look, or takes it down (b off, or a size of 0 for a
@@ -334,7 +365,7 @@ function ns.applyBorder(f, b)
 	out = math.max(out, drawSlice(f, look.art))
 	local mask = maskOf(look)
 	drawMask(f, mask)
-	drawSwipe(f, mask and look.swipe)
+	drawSwipe(f, mask and look)
 	f.frameOuter = out
 end
 
@@ -350,11 +381,11 @@ function Looks.outerEdge(f) return f and f.frameOuter or 0 end
 -- Adding a mask later out of combat, or changing its art, is untested, so the button keeps the look
 -- it was made with until the next /reload. The element's frame keeps its own art too, for while
 -- the button is hidden (no aura).
-local auraMade = setmetatable({}, { __mode = "k" })   -- aura icon -> { key, spec, mask, swipe, art }
+local auraMade = setmetatable({}, { __mode = "k" })   -- aura icon -> { key, spec, mask, look, art }
 function Looks.auraMask(button, tex, key)
 	local b = ns.borderFor(key)
 	local spec, art, size = maskFor(b), artFor(b), ns.sizeOf(key)
-	local made = { key = key, spec = spec, swipe = spec and lookFor(b).swipe, art = art }
+	local made = { key = key, spec = spec, look = spec and lookFor(b), art = art }
 	auraMade[tex] = made
 	if art then
 		local t = button:CreateTexture(nil, "OVERLAY", nil, 7)
@@ -377,7 +408,7 @@ function Looks.auraStyle(slot, size)
 	if not made then return end
 	if made.artTex then placeArt(made.artTex, made.art, slot.button, size) end
 	if made.mask and (made.spec.scale or 1) ~= 1 then placeMask(made.mask, made.spec, slot.icon, size) end
-	if made.swipe and slot.cd then slot.cd:SetSwipeTexture(made.swipe) end
+	if made.look then swipeOne(slot.button, slot.cd, made.look) end
 end
 
 -- The aura elements whose button's shape differs from their border look now, among those whose
@@ -425,7 +456,8 @@ S.addLook("border", "cdm", { name = "Cooldown Manager", experimental = true,
 	mask = { atlas = CDM_MASK }, swipe = CDM_SWIPE, art = { atlas = CDM_OVERLAY, inset = { 0.18, 0.18, 0.16, 0.16 } } })
 -- Cut corners in a dark bronze frame, as on Forever's action buttons.
 S.addLook("border", "button", { name = "Forever action button", experimental = true,
-	mask = { atlas = AB_MASK, scale = 64 / 45 }, art = { atlas = AB_FRAME, inset = { 0, 1 / 45, 0, 0 } } })
+	mask = { atlas = AB_MASK, scale = 64 / 45 }, swipeInset = 3 / 45,
+	art = { atlas = AB_FRAME, inset = { 0, 1 / 45, 0, 0 } } })
 -- Painted frames (AI-made art), 9-sliced from 128 px art; margin: the painted frame's width in
 -- texels.
 S.addLook("border", "stone", { name = "Carved stone", experimental = true,
