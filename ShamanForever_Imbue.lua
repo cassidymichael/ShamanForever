@@ -189,8 +189,11 @@ function IM.refresh()
 	-- No weapon to imbue, or dead, a ghost or on a flight path: nothing can be cast.
 	local quiet = not hasWeapon() or ns.cantAct()
 	drawImbue(now, quiet)
-	-- The moment it drops (imbues stay readable in combat): pop. Not when the weapon came off.
-	if had and r == false and db.imbuePop and not quiet then imbue:Pop("imbue") end
+	-- The moment it drops (imbues stay readable in combat): pop and sound. Not when the weapon came off.
+	if had and r == false and not quiet then
+		if db.imbuePop then imbue:Pop("imbue") end
+		ns.Sounds.element("imbue", "lostSound")
+	end
 end
 
 -- Our own successful cast: remembered, so an imbue not recognised by ID or icon is learned on the next read.

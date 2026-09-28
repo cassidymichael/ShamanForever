@@ -143,6 +143,7 @@ local function readyBlock(p, key, glowTip)
 	p:header("Ready")
 	p:checkbox("Pop", "The moment the cooldown ends.", eget(key, "readyPop"), eset(key, "readyPop"))
 	if glowTip then p:checkbox("Pulsing glow", glowTip, eget(key, "readyGlow"), eset(key, "readyGlow")) end
+	ns.Sounds.row(p, "Sound", "The moment the cooldown ends.", eget(key, "readySound"), eset(key, "readySound"))
 end
 
 -- Standard block: the look while the element has nothing going on (the cooldown and buff elements),
@@ -273,6 +274,7 @@ local function buildImbue(p)
 		end)
 	p:checkbox("Pulsing glow", "A glow inside the icon that pulses.", get("imbueGlow"), set("imbueGlow"))
 	p:checkbox("Pop", "The moment your imbue runs out or is lost.", get("imbuePop"), set("imbuePop"))
+	ns.Sounds.row(p, "Sound", "The moment your imbue runs out or is lost.", eget("imbue", "lostSound"), eset("imbue", "lostSound"))
 
 	p:header("Time left")
 	p:slider("Show under", nil, 0, 30, 1,
@@ -382,6 +384,10 @@ local function buildCooldown(p, def)
 		elseif def.totemSlot then
 			p:checkbox("Pop when it runs out", "The totem pops and fades the moment it runs out.", eget(key, "expiredPop"), eset(key, "expiredPop"))
 		end
+	end
+	if def.totemSlot then
+		ns.Sounds.row(p, "Sound when it ends", "When it runs out or is killed. Not when you dismiss it.",
+			eget(key, "goneSound"), eset(key, "goneSound"))
 	end
 	if def.grounded then groundedBlock(p, key)
 	elseif def.totemSlot then

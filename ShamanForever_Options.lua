@@ -1127,6 +1127,7 @@ local function buildTotemBar(p)
 	local WARN = { grey = "warnGrey", ring = "warnRing", pulse = "warnPulse", glow = "warnGlow" }
 	expiringLooks(p, function(k) return tget(WARN[k]) end, function(k) return tset(WARN[k]) end, "slot")
 	p:checkbox("Pop when it runs out", "The totem pops and fades the moment it runs out.", tget("expiredPop"), tset("expiredPop"))
+	ns.Sounds.row(p, "Sound when it ends", "When a totem runs out or is killed. Not when you dismiss it.", tget("goneSound"), tset("goneSound"))
 	local secs = function(v) return v == 0 and "Off" or string.format("%d s", v) end
 	p:slider("Warn in the last", nil, 0, 30, 1, secs, tget("warn"), tset("warn"))
 	p:text("Totems with their own warning time, instead of the default:", function() return next(c().warnOver) ~= nil end)
