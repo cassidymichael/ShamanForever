@@ -1,7 +1,8 @@
 -- Tremor Totem: a warning to put it down. It warns while a mob that casts fear, charm or sleep (the
 -- effects Tremor Totem removes) is your target or has its nameplate on screen, and (if the player
 -- turns it on) while one of those effects is on you and for 10 s after. It stays quiet while your
--- Tremor Totem is down.
+-- Tremor Totem is down, and while you couldn't drop one: dead, a ghost, on a flight path or in a
+-- vehicle.
 -- The mobs are a watchlist the player can change on the element's page: open-world mobs from
 -- Classic's database (ShamanForever_TremorList.lua) and the player's own, matched by NPC ID, else by
 -- name. While the totem is down the element shows its time left. It is idle while nothing warns
@@ -14,9 +15,10 @@
 --   identity is secret is simply not matched. Nothing here compares a secret.
 -- * Loss of control on the player (C_LossOfControl.GetActiveLossOfControlData): not secret, spell
 --   ID included. Only other units' loss of control is. An effect counts when its spell is one
---   Tremor removes (ns.Tremor.SPELLS: a fear, charm or sleep mechanic in Forever's client data) or
---   its type says so. The type alone isn't enough: a Wrathtail Priestess's Sleep (15970) came as
---   STUN (seen 2026-09-27).
+--   Tremor removes (ns.Tremor.SPELLS: every spell with a fear, charm or sleep mechanic in Forever's
+--   client data). Its type doesn't decide: a Wrathtail Priestess's Sleep (15970) came as STUN (seen
+--   2026-09-27), and a Horror such as Death Coil, which Tremor doesn't remove, likely comes as FEAR.
+--   /sf debug still shows the type.
 -- * Our Tremor Totem: the earth slot holds the totem we last cast into it (ShamanForever_Totems.lua,
 --   readable in combat), and the slot has a duration object while a totem is out. With no cast since
 --   a login or /reload in combat or in a PvP match, the slot can't say which totem it holds: that
@@ -36,7 +38,8 @@ local HOLD = 10        -- seconds the warning stays after a fear, charm or sleep
 local SOUND_GAP = 10   -- seconds between sounds, so mobs coming and going don't repeat it
 TR.WORD = "Tremor!"    -- by the icon while it warns
 
--- Loss-of-control types that name what Tremor Totem removes (C_LossOfControl's locType).
+-- Loss-of-control types that name what Tremor Totem removes (C_LossOfControl's locType), for /sf
+-- debug only: an effect counts by its spell.
 local TREMOR_TYPES = { FEAR = true, FEAR_MECHANIC = true, CHARM = true, POSSESS = true, SLEEP = true }
 local tremorSpells = {}   -- spell ID -> true, from TR.SPELLS (ShamanForever_TremorList.lua), at start
 
@@ -198,10 +201,13 @@ function TR.counts() return counts end
 ------------------------------------------------------------------------
 -- Matching a unit against the list
 ------------------------------------------------------------------------
-local function npcID(guid)
+-- Whether a GUID is a mob's (Creature or Vehicle; a player's pet's starts Pet), and its NPC ID.
+local function mobID(guid)
 	local kind, _, _, _, _, id = strsplit("-", guid)
-	if kind == "Creature" or kind == "Vehicle" then return tonumber(id) end
+	if kind == "Creature" or kind == "Vehicle" then return true, tonumber(id) end
+	return false
 end
+local function npcID(guid) return select(2, mobID(guid)) end
 
 local hiddenSeen = 0   -- units whose identity was secret, for /sf debug
 
@@ -220,7 +226,10 @@ local function listed(unit)
 	local guid = plain(safe(UnitGUID, unit))
 	if type(guid) == "string" then
 		told = true
-		local id = npcID(guid)
+		-- Not a mob: an enemy player's pet can carry a listed mob's name (tamed, or named so), but
+		-- casts only its family's abilities.
+		local mob, id = mobID(guid)
+		if not mob then return false end
 		if id and listIDs[id] then return true end
 	end
 	local name = plain(safe(UnitName, unit))
@@ -252,7 +261,7 @@ local function checkAllPlates()
 	for i = 1, 40 do checkPlate("nameplate" .. i) end
 end
 
--- Whether a loss of control is one Tremor removes: by its spell, and by its type.
+-- Whether a loss of control is one Tremor removes, by its spell; and whether its type says so.
 local function controlMatch(d)
 	local id, t = d.spellID, d.locType
 	local bySpell = type(id) == "number" and not isSecret(id) and tremorSpells[id] == true
@@ -279,7 +288,7 @@ local function readControl()
 		if type(d) == "table" then
 			local bySpell, byType = controlMatch(d)
 			noteControl(d, bySpell, byType)
-			if setting("tremorFeared") and (bySpell or byType) then feared = true end
+			if setting("tremorFeared") and bySpell then feared = true end
 		end
 	end
 	if was and not feared then holdUntil = GetTime() + HOLD end
@@ -344,8 +353,10 @@ local function refresh()
 	local out, dur = tremorOut()
 	if out then f.upTimer:set(dur) else f.upTimer:clear() end
 	local held = GetTime() < holdUntil
-	-- Only while the earth slot is known not to hold Tremor.
+	-- Only while the earth slot is known not to hold Tremor, and while a totem could be dropped: not
+	-- dead, a ghost, on a flight path or in a vehicle (none of them secret for the player).
 	local want = out == false and (targetListed or next(plates) ~= nil or feared or held)
+		and not ns.cantAct() and not plain(safe(UnitInVehicle, "player"))
 	if want then
 		why = targetListed and "target" or next(plates) and "nameplate" or feared and "on you" or "just after"
 	end
@@ -511,6 +522,7 @@ function TR.start()
 	checkTarget()
 	checkAllPlates()
 	readControl()
+	ns.onCanActChange(refresh)   -- death, resurrection, a flight path: at once, not at the next tick
 end
 
 -- /sf debug
@@ -535,6 +547,8 @@ function TR.debug()
 		local ok, map = safe(R.IsAddOnRestrictionActive, Enum.AddOnRestrictionType.Map)
 		say("  map restriction %s, in instance %s", ok and describeArg(map) or "error", tostring(IsInInstance()))
 	end
+	say("  dead, ghost or flight path %s, vehicle %s", tostring(ns.cantAct()),
+		describeArg(select(2, safe(UnitInVehicle, "player"))))
 	say("  feared now %s, holding %s; losses of control seen (Tremor removes it?): %s", tostring(feared),
 		tostring(GetTime() < holdUntil), #controlSeen > 0 and table.concat(controlSeen, "; ") or "none")
 end

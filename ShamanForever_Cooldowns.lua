@@ -24,7 +24,7 @@
 --   Farseer's window runs a fixed time from its cast; Nature's Swiftness and Stormstrike are primed
 --   from their cast until our casts of the spells that spend them (or its time runs out). That is an
 --   inference, like the shield's; Nature's Swiftness is corrected from its buff whenever auras are
---   readable (out of combat, and not in a PvP match).
+--   readable (out of combat, and not in a PvP match). Death ends it, and Rage of the Farseer's window.
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
@@ -244,10 +244,16 @@ end
 CD.cooldownFor = cooldownFor
 
 -- Pop when ready: Blizzard's cooldown widget says when its swipe finishes (OnCooldownDone), a
--- moment with no secret in it, so the icon can pop right then, in combat too.
-local function popWhenReady(f, key)
+-- moment with no secret in it, so the icon can pop right then, in combat too. totemSlot: a spell
+-- that needs a totem down in that slot (Fire Nova), which isn't ready without one: an empty slot
+-- has no duration object (see the file's header).
+local function popWhenReady(f, key, totemSlot)
 	f.cd:HookScript("OnCooldownDone", function()
 		if f.gcdUntil and GetTime() <= f.gcdUntil then return end   -- a global cooldown ended
+		if totemSlot then
+			local ok, d = safe(GetTotemDuration, totemSlot)
+			if not (ok and d) then return end
+		end
 		if ns.isEnabled(key) and setting(key, "readyPop") then f:Pop() end
 	end)
 end
@@ -328,6 +334,9 @@ local function refreshFireNova(def, inEvent)
 		end
 	end
 	f.upTimer:set(tok and tdur or nil)
+	-- No fire totem: its cooldown ending isn't "ready", so no bling either. Only ever turned off
+	-- here: cooldownFor, which runs just before, sets it for the Global cooldown style each pass.
+	if not (tok and tdur) then f.cd:SetDrawBling(false) end
 end
 
 -- Whether the totem in def's slot is def's own (1) or not (0), and how that was told. Not known from
@@ -440,7 +449,13 @@ local function readPrimedBuff(def, fromAura)
 end
 
 function refreshCooldown(def, inEvent)
-	if not ns.isEnabled(def.key) then def.cdRunning = nil return end   -- read afresh when it's back
+	if not ns.isEnabled(def.key) then
+		-- Read afresh when it's back. Our casts aren't followed while it's off (CD.onCast), so a
+		-- window or primed buff could be spent unseen: it ends here rather than come back stale.
+		def.cdRunning = nil
+		endActive(def)
+		return
+	end
 	local f = def.frame
 	if f.killed and not (setting(def.key, "killed") and setting(def.key, "killedMark")) then f.killed.mark:Hide() end
 	if not def.spellID then
@@ -482,7 +497,7 @@ for _, def in ipairs(COOLDOWNS) do
 		def.spends = {}
 		for _, k in ipairs(def.primed.spends) do def.spends[k] = true end
 	end
-	popWhenReady(def.frame, def.key)
+	popWhenReady(def.frame, def.key, def.needsTotem)
 	-- A cooldown ending can make it idle (see applyIdle); read on the next frame.
 	def.frame.cd:HookScript("OnCooldownDone", function() C_Timer.After(0, function() refreshCooldown(def) end) end)
 end
@@ -554,10 +569,17 @@ end)
 ------------------------------------------------------------------------
 local hasTimeLeftCurve = ns.CURVE_LIVE
 -- 1 while the spell is off cooldown (possibly secret: only ever handed to SetAlpha). Its own
--- cooldown, without the GCD (ignoreGCD), so the glow doesn't blink with every cast.
-local function readyAlpha(spellID)
-	local ok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID, true)
-	if not (ok and dur) then return 1 end   -- no cooldown running
+-- cooldown, without the GCD (ignoreGCD), so the glow doesn't blink with every cast. 0 while the
+-- player can't act (cantAct: ns.cantAct(), read once per pass by the caller): "use me" then asks
+-- for a cast that can't be made. Not IsSpellUsable, which would also take the glow away when mana
+-- runs short.
+local function readyAlpha(spellID, cantAct)
+	if cantAct then return 0 end
+	-- A failed read (a client change) is noted for /sf debug and shows no glow; nothing back is no
+	-- cooldown running. ns.try keeps one note per place, so ten reads a second don't flood it.
+	local ok, dur = ns.try("ready glow cooldown", C_Spell.GetSpellCooldownDuration, spellID, true)
+	if not ok then return 0 end
+	if not dur then return 1 end
 	local rok, r = ns.try("ready glow", dur.EvaluateRemainingDuration, dur, ns.CURVE_OVER)
 	if rok then return r end
 	return 0
@@ -576,7 +598,7 @@ function CD.readyTicker(update)
 	end)
 	return ticker
 end
-local function refreshReadyGlow(def)
+local function refreshReadyGlow(def, cantAct)
 	local f = def.frame
 	local on = def.spellID and ns.isEnabled(def.key) and setting(def.key, "readyGlow") and hasTimeLeftCurve and noTimeLeftCurve
 	f.readyGlow:SetShown(on and true or false)
@@ -588,11 +610,12 @@ local function refreshReadyGlow(def)
 		local gok, g = ns.try("ready gate", tdur.EvaluateRemainingDuration, tdur, hasTimeLeftCurve)
 		if gok then f.readyGate:SetAlpha(g) else f.readyGate:SetAlpha(0) end
 	end
-	f.readyGlow:SetAlpha(readyAlpha(def.spellID))
+	f.readyGlow:SetAlpha(readyAlpha(def.spellID, cantAct))
 end
 local function refreshReadyGlows()
+	local cantAct = ns.cantAct()
 	for _, def in ipairs(COOLDOWNS) do
-		if def.frame.readyGate then refreshReadyGlow(def) end
+		if def.frame.readyGate then refreshReadyGlow(def, cantAct) end
 	end
 end
 local readyTicker = CD.readyTicker(refreshReadyGlows)
@@ -614,6 +637,7 @@ end
 -- After a spellbook scan: the elements' names, highest ranks and icons. Returns a signature of what
 -- it found.
 function CD.resolve()
+	Reagents.readPerk()   -- the spellbook changed: the perk may have come
 	local sig = {}
 	for _, def in ipairs(COOLDOWNS) do
 		def.spell = Spells.name(def.spellKey)
@@ -686,7 +710,7 @@ function CD.tick()
 	ns.try("cooldown refresh", refreshCooldowns)
 end
 
--- A shaman logged in: reagent counts, and the primed buffs whenever auras are readable.
+-- A shaman logged in: reagent counts, the primed buffs whenever auras are readable, and death.
 function CD.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "BAG_UPDATE_DELAYED")
@@ -700,6 +724,17 @@ function CD.start()
 				if def.spellID and def.primed and def.primed.buffKey and ns.isEnabled(def.key) then
 					readPrimedBuff(def, true); refreshCooldown(def)
 				end
+			end
+		end
+	end)
+	-- Death takes our buffs (Nature's Swiftness's, Rage of the Farseer's window): ended at once, also
+	-- where auras can't be read afterwards (a PvP match). Stormstrike's effect is on the target.
+	ns.onCanActChange(function(event)
+		if event ~= "PLAYER_DEAD" then return end
+		for _, def in ipairs(COOLDOWNS) do
+			if def.window or (def.primed and def.primed.buffKey) then
+				endActive(def)
+				refreshCooldown(def)
 			end
 		end
 	end)
@@ -722,7 +757,8 @@ function CD.debug()
 				def.activeUntil == math.huge and "until spent" or string.format("%.1f s", def.activeUntil - GetTime())) or ", not active"
 		end
 		if def.reagent then
-			extra = string.format("%s, reagent %s (takes it: %s)", extra, describeArg(def.reagentRead), tostring(def.takesReagent))
+			extra = string.format("%s, reagent %s (takes it: %s, Reagent Economy %s)", extra, describeArg(def.reagentRead),
+				tostring(def.takesReagent), tostring(Reagents.perkKnown()))
 		end
 		if def.totemSlot or def.needsTotem then
 			say("%s: spell %s, totem spell secret=%s, %s, idle %s%s", def.spell, tostring(def.spellID), secret, read, tostring(def.idle), extra)

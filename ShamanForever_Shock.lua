@@ -62,8 +62,14 @@ local function refreshCooldown()
 	if dur then shock.cdTimer:set(dur) end
 end
 
+-- While the element is off (hidden, or no shock known) nothing is read and its looks are cleared,
+-- so none comes back stale when it shows again.
 local function refreshRange()
-	if not shockSpellID or not ns.isEnabled("shock") then return end
+	if not shockSpellID or not ns.isEnabled("shock") then
+		shockState.outOfRange = false
+		drawTint()
+		return
+	end
 	-- The event also fires for other spells' checks; the 4 Hz ticker covers ours either way.
 	local ok, r = safe(C_Spell.IsSpellInRange, shockSpellID, "target")
 	shockState.outOfRange = ok and not isSecret(r) and r == false
@@ -71,7 +77,11 @@ local function refreshRange()
 end
 
 local function refreshMana()
-	if not manaSpellID or not ns.isEnabled("shock") then return end
+	if not manaSpellID or not ns.isEnabled("shock") then
+		shockState.noMana = false
+		drawTint()
+		return
+	end
 	local ok, _, noPower = safe(C_Spell.IsSpellUsable, manaSpellID)
 	shockState.noMana = ok and not isSecret(noPower) and noPower == true
 	drawTint()
@@ -88,7 +98,7 @@ local function refreshGlow()
 	shock.glowF:SetShown(on and true or false)
 	if not on then return end
 	shock.glowF:fit(shock:GetWidth())
-	shock.glowF:SetAlpha(CD.readyAlpha(shockSpellID))
+	shock.glowF:SetAlpha(CD.readyAlpha(shockSpellID, ns.cantAct()))
 end
 local glowTicker = CD.readyTicker(refreshGlow)
 -- Runs only while the glow is turned on (checked on every layout, i.e. every settings change).
@@ -138,6 +148,13 @@ function SK.resolve()
 end
 
 function SK.applyTimers() shock.cdTimer:apply() end
+
+-- The groups were laid out: the element may have just been shown or hidden, with nothing else to
+-- say that range or mana changed (full mana out of combat fires no event).
+function SK.afterGroups()
+	refreshMana()
+	refreshRange()
+end
 
 -- After a layout (settings may have changed): the looks, then the mana read again.
 function SK.applyLayout()
