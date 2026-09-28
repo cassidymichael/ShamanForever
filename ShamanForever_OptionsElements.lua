@@ -9,7 +9,8 @@ ns.ElementPages = EP
 
 local Page, K = ns.Page, ns.Options.kit
 local showWhen, setTip, panelBackdrop = Page.showWhen, Page.setTip, Page.panelBackdrop
-local relayout, respell, pct, int, px, get, set = K.relayout, K.respell, K.pct, K.int, K.px, K.get, K.set
+local relayout, respell, get, set = K.relayout, K.respell, K.get, K.set
+local pct, int, px = Page.pct, Page.int, Page.px
 local groupCount, isHidden, placeShown, SHOW_CHOICES = K.groupCount, K.isHidden, K.placeShown, K.SHOW_CHOICES
 local timerSettings, gcdBlock, glowBlock, popBlock = K.timerSettings, K.gcdBlock, K.glowBlock, K.popBlock
 local expiringLooks, killedBlock = K.expiringLooks, K.killedBlock
