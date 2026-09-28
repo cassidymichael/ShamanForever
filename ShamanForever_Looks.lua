@@ -36,7 +36,6 @@ local function schoolOf(f)
 	local e = type(f.owner) == "string" and ns.ELEMENTS[f.owner]
 	return e and e.school or "spirit"
 end
-Looks.schoolOf = schoolOf
 
 ------------------------------------------------------------------------
 -- Frames: a border look's entry has any of these parts (the options also read name, S.addLook).
@@ -53,7 +52,8 @@ Looks.schoolOf = schoolOf
 --   mask   { atlas or file, scale } for the icon's picture and what covers it (its size over the
 --          picture's, centred; default 1).
 --   swipe  a file for the icon's cooldown swipe (f.cd), shaped like the mask.
---   experimental  not tested in game yet (the options badge it); ai  AI-made art (credited).
+--   experimental  not tested in game yet (the options badge it).
+-- A look drawn with AI-made art is credited in the README and About's Art text.
 -- Lines and caps are screen pixels (ns.linePx): crisp, grown by Scale, not by icon Size. They sit
 -- outside the icon's edge, so they never cover the rings inside it or Blizzard's aura button.
 ------------------------------------------------------------------------
@@ -392,11 +392,11 @@ S.addLook("border", "button", { name = "Forever action button", experimental = t
 	mask = { atlas = AB_MASK, scale = 64 / 45 }, art = { atlas = AB_FRAME, inset = { 0, 1 / 45, 0, 0 } } })
 -- Painted frames (AI-made art), 9-sliced from 128 px art; margin: the painted frame's width in
 -- texels.
-S.addLook("border", "stone", { name = "Carved stone", experimental = true, ai = true,
+S.addLook("border", "stone", { name = "Carved stone", experimental = true,
 	rings = { { color = BLACK } }, art = { file = MEDIA .. "Frame-Stone", margin = 27, px = 6 } })
-S.addLook("border", "bronze", { name = "Aged bronze", experimental = true, ai = true,
+S.addLook("border", "bronze", { name = "Aged bronze", experimental = true,
 	rings = { { color = BLACK } }, art = { file = MEDIA .. "Frame-Bronze", margin = 14, px = 4 } })
-S.addLook("border", "wood", { name = "Carved wood", experimental = true, ai = true,
+S.addLook("border", "wood", { name = "Carved wood", experimental = true,
 	rings = { { color = BLACK } }, art = { file = MEDIA .. "Frame-Wood", margin = 22, px = 6 } })
 
 -- Whether any of a kind's looks is experimental (About's list).
@@ -938,7 +938,7 @@ addPop("motions", "School motions", {
 		motion(x, c, k, h)
 	end,
 })
-addPop("painted", "Painted bursts", { ai = true, motion = function() return "pop", 1.15 end,
+addPop("painted", "Painted bursts", { motion = function() return "pop", 1.15 end,
 	play = shapes(function(school) return MEDIA .. "Burst-" .. (SCHOOLS[school] or "Spirit") end, 3.2) })
 addPop("rune", "Rune ring", {
 	motion = function() return "pop", 1.12 end,
