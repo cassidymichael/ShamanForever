@@ -635,14 +635,13 @@ end
 -- After a spellbook scan: the elements' names, highest ranks and icons. Returns a signature of what
 -- it found.
 function CD.resolve()
+	Reagents.readPerk()   -- the spellbook changed: the perk may have come
 	local sig = {}
 	for _, def in ipairs(COOLDOWNS) do
 		def.spell = Spells.name(def.spellKey)
 		ns.ELEMENTS[def.key].label = def.spell
 		local known, knownIcon = Spells.known(def.spellKey)
-		-- Its tooltip again (ns.Reagents.takes): a new rank, or anything else out of combat (the
-		-- Reagent Economy perk bought). In combat the tooltip can't be read, so the answer is kept.
-		if known ~= def.spellID or not InCombatLockdown() then def.takesReagent = nil end
+		if known ~= def.spellID then def.takesReagent = nil end   -- a new rank: read its tooltip again
 		def.spellID, def.iconID = known, knownIcon
 		table.insert(sig, tostring(def.spellID)); table.insert(sig, tostring(def.iconID))
 	end

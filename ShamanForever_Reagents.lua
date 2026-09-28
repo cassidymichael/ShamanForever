@@ -32,27 +32,34 @@ end
 
 -- Whether the spell still takes its reagent. It may not: an account perk, Reagent Economy, removes
 -- the vendor reagents of class abilities, and a count or warning would then be false. So while the
--- perk is known (its spell, else out of combat its aura) nothing shows and nothing is kept. Else the
--- spell's tooltip decides, and only a yes (it names the item) shows the count and its looks; a no,
--- or nil while it can't be told yet, shows neither. The tooltip is read while auras are readable: a yes is kept
--- until the next spellbook scan out of combat, a no is read again every 30 s (a tooltip can be
--- incomplete while the client loads it), and a nil at the next refresh.
+-- perk is known nothing shows and nothing is kept. Else the spell's tooltip decides, and only a yes
+-- (it names the item) shows the count and its looks; a no, or nil while it can't be told yet, shows
+-- neither. The tooltip is read while auras are readable, and again once its answer is 30 s old (a
+-- tooltip can be incomplete while the client loads it); a nil at the next refresh.
 local RECHECK = 30
 local PERK, PERK_AURA = 1225503, 1262643   -- Reagent Economy, and its aura ("no reagent use")
-local function perkKnown()
+-- The perk: its spell, else (while auras are readable) its aura. Read at each spellbook scan
+-- (R.readPerk, from the resolves) and at most every RECHECK s while auras are readable, which finds
+-- a perk bought mid-session; in between, and while auras are secret, the last answer.
+local perk, perkReadAt = false, -math.huge
+function R.readPerk()
 	local ok, v = safe(IsPlayerSpell, PERK)
-	if ok and not isSecret(v) and v == true then return true end
-	if InCombatLockdown() or ns.aurasSecret() or not C_UnitAuras then return false end
+	if ok and not isSecret(v) and v == true then perk, perkReadAt = true, GetTime() return end
+	if InCombatLockdown() or ns.aurasSecret() or not C_UnitAuras then return end
 	local aok, a = safe(C_UnitAuras.GetPlayerAuraBySpellID, PERK_AURA)
-	return aok and type(a) == "table"
+	perk, perkReadAt = aok and type(a) == "table", GetTime()
+end
+local function perkKnown()
+	if GetTime() - perkReadAt >= RECHECK and not InCombatLockdown() and not ns.aurasSecret() then R.readPerk() end
+	return perk
 end
 R.perkKnown = perkKnown   -- for /sf debug
 function R.takes(def)
 	if perkKnown() then def.takesReagent = nil return false end
+	if def.takesReagent ~= nil and GetTime() - (def.reagentReadAt or 0) < RECHECK then return def.takesReagent end
 	-- While auras are secret (combat, a PvP match) the perk's aura can't be seen, so the tooltip isn't
 	-- read either: only an answer from a readable moment stands, and nil shows nothing.
-	if def.takesReagent or InCombatLockdown() or ns.aurasSecret() then return def.takesReagent end
-	if def.takesReagent == false and GetTime() - (def.reagentReadAt or 0) < RECHECK then return false end
+	if InCombatLockdown() or ns.aurasSecret() then return def.takesReagent end
 	def.reagentReadAt = GetTime()
 	if not (def.spellID and C_TooltipInfo and C_TooltipInfo.GetSpellByID and C_Item and C_Item.GetItemNameByID) then return nil end
 	local ok, item = safe(C_Item.GetItemNameByID, def.reagent)

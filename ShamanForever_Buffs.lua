@@ -239,14 +239,13 @@ end
 -- Hooks (ShamanForever.lua calls them; see ns.registerModule)
 ------------------------------------------------------------------------
 function B.resolve()
+	ns.Reagents.readPerk()   -- the spellbook changed: the perk may have come
 	local sig = {}
 	for _, def in ipairs(BUFFS) do
 		def.spell = Spells.name(def.spellKey)
 		ns.ELEMENTS[def.key].label = def.spell
 		local known, icon = Spells.known(def.spellKey)
-		-- Its tooltip again (ns.Reagents.takes): a new rank, or anything else out of combat (the
-		-- Reagent Economy perk bought). In combat the tooltip can't be read, so the answer is kept.
-		if known ~= def.spellID or not InCombatLockdown() then def.takesReagent = nil end
+		if known ~= def.spellID then def.takesReagent = nil end   -- a new rank: read its tooltip again
 		def.spellID = known
 		def.procIDs = nil
 		-- A passive talent (Elemental Focus) has no icon of its own worth showing: keep the buff's.
