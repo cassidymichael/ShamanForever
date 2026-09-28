@@ -144,11 +144,6 @@ function ns.makePulse(region, kind)
 	return g
 end
 
--- The frame round an element's edge, in its border's look (ns.Looks.frame): drawn just outside the
--- edge, so it never covers the rings inside the icon or Blizzard's shield button. Its lines are
--- screen pixels (ns.linePx), grown by Scale, not by Size.
-function ns.applyBorder(f, b) ns.Looks.frame(f, b) end
-
 -- The global cooldown's sweep, as on action bars: its own Cooldown over an icon, a dark swipe with no
 -- edge, bling or numbers. The caller sets its frame level.
 function ns.makeGCDSweep(parent)

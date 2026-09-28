@@ -198,8 +198,10 @@ local function drawMask(f, file)
 end
 
 -- Draws b (a border style) round f in its look, or takes it down (b off, or a size of 0 for a
--- look drawn at the Border size).
-function Looks.frame(f, b)
+-- look drawn at the Border size). Drawn just outside f's edge, so it never covers the rings inside
+-- the icon or Blizzard's aura button. Its lines are screen pixels (ns.linePx), grown by Scale, not
+-- by icon Size.
+function ns.applyBorder(f, b)
 	local look = S.look("border", b and b.look)
 	local on = b and b.show and (not Looks.uses(look, "size") or (b.size and b.size > 0))
 	if not on then
