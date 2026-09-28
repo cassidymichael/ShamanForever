@@ -11,7 +11,8 @@ function ns.safe(fn, ...) if not fn then return false end return pcall(fn, ...) 
 function ns.describeArg(v) if ns.isSecret(v) then return "<secret>" end return tostring(v) end
 local isSecret, safe = ns.isSecret, ns.safe
 
--- RegisterEvent can throw on this beta for an event the client lacks: say so and carry on.
+-- RegisterEvent throws for an event name the client doesn't know (the engine's rule: Blizzard's
+-- EventUtil checks C_EventUtils.IsEventValid first): say so and carry on.
 function ns.registerEvent(frame, event, unit)
 	local ok = pcall(function()
 		if unit then frame:RegisterUnitEvent(event, unit) else frame:RegisterEvent(event) end

@@ -279,7 +279,7 @@ B.afterGroups = function() for _, def in ipairs(BUFFS) do if def.proc then def.a
 -- missed its events): negative scale means draining.
 local function readBreath()
 	breathing = false
-	for i = 1, 3 do   -- the client's mirror timers: fatigue, breath, feign death
+	for i = 1, 3 do   -- the client's three mirror timers (EXHAUSTION, BREATH, DEATH, FEIGNDEATH)
 		local ok, name, _, _, scale = safe(GetMirrorTimerInfo, i)
 		if ok and not isSecret(name) and name == "BREATH" and type(scale) == "number" and not isSecret(scale) and scale < 0 then
 			breathing = true
