@@ -609,6 +609,7 @@ local SWING_COLOR = { { "imbue", "Imbue colour" }, { "custom", "Custom" } }
 local function buildSwing(p)
 	local key = "swing"
 	local function custom() return ns.elementSetting(key, "colorBy") == "custom" end
+	local function account(name) return function() return ns.getAccount()[name] end end
 	elementDisplay(p, key)
 	p:header("Idle")
 	p:text("Idle is when you're not auto attacking. At 0% it's hidden and keeps its place in the group.")
@@ -624,6 +625,10 @@ local function buildSwing(p)
 	p:header("Unsure")
 	p:text("After an attack speed change or a weapon swap mid-swing, the game doesn't say when your next swing comes. The fill fades until it does.")
 	p:slider("Fill opacity", "The fill's opacity while unsure.", 0, 1, 0.05, pct, eget(key, "unsureAlpha"), eset(key, "unsureAlpha"))
+	p:header("Blizzard's swing bar")
+	p:checkbox("Show Blizzard's too", "Blizzard's own swing bar, beside this one.", account("swingShowBlizzard"),
+		function(v) ns.getAccount().swingShowBlizzard = v; relayout() end)
+	p:text("Off: while this shows, Blizzard's swing bar is turned off, and hiding this puts it back. Blizzard's is in Options > Advanced Options.")
 	timerSettings(p, "Countdown", key, "cooldown")
 end
 

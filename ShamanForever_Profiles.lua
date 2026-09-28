@@ -20,6 +20,8 @@ local ACCOUNT_DEFAULTS = {
 	lastShield = "lightning",  -- the shield last cast or seen; its icon is the no-shield look in "either" mode
 	imbueIDs = {},            -- learned enchant ID -> imbue key
 	fearCasters = {},         -- the player's edits to Tremor's mob list (ShamanForever_Tremor.lua)
+	swingShowBlizzard = false,  -- Blizzard's swing bar may show beside ours (ShamanForever_Swing.lua)
+	swingBlizzardOff = {},    -- "Name-Realm" -> true: we turned Blizzard's swing bar off on that character
 	profiles = {},            -- name -> settings (ShamanForever.lua's DEFAULTS)
 	chars = {},               -- "Name-Realm" -> { profile = name }
 }
@@ -44,6 +46,7 @@ local function charKey()
 	if not name or name == "" or name == UNKNOWN then return nil end
 	if realm and realm ~= "" then return name .. "-" .. realm:gsub("[%s%-]", "") end
 end
+P.charKey = charKey
 
 -- Keys saved before that fix, with the realm's spaces: merged into the normalised ones (which hold
 -- the latest choice when both exist).

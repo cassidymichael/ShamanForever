@@ -12,6 +12,9 @@
 -- PLAYER_SWING sets it right. When the time runs out and no swing came (out of range, facing away),
 -- the bar stays full: the swing is due. Not auto attacking, it is idle.
 --
+-- Blizzard's own swing bar (the showSwingTimer CVar, off by default) is turned off while this one
+-- shows, unless the player shows both; see "Blizzard's swing bar" below.
+--
 -- ShamanForever.lua calls in through the module hooks (ns.registerModule).
 
 local _, ns = ...
@@ -202,6 +205,71 @@ local function readAttacking()
 end
 
 ------------------------------------------------------------------------
+-- Blizzard's swing bar
+------------------------------------------------------------------------
+-- The showSwingTimer CVar (Options > Advanced Options > Swing Timer; off by default, seen
+-- 2026-09-28). While ours shows, Blizzard's is turned off, out of combat, and the character's entry
+-- in acct.swingBlizzardOff remembers that we did, so hiding ours turns it back on. Never against the
+-- player: turning Blizzard's on while ours shows (CVAR_UPDATE, or found on at a later check after
+-- we turned it off) sets Show both (acct.swingShowBlizzard), and it's left alone from then on.
+local CVAR = "showSwingTimer"
+local ourChange = false   -- our own SetCVar is under way (its CVAR_UPDATE comes at once)
+
+local function blizzardOn()
+	local ok, v = safe(C_CVar and C_CVar.GetCVar, CVAR)
+	if not ok or isSecret(v) or type(v) ~= "string" then return nil end
+	return v ~= "0"
+end
+
+local function setBlizzard(on)
+	ourChange = true
+	local ok, err = pcall(C_CVar.SetCVar, CVAR, on and "1" or "0")
+	ourChange = false
+	if not ok then ns.noteError("swing: Blizzard's bar", err) end
+	return ok
+end
+
+-- The character's entry: whether we turned Blizzard's bar off (nil until the game knows who it is).
+local function turnedOff(set)
+	local acct, key = ns.getAccount(), ns.Profiles.charKey()
+	if not key then return false end
+	if type(acct.swingBlizzardOff) ~= "table" then acct.swingBlizzardOff = {} end
+	if set ~= nil then acct.swingBlizzardOff[key] = set or nil end
+	return acct.swingBlizzardOff[key] == true
+end
+
+local function syncBlizzard()
+	if ns.deferInCombat("swing: Blizzard's bar", syncBlizzard) then return end
+	local acct = ns.getAccount()
+	local on = blizzardOn()
+	if on == nil or not ns.isActive() then return end
+	local wantOff = ns.isEnabled(KEY) and not acct.swingShowBlizzard
+	if wantOff and on then
+		if turnedOff() then
+			-- We turned it off and it's on again: the player turned it back on.
+			acct.swingShowBlizzard = true
+			turnedOff(false)
+		elseif setBlizzard(false) then
+			turnedOff(true)
+		end
+	elseif not wantOff and turnedOff() then
+		turnedOff(false)
+		if not on then setBlizzard(true) end
+	end
+end
+
+-- CVAR_UPDATE: the player turned Blizzard's bar on (its own option, or /console) while ours shows.
+local function onCVar(name)
+	if ourChange or isSecret(name) or type(name) ~= "string" or name:lower() ~= CVAR:lower() then return end
+	local acct = ns.getAccount()
+	if blizzardOn() and ns.isEnabled(KEY) and not acct.swingShowBlizzard then
+		acct.swingShowBlizzard = true
+		turnedOff(false)
+		ns.Options.refresh()
+	end
+end
+
+------------------------------------------------------------------------
 -- Hooks (ShamanForever.lua calls them; see ns.registerModule)
 ------------------------------------------------------------------------
 function SW.refresh()
@@ -217,8 +285,12 @@ function SW.applyLayout()
 	SW.refresh()
 end
 function SW.applyTimers() f.cdTimer:apply() end
--- After the groups' scales are set: lines are measured in screen pixels.
-function SW.afterGroups() spark:SetWidth(ns.linePx(f, 2)) end
+-- After the groups' scales are set: lines are measured in screen pixels. Also where ours has just
+-- been shown or hidden (every layout comes through here), so Blizzard's bar follows.
+function SW.afterGroups()
+	spark:SetWidth(ns.linePx(f, 2))
+	syncBlizzard()
+end
 
 function SW.start()
 	local ev = CreateFrame("Frame")
@@ -228,6 +300,7 @@ function SW.start()
 	ns.registerEvent(ev, "UNIT_INVENTORY_CHANGED", "player")
 	ns.registerEvent(ev, "PLAYER_ENTER_COMBAT")   -- auto attack on
 	ns.registerEvent(ev, "PLAYER_LEAVE_COMBAT")   -- auto attack off
+	ns.registerEvent(ev, "CVAR_UPDATE")
 	ev:SetScript("OnEvent", function(_, event, a1, a2)
 		if event == "PLAYER_SWING" then onSwing(a1, a2)
 		elseif event == "UNIT_ATTACK_SPEED" then onAttackSpeed()
@@ -245,6 +318,7 @@ function SW.start()
 			state.attacking = false
 			clearSwing()
 			drawIdle()
+		elseif event == "CVAR_UPDATE" then onCVar(a1)
 		end
 	end)
 	state.speed = readSpeed()
@@ -253,10 +327,11 @@ end
 -- /sf debug
 function SW.debug()
 	local left = state.endsAt and state.endsAt - GetTime()
-	say("swing: %d swings seen, %d with a secret duration; auto attack %s; %s%s",
+	say("swing: %d swings seen, %d with a secret duration; auto attack %s; %s%s; Blizzard's bar %s (turned off by us %s, show both %s)",
 		state.swings, state.secret, tostring(state.attacking),
 		left and (left > 0 and string.format("next in %.1f s", left) or "due") or "no swing under way",
-		state.unsure and ", unsure" or "")
+		state.unsure and ", unsure" or "", tostring(blizzardOn()), tostring(turnedOff()),
+		tostring(ns.getAccount().swingShowBlizzard or false))
 end
 
 ns.registerModule(SW)
