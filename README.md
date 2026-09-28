@@ -18,7 +18,7 @@ Each thing the HUD shows is an element: an icon you can place in a group anywher
 
 ### Elements
 
-- **Shields**: Lightning Shield's charges (a segmented bar, a number, or both) and time left. While it's down the icon can go grey, get a red ring, turn red or fade in and out. It can track Water Shield, or whichever shield is up, instead (experimental).
+- **Shields**: Lightning Shield's charges (a segmented bar, a number, or both) and time left. While it's down the icon can go grey, get a red ring, turn red, glow or fade in and out. It can track Water Shield, or whichever shield is up, instead (experimental).
 - **Shocks**: Earth, Flame or Frost Shock's cooldown. The icon shows when your target is out of range, and when you're short of mana for the shock (or another shock you choose).
 - **Weapon Imbue**: warns when your main hand has no Rockbiter, Flametongue, Frostbrand or Windfury, and shows which one is on. Its time left shows once it's low (under 5 minutes by default), and the icon can stay hidden until then.
 - **Earthbind Totem and Stoneclaw Totem**: their cooldowns and their totem's time left, a warning before it ends, and a flash if it's killed early.

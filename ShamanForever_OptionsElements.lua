@@ -218,6 +218,7 @@ local function buildShield(p)
 
 	warningBlock(p, "No shield", get("emptyGrey"), set("emptyGrey"), get("emptyRing"), set("emptyRing"), get("emptyPulse"), set("emptyPulse"))
 	p:checkbox("Red tint", "Tint the icon red.", get("emptyTint"), set("emptyTint"))
+	p:checkbox("Pulsing glow", "A glow inside the icon that pulses.", get("emptyGlow"), set("emptyGlow"))
 	p:slider("In-combat fallback", nil, 0, 1, 0.05, pct, get("underlayUp"), set("underlayUp"))
 	p:text("A shield that drops in combat is only noticed when you recast it or combat ends. Until then, the no-shield look shows at this strength.")
 
@@ -226,6 +227,7 @@ local function buildShield(p)
 	p:text("Only matters at low group opacity. Most can leave it at 100%.")
 	timerSettings(p, "Time left", "shield", "uptime")
 	gcdBlock(p, "shield")
+	effectBlocks(p, "shield", nil, true, false)
 end
 
 local function buildShock(p)

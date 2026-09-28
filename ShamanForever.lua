@@ -74,6 +74,7 @@ local DEFAULTS = {
 	emptyGrey = true,
 	emptyTint = false,
 	emptyPulse = true,
+	emptyGlow = false,
 	underlayUp = 0.25,      -- underlay strength while the shield is believed up (0 = none)
 	shieldIconAlpha = 1,    -- manual multiplier on the compensated shield icon alpha
 	-- shock

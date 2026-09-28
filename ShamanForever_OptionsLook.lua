@@ -363,6 +363,7 @@ L.PREVIEW = {
 				if st == "down" then
 					ic:SetRingShown(d.emptyRing)
 					ic:SetPulsing(d.emptyPulse)
+					ic:SetGlowShown(d.emptyGlow)
 				else
 					ic.tex:SetAlpha(math.max(d.underlayUp, 0.08))
 				end
