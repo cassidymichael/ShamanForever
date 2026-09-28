@@ -908,6 +908,17 @@ end
 function M.start()
 	ev = CreateFrame("Frame")
 	ev:SetScript("OnEvent", onEvent)
+	-- Potion item IDs this client doesn't have go to the error log (/sf debug), as unknown spell IDs do.
+	if C_Item and C_Item.DoesItemExistByID then
+		local missing = {}
+		for _, p in ipairs(POTIONS) do
+			local ok, exists = safe(C_Item.DoesItemExistByID, p.item)
+			if ok and exists == false then table.insert(missing, p.item) end
+		end
+		if #missing > 0 then
+			ns.noteError("item IDs: Mana potions", "not on this client: " .. table.concat(missing, ", "))
+		end
+	end
 	-- Dead or on a flight path: no low-mana look, no potion cue.
 	ns.onCanActChange(function()
 		cant = ns.cantAct()
