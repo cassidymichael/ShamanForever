@@ -201,6 +201,7 @@ local function makeGlow(parent, over, owner, unlisted)
 		if p == nil then
 			local ok, made = ns.try("glow look " .. look.key, look.build, g)
 			p = ok and made or false
+			if p then ns.Looks.levelParts(p) end
 			for _, r in ipairs(p and p.roots or {}) do r:Hide() end
 			g.parts[look.key] = p
 		end
@@ -210,6 +211,7 @@ local function makeGlow(parent, over, owner, unlisted)
 	local function play(self, on)
 		local p = self.look and self.parts[self.look.key]
 		if on then
+			if p then ns.Looks.levelParts(p) end
 			self.anim:Play()
 			for _, a in ipairs(p and p.anims or {}) do a:Play() end
 		else

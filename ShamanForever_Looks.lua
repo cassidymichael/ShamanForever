@@ -566,6 +566,16 @@ local function root(parent)
 	r:EnableMouse(false)
 	return r
 end
+-- Puts a look's frames (its roots and their holders) at the level of the frame they hang from,
+-- where the four edges draw: a level higher is the timer bar's or the text's. Levels move as an
+-- icon regroups, so the glow calls this each time it shows.
+function Looks.levelParts(parts)
+	for _, r in ipairs(parts.roots or {}) do
+		local lv = r:GetParent():GetFrameLevel()
+		r:SetFrameLevel(lv)
+		for _, c in ipairs({ r:GetChildren() }) do c:SetFrameLevel(lv) end
+	end
+end
 local function light(c) return c[1] * 0.5 + 0.5, c[2] * 0.5 + 0.5, c[3] * 0.5 + 0.5 end
 
 -- A group of one animation of kind on region, looping ("REPEAT", "BOUNCE") or not.
