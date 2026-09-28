@@ -70,7 +70,6 @@ local POTIONS = {
 	{ item = 2455, spell = 437, restores = 180, level = 5 },          -- Minor Mana Potion
 	{ item = 2456, spell = 2370, restores = 150, level = 5 },         -- Minor Rejuvenation Potion
 }
-M.POTIONS = POTIONS
 do
 	local spells = {}
 	for _, p in ipairs(POTIONS) do table.insert(spells, p.spell) end
@@ -150,7 +149,6 @@ local function manaCost(id)
 	end
 	return 0
 end
-M.manaCost = manaCost
 
 local function knows(id)
 	local ok, v = safe(IsPlayerSpell, id)
@@ -231,7 +229,6 @@ local function defaultPicks()
 	local id = Spells.known(resto and "healingWave" or "lightningBolt")
 	return id and { id } or {}
 end
-M.defaultPicks = defaultPicks
 
 -- The saved picks (spell IDs), or the default ones while none are saved.
 local function savedPicks()
@@ -246,17 +243,17 @@ end
 M.savedPicks = savedPicks
 
 -- Picks edited in the options: the list is saved as it stands (starting from the default ones).
-function M.setPicks(list) ns.elementOpts(KEY).casts = list end
+local function setPicks(list) ns.elementOpts(KEY).casts = list end
 function M.addPick(id)
 	local list = savedPicks()
 	if tContains(list, id) or #list >= M.MAX_PICKS then return end
 	table.insert(list, id)
-	M.setPicks(list)
+	setPicks(list)
 end
 function M.removePick(i)
 	local list = savedPicks()
 	table.remove(list, i)
-	M.setPicks(list)
+	setPicks(list)
 end
 function M.resetPicks() ns.elementOpts(KEY).casts = nil end
 
@@ -354,9 +351,8 @@ ns.registerElement(KEY, { frame = f, label = "Mana", paint = function(t) t:SetTe
 	defaults = M.DEFAULTS, kind = "mana", def = M, icon = ICON, school = "water",
 	blurb = "Your mana, casts left, and the five-second rule.", experimental = "Mana" })
 
--- Its place in the default layout: a group of its own left of the Weapon Imbue. name: the group's
--- name where groups have one.
-table.insert(ns.DEFAULTS.groups, { name = "Mana", point = "CENTER", x = -160, y = -40, scale = 1, alpha = 0.75,
+-- Its place in the default layout: a group of its own left of the Weapon Imbue.
+table.insert(ns.DEFAULTS.groups, { point = "CENTER", x = -160, y = -40, scale = 1, alpha = 0.75,
 	orientation = "horizontal", growth = "forward", spacing = 6, members = { KEY } })
 
 -- The count rows on an icon, the HUD's or its options preview's: one per pick, placed as Casts left
@@ -673,14 +669,12 @@ ns.registerElement(POTION, { frame = pf, label = "Mana potion", paint = function
 	defaults = M.POTION_DEFAULTS, kind = "manapotion", def = M, icon = POTION_ICON, school = "water",
 	blurb = "When to drink a mana potion.", experimental = "Mana potion" })
 
--- Its place in the default layout: a group of its own, further left. name: the group's name where
--- groups have one.
-table.insert(ns.DEFAULTS.groups, { name = "Mana potion", point = "CENTER", x = -210, y = -40, scale = 1, alpha = 0.75,
+-- Its place in the default layout: a group of its own, further left.
+table.insert(ns.DEFAULTS.groups, { point = "CENTER", x = -210, y = -40, scale = 1, alpha = 0.75,
 	orientation = "horizontal", growth = "forward", spacing = 6, members = { POTION } })
 
 -- What the cue knows (plain): the potion offered and how many, whether it can be drunk now.
 local potion = { def = nil, count = 0, ready = false, readyAt = nil, why = "not read" }
-M.potionState = potion
 
 local function itemCount(item)
 	local ok, n = safe(C_Item and C_Item.GetItemCount, item)
