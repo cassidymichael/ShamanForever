@@ -5,14 +5,15 @@
 -- mid-fight. Both have 3 charges, so one charge bar fits both.
 --
 -- How it works, and the one inference it makes (docs/combat-techniques.md has more):
--- 1. Blizzard's CustomAuraContainer draws the shield: icon, charge count, charge bar and duration
---    swipe. Its untainted code reads the aura, so all of this is exact in combat. Sanctioned.
+-- 1. Blizzard's CustomAuraContainer draws the shield: icon, charge count, charge bar, and its time
+--    as a swipe, countdown or bar. Its untainted code reads the aura, so all of this is exact in
+--    combat. Sanctioned.
 -- 2. Under Blizzard's button sits our underlay: the grey icon, red ring and pulse that say "no
 --    shield". It should show only when Blizzard's button is hidden, but nothing tells addon code
---    when that happens in combat: every aura API throws for tainted code in combat, even
---    GetAuraDuration and GetUnitAuraInstanceIDs, UNIT_AURA stops reaching the addon, script
---    handlers under the button never run, and the button only animates its own descendants
---    (all tested 2026-09-23). So the underlay follows `believedUp`:
+--    when that happens in combat: reads by index or instance (GetAuraDuration,
+--    GetUnitAuraInstanceIDs) throw and reads by spell come back empty, UNIT_AURA brings nothing
+--    readable, script handlers under the button never run, and the button only animates its own
+--    descendants (tested 2026-09-23). So the underlay follows `believedUp`:
 --    * out of combat: exact, read from the aura (SH.refresh). Except in a PvP match: auras stay
 --      secret for the whole match (Blizzard's API documentation; not yet seen in a battleground),
 --      so the in-combat rules below hold until it ends;
