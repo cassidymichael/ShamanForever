@@ -573,7 +573,7 @@ end
 -- An aura slot: Blizzard's aura container on an element icon, with one aura slot whose button
 -- Blizzard (untainted) shows while an aura it matches is up and draws that aura's icon, time left
 -- and charges, exact in combat too. It is the one way to show an aura in combat: every aura API
--- throws for addon code then (docs/combat-techniques.md). Used by the shield and Elemental Focus.
+-- throws for addon code then. Used by the shield and Elemental Focus.
 -- What it takes:
 -- * The container and its button refuse addon calls in combat and while auras are secret, which
 --   can also happen out of combat (PvP matches, encounters). So the container is made, and it and

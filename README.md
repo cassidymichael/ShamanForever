@@ -93,7 +93,7 @@ Ideas, requests or problems are welcome, any of these ways:
 
 ## How it works
 
-In combat, Forever hides most of what an addon could read about auras, totems and cooldowns. ShamanForever hands that information to Blizzard's own display widgets instead of reading it, and times the few things it can't see from your own casts, which stay readable. [docs/combat-techniques.md](docs/combat-techniques.md) says what it can and can't know in combat, and why.
+In combat, Forever hides most of what an addon could read about auras, totems and cooldowns. ShamanForever hands that information to Blizzard's own display widgets instead of reading it, and times the few things it can't see from your own casts, which stay readable.
 
 ## Development
 

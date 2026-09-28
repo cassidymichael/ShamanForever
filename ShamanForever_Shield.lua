@@ -4,7 +4,7 @@
 -- (db.shieldTrack) and Blizzard shows whichever is up, switching exactly when the player swaps
 -- mid-fight. Both have 3 charges, so one charge bar fits both.
 --
--- How it works, and the one inference it makes (docs/combat-techniques.md has more):
+-- How it works, and the one inference it makes:
 -- 1. Blizzard's CustomAuraContainer draws the shield: icon, charge count, charge bar and duration
 --    swipe. Its untainted code reads the aura, so all of this is exact in combat. Sanctioned.
 -- 2. Under Blizzard's button sits our underlay: the grey icon, red ring and pulse that say "no
