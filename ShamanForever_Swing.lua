@@ -61,26 +61,36 @@ end
 ------------------------------------------------------------------------
 -- A dark bar, the fill over it (a StatusBar fed each swing's duration object), a spark on the fill's
 -- edge, and the countdown: a timer of the cooldown kind (ShamanForever_Timers.lua), text only.
+
+-- The bar's look, shared with its preview (ShamanForever_OptionsLook.lua): the background colour
+-- under it, and the fill filling parent with a spark on its edge (the StatusBar, its spark as .spark).
+SW.BACKGROUND = { 0, 0, 0, 0.6 }
+function SW.makeBar(parent)
+	local b = CreateFrame("StatusBar", nil, parent)
+	b:SetAllPoints()
+	b:SetStatusBarTexture(WHITE)
+	b:SetMinMaxValues(0, 1)
+	b:SetValue(0)
+	local spark = b:CreateTexture(nil, "OVERLAY")
+	spark:SetColorTexture(1, 1, 1, 0.9)
+	local fill = b:GetStatusBarTexture()
+	spark:SetPoint("TOPRIGHT", fill, "TOPRIGHT", 0, 0)
+	spark:SetPoint("BOTTOMRIGHT", fill, "BOTTOMRIGHT", 0, 0)
+	spark:SetWidth(1)
+	b.spark = spark
+	return b
+end
+-- The spark is a line: two screen pixels wide at any size (ns.linePx).
+function SW.sizeSpark(b) b.spark:SetWidth(ns.linePx(b, 2)) end
+
 local f = CreateFrame("Frame", nil, UIParent)
 f:SetSize(SW.DEFAULTS.swingWidth, SW.DEFAULTS.swingHeight)
 f:Hide()
 f.bg = f:CreateTexture(nil, "BACKGROUND")
 f.bg:SetAllPoints()
-f.bg:SetColorTexture(0, 0, 0, 0.6)
-local bar = CreateFrame("StatusBar", nil, f)
-bar:SetAllPoints()
-bar:SetStatusBarTexture(WHITE)
-bar:SetMinMaxValues(0, 1)
-bar:SetValue(0)
+f.bg:SetColorTexture(unpack(SW.BACKGROUND))
+local bar = SW.makeBar(f)
 bar:Hide()   -- shown from the first swing
-local spark = bar:CreateTexture(nil, "OVERLAY")
-spark:SetColorTexture(1, 1, 1, 0.9)
-do
-	local fill = bar:GetStatusBarTexture()
-	spark:SetPoint("TOPRIGHT", fill, "TOPRIGHT", 0, 0)
-	spark:SetPoint("BOTTOMRIGHT", fill, "BOTTOMRIGHT", 0, 0)
-	spark:SetWidth(1)
-end
 f.cdTimer = ns.Timer.new(f, KEY, "cooldown", { noBar = true })
 f.cdTimer.cd:SetDrawBling(false)   -- no flash at the end of every swing
 -- Frame levels bottom up: the bar, the fill, the countdown (layoutGroup calls this after regrouping).
@@ -284,7 +294,7 @@ function SW.applyTimers() f.cdTimer:apply() end
 -- After the groups' scales are set: lines are measured in screen pixels. Also where ours has just
 -- been shown or hidden (every layout comes through here), so Blizzard's bar follows.
 function SW.afterGroups()
-	spark:SetWidth(ns.linePx(f, 2))
+	SW.sizeSpark(bar)
 	syncBlizzard()
 end
 

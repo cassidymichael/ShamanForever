@@ -586,27 +586,19 @@ L.PREVIEW.swing = {
 	states = { { "swinging", "Swinging" }, { "due", "Swing due" }, { "unsure", "Unsure" }, { "idle", "Not attacking" } },
 	render = function(ic, st)
 		reset(ic, nil)
-		ic.tex:SetColorTexture(0, 0, 0, 0.6)   -- the bar's background
+		ic.tex:SetColorTexture(unpack(ns.Swing.BACKGROUND))   -- the bar's background
 		local s = ic.swing
 		if not s then
-			-- The fill under the countdown, as on the HUD.
+			-- The HUD's bar, the fill under the countdown.
 			local base = ic:GetFrameLevel()
-			s = CreateFrame("StatusBar", nil, ic)
-			s:SetAllPoints(ic)
-			s:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
-			s:SetMinMaxValues(0, 1)
+			s = ns.Swing.makeBar(ic)
 			s:SetFrameLevel(base + 1)
 			ic.cd:SetFrameLevel(base + 2)
 			ic.textFrame:SetFrameLevel(base + 4)
-			s.spark = s:CreateTexture(nil, "OVERLAY")
-			s.spark:SetColorTexture(1, 1, 1, 0.9)
-			local fill = s:GetStatusBarTexture()
-			s.spark:SetPoint("TOPRIGHT", fill, "TOPRIGHT", 0, 0)
-			s.spark:SetPoint("BOTTOMRIGHT", fill, "BOTTOMRIGHT", 0, 0)
 			if ic.cdT then ic.cdT.cd:SetDrawBling(false) end
 			ic.swing = s
 		end
-		s.spark:SetWidth(ns.linePx(ic, 2))
+		ns.Swing.sizeSpark(s)
 		local c = ns.Swing.fillColor()
 		s:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
 		local faded = st == "unsure" and ns.elementSetting("swing", "unsureAlpha") or 1
