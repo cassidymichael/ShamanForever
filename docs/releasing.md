@@ -15,12 +15,13 @@
 
 1. Merge the tested work into `main` as above.
 2. Add an entry at the top of `CHANGELOG.md`, headed `## X.Y.Z (YYYY-MM-DD)`, listing what players
-   will notice. In `ShamanForever_News.lua`, put `"X.Y.Z"` at the top of `NOTES` with a few short
-   lines for Home's What's new, one per change players will look for (fill the `"next"` placeholder
-   if there is one), and keep only the last three releases. Commit both on their own as
-   `Release X.Y.Z`. Without notes for the version, the update stays quiet in game.
+   will notice. Commit it on its own as `Release X.Y.Z`.
    Anything new in it should already be in the README's Features section. On a 0.x.0 release, also
    read the whole list against the options window and drop anything that has gone.
+   The same commit gives Home's What's new its lines: in `ShamanForever_News.lua`, put `"X.Y.Z"` at
+   the top of `NOTES` with a few short lines, one per change players will look for (fill the
+   `"next"` placeholder if there is one), and keep only the last three releases. Without notes for
+   the version, the update stays quiet in game.
 3. Tag and push: `git tag -a vX.Y.Z -m "ShamanForever X.Y.Z" && git push origin main vX.Y.Z`
 4. If the Features section changed since the last release (`git diff vPREV vX.Y.Z -- README.md`),
    paste it into the CurseForge and Wago project descriptions. The release doesn't update those.

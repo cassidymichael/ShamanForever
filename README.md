@@ -58,10 +58,10 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 ### Warnings and timers
 
 - Warning looks for a missing shield, imbue or totem, or one running out: grey icon, red ring, fade in and out.
+- Sounds: pick one for a spell coming ready, your imbue dropping, a totem ending or the Tremor warning, from the game's sounds or any LibSharedMedia sound your other addons bring. None play until you pick one.
 - A pulsing glow and a pop when something happens: a spell ready, a totem expiring or killed, your imbue dropping, a proc. Choose the pop's motion (grow, bounce, hop or shake), with an optional flash, ring or star burst, and the glow's colour, speed and depth.
 - Timers as countdown text, a cooldown swipe, a draining bar, or any mix, each with its own size, colour, position and time format.
 - An optional global cooldown sweep, as on action bars.
-- Sounds: pick one for a spell coming ready, your imbue dropping, a totem ending or the Tremor warning, from the game's sounds or any LibSharedMedia sound your other addons bring. None play until you pick one.
 
 ### Layout
 
