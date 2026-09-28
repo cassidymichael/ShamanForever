@@ -423,18 +423,22 @@ end
 -- The pop on each new shield: from our own successful cast of a tracked shield, which is readable
 -- in combat, never from the aura. Blizzard's button covers the icon, and the frames it hangs from
 -- (this element's) must not be moved in combat, so the pop plays on a copy of the icon above the
--- button, shown only while it plays (the ring and star take 0.45 s at normal speed).
+-- button, shown only while it plays. POP_TIME is a fallback, not every look's real length (a Ready
+-- pop look can run past 0.7 s at normal speed): long enough for the classic pop and short-lived
+-- looks; a look that finishes sooner just leaves the same icon showing until it hides, so lingering
+-- past the animation is never visible.
 local popper = CreateFrame("Frame", nil, shield)
 popper:SetAllPoints()
 popper:Hide()
 popper.tex = popper:CreateTexture(nil, "ARTWORK")
 popper.tex:SetAllPoints()
 ns.cropIcon(popper.tex)
-local POP_TIME = 0.5
+local POP_TIME = 0.8
 local function popNewShield()
 	if not (ns.isEnabled("shield") and ns.getDB().shieldPop) then return end
-	-- Above the container (the text layer + 5, set by its restyle) and our parts on its button.
-	popper:SetFrameLevel(shield.textFrame:GetFrameLevel() + 15)
+	-- Above the container (the text layer + 5, set by its restyle) and its GCD sweep (+10 more:
+	-- refreshGCD below), so a sweep starting mid-pop never covers it.
+	popper:SetFrameLevel(shield.textFrame:GetFrameLevel() + 20)
 	popper.tex:SetTexture(SH.icon())
 	popper:Show()
 	if not popper:IsVisible() then popper:Hide() return end   -- its group is hidden: nothing to see
