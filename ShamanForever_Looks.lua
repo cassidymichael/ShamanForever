@@ -382,7 +382,8 @@ S.addLook("border", "cdm", { name = "Cooldown Manager", experimental = true,
 -- Cut corners in a dark bronze frame, as on Forever's action buttons.
 S.addLook("border", "button", { name = "Forever action button", experimental = true,
 	mask = { atlas = AB_MASK, scale = 64 / 45 }, art = { atlas = AB_FRAME, inset = { 0, 1 / 45, 0, 0 } } })
--- Painted frames (AI-made art), 9-sliced from 128 px: margins are the board's 21%, 11% and 17%.
+-- Painted frames (AI-made art), 9-sliced from 128 px art; margin: the painted frame's width in
+-- texels.
 S.addLook("border", "stone", { name = "Carved stone", experimental = true, ai = true,
 	rings = { { color = BLACK } }, art = { file = MEDIA .. "Frame-Stone", margin = 27, px = 6 } })
 S.addLook("border", "bronze", { name = "Aged bronze", experimental = true, ai = true,
@@ -514,7 +515,7 @@ local function flipBook(tex, rows, cols, frames, dur, looping)
 	return g
 end
 
--- The soft inner glow (B1): one texture, sliced so Thickness sets how far in it reaches; its
+-- The soft inner glow: one texture, sliced so Thickness sets how far in it reaches; its
 -- corners fall off as evenly as its sides.
 local SOFT_MARGIN = 16
 local function softPart(parent, alpha)
@@ -549,7 +550,7 @@ local soft = {
 	fit = function(g, parts, size) fitSoft(g, parts.soft, size, g.width) end,
 }
 
--- A halo outside the frame (B2), from the Cooldown Manager's active glow; the soft inner glow on a
+-- A halo outside the frame, from the Cooldown Manager's active glow; the soft inner glow on a
 -- client without it.
 local halo = {
 	uses = { color = true, speed = true, low = true },
@@ -582,7 +583,7 @@ local halo = {
 	end,
 }
 
--- Blizzard's action bar proc glow (B3): a burst that settles into a ring of moving light, in its
+-- Blizzard's action bar proc glow: a burst that settles into a ring of moving light, in its
 -- own gold unless the glow's colour is changed. Under Blizzard's aura button only the ring plays
 -- (script handlers there never run, so nothing can start it when the burst ends).
 local proc = {
@@ -619,7 +620,7 @@ local proc = {
 	end,
 }
 
--- Two sparks running round the edge (B4) over a faint steady inner glow, in Translation steps
+-- Two sparks running round the edge over a faint steady inner glow, in Translation steps
 -- (one a side); Pulse length sets how long a lap takes (a quarter of it a side, times 3.2).
 local SPARK_PATH = { { 1, 0 }, { 0, -1 }, { -1, 0 }, { 0, 1 } }   -- from the top left, clockwise
 local spark = {
@@ -668,7 +669,7 @@ local spark = {
 	end,
 }
 
--- The inner glow carrying its school's texture (B5), drifting. The texture is larger than the icon
+-- The inner glow carrying its school's texture, drifting. The texture is larger than the icon
 -- and slides one tile under a mask of the glow's shape, which stays put. Whether a mask holds still
 -- while its texture moves is untested: if it doesn't, the texture shows still.
 local MATERIAL = {   -- school -> tile move (in tiles), seconds a tile
@@ -708,7 +709,7 @@ local material = {
 	end,
 }
 
--- A steady inner glow and a ring that swells out from the frame's edge (B6), like a ping: the
+-- A steady inner glow and a ring that swells out from the frame's edge, like a ping: the
 -- glow breathes with the pulse settings, the ring every 1.8 pulse lengths.
 local heartbeat = {
 	uses = { color = true, speed = true, low = true, width = true },
@@ -816,7 +817,7 @@ local function sheen(x, c, school, dur, delay)
 end
 local function shapeFile(school) return MEDIA .. "Shape-" .. (SCHOOLS[school] or "Spirit") end
 
--- The classic pop's flash, ring and star in the school's colour, over the dark disc (A1).
+-- The classic pop's flash, ring and star in the school's colour, over the dark disc.
 local function schoolLight(x, f, c, k, h, st)
 	disc(x, h, 3.5, 0.45 * k)
 	if st.flash then
@@ -840,7 +841,7 @@ local function schoolLight(x, f, c, k, h, st)
 	end
 end
 
--- Blizzard's cooldown-done flash, a light running round the edge (A2), made stronger than
+-- Blizzard's cooldown-done flash, a light running round the edge, made stronger than
 -- Blizzard draws it (too faint at 44, tested 2026-09-28): added, and a second copy a little larger.
 local function gcdFlash(x, c, k)
 	if not x.gcd then
@@ -866,7 +867,7 @@ local function gcdFlash(x, c, k)
 	end
 end
 
--- Shapes spreading behind the icon (A3, and A5 with painted art); a sheen in the school's
+-- Shapes spreading behind the icon (drawn or painted); a sheen in the school's
 -- direction crosses the icon.
 local function shapes(file, to)
 	return function(x, f, c, k, h, st, school)
@@ -876,7 +877,7 @@ local function shapes(file, to)
 	end
 end
 
--- Each school its own motion (A4): earth slams, fire flares up, water ripples twice, air spins,
+-- Each school its own motion: earth slams, fire flares up, water ripples twice, air spins,
 -- spirit gathers in and bursts.
 local MOTIONS = {
 	earth = function(x, c, k, h)
