@@ -17,9 +17,10 @@
 --    * out of combat: exact, read from the aura (SH.refresh). Except in a PvP match: auras stay
 --      secret for the whole match (Blizzard's API documentation; not yet seen in a battleground),
 --      so the in-combat rules below hold until it ends;
---    * in combat: set to up when UNIT_SPELLCAST_SUCCEEDED reports our own cast of a tracked shield.
---      Our own cast events are documented as never secret (SecretWhenUnitSpellCastRestricted
---      only hides other units' casts); the combat log is never read. The inference is only
+--    * in combat: set to up when UNIT_SPELLCAST_SUCCEEDED reports our own cast of a tracked shield,
+--      known by the shield's own spell IDs (castOf, below), never by its name. Our own cast events
+--      are documented as never secret (SecretWhenUnitSpellCastRestricted only hides other units'
+--      casts); the combat log is never read. The inference is only
 --      "a successful shield cast means that shield is up". Casting an untracked shield sets it to
 --      down, since that shield replaces the tracked one (the same inference, applied to exclusivity).
 --    * Nothing else can set it to down in combat. A shield that drops mid-fight shows the underlay at
@@ -59,9 +60,14 @@ ns.registerElement("shield", { frame = shield, label = "Shields", paint = functi
 	learned = function() return SH.learned() end,
 	kind = "shield", icon = 136051, school = "spirit", blurb = "Charges and time left. Warns when it's gone." })
 
--- Per shield at runtime: name (the client's), spellID and bookIcon (highest known rank), known. The IDs
--- that count as it are ns.Spells' (seeds, spellbook, and the live aura's, learned here).
-for _, s in pairs(SHIELDS) do s.name = Spells.name(s.spell) end
+-- Per shield at runtime: name (the client's), spellID and bookIcon (highest known rank), known. The
+-- IDs that count as it are ns.Spells' (seeds, spellbook, and the live aura's, learned here); castIDs
+-- the ones that count as a cast of it (castOf, below).
+for _, s in pairs(SHIELDS) do
+	s.name = Spells.name(s.spell)
+	s.castIDs = {}
+	for _, id in ipairs(Spells.DEFS[s.spell].ids) do s.castIDs[id] = true end
+end
 -- The shield up (lightning | water), "none", or nil until known: read when auras are readable, else
 -- set by our cast (see above). Kept as which shield, not as "a tracked one is up", so a new Track
 -- chosen while auras can't be read (in combat, a PvP match) is judged at once.
@@ -99,12 +105,34 @@ function SH.icon()
 	return s.bookIcon or s.icon
 end
 
--- The shield an own cast belongs to, if any (any rank: ns.Spells matches by ID, then by the client's name).
-local function shieldForSpell(id)
-	local spell = Spells.keyOf(id)
+-- The shield an own cast is a cast of, if any: by its own spell IDs (its seeds, the ranks the
+-- player knows, the live aura's), never by name alone. Spells that share a shield's name without
+-- being its cast, such as the bolts Lightning Shield fires as it loses a charge (build 70009 has
+-- more than twenty spells of that name), must not count as a new shield. An ID not on record counts
+-- only when it has the shield's name and the client says plainly that the player knows it (a rank
+-- not seen yet), which a triggered effect is not. A no is kept until the next spellbook scan.
+local notCast = {}
+local function castOf(id)
+	if type(id) ~= "number" or isSecret(id) or notCast[id] then return nil end
 	for _, key in ipairs(SHIELD_ORDER) do
-		if SHIELDS[key].spell == spell then return key end
+		if SHIELDS[key].castIDs[id] then return key end
 	end
+	local n = Spells.nameOf(id)
+	if not n then return nil end   -- a name can come late on a cold start: asked again next time
+	for _, key in ipairs(SHIELD_ORDER) do
+		local s = SHIELDS[key]
+		if n == s.name then
+			local ok, mine = safe(IsPlayerSpell, id)
+			if not ok or isSecret(mine) then return nil end   -- no answer: asked again next time
+			if mine == true then
+				s.castIDs[id] = true
+				return key
+			end
+			notCast[id] = true
+			return nil
+		end
+	end
+	notCast[id] = true
 end
 
 local function anyTrackedShieldKnown()
@@ -189,6 +217,7 @@ local function applyShieldFilter() native:refilter() end
 local function learnShieldID(key, id)
 	local s = SHIELDS[key]
 	if type(id) ~= "number" or isSecret(id) then return end
+	s.castIDs[id] = true
 	Spells.learn(s.spell, id)
 	if tracksShield(key) and not (native.filtered and native.filtered[id]) then applyShieldFilter() end
 end
@@ -197,6 +226,7 @@ end
 -- slot's filter to match. Returns a signature of what it found.
 function SH.resolve()
 	local sig = {}
+	wipe(notCast)   -- names and known spells may have changed
 	for key, s in pairs(SHIELDS) do
 		s.name = Spells.name(s.spell)
 		-- The highest rank known, read as every element reads it: the spellbook's, else the client's
@@ -405,7 +435,7 @@ end
 -- Our own successful cast (UNIT_SPELLCAST_SUCCEEDED, spellID not secret). The one inference: our
 -- cast means that shield is up and the other is gone (see the top of this file).
 function SH.onCast(spellID)
-	local cast = shieldForSpell(spellID)
+	local cast = castOf(spellID)
 	if not cast then return end
 	ns.getAccount().lastShield = cast
 	setUpShield(cast)
