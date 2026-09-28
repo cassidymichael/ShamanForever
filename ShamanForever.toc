@@ -32,6 +32,7 @@ ShamanForever_Buffs.lua
 ShamanForever_Mana.lua
 ShamanForever_Tremor.lua
 ShamanForever_TremorList.lua
+ShamanForever_Swing.lua
 ShamanForever_Positioning.lua
 ShamanForever_Profiles.lua
 ShamanForever_Slash.lua

@@ -604,9 +604,40 @@ local function buildTremor(p)
 	effectBlocks(p, key)
 end
 
+-- The swing timer's page (ShamanForever_Swing.lua).
+local SWING_COLOR = { { "imbue", "Imbue colour" }, { "custom", "Custom" } }
+local function buildSwing(p)
+	local key = "swing"
+	local R = ns.Swing.RANGES
+	local function custom() return ns.elementSetting(key, "colorBy") == "custom" end
+	elementDisplay(p, key)
+	p:header("Idle")
+	p:text("Idle is when you're not auto attacking. At 0% it's hidden and keeps its place in the group.")
+	p:slider("Idle opacity", "The bar's opacity while idle.", 0, 1, 0.05, pct, eget(key, "idleAlpha"), eset(key, "idleAlpha"))
+	p:header("Bar")
+	p:slider("Width", "At the default icon size; it grows with the icon.", R.swingWidth[1], R.swingWidth[2], 4, px,
+		eget(key, "swingWidth"), eset(key, "swingWidth"))
+	p:slider("Height", "At the default icon size; it grows with the icon.", R.swingHeight[1], R.swingHeight[2], 1, px,
+		eget(key, "swingHeight"), eset(key, "swingHeight"))
+	p:dropdown("Colour", nil, SWING_COLOR, eget(key, "colorBy"), eset(key, "colorBy"), nil, 160)
+	p:text("Your main hand's imbue, grey with none.", showWhen(function() return not custom() end))
+	p:color("Custom colour", nil, eget(key, "color"), eset(key, "color"), showWhen(custom))
+	p:header("Unsure")
+	p:text("After an attack speed change or weapon swap, the fill fades until your next swing.")
+	p:slider("Fill opacity", "The fill's opacity while unsure.", R.unsureAlpha[1], R.unsureAlpha[2], 0.05, pct,
+		eget(key, "unsureAlpha"), eset(key, "unsureAlpha"))
+	p:header("Blizzard's swing bar")
+	p:text("Blizzard's own swing bar is turned on and off in Options > Advanced Options.")
+	p:text("It's on too, so two swing bars show.", showWhen(ns.Swing.blizzardAlsoOn))
+	p:checkbox("Keep Blizzard's too", "No note that it's on, here or in chat.",
+		function() return ns.getAccount().swingShowBlizzard end,
+		function(v) ns.getAccount().swingShowBlizzard = v; relayout() end)
+	timerSettings(p, "Countdown", key, "cooldown")
+end
+
 -- Each kind of element's page (the registry's kind); it gets the element's def.
 local PAGE = { shield = buildShield, shock = buildShock, imbue = buildImbue, cooldown = buildCooldown, buff = buildBuff,
-	tremor = buildTremor }
+	tremor = buildTremor, swing = buildSwing }
 
 -- The Mana element's and the mana potion cue's pages (ShamanForever_Mana.lua).
 -- Casts left's picks: a row each (its icon, name and rank, and Remove), then Add a spell, whose

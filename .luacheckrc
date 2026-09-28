@@ -15,6 +15,7 @@ read_globals = {
     "CLOSE",
     "C_ActionBar",
     "C_AddOns",
+    "C_CVar",
     "C_ClassTalents",
     "C_CurveUtil",
     "C_DurationUtil",
@@ -70,6 +71,7 @@ read_globals = {
     "GetBindingKey",
     "GetBindingName",
     "GetBindingText",
+    "GetCVar",
     "GetConvertedKeyOrButton",
     "GetCursorPosition",
     "GetInventoryItemID",
@@ -129,6 +131,7 @@ read_globals = {
     "StaticPopup_Show",
     "TotemFrame",
     "UIParent",
+    "UnitAttackSpeed",
     "UnitCanAttack",
     "UnitClass",
     "UnitExists",
@@ -178,6 +181,7 @@ read_globals = {
     "tonumber",
     "tostring",
     "type",
+    "unpack",
     "wipe",
 }
 globals = { "SlashCmdList", "StaticPopupDialogs", "UISpecialFrames", "ShamanForeverDB", "SLASH_SHAMANFOREVER1", "SLASH_SHAMANFOREVER2", "Blizzard_PTRIssueReporter_Saved" }
