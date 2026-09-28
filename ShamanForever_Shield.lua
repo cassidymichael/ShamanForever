@@ -62,9 +62,30 @@ local function tracksShield(key)
 	return track == "either" or track == key
 end
 
+-- Where the charge number sits on the icon: its point, an offset and the text's justification.
+-- In a corner it is nudged 2 px outward.
+local COUNT_PLACE = {
+	CENTER = { 0, 0, "CENTER" },
+	TOPLEFT = { -2, 2, "LEFT" }, TOPRIGHT = { 2, 2, "RIGHT" },
+	BOTTOMLEFT = { -2, -2, "LEFT" }, BOTTOMRIGHT = { 2, -2, "RIGHT" },
+}
+-- 0.8.0 and earlier saved "center" or "corner" (the bottom right).
+local COUNT_POS_SAVED = { center = "CENTER", corner = "BOTTOMRIGHT" }
+
+-- Places the charge number fs on icon, as the settings say (the HUD's and the options' preview).
+function SH.placeCount(fs, icon)
+	local pos = ns.getDB().countPos
+	local c = COUNT_PLACE[pos]
+	fs:ClearAllPoints()
+	fs:SetPoint(pos, icon, pos, c[1], c[2])
+	fs:SetJustifyH(c[3])
+end
+
 -- A profile's shield settings, and the account's last shield, made valid (when a profile loads).
 function SH.sanitize(db, acct)
 	if db.shieldTrack ~= "either" and not SHIELDS[db.shieldTrack] then db.shieldTrack = "lightning" end
+	db.countPos = COUNT_POS_SAVED[db.countPos] or db.countPos
+	if not COUNT_PLACE[db.countPos] then db.countPos = "CENTER" end
 	if not SHIELDS[acct.lastShield] then acct.lastShield = "lightning" end
 end
 
@@ -197,11 +218,7 @@ local function buildNative(slot, button, cd)
 	-- Blizzard writes the count immediately on registration, so the font must already be set.
 	local fs = overlay:CreateFontString(nil, "OVERLAY", nil, 7)
 	fs:SetFont(STANDARD_TEXT_FONT, db.countSize, "OUTLINE")
-	if db.countPos == "center" then
-		fs:SetPoint("CENTER", button, "CENTER", 0, 0); fs:SetJustifyH("CENTER")
-	else
-		fs:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 2, -2); fs:SetJustifyH("RIGHT")
-	end
+	SH.placeCount(fs, button)
 	button:SetApplicationCount(fs)
 	slot.fs = fs
 
@@ -252,12 +269,7 @@ local function styleNative(slot, size)
 	slot.ticks:SetAlpha(db.showBar and 1 or 0)
 	slot.fs:SetAlpha(db.showCount and 1 or 0)
 	slot.fs:SetFont(STANDARD_TEXT_FONT, db.countSize, "OUTLINE")
-	slot.fs:ClearAllPoints()
-	if db.countPos == "center" then
-		slot.fs:SetPoint("CENTER", slot.button, "CENTER", 0, 0); slot.fs:SetJustifyH("CENTER")
-	else
-		slot.fs:SetPoint("BOTTOMRIGHT", slot.button, "BOTTOMRIGHT", 2, -2); slot.fs:SetJustifyH("RIGHT")
-	end
+	SH.placeCount(slot.fs, slot.button)
 end
 
 -- Made out of combat only (after a /reload in combat, when combat ends); once made, it stays.

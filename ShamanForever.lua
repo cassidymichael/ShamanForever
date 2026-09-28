@@ -72,7 +72,7 @@ local DEFAULTS = {
 	elementOpts = {},       -- per-element settings by key, e.g. { shock = { show = "combat" } }; every element starts shown
 	-- shield
 	shieldTrack = "lightning", -- lightning | water | either: which shield counts as "up" (water and either are experimental)
-	countPos = "center",    -- corner | center
+	countPos = "CENTER",    -- the charge number: CENTER, TOPLEFT, TOPRIGHT, BOTTOMLEFT or BOTTOMRIGHT
 	countSize = 20,
 	showBar = true,         -- charge bar along the bottom of the icon
 	chargeBarHeight = 8,

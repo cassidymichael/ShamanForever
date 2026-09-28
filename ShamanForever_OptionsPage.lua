@@ -195,26 +195,80 @@ function Page:checkbox(label, tip, get, set, shown)
 	return self:add(f, 30, shown, function() cb:SetChecked(get() and true or false) end)
 end
 
+-- How a slider's value reads beside it. A slider in pixels, plain numbers or times (sizes, spacing,
+-- offsets, scale) shows its value in a box the player can also type in.
+function Page.pct(v) return string.format("%.0f%%", v * 100) end
+function Page.times(v) return string.format("%.2fx", v) end
+function Page.int(v) return string.format("%d", v) end
+function Page.px(v) return string.format("%d px", v) end
+local TYPED = { [Page.px] = true, [Page.int] = true, [Page.times] = true }
+local BOX_W = 50
+
+-- fmt: Page.px, Page.int, Page.times, Page.pct or a function of the row's own (seconds, "Off").
+-- A typed number takes effect on Enter, snapped to the slider's step and range; Escape, or leaving
+-- the box any other way, keeps the value as it was.
 function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown)
 	local f = self:row(34)
 	f.label = self:label(f, label, tip)
 	local s = CreateFrame("Frame", nil, f, "MinimalSliderWithSteppersTemplate")
 	s:SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
 	local updating = false   -- while the page sets the value itself
-	s:Init(get() or minV, minV, maxV, math.floor((maxV - minV) / step + 0.5),
-		{ [MinimalSliderWithSteppersMixin.Label.Right] = fmt })
-	s:RegisterCallback(MinimalSliderWithSteppersMixin.Event.OnValueChanged, function(_, v)
-		if updating then return end
+	local function snap(v)
 		v = math.floor(v / step + 0.5) * step
 		if step < 1 then v = tonumber(string.format("%.2f", v)) end
+		return v
+	end
+	local box
+	s:Init(get() or minV, minV, maxV, math.floor((maxV - minV) / step + 0.5),
+		not TYPED[fmt] and { [MinimalSliderWithSteppersMixin.Label.Right] = fmt } or nil)
+	s:RegisterCallback(MinimalSliderWithSteppersMixin.Event.OnValueChanged, function(_, v)
+		if updating then return end
+		v = snap(v)
 		set(v)
+		if box then   -- moving the slider drops a number half typed
+			box:ClearFocus()
+			box:SetText(fmt(v))
+		end
 	end, s)
+	if TYPED[fmt] then
+		box = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+		box:SetSize(BOX_W, 20)
+		box:SetPoint("LEFT", s, "RIGHT", 10, 0)
+		box:SetAutoFocus(false)
+		box:SetMaxLetters(8)
+		box:SetFontObject("GameFontHighlight")
+		box:SetJustifyH("CENTER")
+		-- While typing, the bare number; otherwise the value as it reads (44 px, 1.25x).
+		box:SetScript("OnEditFocusGained", function(b)
+			local v = get() or minV
+			b:SetText(step >= 1 and string.format("%d", v) or (string.format("%.2f", v):gsub("%.?0+$", "")))
+			b:HighlightText()
+		end)
+		box:SetScript("OnEditFocusLost", function(b)
+			b:HighlightText(0, 0)
+			b:SetText(fmt(get() or minV))
+		end)
+		box:SetScript("OnEscapePressed", box.ClearFocus)
+		box:SetScript("OnEnterPressed", function(b)
+			-- The first number in the text: "44", "-5", "1.25", "44 px" and "1,25" all read.
+			local n = tonumber((b:GetText():gsub(",", ".")):match("%-?%d*%.?%d+") or "")
+			if n then
+				local v = math.min(math.max(snap(n), minV), maxV)
+				set(v)
+				updating = true
+				s:SetValue(get() or v)
+				updating = false
+			end
+			b:ClearFocus()
+		end)
+	end
 	return self:add(f, 34, shown, function()
-		-- Fit the page width so the value text never runs past the edge of a narrow window.
+		-- Fit the page width so the value never runs past the edge of a narrow window.
 		s:SetWidth(math.max(math.min(self.content:GetWidth() - LABEL_W - SLIDER_VALUE_W, SLIDER_MAX_W), 80))
 		updating = true
 		s:SetValue(get() or minV)
 		updating = false
+		if box and not box:HasFocus() then box:SetText(fmt(get() or minV)) end
 	end)
 end
 
