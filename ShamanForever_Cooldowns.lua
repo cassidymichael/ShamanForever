@@ -24,7 +24,7 @@
 --   Farseer's window runs a fixed time from its cast; Nature's Swiftness and Stormstrike are primed
 --   from their cast until our casts of the spells that spend them (or its time runs out). That is an
 --   inference, like the shield's; Nature's Swiftness is corrected from its buff whenever auras are
---   readable (out of combat, and not in a PvP match).
+--   readable (out of combat, and not in a PvP match). Death ends it, and Rage of the Farseer's window.
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
@@ -706,7 +706,7 @@ function CD.tick()
 	ns.try("cooldown refresh", refreshCooldowns)
 end
 
--- A shaman logged in: reagent counts, and the primed buffs whenever auras are readable.
+-- A shaman logged in: reagent counts, the primed buffs whenever auras are readable, and death.
 function CD.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "BAG_UPDATE_DELAYED")
@@ -720,6 +720,17 @@ function CD.start()
 				if def.spellID and def.primed and def.primed.buffKey and ns.isEnabled(def.key) then
 					readPrimedBuff(def, true); refreshCooldown(def)
 				end
+			end
+		end
+	end)
+	-- Death takes our buffs (Nature's Swiftness's, Rage of the Farseer's window): ended at once, also
+	-- where auras can't be read afterwards (a PvP match). Stormstrike's effect is on the target.
+	ns.onCanActChange(function(event)
+		if event ~= "PLAYER_DEAD" then return end
+		for _, def in ipairs(COOLDOWNS) do
+			if def.window or (def.primed and def.primed.buffKey) then
+				endActive(def)
+				refreshCooldown(def)
 			end
 		end
 	end)
