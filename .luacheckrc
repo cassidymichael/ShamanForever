@@ -27,6 +27,7 @@ read_globals = {
     "C_Secrets",
     "C_Spell",
     "C_SpellBook",
+    "C_StringUtil",
     "C_Texture",
     "C_Timer",
     "C_TooltipInfo",

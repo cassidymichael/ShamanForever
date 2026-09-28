@@ -82,6 +82,7 @@ end
 function SH.sanitize(db, acct)
 	if db.shieldTrack ~= "either" and not SHIELDS[db.shieldTrack] then db.shieldTrack = "lightning" end
 	if not SHIELDS[acct.lastShield] then acct.lastShield = "lightning" end
+	if not ns.isColor(db.countLastColor) then db.countLastColor = CopyTable(ns.DEFAULTS.countLastColor) end
 end
 
 -- Which shield the no-shield look shows: the tracked one, or in "either" mode the one last cast or
@@ -271,9 +272,47 @@ local function buildNative(slot, button, cd)
 	fs:SetAlpha(db.showCount and 1 or 0)
 end
 
+-- The charge number's last charge (Show the last charge, experimental). Without a formatter
+-- Blizzard prints a count only from 2. Given one (a numeric rule formatter), it prints every count
+-- through it, inside the engine, so no charge is read by us: one rule per count, the last one
+-- wrapped in its colour (Blizzard_CustomAuraButton.lua; ShamanPower does the same on Forever).
+-- nil: Blizzard's own count. One formatter per colour, made on first use; the few kept are dropped
+-- while a colour is being dragged through many (the button keeps the one it was given).
+local lastFormatters, made = {}, 0
+local function byte(v) return math.floor(math.min(math.max(v, 0), 1) * 255 + 0.5) end
+local function countOptions()
+	local db = ns.getDB()
+	if not (db.showCount and db.countOne and C_StringUtil and C_StringUtil.CreateNumericRuleFormatter) then return nil end
+	local c = db.countLastColor
+	local code = string.format("|cff%02x%02x%02x", byte(c[1]), byte(c[2]), byte(c[3]))
+	local fm = lastFormatters[code]
+	if fm == nil then
+		if made >= 8 then wipe(lastFormatters); made = 0 end
+		made = made + 1
+		local ok, f = ns.try("shield count formatter", function()
+			local new = C_StringUtil.CreateNumericRuleFormatter()
+			new:SetBreakpoints({ { threshold = 0, format = "%d" }, { threshold = 1, format = code .. "%d|r" },
+				{ threshold = 2, format = "%d" } })
+			return new
+		end)
+		fm = ok and f or false
+		lastFormatters[code] = fm
+	end
+	return fm and { formatter = fm } or nil
+end
+-- Hands the count its formatter again when that changed. Blizzard's own count (the tested path) is
+-- never registered again until a formatter has been given.
+local function applyCountFormat(slot)
+	local opts = countOptions()
+	local fm = opts and opts.formatter or nil
+	if fm == slot.countFormatter then return end
+	if ns.try("shield count", slot.button.SetApplicationCount, slot.button, slot.fs, opts) then slot.countFormatter = fm end
+end
+
 -- Our parts again, for the current size and settings (after the aura slot's own restyle).
 local function styleNative(slot, size)
 	local db = ns.getDB()
+	applyCountFormat(slot)
 	for i, t in ipairs(slot.tickTextures or {}) do
 		t:ClearAllPoints()
 		t:SetPoint("TOP", slot.ticks, "TOPLEFT", size * i / slot.maxCharges, 0)

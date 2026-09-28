@@ -377,12 +377,14 @@ L.PREVIEW = {
 				ic.bar:SetHeight(d.chargeBarHeight or 8)
 				setBar(ic, 3, n, c[1], c[2], c[3])
 			end
-			if d.showCount and n >= 2 then
+			if d.showCount and (n >= 2 or d.countOne) then
 				ic.count:SetFont(STANDARD_TEXT_FONT, d.countSize, "OUTLINE")
 				ic.count:ClearAllPoints()
 				if d.countPos == "center" then ic.count:SetPoint("CENTER") else ic.count:SetPoint("BOTTOMRIGHT", 2, -2) end
 				ic.count:SetText(n)
 				ic.count:Show()
+				local c = (n == 1 and d.countOne) and d.countLastColor or { 1, 1, 1 }
+				ic.count:SetTextColor(c[1], c[2], c[3])
 			end
 		end,
 	},
