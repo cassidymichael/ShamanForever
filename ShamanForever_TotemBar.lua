@@ -816,7 +816,7 @@ local mover
 local saidWait = false   -- "changes wait until combat ends" said this combat
 local classDone = false  -- not a shaman: laid out hidden once, nothing more to do
 local hasTotems = false  -- a totem of any element is known (layout): until then the bar hides
-local paintPreview       -- Preview mode, below
+local paintPreview, previewShows   -- Preview mode, below
 
 -- known: the element's known totems (ns.Totems.knownTotems), from layout().
 local function layoutPopout(s, size, known)
@@ -881,6 +881,8 @@ end
 
 local function visibilityDriver()
 	local c = cfg()
+	-- While preview mode draws the slots, the bar shows as its scene would have it.
+	if preview then return previewShows() and "show" or "hide" end
 	if not barOn() or not hasTotems then return "hide" end
 	if kbOpen or not ns.getAccount().locked then return "show" end
 	if c.show == "combat" then return "[petbattle] hide; [combat] show; hide" end
@@ -1389,7 +1391,7 @@ function TB.hasTotems() return hasTotems end
 ------------------------------------------------------------------------
 -- The bar in the preview's scene: in combat as it shows then; out of combat as it shows while a
 -- totem is down (the preview's are).
-local function previewShows()
+function previewShows()
 	if not barOn() or not (hasTotems or preview.all) then return false end
 	if preview.combat or not ns.getAccount().locked then return true end
 	local show = cfg().show
@@ -1474,17 +1476,16 @@ local function paintSlot(s, rec)
 	end
 end
 
--- After every layout while it shows: the bar's visibility, and every slot's state again.
+-- After every layout while it shows: every slot's state again.
 function paintPreview()
-	RegisterStateDriver(bar, "visibility", previewShows() and "show" or "hide")
-	lastDriver = nil   -- the bar's own driver goes back on at the next layout
 	for _, el in ipairs(ELEMENTS) do
 		local rec = preview.states[el]
 		if rec then paintSlot(slots[el], rec) end
 	end
 end
 
--- p: { combat = the in-combat scene, all = every element's slot }, or nil when it ends.
+-- p: { combat = the in-combat scene, all = every element's slot }, or nil when it ends. The caller
+-- lays the HUD out next (ns.applyLayout or ns.layoutElements), which lays out the bar.
 function TB.preview(p)
 	if p then
 		preview = { combat = p.combat, all = p.all, states = preview and preview.states or {} }
@@ -1502,7 +1503,6 @@ function TB.preview(p)
 		end
 		lastDriver = nil
 	end
-	layout()
 end
 
 -- A slot's state from `at` (GetTime): see paintSlot; moment: its end flash plays too. Returns when
