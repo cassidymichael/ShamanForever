@@ -59,7 +59,7 @@ ns.registerElement("shield", { frame = shield, label = "Shields", paint = functi
 -- Per shield at runtime: name (the client's), spellID and bookIcon (highest known rank), known. The IDs
 -- that count as it are ns.Spells' (seeds, spellbook, and the live aura's, learned here).
 for _, s in pairs(SHIELDS) do s.name = Spells.name(s.spell) end
-local believedUp   -- see above: exact out of combat, set by our own cast in combat; nil until known
+local believedUp   -- see above: read when auras are readable, else set by our cast; nil until known
 local native   -- Blizzard's aura container over the underlay, and our parts on its button (below)
 
 local function tracksShield(key)
@@ -164,7 +164,7 @@ local function shieldIDMap()
 	return map
 end
 
--- The slot's filter can only change out of combat; a change in combat waits for it to end
+-- The slot's filter can only change while auras are readable; a change meanwhile waits for that
 -- (ns.makeAuraSlot).
 local function applyShieldFilter() native:refilter() end
 
@@ -291,8 +291,8 @@ native = ns.makeAuraSlot(shield, {
 -- Auras can be secret out of combat too (PvP matches, encounters): then keep the belief.
 local function aurasReadable() return not InCombatLockdown() and not ns.aurasSecret() end
 
--- Out of combat the auras are readable: sync our belief and learn the live spell IDs. Looked up by
--- the client's name for the shield, which every rank shares.
+-- While auras are readable: sync our belief and learn the live spell IDs. Looked up by the client's
+-- name for the shield, which every rank shares.
 local function refreshAura()
 	if not aurasReadable() then return end
 	local upKey
@@ -358,7 +358,7 @@ function SH.refresh()
 	refreshGCD(false)
 end
 SH.onCooldowns = refreshGCD
--- A shaman logged in: the aura, read again whenever it changes (out of combat).
+-- A shaman logged in: the aura, read again whenever it changes (while auras are readable).
 function SH.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "UNIT_AURA", "player")

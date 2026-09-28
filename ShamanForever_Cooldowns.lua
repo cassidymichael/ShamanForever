@@ -331,8 +331,8 @@ local function refreshFireNova(def, inEvent)
 end
 
 -- Whether the totem in def's slot is def's own (1) or not (0), and how that was told. Not known from
--- our casts (a /reload with the totem already down): out of combat the slot's spell, else its icon
--- (every rank shares it), kept as the owner so it holds into combat. In combat: unknown, hidden.
+-- our casts (a /reload with the totem already down): while the slot is readable its spell, else its
+-- icon (every rank shares it), kept as the owner so it holds into combat. Else: unknown, hidden.
 local function slotMatch(def, slot)
 	local key, how, icon = Totems.identify(slot)
 	if key then return key == def.spellKey and 1 or 0, how end
@@ -406,10 +406,10 @@ local function isActive(def)
 	return def.activeUntil ~= nil
 end
 
--- Out of combat, the primed buff itself says whether it's up and for how long: by its IDs, else by
--- the client's name for it. Within a moment of our cast, a missing buff doesn't end it (the aura
--- can arrive after the cast event). fromAura: an aura change, which may pop; a read at login or
--- after combat finds what was already there, quietly.
+-- While auras are readable, the primed buff itself says whether it's up and for how long: by its
+-- IDs, else by the client's name for it. Within a moment of our cast, a missing buff doesn't end it
+-- (the aura can arrive after the cast event). fromAura: an aura change, which may pop; a read at
+-- login or after combat finds what was already there, quietly.
 local CAST_GRACE = 1.5
 local function readPrimedBuff(def, fromAura)
 	local buffKey = def.primed and def.primed.buffKey

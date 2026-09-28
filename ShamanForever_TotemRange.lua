@@ -26,7 +26,8 @@ local isSecret = ns.isSecret
 
 -- The totems that buff the player, per element: the totem spell (any rank) and its buff on the player,
 -- every rank. IDs are Classic's; Forever has shown 8076 (Strength of Earth) and 5672 (Healing
--- Stream). A rank not listed is learned out of combat by the client's name for the buff (learn).
+-- Stream). A rank not listed is learned by the client's name for the buff while auras are readable
+-- (learn).
 local BUFF_TOTEMS = {
 	earth = {
 		{ totem = 8075, buffs = { 8076, 8162, 8163, 10441, 25362 } },          -- Strength of Earth
@@ -77,7 +78,7 @@ end
 
 ------------------------------------------------------------------------
 -- Frames: per slot, a strip along the top edge. Our red part (plain) under Blizzard's aura container,
--- whose button draws the green part (made out of combat, on first use).
+-- whose button draws the green part (made while auras are readable, on first use).
 ------------------------------------------------------------------------
 -- The red part: two nested frames, one gated by "a buff totem of yours is down" (plain), one by the
 -- slot's time left (a curve, possibly secret). Both are ours and hold nothing of Blizzard's.
@@ -101,9 +102,9 @@ local PARTS = {
 	{ key = "own", filter = "HELPFUL|PLAYER", color = "rangeIn", level = 1 },
 }
 
--- A part's look (out of combat, or from Blizzard's init). Under the colour, opaque, the slice of the
--- buff's icon that the strip covers (a totem's buff has the totem's icon): whatever is below is
--- always hidden, so the colours can be see-through, down to not shown at all.
+-- A part's look (while auras are readable, or from Blizzard's init). Under the colour, opaque, the
+-- slice of the buff's icon that the strip covers (a totem's buff has the totem's icon): whatever is
+-- below is always hidden, so the colours can be see-through, down to not shown at all.
 local function styleButton(s, part)
 	local c, p = TB.cfg(), s.rangeParts[part.key]
 	ns.try("totem range: style", function()
@@ -201,8 +202,9 @@ local function applyFilter(s)
 	end
 end
 
--- Buff ranks not in the list: out of combat your own buffs are readable, and one whose name is the
--- client's name for a listed buff is another rank of it (locale-free: both names are the client's).
+-- Buff ranks not in the list: while auras are readable your own buffs can be read, and one whose
+-- name is the client's name for a listed buff is another rank of it (locale-free: both names are
+-- the client's).
 local names = {}   -- the client's buff name -> element
 local function learn()
 	if InCombatLockdown() or not TB.isShaman() or not enabled() then return end
