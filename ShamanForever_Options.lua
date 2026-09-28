@@ -516,7 +516,7 @@ local function isHidden(key) return ns.showMode(key) == "never" end
 local function placeShown(key, target, index)
 	local hidden = isHidden(key)
 	ns.placeElement(key, target, index)
-	if hidden then ns.setShow(key, "always") end
+	if hidden then ns.setShow(key, ns.elementDefault(key, "show") or "always") end   -- its default Show
 end
 local board = { cards = {}, chips = {} }
 
