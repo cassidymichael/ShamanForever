@@ -29,8 +29,9 @@
 -- Mana under, and by default also low enough that the potion's most restore fits in what's missing.
 -- The potions and how much each restores are Forever's own item data (build 1.60.1.70009).
 --
--- ShamanForever.lua calls in through the module hooks (ns.registerModule). Events are registered
--- only while either element is on (M.afterGroups), so neither costs anything while it's off.
+-- ShamanForever.lua calls in through the module hooks (ns.registerModule). Each element's events
+-- are registered only while it is on (M.afterGroups): the casts and talents for the Mana element,
+-- the bags and level for the potion cue, mana itself for either.
 
 local _, ns = ...
 local say, isSecret, safe = ns.say, ns.isSecret, ns.safe
@@ -550,7 +551,8 @@ local function idleCurve(alpha)
 end
 
 local fiveUntil = 0     -- when the five-second rule's window ends (GetTime's clock)
-local manaOn, potionOn, listening = false, false, false
+local manaOn, potionOn = false, false
+local listening   -- the elements whose events are registered (listen)
 
 -- Every look that follows mana, from the curves (ten times a second while mana changes).
 local function paintMana()
@@ -624,7 +626,8 @@ local function startFive()
 end
 
 local function onSent(castGUID, spellID)
-	if isSecret(castGUID) or type(castGUID) ~= "string" or isSecret(spellID) or type(spellID) ~= "number" then
+	if not manaOn or isSecret(castGUID) or type(castGUID) ~= "string" or isSecret(spellID)
+		or type(spellID) ~= "number" then
 		return
 	end
 	local now = GetTime()
@@ -635,7 +638,7 @@ local function onSent(castGUID, spellID)
 end
 
 local function onSucceeded(castGUID, spellID)
-	if isSecret(spellID) or type(spellID) ~= "number" then return end
+	if not manaOn or isSecret(spellID) or type(spellID) ~= "number" then return end
 	local cost = manaCost(spellID)
 	if cost and cost > 0 then costSeen[spellID] = cost end   -- its own cast: any cost cut on it is spent
 	local e = not isSecret(castGUID) and castGUID and sent[castGUID]
@@ -645,8 +648,8 @@ local function onSucceeded(castGUID, spellID)
 	end
 	-- Casts queued behind this one: this cast has used any proc it had, so read their costs again.
 	for _, o in pairs(sent) do o.cost = manaCost(o.spell) end
-	if cost and cost > 0 and manaOn then startFive() end
-	if rereadCosts() and manaOn then
+	if cost and cost > 0 then startFive() end
+	if rereadCosts() then
 		styleMana()
 		ns.try("mana paint", paintMana)
 	end
@@ -704,24 +707,25 @@ local function bestPotion()
 	end
 end
 
--- Off cooldown: a plain read that says so (a secret or failed one never shows the cue).
-local function readPotion()
-	local p, n = bestPotion()
-	potion.def, potion.count, potion.ready, potion.readyAt = p, n or 0, false, nil
-	if not p then potion.why = "none carried and usable" return end
-	local ok, start, dur, enable = safe(C_Item.GetItemCooldown, p.item)
-	if not ok or isSecret(start) or isSecret(dur) or isSecret(enable) or type(start) ~= "number" or type(dur) ~= "number" then
-		potion.why = "cooldown unreadable"
-		return
+-- Whether it can be drunk now: off cooldown by a plain read that says so (a secret or failed one
+-- never shows the cue). Returns whether the cooldown to show changed.
+local function readCooldown()
+	local was, wasDur = potion.start, potion.dur
+	potion.ready, potion.readyAt, potion.start, potion.dur = false, nil, nil, nil
+	local p = potion.def
+	if not p then potion.why = "none carried and usable"
+	else
+		local ok, start, dur, enable = safe(C_Item.GetItemCooldown, p.item)
+		if not ok or isSecret(start) or isSecret(dur) or isSecret(enable) or type(start) ~= "number"
+			or type(dur) ~= "number" then
+			potion.why = "cooldown unreadable"
+		elseif enable == false or enable == 0 then potion.why = "cooldown waits for combat to end"
+		elseif start > 0 and dur > 0 and start + dur > GetTime() then
+			potion.why, potion.readyAt, potion.start, potion.dur = "on cooldown", start + dur, start, dur
+		elseif ns.cantAct() then potion.why = "can't act"
+		else potion.ready, potion.why = true, "ready" end
 	end
-	if enable == false or enable == 0 then potion.why = "cooldown waits for combat to end" return end
-	local now = GetTime()
-	if start > 0 and dur > 0 and start + dur > now then
-		potion.why, potion.readyAt, potion.start, potion.dur = "on cooldown", start + dur, start, dur
-		return
-	end
-	if ns.cantAct() then potion.why = "can't act" return end
-	potion.ready, potion.why = true, "ready"
+	return potion.start ~= was or potion.dur ~= wasDur
 end
 
 -- The cue's mark for a potion (the one offered by default): under Mana under, and (Nothing wasted)
@@ -757,6 +761,10 @@ local function paintPotion()
 	if pf.gate:IsShown() then pf.gate:SetAlpha(glow and throughCurve(glow) or 0) end
 end
 
+local function showCooldown()
+	if potion.readyAt then pf.cdTimer:setTime(potion.start, potion.dur) else pf.cdTimer:clear() end
+end
+
 local function stylePotion()
 	local p = potion.def
 	pf.tex:SetTexture(p and M.potionIcon(p) or POTION_ICON)
@@ -766,21 +774,30 @@ local function stylePotion()
 		pf.count:SetText(potion.count)
 		pf.count:Show()
 	else pf.count:Hide() end
-	if potion.readyAt then pf.cdTimer:setTime(potion.start, potion.dur) else pf.cdTimer:clear() end
+	showCooldown()
 	local glow = setting(POTION, "potionGlow") and true or false
 	pf.gate:SetShown(glow)
 	pf.glow:SetShown(glow)
 	if glow then pf.glow:fit(pf:GetWidth()) end
 end
 
+-- Everything again: the potion offered and its count (bags, level or settings changed), then its
+-- cooldown.
 local function refreshPotion()
-	readPotion()
+	potion.def, potion.count = bestPotion()
+	potion.count = potion.count or 0
+	readCooldown()
 	stylePotion()
+	paintPotion()
+end
+-- The cooldown only (a cooldown changed; the bags didn't).
+local function refreshCooldown()
+	if readCooldown() then showCooldown() end
 	paintPotion()
 end
 
 ------------------------------------------------------------------------
--- Events: registered only while either element is on
+-- Events: each element's, registered only while it is on
 ------------------------------------------------------------------------
 local ev
 local function paint()
@@ -794,15 +811,16 @@ local function onMaxPower()
 	paint()
 end
 
-
 local function onEvent(_, event, a1, a2, a3, a4)
 	if event == "UNIT_POWER_FREQUENT" then
 		if isSecret(a2) or a2 == "MANA" then paint() end
 	elseif event == "UNIT_MAXPOWER" then onMaxPower()
 	elseif event == "UNIT_SPELLCAST_SENT" then onSent(a3, a4)   -- unit, target, castGUID, spellID
 	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then onSucceeded(a2, a3)   -- unit, castGUID, spellID
-	elseif event == "BAG_UPDATE_DELAYED" or event == "BAG_UPDATE_COOLDOWN" then
+	elseif event == "BAG_UPDATE_DELAYED" then
 		if potionOn then ns.try("mana potion", refreshPotion) end
+	elseif event == "BAG_UPDATE_COOLDOWN" then
+		if potionOn then ns.try("mana potion", refreshCooldown) end
 	elseif event == "PLAYER_LEVEL_UP" then
 		-- A bigger potion may be allowed now. A second later: UnitLevel can still say the old level.
 		C_Timer.After(1, function() if potionOn then ns.try("mana potion", refreshPotion) end end)
@@ -813,23 +831,28 @@ local function onEvent(_, event, a1, a2, a3, a4)
 	end
 end
 
-local EVENTS = {
-	{ "UNIT_POWER_FREQUENT", "player" }, { "UNIT_MAXPOWER", "player" }, { "PLAYER_LEVEL_UP" },
-	{ "UNIT_SPELLCAST_SENT", "player" }, { "UNIT_SPELLCAST_SUCCEEDED", "player" },
-	{ "BAG_UPDATE_DELAYED" }, { "BAG_UPDATE_COOLDOWN" },
-}
-local function listen(on)
-	if not ev or on == listening then return end
-	listening = on
-	if on then
-		for _, e in ipairs(EVENTS) do ns.registerEvent(ev, e[1], e[2]) end
+local EITHER = { { "UNIT_POWER_FREQUENT", "player" }, { "UNIT_MAXPOWER", "player" } }
+local MANA_EVENTS = { { "UNIT_SPELLCAST_SENT", "player" }, { "UNIT_SPELLCAST_SUCCEEDED", "player" } }
+local POTION_EVENTS = { { "BAG_UPDATE_DELAYED" }, { "BAG_UPDATE_COOLDOWN" }, { "PLAYER_LEVEL_UP" } }
+local function register(list)
+	for _, e in ipairs(list) do ns.registerEvent(ev, e[1], e[2]) end
+end
+-- The events the elements on need (nil, "mana", "potion" or "both").
+local function listen(mana, potionCue)
+	local want = mana and (potionCue and "both" or "mana") or (potionCue and "potion") or nil
+	if not ev or want == listening then return end
+	listening = want
+	ev:UnregisterAllEvents()
+	if not mana then wipe(sent) end
+	if not want then return end
+	register(EITHER)
+	if mana then
+		register(MANA_EVENTS)
 		-- A talent change (not yet seen firing on Forever): without it, the next spellbook scan
 		-- still reads the talents.
 		pcall(ev.RegisterEvent, ev, "TRAIT_CONFIG_UPDATED")
-	else
-		ev:UnregisterAllEvents()
-		wipe(sent)
 	end
+	if potionCue then register(POTION_EVENTS) end
 end
 
 ------------------------------------------------------------------------
@@ -859,7 +882,8 @@ function M.applyTimers() f.upTimer:apply() pf.cdTimer:apply() end
 -- hidden (every layout comes through here): events follow, then the looks.
 function M.afterGroups()
 	manaOn, potionOn = ns.isEnabled(KEY), ns.isEnabled(POTION)
-	listen(ns.isActive() and (manaOn or potionOn))
+	local on = ns.isActive()
+	listen(on and manaOn, on and potionOn)
 	readMax()
 	if manaOn then
 		if not specRead then readSpec() end   -- just turned on, or back to the default pick
@@ -885,7 +909,7 @@ end
 
 -- Once a second: a potion's cooldown ending fires no event of its own.
 function M.tick()
-	if potionOn and potion.readyAt and GetTime() >= potion.readyAt then refreshPotion() end
+	if potionOn and potion.readyAt and GetTime() >= potion.readyAt then refreshCooldown() end
 end
 
 function M.start()
@@ -893,7 +917,7 @@ function M.start()
 	ev:SetScript("OnEvent", onEvent)
 	-- Dead or on a flight path: no low-mana look, no potion cue.
 	ns.onCanActChange(function()
-		if potionOn then readPotion() end
+		if potionOn then readCooldown() end
 		paint()
 	end)
 end
