@@ -31,6 +31,11 @@ function ns.cropIconExact(tex)
 	end
 end
 
+-- The places a number on an icon can sit (the shield's charges, a reagent count), and how its text
+-- is justified at each.
+ns.COUNT_JUSTIFY = { TOPLEFT = "LEFT", BOTTOMLEFT = "LEFT", TOPRIGHT = "RIGHT", BOTTOMRIGHT = "RIGHT",
+	CENTER = "CENTER" }
+
 -- The icon size text sizes are given at (the default): text on an icon scales with it from here.
 ns.BASE_ICON_SIZE = 44
 -- A font string on an icon: size at the base icon size (it grows and shrinks with the icon), placed

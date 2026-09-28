@@ -69,7 +69,7 @@ end
 -- Reagent settings say: when it shows, its colours (plenty; low or none), size and place. Returns
 -- whether n is low, and the none-left looks wanted (ring, pulse), which the caller sets together
 -- with any other look on that icon, so a running pulse isn't restarted.
-local COUNT_JUSTIFY = { TOPLEFT = "LEFT", BOTTOMLEFT = "LEFT", TOPRIGHT = "RIGHT", BOTTOMRIGHT = "RIGHT", CENTER = "CENTER" }
+local COUNT_JUSTIFY = ns.COUNT_JUSTIFY
 function R.draw(f, key, n)
 	local low = n <= num(key, "reagentLow")
 	local show = setting(key, "reagentCount")   -- always | low | never

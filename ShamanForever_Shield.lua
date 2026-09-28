@@ -62,30 +62,27 @@ local function tracksShield(key)
 	return track == "either" or track == key
 end
 
--- Where the charge number sits on the icon: its point, an offset and the text's justification.
--- In a corner it is nudged 2 px outward.
-local COUNT_PLACE = {
-	CENTER = { 0, 0, "CENTER" },
-	TOPLEFT = { -2, 2, "LEFT" }, TOPRIGHT = { 2, 2, "RIGHT" },
-	BOTTOMLEFT = { -2, -2, "LEFT" }, BOTTOMRIGHT = { 2, -2, "RIGHT" },
-}
+-- The charge number's offset from its point (ns.COUNT_JUSTIFY has the points): in a corner it is
+-- nudged 2 px outward.
+local COUNT_NUDGE = { CENTER = { 0, 0 }, TOPLEFT = { -2, 2 }, TOPRIGHT = { 2, 2 }, BOTTOMLEFT = { -2, -2 },
+	BOTTOMRIGHT = { 2, -2 } }
 -- 0.8.0 and earlier saved "center" or "corner" (the bottom right).
 local COUNT_POS_SAVED = { center = "CENTER", corner = "BOTTOMRIGHT" }
 
 -- Places the charge number fs on icon, as the settings say (the HUD's and the options' preview).
 function SH.placeCount(fs, icon)
 	local pos = ns.getDB().countPos
-	local c = COUNT_PLACE[pos]
+	local nudge = COUNT_NUDGE[pos]
 	fs:ClearAllPoints()
-	fs:SetPoint(pos, icon, pos, c[1], c[2])
-	fs:SetJustifyH(c[3])
+	fs:SetPoint(pos, icon, pos, nudge[1], nudge[2])
+	fs:SetJustifyH(ns.COUNT_JUSTIFY[pos])
 end
 
 -- A profile's shield settings, and the account's last shield, made valid (when a profile loads).
 function SH.sanitize(db, acct)
 	if db.shieldTrack ~= "either" and not SHIELDS[db.shieldTrack] then db.shieldTrack = "lightning" end
 	db.countPos = COUNT_POS_SAVED[db.countPos] or db.countPos
-	if not COUNT_PLACE[db.countPos] then db.countPos = "CENTER" end
+	if not ns.COUNT_JUSTIFY[db.countPos] then db.countPos = "CENTER" end
 	if not SHIELDS[acct.lastShield] then acct.lastShield = "lightning" end
 end
 
