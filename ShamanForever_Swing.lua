@@ -15,7 +15,8 @@
 -- Blizzard's own swing bar (the showSwingTimer CVar, off by default) is turned off while this one
 -- shows, unless the player shows both; see "Blizzard's swing bar" below.
 --
--- ShamanForever.lua calls in through the module hooks (ns.registerModule).
+-- ShamanForever.lua calls in through the module hooks (ns.registerModule). Its events are registered
+-- only while the element is on (SW.afterGroups), so it costs nothing while it's off.
 
 local _, ns = ...
 local say, isSecret, safe = ns.say, ns.isSecret, ns.safe
@@ -183,7 +184,6 @@ local function onSwing(swingDuration, swingType)
 		return
 	end
 	state.endsAt, state.unsure, state.speed = now + swingDuration, false, swingDuration
-	paintFill()
 	ns.try("swing bar", bar.SetTimerDuration, bar, duration, IMMEDIATE, ELAPSED)
 	bar:Show()
 	f.cdTimer:set(duration)
@@ -276,9 +276,56 @@ local function onCVar(name)
 end
 
 ------------------------------------------------------------------------
+-- Events: registered only while the element is on
+------------------------------------------------------------------------
+local ev, listening = nil, false
+local EVENTS = {
+	{ "PLAYER_SWING" }, { "UNIT_ATTACK_SPEED", "player" }, { "PLAYER_EQUIPMENT_CHANGED" },
+	{ "UNIT_INVENTORY_CHANGED", "player" },
+	{ "PLAYER_ENTER_COMBAT" },   -- auto attack on
+	{ "PLAYER_LEAVE_COMBAT" },   -- auto attack off
+	{ "CVAR_UPDATE" },
+}
+
+local function onEvent(_, event, a1, a2)
+	if event == "PLAYER_SWING" then onSwing(a1, a2)
+	elseif event == "UNIT_ATTACK_SPEED" then onAttackSpeed()
+	elseif event == "PLAYER_EQUIPMENT_CHANGED" then
+		-- A main-hand swap mid-swing: the next swing's time is the new weapon's, unknown in combat.
+		if not isSecret(a1) and a1 == MAIN_HAND_SLOT then markUnsure() end
+	elseif event == "UNIT_INVENTORY_CHANGED" then
+		paintFill()   -- an imbue put on or lost: the fill takes its colour now
+	elseif event == "PLAYER_ENTER_COMBAT" then
+		state.attacking = true
+		drawIdle()
+	elseif event == "PLAYER_LEAVE_COMBAT" then
+		-- Auto attack off: a swing started again later starts from an empty bar.
+		state.attacking = false
+		clearSwing()
+		drawIdle()
+	elseif event == "CVAR_UPDATE" then onCVar(a1)
+	end
+end
+
+-- Registers the events while the element is on; off, drops them and the swing under way.
+local function listen(on)
+	if not ev or on == listening then return end
+	listening = on
+	if on then
+		for _, e in ipairs(EVENTS) do ns.registerEvent(ev, e[1], e[2]) end
+		state.speed = readSpeed()
+	else
+		ev:UnregisterAllEvents()
+		state.attacking = false
+		clearSwing()
+	end
+end
+
+------------------------------------------------------------------------
 -- Hooks (ShamanForever.lua calls them; see ns.registerModule)
 ------------------------------------------------------------------------
 function SW.refresh()
+	if not listening then return end
 	readAttacking()
 	if not state.speed then state.speed = readSpeed() end
 	drawIdle()
@@ -287,54 +334,36 @@ end
 
 -- The look again after a layout (settings may have changed): the fill's colour, idle and unsure.
 function SW.applyLayout()
+	if not listening then return end
 	paintFill()
 	SW.refresh()
 end
 function SW.applyTimers() f.cdTimer:apply() end
 -- After the groups' scales are set: lines are measured in screen pixels. Also where ours has just
--- been shown or hidden (every layout comes through here), so Blizzard's bar follows.
+-- been shown or hidden (every layout comes through here): its events follow, and Blizzard's bar.
 function SW.afterGroups()
+	local on = ns.isEnabled(KEY)
+	if on and not listening then
+		listen(true)
+		paintFill()
+		SW.refresh()
+	elseif not on then
+		listen(false)
+	end
 	SW.sizeSpark(bar)
 	syncBlizzard()
 end
 
 function SW.start()
-	local ev = CreateFrame("Frame")
-	ns.registerEvent(ev, "PLAYER_SWING")
-	ns.registerEvent(ev, "UNIT_ATTACK_SPEED", "player")
-	ns.registerEvent(ev, "PLAYER_EQUIPMENT_CHANGED")
-	ns.registerEvent(ev, "UNIT_INVENTORY_CHANGED", "player")
-	ns.registerEvent(ev, "PLAYER_ENTER_COMBAT")   -- auto attack on
-	ns.registerEvent(ev, "PLAYER_LEAVE_COMBAT")   -- auto attack off
-	ns.registerEvent(ev, "CVAR_UPDATE")
-	ev:SetScript("OnEvent", function(_, event, a1, a2)
-		if event == "PLAYER_SWING" then onSwing(a1, a2)
-		elseif event == "UNIT_ATTACK_SPEED" then onAttackSpeed()
-		elseif event == "PLAYER_EQUIPMENT_CHANGED" then
-			-- A main-hand swap mid-swing: the next swing's time is the new weapon's, unknown in combat.
-			if not isSecret(a1) and a1 == MAIN_HAND_SLOT then markUnsure() end
-		elseif event == "UNIT_INVENTORY_CHANGED" then
-			-- An imbue put on or lost: the fill takes its colour now, not at the next swing.
-			if bar:IsShown() then paintFill() end
-		elseif event == "PLAYER_ENTER_COMBAT" then
-			state.attacking = true
-			drawIdle()
-		elseif event == "PLAYER_LEAVE_COMBAT" then
-			-- Auto attack off: a swing started again later starts from an empty bar.
-			state.attacking = false
-			clearSwing()
-			drawIdle()
-		elseif event == "CVAR_UPDATE" then onCVar(a1)
-		end
-	end)
-	state.speed = readSpeed()
+	ev = CreateFrame("Frame")
+	ev:SetScript("OnEvent", onEvent)
 end
 
 -- /sf debug
 function SW.debug()
 	local left = state.endsAt and state.endsAt - GetTime()
-	say("swing: %d swings seen, %d with a secret duration; auto attack %s; %s%s; Blizzard's bar %s (turned off by us %s, show both %s)",
-		state.swings, state.secret, tostring(state.attacking),
+	say("swing: %s; %d swings seen, %d with a secret duration; auto attack %s; %s%s; Blizzard's bar %s (turned off by us %s, show both %s)",
+		listening and "on" or "off", state.swings, state.secret, tostring(state.attacking),
 		left and (left > 0 and string.format("next in %.1f s", left) or "due") or "no swing under way",
 		state.unsure and ", unsure" or "", tostring(blizzardOn()), tostring(turnedOff()),
 		tostring(ns.getAccount().swingShowBlizzard or false))
