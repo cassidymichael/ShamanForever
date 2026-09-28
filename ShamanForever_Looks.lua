@@ -2,8 +2,7 @@
 -- style's `look` field picks, and the shared pieces that draw them:
 --   frame      the edge around an icon, in its border's look (rings of lines, corner caps, art
 --              over the icon in a holder frame, a mask on the icon's picture)
---   flipBook   a sheet of frames played in order
---   burster    textures that grow and fade over a pop's short life, each with an optional halo
+--   burster    textures that grow and fade over a pop's short life
 -- Our own media are named by path, never by file ID: the client gives our loose files IDs that
 -- change between client starts (tested 2026-09-28).
 
@@ -199,8 +198,7 @@ local function drawMask(f, file)
 end
 
 -- Draws b (a border style) round f in its look, or takes it down (b off, or a size of 0 for a
--- look drawn at the Border size). Sets f.frameOuter, how far it reaches outside f's edge in f's
--- units, for Looks.outerEdge.
+-- look drawn at the Border size).
 function Looks.frame(f, b)
 	local look = S.look("border", b and b.look)
 	local on = b and b.show and (not Looks.uses(look, "size") or (b.size and b.size > 0))
@@ -209,20 +207,14 @@ function Looks.frame(f, b)
 		drawCaps(f, nil)
 		drawArt(f, nil)
 		drawMask(f, nil)
-		f.frameOuter = 0
 		return
 	end
 	local school = schoolOf(f)
 	local out = drawRings(f, look.rings, b, school)
-	out = out + drawCaps(f, look.caps, out, b, school)
-	out = math.max(out, drawArt(f, look.art))
+	drawCaps(f, look.caps, out, b, school)
+	drawArt(f, look.art)
 	drawMask(f, look.mask)
-	f.frameOuter = out
 end
-
--- How far f's frame reaches outside its edge (f's units): where a glow or a pop that wraps the
--- frame starts, so a heavier frame doesn't cover it.
-function Looks.outerEdge(f) return f.frameOuter or 0 end
 
 -- Blizzard's aura button (the shield, Elemental Focus via ns.makeAuraSlot) takes a mask only when
 -- it is made on the button while Blizzard makes the button (the slot's initializeFrame); one made
@@ -260,34 +252,14 @@ function Looks.anyExperimental(kind)
 end
 
 ------------------------------------------------------------------------
--- FlipBook: a sheet of frames (rows x cols, read left to right, top to bottom) played in order on
--- tex over dur seconds, once or looping. Plays on atlases and on our own files, in combat, on
--- schedule (tested 2026-09-28). Returns the animation group; the caller sets the texture and plays.
-------------------------------------------------------------------------
-function Looks.flipBook(tex, rows, cols, frames, dur, loop)
-	local g = tex:CreateAnimationGroup()
-	local a = g:CreateAnimation("FlipBook")
-	a:SetFlipBookRows(rows)
-	a:SetFlipBookColumns(cols)
-	a:SetFlipBookFrames(frames or rows * cols)
-	a:SetFlipBookFrameWidth(0)
-	a:SetFlipBookFrameHeight(0)
-	a:SetDuration(dur)
-	if loop then g:SetLooping("REPEAT") end
-	g.flip = a
-	return g
-end
-
-------------------------------------------------------------------------
 -- Burster: textures that grow, fade and turn frame by frame (the pop's ring and star), sized
 -- directly, not by a Scale animation, so they never reach further than asked. driver: the frame
--- whose OnUpdate runs while any burst does. A burst can take a halo: a texture of the caller's
--- (normal blending, dark) that grows with it under it, haloScale its size and haloAlpha its
--- opacity at the start. An added (ADD) burst vanishes on bright ground without one (tested
--- 2026-09-28: white bursts on snow).
+-- whose OnUpdate runs while any burst does. An added (ADD) burst vanishes on bright ground (tested
+-- 2026-09-28: white bursts on snow); the glows and pops lane adds a halo for that, after its own
+-- probe.
 ------------------------------------------------------------------------
 function Looks.burster(driver)
-	local B, run = {}, {}   -- run: texture -> { t (elapsed), dur, from, to (sizes), spin (radians), halo... }
+	local B, run = {}, {}   -- run: texture -> { t (elapsed), dur, from, to (sizes), spin (radians) }
 	local function step(self, elapsed)
 		for tex, b in pairs(run) do
 			b.t = b.t + elapsed
@@ -297,11 +269,6 @@ function Looks.burster(driver)
 			tex:SetSize(size, size)
 			tex:SetAlpha(1 - p)
 			if b.spin then tex:SetRotation(b.spin * e) end
-			if b.halo then
-				local hs = size * (b.haloScale or 1)
-				b.halo:SetSize(hs, hs)
-				b.halo:SetAlpha((1 - p) * (b.haloAlpha or 0.7))
-			end
 			if p >= 1 then B.stop(tex) end
 		end
 		if next(run) == nil then self:SetScript("OnUpdate", nil) end
@@ -311,12 +278,9 @@ function Looks.burster(driver)
 		b.t = 0
 		run[tex] = b
 		tex:Show()
-		if b.halo then b.halo:Show() end
 		driver:SetScript("OnUpdate", step)
 	end
 	function B.stop(tex)
-		local b = run[tex]
-		if b and b.halo then b.halo:Hide() end
 		run[tex] = nil
 		tex:Hide()
 	end
