@@ -449,7 +449,13 @@ local function readPrimedBuff(def, fromAura)
 end
 
 function refreshCooldown(def, inEvent)
-	if not ns.isEnabled(def.key) then def.cdRunning = nil return end   -- read afresh when it's back
+	if not ns.isEnabled(def.key) then
+		-- Read afresh when it's back. Our casts aren't followed while it's off (CD.onCast), so a
+		-- window or primed buff could be spent unseen: it ends here rather than come back stale.
+		def.cdRunning = nil
+		endActive(def)
+		return
+	end
 	local f = def.frame
 	if f.killed and not (setting(def.key, "killed") and setting(def.key, "killedMark")) then f.killed.mark:Hide() end
 	if not def.spellID then
