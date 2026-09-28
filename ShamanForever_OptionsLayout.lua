@@ -464,7 +464,7 @@ local function nameRow(p, shown)
 	box:SetSize(200, 20)
 	box:SetPoint("LEFT", f, "LEFT", LABEL_W + 6, 0)
 	box:SetAutoFocus(false)
-	box:SetMaxLetters(32)
+	box:SetMaxLetters(ns.MAX_GROUP_NAME)
 	box:SetFontObject("GameFontHighlight")
 	local function current() local g = selected(); return g and g.name or "" end
 	box:SetScript("OnEditFocusGained", function(b)
