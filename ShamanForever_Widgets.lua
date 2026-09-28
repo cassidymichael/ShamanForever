@@ -548,8 +548,8 @@ AuraSlot.__index = AuraSlot
 --   onStyle(slot, size)         the caller's own restyle, after the shared one
 --   onError(err)                the container couldn't be made on this client
 -- Nothing is made until slot:setup(). The slot then holds container, button, icon (the aura's
--- texture), cd and timer (swipe and countdown only), mask (a masked frame look's), or err; and
--- after slot:refilter(), filtered (the spell IDs it last gave the slot).
+-- texture), cd and timer (swipe and countdown only), or err; and after slot:refilter(), filtered
+-- (the spell IDs it last gave the slot).
 function ns.makeAuraSlot(frame, opts)
 	return setmetatable({ frame = frame, opts = opts }, AuraSlot)
 end
@@ -570,8 +570,7 @@ local function initAuraButton(slot, button)
 	button:SetIcon(tex)
 	slot.icon = tex
 	-- A masked frame look's mask: only now, on the button (ns.Looks.auraMask).
-	local okMask, mask = ns.try(o.sites.style, ns.Looks.auraMask, button, tex, o.key)
-	slot.mask = okMask and mask or nil
+	ns.try(o.sites.style, ns.Looks.auraMask, button, tex, o.key)
 	local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
 	cd:SetAllPoints()
 	-- Its timer: swipe and countdown text only (no bar: nothing of ours can follow Blizzard's time).

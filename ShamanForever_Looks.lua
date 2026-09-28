@@ -3,6 +3,8 @@
 --   frame      the edge around an icon, in its border's look (rings of lines, corner caps, art
 --              over the icon in a holder frame, a mask on the icon's picture)
 --   burster    textures that grow and fade over a pop's short life
+-- Art and mask parts (drawArt, drawMask, Looks.auraMask) are plumbing for the frames that come
+-- next: no look sets art or mask yet, so they draw nothing until one does.
 -- Our own media are named by path, never by file ID: the client gives our loose files IDs that
 -- change between client starts (tested 2026-09-28).
 
@@ -172,7 +174,7 @@ local function drawArt(f, art)
 end
 
 -- A mask on a texture, made on owner (the frame the texture belongs to).
-function Looks.addMask(owner, tex, file)
+local function addMask(owner, tex, file)
 	local m = owner:CreateMaskTexture()
 	m:SetAllPoints(tex)
 	m:SetTexture(file, "CLAMPTOBLACKADDITIONAL", "CLAMPTOBLACKADDITIONAL")
@@ -185,7 +187,7 @@ local function drawMask(f, file)
 	local tex = f.tex
 	if not tex then return end
 	if file then
-		if not f.frameMask then f.frameMask = Looks.addMask(f, tex, file)
+		if not f.frameMask then f.frameMask = addMask(f, tex, file)
 		else
 			f.frameMask:SetTexture(file, "CLAMPTOBLACKADDITIONAL", "CLAMPTOBLACKADDITIONAL")
 			if not f.frameMaskOn then tex:AddMaskTexture(f.frameMask) end
@@ -226,7 +228,7 @@ end
 -- untested, so the button keeps the look it was made with until the next /reload.
 function Looks.auraMask(button, tex, key)
 	local look = S.look("border", ns.borderFor(key).look)
-	if look.mask then return Looks.addMask(button, tex, look.mask) end
+	if look.mask then return addMask(button, tex, look.mask) end
 end
 
 ------------------------------------------------------------------------
