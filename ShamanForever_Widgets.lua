@@ -37,6 +37,20 @@ function ns.placeScaledText(fs, icon, size, point, x, y, relPoint)
 	return px
 end
 
+-- The key bound to a button or an element, in its top-right corner (the totem bar's buttons and
+-- Show keybinding text on elements): a light grey label whose font the caller sets, at keyTextSize.
+function ns.makeKeyText(parent)
+	local fs = parent:CreateFontString(nil, "OVERLAY")
+	fs:SetFont(STANDARD_TEXT_FONT, 12, "OUTLINE")
+	fs:SetPoint("TOPRIGHT", -2, -2)
+	fs:SetTextColor(0.85, 0.85, 0.85)
+	return fs
+end
+-- Its font size on an icon size pixels wide: it scales with the icon.
+function ns.keyTextSize(size) return math.max(8, math.floor(size * 0.3 + 0.5)) end
+-- A binding's key, short ("S-1" for Shift-1), or "" for none.
+function ns.keyLabel(key) return key and GetBindingText(key, 1) or "" end
+
 -- An element icon easing to a new opacity: slowly into idle, quickly back (each rate covers 0 to 1).
 -- A frame above Blizzard's protected aura button (frame.aboveProtected) takes no alpha change in
 -- combat, so its fade is dropped then and restated after combat by its owner's refresh.

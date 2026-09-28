@@ -55,7 +55,7 @@ local SHIELD_ORDER = { "lightning", "water" }
 
 local shield = ns.newElementIcon("shield")   -- the underlay
 ns.registerElement("shield", { frame = shield, label = "Shields", paint = function(t) t:SetTexture(SH.icon()) end,
-	learned = function() return SH.learned() end,
+	learned = function() return SH.learned() end, keySpell = function() return SH.keySpell() end,
 	kind = "shield", icon = 136051, school = "spirit", blurb = "Charges and time left. Warns when it's gone." })
 
 -- Per shield at runtime: name (the client's), spellID and bookIcon (highest known rank), known. The IDs
@@ -96,6 +96,8 @@ function SH.icon()
 	local s = SHIELDS[underlayShield()]
 	return s.bookIcon or s.icon
 end
+-- The spell whose key the icon shows (Show keybinding text): the shield it shows.
+function SH.keySpell() return SHIELDS[underlayShield()].spell end
 
 -- The shield an own cast belongs to, if any (any rank: ns.Spells matches by ID, then by the client's name).
 local function shieldForSpell(id)

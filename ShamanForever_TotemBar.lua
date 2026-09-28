@@ -341,10 +341,7 @@ local function keyLayer(v)
 	local f = CreateFrame("Frame", nil, v)
 	f:SetAllPoints()
 	f:SetFrameLevel(v:GetFrameLevel() + 6)
-	f.text = f:CreateFontString(nil, "OVERLAY")
-	f.text:SetFont(STANDARD_TEXT_FONT, 12, "OUTLINE")
-	f.text:SetPoint("TOPRIGHT", -2, -2)
-	f.text:SetTextColor(0.85, 0.85, 0.85)
+	f.text = ns.makeKeyText(f)
 	f.glow = f:CreateTexture(nil, "OVERLAY")
 	f.glow:SetAllPoints()
 	if C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(KEY_HIGHLIGHT) then f.glow:SetAtlas(KEY_HIGHLIGHT)
@@ -537,7 +534,7 @@ local function refreshKeys()
 	local on = cfg().keys
 	local function draw(layer, command)
 		local key = on and GetBindingKey(command)
-		layer.text:SetText(key and GetBindingText(key, 1) or "")
+		layer.text:SetText(ns.keyLabel(key))
 	end
 	for _, el in ipairs(ELEMENTS) do draw(slots[el].keys, slots[el].command) end
 	for _, e in pairs(extras) do draw(e.keys, e.command) end
@@ -932,7 +929,7 @@ function layout()
 		if it.extra then on[it.key] = true end
 		b:SetSize(sz, sz)
 		-- Its key label scales with the icon.
-		if keyTexts[b] then ns.Media.setFont(keyTexts[b], "totembar", math.max(8, math.floor(sz * 0.3 + 0.5))) end
+		if keyTexts[b] then ns.Media.setFont(keyTexts[b], "totembar", ns.keyTextSize(sz)) end
 		b:ClearAllPoints()
 		if row then b:SetPoint("LEFT", bar, "LEFT", it.offset, 0) else b:SetPoint("TOP", bar, "TOP", 0, -it.offset) end
 	end

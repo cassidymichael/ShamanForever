@@ -131,6 +131,9 @@ local function elementDisplay(p, key)
 	edit:SetText("Edit group")
 	edit:SetScript("OnClick", function() local gi = ns.findElement(key); if gi then ns.Options.openGroup(gi) end end)
 	setTip(edit, "Edit group", "This group's settings on the Layout page.")
+	p:checkbox("Show keybinding text", "The key that casts it from your action bars, in its corner.",
+		function() return ns.elementSetting(key, "keys") == true end,
+		function(v) ns.elementOpts(key).keys = v or nil; relayout() end)
 end
 
 -- An element's own option (db.elementOpts), with its default (ns.elementSetting).
