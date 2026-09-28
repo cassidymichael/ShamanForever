@@ -608,6 +608,7 @@ end
 local SWING_COLOR = { { "imbue", "Imbue colour" }, { "custom", "Custom" } }
 local function buildSwing(p)
 	local key = "swing"
+	local R = ns.Swing.RANGES
 	local function custom() return ns.elementSetting(key, "colorBy") == "custom" end
 	local function account(name) return function() return ns.getAccount()[name] end end
 	elementDisplay(p, key)
@@ -615,16 +616,17 @@ local function buildSwing(p)
 	p:text("Idle is when you're not auto attacking. At 0% it's hidden and keeps its place in the group.")
 	p:slider("Idle opacity", "The bar's opacity while idle.", 0, 1, 0.05, pct, eget(key, "idleAlpha"), eset(key, "idleAlpha"))
 	p:header("Bar")
-	p:slider("Width", "At the default icon size; it grows with the icon.", 40, 400, 4, px,
+	p:slider("Width", "At the default icon size; it grows with the icon.", R.swingWidth[1], R.swingWidth[2], 4, px,
 		eget(key, "swingWidth"), eset(key, "swingWidth"))
-	p:slider("Height", "At the default icon size; it grows with the icon.", 4, 40, 1, px,
+	p:slider("Height", "At the default icon size; it grows with the icon.", R.swingHeight[1], R.swingHeight[2], 1, px,
 		eget(key, "swingHeight"), eset(key, "swingHeight"))
 	p:dropdown("Colour", nil, SWING_COLOR, eget(key, "colorBy"), eset(key, "colorBy"), nil, 160)
 	p:text("Your main hand's imbue, grey with none.", showWhen(function() return not custom() end))
 	p:color("Custom colour", nil, eget(key, "color"), eset(key, "color"), showWhen(custom))
 	p:header("Unsure")
 	p:text("After an attack speed change or a weapon swap mid-swing, the game doesn't say when your next swing comes. The fill fades until it does.")
-	p:slider("Fill opacity", "The fill's opacity while unsure.", 0, 1, 0.05, pct, eget(key, "unsureAlpha"), eset(key, "unsureAlpha"))
+	p:slider("Fill opacity", "The fill's opacity while unsure.", R.unsureAlpha[1], R.unsureAlpha[2], 0.05, pct,
+		eget(key, "unsureAlpha"), eset(key, "unsureAlpha"))
 	p:header("Blizzard's swing bar")
 	p:checkbox("Show Blizzard's too", "Blizzard's own swing bar, beside this one.", account("swingShowBlizzard"),
 		function(v) ns.getAccount().swingShowBlizzard = v; relayout() end)

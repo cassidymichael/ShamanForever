@@ -45,8 +45,10 @@ SW.DEFAULTS = {
 	colorBy = "imbue", color = { 0.9, 0.7, 0.2, 1 },
 	unsureAlpha = 0.35,
 }
--- The same ranges as its sliders (ShamanForever_Profiles.lua clamps imported ones to them too).
+-- Its numbers' ranges: the page's sliders take theirs from here, and ShamanForever_Profiles.lua
+-- clamps imported ones to them.
 local RANGES = { swingWidth = { 40, 400 }, swingHeight = { 4, 40 }, unsureAlpha = { 0, 1 } }
+SW.RANGES = RANGES
 local function setting(name) return ns.elementSetting(KEY, name) end
 local function number(name)
 	local v, r = setting(name), RANGES[name]
