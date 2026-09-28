@@ -35,11 +35,11 @@ there is no such section; the next change to list starts it.
 A beta is a test build of the next version, for players who chose to receive beta versions. Only
 beta tags are used, never alpha.
 
-1. The work is on a pushed branch: a work branch, or a `next` branch that is `main` plus the branches
-   in the test. It has been tested in game from there, as for anything bound for `main`.
-2. The branch's `## Unreleased` section lists everything the build changes for players since the
-   last release. It is the beta's release notes.
-3. Tag the branch's tip `vX.Y.Z-beta.N`, where X.Y.Z is the next release and N counts up from 1:
+1. Betas are tagged on `main`, so a beta holds only work tested in game: tested work handed to
+   players who opted in, before the next release gathers it up.
+2. `main`'s `## Unreleased` section lists everything the build changes for players since the last
+   release. It is the beta's release notes, and its wording is signed off before tagging.
+3. Tag `main`'s tip `vX.Y.Z-beta.N`, where X.Y.Z is the next release and N counts up from 1:
    `git tag -a vX.Y.Z-beta.N -m "ShamanForever X.Y.Z-beta.N" && git push origin vX.Y.Z-beta.N`
 
 A beta tag runs the same workflow as a release. CurseForge and Wago get a beta file, which reaches
