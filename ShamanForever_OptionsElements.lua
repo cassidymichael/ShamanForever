@@ -11,11 +11,23 @@ local Page, K = ns.Page, ns.Options.kit
 local showWhen, setTip, panelBackdrop = Page.showWhen, Page.setTip, Page.panelBackdrop
 local relayout, respell, get, set = K.relayout, K.respell, K.get, K.set
 local pct, int, px = Page.pct, Page.int, Page.px
-local isHidden, placeShown, SHOW_CHOICES = K.isHidden, K.placeShown, K.SHOW_CHOICES
+local SHOW_CHOICES = K.SHOW_CHOICES
 local timerSettings, gcdBlock, glowBlock, popBlock = K.timerSettings, K.gcdBlock, K.glowBlock, K.popBlock
 local expiringLooks, killedBlock = K.expiringLooks, K.killedBlock
 
 local function db() return ns.getDB() end
+
+-- The Group choices: every group by name, then New group; an ungrouped element's reads Ungrouped.
+-- Choosing one moves the element there and leaves its Show as it is.
+local function groupMenu(dd, key)
+	pcall(dd.SetDefaultText, dd, "Ungrouped")
+	dd:SetupMenu(function(_, root)
+		for _, g in ipairs(db().groups) do
+			root:CreateRadio(g.name, function() return ns.groupOf(key) == g end, function() ns.placeElement(key, g.id) end)
+		end
+		root:CreateButton("New group", function() ns.placeElement(key, "new") end)
+	end)
+end
 
 -- On an element's page, where "Hidden keeps its place" is shown as text under the control.
 local SHOW_TIP_PAGE = "Choosing Always or In combat again puts it back where it was. Groups have their own Show on the Layout page; an element shows only when both allow it. Everything visible shows while positioning is unlocked."
@@ -29,7 +41,7 @@ local ELEMENT_PAGES = {}   -- key -> page key, filled as element pages are built
 function EP.buildOverview(p)
 	p:header("Elements")
 	-- Columns sized to fit the page at the window's least width; they keep their places when it's wider.
-	local GROUP_X, SHOW_X, OPEN_X = 150, 260, 512
+	local GROUP_X, SHOW_X, OPEN_X = 150, 280, 512
 	do
 		local f = p:row(20)
 		local function col(text, x)
@@ -60,15 +72,8 @@ function EP.buildOverview(p)
 		unknown:SetText("Not learned")
 		local group = CreateFrame("DropdownButton", nil, f, "WowStyle1DropdownTemplate")
 		group:SetPoint("LEFT", GROUP_X, 0)
-		group:SetWidth(100)
-		group:SetupMenu(function(_, rootDescription)
-			for _, g in ipairs(db().groups) do
-				rootDescription:CreateRadio(g.name, function() return not isHidden(key) and ns.groupOf(key) == g end,
-					function() placeShown(key, g.id) end)
-			end
-			rootDescription:CreateRadio("New group", function() return false end, function() placeShown(key, "new") end)
-			rootDescription:CreateRadio("Hidden", function() return isHidden(key) end, function() ns.setShow(key, "never") end)
-		end)
+		group:SetWidth(120)
+		groupMenu(group, key)
 		local show = CreateFrame("DropdownButton", nil, f, "WowStyle1DropdownTemplate")
 		show:SetPoint("LEFT", SHOW_X, 0)
 		show:SetWidth(110)
@@ -117,25 +122,21 @@ local function elementDisplay(p, key)
 	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return ns.showMode(key) end,
 		function(v) ns.setShow(key, v) end, nil, 140)
 	p:text("Hidden keeps its place in its group.")
-	p:dropdown("Group", "Which group it sits in. Groups are arranged on the Layout page.", function()
-		local list = {}
-		for _, g in ipairs(db().groups) do table.insert(list, { g.id, g.name }) end
-		table.insert(list, { "new", "New group" })
-		table.insert(list, { "hidden", "Hidden" })
-		return list
-	end, function()
-		local g = ns.groupOf(key)
-		return isHidden(key) and "hidden" or g and g.id
-	end, function(v)
-		if v == "hidden" then ns.setShow(key, "never") else placeShown(key, v) end
-	end, nil, 140)
-	local groupRow = p.items[#p.items].frame
+	local groupRow = p:dropdown("Group", "Which group it sits in. Groups are arranged on the Layout page; ungrouped elements aren't on screen.",
+		{}, function() end, function() end, nil, 140)
+	groupMenu(groupRow.dropdown, key)
 	local edit = CreateFrame("Button", nil, groupRow, "UIPanelButtonTemplate")
 	edit:SetSize(96, 22)
 	edit:SetPoint("LEFT", groupRow.dropdown, "RIGHT", 8, 0)
 	edit:SetText("Edit group")
 	edit:SetScript("OnClick", function() local g = ns.groupOf(key); if g then ns.Options.openGroup(g.id) end end)
 	setTip(edit, "Edit group", "This group's settings on the Layout page.")
+	local item = p.items[#p.items]
+	local refresh = item.refresh
+	item.refresh = function()
+		refresh()
+		edit:SetEnabled(ns.groupOf(key) ~= nil)
+	end
 end
 
 -- An element's own option (db.elementOpts), with its default (ns.elementSetting).

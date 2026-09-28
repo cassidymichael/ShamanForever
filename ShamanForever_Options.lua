@@ -514,14 +514,6 @@ local COMBAT_SHOW = { { "always", "Always" }, { "combat", "In combat" }, { "targ
 local STAY_TIP = "Seconds it stays once combat ends, then it fades out."
 local function staySecs(v) return v == 0 and "None" or string.format("%d s", v) end
 
-local function isHidden(key) return ns.showMode(key) == "never" end
--- Into a group (or a new one) and shown: dropping a hidden element on a group shows it there.
-local function placeShown(key, target, index)
-	local hidden = isHidden(key)
-	ns.placeElement(key, target, index)
-	if hidden then ns.setShow(key, "always") end
-end
-
 ------------------------------------------------------------------------
 -- Totem bar (ShamanForever_TotemBar.lua)
 ------------------------------------------------------------------------
@@ -794,7 +786,7 @@ end
 -- (ShamanForever_OptionsLayout.lua, ShamanForever_OptionsElements.lua).
 OP.kit = {
 	relayout = relayout, respell = respell, get = get, set = set, confirm = confirm,
-	isHidden = isHidden, placeShown = placeShown, SHOW_CHOICES = SHOW_CHOICES,
+	SHOW_CHOICES = SHOW_CHOICES,
 	COMBAT_SHOW = COMBAT_SHOW, STAY_TIP = STAY_TIP, staySecs = staySecs,
 	generalRow = generalRow, borderRows = borderRows,
 	timerSettings = timerSettings, gcdBlock = gcdBlock, glowBlock = glowBlock, popBlock = popBlock,
