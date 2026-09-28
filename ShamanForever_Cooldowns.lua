@@ -124,7 +124,8 @@ local PARTS = {
 	ready = { readyPop = true, readyGlow = false },
 	idle = { idleAlpha = 0.35 },
 	-- Fire Nova: the no-fire-totem look, and when it counts as idle (never | nototem | offcd).
-	needsTotem = { blockedGrey = true, blockedRing = false, blockedPulse = false, idleWhen = "never" },
+	-- readyNoTotem: its cooldown ending with no fire totem down plays a greyed pop (grey) or nothing (none).
+	needsTotem = { blockedGrey = true, blockedRing = false, blockedPulse = false, idleWhen = "never", readyNoTotem = "grey" },
 	-- A totem's end: ran out (the pop) or killed early (Killed early's flash and cross).
 	totemSlot = { expiredPop = true, killed = true, killedPop = true, killedGlow = true, killedMark = true },
 	ranOut = { ranOutFlash = true, ranOutPop = false, ranOutGlow = false },   -- ran out, as a flash
@@ -251,15 +252,22 @@ CD.cooldownFor = cooldownFor
 -- Pop when ready: Blizzard's cooldown widget says when its swipe finishes (OnCooldownDone), a
 -- moment with no secret in it, so the icon can pop right then, in combat too. totemSlot: a spell
 -- that needs a totem down in that slot (Fire Nova), which isn't ready without one: an empty slot
--- has no duration object (see the file's header).
+-- has no duration object (see the file's header). Then the pop is greyed, a nudge to drop one, or
+-- none (readyNoTotem).
 local function popWhenReady(f, key, totemSlot)
 	f.cd:HookScript("OnCooldownDone", function()
 		if f.gcdUntil and GetTime() <= f.gcdUntil then return end   -- a global cooldown ended
+		if not (ns.isEnabled(key) and setting(key, "readyPop")) then return end
 		if totemSlot then
 			local ok, d = safe(GetTotemDuration, totemSlot)
-			if not (ok and d) then return end
+			if not ok then return end
+			if not d then
+				-- Not while dead, a ghost or on a flight path: no totem can be dropped then.
+				if setting(key, "readyNoTotem") == "grey" and not ns.cantAct() then f:Pop("blocked") end
+				return
+			end
 		end
-		if ns.isEnabled(key) and setting(key, "readyPop") then f:Pop() end
+		f:Pop()
 	end)
 end
 CD.popWhenReady = popWhenReady

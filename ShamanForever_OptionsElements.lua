@@ -138,10 +138,11 @@ local function eget(key, name) return function() return ns.elementSetting(key, n
 local function eset(key, name) return function(v) ns.elementOpts(key)[name] = v; relayout() end end
 
 -- Standard block: the moment a cooldown ends. A pop, and with glowTip a "use me" glow (off by
--- default).
-local function readyBlock(p, key, glowTip)
+-- default). afterPop: an optional row right after Pop, before the glow (like warningBlock's first).
+local function readyBlock(p, key, glowTip, afterPop)
 	p:header("Ready")
 	p:checkbox("Pop", "The moment the cooldown ends.", eget(key, "readyPop"), eset(key, "readyPop"))
+	if afterPop then afterPop() end
 	if glowTip then p:checkbox("Pulsing glow", glowTip, eget(key, "readyGlow"), eset(key, "readyGlow")) end
 end
 
@@ -223,6 +224,7 @@ local function buildShield(p)
 
 	warningBlock(p, "No shield", get("emptyGrey"), set("emptyGrey"), get("emptyRing"), set("emptyRing"), get("emptyPulse"), set("emptyPulse"))
 	p:checkbox("Red tint", "Tint the icon red.", get("emptyTint"), set("emptyTint"))
+	p:checkbox("Pulsing glow", "A glow inside the icon that pulses.", get("emptyGlow"), set("emptyGlow"))
 	p:slider("In-combat fallback", nil, 0, 1, 0.05, pct, get("underlayUp"), set("underlayUp"))
 	p:text("A shield that drops in combat is only noticed when you recast it or combat ends. Until then, the no-shield look shows at this strength.")
 
@@ -233,7 +235,7 @@ local function buildShield(p)
 	gcdBlock(p, "shield")
 	p:header("New shield")
 	p:checkbox("Pop", "The moment you cast a shield you track.", get("shieldPop"), set("shieldPop"))
-	effectBlocks(p, "shield", nil, false)
+	effectBlocks(p, "shield")
 end
 
 local function buildShock(p)
@@ -377,7 +379,11 @@ local function buildCooldown(p, def)
 	elseif timed then timerSettings(p, "Primed time left", key, "uptime") end
 	if not def.noReady then
 		readyBlock(p, key, def.needsTotem and "While it's off cooldown and a fire totem is down."
-			or def.readyGlow and "While it's off cooldown.")
+			or def.readyGlow and "While it's off cooldown.", def.needsTotem and function()
+				p:dropdown("Without a fire totem", "The pop when the cooldown ends with no fire totem down.",
+					{ { "grey", "Greyed pop" }, { "none", "Nothing" } }, eget(key, "readyNoTotem"), eset(key, "readyNoTotem"),
+					showWhen(eget(key, "readyPop")), 150)
+			end or nil)
 	end
 	if def.primed then primedBlock(p, def) end
 	if (def.needsTotem or def.totemSlot or timed) and def.expireLooks ~= false then

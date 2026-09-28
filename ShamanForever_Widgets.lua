@@ -266,7 +266,7 @@ function ns.applyGlowStyle() for _, g in ipairs(glows) do g:restyle() end end
 -- spreading out, a star behind it), tinted by what happened. Every part is built on the frame the
 -- first time it pops.
 local POP_TINT = { ready = { 1, 0.82, 0.25 }, imbue = { 0.35, 0.65, 1 }, expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 },
-	grounded = { 0.56, 0.76, 0.92 } }
+	grounded = { 0.56, 0.76, 0.92 }, blocked = { 0.6, 0.6, 0.6 } }
 ns.POP_TINT = POP_TINT
 -- An atlas if the client has it, else a plain texture.
 local function atlasOr(t, atlas, file)
@@ -348,6 +348,8 @@ local function popFx(f)
 	return x
 end
 -- kind: ready | imbue | expired | killed | grounded (the tint); owner: whose style (nil: General's).
+-- blocked: ready but it can't be cast (Fire Nova with no fire totem): grey and a dimmer flash, with
+-- Colour by event on or off, so it never reads as the full ready pop.
 -- Nothing on a frame that isn't visible (a combat-only group out of combat): it would wait there and
 -- play when the frame next shows, for something long over.
 function ns.playPop(f, kind, owner)
@@ -386,13 +388,14 @@ function ns.playPop(f, kind, owner)
 		a[4]:SetScaleFrom(o, o); a[4]:SetScaleTo(1, 1); a[4]:SetDuration(0.08 * k)
 		x.bounce:Play()
 	end
-	local c = st.tint and POP_TINT[kind or "ready"] or { 1, 1, 1 }
+	local muted = kind == "blocked"
+	local c = (st.tint or muted) and POP_TINT[kind or "ready"] or { 1, 1, 1 }
 	x.flashAnim:Stop()
 	if st.flash then
 		x.flash:SetVertexColor(c[1], c[2], c[3])
-		local a = x.flashAnim.a
-		a[1]:SetFromAlpha(0); a[1]:SetToAlpha(0.8); a[1]:SetDuration(0.06 * k)
-		a[2]:SetFromAlpha(0.8); a[2]:SetToAlpha(0); a[2]:SetDuration(0.3 * k)
+		local a, peak = x.flashAnim.a, muted and 0.4 or 0.8
+		a[1]:SetFromAlpha(0); a[1]:SetToAlpha(peak); a[1]:SetDuration(0.06 * k)
+		a[2]:SetFromAlpha(peak); a[2]:SetToAlpha(0); a[2]:SetDuration(0.3 * k)
 		x.flashAnim:Play()
 	end
 	-- The ring spreads from just inside the icon to 2.2 icon widths; the star from 1.2 to 3.5.

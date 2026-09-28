@@ -364,6 +364,7 @@ L.PREVIEW = {
 				if st == "down" then
 					ic:SetRingShown(d.emptyRing)
 					ic:SetPulsing(d.emptyPulse)
+					ic:SetGlowShown(d.emptyGlow)
 				else
 					ic.tex:SetAlpha(math.max(d.underlayUp, 0.08))
 				end
@@ -426,7 +427,11 @@ L.PREVIEW = {
 	firenova = {
 		cooldown = true, uptime = true,
 		states = { { "ready", "Ready" }, { "nototem", "No fire totem" }, { "out", "Fire totem out" }, { "expiring", "Totem expiring" } },
-		pop = function(ic, st) if st == "out" and opt("firenova", "readyPop") then ic:Pop() end end,
+		pop = function(ic, st)
+			if not opt("firenova", "readyPop") then return end
+			if st == "out" then ic:Pop()
+			elseif st == "nototem" and opt("firenova", "readyNoTotem") == "grey" then ic:Pop("blocked") end
+		end,
 		render = function(ic, st)
 			reset(ic, 135824)
 			if st == "expiring" then expiringLook(ic, "firenova", 55) return end
