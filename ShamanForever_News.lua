@@ -23,26 +23,29 @@ N.NOTES = {
 local MAX_SHOWN = 3     -- releases listed on Home after an update from further back
 local CHAT_DELAY = 5    -- seconds after login, so the line isn't lost among the others
 
--- "v0.9.0" or "0.9.0" (a packaged build may add "-2-gabc123"): major, minor, patch. nil for anything
--- else, such as a development copy's token.
+-- "v0.9.0", "0.9.0" or a beta, "v0.9.0-beta.2": major, minor, patch, and the beta's number (nil
+-- for a release). nil for anything else, such as a development copy's token.
 local function parse(v)
 	if type(v) ~= "string" then return nil end
-	local a, b, c = v:match("^v?(%d+)%.(%d+)%.?(%d*)")
+	local a, b, c = v:match("^v?(%d+)%.(%d+)%.(%d+)")
 	if not a then return nil end
-	return tonumber(a), tonumber(b), tonumber(c) or 0
+	return tonumber(a), tonumber(b), tonumber(c), tonumber(v:match("%-beta%.(%d+)$"))
 end
--- Whether version a comes after version b.
+-- Whether version a comes after version b. A release comes after its betas, so a beta tester still
+-- hears about the release.
 local function newer(a, b)
-	local a1, a2, a3 = parse(a)
-	local b1, b2, b3 = parse(b)
+	local a1, a2, a3, a4 = parse(a)
+	local b1, b2, b3, b4 = parse(b)
 	if not (a1 and b1) then return false end
 	if a1 ~= b1 then return a1 > b1 end
 	if a2 ~= b2 then return a2 > b2 end
-	return a3 > b3
+	if a3 ~= b3 then return a3 > b3 end
+	return (a4 or math.huge) > (b4 or math.huge)
 end
 local function plainVersion(v)
-	local a, b, c = parse(v)
-	return a and string.format("%d.%d.%d", a, b, c) or nil
+	local a, b, c, beta = parse(v)
+	if not a then return nil end
+	return string.format("%d.%d.%d", a, b, c) .. (beta and ("-beta." .. beta) or "")
 end
 
 -- This copy's version, "0.9.0"; nil for a development copy.
