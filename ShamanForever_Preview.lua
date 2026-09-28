@@ -41,7 +41,15 @@ local opts = { combat = true, busy = false, unlearned = true, replay = true }
 -- A step is one of the element's options preview states, held `hold` seconds, else until its timer
 -- runs out, else HOLD. Its start plays the state's moment (its pop or flash) while Replay is on; the
 -- first step is the picture while it's off. A one-step loop stays put (starting again, quietly, if
--- its timer runs out). By scene (combat: the in-combat one) and activity (busy).
+-- its timer runs out).
+--
+-- A script gives an element's loop: script(combat, busy) returns its steps, a list of
+-- { state, hold = seconds, quiet = true } (quiet: the step's start plays no moment); combat: the
+-- in-combat scene; busy: the Busy activity. It may return nil to take its kind's loop. States its
+-- options preview lacks are dropped. An element file gives its own script as `preview` in its
+-- ns.registerElement entry, or in its def (a line in COOLDOWNS or BUFFS); this file's SCRIPTS hold
+-- the older elements'. For example:
+--   preview = function(_, busy) return busy and { { "cd" }, { "ready" } } or { { "ready" } } end
 local HOLD = 4
 local IDLE_DELAY = ns.IDLE_DELAY   -- as on the HUD: a pop plays at full, then the icon goes idle
 
@@ -90,8 +98,8 @@ local SCRIPTS = {
 	elementalfocus = calmBusy({ { "up" } }, { { "up", hold = 5 }, { "idle", hold = 2 } }),
 	tremor = calmBusy({ { "warn" } }, { { "warn", hold = 6 }, { "idle", hold = 2 } }),
 }
--- An element without its own loop (a new one): by its kind.
-local function kindSteps(_, busy, key)
+-- An element without a loop of its own (a new one): by its kind.
+local function kindSteps(key, busy)
 	local e = ns.ELEMENTS[key]
 	if e.kind == "cooldown" then return busy and { { "cd" }, { "ready", hold = 2.5 } } or { { "ready" } } end
 	if e.kind == "buff" then return { { "up" } } end
@@ -101,11 +109,13 @@ end
 -- Only the states the element's preview has (a setting can't take one away, but a new element's
 -- kind might lack one).
 local function stepsFor(key)
-	local def = L.PREVIEW[key]
+	local def, e = L.PREVIEW[key], ns.ELEMENTS[key]
+	local script = SCRIPTS[key] or e.preview or (e.def and e.def.preview)
+	local steps = (script and script(opts.combat, opts.busy)) or kindSteps(key, opts.busy)
 	local valid = {}
 	for _, st in ipairs(def.states) do valid[st[1]] = true end
 	local out = {}
-	for _, step in ipairs((SCRIPTS[key] or kindSteps)(opts.combat, opts.busy, key)) do
+	for _, step in ipairs(steps) do
 		if valid[step[1]] then table.insert(out, step) end
 	end
 	if #out == 0 then out[1] = { def.states[1][1] } end
