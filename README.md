@@ -37,7 +37,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - **Mana Tide Totem**: its cooldown and the totem's time left, a glow in its last seconds and a flash when it runs out.
 - **Grounding Totem**: its cooldown and the totem's time left, and a flash when it ends early (it took a spell, or was destroyed).
 - **Stormstrike**: its cooldown, and a bar while its effect lasts: 12 seconds from your cast, or until your next Lightning Bolt, Chain Lightning or Earth Shock. Other Nature damage on the target can use it up without the addon seeing.
-- **Riptide** and **Totemic Projection**: their cooldowns.
+- **Riptide**, **Totemic Projection**, **Lava Burst** and **Chain Lightning**: their cooldowns.
 - **Rage of the Farseer**: its cooldown, and the time left on its 25 seconds, timed from your cast.
 - **Reincarnation**: its cooldown, hidden while it's ready by default. It shows your Ankh count, and warns when you're low or out, if the spell still needs an Ankh.
 - **Water Walking** and **Water Breathing**: time left while up, hidden while not by default, and a warning in the last 30 seconds. The time is exact out of combat. In combat, and all through a PvP match, it carries on from the last reading, and casting the spell on yourself restarts it. Water Breathing can also warn when your breath bar starts to drain and it isn't up.
