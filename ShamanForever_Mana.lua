@@ -202,7 +202,28 @@ local function restoLeads()
 	end
 	return resto > 0 and resto > best
 end
-local resto = false   -- the last reading (kept while the talents can't be read)
+local resto = false        -- the last reading (kept while the talents can't be read)
+local specRead = false     -- whether the reading is current (read since the last skip)
+
+-- Reads the talents while the Mana element is on and uses the default pick (it's all the reading
+-- decides). In combat, once combat ends: the sections were only probed out of combat. Returns
+-- whether the reading changed.
+local function readSpec()
+	if not ns.isEnabled(KEY) or ns.elementOpts(KEY).casts ~= nil then
+		specRead = false
+		return false
+	end
+	if InCombatLockdown() then
+		ns.retryAfterCombat("mana talents", function() if readSpec() then ns.applyLayout() end end)
+		return false
+	end
+	local r = restoLeads()
+	if r == nil then return false end   -- not readable yet: the next spellbook scan tries again
+	specRead = true
+	local changed = r ~= resto
+	resto = r
+	return changed
+end
 
 -- The default pick: Healing Wave's highest known rank when Restoration leads, else Lightning Bolt's.
 local function defaultPicks()
@@ -773,13 +794,6 @@ local function onMaxPower()
 	paint()
 end
 
--- Talents changed: the default pick may change. Costs stay: one that rose is read at the next
--- refresh, one that fell at the spell's next cast.
-local function onTalents()
-	local r = restoLeads()
-	if r ~= nil then resto = r end
-	ns.applyLayout()
-end
 
 local function onEvent(_, event, a1, a2, a3, a4)
 	if event == "UNIT_POWER_FREQUENT" then
@@ -793,7 +807,9 @@ local function onEvent(_, event, a1, a2, a3, a4)
 		-- A bigger potion may be allowed now. A second later: UnitLevel can still say the old level.
 		C_Timer.After(1, function() if potionOn then ns.try("mana potion", refreshPotion) end end)
 	elseif event == "TRAIT_CONFIG_UPDATED" then
-		if InCombatLockdown() then ns.retryAfterCombat("mana talents", onTalents) else onTalents() end
+		-- The default pick may change. Costs stay: one that rose is read at the next refresh, one that
+		-- fell at the spell's next cast.
+		if readSpec() then ns.applyLayout() end
 	end
 end
 
@@ -833,10 +849,7 @@ end
 
 -- After a spellbook scan: the talents (the default pick), then the picks known. Returns a signature.
 function M.resolve()
-	if not InCombatLockdown() then
-		local r = restoLeads()
-		if r ~= nil then resto = r end
-	end
+	readSpec()
 	return resolvePicks()
 end
 
@@ -849,6 +862,7 @@ function M.afterGroups()
 	listen(ns.isActive() and (manaOn or potionOn))
 	readMax()
 	if manaOn then
+		if not specRead then readSpec() end   -- just turned on, or back to the default pick
 		resolvePicks()
 		rereadCosts()
 		styleMana()
