@@ -643,7 +643,7 @@ local function initAuraButton(slot, button)
 	if o.iconAlpha then tex:SetAlpha(o.iconAlpha()) end
 	button:SetIcon(tex)
 	slot.icon = tex
-	-- A masked frame look's mask: only now, on the button (ns.Looks.auraMask).
+	-- A frame look's mask and art: only now, on the button (ns.Looks.auraMask).
 	ns.try(o.sites.style, ns.Looks.auraMask, button, tex, o.key)
 	local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
 	cd:SetAllPoints()

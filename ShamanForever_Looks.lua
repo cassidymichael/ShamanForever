@@ -151,6 +151,14 @@ local function drawCaps(f, caps, out, b, school)
 	return beyond
 end
 
+-- Stretched art's place over `over`, an icon w wide.
+local function placeArt(t, art, over, w)
+	local i = art.inset
+	t:ClearAllPoints()
+	t:SetPoint("TOPLEFT", over, "TOPLEFT", -i[1] * w, i[3] * w)
+	t:SetPoint("BOTTOMRIGHT", over, "BOTTOMRIGHT", i[2] * w, -i[4] * w)
+end
+
 -- Stretched art: a texture on f itself, so it draws over the icon's picture and under f's children
 -- (its swipe, timers and text), as Blizzard draws its own buttons' frames.
 local function drawOverlay(f, art)
@@ -163,10 +171,7 @@ local function drawOverlay(f, art)
 		t = f:CreateTexture(nil, "OVERLAY", nil, 7)
 		f.frameOverlay = t
 	end
-	local w, i = f:GetWidth(), art.inset
-	t:ClearAllPoints()
-	t:SetPoint("TOPLEFT", f, "TOPLEFT", -i[1] * w, i[3] * w)
-	t:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", i[2] * w, -i[4] * w)
+	placeArt(t, art, f, f:GetWidth())
 	if art.atlas then t:SetAtlas(art.atlas) else t:SetTexture(art.file) end
 	t:Show()
 end
@@ -216,10 +221,21 @@ local function maskOf(look)
 	if m and m.atlas and not Looks.hasAtlas(m.atlas) then return nil end
 	return m
 end
+-- The look a border style b draws in (nil: the border is off).
+local function lookFor(b)
+	local look = b and b.show and S.look("border", b.look)
+	if look and artMissing(look) then return NO_ART end
+	return look or nil
+end
 -- The mask for a border style b (nil: none, or the border is off).
 local function maskFor(b)
-	local look = b and b.show and S.look("border", b.look)
-	return look and not artMissing(look) and maskOf(look) or nil
+	local look = lookFor(b)
+	return look and maskOf(look) or nil
+end
+-- The stretched art for a border style b (nil: none, or the border is off).
+local function artFor(b)
+	local look = lookFor(b)
+	return look and look.art and not look.art.margin and look.art or nil
 end
 
 -- A mask texture's art and place: spec over the rect of `over` (the icon's picture), w and h its
@@ -329,28 +345,37 @@ function Looks.outerEdge(f) return f and f.frameOuter or 0 end
 -- Blizzard's aura button (the shield, Elemental Focus via ns.makeAuraSlot) takes a mask only when
 -- it is made on the button while Blizzard makes the button (the slot's initializeFrame); one made
 -- on our frames, or added later in combat, is refused (tested 2026-09-28). So a masked look's mask
--- is made there, from the element's border look at that moment. key: the element. Returns the
--- mask, or nil for a look without one. Adding a mask later out of combat, or changing its art, is
--- untested, so the button keeps the look it was made with until the next /reload.
-local auraMade = setmetatable({}, { __mode = "k" })   -- aura icon -> { key, spec, mask, swipe }
+-- is made there, from the element's border look at that moment, and so is its stretched art: the
+-- aura's icon on the button covers everything drawn on the element's own frame. key: the element.
+-- Adding a mask later out of combat, or changing its art, is untested, so the button keeps the look
+-- it was made with until the next /reload. The element's frame keeps its own art too, for while
+-- the button is hidden (no aura).
+local auraMade = setmetatable({}, { __mode = "k" })   -- aura icon -> { key, spec, mask, swipe, art }
 function Looks.auraMask(button, tex, key)
 	local b = ns.borderFor(key)
-	local spec = maskFor(b)
-	local made = { key = key, spec = spec, swipe = spec and S.look("border", b.look).swipe }
+	local spec, art, size = maskFor(b), artFor(b), ns.sizeOf(key)
+	local made = { key = key, spec = spec, swipe = spec and lookFor(b).swipe, art = art }
 	auraMade[tex] = made
-	if not spec then return end
-	local m = button:CreateMaskTexture()
-	placeMask(m, spec, tex, ns.sizeOf(key))
-	tex:AddMaskTexture(m)
-	made.mask = m
-	return m
+	if art then
+		local t = button:CreateTexture(nil, "OVERLAY", nil, 7)
+		if art.atlas then t:SetAtlas(art.atlas) else t:SetTexture(art.file) end
+		placeArt(t, art, button, size)
+		made.artTex = t
+	end
+	if spec then
+		local m = button:CreateMaskTexture()
+		placeMask(m, spec, tex, size)
+		tex:AddMaskTexture(m)
+		made.mask = m
+	end
 end
 
--- The aura slot's restyle (out of combat, auras readable; AuraSlot:style): the mask's size for a
--- mask larger than the picture, and the swipe in the mask's shape.
+-- The aura slot's restyle (out of combat, auras readable; AuraSlot:style): the art's place and the
+-- mask's size for the icon's size, and the swipe in the mask's shape.
 function Looks.auraStyle(slot, size)
 	local made = slot.icon and auraMade[slot.icon]
-	if not made or not made.spec then return end
+	if not made then return end
+	if made.artTex then placeArt(made.artTex, made.art, slot.button, size) end
 	if made.mask and (made.spec.scale or 1) ~= 1 then placeMask(made.mask, made.spec, slot.icon, size) end
 	if made.swipe and slot.cd then slot.cd:SetSwipeTexture(made.swipe) end
 end
@@ -366,7 +391,8 @@ function Looks.auraStale(owner)
 			for _, k in ipairs(g.members) do if k == made.key then group = g end end
 		end
 		local reaches = owner == group or (owner == nil and (group == nil or S.follows(group, "border")))
-		if reaches and maskFor(ns.borderFor(made.key)) ~= made.spec then table.insert(out, made.key) end
+		local b = ns.borderFor(made.key)
+		if reaches and (maskFor(b) ~= made.spec or artFor(b) ~= made.art) then table.insert(out, made.key) end
 	end
 	table.sort(out)
 	return out
