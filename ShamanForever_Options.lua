@@ -125,13 +125,6 @@ local function lookChoices(kind)
 	return out
 end
 
--- An EXPERIMENTAL badge under a look picker while the look picked isn't tested in game yet.
-local function lookBadge(p, feature, experimental, shown)
-	local f = p:row(22)
-	ns.Look.expBadge(f, feature):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
-	p:add(f, 22, showWhen(experimental, shown))
-end
-
 -- Standard rows: the border around icons, General's or an owner's (a group, the totem bar). Size
 -- and colour show only for looks that use them. The HUD lays out only out of combat (the shield's
 -- group and the totem bar's buttons are protected then), so a change made in combat reaches it
@@ -145,7 +138,6 @@ local function borderRows(p, owner, after, label, shown)
 	local function uses(part) return function() return bordered() and ns.Looks.uses(look(), part) end end
 	p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"), showWhen(r.own, shown))
 	p:dropdown("Border look", nil, lookChoices("border"), r.get("look"), r.set("look"), showWhen(bordered, shown), 190)
-	lookBadge(p, "Border looks", function() return look().experimental end, showWhen(bordered, shown))
 	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("size"), r.set("size"), showWhen(uses("size"), shown))
 	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), showWhen(uses("color"), shown))
 	p:text("Changes reach the HUD when combat ends.", showWhen(InCombatLockdown, showWhen(r.own, shown)))
@@ -511,7 +503,6 @@ local function buildAbout(p)
 	p:text("I can't test these in game yet. If you can, please try them and tell me whether they work and what could be improved.")
 	p:experimental("Water Shield", "Shields > Track")
 	p:experimental("Either shield", "Shields > Track")
-	if ns.Looks.anyExperimental("border") then p:experimental("Border looks", "General > Border") end
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
 		local e = ns.ELEMENTS[key]
 		if e.experimental then p:experimental(e.experimental, "Elements > " .. e.label) end

@@ -239,22 +239,16 @@ local GOLD = { 0.71, 0.55, 0.29, 1 }   -- the options window's gold
 local BRONZE_HI, BRONZE_LO, BRONZE_DARK = { 0.85, 0.68, 0.39, 1 }, { 0.43, 0.29, 0.13, 1 }, { 0.10, 0.07, 0.03, 1 }
 
 S.addLook("border", "line", { name = "Line", rings = { { px = "size", color = "setting" } } })
-S.addLook("border", "hairline", { name = "Gold hairline", experimental = true,
+S.addLook("border", "hairline", { name = "Gold hairline",
 	rings = { { color = BLACK }, { color = GOLD }, { color = BLACK } } })
-S.addLook("border", "school", { name = "School edge", experimental = true,
+S.addLook("border", "school", { name = "School edge",
 	rings = { { color = BLACK }, { color = "school" } } })
 -- Lit from the top left.
-S.addLook("border", "bevel", { name = "Bronze bevel", experimental = true,
+S.addLook("border", "bevel", { name = "Bronze bevel",
 	rings = { { color = BLACK }, { top = BRONZE_HI, left = BRONZE_HI, bottom = BRONZE_LO, right = BRONZE_LO },
 		{ color = BRONZE_DARK } } })
-S.addLook("border", "caps", { name = "Corner caps", experimental = true,
+S.addLook("border", "caps", { name = "Corner caps",
 	rings = { { px = "size", color = "setting" } }, caps = { px = 2, len = 6, color = BRONZE_HI } })
-
--- Whether any of a kind's looks is experimental (About's list).
-function Looks.anyExperimental(kind)
-	for _, e in ipairs(S.LOOKS[kind].order) do if e.experimental then return true end end
-	return false
-end
 
 ------------------------------------------------------------------------
 -- Burster: textures that grow, fade and turn frame by frame (the pop's ring and star), sized

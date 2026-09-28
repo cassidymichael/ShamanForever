@@ -68,7 +68,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - Show each element always, only in combat, or never. A group can show only in combat.
 - Positioning mode: drag groups and the totem bar, with snapping and a grid. Mouse wheel sets icon size, Ctrl+wheel scale, Shift+wheel opacity, and the arrow keys nudge. It locks itself when combat starts.
 - Borders and warning rings stay pixel-sharp at any icon size.
-- Border look: a plain line, a gold hairline, an edge in the element's school colour, a bronze bevel, or corner caps (all but the line experimental).
+- Border look: a plain line, a gold hairline, an edge in the element's school colour, a bronze bevel, or corner caps.
 - Test elements (`/sf test`): placeholder icons for trying out a layout, and elements you haven't learned yet, greyed.
 
 ### Options and profiles
