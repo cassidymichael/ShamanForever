@@ -19,6 +19,17 @@ ns.BACKDROP = { bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\
 
 -- A spell icon without Blizzard's built-in border.
 function ns.cropIcon(tex) tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
+-- The same, drawn at its frame's exact rect: for an element's icon and the copies laid over it,
+-- which a cooldown swipe covers. A texture snaps to the pixel grid, and a cropped one's edge can
+-- round to a different pixel than the swipe's, which doesn't snap: at some positions and scales a
+-- 1 px sliver of icon shows past the swipe's edge. Unsnapped, it fills the rect the swipe fills.
+function ns.cropIconExact(tex)
+	ns.cropIcon(tex)
+	if tex.SetSnapToPixelGrid then
+		tex:SetSnapToPixelGrid(false)
+		tex:SetTexelSnappingBias(0)
+	end
+end
 
 -- The icon size text sizes are given at (the default): text on an icon scales with it from here.
 ns.BASE_ICON_SIZE = 44
@@ -430,7 +441,7 @@ function ns.makeEndFlash(parent, anchor, owner)
 	kf.glow:color(1, 0.12, 0.08)
 	kf.icon = kf.body:CreateTexture(nil, "ARTWORK")
 	kf.icon:SetAllPoints()
-	ns.cropIcon(kf.icon)
+	ns.cropIconExact(kf.icon)
 	kf.icon:SetDesaturated(true)
 	kf.red = kf.body:CreateTexture(nil, "OVERLAY")
 	kf.red:SetAllPoints()
@@ -469,7 +480,7 @@ function ns.makeEndFlash(parent, anchor, owner)
 	kf.mark:Hide()
 	kf.mark.icon = kf.mark:CreateTexture(nil, "ARTWORK")
 	kf.mark.icon:SetAllPoints()
-	ns.cropIcon(kf.mark.icon)
+	ns.cropIconExact(kf.mark.icon)
 	kf.mark.icon:SetDesaturated(true)
 	kf.mark.icon:SetAlpha(0.6)
 	kf.mark.x = kf.mark:CreateTexture(nil, "OVERLAY")
@@ -602,7 +613,7 @@ local function initAuraButton(slot, button)
 	pcall(button.SetMouseMotionEnabled, button, false)
 	local tex = button:CreateTexture(nil, "ARTWORK")
 	tex:SetAllPoints()
-	ns.cropIcon(tex)
+	ns.cropIconExact(tex)
 	if o.iconAlpha then tex:SetAlpha(o.iconAlpha()) end
 	button:SetIcon(tex)
 	slot.icon = tex
@@ -686,7 +697,7 @@ function ns.makeIcon(parent, size, owner)
 	f:SetSize(size, size)
 	f.tex = f:CreateTexture(nil, "ARTWORK")
 	f.tex:SetAllPoints()
-	ns.cropIcon(f.tex)
+	ns.cropIconExact(f.tex)
 	f.manaOverlay = f:CreateTexture(nil, "ARTWORK", nil, 2)
 	f.manaOverlay:SetAllPoints(f.tex)
 	f.manaOverlay:SetColorTexture(0.2, 0.45, 1, 0.55)

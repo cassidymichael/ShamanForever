@@ -401,7 +401,7 @@ for index, el in ipairs(ELEMENTS) do
 	v.bg:SetAllPoints()
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
-	ns.cropIcon(v.icon)
+	ns.cropIconExact(v.icon)
 	-- Time left: a timer (text, swipe, bar), above the warning layer so it stays readable.
 	s.timer = ns.Timer.new(v, "totembar", "uptime", { anchor = v, school = el })
 	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + 3)
@@ -523,7 +523,7 @@ for _, e in ipairs({ { "Call", CALL }, { "Recall", RECALL } }) do
 	v:SetFrameLevel(b:GetFrameLevel() + 2)
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
-	ns.cropIcon(v.icon)
+	ns.cropIconExact(v.icon)
 	extras[key] = { key = key, spell = spell, button = b, vis = v, keys = keyLayer(v), gcd = gcdSweep(v),
 		command = "CLICK ShamanForeverKey" .. key .. ":LeftButton" }
 end
