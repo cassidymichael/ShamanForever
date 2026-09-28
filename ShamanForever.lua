@@ -15,8 +15,9 @@ local Spells = ns.Spells
 -- An element sits in one group, or in none (ungrouped: not drawn, its settings kept). The group owns
 -- its position, scale, opacity and flow; whether the element is drawn (always, in combat, never) is
 -- its own setting in db.elementOpts. Positions are offsets in the group's own (scaled) units. A group
--- also has an id, which never changes (what the options and positioning hold on to), and a name,
--- unique in the profile; it stays when its last element leaves, until deleted.
+-- also has an id, which never changes while it exists (what the options and positioning hold on to;
+-- a deleted group's may be given to a later one), and a name, unique in the profile; it stays when
+-- its last element leaves, until deleted.
 local GROUP_DEFAULTS = {
 	point = "CENTER", x = 0, y = -160, scale = 1, alpha = 0.75,
 	-- Icon size: General's, or the group's own (Size keeps lines crisp; Scale grows everything).
@@ -416,15 +417,28 @@ local function fixNames()
 	end
 end
 
+local function isPlaceholder(key) return ELEMENTS[key] ~= nil and ELEMENTS[key].placeholder == true end
+
 -- Makes db.groups consistent: fills missing group fields, gives each group an id and a name, drops
 -- unknown, unavailable and duplicate members, and places elements never seen before (new in an
 -- update, or test ones) where the default layout has them (placeNew). Elements seen before but in no
--- group stay ungrouped. A group left empty stays.
+-- group stay ungrouped. A group left empty stays, except one that held only test elements while
+-- they are off: it goes with them, so turning them on again makes a fresh one.
 local function sanitize()
 	each("sanitize", db, acct)
 	if type(db.groups) ~= "table" then db.groups = {} end
 	if type(db.known) ~= "table" then db.known = {} end
 	local seen = {}
+	for i = #db.groups, 1, -1 do
+		local members = db.groups[i].members
+		if type(members) == "table" and #members > 0 then
+			local onlyTest = true
+			for _, key in ipairs(members) do
+				if not isPlaceholder(key) or available(key) then onlyTest = false end
+			end
+			if onlyTest then table.remove(db.groups, i) end
+		end
+	end
 	for _, g in ipairs(db.groups) do
 		if g.combatOnly then g.show = "combat" end   -- saved before a group's Show had choices
 		g.combatOnly = nil
@@ -460,24 +474,13 @@ local function sanitize()
 	end
 end
 
-local function isPlaceholder(key) return ELEMENTS[key] ~= nil and ELEMENTS[key].placeholder == true end
-
--- Test elements are forgotten when switched off, with any group holding nothing else, so switching
--- back on puts them in a fresh group.
+-- Test elements are forgotten when switched off (in every profile), and their group goes with them
+-- (sanitize), so switching back on puts them in a fresh group.
 local function setTestMode(on)
 	acct.testMode = on
 	if not on then
 		for _, prof in pairs(acct.profiles) do
 			for _, p in ipairs(PLACEHOLDERS) do if type(prof.known) == "table" then prof.known[p.key] = nil end end
-			local groups = type(prof.groups) == "table" and prof.groups or {}
-			for i = #groups, 1, -1 do
-				local members = type(groups[i]) == "table" and groups[i].members
-				if type(members) == "table" and #members > 0 then
-					local onlyTest = true
-					for _, key in ipairs(members) do if not isPlaceholder(key) then onlyTest = false end end
-					if onlyTest then table.remove(groups, i) end
-				end
-			end
 		end
 	end
 	sanitize()
