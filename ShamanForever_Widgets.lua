@@ -332,10 +332,6 @@ local function popFx(f)
 	fx:SetFrameLevel(f:GetFrameLevel() + 12)
 	fx:EnableMouse(false)
 	x.fx = fx
-	-- Behind the icon (a pop look's shapes; ns.Looks sets its level on each play).
-	x.back = CreateFrame("Frame", nil, f.effects or f)
-	x.back:SetAllPoints()
-	x.back:EnableMouse(false)
 	x.flash = fx:CreateTexture(nil, "OVERLAY")
 	x.flash:SetAllPoints()
 	x.flash:SetTexture("Interface\\Buttons\\WHITE8x8")

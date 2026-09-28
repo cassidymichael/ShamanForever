@@ -953,7 +953,12 @@ function Looks.popStyle(st, kind, f)
 	if look.motion then out.motion, out.size = look.motion(school) end
 	out.flash, out.ring, out.star = false, false, false
 	out.play = function(x, k)
-		x.back:SetFrameLevel(math.max(f:GetFrameLevel() - 1, 0))   -- behind the icon, as it stands now
+		if not x.back then   -- behind the icon: only pops in these looks need it
+			x.back = CreateFrame("Frame", nil, f.effects or f)
+			x.back:SetAllPoints()
+			x.back:EnableMouse(false)
+		end
+		x.back:SetFrameLevel(math.max(f:GetFrameLevel() - 1, 0))   -- as the icon stands now
 		local h = math.max(f:GetHeight(), 8) + 2 * Looks.outerEdge(f)
 		local c = ns.SCHOOL_COLOR[school] or ns.SCHOOL_COLOR.spirit
 		look.play(x, f, c, k, h, st, school)
