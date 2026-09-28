@@ -1088,6 +1088,92 @@ local function buildTotemBar(p)
 			ns.Spells.name("call"), ns.Spells.name("recall"))
 	end)
 
+	-- Sets change the picks Blizzard's bar and the keys use too, so they show in every mode.
+	p.gate = nil
+	p:header("Sets")
+	p:text("Your four picks, saved under a name. Picks change only out of combat.")
+	local Sets = TB.sets
+	local saveRow = p:row(30)
+	p:label(saveRow, "Save picks as")
+	local nameBox = CreateFrame("EditBox", nil, saveRow, "InputBoxTemplate")
+	nameBox:SetSize(180, 20)
+	nameBox:SetPoint("LEFT", saveRow, "LEFT", LABEL_W + 6, 0)
+	nameBox:SetAutoFocus(false)
+	nameBox:SetMaxLetters(24)
+	local saveButton = CreateFrame("Button", nil, saveRow, "UIPanelButtonTemplate")
+	saveButton:SetSize(80, 22)
+	saveButton:SetPoint("LEFT", nameBox, "RIGHT", 8, 0)
+	saveButton:SetText("Save")
+	local function saveSet()
+		local name = strtrim(nameBox:GetText() or "")
+		if name == "" then
+			local n = #Sets.list() + 1
+			while Sets.find("Set " .. n) do n = n + 1 end
+			name = "Set " .. n
+		end
+		if Sets.save(name) then nameBox:SetText("") else ns.say("totem sets: %d at most", Sets.MAX) end
+		nameBox:ClearFocus()
+		OP.refresh()
+	end
+	saveButton:SetScript("OnClick", saveSet)
+	nameBox:SetScript("OnEnterPressed", saveSet)
+	nameBox:SetScript("OnEscapePressed", nameBox.ClearFocus)
+	setTip(saveButton, "Save", "Saves the current picks. A set of the same name is replaced.")
+	ns.Look.expBadge(saveRow, "Totem sets"):SetPoint("LEFT", saveButton, "RIGHT", 10, 0)
+	p:add(saveRow, 30)
+	-- One row per saved set: its name, its four picks, Apply and a small X to delete it.
+	for i = 1, Sets.MAX do
+		local r = p:row(30)
+		r.name = r:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		r.name:SetPoint("LEFT", 4, 0)
+		r.name:SetWidth(LABEL_W - 8)
+		r.name:SetJustifyH("LEFT")
+		r.icons = {}
+		for j, el in ipairs(TB.ELEMENTS) do
+			local ic = r:CreateTexture(nil, "ARTWORK")
+			ic:SetSize(22, 22)
+			ic:SetPoint("LEFT", r, "LEFT", LABEL_W + 6 + (j - 1) * 26, 0)
+			ns.cropIcon(ic)
+			r.icons[el] = ic
+		end
+		local apply = CreateFrame("Button", nil, r, "UIPanelButtonTemplate")
+		apply:SetSize(80, 22)
+		apply:SetPoint("LEFT", r, "LEFT", LABEL_W + 6 + 4 * 26 + 8, 0)
+		apply:SetText("Apply")
+		apply:SetScript("OnClick", function() local saved = Sets.list()[i]; if saved then Sets.apply(saved.name) end end)
+		setTip(apply, "Apply", "Picks these totems. In combat, when it ends.")
+		local x = CreateFrame("Button", nil, r, "UIPanelButtonTemplate")
+		x:SetSize(24, 22)
+		x:SetPoint("LEFT", apply, "RIGHT", 6, 0)
+		x:SetText("X")
+		x:SetScript("OnClick", function()
+			local saved = Sets.list()[i]
+			if saved then Sets.remove(saved.name); OP.refresh() end
+		end)
+		setTip(x, "Delete", "Deletes this set.")
+		p:add(r, 30, function() return Sets.list()[i] ~= nil end, function()
+			local saved = Sets.list()[i]
+			if not saved then return end
+			r.name:SetText(saved.name)
+			for _, el in ipairs(TB.ELEMENTS) do
+				local id, ic = saved.picks[el], r.icons[el]
+				if type(id) == "number" and id > 0 then ic:SetTexture(C_Spell.GetSpellTexture(id))
+				else ic:SetColorTexture(0.1, 0.1, 0.1, 1) end
+			end
+		end)
+	end
+	local anySet = function() return #Sets.list() > 0 end
+	p:text("Switch to a set when you enter:", anySet)
+	for _, content in ipairs(Sets.CONTENT) do
+		local key = content[1]
+		p:dropdown(content[2], nil, function()
+			local choices = { { "", "Don't switch" } }
+			for _, saved in ipairs(Sets.list()) do table.insert(choices, { saved.name, saved.name }) end
+			return choices
+		end, function() return c().setRules[key] or "" end,
+		function(v) c().setRules[key] = v ~= "" and v or nil; OP.refresh() end, anySet, 180)
+	end
+
 	p.gate = TB.barOn
 	p:header("Border")
 	borderRows(p, "totembar", changed)

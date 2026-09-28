@@ -51,6 +51,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - When a different totem is down, your pick can show small beside the slot.
 - Pulse timers (experimental): a bar or seconds to the next pulse of Tremor, Earthbind, Stoneclaw, Magma and the cleansing totems, timed from your cast.
 - Call of the Elements and Totemic Recall buttons. Right-click Recall to dismiss every totem.
+- Totem sets (experimental): save your four picks under a name and switch to a set by hand, or on entering the open world, a dungeon, a raid, or a battleground or arena.
 - Key bindings to drop each element's totem, dismiss one or all, and cast Call and Recall. Bind them by hovering the bar in Quick Keybind Mode. Each button can show its key.
 - It can replace Blizzard's totem bar and active totems display, just the active totems display, or neither (the key bindings still work).
 - Show it always, in combat or while a totem is down, or only in combat. Drag to reorder the slots.
