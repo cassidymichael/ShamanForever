@@ -53,6 +53,7 @@ end
 --          picture's, centred; default 1).
 --   swipe  a file for the icon's cooldown swipe (f.cd), shaped like the mask.
 --   experimental  not tested in game yet (the options badge it).
+-- A look whose Blizzard art is missing from the client draws a plain 1 px black line instead.
 -- A look drawn with AI-made art is credited in the README and About's Art text.
 -- Lines and caps are screen pixels (ns.linePx): crisp, grown by Scale, not by icon Size. They sit
 -- outside the icon's edge, so they never cover the rings inside it or Blizzard's aura button.
@@ -202,6 +203,13 @@ local function drawSlice(f, art)
 	return px
 end
 
+-- A frame look whose Blizzard art the client lacks, and what draws in its place.
+local NO_ART = { rings = { { color = BLACK } } }
+local function artMissing(look)
+	local a, m = look.art and look.art.atlas, look.mask and look.mask.atlas
+	return (a and not Looks.hasAtlas(a)) or (m and not Looks.hasAtlas(m)) or false
+end
+
 -- A look's mask, if the client has its art.
 local function maskOf(look)
 	local m = look.mask
@@ -210,7 +218,8 @@ local function maskOf(look)
 end
 -- The mask for a border style b (nil: none, or the border is off).
 local function maskFor(b)
-	return b and b.show and maskOf(S.look("border", b.look)) or nil
+	local look = b and b.show and S.look("border", b.look)
+	return look and not artMissing(look) and maskOf(look) or nil
 end
 
 -- A mask texture's art and place: spec over the rect of `over` (the icon's picture), w and h its
@@ -290,6 +299,7 @@ end
 -- outside f's edge (f's units), for Looks.outerEdge.
 function ns.applyBorder(f, b)
 	local look = S.look("border", b and b.look)
+	if artMissing(look) then look = NO_ART end
 	local on = b and b.show and (not Looks.uses(look, "size") or (b.size and b.size > 0))
 	if not on then
 		drawRings(f, nil, b, nil)
