@@ -207,8 +207,10 @@ local DEFS = {
 	lightningShield = { ids = { 324, 325, 905, 945, 8134, 10431, 10432 }, en = "Lightning Shield" },
 	waterShield     = { ids = { 408510 }, en = "Water Shield" },
 	earthShock      = { ids = { 8042 }, en = "Earth Shock" },
-	flameShock      = { ids = { 8050 }, en = "Flame Shock" },
+	-- Every rank: an aura filter matches IDs, not names (the DoT's aura ID is the cast's).
+	flameShock      = { ids = { 8050, 8052, 8053, 10447, 10448, 29228 }, en = "Flame Shock" },
 	frostShock      = { ids = { 8056 }, en = "Frost Shock" },
+	purge           = { ids = { 370, 8012, 27626 }, en = "Purge" },   -- 8012 and 27626: both rank 2
 	earthbind       = { ids = { 2484 }, en = "Earthbind Totem" },
 	stoneclaw       = { ids = { 5730 }, en = "Stoneclaw Totem" },
 	fireNova        = { ids = { 408341 }, en = "Fire Nova" },   -- Forever's own (Classic's 1535 isn't on the client)
