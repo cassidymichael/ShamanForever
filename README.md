@@ -59,6 +59,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - Warning looks for a missing shield, imbue or totem, or one running out: grey icon, red ring, fade in and out.
 - A pulsing glow and a pop when something happens: a spell ready, a totem expiring or killed, your imbue dropping, a proc. Choose the pop's motion (grow, bounce, hop or shake), with an optional flash, ring or star burst, and the glow's colour, speed and depth.
 - Timers as countdown text, a cooldown swipe, a draining bar, or any mix, each with its own size, colour, position and time format.
+- Colour by time left: countdown numbers turn one colour when time is short and another at the very end, at the times you choose. They can also show tenths of a second in the last seconds.
 - An optional global cooldown sweep, as on action bars.
 
 ### Layout

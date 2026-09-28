@@ -269,6 +269,16 @@ local function timerSettings(p, title, key, kind, after, note)
 		{ 0, "2m, then seconds" }, { 120, "1:31 in the last 2 minutes" },
 		{ 300, "1:31 in the last 5 minutes" }, { 600, "1:31 in the last 10 minutes" },
 	}, tg("abbrev"), ts("abbrev"), dim("text", "text"), 220)
+	p:checkbox("Colour by time left", "The numbers change colour near the end.", tg("timeColors"), ts("timeColors"),
+		dim("text", "text"))
+	local colored = showWhen(function() return not cant.text and own() and style().text and style().timeColors end)
+	local function seconds(v) return string.format("%d s", v) end
+	p:slider("Soon", "Seconds left when the first colour starts.", 1, 60, 1, seconds, tg("soon"), ts("soon"), colored)
+	p:color("Soon colour", nil, tg("soonColor"), ts("soonColor"), colored, true)
+	p:slider("Now", "Seconds left when the second colour starts.", 1, 60, 1, seconds, tg("now"), ts("now"), colored)
+	p:color("Now colour", nil, tg("nowColor"), ts("nowColor"), colored, true)
+	p:slider("Tenths below", "Tenths of a second under this many seconds.", 0, 10, 1,
+		function(v) return v == 0 and "Off" or seconds(v) end, tg("tenths"), ts("tenths"), dim("text", "text"))
 	p:checkbox("Swipe", "A shade that sweeps round the icon.", tg("swipe"), ts("swipe"), dim("swipe"))
 	p:slider("Swipe darkness", nil, 0.1, 1, 0.05, pct, tg("swipeAlpha"), ts("swipeAlpha"), dim("swipe", "swipe"))
 	p:checkbox("Swipe darkens as time runs out", "Off: it lightens, like most cooldowns.", tg("swipeReverse"), ts("swipeReverse"), dim("swipe", "swipe"))

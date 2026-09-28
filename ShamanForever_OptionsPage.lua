@@ -234,8 +234,9 @@ function Page:dropdown(label, tip, choices, get, set, shown, width)
 	return self:add(f, 34, shown, function() dd:GenerateMenu() end)
 end
 
--- A colour swatch; clicking opens Blizzard's colour picker (with opacity). get/set use { r, g, b, a }.
-function Page:color(label, tip, get, set, shown)
+-- A colour swatch; clicking opens Blizzard's colour picker, with opacity unless opaque (a colour
+-- that can only be solid, like one inside text). get/set use { r, g, b, a }.
+function Page:color(label, tip, get, set, shown, opaque)
 	local f = self:row(30)
 	self:label(f, label, tip)
 	local b = CreateFrame("Button", nil, f, "BackdropTemplate")
@@ -252,10 +253,10 @@ function Page:color(label, tip, get, set, shown)
 		if not c then return end
 		local function apply()
 			local r, g, bl = ColorPickerFrame:GetColorRGB()
-			set({ r, g, bl, ColorPickerFrame:GetColorAlpha() })
+			set({ r, g, bl, opaque and 1 or ColorPickerFrame:GetColorAlpha() })
 		end
 		ColorPickerFrame:SetupColorPickerAndShow({
-			r = c[1], g = c[2], b = c[3], opacity = c[4] or 1, hasOpacity = true,
+			r = c[1], g = c[2], b = c[3], opacity = c[4] or 1, hasOpacity = not opaque,
 			swatchFunc = apply, opacityFunc = apply,
 			cancelFunc = function(prev) set({ prev.r, prev.g, prev.b, prev.a or 1 }) end,
 		})
