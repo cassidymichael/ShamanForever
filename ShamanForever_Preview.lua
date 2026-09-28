@@ -8,8 +8,9 @@
 -- real HUD back at once.
 --
 -- A small panel picks the scene (out of combat: most things ready and idle, a buff to renew, what
--- shows only in combat hidden; in combat: cooldowns and totems running, all of it shown), how busy
--- it is, whether elements not learned yet show, and whether its moments replay (off: a still picture).
+-- shows only in combat hidden; in combat: cooldowns and totems running, all of it shown), the
+-- situation (as usual, everything that warns, low mana), how busy it is, whether elements not
+-- learned yet show, and whether its moments replay (off: a still picture).
 --
 -- The real HUD meanwhile, and why this way:
 -- * An element's frame is parked under a hidden frame of its group while its stand-in shows, as the
@@ -33,7 +34,8 @@ ns.Preview = PV
 
 local on = false
 -- The panel's choices, for this session only.
-local opts = { combat = true, busy = false, unlearned = true, replay = true }
+-- situation: a key of SITUATIONS (below).
+local opts = { combat = true, situation = "usual", busy = false, unlearned = true, replay = true }
 
 ------------------------------------------------------------------------
 -- What each element does: a loop of steps
@@ -43,9 +45,10 @@ local opts = { combat = true, busy = false, unlearned = true, replay = true }
 -- first step is the picture while it's off. A one-step loop stays put (starting again, quietly, if
 -- its timer runs out).
 --
--- A script gives an element's loop: script(combat, busy) returns its steps, a list of
+-- A script gives an element's loop: script(combat, busy, situation) returns its steps, a list of
 -- { state, hold = seconds, quiet = true } (quiet: the step's start plays no moment); combat: the
--- in-combat scene; busy: the Busy activity. It may return nil to take its kind's loop. States its
+-- in-combat scene; busy: the Busy activity; situation: the panel's situation ("usual", "warnings",
+-- "lowmana"). It may return nil (or leave a situation out) to take its kind's loop. States its
 -- options preview lacks are dropped. An element file gives its own script as `preview` in its
 -- ns.registerElement entry, or in its def (a line in COOLDOWNS or BUFFS); this file's SCRIPTS hold
 -- the older elements'. For example:
@@ -106,12 +109,29 @@ local function kindSteps(key, busy)
 	return { { L.PREVIEW[key].states[1][1] } }
 end
 
+-- The situations: { key, label, tip }, and the steps of the elements each one changes, over any
+-- script's (the rest follow their scripts, which may answer the situation too). With Warnings,
+-- anything with a reagent has none left.
+local SITUATIONS = {
+	{ "usual", "Usual", "Nothing out of the ordinary." },
+	{ "warnings", "Warnings", "Every warning at once: no shield, no imbue, no totems, reagents gone, Tremor." },
+	{ "lowmana", "Low mana", "Too little mana to cast." },
+}
+local SITUATION_STEPS = {
+	warnings = { shield = { { "down" } }, imbue = { { "missing" } }, firenova = { { "nototem" } }, tremor = { { "warn" } },
+		waterbreathing = { { "underwater" } } },
+	lowmana = { shock = { { "mana" } } },
+}
+
 -- Only the states the element's preview has (a setting can't take one away, but a new element's
 -- kind might lack one).
 local function stepsFor(key)
 	local def, e = L.PREVIEW[key], ns.ELEMENTS[key]
+	local situation = opts.situation
 	local script = SCRIPTS[key] or e.preview or (e.def and e.def.preview)
-	local steps = (script and script(opts.combat, opts.busy)) or kindSteps(key, opts.busy)
+	local steps = SITUATION_STEPS[situation] and SITUATION_STEPS[situation][key]
+		or (situation == "warnings" and e.def and e.def.reagent and { { "out" } })
+		or (script and script(opts.combat, opts.busy, situation)) or kindSteps(key, opts.busy)
 	local valid = {}
 	for _, st in ipairs(def.states) do valid[st[1]] = true end
 	local out = {}
@@ -133,6 +153,11 @@ local BAR = {
 	air = function() return { { "down" } } end,
 }
 local RANGE = "water"
+-- With Warnings, none is down.
+local function barSteps(el)
+	if opts.situation == "warnings" then return { { "empty" } } end
+	return BAR[el](opts.combat, opts.busy)
+end
 
 -- Whether a state is the element's idle one on the HUD: a cooldown element that's ready (Fire Nova
 -- by its Idle when), which fades to its Idle opacity, never quite to nothing here.
@@ -259,7 +284,9 @@ end
 
 local function startBarStep(el, r, moment)
 	r.at = GetTime()
-	local ends = ns.TotemBar.previewSlot(el, r.steps[r.i][1], r.at, opts.replay, el == RANGE, moment and opts.replay)
+	local st = r.steps[r.i][1]
+	local range = el == RANGE and (st == "down" or st == "expiring")   -- only while its totem is down
+	local ends = ns.TotemBar.previewSlot(el, st, r.at, opts.replay, range, moment and opts.replay)
 	r.nextAt = nextAt(r, ends)
 end
 
@@ -339,7 +366,7 @@ local function restart()
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
 		if L.PREVIEW[key] and not ns.ELEMENTS[key].placeholder then runs[key] = { steps = stepsFor(key), i = 1 } end
 	end
-	for el, make in pairs(BAR) do barRuns[el] = { steps = make(opts.combat, opts.busy), i = 1 } end
+	for el in pairs(BAR) do barRuns[el] = { steps = barSteps(el), i = 1 } end
 	ticker:SetShown(on and opts.replay)
 end
 
@@ -348,7 +375,7 @@ end
 ------------------------------------------------------------------------
 -- Not named, so the client keeps no position for it: it starts at the top of the screen each time.
 local panel = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-panel:SetSize(520, 92)   -- clear of the positioning bar below it
+panel:SetSize(560, 92)   -- clear of the positioning bar below it
 panel:SetFrameStrata("DIALOG")
 panel:SetPoint("TOP", UIParent, "TOP", 0, -12)
 panel:SetMovable(true)
@@ -445,17 +472,19 @@ do
 		{ true, "In combat", "Mid-fight: cooldowns and totems running, and what shows only in combat." },
 	})
 	scene:SetPoint("TOPLEFT", 10, -38)
+	local situation = choice(panel, "situation", SITUATIONS)
+	situation:SetPoint("LEFT", scene, "RIGHT", 14, 0)
+	local unlearned = check(panel, "unlearned", "Show not learned",
+		"Also the elements you haven't learned yet, marked, so you can place them now.")
+	unlearned:SetPoint("LEFT", situation, "RIGHT", 10, 0)
 	local activity = choice(panel, "busy", {
 		{ false, "Calm", "A cooldown or two." },
 		{ true, "Busy", "Many things at once." },
 	})
-	activity:SetPoint("LEFT", scene, "RIGHT", 16, 0)
-	local unlearned = check(panel, "unlearned", "Show not learned",
-		"Also the elements you haven't learned yet, marked, so you can place them now.")
-	unlearned:SetPoint("TOPLEFT", 6, -62)
+	activity:SetPoint("TOPLEFT", 10, -64)
 	local replay = check(panel, "replay", "Replay effects",
 		"Timers run, and pops and flashes play every few seconds. Off: a still picture.")
-	replay:SetPoint("LEFT", unlearned.Text, "RIGHT", 16, 0)
+	replay:SetPoint("LEFT", activity, "RIGHT", 10, 0)
 	local stop = button(panel, "Stop preview", 110, function() PV.close() end)
 	stop:SetPoint("TOPRIGHT", -10, -8)
 	local options = button(panel, "Options", 80, function()
@@ -471,6 +500,7 @@ do
 	setTip(lock, "Positioning", "Drag groups and the totem bar while the preview shows.")
 	function panel.refresh()
 		scene.refresh()
+		situation.refresh()
 		activity.refresh()
 		unlearned:SetChecked(opts.unlearned)
 		replay:SetChecked(opts.replay)
