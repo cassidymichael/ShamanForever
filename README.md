@@ -61,6 +61,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - A pulsing glow and a pop when something happens: a spell ready, a totem expiring or killed, your imbue dropping, a proc. Choose the pop's motion (grow, bounce, hop or shake), with an optional flash, ring or star burst, and the glow's colour, speed and depth.
 - Timers as countdown text, a cooldown swipe, a draining bar, or any mix, each with its own size, colour, position and time format.
 - An optional global cooldown sweep, as on action bars.
+- Sounds: pick one for a spell coming ready, your imbue dropping, a totem ending or the Tremor warning, from the game's sounds or any LibSharedMedia sound your other addons bring. None play until you pick one.
 
 ### Layout
 
@@ -76,6 +77,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - Set the style once on the General page, then give any element, group or the totem bar its own where you want something different.
 - Profiles: each character uses one. Make, copy, rename, delete or reset them, or share one as text.
 - Spells are recognised by ID, so it should work in any game language (the options are in English).
+- What's new: after an update, Home lists what changed and one line in chat says so (you can turn that off).
 
 ## Usage
 
