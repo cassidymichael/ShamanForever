@@ -11,7 +11,7 @@ ns.LayoutPage = LP
 local Page, K = ns.Page, ns.Options.kit
 local setTip = Page.setTip
 local int, times, pct = Page.int, Page.times, Page.pct
-local NAV_W, PAGE_TOP = Page.NAV_W, Page.PAGE_TOP
+local NAV_W, PAGE_TOP, LABEL_W = Page.NAV_W, Page.PAGE_TOP, Page.LABEL_W
 local relayout = K.relayout
 
 local function db() return ns.getDB() end
@@ -386,6 +386,32 @@ end
 ------------------------------------------------------------------------
 local CAPTION_H = 28   -- the Elements caption above the chips
 
+-- The group's name: Enter renames it; Escape, or leaving the box any other way, keeps the old one.
+local function nameRow(p, shown)
+	local f = p:row(34)
+	p:label(f, "Name", "A name another group has gets a number added.")
+	local box = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+	box:SetSize(200, 20)
+	box:SetPoint("LEFT", f, "LEFT", LABEL_W + 6, 0)
+	box:SetAutoFocus(false)
+	box:SetMaxLetters(32)
+	box:SetFontObject("GameFontHighlight")
+	local function current() local g = selected(); return g and g.name or "" end
+	box:SetScript("OnEditFocusGained", function(b) b:HighlightText() end)
+	box:SetScript("OnEditFocusLost", function(b)
+		b:HighlightText(0, 0)
+		b:SetText(current())
+	end)
+	box:SetScript("OnEscapePressed", box.ClearFocus)
+	box:SetScript("OnEnterPressed", function(b)
+		local g = selected()
+		if g then ns.renameGroup(g.id, b:GetText()) end
+		b:ClearFocus()
+		ns.Options.refresh()
+	end)
+	return p:add(f, 34, shown, function() if not box:HasFocus() then box:SetText(current()) end end)
+end
+
 local function buildMembers(p)
 	members = p:row(10)
 	members.page, members.pool, members.top = p, {}, CAPTION_H
@@ -468,6 +494,7 @@ function LP.build(p)
 		head.text:SetText(g.name)
 		head.note:SetText(n == 1 and "1 element" or n .. " elements")
 	end
+	nameRow(p)
 	buildMembers(p)
 	buildSettings(p)
 	p.gate = nil

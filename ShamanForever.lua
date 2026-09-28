@@ -779,6 +779,16 @@ local placeElement = edit(function(key, target, index)
 	end
 end)
 
+-- Renames a group; a name another group has gets a number added, and an empty one changes nothing.
+-- Allowed in combat: only positioning's labels show it on screen, and their layout waits.
+local function renameGroup(id, name)
+	local g = groupById(id)
+	name = g and uniqueName(name, g)
+	if not name then return end
+	g.name = name
+	layoutElements()
+end
+
 -- A new empty group at the end of the list, at the screen centre. Returns its id.
 local addGroup = edit(function()
 	local g = newGroup()
@@ -865,7 +875,7 @@ ns.groupFrames, ns.groupSize, ns.sizeOf = groupFrames, groupSize, sizeOf
 ns.setGroupCenter, ns.screenCenter = setGroupCenter, screenCenter
 ns.layoutElements, ns.applyLayout, ns.applyTimers = layoutElements, applyLayout, applyTimers
 -- Layout edits (the options window): each leaves the groups consistent and lays out again.
-ns.placeElement, ns.addGroup = placeElement, addGroup
+ns.placeElement, ns.addGroup, ns.renameGroup = placeElement, addGroup, renameGroup
 ns.splitGroup, ns.hideGroup, ns.centerGroup = splitGroup, hideGroup, centerGroup
 ns.setShow = setShow
 ns.setTestMode = function(on) return edit(setTestMode)(on) end
