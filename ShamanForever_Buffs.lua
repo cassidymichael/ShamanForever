@@ -4,9 +4,10 @@
 --
 -- What can be read, and when (docs/combat-techniques.md):
 -- * Water Walking, Water Breathing: out of combat the aura is readable, so the time left is exact.
---   In combat auras are secret: the timer carries on from the last read, and our own cast of the
---   spell (readable in combat) restarts it when the target is us. A buff dispelled or cancelled
---   in combat is seen when combat ends.
+--   In combat, and all through a PvP match, auras are secret: the timer carries on from the last
+--   read, and our own cast of the spell (readable in combat) restarts it when the target is us (a
+--   guess: no friendly target but us). A buff dispelled or cancelled then, or a cast that went to
+--   someone else, is seen when combat (or the match) ends.
 -- * Water Breathing's underwater warning: the breath bar (a mirror timer, "BREATH") draining while
 --   the buff isn't up. Readable in and out of combat (probed 2026-09-27): MIRROR_TIMER_START comes
 --   with a negative scale while it drains under water, and again with a positive one while it
@@ -19,7 +20,7 @@
 --   under the button never run, but the button plays animations handed to it
 --   (Blizzard_CustomAuraButton.lua): AddAuraShownAnimation runs the glow's pulse while the proc
 --   shows, AddAuraAssignedAnimation our pop each time a proc arrives. Not yet tested in game; on a
---   client without them the pop plays when the proc is seen out of combat.
+--   client without them the pop plays when the proc is seen while auras are readable.
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
@@ -99,7 +100,7 @@ local function setDown(def)
 	def.frame.upTimer:clear()
 end
 
--- Out of combat: the aura, by the client's name for the spell (every rank shares it).
+-- While auras are readable: the aura, by the client's name for the spell (every rank shares it).
 local function readAura(def)
 	if InCombatLockdown() or ns.aurasSecret() or not C_UnitAuras then return end
 	local ok, a = safe(C_UnitAuras.GetAuraDataBySpellName, "player", def.spell, "HELPFUL")
@@ -165,7 +166,7 @@ local function styleProc(def, size)
 	def.popAnim:restyle(setting(def.key, "primedPop") and true or false)
 end
 
--- The proc's aura slot, on the effects layer (out of combat only; once made, it stays).
+-- The proc's aura slot, on the effects layer (made while auras are readable; once made, it stays).
 local function makeProcSlot(def)
 	return ns.makeAuraSlot(def.frame, {
 		key = def.key, slot = "proc", ids = function() return procIDMap(def) end, parent = def.frame.effects,
@@ -179,7 +180,7 @@ for _, def in ipairs(BUFFS) do
 	if def.proc then def.aura = makeProcSlot(def) end
 end
 
--- Out of combat: whether the proc is up, for the pop the moment it comes.
+-- While auras are readable: whether the proc is up, for the pop the moment it comes.
 local function readProc(def)
 	if InCombatLockdown() or ns.aurasSecret() or not C_UnitAuras then return end
 	local up = false
@@ -238,6 +239,7 @@ end
 -- Hooks (ShamanForever.lua calls them; see ns.registerModule)
 ------------------------------------------------------------------------
 function B.resolve()
+	ns.Reagents.readPerk()   -- the spellbook changed: the perk may have come
 	local sig = {}
 	for _, def in ipairs(BUFFS) do
 		def.spell = Spells.name(def.spellKey)
@@ -295,10 +297,12 @@ end
 
 B.tick = refreshAll
 
--- Our own cast of Water Walking or Water Breathing on ourselves: up for its duration.
+-- Our own cast of Water Walking or Water Breathing on ourselves, while auras can't be read: up for
+-- its duration. While they can, the buff's own UNIT_AURA says exactly (B.refresh), and a guess from
+-- the target would count a cast on someone else (mouseover, party frames, a macro) as ours.
 function B.onCast(spellID)
 	local key = Spells.keyOf(spellID)
-	if not key then return end
+	if not key or not (InCombatLockdown() or ns.aurasSecret()) then return end
 	for _, def in ipairs(BUFFS) do
 		if not def.proc and key == def.spellKey and def.spellID and castOnSelf() then
 			setUp(def, GetTime(), def.duration)
@@ -338,7 +342,8 @@ function B.debug()
 				tostring(def.procUp))
 		else
 			state = def.upUntil and string.format("up, %.0f s left", def.upUntil - GetTime()) or "not up"
-			if def.reagent then state = string.format("%s, reagent %s (takes it: %s)", state, describeArg(def.reagentRead), tostring(def.takesReagent)) end
+			if def.reagent then state = string.format("%s, reagent %s (takes it: %s, Reagent Economy %s)", state,
+				describeArg(def.reagentRead), tostring(def.takesReagent), tostring(ns.Reagents.perkKnown())) end
 			if def.breath then state = state .. ", breath bar " .. tostring(breathing) end
 		end
 		say("%s: spell %s, %s", def.spell, tostring(def.spellID), state)

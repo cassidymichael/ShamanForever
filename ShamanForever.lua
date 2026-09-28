@@ -566,7 +566,11 @@ function ns.setLocked(locked)
 	return true
 end
 
-local function refreshAll() each("refresh") end
+local readAt   -- GetTime() of the last refreshAll that ran with auras readable
+local function refreshAll()
+	if not InCombatLockdown() and not ns.aurasSecret() then readAt = GetTime() end
+	each("refresh")
+end
 
 -- A cast, a cooldown update and a totem update come in the same frame (three or more events per
 -- cast). SPELL_UPDATE_COOLDOWN refreshes at once (isOnGCD is only vouched for inside it); the others
@@ -747,6 +751,14 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		reg("PLAYER_TOTEM_UPDATE")
 		reg("SPELLS_CHANGED")
 		reg("PLAYER_REGEN_ENABLED")
+		-- A restriction ended (a PvP match, an encounter, the forced-restrictions CVar back to 0):
+		-- auras may be readable again with no combat end to say so. Core calls this on the next
+		-- frame, after the work that waited for it. Skipped when a refresh since the end (combat's
+		-- PLAYER_REGEN_ENABLED) already read everything.
+		ns.onRestrictionEnd(function(endedAt)
+			if InCombatLockdown() or ns.aurasSecret() or (readAt and readAt >= endedAt) then return end
+			refreshAll()
+		end)
 		each("start")
 		-- Each module's tick on its own: one that errors can't stop the others, and an error at login
 		-- can't leave the HUD without its ticker.

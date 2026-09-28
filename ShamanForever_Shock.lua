@@ -26,12 +26,15 @@ SK.SHOCKS, SK.ORDER = SHOCKS, SHOCK_ORDER
 local shock = ns.newElementIcon("shock")
 shock.cdTimer = ns.Timer.new(shock, "shock", "cooldown", { cd = shock.cd, school = "spirit" })
 local shockIcon = 136026
+-- By SK.resolve: the known shocks' spell IDs by choice, the shock the icon tracks (usedShock) and
+-- its spell ID, and the Mana check's spell ID.
+local shockIDs = {}
+local usedShock, shockSpellID, manaSpellID
 ns.registerElement("shock", { frame = shock, label = "Shocks", paint = function(t) t:SetTexture(shockIcon) end,
+	learned = function() return next(shockIDs) ~= nil end,   -- any shock
 	defaults = CopyTable(CD.READY_DEFAULTS),
 	kind = "shock", icon = 136026, school = "spirit", blurb = "Cooldown, range and mana." })
 
-local shockSpellID, manaSpellID
-local shockIDs = {}
 local shockState = { outOfRange = false, noMana = false }
 local rangeCheckID   -- the spell whose range check is on
 
@@ -59,8 +62,14 @@ local function refreshCooldown()
 	if dur then shock.cdTimer:set(dur) end
 end
 
+-- While the element is off (hidden, or no shock known) nothing is read and its looks are cleared,
+-- so none comes back stale when it shows again.
 local function refreshRange()
-	if not shockSpellID or not ns.isEnabled("shock") then return end
+	if not shockSpellID or not ns.isEnabled("shock") then
+		shockState.outOfRange = false
+		drawTint()
+		return
+	end
 	-- The event also fires for other spells' checks; the 4 Hz ticker covers ours either way.
 	local ok, r = safe(C_Spell.IsSpellInRange, shockSpellID, "target")
 	shockState.outOfRange = ok and not isSecret(r) and r == false
@@ -68,7 +77,11 @@ local function refreshRange()
 end
 
 local function refreshMana()
-	if not ns.isEnabled("shock") then return end
+	if not manaSpellID or not ns.isEnabled("shock") then
+		shockState.noMana = false
+		drawTint()
+		return
+	end
 	local ok, _, noPower = safe(C_Spell.IsSpellUsable, manaSpellID)
 	shockState.noMana = ok and not isSecret(noPower) and noPower == true
 	drawTint()
@@ -85,7 +98,7 @@ local function refreshGlow()
 	shock.glowF:SetShown(on and true or false)
 	if not on then return end
 	shock.glowF:fit(shock:GetWidth())
-	shock.glowF:SetAlpha(CD.readyAlpha(shockSpellID))
+	shock.glowF:SetAlpha(CD.readyAlpha(shockSpellID, ns.cantAct()))
 end
 local glowTicker = CD.readyTicker(refreshGlow)
 -- Runs only while the glow is turned on (checked on every layout, i.e. every settings change).
@@ -98,30 +111,50 @@ end
 ------------------------------------------------------------------------
 -- Hooks (ShamanForever.lua calls them; see ns.registerModule)
 ------------------------------------------------------------------------
--- After a spellbook scan: the shocks' names, the tracked one's highest rank and icon, the Mana
--- check's spell, and the range check. Returns a signature of what it found.
+-- After a spellbook scan: the shocks' names and highest known ranks, the one the icon tracks and
+-- its icon, the Mana check's spell, and the range check. Returns a signature of what it found.
 function SK.resolve()
 	local d = db()
 	shockIDs = {}
+	local icons = {}
 	for key, spell in pairs(SHOCK_SPELL) do
 		SHOCKS[key] = Spells.name(spell)
-		local id = Spells.known(spell)
-		if id then shockIDs[key] = id end
+		local id, ic = Spells.known(spell)
+		if id then shockIDs[key], icons[key] = id, ic end
 	end
-	local id, ic = Spells.known(SHOCK_SPELL[d.shock] or SHOCK_SPELL.earth)
-	shockSpellID = id
-	shockIcon = ic or 136026
+	-- The chosen shock, or until it is learned the first one known: the shocks share one cooldown,
+	-- so the cooldown and ready state are the chosen one's too. Range and mana follow the shock used.
+	usedShock = SHOCK_SPELL[d.shock] and d.shock or "earth"
+	if not shockIDs[usedShock] then
+		for _, key in ipairs(SHOCK_ORDER) do
+			if shockIDs[key] then usedShock = key break end
+		end
+	end
+	shockSpellID = shockIDs[usedShock]
+	shockIcon = icons[usedShock] or Spells.icon(SHOCK_SPELL[usedShock]) or 136026
 	shock.tex:SetTexture(shockIcon)
+	-- Not learned yet (seen only in test mode): a plain grey icon.
+	shock.tex:SetDesaturated(next(shockIDs) == nil)
 	manaSpellID = (d.manaSpell ~= "tracked" and shockIDs[d.manaSpell]) or shockSpellID
 	if rangeCheckID ~= shockSpellID and C_Spell.EnableSpellRangeCheck then
 		if rangeCheckID then safe(C_Spell.EnableSpellRangeCheck, rangeCheckID, false) end
 		if shockSpellID then safe(C_Spell.EnableSpellRangeCheck, shockSpellID, true) end
 		rangeCheckID = shockSpellID
 	end
-	return tostring(shockSpellID) .. "," .. tostring(manaSpellID)
+	-- Every known shock, so learning one lays the HUD out again (the element's learned()).
+	local sig = { tostring(shockSpellID), tostring(manaSpellID) }
+	for _, key in ipairs(SHOCK_ORDER) do table.insert(sig, tostring(shockIDs[key])) end
+	return table.concat(sig, ",")
 end
 
 function SK.applyTimers() shock.cdTimer:apply() end
+
+-- The groups were laid out: the element may have just been shown or hidden, with nothing else to
+-- say that range or mana changed (full mana out of combat fires no event).
+function SK.afterGroups()
+	refreshMana()
+	refreshRange()
+end
 
 -- After a layout (settings may have changed): the looks, then the mana read again.
 function SK.applyLayout()
@@ -158,7 +191,9 @@ end
 
 -- /sf debug
 function SK.debug()
-	say("shock spell %s (%s), mana spell %s", tostring(shockSpellID), db().shock, tostring(manaSpellID))
+	local chosen = db().shock
+	say("shock spell %s (%s%s), mana spell %s", tostring(shockSpellID), tostring(usedShock),
+		usedShock ~= chosen and (", chosen " .. tostring(chosen) .. " not learned") or "", tostring(manaSpellID))
 	for key, id in pairs(shockIDs) do
 		local _, usable, noPower = safe(C_Spell.IsSpellUsable, id)
 		local _, inRange = safe(C_Spell.IsSpellInRange, id, "target")
