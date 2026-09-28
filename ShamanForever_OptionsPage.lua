@@ -58,9 +58,9 @@ function Page.new(win, key, title, indent)
 	local content = CreateFrame("Frame", nil, scroll)
 	content:SetSize(ROW_W, 1)
 	scroll:SetScrollChild(content)
-	-- The scroll frame's hold on its child (the scroll range, and the area where the child's rows
-	-- take clicks) updated after every resize and reflow, as Blizzard's own pages do after a layout,
-	-- so rows a taller window or a longer page brings into view can be clicked.
+	-- Update the scroll frame's child rect (its scroll range and the area where rows take clicks)
+	-- after every resize and reflow, as Blizzard's pages do after a layout, so rows that a taller
+	-- window or a longer page brings into view can be clicked.
 	scroll:SetScript("OnSizeChanged", function(self, w)
 		content:SetWidth(w)
 		self:UpdateScrollChildRect()
