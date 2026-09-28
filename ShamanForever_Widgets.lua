@@ -144,39 +144,10 @@ function ns.makePulse(region, kind)
 	return g
 end
 
--- Border drawn just outside an element's edge, so it never covers the rings inside the icon or
--- Blizzard's shield button. size is a line's (ns.linePx): screen pixels, grown by Scale, not by Size.
-function ns.applyBorder(f, b)
-	if not (b and b.show and b.size and b.size > 0) then
-		if f.border then for _, t in ipairs(f.border) do t:Hide() end end
-		return
-	end
-	if not f.border then
-		f.border = {}
-		for i = 1, 4 do f.border[i] = f:CreateTexture(nil, "BACKGROUND", nil, -8) end
-	end
-	local s = ns.linePx(f, b.size)
-	local c = b.color or { 0, 0, 0, 1 }
-	local top, bottom, left, right = f.border[1], f.border[2], f.border[3], f.border[4]
-	for _, t in ipairs(f.border) do
-		t:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
-		t:ClearAllPoints()
-		t:Show()
-	end
-	-- Top and bottom span the corners; left and right fill between them.
-	top:SetPoint("BOTTOMLEFT", f, "TOPLEFT", -s, 0)
-	top:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", s, 0)
-	top:SetHeight(s)
-	bottom:SetPoint("TOPLEFT", f, "BOTTOMLEFT", -s, 0)
-	bottom:SetPoint("TOPRIGHT", f, "BOTTOMRIGHT", s, 0)
-	bottom:SetHeight(s)
-	left:SetPoint("TOPRIGHT", f, "TOPLEFT", 0, 0)
-	left:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", 0, 0)
-	left:SetWidth(s)
-	right:SetPoint("TOPLEFT", f, "TOPRIGHT", 0, 0)
-	right:SetPoint("BOTTOMLEFT", f, "BOTTOMRIGHT", 0, 0)
-	right:SetWidth(s)
-end
+-- The frame round an element's edge, in its border's look (ns.Looks.frame): drawn just outside the
+-- edge, so it never covers the rings inside the icon or Blizzard's shield button. Its lines are
+-- screen pixels (ns.linePx), grown by Scale, not by Size.
+function ns.applyBorder(f, b) ns.Looks.frame(f, b) end
 
 -- The global cooldown's sweep, as on action bars: its own Cooldown over an icon, a dark swipe with no
 -- edge, bling or numbers. The caller sets its frame level.
@@ -319,27 +290,11 @@ local function popFx(f)
 	atlasOr(x.star, "AftLevelup-WhiteStarBurst", "Interface\\Cooldown\\star4")
 	x.star:SetBlendMode("ADD")
 	x.star:Hide()
-	x.bursts = {}   -- texture -> { t (elapsed), dur, from, to (sizes), spin (radians) }
-	-- Runs only while a burst does (set by playPop).
-	x.step = function(self, elapsed)
-		for tex, b in pairs(x.bursts) do
-			b.t = b.t + elapsed
-			local p = math.min(b.t / b.dur, 1)
-			local e = 1 - (1 - p) * (1 - p)   -- ease out
-			local size = b.from + (b.to - b.from) * e
-			tex:SetSize(size, size)
-			tex:SetAlpha(1 - p)
-			if b.spin then tex:SetRotation(b.spin * e) end
-			if p >= 1 then tex:Hide(); x.bursts[tex] = nil end
-		end
-		if next(x.bursts) == nil then self:SetScript("OnUpdate", nil) end
-	end
+	x.bursts = ns.Looks.burster(fx)
 	-- A hidden frame runs no OnUpdate and holds its animations, so a pop cut short by a hide (its
 	-- group hiding as combat ends) would finish when the icon next shows. A hide ends it instead.
 	fx:SetScript("OnHide", function()
-		for tex in pairs(x.bursts) do tex:Hide() end
-		wipe(x.bursts)
-		fx:SetScript("OnUpdate", nil)
+		x.bursts.clear()
 		for _, m in ipairs({ "grow", "bounce", "hop", "shake", "shakeV" }) do x[m]:Stop() end
 		x.flashAnim:Stop()
 		x.flash:SetAlpha(0)
@@ -396,23 +351,19 @@ function ns.playPop(f, kind, owner)
 		x.flashAnim:Play()
 	end
 	-- The ring spreads from just inside the icon to 2.2 icon widths; the star from 1.2 to 3.5.
-	x.bursts[x.ring], x.bursts[x.star] = nil, nil
-	x.ring:Hide(); x.star:Hide()
+	x.bursts.stop(x.ring); x.bursts.stop(x.star)
 	if st.ring then
 		x.ring:SetDesaturated(true)
 		x.ring:SetVertexColor(c[1], c[2], c[3])
 		x.ring:SetSize(h * 0.9, h * 0.9)
-		x.ring:Show()
-		x.bursts[x.ring] = { t = 0, dur = 0.45 * k, from = h * 0.9, to = h * 2.2 }
+		x.bursts.play(x.ring, { dur = 0.45 * k, from = h * 0.9, to = h * 2.2 })
 	end
 	if st.star then
 		x.star:SetDesaturated(true)
 		x.star:SetVertexColor(c[1], c[2], c[3])
 		x.star:SetSize(h, h)
-		x.star:Show()
-		x.bursts[x.star] = { t = 0, dur = 0.45 * k, from = h * 1.2, to = h * 3.5, spin = -0.5 }
+		x.bursts.play(x.star, { dur = 0.45 * k, from = h * 1.2, to = h * 3.5, spin = -0.5 })
 	end
-	if next(x.bursts) ~= nil then x.fx:SetScript("OnUpdate", x.step) end
 end
 
 -- The end of a totem, over `anchor`. Nothing here reads a secret: play() hands the gone totem's
@@ -602,8 +553,8 @@ AuraSlot.__index = AuraSlot
 --   onStyle(slot, size)         the caller's own restyle, after the shared one
 --   onError(err)                the container couldn't be made on this client
 -- Nothing is made until slot:setup(). The slot then holds container, button, icon (the aura's
--- texture), cd and timer (swipe and countdown only), or err; and after slot:refilter(), filtered
--- (the spell IDs it last gave the slot).
+-- texture), cd and timer (swipe and countdown only), mask (a masked frame look's), or err; and
+-- after slot:refilter(), filtered (the spell IDs it last gave the slot).
 function ns.makeAuraSlot(frame, opts)
 	return setmetatable({ frame = frame, opts = opts }, AuraSlot)
 end
@@ -623,6 +574,9 @@ local function initAuraButton(slot, button)
 	if o.iconAlpha then tex:SetAlpha(o.iconAlpha()) end
 	button:SetIcon(tex)
 	slot.icon = tex
+	-- A masked frame look's mask: only now, on the button (ns.Looks.auraMask).
+	local okMask, mask = ns.try(o.sites.style, ns.Looks.auraMask, button, tex, o.key)
+	slot.mask = okMask and mask or nil
 	local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
 	cd:SetAllPoints()
 	-- Its timer: swipe and countdown text only (no bar: nothing of ours can follow Blizzard's time).
