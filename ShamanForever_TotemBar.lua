@@ -403,8 +403,8 @@ for index, el in ipairs(ELEMENTS) do
 	s.badge = badge
 	-- Killed early and ran out (ns.makeEndFlash): on their own frames, since the slot's look can be
 	-- invisible (Active totems). Two frames: each has its own secret gate.
-	local kf = ns.makeEndFlash(bar, b, "totembar")
-	s.expired = ns.makeEndFlash(bar, b, "totembar")
+	local kf = ns.makeEndFlash(bar, b, "totembar", v)
+	s.expired = ns.makeEndFlash(bar, b, "totembar", v)
 	s.killed = kf
 	v.bg = v:CreateTexture(nil, "BACKGROUND")
 	v.bg:SetAllPoints()

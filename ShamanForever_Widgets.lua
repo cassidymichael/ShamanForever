@@ -450,7 +450,10 @@ end
 --   than Killed early and without the pop's burst.
 local killedCurve = ns.curve({ 0, 0, 1.2, 0, 1.25, 1, 36000, 1 })
 local expiredCurve = ns.curve({ 0, 1, 1.2, 1, 1.25, 0, 36000, 0 })
-function ns.makeEndFlash(parent, anchor, owner)
+-- over: the icon frame whose picture it covers (default anchor): its copies of the icon and its wash
+-- take that icon's mask, and its glow the icon's school and frame.
+function ns.makeEndFlash(parent, anchor, owner, over)
+	over = over or anchor
 	local kf = CreateFrame("Frame", nil, parent)
 	kf:SetAllPoints(anchor)
 	kf:SetFrameLevel(anchor:GetFrameLevel() + 8)
@@ -460,7 +463,7 @@ function ns.makeEndFlash(parent, anchor, owner)
 	kf.body = CreateFrame("Frame", nil, kf.pop)
 	kf.body:SetAllPoints()
 	kf.body:SetAlpha(0)
-	kf.glow = makeGlow(kf.body, kf.body, owner)
+	kf.glow = makeGlow(kf.body, over, owner)
 	kf.glow:color(1, 0.12, 0.08)
 	kf.icon = kf.body:CreateTexture(nil, "ARTWORK")
 	kf.icon:SetAllPoints()
@@ -509,6 +512,7 @@ function ns.makeEndFlash(parent, anchor, owner)
 	kf.mark.x = kf.mark:CreateTexture(nil, "OVERLAY")
 	kf.mark.x:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
 	kf.mark.x:SetPoint("CENTER")
+	ns.Looks.followMask(over, kf.icon, kf.red, kf.mark.icon)   -- a rounded or cut-corner icon's shape
 	-- The dead totem's icon (secret in combat is fine: SetTexture takes it).
 	function kf:setIcon(icon)
 		pcall(self.icon.SetTexture, self.icon, icon)
