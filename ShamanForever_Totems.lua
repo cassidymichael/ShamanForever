@@ -156,6 +156,12 @@ function T.slotEmptied(slot, dur)
 	end)
 end
 
+-- A slot that emptied unseen (preview mode draws the bar's slots meanwhile): its totem is forgotten
+-- as slotEmptied forgets it, with no "gone" for it.
+function T.forget(slot)
+	owner[slot], spells[slot] = nil, nil
+end
+
 -- /sf debug
 function T.debug()
 	for slot = 1, 4 do

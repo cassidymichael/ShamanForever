@@ -1498,7 +1498,12 @@ function TB.preview(p)
 			pcall(s.timer.cd.Resume, s.timer.cd)
 			if s.previewRange then s.previewRange:Hide() end
 			if s.previewMark then s.previewMark:Hide() end
-			-- A totem that went meanwhile isn't news: no end flash for it when the slot is read.
+			-- A totem that went meanwhile isn't news: no end flash for it when the slot is read, and
+			-- ns.Totems forgets it quietly.
+			if s.dur then
+				local ok, d = ns.try("totem bar: duration", GetTotemDuration, s.slot)
+				if ok and d == nil then ns.Totems.forget(s.slot) end
+			end
 			s.dur = nil
 		end
 		lastDriver = nil
