@@ -30,10 +30,11 @@ function R.count(def)
 	if ok and type(n) == "number" and not isSecret(n) then return n end
 end
 
--- Whether the spell still takes its reagent: Forever dropped some (its Water Walking and Water
--- Breathing list none), so the spell's tooltip must name the item. Read out of combat: a yes is kept
--- until the spellbook changes, a no is read again every 30 s (a tooltip can be incomplete while the
--- client loads it); nil while it can't be told (then the reagent counts).
+-- Whether the spell still takes its reagent. It may not: an account perk, Reagent Economy, removes
+-- the vendor reagents of class abilities, and a count or warning would then be false. So the
+-- spell's tooltip decides: it must name the item. Read out of combat: a yes is kept until the
+-- spellbook changes, a no is read again every 30 s (a tooltip can be incomplete while the client
+-- loads it); nil while it can't be told (then the reagent counts).
 local RECHECK = 30
 function R.takes(def)
 	if def.takesReagent or InCombatLockdown() then return def.takesReagent end

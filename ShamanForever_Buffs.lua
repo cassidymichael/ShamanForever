@@ -31,7 +31,7 @@ ns.Buffs = B
 local function setting(key, name) return ns.elementSetting(key, name) end
 
 -- key, spellKey (ns.Spells), icon (fallback), school, blurb (the line under its name in the
--- options), reagent (item ID; counted only while the spell's tooltip names it: Forever's list none),
+-- options), reagent (item ID; counted only while the spell's tooltip names it: ns.Reagents.takes),
 -- duration (seconds, until an aura read says), defaults (its own option defaults, over its parts':
 -- PARTS below). Adding one is a line here, in the order the options list them.
 local BUFFS = {
