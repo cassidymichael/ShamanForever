@@ -18,12 +18,14 @@ local expiringLooks, killedBlock = K.expiringLooks, K.killedBlock
 local function db() return ns.getDB() end
 
 -- The Group choices: every group by name, then New group; an ungrouped element's reads Ungrouped.
--- Choosing one moves the element there and leaves its Show as it is.
+-- Choosing one moves the element there (to its end) and leaves its Show as it is.
 local function groupMenu(dd, key)
 	pcall(dd.SetDefaultText, dd, "Ungrouped")
 	dd:SetupMenu(function(_, root)
 		for _, g in ipairs(db().groups) do
-			root:CreateRadio(g.name, function() return ns.groupOf(key) == g end, function() ns.placeElement(key, g.id) end)
+			root:CreateRadio(g.name, function() return ns.groupOf(key) == g end, function()
+				if ns.groupOf(key) ~= g then ns.placeElement(key, g.id) end
+			end)
 		end
 		root:CreateButton("New group", function() ns.placeElement(key, "new") end)
 	end)
