@@ -38,11 +38,16 @@ end
 -- tooltip can be incomplete while the client loads it); a nil at the next refresh.
 local RECHECK = 30
 local PERK, PERK_AURA = 1225503, 1262643   -- Reagent Economy, and its aura ("no reagent use")
+ns.Spells.addCheck("Reagent Economy", { PERK, PERK_AURA })
 -- The perk: its spell, else (while auras are readable) its aura. Read at each spellbook scan
--- (R.readPerk, from the resolves) and at most every RECHECK s while auras are readable, which finds
--- a perk bought mid-session; in between, and while auras are secret, the last answer.
+-- (R.readPerk, from the resolves), after any aura change while it isn't known (R.auraChanged: its
+-- aura can come after the first read at login, or with a perk bought mid-session), and at most
+-- every RECHECK s while auras are readable; in between, and while auras are secret, the last
+-- answer. Once known it stays known for the session: a read that misses it later (a loading
+-- screen) must not bring back a count or warning the perk made false.
 local perk, perkReadAt = false, -math.huge
 function R.readPerk()
+	if perk then return end
 	local ok, v = safe(IsPlayerSpell, PERK)
 	if ok and not isSecret(v) and v == true then perk, perkReadAt = true, GetTime() return end
 	if InCombatLockdown() or ns.aurasSecret() or not C_UnitAuras then return end
@@ -50,10 +55,16 @@ function R.readPerk()
 	perk, perkReadAt = aok and type(a) == "table", GetTime()
 end
 local function perkKnown()
-	if GetTime() - perkReadAt >= RECHECK and not InCombatLockdown() and not ns.aurasSecret() then R.readPerk() end
+	if not perk and GetTime() - perkReadAt >= RECHECK and not InCombatLockdown() and not ns.aurasSecret() then
+		R.readPerk()
+	end
 	return perk
 end
 R.perkKnown = perkKnown   -- for /sf debug
+-- An aura on the player changed (UNIT_AURA): while the perk isn't known, the next check reads again.
+function R.auraChanged()
+	if not perk then perkReadAt = -math.huge end
+end
 function R.takes(def)
 	if perkKnown() then def.takesReagent = nil return false end
 	if def.takesReagent ~= nil and GetTime() - (def.reagentReadAt or 0) < RECHECK then return def.takesReagent end

@@ -319,7 +319,9 @@ function B.start()
 	ns.registerEvent(ev, "MIRROR_TIMER_STOP")
 	ev:SetScript("OnEvent", function(_, event, timer, _, _, scale)
 		if event == "UNIT_AURA" then
-			if not InCombatLockdown() then B.refresh() end   -- auras are secret in combat: nothing to read
+			if InCombatLockdown() then return end   -- auras are secret in combat: nothing to read
+			ns.Reagents.auraChanged()   -- Reagent Economy's aura may have come
+			B.refresh()
 			return
 		end
 		if isSecret(timer) or timer ~= "BREATH" then return end
