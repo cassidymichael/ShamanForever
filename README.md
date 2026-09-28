@@ -53,6 +53,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - Key bindings to drop each element's totem, dismiss one or all, and cast Call and Recall. Bind them by hovering the bar in Quick Keybind Mode. Each button can show its key.
 - It can replace Blizzard's totem bar and active totems display, just the active totems display, or neither (the key bindings still work).
 - Show it always, in combat or while a totem is down, or only in combat. Drag to reorder the slots.
+- It stays hidden until your character knows a totem, and its page in the options says "Not learned".
 
 ### Warnings and timers
 
