@@ -213,16 +213,16 @@ local function maskFor(b)
 	return b and b.show and maskOf(S.look("border", b.look)) or nil
 end
 
--- A mask texture's art and place: spec over the rect of `over` (the icon's picture), size its
--- width (a mask larger than the picture is centred on it).
-local function placeMask(m, spec, over, size)
+-- A mask texture's art and place: spec over the rect of `over` (the icon's picture), w and h its
+-- size (default square; a mask larger than the picture is centred on it).
+local function placeMask(m, spec, over, w, h)
 	if spec.atlas then m:SetAtlas(spec.atlas, false, nil, nil, CLAMP, CLAMP)
 	else m:SetTexture(spec.file, CLAMP, CLAMP) end
 	m:ClearAllPoints()
 	if (spec.scale or 1) == 1 then m:SetAllPoints(over)
 	else
 		m:SetPoint("CENTER", over, "CENTER", 0, 0)
-		m:SetSize(size * spec.scale, size * spec.scale)
+		m:SetSize(w * spec.scale, (h or w) * spec.scale)
 	end
 end
 
@@ -243,7 +243,7 @@ local function maskOne(f, tex, spec, over)
 			m = tex:GetParent():CreateMaskTexture()
 			f.frameMasks[tex] = m
 		end
-		placeMask(m, spec, over, over:GetWidth())
+		placeMask(m, spec, over, over:GetWidth(), over:GetHeight())
 		if not m.on then tex:AddMaskTexture(m); m.on = true end
 	elseif m and m.on then
 		tex:RemoveMaskTexture(m)
