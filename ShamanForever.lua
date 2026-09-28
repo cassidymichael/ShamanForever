@@ -41,8 +41,9 @@ local DEFAULTS = {
 	-- own groups. Elements not learned yet take no room, so a new character sees only the first row.
 	-- Groups are centred on their position and grow both ways. Around the first row (shield, shocks,
 	-- Fire Nova; the imbue left; the earth totems and Grounding right): the Clearcasting proc just
-	-- above it, Reincarnation up and left, every other cooldown and buff in a row above, and Tremor
-	-- Totem's warning alone at the top, larger and at full opacity; it is unseen until it warns.
+	-- above it, Reincarnation up and left, every other cooldown and buff in a row above, Tremor
+	-- Totem's warning alone at the top, larger and at full opacity (unseen until it warns), and the
+	-- swing timer's bar alone just under the row, as wide as it.
 	groups = {
 		{ point = "CENTER", x = 0, y = -40, scale = 1, alpha = 0.75, orientation = "horizontal",
 			growth = "forward", spacing = 6, members = { "shield", "shock", "firenova" } },
@@ -59,6 +60,8 @@ local DEFAULTS = {
 		{ point = "CENTER", x = 0, y = 62, scale = 0.9, alpha = 0.75, orientation = "horizontal",
 			growth = "forward", spacing = 6, members = { "naturesswiftness", "manatide", "stormstrike", "riptide",
 				"farseer", "projection", "waterwalking", "waterbreathing" } },
+		{ point = "CENTER", x = 0, y = -70, scale = 1, alpha = 0.75, orientation = "horizontal",
+			growth = "forward", spacing = 6, members = { "swing" } },
 	},
 	known = {},             -- element keys placed at least once; new ones join the first group
 	elementOpts = {},       -- per-element settings by key, e.g. { shock = { show = "combat" } }; every element starts shown
