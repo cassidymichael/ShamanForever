@@ -1199,6 +1199,7 @@ OP.kit = {
 -- Window
 ------------------------------------------------------------------------
 local navButtons, navDivider, navLock, navList = {}, nil, nil, nil   -- navList: the element pages' list
+local navPreview
 
 -- The nav's looks: the current page marked, and element pages not learned yet greyed.
 local function refreshNav()
@@ -1213,6 +1214,7 @@ local function refreshNav()
 	end
 	if navDivider then navDivider.refresh() end
 	if navLock then navLock.refresh() end
+	if navPreview then navPreview.refresh() end
 end
 
 local function showPage(key)
@@ -1276,6 +1278,14 @@ local function buildNav()
 	top("totembar", "Totem bar", "Interface\\Icons\\Spell_Shaman_DropAll_01")
 	top("elements", "Elements", ART .. "Elements.tga")
 	-- Footer: positioning's lock, one click either way (as /sf lock); its label says what it does.
+	-- Above it, the preview (as /sf preview), on or off the same way.
+	navPreview = CreateFrame("Button", nil, win, "UIPanelButtonTemplate")
+	navPreview:SetSize(NAV_W - 32, 22)
+	navPreview:SetPoint("BOTTOMLEFT", 16, 38)
+	navPreview:SetScript("OnClick", function() ns.Preview.toggle() end)
+	setTip(navPreview, "Preview", "The whole HUD in a typical moment, to arrange it out of combat. /sf preview does the same.")
+	function navPreview.refresh() navPreview:SetText(ns.Preview.isOn() and "Stop preview" or "Preview") end
+	navPreview.refresh()
 	navLock = CreateFrame("Button", nil, win, "UIPanelButtonTemplate")
 	navLock:SetSize(NAV_W - 32, 22)
 	navLock:SetPoint("BOTTOMLEFT", 16, 12)
@@ -1284,17 +1294,17 @@ local function buildNav()
 	function navLock.refresh() navLock:SetText(acct().locked and "Unlock positioning" or "Lock positioning") end
 	navLock.refresh()
 	-- Profiles and About, up from the footer, under the divider.
-	add("about", "About", "Interface\\Icons\\INV_Misc_Book_09"):SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 12, 44)
-	add("profiles", "Profiles", "Interface\\Icons\\INV_Misc_Note_01"):SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 12, 74)
+	add("about", "About", "Interface\\Icons\\INV_Misc_Book_09"):SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 12, 70)
+	add("profiles", "Profiles", "Interface\\Icons\\INV_Misc_Note_01"):SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 12, 100)
 	navDivider = ns.Look.divider(win)
-	navDivider:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 20, 110)
+	navDivider:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 20, 136)
 	navDivider:SetWidth(NAV_W - 36)
 	-- The element pages between them. The list starts at the window's edge so the selected page's
 	-- accent (left of its button) isn't clipped. It scrolls by whole rows, so a row is never cut in
 	-- half at the top, with a slim bar down its right edge while there's more than fits.
 	local list = CreateFrame("ScrollFrame", nil, win)
 	list:SetPoint("TOPLEFT", win, "TOPLEFT", 4, y)
-	list:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 4, 122)
+	list:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 4, 148)
 	list:SetWidth(NAV_W - 8)
 	local child = CreateFrame("Frame", nil, list)
 	child:SetWidth(NAV_W - 8)
