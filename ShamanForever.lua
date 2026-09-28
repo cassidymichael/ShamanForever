@@ -322,15 +322,20 @@ local function freeName()
 	while nameTaken("Group " .. n) do n = n + 1 end
 	return "Group " .. n
 end
--- name as g's (g may be nil for a group not made yet): trimmed, without the escape character, and
--- numbered if taken. nil for an empty name.
+-- name as g's (g may be nil for a group not made yet): trimmed, without the escape character, cut
+-- to the Name box's limit, and numbered if taken (cut further to leave room for the suffix). nil
+-- for an empty name.
 local function uniqueName(name, g)
-	name = strtrim((tostring(name or ""):gsub("|", "")))
+	name = ns.utf8Cut(strtrim((tostring(name or ""):gsub("|", ""))), ns.MAX_GROUP_NAME)
 	if name == "" then return nil end
 	if not nameTaken(name, g) then return name end
 	local n = 2
-	while nameTaken(name .. " " .. n, g) do n = n + 1 end
-	return name .. " " .. n
+	while true do
+		local suffix = " " .. n
+		local candidate = ns.utf8Cut(name, ns.MAX_GROUP_NAME - #suffix) .. suffix
+		if not nameTaken(candidate, g) then return candidate end
+		n = n + 1
+	end
 end
 
 local function nextId()

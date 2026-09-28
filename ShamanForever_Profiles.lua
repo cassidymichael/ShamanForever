@@ -227,7 +227,7 @@ local function cleanProfile(t)
 				if type(g.id) == "number" and g.id >= 1 and g.id <= ns.MAX_GROUP_ID and g.id % 1 == 0 then
 					clean.id = g.id
 				end
-				if type(g.name) == "string" and #g.name <= 64 then clean.name = g.name end
+				if type(g.name) == "string" then clean.name = ns.utf8Cut(g.name, ns.MAX_GROUP_NAME) end
 				clean.border = ns.Style.cleanOwn(g.border, "border")
 				for _, key in ipairs(type(g.members) == "table" and g.members or {}) do
 					if type(key) == "string" then table.insert(clean.members, key) end
