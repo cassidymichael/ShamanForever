@@ -83,6 +83,7 @@ Some effects can't be read in combat at all, but our own casts can, so they are 
 ## Showing only in combat
 
 - **Show and hide:** a group holding Blizzard's aura button (the shield) is protected in combat, and an addon `Show`, `Hide` or `SetAlpha` on it is dropped without an error (tested 2026-09-22: an alpha of 0 set out of combat never came back). So combat-only groups, elements and the totem bar use `RegisterStateDriver(frame, "visibility", "[combat] show; hide")`: Blizzard's `SecureStateDriverManager` reads the macro conditions and shows or hides the frame itself, in combat too. "In combat or with an enemy target" adds `[@target,exists,harm,nodead] show`.
+- **Stay after combat, then fade out:** at `PLAYER_REGEN_DISABLED`, which comes before the lockdown, the frame's driver becomes a plain `show`, so the end of combat doesn't hide it. Out of combat, after the chosen seconds, an `Alpha` animation that keeps no end value fades it out, and then its own driver comes back and hides it. The frame's own alpha never changes, so combat starting mid-fade only stops the animation. Not yet tested in game.
 
 ## The totem bar in combat
 

@@ -118,6 +118,7 @@ read_globals = {
     "Screenshot",
     "ScrollBoxConstants",
     "ScrollUtil",
+    "SecureCmdOptionParse",
     "SecureHandlerSetFrameRef",
     "SecureHandlerWrapScript",
     "SetBinding",

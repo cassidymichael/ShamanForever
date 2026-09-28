@@ -516,8 +516,10 @@ end
 -- to its group, so showing it again (other than by dropping it on a group) puts it back there.
 ------------------------------------------------------------------------
 local SHOW_CHOICES = { { "always", "Always" }, { "combat", "In combat" }, { "never", "Hidden" } }
--- A group's Show.
+-- A group's Show, and its time on screen once combat ends (the totem bar has both too).
 local COMBAT_SHOW = { { "always", "Always" }, { "combat", "In combat" }, { "target", "In combat or with an enemy target" } }
+local STAY_TIP = "Seconds it stays once combat ends, then it fades out."
+local function staySecs(v) return v == 0 and "None" or string.format("%d s", v) end
 
 local CARD_GAP, CHIP_H, CARD_HEAD = 8, 26, 28
 
@@ -904,6 +906,8 @@ local function buildLayout(p)
 	borderRows(p, selected, relayout, "Border same as General", hasGroups)
 	p:dropdown("Show", "When the group is on screen. Everything visible shows while positioning is unlocked.",
 		COMBAT_SHOW, groupGet("show"), groupSet("show"), hasGroups, 250)
+	p:slider("Stay after combat", STAY_TIP, 0, 10, 1, staySecs, groupGet("fadeAfter"), groupSet("fadeAfter"),
+		showWhen(function() local g = selected(); return g and g.show ~= "always" end, hasGroups))
 	p:text("Elements have their own Show setting too. An element shows only when both allow it.", hasGroups)
 	local lastRow = p:buttons({
 		-- Hard to undo, so each asks first.
@@ -969,6 +973,8 @@ local function buildTotemBar(p)
 		{ { "always", "Always" }, { "active", "In combat or a totem down" }, { "combat", "In combat" },
 			{ "target", "In combat or with an enemy target" } },
 		tget("show"), tset("show"), nil, 250)
+	p:slider("Stay after combat", STAY_TIP, 0, 10, 1, staySecs, tget("fadeAfter"), tset("fadeAfter"),
+		function() return c().show ~= "always" end)
 	p:dropdown("Tooltips", nil, { { "always", "Always" }, { "ooc", "Out of combat" }, { "never", "Never" } },
 		tget("tips"), tset("tips"), nil, 160)
 	p:checkbox("Show keybinding text", "Each button's key, in its corner.", tget("keys"), tset("keys"))

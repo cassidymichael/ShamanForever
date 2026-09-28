@@ -176,7 +176,7 @@ local RANGES = {
 	manaTint = { 0.1, 1 }, rangeIntensity = { 0.1, 1 }, rangeTint = { 0.1, 1 }, imbueWarnMins = { 0, 30 },
 }
 local GROUP_RANGES = { scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { 0, 40 }, size = { 24, 96 },
-	x = { -10000, 10000 }, y = { -10000, 10000 } }
+	x = { -10000, 10000 }, y = { -10000, 10000 }, fadeAfter = { 0, 10 } }
 -- An element's own numbers (db.elementOpts[key]), and its Expiring warning's.
 local ELEMENT_RANGES = { idleAlpha = { 0, 1 }, reagentLow = { 0, 10 }, reagentSize = { 8, 40 },
 	reagentX = { -50, 50 }, reagentY = { -50, 50 }, wordSize = { 8, 40 }, wordX = { -100, 100 }, wordY = { -100, 100 } }

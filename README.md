@@ -66,6 +66,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 
 - Arrange elements into groups: rows or columns, each with its own position, spacing, icon size, scale, opacity and border. Drag elements between groups in the options.
 - Show each element always, only in combat, or never. A group can show only in combat, or in combat and whenever you target an enemy.
+- Stay after combat: a group or the totem bar shown only in combat can stay a few seconds once combat ends, then fade out.
 - Positioning mode: drag groups and the totem bar, with snapping and a grid. Mouse wheel sets icon size, Ctrl+wheel scale, Shift+wheel opacity, and the arrow keys nudge. It locks itself when combat starts.
 - Borders and warning rings stay pixel-sharp at any icon size.
 - Test elements (`/sf test`): placeholder icons for trying out a layout, and elements you haven't learned yet, greyed.

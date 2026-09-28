@@ -24,6 +24,7 @@ local GROUP_DEFAULTS = {
 	spacing = 6,
 	-- always | combat | target (in combat or with an enemy target); always shown while unlocked
 	show = "always",
+	fadeAfter = 0,               -- seconds it stays once combat ends, then fades out (0: none)
 }
 -- A group's Show as its state driver's conditions (none for always). "harm" is any target you can
 -- attack; a dead one doesn't count.
@@ -468,14 +469,52 @@ local function hideFrame(frame)
 end
 
 -- The conditions a group's frame shows under (nil: shown), and those of a member set to show only in
--- combat.
-local function groupWhen(g)
+-- combat. While the group stays after combat (ns.AfterCombat) both are a plain "show".
+local function groupWhen(g, gf)
 	if not acct.locked then return nil end
-	return SHOW_WHEN[g.show]
+	local when = SHOW_WHEN[g.show]
+	if when and ns.AfterCombat.held(gf.afterCombat) then return "show" end
+	return when
 end
-local function memberWhen(key)
+local function memberWhen(g, gf, key)
 	if not acct.locked or showMode(key) ~= "combat" then return nil end
+	if SHOW_WHEN[g.show] and ns.AfterCombat.held(gf.afterCombat) then return "show" end
 	return SHOW_WHEN.combat
+end
+
+-- A laid-out group's drivers and its members' again: it started or stopped staying after combat.
+local function driveGroup(gi)
+	local g, gf = db.groups[gi], groupFrames[gi]
+	if not (g and gf and gf.laidOut) or InCombatLockdown() then return end
+	for _, key in ipairs(g.members) do
+		if isEnabled(key) then showFrame(ELEMENTS[key].frame, memberWhen(g, gf, key)) end
+	end
+	showFrame(gf, groupWhen(g, gf))
+end
+
+-- A group's Stay after combat (ns.AfterCombat), made with its frame.
+local function afterCombat(gf)
+	local function group() return db.groups[gf.index] end
+	return ns.AfterCombat.new({
+		secs = function()
+			local g = group()
+			return g and gf.laidOut and acct.locked and SHOW_WHEN[g.show] and g.fadeAfter or 0
+		end,
+		apply = function() driveGroup(gf.index) end,
+		shows = function()
+			local g = group()
+			return g and SHOW_WHEN[g.show] and SecureCmdOptionParse(SHOW_WHEN[g.show]) == "show"
+		end,
+		-- The group, and its members' effects layers, which ignore its alpha.
+		frames = function()
+			local list, g = { gf }, group()
+			for _, key in ipairs(g and g.members or {}) do
+				local fx = ELEMENTS[key].frame.effects
+				if fx then table.insert(list, fx) end
+			end
+			return list
+		end,
+	})
 end
 
 -- Sizes and anchors a group's members in one pass, centred on the cross axis; the group frame
@@ -484,6 +523,7 @@ end
 -- (Blizzard's aura button), so a chain could stop the members before it changing in combat.
 local function layoutGroup(gi)
 	local g, gf = db.groups[gi], groupFrame(gi)
+	gf.afterCombat = gf.afterCombat or afterCombat(gf)
 	local gap = g.spacing
 	local horizontal = g.orientation == "horizontal"
 	local forward = g.growth ~= "backward"
@@ -509,7 +549,7 @@ local function layoutGroup(gi)
 				else f:SetPoint("BOTTOM", gf, "BOTTOM", 0, offset) end
 				along, across = along + h, math.max(across, w)
 			end
-			showFrame(f, memberWhen(key))
+			showFrame(f, memberWhen(g, gf, key))
 			n = n + 1
 		end
 	end
@@ -528,7 +568,8 @@ local function layoutGroup(gi)
 	gf:ClearAllPoints()
 	gf:SetPoint(g.point, UIParent, g.point, g.x, g.y)
 	ns.Positioning.decorate(gf, gi)
-	if n > 0 then showFrame(gf, groupWhen(g)) else hideFrame(gf) end
+	gf.laidOut = n > 0
+	if n > 0 then showFrame(gf, groupWhen(g, gf)) else hideFrame(gf) end
 end
 
 -- Deferred in combat: the shield's group is an ancestor of Blizzard's protected aura button, so
@@ -539,7 +580,10 @@ local function layoutElements()
 		if not isEnabled(key) then hideFrame(e.frame) end
 	end
 	for gi in ipairs(db.groups) do layoutGroup(gi) end
-	for gi = #db.groups + 1, #groupFrames do hideFrame(groupFrames[gi]) end
+	for gi = #db.groups + 1, #groupFrames do
+		groupFrames[gi].laidOut = false
+		hideFrame(groupFrames[gi])
+	end
 	each("afterGroups")
 	ns.refitRings()
 	ns.Positioning.update()
@@ -825,7 +869,7 @@ function ns.debugReport()
 		end
 		say("group %d: %s, %s, size %d%s, scale %.2f, opacity %.2f, at %s %.0f,%.0f%s", gi, table.concat(names, ","),
 			g.orientation, groupSize(g), g.sizeFollow and " (General)" or "", g.scale, g.alpha, g.point, g.x, g.y,
-			g.show == "always" and "" or (", shows " .. g.show))
+			g.show == "always" and "" or string.format(", shows %s, stays %ds", g.show, g.fadeAfter))
 	end
 	local errs = ns.errorLines()
 	if #errs == 0 then say("no caught errors")
