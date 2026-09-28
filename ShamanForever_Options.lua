@@ -358,10 +358,12 @@ local function buildGeneral(p)
 	p:text("Elements, groups and the totem bar use these unless they have their own.")
 	p:slider("Icon size", "Every group's and the totem bar's, unless it has its own.", 24, 96, 1, int,
 		get("iconSize"), set("iconSize"))
-	-- Who has an own icon size: groups, then the totem bar.
+	-- Who has an own icon size: groups with something in them, then the totem bar.
 	local function ownSizes()
 		local out = {}
-		for _, g in ipairs(db().groups) do if not g.sizeFollow then table.insert(out, g.name) end end
+		for _, g in ipairs(db().groups) do
+			if #g.members > 0 and not g.sizeFollow then table.insert(out, g.name) end
+		end
 		if ns.TotemBar.barOn() and not ns.TotemBar.cfg().sizeFollow then table.insert(out, "Totem bar") end
 		return out
 	end
