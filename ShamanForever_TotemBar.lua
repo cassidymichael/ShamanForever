@@ -1489,8 +1489,10 @@ end
 function TB.preview(p)
 	if p then
 		preview = { combat = p.combat, all = p.all, states = preview and preview.states or {} }
+		if TB.range then TB.range.preview(true) end
 	elseif preview then
 		preview = nil
+		if TB.range then TB.range.preview(false) end
 		for _, el in ipairs(ELEMENTS) do
 			local s = slots[el]
 			s.killed:stop()
