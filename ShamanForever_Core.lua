@@ -210,6 +210,9 @@ end
 
 local function fadeOut(o)
 	if InCombatLockdown() then return end
+	-- It may have stopped staying meanwhile (unlocked, Show set to Always, Stay set to 0): no fade.
+	local okSecs, secs = pcall(o.spec.secs)
+	if not (okSecs and type(secs) == "number" and secs > 0) then release(o) return end
 	local ok, shows = pcall(o.spec.shows)
 	if ok and shows then release(o) return end
 	local played = ns.try("after combat fade", function()

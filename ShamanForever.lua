@@ -501,9 +501,12 @@ local function afterCombat(gf)
 			return g and gf.laidOut and acct.locked and SHOW_WHEN[g.show] and g.fadeAfter or 0
 		end,
 		apply = function() driveGroup(gf.index) end,
+		-- Whether its own driver would show it now: unlocked, Always, or its conditions hold.
 		shows = function()
 			local g = group()
-			return g and SHOW_WHEN[g.show] and SecureCmdOptionParse(SHOW_WHEN[g.show]) == "show"
+			if not g then return false end
+			local when = acct.locked and SHOW_WHEN[g.show]
+			return not when or SecureCmdOptionParse(when) == "show"
 		end,
 		-- The group, and its members' effects layers, which ignore its alpha.
 		frames = function()
