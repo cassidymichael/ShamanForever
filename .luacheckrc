@@ -123,7 +123,6 @@ read_globals = {
     "SecureHandlerSetFrameRef",
     "SecureHandlerWrapScript",
     "SetBinding",
-    "SetCVar",
     "SetCursorPosition",
     "Settings",
     "SettingsPanel",
@@ -175,6 +174,7 @@ read_globals = {
     "tonumber",
     "tostring",
     "type",
+    "unpack",
     "wipe",
 }
 globals = { "SlashCmdList", "StaticPopupDialogs", "UISpecialFrames", "ShamanForeverDB", "SLASH_SHAMANFOREVER1", "SLASH_SHAMANFOREVER2", "Blizzard_PTRIssueReporter_Saved" }

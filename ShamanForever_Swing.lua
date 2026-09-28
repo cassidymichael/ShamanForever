@@ -13,8 +13,8 @@
 -- plainly there. When the time runs out and no swing came (out of range, facing away), the bar
 -- stays full: the swing is due. Not auto attacking, it is idle.
 --
--- Blizzard's own swing bar (the showSwingTimer CVar, off by default) is turned off while this one
--- shows, unless the player shows both; see "Blizzard's swing bar" below.
+-- Blizzard's own swing bar (the showSwingTimer CVar) is only read, never set; see "Blizzard's swing
+-- bar" below.
 --
 -- ShamanForever.lua calls in through the module hooks (ns.registerModule). Its events are registered
 -- only while the element is on (SW.afterGroups), so it costs nothing while it's off.
@@ -230,12 +230,13 @@ end
 -- Blizzard's swing bar
 ------------------------------------------------------------------------
 -- The showSwingTimer CVar (Options > Advanced Options > Swing Timer; off by default, seen
--- 2026-09-28). While ours shows, Blizzard's is turned off, out of combat, and the character's entry
--- in acct.swingBlizzardOff remembers that we did, so hiding ours turns it back on. Never against the
--- player: turning Blizzard's on while ours shows (CVAR_UPDATE, or found on at a later check after
--- we turned it off) sets Show both (acct.swingShowBlizzard), and it's left alone from then on.
+-- 2026-09-28). It is only read, never set: a CVar set from addon code runs Blizzard's CVAR_UPDATE
+-- handlers inside that call, and Blizzard's swing bar and Edit Mode read the value cached there, so
+-- they could be left running tainted. While ours shows and Blizzard's is on too, the swing page
+-- says so and chat does once per character (acct.swingBlizzardNoted); Keep Blizzard's too
+-- (acct.swingShowBlizzard) leaves both out.
 local CVAR = "showSwingTimer"
-local ourChange = false   -- our own SetCVar is under way (its CVAR_UPDATE comes at once)
+local CVAR_LOWER = CVAR:lower()
 
 local function blizzardOn()
 	local ok, v = safe(C_CVar and C_CVar.GetCVar, CVAR)
@@ -243,52 +244,26 @@ local function blizzardOn()
 	return v ~= "0"
 end
 
-local function setBlizzard(on)
-	ourChange = true
-	local ok, err = pcall(C_CVar.SetCVar, CVAR, on and "1" or "0")
-	ourChange = false
-	if not ok then ns.noteError("swing: Blizzard's bar", err) end
-	return ok
+-- Both bars show and the player hasn't said that's what they want.
+function SW.blizzardAlsoOn()
+	return ns.isEnabled(KEY) and not ns.getAccount().swingShowBlizzard and blizzardOn() == true
 end
 
--- The character's entry: whether we turned Blizzard's bar off (nil until the game knows who it is).
-local function turnedOff(set)
+-- The chat note, once per character (left for a later layout until the game knows who it is).
+local function noteBlizzard()
+	if not SW.blizzardAlsoOn() then return end
 	local acct, key = ns.getAccount(), ns.Profiles.charKey()
-	if not key then return false end
-	if type(acct.swingBlizzardOff) ~= "table" then acct.swingBlizzardOff = {} end
-	if set ~= nil then acct.swingBlizzardOff[key] = set or nil end
-	return acct.swingBlizzardOff[key] == true
+	if not key then return end
+	if type(acct.swingBlizzardNoted) ~= "table" then acct.swingBlizzardNoted = {} end
+	if acct.swingBlizzardNoted[key] then return end
+	acct.swingBlizzardNoted[key] = true
+	say("Blizzard's swing bar is on too. Turn it off in Options > Advanced Options, or tick Keep Blizzard's too on the Swing timer page (/sf).")
 end
 
-local function syncBlizzard()
-	if ns.deferInCombat("swing: Blizzard's bar", syncBlizzard) then return end
-	local acct = ns.getAccount()
-	local on = blizzardOn()
-	if on == nil or not ns.isActive() then return end
-	local wantOff = ns.isEnabled(KEY) and not acct.swingShowBlizzard
-	if wantOff and on then
-		if turnedOff() then
-			-- We turned it off and it's on again: the player turned it back on.
-			acct.swingShowBlizzard = true
-			turnedOff(false)
-		elseif setBlizzard(false) then
-			turnedOff(true)
-		end
-	elseif not wantOff and turnedOff() then
-		turnedOff(false)
-		if not on then setBlizzard(true) end
-	end
-end
-
--- CVAR_UPDATE: the player turned Blizzard's bar on (its own option, or /console) while ours shows.
+-- CVAR_UPDATE: Blizzard's bar was turned on or off; the swing page's line follows.
 local function onCVar(name)
-	if ourChange or isSecret(name) or type(name) ~= "string" or name:lower() ~= CVAR:lower() then return end
-	local acct = ns.getAccount()
-	if blizzardOn() and ns.isEnabled(KEY) and not acct.swingShowBlizzard then
-		acct.swingShowBlizzard = true
-		turnedOff(false)
-		ns.Options.refresh()
-	end
+	if isSecret(name) or type(name) ~= "string" or name:lower() ~= CVAR_LOWER then return end
+	ns.Options.refresh()
 end
 
 ------------------------------------------------------------------------
@@ -355,7 +330,7 @@ function SW.applyLayout()
 end
 function SW.applyTimers() f.cdTimer:apply() end
 -- After the groups' scales are set: lines are measured in screen pixels. Also where ours has just
--- been shown or hidden (every layout comes through here): its events follow, and Blizzard's bar.
+-- been shown or hidden (every layout comes through here): its events follow, and the chat note.
 function SW.afterGroups()
 	local on = ns.isEnabled(KEY)
 	if on and not listening then
@@ -366,7 +341,7 @@ function SW.afterGroups()
 		listen(false)
 	end
 	SW.sizeSpark(bar)
-	syncBlizzard()
+	noteBlizzard()
 end
 
 function SW.start()
@@ -377,11 +352,10 @@ end
 -- /sf debug
 function SW.debug()
 	local left = state.endsAt and state.endsAt - GetTime()
-	say("swing: %s; %d swings seen, %d with a secret duration; auto attack %s; %s%s; Blizzard's bar %s (turned off by us %s, show both %s)",
+	say("swing: %s; %d swings seen, %d with a secret duration; auto attack %s; %s%s; Blizzard's bar %s (keep both %s)",
 		listening and "on" or "off", state.swings, state.secret, tostring(state.attacking),
 		left and (left > 0 and string.format("next in %.1f s", left) or "due") or "no swing under way",
-		state.unsure and ", unsure" or "", tostring(blizzardOn()), tostring(turnedOff()),
-		tostring(ns.getAccount().swingShowBlizzard or false))
+		state.unsure and ", unsure" or "", tostring(blizzardOn()), tostring(ns.getAccount().swingShowBlizzard or false))
 end
 
 ns.registerModule(SW)

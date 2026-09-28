@@ -610,7 +610,6 @@ local function buildSwing(p)
 	local key = "swing"
 	local R = ns.Swing.RANGES
 	local function custom() return ns.elementSetting(key, "colorBy") == "custom" end
-	local function account(name) return function() return ns.getAccount()[name] end end
 	elementDisplay(p, key)
 	p:header("Idle")
 	p:text("Idle is when you're not auto attacking. At 0% it's hidden and keeps its place in the group.")
@@ -628,9 +627,11 @@ local function buildSwing(p)
 	p:slider("Fill opacity", "The fill's opacity while unsure.", R.unsureAlpha[1], R.unsureAlpha[2], 0.05, pct,
 		eget(key, "unsureAlpha"), eset(key, "unsureAlpha"))
 	p:header("Blizzard's swing bar")
-	p:checkbox("Show Blizzard's too", "Blizzard's own swing bar, beside this one.", account("swingShowBlizzard"),
+	p:text("Blizzard's own swing bar is turned on and off in Options > Advanced Options.")
+	p:text("It's on too, so two swing bars show.", showWhen(ns.Swing.blizzardAlsoOn))
+	p:checkbox("Keep Blizzard's too", "No note that it's on, here or in chat.",
+		function() return ns.getAccount().swingShowBlizzard end,
 		function(v) ns.getAccount().swingShowBlizzard = v; relayout() end)
-	p:text("Off: while this shows, Blizzard's swing bar is turned off, and hiding this puts it back. Blizzard's is in Options > Advanced Options.")
 	timerSettings(p, "Countdown", key, "cooldown")
 end
 
