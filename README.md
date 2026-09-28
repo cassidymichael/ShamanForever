@@ -61,6 +61,9 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - A pulsing glow and a pop when something happens: a spell ready, a totem expiring or killed, your imbue dropping, a proc. Choose the pop's motion (grow, bounce, hop or shake), with an optional flash, ring or star burst, and the glow's colour, speed and depth.
 - Timers as countdown text, a cooldown swipe, a draining bar, or any mix, each with its own size, colour, position and time format.
 - An optional global cooldown sweep, as on action bars.
+- Text: the font, outline and shadow of every timer, count and key, from the game's fonts or any that another addon shares through LibSharedMedia. The totem bar can have its own.
+- Bars: one texture for every time bar and the shield's charge bar.
+- Show keybinding text: an element can show the key that casts its spell from your action bars.
 
 ### Layout
 
