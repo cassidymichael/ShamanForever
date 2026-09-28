@@ -201,9 +201,15 @@ function TR.counts() return counts end
 ------------------------------------------------------------------------
 -- Matching a unit against the list
 ------------------------------------------------------------------------
+-- A mob's GUID starts Creature or Vehicle; a player's pet's starts Pet.
+local function isMob(guid)
+	local kind = strsplit("-", guid)
+	return kind == "Creature" or kind == "Vehicle"
+end
 local function npcID(guid)
-	local kind, _, _, _, _, id = strsplit("-", guid)
-	if kind == "Creature" or kind == "Vehicle" then return tonumber(id) end
+	if not isMob(guid) then return nil end
+	local _, _, _, _, _, id = strsplit("-", guid)
+	return tonumber(id)
 end
 
 local hiddenSeen = 0   -- units whose identity was secret, for /sf debug
@@ -223,6 +229,9 @@ local function listed(unit)
 	local guid = plain(safe(UnitGUID, unit))
 	if type(guid) == "string" then
 		told = true
+		-- Not a mob: an enemy player's pet can carry a listed mob's name (tamed, or named so), but
+		-- casts only its family's abilities.
+		if not isMob(guid) then return false end
 		local id = npcID(guid)
 		if id and listIDs[id] then return true end
 	end
