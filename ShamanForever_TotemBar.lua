@@ -340,14 +340,15 @@ TB.slots, TB.frame = slots, bar
 -- strip's in-range part is opaque (the buff's icon under its colour), so what sits under it is hidden.
 TB.RANGE_LEVEL = 9
 local OVER_RANGE = TB.RANGE_LEVEL + 4
+local LOOK_OVER_RANGE = OVER_RANGE - 2   -- the same, over the look's level (the button's + 2)
 
 -- Over a button's look (above its timer, and inside the look so it fades with it): the key bound to
 -- it, in the top corner, and its highlight while Blizzard's Quick Keybind Mode is open.
 local KEY_HIGHLIGHT = "UI-HUD-ActionBar-IconFrame-Mouseover"
-local function keyLayer(v, b)
+local function keyLayer(v)
 	local f = CreateFrame("Frame", nil, v)
 	f:SetAllPoints()
-	f:SetFrameLevel(b:GetFrameLevel() + OVER_RANGE + 3)
+	f:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 3)
 	f.text = f:CreateFontString(nil, "OVERLAY")
 	f.text:SetFont(STANDARD_TEXT_FONT, 12, "OUTLINE")
 	f.text:SetPoint("TOPRIGHT", -2, -2)
@@ -362,9 +363,9 @@ end
 
 -- The global cooldown's sweep over the icon (the expiring warning and the range strip too), below
 -- the button's timer, so the time left stays readable.
-local function gcdSweep(v, b)
+local function gcdSweep(v)
 	local cd = ns.makeGCDSweep(v)
-	cd:SetFrameLevel(b:GetFrameLevel() + OVER_RANGE)
+	cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE)
 	return cd
 end
 
@@ -415,11 +416,11 @@ for index, el in ipairs(ELEMENTS) do
 	ns.cropIcon(v.icon)
 	-- Time left: a timer (text, swipe, bar), above the warning layer so it stays readable.
 	s.timer = ns.Timer.new(v, "totembar", "uptime", { anchor = v, school = el })
-	s.timer.cd:SetFrameLevel(b:GetFrameLevel() + OVER_RANGE + 1)
-	s.timer.bar:SetFrameLevel(b:GetFrameLevel() + OVER_RANGE + 2)
+	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 1)
+	s.timer.bar:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 2)
 	v.cd = s.timer.cd
-	s.keys = keyLayer(v, b)
-	s.gcd = gcdSweep(v, b)
+	s.keys = keyLayer(v)
+	s.gcd = gcdSweep(v)
 	s.command = "CLICK ShamanForeverKeyCast" .. NAME[el] .. ":LeftButton"   -- its key (Key bindings, below)
 	-- The expiring warning is the timer's (Timer:setExpire, as on the HUD): a grey copy of the icon, a
 	-- red ring, a dark pulsing layer and a glow, above the icon and below the cooldown, in the slot's
@@ -535,7 +536,7 @@ for _, e in ipairs({ { "Call", CALL }, { "Recall", RECALL } }) do
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
 	ns.cropIcon(v.icon)
-	extras[key] = { key = key, spell = spell, button = b, vis = v, keys = keyLayer(v, b), gcd = gcdSweep(v, b),
+	extras[key] = { key = key, spell = spell, button = b, vis = v, keys = keyLayer(v), gcd = gcdSweep(v),
 		command = "CLICK ShamanForeverKey" .. key .. ":LeftButton" }
 end
 extras.Recall.button:SetAttribute("*type2", "macro")
