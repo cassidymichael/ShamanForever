@@ -18,7 +18,10 @@
 --   its type says so. The type alone isn't enough: a Wrathtail Priestess's Sleep (15970) came as
 --   STUN (seen 2026-09-27).
 -- * Our Tremor Totem: the earth slot holds the totem we last cast into it (ShamanForever_Totems.lua,
---   readable in combat), and the slot has a duration object while a totem is out.
+--   readable in combat), and the slot has a duration object while a totem is out. With no cast since
+--   a login or /reload in combat or in a PvP match, the slot can't say which totem it holds: that
+--   one might be Tremor, so nothing warns until the slot can be read again (combat or the match
+--   ends), the totem goes, or we cast into the slot.
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
@@ -282,9 +285,9 @@ local function readControl()
 	if was and not feared then holdUntil = GetTime() + HOLD end
 end
 
--- Whether our Tremor Totem is out, and the earth slot's duration object. The slot's totem is the
--- last one we cast into it; unknown (a /reload with it out), out of combat the slot itself says, by
--- its spell or else its icon (Totems.identify).
+-- Whether our Tremor Totem is out (nil: a totem is out but which one can't be told), and the earth
+-- slot's duration object. The slot's totem is the last one we cast into it; unknown (a /reload with
+-- it out), the slot itself says while it's readable, by its spell or else its icon (Totems.identify).
 local function tremorOut()
 	local dur = plain(safe(GetTotemDuration, EARTH))
 	if dur == nil then return false end
@@ -293,6 +296,7 @@ local function tremorOut()
 		Totems.setOwner(EARTH, "tremor")
 		key = "tremor"
 	end
+	if key == nil and how == "unknown" then return nil, dur end
 	return key == "tremor", dur
 end
 
@@ -340,7 +344,8 @@ local function refresh()
 	local out, dur = tremorOut()
 	if out then f.upTimer:set(dur) else f.upTimer:clear() end
 	local held = GetTime() < holdUntil
-	local want = not out and (targetListed or next(plates) ~= nil or feared or held)
+	-- Only while the earth slot is known not to hold Tremor.
+	local want = out == false and (targetListed or next(plates) ~= nil or feared or held)
 	if want then
 		why = targetListed and "target" or next(plates) and "nameplate" or feared and "on you" or "just after"
 	end
@@ -514,8 +519,8 @@ function TR.debug()
 	local plateCount = 0
 	for _ in pairs(plates) do plateCount = plateCount + 1 end
 	say("%s: spell %s, warning %s%s, Tremor out %s (slot owner %s, duration %s)", def.spell, tostring(def.spellID),
-		tostring(alerting), alerting and (" (" .. tostring(why) .. ")") or "", tostring(out),
-		tostring(Totems.ownerOf(EARTH)), dur and "yes" or "none")
+		tostring(alerting), alerting and (" (" .. tostring(why) .. ")") or "",
+		out == nil and "unknown" or tostring(out), tostring(Totems.ownerOf(EARTH)), dur and "yes" or "none")
 	say("  list: %d mobs (%d added, %d removed); listed target %s, listed nameplates %d; hidden identities seen %d",
 		counts.mobs, counts.added, counts.removed, tostring(targetListed), plateCount, hiddenSeen)
 	if plain(safe(UnitExists, "target")) then

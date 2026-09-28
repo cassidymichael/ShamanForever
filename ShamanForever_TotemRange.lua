@@ -6,7 +6,9 @@
 -- an aura slot filtered to "HELPFUL|PLAYER" (only buffs you cast) and to the buffs of that element's
 -- totems. Blizzard shows its button (green) while you have the buff, in combat too. Under it sits our
 -- "out of range" mark (red), shown only while one of your buff totems is down in the slot (the slot's
--- duration through a curve, and which totem it is from our own cast).
+-- duration through a curve, and which totem it is from our own cast) and Blizzard's part is there to
+-- cover it. Blizzard's part isn't made or shown while auras are secret (a login or /reload in combat
+-- or in a PvP match): until then the strip stays off, as the red alone would always read "out of range".
 -- * Nothing addon-side may change the button, or the alpha of anything above it, in combat: the
 --   container hangs off the bar (changed out of combat only) and is anchored to the secure slot
 --   button, never placed inside the slot's look, whose alpha changes in combat.
@@ -24,7 +26,8 @@ local isSecret = ns.isSecret
 
 -- The totems that buff the player, per element: the totem spell (any rank) and its buff on the player,
 -- every rank. IDs are Classic's; Forever has shown 8076 (Strength of Earth) and 5672 (Healing
--- Stream). A rank not listed is learned out of combat by the client's name for the buff (learn).
+-- Stream). A rank not listed is learned by the client's name for the buff while auras are readable
+-- (learn).
 local BUFF_TOTEMS = {
 	earth = {
 		{ totem = 8075, buffs = { 8076, 8162, 8163, 10441, 25362 } },          -- Strength of Earth
@@ -75,7 +78,7 @@ end
 
 ------------------------------------------------------------------------
 -- Frames: per slot, a strip along the top edge. Our red part (plain) under Blizzard's aura container,
--- whose button draws the green part (made out of combat, on first use).
+-- whose button draws the green part (made while auras are readable, on first use).
 ------------------------------------------------------------------------
 -- The red part: two nested frames, one gated by "a buff totem of yours is down" (plain), one by the
 -- slot's time left (a curve, possibly secret). Both are ours and hold nothing of Blizzard's.
@@ -99,9 +102,9 @@ local PARTS = {
 	{ key = "own", filter = "HELPFUL|PLAYER", color = "rangeIn", level = 1 },
 }
 
--- A part's look (out of combat, or from Blizzard's init). Under the colour, opaque, the slice of the
--- buff's icon that the strip covers (a totem's buff has the totem's icon): whatever is below is
--- always hidden, so the colours can be see-through, down to not shown at all.
+-- A part's look (while auras are readable, or from Blizzard's init). Under the colour, opaque, the
+-- slice of the buff's icon that the strip covers (a totem's buff has the totem's icon): whatever is
+-- below is always hidden, so the colours can be see-through, down to not shown at all.
 local function styleButton(s, part)
 	local c, p = TB.cfg(), s.rangeParts[part.key]
 	ns.try("totem range: style", function()
@@ -163,6 +166,11 @@ local function makeContainer(s)
 	end
 end
 
+-- Whether Blizzard's part is made and shown over our mark (rangeShown: place showed its container).
+local function partLive(s)
+	return s.rangeShown and not s.rangeError and s.rangeParts.own ~= nil and s.rangeSlots.own == true
+end
+
 -- Size, place and colour our strip and Blizzard's part (out of combat). The height is a line's (ns.linePx), as borders are.
 -- ownOnly: our strip only, not Blizzard's container (auras are secret).
 local function place(s, size, ownOnly)
@@ -180,6 +188,7 @@ local function place(s, size, ownOnly)
 	ct:SetPoint("TOPLEFT", gate, "TOPLEFT", 0, 0)
 	ct:SetSize(w, h)
 	ct:Show()
+	s.rangeShown = true
 	styleButtons(s)
 end
 
@@ -193,8 +202,9 @@ local function applyFilter(s)
 	end
 end
 
--- Buff ranks not in the list: out of combat your own buffs are readable, and one whose name is the
--- client's name for a listed buff is another rank of it (locale-free: both names are the client's).
+-- Buff ranks not in the list: while auras are readable your own buffs can be read, and one whose
+-- name is the client's name for a listed buff is another rank of it (locale-free: both names are
+-- the client's).
 local names = {}   -- the client's buff name -> element
 local function learn()
 	if InCombatLockdown() or not TB.isShaman() or not enabled() then return end
@@ -236,19 +246,21 @@ function R.layout(size)
 		if on and not s.rangeGate then makeMark(s) end
 		if not blocked and on and not s.rangeContainer and not s.rangeError then makeContainer(s) end
 		if s.rangeGate then s.rangeGate:SetShown(on) end
-		if not blocked and s.rangeContainer and not on then s.rangeContainer:Hide() end
+		if not blocked and s.rangeContainer and not on then s.rangeContainer:Hide(); s.rangeShown = false end
 		if on then
 			place(s, size, blocked)
 			if not blocked then applyFilter(s) end
 		end
+		R.refresh(s)   -- Blizzard's part may be there now (a layout that waited)
 	end
 	if not blocked then learn() end
 end
 
--- refresh (any time): the mark's gate, from which totem of yours is down.
+-- refresh (any time): the mark's gate, from which totem of yours is down. Only over Blizzard's part:
+-- without it the red would say "out of range" all the time.
 function R.refresh(s)
 	if not s.rangeGate then return end
-	local on = s.down and enabled() and isBuffTotem(s.el, ns.Totems.downSpell(s.slot))
+	local on = s.down and enabled() and partLive(s) and isBuffTotem(s.el, ns.Totems.downSpell(s.slot))
 	s.rangeGate:SetAlpha(on and 1 or 0)
 	R.drawTimeLeft(s)
 end

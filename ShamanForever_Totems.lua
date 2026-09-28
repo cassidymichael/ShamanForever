@@ -71,15 +71,16 @@ end
 function T.ownerOf(slot) return owner[slot] end
 -- The spell ID of our last cast into a slot, nil while unknown.
 function T.spellInSlot(slot) return spells[slot] end
--- Learned some other way (out of combat, from the slot itself: see T.identify).
+-- Learned some other way (from the slot itself while it's readable: see T.identify).
 function T.setOwner(slot, spellKey, spellID)
 	owner[slot] = spellKey
 	if spellID then spells[slot] = spellID end
 end
 
 -- The totem down in a slot, by spell ID: our own last cast into it (exact, in combat too), else,
--- out of combat, the slot's own spell ID (after a /reload, before we have cast). Never the slot's
--- name: right after a cast it can still be the previous totem's. nil when unknown.
+-- while the slot is readable (out of combat, not in a PvP match), the slot's own spell ID (after a
+-- /reload, before we have cast). Never the slot's name: right after a cast it can still be the
+-- previous totem's. nil when unknown.
 function T.downSpell(slot)
 	local id = spells[slot]
 	if id then return id end
@@ -89,10 +90,10 @@ function T.downSpell(slot)
 end
 
 -- Which of our totems is in a slot: our last cast into it, else, when the slot is readable (out of
--- combat; a /reload with a totem already down), the slot's own spell, kept as the owner so it holds
--- into combat. Returns its spell key ("other" for one we don't track) and how it was told ("cast",
--- "slot spell"); when only the slot's icon can be read, nil, "slot icon" and the icon (every rank
--- shares it), for the caller to match; nil, "unknown" otherwise.
+-- combat and not in a PvP match; a /reload with a totem already down), the slot's own spell, kept
+-- as the owner so it holds into combat. Returns its spell key ("other" for one we don't track) and
+-- how it was told ("cast", "slot spell"); when only the slot's icon can be read, nil, "slot icon"
+-- and the icon (every rank shares it), for the caller to match; nil, "unknown" otherwise.
 function T.identify(slot)
 	if owner[slot] then return owner[slot], "cast" end
 	local have, spellID, icon = T.read(slot)

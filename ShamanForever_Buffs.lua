@@ -4,9 +4,9 @@
 --
 -- What can be read, and when (docs/combat-techniques.md):
 -- * Water Walking, Water Breathing: out of combat the aura is readable, so the time left is exact.
---   In combat auras are secret: the timer carries on from the last read, and our own cast of the
---   spell (readable in combat) restarts it when the target is us. A buff dispelled or cancelled
---   in combat is seen when combat ends.
+--   In combat, and all through a PvP match, auras are secret: the timer carries on from the last
+--   read, and our own cast of the spell (readable in combat) restarts it when the target is us. A
+--   buff dispelled or cancelled then is seen when combat (or the match) ends.
 -- * Water Breathing's underwater warning: the breath bar (a mirror timer, "BREATH") draining while
 --   the buff isn't up. Readable in and out of combat (probed 2026-09-27): MIRROR_TIMER_START comes
 --   with a negative scale while it drains under water, and again with a positive one while it
@@ -19,7 +19,7 @@
 --   under the button never run, but the button plays animations handed to it
 --   (Blizzard_CustomAuraButton.lua): AddAuraShownAnimation runs the glow's pulse while the proc
 --   shows, AddAuraAssignedAnimation our pop each time a proc arrives. Not yet tested in game; on a
---   client without them the pop plays when the proc is seen out of combat.
+--   client without them the pop plays when the proc is seen while auras are readable.
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
@@ -99,7 +99,7 @@ local function setDown(def)
 	def.frame.upTimer:clear()
 end
 
--- Out of combat: the aura, by the client's name for the spell (every rank shares it).
+-- While auras are readable: the aura, by the client's name for the spell (every rank shares it).
 local function readAura(def)
 	if InCombatLockdown() or ns.aurasSecret() or not C_UnitAuras then return end
 	local ok, a = safe(C_UnitAuras.GetAuraDataBySpellName, "player", def.spell, "HELPFUL")
@@ -165,7 +165,7 @@ local function styleProc(def, size)
 	def.popAnim:restyle(setting(def.key, "primedPop") and true or false)
 end
 
--- The proc's aura slot, on the effects layer (out of combat only; once made, it stays).
+-- The proc's aura slot, on the effects layer (made while auras are readable; once made, it stays).
 local function makeProcSlot(def)
 	return ns.makeAuraSlot(def.frame, {
 		key = def.key, slot = "proc", ids = function() return procIDMap(def) end, parent = def.frame.effects,
@@ -179,7 +179,7 @@ for _, def in ipairs(BUFFS) do
 	if def.proc then def.aura = makeProcSlot(def) end
 end
 
--- Out of combat: whether the proc is up, for the pop the moment it comes.
+-- While auras are readable: whether the proc is up, for the pop the moment it comes.
 local function readProc(def)
 	if InCombatLockdown() or ns.aurasSecret() or not C_UnitAuras then return end
 	local up = false

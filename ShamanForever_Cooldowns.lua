@@ -18,13 +18,13 @@
 --   when that is this element's totem. The slot's duration object still drives the timer, and an
 --   empty slot has none. When the owner is unknown (a /reload with a totem already out), out of
 --   combat the slot says which totem it is (its spell ID, else its icon), and that is kept as the
---   owner. In combat the slot is secret, so the timer stays hidden until combat ends or the totem is
---   recast: a /reload in combat isn't worth guessing for.
+--   owner. In combat, and all through a PvP match, the slot is secret, so the timer stays hidden
+--   until that ends or the totem is recast: a /reload then isn't worth guessing for.
 -- * Buff windows and primed states come from our own casts, which are readable in combat: Rage of the
 --   Farseer's window runs a fixed time from its cast; Nature's Swiftness and Stormstrike are primed
 --   from their cast until our casts of the spells that spend them (or its time runs out). That is an
 --   inference, like the shield's; Nature's Swiftness is corrected from its buff whenever auras are
---   readable (out of combat).
+--   readable (out of combat, and not in a PvP match).
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
@@ -331,8 +331,8 @@ local function refreshFireNova(def, inEvent)
 end
 
 -- Whether the totem in def's slot is def's own (1) or not (0), and how that was told. Not known from
--- our casts (a /reload with the totem already down): out of combat the slot's spell, else its icon
--- (every rank shares it), kept as the owner so it holds into combat. In combat: unknown, hidden.
+-- our casts (a /reload with the totem already down): while the slot is readable its spell, else its
+-- icon (every rank shares it), kept as the owner so it holds into combat. Else: unknown, hidden.
 local function slotMatch(def, slot)
 	local key, how, icon = Totems.identify(slot)
 	if key then return key == def.spellKey and 1 or 0, how end
@@ -406,10 +406,10 @@ local function isActive(def)
 	return def.activeUntil ~= nil
 end
 
--- Out of combat, the primed buff itself says whether it's up and for how long: by its IDs, else by
--- the client's name for it. Within a moment of our cast, a missing buff doesn't end it (the aura
--- can arrive after the cast event). fromAura: an aura change, which may pop; a read at login or
--- after combat finds what was already there, quietly.
+-- While auras are readable, the primed buff itself says whether it's up and for how long: by its
+-- IDs, else by the client's name for it. Within a moment of our cast, a missing buff doesn't end it
+-- (the aura can arrive after the cast event). fromAura: an aura change, which may pop; a read at
+-- login or after combat finds what was already there, quietly.
 local CAST_GRACE = 1.5
 local function readPrimedBuff(def, fromAura)
 	local buffKey = def.primed and def.primed.buffKey

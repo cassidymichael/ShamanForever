@@ -13,17 +13,23 @@
 --    GetAuraDuration and GetUnitAuraInstanceIDs, UNIT_AURA stops reaching the addon, script
 --    handlers under the button never run, and the button only animates its own descendants
 --    (all tested 2026-09-23). So the underlay follows `believedUp`:
---    * out of combat: exact, read from the aura (SH.refresh);
+--    * out of combat: exact, read from the aura (SH.refresh). Except in a PvP match: auras stay
+--      secret for the whole match (Blizzard's API documentation; not yet seen in a battleground),
+--      so the in-combat rules below hold until it ends;
 --    * in combat: set to up when UNIT_SPELLCAST_SUCCEEDED reports our own cast of a tracked shield.
 --      Our own cast events are documented as never secret (SecretWhenUnitSpellCastRestricted
 --      only hides other units' casts); the combat log is never read. The inference is only
 --      "a successful shield cast means that shield is up". Casting an untracked shield sets it to
 --      down, since that shield replaces the tracked one (the same inference, applied to exclusivity).
 --    * Nothing else can set it to down in combat. A shield that drops mid-fight shows the underlay at
---      the "In-combat fallback" strength (No shield block; underlayUp) until the recast or combat ends.
+--      the "In-combat fallback" strength (No shield block; underlayUp) until the recast or combat
+--      (or the match) ends.
 --    * Why keep the inference: without it, entering combat with no shield and casting one mid-fight
 --      leaves the full "no shield" look bleeding through the live shield until combat ends
 --      (at group opacity below 100%).
+--    * After a login or /reload in combat or in a PvP match the belief is unknown until a cast or a
+--      read, and nothing warns. Blizzard's button is made only while auras are readable, so until
+--      then nothing covers the underlay either: believed up or not known, it shows the plain icon.
 -- 3. The underlay matters at all only because the group's opacity makes Blizzard's button
 --    translucent, so the underlay bleeds through it; nativeIconAlpha compensates so the stack
 --    matches the group's opacity. At 100% group opacity the button hides the underlay completely.
@@ -54,7 +60,7 @@ ns.registerElement("shield", { frame = shield, label = "Shields", paint = functi
 -- Per shield at runtime: name (the client's), spellID and bookIcon (highest known rank), known. The IDs
 -- that count as it are ns.Spells' (seeds, spellbook, and the live aura's, learned here).
 for _, s in pairs(SHIELDS) do s.name = Spells.name(s.spell) end
-local believedUp = false      -- see above: exact out of combat, set up by our own cast in combat
+local believedUp   -- see above: read when auras are readable, else set by our cast; nil until known
 local native   -- Blizzard's aura container over the underlay, and our parts on its button (below)
 
 local function tracksShield(key)
@@ -113,12 +119,22 @@ function SH.applyEmptyLook()
 		shield:SetPulsing(false)
 		return
 	end
+	local down = believedUp == false   -- not known yet: no warning
+	if not down and not (native.button and not native.err) then
+		-- Nothing of Blizzard's over it yet: the underlay is all that shows, so the plain icon.
+		shield.tex:SetDesaturated(false)
+		shield.tex:SetVertexColor(1, 1, 1)
+		shield.tex:SetAlpha(1)
+		shield:SetRingShown(false)
+		shield:SetPulsing(false)
+		return
+	end
 	shield.tex:SetDesaturated(db.emptyGrey)
 	if db.emptyTint then shield.tex:SetVertexColor(1, 0.35, 0.35) else shield.tex:SetVertexColor(1, 1, 1) end
-	shield.tex:SetAlpha(believedUp and db.underlayUp or 1)
-	shield:SetRingShown(not believedUp and db.emptyRing)
-	-- Only while known down: in combat a drop is not seen until the recast or combat ends.
-	shield:SetPulsing(not believedUp and db.emptyPulse)
+	shield.tex:SetAlpha(down and 1 or db.underlayUp)
+	shield:SetRingShown(down and db.emptyRing)
+	-- Only while known down: a drop in combat (or a match) is not seen until the recast or its end.
+	shield:SetPulsing(down and db.emptyPulse)
 end
 
 -- With display opacity a and underlay strength u, an icon alpha b gives a stacked result of
@@ -149,7 +165,7 @@ local function shieldIDMap()
 	return map
 end
 
--- The slot's filter can only change out of combat; a change in combat waits for it to end
+-- The slot's filter can only change while auras are readable; a change meanwhile waits for that
 -- (ns.makeAuraSlot).
 local function applyShieldFilter() native:refilter() end
 
@@ -258,9 +274,11 @@ local function styleNative(slot, size)
 	else
 		slot.fs:SetPoint("BOTTOMRIGHT", slot.button, "BOTTOMRIGHT", 2, -2); slot.fs:SetJustifyH("RIGHT")
 	end
+	SH.applyEmptyLook()   -- the button may be new: the underlay now has it on top
 end
 
--- Made out of combat only (after a /reload in combat, when combat ends); once made, it stays.
+-- Made only while auras are readable (after a /reload in combat or a PvP match, when that ends);
+-- once made, it stays.
 native = ns.makeAuraSlot(shield, {
 	key = "shield", slot = "shield", ids = shieldIDMap, name = "ShamanForeverAuraContainer",
 	sites = { container = "shield container", style = "shield style", filter = "shield filter" },
@@ -274,8 +292,8 @@ native = ns.makeAuraSlot(shield, {
 -- Auras can be secret out of combat too (PvP matches, encounters): then keep the belief.
 local function aurasReadable() return not InCombatLockdown() and not ns.aurasSecret() end
 
--- Out of combat the auras are readable: sync our belief and learn the live spell IDs. Looked up by
--- the client's name for the shield, which every rank shares.
+-- While auras are readable: sync our belief and learn the live spell IDs. Looked up by the client's
+-- name for the shield, which every rank shares.
 local function refreshAura()
 	if not aurasReadable() then return end
 	local upKey
@@ -341,7 +359,7 @@ function SH.refresh()
 	refreshGCD(false)
 end
 SH.onCooldowns = refreshGCD
--- A shaman logged in: the aura, read again whenever it changes (out of combat).
+-- A shaman logged in: the aura, read again whenever it changes (while auras are readable).
 function SH.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "UNIT_AURA", "player")
@@ -351,7 +369,7 @@ end
 -- /sf debug
 function SH.debug()
 	say("shield tracking %s (last %s), believed up %s", ns.getDB().shieldTrack, ns.getAccount().lastShield,
-		tostring(believedUp))
+		believedUp == nil and "unknown" or tostring(believedUp))
 	for _, key in ipairs(SHIELD_ORDER) do
 		local s = SHIELDS[key]
 		local e = Spells.bookEntry(s.spell)
