@@ -54,6 +54,23 @@ K.confirm("SHAMANFOREVER_SPLIT", "Split %s into one group per element?\nPutting 
 	function(id) ns.splitGroup(id) end)
 K.confirm("SHAMANFOREVER_HIDEALL", "Hide every element in %s?\nEach one's Show setting becomes Hidden.", "Hide all",
 	function(id) ns.hideGroup(id) end)
+-- The group after it in the list is chosen next, or the one before when it was last.
+K.confirm("SHAMANFOREVER_DELETE_GROUP", "Delete the group %s?\n%s", "Delete", function(id)
+	local _, i = ns.groupById(id)
+	if not (i and ns.deleteGroup(id)) then return end
+	local groups = db().groups
+	local after = groups[i] or groups[i - 1]
+	chosen = after and after.id
+	ns.Options.refresh()
+end)
+local function askDelete()
+	local g = selected()
+	if not g then return end
+	local n = #g.members
+	local what = n == 0 and "It has no elements." or n == 1 and "Its element moves to Ungrouped."
+		or string.format("Its %d elements move to Ungrouped.", n)
+	StaticPopup_Show("SHAMANFOREVER_DELETE_GROUP", g.name, what, g.id)
+end
 
 ------------------------------------------------------------------------
 -- Elements (chips): an icon and a name, dimmed while hidden or not learned. Drag one to move it;
@@ -61,7 +78,7 @@ K.confirm("SHAMANFOREVER_HIDEALL", "Hide every element in %s?\nEach one's Show s
 ------------------------------------------------------------------------
 local CHIP_STEP = 26   -- a chip is 2 shorter, leaving a gap
 local drag = {}        -- key: the element being dragged; hover: the drop target under the cursor
-local list, rows, newButton, members   -- built with the page (LP.build)
+local list, rows, loose, newButton, members   -- built with the page (LP.build)
 
 local function elementName(key) return ns.Look.elementName(key) end
 
@@ -343,6 +360,39 @@ local function revealChosen()
 	end)
 end
 
+-- Ungrouped: elements in no group (their group was deleted), under the groups while there are any.
+-- They aren't drawn and keep their settings; drag one onto a group to place it.
+local LOOSE_TOP = 48   -- the heading and its line above the chips
+
+local function looseKeys()
+	local keys = {}
+	for _, key in ipairs(ns.ELEMENT_KEYS) do
+		if ns.available(key) and not ns.groupOf(key) then table.insert(keys, key) end
+	end
+	return keys
+end
+
+local function buildLoose()
+	loose = list:row(10)
+	loose.pool = {}
+	local title = loose:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	title:SetPoint("TOPLEFT", 4, -12)
+	title:SetText("Ungrouped")
+	title:SetTextColor(0.62, 0.6, 0.57)
+	local line = loose:CreateTexture(nil, "ARTWORK")
+	line:SetColorTexture(0.23, 0.17, 0.10, 1)
+	line:SetHeight(1)
+	line:SetPoint("TOPLEFT", 0, -28)
+	line:SetPoint("TOPRIGHT", 0, -28)
+	local note = loose:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	note:SetPoint("TOPLEFT", 4, -33)
+	note:SetText("Not on screen. Drag onto a group.")
+	list:add(loose, function() return loose.height or 1 end, function() return #looseKeys() > 0 end, function()
+		loose.height = LOOSE_TOP + placeChips(loose, looseKeys(), LOOSE_TOP)
+		loose:SetHeight(loose.height)
+	end)
+end
+
 local function buildList(p)
 	list = Page.new(p.win, "layoutGroups")
 	local s = list.scroll
@@ -375,6 +425,7 @@ local function buildList(p)
 	rows = list:row(10)
 	rows.pool = {}
 	list:add(rows, function() return rows.height or 1 end, nil, layoutRows)
+	buildLoose()
 	list:add(list:row(6), 6)
 	list:checkbox("Test elements", nil,
 		function() return acct().testMode end, function(v) ns.setTestMode(v); ns.Options.refresh() end)
@@ -475,6 +526,9 @@ local function buildSettings(p)
 		{ "Centre on screen", function() askAboutGroup("SHAMANFOREVER_CENTER") end, "Moves the group to the middle of the screen.", 130 },
 		{ "Split up", function() askAboutGroup("SHAMANFOREVER_SPLIT") end, "Gives every element in the group a group of its own, left where it is.", 90 },
 		{ "Hide all", function() askAboutGroup("SHAMANFOREVER_HIDEALL") end, "Sets every element in the group to Hidden. They keep their places; set one back to Always to bring it back.", 90 },
+	})
+	p:buttons({
+		{ "Delete group", askDelete, "Its elements move to Ungrouped: off screen, their settings kept.", 110 },
 	})
 	p:add(p:row(10), 10)
 end

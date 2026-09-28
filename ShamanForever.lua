@@ -796,6 +796,13 @@ local addGroup = edit(function()
 	return g.id
 end)
 
+-- Deletes a group. Its elements are left in no group: not drawn, their settings kept, until they
+-- are placed in a group again.
+local deleteGroup = edit(function(id)
+	local _, i = groupById(id)
+	if i then table.remove(db.groups, i) end
+end)
+
 -- Splits a group into single-element groups, each left exactly where it is on screen.
 local splitGroup = edit(function(id)
 	local g = groupById(id)
@@ -875,7 +882,7 @@ ns.groupFrames, ns.groupSize, ns.sizeOf = groupFrames, groupSize, sizeOf
 ns.setGroupCenter, ns.screenCenter = setGroupCenter, screenCenter
 ns.layoutElements, ns.applyLayout, ns.applyTimers = layoutElements, applyLayout, applyTimers
 -- Layout edits (the options window): each leaves the groups consistent and lays out again.
-ns.placeElement, ns.addGroup, ns.renameGroup = placeElement, addGroup, renameGroup
+ns.placeElement, ns.addGroup, ns.renameGroup, ns.deleteGroup = placeElement, addGroup, renameGroup, deleteGroup
 ns.splitGroup, ns.hideGroup, ns.centerGroup = splitGroup, hideGroup, centerGroup
 ns.setShow = setShow
 ns.setTestMode = function(on) return edit(setTestMode)(on) end
