@@ -136,6 +136,16 @@ local function lookRows(p, r, kind, label, feature, shown)
 	return look
 end
 
+-- A line naming the elements (keys(), a list) that take a change after a /reload, shown while
+-- there are any: "<names> <verb> after a /reload."
+local function reloadLine(p, keys, verb, shown)
+	p:text(function()
+		local names = {}
+		for _, key in ipairs(keys()) do table.insert(names, ns.Look.elementName(key)) end
+		return table.concat(names, " and ") .. " " .. verb(#names) .. " after a /reload."
+	end, showWhen(function() return #keys() > 0 end, shown))
+end
+
 -- Standard rows: the border around icons, General's or an owner's (a group, the totem bar). Size
 -- and colour show only for looks that use them. The HUD lays out only out of combat (the shield's
 -- group and the totem bar's buttons are protected then), so a change made in combat reaches it
@@ -149,7 +159,12 @@ local function borderRows(p, owner, after, label, shown)
 	local look = lookRows(p, r, "border", "Border look", "Border looks", showWhen(bordered, shown))
 	local function uses(part) return function() return bordered() and ns.Looks.uses(look(), part) end end
 	-- Blizzard's aura button takes a mask only as it is made (ns.Looks.auraMask).
-	p:text("Shields and Elemental Focus change shape after a /reload.", showWhen(ns.Looks.auraStale, shown))
+	local function stale()
+		local o = resolve(owner)
+		if o == nil and owner ~= nil then return {} end   -- no group selected
+		return ns.Looks.auraStale(o)
+	end
+	reloadLine(p, stale, function(n) return n == 1 and "changes shape" or "change shape" end, shown)
 	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("size"), r.set("size"), showWhen(uses("size"), shown))
 	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), showWhen(uses("color"), shown))
 end
@@ -179,7 +194,8 @@ local function glowBlock(p, owner, icon)
 	ic.tex:SetTexture(icon)
 	p:add(f, 64, own, function() ns.applyBorder(ic, previewBorder(owner)); ic:SetGlowShown(true) end)
 	local look = lookRows(p, r, "glow", "Look", "Glow looks", own)
-	p:text("Elemental Focus changes glow after a /reload.", showWhen(ns.auraGlowStale, own))
+	reloadLine(p, function() return ns.auraGlowStale(owner) end,
+		function(n) return n == 1 and "changes glow" or "change glow" end, own)
 	local function uses(field) return showWhen(function() return look().uses[field] end, own) end
 	p:color("Colour", "Colour and opacity. Killed early, Grounded and Ran out keep their own colours.", r.get("color"), r.set("color"), uses("color"))
 	p:slider("Pulse length", "One pulse, in seconds.", 0.2, 2, 0.1, function(v) return string.format("%.1f s", v) end,

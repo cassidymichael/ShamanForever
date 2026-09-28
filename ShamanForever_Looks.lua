@@ -345,13 +345,21 @@ function Looks.auraStyle(slot, size)
 	if made.swipe and slot.cd then slot.cd:SetSwipeTexture(made.swipe) end
 end
 
--- Whether an aura button's shape differs from its element's border look now: it changes after a
--- /reload (the options say so).
-function Looks.auraStale()
+-- The aura elements whose button's shape differs from their border look now, among those whose
+-- border is owner's (nil: General's; a group): they change after a /reload (the options say so).
+-- Returns their keys.
+function Looks.auraStale(owner)
+	local out, db = {}, ns.getDB()
 	for _, made in pairs(auraMade) do
-		if maskFor(ns.borderFor(made.key)) ~= made.spec then return true end
+		local group
+		for _, g in ipairs(db and db.groups or {}) do
+			for _, k in ipairs(g.members) do if k == made.key then group = g end end
+		end
+		local reaches = owner == group or (owner == nil and (group == nil or S.follows(group, "border")))
+		if reaches and maskFor(ns.borderFor(made.key)) ~= made.spec then table.insert(out, made.key) end
 	end
-	return false
+	table.sort(out)
+	return out
 end
 
 ------------------------------------------------------------------------

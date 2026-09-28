@@ -284,13 +284,18 @@ local function makeGlow(parent, over, owner, unlisted)
 end
 ns.makeGlow = makeGlow
 function ns.applyGlowStyle() for _, g in ipairs(glows) do g:restyle() end end
--- Whether a glow under Blizzard's aura button has a look other than its owner's now: it changes
--- after a /reload (the options say so).
-function ns.auraGlowStale()
+-- The owners of glows under Blizzard's aura button whose look differs from their style's now,
+-- among those whose style is owner's (nil: General's): they change after a /reload (the options
+-- say so). Returns their keys.
+function ns.auraGlowStale(owner)
+	local out = {}
 	for _, g in ipairs(auraGlows) do
-		if g.look ~= ns.Style.look("glow", ns.Style.get(g.owner, "glow").look) then return true end
+		local reaches = owner == g.owner or (owner == nil and ns.Style.follows(g.owner, "glow"))
+		if reaches and g.look ~= ns.Style.look("glow", ns.Style.get(g.owner, "glow").look) then
+			table.insert(out, g.owner)
+		end
 	end
-	return false
+	return out
 end
 
 -- Pop: the burst when something happens (a cooldown ready, an imbue dropping, a totem ending).
