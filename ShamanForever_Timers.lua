@@ -101,10 +101,12 @@ local fonts = 0
 --   aura   = the timer is on Blizzard's aura button (ns.makeAuraSlot), which draws the time: the
 --            button drives the bar (T.AURA_BAR), so it is shown whenever the style has one and is
 --            never fed a duration here; its looks change only out of combat (the slot's restyle)
+--   barInset = function returning how far above the bottom edge a bottom bar sits (the shield's
+--            charge bar is along that edge, drawn over it)
 function T.new(parent, key, kind, opts)
 	opts = opts or {}
 	local t = setmetatable({ key = key, kind = kind, parent = parent, anchor = opts.anchor or parent, dual = opts.dual,
-		school = opts.school, aura = opts.aura }, Timer)
+		school = opts.school, aura = opts.aura, barInset = opts.barInset }, Timer)
 	local cd = opts.cd
 	if not cd then
 		cd = CreateFrame("Cooldown", nil, parent, "CooldownFrameTemplate")
@@ -168,7 +170,8 @@ function Timer:apply()
 		if s.barEdge == "top" then
 			bar:SetPoint("TOPLEFT", a, "TOPLEFT", 0, 0); bar:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, 0)
 		else
-			bar:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, 0); bar:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, 0)
+			local y = self.barInset and self.barInset() or 0
+			bar:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, y); bar:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, y)
 		end
 		local col = s.barElement and schoolColor(self) or s.barColor
 		bar:SetStatusBarColor(col[1], col[2], col[3], col[4] or 1)

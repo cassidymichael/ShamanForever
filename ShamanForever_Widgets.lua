@@ -599,6 +599,7 @@ AuraSlot.__index = AuraSlot
 --   parent       what the container hangs from (default frame); name: a global name, or nil
 --   sites        { container = , style = , filter = }: names for its waiting work and caught errors
 --   iconAlpha()  the aura icon's alpha as the button is made (optional)
+--   barInset()   how far above the bottom edge its time bar sits there (optional; ns.Timer.new)
 --   onButton(slot, button, cd)  the caller's own parts, once Blizzard has made the button
 --   onStyle(slot, size)         the caller's own restyle, after the shared one
 --   onError(err)                the container couldn't be made on this client
@@ -630,7 +631,8 @@ local function initAuraButton(slot, button)
 	-- aura's own time (SetDurationBar; a bar of ours followed it in combat, tested 2026-09-27). We
 	-- only style and show the bar. A client that refuses it gets no bar rather than a still one.
 	local e = ns.ELEMENTS[o.key]
-	slot.timer = ns.Timer.new(button, o.key, "uptime", { cd = cd, anchor = button, aura = true, school = e and e.school })
+	slot.timer = ns.Timer.new(button, o.key, "uptime", { cd = cd, anchor = button, aura = true,
+		school = e and e.school, barInset = o.barInset })
 	if not ns.try("aura time bar", button.SetDurationBar, button, slot.timer.bar, ns.Timer.AURA_BAR) then
 		slot.timer.bar:Hide()
 		slot.timer.bar = nil

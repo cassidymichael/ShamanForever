@@ -199,7 +199,7 @@ local function makePreviewIcon(parent, key, preview)
 	if preview.cooldown then ic.cdT = ns.Timer.new(ic, key, "cooldown", { cd = ic.cd, school = school }) end
 	if preview.uptime then
 		ic.upT = ns.Timer.new(ic.textFrame, key, "uptime", { anchor = ic, dual = preview.cooldown,
-			cd = not preview.cooldown and ic.cd or nil, school = school })
+			cd = not preview.cooldown and ic.cd or nil, school = school, barInset = preview.barInset })
 	end
 	ic.bar = CreateFrame("Frame", nil, ic.textFrame)
 	ic.bar:SetPoint("BOTTOMLEFT", ic, "BOTTOMLEFT", 0, 0)
@@ -351,7 +351,7 @@ end
 -- logic of its own has its own here; the others are made from their def by their kind (below).
 L.PREVIEW = {
 	shield = {
-		uptime = true,
+		uptime = true, barInset = function() return ns.Shield.timeBarInset() end,
 		states = { { "up3", "3 charges" }, { "up1", "1 charge" }, { "down", "No shield" }, { "drop", "Dropped in combat" } },
 		pop = function(ic, st) if st == "up3" and db().shieldPop then ic:Pop() end end,
 		render = function(ic, st)

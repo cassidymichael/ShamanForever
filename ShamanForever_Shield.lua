@@ -334,12 +334,20 @@ local function styleNative(slot, size)
 	SH.applyEmptyLook()   -- the button may be new: the underlay now has it on top
 end
 
+-- The time bar on the bottom edge sits on the charge bar, which is drawn over it (the options'
+-- preview too).
+function SH.timeBarInset()
+	local db = ns.getDB()
+	return db.showBar and db.chargeBarHeight or 0
+end
+
 -- Made only while auras are readable (after a /reload in combat or a PvP match, when that ends);
 -- once made, it stays.
 native = ns.makeAuraSlot(shield, {
 	key = "shield", slot = "shield", ids = shieldIDMap, name = "ShamanForeverAuraContainer",
 	sites = { container = "shield container", style = "shield style", filter = "shield filter" },
 	iconAlpha = nativeIconAlpha,
+	barInset = SH.timeBarInset,
 	onButton = buildNative, onStyle = styleNative,
 	onError = function(err)
 		say("Blizzard aura container failed on this client; the shield icon will not update: %s", err)
