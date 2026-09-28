@@ -140,24 +140,31 @@ end
 function ns.cantAct()
 	return plainYes(UnitIsDeadOrGhost, "player") or plainYes(UnitOnTaxi, "player")
 end
--- fn(event) whenever that may have changed: death, release, resurrection, a flight path's start and
--- end. UnitOnTaxi may not have changed yet when the control events come (untested), so those are
--- passed on again a second later.
+-- fn(event) whenever that may have changed: death, release, resurrection (always passed on), and a
+-- flight path's start and end (the control events, which also come with every fear or stun: passed
+-- on only when ns.cantAct() changed). UnitOnTaxi may not have changed yet when they come
+-- (untested), so they are checked again a second later.
 local actListeners = {}
-function ns.onCanActChange(fn) table.insert(actListeners, fn) end
+local lastCantAct = false
+function ns.onCanActChange(fn)   -- at a module's start (a /reload on a flight path is already on it)
+	table.insert(actListeners, fn)
+	lastCantAct = ns.cantAct()
+end
 local actEvents = CreateFrame("Frame")
 for _, event in ipairs({ "PLAYER_DEAD", "PLAYER_ALIVE", "PLAYER_UNGHOST", "PLAYER_CONTROL_LOST",
 	"PLAYER_CONTROL_GAINED" }) do
 	ns.registerEvent(actEvents, event)
 end
-local function tellAct(event)
-	for _, fn in ipairs(actListeners) do ns.try("can act: " .. event, fn, event) end
+local function tellAct(event, always)
+	local now = ns.cantAct()
+	if not always and now == lastCantAct then return end
+	lastCantAct = now
+	for _, fn in ipairs(actListeners) do ns.try("can act", fn, event) end
 end
 actEvents:SetScript("OnEvent", function(_, event)
-	tellAct(event)
-	if event == "PLAYER_CONTROL_LOST" or event == "PLAYER_CONTROL_GAINED" then
-		C_Timer.After(1, function() tellAct(event) end)
-	end
+	local control = event == "PLAYER_CONTROL_LOST" or event == "PLAYER_CONTROL_GAINED"
+	tellAct(event, not control)
+	if control then C_Timer.After(1, function() tellAct(event) end) end
 end)
 
 ------------------------------------------------------------------------
