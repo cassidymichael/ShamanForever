@@ -203,6 +203,9 @@ local function buildShield(p)
 		{ "either", "Either", 136051, "Either shield" },
 	}, get("shieldTrack"), set("shieldTrack", respell))
 	p:text("Only one shield can be up at a time. With one chosen, the other counts as no shield.")
+	-- Lightning, the tested default, reads a Water Shield that is up as no shield.
+	p:callout(("You know %s: choose Either to count it."):format(ns.Spells.name("waterShield")),
+		function() return db().shieldTrack == "lightning" and ns.Shield.knows("water") end)
 	p:header("Charges")
 	p:checkbox("Charge bar", "One segment per charge.", get("showBar"), set("showBar"))
 	p:slider("Bar height", nil, 1, 20, 1, px, get("chargeBarHeight"), set("chargeBarHeight"),

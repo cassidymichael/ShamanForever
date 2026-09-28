@@ -103,6 +103,8 @@ local function anyTrackedShieldKnown()
 end
 -- The element's learned() (ns.registerElement): a shield it tracks (its Track setting) is known.
 SH.learned = anyTrackedShieldKnown
+-- Whether the character knows a shield (lightning | water), tracked or not (the options).
+function SH.knows(key) return SHIELDS[key] ~= nil and SHIELDS[key].known == true end
 
 -- The underlay is meant to show only when Blizzard's button is hidden, i.e. when the shield is down,
 -- so grey and tint apply unconditionally. Frame alpha is applied per texture, so while the shield is
