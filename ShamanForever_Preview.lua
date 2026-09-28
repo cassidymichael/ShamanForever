@@ -58,9 +58,12 @@ local SCRIPTS = {
 		if combat then return busy and { { "low", hold = 5 }, { "missing", hold = 4 } } or { { "low" } } end
 		return busy and { { "low", hold = 4 }, { "missing", hold = 6 } } or { { "missing" } }
 	end,
+	-- Busy: the totem drops out of the slot, greyed until placed again. Its step is quiet: the HUD's
+	-- greyed pop plays only when the cooldown itself ends with no totem, not when a totem down since
+	-- before the loop's simulated cooldown simply walks off or expires.
 	firenova = function(combat, busy)
-		if not combat then return busy and { { "out", hold = 5 }, { "nototem", hold = 4 } } or { { "nototem" } } end
-		return busy and { { "out", hold = 4 }, { "expiring" }, { "nototem", hold = 2.5 } } or { { "out" } }
+		if not combat then return busy and { { "out", hold = 5 }, { "nototem", hold = 4, quiet = true } } or { { "nototem" } } end
+		return busy and { { "out", hold = 4 }, { "expiring" }, { "nototem", hold = 2.5, quiet = true } } or { { "out" } }
 	end,
 	earthbind = function(combat, busy)
 		if busy then return { { "active", hold = 8 }, { "killed", hold = 2.2 }, { "cd" }, { "ready", hold = 2.5 } } end
@@ -213,10 +216,12 @@ local function setAlpha(f, a)   -- at once, and any fade under way stops
 	ns.fadeTo(f, a)
 end
 
--- An element's step on its stand-in; moment: the step just began, and its moment plays. Returns when
--- the step's timer runs out, if it has one.
+-- An element's step on its stand-in; moment: the step just began, and its moment plays (unless the
+-- step is marked quiet: it isn't the moment the HUD would play it at, only where the loop lands).
+-- Returns when the step's timer runs out, if it has one.
 local function paintElement(key, r, moment)
-	local ic, st = standIns[key], r.steps[r.i][1]
+	local step = r.steps[r.i]
+	local ic, st = standIns[key], step[1]
 	ic.momentToken, ic.idleToken = nil, nil   -- what an options preview's moment left waiting
 	local ends = L.paint(ic, key, st, r.at, opts.replay)
 	if key == "shield" then ns.Shield.preview(ic) end
@@ -225,7 +230,7 @@ local function paintElement(key, r, moment)
 	ic.mark:SetShown(not ns.isLearned(key))
 	PV.fitMark(ic.mark, ic)
 	local pop = L.PREVIEW[key].pop
-	if moment and pop then ns.try("preview pop " .. key, pop, ic, st) end
+	if moment and pop and not step.quiet then ns.try("preview pop " .. key, pop, ic, st) end
 	return ends
 end
 
