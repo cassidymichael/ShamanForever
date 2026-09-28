@@ -85,7 +85,7 @@ end
 local function makeMark(s)
 	local b = s.button
 	local gate = CreateFrame("Frame", nil, TB.frame)
-	gate:SetFrameLevel(b:GetFrameLevel() + 9)
+	gate:SetFrameLevel(b:GetFrameLevel() + TB.RANGE_LEVEL)   -- under the GCD sweep and the timer
 	gate:EnableMouse(false)
 	gate:SetAlpha(0)
 	local m = CreateFrame("Frame", nil, gate)
@@ -147,7 +147,7 @@ local function makeContainer(s)
 	s.rangeParts, s.rangeSlots = {}, {}
 	local ok, err = pcall(function()
 		local c = CreateFrame("AuraContainer", "ShamanForeverRange" .. TB.NAME[s.el], TB.frame, "CustomAuraContainerTemplate")
-		c:SetFrameLevel(s.button:GetFrameLevel() + 10)
+		c:SetFrameLevel(s.button:GetFrameLevel() + TB.RANGE_LEVEL + 1)
 		c:SetUnit("player")
 		pcall(c.EnableMouse, c, false)
 		s.rangeContainer = c
