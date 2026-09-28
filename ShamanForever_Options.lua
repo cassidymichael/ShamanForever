@@ -229,12 +229,20 @@ local function popBlock(p, owner, icon, kind, growOnly)
 		p:slider("Motion speed", nil, 0.5, 2, 0.1, pct, r.get("speed"), r.set("speed"), own)
 		return
 	end
-	p:dropdown("Motion", nil, POP_MOTIONS, r.get("motion"), r.set("motion"), own, 190)
-	p:slider("Motion distance", "How far it grows, hops or shakes.", 1.1, 1.8, 0.05, pct, r.get("size"), r.set("size"), own)
+	-- The looks are for Ready: a page whose pop is for something else (the totem bar's, the imbue's)
+	-- offers only the classic one.
+	local classic = own
+	if kind == "ready" then
+		local look = lookRows(p, r, "pop", "Look", "Pop looks", own)
+		p:text("Other events keep the Classic pop.", showWhen(function() return look().key ~= "classic" end, own))
+		classic = showWhen(function() return look().key == "classic" or look().key == "school" end, own)
+	end
+	p:dropdown("Motion", nil, POP_MOTIONS, r.get("motion"), r.set("motion"), classic, 190)
+	p:slider("Motion distance", "How far it grows, hops or shakes.", 1.1, 1.8, 0.05, pct, r.get("size"), r.set("size"), classic)
 	p:slider("Motion speed", nil, 0.5, 2, 0.1, pct, r.get("speed"), r.set("speed"), own)
-	p:checkbox("Flash", "A quick flash of light over the icon.", r.get("flash"), r.set("flash"), own)
-	p:checkbox("Ring burst", "A ring that spreads out from the icon.", r.get("ring"), r.set("ring"), own)
-	p:checkbox("Star burst", "A star of light behind the icon.", r.get("star"), r.set("star"), own)
+	p:checkbox("Flash", "A quick flash of light over the icon.", r.get("flash"), r.set("flash"), classic)
+	p:checkbox("Ring burst", "A ring that spreads out from the icon.", r.get("ring"), r.set("ring"), classic)
+	p:checkbox("Star burst", "A star of light behind the icon.", r.get("star"), r.set("star"), classic)
 	p:checkbox("Colour by event", "Gold when ready, blue for the imbue, white when a totem runs out, red when killed, pale blue when Grounded. Off: white.",
 		r.get("tint"), r.set("tint"), own)
 	if owner == nil then ownLine(p, "pop") end
@@ -523,13 +531,14 @@ local function buildAbout(p)
 	end
 	if ns.Looks.anyExperimental("border") then p:experimental("Border looks", "General > Border") end
 	if ns.Looks.anyExperimental("glow") then p:experimental("Glow looks", "General > Pulsing glow style") end
+	if ns.Looks.anyExperimental("pop") then p:experimental("Pop looks", "General > Pop style") end
 	gap()
 	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
 		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
 		"Francisque Millet, Mountain Landscape with Lightning (air). Corner and divider ornaments: public domain / CC0, Wikimedia Commons. " ..
 		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood texture CC0, ambientCG. Link icons: Simple Icons, CC0. " ..
-		"The Carved stone, Aged bronze and Carved wood borders: made with an AI image model (Google Gemini).")
+		"The Carved stone, Aged bronze and Carved wood borders and the Painted bursts pop: made with an AI image model (Google Gemini).")
 end
 
 ------------------------------------------------------------------------

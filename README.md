@@ -60,6 +60,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - Warning looks for a missing shield, imbue or totem, or one running out: grey icon, red ring, fade in and out.
 - A pulsing glow and a pop when something happens: a spell ready, a totem expiring or killed, your imbue dropping, a proc. Choose the pop's motion (grow, bounce, hop or shake), with an optional flash, ring or star burst, and the glow's colour, speed and depth.
 - Glow looks (experimental): a soft inner glow, an outer halo, Blizzard's proc glow, sparks running round the edge, the element's school texture, or a heartbeat.
+- Pop looks for a spell coming ready (experimental): the element's school colour, Blizzard's flash, a shape for each school, a motion for each school, painted bursts, or a rune ring.
 - Timers as countdown text, a cooldown swipe, a draining bar, or any mix, each with its own size, colour, position and time format.
 - An optional global cooldown sweep, as on action bars.
 
@@ -106,7 +107,7 @@ ShamanForever is created and maintained with the help of AI tools.
 
 ## Art
 
-The options banners are public-domain paintings: Thomas Moran, *The Chasm of the Colorado*; Joseph Wright of Derby, *Vesuvius from Portici*; Frederic Edwin Church, *Rainy Season in the Tropics* and *Aurora Borealis*; Francisque Millet, *Mountain Landscape with Lightning*. The corner and divider ornaments are public domain / CC0 (Wikimedia Commons). The logo is Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky's *Breaking Wave*, with a CC0 wood texture from ambientCG. The link icons on the About page are from Simple Icons (CC0). Spell icons are Blizzard's, from the game, as is the art of the Cooldown Manager and action button looks. The Carved stone, Aged bronze and Carved wood borders were made with an AI image model (Google Gemini).
+The options banners are public-domain paintings: Thomas Moran, *The Chasm of the Colorado*; Joseph Wright of Derby, *Vesuvius from Portici*; Frederic Edwin Church, *Rainy Season in the Tropics* and *Aurora Borealis*; Francisque Millet, *Mountain Landscape with Lightning*. The corner and divider ornaments are public domain / CC0 (Wikimedia Commons). The logo is Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky's *Breaking Wave*, with a CC0 wood texture from ambientCG. The link icons on the About page are from Simple Icons (CC0). Spell icons are Blizzard's, from the game, as is the art of the Cooldown Manager and action button looks. The Carved stone, Aged bronze and Carved wood borders and the Painted bursts pop were made with an AI image model (Google Gemini).
 
 ## Licence
 

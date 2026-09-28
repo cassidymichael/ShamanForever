@@ -296,8 +296,8 @@ end
 -- Pop: the burst when something happens (a cooldown ready, an imbue dropping, a totem ending).
 -- Its style is its owner's (General's, or an element's or the totem bar's own): a motion (grow,
 -- bounce, hop, shake) with a size and speed, and optional light (a flash over the icon, a ring
--- spreading out, a star behind it), tinted by what happened. Every part is built on the frame the
--- first time it pops.
+-- spreading out, a star behind it), tinted by what happened. For Ready, a pop look in place of that
+-- (ns.Looks.popStyle). Every part is built on the frame the first time it pops.
 local POP_TINT = { ready = { 1, 0.82, 0.25 }, imbue = { 0.35, 0.65, 1 }, expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 },
 	grounded = { 0.56, 0.76, 0.92 } }
 ns.POP_TINT = POP_TINT
@@ -332,6 +332,10 @@ local function popFx(f)
 	fx:SetFrameLevel(f:GetFrameLevel() + 12)
 	fx:EnableMouse(false)
 	x.fx = fx
+	-- Behind the icon (a pop look's shapes; ns.Looks sets its level on each play).
+	x.back = CreateFrame("Frame", nil, f.effects or f)
+	x.back:SetAllPoints()
+	x.back:EnableMouse(false)
 	x.flash = fx:CreateTexture(nil, "OVERLAY")
 	x.flash:SetAllPoints()
 	x.flash:SetTexture("Interface\\Buttons\\WHITE8x8")
@@ -360,6 +364,7 @@ local function popFx(f)
 		for _, m in ipairs({ "grow", "bounce", "hop", "shake", "shakeV" }) do x[m]:Stop() end
 		x.flashAnim:Stop()
 		x.flash:SetAlpha(0)
+		for _, g in ipairs(x.gcd or {}) do g.group:Stop() end
 	end)
 	f.popFx = x
 	return x
@@ -369,7 +374,7 @@ end
 -- play when the frame next shows, for something long over.
 function ns.playPop(f, kind, owner)
 	if not f:IsVisible() then return end
-	local st = ns.Style.get(owner, "pop")
+	local st = ns.Looks.popStyle(ns.Style.get(owner, "pop"), kind or "ready", f)
 	local x = popFx(f)
 	local S = st.size
 	local k = 1 / math.max(st.speed, 0.1)   -- duration multiplier
@@ -426,6 +431,7 @@ function ns.playPop(f, kind, owner)
 		x.star:SetSize(h, h)
 		x.bursts.play(x.star, { dur = 0.45 * k, from = h * 1.2, to = h * 3.5, spin = -0.5 })
 	end
+	if st.play then st.play(x, k) end   -- a pop look's own light (ns.Looks.popStyle)
 end
 
 -- The end of a totem, over `anchor`. Nothing here reads a secret: play() hands the gone totem's

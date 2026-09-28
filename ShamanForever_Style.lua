@@ -37,9 +37,11 @@ S.register("glow", {
 	path = { "glowStyle" },
 })
 S.register("pop", {
-	-- Motion (pop = grow, bounce, hop, shake, shakeV) with its distance and speed, and light: a
-	-- flash, a ring, a star, coloured by what happened (tint) or white.
-	defaults = { motion = "shakeV", size = 1.4, speed = 1, flash = true, ring = false, star = true, tint = true },
+	-- Its look for Ready (S.addLook; ShamanForever_Looks.lua), motion (pop = grow, bounce, hop,
+	-- shake, shakeV) with its distance and speed, and light: a flash, a ring, a star, coloured by
+	-- what happened (tint) or white.
+	defaults = { look = "classic", motion = "shakeV", size = 1.4, speed = 1, flash = true, ring = false, star = true,
+		tint = true },
 	path = { "popStyle" },   -- not "pop": the totem bar's pop is where its pickers open
 })
 -- Whether buttons show the global cooldown's sweep after every cast, as action bars do. Off, an
@@ -57,7 +59,7 @@ S.register("border", {
 	path = { "border" },
 })
 
--- Looks: named ways of drawing a kind (a border's lines or art, a glow), picked by the
+-- Looks: named ways of drawing a kind (a border's lines or art, a glow, a pop), picked by the
 -- kind's `look` field through the same resolution as its other fields (General, then an owner's
 -- own). Each is a data entry that the kind's drawing code reads (ShamanForever_Looks.lua); the
 -- options offer them in the order they were added. entry: name (as the options show it) and the
