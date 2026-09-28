@@ -9,8 +9,8 @@
 -- Every timer is fed a duration object, so nothing here reads a time: Cooldown and StatusBar take
 -- the object, and the bar's "run out" alpha comes from a curve (secret values go straight to
 -- SetAlpha). Plain times (the imbue) become a duration object through C_DurationUtil.
--- The countdown's colour by time left and its tenths are a numeric formatter the Cooldown draws
--- with (see "The countdown's formatter" below), so they need no reading of the time either.
+-- The countdown's colour by time left is a numeric formatter the Cooldown draws with (see "The
+-- countdown's formatter" below), so it needs no reading of the time either.
 
 local _, ns = ...
 
@@ -99,14 +99,14 @@ for _, kind in ipairs(T.KINDS) do
 end
 
 ------------------------------------------------------------------------
--- The countdown's formatter: colour by time left and tenths. A numeric rule formatter
+-- The countdown's formatter: colour by time left (and tenths with it). A numeric rule formatter
 -- (C_StringUtil.CreateNumericRuleFormatter) handed to the Cooldown (SetCountdownFormatter) turns
 -- the time left into the countdown's text inside the engine, with a colour code wrapped into each
 -- rule's format, so it follows secret durations in combat with no polling. It replaces the
 -- Cooldown's own formatting, so its rules repeat the Time format setting: seconds, "2m" above a
 -- minute (or "1:31" below the Time format's threshold) and "1h". Everything rounds up, as the
--- Cooldown's own numbers do. A timer with neither option on has no formatter and keeps the
--- Cooldown's own text.
+-- Cooldown's own numbers do. Only Colour by time left needs it: tenths alone are the Cooldown's
+-- own (SetCountdownMillisecondsThreshold), and a timer with neither keeps the Cooldown's own text.
 ------------------------------------------------------------------------
 local ROUND_UP = Enum and Enum.NumericRuleFormatRounding and Enum.NumericRuleFormatRounding.Up or 1
 
@@ -169,8 +169,8 @@ end
 -- the cache (while the options are being dragged through many looks) never frees one in use.
 local formatters, cached = {}, 0
 local function formatterFor(s)
+	if not s.timeColors then return nil end
 	local tenths = math.floor(secsIn(s.tenths, 0, 10))
-	if not s.timeColors and tenths <= 0 then return nil end
 	local abbrev = secsIn(s.abbrev, 0, 3600)
 	local key = string.format("%s|%d|%d|%s|%s|%s|%s", tostring(s.timeColors), abbrev, tenths,
 		tostring(s.soon), tostring(s.now), colorCode(s.soonColor), colorCode(s.nowColor))
@@ -257,12 +257,18 @@ function Timer:apply()
 	-- Minutes read "2m"; under abbrev seconds they read "1:31" (0: never). Under a minute the client
 	-- always shows plain seconds.
 	pcall(cd.SetCountdownAbbrevThreshold, cd, s.abbrev)
-	-- Colour by time left and tenths (a formatter, which then does the above too). A timer that never
-	-- had one is left alone.
-	local fm = s.text and not cant.text and formatterFor(s) or nil
+	-- Colour by time left (a formatter, which then does the above and the tenths too), or tenths
+	-- alone (the Cooldown's own). A timer that never had either is left alone.
+	local text = s.text and not cant.text
+	local fm = text and formatterFor(s) or nil
 	if fm ~= self.formatter then
 		self.formatter = fm
 		ns.try("timer formatter", cd.SetCountdownFormatter, cd, fm)
+	end
+	local ms = (text and not fm) and math.floor(secsIn(s.tenths, 0, 10)) or 0
+	if ms ~= (self.ms or 0) then
+		self.ms = ms
+		pcall(cd.SetCountdownMillisecondsThreshold, cd, ms)
 	end
 	local c = (not s.timeColors and self.tint) or s.textColor
 	self.font:SetFont(STANDARD_TEXT_FONT, s.textSize, "OUTLINE")
