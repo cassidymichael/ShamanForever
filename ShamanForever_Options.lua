@@ -136,8 +136,9 @@ local function borderRows(p, owner, after, label, shown)
 	local bordered = function() return r.own() and r.style().show end
 	local function look() return ns.Style.look("border", r.style().look) end
 	local function uses(part) return function() return bordered() and ns.Looks.uses(look(), part) end end
+	local function lookKey() return look().key end
 	p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"), showWhen(r.own, shown))
-	p:dropdown("Border look", nil, lookChoices("border"), r.get("look"), r.set("look"), showWhen(bordered, shown), 190)
+	p:dropdown("Border look", nil, lookChoices("border"), lookKey, r.set("look"), showWhen(bordered, shown), 190)
 	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("size"), r.set("size"), showWhen(uses("size"), shown))
 	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), showWhen(uses("color"), shown))
 	p:text("Changes reach the HUD when combat ends.", showWhen(InCombatLockdown, showWhen(r.own, shown)))
