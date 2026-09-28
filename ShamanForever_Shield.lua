@@ -385,4 +385,35 @@ function SH.debug()
 	say("tracked spell IDs: %s", table.concat(t, ","))
 end
 
+------------------------------------------------------------------------
+-- Preview mode (ShamanForever_Preview.lua) shows the shield up. Blizzard's button can't be shown,
+-- hidden or faked by addon code, so the preview draws a stand-in over it, which steps aside while
+-- the shield is really up and Blizzard's button shows the real one. Meanwhile the underlay keeps its
+-- "up" look under either, so the stack has the group's opacity. Only our own textures change here,
+-- which is allowed at any time; the frame itself is never hidden (see ns.fadeTo).
+------------------------------------------------------------------------
+shield.aboveProtected = true   -- Blizzard's button hangs from it
+local standIn   -- the preview's icon over the shield, while it shows
+local liveLook = SH.applyEmptyLook
+function SH.applyEmptyLook()
+	liveLook()
+	if not standIn then return end
+	local db = ns.getDB()
+	shield.tex:SetDesaturated(db.emptyGrey)
+	if db.emptyTint then shield.tex:SetVertexColor(1, 0.35, 0.35) else shield.tex:SetVertexColor(1, 1, 1) end
+	shield.tex:SetAlpha(db.underlayUp)
+	shield:SetRingShown(false)
+	shield:SetPulsing(false)
+	-- Over the underlay, compensated as Blizzard's icon is; alone (its group hidden), at its own.
+	local shown = shield:IsVisible()
+	standIn.tex:SetAlpha(shown and nativeIconAlpha() or db.shieldIconAlpha)
+	local real = shown and believedUp == true and native.button ~= nil and not native.err
+	standIn:SetAlpha(real and 0 or 1)
+end
+-- icon: the preview's stand-in, just drawn; nil when the preview ends.
+function SH.preview(icon)
+	standIn = icon
+	SH.applyEmptyLook()
+end
+
 ns.registerModule(SH)
