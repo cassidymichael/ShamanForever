@@ -14,8 +14,9 @@
 -- tested 2026-09-28: power events stop 5.0 s after a spending cast, in and out of combat, then
 -- resume). Our own casts and their costs are plain, so a cast that costs mana starts a 5 s timer.
 -- Its cost is the lower of the ones read when the cast is sent and when it succeeds, so a proc that
--- makes the cast free while it's up (untested on Forever) doesn't count as spending. Regen's tick
--- phase can't be read, so none is drawn.
+-- makes the cast free while it's up (untested on Forever) doesn't count as spending. A cast queued
+-- behind another is sent before that one has used any proc, so its sent cost is read again as each
+-- cast before it succeeds. Regen's tick phase can't be read, so none is drawn.
 --
 -- Casts left: for each pick, a Step curve with a point where each further cast becomes affordable,
 -- plus half a mana, so at an exact edge it reads one low, never high. A proc that cuts the next
@@ -587,8 +588,9 @@ local function styleMana()
 end
 
 -- Our cast spent mana: the five-second rule starts again.
-local sentCost = {}   -- castGUID -> the cost read when the cast was sent
-local sentCount = 0
+-- Casts sent and not yet succeeded: castGUID -> { spell, cost (nil if unread), at (GetTime) }.
+local sent = {}
+local SENT_FOR = 10   -- a cast sent this long ago that never succeeded is dropped
 local fiveToken
 local function startFive()
 	local now = GetTime()
@@ -601,21 +603,27 @@ local function startFive()
 end
 
 local function onSent(castGUID, spellID)
-	if isSecret(castGUID) or type(castGUID) ~= "string" or isSecret(spellID) then return end
-	if sentCount > 20 then wipe(sentCost); sentCount = 0 end   -- casts that never succeeded
-	sentCost[castGUID] = manaCost(spellID)
-	sentCount = sentCount + 1
+	if isSecret(castGUID) or type(castGUID) ~= "string" or isSecret(spellID) or type(spellID) ~= "number" then
+		return
+	end
+	local now = GetTime()
+	for guid, e in pairs(sent) do
+		if now - e.at > SENT_FOR then sent[guid] = nil end
+	end
+	sent[castGUID] = { spell = spellID, cost = manaCost(spellID), at = now }
 end
 
 local function onSucceeded(castGUID, spellID)
 	if isSecret(spellID) or type(spellID) ~= "number" then return end
 	local cost = manaCost(spellID)
 	if cost and cost > 0 then costSeen[spellID] = cost end   -- its own cast: any cost cut on it is spent
-	local sent = not isSecret(castGUID) and castGUID and sentCost[castGUID]
-	if sent then
-		sentCost[castGUID] = nil
-		if cost == nil or sent < cost then cost = sent end
+	local e = not isSecret(castGUID) and castGUID and sent[castGUID]
+	if e then
+		sent[castGUID] = nil
+		if e.cost and (cost == nil or e.cost < cost) then cost = e.cost end
 	end
+	-- Casts queued behind this one: this cast has used any proc it had, so read their costs again.
+	for _, o in pairs(sent) do o.cost = manaCost(o.spell) end
 	if cost and cost > 0 and manaOn then startFive() end
 	if rereadCosts() and manaOn then
 		styleMana()
@@ -804,8 +812,7 @@ local function listen(on)
 		pcall(ev.RegisterEvent, ev, "TRAIT_CONFIG_UPDATED")
 	else
 		ev:UnregisterAllEvents()
-		wipe(sentCost)
-		sentCount = 0
+		wipe(sent)
 	end
 end
 
