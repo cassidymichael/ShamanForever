@@ -218,7 +218,8 @@ function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown)
 	end)
 end
 
--- choices: list of { value, text }, or a function returning one
+-- choices: list of { value, text }, or a function returning one. A choice's init(button), if it has
+-- one, dresses its line in the open list (Blizzard's menu initializer: button.fontString is the text).
 function Page:dropdown(label, tip, choices, get, set, shown, width)
 	local f = self:row(34)
 	f.label = self:label(f, label, tip)
@@ -227,7 +228,8 @@ function Page:dropdown(label, tip, choices, get, set, shown, width)
 	dd:SetWidth(width or 200)
 	dd:SetupMenu(function(_, rootDescription)
 		for _, c in ipairs(type(choices) == "function" and choices() or choices) do
-			rootDescription:CreateRadio(c[2], function() return get() == c[1] end, function() set(c[1]) end)
+			local item = rootDescription:CreateRadio(c[2], function() return get() == c[1] end, function() set(c[1]) end)
+			if c.init then item:AddInitializer(c.init) end
 		end
 	end)
 	f.dropdown = dd

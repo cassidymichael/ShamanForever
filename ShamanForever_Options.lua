@@ -239,6 +239,65 @@ local function killedBlock(p, get, set, noun, label)
 		get("killedMark"), set("killedMark"), on)
 end
 
+-- Standard block: the text style (ShamanForever_Media.lua), the font, outline and shadow of all an
+-- owner's text: timers, counts, keys. owner nil: General's; "totembar": the bar's own, with Same as
+-- General. The list draws each font in itself, once it's known to load.
+local function fontChoices(current)
+	local out = {}
+	for _, f in ipairs(ns.Media.fonts(current)) do
+		local path = f[3]
+		table.insert(out, { f[1], f[2], init = path and function(button)
+			local obj = ns.Media.menuFont(path)
+			if not obj then return end
+			local fs = button.fontString
+			fs:SetFontObject(obj)
+			fs:SetTextToFit(fs:GetText())
+		end })
+	end
+	return out
+end
+local function textBlock(p, owner, after)
+	after = after or relayout
+	local r = styleRows(owner, "text", after)
+	p:header("Text")
+	if owner == nil then
+		p:anchor("text")
+		p:text("Timers, counts and keys. The totem bar can have its own.")
+	else followRow(p, owner, "text", after) end
+	local own = showWhen(r.own)
+	local function problem() return ns.Media.fontProblem(r.style().font) end
+	p:dropdown("Font", nil, function() return fontChoices(r.style().font) end, r.get("font"), r.set("font"), own, 200)
+	p:text(function() return problem() or "" end, showWhen(function() return r.own() and problem() ~= nil end))
+	p:dropdown("Outline", nil, ns.Media.OUTLINES, r.get("outline"), r.set("outline"), own, 160)
+	p:checkbox("Shadow", "A dark shadow under the text.", r.get("shadow"), r.set("shadow"), own)
+	if owner == nil then ownLine(p, "text") end
+end
+
+-- General's bar texture (ShamanForever_Media.lua): every time bar and the shield's charge bar. The
+-- list shows each texture as a strip.
+local function barBlock(p)
+	local r = styleRows(nil, "bar", relayout)
+	p:header("Bars")
+	p:anchor("bar")
+	p:text("Time bars and the shield's charge bar.")
+	local c = ns.SCHOOL_COLOR.water
+	p:dropdown("Texture", nil, function()
+		local out = {}
+		for _, b in ipairs(ns.Media.bars()) do
+			table.insert(out, { b[1], b[2], init = function(button)
+				local tex = button:AttachTexture()
+				tex:SetSize(64, 10)
+				tex:SetPoint("LEFT", button.fontString, "RIGHT", 8, 0)
+				local path, atlas = ns.Media.barOf(b[1])
+				if atlas then tex:SetAtlas(path) else tex:SetTexture(path) end
+				tex:SetVertexColor(c[1], c[2], c[3])
+			end })
+		end
+		return out
+	end, r.get("texture"), r.set("texture"), nil, 200)
+	p:text(function() return ns.Media.barProblem() or "" end, function() return ns.Media.barProblem() ~= nil end)
+end
+
 -- Standard block: a timer's look (ShamanForever_Timers.lua). key nil: General's for the kind, with
 -- note under its header; otherwise an element's own ("totembar" for the totem bar), with Same as General.
 local TEXT_POS = { { "auto", "Auto" }, { "center", "Centre" }, { "topleft", "Top left" }, { "bottom", "Bottom" } }
@@ -371,6 +430,8 @@ local function buildGeneral(p)
 	timerSettings(p, "Cooldowns", nil, "cooldown", nil, "A spell you can't cast yet.")
 	timerSettings(p, "Time left", nil, "uptime", nil, "A totem, shield or imbue running.")
 	gcdBlock(p, nil)
+	textBlock(p, nil)
+	barBlock(p)
 	glowBlock(p, nil, 136026)
 	popBlock(p, nil, 136026, "ready")
 
@@ -1088,6 +1149,7 @@ local function buildTotemBar(p)
 	p:header("Border")
 	borderRows(p, "totembar", changed)
 	timerSettings(p, "Time left", "totembar", "uptime", changed)
+	textBlock(p, "totembar", changed)
 
 	p.gate = full
 	gcdBlock(p, "totembar")
