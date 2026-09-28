@@ -425,6 +425,10 @@ local function buildProfiles(p)
 		{ "Export", function() OP.showShare("export") end, "This profile as text, to share.", 90 },
 		{ "Import", function() OP.showShare("import") end, "Profile text from someone else. It becomes a new profile.", 90 },
 	})
+
+	p:header("Tips")
+	p:text("Each tip in the options shows once, for all your characters.")
+	p:buttons({ { "Show tips again", function() ns.Hints.reset() end, "The tips you've seen come back.", 140 } })
 end
 
 -- A heading with a gold glow that flashes when a button elsewhere brings the reader to it.

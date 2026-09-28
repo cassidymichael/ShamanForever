@@ -68,6 +68,7 @@ read_globals = {
     "GetBindingKey",
     "GetBindingName",
     "GetBindingText",
+    "GetCVarBool",
     "GetConvertedKeyOrButton",
     "GetCursorPosition",
     "GetInventoryItemID",
