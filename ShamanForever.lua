@@ -338,10 +338,22 @@ local function uniqueName(name, g)
 	end
 end
 
+-- The next free id: one past the highest used, unless that would pass the bound (an id imported at
+-- or near it), in which case the lowest free one instead, so the comment on fixIds' bound always holds.
 local function nextId()
-	local id = 0
-	for _, g in ipairs(db.groups) do id = math.max(id, g.id or 0) end
-	return id + 1
+	local max, used = 0, {}
+	for _, g in ipairs(db.groups) do
+		local id = g.id
+		if id then
+			used[id] = true
+			if id > max then max = id end
+		end
+	end
+	if max < ns.MAX_GROUP_ID then return max + 1 end
+	for id = 1, ns.MAX_GROUP_ID do
+		if not used[id] then return id end
+	end
+	return ns.MAX_GROUP_ID   -- every id taken: fixIds keeps the group count well under this bound
 end
 
 -- A group added at the end of the list, with a template's settings (or the defaults), a new id and
