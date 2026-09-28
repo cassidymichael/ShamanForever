@@ -546,6 +546,7 @@ local function buildAbout(p)
 	if ns.Looks.anyExperimental("border") then p:experimental("Border looks", "General > Border") end
 	if ns.Looks.anyExperimental("glow") then p:experimental("Glow looks", "General > Pulsing glow style") end
 	if ns.Looks.anyExperimental("pop") then p:experimental("Pop looks", "General > Pop style") end
+	p:experimental("Interrupt cue", "Elements > Shocks > Target casting")
 	gap()
 	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
