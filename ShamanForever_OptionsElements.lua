@@ -624,7 +624,7 @@ local function buildSwing(p)
 	p:text("Your main hand's imbue, grey with none.", showWhen(function() return not custom() end))
 	p:color("Custom colour", nil, eget(key, "color"), eset(key, "color"), showWhen(custom))
 	p:header("Unsure")
-	p:text("After an attack speed change or a weapon swap mid-swing, the game doesn't say when your next swing comes. The fill fades until it does.")
+	p:text("After an attack speed change or weapon swap, the fill fades until your next swing.")
 	p:slider("Fill opacity", "The fill's opacity while unsure.", R.unsureAlpha[1], R.unsureAlpha[2], 0.05, pct,
 		eget(key, "unsureAlpha"), eset(key, "unsureAlpha"))
 	p:header("Blizzard's swing bar")

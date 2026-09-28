@@ -1,16 +1,17 @@
 -- Swing timer: the time to your next main-hand swing, on a bar that fills as the swing comes due.
 --
 -- The engine sends PLAYER_SWING(swingDuration, swingType) with every auto attack, carrying the time
--- to the next one; Blizzard's own swing bar runs on it and nothing else. The duration is plain in
--- combat and the gaps between swings match it within 0.04 s (tested 2026-09-28, open world), and it
+-- to the next one; Blizzard's own swing bar is timed from it too (and restarts at the new weapon's
+-- speed on a swap). The duration is plain in combat and the gaps between swings match it within 0.04 s (tested 2026-09-28, open world), and it
 -- comes with Blizzard's bar off too. So each swing sets the bar from the engine's own number, as a
 -- duration object the StatusBar fills from: nothing is polled between swings.
 --
 -- What moves a swing already under way isn't sent. Attack speed is secret in combat (UnitAttackSpeed,
--- tested 2026-09-28), so after an attack speed change (UNIT_ATTACK_SPEED) or a main-hand swap
--- mid-swing the bar can't know when the next swing comes: its fill fades ("unsure") until the next
--- PLAYER_SWING sets it right. When the time runs out and no swing came (out of range, facing away),
--- the bar stays full: the swing is due. Not auto attacking, it is idle.
+-- tested 2026-09-28), so after an attack speed change (UNIT_ATTACK_SPEED) or a main-hand swap the
+-- bar can't know when the next swing comes: its fill fades ("unsure") until the next PLAYER_SWING
+-- sets it right. Out of combat a swap restarts the bar from the new weapon's speed, which reads
+-- plainly there. When the time runs out and no swing came (out of range, facing away), the bar
+-- stays full: the swing is due. Not auto attacking, it is idle.
 --
 -- Blizzard's own swing bar (the showSwingTimer CVar, off by default) is turned off while this one
 -- shows, unless the player shows both; see "Blizzard's swing bar" below.
@@ -158,9 +159,25 @@ local function clearSwing()
 	drawUnsure()
 end
 
-local function markUnsure()
-	if not running() or state.unsure then return end
+-- The swing under way may have moved: its fill fades until the next swing. evenIfDue: also once its
+-- time has run out (a weapon swap starts the swing again, so a due one isn't due any more).
+local function markUnsure(evenIfDue)
+	if state.unsure or not state.endsAt or not (evenIfDue or running()) then return end
 	state.unsure = true
+	drawUnsure()
+end
+
+-- A swing of swingDuration seconds starts now (a plain number).
+local function startSwing(swingDuration)
+	local now = GetTime()
+	if not ns.try("swing duration", duration.SetTimeFromStart, duration, now, swingDuration) then
+		clearSwing()
+		return
+	end
+	state.endsAt, state.unsure, state.speed = now + swingDuration, false, swingDuration
+	ns.try("swing bar", bar.SetTimerDuration, bar, duration, IMMEDIATE, ELAPSED)
+	bar:Show()
+	f.cdTimer:set(duration)
 	drawUnsure()
 end
 
@@ -178,16 +195,7 @@ local function onSwing(swingDuration, swingType)
 		clearSwing()
 		return
 	end
-	local now = GetTime()
-	if not ns.try("swing duration", duration.SetTimeFromStart, duration, now, swingDuration) then
-		clearSwing()
-		return
-	end
-	state.endsAt, state.unsure, state.speed = now + swingDuration, false, swingDuration
-	ns.try("swing bar", bar.SetTimerDuration, bar, duration, IMMEDIATE, ELAPSED)
-	bar:Show()
-	f.cdTimer:set(duration)
-	drawUnsure()
+	startSwing(swingDuration)
 end
 
 -- The main hand's speed, when it reads plainly (out of combat).
@@ -203,6 +211,14 @@ local function onAttackSpeed()
 	local same = new ~= nil and state.speed ~= nil and math.abs(new - state.speed) < 0.001
 	if new then state.speed = new end
 	if not same then markUnsure() end
+end
+
+-- A main-hand swap starts the swing again at the new weapon's speed: from that speed when it reads
+-- plainly (out of combat), else the swing under way, running or due, is unsure.
+local function onWeaponSwap()
+	if not state.endsAt then return end
+	local new = readSpeed()
+	if new and duration then startSwing(new) else markUnsure(true) end
 end
 
 local function readAttacking()
@@ -291,8 +307,7 @@ local function onEvent(_, event, a1, a2)
 	if event == "PLAYER_SWING" then onSwing(a1, a2)
 	elseif event == "UNIT_ATTACK_SPEED" then onAttackSpeed()
 	elseif event == "PLAYER_EQUIPMENT_CHANGED" then
-		-- A main-hand swap mid-swing: the next swing's time is the new weapon's, unknown in combat.
-		if not isSecret(a1) and a1 == MAIN_HAND_SLOT then markUnsure() end
+		if not isSecret(a1) and a1 == MAIN_HAND_SLOT then onWeaponSwap() end
 	elseif event == "UNIT_INVENTORY_CHANGED" then
 		paintFill()   -- an imbue put on or lost: the fill takes its colour now
 	elseif event == "PLAYER_ENTER_COMBAT" then
