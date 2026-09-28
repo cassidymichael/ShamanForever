@@ -70,6 +70,7 @@ read_globals = {
     "GetBindingText",
     "GetConvertedKeyOrButton",
     "GetCursorPosition",
+    "GetInventoryItemID",
     "GetMirrorTimerInfo",
     "GetMultiCastBarIndex",
     "GetMultiCastTotemSpells",

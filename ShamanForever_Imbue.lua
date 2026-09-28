@@ -32,6 +32,7 @@ for key, m in pairs(IMBUES) do m.name = Spells.name(key) end
 local IMBUE_ORDER = { "rockbiter", "flametongue", "frostbrand", "windfury" }
 IM.IMBUES, IM.ORDER = IMBUES, IMBUE_ORDER
 local MAIN_HAND = Enum and Enum.WeaponSlot and Enum.WeaponSlot.MainHand or 0
+local MAIN_HAND_SLOT = 16   -- the main hand's inventory slot (INVSLOT_MAINHAND)
 local IMBUE_TYPE = Enum and Enum.ItemEnchantType and Enum.ItemEnchantType.Imbue or 3
 
 -- Recognised by enchant ID (seeded from the vanilla ranks), else by icon, else learned from our own cast.
@@ -73,6 +74,14 @@ local function readMainHand()
 		end
 	end
 	return false
+end
+
+-- Whether a weapon is in the main hand; true when that can't be read (the item isn't secret for
+-- the player).
+local function hasWeapon()
+	local ok, id = ns.safe(GetInventoryItemID, "player", MAIN_HAND_SLOT)
+	if not ok or isSecret(id) then return true end
+	return id ~= nil
 end
 
 local function imbueKeyFor(w)
@@ -176,10 +185,10 @@ function IM.refresh()
 		imbueState.expiresAt = r.timeLeft > 0 and now + left or nil
 		if key then acct.imbueLast = key end
 	end
-	-- Dead, a ghost or on a flight path: nothing can be cast.
-	local quiet = ns.cantAct()
+	-- No weapon to imbue, or dead, a ghost or on a flight path: nothing can be cast.
+	local quiet = not hasWeapon() or ns.cantAct()
 	drawImbue(now, quiet)
-	-- The moment it drops (imbues stay readable in combat): pop.
+	-- The moment it drops (imbues stay readable in combat): pop. Not when the weapon came off.
 	if had and r == false and db.imbuePop and not quiet then imbue:Pop("imbue") end
 end
 
@@ -221,9 +230,9 @@ end
 -- /sf debug
 function IM.debug()
 	local r = readMainHand()
-	say("main hand imbue now: %s; last ticker read: %s", r == nil and "unreadable" .. (InCombatLockdown() and " (in combat)" or "")
+	say("main hand imbue now: %s; last ticker read: %s; weapon %s", r == nil and "unreadable" .. (InCombatLockdown() and " (in combat)" or "")
 		or r == false and "none" or string.format("enchant %d, icon %d, %.0fs left", r.enchantID, r.enchantIconID, r.timeLeft / 1000),
-		imbueState.read)
+		imbueState.read, tostring(hasWeapon()))
 end
 
 ns.registerModule(IM)
