@@ -12,6 +12,12 @@
 --   own). So on each change it is pointed at the target while that is something you can attack,
 --   and at no unit otherwise; and a state driver ([@target,harm,nodead]) hides it while the target
 --   isn't one, so a friendly target's buffs can never show as something to purge.
+-- * A change from one attackable target to another keeps the gate shown, so only our refresh
+--   (UpdateAllAuras) moves the container off the last target's aura. Blizzard's source restricts the
+--   aura button, not the container, so SetUnit and UpdateAllAuras should work in combat; not yet
+--   seen in game. If one fails, that element's gate goes to alpha 0 until a later call works (the
+--   next target change, the next refresh, or the end of combat): it shows nothing rather than the
+--   last target's aura.
 
 local _, ns = ...
 local say, Spells = ns.say, ns.Spells
@@ -52,6 +58,7 @@ local function hostileTarget()
 	return plainYes(UnitCanAttack, "player", "target") and not plainYes(UnitIsDead, "target")
 end
 T.hostile = hostileTarget
+local function wantedUnit() return hostileTarget() and "target" or "none" end
 
 ------------------------------------------------------------------------
 -- Flame Shock and Purge: Blizzard's aura container on the target
@@ -121,16 +128,30 @@ table.insert(ns.DEFAULTS.groups, { name = "Target", point = "CENTER", x = 122, y
 
 -- The target's aura slots follow the target: pointed at it while it's something you can attack
 -- (a change of unit refreshes the container), refreshed on a change from one such target to
--- another, and at no unit otherwise.
+-- another, and at no unit otherwise. A call that fails (see the file's header) leaves def.unit nil,
+-- so the next refresh tries again, as does the end of combat; meanwhile the gate is at alpha 0.
 local function retarget()
-	local unit = hostileTarget() and "target" or "none"
+	local unit = wantedUnit()
 	for _, def in ipairs(TARGET) do
 		local c = def.aura.container
 		if c then
+			local ok = true
 			if def.unit ~= unit then
-				if ns.try("target aura unit", c.SetUnit, c, unit) then def.unit = unit end
+				ok = ns.try("target aura unit", c.SetUnit, c, unit)
 			elseif unit == "target" then
-				ns.try("target aura refresh", c.UpdateAllAuras, c)
+				ok = ns.try("target aura refresh", c.UpdateAllAuras, c)
+			end
+			if ok then
+				def.unit = unit
+				if def.stale then
+					def.stale = false
+					ns.try("target gate alpha", def.gate.SetAlpha, def.gate, 1)
+				end
+			else
+				def.unit, def.stale = nil, true
+				def.failed = (def.failed or 0) + 1
+				ns.try("target gate alpha", def.gate.SetAlpha, def.gate, 0)
+				ns.retryAfterCombat("target retarget", retarget)
 			end
 		end
 	end
@@ -149,10 +170,11 @@ end
 local function refreshAura(def)
 	local f, key = def.frame, def.key
 	if not ns.isEnabled(key) then return end
-	-- A container made once combat ended (its setup waited): its gate's driver and its unit.
+	-- A container made once combat ended (its setup waited): its gate's driver. Its unit: set when
+	-- it's made, and again after a failed call or when a target change was missed.
 	if def.aura.container then
 		driveGate(def)
-		if def.unit == nil then retarget() end
+		if def.unit ~= wantedUnit() then retarget() end
 	end
 	f.tex:SetTexture(def.icon)
 	-- Not learned yet (seen only in test mode): a plain grey icon.
@@ -222,9 +244,9 @@ end
 function T.debug()
 	for _, def in ipairs(TARGET) do
 		local a = def.aura
-		say("%s: spell %s, container %s%s, unit %s, gate driver %s", def.spell, tostring(def.spellID),
-			a.container and "made" or "not made", a.err and (", error: " .. a.err) or "", tostring(def.unit),
-			tostring(def.driven))
+		say("%s: spell %s, container %s%s, unit %s, gate driver %s, failed unit calls %d%s", def.spell,
+			tostring(def.spellID), a.container and "made" or "not made", a.err and (", error: " .. a.err) or "",
+			tostring(def.unit), tostring(def.driven), def.failed or 0, def.stale and " (hidden until one works)" or "")
 	end
 	say("target attackable %s", tostring(hostileTarget()))
 end
