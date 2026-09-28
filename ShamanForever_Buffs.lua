@@ -4,9 +4,9 @@
 --
 -- What can be read, and when (docs/combat-techniques.md):
 -- * Water Walking, Water Breathing: out of combat the aura is readable, so the time left is exact.
---   In combat auras are secret: the timer carries on from the last read, and our own cast of the
---   spell (readable in combat) restarts it when the target is us. A buff dispelled or cancelled
---   in combat is seen when combat ends.
+--   In combat, and all through a PvP match, auras are secret: the timer carries on from the last
+--   read, and our own cast of the spell (readable in combat) restarts it when the target is us. A
+--   buff dispelled or cancelled then is seen when combat (or the match) ends.
 -- * Water Breathing's underwater warning: the breath bar (a mirror timer, "BREATH") draining while
 --   the buff isn't up. Readable in and out of combat (probed 2026-09-27): MIRROR_TIMER_START comes
 --   with a negative scale while it drains under water, and again with a positive one while it

@@ -18,13 +18,13 @@
 --   when that is this element's totem. The slot's duration object still drives the timer, and an
 --   empty slot has none. When the owner is unknown (a /reload with a totem already out), out of
 --   combat the slot says which totem it is (its spell ID, else its icon), and that is kept as the
---   owner. In combat the slot is secret, so the timer stays hidden until combat ends or the totem is
---   recast: a /reload in combat isn't worth guessing for.
+--   owner. In combat, and all through a PvP match, the slot is secret, so the timer stays hidden
+--   until that ends or the totem is recast: a /reload then isn't worth guessing for.
 -- * Buff windows and primed states come from our own casts, which are readable in combat: Rage of the
 --   Farseer's window runs a fixed time from its cast; Nature's Swiftness and Stormstrike are primed
 --   from their cast until our casts of the spells that spend them (or its time runs out). That is an
 --   inference, like the shield's; Nature's Swiftness is corrected from its buff whenever auras are
---   readable (out of combat).
+--   readable (out of combat, and not in a PvP match).
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg

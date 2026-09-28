@@ -13,14 +13,16 @@
 --    GetAuraDuration and GetUnitAuraInstanceIDs, UNIT_AURA stops reaching the addon, script
 --    handlers under the button never run, and the button only animates its own descendants
 --    (all tested 2026-09-23). So the underlay follows `believedUp`:
---    * out of combat: exact, read from the aura (SH.refresh);
+--    * out of combat: exact, read from the aura (SH.refresh). Not in a PvP match: auras stay secret
+--      for the whole match, so the in-combat rules below hold until it ends;
 --    * in combat: set to up when UNIT_SPELLCAST_SUCCEEDED reports our own cast of a tracked shield.
 --      Our own cast events are documented as never secret (SecretWhenUnitSpellCastRestricted
 --      only hides other units' casts); the combat log is never read. The inference is only
 --      "a successful shield cast means that shield is up". Casting an untracked shield sets it to
 --      down, since that shield replaces the tracked one (the same inference, applied to exclusivity).
 --    * Nothing else can set it to down in combat. A shield that drops mid-fight shows the underlay at
---      the "In-combat fallback" strength (No shield block; underlayUp) until the recast or combat ends.
+--      the "In-combat fallback" strength (No shield block; underlayUp) until the recast or combat
+--      (or the match) ends.
 --    * Why keep the inference: without it, entering combat with no shield and casting one mid-fight
 --      leaves the full "no shield" look bleeding through the live shield until combat ends
 --      (at group opacity below 100%).
@@ -130,7 +132,7 @@ function SH.applyEmptyLook()
 	if db.emptyTint then shield.tex:SetVertexColor(1, 0.35, 0.35) else shield.tex:SetVertexColor(1, 1, 1) end
 	shield.tex:SetAlpha(down and 1 or db.underlayUp)
 	shield:SetRingShown(down and db.emptyRing)
-	-- Only while known down: in combat a drop is not seen until the recast or combat ends.
+	-- Only while known down: a drop in combat (or a match) is not seen until the recast or its end.
 	shield:SetPulsing(down and db.emptyPulse)
 end
 
@@ -274,7 +276,8 @@ local function styleNative(slot, size)
 	SH.applyEmptyLook()   -- the button may be new: the underlay now has it on top
 end
 
--- Made out of combat only (after a /reload in combat, when combat ends); once made, it stays.
+-- Made only while auras are readable (after a /reload in combat or a PvP match, when that ends);
+-- once made, it stays.
 native = ns.makeAuraSlot(shield, {
 	key = "shield", slot = "shield", ids = shieldIDMap, name = "ShamanForeverAuraContainer",
 	sites = { container = "shield container", style = "shield style", filter = "shield filter" },
