@@ -576,7 +576,7 @@ local function buildTremor(p)
 	p:checkbox("You're feared, charmed or asleep", "And for 10 s after, in case it comes again.",
 		eget(key, "tremorFeared"), eset(key, "tremorFeared"))
 	p:text("The game hides party members' crowd control, so this covers only you.")
-	p:text("None of these while your Tremor Totem is down.")
+	p:text("None of these while your Tremor Totem is down, or while you're dead or on a flight path.")
 	p:header("Tremor warning watchlist")
 	p:callout("In dungeons and raids the game hides mob names from addons, so the watchlist can't work there. "
 		.. "Only \"You're feared, charmed or asleep\" can, when it's on.")
