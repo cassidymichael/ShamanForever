@@ -55,6 +55,7 @@ local SHIELD_ORDER = { "lightning", "water" }
 
 local shield = ns.newElementIcon("shield")   -- the underlay
 ns.registerElement("shield", { frame = shield, label = "Shields", paint = function(t) t:SetTexture(SH.icon()) end,
+	learned = function() return SH.learned() end,
 	kind = "shield", icon = 136051, school = "spirit", blurb = "Charges and time left. Warns when it's gone." })
 
 -- Per shield at runtime: name (the client's), spellID and bookIcon (highest known rank), known. The IDs
@@ -100,6 +101,8 @@ local function anyTrackedShieldKnown()
 	for key, s in pairs(SHIELDS) do if tracksShield(key) and s.known then return true end end
 	return false
 end
+-- The element's learned() (ns.registerElement): a shield it tracks (its Track setting) is known.
+SH.learned = anyTrackedShieldKnown
 
 -- The underlay is meant to show only when Blizzard's button is hidden, i.e. when the shield is down,
 -- so grey and tint apply unconditionally. Frame alpha is applied per texture, so while the shield is
@@ -182,9 +185,10 @@ function SH.resolve()
 	local sig = {}
 	for key, s in pairs(SHIELDS) do
 		s.name = Spells.name(s.spell)
-		local e = Spells.bookEntry(s.spell)
-		s.known = e ~= nil
-		s.spellID, s.bookIcon = e and e.id, e and e.icon
+		-- The highest rank known, read as every element reads it: the spellbook's, else the client's
+		-- answer (a talent's spell, such as Water Shield, can be missing from the spellbook view).
+		s.spellID, s.bookIcon = Spells.known(s.spell)
+		s.known = s.spellID ~= nil
 		if s.spellID then learnShieldID(key, s.spellID) end
 		table.insert(sig, tostring(s.spellID))
 	end
