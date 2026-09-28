@@ -139,6 +139,7 @@ read_globals = {
     "UnitIsFriend",
     "UnitIsPlayer",
     "UnitIsUnit",
+    "UnitLevel",
     "UnitName",
     "UnitOnTaxi",
     "UnitPower",

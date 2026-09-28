@@ -41,6 +41,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - **Rage of the Farseer**: its cooldown, and the time left on its 25 seconds, timed from your cast.
 - **Reincarnation**: its cooldown, hidden while it's ready by default. It shows your Ankh count, and warns when you're low or out, if the spell still needs an Ankh.
 - **Mana**: your mana as a bar on the icon, and how many more casts it pays for, of each spell and rank you pick (Healing Wave or Lightning Bolt by default). It shows the five-second rule, the 5 seconds after you spend mana when spirit regen stops, and a warning look while your mana is low.
+- **Mana potion** (off by default): shows while a mana potion in your bags is off cooldown and your mana is low, by default only once none of it would be wasted.
 - **Water Walking** and **Water Breathing**: time left while up, hidden while not by default, and a warning in the last 30 seconds. The time is exact out of combat. In combat, and all through a PvP match, it carries on from the last reading, and casting the spell on yourself restarts it. Water Breathing can also warn when your breath bar starts to drain and it isn't up.
 - **Elemental Focus**: shows while Clearcasting is up, with a pop when it procs and a glow while it lasts.
 

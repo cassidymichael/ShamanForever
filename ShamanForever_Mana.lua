@@ -1,12 +1,12 @@
--- Mana: the Mana element: a mana bar on the icon, casts left of the spells and ranks the player
--- picks, the five-second rule, a low-mana look.
+-- Mana: the Mana element (a mana bar on the icon, casts left of the spells and ranks the player
+-- picks, the five-second rule, a low-mana look) and the mana potion cue.
 --
 -- Current mana is secret for addons, out of combat too (probed 2026-09-28: UnitPower, UnitPowerMissing
 -- and UnitPowerPercent all secret with no restriction active), so it is never compared or counted in
 -- Lua. Max mana and every spell's cost are plain, in combat too. So each look is a curve over the mana
 -- percent, built from plain numbers, whose result UnitPowerPercent hands straight to a widget:
 -- StatusBar:SetValue for the bar, SetFormattedText and SetTextColor for a count, SetAlpha for the
--- idle and low-mana looks (each tested as a sink 2026-09-28, in combat too). Nothing can
+-- idle, low-mana and potion looks (each tested as a sink 2026-09-28, in combat too). Nothing can
 -- start from a mana level (no pop, sound or event), only show while it holds, and a threshold is
 -- exact: no inference, so the low-mana look never shows falsely.
 --
@@ -22,8 +22,13 @@
 -- read for it since the last talent or level change: a cost cut while a proc is up (read at a cast)
 -- can't raise the count.
 --
+-- The potion cue shows while a mana potion in the bags can be drunk (the level it needs, and off
+-- cooldown: both plain in combat, tested 2026-09-28) and mana is under a mark: under the element's
+-- Mana under, and by default also low enough that the potion's most restore fits in what's missing.
+-- The potions and how much each restores are Forever's own item data (build 1.60.1.70009).
+--
 -- ShamanForever.lua calls in through the module hooks (ns.registerModule). Events are registered
--- only while the element is on (M.afterGroups), so it costs nothing while it's off.
+-- only while either element is on (M.afterGroups), so neither costs anything while it's off.
 
 local _, ns = ...
 local say, isSecret, safe = ns.say, ns.isSecret, ns.safe
@@ -32,17 +37,44 @@ local Spells = ns.Spells
 local M = { name = "mana" }
 ns.Mana = M
 
-local KEY = "mana"
+local KEY, POTION = "mana", "manapotion"
 local MANA = Enum and Enum.PowerType and Enum.PowerType.Mana or 0
 local STEP = Enum and Enum.LuaCurveType and Enum.LuaCurveType.Step or 1
 local WHITE = "Interface\\Buttons\\WHITE8x8"
 local ICON = 136053            -- Mana Spring Totem's icon (spell 5675 on the client)
+local POTION_ICON = 134850     -- Minor Mana Potion's, while none is carried
 local FIVE = 5                 -- the five-second rule
 local MAX_COUNT = 250          -- a count's curve stops here: a larger count reads this (low, never high)
 M.MAX_PICKS = 6
-M.ICON = ICON
+M.ICON, M.POTION_ICON = ICON, POTION_ICON
 
--- Option defaults (ns.elementSetting): idle at full mana, its bar, casts left
+-- The mana potions: item, the spell it casts, the most mana it restores (the spell's base points
+-- and variance) and the level it needs. Forever's item data, build 1.60.1.70009: consumable potions
+-- on the shared potion cooldown whose spell restores mana. Biggest first: the cue offers the biggest
+-- one carried and usable.
+local POTIONS = {
+	{ item = 13444, spell = 17531, restores = 2250, level = 49 },     -- Major Mana Potion
+	{ item = 18253, spell = 22729, restores = 1760, level = 50 },     -- Major Rejuvenation Potion
+	{ item = 13443, spell = 17530, restores = 1500, level = 41 },     -- Superior Mana Potion
+	{ item = 18841, spell = 17530, restores = 1500, level = 41 },     -- Combat Mana Potion
+	{ item = 9144, spell = 11387, restores = 1500, level = 35 },      -- Wildvine Potion
+	{ item = 17351, spell = 21395, restores = 1260, level = 45 },     -- Major Mana Draught
+	{ item = 6149, spell = 11903, restores = 900, level = 31 },       -- Greater Mana Potion
+	{ item = 274935, spell = 1295688, restores = 880, level = 35 },   -- Tessa's Tonic
+	{ item = 17352, spell = 21396, restores = 720, level = 35 },      -- Superior Mana Draught
+	{ item = 3827, spell = 2023, restores = 585, level = 22 },        -- Mana Potion
+	{ item = 3385, spell = 438, restores = 360, level = 14 },         -- Lesser Mana Potion
+	{ item = 2455, spell = 437, restores = 180, level = 5 },          -- Minor Mana Potion
+	{ item = 2456, spell = 2370, restores = 150, level = 5 },         -- Minor Rejuvenation Potion
+}
+M.POTIONS = POTIONS
+do
+	local spells = {}
+	for _, p in ipairs(POTIONS) do table.insert(spells, p.spell) end
+	Spells.addCheck("Mana potions' spells", spells)
+end
+
+-- Option defaults (ns.elementSetting). The Mana element: idle at full mana, its bar, casts left
 -- (casts: a list of spell IDs, the picks; none saved means the default pick), its low-mana look.
 M.DEFAULTS = {
 	idleAlpha = 0.35,
@@ -51,10 +83,15 @@ M.DEFAULTS = {
 	castsFew = false, castsFewAt = 2, castsFewColor = { 1, 0.35, 0.3, 1 },
 	lowAt = 0.3, lowGrey = false, lowRing = true, lowPulse = false, lowGlow = false,
 }
--- Its numbers' ranges: the page's sliders take theirs from here, and every read is clamped to them
+-- The potion cue: off until the player shows it; hidden while it isn't time for a potion.
+M.POTION_DEFAULTS = {
+	show = "never", idleAlpha = 0,
+	potionAt = 0.5, potionNoWaste = true, potionCount = true, potionCountSize = 14, potionGlow = false,
+}
+-- Their numbers' ranges: the pages' sliders take theirs from here, and every read is clamped to them
 -- (shared settings can hold anything).
 local RANGES = { idleAlpha = { 0, 1 }, fillHeight = { 1, 20 }, castsSize = { 8, 40 }, castsFewAt = { 1, 10 },
-	lowAt = { 0.05, 0.9 } }
+	lowAt = { 0.05, 0.9 }, potionAt = { 0.05, 0.95 }, potionCountSize = { 8, 40 } }
 M.RANGES = RANGES
 M.POSITIONS = { { "center", "On the icon" }, { "right", "Right of the icon" }, { "left", "Left of the icon" },
 	{ "below", "Below the icon" }, { "above", "Above the icon" } }
@@ -486,7 +523,7 @@ local function idleCurve(alpha)
 end
 
 local fiveUntil = 0     -- when the five-second rule's window ends (GetTime's clock)
-local manaOn, listening = false, false
+local manaOn, potionOn, listening = false, false, false
 
 -- Every look that follows mana, from the curves (ten times a second while mana changes).
 local function paintMana()
@@ -579,11 +616,139 @@ local function onSucceeded(castGUID, spellID)
 end
 
 ------------------------------------------------------------------------
--- Events: registered only while the element is on
+-- The mana potion cue
+------------------------------------------------------------------------
+-- The icon, the potion's cooldown (a timer of the cooldown kind) and its count. A glow under a gate
+-- on the effects layer. As with the Mana element, the frame's own alpha may be a curve's (secret):
+-- it is never faded with ns.fadeTo nor read back.
+local pf = ns.newElementIcon(POTION, { effects = true })
+pf.tex:SetTexture(POTION_ICON)
+pf.cdTimer = ns.Timer.new(pf, POTION, "cooldown", { cd = pf.cd, school = "water" })
+pf.cd:SetDrawBling(false)   -- showing is the cue; no flash when the cooldown ends
+pf.gate = CreateFrame("Frame", nil, pf.effects)
+pf.gate:SetAllPoints()
+pf.gate:SetAlpha(0)
+pf.glow = ns.makeGlow(pf.gate, pf, POTION)
+local stackPotion = pf.stack
+function pf.stack()
+	stackPotion()
+	pf.gate:SetFrameLevel(pf.effects:GetFrameLevel() + 1)
+end
+pf.stack()
+
+ns.registerElement(POTION, { frame = pf, label = "Mana potion", paint = function(t) t:SetTexture(POTION_ICON) end,
+	defaults = M.POTION_DEFAULTS, kind = "manapotion", def = M, icon = POTION_ICON, school = "water",
+	blurb = "When to drink a mana potion.", experimental = "Mana potion" })
+
+-- Its place in the default layout: a group of its own, further left. name: the group's name where
+-- groups have one.
+table.insert(ns.DEFAULTS.groups, { name = "Mana potion", point = "CENTER", x = -210, y = -40, scale = 1, alpha = 0.75,
+	orientation = "horizontal", growth = "forward", spacing = 6, members = { POTION } })
+
+-- What the cue knows (plain): the potion offered and how many, whether it can be drunk now.
+local potion = { def = nil, count = 0, ready = false, readyAt = nil, why = "not read" }
+M.potionState = potion
+
+local function itemCount(item)
+	local ok, n = safe(C_Item and C_Item.GetItemCount, item)
+	if ok and not isSecret(n) and type(n) == "number" then return n end
+end
+-- The biggest potion carried that the character's level allows (and the client doesn't call
+-- unusable), with its count.
+local function bestPotion()
+	local lok, level = safe(UnitLevel, "player")
+	if not lok or isSecret(level) or type(level) ~= "number" then return nil end
+	for _, p in ipairs(POTIONS) do
+		local n = itemCount(p.item)
+		if n and n > 0 and level >= p.level then
+			local uok, usable = safe(C_Item.IsUsableItem, p.item)
+			if not (uok and not isSecret(usable) and usable == false) then return p, n end
+		end
+	end
+end
+
+-- Off cooldown: a plain read that says so (a secret or failed one never shows the cue).
+local function readPotion()
+	local p, n = bestPotion()
+	potion.def, potion.count, potion.ready, potion.readyAt = p, n or 0, false, nil
+	if not p then potion.why = "none carried and usable" return end
+	local ok, start, dur, enable = safe(C_Item.GetItemCooldown, p.item)
+	if not ok or isSecret(start) or isSecret(dur) or isSecret(enable) or type(start) ~= "number" or type(dur) ~= "number" then
+		potion.why = "cooldown unreadable"
+		return
+	end
+	if enable == false or enable == 0 then potion.why = "cooldown waits for combat to end" return end
+	local now = GetTime()
+	if start > 0 and dur > 0 and start + dur > now then
+		potion.why, potion.readyAt, potion.start, potion.dur = "on cooldown", start + dur, start, dur
+		return
+	end
+	if ns.cantAct() then potion.why = "can't act" return end
+	potion.ready, potion.why = true, "ready"
+end
+
+-- The cue's mark for a potion (the one offered by default): under Mana under, and (Nothing wasted)
+-- low enough that the potion's most restore fits in what's missing.
+local function potionMark(p)
+	p = p or potion.def
+	local at, max = number(POTION, "potionAt"), maxMana or readMax()
+	if setting(POTION, "potionNoWaste") and p and max then at = math.min(at, 1 - p.restores / max) end
+	return at
+end
+M.potionMark, M.bestPotion = potionMark, bestPotion
+
+function M.potionIcon(p)
+	local ok, v = safe(C_Item.GetItemIconByID, p.item)
+	return ok and not isSecret(v) and v or POTION_ICON
+end
+
+local function paintPotion()
+	local idle = number(POTION, "idleAlpha")
+	local at = potionMark()
+	local show, glow
+	if potion.ready and at > 0 then
+		local k = "potion" .. at .. "/" .. idle
+		curves[k] = curves[k] or stepCurve({ 0, 1, at, idle })
+		show = curves[k]
+		local g = "potionGlow" .. at
+		curves[g] = curves[g] or stepCurve({ 0, 1, at, 0 })
+		glow = curves[g]
+	end
+	if not ns.getAccount().locked then pf:SetAlpha(1)
+	elseif show then pf:SetAlpha(throughCurve(show))
+	else pf:SetAlpha(idle) end
+	if pf.gate:IsShown() then pf.gate:SetAlpha(glow and throughCurve(glow) or 0) end
+end
+
+local function stylePotion()
+	local p = potion.def
+	pf.tex:SetTexture(p and M.potionIcon(p) or POTION_ICON)
+	pf.tex:SetDesaturated(p == nil)
+	if p and setting(POTION, "potionCount") then
+		ns.placeScaledText(pf.count, pf, number(POTION, "potionCountSize"), "BOTTOMRIGHT", 0, 0)
+		pf.count:SetText(potion.count)
+		pf.count:Show()
+	else pf.count:Hide() end
+	if potion.readyAt then pf.cdTimer:setTime(potion.start, potion.dur) else pf.cdTimer:clear() end
+	local glow = setting(POTION, "potionGlow") and true or false
+	pf.gate:SetShown(glow)
+	pf.glow:SetShown(glow)
+	if glow then pf.glow:fit(pf:GetWidth()) end
+end
+
+local function refreshPotion()
+	readPotion()
+	stylePotion()
+	paintPotion()
+end
+
+------------------------------------------------------------------------
+-- Events: registered only while either element is on
 ------------------------------------------------------------------------
 local ev
 local function paint()
 	if manaOn then ns.try("mana paint", paintMana) end
+	if potionOn then ns.try("mana potion paint", paintPotion) end
 end
 
 local function onMaxPower()
@@ -606,6 +771,8 @@ local function onEvent(_, event, a1, a2, a3, a4)
 	elseif event == "UNIT_MAXPOWER" then onMaxPower()
 	elseif event == "UNIT_SPELLCAST_SENT" then onSent(a3, a4)   -- unit, target, castGUID, spellID
 	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then onSucceeded(a2, a3)   -- unit, castGUID, spellID
+	elseif event == "BAG_UPDATE_DELAYED" or event == "BAG_UPDATE_COOLDOWN" then
+		if potionOn then ns.try("mana potion", refreshPotion) end
 	elseif event == "TRAIT_CONFIG_UPDATED" or event == "PLAYER_LEVEL_UP" then
 		if InCombatLockdown() then ns.retryAfterCombat("mana talents", onTalents) else onTalents() end
 	end
@@ -614,6 +781,7 @@ end
 local EVENTS = {
 	{ "UNIT_POWER_FREQUENT", "player" }, { "UNIT_MAXPOWER", "player" }, { "PLAYER_LEVEL_UP" },
 	{ "UNIT_SPELLCAST_SENT", "player" }, { "UNIT_SPELLCAST_SUCCEEDED", "player" },
+	{ "BAG_UPDATE_DELAYED" }, { "BAG_UPDATE_COOLDOWN" },
 }
 local function listen(on)
 	if not ev or on == listening then return end
@@ -654,13 +822,13 @@ function M.resolve()
 	return resolvePicks()
 end
 
-function M.applyTimers() f.upTimer:apply() end
+function M.applyTimers() f.upTimer:apply() pf.cdTimer:apply() end
 
 -- After the groups' scales are set (sizes are known), and wherever an element was just shown or
 -- hidden (every layout comes through here): events follow, then the looks.
 function M.afterGroups()
-	manaOn = ns.isEnabled(KEY)
-	listen(ns.isActive() and manaOn)
+	manaOn, potionOn = ns.isEnabled(KEY), ns.isEnabled(POTION)
+	listen(ns.isActive() and (manaOn or potionOn))
 	readMax()
 	if manaOn then
 		resolvePicks()
@@ -672,16 +840,28 @@ function M.afterGroups()
 		f.upTimer:clear()
 		f.warn:SetAlpha(0)
 	end
+	if potionOn then ns.try("mana potion", refreshPotion) end
 	paint()
 end
 
-M.refresh = paint
+function M.refresh()
+	if potionOn then ns.try("mana potion", refreshPotion) end
+	paint()
+end
+
+-- Once a second: a potion's cooldown ending fires no event of its own.
+function M.tick()
+	if potionOn and potion.readyAt and GetTime() >= potion.readyAt then refreshPotion() end
+end
 
 function M.start()
 	ev = CreateFrame("Frame")
 	ev:SetScript("OnEvent", onEvent)
-	-- Dead or on a flight path: no low-mana look.
-	ns.onCanActChange(paint)
+	-- Dead or on a flight path: no low-mana look, no potion cue.
+	ns.onCanActChange(function()
+		if potionOn then readPotion() end
+		paint()
+	end)
 end
 
 -- /sf debug
@@ -695,6 +875,10 @@ function M.debug()
 	say("mana: %s, max %s, Restoration leads %s; picks %s; five-second rule %s; low under %.0f%%",
 		manaOn and "on" or "off", tostring(maxMana), tostring(resto), #picks > 0 and table.concat(picks, ", ") or "none",
 		left > 0 and string.format("%.1f s left", left) or "not running", number(KEY, "lowAt") * 100)
+	local p = potion.def
+	say("mana potion: %s; %s%s; shows under %.0f%% mana", potionOn and "on" or "off",
+		p and string.format("%s x%d (restores up to %d)", C_Item.GetItemNameByID(p.item) or tostring(p.item), potion.count, p.restores)
+			or "no potion", ", " .. potion.why, potionMark() * 100)
 end
 
 ns.registerModule(M)

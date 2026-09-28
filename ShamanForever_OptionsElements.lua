@@ -608,7 +608,7 @@ end
 local PAGE = { shield = buildShield, shock = buildShock, imbue = buildImbue, cooldown = buildCooldown, buff = buildBuff,
 	tremor = buildTremor }
 
--- The Mana element's page (ShamanForever_Mana.lua).
+-- The Mana element's and the mana potion cue's pages (ShamanForever_Mana.lua).
 -- Casts left's picks: a row each (its icon, name and rank, and Remove), then Add a spell, whose
 -- menu lists every rank known of each spell that costs mana.
 local function castPicks(p)
@@ -707,7 +707,34 @@ local function buildMana(p)
 	effectBlocks(p, key, nil, true, false)
 end
 
-PAGE.mana = buildMana
+local function buildPotion(p)
+	local key = "manapotion"
+	local M, R = ns.Mana, ns.Mana.RANGES
+	elementDisplay(p, key)
+	p:header("Idle")
+	p:text("Idle is when it isn't time for a potion. At 0% it's hidden and keeps its place in the group.")
+	p:slider("Idle opacity", "The icon's opacity while idle.", 0, 1, 0.05, pct, eget(key, "idleAlpha"), eset(key, "idleAlpha"))
+	p:header("When it shows")
+	p:text("While a mana potion in your bags is off cooldown and your mana is low.")
+	p:slider("Mana under", nil, R.potionAt[1], R.potionAt[2], 0.05, pct, eget(key, "potionAt"), eset(key, "potionAt"))
+	p:checkbox("Nothing wasted", "Also waits until your missing mana is at least the most the potion restores.",
+		eget(key, "potionNoWaste"), eset(key, "potionNoWaste"))
+	p:text(function()
+		local pot, n = M.bestPotion()
+		if not pot then return "No mana potion you can drink in your bags." end
+		local name = C_Item.GetItemNameByID(pot.item) or "A mana potion"
+		return string.format("Now: %s (%d), up to %d mana. It shows under %d%% mana.", name, n, pot.restores,
+			math.max(math.floor(M.potionMark(pot) * 100 + 0.5), 0))
+	end)
+	p:checkbox("Pulsing glow", "While it shows.", eget(key, "potionGlow"), eset(key, "potionGlow"))
+	p:header("Count")
+	p:checkbox("Count", "How many you carry, on the icon.", eget(key, "potionCount"), eset(key, "potionCount"))
+	p:slider("Text size", "At the default icon size; it grows with the icon.", R.potionCountSize[1], R.potionCountSize[2], 1,
+		int, eget(key, "potionCountSize"), eset(key, "potionCountSize"), showWhen(eget(key, "potionCount")))
+	timerSettings(p, "Cooldown", key, "cooldown")
+	effectBlocks(p, key, nil, true, false)
+end
+PAGE.mana, PAGE.manapotion = buildMana, buildPotion
 
 -- Every element's page, in the order the options list them.
 function EP.build(newPage)

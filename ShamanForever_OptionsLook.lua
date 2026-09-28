@@ -569,6 +569,28 @@ L.PREVIEW.mana = {
 	end,
 }
 
+-- The mana potion cue: time to drink (the potion you carry, else a Minor Mana Potion), on cooldown
+-- and mana not low (both idle).
+L.PREVIEW.manapotion = {
+	cooldown = true,
+	states = { { "show", "Time to drink" }, { "cd", "On cooldown" }, { "idle", "Mana not low" } },
+	render = function(ic, st)
+		local M = ns.Mana
+		local pot, n = M.bestPotion()
+		reset(ic, pot and M.potionIcon(pot) or M.POTION_ICON)
+		if opt("manapotion", "potionCount") then
+			ns.placeScaledText(ic.count, ic, M.number("manapotion", "potionCountSize"), "BOTTOMRIGHT", 0, 0)
+			ic.count:SetText(n or 3)
+			ic.count:Show()
+		end
+		if st == "show" then ic:SetGlowShown(opt("manapotion", "potionGlow"))
+		else
+			if st == "cd" then frozen(ic.cdT, 0.4, 120) end
+			idleLook(ic, "manapotion")
+		end
+	end,
+}
+
 -- Tremor Totem: warning, its totem down (time left; idle too, unless Idle when says otherwise) and
 -- idle (not down, nothing to warn about).
 L.PREVIEW.tremor = {
