@@ -72,14 +72,16 @@ local function plainValue(ok, v)
 	if ok and not isSecret(v) then return v end
 end
 local function isShamanUnit(unit)
-	local class = plainValue(pcall(function() return select(2, UnitClass(unit)) end))
+	local ok, _, class = pcall(UnitClass, unit)
+	class = plainValue(ok, class)
 	return type(class) ~= "string" or class == "SHAMAN"
 end
 local function findOtherShaman()
 	if IsInRaid() then
 		local n, me, sub = GetNumGroupMembers(), nil, {}
 		for i = 1, n do
-			sub[i] = plainValue(pcall(function() return select(3, GetRaidRosterInfo(i)) end))
+			local ok, _, _, g = pcall(GetRaidRosterInfo, i)
+			sub[i] = plainValue(ok, g)
 			if plainValue(pcall(UnitIsUnit, "raid" .. i, "player")) then me = i end
 		end
 		local mine = me and sub[me]
@@ -94,7 +96,13 @@ local function findOtherShaman()
 	end
 	return false
 end
-function R.otherShaman() return otherShaman end   -- for /sf debug
+-- Worked out while the strip is on: on a group change, and when it's turned on (R.layout).
+local function updateOtherShaman()
+	local was = otherShaman
+	otherShaman = findOtherShaman()
+	return otherShaman ~= was
+end
+function R.otherShaman() return enabled() and tostring(otherShaman) or "strip off" end   -- for /sf debug
 
 local function isBuffTotem(el, id)
 	if type(id) ~= "number" or isSecret(id) then return false end
@@ -273,6 +281,7 @@ function R.layout(size)
 	-- layout runs again once that ends. Our own strip (the mark) is laid out now.
 	local blocked = ns.deferWhileAurasSecret("totem range layout", function() R.layout(size) end)
 	local want = enabled() and TB.isShaman()
+	if want then updateOtherShaman() end   -- the group wasn't followed while the strip was off
 	for _, el in ipairs(TB.ELEMENTS) do
 		local s = TB.slots[el]
 		local on = want and s.button:IsShown()
@@ -317,10 +326,8 @@ ns.registerEvent(ev, "GROUP_ROSTER_UPDATE")
 ns.registerEvent(ev, "PLAYER_ENTERING_WORLD")
 ev:SetScript("OnEvent", function(_, event)
 	if event == "UNIT_AURA" then learn() return end
-	if not TB.isShaman() then return end
-	local was = otherShaman
-	otherShaman = findOtherShaman()
-	if otherShaman ~= was then
+	if not (TB.isShaman() and enabled()) then return end
+	if updateOtherShaman() then
 		for _, el in ipairs(TB.ELEMENTS) do R.refresh(TB.slots[el]) end
 	end
 end)
