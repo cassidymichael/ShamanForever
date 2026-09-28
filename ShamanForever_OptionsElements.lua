@@ -226,6 +226,9 @@ local function buildShield(p)
 	p:text("Only matters at low group opacity. Most can leave it at 100%.")
 	timerSettings(p, "Time left", "shield", "uptime")
 	gcdBlock(p, "shield")
+	p:header("New shield")
+	p:checkbox("Pop", "The moment you cast a shield you track.", get("shieldPop"), set("shieldPop"))
+	effectBlocks(p, "shield", nil, false)
 end
 
 local function buildShock(p)
