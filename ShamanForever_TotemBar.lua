@@ -67,7 +67,8 @@ TB.DEFAULTS = {
 	expiredPop = true,        -- the totem pops and fades the moment it runs out
 	warn = 10,                -- seconds before the end (0 = off)
 	-- Totem -> seconds, instead of warn (short-lived ones). Keyed by the client's rank-less spell
-	-- name; the defaults (Earthbind and Stoneclaw, 5 s) are filled by cfg(), in the client's language.
+	-- name; the defaults (Earthbind and Stoneclaw, 5 s; Mana Tide, 3 s, as on its element: its
+	-- 5-minute cooldown allows no recast) are filled by cfg(), in the client's language.
 	warnOver = {},
 	killed = true,            -- flash when a totem dies with time left, made of:
 	killedPop = true,         --   the slot bursts bigger for a moment
@@ -111,7 +112,8 @@ local function cfg()
 		-- The default per-totem times, by the client's names (English until they have loaded; the
 		-- lookup in warnSecs also takes the English name, so either works).
 		if type(t.warnOver) ~= "table" then
-			t.warnOver = { [ns.Spells.name("earthbind")] = 5, [ns.Spells.name("stoneclaw")] = 5 }
+			t.warnOver = { [ns.Spells.name("earthbind")] = 5, [ns.Spells.name("stoneclaw")] = 5,
+				[ns.Spells.name("manaTide")] = 3 }
 		end
 		for k, v in pairs(TB.DEFAULTS) do
 			if type(t[k]) ~= type(v) then t[k] = type(v) == "table" and CopyTable(v) or v end
