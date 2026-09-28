@@ -13,8 +13,9 @@
 --    GetAuraDuration and GetUnitAuraInstanceIDs, UNIT_AURA stops reaching the addon, script
 --    handlers under the button never run, and the button only animates its own descendants
 --    (all tested 2026-09-23). So the underlay follows `believedUp`:
---    * out of combat: exact, read from the aura (SH.refresh). Not in a PvP match: auras stay secret
---      for the whole match, so the in-combat rules below hold until it ends;
+--    * out of combat: exact, read from the aura (SH.refresh). Except in a PvP match: auras stay
+--      secret for the whole match (Blizzard's API documentation; not yet seen in a battleground),
+--      so the in-combat rules below hold until it ends;
 --    * in combat: set to up when UNIT_SPELLCAST_SUCCEEDED reports our own cast of a tracked shield.
 --      Our own cast events are documented as never secret (SecretWhenUnitSpellCastRestricted
 --      only hides other units' casts); the combat log is never read. The inference is only

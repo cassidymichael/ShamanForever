@@ -70,6 +70,7 @@ function ns.try(site, fn, ...) return checked(site, pcall(fn, ...)) end
 -- ends (ADDON_RESTRICTION_STATE_CHANGED, Inactive). Anything still blocked then queues itself again.
 -- So there are three states: in combat (lockdown; auras, cooldowns and totem slots secret); out of
 -- combat but restricted (a PvP match, an encounter: the same secrets, no lockdown); and readable.
+-- A PvP match's secrets are as Blizzard's API documentation says; not yet seen in a battleground.
 ------------------------------------------------------------------------
 local queued, queueOrder, listed = {}, {}, {}
 function ns.retryAfterCombat(key, fn)
