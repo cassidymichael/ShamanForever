@@ -137,6 +137,7 @@ local function plainYes(fn, ...)
 	local ok, v = safe(fn, ...)
 	return ok and not isSecret(v) and v == true
 end
+ns.plainYes = plainYes   -- fn(...) returned a plain true (a failed or secret read counts as no)
 function ns.cantAct()
 	return plainYes(UnitIsDeadOrGhost, "player") or plainYes(UnitOnTaxi, "player")
 end

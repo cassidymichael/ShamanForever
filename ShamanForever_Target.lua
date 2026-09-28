@@ -1,6 +1,5 @@
--- Your hostile target: your Flame Shock on it, a Magic buff on it to Purge, and whether it is casting
--- something Earth Shock can interrupt (a glow on Shocks). All three are experimental: not yet tested
--- on a target in combat.
+-- Your hostile target: your Flame Shock on it and a Magic buff on it to Purge. Both are experimental:
+-- not yet tested on a target in combat. T.hostile() is also the interrupt cue's test (Shocks).
 --
 -- What can be read, and when (docs/combat-techniques.md):
 -- * Auras on another unit are secret to addon code, so only Blizzard's aura container can show
@@ -13,17 +12,9 @@
 --   own). So on each change it is pointed at the target while that is something you can attack,
 --   and at no unit otherwise; and a state driver ([@target,harm,nodead]) hides it while the target
 --   isn't one, so a friendly target's buffs can never show as something to purge.
--- * Casts: an enemy's cast is secret in and out of combat, spell ID included. UnitCastingInfo and
---   UnitChannelInfo still return values only while the unit casts or channels, and how many they
---   return is plain; that is "casting now". Whether the cast can be interrupted may be a secret
---   boolean: it goes straight to SetAlphaFromBoolean on a frame of its own. Earth Shock being off
---   cooldown is its cooldown's time left through a curve into the glow's own alpha (as the ready
---   glow). The three alphas multiply, so the glow shows only when all three hold. Read ten times a
---   second while the option is on; no cast event is needed.
 
 local _, ns = ...
-local say, isSecret, safe = ns.say, ns.isSecret, ns.safe
-local Spells, CD = ns.Spells, ns.Cooldowns
+local say, Spells = ns.say, ns.Spells
 
 local T = { name = "target" }
 ns.Target = T
@@ -56,13 +47,11 @@ local TARGET = {
 T.ELEMENTS = TARGET
 
 -- While the target is something you can attack and alive. Anything unreadable counts as not.
-local function plainYes(fn, ...)
-	local ok, v = safe(fn, ...)
-	return ok and not isSecret(v) and v == true
-end
+local plainYes = ns.plainYes
 local function hostileTarget()
 	return plainYes(UnitCanAttack, "player", "target") and not plainYes(UnitIsDead, "target")
 end
+T.hostile = hostileTarget
 
 ------------------------------------------------------------------------
 -- Flame Shock and Purge: Blizzard's aura container on the target
@@ -169,72 +158,6 @@ local function refreshAura(def)
 end
 
 ------------------------------------------------------------------------
--- Shocks: the interrupt cue (see the file's header)
-------------------------------------------------------------------------
-local shock = ns.ELEMENTS.shock.frame
-ns.fillDefaults(ns.ELEMENTS.shock.defaults, { castGlow = false, castColor = { 1, 0.35, 0.85, 1 } })
--- Nested, bottom up: casting (plain), interruptible (maybe secret), then the glow, whose own alpha is
--- Earth Shock's ready state and whose inner frame does the pulsing.
-local castGate = CreateFrame("Frame", nil, shock)
-castGate:SetAllPoints()
-local kickGate = CreateFrame("Frame", nil, castGate)
-kickGate:SetAllPoints()
-local castGlow = ns.makeGlow(kickGate, shock, "shock")
-local earthID   -- Earth Shock's highest known rank (T.resolve): the shock that interrupts
-local cast = { reads = 0, casting = 0, secretKick = 0 }   -- for /sf debug
-
--- Whether the target casts or channels now, and its notInterruptible (plain or secret).
-local function castInfo(at, ok, ...)
-	if not ok or select("#", ...) == 0 then return false end
-	local first = ...
-	if not isSecret(first) and first == nil then return false end
-	return true, (select(at, ...))
-end
-local function readCast()
-	local casting, noKick = castInfo(8, safe(UnitCastingInfo, "target"))
-	if not casting then casting, noKick = castInfo(7, safe(UnitChannelInfo, "target")) end
-	return casting, noKick
-end
-
-local function castWanted()
-	return earthID and ns.isActive() and ns.isEnabled("shock") and setting("shock", "castGlow") and ns.CURVE_OVER
-end
-
-local function refreshCast()
-	local on = castWanted()
-	castGlow:SetShown(on and true or false)
-	if not on then return end
-	castGlow:fit(shock:GetWidth())
-	local casting, noKick = false, nil
-	if hostileTarget() then casting, noKick = readCast() end
-	cast.reads = cast.reads + 1
-	castGate:SetAlpha(casting and 1 or 0)
-	if not casting then return end
-	cast.casting = cast.casting + 1
-	if isSecret(noKick) then
-		cast.secretKick = cast.secretKick + 1
-		if not ns.try("interrupt cue", kickGate.SetAlphaFromBoolean, kickGate, noKick, 0, 1) then kickGate:SetAlpha(0) end
-	else
-		kickGate:SetAlpha(noKick and 0 or 1)
-	end
-	castGlow:SetAlpha(CD.readyAlpha(earthID, ns.cantAct()))
-end
-local castTicker = CD.readyTicker(refreshCast)
-
-local function applyCast()
-	-- Over the icon's art like its ready glow; regrouping can move frame levels, so restated here.
-	local level = shock.glowF:GetFrameLevel()
-	castGate:SetFrameLevel(level)
-	kickGate:SetFrameLevel(level)
-	castGlow:SetFrameLevel(level)
-	local c = setting("shock", "castColor")
-	if type(c) == "table" then castGlow:color(c[1], c[2], c[3]) end
-	local want = castWanted()
-	castTicker:SetShown(want and true or false)
-	if not want then refreshCast() end   -- one last pass hides the glow
-end
-
-------------------------------------------------------------------------
 -- Hooks (ShamanForever.lua calls them; see ns.registerModule)
 ------------------------------------------------------------------------
 -- A profile loaded: an element never placed before joins Elemental Focus's group (the row of icons
@@ -273,8 +196,6 @@ function T.resolve()
 		end
 		table.insert(sig, tostring(def.spellID))
 	end
-	earthID = Spells.known("earthShock")
-	table.insert(sig, tostring(earthID))
 	return table.concat(sig, ",")
 end
 
@@ -294,12 +215,10 @@ function T.applyLayout()
 		def.aura:style()
 		refreshAura(def)
 	end
-	applyCast()
 end
 
 function T.afterGroups()
 	for _, def in ipairs(TARGET) do def.aura:style() end
-	applyCast()
 end
 
 function T.refresh()
@@ -322,8 +241,7 @@ function T.debug()
 			a.container and "made" or "not made", a.err and (", error: " .. a.err) or "", tostring(def.unit),
 			tostring(def.driven))
 	end
-	say("interrupt cue: %s, Earth Shock %s, target attackable %s; reads %d, casting %d, secret interruptible %d",
-		castWanted() and "on" or "off", tostring(earthID), tostring(hostileTarget()), cast.reads, cast.casting, cast.secretKick)
+	say("target attackable %s", tostring(hostileTarget()))
 end
 
 ns.registerModule(T)
