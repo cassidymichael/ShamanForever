@@ -438,7 +438,6 @@ end
 -- or max mana changes). Each: { id, icon, rank, cost, curve, few, allFew }.
 local active = {}
 local maxMana          -- plain; nil until read
-local curves = {}      -- low-mana and idle curves, by what they're built from
 
 local function readMax()
 	local ok, v = safe(UnitPowerMax, "player", MANA)
@@ -537,21 +536,20 @@ function M.previewCounts(ic, frac)
 	end
 end
 
--- 1 under the low-mana mark, else 0; 1 below full, else the idle opacity.
-local function lowCurve()
+-- The looks' curves, built when what they're built from changes, so a paint only reads through
+-- them: 1 under the low-mana mark, else 0 (lowC); 1 below full, else the idle opacity (idleC, nil
+-- while that is 1).
+local lowC, lowAt, idleC, idleAlpha
+local function lookCurves()
 	local at = number(KEY, "lowAt")
-	local k = "low" .. at
-	curves[k] = curves[k] or stepCurve({ 0, 1, at, 0 })
-	return curves[k]
-end
-local function idleCurve(alpha)
-	local k = "idle" .. alpha
-	curves[k] = curves[k] or stepCurve({ 0, 1, 1, alpha })
-	return curves[k]
+	if at ~= lowAt then lowAt, lowC = at, stepCurve({ 0, 1, at, 0 }) end
+	local a = number(KEY, "idleAlpha")
+	if a ~= idleAlpha then idleAlpha, idleC = a, a < 1 and stepCurve({ 0, 1, 1, a }) or nil end
 end
 
 local fiveUntil = 0     -- when the five-second rule's window ends (GetTime's clock)
 local manaOn, potionOn = false, false
+local cant = false      -- ns.cantAct(), kept by ns.onCanActChange
 local listening   -- the elements whose events are registered (listen)
 
 -- Every look that follows mana, from the curves (ten times a second while mana changes).
@@ -564,21 +562,22 @@ local function paintMana()
 			if p.few then r.text:SetTextColor(throughCurve(p.few):GetRGBA()) end
 		end
 	end
-	local low = lowCurve()
-	local lowA = (low and not ns.cantAct()) and throughCurve(low) or 0
-	f.warn:SetAlpha(lowA)
-	if f.lowGate:IsShown() then f.lowGate:SetAlpha(lowA) end
-	-- Idle: full mana and no five-second rule running; full while positioning is unlocked.
-	local idle = number(KEY, "idleAlpha")
-	if not ns.getAccount().locked or GetTime() < fiveUntil or idle >= 1 then f:SetAlpha(1)
+	if lowC and not cant then
+		local lowA = throughCurve(lowC)
+		f.warn:SetAlpha(lowA)
+		if f.lowGate:IsShown() then f.lowGate:SetAlpha(lowA) end
 	else
-		local c = idleCurve(idle)
-		f:SetAlpha(c and throughCurve(c) or 1)
+		f.warn:SetAlpha(0)
+		f.lowGate:SetAlpha(0)
 	end
+	-- Idle: full mana and no five-second rule running; full while positioning is unlocked.
+	if idleC and ns.getAccount().locked and GetTime() >= fiveUntil then f:SetAlpha(throughCurve(idleC))
+	else f:SetAlpha(1) end
 end
 
 -- The looks that change only with settings, the spellbook or max mana.
 local function styleMana()
+	lookCurves()
 	local d = f:GetWidth() / ns.BASE_ICON_SIZE
 	local on = setting(KEY, "fill") and true or false
 	fill:SetShown(on)
@@ -722,7 +721,7 @@ local function readCooldown()
 		elseif enable == false or enable == 0 then potion.why = "cooldown waits for combat to end"
 		elseif start > 0 and dur > 0 and start + dur > GetTime() then
 			potion.why, potion.readyAt, potion.start, potion.dur = "on cooldown", start + dur, start, dur
-		elseif ns.cantAct() then potion.why = "can't act"
+		elseif cant then potion.why = "can't act"
 		else potion.ready, potion.why = true, "ready" end
 	end
 	return potion.start ~= was or potion.dur ~= wasDur
@@ -743,22 +742,25 @@ function M.potionIcon(p)
 	return ok and not isSecret(v) and v or POTION_ICON
 end
 
+-- The cue's curves, built when the mark or Idle opacity changes (stylePotion, max mana): 1 under the
+-- mark, else the idle opacity (showC); 1 under it, else 0 (glowC). nil while the mark is 0.
+local showC, glowC, markAt, potionIdle = nil, nil, 0, 0
+local function potionCurves()
+	local at, idle = potionMark(), number(POTION, "idleAlpha")
+	if at == markAt and idle == potionIdle then return end
+	markAt, potionIdle = at, idle
+	showC = at > 0 and stepCurve({ 0, 1, at, idle }) or nil
+	glowC = at > 0 and stepCurve({ 0, 1, at, 0 }) or nil
+end
+
 local function paintPotion()
-	local idle = number(POTION, "idleAlpha")
-	local at = potionMark()
-	local show, glow
-	if potion.ready and at > 0 then
-		local k = "potion" .. at .. "/" .. idle
-		curves[k] = curves[k] or stepCurve({ 0, 1, at, idle })
-		show = curves[k]
-		local g = "potionGlow" .. at
-		curves[g] = curves[g] or stepCurve({ 0, 1, at, 0 })
-		glow = curves[g]
-	end
+	local ready = potion.ready
 	if not ns.getAccount().locked then pf:SetAlpha(1)
-	elseif show then pf:SetAlpha(throughCurve(show))
-	else pf:SetAlpha(idle) end
-	if pf.gate:IsShown() then pf.gate:SetAlpha(glow and throughCurve(glow) or 0) end
+	elseif ready and showC then pf:SetAlpha(throughCurve(showC))
+	else pf:SetAlpha(potionIdle) end
+	if pf.gate:IsShown() then
+		if ready and glowC then pf.gate:SetAlpha(throughCurve(glowC)) else pf.gate:SetAlpha(0) end
+	end
 end
 
 local function showCooldown()
@@ -766,6 +768,7 @@ local function showCooldown()
 end
 
 local function stylePotion()
+	potionCurves()
 	local p = potion.def
 	pf.tex:SetTexture(p and M.potionIcon(p) or POTION_ICON)
 	pf.tex:SetDesaturated(p == nil)
@@ -808,6 +811,7 @@ end
 local function onMaxPower()
 	readMax()
 	if manaOn then rereadCosts(); styleMana() end
+	if potionOn then potionCurves() end   -- Nothing wasted's mark moves with max mana
 	paint()
 end
 
@@ -882,6 +886,7 @@ function M.applyTimers() f.upTimer:apply() pf.cdTimer:apply() end
 -- hidden (every layout comes through here): events follow, then the looks.
 function M.afterGroups()
 	manaOn, potionOn = ns.isEnabled(KEY), ns.isEnabled(POTION)
+	cant = ns.cantAct()
 	local on = ns.isActive()
 	listen(on and manaOn, on and potionOn)
 	readMax()
@@ -917,6 +922,7 @@ function M.start()
 	ev:SetScript("OnEvent", onEvent)
 	-- Dead or on a flight path: no low-mana look, no potion cue.
 	ns.onCanActChange(function()
+		cant = ns.cantAct()
 		if potionOn then readCooldown() end
 		paint()
 	end)
