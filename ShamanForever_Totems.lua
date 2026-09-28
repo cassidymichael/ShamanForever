@@ -142,14 +142,17 @@ end
 
 -- The totem bar saw a slot that had a totem empty: dur is the gone totem's last duration object
 -- (how much time it had left says killed early or ran out; ns.makeEndFlash). A moment later, unless
--- we dismissed it or a new totem filled the slot, the listeners hear it's "gone".
+-- we dismissed it or a new totem filled the slot, the listeners hear it's "gone". A slot that stayed
+-- empty forgets its totem: one that fills it next without a cast we can place (a totem not on the
+-- multi-cast bar's lists) is then unknown, never taken for the last one.
 function T.slotEmptied(slot, dur)
 	C_Timer.After(0.1, function()
 		local mine = dismissedAt[slot] and GetTime() - dismissedAt[slot] < 1.5
 		local ok, d = ns.try("totem bar: duration", GetTotemDuration, slot)
 		local refilled = ok and d ~= nil
-		if mine or refilled then return end
-		notify("gone", slot, dur)
+		if refilled then return end
+		if not mine then notify("gone", slot, dur) end
+		if ok then owner[slot], spells[slot] = nil, nil end
 	end)
 end
 
