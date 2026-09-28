@@ -352,8 +352,8 @@ ns.registerElement(KEY, { frame = f, label = "Mana", paint = function(t) t:SetTe
 	blurb = "Your mana, casts left, and the five-second rule.", experimental = "Mana" })
 
 -- Its place in the default layout: a group of its own left of the Weapon Imbue.
-table.insert(ns.DEFAULTS.groups, { point = "CENTER", x = -160, y = -40, scale = 1, alpha = 0.75,
-	orientation = "horizontal", growth = "forward", spacing = 6, members = { KEY } })
+table.insert(ns.DEFAULTS.groups, { name = "Mana", point = "CENTER", x = -160, y = -40, scale = 1,
+	alpha = 0.75, orientation = "horizontal", growth = "forward", spacing = 6, members = { KEY } })
 
 -- The count rows on an icon, the HUD's or its options preview's: one per pick, placed as Casts left
 -- says. On the icon, just the numbers; beside it, each with its spell's icon and rank. Returns the
@@ -671,8 +671,9 @@ ns.registerElement(POTION, { frame = pf, label = "Mana potion", paint = function
 	blurb = "When to drink a mana potion.", experimental = "Mana potion" })
 
 -- Its place in the default layout: a group of its own, further left.
-table.insert(ns.DEFAULTS.groups, { point = "CENTER", x = -210, y = -40, scale = 1, alpha = 0.75,
-	orientation = "horizontal", growth = "forward", spacing = 6, members = { POTION } })
+table.insert(ns.DEFAULTS.groups, { name = "Mana potion", point = "CENTER", x = -210, y = -40,
+	scale = 1, alpha = 0.75, orientation = "horizontal", growth = "forward", spacing = 6,
+	members = { POTION } })
 
 -- What the cue knows (plain): the potion offered and how many, whether it can be drunk now.
 local potion = { def = nil, count = 0, ready = false, readyAt = nil, why = "not read" }
