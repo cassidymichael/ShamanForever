@@ -211,7 +211,7 @@ local function buildShield(p)
 	p:slider("Bar height", nil, 1, 20, 1, px, get("chargeBarHeight"), set("chargeBarHeight"),
 		showWhen(get("showBar")))
 	p:color("Bar colour", nil, get("chargeBarColor"), set("chargeBarColor"), showWhen(get("showBar")))
-	p:checkbox("Charge number", "Shown for 2 or more charges.", get("showCount"), set("showCount"))
+	p:checkbox("Charge number", "The charges as a number.", get("showCount"), set("showCount"))
 	local numberOn = showWhen(get("showCount"))
 	p:dropdown("Number position", nil, { { "corner", "Corner" }, { "center", "Centre" } }, get("countPos"), set("countPos"), numberOn)
 	p:slider("Number size", nil, 8, 64, 1, int, get("countSize"), set("countSize"), numberOn)
