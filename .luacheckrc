@@ -9,6 +9,7 @@ ignore = {
 }
 read_globals = {
     "ACCEPT",
+    "AddToAutoHide",
     "ButtonFrameTemplate_HideButtonBar",
     "ButtonFrameTemplate_HidePortrait",
     "CANCEL",
@@ -74,6 +75,7 @@ read_globals = {
     "GetMirrorTimerInfo",
     "GetMultiCastBarIndex",
     "GetMultiCastTotemSpells",
+    "GetNetStats",
     "GetNormalizedRealmName",
     "GetPhysicalScreenSize",
     "GetRealZoneText",
@@ -111,6 +113,7 @@ read_globals = {
     "QuickKeybindFrame",
     "QuickKeybindTooltip",
     "RaidFrame",
+    "RegisterAutoHide",
     "RegisterStateDriver",
     "SOUNDKIT",
     "STANDARD_TEXT_FONT",

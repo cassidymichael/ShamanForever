@@ -80,6 +80,7 @@ TB.DEFAULTS = {
 	rangeIn = { 0.2, 0.8, 0.25, 0 },       --   with the buff (0: nothing shows in range)
 	rangeOut = { 0.9, 0.12, 0.08, 0.85 },  --   without it
 	pickHover = false,        -- hovering a slot or its tab opens its picker (Everything)
+	pulse = "off",            -- time to a pulsing totem's next pulse: off | bar | text (ShamanForever_TotemPulse.lua)
 }
 
 local isSecret = ns.isSecret

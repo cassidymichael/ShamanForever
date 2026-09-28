@@ -1126,6 +1126,14 @@ local function buildTotemBar(p)
 	p:color("Out of range", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"), showWhen(rangeOn))
 	p:text("A buff lingers a few seconds after you leave its range. Another shaman's totem of the same type can replace your buff, so yours shows as out of range.", rangeOn)
 
+	p:header("Pulse timer")
+	local pulseRow = p:dropdown("Show", "Time to the totem's next pulse.",
+		{ { "off", "Off" }, { "bar", "Bar" }, { "text", "Seconds" } }, tget("pulse"), tset("pulse"), nil, 140)
+	ns.Look.expBadge(pulseRow, "Pulse timers"):SetPoint("LEFT", pulseRow.dropdown, "RIGHT", 10, 0)
+	p:text(function()
+		return "For these totems: " .. TB.pulse.names() .. ". Timed from your cast, so it can be a moment off."
+	end)
+
 	p:header("Expiring")
 	local WARN = { grey = "warnGrey", ring = "warnRing", pulse = "warnPulse", glow = "warnGlow" }
 	expiringLooks(p, function(k) return tget(WARN[k]) end, function(k) return tset(WARN[k]) end, "slot")
