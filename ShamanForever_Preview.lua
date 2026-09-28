@@ -10,7 +10,9 @@
 -- A small panel picks the scene (out of combat: most things ready and idle, a buff to renew, what
 -- shows only in combat hidden; in combat: cooldowns and totems running, all of it shown), the
 -- situation (as usual, everything that warns, low mana), how busy it is, whether elements not
--- learned yet show, and whether its moments replay (off: a still picture).
+-- learned yet show, and whether its moments replay (off: a still picture). Its third activity,
+-- Every state, plays each element's states one at a time, named on screen as they play, while the
+-- rest hold still; it can be paused and stepped.
 --
 -- The real HUD meanwhile, and why this way:
 -- * An element's frame is parked under a hidden frame of its group while its stand-in shows, as the
@@ -34,8 +36,8 @@ ns.Preview = PV
 
 local on = false
 -- The panel's choices, for this session only.
--- situation: a key of SITUATIONS (below).
-local opts = { combat = true, situation = "usual", busy = false, unlearned = true, replay = true }
+-- activity: "calm", "busy" or "tour" (Every state); situation: a key of SITUATIONS (below).
+local opts = { combat = true, situation = "usual", activity = "calm", unlearned = true, replay = true }
 
 ------------------------------------------------------------------------
 -- What each element does: a loop of steps
@@ -124,14 +126,14 @@ local SITUATION_STEPS = {
 }
 
 -- Only the states the element's preview has (a setting can't take one away, but a new element's
--- kind might lack one).
+-- kind might lack one). Every state plays the others' calm loops, holding still.
 local function stepsFor(key)
 	local def, e = L.PREVIEW[key], ns.ELEMENTS[key]
-	local situation = opts.situation
+	local busy, situation = opts.activity == "busy", opts.situation
 	local script = SCRIPTS[key] or e.preview or (e.def and e.def.preview)
 	local steps = SITUATION_STEPS[situation] and SITUATION_STEPS[situation][key]
 		or (situation == "warnings" and e.def and e.def.reagent and { { "out" } })
-		or (script and script(opts.combat, opts.busy, situation)) or kindSteps(key, opts.busy)
+		or (script and script(opts.combat, busy, situation)) or kindSteps(key, busy)
 	local valid = {}
 	for _, st in ipairs(def.states) do valid[st[1]] = true end
 	local out = {}
@@ -156,7 +158,7 @@ local RANGE = "water"
 -- With Warnings, none is down.
 local function barSteps(el)
 	if opts.situation == "warnings" then return { { "empty" } } end
-	return BAR[el](opts.combat, opts.busy)
+	return BAR[el](opts.combat, opts.activity == "busy")
 end
 
 -- Whether a state is the element's idle one on the HUD: a cooldown element that's ready (Fire Nova
@@ -245,6 +247,16 @@ end
 ------------------------------------------------------------------------
 local runs = {}      -- element key -> its loop: steps, i (the step), at (its start), nextAt, idleAt, live
 local barRuns = {}   -- totem bar element -> its slot's loop, the same
+-- While Every state plays: { list = { { key, st, label } }, i = where it is in the list, key = the
+-- element playing ("totembar": the bar's slots), nextAt, paused }; nil otherwise.
+local tour
+
+-- Whether an element's (or the bar's) timers run and its moments play: while Replay is on, and
+-- while Every state plays only the one it's on.
+local function running(key)
+	if tour then return tour.key == key end
+	return opts.replay
+end
 
 local function setAlpha(f, a)   -- at once, and any fade under way stops
 	f:SetAlpha(a)
@@ -258,7 +270,7 @@ local function paintElement(key, r, moment)
 	local step = r.steps[r.i]
 	local ic, st = standIns[key], step[1]
 	ic.momentToken, ic.idleToken = nil, nil   -- what an options preview's moment left waiting
-	local ends = L.paint(ic, key, st, r.at, opts.replay)
+	local ends = L.paint(ic, key, st, r.at, running(key))
 	if key == "shield" then ns.Shield.preview(ic) end
 	if idles(key, st) and not (r.idleAt and GetTime() < r.idleAt) then setAlpha(ic, L.idleAlpha(key))
 	else setAlpha(ic, ic:GetAlpha()) end
@@ -276,7 +288,7 @@ local function nextAt(r, ends)
 end
 
 local function startStep(key, r, moment)
-	moment = moment and opts.replay
+	moment = moment and running(key)
 	r.at = GetTime()
 	r.idleAt = moment and idles(key, r.steps[r.i][1]) and r.at + IDLE_DELAY or nil
 	r.nextAt = nextAt(r, paintElement(key, r, moment))
@@ -284,9 +296,9 @@ end
 
 local function startBarStep(el, r, moment)
 	r.at = GetTime()
-	local st = r.steps[r.i][1]
+	local run, st = running("totembar"), r.steps[r.i][1]
 	local range = el == RANGE and (st == "down" or st == "expiring")   -- only while its totem is down
-	local ends = ns.TotemBar.previewSlot(el, st, r.at, opts.replay, range, moment and opts.replay)
+	local ends = ns.TotemBar.previewSlot(el, st, r.at, run, range, moment and run)
 	r.nextAt = nextAt(r, ends)
 end
 
@@ -316,6 +328,130 @@ local function place(key, r)
 	if r.nextAt then paintElement(key, r, false) else startStep(key, r, false) end
 end
 
+------------------------------------------------------------------------
+-- Every state: each element's states one at a time, the rest holding still
+------------------------------------------------------------------------
+-- Each state is held TOUR_HOLD seconds: long enough for a ready pop and the fade into idle after it,
+-- or an end flash and the cooldown it leaves.
+local TOUR_HOLD = 3.5
+-- The bar's slots, all four together.
+local BAR_STATES = { { "down", "Totems down" }, { "expiring", "Expiring" }, { "killed", "Killed early" },
+	{ "ranout", "Ran out" }, { "empty", "Nothing down" } }
+
+local panel   -- below
+local tag     -- the name of what plays, over it on screen (made on first use)
+
+local function tourList()
+	local list = {}
+	for _, key in ipairs(ns.ELEMENT_KEYS) do
+		if runs[key] then
+			for _, st in ipairs(L.PREVIEW[key].states) do table.insert(list, { key = key, st = st[1], label = st[2] }) end
+		end
+	end
+	for _, st in ipairs(BAR_STATES) do table.insert(list, { key = "totembar", st = st[1], label = st[2] }) end
+	return list
+end
+
+-- Whether an entry's element shows in this scene (an element set to Never or hidden out of combat
+-- is passed over).
+local function tourShows(entry)
+	if entry.key == "totembar" then return ns.TotemBar.frame:IsVisible() end
+	local r = runs[entry.key]
+	return r ~= nil and r.live
+end
+
+-- An element (or the bar) back to its scene's loop, holding still.
+local function settle(key)
+	if key == "totembar" then
+		for el, r in pairs(barRuns) do
+			r.steps, r.i = barSteps(el), 1
+			startBarStep(el, r, false)
+		end
+	elseif runs[key] then
+		local r = runs[key]
+		r.steps, r.i = stepsFor(key), 1
+		startStep(key, r, false)
+	end
+end
+
+local function showTag(entry)
+	local anchor = entry.key == "totembar" and ns.TotemBar.frame or holders[entry.key]
+	if not anchor then return end
+	if not tag then
+		tag = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+		tag:SetFrameStrata("HIGH")
+		tag:SetClampedToScreen(true)
+		tag:SetBackdrop(ns.BACKDROP)
+		tag:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
+		tag:SetBackdropBorderColor(0.85, 0.71, 0.42, 0.9)
+		tag.name = tag:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+		tag.name:SetPoint("TOP", 0, -6)
+		tag.state = tag:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		tag.state:SetPoint("TOP", tag.name, "BOTTOM", 0, -2)
+	end
+	tag.name:SetText(L.elementName(entry.key))
+	tag.state:SetText(entry.label)
+	tag:SetSize(math.max(tag.name:GetStringWidth(), tag.state:GetStringWidth()) + 16,
+		tag.name:GetStringHeight() + tag.state:GetStringHeight() + 14)
+	tag:ClearAllPoints()
+	tag:SetPoint("BOTTOM", anchor, "TOP", 0, 6)
+	tag:Show()
+end
+
+-- Play entry j: its state on its element, with its moment, the element before it holding still again.
+local function tourShow(j)
+	local entry, was = tour.list[j], tour.key
+	tour.i, tour.key = j, entry.key
+	if was and was ~= entry.key then settle(was) end
+	if entry.key == "totembar" then
+		for el, r in pairs(barRuns) do
+			r.steps, r.i = { { entry.st } }, 1
+			startBarStep(el, r, true)
+		end
+	else
+		local r = runs[entry.key]
+		r.steps, r.i = { { entry.st } }, 1
+		startStep(entry.key, r, true)
+	end
+	tour.nextAt = GetTime() + TOUR_HOLD
+	showTag(entry)
+	panel.refresh()
+end
+
+-- The next entry that shows, dir 1 or -1 from where it is; nextElement: the first of another element.
+local function tourStep(dir, nextElement)
+	local n = #tour.list
+	local j = tour.i
+	for _ = 1, n do
+		j = (j - 1 + dir) % n + 1
+		local entry = tour.list[j]
+		if tourShows(entry) and not (nextElement and entry.key == tour.key) then
+			ns.try("preview every state", tourShow, j)
+			return
+		end
+	end
+	if tag then tag:Hide() end   -- nothing shows in this scene
+end
+
+-- Where the tour stands, among the entries that show: position, count.
+function PV.tourPlace()
+	if not (tour and tour.i) then return end
+	local at, count = 0, 0
+	for j, entry in ipairs(tour.list) do
+		if tourShows(entry) then
+			count = count + 1
+			if j <= tour.i then at = count end
+		end
+	end
+	return at, count, tour.paused
+end
+function PV.tourPause()
+	tour.paused = not tour.paused
+	tour.nextAt = GetTime() + TOUR_HOLD
+	panel.refresh()
+end
+function PV.tourStep(dir, nextElement) tourStep(dir, nextElement) end
+
 local function repaint()
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
 		local r = runs[key]
@@ -325,10 +461,23 @@ local function repaint()
 	for el, r in pairs(barRuns) do
 		if not r.nextAt then ns.try("preview totem bar", startBarStep, el, r, false) end
 	end
+	-- Every state: its first entry, or where it was before the panel's choices changed.
+	if tour and not tour.key then
+		local j = 0
+		for k, entry in ipairs(tour.list) do
+			if tour.resume and entry.key == tour.resume.key and entry.st == tour.resume.st then j = k - 1 break end
+		end
+		tour.i, tour.resume = j == 0 and #tour.list or j, nil
+		tourStep(1)
+	elseif tour and tour.key then
+		-- Over its element again, or on to the next if a setting just hid it.
+		local entry = tour.list[tour.i]
+		if tourShows(entry) then showTag(entry) else tourStep(1) end
+	end
 end
 
 -- Ten times a second while the preview runs (not while it holds still): the next steps, and the
--- fades into idle.
+-- fades into idle. While Every state plays, only the element it's on, and the next entry.
 local ticker = CreateFrame("Frame")
 ticker:Hide()
 ticker.t = 0
@@ -345,8 +494,9 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 	if self.t < 0.1 then return end
 	self.t = 0
 	local now = GetTime()
+	if tour and tour.key and not tour.paused and now >= tour.nextAt then tourStep(1) end
 	for key, r in pairs(runs) do
-		if r.live and r.nextAt then
+		if r.live and r.nextAt and (not tour or tour.key == key) then
 			if now >= r.nextAt then ns.try("preview step", advance, key, r)
 			elseif r.idleAt and now >= r.idleAt then
 				r.idleAt = nil
@@ -354,12 +504,13 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 			end
 		end
 	end
+	if tour and tour.key ~= "totembar" then return end
 	for el, r in pairs(barRuns) do
 		if r.nextAt and now >= r.nextAt then ns.try("preview totem bar", advanceBar, el, r) end
 	end
 end)
 
--- Every loop from its first step, for the panel's current choices.
+-- Every loop from its first step, for the panel's current choices; Every state from where it was.
 local function restart()
 	wipe(runs)
 	wipe(barRuns)
@@ -367,14 +518,20 @@ local function restart()
 		if L.PREVIEW[key] and not ns.ELEMENTS[key].placeholder then runs[key] = { steps = stepsFor(key), i = 1 } end
 	end
 	for el in pairs(BAR) do barRuns[el] = { steps = barSteps(el), i = 1 } end
-	ticker:SetShown(on and opts.replay)
+	if on and opts.activity == "tour" then
+		tour = { list = tourList(), resume = tour and tour.list[tour.i], paused = tour and tour.paused }
+	else
+		tour = nil
+		if tag then tag:Hide() end
+	end
+	ticker:SetShown(on and (opts.replay or tour ~= nil))
 end
 
 ------------------------------------------------------------------------
 -- The panel
 ------------------------------------------------------------------------
 -- Not named, so the client keeps no position for it: it starts at the top of the screen each time.
-local panel = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+panel = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
 panel:SetSize(560, 92)   -- clear of the positioning bar below it
 panel:SetFrameStrata("DIALOG")
 panel:SetPoint("TOP", UIParent, "TOP", 0, -12)
@@ -477,14 +634,31 @@ do
 	local unlearned = check(panel, "unlearned", "Show not learned",
 		"Also the elements you haven't learned yet, marked, so you can place them now.")
 	unlearned:SetPoint("LEFT", situation, "RIGHT", 10, 0)
-	local activity = choice(panel, "busy", {
-		{ false, "Calm", "A cooldown or two." },
-		{ true, "Busy", "Many things at once." },
+	local activity = choice(panel, "activity", {
+		{ "calm", "Calm", "A cooldown or two." },
+		{ "busy", "Busy", "Many things at once." },
+		{ "tour", "Every state", "Each element's states one at a time, named as they play, while the rest hold still." },
 	})
 	activity:SetPoint("TOPLEFT", 10, -64)
 	local replay = check(panel, "replay", "Replay effects",
 		"Timers run, and pops and flashes play every few seconds. Off: a still picture.")
 	replay:SetPoint("LEFT", activity, "RIGHT", 10, 0)
+	-- Every state's controls, in Replay's place while it plays.
+	local steps = CreateFrame("Frame", nil, panel)
+	steps:SetSize(1, 22)
+	steps:SetPoint("LEFT", activity, "RIGHT", 14, 0)
+	local where = steps:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	where:SetPoint("LEFT")
+	where:SetWidth(44)
+	where:SetJustifyH("LEFT")
+	local back = button(steps, "Back", 50, function() PV.tourStep(-1) end)
+	back:SetPoint("LEFT", where, "RIGHT", 4, 0)
+	local pause = button(steps, "Pause", 60, function() PV.tourPause() end)
+	pause:SetPoint("LEFT", back, "RIGHT", 4, 0)
+	local forward = button(steps, "Next", 50, function() PV.tourStep(1) end)
+	forward:SetPoint("LEFT", pause, "RIGHT", 4, 0)
+	local skip = button(steps, "Next element", 100, function() PV.tourStep(1, true) end)
+	skip:SetPoint("LEFT", forward, "RIGHT", 4, 0)
 	local stop = button(panel, "Stop preview", 110, function() PV.close() end)
 	stop:SetPoint("TOPRIGHT", -10, -8)
 	local options = button(panel, "Options", 80, function()
@@ -504,6 +678,13 @@ do
 		activity.refresh()
 		unlearned:SetChecked(opts.unlearned)
 		replay:SetChecked(opts.replay)
+		local at, count, paused = PV.tourPlace()
+		replay:SetShown(not at)
+		steps:SetShown(at ~= nil)
+		if at then
+			where:SetText(at .. " / " .. count)
+			pause:SetText(paused and "Play" or "Pause")
+		end
 		lock:SetText(ns.getAccount().locked and "Unlock positioning" or "Lock positioning")
 	end
 end
@@ -543,6 +724,8 @@ function PV.close(forCombat)
 	end
 	wipe(runs)
 	wipe(barRuns)
+	tour = nil
+	if tag then tag:Hide() end
 	unparkAll()
 	ns.Shield.preview(nil)
 	ns.Buffs.preview(false)
