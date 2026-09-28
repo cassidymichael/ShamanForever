@@ -422,7 +422,7 @@ function SH.applyEmptyLook()
 	-- Over the underlay, compensated as Blizzard's icon is; alone (its group hidden), at its own.
 	local shown = shield:IsVisible()
 	standIn.tex:SetAlpha(shown and nativeIconAlpha() or db.shieldIconAlpha)
-	local real = shown and believedUp == true and native.button ~= nil and not native.err
+	local real = shown and believedUp() == true and native.button ~= nil and not native.err
 	standIn:SetAlpha(real and 0 or 1)
 end
 -- icon: the preview's stand-in, just drawn; nil when the preview ends.
