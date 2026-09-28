@@ -574,8 +574,11 @@ local hasTimeLeftCurve = ns.CURVE_LIVE
 -- made. Not IsSpellUsable, which would also take the glow away when mana runs short.
 local function readyAlpha(spellID)
 	if ns.cantAct() then return 0 end
-	local ok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID, true)
-	if not (ok and dur) then return 1 end   -- no cooldown running
+	-- A failed read (a client change) is noted for /sf debug and shows no glow; nothing back is no
+	-- cooldown running. ns.try keeps one note per place, so ten reads a second don't flood it.
+	local ok, dur = ns.try("ready glow cooldown", C_Spell.GetSpellCooldownDuration, spellID, true)
+	if not ok then return 0 end
+	if not dur then return 1 end
 	local rok, r = ns.try("ready glow", dur.EvaluateRemainingDuration, dur, ns.CURVE_OVER)
 	if rok then return r end
 	return 0
