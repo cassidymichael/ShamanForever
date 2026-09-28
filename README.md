@@ -36,7 +36,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - **Nature's Swiftness**: its cooldown, and a pop and glow while it's primed, from your cast until your next Nature spell with a cast time.
 - **Mana Tide Totem**: its cooldown and the totem's time left, a glow in its last seconds and a flash when it runs out.
 - **Grounding Totem**: its cooldown and the totem's time left, and a flash when it ends early (it took a spell, or was destroyed).
-- **Stormstrike**: its cooldown, and a bar while its effect lasts: 12 seconds from your cast, or until your second Lightning Bolt, Chain Lightning or Earth Shock. Other Nature damage on the target can use it up without the addon seeing.
+- **Stormstrike**: its cooldown, and a bar while its effect lasts: 12 seconds from your cast, or until your next Lightning Bolt, Chain Lightning or Earth Shock. Other Nature damage on the target can use it up without the addon seeing.
 - **Riptide** and **Totemic Projection**: their cooldowns.
 - **Rage of the Farseer**: its cooldown, and the time left on its 25 seconds, timed from your cast.
 - **Reincarnation**: its cooldown, hidden while it's ready by default. It shows your Ankh count, and warns when you're low or out, if the spell still needs an Ankh.

@@ -86,14 +86,15 @@ local COOLDOWNS = {
 		blurb = "Cooldown, time left, and a flash when it takes a spell.",
 		grounded = true, ranOut = true, cd = 15, experimental = "Grounding Totem" },
 	-- Rotation: full while ready, like the shocks.
-	-- On Forever, Stormstrike leaves the target taking 20% more from the next 2 Nature hits for 12 s:
-	-- a debuff on the target, so it's timed from the cast and spent by our own casts only (Lightning
-	-- Shield's hits and other shamans' spells can take the charges unseen).
+	-- On Forever, Stormstrike leaves a 12 s debuff with one charge on the target: the shaman's next
+	-- Lightning Bolt, Chain Lightning or Earth Shock on it hits 20% harder. Auras can't be read in
+	-- combat, so it's timed from the cast and spent by our own casts only. Its text names only those
+	-- spells; whether other Nature damage (Lightning Shield, other shamans) can spend it is untested.
 	{ key = "stormstrike", spellKey = "stormstrike", icon = 135963, school = "air",
 		blurb = "Cooldown, and a bar while your target takes more Nature damage.",
-		primed = { spends = { "lightningBolt", "chainLightning", "earthShock" }, charges = 2, duration = 12,
-			text = "From your cast for 12 s, or until your second Lightning Bolt, Chain Lightning or Earth Shock. " ..
-				"Other Nature damage on the target also uses it up, which can't be seen." },
+		primed = { spends = { "lightningBolt", "chainLightning", "earthShock" }, duration = 12,
+			text = "From your cast for 12 s, or until your next Lightning Bolt, Chain Lightning or Earth Shock. " ..
+				"Other Nature damage on the target can also use it up, which can't be seen." },
 		primedLooks = false, expireLooks = false, readyGlow = true, cd = 8,
 		defaults = { idleAlpha = 1, primedPop = false, primedGlow = false, expire = { secs = 0 } }, experimental = "Stormstrike" },
 	{ key = "riptide", spellKey = "riptide", icon = 252995, school = "water", blurb = "Cooldown.",

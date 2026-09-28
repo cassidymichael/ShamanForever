@@ -69,7 +69,7 @@ Weapon imbues are item data (`C_Item.GetWeaponEnchantInfo`, enchant type `Imbue`
 
 Some effects can't be read in combat at all, but our own casts can, so they are timed from the cast. Each is an inference, corrected from the aura whenever auras are readable (out of combat):
 
-- **Primed:** Nature's Swiftness from its cast until our next Nature spell with a cast time. Stormstrike's effect is a debuff on the target (its next 2 Nature hits), so it runs 12 s from the cast or until our second Lightning Bolt, Chain Lightning or Earth Shock; other Nature damage can spend it unseen.
+- **Primed:** Nature's Swiftness from its cast until our next Nature spell with a cast time. Stormstrike's effect is a debuff on the target with one charge, so it runs 12 s from the cast or until our next Lightning Bolt, Chain Lightning or Earth Shock, the spells its text names; other Nature damage may also spend it unseen (untested).
 - **Buff windows:** Rage of the Farseer's 25 s from its cast.
 - **Water Walking and Water Breathing:** exact out of combat; in combat the time carries on from the last reading, and our own cast restarts it when there's no other friendly target (they can be cast on others).
 
