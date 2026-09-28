@@ -170,9 +170,7 @@ local DEFS = {
 	naturesSwiftness = { ids = { 16188 }, en = "Nature's Swiftness" },   -- the buff has the same ID
 	manaTide        = { ids = { 16190 }, en = "Mana Tide Totem" },
 	grounding       = { ids = { 8177 }, en = "Grounding Totem" },
-	-- Stormstrike: 410156 is the version whose text matches Forever's (an extra attack, and the next
-	-- 2 Nature hits); which one the talent teaches is still to be seen.
-	stormstrike     = { ids = { 17364, 410156 }, en = "Stormstrike" },
+	stormstrike     = { ids = { 17364 }, en = "Stormstrike" },   -- its debuff has the same ID
 	riptide         = { ids = { 408521, 1239242, 1239243 }, en = "Riptide" },   -- Forever's own, ranks 1 to 3
 	rageOfTheFarseer = { ids = { 425336 }, en = "Rage of the Farseer" },   -- Forever's own
 	totemicProjection = { ids = { 437009 }, en = "Totemic Projection" },
@@ -181,7 +179,7 @@ local DEFS = {
 	waterBreathing  = { ids = { 131 }, en = "Water Breathing" },
 	elementalFocus  = { ids = { 16164 }, en = "Elemental Focus" },   -- a passive talent
 	clearcasting    = { ids = { 16246 }, en = "Clearcasting" },      -- its buff
-	-- Spells that spend a primed buff (Nature's Swiftness, Stormstrike's charges).
+	-- Spells that spend a primed effect (Nature's Swiftness's buff, Stormstrike's debuff).
 	healingWave     = { ids = { 331 }, en = "Healing Wave" },
 	lesserHealingWave = { ids = { 8004 }, en = "Lesser Healing Wave" },
 	chainHeal       = { ids = { 1064 }, en = "Chain Heal" },

@@ -30,10 +30,12 @@ function R.count(def)
 	if ok and type(n) == "number" and not isSecret(n) then return n end
 end
 
--- Whether the spell still takes its reagent: Forever dropped some (its Water Walking and Water
--- Breathing list none), so the spell's tooltip must name the item. Read out of combat: a yes is kept
--- until the spellbook changes, a no is read again every 30 s (a tooltip can be incomplete while the
--- client loads it); nil while it can't be told (then the reagent counts).
+-- Whether the spell still takes its reagent. It may not: an account perk, Reagent Economy, removes
+-- the vendor reagents of class abilities, and a count or warning would then be false. So the
+-- spell's tooltip decides, and only a yes (it names the item) shows the count and its looks; a no,
+-- or nil while it can't be told yet, shows neither. Read out of combat: a yes is kept until the
+-- spellbook changes, a no is read again every 30 s (a tooltip can be incomplete while the client
+-- loads it), and a nil at the next refresh.
 local RECHECK = 30
 function R.takes(def)
 	if def.takesReagent or InCombatLockdown() then return def.takesReagent end
@@ -92,10 +94,11 @@ function R.draw(f, key, n)
 	return low, out and setting(key, "reagentRing") or false, out and setting(key, "reagentPulse") or false
 end
 
--- Reads the count and draws it. Returns whether it's low enough to hold the element out of idle
--- (Idle when counts reagents), and the none-left looks wanted (see R.draw).
+-- Reads the count and draws it, once the tooltip says the spell takes the reagent (R.takes).
+-- Returns whether it's low enough to hold the element out of idle (Idle when counts reagents), and
+-- the none-left looks wanted (see R.draw).
 function R.refresh(def)
-	local n = def.reagent and R.takes(def) ~= false and R.count(def)
+	local n = def.reagent and R.takes(def) == true and R.count(def)
 	def.reagentRead = n
 	if not n then
 		def.frame.count:Hide()
