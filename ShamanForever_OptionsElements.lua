@@ -372,6 +372,11 @@ local function buildCooldown(p, def)
 	if not def.noReady then
 		readyBlock(p, key, def.needsTotem and "While it's off cooldown and a fire totem is down."
 			or def.readyGlow and "While it's off cooldown.")
+		if def.needsTotem then
+			p:dropdown("Without a fire totem", "The pop when the cooldown ends with no fire totem down.",
+				{ { "grey", "Greyed pop" }, { "none", "Nothing" } }, eget(key, "readyNoTotem"), eset(key, "readyNoTotem"),
+				showWhen(eget(key, "readyPop")), 150)
+		end
 	end
 	if def.primed then primedBlock(p, def) end
 	if (def.needsTotem or def.totemSlot or timed) and def.expireLooks ~= false then
