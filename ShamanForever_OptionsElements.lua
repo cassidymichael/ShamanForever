@@ -409,14 +409,15 @@ local function buildBuff(p, def)
 		p:checkbox("Red ring", "A red ring inside the icon edge.", eget(key, "breathRing"), eset(key, "breathRing"), on)
 		p:checkbox("Fade in and out", nil, eget(key, "breathPulse"), eset(key, "breathPulse"), on)
 	end
+	if def.skipLongSeconds then
+		p:header("Track")
+		p:checkbox("Skip long buffs", ("Leaves out buffs that last over %d minutes, or have no end.")
+			:format(def.skipLongSeconds / 60), eget(key, "skipLong"), eset(key, "skipLong"))
+	end
 	timerSettings(p, "Time left", key, "uptime")
 	if def.proc then
 		-- Elemental Focus's texts, unless the def has its own (the target's auras, ShamanForever_Target.lua).
 		p:header(def.procHeader or ns.Spells.name("clearcasting"))
-		if def.skipLong then
-			p:checkbox("Skip long buffs", "Leaves out buffs that last over 2 minutes, or have no end.",
-				eget(key, "skipLong"), eset(key, "skipLong"))
-		end
 		p:checkbox("Pop", def.popTip or "The moment it procs. The icon grows and settles, at the Pop style's size and speed.",
 			eget(key, "primedPop"), eset(key, "primedPop"))
 		p:checkbox("Pulsing glow", def.glowTip or "While it's up.", eget(key, "primedGlow"), eset(key, "primedGlow"))

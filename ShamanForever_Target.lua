@@ -35,19 +35,21 @@ local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
 		icon = 135813, school = "fire", blurb = "Shows while your Flame Shock is on your target.",
 		idleText = "Idle is when your target doesn't have it", procHeader = "On your target",
-		popTip = "The moment it lands. The icon grows and settles, at the Pop style's size and speed.",
+		popTip = "When it shows on your target. The icon grows and settles, at the Pop style's size and speed.",
 		glowTip = "While it's on your target.", upLabel = "On target",
 		defaults = { idleAlpha = 0, primedPop = false, primedGlow = false }, experimental = "Flame Shock on target" },
 	{ key = "purge", spellKey = "purge", filter = "HELPFUL", icon = 136075, school = "spirit",
 		blurb = "Shows while your target has a Magic buff to purge.",
 		-- Magic only; Skip long buffs (maxDuration also hides buffs with no end) keeps a player's
-		-- long buffs from keeping it lit.
+		-- long buffs from keeping it lit. skipLongSeconds: its limit, which the page's text states.
 		candidates = function(def)
-			return { includeDispelTypes = { Magic = true }, maxDuration = setting(def.key, "skipLong") and 120 or nil }
+			return { includeDispelTypes = { Magic = true },
+				maxDuration = setting(def.key, "skipLong") and def.skipLongSeconds or nil }
 		end,
+		skipLongSeconds = 120,
 		idleText = "Idle is when your target has nothing to purge", procHeader = "Something to purge",
-		popTip = "The moment your target gains one. The icon grows and settles, at the Pop style's size and speed.",
-		glowTip = "While your target has one.", upLabel = "Magic buff", skipLong = true,
+		popTip = "When one shows on your target. The icon grows and settles, at the Pop style's size and speed.",
+		glowTip = "While your target has one.", upLabel = "Magic buff",
 		defaults = { idleAlpha = 0, primedPop = true, primedGlow = true, skipLong = false }, experimental = "Purge" },
 }
 T.ELEMENTS = TARGET
