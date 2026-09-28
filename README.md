@@ -35,6 +35,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 
 - **Flame Shock**: shows while your Flame Shock is on your target, with its time left. Hidden otherwise by default.
 - **Purge**: shows while your target has a Magic buff you can purge: the buff's own icon and time left, with a pop and a glow. It can skip buffs that last over 2 minutes. Hidden otherwise by default.
+- **Interrupt cue** on Shocks: a glow while your target casts a spell you can interrupt and Earth Shock is ready (off by default).
 - **Nature's Swiftness**: its cooldown, and a pop and glow while it's primed, from your cast until your next Nature spell with a cast time.
 - **Mana Tide Totem**: its cooldown and the totem's time left, a glow in its last seconds and a flash when it runs out.
 - **Grounding Totem**: its cooldown and the totem's time left, and a flash when it ends early (it took a spell, or was destroyed).
