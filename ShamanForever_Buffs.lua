@@ -5,8 +5,9 @@
 -- What can be read, and when (docs/combat-techniques.md):
 -- * Water Walking, Water Breathing: out of combat the aura is readable, so the time left is exact.
 --   In combat, and all through a PvP match, auras are secret: the timer carries on from the last
---   read, and our own cast of the spell (readable in combat) restarts it when the target is us. A
---   buff dispelled or cancelled then is seen when combat (or the match) ends.
+--   read, and our own cast of the spell (readable in combat) restarts it when the target is us (a
+--   guess: no friendly target but us). A buff dispelled or cancelled then, or a cast that went to
+--   someone else, is seen when combat (or the match) ends.
 -- * Water Breathing's underwater warning: the breath bar (a mirror timer, "BREATH") draining while
 --   the buff isn't up. Readable in and out of combat (probed 2026-09-27): MIRROR_TIMER_START comes
 --   with a negative scale while it drains under water, and again with a positive one while it
@@ -297,10 +298,12 @@ end
 
 B.tick = refreshAll
 
--- Our own cast of Water Walking or Water Breathing on ourselves: up for its duration.
+-- Our own cast of Water Walking or Water Breathing on ourselves, while auras can't be read: up for
+-- its duration. While they can, the buff's own UNIT_AURA says exactly (B.refresh), and a guess from
+-- the target would count a cast on someone else (mouseover, party frames, a macro) as ours.
 function B.onCast(spellID)
 	local key = Spells.keyOf(spellID)
-	if not key then return end
+	if not key or not (InCombatLockdown() or ns.aurasSecret()) then return end
 	for _, def in ipairs(BUFFS) do
 		if not def.proc and key == def.spellKey and def.spellID and castOnSelf() then
 			setUp(def, GetTime(), def.duration)
