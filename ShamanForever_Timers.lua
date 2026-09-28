@@ -264,7 +264,7 @@ function Timer:apply()
 		self.formatter = fm
 		ns.try("timer formatter", cd.SetCountdownFormatter, cd, fm)
 	end
-	local c = self.tint or s.textColor
+	local c = (not s.timeColors and self.tint) or s.textColor
 	self.font:SetFont(STANDARD_TEXT_FONT, s.textSize, "OUTLINE")
 	self.font:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 	cd:SetCountdownFont(self.fontName)
@@ -302,10 +302,12 @@ function Timer:apply()
 	end
 end
 
--- A text colour for now (the imbue's red last minute); nil goes back to the style's.
+-- A text colour for now (the imbue's red last minute); nil goes back to the style's. Colour by time
+-- left, when on, has the last word: its own colours near the end, the style's colour before them.
 function Timer:setTint(r, g, b)
 	self.tint = r and { r, g, b, 1 } or nil
-	local c = self.tint or (self.s and self.s.textColor) or { 1, 1, 1, 1 }
+	local s = self.s
+	local c = (not (s and s.timeColors) and self.tint) or (s and s.textColor) or { 1, 1, 1, 1 }
 	self.font:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 end
 
