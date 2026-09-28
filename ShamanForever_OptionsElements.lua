@@ -604,9 +604,32 @@ local function buildTremor(p)
 	effectBlocks(p, key)
 end
 
+-- The swing timer's page (ShamanForever_Swing.lua).
+local SWING_COLOR = { { "imbue", "Imbue colour" }, { "custom", "Custom" } }
+local function buildSwing(p)
+	local key = "swing"
+	local function custom() return ns.elementSetting(key, "colorBy") == "custom" end
+	elementDisplay(p, key)
+	p:header("Idle")
+	p:text("Idle is when you're not auto attacking. At 0% it's hidden and keeps its place in the group.")
+	p:slider("Idle opacity", "The bar's opacity while idle.", 0, 1, 0.05, pct, eget(key, "idleAlpha"), eset(key, "idleAlpha"))
+	p:header("Bar")
+	p:slider("Width", "At the default icon size; it grows with the icon.", 40, 400, 4, px,
+		eget(key, "swingWidth"), eset(key, "swingWidth"))
+	p:slider("Height", "At the default icon size; it grows with the icon.", 4, 40, 1, px,
+		eget(key, "swingHeight"), eset(key, "swingHeight"))
+	p:dropdown("Colour", nil, SWING_COLOR, eget(key, "colorBy"), eset(key, "colorBy"), nil, 160)
+	p:text("Your main hand's imbue, grey with none.", showWhen(function() return not custom() end))
+	p:color("Custom colour", nil, eget(key, "color"), eset(key, "color"), showWhen(custom))
+	p:header("Unsure")
+	p:text("After an attack speed change or a weapon swap mid-swing, the game doesn't say when your next swing comes. The fill fades until it does.")
+	p:slider("Fill opacity", "The fill's opacity while unsure.", 0, 1, 0.05, pct, eget(key, "unsureAlpha"), eset(key, "unsureAlpha"))
+	timerSettings(p, "Countdown", key, "cooldown")
+end
+
 -- Each kind of element's page (the registry's kind); it gets the element's def.
 local PAGE = { shield = buildShield, shock = buildShock, imbue = buildImbue, cooldown = buildCooldown, buff = buildBuff,
-	tremor = buildTremor }
+	tremor = buildTremor, swing = buildSwing }
 
 -- Every element's page, in the order the options list them.
 function EP.build(newPage)

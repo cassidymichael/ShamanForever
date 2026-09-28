@@ -573,6 +573,52 @@ L.PREVIEW.tremor = {
 	end,
 }
 
+-- The swing timer (ShamanForever_Swing.lua): a bar, not an icon. size gives the preview its shape:
+-- the HUD's, at the preview's scale, fitted into the panel.
+local SWING_FILL = 0.55
+L.PREVIEW.swing = {
+	cooldown = true, panelW = 306,
+	size = function()
+		local w, h = ns.Swing.getSize(ns.BASE_ICON_SIZE)
+		local k = math.min(56 / ns.BASE_ICON_SIZE, 160 / w, 28 / h)
+		return w * k, h * k
+	end,
+	states = { { "swinging", "Swinging" }, { "due", "Swing due" }, { "unsure", "Unsure" }, { "idle", "Not attacking" } },
+	render = function(ic, st)
+		reset(ic, nil)
+		ic.tex:SetColorTexture(0, 0, 0, 0.6)   -- the bar's background
+		local s = ic.swing
+		if not s then
+			-- The fill under the countdown, as on the HUD.
+			local base = ic:GetFrameLevel()
+			s = CreateFrame("StatusBar", nil, ic)
+			s:SetAllPoints(ic)
+			s:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+			s:SetMinMaxValues(0, 1)
+			s:SetFrameLevel(base + 1)
+			ic.cd:SetFrameLevel(base + 2)
+			ic.textFrame:SetFrameLevel(base + 4)
+			s.spark = s:CreateTexture(nil, "OVERLAY")
+			s.spark:SetColorTexture(1, 1, 1, 0.9)
+			local fill = s:GetStatusBarTexture()
+			s.spark:SetPoint("TOPRIGHT", fill, "TOPRIGHT", 0, 0)
+			s.spark:SetPoint("BOTTOMRIGHT", fill, "BOTTOMRIGHT", 0, 0)
+			if ic.cdT then ic.cdT.cd:SetDrawBling(false) end
+			ic.swing = s
+		end
+		s.spark:SetWidth(ns.linePx(ic, 2))
+		local c = ns.Swing.fillColor()
+		s:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
+		local faded = st == "unsure" and ns.elementSetting("swing", "unsureAlpha") or 1
+		s:SetAlpha(faded)
+		ic.cd:SetAlpha(faded)
+		s:SetValue(st == "due" and 1 or SWING_FILL)
+		s:SetShown(st ~= "idle")   -- auto attack off: the bar empties
+		if st == "swinging" or st == "unsure" then frozen(ic.cdT, SWING_FILL, 2.6) end
+		if st == "idle" then idleLook(ic, "swing") end
+	end,
+}
+
 -- The rest, by their kind: a cooldown element's by whether it has a totem, a buff element's.
 local KIND_PREVIEW = {
 	cooldown = function(def) return def.totemSlot and totemPreview(def) or cooldownPreview(def) end,
@@ -940,6 +986,7 @@ function L.buildHero(parent, key)
 		def.build(h)
 	else
 		h.previewIcon = makePreviewIcon(p, key, def)
+		if def.size then h.previewIcon:SetSize(def.size()) end   -- not square (the swing timer)
 		h.previewIcon:SetPoint("LEFT", 16, -6)   -- snapped to whole pixels in refresh
 	end
 	h.stateButtons = {}
@@ -1024,6 +1071,7 @@ function L.buildHero(parent, key)
 			-- On whole screen pixels: a cooldown's swipe snaps to pixels and the icon's texture doesn't,
 			-- so at a fractional position a sliver of the icon shows beside the swipe.
 			local ic = self.previewIcon
+			if def.size then ic:SetSize(def.size()) end
 			ic:ClearAllPoints()
 			ic:SetPoint("LEFT", p, "LEFT", 16, -6)
 			local l, t = ic:GetLeft(), ic:GetTop()

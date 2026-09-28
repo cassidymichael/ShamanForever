@@ -179,7 +179,8 @@ local GROUP_RANGES = { scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { 0, 40
 	x = { -10000, 10000 }, y = { -10000, 10000 } }
 -- An element's own numbers (db.elementOpts[key]), and its Expiring warning's.
 local ELEMENT_RANGES = { idleAlpha = { 0, 1 }, reagentLow = { 0, 10 }, reagentSize = { 8, 40 },
-	reagentX = { -50, 50 }, reagentY = { -50, 50 }, wordSize = { 8, 40 }, wordX = { -100, 100 }, wordY = { -100, 100 } }
+	reagentX = { -50, 50 }, reagentY = { -50, 50 }, wordSize = { 8, 40 }, wordX = { -100, 100 }, wordY = { -100, 100 },
+	swingWidth = { 40, 400 }, swingHeight = { 4, 40 }, unsureAlpha = { 0, 1 } }
 local EXPIRE_RANGES = { secs = { 0, 120 } }
 -- defaults nil: a NaN is dropped, so the setting's own default applies.
 local function clampNumbers(t, ranges, defaults)
