@@ -41,7 +41,7 @@ local opts = { combat = true, busy = false, unlearned = true, replay = true }
 -- first step is the picture while it's off. A one-step loop stays put (starting again, quietly, if
 -- its timer runs out). By scene (combat: the in-combat one) and activity (busy).
 local HOLD = 4
-local IDLE_DELAY = 1.5   -- as on the HUD: a pop plays at full, then the icon fades to its idle look
+local IDLE_DELAY = ns.IDLE_DELAY   -- as on the HUD: a pop plays at full, then the icon goes idle
 
 local function calmBusy(calm, busy) return function(_, b) return b and busy or calm end end
 local SCRIPTS = {
@@ -128,7 +128,6 @@ local function idles(key, st)
 	local when = ns.elementSetting(key, "idleWhen")
 	return (st == "nototem" and when ~= "never") or (st == "out" and when == "offcd")
 end
-local function idleAlpha(key) return math.max(ns.idleAlpha(key), L.FAINT) end
 
 ------------------------------------------------------------------------
 -- The "Not learned" mark (the totem bar's slots use it too)
@@ -219,7 +218,7 @@ local function paintElement(key, r, moment)
 	ic.momentToken, ic.idleToken = nil, nil   -- what an options preview's moment left waiting
 	local ends = L.paint(ic, key, st, r.at, opts.replay)
 	if key == "shield" then ns.Shield.preview(ic) end
-	if idles(key, st) and not (r.idleAt and GetTime() < r.idleAt) then setAlpha(ic, idleAlpha(key))
+	if idles(key, st) and not (r.idleAt and GetTime() < r.idleAt) then setAlpha(ic, L.idleAlpha(key))
 	else setAlpha(ic, ic:GetAlpha()) end
 	ic.mark:SetShown(not ns.isLearned(key))
 	PV.fitMark(ic.mark, ic)
@@ -307,7 +306,7 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 			if now >= r.nextAt then ns.try("preview step", advance, key, r)
 			elseif r.idleAt and now >= r.idleAt then
 				r.idleAt = nil
-				ns.fadeTo(standIns[key], idleAlpha(key))
+				ns.fadeTo(standIns[key], L.idleAlpha(key))
 			end
 		end
 	end
@@ -392,12 +391,7 @@ local function choice(parent, key, items)
 	end
 	row:SetSize(x - 2, 20)
 	function row.refresh()
-		for _, b in ipairs(row.buttons) do
-			local chosen = opts[key] == b.value
-			b:SetBackdropColor(chosen and 0.88 or 0.09, chosen and 0.66 or 0.075, chosen and 0.29 or 0.06, chosen and 0.16 or 1)
-			b:SetBackdropBorderColor(chosen and 0.88 or 0.23, chosen and 0.66 or 0.17, chosen and 0.29 or 0.10, 1)
-			b.text:SetTextColor(chosen and 1 or 0.78, chosen and 0.84 or 0.74, chosen and 0.5 or 0.68)
-		end
+		for _, b in ipairs(row.buttons) do L.paintChoice(b, opts[key] == b.value) end
 	end
 	return row
 end

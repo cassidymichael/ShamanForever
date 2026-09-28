@@ -287,10 +287,10 @@ local previewState = {}   -- element key -> its header's preview state
 -- An idle element as the preview shows it: its Idle opacity, but never quite invisible (0% shows as
 -- a faint icon, so the state can still be seen).
 local FAINT = 0.12
-local function idleLook(ic, key) ic:SetAlpha(math.max(ns.idleAlpha(key), FAINT)) end
-L.FAINT, L.idleLook = FAINT, idleLook
+function L.idleAlpha(key) return math.max(ns.idleAlpha(key), FAINT) end
+local function idleLook(ic, key) ic:SetAlpha(L.idleAlpha(key)) end
 -- Ready, then idle: as on the HUD, the icon holds full for a moment after its ready pop, then fades.
-local IDLE_DELAY = 1.5
+local IDLE_DELAY = ns.IDLE_DELAY
 local function idleSoon(ic, key, st)
 	local token = {}
 	ic.idleToken = token
@@ -865,6 +865,13 @@ L.PREVIEW.totembar = {
 L.HERO_H = 160
 local heroes = {}   -- element key -> its header, for L.setPreview
 
+-- A flat state button, chosen (outlined in gold) or not; preview mode's panel uses the same.
+function L.paintChoice(b, chosen)
+	b:SetBackdropColor(chosen and 0.88 or 0.09, chosen and 0.66 or 0.075, chosen and 0.29 or 0.06, chosen and 0.16 or 1)
+	b:SetBackdropBorderColor(chosen and 0.88 or 0.23, chosen and 0.66 or 0.17, chosen and 0.29 or 0.10, 1)
+	b.text:SetTextColor(chosen and 1 or 0.78, chosen and 0.84 or 0.74, chosen and 0.5 or 0.68)
+end
+
 function L.buildHero(parent, key)
 	local e = identity(key)
 	local school = L.SCHOOL[e.school]
@@ -1038,12 +1045,7 @@ function L.buildHero(parent, key)
 				previewState[key] = (def.fallback and def.stateShown(def.fallback)) and def.fallback or first
 			end
 		end
-		for _, b in ipairs(self.stateButtons) do
-			local on = b.state == previewState[key]
-			b:SetBackdropColor(on and 0.88 or 0.09, on and 0.66 or 0.075, on and 0.29 or 0.06, on and 0.16 or 1)
-			b:SetBackdropBorderColor(on and 0.88 or 0.23, on and 0.66 or 0.17, on and 0.29 or 0.10, 1)
-			b.text:SetTextColor(on and 1 or 0.78, on and 0.84 or 0.74, on and 0.5 or 0.68)
-		end
+		for _, b in ipairs(self.stateButtons) do L.paintChoice(b, b.state == previewState[key]) end
 		if not def.stage then
 			-- On whole screen pixels: a cooldown's swipe snaps to pixels and the icon's texture doesn't,
 			-- so at a fractional position a sliver of the icon shows beside the swipe.
