@@ -16,8 +16,7 @@ ns.Looks = Looks
 local S = ns.Style
 
 ------------------------------------------------------------------------
--- Frames: a border look's entry has any of these parts (the options also read name and
--- experimental, S.addLook).
+-- Frames: a border look's entry has any of these parts (the options also read name, S.addLook).
 --   rings  lines round the icon's edge, listed outside in. Each is { px, color }, or has a colour
 --          per side (top, bottom, left, right) in place of color. px: screen pixels (default 1) or
 --          "size" for the Border size setting. A colour is { r, g, b, a }, "setting" for the

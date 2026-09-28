@@ -59,8 +59,8 @@ S.register("border", {
 -- Looks: named ways of drawing a kind (a border's lines or art), picked by the kind's `look` field
 -- through the same resolution as its other fields (General, then an owner's own). Each is a data
 -- entry that the kind's drawing code reads (ShamanForever_Looks.lua); the options offer them in
--- the order they were added. entry: name (as the options show it), experimental (not tested in
--- game yet), and the fields the drawing reads. The kind's default look is added first.
+-- the order they were added. entry: name (as the options show it) and the fields the drawing reads.
+-- The kind's default look is added first.
 S.LOOKS = {}
 function S.addLook(kind, key, entry)
 	local l = S.LOOKS[kind] or { order = {}, byKey = {} }
