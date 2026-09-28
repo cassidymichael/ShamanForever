@@ -169,9 +169,10 @@ function SH.resolve()
 	local sig = {}
 	for key, s in pairs(SHIELDS) do
 		s.name = Spells.name(s.spell)
-		local e = Spells.bookEntry(s.spell)
-		s.known = e ~= nil
-		s.spellID, s.bookIcon = e and e.id, e and e.icon
+		-- The highest rank known, read as every element reads it: the spellbook's, else the client's
+		-- answer (a talent's spell, such as Water Shield, can be missing from the spellbook view).
+		s.spellID, s.bookIcon = Spells.known(s.spell)
+		s.known = s.spellID ~= nil
 		if s.spellID then learnShieldID(key, s.spellID) end
 		table.insert(sig, tostring(s.spellID))
 	end
