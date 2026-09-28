@@ -779,6 +779,13 @@ local placeElement = edit(function(key, target, index)
 	end
 end)
 
+-- A new empty group at the end of the list, at the screen centre. Returns its id.
+local addGroup = edit(function()
+	local g = newGroup()
+	parkAtCenter(g)
+	return g.id
+end)
+
 -- Splits a group into single-element groups, each left exactly where it is on screen.
 local splitGroup = edit(function(id)
 	local g = groupById(id)
@@ -858,7 +865,8 @@ ns.groupFrames, ns.groupSize, ns.sizeOf = groupFrames, groupSize, sizeOf
 ns.setGroupCenter, ns.screenCenter = setGroupCenter, screenCenter
 ns.layoutElements, ns.applyLayout, ns.applyTimers = layoutElements, applyLayout, applyTimers
 -- Layout edits (the options window): each leaves the groups consistent and lays out again.
-ns.placeElement, ns.splitGroup, ns.hideGroup, ns.centerGroup = placeElement, splitGroup, hideGroup, centerGroup
+ns.placeElement, ns.addGroup = placeElement, addGroup
+ns.splitGroup, ns.hideGroup, ns.centerGroup = splitGroup, hideGroup, centerGroup
 ns.setShow = setShow
 ns.setTestMode = function(on) return edit(setTestMode)(on) end
 -- Spells and refreshes.

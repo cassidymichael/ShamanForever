@@ -1,7 +1,8 @@
 -- The options window's page kit: a page is a scrolling column of rows (headers, text, checkboxes,
 -- sliders, dropdowns, colours, cards, buttons...). Rows can hide themselves; refresh reflows the
--- visible ones and pulls every control's value from the saved settings. The pages themselves are
--- built in ShamanForever_Options.lua and, for the elements, ShamanForever_OptionsElements.lua.
+-- visible ones and pulls every control's value from the saved settings. Also the drag and drop the
+-- pages' lists share. The pages themselves are built in ShamanForever_Options.lua, Layout in
+-- ShamanForever_OptionsLayout.lua, and the elements' in ShamanForever_OptionsElements.lua.
 
 local _, ns = ...
 
@@ -516,4 +517,68 @@ function Page:experimental(name, where)
 	w:SetText(where)
 	ns.Look.expBadge(f, name, "Give feedback"):SetPoint("LEFT", w, "RIGHT", 10, 0)
 	return self:add(f, 28)
+end
+
+------------------------------------------------------------------------
+-- Drag and drop in a list (the Layout page's elements, the totem bar's order): a ghost of the
+-- dragged item follows the cursor, and a white line marks where it will land.
+------------------------------------------------------------------------
+-- The ghost: an icon and a label on the cursor while shown. onMove runs as it follows.
+function Page.dragGhost(onMove)
+	local ghost = CreateFrame("Frame", nil, UIParent)
+	ghost:SetFrameStrata("TOOLTIP")
+	ghost:SetSize(180, 24)
+	ghost:SetAlpha(0.9)
+	ghost.icon = ghost:CreateTexture(nil, "ARTWORK")
+	ghost.icon:SetSize(20, 20)
+	ghost.icon:SetPoint("LEFT", 2, 0)
+	ns.cropIcon(ghost.icon)
+	ghost.text = ghost:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	ghost.text:SetPoint("LEFT", ghost.icon, "RIGHT", 6, 0)
+	ghost:Hide()
+	ghost:SetScript("OnUpdate", function(self)
+		local x, y = GetCursorPosition()
+		local sc = self:GetEffectiveScale()
+		self:ClearAllPoints()
+		self:SetPoint("LEFT", UIParent, "BOTTOMLEFT", x / sc + 8, y / sc)
+		onMove()
+	end)
+	return ghost
+end
+
+function Page.dropLine(parent)
+	local line = parent:CreateTexture(nil, "OVERLAY", nil, 7)
+	line:SetColorTexture(0.95, 0.95, 0.95, 1)
+	line:SetHeight(2)
+	line:Hide()
+	return line
+end
+
+-- Where a drop lands among items (top to bottom; skip(item) leaves out the one being dragged): its
+-- place among the others, by the cursor's height, and those others.
+function Page.dropPosition(items, skip)
+	local _, cy = GetCursorPosition()
+	local at, others = 1, {}
+	for _, it in ipairs(items) do
+		if not skip(it) then
+			table.insert(others, it)
+			local _, y = it:GetCenter()
+			if y and y * it:GetEffectiveScale() > cy then at = #others + 1 end
+		end
+	end
+	return at, others
+end
+
+-- The drop line above others[at], or under the last one. False when there are no others to place it by.
+function Page.placeDropLine(line, others, at)
+	line:ClearAllPoints()
+	if #others == 0 then return false end
+	if at <= #others then
+		line:SetPoint("BOTTOMLEFT", others[at], "TOPLEFT", 0, 0)
+		line:SetPoint("BOTTOMRIGHT", others[at], "TOPRIGHT", 0, 0)
+	else
+		line:SetPoint("TOPLEFT", others[#others], "BOTTOMLEFT", 0, 0)
+		line:SetPoint("TOPRIGHT", others[#others], "BOTTOMRIGHT", 0, 0)
+	end
+	return true
 end
