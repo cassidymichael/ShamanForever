@@ -243,7 +243,9 @@ function B.resolve()
 		def.spell = Spells.name(def.spellKey)
 		ns.ELEMENTS[def.key].label = def.spell
 		local known, icon = Spells.known(def.spellKey)
-		if known ~= def.spellID then def.takesReagent = nil end   -- a new rank: read its tooltip again
+		-- Its tooltip again (ns.Reagents.takes): a new rank, or anything else out of combat (the
+		-- Reagent Economy perk bought). In combat the tooltip can't be read, so the answer is kept.
+		if known ~= def.spellID or not InCombatLockdown() then def.takesReagent = nil end
 		def.spellID = known
 		def.procIDs = nil
 		-- A passive talent (Elemental Focus) has no icon of its own worth showing: keep the buff's.
@@ -338,7 +340,8 @@ function B.debug()
 				tostring(def.procUp))
 		else
 			state = def.upUntil and string.format("up, %.0f s left", def.upUntil - GetTime()) or "not up"
-			if def.reagent then state = string.format("%s, reagent %s (takes it: %s)", state, describeArg(def.reagentRead), tostring(def.takesReagent)) end
+			if def.reagent then state = string.format("%s, reagent %s (takes it: %s, Reagent Economy %s)", state,
+				describeArg(def.reagentRead), tostring(def.takesReagent), tostring(ns.Reagents.perkKnown())) end
 			if def.breath then state = state .. ", breath bar " .. tostring(breathing) end
 		end
 		say("%s: spell %s, %s", def.spell, tostring(def.spellID), state)

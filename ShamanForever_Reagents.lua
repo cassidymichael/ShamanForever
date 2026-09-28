@@ -1,7 +1,7 @@
 -- Reagents (Reincarnation's Ankh, the water buffs' reagents): whether the spell still takes one,
--- how many the player carries, and the count on the icon, red at or below the Low mark, with the
--- missing look when there are none. While low the element isn't idle, so it shows even at Idle
--- opacity 0. Used by the cooldown elements, the buff elements and the options' previews.
+-- how many the player carries, and the count on the icon, in its low colour at or below the Low
+-- mark, with the missing look when there are none. While low the element isn't idle, so it shows
+-- even at Idle opacity 0. Used by the cooldown elements, the buff elements and the options' previews.
 --
 -- An element here is any table with key, frame, spellID and reagent (an item ID); the reagent's
 -- state is kept on it: takesReagent, reagentReadAt and reagentRead (for /sf debug).
@@ -31,13 +31,24 @@ function R.count(def)
 end
 
 -- Whether the spell still takes its reagent. It may not: an account perk, Reagent Economy, removes
--- the vendor reagents of class abilities, and a count or warning would then be false. So the
+-- the vendor reagents of class abilities, and a count or warning would then be false. So while the
+-- perk is known (its spell, else out of combat its aura) nothing shows and nothing is kept. Else the
 -- spell's tooltip decides, and only a yes (it names the item) shows the count and its looks; a no,
--- or nil while it can't be told yet, shows neither. Read out of combat: a yes is kept until the
--- spellbook changes, a no is read again every 30 s (a tooltip can be incomplete while the client
--- loads it), and a nil at the next refresh.
+-- or nil while it can't be told yet, shows neither. The tooltip is read out of combat: a yes is kept
+-- until the next spellbook scan out of combat, a no is read again every 30 s (a tooltip can be
+-- incomplete while the client loads it), and a nil at the next refresh.
 local RECHECK = 30
+local PERK, PERK_AURA = 1225503, 1262643   -- Reagent Economy, and its aura ("no reagent use")
+local function perkKnown()
+	local ok, v = safe(IsPlayerSpell, PERK)
+	if ok and not isSecret(v) and v == true then return true end
+	if InCombatLockdown() or ns.aurasSecret() or not C_UnitAuras then return false end
+	local aok, a = safe(C_UnitAuras.GetPlayerAuraBySpellID, PERK_AURA)
+	return aok and type(a) == "table"
+end
+R.perkKnown = perkKnown   -- for /sf debug
 function R.takes(def)
+	if perkKnown() then def.takesReagent = nil return false end
 	if def.takesReagent or InCombatLockdown() then return def.takesReagent end
 	if def.takesReagent == false and GetTime() - (def.reagentReadAt or 0) < RECHECK then return false end
 	def.reagentReadAt = GetTime()

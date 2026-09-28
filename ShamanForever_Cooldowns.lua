@@ -619,7 +619,9 @@ function CD.resolve()
 		def.spell = Spells.name(def.spellKey)
 		ns.ELEMENTS[def.key].label = def.spell
 		local known, knownIcon = Spells.known(def.spellKey)
-		if known ~= def.spellID then def.takesReagent = nil end   -- a new rank: read its tooltip again
+		-- Its tooltip again (ns.Reagents.takes): a new rank, or anything else out of combat (the
+		-- Reagent Economy perk bought). In combat the tooltip can't be read, so the answer is kept.
+		if known ~= def.spellID or not InCombatLockdown() then def.takesReagent = nil end
 		def.spellID, def.iconID = known, knownIcon
 		table.insert(sig, tostring(def.spellID)); table.insert(sig, tostring(def.iconID))
 	end
@@ -722,7 +724,8 @@ function CD.debug()
 				def.activeUntil == math.huge and "until spent" or string.format("%.1f s", def.activeUntil - GetTime())) or ", not active"
 		end
 		if def.reagent then
-			extra = string.format("%s, reagent %s (takes it: %s)", extra, describeArg(def.reagentRead), tostring(def.takesReagent))
+			extra = string.format("%s, reagent %s (takes it: %s, Reagent Economy %s)", extra, describeArg(def.reagentRead),
+				tostring(def.takesReagent), tostring(Reagents.perkKnown()))
 		end
 		if def.totemSlot or def.needsTotem then
 			say("%s: spell %s, totem spell secret=%s, %s, idle %s%s", def.spell, tostring(def.spellID), secret, read, tostring(def.idle), extra)
