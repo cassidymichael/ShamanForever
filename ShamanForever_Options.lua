@@ -230,19 +230,17 @@ local function popBlock(p, owner, icon, kind, growOnly)
 		return
 	end
 	-- The looks are for Ready: a page whose pop is for something else (the totem bar's, the imbue's)
-	-- offers only the classic one.
-	local classic = own
+	-- offers only the classic one. The classic rows stay, as every other event still pops with them.
 	if kind == "ready" then
 		local look = lookRows(p, r, "pop", "Look", "Pop looks", own)
-		p:text("Other events keep the Classic pop.", showWhen(function() return look().key ~= "classic" end, own))
-		classic = showWhen(function() return look().key == "classic" or look().key == "school" end, own)
+		p:text("Other events keep the Classic pop, set below.", showWhen(function() return look().key ~= "classic" end, own))
 	end
-	p:dropdown("Motion", nil, POP_MOTIONS, r.get("motion"), r.set("motion"), classic, 190)
-	p:slider("Motion distance", "How far it grows, hops or shakes.", 1.1, 1.8, 0.05, pct, r.get("size"), r.set("size"), classic)
+	p:dropdown("Motion", nil, POP_MOTIONS, r.get("motion"), r.set("motion"), own, 190)
+	p:slider("Motion distance", "How far it grows, hops or shakes.", 1.1, 1.8, 0.05, pct, r.get("size"), r.set("size"), own)
 	p:slider("Motion speed", nil, 0.5, 2, 0.1, pct, r.get("speed"), r.set("speed"), own)
-	p:checkbox("Flash", "A quick flash of light over the icon.", r.get("flash"), r.set("flash"), classic)
-	p:checkbox("Ring burst", "A ring that spreads out from the icon.", r.get("ring"), r.set("ring"), classic)
-	p:checkbox("Star burst", "A star of light behind the icon.", r.get("star"), r.set("star"), classic)
+	p:checkbox("Flash", "A quick flash of light over the icon.", r.get("flash"), r.set("flash"), own)
+	p:checkbox("Ring burst", "A ring that spreads out from the icon.", r.get("ring"), r.set("ring"), own)
+	p:checkbox("Star burst", "A star of light behind the icon.", r.get("star"), r.set("star"), own)
 	p:checkbox("Colour by event", "Gold when ready, blue for the imbue, white when a totem runs out, red when killed, pale blue when Grounded. Off: white.",
 		r.get("tint"), r.set("tint"), own)
 	if owner == nil then ownLine(p, "pop") end
