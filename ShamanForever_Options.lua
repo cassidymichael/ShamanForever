@@ -128,7 +128,7 @@ end
 -- Standard rows: the border around icons, General's or an owner's (a group, the totem bar). Size
 -- and colour show only for looks that use them. The HUD lays out only out of combat (the shield's
 -- group and the totem bar's buttons are protected then), so a change made in combat reaches it
--- when combat ends; the previews here take it at once.
+-- when combat ends, as every other layout setting does; the previews here take it at once.
 local function borderRows(p, owner, after, label, shown)
 	after = after or relayout
 	local r = styleRows(owner, "border", after)
@@ -141,7 +141,6 @@ local function borderRows(p, owner, after, label, shown)
 	p:dropdown("Border look", nil, lookChoices("border"), lookKey, r.set("look"), showWhen(bordered, shown), 190)
 	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("size"), r.set("size"), showWhen(uses("size"), shown))
 	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), showWhen(uses("color"), shown))
-	p:text("Changes reach the HUD when combat ends.", showWhen(InCombatLockdown, showWhen(r.own, shown)))
 end
 
 -- The border a preview icon wears: its owner's.
