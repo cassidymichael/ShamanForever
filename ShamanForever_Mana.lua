@@ -359,12 +359,6 @@ ns.registerElement(KEY, { frame = f, label = "Mana", paint = function(t) t:SetTe
 table.insert(ns.DEFAULTS.groups, { name = "Mana", point = "CENTER", x = -160, y = -40, scale = 1, alpha = 0.75,
 	orientation = "horizontal", growth = "forward", spacing = 6, members = { KEY } })
 
--- The five-second rule's look: a swipe over the icon (the counts and the bar stay above it), until
--- the player gives it another; a time bar goes on top, clear of the mana bar.
-ns.Timer.ELEMENT_DEFAULTS[KEY] = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false,
-	bar = false, barEdge = "top" } }
-ns.Style.KINDS.uptime.ownerDefaults[KEY] = ns.Timer.ELEMENT_DEFAULTS[KEY].uptime
-
 -- The count rows on an icon, the HUD's or its options preview's: one per pick, placed as Casts left
 -- says. On the icon, just the numbers; beside it, each with its spell's icon and rank. Returns the
 -- rows (each: .text, the count). picks: { { icon = , rank = } }.
