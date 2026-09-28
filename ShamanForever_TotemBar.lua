@@ -334,15 +334,17 @@ local slots = {}    -- element -> slot record
 local bySlot = {}   -- Blizzard's totem slot -> slot record
 TB.slots, TB.frame = slots, bar
 
--- Frame levels over a slot's button, bottom to top: the look (+2: icon, expiring warning), the
--- timer's time-left bar (+8, kept under the range strip so it never hides the range mark), the
--- range strip (+9 to +12: ours, Blizzard's aura button and our colour on it;
--- ShamanForever_TotemRange.lua), then everything drawn over the whole icon: the GCD sweep, the
--- timer's Cooldown (swipe, countdown text), the key, the end flashes. The strip's in-range part is
--- opaque (the buff's icon under its colour), so what sits under it is hidden.
+-- Frame levels over a slot's button, bottom to top: the look (+2: icon), the expiring warning
+-- (+3 to +4: Timer:setExpire, ShamanForever_Timers.lua), the timer's time-left bar (+8, kept under
+-- the range strip so it never hides the range mark), the range strip (+9 to +12: ours, Blizzard's
+-- aura button and our colour on it; ShamanForever_TotemRange.lua), then everything drawn over the
+-- whole icon: the GCD sweep, the timer's Cooldown (swipe, countdown text), the key, the end
+-- flashes. The strip's in-range part is opaque (the buff's icon under its colour), so what sits
+-- under it is hidden.
 TB.RANGE_LEVEL = 9
 local OVER_RANGE = TB.RANGE_LEVEL + 4
-local LOOK_OVER_RANGE = OVER_RANGE - 2   -- the same, over the look's level (the button's + 2)
+local LOOK_LEVEL = 2   -- the look's level over the button (v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL))
+local LOOK_OVER_RANGE = OVER_RANGE - LOOK_LEVEL   -- the same, over the look's level
 
 -- Over a button's look (above its timer, and inside the look so it fades with it): the key bound to
 -- it, in the top corner, and its highlight while Blizzard's Quick Keybind Mode is open.
@@ -393,7 +395,7 @@ for index, el in ipairs(ELEMENTS) do
 	-- What the player sees, on a plain frame over the button.
 	local v = CreateFrame("Frame", nil, bar)
 	v:SetAllPoints(b)
-	v:SetFrameLevel(b:GetFrameLevel() + 2)
+	v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL)
 	v:EnableMouse(false)
 	s.vis = v
 	-- "Not your pick": the element's pick, small, on the side away from the picker (a plain frame).
@@ -534,7 +536,7 @@ for _, e in ipairs({ { "Call", CALL }, { "Recall", RECALL } }) do
 	b:SetAttribute("spell", spell)
 	local v = CreateFrame("Frame", nil, bar)
 	v:SetAllPoints(b)
-	v:SetFrameLevel(b:GetFrameLevel() + 2)
+	v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL)
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
 	ns.cropIcon(v.icon)
