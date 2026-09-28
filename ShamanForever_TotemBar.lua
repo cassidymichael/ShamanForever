@@ -267,7 +267,8 @@ end
 -- The "not your pick" badge's size, for slots of this size.
 function TB.badgeSize(size) return math.max(math.floor(size * cfg().badgeSize + 0.5), 8) end
 -- The badge (bd, with its icon) beside anchor, a slot, opposite the picker: below a row whose
--- pickers open up, and so on. Its look: size, opacity, colour, and a 1 px border in the slots'.
+-- pickers open up, and so on. Its look: size, opacity, colour, and a plain 1 px line, whatever look
+-- the slots use (a small pick badge stays a plain line, not the slots' bevel or caps).
 function TB.layoutBadge(bd, anchor, size, border)
 	local c = cfg()
 	local bs = TB.badgeSize(size)
@@ -280,7 +281,12 @@ function TB.layoutBadge(bd, anchor, size, border)
 	elseif c.pop == "down" then bd:SetPoint("BOTTOM", anchor, "TOP", 0, gap)
 	elseif c.pop == "right" then bd:SetPoint("RIGHT", anchor, "LEFT", -gap, 0)
 	else bd:SetPoint("LEFT", anchor, "RIGHT", gap, 0) end
-	ns.applyBorder(bd, border and border.show and { show = true, size = 1, color = border.color } or border)
+	-- Only draw the setting's colour when the slots' own look actually uses it; other looks (Gold
+	-- hairline, School edge, Bronze bevel) hide that setting, and the badge shouldn't keep a colour
+	-- the player can no longer see or change.
+	local usesColor = border and border.show and ns.Looks.uses(ns.Style.look("border", border.look), "color")
+	local color = usesColor and border.color or { 0, 0, 0, 1 }
+	ns.applyBorder(bd, border and border.show and { show = true, size = 1, color = color } or border)
 end
 
 ------------------------------------------------------------------------
