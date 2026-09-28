@@ -583,7 +583,7 @@ local function styleMana()
 	local rows = M.placeRows(f, active)
 	local fc = color(KEY, "castsFewColor")
 	for i, p in ipairs(active) do
-		if not p.curve then rows[i].text:SetText("") end   -- its cost can't be read: no count
+		if not p.curve then rows[i].text:SetText("") end   -- no cost yet (or unreadable): no count
 		if p.allFew then rows[i].text:SetTextColor(fc[1], fc[2], fc[3], fc[4] or 1) end
 	end
 	local w = f.warn
@@ -599,10 +599,11 @@ local function styleMana()
 	if glow then f.lowGlow:fit(f:GetWidth()) end
 end
 
--- Our cast spent mana: the five-second rule starts again.
 -- Casts sent and not yet succeeded: castGUID -> { spell, cost (nil if unread), at (GetTime) }.
 local sent = {}
 local SENT_FOR = 10   -- a cast sent this long ago that never succeeded is dropped
+
+-- Our cast spent mana: the five-second rule starts again.
 local fiveToken
 local function startFive()
 	local now = GetTime()
