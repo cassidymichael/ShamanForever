@@ -596,11 +596,7 @@ local function buildTremor(p)
 	p:dropdown("Position", nil, WORD_POS, eget(key, "wordPos"), eset(key, "wordPos"), text, 160)
 	p:slider("Text X offset", nil, -100, 100, 1, px, eget(key, "wordX"), eset(key, "wordX"), text)
 	p:slider("Text Y offset", nil, -100, 100, 1, px, eget(key, "wordY"), eset(key, "wordY"), text)
-	p:dropdown("Sound", "Plays when it starts warning.", ns.Tremor.SOUNDS, eget(key, "alertSound"), function(v)
-		ns.elementOpts(key).alertSound = v
-		ns.Tremor.playSound(v)
-		relayout()
-	end, nil, 160)
+	ns.Sounds.row(p, "Sound", "The moment it starts warning.", eget(key, "alertSound"), eset(key, "alertSound"))
 	effectBlocks(p, key)
 end
 

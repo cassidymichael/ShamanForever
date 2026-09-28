@@ -373,6 +373,7 @@ local function buildGeneral(p)
 	gcdBlock(p, nil)
 	glowBlock(p, nil, 136026)
 	popBlock(p, nil, 136026, "ready")
+	ns.Sounds.generalBlock(p)
 
 	p:header("Minimap")
 	p:checkbox("Show the minimap button", "Click it to open these options. Also listed in the minimap's addon menu.",

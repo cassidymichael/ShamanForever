@@ -24,6 +24,7 @@ ShamanForever_Timers.lua
 ShamanForever.lua
 ShamanForever_Shield.lua
 ShamanForever_Imbue.lua
+ShamanForever_Sounds.lua
 ShamanForever_Totems.lua
 ShamanForever_Reagents.lua
 ShamanForever_Cooldowns.lua
