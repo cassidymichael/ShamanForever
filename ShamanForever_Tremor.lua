@@ -20,7 +20,8 @@
 -- * Our Tremor Totem: the earth slot holds the totem we last cast into it (ShamanForever_Totems.lua,
 --   readable in combat), and the slot has a duration object while a totem is out. With no cast since
 --   a login or /reload in combat or in a PvP match, the slot can't say which totem it holds: that
---   one might be Tremor, so nothing warns until the next cast into the slot.
+--   one might be Tremor, so nothing warns until the slot can be read again (combat or the match
+--   ends), the totem goes, or we cast into the slot.
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
