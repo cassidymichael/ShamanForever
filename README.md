@@ -64,7 +64,8 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 
 ### Layout
 
-- Arrange elements into groups: rows or columns, each with its own position, spacing, icon size, scale, opacity and border. Drag elements between groups in the options.
+- Arrange elements into named groups: rows or columns, each with its own position, spacing, icon size, scale, opacity and border. On the Layout page, drag an element onto a group's name to move it there.
+- Delete a group and its elements wait under Ungrouped, off screen with their settings kept, until you drag them into a group.
 - Show each element always, only in combat, or never. A group can show only in combat, or in combat and whenever you target an enemy.
 - Stay after combat: a group or the totem bar shown only in combat can stay a few seconds once combat ends, then fade out.
 - Positioning mode: drag groups and the totem bar, with snapping and a grid. Mouse wheel sets icon size, Ctrl+wheel scale, Shift+wheel opacity, and the arrow keys nudge. It locks itself when combat starts.
@@ -73,7 +74,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 
 ### Options and profiles
 
-- An options window (`/sf`, the minimap button, or Escape > Options > AddOns) with a page per element and a live preview of each look.
+- An options window (`/sf`, the minimap button, or Escape > Options > AddOns) with a page per element and a live preview of each look. Drag its corner to make it wider or taller.
 - Set the style once on the General page, then give any element, group or the totem bar its own where you want something different.
 - Profiles: each character uses one. Make, copy, rename, delete or reset them, or share one as text.
 - Spells are recognised by ID, so it should work in any game language (the options are in English).
