@@ -932,7 +932,7 @@ function layout()
 		if it.extra then on[it.key] = true end
 		b:SetSize(sz, sz)
 		-- Its key label scales with the icon.
-		if keyTexts[b] then keyTexts[b]:SetFont(STANDARD_TEXT_FONT, math.max(8, math.floor(sz * 0.3 + 0.5)), "OUTLINE") end
+		if keyTexts[b] then ns.Media.setFont(keyTexts[b], "totembar", math.max(8, math.floor(sz * 0.3 + 0.5))) end
 		b:ClearAllPoints()
 		if row then b:SetPoint("LEFT", bar, "LEFT", it.offset, 0) else b:SetPoint("TOP", bar, "TOP", 0, -it.offset) end
 	end

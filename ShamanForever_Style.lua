@@ -4,6 +4,7 @@
 --   glow, pop         the pulsing glow and the pop (ShamanForever.lua); elements and the totem bar
 --   border            the edge around icons; groups and the totem bar
 --   gcd               the global cooldown's sweep, on or off; the cooldown elements and the totem bar
+--   text, bar         fonts and bar textures (ShamanForever_Media.lua); text: the totem bar, bar: none
 -- An owner is nil (General), an element key, "totembar", or a group's table. A kind's settings sit
 -- at the same path under each holder: the profile for General (db.glowStyle, db.timers.cooldown), else
 -- the element's options, the totem bar's settings or the group itself. An owner's own table also

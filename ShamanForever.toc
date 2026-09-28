@@ -8,6 +8,7 @@
 ## X-Curse-Project-ID: 1706929
 ## X-Wago-ID: rN4rkrKD
 ## SavedVariables: ShamanForeverDB
+## OptionalDeps: LibSharedMedia-3.0, SharedMedia
 ## IconTexture: Interface\AddOns\ShamanForever\Art\Logo-Icon
 ## AddonCompartmentFunc: ShamanForever_OnAddonCompartmentClick
 ## AddonCompartmentFuncOnEnter: ShamanForever_OnAddonCompartmentEnter
@@ -19,6 +20,7 @@ Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
 Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 ShamanForever_Core.lua
 ShamanForever_Style.lua
+ShamanForever_Media.lua
 ShamanForever_Widgets.lua
 ShamanForever_Timers.lua
 ShamanForever.lua

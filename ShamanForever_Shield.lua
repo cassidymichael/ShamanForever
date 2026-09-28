@@ -229,7 +229,7 @@ local function buildNative(slot, button, cd)
 
 	-- Blizzard writes the count immediately on registration, so the font must already be set.
 	local fs = overlay:CreateFontString(nil, "OVERLAY", nil, 7)
-	fs:SetFont(STANDARD_TEXT_FONT, db.countSize, "OUTLINE")
+	ns.Media.setFont(fs, nil, db.countSize)
 	if db.countPos == "center" then
 		fs:SetPoint("CENTER", button, "CENTER", 0, 0); fs:SetJustifyH("CENTER")
 	else
@@ -243,7 +243,7 @@ local function buildNative(slot, button, cd)
 	bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 0, 0)
 	bar:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 0)
 	bar:SetHeight(db.chargeBarHeight)
-	bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+	bar:SetStatusBarTexture(ns.Media.barTexture())
 	bar:SetStatusBarColor(db.chargeBarColor[1], db.chargeBarColor[2], db.chargeBarColor[3], db.chargeBarColor[4] or 1)
 	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
 	bar.bg:SetAllPoints()
@@ -280,11 +280,12 @@ local function styleNative(slot, size)
 	end
 	slot.icon:SetAlpha(nativeIconAlpha())
 	slot.bar:SetHeight(db.chargeBarHeight)
+	slot.bar:SetStatusBarTexture(ns.Media.barTexture())
 	slot.bar:SetStatusBarColor(db.chargeBarColor[1], db.chargeBarColor[2], db.chargeBarColor[3], db.chargeBarColor[4] or 1)
 	slot.bar:SetAlpha(db.showBar and 1 or 0)
 	slot.ticks:SetAlpha(db.showBar and 1 or 0)
 	slot.fs:SetAlpha(db.showCount and 1 or 0)
-	slot.fs:SetFont(STANDARD_TEXT_FONT, db.countSize, "OUTLINE")
+	ns.Media.setFont(slot.fs, nil, db.countSize)
 	slot.fs:ClearAllPoints()
 	if db.countPos == "center" then
 		slot.fs:SetPoint("CENTER", slot.button, "CENTER", 0, 0); slot.fs:SetJustifyH("CENTER")

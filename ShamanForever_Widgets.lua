@@ -24,13 +24,14 @@ function ns.cropIcon(tex) tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
 ns.BASE_ICON_SIZE = 44
 -- A font string on an icon: size at the base icon size (it grows and shrinks with the icon), placed
 -- at a point of the icon (a corner, CENTER, or TOP / BOTTOM for text above or below it) with an
--- offset. Restated only when something changed; returns the font size used.
+-- offset, in General's text style. Restated only when something changed; returns the font size
+-- used.
 function ns.placeScaledText(fs, icon, size, point, x, y, relPoint)
 	local px = math.max(math.floor(size * icon:GetWidth() / ns.BASE_ICON_SIZE + 0.5), 6)
-	local sig = string.format("%d%s%s%s,%s", px, point, relPoint or point, x, y)
+	local sig = string.format("%d%s%s%s,%s%s", px, point, relPoint or point, x, y, ns.Media.textKey())
 	if fs.placed == sig then return px end
 	fs.placed = sig
-	fs:SetFont(STANDARD_TEXT_FONT, px, "OUTLINE")
+	ns.Media.setFont(fs, nil, px)
 	fs:ClearAllPoints()
 	fs:SetPoint(point, icon, relPoint or point, x, y)
 	return px
@@ -728,7 +729,7 @@ function ns.makeIcon(parent, size, owner)
 	f.textFrame:SetAllPoints()
 	f.textFrame:SetFrameLevel(f.cd:GetFrameLevel() + 2)
 	f.count = f.textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
-	f.count:SetFont(STANDARD_TEXT_FONT, math.floor(size * 0.45), "OUTLINE")
+	ns.Media.setFont(f.count, owner, math.floor(size * 0.45))
 	f.count:SetPoint("BOTTOMRIGHT", 2, -2)
 	f.count:SetJustifyH("RIGHT")
 	local okFS, cdText = pcall(f.cd.GetCountdownFontString, f.cd)

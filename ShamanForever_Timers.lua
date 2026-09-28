@@ -154,7 +154,7 @@ function Timer:apply()
 	-- always shows plain seconds.
 	pcall(cd.SetCountdownAbbrevThreshold, cd, s.abbrev)
 	local c = self.tint or s.textColor
-	self.font:SetFont(STANDARD_TEXT_FONT, s.textSize, "OUTLINE")
+	ns.Media.setFontObject(self.font, self.key, s.textSize)   -- General's text style, or the totem bar's
 	self.font:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 	cd:SetCountdownFont(self.fontName)
 	self.barOn = self.bar ~= nil and s.bar and not cant.bar
@@ -163,6 +163,7 @@ function Timer:apply()
 		local a = self.anchor
 		bar:ClearAllPoints()
 		bar:SetHeight(s.barHeight)
+		bar:SetStatusBarTexture(ns.Media.barTexture())   -- before the colour, which is restated below
 		if s.barEdge == "top" then
 			bar:SetPoint("TOPLEFT", a, "TOPLEFT", 0, 0); bar:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, 0)
 		else

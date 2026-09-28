@@ -30,6 +30,7 @@ read_globals = {
     "C_Texture",
     "C_Timer",
     "C_TooltipInfo",
+    "C_UIFileAsset",
     "C_UnitAuras",
     "ChatFontSmall",
     "ClearFocus",

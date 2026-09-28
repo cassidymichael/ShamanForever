@@ -53,7 +53,7 @@ local imbueState = { on = nil, key = nil, expiresAt = nil, total = nil, unreadab
 -- Time left: a timer fed the imbue's readable time. imbue.timer only shows "?" when unreadable.
 imbue.upTimer = ns.Timer.new(imbue, "imbue", "uptime", { cd = imbue.cd, school = "spirit" })
 imbue.timer = imbue.textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
-imbue.timer:SetFont(STANDARD_TEXT_FONT, 16, "OUTLINE")
+ns.Media.setFont(imbue.timer, nil, 16)
 imbue.timer:SetPoint("CENTER")
 
 local function imbueIconFor(key)
@@ -215,8 +215,11 @@ function IM.resolve()
 	return table.concat(sig, ",")
 end
 
--- The timer takes its current style (ns.applyTimers).
-function IM.applyTimers() imbue.upTimer:apply() end
+-- The timer and the "?" take their current style (ns.applyTimers).
+function IM.applyTimers()
+	imbue.upTimer:apply()
+	ns.Media.setFont(imbue.timer, nil, 16)
+end
 IM.applyLayout = IM.refresh
 IM.tick = IM.refresh   -- once a second: the time left
 -- A shaman logged in: the weapon's own events.

@@ -377,7 +377,7 @@ L.PREVIEW = {
 				setBar(ic, 3, n, c[1], c[2], c[3])
 			end
 			if d.showCount and n >= 2 then
-				ic.count:SetFont(STANDARD_TEXT_FONT, d.countSize, "OUTLINE")
+				ns.Media.setFont(ic.count, nil, d.countSize)
 				ic.count:ClearAllPoints()
 				if d.countPos == "center" then ic.count:SetPoint("CENTER") else ic.count:SetPoint("BOTTOMRIGHT", 2, -2) end
 				ic.count:SetText(n)
@@ -555,7 +555,7 @@ L.PREVIEW.tremor = {
 			clip:SetClipsChildren(true)
 			clip:SetFrameLevel(ic.textFrame:GetFrameLevel() + 1)
 			ic.word = clip:CreateFontString(nil, "OVERLAY")
-			ic.word:SetFont(STANDARD_TEXT_FONT, 20, "OUTLINE")
+			ns.Media.setFont(ic.word, nil, 20)
 			ic.word:SetText(ns.Tremor.WORD)
 		end
 		ns.Tremor.styleWord(ic.word, ic)
