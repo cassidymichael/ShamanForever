@@ -91,6 +91,10 @@ function ns.deferWhileAurasSecret(key, fn)
 	return false
 end
 local INACTIVE = Enum and Enum.AddOnRestrictionState and Enum.AddOnRestrictionState.Inactive or 0
+-- fn(endedAt) runs on the frame after a restriction ends, once however many end in one frame, after
+-- the queue has run again: endedAt is GetTime() when the first of them ended.
+local afterEnd, endedAt = {}, nil
+function ns.onRestrictionEnd(fn) table.insert(afterEnd, fn) end
 local combatEnd = CreateFrame("Frame")
 ns.registerEvent(combatEnd, "PLAYER_REGEN_ENABLED")
 ns.registerEvent(combatEnd, "ADDON_RESTRICTION_STATE_CHANGED")
@@ -105,11 +109,20 @@ local function runQueue()
 		end
 	end
 end
+local function afterRestriction()
+	local at = endedAt
+	endedAt = nil
+	runQueue()
+	for _, fn in ipairs(afterEnd) do ns.try("restriction end", fn, at) end
+end
 combatEnd:SetScript("OnEvent", function(_, event, _, state)
 	if event == "ADDON_RESTRICTION_STATE_CHANGED" then
 		if isSecret(state) or state ~= INACTIVE or InCombatLockdown() then return end
 		-- Auras may still read as secret while this is dispatched: again on the next frame.
-		C_Timer.After(0, runQueue)
+		if not endedAt then
+			endedAt = GetTime()
+			C_Timer.After(0, afterRestriction)
+		end
 	end
 	runQueue()
 end)
