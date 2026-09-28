@@ -15,9 +15,10 @@
 --   identity is secret is simply not matched. Nothing here compares a secret.
 -- * Loss of control on the player (C_LossOfControl.GetActiveLossOfControlData): not secret, spell
 --   ID included. Only other units' loss of control is. An effect counts when its spell is one
---   Tremor removes (ns.Tremor.SPELLS: a fear, charm or sleep mechanic in Forever's client data) or
---   its type says so. The type alone isn't enough: a Wrathtail Priestess's Sleep (15970) came as
---   STUN (seen 2026-09-27).
+--   Tremor removes (ns.Tremor.SPELLS: every spell with a fear, charm or sleep mechanic in Forever's
+--   client data). Its type doesn't decide: a Wrathtail Priestess's Sleep (15970) came as STUN (seen
+--   2026-09-27), and a Horror such as Death Coil, which Tremor doesn't remove, likely comes as FEAR.
+--   /sf debug still shows the type.
 -- * Our Tremor Totem: the earth slot holds the totem we last cast into it (ShamanForever_Totems.lua,
 --   readable in combat), and the slot has a duration object while a totem is out. With no cast since
 --   a login or /reload in combat or in a PvP match, the slot can't say which totem it holds: that
@@ -37,7 +38,8 @@ local HOLD = 10        -- seconds the warning stays after a fear, charm or sleep
 local SOUND_GAP = 10   -- seconds between sounds, so mobs coming and going don't repeat it
 TR.WORD = "Tremor!"    -- by the icon while it warns
 
--- Loss-of-control types that name what Tremor Totem removes (C_LossOfControl's locType).
+-- Loss-of-control types that name what Tremor Totem removes (C_LossOfControl's locType), for /sf
+-- debug only: an effect counts by its spell.
 local TREMOR_TYPES = { FEAR = true, FEAR_MECHANIC = true, CHARM = true, POSSESS = true, SLEEP = true }
 local tremorSpells = {}   -- spell ID -> true, from TR.SPELLS (ShamanForever_TremorList.lua), at start
 
@@ -253,7 +255,7 @@ local function checkAllPlates()
 	for i = 1, 40 do checkPlate("nameplate" .. i) end
 end
 
--- Whether a loss of control is one Tremor removes: by its spell, and by its type.
+-- Whether a loss of control is one Tremor removes, by its spell; and whether its type says so.
 local function controlMatch(d)
 	local id, t = d.spellID, d.locType
 	local bySpell = type(id) == "number" and not isSecret(id) and tremorSpells[id] == true
@@ -280,7 +282,7 @@ local function readControl()
 		if type(d) == "table" then
 			local bySpell, byType = controlMatch(d)
 			noteControl(d, bySpell, byType)
-			if setting("tremorFeared") and (bySpell or byType) then feared = true end
+			if setting("tremorFeared") and bySpell then feared = true end
 		end
 	end
 	if was and not feared then holdUntil = GetTime() + HOLD end
