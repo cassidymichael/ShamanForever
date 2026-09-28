@@ -129,6 +129,38 @@ combatEnd:SetScript("OnEvent", function(_, event, _, state)
 end)
 
 ------------------------------------------------------------------------
+-- Whether the player can act on a warning. Dead, a ghost or on a flight path, nothing can be cast,
+-- so a warning that asks for a cast (a shield, an imbue, a totem, a spell that's ready) stays quiet.
+-- None of these reads is secret for the player; one that fails or comes back secret counts as able.
+------------------------------------------------------------------------
+local function plainYes(fn, ...)
+	local ok, v = safe(fn, ...)
+	return ok and not isSecret(v) and v == true
+end
+function ns.cantAct()
+	return plainYes(UnitIsDeadOrGhost, "player") or plainYes(UnitOnTaxi, "player")
+end
+-- fn(event) whenever that may have changed: death, release, resurrection, a flight path's start and
+-- end. UnitOnTaxi may not have changed yet when the control events come (untested), so those are
+-- passed on again a second later.
+local actListeners = {}
+function ns.onCanActChange(fn) table.insert(actListeners, fn) end
+local actEvents = CreateFrame("Frame")
+for _, event in ipairs({ "PLAYER_DEAD", "PLAYER_ALIVE", "PLAYER_UNGHOST", "PLAYER_CONTROL_LOST",
+	"PLAYER_CONTROL_GAINED" }) do
+	ns.registerEvent(actEvents, event)
+end
+local function tellAct(event)
+	for _, fn in ipairs(actListeners) do ns.try("can act: " .. event, fn, event) end
+end
+actEvents:SetScript("OnEvent", function(_, event)
+	tellAct(event)
+	if event == "PLAYER_CONTROL_LOST" or event == "PLAYER_CONTROL_GAINED" then
+		C_Timer.After(1, function() tellAct(event) end)
+	end
+end)
+
+------------------------------------------------------------------------
 -- Curves: a duration's remaining (or total) time -> a value for SetAlpha. The way to show or hide
 -- something on a time that may be secret.
 ------------------------------------------------------------------------

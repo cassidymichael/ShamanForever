@@ -1,7 +1,8 @@
 -- Tremor Totem: a warning to put it down. It warns while a mob that casts fear, charm or sleep (the
 -- effects Tremor Totem removes) is your target or has its nameplate on screen, and (if the player
 -- turns it on) while one of those effects is on you and for 10 s after. It stays quiet while your
--- Tremor Totem is down.
+-- Tremor Totem is down, and while you couldn't drop one: dead, a ghost, on a flight path or in a
+-- vehicle.
 -- The mobs are a watchlist the player can change on the element's page: open-world mobs from
 -- Classic's database (ShamanForever_TremorList.lua) and the player's own, matched by NPC ID, else by
 -- name. While the totem is down the element shows its time left. It is idle while nothing warns
@@ -344,8 +345,10 @@ local function refresh()
 	local out, dur = tremorOut()
 	if out then f.upTimer:set(dur) else f.upTimer:clear() end
 	local held = GetTime() < holdUntil
-	-- Only while the earth slot is known not to hold Tremor.
+	-- Only while the earth slot is known not to hold Tremor, and while a totem could be dropped: not
+	-- dead, a ghost, on a flight path or in a vehicle (none of them secret for the player).
 	local want = out == false and (targetListed or next(plates) ~= nil or feared or held)
+		and not ns.cantAct() and not plain(safe(UnitInVehicle, "player"))
 	if want then
 		why = targetListed and "target" or next(plates) and "nameplate" or feared and "on you" or "just after"
 	end
@@ -511,6 +514,7 @@ function TR.start()
 	checkTarget()
 	checkAllPlates()
 	readControl()
+	ns.onCanActChange(refresh)   -- death, resurrection, a flight path: at once, not at the next tick
 end
 
 -- /sf debug
@@ -535,6 +539,8 @@ function TR.debug()
 		local ok, map = safe(R.IsAddOnRestrictionActive, Enum.AddOnRestrictionType.Map)
 		say("  map restriction %s, in instance %s", ok and describeArg(map) or "error", tostring(IsInInstance()))
 	end
+	say("  dead, ghost or flight path %s, vehicle %s", tostring(ns.cantAct()),
+		describeArg(select(2, safe(UnitInVehicle, "player"))))
 	say("  feared now %s, holding %s; losses of control seen (Tremor removes it?): %s", tostring(feared),
 		tostring(GetTime() < holdUntil), #controlSeen > 0 and table.concat(controlSeen, "; ") or "none")
 end
