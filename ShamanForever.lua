@@ -385,7 +385,7 @@ local function placeNew(key, made)
 				local g = made[dg]
 				if not g then
 					g = newGroup(dg)
-					g.name = uniqueName(dg.name, g)
+					g.name = uniqueName(dg.name, g) or g.name   -- keep "Group N" if dg has no name
 					made[dg] = g
 				end
 				table.insert(g.members, key)
