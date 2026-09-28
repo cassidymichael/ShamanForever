@@ -625,6 +625,7 @@ function AuraSlot:style()
 		c:SetFrameStrata(f:GetFrameStrata())
 		c:SetFrameLevel(f.textFrame:GetFrameLevel() + 5)
 		self.button:SetSize(size, size)
+		ns.Looks.auraStyle(self, size)
 		self.timer:apply()
 		if o.onStyle then o.onStyle(self, size) end
 	end)

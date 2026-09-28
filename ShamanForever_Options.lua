@@ -125,6 +125,17 @@ local function lookChoices(kind)
 	return out
 end
 
+-- A look picker for a style's rows (r, from styleRows): the dropdown, and an EXPERIMENTAL badge
+-- under it while the look picked isn't tested in game yet. Returns the look now.
+local function lookRows(p, r, kind, label, feature, shown)
+	local function look() return ns.Style.look(kind, r.style().look) end
+	p:dropdown(label, nil, lookChoices(kind), function() return look().key end, r.set("look"), shown, 190)
+	local f = p:row(22)
+	ns.Look.expBadge(f, feature):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
+	p:add(f, 22, showWhen(function() return look().experimental end, shown))
+	return look
+end
+
 -- Standard rows: the border around icons, General's or an owner's (a group, the totem bar). Size
 -- and colour show only for looks that use them. The HUD lays out only out of combat (the shield's
 -- group and the totem bar's buttons are protected then), so a change made in combat reaches it
@@ -134,11 +145,11 @@ local function borderRows(p, owner, after, label, shown)
 	local r = styleRows(owner, "border", after)
 	if owner ~= nil then followRow(p, owner, "border", after, label, shown) end
 	local bordered = function() return r.own() and r.style().show end
-	local function look() return ns.Style.look("border", r.style().look) end
-	local function uses(part) return function() return bordered() and ns.Looks.uses(look(), part) end end
-	local function lookKey() return look().key end
 	p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"), showWhen(r.own, shown))
-	p:dropdown("Border look", nil, lookChoices("border"), lookKey, r.set("look"), showWhen(bordered, shown), 190)
+	local look = lookRows(p, r, "border", "Border look", "Border looks", showWhen(bordered, shown))
+	local function uses(part) return function() return bordered() and ns.Looks.uses(look(), part) end end
+	-- Blizzard's aura button takes a mask only as it is made (ns.Looks.auraMask).
+	p:text("Shields and Elemental Focus change shape after a /reload.", showWhen(ns.Looks.auraStale, shown))
 	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("size"), r.set("size"), showWhen(uses("size"), shown))
 	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), showWhen(uses("color"), shown))
 end
@@ -507,12 +518,14 @@ local function buildAbout(p)
 		local e = ns.ELEMENTS[key]
 		if e.experimental then p:experimental(e.experimental, "Elements > " .. e.label) end
 	end
+	if ns.Looks.anyExperimental("border") then p:experimental("Border looks", "General > Border") end
 	gap()
 	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
 		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
 		"Francisque Millet, Mountain Landscape with Lightning (air). Corner and divider ornaments: public domain / CC0, Wikimedia Commons. " ..
-		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood texture CC0, ambientCG. Link icons: Simple Icons, CC0.")
+		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood texture CC0, ambientCG. Link icons: Simple Icons, CC0. " ..
+		"The Carved stone, Aged bronze and Carved wood borders: made with an AI image model (Google Gemini).")
 end
 
 ------------------------------------------------------------------------

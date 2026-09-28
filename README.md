@@ -68,7 +68,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - Show each element always, only in combat, or never. A group can show only in combat.
 - Positioning mode: drag groups and the totem bar, with snapping and a grid. Mouse wheel sets icon size, Ctrl+wheel scale, Shift+wheel opacity, and the arrow keys nudge. It locks itself when combat starts.
 - Borders and warning rings stay pixel-sharp at any icon size.
-- Border look: a plain line, a gold hairline, an edge in the element's school colour, a bronze bevel, or corner caps.
+- Border look: a plain line, a gold hairline, an edge in the element's school colour, a bronze bevel, or corner caps. Experimental: the Cooldown Manager's rounded icons, Forever's action button frame, carved stone, aged bronze or carved wood.
 - Test elements (`/sf test`): placeholder icons for trying out a layout, and elements you haven't learned yet, greyed.
 
 ### Options and profiles
@@ -105,7 +105,7 @@ ShamanForever is created and maintained with the help of AI tools.
 
 ## Art
 
-The options banners are public-domain paintings: Thomas Moran, *The Chasm of the Colorado*; Joseph Wright of Derby, *Vesuvius from Portici*; Frederic Edwin Church, *Rainy Season in the Tropics* and *Aurora Borealis*; Francisque Millet, *Mountain Landscape with Lightning*. The corner and divider ornaments are public domain / CC0 (Wikimedia Commons). The logo is Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky's *Breaking Wave*, with a CC0 wood texture from ambientCG. The link icons on the About page are from Simple Icons (CC0). Spell icons are Blizzard's, from the game.
+The options banners are public-domain paintings: Thomas Moran, *The Chasm of the Colorado*; Joseph Wright of Derby, *Vesuvius from Portici*; Frederic Edwin Church, *Rainy Season in the Tropics* and *Aurora Borealis*; Francisque Millet, *Mountain Landscape with Lightning*. The corner and divider ornaments are public domain / CC0 (Wikimedia Commons). The logo is Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky's *Breaking Wave*, with a CC0 wood texture from ambientCG. The link icons on the About page are from Simple Icons (CC0). Spell icons are Blizzard's, from the game, as is the art of the Cooldown Manager and action button looks. The Carved stone, Aged bronze and Carved wood borders were made with an AI image model (Google Gemini).
 
 ## Licence
 

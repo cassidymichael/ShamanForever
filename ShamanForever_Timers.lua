@@ -327,6 +327,7 @@ function Timer:setExpire(e, icon)
 		x:SetScript("OnShow", function(s) if s.pulseOn then s.pulse:Play() end end)
 		x.glow = ns.makeGlow(x, self.anchor, self.key)   -- made on first use
 		self.exp = x
+		ns.Looks.followMask(self.anchor, x.grey, x.dim)   -- a rounded or cut-corner icon's shape
 	end
 	x.glow:fit(self.anchor:GetWidth())
 	x.glow:SetShown(e.glow)
