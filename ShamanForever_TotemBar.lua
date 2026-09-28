@@ -386,6 +386,7 @@ for index, el in ipairs(ELEMENTS) do
 	v:SetFrameLevel(b:GetFrameLevel() + 2)
 	v:EnableMouse(false)
 	s.vis = v
+	v.school = el   -- a frame look's school colour (ns.Looks)
 	-- "Not your pick": the element's pick, small, on the side away from the picker (a plain frame).
 	local badge = CreateFrame("Frame", nil, bar)
 	badge:SetFrameLevel(b:GetFrameLevel() + 6)

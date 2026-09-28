@@ -747,6 +747,7 @@ L.PREVIEW.totembar = {
 				ic:SetSize(size, size)
 				ic:ClearAllPoints()
 				place(ic, slotAt[i], (line - size) / 2)
+				ic.school = el
 				ns.applyBorder(ic, border)
 				local pick = GetActionTexture and TB.pickTexture(el)
 				if ns.isSecret(pick) then pick = nil end   -- never compared while secret (combat)
