@@ -683,7 +683,8 @@ local function buildMana(p)
 		eget(key, "fillHeight"), eset(key, "fillHeight"), fillOn)
 	p:color("Bar colour", nil, eget(key, "fillColor"), eset(key, "fillColor"), fillOn)
 	p:header("Casts left")
-	p:text("How many more casts your mana pays for, a count for each spell and rank you pick.")
+	p:text("How many more casts your mana pays for, a count for each spell and rank you pick. Each count"
+		.. " starts at your first cast of its spell.")
 	castPicks(p)
 	p:dropdown("Position", nil, ns.Mana.POSITIONS, eget(key, "castsPos"), eset(key, "castsPos"), nil, 180)
 	p:text("Beside the icon, each count has its spell's icon and rank.",

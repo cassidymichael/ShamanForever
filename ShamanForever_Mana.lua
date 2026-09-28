@@ -18,9 +18,10 @@
 -- phase can't be read, so none is drawn.
 --
 -- Casts left: for each pick, a Step curve with a point where each further cast becomes affordable,
--- plus half a mana, so at an exact edge it reads one low, never high. A spell's cost is the highest
--- read for it since the last talent or level change: a cost cut while a proc is up (read at a cast)
--- can't raise the count.
+-- plus half a mana, so at an exact edge it reads one low, never high. A proc that cuts the next
+-- cast's cost (Maelstrom Weapon, Focused) may show in the cost while it's up, so a read can raise a
+-- spell's cost at any time but lower it, or give its first one, only at that spell's own successful
+-- cast, which has used the proc up. Until a spell's first cast its count is blank.
 --
 -- The potion cue shows while a mana potion in the bags can be drunk (the level it needs, and off
 -- cooldown: both plain in combat, tested 2026-09-28) and mana is under a mark: under the element's
@@ -155,11 +156,12 @@ local function knows(id)
 end
 M.knows = knows
 
--- The highest cost read for each spell since the last talent or level change.
+-- Each spell's cost as the counts use it: set at the spell's own successful cast (onSucceeded),
+-- raised by any later read. nil until that cast. A free cast (0) is never taken.
 local costSeen = {}
 local function costOf(id)
-	local now = manaCost(id)
-	if now and now > (costSeen[id] or 0) then costSeen[id] = now end
+	local now, seen = manaCost(id), costSeen[id]
+	if seen and now and now > seen then costSeen[id] = now end
 	return costSeen[id]
 end
 
@@ -603,6 +605,7 @@ end
 local function onSucceeded(castGUID, spellID)
 	if isSecret(spellID) or type(spellID) ~= "number" then return end
 	local cost = manaCost(spellID)
+	if cost and cost > 0 then costSeen[spellID] = cost end   -- its own cast: any cost cut on it is spent
 	local sent = not isSecret(castGUID) and castGUID and sentCost[castGUID]
 	if sent then
 		sentCost[castGUID] = nil
@@ -753,15 +756,15 @@ end
 
 local function onMaxPower()
 	readMax()
-	if manaOn then styleMana() end
+	if manaOn then rereadCosts(); styleMana() end
 	paint()
 end
 
--- Talents or level changed: costs are read afresh, the default pick may change.
+-- Talents changed: the default pick may change. Costs stay: one that rose is read at the next
+-- refresh, one that fell at the spell's next cast.
 local function onTalents()
 	local r = restoLeads()
 	if r ~= nil then resto = r end
-	wipe(costSeen)
 	ns.applyLayout()
 end
 
@@ -773,7 +776,10 @@ local function onEvent(_, event, a1, a2, a3, a4)
 	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then onSucceeded(a2, a3)   -- unit, castGUID, spellID
 	elseif event == "BAG_UPDATE_DELAYED" or event == "BAG_UPDATE_COOLDOWN" then
 		if potionOn then ns.try("mana potion", refreshPotion) end
-	elseif event == "TRAIT_CONFIG_UPDATED" or event == "PLAYER_LEVEL_UP" then
+	elseif event == "PLAYER_LEVEL_UP" then
+		-- A bigger potion may be allowed now. A second later: UnitLevel can still say the old level.
+		C_Timer.After(1, function() if potionOn then ns.try("mana potion", refreshPotion) end end)
+	elseif event == "TRAIT_CONFIG_UPDATED" then
 		if InCombatLockdown() then ns.retryAfterCombat("mana talents", onTalents) else onTalents() end
 	end
 end
@@ -845,6 +851,8 @@ function M.afterGroups()
 end
 
 function M.refresh()
+	-- A cost that rose (a cost cut from talents or gear gone) counts at once.
+	if manaOn and rereadCosts() then styleMana() end
 	if potionOn then ns.try("mana potion", refreshPotion) end
 	paint()
 end
@@ -869,7 +877,7 @@ function M.debug()
 	local picks = {}
 	for _, p in ipairs(active) do
 		table.insert(picks, string.format("%s %s cost %s%s", Spells.nameOf(p.id) or "?", tostring(p.id),
-			tostring(p.cost), p.curve and "" or " (no count)"))
+			tostring(p.cost), p.curve and "" or (p.cost and " (no count)" or " (no count until cast)")))
 	end
 	local left = fiveUntil - GetTime()
 	say("mana: %s, max %s, Restoration leads %s; picks %s; five-second rule %s; low under %.0f%%",
