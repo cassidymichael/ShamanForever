@@ -570,10 +570,11 @@ end)
 local hasTimeLeftCurve = ns.CURVE_LIVE
 -- 1 while the spell is off cooldown (possibly secret: only ever handed to SetAlpha). Its own
 -- cooldown, without the GCD (ignoreGCD), so the glow doesn't blink with every cast. 0 while the
--- player can't act (dead, a ghost, on a flight path): "use me" then asks for a cast that can't be
--- made. Not IsSpellUsable, which would also take the glow away when mana runs short.
-local function readyAlpha(spellID)
-	if ns.cantAct() then return 0 end
+-- player can't act (cantAct: ns.cantAct(), read once per pass by the caller): "use me" then asks
+-- for a cast that can't be made. Not IsSpellUsable, which would also take the glow away when mana
+-- runs short.
+local function readyAlpha(spellID, cantAct)
+	if cantAct then return 0 end
 	-- A failed read (a client change) is noted for /sf debug and shows no glow; nothing back is no
 	-- cooldown running. ns.try keeps one note per place, so ten reads a second don't flood it.
 	local ok, dur = ns.try("ready glow cooldown", C_Spell.GetSpellCooldownDuration, spellID, true)
@@ -597,7 +598,7 @@ function CD.readyTicker(update)
 	end)
 	return ticker
 end
-local function refreshReadyGlow(def)
+local function refreshReadyGlow(def, cantAct)
 	local f = def.frame
 	local on = def.spellID and ns.isEnabled(def.key) and setting(def.key, "readyGlow") and hasTimeLeftCurve and noTimeLeftCurve
 	f.readyGlow:SetShown(on and true or false)
@@ -609,11 +610,12 @@ local function refreshReadyGlow(def)
 		local gok, g = ns.try("ready gate", tdur.EvaluateRemainingDuration, tdur, hasTimeLeftCurve)
 		if gok then f.readyGate:SetAlpha(g) else f.readyGate:SetAlpha(0) end
 	end
-	f.readyGlow:SetAlpha(readyAlpha(def.spellID))
+	f.readyGlow:SetAlpha(readyAlpha(def.spellID, cantAct))
 end
 local function refreshReadyGlows()
+	local cantAct = ns.cantAct()
 	for _, def in ipairs(COOLDOWNS) do
-		if def.frame.readyGate then refreshReadyGlow(def) end
+		if def.frame.readyGate then refreshReadyGlow(def, cantAct) end
 	end
 end
 local readyTicker = CD.readyTicker(refreshReadyGlows)

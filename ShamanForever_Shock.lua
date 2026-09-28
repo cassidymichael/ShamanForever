@@ -98,7 +98,7 @@ local function refreshGlow()
 	shock.glowF:SetShown(on and true or false)
 	if not on then return end
 	shock.glowF:fit(shock:GetWidth())
-	shock.glowF:SetAlpha(CD.readyAlpha(shockSpellID))
+	shock.glowF:SetAlpha(CD.readyAlpha(shockSpellID, ns.cantAct()))
 end
 local glowTicker = CD.readyTicker(refreshGlow)
 -- Runs only while the glow is turned on (checked on every layout, i.e. every settings change).
