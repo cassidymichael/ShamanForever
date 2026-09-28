@@ -28,7 +28,8 @@ local ELEMENT_PAGES = {}   -- key -> page key, filled as element pages are built
 
 function EP.buildOverview(p)
 	p:header("Elements")
-	local GROUP_X, SHOW_X = 150, 260   -- sized to fit beside the Settings button at the minimum width
+	-- Columns sized to fit the page at the window's least width; they keep their places when it's wider.
+	local GROUP_X, SHOW_X, OPEN_X = 150, 260, 512
 	do
 		local f = p:row(20)
 		local function col(text, x)
@@ -85,7 +86,7 @@ function EP.buildOverview(p)
 		show:HookScript("OnLeave", function() GameTooltip:Hide() end)
 		local open = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
 		open:SetSize(90, 22)
-		open:SetPoint("RIGHT", -4, 0)
+		open:SetPoint("LEFT", OPEN_X, 0)
 		open:SetText("Settings")
 		open:SetScript("OnClick", function() if ELEMENT_PAGES[key] then ns.Options.open(ELEMENT_PAGES[key]) end end)
 		p:add(f, 34, function() return ns.available(key) end, function()
@@ -424,7 +425,7 @@ end
 -- Tremor Totem's watchlist: a box that searches the list and adds a name, Add target, the list (a
 -- remove button on each mob) and a count. The list is a ScrollBox, which recycles its rows, so
 -- hundreds of mobs take a dozen frames.
-local MOB_ROW_H, MOB_ROWS = 22, 9
+local MOB_ROW_H, MOB_ROWS, MOB_LIST_W = 22, 9, 640
 local function mobList(p)
 	local T = ns.Tremor
 	local listH = MOB_ROW_H * MOB_ROWS + 8
@@ -451,14 +452,14 @@ local function mobList(p)
 	ownOnly:SetSize(24, 24)
 	ownOnly.Text:SetFontObject("GameFontHighlight")
 	ownOnly.Text:SetText("Only mobs you added")
-	ownOnly:SetPoint("TOPRIGHT", -(ownOnly.Text:GetStringWidth() + 4), -3)
 	setTip(ownOnly, "Only mobs you added", "Hides the default list's mobs.")
 
+	-- As wide as the page, up to MOB_LIST_W: in a wide window a longer line reads no better.
 	local panel = CreateFrame("Frame", nil, f, "BackdropTemplate")
 	panelBackdrop(panel)
 	panel:SetPoint("TOPLEFT", 0, -32)
-	panel:SetPoint("TOPRIGHT", 0, -32)
-	panel:SetHeight(listH)
+	panel:SetSize(MOB_LIST_W, listH)
+	ownOnly:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -(ownOnly.Text:GetStringWidth() + 4), 29)
 	local sb = CreateFrame("Frame", nil, panel, "WowScrollBoxList")
 	sb:SetPoint("TOPLEFT", 4, -4)
 	sb:SetPoint("BOTTOMRIGHT", -22, 4)
@@ -516,6 +517,7 @@ local function mobList(p)
 
 	local shown = 0   -- rows matching the search
 	local function fill()
+		panel:SetWidth(math.min(p:width(), MOB_LIST_W))
 		local text = box:GetText()
 		box.hint:SetShown(text == "" and not box:HasFocus())
 		local list = T.rows(text, ownOnly:GetChecked())

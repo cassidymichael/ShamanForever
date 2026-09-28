@@ -1,8 +1,9 @@
 -- The options window's Layout page: the groups listed on the left (name, element count and an icon
--- strip), the chosen group's elements and settings on the right. Drag an element onto a group's name
--- to move it there, between the chosen group's elements to change the order, or onto New group for
--- a group of its own; click one for a menu. The groups are ShamanForever.lua's (db.groups): every
--- change goes through its layout edits, which wait out combat.
+-- strip), the chosen group's elements and settings on the right, side by side once the window is
+-- wide enough. Drag an element onto a group's name to move it there, between the chosen group's
+-- elements to change the order, or onto New group for a group of its own; click one for a menu. The
+-- groups are ShamanForever.lua's (db.groups): every change goes through its layout edits, which wait
+-- out combat.
 local _, ns = ...
 
 local LP = {}
@@ -260,7 +261,8 @@ end
 ------------------------------------------------------------------------
 -- The group list: one row per group (its name, how many elements, their icons), New group above.
 ------------------------------------------------------------------------
-local LIST_W = 196     -- the list's column, its scroll bar included
+-- The list's column, its scroll bar included; wider in a wide window.
+local LIST_W, LIST_W_WIDE, LIST_WIDE_AT = 196, 250, 1100
 local ROWS_TOP = 42    -- the rows' offset in the list, under its header
 local ROW_H, ROW_STEP = 42, 45
 local ICON_STEP = 18   -- 16 px icons in the strip
@@ -393,21 +395,34 @@ local function buildLoose()
 	end)
 end
 
+-- The list's column and the page's beside it, for the window's width.
+local placedW
+local function placeColumns(p)
+	local w = p.win:GetWidth() >= LIST_WIDE_AT and LIST_W_WIDE or LIST_W
+	if w == placedW then return end
+	placedW = w
+	list.scroll:SetWidth(w - 14)
+	p.scroll:SetPoint("TOPLEFT", p.win, "TOPLEFT", NAV_W + 18 + w + 12, PAGE_TOP)
+end
+
 local function buildList(p)
 	list = Page.new(p.win, "layoutGroups")
 	local s = list.scroll
 	s:ClearAllPoints()
 	s:SetPoint("TOPLEFT", p.win, "TOPLEFT", NAV_W + 18, PAGE_TOP)
 	s:SetPoint("BOTTOMLEFT", p.win, "BOTTOMLEFT", NAV_W + 18, 12)
-	s:SetWidth(LIST_W - 14)
 	if s.ScrollBar then
 		s.ScrollBar:ClearAllPoints()
 		s.ScrollBar:SetPoint("TOPLEFT", s, "TOPRIGHT", 4, 0)
 		s.ScrollBar:SetPoint("BOTTOMLEFT", s, "BOTTOMRIGHT", 4, 0)
 	end
+	placeColumns(p)
 	-- The list shows and refreshes with the page, as a pinned header does (Page:pin).
 	p.fixed = s
-	function s.refresh() list:refresh() end
+	function s.refresh()
+		placeColumns(p)
+		list:refresh()
+	end
 	list.afterRefresh = revealChosen
 
 	local head = list:header("Groups")
@@ -436,6 +451,8 @@ end
 -- The chosen group: its name, its elements, its settings
 ------------------------------------------------------------------------
 local CAPTION_H = 28   -- the Elements caption above the chips
+-- Wide enough (the page beside the list), the elements stand in a column left of the settings.
+local WIDE_AT, MEMBERS_W, COLUMN_GAP = 680, 240, 18
 
 -- The group's name: Enter renames it; Escape, or leaving the box any other way, keeps the old one.
 local function nameRow(p, shown)
@@ -536,8 +553,8 @@ end
 -- The page: the group list on its left, the chosen group's elements and settings beside it.
 function LP.build(p)
 	buildList(p)
-	p.scroll:SetPoint("TOPLEFT", p.win, "TOPLEFT", NAV_W + 18 + LIST_W + 12, PAGE_TOP)
 	drag.ghost = Page.dragGhost(updateDragFeedback)
+	local function wide() return p.content:GetWidth() >= WIDE_AT end
 
 	p:text("No groups. New group makes one.", function() return not hasGroups() end)
 	p.gate = hasGroups
@@ -548,9 +565,15 @@ function LP.build(p)
 		head.text:SetText(g.name)
 		head.note:SetText(n == 1 and "1 element" or n .. " elements")
 	end
-	nameRow(p)
+	nameRow(p, function() return not wide() end)   -- one column: under the header
+	p.float = wide
+	p.inset = function() return 0, wide() and p.content:GetWidth() - MEMBERS_W or 0 end
 	buildMembers(p)
+	p.float = nil
+	p.inset = function() return wide() and MEMBERS_W + COLUMN_GAP or 0, 0 end
+	nameRow(p, wide)   -- two columns: atop the settings
 	buildSettings(p)
+	p.inset = nil
 	p.gate = nil
 	-- Closed or left mid-drag (Escape, the key binding), the release may never come: drop nothing.
 	p.win:HookScript("OnHide", function() if drag.key then endDrag(false) end end)

@@ -10,6 +10,7 @@ local showWhen, setTip, panelBackdrop = Page.showWhen, Page.setTip, Page.panelBa
 
 local WIDTH, NAV_W, LABEL_W = Page.WIDTH, Page.NAV_W, Page.LABEL_W
 local HEIGHT, MIN_H, MAX_H = 700, 560, 1300   -- the player may make it taller
+local MAX_W = 1600                              -- and wider, from WIDTH
 local LOGO_SIZE, LOGO_X, LOGO_Y = 112, -19, 24   -- the logo badge over the window's top-left corner
 local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
 
@@ -822,7 +823,7 @@ end
 
 local function showPage(key)
 	currentPage = key
-	acct().optionsPage = key   -- reopened next time, across reloads (account-wide, like the window height)
+	acct().optionsPage = key   -- reopened next time, across reloads (account-wide, like the window's size)
 	for _, p in ipairs(pageOrder) do
 		p.scroll:SetShown(p.key == key)
 		if p.fixed then p.fixed:SetShown(p.key == key) end
@@ -1044,9 +1045,13 @@ local function buildWindow()
 	navEdge:SetWidth(1)
 	navEdge:SetColorTexture(0.23, 0.17, 0.10, 1)
 
-	win:SetSize(WIDTH, math.min(math.max(acct().optionsHeight or HEIGHT, MIN_H), MAX_H))
+	-- Its size, kept within its limits and the screen.
+	local function fit(v, least, most, screen) return math.max(math.min(v, most, screen), least) end
+	local function fitW(w) return fit(w, WIDTH, MAX_W, UIParent:GetWidth()) end
+	local function fitH(h) return fit(h, MIN_H, MAX_H, UIParent:GetHeight()) end
+	win:SetSize(fitW(acct().optionsWidth or WIDTH), fitH(acct().optionsHeight or HEIGHT))
 	win:SetPoint("CENTER")
-	-- Taller only: the grip changes height, never width, and pins the top edge.
+	-- The grip changes width and height, and pins the top-left corner.
 	local grip = CreateFrame("Button", nil, win)
 	grip:SetSize(16, 16)
 	grip:SetPoint("BOTTOMRIGHT", -3, 3)
@@ -1055,24 +1060,26 @@ local function buildWindow()
 	grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
 	grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
 	local function sizeToCursor()
-		local _, y = GetCursorPosition()
-		win:SetHeight(math.min(math.max(grip.startH + (grip.startY - y) / win:GetEffectiveScale(), MIN_H), MAX_H))
+		local x, y = GetCursorPosition()
+		local s = win:GetEffectiveScale()
+		win:SetSize(fitW(grip.startW + (x - grip.startX) / s), fitH(grip.startH + (grip.startY - y) / s))
 	end
 	grip:SetScript("OnMouseDown", function(self)
 		local left, top = win:GetLeft(), win:GetTop()
 		win:ClearAllPoints()
 		win:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
-		self.startY = select(2, GetCursorPosition())
-		self.startH = win:GetHeight()
+		self.startX, self.startY = GetCursorPosition()
+		self.startW, self.startH = win:GetSize()
 		self:SetScript("OnUpdate", sizeToCursor)
 	end)
 	local function endResize()
 		grip:SetScript("OnUpdate", nil)
+		acct().optionsWidth = math.floor(win:GetWidth())
 		acct().optionsHeight = math.floor(win:GetHeight())
 	end
 	grip:SetScript("OnMouseUp", endResize)
 	-- Closed mid-drag (Escape, the key binding), the release may never come: end a resize here, or
-	-- the height follows the cursor on reopening. (The Layout page ends its own drags.)
+	-- the size follows the cursor on reopening. (The Layout page ends its own drags.)
 	win:HookScript("OnHide", function()
 		if grip:GetScript("OnUpdate") then endResize() end
 	end)
