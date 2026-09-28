@@ -722,6 +722,7 @@ end
 local ev = CreateFrame("Frame")
 local lastSpells   -- resolveSpells' last signature
 local function reg(event, unit) ns.registerEvent(ev, event, unit) end
+local RESTRICTION_OFF = Enum and Enum.AddOnRestrictionState and Enum.AddOnRestrictionState.Inactive or 0
 
 reg("ADDON_LOADED")
 reg("PLAYER_LOGIN")
@@ -747,6 +748,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		reg("PLAYER_TOTEM_UPDATE")
 		reg("SPELLS_CHANGED")
 		reg("PLAYER_REGEN_ENABLED")
+		reg("ADDON_RESTRICTION_STATE_CHANGED")
 		each("start")
 		-- Each module's tick on its own: one that errors can't stop the others, and an error at login
 		-- can't leave the HUD without its ticker.
@@ -776,6 +778,15 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 	elseif event == "PLAYER_REGEN_ENABLED" then
 		-- Anything held back in combat has run already (ns.deferInCombat).
 		refreshAll()
+	elseif event == "ADDON_RESTRICTION_STATE_CHANGED" then
+		-- A restriction ended (a PvP match, an encounter): auras may be readable again with no
+		-- combat end to say so. Read everything again on the next frame, once the work that waited
+		-- for it has run (ns.deferWhileAurasSecret). Args: the restriction's type, its state.
+		local state = arg2
+		if isSecret(state) or state ~= RESTRICTION_OFF then return end
+		C_Timer.After(0, function()
+			if not InCombatLockdown() and not ns.aurasSecret() then refreshAll() end
+		end)
 	end
 end)
 
