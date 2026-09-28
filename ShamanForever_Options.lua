@@ -516,6 +516,8 @@ end
 -- to its group, so showing it again (other than by dropping it on a group) puts it back there.
 ------------------------------------------------------------------------
 local SHOW_CHOICES = { { "always", "Always" }, { "combat", "In combat" }, { "never", "Hidden" } }
+-- A group's Show.
+local COMBAT_SHOW = { { "always", "Always" }, { "combat", "In combat" }, { "target", "In combat or with an enemy target" } }
 
 local CARD_GAP, CHIP_H, CARD_HEAD = 8, 26, 28
 
@@ -900,8 +902,8 @@ local function buildLayout(p)
 	p:slider("Opacity", "Transparency of the group. Shift + mouse wheel over the group while unlocked does the same.", 0.1, 1, 0.05, pct,
 		groupGet("alpha"), groupSet("alpha"), hasGroups)
 	borderRows(p, selected, relayout, "Border same as General", hasGroups)
-	p:checkbox("Only show in combat", "Everything visible shows while positioning is unlocked.",
-		groupGet("combatOnly"), groupSet("combatOnly"), hasGroups)
+	p:dropdown("Show", "When the group is on screen. Everything visible shows while positioning is unlocked.",
+		COMBAT_SHOW, groupGet("show"), groupSet("show"), hasGroups, 250)
 	p:text("Elements have their own Show setting too. An element shows only when both allow it.", hasGroups)
 	local lastRow = p:buttons({
 		-- Hard to undo, so each asks first.
@@ -964,8 +966,9 @@ local function buildTotemBar(p)
 	p.gate = TB.barOn
 	p:header("Display")
 	p:dropdown("Show", "When the bar is on screen. It always shows while positioning is unlocked.",
-		{ { "always", "Always" }, { "active", "In combat or a totem down" }, { "combat", "In combat" } },
-		tget("show"), tset("show"), nil, 200)
+		{ { "always", "Always" }, { "active", "In combat or a totem down" }, { "combat", "In combat" },
+			{ "target", "In combat or with an enemy target" } },
+		tget("show"), tset("show"), nil, 250)
 	p:dropdown("Tooltips", nil, { { "always", "Always" }, { "ooc", "Out of combat" }, { "never", "Never" } },
 		tget("tips"), tset("tips"), nil, 160)
 	p:checkbox("Show keybinding text", "Each button's key, in its corner.", tget("keys"), tset("keys"))

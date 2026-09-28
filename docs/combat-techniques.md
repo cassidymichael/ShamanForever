@@ -80,6 +80,10 @@ Some effects can't be read in combat at all, but our own casts can, so they are 
 - **Loss of control on the player** (tested 2026-09-27): `C_LossOfControl` stays readable for the player in combat, spell ID included. The type label can mislead: a Sleep reported as `STUN` (display text "Asleep"), so match on the spell ID. For any other unit its fields are secret.
 - **Enemy casts:** `UNIT_SPELLCAST_START` fires for nameplates and the target, but the spell ID is secret in combat; the caster's name is readable in the open world.
 
+## Showing only in combat
+
+- **Show and hide:** a group holding Blizzard's aura button (the shield) is protected in combat, and an addon `Show`, `Hide` or `SetAlpha` on it is dropped without an error (tested 2026-09-22: an alpha of 0 set out of combat never came back). So combat-only groups, elements and the totem bar use `RegisterStateDriver(frame, "visibility", "[combat] show; hide")`: Blizzard's `SecureStateDriverManager` reads the macro conditions and shows or hides the frame itself, in combat too. "In combat or with an enemy target" adds `[@target,exists,harm,nodead] show`.
+
 ## The totem bar in combat
 
 Every click is a secure button set up out of combat. Most use one of Blizzard's built-in secure actions; the pickers use secure snippets, which work on Forever since build 70009.

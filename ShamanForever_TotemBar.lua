@@ -35,7 +35,8 @@ TB.DEFAULTS = {
 	point = "CENTER", x = 0, y = -100,   -- x, y in UIParent units, so scaling keeps the centre
 	scale = 1,
 	alpha = 1,
-	show = "always",          -- always | active (in combat or a totem down) | combat
+	-- always | active (in combat or a totem down) | combat | target (in combat or with an enemy target)
+	show = "always",
 	order = { "earth", "fire", "water", "air" },
 	hidden = {},              -- element -> true to leave its slot out
 	dir = "row",              -- row | column
@@ -107,7 +108,7 @@ local function cfg()
 		elseif t.follow == true then t.size, t.border = nil, nil end
 		t.enabled, t.hideTotemFrame, t.hideActionBar, t.killedPulse, t.follow = nil, nil, nil, nil, nil
 		if t.mode ~= "blizzard" and t.mode ~= "active" and t.mode ~= "everything" then t.mode = nil end
-		if t.show ~= "always" and t.show ~= "active" and t.show ~= "combat" then t.show = nil end
+		if t.show ~= "always" and t.show ~= "active" and t.show ~= "combat" and t.show ~= "target" then t.show = nil end
 		-- The default per-totem times, by the client's names (English until they have loaded; the
 		-- lookup in warnSecs also takes the English name, so either works).
 		if type(t.warnOver) ~= "table" then
@@ -878,6 +879,7 @@ local function visibilityDriver()
 	if not barOn() then return "hide" end
 	if kbOpen or not ns.getAccount().locked then return "show" end
 	if c.show == "combat" then return "[petbattle] hide; [combat] show; hide" end
+	if c.show == "target" then return "[petbattle] hide; [combat] show; [@target,exists,harm,nodead] show; hide" end
 	if c.show == "active" then return "[petbattle] hide; [combat] show; " .. (anyDown and "show" or "hide") end
 	return "[petbattle] hide; show"
 end
