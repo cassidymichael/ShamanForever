@@ -117,33 +117,66 @@ local isShaman = false   -- set at PLAYER_LOGIN: other classes get no HUD
 local root = CreateFrame("Frame", "ShamanForeverRoot", UIParent)
 root:SetAllPoints(UIParent)
 
--- Every element, in the order the options list them. Each is made and registered by its module
--- (ShamanForever_Shield, _Imbue, _Cooldowns, _Buffs, _Tremor); the test placeholders below are this
--- file's own.
-local ELEMENT_KEYS = { "shield", "shock", "imbue", "earthbind", "stoneclaw", "firenova" }
+-- Every element, in the order the options list them: these three first, then each one as its module
+-- registers it (ns.registerElement), in the order the TOC loads the modules and each lists its own.
+-- Each is made and registered by its module (ShamanForever_Shield, _Shock, _Imbue, _Cooldowns,
+-- _Buffs, _Tremor); the test placeholders below are this file's own, and stay last.
+local ELEMENT_KEYS = { "shield", "shock", "imbue" }
 -- key -> { frame, label, paint(texture), getSize(size), stack(), placeholder, learned(),
--- defaults }. db.groups decides where each one shows. getSize gives its width and height for its
--- group's icon size, so elements need not be square; paint draws what stands in for it in the
--- options and while dragging. learned() says whether the character knows its spell (none: always);
--- defaults holds its own defaults for its options (see elementSetting).
+-- defaults, and for the options spell, icon, school, blurb, experimental, kind, def }. db.groups
+-- decides where each one shows. getSize gives its width and height for its group's icon size, so
+-- elements need not be square; paint draws what stands in for it in the options and while
+-- dragging; stack is its frame's (ns.newElementIcon). learned() says whether the character knows
+-- its spell (none: always); defaults holds the defaults of every option it has (see
+-- elementSetting). The options show it by its spell's name in the client's language (spell, an
+-- ns.Spells key), else its label, with its icon, its school's art (earth, fire, water, air, spirit),
+-- blurb (a line under its name) and experimental (a feature name: not tested in game); kind picks
+-- its page and preview (ShamanForever_OptionsElements.lua, _OptionsLook.lua), which read def, the
+-- module's own table for it.
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
+local firstTestKey   -- the first test placeholder (below)
 function ns.registerElement(key, e)
 	e.getSize = e.getSize or iconSize
+	e.stack = e.stack or e.frame.stack
 	ELEMENTS[key] = e
-end
--- Element modules add their keys after the six above (ShamanForever_Cooldowns.lua, _Buffs), in
--- the order the options list them.
-local firstTestKey   -- the test placeholders stay last (below)
-function ns.addElementKey(key)
+	if tContains(ELEMENT_KEYS, key) then return end
+	if e.placeholder then
+		table.insert(ELEMENT_KEYS, key)
+		firstTestKey = firstTestKey or key
+		return
+	end
 	local at = #ELEMENT_KEYS + 1
 	for i, k in ipairs(ELEMENT_KEYS) do if k == firstTestKey then at = i break end end
 	table.insert(ELEMENT_KEYS, at, key)
 end
--- An element's icon (ShamanForever_Widgets.lua), on the HUD's root frame.
-function ns.newElementIcon(key)
+-- An element's icon (ShamanForever_Widgets.lua), on the HUD's root frame. opts.effects gives it an
+-- effects layer (f.effects) that ignores the icon's alpha and holds its glow, so an idle icon's fade
+-- (Idle opacity) leaves the glows, the pops' light and the end flashes at full; the layer takes its
+-- group's opacity instead (layoutGroup). Such an icon has f.stack(), which restates its layers'
+-- frame levels, bottom up: the icon, the effects and glow with any warning layer (f.warn), the swipe,
+-- the cooldown timer's bar (f.cdTimer), the text, and the time left's parts (f.upTimer). Its caller
+-- adds those parts, then calls f.stack(); layoutGroup calls it again after regrouping, since
+-- reparenting moves frame levels.
+function ns.newElementIcon(key, opts)
 	local f = ns.makeIcon(root, DEFAULTS.iconSize, key)
 	f.count:Hide()
+	if opts and opts.effects then
+		f.effects = CreateFrame("Frame", nil, f)
+		f.effects:SetAllPoints()
+		f.effects:SetIgnoreParentAlpha(true)
+		f.glowF:SetParent(f.effects)
+		function f.stack()
+			local base = f:GetFrameLevel()
+			f.effects:SetFrameLevel(base)
+			f.glowF:SetFrameLevel(base + 1)
+			if f.warn then f.warn:SetFrameLevel(base + 1) end
+			f.cd:SetFrameLevel(base + 2)
+			if f.cdTimer and f.cdTimer.bar then f.cdTimer.bar:SetFrameLevel(base + 3) end
+			f.textFrame:SetFrameLevel(base + 4)
+			if f.upTimer then f.upTimer:restack() end
+		end
+	end
 	return f
 end
 
@@ -192,8 +225,6 @@ for _, p in ipairs(PLACEHOLDERS) do
 	ns.registerElement(p.key, { frame = f, label = "Test " .. p.letter, placeholder = true,
 		getSize = function(size) return size * p.w, size * p.h end,
 		paint = function(t) t:SetColorTexture(c[1], c[2], c[3], 0.9) end })
-	table.insert(ELEMENT_KEYS, p.key)
-	firstTestKey = firstTestKey or p.key
 end
 
 ------------------------------------------------------------------------
@@ -227,27 +258,12 @@ local function elementOpts(key)
 	return o
 end
 
--- An element's option (db.elementOpts[key]) with its default: the element's own (its registry
--- entry's defaults), else everyone's. Every element starts with its pops on and its "use me" glows off.
-local ELEMENT_OPT_DEFAULTS = {
-	readyPop = true, readyGlow = false,                          -- Ready (cooldowns)
-	blockedGrey = true, blockedRing = false, blockedPulse = false,  -- No fire totem (Fire Nova)
-	expiredPop = true,                                           -- a totem ran out
-	ranOutFlash = true, ranOutPop = false, ranOutGlow = false,   -- a totem ran out (Mana Tide, Grounding)
-	killed = true, killedPop = true, killedGlow = true, killedMark = true,   -- a totem killed early
-	idleAlpha = 0.35, idleWhen = "never",                        -- Idle (idleWhen: Fire Nova's rule)
-	primedPop = true, primedGlow = true,                         -- Primed (Nature's Swiftness, Stormstrike)
-	grounded = true, groundedPop = true, groundedGlow = true,     -- Grounded (Grounding's early end)
-	reagentCount = "always", reagentLow = 2, reagentShow = true,   -- Reagent (count: always | low | never)
-	reagentColor = { 1, 1, 1, 1 }, reagentLowColor = { 1, 0.82, 0, 1 },   -- the count's text: plenty, low or none
-	reagentSize = 14, reagentPos = "BOTTOMRIGHT", reagentX = 0, reagentY = 0,   -- and its size and place
-	reagentRing = true, reagentPulse = true,                       -- none left
-	breathWarn = true, breathRing = true, breathPulse = true,     -- Under water (Water Breathing)
-}
+-- An element's option (db.elementOpts[key]) with its default: its registry entry's defaults, which
+-- its module fills from the parts the element has (a cooldown's Ready, a totem's end, a reagent...)
+-- under its own. Every element starts with its pops on and its "use me" glows off.
 local function elementDefault(key, name)
 	local own = ELEMENTS[key] and ELEMENTS[key].defaults
-	if own and own[name] ~= nil then return own[name] end
-	return ELEMENT_OPT_DEFAULTS[name]
+	if own then return own[name] end
 end
 local function elementSetting(key, name)
 	local v = elementOpts(key)[name]

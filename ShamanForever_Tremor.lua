@@ -82,14 +82,10 @@ TR.def = def
 def.spell = Spells.name(def.spellKey)
 def.icon = Spells.icon(def.spellKey) or def.icon
 
-local f = ns.newElementIcon(KEY)
-f.tex:SetTexture(def.icon)
 -- Effects on a layer that ignores the icon's alpha (as the cooldown elements do): the glow shows
 -- in full over an icon still fading in.
-f.effects = CreateFrame("Frame", nil, f)
-f.effects:SetAllPoints()
-f.effects:SetIgnoreParentAlpha(true)
-f.glowF:SetParent(f.effects)
+local f = ns.newElementIcon(KEY, { effects = true })
+f.tex:SetTexture(def.icon)
 -- Our Tremor Totem's time left while it's down. Tremor has no cooldown, so the icon's swipe is free.
 f.upTimer = ns.Timer.new(f, KEY, "uptime", { cd = f.cd, school = def.school })
 -- The word by the icon; styled by TR.styleWord (TR.afterGroups).
@@ -97,21 +93,14 @@ f.word = f.textFrame:CreateFontString(nil, "OVERLAY")
 f.word:SetFont(STANDARD_TEXT_FONT, 16, "OUTLINE")
 f.word:SetText(TR.WORD)
 f.word:Hide()
-function f.stack()
-	local base = f:GetFrameLevel()
-	f.effects:SetFrameLevel(base)
-	f.glowF:SetFrameLevel(base + 1)
-	f.cd:SetFrameLevel(base + 2)
-	f.textFrame:SetFrameLevel(base + 4)
-	f.upTimer:restack()
-end
 f.stack()
 def.frame = f
 
-ns.registerElement(KEY, { frame = f, label = def.spell, stack = f.stack, defaults = def.defaults,
+ns.registerElement(KEY, { frame = f, label = def.spell, defaults = def.defaults,
 	learned = function() return def.spellID ~= nil end,
-	paint = function(t) t:SetTexture(def.iconID or def.icon) end })
-ns.addElementKey(KEY)
+	paint = function(t) t:SetTexture(def.iconID or def.icon) end,
+	kind = "tremor", def = def, spell = def.spellKey, icon = def.icon, school = def.school,
+	blurb = "Warns near mobs that fear, charm or sleep." })
 
 ------------------------------------------------------------------------
 -- The watchlist

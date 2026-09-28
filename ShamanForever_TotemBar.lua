@@ -11,8 +11,9 @@
 -- * popout: "multispell" buttons (spell 0 is "No totem") that change the pick, then close it.
 -- Layout, attributes and anything that shows, hides or moves a secure button change only out of
 -- combat; changes asked for in combat wait for it to end. Every layout, and the end of combat,
--- closes any open picker. Drawing sits on plain frames over the secure buttons, so it can change
--- any time.
+-- closes any open picker. What the player sees sits on plain frames over the secure buttons, so it
+-- can change any time. Verbs, as in the modules: apply (settings changed), layout (out of combat),
+-- refresh (read the slots and show them), draw (show what is known, ten times a second).
 -- In combat, which totem is in a slot is secret: its icon is drawn by handing the secret icon to
 -- SetTexture, timers come from the slot's duration object, and warnings are the remaining time
 -- through a curve into SetAlpha. Which totem it is (per-totem warning times, "not your pick") comes
@@ -174,24 +175,111 @@ local function multiAction(slot)
 	return (bar - 1) * 12 + slot
 end
 
--- The totems known for an element, by spell ID, in Blizzard's order; a totem known at several
--- ranks (one name in the client's language) is listed once, at its highest.
-local function knownTotems(slot)
-	if not GetMultiCastTotemSpells then return {} end
-	local ok, ids = pcall(function() return { GetMultiCastTotemSpells(slot) } end)
-	if not ok then return {} end
-	local out, at = {}, {}
-	for _, id in ipairs(ids) do
-		local name = ns.Spells.nameOf(id)
-		if name then
-			local i = at[name]
-			if not i then table.insert(out, id); at[name] = #out
-			elseif ns.Spells.rank(id) > ns.Spells.rank(out[i]) then out[i] = id end
-		end
+------------------------------------------------------------------------
+-- Geometry, shared with the options' preview of the bar (ShamanForever_OptionsLook.lua), so both
+-- place everything the same way. Each reads the bar's settings (cfg) at the call.
+------------------------------------------------------------------------
+local POP_STEP = 3    -- a picker's padding, and the gap between its buttons
+TB.BADGE_GAP = 3      -- between a slot and its "not your pick" badge
+local EXTRA_GAP = 6   -- added to the spacing between the extras and the slots
+
+-- Where everything sits along the bar, from its left or top end: Call and Recall before the slots
+-- (TB.extraSides, below), n slots of the given size, then Call and Recall after. Returns a list of
+-- { key, offset, size, extra } (key: an extra's key, or the slot's place among the n), the bar's
+-- length and its thickness (its largest button: every button is centred on its line).
+function TB.along(n, size)
+	local c = cfg()
+	local before, after = TB.extraSides()
+	local esz = math.floor(size * c.extrasScale + 0.5)
+	local list, long = {}, 0
+	local function put(key, gap, sz, extra)
+		if #list > 0 then long = long + gap end
+		table.insert(list, { key = key, offset = long, size = sz, extra = extra })
+		long = long + sz
 	end
-	return out
+	for _, k in ipairs(before) do put(k, c.spacing, esz, true) end
+	for i = 1, n do put(i, i == 1 and c.spacing + EXTRA_GAP or c.spacing, size) end
+	for i, k in ipairs(after) do put(k, i == 1 and c.spacing + EXTRA_GAP or c.spacing, esz, true) end
+	local line = (#before + #after > 0) and math.max(size, esz) or size
+	return list, math.max(long, size), line
 end
-TB.knownTotems = knownTotems
+
+-- A picker's button size, for slots of this size, and its length for n buttons of that size.
+function TB.popButtonSize(size) return math.floor(size * 0.8 + 0.5) end
+function TB.popLength(n, psz) return POP_STEP + n * (psz + POP_STEP) end
+-- A picker of n buttons (psz) beside anchor, a slot, on the side pickers open, past the arrow tab.
+function TB.placePopout(pop, anchor, n, psz)
+	local c = cfg()
+	local len, thick, tab = TB.popLength(n, psz), psz + 2 * POP_STEP, c.arrowSize
+	pop:ClearAllPoints()
+	if c.pop == "up" then pop:SetSize(thick, len); pop:SetPoint("BOTTOM", anchor, "TOP", 0, tab + 4)
+	elseif c.pop == "down" then pop:SetSize(thick, len); pop:SetPoint("TOP", anchor, "BOTTOM", 0, -tab - 4)
+	elseif c.pop == "right" then pop:SetSize(len, thick); pop:SetPoint("LEFT", anchor, "RIGHT", tab + 4, 0)
+	else pop:SetSize(len, thick); pop:SetPoint("RIGHT", anchor, "LEFT", -tab - 4, 0) end
+end
+-- A picker's i-th button (psz), counted from the slot's end.
+function TB.placePopButton(b, pop, i, psz)
+	local c = cfg()
+	b:SetSize(psz, psz)
+	b:ClearAllPoints()
+	local off = POP_STEP + (i - 1) * (psz + POP_STEP)
+	if c.pop == "up" then b:SetPoint("BOTTOM", pop, "BOTTOM", 0, off)
+	elseif c.pop == "down" then b:SetPoint("TOP", pop, "TOP", 0, -off)
+	elseif c.pop == "right" then b:SetPoint("LEFT", pop, "LEFT", off, 0)
+	else b:SetPoint("RIGHT", pop, "RIGHT", -off, 0) end
+end
+
+-- The arrow tab's look: dark, gold-edged, with the arrow from Blizzard's own totem bar art (its
+-- flyout button highlight), turned by TB.placeArrow to point the way the picker opens.
+function TB.makeArrowLook(parent)
+	local t = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+	t:SetBackdrop(ns.BACKDROP)
+	t:SetBackdropColor(0.06, 0.05, 0.03, 0.92)
+	t:SetBackdropBorderColor(0.85, 0.71, 0.42, 0.9)
+	t.glyph = t:CreateTexture(nil, "OVERLAY")
+	t.glyph:SetTexture("Interface\\Buttons\\UI-TotemBar")
+	t.glyph:SetTexCoord(0.5625, 0.71875, 0.34375, 0.3828125)
+	t.glyph:SetBlendMode("ADD")
+	t.glyph:SetPoint("CENTER")
+	return t
+end
+-- The arrow tab along anchor's picker side, arrowSize deep, and its glyph sized and turned.
+local GLYPH_TURN = { up = 0, down = math.pi, right = -math.pi / 2, left = math.pi / 2 }
+function TB.placeArrow(tab, anchor, glyph)
+	local c = cfg()
+	local deep = c.arrowSize
+	tab:ClearAllPoints()
+	if c.pop == "up" then tab:SetPoint("BOTTOMLEFT", anchor, "TOPLEFT", 1, 1); tab:SetPoint("BOTTOMRIGHT", anchor, "TOPRIGHT", -1, 1); tab:SetHeight(deep)
+	elseif c.pop == "down" then tab:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 1, -1); tab:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", -1, -1); tab:SetHeight(deep)
+	elseif c.pop == "right" then tab:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 1, -1); tab:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 1, 1); tab:SetWidth(deep)
+	else tab:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -1, -1); tab:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMLEFT", -1, 1); tab:SetWidth(deep) end
+	glyph:SetSize(math.max(deep * 1.1, 10), math.max(deep * 0.6, 6))
+	glyph:SetRotation(GLYPH_TURN[c.pop])
+end
+
+-- A texture's colour, from grey (0) to full (1); all or nothing where partial desaturation is missing.
+function TB.saturate(tex, sat)
+	if not pcall(tex.SetDesaturation, tex, 1 - sat) then tex:SetDesaturated(sat < 0.5) end
+end
+
+-- The "not your pick" badge's size, for slots of this size.
+function TB.badgeSize(size) return math.max(math.floor(size * cfg().badgeSize + 0.5), 8) end
+-- The badge (bd, with its icon) beside anchor, a slot, opposite the picker: below a row whose
+-- pickers open up, and so on. Its look: size, opacity, colour, and a 1 px border in the slots'.
+function TB.layoutBadge(bd, anchor, size, border)
+	local c = cfg()
+	local bs = TB.badgeSize(size)
+	bd:SetSize(bs, bs)
+	bd:SetAlpha(c.badgeAlpha)
+	TB.saturate(bd.icon, c.badgeSat)
+	bd:ClearAllPoints()
+	local gap = TB.BADGE_GAP
+	if c.pop == "up" then bd:SetPoint("TOP", anchor, "BOTTOM", 0, -gap)
+	elseif c.pop == "down" then bd:SetPoint("BOTTOM", anchor, "TOP", 0, gap)
+	elseif c.pop == "right" then bd:SetPoint("RIGHT", anchor, "LEFT", -gap, 0)
+	else bd:SetPoint("LEFT", anchor, "RIGHT", gap, 0) end
+	ns.applyBorder(bd, border and border.show and { show = true, size = 1, color = border.color } or border)
+end
 
 ------------------------------------------------------------------------
 -- Frames. Created when the file loads, which is allowed even during a /reload in combat.
@@ -240,7 +328,8 @@ local PICK_CLICK, PICK_AFTER = [[ return nil, self:GetAttribute("sf-pick") ]], [
 local function wrapClick(b, pre, post) SecureHandlerWrapScript(b, "OnClick", picker, pre, post) end
 
 
-local slots = {}   -- element -> slot record
+local slots = {}    -- element -> slot record
+local bySlot = {}   -- Blizzard's totem slot -> slot record
 TB.slots, TB.frame = slots, bar
 
 -- Over a button's look (above its timer, and inside the look so it fades with it): the key bound to
@@ -274,7 +363,7 @@ end
 for index, el in ipairs(ELEMENTS) do
 	local slot = SLOT[el]
 	local s = { el = el, slot = slot, index = index }
-	slots[el] = s
+	slots[el], bySlot[slot] = s, s
 
 	-- The click area: right-click dismisses, left-click casts the pick, Alt+click opens the
 	-- element's picker (SLOT_CLICK; layout() turns it off outside Everything). Casts and dismissals
@@ -323,7 +412,7 @@ for index, el in ipairs(ELEMENTS) do
 	s.command = "CLICK ShamanForeverKeyCast" .. NAME[el] .. ":LeftButton"   -- its key (Key bindings, below)
 	-- The expiring warning is the timer's (Timer:setExpire, as on the HUD): a grey copy of the icon, a
 	-- red ring, a dark pulsing layer and a glow, above the icon and below the cooldown, in the slot's
-	-- last seconds. drawSlot gives it the totem's own warning time and icon.
+	-- last seconds. refreshSlot gives it the totem's own warning time and icon.
 
 	-- Arrow tab (secure, no action of its own: ARROW_CLICK toggles the popout; right-click closes any)
 	-- and its look (plain, shown while the mouse is over the slot or the tab).
@@ -335,20 +424,10 @@ for index, el in ipairs(ELEMENTS) do
 	ar:SetAttribute("sf-pick", index)
 	wrapClick(ar, ARROW_CLICK)
 	s.arrow = ar
-	local av = CreateFrame("Frame", nil, bar, "BackdropTemplate")
+	local av = TB.makeArrowLook(bar)
 	av:SetAllPoints(ar)
 	av:SetFrameLevel(ar:GetFrameLevel() + 2)
 	av:EnableMouse(false)
-	av:SetBackdrop(ns.BACKDROP)
-	av:SetBackdropColor(0.06, 0.05, 0.03, 0.92)
-	av:SetBackdropBorderColor(0.85, 0.71, 0.42, 0.9)
-	-- The arrow from Blizzard's own totem bar art (its flyout button highlight), turned to point
-	-- the way the picker opens.
-	av.glyph = av:CreateTexture(nil, "OVERLAY")
-	av.glyph:SetTexture("Interface\\Buttons\\UI-TotemBar")
-	av.glyph:SetTexCoord(0.5625, 0.71875, 0.34375, 0.3828125)
-	av.glyph:SetBlendMode("ADD")
-	av.glyph:SetPoint("CENTER")
 	av:SetAlpha(0)
 	s.arrowVis = av
 
@@ -452,7 +531,7 @@ extras.Recall.button:SetAttribute("*type2", "macro")
 extras.Recall.button:SetAttribute("macrotext", DISMISS_ALL)
 
 -- Each button's key, in its corner (any time: plain frames).
-local function drawKeys()
+local function refreshKeys()
 	local on = cfg().keys
 	local function draw(layer, command)
 		local key = on and GetBindingKey(command)
@@ -473,7 +552,7 @@ local function gcdOf(getInfo, getDuration, id)
 	local dok, d = ns.try("totem bar: GCD", getDuration, id)
 	return dok and d or nil
 end
-local function drawGCD()
+local function refreshGCD()
 	-- Not gated on the bar being shown: the cast that brings it up (in combat, a first totem) sweeps too.
 	local on = ns.Style.value("totembar", "gcd", "show")
 	for _, el in ipairs(ELEMENTS) do
@@ -489,7 +568,7 @@ local function drawGCD()
 		if d then e.gcd:SetCooldownFromDurationObject(d) else e.gcd:Clear() end
 	end
 end
-TB.drawGCD = drawGCD
+TB.refreshGCD = refreshGCD
 
 local keyTexts = {}   -- button -> its key label, for layout()
 for _, el in ipairs(ELEMENTS) do keyTexts[slots[el].button] = slots[el].keys.text end
@@ -508,7 +587,6 @@ local function extraSides()
 	return before, after
 end
 TB.extraSides = extraSides
-TB.EXTRA_GAP = 6   -- added to the spacing between the extras and the slots
 function TB.extraTexture(key) return C_Spell.GetSpellTexture(key == "Call" and CALL or RECALL) end
 function TB.extraLearned(key) return knows(key == "Call" and CALL or RECALL) end
 
@@ -521,7 +599,7 @@ local function hover(s, arrows)
 end
 
 ------------------------------------------------------------------------
--- Drawing (any time, combat included)
+-- Refreshing the slots (any time, combat included)
 ------------------------------------------------------------------------
 -- The element's pick, by spell ID (nil for "No totem").
 local function pickSpell(slot)
@@ -529,18 +607,6 @@ local function pickSpell(slot)
 	if not ok or isSecret(kind) or isSecret(id) or kind ~= "spell" or type(id) ~= "number" then return nil end
 	return id
 end
-
--- The totem down in a slot, by spell ID: our own last cast into it (exact, in combat too), else, out
--- of combat, the slot's own spell ID (after a /reload, before we have cast). Never the slot's name:
--- right after a cast it can still be the previous totem's. nil when unknown.
-local function downSpell(slot)
-	local id = ns.Totems.spellInSlot(slot)
-	if id then return id end
-	if InCombatLockdown() then return nil end
-	local ok, _, _, _, _, _, _, sid = ns.try("totem bar: totem info", GetTotemInfo, slot)
-	if ok and not isSecret(sid) and type(sid) == "number" and sid > 0 then return sid end
-end
-TB.downSpell = downSpell
 
 -- A totem's own warning time (warnOver), else the bar's. warnOver is keyed by the client's rank-less
 -- spell name; for the spells the addon tracks, the English name counts too (older profiles, and
@@ -563,7 +629,7 @@ local kbOpen = false   -- Blizzard's Quick Keybind Mode is open (Quick Keybind M
 -- The parts that follow the remaining time: the time bar once it has run out, and the range strip.
 -- (The expiring warning follows it in Timers' own ticker.)
 -- Values from the duration object may be secret, so they only ever go straight to SetAlpha.
-function TB.alphas(s)
+function TB.drawTimeLeft(s)
 	local d = s.dur
 	if not d then return end
 	local tbar = s.timer.bar
@@ -571,14 +637,12 @@ function TB.alphas(s)
 		local ok, a = ns.try("totem bar: time bar", d.EvaluateRemainingDuration, d, ns.CURVE_LIVE)
 		if ok then tbar:SetAlpha(a) end
 	end
-	if TB.range then TB.range.alphas(s) end
+	if TB.range then TB.range.drawTimeLeft(s) end
 end
 
-local slotEmptied   -- Killed early, below
-
-local function drawSlot(s)
+local function refreshSlot(s)
 	local c, v = cfg(), s.vis
-	local was = s.dur   -- a slot that had a totem and now has none ended it: see slotEmptied
+	local was = s.dur   -- a slot that had a totem and now has none ended it (Killed early, below)
 	local ok, d = ns.try("totem bar: duration", GetTotemDuration, s.slot)
 	if ok and d then
 		-- A totem is down.
@@ -594,9 +658,9 @@ local function drawSlot(s)
 		v.icon:SetAlpha(1)
 		v.bg:SetColorTexture(0, 0, 0, 1)
 		s.timer:set(d)
-		-- Not the element's pick? Only when both are known: the totem down (see downSpell) and a pick
-		-- (not "No totem"); any rank of the pick counts as the pick.
-		local down = downSpell(s.slot)
+		-- Not the element's pick? Only when both are known: the totem down (ns.Totems.downSpell)
+		-- and a pick (not "No totem"); any rank of the pick counts as the pick.
+		local down = ns.Totems.downSpell(s.slot)
 		local pick = down and c.offPick and c.mode == "everything" and pickSpell(s.slot)
 		if pick and not ns.Spells.same(down, pick) then
 			ns.try("totem bar: badge", s.badge.icon.SetTexture, s.badge.icon, GetActionTexture(multiAction(s.slot)))
@@ -605,11 +669,11 @@ local function drawSlot(s)
 		s.dur = d
 		s.timer:setExpire({ secs = warnSecs(c, down), grey = c.warnGrey, ring = c.warnRing, pulse = c.warnPulse, glow = c.warnGlow })
 		if iok and (isSecret(icon) or icon) then s.timer:setExpireIcon(icon) end
-		TB.alphas(s)
+		TB.drawTimeLeft(s)
 		return true
 	end
 	s.dur = nil
-	if was then slotEmptied(s, was) end
+	if was then ns.Totems.slotEmptied(s.slot, was) end
 	s.badge:Hide()
 	-- Not down: the element's pick (greyed or in colour, at its opacity), or its colour, or nothing.
 	-- With nothing picked, "pick" falls back to the element colour.
@@ -635,23 +699,23 @@ local function drawSlot(s)
 	return false
 end
 
-local function drawAll()
+local function refreshSlots()
 	local down = false
 	for _, el in ipairs(ELEMENTS) do
 		local s = slots[el]
-		s.down = drawSlot(s)
+		s.down = refreshSlot(s)
 		if s.down then down = true end
-		if TB.range then TB.range.draw(s) end
+		if TB.range then TB.range.refresh(s) end
 	end
 	anyDown = down
 end
 
--- Redraw (any time), and when the first totem goes down or the last one goes, the bar's driver
+-- Refresh (any time), and when the first totem goes down or the last one goes, the bar's driver
 -- for "In combat or a totem down" (out of combat only).
 local layout   -- Layout, below
-local function redraw()
+local function refresh()
 	local wasDown = anyDown
-	drawAll()
+	refreshSlots()
 	if anyDown ~= wasDown and cfg().show == "active" then layout() end
 end
 
@@ -667,7 +731,7 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 	for _, el in ipairs(ELEMENTS) do
 		local s = slots[el]
 		hover(s, arrows)
-		if s.down then TB.alphas(s) end
+		if s.down then TB.drawTimeLeft(s) end
 	end
 end)
 
@@ -748,14 +812,13 @@ local mover
 local saidWait = false   -- "changes wait until combat ends" said this combat
 local classDone = false  -- not a shaman: laid out hidden once, nothing more to do
 
-local POP_STEP = 3
--- known: the element's knownTotems, from layout().
+-- known: the element's known totems (ns.Totems.knownTotems), from layout().
 local function layoutPopout(s, size, known)
-	local c, pop = cfg(), s.popout
+	local pop = s.popout
 	local slot = s.slot
 	local ids = { 0 }   -- "No totem" first, nearest the slot (as Blizzard's)
 	for _, id in ipairs(known) do table.insert(ids, id) end
-	local psz = math.floor(size * 0.8 + 0.5)
+	local psz = TB.popButtonSize(size)
 	local action = multiAction(slot)
 	for i, id in ipairs(ids) do
 		local p = pop.buttons[i]
@@ -787,13 +850,7 @@ local function layoutPopout(s, size, known)
 		p.spellID = id
 		p:SetAttribute("action", action)
 		p:SetAttribute("spell", id)
-		p:SetSize(psz, psz)
-		p:ClearAllPoints()
-		local off = POP_STEP + (i - 1) * (psz + POP_STEP)
-		if c.pop == "up" then p:SetPoint("BOTTOM", pop, "BOTTOM", 0, off)
-		elseif c.pop == "down" then p:SetPoint("TOP", pop, "TOP", 0, -off)
-		elseif c.pop == "right" then p:SetPoint("LEFT", pop, "LEFT", off, 0)
-		else p:SetPoint("RIGHT", pop, "RIGHT", -off, 0) end
+		TB.placePopButton(p, pop, i, psz)
 		if id ~= 0 then
 			p.icon:SetTexture(C_Spell.GetSpellTexture(id))
 			p.none:Hide()
@@ -804,50 +861,15 @@ local function layoutPopout(s, size, known)
 		p:Show()
 	end
 	for i = #ids + 1, #pop.buttons do pop.buttons[i]:Hide() end
-	local len = POP_STEP + #ids * (psz + POP_STEP)
-	local tab = c.arrowSize
-	pop:ClearAllPoints()
-	if c.pop == "up" then pop:SetSize(psz + 2 * POP_STEP, len); pop:SetPoint("BOTTOM", s.button, "TOP", 0, tab + 4)
-	elseif c.pop == "down" then pop:SetSize(psz + 2 * POP_STEP, len); pop:SetPoint("TOP", s.button, "BOTTOM", 0, -tab - 4)
-	elseif c.pop == "right" then pop:SetSize(len, psz + 2 * POP_STEP); pop:SetPoint("LEFT", s.button, "RIGHT", tab + 4, 0)
-	else pop:SetSize(len, psz + 2 * POP_STEP); pop:SetPoint("RIGHT", s.button, "LEFT", -tab - 4, 0) end
-end
-
--- A texture's colour, from grey (0) to full (1); all or nothing where partial desaturation is missing.
-function TB.saturate(tex, sat)
-	if not pcall(tex.SetDesaturation, tex, 1 - sat) then tex:SetDesaturated(sat < 0.5) end
-end
-
--- The badge sits opposite the picker: below a row whose pickers open up, and so on.
-local function layoutBadge(s, size, border)
-	local c, bd, b = cfg(), s.badge, s.button
-	local bs = math.max(math.floor(size * c.badgeSize + 0.5), 8)
-	bd:SetSize(bs, bs)
-	bd:SetAlpha(c.badgeAlpha)
-	TB.saturate(bd.icon, c.badgeSat)
-	bd:ClearAllPoints()
-	local gap = 3
-	if c.pop == "up" then bd:SetPoint("TOP", b, "BOTTOM", 0, -gap)
-	elseif c.pop == "down" then bd:SetPoint("BOTTOM", b, "TOP", 0, gap)
-	elseif c.pop == "right" then bd:SetPoint("RIGHT", b, "LEFT", -gap, 0)
-	else bd:SetPoint("LEFT", b, "RIGHT", gap, 0) end
-	ns.applyBorder(bd, border and border.show and { show = true, size = 1, color = border.color } or border)
+	TB.placePopout(pop, s.button, #ids, psz)
 end
 
 local function layoutArrow(s)
-	local c, ar, b = cfg(), s.arrow, s.button
-	local tab = c.arrowSize
-	ar:ClearAllPoints()
-	if c.pop == "up" then ar:SetPoint("BOTTOMLEFT", b, "TOPLEFT", 1, 1); ar:SetPoint("BOTTOMRIGHT", b, "TOPRIGHT", -1, 1); ar:SetHeight(tab)
-	elseif c.pop == "down" then ar:SetPoint("TOPLEFT", b, "BOTTOMLEFT", 1, -1); ar:SetPoint("TOPRIGHT", b, "BOTTOMRIGHT", -1, -1); ar:SetHeight(tab)
-	elseif c.pop == "right" then ar:SetPoint("TOPLEFT", b, "TOPRIGHT", 1, -1); ar:SetPoint("BOTTOMLEFT", b, "BOTTOMRIGHT", 1, 1); ar:SetWidth(tab)
-	else ar:SetPoint("TOPRIGHT", b, "TOPLEFT", -1, -1); ar:SetPoint("BOTTOMRIGHT", b, "BOTTOMLEFT", -1, 1); ar:SetWidth(tab) end
+	local ar = s.arrow
+	TB.placeArrow(ar, s.button, s.arrowVis.glyph)
 	ar:SetShown(feat("arrows"))
 	-- Above every open picker's catch button (same strata), below the picker's own buttons.
 	ar:SetFrameLevel(s.popout.catch:GetFrameLevel() + 2)
-	local g = s.arrowVis.glyph
-	g:SetSize(math.max(tab * 1.1, 10), math.max(tab * 0.6, 6))
-	g:SetRotation(({ up = 0, down = math.pi, right = -math.pi / 2, left = math.pi / 2 })[c.pop])
 	s.arrowVis:SetShown(feat("arrows"))
 end
 
@@ -876,7 +898,7 @@ function layout()
 	local shown, known = {}, {}
 	for _, el in ipairs(c.order) do
 		local s = slots[el]
-		known[el] = knownTotems(s.slot)
+		known[el] = ns.Totems.knownTotems(s.slot)
 		local on = barOn() and not c.hidden[el] and (#known[el] > 0 or not GetMultiCastTotemSpells)
 		s.button:SetShown(on)
 		s.vis:SetShown(on)
@@ -886,29 +908,19 @@ function layout()
 	local row = c.dir == "row"
 	if row and c.pop ~= "up" and c.pop ~= "down" then c.pop = "up" end
 	if not row and c.pop ~= "right" and c.pop ~= "left" then c.pop = "right" end
-	-- Everything along the bar, in order: extras before, slots, extras after, each with its gap.
-	local before, after = extraSides()
-	local esz = math.floor(size * c.extrasScale + 0.5)
-	local seq = {}   -- { button, gap before it, its size }
-	local function put(b, gap, sz) table.insert(seq, { b, #seq > 0 and gap or 0, sz }) end
-	for _, k in ipairs(before) do put(extras[k].button, c.spacing, esz) end
-	for i, s in ipairs(shown) do put(s.button, i == 1 and c.spacing + TB.EXTRA_GAP or c.spacing, size) end
-	for i, k in ipairs(after) do put(extras[k].button, i == 1 and c.spacing + TB.EXTRA_GAP or c.spacing, esz) end
-	-- LEFT / TOP anchors keep every button centred on the bar's line, whatever its size.
-	local long = 0
-	for _, item in ipairs(seq) do
-		local b, sz = item[1], item[3]
-		long = long + item[2]
+	-- Everything along the bar, in order: extras before, slots, extras after (TB.along). LEFT / TOP
+	-- anchors keep every button centred on the bar's line, whatever its size.
+	local seq, long, across = TB.along(#shown, size)
+	local on = {}   -- the extras that show
+	for _, it in ipairs(seq) do
+		local b, sz = it.extra and extras[it.key].button or shown[it.key].button, it.size
+		if it.extra then on[it.key] = true end
 		b:SetSize(sz, sz)
 		-- Its key label scales with the icon.
 		if keyTexts[b] then keyTexts[b]:SetFont(STANDARD_TEXT_FONT, math.max(8, math.floor(sz * 0.3 + 0.5)), "OUTLINE") end
 		b:ClearAllPoints()
-		if row then b:SetPoint("LEFT", bar, "LEFT", long, 0) else b:SetPoint("TOP", bar, "TOP", 0, -long) end
-		long = long + sz
+		if row then b:SetPoint("LEFT", bar, "LEFT", it.offset, 0) else b:SetPoint("TOP", bar, "TOP", 0, -it.offset) end
 	end
-	local on = {}
-	for _, k in ipairs(before) do on[k] = true end
-	for _, k in ipairs(after) do on[k] = true end
 	for key, e in pairs(extras) do
 		local show = on[key] or false
 		e.button:SetShown(show)
@@ -933,18 +945,16 @@ function layout()
 		ns.applyBorder(s.vis, border)
 		s.timer:apply()
 		layoutArrow(s)
-		layoutBadge(s, size, border)
+		TB.layoutBadge(s.badge, s.button, size, border)
 		layoutPopout(s, size, known[s.el])
 	end
-	long = math.max(long, size)
-	local across = (#before + #after > 0) and math.max(size, esz) or size
 	if row then bar:SetSize(long, across) else bar:SetSize(across, long) end
 	bar:ClearAllPoints()
 	bar:SetPoint(c.point, UIParent, c.point, c.x / c.scale, c.y / c.scale)
 	if TB.range then TB.range.layout(size) end   -- after the scale: its height is a line's
-	drawAll()
-	drawKeys()
-	drawGCD()
+	refreshSlots()
+	refreshKeys()
+	refreshGCD()
 	ns.refitRings()
 	local driver = visibilityDriver()
 	if driver ~= lastDriver then
@@ -965,7 +975,7 @@ function TB.applyTimers()
 end
 
 -- Settings changed (options page): relayout now, or when combat ends.
-function TB.apply()
+function TB.applySettings()
 	cfgTable = nil
 	-- Crosses go at once when switched off (plain frames: fine in combat, unlike the layout).
 	local c = cfg()
@@ -1141,7 +1151,7 @@ local function kbBind(input)
 			if key2 then SetBinding(key2, command, ctx) end
 		end
 	end
-	drawKeys()
+	refreshKeys()
 	kbTooltip()
 end
 
@@ -1172,7 +1182,7 @@ local function setKeybindMode(open)
 		e.keys.glow:SetShown(open)
 		e.keys.glow:SetAlpha(0.5)
 	end
-	drawAll()  -- the empty slots' look, at once (also in combat, where the layout waits)
+	refreshSlots()  -- the empty slots' look, at once (also in combat, where the layout waits)
 	layout()   -- shows the bar and its empty slots, or puts them back (after combat, if in it)
 end
 
@@ -1244,28 +1254,19 @@ end
 -- Killed early. When a slot empties, its last duration object still says how much time the totem
 -- had left (tested 2026-09-25); ns.makeEndFlash turns that into the flash's alpha through a curve,
 -- so for a totem that simply ran out the flash stays invisible (its run-out pop plays instead).
--- Our own dismissals don't flash: every one goes through DestroyTotem (right-click, keys, dismiss
--- all, Blizzard's frame), and Totemic Recall is our own cast. A slot that fills again at once (a new
--- totem cast over it) doesn't flash either. The cross (killedMark) sits under the same gate and goes
--- on a recast or after 5 s.
+-- Our own dismissals and a slot that fills again at once (a new totem cast over it) don't flash:
+-- ns.Totems only calls a totem gone without either. The cross (killedMark) sits under the same gate
+-- and goes on a recast or after 5 s.
 ------------------------------------------------------------------------
-local dismissedAt = {}   -- slot -> GetTime() of our last dismissal
-if DestroyTotem then hooksecurefunc("DestroyTotem", function(slot) dismissedAt[slot] = GetTime() end) end
-local function recalled() for slot = 1, 4 do dismissedAt[slot] = GetTime() end end
-
-function slotEmptied(s, was)
-	C_Timer.After(0.1, function()
-		local mine = dismissedAt[s.slot] and GetTime() - dismissedAt[s.slot] < 1.5
-		local ok, d = ns.try("totem bar: duration", GetTotemDuration, s.slot)
-		local refilled = ok and d ~= nil
-		if mine or refilled then return end
-		ns.Totems.slotEmptied(s.slot, was)   -- the totem elements
-		local c = cfg()
-		if not s.button:IsShown() then return end
-		if c.expiredPop then s.expired:play(was, { expired = true, pop = true }) end
-		if c.killed then s.killed:play(was, { pop = c.killedPop, glow = c.killedGlow, mark = c.killedMark }) end
-	end)
-end
+-- Subscribed after the totem elements (ShamanForever_Cooldowns.lua loads first): they hear first.
+ns.Totems.subscribe(function(event, slot, was)
+	if event ~= "gone" then return end
+	local s = bySlot[slot]
+	local c = cfg()
+	if not s.button:IsShown() then return end
+	if c.expiredPop then s.expired:play(was, { expired = true, pop = true }) end
+	if c.killed then s.killed:play(was, { pop = c.killedPop, glow = c.killedGlow, mark = c.killedMark }) end
+end)
 
 ------------------------------------------------------------------------
 -- Events
@@ -1276,23 +1277,23 @@ for _, e in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_TOTEM_UPDA
 	ns.registerEvent(ev, e)
 end
 ns.registerEvent(ev, "UNIT_SPELLCAST_SUCCEEDED", "player")
--- After one of our casts: redraw once ShamanForever_Totems.lua has recorded which totem went into which slot
--- (ns.Totems; its handler may run after ours), so the order of this event and
+-- After one of our casts: refresh once ShamanForever_Totems.lua has recorded which totem went into
+-- which slot (ns.Totems; its handler may run after ours), so the order of this event and
 -- PLAYER_TOTEM_UPDATE doesn't matter. Plain frames only, so fine in combat.
-local casts, redrawQueued = {}, false   -- spell IDs cast since the last check
-local function redrawAfterCast(spell)
+local casts, refreshQueued = {}, false   -- spell IDs cast since the last check
+local function refreshAfterCast(spell)
 	casts[spell] = true
-	if redrawQueued then return end
-	redrawQueued = true
+	if refreshQueued then return end
+	refreshQueued = true
 	C_Timer.After(0, function()
-		redrawQueued = false
+		refreshQueued = false
 		local totem = false
 		for slot = 1, 4 do
 			local id = not totem and ns.Totems.spellInSlot(slot)
 			if id and casts[id] then totem = true end
 		end
 		wipe(casts)
-		if totem then redraw() end
+		if totem then refresh() end
 	end)
 end
 
@@ -1308,20 +1309,19 @@ ev:SetScript("OnEvent", function(_, event, arg1, ...)
 		return
 	end
 	if event == "PLAYER_TOTEM_UPDATE" then
-		redraw()
+		refresh()
 	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
 		local _, spell = ...   -- unit, castGUID, spellID
 		if isSecret(spell) or type(spell) ~= "number" then return end
-		if ns.Spells.keyOf(spell) == "recall" then recalled() end
-		redrawAfterCast(spell)
+		refreshAfterCast(spell)
 	elseif event == "ACTIONBAR_SLOT_CHANGED" then
 		-- The element's multi-cast slots, or 0 (every slot).
 		local base = multiAction(1) - 1
-		if not isSecret(arg1) and type(arg1) == "number" and (arg1 == 0 or (arg1 > base and arg1 <= base + 12)) then redraw() end
+		if not isSecret(arg1) and type(arg1) == "number" and (arg1 == 0 or (arg1 > base and arg1 <= base + 12)) then refresh() end
 	elseif event == "UPDATE_BINDINGS" then
-		drawKeys()
+		refreshKeys()
 	elseif event == "SPELL_UPDATE_COOLDOWN" then
-		drawGCD()
+		refreshGCD()
 	elseif event == "PLAYER_REGEN_ENABLED" then
 		saidWait = false
 		-- A queued layout has run already (ns.deferInCombat). A picker opened in combat and left open
@@ -1355,7 +1355,7 @@ function TB.known(el)
 		if p:IsShown() and p.spellID and p.spellID ~= 0 then table.insert(ids, p.spellID) end
 	end
 	if #ids > 0 then return ids end
-	return knownTotems(SLOT[el])
+	return ns.Totems.knownTotems(SLOT[el])
 end
 TB.look = look
 

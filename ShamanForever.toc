@@ -25,7 +25,9 @@ ShamanForever.lua
 ShamanForever_Shield.lua
 ShamanForever_Imbue.lua
 ShamanForever_Totems.lua
+ShamanForever_Reagents.lua
 ShamanForever_Cooldowns.lua
+ShamanForever_Shock.lua
 ShamanForever_Buffs.lua
 ShamanForever_Tremor.lua
 ShamanForever_TremorList.lua
@@ -37,4 +39,5 @@ ShamanForever_TotemRange.lua
 ShamanForever_OptionsLook.lua
 ShamanForever_OptionsPage.lua
 ShamanForever_Options.lua
+ShamanForever_OptionsElements.lua
 ShamanForever_IssueReporter.lua

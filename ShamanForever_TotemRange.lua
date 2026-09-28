@@ -245,16 +245,17 @@ function R.layout(size)
 	if not blocked then learn() end
 end
 
--- draw (any time): the mark's gate, from which totem of yours is down.
-function R.draw(s)
+-- refresh (any time): the mark's gate, from which totem of yours is down.
+function R.refresh(s)
 	if not s.rangeGate then return end
-	local on = s.down and enabled() and isBuffTotem(s.el, TB.downSpell(s.slot))
+	local on = s.down and enabled() and isBuffTotem(s.el, ns.Totems.downSpell(s.slot))
 	s.rangeGate:SetAlpha(on and 1 or 0)
-	R.alphas(s)
+	R.drawTimeLeft(s)
 end
 
--- alphas (ten times a second while totems are down): the mark only while the totem has time left.
-function R.alphas(s)
+-- drawTimeLeft (ten times a second while totems are down): the mark only while the totem has time
+-- left.
+function R.drawTimeLeft(s)
 	local m = s.rangeMark
 	if not m then return end
 	local d = s.dur

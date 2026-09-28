@@ -12,7 +12,7 @@
 --   with a negative scale while it drains under water, and again with a positive one while it
 --   refills after surfacing; MIRROR_TIMER_STOP only once it's full.
 -- * Elemental Focus: a proc can't be foreseen, so in combat only Blizzard's aura container can
---   show it (as for the shield, ShamanForever_Shield.lua). Its button draws the icon and time left;
+--   show it (ns.makeAuraSlot, as for the shield). Its button draws the icon and time left;
 --   our glow is a child of that button, so it shows exactly when the button does. The container
 --   sits on the effects layer, which ignores the icon's alpha: Idle fades only the icon under it
 --   (the look while no proc is up), never the proc itself. Script handlers
@@ -30,42 +30,40 @@ ns.Buffs = B
 
 local function setting(key, name) return ns.elementSetting(key, name) end
 
--- key, spellKey (ns.Spells), icon (fallback), school, reagent (item ID; counted only while the
--- spell's tooltip names it: Forever's list none), duration (seconds, until an aura read says).
+-- key, spellKey (ns.Spells), icon (fallback), school, blurb (the line under its name in the
+-- options), reagent (item ID; counted only while the spell's tooltip names it: Forever's list none),
+-- duration (seconds, until an aura read says), defaults (its own option defaults, over its parts':
+-- PARTS below). Adding one is a line here, in the order the options list them.
 local BUFFS = {
 	{ key = "waterwalking", spellKey = "waterWalking", icon = 135863, school = "water", reagent = 17058, duration = 600,
+		blurb = "Time left while it's up.",
 		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, pulse = false } }, experimental = "Water Walking" },
 	{ key = "waterbreathing", spellKey = "waterBreathing", icon = 136148, school = "water", reagent = 17057, duration = 600,
-		breath = true,
+		breath = true, blurb = "Time left while it's up. Warns under water without it.",
 		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, pulse = false } }, experimental = "Water Breathing" },
 	{ key = "elementalfocus", spellKey = "elementalFocus", buffKey = "clearcasting", icon = 136170, school = "spirit",
+		blurb = "Shows while " .. Spells.name("clearcasting") .. " is up.",
 		proc = true, defaults = { idleAlpha = 0 }, experimental = "Elemental Focus" },
 }
-B.BUFFS = BUFFS
 
 ------------------------------------------------------------------------
 -- Elements
 ------------------------------------------------------------------------
+-- Option defaults (ns.elementSetting) by part; a def's own defaults win over them.
+local PARTS = {
+	reagent = ns.Reagents.DEFAULTS,
+	breath = { breathWarn = true, breathRing = true, breathPulse = true },   -- Under water
+	proc = { primedPop = true, primedGlow = true },                          -- its proc's pop and glow
+}
+
 local function makeBuffIcon(def)
-	local f = ns.newElementIcon(def.key)
-	f.tex:SetTexture(def.icon)
 	-- Effects on a layer that ignores the icon's alpha (as the cooldown elements do), so an idle
-	-- icon doesn't fade the expiring glow.
-	f.effects = CreateFrame("Frame", nil, f)
-	f.effects:SetAllPoints()
-	f.effects:SetIgnoreParentAlpha(true)
-	f.glowF:SetParent(f.effects)
+	-- icon doesn't fade the expiring glow. Elemental Focus's aura container sits on that layer too;
+	-- its frame level is its aura slot's (ns.makeAuraSlot), not f.stack's.
+	local f = ns.newElementIcon(def.key, { effects = true })
+	f.tex:SetTexture(def.icon)
 	if not def.proc then
 		f.upTimer = ns.Timer.new(f, def.key, "uptime", { cd = f.cd, school = def.school })
-	end
-	function f.stack()
-		local base = f:GetFrameLevel()
-		f.effects:SetFrameLevel(base)
-		f.glowF:SetFrameLevel(base + 1)
-		f.cd:SetFrameLevel(base + 2)
-		f.textFrame:SetFrameLevel(base + 4)
-		if f.upTimer then f.upTimer:restack() end
-		-- Elemental Focus's container is placed by styleProc, which may touch it.
 	end
 	f.stack()
 	return f
@@ -75,12 +73,17 @@ for _, def in ipairs(BUFFS) do
 	def.buff = true   -- for the options: its Idle is "not up", not "off cooldown"
 	def.spell = Spells.name(def.spellKey)
 	def.icon = Spells.icon(def.buffKey or def.spellKey) or def.icon
+	def.defaults = def.defaults or {}
+	for part, defaults in pairs(PARTS) do
+		if def[part] then ns.fillDefaults(def.defaults, defaults) end
+	end
 	def.frame = makeBuffIcon(def)
 	def.frame.aboveProtected = def.proc   -- Elemental Focus: Blizzard's aura button sits under it
-	ns.registerElement(def.key, { frame = def.frame, label = def.spell, stack = def.frame.stack,
+	ns.registerElement(def.key, { frame = def.frame, label = def.spell,
 		defaults = def.defaults, learned = function() return def.spellID ~= nil end,
-		paint = function(t) t:SetTexture(def.icon) end })
-	ns.addElementKey(def.key)
+		paint = function(t) t:SetTexture(def.icon) end,
+		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
+		experimental = def.experimental })
 end
 
 ------------------------------------------------------------------------
@@ -129,7 +132,7 @@ local function breathWarn(def)
 end
 
 ------------------------------------------------------------------------
--- Elemental Focus: Blizzard's aura container (see the file's header and ShamanForever_Shield.lua)
+-- Elemental Focus: Blizzard's aura container (see the file's header, and ns.makeAuraSlot)
 ------------------------------------------------------------------------
 -- Every ID of the proc's buff (seeds, and any learned since); made again at each spellbook scan.
 local function procIDMap(def)
@@ -140,82 +143,40 @@ local function procIDMap(def)
 	return def.procIDs
 end
 
--- Called by Blizzard (untainted) once, right after it makes the slot's button.
-local function initProcButton(def, button)
-	local size = ns.sizeOf(def.key)
-	button:SetSize(size, size)
-	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
-	pcall(button.EnableMouse, button, false)
-	pcall(button.SetMouseClickEnabled, button, false)
-	pcall(button.SetMouseMotionEnabled, button, false)
-	local tex = button:CreateTexture(nil, "ARTWORK")
-	tex:SetAllPoints()
-	ns.cropIcon(tex)
-	button:SetIcon(tex)
-	local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
-	cd:SetAllPoints()
-	def.timer = ns.Timer.new(button, def.key, "uptime", { cd = cd, anchor = button, noBar = true })
-	def.timer:apply()
-	button:SetDurationCooldown(cd)
-	-- Our glow, above the cooldown: a child of the button, so it shows exactly when the button does.
-	-- Its OnShow can't start the pulse under the button, so the button plays it.
+-- Our parts on Blizzard's button, once it is made. Our glow, above the cooldown: a child of the
+-- button, so it shows exactly when the button does. Its OnShow can't start the pulse under the
+-- button, so the button plays it. The pop: the icon grows and settles, played by the button on each
+-- new proc; sized by the pop style (styleProc), a no-op while the Pop option is off.
+local function buildProc(def, slot, button, cd)
 	def.glow = ns.makeGlow(button, button, def.key, true)
 	def.glow:SetFrameLevel(cd:GetFrameLevel() + 2)
 	if button.AddAuraShownAnimation then ns.try("proc glow", button.AddAuraShownAnimation, button, def.glow.anim) end
-	-- The pop: the icon grows and settles, played by the button on each new proc. Sized by the pop
-	-- style (styleProc); a no-op while the Pop option is off.
-	def.popAnim = ns.makeGrowPop(tex, def.key)
+	def.popAnim = ns.makeGrowPop(slot.icon, def.key)
 	if button.AddAuraAssignedAnimation then
 		def.buttonPops = ns.try("proc pop", button.AddAuraAssignedAnimation, button, def.popAnim)
 	end
-	def.button = button
 end
 
-local styleProc   -- below
-local function setupProc(def)
-	if def.container or def.err then return end
-	if ns.deferWhileAurasSecret("proc container " .. def.key, function() setupProc(def) end) then return end
-	local f = def.frame
-	local ok, err = pcall(function()
-		local c = CreateFrame("AuraContainer", nil, f.effects, "CustomAuraContainerTemplate")
-		c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
-		c:SetSize(ns.sizeOf(def.key), ns.sizeOf(def.key))
-		c:SetFrameStrata(f:GetFrameStrata())
-		c:SetFrameLevel(f.textFrame:GetFrameLevel() + 5)
-		c:SetUnit("player")
-		pcall(c.EnableMouse, c, false)
-		def.container = c
-		c:AddAuraSlot("proc", "HELPFUL", {
-			candidateFilters = { includeSpellIDs = procIDMap(def) },
-			initializeFrame = function(button) initProcButton(def, button) end,
-		})
-	end)
-	if not ok then
-		def.err = tostring(err)
-		if def.container then def.container:Hide() end
-		ns.noteError("proc container " .. def.key, def.err)
-	else
-		styleProc(def)   -- a layout queued before it (a /reload in combat) found no button to style
-	end
+-- Our parts again, for the current size and settings (after the aura slot's own restyle).
+local function styleProc(def, size)
+	def.glow:restyle()
+	def.glow:fit(size)
+	def.glow:SetShown(setting(def.key, "primedGlow") and true or false)
+	def.popAnim:restyle(setting(def.key, "primedPop") and true or false)
 end
 
--- Blizzard's button and its parts: out of combat only, and not while auras are secret.
-function styleProc(def)
-	if not def.button then return end
-	if ns.deferWhileAurasSecret("proc style " .. def.key, function() styleProc(def) end) then return end
-	local ok = ns.try("proc style", function()
-		local size = ns.sizeOf(def.key)
-		def.container:SetSize(size, size)
-		def.container:SetFrameStrata(def.frame:GetFrameStrata())
-		def.container:SetFrameLevel(def.frame.textFrame:GetFrameLevel() + 5)
-		def.button:SetSize(size, size)
-		def.timer:apply()
-		def.glow:restyle()
-		def.glow:fit(size)
-		def.glow:SetShown(setting(def.key, "primedGlow") and true or false)
-		def.popAnim:restyle(setting(def.key, "primedPop") and true or false)
-	end)
-	if not ok then ns.retryAfterCombat("proc style " .. def.key, function() styleProc(def) end) end
+-- The proc's aura slot, on the effects layer (out of combat only; once made, it stays).
+local function makeProcSlot(def)
+	return ns.makeAuraSlot(def.frame, {
+		key = def.key, slot = "proc", ids = function() return procIDMap(def) end, parent = def.frame.effects,
+		sites = { container = "proc container " .. def.key, style = "proc style " .. def.key },
+		onButton = function(slot, button, cd) buildProc(def, slot, button, cd) end,
+		onStyle = function(_, size) styleProc(def, size) end,
+		onError = function(err) ns.noteError("proc container " .. def.key, err) end,
+	})
+end
+for _, def in ipairs(BUFFS) do
+	if def.proc then def.aura = makeProcSlot(def) end
 end
 
 -- Out of combat: whether the proc is up, for the pop the moment it comes.
@@ -258,7 +219,7 @@ local function refreshBuff(def)
 	if def.upUntil and GetTime() >= def.upUntil then setDown(def) end
 	-- Each look decided first, then set once: setting a pulse off and on again restarts it.
 	local held, ring, pulse = false, false, false
-	if def.reagent then held, ring, pulse = ns.Cooldowns.refreshReagent(def) end
+	if def.reagent then held, ring, pulse = ns.Reagents.refresh(def) end
 	if breathWarn(def) then
 		-- Under water without it: the missing look.
 		ring, pulse, held = setting(key, "breathRing"), setting(key, "breathPulse"), true
@@ -300,17 +261,17 @@ function B.applyTimers()
 			t:setExpire(ns.Timer.expireOpts(def.key), def.iconID or def.icon)
 		end
 	end
-	for _, def in ipairs(BUFFS) do if def.proc then styleProc(def) end end
+	for _, def in ipairs(BUFFS) do if def.proc then def.aura:style() end end
 end
 
 function B.applyLayout()
 	for _, def in ipairs(BUFFS) do
-		if def.proc and def.spellID and ns.isEnabled(def.key) then setupProc(def) end
-		if def.proc then styleProc(def) end
+		if def.proc and def.spellID and ns.isEnabled(def.key) then def.aura:setup() end
+		if def.proc then def.aura:style() end
 	end
 	refreshAll()
 end
-B.afterGroups = function() for _, def in ipairs(BUFFS) do if def.proc then styleProc(def) end end end
+B.afterGroups = function() for _, def in ipairs(BUFFS) do if def.proc then def.aura:style() end end end
 
 -- Whether the breath bar is draining now (a /reload under water, or after a loading screen that
 -- missed its events): negative scale means draining.
@@ -371,8 +332,9 @@ function B.debug()
 	for _, def in ipairs(BUFFS) do
 		local state
 		if def.proc then
+			local a = def.aura
 			state = string.format("container %s%s, button plays the pop %s, up (out of combat) %s",
-				def.container and "made" or "not made", def.err and (", error: " .. def.err) or "", tostring(def.buttonPops),
+				a.container and "made" or "not made", a.err and (", error: " .. a.err) or "", tostring(def.buttonPops),
 				tostring(def.procUp))
 		else
 			state = def.upUntil and string.format("up, %.0f s left", def.upUntil - GetTime()) or "not up"

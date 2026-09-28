@@ -1,7 +1,7 @@
 -- The options window's page kit: a page is a scrolling column of rows (headers, text, checkboxes,
 -- sliders, dropdowns, colours, cards, buttons...). Rows can hide themselves; refresh reflows the
 -- visible ones and pulls every control's value from the saved settings. The pages themselves are
--- built in ShamanForever_Options.lua.
+-- built in ShamanForever_Options.lua and, for the elements, ShamanForever_OptionsElements.lua.
 
 local _, ns = ...
 
