@@ -244,10 +244,16 @@ end
 CD.cooldownFor = cooldownFor
 
 -- Pop when ready: Blizzard's cooldown widget says when its swipe finishes (OnCooldownDone), a
--- moment with no secret in it, so the icon can pop right then, in combat too.
-local function popWhenReady(f, key)
+-- moment with no secret in it, so the icon can pop right then, in combat too. totemSlot: a spell
+-- that needs a totem down in that slot (Fire Nova), which isn't ready without one: an empty slot
+-- has no duration object (see the file's header).
+local function popWhenReady(f, key, totemSlot)
 	f.cd:HookScript("OnCooldownDone", function()
 		if f.gcdUntil and GetTime() <= f.gcdUntil then return end   -- a global cooldown ended
+		if totemSlot then
+			local ok, d = safe(GetTotemDuration, totemSlot)
+			if not (ok and d) then return end
+		end
 		if ns.isEnabled(key) and setting(key, "readyPop") then f:Pop() end
 	end)
 end
@@ -328,6 +334,9 @@ local function refreshFireNova(def, inEvent)
 		end
 	end
 	f.upTimer:set(tok and tdur or nil)
+	-- No fire totem: its cooldown ending isn't "ready", so no bling either. Only ever turned off
+	-- here: cooldownFor, which runs just before, sets it for the Global cooldown style each pass.
+	if not (tok and tdur) then f.cd:SetDrawBling(false) end
 end
 
 -- Whether the totem in def's slot is def's own (1) or not (0), and how that was told. Not known from
@@ -482,7 +491,7 @@ for _, def in ipairs(COOLDOWNS) do
 		def.spends = {}
 		for _, k in ipairs(def.primed.spends) do def.spends[k] = true end
 	end
-	popWhenReady(def.frame, def.key)
+	popWhenReady(def.frame, def.key, def.needsTotem)
 	-- A cooldown ending can make it idle (see applyIdle); read on the next frame.
 	def.frame.cd:HookScript("OnCooldownDone", function() C_Timer.After(0, function() refreshCooldown(def) end) end)
 end
