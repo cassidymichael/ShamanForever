@@ -129,6 +129,45 @@ combatEnd:SetScript("OnEvent", function(_, event, _, state)
 end)
 
 ------------------------------------------------------------------------
+-- Whether the player can act on a warning. Dead, a ghost or on a flight path, nothing can be cast,
+-- so a warning that asks for a cast (a shield, an imbue, a totem, a spell that's ready) stays quiet.
+-- None of these reads is secret for the player; one that fails or comes back secret counts as able.
+------------------------------------------------------------------------
+local function plainYes(fn, ...)
+	local ok, v = safe(fn, ...)
+	return ok and not isSecret(v) and v == true
+end
+function ns.cantAct()
+	return plainYes(UnitIsDeadOrGhost, "player") or plainYes(UnitOnTaxi, "player")
+end
+-- fn(event) whenever that may have changed: death, release, resurrection (always passed on), and a
+-- flight path's start and end (the control events, which also come with every fear or stun: passed
+-- on only when ns.cantAct() changed). UnitOnTaxi may not have changed yet when they come
+-- (untested), so they are checked again a second later.
+local actListeners = {}
+local lastCantAct = false
+function ns.onCanActChange(fn)   -- at a module's start (a /reload on a flight path is already on it)
+	table.insert(actListeners, fn)
+	lastCantAct = ns.cantAct()
+end
+local actEvents = CreateFrame("Frame")
+for _, event in ipairs({ "PLAYER_DEAD", "PLAYER_ALIVE", "PLAYER_UNGHOST", "PLAYER_CONTROL_LOST",
+	"PLAYER_CONTROL_GAINED" }) do
+	ns.registerEvent(actEvents, event)
+end
+local function tellAct(event, always)
+	local now = ns.cantAct()
+	if not always and now == lastCantAct then return end
+	lastCantAct = now
+	for _, fn in ipairs(actListeners) do ns.try("can act", fn, event) end
+end
+actEvents:SetScript("OnEvent", function(_, event)
+	local control = event == "PLAYER_CONTROL_LOST" or event == "PLAYER_CONTROL_GAINED"
+	tellAct(event, not control)
+	if control then C_Timer.After(1, function() tellAct(event) end) end
+end)
+
+------------------------------------------------------------------------
 -- Curves: a duration's remaining (or total) time -> a value for SetAlpha. The way to show or hide
 -- something on a time that may be secret.
 ------------------------------------------------------------------------

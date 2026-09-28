@@ -39,10 +39,12 @@ L.PANEL = { 29 / 255, 24 / 255, 19 / 255 }
 local TOTEMBAR = { label = "Totem bar", icon = "Interface\\Icons\\Spell_Shaman_DropAll_01", school = "spirit",
 	blurb = "Your totems, their timers, and a pick for each element.",
 	tags = function()
-		local c = ns.TotemBar.cfg()
+		local TB = ns.TotemBar
+		local c = TB.cfg()
 		local shows = { always = "Always", active = "In combat or a totem down", combat = "In combat" }
-		if c.mode == "blizzard" then return ns.TotemBar.modeName() end
-		return string.format("%s  ·  %s", ns.TotemBar.modeName(), shows[c.show] or "")
+		if c.mode == "blizzard" then return TB.modeName() end
+		return string.format("%s  ·  %s%s", TB.modeName(), shows[c.show] or "",
+			TB.hasTotems() and "" or "  ·  Not learned")
 	end }
 local function identity(key) return key == "totembar" and TOTEMBAR or ns.ELEMENTS[key] end
 
@@ -669,8 +671,9 @@ L.PREVIEW.totembar = {
 		if c.mode == "blizzard" then h.fitNote:SetText("") return end
 		local full = c.mode == "everything"
 		local els = {}
-		-- As on the bar: a slot shows only for an element with a totem known.
-		local canList = GetMultiCastTotemSpells ~= nil
+		-- As on the bar: a slot shows only for an element with a totem known. With none known yet
+		-- (the bar is off screen until then), every element's: the bar as it will look.
+		local canList = GetMultiCastTotemSpells ~= nil and TB.hasTotems()
 		for _, el in ipairs(c.order) do
 			if not c.hidden[el] and (not canList or #ns.Totems.knownTotems(TB.SLOT[el]) > 0) then table.insert(els, el) end
 		end

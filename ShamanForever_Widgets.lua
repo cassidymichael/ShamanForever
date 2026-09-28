@@ -334,11 +334,24 @@ local function popFx(f)
 		end
 		if next(x.bursts) == nil then self:SetScript("OnUpdate", nil) end
 	end
+	-- A hidden frame runs no OnUpdate and holds its animations, so a pop cut short by a hide (its
+	-- group hiding as combat ends) would finish when the icon next shows. A hide ends it instead.
+	fx:SetScript("OnHide", function()
+		for tex in pairs(x.bursts) do tex:Hide() end
+		wipe(x.bursts)
+		fx:SetScript("OnUpdate", nil)
+		for _, m in ipairs({ "grow", "bounce", "hop", "shake", "shakeV" }) do x[m]:Stop() end
+		x.flashAnim:Stop()
+		x.flash:SetAlpha(0)
+	end)
 	f.popFx = x
 	return x
 end
 -- kind: ready | imbue | expired | killed | grounded (the tint); owner: whose style (nil: General's).
+-- Nothing on a frame that isn't visible (a combat-only group out of combat): it would wait there and
+-- play when the frame next shows, for something long over.
 function ns.playPop(f, kind, owner)
+	if not f:IsVisible() then return end
 	local st = ns.Style.get(owner, "pop")
 	local x = popFx(f)
 	local S = st.size
@@ -483,7 +496,9 @@ function ns.makeEndFlash(parent, anchor, owner)
 	-- dur: the gone totem's last duration object, or nil to play regardless (the options' previews).
 	-- opts: expired (ran out, else killed early), and for killed early pop, glow, mark (booleans);
 	-- grounded; ranOut (a colour) for the soft ran-out.
+	-- Not while the icon it covers isn't visible: the flash would wait and play when it next shows.
 	function kf:play(dur, opts)
+		if not anchor:IsVisible() then return end
 		local a = 1
 		if dur then
 			local curve = opts.expired and expiredCurve or killedCurve
@@ -529,6 +544,8 @@ function ns.makeEndFlash(parent, anchor, owner)
 		self.body:SetAlpha(0); self.glow:Hide(); self.mark:Hide()
 		self.markToken = nil
 	end
+	-- A flash cut short by a hide ends there, for the same reason.
+	kf:SetScript("OnHide", function(self) self:stop() end)
 	return kf
 end
 
