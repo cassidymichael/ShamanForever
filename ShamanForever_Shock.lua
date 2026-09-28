@@ -26,12 +26,14 @@ SK.SHOCKS, SK.ORDER = SHOCKS, SHOCK_ORDER
 local shock = ns.newElementIcon("shock")
 shock.cdTimer = ns.Timer.new(shock, "shock", "cooldown", { cd = shock.cd, school = "spirit" })
 local shockIcon = 136026
+-- By SK.resolve: the known shocks' spell IDs by choice, the one the icon tracks, the Mana check's.
+local shockIDs = {}
+local shockSpellID, manaSpellID
 ns.registerElement("shock", { frame = shock, label = "Shocks", paint = function(t) t:SetTexture(shockIcon) end,
+	learned = function() return next(shockIDs) ~= nil end,   -- any shock
 	defaults = CopyTable(CD.READY_DEFAULTS),
 	kind = "shock", icon = 136026, school = "spirit", blurb = "Cooldown, range and mana." })
 
-local shockSpellID, manaSpellID
-local shockIDs = {}
 local shockState = { outOfRange = false, noMana = false }
 local rangeCheckID   -- the spell whose range check is on
 
@@ -68,7 +70,7 @@ local function refreshRange()
 end
 
 local function refreshMana()
-	if not ns.isEnabled("shock") then return end
+	if not manaSpellID or not ns.isEnabled("shock") then return end
 	local ok, _, noPower = safe(C_Spell.IsSpellUsable, manaSpellID)
 	shockState.noMana = ok and not isSecret(noPower) and noPower == true
 	drawTint()
@@ -112,13 +114,18 @@ function SK.resolve()
 	shockSpellID = id
 	shockIcon = ic or 136026
 	shock.tex:SetTexture(shockIcon)
+	-- Not learned yet (seen only in test mode): a plain grey icon.
+	shock.tex:SetDesaturated(next(shockIDs) == nil)
 	manaSpellID = (d.manaSpell ~= "tracked" and shockIDs[d.manaSpell]) or shockSpellID
 	if rangeCheckID ~= shockSpellID and C_Spell.EnableSpellRangeCheck then
 		if rangeCheckID then safe(C_Spell.EnableSpellRangeCheck, rangeCheckID, false) end
 		if shockSpellID then safe(C_Spell.EnableSpellRangeCheck, shockSpellID, true) end
 		rangeCheckID = shockSpellID
 	end
-	return tostring(shockSpellID) .. "," .. tostring(manaSpellID)
+	-- Every known shock, so learning one lays the HUD out again (the element's learned()).
+	local sig = { tostring(shockSpellID), tostring(manaSpellID) }
+	for _, key in ipairs(SHOCK_ORDER) do table.insert(sig, tostring(shockIDs[key])) end
+	return table.concat(sig, ",")
 end
 
 function SK.applyTimers() shock.cdTimer:apply() end

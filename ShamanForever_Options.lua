@@ -37,7 +37,9 @@ local function retime()
 	ns.applyTimers()
 	OP.refresh()
 end
-local function respell() ns.resolveSpells(); ns.refreshAll(); OP.refresh() end
+-- A spell choice (the shield or shock tracked, the Mana check): the spells looked up again, and a
+-- layout, since the choice can decide whether the element counts as learned.
+local function respell() ns.resolveSpells(); ns.applyLayout(); ns.refreshAll(); OP.refresh() end
 
 local function newPage(key, title, indent)
 	local p = Page.new(win, key, title, indent)

@@ -15,7 +15,9 @@ local IM = { name = "imbue" }
 ns.Imbue = IM
 
 local imbue = ns.newElementIcon("imbue")
+local anyKnown = false   -- any imbue known (IM.resolve): the element's learned()
 ns.registerElement("imbue", { frame = imbue, label = "Weapon Imbue", paint = function(t) t:SetTexture(IM.icon()) end,
+	learned = function() return anyKnown end,
 	kind = "imbue", icon = 136086, school = "spirit", blurb = "Warns when your main hand has no imbue." })
 
 -- The key is also the spell's key in ns.Spells; name is its display name (the client's). ids are
@@ -129,8 +131,22 @@ local function drawImbue(now)
 	imbue:SetAlpha((acct.locked and key and db.imbueHideActive and not showTime and not unreadable) and 0 or 1)
 end
 
+-- Not learned yet (seen only in test mode): a plain grey icon, and nothing read.
+local function drawNotLearned()
+	imbueIcon = preferredImbueIcon()
+	imbue.tex:SetTexture(imbueIcon)
+	imbue.tex:SetDesaturated(true)
+	imbue:SetRingShown(false)
+	imbue:SetPulsing(false)
+	imbue:SetGlowShown(false)
+	imbue.timer:Hide()
+	imbue.upTimer:clear()
+	imbue:SetAlpha(1)
+end
+
 function IM.refresh()
 	if not ns.isEnabled("imbue") then return end
+	if not anyKnown then drawNotLearned() return end
 	local db, acct = ns.getDB(), ns.getAccount()
 	local now = GetTime()
 	local r = readMainHand()
@@ -172,9 +188,18 @@ function IM.onCast(spellID)
 	IM.refresh()
 end
 
--- After a spellbook scan (ns.resolveSpells): the client's names.
+-- After a spellbook scan (ns.resolveSpells): the client's names, and which imbues are known.
+-- Returns a signature of what it found, so learning one lays the HUD out again.
 function IM.resolve()
-	for key, m in pairs(IMBUES) do m.name = Spells.name(key) end
+	local sig = {}
+	anyKnown = false
+	for _, key in ipairs(IMBUE_ORDER) do
+		IMBUES[key].name = Spells.name(key)
+		local id = Spells.known(key)
+		if id then anyKnown = true end
+		table.insert(sig, tostring(id))
+	end
+	return table.concat(sig, ",")
 end
 
 -- The timer takes its current style (ns.applyTimers).
