@@ -155,7 +155,12 @@ local function drawNotLearned()
 end
 
 function IM.refresh()
-	if not ns.isEnabled("imbue") then return end
+	if not ns.isEnabled("imbue") then
+		-- Nothing is read while it's hidden, so nothing is kept: the first read once it shows again
+		-- isn't a drop.
+		imbueState.key, imbueState.lastID, imbueState.lastLeft = nil, nil, nil
+		return
+	end
 	if not anyKnown then drawNotLearned() return end
 	local db, acct = ns.getDB(), ns.getAccount()
 	local now = GetTime()
