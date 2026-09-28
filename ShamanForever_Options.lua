@@ -487,6 +487,7 @@ local function buildAbout(p)
 	gap()
 	aboutExp = flashingHeader(p, "Experimental", "Interface\\Icons\\INV_Gizmo_02")
 	p:text("I can't test these in game yet. If you can, please try them and tell me whether they work and what could be improved.")
+	for _, x in ipairs(ns.TotemBar.EXPERIMENTAL) do p:experimental(x[1], x[2]) end
 	p:experimental("Water Shield", "Shields > Track")
 	p:experimental("Either shield", "Shields > Track")
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
@@ -1077,6 +1078,9 @@ local function buildTotemBar(p)
 	p:checkbox("Arrow opens a totem picker", "A tab on each slot opens its totems. Works in combat.", tget("arrows"), tset("arrows"))
 	p:slider("Arrow size", "How deep the tab is.", 8, 32, 1, px,
 		tget("arrowSize"), tset("arrowSize"), showWhen(function() return c().arrows end))
+	local hoverRow = p:checkbox("Open pickers on hover", "Hovering a slot opens its totems. Works in combat.",
+		tget("pickHover"), tset("pickHover"))
+	ns.Look.expBadge(hoverRow, "Pickers on hover"):SetPoint("LEFT", hoverRow.check.Text, "RIGHT", 10, 0)
 	p:checkbox(ns.Spells.name("call"), nil, tget("call"), tset("call"))
 	p:checkbox(ns.Spells.name("recall"), nil, tget("recall"), tset("recall"))
 	p:text(function()
