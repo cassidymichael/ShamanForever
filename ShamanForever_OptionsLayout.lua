@@ -402,6 +402,7 @@ local function placeColumns(p)
 	if w == placedW then return end
 	placedW = w
 	list.scroll:SetWidth(w - 14)
+	list.content:SetWidth(w - 14)   -- at once, so the rows fit their column on the first draw
 	p.scroll:SetPoint("TOPLEFT", p.win, "TOPLEFT", NAV_W + 18 + w + 12, PAGE_TOP)
 end
 
@@ -487,18 +488,32 @@ local function buildMembers(p)
 	caption:SetPoint("TOPLEFT", 4, -9)
 	caption:SetText("Elements")
 	local hint = members:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-	hint:SetPoint("LEFT", caption, "RIGHT", 10, 0)
+	hint:SetJustifyH("LEFT")
 	hint:SetText("Drag to reorder, or onto a group to move it.")
 	members.empty = members:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-	members.empty:SetPoint("TOPLEFT", 4, -CAPTION_H - 5)
 	members.empty:SetText("Empty. Drop an element here.")
 	drag.line = Page.dropLine(members)
+	-- The hint beside the caption, or under it in a narrow column; the chips start below both.
+	local function placeCaption(w)
+		hint:ClearAllPoints()
+		if caption:GetStringWidth() + 10 + hint:GetStringWidth() <= w - 8 then
+			hint:SetWidth(0)
+			hint:SetPoint("LEFT", caption, "RIGHT", 10, 0)
+			members.top = CAPTION_H
+		else
+			hint:SetWidth(w - 8)
+			hint:SetPoint("TOPLEFT", caption, "BOTTOMLEFT", 0, -4)
+			members.top = math.ceil(9 + caption:GetStringHeight() + 4 + hint:GetStringHeight() + 6)
+		end
+		members.empty:SetPoint("TOPLEFT", 4, -members.top - 5)
+	end
 	p:add(members, function() return members.height or 1 end, nil, function()
+		placeCaption(p:width())
 		local g = selected()
 		local keys = g and g.members or {}
-		local h = placeChips(members, keys, CAPTION_H)
+		local h = placeChips(members, keys, members.top)
 		members.empty:SetShown(#keys == 0)
-		members.height = CAPTION_H + math.max(h, CHIP_STEP) + 8
+		members.height = members.top + math.max(h, CHIP_STEP) + 8
 		members:SetHeight(members.height)
 	end)
 end
