@@ -11,7 +11,7 @@ local Page, K = ns.Page, ns.Options.kit
 local showWhen, setTip, panelBackdrop = Page.showWhen, Page.setTip, Page.panelBackdrop
 local relayout, respell, get, set = K.relayout, K.respell, K.get, K.set
 local pct, int, px = Page.pct, Page.int, Page.px
-local groupCount, isHidden, placeShown, SHOW_CHOICES = K.groupCount, K.isHidden, K.placeShown, K.SHOW_CHOICES
+local isHidden, placeShown, SHOW_CHOICES = K.isHidden, K.placeShown, K.SHOW_CHOICES
 local timerSettings, gcdBlock, glowBlock, popBlock = K.timerSettings, K.gcdBlock, K.glowBlock, K.popBlock
 local expiringLooks, killedBlock = K.expiringLooks, K.killedBlock
 
@@ -61,9 +61,9 @@ function EP.buildOverview(p)
 		group:SetPoint("LEFT", GROUP_X, 0)
 		group:SetWidth(100)
 		group:SetupMenu(function(_, rootDescription)
-			for gi = 1, groupCount() do
-				rootDescription:CreateRadio("Group " .. gi, function() return not isHidden(key) and ns.findElement(key) == gi end,
-					function() placeShown(key, gi) end)
+			for _, g in ipairs(db().groups) do
+				rootDescription:CreateRadio(g.name, function() return not isHidden(key) and ns.groupOf(key) == g end,
+					function() placeShown(key, g.id) end)
 			end
 			rootDescription:CreateRadio("New group", function() return false end, function() placeShown(key, "new") end)
 			rootDescription:CreateRadio("Hidden", function() return isHidden(key) end, function() ns.setShow(key, "never") end)
@@ -118,11 +118,14 @@ local function elementDisplay(p, key)
 	p:text("Hidden keeps its place in its group.")
 	p:dropdown("Group", "Which group it sits in. Groups are arranged on the Layout page.", function()
 		local list = {}
-		for gi = 1, groupCount() do table.insert(list, { gi, "Group " .. gi }) end
+		for _, g in ipairs(db().groups) do table.insert(list, { g.id, g.name }) end
 		table.insert(list, { "new", "New group" })
 		table.insert(list, { "hidden", "Hidden" })
 		return list
-	end, function() return isHidden(key) and "hidden" or ns.findElement(key) end, function(v)
+	end, function()
+		local g = ns.groupOf(key)
+		return isHidden(key) and "hidden" or g and g.id
+	end, function(v)
 		if v == "hidden" then ns.setShow(key, "never") else placeShown(key, v) end
 	end, nil, 140)
 	local groupRow = p.items[#p.items].frame
@@ -130,7 +133,7 @@ local function elementDisplay(p, key)
 	edit:SetSize(96, 22)
 	edit:SetPoint("LEFT", groupRow.dropdown, "RIGHT", 8, 0)
 	edit:SetText("Edit group")
-	edit:SetScript("OnClick", function() local gi = ns.findElement(key); if gi then ns.Options.openGroup(gi) end end)
+	edit:SetScript("OnClick", function() local g = ns.groupOf(key); if g then ns.Options.openGroup(g.id) end end)
 	setTip(edit, "Edit group", "This group's settings on the Layout page.")
 end
 

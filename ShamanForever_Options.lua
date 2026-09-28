@@ -15,7 +15,7 @@ local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
 
 local win
 local pages, pageOrder, currentPage = {}, {}, nil
-local selectedGroup = 1
+local selectedGroup   -- the Layout page's group, by id
 
 local function db() return ns.getDB() end
 local function acct() return ns.getAccount() end
@@ -309,11 +309,19 @@ local function set(key, after) return function(v) db()[key] = v; (after or relay
 
 local function groupCount() return #db().groups end
 local function hasGroups() return groupCount() > 0 end
+-- The chosen group, or the first when it is gone (or none was chosen).
 local function selected()
-	local n = groupCount()
-	if selectedGroup > n then selectedGroup = n end
-	if selectedGroup < 1 then selectedGroup = 1 end
-	return db().groups[selectedGroup]
+	local g = ns.groupById(selectedGroup)
+	if not g then
+		g = db().groups[1]
+		selectedGroup = g and g.id
+	end
+	return g
+end
+-- A confirmation about the chosen group: its name in the question, its id for the answer.
+local function askAboutGroup(which)
+	local g = selected()
+	if g then StaticPopup_Show(which, g.name, nil, g.id) end
 end
 local function groupGet(key) return function() local g = selected(); return g and g[key] end end
 local function groupSet(key) return function(v) local g = selected(); if g then g[key] = v; relayout() end end end
@@ -360,10 +368,10 @@ local function buildGeneral(p)
 	p:text("Elements, groups and the totem bar use these unless they have their own.")
 	p:slider("Icon size", "Every group's and the totem bar's, unless it has its own.", 24, 96, 1, int,
 		get("iconSize"), set("iconSize"))
-	-- Who has an own icon size: groups by number, then the totem bar.
+	-- Who has an own icon size: groups, then the totem bar.
 	local function ownSizes()
 		local out = {}
-		for gi, g in ipairs(db().groups) do if not g.sizeFollow then table.insert(out, "Group " .. gi) end end
+		for _, g in ipairs(db().groups) do if not g.sizeFollow then table.insert(out, g.name) end end
 		if ns.TotemBar.barOn() and not ns.TotemBar.cfg().sizeFollow then table.insert(out, "Totem bar") end
 		return out
 	end
@@ -649,7 +657,7 @@ local function finishDrag()
 			-- The drop position counts only the visible chips; hidden members keep their places.
 			local at, others = dropIndex(c, key)
 			local rest = {}
-			for _, k in ipairs(db().groups[c.target].members) do if k ~= key then table.insert(rest, k) end end
+			for _, k in ipairs(ns.groupById(c.target).members) do if k ~= key then table.insert(rest, k) end end
 			local index = #rest + 1
 			local anchor = others[at] or others[#others]
 			for i, k in ipairs(rest) do
@@ -669,13 +677,13 @@ local function chipMenu(chip)
 		root:CreateTitle(ns.ELEMENTS[key].label)
 		root:CreateButton("Open settings", function() OP.openElement(key) end)
 		root:CreateDivider()
-		local gi, i = ns.findElement(key)
-		if gi and i > 1 then root:CreateButton("Move earlier", function() ns.placeElement(key, gi, i - 1) end) end
-		if gi and i < #db().groups[gi].members then root:CreateButton("Move later", function() ns.placeElement(key, gi, i + 1) end) end
-		for g = 1, groupCount() do
-			if g ~= gi then root:CreateButton("Move to group " .. g, function() ns.placeElement(key, g) end) end
+		local g, i = ns.groupOf(key)
+		if g and i > 1 then root:CreateButton("Move earlier", function() ns.placeElement(key, g.id, i - 1) end) end
+		if g and i < #g.members then root:CreateButton("Move later", function() ns.placeElement(key, g.id, i + 1) end) end
+		for _, o in ipairs(db().groups) do
+			if o ~= g then root:CreateButton("Move to " .. o.name, function() ns.placeElement(key, o.id) end) end
 		end
-		if not (gi and #db().groups[gi].members == 1) then
+		if not (g and #g.members == 1) then
 			root:CreateButton("Move to a new group", function() ns.placeElement(key, "new") end)
 		end
 		root:CreateDivider()
@@ -785,13 +793,13 @@ local function layoutBoard()
 	-- elements; one with nothing visible stays out of the way until something in it shows again.
 	local colY = { 0, 0 }
 	local hidden = {}
-	for gi, g in ipairs(groups) do
+	for _, g in ipairs(groups) do
 		local shown = {}
 		for _, key in ipairs(g.members) do
 			if isHidden(key) then table.insert(hidden, key) else table.insert(shown, key) end
 		end
 		if #shown > 0 then
-			local c, h = fill(gi, shown, "Group " .. gi, g.orientation == "vertical" and "Column" or "Row")
+			local c, h = fill(g.id, shown, g.name, g.orientation == "vertical" and "Column" or "Row")
 			local col = colY[1] <= colY[2] and 1 or 2
 			place(c, (col - 1) * (colW + CARD_GAP), colY[col])
 			colY[col] = colY[col] + h + CARD_GAP
@@ -856,7 +864,7 @@ local function buildLayout(p)
 	p.items[#p.items].refresh = function()
 		local g = selected()
 		if not g then return end
-		settingsHeader.text:SetText(string.format("Group %d  |cffa89880·  %s|r", selectedGroup, g.orientation == "vertical" and "Column" or "Row"))
+		settingsHeader.text:SetText(string.format("%s  |cffa89880·  %s|r", g.name, g.orientation == "vertical" and "Column" or "Row"))
 		for i, key in ipairs(g.members) do
 			local t = settingsHeader.icons[i]
 			if not t then
@@ -908,9 +916,9 @@ local function buildLayout(p)
 	p:text("Elements have their own Show setting too. An element shows only when both allow it.", hasGroups)
 	local lastRow = p:buttons({
 		-- Hard to undo, so each asks first.
-		{ "Centre on screen", function() StaticPopup_Show("SHAMANFOREVER_CENTER", selectedGroup, nil, selectedGroup) end, "Moves the group to the middle of the screen.", 130 },
-		{ "Split up", function() StaticPopup_Show("SHAMANFOREVER_SPLIT", selectedGroup, nil, selectedGroup) end, "Gives every element in the group a group of its own, left where it is.", 100 },
-		{ "Hide all", function() StaticPopup_Show("SHAMANFOREVER_HIDEALL", selectedGroup, nil, selectedGroup) end, "Sets every element in the group to Hidden. They keep their places; set one back to Always to bring it back.", 100 },
+		{ "Centre on screen", function() askAboutGroup("SHAMANFOREVER_CENTER") end, "Moves the group to the middle of the screen.", 130 },
+		{ "Split up", function() askAboutGroup("SHAMANFOREVER_SPLIT") end, "Gives every element in the group a group of its own, left where it is.", 100 },
+		{ "Hide all", function() askAboutGroup("SHAMANFOREVER_HIDEALL") end, "Sets every element in the group to Hidden. They keep their places; set one back to Always to bring it back.", 100 },
 	}, hasGroups)
 	p:add(p:row(10), 10, hasGroups)
 	p.rowIndent = nil
@@ -1202,7 +1210,7 @@ end
 -- The helpers and standard blocks the element pages share (ShamanForever_OptionsElements.lua).
 OP.kit = {
 	relayout = relayout, respell = respell, get = get, set = set,
-	groupCount = groupCount, isHidden = isHidden, placeShown = placeShown, SHOW_CHOICES = SHOW_CHOICES,
+	isHidden = isHidden, placeShown = placeShown, SHOW_CHOICES = SHOW_CHOICES,
 	timerSettings = timerSettings, gcdBlock = gcdBlock, glowBlock = glowBlock, popBlock = popBlock,
 	expiringLooks = expiringLooks, killedBlock = killedBlock,
 }
@@ -1518,12 +1526,12 @@ local function confirm(which, text, button, action)
 		timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
 	}
 end
-confirm("SHAMANFOREVER_CENTER", "Move Group %s to the middle of the screen?\nIts current position is lost.", "Centre",
-	function(gi) ns.centerGroup(gi) end)
-confirm("SHAMANFOREVER_SPLIT", "Split Group %s into one group per element?\nPutting them back together is done by hand.", "Split up",
-	function(gi) ns.splitGroup(gi) end)
-confirm("SHAMANFOREVER_HIDEALL", "Hide every element in Group %s?\nEach one's Show setting becomes Hidden.", "Hide all",
-	function(gi) ns.hideGroup(gi) end)
+confirm("SHAMANFOREVER_CENTER", "Move %s to the middle of the screen?\nIts current position is lost.", "Centre",
+	function(id) ns.centerGroup(id) end)
+confirm("SHAMANFOREVER_SPLIT", "Split %s into one group per element?\nPutting them back together is done by hand.", "Split up",
+	function(id) ns.splitGroup(id) end)
+confirm("SHAMANFOREVER_HIDEALL", "Hide every element in %s?\nEach one's Show setting becomes Hidden.", "Hide all",
+	function(id) ns.hideGroup(id) end)
 
 confirm("SHAMANFOREVER_RESET", "Reset profile %s to defaults?\nIts layout and every setting are lost.", "Reset",
 	function() ns.Profiles.reset(); ns.say("profile reset to defaults") end)
@@ -1690,12 +1698,13 @@ function OP.refresh()
 	end)
 end
 
-function OP.open(page, groupIndex)
+-- groupId: the group the Layout page shows.
+function OP.open(page, groupId)
 	if not ns.getDB() then return end
 	if not win then buildWindow() end
 	-- In combat HideUIPanel is blocked (and says so); Settings then stays open under the window.
 	if SettingsPanel and SettingsPanel:IsShown() and not InCombatLockdown() then HideUIPanel(SettingsPanel) end
-	if groupIndex then selectedGroup = groupIndex end
+	if groupId then selectedGroup = groupId end
 	win:Show()
 	local last = acct().optionsPage
 	showPage(page or currentPage or (last and pages[last] and last) or "home")
@@ -1740,10 +1749,11 @@ function OP.showExperimental() showAboutSection(aboutExp) end
 function OP.showFeedback() showAboutSection(aboutFeedback) end
 
 
--- From an element's page: Layout with that group selected, scrolled to its settings, which flash.
-function OP.openGroup(gi)
+-- From an element's page: Layout with that group (by id) selected, scrolled to its settings, which
+-- flash.
+function OP.openGroup(id)
 	board.flashPanel = true
-	OP.open("layout", gi)
+	OP.open("layout", id)
 	if groupPanel then scrollTo(groupPanel.page, groupPanel.frame) end
 end
 

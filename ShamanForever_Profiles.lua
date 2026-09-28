@@ -221,6 +221,9 @@ local function cleanProfile(t)
 				end
 				clampNumbers(clean, GROUP_RANGES, GROUP_DEFAULTS)
 				if clean.point and not ns.POINTS[clean.point] then clean.point = nil end
+				-- Ids and names are made whole and unique when the profile loads (sanitize).
+				if type(g.id) == "number" then clean.id = g.id end
+				if type(g.name) == "string" and #g.name <= 64 then clean.name = g.name end
 				clean.border = ns.Style.cleanOwn(g.border, "border")
 				for _, key in ipairs(type(g.members) == "table" and g.members or {}) do
 					if type(key) == "string" then table.insert(clean.members, key) end

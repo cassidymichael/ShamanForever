@@ -978,9 +978,9 @@ function L.buildHero(parent, key)
 		self.shade:SetShown(not minimal)
 		for _, c in ipairs(self.corners) do c:SetShown(not minimal) end
 		if e.tags then self.tags:SetText(e.tags()) else
-			local gi = ns.findElement(key)
+			local g = ns.groupOf(key)
 			local shows = { always = "Always", combat = "In combat", never = "Hidden" }
-			self.tags:SetText(string.format("%s  ·  %s%s", gi and ("Group " .. gi) or "No group", shows[ns.showMode(key)] or "",
+			self.tags:SetText(string.format("%s  ·  %s%s", g and g.name or "Ungrouped", shows[ns.showMode(key)] or "",
 				ns.isLearned(key) and "" or "  ·  Not learned"))
 		end
 		-- A stage can offer only some states (the totem bar's mode): the others hide, the rest close
