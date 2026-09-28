@@ -1407,7 +1407,8 @@ local function paintSlot(s, rec)
 	s.badge:Hide()
 	s.killed:setIcon(icon)
 	s.expired:setIcon(icon)
-	if s.rangeGate then s.rangeGate:SetAlpha(0) end   -- the real strip, under the preview's
+	-- The real strip: our red here, Blizzard's green in the range layout (ShamanForever_TotemRange.lua).
+	if s.rangeGate then s.rangeGate:SetAlpha(0) end
 	local size = look()
 	local strip = s.previewRange
 	if rec.range and c.range and shown then
@@ -1417,7 +1418,8 @@ local function paintSlot(s, rec)
 			strip.bg:SetAllPoints()
 			s.previewRange = strip
 		end
-		strip:SetFrameLevel(s.button:GetFrameLevel() + 12)   -- over Blizzard's part (ShamanForever_TotemRange.lua)
+		-- Over Blizzard's part and its colour (+10 to +12, ShamanForever_TotemRange.lua).
+		strip:SetFrameLevel(s.button:GetFrameLevel() + 14)
 		strip:ClearAllPoints()
 		strip:SetPoint("TOPLEFT", s.button, "TOPLEFT", 0, 0)
 		strip:SetSize(size, ns.linePx(strip, c.rangeHeight))
@@ -1432,7 +1434,7 @@ local function paintSlot(s, rec)
 			mark:SetAllPoints(s.button)
 			s.previewMark = mark
 		end
-		mark:SetFrameLevel(s.button:GetFrameLevel() + 13)
+		mark:SetFrameLevel(s.button:GetFrameLevel() + 15)
 		ns.Preview.fitMark(mark, s.button)
 		mark:Show()
 	elseif mark then mark:Hide() end

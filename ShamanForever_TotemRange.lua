@@ -187,6 +187,9 @@ local function place(s, size, ownOnly)
 	ct:ClearAllPoints()
 	ct:SetPoint("TOPLEFT", gate, "TOPLEFT", 0, 0)
 	ct:SetSize(w, h)
+	-- Clear while preview mode draws the slots (ShamanForever_Preview.lua): a real green strip
+	-- would sit on its picture. Its end lays the bar out again, which brings it back.
+	ct:SetAlpha(ns.Preview.isOn() and 0 or 1)
 	ct:Show()
 	s.rangeShown = true
 	styleButtons(s)
