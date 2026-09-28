@@ -138,10 +138,11 @@ local function eget(key, name) return function() return ns.elementSetting(key, n
 local function eset(key, name) return function(v) ns.elementOpts(key)[name] = v; relayout() end end
 
 -- Standard block: the moment a cooldown ends. A pop, and with glowTip a "use me" glow (off by
--- default).
-local function readyBlock(p, key, glowTip)
+-- default). afterPop: an optional row right after Pop, before the glow (like warningBlock's first).
+local function readyBlock(p, key, glowTip, afterPop)
 	p:header("Ready")
 	p:checkbox("Pop", "The moment the cooldown ends.", eget(key, "readyPop"), eset(key, "readyPop"))
+	if afterPop then afterPop() end
 	if glowTip then p:checkbox("Pulsing glow", glowTip, eget(key, "readyGlow"), eset(key, "readyGlow")) end
 end
 
@@ -371,12 +372,11 @@ local function buildCooldown(p, def)
 	elseif timed then timerSettings(p, "Primed time left", key, "uptime") end
 	if not def.noReady then
 		readyBlock(p, key, def.needsTotem and "While it's off cooldown and a fire totem is down."
-			or def.readyGlow and "While it's off cooldown.")
-		if def.needsTotem then
-			p:dropdown("Without a fire totem", "The pop when the cooldown ends with no fire totem down.",
-				{ { "grey", "Greyed pop" }, { "none", "Nothing" } }, eget(key, "readyNoTotem"), eset(key, "readyNoTotem"),
-				showWhen(eget(key, "readyPop")), 150)
-		end
+			or def.readyGlow and "While it's off cooldown.", def.needsTotem and function()
+				p:dropdown("Without a fire totem", "The pop when the cooldown ends with no fire totem down.",
+					{ { "grey", "Greyed pop" }, { "none", "Nothing" } }, eget(key, "readyNoTotem"), eset(key, "readyNoTotem"),
+					showWhen(eget(key, "readyPop")), 150)
+			end or nil)
 	end
 	if def.primed then primedBlock(p, def) end
 	if (def.needsTotem or def.totemSlot or timed) and def.expireLooks ~= false then
