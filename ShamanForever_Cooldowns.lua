@@ -554,8 +554,11 @@ end)
 ------------------------------------------------------------------------
 local hasTimeLeftCurve = ns.CURVE_LIVE
 -- 1 while the spell is off cooldown (possibly secret: only ever handed to SetAlpha). Its own
--- cooldown, without the GCD (ignoreGCD), so the glow doesn't blink with every cast.
+-- cooldown, without the GCD (ignoreGCD), so the glow doesn't blink with every cast. 0 while the
+-- player can't act (dead, a ghost, on a flight path): "use me" then asks for a cast that can't be
+-- made. Not IsSpellUsable, which would also take the glow away when mana runs short.
 local function readyAlpha(spellID)
+	if ns.cantAct() then return 0 end
 	local ok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID, true)
 	if not (ok and dur) then return 1 end   -- no cooldown running
 	local rok, r = ns.try("ready glow", dur.EvaluateRemainingDuration, dur, ns.CURVE_OVER)
