@@ -2,8 +2,10 @@
 -- it, in a typical moment instead of its real state, so it can be arranged out of combat without a
 -- fight, the spells or the right buffs. Every element keeps its group, place, size, border and
 -- styles, and shows the states of its options preview (ShamanForever_OptionsLook.lua, L.PREVIEW: the
--- same drawing code) on a stand-in icon over it. It paints fixed values and reads nothing; nothing
--- is saved. It ends when combat starts, and a layout and a full read put the real HUD back at once.
+-- same drawing code) on a stand-in icon over it. It paints fixed states instead of the real ones,
+-- reading only settings and, out of combat, the totem bar's picks and known totems and whether the
+-- shield is up; nothing is saved. It ends when combat starts, and a layout and a full read put the
+-- real HUD back at once.
 --
 -- A small panel picks the scene (out of combat: most things ready and idle, a buff to renew, what
 -- shows only in combat hidden; in combat: cooldowns and totems running, all of it shown), how busy
