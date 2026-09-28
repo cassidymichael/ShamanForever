@@ -15,7 +15,9 @@
 -- * A buff lingers a few seconds after you leave a totem's range, so "out of range" shows late.
 -- * Totems that give you no buff (Searing, Earthbind, Tremor, ...) get no mark.
 -- * The same buff from two shamans doesn't stack: when another shaman's is the one on you, yours
---   reads out of range. Showing theirs too (a third colour) doesn't work:
+--   would read out of range while you stand on it. So the red stays off while another shaman is in
+--   your group (your party, or your subgroup in a raid: totems reach only that), and a member whose
+--   class can't be read counts as one. Showing their buff (a third colour) doesn't work either:
 --   Blizzard's parts can't be hidden in combat, so it also showed on slots holding other totems.
 
 local _, ns = ...
@@ -62,6 +64,37 @@ for el, list in pairs(BUFF_TOTEMS) do
 end
 
 local function enabled() return ns.getDB() ~= nil and TB.cfg().range end
+
+-- Another shaman in your group (see the header), worked out when the group changes. Anything that
+-- can't be read counts the careful way: a class as a shaman's, a subgroup as ours.
+local otherShaman = false
+local function plainValue(ok, v)
+	if ok and not isSecret(v) then return v end
+end
+local function isShamanUnit(unit)
+	local class = plainValue(pcall(function() return select(2, UnitClass(unit)) end))
+	return type(class) ~= "string" or class == "SHAMAN"
+end
+local function findOtherShaman()
+	if IsInRaid() then
+		local n, me, sub = GetNumGroupMembers(), nil, {}
+		for i = 1, n do
+			sub[i] = plainValue(pcall(function() return select(3, GetRaidRosterInfo(i)) end))
+			if plainValue(pcall(UnitIsUnit, "raid" .. i, "player")) then me = i end
+		end
+		local mine = me and sub[me]
+		for i = 1, n do
+			if i ~= me and (not mine or not sub[i] or sub[i] == mine) and isShamanUnit("raid" .. i) then return true end
+		end
+		return false
+	end
+	for i = 1, 4 do
+		local unit = "party" .. i
+		if plainValue(pcall(UnitExists, unit)) ~= false and isShamanUnit(unit) then return true end
+	end
+	return false
+end
+function R.otherShaman() return otherShaman end   -- for /sf debug
 
 local function isBuffTotem(el, id)
 	if type(id) ~= "number" or isSecret(id) then return false end
@@ -260,7 +293,8 @@ end
 -- without it the red would say "out of range" all the time.
 function R.refresh(s)
 	if not s.rangeGate then return end
-	local on = s.down and enabled() and partLive(s) and isBuffTotem(s.el, ns.Totems.downSpell(s.slot))
+	local on = s.down and enabled() and not otherShaman and partLive(s)
+		and isBuffTotem(s.el, ns.Totems.downSpell(s.slot))
 	s.rangeGate:SetAlpha(on and 1 or 0)
 	R.drawTimeLeft(s)
 end
@@ -279,4 +313,14 @@ end
 
 local ev = CreateFrame("Frame")
 ns.registerEvent(ev, "UNIT_AURA", "player")
-ev:SetScript("OnEvent", learn)
+ns.registerEvent(ev, "GROUP_ROSTER_UPDATE")
+ns.registerEvent(ev, "PLAYER_ENTERING_WORLD")
+ev:SetScript("OnEvent", function(_, event)
+	if event == "UNIT_AURA" then learn() return end
+	if not TB.isShaman() then return end
+	local was = otherShaman
+	otherShaman = findOtherShaman()
+	if otherShaman ~= was then
+		for _, el in ipairs(TB.ELEMENTS) do R.refresh(TB.slots[el]) end
+	end
+end)

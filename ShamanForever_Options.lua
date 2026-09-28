@@ -1120,7 +1120,7 @@ local function buildTotemBar(p)
 		tget("rangeHeight"), tset("rangeHeight"), showWhen(rangeOn))
 	p:color("In range", "Colour and opacity.", tget("rangeIn"), tset("rangeIn"), showWhen(rangeOn))
 	p:color("Out of range", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"), showWhen(rangeOn))
-	p:text("A buff lingers a few seconds after you leave its range. Another shaman's totem of the same type can replace your buff, so yours shows as out of range.", rangeOn)
+	p:text("A buff lingers a few seconds after you leave its range. Off while another shaman is in your group: their buff can replace yours.", rangeOn)
 
 	p:header("Expiring")
 	local WARN = { grey = "warnGrey", ring = "warnRing", pulse = "warnPulse", glow = "warnGlow" }
