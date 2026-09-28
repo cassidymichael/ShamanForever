@@ -15,8 +15,8 @@
 --   shows is changed. Every layout puts it back in its group first; this file parks it again after.
 -- * The shield and Elemental Focus hold Blizzard's protected aura button, and a frame holding it
 --   takes no change in combat: parked, it could stay hidden for a fight. They are never parked. Their
---   stand-in sits over the button, and the shield's module keeps its underlay in its "up" look
---   meanwhile (ShamanForever_Shield.lua).
+--   stand-in sits over the button, and meanwhile the shield's module keeps its underlay in its "up"
+--   look (ShamanForever_Shield.lua) and Elemental Focus's clears its icon (ShamanForever_Buffs.lua).
 -- * The totem bar holds secure buttons: it draws the preview's states on its own slots
 --   (ShamanForever_TotemBar.lua), and shows or hides only in its layout, out of combat.
 -- Stand-ins hang from frames of their own that take their group's scale and opacity, not from the
@@ -482,6 +482,7 @@ function PV.open()
 	-- As for positioning: the options window steps aside unless it's kept open, and comes back after.
 	optionsAside = not ns.getAccount().keepOptionsOpen and ns.Options.hide() or false
 	restart()
+	ns.Buffs.preview(true)
 	ns.TotemBar.preview({ combat = opts.combat, all = opts.unlearned })
 	ns.applyLayout()   -- elements not learned yet too; every layout repaints (PV.afterGroups)
 	panel:Show()
@@ -503,6 +504,7 @@ function PV.close(forCombat)
 	wipe(barRuns)
 	unparkAll()
 	ns.Shield.preview(nil)
+	ns.Buffs.preview(false)
 	ns.TotemBar.preview(nil)
 	ns.applyLayout()
 	ns.refreshAll()
