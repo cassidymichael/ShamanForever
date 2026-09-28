@@ -129,7 +129,7 @@ end
 ------------------------------------------------------------------------
 local breathing = false   -- the breath bar is draining (under water)
 local function breathWarn(def)
-	return def.breath and breathing and not def.upUntil and setting(def.key, "breathWarn")
+	return def.breath and breathing and not def.upUntil and setting(def.key, "breathWarn") and not ns.cantAct()
 end
 
 ------------------------------------------------------------------------
@@ -313,6 +313,7 @@ end
 
 function B.start()
 	readBreath()   -- already under water (a /reload)
+	ns.onCanActChange(refreshAll)   -- no breath warning while dead or a ghost
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "UNIT_AURA", "player")
 	ns.registerEvent(ev, "MIRROR_TIMER_START")
