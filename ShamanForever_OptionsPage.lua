@@ -58,10 +58,15 @@ function Page.new(win, key, title, indent)
 	local content = CreateFrame("Frame", nil, scroll)
 	content:SetSize(ROW_W, 1)
 	scroll:SetScrollChild(content)
-	scroll:SetScript("OnSizeChanged", function(_, w)
+	-- The scroll frame's hold on its child (the scroll range, and the area where the child's rows
+	-- take clicks) updated after every resize and reflow, as Blizzard's own pages do after a layout,
+	-- so rows a taller window or a longer page brings into view can be clicked.
+	scroll:SetScript("OnSizeChanged", function(self, w)
 		content:SetWidth(w)
+		self:UpdateScrollChildRect()
 		ns.Options.refresh()
 	end)
+	content:SetScript("OnSizeChanged", function() scroll:UpdateScrollChildRect() end)
 	scroll:Hide()
 	return setmetatable({ win = win, key = key, title = title, indent = indent, scroll = scroll, content = content,
 		items = {} }, Page)
