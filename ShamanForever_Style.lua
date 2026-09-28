@@ -30,9 +30,10 @@ function S.addUser(kind, owner)
 end
 
 S.register("glow", {
-	-- Colour, one pulse's length (s), the dimmest it gets between pulses, and how far in from the
-	-- edges it reaches (share of the icon). Killed early's glow keeps its red.
-	defaults = { color = { 1, 0.8, 0.25, 1 }, speed = 0.5, low = 0.25, width = 0.2 },
+	-- Its look (S.addLook; ShamanForever_Looks.lua), colour, one pulse's length (s), the dimmest it
+	-- gets between pulses, and how far in from the edges it reaches (share of the icon). Killed
+	-- early's glow keeps its red.
+	defaults = { look = "edges", color = { 1, 0.8, 0.25, 1 }, speed = 0.5, low = 0.25, width = 0.2 },
 	path = { "glowStyle" },
 })
 S.register("pop", {
@@ -56,11 +57,11 @@ S.register("border", {
 	path = { "border" },
 })
 
--- Looks: named ways of drawing a kind (a border's lines or art), picked by the kind's `look` field
--- through the same resolution as its other fields (General, then an owner's own). Each is a data
--- entry that the kind's drawing code reads (ShamanForever_Looks.lua); the options offer them in
--- the order they were added. entry: name (as the options show it) and the fields the drawing reads.
--- The kind's default look is added first.
+-- Looks: named ways of drawing a kind (a border's lines or art, a glow), picked by the
+-- kind's `look` field through the same resolution as its other fields (General, then an owner's
+-- own). Each is a data entry that the kind's drawing code reads (ShamanForever_Looks.lua); the
+-- options offer them in the order they were added. entry: name (as the options show it) and the
+-- fields the drawing reads. The kind's default look is added first.
 S.LOOKS = {}
 function S.addLook(kind, key, entry)
 	local l = S.LOOKS[kind] or { order = {}, byKey = {} }

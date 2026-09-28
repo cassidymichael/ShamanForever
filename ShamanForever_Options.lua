@@ -178,13 +178,16 @@ local function glowBlock(p, owner, icon)
 	ic:SetPoint("LEFT", f, "LEFT", LABEL_W + 24, 0)
 	ic.tex:SetTexture(icon)
 	p:add(f, 64, own, function() ns.applyBorder(ic, previewBorder(owner)); ic:SetGlowShown(true) end)
-	p:color("Colour", "Colour and opacity. Killed early, Grounded and Ran out keep their own colours.", r.get("color"), r.set("color"), own)
+	local look = lookRows(p, r, "glow", "Look", "Glow looks", own)
+	p:text("Elemental Focus changes glow after a /reload.", showWhen(ns.auraGlowStale, own))
+	local function uses(field) return showWhen(function() return look().uses[field] end, own) end
+	p:color("Colour", "Colour and opacity. Killed early, Grounded and Ran out keep their own colours.", r.get("color"), r.set("color"), uses("color"))
 	p:slider("Pulse length", "One pulse, in seconds.", 0.2, 2, 0.1, function(v) return string.format("%.1f s", v) end,
-		r.get("speed"), r.set("speed"), own)
+		r.get("speed"), r.set("speed"), uses("speed"))
 	local setLow = r.set("low")
 	p:slider("Pulse depth", "How much it fades between pulses. 0% is steady.", 0, 1, 0.05, pct,
-		function() return 1 - r.style().low end, function(v) setLow(1 - v) end, own)
-	p:slider("Thickness", "How far in from the edges it reaches.", 0.1, 0.5, 0.05, pct, r.get("width"), r.set("width"), own)
+		function() return 1 - r.style().low end, function(v) setLow(1 - v) end, uses("low"))
+	p:slider("Thickness", "How far in from the edges it reaches.", 0.1, 0.5, 0.05, pct, r.get("width"), r.set("width"), uses("width"))
 	if owner == nil then ownLine(p, "glow") end
 end
 
@@ -519,6 +522,7 @@ local function buildAbout(p)
 		if e.experimental then p:experimental(e.experimental, "Elements > " .. e.label) end
 	end
 	if ns.Looks.anyExperimental("border") then p:experimental("Border looks", "General > Border") end
+	if ns.Looks.anyExperimental("glow") then p:experimental("Glow looks", "General > Pulsing glow style") end
 	gap()
 	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..

@@ -160,15 +160,22 @@ end
 
 -- A pulsing glow inside an icon: soft light running in from its four edges, over the icon's art and
 -- inside its border, breathing. `over` is the icon it covers (default: the parent). Its style is its
--- owner's (an element key or "totembar"; nil for General's): colour, pulse length, pulse depth (low
--- is the dimmest it gets) and thickness (how far in it reaches, as a share of the icon).
--- fit(size) lays it out for an icon of that size.
+-- owner's (an element key or "totembar"; nil for General's): its look (the four edges, or one of
+-- ns.Looks' glow looks), colour, pulse length, pulse depth (low is the dimmest it gets) and
+-- thickness (how far in it reaches, as a share of the icon). fit(size) lays it out for an icon of
+-- that size.
 local glows = {}
 -- unlisted: left out of ns.applyGlowStyle, for a glow under Blizzard's aura button, which its owner
--- restyles only when that's allowed (out of combat, auras not secret).
+-- restyles only when that's allowed (out of combat, auras not secret). It keeps the look it had as
+-- the button was made (until a /reload; ns.auraGlowStale), and allAnims() lists what the button
+-- must play for it (script handlers under the button never run, so its OnShow can't).
+local auraGlows = {}
 local function makeGlow(parent, over, owner, unlisted)
 	local g = CreateFrame("Frame", nil, parent)
 	g.owner = owner
+	-- The icon whose frame and school its looks follow; never Blizzard's aura button (it and its
+	-- parts are off limits in combat): an unlisted glow takes its owner's school and no frame.
+	g.over = not unlisted and (over or parent) or nil
 	if not unlisted then table.insert(glows, g) end
 	g:SetAllPoints(over or parent)
 	g:EnableMouse(false)
@@ -185,31 +192,83 @@ local function makeGlow(parent, over, owner, unlisted)
 	g.anim:SetLooping("BOUNCE")
 	g.fade = g.anim:CreateAnimation("Alpha")
 	g.fade:SetFromAlpha(1); g.fade:SetSmoothing("IN_OUT")
-	g:SetScript("OnShow", function(self) self.anim:Play() end)
-	g:SetScript("OnHide", function(self) self.anim:Stop() end)
+	g.parts = {}   -- look key -> the regions and animations it made (ns.Looks), or false
+	-- A look's parts, made on first use; one the client refuses falls back to the four edges.
+	local function parts(look)
+		if not look.build then return nil end
+		local p = g.parts[look.key]
+		if p == nil then
+			local ok, made = ns.try("glow look " .. look.key, look.build, g)
+			p = ok and made or false
+			for _, r in ipairs(p and p.roots or {}) do r:Hide() end
+			g.parts[look.key] = p
+		end
+		return p or nil
+	end
+	if unlisted then table.insert(auraGlows, g) end
+	local function play(self, on)
+		local p = self.look and self.parts[self.look.key]
+		if on then
+			self.anim:Play()
+			for _, a in ipairs(p and p.anims or {}) do a:Play() end
+		else
+			self.anim:Stop()
+			for _, a in ipairs(p and p.anims or {}) do a:Stop() end
+			for _, a in ipairs(p and p.stop or {}) do a:Stop() end
+		end
+	end
+	g:SetScript("OnShow", function(self) play(self, true) end)
+	g:SetScript("OnHide", function(self) play(self, false) end)
+	-- Every animation group Blizzard's aura button must play for this glow (unlisted glows).
+	function g:allAnims()
+		local out = { self.anim }
+		local p = parts(self.look)
+		for _, a in ipairs(p and p.aura or {}) do table.insert(out, a) end
+		return out
+	end
 	-- The owner's style; a fixed colour (killed early's red) wins over its colour.
 	function g:restyle()
 		local st = ns.Style.get(self.owner, "glow")
+		local look = unlisted and self.look or ns.Style.look("glow", st.look)
+		if look ~= self.look then
+			local running = self.look ~= nil and self:IsShown()
+			if running then play(self, false) end
+			local old = self.look and self.parts[self.look.key]
+			for _, r in ipairs(old and old.roots or {}) do r:Hide() end
+			self.look, self.fitWidth = look, nil   -- lay the new look out at the next fit
+			local p = parts(look)
+			for _, r in ipairs(p and p.roots or {}) do r:Show() end
+			for _, t in pairs(self.edges) do t:SetShown(p == nil) end
+			if running then play(self, true) end
+		end
 		self.width = st.width   -- kept for fit, which the ready glows call ten times a second
 		-- A running pulse restarts only when its timing changed, so other changes don't make it jump.
 		local retime = st.speed ~= self.speed or st.low ~= self.low
 		self.speed, self.low = st.speed, st.low
 		self.fade:SetDuration(st.speed)
-		self.fade:SetToAlpha(st.low)
+		self.fade:SetToAlpha(look.steady and 1 or st.low)
 		local k = self.fixed or st.color
-		local on, off = CreateColor(k[1], k[2], k[3], k[4] or 1), CreateColor(k[1], k[2], k[3], 0)
-		local e = self.edges
-		-- Bright at the edge, clear inward (vertical gradients run bottom to top, horizontal left to right).
-		e.TOP:SetGradient("VERTICAL", off, on)
-		e.BOTTOM:SetGradient("VERTICAL", on, off)
-		e.LEFT:SetGradient("HORIZONTAL", on, off)
-		e.RIGHT:SetGradient("HORIZONTAL", off, on)
+		local p = parts(look)
+		if p then look.style(self, p, st, k)
+		else
+			local on, off = CreateColor(k[1], k[2], k[3], k[4] or 1), CreateColor(k[1], k[2], k[3], 0)
+			local e = self.edges
+			-- Bright at the edge, clear inward (vertical gradients run bottom to top, horizontal left to right).
+			e.TOP:SetGradient("VERTICAL", off, on)
+			e.BOTTOM:SetGradient("VERTICAL", on, off)
+			e.LEFT:SetGradient("HORIZONTAL", on, off)
+			e.RIGHT:SetGradient("HORIZONTAL", off, on)
+		end
 		if self.iconSize then self:fit(self.iconSize) end
 		if retime and self:IsShown() then self.anim:Stop(); self.anim:Play() end
 	end
+	-- out: how far the icon's frame reaches past its edge (looks drawn outside it start there).
 	function g:fit(size)
-		if size == self.iconSize and self.width == self.fitWidth then return end
-		self.iconSize, self.fitWidth = size, self.width
+		local out = ns.Looks.outerEdge(self.over)
+		if size == self.iconSize and self.width == self.fitWidth and out == self.fitOut then return end
+		self.iconSize, self.fitWidth, self.fitOut = size, self.width, out
+		local p = parts(self.look)
+		if p then self.look.fit(self, p, size, out) return end
 		local th = math.max(size * (self.width or 0.2), 1)
 		local e = self.edges
 		for _, t in pairs(e) do t:ClearAllPoints() end
@@ -225,6 +284,14 @@ local function makeGlow(parent, over, owner, unlisted)
 end
 ns.makeGlow = makeGlow
 function ns.applyGlowStyle() for _, g in ipairs(glows) do g:restyle() end end
+-- Whether a glow under Blizzard's aura button has a look other than its owner's now: it changes
+-- after a /reload (the options say so).
+function ns.auraGlowStale()
+	for _, g in ipairs(auraGlows) do
+		if g.look ~= ns.Style.look("glow", ns.Style.get(g.owner, "glow").look) then return true end
+	end
+	return false
+end
 
 -- Pop: the burst when something happens (a cooldown ready, an imbue dropping, a totem ending).
 -- Its style is its owner's (General's, or an element's or the totem bar's own): a motion (grow,

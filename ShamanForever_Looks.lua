@@ -2,6 +2,7 @@
 -- style's `look` field picks, and the shared pieces that draw them:
 --   frame      the edge around an icon, in its border's look (rings of lines, corner caps, art
 --              over or around the icon, a mask on the icon's picture)
+--   glow       the pulsing glow's looks past the default four edges (ns.makeGlow calls in)
 --   burster    textures that grow and fade over a pop's short life
 -- Our own media are named by path, never by file ID: the client gives our loose files IDs that
 -- change between client starts (tested 2026-09-28). Blizzard's art is named by atlas and checked
@@ -433,3 +434,285 @@ function Looks.burster(driver)
 	end
 	return B
 end
+
+------------------------------------------------------------------------
+-- Glow looks. The default, "edges", is ns.makeGlow's own four gradients. Each other look is an
+-- entry with:
+--   uses      the glow style's fields it reads (color, speed, low, width); the options show those
+--   steady    it doesn't breathe (the glow's pulse is off; speed may time its own motion)
+--   build(g)  its regions and animation groups, under g.inner (breathing) or g (not); returns
+--             parts: { roots = { frames }, anims = { groups played while it shows }, aura = { the
+--             groups Blizzard's aura button plays in their place, when the glow is under it } }
+--   style(g, parts, st, c)       colours and timing; c is the colour (st.color or a fixed one)
+--   fit(g, parts, size, out)     sizes for an icon of size, whose frame reaches out past its edge
+------------------------------------------------------------------------
+local GOLD_GLOW = { 1, 0.8, 0.25 }   -- the glow's default colour (ns.Style "glow")
+local ACTIVE_GLOW = "UI-CooldownManager-ActiveGlow"
+local PROC_START, PROC_LOOP = "UI-HUD-ActionBar-Proc-Start-Flipbook", "UI-HUD-ActionBar-Proc-Loop-Flipbook"
+
+local function root(parent)
+	local r = CreateFrame("Frame", nil, parent)
+	r:SetAllPoints()
+	r:EnableMouse(false)
+	return r
+end
+local function light(c) return c[1] * 0.5 + 0.5, c[2] * 0.5 + 0.5, c[3] * 0.5 + 0.5 end
+
+-- A group of one animation of kind on region, looping ("REPEAT", "BOUNCE") or not.
+local function anim(region, kind, looping)
+	local g = region:CreateAnimationGroup()
+	if looping then g:SetLooping(looping) end
+	return g, g:CreateAnimation(kind)
+end
+-- A FlipBook: a sheet of rows x cols frames played in order (on atlases and our files, in
+-- combat, on schedule: tested 2026-09-28), shown only while it plays.
+local function flipBook(tex, rows, cols, frames, dur, looping)
+	local g, f = anim(tex, "FlipBook", looping)
+	f:SetFlipBookRows(rows)
+	f:SetFlipBookColumns(cols)
+	f:SetFlipBookFrames(frames)
+	f:SetFlipBookFrameWidth(0)
+	f:SetFlipBookFrameHeight(0)
+	f:SetDuration(dur)
+	local show = g:CreateAnimation("Alpha")
+	show:SetFromAlpha(1); show:SetToAlpha(1); show:SetDuration(dur)
+	tex:SetAlpha(0)
+	g.flip, g.show = f, show
+	return g
+end
+
+-- The soft inner glow (B1): one texture, sliced so Thickness sets how far in it reaches; its
+-- corners fall off as evenly as its sides.
+local SOFT_MARGIN = 16
+local function softPart(parent, alpha)
+	local h = CreateFrame("Frame", nil, parent)
+	h:EnableMouse(false)
+	h.tex = h:CreateTexture(nil, "OVERLAY")
+	h.tex:SetAllPoints()
+	h.tex:SetTexture(MEDIA .. "Glow-Inner")
+	h.tex:SetTextureSliceMargins(SOFT_MARGIN, SOFT_MARGIN, SOFT_MARGIN, SOFT_MARGIN)
+	h.tex:SetTextureSliceMode(STRETCHED)
+	h.tex:SetBlendMode("ADD")
+	h.alpha = alpha or 1
+	return h
+end
+local function styleSoft(h, c) h.tex:SetVertexColor(c[1], c[2], c[3], (c[4] or 1) * h.alpha) end
+local function fitSoft(g, h, size, width)
+	local th = math.min(math.max(size * (width or 0.2), 1), size * 0.45)
+	local k = th / SOFT_MARGIN
+	h:SetScale(k)
+	h:SetSize(size / k, size / k)
+	h:ClearAllPoints()
+	h:SetPoint("CENTER", g, "CENTER", 0, 0)
+end
+
+local soft = {
+	uses = { color = true, speed = true, low = true, width = true },
+	build = function(g)
+		local r = root(g.inner)
+		return { roots = { r }, soft = softPart(r) }
+	end,
+	style = function(g, parts, st, c) styleSoft(parts.soft, c) end,
+	fit = function(g, parts, size) fitSoft(g, parts.soft, size, g.width) end,
+}
+
+-- A halo outside the frame (B2), from the Cooldown Manager's active glow; the soft inner glow on a
+-- client without it.
+local halo = {
+	uses = { color = true, speed = true, low = true },
+	build = function(g)
+		if not Looks.hasAtlas(ACTIVE_GLOW) then
+			local parts = soft.build(g)
+			parts.fallback = true
+			return parts
+		end
+		local r = root(g.inner)
+		local t = r:CreateTexture(nil, "OVERLAY")
+		t:SetAtlas(ACTIVE_GLOW)
+		t:SetDesaturated(true)
+		t:SetBlendMode("ADD")
+		local grow, s = anim(t, "Scale", "BOUNCE")
+		s:SetScaleFrom(1, 1); s:SetScaleTo(1.07, 1.07); s:SetSmoothing("IN_OUT")
+		return { roots = { r }, halo = t, grow = grow, scale = s, anims = { grow }, aura = { grow } }
+	end,
+	style = function(g, parts, st, c)
+		if parts.fallback then return soft.style(g, parts, st, c) end
+		parts.halo:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
+		parts.scale:SetDuration(st.speed)
+	end,
+	fit = function(g, parts, size, out)
+		if parts.fallback then return soft.fit(g, parts, size) end
+		local d = out + size * 0.24
+		parts.halo:ClearAllPoints()
+		parts.halo:SetPoint("TOPLEFT", g, "TOPLEFT", -d, d)
+		parts.halo:SetPoint("BOTTOMRIGHT", g, "BOTTOMRIGHT", d, -d)
+	end,
+}
+
+-- Blizzard's action bar proc glow (B3): a burst that settles into a ring of moving light, in its
+-- own gold unless the glow's colour is changed. Under Blizzard's aura button only the ring plays
+-- (script handlers there never run, so nothing can start it when the burst ends).
+local proc = {
+	uses = { color = true }, steady = true,
+	build = function(g)
+		if not (Looks.hasAtlas(PROC_START) and Looks.hasAtlas(PROC_LOOP)) then
+			local parts = soft.build(g)
+			parts.fallback = true
+			return parts
+		end
+		local r = root(g.inner)
+		local start, loop = r:CreateTexture(nil, "OVERLAY"), r:CreateTexture(nil, "OVERLAY")
+		start:SetAtlas(PROC_START)
+		loop:SetAtlas(PROC_LOOP)
+		local startG, loopG = flipBook(start, 6, 5, 30, 0.7), flipBook(loop, 6, 5, 30, 1, "REPEAT")
+		startG:SetScript("OnFinished", function() if r:IsVisible() then loopG:Play() end end)
+		return { roots = { r }, start = start, loop = loop, anims = { startG }, aura = { loopG }, stop = { loopG } }
+	end,
+	style = function(g, parts, st, c)
+		if parts.fallback then return soft.style(g, parts, st, c) end
+		local own = not g.fixed and c[1] == GOLD_GLOW[1] and c[2] == GOLD_GLOW[2] and c[3] == GOLD_GLOW[3]
+		for _, t in ipairs({ parts.start, parts.loop }) do
+			t:SetDesaturated(not own)
+			if own then t:SetVertexColor(1, 1, 1, c[4] or 1) else t:SetVertexColor(c[1], c[2], c[3], c[4] or 1) end
+		end
+	end,
+	fit = function(g, parts, size, out)
+		if parts.fallback then return soft.fit(g, parts, size) end
+		local s = size + 2 * out
+		parts.start:SetSize(s * 150 / 45, s * 150 / 45)
+		parts.start:SetPoint("CENTER", g, "CENTER", 0, 0)
+		parts.loop:SetSize(s * 1.4, s * 1.4)
+		parts.loop:SetPoint("CENTER", g, "CENTER", 0, 0)
+	end,
+}
+
+-- Two sparks running round the edge (B4) over a faint steady inner glow, in Translation steps
+-- (one a side); Pulse length sets how long a lap takes (a quarter of it a side, times 3.2).
+local SPARK_PATH = { { 1, 0 }, { 0, -1 }, { -1, 0 }, { 0, 1 } }   -- from the top left, clockwise
+local spark = {
+	uses = { color = true, speed = true, width = true }, steady = true,
+	build = function(g)
+		local r = root(g.inner)
+		local parts = { roots = { r }, soft = softPart(r, 0.45), sparks = {}, anims = {} }
+		for i, corner in ipairs({ "TOPLEFT", "BOTTOMRIGHT" }) do
+			local t = r:CreateTexture(nil, "OVERLAY", nil, 1)
+			t:SetTexture(MEDIA .. "Spark")
+			t:SetBlendMode("ADD")
+			local grp = t:CreateAnimationGroup()
+			grp:SetLooping("REPEAT")
+			t.steps = {}
+			for n = 1, 4 do
+				local a = grp:CreateAnimation("Translation")
+				a:SetOrder(n)
+				t.steps[n] = a
+			end
+			t.corner, t.dir = corner, i == 1 and 1 or -1
+			parts.sparks[i] = t
+			table.insert(parts.anims, grp)
+		end
+		parts.aura = parts.anims
+		return parts
+	end,
+	style = function(g, parts, st, c)
+		styleSoft(parts.soft, c)
+		for _, t in ipairs(parts.sparks) do
+			local red, gr, b = light(c)
+			t:SetVertexColor(red, gr, b, c[4] or 1)
+			for _, a in ipairs(t.steps) do a:SetDuration(st.speed * 0.8) end
+		end
+	end,
+	fit = function(g, parts, size)
+		fitSoft(g, parts.soft, size, g.width)
+		for _, t in ipairs(parts.sparks) do
+			t:SetSize(size * 0.5, size * 0.5)
+			t:ClearAllPoints()
+			t:SetPoint("CENTER", g, t.corner, 0, 0)
+			for n, a in ipairs(t.steps) do
+				local step = SPARK_PATH[n]
+				a:SetOffset(step[1] * size * t.dir, step[2] * size * t.dir)
+			end
+		end
+	end,
+}
+
+-- The inner glow carrying its school's texture (B5), drifting. The texture is larger than the icon
+-- and slides one tile under a mask of the glow's shape, which stays put. Whether a mask holds still
+-- while its texture moves is untested: if it doesn't, the texture shows still.
+local MATERIAL = {   -- school -> tile move (in tiles), seconds a tile
+	earth = { 0, 0, 1 }, fire = { 0, 1, 2.2 }, water = { 1, -1, 5 }, air = { 1, 0, 1.2 }, spirit = { 1, -1, 5 },
+}
+local material = {
+	uses = { color = true, speed = true, low = true, width = true },
+	build = function(g)
+		local r = root(g.inner)
+		local parts = { roots = { r }, soft = softPart(r, 0.35) }
+		local t = r:CreateTexture(nil, "OVERLAY", nil, 1)
+		t:SetBlendMode("ADD")
+		local m = r:CreateMaskTexture()
+		m:SetTexture(MEDIA .. "Glow-Inner", CLAMP, CLAMP)
+		m:SetAllPoints(g)
+		t:AddMaskTexture(m)
+		local drift, a = anim(t, "Translation", "REPEAT")
+		parts.mat, parts.drift, parts.move, parts.anims, parts.aura = t, drift, a, { drift }, { drift }
+		return parts
+	end,
+	style = function(g, parts, st, c)
+		styleSoft(parts.soft, c)
+		local school = schoolOf(g.over or g)
+		parts.school = school
+		parts.mat:SetTexture(MEDIA .. "Mat-" .. school:sub(1, 1):upper() .. school:sub(2), "REPEAT", "REPEAT")
+		parts.mat:SetTexCoord(0, 3, 0, 3)
+		parts.mat:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
+		parts.move:SetDuration((MATERIAL[school] or MATERIAL.spirit)[3])
+	end,
+	fit = function(g, parts, size)
+		fitSoft(g, parts.soft, size, g.width)
+		local mv = MATERIAL[parts.school or "spirit"] or MATERIAL.spirit
+		parts.mat:SetSize(size * 3, size * 3)
+		parts.mat:ClearAllPoints()
+		parts.mat:SetPoint("CENTER", g, "CENTER", 0, 0)
+		parts.move:SetOffset(mv[1] * size, mv[2] * size)
+	end,
+}
+
+-- A steady inner glow and a ring that swells out from the frame's edge (B6), like a ping: the
+-- glow breathes with the pulse settings, the ring every 1.8 pulse lengths.
+local heartbeat = {
+	uses = { color = true, speed = true, low = true, width = true },
+	build = function(g)
+		local r, o = root(g.inner), root(g)
+		local ring = o:CreateTexture(nil, "OVERLAY")
+		ring:SetTexture(MEDIA .. "Glow-Outer")
+		ring:SetBlendMode("ADD")
+		local beat = ring:CreateAnimationGroup()
+		beat:SetLooping("REPEAT")
+		local s = beat:CreateAnimation("Scale")
+		s:SetScaleFrom(0.9, 0.9); s:SetScaleTo(1.65, 1.65); s:SetSmoothing("OUT")
+		local a = beat:CreateAnimation("Alpha")
+		a:SetFromAlpha(0.9); a:SetToAlpha(0); a:SetSmoothing("OUT")
+		return { roots = { r, o }, soft = softPart(r, 0.6), ring = ring, beat = { s, a }, anims = { beat }, aura = { beat } }
+	end,
+	style = function(g, parts, st, c)
+		styleSoft(parts.soft, c)
+		parts.ring:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
+		for _, a in ipairs(parts.beat) do a:SetDuration(st.speed * 1.8) end
+	end,
+	fit = function(g, parts, size, out)
+		fitSoft(g, parts.soft, size, g.width)
+		local s = (size + 2 * out) / 0.68   -- the texture's hollow is 68% of it
+		parts.ring:SetSize(s, s)
+		parts.ring:SetPoint("CENTER", g, "CENTER", 0, 0)
+	end,
+}
+
+local function addGlow(key, name, entry)
+	entry.name, entry.experimental = name, key ~= "edges" or nil
+	S.addLook("glow", key, entry)
+end
+addGlow("edges", "Edges", { uses = { color = true, speed = true, low = true, width = true } })
+addGlow("soft", "Soft inner", soft)
+addGlow("halo", "Outer halo", halo)
+addGlow("proc", "Proc glow", proc)
+addGlow("spark", "Travelling spark", spark)
+addGlow("material", "School material", material)
+addGlow("heartbeat", "Heartbeat", heartbeat)
