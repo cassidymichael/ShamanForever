@@ -120,13 +120,13 @@ local function stepCurve(points)
 	for i = 1, #points, 2 do c:AddPoint(points[i], points[i + 1]) end
 	return c
 end
--- A Step colour curve: colour a below x, colour b from x up.
+-- A Step colour curve: colour a below x, colour b from x up (x under 1).
 local function colorStep(x, a, b)
 	if not (C_CurveUtil and C_CurveUtil.CreateColorCurve and CreateColor) then return nil end
 	local c = C_CurveUtil.CreateColorCurve()
 	c:SetType(STEP)
 	c:AddPoint(0, CreateColor(a[1], a[2], a[3], a[4] or 1))
-	c:AddPoint(math.min(x, 1), CreateColor(b[1], b[2], b[3], b[4] or 1))
+	c:AddPoint(x, CreateColor(b[1], b[2], b[3], b[4] or 1))
 	return c
 end
 
@@ -412,7 +412,7 @@ function M.placeRows(ic, picks)
 end
 
 -- The picks as the HUD counts them: known spells only, each with its curves (rebuilt when its cost
--- or max mana changes). Each: { id, icon, rank, cost, curve, few }.
+-- or max mana changes). Each: { id, icon, rank, cost, curve, few, allFew }.
 local active = {}
 local maxMana          -- plain; nil until read
 local curves = {}      -- low-mana and idle curves, by what they're built from
@@ -447,12 +447,15 @@ local function builtFor(p)
 end
 local function buildPick(p)
 	local cost, max = p.cost, maxMana
-	p.curve, p.few, p.builtFor = nil, nil, builtFor(p)
+	p.curve, p.few, p.allFew, p.builtFor = nil, nil, nil, builtFor(p)
 	if not p.builtFor then return end
 	p.curve = countCurve(cost, max)
 	if setting(KEY, "castsFew") then
-		local at = number(KEY, "castsFewAt")
-		p.few = colorStep(((at + 1) * cost + 0.5) / max, color(KEY, "castsFewColor"), color(KEY, "castsColor"))
+		-- From x up the count is above Few at. Past full mana: even full mana pays for no more, so the
+		-- count always wears the few colour (styleMana), as the preview shows it.
+		local x = ((number(KEY, "castsFewAt") + 1) * cost + 0.5) / max
+		if x >= 1 then p.allFew = true
+		else p.few = colorStep(x, color(KEY, "castsFewColor"), color(KEY, "castsColor")) end
 	end
 end
 
@@ -565,8 +568,10 @@ local function styleMana()
 		if builtFor(p) ~= p.builtFor or (p.builtFor and not p.curve) then buildPick(p) end
 	end
 	local rows = M.placeRows(f, active)
+	local fc = color(KEY, "castsFewColor")
 	for i, p in ipairs(active) do
 		if not p.curve then rows[i].text:SetText("") end   -- its cost can't be read: no count
+		if p.allFew then rows[i].text:SetTextColor(fc[1], fc[2], fc[3], fc[4] or 1) end
 	end
 	local w = f.warn
 	w.grey:SetShown(setting(KEY, "lowGrey") and true or false)
