@@ -24,6 +24,9 @@
 --    * Why keep the inference: without it, entering combat with no shield and casting one mid-fight
 --      leaves the full "no shield" look bleeding through the live shield until combat ends
 --      (at group opacity below 100%).
+--    * After a login or /reload in combat or in a PvP match the belief is unknown until a cast or a
+--      read, and nothing warns. Blizzard's button is made only while auras are readable, so until
+--      then nothing covers the underlay either: believed up or not known, it shows the plain icon.
 -- 3. The underlay matters at all only because the group's opacity makes Blizzard's button
 --    translucent, so the underlay bleeds through it; nativeIconAlpha compensates so the stack
 --    matches the group's opacity. At 100% group opacity the button hides the underlay completely.
@@ -54,7 +57,7 @@ ns.registerElement("shield", { frame = shield, label = "Shields", paint = functi
 -- Per shield at runtime: name (the client's), spellID and bookIcon (highest known rank), known. The IDs
 -- that count as it are ns.Spells' (seeds, spellbook, and the live aura's, learned here).
 for _, s in pairs(SHIELDS) do s.name = Spells.name(s.spell) end
-local believedUp = false      -- see above: exact out of combat, set up by our own cast in combat
+local believedUp   -- see above: exact out of combat, set by our own cast in combat; nil until known
 local native   -- Blizzard's aura container over the underlay, and our parts on its button (below)
 
 local function tracksShield(key)
@@ -113,12 +116,22 @@ function SH.applyEmptyLook()
 		shield:SetPulsing(false)
 		return
 	end
+	local down = believedUp == false   -- not known yet: no warning
+	if not down and not (native.button and not native.err) then
+		-- Nothing of Blizzard's over it yet: the underlay is all that shows, so the plain icon.
+		shield.tex:SetDesaturated(false)
+		shield.tex:SetVertexColor(1, 1, 1)
+		shield.tex:SetAlpha(1)
+		shield:SetRingShown(false)
+		shield:SetPulsing(false)
+		return
+	end
 	shield.tex:SetDesaturated(db.emptyGrey)
 	if db.emptyTint then shield.tex:SetVertexColor(1, 0.35, 0.35) else shield.tex:SetVertexColor(1, 1, 1) end
-	shield.tex:SetAlpha(believedUp and db.underlayUp or 1)
-	shield:SetRingShown(not believedUp and db.emptyRing)
+	shield.tex:SetAlpha(down and 1 or db.underlayUp)
+	shield:SetRingShown(down and db.emptyRing)
 	-- Only while known down: in combat a drop is not seen until the recast or combat ends.
-	shield:SetPulsing(not believedUp and db.emptyPulse)
+	shield:SetPulsing(down and db.emptyPulse)
 end
 
 -- With display opacity a and underlay strength u, an icon alpha b gives a stacked result of
@@ -258,6 +271,7 @@ local function styleNative(slot, size)
 	else
 		slot.fs:SetPoint("BOTTOMRIGHT", slot.button, "BOTTOMRIGHT", 2, -2); slot.fs:SetJustifyH("RIGHT")
 	end
+	SH.applyEmptyLook()   -- the button may be new: the underlay now has it on top
 end
 
 -- Made out of combat only (after a /reload in combat, when combat ends); once made, it stays.
@@ -351,7 +365,7 @@ end
 -- /sf debug
 function SH.debug()
 	say("shield tracking %s (last %s), believed up %s", ns.getDB().shieldTrack, ns.getAccount().lastShield,
-		tostring(believedUp))
+		believedUp == nil and "unknown" or tostring(believedUp))
 	for _, key in ipairs(SHIELD_ORDER) do
 		local s = SHIELDS[key]
 		local e = Spells.bookEntry(s.spell)

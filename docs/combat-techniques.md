@@ -52,6 +52,7 @@ So the grey icon, red ring and pulse sit in an underlay beneath Blizzard's butto
 - **In combat** your own successful cast of a tracked shield (`UNIT_SPELLCAST_SUCCEEDED`) sets it to "up". Your own cast events are documented as never secret; only other units' casts are restricted. The combat log is never read. The inference is only that a successful cast means that shield is up. Since only one elemental shield can be on you at a time, casting a shield you don't track sets it to "down".
 - **Nothing can set it to "down" in combat.** If the shield drops mid-fight, the underlay shows at the "No shield: combat fallback" strength until you recast or combat ends.
 - **Why keep it:** without it, entering combat with no shield and casting one mid-fight would leave the full "no shield" look showing through the live shield until combat ends, whenever the group opacity is below 100%.
+- **Before anything is known:** after a login or `/reload` in combat or in a PvP match, the belief is unknown until your next cast or a read, and nothing warns. Blizzard's button is made only while auras are readable, so until then nothing covers the underlay: it shows the plain icon unless a cast has set the belief to "down".
 
 The underlay matters only because a group opacity below 100% makes Blizzard's button translucent, so the underlay would show through it. The addon fades the underlay while the shield is believed up, and Blizzard's icon opacity is raised to compensate so the stack matches the group's opacity. At 100% group opacity the button covers the underlay completely.
 
