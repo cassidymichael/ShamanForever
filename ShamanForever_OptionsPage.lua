@@ -220,8 +220,9 @@ local function unitsOf(fmt, minV, maxV)
 end
 
 -- fmt: Page.px, Page.int, Page.times, Page.pct or a function of the row's own (seconds, "Off").
--- A number typed in the box, in the label's units, takes effect on Enter, snapped to the slider's
--- step and range. Escape, or leaving the box any other way, keeps the value as it was.
+-- The slider moves in steps; a number typed in the box takes effect on Enter as typed, in the
+-- label's units and to the decimals it shows, held to the slider's range, with the slider at the
+-- nearest step. Escape, or leaving the box any other way, keeps the value as it was.
 function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown)
 	local f = self:row(34)
 	f.label = self:label(f, label, tip)
@@ -264,7 +265,11 @@ function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown)
 	box:SetScript("OnEnterPressed", function(b)
 		local n = tonumber((b:GetText():gsub(",", ".")):match(NUMBER) or "")
 		if n then
-			local v = math.min(math.max(snap(n / per), minV), maxV)
+			local scale = 10 ^ decimals
+			n = math.floor(n * scale + 0.5) / scale / per
+			-- Rounded again past the label's decimals, so a percent's 0.33 isn't 0.33000000000000002.
+			local v = tonumber(string.format("%." .. (decimals + (per == 100 and 2 or 0)) .. "f", n))
+			v = math.min(math.max(v, minV), maxV)
 			set(v)
 			updating = true
 			s:SetValue(get() or v)
