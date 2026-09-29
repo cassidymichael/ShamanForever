@@ -232,11 +232,7 @@ end
 
 -- An owner's name, as the options show it.
 function S.ownerName(owner)
-	if type(owner) == "table" then
-		local db = ns.getDB()
-		for gi, g in ipairs(db and db.groups or {}) do if g == owner then return "Group " .. gi end end
-		return "A group"
-	end
+	if type(owner) == "table" then return owner.name or "A group" end
 	if owner == "totembar" then return "Totem bar" end
 	if ns.Look and ns.Look.elementName then return ns.Look.elementName(owner) end
 	return owner

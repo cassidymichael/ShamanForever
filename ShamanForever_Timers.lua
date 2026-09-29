@@ -9,6 +9,8 @@
 -- Every timer is fed a duration object, so nothing here reads a time: Cooldown and StatusBar take
 -- the object, and the bar's "run out" alpha comes from a curve (secret values go straight to
 -- SetAlpha). Plain times (the imbue) become a duration object through C_DurationUtil.
+-- The countdown's colour by time left is a numeric formatter the Cooldown draws with (see "The
+-- countdown's formatter" below), so it needs no reading of the time either.
 
 local _, ns = ...
 
@@ -16,6 +18,14 @@ local T = {}
 ns.Timer = T
 
 T.KINDS = { "cooldown", "uptime" }
+-- Colour by time left: off, or two steps (Soon, then Now) below which the countdown takes a colour.
+-- Tenths: seconds below which the countdown shows tenths (0: never).
+local function timeColors()
+	return {
+		timeColors = false, soon = 10, soonColor = { 1, 0.85, 0.1, 1 }, now = 3, nowColor = { 1, 0.25, 0.2, 1 },
+		tenths = 0,
+	}
+end
 T.DEFAULTS = {
 	cooldown = {
 		text = true, textSize = 20, textColor = { 1, 1, 1, 1 }, textPos = "center", abbrev = 0,
@@ -28,10 +38,14 @@ T.DEFAULTS = {
 		bar = true, barHeight = 8, barElement = true, barColor = { 0.4, 0.9, 0.3, 1 }, barEdge = "bottom",
 	},
 }
+for _, kind in ipairs(T.KINDS) do
+	for k, v in pairs(timeColors()) do T.DEFAULTS[kind][k] = v end
+end
 -- Elements that look different from General until the player says otherwise: applied over
 -- General's style, and they do not follow it by default.
 T.ELEMENT_DEFAULTS = {
-	shield = { uptime = { text = false, swipe = false, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
+	-- The shield's time bar, when on, along the top: its charge bar is along the bottom.
+	shield = { uptime = { text = false, swipe = false, swipeAlpha = 0.5, swipeReverse = false, bar = false, barEdge = "top" } },
 	imbue = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = false } },
 	-- Aura-button elements: their own timer, no bar under Blizzard's button.
 	flameshock = { uptime = { text = true, bar = false } },
@@ -54,8 +68,6 @@ T.ELEMENT_DEFAULTS = {
 -- kind's name for that kind only.
 local ONE_SWIPE = "The cooldown has the swipe; time left shows as text or a bar."
 T.CANT = {
-	shield = { bar = "The shield's timer is Blizzard's own; a time bar can't follow it." },
-	elementalfocus = { bar = "Its timer is Blizzard's own; a time bar can't follow it." },
 	-- One icon, two timers: only the cooldown sweeps.
 	earthbind = { uptime = { swipe = ONE_SWIPE } },
 	stoneclaw = { uptime = { swipe = ONE_SWIPE } },
@@ -76,6 +88,8 @@ end
 local WHITE = "Interface\\Buttons\\WHITE8x8"
 local TIMER_REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime or 1
 local TIMER_IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
+-- How Blizzard's aura button drives an aura timer's bar (its SetDurationBar options): as ours do.
+T.AURA_BAR = { interpolation = TIMER_IMMEDIATE, direction = TIMER_REMAINING }
 
 -- Both kinds are styles (ShamanForever_Style.lua): General's in db.timers[kind], an element's or the
 -- totem bar's own in its timers[kind].
@@ -86,6 +100,97 @@ for _, kind in ipairs(T.KINDS) do
 	S.register(kind, {
 		defaults = T.DEFAULTS[kind], path = { "timers", kind }, ownerDefaults = own,
 	})
+end
+
+------------------------------------------------------------------------
+-- The countdown's formatter: colour by time left (and tenths with it). A numeric rule formatter
+-- (C_StringUtil.CreateNumericRuleFormatter) handed to the Cooldown (SetCountdownFormatter) turns
+-- the time left into the countdown's text inside the engine, with a colour code wrapped into each
+-- rule's format, so it follows secret durations in combat with no polling. It replaces the
+-- Cooldown's own formatting, so its rules repeat the Time format setting: seconds, "2m" above a
+-- minute (or "1:31" below the Time format's threshold) and "1h". Everything rounds up, as the
+-- Cooldown's own numbers do. Only Colour by time left needs it: tenths alone are the Cooldown's
+-- own (SetCountdownMillisecondsThreshold), and a timer with neither keeps the Cooldown's own text.
+------------------------------------------------------------------------
+local ROUND_UP = Enum and Enum.NumericRuleFormatRounding and Enum.NumericRuleFormatRounding.Up or 1
+
+local function secsIn(v, lo, hi)
+	if type(v) ~= "number" or v ~= v then return lo end
+	return math.min(math.max(v, lo), hi)
+end
+
+-- The Cooldown's own formats, lowest threshold first (a rule applies from its threshold up).
+local function formatRules(abbrev, tenths)
+	local rules = {}
+	if tenths > 0 then
+		table.insert(rules, { threshold = 0, format = "%.1f", step = 0.1, rounding = ROUND_UP })
+		table.insert(rules, { threshold = tenths, format = "%d", step = 1, rounding = ROUND_UP })
+	else
+		table.insert(rules, { threshold = 0, format = "%d", step = 1, rounding = ROUND_UP })
+	end
+	if abbrev > 60 then
+		table.insert(rules, { threshold = 60, format = "%d:%02d", step = 1, rounding = ROUND_UP,
+			components = { { div = 60 }, { mod = 60 } } })
+	end
+	table.insert(rules, { threshold = math.max(abbrev, 60), format = "%dm", rounding = ROUND_UP,
+		components = { { div = 60, step = 1, rounding = ROUND_UP } } })
+	table.insert(rules, { threshold = 3600, format = "%dh", rounding = ROUND_UP,
+		components = { { div = 3600, step = 1, rounding = ROUND_UP } } })
+	return rules
+end
+
+local function colorCode(c)
+	local function byte(v) return math.floor(math.min(math.max(v, 0), 1) * 255 + 0.5) end
+	return string.format("|cff%02x%02x%02x", byte(c[1]), byte(c[2]), byte(c[3]))
+end
+
+-- The formatter's breakpoints: a cut at every format rule's threshold and at each colour step,
+-- each carrying the format that applies there, in the colour of its step (none above Soon: the
+-- text keeps its own colour).
+local function breakpoints(s, abbrev, tenths)
+	local rules = formatRules(abbrev, tenths)
+	local soon, now = secsIn(s.soon, 0, 3600), secsIn(s.now, 0, 3600)
+	local soonCode, nowCode = colorCode(s.soonColor), colorCode(s.nowColor)
+	local cuts, list = {}, {}
+	for _, r in ipairs(rules) do cuts[r.threshold] = true end
+	if s.timeColors then cuts[soon], cuts[now] = true, true end
+	for t in pairs(cuts) do table.insert(list, t) end
+	table.sort(list)
+	local out = {}
+	for _, t in ipairs(list) do
+		local rule
+		for _, r in ipairs(rules) do if r.threshold <= t then rule = r end end
+		local code = s.timeColors and (t < now and nowCode or t < soon and soonCode) or nil
+		table.insert(out, {
+			threshold = t, step = rule.step, rounding = rule.rounding, components = rule.components,
+			format = code and (code .. rule.format .. "|r") or rule.format,
+		})
+	end
+	return out
+end
+
+-- One formatter per look, shared by every timer with it; a timer also keeps its own, so dropping
+-- the cache (while the options are being dragged through many looks) never frees one in use.
+local formatters, cached = {}, 0
+local function formatterFor(s)
+	if not s.timeColors then return nil end
+	local tenths = math.floor(secsIn(s.tenths, 0, 10))
+	local abbrev = secsIn(s.abbrev, 0, 3600)
+	local key = string.format("%s|%d|%d|%s|%s|%s|%s", tostring(s.timeColors), abbrev, tenths,
+		tostring(s.soon), tostring(s.now), colorCode(s.soonColor), colorCode(s.nowColor))
+	local f = formatters[key]
+	if f == nil then
+		local ok, made = pcall(function()
+			local fm = C_StringUtil.CreateNumericRuleFormatter()
+			fm:SetBreakpoints(breakpoints(s, abbrev, tenths))
+			return fm
+		end)
+		if not ok then ns.noteError("timer formatter", made) end
+		if cached >= 32 then wipe(formatters); cached = 0 end
+		f = ok and made or false
+		formatters[key], cached = f, cached + 1
+	end
+	return f or nil
 end
 
 ------------------------------------------------------------------------
@@ -100,10 +205,15 @@ local fonts = 0
 --   cd     = an existing Cooldown to use (its frame level is kept)
 --   dual   = the icon also shows the other kind of timer ("auto" text then goes top-left)
 --   school = colour for "element colour" bars (a key of ns.SCHOOL_COLOR), or a function returning one
---   noBar  = never make a bar (Blizzard's shield button: no frames of ours created in its callback)
+--   aura   = the timer is on Blizzard's aura button (ns.makeAuraSlot), which draws the time: the
+--            button drives the bar (T.AURA_BAR), so it is shown whenever the style has one and is
+--            never fed a duration here; its looks change only out of combat (the slot's restyle)
+--   barInset = function returning how far above the bottom edge a bottom bar sits (the shield's
+--            charge bar is along that edge, drawn over it)
 function T.new(parent, key, kind, opts)
 	opts = opts or {}
-	local t = setmetatable({ key = key, kind = kind, parent = parent, anchor = opts.anchor or parent, dual = opts.dual, school = opts.school }, Timer)
+	local t = setmetatable({ key = key, kind = kind, parent = parent, anchor = opts.anchor or parent, dual = opts.dual,
+		school = opts.school, aura = opts.aura, barInset = opts.barInset }, Timer)
 	local cd = opts.cd
 	if not cd then
 		cd = CreateFrame("Cooldown", nil, parent, "CooldownFrameTemplate")
@@ -123,16 +233,14 @@ function T.new(parent, key, kind, opts)
 		t.fs = fs
 		pcall(fs.SetDrawLayer, fs, "OVERLAY", 7)
 	end
-	if not opts.noBar then
-		local bar = CreateFrame("StatusBar", nil, parent)
-		bar:SetStatusBarTexture(WHITE)
-		bar:SetFrameLevel(cd:GetFrameLevel() + 1)
-		bar.bg = bar:CreateTexture(nil, "BACKGROUND")
-		bar.bg:SetAllPoints()
-		bar.bg:SetColorTexture(0, 0, 0, 0.6)
-		bar:Hide()
-		t.bar = bar
-	end
+	local bar = CreateFrame("StatusBar", nil, parent)
+	bar:SetStatusBarTexture(WHITE)
+	bar:SetFrameLevel(cd:GetFrameLevel() + 1)
+	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
+	bar.bg:SetAllPoints()
+	bar.bg:SetColorTexture(0, 0, 0, 0.6)
+	bar:Hide()
+	t.bar = bar
 	return t
 end
 
@@ -156,7 +264,20 @@ function Timer:apply()
 	-- Minutes read "2m"; under abbrev seconds they read "1:31" (0: never). Under a minute the client
 	-- always shows plain seconds.
 	pcall(cd.SetCountdownAbbrevThreshold, cd, s.abbrev)
-	local c = self.tint or s.textColor
+	-- Colour by time left (a formatter, which then does the above and the tenths too), or tenths
+	-- alone (the Cooldown's own). A timer that never had either is left alone.
+	local text = s.text and not cant.text
+	local fm = text and formatterFor(s) or nil
+	if fm ~= self.formatter then
+		self.formatter = fm
+		ns.try("timer formatter", cd.SetCountdownFormatter, cd, fm)
+	end
+	local ms = (text and not fm) and math.floor(secsIn(s.tenths, 0, 10)) or 0
+	if ms ~= (self.ms or 0) then
+		self.ms = ms
+		pcall(cd.SetCountdownMillisecondsThreshold, cd, ms)
+	end
+	local c = (not s.timeColors and self.tint) or s.textColor
 	self.font:SetFont(STANDARD_TEXT_FONT, s.textSize, "OUTLINE")
 	self.font:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 	cd:SetCountdownFont(self.fontName)
@@ -169,11 +290,13 @@ function Timer:apply()
 		if s.barEdge == "top" then
 			bar:SetPoint("TOPLEFT", a, "TOPLEFT", 0, 0); bar:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, 0)
 		else
-			bar:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, 0); bar:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, 0)
+			local y = self.barInset and self.barInset() or 0
+			bar:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, y); bar:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, y)
 		end
 		local col = s.barElement and schoolColor(self) or s.barColor
 		bar:SetStatusBarColor(col[1], col[2], col[3], col[4] or 1)
-		if not self.barOn then bar:Hide() end
+		if self.aura then bar:SetShown(self.barOn)
+		elseif not self.barOn then bar:Hide() end
 	end
 	if self.last then self:set(self.last) end   -- show a part just turned on, at once
 	local fs = self.fs
@@ -194,10 +317,12 @@ function Timer:apply()
 	end
 end
 
--- A text colour for now (the imbue's red last minute); nil goes back to the style's.
+-- A text colour for now (the imbue's red last minute); nil goes back to the style's. Colour by time
+-- left, when on, has the last word: its own colours near the end, the style's colour before them.
 function Timer:setTint(r, g, b)
 	self.tint = r and { r, g, b, 1 } or nil
-	local c = self.tint or (self.s and self.s.textColor) or { 1, 1, 1, 1 }
+	local s = self.s
+	local c = (not (s and s.timeColors) and self.tint) or (s and s.textColor) or { 1, 1, 1, 1 }
 	self.font:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 end
 
@@ -318,7 +443,7 @@ function Timer:setExpire(e, icon)
 		x:SetAlpha(0)
 		x.grey = x:CreateTexture(nil, "ARTWORK")
 		x.grey:SetAllPoints()
-		ns.cropIcon(x.grey)
+		ns.cropIconExact(x.grey)
 		x.grey:SetDesaturated(true)
 		x.ring = ns.makeRing(x, x)
 		x.dim = x:CreateTexture(nil, "OVERLAY")

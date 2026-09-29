@@ -9,16 +9,31 @@ ns.ElementPages = EP
 
 local Page, K = ns.Page, ns.Options.kit
 local showWhen, setTip, panelBackdrop = Page.showWhen, Page.setTip, Page.panelBackdrop
-local relayout, respell, pct, int, px, get, set = K.relayout, K.respell, K.pct, K.int, K.px, K.get, K.set
-local groupCount, isHidden, placeShown, SHOW_CHOICES = K.groupCount, K.isHidden, K.placeShown, K.SHOW_CHOICES
+local relayout, respell, get, set = K.relayout, K.respell, K.get, K.set
+local pct, int, px = Page.pct, Page.int, Page.px
+local SHOW_CHOICES = K.SHOW_CHOICES
 local timerSettings, gcdBlock, glowBlock, popBlock = K.timerSettings, K.gcdBlock, K.glowBlock, K.popBlock
 local expiringLooks, killedBlock = K.expiringLooks, K.killedBlock
 
 local function db() return ns.getDB() end
 
+-- The Group choices: every group by name, then New group; an ungrouped element's reads Ungrouped.
+-- Choosing one moves the element there (to its end) and leaves its Show as it is.
+local function groupMenu(dd, key)
+	pcall(dd.SetDefaultText, dd, "Ungrouped")
+	dd:SetupMenu(function(_, root)
+		for _, g in ipairs(db().groups) do
+			root:CreateRadio(g.name, function() return ns.groupOf(key) == g end, function()
+				if ns.groupOf(key) ~= g then ns.placeElement(key, g.id) end
+			end)
+		end
+		root:CreateButton("New group", function() ns.placeElement(key, "new") end)
+	end)
+end
+
 -- On an element's page, where "Hidden keeps its place" is shown as text under the control.
-local SHOW_TIP_PAGE = "Choosing Always or In combat again puts it back where it was. Groups can also be set to show only in combat on the Layout page; an element shows only when both allow it. Everything visible shows while positioning is unlocked."
-local SHOW_TIP = "When the element is drawn. Hidden keeps its place in its group, so choosing Always or In combat again puts it back where it was. Groups can also be set to show only in combat on the Layout page; an element shows only when both it and its group allow it. Everything visible shows while the layout is unlocked."
+local SHOW_TIP_PAGE = "Choosing Always or In combat again puts it back where it was. Groups have their own Show on the Layout page; an element shows only when both allow it. Everything visible shows while positioning is unlocked."
+local SHOW_TIP = "When the element is drawn. Hidden keeps its place in its group, so choosing Always or In combat again puts it back where it was. Groups have their own Show on the Layout page; an element shows only when both it and its group allow it. Everything visible shows while the layout is unlocked."
 
 ------------------------------------------------------------------------
 -- Elements: an overview of every element, and one page per real element under it in the nav.
@@ -27,7 +42,8 @@ local ELEMENT_PAGES = {}   -- key -> page key, filled as element pages are built
 
 function EP.buildOverview(p)
 	p:header("Elements")
-	local GROUP_X, SHOW_X = 150, 260   -- sized to fit beside the Settings button at the minimum width
+	-- Columns sized to fit the page at the window's least width; they keep their places when it's wider.
+	local GROUP_X, SHOW_X, OPEN_X = 150, 280, 512
 	do
 		local f = p:row(20)
 		local function col(text, x)
@@ -58,15 +74,8 @@ function EP.buildOverview(p)
 		unknown:SetText("Not learned")
 		local group = CreateFrame("DropdownButton", nil, f, "WowStyle1DropdownTemplate")
 		group:SetPoint("LEFT", GROUP_X, 0)
-		group:SetWidth(100)
-		group:SetupMenu(function(_, rootDescription)
-			for gi = 1, groupCount() do
-				rootDescription:CreateRadio("Group " .. gi, function() return not isHidden(key) and ns.findElement(key) == gi end,
-					function() placeShown(key, gi) end)
-			end
-			rootDescription:CreateRadio("New group", function() return false end, function() placeShown(key, "new") end)
-			rootDescription:CreateRadio("Hidden", function() return isHidden(key) end, function() ns.setShow(key, "never") end)
-		end)
+		group:SetWidth(120)
+		groupMenu(group, key)
 		local show = CreateFrame("DropdownButton", nil, f, "WowStyle1DropdownTemplate")
 		show:SetPoint("LEFT", SHOW_X, 0)
 		show:SetWidth(110)
@@ -84,7 +93,7 @@ function EP.buildOverview(p)
 		show:HookScript("OnLeave", function() GameTooltip:Hide() end)
 		local open = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
 		open:SetSize(90, 22)
-		open:SetPoint("RIGHT", -4, 0)
+		open:SetPoint("LEFT", OPEN_X, 0)
 		open:SetText("Settings")
 		open:SetScript("OnClick", function() if ELEMENT_PAGES[key] then ns.Options.open(ELEMENT_PAGES[key]) end end)
 		p:add(f, 34, function() return ns.available(key) end, function()
@@ -115,22 +124,21 @@ local function elementDisplay(p, key)
 	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return ns.showMode(key) end,
 		function(v) ns.setShow(key, v) end, nil, 140)
 	p:text("Hidden keeps its place in its group.")
-	p:dropdown("Group", "Which group it sits in. Groups are arranged on the Layout page.", function()
-		local list = {}
-		for gi = 1, groupCount() do table.insert(list, { gi, "Group " .. gi }) end
-		table.insert(list, { "new", "New group" })
-		table.insert(list, { "hidden", "Hidden" })
-		return list
-	end, function() return isHidden(key) and "hidden" or ns.findElement(key) end, function(v)
-		if v == "hidden" then ns.setShow(key, "never") else placeShown(key, v) end
-	end, nil, 140)
-	local groupRow = p.items[#p.items].frame
+	local groupRow = p:dropdown("Group", "Which group it sits in. Groups are arranged on the Layout page; ungrouped elements aren't on screen.",
+		{}, function() end, function() end, nil, 140)
+	groupMenu(groupRow.dropdown, key)
 	local edit = CreateFrame("Button", nil, groupRow, "UIPanelButtonTemplate")
 	edit:SetSize(96, 22)
 	edit:SetPoint("LEFT", groupRow.dropdown, "RIGHT", 8, 0)
 	edit:SetText("Edit group")
-	edit:SetScript("OnClick", function() local gi = ns.findElement(key); if gi then ns.Options.openGroup(gi) end end)
+	edit:SetScript("OnClick", function() local g = ns.groupOf(key); if g then ns.Options.openGroup(g.id) end end)
 	setTip(edit, "Edit group", "This group's settings on the Layout page.")
+	local item = p.items[#p.items]
+	local refresh = item.refresh
+	item.refresh = function()
+		refresh()
+		edit:SetEnabled(ns.groupOf(key) ~= nil)
+	end
 end
 
 -- An element's own option (db.elementOpts), with its default (ns.elementSetting).
@@ -138,10 +146,11 @@ local function eget(key, name) return function() return ns.elementSetting(key, n
 local function eset(key, name) return function(v) ns.elementOpts(key)[name] = v; relayout() end end
 
 -- Standard block: the moment a cooldown ends. A pop, and with glowTip a "use me" glow (off by
--- default).
-local function readyBlock(p, key, glowTip)
+-- default). afterPop: an optional row right after Pop, before the glow (like warningBlock's first).
+local function readyBlock(p, key, glowTip, afterPop)
 	p:header("Ready")
 	p:checkbox("Pop", "The moment the cooldown ends.", eget(key, "readyPop"), eset(key, "readyPop"))
+	if afterPop then afterPop() end
 	if glowTip then p:checkbox("Pulsing glow", glowTip, eget(key, "readyGlow"), eset(key, "readyGlow")) end
 end
 
@@ -190,6 +199,10 @@ local function warningBlock(p, title, greyGet, greySet, ringGet, ringSet, pulseG
 	p:checkbox("Fade in and out", nil, pulseGet, pulseSet)
 end
 
+-- Where a number on the icon sits (the shield's charges, a reagent count).
+local COUNT_POINTS = { { "BOTTOMRIGHT", "Bottom right" }, { "BOTTOMLEFT", "Bottom left" }, { "TOPRIGHT", "Top right" },
+	{ "TOPLEFT", "Top left" }, { "CENTER", "Centre" } }
+
 -- A look choice (tint, overlay, both) greys out the strength it does not use.
 local function lookUses(key, part) return function() local v = db()[key]; return v == part or v == "both" end end
 
@@ -211,13 +224,18 @@ local function buildShield(p)
 	p:slider("Bar height", nil, 1, 20, 1, px, get("chargeBarHeight"), set("chargeBarHeight"),
 		showWhen(get("showBar")))
 	p:color("Bar colour", nil, get("chargeBarColor"), set("chargeBarColor"), showWhen(get("showBar")))
-	p:checkbox("Charge number", "Shown for 2 or more charges.", get("showCount"), set("showCount"))
+	p:checkbox("Charge number", "The charges as a number.", get("showCount"), set("showCount"))
 	local numberOn = showWhen(get("showCount"))
-	p:dropdown("Number position", nil, { { "corner", "Corner" }, { "center", "Centre" } }, get("countPos"), set("countPos"), numberOn)
+	p:dropdown("Number position", nil, COUNT_POINTS, get("countPos"), set("countPos"), numberOn, 150)
 	p:slider("Number size", nil, 8, 64, 1, int, get("countSize"), set("countSize"), numberOn)
+	p:checkbox("Different colour last charge", "Colours the 1, instead of plain white.", get("countOne"),
+		set("countOne"), numberOn)
+	p:color("Last charge colour", nil, get("countLastColor"), set("countLastColor"),
+		showWhen(function() return db().showCount and db().countOne end))
 
 	warningBlock(p, "No shield", get("emptyGrey"), set("emptyGrey"), get("emptyRing"), set("emptyRing"), get("emptyPulse"), set("emptyPulse"))
 	p:checkbox("Red tint", "Tint the icon red.", get("emptyTint"), set("emptyTint"))
+	p:checkbox("Pulsing glow", "A glow inside the icon that pulses.", get("emptyGlow"), set("emptyGlow"))
 	p:slider("In-combat fallback", nil, 0, 1, 0.05, pct, get("underlayUp"), set("underlayUp"))
 	p:text("A shield that drops in combat is only noticed when you recast it or combat ends. Until then, the no-shield look shows at this strength.")
 
@@ -226,6 +244,7 @@ local function buildShield(p)
 	p:text("Only matters at low group opacity. Most can leave it at 100%.")
 	timerSettings(p, "Time left", "shield", "uptime")
 	gcdBlock(p, "shield")
+	effectBlocks(p, "shield")
 end
 
 local function buildShock(p)
@@ -311,8 +330,7 @@ local function reagentBlocks(p, def)
 	p:color("Count colour", "While you have enough.", eget(key, "reagentColor"), eset(key, "reagentColor"), counted)
 	p:color("Low colour", "At the Low mark or below, and at none.", eget(key, "reagentLowColor"), eset(key, "reagentLowColor"), counted)
 	p:slider("Text size", "At the default icon size; it grows with the icon.", 8, 40, 1, int, eget(key, "reagentSize"), eset(key, "reagentSize"), counted)
-	p:dropdown("Position", nil, { { "BOTTOMRIGHT", "Bottom right" }, { "BOTTOMLEFT", "Bottom left" }, { "TOPRIGHT", "Top right" },
-		{ "TOPLEFT", "Top left" }, { "CENTER", "Centre" } }, eget(key, "reagentPos"), eset(key, "reagentPos"), counted, 150)
+	p:dropdown("Position", nil, COUNT_POINTS, eget(key, "reagentPos"), eset(key, "reagentPos"), counted, 150)
 	p:slider("Text X offset", nil, -50, 50, 1, px, eget(key, "reagentX"), eset(key, "reagentX"), counted)
 	p:slider("Text Y offset", nil, -50, 50, 1, px, eget(key, "reagentY"), eset(key, "reagentY"), counted)
 	p:header("None left")
@@ -374,7 +392,11 @@ local function buildCooldown(p, def)
 	elseif timed then timerSettings(p, "Primed time left", key, "uptime") end
 	if not def.noReady then
 		readyBlock(p, key, def.needsTotem and "While it's off cooldown and a fire totem is down."
-			or def.readyGlow and "While it's off cooldown.")
+			or def.readyGlow and "While it's off cooldown.", def.needsTotem and function()
+				p:dropdown("Without a fire totem", "The pop when the cooldown ends with no fire totem down.",
+					{ { "grey", "Greyed pop" }, { "none", "Nothing" } }, eget(key, "readyNoTotem"), eset(key, "readyNoTotem"),
+					showWhen(eget(key, "readyPop")), 150)
+			end or nil)
 	end
 	if def.primed then primedBlock(p, def) end
 	if (def.needsTotem or def.totemSlot or timed) and def.expireLooks ~= false then
@@ -431,7 +453,7 @@ end
 -- Tremor Totem's watchlist: a box that searches the list and adds a name, Add target, the list (a
 -- remove button on each mob) and a count. The list is a ScrollBox, which recycles its rows, so
 -- hundreds of mobs take a dozen frames.
-local MOB_ROW_H, MOB_ROWS = 22, 9
+local MOB_ROW_H, MOB_ROWS, MOB_LIST_W = 22, 9, 640
 local function mobList(p)
 	local T = ns.Tremor
 	local listH = MOB_ROW_H * MOB_ROWS + 8
@@ -458,14 +480,14 @@ local function mobList(p)
 	ownOnly:SetSize(24, 24)
 	ownOnly.Text:SetFontObject("GameFontHighlight")
 	ownOnly.Text:SetText("Only mobs you added")
-	ownOnly:SetPoint("TOPRIGHT", -(ownOnly.Text:GetStringWidth() + 4), -3)
 	setTip(ownOnly, "Only mobs you added", "Hides the default list's mobs.")
 
+	-- As wide as the page, up to MOB_LIST_W: in a wide window a longer line reads no better.
 	local panel = CreateFrame("Frame", nil, f, "BackdropTemplate")
 	panelBackdrop(panel)
 	panel:SetPoint("TOPLEFT", 0, -32)
-	panel:SetPoint("TOPRIGHT", 0, -32)
-	panel:SetHeight(listH)
+	panel:SetSize(MOB_LIST_W, listH)
+	ownOnly:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -(ownOnly.Text:GetStringWidth() + 4), 29)
 	local sb = CreateFrame("Frame", nil, panel, "WowScrollBoxList")
 	sb:SetPoint("TOPLEFT", 4, -4)
 	sb:SetPoint("BOTTOMRIGHT", -22, 4)
@@ -523,6 +545,7 @@ local function mobList(p)
 
 	local shown = 0   -- rows matching the search
 	local function fill()
+		panel:SetWidth(math.min(p:width(), MOB_LIST_W))
 		local text = box:GetText()
 		box.hint:SetShown(text == "" and not box:HasFocus())
 		local list = T.rows(text, ownOnly:GetChecked())

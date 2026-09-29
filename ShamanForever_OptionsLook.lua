@@ -200,7 +200,7 @@ local function makePreviewIcon(parent, key, preview)
 	if preview.cooldown then ic.cdT = ns.Timer.new(ic, key, "cooldown", { cd = ic.cd, school = school }) end
 	if preview.uptime then
 		ic.upT = ns.Timer.new(ic.textFrame, key, "uptime", { anchor = ic, dual = preview.cooldown,
-			cd = not preview.cooldown and ic.cd or nil, school = school })
+			cd = not preview.cooldown and ic.cd or nil, school = school, barInset = preview.barInset })
 	end
 	ic.bar = CreateFrame("Frame", nil, ic.textFrame)
 	ic.bar:SetPoint("BOTTOMLEFT", ic, "BOTTOMLEFT", 0, 0)
@@ -352,7 +352,7 @@ end
 -- logic of its own has its own here; the others are made from their def by their kind (below).
 L.PREVIEW = {
 	shield = {
-		uptime = true,
+		uptime = true, barInset = function() return ns.Shield.timeBarInset() end,
 		states = { { "up3", "3 charges" }, { "up1", "1 charge" }, { "down", "No shield" }, { "drop", "Dropped in combat" } },
 		render = function(ic, st)
 			local d = db()
@@ -364,6 +364,7 @@ L.PREVIEW = {
 				if st == "down" then
 					ic:SetRingShown(d.emptyRing)
 					ic:SetPulsing(d.emptyPulse)
+					ic:SetGlowShown(d.emptyGlow)
 				else
 					ic.tex:SetAlpha(math.max(d.underlayUp, 0.08))
 				end
@@ -377,12 +378,13 @@ L.PREVIEW = {
 				ic.bar:SetHeight(d.chargeBarHeight or 8)
 				setBar(ic, 3, n, c[1], c[2], c[3])
 			end
-			if d.showCount and n >= 2 then
+			if d.showCount then
 				ic.count:SetFont(STANDARD_TEXT_FONT, d.countSize, "OUTLINE")
-				ic.count:ClearAllPoints()
-				if d.countPos == "center" then ic.count:SetPoint("CENTER") else ic.count:SetPoint("BOTTOMRIGHT", 2, -2) end
+				ns.Shield.placeCount(ic.count, ic)
 				ic.count:SetText(n)
 				ic.count:Show()
+				local c = (n == 1 and d.countOne) and d.countLastColor or { 1, 1, 1 }
+				ic.count:SetTextColor(c[1], c[2], c[3])
 			end
 		end,
 	},
@@ -429,7 +431,9 @@ L.PREVIEW = {
 	firenova = {
 		cooldown = true, uptime = true,
 		states = { { "ready", "Ready" }, { "nototem", "No fire totem" }, { "out", "Fire totem out" }, { "expiring", "Totem expiring" } },
-		pop = function(ic, st) if st == "out" and opt("firenova", "readyPop") then ic:Pop() end end,
+		pop = function(ic, st)
+			if st == "ready" and opt("firenova", "readyPop") then ic:Pop() end
+		end,
 		render = function(ic, st)
 			reset(ic, 135824)
 			if st == "expiring" then expiringLook(ic, "firenova", 55) return end
@@ -601,7 +605,7 @@ L.TOTEM_ICON = TOTEM_ICON
 local PREVIEW_LEFT = { earth = { 250, 300 }, fire = { 38, 55 }, water = { 83, 300 }, air = { 165, 300 } }
 local POP_ITEMS = 3   -- "No totem" and two totems: enough to show the look within the header
 L.PREVIEW.totembar = {
-	stage = true, heroH = 280, uptime = true,
+	stage = true, heroH = 210, uptime = true,
 	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" }, { "killed", "Killed early" },
 		{ "range", "Out of range" }, { "offpick", "Not your pick" }, { "picking", "Picking" } },
 	-- Blizzard's: nothing to preview. Active totems: only totems that are down, so no picking. Out of
@@ -993,9 +997,9 @@ function L.buildHero(parent, key)
 		self.shade:SetShown(not minimal)
 		for _, c in ipairs(self.corners) do c:SetShown(not minimal) end
 		if e.tags then self.tags:SetText(e.tags()) else
-			local gi = ns.findElement(key)
+			local g = ns.groupOf(key)
 			local shows = { always = "Always", combat = "In combat", never = "Hidden" }
-			self.tags:SetText(string.format("%s  ·  %s%s", gi and ("Group " .. gi) or "No group", shows[ns.showMode(key)] or "",
+			self.tags:SetText(string.format("%s  ·  %s%s", g and g.name or "Ungrouped", shows[ns.showMode(key)] or "",
 				ns.isLearned(key) and "" or "  ·  Not learned"))
 		end
 		-- A stage can offer only some states (the totem bar's mode): the others hide, the rest close
@@ -1038,17 +1042,13 @@ function L.buildHero(parent, key)
 			local bw, bh = PREVIEW_SIZE, PREVIEW_SIZE
 			if def.size then bw, bh = def.size() end
 			local x = 16 + ns.Looks.fit(ic, ns.borderFor(key), bw, bh, { shape = el and el.shape })
-			-- On whole screen pixels: a cooldown's swipe snaps to pixels and the icon's texture doesn't,
-			-- so at a fractional position a sliver of the icon shows beside the swipe.
+			-- On whole screen pixels, as the HUD's icons are (ns.placeOnPixels says why).
 			ic:ClearAllPoints()
 			ic:SetPoint("LEFT", p, "LEFT", x, -6)
 			local l, t = ic:GetLeft(), ic:GetTop()
-			local ok, _, screenH = pcall(GetPhysicalScreenSize)
-			if l and t and ok and type(screenH) == "number" and screenH > 0 then
-				local px = 768 / screenH / ic:GetEffectiveScale()   -- one screen pixel, in the icon's units
-				local dx = math.floor(l / px + 0.5) * px - l
-				local dy = math.floor(t / px + 0.5) * px - t
-				ic:SetPoint("LEFT", p, "LEFT", x + dx, -6 + dy)
+			if l and t then
+				local px = ns.pixel(ic)
+				ic:SetPoint("LEFT", p, "LEFT", x + ns.roundPx(l, px) - l, -6 + ns.roundPx(t, px) - t)
 			end
 		end
 		if def.stage then def.render(self, previewState[key]) else def.render(self.previewIcon, previewState[key]) end

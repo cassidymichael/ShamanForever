@@ -1,7 +1,8 @@
 -- The options window's page kit: a page is a scrolling column of rows (headers, text, checkboxes,
 -- sliders, dropdowns, colours, cards, buttons...). Rows can hide themselves; refresh reflows the
--- visible ones and pulls every control's value from the saved settings. The pages themselves are
--- built in ShamanForever_Options.lua and, for the elements, ShamanForever_OptionsElements.lua.
+-- visible ones and pulls every control's value from the saved settings. Also the drag and drop the
+-- pages' lists share. The pages themselves are built in ShamanForever_Options.lua, Layout in
+-- ShamanForever_OptionsLayout.lua, and the elements' in ShamanForever_OptionsElements.lua.
 
 local _, ns = ...
 
@@ -9,14 +10,16 @@ local Page = {}
 Page.__index = Page
 ns.Page = Page
 
--- The window's geometry, shared with ShamanForever_Options.lua. A fixed width, the one the art is
--- made for; the player may make it taller.
-Page.WIDTH, Page.NAV_W = 864, 200   -- the nav: room for its element list's scroll bar
+-- The window's geometry, shared with ShamanForever_Options.lua. The player may make it wider (the
+-- nav keeps its width; the page takes the rest) and taller. Pages stay one column as wide as the
+-- page: labels, sliders and dropdowns keep their widths, and text wraps at a readable width.
+Page.WIDTH, Page.NAV_W = 864, 200   -- the least width; the nav: room for its element list's scroll bar
 Page.PAGE_TOP = -38   -- pages start below the title bar
 Page.LABEL_W = 150
 local WIDTH, NAV_W, PAGE_TOP, LABEL_W = Page.WIDTH, Page.NAV_W, Page.PAGE_TOP, Page.LABEL_W
 local ROW_W = WIDTH - NAV_W - 64                  -- initial row width; rows then follow the window
-local SLIDER_MAX_W, SLIDER_VALUE_W = 360, 56   -- the value text sits right of the slider
+local SLIDER_SPAN_W = 400   -- a slider and its value box, at most
+local TEXT_MAX_W = 600   -- text and boxed notices wrap here at the most (the page's width at 864)
 
 -- above: over the frame's top-left corner, for full-width rows, whose right edge is far from the
 -- mouse on the label; otherwise to the right of the frame.
@@ -58,16 +61,24 @@ function Page.new(win, key, title, indent)
 	local content = CreateFrame("Frame", nil, scroll)
 	content:SetSize(ROW_W, 1)
 	scroll:SetScrollChild(content)
-	scroll:SetScript("OnSizeChanged", function(_, w)
+	-- Update the scroll frame's child rect (its scroll range and the area where rows take clicks)
+	-- after every resize and reflow, as Blizzard's pages do after a layout, so rows that a taller
+	-- window or a longer page brings into view can be clicked.
+	scroll:SetScript("OnSizeChanged", function(self, w)
 		content:SetWidth(w)
+		self:UpdateScrollChildRect()
 		ns.Options.refresh()
 	end)
+	content:SetScript("OnSizeChanged", function() scroll:UpdateScrollChildRect() end)
 	scroll:Hide()
 	return setmetatable({ win = win, key = key, title = title, indent = indent, scroll = scroll, content = content,
 		items = {} }, Page)
 end
 
 -- shown: nil, or a function: the row is hidden while it returns false.
+-- Set around a run of rows, like the gate: inset, a function returning the rows' left and right
+-- margins inside the page (a second column); float, a function: while true, the rows after it start
+-- level with it instead of below it, so it stands beside them (give them an inset to make room).
 function Page:add(frame, height, shown, refresh)
 	-- A page-wide gate (set around a run of rows) hides them all while it returns false.
 	local gate = self.gate
@@ -75,9 +86,13 @@ function Page:add(frame, height, shown, refresh)
 		local inner = shown
 		shown = function() return gate() and (not inner or inner()) and true or false end
 	end
-	table.insert(self.items, { frame = frame, height = height, shown = shown, refresh = refresh, rowIndent = self.rowIndent })
+	table.insert(self.items, { frame = frame, height = height, shown = shown, refresh = refresh,
+		inset = self.inset, float = self.float })
 	return frame
 end
+
+-- The width of the row being refreshed (the page's, less its insets): what its controls fit into.
+function Page:width() return self.rowW or self.content:GetWidth() end
 
 -- A row that shows only while active() is true (and shown(), if given).
 function Page.showWhen(active, shown)
@@ -92,11 +107,15 @@ function Page:refresh()
 			ns.say("options: the %s page header failed to update: %s", self.key, tostring(err))
 		end
 	end
-	local y = 0
+	local y, bottom = 0, 0   -- bottom: of any row standing beside others (float)
+	local width = self.content:GetWidth()
 	for _, it in ipairs(self.items) do
 		local show = not it.shown or it.shown()
 		it.frame:SetShown(show)
 		if show then
+			local left, right = 0, 0
+			if it.inset then left, right = it.inset() end
+			self.rowW = width - left - right
 			-- One failing row must not blank the rest of the page: report it once and carry on.
 			if it.refresh then
 				local ok, err = pcall(it.refresh)
@@ -106,13 +125,14 @@ function Page:refresh()
 				end
 			end
 			it.frame:ClearAllPoints()
-			local indent = it.rowIndent or 0   -- rows inside a panel (Layout's group settings)
-			it.frame:SetPoint("TOPLEFT", self.content, "TOPLEFT", indent, -y)
-			it.frame:SetPoint("TOPRIGHT", self.content, "TOPRIGHT", -indent, -y)
-			y = y + (type(it.height) == "function" and it.height() or it.height)
+			it.frame:SetPoint("TOPLEFT", self.content, "TOPLEFT", left, -y)
+			it.frame:SetPoint("TOPRIGHT", self.content, "TOPRIGHT", -right, -y)
+			local h = type(it.height) == "function" and it.height() or it.height
+			if it.float and it.float() then bottom = math.max(bottom, y + h) else y = y + h end
 		end
 	end
-	self.content:SetHeight(math.max(y, 1))
+	self.rowW = nil
+	self.content:SetHeight(math.max(y, bottom, 1))
 	if self.afterRefresh then self.afterRefresh() end
 end
 
@@ -177,7 +197,7 @@ function Page:text(str, shown)
 	f.text:SetJustifyH("LEFT")
 	f.text:SetSpacing(2)
 	return self:add(f, function() return f.text:GetStringHeight() + 12 end, shown, function()
-		f.text:SetWidth(self.content:GetWidth() - 8)
+		f.text:SetWidth(math.min(self:width() - 8, TEXT_MAX_W))
 		f.text:SetText(type(str) == "function" and str() or str)
 	end)
 end
@@ -195,26 +215,97 @@ function Page:checkbox(label, tip, get, set, shown)
 	return self:add(f, 30, shown, function() cb:SetChecked(get() and true or false) end)
 end
 
+-- How a slider's value reads in the box beside it, where the player can also type one.
+function Page.pct(v) return string.format("%.0f%%", v * 100) end
+function Page.times(v) return string.format("%.2fx", v) end
+function Page.int(v) return string.format("%d", v) end
+function Page.px(v) return string.format("%d px", v) end
+local NUMBER = "%-?%d*%.?%d+"   -- the first number in a text: "44", "-5", "1.25", "44 px", "100%"
+local BOX_W, BOX_GAP = 52, 10
+
+-- A value's units as its label shows them: how many label units one of the value's makes (100 for
+-- a percent of a 0-1 value, else 1), and the decimals the label shows. Read from the label at the
+-- top of the range, or the bottom where the top reads as a word ("Off").
+local function unitsOf(fmt, minV, maxV)
+	for _, v in ipairs({ maxV, minV }) do
+		local text = fmt(v)
+		local shown = tonumber(text:match(NUMBER) or "")
+		if shown and v ~= 0 then
+			local per = math.abs(shown - v * 100) < math.abs(shown - v) and 100 or 1
+			local decimals = text:match("%d%.(%d+)")
+			return per, decimals and #decimals or 0
+		end
+	end
+	return 1, 0
+end
+
+-- fmt: Page.px, Page.int, Page.times, Page.pct or a function of the row's own (seconds, "Off").
+-- The slider moves in steps; a number typed in the box takes effect on Enter as typed, in the
+-- label's units and to the decimals it shows, held to the slider's range, with the slider at the
+-- nearest step. Escape, or leaving the box any other way, keeps the value as it was.
 function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown)
 	local f = self:row(34)
 	f.label = self:label(f, label, tip)
 	local s = CreateFrame("Frame", nil, f, "MinimalSliderWithSteppersTemplate")
 	s:SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
 	local updating = false   -- while the page sets the value itself
-	s:Init(get() or minV, minV, maxV, math.floor((maxV - minV) / step + 0.5),
-		{ [MinimalSliderWithSteppersMixin.Label.Right] = fmt })
-	s:RegisterCallback(MinimalSliderWithSteppersMixin.Event.OnValueChanged, function(_, v)
-		if updating then return end
+	local per, decimals = unitsOf(fmt, minV, maxV)
+	local function snap(v)
 		v = math.floor(v / step + 0.5) * step
 		if step < 1 then v = tonumber(string.format("%.2f", v)) end
+		return v
+	end
+	local box = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+	s:Init(get() or minV, minV, maxV, math.floor((maxV - minV) / step + 0.5))
+	s:RegisterCallback(MinimalSliderWithSteppersMixin.Event.OnValueChanged, function(_, v)
+		if updating then return end
+		v = snap(v)
 		set(v)
+		box:ClearFocus()   -- moving the slider drops a number half typed
+		box:SetText(fmt(v))
 	end, s)
+	box:SetSize(BOX_W, 20)
+	box:SetPoint("LEFT", s, "RIGHT", BOX_GAP, 0)
+	box:SetAutoFocus(false)
+	box:SetMaxLetters(8)
+	box:SetFontObject("GameFontHighlight")
+	box:SetJustifyH("CENTER")
+	-- While typing, the bare number (in the label's units); otherwise the value as it reads.
+	box:SetScript("OnEditFocusGained", function(b)
+		local text = string.format("%." .. decimals .. "f", (get() or minV) * per)
+		if decimals > 0 then text = text:gsub("0+$", ""):gsub("%.$", "") end
+		b:SetText(text)
+		b:HighlightText()
+	end)
+	box:SetScript("OnEditFocusLost", function(b)
+		b:HighlightText(0, 0)
+		b:SetText(fmt(get() or minV))
+	end)
+	box:SetScript("OnEscapePressed", box.ClearFocus)
+	box:SetScript("OnEnterPressed", function(b)
+		local n = tonumber((b:GetText():gsub(",", ".")):match(NUMBER) or "")
+		if n then
+			local scale = 10 ^ decimals
+			n = math.floor(n * scale + 0.5) / scale / per
+			-- Rounded again past the label's decimals, so a percent's 0.33 isn't 0.33000000000000002.
+			local v = tonumber(string.format("%." .. (decimals + (per == 100 and 2 or 0)) .. "f", n))
+			v = math.min(math.max(v, minV), maxV)
+			set(v)
+			updating = true
+			s:SetValue(get() or v)
+			updating = false
+		end
+		b:ClearFocus()
+	end)
 	return self:add(f, 34, shown, function()
-		-- Fit the page width so the value text never runs past the edge of a narrow window.
-		s:SetWidth(math.max(math.min(self.content:GetWidth() - LABEL_W - SLIDER_VALUE_W, SLIDER_MAX_W), 80))
+		-- The slider and its box share the row's width, up to their own; the slider takes what the
+		-- box leaves, so a narrow window never pushes the box past its edge.
+		local span = math.min(self:width() - LABEL_W - 8, SLIDER_SPAN_W)
+		s:SetWidth(math.max(span - BOX_GAP - BOX_W, 80))
 		updating = true
 		s:SetValue(get() or minV)
 		updating = false
+		if not box:HasFocus() then box:SetText(fmt(get() or minV)) end
 	end)
 end
 
@@ -234,8 +325,9 @@ function Page:dropdown(label, tip, choices, get, set, shown, width)
 	return self:add(f, 34, shown, function() dd:GenerateMenu() end)
 end
 
--- A colour swatch; clicking opens Blizzard's colour picker (with opacity). get/set use { r, g, b, a }.
-function Page:color(label, tip, get, set, shown)
+-- A colour swatch; clicking opens Blizzard's colour picker, with opacity unless opaque (a colour
+-- that can only be solid, like one inside text). get/set use { r, g, b, a }.
+function Page:color(label, tip, get, set, shown, opaque)
 	local f = self:row(30)
 	self:label(f, label, tip)
 	local b = CreateFrame("Button", nil, f, "BackdropTemplate")
@@ -252,10 +344,10 @@ function Page:color(label, tip, get, set, shown)
 		if not c then return end
 		local function apply()
 			local r, g, bl = ColorPickerFrame:GetColorRGB()
-			set({ r, g, bl, ColorPickerFrame:GetColorAlpha() })
+			set({ r, g, bl, opaque and 1 or ColorPickerFrame:GetColorAlpha() })
 		end
 		ColorPickerFrame:SetupColorPickerAndShow({
-			r = c[1], g = c[2], b = c[3], opacity = c[4] or 1, hasOpacity = true,
+			r = c[1], g = c[2], b = c[3], opacity = c[4] or 1, hasOpacity = not opaque,
 			swatchFunc = apply, opacityFunc = apply,
 			cancelFunc = function(prev) set({ prev.r, prev.g, prev.b, prev.a or 1 }) end,
 		})
@@ -399,7 +491,7 @@ function Page:bigButtons(list)
 		buttons[i] = b
 	end
 	return self:add(f, H + 8, nil, function()
-		local w = (self.content:GetWidth() - (#buttons - 1) * GAP) / #buttons
+		local w = (self:width() - (#buttons - 1) * GAP) / #buttons
 		for i, b in ipairs(buttons) do
 			b:SetSize(w, H)
 			b:ClearAllPoints()
@@ -410,18 +502,21 @@ function Page:bigButtons(list)
 	end)
 end
 
--- A boxed notice, e.g. the beta warning.
+-- A boxed notice, e.g. the beta warning: as wide as the page, up to the width text wraps at.
 function Page:callout(text, shown)
-	local f = CreateFrame("Frame", nil, self.content, "BackdropTemplate")
-	Page.panelBackdrop(f, 0.95, 0.59, 0.24)
-	f:SetBackdropColor(0.95, 0.59, 0.24, 0.08)
-	f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	local f = self:row(40)
+	local box = CreateFrame("Frame", nil, f, "BackdropTemplate")
+	box:SetPoint("TOPLEFT")
+	Page.panelBackdrop(box, 0.95, 0.59, 0.24)
+	box:SetBackdropColor(0.95, 0.59, 0.24, 0.08)
+	f.text = box:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	f.text:SetPoint("TOPLEFT", 12, -10)
 	f.text:SetJustifyH("LEFT")
 	f.text:SetText(text)
 	return self:add(f, function() return f.text:GetStringHeight() + 30 end, shown, function()
-		f.text:SetWidth(self.content:GetWidth() - 24)
-		f:SetHeight(f.text:GetStringHeight() + 20)
+		local w = math.min(self:width(), TEXT_MAX_W + 24)
+		f.text:SetWidth(w - 24)
+		box:SetSize(w, f.text:GetStringHeight() + 20)
 	end)
 end
 
@@ -461,4 +556,68 @@ function Page:experimental(name, where)
 	w:SetText(where)
 	ns.Look.expBadge(f, name, "Give feedback"):SetPoint("LEFT", w, "RIGHT", 10, 0)
 	return self:add(f, 28)
+end
+
+------------------------------------------------------------------------
+-- Drag and drop in a list (the Layout page's elements, the totem bar's order): a ghost of the
+-- dragged item follows the cursor, and a white line marks where it will land.
+------------------------------------------------------------------------
+-- The ghost: an icon and a label on the cursor while shown. onMove runs as it follows.
+function Page.dragGhost(onMove)
+	local ghost = CreateFrame("Frame", nil, UIParent)
+	ghost:SetFrameStrata("TOOLTIP")
+	ghost:SetSize(180, 24)
+	ghost:SetAlpha(0.9)
+	ghost.icon = ghost:CreateTexture(nil, "ARTWORK")
+	ghost.icon:SetSize(20, 20)
+	ghost.icon:SetPoint("LEFT", 2, 0)
+	ns.cropIcon(ghost.icon)
+	ghost.text = ghost:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	ghost.text:SetPoint("LEFT", ghost.icon, "RIGHT", 6, 0)
+	ghost:Hide()
+	ghost:SetScript("OnUpdate", function(self)
+		local x, y = GetCursorPosition()
+		local sc = self:GetEffectiveScale()
+		self:ClearAllPoints()
+		self:SetPoint("LEFT", UIParent, "BOTTOMLEFT", x / sc + 8, y / sc)
+		onMove()
+	end)
+	return ghost
+end
+
+function Page.dropLine(parent)
+	local line = parent:CreateTexture(nil, "OVERLAY", nil, 7)
+	line:SetColorTexture(0.95, 0.95, 0.95, 1)
+	line:SetHeight(2)
+	line:Hide()
+	return line
+end
+
+-- Where a drop lands among items (top to bottom; skip(item) leaves out the one being dragged): its
+-- place among the others, by the cursor's height, and those others.
+function Page.dropPosition(items, skip)
+	local _, cy = GetCursorPosition()
+	local at, others = 1, {}
+	for _, it in ipairs(items) do
+		if not skip(it) then
+			table.insert(others, it)
+			local _, y = it:GetCenter()
+			if y and y * it:GetEffectiveScale() > cy then at = #others + 1 end
+		end
+	end
+	return at, others
+end
+
+-- The drop line above others[at], or under the last one. False when there are no others to place it by.
+function Page.placeDropLine(line, others, at)
+	line:ClearAllPoints()
+	if #others == 0 then return false end
+	if at <= #others then
+		line:SetPoint("BOTTOMLEFT", others[at], "TOPLEFT", 0, 0)
+		line:SetPoint("BOTTOMRIGHT", others[at], "TOPRIGHT", 0, 0)
+	else
+		line:SetPoint("TOPLEFT", others[#others], "BOTTOMLEFT", 0, 0)
+		line:SetPoint("TOPRIGHT", others[#others], "BOTTOMRIGHT", 0, 0)
+	end
+	return true
 end

@@ -1,6 +1,5 @@
 -- Totem bar: one bar that can replace both of Blizzard's totem frames, the totems under the player
 -- frame (timers, right-click dismiss) and the Totem Action Bar (a pick per element, arrow popouts).
--- What works in combat and why: docs/combat-techniques.md.
 --
 -- Every click is a secure button set up out of combat, so it works in combat too:
 -- * slot button: right-click "destroytotem" (totem-slot), left-click "action" on the element's
@@ -35,7 +34,9 @@ TB.DEFAULTS = {
 	point = "CENTER", x = 0, y = -100,   -- x, y in UIParent units, so scaling keeps the centre
 	scale = 1,
 	alpha = 1,
-	show = "always",          -- always | active (in combat or a totem down) | combat
+	-- always | active (in combat or a totem down) | combat | target (in combat or with an enemy target)
+	show = "always",
+	fadeAfter = 0,            -- seconds it stays once combat ends, then fades out (0: none)
 	order = { "earth", "fire", "water", "air" },
 	hidden = {},              -- element -> true to leave its slot out
 	dir = "row",              -- row | column
@@ -88,6 +89,7 @@ local RANGES = {
 	scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { 0, 20 }, size = { 24, 96 },
 	arrowSize = { 8, 32 }, extrasScale = { 0.5, 1.5 }, idleAlpha = { 0.1, 1 },
 	badgeSize = { 0.25, 0.8 }, badgeAlpha = { 0.1, 1 }, badgeSat = { 0, 1 }, warn = { 0, 30 }, rangeHeight = { 1, 12 },
+	fadeAfter = { 0, 10 },
 }
 local function finite(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
@@ -108,7 +110,7 @@ local function cfg()
 		elseif t.follow == true then t.size, t.border = nil, nil end
 		t.enabled, t.hideTotemFrame, t.hideActionBar, t.killedPulse, t.follow = nil, nil, nil, nil, nil
 		if t.mode ~= "blizzard" and t.mode ~= "active" and t.mode ~= "everything" then t.mode = nil end
-		if t.show ~= "always" and t.show ~= "active" and t.show ~= "combat" then t.show = nil end
+		if t.show ~= "always" and t.show ~= "active" and t.show ~= "combat" and t.show ~= "target" then t.show = nil end
 		-- The default per-totem times, by the client's names (English until they have loaded; the
 		-- lookup in warnSecs also takes the English name, so either works).
 		if type(t.warnOver) ~= "table" then
@@ -189,19 +191,22 @@ local EXTRA_GAP = 6   -- added to the spacing between the extras and the slots
 -- (TB.extraSides, below), n slots of the given size, then Call and Recall after. Returns a list of
 -- { key, offset, size, extra } (key: an extra's key, or the slot's place among the n), the bar's
 -- length and its thickness (its largest button: every button is centred on its line).
-function TB.along(n, size)
+function TB.along(n, size, px)
 	local c = cfg()
 	local before, after = TB.extraSides()
-	local esz = math.floor(size * c.extrasScale + 0.5)
+	-- px (one screen pixel in the bar's units): sizes and gaps in whole pixels, as on the bar.
+	local function round(v) return px and ns.roundPx(v, px) or math.floor(v + 0.5) end
+	local esz, gap, extraGap = round(size * c.extrasScale), c.spacing, c.spacing + EXTRA_GAP
+	if px then gap, extraGap = round(gap), round(extraGap) end
 	local list, long = {}, 0
-	local function put(key, gap, sz, extra)
-		if #list > 0 then long = long + gap end
+	local function put(key, space, sz, extra)
+		if #list > 0 then long = long + space end
 		table.insert(list, { key = key, offset = long, size = sz, extra = extra })
 		long = long + sz
 	end
-	for _, k in ipairs(before) do put(k, c.spacing, esz, true) end
-	for i = 1, n do put(i, i == 1 and c.spacing + EXTRA_GAP or c.spacing, size) end
-	for i, k in ipairs(after) do put(k, i == 1 and c.spacing + EXTRA_GAP or c.spacing, esz, true) end
+	for _, k in ipairs(before) do put(k, gap, esz, true) end
+	for i = 1, n do put(i, i == 1 and extraGap or gap, size) end
+	for i, k in ipairs(after) do put(k, i == 1 and extraGap or gap, esz, true) end
 	local line = (#before + #after > 0) and math.max(size, esz) or size
 	return list, math.max(long, size), line
 end
@@ -351,13 +356,25 @@ local slots = {}    -- element -> slot record
 local bySlot = {}   -- Blizzard's totem slot -> slot record
 TB.slots, TB.frame = slots, bar
 
+-- Frame levels over a slot's button, bottom to top: the look (+2: icon), the expiring warning
+-- (+3 to +4: Timer:setExpire, ShamanForever_Timers.lua), the timer's time-left bar (+8, kept under
+-- the range strip so it never hides the range mark), the range strip (+9 to +12: ours, Blizzard's
+-- aura button and our colour on it; ShamanForever_TotemRange.lua), then everything drawn over the
+-- whole icon: the GCD sweep, the timer's Cooldown (swipe, countdown text), the key, the end
+-- flashes. The strip's in-range part is opaque (the buff's icon under its colour), so what sits
+-- under it is hidden.
+TB.RANGE_LEVEL = 9
+local OVER_RANGE = TB.RANGE_LEVEL + 4
+local LOOK_LEVEL = 2   -- the look's level over the button (v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL))
+local LOOK_OVER_RANGE = OVER_RANGE - LOOK_LEVEL   -- the same, over the look's level
+
 -- Over a button's look (above its timer, and inside the look so it fades with it): the key bound to
 -- it, in the top corner, and its highlight while Blizzard's Quick Keybind Mode is open.
 local KEY_HIGHLIGHT = "UI-HUD-ActionBar-IconFrame-Mouseover"
 local function keyLayer(v)
 	local f = CreateFrame("Frame", nil, v)
 	f:SetAllPoints()
-	f:SetFrameLevel(v:GetFrameLevel() + 6)
+	f:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 3)
 	f.text = f:CreateFontString(nil, "OVERLAY")
 	f.text:SetFont(STANDARD_TEXT_FONT, 12, "OUTLINE")
 	f.text:SetPoint("TOPRIGHT", -2, -2)
@@ -370,11 +387,11 @@ local function keyLayer(v)
 	return f
 end
 
--- The global cooldown's sweep over the icon (and the expiring warning), below the button's timer, so
--- the time left stays readable.
+-- The global cooldown's sweep over the icon (the expiring warning and the range strip too), below
+-- the button's timer, so the time left stays readable.
 local function gcdSweep(v)
 	local cd = ns.makeGCDSweep(v)
-	cd:SetFrameLevel(v:GetFrameLevel() + 2)
+	cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE)
 	return cd
 end
 
@@ -400,7 +417,7 @@ for index, el in ipairs(ELEMENTS) do
 	-- What the player sees, on a plain frame over the button.
 	local v = CreateFrame("Frame", nil, bar)
 	v:SetAllPoints(b)
-	v:SetFrameLevel(b:GetFrameLevel() + 2)
+	v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL)
 	v:EnableMouse(false)
 	s.vis = v
 	v.school = el   -- the school its looks take (ns.Looks)
@@ -417,17 +434,19 @@ for index, el in ipairs(ELEMENTS) do
 	local kf = ns.makeEndFlash(bar, b, "totembar", v)
 	s.expired = ns.makeEndFlash(bar, b, "totembar", v)
 	s.killed = kf
+	kf:SetFrameLevel(b:GetFrameLevel() + OVER_RANGE + 4)
+	s.expired:SetFrameLevel(b:GetFrameLevel() + OVER_RANGE + 4)
 	-- Over the picture, inside the slot's border (TB.fitLook sets it in from the button).
 	for _, flash in ipairs({ kf, s.expired }) do flash:ClearAllPoints(); flash:SetAllPoints(v) end
 	v.bg = v:CreateTexture(nil, "BACKGROUND")
 	v.bg:SetAllPoints()
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
-	ns.cropIcon(v.icon)
+	ns.cropIconExact(v.icon)
 	-- Time left: a timer (text, swipe, bar), above the warning layer so it stays readable.
 	s.timer = ns.Timer.new(v, "totembar", "uptime", { anchor = v, school = el })
-	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + 3)
-	s.timer.bar:SetFrameLevel(v:GetFrameLevel() + 4)
+	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 1)
+	s.timer.bar:SetFrameLevel(b:GetFrameLevel() + TB.RANGE_LEVEL - 1)
 	v.cd = s.timer.cd
 	s.keys = keyLayer(v)
 	s.gcd = gcdSweep(v)
@@ -542,10 +561,10 @@ for _, e in ipairs({ { "Call", CALL }, { "Recall", RECALL } }) do
 	b:SetAttribute("spell", spell)
 	local v = CreateFrame("Frame", nil, bar)
 	v:SetAllPoints(b)
-	v:SetFrameLevel(b:GetFrameLevel() + 2)
+	v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL)
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
-	ns.cropIcon(v.icon)
+	ns.cropIconExact(v.icon)
 	extras[key] = { key = key, spell = spell, button = b, vis = v, keys = keyLayer(v), gcd = gcdSweep(v),
 		command = "CLICK ShamanForeverKey" .. key .. ":LeftButton" }
 end
@@ -896,15 +915,33 @@ local function layoutArrow(s)
 	s.arrowVis:SetShown(feat("arrows"))
 end
 
-local function visibilityDriver()
+-- The bar's own driver, and the one it has now: a plain "show" while it stays after combat
+-- (ns.AfterCombat, made with the layout below).
+local function ownDriver()
 	local c = cfg()
 	if not barOn() or not hasTotems then return "hide" end
 	if kbOpen or not ns.getAccount().locked then return "show" end
 	if c.show == "combat" then return "[petbattle] hide; [combat] show; hide" end
+	if c.show == "target" then return "[petbattle] hide; [combat] show; [@target,exists,harm,nodead] show; hide" end
 	if c.show == "active" then return "[petbattle] hide; [combat] show; " .. (anyDown and "show" or "hide") end
 	return "[petbattle] hide; show"
 end
+local afterCombat
+local function visibilityDriver()
+	if ns.AfterCombat.held(afterCombat) and barOn() and ns.getAccount().locked and not kbOpen
+		and cfg().show ~= "always" then
+		return "[petbattle] hide; show"
+	end
+	return ownDriver()
+end
 local lastDriver
+local function drive()
+	local driver = visibilityDriver()
+	if driver ~= lastDriver then
+		lastDriver = driver
+		RegisterStateDriver(bar, "visibility", driver)
+	end
+end
 
 function layout()
 	if ns.deferInCombat("totem bar layout", layout) then return end
@@ -914,10 +951,13 @@ function layout()
 	closePopouts()
 	local c = cfg()
 	local size, border = look()
-	-- Scale and opacity first: borders below are lines, sized for the bar's scale. Out of combat
+	-- Scale and opacity first: borders below are lines, sized for the bar's scale, and sizes, gaps
+	-- and the position are whole screen pixels at it (ns.placeOnPixels says why). Out of combat
 	-- only, like everything on a frame holding secure buttons.
 	bar:SetScale(c.scale)
 	bar:SetAlpha(c.alpha)
+	local px = ns.pixel(bar)
+	size = ns.roundPx(size, px)
 	-- A slot shows for an element with a totem known (every element's where the client can't list
 	-- them). With no totem known at all (a new character's first levels) the bar has nothing to show
 	-- and hides, Call and Recall with it, in positioning mode too: like a group whose elements aren't
@@ -941,11 +981,11 @@ function layout()
 	local row = c.dir == "row"
 	if row and c.pop ~= "up" and c.pop ~= "down" then c.pop = "up" end
 	if not row and c.pop ~= "right" and c.pop ~= "left" then c.pop = "right" end
-	-- Everything along the bar, in order: extras before, slots, extras after (TB.along). LEFT / TOP
-	-- anchors keep every button centred on the bar's line, whatever its size. Nothing while no totem
-	-- is known.
+	-- Everything along the bar, in order: extras before, slots, extras after (TB.along), each
+	-- centred on the bar's line to the nearest whole pixel, whatever its size. Nothing while no
+	-- totem is known.
 	local seq, long, across = {}, size, size
-	if hasTotems then seq, long, across = TB.along(#shown, size) end
+	if hasTotems then seq, long, across = TB.along(#shown, size, px) end
 	local on = {}   -- the extras that show -> their size
 	for _, it in ipairs(seq) do
 		local b, sz = it.extra and extras[it.key].button or shown[it.key].button, it.size
@@ -954,7 +994,8 @@ function layout()
 		-- Its key label scales with the icon.
 		if keyTexts[b] then keyTexts[b]:SetFont(STANDARD_TEXT_FONT, math.max(8, math.floor(sz * 0.3 + 0.5)), "OUTLINE") end
 		b:ClearAllPoints()
-		if row then b:SetPoint("LEFT", bar, "LEFT", it.offset, 0) else b:SetPoint("TOP", bar, "TOP", 0, -it.offset) end
+		local side = ns.roundPx((across - sz) / 2, px)
+		if row then b:SetPoint("TOPLEFT", bar, "TOPLEFT", it.offset, -side) else b:SetPoint("TOPLEFT", bar, "TOPLEFT", side, -it.offset) end
 	end
 	for key, e in pairs(extras) do
 		local show = on[key] ~= nil
@@ -985,18 +1026,13 @@ function layout()
 		layoutPopout(s, size, known[s.el])
 	end
 	if row then bar:SetSize(long, across) else bar:SetSize(across, long) end
-	bar:ClearAllPoints()
-	bar:SetPoint(c.point, UIParent, c.point, c.x / c.scale, c.y / c.scale)
+	ns.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
 	if TB.range then TB.range.layout(size) end   -- after the scale: its height is a line's
 	refreshSlots()
 	refreshKeys()
 	refreshGCD()
 	ns.refitRings()
-	local driver = visibilityDriver()
-	if driver ~= lastDriver then
-		lastDriver = driver
-		RegisterStateDriver(bar, "visibility", driver)
-	end
+	drive()
 	applyTotemFrame()
 	applyActionBar()
 	if mover then mover.update() end
@@ -1004,6 +1040,18 @@ function layout()
 	if playerClass and not isShaman() then classDone = true end
 end
 TB.layout = layout
+
+-- Stay after combat, then fade out (ns.AfterCombat).
+afterCombat = ns.AfterCombat.new({
+	secs = function()
+		if not ns.getDB() or not barOn() or kbOpen or not ns.getAccount().locked then return 0 end
+		local c = cfg()
+		return c.show ~= "always" and c.fadeAfter or 0
+	end,
+	apply = function() if not InCombatLockdown() then drive() end end,
+	shows = function() return SecureCmdOptionParse(ownDriver()) == "show" end,
+	frames = function() return { bar } end,
+})
 
 -- The slots' timers take their current style (General's or the bar's own). Plain frames, so any time.
 function TB.applyTimers()
@@ -1062,18 +1110,18 @@ end)
 mover:SetScript("OnMouseUp", function(_, button)
 	if button == "RightButton" and ns.Options.open then ns.Options.open("totembar") end
 end)
--- As for groups: mouse wheel, icon size (lines stay crisp); Ctrl + wheel, scale (everything grows,
--- lines too); Shift + wheel, opacity.
+-- As for groups: mouse wheel, scale (everything grows, lines too); Shift + wheel, icon size (lines
+-- stay crisp); Ctrl + wheel, opacity.
 mover:SetScript("OnMouseWheel", function(self, delta)
 	if InCombatLockdown() then return end
 	local c = cfg()
 	local function step(key) c[key] = clamp(math.floor((c[key] + delta * 0.05) * 100 + 0.5) / 100, RANGES[key]) end
-	if IsShiftKeyDown() then step("alpha")
-	elseif IsControlKeyDown() then step("scale")
-	else
+	if IsControlKeyDown() then step("alpha")
+	elseif IsShiftKeyDown() then
 		local from = look()   -- the size it has now, General's or its own
 		c.sizeFollow = false
 		c.size = clamp(from + delta * 2, RANGES.size)
+	else step("scale")
 	end
 	layout()
 	self.label:SetText(string.format("Totem bar: size %d, scale %.2f, opacity %.0f%%", (look()), c.scale, c.alpha * 100))
