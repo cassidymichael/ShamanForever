@@ -253,16 +253,20 @@ end)
 local function restart()
 	wipe(runs)
 	wipe(barRuns)
+	for _, key in ipairs(ns.ELEMENT_KEYS) do
+		if L.PREVIEW[key] and not ns.ELEMENTS[key].placeholder then runs[key] = { steps = stepsFor(key), i = 1 } end
+	end
+	for _, el in ipairs(ns.TotemBar.ELEMENTS) do barRuns[el] = { steps = barSteps(el), i = 1 } end
+	-- Busy: out of step (above), the n-th loop starting on its n-th step, held a share of BUSY_HOLD.
 	local n = 0
-	local function loop(steps)
+	local function stagger(r)
 		n = n + 1
-		if #steps == 1 then return { steps = steps, i = 1 } end
-		return { steps = steps, i = (n - 1) % #steps + 1, first = (n * 0.7) % BUSY_HOLD + 0.2 }
+		if #r.steps > 1 then r.i, r.first = (n - 1) % #r.steps + 1, (n * 0.7) % BUSY_HOLD + 0.2 end
 	end
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
-		if L.PREVIEW[key] and not ns.ELEMENTS[key].placeholder then runs[key] = loop(stepsFor(key)) end
+		if runs[key] then stagger(runs[key]) end
 	end
-	for _, el in ipairs(ns.TotemBar.ELEMENTS) do barRuns[el] = loop(barSteps(el)) end
+	for _, el in ipairs(ns.TotemBar.ELEMENTS) do stagger(barRuns[el]) end
 	ticker:SetShown(on)
 end
 
