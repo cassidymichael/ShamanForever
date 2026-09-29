@@ -369,8 +369,8 @@ do
 	title:SetText("ShamanForever: preview")
 	local mode = choice(panel, "mode", {
 		{ "preview", "Preview", "An ordinary moment in a fight." },
-		{ "warnings", "Warnings", "Everything that can warn, at once." },
-		{ "busy", "Busy", "Pops, glows and flashes everywhere, faster than a fight." },
+		{ "warnings", "Warnings", "Warnings focused." },
+		{ "busy", "Busy", "Everything everywhere all at once." },
 	})
 	mode:SetPoint("TOPLEFT", 10, -38)
 	local unlearned = check(panel, "unlearned", "Show not learned",
