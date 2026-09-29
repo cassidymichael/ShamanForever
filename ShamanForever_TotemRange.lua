@@ -159,8 +159,15 @@ function R.preview(on)
 		for _, part in ipairs(PARTS) do
 			local p = s.rangeParts and s.rangeParts[part.key]   -- made with the slot's first strip
 			if p then
-				p.icon:SetAlpha(on and 0 or 1)
-				p.over:SetAlpha(on and 0 or 1)
+				-- p.icon and p.over sit on Blizzard's aura button, which can be forbidden while
+				-- auras are secret out of combat too (a PvP match): guarded so a refusal there
+				-- can't break the preview's start. Once small-items merges, the holder's own alpha
+				-- is the better way to hide this (the preview draws its own strip); this stays as
+				-- a guard on Blizzard's part.
+				ns.try("totem range: preview", function()
+					p.icon:SetAlpha(on and 0 or 1)
+					p.over:SetAlpha(on and 0 or 1)
+				end)
 			end
 		end
 	end
