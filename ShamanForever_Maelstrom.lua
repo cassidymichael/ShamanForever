@@ -96,10 +96,8 @@ M.key, M.buff = KEY, true
 table.insert(ns.DEFAULTS.groups, { name = "Maelstrom", point = "CENTER", x = -62, y = 11, scale = 0.9,
 	alpha = 0.75, orientation = "horizontal", growth = "forward", spacing = 6, members = { KEY } })
 
--- Its time left is Blizzard's button's own swipe: no text, no bar.
-ns.Style.KINDS.uptime.ownerDefaults[KEY] = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false,
-	bar = false }
-ns.Timer.CANT[KEY] = { bar = "Its timer is Blizzard's own; a time bar can't follow it." }
+-- Its time left is Blizzard's button's own swipe: no text, no bar (its defaults and CANT note are
+-- with every other element's in ShamanForever_Timers.lua).
 
 -- The containers sit at their element icon's text level + 5 (ns.makeAuraSlot); our parts are set
 -- from that, never read back from Blizzard's buttons.
