@@ -384,16 +384,41 @@ end
 -- it shows only while the button does, that is while the aura is up: the engine hides it with the
 -- aura. The button's own time can't be read, so the caller hands it a duration of its own to run
 -- from (Timer:setClock). Under the button no script handler runs, so the button plays its pulse and
--- glow (handed animations), and its alpha is set with a pcall: one refused call stops the tries
--- until combat or the restriction ends. At the start of both it goes to 0 first, so a refused
--- call leaves it hidden, never showing a warning it had before.
+-- glow (handed animations). Whether the client lets us set its alpha in combat, in an encounter or
+-- in a PvP match is untested in game, so a refused call must leave no warning lit:
+-- * It is set to 0 as every combat and restriction starts, and on each loading screen (a match
+--   starts behind one), in or out of lockdown: a refused 0 costs nothing.
+-- * A refusal in the ticker stops its tries until combat or the restriction ends; the tries start
+--   again on the frame after (auras plain again).
+-- * If a call is refused while the warning was last set above 0, the owner hides the element
+--   (t.onStuck(true), its own gate frame) until a 0 goes through (t.onStuck(false)).
 ------------------------------------------------------------------------
 local warning = {}   -- timers with an expiry warning
+local isSecret = ns.isSecret
+-- One write to an aura timer's warning; true if the client took it. t.expLast: the last alpha taken
+-- (a secret one counts as above 0).
+local function auraWrite(t, a)
+	local ok, err = pcall(t.exp.SetAlpha, t.exp, a)
+	if ok then
+		t.expLast = isSecret(a) and 1 or a
+		if t.expStuck and t.expLast == 0 then
+			t.expStuck = nil
+			if t.onStuck then t.onStuck(false) end
+		end
+	else
+		ns.noteError("timer expiring on an aura", err)
+		if (t.expLast or 0) > 0 and not t.expStuck then
+			t.expStuck = true
+			if t.onStuck then t.onStuck(true) end
+		end
+	end
+	return ok
+end
 local function expAlpha(t, a)
 	if not t.aura then t.exp:SetAlpha(a) return end
 	if t.expBlocked then return end
-	local ok, err = pcall(t.exp.SetAlpha, t.exp, a)
-	if not ok then t.expBlocked = true; ns.noteError("timer expiring on an aura", err) end
+	if t.expStuck then auraWrite(t, 0) return end   -- a 0 first; the next tick writes the value
+	if not auraWrite(t, a) then t.expBlocked = true end
 end
 local ticker = CreateFrame("Frame")   -- shown only while some timer has a warning
 ticker.t = 0
@@ -404,30 +429,49 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 	self.t = 0
 	for t in pairs(warning) do
 		local d = t.clock or t.last
-		if d then
+		if t.expBlocked then
+			-- Stuck lit: a 0 again once a second, until one goes through.
+			if t.expStuck then
+				t.retry = (t.retry or 0) + 1
+				if t.retry >= 10 then t.retry = 0; auraWrite(t, 0) end
+			end
+		elseif d then
 			-- pcall, not ns.try: this runs ten times a second and must not allocate.
 			local ok, a = pcall(d.EvaluateRemainingDuration, d, t.expCurve)
 			if ok then expAlpha(t, a) else expAlpha(t, 0); ns.noteError("timer expiring", a) end
 		else expAlpha(t, 0) end
 	end
 end)
--- Aura timers' warnings: to 0 as combat or a restriction starts (still allowed then), and tried
--- again from its end.
-local restrict = CreateFrame("Frame")
-ns.registerEvent(restrict, "PLAYER_REGEN_DISABLED")
-ns.registerEvent(restrict, "PLAYER_REGEN_ENABLED")
-ns.registerEvent(restrict, "ADDON_RESTRICTION_STATE_CHANGED")
-restrict:SetScript("OnEvent", function(_, event)
+-- Aura timers' warnings (see above): to 0 at every start, and their tries free again once combat or
+-- a restriction has ended (nothing is written during that dispatch).
+local ACTIVATING = Enum and Enum.AddOnRestrictionState and Enum.AddOnRestrictionState.Activating or 1
+local function zeroAura()
+	for t in pairs(warning) do
+		if t.aura then auraWrite(t, 0) end
+	end
+end
+local function unblockAura()
 	for t in pairs(warning) do
 		if t.aura then
-			if event ~= "PLAYER_REGEN_ENABLED" and not InCombatLockdown() then
-				t.expBlocked = nil
-				expAlpha(t, 0)
-			end
-			if event == "PLAYER_REGEN_ENABLED" then t.expBlocked = nil end
+			t.expBlocked = nil
+			if t.expStuck then auraWrite(t, 0) end
 		end
 	end
+end
+local restrict = CreateFrame("Frame")
+for _, event in ipairs({ "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "ADDON_RESTRICTION_STATE_CHANGED",
+	"PLAYER_LEAVING_WORLD", "PLAYER_ENTERING_WORLD" }) do
+	ns.registerEvent(restrict, event)
+end
+restrict:SetScript("OnEvent", function(_, event, _, state)
+	if event == "ADDON_RESTRICTION_STATE_CHANGED" then
+		if not isSecret(state) and state == ACTIVATING then zeroAura() end
+	elseif event == "PLAYER_REGEN_ENABLED" then
+		for t in pairs(warning) do if t.aura then t.expBlocked = nil end end
+	else zeroAura() end
 end)
+-- The frame after a restriction ends (ShamanForever_Core.lua), with auras plain again.
+ns.onRestrictionEnd(unblockAura)
 
 -- An aura timer's expiring warning runs from d, a duration object of the caller's (the button's
 -- own time can't be read); nil: none, the warning stays hidden.
@@ -513,7 +557,7 @@ function Timer:setExpire(e, icon, size)
 		if next(warning) == nil then ticker:Hide() end
 		local x = self.exp
 		if x then
-			x:SetAlpha(0)
+			if self.aura then auraWrite(self, 0) else x:SetAlpha(0) end
 			x.pulseOn = false
 			if self.aura then x.dim:Hide() else x.pulse:Stop(); x.dim:SetAlpha(0) end
 			x.glow:Hide()

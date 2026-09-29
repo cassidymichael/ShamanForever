@@ -41,6 +41,7 @@ local T = { name = "target" }
 ns.Target = T
 
 local setting = ns.elementSetting
+local gateAlpha   -- below
 
 -- The target's aura elements, in the order the options list them. filter: the aura slot's filter
 -- string; candidates(def): its candidate filters (default: the spell IDs of auraKey). The page's
@@ -121,6 +122,8 @@ local function styleButton(def, size, slot)
 	def.glow:SetShown(setting(def.key, "primedGlow") and true or false)
 	def.popAnim:restyle(setting(def.key, "primedPop") and true or false)
 	if def.expiring then
+		-- A refused write while it was lit: the element hides until a 0 goes through (Timers.lua).
+		slot.timer.onStuck = slot.timer.onStuck or function(on) def.stuck = on; gateAlpha(def) end
 		ns.try("target expiring", slot.timer.setExpire, slot.timer, ns.Timer.expireOpts(def.key), def.icon, size)
 		slot.timer:setClock(def.clockOn and def.clock or nil)
 	end
@@ -163,6 +166,13 @@ end
 table.insert(ns.DEFAULTS.groups, { name = "Target", point = "CENTER", x = 122, y = 11, scale = 0.9, alpha = 0.75,
 	orientation = "horizontal", growth = "forward", spacing = 6, members = { "flameshock", "purge" } })
 
+-- The gate's alpha: 0 while its container may show the last target's aura (stale) or its expiring
+-- warning may be stuck lit (stuck, Timer's onStuck), else 1. The gate is our own frame, an ancestor
+-- of the container.
+function gateAlpha(def)
+	ns.try("target gate alpha", def.gate.SetAlpha, def.gate, (def.stale or def.stuck) and 0 or 1)
+end
+
 -- The target's aura slots follow the target: pointed at it while it's something you can attack
 -- (a change of unit refreshes the container), refreshed on a change from one such target to
 -- another, and at no unit otherwise. A call that fails (see the file's header) leaves def.unit nil,
@@ -182,12 +192,12 @@ local function retarget()
 				def.unit = unit
 				if def.stale then
 					def.stale = false
-					ns.try("target gate alpha", def.gate.SetAlpha, def.gate, 1)
+					gateAlpha(def)
 				end
 			else
 				def.unit, def.stale = nil, true
 				def.failed = (def.failed or 0) + 1
-				ns.try("target gate alpha", def.gate.SetAlpha, def.gate, 0)
+				gateAlpha(def)
 				ns.retryAfterCombat("target retarget", retarget)
 			end
 		end
@@ -387,9 +397,10 @@ end
 function T.debug()
 	for _, def in ipairs(TARGET) do
 		local a = def.aura
-		say("%s: spell %s, container %s%s, unit %s, gate driver %s, failed unit calls %d%s", def.spell,
+		say("%s: spell %s, container %s%s, unit %s, gate driver %s, failed unit calls %d%s%s", def.spell,
 			tostring(def.spellID), a.container and "made" or "not made", a.err and (", error: " .. a.err) or "",
-			tostring(def.unit), tostring(def.driven), def.failed or 0, def.stale and " (hidden until one works)" or "")
+			tostring(def.unit), tostring(def.driven), def.failed or 0, def.stale and " (hidden until one works)" or "",
+			def.stuck and " (hidden: its expiring warning couldn't be turned off)" or "")
 	end
 	say("target attackable %s", tostring(hostileTarget()))
 	local on = readable() and flameShockOnTarget()
