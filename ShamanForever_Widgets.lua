@@ -267,7 +267,8 @@ local function makeGlow(parent, over, owner, unlisted)
 			e.RIGHT:SetGradient("HORIZONTAL", off, on)
 		end
 		if self.iconSize then self:fit(self.iconSize) end
-		if retime and self:IsShown() then self.anim:Stop(); self.anim:Play() end
+		-- Under the aura button IsShown is secret; the button restarts that glow itself.
+		if retime and not unlisted and self:IsShown() then self.anim:Stop(); self.anim:Play() end
 	end
 	-- out: how far the icon's frame reaches past its edge (looks drawn outside it start there).
 	function g:fit(size)
