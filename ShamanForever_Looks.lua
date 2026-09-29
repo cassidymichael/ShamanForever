@@ -42,10 +42,11 @@ end
 -- Frames: a border look's entry has any of these parts (the options also read name, S.addLook).
 --   rings  lines round the icon's edge, listed outside in. Each is { px, color }, or has a colour
 --          per side (top, bottom, left, right) in place of color. px: screen pixels (default 1) or
---          "size" for the Border size setting. A colour is { r, g, b, a }, or "setting" for the
---          Border colour setting.
---   caps   { px, len, color }: an L on each corner, px thick, reaching 1 px beyond the rings, its
---          arms running len along the icon's edges past the corner (screen pixels).
+--          the name of a border setting that holds them ("size", the Border size). A colour is
+--          { r, g, b, a }, or the name of a border setting that holds one ("color").
+--   caps   { px, len, color }: an L on each corner, px thick (px and color as for rings), its outer
+--          edge on the rings' or further out when it is thicker than they are, its arms running len
+--          along the icon's edges past the corner (screen pixels).
 --   art    Blizzard's or our art: { atlas or file, inset } drawn stretched over the icon, inset
 --          { left, right, top, bottom } past each edge as a share of the icon's width; or { file,
 --          margin, px } drawn as a 9-slice round the icon, whose margin (texels) lands on px whole
@@ -65,18 +66,25 @@ local SIDES = { "top", "bottom", "left", "right" }
 local CORNERS = { { "TOPLEFT", -1, 1 }, { "TOPRIGHT", 1, 1 }, { "BOTTOMLEFT", -1, -1 }, { "BOTTOMRIGHT", 1, -1 } }
 local BLACK = { 0, 0, 0, 1 }
 
+-- A part's colour or thickness (screen pixels): its own, or the border setting it names.
 local function colorOf(c, b)
-	if c == "setting" then return b.color or BLACK end
+	if type(c) == "string" then return b[c] or BLACK end
 	return c
 end
+local function pxOf(px, b)
+	if type(px) == "string" then return b[px] or 1 end
+	return px or 1
+end
 
--- Whether a look uses a border setting ("size" or "color"): the options show only those it uses.
-function Looks.uses(look, part)
+-- Whether a look uses a border setting ("size", "color", "capSize", "capColor"): the options show
+-- only those it uses.
+function Looks.uses(look, field)
 	for _, r in ipairs(look.rings or {}) do
-		if part == "size" and r.px == "size" then return true end
-		if part == "color" and r.color == "setting" then return true end
+		if r.px == field or r.color == field then return true end
+		for _, side in ipairs(SIDES) do if r[side] == field then return true end end
 	end
-	return part == "color" and look.caps ~= nil and look.caps.color == "setting"
+	local caps = look.caps
+	return caps ~= nil and (caps.px == field or caps.color == field)
 end
 
 -- Each ring is four textures: top and bottom span the corners, left and right fill between them.
@@ -86,7 +94,7 @@ local function drawRings(f, rings, b)
 	local tex, n, d = f.border, 0, 0   -- d: how far out this ring starts
 	for i = #(rings or {}), 1, -1 do
 		local ring = rings[i]
-		local w = ns.linePx(f, ring.px == "size" and b.size or ring.px or 1)
+		local w = ns.linePx(f, pxOf(ring.px, b))
 		local o = d + w
 		for _, side in ipairs(SIDES) do
 			n = n + 1
@@ -121,7 +129,7 @@ local function drawRings(f, rings, b)
 end
 
 -- Two textures a corner, above the rings; out: where the rings end. Returns how far the caps
--- reach beyond them.
+-- reach beyond them (when they are thicker).
 local function drawCaps(f, caps, out, b)
 	local t = f.frameCaps
 	if not caps then
@@ -133,8 +141,8 @@ local function drawCaps(f, caps, out, b)
 		for i = 1, 8 do t[i] = f:CreateTexture(nil, "BACKGROUND", nil, -7) end
 		f.frameCaps = t
 	end
-	local px, beyond = ns.linePx(f, caps.px or 2), ns.linePx(f, 1)
-	local o = out + beyond
+	local px = ns.linePx(f, pxOf(caps.px, b))
+	local o = math.max(out, px)
 	local len = o + ns.linePx(f, caps.len or 6)
 	local c = colorOf(caps.color, b)
 	for i, corner in ipairs(CORNERS) do
@@ -150,7 +158,7 @@ local function drawCaps(f, caps, out, b)
 			a:Show()
 		end
 	end
-	return beyond
+	return o - out
 end
 
 -- Stretched art's place over `over`, an icon w wide.
@@ -441,7 +449,7 @@ local CDM_MASK, CDM_OVERLAY = "UI-HUD-CoolDownManager-Mask", "UI-HUD-CoolDownMan
 local CDM_SWIPE = "Interface\\HUD\\UI-HUD-CoolDownManager-Icon-Swipe"
 local AB_MASK, AB_FRAME = "UI-HUD-ActionBar-IconFrame-Mask", "UI-HUD-ActionBar-IconFrame"
 
-S.addLook("border", "line", { name = "Line", rings = { { px = "size", color = "setting" } } })
+S.addLook("border", "line", { name = "Line", rings = { { px = "size", color = "color" } } })
 S.addLook("border", "hairline", { name = "Gold hairline",
 	rings = { { color = BLACK }, { color = GOLD }, { color = BLACK } } })
 -- Lit from the top left.
@@ -449,7 +457,7 @@ S.addLook("border", "bevel", { name = "Bronze bevel",
 	rings = { { color = BLACK }, { top = BRONZE_HI, left = BRONZE_HI, bottom = BRONZE_LO, right = BRONZE_LO },
 		{ color = BRONZE_DARK } } })
 S.addLook("border", "caps", { name = "Corner caps",
-	rings = { { px = "size", color = "setting" } }, caps = { px = 2, len = 6, color = BRONZE_HI } })
+	rings = { { px = "size", color = "color" } }, caps = { px = "capSize", len = 6, color = "capColor" } })
 -- Rounded corners and a soft dark edge, as on the Cooldown Manager's icons.
 S.addLook("border", "cdm", { name = "Cooldown Manager", experimental = true,
 	mask = { atlas = CDM_MASK }, swipe = CDM_SWIPE, art = { atlas = CDM_OVERLAY, inset = { 0.18, 0.18, 0.16, 0.16 } } })

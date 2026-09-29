@@ -53,9 +53,11 @@ S.register("gcd", {
 	ownerDefaults = { reincarnation = { show = false } },
 })
 -- look: how it is drawn (S.addLook; ShamanForever_Looks.lua). Some looks draw their own lines and
--- colours, so size and colour only apply where the look uses them.
+-- colours, so size and colour only apply where the look uses them; capSize and capColor are the
+-- corner caps' (screen pixels, and a colour).
 S.register("border", {
-	defaults = { show = true, look = "line", size = 2, color = { 0, 0, 0, 1 } },
+	defaults = { show = true, look = "line", size = 2, color = { 0, 0, 0, 1 }, capSize = 3,
+		capColor = { 0.85, 0.68, 0.39, 1 } },
 	path = { "border" },
 })
 
