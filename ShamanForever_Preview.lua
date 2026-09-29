@@ -50,11 +50,13 @@ local opts = { combat = true, situation = "usual", activity = "calm", unlearned 
 --
 -- A script gives an element's loop: script(combat, busy, situation) returns its steps, a list of
 -- { state, hold = seconds, quiet = true } (quiet: the step's start plays no moment); combat: the
--- in-combat scene; busy: the Busy activity; situation: the panel's situation ("usual", "warnings",
--- "lowmana"). It may return nil (or leave a situation out) to take its kind's loop. States its
--- options preview lacks are dropped. An element file gives its own script as `preview` in its
--- ns.registerElement entry, or in its def (a line in COOLDOWNS or BUFFS); this file's SCRIPTS hold
--- the older elements'. For example:
+-- in-combat scene; busy: the Busy activity (false under Every state); situation: the panel's
+-- situation ("usual", "warnings", "lowmana"). It returns nil for anything it doesn't handle, to take
+-- its kind's loop; anything but a table counts as nil, and an error is noted and counts as nil too.
+-- States its options preview lacks are dropped. An element file gives its own script as `preview`
+-- in its ns.registerElement entry, or in its def (a line in COOLDOWNS or BUFFS), and that one wins
+-- over SCRIPTS below, which give the other elements theirs. A situation's steps (SITUATION_STEPS,
+-- and none left for anything with a reagent under Warnings) win over any script. For example:
 --   preview = function(_, busy) return busy and { { "cd" }, { "ready" } } or { { "ready" } } end
 local HOLD = 4
 local IDLE_DELAY = ns.IDLE_DELAY   -- as on the HUD: a pop plays at full, then the icon goes idle
@@ -104,7 +106,7 @@ local SCRIPTS = {
 	elementalfocus = calmBusy({ { "up" } }, { { "up", hold = 5 }, { "idle", hold = 2 } }),
 	tremor = calmBusy({ { "warn" } }, { { "warn", hold = 6 }, { "idle", hold = 2 } }),
 }
--- An element without a loop of its own (a new one): by its kind.
+-- An element without a script: by its kind.
 local function kindSteps(key, busy)
 	local e = ns.ELEMENTS[key]
 	if e.kind == "cooldown" then return busy and { { "cd" }, { "ready", hold = 2.5 } } or { { "ready" } } end
@@ -131,10 +133,14 @@ local SITUATION_STEPS = {
 local function stepsFor(key)
 	local def, e = L.PREVIEW[key], ns.ELEMENTS[key]
 	local busy, situation = opts.activity == "busy", opts.situation
-	local script = SCRIPTS[key] or e.preview or (e.def and e.def.preview)
 	local steps = SITUATION_STEPS[situation] and SITUATION_STEPS[situation][key]
 		or (situation == "warnings" and e.def and e.def.reagent and { { "out" } })
-		or (script and script(opts.combat, busy, situation)) or kindSteps(key, busy)
+	local script = e.preview or (e.def and e.def.preview) or SCRIPTS[key]
+	if not steps and script then
+		local ok, s = ns.try("preview script " .. key, script, opts.combat, busy, situation)
+		if ok and type(s) == "table" then steps = s end
+	end
+	steps = steps or kindSteps(key, busy)
 	local valid = {}
 	for _, st in ipairs(def.states) do valid[st[1]] = true end
 	local out = {}

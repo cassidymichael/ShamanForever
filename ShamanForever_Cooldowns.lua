@@ -61,6 +61,7 @@ local setting = ns.elementSetting
 --                       nothing to recast as it ends, so no glow or ring); false for no Expiring
 --   primedLooks = false no Primed pop or glow, only its time left (Stormstrike)
 --   cd = seconds        its cooldown's length, for the options preview only
+--   preview = function  its preview mode script (ShamanForever_Preview.lua)
 --   defaults = { ... }  its own option defaults (ns.elementSetting), over its parts' (PARTS)
 --   experimental        a feature name: not tested in game (the level cap is 20)
 local COOLDOWNS = {
