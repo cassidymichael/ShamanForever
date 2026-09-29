@@ -220,8 +220,12 @@ local function makeGlow(parent, over, owner, unlisted)
 			for _, a in ipairs(p and p.stop or {}) do a:Stop() end
 		end
 	end
-	g:SetScript("OnShow", function(self) play(self, true) end)
-	g:SetScript("OnHide", function(self) play(self, false) end)
+	-- Not under Blizzard's aura button: the client refuses script handlers there (blocked by secret
+	-- aspects, seen 2026-09-29), and the button plays allAnims() itself.
+	if not unlisted then
+		g:SetScript("OnShow", function(self) play(self, true) end)
+		g:SetScript("OnHide", function(self) play(self, false) end)
+	end
 	-- Every animation group Blizzard's aura button must play for this glow (unlisted glows).
 	function g:allAnims()
 		local out = { self.anim }
