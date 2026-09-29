@@ -430,7 +430,9 @@ end
 -- first: an optional function adding the element's own rows at the top of the block, under its
 -- header.
 local TEXT_POS = { { "auto", "Auto" }, { "center", "Centre" }, { "topleft", "Top left" }, { "bottom", "Bottom" } }
-local function timerSettings(p, title, key, kind, after, note, first)
+-- barSet: a function, true while something else sets the time bar's place and height (the totem
+-- bar's Look): those rows hide.
+local function timerSettings(p, title, key, kind, after, note, first, barSet)
 	after = after or retime
 	local cant = ns.Timer.cant(key, kind)
 	local r = styleRows(key, kind, after)
@@ -475,8 +477,9 @@ local function timerSettings(p, title, key, kind, after, note, first)
 	end)
 	local bar = p:checkbox("Time bar", "A bar along an edge that drains.", tg("bar"), ts("bar"), part("bar"))
 	p:sub(bar, on("bar"), function()
-		p:slider("Bar height", nil, 1, 20, 1, px, tg("barHeight"), ts("barHeight"))
-		p:dropdown("Bar edge", nil, { { "bottom", "Bottom" }, { "top", "Top" } }, tg("barEdge"), ts("barEdge"), nil, 140)
+		local placed = function() return not (barSet and barSet()) end
+		p:slider("Bar height", nil, 1, 20, 1, px, tg("barHeight"), ts("barHeight"), placed)
+		p:dropdown("Bar edge", nil, { { "bottom", "Bottom" }, { "top", "Top" } }, tg("barEdge"), ts("barEdge"), placed, 140)
 		local colour = p:dropdown("Bar colour", nil, { { true, "Element colour" }, { false, "Custom" } }, tg("barElement"),
 			ts("barElement"), nil, 160)
 		p:sub(colour, function() return not style().barElement end, function()
@@ -906,7 +909,7 @@ local function buildTotemBar(p)
 	end)
 
 	p.gate = TB.barOn
-	timerSettings(p, "Time left", "totembar", "uptime", changed)
+	timerSettings(p, "Time left", "totembar", "uptime", changed, nil, nil, owned("timeBar"))
 	p:text("The look sets the time bar's place, height and texture.", owned("timeBar"))
 	textBlock(p, "totembar", changed)
 
