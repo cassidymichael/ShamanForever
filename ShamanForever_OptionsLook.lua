@@ -964,11 +964,11 @@ function L.buildHero(parent, key)
 	h.blurb = h:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	h.blurb:SetPoint("TOPLEFT", h.title, "BOTTOMLEFT", 0, -5)
 	h.blurb:SetTextColor(0.80, 0.74, 0.66)
-	h.blurb:SetText(e.blurb)
 	h.blurb:SetShadowOffset(1, -1)
 	h.blurb:SetJustifyH("LEFT")
+	h.blurb:Hide()   -- no line under the name for now; elements keep their blurb for its return
 	h.tags = h:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-	h.tags:SetPoint("TOPLEFT", h.blurb, "BOTTOMLEFT", 0, -7)
+	h.tags:SetPoint("TOPLEFT", h.title, "BOTTOMLEFT", 0, -7)
 	if def.stage then
 		-- A title band: the name and its tags on one line, then a faint gold rule above the stage.
 		h.icon:Hide(); h.iconEdge:Hide(); h.blurb:Hide()
