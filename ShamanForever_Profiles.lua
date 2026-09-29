@@ -44,7 +44,6 @@ local function charKey()
 	if not name or name == "" or name == UNKNOWN then return nil end
 	if realm and realm ~= "" then return name .. "-" .. realm:gsub("[%s%-]", "") end
 end
-P.charKey = charKey
 
 -- Keys saved before that fix, with the realm's spaces: merged into the normalised ones (which hold
 -- the latest choice when both exist).
