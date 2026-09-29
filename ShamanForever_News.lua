@@ -1,7 +1,6 @@
 -- What's new: after an update, a short list of what changed on Home, a dot on Home's button in the
--- options until Home is opened, and one line in chat (which the player can turn off). Nothing on a
--- first install, and nothing from a development copy (its version is the packager's token, not a
--- version). The version last seen is kept for the account and stamped only on a shaman, so an alt
+-- options until Home is opened. Nothing on a first install; a development copy always lists the
+-- newest notes. The version last seen is kept for the account and stamped only on a shaman, so an alt
 -- of another class doesn't use it up.
 
 local ADDON, ns = ...
@@ -21,7 +20,6 @@ N.NOTES = {
 }
 
 local MAX_SHOWN = 3     -- releases listed on Home after an update from further back
-local CHAT_DELAY = 5    -- seconds after login, so the line isn't lost among the others
 
 -- "v0.9.0", "0.9.0" or a beta, "v0.9.0-beta.2": major, minor, patch, and the beta's number (nil
 -- for a release). nil for anything else: a development copy's version is a git description
@@ -58,8 +56,7 @@ function N.current()
 end
 
 -- The account's record: seen (the version last run), from (the one before the updates since Home
--- was last opened, for Home's list), unseen (Home not opened since the update), chat (false: no
--- chat line), fresh (a first install not yet stamped). Made at the first login after loading.
+-- was last opened, for Home's list), unseen (Home not opened since the update), fresh (a first install not yet stamped). Made at the first login after loading.
 local function state()
 	local a = ns.getAccount()
 	if type(a.news) ~= "table" then
@@ -132,15 +129,13 @@ function N.homeBlock(p)
 	local header = p:header("What's new", has)
 	p.items[#p.items].refresh = function() header.text:SetText(title()) end
 	p:text(body, has)
-	p:checkbox("Say in chat after an update", "One line in chat when there's something new here.",
-		function() return state().chat ~= false end, function(v) state().chat = v end, has)
 end
 
 ------------------------------------------------------------------------
 -- At login
 ------------------------------------------------------------------------
 -- A shaman logged in (or a test: cur, a version to act as): an update since the version last seen
--- lists its news on Home, marks Home's button and says so in chat. A first install only stamps.
+-- lists its news on Home and marks Home's button. A first install only stamps.
 function N.check(cur)
 	local st = state()
 	if not cur then return end
@@ -156,11 +151,6 @@ function N.check(cur)
 	end
 	st.unseen = true
 	N.refreshDot()
-	if st.chat ~= false then
-		C_Timer.After(CHAT_DELAY, function()
-			print("|cff3399ffShamanForever " .. cur .. "|r: what's new on Home, /sf")
-		end)
-	end
 end
 
 function N.start() N.check(N.current()) end
