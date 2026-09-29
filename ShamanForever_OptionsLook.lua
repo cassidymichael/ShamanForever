@@ -425,9 +425,7 @@ L.PREVIEW = {
 		cooldown = true, uptime = true,
 		states = { { "ready", "Ready" }, { "nototem", "No fire totem" }, { "out", "Fire totem out" }, { "expiring", "Totem expiring" } },
 		pop = function(ic, st)
-			if not opt("firenova", "readyPop") then return end
-			if st == "out" then ic:Pop()
-			elseif st == "nototem" and opt("firenova", "readyNoTotem") == "grey" then ic:Pop("blocked") end
+			if st == "ready" and opt("firenova", "readyPop") then ic:Pop() end
 		end,
 		render = function(ic, st)
 			reset(ic, 135824)
