@@ -179,30 +179,6 @@ local function idles(key, st)
 end
 
 ------------------------------------------------------------------------
--- The "Not learned" mark (the totem bar's slots use it too)
-------------------------------------------------------------------------
--- Small, on a dark band along the icon's bottom edge; the caller places the frame over the icon.
-function PV.makeMark(parent)
-	local m = CreateFrame("Frame", nil, parent)
-	m.band = m:CreateTexture(nil, "OVERLAY")
-	m.band:SetPoint("BOTTOMLEFT")
-	m.band:SetPoint("BOTTOMRIGHT")
-	m.band:SetColorTexture(0, 0, 0, 0.7)
-	m.text = m:CreateFontString(nil, "OVERLAY")
-	m.text:SetWordWrap(false)
-	m.text:SetTextColor(0.85, 0.85, 0.85)
-	m:Hide()
-	return m
-end
--- Sized for the icon under it: the text scales with the icon, as text on icons does.
-function PV.fitMark(m, icon)
-	local px = ns.placeScaledText(m.text, icon, 7, "BOTTOM", 0, 2)
-	m.text:SetWidth(math.max(icon:GetWidth() - 2, 1))
-	m.text:SetText("Not learned")
-	m.band:SetHeight(px + 4)
-end
-
-------------------------------------------------------------------------
 -- Stand-ins, and parking the real elements
 ------------------------------------------------------------------------
 local parked = {}    -- element frame -> the group frame it's parked from
@@ -249,8 +225,6 @@ local function makeStandIn(key, gf)
 		ic.backing:SetColorTexture(0, 0, 0, 1)
 		ic.backing:Hide()
 	end
-	ic.mark = PV.makeMark(ic.textFrame)
-	ic.mark:SetAllPoints(ic)
 	holders[key], standIns[key] = h, ic
 	return ic, h
 end
@@ -287,8 +261,6 @@ local function paintElement(key, r, moment)
 	if key == "shield" then ns.Shield.preview(ic, st) end
 	if idles(key, st) and not (r.idleAt and GetTime() < r.idleAt) then setAlpha(ic, L.idleAlpha(key))
 	else setAlpha(ic, ic:GetAlpha()) end
-	ic.mark:SetShown(not ns.isLearned(key))
-	PV.fitMark(ic.mark, ic)
 	local pop = L.PREVIEW[key].pop
 	if moment and pop and not step.quiet then ns.try("preview pop " .. key, pop, ic, st) end
 	return ends
@@ -657,7 +629,7 @@ do
 	local situation = choice(panel, "situation", SITUATIONS)
 	situation:SetPoint("LEFT", scene, "RIGHT", 14, 0)
 	local unlearned = check(panel, "unlearned", "Show not learned",
-		"Also the elements you haven't learned yet, marked, so you can place them now.")
+		"Also the elements you haven't learned yet, so you can place them now.")
 	unlearned:SetPoint("LEFT", situation, "RIGHT", 10, 0)
 	local activity = choice(panel, "activity", {
 		{ "calm", "Calm", "A cooldown or two." },

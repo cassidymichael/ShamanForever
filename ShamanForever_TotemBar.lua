@@ -1436,7 +1436,7 @@ function TB.hasTotems() return hasTotems end
 ------------------------------------------------------------------------
 -- Preview mode (ShamanForever_Preview.lua): the slots drawn in the states it asks for, on their
 -- own looks, while the bar's reads, time bars and end flashes wait. The bar shows as the preview's
--- scene would have it; with Show not learned every element's slot shows, marked while none of its
+-- scene would have it; with Show not learned every element's slot shows, even while none of its
 -- totems is known. Only plain frames are drawn on; showing slots and the bar happens in layout(),
 -- out of combat. When it ends, the next layout reads the slots again.
 ------------------------------------------------------------------------
@@ -1459,7 +1459,7 @@ TB.PREVIEW_STATES = { { "down", "Totems down" }, { "expiring", "Expiring" }, { "
 -- timer runs, else holds still; rec.range: its range strip shows. Returns when its timer runs out.
 local function paintSlot(s, rec)
 	local c, v, st = cfg(), s.vis, rec.st
-	local shown = s.button:IsShown()   -- the strip and the mark are frames of their own
+	local shown = s.button:IsShown()   -- the strip is a frame of its own
 	local pick = GetActionTexture and GetActionTexture(multiAction(s.slot))
 	if isSecret(pick) then pick = nil end   -- plain out of combat, where the preview runs
 	local icon = pick or ns.Look.TOTEM_ICON[s.el]
@@ -1486,17 +1486,6 @@ local function paintSlot(s, rec)
 		strip.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
 		strip:Show()
 	elseif strip then strip:Hide() end
-	local mark = s.previewMark
-	if shown and preview.all and GetMultiCastTotemSpells and #ns.Totems.knownTotems(s.slot) == 0 then
-		if not mark then
-			mark = ns.Preview.makeMark(bar)
-			mark:SetAllPoints(s.button)
-			s.previewMark = mark
-		end
-		mark:SetFrameLevel(s.button:GetFrameLevel() + 15)
-		ns.Preview.fitMark(mark, s.button)
-		mark:Show()
-	elseif mark then mark:Hide() end
 	v.icon:SetTexture(icon)
 	if st == "down" or st == "expiring" then
 		s.killed.mark:Hide()   -- recast
@@ -1556,7 +1545,6 @@ function TB.preview(p)
 			s.expired:stop()
 			pcall(s.timer.cd.Resume, s.timer.cd)
 			if s.previewRange then s.previewRange:Hide() end
-			if s.previewMark then s.previewMark:Hide() end
 			-- A totem that went meanwhile isn't news: no end flash for it when the slot is read, and
 			-- ns.Totems forgets it quietly.
 			if s.dur then
