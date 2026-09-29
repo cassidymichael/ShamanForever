@@ -110,10 +110,16 @@ local function readBack(name, wanted, before, tries)
 end
 
 -- Put a set's picks back (out of combat; in combat, once it ends). why: the place it was chosen
--- for (auto-switch), said in chat when a pick changes; nil for a set chosen by hand.
-function S.apply(name, why)
+-- for (auto-switch), said in chat when a pick changes; nil for a set chosen by hand. An auto-switch
+-- that waits for combat to end leaves alone any pick the player changes meanwhile (held: the picks
+-- when it was queued; a pick that couldn't be read then is left alone too).
+function S.apply(name, why, held)
 	if not S.find(name) then return end
-	if ns.deferInCombat("totem set", function() S.apply(name, why) end) then
+	if why and not held and InCombatLockdown() then
+		held = {}
+		for _, el in ipairs(TB.ELEMENTS) do held[el] = pickNow(el) or false end
+	end
+	if ns.deferInCombat("totem set", function() S.apply(name, why, held) end) then
 		ns.say("totem set %s: after combat", name)
 		return
 	end
@@ -121,7 +127,8 @@ function S.apply(name, why)
 	local wanted, before = {}, {}
 	for _, el in ipairs(TB.ELEMENTS) do
 		local want, now = pickFor(el, set.picks[el]), pickNow(el)
-		if want ~= nil and now ~= want then
+		local mine = held and not (held[el] and now ~= nil and samePick(now, held[el]))
+		if want ~= nil and now ~= want and not mine then
 			wanted[el], before[el] = want, now
 			ns.try("totem set: pick", SetMultiCastSpell, TB.multiAction(TB.SLOT[el]), want)
 		end
