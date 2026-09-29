@@ -227,6 +227,7 @@ function Page:dropdown(label, tip, choices, get, set, shown, width)
 	dd:SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
 	dd:SetWidth(width or 200)
 	dd:SetupMenu(function(_, rootDescription)
+		rootDescription:SetScrollMode(400)   -- a long list (fonts, textures) scrolls past 400 px
 		for _, c in ipairs(type(choices) == "function" and choices() or choices) do
 			local item = rootDescription:CreateRadio(c[2], function() return get() == c[1] end, function() set(c[1]) end)
 			if c.init then item:AddInitializer(c.init) end
