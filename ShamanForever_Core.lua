@@ -124,6 +124,9 @@ combatEnd:SetScript("OnEvent", function(_, event, _, state)
 			endedAt = GetTime()
 			C_Timer.After(0, afterRestriction)
 		end
+	else
+		-- Before the queue, so a layout waiting in it already finds them staying (ns.AfterCombat).
+		ns.AfterCombat.ended()
 	end
 	runQueue()
 end)
@@ -194,6 +197,125 @@ function ns.lastSeconds(secs)
 end
 
 ------------------------------------------------------------------------
+-- After combat: a group or the totem bar shown only in combat (or with an enemy target) can stay a
+-- few seconds once combat ends, then fade out. Its visibility stays with its state driver the
+-- whole time (an addon Show, Hide or SetAlpha on a frame holding a protected one is dropped in
+-- combat): at PLAYER_REGEN_DISABLED, which comes before lockdown, its driver becomes a plain
+-- "show" (held), so the end of combat can't hide it; out of combat it fades, and then its own
+-- driver comes back. The fade is an Alpha animation that keeps no end value: the frame's own alpha
+-- never changes, and combat starting mid-fade stops the animation, leaving the frame as it was.
+-- Nothing runs for owners that don't stay (no timer, no animation).
+------------------------------------------------------------------------
+local AfterCombat = {}
+ns.AfterCombat = AfterCombat
+local FADE_SECS = 0.4
+local owners = {}
+local fades = setmetatable({}, { __mode = "k" })   -- frame -> its fade animation, made on first use
+
+-- spec:
+--   secs()    seconds it stays once combat ends; 0 when it doesn't (always shown, unlocked, ...)
+--   apply()   set its drivers again, now that it is held or not (AfterCombat.held); out of combat
+--   shows()   whether its own driver would show it now anyway (an enemy target): no fade then
+--   frames()  the frames to fade: its own, and any that ignore its alpha
+function AfterCombat.new(spec)
+	local o = { spec = spec, held = false, playing = {} }
+	table.insert(owners, o)
+	return o
+end
+function AfterCombat.held(o) return o ~= nil and o.held end
+
+local function stopFade(o)
+	o.token = nil   -- a wait or fade under way ends here
+	for i, ag in ipairs(o.playing) do ag:Stop(); o.playing[i] = nil end
+end
+
+local function hold(o, on)
+	if o.held == on then return end
+	o.held = on
+	ns.try("after combat", o.spec.apply)
+end
+
+-- Its own driver back (hiding it, unless it shows now anyway), then the animation off: the frame is
+-- hidden by then, so its alpha coming back isn't seen.
+local function release(o)
+	if InCombatLockdown() then return end   -- held for this fight; the next combat end starts again
+	hold(o, false)
+	stopFade(o)
+end
+
+local function fadeOf(frame)
+	local ag = fades[frame]
+	if not ag then
+		ag = frame:CreateAnimationGroup()
+		ag:SetToFinalAlpha(false)
+		ag.out = ag:CreateAnimation("Alpha")
+		ag.out:SetOrder(1)
+		ag.out:SetToAlpha(0)
+		ag.out:SetDuration(FADE_SECS)
+		-- Then hold at nothing until released, so it can't flash back before its driver hides it.
+		local rest = ag:CreateAnimation("Alpha")
+		rest:SetOrder(2)
+		rest:SetFromAlpha(0)
+		rest:SetToAlpha(0)
+		rest:SetDuration(1)
+		fades[frame] = ag
+	end
+	return ag
+end
+
+local function fadeOut(o)
+	if InCombatLockdown() then return end
+	-- It may have stopped staying meanwhile (unlocked, Show set to Always, Stay set to 0): no fade.
+	local okSecs, secs = pcall(o.spec.secs)
+	if not (okSecs and type(secs) == "number" and secs > 0) then release(o) return end
+	local ok, shows = pcall(o.spec.shows)
+	if ok and shows then release(o) return end
+	local played = ns.try("after combat fade", function()
+		for _, f in ipairs(o.spec.frames()) do
+			local ag = fadeOf(f)
+			ag.out:SetFromAlpha(f:GetAlpha())
+			ag:Stop()
+			ag:Play()
+			table.insert(o.playing, ag)
+		end
+	end)
+	if not played then release(o) return end
+	local token = {}
+	o.token = token
+	C_Timer.After(FADE_SECS, function() if o.token == token then release(o) end end)
+end
+
+-- Combat ended (PLAYER_REGEN_ENABLED, before the deferred work runs): each owner that stays is
+-- held (if combat's start didn't already) and fades after its seconds.
+function AfterCombat.ended()
+	for _, o in ipairs(owners) do
+		stopFade(o)
+		local ok, secs = pcall(o.spec.secs)
+		secs = ok and type(secs) == "number" and secs or 0
+		if secs > 0 then
+			hold(o, true)
+			local token = {}
+			o.token = token
+			C_Timer.After(secs, function() if o.token == token then fadeOut(o) end end)
+		else
+			hold(o, false)   -- it stopped staying during the fight (its settings changed)
+		end
+	end
+end
+
+local combatStart = CreateFrame("Frame")
+ns.registerEvent(combatStart, "PLAYER_REGEN_DISABLED")
+combatStart:SetScript("OnEvent", function()
+	for _, o in ipairs(owners) do
+		stopFade(o)
+		if not InCombatLockdown() then
+			local ok, secs = pcall(o.spec.secs)
+			if ok and type(secs) == "number" and secs > 0 then hold(o, true) end
+		end
+	end
+end)
+
+------------------------------------------------------------------------
 -- Spells, by ID. Each tracked spell has seed IDs (any rank; the first is the one its name comes
 -- from) and an English name used only when no seed exists on the client. Everything else is looked
 -- up: the name in the client's own language, the ranks the player knows (spellbook), and which spell
@@ -228,6 +350,7 @@ local DEFS = {
 	stormstrike     = { ids = { 17364 }, en = "Stormstrike" },   -- its debuff has the same ID
 	riptide         = { ids = { 408521, 1239242, 1239243 }, en = "Riptide" },   -- Forever's own, ranks 1 to 3
 	rageOfTheFarseer = { ids = { 425336 }, en = "Rage of the Farseer" },   -- Forever's own
+	lavaBurst       = { ids = { 408490, 1238299, 1238300 }, en = "Lava Burst" },   -- Forever's own, ranks 1 to 3
 	totemicProjection = { ids = { 437009 }, en = "Totemic Projection" },
 	reincarnation   = { ids = { 20608 }, en = "Reincarnation" },
 	waterWalking    = { ids = { 546 }, en = "Water Walking" },   -- the buffs have the same IDs
@@ -239,7 +362,7 @@ local DEFS = {
 	lesserHealingWave = { ids = { 8004 }, en = "Lesser Healing Wave" },
 	chainHeal       = { ids = { 1064 }, en = "Chain Heal" },
 	lightningBolt   = { ids = { 403 }, en = "Lightning Bolt" },
-	chainLightning  = { ids = { 421 }, en = "Chain Lightning" },
+	chainLightning  = { ids = { 421, 930, 2860, 10605 }, en = "Chain Lightning" },   -- ranks 1 to 4 (build 70009)
 	ghostWolf       = { ids = { 2645, 1238640 }, en = "Ghost Wolf" },   -- 1238640: the spellbook's, seen 2026-09-27
 	farSight        = { ids = { 6196 }, en = "Far Sight" },
 }

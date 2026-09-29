@@ -1,6 +1,5 @@
 -- Totem bar: one bar that can replace both of Blizzard's totem frames, the totems under the player
 -- frame (timers, right-click dismiss) and the Totem Action Bar (a pick per element, arrow popouts).
--- What works in combat and why: docs/combat-techniques.md.
 --
 -- Every click is a secure button set up out of combat, so it works in combat too:
 -- * slot button: right-click "destroytotem" (totem-slot), left-click "action" on the element's
@@ -35,7 +34,9 @@ TB.DEFAULTS = {
 	point = "CENTER", x = 0, y = -100,   -- x, y in UIParent units, so scaling keeps the centre
 	scale = 1,
 	alpha = 1,
-	show = "always",          -- always | active (in combat or a totem down) | combat
+	-- always | active (in combat or a totem down) | combat | target (in combat or with an enemy target)
+	show = "always",
+	fadeAfter = 0,            -- seconds it stays once combat ends, then fades out (0: none)
 	order = { "earth", "fire", "water", "air" },
 	hidden = {},              -- element -> true to leave its slot out
 	dir = "row",              -- row | column
@@ -88,6 +89,7 @@ local RANGES = {
 	scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { 0, 20 }, size = { 24, 96 },
 	arrowSize = { 8, 32 }, extrasScale = { 0.5, 1.5 }, idleAlpha = { 0.1, 1 },
 	badgeSize = { 0.25, 0.8 }, badgeAlpha = { 0.1, 1 }, badgeSat = { 0, 1 }, warn = { 0, 30 }, rangeHeight = { 1, 12 },
+	fadeAfter = { 0, 10 },
 }
 local function finite(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
@@ -108,7 +110,7 @@ local function cfg()
 		elseif t.follow == true then t.size, t.border = nil, nil end
 		t.enabled, t.hideTotemFrame, t.hideActionBar, t.killedPulse, t.follow = nil, nil, nil, nil, nil
 		if t.mode ~= "blizzard" and t.mode ~= "active" and t.mode ~= "everything" then t.mode = nil end
-		if t.show ~= "always" and t.show ~= "active" and t.show ~= "combat" then t.show = nil end
+		if t.show ~= "always" and t.show ~= "active" and t.show ~= "combat" and t.show ~= "target" then t.show = nil end
 		-- The default per-totem times, by the client's names (English until they have loaded; the
 		-- lookup in warnSecs also takes the English name, so either works).
 		if type(t.warnOver) ~= "table" then
@@ -337,13 +339,25 @@ local slots = {}    -- element -> slot record
 local bySlot = {}   -- Blizzard's totem slot -> slot record
 TB.slots, TB.frame = slots, bar
 
+-- Frame levels over a slot's button, bottom to top: the look (+2: icon), the expiring warning
+-- (+3 to +4: Timer:setExpire, ShamanForever_Timers.lua), the timer's time-left bar (+8, kept under
+-- the range strip so it never hides the range mark), the range strip (+9 to +12: ours, Blizzard's
+-- aura button and our colour on it; ShamanForever_TotemRange.lua), then everything drawn over the
+-- whole icon: the GCD sweep, the timer's Cooldown (swipe, countdown text), the key, the end
+-- flashes. The strip's in-range part is opaque (the buff's icon under its colour), so what sits
+-- under it is hidden.
+TB.RANGE_LEVEL = 9
+local OVER_RANGE = TB.RANGE_LEVEL + 4
+local LOOK_LEVEL = 2   -- the look's level over the button (v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL))
+local LOOK_OVER_RANGE = OVER_RANGE - LOOK_LEVEL   -- the same, over the look's level
+
 -- Over a button's look (above its timer, and inside the look so it fades with it): the key bound to
 -- it, in the top corner, and its highlight while Blizzard's Quick Keybind Mode is open.
 local KEY_HIGHLIGHT = "UI-HUD-ActionBar-IconFrame-Mouseover"
 local function keyLayer(v)
 	local f = CreateFrame("Frame", nil, v)
 	f:SetAllPoints()
-	f:SetFrameLevel(v:GetFrameLevel() + 6)
+	f:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 3)
 	f.text = f:CreateFontString(nil, "OVERLAY")
 	f.text:SetFont(STANDARD_TEXT_FONT, 12, "OUTLINE")
 	f.text:SetPoint("TOPRIGHT", -2, -2)
@@ -356,11 +370,11 @@ local function keyLayer(v)
 	return f
 end
 
--- The global cooldown's sweep over the icon (and the expiring warning), below the button's timer, so
--- the time left stays readable.
+-- The global cooldown's sweep over the icon (the expiring warning and the range strip too), below
+-- the button's timer, so the time left stays readable.
 local function gcdSweep(v)
 	local cd = ns.makeGCDSweep(v)
-	cd:SetFrameLevel(v:GetFrameLevel() + 2)
+	cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE)
 	return cd
 end
 
@@ -386,7 +400,7 @@ for index, el in ipairs(ELEMENTS) do
 	-- What the player sees, on a plain frame over the button.
 	local v = CreateFrame("Frame", nil, bar)
 	v:SetAllPoints(b)
-	v:SetFrameLevel(b:GetFrameLevel() + 2)
+	v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL)
 	v:EnableMouse(false)
 	s.vis = v
 	-- "Not your pick": the element's pick, small, on the side away from the picker (a plain frame).
@@ -402,6 +416,8 @@ for index, el in ipairs(ELEMENTS) do
 	local kf = ns.makeEndFlash(bar, b, "totembar")
 	s.expired = ns.makeEndFlash(bar, b, "totembar")
 	s.killed = kf
+	kf:SetFrameLevel(b:GetFrameLevel() + OVER_RANGE + 4)
+	s.expired:SetFrameLevel(b:GetFrameLevel() + OVER_RANGE + 4)
 	v.bg = v:CreateTexture(nil, "BACKGROUND")
 	v.bg:SetAllPoints()
 	v.icon = v:CreateTexture(nil, "ARTWORK")
@@ -409,8 +425,8 @@ for index, el in ipairs(ELEMENTS) do
 	ns.cropIconExact(v.icon)
 	-- Time left: a timer (text, swipe, bar), above the warning layer so it stays readable.
 	s.timer = ns.Timer.new(v, "totembar", "uptime", { anchor = v, school = el })
-	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + 3)
-	s.timer.bar:SetFrameLevel(v:GetFrameLevel() + 4)
+	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 1)
+	s.timer.bar:SetFrameLevel(b:GetFrameLevel() + TB.RANGE_LEVEL - 1)
 	v.cd = s.timer.cd
 	s.keys = keyLayer(v)
 	s.gcd = gcdSweep(v)
@@ -525,7 +541,7 @@ for _, e in ipairs({ { "Call", CALL }, { "Recall", RECALL } }) do
 	b:SetAttribute("spell", spell)
 	local v = CreateFrame("Frame", nil, bar)
 	v:SetAllPoints(b)
-	v:SetFrameLevel(b:GetFrameLevel() + 2)
+	v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL)
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
 	ns.cropIconExact(v.icon)
@@ -882,17 +898,35 @@ local function layoutArrow(s)
 	s.arrowVis:SetShown(feat("arrows"))
 end
 
-local function visibilityDriver()
+-- The bar's own driver, and the one it has now: a plain "show" while it stays after combat
+-- (ns.AfterCombat, made with the layout below).
+local function ownDriver()
 	local c = cfg()
 	-- While preview mode draws the slots, the bar shows as its scene would have it.
 	if preview then return previewShows() and "show" or "hide" end
 	if not barOn() or not hasTotems then return "hide" end
 	if kbOpen or not ns.getAccount().locked then return "show" end
 	if c.show == "combat" then return "[petbattle] hide; [combat] show; hide" end
+	if c.show == "target" then return "[petbattle] hide; [combat] show; [@target,exists,harm,nodead] show; hide" end
 	if c.show == "active" then return "[petbattle] hide; [combat] show; " .. (anyDown and "show" or "hide") end
 	return "[petbattle] hide; show"
 end
+local afterCombat
+local function visibilityDriver()
+	if ns.AfterCombat.held(afterCombat) and barOn() and ns.getAccount().locked and not kbOpen
+		and cfg().show ~= "always" then
+		return "[petbattle] hide; show"
+	end
+	return ownDriver()
+end
 local lastDriver
+local function drive()
+	local driver = visibilityDriver()
+	if driver ~= lastDriver then
+		lastDriver = driver
+		RegisterStateDriver(bar, "visibility", driver)
+	end
+end
 
 function layout()
 	if ns.deferInCombat("totem bar layout", layout) then return end
@@ -982,11 +1016,7 @@ function layout()
 	refreshKeys()
 	refreshGCD()
 	ns.refitRings()
-	local driver = visibilityDriver()
-	if driver ~= lastDriver then
-		lastDriver = driver
-		RegisterStateDriver(bar, "visibility", driver)
-	end
+	drive()
 	applyTotemFrame()
 	applyActionBar()
 	if mover then mover.update() end
@@ -998,6 +1028,18 @@ function layout()
 	if playerClass and not isShaman() then classDone = true end
 end
 TB.layout = layout
+
+-- Stay after combat, then fade out (ns.AfterCombat).
+afterCombat = ns.AfterCombat.new({
+	secs = function()
+		if not ns.getDB() or not barOn() or kbOpen or not ns.getAccount().locked then return 0 end
+		local c = cfg()
+		return c.show ~= "always" and c.fadeAfter or 0
+	end,
+	apply = function() if not InCombatLockdown() then drive() end end,
+	shows = function() return SecureCmdOptionParse(ownDriver()) == "show" end,
+	frames = function() return { bar } end,
+})
 
 -- The slots' timers take their current style (General's or the bar's own). Plain frames, so any time.
 function TB.applyTimers()
