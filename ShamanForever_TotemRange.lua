@@ -292,11 +292,17 @@ local function showStrip(s, on)
 	end
 end
 
+-- Whether one of your buff totems is down in the slot (the gate for the holder's alpha, in and out
+-- of combat).
+local function buffTotemDown(s)
+	return s.down and isBuffTotem(s.el, ns.Totems.downSpell(s.slot))
+end
+
 -- refresh (any time): the mark's gate, from which totem of yours is down. Only over Blizzard's part:
 -- without it the red would say "out of range" all the time. Then the holder (showStrip).
 function R.refresh(s)
 	if not s.rangeGate then return end
-	local on = s.down and enabled() and partLive(s) and isBuffTotem(s.el, ns.Totems.downSpell(s.slot))
+	local on = enabled() and partLive(s) and buffTotemDown(s)
 	s.rangeGate:SetAlpha(on and 1 or 0)
 	showStrip(s, on)
 	R.drawTimeLeft(s)
@@ -317,8 +323,25 @@ end
 local ev = CreateFrame("Frame")
 ns.registerEvent(ev, "UNIT_AURA", "player")
 ns.registerEvent(ev, "PLAYER_REGEN_ENABLED")
+ns.registerEvent(ev, "PLAYER_REGEN_DISABLED")
 ev:SetScript("OnEvent", function(_, event)
-	if event ~= "PLAYER_REGEN_ENABLED" then return learn() end
-	-- Combat's alpha off the holders, and each one's driver as it should be out of combat.
-	for _, el in ipairs(TB.ELEMENTS) do R.refresh(TB.slots[el]) end
+	if event == "PLAYER_REGEN_ENABLED" then
+		-- Combat's alpha off the holders, and each one's driver as it should be out of combat.
+		for _, el in ipairs(TB.ELEMENTS) do R.refresh(TB.slots[el]) end
+		return
+	end
+	if event == "PLAYER_REGEN_DISABLED" then
+		-- Fires before the lockdown takes hold: drop any holder whose slot has no buff totem of
+		-- ours down now, so a buff lingering from a totem that went out of combat (still bright,
+		-- since out of combat the holder's alpha stays 1) doesn't show at the pull.
+		for _, el in ipairs(TB.ELEMENTS) do
+			local s = TB.slots[el]
+			local h = s.rangeHold
+			if h and not buffTotemDown(s) then
+				ns.try("totem range: holder alpha", h.SetAlpha, h, 0)
+			end
+		end
+		return
+	end
+	learn()
 end)
