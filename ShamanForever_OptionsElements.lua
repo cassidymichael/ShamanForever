@@ -44,7 +44,7 @@ function EP.buildOverview(p)
 	p:header("Elements")
 	-- Columns sized to fit the page's panel at the window's least width; they keep their places when
 	-- it's wider.
-	local GROUP_X, SHOW_X, OPEN_X = 150, 280, 496
+	local GROUP_X, SHOW_X, OPEN_X = 150, 254, 356
 	do
 		local f = p:row(20)
 		local function col(text, x)
@@ -75,11 +75,11 @@ function EP.buildOverview(p)
 		unknown:SetText("Not learned")
 		local group = CreateFrame("DropdownButton", nil, f, "WowStyle1DropdownTemplate")
 		group:SetPoint("LEFT", GROUP_X, 0)
-		group:SetWidth(120)
+		group:SetWidth(100)
 		groupMenu(group, key)
 		local show = CreateFrame("DropdownButton", nil, f, "WowStyle1DropdownTemplate")
 		show:SetPoint("LEFT", SHOW_X, 0)
-		show:SetWidth(110)
+		show:SetWidth(96)
 		show:SetupMenu(function(_, rootDescription)
 			for _, c in ipairs(SHOW_CHOICES) do
 				rootDescription:CreateRadio(c[2], function() return ns.showMode(key) == c[1] end, function() ns.setShow(key, c[1]) end)
@@ -92,11 +92,17 @@ function EP.buildOverview(p)
 			GameTooltip:Show()
 		end)
 		show:HookScript("OnLeave", function() GameTooltip:Hide() end)
+		-- Its own page, and its group's panel on Groups & Layout (none while ungrouped).
 		local open = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-		open:SetSize(90, 22)
+		open:SetSize(116, 22)
 		open:SetPoint("LEFT", OPEN_X, 0)
-		open:SetText("Settings")
+		open:SetText("Element settings")
 		open:SetScript("OnClick", function() if ELEMENT_PAGES[key] then ns.Options.open(ELEMENT_PAGES[key]) end end)
+		local groupOpen = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+		groupOpen:SetSize(104, 22)
+		groupOpen:SetPoint("LEFT", open, "RIGHT", 4, 0)
+		groupOpen:SetText("Group settings")
+		groupOpen:SetScript("OnClick", function() local g = ns.groupOf(key); if g then ns.Options.openGroup(g.id) end end)
 		p:add(f, 34, nil, function()
 			e.paint(icon)
 			local learned = ns.isLearned(key)
@@ -108,6 +114,7 @@ function EP.buildOverview(p)
 			group:GenerateMenu()
 			show:GenerateMenu()
 			open:SetShown(ELEMENT_PAGES[key] ~= nil)
+			groupOpen:SetShown(ns.groupOf(key) ~= nil)
 		end)
 	end
 end
@@ -129,16 +136,16 @@ local function elementDisplay(p, key)
 		{}, function() end, function() end, nil, 140)
 	groupMenu(groupRow.dropdown, key)
 	local edit = CreateFrame("Button", nil, groupRow, "UIPanelButtonTemplate")
-	edit:SetSize(96, 22)
+	edit:SetSize(110, 22)
 	edit:SetPoint("LEFT", groupRow.dropdown, "RIGHT", 8, 0)
-	edit:SetText("Edit group")
+	edit:SetText("Group settings")
 	edit:SetScript("OnClick", function() local g = ns.groupOf(key); if g then ns.Options.openGroup(g.id) end end)
-	setTip(edit, "Edit group", "This group's settings on the Groups & Layout page.")
+	setTip(edit, "Group settings", "This group's panel on the Groups & Layout page.")
 	local item = p.items[#p.items]
 	local refresh = item.refresh
 	item.refresh = function()
 		refresh()
-		edit:SetEnabled(ns.groupOf(key) ~= nil)
+		edit:SetShown(ns.groupOf(key) ~= nil)
 	end
 end
 
