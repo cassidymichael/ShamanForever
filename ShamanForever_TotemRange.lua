@@ -93,6 +93,7 @@ local function makeMark(s)
 	m:SetAlpha(0)
 	m.bg = m:CreateTexture(nil, "ARTWORK")
 	m.bg:SetAllPoints()
+	ns.Looks.followMask(s.vis, m.bg)   -- a rounded or cut-corner icon's shape
 	s.rangeGate, s.rangeMark = gate, m
 end
 

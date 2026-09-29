@@ -637,6 +637,7 @@ L.PREVIEW.totembar = {
 			ic.rangeF:SetFrameLevel(ic:GetFrameLevel() + 7)
 			ic.rangeF.bg = ic.rangeF:CreateTexture(nil, "ARTWORK")
 			ic.rangeF.bg:SetAllPoints()
+			ns.Looks.followMask(ic, ic.rangeF.bg)
 			h.slots[i] = ic
 		end
 		h.extras = {}
