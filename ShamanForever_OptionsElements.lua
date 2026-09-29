@@ -42,8 +42,9 @@ local ELEMENT_PAGES = {}   -- key -> page key, filled as element pages are built
 
 function EP.buildOverview(p)
 	p:header("Elements")
-	-- Columns sized to fit the page at the window's least width; they keep their places when it's wider.
-	local GROUP_X, SHOW_X, OPEN_X = 150, 280, 512
+	-- Columns sized to fit the page's panel at the window's least width; they keep their places when
+	-- it's wider.
+	local GROUP_X, SHOW_X, OPEN_X = 150, 280, 496
 	do
 		local f = p:row(20)
 		local function col(text, x)

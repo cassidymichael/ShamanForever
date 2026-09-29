@@ -1,6 +1,7 @@
 -- The options window's page kit: a page is a scrolling column of rows (headers, text, checkboxes,
 -- sliders, dropdowns, colours, cards, buttons...). Rows can hide themselves; refresh reflows the
--- visible ones and pulls every control's value from the saved settings. Also the drag and drop the
+-- visible ones and pulls every control's value from the saved settings. Each header starts a block
+-- that runs to the next header and sits on a faint panel. Also the drag and drop the
 -- pages' lists share. The pages themselves are built in ShamanForever_Options.lua, Layout in
 -- ShamanForever_OptionsLayout.lua, and the elements' in ShamanForever_OptionsElements.lua.
 
@@ -20,6 +21,8 @@ local WIDTH, NAV_W, PAGE_TOP, LABEL_W = Page.WIDTH, Page.NAV_W, Page.PAGE_TOP, P
 local ROW_W = WIDTH - NAV_W - 64                  -- initial row width; rows then follow the window
 local SLIDER_SPAN_W = 400   -- a slider and its value box, at most
 local TEXT_MAX_W = 600   -- text and boxed notices wrap here at the most (the page's width at 864)
+-- A block's panel: its rows inset from its sides, room under its last row, a gap to the next block.
+local PANEL_PAD, PANEL_PAD_B, BLOCK_GAP = 10, 6, 10
 
 -- above: over the frame's top-left corner, for full-width rows, whose right edge is far from the
 -- mouse on the label; otherwise to the right of the frame.
@@ -67,13 +70,15 @@ function Page.new(win, key, title, indent)
 	end)
 	scroll:Hide()
 	return setmetatable({ win = win, key = key, title = title, indent = indent, scroll = scroll, content = content,
-		items = {} }, Page)
+		items = {}, blockList = {} }, Page)
 end
 
 -- shown: nil, or a function: the row is hidden while it returns false.
 -- Set around a run of rows, like the gate: inset, a function returning the rows' left and right
 -- margins inside the page (a second column); float, a function: while true, the rows after it start
 -- level with it instead of below it, so it stands beside them (give them an inset to make room).
+-- A page with panels = false (set before its first header) has no blocks: its rows use the whole
+-- page, as the Layout page's columns do.
 function Page:add(frame, height, shown, refresh)
 	-- A page-wide gate (set around a run of rows) hides them all while it returns false.
 	local gate = self.gate
@@ -81,8 +86,10 @@ function Page:add(frame, height, shown, refresh)
 		local inner = shown
 		shown = function() return gate() and (not inner or inner()) and true or false end
 	end
-	table.insert(self.items, { frame = frame, height = height, shown = shown, refresh = refresh,
-		inset = self.inset, float = self.float })
+	local it = { frame = frame, height = height, shown = shown, refresh = refresh,
+		inset = self.inset, float = self.float, block = self.block }
+	table.insert(self.items, it)
+	if self.block then table.insert(self.block.items, it) end
 	return frame
 end
 
@@ -92,6 +99,38 @@ function Page:width() return self.rowW or self.content:GetWidth() end
 -- A row that shows only while active() is true (and shown(), if given).
 function Page.showWhen(active, shown)
 	return function() return (not shown or shown()) and active() and true or false end
+end
+
+-- A block's panel, from top to bottom (down from the page's top): a faint fill and a thin border,
+-- drawn on the page itself, under its rows.
+local function placePanel(content, b, top, bottom)
+	if not b.panel then
+		local fill = content:CreateTexture(nil, "BACKGROUND")
+		fill:SetColorTexture(1, 0.93, 0.78, 0.035)
+		local edges = {}
+		for i = 1, 4 do
+			edges[i] = content:CreateTexture(nil, "BORDER")
+			edges[i]:SetColorTexture(0.23, 0.17, 0.10, 1)
+		end
+		b.panel = { fill = fill, edges = edges }
+	end
+	local fill, e = b.panel.fill, b.panel.edges
+	fill:ClearAllPoints()
+	fill:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -top)
+	fill:SetPoint("BOTTOMRIGHT", content, "TOPRIGHT", 0, -bottom)
+	for i = 1, 4 do e[i]:ClearAllPoints() end
+	e[1]:SetPoint("TOPLEFT", fill); e[1]:SetPoint("TOPRIGHT", fill); e[1]:SetHeight(1)
+	e[2]:SetPoint("BOTTOMLEFT", fill); e[2]:SetPoint("BOTTOMRIGHT", fill); e[2]:SetHeight(1)
+	e[3]:SetPoint("TOPLEFT", fill); e[3]:SetPoint("BOTTOMLEFT", fill); e[3]:SetWidth(1)
+	e[4]:SetPoint("TOPRIGHT", fill); e[4]:SetPoint("BOTTOMRIGHT", fill); e[4]:SetWidth(1)
+	fill:Show()
+	for i = 1, 4 do e[i]:Show() end
+end
+
+local function hidePanel(b)
+	if not b.panel then return end
+	b.panel.fill:Hide()
+	for i = 1, 4 do b.panel.edges[i]:Hide() end
 end
 
 function Page:refresh()
@@ -104,12 +143,29 @@ function Page:refresh()
 	end
 	local y, bottom = 0, 0   -- bottom: of any row standing beside others (float)
 	local width = self.content:GetWidth()
+	-- open: the block being laid out, while its header shows; gap: owed before the next row shown.
+	local open, gap = nil, false
+	local function close()
+		if not open then return end
+		y = math.max(y, open.low) + PANEL_PAD_B
+		placePanel(self.content, open, open.top, y)
+		open.drawn = true
+		open, gap = nil, true
+	end
+	for _, b in ipairs(self.blockList) do b.drawn = false end
 	for _, it in ipairs(self.items) do
+		local b = it.block
+		if it.head then close() end   -- a header, shown or not, ends the block before it
 		local show = not it.shown or it.shown()
+		it.visible = show
 		it.frame:SetShown(show)
 		if show then
+			if gap or (it.head and y > 0) then y = y + BLOCK_GAP; gap = false end
+			if it.head then open = b; b.top, b.low = y, y end
+			local pad = open and b == open and PANEL_PAD or 0
 			local left, right = 0, 0
 			if it.inset then left, right = it.inset() end
+			left, right = left + pad, right + pad
 			self.rowW = width - left - right
 			-- One failing row must not blank the rest of the page: report it once and carry on.
 			if it.refresh then
@@ -123,9 +179,13 @@ function Page:refresh()
 			it.frame:SetPoint("TOPLEFT", self.content, "TOPLEFT", left, -y)
 			it.frame:SetPoint("TOPRIGHT", self.content, "TOPRIGHT", -right, -y)
 			local h = type(it.height) == "function" and it.height() or it.height
+			it.x, it.y, it.h = left, y, h
+			if open and b == open then open.low = math.max(open.low, y + h) end
 			if it.float and it.float() then bottom = math.max(bottom, y + h) else y = y + h end
 		end
 	end
+	close()
+	for _, b in ipairs(self.blockList) do if not b.drawn then hidePanel(b) end end
 	self.rowW = nil
 	self.content:SetHeight(math.max(y, bottom, 1))
 	if self.afterRefresh then self.afterRefresh() end
@@ -148,9 +208,15 @@ function Page:label(f, text, tip)
 	return fs
 end
 
--- icon: an optional texture before the text.
+-- A header starts a block, which runs to the next one. icon: an optional texture before the text.
 function Page:header(text, shown, note, icon)
 	local f = self:row(36)
+	local block
+	if self.panels ~= false then
+		block = { index = #self.blockList + 1, items = {} }
+		table.insert(self.blockList, block)
+		self.block = block
+	end
 	f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	f.text:SetPoint("BOTTOMLEFT", icon and 26 or 0, 7)
 	if icon then
@@ -172,7 +238,12 @@ function Page:header(text, shown, note, icon)
 	pcall(line.SetGradient, line, "HORIZONTAL", CreateColor(0.85, 0.71, 0.42, 0.45), CreateColor(0.85, 0.71, 0.42, 0))
 	line:SetPoint("BOTTOMLEFT", 0, 3)
 	line:SetPoint("BOTTOMRIGHT", 0, 3)
-	return self:add(f, 36, shown)
+	self:add(f, 36, shown)
+	if block then
+		block.head = self.items[#self.items]
+		block.head.head = true
+	end
+	return f
 end
 
 -- Names the last row added, for ns.Options.openGeneral and the like to scroll to.

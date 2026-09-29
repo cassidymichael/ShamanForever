@@ -408,6 +408,7 @@ end
 
 local function buildList(p)
 	list = Page.new(p.win, "layoutGroups")
+	list.panels = false   -- a column of groups, not blocks of settings
 	local s = list.scroll
 	s:ClearAllPoints()
 	s:SetPoint("TOPLEFT", p.win, "TOPLEFT", NAV_W + 18, PAGE_TOP)
@@ -574,6 +575,8 @@ end
 
 -- The page: the group list on its left, the chosen group's elements and settings beside it.
 function LP.build(p)
+	-- One header, the chosen group's, over two columns: the page is its block, with no panel.
+	p.panels = false
 	buildList(p)
 	drag.ghost = Page.dragGhost(updateDragFeedback)
 	local function wide() return p.content:GetWidth() >= WIDE_AT end
