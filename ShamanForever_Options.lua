@@ -712,7 +712,7 @@ local function buildTotemBar(p)
 	local sizeFollow = generalRow(p, "Icon size same as General", "Use the icon size on the General page.",
 		tget("sizeFollow"), function(v) TB.setSizeFollow(v); changed() end, "size")
 	p:sub(sizeFollow, function() return not c().sizeFollow end, function()
-		p:slider("Icon size", "Shift + mouse wheel over the bar while positioning is unlocked does the same.", 24, 96, 1, px,
+		p:slider("Icon size", nil, 24, 96, 1, px,
 			tget("size"), tset("size"))
 	end)
 	p:dropdown("Call and Recall", "Where they sit on the bar.", { { "ends", "Both ends" }, { "before", "Before the slots" }, { "after", "After the slots" } },
@@ -720,9 +720,9 @@ local function buildTotemBar(p)
 	p:slider("Call and Recall size", "As a share of the slots' size.", 0.5, 1.5, 0.05,
 		pct, tget("extrasScale"), tset("extrasScale"),
 		showWhen(function() return c().call or c().recall end, full))
-	p:slider("Scale", "Grows everything on the bar, borders too. Mouse wheel over the bar while positioning is unlocked does the same.", 0.5, 3, 0.05,
+	p:slider("Scale", "Grows everything on the bar, borders too.", 0.5, 3, 0.05,
 		times, tget("scale"), tset("scale"))
-	p:slider("Opacity", "Ctrl + mouse wheel over the bar while positioning is unlocked does the same.", 0.1, 1, 0.05,
+	p:slider("Opacity", nil, 0.1, 1, 0.05,
 		pct, tget("alpha"), tset("alpha"))
 
 	-- With Layout: heavier borders go with the spacing.
