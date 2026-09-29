@@ -54,9 +54,9 @@ function N.current()
 	return getMeta and plainVersion(getMeta(ADDON, "Version")) or nil
 end
 
--- The account's record: seen (the version last run), from (the one before the last update, for
--- Home's list), unseen (Home not opened since the update), chat (false: no chat line), fresh (a
--- first install not yet stamped). Made at the first login after loading.
+-- The account's record: seen (the version last run), from (the one before the updates since Home
+-- was last opened, for Home's list), unseen (Home not opened since the update), chat (false: no
+-- chat line), fresh (a first install not yet stamped). Made at the first login after loading.
 local function state()
 	local a = ns.getAccount()
 	if type(a.news) ~= "table" then
@@ -67,7 +67,7 @@ local function state()
 end
 
 -- The releases Home lists: after an update, those since the version before it (newest first, up to
--- three); otherwise this version's own. A development copy lists the top entry, placeholder or not.
+-- three); none on a first install. A development copy lists the top entry, placeholder or not.
 function N.list()
 	local out = {}
 	local cur = N.current()
@@ -76,9 +76,10 @@ function N.list()
 		return out
 	end
 	local from = state().from
+	if not from then return out end
 	for _, e in ipairs(N.NOTES) do
 		local v = plainVersion(e.version)
-		if v and not newer(v, cur) and (v == cur or (from and newer(v, from))) then table.insert(out, e) end
+		if v and not newer(v, cur) and newer(v, from) then table.insert(out, e) end
 		if #out == MAX_SHOWN then break end
 	end
 	return out
@@ -143,8 +144,13 @@ function N.check(cur)
 	if st.fresh then st.fresh, st.seen = nil, cur return end
 	local seen = st.seen or "0.0.0"   -- installed before What's new existed: this update is news
 	if not newer(cur, seen) then st.seen = cur return end
-	st.from, st.seen = seen, cur
-	if not N.list()[1] then return end
+	-- Home not opened since an earlier update: the list still starts from before that one.
+	if not st.unseen then st.from = seen end
+	st.seen = cur
+	if not N.list()[1] then
+		st.unseen = nil
+		return
+	end
 	st.unseen = true
 	N.refreshDot()
 	if st.chat ~= false then
