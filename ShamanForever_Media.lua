@@ -11,8 +11,8 @@
 -- * SetFont with a file the client doesn't have throws, and taints even inside pcall: every path is
 --   checked with C_UIFileAsset.IsKnownFile first (without it, only the game's own fonts are used).
 -- * SetFont returns false for most fonts the client hasn't drawn yet, leaving the string with no
---   font. So each font is tried once on a hidden string, and again a second later (up to three
---   times), before any of our text takes it.
+--   font. So each font is tried once on a hidden string, then again each second up to three more
+--   times, before any of our text takes it.
 
 local _, ns = ...
 
@@ -110,7 +110,7 @@ function retry()
 			if try(path) then
 				state[path] = "ok"
 				if M.fontInUse(nil, path) then used = true end
-			elseif tries[path] >= 3 then state[path] = "bad"
+			elseif tries[path] > 3 then state[path] = "bad"   -- the first try and three more
 			else waiting = true end
 		end
 	end
