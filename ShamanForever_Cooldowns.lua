@@ -223,12 +223,24 @@ local function ownCooldownOver(spellID)
 	if zok and not isSecret(z) and type(z) == "boolean" then return z end
 end
 -- Before a cooldown timer takes a new duration: a global-cooldown sweep gets no bling, and the
--- ready pop that fires when it ends is skipped (f.gcdUntil), unless the spell's own cooldown is
--- running under the GCD: then its end is a real "ready".
+-- ready pop and sound when it ends are skipped, unless the spell's own cooldown is running under
+-- the GCD: then its end is a real "ready". f.gcdUntil: a cooldown end up to that moment is the
+-- GCD's. math.huge while a GCD sweep is pending, until its end comes (gcdEnded) or a read shows
+-- the spell's own cooldown; not a clock from the cast, which a slow frame or a longer GCD would
+-- outlast.
 local function noteGCD(f, spellID)
 	local g = CD.onGCD(spellID)
-	if g and ownCooldownOver(spellID) ~= false then f.gcdUntil = GetTime() + 1.6 end
+	local own = ownCooldownOver(spellID)
+	if own == false then f.gcdUntil = nil
+	elseif g then f.gcdUntil = math.huge end
 	f.cd:SetDrawBling(not g)
+end
+-- The pending sweep's end: that moment, so every OnCooldownDone hook on this one end skips it
+-- (GetTime is one value through a frame) and the next end counts. Hooked before the others.
+local function gcdEnded(f)
+	f.cd:HookScript("OnCooldownDone", function()
+		if f.gcdUntil == math.huge then f.gcdUntil = GetTime() end
+	end)
 end
 -- A cooldown timer's duration, by the element's Global cooldown style: on, with the GCD (every cast
 -- sweeps it, as on action bars); off, its own cooldown only (ignoreGCD), which its own cast starts,
@@ -255,6 +267,7 @@ CD.cooldownFor = cooldownFor
 -- has no duration object (see the file's header). Then the pop is greyed, a nudge to drop one, or
 -- none (readyNoTotem).
 local function popWhenReady(f, key, totemSlot)
+	gcdEnded(f)
 	f.cd:HookScript("OnCooldownDone", function()
 		if f.gcdUntil and GetTime() <= f.gcdUntil then return end   -- a global cooldown ended
 		if not (ns.isEnabled(key) and setting(key, "readyPop")) then return end
@@ -505,12 +518,32 @@ local function refreshCooldowns(inEvent)
 	for _, def in ipairs(COOLDOWNS) do refreshCooldown(def, inEvent) end
 end
 
+-- The ready sound (ShamanForever_Sounds.lua), at the ready pop's moment (popWhenReady, hooked
+-- first): not when a global cooldown ends, nor for a spell that needs a totem while none is down.
+-- Separate from the pop, which can be off while the sound is on. Only while the icon is on screen,
+-- and not in the moment it comes into view: a hidden timer's end may reach it only then, late.
+local JUST_SHOWN = 0.2
+local function soundWhenReady(f, key, totemSlot)
+	f:HookScript("OnShow", function() f.shownAt = GetTime() end)
+	f.cd:HookScript("OnCooldownDone", function()
+		if not f:IsVisible() or GetTime() - (f.shownAt or 0) < JUST_SHOWN then return end
+		if f.gcdUntil and GetTime() <= f.gcdUntil then return end
+		if totemSlot then
+			local ok, d = safe(GetTotemDuration, totemSlot)
+			if not (ok and d) then return end
+		end
+		ns.Sounds.element(key, "readySound")
+	end)
+end
+CD.soundWhenReady = soundWhenReady
+
 for _, def in ipairs(COOLDOWNS) do
 	if def.primed then
 		def.spends = {}
 		for _, k in ipairs(def.primed.spends) do def.spends[k] = true end
 	end
 	popWhenReady(def.frame, def.key, def.needsTotem)
+	if not def.noReady then soundWhenReady(def.frame, def.key, def.needsTotem) end
 	-- A cooldown ending can make it idle (see applyIdle); read on the next frame.
 	def.frame.cd:HookScript("OnCooldownDone", function() C_Timer.After(0, function() refreshCooldown(def) end) end)
 end
@@ -541,6 +574,8 @@ Totems.subscribe(function(event, slot, arg)
 				f.killed.mark:Hide()
 			elseif event == "gone" and Totems.ownerOf(slot) == def.spellKey and ns.isEnabled(key) then
 				local dur = arg
+				-- Ran out or killed: one sound, in combat too, while the icon is on screen.
+				if f:IsVisible() then ns.Sounds.element(key, "goneSound", true) end
 				if def.ranOut then
 					-- Its colour with an hourglass, rather than the pop.
 					if setting(key, "ranOutFlash") then

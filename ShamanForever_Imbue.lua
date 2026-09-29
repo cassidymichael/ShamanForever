@@ -94,6 +94,13 @@ local function imbueKeyFor(w)
 	end
 end
 
+-- The imbue on the main hand now (a key of IMBUES), read whether or not the element shows; nil when
+-- none is on, it isn't recognised or it can't be read. The swing timer's colour.
+function IM.mainHand()
+	local r = readMainHand()
+	return r and imbueKeyFor(r) or nil
+end
+
 local imbueIcon = imbueIconFor("rockbiter")
 -- The icon while no imbue is on: the player's pick, or the last one used.
 local function preferredImbueIcon()
@@ -189,8 +196,12 @@ function IM.refresh()
 	-- No weapon to imbue, or dead, a ghost or on a flight path: nothing can be cast.
 	local quiet = not hasWeapon() or ns.cantAct()
 	drawImbue(now, quiet)
-	-- The moment it drops (imbues stay readable in combat): pop. Not when the weapon came off.
-	if had and r == false and db.imbuePop and not quiet then imbue:Pop("imbue") end
+	-- The moment it drops (imbues stay readable in combat): pop and sound, the sound while the icon
+	-- is on screen. Not when the weapon came off.
+	if had and r == false and not quiet then
+		if db.imbuePop then imbue:Pop("imbue") end
+		if imbue:IsVisible() then ns.Sounds.element("imbue", "lostSound", true) end
+	end
 end
 
 -- Our own successful cast: remembered, so an imbue not recognised by ID or icon is learned on the next read.

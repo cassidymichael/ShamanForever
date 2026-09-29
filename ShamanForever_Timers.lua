@@ -54,12 +54,17 @@ T.ELEMENT_DEFAULTS = {
 	grounding = { uptime = { text = false, bar = true } },
 	-- Stormstrike's time left is how long its empowered spell waits: a bar only.
 	stormstrike = { uptime = { text = false, bar = true } },
+	-- The Mana element's five-second rule: a swipe over the icon (its counts and mana bar stay above
+	-- it); a time bar goes on top, clear of the mana bar.
+	mana = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false, barEdge = "top" } },
 	-- Ten-minute buffs: minutes in the middle, and a bar.
 	waterwalking = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
 	waterbreathing = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
 	elementalfocus = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
 	-- Tremor Totem's five minutes while it's down: minutes in the middle and a time bar.
 	tremor = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
+	-- The swing timer's countdown: off, small and centred on the bar when on.
+	swing = { cooldown = { text = false, textSize = 12, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = false } },
 }
 -- Parts an element's timer can't have, and why (shown on its page): for every kind, or under a
 -- kind's name for that kind only.
@@ -73,6 +78,8 @@ T.CANT = {
 	grounding = { uptime = { swipe = ONE_SWIPE } },
 	farseer = { uptime = { swipe = ONE_SWIPE } },
 	stormstrike = { uptime = { swipe = ONE_SWIPE } },
+	-- The swing timer is a bar already: its timer adds the countdown only.
+	swing = { swipe = "No swipe: it's a bar, not an icon.", bar = "No time bar: the swing timer is one already." },
 }
 function T.cant(key, kind)
 	local c, out = key and T.CANT[key], {}

@@ -8,6 +8,8 @@
   (`git merge --ff-only`, or `--no-ff` for a larger piece of work). The branch is then deleted.
 - A branch that adds, removes or changes something players can do (not just a setting) updates the
   README's Features section before it is merged. Experimental features are listed as experimental.
+  If players will look for it, it also adds a line to the `"next"` entry at the top of `NOTES` in
+  `ShamanForever_News.lua` (adding the entry if there is none).
 - Changes that don't touch what players get (docs, CI, repo files) can go straight to `main`.
 - A pull request only when a written record of a larger change helps; not for every change.
 
@@ -15,9 +17,14 @@
 
 1. Merge the tested work into `main` as above.
 2. Add an entry at the top of `CHANGELOG.md`, headed `## X.Y.Z (YYYY-MM-DD)`, listing what players
-   will notice. Commit it on its own as `Release X.Y.Z`.
+   will notice.
    Anything new in it should already be in the README's Features section. On a 0.x.0 release, also
    read the whole list against the options window and drop anything that has gone.
+   Then Home's What's new: in `ShamanForever_News.lua`, rename the top `"next"` entry of `NOTES` to
+   `"X.Y.Z"` (or add an `"X.Y.Z"` entry if there is none), trim it to a few short lines, one per
+   change players will look for, and keep only the last three releases. Without notes for the
+   version, the update stays quiet in game.
+   Commit only the changelog and the `NOTES` change, as `Release X.Y.Z`.
 3. Tag and push: `git tag -a vX.Y.Z -m "ShamanForever X.Y.Z" && git push origin main vX.Y.Z`
 4. If the Features section changed since the last release (`git diff vPREV vX.Y.Z -- README.md`),
    paste it into the CurseForge and Wago project descriptions. The release doesn't update those.

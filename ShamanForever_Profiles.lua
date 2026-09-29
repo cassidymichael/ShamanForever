@@ -20,6 +20,8 @@ local ACCOUNT_DEFAULTS = {
 	lastShield = "lightning",  -- the shield last cast or seen; its icon is the no-shield look in "either" mode
 	imbueIDs = {},            -- learned enchant ID -> imbue key
 	fearCasters = {},         -- the player's edits to Tremor's mob list (ShamanForever_Tremor.lua)
+	swingShowBlizzard = false,  -- the player keeps Blizzard's swing bar on with ours: no note (ShamanForever_Swing.lua)
+	swingBlizzardNoted = {},  -- "Name-Realm" -> true: chat said on that character that Blizzard's bar is on too
 	profiles = {},            -- name -> settings (ShamanForever.lua's DEFAULTS)
 	chars = {},               -- "Name-Realm" -> { profile = name }
 }
@@ -44,6 +46,7 @@ local function charKey()
 	if not name or name == "" or name == UNKNOWN then return nil end
 	if realm and realm ~= "" then return name .. "-" .. realm:gsub("[%s%-]", "") end
 end
+P.charKey = charKey
 
 -- Keys saved before that fix, with the realm's spaces: merged into the normalised ones (which hold
 -- the latest choice when both exist).
@@ -85,6 +88,8 @@ end
 -- Loading (ADDON_LOADED): the saved table, brought up to date. Returns it.
 ------------------------------------------------------------------------
 function P.load()
+	-- A first install: What's new stays quiet (ShamanForever_News.lua).
+	P.firstLoad = ShamanForeverDB == nil
 	ShamanForeverDB = ShamanForeverDB or {}
 	local a = ShamanForeverDB
 	-- A save from before profiles (0.3 and earlier) isn't upgraded: it starts from defaults.
@@ -180,6 +185,7 @@ local GROUP_RANGES = { scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { 0, 40
 -- An element's own numbers (db.elementOpts[key]), and its Expiring warning's.
 local ELEMENT_RANGES = { idleAlpha = { 0, 1 }, reagentLow = { 0, 10 }, reagentSize = { 8, 40 },
 	reagentX = { -50, 50 }, reagentY = { -50, 50 }, wordSize = { 8, 40 }, wordX = { -100, 100 }, wordY = { -100, 100 } }
+for k, r in pairs(ns.Swing.RANGES) do ELEMENT_RANGES[k] = r end   -- the swing timer's, kept with it
 local EXPIRE_RANGES = { secs = { 0, 120 } }
 -- defaults nil: a NaN is dropped, so the setting's own default applies.
 local function clampNumbers(t, ranges, defaults)

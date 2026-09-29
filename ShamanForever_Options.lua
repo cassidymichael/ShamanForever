@@ -346,6 +346,7 @@ local function buildHome(p)
 		{ "Interface\\Icons\\Spell_Nature_Invisibilty", function() return "Layout" end,
 			function() return "Set up groups of elements" end, function() OP.open("layout") end },
 	})
+	ns.News.homeBlock(p)
 	p:add(p:row(24), 24)   -- room between the big buttons and Feedback
 	-- Feedback, in large type: it matters most on this page.
 	local lead = p:text("Ideas, requests, bugs? Please let me know!")
@@ -385,6 +386,7 @@ local function buildGeneral(p)
 	gcdBlock(p, nil)
 	glowBlock(p, nil, 136026)
 	popBlock(p, nil, 136026, "ready")
+	ns.Sounds.generalBlock(p)
 
 	p:header("Minimap")
 	p:checkbox("Show the minimap button", "Click it to open these options. Also listed in the minimap's addon menu.",
@@ -435,6 +437,7 @@ local function buildProfiles(p)
 		{ "Export", function() OP.showShare("export") end, "This profile as text, to share.", 90 },
 		{ "Import", function() OP.showShare("import") end, "Profile text from someone else. It becomes a new profile.", 90 },
 	})
+
 end
 
 -- A heading with a gold glow that flashes when a button elsewhere brings the reader to it.
@@ -742,6 +745,7 @@ local function buildTotemBar(p)
 	local WARN = { grey = "warnGrey", ring = "warnRing", pulse = "warnPulse", glow = "warnGlow" }
 	expiringLooks(p, function(k) return tget(WARN[k]) end, function(k) return tset(WARN[k]) end, "slot")
 	p:checkbox("Pop when it runs out", "The totem pops and fades the moment it runs out.", tget("expiredPop"), tset("expiredPop"))
+	ns.Sounds.row(p, "Sound when it ends", "When a totem runs out or is killed. Not when you dismiss it.", tget("goneSound"), tset("goneSound"))
 	local secs = function(v) return v == 0 and "Off" or string.format("%d s", v) end
 	p:slider("Warn in the last", nil, 0, 30, 1, secs, tget("warn"), tset("warn"))
 	p:text("Totems with their own warning time, instead of the default:", function() return next(c().warnOver) ~= nil end)
@@ -846,6 +850,7 @@ local function showPage(key)
 		if b.page == key and b.sub and navList then navList.reveal(b) end
 	end
 	pages[key]:refresh()
+	ns.News.pageShown(key)
 end
 
 -- The nav: main pages, then every element's page (indented) in a list of its own that scrolls when
@@ -1299,6 +1304,13 @@ end
 function OP.openElement(key)
 	if not win then buildWindow() end
 	OP.open(ns.ElementPages.pageOf(key) or "elements")
+end
+
+-- A page's button in the nav (What's new's dot), once the window is built.
+function OP.navButton(page)
+	for _, b in ipairs(navButtons) do
+		if b.page == page then return b end
+	end
 end
 
 -- Scrolls a page so frame (one of its rows) sits at the top, once the page has laid out. A folded

@@ -297,8 +297,8 @@ local function idleAlpha(key)
 	return math.min(math.max(v, 0), 1)
 end
 
--- always | combat | never
-local function showMode(key) return elementOpts(key).show or "always" end
+-- always | combat | never; an element's default is "always" unless its defaults say otherwise.
+local function showMode(key) return elementOpts(key).show or elementDefault(key, "show") or "always" end
 
 -- A group's icon size: its own, or General's.
 local function groupSize(g) return (g and not g.sizeFollow and g.size) or db.iconSize end
@@ -860,7 +860,9 @@ local splitGroup = edit(function(id)
 	if sx then setGroupCenter(g, sx, sy) end
 end)
 
-local setShow = edit(function(key, mode) elementOpts(key).show = mode ~= "always" and mode or nil end)
+local setShow = edit(function(key, mode)
+	elementOpts(key).show = mode ~= (elementDefault(key, "show") or "always") and mode or nil
+end)
 
 -- Hides every element in the group; the group keeps them, so showing one brings it back in place.
 local hideGroup = edit(function(id)
