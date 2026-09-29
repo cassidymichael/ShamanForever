@@ -29,8 +29,9 @@ function Looks.hasAtlas(name)
 	return atlasKnown[name]
 end
 
--- The school whose colour a frame's "school" parts take: the frame's own (a totem bar slot's),
--- else its element's (element icons and their previews carry the element's key as owner).
+-- The school a frame's looks take (a glow's material, a pop's colour and shapes): the frame's own
+-- (a totem bar slot's), else its element's (element icons and their previews carry the element's
+-- key as owner).
 local function schoolOf(f)
 	if f.school then return f.school end
 	local e = type(f.owner) == "string" and ns.ELEMENTS[f.owner]
@@ -41,8 +42,8 @@ end
 -- Frames: a border look's entry has any of these parts (the options also read name, S.addLook).
 --   rings  lines round the icon's edge, listed outside in. Each is { px, color }, or has a colour
 --          per side (top, bottom, left, right) in place of color. px: screen pixels (default 1) or
---          "size" for the Border size setting. A colour is { r, g, b, a }, "setting" for the
---          Border colour setting, or "school" for the element's school colour.
+--          "size" for the Border size setting. A colour is { r, g, b, a }, or "setting" for the
+--          Border colour setting.
 --   caps   { px, len, color }: an L on each corner, px thick, reaching 1 px beyond the rings, its
 --          arms running len along the icon's edges past the corner (screen pixels).
 --   art    Blizzard's or our art: { atlas or file, inset } drawn stretched over the icon, inset
@@ -64,9 +65,8 @@ local SIDES = { "top", "bottom", "left", "right" }
 local CORNERS = { { "TOPLEFT", -1, 1 }, { "TOPRIGHT", 1, 1 }, { "BOTTOMLEFT", -1, -1 }, { "BOTTOMRIGHT", 1, -1 } }
 local BLACK = { 0, 0, 0, 1 }
 
-local function colorOf(c, b, school)
+local function colorOf(c, b)
 	if c == "setting" then return b.color or BLACK end
-	if c == "school" then return ns.SCHOOL_COLOR[school] or ns.SCHOOL_COLOR.spirit end
 	return c
 end
 
@@ -81,7 +81,7 @@ end
 
 -- Each ring is four textures: top and bottom span the corners, left and right fill between them.
 -- Drawn inside out; returns how far the rings reach outside the icon's edge.
-local function drawRings(f, rings, b, school)
+local function drawRings(f, rings, b)
 	f.border = f.border or {}
 	local tex, n, d = f.border, 0, 0   -- d: how far out this ring starts
 	for i = #(rings or {}), 1, -1 do
@@ -92,7 +92,7 @@ local function drawRings(f, rings, b, school)
 			n = n + 1
 			local t = tex[n] or f:CreateTexture(nil, "BACKGROUND", nil, -8)
 			tex[n] = t
-			local c = colorOf(ring[side] or ring.color, b, school)
+			local c = colorOf(ring[side] or ring.color, b)
 			t:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
 			t:ClearAllPoints()
 			t:Show()
@@ -122,7 +122,7 @@ end
 
 -- Two textures a corner, above the rings; out: where the rings end. Returns how far the caps
 -- reach beyond them.
-local function drawCaps(f, caps, out, b, school)
+local function drawCaps(f, caps, out, b)
 	local t = f.frameCaps
 	if not caps then
 		if t then for _, x in ipairs(t) do x:Hide() end end
@@ -136,7 +136,7 @@ local function drawCaps(f, caps, out, b, school)
 	local px, beyond = ns.linePx(f, caps.px or 2), ns.linePx(f, 1)
 	local o = out + beyond
 	local len = o + ns.linePx(f, caps.len or 6)
-	local c = colorOf(caps.color, b, school)
+	local c = colorOf(caps.color, b)
 	for i, corner in ipairs(CORNERS) do
 		local point, x, y = corner[1], corner[2] * o, corner[3] * o
 		-- along: the arm along the top or bottom; down: the one down the side.
@@ -351,7 +351,7 @@ function ns.applyBorder(f, b)
 	if artMissing(look) then look = NO_ART end
 	local on = b and b.show and (not Looks.uses(look, "size") or (b.size and b.size > 0))
 	if not on then
-		drawRings(f, nil, b, nil)
+		drawRings(f, nil, b)
 		drawCaps(f, nil)
 		drawOverlay(f, nil)
 		drawSlice(f, nil)
@@ -360,9 +360,8 @@ function ns.applyBorder(f, b)
 		f.frameOuter = 0
 		return
 	end
-	local school = schoolOf(f)
-	local out = drawRings(f, look.rings, b, school)
-	out = out + drawCaps(f, look.caps, out, b, school)
+	local out = drawRings(f, look.rings, b)
+	out = out + drawCaps(f, look.caps, out, b)
 	drawOverlay(f, look.art)
 	out = math.max(out, drawSlice(f, look.art))
 	local mask = maskOf(look)
@@ -445,8 +444,6 @@ local AB_MASK, AB_FRAME = "UI-HUD-ActionBar-IconFrame-Mask", "UI-HUD-ActionBar-I
 S.addLook("border", "line", { name = "Line", rings = { { px = "size", color = "setting" } } })
 S.addLook("border", "hairline", { name = "Gold hairline",
 	rings = { { color = BLACK }, { color = GOLD }, { color = BLACK } } })
-S.addLook("border", "school", { name = "School edge",
-	rings = { { color = BLACK }, { color = "school" } } })
 -- Lit from the top left.
 S.addLook("border", "bevel", { name = "Bronze bevel",
 	rings = { { color = BLACK }, { top = BRONZE_HI, left = BRONZE_HI, bottom = BRONZE_LO, right = BRONZE_LO },

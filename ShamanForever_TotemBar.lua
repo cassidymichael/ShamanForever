@@ -282,7 +282,7 @@ function TB.layoutBadge(bd, anchor, size, border)
 	elseif c.pop == "right" then bd:SetPoint("RIGHT", anchor, "LEFT", -gap, 0)
 	else bd:SetPoint("LEFT", anchor, "RIGHT", gap, 0) end
 	-- Only draw the setting's colour when the slots' own look actually uses it; other looks (Gold
-	-- hairline, School edge, Bronze bevel) hide that setting, and the badge shouldn't keep a colour
+	-- hairline, Bronze bevel) hide that setting, and the badge shouldn't keep a colour
 	-- the player can no longer see or change.
 	local usesColor = border and border.show and ns.Looks.uses(ns.Style.look("border", border.look), "color")
 	local color = usesColor and border.color or { 0, 0, 0, 1 }
@@ -392,7 +392,7 @@ for index, el in ipairs(ELEMENTS) do
 	v:SetFrameLevel(b:GetFrameLevel() + 2)
 	v:EnableMouse(false)
 	s.vis = v
-	v.school = el   -- a frame look's school colour (ns.Looks)
+	v.school = el   -- the school its looks take (ns.Looks)
 	-- "Not your pick": the element's pick, small, on the side away from the picker (a plain frame).
 	local badge = CreateFrame("Frame", nil, bar)
 	badge:SetFrameLevel(b:GetFrameLevel() + 6)
