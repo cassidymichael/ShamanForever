@@ -226,10 +226,11 @@ FLAME.clock = C_DurationUtil and C_DurationUtil.CreateDuration and C_DurationUti
 -- Our own cast of any rank: the clock starts again.
 local function noteFlameShock()
 	local d = FLAME.clock
-	if not d or not ns.try("flame shock clock", d.SetTimeFromStart, d, GetTime(), fsSecs) then return end
-	FLAME.clockOn = true
+	local ok = d and ns.try("flame shock clock", d.SetTimeFromStart, d, GetTime(), fsSecs)
+	-- A clock that couldn't be set is dropped: an older cast's time would make the warning early.
+	FLAME.clockOn = ok and true or false
 	local timer = FLAME.aura.timer
-	if timer then timer:setClock(d) end
+	if timer then timer:setClock(ok and d or nil) end
 end
 
 local function readable() return not fighting and not InCombatLockdown() and not ns.aurasSecret() end
