@@ -685,6 +685,7 @@ local function buildAbout(p)
 	if ns.Looks.anyExperimental("border") then p:experimental("Border looks", "General > Border") end
 	if ns.Looks.anyExperimental("glow") then p:experimental("Glow looks", "General > Pulsing glow style") end
 	p:experimental("Pop flashes and bursts", "General > Pop style")
+	if ns.TotemBar.skin.anyExperimental() then p:experimental("Totem bar looks", "Totem bar > Look") end
 	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
 		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
@@ -740,6 +741,16 @@ local function buildTotemBar(p)
 
 	p.gate = TB.barOn
 	p:header("Display")
+	-- The bar's Look (ShamanForever_TotemSkins.lua): the rows for what a look owns hide while it is picked.
+	local skins = {}
+	for _, e in ipairs(TB.skin.LIST) do table.insert(skins, { e.key, e.name }) end
+	p:dropdown("Look", "How the whole bar is drawn.", skins, function() return TB.skin.current().key end,
+		tset("skin"), nil, 190)
+	local expRow = p:row(22)
+	ns.Look.expBadge(expRow, "Totem bar looks"):SetPoint("LEFT", expRow, "LEFT", LABEL_W, 0)
+	p:add(expRow, 22, function() return TB.skin.current().experimental or false end)
+	local function free(field) return function() return not TB.skin.owns(field) end end
+	local function owned(field) return function() return TB.skin.owns(field) end end
 	local show = p:dropdown("Show", "When the bar is on screen. It always shows while positioning is unlocked.",
 		{ { "always", "Always" }, { "active", "In combat or a totem down" }, { "combat", "In combat" },
 			{ "target", "In combat or with an enemy target" } },
@@ -837,12 +848,19 @@ local function buildTotemBar(p)
 		c().dir = v
 		c().pop = v == "row" and "up" or "right"
 		changed()
-	end, nil, 140)
+	end, free("dir"), 140)
 	p:dropdown("Pickers open", "Which way the totem picker opens from a slot.", function()
-		if c().dir == "row" then return { { "up", "Up" }, { "down", "Down" } } end
+		if TB.eff().dir == "row" then return { { "up", "Up" }, { "down", "Down" } } end
 		return { { "right", "Right" }, { "left", "Left" } }
-	end, tget("pop"), tset("pop"), full, 140)
-	p:slider("Spacing", "Gap between the slots. Below 0 they overlap.", -10, 20, 1, px, tget("spacing"), tset("spacing"))
+	end, function() return TB.eff().pop end, tset("pop"), full, 140)
+	p:slider("Spacing", "Gap between the slots. Below 0 they overlap.", -10, 20, 1, px, tget("spacing"), tset("spacing"),
+		free("spacing"))
+	p:text(function()
+		local names = {}
+		if TB.skin.owns("dir") then table.insert(names, "Direction") end
+		if TB.skin.owns("spacing") then table.insert(names, "Spacing") end
+		return table.concat(names, " and ") .. ": set by the look."
+	end, function() return TB.skin.owns("dir") or TB.skin.owns("spacing") end)
 	-- Its own size is not its scale: scale grows everything, text, arrows, spacing and lines included.
 	local sizeFollow = generalRow(p, "Icon size same as General", "Use the icon size on the General page.",
 		tget("sizeFollow"), function(v) TB.setSizeFollow(v); changed() end, "size")
@@ -862,7 +880,8 @@ local function buildTotemBar(p)
 
 	-- With Layout: heavier borders go with the spacing.
 	p:header("Border")
-	borderRows(p, "totembar", changed)
+	p:text("Set by the look.", owned("border"))
+	borderRows(p, "totembar", changed, nil, free("border"))
 
 	p.gate = full
 	p:header("Buttons")
@@ -883,6 +902,7 @@ local function buildTotemBar(p)
 
 	p.gate = TB.barOn
 	timerSettings(p, "Time left", "totembar", "uptime", changed)
+	p:text("The look sets the time bar's place, height and texture.", owned("timeBar"))
 	textBlock(p, "totembar", changed)
 
 	p.gate = full
@@ -908,12 +928,14 @@ local function buildTotemBar(p)
 
 	p.gate = TB.barOn
 	p:header("Out of range")
-	p:text("A strip along the top of a slot shows whether you're getting your own totem's buff, for totems that buff you. In range shows nothing at 0% opacity, the default.")
+	p:text("A strip along the top of a slot shows whether you're getting your own totem's buff, for totems that buff you. In range shows nothing at 0% opacity, the default.",
+		free("range"))
+	p:text(function() return TB.skin.current().rangeText or "" end, owned("range"))
 	local range = p:checkbox("Show", nil, tget("range"), tset("range"))
 	p:sub(range, tget("range"), function()
-		p:slider("Height", "In pixels.", 1, 12, 1, px, tget("rangeHeight"), tset("rangeHeight"))
-		p:color("In range", "Colour and opacity.", tget("rangeIn"), tset("rangeIn"))
-		p:color("Out of range", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"))
+		p:slider("Height", "In pixels.", 1, 12, 1, px, tget("rangeHeight"), tset("rangeHeight"), free("range"))
+		p:color("In range", "Colour and opacity.", tget("rangeIn"), tset("rangeIn"), free("range"))
+		p:color("Out of range", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"), free("range"))
 		p:text("A buff lingers a few seconds after you leave its range. Another shaman's totem of the same type can replace your buff, so yours shows as out of range.")
 	end)
 

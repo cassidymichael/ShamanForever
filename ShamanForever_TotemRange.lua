@@ -117,13 +117,15 @@ local PARTS = {
 
 -- A part's look (while auras are readable, or from Blizzard's init). Under the colour, opaque, the
 -- slice of the buff's icon that the strip covers (a totem's buff has the totem's icon): whatever is
--- below is always hidden, so the colours can be see-through, down to not shown at all.
+-- below is always hidden, so the colours can be see-through, down to not shown at all. The bar's
+-- Look can draw it its own way (TB.skin.styleRangeButton).
 local function styleButton(s, part)
 	local c, p = TB.cfg(), s.rangeParts[part.key]
 	ns.try("totem range: style", function()
 		p.button:SetSize(s.rangeW, s.rangeH)
 		local share = math.min(s.rangeH / math.max(s.rangeSize, 1), 1)
 		p.icon:SetTexCoord(0.08, 0.92, 0.08, 0.08 + 0.84 * share)   -- the slot's icon crop, top part
+		if TB.skin.styleRangeButton(p, s) then return end
 		local k = c[part.color]
 		p.over.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
 	end)
@@ -139,6 +141,12 @@ local function initButton(s, part, button)
 	-- The buff's icon (Blizzard sets it), cropped to the strip by styleButton.
 	local icon = button:CreateTexture(nil, "ARTWORK")
 	icon:SetAllPoints()
+	-- A mask for it, made now (the button takes one only as it is made): plain, hiding nothing,
+	-- until a Look that rounds the slots' icons gives it their shape (TB.skin.styleRangeButton).
+	local mask = button:CreateMaskTexture()
+	mask:SetTexture("Interface\\Buttons\\WHITE8x8", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+	mask:SetAllPoints(icon)
+	if not pcall(icon.AddMaskTexture, icon, mask) then mask = nil end
 	button:SetIcon(icon)
 	-- Our colour on the button: it shows exactly when Blizzard shows the button.
 	local over = CreateFrame("Frame", nil, button)
@@ -146,7 +154,7 @@ local function initButton(s, part, button)
 	over:SetFrameLevel(button:GetFrameLevel() + 1)
 	over.bg = over:CreateTexture(nil, "ARTWORK")
 	over.bg:SetAllPoints()
-	s.rangeParts[part.key] = { button = button, icon = icon, over = over }
+	s.rangeParts[part.key] = { button = button, icon = icon, over = over, mask = mask }
 	if s.rangeW then styleButton(s, part) end
 	if previewOn then icon:SetAlpha(0); over:SetAlpha(0) end
 end
@@ -174,7 +182,7 @@ function R.preview(on)
 				-- is the better way to hide this (the preview draws its own strip); this stays as
 				-- a guard on Blizzard's part.
 				ns.try("totem range: preview", function()
-					p.icon:SetAlpha(on and 0 or 1)
+					p.icon:SetAlpha((on or not TB.skin.rangeIcon()) and 0 or 1)
 					p.over:SetAlpha(on and 0 or 1)
 				end)
 			end
@@ -216,12 +224,16 @@ end
 local function place(s, size, ownOnly)
 	local c, b, gate, o = TB.cfg(), s.button, s.rangeGate, s.inset or 0
 	gate:ClearAllPoints()
-	gate:SetPoint("TOPLEFT", b, "TOPLEFT", o, -o)
-	local w, h = size - 2 * o, ns.linePx(gate, c.rangeHeight)
+	-- Where the bar's Look puts its mark, and what it draws there; else the strip.
+	local x, y, w, h = TB.skin.markRect(gate, size, o)
+	if not x then x, y, w, h = o, -o, size - 2 * o, ns.linePx(gate, c.rangeHeight) end
+	gate:SetPoint("TOPLEFT", b, "TOPLEFT", x, y)
 	gate:SetSize(w, h)
-	local k = c.rangeOut
-	s.rangeMark.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
-	s.rangeW, s.rangeH, s.rangeSize = w, h, w
+	if not TB.skin.paintMark(s.rangeMark, w, h) then
+		local k = c.rangeOut
+		s.rangeMark.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
+	end
+	s.rangeW, s.rangeH, s.rangeSize = w, h, size - 2 * o
 	local ct = s.rangeContainer
 	if not ct or ownOnly then return end
 	ct:ClearAllPoints()

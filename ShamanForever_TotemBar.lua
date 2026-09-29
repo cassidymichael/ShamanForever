@@ -82,6 +82,7 @@ TB.DEFAULTS = {
 	rangeIn = { 0.2, 0.8, 0.25, 0 },       --   with the buff (0: nothing shows in range)
 	rangeOut = { 0.9, 0.12, 0.08, 0.85 },  --   without it
 	pickHover = false,        -- hovering a slot or its tab opens its picker (Everything)
+	skin = "default",         -- the bar's Look (ShamanForever_TotemSkins.lua)
 }
 
 local isSecret = ns.isSecret
@@ -163,10 +164,21 @@ TB.isShaman = isShaman
 local function feat(key) local c = cfg(); return barOn() and c.mode == "everything" and c[key] or false end
 TB.barOn, TB.feat = barOn, feat
 
--- The slots' size and border: each General's, or the bar's own.
+-- The bar's settings as its layout uses them: the player's, or its Look's where the look owns one
+-- (TB.skin.owned). The player's own values stay saved, for when another look is picked.
+local effective = setmetatable({}, { __index = function(_, k)
+	local v = TB.skin.owned(k)
+	if v ~= nil then return v end
+	return cfg()[k]
+end })
+function TB.eff() return effective end
+
+-- The slots' size and border (General's, the bar's own, or its Look's), and Call and Recall's
+-- border (the slots' unless the look gives them their own).
 local function look()
 	local c, db = cfg(), ns.getDB()
-	return (not c.sizeFollow and c.size) or db.iconSize, ns.Style.get("totembar", "border")
+	local border = TB.skin.border() or ns.Style.get("totembar", "border")
+	return (not c.sizeFollow and c.size) or db.iconSize, border, TB.skin.extrasBorder() or border
 end
 -- Own icon size from General's current one, the first time; later its own is kept.
 function TB.setSizeFollow(follow)
@@ -195,11 +207,14 @@ local EXTRA_GAP = 6   -- added to the spacing between the extras and the slots
 -- { key, offset, size, extra } (key: an extra's key, or the slot's place among the n), the bar's
 -- length and its thickness (its largest button: every button is centred on its line).
 function TB.along(n, size, px)
-	local c = cfg()
+	local c = TB.eff()
 	local before, after = TB.extraSides()
 	-- px (one screen pixel in the bar's units): sizes and gaps in whole pixels, as on the bar.
 	local function round(v) return px and ns.roundPx(v, px) or math.floor(v + 0.5) end
 	local esz, gap, extraGap = round(size * c.extrasScale), c.spacing, c.spacing + EXTRA_GAP
+	-- A look that sets the bar in fixed art gives its own gaps (in the slots' size).
+	local own, ownExtra = TB.skin.spacing(size)
+	if own then gap, extraGap = own, ownExtra end
 	if px then gap, extraGap = round(gap), round(extraGap) end
 	local list, long = {}, 0
 	local function put(key, space, sz, extra)
@@ -227,8 +242,8 @@ function TB.popButtonSize(size) return math.floor(size * 0.8 + 0.5) end
 function TB.popLength(n, psz) return POP_STEP + n * (psz + POP_STEP) end
 -- A picker of n buttons (psz) beside anchor, a slot, on the side pickers open, past the arrow tab.
 function TB.placePopout(pop, anchor, n, psz)
-	local c = cfg()
-	local len, thick, tab = TB.popLength(n, psz), psz + 2 * POP_STEP, c.arrowSize
+	local c = TB.eff()
+	local len, thick, tab = TB.popLength(n, psz) + TB.skin.popHead(psz), psz + 2 * POP_STEP, c.arrowSize
 	pop:ClearAllPoints()
 	if c.pop == "up" then pop:SetSize(thick, len); pop:SetPoint("BOTTOM", anchor, "TOP", 0, tab + 4)
 	elseif c.pop == "down" then pop:SetSize(thick, len); pop:SetPoint("TOP", anchor, "BOTTOM", 0, -tab - 4)
@@ -237,7 +252,7 @@ function TB.placePopout(pop, anchor, n, psz)
 end
 -- A picker's i-th button (psz), counted from the slot's end.
 function TB.placePopButton(b, pop, i, psz)
-	local c = cfg()
+	local c = TB.eff()
 	b:SetSize(psz, psz)
 	b:ClearAllPoints()
 	local off = POP_STEP + (i - 1) * (psz + POP_STEP)
@@ -264,7 +279,7 @@ end
 -- The arrow tab along anchor's picker side, arrowSize deep, and its glyph sized and turned.
 local GLYPH_TURN = { up = 0, down = math.pi, right = -math.pi / 2, left = math.pi / 2 }
 function TB.placeArrow(tab, anchor, glyph)
-	local c = cfg()
+	local c = TB.eff()
 	local deep = c.arrowSize
 	tab:ClearAllPoints()
 	if c.pop == "up" then tab:SetPoint("BOTTOMLEFT", anchor, "TOPLEFT", 1, 1); tab:SetPoint("BOTTOMRIGHT", anchor, "TOPRIGHT", -1, 1); tab:SetHeight(deep)
@@ -286,7 +301,7 @@ function TB.badgeSize(size) return math.max(math.floor(size * cfg().badgeSize + 
 -- pickers open up, and so on. Its look: size, opacity, colour, and a plain 1 px line, whatever look
 -- the slots use (a small pick badge stays a plain line, not the slots' bevel or caps).
 function TB.layoutBadge(bd, anchor, size, border)
-	local c = cfg()
+	local c = TB.eff()
 	-- Only draw the setting's colour when the slots' own look actually uses it; other looks (Gold
 	-- hairline, Bronze bevel) hide that setting, and the badge shouldn't keep a colour
 	-- the player can no longer see or change.
@@ -298,7 +313,7 @@ function TB.layoutBadge(bd, anchor, size, border)
 	bd:SetAlpha(c.badgeAlpha)
 	TB.saturate(bd.icon, c.badgeSat)
 	bd:ClearAllPoints()
-	local gap = TB.BADGE_GAP + inset
+	local gap = TB.BADGE_GAP + inset + TB.skin.badgeGap(size)   -- past what the look hangs under the slot
 	if c.pop == "up" then bd:SetPoint("TOP", anchor, "BOTTOM", 0, -gap)
 	elseif c.pop == "down" then bd:SetPoint("BOTTOM", anchor, "TOP", 0, gap)
 	elseif c.pop == "right" then bd:SetPoint("RIGHT", anchor, "LEFT", -gap, 0)
@@ -762,6 +777,7 @@ local function refreshSlot(s)
 		s.timer:setExpire({ secs = warnSecs(c, down), grey = c.warnGrey, ring = c.warnRing, pulse = c.warnPulse, glow = c.warnGlow })
 		if iok and (isSecret(icon) or icon) then s.timer:setExpireIcon(icon) end
 		TB.drawTimeLeft(s)
+		TB.skin.slotState(s, true)
 		return true
 	end
 	s.dur = nil
@@ -788,6 +804,7 @@ local function refreshSlot(s)
 		v.icon:SetTexture(nil)
 		v.bg:SetColorTexture(0, 0, 0, 0)
 	end
+	TB.skin.slotState(s, false)
 	return false
 end
 
@@ -958,8 +975,9 @@ local function layoutPopout(s, size, known)
 	end
 	for i = #ids + 1, #pop.buttons do pop.buttons[i]:Hide() end
 	TB.placePopout(pop, s.button, #ids, psz)
+	TB.skin.stylePopout(pop, s.el, psz)
 	-- Hover mode's strip: as wide as the slot or the picker, whichever is wider.
-	local strip, dir, b = pop.strip, cfg().pop, s.button
+	local strip, dir, b = pop.strip, TB.eff().pop, s.button
 	local across = math.max(size, psz + 2 * POP_STEP)
 	strip:ClearAllPoints()
 	if dir == "up" then strip:SetPoint("BOTTOM", b, "TOP"); strip:SetPoint("TOP", pop, "TOP"); strip:SetWidth(across)
@@ -971,6 +989,7 @@ end
 local function layoutArrow(s)
 	local ar = s.arrow
 	TB.placeArrow(ar, s.button, s.arrowVis.glyph)
+	TB.skin.styleArrow(s.arrowVis)
 	ar:SetShown(feat("arrows"))
 	-- Above every open picker's catch button (same strata), below the picker's own buttons.
 	ar:SetFrameLevel(s.popout.catch:GetFrameLevel() + 2)
@@ -1014,7 +1033,7 @@ function layout()
 	-- open later).
 	closePopouts()
 	local c = cfg()
-	local size, border = look()
+	local size, border, extrasBorder = look()
 	-- Scale and opacity first: borders below are lines, sized for the bar's scale, and sizes, gaps
 	-- and the position are whole screen pixels at it (ns.placeOnPixels says why). Out of combat
 	-- only, like everything on a frame holding secure buttons.
@@ -1045,6 +1064,7 @@ function layout()
 	local row = c.dir == "row"
 	if row and c.pop ~= "up" and c.pop ~= "down" then c.pop = "up" end
 	if not row and c.pop ~= "right" and c.pop ~= "left" then c.pop = "right" end
+	row = TB.eff().dir == "row"   -- the Look's own direction, if it has one
 	-- Everything along the bar, in order: extras before, slots, extras after (TB.along), each
 	-- centred on the bar's line to the nearest whole pixel, whatever its size. Nothing while no
 	-- totem is known.
@@ -1071,7 +1091,7 @@ function layout()
 			e.vis.icon:SetTexture(C_Spell.GetSpellTexture(e.spell))
 			e.vis.icon:SetDesaturated(not learned)
 			e.vis.icon:SetAlpha(learned and 1 or 0.6)
-			TB.fitLook(e.vis, e.button, border, on[key])
+			TB.fitLook(e.vis, e.button, extrasBorder, on[key])
 		end
 	end
 	-- Hover mode (not while binding keys): the picker closes as the mouse leaves its slot and strip,
@@ -1093,11 +1113,16 @@ function layout()
 		s.inset = TB.fitLook(s.vis, b, border, size)   -- the range strip sits in by it too
 		s.killed.fitSize, s.expired.fitSize = size - 2 * s.inset, size - 2 * s.inset   -- over the picture
 		s.timer:apply()
+		TB.skin.styleTimer(s.timer, s.vis, size)
 		layoutArrow(s)
 		TB.layoutBadge(s.badge, s.button, size, border)
 		layoutPopout(s, size, known[s.el])
 	end
 	if row then bar:SetSize(long, across) else bar:SetSize(across, long) end
+	-- What the Look draws behind the slots, round the slots' buttons.
+	local boxes = {}
+	for i, s in ipairs(shown) do boxes[i] = s.button end
+	TB.skin.layoutBar(bar, boxes, size, row)
 	ns.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
 	if TB.range then TB.range.layout(size) end   -- after the scale: its height is a line's
 	refreshSlots()
@@ -1128,9 +1153,11 @@ afterCombat = ns.AfterCombat.new({
 
 -- The slots' timers take their current style (General's or the bar's own). Plain frames, so any time.
 function TB.applyTimers()
+	local size = look()
 	for _, el in ipairs(ELEMENTS) do
 		local s = slots[el]
 		s.timer:apply()
+		TB.skin.styleTimer(s.timer, s.vis, size)
 	end
 end
 
@@ -1571,10 +1598,19 @@ local function paintSlot(s, rec)
 		-- Over Blizzard's part and its colour (+10 to +12, ShamanForever_TotemRange.lua).
 		strip:SetFrameLevel(s.button:GetFrameLevel() + 14)
 		strip:ClearAllPoints()
-		strip:SetPoint("TOPLEFT", s.button, "TOPLEFT", 0, 0)
-		strip:SetSize(size, ns.linePx(strip, c.rangeHeight))
-		local k = c.rangeOut
-		strip.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
+		-- Where the Look puts its mark, and what it draws; else the strip along the top.
+		local x, y, w, h = TB.skin.markRect(strip, size, s.inset or 0)
+		if x then
+			strip:SetPoint("TOPLEFT", s.button, "TOPLEFT", x, y)
+			strip:SetSize(w, h)
+		else
+			strip:SetPoint("TOPLEFT", s.button, "TOPLEFT", 0, 0)
+			strip:SetSize(size, ns.linePx(strip, c.rangeHeight))
+		end
+		if not TB.skin.paintMark(strip, w, h) then
+			local k = c.rangeOut
+			strip.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
+		end
 		strip:Show()
 	elseif strip then strip:Hide() end
 	v.icon:SetTexture(icon)
@@ -1588,6 +1624,7 @@ local function paintSlot(s, rec)
 		if st == "expiring" then left = 5 end
 		s.timer:setExpire({ secs = c.warn, grey = c.warnGrey, ring = c.warnRing, pulse = c.warnPulse, glow = c.warnGlow }, icon)
 		s.timer:setTime(rec.at - (life - left), life)
+		TB.skin.slotState(s, true)
 		return rec.at + left
 	end
 	-- Not down (killed early and ran out leave the slot empty): as refreshSlot draws it.
@@ -1605,6 +1642,7 @@ local function paintSlot(s, rec)
 		v.icon:SetTexture(nil)
 		v.bg:SetColorTexture(0, 0, 0, 0)
 	end
+	TB.skin.slotState(s, false)
 end
 
 -- After every layout while it shows: every slot's state again.
