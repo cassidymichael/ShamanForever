@@ -565,7 +565,7 @@ local function layoutGroup(g)
 	-- (ns.placeOnPixels says why).
 	gf:SetScale(g.scale)
 	local px = ns.pixel(gf)
-	local gap = ns.roundPx(g.spacing, px)
+	local gap = ns.roundPx(g.spacing, px)   -- negative: members overlap
 	local horizontal = g.orientation == "horizontal"
 	local forward = g.growth ~= "backward"
 	local n, along, across = 0, 0, 0
@@ -588,9 +588,16 @@ local function layoutGroup(g)
 			n = n + 1
 		end
 	end
+	-- The group's extent along its axis: with overlap (negative spacing) a member shorter than the
+	-- overlap can start before the first one or end before the last, so the box spans them all.
+	local lo, hi = 0, 0
+	for _, m in ipairs(placed) do
+		lo = math.min(lo, m[2])
+		hi = math.max(hi, m[2] + (horizontal and m[3] or m[4]))
+	end
 	-- Each member centred on the cross axis, to the nearest whole pixel.
 	for _, m in ipairs(placed) do
-		local f, offset = m[1], m[2]
+		local f, offset = m[1], m[2] - lo
 		local side = ns.roundPx((across - (horizontal and m[4] or m[3])) / 2, px)
 		f:ClearAllPoints()
 		if horizontal then
@@ -601,7 +608,7 @@ local function layoutGroup(g)
 			else f:SetPoint("BOTTOMLEFT", gf, "BOTTOMLEFT", side, offset) end
 		end
 	end
-	along = math.max(along + math.max(n - 1, 0) * gap, px)
+	along = math.max(hi - lo, px)
 	across = math.max(across, px)
 	if horizontal then gf:SetSize(along, across) else gf:SetSize(across, along) end
 	gf:SetAlpha(g.alpha)

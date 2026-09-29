@@ -580,7 +580,7 @@ local function buildSettings(p)
 		{ { "horizontal", "Row" }, { "vertical", "Column" } }, get("orientation"), set("orientation"))
 	p:dropdown("Growth", "Which way the row or column extends from its first element.",
 		{ { "forward", "Right / down" }, { "backward", "Left / up" } }, get("growth"), set("growth"))
-	p:slider("Spacing", "Gap between the group's elements.", 0, 40, 1, int, get("spacing"), set("spacing"))
+	p:slider("Spacing", "Gap between the group's elements. Below 0 they overlap.", -20, 40, 1, int, get("spacing"), set("spacing"))
 	local follow = K.generalRow(p, "Icon size same as General", "Use the icon size on the General page.",
 		get("sizeFollow"),
 		function(v)
