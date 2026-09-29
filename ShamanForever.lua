@@ -135,7 +135,8 @@ local ELEMENT_KEYS = { "shield", "shock", "imbue" }
 -- blurb (a line under its name) and experimental (a feature name: not tested in game); kind picks
 -- its page and preview (ShamanForever_OptionsElements.lua, _OptionsLook.lua), which read def, the
 -- module's own table for it.
--- keySpell(), optional: the ns.Spells key whose key binding the icon can show (default: spell).
+-- keySpell(), optional: the ns.Spells key whose key binding the icon can show (default: spell);
+-- keyLevel(), optional: the frame level that key text sits at, where it must clear more than usual.
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
 local firstTestKey   -- the first test placeholder (below)

@@ -56,6 +56,7 @@ local SHIELD_ORDER = { "lightning", "water" }
 local shield = ns.newElementIcon("shield")   -- the underlay
 ns.registerElement("shield", { frame = shield, label = "Shields", paint = function(t) t:SetTexture(SH.icon()) end,
 	learned = function() return SH.learned() end, keySpell = function() return SH.keySpell() end,
+	keyLevel = function() return SH.keyLevel() end,
 	kind = "shield", icon = 136051, school = "spirit", blurb = "Charges and time left. Warns when it's gone." })
 
 -- Per shield at runtime: name (the client's), spellID and bookIcon (highest known rank), known. The IDs
@@ -98,6 +99,8 @@ function SH.icon()
 end
 -- The spell whose key the icon shows (Show keybinding text): the shield it shows.
 function SH.keySpell() return SHIELDS[underlayShield()].spell end
+-- Its frame level: above the GCD sweep, which sits at the container's level + 10 (refreshGCD).
+function SH.keyLevel() return (native.container or shield.textFrame):GetFrameLevel() + 11 end
 
 -- The shield an own cast belongs to, if any (any rank: ns.Spells matches by ID, then by the client's name).
 local function shieldForSpell(id)

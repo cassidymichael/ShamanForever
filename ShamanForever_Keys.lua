@@ -139,8 +139,10 @@ local function draw()
 				f.keyText = ns.makeKeyText(f.keyFrame)
 			end
 			-- Above the text, and above Blizzard's aura button where an element has one (the shield,
-			-- Elemental Focus: its container sits at the text's level + 5).
-			f.keyFrame:SetFrameLevel(f.textFrame:GetFrameLevel() + 10)
+			-- Elemental Focus: its container sits at the text's level + 5), or where the element says.
+			local level = f.textFrame:GetFrameLevel() + 10
+			if e.keyLevel then level = math.max(level, e.keyLevel()) end
+			f.keyFrame:SetFrameLevel(level)
 			local fs, size = f.keyText, ns.keyTextSize(f:GetWidth())
 			local sig = size .. ns.Media.textKey()
 			if fs.sig ~= sig then fs.sig = sig; ns.Media.setFont(fs, nil, size) end
