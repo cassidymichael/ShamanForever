@@ -133,6 +133,8 @@ read_globals = {
     "TotemFrame",
     "UIParent",
     "UnitCanAttack",
+    "UnitCastingInfo",
+    "UnitChannelInfo",
     "UnitClass",
     "UnitExists",
     "UnitGUID",

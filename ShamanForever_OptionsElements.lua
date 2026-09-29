@@ -160,7 +160,7 @@ local IDLE_WHEN = { { "never", "Never" }, { "nototem", "Off cooldown, no fire to
 local function idleBlock(p, def)
 	local key, fireNova = def.key, def.needsTotem
 	p:header("Idle")
-	local base = def.buff and (def.proc and ("Idle is when " .. ns.Spells.name("clearcasting") .. " isn't up")
+	local base = def.buff and (def.idleText or def.proc and ("Idle is when " .. ns.Spells.name("clearcasting") .. " isn't up")
 		or "Idle is when it isn't up") or "Idle is when it's off cooldown"
 	if fireNova then
 		p:text("Idle is when there's nothing to track. At 0% it's hidden and keeps its place in the group.")
@@ -277,6 +277,11 @@ local function buildShock(p)
 	timerSettings(p, "Cooldown", "shock", "cooldown")
 	gcdBlock(p, "shock")
 	readyBlock(p, "shock", "While it's off cooldown.")
+	p:header("Target casting")
+	local castRow = p:checkbox("Pulsing glow", ("While your target casts a spell you can interrupt and %s is ready.")
+		:format(ns.Spells.name("earthShock")), eget("shock", "castGlow"), eset("shock", "castGlow"))
+	ns.Look.expBadge(castRow, "Interrupt cue"):SetPoint("LEFT", castRow.check.Text, "RIGHT", 10, 0)
+	p:color("Glow colour", nil, eget("shock", "castColor"), eset("shock", "castColor"), showWhen(eget("shock", "castGlow")))
 	effectBlocks(p, "shock")
 end
 
@@ -426,12 +431,18 @@ local function buildBuff(p, def)
 		p:checkbox("Red ring", "A red ring inside the icon edge.", eget(key, "breathRing"), eset(key, "breathRing"), on)
 		p:checkbox("Fade in and out", nil, eget(key, "breathPulse"), eset(key, "breathPulse"), on)
 	end
+	if def.skipLongSeconds then
+		p:header("Track")
+		p:checkbox("Skip long buffs", ("Leaves out buffs that last over %d minutes, or have no end.")
+			:format(def.skipLongSeconds / 60), eget(key, "skipLong"), eset(key, "skipLong"))
+	end
 	timerSettings(p, "Time left", key, "uptime")
 	if def.proc then
-		p:header(ns.Spells.name("clearcasting"))
-		p:checkbox("Pop", "The moment it procs. The icon grows and settles, at the Pop style's size and speed.",
+		-- Elemental Focus's texts, unless the def has its own (the target's auras, ShamanForever_Target.lua).
+		p:header(def.procHeader or ns.Spells.name("clearcasting"))
+		p:checkbox("Pop", def.popTip or "The moment it procs. The icon grows and settles, at the Pop style's size and speed.",
 			eget(key, "primedPop"), eset(key, "primedPop"))
-		p:checkbox("Pulsing glow", "While it's up.", eget(key, "primedGlow"), eset(key, "primedGlow"))
+		p:checkbox("Pulsing glow", def.glowTip or "While it's up.", eget(key, "primedGlow"), eset(key, "primedGlow"))
 	else
 		expiringBlock(p, key, 120, 5)
 	end

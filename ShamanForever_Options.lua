@@ -500,6 +500,7 @@ local function buildAbout(p)
 		local e = ns.ELEMENTS[key]
 		if e.experimental then p:experimental(e.experimental, "Elements > " .. e.label) end
 	end
+	p:experimental("Interrupt cue", "Elements > Shocks > Target casting")
 	gap()
 	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..

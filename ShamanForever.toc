@@ -28,6 +28,7 @@ ShamanForever_Totems.lua
 ShamanForever_Reagents.lua
 ShamanForever_Cooldowns.lua
 ShamanForever_Shock.lua
+ShamanForever_Target.lua
 ShamanForever_Buffs.lua
 ShamanForever_Tremor.lua
 ShamanForever_TremorList.lua

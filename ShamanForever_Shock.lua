@@ -1,10 +1,22 @@
 -- Shocks: the tracked shock's cooldown, whether the target is in its range and whether there's mana
--- for it (or for another shock, the Mana check), the pop when it's ready and the "use me" glow.
+-- for it (or for another shock, the Mana check), the pop when it's ready, the "use me" glow and the
+-- interrupt cue.
 --
 -- Nothing here reads a secret value: the cooldown is a duration object that Blizzard's widgets draw,
 -- range and mana are read with the answer checked for a secret first, and the ready glow's alpha is
 -- the cooldown's remaining time through a curve (ShamanForever_Cooldowns.lua, which this file
 -- shares the cooldown reads with).
+--
+-- The interrupt cue (experimental: not yet tested on a target in combat): a glow while your
+-- attackable target casts something you can interrupt and Earth Shock is ready. An enemy's cast is
+-- secret in and out of combat, spell ID included. UnitCastingInfo and UnitChannelInfo still return
+-- values only while the unit casts or channels, and how many they return is plain; that is "casting
+-- now". Whether the cast can be interrupted may be a secret boolean: it goes straight to
+-- SetAlphaFromBoolean on a frame of its own; a plain one lights the glow only when it is false (nil
+-- is not known). Earth Shock being off cooldown is its cooldown's time left through a curve into the
+-- glow's own alpha (as the ready glow). The three alphas multiply, so the glow shows only when all
+-- three hold. Read ten times a second while the option is on and the target can be attacked; no
+-- cast event is needed.
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
@@ -30,9 +42,11 @@ local shockIcon = 136026
 -- its spell ID, and the Mana check's spell ID.
 local shockIDs = {}
 local usedShock, shockSpellID, manaSpellID
+local defaults = CopyTable(CD.READY_DEFAULTS)
+defaults.castGlow, defaults.castColor = false, { 1, 0.35, 0.85, 1 }   -- the interrupt cue
 ns.registerElement("shock", { frame = shock, label = "Shocks", paint = function(t) t:SetTexture(shockIcon) end,
 	learned = function() return next(shockIDs) ~= nil end,   -- any shock
-	defaults = CopyTable(CD.READY_DEFAULTS),
+	defaults = defaults,
 	kind = "shock", icon = 136026, school = "spirit", blurb = "Cooldown, range and mana." })
 
 local shockState = { outOfRange = false, noMana = false }
@@ -110,6 +124,82 @@ local function syncGlowTicker()
 end
 
 ------------------------------------------------------------------------
+-- Interrupt cue, off by default (see the file's header)
+------------------------------------------------------------------------
+-- Nested, bottom up: casting (plain), interruptible (maybe secret), then the glow, whose own alpha is
+-- Earth Shock's ready state and whose inner frame does the pulsing.
+local castGate = CreateFrame("Frame", nil, shock)
+castGate:SetAllPoints()
+local kickGate = CreateFrame("Frame", nil, castGate)
+kickGate:SetAllPoints()
+local castGlow = ns.makeGlow(kickGate, shock, "shock")
+castGlow:Hide()
+-- For /sf debug: passes read, casts seen, and each cast's notInterruptible by kind.
+local cast = { reads = 0, casting = 0, kickSecret = 0, kickTrue = 0, kickFalse = 0, kickNil = 0 }
+
+-- Whether the target casts or channels now, and its notInterruptible (plain or secret).
+local function castInfo(at, ok, ...)
+	if not ok or select("#", ...) == 0 then return false end
+	local first = ...
+	if not isSecret(first) and first == nil then return false end
+	return true, (select(at, ...))
+end
+local function readCast()
+	local casting, noKick = castInfo(8, safe(UnitCastingInfo, "target"))
+	if not casting then casting, noKick = castInfo(7, safe(UnitChannelInfo, "target")) end
+	return casting, noKick
+end
+
+-- Earth Shock (its highest known rank) is the shock that interrupts.
+local function castWanted()
+	return shockIDs.earth and ns.isActive() and ns.isEnabled("shock") and setting("shock", "castGlow") and ns.CURVE_OVER
+end
+
+local castTicker
+local function refreshCast()
+	local watch = castWanted() and ns.Target.hostile()
+	local casting, noKick = false, nil
+	if watch then casting, noKick = readCast() end
+	castGate:SetAlpha(casting and 1 or 0)
+	castGlow:SetShown(casting)   -- its pulse runs only during a cast
+	-- A target that died or turned friendly stops the polling until the next target change.
+	if not watch then castTicker:Hide() return end
+	cast.reads = cast.reads + 1
+	if not casting then return end
+	cast.casting = cast.casting + 1
+	castGlow:fit(shock:GetWidth())
+	if isSecret(noKick) then
+		cast.kickSecret = cast.kickSecret + 1
+		if not ns.try("interrupt cue", kickGate.SetAlphaFromBoolean, kickGate, noKick, 0, 1) then kickGate:SetAlpha(0) end
+	else
+		if noKick == nil then cast.kickNil = cast.kickNil + 1
+		elseif noKick then cast.kickTrue = cast.kickTrue + 1
+		else cast.kickFalse = cast.kickFalse + 1 end
+		kickGate:SetAlpha(noKick == false and 1 or 0)
+	end
+	castGlow:SetAlpha(CD.readyAlpha(shockIDs.earth, ns.cantAct()))
+end
+castTicker = CD.readyTicker(refreshCast)
+
+-- Polled only while the cue is on and the target can be attacked (a target change, a layout);
+-- one pass either way, which also clears the glow when it stops.
+local function syncCast()
+	castTicker:SetShown((castWanted() and ns.Target.hostile()) and true or false)
+	refreshCast()
+end
+
+local function applyCast()
+	-- Over the icon's art like its ready glow; regrouping can move frame levels, so restated here.
+	local level = shock.glowF:GetFrameLevel()
+	castGate:SetFrameLevel(level)
+	kickGate:SetFrameLevel(level)
+	castGlow:SetFrameLevel(level)
+	local c = setting("shock", "castColor")
+	if type(c) == "table" then castGlow:color(c[1], c[2], c[3]) end
+	syncCast()
+end
+
+------------------------------------------------------------------------
 -- Hooks (ShamanForever.lua calls them; see ns.registerModule)
 ------------------------------------------------------------------------
 -- After a spellbook scan: the shocks' names and highest known ranks, the one the icon tracks and
@@ -155,6 +245,7 @@ function SK.applyTimers() shock.cdTimer:apply() end
 function SK.afterGroups()
 	refreshMana()
 	refreshRange()
+	applyCast()
 end
 
 -- After a layout (settings may have changed): the looks, then the mana read again.
@@ -163,6 +254,7 @@ function SK.applyLayout()
 	drawTint()
 	refreshMana()
 	syncGlowTicker()
+	applyCast()
 end
 
 function SK.refresh()
@@ -189,10 +281,15 @@ function SK.start()
 	ns.registerEvent(ev, "SPELL_UPDATE_USABLE")
 	ns.registerEvent(ev, "UNIT_POWER_UPDATE", "player")
 	ns.registerEvent(ev, "PLAYER_TARGET_CHANGED")
+	ns.registerEvent(ev, "UNIT_FACTION", "target")   -- a target that turns hostile or friendly
 	ns.registerEvent(ev, "SPELL_RANGE_CHECK_UPDATE")
 	ev:SetScript("OnEvent", function(_, event)
 		if event == "SPELL_UPDATE_USABLE" or event == "UNIT_POWER_UPDATE" then refreshMana()
-		else refreshRange() end
+		elseif event == "SPELL_RANGE_CHECK_UPDATE" then refreshRange()
+		else
+			refreshRange()
+			syncCast()
+		end
 	end)
 	C_Timer.NewTicker(0.25, function() ns.try("range refresh", refreshRange) end)
 end
@@ -209,6 +306,9 @@ function SK.debug()
 		say("%s id %s rank %s usable=%s noPower=%s inRange=%s", SHOCKS[key], tostring(id),
 			e and e.rank or "?", describeArg(usable), describeArg(noPower), describeArg(inRange))
 	end
+	say("interrupt cue: %s, polling %s; reads %d, casting %d; can't be interrupted: secret %d, true %d, false %d, nil %d",
+		castWanted() and "on" or "off", tostring(castTicker:IsShown()), cast.reads, cast.casting, cast.kickSecret,
+		cast.kickTrue, cast.kickFalse, cast.kickNil)
 end
 
 ns.registerModule(SK)

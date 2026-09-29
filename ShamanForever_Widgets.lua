@@ -261,8 +261,12 @@ local function makeGlow(parent, over, owner, unlisted)
 	g.anim:SetLooping("BOUNCE")
 	g.fade = g.anim:CreateAnimation("Alpha")
 	g.fade:SetFromAlpha(1); g.fade:SetSmoothing("IN_OUT")
-	g:SetScript("OnShow", function(self) self.anim:Play() end)
-	g:SetScript("OnHide", function(self) self.anim:Stop() end)
+	-- Not under Blizzard's aura button: the client refuses script handlers there (blocked by secret
+	-- aspects, seen 2026-09-29), and the button plays the glow's animation itself.
+	if not unlisted then
+		g:SetScript("OnShow", function(self) self.anim:Play() end)
+		g:SetScript("OnHide", function(self) self.anim:Stop() end)
+	end
 	-- The owner's style; a fixed colour (killed early's red) wins over its colour.
 	function g:restyle()
 		local st = ns.Style.get(self.owner, "glow")
@@ -281,7 +285,8 @@ local function makeGlow(parent, over, owner, unlisted)
 		e.LEFT:SetGradient("HORIZONTAL", on, off)
 		e.RIGHT:SetGradient("HORIZONTAL", off, on)
 		if self.iconSize then self:fit(self.iconSize) end
-		if retime and self:IsShown() then self.anim:Stop(); self.anim:Play() end
+		-- Under the aura button IsShown is secret; the button restarts that glow itself.
+		if retime and not unlisted and self:IsShown() then self.anim:Stop(); self.anim:Play() end
 	end
 	function g:fit(size)
 		if size == self.iconSize and self.width == self.fitWidth then return end
@@ -689,8 +694,16 @@ local function initAuraButton(slot, button)
 	slot.button = button
 end
 
+-- The slot's candidate filters: opts.candidates() if given, else its spell IDs.
+local function candidates(o)
+	if o.candidates then return o.candidates() end
+	return { includeSpellIDs = o.ids() }
+end
+
 -- Makes the container and its slot, once (out of combat, auras readable; else when that ends).
--- Once made it stays; a client that refuses it gets err and onError.
+-- Once made it stays; a client that refuses it gets err and onError. Beside the opts above, it
+-- takes unit (default "player"), filter (default "HELPFUL") and candidates() (the slot's
+-- candidate filters, in place of includeSpellIDs = ids()).
 function AuraSlot:setup()
 	if self.container or self.err then return end
 	local o, f = self.opts, self.frame
@@ -702,11 +715,11 @@ function AuraSlot:setup()
 		c:SetSize(size, size)
 		c:SetFrameStrata(f:GetFrameStrata())
 		c:SetFrameLevel(f.textFrame:GetFrameLevel() + 5)
-		c:SetUnit("player")
+		c:SetUnit(o.unit or "player")
 		pcall(c.EnableMouse, c, false)   -- unlocked drags start on the group frame underneath
 		self.container = c
-		c:AddAuraSlot(o.slot, "HELPFUL", {
-			candidateFilters = { includeSpellIDs = o.ids() },
+		c:AddAuraSlot(o.slot, o.filter or "HELPFUL", {
+			candidateFilters = candidates(o),
 			initializeFrame = function(button) initAuraButton(self, button) end,
 		})
 	end)
@@ -745,10 +758,10 @@ function AuraSlot:refilter()
 	if not self.container or self.err then return end
 	local o = self.opts
 	if ns.deferWhileAurasSecret(o.sites.filter, function() self:refilter() end) then return end
-	local ids = o.ids()
-	local ok = ns.try(o.sites.filter, self.container.SetAuraSlotCandidateFilters, self.container, o.slot,
-		{ includeSpellIDs = ids })
-	if ok then self.filtered = ids else ns.retryAfterCombat(o.sites.filter, function() self:refilter() end) end
+	local filters = candidates(o)
+	local ok = ns.try(o.sites.filter, self.container.SetAuraSlotCandidateFilters, self.container, o.slot, filters)
+	if ok then self.filtered = filters.includeSpellIDs
+	else ns.retryAfterCombat(o.sites.filter, function() self:refilter() end) end
 end
 
 -- owner: whose glow and pop style it uses (an element key, "totembar", or nil for General's).
