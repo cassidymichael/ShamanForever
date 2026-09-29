@@ -112,6 +112,14 @@ local function anyOn()
 	return false
 end
 
+local shownSpell = {}   -- element key -> the spell its key text shows now
+local function shownFor(e) return e.keySpell and e.keySpell() or e.spell end
+local function label(key, e)
+	local spell = shownFor(e)
+	shownSpell[key] = spell or false
+	e.frame.keyText:SetText(spell and ns.keyLabel(keyFor(spell)) or "")
+end
+
 -- Every element's key text: shown, sized and filled, or hidden.
 local drawn = false   -- some key text was made: hiding it needs a pass
 local function draw()
@@ -121,6 +129,7 @@ local function draw()
 		if dirty and not InCombatLockdown() then scan() end
 		map()
 	end
+	wipe(shownSpell)
 	for key, e in pairs(ns.ELEMENTS) do
 		local f = e.frame
 		if keysOn and f.textFrame and not e.placeholder and ns.elementSetting(key, "keys") == true then
@@ -135,12 +144,19 @@ local function draw()
 			local fs, size = f.keyText, ns.keyTextSize(f:GetWidth())
 			local sig = size .. ns.Media.textKey()
 			if fs.sig ~= sig then fs.sig = sig; ns.Media.setFont(fs, nil, size) end
-			local spell = e.keySpell and e.keySpell() or e.spell
-			fs:SetText(spell and ns.keyLabel(keyFor(spell)) or "")
+			label(key, e)
 			f.keyFrame:Show()
 		elseif f.keyFrame then
 			f.keyFrame:Hide()
 		end
+	end
+end
+
+-- The shield, shock or imbue an element shows changed: its key text follows.
+local function follow()
+	for key, spell in pairs(shownSpell) do
+		local e = ns.ELEMENTS[key]
+		if (shownFor(e) or false) ~= spell then label(key, e) end
 	end
 end
 
@@ -191,6 +207,11 @@ function K.afterGroups()
 	draw()
 end
 K.refresh = draw   -- read everything again (after combat: slots changed in it)
+-- The imbue shown changes on its own events and tick, the shield on a cast: caught within a second.
+K.tick = follow
+function K.onCast()
+	if next(shownSpell) then C_Timer.After(0, follow) end   -- after the shield's own onCast
+end
 
 function K.start()
 	ev = CreateFrame("Frame")
