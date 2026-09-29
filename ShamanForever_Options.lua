@@ -560,12 +560,13 @@ local function buildTotemBar(p)
 
 	p.gate = TB.barOn
 	p:header("Display")
-	p:dropdown("Show", "When the bar is on screen. It always shows while positioning is unlocked.",
+	local show = p:dropdown("Show", "When the bar is on screen. It always shows while positioning is unlocked.",
 		{ { "always", "Always" }, { "active", "In combat or a totem down" }, { "combat", "In combat" },
 			{ "target", "In combat or with an enemy target" } },
 		tget("show"), tset("show"), nil, 250)
-	p:slider("Stay after combat", STAY_TIP, 0, 10, 1, staySecs, tget("fadeAfter"), tset("fadeAfter"),
-		function() return c().show ~= "always" end)
+	p:sub(show, function() return c().show ~= "always" end, function()
+		p:slider("Stay after combat", STAY_TIP, 0, 10, 1, staySecs, tget("fadeAfter"), tset("fadeAfter"))
+	end)
 	p:dropdown("Tooltips", nil, { { "always", "Always" }, { "ooc", "Out of combat" }, { "never", "Never" } },
 		tget("tips"), tset("tips"), nil, 160)
 	p:checkbox("Show keybinding text", "Each button's key, in its corner.", tget("keys"), tset("keys"))
@@ -663,10 +664,12 @@ local function buildTotemBar(p)
 	end, tget("pop"), tset("pop"), full, 140)
 	p:slider("Spacing", nil, 0, 20, 1, px, tget("spacing"), tset("spacing"))
 	-- Its own size is not its scale: scale grows everything, text, arrows, spacing and lines included.
-	generalRow(p, "Icon size same as General", "Use the icon size on the General page.",
+	local sizeFollow = generalRow(p, "Icon size same as General", "Use the icon size on the General page.",
 		tget("sizeFollow"), function(v) TB.setSizeFollow(v); changed() end, "size")
-	p:slider("Icon size", "Mouse wheel over the bar while positioning is unlocked does the same.", 24, 96, 1, px, tget("size"), tset("size"),
-		showWhen(function() return not c().sizeFollow end))
+	p:sub(sizeFollow, function() return not c().sizeFollow end, function()
+		p:slider("Icon size", "Mouse wheel over the bar while positioning is unlocked does the same.", 24, 96, 1, px,
+			tget("size"), tset("size"))
+	end)
 	p:dropdown("Call and Recall", "Where they sit on the bar.", { { "ends", "Both ends" }, { "before", "Before the slots" }, { "after", "After the slots" } },
 		tget("extras"), tset("extras"), showWhen(function() return c().call or c().recall end, full), 180)
 	p:slider("Call and Recall size", "As a share of the slots' size.", 0.5, 1.5, 0.05,
@@ -680,9 +683,11 @@ local function buildTotemBar(p)
 	p.gate = full
 	p:header("Buttons")
 	p:checkbox("Left-click casts your pick", "Left-click a slot to drop that element's picked totem.", tget("cast"), tset("cast"))
-	p:checkbox("Arrow opens a totem picker", "A tab on each slot opens its totems. Works in combat.", tget("arrows"), tset("arrows"))
-	p:slider("Arrow size", "How deep the tab is.", 8, 32, 1, px,
-		tget("arrowSize"), tset("arrowSize"), showWhen(function() return c().arrows end))
+	local arrows = p:checkbox("Arrow opens a totem picker", "A tab on each slot opens its totems. Works in combat.",
+		tget("arrows"), tset("arrows"))
+	p:sub(arrows, tget("arrows"), function()
+		p:slider("Arrow size", "How deep the tab is.", 8, 32, 1, px, tget("arrowSize"), tset("arrowSize"))
+	end)
 	p:checkbox(ns.Spells.name("call"), nil, tget("call"), tset("call"))
 	p:checkbox(ns.Spells.name("recall"), nil, tget("recall"), tset("recall"))
 	p:text(function()
@@ -698,35 +703,34 @@ local function buildTotemBar(p)
 	p.gate = full
 	gcdBlock(p, "totembar")
 	p:header("Totem not down")
-	p:dropdown("Look", "How a slot looks while its totem isn't down.",
+	local look = p:dropdown("Look", "How a slot looks while its totem isn't down.",
 		{ { "pick", "Your pick" }, { "frame", "Element colour" }, { "blank", "Blank" } }, tget("empty"), tset("empty"), nil, 180)
-	local pickLook = showWhen(function() return c().empty == "pick" end)
-	p:checkbox("Greyed", "Off: the pick in colour.", tget("idleGrey"), tset("idleGrey"), pickLook)
-	p:slider("Opacity", nil, 0.1, 1, 0.05, pct,
-		tget("idleAlpha"), tset("idleAlpha"), pickLook)
-	p:text("With No totem picked, the slot shows its element colour.", pickLook)
+	p:sub(look, function() return c().empty == "pick" end, function()
+		p:checkbox("Greyed", "Off: the pick in colour.", tget("idleGrey"), tset("idleGrey"))
+		p:slider("Opacity", nil, 0.1, 1, 0.05, pct, tget("idleAlpha"), tset("idleAlpha"))
+		p:text("With No totem picked, the slot shows its element colour.")
+	end)
 
 	p:header("Not your pick")
 	p:text("When a different totem is down, your pick shows small beside the slot.")
-	p:checkbox("Show your pick", "On the side away from the picker.",
+	local offPick = p:checkbox("Show your pick", "On the side away from the picker.",
 		tget("offPick"), tset("offPick"))
-	p:slider("Size", nil, 0.25, 0.8, 0.05, pct,
-		tget("badgeSize"), tset("badgeSize"), showWhen(tget("offPick")))
-	p:slider("Opacity", nil, 0.1, 1, 0.05, pct,
-		tget("badgeAlpha"), tset("badgeAlpha"), showWhen(tget("offPick")))
-	p:slider("Colour", "0% is grey, 100% full colour.", 0, 1, 0.05, pct,
-		tget("badgeSat"), tset("badgeSat"), showWhen(tget("offPick")))
+	p:sub(offPick, tget("offPick"), function()
+		p:slider("Size", nil, 0.25, 0.8, 0.05, pct, tget("badgeSize"), tset("badgeSize"))
+		p:slider("Opacity", nil, 0.1, 1, 0.05, pct, tget("badgeAlpha"), tset("badgeAlpha"))
+		p:slider("Colour", "0% is grey, 100% full colour.", 0, 1, 0.05, pct, tget("badgeSat"), tset("badgeSat"))
+	end)
 
 	p.gate = TB.barOn
 	p:header("Out of range")
-	local rangeOn = tget("range")
 	p:text("A strip along the top of a slot shows whether you're getting your own totem's buff, for totems that buff you. In range shows nothing at 0% opacity, the default.")
-	p:checkbox("Show", nil, rangeOn, tset("range"))
-	p:slider("Height", "In pixels.", 1, 12, 1, px,
-		tget("rangeHeight"), tset("rangeHeight"), showWhen(rangeOn))
-	p:color("In range", "Colour and opacity.", tget("rangeIn"), tset("rangeIn"), showWhen(rangeOn))
-	p:color("Out of range", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"), showWhen(rangeOn))
-	p:text("A buff lingers a few seconds after you leave its range. Another shaman's totem of the same type can replace your buff, so yours shows as out of range.", rangeOn)
+	local range = p:checkbox("Show", nil, tget("range"), tset("range"))
+	p:sub(range, tget("range"), function()
+		p:slider("Height", "In pixels.", 1, 12, 1, px, tget("rangeHeight"), tset("rangeHeight"))
+		p:color("In range", "Colour and opacity.", tget("rangeIn"), tset("rangeIn"))
+		p:color("Out of range", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"))
+		p:text("A buff lingers a few seconds after you leave its range. Another shaman's totem of the same type can replace your buff, so yours shows as out of range.")
+	end)
 
 	p:header("Expiring")
 	local WARN = { grey = "warnGrey", ring = "warnRing", pulse = "warnPulse", glow = "warnGlow" }
