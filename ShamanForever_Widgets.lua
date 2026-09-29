@@ -19,6 +19,24 @@ ns.BACKDROP = { bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\
 
 -- A spell icon without Blizzard's built-in border.
 function ns.cropIcon(tex) tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
+-- The same, drawn at its frame's exact rect: for an element's icon and the copies laid over it,
+-- which a cooldown swipe covers. A texture snaps to the pixel grid, and a cropped one's edge can
+-- round to a different pixel than the swipe's, which doesn't snap: at some positions and scales a
+-- 1 px sliver of icon shows past the swipe's edge. Unsnapped, it fills the rect the swipe fills;
+-- at a half-pixel edge no two layers agree, so the HUD also sits icons on whole pixels
+-- (ns.placeOnPixels).
+function ns.cropIconExact(tex)
+	ns.cropIcon(tex)
+	if tex.SetSnapToPixelGrid then
+		tex:SetSnapToPixelGrid(false)
+		tex:SetTexelSnappingBias(0)
+	end
+end
+
+-- The places a number on an icon can sit (the shield's charges, a reagent count), and how its text
+-- is justified at each.
+ns.COUNT_JUSTIFY = { TOPLEFT = "LEFT", BOTTOMLEFT = "LEFT", TOPRIGHT = "RIGHT", BOTTOMRIGHT = "RIGHT",
+	CENTER = "CENTER" }
 
 -- The icon size text sizes are given at (the default): text on an icon scales with it from here.
 ns.BASE_ICON_SIZE = 44
@@ -73,13 +91,37 @@ end
 -- n pixels at scale 1. A Scale between the screen and the frame (a group's, the totem bar's, a
 -- preview's) grows them with everything else, rounded to whole pixels. Icon Size doesn't.
 ------------------------------------------------------------------------
+-- One screen pixel, in a frame's own units.
+function ns.pixel(frame)
+	local _, physicalHeight = GetPhysicalScreenSize()
+	return 768 / (physicalHeight or 768) / frame:GetEffectiveScale()
+end
+-- v rounded to whole screen pixels; px is ns.pixel of the frame v is measured in.
+function ns.roundPx(v, px) return math.floor(v / px + 0.5) * px end
+
 -- The length, in the frame's own units, of n screen pixels grown by the frame's Scale.
 function ns.linePx(frame, n)
-	local eff = frame:GetEffectiveScale()
-	local count = math.floor(n * eff / UIParent:GetEffectiveScale() + 0.5)
+	local count = math.floor(n * frame:GetEffectiveScale() / UIParent:GetEffectiveScale() + 0.5)
 	if n > 0 and count < 1 then count = 1 end
-	local _, physicalHeight = GetPhysicalScreenSize()
-	return count * (768 / (physicalHeight or 768)) / eff
+	return count * ns.pixel(frame)
+end
+
+-- Anchors a frame at point on UIParent, x and y in the frame's own units as SetPoint takes them,
+-- moved by under a pixel so its top left sits on a whole screen pixel; with a size in whole pixels,
+-- so do its other edges. The HUD's icons are laid out on whole pixels from there: at a half-pixel
+-- edge an icon's texture and its border, which snap to the pixel grid, and its cooldown swipe,
+-- which doesn't, each draw that edge differently, and a sliver of one shows past another.
+function ns.placeOnPixels(frame, point, x, y)
+	local px = ns.pixel(frame)
+	local k = UIParent:GetEffectiveScale() / frame:GetEffectiveScale()   -- UIParent's units to the frame's
+	local pw, ph = UIParent:GetSize()
+	local w, h = frame:GetSize()
+	local fx = point:find("LEFT") and 0 or point:find("RIGHT") and 1 or 0.5
+	local fy = point:find("BOTTOM") and 0 or point:find("TOP") and 1 or 0.5
+	local left = fx * pw * k + x - fx * w
+	local top = fy * ph * k + y + (1 - fy) * h
+	frame:ClearAllPoints()
+	frame:SetPoint(point, UIParent, point, x + ns.roundPx(left, px) - left, y + ns.roundPx(top, px) - top)
 end
 
 ------------------------------------------------------------------------
@@ -266,7 +308,7 @@ function ns.applyGlowStyle() for _, g in ipairs(glows) do g:restyle() end end
 -- spreading out, a star behind it), tinted by what happened. Every part is built on the frame the
 -- first time it pops.
 local POP_TINT = { ready = { 1, 0.82, 0.25 }, imbue = { 0.35, 0.65, 1 }, expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 },
-	grounded = { 0.56, 0.76, 0.92 } }
+	grounded = { 0.56, 0.76, 0.92 }, blocked = { 0.6, 0.6, 0.6 } }
 ns.POP_TINT = POP_TINT
 -- An atlas if the client has it, else a plain texture.
 local function atlasOr(t, atlas, file)
@@ -348,6 +390,8 @@ local function popFx(f)
 	return x
 end
 -- kind: ready | imbue | expired | killed | grounded (the tint); owner: whose style (nil: General's).
+-- blocked: ready but it can't be cast (Fire Nova with no fire totem): grey and a dimmer flash, with
+-- Colour by event on or off, so it never reads as the full ready pop.
 -- Nothing on a frame that isn't visible (a combat-only group out of combat): it would wait there and
 -- play when the frame next shows, for something long over.
 function ns.playPop(f, kind, owner)
@@ -386,13 +430,14 @@ function ns.playPop(f, kind, owner)
 		a[4]:SetScaleFrom(o, o); a[4]:SetScaleTo(1, 1); a[4]:SetDuration(0.08 * k)
 		x.bounce:Play()
 	end
-	local c = st.tint and POP_TINT[kind or "ready"] or { 1, 1, 1 }
+	local muted = kind == "blocked"
+	local c = (st.tint or muted) and POP_TINT[kind or "ready"] or { 1, 1, 1 }
 	x.flashAnim:Stop()
 	if st.flash then
 		x.flash:SetVertexColor(c[1], c[2], c[3])
-		local a = x.flashAnim.a
-		a[1]:SetFromAlpha(0); a[1]:SetToAlpha(0.8); a[1]:SetDuration(0.06 * k)
-		a[2]:SetFromAlpha(0.8); a[2]:SetToAlpha(0); a[2]:SetDuration(0.3 * k)
+		local a, peak = x.flashAnim.a, muted and 0.4 or 0.8
+		a[1]:SetFromAlpha(0); a[1]:SetToAlpha(peak); a[1]:SetDuration(0.06 * k)
+		a[2]:SetFromAlpha(peak); a[2]:SetToAlpha(0); a[2]:SetDuration(0.3 * k)
 		x.flashAnim:Play()
 	end
 	-- The ring spreads from just inside the icon to 2.2 icon widths; the star from 1.2 to 3.5.
@@ -443,7 +488,7 @@ function ns.makeEndFlash(parent, anchor, owner)
 	kf.glow:color(1, 0.12, 0.08)
 	kf.icon = kf.body:CreateTexture(nil, "ARTWORK")
 	kf.icon:SetAllPoints()
-	ns.cropIcon(kf.icon)
+	ns.cropIconExact(kf.icon)
 	kf.icon:SetDesaturated(true)
 	kf.red = kf.body:CreateTexture(nil, "OVERLAY")
 	kf.red:SetAllPoints()
@@ -482,7 +527,7 @@ function ns.makeEndFlash(parent, anchor, owner)
 	kf.mark:Hide()
 	kf.mark.icon = kf.mark:CreateTexture(nil, "ARTWORK")
 	kf.mark.icon:SetAllPoints()
-	ns.cropIcon(kf.mark.icon)
+	ns.cropIconExact(kf.mark.icon)
 	kf.mark.icon:SetDesaturated(true)
 	kf.mark.icon:SetAlpha(0.6)
 	kf.mark.x = kf.mark:CreateTexture(nil, "OVERLAY")
@@ -572,8 +617,9 @@ end
 ------------------------------------------------------------------------
 -- An aura slot: Blizzard's aura container on an element icon, with one aura slot whose button
 -- Blizzard (untainted) shows while an aura it matches is up and draws that aura's icon, time left
--- and charges, exact in combat too. It is the one way to show an aura in combat: every aura API
--- throws for addon code then (docs/combat-techniques.md). Used by the shield and Elemental Focus.
+-- and charges, exact in combat too. It is the one way to show an aura in combat: addon reads of
+-- auras then throw (by index or instance) or come back empty (by spell). Used by the shield and
+-- Elemental Focus.
 -- What it takes:
 -- * The container and its button refuse addon calls in combat and while auras are secret, which
 --   can also happen out of combat (PvP matches, encounters). So the container is made, and it and
@@ -598,11 +644,12 @@ AuraSlot.__index = AuraSlot
 --   parent       what the container hangs from (default frame); name: a global name, or nil
 --   sites        { container = , style = , filter = }: names for its waiting work and caught errors
 --   iconAlpha()  the aura icon's alpha as the button is made (optional)
+--   barInset()   how far above the bottom edge its time bar sits there (optional; ns.Timer.new)
 --   onButton(slot, button, cd)  the caller's own parts, once Blizzard has made the button
 --   onStyle(slot, size)         the caller's own restyle, after the shared one
 --   onError(err)                the container couldn't be made on this client
 -- Nothing is made until slot:setup(). The slot then holds container, button, icon (the aura's
--- texture), cd and timer (swipe and countdown only), or err; and after slot:refilter(), filtered
+-- texture), cd and timer (swipe, countdown and time bar), or err; and after slot:refilter(), filtered
 -- (the spell IDs it last gave the slot).
 function ns.makeAuraSlot(frame, opts)
 	return setmetatable({ frame = frame, opts = opts }, AuraSlot)
@@ -619,14 +666,22 @@ local function initAuraButton(slot, button)
 	pcall(button.SetMouseMotionEnabled, button, false)
 	local tex = button:CreateTexture(nil, "ARTWORK")
 	tex:SetAllPoints()
-	ns.cropIcon(tex)
+	ns.cropIconExact(tex)
 	if o.iconAlpha then tex:SetAlpha(o.iconAlpha()) end
 	button:SetIcon(tex)
 	slot.icon = tex
 	local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
 	cd:SetAllPoints()
-	-- Its timer: swipe and countdown text only (no bar: nothing of ours can follow Blizzard's time).
-	slot.timer = ns.Timer.new(button, o.key, "uptime", { cd = cd, anchor = button, noBar = true })
+	-- Its timer: swipe and countdown on the Cooldown, and a time bar the button drives from the
+	-- aura's own time (SetDurationBar; a bar of ours followed it in combat, tested 2026-09-27). We
+	-- only style and show the bar. A client that refuses it gets no bar rather than a still one.
+	local e = ns.ELEMENTS[o.key]
+	slot.timer = ns.Timer.new(button, o.key, "uptime", { cd = cd, anchor = button, aura = true,
+		school = e and e.school, barInset = o.barInset })
+	if not ns.try("aura time bar", button.SetDurationBar, button, slot.timer.bar, ns.Timer.AURA_BAR) then
+		slot.timer.bar:Hide()
+		slot.timer.bar = nil
+	end
 	slot.timer:apply()
 	button:SetDurationCooldown(cd)
 	slot.cd = cd
@@ -703,7 +758,7 @@ function ns.makeIcon(parent, size, owner)
 	f:SetSize(size, size)
 	f.tex = f:CreateTexture(nil, "ARTWORK")
 	f.tex:SetAllPoints()
-	ns.cropIcon(f.tex)
+	ns.cropIconExact(f.tex)
 	f.manaOverlay = f:CreateTexture(nil, "ARTWORK", nil, 2)
 	f.manaOverlay:SetAllPoints(f.tex)
 	f.manaOverlay:SetColorTexture(0.2, 0.45, 1, 0.55)

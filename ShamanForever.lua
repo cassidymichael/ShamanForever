@@ -12,9 +12,12 @@ local ADDON, ns = ...
 local say, isSecret = ns.say, ns.isSecret
 local Spells = ns.Spells
 
--- Every element belongs to exactly one group, which owns its position, scale, opacity and flow;
--- whether the element is drawn (always, in combat, never) is its own setting in db.elementOpts.
--- Positions are offsets in the group's own (scaled) units.
+-- An element sits in one group, or in none (ungrouped: not drawn, its settings kept). The group owns
+-- its position, scale, opacity and flow; whether the element is drawn (always, in combat, never) is
+-- its own setting in db.elementOpts. Positions are offsets in the group's own (scaled) units. A group
+-- also has an id, which never changes while it exists (what the options and positioning hold on to;
+-- a deleted group's may be given to a later one), and a name, unique in the profile; it stays when
+-- its last element leaves, until deleted.
 local GROUP_DEFAULTS = {
 	point = "CENTER", x = 0, y = -160, scale = 1, alpha = 0.75,
 	-- Icon size: General's, or the group's own (Size keeps lines crisp; Scale grows everything).
@@ -22,7 +25,15 @@ local GROUP_DEFAULTS = {
 	orientation = "horizontal",  -- horizontal | vertical
 	growth = "forward",          -- forward (right / down) | backward (left / up)
 	spacing = 6,
-	combatOnly = false,          -- hide the group out of combat (always shown while unlocked)
+	-- always | combat | target (in combat or with an enemy target); always shown while unlocked
+	show = "always",
+	fadeAfter = 0,               -- seconds it stays once combat ends, then fades out (0: none)
+}
+-- A group's Show as its state driver's conditions (none for always). "harm" is any target you can
+-- attack; a dead one doesn't count.
+local SHOW_WHEN = {
+	combat = "[combat] show; hide",
+	target = "[combat] show; [@target,exists,harm,nodead] show; hide",
 }
 
 -- A profile: the layout and how every element looks.
@@ -44,36 +55,39 @@ local DEFAULTS = {
 	-- above it, Reincarnation up and left, every other cooldown and buff in a row above, and Tremor
 	-- Totem's warning alone at the top, larger and at full opacity; it is unseen until it warns.
 	groups = {
-		{ point = "CENTER", x = 0, y = -40, scale = 1, alpha = 0.75, orientation = "horizontal",
-			growth = "forward", spacing = 6, members = { "shield", "shock", "firenova" } },
-		{ point = "CENTER", x = -110, y = -40, scale = 1, alpha = 0.75, orientation = "horizontal",
-			growth = "forward", spacing = 6, members = { "imbue" } },
-		{ point = "CENTER", x = 156, y = -44, scale = 0.9, alpha = 0.6, orientation = "horizontal",
-			growth = "forward", spacing = 6, members = { "earthbind", "stoneclaw", "grounding" } },
-		{ point = "CENTER", x = 0, y = 11, scale = 0.9, alpha = 0.75, orientation = "horizontal",
-			growth = "forward", spacing = 6, members = { "elementalfocus" } },
-		{ point = "CENTER", x = 0, y = 104, scale = 1.25, alpha = 1, orientation = "horizontal",
-			growth = "forward", spacing = 6, members = { "tremor" } },
-		{ point = "CENTER", x = -122, y = 11, scale = 0.9, alpha = 0.75, orientation = "horizontal",
-			growth = "forward", spacing = 6, members = { "reincarnation" } },
-		{ point = "CENTER", x = 0, y = 62, scale = 0.9, alpha = 0.75, orientation = "horizontal",
-			growth = "forward", spacing = 6, members = { "naturesswiftness", "manatide", "stormstrike", "riptide",
-				"farseer", "projection", "waterwalking", "waterbreathing" } },
+		{ id = 1, name = "Main", point = "CENTER", x = 0, y = -40, scale = 1, alpha = 0.75,
+			orientation = "horizontal", growth = "forward", spacing = 6, members = { "shield", "shock", "firenova" } },
+		{ id = 2, name = "Imbue", point = "CENTER", x = -110, y = -40, scale = 1, alpha = 0.75,
+			orientation = "horizontal", growth = "forward", spacing = 6, members = { "imbue" } },
+		{ id = 3, name = "Totems", point = "CENTER", x = 156, y = -44, scale = 0.9, alpha = 0.6,
+			orientation = "horizontal", growth = "forward", spacing = 6, members = { "earthbind", "stoneclaw", "grounding" } },
+		{ id = 4, name = "Procs", point = "CENTER", x = 0, y = 11, scale = 0.9, alpha = 0.75,
+			orientation = "horizontal", growth = "forward", spacing = 6, members = { "elementalfocus" } },
+		{ id = 5, name = "Tremor", point = "CENTER", x = 0, y = 104, scale = 1.25, alpha = 1,
+			orientation = "horizontal", growth = "forward", spacing = 6, members = { "tremor" } },
+		{ id = 6, name = "Reincarnation", point = "CENTER", x = -122, y = 11, scale = 0.9, alpha = 0.75,
+			orientation = "horizontal", growth = "forward", spacing = 6, members = { "reincarnation" } },
+		{ id = 7, name = "Cooldowns", point = "CENTER", x = 0, y = 62, scale = 0.9, alpha = 0.75,
+			orientation = "horizontal", growth = "forward", spacing = 6, members = { "naturesswiftness", "manatide",
+				"stormstrike", "riptide", "farseer", "projection", "waterwalking", "waterbreathing" } },
 	},
-	known = {},             -- element keys placed at least once; new ones join the first group
+	known = {},             -- element keys placed at least once; a new one joins its default group
 	elementOpts = {},       -- per-element settings by key, e.g. { shock = { show = "combat" } }; every element starts shown
 	-- shield
 	shieldTrack = "lightning", -- lightning | water | either: which shield counts as "up" (water and either are experimental)
-	countPos = "center",    -- corner | center
+	countPos = "CENTER",    -- the charge number: CENTER, TOPLEFT, TOPRIGHT, BOTTOMLEFT or BOTTOMRIGHT
 	countSize = 20,
 	showBar = true,         -- charge bar along the bottom of the icon
 	chargeBarHeight = 8,
 	chargeBarColor = { 0.35, 0.75, 1, 1 },
-	showCount = false,      -- charge number (Blizzard prints it for two or more); the charge bar shows it anyway
+	showCount = false,      -- charge number: always 3, 2, 1, via a formatter (Blizzard alone hides the 1)
+	countOne = false,       -- colour the 1 in countLastColor instead of plain white
+	countLastColor = { 1, 0.25, 0.2, 1 },
 	emptyRing = true,       -- no-shield look
 	emptyGrey = true,
 	emptyTint = false,
-	emptyPulse = true,
+	emptyPulse = false,
+	emptyGlow = true,
 	underlayUp = 0.25,      -- underlay strength while the shield is believed up (0 = none)
 	shieldIconAlpha = 1,    -- manual multiplier on the compensated shield icon alpha
 	-- shock
@@ -244,12 +258,18 @@ local function isLearned(key)
 end
 local function onHUD(key) return isLearned(key) or acct.testMode end
 
--- Group index and position of an element. Every available element sits in a group; whether it is
--- drawn is its own "show" setting, so hiding one keeps its place.
-local function findElement(key)
-	for gi, g in ipairs(db.groups) do
-		for i, k in ipairs(g.members) do if k == key then return gi, i end end
+-- The group an element sits in and its place among the members; nil for an ungrouped element.
+-- Whether it is drawn is its own "show" setting, so hiding one keeps its place.
+local function groupOf(key)
+	for _, g in ipairs(db.groups) do
+		for i, k in ipairs(g.members) do if k == key then return g, i end end
 	end
+end
+
+-- A group by its id, and its place in the list.
+local function groupById(id)
+	if id == nil then return nil end
+	for i, g in ipairs(db.groups) do if g.id == id then return g, i end end
 end
 
 local function elementOpts(key)
@@ -283,18 +303,64 @@ local function showMode(key) return elementOpts(key).show or elementDefault(key,
 -- A group's icon size: its own, or General's.
 local function groupSize(g) return (g and not g.sizeFollow and g.size) or db.iconSize end
 -- An element's: its group's.
-local function sizeOf(key)
-	local gi = findElement(key)
-	return groupSize(gi and db.groups[gi])
-end
+local function sizeOf(key) return groupSize((groupOf(key))) end
 
-local function isEnabled(key) return findElement(key) ~= nil and showMode(key) ~= "never" and onHUD(key) end
+local function isEnabled(key) return groupOf(key) ~= nil and showMode(key) ~= "never" and onHUD(key) end
 
 local function removeElement(key)
-	local gi, i = findElement(key)
-	if gi then table.remove(db.groups[gi].members, i) end
+	local g, i = groupOf(key)
+	if g then table.remove(g.members, i) end
 end
 
+-- Names: unique in the profile. A new group is "Group N", the lowest N free; a name another group
+-- has gets a number added.
+local function nameTaken(name, except)
+	for _, g in ipairs(db.groups) do
+		if g ~= except and g.name == name then return true end
+	end
+	return false
+end
+local function freeName()
+	local n = 1
+	while nameTaken("Group " .. n) do n = n + 1 end
+	return "Group " .. n
+end
+-- name as g's (g may be nil for a group not made yet): trimmed, without the escape character, cut
+-- to the Name box's limit, and numbered if taken (cut further to leave room for the suffix). nil
+-- for an empty name.
+local function uniqueName(name, g)
+	name = ns.utf8Cut(strtrim((tostring(name or ""):gsub("|", ""))), ns.MAX_GROUP_NAME)
+	if name == "" then return nil end
+	if not nameTaken(name, g) then return name end
+	local n = 2
+	while true do
+		local suffix = " " .. n
+		local candidate = ns.utf8Cut(name, ns.MAX_GROUP_NAME - #suffix) .. suffix
+		if not nameTaken(candidate, g) then return candidate end
+		n = n + 1
+	end
+end
+
+-- The next free id: one past the highest used, unless that would pass the bound (an id imported at
+-- or near it), in which case the lowest free one instead, so the comment on fixIds' bound always holds.
+local function nextId()
+	local max, used = 0, {}
+	for _, g in ipairs(db.groups) do
+		local id = g.id
+		if id then
+			used[id] = true
+			if id > max then max = id end
+		end
+	end
+	if max < ns.MAX_GROUP_ID then return max + 1 end
+	for id = 1, ns.MAX_GROUP_ID do
+		if not used[id] then return id end
+	end
+	return ns.MAX_GROUP_ID   -- every id taken: fixIds keeps the group count well under this bound
+end
+
+-- A group added at the end of the list, with a template's settings (or the defaults), a new id and
+-- the lowest free "Group N" name.
 local function newGroup(template)
 	local g = {}
 	for k, v in pairs(GROUP_DEFAULTS) do
@@ -302,14 +368,10 @@ local function newGroup(template)
 	end
 	if template and template.border then g.border = CopyTable(template.border) end
 	g.members = {}
+	g.id = nextId()
+	g.name = freeName()
 	table.insert(db.groups, g)
 	return g
-end
-
-local function pruneGroups()
-	for gi = #db.groups, 1, -1 do
-		if #db.groups[gi].members == 0 then table.remove(db.groups, gi) end
-	end
 end
 
 -- Where an element new to a profile goes: with the elements it sits beside in the default layout
@@ -320,12 +382,13 @@ local function placeNew(key, made)
 		for _, k in ipairs(dg.members) do
 			if k == key then
 				for _, other in ipairs(dg.members) do
-					local gi = other ~= key and findElement(other)
-					if gi then table.insert(db.groups[gi].members, key) return end
+					local g = other ~= key and groupOf(other)
+					if g then table.insert(g.members, key) return end
 				end
 				local g = made[dg]
 				if not g then
 					g = newGroup(dg)
+					g.name = uniqueName(dg.name, g) or g.name   -- keep "Group N" if dg has no name
 					made[dg] = g
 				end
 				table.insert(g.members, key)
@@ -336,17 +399,73 @@ local function placeNew(key, made)
 	table.insert((db.groups[1] or newGroup()).members, key)
 end
 
--- Makes db.groups consistent: fills missing group fields, drops unknown, unavailable and duplicate
--- members, and places every element that is in no group. Elements never seen before (new in an
--- update, or test ones) show, where the default layout has them (placeNew); ones seen before but in
--- no group (older saves hid an element that way) come back into the first group, set to never show.
+-- Ids: whole numbers, one per group, bounded (so two ids can never merge into one past float
+-- precision); a group saved without one (before groups had ids, or with one out of range) gets the
+-- next free one, in list order.
+local function fixIds()
+	local used = {}
+	for _, g in ipairs(db.groups) do
+		local id = g.id
+		if type(id) == "number" and id >= 1 and id <= ns.MAX_GROUP_ID and id % 1 == 0 and not used[id] then
+			used[id] = true
+		else g.id = nil end
+	end
+	for _, g in ipairs(db.groups) do
+		if not g.id then g.id = nextId() end
+	end
+end
+
+-- Names: a group saved without one (before groups had names) takes its default group's when all
+-- its elements sit in that one in the default layout, else "Group N" by its place in the list.
+-- Taken names get a number added.
+local function defaultName(g)
+	if #g.members == 0 then return nil end
+	for _, dg in ipairs(DEFAULTS.groups) do
+		local all = true
+		for _, key in ipairs(g.members) do
+			if not tContains(dg.members, key) then all = false break end
+		end
+		if all and not nameTaken(dg.name, g) then return dg.name end
+	end
+end
+local function fixNames()
+	for i, g in ipairs(db.groups) do
+		local name = type(g.name) == "string" and uniqueName(g.name, g)
+		if not name then
+			name = defaultName(g)
+			if not name then name = nameTaken("Group " .. i, g) and freeName() or "Group " .. i end
+		end
+		g.name = name
+	end
+end
+
+local function isPlaceholder(key) return ELEMENTS[key] ~= nil and ELEMENTS[key].placeholder == true end
+
+-- Makes db.groups consistent: fills missing group fields, gives each group an id and a name, drops
+-- unknown, unavailable and duplicate members, and places elements never seen before (new in an
+-- update, or test ones) where the default layout has them (placeNew). Elements seen before but in no
+-- group stay ungrouped. A group left empty stays, except one that held only test elements while
+-- they are off: it goes with them, so turning them on again makes a fresh one.
 local function sanitize()
 	each("sanitize", db, acct)
 	if type(db.groups) ~= "table" then db.groups = {} end
 	if type(db.known) ~= "table" then db.known = {} end
 	local seen = {}
+	for i = #db.groups, 1, -1 do
+		local members = db.groups[i].members
+		if type(members) == "table" and #members > 0 then
+			local onlyTest = true
+			for _, key in ipairs(members) do
+				if not isPlaceholder(key) or available(key) then onlyTest = false end
+			end
+			if onlyTest then table.remove(db.groups, i) end
+		end
+	end
 	for _, g in ipairs(db.groups) do
+		if g.combatOnly then g.show = "combat" end   -- saved before a group's Show had choices
+		g.combatOnly = nil
 		for k, v in pairs(GROUP_DEFAULTS) do if g[k] == nil then g[k] = v end end
+		if g.show ~= "combat" and g.show ~= "target" then g.show = "always" end
 		-- A border saved before styles (0.6.1 and earlier) was the group's own.
 		if type(g.border) == "table" and g.border.follow == nil then g.border.follow = false end
 		local kept = {}
@@ -358,33 +477,27 @@ local function sanitize()
 		end
 		g.members = kept
 	end
-	pruneGroups()
-	local fresh, freshTest, returning = {}, {}, {}
+	fixIds()
+	fixNames()
+	local fresh, freshTest = {}, {}
 	for _, key in ipairs(ELEMENT_KEYS) do
-		if available(key) and not seen[key] then
-			if not db.known[key] then
-				table.insert(ELEMENTS[key].placeholder and freshTest or fresh, key)
-				db.known[key] = true
-			else
-				elementOpts(key).show = "never"
-				table.insert(returning, key)
-			end
+		if available(key) and not seen[key] and not db.known[key] then
+			table.insert(ELEMENTS[key].placeholder and freshTest or fresh, key)
+			db.known[key] = true
 		end
-	end
-	if #returning > 0 then
-		local g = db.groups[1] or newGroup()
-		for _, key in ipairs(returning) do table.insert(g.members, key) end
 	end
 	local made = {}
 	for _, key in ipairs(fresh) do placeNew(key, made) end
 	if #freshTest > 0 then
 		local g = newGroup(db.groups[1])
 		g.point, g.x, g.y = "CENTER", 0, -40
+		g.name = uniqueName("Test", g)
 		g.members = freshTest
 	end
 end
 
--- Test elements are forgotten when switched off, so switching back on puts them in a fresh group.
+-- Test elements are forgotten when switched off (in every profile), and their group goes with them
+-- (sanitize), so switching back on puts them in a fresh group.
 local function setTestMode(on)
 	acct.testMode = on
 	if not on then
@@ -411,17 +524,17 @@ local function screenCenter(f)
 	return x * s, y * s
 end
 
--- One frame per group, made on first use and kept; positioning (ShamanForever_Positioning.lua) adds
--- its outline, label and handlers.
+-- One frame per group id, made on first use and kept (a deleted group's stays hidden); positioning
+-- (ShamanForever_Positioning.lua) adds its outline, label and handlers.
 local groupFrames = {}
-local function groupFrame(gi)
-	local f = groupFrames[gi]
+local function groupFrame(id)
+	local f = groupFrames[id]
 	if f then return f end
 	f = CreateFrame("Frame", nil, root, "BackdropTemplate")
 	f:SetSize(1, 1)
-	f.index = gi
+	f.groupId = id
 	ns.Positioning.attach(f)
-	groupFrames[gi] = f
+	groupFrames[id] = f
 	return f
 end
 
@@ -432,23 +545,24 @@ end
 -- Groups and elements are driven separately, so an element shows only when both allow it. The
 -- manager re-applies its state every 0.2s and does not show a frame it lets go of, so a driven frame
 -- is never shown or hidden by hand. Only called out of combat.
-local driven = {}
-local function setDriven(frame, want)
-	if want == (driven[frame] or false) then return end
-	if want then
-		local ok, err = pcall(RegisterStateDriver, frame, "visibility", "[combat] show; hide")
+local driven = {}   -- frame -> its driver's conditions
+local function setDriven(frame, when)
+	when = when or nil
+	if when == driven[frame] then return end
+	if when then
+		local ok, err = pcall(RegisterStateDriver, frame, "visibility", when)
 		if not ok then say("state driver failed: %s", tostring(err)); return end
-		driven[frame] = true
+		driven[frame] = when
 	else
 		pcall(UnregisterStateDriver, frame, "visibility")
 		driven[frame] = nil
 	end
 end
 
--- Shows a frame, or hands it to the driver when it should only show in combat.
-local function showFrame(frame, combatOnly)
-	setDriven(frame, combatOnly)
-	if not combatOnly then frame:Show() end
+-- Shows a frame, or hands it to the driver with the conditions it shows under.
+local function showFrame(frame, when)
+	setDriven(frame, when)
+	if not when then frame:Show() end
 end
 
 local function hideFrame(frame)
@@ -456,16 +570,74 @@ local function hideFrame(frame)
 	frame:Hide()
 end
 
+-- The conditions a group's frame shows under (nil: shown), and those of a member set to show only in
+-- combat. While the group stays after combat (ns.AfterCombat) both are a plain "show".
+local function groupWhen(g, gf)
+	if not acct.locked then return nil end
+	local when = SHOW_WHEN[g.show]
+	if when and ns.AfterCombat.held(gf.afterCombat) then return "show" end
+	return when
+end
+local function memberWhen(g, gf, key)
+	if not acct.locked or showMode(key) ~= "combat" then return nil end
+	if SHOW_WHEN[g.show] and ns.AfterCombat.held(gf.afterCombat) then return "show" end
+	return SHOW_WHEN.combat
+end
+
+-- A laid-out group's drivers and its members' again: it started or stopped staying after combat.
+local function driveGroup(id)
+	local g, gf = groupById(id), groupFrames[id]
+	if not (g and gf and gf.laidOut) or InCombatLockdown() then return end
+	for _, key in ipairs(g.members) do
+		if isEnabled(key) then showFrame(ELEMENTS[key].frame, memberWhen(g, gf, key)) end
+	end
+	showFrame(gf, groupWhen(g, gf))
+end
+
+-- A group's Stay after combat (ns.AfterCombat), made with its frame.
+local function afterCombat(gf)
+	local function group() return (groupById(gf.groupId)) end
+	return ns.AfterCombat.new({
+		secs = function()
+			local g = group()
+			return g and gf.laidOut and acct.locked and SHOW_WHEN[g.show] and g.fadeAfter or 0
+		end,
+		apply = function() driveGroup(gf.groupId) end,
+		-- Whether its own driver would show it now: unlocked, Always, or its conditions hold.
+		shows = function()
+			local g = group()
+			if not g then return false end
+			local when = acct.locked and SHOW_WHEN[g.show]
+			return not when or SecureCmdOptionParse(when) == "show"
+		end,
+		-- The group, and its members' effects layers, which ignore its alpha.
+		frames = function()
+			local list, g = { gf }, group()
+			for _, key in ipairs(g and g.members or {}) do
+				local fx = ELEMENTS[key].frame.effects
+				if fx then table.insert(list, fx) end
+			end
+			return list
+		end,
+	})
+end
+
 -- Sizes and anchors a group's members in one pass, centred on the cross axis; the group frame
 -- shrinks to fit so dragging feels right. Every member anchors to the group frame, never to another
 -- member: a frame a protected frame anchors to may turn protected too, and the shield is protected
 -- (Blizzard's aura button), so a chain could stop the members before it changing in combat.
-local function layoutGroup(gi)
-	local g, gf = db.groups[gi], groupFrame(gi)
-	local gap = g.spacing
+local function layoutGroup(g)
+	local gf = groupFrame(g.id)
+	gf.afterCombat = gf.afterCombat or afterCombat(gf)
+	-- Scale first: sizes, gaps and the position are rounded to whole screen pixels at it
+	-- (ns.placeOnPixels says why).
+	gf:SetScale(g.scale)
+	local px = ns.pixel(gf)
+	local gap = ns.roundPx(g.spacing, px)
 	local horizontal = g.orientation == "horizontal"
 	local forward = g.growth ~= "backward"
 	local n, along, across = 0, 0, 0
+	local placed = {}   -- the members drawn: { frame, offset from the group's leading edge, w, h }
 	for _, key in ipairs(g.members) do
 		local e = ELEMENTS[key]
 		local f = e.frame
@@ -475,26 +647,31 @@ local function layoutGroup(gi)
 			hideFrame(f)
 		else
 			local w, h = e.getSize(groupSize(g))
+			w, h = ns.roundPx(w, px), ns.roundPx(h, px)
 			f:SetSize(w, h)
-			f:ClearAllPoints()
-			local offset = along + n * gap   -- from the group's leading edge
-			if horizontal then
-				if forward then f:SetPoint("LEFT", gf, "LEFT", offset, 0)
-				else f:SetPoint("RIGHT", gf, "RIGHT", -offset, 0) end
-				along, across = along + w, math.max(across, h)
-			else
-				if forward then f:SetPoint("TOP", gf, "TOP", 0, -offset)
-				else f:SetPoint("BOTTOM", gf, "BOTTOM", 0, offset) end
-				along, across = along + h, math.max(across, w)
-			end
-			showFrame(f, acct.locked and showMode(key) == "combat")
+			table.insert(placed, { f, along + n * gap, w, h })
+			if horizontal then along, across = along + w, math.max(across, h)
+			else along, across = along + h, math.max(across, w) end
+			showFrame(f, memberWhen(g, gf, key))
 			n = n + 1
 		end
 	end
-	along = math.max(along + math.max(n - 1, 0) * gap, 1)
-	across = math.max(across, 1)
+	-- Each member centred on the cross axis, to the nearest whole pixel.
+	for _, m in ipairs(placed) do
+		local f, offset = m[1], m[2]
+		local side = ns.roundPx((across - (horizontal and m[4] or m[3])) / 2, px)
+		f:ClearAllPoints()
+		if horizontal then
+			if forward then f:SetPoint("TOPLEFT", gf, "TOPLEFT", offset, -side)
+			else f:SetPoint("TOPRIGHT", gf, "TOPRIGHT", -offset, -side) end
+		else
+			if forward then f:SetPoint("TOPLEFT", gf, "TOPLEFT", side, -offset)
+			else f:SetPoint("BOTTOMLEFT", gf, "BOTTOMLEFT", side, offset) end
+		end
+	end
+	along = math.max(along + math.max(n - 1, 0) * gap, px)
+	across = math.max(across, px)
 	if horizontal then gf:SetSize(along, across) else gf:SetSize(across, along) end
-	gf:SetScale(g.scale)
 	gf:SetAlpha(g.alpha)
 	for _, key in ipairs(g.members) do   -- effects layers ignore their icon's alpha, so they take the group's
 		local fx = ELEMENTS[key].frame.effects
@@ -503,10 +680,10 @@ local function layoutGroup(gi)
 	-- After the scale, so borders are sized in real pixels.
 	local border = ns.Style.get(g, "border")
 	for _, key in ipairs(g.members) do ns.applyBorder(ELEMENTS[key].frame, border) end
-	gf:ClearAllPoints()
-	gf:SetPoint(g.point, UIParent, g.point, g.x, g.y)
-	ns.Positioning.decorate(gf, gi)
-	if n > 0 then showFrame(gf, acct.locked and g.combatOnly or false) else hideFrame(gf) end
+	ns.placeOnPixels(gf, g.point, g.x, g.y)
+	ns.Positioning.decorate(gf, g)
+	gf.laidOut = n > 0
+	if n > 0 then showFrame(gf, groupWhen(g, gf)) else hideFrame(gf) end
 end
 
 -- Deferred in combat: the shield's group is an ancestor of Blizzard's protected aura button, so
@@ -516,8 +693,17 @@ local function layoutElements()
 	for key, e in pairs(ELEMENTS) do
 		if not isEnabled(key) then hideFrame(e.frame) end
 	end
-	for gi in ipairs(db.groups) do layoutGroup(gi) end
-	for gi = #db.groups + 1, #groupFrames do hideFrame(groupFrames[gi]) end
+	local live = {}
+	for _, g in ipairs(db.groups) do
+		layoutGroup(g)
+		live[g.id] = true
+	end
+	for id, gf in pairs(groupFrames) do
+		if not live[id] then
+			gf.laidOut = false
+			hideFrame(gf)
+		end
+	end
 	each("afterGroups")
 	ns.refitRings()
 	ns.Positioning.update()
@@ -587,42 +773,44 @@ local function refreshCooldownsSoon()
 	C_Timer.After(0, flushIfDirty)
 end
 
--- Layout edits used by the options window. Each leaves db.groups consistent and relays out.
+-- Layout edits used by the options window. Each leaves db.groups consistent and relays out; in
+-- combat it is refused. Returns true when done, then what the edit returned (a new group's id).
 local function edit(fn)
 	return function(...)
 		if InCombatLockdown() then say("layout changes wait until combat ends"); return false end
-		local groups = #db.groups
-		fn(...)
-		pruneGroups()
-		-- Groups renumbered: the selection (an index) would jump to another group.
-		if #db.groups ~= groups then ns.Positioning.clearSelection() end
+		local result = fn(...)
 		layoutElements()
-		return true
+		return true, result
 	end
 end
 
--- Puts key into target (a group index or "new"). index is its position among the target's other
--- members; nil appends.
+-- Screen centre, stepping down past any group already parked there.
+local function parkAtCenter(g)
+	g.point, g.x, g.y = "CENTER", 0, 0
+	local taken = true
+	while taken do
+		taken = false
+		for _, o in ipairs(db.groups) do
+			if o ~= g and o.point == "CENTER" and o.x == g.x and o.y == g.y then taken = true end
+		end
+		if taken then g.y = g.y - 60 end
+	end
+end
+
+-- Puts key into target (a group id, or "new" for a group of its own, returning its id). index is its
+-- position among the target's other members; nil appends. Its Show stays as it was.
 local placeElement = edit(function(key, target, index)
-	local gi = findElement(key)
-	local src = gi and db.groups[gi]
+	local src = groupOf(key)
 	if target == "new" then
 		if src and #src.members == 1 then return end
 		removeElement(key)
 		local g = newGroup(src or db.groups[1])
 		g.members = { key }
-		-- Screen centre, stepping down past any group already parked there.
-		g.point, g.x, g.y = "CENTER", 0, 0
-		local taken = true
-		while taken do
-			taken = false
-			for _, o in ipairs(db.groups) do
-				if o ~= g and o.point == "CENTER" and o.x == g.x and o.y == g.y then taken = true end
-			end
-			if taken then g.y = g.y - 60 end
-		end
-	elseif db.groups[target] then
-		local g = db.groups[target]
+		parkAtCenter(g)
+		return g.id
+	end
+	local g = groupById(target)
+	if g then
 		local list = {}
 		for _, k in ipairs(g.members) do if k ~= key then table.insert(list, k) end end
 		index = math.min(math.max(index or #list + 1, 1), #list + 1)
@@ -632,9 +820,33 @@ local placeElement = edit(function(key, target, index)
 	end
 end)
 
+-- Renames a group; a name another group has gets a number added, and an empty one changes nothing.
+-- Allowed in combat: only positioning's labels show it on screen, and their layout waits.
+local function renameGroup(id, name)
+	local g = groupById(id)
+	name = g and uniqueName(name, g)
+	if not name then return end
+	g.name = name
+	layoutElements()
+end
+
+-- A new empty group at the end of the list, at the screen centre. Returns its id.
+local addGroup = edit(function()
+	local g = newGroup()
+	parkAtCenter(g)
+	return g.id
+end)
+
+-- Deletes a group. Its elements are left in no group: not drawn, their settings kept, until they
+-- are placed in a group again.
+local deleteGroup = edit(function(id)
+	local _, i = groupById(id)
+	if i then table.remove(db.groups, i) end
+end)
+
 -- Splits a group into single-element groups, each left exactly where it is on screen.
-local splitGroup = edit(function(gi)
-	local g = db.groups[gi]
+local splitGroup = edit(function(id)
+	local g = groupById(id)
 	if not g or #g.members < 2 then return end
 	for i = #g.members, 2, -1 do
 		local key = g.members[i]
@@ -653,11 +865,12 @@ local setShow = edit(function(key, mode)
 end)
 
 -- Hides every element in the group; the group keeps them, so showing one brings it back in place.
-local hideGroup = edit(function(gi)
-	for _, key in ipairs(db.groups[gi] and db.groups[gi].members or {}) do elementOpts(key).show = "never" end
+local hideGroup = edit(function(id)
+	local g = groupById(id)
+	for _, key in ipairs(g and g.members or {}) do elementOpts(key).show = "never" end
 end)
-local centerGroup = edit(function(gi)
-	local g = db.groups[gi]
+local centerGroup = edit(function(id)
+	local g = groupById(id)
 	if g then g.point, g.x, g.y = "CENTER", 0, 0 end
 end)
 
@@ -703,23 +916,24 @@ ns.DEFAULTS, ns.GROUP_DEFAULTS = DEFAULTS, GROUP_DEFAULTS
 -- Elements: the registry, where each one sits, and its own settings.
 ns.ELEMENTS, ns.ELEMENT_KEYS = ELEMENTS, ELEMENT_KEYS
 ns.isActive = function() return isShaman end   -- a shaman is logged in: the HUD runs
-ns.available, ns.findElement, ns.isEnabled, ns.showMode = available, findElement, isEnabled, showMode
+ns.available, ns.isEnabled, ns.showMode = available, isEnabled, showMode
 ns.isLearned = isLearned
 ns.elementOpts, ns.elementSetting, ns.elementDefault, ns.idleAlpha = elementOpts, elementSetting, elementDefault, idleAlpha
 -- Groups and layout.
+ns.groupOf, ns.groupById = groupOf, groupById
 ns.groupFrames, ns.groupSize, ns.sizeOf = groupFrames, groupSize, sizeOf
 ns.setGroupCenter, ns.screenCenter = setGroupCenter, screenCenter
 ns.layoutElements, ns.applyLayout, ns.applyTimers = layoutElements, applyLayout, applyTimers
 -- Layout edits (the options window): each leaves the groups consistent and lays out again.
-ns.placeElement, ns.splitGroup, ns.hideGroup, ns.centerGroup = placeElement, splitGroup, hideGroup, centerGroup
+ns.placeElement, ns.addGroup, ns.renameGroup, ns.deleteGroup = placeElement, addGroup, renameGroup, deleteGroup
+ns.splitGroup, ns.hideGroup, ns.centerGroup = splitGroup, hideGroup, centerGroup
 ns.setShow = setShow
 ns.setTestMode = function(on) return edit(setTestMode)(on) end
 -- Spells and refreshes.
 ns.resolveSpells, ns.refreshAll = resolveSpells, refreshAll
 -- The border an element wears: its group's.
 function ns.borderFor(key)
-	local gi = findElement(key)
-	return ns.Style.get(gi and db.groups[gi] or nil, "border")
+	return ns.Style.get((groupOf(key)), "border")
 end
 
 ------------------------------------------------------------------------
@@ -809,16 +1023,23 @@ function ns.debugReport()
 	each("debug")
 	say("profile %s", tostring(profileName))
 	say("%s", ns.TotemBar.debug())
-	for gi, g in ipairs(db.groups) do
-		local names = {}
-		for _, key in ipairs(g.members) do
-			local mode = isLearned(key) and showMode(key) or "not learned"
-			table.insert(names, mode == "always" and key or (key .. " (" .. mode .. ")"))
-		end
-		say("group %d: %s, %s, size %d%s, scale %.2f, opacity %.2f, at %s %.0f,%.0f%s", gi, table.concat(names, ","),
-			g.orientation, groupSize(g), g.sizeFollow and " (General)" or "", g.scale, g.alpha, g.point, g.x, g.y,
-			g.combatOnly and ", combat only" or "")
+	local function listed(key)
+		local mode = isLearned(key) and showMode(key) or "not learned"
+		return mode == "always" and key or (key .. " (" .. mode .. ")")
 	end
+	for _, g in ipairs(db.groups) do
+		local names = {}
+		for _, key in ipairs(g.members) do table.insert(names, listed(key)) end
+		say("group %d %s: %s, %s, size %d%s, scale %.2f, opacity %.2f, at %s %.0f,%.0f%s", g.id, g.name,
+			#names > 0 and table.concat(names, ",") or "empty", g.orientation, groupSize(g),
+			g.sizeFollow and " (General)" or "", g.scale, g.alpha, g.point, g.x, g.y,
+			g.show == "always" and "" or string.format(", shows %s, stays %ds", g.show, g.fadeAfter))
+	end
+	local loose = {}
+	for _, key in ipairs(ELEMENT_KEYS) do
+		if available(key) and not groupOf(key) then table.insert(loose, listed(key)) end
+	end
+	if #loose > 0 then say("ungrouped: %s", table.concat(loose, ",")) end
 	local errs = ns.errorLines()
 	if #errs == 0 then say("no caught errors")
 	else for _, line in ipairs(errs) do say("caught error: %s", line) end end

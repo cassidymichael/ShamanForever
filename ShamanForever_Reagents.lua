@@ -38,11 +38,16 @@ end
 -- tooltip can be incomplete while the client loads it); a nil at the next refresh.
 local RECHECK = 30
 local PERK, PERK_AURA = 1225503, 1262643   -- Reagent Economy, and its aura ("no reagent use")
+ns.Spells.addCheck("Reagent Economy", { PERK, PERK_AURA })
 -- The perk: its spell, else (while auras are readable) its aura. Read at each spellbook scan
--- (R.readPerk, from the resolves) and at most every RECHECK s while auras are readable, which finds
--- a perk bought mid-session; in between, and while auras are secret, the last answer.
+-- (R.readPerk, from the resolves), after any aura change while it isn't known (R.auraChanged: its
+-- aura can come after the first read at login, or with a perk bought mid-session), and at most
+-- every RECHECK s while auras are readable; in between, and while auras are secret, the last
+-- answer. Once known it stays known for the session: a read that misses it later (a loading
+-- screen) must not bring back a count or warning the perk made false.
 local perk, perkReadAt = false, -math.huge
 function R.readPerk()
+	if perk then return end
 	local ok, v = safe(IsPlayerSpell, PERK)
 	if ok and not isSecret(v) and v == true then perk, perkReadAt = true, GetTime() return end
 	if InCombatLockdown() or ns.aurasSecret() or not C_UnitAuras then return end
@@ -50,10 +55,20 @@ function R.readPerk()
 	perk, perkReadAt = aok and type(a) == "table", GetTime()
 end
 local function perkKnown()
-	if GetTime() - perkReadAt >= RECHECK and not InCombatLockdown() and not ns.aurasSecret() then R.readPerk() end
+	if not perk and GetTime() - perkReadAt >= RECHECK and not InCombatLockdown() and not ns.aurasSecret() then
+		R.readPerk()
+	end
 	return perk
 end
 R.perkKnown = perkKnown   -- for /sf debug
+-- An aura on the player changed (UNIT_AURA, out of combat; one handler calls it): while the perk
+-- isn't known, the next check reads again. Returns whether it will, so the caller refreshes the
+-- reagent elements only then; once the perk is known an aura change can't alter them.
+function R.auraChanged()
+	if perk then return false end
+	perkReadAt = -math.huge
+	return true
+end
 function R.takes(def)
 	if perkKnown() then def.takesReagent = nil return false end
 	if def.takesReagent ~= nil and GetTime() - (def.reagentReadAt or 0) < RECHECK then return def.takesReagent end
@@ -89,7 +104,7 @@ end
 -- Reagent settings say: when it shows, its colours (plenty; low or none), size and place. Returns
 -- whether n is low, and the none-left looks wanted (ring, pulse), which the caller sets together
 -- with any other look on that icon, so a running pulse isn't restarted.
-local COUNT_JUSTIFY = { TOPLEFT = "LEFT", BOTTOMLEFT = "LEFT", TOPRIGHT = "RIGHT", BOTTOMRIGHT = "RIGHT", CENTER = "CENTER" }
+local COUNT_JUSTIFY = ns.COUNT_JUSTIFY
 function R.draw(f, key, n)
 	local low = n <= num(key, "reagentLow")
 	local show = setting(key, "reagentCount")   -- always | low | never

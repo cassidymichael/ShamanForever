@@ -135,7 +135,6 @@ local function drawImbue(now, quiet)
 	if showTime and not unreadable then
 		local total = math.max(imbueState.total or left, left)
 		imbue.upTimer:setTime(imbueState.expiresAt - total, total)
-		if left < 60 then imbue.upTimer:setTint(1, 0.3, 0.3) else imbue.upTimer:setTint(nil) end
 	else
 		imbue.upTimer:clear()
 	end
@@ -193,10 +192,11 @@ function IM.refresh()
 		imbueState.expiresAt = r.timeLeft > 0 and now + left or nil
 		if key then acct.imbueLast = key end
 	end
-	-- No weapon to imbue, or dead, a ghost or on a flight path: nothing can be cast.
-	local quiet = not hasWeapon() or ns.cantAct()
+	-- Dead, a ghost or on a flight path: nothing can be cast. A main hand with no weapon still
+	-- warns: the imbue is missing either way.
+	local quiet = ns.cantAct()
 	drawImbue(now, quiet)
-	-- The moment it drops (imbues stay readable in combat): pop. Not when the weapon came off.
+	-- The moment it drops (imbues stay readable in combat): pop, the weapon coming off included.
 	if had and r == false and db.imbuePop and not quiet then imbue:Pop("imbue") end
 end
 

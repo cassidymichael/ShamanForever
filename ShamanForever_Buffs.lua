@@ -2,7 +2,7 @@
 -- (its Clearcasting proc). Each shows while its buff is up; while it isn't, it is idle, and at the
 -- default Idle opacity of 0 it is hidden and keeps its place in its group.
 --
--- What can be read, and when (docs/combat-techniques.md):
+-- What can be read, and when:
 -- * Water Walking, Water Breathing: out of combat the aura is readable, so the time left is exact.
 --   In combat, and all through a PvP match, auras are secret: the timer carries on from the last
 --   read, and our own cast of the spell (readable in combat) restarts it when the target is us (a
@@ -12,15 +12,16 @@
 --   the buff isn't up. Readable in and out of combat (probed 2026-09-27): MIRROR_TIMER_START comes
 --   with a negative scale while it drains under water, and again with a positive one while it
 --   refills after surfacing; MIRROR_TIMER_STOP only once it's full.
--- * Elemental Focus: a proc can't be foreseen, so in combat only Blizzard's aura container can
---   show it (ns.makeAuraSlot, as for the shield). Its button draws the icon and time left;
---   our glow is a child of that button, so it shows exactly when the button does. The container
---   sits on the effects layer, which ignores the icon's alpha: Idle fades only the icon under it
---   (the look while no proc is up), never the proc itself. Script handlers
---   under the button never run, but the button plays animations handed to it
---   (Blizzard_CustomAuraButton.lua): AddAuraShownAnimation runs the glow's pulse while the proc
---   shows, AddAuraAssignedAnimation our pop each time a proc arrives. Not yet tested in game; on a
---   client without them the pop plays when the proc is seen while auras are readable.
+-- * Elemental Focus: a proc can't be foreseen, so in combat only Blizzard's aura container
+--   can show it (ns.makeAuraSlot, as for the shield). Its button draws the icon and time left
+--   (swipe, countdown or bar); our glow is a child of that button, so it shows exactly when
+--   the button does. The container sits on the effects layer, which ignores the icon's alpha:
+--   Idle fades only the icon under it (the look while no proc is up), never the proc itself.
+--   Script handlers under the button never run, but the button plays animations handed to it
+--   (Blizzard_CustomAuraButton.lua): AddAuraShownAnimation runs the glow's pulse while the
+--   proc shows, AddAuraAssignedAnimation our pop each time a proc arrives (both tested in
+--   combat on Lightning Shield, 2026-09-27; not yet on the proc). On a client without them
+--   the pop plays when the proc is seen while auras are readable.
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
@@ -129,7 +130,7 @@ end
 ------------------------------------------------------------------------
 local breathing = false   -- the breath bar is draining (under water)
 local function breathWarn(def)
-	return def.breath and breathing and not def.upUntil and setting(def.key, "breathWarn")
+	return def.breath and breathing and not def.upUntil and setting(def.key, "breathWarn") and not ns.cantAct()
 end
 
 ------------------------------------------------------------------------
@@ -279,7 +280,7 @@ B.afterGroups = function() for _, def in ipairs(BUFFS) do if def.proc then def.a
 -- missed its events): negative scale means draining.
 local function readBreath()
 	breathing = false
-	for i = 1, 3 do   -- the client's mirror timers: fatigue, breath, feign death
+	for i = 1, 3 do   -- the client's three mirror timers (EXHAUSTION, BREATH, DEATH, FEIGNDEATH)
 		local ok, name, _, _, scale = safe(GetMirrorTimerInfo, i)
 		if ok and not isSecret(name) and name == "BREATH" and type(scale) == "number" and not isSecret(scale) and scale < 0 then
 			breathing = true
@@ -313,6 +314,7 @@ end
 
 function B.start()
 	readBreath()   -- already under water (a /reload)
+	ns.onCanActChange(refreshAll)   -- no breath warning while dead or a ghost
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "UNIT_AURA", "player")
 	ns.registerEvent(ev, "MIRROR_TIMER_START")

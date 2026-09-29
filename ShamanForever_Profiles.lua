@@ -177,7 +177,7 @@ local RANGES = {
 	manaTint = { 0.1, 1 }, rangeIntensity = { 0.1, 1 }, rangeTint = { 0.1, 1 }, imbueWarnMins = { 0, 30 },
 }
 local GROUP_RANGES = { scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { 0, 40 }, size = { 24, 96 },
-	x = { -10000, 10000 }, y = { -10000, 10000 } }
+	x = { -10000, 10000 }, y = { -10000, 10000 }, fadeAfter = { 0, 10 } }
 -- An element's own numbers (db.elementOpts[key]), and its Expiring warning's.
 local ELEMENT_RANGES = { idleAlpha = { 0, 1 }, reagentLow = { 0, 10 }, reagentSize = { 8, 40 },
 	reagentX = { -50, 50 }, reagentY = { -50, 50 }, wordSize = { 8, 40 }, wordX = { -100, 100 }, wordY = { -100, 100 } }
@@ -221,8 +221,15 @@ local function cleanProfile(t)
 				for k, default in pairs(GROUP_DEFAULTS) do
 					if type(g[k]) == type(default) then clean[k] = g[k] end
 				end
+				-- Shared before a group's Show had choices (sanitize still checks the value).
+				if g.combatOnly == true and clean.show == nil then clean.show = "combat" end
 				clampNumbers(clean, GROUP_RANGES, GROUP_DEFAULTS)
 				if clean.point and not ns.POINTS[clean.point] then clean.point = nil end
+				-- Ids and names are made whole and unique when the profile loads (sanitize).
+				if type(g.id) == "number" and g.id >= 1 and g.id <= ns.MAX_GROUP_ID and g.id % 1 == 0 then
+					clean.id = g.id
+				end
+				if type(g.name) == "string" then clean.name = ns.utf8Cut(g.name, ns.MAX_GROUP_NAME) end
 				clean.border = ns.Style.cleanOwn(g.border, "border")
 				for _, key in ipairs(type(g.members) == "table" and g.members or {}) do
 					if type(key) == "string" then table.insert(clean.members, key) end
