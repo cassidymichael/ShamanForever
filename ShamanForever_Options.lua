@@ -144,8 +144,8 @@ local function reloadLine(p, keys, verb, shown)
 	end, showWhen(function() return #keys() > 0 end, shown))
 end
 
--- Standard rows: the border around icons, General's or an owner's (a group, the totem bar). Size
--- and colour show only for looks that use them. The HUD lays out only out of combat (the shield's
+-- Standard rows: the border around icons, General's or an owner's (a group, the totem bar). Sizes
+-- and colours show only for looks that use them. The HUD lays out only out of combat (the shield's
 -- group and the totem bar's buttons are protected then), so a change made in combat reaches it
 -- when combat ends, as every other layout setting does; the previews here take it at once.
 local function borderRows(p, owner, after, label, shown)
@@ -165,6 +165,8 @@ local function borderRows(p, owner, after, label, shown)
 	reloadLine(p, stale, function(n) return n == 1 and "changes shape" or "change shape" end, shown)
 	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("size"), r.set("size"), showWhen(uses("size"), shown))
 	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), showWhen(uses("color"), shown))
+	p:slider("Cap size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("capSize"), r.set("capSize"), showWhen(uses("capSize"), shown))
+	p:color("Cap colour", "Colour and opacity.", r.get("capColor"), r.set("capColor"), showWhen(uses("capColor"), shown))
 end
 
 -- The border a preview icon wears: its owner's.
@@ -190,7 +192,11 @@ local function glowBlock(p, owner, icon)
 	local ic = ns.makeIcon(f, 40, owner)
 	ic:SetPoint("LEFT", f, "LEFT", LABEL_W + 24, 0)
 	ic.tex:SetTexture(icon)
-	p:add(f, 64, own, function() ns.applyBorder(ic, previewBorder(owner)); ic:SetGlowShown(true) end)
+	p:add(f, 64, own, function()
+		-- A 40 icon, its border inside that size as on the HUD.
+		ic:SetPoint("LEFT", f, "LEFT", LABEL_W + 24 + ns.Looks.fit(ic, previewBorder(owner), 40), 0)
+		ic:SetGlowShown(true)
+	end)
 	local look = lookRows(p, r, "glow", "Look", "Glow looks", own)
 	reloadLine(p, function() return ns.auraGlowStale(owner) end,
 		function(n) return n == 1 and "changes glow" or "change glow" end, own)
@@ -236,7 +242,9 @@ local function popBlock(p, owner, icon, kind, growOnly)
 	play:SetPoint("LEFT", ic, "RIGHT", 24, 0)
 	play:SetText("Play")
 	play:SetScript("OnClick", playPop)
-	p:add(f, 56, own, function() ns.applyBorder(ic, previewBorder(owner)) end)
+	p:add(f, 56, own, function()
+		ic:SetPoint("LEFT", f, "LEFT", LABEL_W + 16 + ns.Looks.fit(ic, previewBorder(owner), 40), 0)
+	end)
 	if growOnly then
 		p:text("It grows and settles; only its size and speed can change.", own)
 		p:slider("Motion distance", "How far it grows.", 1.1, 1.8, 0.05, pct, r.get("size"), r.set("size"), own)

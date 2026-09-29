@@ -29,8 +29,9 @@ function Looks.hasAtlas(name)
 	return atlasKnown[name]
 end
 
--- The school whose colour a frame's "school" parts take: the frame's own (a totem bar slot's),
--- else its element's (element icons and their previews carry the element's key as owner).
+-- The school a frame's looks take (a glow's material, a pop's colour and shapes): the frame's own
+-- (a totem bar slot's), else its element's (element icons and their previews carry the element's
+-- key as owner).
 local function schoolOf(f)
 	if f.school then return f.school end
 	local e = type(f.owner) == "string" and ns.ELEMENTS[f.owner]
@@ -41,10 +42,11 @@ end
 -- Frames: a border look's entry has any of these parts (the options also read name, S.addLook).
 --   rings  lines round the icon's edge, listed outside in. Each is { px, color }, or has a colour
 --          per side (top, bottom, left, right) in place of color. px: screen pixels (default 1) or
---          "size" for the Border size setting. A colour is { r, g, b, a }, "setting" for the
---          Border colour setting, or "school" for the element's school colour.
---   caps   { px, len, color }: an L on each corner, px thick, reaching 1 px beyond the rings, its
---          arms running len along the icon's edges past the corner (screen pixels).
+--          the name of a border setting that holds them ("size", the Border size). A colour is
+--          { r, g, b, a }, or the name of a border setting that holds one ("color").
+--   caps   { px, len, color }: an L on each corner, px thick (px and color as for rings), its outer
+--          edge on the rings' or further out when it is thicker than they are, its arms running len
+--          along the icon's edges past the corner (screen pixels).
 --   art    Blizzard's or our art: { atlas or file, inset } drawn stretched over the icon, inset
 --          { left, right, top, bottom } past each edge as a share of the icon's width; or { file,
 --          margin, px } drawn as a 9-slice round the icon, whose margin (texels) lands on px whole
@@ -58,41 +60,49 @@ end
 -- A look whose Blizzard art is missing from the client draws a plain 1 px black line instead.
 -- A look drawn with AI-made art is credited in the README and About's Art text.
 -- Lines and caps are screen pixels (ns.linePx): crisp, grown by Scale, not by icon Size. They sit
--- outside the icon's edge, so they never cover the rings inside it or Blizzard's aura button.
+-- round the icon's picture, so they never cover the rings inside it or Blizzard's aura button, and
+-- inside the element's box: an icon's Size is its outer edge, and whoever lays it out sets the
+-- picture in by Looks.inset (Looks.fit), so Spacing is the gap between what shows.
 ------------------------------------------------------------------------
 local SIDES = { "top", "bottom", "left", "right" }
 local CORNERS = { { "TOPLEFT", -1, 1 }, { "TOPRIGHT", 1, 1 }, { "BOTTOMLEFT", -1, -1 }, { "BOTTOMRIGHT", 1, -1 } }
 local BLACK = { 0, 0, 0, 1 }
 
-local function colorOf(c, b, school)
-	if c == "setting" then return b.color or BLACK end
-	if c == "school" then return ns.SCHOOL_COLOR[school] or ns.SCHOOL_COLOR.spirit end
+-- A part's colour or thickness (screen pixels): its own, or the border setting it names.
+local function colorOf(c, b)
+	if type(c) == "string" then return b[c] or BLACK end
 	return c
 end
+local function pxOf(px, b)
+	if type(px) == "string" then return b[px] or 1 end
+	return px or 1
+end
 
--- Whether a look uses a border setting ("size" or "color"): the options show only those it uses.
-function Looks.uses(look, part)
+-- Whether a look uses a border setting ("size", "color", "capSize", "capColor"): the options show
+-- only those it uses.
+function Looks.uses(look, field)
 	for _, r in ipairs(look.rings or {}) do
-		if part == "size" and r.px == "size" then return true end
-		if part == "color" and r.color == "setting" then return true end
+		if r.px == field or r.color == field then return true end
+		for _, side in ipairs(SIDES) do if r[side] == field then return true end end
 	end
-	return part == "color" and look.caps ~= nil and look.caps.color == "setting"
+	local caps = look.caps
+	return caps ~= nil and (caps.px == field or caps.color == field)
 end
 
 -- Each ring is four textures: top and bottom span the corners, left and right fill between them.
 -- Drawn inside out; returns how far the rings reach outside the icon's edge.
-local function drawRings(f, rings, b, school)
+local function drawRings(f, rings, b)
 	f.border = f.border or {}
 	local tex, n, d = f.border, 0, 0   -- d: how far out this ring starts
 	for i = #(rings or {}), 1, -1 do
 		local ring = rings[i]
-		local w = ns.linePx(f, ring.px == "size" and b.size or ring.px or 1)
+		local w = ns.linePx(f, pxOf(ring.px, b))
 		local o = d + w
 		for _, side in ipairs(SIDES) do
 			n = n + 1
 			local t = tex[n] or f:CreateTexture(nil, "BACKGROUND", nil, -8)
 			tex[n] = t
-			local c = colorOf(ring[side] or ring.color, b, school)
+			local c = colorOf(ring[side] or ring.color, b)
 			t:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
 			t:ClearAllPoints()
 			t:Show()
@@ -121,8 +131,8 @@ local function drawRings(f, rings, b, school)
 end
 
 -- Two textures a corner, above the rings; out: where the rings end. Returns how far the caps
--- reach beyond them.
-local function drawCaps(f, caps, out, b, school)
+-- reach beyond them (when they are thicker).
+local function drawCaps(f, caps, out, b)
 	local t = f.frameCaps
 	if not caps then
 		if t then for _, x in ipairs(t) do x:Hide() end end
@@ -133,10 +143,10 @@ local function drawCaps(f, caps, out, b, school)
 		for i = 1, 8 do t[i] = f:CreateTexture(nil, "BACKGROUND", nil, -7) end
 		f.frameCaps = t
 	end
-	local px, beyond = ns.linePx(f, caps.px or 2), ns.linePx(f, 1)
-	local o = out + beyond
+	local px = ns.linePx(f, pxOf(caps.px, b))
+	local o = math.max(out, px)
 	local len = o + ns.linePx(f, caps.len or 6)
-	local c = colorOf(caps.color, b, school)
+	local c = colorOf(caps.color, b)
 	for i, corner in ipairs(CORNERS) do
 		local point, x, y = corner[1], corner[2] * o, corner[3] * o
 		-- along: the arm along the top or bottom; down: the one down the side.
@@ -150,7 +160,7 @@ local function drawCaps(f, caps, out, b, school)
 			a:Show()
 		end
 	end
-	return beyond
+	return o - out
 end
 
 -- Stretched art's place over `over`, an icon w wide.
@@ -173,7 +183,9 @@ local function drawOverlay(f, art)
 		t = f:CreateTexture(nil, "OVERLAY", nil, 7)
 		f.frameOverlay = t
 	end
-	placeArt(t, art, f, f:GetWidth())
+	local w = f:GetWidth()
+	if ns.isSecret(w) then return end   -- under a secure button: placed at the next layout
+	placeArt(t, art, f, w)
 	if art.atlas then t:SetAtlas(art.atlas) else t:SetTexture(art.file) end
 	t:Show()
 end
@@ -199,7 +211,9 @@ local function drawSlice(f, art)
 	local px = ns.linePx(f, art.px)
 	local k = px / art.margin
 	h:SetScale(k)
-	h:SetSize((f:GetWidth() + 2 * px) / k, (f:GetHeight() + 2 * px) / k)
+	local w, hh = f:GetWidth(), f:GetHeight()
+	if ns.isSecret(w) or ns.isSecret(hh) then return px end   -- under a secure button: sized at the next layout
+	h:SetSize((w + 2 * px) / k, (hh + 2 * px) / k)
 	h:ClearAllPoints()
 	h:SetPoint("CENTER", f, "CENTER", 0, 0)
 	h:SetFrameLevel(f:GetFrameLevel())
@@ -309,15 +323,19 @@ local swipers = setmetatable({}, { __mode = "k" })   -- icon frame -> { cooldown
 local swipeLooks = setmetatable({}, { __mode = "k" })   -- icon frame -> the masked look it has now
 
 -- One cooldown over f in look's shape (look nil: the plain square). Only touched once a look has
--- asked for a shape; its swipe file and its points go back to the square one after.
-local function swipeOne(f, cd, look)
+-- asked for a shape; its swipe file and its points go back to the square one after. w: f's width
+-- when the caller knows it (Blizzard's aura button, whose size reads secret); else it is read, and a
+-- secret read leaves the swipe's place for the next restyle.
+local function swipeOne(f, cd, look, w)
 	local file, inset = look and look.swipe, look and look.swipeInset
 	if not cd or (file == nil and inset == nil and cd.frameSwipe == nil) then return end
 	file = file or WHITE
 	if cd.frameSwipe ~= file then cd:SetSwipeTexture(file) end
 	cd.frameSwipe = file
 	if inset or cd.frameInset then
-		local d = (inset or 0) * f:GetWidth()
+		w = w or f:GetWidth()
+		if ns.isSecret(w) then return end
+		local d = (inset or 0) * w
 		cd:ClearAllPoints()
 		cd:SetPoint("TOPLEFT", f, "TOPLEFT", d, -d)
 		cd:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -d, d)
@@ -341,17 +359,76 @@ function Looks.followSwipe(f, cd)
 	if swipeLooks[f] then swipeOne(f, cd, swipeLooks[f]) end
 end
 
--- Draws b (a border style) round f in its look, or takes it down (b off, or a size of 0 for a
--- look drawn at the Border size). Drawn just outside f's edge, so it never covers the rings inside
--- the icon or Blizzard's aura button; art and masks draw as each look says. Its lines are screen
--- pixels (ns.linePx), grown by Scale, not by icon Size. Sets f.frameOuter, how far it reaches
--- outside f's edge (f's units), for Looks.outerEdge.
-function ns.applyBorder(f, b)
+-- The parts of a look that fit a bar (an element of shape "bar"): its rings and its sliced art. A
+-- look with neither (a mask and stretched art, shaped for an icon) draws a plain line there.
+local barLooks = {}   -- look -> its bar parts
+local function barParts(look)
+	local v = barLooks[look]
+	if not v then
+		local slice = look.art and look.art.margin and look.art or nil
+		v = (look.rings or slice) and { rings = look.rings, art = slice } or NO_ART
+		barLooks[look] = v
+	end
+	return v
+end
+
+-- The look border style b draws in (NO_ART for one whose Blizzard art is missing; for shape "bar",
+-- its parts that fit a bar), or nil: b is off, or a look drawn at the Border size has a size of 0.
+local function drawnLook(b, shape)
 	local look = S.look("border", b and b.look)
 	if artMissing(look) then look = NO_ART end
 	local on = b and b.show and (not Looks.uses(look, "size") or (b.size and b.size > 0))
-	if not on then
-		drawRings(f, nil, b, nil)
+	if not on then return nil end
+	return shape == "bar" and barParts(look) or look
+end
+
+-- How far in from the edge of a box w wide (the element's Size, in f's units) the icon's picture
+-- sits, so that border b drawn round it stays inside the box: the reach of its lines and sliced
+-- art (whole screen pixels, as they are drawn, for f's scale), or of its stretched art, which
+-- reaches a share of the picture's width past its edges; whichever is further. shape: as for
+-- ns.applyBorder.
+function Looks.inset(f, b, w, shape)
+	local look = drawnLook(b, shape)
+	if not look then return 0 end
+	local out = 0
+	for _, ring in ipairs(look.rings or {}) do out = out + ns.linePx(f, pxOf(ring.px, b)) end
+	if look.caps then out = math.max(out, ns.linePx(f, pxOf(look.caps.px, b))) end
+	local art = look.art
+	if art and art.margin then out = math.max(out, ns.linePx(f, art.px))
+	elseif art and art.inset then
+		local share = math.max(art.inset[1], art.inset[2], art.inset[3], art.inset[4])
+		if share > 0 then
+			local one = ns.pixel(f)
+			out = math.max(out, math.ceil(share * w / (1 + 2 * share) / one - 0.01) * one)
+		end
+	end
+	-- The picture keeps a few units, however small the icon and heavy the look.
+	return math.min(out, math.max((w - 4) / 2, 0))
+end
+
+-- Sizes icon f for a box w by h (its Size) with border b drawn round it inside that box, and draws
+-- b. Returns the inset (Looks.inset): the caller places f that far in from the box's edges.
+-- opts (optional; an element's registry entry serves): borderHost, the part the border is drawn on
+-- (a child covering f, so the border hides with it; default f), and shape (ns.applyBorder).
+function Looks.fit(f, b, w, h, opts)
+	local host, shape = opts and opts.borderHost or f, opts and opts.shape
+	local o = Looks.inset(host, b, math.min(w, h or w), shape)
+	f:SetSize(w - 2 * o, (h or w) - 2 * o)
+	ns.applyBorder(host, b, shape)
+	return o
+end
+
+-- Draws b (a border style) round f in its look, or takes it down (b off, or a size of 0 for a
+-- look drawn at the Border size). Drawn round f's edge, so it never covers the rings inside the
+-- icon or Blizzard's aura button; art and masks draw as each look says. f is the icon's picture,
+-- set in from its box by Looks.inset. Its lines are screen pixels (ns.linePx), grown by Scale, not
+-- by icon Size. shape "bar": f is a bar, not an icon, and takes only the look's parts that fit one
+-- (barParts). Sets f.frameOuter, how far it reaches outside f's edge (f's units), for
+-- Looks.outerEdge.
+function ns.applyBorder(f, b, shape)
+	local look = drawnLook(b, shape)
+	if not look then
+		drawRings(f, nil, b)
 		drawCaps(f, nil)
 		drawOverlay(f, nil)
 		drawSlice(f, nil)
@@ -360,9 +437,8 @@ function ns.applyBorder(f, b)
 		f.frameOuter = 0
 		return
 	end
-	local school = schoolOf(f)
-	local out = drawRings(f, look.rings, b, school)
-	out = out + drawCaps(f, look.caps, out, b, school)
+	local out = drawRings(f, look.rings, b)
+	out = out + drawCaps(f, look.caps, out, b)
 	drawOverlay(f, look.art)
 	out = math.max(out, drawSlice(f, look.art))
 	local mask = maskOf(look)
@@ -380,9 +456,10 @@ function Looks.outerEdge(f) return f and f.frameOuter or 0 end
 -- on our frames, or added later in combat, is refused (tested 2026-09-28). So a masked look's mask
 -- is made there, from the element's border look at that moment, and so is its stretched art: the
 -- aura's icon on the button covers everything drawn on the element's own frame. key: the element.
--- Adding a mask later out of combat, or changing its art, is untested, so the button keeps the look
--- it was made with until the next /reload. The element's frame keeps its own art too, for while
--- the button is hidden (no aura).
+-- Later, out of combat (Looks.auraStyle), the button follows the look picked since: its art is
+-- changed or hidden, and a mask it has takes the new shape, or a plain one for a look without.
+-- A mask it never had can only come with a new button: that look waits for a /reload (the options
+-- say so). The element's frame keeps its own art too, for while the button is hidden (no aura).
 local auraMade = setmetatable({}, { __mode = "k" })   -- aura icon -> { key, spec, mask, look, art }
 function Looks.auraMask(button, tex, key)
 	local b = ns.borderFor(key)
@@ -403,18 +480,36 @@ function Looks.auraMask(button, tex, key)
 	end
 end
 
--- The aura slot's restyle (out of combat, auras readable; AuraSlot:style): the art's place and the
--- mask's size for the icon's size, and the swipe in the mask's shape.
+-- The aura slot's restyle (out of combat, auras readable; AuraSlot:style): the button takes the
+-- element's border look now (its art, and its mask's shape where it has a mask), placed for the
+-- icon's size, and the swipe in the mask's shape.
+local PLAIN_MASK = { file = WHITE }   -- a mask that hides nothing: a look without one
 function Looks.auraStyle(slot, size)
 	local made = slot.icon and auraMade[slot.icon]
 	if not made then return end
-	if made.artTex then placeArt(made.artTex, made.art, slot.button, size) end
-	if made.mask and (made.spec.scale or 1) ~= 1 then placeMask(made.mask, made.spec, slot.icon, size) end
-	if made.look then swipeOne(slot.button, slot.cd, made.look) end
+	local b = ns.borderFor(made.key)
+	local art, spec = artFor(b), maskFor(b)
+	if art ~= made.art then
+		if art and not made.artTex then made.artTex = slot.button:CreateTexture(nil, "OVERLAY", nil, 7) end
+		local t = made.artTex
+		if art then
+			if art.atlas then t:SetAtlas(art.atlas) else t:SetTexture(art.file) end
+			t:Show()
+		elseif t then t:Hide() end
+		made.art = art
+	end
+	if made.artTex and made.art then placeArt(made.artTex, made.art, slot.button, size) end
+	if made.mask then
+		placeMask(made.mask, spec or PLAIN_MASK, slot.icon, size)
+		made.spec = spec
+	elseif not spec then made.spec = nil end
+	made.look = made.spec and lookFor(b) or nil
+	swipeOne(slot.button, slot.cd, made.look, size)
 end
 
--- The aura elements whose button's shape differs from their border look now, among those whose
--- border is owner's (nil: General's; a group): they change after a /reload (the options say so).
+-- The aura elements whose button's shape differs from their border look now (a masked look on a
+-- button made without a mask), among those whose border is owner's (nil: General's; a group): they
+-- change after a /reload (the options say so).
 -- Returns their keys.
 function Looks.auraStale(owner)
 	local out, db = {}, ns.getDB()
@@ -442,17 +537,15 @@ local CDM_MASK, CDM_OVERLAY = "UI-HUD-CoolDownManager-Mask", "UI-HUD-CoolDownMan
 local CDM_SWIPE = "Interface\\HUD\\UI-HUD-CoolDownManager-Icon-Swipe"
 local AB_MASK, AB_FRAME = "UI-HUD-ActionBar-IconFrame-Mask", "UI-HUD-ActionBar-IconFrame"
 
-S.addLook("border", "line", { name = "Line", rings = { { px = "size", color = "setting" } } })
+S.addLook("border", "line", { name = "Line", rings = { { px = "size", color = "color" } } })
 S.addLook("border", "hairline", { name = "Gold hairline",
 	rings = { { color = BLACK }, { color = GOLD }, { color = BLACK } } })
-S.addLook("border", "school", { name = "School edge",
-	rings = { { color = BLACK }, { color = "school" } } })
--- Lit from the top left.
+-- Lit from the top left; the lit band is Border size thick.
 S.addLook("border", "bevel", { name = "Bronze bevel",
-	rings = { { color = BLACK }, { top = BRONZE_HI, left = BRONZE_HI, bottom = BRONZE_LO, right = BRONZE_LO },
+	rings = { { color = BLACK }, { px = "size", top = BRONZE_HI, left = BRONZE_HI, bottom = BRONZE_LO, right = BRONZE_LO },
 		{ color = BRONZE_DARK } } })
 S.addLook("border", "caps", { name = "Corner caps",
-	rings = { { px = "size", color = "setting" } }, caps = { px = 2, len = 6, color = BRONZE_HI } })
+	rings = { { px = "size", color = "color" } }, caps = { px = "capSize", len = 6, color = "capColor" } })
 -- Rounded corners and a soft dark edge, as on the Cooldown Manager's icons.
 S.addLook("border", "cdm", { name = "Cooldown Manager", experimental = true,
 	mask = { atlas = CDM_MASK }, swipe = CDM_SWIPE, art = { atlas = CDM_OVERLAY, inset = { 0.18, 0.18, 0.16, 0.16 } } })

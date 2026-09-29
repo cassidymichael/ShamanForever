@@ -585,7 +585,9 @@ function ns.makeEndFlash(parent, anchor, owner, over)
 			if not ok then return end
 		end
 		self:SetAlpha(a)
-		local size = anchor:GetWidth()
+		-- fitSize: the picture's size, set by whoever lays it out where the flash sits in from anchor
+		-- (the totem bar's slots, inside their border), so no size is read under a secure button.
+		local size = self.fitSize or anchor:GetWidth()
 		local soft = opts.expired and opts.ranOut
 		if soft then
 			local c = opts.ranOut
@@ -747,6 +749,7 @@ function AuraSlot:setup()
 		c:SetUnit(o.unit or "player")
 		pcall(c.EnableMouse, c, false)   -- unlocked drags start on the group frame underneath
 		self.container = c
+		f.auraButton = true   -- the layout waits while it can't restyle the button (layoutElements)
 		c:AddAuraSlot(o.slot, o.filter or "HELPFUL", {
 			candidateFilters = candidates(o),
 			initializeFrame = function(button) initAuraButton(self, button) end,
@@ -764,21 +767,32 @@ end
 -- The container's size and placement, the button's size and its timer's style, then the caller's
 -- own parts (onStyle). Out of combat only, and not while auras are secret: waits for that, and
 -- one refused call (the whole restyle is one pcall) is noted and tried again when combat ends.
+-- Once a frame at most, on the next: one layout asks several times (afterGroups, applyTimers,
+-- applyLayout), and the options lay out every frame while a slider is dragged.
 function AuraSlot:style()
+	if not self.button or self.styleSoon then return end
+	self.styleSoon = true
+	C_Timer.After(0, function()
+		self.styleSoon = false
+		self:styleNow()
+	end)
+end
+function AuraSlot:styleNow()
 	if not self.button then return end
 	local o = self.opts
-	if ns.deferWhileAurasSecret(o.sites.style, function() self:style() end) then return end
+	if ns.deferWhileAurasSecret(o.sites.style, function() self:styleNow() end) then return end
 	local ok = ns.try(o.sites.style, function()
 		local size, f, c = ns.sizeOf(o.key), self.frame, self.container
 		c:SetSize(size, size)
 		c:SetFrameStrata(f:GetFrameStrata())
 		c:SetFrameLevel(f.textFrame:GetFrameLevel() + 5)
 		self.button:SetSize(size, size)
-		ns.Looks.auraStyle(self, size)
+		-- Its own try: a look the button refuses mustn't stop the timer and the caller's parts.
+		ns.try(o.sites.style .. ": look", ns.Looks.auraStyle, self, size)
 		self.timer:apply()
 		if o.onStyle then o.onStyle(self, size) end
 	end)
-	if not ok then ns.retryAfterCombat(o.sites.style, function() self:style() end) end
+	if not ok then ns.retryAfterCombat(o.sites.style, function() self:styleNow() end) end
 end
 
 -- The slot's filter again, from opts.ids() (the IDs that count can grow), once the container is
