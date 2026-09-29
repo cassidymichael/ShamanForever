@@ -17,7 +17,7 @@ local TEXT_POS = { { "left", "Left" }, { "center", "Middle" }, { "right", "Right
 
 -- Its header's name, icon and school (L.buildHero), and its Show beside the name.
 L.IDENTITY.swing = { label = "Swing timer", icon = ns.Swing.ICON, school = "spirit",
-	blurb = "Time to your next melee swing.",
+	blurb = "Time to your next melee swing.", experimental = "Swing timer",
 	tags = function() return SHOW_NAME[ns.Swing.cfg().show] or "" end }
 
 -- The header is its stage, as the totem bar's is: the bar at its real size (its width and height

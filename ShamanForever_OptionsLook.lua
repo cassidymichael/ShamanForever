@@ -979,9 +979,11 @@ function L.buildHero(parent, key)
 		pcall(h.rule.SetGradient, h.rule, "HORIZONTAL", CreateColor(0.85, 0.71, 0.42, 0.45), CreateColor(0.85, 0.71, 0.42, 0))
 	end
 	if e.experimental then
-		-- In the banner above the icon, clear of the tags and the preview panel.
+		-- In the banner above the icon, clear of the tags and the preview panel; on a stage (no
+		-- icon), after the tags on the title's line.
 		h.exp = L.expBadge(h, e.experimental)
-		h.exp:SetPoint("BOTTOMLEFT", h.icon, "TOPLEFT", -2, 6)
+		if def.stage then h.exp:SetPoint("LEFT", h.tags, "RIGHT", 12, 0)
+		else h.exp:SetPoint("BOTTOMLEFT", h.icon, "TOPLEFT", -2, 6) end
 		h.exp:SetFrameLevel(h:GetFrameLevel() + 6)
 	end
 
