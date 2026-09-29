@@ -125,9 +125,10 @@ local function body()
 	return table.concat(out, "\n")
 end
 
--- Home's What's new block, with the chat line's switch.
+-- Home's What's new block, the last thing on the page, below the feedback.
 function N.homeBlock(p)
 	local function has() return #N.list() > 0 end
+	p:add(p:row(24), 24, has)   -- room above it
 	local header = p:header("What's new", has)
 	p.items[#p.items].refresh = function() header.text:SetText(title()) end
 	p:text(body, has)

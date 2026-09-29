@@ -346,7 +346,6 @@ local function buildHome(p)
 		{ "Interface\\Icons\\Spell_Nature_Invisibilty", function() return "Layout" end,
 			function() return "Set up groups of elements" end, function() OP.open("layout") end },
 	})
-	ns.News.homeBlock(p)
 	p:add(p:row(24), 24)   -- room between the big buttons and Feedback
 	-- Feedback, in large type: it matters most on this page.
 	local lead = p:text("Ideas, requests, bugs? Please let me know!")
@@ -357,6 +356,7 @@ local function buildHome(p)
 		{ "Interface\\Icons\\INV_Letter_15", function() return "Give feedback" end,
 			function() return "Discord, CurseForge or GitHub" end, function() OP.showFeedback() end },
 	})
+	ns.News.homeBlock(p)
 end
 
 -- General: the styles everything follows unless it has its own, then housekeeping.
