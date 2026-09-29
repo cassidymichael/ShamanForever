@@ -347,9 +347,8 @@ end
 -- Each state is held TOUR_HOLD seconds: long enough for a ready pop and the fade into idle after it,
 -- or an end flash and the cooldown it leaves.
 local TOUR_HOLD = 3.5
--- The bar's slots, all four together.
-local BAR_STATES = { { "down", "Totems down" }, { "expiring", "Expiring" }, { "killed", "Killed early" },
-	{ "ranout", "Ran out" }, { "empty", "Nothing down" } }
+-- The bar's slots, all four together, in each of its preview states (ShamanForever_TotemBar.lua).
+local BAR_STATES = ns.TotemBar.PREVIEW_STATES
 
 local panel   -- below
 local tag     -- the name of what plays, over it on screen (made on first use)

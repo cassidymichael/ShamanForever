@@ -1398,6 +1398,10 @@ function previewShows()
 	return show == "always" or show == "active"
 end
 
+-- The states a slot can be drawn in, { state, name }, in the order Every state plays them.
+TB.PREVIEW_STATES = { { "down", "Totems down" }, { "expiring", "Expiring" }, { "killed", "Killed early" },
+	{ "ranout", "Ran out" }, { "empty", "Nothing down" } }
+
 -- A slot in a preview state (down | expiring | killed | ranout | empty) since rec.at; rec.run: its
 -- timer runs, else holds still; rec.range: its range strip shows. Returns when its timer runs out.
 local function paintSlot(s, rec)
