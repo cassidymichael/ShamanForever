@@ -526,6 +526,11 @@ local function buildMembers(p)
 end
 
 local function buildSettings(p)
+	p:dropdown("Show", "When the group is on screen. Everything visible shows while positioning is unlocked.",
+		K.COMBAT_SHOW, groupGet("show"), groupSet("show"), nil, 240)
+	p:slider("Stay after combat", K.STAY_TIP, 0, 10, 1, K.staySecs, groupGet("fadeAfter"), groupSet("fadeAfter"),
+		function() local g = selected(); return g and g.show ~= "always" end)
+	p:text("Elements have their own Show setting too. An element shows only when both allow it.")
 	p:dropdown("Direction", "Lay the group out as a row or a column.",
 		{ { "horizontal", "Row" }, { "vertical", "Column" } }, groupGet("orientation"), groupSet("orientation"))
 	p:dropdown("Growth", "Which way the row or column extends from its first element.",
@@ -555,11 +560,6 @@ local function buildSettings(p)
 	p:slider("Opacity", "Transparency of the group. Shift + mouse wheel over the group while unlocked does the same.", 0.1, 1, 0.05, pct,
 		groupGet("alpha"), groupSet("alpha"))
 	K.borderRows(p, selected, relayout, "Border same as General")
-	p:dropdown("Show", "When the group is on screen. Everything visible shows while positioning is unlocked.",
-		K.COMBAT_SHOW, groupGet("show"), groupSet("show"), nil, 240)
-	p:slider("Stay after combat", K.STAY_TIP, 0, 10, 1, K.staySecs, groupGet("fadeAfter"), groupSet("fadeAfter"),
-		function() local g = selected(); return g and g.show ~= "always" end)
-	p:text("Elements have their own Show setting too. An element shows only when both allow it.")
 	p:buttons({
 		-- Hard to undo, so each asks first.
 		{ "Centre on screen", function() askAboutGroup("SHAMANFOREVER_CENTER") end, "Moves the group to the middle of the screen.", 130 },
