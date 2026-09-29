@@ -183,7 +183,9 @@ local function drawOverlay(f, art)
 		t = f:CreateTexture(nil, "OVERLAY", nil, 7)
 		f.frameOverlay = t
 	end
-	placeArt(t, art, f, f:GetWidth())
+	local w = f:GetWidth()
+	if ns.isSecret(w) then return end   -- under a secure button: placed at the next layout
+	placeArt(t, art, f, w)
 	if art.atlas then t:SetAtlas(art.atlas) else t:SetTexture(art.file) end
 	t:Show()
 end
@@ -209,7 +211,9 @@ local function drawSlice(f, art)
 	local px = ns.linePx(f, art.px)
 	local k = px / art.margin
 	h:SetScale(k)
-	h:SetSize((f:GetWidth() + 2 * px) / k, (f:GetHeight() + 2 * px) / k)
+	local w, hh = f:GetWidth(), f:GetHeight()
+	if ns.isSecret(w) or ns.isSecret(hh) then return px end   -- under a secure button: sized at the next layout
+	h:SetSize((w + 2 * px) / k, (hh + 2 * px) / k)
 	h:ClearAllPoints()
 	h:SetPoint("CENTER", f, "CENTER", 0, 0)
 	h:SetFrameLevel(f:GetFrameLevel())
@@ -319,15 +323,19 @@ local swipers = setmetatable({}, { __mode = "k" })   -- icon frame -> { cooldown
 local swipeLooks = setmetatable({}, { __mode = "k" })   -- icon frame -> the masked look it has now
 
 -- One cooldown over f in look's shape (look nil: the plain square). Only touched once a look has
--- asked for a shape; its swipe file and its points go back to the square one after.
-local function swipeOne(f, cd, look)
+-- asked for a shape; its swipe file and its points go back to the square one after. w: f's width
+-- when the caller knows it (Blizzard's aura button, whose size reads secret); else it is read, and a
+-- secret read leaves the swipe's place for the next restyle.
+local function swipeOne(f, cd, look, w)
 	local file, inset = look and look.swipe, look and look.swipeInset
 	if not cd or (file == nil and inset == nil and cd.frameSwipe == nil) then return end
 	file = file or WHITE
 	if cd.frameSwipe ~= file then cd:SetSwipeTexture(file) end
 	cd.frameSwipe = file
 	if inset or cd.frameInset then
-		local d = (inset or 0) * f:GetWidth()
+		w = w or f:GetWidth()
+		if ns.isSecret(w) then return end
+		local d = (inset or 0) * w
 		cd:ClearAllPoints()
 		cd:SetPoint("TOPLEFT", f, "TOPLEFT", d, -d)
 		cd:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -d, d)
@@ -478,7 +486,7 @@ function Looks.auraStyle(slot, size)
 	if not made then return end
 	if made.artTex then placeArt(made.artTex, made.art, slot.button, size) end
 	if made.mask and (made.spec.scale or 1) ~= 1 then placeMask(made.mask, made.spec, slot.icon, size) end
-	if made.look then swipeOne(slot.button, slot.cd, made.look) end
+	if made.look then swipeOne(slot.button, slot.cd, made.look, size) end
 end
 
 -- The aura elements whose button's shape differs from their border look now, among those whose
