@@ -175,12 +175,12 @@ local function drawQueued() queued = false; draw() end
 local function onEvent(_, event, slot)
 	if event == "ACTIONBAR_SLOT_CHANGED" then
 		if slot ~= 0 and not readSlot(slot) then return end
-		-- Not read in combat: no key from that slot (or any, for 0) until combat ends.
-		if InCombatLockdown() then
-			if slot == 0 then wipe(slotSpell) else slotSpell[slot] = false end
-		end
+		-- Forgotten now, not at the draw: combat may start before it, and then nothing is read. No
+		-- key from that slot (or any, for 0) until it's read again out of combat.
+		if slot == 0 then wipe(slotSpell) else slotSpell[slot] = false end
 		dirty = true
 	elseif event == "UPDATE_BINDINGS" then
+		wipe(bound)   -- the same: no key rather than an old one until they're read again
 		dirty = true
 	end   -- a page or bar change: the keys are mapped again from what was read
 	if queued then return end
