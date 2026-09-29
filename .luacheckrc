@@ -9,6 +9,7 @@ ignore = {
 }
 read_globals = {
     "ACCEPT",
+    "AddToAutoHide",
     "ButtonFrameTemplate_HideButtonBar",
     "ButtonFrameTemplate_HidePortrait",
     "CANCEL",
@@ -113,6 +114,7 @@ read_globals = {
     "QuickKeybindFrame",
     "QuickKeybindTooltip",
     "RaidFrame",
+    "RegisterAutoHide",
     "RegisterStateDriver",
     "SOUNDKIT",
     "STANDARD_TEXT_FONT",
