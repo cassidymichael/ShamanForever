@@ -2,7 +2,7 @@
 -- (its Clearcasting proc). Each shows while its buff is up; while it isn't, it is idle, and at the
 -- default Idle opacity of 0 it is hidden and keeps its place in its group.
 --
--- What can be read, and when (docs/combat-techniques.md):
+-- What can be read, and when:
 -- * Water Walking, Water Breathing: out of combat the aura is readable, so the time left is exact.
 --   In combat, and all through a PvP match, auras are secret: the timer carries on from the last
 --   read, and our own cast of the spell (readable in combat) restarts it when the target is us (a

@@ -16,8 +16,8 @@
 ## Releasing
 
 1. Merge the tested work into `main` as above.
-2. Add an entry at the top of `CHANGELOG.md`, headed `## X.Y.Z (YYYY-MM-DD)`, listing what players
-   will notice.
+2. In `CHANGELOG.md`, rename the `## Unreleased` section at the top to `## X.Y.Z (YYYY-MM-DD)`, or
+   add that section if there is none, and make sure it lists what players will notice.
    Anything new in it should already be in the README's Features section. On a 0.x.0 release, also
    read the whole list against the options window and drop anything that has gone.
    Then Home's What's new: in `ShamanForever_News.lua`, rename the top `"next"` entry of `NOTES` to
@@ -29,17 +29,46 @@
 4. If the Features section changed since the last release (`git diff vPREV vX.Y.Z -- README.md`),
    paste it into the CurseForge and Wago project descriptions. The release doesn't update those.
 
-The tag push runs `.github/workflows/release.yml`:
+## Changelog
 
-- It cuts that version's section out of `CHANGELOG.md` into `RELEASE_NOTES.md`, the release notes on
-  GitHub, CurseForge and Wago, and stops if there is none.
+`CHANGELOG.md` lists what players will notice in each version, newest first; not every commit.
+Changes that are merged or in a test build but not yet released go under `## Unreleased` at the top.
+Each branch adds its own lines there, so they reach `main` with the work. Right after a release
+there is no such section; the next change to list starts it.
+
+## Test builds (betas)
+
+A beta is a test build of the next version, for players who chose to receive beta versions. Only
+beta tags are used, never alpha.
+
+1. Betas are tagged on `main`, so a beta holds only work tested in game: tested work handed to
+   players who opted in, before the next release gathers it up.
+2. `main`'s `## Unreleased` section lists everything the build changes for players since the last
+   release. It is the beta's release notes, and its wording is signed off before tagging.
+3. Tag `main`'s tip `vX.Y.Z-beta.N`, where X.Y.Z is the next release and N counts up from 1:
+   `git tag -a vX.Y.Z-beta.N -m "ShamanForever X.Y.Z-beta.N" && git push origin vX.Y.Z-beta.N`
+
+A beta tag runs the same workflow as a release. CurseForge and Wago get a beta file, which reaches
+only players who opted in to betas in their addon app, and GitHub marks the release a pre-release.
+There is no Discord post. The word "alpha" or "beta" anywhere in a tag sets the file type, so tags
+are only ever `vX.Y.Z` or `vX.Y.Z-beta.N`; the workflow stops on any other.
+
+## The release workflow
+
+A tag push runs `.github/workflows/release.yml`:
+
+- It writes `RELEASE_NOTES.md`, the release notes on GitHub, CurseForge and Wago, from
+  `CHANGELOG.md`: for a release, that version's section; for a beta, the `## Unreleased` section
+  under a line saying it's a test build and how to go back to releases. It stops if the section is
+  missing (or, for a beta, has no entries), or if the tag is neither kind.
 - The BigWigs packager builds the zip (files listed under `ignore` in `.pkgmeta`, and dotfiles, are
   left out), creates the GitHub release and uploads to CurseForge (project 1706929) and Wago (project
   rN4rkrKD), using the `CF_API_KEY` and `WAGO_API_TOKEN` repo secrets. CurseForge's own "Automatic
   Packaging" must stay disabled on the project, or each tag produces two files. The version in the
   TOC comes from the tag.
-- It posts the notes to the Discord server's #announcements through the webhook in the
-  `DISCORD_WEBHOOK_URL` secret (plain `vX.Y.Z` tags only). A failed post only warns: post it by hand.
+- For a release only, it posts the notes to the Discord server's #announcements through the webhook
+  in the `DISCORD_WEBHOOK_URL` secret; betas are not announced. A failed post only warns: post it by
+  hand.
 
 `.github/workflows/lint.yml` runs luacheck on every push, on any branch; a release comes from a
 commit where it passes.

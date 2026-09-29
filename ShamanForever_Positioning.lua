@@ -1,5 +1,5 @@
 -- Positioning (unlock mode): drag a group to move it (snapping to the grid and to other groups), the
--- mouse wheel for its size, scale and opacity, the arrow keys to nudge it, right-click for its
+-- mouse wheel for its scale, size and opacity, the arrow keys to nudge it, right-click for its
 -- settings, and a small bar with the controls. Group membership is edited in the options window.
 --
 -- ShamanForever.lua owns the groups and lays them out; it hands each group frame here once
@@ -168,16 +168,16 @@ function PO.attach(f)
 		showGuides()
 		if not InCombatLockdown() then ns.layoutElements() end
 	end)
-	-- Wheel: icon size (lines stay crisp); Ctrl: scale (everything grows, lines too); Shift: opacity.
+	-- Wheel: scale (everything grows, lines too); Shift: icon size (lines stay crisp); Ctrl: opacity.
 	f:SetScript("OnMouseWheel", function(self, delta)
 		local g = ns.groupById(self.groupId)
 		if acct().locked or InCombatLockdown() or not g then return end
 		local sx, sy = ns.screenCenter(self)
-		if IsShiftKeyDown() then g.alpha = clamp(round2(g.alpha + delta * 0.05), 0.1, 1)
-		elseif IsControlKeyDown() then g.scale = clamp(round2(g.scale + delta * 0.05), 0.5, 3)
-		else
+		if IsControlKeyDown() then g.alpha = clamp(round2(g.alpha + delta * 0.05), 0.1, 1)
+		elseif IsShiftKeyDown() then
 			if g.sizeFollow then g.sizeFollow, g.size = false, db().iconSize end   -- its own from here on
 			g.size = clamp(g.size + delta * 2, 24, 96)
+		else g.scale = clamp(round2(g.scale + delta * 0.05), 0.5, 3)
 		end
 		if sx then ns.setGroupCenter(g, sx, sy) end   -- grow about the centre, not the anchor
 		ns.layoutElements()
@@ -316,8 +316,8 @@ do
 	tray.hint:SetJustifyH("LEFT")
 	tray.hint:SetSpacing(2)
 	tray.hint:SetText("Drag a group to move it, or click it and use the arrow keys (Shift: 10x).\n" ..
-		"Mouse wheel over a group: icon size (borders stay crisp).\n" ..
-		"Ctrl + wheel: scale (everything grows, borders too). Shift + wheel: opacity.\n" ..
+		"Mouse wheel over a group: scale (everything grows, borders too).\n" ..
+		"Shift + wheel: icon size (borders stay crisp). Ctrl + wheel: opacity.\n" ..
 		"Right-click a group: its settings.\n" ..
 		"Shift-right-click an element: its own settings.\n" ..
 		"Options: choose which elements each group holds.")

@@ -1,6 +1,5 @@
 -- Totem bar: one bar that can replace both of Blizzard's totem frames, the totems under the player
 -- frame (timers, right-click dismiss) and the Totem Action Bar (a pick per element, arrow popouts).
--- What works in combat and why: docs/combat-techniques.md.
 --
 -- Every click is a secure button set up out of combat, so it works in combat too:
 -- * slot button: right-click "destroytotem" (totem-slot), left-click "action" on the element's
@@ -1165,18 +1164,18 @@ end)
 mover:SetScript("OnMouseUp", function(_, button)
 	if button == "RightButton" and ns.Options.open then ns.Options.open("totembar") end
 end)
--- As for groups: mouse wheel, icon size (lines stay crisp); Ctrl + wheel, scale (everything grows,
--- lines too); Shift + wheel, opacity.
+-- As for groups: mouse wheel, scale (everything grows, lines too); Shift + wheel, icon size (lines
+-- stay crisp); Ctrl + wheel, opacity.
 mover:SetScript("OnMouseWheel", function(self, delta)
 	if InCombatLockdown() then return end
 	local c = cfg()
 	local function step(key) c[key] = clamp(math.floor((c[key] + delta * 0.05) * 100 + 0.5) / 100, RANGES[key]) end
-	if IsShiftKeyDown() then step("alpha")
-	elseif IsControlKeyDown() then step("scale")
-	else
+	if IsControlKeyDown() then step("alpha")
+	elseif IsShiftKeyDown() then
 		local from = look()   -- the size it has now, General's or its own
 		c.sizeFollow = false
 		c.size = clamp(from + delta * 2, RANGES.size)
+	else step("scale")
 	end
 	layout()
 	self.label:SetText(string.format("Totem bar: size %d, scale %.2f, opacity %.0f%%", (look()), c.scale, c.alpha * 100))
