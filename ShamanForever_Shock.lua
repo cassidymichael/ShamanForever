@@ -225,7 +225,7 @@ function SK.resolve()
 	shockSpellID = shockIDs[usedShock]
 	shockIcon = icons[usedShock] or Spells.icon(SHOCK_SPELL[usedShock]) or 136026
 	shock.tex:SetTexture(shockIcon)
-	-- Not learned yet (seen only in test mode): a plain grey icon.
+	-- Not learned yet (seen only while the preview shows such elements): a plain grey icon.
 	shock.tex:SetDesaturated(next(shockIDs) == nil)
 	manaSpellID = (d.manaSpell ~= "tracked" and shockIDs[d.manaSpell]) or shockSpellID
 	if rangeCheckID ~= shockSpellID and C_Spell.EnableSpellRangeCheck then

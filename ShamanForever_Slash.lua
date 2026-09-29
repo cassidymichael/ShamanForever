@@ -67,12 +67,9 @@ SlashCmdList.SHAMANFOREVER = function(msg)
 		if ns.setLocked(false) then say("positioning unlocked: drag groups to move them, /sf lock when done") end
 	elseif cmd == "preview" then
 		ns.Preview.toggle()
-	elseif cmd == "test" then
-		local acct = ns.getAccount()
-		if ns.setTestMode(not acct.testMode) then say("test elements %s", acct.testMode and "on" or "off") end
 	elseif cmd == "debug" then
 		ns.debugReport()
 	else
-		say("/sf opens the options. Also: /sf lock (lock or unlock positioning), /sf preview (the whole HUD in a typical moment), /sf test (placeholder elements, and elements not learned yet), /sf debug")
+		say("/sf opens the options. Also: /sf lock (lock or unlock positioning), /sf preview (the whole HUD in a typical moment), /sf debug")
 	end
 end

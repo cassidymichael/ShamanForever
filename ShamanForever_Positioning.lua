@@ -214,7 +214,7 @@ function PO.attach(f)
 				if e:IsShown() and e:IsMouseOver() then ns.Options.openElement(key) return end
 			end
 		end
-		ns.Options.open("layout", self.groupId)
+		ns.Options.openGroup(self.groupId)
 	end)
 end
 
@@ -346,32 +346,42 @@ do
 	local title = tray:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	title:SetPoint("TOPLEFT", 10, -10)
 	title:SetText("ShamanForever: positioning unlocked")
-	tray.hint = tray:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	-- What the mouse and keys do: one control a line, the key in gold, then what it does.
+	local HELP = {
+		{ "Drag", "Move a group or the totem bar" },
+		{ "Click, then arrow keys", "Nudge a group (Shift: 10x)" },
+		{ "Mouse wheel", "Scale: everything grows, borders too" },
+		{ "Shift + wheel", "Icon size: borders not scaled with it" },
+		{ "Ctrl + wheel", "Opacity" },
+		{ "Right-click", "The group's settings" },
+		{ "Shift + right-click", "The settings of the element under the cursor" },
+	}
+	local LINE_H, KEY_W = 16, 150
+	tray.hint = CreateFrame("Frame", nil, tray)
 	tray.hint:SetPoint("TOPLEFT", 10, -30)
-	tray.hint:SetWidth(540)
-	tray.hint:SetJustifyH("LEFT")
-	tray.hint:SetSpacing(2)
-	tray.hint:SetText("Drag a group to move it, or click it and use the arrow keys (Shift: 10x).\n" ..
-		"Mouse wheel over a group: scale (everything grows, borders too).\n" ..
-		"Shift + wheel: icon size (borders stay crisp). Ctrl + wheel: opacity.\n" ..
-		"Right-click a group: its settings.\n" ..
-		"Shift-right-click an element: its own settings.\n" ..
-		"Options: choose which elements each group holds.")
+	tray.hint:SetSize(540, #HELP * LINE_H)
+	for i, h in ipairs(HELP) do
+		local key = tray.hint:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+		key:SetPoint("TOPLEFT", 0, -(i - 1) * LINE_H)
+		key:SetText(h[1])
+		local what = tray.hint:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		what:SetPoint("TOPLEFT", KEY_W, -(i - 1) * LINE_H)
+		what:SetText(h[2])
+	end
 	-- Controls sit on a row under the hint, so a longer hint pushes them down instead of overlapping.
 	local row = CreateFrame("Frame", nil, tray)
 	row:SetPoint("TOPLEFT", tray.hint, "BOTTOMLEFT", 0, -10)
 	row:SetPoint("RIGHT", tray, "RIGHT", -10, 0)
 	row:SetHeight(26)
 	tray.row = row
-	local function check(label, key, tip, parent, after)
-		local cb = CreateFrame("CheckButton", nil, parent or row, "UICheckButtonTemplate")
+	local function check(label, key, tip)
+		local cb = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
 		cb:SetSize(24, 24)
 		cb.Text:SetFontObject("GameFontHighlightSmall")
 		cb.Text:SetText(label)
 		cb:SetScript("OnClick", function(self)
 			local on = self:GetChecked() and true or false
 			acct()[key] = on
-			if after then after(on) end
 			ns.layoutElements()
 		end)
 		cb:SetScript("OnEnter", function(self)
@@ -410,34 +420,42 @@ do
 	tray.gridUp = stepper("+", 4)
 	tray.gridUp:SetPoint("LEFT", tray.gridValue, "RIGHT", 4, 0)
 	local lock = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-	lock:SetSize(90, 22)
+	lock:SetSize(70, 22)
 	lock:SetPoint("RIGHT", 0, 0)
 	lock:SetText("Lock")
 	lock:SetScript("OnClick", function() ns.setLocked(true) end)
-	local options = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-	options:SetSize(90, 22)
-	options:SetPoint("RIGHT", lock, "LEFT", -6, 0)
-	options:SetText("Options")
-	options:SetScript("OnClick", function() ns.Options.open("layout") end)
-	local row2 = CreateFrame("Frame", nil, tray)
-	row2:SetPoint("TOPLEFT", row, "BOTTOMLEFT", 0, -2)
-	row2:SetPoint("RIGHT", tray, "RIGHT", -10, 0)
-	row2:SetHeight(24)
-	-- Takes effect at once: ticking brings the window back, unticking puts it away until locking.
-	tray.keepOptions = check("Keep options open", "keepOptionsOpen",
-		"Unticked, the options window closes while you move groups and comes back when you lock.", row2,
-		function(keep)
-			if keep then
-				optionsSteppedAside = false
-				ns.Options.open()
-			elseif ns.Options.hide() then
-				optionsSteppedAside = true
-			end
-		end)
-	tray.keepOptions:SetPoint("LEFT", -4, 0)
+	-- Shows or hides the options window, its label saying which it will do. The choice is kept
+	-- (keepOptionsOpen): the next unlock leaves the window as it was left here. Hidden this way, it
+	-- comes back when positioning locks, as when unlocking put it away.
+	tray.options = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+	tray.options:SetSize(110, 22)
+	tray.options:SetPoint("RIGHT", lock, "LEFT", -6, 0)
+	tray.options:SetScript("OnClick", function()
+		if ns.Options.hide() then
+			optionsSteppedAside, acct().keepOptionsOpen = true, false
+		else
+			optionsSteppedAside, acct().keepOptionsOpen = false, true
+			ns.Options.open("layout")
+		end
+	end)
+	tray.options:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+		GameTooltip:SetText(self:GetText())
+		GameTooltip:AddLine("The options stay shown or hidden the next time you unlock.", 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	tray.options:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
--- Unlocking closes the options window (unless the player keeps it open) and locking brings it back.
+-- The Options button's label follows the window (ShamanForever_Options.lua calls this as it shows
+-- and hides).
+function PO.optionsShown(shown)
+	tray.options:SetText(shown and "Hide options" or "Show options")
+end
+PO.optionsShown(false)
+
+-- Unlocking closes the options window (unless the player keeps it open: the Options button) and
+-- locking brings it back.
 local function stepOptionsAside(unlocked)
 	if unlocked == wasUnlocked then return end
 	wasUnlocked = unlocked
@@ -457,9 +475,9 @@ function PO.update()
 	if selectedGroup and not ns.groupById(selectedGroup) then selectedGroup = nil end   -- deleted
 	syncNudger()
 	tray:SetShown(unlocked)
-	tray:SetHeight(30 + tray.hint:GetStringHeight() + 10 + 26 + 2 + 24 + 8)
+	tray:SetHeight(30 + tray.hint:GetHeight() + 10 + 26 + 8)
 	tray.snap:SetChecked(a.snap)
-	tray.keepOptions:SetChecked(a.keepOptionsOpen)
+	PO.optionsShown(ns.Options.isShown())
 	stepOptionsAside(unlocked)
 	tray.grid:SetChecked(a.grid)
 	tray.gridValue:SetText(a.gridSize)

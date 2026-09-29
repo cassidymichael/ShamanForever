@@ -23,11 +23,9 @@ start at an odd scroll position, and a few pages may be missing or out of order.
 
 ![General: pulsing glow and pop styles](general-glow-pop.png)
 
-## Layout
+## Groups & Layout
 
-![Layout: groups of elements](layout.png)
-
-![Layout: a group's settings](layout-group.png)
+![Groups & Layout: the groups, each with its elements and settings](layout.png)
 
 ## Totem bar
 

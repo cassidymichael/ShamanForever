@@ -251,10 +251,8 @@ function S.ownStyles(kind)
 		end
 	end
 	for _, key in ipairs(S.KINDS[kind].users) do
-		local offered
-		if key == "totembar" then offered = ns.TotemBar and ns.TotemBar.barOn()
-		elseif key == "swing" then offered = ns.Swing and ns.Swing.isOn()
-		else offered = ns.available and ns.available(key) end
+		local offered = key ~= "totembar" or ns.TotemBar.barOn()
+		if key == "swing" then offered = ns.Swing and ns.Swing.isOn() end
 		if offered and not S.follows(key, kind) then table.insert(out, S.ownerName(key)) end
 	end
 	return out

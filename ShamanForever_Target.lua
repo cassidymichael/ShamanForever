@@ -1,7 +1,7 @@
 -- Your hostile target: your Flame Shock on it and a Magic buff on it to Purge. Both are experimental:
 -- not yet tested on a target in combat. T.hostile() is also the interrupt cue's test (Shocks).
 --
--- What can be read, and when (docs/combat-techniques.md):
+-- What can be read, and when:
 -- * Auras on another unit are secret to addon code, so only Blizzard's aura container can show
 --   them (ns.makeAuraSlot, as for the shield). Flame Shock is matched by its spell IDs: Blizzard's
 --   container allows that for your debuffs on a unit you can attack (Blizzard_CustomAuraContainer.lua).
@@ -180,7 +180,7 @@ local function refreshAura(def)
 		if def.unit ~= wantedUnit() then retarget() end
 	end
 	f.tex:SetTexture(def.icon)
-	-- Not learned yet (seen only in test mode): a plain grey icon.
+	-- Not learned yet (seen only while the preview shows such elements): a plain grey icon.
 	f.tex:SetDesaturated(not def.spellID)
 	-- The button says whether it's up; the icon under it is the idle look (out of combat only: the
 	-- frame is an ancestor of Blizzard's button, ns.fadeTo).

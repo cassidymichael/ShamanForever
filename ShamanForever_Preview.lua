@@ -254,7 +254,7 @@ local function restart()
 	wipe(runs)
 	wipe(barRuns)
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
-		if L.PREVIEW[key] and not ns.ELEMENTS[key].placeholder then runs[key] = { steps = stepsFor(key), i = 1 } end
+		if L.PREVIEW[key] then runs[key] = { steps = stepsFor(key), i = 1 } end
 	end
 	for _, el in ipairs(ns.TotemBar.ELEMENTS) do barRuns[el] = { steps = barSteps(el), i = 1 } end
 	-- Busy: out of step (above), the n-th loop starting on its n-th step, held a share of BUSY_HOLD.
@@ -362,6 +362,7 @@ local function button(parent, text, width, onClick)
 end
 
 local optionsAside = false   -- the options window stepped aside for the preview, to come back after
+local optionsButton          -- shows or hides it (PV.optionsShown)
 
 do
 	local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -378,21 +379,30 @@ do
 	unlearned:SetPoint("LEFT", mode, "RIGHT", 10, 0)
 	local stop = button(panel, "Stop preview", 110, function() PV.close() end)
 	stop:SetPoint("TOPRIGHT", -10, -8)
-	local options = button(panel, "Options", 80, function()
-		optionsAside = false
-		ns.Options.open()
+	-- As positioning's Options button: shows or hides the options window, its label saying which,
+	-- and the choice is kept for the next preview (keepOptionsOpen). Hidden this way, the window
+	-- comes back when the preview stops, as when starting it put the window away.
+	optionsButton = button(panel, "Show options", 110, function()
+		if ns.Options.hide() then
+			optionsAside, ns.getAccount().keepOptionsOpen = true, false
+		else
+			optionsAside, ns.getAccount().keepOptionsOpen = false, true
+			ns.Options.open()
+		end
 	end)
-	options:SetPoint("RIGHT", stop, "LEFT", -6, 0)
+	optionsButton:SetPoint("RIGHT", stop, "LEFT", -6, 0)
+	setTip(optionsButton, "Options", "The options stay shown or hidden the next time.")
 	local lock = button(panel, "Unlock positioning", 140, function()
 		ns.setLocked(not ns.getAccount().locked)
 		panel.refresh()
 	end)
-	lock:SetPoint("RIGHT", options, "LEFT", -6, 0)
+	lock:SetPoint("RIGHT", optionsButton, "LEFT", -6, 0)
 	setTip(lock, "Positioning", "Drag groups and the totem bar while the preview shows.")
 	function panel.refresh()
 		mode.refresh()
 		unlearned:SetChecked(opts.unlearned)
 		lock:SetText(ns.getAccount().locked and "Unlock positioning" or "Lock positioning")
+		PV.optionsShown(ns.Options.isShown())
 	end
 end
 
@@ -400,6 +410,11 @@ end
 -- On and off
 ------------------------------------------------------------------------
 function PV.isOn() return on end
+-- The Options button's label follows the window (ShamanForever_Options.lua calls this as it shows
+-- and hides).
+function PV.optionsShown(shown)
+	optionsButton:SetText(shown and "Hide options" or "Show options")
+end
 -- Whether the HUD lays out elements not learned yet (ShamanForever.lua).
 function PV.showsUnlearned() return on and opts.unlearned end
 

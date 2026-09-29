@@ -10,15 +10,15 @@ ns.Profiles = P
 -- it has learned about the game.
 local ACCOUNT_DEFAULTS = {
 	locked = true,
-	testMode = false,       -- register placeholder elements for trying out layouts
 	snap = false,           -- unlocked drags snap to other groups, the screen centre and the grid
 	grid = false,           -- grid over the screen while unlocked
 	gridSize = 32,
 	hideIssueReporter = false,  -- beta: hide Blizzard's Issue Reporter button (its position is kept either way)
 	minimalArt = false,     -- options window without banners and ornaments; kept ready, no control for now
-	keepOptionsOpen = false,  -- false: the options window steps aside while groups are being moved
+	keepOptionsOpen = false,  -- false: the options window steps aside while positioning or previewing
 	lastShield = "lightning",  -- the shield last cast or seen; its icon is the no-shield look in "either" mode
 	imbueIDs = {},            -- learned enchant ID -> imbue key
+	foldedBlocks = {},        -- "page:Header" -> true: options blocks the player folded (ShamanForever_OptionsPage.lua)
 	fearCasters = {},         -- the player's edits to Tremor's mob list (ShamanForever_Tremor.lua)
 	profiles = {},            -- name -> settings (ShamanForever.lua's DEFAULTS)
 	chars = {},               -- "Name-Realm" -> { profile = name }
@@ -91,6 +91,7 @@ function P.load()
 	if type(a.profiles) ~= "table" then wipe(a) end
 	a.settingsVersion = SETTINGS_VERSION
 	ns.fillDefaults(a, ACCOUNT_DEFAULTS)
+	a.testMode = nil   -- test elements are gone
 	mergeCharKeys(a)
 	return a
 end
@@ -175,7 +176,7 @@ local RANGES = {
 	underlayUp = { 0, 1 }, shieldIconAlpha = { 0.5, 1 }, manaRing = { 0.1, 1 }, manaIntensity = { 0.1, 1 },
 	manaTint = { 0.1, 1 }, rangeIntensity = { 0.1, 1 }, rangeTint = { 0.1, 1 }, imbueWarnMins = { 0, 30 },
 }
-local GROUP_RANGES = { scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { 0, 40 }, size = { 24, 96 },
+local GROUP_RANGES = { scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { -20, 40 }, size = { 24, 96 },
 	x = { -10000, 10000 }, y = { -10000, 10000 }, fadeAfter = { 0, 10 } }
 -- An element's own numbers (db.elementOpts[key]), and its Expiring warning's.
 local ELEMENT_RANGES = { idleAlpha = { 0, 1 }, reagentLow = { 0, 10 }, reagentSize = { 8, 40 },

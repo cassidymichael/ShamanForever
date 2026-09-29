@@ -32,18 +32,62 @@ local function groupMenu(dd, key)
 end
 
 -- On an element's page, where "Hidden keeps its place" is shown as text under the control.
-local SHOW_TIP_PAGE = "Choosing Always or In combat again puts it back where it was. Groups have their own Show on the Layout page; an element shows only when both allow it. Everything visible shows while positioning is unlocked."
-local SHOW_TIP = "When the element is drawn. Hidden keeps its place in its group, so choosing Always or In combat again puts it back where it was. Groups have their own Show on the Layout page; an element shows only when both it and its group allow it. Everything visible shows while the layout is unlocked."
+local SHOW_TIP_PAGE = "Choosing Always or In combat again puts it back where it was. Groups have their own Show on the Groups & Layout page; an element shows only when both allow it. Everything visible shows while positioning is unlocked."
+local SHOW_TIP = "When the element is drawn. Hidden keeps its place in its group, so choosing Always or In combat again puts it back where it was. Groups have their own Show on the Groups & Layout page; an element shows only when both it and its group allow it. Everything visible shows while the layout is unlocked."
 
 ------------------------------------------------------------------------
 -- Elements: an overview of every element, and one page per real element under it in the nav.
 ------------------------------------------------------------------------
 local ELEMENT_PAGES = {}   -- key -> page key, filled as element pages are built
 
+-- The overview's controls, light enough for a table: a flat cell with a thin border and small text
+-- that lights up under the mouse. A menu cell shows its value and a small arrow, and opens its menu
+-- (gen, a menu generator) at the cursor; a link cell's gold text says it goes somewhere.
+local function tableCell(parent, width, font)
+	local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
+	b:SetSize(width, 20)
+	b:SetBackdrop(ns.BACKDROP)
+	b:SetBackdropColor(1, 1, 1, 0.03)
+	b:SetBackdropBorderColor(0.36, 0.29, 0.19, 0.7)
+	local hl = b:CreateTexture(nil, "HIGHLIGHT")
+	hl:SetPoint("TOPLEFT", 1, -1)
+	hl:SetPoint("BOTTOMRIGHT", -1, 1)
+	hl:SetColorTexture(1, 0.9, 0.7, 0.08)
+	b.text = b:CreateFontString(nil, "OVERLAY", font)
+	b.text:SetWordWrap(false)
+	b:SetScript("OnEnter", function(self) self:SetBackdropBorderColor(0.72, 0.58, 0.34, 1) end)
+	b:SetScript("OnLeave", function(self) self:SetBackdropBorderColor(0.36, 0.29, 0.19, 0.7) end)
+	return b
+end
+local function menuCell(parent, width, gen)
+	local b = tableCell(parent, width, "GameFontHighlightSmall")
+	b.arrow = b:CreateTexture(nil, "ARTWORK")
+	b.arrow:SetTexture("Interface\\Buttons\\UI-TotemBar")
+	b.arrow:SetTexCoord(0.5625, 0.71875, 0.34375, 0.3828125)
+	b.arrow:SetSize(10, 6)
+	b.arrow:SetRotation(math.pi)   -- the art points up
+	b.arrow:SetPoint("RIGHT", -6, 0)
+	b.text:SetPoint("LEFT", 6, 0)
+	b.text:SetPoint("RIGHT", b.arrow, "LEFT", -4, 0)
+	b.text:SetJustifyH("LEFT")
+	b:SetScript("OnClick", function(self)
+		if MenuUtil and MenuUtil.CreateContextMenu then MenuUtil.CreateContextMenu(self, gen) end
+	end)
+	return b
+end
+local function linkCell(parent, width, text, onClick)
+	local b = tableCell(parent, width, "GameFontNormalSmall")
+	b.text:SetPoint("CENTER")
+	b.text:SetText(text)
+	b:SetScript("OnClick", onClick)
+	return b
+end
+
 function EP.buildOverview(p)
 	p:header("Elements")
-	-- Columns sized to fit the page at the window's least width; they keep their places when it's wider.
-	local GROUP_X, SHOW_X, OPEN_X = 150, 280, 512
+	-- Columns sized to fit the page's panel at the window's least width; they keep their places when
+	-- it's wider.
+	local GROUP_X, SHOW_X, OPEN_X = 150, 276, 368
 	do
 		local f = p:row(20)
 		local function col(text, x)
@@ -52,8 +96,8 @@ function EP.buildOverview(p)
 			fs:SetText(text)
 		end
 		col("Element", 32)
-		col("Group", GROUP_X + 4)
-		col("Show", SHOW_X + 4)
+		col("Group", GROUP_X + 6)
+		col("Show", SHOW_X + 6)
 		p:add(f, 20)
 	end
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
@@ -72,18 +116,27 @@ function EP.buildOverview(p)
 		local unknown = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 		unknown:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -1)
 		unknown:SetText("Not learned")
-		local group = CreateFrame("DropdownButton", nil, f, "WowStyle1DropdownTemplate")
+		-- The Group choices: every group by name, then New group. Choosing one moves the element
+		-- there (to its end) and leaves its Show as it is.
+		local group = menuCell(f, 120, function(_, root)
+			for _, g in ipairs(db().groups) do
+				root:CreateRadio(g.name, function() return ns.groupOf(key) == g end, function()
+					if ns.groupOf(key) ~= g then ns.placeElement(key, g.id) end
+					ns.Options.refresh()
+				end)
+			end
+			root:CreateButton("New group", function() ns.placeElement(key, "new"); ns.Options.refresh() end)
+		end)
 		group:SetPoint("LEFT", GROUP_X, 0)
-		group:SetWidth(120)
-		groupMenu(group, key)
-		local show = CreateFrame("DropdownButton", nil, f, "WowStyle1DropdownTemplate")
-		show:SetPoint("LEFT", SHOW_X, 0)
-		show:SetWidth(110)
-		show:SetupMenu(function(_, rootDescription)
+		local show = menuCell(f, 86, function(_, root)
 			for _, c in ipairs(SHOW_CHOICES) do
-				rootDescription:CreateRadio(c[2], function() return ns.showMode(key) == c[1] end, function() ns.setShow(key, c[1]) end)
+				root:CreateRadio(c[2], function() return ns.showMode(key) == c[1] end, function()
+					ns.setShow(key, c[1])
+					ns.Options.refresh()
+				end)
 			end
 		end)
+		show:SetPoint("LEFT", SHOW_X, 0)
 		show:HookScript("OnEnter", function(self)
 			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 			GameTooltip:SetText("Show")
@@ -91,12 +144,17 @@ function EP.buildOverview(p)
 			GameTooltip:Show()
 		end)
 		show:HookScript("OnLeave", function() GameTooltip:Hide() end)
-		local open = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-		open:SetSize(90, 22)
+		-- Its own page, and its group on Groups & Layout (none while ungrouped).
+		local open = linkCell(f, 106, "Element settings", function()
+			if ELEMENT_PAGES[key] then ns.Options.open(ELEMENT_PAGES[key]) end
+		end)
 		open:SetPoint("LEFT", OPEN_X, 0)
-		open:SetText("Settings")
-		open:SetScript("OnClick", function() if ELEMENT_PAGES[key] then ns.Options.open(ELEMENT_PAGES[key]) end end)
-		p:add(f, 34, function() return ns.available(key) end, function()
+		local groupOpen = linkCell(f, 100, "Group settings", function()
+			local g = ns.groupOf(key)
+			if g then ns.Options.openGroup(g.id) end
+		end)
+		groupOpen:SetPoint("LEFT", open, "RIGHT", 6, 0)
+		p:add(f, 34, nil, function()
 			e.paint(icon)
 			local learned = ns.isLearned(key)
 			name:SetText(e.label)
@@ -104,9 +162,12 @@ function EP.buildOverview(p)
 			name:SetPoint("LEFT", 32, learned and 0 or 6)
 			unknown:SetShown(not learned)
 			icon:SetDesaturated(not learned)
-			group:GenerateMenu()
-			show:GenerateMenu()
+			local g = ns.groupOf(key)
+			group.text:SetText(g and g.name or "Ungrouped")
+			local mode = ns.showMode(key)
+			for _, c in ipairs(SHOW_CHOICES) do if c[1] == mode then show.text:SetText(c[2]) end end
 			open:SetShown(ELEMENT_PAGES[key] ~= nil)
+			groupOpen:SetShown(g ~= nil)
 		end)
 	end
 end
@@ -124,20 +185,21 @@ local function elementDisplay(p, key)
 	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return ns.showMode(key) end,
 		function(v) ns.setShow(key, v) end, nil, 140)
 	p:text("Hidden keeps its place in its group.")
-	local groupRow = p:dropdown("Group", "Which group it sits in. Groups are arranged on the Layout page; ungrouped elements aren't on screen.",
-		{}, function() end, function() end, nil, 140)
+	-- Its menu is groupMenu's; the get only tells the row when to show another name.
+	local groupRow = p:dropdown("Group", "Which group it sits in. Groups are arranged on the Groups & Layout page; ungrouped elements aren't on screen.",
+		{}, function() local g = ns.groupOf(key); return g and g.id .. ":" .. g.name or "" end, function() end, nil, 140)
 	groupMenu(groupRow.dropdown, key)
 	local edit = CreateFrame("Button", nil, groupRow, "UIPanelButtonTemplate")
-	edit:SetSize(96, 22)
+	edit:SetSize(110, 22)
 	edit:SetPoint("LEFT", groupRow.dropdown, "RIGHT", 8, 0)
-	edit:SetText("Edit group")
+	edit:SetText("Group settings")
 	edit:SetScript("OnClick", function() local g = ns.groupOf(key); if g then ns.Options.openGroup(g.id) end end)
-	setTip(edit, "Edit group", "This group's settings on the Layout page.")
+	setTip(edit, "Group settings", "This group's settings on the Groups & Layout page.")
 	local item = p.items[#p.items]
 	local refresh = item.refresh
 	item.refresh = function()
 		refresh()
-		edit:SetEnabled(ns.groupOf(key) ~= nil)
+		edit:SetShown(ns.groupOf(key) ~= nil)
 	end
 end
 
@@ -221,18 +283,21 @@ local function buildShield(p)
 	p:callout(("You know %s: choose Either to count it."):format(ns.Spells.name("waterShield")),
 		function() return db().shieldTrack == "lightning" and ns.Shield.knows("water") end)
 	p:header("Charges")
-	p:checkbox("Charge bar", "One segment per charge.", get("showBar"), set("showBar"))
-	p:slider("Bar height", nil, 1, 20, 1, px, get("chargeBarHeight"), set("chargeBarHeight"),
-		showWhen(get("showBar")))
-	p:color("Bar colour", nil, get("chargeBarColor"), set("chargeBarColor"), showWhen(get("showBar")))
-	p:checkbox("Charge number", "The charges as a number.", get("showCount"), set("showCount"))
-	local numberOn = showWhen(get("showCount"))
-	p:dropdown("Number position", nil, COUNT_POINTS, get("countPos"), set("countPos"), numberOn, 150)
-	p:slider("Number size", nil, 8, 64, 1, int, get("countSize"), set("countSize"), numberOn)
-	p:checkbox("Different colour last charge", "Colours the 1, instead of plain white.", get("countOne"),
-		set("countOne"), numberOn)
-	p:color("Last charge colour", nil, get("countLastColor"), set("countLastColor"),
-		showWhen(function() return db().showCount and db().countOne end))
+	local bar = p:checkbox("Charge bar", "One segment per charge.", get("showBar"), set("showBar"))
+	p:sub(bar, get("showBar"), function()
+		p:slider("Bar height", nil, 1, 20, 1, px, get("chargeBarHeight"), set("chargeBarHeight"))
+		p:color("Bar colour", nil, get("chargeBarColor"), set("chargeBarColor"))
+	end)
+	local number = p:checkbox("Charge number", "The charges as a number.", get("showCount"), set("showCount"))
+	p:sub(number, get("showCount"), function()
+		p:dropdown("Number position", nil, COUNT_POINTS, get("countPos"), set("countPos"), nil, 150)
+		p:slider("Number size", nil, 8, 64, 1, int, get("countSize"), set("countSize"))
+		local last = p:checkbox("Different colour last charge", "Colours the 1, instead of plain white.",
+			get("countOne"), set("countOne"))
+		p:sub(last, get("countOne"), function()
+			p:color("Last charge colour", nil, get("countLastColor"), set("countLastColor"))
+		end)
+	end)
 
 	warningBlock(p, "No shield", get("emptyGrey"), set("emptyGrey"), get("emptyRing"), set("emptyRing"), get("emptyPulse"), set("emptyPulse"))
 	p:checkbox("Red tint", "Tint the icon red.", get("emptyTint"), set("emptyTint"))
@@ -300,13 +365,14 @@ local function buildImbue(p)
 	p:checkbox("Pop", "The moment your imbue runs out or is lost.", get("imbuePop"), set("imbuePop"))
 	ns.Sounds.row(p, "Sound", "The moment your imbue runs out or is lost.", eget("imbue", "lostSound"), eset("imbue", "lostSound"))
 
-	p:header("Time left")
-	p:slider("Show under", nil, 0, 30, 1,
-		function(v) return v == 0 and "Never" or string.format("%d min", v) end, get("imbueWarnMins"), set("imbueWarnMins"))
-	p:text("Time left shows once it's below this. 0 never shows it.")
-	p:checkbox("Hide until low", nil, get("imbueHideActive"), set("imbueHideActive"))
-	p:text("While an imbue is on, the icon stays hidden until the time left shows. It keeps its place in the group.")
-	timerSettings(p, "Time left", "imbue", "uptime")
+	-- One Time left block: when it shows first, then its look.
+	timerSettings(p, "Time left", "imbue", "uptime", nil, nil, function()
+		p:slider("Show under", nil, 0, 30, 1,
+			function(v) return v == 0 and "Never" or string.format("%d min", v) end, get("imbueWarnMins"), set("imbueWarnMins"))
+		p:text("Time left shows once it's below this. 0 never shows it.")
+		p:checkbox("Hide until low", nil, get("imbueHideActive"), set("imbueHideActive"))
+		p:text("While an imbue is on, the icon stays hidden until the time left shows. It keeps its place in the group.")
+	end)
 	effectBlocks(p, "imbue", "imbue")
 end
 
@@ -550,8 +616,9 @@ local function mobList(p)
 	restore:SetScript("OnClick", function() T.restore() end)
 
 	local shown = 0   -- rows matching the search
+	local listW       -- the row's width at the page's last layout (the panels' padding included)
 	local function fill()
-		panel:SetWidth(math.min(p:width(), MOB_LIST_W))
+		panel:SetWidth(math.min(listW or p:width(), MOB_LIST_W))
 		local text = box:GetText()
 		box.hint:SetShown(text == "" and not box:HasFocus())
 		local list = T.rows(text, ownOnly:GetChecked())
@@ -581,7 +648,7 @@ local function mobList(p)
 	box:SetScript("OnEscapePressed", function(self) self:SetText(""); self:ClearFocus() end)
 	add:SetScript("OnClick", addTyped)
 	addTarget:SetScript("OnClick", function() T.addTarget() end)
-	return p:add(f, H, nil, fill)
+	return p:add(f, H, nil, function() listW = p:width(); fill() end)
 end
 
 -- A line that reads as a link and opens another part of the options.
@@ -653,5 +720,5 @@ function EP.build(newPage)
 	end
 end
 
--- The page key of an element's own page, nil for one without (test elements).
+-- The page key of an element's own page, nil for one without.
 function EP.pageOf(key) return ELEMENT_PAGES[key] end
