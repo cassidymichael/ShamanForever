@@ -42,7 +42,6 @@ local NO_IMBUE = { 0.6, 0.6, 0.6 }
 ------------------------------------------------------------------------
 SW.DEFAULTS = {
 	show = "combat",          -- combat | always | never (Hidden: off, nothing runs)
-	fadeAfter = 0,            -- seconds it stays once combat ends, then fades out (0: none)
 	-- Just under the first row (shield, shocks, Fire Nova) and above the totem bar, as wide as that
 	-- row. x, y in UIParent units, so scaling keeps the centre.
 	point = "CENTER", x = 0, y = -70,
@@ -59,7 +58,7 @@ SW.DEFAULTS = {
 -- Number settings: the options sliders' ranges. Anything outside (a damaged or hand-made import) is
 -- clamped, so the layout never gets a scale of 0 or a NaN.
 local RANGES = { width = { 40, 400 }, height = { 4, 40 }, scale = { 0.5, 3 }, alpha = { 0.1, 1 },
-	fadeAfter = { 0, 10 }, countdownSize = { 8, 40 } }
+	countdownSize = { 8, 40 } }
 SW.RANGES = RANGES
 -- Settings that are one of a few words: the first is kept where the value isn't one of them.
 local CHOICES = { show = { "combat", "always", "never" }, colorBy = { "imbue", "custom" },
@@ -288,20 +287,14 @@ local function listen(on)
 end
 
 ------------------------------------------------------------------------
--- Visibility: its state driver, and Stay after combat (ns.AfterCombat)
+-- Visibility: its state driver
 ------------------------------------------------------------------------
-local afterCombat, mover
-local function ownDriver()
+local mover
+local function visibilityDriver()
 	if not SW.isOn() then return "hide" end
 	if not ns.getAccount().locked then return "show" end
 	if cfg().show == "combat" then return "[petbattle] hide; [combat] show; hide" end
 	return "[petbattle] hide; show"
-end
-local function visibilityDriver()
-	if ns.AfterCombat.held(afterCombat) and SW.isOn() and ns.getAccount().locked and cfg().show == "combat" then
-		return "[petbattle] hide; show"
-	end
-	return ownDriver()
 end
 local lastDriver
 local function drive()
@@ -311,17 +304,6 @@ local function drive()
 		RegisterStateDriver(f, "visibility", driver)
 	end
 end
-
-afterCombat = ns.AfterCombat.new({
-	secs = function()
-		if not ns.getDB() or not SW.isOn() or not ns.getAccount().locked then return 0 end
-		local c = cfg()
-		return c.show == "combat" and c.fadeAfter or 0
-	end,
-	apply = function() if not InCombatLockdown() then drive() end end,
-	shows = function() return SecureCmdOptionParse(ownDriver()) == "show" end,
-	frames = function() return { f } end,
-})
 
 ------------------------------------------------------------------------
 -- Layout (out of combat: its state driver can only change then)

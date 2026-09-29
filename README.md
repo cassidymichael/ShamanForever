@@ -75,7 +75,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - Arrange elements into named groups: rows or columns, each with its own position, spacing, icon size, scale, opacity and border. On the Layout page, drag an element onto a group's name to move it there.
 - Delete group: its elements move to Ungrouped, off screen with their settings kept, until you put them in a group again.
 - Show each element always, only in combat, or never. A group can show Always, In combat, or In combat or with an enemy target.
-- Stay after combat: a group, the totem bar or the swing timer that doesn't show Always can stay up to 10 seconds once combat ends, then fade out.
+- Stay after combat: a group or the totem bar that doesn't show Always can stay up to 10 seconds once combat ends, then fade out.
 - Positioning mode: drag groups, the totem bar and the swing timer, with snapping and a grid. Mouse wheel sets scale, Shift+wheel icon size (the swing timer's width), Ctrl+wheel opacity, and the arrow keys nudge. It locks itself when combat starts.
 - Borders and warning rings stay pixel-sharp at any icon size.
 - Test elements (`/sf test`): placeholder icons for trying out a layout, and elements you haven't learned yet, greyed.

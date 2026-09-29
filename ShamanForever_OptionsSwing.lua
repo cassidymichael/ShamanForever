@@ -92,8 +92,6 @@ function SP.build(p)
 	p:header("Display")
 	p:dropdown("Show", "It shows from your first swing. While positioning is unlocked it always shows, unless Hidden.",
 		SHOWS, get("show"), set("show"), nil, 160)
-	p:slider("Stay after combat", K.STAY_TIP, R.fadeAfter[1], R.fadeAfter[2], 1, K.staySecs, get("fadeAfter"), set("fadeAfter"),
-		function() return c().show == "combat" end)
 
 	p:header("Layout")
 	p:slider("Width", "Shift + mouse wheel over the bar while positioning is unlocked does the same.",
