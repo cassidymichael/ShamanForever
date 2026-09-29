@@ -379,8 +379,7 @@ L.PREVIEW = {
 			end
 			if d.showCount then
 				ic.count:SetFont(STANDARD_TEXT_FONT, d.countSize, "OUTLINE")
-				ic.count:ClearAllPoints()
-				if d.countPos == "center" then ic.count:SetPoint("CENTER") else ic.count:SetPoint("BOTTOMRIGHT", 2, -2) end
+				ns.Shield.placeCount(ic.count, ic)
 				ic.count:SetText(n)
 				ic.count:Show()
 				local c = (n == 1 and d.countOne) and d.countLastColor or { 1, 1, 1 }
@@ -638,7 +637,7 @@ L.TOTEM_ICON = TOTEM_ICON
 local PREVIEW_LEFT = { earth = { 250, 300 }, fire = { 38, 55 }, water = { 83, 300 }, air = { 165, 300 } }
 local POP_ITEMS = 3   -- "No totem" and two totems: enough to show the look within the header
 L.PREVIEW.totembar = {
-	stage = true, heroH = 280, uptime = true,
+	stage = true, heroH = 210, uptime = true,
 	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" }, { "killed", "Killed early" },
 		{ "range", "Out of range" }, { "offpick", "Not your pick" }, { "picking", "Picking" } },
 	-- Blizzard's: nothing to preview. Active totems: only totems that are down, so no picking. Out of
@@ -791,7 +790,7 @@ L.PREVIEW.totembar = {
 				ic:ClearAllPoints()
 				place(ic, slotAt[i], (line - size) / 2)
 				ns.applyBorder(ic, border)
-				local pick = GetActionTexture and TB.pickTexture(el)
+				local pick = TB.pickTexture(el)
 				if ns.isSecret(pick) then pick = nil end   -- never compared while secret (combat)
 				reset(ic, pick or TOTEM_ICON[el])
 				ic.badge:Hide()
@@ -1026,9 +1025,9 @@ function L.buildHero(parent, key)
 		self.shade:SetShown(not minimal)
 		for _, c in ipairs(self.corners) do c:SetShown(not minimal) end
 		if e.tags then self.tags:SetText(e.tags()) else
-			local gi = ns.findElement(key)
+			local g = ns.groupOf(key)
 			local shows = { always = "Always", combat = "In combat", never = "Hidden" }
-			self.tags:SetText(string.format("%s  ·  %s%s", gi and ("Group " .. gi) or "No group", shows[ns.showMode(key)] or "",
+			self.tags:SetText(string.format("%s  ·  %s%s", g and g.name or "Ungrouped", shows[ns.showMode(key)] or "",
 				ns.isLearned(key) and "" or "  ·  Not learned"))
 		end
 		-- A stage can offer only some states (the totem bar's mode): the others hide, the rest close
@@ -1065,19 +1064,15 @@ function L.buildHero(parent, key)
 			b.text:SetTextColor(on and 1 or 0.78, on and 0.84 or 0.74, on and 0.5 or 0.68)
 		end
 		if not def.stage then
-			-- On whole screen pixels: a cooldown's swipe snaps to pixels and the icon's texture doesn't,
-			-- so at a fractional position a sliver of the icon shows beside the swipe.
+			-- On whole screen pixels, as the HUD's icons are (ns.placeOnPixels says why).
 			local ic = self.previewIcon
 			if def.size then ic:SetSize(def.size()) end
 			ic:ClearAllPoints()
 			ic:SetPoint("LEFT", p, "LEFT", 16, -6)
 			local l, t = ic:GetLeft(), ic:GetTop()
-			local ok, _, screenH = pcall(GetPhysicalScreenSize)
-			if l and t and ok and type(screenH) == "number" and screenH > 0 then
-				local px = 768 / screenH / ic:GetEffectiveScale()   -- one screen pixel, in the icon's units
-				local dx = math.floor(l / px + 0.5) * px - l
-				local dy = math.floor(t / px + 0.5) * px - t
-				ic:SetPoint("LEFT", p, "LEFT", 16 + dx, -6 + dy)
+			if l and t then
+				local px = ns.pixel(ic)
+				ic:SetPoint("LEFT", p, "LEFT", 16 + ns.roundPx(l, px) - l, -6 + ns.roundPx(t, px) - t)
 			end
 		end
 		if def.stage then def.render(self, previewState[key]) else

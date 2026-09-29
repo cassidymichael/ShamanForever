@@ -84,9 +84,27 @@ local function believedUp()
 	return upShield ~= "none" and tracksShield(upShield)
 end
 
+-- The charge number's offset from its point (ns.COUNT_JUSTIFY has the points): in a corner it is
+-- nudged 2 px outward.
+local COUNT_NUDGE = { CENTER = { 0, 0 }, TOPLEFT = { -2, 2 }, TOPRIGHT = { 2, 2 }, BOTTOMLEFT = { -2, -2 },
+	BOTTOMRIGHT = { 2, -2 } }
+-- 0.8.0 and earlier saved "center" or "corner" (the bottom right).
+local COUNT_POS_SAVED = { center = "CENTER", corner = "BOTTOMRIGHT" }
+
+-- Places the charge number fs on icon, as the settings say (the HUD's and the options' preview).
+function SH.placeCount(fs, icon)
+	local pos = ns.getDB().countPos
+	local nudge = COUNT_NUDGE[pos]
+	fs:ClearAllPoints()
+	fs:SetPoint(pos, icon, pos, nudge[1], nudge[2])
+	fs:SetJustifyH(ns.COUNT_JUSTIFY[pos])
+end
+
 -- A profile's shield settings, and the account's last shield, made valid (when a profile loads).
 function SH.sanitize(db, acct)
 	if db.shieldTrack ~= "either" and not SHIELDS[db.shieldTrack] then db.shieldTrack = "lightning" end
+	db.countPos = COUNT_POS_SAVED[db.countPos] or db.countPos
+	if not ns.COUNT_JUSTIFY[db.countPos] then db.countPos = "CENTER" end
 	if not SHIELDS[acct.lastShield] then acct.lastShield = "lightning" end
 	if not ns.isColor(db.countLastColor) then db.countLastColor = CopyTable(ns.DEFAULTS.countLastColor) end
 end
@@ -191,8 +209,8 @@ end
 -- that of the shield's group.
 local function nativeIconAlpha()
 	local db = ns.getDB()
-	local gi = ns.findElement("shield")
-	local a, u = gi and db.groups[gi].alpha or 1, db.underlayUp
+	local g = ns.groupOf("shield")
+	local a, u = g and g.alpha or 1, db.underlayUp
 	local d = 1 - a * u   -- 0 at full opacity and full underlay: then any b stacks the same, and 1 is natural
 	local b = (u > 0 and d > 0) and (1 - u) / d or 1
 	return math.min(math.max(b * db.shieldIconAlpha, 0.05), 1)
@@ -266,11 +284,7 @@ local function buildNative(slot, button, cd)
 	-- Blizzard writes the count immediately on registration, so the font must already be set.
 	local fs = overlay:CreateFontString(nil, "OVERLAY", nil, 7)
 	fs:SetFont(STANDARD_TEXT_FONT, db.countSize, "OUTLINE")
-	if db.countPos == "center" then
-		fs:SetPoint("CENTER", button, "CENTER", 0, 0); fs:SetJustifyH("CENTER")
-	else
-		fs:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 2, -2); fs:SetJustifyH("RIGHT")
-	end
+	SH.placeCount(fs, button)
 	button:SetApplicationCount(fs)
 	slot.fs = fs
 
@@ -372,12 +386,7 @@ local function styleNative(slot, size)
 	slot.ticks:SetAlpha(db.showBar and 1 or 0)
 	slot.fs:SetAlpha(db.showCount and 1 or 0)
 	slot.fs:SetFont(STANDARD_TEXT_FONT, db.countSize, "OUTLINE")
-	slot.fs:ClearAllPoints()
-	if db.countPos == "center" then
-		slot.fs:SetPoint("CENTER", slot.button, "CENTER", 0, 0); slot.fs:SetJustifyH("CENTER")
-	else
-		slot.fs:SetPoint("BOTTOMRIGHT", slot.button, "BOTTOMRIGHT", 2, -2); slot.fs:SetJustifyH("RIGHT")
-	end
+	SH.placeCount(slot.fs, slot.button)
 	SH.applyEmptyLook()   -- the button may be new: the underlay now has it on top
 end
 

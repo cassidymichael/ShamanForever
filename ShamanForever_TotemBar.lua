@@ -192,19 +192,22 @@ local EXTRA_GAP = 6   -- added to the spacing between the extras and the slots
 -- (TB.extraSides, below), n slots of the given size, then Call and Recall after. Returns a list of
 -- { key, offset, size, extra } (key: an extra's key, or the slot's place among the n), the bar's
 -- length and its thickness (its largest button: every button is centred on its line).
-function TB.along(n, size)
+function TB.along(n, size, px)
 	local c = cfg()
 	local before, after = TB.extraSides()
-	local esz = math.floor(size * c.extrasScale + 0.5)
+	-- px (one screen pixel in the bar's units): sizes and gaps in whole pixels, as on the bar.
+	local function round(v) return px and ns.roundPx(v, px) or math.floor(v + 0.5) end
+	local esz, gap, extraGap = round(size * c.extrasScale), c.spacing, c.spacing + EXTRA_GAP
+	if px then gap, extraGap = round(gap), round(extraGap) end
 	local list, long = {}, 0
-	local function put(key, gap, sz, extra)
-		if #list > 0 then long = long + gap end
+	local function put(key, space, sz, extra)
+		if #list > 0 then long = long + space end
 		table.insert(list, { key = key, offset = long, size = sz, extra = extra })
 		long = long + sz
 	end
-	for _, k in ipairs(before) do put(k, c.spacing, esz, true) end
-	for i = 1, n do put(i, i == 1 and c.spacing + EXTRA_GAP or c.spacing, size) end
-	for i, k in ipairs(after) do put(k, i == 1 and c.spacing + EXTRA_GAP or c.spacing, esz, true) end
+	for _, k in ipairs(before) do put(k, gap, esz, true) end
+	for i = 1, n do put(i, i == 1 and extraGap or gap, size) end
+	for i, k in ipairs(after) do put(k, i == 1 and extraGap or gap, esz, true) end
 	local line = (#before + #after > 0) and math.max(size, esz) or size
 	return list, math.max(long, size), line
 end
@@ -420,7 +423,7 @@ for index, el in ipairs(ELEMENTS) do
 	v.bg:SetAllPoints()
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
-	ns.cropIcon(v.icon)
+	ns.cropIconExact(v.icon)
 	-- Time left: a timer (text, swipe, bar), above the warning layer so it stays readable.
 	s.timer = ns.Timer.new(v, "totembar", "uptime", { anchor = v, school = el })
 	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 1)
@@ -528,7 +531,7 @@ keyButton("ShamanForeverKeyDismissAll", "macro"):SetAttribute("macrotext", DISMI
 -- once it is learned. Where they sit is c.extras; layout() places them with the slots.
 ------------------------------------------------------------------------
 local function knows(spell)
-	local ok, v = pcall(IsPlayerSpell, spell)
+	local ok, v = pcall(C_SpellBook.IsSpellKnown, spell)
 	return ok and v == true
 end
 local extras = {}
@@ -542,7 +545,7 @@ for _, e in ipairs({ { "Call", CALL }, { "Recall", RECALL } }) do
 	v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL)
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
-	ns.cropIcon(v.icon)
+	ns.cropIconExact(v.icon)
 	extras[key] = { key = key, spell = spell, button = b, vis = v, keys = keyLayer(v), gcd = gcdSweep(v),
 		command = "CLICK ShamanForeverKey" .. key .. ":LeftButton" }
 end
@@ -577,7 +580,7 @@ local function refreshGCD()
 	for _, el in ipairs(ELEMENTS) do
 		local s = slots[el]
 		local action = multiAction(s.slot)
-		local d = on and feat("cast") and HasAction(action)
+		local d = on and feat("cast") and C_ActionBar.HasAction(action)
 			and gcdOf(C_ActionBar.GetActionCooldown, C_ActionBar.GetActionCooldownDuration, action)
 		if d then s.gcd:SetCooldownFromDurationObject(d) else s.gcd:Clear() end
 	end
@@ -682,7 +685,7 @@ local function refreshSlot(s)
 		local down = ns.Totems.downSpell(s.slot)
 		local pick = down and c.offPick and c.mode == "everything" and pickSpell(s.slot)
 		if pick and not ns.Spells.same(down, pick) then
-			ns.try("totem bar: badge", s.badge.icon.SetTexture, s.badge.icon, GetActionTexture(multiAction(s.slot)))
+			ns.try("totem bar: badge", s.badge.icon.SetTexture, s.badge.icon, C_ActionBar.GetActionTexture(multiAction(s.slot)))
 			s.badge:Show()
 		else s.badge:Hide() end
 		s.dur = d
@@ -701,7 +704,7 @@ local function refreshSlot(s)
 	-- move in combat). A plain frame's alpha, so this works in combat too. In Quick Keybind Mode they
 	-- show, to be bound.
 	v:SetAlpha((c.mode == "everything" or kbOpen) and 1 or 0)
-	local tex = c.empty == "pick" and GetActionTexture and GetActionTexture(multiAction(s.slot))
+	local tex = c.empty == "pick" and C_ActionBar.GetActionTexture(multiAction(s.slot))
 	if isSecret(tex) or tex then
 		ns.try("totem bar: pick icon", v.icon.SetTexture, v.icon, tex)
 		v.icon:SetDesaturated(c.idleGrey)
@@ -929,10 +932,13 @@ function layout()
 	closePopouts()
 	local c = cfg()
 	local size, border = look()
-	-- Scale and opacity first: borders below are lines, sized for the bar's scale. Out of combat
+	-- Scale and opacity first: borders below are lines, sized for the bar's scale, and sizes, gaps
+	-- and the position are whole screen pixels at it (ns.placeOnPixels says why). Out of combat
 	-- only, like everything on a frame holding secure buttons.
 	bar:SetScale(c.scale)
 	bar:SetAlpha(c.alpha)
+	local px = ns.pixel(bar)
+	size = ns.roundPx(size, px)
 	-- A slot shows for an element with a totem known (every element's where the client can't list
 	-- them). With no totem known at all (a new character's first levels) the bar has nothing to show
 	-- and hides, Call and Recall with it, in positioning mode too: like a group whose elements aren't
@@ -956,11 +962,11 @@ function layout()
 	local row = c.dir == "row"
 	if row and c.pop ~= "up" and c.pop ~= "down" then c.pop = "up" end
 	if not row and c.pop ~= "right" and c.pop ~= "left" then c.pop = "right" end
-	-- Everything along the bar, in order: extras before, slots, extras after (TB.along). LEFT / TOP
-	-- anchors keep every button centred on the bar's line, whatever its size. Nothing while no totem
-	-- is known.
+	-- Everything along the bar, in order: extras before, slots, extras after (TB.along), each
+	-- centred on the bar's line to the nearest whole pixel, whatever its size. Nothing while no
+	-- totem is known.
 	local seq, long, across = {}, size, size
-	if hasTotems then seq, long, across = TB.along(#shown, size) end
+	if hasTotems then seq, long, across = TB.along(#shown, size, px) end
 	local on = {}   -- the extras that show
 	for _, it in ipairs(seq) do
 		local b, sz = it.extra and extras[it.key].button or shown[it.key].button, it.size
@@ -969,7 +975,8 @@ function layout()
 		-- Its key label scales with the icon.
 		if keyTexts[b] then keyTexts[b]:SetFont(STANDARD_TEXT_FONT, math.max(8, math.floor(sz * 0.3 + 0.5)), "OUTLINE") end
 		b:ClearAllPoints()
-		if row then b:SetPoint("LEFT", bar, "LEFT", it.offset, 0) else b:SetPoint("TOP", bar, "TOP", 0, -it.offset) end
+		local side = ns.roundPx((across - sz) / 2, px)
+		if row then b:SetPoint("TOPLEFT", bar, "TOPLEFT", it.offset, -side) else b:SetPoint("TOPLEFT", bar, "TOPLEFT", side, -it.offset) end
 	end
 	for key, e in pairs(extras) do
 		local show = on[key] or false
@@ -999,8 +1006,7 @@ function layout()
 		layoutPopout(s, size, known[s.el])
 	end
 	if row then bar:SetSize(long, across) else bar:SetSize(across, long) end
-	bar:ClearAllPoints()
-	bar:SetPoint(c.point, UIParent, c.point, c.x / c.scale, c.y / c.scale)
+	ns.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
 	if TB.range then TB.range.layout(size) end   -- after the scale: its height is a line's
 	refreshSlots()
 	refreshKeys()
@@ -1084,18 +1090,18 @@ end)
 mover:SetScript("OnMouseUp", function(_, button)
 	if button == "RightButton" and ns.Options.open then ns.Options.open("totembar") end
 end)
--- As for groups: mouse wheel, icon size (lines stay crisp); Ctrl + wheel, scale (everything grows,
--- lines too); Shift + wheel, opacity.
+-- As for groups: mouse wheel, scale (everything grows, lines too); Shift + wheel, icon size (lines
+-- stay crisp); Ctrl + wheel, opacity.
 mover:SetScript("OnMouseWheel", function(self, delta)
 	if InCombatLockdown() then return end
 	local c = cfg()
 	local function step(key) c[key] = clamp(math.floor((c[key] + delta * 0.05) * 100 + 0.5) / 100, RANGES[key]) end
-	if IsShiftKeyDown() then step("alpha")
-	elseif IsControlKeyDown() then step("scale")
-	else
+	if IsControlKeyDown() then step("alpha")
+	elseif IsShiftKeyDown() then
 		local from = look()   -- the size it has now, General's or its own
 		c.sizeFollow = false
 		c.size = clamp(from + delta * 2, RANGES.size)
+	else step("scale")
 	end
 	layout()
 	self.label:SetText(string.format("Totem bar: size %d, scale %.2f, opacity %.0f%%", (look()), c.scale, c.alpha * 100))
@@ -1282,7 +1288,7 @@ for _, el in ipairs(ELEMENTS) do
 			pcall(GameTooltip.SetTotem, GameTooltip, s.slot)
 		else
 			local action = multiAction(s.slot)
-			if HasAction and HasAction(action) then pcall(GameTooltip.SetAction, GameTooltip, action)
+			if C_ActionBar.HasAction(action) then pcall(GameTooltip.SetAction, GameTooltip, action)
 			else GameTooltip:SetText(NAME[el] .. ": no totem picked") end
 		end
 		GameTooltip:Show()
@@ -1406,7 +1412,7 @@ function TB.modeName()
 	return "?"
 end
 -- For the options preview: an element's pick as a texture, its known totems, and the look.
-function TB.pickTexture(el) return GetActionTexture(multiAction(SLOT[el])) end
+function TB.pickTexture(el) return C_ActionBar.GetActionTexture(multiAction(SLOT[el])) end
 function TB.known(el)
 	-- The real picker's list when it is built (it matches the bar exactly), else Blizzard's.
 	local ids = {}

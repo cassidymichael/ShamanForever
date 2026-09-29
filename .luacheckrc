@@ -19,6 +19,7 @@ read_globals = {
     "C_CurveUtil",
     "C_DurationUtil",
     "C_EncodingUtil",
+    "C_EventUtils",
     "C_Item",
     "C_KeyBindings",
     "C_LossOfControl",
