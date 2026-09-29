@@ -623,7 +623,7 @@ local PREVIEW_LEFT = { earth = { 250, 300 }, fire = { 38, 55 }, water = { 83, 30
 L.PREVIEW_LEFT = PREVIEW_LEFT
 local POP_ITEMS = 3   -- "No totem" and two totems: enough to show the look within the header
 L.PREVIEW.totembar = {
-	stage = true, heroH = 280, uptime = true,
+	stage = true, heroH = 210, uptime = true,
 	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" }, { "killed", "Killed early" },
 		{ "range", "Out of range" }, { "offpick", "Not your pick" }, { "picking", "Picking" } },
 	-- Blizzard's: nothing to preview. Active totems: only totems that are down, so no picking. Out of
@@ -1017,9 +1017,9 @@ function L.buildHero(parent, key)
 		self.shade:SetShown(not minimal)
 		for _, c in ipairs(self.corners) do c:SetShown(not minimal) end
 		if e.tags then self.tags:SetText(e.tags()) else
-			local gi = ns.findElement(key)
+			local g = ns.groupOf(key)
 			local shows = { always = "Always", combat = "In combat", never = "Hidden" }
-			self.tags:SetText(string.format("%s  ·  %s%s", gi and ("Group " .. gi) or "No group", shows[ns.showMode(key)] or "",
+			self.tags:SetText(string.format("%s  ·  %s%s", g and g.name or "Ungrouped", shows[ns.showMode(key)] or "",
 				ns.isLearned(key) and "" or "  ·  Not learned"))
 		end
 		-- A stage can offer only some states (the totem bar's mode): the others hide, the rest close

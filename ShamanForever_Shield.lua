@@ -231,8 +231,8 @@ end
 -- that of the shield's group.
 function nativeIconAlpha()
 	local db = ns.getDB()
-	local gi = ns.findElement("shield")
-	local a, u = gi and db.groups[gi].alpha or 1, db.underlayUp
+	local g = ns.groupOf("shield")
+	local a, u = g and g.alpha or 1, db.underlayUp
 	local d = 1 - a * u   -- 0 at full opacity and full underlay: then any b stacks the same, and 1 is natural
 	local b = (u > 0 and d > 0) and (1 - u) / d or 1
 	return math.min(math.max(b * db.shieldIconAlpha, 0.05), 1)

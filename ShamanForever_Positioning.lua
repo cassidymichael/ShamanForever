@@ -1,5 +1,5 @@
 -- Positioning (unlock mode): drag a group to move it (snapping to the grid and to other groups), the
--- mouse wheel for its size, scale and opacity, the arrow keys to nudge it, right-click for its
+-- mouse wheel for its scale, size and opacity, the arrow keys to nudge it, right-click for its
 -- settings, and a small bar with the controls. Group membership is edited in the options window.
 --
 -- ShamanForever.lua owns the groups and lays them out; it hands each group frame here once
@@ -11,7 +11,7 @@ local say = ns.say
 local PO = {}
 ns.Positioning = PO
 
-local selectedGroup       -- the group the arrow keys move (see Nudging)
+local selectedGroup       -- the id of the group the arrow keys move (see Nudging)
 local SNAP = 8   -- UI units: how close an edge must come to another group's edge or centre to snap
 local function round2(v) return math.floor(v * 100 + 0.5) / 100 end
 local function clamp(v, lo, hi) return math.min(math.max(v, lo), hi) end
@@ -126,8 +126,8 @@ local function dragUpdate(self)
 		local w, h = UIParent:GetSize()
 		local s = self:GetEffectiveScale() / ui
 		local tx, ty = { w / 2 }, { h / 2 }
-		for gi, f in ipairs(ns.groupFrames) do
-			if gi ~= self.index and gi <= #db().groups and f:IsShown() and f:GetLeft() then
+		for id, f in pairs(ns.groupFrames) do
+			if id ~= self.groupId and ns.groupById(id) and f:IsShown() and f:GetLeft() then
 				local fs = f:GetEffectiveScale() / ui
 				local l, r, b, t = f:GetLeft() * fs, f:GetRight() * fs, f:GetBottom() * fs, f:GetTop() * fs
 				table.insert(tx, l); table.insert(tx, (l + r) / 2); table.insert(tx, r)
@@ -139,7 +139,8 @@ local function dragUpdate(self)
 		y, gy = snapAxis(y, self:GetHeight() * s / 2, ty, h / 2, gs)
 	end
 	showGuides(gx, gy)
-	local g = db().groups[self.index]
+	local g = ns.groupById(self.groupId)
+	if not g then return end
 	ns.setGroupCenter(g, x * ui, y * ui)
 	ns.placeOnPixels(self, "CENTER", g.x, g.y)
 end
@@ -154,7 +155,7 @@ function PO.attach(f)
 	f.label:SetPoint("BOTTOMLEFT", f, "TOPLEFT", 0, 2)
 	f:SetScript("OnDragStart", function(self)
 		if acct().locked or InCombatLockdown() then return end
-		PO.select(self.index)
+		PO.select(self.groupId)
 		local ui = uiScale()
 		local s = self:GetEffectiveScale() / ui
 		local fx, fy = self:GetCenter()
@@ -167,46 +168,48 @@ function PO.attach(f)
 		showGuides()
 		if not InCombatLockdown() then ns.layoutElements() end
 	end)
-	-- Wheel: icon size (lines stay crisp); Ctrl: scale (everything grows, lines too); Shift: opacity.
+	-- Wheel: scale (everything grows, lines too); Shift: icon size (lines stay crisp); Ctrl: opacity.
 	f:SetScript("OnMouseWheel", function(self, delta)
-		if acct().locked or InCombatLockdown() then return end
-		local g = db().groups[self.index]
+		local g = ns.groupById(self.groupId)
+		if acct().locked or InCombatLockdown() or not g then return end
 		local sx, sy = ns.screenCenter(self)
-		if IsShiftKeyDown() then g.alpha = clamp(round2(g.alpha + delta * 0.05), 0.1, 1)
-		elseif IsControlKeyDown() then g.scale = clamp(round2(g.scale + delta * 0.05), 0.5, 3)
-		else
+		if IsControlKeyDown() then g.alpha = clamp(round2(g.alpha + delta * 0.05), 0.1, 1)
+		elseif IsShiftKeyDown() then
 			if g.sizeFollow then g.sizeFollow, g.size = false, db().iconSize end   -- its own from here on
 			g.size = clamp(g.size + delta * 2, 24, 96)
+		else g.scale = clamp(round2(g.scale + delta * 0.05), 0.5, 3)
 		end
 		if sx then ns.setGroupCenter(g, sx, sy) end   -- grow about the centre, not the anchor
 		ns.layoutElements()
-		self.label:SetText(string.format("Group %d: size %d, scale %.2f, opacity %.0f%%", self.index,
+		self.label:SetText(string.format("%s: size %d, scale %.2f, opacity %.0f%%", g.name,
 			ns.groupSize(g), g.scale, g.alpha * 100))
 	end)
 	-- Right-click: the group's settings. Shift-right-click: the settings of the element under the cursor.
 	f:SetScript("OnMouseUp", function(self, button)
 		local locked = acct().locked
-		if button == "LeftButton" and not locked and not InCombatLockdown() then PO.select(self.index) return end
+		if button == "LeftButton" and not locked and not InCombatLockdown() then PO.select(self.groupId) return end
 		if button ~= "RightButton" or locked then return end
-		if IsShiftKeyDown() then
-			for _, key in ipairs(db().groups[self.index].members) do
+		local g = ns.groupById(self.groupId)
+		if IsShiftKeyDown() and g then
+			for _, key in ipairs(g.members) do
 				local e = ns.ELEMENTS[key].frame
 				if e:IsShown() and e:IsMouseOver() then ns.Options.openElement(key) return end
 			end
 		end
-		ns.Options.open("layout", self.index)
+		ns.Options.open("layout", self.groupId)
 	end)
 end
 
 -- On every layout: the outline, label and mouse while unlocked, nothing while locked.
-function PO.decorate(gf, gi)
+function PO.decorate(gf, g)
 	local unlocked = not acct().locked
+	local chosen = unlocked and selectedGroup == g.id
 	gf:EnableMouse(unlocked)
 	gf:EnableMouseWheel(unlocked)
 	gf:SetBackdropColor(0, 0, 0, unlocked and 0.4 or 0)
-	if unlocked and selectedGroup == gi then gf:SetBackdropBorderColor(1, 0.82, 0, 1)
+	if chosen then gf:SetBackdropBorderColor(1, 0.82, 0, 1)
 	else gf:SetBackdropBorderColor(0.2, 0.6, 1, unlocked and 0.9 or 0) end
-	gf.label:SetText(unlocked and selectedGroup == gi and ("Group " .. gi .. " (arrow keys move it)") or ("Group " .. gi))
+	gf.label:SetText(chosen and (g.name .. " (arrow keys move it)") or g.name)
 	gf.label:SetShown(unlocked)
 end
 
@@ -224,7 +227,7 @@ local nudger = CreateFrame("Frame", "ShamanForeverNudge", UIParent)
 nudger:Hide()
 
 local function nudge(key)
-	local g, d = selectedGroup and db().groups[selectedGroup], NUDGE_KEYS[key]
+	local g, d = ns.groupById(selectedGroup), NUDGE_KEYS[key]
 	local f = selectedGroup and ns.groupFrames[selectedGroup]
 	if not (g and d and f) then return end
 	local step = IsShiftKeyDown() and 10 or 1
@@ -245,17 +248,12 @@ local function syncNudger()
 	if on then nudger:Show() else nudger:Hide() end
 end
 
-function PO.select(gi)
-	if selectedGroup == gi then return end
-	selectedGroup = gi
+-- id: a group's id, or nil for none.
+function PO.select(id)
+	if selectedGroup == id then return end
+	selectedGroup = id
 	syncNudger()
 	ns.layoutElements()
-end
-
--- The groups were renumbered (layout edits): the selection, an index, would jump to another group.
-function PO.clearSelection()
-	selectedGroup = nil
-	syncNudger()
 end
 
 nudger:SetScript("OnKeyDown", function(self, key)
@@ -318,8 +316,8 @@ do
 	tray.hint:SetJustifyH("LEFT")
 	tray.hint:SetSpacing(2)
 	tray.hint:SetText("Drag a group to move it, or click it and use the arrow keys (Shift: 10x).\n" ..
-		"Mouse wheel over a group: icon size (borders stay crisp).\n" ..
-		"Ctrl + wheel: scale (everything grows, borders too). Shift + wheel: opacity.\n" ..
+		"Mouse wheel over a group: scale (everything grows, borders too).\n" ..
+		"Shift + wheel: icon size (borders stay crisp). Ctrl + wheel: opacity.\n" ..
 		"Right-click a group: its settings.\n" ..
 		"Shift-right-click an element: its own settings.\n" ..
 		"Options: choose which elements each group holds.")
@@ -420,7 +418,7 @@ function PO.update()
 	local a = acct()
 	local unlocked = ns.isActive() and not a.locked
 	if not unlocked then selectedGroup = nil end
-	if selectedGroup and not db().groups[selectedGroup] then selectedGroup = nil end
+	if selectedGroup and not ns.groupById(selectedGroup) then selectedGroup = nil end   -- deleted
 	syncNudger()
 	tray:SetShown(unlocked)
 	tray:SetHeight(30 + tray.hint:GetStringHeight() + 10 + 26 + 2 + 24 + 8)
@@ -445,7 +443,7 @@ function PO.lockInCombat()
 	optionsSteppedAside = false   -- no options window popping up mid-fight
 	selectedGroup = nil
 	local free = not InCombatLockdown()
-	for _, gf in ipairs(ns.groupFrames) do
+	for _, gf in pairs(ns.groupFrames) do
 		if free then gf:EnableMouse(false); gf:EnableMouseWheel(false) end
 		gf:SetScript("OnUpdate", nil)
 		gf:SetBackdropColor(0, 0, 0, 0)

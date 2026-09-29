@@ -29,6 +29,25 @@ end
 ns.POINTS = { CENTER = true, TOP = true, BOTTOM = true, LEFT = true, RIGHT = true,
 	TOPLEFT = true, TOPRIGHT = true, BOTTOMLEFT = true, BOTTOMRIGHT = true }
 
+-- A group id's upper bound: comfortably above any real number of groups, and well short of where
+-- float precision starts merging ids (nextId's max + 1 stops advancing at 2^53).
+ns.MAX_GROUP_ID = 100000
+
+-- A group name's limit: the Name box's SetMaxLetters, which counts UTF-8 characters, not bytes.
+ns.MAX_GROUP_NAME = 32
+-- Cuts s to at most n UTF-8 characters, on a character boundary so a multi-byte one is never split.
+function ns.utf8Cut(s, n)
+	local i, chars = 1, 0
+	while i <= #s do
+		local b = s:byte(i)
+		local seqLen = (b >= 240 and 4) or (b >= 224 and 3) or (b >= 192 and 2) or 1
+		chars = chars + 1
+		if chars > n then return s:sub(1, i - 1) end
+		i = i + seqLen
+	end
+	return s
+end
+
 ------------------------------------------------------------------------
 -- Errors caught by a pcall around a proven call: the first one per place is kept for /sf debug, so a
 -- change on a new client build doesn't just make a feature vanish.
