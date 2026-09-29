@@ -28,6 +28,7 @@ local PANEL_PAD, PANEL_PAD_B, BLOCK_GAP = 10, 6, 10
 -- Folded blocks are saved with the account, by page and header text ("general:Border"), so they
 -- stay folded across a /reload.
 local function folded() return ns.getAccount().foldedBlocks end
+local allPages = {}   -- every page made
 -- A sub's rows: indented a level at a time, two at most, beside a rule down from under their parent.
 local SUB_INDENT, SUB_MAX, RULE_X = 24, 2, 12
 
@@ -73,42 +74,99 @@ function Page.new(win, key, title, indent)
 	scroll:SetScrollChild(content)
 	-- Update the scroll frame's child rect (its scroll range and the area where rows take clicks)
 	-- after every resize and reflow, as Blizzard's pages do after a layout, so rows that a taller
-	-- window or a longer page brings into view can be clicked.
+	-- window or a longer page brings into view can be clicked. While the window is resized the page
+	-- holds its place (Page.startResize); a frozen resize lays the page out once, at its end.
 	local page = setmetatable({ win = win, key = key, title = title, indent = indent, scroll = scroll,
 		content = content, items = {}, blockList = {}, subs = {} }, Page)
 	scroll:SetScript("OnSizeChanged", function(self, w)
-		content:SetWidth(w)
+		local frozen = Page.resizing == "freeze"
+		if not frozen then content:SetWidth(w) end
 		self:UpdateScrollChildRect()
 		page:keepScroll()
-		ns.Options.refresh()
+		if not frozen then ns.Options.refresh() end
 	end)
 	content:SetScript("OnSizeChanged", function() scroll:UpdateScrollChildRect() end)
+	-- Blizzard's handler, run first, sets the position again from its scroll bar's fraction of the
+	-- range, and the range can come in a layout pass after ours: put the held place back after it.
+	scroll:HookScript("OnScrollRangeChanged", function() if page.hold then page:keepScroll() end end)
 	scroll:Hide()
+	table.insert(allPages, page)
 	return page
 end
 
--- Resizing the window changes the scroll frame's size and range under the scroll bar, which
--- follows the position as a fraction of the range and can snap it back to the top. holdScroll
--- notes where the player is when a resize starts; every size change and layout puts it back
--- (limited to the new range, the held value itself kept) until releaseScroll.
-function Page:holdScroll() self.held = self.scroll:GetVerticalScroll() end
+-- Resizing the window changes the scroll frame's size and range under the scroll bar, which keeps
+-- the position as a fraction of the range and can send the page to the top. From the grip's press
+-- until two frames after its release the page holds its place, and puts it back after every size
+-- change, layout and range change. Page.resizeMode, how (the ways are compared in game; one stays):
+--   "freeze": no layout while the grip is held (rows keep their width, cut off or with room to
+--             spare), one when it's let go; the row at the top stays there.
+--   "anchor": the page is laid out as the window changes; the row at the top stays there.
+--   "hold":   laid out as the window changes; the position in pixels stays.
+--   "none":   laid out as the window changes; nothing holds the place.
+Page.resizeMode = "freeze"
+local resized   -- the page holding its place through a resize
 
-function Page:keepScroll()
-	local held, s = self.held, self.scroll
-	if not held then return end
-	s:UpdateScrollChildRect()
-	local v = math.max(0, math.min(held, s:GetVerticalScrollRange()))
-	if math.abs(s:GetVerticalScroll() - v) > 0.5 then s:SetVerticalScroll(v) end
+function Page.startResize(page)
+	local mode = Page.resizeMode
+	if mode == "none" or not page then return end
+	Page.resizing, resized = mode, page
+	local offset = page.scroll:GetVerticalScroll()
+	local hold = { offset = offset }
+	-- The row at the top of the view, and how far into it the view starts.
+	if mode ~= "hold" then
+		for _, it in ipairs(page.items) do
+			if it.visible and it.y and it.y + it.h > offset then
+				hold.row, hold.dy = it, offset - it.y
+				break
+			end
+		end
+	end
+	page.hold = hold
 end
 
--- After the layout the last size change queued has run.
-function Page:releaseScroll()
-	if not self.held then return end
-	self:keepScroll()
+function Page.endResize()
+	local page, mode = resized, Page.resizing
+	Page.resizing, resized = nil, nil
+	if not page then return end
+	if mode == "freeze" then
+		-- The widths the frozen size changes left alone, on every page; the page on show laid out now.
+		for _, p in ipairs(allPages) do
+			local w = p.scroll:GetWidth()
+			if math.abs(p.content:GetWidth() - w) > 0.5 then
+				p.content:SetWidth(w)
+				p.scroll:UpdateScrollChildRect()
+			end
+		end
+		if page.scroll:IsVisible() then page:refresh() end
+	end
+	page:keepScroll()
+	-- The layout the last size change queued, and the range changes it brings, come a frame later.
+	local hold = page.hold
 	C_Timer.After(0, function()
-		self:keepScroll()
-		self.held = nil
+		page:keepScroll()
+		C_Timer.After(0, function()
+			if page.hold ~= hold then return end   -- a new resize holds it now
+			page:keepScroll()
+			page.hold = nil
+		end)
 	end)
+end
+
+-- Puts the held place back, within the range. At a range of 0 it waits for the next range change:
+-- a page that fits has no place to keep, and the range may not be settled yet.
+function Page:keepScroll()
+	local hold, s = self.hold, self.scroll
+	if not hold or hold.busy then return end
+	local range = s:GetVerticalScrollRange()
+	if range <= 0 then return end
+	local want, row = hold.offset, hold.row
+	if row and row.visible and row.y then want = row.y + hold.dy end
+	want = math.max(0, math.min(want, range))
+	if math.abs(s:GetVerticalScroll() - want) > 0.5 then
+		hold.busy = true   -- not again from inside the scroll handlers setting it runs
+		s:SetVerticalScroll(want)
+		hold.busy = false
+	end
 end
 
 -- shown: nil, or a function: the row is hidden while it returns false.
@@ -254,7 +312,10 @@ function Page:refresh()
 	for _, run in ipairs(self.subs) do self:placeRule(run) end
 	self.rowW = nil
 	self.content:SetHeight(math.max(y, bottom, 1))
-	self:keepScroll()
+	if self.hold then
+		self.scroll:UpdateScrollChildRect()
+		self:keepScroll()
+	end
 	if self.afterRefresh then self.afterRefresh() end
 end
 

@@ -1131,13 +1131,12 @@ local function buildWindow()
 		win:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
 		self.startX, self.startY = GetCursorPosition()
 		self.startW, self.startH = win:GetSize()
-		self.page = pages[currentPage]
-		if self.page then self.page:holdScroll() end   -- the page keeps its place as the window resizes
+		Page.startResize(pages[currentPage])   -- the page keeps its place as the window resizes
 		self:SetScript("OnUpdate", sizeToCursor)
 	end)
 	local function endResize()
 		grip:SetScript("OnUpdate", nil)
-		if grip.page then grip.page:releaseScroll(); grip.page = nil end
+		Page.endResize()
 		acct().optionsWidth = math.floor(win:GetWidth())
 		acct().optionsHeight = math.floor(win:GetHeight())
 	end
