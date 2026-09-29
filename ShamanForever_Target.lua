@@ -252,9 +252,15 @@ local function flameShockOnTarget()
 	return nil
 end
 
+-- Whether anything shows it: the element, or Shocks with its mark on.
+local function missingWanted()
+	return ns.isEnabled(FLAME.key) or (ns.isEnabled("shock") and setting("shock", "fsMark"))
+end
+
 -- Out of combat, auras readable, a hostile target you can act on, Flame Shock known: whether it's
--- missing from the target (false while anything is unknown).
+-- missing from the target (false while anything is unknown, or nothing shows it: no read then).
 local function flameShockMissing()
+	if not missingWanted() then return false end
 	if not (FLAME.spellID and readable() and hostileTarget() and not ns.cantAct()) then return false end
 	return flameShockOnTarget() == false
 end
@@ -383,7 +389,9 @@ function T.start()
 			checkMissing()
 			refreshAura(FLAME)
 		elseif event == "UNIT_AURA" then
-			if readable() then checkMissing(); refreshAura(FLAME) end
+			if not readable() or (not FLAME.missingNow and not missingWanted()) then return end
+			checkMissing()
+			refreshAura(FLAME)
 		else
 			retarget()
 			checkMissing()
