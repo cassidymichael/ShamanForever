@@ -310,17 +310,32 @@ do
 	local title = tray:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	title:SetPoint("TOPLEFT", 10, -10)
 	title:SetText("ShamanForever: positioning unlocked")
-	tray.hint = tray:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	-- What the mouse and keys do: one control a line, the key in gold, then what it does.
+	local HELP = {
+		{ "Drag", "Move a group or the totem bar" },
+		{ "Click, then arrow keys", "Nudge a group (Shift: 10x)" },
+		{ "Mouse wheel", "Scale: everything grows, borders too" },
+		{ "Shift + wheel", "Icon size: borders stay crisp" },
+		{ "Ctrl + wheel", "Opacity" },
+		{ "Right-click", "Its settings" },
+		{ "Shift + right-click", "The settings of the element under the cursor" },
+	}
+	local LINE_H, KEY_W = 16, 150
+	tray.hint = CreateFrame("Frame", nil, tray)
 	tray.hint:SetPoint("TOPLEFT", 10, -30)
-	tray.hint:SetWidth(540)
-	tray.hint:SetJustifyH("LEFT")
-	tray.hint:SetSpacing(2)
-	tray.hint:SetText("Drag a group to move it, or click it and use the arrow keys (Shift: 10x).\n" ..
-		"Mouse wheel over a group: scale (everything grows, borders too).\n" ..
-		"Shift + wheel: icon size (borders stay crisp). Ctrl + wheel: opacity.\n" ..
-		"Right-click a group: its settings.\n" ..
-		"Shift-right-click an element: its own settings.\n" ..
-		"Options: choose which elements each group holds.")
+	tray.hint:SetSize(540, (#HELP + 1) * LINE_H + 4)
+	for i, h in ipairs(HELP) do
+		local key = tray.hint:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+		key:SetPoint("TOPLEFT", 0, -(i - 1) * LINE_H)
+		key:SetText(h[1])
+		local what = tray.hint:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		what:SetPoint("TOPLEFT", KEY_W, -(i - 1) * LINE_H)
+		what:SetText(h[2])
+	end
+	local groups = tray.hint:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	groups:SetPoint("TOPLEFT", 0, -#HELP * LINE_H - 4)
+	groups:SetTextColor(0.72, 0.72, 0.72)
+	groups:SetText("Which elements each group holds: Options, Groups & Layout.")
 	-- Controls sit on a row under the hint, so a longer hint pushes them down instead of overlapping.
 	local row = CreateFrame("Frame", nil, tray)
 	row:SetPoint("TOPLEFT", tray.hint, "BOTTOMLEFT", 0, -10)
@@ -421,7 +436,7 @@ function PO.update()
 	if selectedGroup and not ns.groupById(selectedGroup) then selectedGroup = nil end   -- deleted
 	syncNudger()
 	tray:SetShown(unlocked)
-	tray:SetHeight(30 + tray.hint:GetStringHeight() + 10 + 26 + 2 + 24 + 8)
+	tray:SetHeight(30 + tray.hint:GetHeight() + 10 + 26 + 2 + 24 + 8)
 	tray.snap:SetChecked(a.snap)
 	tray.keepOptions:SetChecked(a.keepOptionsOpen)
 	stepOptionsAside(unlocked)
