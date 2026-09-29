@@ -483,20 +483,16 @@ local function aboutCard(p)
 end
 
 local function buildAbout(p)
-	local function gap() p:add(p:row(12), 12) end   -- a little room above each heading
 	p:add(p:row(6), 6)
 	aboutCard(p)
-	gap()
 	aboutFeedback = flashingHeader(p, "Feedback", "Interface\\Icons\\INV_Letter_15")
 	p:text("Ideas, requests or problems? Post in #feedback on Discord, comment on CurseForge, or open an issue on GitHub. Click a link, then Ctrl+C to copy.")
 	link(p, "Discord", ns.Look.DISCORD, "discord")
 	link(p, "CurseForge", ns.Look.CURSEFORGE .. "/comments", "curseforge")
 	link(p, "GitHub", ns.Look.REPO .. "/issues", "github")
-	gap()
 	p:header("Support", nil, nil, "Interface\\Icons\\INV_Misc_Coin_01")
 	p:text("If you'd like to support this addon, you can buy me a coffee. Thanks!")
 	link(p, "Ko-fi", ns.Look.KOFI, "kofi")
-	gap()
 	aboutExp = flashingHeader(p, "Experimental", "Interface\\Icons\\INV_Gizmo_02")
 	p:text("I can't test these in game yet. If you can, please try them and tell me whether they work and what could be improved.")
 	p:experimental("Water Shield", "Shields > Track")
@@ -505,7 +501,6 @@ local function buildAbout(p)
 		local e = ns.ELEMENTS[key]
 		if e.experimental then p:experimental(e.experimental, "Elements > " .. e.label) end
 	end
-	gap()
 	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
 		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
