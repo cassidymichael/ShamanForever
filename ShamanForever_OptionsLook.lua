@@ -538,6 +538,59 @@ local function buffPreview(def)
 	}
 end
 
+-- The Mana element (ShamanForever_Mana.lua): the five-second rule running, low mana, and full (its
+-- idle look). The bar and the counts are the HUD's own, at a made-up level of mana: the counts come
+-- from max mana and each pick's cost as the game has them.
+local function manaAt(st)
+	if st == "casting" then return 0.65 end
+	if st == "low" then return ns.Mana.number("mana", "lowAt") * 0.6 end
+	return 1
+end
+L.PREVIEW.mana = {
+	uptime = true, panelW = 260,   -- room for counts beside the icon
+	states = { { "casting", "Five-second rule" }, { "low", "Low mana" }, { "full", "Full" } },
+	render = function(ic, st)
+		local M = ns.Mana
+		reset(ic, M.ICON)
+		local frac = manaAt(st)
+		if opt("mana", "fill") then
+			local c = M.color("mana", "fillColor")
+			ic.bar:SetHeight(M.number("mana", "fillHeight") * ic:GetWidth() / ns.BASE_ICON_SIZE)
+			setBar(ic, 1, frac, c[1], c[2], c[3])
+		end
+		M.previewCounts(ic, frac)
+		if st == "casting" then frozen(ic.upT, 0.4, 5)
+		elseif st == "low" then
+			ic.tex:SetDesaturated(opt("mana", "lowGrey"))
+			ic:SetRingShown(opt("mana", "lowRing"))
+			ic:SetPulsing(opt("mana", "lowPulse"))
+			ic:SetGlowShown(opt("mana", "lowGlow"))
+		else idleLook(ic, "mana") end
+	end,
+}
+
+-- The mana potion cue: time to drink (the potion you carry, else a Minor Mana Potion), on cooldown
+-- and mana not low (both idle).
+L.PREVIEW.manapotion = {
+	cooldown = true,
+	states = { { "show", "Time to drink" }, { "cd", "On cooldown" }, { "idle", "Mana not low" } },
+	render = function(ic, st)
+		local M = ns.Mana
+		local pot, n = M.bestPotion()
+		reset(ic, pot and M.potionIcon(pot) or M.POTION_ICON)
+		if opt("manapotion", "potionCount") then
+			ns.placeScaledText(ic.count, ic, M.number("manapotion", "potionCountSize"), "BOTTOMRIGHT", 0, 0)
+			ic.count:SetText(n or 3)
+			ic.count:Show()
+		end
+		if st == "show" then ic:SetGlowShown(opt("manapotion", "potionGlow"))
+		else
+			if st == "cd" then frozen(ic.cdT, 0.4, 120) end
+			idleLook(ic, "manapotion")
+		end
+	end,
+}
+
 -- Tremor Totem: warning, its totem down (time left; idle too, unless Idle when says otherwise) and
 -- idle (not down, nothing to warn about).
 L.PREVIEW.tremor = {
@@ -570,6 +623,44 @@ L.PREVIEW.tremor = {
 			if opt("tremor", "idleWhen") == "notdown" then return end
 		end
 		idleLook(ic, "tremor")
+	end,
+}
+
+-- The swing timer (ShamanForever_Swing.lua): a bar, not an icon. size gives the preview its shape:
+-- the HUD's, at the preview's scale, fitted into the panel.
+local SWING_FILL = 0.55
+L.PREVIEW.swing = {
+	cooldown = true, panelW = 306,
+	size = function()
+		local w, h = ns.Swing.getSize(ns.BASE_ICON_SIZE)
+		local k = math.min(56 / ns.BASE_ICON_SIZE, 160 / w, 28 / h)
+		return w * k, h * k
+	end,
+	states = { { "swinging", "Swinging" }, { "due", "Swing due" }, { "unsure", "Unsure" }, { "idle", "Not attacking" } },
+	render = function(ic, st)
+		reset(ic, nil)
+		ic.tex:SetColorTexture(unpack(ns.Swing.BACKGROUND))   -- the bar's background
+		local s = ic.swing
+		if not s then
+			-- The HUD's bar, the fill under the countdown.
+			local base = ic:GetFrameLevel()
+			s = ns.Swing.makeBar(ic)
+			s:SetFrameLevel(base + 1)
+			ic.cd:SetFrameLevel(base + 2)
+			ic.textFrame:SetFrameLevel(base + 4)
+			if ic.cdT then ic.cdT.cd:SetDrawBling(false) end
+			ic.swing = s
+		end
+		ns.Swing.sizeSpark(s)
+		local c = ns.Swing.fillColor()
+		s:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
+		local faded = st == "unsure" and ns.elementSetting("swing", "unsureAlpha") or 1
+		s:SetAlpha(faded)
+		ic.cd:SetAlpha(faded)
+		s:SetValue(st == "due" and 1 or SWING_FILL)
+		s:SetShown(st ~= "idle")   -- auto attack off: the bar empties
+		if st == "swinging" or st == "unsure" then frozen(ic.cdT, SWING_FILL, 2.6) end
+		if st == "idle" then idleLook(ic, "swing") end
 	end,
 }
 
@@ -940,6 +1031,7 @@ function L.buildHero(parent, key)
 		def.build(h)
 	else
 		h.previewIcon = makePreviewIcon(p, key, def)
+		if def.size then h.previewIcon:SetSize(def.size()) end   -- not square (the swing timer)
 		h.previewIcon:SetPoint("LEFT", 16, -6)   -- snapped to whole pixels in refresh
 	end
 	h.stateButtons = {}
@@ -1024,6 +1116,7 @@ function L.buildHero(parent, key)
 			-- On whole screen pixels: a cooldown's swipe snaps to pixels and the icon's texture doesn't,
 			-- so at a fractional position a sliver of the icon shows beside the swipe.
 			local ic = self.previewIcon
+			if def.size then ic:SetSize(def.size()) end
 			ic:ClearAllPoints()
 			ic:SetPoint("LEFT", p, "LEFT", 16, -6)
 			local l, t = ic:GetLeft(), ic:GetTop()

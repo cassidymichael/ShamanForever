@@ -30,8 +30,10 @@ ShamanForever_Reagents.lua
 ShamanForever_Cooldowns.lua
 ShamanForever_Shock.lua
 ShamanForever_Buffs.lua
+ShamanForever_Mana.lua
 ShamanForever_Tremor.lua
 ShamanForever_TremorList.lua
+ShamanForever_Swing.lua
 ShamanForever_Positioning.lua
 ShamanForever_Profiles.lua
 ShamanForever_News.lua

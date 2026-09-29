@@ -242,6 +242,7 @@ local DEFS = {
 	chainLightning  = { ids = { 421 }, en = "Chain Lightning" },
 	ghostWolf       = { ids = { 2645, 1238640 }, en = "Ghost Wolf" },   -- 1238640: the spellbook's, seen 2026-09-27
 	farSight        = { ids = { 6196 }, en = "Far Sight" },
+	attack          = { ids = { 6603 }, en = "Attack" },   -- auto attack: the swing timer's icon and its on/off
 }
 Spells.DEFS = DEFS
 
