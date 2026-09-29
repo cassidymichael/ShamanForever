@@ -293,12 +293,12 @@ local function popWhenReady(f, key, totemSlot)
 	f.cd:HookScript("OnCooldownDone", function()
 		if not CD.readyNow(f) then return end   -- a global cooldown ended
 		if not (ns.isEnabled(key) and setting(key, "readyPop")) then return end
+		if ns.cantAct() then return end   -- dead, a ghost or on a flight path: nothing to cast
 		if totemSlot then
 			local ok, d = safe(GetTotemDuration, totemSlot)
 			if not ok then return end
 			if not d then
-				-- Not while dead, a ghost or on a flight path: no totem can be dropped then.
-				if setting(key, "readyNoTotem") == "grey" and not ns.cantAct() then f:Pop("blocked") end
+				if setting(key, "readyNoTotem") == "grey" then f:Pop("blocked") end
 				return
 			end
 		end
