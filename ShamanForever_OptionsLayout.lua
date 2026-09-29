@@ -443,7 +443,7 @@ local function wide() return page.content:GetWidth() >= WIDE_AT end
 
 -- The name being edited: { slot, id }, one at a time. Enter or Accept saves it; Escape or Cancel
 -- leaves the name as it was. It belongs to the group it was started for: if that group leaves the
--- panel (deleted), the edit ends.
+-- panel or is gone (deleted), the edit ends.
 local renaming
 
 local function stopRename()
@@ -615,8 +615,10 @@ local function buildSettings(p, s)
 		{ "Split up", function() askAbout("SHAMANFOREVER_SPLIT", G()) end, "Gives every element in the group a group of its own, left where it is.", 90 },
 		{ "Hide all", function() askAbout("SHAMANFOREVER_HIDEALL", G()) end, "Sets every element in the group to Hidden. They keep their places; set one back to Always to bring it back.", 90 },
 	})
+	-- Not while its name is being edited: the edit belongs to the group.
 	p:buttons({
-		{ "Delete group", function() askDelete(G()) end, "Its elements move to Ungrouped: off screen, their settings kept.", 110 },
+		{ "Delete group", function() askDelete(G()) end, "Its elements move to Ungrouped: off screen, their settings kept.", 110,
+			function() return not (renaming and renaming.slot == s) end },
 	})
 end
 
@@ -649,6 +651,13 @@ end
 -- folded when the ones before it are deleted.
 function ensureSlots()
 	local groups = db().groups
+	-- An edit whose group is gone (deleted, another profile) ends, so it can't come back on a new
+	-- group that gets the same id.
+	if renaming and not ns.groupById(renaming.id) then
+		local r = renaming
+		renaming = nil
+		r.slot.head.box:ClearFocus()
+	end
 	for i = #slots + 1, #groups do buildSlot(page, i) end
 	for i, s in ipairs(slots) do
 		if groups[i] then s.block.key = "layout:group" .. groups[i].id end
