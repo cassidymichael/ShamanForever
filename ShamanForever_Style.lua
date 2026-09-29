@@ -34,15 +34,15 @@ S.register("glow", {
 	-- Its look (S.addLook; ShamanForever_Looks.lua), colour, one pulse's length (s), the dimmest it
 	-- gets between pulses, and how far in from the edges it reaches (share of the icon). Killed
 	-- early's glow keeps its red.
-	defaults = { look = "edges", color = { 1, 0.8, 0.25, 1 }, speed = 0.5, low = 0.25, width = 0.2 },
+	defaults = { look = "soft", color = { 1, 0.8, 0.25, 1 }, speed = 0.5, low = 0.25, width = 0.2 },
 	path = { "glowStyle" },
 })
 S.register("pop", {
-	-- Its look for Ready (S.addLook; ShamanForever_Looks.lua), motion (pop = grow, bounce, hop,
-	-- shake, shakeV) with its distance and speed, and light: a flash, a ring, a star, coloured by
-	-- what happened (tint) or white.
-	defaults = { look = "classic", motion = "shakeV", size = 1.4, speed = 1, flash = true, ring = false, star = true,
-		tint = true },
+	-- One setting per part, each changing only its own: colorBy (event | school: the colour for
+	-- Ready and Ran out; warnings keep theirs), flash (none | plain | edge), burst (none | ring |
+	-- star | both | shapes | painted | rune | school), motion (none | pop = grow | bounce | hop |
+	-- shake | shakeV) with its distance (size) and speed, which times the whole pop.
+	defaults = { colorBy = "event", flash = "plain", burst = "star", motion = "shakeV", size = 1.4, speed = 1 },
 	path = { "popStyle" },   -- not "pop": the totem bar's pop is where its pickers open
 })
 -- Whether buttons show the global cooldown's sweep after every cast, as action bars do. Off, an

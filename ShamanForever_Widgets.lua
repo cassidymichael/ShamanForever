@@ -201,12 +201,11 @@ function ns.makeGCDSweep(parent)
 end
 
 
--- A pulsing glow inside an icon: soft light running in from its four edges, over the icon's art and
--- inside its border, breathing. `over` is the icon it covers (default: the parent). Its style is its
--- owner's (an element key or "totembar"; nil for General's): its look (the four edges, or one of
--- ns.Looks' glow looks), colour, pulse length, pulse depth (low is the dimmest it gets) and
--- thickness (how far in it reaches, as a share of the icon). fit(size) lays it out for an icon of
--- that size.
+-- A pulsing glow inside an icon: soft light over the icon's art and inside its border, breathing.
+-- `over` is the icon it covers (default: the parent). Its style is its owner's (an element key or
+-- "totembar"; nil for General's): its look (one of ns.Looks' glow looks), colour, pulse length,
+-- pulse depth (low is the dimmest it gets) and thickness (how far in it reaches, as a share of the
+-- icon). fit(size) lays it out for an icon of that size.
 local glows = {}
 -- unlisted: left out of ns.applyGlowStyle, for a glow under Blizzard's aura button, which its owner
 -- restyles only when that's allowed (out of combat, auras not secret). It keeps the look it had as
@@ -224,21 +223,13 @@ local function makeGlow(parent, over, owner, unlisted)
 	g:EnableMouse(false)
 	g.inner = CreateFrame("Frame", nil, g)   -- the breathing; g's own alpha stays free for a gate
 	g.inner:SetAllPoints()
-	g.edges = {}
-	for _, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
-		local t = g.inner:CreateTexture(nil, "OVERLAY")
-		t:SetTexture("Interface\\Buttons\\WHITE8x8")
-		t:SetBlendMode("ADD")
-		g.edges[side] = t
-	end
 	g.anim = g.inner:CreateAnimationGroup()
 	g.anim:SetLooping("BOUNCE")
 	g.fade = g.anim:CreateAnimation("Alpha")
 	g.fade:SetFromAlpha(1); g.fade:SetSmoothing("IN_OUT")
 	g.parts = {}   -- look key -> the regions and animations it made (ns.Looks), or false
-	-- A look's parts, made on first use; one the client refuses falls back to the four edges.
+	-- A look's parts, made on first use; nil for one the client refused.
 	local function parts(look)
-		if not look.build then return nil end
 		local p = g.parts[look.key]
 		if p == nil then
 			local ok, made = ns.try("glow look " .. look.key, look.build, g)
@@ -248,6 +239,11 @@ local function makeGlow(parent, over, owner, unlisted)
 			g.parts[look.key] = p
 		end
 		return p or nil
+	end
+	-- The look drawn for a style's: itself, or the default look where the client refused its parts.
+	local function drawn(look)
+		if parts(look) then return look end
+		return ns.Style.look("glow", ns.Style.KINDS.glow.defaults.look)
 	end
 	if unlisted then table.insert(auraGlows, g) end
 	local function play(self, on)
@@ -278,7 +274,7 @@ local function makeGlow(parent, over, owner, unlisted)
 	-- The owner's style; a fixed colour (killed early's red) wins over its colour.
 	function g:restyle()
 		local st = ns.Style.get(self.owner, "glow")
-		local look = unlisted and self.look or ns.Style.look("glow", st.look)
+		local look = unlisted and self.look or drawn(ns.Style.look("glow", st.look))
 		if look ~= self.look then
 			local running = self.look ~= nil and self:IsShown()
 			if running then play(self, false) end
@@ -287,7 +283,6 @@ local function makeGlow(parent, over, owner, unlisted)
 			self.look, self.fitWidth = look, nil   -- lay the new look out at the next fit
 			local p = parts(look)
 			for _, r in ipairs(p and p.roots or {}) do r:Show() end
-			for _, t in pairs(self.edges) do t:SetShown(p == nil) end
 			if running then play(self, true) end
 		end
 		self.width = st.width   -- kept for fit, which the ready glows call ten times a second
@@ -298,16 +293,7 @@ local function makeGlow(parent, over, owner, unlisted)
 		self.fade:SetToAlpha(look.steady and 1 or st.low)
 		local k = self.fixed or st.color
 		local p = parts(look)
-		if p then look.style(self, p, st, k)
-		else
-			local on, off = CreateColor(k[1], k[2], k[3], k[4] or 1), CreateColor(k[1], k[2], k[3], 0)
-			local e = self.edges
-			-- Bright at the edge, clear inward (vertical gradients run bottom to top, horizontal left to right).
-			e.TOP:SetGradient("VERTICAL", off, on)
-			e.BOTTOM:SetGradient("VERTICAL", on, off)
-			e.LEFT:SetGradient("HORIZONTAL", on, off)
-			e.RIGHT:SetGradient("HORIZONTAL", off, on)
-		end
+		if p then look.style(self, p, st, k) end
 		if self.iconSize then self:fit(self.iconSize) end
 		-- Under the aura button IsShown is secret; the button restarts that glow itself.
 		if retime and not unlisted and self:IsShown() then self.anim:Stop(); self.anim:Play() end
@@ -318,14 +304,7 @@ local function makeGlow(parent, over, owner, unlisted)
 		if size == self.iconSize and self.width == self.fitWidth and out == self.fitOut then return end
 		self.iconSize, self.fitWidth, self.fitOut = size, self.width, out
 		local p = parts(self.look)
-		if p then self.look.fit(self, p, size, out) return end
-		local th = math.max(size * (self.width or 0.2), 1)
-		local e = self.edges
-		for _, t in pairs(e) do t:ClearAllPoints() end
-		e.TOP:SetPoint("TOPLEFT"); e.TOP:SetPoint("TOPRIGHT"); e.TOP:SetHeight(th)
-		e.BOTTOM:SetPoint("BOTTOMLEFT"); e.BOTTOM:SetPoint("BOTTOMRIGHT"); e.BOTTOM:SetHeight(th)
-		e.LEFT:SetPoint("TOPLEFT"); e.LEFT:SetPoint("BOTTOMLEFT"); e.LEFT:SetWidth(th)
-		e.RIGHT:SetPoint("TOPRIGHT"); e.RIGHT:SetPoint("BOTTOMRIGHT"); e.RIGHT:SetWidth(th)
+		if p then self.look.fit(self, p, size, out) end
 	end
 	function g:color(r, gg, b) self.fixed = { r, gg, b, 1 }; self:restyle() end
 	g:restyle()
@@ -349,10 +328,11 @@ function ns.auraGlowStale(owner)
 end
 
 -- Pop: the burst when something happens (a cooldown ready, an imbue dropping, a totem ending).
--- Its style is its owner's (General's, or an element's or the totem bar's own): a motion (grow,
--- bounce, hop, shake) with a size and speed, and optional light (a flash over the icon, a ring
--- spreading out, a star behind it), tinted by what happened. For Ready, a pop look in place of that
--- (ns.Looks.popStyle). Every part is built on the frame the first time it pops.
+-- Its style is its owner's (General's, or an element's or the totem bar's own), one setting per
+-- part: a motion (none, grow, bounce, hop, shake) with a size and speed; a flash over the icon
+-- (plain, or Blizzard's edge flash); a burst (a ring spreading out, a star behind it, or one of
+-- ns.Looks' drawn bursts); and their colour, by what happened or by school. Every part is built
+-- on the frame the first time it pops.
 local POP_TINT = { ready = { 1, 0.82, 0.25 }, imbue = { 0.35, 0.65, 1 }, expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 },
 	grounded = { 0.56, 0.76, 0.92 }, blocked = { 0.6, 0.6, 0.6 } }
 ns.POP_TINT = POP_TINT
@@ -421,19 +401,21 @@ local function popFx(f)
 	return x
 end
 -- kind: ready | imbue | expired | killed | grounded (the tint); owner: whose style (nil: General's).
--- blocked: ready but it can't be cast (Fire Nova with no fire totem): grey and a dimmer flash, with
--- Colour by event on or off, so it never reads as the full ready pop.
+-- blocked: ready but it can't be cast (Fire Nova with no fire totem): grey and a dimmer flash,
+-- whatever the Colour, so it never reads as the full ready pop.
 -- Nothing on a frame that isn't visible (a combat-only group out of combat): it would wait there and
 -- play when the frame next shows, for something long over.
 function ns.playPop(f, kind, owner)
 	if not f:IsVisible() then return end
-	local st = ns.Looks.popStyle(ns.Style.get(owner, "pop"), kind or "ready", f)
+	kind = kind or "ready"
+	local st = ns.Style.get(owner, "pop")
 	local x = popFx(f)
-	local S = st.size
+	local motion, S = st.motion, st.size
 	local k = 1 / math.max(st.speed, 0.1)   -- duration multiplier
-	local h = math.max(f:GetHeight(), 8)
+	-- popSize: the icon's size, set by whoever knows it where a read could be secret (an end flash
+	-- over the totem bar's slot, under its secure button).
+	local h = math.max(f.popSize or f:GetHeight(), 8)
 	for _, m in ipairs({ "grow", "bounce", "hop", "shake", "shakeV" }) do x[m]:Stop() end
-	local motion = st.motion
 	if motion == "pop" then
 		local a = x.grow.a
 		a[1]:SetScaleFrom(1, 1); a[1]:SetScaleTo(S, S); a[1]:SetDuration(0.12 * k)
@@ -453,7 +435,7 @@ function ns.playPop(f, kind, owner)
 		a[3]:SetOffset(2 * d * sx, 2 * d * sy); a[3]:SetDuration(0.07 * k)
 		a[4]:SetOffset(-d * sx, -d * sy); a[4]:SetDuration(0.05 * k)
 		g:Play()
-	else   -- bounce: overshoot, dip, settle
+	elseif motion == "bounce" then   -- overshoot, dip, settle
 		local a, u, o = x.bounce.a, 1 - (S - 1) * 0.25, 1 + (S - 1) * 0.15
 		a[1]:SetScaleFrom(1, 1); a[1]:SetScaleTo(S, S); a[1]:SetDuration(0.12 * k)
 		a[2]:SetScaleFrom(S, S); a[2]:SetScaleTo(u, u); a[2]:SetDuration(0.12 * k)
@@ -461,10 +443,17 @@ function ns.playPop(f, kind, owner)
 		a[4]:SetScaleFrom(o, o); a[4]:SetScaleTo(1, 1); a[4]:SetDuration(0.08 * k)
 		x.bounce:Play()
 	end
+	-- The colour: the event's, or the school's for Ready and Ran out when the style says so. A
+	-- warning (killed early, grounded, the imbue dropping, blocked) always keeps its own.
 	local muted = kind == "blocked"
-	local c = (st.tint or muted) and POP_TINT[kind or "ready"] or { 1, 1, 1 }
+	local c = POP_TINT[kind] or POP_TINT.ready
+	if st.colorBy == "school" and ns.Looks.POP_EVENTS[kind] then
+		c = ns.SCHOOL_COLOR[ns.Looks.schoolOf(f)] or ns.SCHOOL_COLOR.spirit
+	end
 	x.flashAnim:Stop()
-	if st.flash then
+	local flash = st.flash
+	if flash == "edge" and not ns.Looks.popFlash(x, c, k, h) then flash = "plain" end
+	if flash == "plain" then
 		x.flash:SetVertexColor(c[1], c[2], c[3])
 		local a, peak = x.flashAnim.a, muted and 0.4 or 0.8
 		a[1]:SetFromAlpha(0); a[1]:SetToAlpha(peak); a[1]:SetDuration(0.06 * k)
@@ -473,19 +462,20 @@ function ns.playPop(f, kind, owner)
 	end
 	-- The ring spreads from just inside the icon to 2.2 icon widths; the star from 1.2 to 3.5.
 	x.bursts.stop(x.ring); x.bursts.stop(x.star)
-	if st.ring then
+	local burst = st.burst
+	if burst == "ring" or burst == "both" then
 		x.ring:SetDesaturated(true)
 		x.ring:SetVertexColor(c[1], c[2], c[3])
 		x.ring:SetSize(h * 0.9, h * 0.9)
 		x.bursts.play(x.ring, { dur = 0.45 * k, from = h * 0.9, to = h * 2.2 })
 	end
-	if st.star then
+	if burst == "star" or burst == "both" then
 		x.star:SetDesaturated(true)
 		x.star:SetVertexColor(c[1], c[2], c[3])
 		x.star:SetSize(h, h)
 		x.bursts.play(x.star, { dur = 0.45 * k, from = h * 1.2, to = h * 3.5, spin = -0.5 })
 	end
-	if st.play then st.play(x, k) end   -- a pop look's own light (ns.Looks.popStyle)
+	ns.Looks.popBurst(x, f, burst, c, k, h)   -- a drawn burst (shapes, painted, rune, by school)
 end
 
 -- The end of a totem, over `anchor`. Nothing here reads a secret: play() hands the gone totem's
@@ -512,6 +502,7 @@ function ns.makeEndFlash(parent, anchor, owner, over)
 	kf:EnableMouse(false)
 	kf.pop = CreateFrame("Frame", nil, kf)
 	kf.pop:SetAllPoints()
+	kf.pop.over = over   -- the icon whose school and frame its pop's looks take
 	kf.body = CreateFrame("Frame", nil, kf.pop)
 	kf.body:SetAllPoints()
 	kf.body:SetAlpha(0)
@@ -588,6 +579,7 @@ function ns.makeEndFlash(parent, anchor, owner, over)
 		-- fitSize: the picture's size, set by whoever lays it out where the flash sits in from anchor
 		-- (the totem bar's slots, inside their border), so no size is read under a secure button.
 		local size = self.fitSize or anchor:GetWidth()
+		self.pop.popSize = size
 		local soft = opts.expired and opts.ranOut
 		if soft then
 			local c = opts.ranOut

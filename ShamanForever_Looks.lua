@@ -2,8 +2,8 @@
 -- style's `look` field picks, and the shared pieces that draw them:
 --   frame      the edge around an icon, in its border's look (rings of lines, corner caps, art
 --              over or around the icon, a mask on the icon's picture)
---   glow       the pulsing glow's looks past the default four edges (ns.makeGlow calls in)
---   pop        the pop's looks past the classic one (ns.playPop calls in)
+--   glow       the pulsing glow's looks (ns.makeGlow calls in)
+--   pop        the pop's edge flash and drawn bursts (not looks: ns.playPop calls in by part)
 --   burster    textures that grow and fade over a pop's short life
 -- Our own media are named by path, never by file ID: the client gives our loose files IDs that
 -- change between client starts (tested 2026-09-28). Blizzard's art is named by atlas and checked
@@ -31,8 +31,9 @@ end
 
 -- The school a frame's looks take (a glow's material, a pop's colour and shapes): the frame's own
 -- (a totem bar slot's), else its element's (element icons and their previews carry the element's
--- key as owner).
+-- key as owner). A frame laid over an icon (an end flash's pop) names that icon as f.over.
 local function schoolOf(f)
+	if f.over then f = f.over end
 	if f.school then return f.school end
 	local e = type(f.owner) == "string" and ns.ELEMENTS[f.owner]
 	return e and e.school or "spirit"
@@ -641,10 +642,10 @@ function Looks.burster(driver)
 end
 
 ------------------------------------------------------------------------
--- Glow looks. The default, "edges", is ns.makeGlow's own four gradients. Each other look is an
--- entry with:
+-- Glow looks. The default is "soft", the soft inner glow. Each look is an entry with:
 --   uses      the glow style's fields it reads (color, speed, low, width); the options show those
 --   steady    it doesn't breathe (the glow's pulse is off; speed may time its own motion)
+--   bySchool  it differs by school (the options preview it on one icon per school)
 --   build(g)  its regions and animation groups, under g.inner (breathing) or g (not); returns
 --             parts: { roots = { frames }, anims = { groups played while it shows }, aura = { the
 --             groups Blizzard's aura button plays in their place, when the glow is under it } }
@@ -662,7 +663,7 @@ local function root(parent)
 	return r
 end
 -- Puts a look's frames (its roots and their holders) at the level of the frame they hang from,
--- where the four edges draw: a level higher is the timer bar's or the text's. Levels move as an
+-- the glow's own: a level higher is the timer bar's or the text's. Levels move as an
 -- icon regroups, so the glow calls this each time it shows.
 function Looks.levelParts(parts)
 	for _, r in ipairs(parts.roots or {}) do
@@ -857,7 +858,7 @@ local MATERIAL = {   -- school -> tile move (in tiles), seconds a tile
 	earth = { 0, 0, 1 }, fire = { 0, 1, 2.2 }, water = { 1, -1, 5 }, air = { 1, 0, 1.2 }, spirit = { 1, -1, 5 },
 }
 local material = {
-	uses = { color = true, speed = true, low = true, width = true },
+	uses = { color = true, speed = true, low = true, width = true }, bySchool = true,
 	build = function(g)
 		local r = root(g.inner)
 		local parts = { roots = { r }, soft = softPart(r, 0.35) }
@@ -873,7 +874,7 @@ local material = {
 	end,
 	style = function(g, parts, st, c)
 		styleSoft(parts.soft, c)
-		local school = schoolOf(g.over or g)
+		local school = schoolOf(g)
 		parts.school = school
 		parts.mat:SetTexture(MEDIA .. "Mat-" .. school:sub(1, 1):upper() .. school:sub(2), "REPEAT", "REPEAT")
 		parts.mat:SetTexCoord(0, 3, 0, 3)
@@ -921,10 +922,9 @@ local heartbeat = {
 }
 
 local function addGlow(key, name, entry)
-	entry.name, entry.experimental = name, key ~= "edges" or nil
+	entry.name, entry.experimental = name, key ~= "soft" or nil
 	S.addLook("glow", key, entry)
 end
-addGlow("edges", "Edges", { uses = { color = true, speed = true, low = true, width = true } })
 addGlow("soft", "Soft inner", soft)
 addGlow("halo", "Outer halo", halo)
 addGlow("proc", "Proc glow", proc)
@@ -933,11 +933,10 @@ addGlow("material", "School material", material)
 addGlow("heartbeat", "Heartbeat", heartbeat)
 
 ------------------------------------------------------------------------
--- Pop looks. The default, "classic", is ns.playPop's own motion, flash, ring and star. The others
--- are for Ready (other events keep the classic pop, in their colours) and take the element's
--- school colour. An entry's motion(school) gives its motion and distance, and play(x, f, c, k,
--- school) draws its light with x's parts (ns.playPop's), k its duration multiplier. Shapes spread
--- behind the icon over a dark halo, so they read on bright ground; the sheen crosses the icon.
+-- The pop's parts past ns.playPop's own plain flash, ring and star: Blizzard's edge flash
+-- (Looks.popFlash) and the drawn bursts (Looks.popBurst), in the colour ns.playPop gives them. A
+-- burst's shapes follow the school of the icon it pops on. Shapes spread behind the icon over a
+-- dark halo, so they read on bright ground; the sheen crosses the icon.
 ------------------------------------------------------------------------
 local GCD_FLASH = "UI-HUD-ActionBar-GCD-Flipbook"
 local SCHOOLS = { earth = "Earth", fire = "Fire", water = "Water", air = "Air", spirit = "Spirit" }
@@ -998,33 +997,9 @@ local function sheen(x, c, school, dur, delay)
 end
 local function shapeFile(school) return MEDIA .. "Shape-" .. (SCHOOLS[school] or "Spirit") end
 
--- The classic pop's flash, ring and star in the school's colour, over the dark disc.
-local function schoolLight(x, f, c, k, h, st)
-	disc(x, h, 3.5, 0.45 * k)
-	if st.flash then
-		x.flash:SetVertexColor(c[1], c[2], c[3])
-		local a = x.flashAnim.a
-		a[1]:SetFromAlpha(0); a[1]:SetToAlpha(0.8); a[1]:SetDuration(0.06 * k)
-		a[2]:SetFromAlpha(0.8); a[2]:SetToAlpha(0); a[2]:SetDuration(0.3 * k)
-		x.flashAnim:Play()
-	end
-	for _, t in ipairs({ x.ring, x.star }) do
-		t:SetDesaturated(true)
-		t:SetVertexColor(c[1], c[2], c[3])
-	end
-	if st.ring then
-		x.ring:SetSize(h * 0.9, h * 0.9)
-		x.bursts.play(x.ring, { dur = 0.45 * k, from = h * 0.9, to = h * 2.2 })
-	end
-	if st.star then
-		x.star:SetSize(h, h)
-		x.bursts.play(x.star, { dur = 0.45 * k, from = h * 1.2, to = h * 3.5, spin = -0.5 })
-	end
-end
-
 -- Blizzard's cooldown-done flash, a light running round the edge, made stronger than
 -- Blizzard draws it (too faint at 44, tested 2026-09-28): added, and a second copy a little larger.
-local function gcdFlash(x, c, k)
+local function gcdFlash(x, c, k, s)
 	if not x.gcd then
 		x.gcd = {}
 		for i, grow in ipairs({ 1, 1.15 }) do
@@ -1037,9 +1012,8 @@ local function gcdFlash(x, c, k)
 			x.gcd[i] = { tex = t, group = flipBook(t, 11, 2, 22, 0.75) }
 		end
 	end
-	local w, h = x.fx:GetSize()
 	for _, g in ipairs(x.gcd) do
-		g.tex:SetSize(w * g.tex.grow, h * g.tex.grow)
+		g.tex:SetSize(s * g.tex.grow, s * g.tex.grow)
 		g.tex:SetVertexColor(c[1] * 0.6 + 0.4, c[2] * 0.6 + 0.4, c[3] * 0.6 + 0.4)
 		g.group:Stop()
 		g.group.flip:SetDuration(0.75 * k)
@@ -1051,16 +1025,16 @@ end
 -- Shapes spreading behind the icon (drawn or painted); a sheen in the school's
 -- direction crosses the icon.
 local function shapes(file, to)
-	return function(x, f, c, k, h, st, school)
+	return function(x, c, k, h, school)
 		disc(x, h, 3.0, 0.5 * k)
 		burst(x, "shape1", file(school), c, h, 1.0, to, { dur = 0.5 * k, spin = SPIN[school] }, false, true)
 		sheen(x, c, school, 0.34 * k)
 	end
 end
 
--- Each school its own motion: earth slams, fire flares up, water ripples twice, air spins,
+-- Each school its own effect: earth slams, fire flares up, water ripples twice, air spins,
 -- spirit gathers in and bursts.
-local MOTIONS = {
+local EFFECTS = {
 	earth = function(x, c, k, h)
 		burst(x, "shape1", shapeFile("earth"), c, h, 0.8, 2.7, { dur = 0.5 * k, spin = 0.25, delay = 0.06 * k }, false, true)
 		burst(x, "ring1", MEDIA .. "Ring-Soft", c, h, 1.0, 2.6, { dur = 0.55 * k, sy = 0.42, rise = -h * 0.32, a = 0.9, delay = 0.06 * k })
@@ -1088,62 +1062,52 @@ local MOTIONS = {
 		burst(x, "spark", MEDIA .. "Spark", c, h, 0.4, 1.6, { dur = 0.4 * k, a = 0.9, delay = 0.22 * k }, true)
 	end,
 }
-local MOTION_OF = { earth = { "bounce", 1.14 }, fire = { "pop", 1.25 }, water = { "hop", 1.12 },
-	air = { "shake", 1.35 }, spirit = { "pop", 1.18 } }
 
-local function addPop(key, name, entry)
-	entry.name, entry.experimental = name, key ~= "classic" or nil
-	S.addLook("pop", key, entry)
-end
-addPop("classic", "Classic", {})
-addPop("school", "School colour", { play = schoolLight })
-addPop("flash", "Blizzard's flash", {
-	motion = function() return "pop", 1 end,   -- none: the flash is the whole of it
-	atlas = GCD_FLASH,
-	play = function(x, f, c, k) gcdFlash(x, c, k) end,
-})
-addPop("shapes", "School shapes", { motion = function() return "pop", 1.15 end, play = shapes(shapeFile, 3.0) })
-addPop("motions", "School motions", {
-	motion = function(school) local m = MOTION_OF[school] or MOTION_OF.spirit; return m[1], m[2] end,
-	play = function(x, f, c, k, h, st, school)
-		disc(x, h, 3.0, 0.6 * k)
-		local motion = MOTIONS[school] or MOTIONS.spirit
-		motion(x, c, k, h)
-	end,
-})
-addPop("painted", "Painted bursts", { motion = function() return "pop", 1.15 end,
-	play = shapes(function(school) return MEDIA .. "Burst-" .. (SCHOOLS[school] or "Spirit") end, 3.2) })
-addPop("rune", "Rune ring", {
-	motion = function() return "pop", 1.12 end,
-	play = function(x, f, c, k, h)
+-- The drawn bursts: burst(x, c, k, h, school), h the icon's height with its frame.
+local BURSTS = {
+	shapes = shapes(shapeFile, 3.0),
+	painted = shapes(function(school) return MEDIA .. "Burst-" .. (SCHOOLS[school] or "Spirit") end, 3.2),
+	rune = function(x, c, k, h)
 		disc(x, h, 2.6, 0.6 * k)
 		burst(x, "shape1", MEDIA .. "Rune-Ring", c, h, 1.05, 2.6, { dur = 0.62 * k, spin = 0.55 }, false, true)
 		burst(x, "spark", MEDIA .. "Spark", { 1, 1, 1 }, h, 1.2, 2.2, { dur = 0.35 * k, a = 0.8 }, true)
 	end,
-})
+	school = function(x, c, k, h, school)
+		disc(x, h, 3.0, 0.6 * k)
+		local effect = EFFECTS[school] or EFFECTS.spirit
+		effect(x, c, k, h)
+	end,
+}
 
--- The pop style ns.playPop draws for kind on f: st itself for the classic look (and for every
--- event but Ready); else a copy with the look's motion and without the classic light, and play,
--- which draws the look's own light after the motion starts. A look whose Blizzard art is missing
--- draws as School colour.
-function Looks.popStyle(st, kind, f)
-	local look = S.look("pop", st.look)
-	if look.key == "classic" or kind ~= "ready" then return st end
-	if look.atlas and not Looks.hasAtlas(look.atlas) then look = S.LOOKS.pop.byKey.school end
-	local school = schoolOf(f)
-	local out = CopyTable(st)
-	if look.motion then out.motion, out.size = look.motion(school) end
-	out.flash, out.ring, out.star = false, false, false
-	out.play = function(x, k)
-		if not x.back then   -- behind the icon: only pops in these looks need it
-			x.back = CreateFrame("Frame", nil, f.effects or f)
-			x.back:SetAllPoints()
-			x.back:EnableMouse(false)
-		end
-		x.back:SetFrameLevel(math.max(f:GetFrameLevel() - 1, 0))   -- as the icon stands now
-		local h = math.max(f:GetHeight(), 8) + 2 * Looks.outerEdge(f)
-		local c = ns.SCHOOL_COLOR[school] or ns.SCHOOL_COLOR.spirit
-		look.play(x, f, c, k, h, st, school)
+-- The events whose pop takes the style's Colour (by event or by school): Ready, and a totem that
+-- ran out (the totem bar's pops, and the totem elements'). Killed early, Grounded and the imbue
+-- dropping are warnings: their pops keep their own colours.
+Looks.POP_EVENTS = { ready = true, expired = true }
+
+-- The school f's looks take (ns.playPop's colour by school).
+Looks.schoolOf = schoolOf
+
+-- Blizzard's edge flash on x, a pop's parts (ns.playPop's), tinted c, k its duration multiplier,
+-- size the icon's height (ns.playPop's, never read under a secure button). Returns false on a
+-- client without the art, for a plain flash in its place.
+function Looks.popFlash(x, c, k, size)
+	if not Looks.hasAtlas(GCD_FLASH) then return false end
+	gcdFlash(x, c, k, size)
+	return true
+end
+
+-- The drawn burst named key ("shapes", "painted", "rune", "school"; the others are ns.playPop's
+-- own) on f, whose pop's parts are x: tinted c, k its duration multiplier, size as for popFlash.
+function Looks.popBurst(x, f, key, c, k, size)
+	local draw = BURSTS[key]
+	if not draw then return end
+	if not x.back then   -- behind the icon: only these bursts need it
+		x.back = CreateFrame("Frame", nil, f.effects or f)
+		x.back:SetAllPoints()
+		x.back:EnableMouse(false)
 	end
-	return out
+	-- Under the icon as it stands now: for an end flash's pop, the icon it covers (a totem bar
+	-- slot), so the shapes and their dark disc stay behind that slot's neighbours too.
+	x.back:SetFrameLevel(math.max((f.over or f):GetFrameLevel() - 1, 0))
+	draw(x, c, k, size + 2 * Looks.outerEdge(f.over or f), schoolOf(f))
 end

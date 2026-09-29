@@ -64,9 +64,9 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 
 - Warning looks for a missing shield, imbue or totem, or one running out: grey icon, red ring, fade in and out.
 - Sounds: pick one for a spell coming ready, your imbue dropping, a totem ending or the Tremor warning, from the game's sounds or any LibSharedMedia sound your other addons bring. None play until you pick one.
-- A pulsing glow and a pop when something happens: a spell ready, a totem expiring or killed, your imbue dropping, a proc. Choose the pop's motion (grow, bounce, hop or shake), with an optional flash, ring or star burst, and the glow's colour, speed and depth.
-- Glow looks (experimental): a soft inner glow, an outer halo, Blizzard's proc glow, sparks running round the edge, the element's school texture, or a heartbeat.
-- Pop looks for a spell coming ready (experimental): the element's school colour, Blizzard's flash, a shape for each school, a motion for each school, painted bursts, or a rune ring.
+- A pulsing glow and a pop when something happens: a spell ready, a totem expiring or killed, your imbue dropping, a proc. Choose the glow's colour, speed and depth.
+- Glow looks: a soft inner glow, or (experimental) an outer halo, Blizzard's proc glow, sparks running round the edge, the element's school texture, or a heartbeat.
+- Pop style, one part at a time in any mix: its colour (by event, or by school for a spell ready or a totem running out), a flash (plain or Blizzard's edge flash), a burst (a ring, a star, both, shapes, painted bursts, a rune ring, or one for each school) and a motion (grow, bounce, hop, shake or none). Colour by school, the edge flash and the drawn bursts are experimental.
 - Timers as countdown text, a cooldown swipe, a draining bar, or any mix, each with its own size, colour, position and time format.
 - Colour by time left: countdown numbers turn one colour when time is short and another at the very end, at the times you choose. They can also show tenths of a second in the last seconds.
 - An optional global cooldown sweep, as on action bars.
