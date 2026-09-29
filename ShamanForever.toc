@@ -35,6 +35,7 @@ ShamanForever_Positioning.lua
 ShamanForever_Profiles.lua
 ShamanForever_Slash.lua
 ShamanForever_TotemBar.lua
+ShamanForever_TotemPulse.lua
 ShamanForever_TotemRange.lua
 ShamanForever_OptionsLook.lua
 ShamanForever_OptionsPage.lua

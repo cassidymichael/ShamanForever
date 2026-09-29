@@ -7,7 +7,8 @@
 --   multi-cast action slot, so it casts whatever the element's pick is, and follows it.
 -- * pickers: a secure header's snippets open and close the popouts (secure snippets work on Forever
 --   since build 70009). The arrow tab toggles its popout, Alt+click on a slot opens it, and a click
---   outside it (the catch button) closes it.
+--   outside it (the catch button) closes it. With "Open pickers on hover", entering a slot or its tab
+--   opens it, and leaving the slot and the strip from it to the picker's far end closes it.
 -- * popout: "multispell" buttons (spell 0 is "No totem") that change the pick, then close it.
 -- Layout, attributes and anything that shows, hides or moves a secure button change only out of
 -- combat; changes asked for in combat wait for it to end. Every layout, and the end of combat,
@@ -80,6 +81,8 @@ TB.DEFAULTS = {
 	rangeHeight = 4,          --   its height in screen pixels (ns.linePx)
 	rangeIn = { 0.2, 0.8, 0.25, 0 },       --   with the buff (0: nothing shows in range)
 	rangeOut = { 0.9, 0.12, 0.08, 0.85 },  --   without it
+	pickHover = false,        -- hovering a slot or its tab opens its picker (Everything)
+	pulse = "off",            -- time to a pulsing totem's next pulse: off | bar | text (ShamanForever_TotemPulse.lua)
 }
 
 local isSecret = ns.isSecret
@@ -309,6 +312,16 @@ picker:SetAttribute("sf-open", [[
 		local pop = self:GetFrameRef("pop" .. i)
 		if i == open then pop:Show() else pop:Hide() end
 	end
+	-- Hover mode ("sf-hovermode"): HOVER_LEAVE closes the picker as the mouse leaves its slot and
+	-- strip. Blizzard's secure hover driver is a second way: it hides the picker once the mouse has
+	-- been off both for a moment (registering again restarts it). It never counts down if the mouse
+	-- was already gone at its first update (a fast flick), so it can't be the only way.
+	if open > 0 and self:GetAttribute("sf-hovermode") then
+		local pop = self:GetFrameRef("pop" .. open)
+		pop:RegisterAutoHide(0.3)
+		pop:AddToAutoHide(self:GetFrameRef("slot" .. open))
+		pop:AddToAutoHide(self:GetFrameRef("strip" .. open))
+	end
 ]])
 picker:SetAttribute("sf-close", [[ self:GetFrameRef("pop" .. (...)):Hide() ]])
 -- Snippets run round each button's own click (SecureHandlerWrapScript). Returning false skips the
@@ -333,6 +346,27 @@ local SLOT_CLICK = [[
 	end
 ]]
 local PICK_CLICK, PICK_AFTER = [[ return nil, self:GetAttribute("sf-pick") ]], [[ owner:RunAttribute("sf-close", message) ]]
+-- Hover mode: the mouse entering a slot or its tab opens that picker (wrapped round OnEnter, below).
+local HOVER_ENTER = [[
+	if owner:GetAttribute("sf-hovermode") then owner:RunAttribute("sf-open", self:GetAttribute("sf-pick")) end
+]]
+-- Hover mode: the mouse leaving a slot, its tab, its strip or a picker button closes the picker
+-- unless it is still over the slot or the strip (IsUnderMouse is the cursor against each frame's
+-- rect). A leave runs only on a frame whose enter is wrapped too (Blizzard's SecureHandlers).
+local HOVER_LEAVE = [[
+	local i = self:GetAttribute("sf-pick")
+	if not owner:GetAttribute("sf-hovermode") then return end
+	local pop = owner:GetFrameRef("pop" .. i)
+	if pop:IsShown() and not owner:GetFrameRef("slot" .. i):IsUnderMouse()
+			and not owner:GetFrameRef("strip" .. i):IsUnderMouse() then
+		pop:Hide()
+	end
+]]
+local HOVER_NONE = [[ return ]]
+local function wrapHover(b, enter)
+	SecureHandlerWrapScript(b, "OnEnter", picker, enter or HOVER_NONE)
+	SecureHandlerWrapScript(b, "OnLeave", picker, HOVER_LEAVE)
+end
 local function wrapClick(b, pre, post) SecureHandlerWrapScript(b, "OnClick", picker, pre, post) end
 
 
@@ -473,6 +507,17 @@ for index, el in ipairs(ELEMENTS) do
 	catch:SetAttribute("sf-pick", index)
 	wrapClick(catch, CATCH_CLICK)
 	pop.catch = catch
+	-- Hover mode's strip: from the slot's edge to the picker's far end, over the tab and the gaps, so
+	-- the mouse can cross from the slot to the picker. It takes the mouse (below the tab and the
+	-- picker's buttons), so leaving it through a gap closes the picker too. Shown only in hover mode.
+	local strip = CreateFrame("Frame", nil, pop, "SecureFrameTemplate")
+	strip:SetFrameLevel(pop:GetFrameLevel() + 1)
+	strip:EnableMouse(true)
+	strip:SetAttribute("sf-pick", index)
+	strip:Hide()
+	pop.strip = strip
+	SecureHandlerSetFrameRef(picker, "strip" .. index, strip)
+	SecureHandlerSetFrameRef(picker, "slot" .. index, b)
 end
 
 -- Close every picker (out of combat only). A picker hidden only through the bar would come back
@@ -868,6 +913,7 @@ local function layoutPopout(s, size, known)
 				GameTooltip:Show()
 			end)
 			p:SetScript("OnLeave", function() GameTooltip:Hide() end)
+			wrapHover(p)   -- after its scripts: setting a script later would drop the wrap
 			pop.buttons[i] = p
 		end
 		p.spellID = id
@@ -885,6 +931,14 @@ local function layoutPopout(s, size, known)
 	end
 	for i = #ids + 1, #pop.buttons do pop.buttons[i]:Hide() end
 	TB.placePopout(pop, s.button, #ids, psz)
+	-- Hover mode's strip: as wide as the slot or the picker, whichever is wider.
+	local strip, dir, b = pop.strip, cfg().pop, s.button
+	local across = math.max(size, psz + 2 * POP_STEP)
+	strip:ClearAllPoints()
+	if dir == "up" then strip:SetPoint("BOTTOM", b, "TOP"); strip:SetPoint("TOP", pop, "TOP"); strip:SetWidth(across)
+	elseif dir == "down" then strip:SetPoint("TOP", b, "BOTTOM"); strip:SetPoint("BOTTOM", pop, "BOTTOM"); strip:SetWidth(across)
+	elseif dir == "right" then strip:SetPoint("LEFT", b, "RIGHT"); strip:SetPoint("RIGHT", pop, "RIGHT"); strip:SetHeight(across)
+	else strip:SetPoint("RIGHT", b, "LEFT"); strip:SetPoint("LEFT", pop, "LEFT"); strip:SetHeight(across) end
 end
 
 local function layoutArrow(s)
@@ -991,6 +1045,14 @@ function layout()
 			ns.applyBorder(e.vis, border)
 		end
 	end
+	-- Hover mode (not while binding keys): the picker closes as the mouse leaves its slot and strip,
+	-- so there is no catch button. Every slot, shown or not, so none keeps the other mode's parts.
+	local hoverMode = feat("pickHover") and not kbOpen
+	picker:SetAttribute("sf-hovermode", hoverMode)
+	for _, el in ipairs(ELEMENTS) do
+		slots[el].popout.catch:SetShown(not hoverMode)
+		slots[el].popout.strip:SetShown(hoverMode)
+	end
 	for _, s in ipairs(shown) do
 		local b = s.button
 		b:SetAttribute("*type1", feat("cast") and "action" or nil)
@@ -1001,6 +1063,7 @@ function layout()
 		castKeys[s.el]:SetAttribute("action", multiAction(s.slot))
 		ns.applyBorder(s.vis, border)
 		s.timer:apply()
+		if TB.pulse then TB.pulse.place(s) end   -- the pulse timer loads after this file
 		layoutArrow(s)
 		TB.layoutBadge(s.badge, s.button, size, border)
 		layoutPopout(s, size, known[s.el])
@@ -1035,7 +1098,11 @@ afterCombat = ns.AfterCombat.new({
 
 -- The slots' timers take their current style (General's or the bar's own). Plain frames, so any time.
 function TB.applyTimers()
-	for _, el in ipairs(ELEMENTS) do slots[el].timer:apply() end
+	for _, el in ipairs(ELEMENTS) do
+		local s = slots[el]
+		s.timer:apply()
+		if TB.pulse then TB.pulse.place(s) end   -- the pulse bar sits above the time bar
+	end
 end
 
 -- Settings changed (options page): relayout now, or when combat ends.
@@ -1297,6 +1364,20 @@ for _, el in ipairs(ELEMENTS) do
 	s.arrow:SetScript("OnEnter", function() hover(s) end)
 	s.arrow:SetScript("OnLeave", function() hover(s) end)
 end
+-- Hover mode: wrapped after the scripts above are set (setting a script later would drop the wrap).
+for _, el in ipairs(ELEMENTS) do
+	wrapHover(slots[el].button, HOVER_ENTER)
+	wrapHover(slots[el].arrow, HOVER_ENTER)
+	wrapHover(slots[el].popout.strip)
+end
+-- Hover mode: a picker the bar took along when it hid (Alt+Z hides the whole UI, in combat too) has
+-- lost the hover driver, which drops hidden frames. It closes when the bar shows again, seen by an
+-- explicitly protected child that stays shown (a wrapped script runs only on such a frame, and the
+-- bar is a plain frame).
+local onShow = CreateFrame("Frame", nil, bar, "SecureFrameTemplate")
+SecureHandlerWrapScript(onShow, "OnShow", picker, [[
+	if owner:GetAttribute("sf-hovermode") then owner:RunAttribute("sf-open", 0) end
+]])
 
 for _, e in pairs(extras) do
 	e.button:SetScript("OnEnter", function(self)
@@ -1439,3 +1520,6 @@ function TB.debug()
 		TotemFrame and string.format("%.2f", TotemFrame:GetAlpha()) or "-",
 		mc and (mc:GetParent() == hiddenParent and "hidden" or (mc:GetParent() and mc:GetParent():GetName() or "?")) or "none")
 end
+
+-- Untested features on the totem bar, for About's Experimental list: { name, where }.
+TB.EXPERIMENTAL = {}
