@@ -767,10 +767,20 @@ end
 -- The container's size and placement, the button's size and its timer's style, then the caller's
 -- own parts (onStyle). Out of combat only, and not while auras are secret: waits for that, and
 -- one refused call (the whole restyle is one pcall) is noted and tried again when combat ends.
+-- Once a frame at most, on the next: one layout asks several times (afterGroups, applyTimers,
+-- applyLayout), and the options lay out every frame while a slider is dragged.
 function AuraSlot:style()
+	if not self.button or self.styleSoon then return end
+	self.styleSoon = true
+	C_Timer.After(0, function()
+		self.styleSoon = false
+		self:styleNow()
+	end)
+end
+function AuraSlot:styleNow()
 	if not self.button then return end
 	local o = self.opts
-	if ns.deferWhileAurasSecret(o.sites.style, function() self:style() end) then return end
+	if ns.deferWhileAurasSecret(o.sites.style, function() self:styleNow() end) then return end
 	local ok = ns.try(o.sites.style, function()
 		local size, f, c = ns.sizeOf(o.key), self.frame, self.container
 		c:SetSize(size, size)
@@ -781,7 +791,7 @@ function AuraSlot:style()
 		self.timer:apply()
 		if o.onStyle then o.onStyle(self, size) end
 	end)
-	if not ok then ns.retryAfterCombat(o.sites.style, function() self:style() end) end
+	if not ok then ns.retryAfterCombat(o.sites.style, function() self:styleNow() end) end
 end
 
 -- The slot's filter again, from opts.ids() (the IDs that count can grow), once the container is
