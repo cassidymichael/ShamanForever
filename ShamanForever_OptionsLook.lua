@@ -445,6 +445,19 @@ function L.reagentLook(ic, key, n)
 	ic:SetRingShown(ring)
 	ic:SetPulsing(pulse)
 end
+-- Maelstrom Weapon: its parts are drawn by ShamanForever_Maelstrom.lua, for n stacks.
+L.PREVIEW.maelstrom = {
+	uptime = true,
+	states = { { "s1", "1 stack" }, { "s4", "4 stacks" }, { "s5", "5 stacks" }, { "idle", "Not up" } },
+	pop = function(ic, st) if st == "s5" then ns.Maelstrom.previewPop(ic) end end,
+	render = function(ic, st)
+		local M = ns.Maelstrom
+		reset(ic, M.icon)
+		local n = ({ s1 = 1, s4 = M.maxStacks() - 1, s5 = M.maxStacks() })[st] or 0
+		M.preview(ic, n)
+		if n > 0 then frozen(ic.upT, 0.3, 30) else idleLook(ic, "maelstrom") end
+	end,
+}
 -- The preview's counts: plenty, "few left" (at the Low mark, at least 1) and none.
 local PLENTY = 15
 local function fewLeft(key)

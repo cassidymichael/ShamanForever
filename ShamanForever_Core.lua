@@ -234,6 +234,10 @@ local DEFS = {
 	waterBreathing  = { ids = { 131 }, en = "Water Breathing" },
 	elementalFocus  = { ids = { 16164 }, en = "Elemental Focus" },   -- a passive talent
 	clearcasting    = { ids = { 16246 }, en = "Clearcasting" },      -- its buff
+	-- Maelstrom Weapon: the talent, then its buff (the stacks), which has the same name. 409946 of
+	-- that name too is the rune spell that grants the talent (build 70009's spell tables).
+	maelstromWeapon = { ids = { 408498 }, en = "Maelstrom Weapon" },
+	maelstromBuff   = { ids = { 408505 }, en = "Maelstrom Weapon" },
 	-- Spells that spend a primed effect (Nature's Swiftness's buff, Stormstrike's debuff).
 	healingWave     = { ids = { 331 }, en = "Healing Wave" },
 	lesserHealingWave = { ids = { 8004 }, en = "Lesser Healing Wave" },
