@@ -47,6 +47,9 @@ T.ELEMENT_DEFAULTS = {
 	-- The shield's time bar, when on, along the top: its charge bar is along the bottom.
 	shield = { uptime = { text = false, swipe = false, swipeAlpha = 0.5, swipeReverse = false, bar = false, barEdge = "top" } },
 	imbue = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = false } },
+	-- Aura-button elements: their own timer, no bar under Blizzard's button.
+	flameshock = { uptime = { text = true, bar = false } },
+	purge = { uptime = { text = true, bar = false } },
 	-- Their time left as a bar only (whatever General says): the countdown shows the cooldown.
 	earthbind = { uptime = { text = false, bar = true } },
 	stoneclaw = { uptime = { text = false, bar = true } },
@@ -446,6 +449,7 @@ function Timer:setExpire(e, icon)
 		x:SetScript("OnShow", function(s) if s.pulseOn then s.pulse:Play() end end)
 		x.glow = ns.makeGlow(x, self.anchor, self.key)   -- made on first use
 		self.exp = x
+		ns.Looks.followMask(self.anchor, x.grey, x.dim)   -- a rounded or cut-corner icon's shape
 	end
 	x.glow:fit(self.anchor:GetWidth())
 	x.glow:SetShown(e.glow)

@@ -135,6 +135,8 @@ read_globals = {
     "UIParent",
     "UnitAttackSpeed",
     "UnitCanAttack",
+    "UnitCastingInfo",
+    "UnitChannelInfo",
     "UnitClass",
     "UnitExists",
     "UnitGUID",

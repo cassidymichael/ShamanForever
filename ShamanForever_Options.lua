@@ -116,15 +116,57 @@ local function ownLine(p, kind)
 end
 
 
--- Standard rows: the border around icons, General's or an owner's (a group, the totem bar).
+-- A style kind's looks (ns.Style.addLook), for a dropdown.
+local function lookChoices(kind)
+	local out = {}
+	for _, e in ipairs(ns.Style.LOOKS[kind].order) do table.insert(out, { e.key, e.name }) end
+	return out
+end
+
+-- A look picker for a style's rows (r, from styleRows): the dropdown, and an EXPERIMENTAL badge
+-- under it while the look picked isn't tested in game yet. Returns the look now.
+local function lookRows(p, r, kind, label, feature, shown)
+	local function look() return ns.Style.look(kind, r.style().look) end
+	p:dropdown(label, nil, lookChoices(kind), function() return look().key end, r.set("look"), shown, 190)
+	local f = p:row(22)
+	ns.Look.expBadge(f, feature):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
+	p:add(f, 22, showWhen(function() return look().experimental end, shown))
+	return look
+end
+
+-- A line naming the elements (keys(), a list) that take a change after a /reload, shown while
+-- there are any: "<names> <verb> after a /reload."
+local function reloadLine(p, keys, verb, shown)
+	p:text(function()
+		local names = {}
+		for _, key in ipairs(keys()) do table.insert(names, ns.Look.elementName(key)) end
+		return table.concat(names, " and ") .. " " .. verb(#names) .. " after a /reload."
+	end, showWhen(function() return #keys() > 0 end, shown))
+end
+
+-- Standard rows: the border around icons, General's or an owner's (a group, the totem bar). Sizes
+-- and colours show only for looks that use them. The HUD lays out only out of combat (the shield's
+-- group and the totem bar's buttons are protected then), so a change made in combat reaches it
+-- when combat ends, as every other layout setting does; the previews here take it at once.
 local function borderRows(p, owner, after, label, shown)
 	after = after or relayout
 	local r = styleRows(owner, "border", after)
 	if owner ~= nil then followRow(p, owner, "border", after, label, shown) end
 	local bordered = function() return r.own() and r.style().show end
 	p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"), showWhen(r.own, shown))
-	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("size"), r.set("size"), showWhen(bordered, shown))
-	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), showWhen(bordered, shown))
+	local look = lookRows(p, r, "border", "Border look", "Border looks", showWhen(bordered, shown))
+	local function uses(part) return function() return bordered() and ns.Looks.uses(look(), part) end end
+	-- Blizzard's aura button takes a mask only as it is made (ns.Looks.auraMask).
+	local function stale()
+		local o = resolve(owner)
+		if o == nil and owner ~= nil then return {} end   -- no group selected
+		return ns.Looks.auraStale(o)
+	end
+	reloadLine(p, stale, function(n) return n == 1 and "changes shape" or "change shape" end, shown)
+	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("size"), r.set("size"), showWhen(uses("size"), shown))
+	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), showWhen(uses("color"), shown))
+	p:slider("Cap size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("capSize"), r.set("capSize"), showWhen(uses("capSize"), shown))
+	p:color("Cap colour", "Colour and opacity.", r.get("capColor"), r.set("capColor"), showWhen(uses("capColor"), shown))
 end
 
 -- The border a preview icon wears: its owner's.
@@ -134,8 +176,52 @@ local function previewBorder(owner)
 	return ns.borderFor(owner)
 end
 
+-- A style block's preview: one 40 icon of the page's (icon), or one per school while bySchool()
+-- (a look or motion that differs by school: earth, fire, water, air and spirit side by side; the
+-- totem bar's four), made the first time they show. x: where the first sits in its row f. Each
+-- wears its owner's border inside its 40, as on the HUD. Returns shown(), the icons it shows now,
+-- and place(), for the row's refresh, which lays them out and returns them.
+local SCHOOL_ICONS = { { "earth", 136098 }, { "fire", 135825 }, { "water", 135127 }, { "air", 136114 },
+	{ "spirit", 136051 } }   -- Stoneskin, Searing, Healing Stream, Windfury, Lightning Shield
+local SCHOOL_GAP = 72   -- from one school's icon to the next: room for the light between them
+local function previewIcons(f, owner, icon, x, bySchool)
+	local one = ns.makeIcon(f, 40, owner)
+	one.tex:SetTexture(icon)
+	local schools = {}
+	local v = {}
+	function v.shown()
+		if not bySchool() then return { one } end
+		if #schools == 0 then
+			for _, s in ipairs(SCHOOL_ICONS) do
+				if owner ~= "totembar" or s[1] ~= "spirit" then
+					local ic = ns.makeIcon(f, 40, owner)
+					ic.school = s[1]   -- the school its looks take (ns.Looks)
+					ic.tex:SetTexture(s[2])
+					ic.glowF:restyle()
+					ic:Hide()
+					table.insert(schools, ic)
+				end
+			end
+		end
+		return schools
+	end
+	function v.place()
+		local list = v.shown()
+		one:SetShown(list[1] == one)
+		for i, ic in ipairs(schools) do
+			ic:SetShown(list == schools)
+			if list == schools then
+				ic:SetPoint("LEFT", f, "LEFT", x + (i - 1) * SCHOOL_GAP + ns.Looks.fit(ic, previewBorder(owner), 40), 0)
+			end
+		end
+		if list[1] == one then one:SetPoint("LEFT", f, "LEFT", x + ns.Looks.fit(one, previewBorder(owner), 40), 0) end
+		return list
+	end
+	return v
+end
+
 -- Standard block: the pulsing glow's style, with an icon glowing all the time that follows every
--- change at once.
+-- change at once (one per school for a look that differs by school).
 local function glowBlock(p, owner, icon)
 	local function after() ns.applyGlowStyle(); OP.refresh() end
 	local r = styleRows(owner, "glow", after)
@@ -147,35 +233,61 @@ local function glowBlock(p, owner, icon)
 	local own = showWhen(r.own)
 	local f = p:row(64)
 	p:label(f, "Preview")
-	local ic = ns.makeIcon(f, 40, owner)
-	ic:SetPoint("LEFT", f, "LEFT", LABEL_W + 24, 0)
-	ic.tex:SetTexture(icon)
-	p:add(f, 64, own, function() ns.applyBorder(ic, previewBorder(owner)); ic:SetGlowShown(true) end)
-	p:color("Colour", "Colour and opacity. Killed early, Grounded and Ran out keep their own colours.", r.get("color"), r.set("color"), own)
+	local look
+	local icons = previewIcons(f, owner, icon, LABEL_W + 24, function() return look().bySchool end)
+	p:add(f, 64, own, function()
+		for _, ic in ipairs(icons.place()) do ic:SetGlowShown(true) end
+	end)
+	look = lookRows(p, r, "glow", "Look", "Glow looks", own)
+	reloadLine(p, function() return ns.auraGlowStale(owner) end,
+		function(n) return n == 1 and "changes glow" or "change glow" end, own)
+	local function uses(field) return showWhen(function() return look().uses[field] end, own) end
+	p:color("Colour", "Colour and opacity. Killed early, Grounded and Ran out keep their own colours.", r.get("color"), r.set("color"), uses("color"))
 	p:slider("Pulse length", "One pulse, in seconds.", 0.2, 2, 0.1, function(v) return string.format("%.1f s", v) end,
-		r.get("speed"), r.set("speed"), own)
+		r.get("speed"), r.set("speed"), uses("speed"))
 	local setLow = r.set("low")
 	p:slider("Pulse depth", "How much it fades between pulses. 0% is steady.", 0, 1, 0.05, pct,
-		function() return 1 - r.style().low end, function(v) setLow(1 - v) end, own)
-	p:slider("Thickness", "How far in from the edges it reaches.", 0.1, 0.5, 0.05, pct, r.get("width"), r.set("width"), own)
+		function() return 1 - r.style().low end, function(v) setLow(1 - v) end, uses("low"))
+	p:slider("Thickness", "How far in from the edges it reaches.", 0.1, 0.5, 0.05, pct, r.get("width"), r.set("width"), uses("width"))
 	if owner == nil then ownLine(p, "glow") end
 end
 
 -- Standard block: the pop's style, with an icon that pops on every change and on Play. kind: the
--- light's colour the icon shows (ready, imbue, expired, killed).
-local POP_MOTIONS = { { "pop", "Grow" }, { "bounce", "Bounce" }, { "hop", "Hop" }, { "shake", "Shake side to side" }, { "shakeV", "Shake up and down" } }
+-- event the icon pops for (ready, imbue, expired, killed). One setting per part (colour, flash,
+-- burst, motion), each changing only its own, in any mix.
+local POP_COLORS = { { "event", "By event" }, { "school", "By school" } }
+local POP_FLASHES = { { "none", "None" }, { "plain", "Plain flash" }, { "edge", "Blizzard's edge flash" } }
+local POP_BURSTS = { { "none", "None" }, { "ring", "Ring" }, { "star", "Star" }, { "both", "Ring and star" },
+	{ "shapes", "Shapes" }, { "painted", "Painted" }, { "rune", "Rune ring" }, { "school", "By school" } }
+local POP_MOTIONS = { { "none", "None" }, { "pop", "Grow" }, { "bounce", "Bounce" }, { "hop", "Hop" },
+	{ "shake", "Shake side to side" }, { "shakeV", "Shake up and down" } }
+-- Choices not tested in game yet (About's Experimental list), and bursts drawn per school.
+local POP_EXPERIMENTAL = { school = true, edge = true, shapes = true, painted = true, rune = true }
+local SCHOOL_BURSTS = { school = true, shapes = true, painted = true }
 -- growOnly: the element's pop is the grow-and-settle Blizzard's aura button plays (Elemental Focus),
 -- so only the motion's size and speed apply.
 local function popBlock(p, owner, icon, kind, growOnly)
-	local ic
+	local icons
 	local function playPop()
-		if not growOnly then ic:Pop(kind) return end
-		if not ic.growPop then ic.growPop = ns.makeGrowPop(ic, owner) end
-		ic.growPop:restyle(true)
-		ic.growPop:Play()
+		for _, ic in ipairs(icons.shown()) do
+			if growOnly then
+				if not ic.growPop then ic.growPop = ns.makeGrowPop(ic, owner) end
+				ic.growPop:restyle(true)
+				ic.growPop:Play()
+			else ic:Pop(kind) end
+		end
 	end
-	local function after() OP.refresh(); if ic and ic:IsVisible() then playPop() end end
+	local function after() OP.refresh(); if icons and icons.shown()[1]:IsVisible() then playPop() end end
 	local r = styleRows(owner, "pop", after)
+	-- Colour is for Ready and Ran out (ns.Looks.POP_EVENTS): a page whose pop is for a warning (the
+	-- imbue's) keeps the warning's colour and doesn't offer it.
+	local colored = not growOnly and ns.Looks.POP_EVENTS[kind]
+	-- One icon per school while the colour or the burst differs by school.
+	local function bySchool()
+		if growOnly then return false end
+		local st = r.style()
+		return (colored and st.colorBy == "school") or SCHOOL_BURSTS[st.burst] or false
+	end
 	p:header("Pop style")
 	if owner == nil then
 		p:anchor("pop")
@@ -184,29 +296,38 @@ local function popBlock(p, owner, icon, kind, growOnly)
 	local own = showWhen(r.own)
 	local f = p:row(56)
 	p:label(f, "Try it")
-	ic = ns.makeIcon(f, 40, owner)
-	ic:SetPoint("LEFT", f, "LEFT", LABEL_W + 16, 0)
-	ic.tex:SetTexture(icon)
+	icons = previewIcons(f, owner, icon, LABEL_W + 16, bySchool)
 	local play = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
 	play:SetSize(80, 22)
-	play:SetPoint("LEFT", ic, "RIGHT", 24, 0)
 	play:SetText("Play")
 	play:SetScript("OnClick", playPop)
-	p:add(f, 56, own, function() ns.applyBorder(ic, previewBorder(owner)) end)
+	p:add(f, 56, own, function()
+		local list = icons.place()
+		play:ClearAllPoints()
+		play:SetPoint("LEFT", list[#list], "RIGHT", 24, 0)
+	end)
 	if growOnly then
 		p:text("It grows and settles; only its size and speed can change.", own)
 		p:slider("Motion distance", "How far it grows.", 1.1, 1.8, 0.05, pct, r.get("size"), r.set("size"), own)
 		p:slider("Motion speed", nil, 0.5, 2, 0.1, pct, r.get("speed"), r.set("speed"), own)
 		return
 	end
-	p:dropdown("Motion", nil, POP_MOTIONS, r.get("motion"), r.set("motion"), own, 190)
-	p:slider("Motion distance", "How far it grows, hops or shakes.", 1.1, 1.8, 0.05, pct, r.get("size"), r.set("size"), own)
-	p:slider("Motion speed", nil, 0.5, 2, 0.1, pct, r.get("speed"), r.set("speed"), own)
-	p:checkbox("Flash", "A quick flash of light over the icon.", r.get("flash"), r.set("flash"), own)
-	p:checkbox("Ring burst", "A ring that spreads out from the icon.", r.get("ring"), r.set("ring"), own)
-	p:checkbox("Star burst", "A star of light behind the icon.", r.get("star"), r.set("star"), own)
-	p:checkbox("Colour by event", "Gold when ready, blue for the imbue, white when a totem runs out, red when killed, pale blue when Grounded. Off: white.",
-		r.get("tint"), r.set("tint"), own)
+	if colored then
+		p:dropdown("Colour", "For Ready and Ran out. By event: gold when ready, white when a totem runs out. Killed early, Grounded and the imbue dropping keep their own colours.",
+			POP_COLORS, r.get("colorBy"), r.set("colorBy"), own, 190)
+	end
+	p:dropdown("Flash", "Over the icon.", POP_FLASHES, r.get("flash"), r.set("flash"), own, 190)
+	p:dropdown("Burst", "Around the icon. By school: each school its own.", POP_BURSTS, r.get("burst"), r.set("burst"), own, 190)
+	local fx = p:row(22)
+	ns.Look.expBadge(fx, "Pop flashes and bursts"):SetPoint("LEFT", fx, "LEFT", LABEL_W, 0)
+	p:add(fx, 22, showWhen(function()
+		local st = r.style()
+		return (colored and POP_EXPERIMENTAL[st.colorBy]) or POP_EXPERIMENTAL[st.flash] or POP_EXPERIMENTAL[st.burst] or false
+	end, own))
+	p:dropdown("Motion", "How the icon moves.", POP_MOTIONS, r.get("motion"), r.set("motion"), own, 190)
+	local moves = showWhen(function() return r.style().motion ~= "none" end, own)
+	p:slider("Motion distance", "How far it grows, hops or shakes.", 1.1, 1.8, 0.05, pct, r.get("size"), r.set("size"), moves)
+	p:slider("Speed", nil, 0.5, 2, 0.1, pct, r.get("speed"), r.set("speed"), own)
 	if owner == nil then ownLine(p, "pop") end
 end
 
@@ -502,12 +623,17 @@ local function buildAbout(p)
 		local e = ns.ELEMENTS[key]
 		if e.experimental then p:experimental(e.experimental, "Elements > " .. e.label) end
 	end
+	if ns.Looks.anyExperimental("border") then p:experimental("Border looks", "General > Border") end
+	if ns.Looks.anyExperimental("glow") then p:experimental("Glow looks", "General > Pulsing glow style") end
+	p:experimental("Pop flashes and bursts", "General > Pop style")
+	p:experimental("Interrupt cue", "Elements > Shocks > Target casting")
 	gap()
 	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
 		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
 		"Francisque Millet, Mountain Landscape with Lightning (air). Corner and divider ornaments: public domain / CC0, Wikimedia Commons. " ..
-		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood texture CC0, ambientCG. Link icons: Simple Icons, CC0.")
+		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood texture CC0, ambientCG. Link icons: Simple Icons, CC0. " ..
+		"The Carved stone, Aged bronze and Carved wood borders and the Painted bursts pop: made with an AI image model (Google Gemini).")
 end
 
 ------------------------------------------------------------------------
