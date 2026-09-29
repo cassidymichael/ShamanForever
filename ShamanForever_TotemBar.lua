@@ -1,6 +1,5 @@
 -- Totem bar: one bar that can replace both of Blizzard's totem frames, the totems under the player
 -- frame (timers, right-click dismiss) and the Totem Action Bar (a pick per element, arrow popouts).
--- What works in combat and why: docs/combat-techniques.md.
 --
 -- Every click is a secure button set up out of combat, so it works in combat too:
 -- * slot button: right-click "destroytotem" (totem-slot), left-click "action" on the element's
