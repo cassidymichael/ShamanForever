@@ -24,12 +24,15 @@ local MAX_SHOWN = 3     -- releases listed on Home after an update from further 
 local CHAT_DELAY = 5    -- seconds after login, so the line isn't lost among the others
 
 -- "v0.9.0", "0.9.0" or a beta, "v0.9.0-beta.2": major, minor, patch, and the beta's number (nil
--- for a release). nil for anything else, such as a development copy's token.
+-- for a release). nil for anything else: a development copy's version is a git description
+-- ("v0.9.0-12-gabc1234", "-dirty") or the packager's token, not a released version.
 local function parse(v)
 	if type(v) ~= "string" then return nil end
-	local a, b, c = v:match("^v?(%d+)%.(%d+)%.(%d+)")
+	local a, b, c, rest = v:match("^v?(%d+)%.(%d+)%.(%d+)(.*)$")
 	if not a then return nil end
-	return tonumber(a), tonumber(b), tonumber(c), tonumber(v:match("%-beta%.(%d+)$"))
+	local beta = rest:match("^%-beta%.(%d+)$")
+	if rest ~= "" and not beta then return nil end
+	return tonumber(a), tonumber(b), tonumber(c), tonumber(beta)
 end
 -- Whether version a comes after version b. A release comes after its betas, so a beta tester still
 -- hears about the release.
