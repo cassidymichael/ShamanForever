@@ -81,7 +81,8 @@ local DEFAULTS = {
 	emptyRing = true,       -- no-shield look
 	emptyGrey = true,
 	emptyTint = false,
-	emptyPulse = true,
+	emptyPulse = false,
+	emptyGlow = true,
 	underlayUp = 0.25,      -- underlay strength while the shield is believed up (0 = none)
 	shieldIconAlpha = 1,    -- manual multiplier on the compensated shield icon alpha
 	-- shock

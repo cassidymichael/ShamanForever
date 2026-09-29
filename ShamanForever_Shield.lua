@@ -130,6 +130,7 @@ function SH.applyEmptyLook()
 		shield.tex:SetAlpha(1)
 		shield:SetRingShown(false)
 		shield:SetPulsing(false)
+		shield:SetGlowShown(false)
 		return
 	end
 	local down = believedUp() == false   -- not known yet: no warning
@@ -140,6 +141,7 @@ function SH.applyEmptyLook()
 		shield.tex:SetAlpha(1)
 		shield:SetRingShown(false)
 		shield:SetPulsing(false)
+		shield:SetGlowShown(false)
 		return
 	end
 	-- Dead, a ghost or on a flight path, no shield can be cast: the grey alone, without the warning.
@@ -150,6 +152,8 @@ function SH.applyEmptyLook()
 	shield:SetRingShown(down and db.emptyRing and warn)
 	-- Only while known down: a drop in combat (or a match) is not seen until the recast or its end.
 	shield:SetPulsing(down and db.emptyPulse and warn)
+	-- Under Blizzard's button, which is hidden while the shield is down: nothing covers it then.
+	shield:SetGlowShown(down and db.emptyGlow and warn)
 end
 
 -- With display opacity a and underlay strength u, an icon alpha b gives a stacked result of
