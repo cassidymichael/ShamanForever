@@ -86,6 +86,7 @@ for _, def in ipairs(BUFFS) do
 		paint = function(t) t:SetTexture(def.icon) end,
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
 		experimental = def.experimental })
+	if def.proc then ns.ELEMENTS[def.key].keySpell = false end   -- a proc (Elemental Focus) isn't cast
 end
 
 ------------------------------------------------------------------------

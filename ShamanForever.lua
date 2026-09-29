@@ -154,9 +154,16 @@ local ELEMENT_KEYS = { "shield", "shock", "imbue" }
 -- its page and preview (ShamanForever_OptionsElements.lua, _OptionsLook.lua), which read def, the
 -- module's own table for it.
 -- keySpell(), optional: the ns.Spells key whose key binding the icon can show (default: spell);
+-- keySpell = false: nothing it shows is cast from a bar (a passive, a proc, a warning), so it offers
+-- no key text (ns.showsKey);
 -- keyLevel(), optional: the frame level that key text sits at, where it must clear more than usual.
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
+-- Whether an element can show a key (Show keybinding text): one whose spell is cast from a bar.
+function ns.showsKey(key)
+	local e = ELEMENTS[key]
+	return e ~= nil and e.keySpell ~= false
+end
 function ns.registerElement(key, e)
 	e.getSize = e.getSize or iconSize
 	e.stack = e.stack or e.frame.stack

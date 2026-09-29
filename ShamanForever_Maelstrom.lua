@@ -99,7 +99,7 @@ f.stack()
 
 ns.registerElement(KEY, { frame = f, label = Spells.name("maelstromWeapon"), defaults = M.DEFAULTS,
 	learned = function() return src.learned() end, paint = function(t) t:SetTexture(M.icon) end,
-	kind = "maelstrom", def = M, spell = "maelstromWeapon", icon = M.icon, school = "air",
+	kind = "maelstrom", def = M, spell = "maelstromWeapon", keySpell = false, icon = M.icon, school = "air",
 	blurb = "Its stacks, with a highlight at five.", experimental = "Maelstrom Weapon" })
 -- For the options' Idle block: it's a buff (its Idle is "not up").
 M.key, M.buff = KEY, true
