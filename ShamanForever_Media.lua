@@ -1,7 +1,8 @@
 -- Media: the HUD's fonts and bar textures. Two styles (ShamanForever_Style.lua):
 --   text  font, outline and shadow for every piece of text an owner draws (timers, counts, keys,
 --         words); General's, or the totem bar's own
---   bar   the texture of every bar (time bars, the shield's charge bar); General's only
+--   bar   the texture of every bar (time bars, the shield's charge bar, Maelstrom's stack bar,
+--         the swing timer); General's only
 -- Choices are stored by name, never by path. The game's fonts and bars are built in; others come
 -- from LibSharedMedia when another addon has loaded it (we don't ship it: it only brings media that
 -- other addons register, and those bring it with them).

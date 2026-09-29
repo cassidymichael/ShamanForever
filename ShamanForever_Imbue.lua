@@ -94,6 +94,13 @@ local function imbueKeyFor(w)
 	end
 end
 
+-- The imbue on the main hand now (a key of IMBUES), read whether or not the element shows; nil when
+-- none is on, it isn't recognised or it can't be read. The swing timer's colour.
+function IM.mainHand()
+	local r = readMainHand()
+	return r and imbueKeyFor(r) or nil
+end
+
 local imbueIcon = imbueIconFor("rockbiter")
 -- The icon while no imbue is on: the player's pick, or the last one used.
 local function preferredImbueIcon()
@@ -134,7 +141,6 @@ local function drawImbue(now, quiet)
 	if showTime and not unreadable then
 		local total = math.max(imbueState.total or left, left)
 		imbue.upTimer:setTime(imbueState.expiresAt - total, total)
-		if left < 60 then imbue.upTimer:setTint(1, 0.3, 0.3) else imbue.upTimer:setTint(nil) end
 	else
 		imbue.upTimer:clear()
 	end
@@ -142,7 +148,8 @@ local function drawImbue(now, quiet)
 	imbue:SetAlpha((acct.locked and on and db.imbueHideActive and not showTime) and 0 or 1)
 end
 
--- Not learned yet (seen only in test mode): a plain grey icon, and nothing read.
+-- Not learned yet (seen only while the preview shows such elements): a plain grey icon, nothing
+-- read.
 local function drawNotLearned()
 	imbueIcon = preferredImbueIcon()
 	imbue.tex:SetTexture(imbueIcon)
@@ -192,11 +199,16 @@ function IM.refresh()
 		imbueState.expiresAt = r.timeLeft > 0 and now + left or nil
 		if key then acct.imbueLast = key end
 	end
-	-- No weapon to imbue, or dead, a ghost or on a flight path: nothing can be cast.
-	local quiet = not hasWeapon() or ns.cantAct()
+	-- Dead, a ghost or on a flight path: nothing can be cast. A main hand with no weapon still
+	-- warns: the imbue is missing either way.
+	local quiet = ns.cantAct()
 	drawImbue(now, quiet)
-	-- The moment it drops (imbues stay readable in combat): pop. Not when the weapon came off.
-	if had and r == false and db.imbuePop and not quiet then imbue:Pop("imbue") end
+	-- The moment it drops (imbues stay readable in combat): pop and sound, the sound while the icon
+	-- is on screen; the weapon coming off included.
+	if had and r == false and not quiet then
+		if db.imbuePop then imbue:Pop("imbue") end
+		if imbue:IsVisible() then ns.Sounds.element("imbue", "lostSound", true) end
+	end
 end
 
 -- Our own successful cast: remembered, so an imbue not recognised by ID or icon is learned on the next read.

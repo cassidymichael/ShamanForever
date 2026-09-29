@@ -106,8 +106,8 @@ end
 
 -- Whether any element shows its key.
 local function anyOn()
-	for key, e in pairs(ns.ELEMENTS) do
-		if not e.placeholder and ns.elementSetting(key, "keys") == true then return true end
+	for key in pairs(ns.ELEMENTS) do
+		if ns.elementSetting(key, "keys") == true then return true end
 	end
 	return false
 end
@@ -132,7 +132,7 @@ local function draw()
 	wipe(shownSpell)
 	for key, e in pairs(ns.ELEMENTS) do
 		local f = e.frame
-		if keysOn and f.textFrame and not e.placeholder and ns.elementSetting(key, "keys") == true then
+		if keysOn and f.textFrame and ns.elementSetting(key, "keys") == true then
 			if not f.keyFrame then
 				f.keyFrame = CreateFrame("Frame", nil, f)
 				f.keyFrame:SetAllPoints()

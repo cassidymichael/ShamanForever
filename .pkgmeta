@@ -21,3 +21,4 @@ ignore:
   - CHANGELOG.md
   - RELEASE_NOTES.md
   - docs
+  - ShamanForever_Target.lua

@@ -9,25 +9,85 @@ ns.ElementPages = EP
 
 local Page, K = ns.Page, ns.Options.kit
 local showWhen, setTip, panelBackdrop = Page.showWhen, Page.setTip, Page.panelBackdrop
-local relayout, respell, pct, int, px, get, set = K.relayout, K.respell, K.pct, K.int, K.px, K.get, K.set
-local groupCount, isHidden, placeShown, SHOW_CHOICES = K.groupCount, K.isHidden, K.placeShown, K.SHOW_CHOICES
+local relayout, respell, get, set = K.relayout, K.respell, K.get, K.set
+local pct, int, px = Page.pct, Page.int, Page.px
+local SHOW_CHOICES = K.SHOW_CHOICES
 local timerSettings, gcdBlock, glowBlock, popBlock = K.timerSettings, K.gcdBlock, K.glowBlock, K.popBlock
 local expiringLooks, killedBlock = K.expiringLooks, K.killedBlock
 
 local function db() return ns.getDB() end
 
+-- The Group choices: every group by name, then New group; an ungrouped element's reads Ungrouped.
+-- Choosing one moves the element there (to its end) and leaves its Show as it is.
+local function groupMenu(dd, key)
+	pcall(dd.SetDefaultText, dd, "Ungrouped")
+	dd:SetupMenu(function(_, root)
+		for _, g in ipairs(db().groups) do
+			root:CreateRadio(g.name, function() return ns.groupOf(key) == g end, function()
+				if ns.groupOf(key) ~= g then ns.placeElement(key, g.id) end
+			end)
+		end
+		root:CreateButton("New group", function() ns.placeElement(key, "new") end)
+	end)
+end
+
 -- On an element's page, where "Hidden keeps its place" is shown as text under the control.
-local SHOW_TIP_PAGE = "Choosing Always or In combat again puts it back where it was. Groups can also be set to show only in combat on the Layout page; an element shows only when both allow it. Everything visible shows while positioning is unlocked."
-local SHOW_TIP = "When the element is drawn. Hidden keeps its place in its group, so choosing Always or In combat again puts it back where it was. Groups can also be set to show only in combat on the Layout page; an element shows only when both it and its group allow it. Everything visible shows while the layout is unlocked."
+local SHOW_TIP_PAGE = "Choosing Always or In combat again puts it back where it was. Groups have their own Show on the Groups & Layout page; an element shows only when both allow it. Everything visible shows while positioning is unlocked."
+local SHOW_TIP = "When the element is drawn. Hidden keeps its place in its group, so choosing Always or In combat again puts it back where it was. Groups have their own Show on the Groups & Layout page; an element shows only when both it and its group allow it. Everything visible shows while the layout is unlocked."
 
 ------------------------------------------------------------------------
 -- Elements: an overview of every element, and one page per real element under it in the nav.
 ------------------------------------------------------------------------
 local ELEMENT_PAGES = {}   -- key -> page key, filled as element pages are built
 
+-- The overview's controls, light enough for a table: a flat cell with a thin border and small text
+-- that lights up under the mouse. A menu cell shows its value and a small arrow, and opens its menu
+-- (gen, a menu generator) at the cursor; a link cell's gold text says it goes somewhere.
+local function tableCell(parent, width, font)
+	local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
+	b:SetSize(width, 20)
+	b:SetBackdrop(ns.BACKDROP)
+	b:SetBackdropColor(1, 1, 1, 0.03)
+	b:SetBackdropBorderColor(0.36, 0.29, 0.19, 0.7)
+	local hl = b:CreateTexture(nil, "HIGHLIGHT")
+	hl:SetPoint("TOPLEFT", 1, -1)
+	hl:SetPoint("BOTTOMRIGHT", -1, 1)
+	hl:SetColorTexture(1, 0.9, 0.7, 0.08)
+	b.text = b:CreateFontString(nil, "OVERLAY", font)
+	b.text:SetWordWrap(false)
+	b:SetScript("OnEnter", function(self) self:SetBackdropBorderColor(0.72, 0.58, 0.34, 1) end)
+	b:SetScript("OnLeave", function(self) self:SetBackdropBorderColor(0.36, 0.29, 0.19, 0.7) end)
+	return b
+end
+local function menuCell(parent, width, gen)
+	local b = tableCell(parent, width, "GameFontHighlightSmall")
+	b.arrow = b:CreateTexture(nil, "ARTWORK")
+	b.arrow:SetTexture("Interface\\Buttons\\UI-TotemBar")
+	b.arrow:SetTexCoord(0.5625, 0.71875, 0.34375, 0.3828125)
+	b.arrow:SetSize(10, 6)
+	b.arrow:SetRotation(math.pi)   -- the art points up
+	b.arrow:SetPoint("RIGHT", -6, 0)
+	b.text:SetPoint("LEFT", 6, 0)
+	b.text:SetPoint("RIGHT", b.arrow, "LEFT", -4, 0)
+	b.text:SetJustifyH("LEFT")
+	b:SetScript("OnClick", function(self)
+		if MenuUtil and MenuUtil.CreateContextMenu then MenuUtil.CreateContextMenu(self, gen) end
+	end)
+	return b
+end
+local function linkCell(parent, width, text, onClick)
+	local b = tableCell(parent, width, "GameFontNormalSmall")
+	b.text:SetPoint("CENTER")
+	b.text:SetText(text)
+	b:SetScript("OnClick", onClick)
+	return b
+end
+
 function EP.buildOverview(p)
 	p:header("Elements")
-	local GROUP_X, SHOW_X = 150, 260   -- sized to fit beside the Settings button at the minimum width
+	-- Columns sized to fit the page's panel at the window's least width; they keep their places when
+	-- it's wider.
+	local GROUP_X, SHOW_X, OPEN_X = 150, 276, 368
 	do
 		local f = p:row(20)
 		local function col(text, x)
@@ -36,8 +96,8 @@ function EP.buildOverview(p)
 			fs:SetText(text)
 		end
 		col("Element", 32)
-		col("Group", GROUP_X + 4)
-		col("Show", SHOW_X + 4)
+		col("Group", GROUP_X + 6)
+		col("Show", SHOW_X + 6)
 		p:add(f, 20)
 	end
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
@@ -56,25 +116,27 @@ function EP.buildOverview(p)
 		local unknown = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 		unknown:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -1)
 		unknown:SetText("Not learned")
-		local group = CreateFrame("DropdownButton", nil, f, "WowStyle1DropdownTemplate")
+		-- The Group choices: every group by name, then New group. Choosing one moves the element
+		-- there (to its end) and leaves its Show as it is.
+		local group = menuCell(f, 120, function(_, root)
+			for _, g in ipairs(db().groups) do
+				root:CreateRadio(g.name, function() return ns.groupOf(key) == g end, function()
+					if ns.groupOf(key) ~= g then ns.placeElement(key, g.id) end
+					ns.Options.refresh()
+				end)
+			end
+			root:CreateButton("New group", function() ns.placeElement(key, "new"); ns.Options.refresh() end)
+		end)
 		group:SetPoint("LEFT", GROUP_X, 0)
-		group:SetWidth(100)
-		group:SetupMenu(function(_, rootDescription)
-			for gi = 1, groupCount() do
-				rootDescription:CreateRadio("Group " .. gi, function() return not isHidden(key) and ns.findElement(key) == gi end,
-					function() placeShown(key, gi) end)
-			end
-			rootDescription:CreateRadio("New group", function() return false end, function() placeShown(key, "new") end)
-			rootDescription:CreateRadio("Hidden", function() return isHidden(key) end, function() ns.setShow(key, "never") end)
-		end)
-		local show = CreateFrame("DropdownButton", nil, f, "WowStyle1DropdownTemplate")
-		show:SetPoint("LEFT", SHOW_X, 0)
-		show:SetWidth(110)
-		show:SetupMenu(function(_, rootDescription)
+		local show = menuCell(f, 86, function(_, root)
 			for _, c in ipairs(SHOW_CHOICES) do
-				rootDescription:CreateRadio(c[2], function() return ns.showMode(key) == c[1] end, function() ns.setShow(key, c[1]) end)
+				root:CreateRadio(c[2], function() return ns.showMode(key) == c[1] end, function()
+					ns.setShow(key, c[1])
+					ns.Options.refresh()
+				end)
 			end
 		end)
+		show:SetPoint("LEFT", SHOW_X, 0)
 		show:HookScript("OnEnter", function(self)
 			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 			GameTooltip:SetText("Show")
@@ -82,12 +144,17 @@ function EP.buildOverview(p)
 			GameTooltip:Show()
 		end)
 		show:HookScript("OnLeave", function() GameTooltip:Hide() end)
-		local open = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-		open:SetSize(90, 22)
-		open:SetPoint("RIGHT", -4, 0)
-		open:SetText("Settings")
-		open:SetScript("OnClick", function() if ELEMENT_PAGES[key] then ns.Options.open(ELEMENT_PAGES[key]) end end)
-		p:add(f, 34, function() return ns.available(key) end, function()
+		-- Its own page, and its group on Groups & Layout (none while ungrouped).
+		local open = linkCell(f, 106, "Element settings", function()
+			if ELEMENT_PAGES[key] then ns.Options.open(ELEMENT_PAGES[key]) end
+		end)
+		open:SetPoint("LEFT", OPEN_X, 0)
+		local groupOpen = linkCell(f, 100, "Group settings", function()
+			local g = ns.groupOf(key)
+			if g then ns.Options.openGroup(g.id) end
+		end)
+		groupOpen:SetPoint("LEFT", open, "RIGHT", 6, 0)
+		p:add(f, 34, nil, function()
 			e.paint(icon)
 			local learned = ns.isLearned(key)
 			name:SetText(e.label)
@@ -95,9 +162,12 @@ function EP.buildOverview(p)
 			name:SetPoint("LEFT", 32, learned and 0 or 6)
 			unknown:SetShown(not learned)
 			icon:SetDesaturated(not learned)
-			group:GenerateMenu()
-			show:GenerateMenu()
+			local g = ns.groupOf(key)
+			group.text:SetText(g and g.name or "Ungrouped")
+			local mode = ns.showMode(key)
+			for _, c in ipairs(SHOW_CHOICES) do if c[1] == mode then show.text:SetText(c[2]) end end
 			open:SetShown(ELEMENT_PAGES[key] ~= nil)
+			groupOpen:SetShown(g ~= nil)
 		end)
 	end
 end
@@ -115,22 +185,22 @@ local function elementDisplay(p, key)
 	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return ns.showMode(key) end,
 		function(v) ns.setShow(key, v) end, nil, 140)
 	p:text("Hidden keeps its place in its group.")
-	p:dropdown("Group", "Which group it sits in. Groups are arranged on the Layout page.", function()
-		local list = {}
-		for gi = 1, groupCount() do table.insert(list, { gi, "Group " .. gi }) end
-		table.insert(list, { "new", "New group" })
-		table.insert(list, { "hidden", "Hidden" })
-		return list
-	end, function() return isHidden(key) and "hidden" or ns.findElement(key) end, function(v)
-		if v == "hidden" then ns.setShow(key, "never") else placeShown(key, v) end
-	end, nil, 140)
-	local groupRow = p.items[#p.items].frame
+	-- Its menu is groupMenu's; the get only tells the row when to show another name.
+	local groupRow = p:dropdown("Group", "Which group it sits in. Groups are arranged on the Groups & Layout page; ungrouped elements aren't on screen.",
+		{}, function() local g = ns.groupOf(key); return g and g.id .. ":" .. g.name or "" end, function() end, nil, 140)
+	groupMenu(groupRow.dropdown, key)
 	local edit = CreateFrame("Button", nil, groupRow, "UIPanelButtonTemplate")
-	edit:SetSize(96, 22)
+	edit:SetSize(110, 22)
 	edit:SetPoint("LEFT", groupRow.dropdown, "RIGHT", 8, 0)
-	edit:SetText("Edit group")
-	edit:SetScript("OnClick", function() local gi = ns.findElement(key); if gi then ns.Options.openGroup(gi) end end)
-	setTip(edit, "Edit group", "This group's settings on the Layout page.")
+	edit:SetText("Group settings")
+	edit:SetScript("OnClick", function() local g = ns.groupOf(key); if g then ns.Options.openGroup(g.id) end end)
+	setTip(edit, "Group settings", "This group's settings on the Groups & Layout page.")
+	local item = p.items[#p.items]
+	local refresh = item.refresh
+	item.refresh = function()
+		refresh()
+		edit:SetShown(ns.groupOf(key) ~= nil)
+	end
 	p:checkbox("Show keybinding text", "The key that casts it from your action bars, in its corner.",
 		function() return ns.elementSetting(key, "keys") == true end,
 		function(v) ns.elementOpts(key).keys = v or nil; relayout() end)
@@ -141,11 +211,13 @@ local function eget(key, name) return function() return ns.elementSetting(key, n
 local function eset(key, name) return function(v) ns.elementOpts(key)[name] = v; relayout() end end
 
 -- Standard block: the moment a cooldown ends. A pop, and with glowTip a "use me" glow (off by
--- default).
-local function readyBlock(p, key, glowTip)
+-- default). afterPop: an optional row right after Pop, before the glow (like warningBlock's first).
+local function readyBlock(p, key, glowTip, afterPop)
 	p:header("Ready")
 	p:checkbox("Pop", "The moment the cooldown ends.", eget(key, "readyPop"), eset(key, "readyPop"))
+	if afterPop then afterPop() end
 	if glowTip then p:checkbox("Pulsing glow", glowTip, eget(key, "readyGlow"), eset(key, "readyGlow")) end
+	ns.Sounds.row(p, "Sound", "The moment the cooldown ends.", eget(key, "readySound"), eset(key, "readySound"))
 end
 
 -- Standard block: the look while the element has nothing going on (the cooldown and buff elements),
@@ -154,7 +226,7 @@ local IDLE_WHEN = { { "never", "Never" }, { "nototem", "Off cooldown, no fire to
 local function idleBlock(p, def)
 	local key, fireNova = def.key, def.needsTotem
 	p:header("Idle")
-	local base = def.buff and (def.proc and ("Idle is when " .. ns.Spells.name("clearcasting") .. " isn't up")
+	local base = def.buff and (def.idleText or def.proc and ("Idle is when " .. ns.Spells.name("clearcasting") .. " isn't up")
 		or "Idle is when it isn't up") or "Idle is when it's off cooldown"
 	if fireNova then
 		p:text("Idle is when there's nothing to track. At 0% it's hidden and keeps its place in the group.")
@@ -193,6 +265,10 @@ local function warningBlock(p, title, greyGet, greySet, ringGet, ringSet, pulseG
 	p:checkbox("Fade in and out", nil, pulseGet, pulseSet)
 end
 
+-- Where a number on the icon sits (the shield's charges, a reagent count).
+local COUNT_POINTS = { { "BOTTOMRIGHT", "Bottom right" }, { "BOTTOMLEFT", "Bottom left" }, { "TOPRIGHT", "Top right" },
+	{ "TOPLEFT", "Top left" }, { "CENTER", "Centre" } }
+
 -- A look choice (tint, overlay, both) greys out the strength it does not use.
 local function lookUses(key, part) return function() local v = db()[key]; return v == part or v == "both" end end
 
@@ -210,17 +286,25 @@ local function buildShield(p)
 	p:callout(("You know %s: choose Either to count it."):format(ns.Spells.name("waterShield")),
 		function() return db().shieldTrack == "lightning" and ns.Shield.knows("water") end)
 	p:header("Charges")
-	p:checkbox("Charge bar", "One segment per charge.", get("showBar"), set("showBar"))
-	p:slider("Bar height", nil, 1, 20, 1, px, get("chargeBarHeight"), set("chargeBarHeight"),
-		showWhen(get("showBar")))
-	p:color("Bar colour", nil, get("chargeBarColor"), set("chargeBarColor"), showWhen(get("showBar")))
-	p:checkbox("Charge number", "Shown for 2 or more charges.", get("showCount"), set("showCount"))
-	local numberOn = showWhen(get("showCount"))
-	p:dropdown("Number position", nil, { { "corner", "Corner" }, { "center", "Centre" } }, get("countPos"), set("countPos"), numberOn)
-	p:slider("Number size", nil, 8, 64, 1, int, get("countSize"), set("countSize"), numberOn)
+	local bar = p:checkbox("Charge bar", "One segment per charge.", get("showBar"), set("showBar"))
+	p:sub(bar, get("showBar"), function()
+		p:slider("Bar height", nil, 1, 20, 1, px, get("chargeBarHeight"), set("chargeBarHeight"))
+		p:color("Bar colour", nil, get("chargeBarColor"), set("chargeBarColor"))
+	end)
+	local number = p:checkbox("Charge number", "The charges as a number.", get("showCount"), set("showCount"))
+	p:sub(number, get("showCount"), function()
+		p:dropdown("Number position", nil, COUNT_POINTS, get("countPos"), set("countPos"), nil, 150)
+		p:slider("Number size", nil, 8, 64, 1, int, get("countSize"), set("countSize"))
+		local last = p:checkbox("Different colour last charge", "Colours the 1, instead of plain white.",
+			get("countOne"), set("countOne"))
+		p:sub(last, get("countOne"), function()
+			p:color("Last charge colour", nil, get("countLastColor"), set("countLastColor"))
+		end)
+	end)
 
 	warningBlock(p, "No shield", get("emptyGrey"), set("emptyGrey"), get("emptyRing"), set("emptyRing"), get("emptyPulse"), set("emptyPulse"))
 	p:checkbox("Red tint", "Tint the icon red.", get("emptyTint"), set("emptyTint"))
+	p:checkbox("Pulsing glow", "A glow inside the icon that pulses.", get("emptyGlow"), set("emptyGlow"))
 	p:slider("In-combat fallback", nil, 0, 1, 0.05, pct, get("underlayUp"), set("underlayUp"))
 	p:text("A shield that drops in combat is only noticed when you recast it or combat ends. Until then, the no-shield look shows at this strength.")
 
@@ -229,6 +313,7 @@ local function buildShield(p)
 	p:text("Only matters at low group opacity. Most can leave it at 100%.")
 	timerSettings(p, "Time left", "shield", "uptime")
 	gcdBlock(p, "shield")
+	effectBlocks(p, "shield")
 end
 
 local function buildShock(p)
@@ -276,14 +361,16 @@ local function buildImbue(p)
 		end)
 	p:checkbox("Pulsing glow", "A glow inside the icon that pulses.", get("imbueGlow"), set("imbueGlow"))
 	p:checkbox("Pop", "The moment your imbue runs out or is lost.", get("imbuePop"), set("imbuePop"))
+	ns.Sounds.row(p, "Sound", "The moment your imbue runs out or is lost.", eget("imbue", "lostSound"), eset("imbue", "lostSound"))
 
-	p:header("Time left")
-	p:slider("Show under", nil, 0, 30, 1,
-		function(v) return v == 0 and "Never" or string.format("%d min", v) end, get("imbueWarnMins"), set("imbueWarnMins"))
-	p:text("Time left shows once it's below this. 0 never shows it.")
-	p:checkbox("Hide until low", nil, get("imbueHideActive"), set("imbueHideActive"))
-	p:text("While an imbue is on, the icon stays hidden until the time left shows. It keeps its place in the group.")
-	timerSettings(p, "Time left", "imbue", "uptime")
+	-- One Time left block: when it shows first, then its look.
+	timerSettings(p, "Time left", "imbue", "uptime", nil, nil, function()
+		p:slider("Show under", nil, 0, 30, 1,
+			function(v) return v == 0 and "Never" or string.format("%d min", v) end, get("imbueWarnMins"), set("imbueWarnMins"))
+		p:text("Time left shows once it's below this. 0 never shows it.")
+		p:checkbox("Hide until low", nil, get("imbueHideActive"), set("imbueHideActive"))
+		p:text("While an imbue is on, the icon stays hidden until the time left shows. It keeps its place in the group.")
+	end)
 	effectBlocks(p, "imbue", "imbue")
 end
 
@@ -309,8 +396,7 @@ local function reagentBlocks(p, def)
 	p:color("Count colour", "While you have enough.", eget(key, "reagentColor"), eset(key, "reagentColor"), counted)
 	p:color("Low colour", "At the Low mark or below, and at none.", eget(key, "reagentLowColor"), eset(key, "reagentLowColor"), counted)
 	p:slider("Text size", "At the default icon size; it grows with the icon.", 8, 40, 1, int, eget(key, "reagentSize"), eset(key, "reagentSize"), counted)
-	p:dropdown("Position", nil, { { "BOTTOMRIGHT", "Bottom right" }, { "BOTTOMLEFT", "Bottom left" }, { "TOPRIGHT", "Top right" },
-		{ "TOPLEFT", "Top left" }, { "CENTER", "Centre" } }, eget(key, "reagentPos"), eset(key, "reagentPos"), counted, 150)
+	p:dropdown("Position", nil, COUNT_POINTS, eget(key, "reagentPos"), eset(key, "reagentPos"), counted, 150)
 	p:slider("Text X offset", nil, -50, 50, 1, px, eget(key, "reagentX"), eset(key, "reagentX"), counted)
 	p:slider("Text Y offset", nil, -50, 50, 1, px, eget(key, "reagentY"), eset(key, "reagentY"), counted)
 	p:header("None left")
@@ -372,7 +458,11 @@ local function buildCooldown(p, def)
 	elseif timed then timerSettings(p, "Primed time left", key, "uptime") end
 	if not def.noReady then
 		readyBlock(p, key, def.needsTotem and "While it's off cooldown and a fire totem is down."
-			or def.readyGlow and "While it's off cooldown.")
+			or def.readyGlow and "While it's off cooldown.", def.needsTotem and function()
+				p:dropdown("Without a fire totem", "The pop when the cooldown ends with no fire totem down.",
+					{ { "grey", "Greyed pop" }, { "none", "Nothing" } }, eget(key, "readyNoTotem"), eset(key, "readyNoTotem"),
+					showWhen(eget(key, "readyPop")), 150)
+			end or nil)
 	end
 	if def.primed then primedBlock(p, def) end
 	if (def.needsTotem or def.totemSlot or timed) and def.expireLooks ~= false then
@@ -385,6 +475,10 @@ local function buildCooldown(p, def)
 		elseif def.totemSlot then
 			p:checkbox("Pop when it runs out", "The totem pops and fades the moment it runs out.", eget(key, "expiredPop"), eset(key, "expiredPop"))
 		end
+	end
+	if def.totemSlot then
+		ns.Sounds.row(p, "Sound when it ends", "When it runs out or is killed. Not when you dismiss it.",
+			eget(key, "goneSound"), eset(key, "goneSound"))
 	end
 	if def.grounded then groundedBlock(p, key)
 	elseif def.totemSlot then
@@ -407,12 +501,18 @@ local function buildBuff(p, def)
 		p:checkbox("Red ring", "A red ring inside the icon edge.", eget(key, "breathRing"), eset(key, "breathRing"), on)
 		p:checkbox("Fade in and out", nil, eget(key, "breathPulse"), eset(key, "breathPulse"), on)
 	end
+	if def.skipLongSeconds then
+		p:header("Track")
+		p:checkbox("Skip long buffs", ("Leaves out buffs that last over %d minutes, or have no end.")
+			:format(def.skipLongSeconds / 60), eget(key, "skipLong"), eset(key, "skipLong"))
+	end
 	timerSettings(p, "Time left", key, "uptime")
 	if def.proc then
-		p:header(ns.Spells.name("clearcasting"))
-		p:checkbox("Pop", "The moment it procs. The icon grows and settles, at the Pop style's size and speed.",
+		-- Elemental Focus's texts, unless the def has its own (the target's auras, ShamanForever_Target.lua).
+		p:header(def.procHeader or ns.Spells.name("clearcasting"))
+		p:checkbox("Pop", def.popTip or "The moment it procs. The icon grows and settles, at the Pop style's size and speed.",
 			eget(key, "primedPop"), eset(key, "primedPop"))
-		p:checkbox("Pulsing glow", "While it's up.", eget(key, "primedGlow"), eset(key, "primedGlow"))
+		p:checkbox("Pulsing glow", def.glowTip or "While it's up.", eget(key, "primedGlow"), eset(key, "primedGlow"))
 	else
 		expiringBlock(p, key, 120, 5)
 	end
@@ -423,7 +523,7 @@ end
 -- Tremor Totem's watchlist: a box that searches the list and adds a name, Add target, the list (a
 -- remove button on each mob) and a count. The list is a ScrollBox, which recycles its rows, so
 -- hundreds of mobs take a dozen frames.
-local MOB_ROW_H, MOB_ROWS = 22, 9
+local MOB_ROW_H, MOB_ROWS, MOB_LIST_W = 22, 9, 640
 local function mobList(p)
 	local T = ns.Tremor
 	local listH = MOB_ROW_H * MOB_ROWS + 8
@@ -450,14 +550,14 @@ local function mobList(p)
 	ownOnly:SetSize(24, 24)
 	ownOnly.Text:SetFontObject("GameFontHighlight")
 	ownOnly.Text:SetText("Only mobs you added")
-	ownOnly:SetPoint("TOPRIGHT", -(ownOnly.Text:GetStringWidth() + 4), -3)
 	setTip(ownOnly, "Only mobs you added", "Hides the default list's mobs.")
 
+	-- As wide as the page, up to MOB_LIST_W: in a wide window a longer line reads no better.
 	local panel = CreateFrame("Frame", nil, f, "BackdropTemplate")
 	panelBackdrop(panel)
 	panel:SetPoint("TOPLEFT", 0, -32)
-	panel:SetPoint("TOPRIGHT", 0, -32)
-	panel:SetHeight(listH)
+	panel:SetSize(MOB_LIST_W, listH)
+	ownOnly:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -(ownOnly.Text:GetStringWidth() + 4), 29)
 	local sb = CreateFrame("Frame", nil, panel, "WowScrollBoxList")
 	sb:SetPoint("TOPLEFT", 4, -4)
 	sb:SetPoint("BOTTOMRIGHT", -22, 4)
@@ -514,7 +614,9 @@ local function mobList(p)
 	restore:SetScript("OnClick", function() T.restore() end)
 
 	local shown = 0   -- rows matching the search
+	local listW       -- the row's width at the page's last layout (the panels' padding included)
 	local function fill()
+		panel:SetWidth(math.min(listW or p:width(), MOB_LIST_W))
 		local text = box:GetText()
 		box.hint:SetShown(text == "" and not box:HasFocus())
 		local list = T.rows(text, ownOnly:GetChecked())
@@ -544,7 +646,7 @@ local function mobList(p)
 	box:SetScript("OnEscapePressed", function(self) self:SetText(""); self:ClearFocus() end)
 	add:SetScript("OnClick", addTyped)
 	addTarget:SetScript("OnClick", function() T.addTarget() end)
-	return p:add(f, H, nil, fill)
+	return p:add(f, H, nil, function() listW = p:width(); fill() end)
 end
 
 -- A line that reads as a link and opens another part of the options.
@@ -599,17 +701,46 @@ local function buildTremor(p)
 	p:dropdown("Position", nil, WORD_POS, eget(key, "wordPos"), eset(key, "wordPos"), text, 160)
 	p:slider("Text X offset", nil, -100, 100, 1, px, eget(key, "wordX"), eset(key, "wordX"), text)
 	p:slider("Text Y offset", nil, -100, 100, 1, px, eget(key, "wordY"), eset(key, "wordY"), text)
-	p:dropdown("Sound", "Plays when it starts warning.", ns.Tremor.SOUNDS, eget(key, "alertSound"), function(v)
-		ns.elementOpts(key).alertSound = v
-		ns.Tremor.playSound(v)
-		relayout()
-	end, nil, 160)
+	ns.Sounds.row(p, "Sound", "The moment it starts warning.", eget(key, "alertSound"), eset(key, "alertSound"))
 	effectBlocks(p, key)
 end
 
 -- Each kind of element's page (the registry's kind); it gets the element's def.
 local PAGE = { shield = buildShield, shock = buildShock, imbue = buildImbue, cooldown = buildCooldown, buff = buildBuff,
 	tremor = buildTremor }
+
+-- Maelstrom Weapon's page (ShamanForever_Maelstrom.lua): its stacks, then the five-stack look.
+local HIGHLIGHT = { { "glow", "Glow" }, { "wash", "Colour" }, { "none", "None" } }
+local function buildMaelstrom(p, def)
+	local key = def.key
+	local function on(name) return function() return ns.elementSetting(key, name) end end
+	elementDisplay(p, key)
+	idleBlock(p, def)
+	p:header("Stacks")
+	p:checkbox("Stack bar", "One segment per stack.", eget(key, "stackBar"), eset(key, "stackBar"))
+	local barOn = showWhen(on("stackBar"))
+	p:slider("Bar height", nil, 1, 20, 1, px, eget(key, "stackBarHeight"), eset(key, "stackBarHeight"), barOn)
+	p:color("Bar colour", nil, eget(key, "stackBarColor"), eset(key, "stackBarColor"), barOn)
+	p:checkbox("Stack number", nil, eget(key, "stackCount"), eset(key, "stackCount"))
+	local numberOn = showWhen(on("stackCount"))
+	p:dropdown("Number position", nil, { { "corner", "Corner" }, { "center", "Centre" } }, eget(key, "countPos"),
+		eset(key, "countPos"), numberOn)
+	p:slider("Number size", nil, 8, 40, 1, int, eget(key, "countSize"), eset(key, "countSize"), numberOn)
+	p:checkbox("Colour at five", "The number takes its own colour at five stacks.", eget(key, "fullCount"),
+		eset(key, "fullCount"), numberOn)
+	p:color("Five colour", nil, eget(key, "fullCountColor"), eset(key, "fullCountColor"),
+		showWhen(function() return ns.elementSetting(key, "stackCount") and ns.elementSetting(key, "fullCount") end))
+	timerSettings(p, "Time left", key, "uptime")
+	p:header("Five stacks")
+	p:dropdown("Highlight", "Over the icon at five stacks.", HIGHLIGHT, eget(key, "highlight"), eset(key, "highlight"), nil, 140)
+	local lit = showWhen(function() return ns.elementSetting(key, "highlight") ~= "none" end)
+	p:color("Highlight colour", nil, eget(key, "highlightColor"), eset(key, "highlightColor"), lit)
+	p:checkbox("Pop", "The highlight bursts out from the middle as the fifth stack lands.", eget(key, "fullPop"),
+		eset(key, "fullPop"), lit)
+	p:checkbox("Pulsing glow", "The highlight pulses while at five, at the Pulsing glow style's speed.",
+		eget(key, "fullGlow"), eset(key, "fullGlow"), lit)
+end
+PAGE.maelstrom = buildMaelstrom
 
 -- Every element's page, in the order the options list them.
 function EP.build(newPage)
@@ -620,5 +751,5 @@ function EP.build(newPage)
 	end
 end
 
--- The page key of an element's own page, nil for one without (test elements).
+-- The page key of an element's own page, nil for one without.
 function EP.pageOf(key) return ELEMENT_PAGES[key] end

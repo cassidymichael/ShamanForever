@@ -35,7 +35,8 @@ end
 L.PANEL = { 29 / 255, 24 / 255, 19 / 255 }
 
 -- Each element's identity comes from its registry entry (ns.registerElement): its name, icon and
--- school never change with its settings. The totem bar's page has the same kind of header.
+-- school never change with its settings. The totem bar's page and the swing timer's have the same
+-- kind of header, from their entries in L.IDENTITY.
 local TOTEMBAR = { label = "Totem bar", icon = "Interface\\Icons\\Spell_Shaman_DropAll_01", school = "spirit",
 	blurb = "Your totems, their timers, and a pick for each element.",
 	tags = function()
@@ -46,7 +47,8 @@ local TOTEMBAR = { label = "Totem bar", icon = "Interface\\Icons\\Spell_Shaman_D
 		return string.format("%s  ·  %s%s", TB.modeName(), shows[c.show] or "",
 			TB.hasTotems() and "" or "  ·  Not learned")
 	end }
-local function identity(key) return key == "totembar" and TOTEMBAR or ns.ELEMENTS[key] end
+L.IDENTITY = { totembar = TOTEMBAR }   -- the swing timer's: ShamanForever_OptionsSwing.lua
+local function identity(key) return L.IDENTITY[key] or ns.ELEMENTS[key] end
 
 -- An element's name (or the totem bar's): its spell's in the client's language, else its label.
 function L.elementName(key)
@@ -192,14 +194,15 @@ end
 -- timers the HUD uses (ShamanForever_Timers.lua), frozen: the ones its preview has (preview.cooldown,
 -- preview.uptime).
 ------------------------------------------------------------------------
+local PREVIEW_SIZE = 56   -- a preview icon's size, its border included
 local function makePreviewIcon(parent, key, preview)
-	local ic = ns.makeIcon(parent, 56, key)   -- the element's own glow and pop style
+	local ic = ns.makeIcon(parent, PREVIEW_SIZE, key)   -- the element's own glow and pop style
 	local e = identity(key)
 	local school = e and e.school
 	if preview.cooldown then ic.cdT = ns.Timer.new(ic, key, "cooldown", { cd = ic.cd, school = school }) end
 	if preview.uptime then
 		ic.upT = ns.Timer.new(ic.textFrame, key, "uptime", { anchor = ic, dual = preview.cooldown,
-			cd = not preview.cooldown and ic.cd or nil, school = school })
+			cd = not preview.cooldown and ic.cd or nil, school = school, barInset = preview.barInset })
 	end
 	ic.bar = CreateFrame("Frame", nil, ic.textFrame)
 	ic.bar:SetPoint("BOTTOMLEFT", ic, "BOTTOMLEFT", 0, 0)
@@ -217,6 +220,7 @@ local function makePreviewIcon(parent, key, preview)
 	end
 	return ic
 end
+L.makePreviewIcon = makePreviewIcon   -- the HUD's preview mode draws its stand-ins with these
 
 -- Filled segments out of n (n = 1 gives a fraction bar); r, g, b the fill colour, on General's bar
 -- texture as the HUD's charge bar.
@@ -256,11 +260,17 @@ local function reset(ic, icon)
 	ic.bar:Hide()
 end
 
--- A timer frozen in its current style: frac of a span `length` seconds long gone.
+-- A timer frozen in its current style: frac of a span `length` seconds long gone. While the HUD's
+-- preview draws a state (L.paint, below) it runs from that moment instead.
+local stage   -- set by L.paint while it draws; nil for the options' own previews
 local function frozen(t, frac, length)
 	if not t then return end
 	t:apply()
-	t:static(frac, length)
+	if not stage then t:static(frac, length) return end
+	length = length or 30
+	stage.ends = math.max(stage.ends or 0, stage.start + (1 - frac) * length)
+	pcall(t.cd.Resume, t.cd)   -- a moment's frozen timer, drawn after the state, paused it
+	t:setTime(stage.start - frac * length, length)
 end
 
 -- An element's Expiring look (its Expiring block's settings), over a timer in its last seconds.
@@ -280,9 +290,10 @@ local previewState = {}   -- element key -> its header's preview state
 -- An idle element as the preview shows it: its Idle opacity, but never quite invisible (0% shows as
 -- a faint icon, so the state can still be seen).
 local FAINT = 0.12
-local function idleLook(ic, key) ic:SetAlpha(math.max(ns.idleAlpha(key), FAINT)) end
+function L.idleAlpha(key) return math.max(ns.idleAlpha(key), FAINT) end
+local function idleLook(ic, key) ic:SetAlpha(L.idleAlpha(key)) end
 -- Ready, then idle: as on the HUD, the icon holds full for a moment after its ready pop, then fades.
-local IDLE_DELAY = 1.5
+local IDLE_DELAY = ns.IDLE_DELAY
 local function idleSoon(ic, key, st)
 	local token = {}
 	ic.idleToken = token
@@ -295,6 +306,7 @@ local function totemPreview(def)
 	local g = def.grounded   -- Grounding: its early end is Grounded, in air blue with no cross
 	return {
 		cooldown = true, uptime = true,
+		typical = "active",
 		states = { { "ready", "Ready" }, { "active", "Totem down" }, { "expiring", "Expiring" }, { "ranout", "Ran out" }, { "cd", "Cooldown" },
 			{ "killed", g and "Grounded" or "Killed early" } },
 		-- Ran out (Mana Tide, Grounding) and Killed early / Grounded play their flash as in game;
@@ -350,11 +362,14 @@ local function totemPreview(def)
 end
 
 -- Every element's preview, by key: states ({ state, label }), render(icon, state), pop(icon, state)
--- for the states with a moment, and the timers its icon has (cooldown, uptime). An element with
+-- for the states with a moment, and the timers its icon has (cooldown, uptime). For the HUD's
+-- preview mode (ShamanForever_Preview.lua): typical, its state in an ordinary moment of a fight
+-- (else its first), and warning, its state while warning (none: it has no warning). An element with
 -- logic of its own has its own here; the others are made from their def by their kind (below).
 L.PREVIEW = {
 	shield = {
-		uptime = true,
+		uptime = true, barInset = function() return ns.Shield.timeBarInset() end,
+		warning = "down",
 		states = { { "up3", "3 charges" }, { "up1", "1 charge" }, { "down", "No shield" }, { "drop", "Dropped in combat" } },
 		render = function(ic, st)
 			local d = db()
@@ -366,6 +381,7 @@ L.PREVIEW = {
 				if st == "down" then
 					ic:SetRingShown(d.emptyRing)
 					ic:SetPulsing(d.emptyPulse)
+					ic:SetGlowShown(d.emptyGlow)
 				else
 					ic.tex:SetAlpha(math.max(d.underlayUp, 0.08))
 				end
@@ -379,16 +395,18 @@ L.PREVIEW = {
 				ic.bar:SetHeight(d.chargeBarHeight or 8)
 				setBar(ic, 3, n, c[1], c[2], c[3])
 			end
-			if d.showCount and n >= 2 then
+			if d.showCount then
 				ns.Media.setFont(ic.count, nil, d.countSize)
-				ic.count:ClearAllPoints()
-				if d.countPos == "center" then ic.count:SetPoint("CENTER") else ic.count:SetPoint("BOTTOMRIGHT", 2, -2) end
+				ns.Shield.placeCount(ic.count, ic)
 				ic.count:SetText(n)
 				ic.count:Show()
+				local c = (n == 1 and d.countOne) and d.countLastColor or { 1, 1, 1 }
+				ic.count:SetTextColor(c[1], c[2], c[3])
 			end
 		end,
 	},
 	shock = {
+		warning = "both",
 		cooldown = true,
 		states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" }, { "range", "Out of range" }, { "both", "Both" } },
 		pop = function(ic, st) if st == "ready" and opt("shock", "readyPop") then ic:Pop() end end,
@@ -405,6 +423,7 @@ L.PREVIEW = {
 	},
 	imbue = {
 		uptime = true,
+		typical = "fine", warning = "missing",
 		states = { { "missing", "No imbue" }, { "low", "Running low" }, { "fine", "Plenty left" } },
 		pop = function(ic, st) if st == "missing" and db().imbuePop then ic:Pop("imbue") end end,
 		render = function(ic, st)
@@ -425,8 +444,11 @@ L.PREVIEW = {
 	},
 	firenova = {
 		cooldown = true, uptime = true,
+		typical = "out", warning = "nototem",
 		states = { { "ready", "Ready" }, { "nototem", "No fire totem" }, { "out", "Fire totem out" }, { "expiring", "Totem expiring" } },
-		pop = function(ic, st) if st == "out" and opt("firenova", "readyPop") then ic:Pop() end end,
+		pop = function(ic, st)
+			if st == "ready" and opt("firenova", "readyPop") then ic:Pop() end
+		end,
 		render = function(ic, st)
 			reset(ic, 135824)
 			if st == "expiring" then expiringLook(ic, "firenova", 55) return end
@@ -448,6 +470,19 @@ function L.reagentLook(ic, key, n)
 	ic:SetRingShown(ring)
 	ic:SetPulsing(pulse)
 end
+-- Maelstrom Weapon: its parts are drawn by ShamanForever_Maelstrom.lua, for n stacks.
+L.PREVIEW.maelstrom = {
+	uptime = true,
+	states = { { "s1", "1 stack" }, { "s4", "4 stacks" }, { "s5", "5 stacks" }, { "idle", "Not up" } },
+	pop = function(ic, st) if st == "s5" then ns.Maelstrom.previewPop(ic) end end,
+	render = function(ic, st)
+		local M = ns.Maelstrom
+		reset(ic, M.icon)
+		local n = ({ s1 = 1, s4 = M.maxStacks() - 1, s5 = M.maxStacks() })[st] or 0
+		M.drawPreview(ic, n)
+		if n > 0 then frozen(ic.upT, 0.3, 30) else idleLook(ic, "maelstrom") end
+	end,
+}
 -- The preview's counts: plenty, "few left" (at the Low mark, at least 1) and none.
 local PLENTY = 15
 local function fewLeft(key)
@@ -472,6 +507,7 @@ local function cooldownPreview(def)
 	return {
 		cooldown = true, uptime = (def.window or (def.primed and def.primed.duration)) and true or false,
 		states = states,
+		typical = "cd", warning = def.reagent and "out" or nil,
 		pop = function(ic, st)
 			if st == "ready" then
 				if not def.noReady and opt(key, "readyPop") then ic:Pop("ready") end
@@ -497,7 +533,7 @@ end
 -- buffs' warnings.
 local function buffPreview(def)
 	local key = def.key
-	local states = { { "up", def.proc and ns.Spells.name("clearcasting") or "Up" } }
+	local states = { { "up", def.proc and (def.upLabel or ns.Spells.name("clearcasting")) or "Up" } }
 	if not def.proc then table.insert(states, { "expiring", "Expiring" }) end
 	table.insert(states, { "idle", "Not up" })
 	if def.reagent then
@@ -508,6 +544,7 @@ local function buffPreview(def)
 	return {
 		uptime = true,
 		states = states,
+		warning = def.breath and "underwater" or def.reagent and "out" or nil,
 		-- Elemental Focus's pop is the grow-and-settle Blizzard's button plays (not the full pop).
 		pop = function(ic, st)
 			if st == "up" and def.proc and opt(key, "primedPop") then
@@ -545,6 +582,7 @@ end
 -- idle (not down, nothing to warn about).
 L.PREVIEW.tremor = {
 	uptime = true,
+	typical = "idle", warning = "warn",
 	states = { { "warn", "Warning" }, { "down", "Tremor down" }, { "idle", "Not down, no warning" } },
 	pop = function(ic, st) if st == "warn" and opt("tremor", "alertPop") then ic:Pop("ready") end end,
 	render = function(ic, st)
@@ -587,6 +625,18 @@ for _, key in ipairs(ns.ELEMENT_KEYS) do
 	if make and not L.PREVIEW[key] then L.PREVIEW[key] = make(e.def) end
 end
 
+-- An element's preview state drawn for the HUD's preview mode (ShamanForever_Preview.lua), on an
+-- icon made by L.makePreviewIcon: its timers run from `at` (GetTime). Returns when the state's
+-- timer runs out, if it has one.
+function L.paint(ic, key, st, at)
+	stage = { start = at }
+	local ok, err = pcall(L.PREVIEW[key].render, ic, st)
+	local ends = stage.ends
+	stage = nil
+	if not ok then ns.noteError("preview " .. key, err) end
+	return ends
+end
+
 -- The totem bar: the header is its stage. The bar is drawn at its real size (icon size × the
 -- bar's scale, inside a frame with that scale, so text, borders and spacing match the game),
 -- shrunk only as much as needed to fit; the picking state shows a short popout.
@@ -596,9 +646,10 @@ L.TOTEM_ICON = TOTEM_ICON
 -- ("5m" or 4:10, 38, "2m" or 1:23, "3m" or 2:45). Expiring puts the fire totem (else the first
 -- slot) at 5 s; Killed early shows it just killed.
 local PREVIEW_LEFT = { earth = { 250, 300 }, fire = { 38, 55 }, water = { 83, 300 }, air = { 165, 300 } }
+L.PREVIEW_LEFT = PREVIEW_LEFT
 local POP_ITEMS = 3   -- "No totem" and two totems: enough to show the look within the header
 L.PREVIEW.totembar = {
-	stage = true, heroH = 280, uptime = true,
+	stage = true, heroH = 210, uptime = true,
 	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" }, { "killed", "Killed early" },
 		{ "range", "Out of range" }, { "offpick", "Not your pick" }, { "picking", "Picking" } },
 	-- Blizzard's: nothing to preview. Active totems: only totems that are down, so no picking. Out of
@@ -625,6 +676,8 @@ L.PREVIEW.totembar = {
 		h.slots = {}
 		for i = 1, 4 do
 			local ic = makePreviewIcon(bar, "totembar", L.PREVIEW.totembar)
+			-- The slot's box (its button on the bar): the icon sits in it by its border's reach.
+			ic.box = CreateFrame("Frame", nil, bar)
 			ic.badge = CreateFrame("Frame", nil, bar)
 			ic.badge:SetFrameLevel(ic:GetFrameLevel() + 6)
 			ic.badge.icon = ic.badge:CreateTexture(nil, "ARTWORK")
@@ -635,6 +688,7 @@ L.PREVIEW.totembar = {
 			ic.rangeF:SetFrameLevel(ic:GetFrameLevel() + 7)
 			ic.rangeF.bg = ic.rangeF:CreateTexture(nil, "ARTWORK")
 			ic.rangeF.bg:SetAllPoints()
+			ns.Looks.followMask(ic, ic.rangeF.bg)
 			h.slots[i] = ic
 		end
 		h.extras = {}
@@ -727,10 +781,9 @@ L.PREVIEW.totembar = {
 		for _, it in ipairs(seq) do
 			if it.extra then
 				local ic = h.extras[it.key]
-				ic:SetSize(it.size, it.size)
+				local o = ns.Looks.fit(ic, border, it.size)   -- inside its size, as on the bar
 				ic:ClearAllPoints()
-				place(ic, it.offset, (line - it.size) / 2)
-				ns.applyBorder(ic, border)
+				place(ic, it.offset + o, (line - it.size) / 2 + o)
 				local learned = TB.extraLearned(it.key)
 				ic.tex:SetTexture(TB.extraTexture(it.key))
 				ic.tex:SetDesaturated(not learned)
@@ -747,11 +800,14 @@ L.PREVIEW.totembar = {
 			ic:SetShown(el ~= nil)
 			ic.rangeF:Hide()
 			if el then
-				ic:SetSize(size, size)
+				ic.box:SetSize(size, size)
+				ic.box:ClearAllPoints()
+				place(ic.box, slotAt[i], (line - size) / 2)
+				ic.school = el
+				local o = ns.Looks.fit(ic, border, size)
 				ic:ClearAllPoints()
-				place(ic, slotAt[i], (line - size) / 2)
-				ns.applyBorder(ic, border)
-				local pick = GetActionTexture and TB.pickTexture(el)
+				place(ic, slotAt[i] + o, (line - size) / 2 + o)
+				local pick = TB.pickTexture(el)
 				if ns.isSecret(pick) then pick = nil end   -- never compared while secret (combat)
 				reset(ic, pick or TOTEM_ICON[el])
 				ic.badge:Hide()
@@ -760,7 +816,7 @@ L.PREVIEW.totembar = {
 					local k = i == 1 and c.rangeOut or c.rangeIn
 					ic.rangeF:ClearAllPoints()
 					ic.rangeF:SetPoint("TOPLEFT", ic, "TOPLEFT", 0, 0)
-					ic.rangeF:SetSize(size, ns.linePx(ic, c.rangeHeight))
+					ic.rangeF:SetSize(size - 2 * o, ns.linePx(ic, c.rangeHeight))
 					ic.rangeF.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
 					ic.rangeF:Show()
 				end
@@ -774,7 +830,7 @@ L.PREVIEW.totembar = {
 					ic.tex:SetTexture(other or TOTEM_ICON[el])
 					if c.offPick and pick then
 						ic.badge.icon:SetTexture(pick)
-						TB.layoutBadge(ic.badge, ic, size, border)
+						TB.layoutBadge(ic.badge, ic.box, size, border)
 						ic.badge:Show()
 					end
 				end
@@ -792,7 +848,7 @@ L.PREVIEW.totembar = {
 						if c.killedGlow then ic:SetGlowShown(true, 1, 0.12, 0.08) end
 						if c.killedMark then
 							h.kMark:ClearAllPoints(); h.kMark:SetAllPoints(ic)
-							h.kMark.x:SetSize(size * 0.7, size * 0.7); h.kMark:Show()
+							h.kMark.x:SetSize((size - 2 * o) * 0.7, (size - 2 * o) * 0.7); h.kMark:Show()
 						end
 					elseif full then
 						ic.tex:SetDesaturated(c.idleGrey); ic.tex:SetAlpha(c.idleAlpha)
@@ -822,9 +878,9 @@ L.PREVIEW.totembar = {
 		if picking then
 			-- As on the bar (the same placement): the tab, then the picker past it.
 			local first = h.slots[1]
-			TB.placeArrow(h.tab, first, h.tab.glyph)
+			TB.placeArrow(h.tab, first.box, h.tab.glyph)
 			local p = h.pop
-			TB.placePopout(p, first, items, psz)
+			TB.placePopout(p, first.box, items, psz)
 			for i, it in ipairs(p.items) do
 				it:SetShown(i <= items)
 				TB.placePopButton(it, p, i, psz)
@@ -843,6 +899,13 @@ L.PREVIEW.totembar = {
 ------------------------------------------------------------------------
 L.HERO_H = 160
 local heroes = {}   -- element key -> its header, for L.setPreview
+
+-- A flat state button, chosen (outlined in gold) or not; preview mode's panel uses the same.
+function L.paintChoice(b, chosen)
+	b:SetBackdropColor(chosen and 0.88 or 0.09, chosen and 0.66 or 0.075, chosen and 0.29 or 0.06, chosen and 0.16 or 1)
+	b:SetBackdropBorderColor(chosen and 0.88 or 0.23, chosen and 0.66 or 0.17, chosen and 0.29 or 0.10, 1)
+	b.text:SetTextColor(chosen and 1 or 0.78, chosen and 0.84 or 0.74, chosen and 0.5 or 0.68)
+end
 
 function L.buildHero(parent, key)
 	local e = identity(key)
@@ -899,11 +962,11 @@ function L.buildHero(parent, key)
 	h.blurb = h:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	h.blurb:SetPoint("TOPLEFT", h.title, "BOTTOMLEFT", 0, -5)
 	h.blurb:SetTextColor(0.80, 0.74, 0.66)
-	h.blurb:SetText(e.blurb)
 	h.blurb:SetShadowOffset(1, -1)
 	h.blurb:SetJustifyH("LEFT")
+	h.blurb:Hide()   -- no line under the name for now; elements keep their blurb for its return
 	h.tags = h:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-	h.tags:SetPoint("TOPLEFT", h.blurb, "BOTTOMLEFT", 0, -7)
+	h.tags:SetPoint("TOPLEFT", h.title, "BOTTOMLEFT", 0, -7)
 	if def.stage then
 		-- A title band: the name and its tags on one line, then a faint gold rule above the stage.
 		h.icon:Hide(); h.iconEdge:Hide(); h.blurb:Hide()
@@ -919,9 +982,11 @@ function L.buildHero(parent, key)
 		pcall(h.rule.SetGradient, h.rule, "HORIZONTAL", CreateColor(0.85, 0.71, 0.42, 0.45), CreateColor(0.85, 0.71, 0.42, 0))
 	end
 	if e.experimental then
-		-- In the banner above the icon, clear of the tags and the preview panel.
+		-- In the banner above the icon, clear of the tags and the preview panel; on a stage (no
+		-- icon), after the tags on the title's line.
 		h.exp = L.expBadge(h, e.experimental)
-		h.exp:SetPoint("BOTTOMLEFT", h.icon, "TOPLEFT", -2, 6)
+		if def.stage then h.exp:SetPoint("LEFT", h.tags, "RIGHT", 12, 0)
+		else h.exp:SetPoint("BOTTOMLEFT", h.icon, "TOPLEFT", -2, 6) end
 		h.exp:SetFrameLevel(h:GetFrameLevel() + 6)
 	end
 
@@ -985,9 +1050,9 @@ function L.buildHero(parent, key)
 		self.shade:SetShown(not minimal)
 		for _, c in ipairs(self.corners) do c:SetShown(not minimal) end
 		if e.tags then self.tags:SetText(e.tags()) else
-			local gi = ns.findElement(key)
+			local g = ns.groupOf(key)
 			local shows = { always = "Always", combat = "In combat", never = "Hidden" }
-			self.tags:SetText(string.format("%s  ·  %s%s", gi and ("Group " .. gi) or "No group", shows[ns.showMode(key)] or "",
+			self.tags:SetText(string.format("%s  ·  %s%s", g and g.name or "Ungrouped", shows[ns.showMode(key)] or "",
 				ns.isLearned(key) and "" or "  ·  Not learned"))
 		end
 		-- A stage can offer only some states (the totem bar's mode): the others hide, the rest close
@@ -1017,32 +1082,24 @@ function L.buildHero(parent, key)
 				previewState[key] = (def.fallback and def.stateShown(def.fallback)) and def.fallback or first
 			end
 		end
-		for _, b in ipairs(self.stateButtons) do
-			local on = b.state == previewState[key]
-			b:SetBackdropColor(on and 0.88 or 0.09, on and 0.66 or 0.075, on and 0.29 or 0.06, on and 0.16 or 1)
-			b:SetBackdropBorderColor(on and 0.88 or 0.23, on and 0.66 or 0.17, on and 0.29 or 0.10, 1)
-			b.text:SetTextColor(on and 1 or 0.78, on and 0.84 or 0.74, on and 0.5 or 0.68)
-		end
+		for _, b in ipairs(self.stateButtons) do L.paintChoice(b, b.state == previewState[key]) end
 		if not def.stage then
-			-- On whole screen pixels: a cooldown's swipe snaps to pixels and the icon's texture doesn't,
-			-- so at a fractional position a sliver of the icon shows beside the swipe.
-			local ic = self.previewIcon
+			-- An element's preview wears its group's border, inside its size as on the HUD (the totem
+			-- bar's stage draws its own). A preview not square gives its size (def.size).
+			local ic, el = self.previewIcon, ns.ELEMENTS[key]
+			local bw, bh = PREVIEW_SIZE, PREVIEW_SIZE
+			if def.size then bw, bh = def.size() end
+			local x = 16 + ns.Looks.fit(ic, ns.borderFor(key), bw, bh, { shape = el and el.shape })
+			-- On whole screen pixels, as the HUD's icons are (ns.placeOnPixels says why).
 			ic:ClearAllPoints()
-			ic:SetPoint("LEFT", p, "LEFT", 16, -6)
+			ic:SetPoint("LEFT", p, "LEFT", x, -6)
 			local l, t = ic:GetLeft(), ic:GetTop()
-			local ok, _, screenH = pcall(GetPhysicalScreenSize)
-			if l and t and ok and type(screenH) == "number" and screenH > 0 then
-				local px = 768 / screenH / ic:GetEffectiveScale()   -- one screen pixel, in the icon's units
-				local dx = math.floor(l / px + 0.5) * px - l
-				local dy = math.floor(t / px + 0.5) * px - t
-				ic:SetPoint("LEFT", p, "LEFT", 16 + dx, -6 + dy)
+			if l and t then
+				local px = ns.pixel(ic)
+				ic:SetPoint("LEFT", p, "LEFT", x + ns.roundPx(l, px) - l, -6 + ns.roundPx(t, px) - t)
 			end
 		end
-		if def.stage then def.render(self, previewState[key]) else
-			-- An element's preview wears its group's border (the totem bar's stage draws its own).
-			ns.applyBorder(self.previewIcon, ns.borderFor(key))
-			def.render(self.previewIcon, previewState[key])
-		end
+		if def.stage then def.render(self, previewState[key]) else def.render(self.previewIcon, previewState[key]) end
 	end
 	return h
 end

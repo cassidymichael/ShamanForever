@@ -57,9 +57,10 @@ local function drawTint()
 	shock:SetRingShown(shockState.noMana, 0.2, 0.45, 1, d.manaRing)
 end
 
-local function refreshCooldown()
-	if not shockSpellID or not ns.isEnabled("shock") then return end
-	local dur = CD.cooldownFor(shock, "shock", shockSpellID)
+-- inEvent: from SPELL_UPDATE_COOLDOWN (onCooldowns).
+local function refreshCooldown(inEvent)
+	if not shockSpellID or not ns.isEnabled("shock") then return CD.resetReady(shock) end
+	local dur = CD.cooldownFor(shock, "shock", shockSpellID, inEvent)
 	if dur then shock.cdTimer:set(dur) end
 end
 
@@ -89,6 +90,7 @@ local function refreshMana()
 end
 
 CD.popWhenReady(shock, "shock")
+CD.soundWhenReady(shock, "shock")
 
 ------------------------------------------------------------------------
 -- Ready glow ("use me"), off by default: while the shock is off cooldown (ShamanForever_Cooldowns.lua
@@ -134,7 +136,7 @@ function SK.resolve()
 	shockSpellID = shockIDs[usedShock]
 	shockIcon = icons[usedShock] or Spells.icon(SHOCK_SPELL[usedShock]) or 136026
 	shock.tex:SetTexture(shockIcon)
-	-- Not learned yet (seen only in test mode): a plain grey icon.
+	-- Not learned yet (seen only while the preview shows such elements): a plain grey icon.
 	shock.tex:SetDesaturated(next(shockIDs) == nil)
 	manaSpellID = (d.manaSpell ~= "tracked" and shockIDs[d.manaSpell]) or shockSpellID
 	if rangeCheckID ~= shockSpellID and C_Spell.EnableSpellRangeCheck then
@@ -172,6 +174,13 @@ function SK.refresh()
 end
 
 SK.onCooldowns = refreshCooldown
+
+-- Our own cast of any shock arms the next ready: the shocks share one cooldown.
+local SHOCK_KEY = {}
+for _, spell in pairs(SHOCK_SPELL) do SHOCK_KEY[spell] = true end
+function SK.onCast(spellID)
+	if shockSpellID and ns.isEnabled("shock") and SHOCK_KEY[Spells.keyOf(spellID)] then CD.noteCast(shock, shockSpellID) end
+end
 
 -- Once a second: a cooldown's end fires no event.
 function SK.tick() ns.try("shock refresh", refreshCooldown) end

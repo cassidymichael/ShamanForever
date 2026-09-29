@@ -43,14 +43,6 @@ TR.WORD = "Tremor!"    -- by the icon while it warns
 local TREMOR_TYPES = { FEAR = true, FEAR_MECHANIC = true, CHARM = true, POSSESS = true, SLEEP = true }
 local tremorSpells = {}   -- spell ID -> true, from TR.SPELLS (ShamanForever_TremorList.lua), at start
 
--- The options' sound choices: value, text, sound kit.
-TR.SOUNDS = {
-	{ "none", "None" },
-	{ "raid", "Raid warning", SOUNDKIT.RAID_WARNING },
-	{ "ready", "Ready check", SOUNDKIT.READY_CHECK },
-	{ "alarm", "Alarm clock", SOUNDKIT.ALARM_CLOCK_WARNING_3 },
-}
-
 local function setting(name) return ns.elementSetting(KEY, name) end
 -- A value from a pcall that is safe to use: nil when the call failed or the value is secret.
 local function plain(ok, v)
@@ -313,24 +305,14 @@ end
 -- The warning
 ------------------------------------------------------------------------
 local alerting = false
-local lastSound = -SOUND_GAP
 local why   -- what set it off last, for /sf debug
-
-function TR.playSound(value)
-	for _, s in ipairs(TR.SOUNDS) do
-		if s[1] == value and s[3] then PlaySound(s[3], "Master") return end
-	end
-end
 
 local function setAlert(on)
 	f:SetGlowShown(on and setting("alertGlow"))
 	f.word:SetShown(on and setting("alertText") and true or false)
 	if on and not alerting then
 		if setting("alertPop") then f:Pop("ready") end
-		if GetTime() - lastSound >= SOUND_GAP then
-			lastSound = GetTime()
-			TR.playSound(setting("alertSound"))
-		end
+		ns.Sounds.play(setting("alertSound"), KEY, SOUND_GAP)
 	end
 	alerting = on
 end
@@ -342,7 +324,7 @@ local function refresh()
 	end
 	f.tex:SetTexture(def.iconID or def.icon)
 	if not def.spellID then
-		-- Not learned yet (seen only in test mode): a plain grey icon.
+		-- Not learned yet (seen only while the preview shows such elements): a plain grey icon.
 		f.tex:SetDesaturated(true)
 		f.upTimer:clear()
 		setAlert(false)
