@@ -22,7 +22,15 @@ local GROUP_DEFAULTS = {
 	orientation = "horizontal",  -- horizontal | vertical
 	growth = "forward",          -- forward (right / down) | backward (left / up)
 	spacing = 6,
-	combatOnly = false,          -- hide the group out of combat (always shown while unlocked)
+	-- always | combat | target (in combat or with an enemy target); always shown while unlocked
+	show = "always",
+	fadeAfter = 0,               -- seconds it stays once combat ends, then fades out (0: none)
+}
+-- A group's Show as its state driver's conditions (none for always). "harm" is any target you can
+-- attack; a dead one doesn't count.
+local SHOW_WHEN = {
+	combat = "[combat] show; hide",
+	target = "[combat] show; [@target,exists,harm,nodead] show; hide",
 }
 
 -- A profile: the layout and how every element looks.
@@ -346,7 +354,10 @@ local function sanitize()
 	if type(db.known) ~= "table" then db.known = {} end
 	local seen = {}
 	for _, g in ipairs(db.groups) do
+		if g.combatOnly then g.show = "combat" end   -- saved before a group's Show had choices
+		g.combatOnly = nil
 		for k, v in pairs(GROUP_DEFAULTS) do if g[k] == nil then g[k] = v end end
+		if g.show ~= "combat" and g.show ~= "target" then g.show = "always" end
 		-- A border saved before styles (0.6.1 and earlier) was the group's own.
 		if type(g.border) == "table" and g.border.follow == nil then g.border.follow = false end
 		local kept = {}
@@ -432,28 +443,81 @@ end
 -- Groups and elements are driven separately, so an element shows only when both allow it. The
 -- manager re-applies its state every 0.2s and does not show a frame it lets go of, so a driven frame
 -- is never shown or hidden by hand. Only called out of combat.
-local driven = {}
-local function setDriven(frame, want)
-	if want == (driven[frame] or false) then return end
-	if want then
-		local ok, err = pcall(RegisterStateDriver, frame, "visibility", "[combat] show; hide")
+local driven = {}   -- frame -> its driver's conditions
+local function setDriven(frame, when)
+	when = when or nil
+	if when == driven[frame] then return end
+	if when then
+		local ok, err = pcall(RegisterStateDriver, frame, "visibility", when)
 		if not ok then say("state driver failed: %s", tostring(err)); return end
-		driven[frame] = true
+		driven[frame] = when
 	else
 		pcall(UnregisterStateDriver, frame, "visibility")
 		driven[frame] = nil
 	end
 end
 
--- Shows a frame, or hands it to the driver when it should only show in combat.
-local function showFrame(frame, combatOnly)
-	setDriven(frame, combatOnly)
-	if not combatOnly then frame:Show() end
+-- Shows a frame, or hands it to the driver with the conditions it shows under.
+local function showFrame(frame, when)
+	setDriven(frame, when)
+	if not when then frame:Show() end
 end
 
 local function hideFrame(frame)
 	setDriven(frame, false)
 	frame:Hide()
+end
+
+-- The conditions a group's frame shows under (nil: shown), and those of a member set to show only in
+-- combat. While the group stays after combat (ns.AfterCombat) both are a plain "show".
+local function groupWhen(g, gf)
+	if not acct.locked then return nil end
+	local when = SHOW_WHEN[g.show]
+	if when and ns.AfterCombat.held(gf.afterCombat) then return "show" end
+	return when
+end
+local function memberWhen(g, gf, key)
+	if not acct.locked or showMode(key) ~= "combat" then return nil end
+	if SHOW_WHEN[g.show] and ns.AfterCombat.held(gf.afterCombat) then return "show" end
+	return SHOW_WHEN.combat
+end
+
+-- A laid-out group's drivers and its members' again: it started or stopped staying after combat.
+local function driveGroup(gi)
+	local g, gf = db.groups[gi], groupFrames[gi]
+	if not (g and gf and gf.laidOut) or InCombatLockdown() then return end
+	for _, key in ipairs(g.members) do
+		if isEnabled(key) then showFrame(ELEMENTS[key].frame, memberWhen(g, gf, key)) end
+	end
+	showFrame(gf, groupWhen(g, gf))
+end
+
+-- A group's Stay after combat (ns.AfterCombat), made with its frame.
+local function afterCombat(gf)
+	local function group() return db.groups[gf.index] end
+	return ns.AfterCombat.new({
+		secs = function()
+			local g = group()
+			return g and gf.laidOut and acct.locked and SHOW_WHEN[g.show] and g.fadeAfter or 0
+		end,
+		apply = function() driveGroup(gf.index) end,
+		-- Whether its own driver would show it now: unlocked, Always, or its conditions hold.
+		shows = function()
+			local g = group()
+			if not g then return false end
+			local when = acct.locked and SHOW_WHEN[g.show]
+			return not when or SecureCmdOptionParse(when) == "show"
+		end,
+		-- The group, and its members' effects layers, which ignore its alpha.
+		frames = function()
+			local list, g = { gf }, group()
+			for _, key in ipairs(g and g.members or {}) do
+				local fx = ELEMENTS[key].frame.effects
+				if fx then table.insert(list, fx) end
+			end
+			return list
+		end,
+	})
 end
 
 -- Sizes and anchors a group's members in one pass, centred on the cross axis; the group frame
@@ -462,6 +526,7 @@ end
 -- (Blizzard's aura button), so a chain could stop the members before it changing in combat.
 local function layoutGroup(gi)
 	local g, gf = db.groups[gi], groupFrame(gi)
+	gf.afterCombat = gf.afterCombat or afterCombat(gf)
 	local gap = g.spacing
 	local horizontal = g.orientation == "horizontal"
 	local forward = g.growth ~= "backward"
@@ -487,7 +552,7 @@ local function layoutGroup(gi)
 				else f:SetPoint("BOTTOM", gf, "BOTTOM", 0, offset) end
 				along, across = along + h, math.max(across, w)
 			end
-			showFrame(f, acct.locked and showMode(key) == "combat")
+			showFrame(f, memberWhen(g, gf, key))
 			n = n + 1
 		end
 	end
@@ -506,7 +571,8 @@ local function layoutGroup(gi)
 	gf:ClearAllPoints()
 	gf:SetPoint(g.point, UIParent, g.point, g.x, g.y)
 	ns.Positioning.decorate(gf, gi)
-	if n > 0 then showFrame(gf, acct.locked and g.combatOnly or false) else hideFrame(gf) end
+	gf.laidOut = n > 0
+	if n > 0 then showFrame(gf, groupWhen(g, gf)) else hideFrame(gf) end
 end
 
 -- Deferred in combat: the shield's group is an ancestor of Blizzard's protected aura button, so
@@ -517,7 +583,10 @@ local function layoutElements()
 		if not isEnabled(key) then hideFrame(e.frame) end
 	end
 	for gi in ipairs(db.groups) do layoutGroup(gi) end
-	for gi = #db.groups + 1, #groupFrames do hideFrame(groupFrames[gi]) end
+	for gi = #db.groups + 1, #groupFrames do
+		groupFrames[gi].laidOut = false
+		hideFrame(groupFrames[gi])
+	end
 	each("afterGroups")
 	ns.refitRings()
 	ns.Positioning.update()
@@ -815,7 +884,7 @@ function ns.debugReport()
 		end
 		say("group %d: %s, %s, size %d%s, scale %.2f, opacity %.2f, at %s %.0f,%.0f%s", gi, table.concat(names, ","),
 			g.orientation, groupSize(g), g.sizeFollow and " (General)" or "", g.scale, g.alpha, g.point, g.x, g.y,
-			g.combatOnly and ", combat only" or "")
+			g.show == "always" and "" or string.format(", shows %s, stays %ds", g.show, g.fadeAfter))
 	end
 	local errs = ns.errorLines()
 	if #errs == 0 then say("no caught errors")

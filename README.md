@@ -52,7 +52,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - Call of the Elements and Totemic Recall buttons. Right-click Recall to dismiss every totem.
 - Key bindings to drop each element's totem, dismiss one or all, and cast Call and Recall. Bind them by hovering the bar in Quick Keybind Mode. Each button can show its key.
 - It can replace Blizzard's totem bar and active totems display, just the active totems display, or neither (the key bindings still work).
-- Show it always, in combat or while a totem is down, or only in combat. Drag to reorder the slots.
+- Show it Always, In combat or a totem down, In combat, or In combat or with an enemy target. Drag to reorder the slots.
 - It stays hidden until your character knows a totem, and its page in the options says "Not learned".
 
 ### Warnings and timers
@@ -60,12 +60,14 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - Warning looks for a missing shield, imbue or totem, or one running out: grey icon, red ring, fade in and out.
 - A pulsing glow and a pop when something happens: a spell ready, a totem expiring or killed, your imbue dropping, a proc. Choose the pop's motion (grow, bounce, hop or shake), with an optional flash, ring or star burst, and the glow's colour, speed and depth.
 - Timers as countdown text, a cooldown swipe, a draining bar, or any mix, each with its own size, colour, position and time format.
+- Colour by time left: countdown numbers turn one colour when time is short and another at the very end, at the times you choose. They can also show tenths of a second in the last seconds.
 - An optional global cooldown sweep, as on action bars.
 
 ### Layout
 
 - Arrange elements into groups: rows or columns, each with its own position, spacing, icon size, scale, opacity and border. Drag elements between groups in the options.
-- Show each element always, only in combat, or never. A group can show only in combat.
+- Show each element always, only in combat, or never. A group can show Always, In combat, or In combat or with an enemy target.
+- Stay after combat: a group or the totem bar that doesn't show Always can stay up to 10 seconds once combat ends, then fade out.
 - Positioning mode: drag groups and the totem bar, with snapping and a grid. Mouse wheel sets icon size, Ctrl+wheel scale, Shift+wheel opacity, and the arrow keys nudge. It locks itself when combat starts.
 - Borders and warning rings stay pixel-sharp at any icon size.
 - Test elements (`/sf test`): placeholder icons for trying out a layout, and elements you haven't learned yet, greyed.

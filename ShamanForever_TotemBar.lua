@@ -35,7 +35,9 @@ TB.DEFAULTS = {
 	point = "CENTER", x = 0, y = -100,   -- x, y in UIParent units, so scaling keeps the centre
 	scale = 1,
 	alpha = 1,
-	show = "always",          -- always | active (in combat or a totem down) | combat
+	-- always | active (in combat or a totem down) | combat | target (in combat or with an enemy target)
+	show = "always",
+	fadeAfter = 0,            -- seconds it stays once combat ends, then fades out (0: none)
 	order = { "earth", "fire", "water", "air" },
 	hidden = {},              -- element -> true to leave its slot out
 	dir = "row",              -- row | column
@@ -88,6 +90,7 @@ local RANGES = {
 	scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { 0, 20 }, size = { 24, 96 },
 	arrowSize = { 8, 32 }, extrasScale = { 0.5, 1.5 }, idleAlpha = { 0.1, 1 },
 	badgeSize = { 0.25, 0.8 }, badgeAlpha = { 0.1, 1 }, badgeSat = { 0, 1 }, warn = { 0, 30 }, rangeHeight = { 1, 12 },
+	fadeAfter = { 0, 10 },
 }
 local function finite(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
@@ -108,7 +111,7 @@ local function cfg()
 		elseif t.follow == true then t.size, t.border = nil, nil end
 		t.enabled, t.hideTotemFrame, t.hideActionBar, t.killedPulse, t.follow = nil, nil, nil, nil, nil
 		if t.mode ~= "blizzard" and t.mode ~= "active" and t.mode ~= "everything" then t.mode = nil end
-		if t.show ~= "always" and t.show ~= "active" and t.show ~= "combat" then t.show = nil end
+		if t.show ~= "always" and t.show ~= "active" and t.show ~= "combat" and t.show ~= "target" then t.show = nil end
 		-- The default per-totem times, by the client's names (English until they have loaded; the
 		-- lookup in warnSecs also takes the English name, so either works).
 		if type(t.warnOver) ~= "table" then
@@ -876,15 +879,33 @@ local function layoutArrow(s)
 	s.arrowVis:SetShown(feat("arrows"))
 end
 
-local function visibilityDriver()
+-- The bar's own driver, and the one it has now: a plain "show" while it stays after combat
+-- (ns.AfterCombat, made with the layout below).
+local function ownDriver()
 	local c = cfg()
 	if not barOn() or not hasTotems then return "hide" end
 	if kbOpen or not ns.getAccount().locked then return "show" end
 	if c.show == "combat" then return "[petbattle] hide; [combat] show; hide" end
+	if c.show == "target" then return "[petbattle] hide; [combat] show; [@target,exists,harm,nodead] show; hide" end
 	if c.show == "active" then return "[petbattle] hide; [combat] show; " .. (anyDown and "show" or "hide") end
 	return "[petbattle] hide; show"
 end
+local afterCombat
+local function visibilityDriver()
+	if ns.AfterCombat.held(afterCombat) and barOn() and ns.getAccount().locked and not kbOpen
+		and cfg().show ~= "always" then
+		return "[petbattle] hide; show"
+	end
+	return ownDriver()
+end
 local lastDriver
+local function drive()
+	local driver = visibilityDriver()
+	if driver ~= lastDriver then
+		lastDriver = driver
+		RegisterStateDriver(bar, "visibility", driver)
+	end
+end
 
 function layout()
 	if ns.deferInCombat("totem bar layout", layout) then return end
@@ -971,11 +992,7 @@ function layout()
 	refreshKeys()
 	refreshGCD()
 	ns.refitRings()
-	local driver = visibilityDriver()
-	if driver ~= lastDriver then
-		lastDriver = driver
-		RegisterStateDriver(bar, "visibility", driver)
-	end
+	drive()
 	applyTotemFrame()
 	applyActionBar()
 	if mover then mover.update() end
@@ -983,6 +1000,18 @@ function layout()
 	if playerClass and not isShaman() then classDone = true end
 end
 TB.layout = layout
+
+-- Stay after combat, then fade out (ns.AfterCombat).
+afterCombat = ns.AfterCombat.new({
+	secs = function()
+		if not ns.getDB() or not barOn() or kbOpen or not ns.getAccount().locked then return 0 end
+		local c = cfg()
+		return c.show ~= "always" and c.fadeAfter or 0
+	end,
+	apply = function() if not InCombatLockdown() then drive() end end,
+	shows = function() return SecureCmdOptionParse(ownDriver()) == "show" end,
+	frames = function() return { bar } end,
+})
 
 -- The slots' timers take their current style (General's or the bar's own). Plain frames, so any time.
 function TB.applyTimers()

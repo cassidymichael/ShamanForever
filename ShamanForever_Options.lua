@@ -271,6 +271,16 @@ local function timerSettings(p, title, key, kind, after, note)
 		{ 0, "2m, then seconds" }, { 120, "1:31 in the last 2 minutes" },
 		{ 300, "1:31 in the last 5 minutes" }, { 600, "1:31 in the last 10 minutes" },
 	}, tg("abbrev"), ts("abbrev"), dim("text", "text"), 220)
+	p:checkbox("Colour by time left", "The numbers change colour near the end.", tg("timeColors"), ts("timeColors"),
+		dim("text", "text"))
+	local colored = showWhen(function() return not cant.text and own() and style().text and style().timeColors end)
+	local function seconds(v) return string.format("%d s", v) end
+	p:slider("Soon", "Seconds left when the first colour starts.", 1, 60, 1, seconds, tg("soon"), ts("soon"), colored)
+	p:color("Soon colour", nil, tg("soonColor"), ts("soonColor"), colored, true)
+	p:slider("Now", "Seconds left when the second colour starts.", 1, 60, 1, seconds, tg("now"), ts("now"), colored)
+	p:color("Now colour", nil, tg("nowColor"), ts("nowColor"), colored, true)
+	p:slider("Tenths below", "Tenths of a second under this many seconds.", 0, 10, 1,
+		function(v) return v == 0 and "Off" or seconds(v) end, tg("tenths"), ts("tenths"), dim("text", "text"))
 	p:checkbox("Swipe", "A shade that sweeps round the icon.", tg("swipe"), ts("swipe"), dim("swipe"))
 	p:slider("Swipe darkness", nil, 0.1, 1, 0.05, pct, tg("swipeAlpha"), ts("swipeAlpha"), dim("swipe", "swipe"))
 	p:checkbox("Swipe darkens as time runs out", "Off: it lightens, like most cooldowns.", tg("swipeReverse"), ts("swipeReverse"), dim("swipe", "swipe"))
@@ -508,6 +518,10 @@ end
 -- to its group, so showing it again (other than by dropping it on a group) puts it back there.
 ------------------------------------------------------------------------
 local SHOW_CHOICES = { { "always", "Always" }, { "combat", "In combat" }, { "never", "Hidden" } }
+-- A group's Show, and its time on screen once combat ends (the totem bar has both too).
+local COMBAT_SHOW = { { "always", "Always" }, { "combat", "In combat" }, { "target", "In combat or with an enemy target" } }
+local STAY_TIP = "Seconds it stays once combat ends, then it fades out."
+local function staySecs(v) return v == 0 and "None" or string.format("%d s", v) end
 
 local CARD_GAP, CHIP_H, CARD_HEAD = 8, 26, 28
 
@@ -892,8 +906,10 @@ local function buildLayout(p)
 	p:slider("Opacity", "Transparency of the group. Shift + mouse wheel over the group while unlocked does the same.", 0.1, 1, 0.05, pct,
 		groupGet("alpha"), groupSet("alpha"), hasGroups)
 	borderRows(p, selected, relayout, "Border same as General", hasGroups)
-	p:checkbox("Only show in combat", "Everything visible shows while positioning is unlocked.",
-		groupGet("combatOnly"), groupSet("combatOnly"), hasGroups)
+	p:dropdown("Show", "When the group is on screen. Everything visible shows while positioning is unlocked.",
+		COMBAT_SHOW, groupGet("show"), groupSet("show"), hasGroups, 250)
+	p:slider("Stay after combat", STAY_TIP, 0, 10, 1, staySecs, groupGet("fadeAfter"), groupSet("fadeAfter"),
+		showWhen(function() local g = selected(); return g and g.show ~= "always" end, hasGroups))
 	p:text("Elements have their own Show setting too. An element shows only when both allow it.", hasGroups)
 	local lastRow = p:buttons({
 		-- Hard to undo, so each asks first.
@@ -958,8 +974,11 @@ local function buildTotemBar(p)
 	p.gate = TB.barOn
 	p:header("Display")
 	p:dropdown("Show", "When the bar is on screen. It always shows while positioning is unlocked.",
-		{ { "always", "Always" }, { "active", "In combat or a totem down" }, { "combat", "In combat" } },
-		tget("show"), tset("show"), nil, 200)
+		{ { "always", "Always" }, { "active", "In combat or a totem down" }, { "combat", "In combat" },
+			{ "target", "In combat or with an enemy target" } },
+		tget("show"), tset("show"), nil, 250)
+	p:slider("Stay after combat", STAY_TIP, 0, 10, 1, staySecs, tget("fadeAfter"), tset("fadeAfter"),
+		function() return c().show ~= "always" end)
 	p:dropdown("Tooltips", nil, { { "always", "Always" }, { "ooc", "Out of combat" }, { "never", "Never" } },
 		tget("tips"), tset("tips"), nil, 160)
 	p:checkbox("Show keybinding text", "Each button's key, in its corner.", tget("keys"), tset("keys"))
