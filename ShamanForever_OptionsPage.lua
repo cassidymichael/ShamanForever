@@ -496,6 +496,17 @@ function Page:header(text, shown, note, icon)
 	return f
 end
 
+-- A page's own title, above its blocks: in the title style of the element pages' headers, with no
+-- panel and no fold.
+function Page:pageTitle(text)
+	local f = self:row(40)
+	f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+	f.text:SetPoint("BOTTOMLEFT", 4, 8)
+	f.text:SetShadowOffset(1, -1)
+	f.text:SetText(text)
+	return self:add(f, 40)
+end
+
 -- A brief gold glow behind a row (a header), to show where a button has brought the reader. The
 -- glow and its animation are made on first use and nothing runs between flashes.
 function Page.flash(_, frame)

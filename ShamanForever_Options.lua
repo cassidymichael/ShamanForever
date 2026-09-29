@@ -411,9 +411,10 @@ end
 
 -- General: the styles everything follows unless it has its own, then housekeeping.
 local function buildGeneral(p)
-	p:header("Defaults")
-	p:anchor("size")
+	p:pageTitle("General - Global Options")
 	p:text("Elements, groups and the totem bar use these unless they have their own.")
+	p:header("Icon size")
+	p:anchor("size")
 	p:slider("Icon size", "Every group's and the totem bar's, unless it has its own.", 24, 96, 1, int,
 		get("iconSize"), set("iconSize"))
 	-- Who has an own icon size: groups with something in them, then the totem bar.
