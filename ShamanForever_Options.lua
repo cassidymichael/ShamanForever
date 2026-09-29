@@ -52,7 +52,7 @@ end
 ------------------------------------------------------------------------
 -- Settings helpers
 ------------------------------------------------------------------------
--- Slider values (the page kit's): in px, plain numbers and times they can be typed too.
+-- How slider values read (the page kit's).
 local pct, times, int, px = Page.pct, Page.times, Page.int, Page.px
 
 ------------------------------------------------------------------------

@@ -142,8 +142,7 @@ local function dragUpdate(self)
 	local g = ns.groupById(self.groupId)
 	if not g then return end
 	ns.setGroupCenter(g, x * ui, y * ui)
-	self:ClearAllPoints()
-	self:SetPoint("CENTER", UIParent, "CENTER", g.x, g.y)
+	ns.placeOnPixels(self, "CENTER", g.x, g.y)
 end
 
 -- A new group frame: its outline, label and the unlock-mode handlers.
@@ -234,8 +233,7 @@ local function nudge(key)
 	local step = IsShiftKeyDown() and 10 or 1
 	g.x = g.x + d[1] * step / g.scale   -- offsets are in the group's scaled units
 	g.y = g.y + d[2] * step / g.scale
-	f:ClearAllPoints()
-	f:SetPoint(g.point, UIParent, g.point, g.x, g.y)
+	ns.placeOnPixels(f, g.point, g.x, g.y)
 end
 
 local function syncNudger()
