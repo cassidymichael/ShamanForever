@@ -203,44 +203,74 @@ end
 ------------------------------------------------------------------------
 -- The global cooldown and a spell's own cooldown
 ------------------------------------------------------------------------
--- The global cooldown: while it runs, every spell reads as on cooldown, so the swipe, the ready pop
--- and the ready glows would react to each cast. isOnGCD says so, when it's readable (if it's secret
--- in combat, this falls back to treating it as a real cooldown). Blizzard only vouches for it inside
--- SPELL_UPDATE_COOLDOWN (inEvent below); the timers keep the GCD sweep, so they still read it
--- (tested 2026-09-25).
+-- The global cooldown: while it runs, every spell reads as on cooldown, so the swipe and the ready
+-- pop would react to each cast. isOnGCD says so (false when it's secret). Blizzard only vouches
+-- for it inside SPELL_UPDATE_COOLDOWN (inEvent below); a GCD sweep's bling and the shield's GCD
+-- sweep read it at other times too (tested 2026-09-25).
 function CD.onGCD(spellID)
 	local ok, info = safe(C_Spell.GetSpellCooldown, spellID)
 	if not ok or type(info) ~= "table" or isSecret(info.isOnGCD) then return false end
 	return info.isOnGCD == true
 end
--- The spell's own cooldown without the GCD (ignoreGCD, on Forever since 12.0.5): true when none is
--- running, false when one is, nil when that can't be told (secret, or an older client).
-local function ownCooldownOver(spellID)
-	local ok, d = safe(C_Spell.GetSpellCooldownDuration, spellID, true)
-	if not ok then return nil end
-	if not d then return true end
-	local zok, z = pcall(d.IsZero, d)
-	if zok and not isSecret(z) and type(z) == "boolean" then return z end
+-- Ready or a global cooldown's end: a cooldown timer's end (OnCooldownDone) is a "ready" only when
+-- the spell's own cooldown was seen running before it. GetSpellCooldown's isActive and isOnGCD
+-- are plain in combat (probed 2026-09-26); the duration objects aren't, so nothing here asks them.
+-- A spell's state: "ready" (isActive false), "gcd" (the global cooldown, alone or outlasting its
+-- own), "own" (its own cooldown); nil when a field is secret. isOnGCD is only vouched for inside
+-- SPELL_UPDATE_COOLDOWN, so "gcd" and "own" count only there (inEvent).
+local function plainCooldown(spellID)
+	local ok, info = safe(C_Spell.GetSpellCooldown, spellID)
+	if not ok or type(info) ~= "table" or isSecret(info.isActive) then return nil end
+	if info.isActive == false then return "ready" end
+	if isSecret(info.isOnGCD) then return nil end
+	return info.isOnGCD == true and "gcd" or "own"
 end
--- Before a cooldown timer takes a new duration: a global-cooldown sweep gets no bling, and the
--- ready pop that fires when it ends is skipped (f.gcdUntil), unless the spell's own cooldown is
--- running under the GCD: then its end is a real "ready".
-local function noteGCD(f, spellID)
-	local g = CD.onGCD(spellID)
-	if g and ownCooldownOver(spellID) ~= false then f.gcdUntil = GetTime() + 1.6 end
-	f.cd:SetDrawBling(not g)
+-- Arms the next end (f.ready.armed) when its own cooldown starts: "own" read after "ready" or
+-- "gcd" (a cast: the GCD from the key press, then its own cooldown from the success). Not right
+-- after an end: in combat isActive still reads true for a moment after the timer ends (tested
+-- 2026-09-29), and that must not arm the next GCD sweep's end. A cooldown that ends inside a GCD
+-- (Show global cooldown on) stays armed, and its end comes with the GCD's, the moment it can be
+-- cast. Once isActive reads false while armed, the end must come within READY_GRACE: out of
+-- combat it can read false just before the timer ends; no new GCD ends that soon. A read that is
+-- secret arms nothing: a missed pop, never a false one.
+local READY_GRACE = 0.5
+local function noteReady(f, spellID, inEvent)
+	local r = f.ready
+	local st = plainCooldown(spellID)
+	if st == "ready" then
+		r.last = "ready"
+		if r.armed and not r.by then r.by = GetTime() + READY_GRACE end
+	elseif st == "gcd" and inEvent then
+		r.last = "gcd"
+	elseif st == "own" and inEvent and r.last ~= "own" and r.last ~= "ended" then
+		r.armed, r.by, r.last = true, nil, "own"
+	end
 end
+-- Hooked before any other OnCooldownDone of f: decides once whether this end is a ready.
+local function watchEnds(f)
+	if f.ready then return end
+	f.ready = {}
+	f.cd:HookScript("OnCooldownDone", function()
+		local r, now = f.ready, GetTime()
+		r.at = (r.armed and (not r.by or now <= r.by)) and now or nil
+		r.armed, r.by, r.last = nil, nil, "ended"
+	end)
+end
+-- True inside the OnCooldownDone of a ready (not a global cooldown's end).
+function CD.readyNow(f) return f.ready ~= nil and f.ready.at == GetTime() end
 -- A cooldown timer's duration, by the element's Global cooldown style: on, with the GCD (every cast
--- sweeps it, as on action bars); off, its own cooldown only (ignoreGCD), which its own cast starts,
--- so other spells don't sweep it. nil when none can be read.
-local function cooldownFor(f, key, spellID)
+-- sweeps it, as on action bars; a GCD sweep gets no bling); off, its own cooldown only
+-- (ignoreGCD), which its own cast starts, so other spells don't sweep it. nil when none can be
+-- read. inEvent: from SPELL_UPDATE_COOLDOWN.
+local function cooldownFor(f, key, spellID, inEvent)
+	watchEnds(f)
+	noteReady(f, spellID, inEvent)
 	if ns.Style.value(key, "gcd", "show") then
 		local ok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID)
 		if not (ok and dur) then return nil end
-		noteGCD(f, spellID)
+		f.cd:SetDrawBling(not CD.onGCD(spellID))
 		return dur
 	end
-	f.gcdUntil = nil
 	f.cd:SetDrawBling(true)
 	local ok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID, true)
 	-- None running: clear what an earlier read (a GCD sweep from before the style changed) left.
@@ -249,14 +279,15 @@ local function cooldownFor(f, key, spellID)
 end
 CD.cooldownFor = cooldownFor
 
--- Pop when ready: Blizzard's cooldown widget says when its swipe finishes (OnCooldownDone), a
--- moment with no secret in it, so the icon can pop right then, in combat too. totemSlot: a spell
--- that needs a totem down in that slot (Fire Nova), which isn't ready without one: an empty slot
--- has no duration object (see the file's header). Then the pop is greyed, a nudge to drop one, or
--- none (readyNoTotem).
+-- Pop when ready: Blizzard's cooldown widget says when its swipe finishes (OnCooldownDone), in
+-- combat too (tested 2026-09-29), and watchEnds says whether that end is a ready. totemSlot: a
+-- spell that needs a totem down in that slot (Fire Nova), which isn't ready without one: an empty
+-- slot has no duration object (see the file's header). Then the pop is greyed, a nudge to drop
+-- one, or none (readyNoTotem).
 local function popWhenReady(f, key, totemSlot)
+	watchEnds(f)
 	f.cd:HookScript("OnCooldownDone", function()
-		if f.gcdUntil and GetTime() <= f.gcdUntil then return end   -- a global cooldown ended
+		if not CD.readyNow(f) then return end   -- a global cooldown ended
 		if not (ns.isEnabled(key) and setting(key, "readyPop")) then return end
 		if totemSlot then
 			local ok, d = safe(GetTotemDuration, totemSlot)
@@ -485,7 +516,7 @@ function refreshCooldown(def, inEvent)
 		if f.warn then f.warn:SetAlpha(0) end
 		return
 	end
-	local dur = cooldownFor(f, def.key, def.spellID)
+	local dur = cooldownFor(f, def.key, def.spellID, inEvent)
 	if dur then f.cdTimer:set(dur) end
 	f.tex:SetDesaturated(false)
 	local held = isActive(def)
