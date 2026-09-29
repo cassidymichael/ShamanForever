@@ -1,7 +1,8 @@
 -- The options window's page kit: a page is a scrolling column of rows (headers, text, checkboxes,
 -- sliders, dropdowns, colours, cards, buttons...). Rows can hide themselves; refresh reflows the
 -- visible ones and pulls every control's value from the saved settings. Each header starts a block
--- that runs to the next header and sits on a faint panel; clicking the header folds the block. Also
+-- that runs to the next header and sits on a faint panel; clicking the header folds the block. Rows
+-- that only apply while another is on hang under it (Page:sub), indented, on a thin gold rule. Also
 -- the drag and drop the
 -- pages' lists share. The pages themselves are built in ShamanForever_Options.lua, Layout in
 -- ShamanForever_OptionsLayout.lua, and the elements' in ShamanForever_OptionsElements.lua.
@@ -28,6 +29,8 @@ local PANEL_PAD, PANEL_PAD_B, BLOCK_GAP = 10, 6, 10
 -- open and a /reload opens them all again.
 local folded = {}
 local function foldKey(p, b) return p.key .. ":" .. b.index end
+-- A sub's rows: indented a level at a time, two at most, beside a rule down from under their parent.
+local SUB_INDENT, SUB_MAX, RULE_X = 24, 2, 12
 
 -- above: over the frame's top-left corner, for full-width rows, whose right edge is far from the
 -- mouse on the label; otherwise to the right of the frame.
@@ -75,7 +78,7 @@ function Page.new(win, key, title, indent)
 	end)
 	scroll:Hide()
 	return setmetatable({ win = win, key = key, title = title, indent = indent, scroll = scroll, content = content,
-		items = {}, blockList = {} }, Page)
+		items = {}, blockList = {}, subs = {} }, Page)
 end
 
 -- shown: nil, or a function: the row is hidden while it returns false.
@@ -92,10 +95,33 @@ function Page:add(frame, height, shown, refresh)
 		shown = function() return gate() and (not inner or inner()) and true or false end
 	end
 	local it = { frame = frame, height = height, shown = shown, refresh = refresh,
-		inset = self.inset, float = self.float, block = self.block }
+		inset = self.inset, float = self.float, block = self.block, sub = self.subRun }
 	table.insert(self.items, it)
 	if self.block then table.insert(self.block.items, it) end
+	local run = self.subRun
+	while run do table.insert(run.items, it); run = run.outer end
 	return frame
+end
+
+-- Rows that apply only while parent (a row just added: a checkbox, a dropdown...) shows and
+-- active() is true: build() adds them. They hide with their parent, sit a level in, and hang on a
+-- thin gold rule from under the parent down to the last of them that shows. A sub inside a sub
+-- goes one level deeper; two levels at most. Their own shown, if any, still applies.
+-- Shields and the Totem bar use it so far; the other pages' dependent rows still use showWhen(...)
+-- and move to sub once the work in progress on those pages has merged.
+function Page:sub(parent, active, build)
+	local parentItem
+	for i = #self.items, 1, -1 do
+		if self.items[i].frame == parent then parentItem = self.items[i] break end
+	end
+	assert(parentItem, "Page:sub: the parent row is not on this page")
+	local outer = self.subRun
+	local run = { parent = parentItem, active = active, outer = outer, depth = (outer and outer.depth or 0) + 1, items = {} }
+	assert(run.depth <= SUB_MAX, "Page:sub: two levels at most")
+	table.insert(self.subs, run)
+	self.subRun = run
+	build()
+	self.subRun = outer
 end
 
 -- The width of the row being refreshed (the page's, less its insets): what its controls fit into.
@@ -162,6 +188,8 @@ function Page:refresh()
 		local b = it.block
 		if it.head then close() end   -- a header, shown or not, ends the block before it
 		local show = not it.shown or it.shown()
+		local sub = it.sub
+		if show and sub then show = sub.parent.visible and sub.active() and true or false end
 		-- A folded block keeps only its header; one whose header is hidden can't fold.
 		if show and b and not it.head and b.head.visible and folded[foldKey(self, b)] then show = false end
 		it.visible = show
@@ -172,7 +200,7 @@ function Page:refresh()
 			local pad = open and b == open and PANEL_PAD or 0
 			local left, right = 0, 0
 			if it.inset then left, right = it.inset() end
-			left, right = left + pad, right + pad
+			left, right = left + pad + (sub and sub.depth * SUB_INDENT or 0), right + pad
 			self.rowW = width - left - right
 			-- One failing row must not blank the rest of the page: report it once and carry on.
 			if it.refresh then
@@ -194,9 +222,35 @@ function Page:refresh()
 	end
 	close()
 	for _, b in ipairs(self.blockList) do if not b.drawn then hidePanel(b) end end
+	for _, run in ipairs(self.subs) do self:placeRule(run) end
 	self.rowW = nil
 	self.content:SetHeight(math.max(y, bottom, 1))
 	if self.afterRefresh then self.afterRefresh() end
+end
+
+-- A sub's rule: from just under its parent's box down to near the foot of its last row shown.
+function Page:placeRule(run)
+	local parent, low = run.parent, nil
+	if parent.visible then
+		for _, it in ipairs(run.items) do
+			if it.visible then low = math.max(low or 0, it.y + it.h) end
+		end
+	end
+	local top, bottom = parent.y and parent.y + parent.h - 4, low and low - 6
+	if not (low and bottom > top) then
+		if run.rule then run.rule:Hide() end
+		return
+	end
+	if not run.rule then
+		run.rule = self.content:CreateTexture(nil, "ARTWORK")
+		run.rule:SetColorTexture(0.85, 0.71, 0.42, 0.55)
+		run.rule:SetWidth(1)
+	end
+	local x = parent.x + RULE_X
+	run.rule:ClearAllPoints()
+	run.rule:SetPoint("TOPLEFT", self.content, "TOPLEFT", x, -top)
+	run.rule:SetPoint("BOTTOMLEFT", self.content, "TOPLEFT", x, -bottom)
+	run.rule:Show()
 end
 
 -- Folds or opens block b, and lays the page out again at once, its scroll range with it.
@@ -219,11 +273,12 @@ function Page:reveal(frame)
 	end
 end
 
--- What a folded block has on: the names of its ticked boxes that show, the first three and a count.
+-- What a folded block has on: the names of its ticked boxes that show (not those in a sub), the
+-- first three and a count.
 local function onList(b)
 	local on = {}
 	for _, it in ipairs(b.items) do
-		if it.says and (not it.shown or it.shown()) then
+		if it.says and not it.sub and (not it.shown or it.shown()) then
 			local s = it.says()
 			if s then table.insert(on, s) end
 		end
