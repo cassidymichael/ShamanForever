@@ -141,9 +141,10 @@ end
 ------------------------------------------------------------------------
 -- Switching by place: on entering a kind of place other than the last one, its rule's set. A
 -- /reload keeps the picks as they are (it isn't a new place); a login applies the rule for where
--- you are, a moment later, once the spellbook has loaded.
+-- you are, a moment later, once the spellbook has loaded. Until then nothing else switches.
 ------------------------------------------------------------------------
 local lastContent
+local loginPending = false
 local function contentNow()
 	local ok, inInstance, kind = pcall(IsInInstance)
 	if not ok or isSecret(inInstance) or isSecret(kind) then return nil end
@@ -167,9 +168,17 @@ ns.registerEvent(ev, "PLAYER_ENTERING_WORLD")
 ns.registerEvent(ev, "ZONE_CHANGED_NEW_AREA")
 ev:SetScript("OnEvent", function(_, event, isLogin, isReload)
 	if event == "PLAYER_ENTERING_WORLD" and isLogin then
-		C_Timer.After(3, function() check(true) end)
-	else
-		check(not (event == "PLAYER_ENTERING_WORLD" and isReload and lastContent == nil))
+		loginPending = true
+		C_Timer.After(3, function()
+			loginPending = false
+			check(true)
+		end)
+	elseif loginPending then
+		return
+	elseif event == "PLAYER_ENTERING_WORLD" then
+		check(not (isReload and lastContent == nil))
+	elseif lastContent ~= nil then   -- a zone change before the first entering-world means nothing
+		check(true)
 	end
 end)
 
