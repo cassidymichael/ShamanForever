@@ -324,7 +324,7 @@ local function refresh()
 	end
 	f.tex:SetTexture(def.iconID or def.icon)
 	if not def.spellID then
-		-- Not learned yet (seen only in test mode): a plain grey icon.
+		-- Not learned yet (seen only while the preview shows such elements): a plain grey icon.
 		f.tex:SetDesaturated(true)
 		f.upTimer:clear()
 		setAlert(false)

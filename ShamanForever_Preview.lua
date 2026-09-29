@@ -511,7 +511,7 @@ local function restart()
 	wipe(runs)
 	wipe(barRuns)
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
-		if L.PREVIEW[key] and not ns.ELEMENTS[key].placeholder then runs[key] = { steps = stepsFor(key), i = 1 } end
+		if L.PREVIEW[key] then runs[key] = { steps = stepsFor(key), i = 1 } end
 	end
 	for el in pairs(BAR) do barRuns[el] = { steps = barSteps(el), i = 1 } end
 	if on and opts.activity == "tour" then

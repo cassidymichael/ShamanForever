@@ -143,7 +143,8 @@ local function drawImbue(now, quiet)
 	imbue:SetAlpha((acct.locked and on and db.imbueHideActive and not showTime) and 0 or 1)
 end
 
--- Not learned yet (seen only in test mode): a plain grey icon, and nothing read.
+-- Not learned yet (seen only while the preview shows such elements): a plain grey icon, nothing
+-- read.
 local function drawNotLearned()
 	imbueIcon = preferredImbueIcon()
 	imbue.tex:SetTexture(imbueIcon)

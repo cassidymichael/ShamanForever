@@ -232,7 +232,7 @@ function S.ownStyles(kind)
 		end
 	end
 	for _, key in ipairs(S.KINDS[kind].users) do
-		local offered = key == "totembar" and ns.TotemBar and ns.TotemBar.barOn() or (key ~= "totembar" and ns.available and ns.available(key))
+		local offered = key ~= "totembar" or ns.TotemBar.barOn()
 		if offered and not S.follows(key, kind) then table.insert(out, S.ownerName(key)) end
 	end
 	return out

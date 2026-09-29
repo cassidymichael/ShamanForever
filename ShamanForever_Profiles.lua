@@ -10,7 +10,6 @@ ns.Profiles = P
 -- it has learned about the game.
 local ACCOUNT_DEFAULTS = {
 	locked = true,
-	testMode = false,       -- register placeholder elements for trying out layouts
 	snap = false,           -- unlocked drags snap to other groups, the screen centre and the grid
 	grid = false,           -- grid over the screen while unlocked
 	gridSize = 32,
@@ -97,6 +96,7 @@ function P.load()
 	if type(a.profiles) ~= "table" then wipe(a) end
 	a.settingsVersion = SETTINGS_VERSION
 	ns.fillDefaults(a, ACCOUNT_DEFAULTS)
+	a.testMode = nil   -- test elements are gone
 	mergeCharKeys(a)
 	return a
 end

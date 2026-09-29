@@ -82,7 +82,6 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - Preview (`/sf preview`, or Preview in the options): the whole HUD as you've arranged it, in a typical moment, so you can arrange it without a fight or the right buffs. Pick out of combat or in combat, calm or busy, a situation (warnings, low mana), and whether elements you haven't learned yet show. Its Every state activity plays each element's states and effects one at a time, naming each on screen, and can be paused and stepped through. It works with positioning mode, and ends when combat starts.
 - Borders and warning rings stay pixel-sharp at any icon size.
 - Border look: a plain line, a gold hairline, an edge in the element's school colour, a bronze bevel, or corner caps. Experimental: the Cooldown Manager's rounded icons, Forever's action button frame, carved stone, aged bronze or carved wood.
-- Test elements (`/sf test`): placeholder icons for trying out a layout, and elements you haven't learned yet, greyed.
 
 ### Options and profiles
 

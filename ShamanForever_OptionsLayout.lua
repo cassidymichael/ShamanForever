@@ -16,7 +16,6 @@ local NAV_W, PAGE_TOP, LABEL_W = Page.NAV_W, Page.PAGE_TOP, Page.LABEL_W
 local relayout = K.relayout
 
 local function db() return ns.getDB() end
-local function acct() return ns.getAccount() end
 
 ------------------------------------------------------------------------
 -- The chosen group
@@ -369,7 +368,7 @@ local LOOSE_TOP = 48   -- the heading and its line above the chips
 local function looseKeys()
 	local keys = {}
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
-		if ns.available(key) and not ns.groupOf(key) then table.insert(keys, key) end
+		if not ns.groupOf(key) then table.insert(keys, key) end
 	end
 	return keys
 end
@@ -443,10 +442,6 @@ local function buildList(p)
 	rows.pool = {}
 	list:add(rows, function() return rows.height or 1 end, nil, layoutRows)
 	buildLoose()
-	list:add(list:row(6), 6)
-	list:checkbox("Test elements", nil,
-		function() return acct().testMode end, function(v) ns.setTestMode(v); ns.Options.refresh() end)
-	list:text("Placeholder elements, and ones you haven't learned yet.")
 end
 
 ------------------------------------------------------------------------

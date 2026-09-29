@@ -180,7 +180,7 @@ local function refreshAura(def)
 		if def.unit ~= wantedUnit() then retarget() end
 	end
 	f.tex:SetTexture(def.icon)
-	-- Not learned yet (seen only in test mode): a plain grey icon.
+	-- Not learned yet (seen only while the preview shows such elements): a plain grey icon.
 	f.tex:SetDesaturated(not def.spellID)
 	-- The button says whether it's up; the icon under it is the idle look (out of combat only: the
 	-- frame is an ancestor of Blizzard's button, ns.fadeTo).

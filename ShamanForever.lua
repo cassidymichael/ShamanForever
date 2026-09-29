@@ -134,9 +134,9 @@ root:SetAllPoints(UIParent)
 -- Every element, in the order the options list them: these three first, then each one as its module
 -- registers it (ns.registerElement), in the order the TOC loads the modules and each lists its own.
 -- Each is made and registered by its module (ShamanForever_Shield, _Shock, _Imbue, _Cooldowns,
--- _Buffs, _Tremor); the test placeholders below are this file's own, and stay last.
+-- _Buffs, _Tremor, ...).
 local ELEMENT_KEYS = { "shield", "shock", "imbue" }
--- key -> { frame, label, paint(texture), getSize(size), stack(), placeholder, learned(),
+-- key -> { frame, label, paint(texture), getSize(size), stack(), learned(),
 -- defaults, and for the options spell, icon, school, blurb, experimental, kind, def }. db.groups
 -- decides where each one shows. getSize gives its width and height for its group's icon size, so
 -- elements need not be square; paint draws what stands in for it in the options and while
@@ -150,20 +150,11 @@ local ELEMENT_KEYS = { "shield", "shock", "imbue" }
 -- (ShamanForever_Preview.lua).
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
-local firstTestKey   -- the first test placeholder (below)
 function ns.registerElement(key, e)
 	e.getSize = e.getSize or iconSize
 	e.stack = e.stack or e.frame.stack
 	ELEMENTS[key] = e
-	if tContains(ELEMENT_KEYS, key) then return end
-	if e.placeholder then
-		table.insert(ELEMENT_KEYS, key)
-		firstTestKey = firstTestKey or key
-		return
-	end
-	local at = #ELEMENT_KEYS + 1
-	for i, k in ipairs(ELEMENT_KEYS) do if k == firstTestKey then at = i break end end
-	table.insert(ELEMENT_KEYS, at, key)
+	if not tContains(ELEMENT_KEYS, key) then table.insert(ELEMENT_KEYS, key) end
 end
 -- An element's icon (ShamanForever_Widgets.lua), on the HUD's root frame. opts.effects gives it an
 -- effects layer (f.effects) that ignores the icon's alpha and holds its glow, so an idle icon's fade
@@ -218,46 +209,17 @@ local function each(hook, ...)
 	end
 end
 
--- Placeholder elements for trying out layouts, available only in test mode. Sizes are multiples of
--- the icon size, with one wide and one tall shape to exercise non-square layout.
-local PLACEHOLDERS = {
-	{ key = "testA", letter = "A", color = { 0.85, 0.25, 0.25 }, w = 1, h = 1 },
-	{ key = "testB", letter = "B", color = { 0.25, 0.7, 0.3 }, w = 1, h = 1 },
-	{ key = "testC", letter = "C", color = { 0.3, 0.45, 0.9 }, w = 1, h = 1 },
-	{ key = "testD", letter = "D", color = { 0.85, 0.7, 0.2 }, w = 2.5, h = 0.5 },
-	{ key = "testE", letter = "E", color = { 0.65, 0.3, 0.8 }, w = 0.5, h = 1.5 },
-}
-for _, p in ipairs(PLACEHOLDERS) do
-	local f = CreateFrame("Frame", nil, root)
-	f.tex = f:CreateTexture(nil, "ARTWORK")
-	f.tex:SetAllPoints()
-	f.tex:SetColorTexture(p.color[1], p.color[2], p.color[3], 0.9)
-	f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
-	f.text:SetPoint("CENTER")
-	f.text:SetText(p.letter)
-	f:Hide()
-	local c = p.color
-	ns.registerElement(p.key, { frame = f, label = "Test " .. p.letter, placeholder = true,
-		getSize = function(size) return size * p.w, size * p.h end,
-		paint = function(t) t:SetColorTexture(c[1], c[2], c[3], 0.9) end })
-end
-
 ------------------------------------------------------------------------
 -- Groups
 ------------------------------------------------------------------------
-local function available(key)
-	local e = ELEMENTS[key]
-	return e ~= nil and (not e.placeholder or acct.testMode)
-end
-
 -- Whether the character knows the element's spell. The options list every element, marking the
--- ones not learned; the HUD leaves those out until they are, except in test mode (/sf test), which
--- shows them greyed, and while the preview shows them (ShamanForever_Preview.lua).
+-- ones not learned; the HUD leaves those out until they are, except while the preview shows them
+-- (its Show not learned, ShamanForever_Preview.lua), so they can be placed.
 local function isLearned(key)
 	local e = ELEMENTS[key]
 	return e == nil or not e.learned or e.learned() and true or false
 end
-local function onHUD(key) return isLearned(key) or acct.testMode or ns.Preview.showsUnlearned() end
+local function onHUD(key) return isLearned(key) or ns.Preview.showsUnlearned() end
 
 -- The group an element sits in and its place among the members; nil for an ungrouped element.
 -- Whether it is drawn is its own "show" setting, so hiding one keeps its place.
@@ -440,28 +402,15 @@ local function fixNames()
 	end
 end
 
-local function isPlaceholder(key) return ELEMENTS[key] ~= nil and ELEMENTS[key].placeholder == true end
-
 -- Makes db.groups consistent: fills missing group fields, gives each group an id and a name, drops
--- unknown, unavailable and duplicate members, and places elements never seen before (new in an
--- update, or test ones) where the default layout has them (placeNew). Elements seen before but in no
--- group stay ungrouped. A group left empty stays, except one that held only test elements while
--- they are off: it goes with them, so turning them on again makes a fresh one.
+-- unknown and duplicate members, and places elements never seen before (new in an update) where
+-- the default layout has them (placeNew). Elements seen before but in no group stay ungrouped. A
+-- group left empty stays.
 local function sanitize()
 	each("sanitize", db, acct)
 	if type(db.groups) ~= "table" then db.groups = {} end
 	if type(db.known) ~= "table" then db.known = {} end
 	local seen = {}
-	for i = #db.groups, 1, -1 do
-		local members = db.groups[i].members
-		if type(members) == "table" and #members > 0 then
-			local onlyTest = true
-			for _, key in ipairs(members) do
-				if not isPlaceholder(key) or available(key) then onlyTest = false end
-			end
-			if onlyTest then table.remove(db.groups, i) end
-		end
-	end
 	for _, g in ipairs(db.groups) do
 		if g.combatOnly then g.show = "combat" end   -- saved before a group's Show had choices
 		g.combatOnly = nil
@@ -471,7 +420,7 @@ local function sanitize()
 		if type(g.border) == "table" and g.border.follow == nil then g.border.follow = false end
 		local kept = {}
 		for _, key in ipairs(type(g.members) == "table" and g.members or {}) do
-			if available(key) and not seen[key] then
+			if ELEMENTS[key] and not seen[key] then
 				table.insert(kept, key)
 				seen[key], db.known[key] = true, true
 			end
@@ -480,33 +429,15 @@ local function sanitize()
 	end
 	fixIds()
 	fixNames()
-	local fresh, freshTest = {}, {}
+	local fresh = {}
 	for _, key in ipairs(ELEMENT_KEYS) do
-		if available(key) and not seen[key] and not db.known[key] then
-			table.insert(ELEMENTS[key].placeholder and freshTest or fresh, key)
+		if not seen[key] and not db.known[key] then
+			table.insert(fresh, key)
 			db.known[key] = true
 		end
 	end
 	local made = {}
 	for _, key in ipairs(fresh) do placeNew(key, made) end
-	if #freshTest > 0 then
-		local g = newGroup(db.groups[1])
-		g.point, g.x, g.y = "CENTER", 0, -40
-		g.name = uniqueName("Test", g)
-		g.members = freshTest
-	end
-end
-
--- Test elements are forgotten when switched off (in every profile), and their group goes with them
--- (sanitize), so switching back on puts them in a fresh group.
-local function setTestMode(on)
-	acct.testMode = on
-	if not on then
-		for _, prof in pairs(acct.profiles) do
-			for _, p in ipairs(PLACEHOLDERS) do if type(prof.known) == "table" then prof.known[p.key] = nil end end
-		end
-	end
-	sanitize()
 end
 
 -- Places a group so its centre sits at screen coordinates (the units GetCursorPosition returns).
@@ -917,7 +848,7 @@ ns.DEFAULTS, ns.GROUP_DEFAULTS = DEFAULTS, GROUP_DEFAULTS
 -- Elements: the registry, where each one sits, and its own settings.
 ns.ELEMENTS, ns.ELEMENT_KEYS = ELEMENTS, ELEMENT_KEYS
 ns.isActive = function() return isShaman end   -- a shaman is logged in: the HUD runs
-ns.available, ns.isEnabled, ns.showMode = available, isEnabled, showMode
+ns.isEnabled, ns.showMode = isEnabled, showMode
 ns.isLearned = isLearned
 ns.elementOpts, ns.elementSetting, ns.elementDefault, ns.idleAlpha = elementOpts, elementSetting, elementDefault, idleAlpha
 -- Groups and layout.
@@ -929,7 +860,6 @@ ns.layoutElements, ns.applyLayout, ns.applyTimers = layoutElements, applyLayout,
 ns.placeElement, ns.addGroup, ns.renameGroup, ns.deleteGroup = placeElement, addGroup, renameGroup, deleteGroup
 ns.splitGroup, ns.hideGroup, ns.centerGroup = splitGroup, hideGroup, centerGroup
 ns.setShow = setShow
-ns.setTestMode = function(on) return edit(setTestMode)(on) end
 -- Spells and refreshes.
 ns.resolveSpells, ns.refreshAll = resolveSpells, refreshAll
 -- The border an element wears: its group's.
@@ -1038,7 +968,7 @@ function ns.debugReport()
 	end
 	local loose = {}
 	for _, key in ipairs(ELEMENT_KEYS) do
-		if available(key) and not groupOf(key) then table.insert(loose, listed(key)) end
+		if not groupOf(key) then table.insert(loose, listed(key)) end
 	end
 	if #loose > 0 then say("ungrouped: %s", table.concat(loose, ",")) end
 	local errs = ns.errorLines()

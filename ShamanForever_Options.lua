@@ -1377,7 +1377,7 @@ function OP.open(page, groupId)
 	showPage(page or currentPage or (last and pages[last] and last) or "home")
 end
 
--- An element's own page, or the Elements overview for one without a page (test elements).
+-- An element's own page, or the Elements overview for one without a page.
 function OP.openElement(key)
 	if not win then buildWindow() end
 	OP.open(ns.ElementPages.pageOf(key) or "elements")

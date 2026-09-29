@@ -97,7 +97,7 @@ function EP.buildOverview(p)
 		open:SetPoint("LEFT", OPEN_X, 0)
 		open:SetText("Settings")
 		open:SetScript("OnClick", function() if ELEMENT_PAGES[key] then ns.Options.open(ELEMENT_PAGES[key]) end end)
-		p:add(f, 34, function() return ns.available(key) end, function()
+		p:add(f, 34, nil, function()
 			e.paint(icon)
 			local learned = ns.isLearned(key)
 			name:SetText(e.label)
@@ -689,5 +689,5 @@ function EP.build(newPage)
 	end
 end
 
--- The page key of an element's own page, nil for one without (test elements).
+-- The page key of an element's own page, nil for one without.
 function EP.pageOf(key) return ELEMENT_PAGES[key] end
