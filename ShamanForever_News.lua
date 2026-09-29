@@ -1,7 +1,6 @@
--- What's new: after an update, a short list of what changed on Home, a dot on Home's button in the
--- options until Home is opened. Nothing on a first install; a development copy always lists the
--- newest notes. The version last seen is kept for the account and stamped only on a shaman, so an alt
--- of another class doesn't use it up.
+-- What's new: after an update, a short list of what changed at the bottom of Home. Nothing on a
+-- first install. A development copy always lists the newest notes. The version last seen is kept
+-- for the account and stamped only on a shaman, so an alt of another class doesn't use it up.
 
 local ADDON, ns = ...
 
@@ -19,7 +18,7 @@ N.NOTES = {
 	} },
 }
 
-local MAX_SHOWN = 3     -- releases listed on Home after an update from further back
+local MAX_SHOWN = 3   -- releases listed on Home after an update from further back
 
 -- "v0.9.0", "0.9.0" or a beta, "v0.9.0-beta.2": major, minor, patch, and the beta's number (nil
 -- for a release). nil for anything else: a development copy's version is a git description
@@ -55,8 +54,8 @@ function N.current()
 	return getMeta and plainVersion(getMeta(ADDON, "Version")) or nil
 end
 
--- The account's record: seen (the version last run), from (the one before the updates since Home
--- was last opened, for Home's list), unseen (Home not opened since the update), fresh (a first install not yet stamped). Made at the first login after loading.
+-- The account's record: seen (the version last run), from (the version before the latest update,
+-- for Home's list), fresh (a first install not yet stamped). Made at the first login after loading.
 local function state()
 	local a = ns.getAccount()
 	if type(a.news) ~= "table" then
@@ -86,28 +85,8 @@ function N.list()
 end
 
 ------------------------------------------------------------------------
--- The options: Home's block and the dot on Home's button
+-- The options: Home's block
 ------------------------------------------------------------------------
-local dot
-function N.refreshDot()
-	local b = ns.Options.navButton("home")
-	if not b then return end
-	if not dot then
-		dot = b:CreateTexture(nil, "OVERLAY")
-		dot:SetSize(9, 9)
-		dot:SetPoint("RIGHT", b, "RIGHT", -8, 0)
-		dot:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")   -- a plain disc
-		dot:SetVertexColor(1, 0.82, 0.25)
-	end
-	dot:SetShown(state().unseen == true)
-end
-
--- The options window showed a page (key): Home clears the dot.
-function N.pageShown(key)
-	if key == "home" then state().unseen = nil end
-	N.refreshDot()
-end
-
 local function title()
 	local list = N.list()
 	if #list == 1 and plainVersion(list[1].version) then return "What's new in " .. plainVersion(list[1].version) end
@@ -122,7 +101,7 @@ local function body()
 	return table.concat(out, "\n")
 end
 
--- Home's What's new block, the last thing on the page, below the feedback.
+-- Home's What's new block, the last thing on the page.
 function N.homeBlock(p)
 	local function has() return #N.list() > 0 end
 	p:add(p:row(24), 24, has)   -- room above it
@@ -135,22 +114,14 @@ end
 -- At login
 ------------------------------------------------------------------------
 -- A shaman logged in (or a test: cur, a version to act as): an update since the version last seen
--- lists its news on Home and marks Home's button. A first install only stamps.
+-- lists its news on Home. A first install only stamps.
 function N.check(cur)
 	local st = state()
 	if not cur then return end
 	if st.fresh then st.fresh, st.seen = nil, cur return end
 	local seen = st.seen or "0.0.0"   -- installed before What's new existed: this update is news
 	if not newer(cur, seen) then st.seen = cur return end
-	-- Home not opened since an earlier update: the list still starts from before that one.
-	if not st.unseen then st.from = seen end
-	st.seen = cur
-	if not N.list()[1] then
-		st.unseen = nil
-		return
-	end
-	st.unseen = true
-	N.refreshDot()
+	st.from, st.seen = seen, cur
 end
 
 function N.start() N.check(N.current()) end
