@@ -1286,8 +1286,10 @@ function OP.openElement(key)
 	OP.open(ns.ElementPages.pageOf(key) or "elements")
 end
 
--- Scrolls a page so frame (one of its rows) sits at the top, once the page has laid out.
+-- Scrolls a page so frame (one of its rows) sits at the top, once the page has laid out. A folded
+-- block holding it opens first.
 local function scrollTo(p, frame, after)
+	p:reveal(frame)
 	C_Timer.After(0, function()
 		if not frame:IsVisible() then return end
 		local top, y = p.content:GetTop(), frame:GetTop()

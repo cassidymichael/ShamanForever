@@ -1,7 +1,8 @@
 -- The options window's page kit: a page is a scrolling column of rows (headers, text, checkboxes,
 -- sliders, dropdowns, colours, cards, buttons...). Rows can hide themselves; refresh reflows the
 -- visible ones and pulls every control's value from the saved settings. Each header starts a block
--- that runs to the next header and sits on a faint panel. Also the drag and drop the
+-- that runs to the next header and sits on a faint panel; clicking the header folds the block. Also
+-- the drag and drop the
 -- pages' lists share. The pages themselves are built in ShamanForever_Options.lua, Layout in
 -- ShamanForever_OptionsLayout.lua, and the elements' in ShamanForever_OptionsElements.lua.
 
@@ -23,6 +24,10 @@ local SLIDER_SPAN_W = 400   -- a slider and its value box, at most
 local TEXT_MAX_W = 600   -- text and boxed notices wrap here at the most (the page's width at 864)
 -- A block's panel: its rows inset from its sides, room under its last row, a gap to the next block.
 local PANEL_PAD, PANEL_PAD_B, BLOCK_GAP = 10, 6, 10
+-- Folded blocks, by page and block ("general:3"): a plain table, not saved, so every block starts
+-- open and a /reload opens them all again.
+local folded = {}
+local function foldKey(p, b) return p.key .. ":" .. b.index end
 
 -- above: over the frame's top-left corner, for full-width rows, whose right edge is far from the
 -- mouse on the label; otherwise to the right of the frame.
@@ -157,6 +162,8 @@ function Page:refresh()
 		local b = it.block
 		if it.head then close() end   -- a header, shown or not, ends the block before it
 		local show = not it.shown or it.shown()
+		-- A folded block keeps only its header; one whose header is hidden can't fold.
+		if show and b and not it.head and b.head.visible and folded[foldKey(self, b)] then show = false end
 		it.visible = show
 		it.frame:SetShown(show)
 		if show then
@@ -175,6 +182,7 @@ function Page:refresh()
 					ns.say("options: a row on the %s page failed to update: %s", self.key, tostring(err))
 				end
 			end
+			if it.head then self:paintHeader(b) end
 			it.frame:ClearAllPoints()
 			it.frame:SetPoint("TOPLEFT", self.content, "TOPLEFT", left, -y)
 			it.frame:SetPoint("TOPRIGHT", self.content, "TOPRIGHT", -right, -y)
@@ -189,6 +197,59 @@ function Page:refresh()
 	self.rowW = nil
 	self.content:SetHeight(math.max(y, bottom, 1))
 	if self.afterRefresh then self.afterRefresh() end
+end
+
+-- Folds or opens block b, and lays the page out again at once, its scroll range with it.
+function Page:setFolded(b, fold)
+	folded[foldKey(self, b)] = fold or nil
+	self:refresh()
+	local s = self.scroll
+	s:UpdateScrollChildRect()
+	local range = s:GetVerticalScrollRange()
+	if s:GetVerticalScroll() > range then s:SetVerticalScroll(range) end
+end
+
+-- Opens the block holding frame (a row or a header), for a jump that lands on it.
+function Page:reveal(frame)
+	for _, it in ipairs(self.items) do
+		if it.frame == frame then
+			if it.block and folded[foldKey(self, it.block)] then self:setFolded(it.block, false) end
+			return
+		end
+	end
+end
+
+-- What a folded block has on: the names of its ticked boxes that show, the first three and a count.
+local function onList(b)
+	local on = {}
+	for _, it in ipairs(b.items) do
+		if it.says and (not it.shown or it.shown()) then
+			local s = it.says()
+			if s then table.insert(on, s) end
+		end
+	end
+	if #on > 3 then return table.concat(on, ", ", 1, 3) .. " +" .. (#on - 3) end
+	return table.concat(on, ", ")
+end
+
+-- The header's chevron (down while open, right while folded) and, folded, what's on.
+local CHEVRON_W, CHEVRON_H = 12, 7
+function Page:paintHeader(b)
+	local f = b.head.frame
+	local isFolded = folded[foldKey(self, b)] and true or false
+	if isFolded then
+		f.chevron:SetSize(CHEVRON_H, CHEVRON_W)
+		f.chevron:SetRotation(-math.pi / 2)
+	else
+		f.chevron:SetSize(CHEVRON_W, CHEVRON_H)
+		f.chevron:SetRotation(math.pi)
+	end
+	f.says:SetShown(isFolded)
+	if isFolded then
+		f.says:SetText(onList(b))
+		local used = f.textX + f.text:GetStringWidth() + (f.note and 10 + f.note:GetStringWidth() or 0)
+		f.says:SetWidth(math.max(self.rowW - used - 24, 1))   -- cut short with "..." where it's long
+	end
 end
 
 function Page:row(height)
@@ -211,18 +272,31 @@ end
 -- A header starts a block, which runs to the next one. icon: an optional texture before the text.
 function Page:header(text, shown, note, icon)
 	local f = self:row(36)
-	local block
+	local block, x = nil, 0
 	if self.panels ~= false then
 		block = { index = #self.blockList + 1, items = {} }
 		table.insert(self.blockList, block)
 		self.block = block
+		-- The chevron: the arrow from Blizzard's totem bar art (as the totem bar's picker tabs use).
+		f.chevron = f:CreateTexture(nil, "ARTWORK")
+		f.chevron:SetTexture("Interface\\Buttons\\UI-TotemBar")
+		f.chevron:SetTexCoord(0.5625, 0.71875, 0.34375, 0.3828125)
+		f.chevron:SetBlendMode("ADD")
+		f.chevron:SetPoint("CENTER", f, "BOTTOMLEFT", 6, 15)
+		f.says = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+		f.says:SetPoint("BOTTOMRIGHT", 0, 9)
+		f.says:SetJustifyH("RIGHT")
+		f.says:SetWordWrap(false)
+		f.says:Hide()
+		x = 16
 	end
 	f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-	f.text:SetPoint("BOTTOMLEFT", icon and 26 or 0, 7)
+	f.textX = x + (icon and 26 or 0)
+	f.text:SetPoint("BOTTOMLEFT", f.textX, 7)
 	if icon then
 		f.icon = f:CreateTexture(nil, "ARTWORK")
 		f.icon:SetSize(20, 20)
-		f.icon:SetPoint("BOTTOMLEFT", 0, 5)
+		f.icon:SetPoint("BOTTOMLEFT", x, 5)
 		f.icon:SetTexture(icon)
 		ns.cropIcon(f.icon)
 	end
@@ -242,6 +316,14 @@ function Page:header(text, shown, note, icon)
 	if block then
 		block.head = self.items[#self.items]
 		block.head.head = true
+		-- The whole header folds and opens its block, and lights up under the mouse.
+		local r, g, bl = f.text:GetTextColor()
+		f:EnableMouse(true)
+		f:SetScript("OnEnter", function() f.text:SetTextColor(1, 0.93, 0.6) end)
+		f:SetScript("OnLeave", function() f.text:SetTextColor(r, g, bl) end)
+		f:SetScript("OnMouseUp", function(_, button)
+			if button == "LeftButton" then self:setFolded(block, not folded[foldKey(self, block)]) end
+		end)
 	end
 	return f
 end
@@ -278,7 +360,9 @@ function Page:checkbox(label, tip, get, set, shown)
 	cb:SetScript("OnClick", function(button) set(button:GetChecked() and true or false) end)
 	Page.setTip(cb, label, tip)
 	f.check = cb
-	return self:add(f, 30, shown, function() cb:SetChecked(get() and true or false) end)
+	self:add(f, 30, shown, function() cb:SetChecked(get() and true or false) end)
+	self.items[#self.items].says = function() return get() and label or nil end   -- for a folded header
+	return f
 end
 
 -- How a slider's value reads in the box beside it, where the player can also type one.
