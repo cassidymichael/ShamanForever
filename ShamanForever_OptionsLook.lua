@@ -218,9 +218,11 @@ local function makePreviewIcon(parent, key, preview)
 	return ic
 end
 
--- Filled segments out of n (n = 1 gives a fraction bar); r, g, b the fill colour.
+-- Filled segments out of n (n = 1 gives a fraction bar); r, g, b the fill colour, on General's bar
+-- texture as the HUD's charge bar.
 local function setBar(ic, n, filled, r, g, b)
 	local w = ic:GetWidth()
+	local path, atlas = ns.Media.barOf(ns.Style.value(nil, "bar", "texture"))
 	for i, t in ipairs(ic.bar.segs) do
 		if i > n then t:Hide() else
 			local segW = (n == 1) and w * filled or (w - (n - 1)) / n
@@ -229,7 +231,8 @@ local function setBar(ic, n, filled, r, g, b)
 			t:SetPoint("BOTTOM")
 			t:SetPoint("LEFT", ic.bar, "LEFT", (i - 1) * ((w - (n - 1)) / n + 1), 0)
 			t:SetWidth(math.max(segW, 0.01))
-			t:SetColorTexture(r, g, b, 1)
+			if atlas then t:SetAtlas(path) else t:SetTexture(path) end
+			t:SetVertexColor(r, g, b, 1)
 			t:SetShown(n == 1 or i <= filled)
 		end
 	end
