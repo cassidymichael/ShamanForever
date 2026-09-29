@@ -114,7 +114,7 @@ SH.learned = anyTrackedShieldKnown
 -- Whether the character knows a shield (lightning | water), tracked or not (the options).
 function SH.knows(key) return SHIELDS[key] ~= nil and SHIELDS[key].known == true end
 
-local standIn   -- preview mode's icon over the shield, while it shows (SH.preview, below)
+local standIn, standInState   -- preview mode's icon over the shield and its state (SH.preview, below)
 local nativeIconAlpha   -- below
 
 -- The underlay is meant to show only when Blizzard's button is hidden, i.e. when the shield is down,
@@ -127,18 +127,22 @@ function SH.applyEmptyLook()
 	local db = ns.getDB()
 	shield.tex:SetTexture(SH.icon())
 	if standIn then
-		-- Preview mode (SH.preview, below): the underlay in its "up" look, and the stand-in over it
+		-- Preview mode (SH.preview, below). Up: the underlay in its "up" look, and the stand-in over it
 		-- compensated as Blizzard's icon is; alone (its group hidden), at its own. It steps aside
-		-- while the shield is really up, so Blizzard's button shows the real one.
+		-- while the shield is really up, so Blizzard's button shows the real one. Down or dropped:
+		-- the stand-in alone, as drawn, over Blizzard's button; a dark backing under a dropped one's
+		-- faded icon while the shield is really up, so the real one doesn't show through.
+		local up = standInState ~= "down" and standInState ~= "drop"
 		shield.tex:SetDesaturated(db.emptyGrey)
 		if db.emptyTint then shield.tex:SetVertexColor(1, 0.35, 0.35) else shield.tex:SetVertexColor(1, 1, 1) end
-		shield.tex:SetAlpha(db.underlayUp)
+		shield.tex:SetAlpha(up and db.underlayUp or 0)
 		shield:SetRingShown(false)
 		shield:SetPulsing(false)
 		local shown = shield:IsVisible()
-		standIn.tex:SetAlpha(shown and nativeIconAlpha() or db.shieldIconAlpha)
 		local real = shown and believedUp() == true and native.button ~= nil and not native.err
-		standIn:SetAlpha(real and 0 or 1)
+		if up then standIn.tex:SetAlpha(shown and nativeIconAlpha() or db.shieldIconAlpha) end
+		standIn:SetAlpha(up and real and 0 or 1)
+		if standIn.backing then standIn.backing:SetShown(standInState == "drop" and real) end
 		return
 	end
 	if not anyTrackedShieldKnown() then
@@ -419,16 +423,18 @@ function SH.debug()
 end
 
 ------------------------------------------------------------------------
--- Preview mode (ShamanForever_Preview.lua) shows the shield up. Blizzard's button can't be shown,
--- hidden or faked by addon code, so the preview draws a stand-in over it, which steps aside while
--- the shield is really up and Blizzard's button shows the real one. Meanwhile the underlay keeps its
--- "up" look under either, so the stack has the group's opacity (SH.applyEmptyLook). Only our own
--- textures change, which is allowed at any time; the frame itself is never hidden (see ns.fadeTo).
+-- Preview mode (ShamanForever_Preview.lua) shows the shield up, down or dropped. Blizzard's button
+-- can't be shown, hidden or faked by addon code, so the preview draws a stand-in over it. While the
+-- preview shows it up, the stand-in steps aside when the shield is really up and Blizzard's button
+-- shows the real one, and the underlay keeps its "up" look under either, so the stack has the
+-- group's opacity. Down or dropped, the stand-in covers the button (SH.applyEmptyLook). Only our
+-- own textures change, which is allowed at any time; the frame itself is never hidden (ns.fadeTo).
 ------------------------------------------------------------------------
 shield.aboveProtected = true   -- Blizzard's button hangs from it
--- icon: the preview's stand-in, just drawn; nil when the preview ends.
-function SH.preview(icon)
-	standIn = icon
+-- icon: the preview's stand-in, just drawn in state (an options preview state: up3, up1, down,
+-- drop); nil when the preview ends.
+function SH.preview(icon, state)
+	standIn, standInState = icon, state
 	SH.applyEmptyLook()
 end
 

@@ -20,8 +20,9 @@
 --   shows is changed. Every layout puts it back in its group first; this file parks it again after.
 -- * The shield and Elemental Focus hold Blizzard's protected aura button, and a frame holding it
 --   takes no change in combat: parked, it could stay hidden for a fight. They are never parked. Their
---   stand-in sits over the button, and meanwhile the shield's module keeps its underlay in its "up"
---   look (ShamanForever_Shield.lua) and Elemental Focus's clears its icon (ShamanForever_Buffs.lua).
+--   stand-in sits over the button, and meanwhile the shield's module fits its underlay and the
+--   stand-in to the state shown (ShamanForever_Shield.lua) and Elemental Focus's clears its icon
+--   (ShamanForever_Buffs.lua).
 -- * The totem bar holds secure buttons: it draws the preview's states on its own slots
 --   (ShamanForever_TotemBar.lua), and shows or hides only in its layout, out of combat.
 -- Stand-ins hang from frames of their own that take their group's scale and opacity, not from the
@@ -235,6 +236,12 @@ local function makeStandIn(key, gf)
 		ic.word = ic.textFrame:CreateFontString(nil, "OVERLAY")
 		ic.word:SetFont(STANDARD_TEXT_FONT, 16, "OUTLINE")
 		ic.word:SetText(ns.Tremor.WORD)
+	elseif key == "shield" then
+		-- Under a dropped shield's faded icon while the real shield is up (ShamanForever_Shield.lua).
+		ic.backing = ic:CreateTexture(nil, "BACKGROUND", nil, -8)
+		ic.backing:SetAllPoints(ic.tex)
+		ic.backing:SetColorTexture(0, 0, 0, 1)
+		ic.backing:Hide()
 	end
 	ic.mark = PV.makeMark(ic.textFrame)
 	ic.mark:SetAllPoints(ic)
@@ -271,7 +278,7 @@ local function paintElement(key, r, moment)
 	local ic, st = standIns[key], step[1]
 	ic.momentToken, ic.idleToken = nil, nil   -- what an options preview's moment left waiting
 	local ends = L.paint(ic, key, st, r.at, running(key))
-	if key == "shield" then ns.Shield.preview(ic) end
+	if key == "shield" then ns.Shield.preview(ic, st) end
 	if idles(key, st) and not (r.idleAt and GetTime() < r.idleAt) then setAlpha(ic, L.idleAlpha(key))
 	else setAlpha(ic, ic:GetAlpha()) end
 	ic.mark:SetShown(not ns.isLearned(key))
