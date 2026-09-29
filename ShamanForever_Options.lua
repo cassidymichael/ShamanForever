@@ -393,7 +393,7 @@ local function buildHome(p)
 	p:pin(ns.Look.buildIntro(win, addonVersion()))
 	p:bigButtons({
 		{ "Interface\\Icons\\INV_Misc_Key_03", lockText, lockSub, toggleLock },
-		{ "Interface\\Icons\\Spell_Nature_Invisibilty", function() return "Layout" end,
+		{ "Interface\\Icons\\Spell_Nature_Invisibilty", function() return "Groups & Layout" end,
 			function() return "Set up groups of elements" end, function() OP.open("layout") end },
 	})
 	ns.News.homeBlock(p)
@@ -944,7 +944,7 @@ local function buildNav()
 	end
 	top("home", "Home", "Interface\\Icons\\ClassIcon_Shaman")
 	top("general", "General", "Interface\\Icons\\INV_Misc_Gear_01")
-	top("layout", "Layout", "Interface\\Icons\\Spell_Nature_Invisibilty")
+	top("layout", "Groups & Layout", "Interface\\Icons\\Spell_Nature_Invisibilty")
 	top("totembar", "Totem bar", "Interface\\Icons\\Spell_Shaman_DropAll_01")
 	top("elements", "Elements", ART .. "Elements.tga")
 	-- Footer: positioning's lock, one click either way (as /sf lock); its label says what it does.
@@ -1190,7 +1190,7 @@ local function buildWindow()
 
 	buildHome(newPage("home", "Home"))
 	buildGeneral(newPage("general", "General"))
-	ns.LayoutPage.build(newPage("layout", "Layout"))
+	ns.LayoutPage.build(newPage("layout", "Groups & Layout"))
 	buildTotemBar(newPage("totembar", "Totem bar"))
 	ns.ElementPages.buildOverview(newPage("elements", "Elements"))
 	ns.ElementPages.build(newPage)

@@ -32,8 +32,8 @@ local function groupMenu(dd, key)
 end
 
 -- On an element's page, where "Hidden keeps its place" is shown as text under the control.
-local SHOW_TIP_PAGE = "Choosing Always or In combat again puts it back where it was. Groups have their own Show on the Layout page; an element shows only when both allow it. Everything visible shows while positioning is unlocked."
-local SHOW_TIP = "When the element is drawn. Hidden keeps its place in its group, so choosing Always or In combat again puts it back where it was. Groups have their own Show on the Layout page; an element shows only when both it and its group allow it. Everything visible shows while the layout is unlocked."
+local SHOW_TIP_PAGE = "Choosing Always or In combat again puts it back where it was. Groups have their own Show on the Groups & Layout page; an element shows only when both allow it. Everything visible shows while positioning is unlocked."
+local SHOW_TIP = "When the element is drawn. Hidden keeps its place in its group, so choosing Always or In combat again puts it back where it was. Groups have their own Show on the Groups & Layout page; an element shows only when both it and its group allow it. Everything visible shows while the layout is unlocked."
 
 ------------------------------------------------------------------------
 -- Elements: an overview of every element, and one page per real element under it in the nav.
@@ -125,7 +125,7 @@ local function elementDisplay(p, key)
 	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return ns.showMode(key) end,
 		function(v) ns.setShow(key, v) end, nil, 140)
 	p:text("Hidden keeps its place in its group.")
-	local groupRow = p:dropdown("Group", "Which group it sits in. Groups are arranged on the Layout page; ungrouped elements aren't on screen.",
+	local groupRow = p:dropdown("Group", "Which group it sits in. Groups are arranged on the Groups & Layout page; ungrouped elements aren't on screen.",
 		{}, function() end, function() end, nil, 140)
 	groupMenu(groupRow.dropdown, key)
 	local edit = CreateFrame("Button", nil, groupRow, "UIPanelButtonTemplate")
@@ -133,7 +133,7 @@ local function elementDisplay(p, key)
 	edit:SetPoint("LEFT", groupRow.dropdown, "RIGHT", 8, 0)
 	edit:SetText("Edit group")
 	edit:SetScript("OnClick", function() local g = ns.groupOf(key); if g then ns.Options.openGroup(g.id) end end)
-	setTip(edit, "Edit group", "This group's settings on the Layout page.")
+	setTip(edit, "Edit group", "This group's settings on the Groups & Layout page.")
 	local item = p.items[#p.items]
 	local refresh = item.refresh
 	item.refresh = function()
