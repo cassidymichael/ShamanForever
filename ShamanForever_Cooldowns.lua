@@ -205,8 +205,8 @@ end
 ------------------------------------------------------------------------
 -- The global cooldown: while it runs, every spell reads as on cooldown, so the swipe and the ready
 -- pop would react to each cast. isOnGCD says so (false when it's secret). Blizzard only vouches
--- for it inside SPELL_UPDATE_COOLDOWN (inEvent below); a GCD sweep's bling and the shield's GCD
--- sweep read it at other times too (tested 2026-09-25).
+-- for it inside SPELL_UPDATE_COOLDOWN; the shield's GCD sweep and a sweep's bling read it at other
+-- times too (tested 2026-09-25).
 function CD.onGCD(spellID)
 	local ok, info = safe(C_Spell.GetSpellCooldown, spellID)
 	if not ok or type(info) ~= "table" or isSecret(info.isOnGCD) then return false end
@@ -225,25 +225,22 @@ local function plainCooldown(spellID)
 	if isSecret(info.isOnGCD) then return nil end
 	return info.isOnGCD == true and "gcd" or "own"
 end
--- Arms the next end (f.ready.armed) when its own cooldown starts: "own" read after "ready" or
--- "gcd" (a cast: the GCD from the key press, then its own cooldown from the success). Not right
--- after an end: in combat isActive still reads true for a moment after the timer ends (tested
--- 2026-09-29), and that must not arm the next GCD sweep's end. A cooldown that ends inside a GCD
+-- Arms the next end (f.ready.armed) when our own cast starts its own cooldown: an "own" read in
+-- SPELL_UPDATE_COOLDOWN within ARM_AFTER_CAST of the cast (CD.noteCast), or at the cast itself when
+-- that event came first. Only our cast: as a global cooldown ends, isActive can still read true
+-- with isOnGCD false for a moment (tested 2026-09-29), and that must not arm the sweep's end. A
+-- cooldown not started by our cast is missed, never a false ready. One that ends inside a GCD
 -- (Show global cooldown on) stays armed, and its end comes with the GCD's, the moment it can be
 -- cast. Once isActive reads false while armed, the end must come within READY_GRACE: out of
--- combat it can read false just before the timer ends; no new GCD ends that soon. A read that is
--- secret arms nothing: a missed pop, never a false one.
-local READY_GRACE = 0.5
-local function noteReady(f, spellID, inEvent)
+-- combat it can read false just before the timer ends; no new GCD ends that soon. A secret read
+-- arms nothing.
+local READY_GRACE, ARM_AFTER_CAST = 0.5, 1.5
+local function noteReady(f, st, inEvent)
 	local r = f.ready
-	local st = plainCooldown(spellID)
 	if st == "ready" then
-		r.last = "ready"
 		if r.armed and not r.by then r.by = GetTime() + READY_GRACE end
-	elseif st == "gcd" and inEvent then
-		r.last = "gcd"
-	elseif st == "own" and inEvent and r.last ~= "own" and r.last ~= "ended" then
-		r.armed, r.by, r.last = true, nil, "own"
+	elseif st == "own" and inEvent and r.castAt and GetTime() - r.castAt <= ARM_AFTER_CAST then
+		r.armed, r.by, r.castAt = true, nil, nil
 	end
 end
 -- Hooked before any other OnCooldownDone of f: decides once whether this end is a ready.
@@ -253,8 +250,21 @@ local function watchEnds(f)
 	f.cd:HookScript("OnCooldownDone", function()
 		local r, now = f.ready, GetTime()
 		r.at = (r.armed and (not r.by or now <= r.by)) and now or nil
-		r.armed, r.by, r.last = nil, nil, "ended"
+		r.armed, r.by = nil, nil
 	end)
+end
+-- Our own successful cast of f's spell (spellID: the one its timer reads).
+function CD.noteCast(f, spellID)
+	watchEnds(f)
+	local r = f.ready
+	r.castAt = GetTime()
+	if plainCooldown(spellID) == "own" then r.armed, r.by, r.castAt = true, nil, nil end
+end
+-- Forgets a pending ready (the element is off, or its spell not known): a cast it didn't see can't
+-- leave one armed for later.
+function CD.resetReady(f)
+	local r = f.ready
+	if r then r.armed, r.by, r.castAt = nil, nil, nil end
 end
 -- True inside the OnCooldownDone of a ready (not a global cooldown's end).
 function CD.readyNow(f) return f.ready ~= nil and f.ready.at == GetTime() end
@@ -264,11 +274,12 @@ function CD.readyNow(f) return f.ready ~= nil and f.ready.at == GetTime() end
 -- read. inEvent: from SPELL_UPDATE_COOLDOWN.
 local function cooldownFor(f, key, spellID, inEvent)
 	watchEnds(f)
-	noteReady(f, spellID, inEvent)
+	local st = plainCooldown(spellID)
+	noteReady(f, st, inEvent)
 	if ns.Style.value(key, "gcd", "show") then
 		local ok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID)
 		if not (ok and dur) then return nil end
-		f.cd:SetDrawBling(not CD.onGCD(spellID))
+		f.cd:SetDrawBling(st ~= "gcd")
 		return dur
 	end
 	f.cd:SetDrawBling(true)
@@ -289,12 +300,12 @@ local function popWhenReady(f, key, totemSlot)
 	f.cd:HookScript("OnCooldownDone", function()
 		if not CD.readyNow(f) then return end   -- a global cooldown ended
 		if not (ns.isEnabled(key) and setting(key, "readyPop")) then return end
+		if ns.cantAct() then return end   -- dead, a ghost or on a flight path: nothing to cast
 		if totemSlot then
 			local ok, d = safe(GetTotemDuration, totemSlot)
 			if not ok then return end
 			if not d then
-				-- Not while dead, a ghost or on a flight path: no totem can be dropped then.
-				if setting(key, "readyNoTotem") == "grey" and not ns.cantAct() then f:Pop("blocked") end
+				if setting(key, "readyNoTotem") == "grey" then f:Pop("blocked") end
 				return
 			end
 		end
@@ -498,12 +509,14 @@ function refreshCooldown(def, inEvent)
 		-- window or primed buff could be spent unseen: it ends here rather than come back stale.
 		def.cdRunning = nil
 		endActive(def)
+		CD.resetReady(def.frame)
 		return
 	end
 	local f = def.frame
 	if f.killed and not (setting(def.key, "killed") and setting(def.key, "killedMark")) then f.killed.mark:Hide() end
 	if not def.spellID then
 		-- Not learned yet: a plain grey icon.
+		CD.resetReady(f)
 		fadeTo(def, 1)
 		def.idle = nil
 		f.tex:SetDesaturated(true)
@@ -742,13 +755,14 @@ function CD.refresh()
 	refreshCooldowns()
 end
 
--- Our own cast: a buff window or a primed buff starts, or a spell spends one.
+-- Our own cast: its ready is armed, a buff window or a primed buff starts, or a spell spends one.
 function CD.onCast(spellID)
 	local key = Spells.keyOf(spellID)
 	if not key then return end
 	local now = GetTime()
 	for _, def in ipairs(COOLDOWNS) do
 		if def.spellID and ns.isEnabled(def.key) then
+			if key == def.spellKey then CD.noteCast(def.frame, def.spellID) end
 			if def.window and key == def.spellKey then
 				startActive(def, now, def.window)
 			elseif def.primed then

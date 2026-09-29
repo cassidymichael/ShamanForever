@@ -58,7 +58,7 @@ end
 
 -- inEvent: from SPELL_UPDATE_COOLDOWN (onCooldowns).
 local function refreshCooldown(inEvent)
-	if not shockSpellID or not ns.isEnabled("shock") then return end
+	if not shockSpellID or not ns.isEnabled("shock") then return CD.resetReady(shock) end
 	local dur = CD.cooldownFor(shock, "shock", shockSpellID, inEvent)
 	if dur then shock.cdTimer:set(dur) end
 end
@@ -173,6 +173,13 @@ function SK.refresh()
 end
 
 SK.onCooldowns = refreshCooldown
+
+-- Our own cast of any shock arms the next ready: the shocks share one cooldown.
+local SHOCK_KEY = {}
+for _, spell in pairs(SHOCK_SPELL) do SHOCK_KEY[spell] = true end
+function SK.onCast(spellID)
+	if shockSpellID and ns.isEnabled("shock") and SHOCK_KEY[Spells.keyOf(spellID)] then CD.noteCast(shock, shockSpellID) end
+end
 
 -- Once a second: a cooldown's end fires no event.
 function SK.tick() ns.try("shock refresh", refreshCooldown) end
