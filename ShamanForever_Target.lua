@@ -78,7 +78,8 @@ end
 -- while the aura shows, and a grow pop it plays each time a new one lands.
 local function buildButton(def, slot, button, cd)
 	def.glow = ns.makeGlow(button, button, def.key, true)
-	def.glow:SetFrameLevel(cd:GetFrameLevel() + 2)
+	-- Levels under the aura button may read as secret: a failed read leaves the default level.
+	ns.try("aura glow level", function() def.glow:SetFrameLevel(cd:GetFrameLevel() + 2) end)
 	if button.AddAuraShownAnimation then ns.try("target glow", button.AddAuraShownAnimation, button, def.glow.anim) end
 	def.popAnim = ns.makeGrowPop(slot.icon, def.key)
 	if button.AddAuraAssignedAnimation then ns.try("target pop", button.AddAuraAssignedAnimation, button, def.popAnim) end

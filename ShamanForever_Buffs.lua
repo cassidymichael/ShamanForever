@@ -150,7 +150,8 @@ end
 -- new proc; sized by the pop style (styleProc), a no-op while the Pop option is off.
 local function buildProc(def, slot, button, cd)
 	def.glow = ns.makeGlow(button, button, def.key, true)
-	def.glow:SetFrameLevel(cd:GetFrameLevel() + 2)
+	-- Levels under the aura button may read as secret: a failed read leaves the default level.
+	ns.try("aura glow level", function() def.glow:SetFrameLevel(cd:GetFrameLevel() + 2) end)
 	if button.AddAuraShownAnimation then ns.try("proc glow", button.AddAuraShownAnimation, button, def.glow.anim) end
 	def.popAnim = ns.makeGrowPop(slot.icon, def.key)
 	if button.AddAuraAssignedAnimation then
