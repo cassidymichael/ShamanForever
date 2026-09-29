@@ -128,7 +128,8 @@ cd:SetDrawSwipe(false)
 cd:SetDrawEdge(false)
 cd:SetDrawBling(false)
 cd:SetCountdownFont("ShamanForeverSwingFont")
-local cdText = select(2, pcall(cd.GetCountdownFontString, cd))
+local okText, cdFont = pcall(cd.GetCountdownFontString, cd)
+local cdText = okText and cdFont or nil
 -- Frame levels bottom up: the bar, the countdown (layoutGroup calls this after regrouping).
 function f.stack()
 	local base = f:GetFrameLevel()
