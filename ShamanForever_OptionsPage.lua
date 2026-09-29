@@ -75,15 +75,14 @@ function Page.new(win, key, title, indent)
 	-- Update the scroll frame's child rect (its scroll range and the area where rows take clicks)
 	-- after every resize and reflow, as Blizzard's pages do after a layout, so rows that a taller
 	-- window or a longer page brings into view can be clicked. While the window is resized the page
-	-- holds its place (Page.startResize); a frozen resize lays the page out once, at its end.
+	-- holds its place and is laid out once, at its end (Page.startResize).
 	local page = setmetatable({ win = win, key = key, title = title, indent = indent, scroll = scroll,
 		content = content, items = {}, blockList = {}, subs = {} }, Page)
 	scroll:SetScript("OnSizeChanged", function(self, w)
-		local frozen = Page.resizing == "freeze"
-		if not frozen then content:SetWidth(w) end
+		if not Page.resizing then content:SetWidth(w) end
 		self:UpdateScrollChildRect()
 		page:keepScroll()
-		if not frozen then ns.Options.refresh() end
+		if not Page.resizing then ns.Options.refresh() end
 	end)
 	content:SetScript("OnSizeChanged", function() scroll:UpdateScrollChildRect() end)
 	-- Blizzard's handler, run first, sets the position again from its scroll bar's fraction of the
@@ -95,50 +94,42 @@ function Page.new(win, key, title, indent)
 end
 
 -- Resizing the window changes the scroll frame's size and range under the scroll bar, which keeps
--- the position as a fraction of the range and can send the page to the top. From the grip's press
--- until two frames after its release the page holds its place, and puts it back after every size
--- change, layout and range change. Page.resizeMode, how (the ways are compared in game; one stays):
---   "freeze": no layout while the grip is held (rows keep their width, cut off or with room to
---             spare), one when it's let go; the row at the top stays there.
---   "anchor": the page is laid out as the window changes; the row at the top stays there.
---   "hold":   laid out as the window changes; the position in pixels stays.
---   "none":   laid out as the window changes; nothing holds the place.
-Page.resizeMode = "freeze"
+-- the position as a fraction of the range and feeds back on itself (the range follows the frame,
+-- the position follows the range), and that can send the page to the top. So from the grip's press
+-- until two frames after its release the page holds its place and puts it back after every size
+-- change, layout and range change, and it is not laid out while the grip is held: rows keep their
+-- width, cut off or with room to spare, and one layout comes when the grip is let go. The row at
+-- the top of the view stays there.
 local resized   -- the page holding its place through a resize
 
 function Page.startResize(page)
-	local mode = Page.resizeMode
-	if mode == "none" or not page then return end
-	Page.resizing, resized = mode, page
+	if not page then return end
+	Page.resizing, resized = true, page
 	local offset = page.scroll:GetVerticalScroll()
 	local hold = { offset = offset }
 	-- The row at the top of the view, and how far into it the view starts.
-	if mode ~= "hold" then
-		for _, it in ipairs(page.items) do
-			if it.visible and it.y and it.y + it.h > offset then
-				hold.row, hold.dy = it, offset - it.y
-				break
-			end
+	for _, it in ipairs(page.items) do
+		if it.visible and it.y and it.y + it.h > offset then
+			hold.row, hold.dy = it, offset - it.y
+			break
 		end
 	end
 	page.hold = hold
 end
 
 function Page.endResize()
-	local page, mode = resized, Page.resizing
+	local page = resized
 	Page.resizing, resized = nil, nil
 	if not page then return end
-	if mode == "freeze" then
-		-- The widths the frozen size changes left alone, on every page; the page on show laid out now.
-		for _, p in ipairs(allPages) do
-			local w = p.scroll:GetWidth()
-			if math.abs(p.content:GetWidth() - w) > 0.5 then
-				p.content:SetWidth(w)
-				p.scroll:UpdateScrollChildRect()
-			end
+	-- The widths the frozen size changes left alone, on every page; the page on show laid out now.
+	for _, p in ipairs(allPages) do
+		local w = p.scroll:GetWidth()
+		if math.abs(p.content:GetWidth() - w) > 0.5 then
+			p.content:SetWidth(w)
+			p.scroll:UpdateScrollChildRect()
 		end
-		if page.scroll:IsVisible() then page:refresh() end
 	end
+	if page.scroll:IsVisible() then page:refresh() end
 	page:keepScroll()
 	-- The layout the last size change queued, and the range changes it brings, come a frame later.
 	local hold = page.hold
