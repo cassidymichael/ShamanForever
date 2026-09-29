@@ -19,9 +19,9 @@
 --      so the in-combat rules below hold until it ends;
 --    * in combat: set to up when UNIT_SPELLCAST_SUCCEEDED reports our own cast of a tracked shield,
 --      known by the shield's own spell IDs (castOf, below), never by its name. Our own cast events
---      are documented as never secret (SecretWhenUnitSpellCastRestricted only hides other units'
---      casts); the combat log is never read. The inference is only
---      "a successful shield cast means that shield is up". Casting an untracked shield sets it to
+--      stay readable: SecretWhenUnitSpellCastRestricted hides other units' casts, and any spell
+--      Blizzard flags always secret; shield casts read plain in combat. The combat log is never
+--      read. The inference is only "a successful shield cast means that shield is up". Casting an untracked shield sets it to
 --      down, since that shield replaces the tracked one (the same inference, applied to exclusivity).
 --    * Nothing else can set it to down in combat. A shield that drops mid-fight shows the underlay at
 --      the "In-combat fallback" strength (No shield block; underlayUp) until the recast or combat
@@ -140,7 +140,7 @@ local function castOf(id)
 	for _, key in ipairs(SHIELD_ORDER) do
 		local s = SHIELDS[key]
 		if n == s.name then
-			local ok, mine = safe(IsPlayerSpell, id)
+			local ok, mine = safe(C_SpellBook.IsSpellKnown, id)
 			if not ok or isSecret(mine) then return nil end   -- no answer: asked again next time
 			if mine == true then
 				s.castIDs[id] = true
