@@ -452,9 +452,9 @@ local AB_MASK, AB_FRAME = "UI-HUD-ActionBar-IconFrame-Mask", "UI-HUD-ActionBar-I
 S.addLook("border", "line", { name = "Line", rings = { { px = "size", color = "color" } } })
 S.addLook("border", "hairline", { name = "Gold hairline",
 	rings = { { color = BLACK }, { color = GOLD }, { color = BLACK } } })
--- Lit from the top left.
+-- Lit from the top left; the lit band is Border size thick.
 S.addLook("border", "bevel", { name = "Bronze bevel",
-	rings = { { color = BLACK }, { top = BRONZE_HI, left = BRONZE_HI, bottom = BRONZE_LO, right = BRONZE_LO },
+	rings = { { color = BLACK }, { px = "size", top = BRONZE_HI, left = BRONZE_HI, bottom = BRONZE_LO, right = BRONZE_LO },
 		{ color = BRONZE_DARK } } })
 S.addLook("border", "caps", { name = "Corner caps",
 	rings = { { px = "size", color = "color" } }, caps = { px = "capSize", len = 6, color = "capColor" } })
