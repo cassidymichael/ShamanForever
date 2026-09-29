@@ -317,14 +317,36 @@ local function onList(b)
 	return table.concat(on, ", ")
 end
 
--- The header's chevron (down while open, right while folded) and, folded, what's on.
-local CHEVRON_W, CHEVRON_H = 12, 7
+-- The fold arrow before a header: Page.ARROWS holds the looks by name and Page.arrowStyle names
+-- the one in use. A look's set(texture, folded) draws the state's arrow and sizes the texture.
+Page.ARROWS = {
+	-- The arrow from Blizzard's totem bar art (as the totem bar's picker tabs use), turned to point
+	-- down while open and right while folded. SetRotation turns the drawn quad, so the size stays
+	-- as the open arrow's.
+	chevron = { set = function(t, isFolded)
+		t:SetTexture("Interface\\Buttons\\UI-TotemBar")
+		t:SetTexCoord(0.5625, 0.71875, 0.34375, 0.3828125)
+		t:SetBlendMode("ADD")
+		t:SetSize(12, 7)
+		t:SetRotation(isFolded and -math.pi / 2 or math.pi)
+	end },
+}
+Page.arrowStyle = "chevron"
+
+-- The header's arrow and, folded, what's on.
 function Page:paintHeader(b)
 	local f = b.head.frame
 	local isFolded = folded()[b.key] and true or false
-	-- SetRotation turns the drawn quad, so the size stays as the open chevron's.
-	f.chevron:SetSize(CHEVRON_W, CHEVRON_H)
-	f.chevron:SetRotation(isFolded and -math.pi / 2 or math.pi)
+	local look, arrow = Page.ARROWS[Page.arrowStyle] or Page.ARROWS.chevron, f.chevron
+	if f.arrowLook ~= look then   -- from another look: back to a plain texture first
+		f.arrowLook = look
+		arrow:SetRotation(0)
+		arrow:SetBlendMode("BLEND")
+		arrow:SetVertexColor(1, 1, 1, 1)
+		arrow:SetDesaturated(false)
+		arrow:SetTexCoord(0, 1, 0, 1)
+	end
+	look.set(arrow, isFolded)
 	f.says:SetShown(isFolded)
 	if isFolded then
 		f.says:SetText(onList(b))
@@ -364,11 +386,8 @@ function Page:header(text, shown, note, icon)
 		block = { index = #self.blockList + 1, key = key, items = {} }
 		table.insert(self.blockList, block)
 		self.block = block
-		-- The chevron: the arrow from Blizzard's totem bar art (as the totem bar's picker tabs use).
+		-- The fold arrow (painted by paintHeader).
 		f.chevron = f:CreateTexture(nil, "ARTWORK")
-		f.chevron:SetTexture("Interface\\Buttons\\UI-TotemBar")
-		f.chevron:SetTexCoord(0.5625, 0.71875, 0.34375, 0.3828125)
-		f.chevron:SetBlendMode("ADD")
 		f.chevron:SetPoint("CENTER", f, "BOTTOMLEFT", 6, 15)
 		f.says = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 		f.says:SetPoint("BOTTOMRIGHT", 0, 9)
