@@ -65,7 +65,7 @@ TB.DEFAULTS = {
 	warnPulse = true,
 	warnGlow = false,         -- a pulsing glow inside the slot (the bar's glow style)
 	expiredPop = true,        -- the totem pops and fades the moment it runs out
-	goneSound = "none",       -- a sound when a totem ends, run out or killed (ShamanForever_Sounds.lua)
+	goneSound = "none",       -- a sound when a totem runs out or is killed (ShamanForever_Sounds.lua)
 	warn = 10,                -- seconds before the end (0 = off)
 	-- Totem -> seconds, instead of warn (short-lived ones). Keyed by the client's rank-less spell
 	-- name; the defaults (Earthbind and Stoneclaw, 5 s; Mana Tide, 3 s, as on its element: its
