@@ -1324,8 +1324,11 @@ for _, el in ipairs(ELEMENTS) do
 	wrapHover(slots[el].popout.strip)
 end
 -- Hover mode: a picker the bar took along when it hid (Alt+Z hides the whole UI, in combat too) has
--- lost the hover driver, which drops hidden frames. It closes when the bar shows again.
-SecureHandlerWrapScript(bar, "OnShow", picker, [[
+-- lost the hover driver, which drops hidden frames. It closes when the bar shows again, seen by an
+-- explicitly protected child that stays shown (a wrapped script runs only on such a frame, and the
+-- bar is a plain frame).
+local onShow = CreateFrame("Frame", nil, bar, "SecureFrameTemplate")
+SecureHandlerWrapScript(onShow, "OnShow", picker, [[
 	if owner:GetAttribute("sf-hovermode") then owner:RunAttribute("sf-open", 0) end
 ]])
 
