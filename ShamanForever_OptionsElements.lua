@@ -141,7 +141,7 @@ local function elementDisplay(p, key)
 	edit:SetPoint("LEFT", groupRow.dropdown, "RIGHT", 8, 0)
 	edit:SetText("Group settings")
 	edit:SetScript("OnClick", function() local g = ns.groupOf(key); if g then ns.Options.openGroup(g.id) end end)
-	setTip(edit, "Group settings", "This group's panel on the Groups & Layout page.")
+	setTip(edit, "Group settings", "This group's settings on the Groups & Layout page.")
 	local item = p.items[#p.items]
 	local refresh = item.refresh
 	item.refresh = function()

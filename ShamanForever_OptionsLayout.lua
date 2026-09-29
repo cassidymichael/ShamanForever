@@ -1,11 +1,10 @@
 -- The options window's Groups & Layout page: the groups listed on the left (name, element count
--- and an icon strip), and beside the list every group as a panel of its own, in the list's order:
--- its name (Rename edits it in place), its elements right under it, then its settings. A panel
--- folds from its header, and folded it names its elements. Clicking a group in the list goes to its
--- panel. Drag an element onto a group in the list, onto a panel's elements (between two to set the
--- order) or its name, or onto New group for a group of its own; click one for a menu. The groups
--- are ShamanForever.lua's (db.groups): every change goes through its layout edits, which wait out
--- combat.
+-- and an icon strip), and beside the list the chosen group: its name
+-- (Rename edits it in place), its elements right under it, then its settings. Clicking a group in
+-- the list chooses it. Drag an element onto a group in the list, between the chosen group's
+-- elements to set the order, or onto New group for a group of its own; click one for a menu. The
+-- groups are ShamanForever.lua's (db.groups): every change goes through its layout edits, which
+-- wait out combat.
 local _, ns = ...
 
 local LP = {}
@@ -20,12 +19,22 @@ local relayout = K.relayout
 local function db() return ns.getDB() end
 
 ------------------------------------------------------------------------
--- The chosen group: the one last gone to, marked gold in the list
+-- The chosen group: the one the page shows, marked gold in the list
 ------------------------------------------------------------------------
 local chosen   -- its id
 local reveal = false   -- scroll the list to the chosen group on the next refresh
 
--- Marks the group with this id, scrolled into the list's view next time the page draws.
+-- The chosen group, or the first when it is gone (or none was chosen).
+local function selected()
+	local g = ns.groupById(chosen)
+	if not g then
+		g = db().groups[1]
+		chosen = g and g.id
+	end
+	return g
+end
+
+-- Shows the group with this id next time the page draws, scrolled into the list's view.
 function LP.choose(id)
 	chosen = id
 	reveal = true
@@ -41,12 +50,14 @@ K.confirm("SHAMANFOREVER_SPLIT", "Split %s into one group per element?\nPutting 
 	function(id) ns.splitGroup(id) end)
 K.confirm("SHAMANFOREVER_HIDEALL", "Hide every element in %s?\nEach one's Show setting becomes Hidden.", "Hide all",
 	function(id) ns.hideGroup(id) end)
-local forgetFold   -- below: a deleted group's fold goes with it
+-- The group after it in the list is chosen next, or the one before when it was last.
 K.confirm("SHAMANFOREVER_DELETE_GROUP", "Delete the group %s?\n%s", "Delete", function(id)
-	if ns.deleteGroup(id) then
-		forgetFold(id)
-		ns.Options.refresh()
-	end
+	local _, i = ns.groupById(id)
+	if not (i and ns.deleteGroup(id)) then return end
+	local groups = db().groups
+	local after = groups[i] or groups[i - 1]
+	chosen = after and after.id
+	ns.Options.refresh()
 end)
 local function askDelete(g)
 	if not g then return end
@@ -63,7 +74,7 @@ end
 local CHIP_STEP = 26   -- a chip is 2 shorter, leaving a gap
 local drag = {}        -- key: the element dragged; kind and over: the drop target under the cursor
 local page, list, rows, loose, newButton   -- built with the page (LP.build)
-local slots = {}       -- the group panels, one per place in db.groups (buildSlot)
+local view = {}        -- the chosen group's header (head) and elements (box, inner, line): LP.build
 
 local function elementName(key) return ns.Look.elementName(key) end
 
@@ -87,14 +98,13 @@ local function fillChip(chip, key)
 	chip:SetAlpha((learned and ns.showMode(key) ~= "never") and 1 or 0.6)
 end
 
--- Where a drop on a panel's elements lands: its place among the others.
-local function dropIndex(s)
-	return Page.dropPosition(s.inner.shown, function(chip) return chip.key == drag.key end)
+-- Where a drop on the chosen group's elements lands: its place among the others.
+local function dropIndex()
+	return Page.dropPosition(view.inner.shown, function(chip) return chip.key == drag.key end)
 end
 
 -- The drop target under the cursor: "new" (the New group button), "row" and a group's row in the
--- list, "box" and a panel (its elements), or "head" and a panel (its name). What's scrolled out of
--- view doesn't count.
+-- list, or "box" (the chosen group's elements). What's scrolled out of view doesn't count.
 local function targetUnderCursor()
 	if list.scroll:IsMouseOver() then
 		if newButton:IsVisible() and newButton:IsMouseOver() then return "new" end
@@ -103,11 +113,7 @@ local function targetUnderCursor()
 		end
 		return
 	end
-	if not page.scroll:IsMouseOver() then return end
-	for _, s in ipairs(slots) do
-		if s.box:IsVisible() and s.box:IsMouseOver() then return "box", s end
-		if s.head:IsVisible() and s.head:IsMouseOver() then return "head", s end
-	end
+	if page.scroll:IsMouseOver() and view.box:IsVisible() and view.box:IsMouseOver() then return "box" end
 end
 
 -- Gold marks the chosen group, as it marks the current page in the nav; white is drop feedback.
@@ -122,11 +128,10 @@ local function updateDragFeedback()
 	drag.kind, drag.over = targetUnderCursor()
 	for _, r in ipairs(rows.pool) do rowBorder(r) end
 	if drag.kind == "new" then newButton:LockHighlight() else newButton:UnlockHighlight() end
-	for _, s in ipairs(slots) do s.line:Hide() end
+	view.line:Hide()
 	if drag.kind ~= "box" then return end
-	local s = drag.over
-	local line, inner = s.line, s.inner
-	local at, others = dropIndex(s)
+	local line, inner = view.line, view.inner
+	local at, others = dropIndex()
 	if not Page.placeDropLine(line, others, at) then   -- no other elements: under the caption
 		line:SetPoint("TOPLEFT", inner, "TOPLEFT", 0, -inner.top + 1)
 		line:SetPoint("TOPRIGHT", inner, "TOPRIGHT", 0, -inner.top + 1)
@@ -148,21 +153,21 @@ local function endDrag(drop)
 	local key = drag.key
 	local kind, over
 	if key and drop then kind, over = targetUnderCursor() end
-	local at = kind == "box" and dropIndex(over)   -- while the dragged chip is still left out
+	local at = kind == "box" and dropIndex()   -- while the dragged chip is still left out
 	drag.key, drag.kind, drag.over = nil, nil, nil
 	drag.ended = GetTime()
 	drag.ghost:Hide()
-	for _, s in ipairs(slots) do s.line:Hide() end
+	view.line:Hide()
 	newButton:UnlockHighlight()
 	if not key then return end
 	if kind == "new" then
 		local done, id = ns.placeElement(key, "new")
 		if done and id then ns.Options.openGroup(id) end
 	elseif kind == "box" then
-		local to = over.group()
+		local to = selected()
 		if to then ns.placeElement(key, to.id, at) end
-	elseif kind == "row" or kind == "head" then
-		local to = kind == "row" and ns.groupById(over.id) or over.group()
+	elseif kind == "row" then
+		local to = ns.groupById(over.id)
 		if to and to ~= ns.groupOf(key) then ns.placeElement(key, to.id) end
 	end
 	ns.Options.refresh()   -- also restores the dimmed chip when nothing moved
@@ -316,6 +321,7 @@ local function fillRow(r, g, w)
 end
 
 local function layoutRows()
+	selected()   -- a chosen group that's gone falls back to the first
 	local w = list.content:GetWidth()
 	for i, g in ipairs(db().groups) do
 		local r = rows.pool[i]
@@ -393,8 +399,6 @@ local function placeColumns()
 	page.scroll:SetPoint("TOPLEFT", page.win, "TOPLEFT", NAV_W + 18 + w + 12, PAGE_TOP)
 end
 
-local ensureSlots   -- below: a panel for every group
-
 local function buildList()
 	list = Page.new(page.win, "layoutGroups")
 	list.panels = false   -- a column of groups, not blocks of settings
@@ -408,12 +412,10 @@ local function buildList()
 		s.ScrollBar:SetPoint("BOTTOMLEFT", s, "BOTTOMRIGHT", 4, 0)
 	end
 	placeColumns()
-	-- The list shows and refreshes with the page, as a pinned header does (Page:pin), before the
-	-- page lays out: the page's panels are made here as groups are added.
+	-- The list shows and refreshes with the page, as a pinned header does (Page:pin).
 	page.fixed = s
 	function s.refresh()
 		placeColumns()
-		ensureSlots()
 		list:refresh()
 	end
 	list.afterRefresh = revealChosen
@@ -436,40 +438,33 @@ local function buildList()
 end
 
 ------------------------------------------------------------------------
--- A group's panel: its name, its elements, its settings. Each panel shows the group in its place in
--- db.groups, so deleting one moves the ones after it up a panel.
+-- The chosen group: its name, its elements right under it, then its settings
 ------------------------------------------------------------------------
--- Wide enough (a wide window), a panel's elements stand in a column left of its settings.
-local WIDE_AT, MEMBERS_W, COLUMN_GAP = 680, 240, 18
 local BOX_PAD = 6      -- the elements' box: its inset around the chips
 local CAPTION_H = 22   -- the Elements caption above the chips
-local function wide() return page.content:GetWidth() >= WIDE_AT end
 
--- The name being edited: { slot, id }, one at a time. Enter or Accept saves it; Escape or Cancel
--- leaves the name as it was. It belongs to the group it was started for: if that group leaves the
--- panel or is gone (deleted), the edit ends.
+-- The id of the group whose name is being edited. Enter or Accept saves it; Escape or Cancel leaves
+-- it as it was. Choosing another group (or the group going) ends the edit. Renaming works in combat:
+-- it only changes a saved name and our own frames, and the HUD's labels wait for the layout.
 local renaming
 
 local function stopRename()
-	local r = renaming
 	renaming = nil
-	if r then r.slot.head.box:ClearFocus() end
+	view.head.box:ClearFocus()
 	ns.Options.refresh()
 end
 
 local function acceptRename()
-	local r = renaming
-	if not r then return end
-	ns.renameGroup(r.id, r.slot.head.box:GetText())
+	if not renaming then return end
+	ns.renameGroup(renaming, view.head.box:GetText())
 	stopRename()
 end
 
-local function startRename(s)
-	local g = s.group()
+local function startRename()
+	local g = selected()
 	if not g then return end
-	if renaming and renaming.slot ~= s then renaming.slot.head.box:ClearFocus() end
-	renaming = { slot = s, id = g.id }
-	local box = s.head.box
+	renaming = g.id
+	local box = view.head.box
 	box:SetText(g.name)
 	box:Show()
 	box:SetFocus()
@@ -478,7 +473,7 @@ local function startRename(s)
 end
 
 -- The header's Rename button and, while renaming, the name box with Accept and Cancel beside it.
-local function renameControls(s, head)
+local function renameControls(head)
 	local function button(text, width, onClick)
 		local b = CreateFrame("Button", nil, head, "UIPanelButtonTemplate")
 		b:SetSize(width, 20)
@@ -486,13 +481,9 @@ local function renameControls(s, head)
 		b:SetScript("OnClick", onClick)
 		return b
 	end
-	head.rename = button("Rename", 76, function() startRename(s) end)
+	head.rename = button("Rename", 76, startRename)
 	head.rename:SetPoint("BOTTOMRIGHT", 0, 6)
 	setTip(head.rename, "Rename", "A name another group has gets a number added.")
-	-- A folded panel's element names end left of the button.
-	head.says:ClearAllPoints()
-	head.says:SetPoint("BOTTOMRIGHT", head.rename, "BOTTOMLEFT", -10, 3)
-	head.saysRight = 86
 	local box = CreateFrame("EditBox", nil, head, "InputBoxTemplate")
 	box:SetSize(200, 20)
 	box:SetPoint("BOTTOMLEFT", head.textX + 6, 6)
@@ -510,13 +501,13 @@ local function renameControls(s, head)
 end
 
 -- The header: the group's name and count, or the name being edited.
-local function paintHead(s)
-	local g, head = s.group(), s.head
+local function paintHead()
+	local g, head = selected(), view.head
 	local n = #g.members
 	head.text:SetText(g.name)
 	head.note:SetText(n == 1 and "1 element" or n .. " elements")
-	if renaming and renaming.slot == s and renaming.id ~= g.id then renaming = nil end
-	local editing = renaming ~= nil and renaming.slot == s
+	if renaming and renaming ~= g.id then renaming = nil end
+	local editing = renaming ~= nil
 	if not editing and head.box:HasFocus() then head.box:ClearFocus() end
 	head.text:SetShown(not editing)
 	head.note:SetShown(not editing)
@@ -524,11 +515,10 @@ local function paintHead(s)
 	head.box:SetShown(editing)
 	head.accept:SetShown(editing)
 	head.cancel:SetShown(editing)
-	head.says:SetAlpha(editing and 0 or 1)
 end
 
 -- The elements: a box right under the name, the chips in their order.
-local function buildBox(p, s)
+local function buildBox(p)
 	local box = p:row(10)
 	local bg = CreateFrame("Frame", nil, box, "BackdropTemplate")
 	bg:SetPoint("TOPLEFT")
@@ -546,7 +536,7 @@ local function buildBox(p, s)
 	hint:SetText("Drag to reorder, or onto a group to move it.")
 	local empty = inner:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 	empty:SetText("Empty. Drop an element here.")
-	s.box, s.inner, s.line = box, inner, Page.dropLine(inner)
+	view.box, view.inner, view.line = box, inner, Page.dropLine(inner)
 	-- The hint beside the caption, or under it in a narrow column; the chips start below both.
 	local function placeCaption(w)
 		hint:ClearAllPoints()
@@ -563,7 +553,7 @@ local function buildBox(p, s)
 	end
 	p:add(box, function() return box.height or 1 end, nil, function()
 		placeCaption(p:width() - 2 * BOX_PAD)
-		local g = s.group()
+		local g = selected()
 		local keys = g and g.members or {}
 		local h = placeChips(inner, keys, inner.top)
 		empty:SetShown(#keys == 0)
@@ -572,12 +562,12 @@ local function buildBox(p, s)
 	end)
 end
 
-local function buildSettings(p, s)
-	local G = s.group
+local function buildSettings(p)
+	local G = selected
 	local function get(key) return function() local g = G(); return g and g[key] end end
 	local function set(key) return function(v) local g = G(); if g then g[key] = v; relayout() end end end
 	local show = p:dropdown("Show", "When the group is on screen. Everything visible shows while positioning is unlocked.",
-		K.COMBAT_SHOW, get("show"), set("show"), nil, 226)
+		K.COMBAT_SHOW, get("show"), set("show"), nil, 240)
 	p:sub(show, function() local g = G(); return g ~= nil and g.show ~= "always" end, function()
 		p:slider("Stay after combat", K.STAY_TIP, 0, 10, 1, K.staySecs, get("fadeAfter"), set("fadeAfter"))
 	end)
@@ -597,8 +587,7 @@ local function buildSettings(p, s)
 			relayout()
 		end, "size")
 	p:sub(follow, function() local g = G(); return g ~= nil and not g.sizeFollow end, function()
-		p:slider("Icon size", nil, 24, 96, 1, int,
-			get("size"), set("size"))
+		p:slider("Icon size", nil, 24, 96, 1, int, get("size"), set("size"))
 	end)
 	p:text("Icon size keeps borders and rings crisp. Scale grows everything, borders and rings included.")
 	p:slider("Scale", "Grows everything in the group, borders and rings too.", 0.5, 3, 0.05, times,
@@ -610,8 +599,7 @@ local function buildSettings(p, s)
 			g.scale = v
 			relayout()
 		end)
-	p:slider("Opacity", "Transparency of the group.", 0.1, 1, 0.05, pct,
-		get("alpha"), set("alpha"))
+	p:slider("Opacity", "Transparency of the group.", 0.1, 1, 0.05, pct, get("alpha"), set("alpha"))
 	K.borderRows(p, G, relayout, "Border same as General")
 	p:buttons({
 		-- Hard to undo, so each asks first.
@@ -622,91 +610,36 @@ local function buildSettings(p, s)
 	-- Not while its name is being edited: the edit belongs to the group.
 	p:buttons({
 		{ "Delete group", function() askDelete(G()) end, "Its elements move to Ungrouped: off screen, their settings kept.", 110,
-			function() return not (renaming and renaming.slot == s) end },
+			function() return renaming == nil end },
 	})
+	p:add(p:row(10), 10)
 end
 
--- The panel for the i-th group: made the first time there is one, then shown while there is. The
--- page's run settings (gate, inset, float, sub) are put back even if a row fails to build, and
--- then no more panels are made (a half-made one would be made again on every refresh).
-local slotFailed = false
-local function buildSlot(p, i)
-	local s = {}
-	function s.group() return db().groups[i] end
-	p.gate = function() return s.group() ~= nil end
-	local ok, err = pcall(function()
-		s.head = p:header(" ", nil, " ")
-		s.block = p.block
-		-- Folded, it names its elements.
-		function s.block.summary()
-			local g, names = s.group(), {}
-			for _, key in ipairs(g and g.members or {}) do table.insert(names, elementName(key)) end
-			return table.concat(names, ", ")
-		end
-		renameControls(s, s.head)
-		p.items[#p.items].refresh = function() paintHead(s) end
-		p.float = wide
-		p.inset = function() return 0, wide() and p.content:GetWidth() - MEMBERS_W or 0 end
-		buildBox(p, s)
-		p.float = nil
-		p.inset = function() return wide() and MEMBERS_W + COLUMN_GAP or 0, 0 end
-		buildSettings(p, s)
-	end)
-	p.inset, p.float, p.gate, p.subRun = nil, nil, nil, nil
-	if not ok then
-		slotFailed = true
-		error(err, 0)
-	end
-	slots[i] = s
-end
-
--- A panel's fold is kept by its group: saved with the account like every block's, under the
--- profile's name and the group's id (ids are a profile's own), so a folded group stays folded when
--- the ones before it are deleted. A deleted group's fold is forgotten, and a group made since the
--- page last drew starts open, so a new group never takes an old one's fold with its id.
-local function foldKey(id) return "layout:" .. tostring(ns.profileName()) .. ":group" .. id end
-function forgetFold(id) ns.getAccount().foldedBlocks[foldKey(id)] = nil end
-local seenIds, seenProfile   -- the groups when the page last drew, and whose they were
-
-function ensureSlots()
-	local groups = db().groups
-	local profile = ns.profileName()
-	local ids = {}
-	for _, g in ipairs(groups) do
-		ids[g.id] = true
-		if seenIds and seenProfile == profile and not seenIds[g.id] then forgetFold(g.id) end
-	end
-	seenIds, seenProfile = ids, profile
-	-- An edit whose group has left its panel (deleted, moved up by a deletion before it, another
-	-- profile) ends, so it can't come back on a new group that gets the same id.
-	local editing = renaming and renaming.slot.group()
-	if renaming and not (editing and editing.id == renaming.id) then
-		local r = renaming
-		renaming = nil
-		r.slot.head.box:ClearFocus()
-	end
-	if not slotFailed then
-		for i = #slots + 1, #groups do buildSlot(page, i) end
-	end
-	for i, s in ipairs(slots) do
-		if groups[i] then s.block.key = foldKey(groups[i].id) end
-	end
-end
-
--- The header of the panel for the group with this id, once the page has drawn it.
+-- The header of the chosen group, when it is the group with this id (the page shows it).
 function LP.headerOf(id)
-	for i, g in ipairs(db().groups) do
-		if g.id == id then return slots[i] and slots[i].head end
-	end
+	local g = selected()
+	if g and g.id == id then return view.head end
 end
 
--- The page: the group list on its left, every group's panel beside it.
+-- The page: the group list on its left, the chosen group beside it.
 function LP.build(p)
 	page = p
-	p.cull = true   -- a panel per group makes a long page: a settings change refreshes the rows in view
+	p.panels = false   -- one group's settings, under its name: no blocks to fold
+	-- Folds this page saved when it showed every group at once are gone with them.
+	local folded = ns.getAccount().foldedBlocks
+	for key in pairs(folded) do
+		if key:find("^layout:") then folded[key] = nil end
+	end
 	buildList()
 	drag.ghost = Page.dragGhost(updateDragFeedback)
 	p:text("No groups. New group makes one.", function() return #db().groups == 0 end)
+	p.gate = function() return #db().groups > 0 end
+	view.head = p:header(" ", nil, " ")
+	renameControls(view.head)
+	p.items[#p.items].refresh = paintHead
+	buildBox(p)
+	buildSettings(p)
+	p.gate = nil
 	-- Closed or left mid-drag (Escape, the key binding), the release may never come: drop nothing.
 	-- A name being edited is left as it was.
 	local function left()

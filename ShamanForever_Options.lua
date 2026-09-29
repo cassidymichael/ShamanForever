@@ -1425,7 +1425,7 @@ function OP.showExperimental() showAboutSection(aboutExp) end
 function OP.showFeedback() showAboutSection(aboutFeedback) end
 
 
--- Groups & Layout, scrolled to the panel of the group with this id, whose header flashes.
+-- Groups & Layout showing the group with this id, whose header flashes.
 function OP.openGroup(id)
 	OP.open("layout", id)
 	local p = pages.layout
