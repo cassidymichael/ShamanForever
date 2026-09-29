@@ -246,7 +246,9 @@ local function placeMask(m, spec, over, w, h)
 	if spec.atlas then m:SetAtlas(spec.atlas, false, nil, nil, CLAMP, CLAMP)
 	else m:SetTexture(spec.file, CLAMP, CLAMP) end
 	m:ClearAllPoints()
-	if (spec.scale or 1) == 1 then m:SetAllPoints(over)
+	-- A size that reads as secret (the totem bar's picture, under its secure button) can't be
+	-- scaled: the mask then covers the picture exactly, a little tighter than the look's own.
+	if (spec.scale or 1) == 1 or ns.isSecret(w) or ns.isSecret(h) then m:SetAllPoints(over)
 	else
 		m:SetPoint("CENTER", over, "CENTER", 0, 0)
 		m:SetSize(w * spec.scale, (h or w) * spec.scale)
