@@ -353,7 +353,6 @@ L.PREVIEW = {
 	shield = {
 		uptime = true, barInset = function() return ns.Shield.timeBarInset() end,
 		states = { { "up3", "3 charges" }, { "up1", "1 charge" }, { "down", "No shield" }, { "drop", "Dropped in combat" } },
-		pop = function(ic, st) if st == "up3" and db().shieldPop then ic:Pop() end end,
 		render = function(ic, st)
 			local d = db()
 			local water = d.shieldTrack == "water"

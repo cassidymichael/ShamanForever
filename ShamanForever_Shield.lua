@@ -420,35 +420,6 @@ local function refreshAura()
 	setUpShield(upKey or "none")
 end
 
--- The pop on each new shield: from our own successful cast of a tracked shield, which is readable
--- in combat, never from the aura. Blizzard's button covers the icon, and the frames it hangs from
--- (this element's) must not be moved in combat, so the pop plays on a copy of the icon above the
--- button, shown only while it plays. POP_TIME is a fallback, not every look's real length (a Ready
--- pop look can run past 0.7 s at normal speed): long enough for the classic pop and short-lived
--- looks; a look that finishes sooner just leaves the same icon showing until it hides, so lingering
--- past the animation is never visible.
-local popper = CreateFrame("Frame", nil, shield)
-popper:SetAllPoints()
-popper:Hide()
-popper.tex = popper:CreateTexture(nil, "ARTWORK")
-popper.tex:SetAllPoints()
-ns.cropIcon(popper.tex)
-local POP_TIME = 0.8
-local function popNewShield()
-	if not (ns.isEnabled("shield") and ns.getDB().shieldPop) then return end
-	-- Above the container (the text layer + 5, set by its restyle) and its GCD sweep (+10 more:
-	-- refreshGCD below), so a sweep starting mid-pop never covers it.
-	popper:SetFrameLevel(shield.textFrame:GetFrameLevel() + 20)
-	popper.tex:SetTexture(SH.icon())
-	popper:Show()
-	if not popper:IsVisible() then popper:Hide() return end   -- its group is hidden: nothing to see
-	ns.playPop(popper, "ready", "shield")
-	local token = {}
-	popper.token = token
-	local speed = math.max(ns.Style.get("shield", "pop").speed, 0.1)
-	C_Timer.After(POP_TIME / speed, function() if popper.token == token then popper:Hide() end end)
-end
-
 -- Our own successful cast (UNIT_SPELLCAST_SUCCEEDED, spellID not secret). The one inference: our
 -- cast means that shield is up and the other is gone (see the top of this file).
 function SH.onCast(spellID)
@@ -456,7 +427,6 @@ function SH.onCast(spellID)
 	if not cast then return end
 	ns.getAccount().lastShield = cast
 	setUpShield(cast)
-	if tracksShield(cast) then popNewShield() end
 end
 
 -- The global cooldown on the shield, when its Global cooldown style is on. The shield's time left
