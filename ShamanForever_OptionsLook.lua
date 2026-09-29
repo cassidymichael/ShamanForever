@@ -752,7 +752,7 @@ L.PREVIEW.totembar = {
 				ic:ClearAllPoints()
 				place(ic, slotAt[i], (line - size) / 2)
 				ns.applyBorder(ic, border)
-				local pick = GetActionTexture and TB.pickTexture(el)
+				local pick = TB.pickTexture(el)
 				if ns.isSecret(pick) then pick = nil end   -- never compared while secret (combat)
 				reset(ic, pick or TOTEM_ICON[el])
 				ic.badge:Hide()
