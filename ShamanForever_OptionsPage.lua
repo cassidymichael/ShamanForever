@@ -174,7 +174,7 @@ end
 -- margins inside the page (a second column); float, a function: while true, the rows after it start
 -- level with it instead of below it, so it stands beside them (give them an inset to make room).
 -- A page with panels = false (set before its first header) has no blocks: its rows use the whole
--- page, as the Layout page's columns do.
+-- page, as the Layout page's group list does.
 function Page:add(frame, height, shown, refresh)
 	-- A page-wide gate (set around a run of rows) hides them all while it returns false.
 	local gate = self.gate
@@ -404,16 +404,18 @@ local function paintArrow(t, isFolded)
 	end
 end
 
--- The header's arrow and, folded, what's on.
+-- The header's arrow and, folded, what's on: the block's own summary if it has one (b.summary, a
+-- function), else its ticked boxes. f.saysRight: room kept at the header's right (a button there).
 function Page:paintHeader(b)
 	local f = b.head.frame
 	local isFolded = folded()[b.key] and true or false
 	paintArrow(f.arrow, isFolded)
 	f.says:SetShown(isFolded)
 	if isFolded then
-		f.says:SetText(onList(b))
+		f.says:SetText(b.summary and b.summary() or onList(b))
 		local used = f.textX + f.text:GetStringWidth() + (f.note and 10 + f.note:GetStringWidth() or 0)
-		f.says:SetWidth(math.max(self.rowW - used - 24, 1))   -- cut short with "..." where it's long
+		-- Cut short with "..." where it's long.
+		f.says:SetWidth(math.max(self.rowW - used - 24 - (f.saysRight or 0), 1))
 	end
 end
 
