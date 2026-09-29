@@ -74,7 +74,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 
 ### Layout
 
-- Arrange elements into named groups: rows or columns, each with its own position, spacing, icon size, scale, opacity and border. The Groups & Layout page shows each group as a panel, its elements under its name; drag an element onto another group to move it there.
+- Arrange elements into named groups: rows or columns, each with its own position, spacing, icon size, scale, opacity and border. On the Groups & Layout page, pick a group to see its elements and settings, and drag an element onto another group to move it there.
 - Delete group: its elements move to Ungrouped, off screen with their settings kept, until you put them in a group again.
 - Show each element always, only in combat, or never. A group can show Always, In combat, or In combat or with an enemy target.
 - Stay after combat: a group or the totem bar that doesn't show Always can stay up to 10 seconds once combat ends, then fade out.
