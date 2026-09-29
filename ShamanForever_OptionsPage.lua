@@ -16,7 +16,7 @@ Page.PAGE_TOP = -38   -- pages start below the title bar
 Page.LABEL_W = 150
 local WIDTH, NAV_W, PAGE_TOP, LABEL_W = Page.WIDTH, Page.NAV_W, Page.PAGE_TOP, Page.LABEL_W
 local ROW_W = WIDTH - NAV_W - 64                  -- initial row width; rows then follow the window
-local SLIDER_MAX_W, SLIDER_VALUE_W = 360, 56   -- the value text sits right of the slider
+local SLIDER_SPAN_W = 400   -- a slider and its value box, at most
 
 -- above: over the frame's top-left corner, for full-width rows, whose right edge is far from the
 -- mouse on the label; otherwise to the right of the frame.
@@ -195,80 +195,92 @@ function Page:checkbox(label, tip, get, set, shown)
 	return self:add(f, 30, shown, function() cb:SetChecked(get() and true or false) end)
 end
 
--- How a slider's value reads beside it. A slider in pixels, plain numbers or times (sizes, spacing,
--- offsets, scale) shows its value in a box the player can also type in.
+-- How a slider's value reads in the box beside it, where the player can also type one.
 function Page.pct(v) return string.format("%.0f%%", v * 100) end
 function Page.times(v) return string.format("%.2fx", v) end
 function Page.int(v) return string.format("%d", v) end
 function Page.px(v) return string.format("%d px", v) end
-local TYPED = { [Page.px] = true, [Page.int] = true, [Page.times] = true }
-local BOX_W = 50
+local NUMBER = "%-?%d*%.?%d+"   -- the first number in a text: "44", "-5", "1.25", "44 px", "100%"
+local BOX_W, BOX_GAP = 52, 10
+
+-- A value's units as its label shows them: how many label units one of the value's makes (100 for
+-- a percent of a 0-1 value, else 1), and the decimals the label shows. Read from the label at the
+-- top of the range, or the bottom where the top reads as a word ("Off").
+local function unitsOf(fmt, minV, maxV)
+	for _, v in ipairs({ maxV, minV }) do
+		local text = fmt(v)
+		local shown = tonumber(text:match(NUMBER) or "")
+		if shown and v ~= 0 then
+			local per = math.abs(shown - v * 100) < math.abs(shown - v) and 100 or 1
+			local decimals = text:match("%d%.(%d+)")
+			return per, decimals and #decimals or 0
+		end
+	end
+	return 1, 0
+end
 
 -- fmt: Page.px, Page.int, Page.times, Page.pct or a function of the row's own (seconds, "Off").
--- A typed number takes effect on Enter, snapped to the slider's step and range; Escape, or leaving
--- the box any other way, keeps the value as it was.
+-- A number typed in the box, in the label's units, takes effect on Enter, snapped to the slider's
+-- step and range. Escape, or leaving the box any other way, keeps the value as it was.
 function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown)
 	local f = self:row(34)
 	f.label = self:label(f, label, tip)
 	local s = CreateFrame("Frame", nil, f, "MinimalSliderWithSteppersTemplate")
 	s:SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
 	local updating = false   -- while the page sets the value itself
+	local per, decimals = unitsOf(fmt, minV, maxV)
 	local function snap(v)
 		v = math.floor(v / step + 0.5) * step
 		if step < 1 then v = tonumber(string.format("%.2f", v)) end
 		return v
 	end
-	local box
-	s:Init(get() or minV, minV, maxV, math.floor((maxV - minV) / step + 0.5),
-		not TYPED[fmt] and { [MinimalSliderWithSteppersMixin.Label.Right] = fmt } or nil)
+	local box = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+	s:Init(get() or minV, minV, maxV, math.floor((maxV - minV) / step + 0.5))
 	s:RegisterCallback(MinimalSliderWithSteppersMixin.Event.OnValueChanged, function(_, v)
 		if updating then return end
 		v = snap(v)
 		set(v)
-		if box then   -- moving the slider drops a number half typed
-			box:ClearFocus()
-			box:SetText(fmt(v))
-		end
+		box:ClearFocus()   -- moving the slider drops a number half typed
+		box:SetText(fmt(v))
 	end, s)
-	if TYPED[fmt] then
-		box = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
-		box:SetSize(BOX_W, 20)
-		box:SetPoint("LEFT", s, "RIGHT", 10, 0)
-		box:SetAutoFocus(false)
-		box:SetMaxLetters(8)
-		box:SetFontObject("GameFontHighlight")
-		box:SetJustifyH("CENTER")
-		-- While typing, the bare number; otherwise the value as it reads (44 px, 1.25x).
-		box:SetScript("OnEditFocusGained", function(b)
-			local v = get() or minV
-			b:SetText(step >= 1 and string.format("%d", v) or (string.format("%.2f", v):gsub("%.?0+$", "")))
-			b:HighlightText()
-		end)
-		box:SetScript("OnEditFocusLost", function(b)
-			b:HighlightText(0, 0)
-			b:SetText(fmt(get() or minV))
-		end)
-		box:SetScript("OnEscapePressed", box.ClearFocus)
-		box:SetScript("OnEnterPressed", function(b)
-			-- The first number in the text: "44", "-5", "1.25", "44 px" and "1,25" all read.
-			local n = tonumber((b:GetText():gsub(",", ".")):match("%-?%d*%.?%d+") or "")
-			if n then
-				local v = math.min(math.max(snap(n), minV), maxV)
-				set(v)
-				updating = true
-				s:SetValue(get() or v)
-				updating = false
-			end
-			b:ClearFocus()
-		end)
-	end
+	box:SetSize(BOX_W, 20)
+	box:SetPoint("LEFT", s, "RIGHT", BOX_GAP, 0)
+	box:SetAutoFocus(false)
+	box:SetMaxLetters(8)
+	box:SetFontObject("GameFontHighlight")
+	box:SetJustifyH("CENTER")
+	-- While typing, the bare number (in the label's units); otherwise the value as it reads.
+	box:SetScript("OnEditFocusGained", function(b)
+		local text = string.format("%." .. decimals .. "f", (get() or minV) * per)
+		if decimals > 0 then text = text:gsub("0+$", ""):gsub("%.$", "") end
+		b:SetText(text)
+		b:HighlightText()
+	end)
+	box:SetScript("OnEditFocusLost", function(b)
+		b:HighlightText(0, 0)
+		b:SetText(fmt(get() or minV))
+	end)
+	box:SetScript("OnEscapePressed", box.ClearFocus)
+	box:SetScript("OnEnterPressed", function(b)
+		local n = tonumber((b:GetText():gsub(",", ".")):match(NUMBER) or "")
+		if n then
+			local v = math.min(math.max(snap(n / per), minV), maxV)
+			set(v)
+			updating = true
+			s:SetValue(get() or v)
+			updating = false
+		end
+		b:ClearFocus()
+	end)
 	return self:add(f, 34, shown, function()
-		-- Fit the page width so the value never runs past the edge of a narrow window.
-		s:SetWidth(math.max(math.min(self.content:GetWidth() - LABEL_W - SLIDER_VALUE_W, SLIDER_MAX_W), 80))
+		-- The slider and its box share the row's width, up to their own; the slider takes what the
+		-- box leaves, so a narrow window never pushes the box past its edge.
+		local span = math.min(self.content:GetWidth() - LABEL_W - 8, SLIDER_SPAN_W)
+		s:SetWidth(math.max(span - BOX_GAP - BOX_W, 80))
 		updating = true
 		s:SetValue(get() or minV)
 		updating = false
-		if box and not box:HasFocus() then box:SetText(fmt(get() or minV)) end
+		if not box:HasFocus() then box:SetText(fmt(get() or minV)) end
 	end)
 end
 
