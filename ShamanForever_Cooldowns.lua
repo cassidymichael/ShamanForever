@@ -217,12 +217,24 @@ local function ownCooldownOver(spellID)
 	if zok and not isSecret(z) and type(z) == "boolean" then return z end
 end
 -- Before a cooldown timer takes a new duration: a global-cooldown sweep gets no bling, and the
--- ready pop that fires when it ends is skipped (f.gcdUntil), unless the spell's own cooldown is
--- running under the GCD: then its end is a real "ready".
+-- ready pop and sound when it ends are skipped, unless the spell's own cooldown is running under
+-- the GCD: then its end is a real "ready". f.gcdUntil: a cooldown end up to that moment is the
+-- GCD's. math.huge while a GCD sweep is pending, until its end comes (gcdEnded) or a read shows
+-- the spell's own cooldown; not a clock from the cast, which a slow frame or a longer GCD would
+-- outlast.
 local function noteGCD(f, spellID)
 	local g = CD.onGCD(spellID)
-	if g and ownCooldownOver(spellID) ~= false then f.gcdUntil = GetTime() + 1.6 end
+	local own = ownCooldownOver(spellID)
+	if own == false then f.gcdUntil = nil
+	elseif g then f.gcdUntil = math.huge end
 	f.cd:SetDrawBling(not g)
+end
+-- The pending sweep's end: that moment, so every OnCooldownDone hook on this one end skips it
+-- (GetTime is one value through a frame) and the next end counts. Hooked before the others.
+local function gcdEnded(f)
+	f.cd:HookScript("OnCooldownDone", function()
+		if f.gcdUntil == math.huge then f.gcdUntil = GetTime() end
+	end)
 end
 -- A cooldown timer's duration, by the element's Global cooldown style: on, with the GCD (every cast
 -- sweeps it, as on action bars); off, its own cooldown only (ignoreGCD), which its own cast starts,
@@ -248,6 +260,7 @@ CD.cooldownFor = cooldownFor
 -- that needs a totem down in that slot (Fire Nova), which isn't ready without one: an empty slot
 -- has no duration object (see the file's header).
 local function popWhenReady(f, key, totemSlot)
+	gcdEnded(f)
 	f.cd:HookScript("OnCooldownDone", function()
 		if f.gcdUntil and GetTime() <= f.gcdUntil then return end   -- a global cooldown ended
 		if totemSlot then
@@ -492,9 +505,9 @@ local function refreshCooldowns(inEvent)
 	for _, def in ipairs(COOLDOWNS) do refreshCooldown(def, inEvent) end
 end
 
--- The ready sound (ShamanForever_Sounds.lua), at the ready pop's moment (popWhenReady): not when a
--- global cooldown ends, nor for a spell that needs a totem while none is down. Separate from the
--- pop, which can be off while the sound is on.
+-- The ready sound (ShamanForever_Sounds.lua), at the ready pop's moment (popWhenReady, hooked
+-- first): not when a global cooldown ends, nor for a spell that needs a totem while none is down.
+-- Separate from the pop, which can be off while the sound is on.
 local function soundWhenReady(f, key, totemSlot)
 	f.cd:HookScript("OnCooldownDone", function()
 		if f.gcdUntil and GetTime() <= f.gcdUntil then return end
