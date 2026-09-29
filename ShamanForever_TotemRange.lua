@@ -104,6 +104,10 @@ local function makeMark(s)
 	s.rangeGate, s.rangeMark = gate, m
 end
 
+-- Preview mode (ShamanForever_Preview.lua, called from TB.preview through R.preview): whether our
+-- own parts on Blizzard's button should stay hidden, including one made while it's on.
+local previewOn = false
+
 -- Blizzard's part over our red: an aura slot in the element's container (a list, so another part
 -- would be a line here).
 local PARTS = {
@@ -143,11 +147,37 @@ local function initButton(s, part, button)
 	over.bg:SetAllPoints()
 	s.rangeParts[part.key] = { button = button, icon = icon, over = over }
 	if s.rangeW then styleButton(s, part) end
+	if previewOn then icon:SetAlpha(0); over:SetAlpha(0) end
 end
 
 local function styleButtons(s)
 	for _, part in ipairs(PARTS) do
 		if s.rangeParts[part.key] then styleButton(s, part) end
+	end
+end
+
+-- Preview mode (ShamanForever_Preview.lua, called from TB.preview): hide our own parts on
+-- Blizzard's button (never the container itself, R.layout may stay blocked while auras are secret
+-- and never reach it) so a real green strip can't sit on the preview's picture, and bring them
+-- back the moment the preview ends -- with no layout needed in between.
+function R.preview(on)
+	previewOn = on
+	for _, el in ipairs(TB.ELEMENTS) do
+		local s = TB.slots[el]
+		for _, part in ipairs(PARTS) do
+			local p = s.rangeParts and s.rangeParts[part.key]   -- made with the slot's first strip
+			if p then
+				-- p.icon and p.over sit on Blizzard's aura button, which can be forbidden while
+				-- auras are secret out of combat too (a PvP match): guarded so a refusal there
+				-- can't break the preview's start. Once small-items merges, the holder's own alpha
+				-- is the better way to hide this (the preview draws its own strip); this stays as
+				-- a guard on Blizzard's part.
+				ns.try("totem range: preview", function()
+					p.icon:SetAlpha(on and 0 or 1)
+					p.over:SetAlpha(on and 0 or 1)
+				end)
+			end
+		end
 	end
 end
 
@@ -195,6 +225,7 @@ local function place(s, size, ownOnly)
 	ct:ClearAllPoints()
 	ct:SetPoint("TOPLEFT", gate, "TOPLEFT", 0, 0)
 	ct:SetSize(w, h)
+	ct:SetAlpha(1)   -- preview mode hides our own parts on it instead (R.preview), never the container
 	ct:Show()
 	s.rangeShown = true
 	styleButtons(s)

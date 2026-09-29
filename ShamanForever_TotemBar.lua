@@ -690,6 +690,7 @@ end
 
 local anyDown = false
 local kbOpen = false   -- Blizzard's Quick Keybind Mode is open (Quick Keybind Mode, below)
+local preview          -- what preview mode draws on the slots while it shows (Preview mode, below)
 
 -- The parts that follow the remaining time: the time bar once it has run out, and the range strip.
 -- (The expiring warning follows it in Timers' own ticker.)
@@ -765,6 +766,7 @@ local function refreshSlot(s)
 end
 
 local function refreshSlots()
+	if preview then return end   -- it draws the slots itself; the next layout after it reads them
 	local down = false
 	for _, el in ipairs(ELEMENTS) do
 		local s = slots[el]
@@ -796,7 +798,7 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 	for _, el in ipairs(ELEMENTS) do
 		local s = slots[el]
 		hover(s, arrows)
-		if s.down then TB.drawTimeLeft(s) end
+		if s.down and not preview then TB.drawTimeLeft(s) end
 	end
 end)
 
@@ -877,6 +879,7 @@ local mover
 local saidWait = false   -- "changes wait until combat ends" said this combat
 local classDone = false  -- not a shaman: laid out hidden once, nothing more to do
 local hasTotems = false  -- a totem of any element is known (layout): until then the bar hides
+local paintPreview   -- Preview mode, below
 
 -- known: the element's known totems (ns.Totems.knownTotems), from layout().
 local function layoutPopout(s, size, known)
@@ -952,6 +955,8 @@ end
 -- (ns.AfterCombat, made with the layout below).
 local function ownDriver()
 	local c = cfg()
+	-- While preview mode draws the slots, the bar shows as in combat.
+	if preview then return barOn() and (hasTotems or preview.all) and "show" or "hide" end
 	if not barOn() or not hasTotems then return "hide" end
 	if kbOpen or not ns.getAccount().locked then return "show" end
 	if c.show == "combat" then return "[petbattle] hide; [combat] show; hide" end
@@ -1005,7 +1010,7 @@ function layout()
 	if hasTotems ~= had then ns.Options.refresh() end   -- its page says "Not learned" until then
 	for _, el in ipairs(c.order) do
 		local s = slots[el]
-		local on = barOn() and not c.hidden[el] and (#known[el] > 0 or not GetMultiCastTotemSpells)
+		local on = barOn() and not c.hidden[el] and (#known[el] > 0 or not GetMultiCastTotemSpells or (preview and preview.all))
 		s.button:SetShown(on)
 		s.vis:SetShown(on)
 		if not on then s.killed.mark:Hide() end   -- a slot taken off the bar takes its cross along
@@ -1018,7 +1023,7 @@ function layout()
 	-- centred on the bar's line to the nearest whole pixel, whatever its size. Nothing while no
 	-- totem is known.
 	local seq, long, across = {}, size, size
-	if hasTotems then seq, long, across = TB.along(#shown, size, px) end
+	if hasTotems or (preview and preview.all) then seq, long, across = TB.along(#shown, size, px) end
 	local on = {}   -- the extras that show
 	for _, it in ipairs(seq) do
 		local b, sz = it.extra and extras[it.key].button or shown[it.key].button, it.size
@@ -1076,6 +1081,7 @@ function layout()
 	applyTotemFrame()
 	applyActionBar()
 	if mover then mover.update() end
+	if preview then paintPreview() end
 	-- Not a shaman: the bar is laid out hidden; nothing else will change that.
 	if playerClass and not isShaman() then classDone = true end
 end
@@ -1171,7 +1177,7 @@ mover:SetScript("OnMouseWheel", function(self, delta)
 	ns.Options.refresh()
 end)
 function mover.update()
-	local on = barOn() and hasTotems and not ns.getAccount().locked and not InCombatLockdown()
+	local on = barOn() and (hasTotems or (preview and preview.all)) and not ns.getAccount().locked and not InCombatLockdown()
 	if on then
 		mover:ClearAllPoints()
 		mover:SetPoint("TOPLEFT", bar, "TOPLEFT", -2, 2)
@@ -1401,7 +1407,7 @@ end
 ------------------------------------------------------------------------
 -- Subscribed after the totem elements (ShamanForever_Cooldowns.lua loads first): they hear first.
 ns.Totems.subscribe(function(event, slot, was)
-	if event ~= "gone" then return end
+	if event ~= "gone" or preview then return end
 	local s = bySlot[slot]
 	local c = cfg()
 	if not s.button:IsShown() then return end
@@ -1501,6 +1507,131 @@ end
 TB.look = look
 -- Whether a totem is known, as of the last layout (the options mark the bar "Not learned" until then).
 function TB.hasTotems() return hasTotems end
+
+------------------------------------------------------------------------
+-- Preview mode (ShamanForever_Preview.lua): the slots drawn in the states it asks for, on their
+-- own looks, while the bar's reads, time bars and end flashes wait. The bar shows as in combat; with
+-- Show not learned every element's slot shows, even while none of its totems is known. Only plain
+-- frames are drawn on; showing slots and the bar happens in layout(), out of combat. When it ends,
+-- the next layout reads the slots again.
+------------------------------------------------------------------------
+-- The states a slot can be drawn in, in the order the preview's Busy mode plays them.
+TB.PREVIEW_STATES = { "down", "expiring", "killed", "ranout", "empty" }
+
+-- A slot in a preview state (down | expiring | killed | ranout | empty) since rec.at, its timer
+-- running; rec.range: its range strip shows. Returns when its timer runs out.
+local function paintSlot(s, rec)
+	local c, v, st = cfg(), s.vis, rec.st
+	local shown = s.button:IsShown()   -- the strip is a frame of its own
+	local pick = GetActionTexture and GetActionTexture(multiAction(s.slot))
+	if isSecret(pick) then pick = nil end   -- plain out of combat, where the preview runs
+	local icon = pick or ns.Look.TOTEM_ICON[s.el]
+	s.badge:Hide()
+	s.killed:setIcon(icon)
+	s.expired:setIcon(icon)
+	-- The real strip: our red here, Blizzard's green in the range layout (ShamanForever_TotemRange.lua).
+	if s.rangeGate then s.rangeGate:SetAlpha(0) end
+	local size = s.button:GetWidth()   -- the slot's own: layout rounds it to whole pixels
+	local strip = s.previewRange
+	if rec.range and c.range and shown then
+		if not strip then
+			strip = CreateFrame("Frame", nil, bar)
+			strip.bg = strip:CreateTexture(nil, "ARTWORK")
+			strip.bg:SetAllPoints()
+			s.previewRange = strip
+		end
+		-- Over Blizzard's part and its colour (+10 to +12, ShamanForever_TotemRange.lua).
+		strip:SetFrameLevel(s.button:GetFrameLevel() + 14)
+		strip:ClearAllPoints()
+		strip:SetPoint("TOPLEFT", s.button, "TOPLEFT", 0, 0)
+		strip:SetSize(size, ns.linePx(strip, c.rangeHeight))
+		local k = c.rangeOut
+		strip.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
+		strip:Show()
+	elseif strip then strip:Hide() end
+	v.icon:SetTexture(icon)
+	if st == "down" or st == "expiring" then
+		s.killed.mark:Hide()   -- recast
+		v:SetAlpha(1)
+		v.icon:SetDesaturated(false)
+		v.icon:SetAlpha(1)
+		v.bg:SetColorTexture(0, 0, 0, 1)
+		local left, life = ns.Look.PREVIEW_LEFT[s.el][1], ns.Look.PREVIEW_LEFT[s.el][2]
+		if st == "expiring" then left = 5 end
+		s.timer:setExpire({ secs = c.warn, grey = c.warnGrey, ring = c.warnRing, pulse = c.warnPulse, glow = c.warnGlow }, icon)
+		s.timer:setTime(rec.at - (life - left), life)
+		return rec.at + left
+	end
+	-- Not down (killed early and ran out leave the slot empty): as refreshSlot draws it.
+	s.timer:clear()
+	v:SetAlpha(c.mode == "everything" and 1 or 0)
+	if c.empty == "pick" and pick then
+		v.icon:SetDesaturated(c.idleGrey)
+		v.icon:SetAlpha(c.idleAlpha)
+		v.bg:SetColorTexture(0, 0, 0, 0.6 * c.idleAlpha)
+	elseif c.empty ~= "blank" then
+		local col = ns.SCHOOL_COLOR[s.el]
+		v.icon:SetTexture(nil)
+		v.bg:SetColorTexture(col[1] * 0.35, col[2] * 0.35, col[3] * 0.35, 0.8)
+	else
+		v.icon:SetTexture(nil)
+		v.bg:SetColorTexture(0, 0, 0, 0)
+	end
+end
+
+-- After every layout while it shows: every slot's state again.
+function paintPreview()
+	for _, el in ipairs(ELEMENTS) do
+		local rec = preview.states[el]
+		if rec then paintSlot(slots[el], rec) end
+	end
+end
+
+-- p: { all = every element's slot }, or nil when it ends. The caller lays the HUD out next
+-- (ns.applyLayout or ns.layoutElements), which lays out the bar.
+function TB.preview(p)
+	if p then
+		preview = { all = p.all, states = preview and preview.states or {} }
+		if TB.range then TB.range.preview(true) end
+	elseif preview then
+		preview = nil
+		if TB.range then TB.range.preview(false) end
+		for _, el in ipairs(ELEMENTS) do
+			local s = slots[el]
+			s.killed:stop()
+			s.expired:stop()
+			if s.previewRange then s.previewRange:Hide() end
+			-- A totem that went meanwhile isn't news: no end flash for it when the slot is read, and
+			-- ns.Totems forgets it quietly.
+			if s.dur then
+				local ok, d = ns.try("totem bar: duration", GetTotemDuration, s.slot)
+				if ok and d == nil then ns.Totems.forget(s.slot) end
+			end
+			s.dur = nil
+		end
+		lastDriver = nil
+	end
+end
+
+-- A slot's state from `at` (GetTime): see paintSlot; moment: its end flash plays too. Returns when
+-- its timer runs out, if it has one.
+function TB.previewSlot(el, st, at, range, moment)
+	if not preview then return end
+	local rec = { st = st, at = at, range = range }
+	preview.states[el] = rec
+	local s, c = slots[el], cfg()
+	-- The other state's flash and cross go: a slot that ran out wasn't killed early.
+	if st ~= "killed" then s.killed:stop() end
+	if st ~= "ranout" then s.expired:stop() end
+	local ends = paintSlot(s, rec)
+	moment = moment and s.button:IsShown()
+	if moment and st == "killed" and c.killed then
+		s.killed:play(nil, { pop = c.killedPop, glow = c.killedGlow, mark = c.killedMark })
+	elseif moment and st == "ranout" and c.expiredPop then
+		s.expired:play(nil, { expired = true, pop = true })
+	end
+	return ends
+end
 
 -- For /sf debug.
 function TB.debug()

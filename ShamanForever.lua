@@ -251,12 +251,12 @@ end
 
 -- Whether the character knows the element's spell. The options list every element, marking the
 -- ones not learned; the HUD leaves those out until they are, except in test mode (/sf test), which
--- shows them greyed.
+-- shows them greyed, and while the preview shows them (ShamanForever_Preview.lua).
 local function isLearned(key)
 	local e = ELEMENTS[key]
 	return e == nil or not e.learned or e.learned() and true or false
 end
-local function onHUD(key) return isLearned(key) or acct.testMode end
+local function onHUD(key) return isLearned(key) or acct.testMode or ns.Preview.showsUnlearned() end
 
 -- The group an element sits in and its place among the members; nil for an ungrouped element.
 -- Whether it is drawn is its own "show" setting, so hiding one keeps its place.

@@ -71,6 +71,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - Show each element always, only in combat, or never. A group can show Always, In combat, or In combat or with an enemy target.
 - Stay after combat: a group or the totem bar that doesn't show Always can stay up to 10 seconds once combat ends, then fade out.
 - Positioning mode: drag groups and the totem bar, with snapping and a grid. Mouse wheel sets scale, Shift+wheel icon size, Ctrl+wheel opacity, and the arrow keys nudge. It locks itself when combat starts.
+- Preview (`/sf preview`, or Preview in the options): the whole HUD as you've arranged it, so you can arrange it without a fight or the right buffs. Preview shows an ordinary moment of a fight, Warnings shows every warning at once, and Busy plays pops, glows and flashes on every element at once to show how noisy it gets. Show not learned adds the elements you haven't learned yet. It works with positioning mode, and ends when combat starts.
 - Borders and warning rings stay pixel-sharp at any icon size.
 - Test elements (`/sf test`): placeholder icons for trying out a layout, and elements you haven't learned yet, greyed.
 
@@ -86,6 +87,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - `/sf` opens the options window (also the minimap button, and under Escape > Options > AddOns). Right-click the minimap button to lock or unlock positioning.
 - Key bindings for the totem bar: Escape > Options > Keybindings > ShamanForever, or hover the bar in Quick Keybind Mode. Each button can show its key.
 - `/sf lock` to unlock positioning and move and scale groups on screen (the bar that appears lists the controls), `/sf lock` again when done.
+- `/sf preview` shows the whole HUD in a typical moment while you arrange it, `/sf preview` again to stop.
 
 ## Feedback
 
