@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.0 (2026-09-30)
+
+- Swing timer added.
+- New elements: Lava Burst, Chain Lightning and Maelstrom Weapon (experimental).
+- Ready pops now work in combat.
+- Sounds added for things like cooldown ready or imbue dropping, all off by default.
+- Groups & Layout improvements.
+- New glow, pop and border options.
+- Preview mode added.
+- Many other minor fixes and improvements.
+
 ## 0.8.0 (2026-09-27)
 
 - New elements: Tremor Totem, Nature's Swiftness, Mana Tide Totem, Grounding Totem, Stormstrike, Riptide, Rage of the Farseer, Totemic Projection, Reincarnation (with your Ankh count), Water Walking, Water Breathing (warns under water without it) and Elemental Focus. Most are experimental, not yet tested in game because they need spells or talents I haven't been able to try. If you can try them, each has a feedback link on the About page.
