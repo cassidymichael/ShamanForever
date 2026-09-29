@@ -215,6 +215,8 @@ function TB.along(n, size, px)
 	-- A look that sets the bar in fixed art gives its own gaps (in the slots' size).
 	local own, ownExtra = TB.skin.spacing(size)
 	if own then gap, extraGap = own, ownExtra end
+	local more = TB.skin.gapAdd(size)   -- what the look hangs in the gaps (a column's time bars)
+	gap, extraGap = gap + more, extraGap + more
 	if px then gap, extraGap = round(gap), round(extraGap) end
 	local list, long = {}, 0
 	local function put(key, space, sz, extra)
@@ -267,14 +269,18 @@ end
 function TB.makeArrowLook(parent)
 	local t = CreateFrame("Frame", nil, parent, "BackdropTemplate")
 	t:SetBackdrop(ns.BACKDROP)
+	t.glyph = t:CreateTexture(nil, "OVERLAY")
+	t.glyph:SetPoint("CENTER")
+	TB.plainArrow(t)
+	return t
+end
+-- That look's colours and glyph (a Look can draw the tab its own way, then give it back).
+function TB.plainArrow(t)
 	t:SetBackdropColor(0.06, 0.05, 0.03, 0.92)
 	t:SetBackdropBorderColor(0.85, 0.71, 0.42, 0.9)
-	t.glyph = t:CreateTexture(nil, "OVERLAY")
 	t.glyph:SetTexture("Interface\\Buttons\\UI-TotemBar")
 	t.glyph:SetTexCoord(0.5625, 0.71875, 0.34375, 0.3828125)
 	t.glyph:SetBlendMode("ADD")
-	t.glyph:SetPoint("CENTER")
-	return t
 end
 -- The arrow tab along anchor's picker side, arrowSize deep, and its glyph sized and turned.
 local GLYPH_TURN = { up = 0, down = math.pi, right = -math.pi / 2, left = math.pi / 2 }
