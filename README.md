@@ -14,84 +14,19 @@ More screenshots: [options gallery](docs/gallery/README.md).
 
 ## Features
 
-Each thing the HUD shows is an element: an icon you can place in a group anywhere on screen.
+A HUD for shamans on WoW: Forever, made of elements you arrange in groups anywhere on screen.
 
-### Elements
+- **Totem bar**: drop, pick and dismiss totems, Call of the Elements and Totemic Recall, an out-of-range warning and key bindings. It can replace Blizzard's totem frames.
+- **Shields**: Lightning Shield and Water Shield, their charges and time left.
+- **Shocks**: Earth, Flame or Frost Shock, with range and mana.
+- **Weapon Imbue**: Rockbiter, Flametongue, Frostbrand and Windfury.
+- **Swing timer**: your next melee swing, on a bar of its own.
+- **Cooldowns**: Fire Nova, Stormstrike, Lava Burst, Chain Lightning, Riptide, Nature's Swiftness, Rage of the Farseer, Totemic Projection and Reincarnation.
+- **Totems**: Earthbind, Stoneclaw, Grounding, Mana Tide, and Tremor with a warning for mobs that fear, charm or sleep.
+- **Buffs and procs**: Elemental Focus, Maelstrom Weapon, Water Walking and Water Breathing.
+- Warnings, glows, pops and sounds, set once or per element; positioning and preview modes; profiles you can share.
 
-- **Shields**: Lightning Shield's charges (a segmented bar, a number, or both) and time left. While it's down the icon can go grey, get a red ring, turn red, glow or fade in and out. The last charge can show in a colour of its own. It can track Water Shield, or whichever shield is up, instead (experimental).
-- **Shocks**: Earth, Flame or Frost Shock's cooldown. The icon shows when your target is out of range, and when you're short of mana for the shock (or another shock you choose).
-- **Weapon Imbue**: warns when your main hand has no Rockbiter, Flametongue, Frostbrand or Windfury, and shows which one is on. Its time left shows once it's low (under 5 minutes by default), and the icon can stay hidden until then.
-- **Earthbind Totem and Stoneclaw Totem**: their cooldowns and their totem's time left, a warning before it ends, and a flash if it's killed early.
-- **Fire Nova**: its cooldown, and a warning while no fire totem is down. Off cooldown with no fire totem, it pops greyed, a nudge to drop one.
-- **Tremor Totem**: "Tremor!" by the icon, with a pop, a glow and an optional sound, when a mob on its watchlist is your target or its nameplate is on screen (needs enemy nameplates). It can also warn when you're feared, charmed or asleep (off by default). It's quiet while your Tremor Totem is down, and can show the totem's time left then.
-  - The watchlist starts with open-world mobs from Classic that cast fear, charm or sleep. Add mobs by name or from your target, or remove them.
-  - In dungeons and raids the game hides mob names from addons, so there only the feared, charmed or asleep warning works.
-- **Idle**: an element can fade or hide while there's nothing to act on, such as a spell off cooldown or a buff that isn't up. It keeps its place, and its warnings still show at full.
-- **Not learned**: elements for spells your character doesn't know stay off screen, and the options mark them "Not learned".
-
-### Experimental elements
-
-These haven't been tested in game yet: they need spells or talents I haven't been able to try so far. The About page lists them, with a link to say how they work.
-
-- **Nature's Swiftness**: its cooldown, and a pop and glow while it's primed, from your cast until your next Nature spell with a cast time.
-- **Mana Tide Totem**: its cooldown and the totem's time left, a glow in its last seconds and a flash when it runs out.
-- **Grounding Totem**: its cooldown and the totem's time left, and a flash when it ends early (it took a spell, or was destroyed).
-- **Stormstrike**: its cooldown, and a bar while its effect lasts: 12 seconds from your cast, or until your next Lightning Bolt, Chain Lightning or Earth Shock. Other Nature damage on the target can use it up without the addon seeing.
-- **Riptide**, **Totemic Projection**, **Lava Burst** and **Chain Lightning**: their cooldowns.
-- **Rage of the Farseer**: its cooldown, and the time left on its 25 seconds, timed from your cast.
-- **Reincarnation**: its cooldown, hidden while it's ready by default. It shows your Ankh count, and warns when you're low or out, if the spell still needs an Ankh.
-- **Water Walking** and **Water Breathing**: time left while up, hidden while not by default, and a warning in the last 30 seconds. The time is exact out of combat. In combat, and all through a PvP match, it carries on from the last reading, and casting the spell on yourself restarts it. Water Breathing can also warn when your breath bar starts to drain and it isn't up.
-- **Maelstrom Weapon**: its stacks, as a number and a five-part bar, and a highlight on the icon at five stacks, when your next Lightning Bolt is instant and free. The highlight can burst out as the fifth stack lands, or pulse while it lasts.
-- **Elemental Focus**: shows while Clearcasting is up, with a pop when it procs and a glow while it lasts.
-
-### Totem bar
-
-- One slot per element. Left-click drops the totem you've picked for it, and right-click dismisses it. The arrow on each slot (or Alt+click) opens a picker to change the pick, in combat too.
-- Pickers on hover: hovering a slot or its arrow opens its picker.
-- Each slot shows its totem's time left and warns as it runs out. You can give any totem its own warning time. If a totem is killed early, its slot flashes red and shows a cross.
-- A red strip on a slot while your totem is down but you aren't getting its buff, for totems that buff you, such as Strength of Earth or Healing Stream.
-- When a different totem is down, your pick can show small beside the slot.
-- Call of the Elements and Totemic Recall buttons. Right-click Recall to dismiss every totem.
-- Key bindings to drop each element's totem, dismiss one or all, and cast Call and Recall. Bind them by hovering the bar in Quick Keybind Mode. Each button can show its key.
-- It can replace Blizzard's totem bar and active totems display, just the active totems display, or neither (the key bindings still work).
-- Show it Always, In combat or a totem down, In combat, or In combat or with an enemy target. Drag to reorder the slots.
-- It stays hidden until your character knows a totem, and its page in the options says "Not learned".
-
-### Swing timer
-
-- A bar for your next melee swing, in your main hand's imbue colour or one you choose. It fills or empties, from the left or the right, with the time left as text on the left, middle or right.
-- It shows while you auto attack, from your first swing. A cast-time spell clears it until your next swing.
-- Show it In combat or Always, or hide it. Like the totem bar, it has its own place, width, height, scale, opacity and border.
-
-### Warnings and timers
-
-- Warning looks for a missing shield, imbue or totem, or one running out: grey icon, red ring, fade in and out.
-- Sounds: pick one for a spell coming ready, your imbue dropping, a totem ending or the Tremor warning, from the game's sounds or any LibSharedMedia sound your other addons bring. None play until you pick one.
-- A pulsing glow and a pop when something happens: a spell ready, a totem expiring or killed, your imbue dropping, a proc. Choose the glow's colour, speed and depth.
-- Glow looks: a soft inner glow, or (experimental) an outer halo, Blizzard's proc glow, sparks running round the edge, the element's school texture, or a heartbeat.
-- Pop style, one part at a time in any mix: its colour (by event, or by school for a spell ready or a totem running out), a flash (plain or Blizzard's edge flash), a burst (a ring, a star, both, shapes, painted bursts, a rune ring, or one for each school) and a motion (grow, bounce, hop, shake or none). Colour by school, the edge flash and the drawn bursts are experimental.
-- Timers as countdown text, a cooldown swipe, a draining bar, or any mix, each with its own size, colour, position and time format.
-- Colour by time left: countdown numbers turn one colour when time is short and another at the very end, at the times you choose. They can also show tenths of a second in the last seconds.
-- An optional global cooldown sweep, as on action bars.
-
-### Layout
-
-- Arrange elements into named groups: rows or columns, each with its own position, spacing, icon size, scale, opacity and border. On the Groups & Layout page, pick a group to see its elements and settings, and drag an element onto another group to move it there.
-- Delete group: its elements move to Ungrouped, off screen with their settings kept, until you put them in a group again.
-- Show each element always, only in combat, or never. A group can show Always, In combat, or In combat or with an enemy target.
-- Stay after combat: a group or the totem bar that doesn't show Always can stay up to 10 seconds once combat ends, then fade out.
-- Positioning mode: drag groups, the totem bar and the swing timer, with snapping and a grid. Mouse wheel sets scale, Shift+wheel icon size (the swing timer's width), Ctrl+wheel opacity, and the arrow keys nudge. It locks itself when combat starts.
-- Preview (`/sf preview`, or Preview in the options): the whole HUD as you've arranged it, so you can arrange it without a fight or the right buffs. Preview shows an ordinary moment of a fight, Warnings shows every warning at once, and Busy plays pops, glows and flashes on every element at once to show how noisy it gets. Show not learned adds the elements you haven't learned yet. It works with positioning mode, and ends when combat starts.
-- Borders and warning rings stay pixel-sharp at any icon size.
-- Border look: a plain line, a gold hairline, a bronze bevel, or corner caps. Experimental: the Cooldown Manager's rounded icons, Forever's action button frame, carved stone, aged bronze or carved wood.
-
-### Options and profiles
-
-- An options window (`/sf`, the minimap button, or Escape > Options > AddOns) with a page per element and a live preview of each look. Drag its corner to make it wider or taller.
-- Set the style once on the General page, then give any element, group or the totem bar its own where you want something different.
-- Click a heading in the options to fold its section away, and click it again to open it. Folded sections stay folded until you open them.
-- Profiles: each character uses one. Make, copy, rename, delete or reset them, or share one as text.
-- Spells are recognised by ID, so it should work in any game language (the options are in English).
+Some elements are experimental, not yet tested in game; the About page lists them.
 
 ## Usage
 
