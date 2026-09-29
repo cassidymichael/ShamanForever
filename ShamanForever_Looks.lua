@@ -351,13 +351,27 @@ function Looks.followSwipe(f, cd)
 	if swipeLooks[f] then swipeOne(f, cd, swipeLooks[f]) end
 end
 
--- The look border style b draws in (NO_ART for one whose Blizzard art is missing), or nil: b is
--- off, or a look drawn at the Border size has a size of 0.
-local function drawnLook(b)
+-- The parts of a look that fit a bar (an element of shape "bar"): its rings and its sliced art. A
+-- look with neither (a mask and stretched art, shaped for an icon) draws a plain line there.
+local barLooks = {}   -- look -> its bar parts
+local function barParts(look)
+	local v = barLooks[look]
+	if not v then
+		local slice = look.art and look.art.margin and look.art or nil
+		v = (look.rings or slice) and { rings = look.rings, art = slice } or NO_ART
+		barLooks[look] = v
+	end
+	return v
+end
+
+-- The look border style b draws in (NO_ART for one whose Blizzard art is missing; for shape "bar",
+-- its parts that fit a bar), or nil: b is off, or a look drawn at the Border size has a size of 0.
+local function drawnLook(b, shape)
 	local look = S.look("border", b and b.look)
 	if artMissing(look) then look = NO_ART end
 	local on = b and b.show and (not Looks.uses(look, "size") or (b.size and b.size > 0))
-	return on and look or nil
+	if not on then return nil end
+	return shape == "bar" and barParts(look) or look
 end
 
 -- One screen pixel, in f's units.
@@ -369,9 +383,10 @@ end
 -- How far in from the edge of a box w wide (the element's Size, in f's units) the icon's picture
 -- sits, so that border b drawn round it stays inside the box: the reach of its lines and sliced
 -- art (whole screen pixels, as they are drawn, for f's scale), or of its stretched art, which
--- reaches a share of the picture's width past its edges; whichever is further.
-function Looks.inset(f, b, w)
-	local look = drawnLook(b)
+-- reaches a share of the picture's width past its edges; whichever is further. shape: as for
+-- ns.applyBorder.
+function Looks.inset(f, b, w, shape)
+	local look = drawnLook(b, shape)
 	if not look then return 0 end
 	local out = 0
 	for _, ring in ipairs(look.rings or {}) do out = out + ns.linePx(f, pxOf(ring.px, b)) end
@@ -390,10 +405,13 @@ end
 
 -- Sizes icon f for a box w by h (its Size) with border b drawn round it inside that box, and draws
 -- b. Returns the inset (Looks.inset): the caller places f that far in from the box's edges.
-function Looks.fit(f, b, w, h)
-	local o = Looks.inset(f, b, math.min(w, h or w))
+-- opts (optional; an element's registry entry serves): borderHost, the part the border is drawn on
+-- (a child covering f, so the border hides with it; default f), and shape (ns.applyBorder).
+function Looks.fit(f, b, w, h, opts)
+	local host, shape = opts and opts.borderHost or f, opts and opts.shape
+	local o = Looks.inset(host, b, math.min(w, h or w), shape)
 	f:SetSize(w - 2 * o, (h or w) - 2 * o)
-	ns.applyBorder(f, b)
+	ns.applyBorder(host, b, shape)
 	return o
 end
 
@@ -401,10 +419,11 @@ end
 -- look drawn at the Border size). Drawn round f's edge, so it never covers the rings inside the
 -- icon or Blizzard's aura button; art and masks draw as each look says. f is the icon's picture,
 -- set in from its box by Looks.inset. Its lines are screen pixels (ns.linePx), grown by Scale, not
--- by icon Size. Sets f.frameOuter, how far it reaches outside f's edge (f's units), for
+-- by icon Size. shape "bar": f is a bar, not an icon, and takes only the look's parts that fit one
+-- (barParts). Sets f.frameOuter, how far it reaches outside f's edge (f's units), for
 -- Looks.outerEdge.
-function ns.applyBorder(f, b)
-	local look = drawnLook(b)
+function ns.applyBorder(f, b, shape)
+	local look = drawnLook(b, shape)
 	if not look then
 		drawRings(f, nil, b)
 		drawCaps(f, nil)

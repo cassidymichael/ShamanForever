@@ -123,9 +123,12 @@ root:SetAllPoints(UIParent)
 -- _Buffs, _Tremor); the test placeholders below are this file's own, and stay last.
 local ELEMENT_KEYS = { "shield", "shock", "imbue" }
 -- key -> { frame, label, paint(texture), getSize(size), stack(), placeholder, learned(),
--- defaults, and for the options spell, icon, school, blurb, experimental, kind, def }. db.groups
--- decides where each one shows. getSize gives its width and height for its group's icon size, so
--- elements need not be square; paint draws what stands in for it in the options and while
+-- borderHost, shape, defaults, and for the options spell, icon, school, blurb, experimental, kind,
+-- def }. db.groups decides where each one shows. getSize gives its width and height for its group's
+-- icon size, so elements need not be square; borderHost is the part its group's border is drawn
+-- on (a child covering the whole frame; default the frame), so the border hides when that part
+-- does; shape "bar" marks an element that is a bar, not an icon, which takes only the border parts
+-- that fit a bar (ns.applyBorder); paint draws what stands in for it in the options and while
 -- dragging; stack is its frame's (ns.newElementIcon). learned() says whether the character knows
 -- its spell (none: always); defaults holds the defaults of every option it has (see
 -- elementSetting). The options show it by its spell's name in the client's language (spell, an
@@ -286,8 +289,8 @@ local function groupSize(g) return (g and not g.sizeFollow and g.size) or db.ico
 -- (ns.Looks.inset; layoutGroup places it so).
 local function sizeOf(key)
 	local gi = findElement(key)
-	local box = groupSize(gi and db.groups[gi])
-	return box - 2 * ns.Looks.inset(ELEMENTS[key].frame, ns.borderFor(key), box)
+	local box, e = groupSize(gi and db.groups[gi]), ELEMENTS[key]
+	return box - 2 * ns.Looks.inset(e.borderHost or e.frame, ns.borderFor(key), box, e.shape)
 end
 
 local function isEnabled(key) return findElement(key) ~= nil and showMode(key) ~= "never" and onHUD(key) end
@@ -482,7 +485,7 @@ local function layoutGroup(gi)
 			hideFrame(f)
 		else
 			local w, h = e.getSize(groupSize(g))
-			local inset = ns.Looks.fit(f, border, w, h)
+			local inset = ns.Looks.fit(f, border, w, h, e)
 			f:ClearAllPoints()
 			local offset = along + n * gap + inset   -- from the group's leading edge
 			if horizontal then

@@ -1034,10 +1034,10 @@ function L.buildHero(parent, key)
 		if not def.stage then
 			-- An element's preview wears its group's border, inside its size as on the HUD (the totem
 			-- bar's stage draws its own). A preview not square gives its size (def.size).
-			local ic = self.previewIcon
+			local ic, el = self.previewIcon, ns.ELEMENTS[key]
 			local bw, bh = PREVIEW_SIZE, PREVIEW_SIZE
 			if def.size then bw, bh = def.size() end
-			local x = 16 + ns.Looks.fit(ic, ns.borderFor(key), bw, bh)
+			local x = 16 + ns.Looks.fit(ic, ns.borderFor(key), bw, bh, { shape = el and el.shape })
 			-- On whole screen pixels: a cooldown's swipe snaps to pixels and the icon's texture doesn't,
 			-- so at a fractional position a sliver of the icon shows beside the swipe.
 			ic:ClearAllPoints()
