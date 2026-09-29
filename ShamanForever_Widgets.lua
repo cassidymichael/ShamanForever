@@ -787,7 +787,8 @@ function AuraSlot:styleNow()
 		c:SetFrameStrata(f:GetFrameStrata())
 		c:SetFrameLevel(f.textFrame:GetFrameLevel() + 5)
 		self.button:SetSize(size, size)
-		ns.Looks.auraStyle(self, size)
+		-- Its own try: a look the button refuses mustn't stop the timer and the caller's parts.
+		ns.try(o.sites.style .. ": look", ns.Looks.auraStyle, self, size)
 		self.timer:apply()
 		if o.onStyle then o.onStyle(self, size) end
 	end)

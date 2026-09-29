@@ -456,9 +456,10 @@ function Looks.outerEdge(f) return f and f.frameOuter or 0 end
 -- on our frames, or added later in combat, is refused (tested 2026-09-28). So a masked look's mask
 -- is made there, from the element's border look at that moment, and so is its stretched art: the
 -- aura's icon on the button covers everything drawn on the element's own frame. key: the element.
--- Adding a mask later out of combat, or changing its art, is untested, so the button keeps the look
--- it was made with until the next /reload. The element's frame keeps its own art too, for while
--- the button is hidden (no aura).
+-- Later, out of combat (Looks.auraStyle), the button follows the look picked since: its art is
+-- changed or hidden, and a mask it has takes the new shape, or a plain one for a look without.
+-- A mask it never had can only come with a new button: that look waits for a /reload (the options
+-- say so). The element's frame keeps its own art too, for while the button is hidden (no aura).
 local auraMade = setmetatable({}, { __mode = "k" })   -- aura icon -> { key, spec, mask, look, art }
 function Looks.auraMask(button, tex, key)
 	local b = ns.borderFor(key)
@@ -479,18 +480,36 @@ function Looks.auraMask(button, tex, key)
 	end
 end
 
--- The aura slot's restyle (out of combat, auras readable; AuraSlot:style): the art's place and the
--- mask's size for the icon's size, and the swipe in the mask's shape.
+-- The aura slot's restyle (out of combat, auras readable; AuraSlot:style): the button takes the
+-- element's border look now (its art, and its mask's shape where it has a mask), placed for the
+-- icon's size, and the swipe in the mask's shape.
+local PLAIN_MASK = { file = WHITE }   -- a mask that hides nothing: a look without one
 function Looks.auraStyle(slot, size)
 	local made = slot.icon and auraMade[slot.icon]
 	if not made then return end
-	if made.artTex then placeArt(made.artTex, made.art, slot.button, size) end
-	if made.mask and (made.spec.scale or 1) ~= 1 then placeMask(made.mask, made.spec, slot.icon, size) end
-	if made.look then swipeOne(slot.button, slot.cd, made.look, size) end
+	local b = ns.borderFor(made.key)
+	local art, spec = artFor(b), maskFor(b)
+	if art ~= made.art then
+		if art and not made.artTex then made.artTex = slot.button:CreateTexture(nil, "OVERLAY", nil, 7) end
+		local t = made.artTex
+		if art then
+			if art.atlas then t:SetAtlas(art.atlas) else t:SetTexture(art.file) end
+			t:Show()
+		elseif t then t:Hide() end
+		made.art = art
+	end
+	if made.artTex and made.art then placeArt(made.artTex, made.art, slot.button, size) end
+	if made.mask then
+		placeMask(made.mask, spec or PLAIN_MASK, slot.icon, size)
+		made.spec = spec
+	elseif not spec then made.spec = nil end
+	made.look = made.spec and lookFor(b) or nil
+	swipeOne(slot.button, slot.cd, made.look, size)
 end
 
--- The aura elements whose button's shape differs from their border look now, among those whose
--- border is owner's (nil: General's; a group): they change after a /reload (the options say so).
+-- The aura elements whose button's shape differs from their border look now (a masked look on a
+-- button made without a mask), among those whose border is owner's (nil: General's; a group): they
+-- change after a /reload (the options say so).
 -- Returns their keys.
 function Looks.auraStale(owner)
 	local out, db = {}, ns.getDB()
