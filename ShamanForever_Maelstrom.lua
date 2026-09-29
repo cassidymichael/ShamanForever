@@ -273,6 +273,7 @@ local function styleFull(slot)
 	-- The wash is the colour over the whole icon, so fainter.
 	bar:SetStatusBarColor(c[1], c[2], c[3], (c[4] or 1) * (look == "wash" and 0.4 or 1))
 	bar:SetAlpha(look == "none" and 0 or 1)
+	if slot.container then slot.container:SetShown(look ~= "none") end
 	ns.try("maelstrom highlight", slot.button.SetApplicationBar, slot.button, bar, {
 		minApplications = src.max - 1, maxApplications = src.max,
 		interpolation = setting("fullPop") and EASE or IMMEDIATE,
@@ -453,9 +454,12 @@ end
 
 M.applyTimers = styleAll
 -- After a layout: the containers made once (only for a character with the buff), then their looks.
+-- The five-stack container only when Highlight isn't None: with it made but hidden, Blizzard would
+-- still register it for every player UNIT_AURA for a look the player turned off.
 function M.applyLayout()
 	if src.learned() and ns.isEnabled(KEY) then
-		for _, s in ipairs(SLOTS) do s:setup() end
+		stacks:setup()
+		if setting("highlight") ~= "none" then full:setup() end
 	end
 	styleAll()
 	refresh()
