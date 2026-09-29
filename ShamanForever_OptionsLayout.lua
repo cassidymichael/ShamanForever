@@ -46,8 +46,6 @@ local function askAbout(which, g)
 end
 K.confirm("SHAMANFOREVER_CENTER", "Move %s to the middle of the screen?\nIts current position is lost.", "Centre",
 	function(id) ns.centerGroup(id) end)
-K.confirm("SHAMANFOREVER_SPLIT", "Split %s into one group per element?\nPutting them back together is done by hand.", "Split up",
-	function(id) ns.splitGroup(id) end)
 K.confirm("SHAMANFOREVER_HIDEALL", "Hide every element in %s?\nEach one's Show setting becomes Hidden.", "Hide all",
 	function(id) ns.hideGroup(id) end)
 -- The group after it in the list is chosen next, or the one before when it was last.
@@ -610,7 +608,6 @@ local function buildSettings(p)
 	p:buttons({
 		-- Hard to undo, so each asks first.
 		{ "Centre on screen", function() askAbout("SHAMANFOREVER_CENTER", G()) end, "Moves the group to the middle of the screen.", 130 },
-		{ "Split up", function() askAbout("SHAMANFOREVER_SPLIT", G()) end, "Gives every element in the group a group of its own, left where it is.", 90 },
 		{ "Hide all", function() askAbout("SHAMANFOREVER_HIDEALL", G()) end, "Sets every element in the group to Hidden. They keep their places; set one back to Always to bring it back.", 90 },
 	})
 	-- Not while its name is being edited: the edit belongs to the group.
@@ -634,7 +631,6 @@ function rowMenu(r)
 			startRename()
 		end)
 		root:CreateButton("Hide all", function() askAbout("SHAMANFOREVER_HIDEALL", g) end)
-		root:CreateButton("Split up", function() askAbout("SHAMANFOREVER_SPLIT", g) end)
 		root:CreateButton("Delete group", function() askDelete(g) end)
 	end)
 end

@@ -776,22 +776,6 @@ local deleteGroup = edit(function(id)
 	if i then table.remove(db.groups, i) end
 end)
 
--- Splits a group into single-element groups, each left exactly where it is on screen.
-local splitGroup = edit(function(id)
-	local g = groupById(id)
-	if not g or #g.members < 2 then return end
-	for i = #g.members, 2, -1 do
-		local key = g.members[i]
-		local sx, sy = screenCenter(ELEMENTS[key].frame)
-		table.remove(g.members, i)
-		local ng = newGroup(g)
-		ng.members = { key }
-		if sx then setGroupCenter(ng, sx, sy) end
-	end
-	local sx, sy = screenCenter(ELEMENTS[g.members[1]].frame)
-	if sx then setGroupCenter(g, sx, sy) end
-end)
-
 local setShow = edit(function(key, mode)
 	elementOpts(key).show = mode ~= (elementDefault(key, "show") or "always") and mode or nil
 end)
@@ -858,7 +842,7 @@ ns.setGroupCenter, ns.screenCenter = setGroupCenter, screenCenter
 ns.layoutElements, ns.applyLayout, ns.applyTimers = layoutElements, applyLayout, applyTimers
 -- Layout edits (the options window): each leaves the groups consistent and lays out again.
 ns.placeElement, ns.addGroup, ns.renameGroup, ns.deleteGroup = placeElement, addGroup, renameGroup, deleteGroup
-ns.splitGroup, ns.hideGroup, ns.centerGroup = splitGroup, hideGroup, centerGroup
+ns.hideGroup, ns.centerGroup = hideGroup, centerGroup
 ns.setShow = setShow
 -- Spells and refreshes.
 ns.resolveSpells, ns.refreshAll = resolveSpells, refreshAll
