@@ -75,7 +75,6 @@ read_globals = {
     "GetMirrorTimerInfo",
     "GetMultiCastBarIndex",
     "GetMultiCastTotemSpells",
-    "GetNetStats",
     "GetNormalizedRealmName",
     "GetPhysicalScreenSize",
     "GetRealZoneText",

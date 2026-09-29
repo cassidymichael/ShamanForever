@@ -487,7 +487,6 @@ local function buildAbout(p)
 	gap()
 	aboutExp = flashingHeader(p, "Experimental", "Interface\\Icons\\INV_Gizmo_02")
 	p:text("I can't test these in game yet. If you can, please try them and tell me whether they work and what could be improved.")
-	for _, x in ipairs(ns.TotemBar.EXPERIMENTAL) do p:experimental(x[1], x[2]) end
 	p:experimental("Water Shield", "Shields > Track")
 	p:experimental("Either shield", "Shields > Track")
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
@@ -1124,14 +1123,6 @@ local function buildTotemBar(p)
 	p:color("In range", "Colour and opacity.", tget("rangeIn"), tset("rangeIn"), showWhen(rangeOn))
 	p:color("Out of range", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"), showWhen(rangeOn))
 	p:text("A buff lingers a few seconds after you leave its range. Another shaman's totem of the same type can replace your buff, so yours shows as out of range.", rangeOn)
-
-	p:header("Pulse timer")
-	local pulseRow = p:dropdown("Show", "Time to the totem's next pulse.",
-		{ { "off", "Off" }, { "bar", "Bar" }, { "text", "Seconds" } }, tget("pulse"), tset("pulse"), nil, 140)
-	ns.Look.expBadge(pulseRow, "Pulse timers"):SetPoint("LEFT", pulseRow.dropdown, "RIGHT", 10, 0)
-	p:text(function()
-		return "For these totems: " .. TB.pulse.names() .. ". Timed from your cast, so it can be a moment off."
-	end)
 
 	p:header("Expiring")
 	local WARN = { grey = "warnGrey", ring = "warnRing", pulse = "warnPulse", glow = "warnGlow" }
