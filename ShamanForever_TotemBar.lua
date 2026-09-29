@@ -32,7 +32,7 @@ TB.ELEMENTS, TB.NAME, TB.SLOT = ELEMENTS, NAME, SLOT
 -- Per profile, in db.totemBar.
 TB.DEFAULTS = {
 	mode = "everything",      -- the Totems cards: blizzard (our bar off) | active (totems and timers) | everything
-	point = "CENTER", x = 0, y = -100,   -- x, y in UIParent units, so scaling keeps the centre
+	point = "CENTER", x = -340, y = -100,   -- x, y in UIParent units, so scaling keeps the centre
 	scale = 1,
 	alpha = 1,
 	-- always | active (in combat or a totem down) | combat | target (in combat or with an enemy target)
