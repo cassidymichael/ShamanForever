@@ -446,6 +446,7 @@ end
 -- The chosen group: its name, its elements right under it, then its settings
 ------------------------------------------------------------------------
 local BOX_PAD = 6      -- the elements' box: its inset around the chips
+local BOX_TOP = 5      -- and its gap under the group's name
 local CAPTION_H = 22   -- the Elements caption above the chips
 
 -- The id of the group whose name is being edited. Enter or Accept saves it; Escape or Cancel leaves
@@ -526,7 +527,7 @@ end
 local function buildBox(p)
 	local box = p:row(10)
 	local bg = CreateFrame("Frame", nil, box, "BackdropTemplate")
-	bg:SetPoint("TOPLEFT")
+	bg:SetPoint("TOPLEFT", 0, -BOX_TOP)
 	bg:SetPoint("BOTTOMRIGHT", 0, 6)
 	Page.panelBackdrop(bg)
 	local inner = CreateFrame("Frame", nil, bg)
@@ -562,7 +563,7 @@ local function buildBox(p)
 		local keys = g and g.members or {}
 		local h = placeChips(inner, keys, inner.top)
 		empty:SetShown(#keys == 0)
-		box.height = inner.top + math.max(h, CHIP_STEP) + 2 * BOX_PAD + 6
+		box.height = BOX_TOP + inner.top + math.max(h, CHIP_STEP) + 2 * BOX_PAD + 6
 		box:SetHeight(box.height)
 	end)
 end
