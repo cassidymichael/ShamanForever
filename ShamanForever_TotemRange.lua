@@ -143,10 +143,15 @@ local function initButton(s, part, button)
 	icon:SetAllPoints()
 	-- A mask for it, made now (the button takes one only as it is made): plain, hiding nothing,
 	-- until a Look that rounds the slots' icons gives it their shape (TB.skin.styleRangeButton).
-	local mask = button:CreateMaskTexture()
-	mask:SetTexture("Interface\\Buttons\\WHITE8x8", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-	mask:SetAllPoints(icon)
-	if not pcall(icon.AddMaskTexture, icon, mask) then mask = nil end
+	-- Guarded: a refusal only leaves that look's in-range part square.
+	local mask
+	pcall(function()
+		local m = button:CreateMaskTexture()
+		m:SetTexture("Interface\\Buttons\\WHITE8x8", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+		m:SetAllPoints(icon)
+		icon:AddMaskTexture(m)
+		mask = m
+	end)
 	button:SetIcon(icon)
 	-- Our colour on the button: it shows exactly when Blizzard shows the button.
 	local over = CreateFrame("Frame", nil, button)
