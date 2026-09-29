@@ -315,15 +315,15 @@ do
 		{ "Drag", "Move a group or the totem bar" },
 		{ "Click, then arrow keys", "Nudge a group (Shift: 10x)" },
 		{ "Mouse wheel", "Scale: everything grows, borders too" },
-		{ "Shift + wheel", "Icon size: borders stay crisp" },
+		{ "Shift + wheel", "Icon size: borders not scaled with it" },
 		{ "Ctrl + wheel", "Opacity" },
-		{ "Right-click", "Its settings" },
+		{ "Right-click", "The group's settings" },
 		{ "Shift + right-click", "The settings of the element under the cursor" },
 	}
 	local LINE_H, KEY_W = 16, 150
 	tray.hint = CreateFrame("Frame", nil, tray)
 	tray.hint:SetPoint("TOPLEFT", 10, -30)
-	tray.hint:SetSize(540, (#HELP + 1) * LINE_H + 4)
+	tray.hint:SetSize(540, #HELP * LINE_H)
 	for i, h in ipairs(HELP) do
 		local key = tray.hint:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 		key:SetPoint("TOPLEFT", 0, -(i - 1) * LINE_H)
@@ -332,10 +332,6 @@ do
 		what:SetPoint("TOPLEFT", KEY_W, -(i - 1) * LINE_H)
 		what:SetText(h[2])
 	end
-	local groups = tray.hint:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	groups:SetPoint("TOPLEFT", 0, -#HELP * LINE_H - 4)
-	groups:SetTextColor(0.72, 0.72, 0.72)
-	groups:SetText("Which elements each group holds: Options, Groups & Layout.")
 	-- Controls sit on a row under the hint, so a longer hint pushes them down instead of overlapping.
 	local row = CreateFrame("Frame", nil, tray)
 	row:SetPoint("TOPLEFT", tray.hint, "BOTTOMLEFT", 0, -10)
