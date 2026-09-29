@@ -228,13 +228,14 @@ end
 -- flashes (the element's icon, or a slot of the totem bar).
 local function killedBlock(p, get, set, noun, label)
 	p:header("Killed early")
-	p:checkbox(label, "The dead totem flashes red over its " .. noun .. ". Not when you dismiss it or it runs out.",
+	local killed = p:checkbox(label, "The dead totem flashes red over its " .. noun .. ". Not when you dismiss it or it runs out.",
 		get("killed"), set("killed"))
-	local on = showWhen(get("killed"))
-	p:checkbox("Pop", "The " .. noun .. " bursts for a moment.", get("killedPop"), set("killedPop"), on)
-	p:checkbox("Pulsing glow", "In red.", get("killedGlow"), set("killedGlow"), on)
-	p:checkbox("Cross until recast", "A red cross stays over the " .. noun .. " until you recast it, up to 5 s.",
-		get("killedMark"), set("killedMark"), on)
+	p:sub(killed, get("killed"), function()
+		p:checkbox("Pop", "The " .. noun .. " bursts for a moment.", get("killedPop"), set("killedPop"))
+		p:checkbox("Pulsing glow", "In red.", get("killedGlow"), set("killedGlow"))
+		p:checkbox("Cross until recast", "A red cross stays over the " .. noun .. " until you recast it, up to 5 s.",
+			get("killedMark"), set("killedMark"))
+	end)
 end
 
 -- Standard block: a timer's look (ShamanForever_Timers.lua). key nil: General's for the kind, with
@@ -245,49 +246,53 @@ local function timerSettings(p, title, key, kind, after, note)
 	local cant = ns.Timer.cant(key, kind)
 	local r = styleRows(key, kind, after)
 	local style, tg, ts, own = r.style, r.get, r.set, r.own
-	-- A row hides while following General, while its part is off, or when the game can't do it.
-	local function dim(part, needs)
-		return showWhen(function()
-			if cant[part] or not own() then return false end
-			if needs and not style()[needs] then return false end
-			return true
-		end)
-	end
+	-- A part's switch hides while following General, or when the game can't do it; the rows under it
+	-- hang on it while it's on.
+	local function part(name) return showWhen(function() return not cant[name] and own() end) end
+	local function on(field) return function() return style()[field] end end
 	p:header(title)
 	if not key then p:anchor(kind) end
 	if note then p:text(note) end
 	if key then followRow(p, key, kind, after) end
 	-- What the game can't do here, said once instead of showing rows that could never apply.
 	for _, why in pairs(cant) do p:text(why, own) end
-	p:checkbox("Countdown text", "Numbers counting down.", tg("text"), ts("text"), dim("text"))
-	p:slider("Text size", nil, 6, 48, 1, int, tg("textSize"), ts("textSize"), dim("text", "text"))
-	p:color("Text colour", nil, tg("textColor"), ts("textColor"), dim("text", "text"))
-	p:dropdown("Text position", "Auto: centred, or top-left on an icon that also shows a cooldown.", TEXT_POS,
-		tg("textPos"), ts("textPos"), dim("text", "text"), 140)
-	p:dropdown("Time format", "How minutes show. Minutes round up; the last minute always counts seconds.", {
-		{ 0, "2m, then seconds" }, { 120, "1:31 in the last 2 minutes" },
-		{ 300, "1:31 in the last 5 minutes" }, { 600, "1:31 in the last 10 minutes" },
-	}, tg("abbrev"), ts("abbrev"), dim("text", "text"), 220)
-	p:checkbox("Colour by time left", "The numbers change colour near the end.", tg("timeColors"), ts("timeColors"),
-		dim("text", "text"))
-	local colored = showWhen(function() return not cant.text and own() and style().text and style().timeColors end)
-	local function seconds(v) return string.format("%d s", v) end
-	p:slider("Soon", "Seconds left when the first colour starts.", 1, 60, 1, seconds, tg("soon"), ts("soon"), colored)
-	p:color("Soon colour", nil, tg("soonColor"), ts("soonColor"), colored, true)
-	p:slider("Now", "Seconds left when the second colour starts.", 1, 60, 1, seconds, tg("now"), ts("now"), colored)
-	p:color("Now colour", nil, tg("nowColor"), ts("nowColor"), colored, true)
-	p:slider("Tenths below", "Tenths of a second under this many seconds.", 0, 10, 1,
-		function(v) return v == 0 and "Off" or seconds(v) end, tg("tenths"), ts("tenths"), dim("text", "text"))
-	p:checkbox("Swipe", "A shade that sweeps round the icon.", tg("swipe"), ts("swipe"), dim("swipe"))
-	p:slider("Swipe darkness", nil, 0.1, 1, 0.05, pct, tg("swipeAlpha"), ts("swipeAlpha"), dim("swipe", "swipe"))
-	p:checkbox("Swipe darkens as time runs out", "Off: it lightens, like most cooldowns.", tg("swipeReverse"), ts("swipeReverse"), dim("swipe", "swipe"))
-	p:checkbox("Time bar", "A bar along an edge that drains.", tg("bar"), ts("bar"), dim("bar"))
-	p:slider("Bar height", nil, 1, 20, 1, px, tg("barHeight"), ts("barHeight"), dim("bar", "bar"))
-	p:dropdown("Bar edge", nil, { { "bottom", "Bottom" }, { "top", "Top" } }, tg("barEdge"), ts("barEdge"), dim("bar", "bar"), 140)
-	p:dropdown("Bar colour", nil, { { true, "Element colour" }, { false, "Custom" } }, tg("barElement"), ts("barElement"), dim("bar", "bar"), 160)
-	p:color("Custom bar colour", nil, tg("barColor"), ts("barColor"), showWhen(function()
-		return not cant.bar and own() and style().bar and not style().barElement
-	end))
+	local text = p:checkbox("Countdown text", "Numbers counting down.", tg("text"), ts("text"), part("text"))
+	p:sub(text, on("text"), function()
+		p:slider("Text size", nil, 6, 48, 1, int, tg("textSize"), ts("textSize"))
+		p:color("Text colour", nil, tg("textColor"), ts("textColor"))
+		p:dropdown("Text position", "Auto: centred, or top-left on an icon that also shows a cooldown.", TEXT_POS,
+			tg("textPos"), ts("textPos"), nil, 140)
+		p:dropdown("Time format", "How minutes show. Minutes round up; the last minute always counts seconds.", {
+			{ 0, "2m, then seconds" }, { 120, "1:31 in the last 2 minutes" },
+			{ 300, "1:31 in the last 5 minutes" }, { 600, "1:31 in the last 10 minutes" },
+		}, tg("abbrev"), ts("abbrev"), nil, 220)
+		local colored = p:checkbox("Colour by time left", "The numbers change colour near the end.", tg("timeColors"),
+			ts("timeColors"))
+		local function seconds(v) return string.format("%d s", v) end
+		p:sub(colored, on("timeColors"), function()
+			p:slider("Soon", "Seconds left when the first colour starts.", 1, 60, 1, seconds, tg("soon"), ts("soon"))
+			p:color("Soon colour", nil, tg("soonColor"), ts("soonColor"), nil, true)
+			p:slider("Now", "Seconds left when the second colour starts.", 1, 60, 1, seconds, tg("now"), ts("now"))
+			p:color("Now colour", nil, tg("nowColor"), ts("nowColor"), nil, true)
+		end)
+		p:slider("Tenths below", "Tenths of a second under this many seconds.", 0, 10, 1,
+			function(v) return v == 0 and "Off" or seconds(v) end, tg("tenths"), ts("tenths"))
+	end)
+	local swipe = p:checkbox("Swipe", "A shade that sweeps round the icon.", tg("swipe"), ts("swipe"), part("swipe"))
+	p:sub(swipe, on("swipe"), function()
+		p:slider("Swipe darkness", nil, 0.1, 1, 0.05, pct, tg("swipeAlpha"), ts("swipeAlpha"))
+		p:checkbox("Swipe darkens as time runs out", "Off: it lightens, like most cooldowns.", tg("swipeReverse"), ts("swipeReverse"))
+	end)
+	local bar = p:checkbox("Time bar", "A bar along an edge that drains.", tg("bar"), ts("bar"), part("bar"))
+	p:sub(bar, on("bar"), function()
+		p:slider("Bar height", nil, 1, 20, 1, px, tg("barHeight"), ts("barHeight"))
+		p:dropdown("Bar edge", nil, { { "bottom", "Bottom" }, { "top", "Top" } }, tg("barEdge"), ts("barEdge"), nil, 140)
+		local colour = p:dropdown("Bar colour", nil, { { true, "Element colour" }, { false, "Custom" } }, tg("barElement"),
+			ts("barElement"), nil, 160)
+		p:sub(colour, function() return not style().barElement end, function()
+			p:color("Custom bar colour", nil, tg("barColor"), ts("barColor"))
+		end)
+	end)
 	if not key then ownLine(p, kind) end
 end
 
