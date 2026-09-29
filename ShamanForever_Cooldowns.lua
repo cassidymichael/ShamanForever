@@ -507,9 +507,13 @@ end
 
 -- The ready sound (ShamanForever_Sounds.lua), at the ready pop's moment (popWhenReady, hooked
 -- first): not when a global cooldown ends, nor for a spell that needs a totem while none is down.
--- Separate from the pop, which can be off while the sound is on.
+-- Separate from the pop, which can be off while the sound is on. Only while the icon is on screen,
+-- and not in the moment it comes into view: a hidden timer's end may reach it only then, late.
+local JUST_SHOWN = 0.2
 local function soundWhenReady(f, key, totemSlot)
+	f:HookScript("OnShow", function() f.shownAt = GetTime() end)
 	f.cd:HookScript("OnCooldownDone", function()
+		if not f:IsVisible() or GetTime() - (f.shownAt or 0) < JUST_SHOWN then return end
 		if f.gcdUntil and GetTime() <= f.gcdUntil then return end
 		if totemSlot then
 			local ok, d = safe(GetTotemDuration, totemSlot)
@@ -557,7 +561,8 @@ Totems.subscribe(function(event, slot, arg)
 				f.killed.mark:Hide()
 			elseif event == "gone" and Totems.ownerOf(slot) == def.spellKey and ns.isEnabled(key) then
 				local dur = arg
-				ns.Sounds.element(key, "goneSound", true)   -- ran out or killed: one sound, in combat too
+				-- Ran out or killed: one sound, in combat too, while the icon is on screen.
+				if f:IsVisible() then ns.Sounds.element(key, "goneSound", true) end
 				if def.ranOut then
 					-- Its colour with an hourglass, rather than the pop.
 					if setting(key, "ranOutFlash") then

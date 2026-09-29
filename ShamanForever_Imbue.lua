@@ -189,10 +189,11 @@ function IM.refresh()
 	-- No weapon to imbue, or dead, a ghost or on a flight path: nothing can be cast.
 	local quiet = not hasWeapon() or ns.cantAct()
 	drawImbue(now, quiet)
-	-- The moment it drops (imbues stay readable in combat): pop and sound. Not when the weapon came off.
+	-- The moment it drops (imbues stay readable in combat): pop and sound, the sound while the icon
+	-- is on screen. Not when the weapon came off.
 	if had and r == false and not quiet then
 		if db.imbuePop then imbue:Pop("imbue") end
-		ns.Sounds.element("imbue", "lostSound", true)
+		if imbue:IsVisible() then ns.Sounds.element("imbue", "lostSound", true) end
 	end
 end
 

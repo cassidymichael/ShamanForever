@@ -1280,7 +1280,7 @@ ns.Totems.subscribe(function(event, slot, was)
 	local s = bySlot[slot]
 	local c = cfg()
 	if not s.button:IsShown() then return end
-	ns.Sounds.play(c.goneSound, "totembar", nil, true)
+	if s.button:IsVisible() then ns.Sounds.play(c.goneSound, "totembar", nil, true) end
 	if c.expiredPop then s.expired:play(was, { expired = true, pop = true }) end
 	if c.killed then s.killed:play(was, { pop = c.killedPop, glow = c.killedGlow, mark = c.killedMark }) end
 end)

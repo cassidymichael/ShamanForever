@@ -1,7 +1,9 @@
 -- Sounds: the one list of sounds every alert offers, and playing them. Every alert's sound starts at
 -- None: nothing plays until the player picks one. A sound plays only at a moment the HUD already
 -- shows (a ready pop, an imbue dropping, a totem ending, the Tremor warning starting), never on a
--- guess made for the sound alone.
+-- guess made for the sound alone, and only while that part of the HUD is on screen: an element
+-- hidden out of combat (Show "In combat"), or the totem bar hiding as its last totem ends, plays
+-- nothing, as its pops and flashes don't.
 --
 -- The game's sounds are sound kits, looked up by name in SOUNDKIT so one this client lacks is left
 -- out. Others come from LibSharedMedia when another addon has loaded it (we don't ship it: it only
