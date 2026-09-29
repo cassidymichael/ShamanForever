@@ -800,7 +800,7 @@ L.PREVIEW.totembar = {
 						if c.killedGlow then ic:SetGlowShown(true, 1, 0.12, 0.08) end
 						if c.killedMark then
 							h.kMark:ClearAllPoints(); h.kMark:SetAllPoints(ic)
-							h.kMark.x:SetSize(size * 0.7, size * 0.7); h.kMark:Show()
+							h.kMark.x:SetSize((size - 2 * o) * 0.7, (size - 2 * o) * 0.7); h.kMark:Show()
 						end
 					elseif full then
 						ic.tex:SetDesaturated(c.idleGrey); ic.tex:SetAlpha(c.idleAlpha)

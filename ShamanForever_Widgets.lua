@@ -540,7 +540,9 @@ function ns.makeEndFlash(parent, anchor, owner, over)
 			if not ok then return end
 		end
 		self:SetAlpha(a)
-		local size = anchor:GetWidth()
+		-- fitSize: the picture's size, set by whoever lays it out where the flash sits in from anchor
+		-- (the totem bar's slots, inside their border), so no size is read under a secure button.
+		local size = self.fitSize or anchor:GetWidth()
 		local soft = opts.expired and opts.ranOut
 		if soft then
 			local c = opts.ranOut

@@ -978,6 +978,7 @@ function layout()
 		b:SetAttribute("action", multiAction(s.slot))
 		castKeys[s.el]:SetAttribute("action", multiAction(s.slot))
 		s.inset = TB.fitLook(s.vis, b, border, size)   -- the range strip sits in by it too
+		s.killed.fitSize, s.expired.fitSize = size - 2 * s.inset, size - 2 * s.inset   -- over the picture
 		s.timer:apply()
 		layoutArrow(s)
 		TB.layoutBadge(s.badge, s.button, size, border)
