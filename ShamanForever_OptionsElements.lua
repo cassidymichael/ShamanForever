@@ -525,8 +525,9 @@ local function mobList(p)
 	restore:SetScript("OnClick", function() T.restore() end)
 
 	local shown = 0   -- rows matching the search
+	local listW       -- the row's width at the page's last layout (the panels' padding included)
 	local function fill()
-		panel:SetWidth(math.min(p:width(), MOB_LIST_W))
+		panel:SetWidth(math.min(listW or p:width(), MOB_LIST_W))
 		local text = box:GetText()
 		box.hint:SetShown(text == "" and not box:HasFocus())
 		local list = T.rows(text, ownOnly:GetChecked())
@@ -556,7 +557,7 @@ local function mobList(p)
 	box:SetScript("OnEscapePressed", function(self) self:SetText(""); self:ClearFocus() end)
 	add:SetScript("OnClick", addTyped)
 	addTarget:SetScript("OnClick", function() T.addTarget() end)
-	return p:add(f, H, nil, fill)
+	return p:add(f, H, nil, function() listW = p:width(); fill() end)
 end
 
 -- A line that reads as a link and opens another part of the options.
