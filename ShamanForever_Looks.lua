@@ -643,7 +643,8 @@ end
 
 ------------------------------------------------------------------------
 -- Glow looks. The default is "soft", the soft inner glow. Each look is an entry with:
---   uses      the glow style's fields it reads (color, speed, low, width); the options show those
+--   uses      the glow style's fields it reads (color, speed, low, width, strength); the options
+--             show those
 --   steady    it doesn't breathe (the glow's pulse is off; speed may time its own motion)
 --   bySchool  it differs by school (the options preview it on one icon per school)
 --   build(g)  its regions and animation groups, under g.inner (breathing) or g (not); returns
@@ -857,8 +858,10 @@ local spark = {
 local MATERIAL = {   -- school -> tile move (in tiles), seconds a tile
 	earth = { 0, 0, 1 }, fire = { 0, 1, 2.2 }, water = { 1, -1, 5 }, air = { 1, 0, 1.2 }, spirit = { 1, -1, 5 },
 }
+-- Intensity: below 100% the material dims; above it the glow under it brightens too (the material
+-- itself is already at full opacity, so more light has to come from the soft glow beneath).
 local material = {
-	uses = { color = true, speed = true }, bySchool = true,
+	uses = { color = true, speed = true, strength = true }, bySchool = true,
 	build = function(g)
 		local r = root(g.inner)
 		local parts = { roots = { r }, soft = softPart(r, 0.35) }
@@ -873,12 +876,14 @@ local material = {
 		return parts
 	end,
 	style = function(g, parts, st, c)
+		local k = st.strength or 1
+		parts.soft.alpha = math.min(0.35 * math.max(k, 1), 1)
 		styleSoft(parts.soft, c)
 		local school = schoolOf(g)
 		parts.school = school
 		parts.mat:SetTexture(MEDIA .. "Mat-" .. school:sub(1, 1):upper() .. school:sub(2), "REPEAT", "REPEAT")
 		parts.mat:SetTexCoord(0, 3, 0, 3)
-		parts.mat:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
+		parts.mat:SetVertexColor(c[1], c[2], c[3], (c[4] or 1) * math.min(k, 1))
 		parts.move:SetDuration((MATERIAL[school] or MATERIAL.spirit)[3])
 	end,
 	fit = function(g, parts, size)

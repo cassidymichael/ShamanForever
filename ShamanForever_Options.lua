@@ -249,6 +249,7 @@ local function glowBlock(p, owner, icon)
 	p:slider("Pulse depth", "How much it fades between pulses. 0% is steady.", 0, 1, 0.05, pct,
 		function() return 1 - r.style().low end, function(v) setLow(1 - v) end, uses("low"))
 	p:slider("Thickness", "How far in from the edges it reaches.", 0.1, 0.5, 0.05, pct, r.get("width"), r.set("width"), uses("width"))
+	p:slider("Intensity", "How bright it is. Above 100% it adds light.", 0.2, 2.5, 0.1, pct, r.get("strength"), r.set("strength"), uses("strength"))
 	if owner == nil then ownLine(p, "glow") end
 end
 
