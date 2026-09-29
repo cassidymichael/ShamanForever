@@ -56,6 +56,12 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - Show it Always, In combat or a totem down, In combat, or In combat or with an enemy target. Drag to reorder the slots.
 - It stays hidden until your character knows a totem, and its page in the options says "Not learned".
 
+### Swing timer
+
+- A bar for your next melee swing, in your main hand's imbue colour or one you choose. It fills or empties, from the left or the right, with the time left as text on the left, middle or right.
+- It shows while you auto attack, from your first swing. A cast-time spell clears it until your next swing.
+- Show it In combat or Always, or hide it. Like the totem bar, it has its own place, width, height, scale, opacity and border.
+
 ### Warnings and timers
 
 - Warning looks for a missing shield, imbue or totem, or one running out: grey icon, red ring, fade in and out.
@@ -70,7 +76,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - Delete group: its elements move to Ungrouped, off screen with their settings kept, until you put them in a group again.
 - Show each element always, only in combat, or never. A group can show Always, In combat, or In combat or with an enemy target.
 - Stay after combat: a group or the totem bar that doesn't show Always can stay up to 10 seconds once combat ends, then fade out.
-- Positioning mode: drag groups and the totem bar, with snapping and a grid. Mouse wheel sets scale, Shift+wheel icon size, Ctrl+wheel opacity, and the arrow keys nudge. It locks itself when combat starts.
+- Positioning mode: drag groups, the totem bar and the swing timer, with snapping and a grid. Mouse wheel sets scale, Shift+wheel icon size (the swing timer's width), Ctrl+wheel opacity, and the arrow keys nudge. It locks itself when combat starts.
 - Preview (`/sf preview`, or Preview in the options): the whole HUD as you've arranged it, so you can arrange it without a fight or the right buffs. Preview shows an ordinary moment of a fight, Warnings shows every warning at once, and Busy plays pops, glows and flashes on every element at once to show how noisy it gets. Show not learned adds the elements you haven't learned yet. It works with positioning mode, and ends when combat starts.
 - Borders and warning rings stay pixel-sharp at any icon size.
 - Test elements (`/sf test`): placeholder icons for trying out a layout, and elements you haven't learned yet, greyed.

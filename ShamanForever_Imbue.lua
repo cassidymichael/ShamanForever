@@ -94,6 +94,13 @@ local function imbueKeyFor(w)
 	end
 end
 
+-- The imbue on the main hand now (a key of IMBUES), read whether or not the element shows; nil when
+-- none is on, it isn't recognised or it can't be read. The swing timer's colour.
+function IM.mainHand()
+	local r = readMainHand()
+	return r and imbueKeyFor(r) or nil
+end
+
 local imbueIcon = imbueIconFor("rockbiter")
 -- The icon while no imbue is on: the player's pick, or the last one used.
 local function preferredImbueIcon()

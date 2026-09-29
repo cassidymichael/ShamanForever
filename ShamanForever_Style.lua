@@ -2,11 +2,12 @@
 -- able to have its own instead ("Same as General" in the options). One mechanism for every kind:
 --   cooldown, uptime  timers (ShamanForever_Timers.lua); elements and the totem bar
 --   glow, pop         the pulsing glow and the pop (ShamanForever.lua); elements and the totem bar
---   border            the edge around icons; groups and the totem bar
+--   border            the edge around icons; groups, the totem bar and the swing timer
 --   gcd               the global cooldown's sweep, on or off; the cooldown elements and the totem bar
--- An owner is nil (General), an element key, "totembar", or a group's table. A kind's settings sit
--- at the same path under each holder: the profile for General (db.glowStyle, db.timers.cooldown), else
--- the element's options, the totem bar's settings or the group itself. An owner's own table also
+-- An owner is nil (General), an element key, "totembar", "swing" (the swing timer), or a group's
+-- table. A kind's settings sit at the same path under each holder: the profile for General
+-- (db.glowStyle, db.timers.cooldown), else the element's options, the totem bar's or the swing
+-- timer's settings, or the group itself. An owner's own table also
 -- holds `follow`; turning it off the first time starts from General's look (with the owner's own
 -- defaults on top), and turning it back on keeps its own values for later.
 
@@ -84,6 +85,7 @@ local function holder(owner)
 	local db = ns.getDB and ns.getDB()
 	if not db or owner == nil then return db end
 	if owner == "totembar" then return ns.TotemBar and ns.TotemBar.cfg() end
+	if owner == "swing" then return ns.Swing and ns.Swing.cfg() end
 	return ns.elementOpts and ns.elementOpts(owner)
 end
 
@@ -207,7 +209,10 @@ function S.ownStyles(kind)
 		end
 	end
 	for _, key in ipairs(S.KINDS[kind].users) do
-		local offered = key == "totembar" and ns.TotemBar and ns.TotemBar.barOn() or (key ~= "totembar" and ns.available and ns.available(key))
+		local offered
+		if key == "totembar" then offered = ns.TotemBar and ns.TotemBar.barOn()
+		elseif key == "swing" then offered = ns.Swing and ns.Swing.isOn()
+		else offered = ns.available and ns.available(key) end
 		if offered and not S.follows(key, kind) then table.insert(out, S.ownerName(key)) end
 	end
 	return out

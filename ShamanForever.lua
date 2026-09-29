@@ -110,6 +110,7 @@ local DEFAULTS = {
 	imbueWarnMins = 5,        -- show time left below this many minutes (0 = never)
 	imbueHideActive = true,   -- while an imbue is on, only show once its time left shows
 	totemBar = {},            -- the totem bar's settings (ShamanForever_TotemBar.lua fills its defaults)
+	swingBar = {},            -- the swing timer's settings (ShamanForever_Swing.lua fills its defaults)
 	-- General's timer styles, one per kind (ShamanForever_Timers.lua); elements and the totem bar
 	-- follow them unless they have their own.
 	timers = { cooldown = CopyTable(ns.Timer.DEFAULTS.cooldown), uptime = CopyTable(ns.Timer.DEFAULTS.uptime) },

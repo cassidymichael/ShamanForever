@@ -35,7 +35,8 @@ end
 L.PANEL = { 29 / 255, 24 / 255, 19 / 255 }
 
 -- Each element's identity comes from its registry entry (ns.registerElement): its name, icon and
--- school never change with its settings. The totem bar's page has the same kind of header.
+-- school never change with its settings. The totem bar's page and the swing timer's have the same
+-- kind of header, from their entries in L.IDENTITY.
 local TOTEMBAR = { label = "Totem bar", icon = "Interface\\Icons\\Spell_Shaman_DropAll_01", school = "spirit",
 	blurb = "Your totems, their timers, and a pick for each element.",
 	tags = function()
@@ -46,7 +47,8 @@ local TOTEMBAR = { label = "Totem bar", icon = "Interface\\Icons\\Spell_Shaman_D
 		return string.format("%s  ·  %s%s", TB.modeName(), shows[c.show] or "",
 			TB.hasTotems() and "" or "  ·  Not learned")
 	end }
-local function identity(key) return key == "totembar" and TOTEMBAR or ns.ELEMENTS[key] end
+L.IDENTITY = { totembar = TOTEMBAR }   -- the swing timer's: ShamanForever_OptionsSwing.lua
+local function identity(key) return L.IDENTITY[key] or ns.ELEMENTS[key] end
 
 -- An element's name (or the totem bar's): its spell's in the client's language, else its label.
 function L.elementName(key)
