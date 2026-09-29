@@ -239,6 +239,7 @@ local EVENTS = {
 	{ "UNIT_SPELLCAST_START", "player" },
 	{ "UNIT_INVENTORY_CHANGED", "player" },
 	{ "PLAYER_LEAVE_COMBAT" },   -- auto attack off
+	{ "PLAYER_DEAD" },
 }
 
 local function onEvent(_, event, a1, a2)
@@ -247,7 +248,7 @@ local function onEvent(_, event, a1, a2)
 	elseif event == "UNIT_INVENTORY_CHANGED" then
 		paintFill()   -- an imbue put on or lost: the fill takes its colour now, and the options preview
 		ns.Options.refresh()
-	elseif event == "PLAYER_LEAVE_COMBAT" then clearSwing()
+	elseif event == "PLAYER_LEAVE_COMBAT" or event == "PLAYER_DEAD" then clearSwing()
 	end
 end
 
