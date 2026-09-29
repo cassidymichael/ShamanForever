@@ -364,8 +364,8 @@ local function killedBlock(p, get, set, noun, label)
 end
 
 -- Standard block: the text style (ShamanForever_Media.lua), the font, outline and shadow of all an
--- owner's text: timers, counts, keys. owner nil: General's; "totembar": the bar's own, with Same as
--- General. The list draws each font in itself, once it's known to load.
+-- owner's text: timers, counts, keys. owner nil: General's; "totembar" or "swing": the bar's own,
+-- with Same as General. The list draws each font in itself, once it's known to load.
 local function fontChoices(current)
 	local out = {}
 	for _, f in ipairs(ns.Media.fonts(current)) do
@@ -386,7 +386,7 @@ local function textBlock(p, owner, after)
 	p:header("Text")
 	if owner == nil then
 		p:anchor("text")
-		p:text("Timers, counts and keys. The totem bar can have its own.")
+		p:text("Timers, counts and keys. The totem bar and the swing timer can have their own.")
 	else followRow(p, owner, "text", after) end
 	local own = showWhen(r.own)
 	local function problem() return ns.Media.fontProblem(r.style().font) end
@@ -991,6 +991,7 @@ OP.kit = {
 	COMBAT_SHOW = COMBAT_SHOW, STAY_TIP = STAY_TIP, staySecs = staySecs,
 	generalRow = generalRow, borderRows = borderRows,
 	timerSettings = timerSettings, gcdBlock = gcdBlock, glowBlock = glowBlock, popBlock = popBlock,
+	textBlock = textBlock,
 	expiringLooks = expiringLooks, killedBlock = killedBlock,
 }
 

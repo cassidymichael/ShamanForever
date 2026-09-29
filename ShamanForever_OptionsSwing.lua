@@ -114,6 +114,7 @@ function SP.build(p)
 	p:dropdown("Position", nil, TEXT_POS, get("countdownPos"), set("countdownPos"), text, 160)
 	p:slider("Text size", nil, R.countdownSize[1], R.countdownSize[2], 1, int, get("countdownSize"), set("countdownSize"), text)
 	p:color("Text colour", nil, get("countdownColor"), set("countdownColor"), text)
+	K.textBlock(p, "swing", changed)
 
 	p:header("Border")
 	K.borderRows(p, "swing", changed)

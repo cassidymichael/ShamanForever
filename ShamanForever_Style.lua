@@ -5,7 +5,8 @@
 --   border            the edge around icons, in one of its looks; groups, the totem bar and the
 --                     swing timer
 --   gcd               the global cooldown's sweep, on or off; the cooldown elements and the totem bar
---   text, bar         fonts and bar textures (ShamanForever_Media.lua); text: the totem bar, bar: none
+--   text, bar         fonts and bar textures (ShamanForever_Media.lua); text: the totem bar and the
+--                     swing timer, bar: none
 -- An owner is nil (General), an element key, "totembar", "swing" (the swing timer), or a group's
 -- table. A kind's settings sit at the same path under each holder: the profile for General
 -- (db.glowStyle, db.timers.cooldown), else the element's options, the totem bar's or the swing

@@ -52,7 +52,7 @@ SW.DEFAULTS = {
 	deplete = false,          -- starts full and empties
 	countdown = false, countdownSize = 12, countdownColor = { 1, 1, 1, 1 },
 	countdownPos = "center",  -- left | center | right of the bar
-	-- border: its own, if it has one (ShamanForever_Style.lua)
+	-- border, textStyle: its own, if it has one (ShamanForever_Style.lua)
 }
 -- Number settings: the options sliders' ranges. Anything outside (a damaged or hand-made import) is
 -- clamped, so the layout never gets a scale of 0 or a NaN.
@@ -141,7 +141,7 @@ local TEXT_SIDE = { left = "LEFT", center = "CENTER", right = "RIGHT" }
 function SW.styleCountdown()
 	local c = cfg()
 	local k = c.countdownColor
-	ns.Media.setFontObject(font, nil, c.countdownSize)   -- General's text style
+	ns.Media.setFontObject(font, "swing", c.countdownSize)   -- General's text style, or its own
 	font:SetTextColor(k[1], k[2], k[3], k[4] or 1)
 end
 function SW.placeCountdown(fs, anchor)

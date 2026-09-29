@@ -1,6 +1,6 @@
 -- Media: the HUD's fonts and bar textures. Two styles (ShamanForever_Style.lua):
 --   text  font, outline and shadow for every piece of text an owner draws (timers, counts, keys,
---         words); General's, or the totem bar's own
+--         words); General's, or the totem bar's or the swing timer's own
 --   bar   the texture of every bar (time bars, the shield's charge bar, Maelstrom's stack bar,
 --         the swing timer); General's only
 -- Choices are stored by name, never by path. The game's fonts and bars are built in; others come
@@ -157,12 +157,14 @@ function M.fontPath(name)
 	return path
 end
 
--- Owners of text: General (nil) and the totem bar; everything else draws with General's.
-local function owner(o) return o == "totembar" and "totembar" or nil end
+-- Owners of text: General (nil), the totem bar and the swing timer; everything else draws with
+-- General's.
+local OWNERS = { totembar = true, swing = true }
+local function owner(o) return OWNERS[o] and o or nil end
 
--- Whether General's or the totem bar's text uses a font, by name or by path.
+-- Whether General's, the totem bar's or the swing timer's text uses a font, by name or by path.
 function M.fontInUse(name, path)
-	for _, o in ipairs({ false, "totembar" }) do
+	for _, o in ipairs({ false, "totembar", "swing" }) do
 		local n = S.value(o or nil, "text", "font")
 		if n ~= "" and (n == name or (path and pathOf(n) == path)) then return true end
 	end
