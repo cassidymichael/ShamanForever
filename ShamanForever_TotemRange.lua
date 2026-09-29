@@ -157,7 +157,7 @@ function R.preview(on)
 	for _, el in ipairs(TB.ELEMENTS) do
 		local s = TB.slots[el]
 		for _, part in ipairs(PARTS) do
-			local p = s.rangeParts[part.key]
+			local p = s.rangeParts and s.rangeParts[part.key]   -- made with the slot's first strip
 			if p then
 				p.icon:SetAlpha(on and 0 or 1)
 				p.over:SetAlpha(on and 0 or 1)
