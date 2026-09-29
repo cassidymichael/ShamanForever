@@ -3,7 +3,7 @@
 --   frame      the edge around an icon, in its border's look (rings of lines, corner caps, art
 --              over or around the icon, a mask on the icon's picture)
 --   glow       the pulsing glow's looks (ns.makeGlow calls in)
---   pop        the pop's looks past the classic one (ns.playPop calls in)
+--   pop        the pop's looks past the classic one, and its motion by school (ns.playPop calls in)
 --   burster    textures that grow and fade over a pop's short life
 -- Our own media are named by path, never by file ID: the client gives our loose files IDs that
 -- change between client starts (tested 2026-09-28). Blizzard's art is named by atlas and checked
@@ -931,11 +931,12 @@ addGlow("material", "School material", material)
 addGlow("heartbeat", "Heartbeat", heartbeat)
 
 ------------------------------------------------------------------------
--- Pop looks. The default, "classic", is ns.playPop's own motion, flash, ring and star. The others
--- are for Ready (other events keep the classic pop, in their colours) and take the element's
--- school colour. An entry's motion(school) gives its motion and distance, and play(x, f, c, k,
--- school) draws its light with x's parts (ns.playPop's), k its duration multiplier. Shapes spread
--- behind the icon over a dark halo, so they read on bright ground; the sheen crosses the icon.
+-- Pop looks: the light around the icon, never its motion (the pop style's Motion, below). The
+-- default, "classic", is ns.playPop's own flash, ring and star. The others are for Ready (other
+-- events keep the classic light, in their colours) and take the element's school colour. An
+-- entry's play(x, f, c, k, h, st, school) draws its light with x's parts (ns.playPop's), k its
+-- duration multiplier, h the icon's height with its frame. Shapes spread behind the icon over a
+-- dark halo, so they read on bright ground; the sheen crosses the icon.
 ------------------------------------------------------------------------
 local GCD_FLASH = "UI-HUD-ActionBar-GCD-Flipbook"
 local SCHOOLS = { earth = "Earth", fire = "Fire", water = "Water", air = "Air", spirit = "Spirit" }
@@ -1056,9 +1057,9 @@ local function shapes(file, to)
 	end
 end
 
--- Each school its own motion: earth slams, fire flares up, water ripples twice, air spins,
+-- Each school its own effect: earth slams, fire flares up, water ripples twice, air spins,
 -- spirit gathers in and bursts.
-local MOTIONS = {
+local EFFECTS = {
 	earth = function(x, c, k, h)
 		burst(x, "shape1", shapeFile("earth"), c, h, 0.8, 2.7, { dur = 0.5 * k, spin = 0.25, delay = 0.06 * k }, false, true)
 		burst(x, "ring1", MEDIA .. "Ring-Soft", c, h, 1.0, 2.6, { dur = 0.55 * k, sy = 0.42, rise = -h * 0.32, a = 0.9, delay = 0.06 * k })
@@ -1086,8 +1087,6 @@ local MOTIONS = {
 		burst(x, "spark", MEDIA .. "Spark", c, h, 0.4, 1.6, { dur = 0.4 * k, a = 0.9, delay = 0.22 * k }, true)
 	end,
 }
-local MOTION_OF = { earth = { "bounce", 1.14 }, fire = { "pop", 1.25 }, water = { "hop", 1.12 },
-	air = { "shake", 1.35 }, spirit = { "pop", 1.18 } }
 
 local function addPop(key, name, entry)
 	entry.name, entry.experimental = name, key ~= "classic" or nil
@@ -1096,23 +1095,20 @@ end
 addPop("classic", "Classic", {})
 addPop("school", "School colour", { play = schoolLight })
 addPop("flash", "Blizzard's flash", {
-	motion = function() return "pop", 1 end,   -- none: the flash is the whole of it
 	atlas = GCD_FLASH,
 	play = function(x, f, c, k) gcdFlash(x, c, k) end,
 })
-addPop("shapes", "School shapes", { motion = function() return "pop", 1.15 end, play = shapes(shapeFile, 3.0) })
-addPop("motions", "School motions", {
-	motion = function(school) local m = MOTION_OF[school] or MOTION_OF.spirit; return m[1], m[2] end,
+addPop("shapes", "School shapes", { play = shapes(shapeFile, 3.0) })
+addPop("effects", "School effects", {
 	play = function(x, f, c, k, h, st, school)
 		disc(x, h, 3.0, 0.6 * k)
-		local motion = MOTIONS[school] or MOTIONS.spirit
-		motion(x, c, k, h)
+		local effect = EFFECTS[school] or EFFECTS.spirit
+		effect(x, c, k, h)
 	end,
 })
-addPop("painted", "Painted bursts", { motion = function() return "pop", 1.15 end,
-	play = shapes(function(school) return MEDIA .. "Burst-" .. (SCHOOLS[school] or "Spirit") end, 3.2) })
+addPop("painted", "Painted bursts",
+	{ play = shapes(function(school) return MEDIA .. "Burst-" .. (SCHOOLS[school] or "Spirit") end, 3.2) })
 addPop("rune", "Rune ring", {
-	motion = function() return "pop", 1.12 end,
 	play = function(x, f, c, k, h)
 		disc(x, h, 2.6, 0.6 * k)
 		burst(x, "shape1", MEDIA .. "Rune-Ring", c, h, 1.05, 2.6, { dur = 0.62 * k, spin = 0.55 }, false, true)
@@ -1121,16 +1117,15 @@ addPop("rune", "Rune ring", {
 })
 
 -- The pop style ns.playPop draws for kind on f: st itself for the classic look (and for every
--- event but Ready); else a copy with the look's motion and without the classic light, and play,
--- which draws the look's own light after the motion starts. A look whose Blizzard art is missing
--- draws as School colour.
+-- event but Ready); else a copy without the classic light, and play, which draws the look's own
+-- light after the motion starts. The motion is always st's own: a look never changes it. A look
+-- whose Blizzard art is missing draws as School colour.
 function Looks.popStyle(st, kind, f)
 	local look = S.look("pop", st.look)
 	if look.key == "classic" or kind ~= "ready" then return st end
 	if look.atlas and not Looks.hasAtlas(look.atlas) then look = S.LOOKS.pop.byKey.school end
 	local school = schoolOf(f)
 	local out = CopyTable(st)
-	if look.motion then out.motion, out.size = look.motion(school) end
 	out.flash, out.ring, out.star = false, false, false
 	out.play = function(x, k)
 		if not x.back then   -- behind the icon: only pops in these looks need it
@@ -1144,4 +1139,17 @@ function Looks.popStyle(st, kind, f)
 		look.play(x, f, c, k, h, st, school)
 	end
 	return out
+end
+
+-- The pop's motion "school": each school moves its own way (earth bounces, fire and spirit grow,
+-- water hops, air shakes), each at a share of the style's distance (at the default distance: the
+-- sizes these were drawn at).
+local SCHOOL_MOTION = { earth = { "bounce", 0.35 }, fire = { "pop", 0.625 }, water = { "hop", 0.3 },
+	air = { "shake", 0.875 }, spirit = { "pop", 0.45 } }
+
+-- The motion pop style st moves f with, and its distance: st's own, or for "school", f's school's.
+function Looks.popMotion(st, f)
+	if st.motion ~= "school" then return st.motion, st.size end
+	local m = SCHOOL_MOTION[schoolOf(f)] or SCHOOL_MOTION.spirit
+	return m[1], 1 + (st.size - 1) * m[2]
 end

@@ -328,10 +328,11 @@ function ns.auraGlowStale(owner)
 end
 
 -- Pop: the burst when something happens (a cooldown ready, an imbue dropping, a totem ending).
--- Its style is its owner's (General's, or an element's or the totem bar's own): a motion (grow,
--- bounce, hop, shake) with a size and speed, and optional light (a flash over the icon, a ring
--- spreading out, a star behind it), tinted by what happened. For Ready, a pop look in place of that
--- (ns.Looks.popStyle). Every part is built on the frame the first time it pops.
+-- Its style is its owner's (General's, or an element's or the totem bar's own): a motion (none,
+-- grow, bounce, hop, shake, or one per school: ns.Looks.popMotion) with a size and speed, and
+-- optional light (a flash over the icon, a ring spreading out, a star behind it), tinted by what
+-- happened. For Ready, a pop look's light in place of that (ns.Looks.popStyle); the motion stays
+-- the style's. Every part is built on the frame the first time it pops.
 local POP_TINT = { ready = { 1, 0.82, 0.25 }, imbue = { 0.35, 0.65, 1 }, expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 },
 	grounded = { 0.56, 0.76, 0.92 }, blocked = { 0.6, 0.6, 0.6 } }
 ns.POP_TINT = POP_TINT
@@ -408,11 +409,10 @@ function ns.playPop(f, kind, owner)
 	if not f:IsVisible() then return end
 	local st = ns.Looks.popStyle(ns.Style.get(owner, "pop"), kind or "ready", f)
 	local x = popFx(f)
-	local S = st.size
+	local motion, S = ns.Looks.popMotion(st, f)
 	local k = 1 / math.max(st.speed, 0.1)   -- duration multiplier
 	local h = math.max(f:GetHeight(), 8)
 	for _, m in ipairs({ "grow", "bounce", "hop", "shake", "shakeV" }) do x[m]:Stop() end
-	local motion = st.motion
 	if motion == "pop" then
 		local a = x.grow.a
 		a[1]:SetScaleFrom(1, 1); a[1]:SetScaleTo(S, S); a[1]:SetDuration(0.12 * k)
@@ -432,7 +432,7 @@ function ns.playPop(f, kind, owner)
 		a[3]:SetOffset(2 * d * sx, 2 * d * sy); a[3]:SetDuration(0.07 * k)
 		a[4]:SetOffset(-d * sx, -d * sy); a[4]:SetDuration(0.05 * k)
 		g:Play()
-	else   -- bounce: overshoot, dip, settle
+	elseif motion == "bounce" then   -- overshoot, dip, settle
 		local a, u, o = x.bounce.a, 1 - (S - 1) * 0.25, 1 + (S - 1) * 0.15
 		a[1]:SetScaleFrom(1, 1); a[1]:SetScaleTo(S, S); a[1]:SetDuration(0.12 * k)
 		a[2]:SetScaleFrom(S, S); a[2]:SetScaleTo(u, u); a[2]:SetDuration(0.12 * k)
