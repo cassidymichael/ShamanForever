@@ -12,15 +12,16 @@
 --   the buff isn't up. Readable in and out of combat (probed 2026-09-27): MIRROR_TIMER_START comes
 --   with a negative scale while it drains under water, and again with a positive one while it
 --   refills after surfacing; MIRROR_TIMER_STOP only once it's full.
--- * Elemental Focus: a proc can't be foreseen, so in combat only Blizzard's aura container can
---   show it (ns.makeAuraSlot, as for the shield). Its button draws the icon and time left;
---   our glow is a child of that button, so it shows exactly when the button does. The container
---   sits on the effects layer, which ignores the icon's alpha: Idle fades only the icon under it
---   (the look while no proc is up), never the proc itself. Script handlers
---   under the button never run, but the button plays animations handed to it
---   (Blizzard_CustomAuraButton.lua): AddAuraShownAnimation runs the glow's pulse while the proc
---   shows, AddAuraAssignedAnimation our pop each time a proc arrives. Not yet tested in game; on a
---   client without them the pop plays when the proc is seen while auras are readable.
+-- * Elemental Focus: a proc can't be foreseen, so in combat only Blizzard's aura container
+--   can show it (ns.makeAuraSlot, as for the shield). Its button draws the icon and time left
+--   (swipe, countdown or bar); our glow is a child of that button, so it shows exactly when
+--   the button does. The container sits on the effects layer, which ignores the icon's alpha:
+--   Idle fades only the icon under it (the look while no proc is up), never the proc itself.
+--   Script handlers under the button never run, but the button plays animations handed to it
+--   (Blizzard_CustomAuraButton.lua): AddAuraShownAnimation runs the glow's pulse while the
+--   proc shows, AddAuraAssignedAnimation our pop each time a proc arrives (both tested in
+--   combat on Lightning Shield, 2026-09-27; not yet on the proc). On a client without them
+--   the pop plays when the proc is seen while auras are readable.
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg

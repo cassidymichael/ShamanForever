@@ -199,7 +199,7 @@ local function makePreviewIcon(parent, key, preview)
 	if preview.cooldown then ic.cdT = ns.Timer.new(ic, key, "cooldown", { cd = ic.cd, school = school }) end
 	if preview.uptime then
 		ic.upT = ns.Timer.new(ic.textFrame, key, "uptime", { anchor = ic, dual = preview.cooldown,
-			cd = not preview.cooldown and ic.cd or nil, school = school })
+			cd = not preview.cooldown and ic.cd or nil, school = school, barInset = preview.barInset })
 	end
 	ic.bar = CreateFrame("Frame", nil, ic.textFrame)
 	ic.bar:SetPoint("BOTTOMLEFT", ic, "BOTTOMLEFT", 0, 0)
@@ -351,7 +351,7 @@ end
 -- logic of its own has its own here; the others are made from their def by their kind (below).
 L.PREVIEW = {
 	shield = {
-		uptime = true,
+		uptime = true, barInset = function() return ns.Shield.timeBarInset() end,
 		states = { { "up3", "3 charges" }, { "up1", "1 charge" }, { "down", "No shield" }, { "drop", "Dropped in combat" } },
 		render = function(ic, st)
 			local d = db()
@@ -377,12 +377,14 @@ L.PREVIEW = {
 				ic.bar:SetHeight(d.chargeBarHeight or 8)
 				setBar(ic, 3, n, c[1], c[2], c[3])
 			end
-			if d.showCount and n >= 2 then
+			if d.showCount then
 				ic.count:SetFont(STANDARD_TEXT_FONT, d.countSize, "OUTLINE")
 				ic.count:ClearAllPoints()
 				if d.countPos == "center" then ic.count:SetPoint("CENTER") else ic.count:SetPoint("BOTTOMRIGHT", 2, -2) end
 				ic.count:SetText(n)
 				ic.count:Show()
+				local c = (n == 1 and d.countOne) and d.countLastColor or { 1, 1, 1 }
+				ic.count:SetTextColor(c[1], c[2], c[3])
 			end
 		end,
 	},

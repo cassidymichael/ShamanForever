@@ -212,10 +212,14 @@ local function buildShield(p)
 	p:slider("Bar height", nil, 1, 20, 1, px, get("chargeBarHeight"), set("chargeBarHeight"),
 		showWhen(get("showBar")))
 	p:color("Bar colour", nil, get("chargeBarColor"), set("chargeBarColor"), showWhen(get("showBar")))
-	p:checkbox("Charge number", "Shown for 2 or more charges.", get("showCount"), set("showCount"))
+	p:checkbox("Charge number", "The charges as a number.", get("showCount"), set("showCount"))
 	local numberOn = showWhen(get("showCount"))
 	p:dropdown("Number position", nil, { { "corner", "Corner" }, { "center", "Centre" } }, get("countPos"), set("countPos"), numberOn)
 	p:slider("Number size", nil, 8, 64, 1, int, get("countSize"), set("countSize"), numberOn)
+	p:checkbox("Different colour last charge", "Colours the 1, instead of plain white.", get("countOne"),
+		set("countOne"), numberOn)
+	p:color("Last charge colour", nil, get("countLastColor"), set("countLastColor"),
+		showWhen(function() return db().showCount and db().countOne end))
 
 	warningBlock(p, "No shield", get("emptyGrey"), set("emptyGrey"), get("emptyRing"), set("emptyRing"), get("emptyPulse"), set("emptyPulse"))
 	p:checkbox("Red tint", "Tint the icon red.", get("emptyTint"), set("emptyTint"))
@@ -228,7 +232,7 @@ local function buildShield(p)
 	p:text("Only matters at low group opacity. Most can leave it at 100%.")
 	timerSettings(p, "Time left", "shield", "uptime")
 	gcdBlock(p, "shield")
-	effectBlocks(p, "shield", nil, true, false)
+	effectBlocks(p, "shield")
 end
 
 local function buildShock(p)

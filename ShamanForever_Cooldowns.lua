@@ -99,6 +99,11 @@ local COOLDOWNS = {
 		defaults = { idleAlpha = 1, primedPop = false, primedGlow = false, expire = { secs = 0 } }, experimental = "Stormstrike" },
 	{ key = "riptide", spellKey = "riptide", icon = 252995, school = "water", blurb = "Cooldown.",
 		readyGlow = true, cd = 6, defaults = { idleAlpha = 1 }, experimental = "Riptide" },
+	-- Short cooldowns, back many times a fight: no Ready pop unless the player asks for it.
+	{ key = "lavaburst", spellKey = "lavaBurst", icon = 237582, school = "fire", blurb = "Cooldown.",
+		readyGlow = true, cd = 10, defaults = { idleAlpha = 1, readyPop = false }, experimental = "Lava Burst" },
+	{ key = "chainlightning", spellKey = "chainLightning", icon = 136015, school = "air", blurb = "Cooldown.",
+		readyGlow = true, cd = 6, defaults = { idleAlpha = 1, readyPop = false }, experimental = "Chain Lightning" },
 	{ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, window = 25, school = "air",
 		blurb = "Cooldown, and time left while it's on.",
 		readyGlow = true, expireLooks = { "grey", "pulse" }, cd = 180,
@@ -728,10 +733,12 @@ function CD.start()
 			for _, def in ipairs(COOLDOWNS) do if def.reagent then refreshCooldown(def) end end
 		elseif event == "UNIT_AURA" then
 			if InCombatLockdown() then return end   -- auras are secret: nothing to read
+			-- Reagent Economy's aura may have come (the buff elements read it on their own refresh).
+			local perkUnknown = Reagents.auraChanged()
 			for _, def in ipairs(COOLDOWNS) do
 				if def.spellID and def.primed and def.primed.buffKey and ns.isEnabled(def.key) then
 					readPrimedBuff(def, true); refreshCooldown(def)
-				end
+				elseif def.reagent and perkUnknown then refreshCooldown(def) end
 			end
 		end
 	end)

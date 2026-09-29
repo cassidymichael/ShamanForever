@@ -44,7 +44,8 @@ end
 -- Elements that look different from General until the player says otherwise: applied over
 -- General's style, and they do not follow it by default.
 T.ELEMENT_DEFAULTS = {
-	shield = { uptime = { text = false, swipe = false, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
+	-- The shield's time bar, when on, along the top: its charge bar is along the bottom.
+	shield = { uptime = { text = false, swipe = false, swipeAlpha = 0.5, swipeReverse = false, bar = false, barEdge = "top" } },
 	imbue = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = false } },
 	-- Their time left as a bar only (whatever General says): the countdown shows the cooldown.
 	earthbind = { uptime = { text = false, bar = true } },
@@ -64,8 +65,6 @@ T.ELEMENT_DEFAULTS = {
 -- kind's name for that kind only.
 local ONE_SWIPE = "The cooldown has the swipe; time left shows as text or a bar."
 T.CANT = {
-	shield = { bar = "The shield's timer is Blizzard's own; a time bar can't follow it." },
-	elementalfocus = { bar = "Its timer is Blizzard's own; a time bar can't follow it." },
 	-- One icon, two timers: only the cooldown sweeps.
 	earthbind = { uptime = { swipe = ONE_SWIPE } },
 	stoneclaw = { uptime = { swipe = ONE_SWIPE } },
@@ -86,6 +85,8 @@ end
 local WHITE = "Interface\\Buttons\\WHITE8x8"
 local TIMER_REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime or 1
 local TIMER_IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
+-- How Blizzard's aura button drives an aura timer's bar (its SetDurationBar options): as ours do.
+T.AURA_BAR = { interpolation = TIMER_IMMEDIATE, direction = TIMER_REMAINING }
 
 -- Both kinds are styles (ShamanForever_Style.lua): General's in db.timers[kind], an element's or the
 -- totem bar's own in its timers[kind].
@@ -201,10 +202,15 @@ local fonts = 0
 --   cd     = an existing Cooldown to use (its frame level is kept)
 --   dual   = the icon also shows the other kind of timer ("auto" text then goes top-left)
 --   school = colour for "element colour" bars (a key of ns.SCHOOL_COLOR), or a function returning one
---   noBar  = never make a bar (Blizzard's shield button: no frames of ours created in its callback)
+--   aura   = the timer is on Blizzard's aura button (ns.makeAuraSlot), which draws the time: the
+--            button drives the bar (T.AURA_BAR), so it is shown whenever the style has one and is
+--            never fed a duration here; its looks change only out of combat (the slot's restyle)
+--   barInset = function returning how far above the bottom edge a bottom bar sits (the shield's
+--            charge bar is along that edge, drawn over it)
 function T.new(parent, key, kind, opts)
 	opts = opts or {}
-	local t = setmetatable({ key = key, kind = kind, parent = parent, anchor = opts.anchor or parent, dual = opts.dual, school = opts.school }, Timer)
+	local t = setmetatable({ key = key, kind = kind, parent = parent, anchor = opts.anchor or parent, dual = opts.dual,
+		school = opts.school, aura = opts.aura, barInset = opts.barInset }, Timer)
 	local cd = opts.cd
 	if not cd then
 		cd = CreateFrame("Cooldown", nil, parent, "CooldownFrameTemplate")
@@ -224,16 +230,14 @@ function T.new(parent, key, kind, opts)
 		t.fs = fs
 		pcall(fs.SetDrawLayer, fs, "OVERLAY", 7)
 	end
-	if not opts.noBar then
-		local bar = CreateFrame("StatusBar", nil, parent)
-		bar:SetStatusBarTexture(WHITE)
-		bar:SetFrameLevel(cd:GetFrameLevel() + 1)
-		bar.bg = bar:CreateTexture(nil, "BACKGROUND")
-		bar.bg:SetAllPoints()
-		bar.bg:SetColorTexture(0, 0, 0, 0.6)
-		bar:Hide()
-		t.bar = bar
-	end
+	local bar = CreateFrame("StatusBar", nil, parent)
+	bar:SetStatusBarTexture(WHITE)
+	bar:SetFrameLevel(cd:GetFrameLevel() + 1)
+	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
+	bar.bg:SetAllPoints()
+	bar.bg:SetColorTexture(0, 0, 0, 0.6)
+	bar:Hide()
+	t.bar = bar
 	return t
 end
 
@@ -283,11 +287,13 @@ function Timer:apply()
 		if s.barEdge == "top" then
 			bar:SetPoint("TOPLEFT", a, "TOPLEFT", 0, 0); bar:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, 0)
 		else
-			bar:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, 0); bar:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, 0)
+			local y = self.barInset and self.barInset() or 0
+			bar:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, y); bar:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, y)
 		end
 		local col = s.barElement and schoolColor(self) or s.barColor
 		bar:SetStatusBarColor(col[1], col[2], col[3], col[4] or 1)
-		if not self.barOn then bar:Hide() end
+		if self.aura then bar:SetShown(self.barOn)
+		elseif not self.barOn then bar:Hide() end
 	end
 	if self.last then self:set(self.last) end   -- show a part just turned on, at once
 	local fs = self.fs

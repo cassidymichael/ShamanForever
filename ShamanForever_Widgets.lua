@@ -575,8 +575,9 @@ end
 ------------------------------------------------------------------------
 -- An aura slot: Blizzard's aura container on an element icon, with one aura slot whose button
 -- Blizzard (untainted) shows while an aura it matches is up and draws that aura's icon, time left
--- and charges, exact in combat too. It is the one way to show an aura in combat: every aura API
--- throws for addon code then (docs/combat-techniques.md). Used by the shield and Elemental Focus.
+-- and charges, exact in combat too. It is the one way to show an aura in combat: addon reads of
+-- auras then throw (by index or instance) or come back empty (by spell). Used by the shield and
+-- Elemental Focus.
 -- What it takes:
 -- * The container and its button refuse addon calls in combat and while auras are secret, which
 --   can also happen out of combat (PvP matches, encounters). So the container is made, and it and
@@ -601,11 +602,12 @@ AuraSlot.__index = AuraSlot
 --   parent       what the container hangs from (default frame); name: a global name, or nil
 --   sites        { container = , style = , filter = }: names for its waiting work and caught errors
 --   iconAlpha()  the aura icon's alpha as the button is made (optional)
+--   barInset()   how far above the bottom edge its time bar sits there (optional; ns.Timer.new)
 --   onButton(slot, button, cd)  the caller's own parts, once Blizzard has made the button
 --   onStyle(slot, size)         the caller's own restyle, after the shared one
 --   onError(err)                the container couldn't be made on this client
 -- Nothing is made until slot:setup(). The slot then holds container, button, icon (the aura's
--- texture), cd and timer (swipe and countdown only), or err; and after slot:refilter(), filtered
+-- texture), cd and timer (swipe, countdown and time bar), or err; and after slot:refilter(), filtered
 -- (the spell IDs it last gave the slot).
 function ns.makeAuraSlot(frame, opts)
 	return setmetatable({ frame = frame, opts = opts }, AuraSlot)
@@ -628,8 +630,16 @@ local function initAuraButton(slot, button)
 	slot.icon = tex
 	local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
 	cd:SetAllPoints()
-	-- Its timer: swipe and countdown text only (no bar: nothing of ours can follow Blizzard's time).
-	slot.timer = ns.Timer.new(button, o.key, "uptime", { cd = cd, anchor = button, noBar = true })
+	-- Its timer: swipe and countdown on the Cooldown, and a time bar the button drives from the
+	-- aura's own time (SetDurationBar; a bar of ours followed it in combat, tested 2026-09-27). We
+	-- only style and show the bar. A client that refuses it gets no bar rather than a still one.
+	local e = ns.ELEMENTS[o.key]
+	slot.timer = ns.Timer.new(button, o.key, "uptime", { cd = cd, anchor = button, aura = true,
+		school = e and e.school, barInset = o.barInset })
+	if not ns.try("aura time bar", button.SetDurationBar, button, slot.timer.bar, ns.Timer.AURA_BAR) then
+		slot.timer.bar:Hide()
+		slot.timer.bar = nil
+	end
 	slot.timer:apply()
 	button:SetDurationCooldown(cd)
 	slot.cd = cd
