@@ -139,7 +139,10 @@ end
 -- Standard block: the pulsing glow's style, with an icon glowing all the time that follows every
 -- change at once.
 local function glowBlock(p, owner, icon)
-	local function after() ns.applyGlowStyle(); OP.refresh() end
+	-- ns.applyGlowStyle only restyles the listed glows; some elements' aura-button glows (Maelstrom's
+	-- pulse, Elemental Focus's proc glow) aren't on that list and only pick up a style change through
+	-- their module's applyTimers hook.
+	local function after() ns.applyGlowStyle(); ns.applyTimers(); OP.refresh() end
 	local r = styleRows(owner, "glow", after)
 	p:header("Pulsing glow style")
 	if owner == nil then
