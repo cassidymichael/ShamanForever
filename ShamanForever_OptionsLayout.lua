@@ -691,6 +691,7 @@ end
 -- The page: the group list on its left, every group's panel beside it.
 function LP.build(p)
 	page = p
+	p.cull = true   -- a panel per group makes a long page: a settings change refreshes the rows in view
 	buildList()
 	drag.ghost = Page.dragGhost(updateDragFeedback)
 	p:text("No groups. New group makes one.", function() return #db().groups == 0 end)

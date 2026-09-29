@@ -251,7 +251,19 @@ local function hidePanel(b)
 	for i = 1, 4 do b.panel.edges[i]:Hide() end
 end
 
+-- A page with cull set (a long one) may skip the refresh of rows far outside the view on a refresh
+-- asked for as partial (cullNext, set by ns.Options.refresh for a settings change, which changes
+-- only rows in view): they keep their place, height and contents. Every other refresh (showing the
+-- page, a resize, a fold, a profile or list change) is a full pass.
+local CULL_MARGIN = 300
 function Page:refresh()
+	local cull = self.cull and self.cullNext
+	self.cullNext = nil
+	local viewTop, viewBottom
+	if cull then
+		viewTop = self.scroll:GetVerticalScroll() - CULL_MARGIN
+		viewBottom = viewTop + self.scroll:GetHeight() + 2 * CULL_MARGIN
+	end
 	if self.fixed then
 		local ok, err = pcall(self.fixed.refresh, self.fixed)
 		if not ok and not self.fixedReported then
@@ -290,7 +302,8 @@ function Page:refresh()
 			left, right = left + pad + (sub and sub.depth * SUB_INDENT or 0), right + pad
 			self.rowW = width - left - right
 			-- One failing row must not blank the rest of the page: report it once and carry on.
-			if it.refresh then
+			local far = cull and it.h and (y > viewBottom or y + it.h < viewTop)
+			if it.refresh and not far then
 				local ok, err = pcall(it.refresh)
 				if not ok and not it.reported then
 					it.reported = true
@@ -655,10 +668,14 @@ function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown)
 		-- box leaves, so a narrow window never pushes the box past its edge.
 		local span = math.min(self:width() - LABEL_W - 8, SLIDER_SPAN_W)
 		s:SetWidth(math.max(span - BOX_GAP - BOX_W, 80))
-		updating = true
-		s:SetValue(get() or minV)
-		updating = false
-		if not box:HasFocus() then box:SetText(fmt(get() or minV)) end
+		-- Set only when it differs: setting it formats and lays out the slider again.
+		local v = get() or minV
+		if not (s.Slider and s.Slider:GetValue() == v) then
+			updating = true
+			s:SetValue(v)
+			updating = false
+		end
+		if not box:HasFocus() then box:SetText(fmt(v)) end
 	end)
 end
 
@@ -675,7 +692,20 @@ function Page:dropdown(label, tip, choices, get, set, shown, width)
 		end
 	end)
 	f.dropdown = dd
-	return self:add(f, 34, shown, function() dd:GenerateMenu() end)
+	-- The menu is made again (its text with it) only when the value or the choices changed since the
+	-- last refresh: making it is the costliest part of a page's refresh. A row with a menu of its own
+	-- (SetupMenu after this) gives a get that changes whenever its text should.
+	local was
+	return self:add(f, 34, shown, function()
+		local now = tostring(get())
+		if type(choices) == "function" then
+			for _, c in ipairs(choices()) do now = now .. "\1" .. tostring(c[1]) .. "=" .. tostring(c[2]) end
+		end
+		if now ~= was then
+			was = now
+			dd:GenerateMenu()
+		end
+	end)
 end
 
 -- A colour swatch; clicking opens Blizzard's colour picker, with opacity unless opaque (a colour
