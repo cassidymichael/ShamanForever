@@ -205,8 +205,8 @@ end
 ------------------------------------------------------------------------
 -- The global cooldown: while it runs, every spell reads as on cooldown, so the swipe and the ready
 -- pop would react to each cast. isOnGCD says so (false when it's secret). Blizzard only vouches
--- for it inside SPELL_UPDATE_COOLDOWN (inEvent below); a GCD sweep's bling and the shield's GCD
--- sweep read it at other times too (tested 2026-09-25).
+-- for it inside SPELL_UPDATE_COOLDOWN; the shield's GCD sweep and a sweep's bling read it at other
+-- times too (tested 2026-09-25).
 function CD.onGCD(spellID)
 	local ok, info = safe(C_Spell.GetSpellCooldown, spellID)
 	if not ok or type(info) ~= "table" or isSecret(info.isOnGCD) then return false end
@@ -274,11 +274,12 @@ function CD.readyNow(f) return f.ready ~= nil and f.ready.at == GetTime() end
 -- read. inEvent: from SPELL_UPDATE_COOLDOWN.
 local function cooldownFor(f, key, spellID, inEvent)
 	watchEnds(f)
-	noteReady(f, plainCooldown(spellID), inEvent)
+	local st = plainCooldown(spellID)
+	noteReady(f, st, inEvent)
 	if ns.Style.value(key, "gcd", "show") then
 		local ok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID)
 		if not (ok and dur) then return nil end
-		f.cd:SetDrawBling(not CD.onGCD(spellID))
+		f.cd:SetDrawBling(st ~= "gcd")
 		return dur
 	end
 	f.cd:SetDrawBling(true)
