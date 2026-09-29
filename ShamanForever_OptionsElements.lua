@@ -44,7 +44,7 @@ function EP.buildOverview(p)
 	p:header("Elements")
 	-- Columns sized to fit the page's panel at the window's least width; they keep their places when
 	-- it's wider.
-	local GROUP_X, SHOW_X, OPEN_X = 150, 254, 356
+	local GROUP_X, SHOW_X, OPEN_X = 150, 274, 362
 	do
 		local f = p:row(20)
 		local function col(text, x)
@@ -75,11 +75,11 @@ function EP.buildOverview(p)
 		unknown:SetText("Not learned")
 		local group = CreateFrame("DropdownButton", nil, f, "WowStyle1DropdownTemplate")
 		group:SetPoint("LEFT", GROUP_X, 0)
-		group:SetWidth(100)
+		group:SetWidth(120)
 		groupMenu(group, key)
 		local show = CreateFrame("DropdownButton", nil, f, "WowStyle1DropdownTemplate")
 		show:SetPoint("LEFT", SHOW_X, 0)
-		show:SetWidth(96)
+		show:SetWidth(84)
 		show:SetupMenu(function(_, rootDescription)
 			for _, c in ipairs(SHOW_CHOICES) do
 				rootDescription:CreateRadio(c[2], function() return ns.showMode(key) == c[1] end, function() ns.setShow(key, c[1]) end)
