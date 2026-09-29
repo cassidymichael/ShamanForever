@@ -192,7 +192,7 @@ function IM.refresh()
 	-- The moment it drops (imbues stay readable in combat): pop and sound. Not when the weapon came off.
 	if had and r == false and not quiet then
 		if db.imbuePop then imbue:Pop("imbue") end
-		ns.Sounds.element("imbue", "lostSound")
+		ns.Sounds.element("imbue", "lostSound", true)
 	end
 end
 

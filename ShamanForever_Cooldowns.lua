@@ -557,7 +557,7 @@ Totems.subscribe(function(event, slot, arg)
 				f.killed.mark:Hide()
 			elseif event == "gone" and Totems.ownerOf(slot) == def.spellKey and ns.isEnabled(key) then
 				local dur = arg
-				ns.Sounds.element(key, "goneSound")   -- ran out or killed: one sound, in combat too
+				ns.Sounds.element(key, "goneSound", true)   -- ran out or killed: one sound, in combat too
 				if def.ranOut then
 					-- Its colour with an hourglass, rather than the pop.
 					if setting(key, "ranOutFlash") then

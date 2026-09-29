@@ -15,7 +15,7 @@ ns.Sounds = S
 
 local GAP = 2          -- seconds between two plays of one alert, so it can't repeat on every event
 local SAME = 0.5       -- one sound several alerts ask for at once (totems ending together) plays once
-local QUIET = 3        -- seconds without sounds after a loading screen (totems vanish on zoning)
+local QUIET = 3        -- seconds after a loading screen without the sounds that zoning can set off
 
 -- The game's sounds: stored name, label, SOUNDKIT key.
 local GAME = {
@@ -87,11 +87,13 @@ local quietUntil = 0
 local lastByAlert, lastBySound = {}, {}
 
 -- Plays a stored choice for an alert (a name for its rate limit; gap: its own, in seconds).
--- Nothing while dead, a ghost or on a flight path, nor just after a loading screen.
-function S.play(value, alert, gap)
+-- Nothing while dead, a ghost or on a flight path. zoning: an end that a loading screen can cause
+-- (a totem gone, the imbue read empty), held back from leaving the world until just after the
+-- loading screen.
+function S.play(value, alert, gap, zoning)
 	if not resolve(value) or not ns.isActive() then return end
 	local now = GetTime()
-	if now < quietUntil or ns.cantAct() then return end
+	if (zoning and now < quietUntil) or ns.cantAct() then return end
 	alert = alert or value
 	if lastByAlert[alert] and now - lastByAlert[alert] < (gap or GAP) then return end
 	lastByAlert[alert] = now
@@ -100,17 +102,23 @@ function S.play(value, alert, gap)
 	emit(value)
 end
 
--- An element's sound option (name, in db.elementOpts), while the element is on the HUD.
-function S.element(key, name)
-	if ns.isEnabled(key) then S.play(ns.elementSetting(key, name), key .. ":" .. name) end
+-- An element's sound option (name, in db.elementOpts), while the element is on the HUD (zoning: as
+-- for S.play).
+function S.element(key, name, zoning)
+	if ns.isEnabled(key) then S.play(ns.elementSetting(key, name), key .. ":" .. name, nil, zoning) end
 end
 
 -- From the options: plays a choice now, whatever the limits.
 function S.test(value) emit(value) end
 
+-- From leaving the world (a hearth, a portal, an instance) to just after the loading screen, as
+-- the slot or the enchant may read empty on either side of it.
 local ev = CreateFrame("Frame")
+ns.registerEvent(ev, "PLAYER_LEAVING_WORLD")
 ns.registerEvent(ev, "PLAYER_ENTERING_WORLD")
-ev:SetScript("OnEvent", function() quietUntil = GetTime() + QUIET end)
+ev:SetScript("OnEvent", function(_, event)
+	quietUntil = event == "PLAYER_LEAVING_WORLD" and math.huge or GetTime() + QUIET
+end)
 
 ------------------------------------------------------------------------
 -- The options
