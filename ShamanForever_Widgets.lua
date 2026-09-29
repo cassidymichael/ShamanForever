@@ -134,9 +134,11 @@ local RING_COLOR = { 1, 0, 0, 0.9 }
 local Ring = {}
 Ring.__index = Ring
 local rings = setmetatable({}, { __mode = "k" })
-function ns.makeRing(parent, anchor)
+-- unlisted: left out of ns.refitRings, for a ring under Blizzard's aura button (its shown state reads
+-- secret there); its owner fits it as it restyles.
+function ns.makeRing(parent, anchor, unlisted)
 	local r = setmetatable({ anchor = anchor, edges = {} }, Ring)
-	rings[r] = true
+	if not unlisted then rings[r] = true end
 	for i = 1, 4 do
 		local t = parent:CreateTexture(nil, "OVERLAY", nil, 6)
 		t:Hide()
@@ -169,9 +171,7 @@ end
 -- After a layout (a group's or the bar's Scale may have changed): every ring on screen re-measures.
 function ns.refitRings()
 	for r in pairs(rings) do
-		-- A ring under Blizzard's aura button reads secret; its owner fits it as it restyles.
-		local shown = r.edges[1]:IsShown()
-		if not ns.isSecret(shown) and shown then r:fit() end
+		if r.edges[1]:IsShown() then r:fit() end
 	end
 end
 
