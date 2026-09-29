@@ -25,8 +25,10 @@
 --   under Blizzard's button, which the engine hides the moment the DoT is gone (Timer:setClock). The
 --   DoT on the target came from that cast or an earlier one, so it never has more time left than
 --   the cast says: a warning can come late or not at all (the DoT was cast before a /reload, or a
---   later cast was resisted or went to another target), never early. Its length is 12 s for every
---   rank (DB2, build 70009), raised if an out-of-combat read ever sees a longer one.
+--   later cast was resisted or went to another target), never early, as long as the DoT lasts no
+--   longer than the length the clock uses: 12 s for every rank in the game's spell data (build
+--   70009), checked again after each patch. An out-of-combat read that happens to see a longer DoT
+--   raises it for the session, a rare bonus rather than the safeguard.
 -- * Not on target: out of combat, auras are plain reads (C_Secrets.ShouldAurasBeSecret is false),
 --   so the target's debuffs are read and the look is exact: shown only when the read worked and
 --   found none of yours. In combat nothing says whether it's gone (auras are secret, and the button
@@ -218,7 +220,9 @@ end
 -- Flame Shock: its expiring clock and the Not on target look (see the file's header)
 ------------------------------------------------------------------------
 local FLAME = TARGET[1]
-local fsSecs = 12   -- the DoT's length, every rank (DB2, build 70009); raised if a read sees more
+-- The DoT's length, every rank (the game's spell data, build 70009; checked after each patch). A
+-- read that sees a longer one raises it for this session.
+local fsSecs = 12
 local fighting = false   -- from PLAYER_REGEN_DISABLED (before lockdown) to PLAYER_REGEN_ENABLED
 -- clockOn: a cast has set it.
 FLAME.clock = C_DurationUtil and C_DurationUtil.CreateDuration and C_DurationUtil.CreateDuration() or nil
@@ -226,7 +230,8 @@ FLAME.clock = C_DurationUtil and C_DurationUtil.CreateDuration and C_DurationUti
 -- Our own cast of any rank: the clock starts again.
 local function noteFlameShock()
 	local d = FLAME.clock
-	local ok = d and ns.try("flame shock clock", d.SetTimeFromStart, d, GetTime(), fsSecs)
+	FLAME.castAt = GetTime()
+	local ok = d and ns.try("flame shock clock", d.SetTimeFromStart, d, FLAME.castAt, fsSecs)
 	-- A clock that couldn't be set is dropped: an older cast's time would make the warning early.
 	FLAME.clockOn = ok and true or false
 	local timer = FLAME.aura.timer
@@ -246,7 +251,15 @@ local function flameShockOnTarget()
 		local id, name, dur = a.spellId, a.name, a.duration
 		if isSecret(id) or isSecret(name) then return nil end
 		if ids[id] or Spells.keyOf(id) == "flameShock" or name == FLAME.spell then
-			if not isSecret(dur) and type(dur) == "number" and dur > fsSecs then fsSecs = dur end
+			if not isSecret(dur) and type(dur) == "number" and dur > fsSecs then
+				fsSecs = dur
+				-- The running clock takes the longer length too.
+				local d = FLAME.clock
+				if FLAME.clockOn and FLAME.castAt and not ns.try("flame shock clock", d.SetTimeFromStart, d, FLAME.castAt, fsSecs) then
+					FLAME.clockOn = false
+					if FLAME.aura.timer then FLAME.aura.timer:setClock(nil) end
+				end
+			end
 			return true
 		end
 	end
