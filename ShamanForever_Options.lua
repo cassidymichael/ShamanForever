@@ -697,7 +697,7 @@ local function buildAbout(p)
 		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
 		"Francisque Millet, Mountain Landscape with Lightning (air). Corner and divider ornaments: public domain / CC0, Wikimedia Commons. " ..
 		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood texture CC0, ambientCG. Link icons: Simple Icons, CC0. " ..
-		"The Carved stone, Aged bronze and Carved wood borders, the Painted bursts pop, and the Stone and bronze totem bar's plinth and medallions: made with an AI image model (Google Gemini).")
+		"The Carved stone, Aged bronze and Carved wood borders and the Painted bursts pop: made with an AI image model (Google Gemini), as were the plinth and medallions of the Stone and bronze totem bar look.")
 end
 
 ------------------------------------------------------------------------
