@@ -29,7 +29,7 @@ local function relayout()
 	C_Timer.After(0, function()
 		relayoutQueued = false
 		ns.applyLayout()
-		OP.refresh(true)   -- a setting in view changed: a long page may skip rows far from view
+		OP.refresh()
 	end)
 end
 -- Timer rows: only the timers take the new look, not the whole layout.
@@ -1354,22 +1354,14 @@ function OP.showShare(mode)
 	end
 end
 
--- Several changes in one frame (a slider drag, a drop) refresh the visible page once. partial: only
--- rows in view can have changed (Page:refresh's cull); any other ask in the frame makes it full.
-local refreshQueued, refreshFull = false, false
-function OP.refresh(partial)
-	if not (win and win:IsShown()) then return end
-	if not partial then refreshFull = true end
-	if refreshQueued then return end
+-- Several changes in one frame (a slider drag, a drop) refresh the visible page once.
+local refreshQueued = false
+function OP.refresh()
+	if not (win and win:IsShown()) or refreshQueued then return end
 	refreshQueued = true
 	C_Timer.After(0, function()
 		refreshQueued = false
-		local p = currentPage and pages[currentPage]
-		if win:IsShown() and p then
-			p.cullNext = not refreshFull
-			p:refresh()
-		end
-		refreshFull = false
+		if win:IsShown() and currentPage then pages[currentPage]:refresh() end
 		refreshNav()
 	end)
 end

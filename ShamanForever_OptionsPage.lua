@@ -242,19 +242,7 @@ local function hidePanel(b)
 	for i = 1, 4 do b.panel.edges[i]:Hide() end
 end
 
--- A page with cull set (a long one) may skip the refresh of rows far outside the view on a refresh
--- asked for as partial (cullNext, set by ns.Options.refresh for a settings change, which changes
--- only rows in view): they keep their place, height and contents. Every other refresh (showing the
--- page, a resize, a fold, a profile or list change) is a full pass.
-local CULL_MARGIN = 300
 function Page:refresh()
-	local cull = self.cull and self.cullNext
-	self.cullNext = nil
-	local viewTop, viewBottom
-	if cull then
-		viewTop = self.scroll:GetVerticalScroll() - CULL_MARGIN
-		viewBottom = viewTop + self.scroll:GetHeight() + 2 * CULL_MARGIN
-	end
 	if self.fixed then
 		local ok, err = pcall(self.fixed.refresh, self.fixed)
 		if not ok and not self.fixedReported then
@@ -293,8 +281,7 @@ function Page:refresh()
 			left, right = left + pad + (sub and sub.depth * SUB_INDENT or 0), right + pad
 			self.rowW = width - left - right
 			-- One failing row must not blank the rest of the page: report it once and carry on.
-			local far = cull and it.h and (y > viewBottom or y + it.h < viewTop)
-			if it.refresh and not far then
+			if it.refresh then
 				local ok, err = pcall(it.refresh)
 				if not ok and not it.reported then
 					it.reported = true
@@ -408,18 +395,16 @@ local function paintArrow(t, isFolded)
 	end
 end
 
--- The header's arrow and, folded, what's on: the block's own summary if it has one (b.summary, a
--- function), else its ticked boxes. f.saysRight: room kept at the header's right (a button there).
+-- The header's arrow and, folded, what's on.
 function Page:paintHeader(b)
 	local f = b.head.frame
 	local isFolded = folded()[b.key] and true or false
 	paintArrow(f.arrow, isFolded)
 	f.says:SetShown(isFolded)
 	if isFolded then
-		f.says:SetText(b.summary and b.summary() or onList(b))
+		f.says:SetText(onList(b))
 		local used = f.textX + f.text:GetStringWidth() + (f.note and 10 + f.note:GetStringWidth() or 0)
-		-- Cut short with "..." where it's long.
-		f.says:SetWidth(math.max(self.rowW - used - 24 - (f.saysRight or 0), 1))
+		f.says:SetWidth(math.max(self.rowW - used - 24, 1))   -- cut short with "..." where it's long
 	end
 end
 
