@@ -87,6 +87,28 @@ function S.remove(name)
 	end
 end
 
+-- The same pick: No totem (0) on both, or ranks of one totem.
+local function samePick(a, b)
+	if a == 0 or b == 0 then return a == b end
+	return ns.Spells.same(a, b)
+end
+
+-- Read back what was written: a pick the game didn't take is said, never assumed. Only a pick still
+-- as it was before the write counts as refused, and only when it still is a few seconds later (the
+-- write may wait on the server, after a loading screen too); a pick changed since is the player's.
+local function readBack(name, wanted, before, tries)
+	C_Timer.After(tries == 1 and 2 or 4, function()
+		local left = {}
+		for el, want in pairs(wanted) do
+			local now = pickNow(el)
+			if now ~= nil and not samePick(now, want) and samePick(now, before[el]) then left[el] = want end
+		end
+		if not next(left) then return end
+		if tries == 1 then return readBack(name, left, before, 2) end
+		ns.say("totem set %s: the game didn't take the %s pick", name, TB.NAME[next(left)]:lower())
+	end)
+end
+
 -- Put a set's picks back (out of combat; in combat, once it ends). why: the place it was chosen
 -- for (auto-switch), said in chat when a pick changes; nil for a set chosen by hand.
 function S.apply(name, why)
@@ -96,26 +118,17 @@ function S.apply(name, why)
 		return
 	end
 	local set = S.find(name)
-	local wanted = {}
+	local wanted, before = {}, {}
 	for _, el in ipairs(TB.ELEMENTS) do
-		local want = pickFor(el, set.picks[el])
-		if want ~= nil and pickNow(el) ~= want then
-			wanted[el] = want
+		local want, now = pickFor(el, set.picks[el]), pickNow(el)
+		if want ~= nil and now ~= want then
+			wanted[el], before[el] = want, now
 			ns.try("totem set: pick", SetMultiCastSpell, TB.multiAction(TB.SLOT[el]), want)
 		end
 	end
 	if not next(wanted) then return end
 	if why then ns.say("%s: totem set %s", why, name) end
-	-- Read back: a pick the game didn't take is said, never assumed.
-	C_Timer.After(0.5, function()
-		for el, want in pairs(wanted) do
-			local now = pickNow(el)
-			if now ~= nil and now ~= want then
-				ns.say("totem set %s: the game didn't take the %s pick", name, TB.NAME[el]:lower())
-				return
-			end
-		end
-	end)
+	readBack(name, wanted, before, 1)
 end
 
 ------------------------------------------------------------------------
