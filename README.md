@@ -45,7 +45,8 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 
 ### Totem bar
 
-- One slot per element. Left-click drops the totem you've picked for it, and right-click dismisses it. The arrow on each slot (or Alt+click, or hovering the slot if you choose) opens a picker to change the pick, in combat too.
+- One slot per element. Left-click drops the totem you've picked for it, and right-click dismisses it. The arrow on each slot (or Alt+click) opens a picker to change the pick, in combat too.
+- Pickers on hover (experimental): hovering a slot or its arrow opens its picker.
 - Each slot shows its totem's time left and warns as it runs out. You can give any totem its own warning time. If a totem is killed early, its slot flashes red and shows a cross.
 - A red strip on a slot while your totem is down but you aren't getting its buff, for totems that buff you, such as Strength of Earth or Healing Stream.
 - When a different totem is down, your pick can show small beside the slot.
