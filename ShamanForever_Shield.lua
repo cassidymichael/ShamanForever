@@ -140,7 +140,7 @@ local function castOf(id)
 	for _, key in ipairs(SHIELD_ORDER) do
 		local s = SHIELDS[key]
 		if n == s.name then
-			local ok, mine = safe(IsPlayerSpell, id)
+			local ok, mine = safe(C_SpellBook.IsSpellKnown, id)
 			if not ok or isSecret(mine) then return nil end   -- no answer: asked again next time
 			if mine == true then
 				s.castIDs[id] = true

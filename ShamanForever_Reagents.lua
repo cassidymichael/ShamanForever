@@ -48,7 +48,7 @@ ns.Spells.addCheck("Reagent Economy", { PERK, PERK_AURA })
 local perk, perkReadAt = false, -math.huge
 function R.readPerk()
 	if perk then return end
-	local ok, v = safe(IsPlayerSpell, PERK)
+	local ok, v = safe(C_SpellBook.IsSpellKnown, PERK)
 	if ok and not isSecret(v) and v == true then perk, perkReadAt = true, GetTime() return end
 	if InCombatLockdown() or ns.aurasSecret() or not C_UnitAuras then return end
 	local aok, a = safe(C_UnitAuras.GetPlayerAuraBySpellID, PERK_AURA)
