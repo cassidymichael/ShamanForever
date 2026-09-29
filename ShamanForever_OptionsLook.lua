@@ -606,7 +606,7 @@ L.PREVIEW.swing = {
 		local filled = due and 1 or SWING_FILL
 		s:SetValue(ns.elementSetting("swing", "deplete") == true and 1 - filled or filled)
 		s.text:SetText(string.format("%.1f", due and 0 or SWING_LENGTH * (1 - SWING_FILL)))
-		s.text:SetShown(ns.elementSetting("swing", "countdown") == true)
+		s.text:SetShown(ns.elementSetting("swing", "countdown") == true and not due)   -- the HUD's text ends with the swing
 	end,
 }
 
