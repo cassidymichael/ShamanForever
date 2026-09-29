@@ -9,7 +9,7 @@
 -- A font is used only once it is known to load; until then, and for a font that is gone, the
 -- game's font draws (tested 2026-09-28):
 -- * SetFont with a file the client doesn't have throws, and taints even inside pcall: every path is
---   checked with C_UIFileAsset.IsKnownFile first.
+--   checked with C_UIFileAsset.IsKnownFile first (without it, only the game's own fonts are used).
 -- * SetFont returns false for most fonts the client hasn't drawn yet, leaving the string with no
 --   font. So each font is tried once on a hidden string, and again a second later (up to three
 --   times), before any of our text takes it.
@@ -50,8 +50,8 @@ local BARS = {
 	{ "Blizzard Character Skills Bar", "Interface\\PaperDollInfoFrame\\UI-Character-Skills-Bar" },
 	{ "Blizzard Cooldown Bar", "UI-HUD-CoolDownManager-Bar", atlas = true },
 }
-local fontByName, barByName = {}, {}
-for _, f in ipairs(FONTS) do fontByName[f[1]] = f[2] end
+local fontByName, barByName, builtIn = {}, {}, {}
+for _, f in ipairs(FONTS) do fontByName[f[1]] = f[2]; builtIn[f[2]] = true end
 for _, b in ipairs(BARS) do barByName[b[1]] = b end
 
 ------------------------------------------------------------------------
@@ -82,8 +82,9 @@ local tries = {}     -- path -> times tried
 local tester         -- a hidden string fonts are tried on
 local waiting = false
 
+-- Whether the client has the file. Without IsKnownFile, only the game's own fonts count.
 local function known(path)
-	if not (C_UIFileAsset and C_UIFileAsset.IsKnownFile) then return true end
+	if not (C_UIFileAsset and C_UIFileAsset.IsKnownFile) then return builtIn[path] == true end
 	local ok, yes = pcall(C_UIFileAsset.IsKnownFile, path)
 	return ok and yes == true
 end
