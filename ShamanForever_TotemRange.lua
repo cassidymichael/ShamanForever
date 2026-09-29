@@ -101,6 +101,7 @@ local function makeMark(s)
 	m:SetAlpha(0)
 	m.bg = m:CreateTexture(nil, "ARTWORK")
 	m.bg:SetAllPoints()
+	ns.Looks.followMask(s.vis, m.bg)   -- a rounded or cut-corner icon's shape
 	s.rangeGate, s.rangeMark = gate, m
 end
 
@@ -210,16 +211,17 @@ local function partLive(s)
 end
 
 -- Size, place and colour our strip and Blizzard's part (out of combat). The height is a line's (ns.linePx), as borders are.
+-- Along the top of the slot's picture, which sits in from the button by its border (s.inset).
 -- ownOnly: our strip only, not Blizzard's container (auras are secret).
 local function place(s, size, ownOnly)
-	local c, b, gate = TB.cfg(), s.button, s.rangeGate
+	local c, b, gate, o = TB.cfg(), s.button, s.rangeGate, s.inset or 0
 	gate:ClearAllPoints()
-	gate:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
-	local w, h = size, ns.linePx(gate, c.rangeHeight)
+	gate:SetPoint("TOPLEFT", b, "TOPLEFT", o, -o)
+	local w, h = size - 2 * o, ns.linePx(gate, c.rangeHeight)
 	gate:SetSize(w, h)
 	local k = c.rangeOut
 	s.rangeMark.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
-	s.rangeW, s.rangeH, s.rangeSize = w, h, size
+	s.rangeW, s.rangeH, s.rangeSize = w, h, w
 	local ct = s.rangeContainer
 	if not ct or ownOnly then return end
 	ct:ClearAllPoints()

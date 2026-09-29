@@ -274,20 +274,37 @@ end
 -- The "not your pick" badge's size, for slots of this size.
 function TB.badgeSize(size) return math.max(math.floor(size * cfg().badgeSize + 0.5), 8) end
 -- The badge (bd, with its icon) beside anchor, a slot, opposite the picker: below a row whose
--- pickers open up, and so on. Its look: size, opacity, colour, and a 1 px border in the slots'.
+-- pickers open up, and so on. Its look: size, opacity, colour, and a plain 1 px line, whatever look
+-- the slots use (a small pick badge stays a plain line, not the slots' bevel or caps).
 function TB.layoutBadge(bd, anchor, size, border)
 	local c = cfg()
-	local bs = TB.badgeSize(size)
-	bd:SetSize(bs, bs)
+	-- Only draw the setting's colour when the slots' own look actually uses it; other looks (Gold
+	-- hairline, Bronze bevel) hide that setting, and the badge shouldn't keep a colour
+	-- the player can no longer see or change.
+	local usesColor = border and border.show and ns.Looks.uses(ns.Style.look("border", border.look), "color")
+	local color = usesColor and border.color or { 0, 0, 0, 1 }
+	-- Its line inside its size, as the slots' borders are.
+	local inset = ns.Looks.fit(bd, border and border.show and { show = true, size = 1, color = color } or border,
+		TB.badgeSize(size))
 	bd:SetAlpha(c.badgeAlpha)
 	TB.saturate(bd.icon, c.badgeSat)
 	bd:ClearAllPoints()
-	local gap = TB.BADGE_GAP
+	local gap = TB.BADGE_GAP + inset
 	if c.pop == "up" then bd:SetPoint("TOP", anchor, "BOTTOM", 0, -gap)
 	elseif c.pop == "down" then bd:SetPoint("BOTTOM", anchor, "TOP", 0, gap)
 	elseif c.pop == "right" then bd:SetPoint("RIGHT", anchor, "LEFT", -gap, 0)
 	else bd:SetPoint("LEFT", anchor, "RIGHT", gap, 0) end
-	ns.applyBorder(bd, border and border.show and { show = true, size = 1, color = border.color } or border)
+end
+
+-- A button's look v over its button b (size wide), set in by its border's reach so that the
+-- border, drawn round v, stays inside the button (ns.Looks.inset). Returns that inset.
+function TB.fitLook(v, b, border, size)
+	local o = ns.Looks.inset(v, border, size)
+	v:ClearAllPoints()
+	v:SetPoint("TOPLEFT", b, "TOPLEFT", o, -o)
+	v:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -o, o)
+	ns.applyBorder(v, border)
+	return o
 end
 
 ------------------------------------------------------------------------
@@ -436,6 +453,7 @@ for index, el in ipairs(ELEMENTS) do
 	v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL)
 	v:EnableMouse(false)
 	s.vis = v
+	v.school = el   -- the school its looks take (ns.Looks)
 	-- "Not your pick": the element's pick, small, on the side away from the picker (a plain frame).
 	local badge = CreateFrame("Frame", nil, bar)
 	badge:SetFrameLevel(b:GetFrameLevel() + 6)
@@ -446,11 +464,13 @@ for index, el in ipairs(ELEMENTS) do
 	s.badge = badge
 	-- Killed early and ran out (ns.makeEndFlash): on their own frames, since the slot's look can be
 	-- invisible (Active totems). Two frames: each has its own secret gate.
-	local kf = ns.makeEndFlash(bar, b, "totembar")
-	s.expired = ns.makeEndFlash(bar, b, "totembar")
+	local kf = ns.makeEndFlash(bar, b, "totembar", v)
+	s.expired = ns.makeEndFlash(bar, b, "totembar", v)
 	s.killed = kf
 	kf:SetFrameLevel(b:GetFrameLevel() + OVER_RANGE + 4)
 	s.expired:SetFrameLevel(b:GetFrameLevel() + OVER_RANGE + 4)
+	-- Over the picture, inside the slot's border (TB.fitLook sets it in from the button).
+	for _, flash in ipairs({ kf, s.expired }) do flash:ClearAllPoints(); flash:SetAllPoints(v) end
 	v.bg = v:CreateTexture(nil, "BACKGROUND")
 	v.bg:SetAllPoints()
 	v.icon = v:CreateTexture(nil, "ARTWORK")
@@ -1024,10 +1044,10 @@ function layout()
 	-- totem is known.
 	local seq, long, across = {}, size, size
 	if hasTotems or (preview and preview.all) then seq, long, across = TB.along(#shown, size, px) end
-	local on = {}   -- the extras that show
+	local on = {}   -- the extras that show -> their size
 	for _, it in ipairs(seq) do
 		local b, sz = it.extra and extras[it.key].button or shown[it.key].button, it.size
-		if it.extra then on[it.key] = true end
+		if it.extra then on[it.key] = sz end
 		b:SetSize(sz, sz)
 		-- Its key label scales with the icon.
 		if keyTexts[b] then keyTexts[b]:SetFont(STANDARD_TEXT_FONT, math.max(8, math.floor(sz * 0.3 + 0.5)), "OUTLINE") end
@@ -1036,7 +1056,7 @@ function layout()
 		if row then b:SetPoint("TOPLEFT", bar, "TOPLEFT", it.offset, -side) else b:SetPoint("TOPLEFT", bar, "TOPLEFT", side, -it.offset) end
 	end
 	for key, e in pairs(extras) do
-		local show = on[key] or false
+		local show = on[key] ~= nil
 		e.button:SetShown(show)
 		e.vis:SetShown(show)
 		if show then
@@ -1045,7 +1065,7 @@ function layout()
 			e.vis.icon:SetTexture(C_Spell.GetSpellTexture(e.spell))
 			e.vis.icon:SetDesaturated(not learned)
 			e.vis.icon:SetAlpha(learned and 1 or 0.6)
-			ns.applyBorder(e.vis, border)
+			TB.fitLook(e.vis, e.button, border, on[key])
 		end
 	end
 	-- Hover mode (not while binding keys): the picker closes as the mouse leaves its slot and strip,
@@ -1064,7 +1084,8 @@ function layout()
 		b:SetAttribute("sf-altpick", barOn() and cfg().mode == "everything")
 		b:SetAttribute("action", multiAction(s.slot))
 		castKeys[s.el]:SetAttribute("action", multiAction(s.slot))
-		ns.applyBorder(s.vis, border)
+		s.inset = TB.fitLook(s.vis, b, border, size)   -- the range strip sits in by it too
+		s.killed.fitSize, s.expired.fitSize = size - 2 * s.inset, size - 2 * s.inset   -- over the picture
 		s.timer:apply()
 		layoutArrow(s)
 		TB.layoutBadge(s.badge, s.button, size, border)

@@ -194,8 +194,9 @@ end
 -- timers the HUD uses (ShamanForever_Timers.lua), frozen: the ones its preview has (preview.cooldown,
 -- preview.uptime).
 ------------------------------------------------------------------------
+local PREVIEW_SIZE = 56   -- a preview icon's size, its border included
 local function makePreviewIcon(parent, key, preview)
-	local ic = ns.makeIcon(parent, 56, key)   -- the element's own glow and pop style
+	local ic = ns.makeIcon(parent, PREVIEW_SIZE, key)   -- the element's own glow and pop style
 	local e = identity(key)
 	local school = e and e.school
 	if preview.cooldown then ic.cdT = ns.Timer.new(ic, key, "cooldown", { cd = ic.cd, school = school }) end
@@ -664,6 +665,8 @@ L.PREVIEW.totembar = {
 		h.slots = {}
 		for i = 1, 4 do
 			local ic = makePreviewIcon(bar, "totembar", L.PREVIEW.totembar)
+			-- The slot's box (its button on the bar): the icon sits in it by its border's reach.
+			ic.box = CreateFrame("Frame", nil, bar)
 			ic.badge = CreateFrame("Frame", nil, bar)
 			ic.badge:SetFrameLevel(ic:GetFrameLevel() + 6)
 			ic.badge.icon = ic.badge:CreateTexture(nil, "ARTWORK")
@@ -674,6 +677,7 @@ L.PREVIEW.totembar = {
 			ic.rangeF:SetFrameLevel(ic:GetFrameLevel() + 7)
 			ic.rangeF.bg = ic.rangeF:CreateTexture(nil, "ARTWORK")
 			ic.rangeF.bg:SetAllPoints()
+			ns.Looks.followMask(ic, ic.rangeF.bg)
 			h.slots[i] = ic
 		end
 		h.extras = {}
@@ -766,10 +770,9 @@ L.PREVIEW.totembar = {
 		for _, it in ipairs(seq) do
 			if it.extra then
 				local ic = h.extras[it.key]
-				ic:SetSize(it.size, it.size)
+				local o = ns.Looks.fit(ic, border, it.size)   -- inside its size, as on the bar
 				ic:ClearAllPoints()
-				place(ic, it.offset, (line - it.size) / 2)
-				ns.applyBorder(ic, border)
+				place(ic, it.offset + o, (line - it.size) / 2 + o)
 				local learned = TB.extraLearned(it.key)
 				ic.tex:SetTexture(TB.extraTexture(it.key))
 				ic.tex:SetDesaturated(not learned)
@@ -786,10 +789,13 @@ L.PREVIEW.totembar = {
 			ic:SetShown(el ~= nil)
 			ic.rangeF:Hide()
 			if el then
-				ic:SetSize(size, size)
+				ic.box:SetSize(size, size)
+				ic.box:ClearAllPoints()
+				place(ic.box, slotAt[i], (line - size) / 2)
+				ic.school = el
+				local o = ns.Looks.fit(ic, border, size)
 				ic:ClearAllPoints()
-				place(ic, slotAt[i], (line - size) / 2)
-				ns.applyBorder(ic, border)
+				place(ic, slotAt[i] + o, (line - size) / 2 + o)
 				local pick = TB.pickTexture(el)
 				if ns.isSecret(pick) then pick = nil end   -- never compared while secret (combat)
 				reset(ic, pick or TOTEM_ICON[el])
@@ -799,7 +805,7 @@ L.PREVIEW.totembar = {
 					local k = i == 1 and c.rangeOut or c.rangeIn
 					ic.rangeF:ClearAllPoints()
 					ic.rangeF:SetPoint("TOPLEFT", ic, "TOPLEFT", 0, 0)
-					ic.rangeF:SetSize(size, ns.linePx(ic, c.rangeHeight))
+					ic.rangeF:SetSize(size - 2 * o, ns.linePx(ic, c.rangeHeight))
 					ic.rangeF.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
 					ic.rangeF:Show()
 				end
@@ -813,7 +819,7 @@ L.PREVIEW.totembar = {
 					ic.tex:SetTexture(other or TOTEM_ICON[el])
 					if c.offPick and pick then
 						ic.badge.icon:SetTexture(pick)
-						TB.layoutBadge(ic.badge, ic, size, border)
+						TB.layoutBadge(ic.badge, ic.box, size, border)
 						ic.badge:Show()
 					end
 				end
@@ -831,7 +837,7 @@ L.PREVIEW.totembar = {
 						if c.killedGlow then ic:SetGlowShown(true, 1, 0.12, 0.08) end
 						if c.killedMark then
 							h.kMark:ClearAllPoints(); h.kMark:SetAllPoints(ic)
-							h.kMark.x:SetSize(size * 0.7, size * 0.7); h.kMark:Show()
+							h.kMark.x:SetSize((size - 2 * o) * 0.7, (size - 2 * o) * 0.7); h.kMark:Show()
 						end
 					elseif full then
 						ic.tex:SetDesaturated(c.idleGrey); ic.tex:SetAlpha(c.idleAlpha)
@@ -861,9 +867,9 @@ L.PREVIEW.totembar = {
 		if picking then
 			-- As on the bar (the same placement): the tab, then the picker past it.
 			local first = h.slots[1]
-			TB.placeArrow(h.tab, first, h.tab.glyph)
+			TB.placeArrow(h.tab, first.box, h.tab.glyph)
 			local p = h.pop
-			TB.placePopout(p, first, items, psz)
+			TB.placePopout(p, first.box, items, psz)
 			for i, it in ipairs(p.items) do
 				it:SetShown(i <= items)
 				TB.placePopButton(it, p, i, psz)
@@ -1065,21 +1071,22 @@ function L.buildHero(parent, key)
 		end
 		for _, b in ipairs(self.stateButtons) do L.paintChoice(b, b.state == previewState[key]) end
 		if not def.stage then
+			-- An element's preview wears its group's border, inside its size as on the HUD (the totem
+			-- bar's stage draws its own). A preview not square gives its size (def.size).
+			local ic, el = self.previewIcon, ns.ELEMENTS[key]
+			local bw, bh = PREVIEW_SIZE, PREVIEW_SIZE
+			if def.size then bw, bh = def.size() end
+			local x = 16 + ns.Looks.fit(ic, ns.borderFor(key), bw, bh, { shape = el and el.shape })
 			-- On whole screen pixels, as the HUD's icons are (ns.placeOnPixels says why).
-			local ic = self.previewIcon
 			ic:ClearAllPoints()
-			ic:SetPoint("LEFT", p, "LEFT", 16, -6)
+			ic:SetPoint("LEFT", p, "LEFT", x, -6)
 			local l, t = ic:GetLeft(), ic:GetTop()
 			if l and t then
 				local px = ns.pixel(ic)
-				ic:SetPoint("LEFT", p, "LEFT", 16 + ns.roundPx(l, px) - l, -6 + ns.roundPx(t, px) - t)
+				ic:SetPoint("LEFT", p, "LEFT", x + ns.roundPx(l, px) - l, -6 + ns.roundPx(t, px) - t)
 			end
 		end
-		if def.stage then def.render(self, previewState[key]) else
-			-- An element's preview wears its group's border (the totem bar's stage draws its own).
-			ns.applyBorder(self.previewIcon, ns.borderFor(key))
-			def.render(self.previewIcon, previewState[key])
-		end
+		if def.stage then def.render(self, previewState[key]) else def.render(self.previewIcon, previewState[key]) end
 	end
 	return h
 end

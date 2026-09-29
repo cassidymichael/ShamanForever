@@ -138,9 +138,12 @@ root:SetAllPoints(UIParent)
 -- _Buffs, _Tremor); the test placeholders below are this file's own, and stay last.
 local ELEMENT_KEYS = { "shield", "shock", "imbue" }
 -- key -> { frame, label, paint(texture), getSize(size), stack(), placeholder, learned(),
--- defaults, and for the options spell, icon, school, blurb, experimental, kind, def }. db.groups
--- decides where each one shows. getSize gives its width and height for its group's icon size, so
--- elements need not be square; paint draws what stands in for it in the options and while
+-- borderHost, shape, defaults, and for the options spell, icon, school, blurb, experimental, kind,
+-- def }. db.groups decides where each one shows. getSize gives its width and height for its group's
+-- icon size, so elements need not be square; borderHost is the part its group's border is drawn
+-- on (a child covering the whole frame; default the frame), so the border hides when that part
+-- does; shape "bar" marks an element that is a bar, not an icon, which takes only the border parts
+-- that fit a bar (ns.applyBorder); paint draws what stands in for it in the options and while
 -- dragging; stack is its frame's (ns.newElementIcon). learned() says whether the character knows
 -- its spell (none: always); defaults holds the defaults of every option it has (see
 -- elementSetting). The options show it by its spell's name in the client's language (spell, an
@@ -303,8 +306,13 @@ local function showMode(key) return elementOpts(key).show or "always" end
 
 -- A group's icon size: its own, or General's.
 local function groupSize(g) return (g and not g.sizeFollow and g.size) or db.iconSize end
--- An element's: its group's.
-local function sizeOf(key) return groupSize((groupOf(key))) end
+-- An element's icon: its group's size (in whole pixels, as layoutGroup sizes it) less its
+-- border, which is drawn inside that size (ns.Looks.inset; layoutGroup places it so).
+local function sizeOf(key)
+	local e = ELEMENTS[key]
+	local box = ns.roundPx(groupSize((groupOf(key))), ns.pixel(e.frame))
+	return box - 2 * ns.Looks.inset(e.borderHost or e.frame, ns.borderFor(key), box, e.shape)
+end
 
 local function isEnabled(key) return groupOf(key) ~= nil and showMode(key) ~= "never" and onHUD(key) end
 
@@ -627,18 +635,21 @@ end
 -- shrinks to fit so dragging feels right. Every member anchors to the group frame, never to another
 -- member: a frame a protected frame anchors to may turn protected too, and the shield is protected
 -- (Blizzard's aura button), so a chain could stop the members before it changing in combat.
+-- A member's Size is its box, border included: its frame (the icon's picture) sits inside it by the
+-- border's reach (ns.Looks.fit), so Spacing is the gap between borders.
 local function layoutGroup(g)
 	local gf = groupFrame(g.id)
 	gf.afterCombat = gf.afterCombat or afterCombat(gf)
-	-- Scale first: sizes, gaps and the position are rounded to whole screen pixels at it
+	-- Scale first: sizes, gaps, borders and the position are rounded to whole screen pixels at it
 	-- (ns.placeOnPixels says why).
 	gf:SetScale(g.scale)
 	local px = ns.pixel(gf)
 	local gap = ns.roundPx(g.spacing, px)
+	local border = ns.Style.get(g, "border")
 	local horizontal = g.orientation == "horizontal"
 	local forward = g.growth ~= "backward"
 	local n, along, across = 0, 0, 0
-	local placed = {}   -- the members drawn: { frame, offset from the group's leading edge, w, h }
+	local placed = {}   -- the members drawn: { frame, offset from the leading edge, w, h, inset }
 	for _, key in ipairs(g.members) do
 		local e = ELEMENTS[key]
 		local f = e.frame
@@ -649,18 +660,20 @@ local function layoutGroup(g)
 		else
 			local w, h = e.getSize(groupSize(g))
 			w, h = ns.roundPx(w, px), ns.roundPx(h, px)
-			f:SetSize(w, h)
-			table.insert(placed, { f, along + n * gap, w, h })
+			local inset = ns.Looks.fit(f, border, w, h, e)
+			table.insert(placed, { f, along + n * gap, w, h, inset })
 			if horizontal then along, across = along + w, math.max(across, h)
 			else along, across = along + h, math.max(across, w) end
 			showFrame(f, memberWhen(g, gf, key))
 			n = n + 1
 		end
 	end
-	-- Each member centred on the cross axis, to the nearest whole pixel.
+	-- Each member centred on the cross axis, to the nearest whole pixel; its frame set in from its
+	-- box by its border's reach.
 	for _, m in ipairs(placed) do
-		local f, offset = m[1], m[2]
-		local side = ns.roundPx((across - (horizontal and m[4] or m[3])) / 2, px)
+		local f, o = m[1], m[5]
+		local offset = m[2] + o
+		local side = ns.roundPx((across - (horizontal and m[4] or m[3])) / 2, px) + o
 		f:ClearAllPoints()
 		if horizontal then
 			if forward then f:SetPoint("TOPLEFT", gf, "TOPLEFT", offset, -side)
@@ -678,9 +691,6 @@ local function layoutGroup(g)
 		local fx = ELEMENTS[key].frame.effects
 		if fx then fx:SetAlpha(g.alpha) end
 	end
-	-- After the scale, so borders are sized in real pixels.
-	local border = ns.Style.get(g, "border")
-	for _, key in ipairs(g.members) do ns.applyBorder(ELEMENTS[key].frame, border) end
 	ns.placeOnPixels(gf, g.point, g.x, g.y)
 	ns.Positioning.decorate(gf, g)
 	gf.laidOut = n > 0
@@ -694,9 +704,14 @@ local function layoutElements()
 	for key, e in pairs(ELEMENTS) do
 		if not isEnabled(key) then hideFrame(e.frame) end
 	end
+	-- A group holding Blizzard's aura button (ns.makeAuraSlot) waits while auras are secret out of
+	-- combat too: its icons' size can change with the border, and the button can't follow until then.
+	local secret = ns.aurasSecret()
 	local live = {}
 	for _, g in ipairs(db.groups) do
-		layoutGroup(g)
+		local held = false
+		for _, key in ipairs(g.members) do if ELEMENTS[key].frame.auraButton then held = true end end
+		if held and secret then ns.retryAfterCombat("layout", layoutElements) else layoutGroup(g) end
 		live[g.id] = true
 	end
 	for id, gf in pairs(groupFrames) do
