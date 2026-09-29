@@ -1322,6 +1322,11 @@ for _, el in ipairs(ELEMENTS) do
 	wrapHover(slots[el].arrow, HOVER_ENTER)
 	wrapHover(slots[el].popout.strip)
 end
+-- Hover mode: a picker the bar took along when it hid (Alt+Z hides the whole UI, in combat too) has
+-- lost the hover driver, which drops hidden frames. It closes when the bar shows again.
+SecureHandlerWrapScript(bar, "OnShow", picker, [[
+	if owner:GetAttribute("sf-hovermode") then owner:RunAttribute("sf-open", 0) end
+]])
 
 for _, e in pairs(extras) do
 	e.button:SetScript("OnEnter", function(self)
