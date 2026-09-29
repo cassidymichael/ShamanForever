@@ -40,11 +40,54 @@ local SHOW_TIP = "When the element is drawn. Hidden keeps its place in its group
 ------------------------------------------------------------------------
 local ELEMENT_PAGES = {}   -- key -> page key, filled as element pages are built
 
+-- The overview's controls, light enough for a table: a flat cell with a thin border and small text
+-- that lights up under the mouse. A menu cell shows its value and a small arrow, and opens its menu
+-- (gen, a menu generator) at the cursor; a link cell's gold text says it goes somewhere.
+local function tableCell(parent, width, font)
+	local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
+	b:SetSize(width, 20)
+	b:SetBackdrop(ns.BACKDROP)
+	b:SetBackdropColor(1, 1, 1, 0.03)
+	b:SetBackdropBorderColor(0.36, 0.29, 0.19, 0.7)
+	local hl = b:CreateTexture(nil, "HIGHLIGHT")
+	hl:SetPoint("TOPLEFT", 1, -1)
+	hl:SetPoint("BOTTOMRIGHT", -1, 1)
+	hl:SetColorTexture(1, 0.9, 0.7, 0.08)
+	b.text = b:CreateFontString(nil, "OVERLAY", font)
+	b.text:SetWordWrap(false)
+	b:SetScript("OnEnter", function(self) self:SetBackdropBorderColor(0.72, 0.58, 0.34, 1) end)
+	b:SetScript("OnLeave", function(self) self:SetBackdropBorderColor(0.36, 0.29, 0.19, 0.7) end)
+	return b
+end
+local function menuCell(parent, width, gen)
+	local b = tableCell(parent, width, "GameFontHighlightSmall")
+	b.arrow = b:CreateTexture(nil, "ARTWORK")
+	b.arrow:SetTexture("Interface\\Buttons\\UI-TotemBar")
+	b.arrow:SetTexCoord(0.5625, 0.71875, 0.34375, 0.3828125)
+	b.arrow:SetSize(10, 6)
+	b.arrow:SetRotation(math.pi)   -- the art points up
+	b.arrow:SetPoint("RIGHT", -6, 0)
+	b.text:SetPoint("LEFT", 6, 0)
+	b.text:SetPoint("RIGHT", b.arrow, "LEFT", -4, 0)
+	b.text:SetJustifyH("LEFT")
+	b:SetScript("OnClick", function(self)
+		if MenuUtil and MenuUtil.CreateContextMenu then MenuUtil.CreateContextMenu(self, gen) end
+	end)
+	return b
+end
+local function linkCell(parent, width, text, onClick)
+	local b = tableCell(parent, width, "GameFontNormalSmall")
+	b.text:SetPoint("CENTER")
+	b.text:SetText(text)
+	b:SetScript("OnClick", onClick)
+	return b
+end
+
 function EP.buildOverview(p)
 	p:header("Elements")
 	-- Columns sized to fit the page's panel at the window's least width; they keep their places when
 	-- it's wider.
-	local GROUP_X, SHOW_X, OPEN_X = 150, 274, 362
+	local GROUP_X, SHOW_X, OPEN_X = 150, 276, 368
 	do
 		local f = p:row(20)
 		local function col(text, x)
@@ -53,8 +96,8 @@ function EP.buildOverview(p)
 			fs:SetText(text)
 		end
 		col("Element", 32)
-		col("Group", GROUP_X + 4)
-		col("Show", SHOW_X + 4)
+		col("Group", GROUP_X + 6)
+		col("Show", SHOW_X + 6)
 		p:add(f, 20)
 	end
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
@@ -73,18 +116,27 @@ function EP.buildOverview(p)
 		local unknown = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 		unknown:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -1)
 		unknown:SetText("Not learned")
-		local group = CreateFrame("DropdownButton", nil, f, "WowStyle1DropdownTemplate")
+		-- The Group choices: every group by name, then New group. Choosing one moves the element
+		-- there (to its end) and leaves its Show as it is.
+		local group = menuCell(f, 120, function(_, root)
+			for _, g in ipairs(db().groups) do
+				root:CreateRadio(g.name, function() return ns.groupOf(key) == g end, function()
+					if ns.groupOf(key) ~= g then ns.placeElement(key, g.id) end
+					ns.Options.refresh()
+				end)
+			end
+			root:CreateButton("New group", function() ns.placeElement(key, "new"); ns.Options.refresh() end)
+		end)
 		group:SetPoint("LEFT", GROUP_X, 0)
-		group:SetWidth(120)
-		groupMenu(group, key)
-		local show = CreateFrame("DropdownButton", nil, f, "WowStyle1DropdownTemplate")
-		show:SetPoint("LEFT", SHOW_X, 0)
-		show:SetWidth(84)
-		show:SetupMenu(function(_, rootDescription)
+		local show = menuCell(f, 86, function(_, root)
 			for _, c in ipairs(SHOW_CHOICES) do
-				rootDescription:CreateRadio(c[2], function() return ns.showMode(key) == c[1] end, function() ns.setShow(key, c[1]) end)
+				root:CreateRadio(c[2], function() return ns.showMode(key) == c[1] end, function()
+					ns.setShow(key, c[1])
+					ns.Options.refresh()
+				end)
 			end
 		end)
+		show:SetPoint("LEFT", SHOW_X, 0)
 		show:HookScript("OnEnter", function(self)
 			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 			GameTooltip:SetText("Show")
@@ -92,17 +144,16 @@ function EP.buildOverview(p)
 			GameTooltip:Show()
 		end)
 		show:HookScript("OnLeave", function() GameTooltip:Hide() end)
-		-- Its own page, and its group's panel on Groups & Layout (none while ungrouped).
-		local open = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-		open:SetSize(116, 22)
+		-- Its own page, and its group on Groups & Layout (none while ungrouped).
+		local open = linkCell(f, 106, "Element settings", function()
+			if ELEMENT_PAGES[key] then ns.Options.open(ELEMENT_PAGES[key]) end
+		end)
 		open:SetPoint("LEFT", OPEN_X, 0)
-		open:SetText("Element settings")
-		open:SetScript("OnClick", function() if ELEMENT_PAGES[key] then ns.Options.open(ELEMENT_PAGES[key]) end end)
-		local groupOpen = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-		groupOpen:SetSize(104, 22)
-		groupOpen:SetPoint("LEFT", open, "RIGHT", 4, 0)
-		groupOpen:SetText("Group settings")
-		groupOpen:SetScript("OnClick", function() local g = ns.groupOf(key); if g then ns.Options.openGroup(g.id) end end)
+		local groupOpen = linkCell(f, 100, "Group settings", function()
+			local g = ns.groupOf(key)
+			if g then ns.Options.openGroup(g.id) end
+		end)
+		groupOpen:SetPoint("LEFT", open, "RIGHT", 6, 0)
 		p:add(f, 34, nil, function()
 			e.paint(icon)
 			local learned = ns.isLearned(key)
@@ -111,10 +162,12 @@ function EP.buildOverview(p)
 			name:SetPoint("LEFT", 32, learned and 0 or 6)
 			unknown:SetShown(not learned)
 			icon:SetDesaturated(not learned)
-			group:GenerateMenu()
-			show:GenerateMenu()
+			local g = ns.groupOf(key)
+			group.text:SetText(g and g.name or "Ungrouped")
+			local mode = ns.showMode(key)
+			for _, c in ipairs(SHOW_CHOICES) do if c[1] == mode then show.text:SetText(c[2]) end end
 			open:SetShown(ELEMENT_PAGES[key] ~= nil)
-			groupOpen:SetShown(ns.groupOf(key) ~= nil)
+			groupOpen:SetShown(g ~= nil)
 		end)
 	end
 end
