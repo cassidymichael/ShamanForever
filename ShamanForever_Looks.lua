@@ -400,7 +400,8 @@ function Looks.inset(f, b, w, shape)
 			out = math.max(out, math.ceil(share * w / (1 + 2 * share) / one - 0.01) * one)
 		end
 	end
-	return out
+	-- The picture keeps a few units, however small the icon and heavy the look.
+	return math.min(out, math.max((w - 4) / 2, 0))
 end
 
 -- Sizes icon f for a box w by h (its Size) with border b drawn round it inside that box, and draws

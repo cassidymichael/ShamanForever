@@ -19,7 +19,8 @@ S.KINDS = {}
 -- spec: defaults (every field, with its default), path (keys under a holder; unique among an
 -- element's options, the totem bar's settings and a group's fields), ownerDefaults (owner key ->
 -- fields that owner starts with over General's; such an owner doesn't follow General until the
--- player says so).
+-- player says so), ranges (field -> { min, max } for numbers the options offer in a range: a value
+-- outside it, from an old or shared profile, is held to it).
 function S.register(kind, spec) S.KINDS[kind] = spec; spec.users = {} end
 
 -- Owner keys that offer a kind on their options page (the options register them as they build),
@@ -58,6 +59,8 @@ S.register("gcd", {
 S.register("border", {
 	defaults = { show = true, look = "line", size = 2, color = { 0, 0, 0, 1 }, capSize = 3,
 		capColor = { 0.85, 0.68, 0.39, 1 } },
+	-- The options' slider ranges (size 0, from older profiles, still means no line).
+	ranges = { size = { 0, 8 }, capSize = { 1, 8 } },
 	path = { "border" },
 })
 
@@ -83,14 +86,23 @@ end
 
 local isColor = ns.isColor
 
--- A clean copy of t: every field of def, taken from t where it has the right type.
-local function clean(t, def)
+-- A number held to its range (ranges: field -> { min, max }); not a number (NaN): the default.
+local function inRange(ranges, k, x, default)
+	local r = ranges and ranges[k]
+	if not r then return x end
+	if x ~= x then return default end
+	return math.min(math.max(x, r[1]), r[2])
+end
+
+-- A clean copy of t: every field of def, taken from t where it has the right type (and, for a
+-- field in ranges, held to its range).
+local function clean(t, def, ranges)
 	local out = {}
 	for k, v in pairs(def) do
 		local x   -- not `type(t) == "table" and t[k]`: with no t, that false would win over a true default
 		if type(t) == "table" then x = t[k] end
 		if type(v) == "table" then out[k] = isColor(x) and { x[1], x[2], x[3], type(x[4]) == "number" and x[4] or 1 } or CopyTable(v)
-		elseif type(x) == type(v) then out[k] = x
+		elseif type(x) == type(v) then out[k] = type(x) == "number" and inRange(ranges, k, x, v) or x
 		else out[k] = v end
 	end
 	return out
@@ -100,7 +112,7 @@ S.clean = clean
 -- An owner's own table, cleaned, with its follow switch (shared profiles).
 function S.cleanOwn(t, kind)
 	if type(t) ~= "table" then return nil end
-	local out = clean(t, S.KINDS[kind].defaults)
+	local out = clean(t, S.KINDS[kind].defaults, S.KINDS[kind].ranges)
 	if type(t.follow) == "boolean" then out.follow = t.follow end
 	return out
 end
@@ -131,7 +143,7 @@ end
 -- General's style for a kind.
 function S.general(kind)
 	local spec = S.KINDS[kind]
-	return clean(at(holder(nil), spec.path), spec.defaults)
+	return clean(at(holder(nil), spec.path), spec.defaults, spec.ranges)
 end
 
 -- An owner's stored table for a kind; nil if it has none (and not create).
@@ -165,7 +177,7 @@ end
 -- The style an owner uses now.
 function S.get(owner, kind)
 	if S.follows(owner, kind) then return S.general(kind) end
-	return clean(S.override(owner, kind), base(owner, kind))
+	return clean(S.override(owner, kind), base(owner, kind), S.KINDS[kind].ranges)
 end
 
 -- One plain (not table) field of the style an owner uses now, as S.get would give it, without
@@ -176,11 +188,13 @@ function S.value(owner, kind, field)
 	local v = spec.defaults[field]
 	local g = at(holder(nil), spec.path)
 	if type(g) == "table" and type(g[field]) == type(v) then v = g[field] end
-	if S.follows(owner, kind) then return v end
-	local d = ownerDefaults(owner, kind)
-	if d and d[field] ~= nil then v = d[field] end
-	local o = S.override(owner, kind)
-	if type(o) == "table" and type(o[field]) == type(v) then v = o[field] end
+	if not S.follows(owner, kind) then
+		local d = ownerDefaults(owner, kind)
+		if d and d[field] ~= nil then v = d[field] end
+		local o = S.override(owner, kind)
+		if type(o) == "table" and type(o[field]) == type(v) then v = o[field] end
+	end
+	if type(v) == "number" then v = inRange(spec.ranges, field, v, spec.defaults[field]) end
 	return v
 end
 
@@ -208,7 +222,7 @@ function S.set(owner, kind, field, value)
 			parent = parent[path[i]]
 		end
 		local last = path[#path]
-		parent[last] = clean(parent[last], spec.defaults)
+		parent[last] = clean(parent[last], spec.defaults, spec.ranges)
 		parent[last][field] = value
 		return
 	end
