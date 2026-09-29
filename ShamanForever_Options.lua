@@ -290,7 +290,8 @@ end
 
 -- Standard block: a timer's look (ShamanForever_Timers.lua). key nil: General's for the kind, with
 -- note under its header; otherwise an element's own ("totembar" for the totem bar), with Same as General.
--- first: an optional function adding the element's own rows at the top of the block, under the header.
+-- first: an optional function adding the element's own rows at the top of the block, under its
+-- header.
 local TEXT_POS = { { "auto", "Auto" }, { "center", "Centre" }, { "topleft", "Top left" }, { "bottom", "Bottom" } }
 local function timerSettings(p, title, key, kind, after, note, first)
 	after = after or retime

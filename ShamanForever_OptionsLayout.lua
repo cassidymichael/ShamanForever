@@ -4,7 +4,8 @@
 -- from its header, and folded it names its elements. Clicking a group in the list goes to its panel.
 -- Drag an element onto a group in the list, onto a panel's elements (between two to set the order)
 -- or its name, or onto New group for a group of its own; click one for a menu. The groups are
--- ShamanForever.lua's (db.groups): every change goes through its layout edits, which wait out combat.
+-- ShamanForever.lua's (db.groups): every change goes through its layout edits, which wait out
+-- combat.
 local _, ns = ...
 
 local LP = {}
@@ -56,7 +57,7 @@ end
 -- click one for a menu.
 ------------------------------------------------------------------------
 local CHIP_STEP = 26   -- a chip is 2 shorter, leaving a gap
-local drag = {}        -- key: the element being dragged; kind and over: the drop target under the cursor
+local drag = {}        -- key: the element dragged; kind and over: the drop target under the cursor
 local page, list, rows, loose, newButton   -- built with the page (LP.build)
 local slots = {}       -- the group panels, one per place in db.groups (buildSlot)
 
