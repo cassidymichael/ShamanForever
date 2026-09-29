@@ -16,7 +16,7 @@ More screenshots: [options gallery](docs/gallery/README.md).
 
 A collection of highly configurable HUD elements designed to help shamans playing World of Warcraft: Forever.
 
-- **Totem Bar**: Fully configurable totem bar replacing default or active totems frames: drop, pick and dismiss totems, Call of the Elements and Totemic Recall, an out-of-range warning, and key bindings
+- **Totem Bar**: Fully configurable totem bar replacing default or active totems frames: drop, pick and dismiss totems, Call of the Elements and Totemic Recall, an out-of-range warning, and key bindings; drawn in one of four looks (Default, Pixel, Blizzard, Stone and bronze)
 - **Shock Trackers**: Earth, Flame, and Frost shock monitoring
 - **Shield Helpers**: Lightning Shield and Water Shield tracking
 - **Weapon Imbues**: Rockbiter, Flametongue, Frostbrand, and Windfury imbue status
