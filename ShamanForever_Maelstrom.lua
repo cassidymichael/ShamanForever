@@ -18,7 +18,7 @@
 --    new to its slot or first shows, and Blizzard's aura sounds come with every added stack
 --    (Blizzard_CustomAuraButton.lua, C_UnitAuras.AddAuraSound).
 -- The five in its own colour: a numeric rule formatter hands Blizzard one format per count, so the
--- engine picks it (the shield's last charge works the same way).
+-- engine picks it. Blizzard prints only counts from 2 without one (below, "The stack number").
 -- Nothing here reads the buff or compares its stacks. Under Blizzard's buttons nothing gets a script
 -- handler (the client refuses SetScript on frames made in the button's initializeFrame, which ends
 -- it) and nothing is read back (IsShown and the like come back secret; tested 2026-09-29).
