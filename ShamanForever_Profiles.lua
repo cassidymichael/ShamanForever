@@ -20,8 +20,6 @@ local ACCOUNT_DEFAULTS = {
 	lastShield = "lightning",  -- the shield last cast or seen; its icon is the no-shield look in "either" mode
 	imbueIDs = {},            -- learned enchant ID -> imbue key
 	fearCasters = {},         -- the player's edits to Tremor's mob list (ShamanForever_Tremor.lua)
-	swingShowBlizzard = false,  -- the player keeps Blizzard's swing bar on with ours: no note (ShamanForever_Swing.lua)
-	swingBlizzardNoted = {},  -- "Name-Realm" -> true: chat said on that character that Blizzard's bar is on too
 	profiles = {},            -- name -> settings (ShamanForever.lua's DEFAULTS)
 	chars = {},               -- "Name-Realm" -> { profile = name }
 }

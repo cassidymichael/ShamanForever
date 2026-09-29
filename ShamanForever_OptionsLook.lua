@@ -575,39 +575,38 @@ L.PREVIEW.tremor = {
 
 -- The swing timer (ShamanForever_Swing.lua): a bar, not an icon. size gives the preview its shape:
 -- the HUD's, at the preview's scale, fitted into the panel.
-local SWING_FILL = 0.55
+local SWING_FILL, SWING_LENGTH = 0.55, 2.6
 L.PREVIEW.swing = {
-	cooldown = true, panelW = 306,
+	panelW = 306,
 	size = function()
 		local w, h = ns.Swing.getSize(ns.BASE_ICON_SIZE)
 		local k = math.min(56 / ns.BASE_ICON_SIZE, 160 / w, 28 / h)
 		return w * k, h * k
 	end,
-	states = { { "swinging", "Swinging" }, { "due", "Swing due" }, { "unsure", "Unsure" }, { "idle", "Not attacking" } },
+	states = { { "swinging", "Swinging" }, { "due", "Swing due" } },
 	render = function(ic, st)
 		reset(ic, nil)
 		ic.tex:SetColorTexture(unpack(ns.Swing.BACKGROUND))   -- the bar's background
 		local s = ic.swing
 		if not s then
-			-- The HUD's bar, the fill under the countdown.
-			local base = ic:GetFrameLevel()
+			-- The HUD's bar, and the countdown over it.
 			s = ns.Swing.makeBar(ic)
-			s:SetFrameLevel(base + 1)
-			ic.cd:SetFrameLevel(base + 2)
-			ic.textFrame:SetFrameLevel(base + 4)
-			if ic.cdT then ic.cdT.cd:SetDrawBling(false) end
+			s:SetFrameLevel(ic:GetFrameLevel() + 1)
+			ic.textFrame:SetFrameLevel(ic:GetFrameLevel() + 4)
+			s.text = ic.textFrame:CreateFontString(nil, "OVERLAY")
+			s.text:SetFontObject(ns.Swing.font)
 			ic.swing = s
 		end
-		ns.Swing.sizeSpark(s)
+		ns.Swing.styleBar(s)
+		ns.Swing.styleCountdown()
+		ns.Swing.placeCountdown(s.text, ic)
 		local c = ns.Swing.fillColor()
 		s:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
-		local faded = st == "unsure" and ns.elementSetting("swing", "unsureAlpha") or 1
-		s:SetAlpha(faded)
-		ic.cd:SetAlpha(faded)
-		s:SetValue(st == "due" and 1 or SWING_FILL)
-		s:SetShown(st ~= "idle")   -- auto attack off: the bar empties
-		if st == "swinging" or st == "unsure" then frozen(ic.cdT, SWING_FILL, 2.6) end
-		if st == "idle" then idleLook(ic, "swing") end
+		local due = st == "due"
+		local filled = due and 1 or SWING_FILL
+		s:SetValue(ns.elementSetting("swing", "deplete") == true and 1 - filled or filled)
+		s.text:SetText(string.format("%.1f", due and 0 or SWING_LENGTH * (1 - SWING_FILL)))
+		s.text:SetShown(ns.elementSetting("swing", "countdown") == true)
 	end,
 }
 
