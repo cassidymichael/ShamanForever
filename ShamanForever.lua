@@ -282,10 +282,12 @@ local function showMode(key) return elementOpts(key).show or "always" end
 
 -- A group's icon size: its own, or General's.
 local function groupSize(g) return (g and not g.sizeFollow and g.size) or db.iconSize end
--- An element's: its group's.
+-- An element's icon: its group's size less its border, which is drawn inside that size
+-- (ns.Looks.inset; layoutGroup places it so).
 local function sizeOf(key)
 	local gi = findElement(key)
-	return groupSize(gi and db.groups[gi])
+	local box = groupSize(gi and db.groups[gi])
+	return box - 2 * ns.Looks.inset(ELEMENTS[key].frame, ns.borderFor(key), box)
 end
 
 local function isEnabled(key) return findElement(key) ~= nil and showMode(key) ~= "never" and onHUD(key) end
@@ -460,8 +462,13 @@ end
 -- shrinks to fit so dragging feels right. Every member anchors to the group frame, never to another
 -- member: a frame a protected frame anchors to may turn protected too, and the shield is protected
 -- (Blizzard's aura button), so a chain could stop the members before it changing in combat.
+-- A member's Size is its box, border included: its frame (the icon's picture) sits inside it by the
+-- border's reach (ns.Looks.fit), so Spacing is the gap between borders.
 local function layoutGroup(gi)
 	local g, gf = db.groups[gi], groupFrame(gi)
+	-- The scale first: borders are lines, sized in screen pixels for it.
+	gf:SetScale(g.scale)
+	local border = ns.Style.get(g, "border")
 	local gap = g.spacing
 	local horizontal = g.orientation == "horizontal"
 	local forward = g.growth ~= "backward"
@@ -475,9 +482,9 @@ local function layoutGroup(gi)
 			hideFrame(f)
 		else
 			local w, h = e.getSize(groupSize(g))
-			f:SetSize(w, h)
+			local inset = ns.Looks.fit(f, border, w, h)
 			f:ClearAllPoints()
-			local offset = along + n * gap   -- from the group's leading edge
+			local offset = along + n * gap + inset   -- from the group's leading edge
 			if horizontal then
 				if forward then f:SetPoint("LEFT", gf, "LEFT", offset, 0)
 				else f:SetPoint("RIGHT", gf, "RIGHT", -offset, 0) end
@@ -494,15 +501,11 @@ local function layoutGroup(gi)
 	along = math.max(along + math.max(n - 1, 0) * gap, 1)
 	across = math.max(across, 1)
 	if horizontal then gf:SetSize(along, across) else gf:SetSize(across, along) end
-	gf:SetScale(g.scale)
 	gf:SetAlpha(g.alpha)
 	for _, key in ipairs(g.members) do   -- effects layers ignore their icon's alpha, so they take the group's
 		local fx = ELEMENTS[key].frame.effects
 		if fx then fx:SetAlpha(g.alpha) end
 	end
-	-- After the scale, so borders are sized in real pixels.
-	local border = ns.Style.get(g, "border")
-	for _, key in ipairs(g.members) do ns.applyBorder(ELEMENTS[key].frame, border) end
 	gf:ClearAllPoints()
 	gf:SetPoint(g.point, UIParent, g.point, g.x, g.y)
 	ns.Positioning.decorate(gf, gi)

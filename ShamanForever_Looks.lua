@@ -60,7 +60,9 @@ end
 -- A look whose Blizzard art is missing from the client draws a plain 1 px black line instead.
 -- A look drawn with AI-made art is credited in the README and About's Art text.
 -- Lines and caps are screen pixels (ns.linePx): crisp, grown by Scale, not by icon Size. They sit
--- outside the icon's edge, so they never cover the rings inside it or Blizzard's aura button.
+-- round the icon's picture, so they never cover the rings inside it or Blizzard's aura button, and
+-- inside the element's box: an icon's Size is its outer edge, and whoever lays it out sets the
+-- picture in by Looks.inset (Looks.fit), so Spacing is the gap between what shows.
 ------------------------------------------------------------------------
 local SIDES = { "top", "bottom", "left", "right" }
 local CORNERS = { { "TOPLEFT", -1, 1 }, { "TOPRIGHT", 1, 1 }, { "BOTTOMLEFT", -1, -1 }, { "BOTTOMRIGHT", 1, -1 } }
@@ -349,16 +351,61 @@ function Looks.followSwipe(f, cd)
 	if swipeLooks[f] then swipeOne(f, cd, swipeLooks[f]) end
 end
 
--- Draws b (a border style) round f in its look, or takes it down (b off, or a size of 0 for a
--- look drawn at the Border size). Drawn just outside f's edge, so it never covers the rings inside
--- the icon or Blizzard's aura button; art and masks draw as each look says. Its lines are screen
--- pixels (ns.linePx), grown by Scale, not by icon Size. Sets f.frameOuter, how far it reaches
--- outside f's edge (f's units), for Looks.outerEdge.
-function ns.applyBorder(f, b)
+-- The look border style b draws in (NO_ART for one whose Blizzard art is missing), or nil: b is
+-- off, or a look drawn at the Border size has a size of 0.
+local function drawnLook(b)
 	local look = S.look("border", b and b.look)
 	if artMissing(look) then look = NO_ART end
 	local on = b and b.show and (not Looks.uses(look, "size") or (b.size and b.size > 0))
-	if not on then
+	return on and look or nil
+end
+
+-- One screen pixel, in f's units.
+local function pixel(f)
+	local _, physicalHeight = GetPhysicalScreenSize()
+	return 768 / (physicalHeight or 768) / f:GetEffectiveScale()
+end
+
+-- How far in from the edge of a box w wide (the element's Size, in f's units) the icon's picture
+-- sits, so that border b drawn round it stays inside the box: the reach of its lines and sliced
+-- art (whole screen pixels, as they are drawn, for f's scale), or of its stretched art, which
+-- reaches a share of the picture's width past its edges; whichever is further.
+function Looks.inset(f, b, w)
+	local look = drawnLook(b)
+	if not look then return 0 end
+	local out = 0
+	for _, ring in ipairs(look.rings or {}) do out = out + ns.linePx(f, pxOf(ring.px, b)) end
+	if look.caps then out = math.max(out, ns.linePx(f, pxOf(look.caps.px, b))) end
+	local art = look.art
+	if art and art.margin then out = math.max(out, ns.linePx(f, art.px))
+	elseif art and art.inset then
+		local share = math.max(art.inset[1], art.inset[2], art.inset[3], art.inset[4])
+		if share > 0 then
+			local one = pixel(f)
+			out = math.max(out, math.ceil(share * w / (1 + 2 * share) / one - 0.01) * one)
+		end
+	end
+	return out
+end
+
+-- Sizes icon f for a box w by h (its Size) with border b drawn round it inside that box, and draws
+-- b. Returns the inset (Looks.inset): the caller places f that far in from the box's edges.
+function Looks.fit(f, b, w, h)
+	local o = Looks.inset(f, b, math.min(w, h or w))
+	f:SetSize(w - 2 * o, (h or w) - 2 * o)
+	ns.applyBorder(f, b)
+	return o
+end
+
+-- Draws b (a border style) round f in its look, or takes it down (b off, or a size of 0 for a
+-- look drawn at the Border size). Drawn round f's edge, so it never covers the rings inside the
+-- icon or Blizzard's aura button; art and masks draw as each look says. f is the icon's picture,
+-- set in from its box by Looks.inset. Its lines are screen pixels (ns.linePx), grown by Scale, not
+-- by icon Size. Sets f.frameOuter, how far it reaches outside f's edge (f's units), for
+-- Looks.outerEdge.
+function ns.applyBorder(f, b)
+	local look = drawnLook(b)
+	if not look then
 		drawRings(f, nil, b)
 		drawCaps(f, nil)
 		drawOverlay(f, nil)
