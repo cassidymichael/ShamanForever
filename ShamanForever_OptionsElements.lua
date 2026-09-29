@@ -343,6 +343,11 @@ local function buildShock(p)
 	timerSettings(p, "Cooldown", "shock", "cooldown")
 	gcdBlock(p, "shock")
 	readyBlock(p, "shock", "While it's off cooldown.")
+	p:header("Target casting")
+	local castRow = p:checkbox("Pulsing glow", ("While your target casts a spell you can interrupt and %s is ready.")
+		:format(ns.Spells.name("earthShock")), eget("shock", "castGlow"), eset("shock", "castGlow"))
+	ns.Look.expBadge(castRow, "Interrupt cue"):SetPoint("LEFT", castRow.check.Text, "RIGHT", 10, 0)
+	p:color("Glow colour", nil, eget("shock", "castColor"), eset("shock", "castColor"), showWhen(eget("shock", "castGlow")))
 	effectBlocks(p, "shock")
 end
 
