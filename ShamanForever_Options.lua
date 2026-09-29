@@ -435,7 +435,7 @@ local function buildGeneral(p)
 	borderRows(p, nil)
 	ownLine(p, "border")
 	timerSettings(p, "Cooldowns", nil, "cooldown", nil, "A spell you can't cast yet.")
-	gcdBlock(p, nil)   -- with the cooldowns it sweeps like
+	gcdBlock(p, nil)   -- beside Cooldowns: the global cooldown sweeps the same timers
 	timerSettings(p, "Time left", nil, "uptime", nil, "A totem, shield or imbue running.")
 	glowBlock(p, nil, 136026)
 	popBlock(p, nil, 136026, "ready")
