@@ -1188,9 +1188,13 @@ local function buildWindow()
 		savePlace()
 	end)
 	table.insert(UISpecialFrames, win:GetName())   -- Escape closes it
-	-- Positioning's Options button says whether it will show or hide the window.
-	win:HookScript("OnShow", function() ns.Positioning.optionsShown(true) end)
-	win:HookScript("OnHide", function() ns.Positioning.optionsShown(false) end)
+	-- Positioning's and the preview's Options buttons say whether they will show or hide the window.
+	local function shownNow(shown)
+		ns.Positioning.optionsShown(shown)
+		ns.Preview.optionsShown(shown)
+	end
+	win:HookScript("OnShow", function() shownNow(true) end)
+	win:HookScript("OnHide", function() shownNow(false) end)
 
 	buildHome(newPage("home", "Home"))
 	buildGeneral(newPage("general", "General"))
