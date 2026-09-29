@@ -189,19 +189,22 @@ local EXTRA_GAP = 6   -- added to the spacing between the extras and the slots
 -- (TB.extraSides, below), n slots of the given size, then Call and Recall after. Returns a list of
 -- { key, offset, size, extra } (key: an extra's key, or the slot's place among the n), the bar's
 -- length and its thickness (its largest button: every button is centred on its line).
-function TB.along(n, size)
+function TB.along(n, size, px)
 	local c = cfg()
 	local before, after = TB.extraSides()
-	local esz = math.floor(size * c.extrasScale + 0.5)
+	-- px (one screen pixel in the bar's units): sizes and gaps in whole pixels, as on the bar.
+	local function round(v) return px and ns.roundPx(v, px) or math.floor(v + 0.5) end
+	local esz, gap, extraGap = round(size * c.extrasScale), c.spacing, c.spacing + EXTRA_GAP
+	if px then gap, extraGap = round(gap), round(extraGap) end
 	local list, long = {}, 0
-	local function put(key, gap, sz, extra)
-		if #list > 0 then long = long + gap end
+	local function put(key, space, sz, extra)
+		if #list > 0 then long = long + space end
 		table.insert(list, { key = key, offset = long, size = sz, extra = extra })
 		long = long + sz
 	end
-	for _, k in ipairs(before) do put(k, c.spacing, esz, true) end
-	for i = 1, n do put(i, i == 1 and c.spacing + EXTRA_GAP or c.spacing, size) end
-	for i, k in ipairs(after) do put(k, i == 1 and c.spacing + EXTRA_GAP or c.spacing, esz, true) end
+	for _, k in ipairs(before) do put(k, gap, esz, true) end
+	for i = 1, n do put(i, i == 1 and extraGap or gap, size) end
+	for i, k in ipairs(after) do put(k, i == 1 and extraGap or gap, esz, true) end
 	local line = (#before + #after > 0) and math.max(size, esz) or size
 	return list, math.max(long, size), line
 end
@@ -403,7 +406,7 @@ for index, el in ipairs(ELEMENTS) do
 	v.bg:SetAllPoints()
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
-	ns.cropIcon(v.icon)
+	ns.cropIconExact(v.icon)
 	-- Time left: a timer (text, swipe, bar), above the warning layer so it stays readable.
 	s.timer = ns.Timer.new(v, "totembar", "uptime", { anchor = v, school = el })
 	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + 3)
@@ -525,7 +528,7 @@ for _, e in ipairs({ { "Call", CALL }, { "Recall", RECALL } }) do
 	v:SetFrameLevel(b:GetFrameLevel() + 2)
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
-	ns.cropIcon(v.icon)
+	ns.cropIconExact(v.icon)
 	extras[key] = { key = key, spell = spell, button = b, vis = v, keys = keyLayer(v), gcd = gcdSweep(v),
 		command = "CLICK ShamanForeverKey" .. key .. ":LeftButton" }
 end
@@ -899,10 +902,13 @@ function layout()
 	closePopouts()
 	local c = cfg()
 	local size, border = look()
-	-- Scale and opacity first: borders below are lines, sized for the bar's scale. Out of combat
+	-- Scale and opacity first: borders below are lines, sized for the bar's scale, and sizes, gaps
+	-- and the position are whole screen pixels at it (ns.placeOnPixels says why). Out of combat
 	-- only, like everything on a frame holding secure buttons.
 	bar:SetScale(c.scale)
 	bar:SetAlpha(c.alpha)
+	local px = ns.pixel(bar)
+	size = ns.roundPx(size, px)
 	-- A slot shows for an element with a totem known (every element's where the client can't list
 	-- them). With no totem known at all (a new character's first levels) the bar has nothing to show
 	-- and hides, Call and Recall with it, in positioning mode too: like a group whose elements aren't
@@ -926,11 +932,11 @@ function layout()
 	local row = c.dir == "row"
 	if row and c.pop ~= "up" and c.pop ~= "down" then c.pop = "up" end
 	if not row and c.pop ~= "right" and c.pop ~= "left" then c.pop = "right" end
-	-- Everything along the bar, in order: extras before, slots, extras after (TB.along). LEFT / TOP
-	-- anchors keep every button centred on the bar's line, whatever its size. Nothing while no totem
-	-- is known.
+	-- Everything along the bar, in order: extras before, slots, extras after (TB.along), each
+	-- centred on the bar's line to the nearest whole pixel, whatever its size. Nothing while no
+	-- totem is known.
 	local seq, long, across = {}, size, size
-	if hasTotems or (preview and preview.all) then seq, long, across = TB.along(#shown, size) end
+	if hasTotems or (preview and preview.all) then seq, long, across = TB.along(#shown, size, px) end
 	local on = {}   -- the extras that show
 	for _, it in ipairs(seq) do
 		local b, sz = it.extra and extras[it.key].button or shown[it.key].button, it.size
@@ -939,7 +945,8 @@ function layout()
 		-- Its key label scales with the icon.
 		if keyTexts[b] then keyTexts[b]:SetFont(STANDARD_TEXT_FONT, math.max(8, math.floor(sz * 0.3 + 0.5)), "OUTLINE") end
 		b:ClearAllPoints()
-		if row then b:SetPoint("LEFT", bar, "LEFT", it.offset, 0) else b:SetPoint("TOP", bar, "TOP", 0, -it.offset) end
+		local side = ns.roundPx((across - sz) / 2, px)
+		if row then b:SetPoint("TOPLEFT", bar, "TOPLEFT", it.offset, -side) else b:SetPoint("TOPLEFT", bar, "TOPLEFT", side, -it.offset) end
 	end
 	for key, e in pairs(extras) do
 		local show = on[key] or false
@@ -969,8 +976,7 @@ function layout()
 		layoutPopout(s, size, known[s.el])
 	end
 	if row then bar:SetSize(long, across) else bar:SetSize(across, long) end
-	bar:ClearAllPoints()
-	bar:SetPoint(c.point, UIParent, c.point, c.x / c.scale, c.y / c.scale)
+	ns.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
 	if TB.range then TB.range.layout(size) end   -- after the scale: its height is a line's
 	refreshSlots()
 	refreshKeys()

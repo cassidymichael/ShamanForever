@@ -52,10 +52,8 @@ end
 ------------------------------------------------------------------------
 -- Settings helpers
 ------------------------------------------------------------------------
-local function pct(v) return string.format("%.0f%%", v * 100) end
-local function times(v) return string.format("%.2fx", v) end
-local function int(v) return string.format("%d", v) end
-local function px(v) return string.format("%d px", v) end
+-- How slider values read (the page kit's).
+local pct, times, int, px = Page.pct, Page.times, Page.int, Page.px
 
 ------------------------------------------------------------------------
 -- Styles (ShamanForever_Style.lua): General sets each one; an element, a group or the totem bar can
@@ -255,7 +253,6 @@ local function timerSettings(p, title, key, kind, after, note)
 			return true
 		end)
 	end
-	local function secs(v) return string.format("%d", v) end
 	p:header(title)
 	if not key then p:anchor(kind) end
 	if note then p:text(note) end
@@ -263,7 +260,7 @@ local function timerSettings(p, title, key, kind, after, note)
 	-- What the game can't do here, said once instead of showing rows that could never apply.
 	for _, why in pairs(cant) do p:text(why, own) end
 	p:checkbox("Countdown text", "Numbers counting down.", tg("text"), ts("text"), dim("text"))
-	p:slider("Text size", nil, 6, 48, 1, secs, tg("textSize"), ts("textSize"), dim("text", "text"))
+	p:slider("Text size", nil, 6, 48, 1, int, tg("textSize"), ts("textSize"), dim("text", "text"))
 	p:color("Text colour", nil, tg("textColor"), ts("textColor"), dim("text", "text"))
 	p:dropdown("Text position", "Auto: centred, or top-left on an icon that also shows a cooldown.", TEXT_POS,
 		tg("textPos"), ts("textPos"), dim("text", "text"), 140)
@@ -1189,7 +1186,7 @@ end
 
 -- The helpers and standard blocks the element pages share (ShamanForever_OptionsElements.lua).
 OP.kit = {
-	relayout = relayout, respell = respell, pct = pct, int = int, px = px, get = get, set = set,
+	relayout = relayout, respell = respell, get = get, set = set,
 	groupCount = groupCount, isHidden = isHidden, placeShown = placeShown, SHOW_CHOICES = SHOW_CHOICES,
 	timerSettings = timerSettings, gcdBlock = gcdBlock, glowBlock = glowBlock, popBlock = popBlock,
 	expiringLooks = expiringLooks, killedBlock = killedBlock,

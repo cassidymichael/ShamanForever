@@ -64,7 +64,7 @@ local DEFAULTS = {
 	elementOpts = {},       -- per-element settings by key, e.g. { shock = { show = "combat" } }; every element starts shown
 	-- shield
 	shieldTrack = "lightning", -- lightning | water | either: which shield counts as "up" (water and either are experimental)
-	countPos = "center",    -- corner | center
+	countPos = "CENTER",    -- the charge number: CENTER, TOPLEFT, TOPRIGHT, BOTTOMLEFT or BOTTOMRIGHT
 	countSize = 20,
 	showBar = true,         -- charge bar along the bottom of the icon
 	chargeBarHeight = 8,
@@ -463,10 +463,15 @@ end
 -- (Blizzard's aura button), so a chain could stop the members before it changing in combat.
 local function layoutGroup(gi)
 	local g, gf = db.groups[gi], groupFrame(gi)
-	local gap = g.spacing
+	-- Scale first: sizes, gaps and the position are rounded to whole screen pixels at it
+	-- (ns.placeOnPixels says why).
+	gf:SetScale(g.scale)
+	local px = ns.pixel(gf)
+	local gap = ns.roundPx(g.spacing, px)
 	local horizontal = g.orientation == "horizontal"
 	local forward = g.growth ~= "backward"
 	local n, along, across = 0, 0, 0
+	local placed = {}   -- the members drawn: { frame, offset from the group's leading edge, w, h }
 	for _, key in ipairs(g.members) do
 		local e = ELEMENTS[key]
 		local f = e.frame
@@ -476,26 +481,31 @@ local function layoutGroup(gi)
 			hideFrame(f)
 		else
 			local w, h = e.getSize(groupSize(g))
+			w, h = ns.roundPx(w, px), ns.roundPx(h, px)
 			f:SetSize(w, h)
-			f:ClearAllPoints()
-			local offset = along + n * gap   -- from the group's leading edge
-			if horizontal then
-				if forward then f:SetPoint("LEFT", gf, "LEFT", offset, 0)
-				else f:SetPoint("RIGHT", gf, "RIGHT", -offset, 0) end
-				along, across = along + w, math.max(across, h)
-			else
-				if forward then f:SetPoint("TOP", gf, "TOP", 0, -offset)
-				else f:SetPoint("BOTTOM", gf, "BOTTOM", 0, offset) end
-				along, across = along + h, math.max(across, w)
-			end
+			table.insert(placed, { f, along + n * gap, w, h })
+			if horizontal then along, across = along + w, math.max(across, h)
+			else along, across = along + h, math.max(across, w) end
 			showFrame(f, acct.locked and showMode(key) == "combat")
 			n = n + 1
 		end
 	end
-	along = math.max(along + math.max(n - 1, 0) * gap, 1)
-	across = math.max(across, 1)
+	-- Each member centred on the cross axis, to the nearest whole pixel.
+	for _, m in ipairs(placed) do
+		local f, offset = m[1], m[2]
+		local side = ns.roundPx((across - (horizontal and m[4] or m[3])) / 2, px)
+		f:ClearAllPoints()
+		if horizontal then
+			if forward then f:SetPoint("TOPLEFT", gf, "TOPLEFT", offset, -side)
+			else f:SetPoint("TOPRIGHT", gf, "TOPRIGHT", -offset, -side) end
+		else
+			if forward then f:SetPoint("TOPLEFT", gf, "TOPLEFT", side, -offset)
+			else f:SetPoint("BOTTOMLEFT", gf, "BOTTOMLEFT", side, offset) end
+		end
+	end
+	along = math.max(along + math.max(n - 1, 0) * gap, px)
+	across = math.max(across, px)
 	if horizontal then gf:SetSize(along, across) else gf:SetSize(across, along) end
-	gf:SetScale(g.scale)
 	gf:SetAlpha(g.alpha)
 	for _, key in ipairs(g.members) do   -- effects layers ignore their icon's alpha, so they take the group's
 		local fx = ELEMENTS[key].frame.effects
@@ -504,8 +514,7 @@ local function layoutGroup(gi)
 	-- After the scale, so borders are sized in real pixels.
 	local border = ns.Style.get(g, "border")
 	for _, key in ipairs(g.members) do ns.applyBorder(ELEMENTS[key].frame, border) end
-	gf:ClearAllPoints()
-	gf:SetPoint(g.point, UIParent, g.point, g.x, g.y)
+	ns.placeOnPixels(gf, g.point, g.x, g.y)
 	ns.Positioning.decorate(gf, gi)
 	if n > 0 then showFrame(gf, acct.locked and g.combatOnly or false) else hideFrame(gf) end
 end
