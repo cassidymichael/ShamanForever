@@ -18,11 +18,11 @@ Each thing the HUD shows is an element: an icon you can place in a group anywher
 
 ### Elements
 
-- **Shields**: Lightning Shield's charges (a segmented bar, a number, or both) and time left. While it's down the icon can go grey, get a red ring, turn red or fade in and out. It can track Water Shield, or whichever shield is up, instead (experimental).
+- **Shields**: Lightning Shield's charges (a segmented bar, a number, or both) and time left. While it's down the icon can go grey, get a red ring, turn red, glow or fade in and out. The last charge can show in a colour of its own. It can track Water Shield, or whichever shield is up, instead (experimental).
 - **Shocks**: Earth, Flame or Frost Shock's cooldown. The icon shows when your target is out of range, and when you're short of mana for the shock (or another shock you choose).
 - **Weapon Imbue**: warns when your main hand has no Rockbiter, Flametongue, Frostbrand or Windfury, and shows which one is on. Its time left shows once it's low (under 5 minutes by default), and the icon can stay hidden until then.
 - **Earthbind Totem and Stoneclaw Totem**: their cooldowns and their totem's time left, a warning before it ends, and a flash if it's killed early.
-- **Fire Nova**: its cooldown, and a warning while no fire totem is down.
+- **Fire Nova**: its cooldown, and a warning while no fire totem is down. Off cooldown with no fire totem, it pops greyed, a nudge to drop one.
 - **Tremor Totem**: "Tremor!" by the icon, with a pop, a glow and an optional sound, when a mob on its watchlist is your target or its nameplate is on screen (needs enemy nameplates). It can also warn when you're feared, charmed or asleep (off by default). It's quiet while your Tremor Totem is down, and can show the totem's time left then.
   - The watchlist starts with open-world mobs from Classic that cast fear, charm or sleep. Add mobs by name or from your target, or remove them.
   - In dungeons and raids the game hides mob names from addons, so there only the feared, charmed or asleep warning works.
@@ -37,7 +37,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - **Mana Tide Totem**: its cooldown and the totem's time left, a glow in its last seconds and a flash when it runs out.
 - **Grounding Totem**: its cooldown and the totem's time left, and a flash when it ends early (it took a spell, or was destroyed).
 - **Stormstrike**: its cooldown, and a bar while its effect lasts: 12 seconds from your cast, or until your next Lightning Bolt, Chain Lightning or Earth Shock. Other Nature damage on the target can use it up without the addon seeing.
-- **Riptide** and **Totemic Projection**: their cooldowns.
+- **Riptide**, **Totemic Projection**, **Lava Burst** and **Chain Lightning**: their cooldowns.
 - **Rage of the Farseer**: its cooldown, and the time left on its 25 seconds, timed from your cast.
 - **Reincarnation**: its cooldown, hidden while it's ready by default. It shows your Ankh count, and warns when you're low or out, if the spell still needs an Ankh.
 - **Water Walking** and **Water Breathing**: time left while up, hidden while not by default, and a warning in the last 30 seconds. The time is exact out of combat. In combat, and all through a PvP match, it carries on from the last reading, and casting the spell on yourself restarts it. Water Breathing can also warn when your breath bar starts to drain and it isn't up.
@@ -96,7 +96,7 @@ Ideas, requests or problems are welcome, any of these ways:
 
 ## How it works
 
-In combat, Forever hides most of what an addon could read about auras, totems and cooldowns. ShamanForever hands that information to Blizzard's own display widgets instead of reading it, and times the few things it can't see from your own casts, which stay readable. [docs/combat-techniques.md](docs/combat-techniques.md) explains each technique.
+In combat, Forever hides most of what an addon could read about auras, totems and cooldowns. ShamanForever hands that information to Blizzard's own display widgets instead of reading it, and times the few things it can't see from your own casts, which stay readable.
 
 ## Development
 

@@ -15,13 +15,29 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      # The release notes (GitHub release body and CurseForge changelog) are this version's
-      # CHANGELOG.md section only, so the download isn't buried under every earlier version.
+      # The release notes (GitHub release body and CurseForge changelog) are one CHANGELOG.md
+      # section only, so the download isn't buried under every earlier version. A release tag
+      # (v1.2.0) takes its own "## 1.2.0 (date)" section. A beta tag (v1.2.0-beta.1) takes
+      # "## Unreleased", the changes since the last release, under a line saying it's a test
+      # build. Any other tag stops the run here, before anything is uploaded.
       - name: Release notes
         run: |
           version="${GITHUB_REF_NAME#v}"
-          awk -v v="$version" '/^## /{f = ($2 == v)} f' CHANGELOG.md > RELEASE_NOTES.md
-          [ -s RELEASE_NOTES.md ] || { echo "CHANGELOG.md has no '## $version' section" >&2; exit 1; }
+          if [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            awk -v v="$version" '/^## /{f = ($2 == v)} f' CHANGELOG.md > RELEASE_NOTES.md
+            [ -s RELEASE_NOTES.md ] || { echo "CHANGELOG.md has no '## $version' section" >&2; exit 1; }
+          elif [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]]; then
+            # The section without its heading or the blank lines after it.
+            unreleased=$(awk '/^## /{f = ($2 == "Unreleased")} f' CHANGELOG.md | sed '1d' | sed '/./,$!d')
+            grep -q '^- ' <<< "$unreleased" \
+              || { echo "CHANGELOG.md has no '## Unreleased' section with entries" >&2; exit 1; }
+            printf '## %s (test build)\n\n%s\n\n%s\n' "$version" \
+              "A test build of the next version. To go back, switch ShamanForever to release (stable) versions in your addon app." \
+              "$unreleased" > RELEASE_NOTES.md
+          else
+            echo "Not a release (vX.Y.Z) or beta (vX.Y.Z-beta.N) tag: $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
           printf '\nEarlier versions: [CHANGELOG.md](https://github.com/%s/blob/%s/CHANGELOG.md)\n' \
             "$GITHUB_REPOSITORY" "$GITHUB_REF_NAME" >> RELEASE_NOTES.md
       - name: Package and release
@@ -36,13 +52,13 @@ jobs:
           # WoWInterface has no Forever category, so the addon isn't published there.
           WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
       # Posts the same notes to the Discord server's #announcements, through the webhook in the
-      # DISCORD_WEBHOOK_URL secret, with pings off. Plain vX.Y.Z tags only. The release is out by
-      # now, so a failed post only warns: post it by hand.
+      # DISCORD_WEBHOOK_URL secret, with pings off. Release tags only: betas are not announced.
+      # The release is out by now, so a failed post only warns: post it by hand.
       - name: Announce on Discord
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Pre-release: not announced"; exit 0; }
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Beta: not announced"; exit 0; }
           release="https://github.com/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME"
           # The notes without their "## X.Y.Z (date)" heading (the title has it) or the
           # "Earlier versions" line.
@@ -52,7 +68,7 @@ jobs:
             embeds: [{
               title: $title, color: 28894,
               description: ("**Download:** "
-                + "[CurseForge](https://www.curseforge.com/wow/addons/shamanforever) (can take 10 minutes to appear) · "
+                + "[CurseForge](https://www.curseforge.com/wow/addons/shamanforever) · "
                 + "[Wago](https://addons.wago.io/addons/shamanforever) · [GitHub](" + $url + ")"
                 + "\n\n**Changelog**\n" + ($notes | if length > 3700 then .[0:3700] + "…" else . end))
             }]

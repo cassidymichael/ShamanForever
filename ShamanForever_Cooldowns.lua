@@ -99,6 +99,11 @@ local COOLDOWNS = {
 		defaults = { idleAlpha = 1, primedPop = false, primedGlow = false, expire = { secs = 0 } }, experimental = "Stormstrike" },
 	{ key = "riptide", spellKey = "riptide", icon = 252995, school = "water", blurb = "Cooldown.",
 		readyGlow = true, cd = 6, defaults = { idleAlpha = 1 }, experimental = "Riptide" },
+	-- Short cooldowns, back many times a fight: no Ready pop unless the player asks for it.
+	{ key = "lavaburst", spellKey = "lavaBurst", icon = 237582, school = "fire", blurb = "Cooldown.",
+		readyGlow = true, cd = 10, defaults = { idleAlpha = 1, readyPop = false }, experimental = "Lava Burst" },
+	{ key = "chainlightning", spellKey = "chainLightning", icon = 136015, school = "air", blurb = "Cooldown.",
+		readyGlow = true, cd = 6, defaults = { idleAlpha = 1, readyPop = false }, experimental = "Chain Lightning" },
 	{ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, window = 25, school = "air",
 		blurb = "Cooldown, and time left while it's on.",
 		readyGlow = true, expireLooks = { "grey", "pulse" }, cd = 180,
@@ -119,7 +124,8 @@ local PARTS = {
 	ready = { readyPop = true, readyGlow = false },
 	idle = { idleAlpha = 0.35 },
 	-- Fire Nova: the no-fire-totem look, and when it counts as idle (never | nototem | offcd).
-	needsTotem = { blockedGrey = true, blockedRing = false, blockedPulse = false, idleWhen = "never" },
+	-- readyNoTotem: its cooldown ending with no fire totem down plays a greyed pop (grey) or nothing (none).
+	needsTotem = { blockedGrey = true, blockedRing = false, blockedPulse = false, idleWhen = "never", readyNoTotem = "grey" },
 	-- A totem's end: ran out (the pop) or killed early (Killed early's flash and cross).
 	totemSlot = { expiredPop = true, killed = true, killedPop = true, killedGlow = true, killedMark = true },
 	ranOut = { ranOutFlash = true, ranOutPop = false, ranOutGlow = false },   -- ran out, as a flash
@@ -246,15 +252,22 @@ CD.cooldownFor = cooldownFor
 -- Pop when ready: Blizzard's cooldown widget says when its swipe finishes (OnCooldownDone), a
 -- moment with no secret in it, so the icon can pop right then, in combat too. totemSlot: a spell
 -- that needs a totem down in that slot (Fire Nova), which isn't ready without one: an empty slot
--- has no duration object (see the file's header).
+-- has no duration object (see the file's header). Then the pop is greyed, a nudge to drop one, or
+-- none (readyNoTotem).
 local function popWhenReady(f, key, totemSlot)
 	f.cd:HookScript("OnCooldownDone", function()
 		if f.gcdUntil and GetTime() <= f.gcdUntil then return end   -- a global cooldown ended
+		if not (ns.isEnabled(key) and setting(key, "readyPop")) then return end
 		if totemSlot then
 			local ok, d = safe(GetTotemDuration, totemSlot)
-			if not (ok and d) then return end
+			if not ok then return end
+			if not d then
+				-- Not while dead, a ghost or on a flight path: no totem can be dropped then.
+				if setting(key, "readyNoTotem") == "grey" and not ns.cantAct() then f:Pop("blocked") end
+				return
+			end
 		end
-		if ns.isEnabled(key) and setting(key, "readyPop") then f:Pop() end
+		f:Pop()
 	end)
 end
 CD.popWhenReady = popWhenReady
@@ -720,10 +733,12 @@ function CD.start()
 			for _, def in ipairs(COOLDOWNS) do if def.reagent then refreshCooldown(def) end end
 		elseif event == "UNIT_AURA" then
 			if InCombatLockdown() then return end   -- auras are secret: nothing to read
+			-- Reagent Economy's aura may have come (the buff elements read it on their own refresh).
+			local perkUnknown = Reagents.auraChanged()
 			for _, def in ipairs(COOLDOWNS) do
 				if def.spellID and def.primed and def.primed.buffKey and ns.isEnabled(def.key) then
 					readPrimedBuff(def, true); refreshCooldown(def)
-				end
+				elseif def.reagent and perkUnknown then refreshCooldown(def) end
 			end
 		end
 	end)
