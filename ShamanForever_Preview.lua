@@ -119,7 +119,7 @@ end
 -- anything with a reagent has none left.
 local SITUATIONS = {
 	{ "usual", "Usual", "Nothing out of the ordinary." },
-	{ "warnings", "Warnings", "Every warning at once: no shield, no imbue, no totems, reagents gone, Tremor." },
+	{ "warnings", "Warnings", "No shield, no imbue, no totems, reagents gone, Tremor, underwater." },
 	{ "lowmana", "Low mana", "Too little mana to cast." },
 }
 local SITUATION_STEPS = {

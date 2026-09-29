@@ -67,7 +67,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - Arrange elements into groups: rows or columns, each with its own position, spacing, icon size, scale, opacity and border. Drag elements between groups in the options.
 - Show each element always, only in combat, or never. A group can show only in combat.
 - Positioning mode: drag groups and the totem bar, with snapping and a grid. Mouse wheel sets icon size, Ctrl+wheel scale, Shift+wheel opacity, and the arrow keys nudge. It locks itself when combat starts.
-- Preview (`/sf preview`, or Preview in the options): the whole HUD as you've arranged it, in a typical moment, so you can arrange it without a fight or the right buffs. Pick out of combat or in combat, calm or busy, a situation (warnings, low mana), and whether elements you haven't learned yet show. Every state plays each element's states and effects in turn, named as they play, to pause and step through. It works with positioning mode, and ends when combat starts.
+- Preview (`/sf preview`, or Preview in the options): the whole HUD as you've arranged it, in a typical moment, so you can arrange it without a fight or the right buffs. Pick out of combat or in combat, calm or busy, a situation (warnings, low mana), and whether elements you haven't learned yet show. Its Every state activity plays each element's states and effects one at a time, naming each on screen, and can be paused and stepped through. It works with positioning mode, and ends when combat starts.
 - Borders and warning rings stay pixel-sharp at any icon size.
 - Test elements (`/sf test`): placeholder icons for trying out a layout, and elements you haven't learned yet, greyed.
 
