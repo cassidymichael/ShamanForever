@@ -52,7 +52,7 @@ jobs:
             embeds: [{
               title: $title, color: 28894,
               description: ("**Download:** "
-                + "[CurseForge](https://www.curseforge.com/wow/addons/shamanforever) (can take 10 minutes to appear) · "
+                + "[CurseForge](https://www.curseforge.com/wow/addons/shamanforever) · "
                 + "[Wago](https://addons.wago.io/addons/shamanforever) · [GitHub](" + $url + ")"
                 + "\n\n**Changelog**\n" + ($notes | if length > 3700 then .[0:3700] + "…" else . end))
             }]
