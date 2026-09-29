@@ -454,7 +454,7 @@ L.PREVIEW.maelstrom = {
 		local M = ns.Maelstrom
 		reset(ic, M.icon)
 		local n = ({ s1 = 1, s4 = M.maxStacks() - 1, s5 = M.maxStacks() })[st] or 0
-		M.preview(ic, n)
+		M.drawPreview(ic, n)
 		if n > 0 then frozen(ic.upT, 0.3, 30) else idleLook(ic, "maelstrom") end
 	end,
 }

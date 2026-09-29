@@ -377,7 +377,7 @@ local function previewParts(ic)
 	return p
 end
 
-function M.preview(ic, n)
+function M.drawPreview(ic, n)
 	local p = previewParts(ic)
 	local max = src.max
 	local w, h = ic:GetWidth(), number("stackBarHeight")
