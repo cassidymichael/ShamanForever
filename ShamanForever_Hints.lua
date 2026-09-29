@@ -22,8 +22,19 @@ local function tipsOff()
 	return ok and v == true
 end
 
+-- An anchor that is on screen: shown and, in the element list, not scrolled out of it.
+local function onScreen(b)
+	if not (b and b:IsVisible()) then return false end
+	local list = b:GetParent() and b:GetParent():GetParent()
+	if list and list.IsObjectType and list:IsObjectType("ScrollFrame") then
+		local top, bottom = list:GetTop(), list:GetBottom()
+		if not (top and bottom and b:GetTop() and b:GetBottom()) then return false end
+		return b:GetTop() <= top + 1 and b:GetBottom() >= bottom - 1
+	end
+	return true
+end
+
 local frame
-local hooked = {}   -- anchors whose hiding hides the hint
 local function build()
 	frame = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
 	frame:SetFrameStrata("FULLSCREEN_DIALOG")
@@ -38,13 +49,15 @@ local function build()
 	close:SetSize(22, 22)
 	close:SetPoint("TOPRIGHT", 0, 0)
 	close:SetScript("OnClick", function() frame:Hide() end)
+	-- It goes with its anchor: hidden, or scrolled out of the element list.
+	frame:SetScript("OnUpdate", function() if not onScreen(frame.anchor) then frame:Hide() end end)
 	frame:Hide()
 end
 
 -- Shows hint id by anchor (to its right), unless it was seen, another hint is up, the anchor isn't
 -- on screen or tips are off. It counts as seen once shown.
 function H.show(id, anchor, text)
-	if seen()[id] or tipsOff() or not (anchor and anchor:IsVisible()) then return false end
+	if seen()[id] or tipsOff() or not onScreen(anchor) then return false end
 	if frame and frame:IsShown() then return false end
 	if not frame then build() end
 	seen()[id] = true
@@ -52,10 +65,6 @@ function H.show(id, anchor, text)
 	frame:SetHeight(frame.text:GetStringHeight() + 20)
 	frame:ClearAllPoints()
 	frame:SetPoint("LEFT", anchor, "RIGHT", 12, 0)
-	if not hooked[anchor] then
-		hooked[anchor] = true
-		anchor:HookScript("OnHide", function() if frame.anchor == anchor then frame:Hide() end end)
-	end
 	frame.anchor = anchor
 	frame:Show()
 	return true
@@ -68,18 +77,6 @@ function H.reset()
 	ns.say("tips will show again")
 end
 
--- A nav button that is on screen: shown, and not scrolled out of the element list.
-local function onScreen(b)
-	if not (b and b:IsVisible()) then return false end
-	local list = b:GetParent() and b:GetParent():GetParent()
-	if list and list.IsObjectType and list:IsObjectType("ScrollFrame") then
-		local top, bottom = list:GetTop(), list:GetBottom()
-		if not (top and bottom and b:GetTop() and b:GetBottom()) then return false end
-		return b:GetTop() <= top + 1 and b:GetBottom() >= bottom - 1
-	end
-	return true
-end
-
 -- The options window showed a page: the hints that apply now.
 function H.check()
 	local OP = ns.Options
@@ -90,8 +87,7 @@ function H.check()
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
 		if not ns.isLearned(key) then
 			local b = OP.navButton(key)
-			if onScreen(b) then
-				H.show("notlearned", b, "Greyed: not learned yet. It shows on screen once you learn the spell.")
+			if H.show("notlearned", b, "Greyed: not learned yet. It shows on screen once you learn the spell.") then
 				return
 			end
 		end
