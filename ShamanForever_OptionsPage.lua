@@ -107,8 +107,6 @@ end
 -- active() is true: build() adds them. They hide with their parent, sit a level in, and hang on a
 -- thin gold rule from under the parent down to the last of them that shows. A sub inside a sub
 -- goes one level deeper; two levels at most. Their own shown, if any, still applies.
--- Shields and the Totem bar use it so far; the other pages' dependent rows still use showWhen(...)
--- and move to sub once the work in progress on those pages has merged.
 function Page:sub(parent, active, build)
 	local parentItem
 	for i = #self.items, 1, -1 do
@@ -293,13 +291,9 @@ local CHEVRON_W, CHEVRON_H = 12, 7
 function Page:paintHeader(b)
 	local f = b.head.frame
 	local isFolded = folded[foldKey(self, b)] and true or false
-	if isFolded then
-		f.chevron:SetSize(CHEVRON_H, CHEVRON_W)
-		f.chevron:SetRotation(-math.pi / 2)
-	else
-		f.chevron:SetSize(CHEVRON_W, CHEVRON_H)
-		f.chevron:SetRotation(math.pi)
-	end
+	-- SetRotation turns the drawn quad, so the size stays as the open chevron's.
+	f.chevron:SetSize(CHEVRON_W, CHEVRON_H)
+	f.chevron:SetRotation(isFolded and -math.pi / 2 or math.pi)
 	f.says:SetShown(isFolded)
 	if isFolded then
 		f.says:SetText(onList(b))
