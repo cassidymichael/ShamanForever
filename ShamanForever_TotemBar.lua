@@ -1519,6 +1519,9 @@ function TB.previewSlot(el, st, at, run, range, moment)
 	local rec = { st = st, at = at, run = run, range = range }
 	preview.states[el] = rec
 	local s, c = slots[el], cfg()
+	-- The other state's flash and cross go: a slot that ran out wasn't killed early.
+	if st ~= "killed" then s.killed:stop() end
+	if st ~= "ranout" then s.expired:stop() end
 	local ends = paintSlot(s, rec)
 	moment = moment and s.button:IsShown()
 	if moment and st == "killed" and c.killed then
