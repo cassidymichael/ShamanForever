@@ -90,7 +90,6 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - Click a heading in the options to fold its section away, and click it again to open it. Folded sections stay folded until you open them.
 - Profiles: each character uses one. Make, copy, rename, delete or reset them, or share one as text.
 - Spells are recognised by ID, so it should work in any game language (the options are in English).
-- What's new: after an update, Home lists what changed and one line in chat says so (you can turn that off).
 
 ## Usage
 

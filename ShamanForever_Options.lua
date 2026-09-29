@@ -399,7 +399,6 @@ local function buildHome(p)
 		{ "Interface\\Icons\\Spell_Nature_Invisibilty", function() return "Groups & Layout" end,
 			function() return "Set up groups of elements" end, function() OP.open("layout") end },
 	})
-	ns.News.homeBlock(p)
 	p:add(p:row(24), 24)   -- room between the big buttons and Feedback
 	-- Feedback, in large type: it matters most on this page.
 	local lead = p:text("Ideas, requests, bugs? Please let me know!")
@@ -901,7 +900,6 @@ local function showPage(key)
 		if b.page == key and b.sub and navList then navList.reveal(b) end
 	end
 	pages[key]:refresh()
-	ns.News.pageShown(key)
 end
 
 -- The nav: main pages, then every element's page (indented) in a list of its own that scrolls when
@@ -1392,13 +1390,6 @@ end
 function OP.openElement(key)
 	if not win then buildWindow() end
 	OP.open(ns.ElementPages.pageOf(key) or "elements")
-end
-
--- A page's button in the nav (What's new's dot), once the window is built.
-function OP.navButton(page)
-	for _, b in ipairs(navButtons) do
-		if b.page == page then return b end
-	end
 end
 
 -- Scrolls a page so frame (one of its rows) sits at the top, once the page has laid out. A folded
