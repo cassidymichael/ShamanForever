@@ -550,7 +550,7 @@ keyButton("ShamanForeverKeyDismissAll", "macro"):SetAttribute("macrotext", DISMI
 -- once it is learned. Where they sit is c.extras; layout() places them with the slots.
 ------------------------------------------------------------------------
 local function knows(spell)
-	local ok, v = pcall(IsPlayerSpell, spell)
+	local ok, v = pcall(C_SpellBook.IsSpellKnown, spell)
 	return ok and v == true
 end
 local extras = {}
@@ -599,7 +599,7 @@ local function refreshGCD()
 	for _, el in ipairs(ELEMENTS) do
 		local s = slots[el]
 		local action = multiAction(s.slot)
-		local d = on and feat("cast") and HasAction(action)
+		local d = on and feat("cast") and C_ActionBar.HasAction(action)
 			and gcdOf(C_ActionBar.GetActionCooldown, C_ActionBar.GetActionCooldownDuration, action)
 		if d then s.gcd:SetCooldownFromDurationObject(d) else s.gcd:Clear() end
 	end
@@ -704,7 +704,7 @@ local function refreshSlot(s)
 		local down = ns.Totems.downSpell(s.slot)
 		local pick = down and c.offPick and c.mode == "everything" and pickSpell(s.slot)
 		if pick and not ns.Spells.same(down, pick) then
-			ns.try("totem bar: badge", s.badge.icon.SetTexture, s.badge.icon, GetActionTexture(multiAction(s.slot)))
+			ns.try("totem bar: badge", s.badge.icon.SetTexture, s.badge.icon, C_ActionBar.GetActionTexture(multiAction(s.slot)))
 			s.badge:Show()
 		else s.badge:Hide() end
 		s.dur = d
@@ -723,7 +723,7 @@ local function refreshSlot(s)
 	-- move in combat). A plain frame's alpha, so this works in combat too. In Quick Keybind Mode they
 	-- show, to be bound.
 	v:SetAlpha((c.mode == "everything" or kbOpen) and 1 or 0)
-	local tex = c.empty == "pick" and GetActionTexture and GetActionTexture(multiAction(s.slot))
+	local tex = c.empty == "pick" and C_ActionBar.GetActionTexture(multiAction(s.slot))
 	if isSecret(tex) or tex then
 		ns.try("totem bar: pick icon", v.icon.SetTexture, v.icon, tex)
 		v.icon:SetDesaturated(c.idleGrey)
@@ -1308,7 +1308,7 @@ for _, el in ipairs(ELEMENTS) do
 			pcall(GameTooltip.SetTotem, GameTooltip, s.slot)
 		else
 			local action = multiAction(s.slot)
-			if HasAction and HasAction(action) then pcall(GameTooltip.SetAction, GameTooltip, action)
+			if C_ActionBar.HasAction(action) then pcall(GameTooltip.SetAction, GameTooltip, action)
 			else GameTooltip:SetText(NAME[el] .. ": no totem picked") end
 		end
 		GameTooltip:Show()
@@ -1431,7 +1431,7 @@ function TB.modeName()
 	return "?"
 end
 -- For the options preview: an element's pick as a texture, its known totems, and the look.
-function TB.pickTexture(el) return GetActionTexture(multiAction(SLOT[el])) end
+function TB.pickTexture(el) return C_ActionBar.GetActionTexture(multiAction(SLOT[el])) end
 function TB.known(el)
 	-- The real picker's list when it is built (it matches the bar exactly), else Blizzard's.
 	local ids = {}

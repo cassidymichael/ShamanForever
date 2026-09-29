@@ -255,7 +255,6 @@ end
 function Timer:apply()
 	local s = S.get(self.key, self.kind)
 	local cant = T.cant(self.key, self.kind)
-	self.s = s
 	local cd = self.cd
 	cd:SetDrawSwipe(s.swipe and not cant.swipe)
 	cd:SetSwipeColor(0, 0, 0, s.swipeAlpha)
@@ -277,7 +276,7 @@ function Timer:apply()
 		self.ms = ms
 		pcall(cd.SetCountdownMillisecondsThreshold, cd, ms)
 	end
-	local c = (not s.timeColors and self.tint) or s.textColor
+	local c = s.textColor
 	self.font:SetFont(STANDARD_TEXT_FONT, s.textSize, "OUTLINE")
 	self.font:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 	cd:SetCountdownFont(self.fontName)
@@ -315,15 +314,6 @@ function Timer:apply()
 			fs:SetPoint("CENTER", a, "CENTER", 0, 0); fs:SetJustifyH("CENTER")
 		end
 	end
-end
-
--- A text colour for now (the imbue's red last minute); nil goes back to the style's. Colour by time
--- left, when on, has the last word: its own colours near the end, the style's colour before them.
-function Timer:setTint(r, g, b)
-	self.tint = r and { r, g, b, 1 } or nil
-	local s = self.s
-	local c = (not (s and s.timeColors) and self.tint) or (s and s.textColor) or { 1, 1, 1, 1 }
-	self.font:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 end
 
 -- Show a duration object, or clear with nil.
