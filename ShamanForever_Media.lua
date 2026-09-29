@@ -190,7 +190,8 @@ local function primer(on)
 end
 
 -- A string or a font object with an owner's look at size. A shadow is set only once one has been
--- on, so with the defaults this is the same call as always.
+-- on, so with the defaults this is the same call as always. SetFontObject may reset the text colour
+-- to the font object's, so a string keeps the colour it had: callers set theirs once or on a change.
 local function shade(r, shadow)
 	if shadow or r.sfShadow ~= nil then
 		r:SetShadowColor(0, 0, 0, shadow and 1 or 0)
@@ -200,7 +201,11 @@ local function shade(r, shadow)
 end
 function M.setFont(fs, o, size)
 	local path, flags, shadow = M.text(o)
-	if shadow or fs.sfShadow ~= nil then fs:SetFontObject(primer(shadow)) end
+	if shadow or fs.sfShadow ~= nil then
+		local r, g, b, a = fs:GetTextColor()
+		fs:SetFontObject(primer(shadow))
+		fs:SetTextColor(r, g, b, a)
+	end
 	fs:SetFont(path, size, flags)
 	shade(fs, shadow)
 end
