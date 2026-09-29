@@ -1428,6 +1428,8 @@ function OP.openGroup(id)
 	if f then scrollTo(p, f, function() p:flash(f) end) end
 end
 
+function OP.isShown() return win ~= nil and win:IsShown() end
+
 -- Closes the window; true if it was open.
 function OP.hide()
 	if not (win and win:IsShown()) then return false end
