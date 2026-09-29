@@ -1,5 +1,5 @@
 -- The options window's Groups & Layout page: the groups listed on the left (name, element count
--- and an icon strip), and beside the list the chosen group: its name
+-- and an icon strip; right-click one for a menu), and beside the list the chosen group: its name
 -- (Rename edits it in place), its elements right under it, then its settings. Clicking a group in
 -- the list chooses it. Drag an element onto a group in the list, between the chosen group's
 -- elements to set the order, or onto New group for a group of its own; click one for a menu. The
@@ -263,6 +263,8 @@ local ROWS_TOP = 42    -- the rows' offset in the list, under its header
 local ROW_H, ROW_STEP = 42, 45
 local ICON_STEP = 18   -- 16 px icons in the strip
 
+local rowMenu   -- below: a group's menu, from its row
+
 local function newRow(parent)
 	local r = CreateFrame("Button", nil, parent, "BackdropTemplate")
 	r:SetBackdrop(ns.BACKDROP)
@@ -286,7 +288,10 @@ local function newRow(parent)
 	r.name:SetWordWrap(false)
 	r.icons = {}
 	r.more = r:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-	r:SetScript("OnClick", function(self) ns.Options.openGroup(self.id) end)
+	r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+	r:SetScript("OnClick", function(self, button)
+		if button == "RightButton" then rowMenu(self) else ns.Options.openGroup(self.id) end
+	end)
 	return r
 end
 
@@ -613,6 +618,24 @@ local function buildSettings(p)
 			function() return renaming == nil end },
 	})
 	p:add(p:row(10), 10)
+end
+
+-- A group's menu, from a right-click on its row: the header's and the buttons' actions. Rename
+-- chooses the group first.
+function rowMenu(r)
+	if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
+	local g = ns.groupById(r.id)
+	if not g then return end
+	MenuUtil.CreateContextMenu(r, function(_, root)
+		root:CreateTitle(g.name)
+		root:CreateButton("Rename", function()
+			ns.Options.openGroup(g.id)
+			startRename()
+		end)
+		root:CreateButton("Hide all", function() askAbout("SHAMANFOREVER_HIDEALL", g) end)
+		root:CreateButton("Split up", function() askAbout("SHAMANFOREVER_SPLIT", g) end)
+		root:CreateButton("Delete group", function() askDelete(g) end)
+	end)
 end
 
 -- The header of the chosen group, when it is the group with this id (the page shows it).
