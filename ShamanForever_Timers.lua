@@ -44,10 +44,10 @@ T.ELEMENT_DEFAULTS = {
 	waterwalking = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
 	waterbreathing = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
 	elementalfocus = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
-	-- Tremor Totem's five minutes while it's down: minutes in the middle and a time bar.
-	tremor = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
 	-- Maelstrom Weapon's time left is Blizzard's own button swipe: no text, no bar.
 	maelstrom = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
+	-- Tremor Totem's five minutes while it's down: minutes in the middle and a time bar.
+	tremor = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
 }
 -- Parts an element's timer can't have, and why (shown on its page): for every kind, or under a
 -- kind's name for that kind only.
@@ -55,13 +55,14 @@ local ONE_SWIPE = "The cooldown has the swipe; time left shows as text or a bar.
 T.CANT = {
 	shield = { bar = "The shield's timer is Blizzard's own; a time bar can't follow it." },
 	elementalfocus = { bar = "Its timer is Blizzard's own; a time bar can't follow it." },
-	maelstrom = { bar = "Its timer is Blizzard's own; a time bar can't follow it." },
 	-- One icon, two timers: only the cooldown sweeps.
 	earthbind = { uptime = { swipe = ONE_SWIPE } },
 	stoneclaw = { uptime = { swipe = ONE_SWIPE } },
 	firenova = { uptime = { swipe = ONE_SWIPE } },
 	manatide = { uptime = { swipe = ONE_SWIPE } },
 	grounding = { uptime = { swipe = ONE_SWIPE } },
+	-- Not one of the above: Blizzard's own timer, like the shield's and Elemental Focus's.
+	maelstrom = { bar = "Its timer is Blizzard's own; a time bar can't follow it." },
 	farseer = { uptime = { swipe = ONE_SWIPE } },
 	stormstrike = { uptime = { swipe = ONE_SWIPE } },
 }
