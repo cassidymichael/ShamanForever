@@ -290,8 +290,9 @@ end
 
 -- Standard block: a timer's look (ShamanForever_Timers.lua). key nil: General's for the kind, with
 -- note under its header; otherwise an element's own ("totembar" for the totem bar), with Same as General.
+-- first: an optional function adding the element's own rows at the top of the block, under the header.
 local TEXT_POS = { { "auto", "Auto" }, { "center", "Centre" }, { "topleft", "Top left" }, { "bottom", "Bottom" } }
-local function timerSettings(p, title, key, kind, after, note)
+local function timerSettings(p, title, key, kind, after, note, first)
 	after = after or retime
 	local cant = ns.Timer.cant(key, kind)
 	local r = styleRows(key, kind, after)
@@ -302,6 +303,7 @@ local function timerSettings(p, title, key, kind, after, note)
 	local function on(field) return function() return style()[field] end end
 	p:header(title)
 	if not key then p:anchor(kind) end
+	if first then first() end
 	if note then p:text(note) end
 	if key then followRow(p, key, kind, after) end
 	-- What the game can't do here, said once instead of showing rows that could never apply.

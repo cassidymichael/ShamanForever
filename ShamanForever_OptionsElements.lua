@@ -311,13 +311,14 @@ local function buildImbue(p)
 	p:checkbox("Pop", "The moment your imbue runs out or is lost.", get("imbuePop"), set("imbuePop"))
 	ns.Sounds.row(p, "Sound", "The moment your imbue runs out or is lost.", eget("imbue", "lostSound"), eset("imbue", "lostSound"))
 
-	p:header("Time left")
-	p:slider("Show under", nil, 0, 30, 1,
-		function(v) return v == 0 and "Never" or string.format("%d min", v) end, get("imbueWarnMins"), set("imbueWarnMins"))
-	p:text("Time left shows once it's below this. 0 never shows it.")
-	p:checkbox("Hide until low", nil, get("imbueHideActive"), set("imbueHideActive"))
-	p:text("While an imbue is on, the icon stays hidden until the time left shows. It keeps its place in the group.")
-	timerSettings(p, "Time left", "imbue", "uptime")
+	-- One Time left block: when it shows first, then its look.
+	timerSettings(p, "Time left", "imbue", "uptime", nil, nil, function()
+		p:slider("Show under", nil, 0, 30, 1,
+			function(v) return v == 0 and "Never" or string.format("%d min", v) end, get("imbueWarnMins"), set("imbueWarnMins"))
+		p:text("Time left shows once it's below this. 0 never shows it.")
+		p:checkbox("Hide until low", nil, get("imbueHideActive"), set("imbueHideActive"))
+		p:text("While an imbue is on, the icon stays hidden until the time left shows. It keeps its place in the group.")
+	end)
 	effectBlocks(p, "imbue", "imbue")
 end
 
