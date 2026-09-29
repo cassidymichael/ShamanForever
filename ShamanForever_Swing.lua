@@ -190,7 +190,10 @@ end
 -- The swing under way on the bar and the countdown: filling as it comes due, or emptying.
 local function drawSwing()
 	local direction = setting("deplete") == true and REMAINING or ELAPSED
-	ns.try("swing bar", bar.SetTimerDuration, bar, duration, IMMEDIATE, direction)
+	if not ns.try("swing bar", bar.SetTimerDuration, bar, duration, IMMEDIATE, direction) then
+		clearSwing()
+		return
+	end
 	ns.try("swing countdown", cd.SetCooldownFromDurationObject, cd, duration, true)
 	bar:Show()
 	drawStrip()
