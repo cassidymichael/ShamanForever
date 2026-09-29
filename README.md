@@ -14,17 +14,18 @@ More screenshots: [options gallery](docs/gallery/README.md).
 
 ## Features
 
-A HUD for shamans on WoW: Forever, made of elements you arrange in groups anywhere on screen.
+A collection of highly configurable HUD elements designed to help shamans playing World of Warcraft: Forever.
 
-- **Totem bar**: drop, pick and dismiss totems, Call of the Elements and Totemic Recall, an out-of-range warning and key bindings. It can replace Blizzard's totem frames.
-- **Shields**: Lightning Shield and Water Shield, their charges and time left.
-- **Shocks**: Earth, Flame or Frost Shock, with range and mana.
-- **Weapon Imbue**: Rockbiter, Flametongue, Frostbrand and Windfury.
-- **Swing timer**: your next melee swing, on a bar of its own.
-- **Cooldowns**: Fire Nova, Stormstrike, Lava Burst, Chain Lightning, Riptide, Nature's Swiftness, Rage of the Farseer, Totemic Projection and Reincarnation.
-- **Totems**: Earthbind, Stoneclaw, Grounding, Mana Tide, and Tremor with a warning for mobs that fear, charm or sleep.
-- **Buffs and procs**: Elemental Focus, Maelstrom Weapon, Water Walking and Water Breathing.
-- Warnings, glows, pops and sounds, set once or per element; positioning and preview modes; profiles you can share.
+- **Totem Bar**: Fully configurable totem bar replacing default or active totems frames, with Call of the Elements, Totemic Recall, and dismiss functions
+- **Shock Trackers**: Earth, Flame, and Frost shock monitoring
+- **Shield Helpers**: Lightning Shield and Water Shield tracking
+- **Weapon Imbues**: Rockbiter, Flametongue, Frostbrand, and Windfury imbue status
+- **Swing Timer**: melee swing timer shown as a bar
+- **Ability Cooldowns**: Stormstrike, Fire Nova, Lava Burst, Chain Lightning, Riptide, Rage of the Farseer
+- **Totem Trackers**: Earthbind, Tremor, Grounding, and Stoneclaw Totem helpers
+- **Utility Trackers**: Nature's Swiftness, Mana Tide Totem, Elemental Focus, Water Walking, Water Breathing, Maelstrom Weapon, Totemic Projection, Reincarnation
+
+The addon organizes these elements into configurable groups with unlock and preview modes for customizable on-screen placement.
 
 Some features are experimental, not yet tested in game; the About page lists them.
 
