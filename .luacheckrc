@@ -125,7 +125,6 @@ read_globals = {
     "SecureHandlerWrapScript",
     "SetBinding",
     "SetCursorPosition",
-    "SetMultiCastSpell",
     "Settings",
     "SettingsPanel",
     "StaticPopup_Show",

@@ -81,10 +81,6 @@ TB.DEFAULTS = {
 	rangeOut = { 0.9, 0.12, 0.08, 0.85 },  --   without it
 	pickHover = false,        -- hovering a slot or its tab opens its picker (Everything)
 	pulse = "off",            -- time to a pulsing totem's next pulse: off | bar | text (ShamanForever_TotemPulse.lua)
-	-- Pick sets (ShamanForever_TotemSets.lua): { name, picks = { element -> spell ID, 0: No totem } },
-	-- and the set applied on entering each kind of place (world, party, raid, pvp -> a set's name).
-	sets = {},
-	setRules = {},
 }
 
 local isSecret = ns.isSecret
@@ -183,7 +179,6 @@ local function multiAction(slot)
 	if not ok or type(bar) ~= "number" or isSecret(bar) then bar = 12 end
 	return (bar - 1) * 12 + slot
 end
-TB.multiAction = multiAction
 
 ------------------------------------------------------------------------
 -- Geometry, shared with the options' preview of the bar (ShamanForever_OptionsLook.lua), so both
@@ -659,7 +654,6 @@ local function pickSpell(slot)
 	if not ok or isSecret(kind) or isSecret(id) or kind ~= "spell" or type(id) ~= "number" then return nil end
 	return id
 end
-TB.pickSpell = pickSpell
 
 -- A totem's own warning time (warnOver), else the bar's. warnOver is keyed by the client's rank-less
 -- spell name; for the spells the addon tracks, the English name counts too (older profiles, and
