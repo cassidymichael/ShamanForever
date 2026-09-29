@@ -7,15 +7,15 @@
 -- with Blizzard's bar off too. So each swing sets the bar from the engine's own number, as a
 -- duration object the StatusBar fills from: nothing is polled between swings.
 --
--- Best effort, one swing at a time: nothing else is modelled, so a swing moved by a weapon swap or an
--- attack speed change (secret in combat, tested 2026-09-28) is right again from the next swing. A
--- cast-time spell restarts the swing, and the engine doesn't say when the next one lands, so the bar
--- is cleared when such a cast starts and shows again from the next swing. When the time runs out and
--- no swing came (out of range, facing away), the bar stays at its end: the swing is due. Auto attack
--- off clears it.
+-- Best effort, one swing at a time: nothing else is modelled, so a swing moved by a weapon swap or
+-- an attack speed change (secret in combat, tested 2026-09-28) is right again from the next swing.
+-- A cast-time spell restarts the swing, and the engine doesn't say when the next one lands, so the
+-- bar is cleared when such a cast starts and shows again from the next swing. When the time runs
+-- out and no swing came (out of range, facing away), the bar stays at its end: the swing is due.
+-- Auto attack off clears it.
 --
--- ShamanForever.lua calls in through the module hooks (ns.registerModule). Its events are registered
--- only while the element is on (SW.afterGroups), so it costs nothing while it's off.
+-- ShamanForever.lua calls in through the module hooks (ns.registerModule). Its events are
+-- registered only while the element is on (SW.afterGroups), so it costs nothing while it's off.
 
 local _, ns = ...
 local say, isSecret = ns.say, ns.isSecret
@@ -66,11 +66,12 @@ end
 ------------------------------------------------------------------------
 -- The element
 ------------------------------------------------------------------------
--- A dark bar, the fill over it (a StatusBar fed each swing's duration object), a spark on the fill's
--- edge, and the countdown: the client's own cooldown text, placed left, middle or right.
+-- A dark bar, the fill over it (a StatusBar fed each swing's duration object), a spark on the
+-- fill's edge, and the countdown: the client's own cooldown text, placed left, middle or right.
 
 -- The bar's look, shared with its preview (ShamanForever_OptionsLook.lua): the background colour
--- under it, and the fill filling parent with a spark on its edge (the StatusBar, its spark as .spark).
+-- under it, and the fill filling parent with a spark on its edge (the StatusBar, its spark as
+-- .spark).
 SW.BACKGROUND = { 0, 0, 0, 0.6 }
 function SW.makeBar(parent)
 	local b = CreateFrame("StatusBar", nil, parent)
