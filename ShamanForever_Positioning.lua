@@ -3,7 +3,9 @@
 -- settings, and a small bar with the controls. Group membership is edited in the options window.
 --
 -- ShamanForever.lua owns the groups and lays them out; it hands each group frame here once
--- (PO.attach), and calls PO.decorate on every layout and PO.update after it.
+-- (PO.attach), and calls PO.decorate on every layout and PO.update after it. A frame that moves on
+-- its own, outside the groups (the swing timer), joins in through PO.addMovable: groups snap to it,
+-- it snaps to them (PO.snap), and the arrow keys nudge it once selected (PO.selectMovable).
 
 local _, ns = ...
 local say = ns.say
@@ -12,6 +14,8 @@ local PO = {}
 ns.Positioning = PO
 
 local selectedGroup       -- the id of the group the arrow keys move (see Nudging)
+local selectedMovable     -- or the movable they move (PO.addMovable); never both
+local movables = {}
 local SNAP = 8   -- UI units: how close an edge must come to another group's edge or centre to snap
 local function round2(v) return math.floor(v * 100 + 0.5) / 100 end
 local function clamp(v, lo, hi) return math.min(math.max(v, lo), hi) end
@@ -114,31 +118,45 @@ end
 ------------------------------------------------------------------------
 -- Dragging, the mouse wheel and clicks on a group
 ------------------------------------------------------------------------
+-- Where a frame being dragged lands: its centre x, y (UIParent units from the bottom left) snapped
+-- to other groups' and movables' edges and centres, the screen centre and the grid, with the guides
+-- showing what it snapped to. frame: the group frame or movable being dragged, left out of the
+-- targets.
+function PO.snap(frame, x, y)
+	local a = acct()
+	local gx, gy
+	if a.snap then
+		local ui = uiScale()
+		local w, h = UIParent:GetSize()
+		local s = frame:GetEffectiveScale() / ui
+		local tx, ty = { w / 2 }, { h / 2 }
+		local function target(f)
+			if f == frame or not f:IsShown() or not f:GetLeft() then return end
+			local fs = f:GetEffectiveScale() / ui
+			local l, r, b, t = f:GetLeft() * fs, f:GetRight() * fs, f:GetBottom() * fs, f:GetTop() * fs
+			table.insert(tx, l); table.insert(tx, (l + r) / 2); table.insert(tx, r)
+			table.insert(ty, b); table.insert(ty, (b + t) / 2); table.insert(ty, t)
+		end
+		for id, f in pairs(ns.groupFrames) do
+			if ns.groupById(id) then target(f) end
+		end
+		for _, m in ipairs(movables) do target(m.frame) end
+		local gs = a.grid and a.gridSize or nil
+		x, gx = snapAxis(x, frame:GetWidth() * s / 2, tx, w / 2, gs)
+		y, gy = snapAxis(y, frame:GetHeight() * s / 2, ty, h / 2, gs)
+	end
+	showGuides(gx, gy)
+	return x, y
+end
+-- A drag ended: the guides go.
+function PO.endSnap() showGuides() end
+
 -- Groups are dragged by hand rather than with StartMoving so they can snap while moving.
 local function dragUpdate(self)
 	if InCombatLockdown() then self:SetScript("OnUpdate", nil); showGuides(); return end
-	local a = acct()
 	local ui = uiScale()
 	local cx, cy = GetCursorPosition()
-	local x, y = cx / ui + self.dragDX, cy / ui + self.dragDY
-	local gx, gy
-	if a.snap then
-		local w, h = UIParent:GetSize()
-		local s = self:GetEffectiveScale() / ui
-		local tx, ty = { w / 2 }, { h / 2 }
-		for id, f in pairs(ns.groupFrames) do
-			if id ~= self.groupId and ns.groupById(id) and f:IsShown() and f:GetLeft() then
-				local fs = f:GetEffectiveScale() / ui
-				local l, r, b, t = f:GetLeft() * fs, f:GetRight() * fs, f:GetBottom() * fs, f:GetTop() * fs
-				table.insert(tx, l); table.insert(tx, (l + r) / 2); table.insert(tx, r)
-				table.insert(ty, b); table.insert(ty, (b + t) / 2); table.insert(ty, t)
-			end
-		end
-		local gs = a.grid and a.gridSize or nil
-		x, gx = snapAxis(x, self:GetWidth() * s / 2, tx, w / 2, gs)
-		y, gy = snapAxis(y, self:GetHeight() * s / 2, ty, h / 2, gs)
-	end
-	showGuides(gx, gy)
+	local x, y = PO.snap(self, cx / ui + self.dragDX, cy / ui + self.dragDY)
 	local g = ns.groupById(self.groupId)
 	if not g then return end
 	ns.setGroupCenter(g, x * ui, y * ui)
@@ -227,17 +245,22 @@ local nudger = CreateFrame("Frame", "ShamanForeverNudge", UIParent)
 nudger:Hide()
 
 local function nudge(key)
-	local g, d = ns.groupById(selectedGroup), NUDGE_KEYS[key]
+	local d = NUDGE_KEYS[key]
+	local step = IsShiftKeyDown() and 10 or 1
+	if selectedMovable then
+		if d then selectedMovable.nudge(d[1] * step, d[2] * step) end
+		return
+	end
+	local g = ns.groupById(selectedGroup)
 	local f = selectedGroup and ns.groupFrames[selectedGroup]
 	if not (g and d and f) then return end
-	local step = IsShiftKeyDown() and 10 or 1
 	g.x = g.x + d[1] * step / g.scale   -- offsets are in the group's scaled units
 	g.y = g.y + d[2] * step / g.scale
 	ns.placeOnPixels(f, g.point, g.x, g.y)
 end
 
 local function syncNudger()
-	local on = selectedGroup ~= nil and not acct().locked and not InCombatLockdown()
+	local on = (selectedGroup ~= nil or selectedMovable ~= nil) and not acct().locked and not InCombatLockdown()
 	if on and not nudger.keys then
 		-- Out of combat only (both are restricted in combat), so not at file load: a /reload in
 		-- combat would lose them for the session.
@@ -250,11 +273,24 @@ end
 
 -- id: a group's id, or nil for none.
 function PO.select(id)
-	if selectedGroup == id then return end
-	selectedGroup = id
+	if selectedGroup == id and not selectedMovable then return end
+	selectedGroup, selectedMovable = id, nil
 	syncNudger()
 	ns.layoutElements()
 end
+
+-- A frame that moves on its own, outside the groups (the swing timer). m: frame (what groups snap
+-- to while it shows), nudge(dx, dy) (the arrow keys moved it, in UIParent units) and lock() (combat
+-- started while unlocked: its handle goes at once).
+function PO.addMovable(m) table.insert(movables, m) end
+-- The arrow keys move m (added with PO.addMovable) from here on.
+function PO.selectMovable(m)
+	if selectedMovable == m then return end
+	selectedGroup, selectedMovable = nil, m
+	syncNudger()
+	ns.layoutElements()
+end
+function PO.isSelected(m) return selectedMovable == m end
 
 nudger:SetScript("OnKeyDown", function(self, key)
 	if InCombatLockdown() then self:Hide() return end
@@ -417,7 +453,7 @@ end
 function PO.update()
 	local a = acct()
 	local unlocked = ns.isActive() and not a.locked
-	if not unlocked then selectedGroup = nil end
+	if not unlocked then selectedGroup, selectedMovable = nil, nil end
 	if selectedGroup and not ns.groupById(selectedGroup) then selectedGroup = nil end   -- deleted
 	syncNudger()
 	tray:SetShown(unlocked)
@@ -441,7 +477,7 @@ end
 function PO.lockInCombat()
 	acct().locked = true
 	optionsSteppedAside = false   -- no options window popping up mid-fight
-	selectedGroup = nil
+	selectedGroup, selectedMovable = nil, nil
 	local free = not InCombatLockdown()
 	for _, gf in pairs(ns.groupFrames) do
 		if free then gf:EnableMouse(false); gf:EnableMouseWheel(false) end
@@ -454,5 +490,6 @@ function PO.lockInCombat()
 	PO.update()
 	ns.retryAfterCombat("layout", ns.layoutElements)
 	ns.TotemBar.lockInCombat()
+	for _, m in ipairs(movables) do m.lock() end
 	ns.Options.refresh()
 end
