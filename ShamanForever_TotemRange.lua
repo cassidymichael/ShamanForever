@@ -9,9 +9,12 @@
 -- duration through a curve, and which totem it is from our own cast) and Blizzard's part is there to
 -- cover it. Blizzard's part isn't made or shown while auras are secret (a login or /reload in combat
 -- or in a PvP match): until then the strip stays off, as the red alone would always read "out of range".
--- * Nothing addon-side may change the button, or the alpha of anything above it, in combat: the
---   container hangs off the bar (changed out of combat only) and is anchored to the secure slot
---   button, never placed inside the slot's look, whose alpha changes in combat.
+-- * Nothing addon-side may change the button in combat. The container hangs off the strip's own
+--   holder (R.refresh says when that shows) and is anchored to the secure slot button, never placed
+--   inside the slot's look, whose alpha changes in combat.
+-- * A totem's buff also lingers a moment after the totem goes (dismissed, killed, run out), and
+--   Blizzard's part shows it that long: so the holder hides the strip while no buff totem of yours
+--   is down in the slot.
 -- * A buff lingers a few seconds after you leave a totem's range, so "out of range" shows late.
 -- * Totems that give you no buff (Searing, Earthbind, Tremor, ...) get no mark.
 -- * The same buff from two shamans doesn't stack: when another shaman's is the one on you, yours
@@ -84,7 +87,12 @@ end
 -- slot's time left (a curve, possibly secret). Both are ours and hold nothing of Blizzard's.
 local function makeMark(s)
 	local b = s.button
-	local gate = CreateFrame("Frame", nil, TB.frame)
+	-- The holder of the whole strip: the gate and Blizzard's container (R.refresh shows and hides it).
+	local hold = CreateFrame("Frame", nil, TB.frame)
+	hold:SetAllPoints(b)
+	hold:EnableMouse(false)
+	s.rangeHold = hold
+	local gate = CreateFrame("Frame", nil, hold)
 	gate:SetFrameLevel(b:GetFrameLevel() + TB.RANGE_LEVEL)   -- under the GCD sweep and the timer
 	gate:EnableMouse(false)
 	gate:SetAlpha(0)
@@ -146,7 +154,7 @@ end
 local function makeContainer(s)
 	s.rangeParts, s.rangeSlots = {}, {}
 	local ok, err = pcall(function()
-		local c = CreateFrame("AuraContainer", "ShamanForeverRange" .. TB.NAME[s.el], TB.frame, "CustomAuraContainerTemplate")
+		local c = CreateFrame("AuraContainer", "ShamanForeverRange" .. TB.NAME[s.el], s.rangeHold, "CustomAuraContainerTemplate")
 		c:SetFrameLevel(s.button:GetFrameLevel() + TB.RANGE_LEVEL + 1)
 		c:SetUnit("player")
 		pcall(c.EnableMouse, c, false)
@@ -256,12 +264,41 @@ function R.layout(size)
 	if not blocked then learn() end
 end
 
+-- The strip's holder: shown while one of your buff totems is down in the slot, else hidden, so a
+-- buff that lingers after its totem goes can't keep Blizzard's part lit over the emptied slot.
+-- Out of combat its alpha stays 1 and it hides through a state driver that shows it again as
+-- combat starts (an addon Show on a frame holding Blizzard's button is dropped in combat), so a
+-- totem dropped in combat always gets its strip. In combat its alpha hides it: SetAlpha isn't a
+-- protected call, but whether it takes on a frame holding Blizzard's button in combat is not yet
+-- tested; if it doesn't, the part stays lit until the buff goes. The red is held by the
+-- same frame, so it can never show without Blizzard's part over it.
+local EMPTY = "[combat] show; hide"
+local function showStrip(s, on)
+	local h = s.rangeHold
+	if InCombatLockdown() then
+		ns.try("totem range: holder alpha", h.SetAlpha, h, on and 1 or 0)
+		return
+	end
+	h:SetAlpha(1)
+	if on then
+		if s.rangeDriven then
+			UnregisterStateDriver(h, "visibility")
+			s.rangeDriven = false
+		end
+		h:Show()   -- the driver leaves it as it last set it
+	elseif not s.rangeDriven then
+		local ok, err = pcall(RegisterStateDriver, h, "visibility", EMPTY)
+		if ok then s.rangeDriven = true else ns.noteError("totem range: holder", err) end
+	end
+end
+
 -- refresh (any time): the mark's gate, from which totem of yours is down. Only over Blizzard's part:
--- without it the red would say "out of range" all the time.
+-- without it the red would say "out of range" all the time. Then the holder (showStrip).
 function R.refresh(s)
 	if not s.rangeGate then return end
 	local on = s.down and enabled() and partLive(s) and isBuffTotem(s.el, ns.Totems.downSpell(s.slot))
 	s.rangeGate:SetAlpha(on and 1 or 0)
+	showStrip(s, on)
 	R.drawTimeLeft(s)
 end
 
@@ -279,4 +316,9 @@ end
 
 local ev = CreateFrame("Frame")
 ns.registerEvent(ev, "UNIT_AURA", "player")
-ev:SetScript("OnEvent", learn)
+ns.registerEvent(ev, "PLAYER_REGEN_ENABLED")
+ev:SetScript("OnEvent", function(_, event)
+	if event ~= "PLAYER_REGEN_ENABLED" then return learn() end
+	-- Combat's alpha off the holders, and each one's driver as it should be out of combat.
+	for _, el in ipairs(TB.ELEMENTS) do R.refresh(TB.slots[el]) end
+end)
