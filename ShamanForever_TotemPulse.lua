@@ -126,8 +126,7 @@ end
 -- Every frame while a pulsing totem of ours is down and the timer shows: the bar fills to each
 -- pulse; the seconds count down to it. A slot that has stayed empty for a moment stops (the cast
 -- comes a moment before the slot fills, in the same frame or the next).
-local sinceLayout = 0
-driver:SetScript("OnUpdate", function(_, elapsed)
+driver:SetScript("OnUpdate", function()
 	local on, mode = showing()
 	if not on then
 		for _, el in ipairs(TB.ELEMENTS) do
@@ -138,9 +137,6 @@ driver:SetScript("OnUpdate", function(_, elapsed)
 		return
 	end
 	local now = GetTime()
-	sinceLayout = sinceLayout + elapsed
-	local relayout = sinceLayout > 0.5
-	if relayout then sinceLayout = 0 end
 	for _, el in ipairs(TB.ELEMENTS) do
 		local s = TB.slots[el]
 		local a = active[s.slot]
@@ -150,7 +146,7 @@ driver:SetScript("OnUpdate", function(_, elapsed)
 				stop(s)
 			else
 				local f = look(s)
-				if relayout or not f.size then place(s, f) end
+				if not f.size then place(s, f) end
 				local into = since % a.secs
 				f.bar:SetShown(mode == "bar")
 				f.text:SetShown(mode == "text")
@@ -181,5 +177,12 @@ ns.Totems.subscribe(function(event, slot)
 	active[slot] = { at = GetTime() - oneWay(), secs = secs }
 	if showing() then driver:Show() end
 end)
+
+-- From the bar's layout (out of combat, after a settings change too): the slot's look takes the
+-- slot's size and time bar, and a totem still down shows its timer again once it's switched on.
+function P.place(s)
+	if s.pulse then place(s, s.pulse) end
+	if active[s.slot] and showing() then driver:Show() end
+end
 
 table.insert(TB.EXPERIMENTAL, { "Pulse timers", "Totem bar > Pulse timer" })

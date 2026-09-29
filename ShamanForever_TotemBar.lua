@@ -1027,6 +1027,7 @@ function layout()
 		castKeys[s.el]:SetAttribute("action", multiAction(s.slot))
 		ns.applyBorder(s.vis, border)
 		s.timer:apply()
+		if TB.pulse then TB.pulse.place(s) end   -- the pulse timer loads after this file
 		layoutArrow(s)
 		TB.layoutBadge(s.badge, s.button, size, border)
 		layoutPopout(s, size, known[s.el])
