@@ -102,11 +102,10 @@ function N.refreshDot()
 	dot:SetShown(state().unseen == true)
 end
 
--- The options window showed a page (key): Home clears the dot; then the one-time hints get a look in.
+-- The options window showed a page (key): Home clears the dot.
 function N.pageShown(key)
 	if key == "home" then state().unseen = nil end
 	N.refreshDot()
-	ns.Hints.check()
 end
 
 local function title()

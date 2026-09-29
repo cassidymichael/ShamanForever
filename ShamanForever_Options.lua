@@ -426,9 +426,6 @@ local function buildProfiles(p)
 		{ "Import", function() OP.showShare("import") end, "Profile text from someone else. It becomes a new profile.", 90 },
 	})
 
-	p:header("Tips")
-	p:text("Each tip in the options shows once, for all your characters.")
-	p:buttons({ { "Show tips again", function() ns.Hints.reset() end, "The tips you've seen come back.", 140 } })
 end
 
 -- A heading with a gold glow that flashes when a button elsewhere brings the reader to it.
@@ -1703,7 +1700,7 @@ function OP.openElement(key)
 	OP.open(ns.ElementPages.pageOf(key) or "elements")
 end
 
--- A page's button in the nav (What's new's dot, the one-time hints), once the window is built.
+-- A page's button in the nav (What's new's dot), once the window is built.
 function OP.navButton(page)
 	for _, b in ipairs(navButtons) do
 		if b.page == page then return b end
