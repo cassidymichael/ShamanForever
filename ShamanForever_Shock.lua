@@ -70,9 +70,10 @@ local function drawTint()
 	shock:SetRingShown(shockState.noMana, 0.2, 0.45, 1, d.manaRing)
 end
 
-local function refreshCooldown()
+-- inEvent: from SPELL_UPDATE_COOLDOWN (onCooldowns).
+local function refreshCooldown(inEvent)
 	if not shockSpellID or not ns.isEnabled("shock") then return end
-	local dur = CD.cooldownFor(shock, "shock", shockSpellID)
+	local dur = CD.cooldownFor(shock, "shock", shockSpellID, inEvent)
 	if dur then shock.cdTimer:set(dur) end
 end
 

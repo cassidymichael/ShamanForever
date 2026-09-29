@@ -11,7 +11,8 @@ function ns.safe(fn, ...) if not fn then return false end return pcall(fn, ...) 
 function ns.describeArg(v) if ns.isSecret(v) then return "<secret>" end return tostring(v) end
 local isSecret, safe = ns.isSecret, ns.safe
 
--- RegisterEvent can throw on this beta for an event the client lacks: say so and carry on.
+-- RegisterEvent throws for an event name the client doesn't know (the engine's rule: Blizzard's
+-- EventUtil checks C_EventUtils.IsEventValid first): say so and carry on.
 function ns.registerEvent(frame, event, unit)
 	local ok = pcall(function()
 		if unit then frame:RegisterUnitEvent(event, unit) else frame:RegisterEvent(event) end
@@ -475,11 +476,14 @@ function Spells.scan()
 	end
 end
 
--- Whether the player knows a spell ID, by whichever check the client has (true when it has none,
--- unless strict: then only a plain yes counts).
+-- Whether the player knows a spell ID, by the spellbook's two checks (true when neither gives a
+-- plain answer, unless strict: then only a plain yes counts).
+local function inSpellBook(id)
+	return C_SpellBook.IsSpellInSpellBook(id, Enum.SpellBookSpellBank.Player, false)
+end
 local function playerKnows(id, strict)
 	local known
-	local checks = { IsPlayerSpell or false, C_SpellBook and C_SpellBook.IsSpellKnown or false, IsSpellKnown or false }
+	local checks = { C_SpellBook.IsSpellKnown, inSpellBook }
 	for _, fn in ipairs(checks) do
 		local ok, v = safe(fn, id)
 		if ok and not isSecret(v) and v ~= nil then
