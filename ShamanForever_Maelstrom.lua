@@ -170,7 +170,9 @@ local function placeCount(fs, button)
 	fs:SetFont(STANDARD_TEXT_FONT, number("countSize"), "OUTLINE")
 	fs:ClearAllPoints()
 	if setting("countPos") == "corner" then
-		fs:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 2, -2); fs:SetJustifyH("RIGHT")
+		-- Clear of the stack bar along the bottom edge, when it's on.
+		local y = -2 + (setting("stackBar") and (number("stackBarHeight") + 1) or 0)
+		fs:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 2, y); fs:SetJustifyH("RIGHT")
 	else
 		fs:SetPoint("CENTER", button, "CENTER", 0, 0); fs:SetJustifyH("CENTER")
 	end
@@ -185,6 +187,7 @@ local function styleStacks(slot, size)
 	slot.overlay:SetFrameLevel(base + 4)
 	slot.bar:SetFrameLevel(base + 5)
 	slot.tickFrame:SetFrameLevel(base + 6)
+	slot.numFrame:SetFrameLevel(base + 7)   -- above the bar and its ticks: the count is never clipped
 	local c = color("stackBarColor")
 	slot.bar:SetHeight(number("stackBarHeight"))
 	slot.bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
@@ -218,8 +221,13 @@ local function buildStacks(slot, button)
 	local overlay = CreateFrame("Frame", nil, button)
 	overlay:SetAllPoints()
 	slot.overlay = overlay
+	-- The count's own frame, above the bar and its ticks (styleStacks sets its level), so the bar
+	-- never draws over the digits.
+	local numFrame = CreateFrame("Frame", nil, button)
+	numFrame:SetAllPoints()
+	slot.numFrame = numFrame
 	-- The font must be set first: Blizzard writes the count at once.
-	local fs = overlay:CreateFontString(nil, "OVERLAY", nil, 7)
+	local fs = numFrame:CreateFontString(nil, "OVERLAY", nil, 7)
 	placeCount(fs, button)
 	slot.fs = fs
 	ns.try("maelstrom count", button.SetApplicationCount, button, fs)
