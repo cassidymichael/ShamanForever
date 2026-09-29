@@ -26,7 +26,7 @@ A HUD for shamans on WoW: Forever, made of elements you arrange in groups anywhe
 - **Buffs and procs**: Elemental Focus, Maelstrom Weapon, Water Walking and Water Breathing.
 - Warnings, glows, pops and sounds, set once or per element; positioning and preview modes; profiles you can share.
 
-Some elements are experimental, not yet tested in game; the About page lists them.
+Some features are experimental, not yet tested in game; the About page lists them.
 
 ## Usage
 
