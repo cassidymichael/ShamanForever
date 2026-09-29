@@ -858,7 +858,7 @@ local MATERIAL = {   -- school -> tile move (in tiles), seconds a tile
 	earth = { 0, 0, 1 }, fire = { 0, 1, 2.2 }, water = { 1, -1, 5 }, air = { 1, 0, 1.2 }, spirit = { 1, -1, 5 },
 }
 local material = {
-	uses = { color = true, speed = true, low = true, width = true }, bySchool = true,
+	uses = { color = true, speed = true }, bySchool = true,
 	build = function(g)
 		local r = root(g.inner)
 		local parts = { roots = { r }, soft = softPart(r, 0.35) }
@@ -882,7 +882,7 @@ local material = {
 		parts.move:SetDuration((MATERIAL[school] or MATERIAL.spirit)[3])
 	end,
 	fit = function(g, parts, size)
-		fitSoft(g, parts.soft, size, g.width)
+		fitSoft(g, parts.soft, size)
 		local mv = MATERIAL[parts.school or "spirit"] or MATERIAL.spirit
 		parts.mat:SetSize(size * 3, size * 3)
 		parts.mat:ClearAllPoints()
