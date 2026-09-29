@@ -201,12 +201,11 @@ function ns.makeGCDSweep(parent)
 end
 
 
--- A pulsing glow inside an icon: soft light running in from its four edges, over the icon's art and
--- inside its border, breathing. `over` is the icon it covers (default: the parent). Its style is its
--- owner's (an element key or "totembar"; nil for General's): its look (the four edges, or one of
--- ns.Looks' glow looks), colour, pulse length, pulse depth (low is the dimmest it gets) and
--- thickness (how far in it reaches, as a share of the icon). fit(size) lays it out for an icon of
--- that size.
+-- A pulsing glow inside an icon: soft light over the icon's art and inside its border, breathing.
+-- `over` is the icon it covers (default: the parent). Its style is its owner's (an element key or
+-- "totembar"; nil for General's): its look (one of ns.Looks' glow looks), colour, pulse length,
+-- pulse depth (low is the dimmest it gets) and thickness (how far in it reaches, as a share of the
+-- icon). fit(size) lays it out for an icon of that size.
 local glows = {}
 -- unlisted: left out of ns.applyGlowStyle, for a glow under Blizzard's aura button, which its owner
 -- restyles only when that's allowed (out of combat, auras not secret). It keeps the look it had as
@@ -224,21 +223,13 @@ local function makeGlow(parent, over, owner, unlisted)
 	g:EnableMouse(false)
 	g.inner = CreateFrame("Frame", nil, g)   -- the breathing; g's own alpha stays free for a gate
 	g.inner:SetAllPoints()
-	g.edges = {}
-	for _, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
-		local t = g.inner:CreateTexture(nil, "OVERLAY")
-		t:SetTexture("Interface\\Buttons\\WHITE8x8")
-		t:SetBlendMode("ADD")
-		g.edges[side] = t
-	end
 	g.anim = g.inner:CreateAnimationGroup()
 	g.anim:SetLooping("BOUNCE")
 	g.fade = g.anim:CreateAnimation("Alpha")
 	g.fade:SetFromAlpha(1); g.fade:SetSmoothing("IN_OUT")
 	g.parts = {}   -- look key -> the regions and animations it made (ns.Looks), or false
-	-- A look's parts, made on first use; one the client refuses falls back to the four edges.
+	-- A look's parts, made on first use; nil for one the client refused.
 	local function parts(look)
-		if not look.build then return nil end
 		local p = g.parts[look.key]
 		if p == nil then
 			local ok, made = ns.try("glow look " .. look.key, look.build, g)
@@ -248,6 +239,11 @@ local function makeGlow(parent, over, owner, unlisted)
 			g.parts[look.key] = p
 		end
 		return p or nil
+	end
+	-- The look drawn for a style's: itself, or the default look where the client refused its parts.
+	local function drawn(look)
+		if parts(look) then return look end
+		return ns.Style.look("glow", ns.Style.KINDS.glow.defaults.look)
 	end
 	if unlisted then table.insert(auraGlows, g) end
 	local function play(self, on)
@@ -278,7 +274,7 @@ local function makeGlow(parent, over, owner, unlisted)
 	-- The owner's style; a fixed colour (killed early's red) wins over its colour.
 	function g:restyle()
 		local st = ns.Style.get(self.owner, "glow")
-		local look = unlisted and self.look or ns.Style.look("glow", st.look)
+		local look = unlisted and self.look or drawn(ns.Style.look("glow", st.look))
 		if look ~= self.look then
 			local running = self.look ~= nil and self:IsShown()
 			if running then play(self, false) end
@@ -287,7 +283,6 @@ local function makeGlow(parent, over, owner, unlisted)
 			self.look, self.fitWidth = look, nil   -- lay the new look out at the next fit
 			local p = parts(look)
 			for _, r in ipairs(p and p.roots or {}) do r:Show() end
-			for _, t in pairs(self.edges) do t:SetShown(p == nil) end
 			if running then play(self, true) end
 		end
 		self.width = st.width   -- kept for fit, which the ready glows call ten times a second
@@ -298,16 +293,7 @@ local function makeGlow(parent, over, owner, unlisted)
 		self.fade:SetToAlpha(look.steady and 1 or st.low)
 		local k = self.fixed or st.color
 		local p = parts(look)
-		if p then look.style(self, p, st, k)
-		else
-			local on, off = CreateColor(k[1], k[2], k[3], k[4] or 1), CreateColor(k[1], k[2], k[3], 0)
-			local e = self.edges
-			-- Bright at the edge, clear inward (vertical gradients run bottom to top, horizontal left to right).
-			e.TOP:SetGradient("VERTICAL", off, on)
-			e.BOTTOM:SetGradient("VERTICAL", on, off)
-			e.LEFT:SetGradient("HORIZONTAL", on, off)
-			e.RIGHT:SetGradient("HORIZONTAL", off, on)
-		end
+		if p then look.style(self, p, st, k) end
 		if self.iconSize then self:fit(self.iconSize) end
 		-- Under the aura button IsShown is secret; the button restarts that glow itself.
 		if retime and not unlisted and self:IsShown() then self.anim:Stop(); self.anim:Play() end
@@ -318,14 +304,7 @@ local function makeGlow(parent, over, owner, unlisted)
 		if size == self.iconSize and self.width == self.fitWidth and out == self.fitOut then return end
 		self.iconSize, self.fitWidth, self.fitOut = size, self.width, out
 		local p = parts(self.look)
-		if p then self.look.fit(self, p, size, out) return end
-		local th = math.max(size * (self.width or 0.2), 1)
-		local e = self.edges
-		for _, t in pairs(e) do t:ClearAllPoints() end
-		e.TOP:SetPoint("TOPLEFT"); e.TOP:SetPoint("TOPRIGHT"); e.TOP:SetHeight(th)
-		e.BOTTOM:SetPoint("BOTTOMLEFT"); e.BOTTOM:SetPoint("BOTTOMRIGHT"); e.BOTTOM:SetHeight(th)
-		e.LEFT:SetPoint("TOPLEFT"); e.LEFT:SetPoint("BOTTOMLEFT"); e.LEFT:SetWidth(th)
-		e.RIGHT:SetPoint("TOPRIGHT"); e.RIGHT:SetPoint("BOTTOMRIGHT"); e.RIGHT:SetWidth(th)
+		if p then self.look.fit(self, p, size, out) end
 	end
 	function g:color(r, gg, b) self.fixed = { r, gg, b, 1 }; self:restyle() end
 	g:restyle()

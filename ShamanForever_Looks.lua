@@ -2,7 +2,7 @@
 -- style's `look` field picks, and the shared pieces that draw them:
 --   frame      the edge around an icon, in its border's look (rings of lines, corner caps, art
 --              over or around the icon, a mask on the icon's picture)
---   glow       the pulsing glow's looks past the default four edges (ns.makeGlow calls in)
+--   glow       the pulsing glow's looks (ns.makeGlow calls in)
 --   pop        the pop's looks past the classic one (ns.playPop calls in)
 --   burster    textures that grow and fade over a pop's short life
 -- Our own media are named by path, never by file ID: the client gives our loose files IDs that
@@ -641,8 +641,7 @@ function Looks.burster(driver)
 end
 
 ------------------------------------------------------------------------
--- Glow looks. The default, "edges", is ns.makeGlow's own four gradients. Each other look is an
--- entry with:
+-- Glow looks. The default is "soft", the soft inner glow. Each look is an entry with:
 --   uses      the glow style's fields it reads (color, speed, low, width); the options show those
 --   steady    it doesn't breathe (the glow's pulse is off; speed may time its own motion)
 --   build(g)  its regions and animation groups, under g.inner (breathing) or g (not); returns
@@ -662,7 +661,7 @@ local function root(parent)
 	return r
 end
 -- Puts a look's frames (its roots and their holders) at the level of the frame they hang from,
--- where the four edges draw: a level higher is the timer bar's or the text's. Levels move as an
+-- the glow's own: a level higher is the timer bar's or the text's. Levels move as an
 -- icon regroups, so the glow calls this each time it shows.
 function Looks.levelParts(parts)
 	for _, r in ipairs(parts.roots or {}) do
@@ -921,10 +920,9 @@ local heartbeat = {
 }
 
 local function addGlow(key, name, entry)
-	entry.name, entry.experimental = name, key ~= "edges" or nil
+	entry.name, entry.experimental = name, key ~= "soft" or nil
 	S.addLook("glow", key, entry)
 end
-addGlow("edges", "Edges", { uses = { color = true, speed = true, low = true, width = true } })
 addGlow("soft", "Soft inner", soft)
 addGlow("halo", "Outer halo", halo)
 addGlow("proc", "Proc glow", proc)

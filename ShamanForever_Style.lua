@@ -34,7 +34,7 @@ S.register("glow", {
 	-- Its look (S.addLook; ShamanForever_Looks.lua), colour, one pulse's length (s), the dimmest it
 	-- gets between pulses, and how far in from the edges it reaches (share of the icon). Killed
 	-- early's glow keeps its red.
-	defaults = { look = "edges", color = { 1, 0.8, 0.25, 1 }, speed = 0.5, low = 0.25, width = 0.2 },
+	defaults = { look = "soft", color = { 1, 0.8, 0.25, 1 }, speed = 0.5, low = 0.25, width = 0.2 },
 	path = { "glowStyle" },
 })
 S.register("pop", {
