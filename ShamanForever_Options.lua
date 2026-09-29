@@ -1112,7 +1112,22 @@ local function buildWindow()
 	local function fitW(w) return fit(w, WIDTH, MAX_W, UIParent:GetWidth()) end
 	local function fitH(h) return fit(h, MIN_H, MAX_H, UIParent:GetHeight()) end
 	win:SetSize(fitW(acct().optionsWidth or WIDTH), fitH(acct().optionsHeight or HEIGHT))
-	win:SetPoint("CENTER")
+	-- Its place: where the player left its top-left corner (account-wide, like its size), kept on
+	-- the screen; centred until it's moved. In UIParent's units: the window's scale is its parent's.
+	local a = acct()
+	win:ClearAllPoints()
+	if a.optionsLeft and a.optionsTop then
+		local w, h = win:GetSize()
+		local left = math.max(math.min(a.optionsLeft, UIParent:GetWidth() - w), 0)
+		local top = math.min(math.max(a.optionsTop, h), UIParent:GetHeight())
+		win:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+	else
+		win:SetPoint("CENTER")
+	end
+	local function savePlace()
+		local left, top = win:GetLeft(), win:GetTop()
+		if left and top then acct().optionsLeft, acct().optionsTop = math.floor(left + 0.5), math.floor(top + 0.5) end
+	end
 	-- The grip changes width and height, and pins the top-left corner.
 	local grip = CreateFrame("Button", nil, win)
 	grip:SetSize(16, 16)
@@ -1140,6 +1155,7 @@ local function buildWindow()
 		Page.endResize()
 		acct().optionsWidth = math.floor(win:GetWidth())
 		acct().optionsHeight = math.floor(win:GetHeight())
+		savePlace()
 	end
 	grip:SetScript("OnMouseUp", endResize)
 	-- Closed mid-drag (Escape, the key binding), the release may never come: end a resize here, or
@@ -1154,7 +1170,10 @@ local function buildWindow()
 	win:EnableMouse(true)
 	win:RegisterForDrag("LeftButton")
 	win:SetScript("OnDragStart", win.StartMoving)
-	win:SetScript("OnDragStop", win.StopMovingOrSizing)
+	win:SetScript("OnDragStop", function()
+		win:StopMovingOrSizing()
+		savePlace()
+	end)
 	table.insert(UISpecialFrames, win:GetName())   -- Escape closes it
 
 	buildHome(newPage("home", "Home"))
