@@ -10,12 +10,12 @@ local showWhen, setTip, panelBackdrop = Page.showWhen, Page.setTip, Page.panelBa
 
 local WIDTH, NAV_W, LABEL_W = Page.WIDTH, Page.NAV_W, Page.LABEL_W
 local HEIGHT, MIN_H, MAX_H = 700, 560, 1300   -- the player may make it taller
+local MAX_W = 1600                              -- and wider, from WIDTH
 local LOGO_SIZE, LOGO_X, LOGO_Y = 112, -19, 24   -- the logo badge over the window's top-left corner
 local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
 
 local win
 local pages, pageOrder, currentPage = {}, {}, nil
-local selectedGroup = 1
 
 local function db() return ns.getDB() end
 local function acct() return ns.getAccount() end
@@ -306,19 +306,18 @@ local function gcdBlock(p, key)
 	if not key then ownLine(p, "gcd") end
 end
 
+-- Confirmations. data is what the question is about (a group's id); action gets it.
+local function confirm(which, text, button, action)
+	StaticPopupDialogs[which] = {
+		text = text, button1 = button, button2 = CANCEL,
+		OnAccept = function(_, data) action(data) end,
+		timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+	}
+end
+
 local function get(key) return function() return db()[key] end end
 local function set(key, after) return function(v) db()[key] = v; (after or relayout)() end end
 
-local function groupCount() return #db().groups end
-local function hasGroups() return groupCount() > 0 end
-local function selected()
-	local n = groupCount()
-	if selectedGroup > n then selectedGroup = n end
-	if selectedGroup < 1 then selectedGroup = 1 end
-	return db().groups[selectedGroup]
-end
-local function groupGet(key) return function() local g = selected(); return g and g[key] end end
-local function groupSet(key) return function(v) local g = selected(); if g then g[key] = v; relayout() end end end
 
 ------------------------------------------------------------------------
 -- Page contents
@@ -328,7 +327,6 @@ local function toggleLock() ns.setLocked(not acct().locked); OP.refresh() end
 local function lockSub() return acct().locked and "Move groups and the totem bar on screen" or "Done moving? Lock them" end
 
 local aboutExp, aboutFeedback   -- About's flashing headings (OP.showExperimental, OP.showFeedback)
-local groupPanel -- Layout's selected-group panel, for OP.openGroup
 
 local function addonVersion()
 	local getMeta = C_AddOns and C_AddOns.GetAddOnMetadata or GetAddOnMetadata
@@ -362,10 +360,12 @@ local function buildGeneral(p)
 	p:text("Elements, groups and the totem bar use these unless they have their own.")
 	p:slider("Icon size", "Every group's and the totem bar's, unless it has its own.", 24, 96, 1, int,
 		get("iconSize"), set("iconSize"))
-	-- Who has an own icon size: groups by number, then the totem bar.
+	-- Who has an own icon size: groups with something in them, then the totem bar.
 	local function ownSizes()
 		local out = {}
-		for gi, g in ipairs(db().groups) do if not g.sizeFollow then table.insert(out, "Group " .. gi) end end
+		for _, g in ipairs(db().groups) do
+			if #g.members > 0 and not g.sizeFollow then table.insert(out, g.name) end
+		end
 		if ns.TotemBar.barOn() and not ns.TotemBar.cfg().sizeFollow then table.insert(out, "Totem bar") end
 		return out
 	end
@@ -509,429 +509,14 @@ local function buildAbout(p)
 end
 
 ------------------------------------------------------------------------
--- Group board (Layout page): one card per group, "New group" and "Hidden". Drag an element's chip
--- onto a card to move it there, at the position the line shows; click a chip for a menu.
--- Hidden is a place in the UI only: underneath, a hidden element is Show "never" and still belongs
--- to its group, so showing it again (other than by dropping it on a group) puts it back there.
+-- Show choices, shared by the element pages and the Layout page (ShamanForever_OptionsLayout.lua)
 ------------------------------------------------------------------------
+-- An element's Show. Hidden keeps its place in its group.
 local SHOW_CHOICES = { { "always", "Always" }, { "combat", "In combat" }, { "never", "Hidden" } }
 -- A group's Show, and its time on screen once combat ends (the totem bar has both too).
 local COMBAT_SHOW = { { "always", "Always" }, { "combat", "In combat" }, { "target", "In combat or with an enemy target" } }
 local STAY_TIP = "Seconds it stays once combat ends, then it fades out."
 local function staySecs(v) return v == 0 and "None" or string.format("%d s", v) end
-
-local CARD_GAP, CHIP_H, CARD_HEAD = 8, 26, 28
-
-local function isHidden(key) return ns.showMode(key) == "never" end
--- Into a group (or a new one) and shown: dropping a hidden element on a group shows it there.
-local function placeShown(key, target, index)
-	local hidden = isHidden(key)
-	ns.placeElement(key, target, index)
-	if hidden then ns.setShow(key, "always") end
-end
-local board = { cards = {}, chips = {} }
-
-local function cardUnderCursor()
-	for _, c in ipairs(board.cards) do
-		if c:IsShown() and c:IsMouseOver() then return c end
-	end
-end
-
-------------------------------------------------------------------------
--- Drag and drop in a list (the Layout board's chips, the totem bar's order): a ghost of the dragged
--- item follows the cursor, and a white line marks where it will land.
-------------------------------------------------------------------------
--- The ghost: an icon and a label on the cursor while shown. onMove runs as it follows.
-local function makeDragGhost(onMove)
-	local ghost = CreateFrame("Frame", nil, UIParent)
-	ghost:SetFrameStrata("TOOLTIP")
-	ghost:SetSize(180, 24)
-	ghost:SetAlpha(0.9)
-	ghost.icon = ghost:CreateTexture(nil, "ARTWORK")
-	ghost.icon:SetSize(20, 20)
-	ghost.icon:SetPoint("LEFT", 2, 0)
-	ns.cropIcon(ghost.icon)
-	ghost.text = ghost:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	ghost.text:SetPoint("LEFT", ghost.icon, "RIGHT", 6, 0)
-	ghost:Hide()
-	ghost:SetScript("OnUpdate", function(self)
-		local x, y = GetCursorPosition()
-		local sc = self:GetEffectiveScale()
-		self:ClearAllPoints()
-		self:SetPoint("LEFT", UIParent, "BOTTOMLEFT", x / sc + 8, y / sc)
-		onMove()
-	end)
-	return ghost
-end
-
-local function makeDropLine(parent)
-	local line = parent:CreateTexture(nil, "OVERLAY", nil, 7)
-	line:SetColorTexture(0.95, 0.95, 0.95, 1)
-	line:SetHeight(2)
-	line:Hide()
-	return line
-end
-
--- Where a drop lands among items (top to bottom; skip(item) leaves out the one being dragged): its
--- place among the others, by the cursor's height, and those others.
-local function dropPosition(items, skip)
-	local _, cy = GetCursorPosition()
-	local at, others = 1, {}
-	for _, it in ipairs(items) do
-		if not skip(it) then
-			table.insert(others, it)
-			local _, y = it:GetCenter()
-			if y and y * it:GetEffectiveScale() > cy then at = #others + 1 end
-		end
-	end
-	return at, others
-end
-
--- The drop line above others[at], or under the last one. False when there are no others to place it by.
-local function placeDropLine(line, others, at)
-	line:ClearAllPoints()
-	if #others == 0 then return false end
-	if at <= #others then
-		line:SetPoint("BOTTOMLEFT", others[at], "TOPLEFT", 0, 0)
-		line:SetPoint("BOTTOMRIGHT", others[at], "TOPRIGHT", 0, 0)
-	else
-		line:SetPoint("TOPLEFT", others[#others], "BOTTOMLEFT", 0, 0)
-		line:SetPoint("TOPRIGHT", others[#others], "BOTTOMRIGHT", 0, 0)
-	end
-	return true
-end
-
--- Position among the card's other chips that the cursor points at.
-local function dropIndex(c, key)
-	return dropPosition(c.chips, function(chip) return chip.key == key end)
-end
-
--- Gold marks the selected group, as it marks the current page in the nav; white is drop feedback.
-local function cardBorder(c)
-	if board.dragKey and c == board.hover then c:SetBackdropBorderColor(0.95, 0.95, 0.95, 1)
-	elseif type(c.target) == "number" and c.target == selectedGroup then c:SetBackdropBorderColor(0.88, 0.66, 0.29, 1)
-	else c:SetBackdropBorderColor(0.23, 0.17, 0.10, 1) end
-end
-
-local function updateDragFeedback()
-	board.hover = cardUnderCursor()
-	for _, c in ipairs(board.cards) do cardBorder(c) end
-	local ind, c = board.indicator, board.hover
-	ind:Hide()
-	if not (c and type(c.target) == "number") then return end
-	local at, others = dropIndex(c, board.dragKey)
-	if not placeDropLine(ind, others, at) then   -- an empty card: under its header
-		ind:SetPoint("TOPLEFT", c, "TOPLEFT", 6, -CARD_HEAD + 1)
-		ind:SetPoint("TOPRIGHT", c, "TOPRIGHT", -6, -CARD_HEAD + 1)
-	end
-	ind:Show()
-end
-
-local function startDrag(chip)
-	if InCombatLockdown() then ns.say("layout changes wait until combat ends"); return end
-	board.dragKey = chip.key
-	chip:SetAlpha(0.35)
-	local e = ns.ELEMENTS[chip.key]
-	e.paint(board.ghost.icon)
-	board.ghost.text:SetText(e.label)
-	board.ghost:Show()
-end
-
-local function finishDrag()
-	local key = board.dragKey
-	board.dragKey = nil
-	board.dragEnded = GetTime()
-	board.ghost:Hide()
-	board.indicator:Hide()
-	if not key then return end
-	local c = cardUnderCursor()
-	if c then
-		if c.target == "hidden" then ns.setShow(key, "never")
-		elseif type(c.target) == "number" then
-			-- The drop position counts only the visible chips; hidden members keep their places.
-			local at, others = dropIndex(c, key)
-			local rest = {}
-			for _, k in ipairs(db().groups[c.target].members) do if k ~= key then table.insert(rest, k) end end
-			local index = #rest + 1
-			local anchor = others[at] or others[#others]
-			for i, k in ipairs(rest) do
-				if anchor and k == anchor.key then index = others[at] and i or i + 1 end
-			end
-			placeShown(key, c.target, index)
-		else placeShown(key, c.target) end
-	end
-	OP.refresh()   -- also restores the dimmed chip when nothing moved
-end
-
-local function chipMenu(chip)
-	if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
-	if board.dragEnded and GetTime() - board.dragEnded < 0.3 then return end   -- the release that ended a drag
-	local key = chip.key
-	MenuUtil.CreateContextMenu(chip, function(_, root)
-		root:CreateTitle(ns.ELEMENTS[key].label)
-		root:CreateButton("Open settings", function() OP.openElement(key) end)
-		root:CreateDivider()
-		local gi, i = ns.findElement(key)
-		if gi and i > 1 then root:CreateButton("Move earlier", function() ns.placeElement(key, gi, i - 1) end) end
-		if gi and i < #db().groups[gi].members then root:CreateButton("Move later", function() ns.placeElement(key, gi, i + 1) end) end
-		for g = 1, groupCount() do
-			if g ~= gi then root:CreateButton("Move to group " .. g, function() ns.placeElement(key, g) end) end
-		end
-		if not (gi and #db().groups[gi].members == 1) then
-			root:CreateButton("Move to a new group", function() ns.placeElement(key, "new") end)
-		end
-		root:CreateDivider()
-		root:CreateTitle("Show")
-		for _, c in ipairs(SHOW_CHOICES) do
-			root:CreateRadio(c[2], function() return ns.showMode(key) == c[1] end, function() ns.setShow(key, c[1]) end)
-		end
-	end)
-end
-
-local function getCard(i)
-	local c = board.cards[i]
-	if c then return c end
-	c = CreateFrame("Button", nil, board.frame, "BackdropTemplate")
-	c:SetBackdrop(ns.BACKDROP)
-	c:SetBackdropColor(0.09, 0.075, 0.06, 1)
-	c.title = c:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	c.title:SetPoint("TOPLEFT", 8, -8)
-	c.sub = c:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-	c.sub:SetPoint("TOPRIGHT", -8, -9)
-	c.empty = c:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-	c.empty:SetPoint("TOPLEFT", 10, -CARD_HEAD - 4)
-	c.empty:SetPoint("RIGHT", -10, 0)
-	c.empty:SetJustifyH("LEFT")
-	c:SetScript("OnClick", function(self)
-		if type(self.target) == "number" then
-			if self.target ~= selectedGroup then board.flashPanel = true end
-			selectedGroup = self.target
-			OP.refresh()
-		end
-	end)
-	c.chips = {}
-	board.cards[i] = c
-	return c
-end
-
-local function getChip(i)
-	local chip = board.chips[i]
-	if chip then return chip end
-	chip = CreateFrame("Button", nil, board.frame)
-	chip:SetHeight(CHIP_H - 2)
-	chip:SetFrameLevel(board.frame:GetFrameLevel() + 10)
-	local bg = chip:CreateTexture(nil, "BACKGROUND")
-	bg:SetAllPoints()
-	bg:SetColorTexture(1, 1, 1, 0.06)
-	local hl = chip:CreateTexture(nil, "HIGHLIGHT")
-	hl:SetAllPoints()
-	hl:SetColorTexture(1, 1, 1, 0.12)
-	chip.icon = chip:CreateTexture(nil, "ARTWORK")
-	chip.icon:SetSize(20, 20)
-	chip.icon:SetPoint("LEFT", 2, 0)
-	ns.cropIcon(chip.icon)
-	chip.text = chip:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	chip.text:SetPoint("LEFT", chip.icon, "RIGHT", 6, 0)
-	chip:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-	chip:RegisterForDrag("LeftButton")
-	chip:SetScript("OnClick", chipMenu)
-	chip:SetScript("OnDragStart", startDrag)
-	chip:SetScript("OnDragStop", finishDrag)
-	setTip(chip, "Move element", "Drag onto another group, New group or Hidden. Drop between elements to set the order. Click for a menu.")
-	board.chips[i] = chip
-	return chip
-end
-
-local function layoutBoard()
-	local groups = db().groups
-	local colW = (board.page.content:GetWidth() - CARD_GAP) / 2
-	local nCard, nChip = 0, 0
-	local function fill(target, keys, title, sub, emptyText)
-		nCard = nCard + 1
-		local c = getCard(nCard)
-		c.target = target
-		c.title:SetText(title)
-		c.sub:SetText(sub or "")
-		c.empty:SetText(emptyText or "")
-		c.empty:SetShown(#keys == 0)
-		wipe(c.chips)
-		for i, key in ipairs(keys) do
-			nChip = nChip + 1
-			local chip = getChip(nChip)
-			chip.key = key
-			ns.ELEMENTS[key].paint(chip.icon)
-			local mode = ns.showMode(key)
-			local learned = ns.isLearned(key)
-			local note = not learned and "  |cff888888(not learned)|r" or mode == "combat" and "  |cff888888(in combat)|r" or ""
-			chip.text:SetText(ns.ELEMENTS[key].label .. note)
-			chip.icon:SetDesaturated(not learned)
-			chip:SetAlpha((target == "hidden" or not learned) and 0.6 or 1)
-			chip:ClearAllPoints()
-			chip:SetPoint("TOPLEFT", c, "TOPLEFT", 6, -CARD_HEAD - (i - 1) * CHIP_H)
-			chip:SetPoint("RIGHT", c, "RIGHT", -6, 0)
-			chip:Show()
-			c.chips[i] = chip
-		end
-		local h = CARD_HEAD + math.max(#keys, 1) * CHIP_H + 8
-		if #keys == 0 and emptyText then h = h + 12 end
-		c:SetSize(colW, h)
-		cardBorder(c)
-		c:Show()
-		return c, h
-	end
-	local function place(c, x, y)
-		c:ClearAllPoints()
-		c:SetPoint("TOPLEFT", board.frame, "TOPLEFT", x, -y)
-	end
-	-- Groups fill two columns, each card going into the shorter one. A group lists its visible
-	-- elements; one with nothing visible stays out of the way until something in it shows again.
-	local colY = { 0, 0 }
-	local hidden = {}
-	for gi, g in ipairs(groups) do
-		local shown = {}
-		for _, key in ipairs(g.members) do
-			if isHidden(key) then table.insert(hidden, key) else table.insert(shown, key) end
-		end
-		if #shown > 0 then
-			local c, h = fill(gi, shown, "Group " .. gi, g.orientation == "vertical" and "Column" or "Row")
-			local col = colY[1] <= colY[2] and 1 or 2
-			place(c, (col - 1) * (colW + CARD_GAP), colY[col])
-			colY[col] = colY[col] + h + CARD_GAP
-		end
-	end
-	local y = math.max(colY[1], colY[2])
-	local newCard, h = fill("new", {}, "New group", nil, "Drop an element here to give it a group of its own.")
-	place(newCard, 0, y)
-	local hiddenCard, hh = fill("hidden", hidden, "Hidden", nil, "Drop an element here to hide it.")
-	place(hiddenCard, colW + CARD_GAP, y)
-	h = math.max(h, hh)
-	for i = nCard + 1, #board.cards do board.cards[i]:Hide() end
-	for i = nChip + 1, #board.chips do board.chips[i]:Hide() end
-	board.height = y + h
-	board.frame:SetHeight(board.height)
-end
-
-local function buildBoard(p)
-	board.page = p
-	board.frame = p:row(10)
-	board.indicator = makeDropLine(board.frame)
-	board.ghost = makeDragGhost(updateDragFeedback)
-	p:add(board.frame, function() return board.height or 10 end, nil, layoutBoard)
-end
-
-local function buildLayout(p)
-	-- Positioning covers the groups and the totem bar; the totem bar's own layout is on its page.
-	p:bigButtons({
-		{ "Interface\\Icons\\INV_Misc_Key_03", lockText, lockSub, toggleLock },
-		{ "Interface\\Icons\\Spell_Shaman_DropAll_01", function() return "Totem bar" end,
-			function() return "Its layout is on its own page" end, function() OP.open("totembar") end },
-	})
-	p:header("Elements layout")
-	p:text("ShamanForever calls each indicator an element, and every element sits in one group. Drag elements between groups; click one for a menu. Drop one between two others to change the order.")
-	p:checkbox("Test elements", nil,
-		function() return acct().testMode end, function(v) ns.setTestMode(v); OP.refresh() end)
-	p:text("Adds placeholder elements in their own group, for trying out layouts, and shows elements you haven't learned yet.")
-	p:add(p:row(6), 6)   -- a little room between the heading's line and the group cards
-	buildBoard(p)
-
-	-- The selected group's settings sit in a panel edged in the same gold as its card, titled with the
-	-- group's number, direction and element icons, and flash when another group is picked.
-	local panel = CreateFrame("Frame", nil, p.content, "BackdropTemplate")
-	panel:SetBackdrop(ns.BACKDROP)
-	panel:SetBackdropColor(0.11, 0.09, 0.07, 0.9)
-	panel:SetBackdropBorderColor(0.88, 0.66, 0.29, 0.9)
-	panel:SetFrameLevel(p.content:GetFrameLevel())
-	local glow = panel:CreateTexture(nil, "BORDER")
-	glow:SetAllPoints()
-	glow:SetColorTexture(0.88, 0.66, 0.29, 0.22)
-	glow:SetAlpha(0)
-	local flash = glow:CreateAnimationGroup()
-	local up = flash:CreateAnimation("Alpha")
-	up:SetFromAlpha(0); up:SetToAlpha(1); up:SetDuration(0.15); up:SetOrder(1)
-	local down = flash:CreateAnimation("Alpha")
-	down:SetFromAlpha(1); down:SetToAlpha(0); down:SetDuration(0.6); down:SetOrder(2)
-
-	p:add(p:row(22), 22, hasGroups)   -- clear space between the board and the group panel
-	p.rowIndent = 12
-	local settingsHeader = p:header("Group", hasGroups)
-	settingsHeader.icons = {}
-	p.items[#p.items].refresh = function()
-		local g = selected()
-		if not g then return end
-		settingsHeader.text:SetText(string.format("Group %d  |cffa89880·  %s|r", selectedGroup, g.orientation == "vertical" and "Column" or "Row"))
-		for i, key in ipairs(g.members) do
-			local t = settingsHeader.icons[i]
-			if not t then
-				t = settingsHeader:CreateTexture(nil, "ARTWORK")
-				t:SetSize(18, 18)
-				ns.cropIcon(t)
-				settingsHeader.icons[i] = t
-			end
-			t:ClearAllPoints()
-			t:SetPoint("LEFT", settingsHeader.text, "RIGHT", 10 + (i - 1) * 21, 0)
-			ns.ELEMENTS[key].paint(t)
-			t:Show()
-		end
-		for i = #g.members + 1, #settingsHeader.icons do settingsHeader.icons[i]:Hide() end
-	end
-	p:dropdown("Direction", "Lay the group out as a row or a column.",
-		{ { "horizontal", "Row" }, { "vertical", "Column" } }, groupGet("orientation"), groupSet("orientation"), hasGroups)
-	p:dropdown("Growth", "Which way the row or column extends from its first element.",
-		{ { "forward", "Right / down" }, { "backward", "Left / up" } }, groupGet("growth"), groupSet("growth"), hasGroups)
-	p:slider("Spacing", "Gap between the group's elements.", 0, 40, 1, int, groupGet("spacing"), groupSet("spacing"), hasGroups)
-	generalRow(p, "Icon size same as General", "Use the icon size on the General page.",
-		function() local g = selected(); return g and g.sizeFollow end,
-		function(v)
-			local g = selected()
-			if not g then return end
-			if not v then g.size = db().iconSize end   -- its own starts from General's, so nothing jumps
-			g.sizeFollow = v
-			relayout()
-		end, "size", hasGroups)
-	p:slider("Icon size", "Mouse wheel over the group while unlocked does the same.", 24, 96, 1, int,
-		groupGet("size"), groupSet("size"), showWhen(function() local g = selected(); return g and not g.sizeFollow end, hasGroups))
-	p:text("Icon size keeps borders and rings crisp. Scale grows everything, borders and rings included.", hasGroups)
-	p:slider("Scale", "Grows everything in the group, borders and rings too. Ctrl + mouse wheel over the group while unlocked does the same.", 0.5, 3, 0.05, times,
-		groupGet("scale"), function(v)
-			local g = selected()
-			if not g then return end
-			-- Offsets are in the group's own units: rescale them so the centre stays put.
-			if g.point == "CENTER" then g.x, g.y = g.x * g.scale / v, g.y * g.scale / v end
-			g.scale = v
-			relayout()
-		end, hasGroups)
-	p:slider("Opacity", "Transparency of the group. Shift + mouse wheel over the group while unlocked does the same.", 0.1, 1, 0.05, pct,
-		groupGet("alpha"), groupSet("alpha"), hasGroups)
-	borderRows(p, selected, relayout, "Border same as General", hasGroups)
-	p:dropdown("Show", "When the group is on screen. Everything visible shows while positioning is unlocked.",
-		COMBAT_SHOW, groupGet("show"), groupSet("show"), hasGroups, 250)
-	p:slider("Stay after combat", STAY_TIP, 0, 10, 1, staySecs, groupGet("fadeAfter"), groupSet("fadeAfter"),
-		showWhen(function() local g = selected(); return g and g.show ~= "always" end, hasGroups))
-	p:text("Elements have their own Show setting too. An element shows only when both allow it.", hasGroups)
-	local lastRow = p:buttons({
-		-- Hard to undo, so each asks first.
-		{ "Centre on screen", function() StaticPopup_Show("SHAMANFOREVER_CENTER", selectedGroup, nil, selectedGroup) end, "Moves the group to the middle of the screen.", 130 },
-		{ "Split up", function() StaticPopup_Show("SHAMANFOREVER_SPLIT", selectedGroup, nil, selectedGroup) end, "Gives every element in the group a group of its own, left where it is.", 100 },
-		{ "Hide all", function() StaticPopup_Show("SHAMANFOREVER_HIDEALL", selectedGroup, nil, selectedGroup) end, "Sets every element in the group to Hidden. They keep their places; set one back to Always to bring it back.", 100 },
-	}, hasGroups)
-	p:add(p:row(10), 10, hasGroups)
-	p.rowIndent = nil
-
-	groupPanel = { page = p, frame = panel }
-	p.afterRefresh = function()
-		panel:SetShown(hasGroups())
-		if not hasGroups() then return end
-		panel:ClearAllPoints()
-		panel:SetPoint("TOPLEFT", settingsHeader, "TOPLEFT", -12, 2)
-		panel:SetPoint("TOPRIGHT", settingsHeader, "TOPRIGHT", 12, 2)
-		panel:SetPoint("BOTTOM", lastRow, "BOTTOM", 0, -8)
-		if board.flashPanel then
-			board.flashPanel = false
-			flash:Stop()
-			flash:Play()
-		end
-	end
-end
 
 ------------------------------------------------------------------------
 -- Totem bar (ShamanForever_TotemBar.lua)
@@ -982,20 +567,20 @@ local function buildTotemBar(p)
 
 	p:header("Layout")
 	-- The elements in bar order (first: the left end of a row, the top of a column). Drag one to move
-	-- it; the box shows or hides its slot. The drag follows the group board's: a ghost on the cursor
+	-- it; the box shows or hides its slot. The drag follows the Layout page's: a ghost on the cursor
 	-- and a white line where it will land.
 	local ORDER_H, ORDER_W = 28, 260
 	p:text("Drag to reorder.")
 	local list = p:row(4 * ORDER_H)
 	local rows, dragFrom = {}, nil
-	local line = makeDropLine(list)
+	local line = Page.dropLine(list)
 	-- Where the dragged element would land: its place among the other three.
 	local function dropAt()
-		return dropPosition(rows, function(r) return r == rows[dragFrom] end)
+		return Page.dropPosition(rows, function(r) return r == rows[dragFrom] end)
 	end
-	local ghost = makeDragGhost(function()
+	local ghost = Page.dragGhost(function()
 		local at, others = dropAt()
-		line:SetShown(placeDropLine(line, others, at))
+		line:SetShown(Page.placeDropLine(line, others, at))
 	end)
 	local function endDrag(drop)
 		local from = dragFrom
@@ -1203,10 +788,13 @@ local function buildTotemBar(p)
 	p.gate = nil
 end
 
--- The helpers and standard blocks the element pages share (ShamanForever_OptionsElements.lua).
+-- The helpers and standard blocks the Layout page and the element pages share
+-- (ShamanForever_OptionsLayout.lua, ShamanForever_OptionsElements.lua).
 OP.kit = {
-	relayout = relayout, respell = respell, get = get, set = set,
-	groupCount = groupCount, isHidden = isHidden, placeShown = placeShown, SHOW_CHOICES = SHOW_CHOICES,
+	relayout = relayout, respell = respell, get = get, set = set, confirm = confirm,
+	SHOW_CHOICES = SHOW_CHOICES,
+	COMBAT_SHOW = COMBAT_SHOW, STAY_TIP = STAY_TIP, staySecs = staySecs,
+	generalRow = generalRow, borderRows = borderRows,
 	timerSettings = timerSettings, gcdBlock = gcdBlock, glowBlock = glowBlock, popBlock = popBlock,
 	expiringLooks = expiringLooks, killedBlock = killedBlock,
 }
@@ -1233,7 +821,7 @@ end
 
 local function showPage(key)
 	currentPage = key
-	acct().optionsPage = key   -- reopened next time, across reloads (account-wide, like the window height)
+	acct().optionsPage = key   -- reopened next time, across reloads (account-wide, like the window's size)
 	for _, p in ipairs(pageOrder) do
 		p.scroll:SetShown(p.key == key)
 		if p.fixed then p.fixed:SetShown(p.key == key) end
@@ -1455,9 +1043,13 @@ local function buildWindow()
 	navEdge:SetWidth(1)
 	navEdge:SetColorTexture(0.23, 0.17, 0.10, 1)
 
-	win:SetSize(WIDTH, math.min(math.max(acct().optionsHeight or HEIGHT, MIN_H), MAX_H))
+	-- Its size, kept within its limits and the screen.
+	local function fit(v, least, most, screen) return math.max(math.min(v, most, screen), least) end
+	local function fitW(w) return fit(w, WIDTH, MAX_W, UIParent:GetWidth()) end
+	local function fitH(h) return fit(h, MIN_H, MAX_H, UIParent:GetHeight()) end
+	win:SetSize(fitW(acct().optionsWidth or WIDTH), fitH(acct().optionsHeight or HEIGHT))
 	win:SetPoint("CENTER")
-	-- Taller only: the grip changes height, never width, and pins the top edge.
+	-- The grip changes width and height, and pins the top-left corner.
 	local grip = CreateFrame("Button", nil, win)
 	grip:SetSize(16, 16)
 	grip:SetPoint("BOTTOMRIGHT", -3, 3)
@@ -1466,30 +1058,27 @@ local function buildWindow()
 	grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
 	grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
 	local function sizeToCursor()
-		local _, y = GetCursorPosition()
-		win:SetHeight(math.min(math.max(grip.startH + (grip.startY - y) / win:GetEffectiveScale(), MIN_H), MAX_H))
+		local x, y = GetCursorPosition()
+		local s = win:GetEffectiveScale()
+		win:SetSize(fitW(grip.startW + (x - grip.startX) / s), fitH(grip.startH + (grip.startY - y) / s))
 	end
 	grip:SetScript("OnMouseDown", function(self)
 		local left, top = win:GetLeft(), win:GetTop()
 		win:ClearAllPoints()
 		win:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
-		self.startY = select(2, GetCursorPosition())
-		self.startH = win:GetHeight()
+		self.startX, self.startY = GetCursorPosition()
+		self.startW, self.startH = win:GetSize()
 		self:SetScript("OnUpdate", sizeToCursor)
 	end)
 	local function endResize()
 		grip:SetScript("OnUpdate", nil)
+		acct().optionsWidth = math.floor(win:GetWidth())
 		acct().optionsHeight = math.floor(win:GetHeight())
 	end
 	grip:SetScript("OnMouseUp", endResize)
-	-- Closed mid-drag (Escape, the key binding), the release may never come: end a chip drag and a
-	-- resize here, or the ghost stays on the cursor and the height follows it on reopening.
+	-- Closed mid-drag (Escape, the key binding), the release may never come: end a resize here, or
+	-- the size follows the cursor on reopening. (The Layout page ends its own drags.)
 	win:HookScript("OnHide", function()
-		if board.dragKey then
-			board.dragKey = nil
-			board.ghost:Hide()
-			board.indicator:Hide()
-		end
 		if grip:GetScript("OnUpdate") then endResize() end
 	end)
 	win:SetFrameStrata("DIALOG")
@@ -1504,7 +1093,7 @@ local function buildWindow()
 
 	buildHome(newPage("home", "Home"))
 	buildGeneral(newPage("general", "General"))
-	buildLayout(newPage("layout", "Layout"))
+	ns.LayoutPage.build(newPage("layout", "Layout"))
 	buildTotemBar(newPage("totembar", "Totem bar"))
 	ns.ElementPages.buildOverview(newPage("elements", "Elements"))
 	ns.ElementPages.build(newPage)
@@ -1513,21 +1102,6 @@ local function buildWindow()
 	buildNav()
 	win:Hide()
 end
-
--- Confirmations. data is what the question is about (a group number); action gets it.
-local function confirm(which, text, button, action)
-	StaticPopupDialogs[which] = {
-		text = text, button1 = button, button2 = CANCEL,
-		OnAccept = function(_, data) action(data) end,
-		timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
-	}
-end
-confirm("SHAMANFOREVER_CENTER", "Move Group %s to the middle of the screen?\nIts current position is lost.", "Centre",
-	function(gi) ns.centerGroup(gi) end)
-confirm("SHAMANFOREVER_SPLIT", "Split Group %s into one group per element?\nPutting them back together is done by hand.", "Split up",
-	function(gi) ns.splitGroup(gi) end)
-confirm("SHAMANFOREVER_HIDEALL", "Hide every element in Group %s?\nEach one's Show setting becomes Hidden.", "Hide all",
-	function(gi) ns.hideGroup(gi) end)
 
 confirm("SHAMANFOREVER_RESET", "Reset profile %s to defaults?\nIts layout and every setting are lost.", "Reset",
 	function() ns.Profiles.reset(); ns.say("profile reset to defaults") end)
@@ -1694,12 +1268,13 @@ function OP.refresh()
 	end)
 end
 
-function OP.open(page, groupIndex)
+-- groupId: the group the Layout page shows.
+function OP.open(page, groupId)
 	if not ns.getDB() then return end
 	if not win then buildWindow() end
 	-- In combat HideUIPanel is blocked (and says so); Settings then stays open under the window.
 	if SettingsPanel and SettingsPanel:IsShown() and not InCombatLockdown() then HideUIPanel(SettingsPanel) end
-	if groupIndex then selectedGroup = groupIndex end
+	if groupId then ns.LayoutPage.choose(groupId) end
 	win:Show()
 	local last = acct().optionsPage
 	showPage(page or currentPage or (last and pages[last] and last) or "home")
@@ -1744,11 +1319,10 @@ function OP.showExperimental() showAboutSection(aboutExp) end
 function OP.showFeedback() showAboutSection(aboutFeedback) end
 
 
--- From an element's page: Layout with that group selected, scrolled to its settings, which flash.
-function OP.openGroup(gi)
-	board.flashPanel = true
-	OP.open("layout", gi)
-	if groupPanel then scrollTo(groupPanel.page, groupPanel.frame) end
+-- From an element's page: Layout with that group (by id) chosen, from the top.
+function OP.openGroup(id)
+	OP.open("layout", id)
+	pages.layout.scroll:SetVerticalScroll(0)
 end
 
 -- Closes the window; true if it was open.
