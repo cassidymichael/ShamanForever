@@ -1426,7 +1426,7 @@ local function paintSlot(s, rec)
 	s.expired:setIcon(icon)
 	-- The real strip: our red here, Blizzard's green in the range layout (ShamanForever_TotemRange.lua).
 	if s.rangeGate then s.rangeGate:SetAlpha(0) end
-	local size = look()
+	local size = s.button:GetWidth()   -- the slot's own: layout rounds it to whole pixels
 	local strip = s.previewRange
 	if rec.range and c.range and shown then
 		if not strip then
