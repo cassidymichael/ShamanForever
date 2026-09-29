@@ -176,10 +176,14 @@ local function paintFill()
 	bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
 end
 
+-- The dark strip behind the bar shows with it, and while positioning is unlocked.
+local function drawStrip() f.bg:SetShown(bar:IsShown() or not ns.getAccount().locked) end
+
 local function clearSwing()
 	state.endsAt = nil
 	bar:Hide()
 	cd:Clear()
+	drawStrip()
 end
 
 -- The swing under way on the bar and the countdown: filling as it comes due, or emptying.
@@ -188,6 +192,7 @@ local function drawSwing()
 	ns.try("swing bar", bar.SetTimerDuration, bar, duration, IMMEDIATE, direction)
 	ns.try("swing countdown", cd.SetCooldownFromDurationObject, cd, duration, true)
 	bar:Show()
+	drawStrip()
 end
 
 -- A swing of swingDuration seconds starts now (a plain number).
@@ -267,7 +272,7 @@ function SW.applyLayout()
 	cd:SetCountdownFont("ShamanForeverSwingFont")
 	cd:SetHideCountdownNumbers(setting("countdown") ~= true)
 	if cdText then SW.placeCountdown(cdText, f) end
-	if state.endsAt then drawSwing() end
+	if state.endsAt then drawSwing() else drawStrip() end
 end
 -- After the groups' scales are set: lines are measured in screen pixels. Also where ours has just
 -- been shown or hidden (every layout comes through here): its events follow.
