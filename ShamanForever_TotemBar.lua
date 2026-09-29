@@ -1479,4 +1479,4 @@ function TB.debug()
 end
 
 -- Untested features on the totem bar, for About's Experimental list: { name, where }.
-TB.EXPERIMENTAL = { { "Pickers on hover", "Totem bar > Buttons" } }
+TB.EXPERIMENTAL = {}

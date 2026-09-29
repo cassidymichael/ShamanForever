@@ -1078,9 +1078,8 @@ local function buildTotemBar(p)
 	p:checkbox("Arrow opens a totem picker", "A tab on each slot opens its totems. Works in combat.", tget("arrows"), tset("arrows"))
 	p:slider("Arrow size", "How deep the tab is.", 8, 32, 1, px,
 		tget("arrowSize"), tset("arrowSize"), showWhen(function() return c().arrows end))
-	local hoverRow = p:checkbox("Open pickers on hover", "Hovering a slot opens its totems. Works in combat.",
+	p:checkbox("Open pickers on hover", "Hovering a slot opens its totems. Works in combat.",
 		tget("pickHover"), tset("pickHover"))
-	ns.Look.expBadge(hoverRow, "Pickers on hover"):SetPoint("LEFT", hoverRow.check.Text, "RIGHT", 10, 0)
 	p:checkbox(ns.Spells.name("call"), nil, tget("call"), tset("call"))
 	p:checkbox(ns.Spells.name("recall"), nil, tget("recall"), tset("recall"))
 	p:text(function()
