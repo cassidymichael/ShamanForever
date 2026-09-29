@@ -545,10 +545,10 @@ local function buildSettings(p)
 			g.sizeFollow = v
 			relayout()
 		end, "size")
-	p:slider("Icon size", "Mouse wheel over the group while unlocked does the same.", 24, 96, 1, int,
+	p:slider("Icon size", "Shift + mouse wheel over the group while unlocked does the same.", 24, 96, 1, int,
 		groupGet("size"), groupSet("size"), function() local g = selected(); return g and not g.sizeFollow end)
 	p:text("Icon size keeps borders and rings crisp. Scale grows everything, borders and rings included.")
-	p:slider("Scale", "Grows everything in the group, borders and rings too. Ctrl + mouse wheel over the group while unlocked does the same.", 0.5, 3, 0.05, times,
+	p:slider("Scale", "Grows everything in the group, borders and rings too. Mouse wheel over the group while unlocked does the same.", 0.5, 3, 0.05, times,
 		groupGet("scale"), function(v)
 			local g = selected()
 			if not g then return end
@@ -557,7 +557,7 @@ local function buildSettings(p)
 			g.scale = v
 			relayout()
 		end)
-	p:slider("Opacity", "Transparency of the group. Shift + mouse wheel over the group while unlocked does the same.", 0.1, 1, 0.05, pct,
+	p:slider("Opacity", "Transparency of the group. Ctrl + mouse wheel over the group while unlocked does the same.", 0.1, 1, 0.05, pct,
 		groupGet("alpha"), groupSet("alpha"))
 	K.borderRows(p, selected, relayout, "Border same as General")
 	p:buttons({

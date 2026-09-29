@@ -1076,18 +1076,18 @@ end)
 mover:SetScript("OnMouseUp", function(_, button)
 	if button == "RightButton" and ns.Options.open then ns.Options.open("totembar") end
 end)
--- As for groups: mouse wheel, icon size (lines stay crisp); Ctrl + wheel, scale (everything grows,
--- lines too); Shift + wheel, opacity.
+-- As for groups: mouse wheel, scale (everything grows, lines too); Shift + wheel, icon size (lines
+-- stay crisp); Ctrl + wheel, opacity.
 mover:SetScript("OnMouseWheel", function(self, delta)
 	if InCombatLockdown() then return end
 	local c = cfg()
 	local function step(key) c[key] = clamp(math.floor((c[key] + delta * 0.05) * 100 + 0.5) / 100, RANGES[key]) end
-	if IsShiftKeyDown() then step("alpha")
-	elseif IsControlKeyDown() then step("scale")
-	else
+	if IsControlKeyDown() then step("alpha")
+	elseif IsShiftKeyDown() then
 		local from = look()   -- the size it has now, General's or its own
 		c.sizeFollow = false
 		c.size = clamp(from + delta * 2, RANGES.size)
+	else step("scale")
 	end
 	layout()
 	self.label:SetText(string.format("Totem bar: size %d, scale %.2f, opacity %.0f%%", (look()), c.scale, c.alpha * 100))
