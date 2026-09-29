@@ -19,6 +19,24 @@ ns.BACKDROP = { bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\
 
 -- A spell icon without Blizzard's built-in border.
 function ns.cropIcon(tex) tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
+-- The same, drawn at its frame's exact rect: for an element's icon and the copies laid over it,
+-- which a cooldown swipe covers. A texture snaps to the pixel grid, and a cropped one's edge can
+-- round to a different pixel than the swipe's, which doesn't snap: at some positions and scales a
+-- 1 px sliver of icon shows past the swipe's edge. Unsnapped, it fills the rect the swipe fills;
+-- at a half-pixel edge no two layers agree, so the HUD also sits icons on whole pixels
+-- (ns.placeOnPixels).
+function ns.cropIconExact(tex)
+	ns.cropIcon(tex)
+	if tex.SetSnapToPixelGrid then
+		tex:SetSnapToPixelGrid(false)
+		tex:SetTexelSnappingBias(0)
+	end
+end
+
+-- The places a number on an icon can sit (the shield's charges, a reagent count), and how its text
+-- is justified at each.
+ns.COUNT_JUSTIFY = { TOPLEFT = "LEFT", BOTTOMLEFT = "LEFT", TOPRIGHT = "RIGHT", BOTTOMRIGHT = "RIGHT",
+	CENTER = "CENTER" }
 
 -- The icon size text sizes are given at (the default): text on an icon scales with it from here.
 ns.BASE_ICON_SIZE = 44
@@ -73,13 +91,37 @@ end
 -- n pixels at scale 1. A Scale between the screen and the frame (a group's, the totem bar's, a
 -- preview's) grows them with everything else, rounded to whole pixels. Icon Size doesn't.
 ------------------------------------------------------------------------
+-- One screen pixel, in a frame's own units.
+function ns.pixel(frame)
+	local _, physicalHeight = GetPhysicalScreenSize()
+	return 768 / (physicalHeight or 768) / frame:GetEffectiveScale()
+end
+-- v rounded to whole screen pixels; px is ns.pixel of the frame v is measured in.
+function ns.roundPx(v, px) return math.floor(v / px + 0.5) * px end
+
 -- The length, in the frame's own units, of n screen pixels grown by the frame's Scale.
 function ns.linePx(frame, n)
-	local eff = frame:GetEffectiveScale()
-	local count = math.floor(n * eff / UIParent:GetEffectiveScale() + 0.5)
+	local count = math.floor(n * frame:GetEffectiveScale() / UIParent:GetEffectiveScale() + 0.5)
 	if n > 0 and count < 1 then count = 1 end
-	local _, physicalHeight = GetPhysicalScreenSize()
-	return count * (768 / (physicalHeight or 768)) / eff
+	return count * ns.pixel(frame)
+end
+
+-- Anchors a frame at point on UIParent, x and y in the frame's own units as SetPoint takes them,
+-- moved by under a pixel so its top left sits on a whole screen pixel; with a size in whole pixels,
+-- so do its other edges. The HUD's icons are laid out on whole pixels from there: at a half-pixel
+-- edge an icon's texture and its border, which snap to the pixel grid, and its cooldown swipe,
+-- which doesn't, each draw that edge differently, and a sliver of one shows past another.
+function ns.placeOnPixels(frame, point, x, y)
+	local px = ns.pixel(frame)
+	local k = UIParent:GetEffectiveScale() / frame:GetEffectiveScale()   -- UIParent's units to the frame's
+	local pw, ph = UIParent:GetSize()
+	local w, h = frame:GetSize()
+	local fx = point:find("LEFT") and 0 or point:find("RIGHT") and 1 or 0.5
+	local fy = point:find("BOTTOM") and 0 or point:find("TOP") and 1 or 0.5
+	local left = fx * pw * k + x - fx * w
+	local top = fy * ph * k + y + (1 - fy) * h
+	frame:ClearAllPoints()
+	frame:SetPoint(point, UIParent, point, x + ns.roundPx(left, px) - left, y + ns.roundPx(top, px) - top)
 end
 
 ------------------------------------------------------------------------
@@ -446,7 +488,7 @@ function ns.makeEndFlash(parent, anchor, owner)
 	kf.glow:color(1, 0.12, 0.08)
 	kf.icon = kf.body:CreateTexture(nil, "ARTWORK")
 	kf.icon:SetAllPoints()
-	ns.cropIcon(kf.icon)
+	ns.cropIconExact(kf.icon)
 	kf.icon:SetDesaturated(true)
 	kf.red = kf.body:CreateTexture(nil, "OVERLAY")
 	kf.red:SetAllPoints()
@@ -485,7 +527,7 @@ function ns.makeEndFlash(parent, anchor, owner)
 	kf.mark:Hide()
 	kf.mark.icon = kf.mark:CreateTexture(nil, "ARTWORK")
 	kf.mark.icon:SetAllPoints()
-	ns.cropIcon(kf.mark.icon)
+	ns.cropIconExact(kf.mark.icon)
 	kf.mark.icon:SetDesaturated(true)
 	kf.mark.icon:SetAlpha(0.6)
 	kf.mark.x = kf.mark:CreateTexture(nil, "OVERLAY")
@@ -624,7 +666,7 @@ local function initAuraButton(slot, button)
 	pcall(button.SetMouseMotionEnabled, button, false)
 	local tex = button:CreateTexture(nil, "ARTWORK")
 	tex:SetAllPoints()
-	ns.cropIcon(tex)
+	ns.cropIconExact(tex)
 	if o.iconAlpha then tex:SetAlpha(o.iconAlpha()) end
 	button:SetIcon(tex)
 	slot.icon = tex
@@ -716,7 +758,7 @@ function ns.makeIcon(parent, size, owner)
 	f:SetSize(size, size)
 	f.tex = f:CreateTexture(nil, "ARTWORK")
 	f.tex:SetAllPoints()
-	ns.cropIcon(f.tex)
+	ns.cropIconExact(f.tex)
 	f.manaOverlay = f:CreateTexture(nil, "ARTWORK", nil, 2)
 	f.manaOverlay:SetAllPoints(f.tex)
 	f.manaOverlay:SetColorTexture(0.2, 0.45, 1, 0.55)
