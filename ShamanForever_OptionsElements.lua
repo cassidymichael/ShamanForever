@@ -627,37 +627,9 @@ local function buildTremor(p)
 	effectBlocks(p, key)
 end
 
--- The swing timer's page (ShamanForever_Swing.lua).
-local SWING_COLOR = { { "imbue", "Imbue colour" }, { "custom", "Custom" } }
-local SWING_FROM = { { "left", "Left to right" }, { "right", "Right to left" } }
-local SWING_TEXT_POS = { { "left", "Left" }, { "center", "Middle" }, { "right", "Right" } }
-local function buildSwing(p)
-	local key = "swing"
-	local R = ns.Swing.RANGES
-	local function custom() return ns.elementSetting(key, "colorBy") == "custom" end
-	local text = showWhen(eget(key, "countdown"))
-	elementDisplay(p, key)
-	p:header("Bar")
-	p:slider("Width", "At the default icon size; it grows with the icon.", R.swingWidth[1], R.swingWidth[2], 4, px,
-		eget(key, "swingWidth"), eset(key, "swingWidth"))
-	p:slider("Height", "At the default icon size; it grows with the icon.", R.swingHeight[1], R.swingHeight[2], 1, px,
-		eget(key, "swingHeight"), eset(key, "swingHeight"))
-	p:dropdown("Direction", nil, SWING_FROM, eget(key, "fillFrom"), eset(key, "fillFrom"), nil, 160)
-	p:checkbox("Empty as it goes", "Starts full and empties, instead of filling.", eget(key, "deplete"), eset(key, "deplete"))
-	p:dropdown("Colour", nil, SWING_COLOR, eget(key, "colorBy"), eset(key, "colorBy"), nil, 160)
-	p:text("Your main hand's imbue, grey with none.", showWhen(function() return not custom() end))
-	p:color("Custom colour", nil, eget(key, "color"), eset(key, "color"), showWhen(custom))
-	p:header("Countdown")
-	p:checkbox("Countdown text", "The time to the next swing, on the bar.", eget(key, "countdown"), eset(key, "countdown"))
-	p:dropdown("Position", nil, SWING_TEXT_POS, eget(key, "countdownPos"), eset(key, "countdownPos"), text, 160)
-	p:slider("Text size", nil, R.countdownSize[1], R.countdownSize[2], 1, int,
-		eget(key, "countdownSize"), eset(key, "countdownSize"), text)
-	p:color("Text colour", nil, eget(key, "countdownColor"), eset(key, "countdownColor"), text)
-end
-
 -- Each kind of element's page (the registry's kind); it gets the element's def.
 local PAGE = { shield = buildShield, shock = buildShock, imbue = buildImbue, cooldown = buildCooldown, buff = buildBuff,
-	tremor = buildTremor, swing = buildSwing }
+	tremor = buildTremor }
 
 -- Every element's page, in the order the options list them.
 function EP.build(newPage)

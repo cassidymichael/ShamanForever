@@ -35,7 +35,8 @@ end
 L.PANEL = { 29 / 255, 24 / 255, 19 / 255 }
 
 -- Each element's identity comes from its registry entry (ns.registerElement): its name, icon and
--- school never change with its settings. The totem bar's page has the same kind of header.
+-- school never change with its settings. The totem bar's page and the swing timer's have the same
+-- kind of header, from their entries in L.IDENTITY.
 local TOTEMBAR = { label = "Totem bar", icon = "Interface\\Icons\\Spell_Shaman_DropAll_01", school = "spirit",
 	blurb = "Your totems, their timers, and a pick for each element.",
 	tags = function()
@@ -46,7 +47,8 @@ local TOTEMBAR = { label = "Totem bar", icon = "Interface\\Icons\\Spell_Shaman_D
 		return string.format("%s  ·  %s%s", TB.modeName(), shows[c.show] or "",
 			TB.hasTotems() and "" or "  ·  Not learned")
 	end }
-local function identity(key) return key == "totembar" and TOTEMBAR or ns.ELEMENTS[key] end
+L.IDENTITY = { totembar = TOTEMBAR }   -- the swing timer's: ShamanForever_OptionsSwing.lua
+local function identity(key) return L.IDENTITY[key] or ns.ELEMENTS[key] end
 
 -- An element's name (or the totem bar's): its spell's in the client's language, else its label.
 function L.elementName(key)
@@ -577,43 +579,6 @@ L.PREVIEW.tremor = {
 	end,
 }
 
--- The swing timer (ShamanForever_Swing.lua): a bar, not an icon. size gives the preview its shape:
--- the HUD's, at the preview's scale, fitted into the panel.
-local SWING_FILL, SWING_LENGTH = 0.55, 2.6
-L.PREVIEW.swing = {
-	panelW = 306,
-	size = function()
-		local w, h = ns.Swing.getSize(ns.BASE_ICON_SIZE)
-		local k = math.min(56 / ns.BASE_ICON_SIZE, 160 / w, 28 / h)
-		return w * k, h * k
-	end,
-	states = { { "swinging", "Swinging" }, { "due", "Swing due" } },
-	render = function(ic, st)
-		reset(ic, nil)
-		ic.tex:SetColorTexture(unpack(ns.Swing.BACKGROUND))   -- the bar's background
-		local s = ic.swing
-		if not s then
-			-- The HUD's bar, and the countdown over it.
-			s = ns.Swing.makeBar(ic)
-			s:SetFrameLevel(ic:GetFrameLevel() + 1)
-			ic.textFrame:SetFrameLevel(ic:GetFrameLevel() + 4)
-			s.text = ic.textFrame:CreateFontString(nil, "OVERLAY")
-			s.text:SetFontObject(ns.Swing.font)
-			ic.swing = s
-		end
-		ns.Swing.styleBar(s)
-		ns.Swing.styleCountdown()
-		ns.Swing.placeCountdown(s.text, ic)
-		local c = ns.Swing.fillColor()
-		s:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
-		local due = st == "due"
-		local filled = due and 1 or SWING_FILL
-		s:SetValue(ns.elementSetting("swing", "deplete") == true and 1 - filled or filled)
-		s.text:SetText(string.format("%.1f", due and 0 or SWING_LENGTH * (1 - SWING_FILL)))
-		s.text:SetShown(ns.elementSetting("swing", "countdown") == true and not due)   -- the HUD's text ends with the swing
-	end,
-}
-
 -- The rest, by their kind: a cooldown element's by whether it has a totem, a buff element's.
 local KIND_PREVIEW = {
 	cooldown = function(def) return def.totemSlot and totemPreview(def) or cooldownPreview(def) end,
@@ -981,7 +946,6 @@ function L.buildHero(parent, key)
 		def.build(h)
 	else
 		h.previewIcon = makePreviewIcon(p, key, def)
-		if def.size then h.previewIcon:SetSize(def.size()) end   -- not square (the swing timer)
 		h.previewIcon:SetPoint("LEFT", 16, -6)   -- snapped to whole pixels in refresh
 	end
 	h.stateButtons = {}
@@ -1065,7 +1029,6 @@ function L.buildHero(parent, key)
 		if not def.stage then
 			-- On whole screen pixels, as the HUD's icons are (ns.placeOnPixels says why).
 			local ic = self.previewIcon
-			if def.size then ic:SetSize(def.size()) end
 			ic:ClearAllPoints()
 			ic:SetPoint("LEFT", p, "LEFT", 16, -6)
 			local l, t = ic:GetLeft(), ic:GetTop()

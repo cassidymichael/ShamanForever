@@ -181,7 +181,6 @@ local GROUP_RANGES = { scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { 0, 40
 -- An element's own numbers (db.elementOpts[key]), and its Expiring warning's.
 local ELEMENT_RANGES = { idleAlpha = { 0, 1 }, reagentLow = { 0, 10 }, reagentSize = { 8, 40 },
 	reagentX = { -50, 50 }, reagentY = { -50, 50 }, wordSize = { 8, 40 }, wordX = { -100, 100 }, wordY = { -100, 100 } }
-for k, r in pairs(ns.Swing.RANGES) do ELEMENT_RANGES[k] = r end   -- the swing timer's, kept with it
 local EXPIRE_RANGES = { secs = { 0, 120 } }
 -- defaults nil: a NaN is dropped, so the setting's own default applies.
 local function clampNumbers(t, ranges, defaults)

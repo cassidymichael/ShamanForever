@@ -1,5 +1,6 @@
--- Swing timer: the time to your next main-hand swing, on a bar that fills (or empties) as the swing
--- comes due.
+-- Swing timer: the time to your next main-hand swing, on a bar of its own that fills (or empties)
+-- as the swing comes due. Like the totem bar, it sits outside the groups: its own place, size,
+-- scale, opacity, Show and border, per profile in db.swingBar.
 --
 -- The engine sends PLAYER_SWING(swingDuration, swingType) with every auto attack, carrying the time
 -- to the next one; Blizzard's own swing bar is timed from it too. The duration is plain in combat
@@ -12,10 +13,11 @@
 -- A cast-time spell restarts the swing, and the engine doesn't say when the next one lands, so the
 -- bar is cleared when such a cast starts and shows again from the next swing. When the time runs
 -- out and no swing came (out of range, facing away), the bar stays at its end: the swing is due.
--- Auto attack off clears it.
+-- Auto attack off clears it, and so does death.
 --
--- ShamanForever.lua calls in through the module hooks (ns.registerModule). Its events are
--- registered only while the element is on (SW.afterGroups), so it costs nothing while it's off.
+-- ShamanForever.lua calls in through the module hooks (ns.registerModule): afterGroups lays it out
+-- with every layout of the HUD. Its events are registered only while it's on (not Hidden), so it
+-- costs nothing while it's off.
 
 local _, ns = ...
 local say, isSecret = ns.say, ns.isSecret
@@ -24,54 +26,89 @@ local Spells = ns.Spells
 local SW = { name = "swing" }
 ns.Swing = SW
 
-local KEY = "swing"
 local MAIN_HAND = Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.MainHand or 0
 local WHITE = "Interface\\Buttons\\WHITE8x8"
 local ELAPSED = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.ElapsedTime or 0
 local REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime or 1
 local IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
-local ICON = Spells.icon("attack") or 135274   -- Attack's icon, or a sword if the client can't say
+SW.ICON = Spells.icon("attack") or 135274   -- Attack's icon, or a sword if the client can't say
 
 -- The fill's colour by the main hand's imbue (ShamanForever_Imbue.lua), grey with none.
 local IMBUE_SCHOOL = { rockbiter = "earth", flametongue = "fire", frostbrand = "water", windfury = "air" }
 local NO_IMBUE = { 0.6, 0.6, 0.6 }
 
--- Its option defaults (ns.elementSetting). Width and height at the default icon size: the bar grows
--- and shrinks with its group's icon size. fillFrom: the side the fill starts from (left | right);
--- deplete: the bar starts full and empties. countdownPos: left | center | right of the bar.
+------------------------------------------------------------------------
+-- Settings: per profile, in db.swingBar
+------------------------------------------------------------------------
 SW.DEFAULTS = {
-	show = "combat",
-	swingWidth = 144, swingHeight = 10,   -- the first row's width (three icons and their gaps)
-	colorBy = "imbue", color = { 0.9, 0.7, 0.2, 1 },
-	fillFrom = "left", deplete = false,
-	countdown = false, countdownSize = 12, countdownColor = { 1, 1, 1, 1 }, countdownPos = "center",
+	show = "combat",          -- combat | always | never (Hidden: off, nothing runs)
+	fadeAfter = 0,            -- seconds it stays once combat ends, then fades out (0: none)
+	-- Just under the first row (shield, shocks, Fire Nova) and above the totem bar, as wide as that
+	-- row. x, y in UIParent units, so scaling keeps the centre.
+	point = "CENTER", x = 0, y = -70,
+	width = 144, height = 10,   -- in the bar's own units: Scale grows them, lines too
+	scale = 1,
+	alpha = 0.75,
+	colorBy = "imbue", color = { 0.9, 0.7, 0.2, 1 },   -- imbue | custom
+	fillFrom = "left",        -- left | right: the side the fill starts from
+	deplete = false,          -- starts full and empties
+	countdown = false, countdownSize = 12, countdownColor = { 1, 1, 1, 1 },
+	countdownPos = "center",  -- left | center | right of the bar
+	-- border: its own, if it has one (ShamanForever_Style.lua)
 }
--- Its numbers' ranges: the page's sliders take theirs from here, and ShamanForever_Profiles.lua
--- clamps imported ones to them.
-local RANGES = { swingWidth = { 40, 400 }, swingHeight = { 4, 40 }, countdownSize = { 8, 40 } }
+-- Number settings: the options sliders' ranges. Anything outside (a damaged or hand-made import) is
+-- clamped, so the layout never gets a scale of 0 or a NaN.
+local RANGES = { width = { 40, 400 }, height = { 4, 40 }, scale = { 0.5, 3 }, alpha = { 0.1, 1 },
+	fadeAfter = { 0, 10 }, countdownSize = { 8, 40 } }
 SW.RANGES = RANGES
-local function setting(name) return ns.elementSetting(KEY, name) end
-local function number(name)
-	local v, r = setting(name), RANGES[name]
-	if type(v) ~= "number" or v ~= v then v = SW.DEFAULTS[name] end
-	return math.min(math.max(v, r[1]), r[2])
+-- Settings that are one of a few words: the first is kept where the value isn't one of them.
+local CHOICES = { show = { "combat", "always", "never" }, colorBy = { "imbue", "custom" },
+	fillFrom = { "left", "right" }, countdownPos = { "center", "left", "right" } }
+local function finite(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
+local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
+
+-- The profile's settings, with defaults filled and wrong types or values reset (imported profiles).
+local cfgTable
+local function cfg()
+	local db = ns.getDB()
+	if type(db.swingBar) ~= "table" then db.swingBar = {} end
+	local t = db.swingBar
+	if t ~= cfgTable then
+		for k, v in pairs(SW.DEFAULTS) do
+			if type(t[k]) ~= type(v) then t[k] = type(v) == "table" and CopyTable(v) or v end
+		end
+		for k, r in pairs(RANGES) do
+			if t[k] ~= t[k] then t[k] = SW.DEFAULTS[k] else t[k] = clamp(t[k], r) end
+		end
+		for k, list in pairs(CHOICES) do
+			if not tContains(list, t[k]) then t[k] = list[1] end
+		end
+		for _, k in ipairs({ "color", "countdownColor" }) do
+			if not ns.isColor(t[k]) then t[k] = CopyTable(SW.DEFAULTS[k]) end
+		end
+		if not finite(t.x) then t.x = SW.DEFAULTS.x end
+		if not finite(t.y) then t.y = SW.DEFAULTS.y end
+		if not ns.POINTS[t.point] then t.point, t.x, t.y = SW.DEFAULTS.point, SW.DEFAULTS.x, SW.DEFAULTS.y end
+		cfgTable = t
+	end
+	return t
 end
--- A setting that is one of a few words.
-local function choice(name, ...)
-	local v = setting(name)
-	for i = 1, select("#", ...) do if v == select(i, ...) then return v end end
-	return SW.DEFAULTS[name]
-end
+SW.cfg = cfg
+
+-- On at all: a shaman, and Show isn't Hidden.
+function SW.isOn() return ns.isActive() and cfg().show ~= "never" end
 
 ------------------------------------------------------------------------
--- The element
+-- The bar
 ------------------------------------------------------------------------
--- A dark bar, the fill over it (a StatusBar fed each swing's duration object), a spark on the
--- fill's edge, and the countdown: the client's own cooldown text, placed left, middle or right.
+-- f: the bar's place, scale, opacity and visibility (its state driver). face, on it: what shows,
+-- only while a swing is under way or positioning is unlocked: a dark strip, the fill over it (a
+-- StatusBar fed each swing's duration object) with a spark on its edge, the countdown (the client's
+-- own cooldown text, placed left, middle or right) and the border, drawn on the face so it hides
+-- with it.
 
--- The bar's look, shared with its preview (ShamanForever_OptionsLook.lua): the background colour
--- under it, and the fill filling parent with a spark on its edge (the StatusBar, its spark as
--- .spark).
+-- The bar's look, shared with its preview (ShamanForever_OptionsSwing.lua): the strip's colour, and
+-- the fill filling parent with a spark on its edge (the StatusBar, its spark as .spark).
 SW.BACKGROUND = { 0, 0, 0, 0.6 }
 function SW.makeBar(parent)
 	local b = CreateFrame("StatusBar", nil, parent)
@@ -87,7 +124,7 @@ end
 -- The side it fills from, and the spark on the fill's free edge. The spark is a line: two screen
 -- pixels wide at any size (ns.linePx).
 function SW.styleBar(b)
-	local fromRight = choice("fillFrom", "left", "right") == "right"
+	local fromRight = cfg().fillFrom == "right"
 	b:SetReverseFill(fromRight)
 	local fill, side = b:GetStatusBarTexture(), fromRight and "LEFT" or "RIGHT"
 	b.spark:ClearAllPoints()
@@ -103,57 +140,43 @@ font:SetFont(STANDARD_TEXT_FONT, SW.DEFAULTS.countdownSize, "OUTLINE")
 SW.font = font
 local TEXT_SIDE = { left = "LEFT", center = "CENTER", right = "RIGHT" }
 function SW.styleCountdown()
-	local c = setting("countdownColor")
-	if not ns.isColor(c) then c = SW.DEFAULTS.countdownColor end
-	font:SetFont(STANDARD_TEXT_FONT, number("countdownSize"), "OUTLINE")
-	font:SetTextColor(c[1], c[2], c[3], c[4] or 1)
+	local c = cfg()
+	local k = c.countdownColor
+	font:SetFont(STANDARD_TEXT_FONT, c.countdownSize, "OUTLINE")
+	font:SetTextColor(k[1], k[2], k[3], k[4] or 1)
 end
 function SW.placeCountdown(fs, anchor)
-	local side = TEXT_SIDE[choice("countdownPos", "left", "center", "right")]
+	local side = TEXT_SIDE[cfg().countdownPos]
 	fs:ClearAllPoints()
 	fs:SetPoint(side, anchor, side, side == "LEFT" and 3 or side == "RIGHT" and -3 or 0, 0)
 	fs:SetJustifyH(side)
 end
 
+-- The border it wears: General's, or its own.
+function SW.border() return ns.Style.get("swing", "border") end
+
 local f = CreateFrame("Frame", nil, UIParent)
-f:SetSize(SW.DEFAULTS.swingWidth, SW.DEFAULTS.swingHeight)
+f:SetSize(SW.DEFAULTS.width, SW.DEFAULTS.height)
 f:Hide()
-f.bg = f:CreateTexture(nil, "BACKGROUND")
-f.bg:SetAllPoints()
-f.bg:SetColorTexture(unpack(SW.BACKGROUND))
-local bar = SW.makeBar(f)
-bar:Hide()   -- shown from the first swing
-local cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
+SW.frame = f
+local face = CreateFrame("Frame", nil, f)
+face:SetAllPoints()
+face:Hide()   -- shown from the first swing
+face.bg = face:CreateTexture(nil, "BACKGROUND")
+face.bg:SetAllPoints()
+face.bg:SetColorTexture(unpack(SW.BACKGROUND))
+local bar = SW.makeBar(face)
+bar:SetFrameLevel(face:GetFrameLevel() + 1)
+bar:Hide()
+local cd = CreateFrame("Cooldown", nil, face, "CooldownFrameTemplate")
 cd:SetAllPoints()
+cd:SetFrameLevel(face:GetFrameLevel() + 2)
 cd:SetDrawSwipe(false)
 cd:SetDrawEdge(false)
 cd:SetDrawBling(false)
 cd:SetCountdownFont("ShamanForeverSwingFont")
 local okText, cdFont = pcall(cd.GetCountdownFontString, cd)
 local cdText = okText and cdFont or nil
--- Frame levels bottom up: the bar, the countdown (layoutGroup calls this after regrouping).
-function f.stack()
-	local base = f:GetFrameLevel()
-	bar:SetFrameLevel(base + 1)
-	cd:SetFrameLevel(base + 2)
-end
-f.stack()
-
-local function getSize(size)
-	local k = size / ns.BASE_ICON_SIZE
-	return number("swingWidth") * k, number("swingHeight") * k
-end
-SW.getSize = getSize
-
-ns.registerElement(KEY, { frame = f, label = "Swing timer", paint = function(t) t:SetTexture(ICON) end,
-	getSize = getSize, defaults = SW.DEFAULTS, kind = "swing", def = SW, icon = ICON, school = "spirit",
-	blurb = "Time to your next melee swing.", experimental = "Swing timer" })
-
--- Its place in the default layout: a group of its own just under the first row (shield, shocks,
--- Fire Nova) and above the totem bar, as wide as that row. name: the group's name where groups
--- have one.
-table.insert(ns.DEFAULTS.groups, { name = "Swing", point = "CENTER", x = 0, y = -70, scale = 1, alpha = 0.75,
-	orientation = "horizontal", growth = "forward", spacing = 6, members = { KEY } })
 
 ------------------------------------------------------------------------
 -- The swing
@@ -165,10 +188,8 @@ local duration = C_DurationUtil and C_DurationUtil.CreateDuration and C_Duration
 
 -- The fill's colour: the imbue's school, or the custom one.
 local function fillColor()
-	if setting("colorBy") == "custom" then
-		local c = setting("color")
-		return ns.isColor(c) and c or SW.DEFAULTS.color
-	end
+	local c = cfg()
+	if c.colorBy == "custom" then return c.color end
 	local school = IMBUE_SCHOOL[ns.Imbue.mainHand() or ""]
 	return school and ns.SCHOOL_COLOR[school] or NO_IMBUE
 end
@@ -178,26 +199,27 @@ local function paintFill()
 	bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
 end
 
--- The dark strip behind the bar shows with it, and while positioning is unlocked.
-local function drawStrip() f.bg:SetShown(bar:IsShown() or not ns.getAccount().locked) end
+-- The face shows with a swing under way, and while positioning is unlocked (the strip and border
+-- then show where the bar goes).
+local function drawFace() face:SetShown(bar:IsShown() or not ns.getAccount().locked) end
 
 local function clearSwing()
 	state.endsAt = nil
 	bar:Hide()
 	cd:Clear()
-	drawStrip()
+	drawFace()
 end
 
 -- The swing under way on the bar and the countdown: filling as it comes due, or emptying.
 local function drawSwing()
-	local direction = setting("deplete") == true and REMAINING or ELAPSED
+	local direction = cfg().deplete and REMAINING or ELAPSED
 	if not ns.try("swing bar", bar.SetTimerDuration, bar, duration, IMMEDIATE, direction) then
 		clearSwing()
 		return
 	end
 	ns.try("swing countdown", cd.SetCooldownFromDurationObject, cd, duration, true)
 	bar:Show()
-	drawStrip()
+	drawFace()
 end
 
 -- A swing of swingDuration seconds starts now (a plain number).
@@ -232,7 +254,7 @@ local function onCastStart()
 end
 
 ------------------------------------------------------------------------
--- Events: registered only while the element is on
+-- Events: registered only while it's on
 ------------------------------------------------------------------------
 local ev, listening = nil, false
 local EVENTS = {
@@ -253,7 +275,7 @@ local function onEvent(_, event, a1, a2)
 	end
 end
 
--- Registers the events while the element is on; off, drops them and the swing under way.
+-- Registers the events while it's on; off, drops them and the swing under way.
 local function listen(on)
 	if not ev or on == listening then return end
 	listening = on
@@ -266,32 +288,173 @@ local function listen(on)
 end
 
 ------------------------------------------------------------------------
--- Hooks (ShamanForever.lua calls them; see ns.registerModule)
+-- Visibility: its state driver, and Stay after combat (ns.AfterCombat)
 ------------------------------------------------------------------------
--- The look again after a layout (settings may have changed): the fill's colour, direction and
--- countdown, and the swing under way in its new direction.
-function SW.applyLayout()
-	if not listening then return end
+local afterCombat, mover
+local function ownDriver()
+	if not SW.isOn() then return "hide" end
+	if not ns.getAccount().locked then return "show" end
+	if cfg().show == "combat" then return "[petbattle] hide; [combat] show; hide" end
+	return "[petbattle] hide; show"
+end
+local function visibilityDriver()
+	if ns.AfterCombat.held(afterCombat) and SW.isOn() and ns.getAccount().locked and cfg().show == "combat" then
+		return "[petbattle] hide; show"
+	end
+	return ownDriver()
+end
+local lastDriver
+local function drive()
+	local driver = visibilityDriver()
+	if driver ~= lastDriver then
+		lastDriver = driver
+		RegisterStateDriver(f, "visibility", driver)
+	end
+end
+
+afterCombat = ns.AfterCombat.new({
+	secs = function()
+		if not ns.getDB() or not SW.isOn() or not ns.getAccount().locked then return 0 end
+		local c = cfg()
+		return c.show == "combat" and c.fadeAfter or 0
+	end,
+	apply = function() if not InCombatLockdown() then drive() end end,
+	shows = function() return SecureCmdOptionParse(ownDriver()) == "show" end,
+	frames = function() return { f } end,
+})
+
+------------------------------------------------------------------------
+-- Layout (out of combat: its state driver can only change then)
+------------------------------------------------------------------------
+local function layout()
+	if ns.deferInCombat("swing layout", layout) then return end
+	local c = cfg()
+	listen(SW.isOn())
+	-- Scale and opacity first: the size and position are whole screen pixels at the scale
+	-- (ns.placeOnPixels says why), and the border's lines are measured for it.
+	f:SetScale(c.scale)
+	f:SetAlpha(c.alpha)
+	local px = ns.pixel(f)
+	f:SetSize(math.max(ns.roundPx(c.width, px), px), math.max(ns.roundPx(c.height, px), px))
+	ns.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
+	-- "bar": only the parts of a border look that fit a bar, where looks have parts.
+	ns.applyBorder(face, SW.border(), "bar")
 	paintFill()
 	SW.styleBar(bar)
 	SW.styleCountdown()
 	cd:SetCountdownFont("ShamanForeverSwingFont")
-	cd:SetHideCountdownNumbers(setting("countdown") ~= true)
-	if cdText then SW.placeCountdown(cdText, f) end
-	if state.endsAt then drawSwing() else drawStrip() end
+	cd:SetHideCountdownNumbers(not c.countdown)
+	if cdText then SW.placeCountdown(cdText, face) end
+	if state.endsAt then drawSwing() else drawFace() end
+	drive()
+	mover.update()
 end
--- After the groups' scales are set: lines are measured in screen pixels. Also where ours has just
--- been shown or hidden (every layout comes through here): its events follow.
-function SW.afterGroups()
-	local on = ns.isEnabled(KEY)
-	if on and not listening then
-		listen(true)
-		SW.applyLayout()
-	elseif not on then
-		listen(false)
+
+-- Settings changed (options page): laid out now, or when combat ends.
+function SW.apply()
+	cfgTable = nil
+	layout()
+end
+
+------------------------------------------------------------------------
+-- Positioning: a handle over the bar while positioning is unlocked. Dragged by hand, not with
+-- StartMoving, so it snaps as groups do (ns.Positioning).
+------------------------------------------------------------------------
+mover = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+mover:SetFrameStrata("DIALOG")
+mover:SetBackdrop(ns.BACKDROP)
+mover:SetBackdropColor(0, 0, 0, 0.4)
+mover:EnableMouse(true)
+mover:EnableMouseWheel(true)
+mover:RegisterForDrag("LeftButton")
+mover:Hide()
+mover.label = mover:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+mover.label:SetPoint("BOTTOMLEFT", mover, "TOPLEFT", 0, 2)
+
+local movable = { frame = f }
+-- The arrow keys: moved by dx, dy (UIParent units).
+function movable.nudge(dx, dy)
+	local c = cfg()
+	c.x, c.y = c.x + dx, c.y + dy
+	ns.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
+end
+-- Combat started while unlocked: the handle goes, and the strip with it (plain frames).
+function movable.lock()
+	mover:SetScript("OnUpdate", nil)
+	mover:Hide()
+	ns.Positioning.endSnap()
+	drawFace()
+end
+ns.Positioning.addMovable(movable)
+
+-- f's centre, from the cursor while dragging (UIParent units from its bottom left), snapped.
+local function dragUpdate(self)
+	if InCombatLockdown() then movable.lock() return end
+	local ui = UIParent:GetEffectiveScale()
+	local cx, cy = GetCursorPosition()
+	local x, y = ns.Positioning.snap(f, cx / ui + self.dragDX, cy / ui + self.dragDY)
+	local c = cfg()
+	local ux, uy = UIParent:GetCenter()
+	c.point, c.x, c.y = "CENTER", x - ux, y - uy
+	ns.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
+end
+mover:SetScript("OnDragStart", function(self)
+	if InCombatLockdown() then return end
+	ns.Positioning.selectMovable(movable)
+	local ui = UIParent:GetEffectiveScale()
+	local s = f:GetEffectiveScale() / ui
+	local fx, fy = f:GetCenter()
+	local cx, cy = GetCursorPosition()
+	self.dragDX, self.dragDY = fx * s - cx / ui, fy * s - cy / ui
+	self:SetScript("OnUpdate", dragUpdate)
+end)
+mover:SetScript("OnDragStop", function(self)
+	self:SetScript("OnUpdate", nil)
+	ns.Positioning.endSnap()
+	if not InCombatLockdown() then layout() end
+end)
+mover:SetScript("OnMouseUp", function(_, button)
+	if InCombatLockdown() then return end
+	if button == "LeftButton" then ns.Positioning.selectMovable(movable)
+	elseif button == "RightButton" then ns.Options.open("swing") end
+end)
+local function describe()
+	local c = cfg()
+	return string.format("Swing timer: %d x %d, scale %.2f, opacity %.0f%%", c.width, c.height, c.scale, c.alpha * 100)
+end
+-- As for groups and the totem bar: mouse wheel, scale (everything grows, lines too); Shift + wheel,
+-- width (lines stay crisp); Ctrl + wheel, opacity. Each grows about the bar's centre.
+mover:SetScript("OnMouseWheel", function(self, delta)
+	if InCombatLockdown() then return end
+	local c = cfg()
+	local function step(key) c[key] = clamp(math.floor((c[key] + delta * 0.05) * 100 + 0.5) / 100, RANGES[key]) end
+	if IsControlKeyDown() then step("alpha")
+	elseif IsShiftKeyDown() then c.width = clamp(c.width + delta * 4, RANGES.width)
+	else step("scale")
 	end
-	SW.styleBar(bar)
+	layout()
+	self.label:SetText(describe())
+	ns.Options.refresh()
+end)
+function mover.update()
+	local on = SW.isOn() and not ns.getAccount().locked and not InCombatLockdown()
+	if on then
+		mover:ClearAllPoints()
+		mover:SetPoint("TOPLEFT", f, "TOPLEFT", -2, 2)
+		mover:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 2, -2)
+		local chosen = ns.Positioning.isSelected(movable)
+		if chosen then mover:SetBackdropBorderColor(1, 0.82, 0, 1)
+		else mover:SetBackdropBorderColor(0.2, 0.6, 1, 0.9) end
+		mover.label:SetText(chosen and "Swing timer (arrow keys move it)" or "Swing timer")
+	end
+	mover:SetShown(on)
 end
+
+------------------------------------------------------------------------
+-- Hooks (ShamanForever.lua calls them; see ns.registerModule)
+------------------------------------------------------------------------
+-- Its own layout, with every layout of the HUD (settings, the lock, a profile loaded).
+SW.afterGroups = layout
 
 function SW.start()
 	ev = CreateFrame("Frame")

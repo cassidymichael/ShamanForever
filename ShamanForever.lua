@@ -110,6 +110,7 @@ local DEFAULTS = {
 	imbueWarnMins = 5,        -- show time left below this many minutes (0 = never)
 	imbueHideActive = true,   -- while an imbue is on, only show once its time left shows
 	totemBar = {},            -- the totem bar's settings (ShamanForever_TotemBar.lua fills its defaults)
+	swingBar = {},            -- the swing timer's settings (ShamanForever_Swing.lua fills its defaults)
 	-- General's timer styles, one per kind (ShamanForever_Timers.lua); elements and the totem bar
 	-- follow them unless they have their own.
 	timers = { cooldown = CopyTable(ns.Timer.DEFAULTS.cooldown), uptime = CopyTable(ns.Timer.DEFAULTS.uptime) },
@@ -297,8 +298,8 @@ local function idleAlpha(key)
 	return math.min(math.max(v, 0), 1)
 end
 
--- always | combat | never; an element's default is "always" unless its defaults say otherwise.
-local function showMode(key) return elementOpts(key).show or elementDefault(key, "show") or "always" end
+-- always | combat | never
+local function showMode(key) return elementOpts(key).show or "always" end
 
 -- A group's icon size: its own, or General's.
 local function groupSize(g) return (g and not g.sizeFollow and g.size) or db.iconSize end
@@ -860,9 +861,7 @@ local splitGroup = edit(function(id)
 	if sx then setGroupCenter(g, sx, sy) end
 end)
 
-local setShow = edit(function(key, mode)
-	elementOpts(key).show = mode ~= (elementDefault(key, "show") or "always") and mode or nil
-end)
+local setShow = edit(function(key, mode) elementOpts(key).show = mode ~= "always" and mode or nil end)
 
 -- Hides every element in the group; the group keeps them, so showing one brings it back in place.
 local hideGroup = edit(function(id)
