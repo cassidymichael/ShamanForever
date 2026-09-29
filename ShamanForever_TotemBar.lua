@@ -1607,7 +1607,7 @@ local function paintSlot(s, rec)
 			strip:SetPoint("TOPLEFT", s.button, "TOPLEFT", 0, 0)
 			strip:SetSize(size, ns.linePx(strip, c.rangeHeight))
 		end
-		if not TB.skin.paintMark(strip, w, h) then
+		if not TB.skin.paintMark(strip, w, h, s.vis) then
 			local k = c.rangeOut
 			strip.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
 		end

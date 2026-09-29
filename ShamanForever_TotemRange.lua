@@ -229,7 +229,7 @@ local function place(s, size, ownOnly)
 	if not x then x, y, w, h = o, -o, size - 2 * o, ns.linePx(gate, c.rangeHeight) end
 	gate:SetPoint("TOPLEFT", b, "TOPLEFT", x, y)
 	gate:SetSize(w, h)
-	if not TB.skin.paintMark(s.rangeMark, w, h) then
+	if not TB.skin.paintMark(s.rangeMark, w, h, s.vis) then
 		local k = c.rangeOut
 		s.rangeMark.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
 	end

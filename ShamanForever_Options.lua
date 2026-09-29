@@ -116,10 +116,13 @@ local function ownLine(p, kind)
 end
 
 
--- A style kind's looks (ns.Style.addLook), for a dropdown.
+-- A style kind's looks (ns.Style.addLook), for a dropdown: all but those kept for the totem bar's
+-- Looks.
 local function lookChoices(kind)
 	local out = {}
-	for _, e in ipairs(ns.Style.LOOKS[kind].order) do table.insert(out, { e.key, e.name }) end
+	for _, e in ipairs(ns.Style.LOOKS[kind].order) do
+		if not e.hidden then table.insert(out, { e.key, e.name }) end
+	end
 	return out
 end
 

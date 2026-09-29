@@ -820,7 +820,7 @@ L.PREVIEW.totembar = {
 					if x then
 						f:SetPoint("TOPLEFT", ic.box, "TOPLEFT", x, y)
 						f:SetSize(mw, mh)
-						f:SetShown(i == 1 and TB.skin.paintMark(f, mw, mh))
+						f:SetShown(i == 1 and TB.skin.paintMark(f, mw, mh, ic))
 					else
 						local k = i == 1 and c.rangeOut or c.rangeIn
 						f:SetPoint("TOPLEFT", ic, "TOPLEFT", 0, 0)
