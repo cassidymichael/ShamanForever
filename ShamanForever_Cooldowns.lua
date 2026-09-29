@@ -212,8 +212,8 @@ function CD.onGCD(spellID)
 	if not ok or type(info) ~= "table" or isSecret(info.isOnGCD) then return false end
 	return info.isOnGCD == true
 end
--- Ready or a global cooldown's end: a cooldown timer's end (OnCooldownDone) is a "ready" only when
--- the spell's own cooldown was seen running before it. GetSpellCooldown's isActive and isOnGCD
+-- Ready: the end of the spell's own cooldown (the ready tracker's OnCooldownDone, watchEnds) is a
+-- "ready" only when our cast was seen starting it. GetSpellCooldown's isActive and isOnGCD
 -- are plain in combat (probed 2026-09-26); the duration objects aren't, so nothing here asks them.
 -- A spell's state: "ready" (isActive false), "gcd" (the global cooldown, alone or outlasting its
 -- own), "own" (its own cooldown); nil when a field is secret. isOnGCD is only vouched for inside
@@ -229,11 +229,10 @@ end
 -- SPELL_UPDATE_COOLDOWN within ARM_AFTER_CAST of the cast (CD.noteCast), or at the cast itself when
 -- that event came first. Only our cast: as a global cooldown ends, isActive can still read true
 -- with isOnGCD false for a moment (tested 2026-09-29), and that must not arm the sweep's end. A
--- cooldown not started by our cast is missed, never a false ready. One that ends inside a GCD
--- (Show global cooldown on) stays armed, and its end comes with the GCD's, the moment it can be
--- cast. Once isActive reads false while armed, the end must come within READY_GRACE: out of
--- combat it can read false just before the timer ends; no new GCD ends that soon. A secret read
--- arms nothing.
+-- cooldown not started by our cast is missed, never a false ready. The end is the ready tracker's
+-- (watchEnds), which runs the spell's own cooldown only, so one that ends inside a GCD ends at its
+-- own time. Once isActive reads false while armed, the end must come within READY_GRACE: out of
+-- combat it can read false just before the tracker ends. A secret read arms nothing.
 local READY_GRACE, ARM_AFTER_CAST = 0.5, 1.5
 local function noteReady(f, st, inEvent)
 	local r = f.ready
@@ -243,13 +242,30 @@ local function noteReady(f, st, inEvent)
 		r.armed, r.by, r.castAt = true, nil, nil
 	end
 end
--- Hooked before any other OnCooldownDone of f: decides once whether this end is a ready.
+-- The ready tracker (f.ownCd): a Cooldown that draws nothing, fed the spell's own cooldown
+-- (ignoreGCD) whatever the visible timer shows, so a ready is its own end, not a global cooldown's
+-- that outlasts it. A child of f, so it is shown while the icon is: a hidden Cooldown's end can
+-- come late, when it is shown again, so an end within JUST_SHOWN of coming into view is never a
+-- ready (a missed pop, never a stale one). Its OnCooldownDone decides once whether this end is a
+-- ready; the pop hooks it after (and the sound, which gates on CD.readyNow too).
+local JUST_SHOWN = 0.2
 local function watchEnds(f)
 	if f.ready then return end
-	f.ready = {}
-	f.cd:HookScript("OnCooldownDone", function()
-		local r, now = f.ready, GetTime()
-		r.at = (r.armed and (not r.by or now <= r.by)) and now or nil
+	local r = {}
+	f.ready = r
+	local t = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
+	t:SetAllPoints()
+	t:SetDrawSwipe(false)
+	t:SetDrawEdge(false)
+	t:SetDrawBling(false)
+	t:SetHideCountdownNumbers(true)
+	t.noCooldownCount = true   -- countdown text addons (OmniCC and the like) leave it alone
+	f.ownCd = t
+	t:HookScript("OnShow", function() r.shownAt = GetTime() end)
+	t:HookScript("OnCooldownDone", function()
+		local now = GetTime()
+		local late = r.shownAt and now - r.shownAt < JUST_SHOWN
+		r.at = (r.armed and not late and (not r.by or now <= r.by)) and now or nil
 		r.armed, r.by = nil, nil
 	end)
 end
@@ -261,44 +277,53 @@ function CD.noteCast(f, spellID)
 	if plainCooldown(spellID) == "own" then r.armed, r.by, r.castAt = true, nil, nil end
 end
 -- Forgets a pending ready (the element is off, or its spell not known): a cast it didn't see can't
--- leave one armed for later.
+-- leave one armed for later. The tracker stops too.
 function CD.resetReady(f)
 	local r = f.ready
-	if r then r.armed, r.by, r.castAt = nil, nil, nil end
+	if not r then return end
+	r.armed, r.by, r.castAt = nil, nil, nil
+	f.ownCd:Clear()
 end
--- True inside the OnCooldownDone of a ready (not a global cooldown's end).
+-- True inside the tracker's OnCooldownDone when that end is a ready (hooks on f.ownCd after it).
 function CD.readyNow(f) return f.ready ~= nil and f.ready.at == GetTime() end
 -- A cooldown timer's duration, by the element's Global cooldown style: on, with the GCD (every cast
 -- sweeps it, as on action bars; a GCD sweep gets no bling); off, its own cooldown only
 -- (ignoreGCD), which its own cast starts, so other spells don't sweep it. nil when none can be
 -- read. inEvent: from SPELL_UPDATE_COOLDOWN.
+-- Either way the ready tracker (watchEnds) takes the own cooldown, only while it reads "own": while
+-- a global cooldown outlasts it the tracker keeps its last one, which ends on time. Off cooldown,
+-- with no ready pending, it is cleared (a cooldown that came back early leaves no end behind). The
+-- duration objects can be secret in combat: they are only handed to the widgets.
 local function cooldownFor(f, key, spellID, inEvent)
 	watchEnds(f)
 	local st = plainCooldown(spellID)
 	noteReady(f, st, inEvent)
+	local ok, own = safe(C_Spell.GetSpellCooldownDuration, spellID, true)
+	if st == "own" and ok and own then
+		ns.try("ready tracker", f.ownCd.SetCooldownFromDurationObject, f.ownCd, own, true)
+	elseif st == "ready" and not f.ready.armed then f.ownCd:Clear() end
 	if ns.Style.value(key, "gcd", "show") then
-		local ok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID)
-		if not (ok and dur) then return nil end
+		local gok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID)
+		if not (gok and dur) then return nil end
 		f.cd:SetDrawBling(st ~= "gcd")
 		return dur
 	end
 	f.cd:SetDrawBling(true)
-	local ok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID, true)
 	-- None running: clear what an earlier read (a GCD sweep from before the style changed) left.
-	if ok and not dur then f.cdTimer:clear() end
-	return ok and dur or nil
+	if ok and not own then f.cdTimer:clear() end
+	return ok and own or nil
 end
 CD.cooldownFor = cooldownFor
 
--- Pop when ready: Blizzard's cooldown widget says when its swipe finishes (OnCooldownDone), in
--- combat too (tested 2026-09-29), and watchEnds says whether that end is a ready. totemSlot: a
--- spell that needs a totem down in that slot (Fire Nova), which isn't ready without one: an empty
--- slot has no duration object (see the file's header). Then the pop is greyed, a nudge to drop
--- one, or none (readyNoTotem).
+-- Pop when ready: Blizzard's cooldown widget says when a cooldown finishes (OnCooldownDone), in
+-- combat too (tested 2026-09-29), here the ready tracker's, and watchEnds says whether that end
+-- is a ready. totemSlot: a spell that needs a totem down in that slot (Fire Nova), which isn't
+-- ready without one: an empty slot has no duration object (see the file's header). Then the pop
+-- is greyed, a nudge to drop one, or none (readyNoTotem).
 local function popWhenReady(f, key, totemSlot)
 	watchEnds(f)
-	f.cd:HookScript("OnCooldownDone", function()
-		if not CD.readyNow(f) then return end   -- a global cooldown ended
+	f.ownCd:HookScript("OnCooldownDone", function()
+		if not CD.readyNow(f) then return end   -- not armed by our cast, or stale
 		if not (ns.isEnabled(key) and setting(key, "readyPop")) then return end
 		if ns.cantAct() then return end   -- dead, a ghost or on a flight path: nothing to cast
 		if totemSlot then
@@ -553,12 +578,11 @@ end
 -- first): not when a global cooldown ends, nor for a spell that needs a totem while none is down.
 -- Separate from the pop, which can be off while the sound is on. Only while the icon is on screen,
 -- and not in the moment it comes into view: a hidden timer's end may reach it only then, late.
-local JUST_SHOWN = 0.2
 local function soundWhenReady(f, key, totemSlot)
 	f:HookScript("OnShow", function() f.shownAt = GetTime() end)
-	f.cd:HookScript("OnCooldownDone", function()
+	f.ownCd:HookScript("OnCooldownDone", function()
 		if not f:IsVisible() or GetTime() - (f.shownAt or 0) < JUST_SHOWN then return end
-		if not CD.readyNow(f) then return end   -- a global cooldown ended
+		if not CD.readyNow(f) then return end   -- not armed by our cast, or stale
 		if totemSlot then
 			local ok, d = safe(GetTotemDuration, totemSlot)
 			if not (ok and d) then return end
