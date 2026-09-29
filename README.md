@@ -16,14 +16,14 @@ More screenshots: [options gallery](docs/gallery/README.md).
 
 A collection of highly configurable HUD elements designed to help shamans playing World of Warcraft: Forever.
 
-- **Totem Bar**: Fully configurable totem bar replacing default or active totems frames, with Call of the Elements, Totemic Recall, and dismiss functions
+- **Totem Bar**: Fully configurable totem bar replacing default or active totems frames: drop, pick and dismiss totems, Call of the Elements and Totemic Recall, an out-of-range warning, and key bindings
 - **Shock Trackers**: Earth, Flame, and Frost shock monitoring
 - **Shield Helpers**: Lightning Shield and Water Shield tracking
 - **Weapon Imbues**: Rockbiter, Flametongue, Frostbrand, and Windfury imbue status
 - **Swing Timer**: melee swing timer shown as a bar
-- **Ability Cooldowns**: Stormstrike, Fire Nova, Lava Burst, Chain Lightning, Riptide, Rage of the Farseer
+- **Spell Trackers**: Stormstrike, Fire Nova, Lava Burst, Chain Lightning, Riptide, Rage of the Farseer, Nature's Swiftness, Mana Tide Totem, each with the timers, bars, glows and pops that suit it
 - **Totem Trackers**: Earthbind, Tremor, Grounding, and Stoneclaw Totem helpers
-- **Utility Trackers**: Nature's Swiftness, Mana Tide Totem, Elemental Focus, Water Walking, Water Breathing, Maelstrom Weapon, Totemic Projection, Reincarnation
+- **Utility Trackers**: Elemental Focus, Water Walking, Water Breathing, Maelstrom Weapon, Totemic Projection, Reincarnation
 
 The addon organizes these elements into configurable groups with unlock and preview modes for customizable on-screen placement.
 
@@ -43,10 +43,6 @@ Ideas, requests or problems are welcome, any of these ways:
 - A post in `#feedback` on [Discord](https://discord.gg/VaXH8CQZFG).
 - A comment on [CurseForge](https://www.curseforge.com/wow/addons/shamanforever/comments).
 - An [issue on GitHub](https://github.com/cassidymichael/ShamanForever/issues).
-
-## How it works
-
-In combat, Forever hides most of what an addon could read about auras, totems and cooldowns. ShamanForever hands that information to Blizzard's own display widgets instead of reading it, and times the few things it can't see from your own casts, which stay readable.
 
 ## Development
 
