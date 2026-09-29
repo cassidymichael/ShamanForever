@@ -1,10 +1,10 @@
--- The options window's Groups & Layout page: the groups listed on the left (name, element count and
--- an icon strip), and beside the list every group as a panel of its own, in the list's order: its
--- name (Rename edits it in place), its elements right under it, then its settings. A panel folds
--- from its header, and folded it names its elements. Clicking a group in the list goes to its panel.
--- Drag an element onto a group in the list, onto a panel's elements (between two to set the order)
--- or its name, or onto New group for a group of its own; click one for a menu. The groups are
--- ShamanForever.lua's (db.groups): every change goes through its layout edits, which wait out
+-- The options window's Groups & Layout page: the groups listed on the left (name, element count
+-- and an icon strip), and beside the list every group as a panel of its own, in the list's order:
+-- its name (Rename edits it in place), its elements right under it, then its settings. A panel
+-- folds from its header, and folded it names its elements. Clicking a group in the list goes to its
+-- panel. Drag an element onto a group in the list, onto a panel's elements (between two to set the
+-- order) or its name, or onto New group for a group of its own; click one for a menu. The groups
+-- are ShamanForever.lua's (db.groups): every change goes through its layout edits, which wait out
 -- combat.
 local _, ns = ...
 
@@ -626,28 +626,37 @@ local function buildSettings(p, s)
 	})
 end
 
--- The panel for the i-th group: made the first time there is one, then shown while there is.
+-- The panel for the i-th group: made the first time there is one, then shown while there is. The
+-- page's run settings (gate, inset, float, sub) are put back even if a row fails to build, and
+-- then no more panels are made (a half-made one would be made again on every refresh).
+local slotFailed = false
 local function buildSlot(p, i)
 	local s = {}
 	function s.group() return db().groups[i] end
 	p.gate = function() return s.group() ~= nil end
-	s.head = p:header(" ", nil, " ")
-	s.block = p.block
-	-- Folded, it names its elements.
-	function s.block.summary()
-		local g, names = s.group(), {}
-		for _, key in ipairs(g and g.members or {}) do table.insert(names, elementName(key)) end
-		return table.concat(names, ", ")
+	local ok, err = pcall(function()
+		s.head = p:header(" ", nil, " ")
+		s.block = p.block
+		-- Folded, it names its elements.
+		function s.block.summary()
+			local g, names = s.group(), {}
+			for _, key in ipairs(g and g.members or {}) do table.insert(names, elementName(key)) end
+			return table.concat(names, ", ")
+		end
+		renameControls(s, s.head)
+		p.items[#p.items].refresh = function() paintHead(s) end
+		p.float = wide
+		p.inset = function() return 0, wide() and p.content:GetWidth() - MEMBERS_W or 0 end
+		buildBox(p, s)
+		p.float = nil
+		p.inset = function() return wide() and MEMBERS_W + COLUMN_GAP or 0, 0 end
+		buildSettings(p, s)
+	end)
+	p.inset, p.float, p.gate, p.subRun = nil, nil, nil, nil
+	if not ok then
+		slotFailed = true
+		error(err, 0)
 	end
-	renameControls(s, s.head)
-	p.items[#p.items].refresh = function() paintHead(s) end
-	p.float = wide
-	p.inset = function() return 0, wide() and p.content:GetWidth() - MEMBERS_W or 0 end
-	buildBox(p, s)
-	p.float = nil
-	p.inset = function() return wide() and MEMBERS_W + COLUMN_GAP or 0, 0 end
-	buildSettings(p, s)
-	p.inset, p.gate = nil, nil
 	slots[i] = s
 end
 
@@ -675,7 +684,9 @@ function ensureSlots()
 		renaming = nil
 		r.slot.head.box:ClearFocus()
 	end
-	for i = #slots + 1, #groups do buildSlot(page, i) end
+	if not slotFailed then
+		for i = #slots + 1, #groups do buildSlot(page, i) end
+	end
 	for i, s in ipairs(slots) do
 		if groups[i] then s.block.key = foldKey(groups[i].id) end
 	end

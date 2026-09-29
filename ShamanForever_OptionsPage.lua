@@ -174,7 +174,7 @@ end
 -- margins inside the page (a second column); float, a function: while true, the rows after it start
 -- level with it instead of below it, so it stands beside them (give them an inset to make room).
 -- A page with panels = false (set before its first header) has no blocks: its rows use the whole
--- page, as the Layout page's group list does.
+-- page, as the Groups & Layout page's group list does.
 function Page:add(frame, height, shown, refresh)
 	-- A page-wide gate (set around a run of rows) hides them all while it returns false.
 	local gate = self.gate
@@ -942,8 +942,8 @@ function Page:experimental(name, where)
 end
 
 ------------------------------------------------------------------------
--- Drag and drop in a list (the Layout page's elements, the totem bar's order): a ghost of the
--- dragged item follows the cursor, and a white line marks where it will land.
+-- Drag and drop in a list (the Groups & Layout page's elements, the totem bar's order): a ghost of
+-- the dragged item follows the cursor, and a white line marks where it will land.
 ------------------------------------------------------------------------
 -- The ghost: an icon and a label on the cursor while shown. onMove runs as it follows.
 function Page.dragGhost(onMove)

@@ -560,7 +560,7 @@ local function buildAbout(p)
 end
 
 ------------------------------------------------------------------------
--- Show choices, shared by the element pages and the Layout page (ShamanForever_OptionsLayout.lua)
+-- Show choices, shared by the element pages and the Groups & Layout page (_OptionsLayout)
 ------------------------------------------------------------------------
 -- An element's Show. Hidden keeps its place in its group.
 local SHOW_CHOICES = { { "always", "Always" }, { "combat", "In combat" }, { "never", "Hidden" } }
@@ -619,7 +619,7 @@ local function buildTotemBar(p)
 
 	p:header("Layout")
 	-- The elements in bar order (first: the left end of a row, the top of a column). Drag one to move
-	-- it; the box shows or hides its slot. The drag follows the Layout page's: a ghost on the cursor
+	-- it; the box shows or hides its slot. The drag follows Groups & Layout's: a ghost on the cursor
 	-- and a white line where it will land.
 	local ORDER_H, ORDER_W = 28, 260
 	p:text("Drag to reorder.")
@@ -856,7 +856,7 @@ local function buildTotemBar(p)
 	p.gate = nil
 end
 
--- The helpers and standard blocks the Layout page and the element pages share
+-- The helpers and standard blocks the Groups & Layout page and the element pages share
 -- (ShamanForever_OptionsLayout.lua, ShamanForever_OptionsElements.lua).
 OP.kit = {
 	relayout = relayout, respell = respell, get = get, set = set, confirm = confirm,
@@ -1174,7 +1174,7 @@ local function buildWindow()
 	end
 	grip:SetScript("OnMouseUp", endResize)
 	-- Closed mid-drag (Escape, the key binding), the release may never come: end a resize here, or
-	-- the size follows the cursor on reopening. (The Layout page ends its own drags.)
+	-- the size follows the cursor on reopening. (Groups & Layout ends its own drags.)
 	win:HookScript("OnHide", function()
 		if grip:GetScript("OnUpdate") then endResize() end
 	end)
