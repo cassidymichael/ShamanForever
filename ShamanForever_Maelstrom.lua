@@ -26,8 +26,21 @@
 -- ShamanForever.lua calls in through the module hooks (ns.registerModule).
 
 local ADDON, ns = ...
-local say, isSecret = ns.say, ns.isSecret
+local say, isSecret, safe = ns.say, ns.isSecret, ns.safe
 local Spells = ns.Spells
+
+-- The buff's own seed ID, kept out of Spells.DEFS: it shares its client name with the talent
+-- (maelstromWeapon), and two DEFS keys sharing a name would leave Spells' name lookup to file a new
+-- same-named ID (the rune spell that grants the talent) under either key at random. Its own
+-- self-check, labelled apart from the talent's, so a missing ID still shows in /sf debug.
+local BUFF_IDS = { 408505 }
+Spells.addCheck("Maelstrom Weapon (buff)", BUFF_IDS)
+local function buffIcon()
+	for _, id in ipairs(BUFF_IDS) do
+		local ok, tex = safe(C_Spell.GetSpellTexture, id)
+		if ok and tex and not isSecret(tex) then return tex end
+	end
+end
 
 local M = { name = "maelstrom" }
 ns.Maelstrom = M
@@ -69,8 +82,8 @@ end
 local BUFF = {
 	ids = function()
 		local t = {}
-		-- The buff's seeds only: the talent shares its name, and its passive must never match.
-		for _, id in ipairs(Spells.DEFS.maelstromBuff.ids) do t[id] = true end
+		-- The buff's own seed only: the talent's passive must never match it.
+		for _, id in ipairs(BUFF_IDS) do t[id] = true end
 		return t
 	end,
 	max = 5,
@@ -78,7 +91,7 @@ local BUFF = {
 }
 local src = BUFF
 
-M.icon = Spells.icon("maelstromBuff") or 237584
+M.icon = buffIcon() or 237584
 local f = ns.newElementIcon(KEY, { effects = true })
 f.tex:SetTexture(M.icon)
 f.aboveProtected = true   -- Blizzard's buttons sit on it: its alpha only changes out of combat
