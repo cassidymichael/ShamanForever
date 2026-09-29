@@ -365,9 +365,9 @@ local function tourList()
 end
 
 -- Whether an entry's element shows in this scene (an element set to Never or hidden out of combat
--- is passed over).
+-- is passed over). The bar by the scene, not its frame: a layout sets its visibility after ours.
 local function tourShows(entry)
-	if entry.key == "totembar" then return ns.TotemBar.frame:IsVisible() end
+	if entry.key == "totembar" then return ns.TotemBar.previewShown() end
 	local r = runs[entry.key]
 	return r ~= nil and r.live
 end
@@ -413,7 +413,8 @@ end
 -- Play entry j: its state on its element, with its moment, the element before it holding still again.
 local function tourShow(j)
 	local entry, was = tour.list[j], tour.key
-	tour.i, tour.key = j, entry.key
+	tour.i, tour.key, tour.resume = j, entry.key, nil
+	tour.nextAt = GetTime() + TOUR_HOLD   -- first: the ticker reads it, whatever fails below
 	if was and was ~= entry.key then settle(was) end
 	if entry.key == "totembar" then
 		for el, r in pairs(barRuns) do
@@ -425,7 +426,6 @@ local function tourShow(j)
 		r.steps, r.i = { { entry.st } }, 1
 		startStep(entry.key, r, true)
 	end
-	tour.nextAt = GetTime() + TOUR_HOLD
 	showTag(entry)
 	panel.refresh()
 end
@@ -442,11 +442,19 @@ local function tourStep(dir, nextElement)
 			return
 		end
 	end
-	if tag then tag:Hide() end   -- nothing shows in this scene
+	-- Nothing else shows: Next element leaves the one playing as it is. Nothing at all (a setting hid
+	-- the last one): it holds still, and the next layout that shows something carries on from there.
+	if tour.key and tourShows(tour.list[tour.i]) then return end
+	if tour.key then
+		ns.try("preview every state", settle, tour.key)
+		tour.resume, tour.key = tour.list[tour.i], nil
+	end
+	if tag then tag:Hide() end
+	panel.refresh()
 end
 
 -- Where the tour stands, among the entries that show: position, count.
-function PV.tourPlace()
+local function tourPlace()
 	if not (tour and tour.i) then return end
 	local at, count = 0, 0
 	for j, entry in ipairs(tour.list) do
@@ -457,12 +465,28 @@ function PV.tourPlace()
 	end
 	return at, count, tour.paused
 end
-function PV.tourPause()
+local function tourPause()
 	tour.paused = not tour.paused
 	tour.nextAt = GetTime() + TOUR_HOLD
 	panel.refresh()
 end
-function PV.tourStep(dir, nextElement) tourStep(dir, nextElement) end
+
+-- Every state after a layout: its first entry, or where it was before the panel's choices changed
+-- or nothing showed; else over its element again, or on to the next if a setting just hid it.
+local function tourCheck()
+	if not tour then return end
+	if not tour.key then
+		local j = 0
+		for k, entry in ipairs(tour.list) do
+			if tour.resume and entry.key == tour.resume.key and entry.st == tour.resume.st then j = k - 1 break end
+		end
+		tour.i = j == 0 and #tour.list or j
+		tourStep(1)
+	else
+		local entry = tour.list[tour.i]
+		if tourShows(entry) then showTag(entry) else tourStep(1) end
+	end
+end
 
 local function repaint()
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
@@ -473,19 +497,7 @@ local function repaint()
 	for el, r in pairs(barRuns) do
 		if not r.nextAt then ns.try("preview totem bar", startBarStep, el, r, false) end
 	end
-	-- Every state: its first entry, or where it was before the panel's choices changed.
-	if tour and not tour.key then
-		local j = 0
-		for k, entry in ipairs(tour.list) do
-			if tour.resume and entry.key == tour.resume.key and entry.st == tour.resume.st then j = k - 1 break end
-		end
-		tour.i, tour.resume = j == 0 and #tour.list or j, nil
-		tourStep(1)
-	elseif tour and tour.key then
-		-- Over its element again, or on to the next if a setting just hid it.
-		local entry = tour.list[tour.i]
-		if tourShows(entry) then showTag(entry) else tourStep(1) end
-	end
+	tourCheck()
 end
 
 -- Ten times a second while the preview runs (not while it holds still): the next steps, and the
@@ -531,7 +543,8 @@ local function restart()
 	end
 	for el in pairs(BAR) do barRuns[el] = { steps = barSteps(el), i = 1 } end
 	if on and opts.activity == "tour" then
-		tour = { list = tourList(), resume = tour and tour.list[tour.i], paused = tour and tour.paused }
+		local resume = tour and (tour.key and tour.list[tour.i] or tour.resume)
+		tour = { list = tourList(), resume = resume, paused = tour and tour.paused }
 	else
 		tour = nil
 		if tag then tag:Hide() end
@@ -663,13 +676,13 @@ do
 	where:SetPoint("LEFT")
 	where:SetWidth(44)
 	where:SetJustifyH("LEFT")
-	local back = button(steps, "Back", 50, function() PV.tourStep(-1) end)
+	local back = button(steps, "Back", 50, function() tourStep(-1) end)
 	back:SetPoint("LEFT", where, "RIGHT", 4, 0)
-	local pause = button(steps, "Pause", 60, function() PV.tourPause() end)
+	local pause = button(steps, "Pause", 60, tourPause)
 	pause:SetPoint("LEFT", back, "RIGHT", 4, 0)
-	local forward = button(steps, "Next", 50, function() PV.tourStep(1) end)
+	local forward = button(steps, "Next", 50, function() tourStep(1) end)
 	forward:SetPoint("LEFT", pause, "RIGHT", 4, 0)
-	local skip = button(steps, "Next element", 100, function() PV.tourStep(1, true) end)
+	local skip = button(steps, "Next element", 100, function() tourStep(1, true) end)
 	skip:SetPoint("LEFT", forward, "RIGHT", 4, 0)
 	local stop = button(panel, "Stop preview", 110, function() PV.close() end)
 	stop:SetPoint("TOPRIGHT", -10, -8)
@@ -690,7 +703,7 @@ do
 		activity.refresh()
 		unlearned:SetChecked(opts.unlearned)
 		replay:SetChecked(opts.replay)
-		local at, count, paused = PV.tourPlace()
+		local at, count, paused = tourPlace()
 		replay:SetShown(not at)
 		steps:SetShown(at ~= nil)
 		if at then
@@ -760,6 +773,15 @@ end
 function PV.afterGroups()
 	if not on then return end
 	repaint()
+	panel.refresh()
+end
+
+-- After the totem bar's layout while it shows (ShamanForever_TotemBar.lua): the bar's visibility is
+-- set there, after PV.afterGroups, and a change to the bar's settings lays out only the bar, so
+-- Every state checks again.
+function PV.afterBar()
+	if not (on and tour) then return end
+	tourCheck()
 	panel.refresh()
 end
 

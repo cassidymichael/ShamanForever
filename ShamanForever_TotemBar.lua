@@ -984,7 +984,10 @@ function layout()
 	applyTotemFrame()
 	applyActionBar()
 	if mover then mover.update() end
-	if preview then paintPreview() end
+	if preview then
+		paintPreview()
+		ns.Preview.afterBar()   -- the bar's visibility is set above, after the preview's own check
+	end
 	-- Not a shaman: the bar is laid out hidden; nothing else will change that.
 	if playerClass and not isShaman() then classDone = true end
 end
@@ -1397,6 +1400,8 @@ function previewShows()
 	local show = cfg().show
 	return show == "always" or show == "active"
 end
+-- Whether the bar shows in the preview's scene (set as its visibility by the next layout).
+function TB.previewShown() return preview ~= nil and previewShows() end
 
 -- The states a slot can be drawn in, { state, name }, in the order Every state plays them.
 TB.PREVIEW_STATES = { { "down", "Totems down" }, { "expiring", "Expiring" }, { "killed", "Killed early" },
