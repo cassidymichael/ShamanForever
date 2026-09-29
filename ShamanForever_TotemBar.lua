@@ -90,7 +90,7 @@ local isSecret = ns.isSecret
 -- Number settings: the options sliders' ranges. Anything outside (a damaged or hand-made import)
 -- is clamped, so layout() never gets a scale of 0 or a NaN.
 local RANGES = {
-	scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { -20, 20 }, size = { 24, 96 },
+	scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { -10, 20 }, size = { 24, 96 },
 	arrowSize = { 8, 32 }, extrasScale = { 0.5, 1.5 }, idleAlpha = { 0.1, 1 },
 	badgeSize = { 0.25, 0.8 }, badgeAlpha = { 0.1, 1 }, badgeSat = { 0, 1 }, warn = { 0, 30 }, rangeHeight = { 1, 12 },
 	fadeAfter = { 0, 10 },

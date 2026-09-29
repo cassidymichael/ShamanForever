@@ -715,7 +715,7 @@ local function buildTotemBar(p)
 		if c().dir == "row" then return { { "up", "Up" }, { "down", "Down" } } end
 		return { { "right", "Right" }, { "left", "Left" } }
 	end, tget("pop"), tset("pop"), full, 140)
-	p:slider("Spacing", "Gap between the slots. Below 0 they overlap.", -20, 20, 1, px, tget("spacing"), tset("spacing"))
+	p:slider("Spacing", "Gap between the slots. Below 0 they overlap.", -10, 20, 1, px, tget("spacing"), tset("spacing"))
 	-- Its own size is not its scale: scale grows everything, text, arrows, spacing and lines included.
 	local sizeFollow = generalRow(p, "Icon size same as General", "Use the icon size on the General page.",
 		tget("sizeFollow"), function(v) TB.setSizeFollow(v); changed() end, "size")
