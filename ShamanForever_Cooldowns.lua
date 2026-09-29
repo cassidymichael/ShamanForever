@@ -61,6 +61,7 @@ local setting = ns.elementSetting
 --                       nothing to recast as it ends, so no glow or ring); false for no Expiring
 --   primedLooks = false no Primed pop or glow, only its time left (Stormstrike)
 --   cd = seconds        its cooldown's length, for the options preview only
+--   preview = function  its preview mode script (ShamanForever_Preview.lua)
 --   defaults = { ... }  its own option defaults (ns.elementSetting), over its parts' (PARTS)
 --   experimental        a feature name: not tested in game (the level cap is 20)
 local COOLDOWNS = {
@@ -298,6 +299,7 @@ CD.popWhenReady = popWhenReady
 -- (inEvent), so its answer is kept (def.cdRunning) and only re-read there; isActive false needs no
 -- such care. Going idle waits IDLE_DELAY at full opacity first, so a ready or run-out pop plays at full.
 local IDLE_DELAY = 1.5
+ns.IDLE_DELAY = IDLE_DELAY   -- the options preview and preview mode wait as long
 local refreshCooldown           -- below
 local function ownCooldownRunning(def, inEvent)
 	local ok, info = safe(C_Spell.GetSpellCooldown, def.spellID)

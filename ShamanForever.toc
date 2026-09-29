@@ -43,6 +43,7 @@ ShamanForever_TotemBar.lua
 ShamanForever_TotemPulse.lua
 ShamanForever_TotemRange.lua
 ShamanForever_OptionsLook.lua
+ShamanForever_Preview.lua
 ShamanForever_OptionsPage.lua
 ShamanForever_Options.lua
 ShamanForever_OptionsLayout.lua

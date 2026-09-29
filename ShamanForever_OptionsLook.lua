@@ -217,6 +217,7 @@ local function makePreviewIcon(parent, key, preview)
 	end
 	return ic
 end
+L.makePreviewIcon = makePreviewIcon   -- the HUD's preview mode draws its stand-ins with these
 
 -- Filled segments out of n (n = 1 gives a fraction bar); r, g, b the fill colour.
 local function setBar(ic, n, filled, r, g, b)
@@ -253,11 +254,20 @@ local function reset(ic, icon)
 	ic.bar:Hide()
 end
 
--- A timer frozen in its current style: frac of a span `length` seconds long gone.
+-- A timer frozen in its current style: frac of a span `length` seconds long gone. While the HUD's
+-- preview draws a state (L.paint, below) it runs from that moment instead, unless the preview holds
+-- still.
+local stage   -- set by L.paint while it draws; nil for the options' own previews
 local function frozen(t, frac, length)
 	if not t then return end
 	t:apply()
-	t:static(frac, length)
+	if not stage then t:static(frac, length) return end
+	length = length or 30
+	stage.ends = math.max(stage.ends or 0, stage.start + (1 - frac) * length)
+	if stage.run then
+		pcall(t.cd.Resume, t.cd)   -- a still picture paused it
+		t:setTime(stage.start - frac * length, length)
+	else t:static(frac, length) end
 end
 
 -- An element's Expiring look (its Expiring block's settings), over a timer in its last seconds.
@@ -277,9 +287,10 @@ local previewState = {}   -- element key -> its header's preview state
 -- An idle element as the preview shows it: its Idle opacity, but never quite invisible (0% shows as
 -- a faint icon, so the state can still be seen).
 local FAINT = 0.12
-local function idleLook(ic, key) ic:SetAlpha(math.max(ns.idleAlpha(key), FAINT)) end
+function L.idleAlpha(key) return math.max(ns.idleAlpha(key), FAINT) end
+local function idleLook(ic, key) ic:SetAlpha(L.idleAlpha(key)) end
 -- Ready, then idle: as on the HUD, the icon holds full for a moment after its ready pop, then fades.
-local IDLE_DELAY = 1.5
+local IDLE_DELAY = ns.IDLE_DELAY
 local function idleSoon(ic, key, st)
 	local token = {}
 	ic.idleToken = token
@@ -631,6 +642,18 @@ for _, key in ipairs(ns.ELEMENT_KEYS) do
 	if make and not L.PREVIEW[key] then L.PREVIEW[key] = make(e.def) end
 end
 
+-- An element's preview state drawn for the HUD's preview mode (ShamanForever_Preview.lua), on an
+-- icon made by L.makePreviewIcon: its timers run from `at` (GetTime), or hold still unless run.
+-- Returns when the state's timer runs out, if it has one.
+function L.paint(ic, key, st, at, run)
+	stage = { start = at, run = run }
+	local ok, err = pcall(L.PREVIEW[key].render, ic, st)
+	local ends = stage.ends
+	stage = nil
+	if not ok then ns.noteError("preview " .. key, err) end
+	return ends
+end
+
 -- The totem bar: the header is its stage. The bar is drawn at its real size (icon size × the
 -- bar's scale, inside a frame with that scale, so text, borders and spacing match the game),
 -- shrunk only as much as needed to fit; the picking state shows a short popout.
@@ -640,6 +663,7 @@ L.TOTEM_ICON = TOTEM_ICON
 -- ("5m" or 4:10, 38, "2m" or 1:23, "3m" or 2:45). Expiring puts the fire totem (else the first
 -- slot) at 5 s; Killed early shows it just killed.
 local PREVIEW_LEFT = { earth = { 250, 300 }, fire = { 38, 55 }, water = { 83, 300 }, air = { 165, 300 } }
+L.PREVIEW_LEFT = PREVIEW_LEFT
 local POP_ITEMS = 3   -- "No totem" and two totems: enough to show the look within the header
 L.PREVIEW.totembar = {
 	stage = true, heroH = 210, uptime = true,
@@ -890,6 +914,13 @@ L.PREVIEW.totembar = {
 L.HERO_H = 160
 local heroes = {}   -- element key -> its header, for L.setPreview
 
+-- A flat state button, chosen (outlined in gold) or not; preview mode's panel uses the same.
+function L.paintChoice(b, chosen)
+	b:SetBackdropColor(chosen and 0.88 or 0.09, chosen and 0.66 or 0.075, chosen and 0.29 or 0.06, chosen and 0.16 or 1)
+	b:SetBackdropBorderColor(chosen and 0.88 or 0.23, chosen and 0.66 or 0.17, chosen and 0.29 or 0.10, 1)
+	b.text:SetTextColor(chosen and 1 or 0.78, chosen and 0.84 or 0.74, chosen and 0.5 or 0.68)
+end
+
 function L.buildHero(parent, key)
 	local e = identity(key)
 	local school = L.SCHOOL[e.school]
@@ -1064,12 +1095,7 @@ function L.buildHero(parent, key)
 				previewState[key] = (def.fallback and def.stateShown(def.fallback)) and def.fallback or first
 			end
 		end
-		for _, b in ipairs(self.stateButtons) do
-			local on = b.state == previewState[key]
-			b:SetBackdropColor(on and 0.88 or 0.09, on and 0.66 or 0.075, on and 0.29 or 0.06, on and 0.16 or 1)
-			b:SetBackdropBorderColor(on and 0.88 or 0.23, on and 0.66 or 0.17, on and 0.29 or 0.10, 1)
-			b.text:SetTextColor(on and 1 or 0.78, on and 0.84 or 0.74, on and 0.5 or 0.68)
-		end
+		for _, b in ipairs(self.stateButtons) do L.paintChoice(b, b.state == previewState[key]) end
 		if not def.stage then
 			-- On whole screen pixels, as the HUD's icons are (ns.placeOnPixels says why).
 			local ic = self.previewIcon

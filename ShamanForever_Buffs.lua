@@ -35,7 +35,8 @@ local function setting(key, name) return ns.elementSetting(key, name) end
 -- key, spellKey (ns.Spells), icon (fallback), school, blurb (the line under its name in the
 -- options), reagent (item ID; counted only while the spell's tooltip names it: ns.Reagents.takes),
 -- duration (seconds, until an aura read says), defaults (its own option defaults, over its parts':
--- PARTS below). Adding one is a line here, in the order the options list them.
+-- PARTS below), preview (its preview mode script: ShamanForever_Preview.lua). Adding one is a line
+-- here, in the order the options list them.
 local BUFFS = {
 	{ key = "waterwalking", spellKey = "waterWalking", icon = 135863, school = "water", reagent = 17058, duration = 600,
 		blurb = "Time left while it's up.",
@@ -201,8 +202,11 @@ end
 ------------------------------------------------------------------------
 -- Refresh
 ------------------------------------------------------------------------
+local previewing = false   -- preview mode's stand-ins show (B.preview, below)
+
 local function refreshBuff(def)
 	local f, key = def.frame, def.key
+	if def.proc then f.tex:SetAlpha(previewing and 0 or 1) end
 	if not ns.isEnabled(key) then return end
 	f.tex:SetTexture(def.iconID or def.icon)
 	if not def.spellID then
@@ -333,6 +337,15 @@ function B.start()
 		if breathing then for _, def in ipairs(BUFFS) do if def.breath then setDown(def) end end end
 		refreshAll()
 	end)
+end
+
+-- Preview mode (ShamanForever_Preview.lua): Elemental Focus is never parked, as Blizzard's button
+-- hangs from it, so the preview's stand-in sits over it. Meanwhile its own icon under the stand-in is
+-- clear, so its not-learned grey or its full look can't show through the stand-in's idle look. Only
+-- our own texture changes, which is allowed at any time. shown: whether the preview shows.
+function B.preview(shown)
+	previewing = shown
+	refreshAll()
 end
 
 -- /sf debug
