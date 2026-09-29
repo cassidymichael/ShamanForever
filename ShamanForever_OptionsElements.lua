@@ -503,10 +503,15 @@ local function buildBuff(p, def)
 		p:checkbox("Red ring", "A red ring inside the icon edge.", eget(key, "breathRing"), eset(key, "breathRing"), on)
 		p:checkbox("Fade in and out", nil, eget(key, "breathPulse"), eset(key, "breathPulse"), on)
 	end
-	if def.skipLongSeconds then
+	if def.skipLong then
+		local lo, hi, step = def.skipLong[1], def.skipLong[2], def.skipLong[3]
 		p:header("Track")
-		p:checkbox("Skip long buffs", ("Leaves out buffs that last over %d minutes, or have no end.")
-			:format(def.skipLongSeconds / 60), eget(key, "skipLong"), eset(key, "skipLong"))
+		local skip = p:checkbox("Skip long buffs", "Leaves out buffs that last longer than Longest buff, and buffs with no end.",
+			eget(key, "skipLong"), eset(key, "skipLong"))
+		p:sub(skip, eget(key, "skipLong"), function()
+			p:slider("Longest buff", "Buffs up to this long count.", lo, hi, step,
+				function(v) return string.format("%d min", v) end, eget(key, "skipLongMins"), eset(key, "skipLongMins"))
+		end)
 	end
 	timerSettings(p, "Time left", key, "uptime")
 	if def.proc then

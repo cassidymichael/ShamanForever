@@ -40,19 +40,28 @@ local TARGET = {
 		defaults = { idleAlpha = 0, primedPop = false, primedGlow = false }, experimental = "Flame Shock on target" },
 	{ key = "purge", spellKey = "purge", filter = "HELPFUL", icon = 136075, school = "spirit",
 		blurb = "Shows while your target has a Magic buff to purge.",
-		-- Magic only; Skip long buffs (maxDuration also hides buffs with no end) keeps a player's
-		-- long buffs from keeping it lit. skipLongSeconds: its limit, which the page's text states.
-		candidates = function(def)
-			return { includeDispelTypes = { Magic = true },
-				maxDuration = setting(def.key, "skipLong") and def.skipLongSeconds or nil }
-		end,
-		skipLongSeconds = 120,
+		-- Every Magic buff; with Skip long buffs, only those lasting at most Longest buff (the
+		-- container's maxDuration, which also leaves out buffs with no end), so a player's long
+		-- buffs don't keep it lit.
+		candidates = function(def) return { includeDispelTypes = { Magic = true }, maxDuration = T.longest(def) } end,
+		skipLong = { 1, 30, 1 },   -- Longest buff's range and step, in minutes (its page's slider)
 		idleText = "Idle is when your target has nothing to purge", procHeader = "Something to purge",
 		popTip = "When one shows on your target. The icon grows and settles, at the Pop style's size and speed.",
 		glowTip = "While your target has one.", upLabel = "Magic buff",
-		defaults = { idleAlpha = 0, primedPop = true, primedGlow = true, skipLong = false }, experimental = "Purge" },
+		defaults = { idleAlpha = 0, primedPop = true, primedGlow = true, skipLong = false, skipLongMins = 2 },
+		experimental = "Purge" },
 }
 T.ELEMENTS = TARGET
+
+-- The longest buff that counts, in seconds (the aura slot's maxDuration), or nil for every buff:
+-- Skip long buffs and Longest buff, a damaged value read as its default and held to the slider's range.
+function T.longest(def)
+	if not def.skipLong or not setting(def.key, "skipLong") then return nil end
+	local lo, hi = def.skipLong[1], def.skipLong[2]
+	local m = setting(def.key, "skipLongMins")
+	if type(m) ~= "number" or m ~= m then m = def.defaults.skipLongMins end
+	return math.min(math.max(m, lo), hi) * 60
+end
 
 -- While the target is something you can attack and alive. Anything unreadable counts as not.
 local plainYes = ns.plainYes
@@ -216,11 +225,13 @@ end
 function T.applyLayout()
 	for _, def in ipairs(TARGET) do
 		if def.spellID and ns.isEnabled(def.key) then def.aura:setup() end
-		-- Skip long buffs changed: the slot's filter again (waits for combat to end).
+		-- Skip long buffs or Longest buff changed: the slot's filter again. SetAuraSlotCandidateFilters
+		-- changes a made slot's filters in place (Blizzard_CustomAuraContainer.lua), so the container
+		-- isn't rebuilt; the call waits for combat and secret auras to end (AuraSlot:refilter).
 		if def.candidates and def.aura.container then
-			local skip = setting(def.key, "skipLong") and true or false
-			if def.skipApplied ~= nil and def.skipApplied ~= skip then def.aura:refilter() end
-			def.skipApplied = skip
+			local longest = T.longest(def) or false
+			if def.longestApplied ~= nil and def.longestApplied ~= longest then def.aura:refilter() end
+			def.longestApplied = longest
 		end
 		def.aura:style()
 		refreshAura(def)
