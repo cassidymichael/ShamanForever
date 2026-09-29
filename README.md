@@ -24,10 +24,10 @@ A collection of highly configurable HUD elements designed to help shamans playin
 - **Spell Trackers**: Stormstrike, Fire Nova, Lava Burst, Chain Lightning, Riptide, Rage of the Farseer, Nature's Swiftness, Mana Tide Totem, each with the timers, bars, glows and pops that suit it
 - **Totem Trackers**: Earthbind, Tremor, Grounding, and Stoneclaw Totem helpers
 - **Utility Trackers**: Elemental Focus, Water Walking, Water Breathing, Maelstrom Weapon, Totemic Projection, Reincarnation
+- **Text and Bars**: font, outline, shadow and bar texture for the HUD, from the game's or any that another addon shares through LibSharedMedia; the totem bar and swing timer can have their own text
+- **Show keybinding text**: an element shows the key that casts its spell from your action bars
 
 The addon organizes these elements into configurable groups with unlock and preview modes for customizable on-screen placement.
-
-Set the font, outline, shadow and bar texture once for the whole HUD, from the game's or any that another addon shares through LibSharedMedia. Elements can show the key that casts their spell from your action bars.
 
 Some features are experimental, not yet tested in game; the About page lists them.
 
