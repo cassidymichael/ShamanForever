@@ -677,9 +677,10 @@ function ensureSlots()
 		if seenIds and seenProfile == profile and not seenIds[g.id] then forgetFold(g.id) end
 	end
 	seenIds, seenProfile = ids, profile
-	-- An edit whose group is gone (deleted, another profile) ends, so it can't come back on a new
-	-- group that gets the same id.
-	if renaming and not ns.groupById(renaming.id) then
+	-- An edit whose group has left its panel (deleted, moved up by a deletion before it, another
+	-- profile) ends, so it can't come back on a new group that gets the same id.
+	local editing = renaming and renaming.slot.group()
+	if renaming and not (editing and editing.id == renaming.id) then
 		local r = renaming
 		renaming = nil
 		r.slot.head.box:ClearFocus()
