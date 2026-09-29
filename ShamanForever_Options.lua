@@ -489,7 +489,6 @@ local function buildAbout(p)
 	p:text("I can't test these in game yet. If you can, please try them and tell me whether they work and what could be improved.")
 	p:experimental("Water Shield", "Shields > Track")
 	p:experimental("Either shield", "Shields > Track")
-	p:experimental("Last charge", "Shields > Charges")
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
 		local e = ns.ELEMENTS[key]
 		if e.experimental then p:experimental(e.experimental, "Elements > " .. e.label) end

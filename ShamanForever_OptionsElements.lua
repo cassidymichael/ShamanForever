@@ -216,9 +216,8 @@ local function buildShield(p)
 	local numberOn = showWhen(get("showCount"))
 	p:dropdown("Number position", nil, { { "corner", "Corner" }, { "center", "Centre" } }, get("countPos"), set("countPos"), numberOn)
 	p:slider("Number size", nil, 8, 64, 1, int, get("countSize"), set("countSize"), numberOn)
-	local lastRow = p:checkbox("Show the last charge", "The number shows 1 too, in its own colour.", get("countOne"),
+	p:checkbox("Different colour last charge", "Colours the 1, instead of plain white.", get("countOne"),
 		set("countOne"), numberOn)
-	ns.Look.expBadge(lastRow, "Last charge"):SetPoint("LEFT", lastRow.check.Text, "RIGHT", 10, 0)
 	p:color("Last charge colour", nil, get("countLastColor"), set("countLastColor"),
 		showWhen(function() return db().showCount and db().countOne end))
 
