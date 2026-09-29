@@ -623,7 +623,6 @@ local function buildAbout(p)
 	if ns.Looks.anyExperimental("border") then p:experimental("Border looks", "General > Border") end
 	if ns.Looks.anyExperimental("glow") then p:experimental("Glow looks", "General > Pulsing glow style") end
 	p:experimental("Pop flashes and bursts", "General > Pop style")
-	p:experimental("Interrupt cue", "Elements > Shocks > Target casting")
 	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
 		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
