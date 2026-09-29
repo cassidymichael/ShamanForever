@@ -186,40 +186,6 @@ function ns.makePulse(region, kind)
 	return g
 end
 
--- Border drawn just outside an element's edge, so it never covers the rings inside the icon or
--- Blizzard's shield button. size is a line's (ns.linePx): screen pixels, grown by Scale, not by Size.
-function ns.applyBorder(f, b)
-	if not (b and b.show and b.size and b.size > 0) then
-		if f.border then for _, t in ipairs(f.border) do t:Hide() end end
-		return
-	end
-	if not f.border then
-		f.border = {}
-		for i = 1, 4 do f.border[i] = f:CreateTexture(nil, "BACKGROUND", nil, -8) end
-	end
-	local s = ns.linePx(f, b.size)
-	local c = b.color or { 0, 0, 0, 1 }
-	local top, bottom, left, right = f.border[1], f.border[2], f.border[3], f.border[4]
-	for _, t in ipairs(f.border) do
-		t:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
-		t:ClearAllPoints()
-		t:Show()
-	end
-	-- Top and bottom span the corners; left and right fill between them.
-	top:SetPoint("BOTTOMLEFT", f, "TOPLEFT", -s, 0)
-	top:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", s, 0)
-	top:SetHeight(s)
-	bottom:SetPoint("TOPLEFT", f, "BOTTOMLEFT", -s, 0)
-	bottom:SetPoint("TOPRIGHT", f, "BOTTOMRIGHT", s, 0)
-	bottom:SetHeight(s)
-	left:SetPoint("TOPRIGHT", f, "TOPLEFT", 0, 0)
-	left:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", 0, 0)
-	left:SetWidth(s)
-	right:SetPoint("TOPLEFT", f, "TOPRIGHT", 0, 0)
-	right:SetPoint("BOTTOMLEFT", f, "BOTTOMRIGHT", 0, 0)
-	right:SetWidth(s)
-end
-
 -- The global cooldown's sweep, as on action bars: its own Cooldown over an icon, a dark swipe with no
 -- edge, bling or numbers. The caller sets its frame level.
 function ns.makeGCDSweep(parent)
@@ -230,21 +196,29 @@ function ns.makeGCDSweep(parent)
 	cd:SetHideCountdownNumbers(true)
 	cd:SetSwipeTexture("Interface\\Buttons\\WHITE8x8")
 	cd:SetSwipeColor(0, 0, 0, 0.6)
+	ns.Looks.followSwipe(parent, cd)   -- a rounded or cut-corner icon's shape
 	return cd
 end
 
 
 -- A pulsing glow inside an icon: soft light running in from its four edges, over the icon's art and
 -- inside its border, breathing. `over` is the icon it covers (default: the parent). Its style is its
--- owner's (an element key or "totembar"; nil for General's): colour, pulse length, pulse depth (low
--- is the dimmest it gets) and thickness (how far in it reaches, as a share of the icon).
--- fit(size) lays it out for an icon of that size.
+-- owner's (an element key or "totembar"; nil for General's): its look (the four edges, or one of
+-- ns.Looks' glow looks), colour, pulse length, pulse depth (low is the dimmest it gets) and
+-- thickness (how far in it reaches, as a share of the icon). fit(size) lays it out for an icon of
+-- that size.
 local glows = {}
 -- unlisted: left out of ns.applyGlowStyle, for a glow under Blizzard's aura button, which its owner
--- restyles only when that's allowed (out of combat, auras not secret).
+-- restyles only when that's allowed (out of combat, auras not secret). It keeps the look it had as
+-- the button was made (until a /reload; ns.auraGlowStale), and allAnims() lists what the button
+-- must play for it (script handlers under the button never run, so its OnShow can't).
+local auraGlows = {}
 local function makeGlow(parent, over, owner, unlisted)
 	local g = CreateFrame("Frame", nil, parent)
 	g.owner = owner
+	-- The icon whose frame and school its looks follow; never Blizzard's aura button (it and its
+	-- parts are off limits in combat): an unlisted glow takes its owner's school and no frame.
+	g.over = not unlisted and (over or parent) or nil
 	if not unlisted then table.insert(glows, g) end
 	g:SetAllPoints(over or parent)
 	g:EnableMouse(false)
@@ -261,31 +235,90 @@ local function makeGlow(parent, over, owner, unlisted)
 	g.anim:SetLooping("BOUNCE")
 	g.fade = g.anim:CreateAnimation("Alpha")
 	g.fade:SetFromAlpha(1); g.fade:SetSmoothing("IN_OUT")
-	g:SetScript("OnShow", function(self) self.anim:Play() end)
-	g:SetScript("OnHide", function(self) self.anim:Stop() end)
+	g.parts = {}   -- look key -> the regions and animations it made (ns.Looks), or false
+	-- A look's parts, made on first use; one the client refuses falls back to the four edges.
+	local function parts(look)
+		if not look.build then return nil end
+		local p = g.parts[look.key]
+		if p == nil then
+			local ok, made = ns.try("glow look " .. look.key, look.build, g)
+			p = ok and made or false
+			if p then ns.Looks.levelParts(p) end
+			for _, r in ipairs(p and p.roots or {}) do r:Hide() end
+			g.parts[look.key] = p
+		end
+		return p or nil
+	end
+	if unlisted then table.insert(auraGlows, g) end
+	local function play(self, on)
+		local p = self.look and self.parts[self.look.key]
+		if on then
+			if p then ns.Looks.levelParts(p) end
+			self.anim:Play()
+			for _, a in ipairs(p and p.anims or {}) do a:Play() end
+		else
+			self.anim:Stop()
+			for _, a in ipairs(p and p.anims or {}) do a:Stop() end
+			for _, a in ipairs(p and p.stop or {}) do a:Stop() end
+		end
+	end
+	-- Not under Blizzard's aura button: the client refuses script handlers there (blocked by secret
+	-- aspects, seen 2026-09-29), and the button plays allAnims() itself.
+	if not unlisted then
+		g:SetScript("OnShow", function(self) play(self, true) end)
+		g:SetScript("OnHide", function(self) play(self, false) end)
+	end
+	-- Every animation group Blizzard's aura button must play for this glow (unlisted glows).
+	function g:allAnims()
+		local out = { self.anim }
+		local p = parts(self.look)
+		for _, a in ipairs(p and p.aura or {}) do table.insert(out, a) end
+		return out
+	end
 	-- The owner's style; a fixed colour (killed early's red) wins over its colour.
 	function g:restyle()
 		local st = ns.Style.get(self.owner, "glow")
+		local look = unlisted and self.look or ns.Style.look("glow", st.look)
+		if look ~= self.look then
+			local running = self.look ~= nil and self:IsShown()
+			if running then play(self, false) end
+			local old = self.look and self.parts[self.look.key]
+			for _, r in ipairs(old and old.roots or {}) do r:Hide() end
+			self.look, self.fitWidth = look, nil   -- lay the new look out at the next fit
+			local p = parts(look)
+			for _, r in ipairs(p and p.roots or {}) do r:Show() end
+			for _, t in pairs(self.edges) do t:SetShown(p == nil) end
+			if running then play(self, true) end
+		end
 		self.width = st.width   -- kept for fit, which the ready glows call ten times a second
 		-- A running pulse restarts only when its timing changed, so other changes don't make it jump.
 		local retime = st.speed ~= self.speed or st.low ~= self.low
 		self.speed, self.low = st.speed, st.low
 		self.fade:SetDuration(st.speed)
-		self.fade:SetToAlpha(st.low)
+		self.fade:SetToAlpha(look.steady and 1 or st.low)
 		local k = self.fixed or st.color
-		local on, off = CreateColor(k[1], k[2], k[3], k[4] or 1), CreateColor(k[1], k[2], k[3], 0)
-		local e = self.edges
-		-- Bright at the edge, clear inward (vertical gradients run bottom to top, horizontal left to right).
-		e.TOP:SetGradient("VERTICAL", off, on)
-		e.BOTTOM:SetGradient("VERTICAL", on, off)
-		e.LEFT:SetGradient("HORIZONTAL", on, off)
-		e.RIGHT:SetGradient("HORIZONTAL", off, on)
+		local p = parts(look)
+		if p then look.style(self, p, st, k)
+		else
+			local on, off = CreateColor(k[1], k[2], k[3], k[4] or 1), CreateColor(k[1], k[2], k[3], 0)
+			local e = self.edges
+			-- Bright at the edge, clear inward (vertical gradients run bottom to top, horizontal left to right).
+			e.TOP:SetGradient("VERTICAL", off, on)
+			e.BOTTOM:SetGradient("VERTICAL", on, off)
+			e.LEFT:SetGradient("HORIZONTAL", on, off)
+			e.RIGHT:SetGradient("HORIZONTAL", off, on)
+		end
 		if self.iconSize then self:fit(self.iconSize) end
-		if retime and self:IsShown() then self.anim:Stop(); self.anim:Play() end
+		-- Under the aura button IsShown is secret; the button restarts that glow itself.
+		if retime and not unlisted and self:IsShown() then self.anim:Stop(); self.anim:Play() end
 	end
+	-- out: how far the icon's frame reaches past its edge (looks drawn outside it start there).
 	function g:fit(size)
-		if size == self.iconSize and self.width == self.fitWidth then return end
-		self.iconSize, self.fitWidth = size, self.width
+		local out = ns.Looks.outerEdge(self.over)
+		if size == self.iconSize and self.width == self.fitWidth and out == self.fitOut then return end
+		self.iconSize, self.fitWidth, self.fitOut = size, self.width, out
+		local p = parts(self.look)
+		if p then self.look.fit(self, p, size, out) return end
 		local th = math.max(size * (self.width or 0.2), 1)
 		local e = self.edges
 		for _, t in pairs(e) do t:ClearAllPoints() end
@@ -301,12 +334,25 @@ local function makeGlow(parent, over, owner, unlisted)
 end
 ns.makeGlow = makeGlow
 function ns.applyGlowStyle() for _, g in ipairs(glows) do g:restyle() end end
+-- The owners of glows under Blizzard's aura button whose look differs from their style's now,
+-- among those whose style is owner's (nil: General's): they change after a /reload (the options
+-- say so). Returns their keys.
+function ns.auraGlowStale(owner)
+	local out = {}
+	for _, g in ipairs(auraGlows) do
+		local reaches = owner == g.owner or (owner == nil and ns.Style.follows(g.owner, "glow"))
+		if reaches and g.look ~= ns.Style.look("glow", ns.Style.get(g.owner, "glow").look) then
+			table.insert(out, g.owner)
+		end
+	end
+	return out
+end
 
 -- Pop: the burst when something happens (a cooldown ready, an imbue dropping, a totem ending).
 -- Its style is its owner's (General's, or an element's or the totem bar's own): a motion (grow,
 -- bounce, hop, shake) with a size and speed, and optional light (a flash over the icon, a ring
--- spreading out, a star behind it), tinted by what happened. Every part is built on the frame the
--- first time it pops.
+-- spreading out, a star behind it), tinted by what happened. For Ready, a pop look in place of that
+-- (ns.Looks.popStyle). Every part is built on the frame the first time it pops.
 local POP_TINT = { ready = { 1, 0.82, 0.25 }, imbue = { 0.35, 0.65, 1 }, expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 },
 	grounded = { 0.56, 0.76, 0.92 }, blocked = { 0.6, 0.6, 0.6 } }
 ns.POP_TINT = POP_TINT
@@ -361,30 +407,15 @@ local function popFx(f)
 	atlasOr(x.star, "AftLevelup-WhiteStarBurst", "Interface\\Cooldown\\star4")
 	x.star:SetBlendMode("ADD")
 	x.star:Hide()
-	x.bursts = {}   -- texture -> { t (elapsed), dur, from, to (sizes), spin (radians) }
-	-- Runs only while a burst does (set by playPop).
-	x.step = function(self, elapsed)
-		for tex, b in pairs(x.bursts) do
-			b.t = b.t + elapsed
-			local p = math.min(b.t / b.dur, 1)
-			local e = 1 - (1 - p) * (1 - p)   -- ease out
-			local size = b.from + (b.to - b.from) * e
-			tex:SetSize(size, size)
-			tex:SetAlpha(1 - p)
-			if b.spin then tex:SetRotation(b.spin * e) end
-			if p >= 1 then tex:Hide(); x.bursts[tex] = nil end
-		end
-		if next(x.bursts) == nil then self:SetScript("OnUpdate", nil) end
-	end
+	x.bursts = ns.Looks.burster(fx)
 	-- A hidden frame runs no OnUpdate and holds its animations, so a pop cut short by a hide (its
 	-- group hiding as combat ends) would finish when the icon next shows. A hide ends it instead.
 	fx:SetScript("OnHide", function()
-		for tex in pairs(x.bursts) do tex:Hide() end
-		wipe(x.bursts)
-		fx:SetScript("OnUpdate", nil)
+		x.bursts.clear()
 		for _, m in ipairs({ "grow", "bounce", "hop", "shake", "shakeV" }) do x[m]:Stop() end
 		x.flashAnim:Stop()
 		x.flash:SetAlpha(0)
+		for _, g in ipairs(x.gcd or {}) do g.group:Stop() end
 	end)
 	f.popFx = x
 	return x
@@ -396,7 +427,7 @@ end
 -- play when the frame next shows, for something long over.
 function ns.playPop(f, kind, owner)
 	if not f:IsVisible() then return end
-	local st = ns.Style.get(owner, "pop")
+	local st = ns.Looks.popStyle(ns.Style.get(owner, "pop"), kind or "ready", f)
 	local x = popFx(f)
 	local S = st.size
 	local k = 1 / math.max(st.speed, 0.1)   -- duration multiplier
@@ -441,23 +472,20 @@ function ns.playPop(f, kind, owner)
 		x.flashAnim:Play()
 	end
 	-- The ring spreads from just inside the icon to 2.2 icon widths; the star from 1.2 to 3.5.
-	x.bursts[x.ring], x.bursts[x.star] = nil, nil
-	x.ring:Hide(); x.star:Hide()
+	x.bursts.stop(x.ring); x.bursts.stop(x.star)
 	if st.ring then
 		x.ring:SetDesaturated(true)
 		x.ring:SetVertexColor(c[1], c[2], c[3])
 		x.ring:SetSize(h * 0.9, h * 0.9)
-		x.ring:Show()
-		x.bursts[x.ring] = { t = 0, dur = 0.45 * k, from = h * 0.9, to = h * 2.2 }
+		x.bursts.play(x.ring, { dur = 0.45 * k, from = h * 0.9, to = h * 2.2 })
 	end
 	if st.star then
 		x.star:SetDesaturated(true)
 		x.star:SetVertexColor(c[1], c[2], c[3])
 		x.star:SetSize(h, h)
-		x.star:Show()
-		x.bursts[x.star] = { t = 0, dur = 0.45 * k, from = h * 1.2, to = h * 3.5, spin = -0.5 }
+		x.bursts.play(x.star, { dur = 0.45 * k, from = h * 1.2, to = h * 3.5, spin = -0.5 })
 	end
-	if next(x.bursts) ~= nil then x.fx:SetScript("OnUpdate", x.step) end
+	if st.play then st.play(x, k) end   -- a pop look's own light (ns.Looks.popStyle)
 end
 
 -- The end of a totem, over `anchor`. Nothing here reads a secret: play() hands the gone totem's
@@ -474,7 +502,10 @@ end
 --   than Killed early and without the pop's burst.
 local killedCurve = ns.curve({ 0, 0, 1.2, 0, 1.25, 1, 36000, 1 })
 local expiredCurve = ns.curve({ 0, 1, 1.2, 1, 1.25, 0, 36000, 0 })
-function ns.makeEndFlash(parent, anchor, owner)
+-- over: the icon frame whose picture it covers (default anchor): its copies of the icon and its wash
+-- take that icon's mask, and its glow the icon's school and frame.
+function ns.makeEndFlash(parent, anchor, owner, over)
+	over = over or anchor
 	local kf = CreateFrame("Frame", nil, parent)
 	kf:SetAllPoints(anchor)
 	kf:SetFrameLevel(anchor:GetFrameLevel() + 8)
@@ -484,7 +515,7 @@ function ns.makeEndFlash(parent, anchor, owner)
 	kf.body = CreateFrame("Frame", nil, kf.pop)
 	kf.body:SetAllPoints()
 	kf.body:SetAlpha(0)
-	kf.glow = makeGlow(kf.body, kf.body, owner)
+	kf.glow = makeGlow(kf.body, over, owner)
 	kf.glow:color(1, 0.12, 0.08)
 	kf.icon = kf.body:CreateTexture(nil, "ARTWORK")
 	kf.icon:SetAllPoints()
@@ -533,6 +564,7 @@ function ns.makeEndFlash(parent, anchor, owner)
 	kf.mark.x = kf.mark:CreateTexture(nil, "OVERLAY")
 	kf.mark.x:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
 	kf.mark.x:SetPoint("CENTER")
+	ns.Looks.followMask(over, kf.icon, kf.red, kf.mark.icon)   -- a rounded or cut-corner icon's shape
 	-- The dead totem's icon (secret in combat is fine: SetTexture takes it).
 	function kf:setIcon(icon)
 		pcall(self.icon.SetTexture, self.icon, icon)
@@ -670,6 +702,8 @@ local function initAuraButton(slot, button)
 	if o.iconAlpha then tex:SetAlpha(o.iconAlpha()) end
 	button:SetIcon(tex)
 	slot.icon = tex
+	-- A frame look's mask and art: only now, on the button (ns.Looks.auraMask).
+	ns.try(o.sites.style, ns.Looks.auraMask, button, tex, o.key)
 	local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
 	cd:SetAllPoints()
 	-- Its timer: swipe and countdown on the Cooldown, and a time bar the button drives from the
@@ -689,8 +723,16 @@ local function initAuraButton(slot, button)
 	slot.button = button
 end
 
+-- The slot's candidate filters: opts.candidates() if given, else its spell IDs.
+local function candidates(o)
+	if o.candidates then return o.candidates() end
+	return { includeSpellIDs = o.ids() }
+end
+
 -- Makes the container and its slot, once (out of combat, auras readable; else when that ends).
--- Once made it stays; a client that refuses it gets err and onError.
+-- Once made it stays; a client that refuses it gets err and onError. Beside the opts above, it
+-- takes unit (default "player"), filter (default "HELPFUL") and candidates() (the slot's
+-- candidate filters, in place of includeSpellIDs = ids()).
 function AuraSlot:setup()
 	if self.container or self.err then return end
 	local o, f = self.opts, self.frame
@@ -702,11 +744,11 @@ function AuraSlot:setup()
 		c:SetSize(size, size)
 		c:SetFrameStrata(f:GetFrameStrata())
 		c:SetFrameLevel(f.textFrame:GetFrameLevel() + 5)
-		c:SetUnit("player")
+		c:SetUnit(o.unit or "player")
 		pcall(c.EnableMouse, c, false)   -- unlocked drags start on the group frame underneath
 		self.container = c
-		c:AddAuraSlot(o.slot, "HELPFUL", {
-			candidateFilters = { includeSpellIDs = o.ids() },
+		c:AddAuraSlot(o.slot, o.filter or "HELPFUL", {
+			candidateFilters = candidates(o),
 			initializeFrame = function(button) initAuraButton(self, button) end,
 		})
 	end)
@@ -732,6 +774,7 @@ function AuraSlot:style()
 		c:SetFrameStrata(f:GetFrameStrata())
 		c:SetFrameLevel(f.textFrame:GetFrameLevel() + 5)
 		self.button:SetSize(size, size)
+		ns.Looks.auraStyle(self, size)
 		self.timer:apply()
 		if o.onStyle then o.onStyle(self, size) end
 	end)
@@ -745,10 +788,10 @@ function AuraSlot:refilter()
 	if not self.container or self.err then return end
 	local o = self.opts
 	if ns.deferWhileAurasSecret(o.sites.filter, function() self:refilter() end) then return end
-	local ids = o.ids()
-	local ok = ns.try(o.sites.filter, self.container.SetAuraSlotCandidateFilters, self.container, o.slot,
-		{ includeSpellIDs = ids })
-	if ok then self.filtered = ids else ns.retryAfterCombat(o.sites.filter, function() self:refilter() end) end
+	local filters = candidates(o)
+	local ok = ns.try(o.sites.filter, self.container.SetAuraSlotCandidateFilters, self.container, o.slot, filters)
+	if ok then self.filtered = filters.includeSpellIDs
+	else ns.retryAfterCombat(o.sites.filter, function() self:refilter() end) end
 end
 
 -- owner: whose glow and pop style it uses (an element key, "totembar", or nil for General's).

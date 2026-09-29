@@ -116,15 +116,55 @@ local function ownLine(p, kind)
 end
 
 
--- Standard rows: the border around icons, General's or an owner's (a group, the totem bar).
+-- A style kind's looks (ns.Style.addLook), for a dropdown.
+local function lookChoices(kind)
+	local out = {}
+	for _, e in ipairs(ns.Style.LOOKS[kind].order) do table.insert(out, { e.key, e.name }) end
+	return out
+end
+
+-- A look picker for a style's rows (r, from styleRows): the dropdown, and an EXPERIMENTAL badge
+-- under it while the look picked isn't tested in game yet. Returns the look now.
+local function lookRows(p, r, kind, label, feature, shown)
+	local function look() return ns.Style.look(kind, r.style().look) end
+	p:dropdown(label, nil, lookChoices(kind), function() return look().key end, r.set("look"), shown, 190)
+	local f = p:row(22)
+	ns.Look.expBadge(f, feature):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
+	p:add(f, 22, showWhen(function() return look().experimental end, shown))
+	return look
+end
+
+-- A line naming the elements (keys(), a list) that take a change after a /reload, shown while
+-- there are any: "<names> <verb> after a /reload."
+local function reloadLine(p, keys, verb, shown)
+	p:text(function()
+		local names = {}
+		for _, key in ipairs(keys()) do table.insert(names, ns.Look.elementName(key)) end
+		return table.concat(names, " and ") .. " " .. verb(#names) .. " after a /reload."
+	end, showWhen(function() return #keys() > 0 end, shown))
+end
+
+-- Standard rows: the border around icons, General's or an owner's (a group, the totem bar). Size
+-- and colour show only for looks that use them. The HUD lays out only out of combat (the shield's
+-- group and the totem bar's buttons are protected then), so a change made in combat reaches it
+-- when combat ends, as every other layout setting does; the previews here take it at once.
 local function borderRows(p, owner, after, label, shown)
 	after = after or relayout
 	local r = styleRows(owner, "border", after)
 	if owner ~= nil then followRow(p, owner, "border", after, label, shown) end
 	local bordered = function() return r.own() and r.style().show end
 	p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"), showWhen(r.own, shown))
-	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("size"), r.set("size"), showWhen(bordered, shown))
-	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), showWhen(bordered, shown))
+	local look = lookRows(p, r, "border", "Border look", "Border looks", showWhen(bordered, shown))
+	local function uses(part) return function() return bordered() and ns.Looks.uses(look(), part) end end
+	-- Blizzard's aura button takes a mask only as it is made (ns.Looks.auraMask).
+	local function stale()
+		local o = resolve(owner)
+		if o == nil and owner ~= nil then return {} end   -- no group selected
+		return ns.Looks.auraStale(o)
+	end
+	reloadLine(p, stale, function(n) return n == 1 and "changes shape" or "change shape" end, shown)
+	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("size"), r.set("size"), showWhen(uses("size"), shown))
+	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), showWhen(uses("color"), shown))
 end
 
 -- The border a preview icon wears: its owner's.
@@ -151,13 +191,17 @@ local function glowBlock(p, owner, icon)
 	ic:SetPoint("LEFT", f, "LEFT", LABEL_W + 24, 0)
 	ic.tex:SetTexture(icon)
 	p:add(f, 64, own, function() ns.applyBorder(ic, previewBorder(owner)); ic:SetGlowShown(true) end)
-	p:color("Colour", "Colour and opacity. Killed early, Grounded and Ran out keep their own colours.", r.get("color"), r.set("color"), own)
+	local look = lookRows(p, r, "glow", "Look", "Glow looks", own)
+	reloadLine(p, function() return ns.auraGlowStale(owner) end,
+		function(n) return n == 1 and "changes glow" or "change glow" end, own)
+	local function uses(field) return showWhen(function() return look().uses[field] end, own) end
+	p:color("Colour", "Colour and opacity. Killed early, Grounded and Ran out keep their own colours.", r.get("color"), r.set("color"), uses("color"))
 	p:slider("Pulse length", "One pulse, in seconds.", 0.2, 2, 0.1, function(v) return string.format("%.1f s", v) end,
-		r.get("speed"), r.set("speed"), own)
+		r.get("speed"), r.set("speed"), uses("speed"))
 	local setLow = r.set("low")
 	p:slider("Pulse depth", "How much it fades between pulses. 0% is steady.", 0, 1, 0.05, pct,
-		function() return 1 - r.style().low end, function(v) setLow(1 - v) end, own)
-	p:slider("Thickness", "How far in from the edges it reaches.", 0.1, 0.5, 0.05, pct, r.get("width"), r.set("width"), own)
+		function() return 1 - r.style().low end, function(v) setLow(1 - v) end, uses("low"))
+	p:slider("Thickness", "How far in from the edges it reaches.", 0.1, 0.5, 0.05, pct, r.get("width"), r.set("width"), uses("width"))
 	if owner == nil then ownLine(p, "glow") end
 end
 
@@ -198,6 +242,12 @@ local function popBlock(p, owner, icon, kind, growOnly)
 		p:slider("Motion distance", "How far it grows.", 1.1, 1.8, 0.05, pct, r.get("size"), r.set("size"), own)
 		p:slider("Motion speed", nil, 0.5, 2, 0.1, pct, r.get("speed"), r.set("speed"), own)
 		return
+	end
+	-- The looks are for Ready: a page whose pop is for something else (the totem bar's, the imbue's)
+	-- offers only the classic one. The classic rows stay, as every other event still pops with them.
+	if kind == "ready" then
+		local look = lookRows(p, r, "pop", "Look", "Pop looks", own)
+		p:text("Other events keep the Classic pop, set below.", showWhen(function() return look().key ~= "classic" end, own))
 	end
 	p:dropdown("Motion", nil, POP_MOTIONS, r.get("motion"), r.set("motion"), own, 190)
 	p:slider("Motion distance", "How far it grows, hops or shakes.", 1.1, 1.8, 0.05, pct, r.get("size"), r.set("size"), own)
@@ -505,11 +555,16 @@ local function buildAbout(p)
 		local e = ns.ELEMENTS[key]
 		if e.experimental then p:experimental(e.experimental, "Elements > " .. e.label) end
 	end
+	if ns.Looks.anyExperimental("border") then p:experimental("Border looks", "General > Border") end
+	if ns.Looks.anyExperimental("glow") then p:experimental("Glow looks", "General > Pulsing glow style") end
+	if ns.Looks.anyExperimental("pop") then p:experimental("Pop looks", "General > Pop style") end
+	p:experimental("Interrupt cue", "Elements > Shocks > Target casting")
 	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
 		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
 		"Francisque Millet, Mountain Landscape with Lightning (air). Corner and divider ornaments: public domain / CC0, Wikimedia Commons. " ..
-		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood texture CC0, ambientCG. Link icons: Simple Icons, CC0.")
+		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood texture CC0, ambientCG. Link icons: Simple Icons, CC0. " ..
+		"The Carved stone, Aged bronze and Carved wood borders and the Painted bursts pop: made with an AI image model (Google Gemini).")
 end
 
 ------------------------------------------------------------------------

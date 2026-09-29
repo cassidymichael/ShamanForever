@@ -389,13 +389,18 @@ L.PREVIEW = {
 	},
 	shock = {
 		cooldown = true,
-		states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" }, { "range", "Out of range" }, { "both", "Both" } },
+		states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" }, { "range", "Out of range" }, { "both", "Both" },
+			{ "casting", "Target casting" } },
 		pop = function(ic, st) if st == "ready" and opt("shock", "readyPop") then ic:Pop() end end,
 		render = function(ic, st)
 			local d = db()
 			local icons = { earth = 136026, flame = 135813, frost = 135849 }
 			reset(ic, icons[d.shock] or 136026)
 			if st == "ready" then ic:SetGlowShown(opt("shock", "readyGlow")) end
+			if st == "casting" then
+				local c = opt("shock", "castColor")
+				ic:SetGlowShown(opt("shock", "castGlow"), c[1], c[2], c[3])
+			end
 			if st == "cd" then frozen(ic.cdT, 0.4, 6)
 			elseif st == "range" or st == "both" then ic:SetBodyPaint(d.rangeStyle, 1, 0.25, 0.25, d.rangeIntensity, d.rangeTint)
 			elseif st == "mana" then ic:SetBodyPaint(d.manaStyle, 0.2, 0.45, 1, d.manaIntensity, d.manaTint) end
@@ -498,7 +503,7 @@ end
 -- buffs' warnings.
 local function buffPreview(def)
 	local key = def.key
-	local states = { { "up", def.proc and ns.Spells.name("clearcasting") or "Up" } }
+	local states = { { "up", def.proc and (def.upLabel or ns.Spells.name("clearcasting")) or "Up" } }
 	if not def.proc then table.insert(states, { "expiring", "Expiring" }) end
 	table.insert(states, { "idle", "Not up" })
 	if def.reagent then
@@ -727,6 +732,7 @@ L.PREVIEW.totembar = {
 			ic.rangeF:SetFrameLevel(ic:GetFrameLevel() + 7)
 			ic.rangeF.bg = ic.rangeF:CreateTexture(nil, "ARTWORK")
 			ic.rangeF.bg:SetAllPoints()
+			ns.Looks.followMask(ic, ic.rangeF.bg)
 			h.slots[i] = ic
 		end
 		h.extras = {}
@@ -842,6 +848,7 @@ L.PREVIEW.totembar = {
 				ic:SetSize(size, size)
 				ic:ClearAllPoints()
 				place(ic, slotAt[i], (line - size) / 2)
+				ic.school = el
 				ns.applyBorder(ic, border)
 				local pick = GetActionTexture and TB.pickTexture(el)
 				if ns.isSecret(pick) then pick = nil end   -- never compared while secret (combat)

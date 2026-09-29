@@ -33,6 +33,9 @@ Each thing the HUD shows is an element: an icon you can place in a group anywher
 
 These haven't been tested in game yet: they need spells or talents I haven't been able to try so far. The About page lists them, with a link to say how they work.
 
+- **Flame Shock**: shows while your Flame Shock is on your target, with its time left. Hidden otherwise by default.
+- **Purge**: shows while your target has a Magic buff you can purge: the buff's own icon and time left, with a pop and a glow. It can skip buffs that last over 2 minutes. Hidden otherwise by default.
+- **Interrupt cue** on Shocks: a glow while your target casts a spell you can interrupt and Earth Shock is ready (off by default).
 - **Nature's Swiftness**: its cooldown, and a pop and glow while it's primed, from your cast until your next Nature spell with a cast time.
 - **Mana Tide Totem**: its cooldown and the totem's time left, a glow in its last seconds and a flash when it runs out.
 - **Grounding Totem**: its cooldown and the totem's time left, and a flash when it ends early (it took a spell, or was destroyed).
@@ -65,6 +68,8 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - Warning looks for a missing shield, imbue or totem, or one running out: grey icon, red ring, fade in and out.
 - Sounds: pick one for a spell coming ready, your imbue dropping, a totem ending or the Tremor warning, from the game's sounds or any LibSharedMedia sound your other addons bring. None play until you pick one.
 - A pulsing glow and a pop when something happens: a spell ready, a totem expiring or killed, your imbue dropping, a proc. Choose the pop's motion (grow, bounce, hop or shake), with an optional flash, ring or star burst, and the glow's colour, speed and depth.
+- Glow looks (experimental): a soft inner glow, an outer halo, Blizzard's proc glow, sparks running round the edge, the element's school texture, or a heartbeat.
+- Pop looks for a spell coming ready (experimental): the element's school colour, Blizzard's flash, a shape for each school, a motion for each school, painted bursts, or a rune ring.
 - Timers as countdown text, a cooldown swipe, a draining bar, or any mix, each with its own size, colour, position and time format.
 - Colour by time left: countdown numbers turn one colour when time is short and another at the very end, at the times you choose. They can also show tenths of a second in the last seconds.
 - An optional global cooldown sweep, as on action bars.
@@ -77,6 +82,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - Stay after combat: a group or the totem bar that doesn't show Always can stay up to 10 seconds once combat ends, then fade out.
 - Positioning mode: drag groups and the totem bar, with snapping and a grid. Mouse wheel sets icon size, Ctrl+wheel scale, Shift+wheel opacity, and the arrow keys nudge. It locks itself when combat starts.
 - Borders and warning rings stay pixel-sharp at any icon size.
+- Border look: a plain line, a gold hairline, an edge in the element's school colour, a bronze bevel, or corner caps. Experimental: the Cooldown Manager's rounded icons, Forever's action button frame, carved stone, aged bronze or carved wood.
 - Test elements (`/sf test`): placeholder icons for trying out a layout, and elements you haven't learned yet, greyed.
 
 ### Options and profiles
@@ -115,7 +121,7 @@ ShamanForever is created and maintained with the help of AI tools.
 
 ## Art
 
-The options banners are public-domain paintings: Thomas Moran, *The Chasm of the Colorado*; Joseph Wright of Derby, *Vesuvius from Portici*; Frederic Edwin Church, *Rainy Season in the Tropics* and *Aurora Borealis*; Francisque Millet, *Mountain Landscape with Lightning*. The corner and divider ornaments are public domain / CC0 (Wikimedia Commons). The logo is Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky's *Breaking Wave*, with a CC0 wood texture from ambientCG. The link icons on the About page are from Simple Icons (CC0). Spell icons are Blizzard's, from the game.
+The options banners are public-domain paintings: Thomas Moran, *The Chasm of the Colorado*; Joseph Wright of Derby, *Vesuvius from Portici*; Frederic Edwin Church, *Rainy Season in the Tropics* and *Aurora Borealis*; Francisque Millet, *Mountain Landscape with Lightning*. The corner and divider ornaments are public domain / CC0 (Wikimedia Commons). The logo is Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky's *Breaking Wave*, with a CC0 wood texture from ambientCG. The link icons on the About page are from Simple Icons (CC0). Spell icons are Blizzard's, from the game, as is the art of the Cooldown Manager, Forever action button, Outer halo, Proc glow and Blizzard's flash looks. The Carved stone, Aged bronze and Carved wood borders and the Painted bursts pop were made with an AI image model (Google Gemini).
 
 ## Licence
 

@@ -20,6 +20,7 @@ Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 ShamanForever_Core.lua
 ShamanForever_Style.lua
 ShamanForever_Widgets.lua
+ShamanForever_Looks.lua
 ShamanForever_Timers.lua
 ShamanForever.lua
 ShamanForever_Shield.lua
@@ -29,6 +30,7 @@ ShamanForever_Totems.lua
 ShamanForever_Reagents.lua
 ShamanForever_Cooldowns.lua
 ShamanForever_Shock.lua
+ShamanForever_Target.lua
 ShamanForever_Buffs.lua
 ShamanForever_Mana.lua
 ShamanForever_Tremor.lua

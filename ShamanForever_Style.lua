@@ -2,7 +2,7 @@
 -- able to have its own instead ("Same as General" in the options). One mechanism for every kind:
 --   cooldown, uptime  timers (ShamanForever_Timers.lua); elements and the totem bar
 --   glow, pop         the pulsing glow and the pop (ShamanForever.lua); elements and the totem bar
---   border            the edge around icons; groups and the totem bar
+--   border            the edge around icons, in one of its looks; groups and the totem bar
 --   gcd               the global cooldown's sweep, on or off; the cooldown elements and the totem bar
 -- An owner is nil (General), an element key, "totembar", or a group's table. A kind's settings sit
 -- at the same path under each holder: the profile for General (db.glowStyle, db.timers.cooldown), else
@@ -30,15 +30,18 @@ function S.addUser(kind, owner)
 end
 
 S.register("glow", {
-	-- Colour, one pulse's length (s), the dimmest it gets between pulses, and how far in from the
-	-- edges it reaches (share of the icon). Killed early's glow keeps its red.
-	defaults = { color = { 1, 0.8, 0.25, 1 }, speed = 0.5, low = 0.25, width = 0.2 },
+	-- Its look (S.addLook; ShamanForever_Looks.lua), colour, one pulse's length (s), the dimmest it
+	-- gets between pulses, and how far in from the edges it reaches (share of the icon). Killed
+	-- early's glow keeps its red.
+	defaults = { look = "edges", color = { 1, 0.8, 0.25, 1 }, speed = 0.5, low = 0.25, width = 0.2 },
 	path = { "glowStyle" },
 })
 S.register("pop", {
-	-- Motion (pop = grow, bounce, hop, shake, shakeV) with its distance and speed, and light: a
-	-- flash, a ring, a star, coloured by what happened (tint) or white.
-	defaults = { motion = "shakeV", size = 1.4, speed = 1, flash = true, ring = false, star = true, tint = true },
+	-- Its look for Ready (S.addLook; ShamanForever_Looks.lua), motion (pop = grow, bounce, hop,
+	-- shake, shakeV) with its distance and speed, and light: a flash, a ring, a star, coloured by
+	-- what happened (tint) or white.
+	defaults = { look = "classic", motion = "shakeV", size = 1.4, speed = 1, flash = true, ring = false, star = true,
+		tint = true },
 	path = { "popStyle" },   -- not "pop": the totem bar's pop is where its pickers open
 })
 -- Whether buttons show the global cooldown's sweep after every cast, as action bars do. Off, an
@@ -49,10 +52,32 @@ S.register("gcd", {
 	-- Reincarnation's hour-long cooldown never needs the sweep, whatever General says.
 	ownerDefaults = { reincarnation = { show = false } },
 })
+-- look: how it is drawn (S.addLook; ShamanForever_Looks.lua). Some looks draw their own lines and
+-- colours, so size and colour only apply where the look uses them.
 S.register("border", {
-	defaults = { show = true, size = 2, color = { 0, 0, 0, 1 } },
+	defaults = { show = true, look = "line", size = 2, color = { 0, 0, 0, 1 } },
 	path = { "border" },
 })
+
+-- Looks: named ways of drawing a kind (a border's lines or art, a glow, a pop), picked by the
+-- kind's `look` field through the same resolution as its other fields (General, then an owner's
+-- own). Each is a data entry that the kind's drawing code reads (ShamanForever_Looks.lua); the
+-- options offer them in the order they were added. entry: name (as the options show it) and the
+-- fields the drawing reads. The kind's default look is added first.
+S.LOOKS = {}
+function S.addLook(kind, key, entry)
+	local l = S.LOOKS[kind] or { order = {}, byKey = {} }
+	S.LOOKS[kind] = l
+	entry.key = key
+	table.insert(l.order, entry)
+	l.byKey[key] = entry
+end
+-- The entry a look's key names. An unknown key (a profile shared from a newer version) gets the
+-- kind's default look.
+function S.look(kind, key)
+	local l = S.LOOKS[kind]
+	return l.byKey[key] or l.byKey[S.KINDS[kind].defaults.look]
+end
 
 local isColor = ns.isColor
 
