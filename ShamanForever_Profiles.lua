@@ -19,6 +19,7 @@ local ACCOUNT_DEFAULTS = {
 	keepOptionsOpen = false,  -- false: the options window steps aside while groups are being moved
 	lastShield = "lightning",  -- the shield last cast or seen; its icon is the no-shield look in "either" mode
 	imbueIDs = {},            -- learned enchant ID -> imbue key
+	foldedBlocks = {},        -- "page:Header" -> true: options blocks the player folded (ShamanForever_OptionsPage.lua)
 	fearCasters = {},         -- the player's edits to Tremor's mob list (ShamanForever_Tremor.lua)
 	swingShowBlizzard = false,  -- the player keeps Blizzard's swing bar on with ours: no note (ShamanForever_Swing.lua)
 	swingBlizzardNoted = {},  -- "Name-Realm" -> true: chat said on that character that Blizzard's bar is on too

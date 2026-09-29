@@ -25,10 +25,9 @@ local SLIDER_SPAN_W = 400   -- a slider and its value box, at most
 local TEXT_MAX_W = 600   -- text and boxed notices wrap here at the most (the page's width at 864)
 -- A block's panel: its rows inset from its sides, room under its last row, a gap to the next block.
 local PANEL_PAD, PANEL_PAD_B, BLOCK_GAP = 10, 6, 10
--- Folded blocks, by page and block ("general:3"): a plain table, not saved, so every block starts
--- open and a /reload opens them all again.
-local folded = {}
-local function foldKey(p, b) return p.key .. ":" .. b.index end
+-- Folded blocks are saved with the account, by page and header text ("general:Border"), so they
+-- stay folded across a /reload.
+local function folded() return ns.getAccount().foldedBlocks end
 -- A sub's rows: indented a level at a time, two at most, beside a rule down from under their parent.
 local SUB_INDENT, SUB_MAX, RULE_X = 24, 2, 12
 
@@ -221,7 +220,7 @@ function Page:refresh()
 		local sub = it.sub
 		if show and sub then show = sub.parent.visible and sub.active() and true or false end
 		-- A folded block keeps only its header; one whose header is hidden can't fold.
-		if show and b and not it.head and b.head.visible and folded[foldKey(self, b)] then show = false end
+		if show and b and not it.head and b.head.visible and folded()[b.key] then show = false end
 		it.visible = show
 		it.frame:SetShown(show)
 		if show then
@@ -286,7 +285,7 @@ end
 
 -- Folds or opens block b, and lays the page out again at once, its scroll range with it.
 function Page:setFolded(b, fold)
-	folded[foldKey(self, b)] = fold or nil
+	folded()[b.key] = fold or nil
 	self:refresh()
 	local s = self.scroll
 	s:UpdateScrollChildRect()
@@ -298,7 +297,7 @@ end
 function Page:reveal(frame)
 	for _, it in ipairs(self.items) do
 		if it.frame == frame then
-			if it.block and folded[foldKey(self, it.block)] then self:setFolded(it.block, false) end
+			if it.block and folded()[it.block.key] then self:setFolded(it.block, false) end
 			return
 		end
 	end
@@ -322,7 +321,7 @@ end
 local CHEVRON_W, CHEVRON_H = 12, 7
 function Page:paintHeader(b)
 	local f = b.head.frame
-	local isFolded = folded[foldKey(self, b)] and true or false
+	local isFolded = folded()[b.key] and true or false
 	-- SetRotation turns the drawn quad, so the size stays as the open chevron's.
 	f.chevron:SetSize(CHEVRON_W, CHEVRON_H)
 	f.chevron:SetRotation(isFolded and -math.pi / 2 or math.pi)
@@ -356,7 +355,13 @@ function Page:header(text, shown, note, icon)
 	local f = self:row(36)
 	local block, x = nil, 0
 	if self.panels ~= false then
-		block = { index = #self.blockList + 1, items = {} }
+		-- Named by its text, so the saved fold state survives changes to the blocks before it; a
+		-- second header with the same text on a page gets a number.
+		self.blockKeys = self.blockKeys or {}
+		local key = self.key .. ":" .. text
+		if self.blockKeys[key] then key = key .. "#" .. #self.blockList end
+		self.blockKeys[key] = true
+		block = { index = #self.blockList + 1, key = key, items = {} }
 		table.insert(self.blockList, block)
 		self.block = block
 		-- The chevron: the arrow from Blizzard's totem bar art (as the totem bar's picker tabs use).
@@ -404,7 +409,7 @@ function Page:header(text, shown, note, icon)
 		f:SetScript("OnEnter", function() f.text:SetTextColor(1, 0.93, 0.6) end)
 		f:SetScript("OnLeave", function() f.text:SetTextColor(r, g, bl) end)
 		f:SetScript("OnMouseUp", function(_, button)
-			if button == "LeftButton" then self:setFolded(block, not folded[foldKey(self, block)]) end
+			if button == "LeftButton" then self:setFolded(block, not folded()[block.key]) end
 		end)
 	end
 	return f

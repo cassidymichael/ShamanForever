@@ -87,7 +87,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 
 - An options window (`/sf`, the minimap button, or Escape > Options > AddOns) with a page per element and a live preview of each look. Drag its corner to make it wider or taller.
 - Set the style once on the General page, then give any element, group or the totem bar its own where you want something different.
-- Click a heading in the options to fold its section away, and click it again to open it. Folded sections open again after a reload.
+- Click a heading in the options to fold its section away, and click it again to open it. Folded sections stay folded until you open them.
 - Profiles: each character uses one. Make, copy, rename, delete or reset them, or share one as text.
 - Spells are recognised by ID, so it should work in any game language (the options are in English).
 - What's new: after an update, Home lists what changed and one line in chat says so (you can turn that off).
