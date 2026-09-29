@@ -328,11 +328,11 @@ function ns.auraGlowStale(owner)
 end
 
 -- Pop: the burst when something happens (a cooldown ready, an imbue dropping, a totem ending).
--- Its style is its owner's (General's, or an element's or the totem bar's own): a motion (none,
--- grow, bounce, hop, shake) with a size and speed, and
--- optional light (a flash over the icon, a ring spreading out, a star behind it), tinted by what
--- happened. For Ready, a pop look's light in place of that (ns.Looks.popStyle); the motion stays
--- the style's. Every part is built on the frame the first time it pops.
+-- Its style is its owner's (General's, or an element's or the totem bar's own), one setting per
+-- part: a motion (none, grow, bounce, hop, shake) with a size and speed; a flash over the icon
+-- (plain, or Blizzard's edge flash); a burst (a ring spreading out, a star behind it, or one of
+-- ns.Looks' drawn bursts); and their colour, by what happened or by school. Every part is built
+-- on the frame the first time it pops.
 local POP_TINT = { ready = { 1, 0.82, 0.25 }, imbue = { 0.35, 0.65, 1 }, expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 },
 	grounded = { 0.56, 0.76, 0.92 }, blocked = { 0.6, 0.6, 0.6 } }
 ns.POP_TINT = POP_TINT
@@ -401,13 +401,14 @@ local function popFx(f)
 	return x
 end
 -- kind: ready | imbue | expired | killed | grounded (the tint); owner: whose style (nil: General's).
--- blocked: ready but it can't be cast (Fire Nova with no fire totem): grey and a dimmer flash, with
--- Colour by event on or off, so it never reads as the full ready pop.
+-- blocked: ready but it can't be cast (Fire Nova with no fire totem): grey and a dimmer flash,
+-- whatever the Colour, so it never reads as the full ready pop.
 -- Nothing on a frame that isn't visible (a combat-only group out of combat): it would wait there and
 -- play when the frame next shows, for something long over.
 function ns.playPop(f, kind, owner)
 	if not f:IsVisible() then return end
-	local st = ns.Looks.popStyle(ns.Style.get(owner, "pop"), kind or "ready", f)
+	kind = kind or "ready"
+	local st = ns.Style.get(owner, "pop")
 	local x = popFx(f)
 	local motion, S = st.motion, st.size
 	local k = 1 / math.max(st.speed, 0.1)   -- duration multiplier
@@ -442,10 +443,17 @@ function ns.playPop(f, kind, owner)
 		a[4]:SetScaleFrom(o, o); a[4]:SetScaleTo(1, 1); a[4]:SetDuration(0.08 * k)
 		x.bounce:Play()
 	end
+	-- The colour: the event's, or the school's for Ready and Ran out when the style says so. A
+	-- warning (killed early, grounded, the imbue dropping, blocked) always keeps its own.
 	local muted = kind == "blocked"
-	local c = (st.tint or muted) and POP_TINT[kind or "ready"] or { 1, 1, 1 }
+	local c = POP_TINT[kind] or POP_TINT.ready
+	if st.colorBy == "school" and ns.Looks.POP_EVENTS[kind] then
+		c = ns.SCHOOL_COLOR[ns.Looks.schoolOf(f)] or ns.SCHOOL_COLOR.spirit
+	end
 	x.flashAnim:Stop()
-	if st.flash then
+	local flash = st.flash
+	if flash == "edge" and not ns.Looks.popFlash(x, c, k, h) then flash = "plain" end
+	if flash == "plain" then
 		x.flash:SetVertexColor(c[1], c[2], c[3])
 		local a, peak = x.flashAnim.a, muted and 0.4 or 0.8
 		a[1]:SetFromAlpha(0); a[1]:SetToAlpha(peak); a[1]:SetDuration(0.06 * k)
@@ -454,19 +462,20 @@ function ns.playPop(f, kind, owner)
 	end
 	-- The ring spreads from just inside the icon to 2.2 icon widths; the star from 1.2 to 3.5.
 	x.bursts.stop(x.ring); x.bursts.stop(x.star)
-	if st.ring then
+	local burst = st.burst
+	if burst == "ring" or burst == "both" then
 		x.ring:SetDesaturated(true)
 		x.ring:SetVertexColor(c[1], c[2], c[3])
 		x.ring:SetSize(h * 0.9, h * 0.9)
 		x.bursts.play(x.ring, { dur = 0.45 * k, from = h * 0.9, to = h * 2.2 })
 	end
-	if st.star then
+	if burst == "star" or burst == "both" then
 		x.star:SetDesaturated(true)
 		x.star:SetVertexColor(c[1], c[2], c[3])
 		x.star:SetSize(h, h)
 		x.bursts.play(x.star, { dur = 0.45 * k, from = h * 1.2, to = h * 3.5, spin = -0.5 })
 	end
-	if st.play then st.play(x, k, h) end   -- a pop look's own light (ns.Looks.popStyle)
+	ns.Looks.popBurst(x, f, burst, c, k, h)   -- a drawn burst (shapes, painted, rune, by school)
 end
 
 -- The end of a totem, over `anchor`. Nothing here reads a secret: play() hands the gone totem's

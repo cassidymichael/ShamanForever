@@ -38,11 +38,11 @@ S.register("glow", {
 	path = { "glowStyle" },
 })
 S.register("pop", {
-	-- Its look for Ready (S.addLook; ShamanForever_Looks.lua), motion (pop = grow, bounce, hop,
-	-- shake, shakeV) with its distance and speed, and light: a flash, a ring, a star, coloured by
-	-- what happened (tint) or white.
-	defaults = { look = "classic", motion = "shakeV", size = 1.4, speed = 1, flash = true, ring = false, star = true,
-		tint = true },
+	-- One setting per part, each changing only its own: colorBy (event | school: the colour for
+	-- Ready and Ran out; warnings keep theirs), flash (none | plain | edge), burst (none | ring |
+	-- star | both | shapes | painted | rune | school), motion (none | pop = grow | bounce | hop |
+	-- shake | shakeV) with its distance (size) and speed, which times the whole pop.
+	defaults = { colorBy = "event", flash = "plain", burst = "star", motion = "shakeV", size = 1.4, speed = 1 },
 	path = { "popStyle" },   -- not "pop": the totem bar's pop is where its pickers open
 })
 -- Whether buttons show the global cooldown's sweep after every cast, as action bars do. Off, an
