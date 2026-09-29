@@ -1055,7 +1055,11 @@ TB.layout = layout
 
 -- The slots' timers take their current style (General's or the bar's own). Plain frames, so any time.
 function TB.applyTimers()
-	for _, el in ipairs(ELEMENTS) do slots[el].timer:apply() end
+	for _, el in ipairs(ELEMENTS) do
+		local s = slots[el]
+		s.timer:apply()
+		if TB.pulse then TB.pulse.place(s) end   -- the pulse bar sits above the time bar
+	end
 end
 
 -- Settings changed (options page): relayout now, or when combat ends.
