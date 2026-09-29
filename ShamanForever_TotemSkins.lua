@@ -26,19 +26,16 @@ local BLACK = { 0, 0, 0, 1 }
 local GOLD = { 0.71, 0.55, 0.29, 1 }        -- the options window's gold, as ns.Looks' Gold hairline
 local RED = { 0.9, 0.12, 0.08, 1 }          -- out of range
 local TRAY = { 0.047, 0.035, 0.024 }         -- the Pixel look's dark fill
-local WHITE = "Interface\\Buttons\\WHITE8x8"
-local CLAMP = "CLAMPTOBLACKADDITIVE"          -- a mask's wrap mode, as Blizzard's own masks use
 local hasAtlas = ns.Looks.hasAtlas
 
 -- Blizzard's art, by the names in Forever's own UI (a missing atlas draws the plain part instead).
 -- The Cooldown Manager's plain names draw Forever's bronze art (tested 2026-09-28: the bar, its
--- background and pip, the mask and overlay); the out-of-range shadow and the action bar's flyout
+-- background and pip); the out-of-range shadow and the action bar's flyout
 -- pieces are in Forever's UI source but not yet seen drawn on this client.
 local CDM_BAR, CDM_BAR_BG, CDM_PIP = "UI-HUD-CoolDownManager-Bar", "UI-HUD-CoolDownManager-Bar-BG",
 	"UI-HUD-CoolDownManager-Bar-Pip"
-local CDM_MASK, CDM_OVERLAY = "UI-HUD-CoolDownManager-Mask", "UI-HUD-CoolDownManager-IconOverlay"
 local CDM_OOR = "UI-CooldownManager-OORshadow"
-local OOR_TINT = { 0.64, 0.15, 0.15 }         -- the Cooldown Manager's out-of-range icon colour
+local OOR_TINT = { 0.64, 0.15, 0.15 }         -- the Cooldown Manager's out-of-range colour
 local FLY_START, FLY_END = "UI-HUD-ActionBar-IconFrame-FlyoutBottom", "UI-HUD-ActionBar-IconFrame-FlyoutButton"
 local FLY_MID, FLY_MID_ACROSS = "!UI-HUD-ActionBar-IconFrame-FlyoutMid", "_UI-HUD-ActionBar-IconFrame-FlyoutMidLeft"
 local FLY_ARROW = "UI-HUD-ActionBar-Flyout"
@@ -71,10 +68,9 @@ end
 --   behind         what sits behind the slots: "tray", "plinth" (with a gem under each slot)
 --   timeBar        the slots' time bars: "tip" (a bright line at the fill's end), "cdm" (the
 --                  Cooldown Manager's bronze-rimmed bar and pip, outside the slot)
---   mark           the out-of-range mark: "edge" (a red top edge over the top third, darkened),
---                  "tint" (the picture turned red, as Blizzard's buttons do), "gem" (the gem under
---                  the slot turns red)
---   raiseWarning   the expiring warning draws over the mark, which covers part of the picture
+--   mark           the out-of-range mark: "edge" (the strip, solid red), "tint" (the strip in the
+--                  Cooldown Manager's out-of-range red and shadow), "gem" (the gem under the slot
+--                  turns red)
 --   picker, popHead      the pickers' look ("tray", "flyout", "stone") and the length of its
 --                  heading at the far end
 --   arrow          the arrow tab's look ("flyout", "bronze")
@@ -95,14 +91,14 @@ end
 add("default", { name = "Default" })
 
 -- Pixel lines in the options' gold: school-coloured edges on the slots, a dark tray behind them,
--- a red top edge out of range.
+-- a red edge along the top out of range.
 add("pixel", {
 	name = "Pixel", experimental = true,
 	owns = { border = true, range = true },
 	border = borderStyle("schooledge"), extrasBorder = borderStyle("hairline"),
-	behind = "tray", timeBar = "tip", mark = "edge", raiseWarning = true,
+	behind = "tray", timeBar = "tip", mark = "edge",
 	picker = "tray", popHead = function(psz) return math.floor(psz * 0.5 + 0.5) end,
-	rangeText = "Out of range, for totems that buff you: a red edge along the top of the slot, its top third darkened.",
+	rangeText = "Out of range, for totems that buff you: a red edge along the top of the slot.",
 })
 
 -- The Cooldown Manager's time bar under a slot: its height and its gap from the slot, and how far
@@ -113,17 +109,17 @@ local function cdmBar(size)
 end
 
 -- Blizzard's own UI: the Cooldown Manager's rounded icons and time bars, Forever's action button
--- frame on Call and Recall, the action bar's flyout for the pickers, out of range as its red tint.
+-- frame on Call and Recall, the action bar's flyout for the pickers, out of range in its red.
 add("blizzard", {
 	name = "Blizzard", experimental = true,
 	owns = { border = true, range = true, timeBar = true },
 	border = borderStyle("cdm"), extrasBorder = borderStyle("button"),
-	timeBar = "cdm", mark = "tint", raiseWarning = true, picker = "flyout", arrow = "flyout",
+	timeBar = "cdm", mark = "tint", picker = "flyout", arrow = "flyout",
 	-- The time bar hangs under a row's slots (over them when pickers open down), where the badge
 	-- goes; in a column it sits in the gap below each slot.
 	badgeGap = function(size) return TB.eff().dir == "row" and select(3, cdmBar(size)) or 0 end,
 	gapAdd = function(size) return TB.eff().dir == "column" and select(3, cdmBar(size)) or 0 end,
-	rangeText = "Out of range, for totems that buff you: the slot turns red, as Blizzard's buttons do.",
+	rangeText = "Out of range, for totems that buff you: a strip along the top of the slot in Blizzard's out-of-range red.",
 })
 
 -- The Stone and bronze plinth's reach past a slot's box, above and below, for slots of this size.
@@ -137,7 +133,8 @@ end
 -- range, Call and Recall in round bronze medallions.
 add("stone", {
 	name = "Stone and bronze", experimental = true,
-	owns = { border = true, range = true, spacing = PL.divider[3] / PL.tile[3], dir = "row", pop = "up" },
+	owns = { border = true, range = true, rangeHeight = true, spacing = PL.divider[3] / PL.tile[3], dir = "row",
+		pop = "up" },
 	extrasGap = 0.2,
 	border = borderStyle("line", 1), extrasBorder = borderStyle("medallion"),
 	behind = "plinth", mark = "gem", picker = "stone", arrow = "bronze",
@@ -160,7 +157,7 @@ end
 
 ------------------------------------------------------------------------
 -- Settings a look owns: owns = { border = true, spacing = share, dir = "row", pop = "up",
--- range = true, timeBar = true }. The options hide what it owns; the layout reads it through
+-- range = true (the range colours), rangeHeight = true, timeBar = true }. The options hide what it owns; the layout reads it through
 -- TB.eff().
 ------------------------------------------------------------------------
 -- Whether the look picked now owns a setting (the options).
@@ -382,23 +379,8 @@ function SK.light(host, box, el, lit)
 	t:SetVertexColor(c[1], c[2], c[3], 1)
 end
 
--- The expiring warning (Timer:setExpire) above the range mark, for a look whose mark covers more
--- than a strip of the picture (in range, Blizzard's part covers that much with the buff's icon);
--- else where the timer puts it, just over the icon.
-local function placeWarning(s)
-	local x = s.timer.exp
-	if not x then return end
-	local raise = SK.current().raiseWarning
-	if not raise and not x.skinRaised then return end
-	local lv = raise and (s.button:GetFrameLevel() + TB.RANGE_LEVEL + 4) or (s.vis:GetFrameLevel() + 1)
-	x:SetFrameLevel(lv)
-	x.glow:SetFrameLevel(lv + 1)
-	x.skinRaised = raise or nil
-end
-
 -- A slot's totem state changed (the bar's refresh and its preview mode; any time, combat included).
 function SK.slotState(s, down)
-	placeWarning(s)
 	SK.light(TB.frame, s.button, s.el, down)
 end
 
@@ -647,11 +629,15 @@ end
 
 -- Out of range: where the look's mark sits (x, y from the slot's box's top left, w, h, in the
 -- frame's units), or nil: the strip along the top. inset: how far the picture sits in from the box.
+-- Blizzard's part covers the mark in range with the buff's icon, which can be another totem's (the
+-- buff lingers after a swap within an element), so a mark over the picture is the strip, exactly as
+-- Default sizes it: the buff's icon never shows more than a strip. A whole-picture mark waits on
+-- /sfprobe totemlooks: whether our own art under Blizzard's part takes the slot's secret icon in
+-- combat (to show the slot's totem, not the buff's), and whether a MOD tint under a parent at
+-- alpha 0 stays invisible.
 function SK.markRect(frame, size, inset)
 	local kind = SK.current().mark
 	if not kind then return nil end
-	local w = size - 2 * inset
-	if kind == "tint" then return inset, -inset, w, w end   -- the whole picture
 	if kind == "gem" then
 		-- The plinth's gem under the slot (SK.layoutBar).
 		local px = ns.pixel(frame)
@@ -659,8 +645,7 @@ function SK.markRect(frame, size, inset)
 		local drop = ns.roundPx(PL.gemDrop * size / PL.tile[3], px)
 		return (size - g) / 2, -(size + drop - g / 2), g, g
 	end
-	-- "edge": the top third of the picture.
-	return inset, -inset, w, ns.roundPx(w / 3, ns.pixel(frame))
+	return inset, -inset, size - 2 * inset, ns.linePx(frame, TB.cfg().rangeHeight)
 end
 
 -- The mark's parts on m, made the first time a look draws there; icon: the slot's picture, whose
@@ -670,6 +655,7 @@ local function markParts(m, icon)
 	if p then return p end
 	p = { shade = m:CreateTexture(nil, "ARTWORK", nil, 1), edge = m:CreateTexture(nil, "ARTWORK", nil, 2) }
 	p.shade:SetAllPoints()
+	p.edge:SetAllPoints()
 	if icon then ns.Looks.followMask(icon, p.shade, p.edge) end
 	m.skinParts = p
 	return p
@@ -689,63 +675,36 @@ function SK.paintMark(m, w, h, icon)
 	end
 	p = markParts(m, icon)
 	m.bg:Hide()
-	for _, t in pairs(p) do
-		t:SetVertexColor(1, 1, 1, 1)
-		t:SetBlendMode("BLEND")
-		t:Hide()
-	end
+	p.shade:SetVertexColor(1, 1, 1, 1)
+	p.shade:SetTexCoord(0, 1, 0, 1)
+	p.edge:Hide()
 	if kind == "gem" then
 		-- The gem, lit red.
 		p.shade:SetTexture(GEM)
 		p.shade:SetTexCoord(GEM_LIT[1], GEM_LIT[2], GEM_LIT[3], GEM_LIT[4])
 		p.shade:SetVertexColor(RED[1], RED[2], RED[3], 1)
-		p.shade:Show()
-		return true
-	end
-	if kind == "tint" then
-		-- The picture multiplied by the Cooldown Manager's out-of-range red, under its shadow.
-		p.shade:SetTexCoord(0, 1, 0, 1)
-		p.shade:SetColorTexture(OOR_TINT[1], OOR_TINT[2], OOR_TINT[3], 1)
-		p.shade:SetBlendMode("MOD")
-		p.shade:Show()
+	elseif kind == "tint" then
+		-- The strip in the Cooldown Manager's out-of-range red, under its shadow.
+		p.shade:SetColorTexture(OOR_TINT[1], OOR_TINT[2], OOR_TINT[3], 0.9)
 		if hasAtlas(CDM_OOR) then
-			p.edge:ClearAllPoints()
-			p.edge:SetAllPoints()
 			p.edge:SetAtlas(CDM_OOR)
 			p.edge:SetAlpha(0.5)
 			p.edge:Show()
 		end
-		return true
+	else
+		-- "edge": the strip, solid red.
+		p.shade:SetColorTexture(RED[1], RED[2], RED[3], RED[4])
 	end
-	-- "edge": darker toward the top, and a red line along it.
-	p.edge:SetAlpha(1)
-	p.shade:SetTexCoord(0, 1, 0, 1)
-	p.shade:SetColorTexture(1, 1, 1, 1)
-	p.shade:SetGradient("VERTICAL", CreateColor(0, 0, 0, 0), CreateColor(0, 0, 0, 0.6))
 	p.shade:Show()
-	p.edge:ClearAllPoints()
-	p.edge:SetPoint("TOPLEFT")
-	p.edge:SetPoint("TOPRIGHT")
-	p.edge:SetHeight(ns.linePx(m, 2))
-	p.edge:SetColorTexture(RED[1], RED[2], RED[3], RED[4])
-	p.edge:Show()
 	return true
 end
 
--- Blizzard's part over the mark (TotemRange's styleButton, out of combat): p { button, icon, over,
--- mask }; the icon is already cropped to the mark's share of the picture. Returns true when the
--- look styled it: in range it shows the buff's icon (the totem's) over the mark, uncoloured; over
--- the whole picture ("tint") in the slot's rounded shape, under the Cooldown Manager's overlay, so
--- in range the slot looks as it does without the mark.
-local function plainMask(p)
-	if p.mask and p.maskShaped then
-		p.mask:SetTexture(WHITE, CLAMP, CLAMP)
-		p.maskShaped = nil
-	end
-end
+-- Blizzard's part over the mark (TotemRange's styleButton, out of combat): p { button, icon, over };
+-- the icon is already cropped to the mark's share of the picture. Returns true when the look styled
+-- it: in range it shows the strip of the buff's icon, uncoloured, or the gem lit in the element's
+-- colour.
 function SK.styleRangeButton(p, s)
 	local kind = SK.current().mark
-	if p.art then p.art:Hide() end
 	if p.gem then p.gem:Hide() end
 	-- The buff's icon: hidden by its colour's alpha where the look draws its own art (preview mode
 	-- hides it by its alpha).
@@ -753,14 +712,14 @@ function SK.styleRangeButton(p, s)
 		p.icon:SetVertexColor(1, 1, 1, 1)
 		p.iconHidden = nil
 	end
-	if not kind then
-		plainMask(p)
-		return false
-	end
+	if not kind then return false end
 	p.over.bg:SetColorTexture(0, 0, 0, 0)
 	if kind == "gem" then
-		-- In range, the gem lit in the element's colour over the red one.
-		plainMask(p)
+		-- In range, the gem lit in the element's colour over the red one. The holder hides the whole
+		-- part while no buff totem of yours is down in the slot (TotemRange's showStrip); in combat
+		-- that is its alpha on a frame holding Blizzard's button, not yet tested. If a lingering buff
+		-- turns out to keep this lit over an emptied slot in combat, the lit gem goes out-of-combat
+		-- only.
 		p.icon:SetVertexColor(1, 1, 1, 0)
 		p.iconHidden = true
 		local c = ns.SCHOOL_COLOR[s.el]
@@ -770,25 +729,6 @@ function SK.styleRangeButton(p, s)
 		p.gem:SetVertexColor(c[1], c[2], c[3], 1)
 		p.gem:SetAllPoints(p.button)
 		p.gem:Show()
-		return true
-	end
-	if kind ~= "tint" then
-		plainMask(p)
-		return true
-	end
-	if p.mask and hasAtlas(CDM_MASK) then
-		p.mask:SetAtlas(CDM_MASK, false, nil, nil, CLAMP, CLAMP)
-		p.maskShaped = true
-	end
-	if hasAtlas(CDM_OVERLAY) then
-		-- As ns.Looks draws the Cooldown Manager's overlay round a picture w wide.
-		local w = s.rangeW
-		p.art = p.art or p.over:CreateTexture(nil, "OVERLAY", nil, 7)
-		p.art:SetAtlas(CDM_OVERLAY)
-		p.art:ClearAllPoints()
-		p.art:SetPoint("TOPLEFT", p.button, "TOPLEFT", -0.18 * w, 0.16 * w)
-		p.art:SetPoint("BOTTOMRIGHT", p.button, "BOTTOMRIGHT", 0.18 * w, -0.16 * w)
-		p.art:Show()
 	end
 	return true
 end

@@ -141,17 +141,6 @@ local function initButton(s, part, button)
 	-- The buff's icon (Blizzard sets it), cropped to the strip by styleButton.
 	local icon = button:CreateTexture(nil, "ARTWORK")
 	icon:SetAllPoints()
-	-- A mask for it, made now (the button takes one only as it is made): plain, hiding nothing,
-	-- until a Look that rounds the slots' icons gives it their shape (TB.skin.styleRangeButton).
-	-- Guarded: a refusal only leaves that look's in-range part square.
-	local mask
-	pcall(function()
-		local m = button:CreateMaskTexture()
-		m:SetTexture("Interface\\Buttons\\WHITE8x8", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-		m:SetAllPoints(icon)
-		icon:AddMaskTexture(m)
-		mask = m
-	end)
 	button:SetIcon(icon)
 	-- Our colour on the button: it shows exactly when Blizzard shows the button.
 	local over = CreateFrame("Frame", nil, button)
@@ -159,7 +148,7 @@ local function initButton(s, part, button)
 	over:SetFrameLevel(button:GetFrameLevel() + 1)
 	over.bg = over:CreateTexture(nil, "ARTWORK")
 	over.bg:SetAllPoints()
-	s.rangeParts[part.key] = { button = button, icon = icon, over = over, mask = mask }
+	s.rangeParts[part.key] = { button = button, icon = icon, over = over }
 	if s.rangeW then styleButton(s, part) end
 	if previewOn then icon:SetAlpha(0); over:SetAlpha(0) end
 end
