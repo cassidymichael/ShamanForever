@@ -3,9 +3,9 @@
 -- visible ones and pulls every control's value from the saved settings. Each header starts a block
 -- that runs to the next header and sits on a faint panel; clicking the header folds the block. Rows
 -- that only apply while another is on hang under it (Page:sub), indented, on a thin gold rule. Also
--- the drag and drop the
--- pages' lists share. The pages themselves are built in ShamanForever_Options.lua, Layout in
--- ShamanForever_OptionsLayout.lua, and the elements' in ShamanForever_OptionsElements.lua.
+-- the drag and drop the pages' lists share. The pages themselves are built in
+-- ShamanForever_Options.lua, Layout in ShamanForever_OptionsLayout.lua, and the elements' in
+-- ShamanForever_OptionsElements.lua.
 
 local _, ns = ...
 
@@ -116,7 +116,8 @@ function Page:sub(parent, active, build)
 	end
 	assert(parentItem, "Page:sub: the parent row is not on this page")
 	local outer = self.subRun
-	local run = { parent = parentItem, active = active, outer = outer, depth = (outer and outer.depth or 0) + 1, items = {} }
+	local run = { parent = parentItem, active = active, outer = outer, items = {},
+		depth = (outer and outer.depth or 0) + 1 }
 	assert(run.depth <= SUB_MAX, "Page:sub: two levels at most")
 	table.insert(self.subs, run)
 	self.subRun = run
