@@ -82,7 +82,6 @@ TB.DEFAULTS = {
 	rangeIn = { 0.2, 0.8, 0.25, 0 },       --   with the buff (0: nothing shows in range)
 	rangeOut = { 0.9, 0.12, 0.08, 0.85 },  --   without it
 	pickHover = false,        -- hovering a slot or its tab opens its picker (Everything)
-	pulse = "off",            -- time to a pulsing totem's next pulse: off | bar | text (ShamanForever_TotemPulse.lua)
 }
 
 local isSecret = ns.isSecret
@@ -1097,7 +1096,6 @@ function layout()
 		s.inset = TB.fitLook(s.vis, b, border, size)   -- the range strip sits in by it too
 		s.killed.fitSize, s.expired.fitSize = size - 2 * s.inset, size - 2 * s.inset   -- over the picture
 		s.timer:apply()
-		if TB.pulse then TB.pulse.place(s) end   -- the pulse timer loads after this file
 		layoutArrow(s)
 		TB.layoutBadge(s.badge, s.button, size, border)
 		layoutPopout(s, size, known[s.el])
@@ -1136,7 +1134,6 @@ function TB.applyTimers()
 	for _, el in ipairs(ELEMENTS) do
 		local s = slots[el]
 		s.timer:apply()
-		if TB.pulse then TB.pulse.place(s) end   -- the pulse bar sits above the time bar
 	end
 end
 
@@ -1681,6 +1678,3 @@ function TB.debug()
 		TotemFrame and string.format("%.2f", TotemFrame:GetAlpha()) or "-",
 		mc and (mc:GetParent() == hiddenParent and "hidden" or (mc:GetParent() and mc:GetParent():GetName() or "?")) or "none")
 end
-
--- Untested features on the totem bar, for About's Experimental list: { name, where }.
-TB.EXPERIMENTAL = {}
