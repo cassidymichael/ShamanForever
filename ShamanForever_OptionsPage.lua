@@ -378,36 +378,37 @@ local function onList(b)
 	return table.concat(on, ", ")
 end
 
--- The fold arrow before a header: Page.ARROWS holds the looks by name and Page.arrowStyle names
--- the one in use. A look's set(texture, folded) draws the state's arrow and sizes the texture.
-Page.ARROWS = {
-	-- The arrow from Blizzard's totem bar art (as the totem bar's picker tabs use), turned to point
-	-- down while open and right while folded. SetRotation turns the drawn quad, so the size stays
-	-- as the open arrow's.
-	chevron = { set = function(t, isFolded)
+-- The fold arrow before a header: the expand and collapse icons of Blizzard's trainer and
+-- profession recipe headers, fitted to a 14 px box. A client without them gets the arrow from the
+-- totem bar art, turned to point down while open and right while folded.
+local ARROW_BOX = 14
+local arrowAtlas = {}   -- atlas name -> its info, or false where the client lacks it
+local function paintArrow(t, isFolded)
+	local name = isFolded and "Professions-recipe-header-expand" or "Professions-recipe-header-collapse"
+	local info = arrowAtlas[name]
+	if info == nil then
+		info = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(name)
+		if not (info and (info.width or 0) > 0 and (info.height or 0) > 0) then info = false end
+		arrowAtlas[name] = info
+	end
+	if info then
+		t:SetAtlas(name, false)
+		local k = ARROW_BOX / math.max(info.width, info.height)
+		t:SetSize(info.width * k, info.height * k)
+	else
 		t:SetTexture("Interface\\Buttons\\UI-TotemBar")
 		t:SetTexCoord(0.5625, 0.71875, 0.34375, 0.3828125)
 		t:SetBlendMode("ADD")
 		t:SetSize(12, 7)
 		t:SetRotation(isFolded and -math.pi / 2 or math.pi)
-	end },
-}
-Page.arrowStyle = "chevron"
+	end
+end
 
 -- The header's arrow and, folded, what's on.
 function Page:paintHeader(b)
 	local f = b.head.frame
 	local isFolded = folded()[b.key] and true or false
-	local look, arrow = Page.ARROWS[Page.arrowStyle] or Page.ARROWS.chevron, f.chevron
-	if f.arrowLook ~= look then   -- from another look: back to a plain texture first
-		f.arrowLook = look
-		arrow:SetRotation(0)
-		arrow:SetBlendMode("BLEND")
-		arrow:SetVertexColor(1, 1, 1, 1)
-		arrow:SetDesaturated(false)
-		arrow:SetTexCoord(0, 1, 0, 1)
-	end
-	look.set(arrow, isFolded)
+	paintArrow(f.arrow, isFolded)
 	f.says:SetShown(isFolded)
 	if isFolded then
 		f.says:SetText(onList(b))
@@ -448,8 +449,8 @@ function Page:header(text, shown, note, icon)
 		table.insert(self.blockList, block)
 		self.block = block
 		-- The fold arrow (painted by paintHeader).
-		f.chevron = f:CreateTexture(nil, "ARTWORK")
-		f.chevron:SetPoint("CENTER", f, "BOTTOMLEFT", 6, 15)
+		f.arrow = f:CreateTexture(nil, "ARTWORK")
+		f.arrow:SetPoint("CENTER", f, "BOTTOMLEFT", 6, 15)
 		f.says = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 		f.says:SetPoint("BOTTOMRIGHT", 0, 9)
 		f.says:SetJustifyH("RIGHT")
