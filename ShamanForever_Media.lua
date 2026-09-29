@@ -81,6 +81,7 @@ local state = {}     -- path -> "ok" | "wait" (tried, not loaded yet) | "bad" (n
 local tries = {}     -- path -> times tried
 local tester         -- a hidden string fonts are tried on
 local waiting = false
+local fontGen = 0    -- bumped when a font's state changes (M.textKey's cache)
 
 -- Whether the client has the file. Without IsKnownFile, only the game's own fonts count.
 local function known(path)
@@ -109,6 +110,7 @@ function retry()
 		if st == "wait" then
 			if try(path) then
 				state[path] = "ok"
+				fontGen = fontGen + 1
 				if M.fontInUse(nil, path) then used = true end
 			elseif tries[path] > 3 then state[path] = "bad"   -- the first try and three more
 			else waiting = true end
@@ -129,6 +131,7 @@ local function check(path)
 		if not waiting then waiting = true; C_Timer.After(1, retry) end
 	end
 	state[path] = st
+	fontGen = fontGen + 1
 	return st
 end
 
@@ -216,9 +219,24 @@ function M.setFontObject(obj, o, size)
 end
 
 -- What changes when an owner's text changes: for callers that restate a font only on a change.
-function M.textKey(o)
+-- General's is kept until its stored style, a font's state or the game's font changes: counts and
+-- key text ask on every draw.
+local function textKeyOf(o)
 	local path, flags, shadow = M.text(o)
 	return path .. flags .. (shadow and "s" or "")
+end
+local cached = {}
+function M.textKey(o)
+	o = owner(o)
+	if o then return textKeyOf(o) end
+	local t, c = S.override(nil, "text"), cached
+	if not (c.key and c.t == t and t and c.font == t.font and c.outline == t.outline and c.shadow == t.shadow
+		and c.gen == fontGen and c.std == STANDARD_TEXT_FONT) then
+		c.key = textKeyOf(nil)
+		c.t, c.gen, c.std = t, fontGen, STANDARD_TEXT_FONT
+		if t then c.font, c.outline, c.shadow = t.font, t.outline, t.shadow end
+	end
+	return c.key
 end
 
 -- The fonts to offer: Default, the game's, then other addons', each { name, label, path or nil };
@@ -331,6 +349,7 @@ end
 
 -- A look changed (a font loaded, another addon registered one in use): everything drawn again.
 function M.changed()
+	fontGen = fontGen + 1   -- another addon's font may now sit under the same name
 	if ns.isActive() then ns.applyLayout() end
 	ns.Options.refresh()
 end
