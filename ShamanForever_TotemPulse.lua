@@ -111,18 +111,32 @@ local function place(s, f)
 	f.size = size
 end
 
+-- The pulse timer shows only on our bar, set to Bar or Seconds; otherwise the driver stays hidden.
+local function showing()
+	local mode = TB.cfg().pulse
+	return TB.barOn() and (mode == "bar" or mode == "text"), mode
+end
+
 local function stop(s)
 	active[s.slot] = nil
 	if s.pulse then s.pulse:Hide() end
 	if not next(active) then driver:Hide() end
 end
 
--- Every frame while a pulsing totem of ours is down: the bar fills to each pulse; the seconds count
--- down to it. A slot that has stayed empty for a moment stops (the cast comes a moment before the
--- slot fills, in the same frame or the next).
+-- Every frame while a pulsing totem of ours is down and the timer shows: the bar fills to each
+-- pulse; the seconds count down to it. A slot that has stayed empty for a moment stops (the cast
+-- comes a moment before the slot fills, in the same frame or the next).
 local sinceLayout = 0
 driver:SetScript("OnUpdate", function(_, elapsed)
-	local mode = TB.cfg().pulse
+	local on, mode = showing()
+	if not on then
+		for _, el in ipairs(TB.ELEMENTS) do
+			local f = TB.slots[el].pulse
+			if f then f:Hide() end
+		end
+		driver:Hide()
+		return
+	end
 	local now = GetTime()
 	sinceLayout = sinceLayout + elapsed
 	local relayout = sinceLayout > 0.5
@@ -134,8 +148,6 @@ driver:SetScript("OnUpdate", function(_, elapsed)
 			local since = now - a.at
 			if not s.down and since > 0.5 then
 				stop(s)
-			elseif mode ~= "bar" and mode ~= "text" then
-				if s.pulse then s.pulse:Hide() end
 			else
 				local f = look(s)
 				if relayout or not f.size then place(s, f) end
@@ -167,7 +179,7 @@ ns.Totems.subscribe(function(event, slot)
 		return
 	end
 	active[slot] = { at = GetTime() - oneWay(), secs = secs }
-	driver:Show()
+	if showing() then driver:Show() end
 end)
 
 table.insert(TB.EXPERIMENTAL, { "Pulse timers", "Totem bar > Pulse timer" })
