@@ -75,15 +75,41 @@ function Page.new(win, key, title, indent)
 	-- Update the scroll frame's child rect (its scroll range and the area where rows take clicks)
 	-- after every resize and reflow, as Blizzard's pages do after a layout, so rows that a taller
 	-- window or a longer page brings into view can be clicked.
+	local page = setmetatable({ win = win, key = key, title = title, indent = indent, scroll = scroll,
+		content = content, items = {}, blockList = {}, subs = {} }, Page)
 	scroll:SetScript("OnSizeChanged", function(self, w)
 		content:SetWidth(w)
 		self:UpdateScrollChildRect()
+		page:keepScroll()
 		ns.Options.refresh()
 	end)
 	content:SetScript("OnSizeChanged", function() scroll:UpdateScrollChildRect() end)
 	scroll:Hide()
-	return setmetatable({ win = win, key = key, title = title, indent = indent, scroll = scroll, content = content,
-		items = {}, blockList = {}, subs = {} }, Page)
+	return page
+end
+
+-- Resizing the window changes the scroll frame's size and range under the scroll bar, which
+-- follows the position as a fraction of the range and can snap it back to the top. holdScroll
+-- notes where the player is when a resize starts; every size change and layout puts it back
+-- (limited to the new range, the held value itself kept) until releaseScroll.
+function Page:holdScroll() self.held = self.scroll:GetVerticalScroll() end
+
+function Page:keepScroll()
+	local held, s = self.held, self.scroll
+	if not held then return end
+	s:UpdateScrollChildRect()
+	local v = math.max(0, math.min(held, s:GetVerticalScrollRange()))
+	if math.abs(s:GetVerticalScroll() - v) > 0.5 then s:SetVerticalScroll(v) end
+end
+
+-- After the layout the last size change queued has run.
+function Page:releaseScroll()
+	if not self.held then return end
+	self:keepScroll()
+	C_Timer.After(0, function()
+		self:keepScroll()
+		self.held = nil
+	end)
 end
 
 -- shown: nil, or a function: the row is hidden while it returns false.
@@ -229,6 +255,7 @@ function Page:refresh()
 	for _, run in ipairs(self.subs) do self:placeRule(run) end
 	self.rowW = nil
 	self.content:SetHeight(math.max(y, bottom, 1))
+	self:keepScroll()
 	if self.afterRefresh then self.afterRefresh() end
 end
 
