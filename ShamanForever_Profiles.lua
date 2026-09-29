@@ -88,8 +88,6 @@ end
 -- Loading (ADDON_LOADED): the saved table, brought up to date. Returns it.
 ------------------------------------------------------------------------
 function P.load()
-	-- A first install: What's new stays quiet (ShamanForever_News.lua).
-	P.firstLoad = ShamanForeverDB == nil
 	ShamanForeverDB = ShamanForeverDB or {}
 	local a = ShamanForeverDB
 	-- A save from before profiles (0.3 and earlier) isn't upgraded: it starts from defaults.

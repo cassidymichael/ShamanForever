@@ -80,7 +80,6 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 - Set the style once on the General page, then give any element, group or the totem bar its own where you want something different.
 - Profiles: each character uses one. Make, copy, rename, delete or reset them, or share one as text.
 - Spells are recognised by ID, so it should work in any game language (the options are in English).
-- What's new: after an update, Home lists what changed.
 
 ## Usage
 

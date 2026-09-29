@@ -356,7 +356,6 @@ local function buildHome(p)
 		{ "Interface\\Icons\\INV_Letter_15", function() return "Give feedback" end,
 			function() return "Discord, CurseForge or GitHub" end, function() OP.showFeedback() end },
 	})
-	ns.News.homeBlock(p)
 end
 
 -- General: the styles everything follows unless it has its own, then housekeeping.
