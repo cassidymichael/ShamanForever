@@ -182,7 +182,7 @@ function R.preview(on)
 				-- is the better way to hide this (the preview draws its own strip); this stays as
 				-- a guard on Blizzard's part.
 				ns.try("totem range: preview", function()
-					p.icon:SetAlpha((on or not TB.skin.rangeIcon()) and 0 or 1)
+					p.icon:SetAlpha(on and 0 or 1)
 					p.over:SetAlpha(on and 0 or 1)
 				end)
 			end

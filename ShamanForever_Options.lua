@@ -694,7 +694,7 @@ local function buildAbout(p)
 		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
 		"Francisque Millet, Mountain Landscape with Lightning (air). Corner and divider ornaments: public domain / CC0, Wikimedia Commons. " ..
 		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood texture CC0, ambientCG. Link icons: Simple Icons, CC0. " ..
-		"The Carved stone, Aged bronze and Carved wood borders and the Painted bursts pop: made with an AI image model (Google Gemini).")
+		"The Carved stone, Aged bronze and Carved wood borders, the Painted bursts pop, and the Stone and bronze totem bar's plinth and medallions: made with an AI image model (Google Gemini).")
 end
 
 ------------------------------------------------------------------------
@@ -744,7 +744,8 @@ local function buildTotemBar(p)
 
 	p.gate = TB.barOn
 	p:header("Display")
-	-- The bar's Look (ShamanForever_TotemSkins.lua): the rows for what a look owns hide while it is picked.
+	-- The bar's Look (ShamanForever_TotemSkins.lua): the rows for what a look owns hide while
+	-- it is picked.
 	local skins = {}
 	for _, e in ipairs(TB.skin.LIST) do table.insert(skins, { e.key, e.name }) end
 	p:dropdown("Look", "How the whole bar is drawn.", skins, function() return TB.skin.current().key end,
@@ -855,15 +856,16 @@ local function buildTotemBar(p)
 	p:dropdown("Pickers open", "Which way the totem picker opens from a slot.", function()
 		if TB.eff().dir == "row" then return { { "up", "Up" }, { "down", "Down" } } end
 		return { { "right", "Right" }, { "left", "Left" } }
-	end, function() return TB.eff().pop end, tset("pop"), full, 140)
+	end, function() return TB.eff().pop end, tset("pop"), function() return full() and not TB.skin.owns("pop") end, 140)
 	p:slider("Spacing", "Gap between the slots. Below 0 they overlap.", -10, 20, 1, px, tget("spacing"), tset("spacing"),
 		free("spacing"))
 	p:text(function()
 		local names = {}
-		if TB.skin.owns("dir") then table.insert(names, "Direction") end
-		if TB.skin.owns("spacing") then table.insert(names, "Spacing") end
-		return table.concat(names, " and ") .. ": set by the look."
-	end, function() return TB.skin.owns("dir") or TB.skin.owns("spacing") end)
+		for _, it in ipairs({ { "dir", "Direction" }, { "pop", "Pickers open" }, { "spacing", "Spacing" } }) do
+			if TB.skin.owns(it[1]) then table.insert(names, it[2]) end
+		end
+		return table.concat(names, ", ") .. ": set by the look."
+	end, function() return TB.skin.owns("dir") or TB.skin.owns("pop") or TB.skin.owns("spacing") end)
 	-- Its own size is not its scale: scale grows everything, text, arrows, spacing and lines included.
 	local sizeFollow = generalRow(p, "Icon size same as General", "Use the icon size on the General page.",
 		tget("sizeFollow"), function(v) TB.setSizeFollow(v); changed() end, "size")

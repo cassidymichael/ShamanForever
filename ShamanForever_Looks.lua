@@ -580,6 +580,11 @@ S.addLook("border", "wood", { name = "Carved wood", experimental = true,
 -- For the totem bar's Looks only: 1 px of the slot's element colour inside 1 px of black.
 S.addLook("border", "schooledge", { name = "School edge", hidden = true,
 	rings = { { color = BLACK }, { color = "school" } } })
+-- For the totem bar's Looks only: a round picture in a bronze medallion (AI-made art), whose
+-- opening overlaps the picture's edge a little.
+local ROUND = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+S.addLook("border", "medallion", { name = "Medallion", hidden = true,
+	mask = { file = ROUND }, swipe = ROUND, art = { file = MEDIA .. "Medallion", inset = { 0.35, 0.35, 0.35, 0.35 } } })
 
 -- Whether any of a kind's looks is experimental (About's list).
 function Looks.anyExperimental(kind)

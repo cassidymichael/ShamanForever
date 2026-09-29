@@ -1,9 +1,9 @@
 -- Totem bar: its Look (the options' word for it), the ways the whole bar can be drawn. Default is
 -- the bar as its own settings draw it; another look draws the slots, their time bars, the
 -- out-of-range mark, the pickers and what sits behind the bar its own way. Each look is a data
--- entry (the list below); the totem bar, its range strip and the options' preview of the bar call the
--- functions below, which leave everything as it was for Default and take down what another look
--- drew when the player goes back to it.
+-- entry (the list below); the totem bar, its range strip and the options' preview of the bar
+-- call the functions below, which leave everything as it was for Default and take down what
+-- another look drew when the player goes back to it.
 --
 -- A look can own some of the bar's settings (its `owns`): while it is picked the bar uses the
 -- look's value and the options hide that setting ("Set by the look"), and the player's own value
@@ -15,7 +15,7 @@
 -- have your totem's buff; a look changes only where the mark sits, what it draws, and what the
 -- button draws over it. Nothing here reads a totem or an aura: it draws what the bar already knows.
 
-local _, ns = ...
+local ADDON, ns = ...
 local TB = ns.TotemBar
 
 local SK = {}
@@ -43,25 +43,43 @@ local FLY_START, FLY_END = "UI-HUD-ActionBar-IconFrame-FlyoutBottom", "UI-HUD-Ac
 local FLY_MID, FLY_MID_ACROSS = "!UI-HUD-ActionBar-IconFrame-FlyoutMid", "_UI-HUD-ActionBar-IconFrame-FlyoutMidLeft"
 local FLY_ARROW = "UI-HUD-ActionBar-Flyout"
 
+-- Our art for Stone and bronze (AI-made plinth and medallion, a drawn gem), by path.
+local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Art\\Looks\\"
+local PLINTH, GEM = MEDIA .. "Plinth", MEDIA .. "Gem"
+-- Plinth.tga's pieces, { x, y, w, h } in texels of its 256 square: the left end, one opening (a
+-- slot's tile, the plinth's full height), the rune divider between slots, the right end, and a
+-- swatch of plain stone. boxTop: from the tile's top to where a slot's box starts (the opening,
+-- a little taller than wide, centred on the box).
+local PL = { capL = { 1, 0, 53, 204 }, tile = { 56, 0, 92, 204 }, divider = { 150, 0, 48, 204 },
+	capR = { 200, 0, 53, 204 }, stone = { 2, 208, 96, 46 }, boxTop = 55.4, gemDrop = 47.6 }
+-- Gem.tga's cells (texture coordinates): lit (a glow round it), unlit, and the bronze setting.
+local GEM_LIT, GEM_UNLIT, GEM_SET = { 0, 0.5, 0, 0.5 }, { 0.5, 1, 0, 0.5 }, { 0, 0.5, 0.5, 1 }
+local GEM_DARK = { 0.33, 0.31, 0.28 }
+local BRONZE = { 0.64, 0.48, 0.24, 1 }
+local BRONZE_DARK = { 0.10, 0.07, 0.03, 1 }
+
 -- A border style (ns.Style's "border" kind, every field) drawn in one of ns.Looks' border looks.
-local function borderStyle(look)
+local function borderStyle(look, size)
 	local k = S.KINDS.border
-	return S.clean({ show = true, look = look }, k.defaults, k.ranges)
+	return S.clean({ show = true, look = look, size = size }, k.defaults, k.ranges)
 end
 
 ------------------------------------------------------------------------
 -- The looks, in the order the options offer them. An entry has name, experimental, owns (see
 -- SK.owned), and the parts it draws its own way:
 --   border, extrasBorder  border styles for the slots and for Call and Recall
---   behind         what sits behind the slots: "tray"
+--   behind         what sits behind the slots: "tray", "plinth" (with a gem under each slot)
 --   timeBar        the slots' time bars: "tip" (a bright line at the fill's end), "cdm" (the
 --                  Cooldown Manager's bronze-rimmed bar and pip, outside the slot)
 --   mark           the out-of-range mark: "edge" (a red top edge over the top third, darkened),
---                  "tint" (the picture turned red, as Blizzard's buttons do)
+--                  "tint" (the picture turned red, as Blizzard's buttons do), "gem" (the gem under
+--                  the slot turns red)
 --   raiseWarning   the expiring warning draws over the mark, which covers part of the picture
---   picker, popHead      the pickers' look ("tray", "flyout") and the length of its heading at the
---                  far end
---   arrow          the arrow tab's look ("flyout")
+--   picker, popHead      the pickers' look ("tray", "flyout", "stone") and the length of its
+--                  heading at the far end
+--   arrow          the arrow tab's look ("flyout", "bronze")
+--   extrasGap      the gap between the slots and Call and Recall, as a share of the slots' size,
+--                  when the look owns the spacing
 --   badgeGap(size) how far past the slot the look hangs something on the badge's side ("not your
 --                  pick" sits beyond it)
 --   gapAdd(size)   what the look hangs in the gaps between slots, added to the Spacing
@@ -108,6 +126,25 @@ add("blizzard", {
 	rangeText = "Out of range, for totems that buff you: the slot turns red, as Blizzard's buttons do.",
 })
 
+-- The Stone and bronze plinth's reach past a slot's box, above and below, for slots of this size.
+local function plinthReach(size)
+	local u = size / PL.tile[3]
+	return PL.boxTop * u, (PL.tile[4] - PL.boxTop - PL.tile[3]) * u
+end
+
+-- The bar set in a carved granite plinth (fixed art: it sets the spacing, a row, pickers opening
+-- up), a gem under each slot lit in its element's colour while the totem is down and red out of
+-- range, Call and Recall in round bronze medallions.
+add("stone", {
+	name = "Stone and bronze", experimental = true,
+	owns = { border = true, range = true, spacing = PL.divider[3] / PL.tile[3], dir = "row", pop = "up" },
+	extrasGap = 0.2,
+	border = borderStyle("line", 1), extrasBorder = borderStyle("medallion"),
+	behind = "plinth", mark = "gem", picker = "stone", arrow = "bronze",
+	badgeGap = function(size) return select(2, plinthReach(size)) end,
+	rangeText = "Out of range, for totems that buff you: the gem under the slot turns red.",
+})
+
 -- The look picked now (an unknown key, from a newer version's profile: Default).
 local DEFAULT = SK.byKey.default
 function SK.current()
@@ -122,8 +159,9 @@ function SK.anyExperimental()
 end
 
 ------------------------------------------------------------------------
--- Settings a look owns: owns = { border = true, spacing = share, dir = "row", range = true,
--- timeBar = true }. The options hide what it owns; the layout reads it through TB.eff().
+-- Settings a look owns: owns = { border = true, spacing = share, dir = "row", pop = "up",
+-- range = true, timeBar = true }. The options hide what it owns; the layout reads it through
+-- TB.eff().
 ------------------------------------------------------------------------
 -- Whether the look picked now owns a setting (the options).
 function SK.owns(field)
@@ -138,6 +176,7 @@ function SK.owned(field)
 	local o = SK.current().owns
 	if not o then return nil end
 	if field == "dir" then return o.dir end
+	if field == "pop" and o.pop then return o.pop end
 	if field == "pop" and o.dir then
 		local pop = TB.cfg().pop
 		if POPS[o.dir][pop] then return nil end
@@ -239,13 +278,109 @@ local function tray(host, boxes, size, on)
 	t:Show()
 end
 
+-- A texture showing one of Plinth.tga's pieces.
+local function plinthPiece(t, r)
+	t:SetTexture(PLINTH)
+	t:SetTexCoord(r[1] / 256, (r[1] + r[3]) / 256, r[2] / 256, (r[2] + r[4]) / 256)
+end
+-- The Stone and bronze plinth: a tile round each slot's box, the rune divider between two slots,
+-- an end before the first and after the last, all the plinth's height; and under each slot a gem
+-- in its bronze setting. Laid round the boxes, which the look's own spacing puts exactly a
+-- divider apart. A row only (the look sets it).
+local plinths = setmetatable({}, { __mode = "k" })   -- host -> its plinth
+local function plinth(host, boxes, size, on)
+	local f = plinths[host]
+	if not on then
+		if f then f:Hide() end
+		return
+	end
+	if not f then
+		f = CreateFrame("Frame", nil, host)
+		f:EnableMouse(false)
+		f.capL, f.capR = f:CreateTexture(nil, "BACKGROUND"), f:CreateTexture(nil, "BACKGROUND")
+		plinthPiece(f.capL, PL.capL)
+		plinthPiece(f.capR, PL.capR)
+		f.tiles, f.dividers, f.gems = {}, {}, {}
+		plinths[host] = f
+	end
+	f:SetFrameLevel(host:GetFrameLevel())
+	f:SetAllPoints(host)
+	local px = ns.pixel(host)
+	local u = size / PL.tile[3]
+	local up, down = plinthReach(size)
+	up, down = ns.roundPx(up, px), ns.roundPx(down, px)
+	local function piece(list, i, r)
+		local t = list[i]
+		if not t then
+			t = f:CreateTexture(nil, "BACKGROUND")
+			plinthPiece(t, r)
+			list[i] = t
+		end
+		t:ClearAllPoints()
+		t:Show()
+		return t
+	end
+	local g, drop = ns.roundPx(size * 0.42, px), ns.roundPx(PL.gemDrop * u, px)
+	local used = {}
+	for i, box in ipairs(boxes) do
+		local t = piece(f.tiles, i, PL.tile)
+		t:SetPoint("TOPLEFT", box, "TOPLEFT", 0, up)
+		t:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", 0, -down)
+		if i < #boxes then
+			local d = piece(f.dividers, i, PL.divider)
+			d:SetPoint("TOPLEFT", box, "TOPRIGHT", 0, up)
+			d:SetPoint("BOTTOMRIGHT", boxes[i + 1], "BOTTOMLEFT", 0, -down)
+		end
+		local gem = f.gems[box]
+		if not gem then
+			gem = { set = f:CreateTexture(nil, "ARTWORK", nil, 1), gem = f:CreateTexture(nil, "ARTWORK", nil, 2) }
+			gem.set:SetTexture(GEM)
+			gem.set:SetTexCoord(GEM_SET[1], GEM_SET[2], GEM_SET[3], GEM_SET[4])
+			gem.gem:SetTexture(GEM)
+			f.gems[box] = gem
+		end
+		for _, x in pairs(gem) do
+			x:ClearAllPoints()
+			x:SetPoint("CENTER", box, "BOTTOM", 0, -drop)
+			x:SetSize(g, g)
+			x:Show()
+		end
+		used[box] = true
+	end
+	for i = #boxes + 1, #f.tiles do f.tiles[i]:Hide() end
+	for i = math.max(#boxes, 1), #f.dividers do f.dividers[i]:Hide() end
+	for box, gem in pairs(f.gems) do
+		if not used[box] then gem.set:Hide(); gem.gem:Hide() end
+	end
+	local capW = ns.roundPx(PL.capL[3] * u, px)
+	f.capL:ClearAllPoints()
+	f.capL:SetPoint("TOPRIGHT", boxes[1], "TOPLEFT", 0, up)
+	f.capL:SetPoint("BOTTOMRIGHT", boxes[1], "BOTTOMLEFT", 0, -down)
+	f.capL:SetWidth(capW)
+	f.capR:ClearAllPoints()
+	f.capR:SetPoint("TOPLEFT", boxes[#boxes], "TOPRIGHT", 0, up)
+	f.capR:SetPoint("BOTTOMLEFT", boxes[#boxes], "BOTTOMRIGHT", 0, -down)
+	f.capR:SetWidth(capW)
+	f:Show()
+end
+
 function SK.layoutBar(host, boxes, size, row)
 	local look = SK.current()
 	tray(host, boxes, size, look.behind == "tray" and #boxes > 0)
+	plinth(host, boxes, size, look.behind == "plinth" and row and #boxes > 0)
 end
 
--- A slot's own mark under it (lit while its totem is down), on host beside box.
-function SK.light(host, box, el, lit) end
+-- A slot's own mark under it (lit while its totem is down), on host beside box: the plinth's gem,
+-- in the element's colour or dark. Plain textures, so any time.
+function SK.light(host, box, el, lit)
+	local f = plinths[host]
+	local gem = f and f.gems[box]
+	if not gem then return end
+	local t, c = gem.gem, lit and ns.SCHOOL_COLOR[el] or GEM_DARK
+	local cell = lit and GEM_LIT or GEM_UNLIT
+	t:SetTexCoord(cell[1], cell[2], cell[3], cell[4])
+	t:SetVertexColor(c[1], c[2], c[3], 1)
+end
 
 -- The expiring warning (Timer:setExpire) above the range mark, for a look whose mark covers more
 -- than a strip of the picture (in range, Blizzard's part covers that much with the buff's icon);
@@ -264,6 +399,7 @@ end
 -- A slot's totem state changed (the bar's refresh and its preview mode; any time, combat included).
 function SK.slotState(s, down)
 	placeWarning(s)
+	SK.light(TB.frame, s.button, s.el, down)
 end
 
 -- After a slot timer's apply(): the look's time bar. anchor: the slot's picture.
@@ -357,7 +493,8 @@ function SK.styleTimer(t, anchor, size)
 end
 
 -- Turns a texture showing an atlas by a quarter turn (deg: 0, 90, 180 or 270), as Blizzard turns
--- its flyout's pieces: through its texture coordinates, so the atlas's own corner of its file is kept.
+-- its flyout's pieces: through its texture coordinates, so the atlas's own part of its file is
+-- kept.
 local function turn(tex, deg)
 	if deg == 0 then return end
 	local c = { tex:GetTexCoord() }
@@ -374,15 +511,18 @@ local GLYPH_TURN = { up = 0, down = math.pi, right = -math.pi / 2, left = math.p
 function SK.styleArrow(t)
 	local kind = SK.current().arrow
 	if kind == "flyout" and not (hasAtlas(FLY_ARROW) and hasAtlas(FLY_END)) then kind = nil end
-	if not kind then
-		if t.skinned then
-			TB.plainArrow(t)
-			if t.skinBg then t.skinBg:Hide() end
-			t.skinned = nil
-		end
+	if t.skinned then
+		TB.plainArrow(t)
+		if t.skinBg then t.skinBg:Hide() end
+		t.skinned = nil
+	end
+	if not kind then return end
+	t.skinned = true
+	if kind == "bronze" then
+		-- The plain tab, edged in the plinth's bronze.
+		t:SetBackdropBorderColor(BRONZE[1], BRONZE[2], BRONZE[3], BRONZE[4])
 		return
 	end
-	t.skinned = true
 	local dir = TB.eff().pop
 	t:SetBackdropColor(0, 0, 0, 0)
 	t:SetBackdropBorderColor(0, 0, 0, 0)
@@ -459,6 +599,17 @@ function SK.stylePopout(pop, el, psz)
 		for _, t in ipairs(p.lines) do t:Hide() end
 		p.name:Hide()
 		if p.fly then for _, t in pairs(p.fly) do t:Hide() end end
+		pop.bg:SetVertexColor(1, 1, 1, 1)
+		pop.bg:SetTexCoord(0, 1, 0, 1)
+	end
+	if kind == "stone" then
+		-- Plain stone from the plinth, darkened, edged dark then bronze.
+		p = p or { lines = {}, name = pop:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall") }
+		pop.skin = p
+		plinthPiece(pop.bg, PL.stone)
+		pop.bg:SetVertexColor(0.8, 0.8, 0.8, 1)
+		insetRings(pop, p.lines, { { 1, BRONZE_DARK }, { 2, BRONZE } })
+		return
 	end
 	if kind == "flyout" then
 		p = p or { lines = {}, name = pop:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall") }
@@ -501,6 +652,13 @@ function SK.markRect(frame, size, inset)
 	if not kind then return nil end
 	local w = size - 2 * inset
 	if kind == "tint" then return inset, -inset, w, w end   -- the whole picture
+	if kind == "gem" then
+		-- The plinth's gem under the slot (SK.layoutBar).
+		local px = ns.pixel(frame)
+		local g = ns.roundPx(size * 0.42, px)
+		local drop = ns.roundPx(PL.gemDrop * size / PL.tile[3], px)
+		return (size - g) / 2, -(size + drop - g / 2), g, g
+	end
 	-- "edge": the top third of the picture.
 	return inset, -inset, w, ns.roundPx(w / 3, ns.pixel(frame))
 end
@@ -536,8 +694,17 @@ function SK.paintMark(m, w, h, icon)
 		t:SetBlendMode("BLEND")
 		t:Hide()
 	end
+	if kind == "gem" then
+		-- The gem, lit red.
+		p.shade:SetTexture(GEM)
+		p.shade:SetTexCoord(GEM_LIT[1], GEM_LIT[2], GEM_LIT[3], GEM_LIT[4])
+		p.shade:SetVertexColor(RED[1], RED[2], RED[3], 1)
+		p.shade:Show()
+		return true
+	end
 	if kind == "tint" then
 		-- The picture multiplied by the Cooldown Manager's out-of-range red, under its shadow.
+		p.shade:SetTexCoord(0, 1, 0, 1)
 		p.shade:SetColorTexture(OOR_TINT[1], OOR_TINT[2], OOR_TINT[3], 1)
 		p.shade:SetBlendMode("MOD")
 		p.shade:Show()
@@ -552,6 +719,7 @@ function SK.paintMark(m, w, h, icon)
 	end
 	-- "edge": darker toward the top, and a red line along it.
 	p.edge:SetAlpha(1)
+	p.shade:SetTexCoord(0, 1, 0, 1)
 	p.shade:SetColorTexture(1, 1, 1, 1)
 	p.shade:SetGradient("VERTICAL", CreateColor(0, 0, 0, 0), CreateColor(0, 0, 0, 0.6))
 	p.shade:Show()
@@ -578,11 +746,32 @@ end
 function SK.styleRangeButton(p, s)
 	local kind = SK.current().mark
 	if p.art then p.art:Hide() end
+	if p.gem then p.gem:Hide() end
+	-- The buff's icon: hidden by its colour's alpha where the look draws its own art (preview mode
+	-- hides it by its alpha).
+	if p.iconHidden then
+		p.icon:SetVertexColor(1, 1, 1, 1)
+		p.iconHidden = nil
+	end
 	if not kind then
 		plainMask(p)
 		return false
 	end
 	p.over.bg:SetColorTexture(0, 0, 0, 0)
+	if kind == "gem" then
+		-- In range, the gem lit in the element's colour over the red one.
+		plainMask(p)
+		p.icon:SetVertexColor(1, 1, 1, 0)
+		p.iconHidden = true
+		local c = ns.SCHOOL_COLOR[s.el]
+		p.gem = p.gem or p.over:CreateTexture(nil, "ARTWORK", nil, 1)
+		p.gem:SetTexture(GEM)
+		p.gem:SetTexCoord(GEM_LIT[1], GEM_LIT[2], GEM_LIT[3], GEM_LIT[4])
+		p.gem:SetVertexColor(c[1], c[2], c[3], 1)
+		p.gem:SetAllPoints(p.button)
+		p.gem:Show()
+		return true
+	end
 	if kind ~= "tint" then
 		plainMask(p)
 		return true
@@ -603,6 +792,3 @@ function SK.styleRangeButton(p, s)
 	end
 	return true
 end
-
--- Whether Blizzard's part shows the buff's icon (a look can draw its own art there instead).
-function SK.rangeIcon() return true end
