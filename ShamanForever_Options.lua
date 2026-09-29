@@ -723,6 +723,10 @@ local function buildTotemBar(p)
 	p:slider("Opacity", "Shift + mouse wheel over the bar while positioning is unlocked does the same.", 0.1, 1, 0.05,
 		pct, tget("alpha"), tset("alpha"))
 
+	-- With Layout: heavier borders go with the spacing.
+	p:header("Border")
+	borderRows(p, "totembar", changed)
+
 	p.gate = full
 	p:header("Buttons")
 	p:checkbox("Left-click casts your pick", "Left-click a slot to drop that element's picked totem.", tget("cast"), tset("cast"))
@@ -741,8 +745,6 @@ local function buildTotemBar(p)
 	end)
 
 	p.gate = TB.barOn
-	p:header("Border")
-	borderRows(p, "totembar", changed)
 	timerSettings(p, "Time left", "totembar", "uptime", changed)
 
 	p.gate = full
