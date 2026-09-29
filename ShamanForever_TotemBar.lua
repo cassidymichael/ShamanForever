@@ -909,7 +909,7 @@ local mover
 local saidWait = false   -- "changes wait until combat ends" said this combat
 local classDone = false  -- not a shaman: laid out hidden once, nothing more to do
 local hasTotems = false  -- a totem of any element is known (layout): until then the bar hides
-local paintPreview, previewShows   -- Preview mode, below
+local paintPreview   -- Preview mode, below
 
 -- known: the element's known totems (ns.Totems.knownTotems), from layout().
 local function layoutPopout(s, size, known)
@@ -985,8 +985,8 @@ end
 -- (ns.AfterCombat, made with the layout below).
 local function ownDriver()
 	local c = cfg()
-	-- While preview mode draws the slots, the bar shows as its scene would have it.
-	if preview then return previewShows() and "show" or "hide" end
+	-- While preview mode draws the slots, the bar shows as in combat.
+	if preview then return barOn() and (hasTotems or preview.all) and "show" or "hide" end
 	if not barOn() or not hasTotems then return "hide" end
 	if kbOpen or not ns.getAccount().locked then return "show" end
 	if c.show == "combat" then return "[petbattle] hide; [combat] show; hide" end
@@ -1113,10 +1113,7 @@ function layout()
 	applyTotemFrame()
 	applyActionBar()
 	if mover then mover.update() end
-	if preview then
-		paintPreview()
-		ns.Preview.afterBar()   -- the bar's visibility is set above, after the preview's own check
-	end
+	if preview then paintPreview() end
 	-- Not a shaman: the bar is laid out hidden; nothing else will change that.
 	if playerClass and not isShaman() then classDone = true end
 end
@@ -1547,28 +1544,16 @@ function TB.hasTotems() return hasTotems end
 
 ------------------------------------------------------------------------
 -- Preview mode (ShamanForever_Preview.lua): the slots drawn in the states it asks for, on their
--- own looks, while the bar's reads, time bars and end flashes wait. The bar shows as the preview's
--- scene would have it; with Show not learned every element's slot shows, even while none of its
--- totems is known. Only plain frames are drawn on; showing slots and the bar happens in layout(),
--- out of combat. When it ends, the next layout reads the slots again.
+-- own looks, while the bar's reads, time bars and end flashes wait. The bar shows as in combat; with
+-- Show not learned every element's slot shows, even while none of its totems is known. Only plain
+-- frames are drawn on; showing slots and the bar happens in layout(), out of combat. When it ends,
+-- the next layout reads the slots again.
 ------------------------------------------------------------------------
--- The bar in the preview's scene: in combat as it shows then; out of combat as it shows while a
--- totem is down (the preview's are).
-function previewShows()
-	if not barOn() or not (hasTotems or preview.all) then return false end
-	if preview.combat or not ns.getAccount().locked then return true end
-	local show = cfg().show
-	return show == "always" or show == "active"
-end
--- Whether the bar shows in the preview's scene (set as its visibility by the next layout).
-function TB.previewShown() return preview ~= nil and previewShows() end
+-- The states a slot can be drawn in, in the order the preview's Busy mode plays them.
+TB.PREVIEW_STATES = { "down", "expiring", "killed", "ranout", "empty" }
 
--- The states a slot can be drawn in, { state, name }, in the order Every state plays them.
-TB.PREVIEW_STATES = { { "down", "Totems down" }, { "expiring", "Expiring" }, { "killed", "Killed early" },
-	{ "ranout", "Ran out" }, { "empty", "Nothing down" } }
-
--- A slot in a preview state (down | expiring | killed | ranout | empty) since rec.at; rec.run: its
--- timer runs, else holds still; rec.range: its range strip shows. Returns when its timer runs out.
+-- A slot in a preview state (down | expiring | killed | ranout | empty) since rec.at, its timer
+-- running; rec.range: its range strip shows. Returns when its timer runs out.
 local function paintSlot(s, rec)
 	local c, v, st = cfg(), s.vis, rec.st
 	local shown = s.button:IsShown()   -- the strip is a frame of its own
@@ -1608,13 +1593,7 @@ local function paintSlot(s, rec)
 		local left, life = ns.Look.PREVIEW_LEFT[s.el][1], ns.Look.PREVIEW_LEFT[s.el][2]
 		if st == "expiring" then left = 5 end
 		s.timer:setExpire({ secs = c.warn, grey = c.warnGrey, ring = c.warnRing, pulse = c.warnPulse, glow = c.warnGlow }, icon)
-		if rec.run then
-			pcall(s.timer.cd.Resume, s.timer.cd)   -- a still picture paused it
-			s.timer:setTime(rec.at - (life - left), life)
-		else
-			s.timer:clear()
-			s.timer:static(1 - left / life, life)
-		end
+		s.timer:setTime(rec.at - (life - left), life)
 		return rec.at + left
 	end
 	-- Not down (killed early and ran out leave the slot empty): as refreshSlot draws it.
@@ -1642,11 +1621,11 @@ function paintPreview()
 	end
 end
 
--- p: { combat = the in-combat scene, all = every element's slot }, or nil when it ends. The caller
--- lays the HUD out next (ns.applyLayout or ns.layoutElements), which lays out the bar.
+-- p: { all = every element's slot }, or nil when it ends. The caller lays the HUD out next
+-- (ns.applyLayout or ns.layoutElements), which lays out the bar.
 function TB.preview(p)
 	if p then
-		preview = { combat = p.combat, all = p.all, states = preview and preview.states or {} }
+		preview = { all = p.all, states = preview and preview.states or {} }
 		if TB.range then TB.range.preview(true) end
 	elseif preview then
 		preview = nil
@@ -1655,7 +1634,6 @@ function TB.preview(p)
 			local s = slots[el]
 			s.killed:stop()
 			s.expired:stop()
-			pcall(s.timer.cd.Resume, s.timer.cd)
 			if s.previewRange then s.previewRange:Hide() end
 			-- A totem that went meanwhile isn't news: no end flash for it when the slot is read, and
 			-- ns.Totems forgets it quietly.
@@ -1671,9 +1649,9 @@ end
 
 -- A slot's state from `at` (GetTime): see paintSlot; moment: its end flash plays too. Returns when
 -- its timer runs out, if it has one.
-function TB.previewSlot(el, st, at, run, range, moment)
+function TB.previewSlot(el, st, at, range, moment)
 	if not preview then return end
-	local rec = { st = st, at = at, run = run, range = range }
+	local rec = { st = st, at = at, range = range }
 	preview.states[el] = rec
 	local s, c = slots[el], cfg()
 	-- The other state's flash and cross go: a slot that ran out wasn't killed early.

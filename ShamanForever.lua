@@ -149,8 +149,7 @@ local ELEMENT_KEYS = { "shield", "shock", "imbue" }
 -- ns.Spells key), else its label, with its icon, its school's art (earth, fire, water, air, spirit),
 -- blurb (a line under its name) and experimental (a feature name: not tested in game); kind picks
 -- its page and preview (ShamanForever_OptionsElements.lua, _OptionsLook.lua), which read def, the
--- module's own table for it; preview, optional (here or in def), is its preview mode script
--- (ShamanForever_Preview.lua).
+-- module's own table for it.
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
 function ns.registerElement(key, e)
