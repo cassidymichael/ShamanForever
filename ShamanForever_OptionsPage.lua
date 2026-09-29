@@ -410,6 +410,28 @@ function Page:header(text, shown, note, icon)
 	return f
 end
 
+-- A brief gold glow behind a row (a header), to show where a button has brought the reader. The
+-- glow and its animation are made on first use and nothing runs between flashes.
+function Page.flash(_, frame)
+	local flash = frame.flashAnim
+	if not flash then
+		local glow = frame:CreateTexture(nil, "BACKGROUND")
+		glow:SetPoint("TOPLEFT", -6, 2)
+		glow:SetPoint("BOTTOMRIGHT", 6, -2)
+		glow:SetColorTexture(0.88, 0.66, 0.29, 0.35)
+		glow:SetAlpha(0)
+		flash = glow:CreateAnimationGroup()
+		local up = flash:CreateAnimation("Alpha")
+		up:SetFromAlpha(0); up:SetToAlpha(1); up:SetDuration(0.35); up:SetOrder(1)
+		local down = flash:CreateAnimation("Alpha")
+		down:SetFromAlpha(1); down:SetToAlpha(0); down:SetDuration(0.9); down:SetOrder(2)
+		flash:SetLooping("NONE")
+		frame.flashAnim = flash
+	end
+	flash:Stop()
+	flash:Play()
+end
+
 -- Names the last row added, for ns.Options.openGeneral and the like to scroll to.
 function Page:anchor(name)
 	self.anchors = self.anchors or {}

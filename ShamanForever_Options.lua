@@ -381,7 +381,7 @@ local function lockText() return acct().locked and "Unlock positioning" or "Lock
 local function toggleLock() ns.setLocked(not acct().locked); OP.refresh() end
 local function lockSub() return acct().locked and "Move groups and the totem bar on screen" or "Done moving? Lock them" end
 
-local aboutExp, aboutFeedback   -- About's flashing headings (OP.showExperimental, OP.showFeedback)
+local aboutExp, aboutFeedback   -- About's headings a button brings the reader to (OP.showExperimental, OP.showFeedback)
 
 local function addonVersion()
 	local getMeta = C_AddOns and C_AddOns.GetAddOnMetadata or GetAddOnMetadata
@@ -490,21 +490,9 @@ local function buildProfiles(p)
 
 end
 
--- A heading with a gold glow that flashes when a button elsewhere brings the reader to it.
+-- A heading a button elsewhere can bring the reader to (OP.showExperimental, OP.showFeedback).
 local function flashingHeader(p, text, icon)
-	local header = p:header(text, nil, nil, icon)
-	local glow = header:CreateTexture(nil, "BACKGROUND")
-	glow:SetPoint("TOPLEFT", -6, 2)
-	glow:SetPoint("BOTTOMRIGHT", 6, -2)
-	glow:SetColorTexture(0.88, 0.66, 0.29, 0.35)
-	glow:SetAlpha(0)
-	local flash = glow:CreateAnimationGroup()
-	local up = flash:CreateAnimation("Alpha")
-	up:SetFromAlpha(0); up:SetToAlpha(1); up:SetDuration(0.35); up:SetOrder(1)
-	local down = flash:CreateAnimation("Alpha")
-	down:SetFromAlpha(1); down:SetToAlpha(0); down:SetDuration(0.9); down:SetOrder(2)
-	flash:SetLooping("NONE")
-	return { page = p, header = header, flash = flash }
+	return { page = p, header = p:header(text, nil, nil, icon) }
 end
 
 -- Link icons: white site logos (Simple Icons, CC0), tinted with each site's colour. PNG paths need
@@ -1383,22 +1371,20 @@ local function scrollTo(p, frame, after)
 	end)
 end
 
--- From an Edit General button: General, scrolled to the settings named anchor (a style's kind).
+-- From an Edit General button: General, scrolled to the settings named anchor (a style's kind),
+-- whose header flashes.
 function OP.openGeneral(anchor)
 	OP.open("general")
 	local p = pages.general
 	local f = p and p.anchors and p.anchors[anchor]
-	if f then scrollTo(p, f) end
+	if f then scrollTo(p, f, function() p:flash(f) end) end
 end
 
--- About, scrolled to one of its flashing headings, which glows briefly.
+-- About, scrolled to one of its headings, which flashes.
 local function showAboutSection(section)
 	OP.open("about")
 	if not section then return end
-	scrollTo(section.page, section.header, function()
-		section.flash:Stop()
-		section.flash:Play()
-	end)
+	scrollTo(section.page, section.header, function() section.page:flash(section.header) end)
 end
 -- From an EXPERIMENTAL badge: About's Experimental section.
 function OP.showExperimental() showAboutSection(aboutExp) end
