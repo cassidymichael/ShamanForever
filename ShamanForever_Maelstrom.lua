@@ -278,11 +278,15 @@ local function styleFull(slot)
 		minApplications = src.max - 1, maxApplications = src.max,
 		interpolation = setting("fullPop") and EASE or IMMEDIATE,
 	})
-	-- The pulse always runs while the buff is up; off, it pulses from full to full.
+	-- The pulse plays only while Pulsing glow is on and the highlight is shown: SetLooping(NONE)
+	-- makes Blizzard's handed animation play once per buff and stop, so it costs nothing per frame
+	-- while the option is off (the default).
+	local pulseOn = setting("fullGlow") and look ~= "none"
 	local st = ns.Style.get(KEY, "glow")
 	ns.try("maelstrom pulse style", function()
+		slot.pulse:SetLooping(pulseOn and "BOUNCE" or "NONE")
 		slot.fade:SetDuration(st.speed)
-		slot.fade:SetToAlpha(setting("fullGlow") and st.low or 1)
+		slot.fade:SetToAlpha(pulseOn and st.low or 1)
 	end)
 end
 
@@ -296,8 +300,8 @@ local function buildFull(slot, button)
 	bar:SetStatusBarTexture(EDGE_GLOW)
 	slot.hl = bar
 	-- The pulse, on the holder (so the bar's own alpha stays ours for the look): the button plays it.
+	-- styleFull sets its looping (below, via buildFull's own call) to match Pulsing glow.
 	local pulse = holder:CreateAnimationGroup()
-	pulse:SetLooping("BOUNCE")
 	local fade = pulse:CreateAnimation("Alpha")
 	fade:SetFromAlpha(1); fade:SetToAlpha(1); fade:SetDuration(0.5); fade:SetSmoothing("IN_OUT")
 	slot.pulse, slot.fade = pulse, fade
