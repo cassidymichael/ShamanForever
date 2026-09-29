@@ -31,8 +31,9 @@ end
 
 -- The school a frame's looks take (a glow's material, a pop's colour and shapes): the frame's own
 -- (a totem bar slot's), else its element's (element icons and their previews carry the element's
--- key as owner).
+-- key as owner). A frame laid over an icon (an end flash's pop) names that icon as f.over.
 local function schoolOf(f)
+	if f.over then f = f.over end
 	if f.school then return f.school end
 	local e = type(f.owner) == "string" and ns.ELEMENTS[f.owner]
 	return e and e.school or "spirit"
@@ -872,7 +873,7 @@ local material = {
 	end,
 	style = function(g, parts, st, c)
 		styleSoft(parts.soft, c)
-		local school = schoolOf(g.over or g)
+		local school = schoolOf(g)
 		parts.school = school
 		parts.mat:SetTexture(MEDIA .. "Mat-" .. school:sub(1, 1):upper() .. school:sub(2), "REPEAT", "REPEAT")
 		parts.mat:SetTexCoord(0, 3, 0, 3)
@@ -932,11 +933,12 @@ addGlow("heartbeat", "Heartbeat", heartbeat)
 
 ------------------------------------------------------------------------
 -- Pop looks: the light around the icon, never its motion (the pop style's Motion, below). The
--- default, "classic", is ns.playPop's own flash, ring and star. The others are for Ready (other
--- events keep the classic light, in their colours) and take the element's school colour. An
--- entry's play(x, f, c, k, h, st, school) draws its light with x's parts (ns.playPop's), k its
--- duration multiplier, h the icon's height with its frame. Shapes spread behind the icon over a
--- dark halo, so they read on bright ground; the sheen crosses the icon.
+-- default, "classic", is ns.playPop's own flash, ring and star. The others are for a spell coming
+-- ready and a totem running out (Looks.POP_EVENTS; the warnings keep the classic light in their
+-- colours) and take the element's school colour. An entry's play(x, f, c, k, h, st, school) draws
+-- its light with x's parts (ns.playPop's), k its duration multiplier, h the icon's height with its
+-- frame. Shapes spread behind the icon over a dark halo, so they read on bright ground; the sheen
+-- crosses the icon.
 ------------------------------------------------------------------------
 local GCD_FLASH = "UI-HUD-ActionBar-GCD-Flipbook"
 local SCHOOLS = { earth = "Earth", fire = "Fire", water = "Water", air = "Air", spirit = "Spirit" }
@@ -1036,9 +1038,9 @@ local function gcdFlash(x, c, k)
 			x.gcd[i] = { tex = t, group = flipBook(t, 11, 2, 22, 0.75) }
 		end
 	end
-	local w, h = x.fx:GetSize()
+	local s = x.size   -- the icon's, which may read secret under the totem bar's secure button
 	for _, g in ipairs(x.gcd) do
-		g.tex:SetSize(w * g.tex.grow, h * g.tex.grow)
+		g.tex:SetSize(s * g.tex.grow, s * g.tex.grow)
 		g.tex:SetVertexColor(c[1] * 0.6 + 0.4, c[2] * 0.6 + 0.4, c[3] * 0.6 + 0.4)
 		g.group:Stop()
 		g.group.flip:SetDuration(0.75 * k)
@@ -1116,25 +1118,34 @@ addPop("rune", "Rune ring", {
 	end,
 })
 
--- The pop style ns.playPop draws for kind on f: st itself for the classic look (and for every
--- event but Ready); else a copy without the classic light, and play, which draws the look's own
--- light after the motion starts. The motion is always st's own: a look never changes it. A look
--- whose Blizzard art is missing draws as School colour.
+-- The events a pop look plays for: Ready, and a totem that ran out (the totem bar's pops, and the
+-- totem elements'). Killed early, Grounded and the imbue dropping are warnings: they keep the
+-- classic light, in their own colours.
+Looks.POP_EVENTS = { ready = true, expired = true }
+
+-- The pop style ns.playPop draws for kind on f: st itself for the classic look (and for events
+-- outside POP_EVENTS); else a copy without the classic light, and play(x, k, size), which draws the
+-- look's own light after the motion starts, size the icon's height (ns.playPop's, never read under
+-- a secure button). The motion is always st's own: a look never changes it. A look whose Blizzard
+-- art is missing draws as School colour.
 function Looks.popStyle(st, kind, f)
 	local look = S.look("pop", st.look)
-	if look.key == "classic" or kind ~= "ready" then return st end
+	if look.key == "classic" or not Looks.POP_EVENTS[kind] then return st end
 	if look.atlas and not Looks.hasAtlas(look.atlas) then look = S.LOOKS.pop.byKey.school end
 	local school = schoolOf(f)
 	local out = CopyTable(st)
 	out.flash, out.ring, out.star = false, false, false
-	out.play = function(x, k)
+	out.play = function(x, k, size)
 		if not x.back then   -- behind the icon: only pops in these looks need it
 			x.back = CreateFrame("Frame", nil, f.effects or f)
 			x.back:SetAllPoints()
 			x.back:EnableMouse(false)
 		end
-		x.back:SetFrameLevel(math.max(f:GetFrameLevel() - 1, 0))   -- as the icon stands now
-		local h = math.max(f:GetHeight(), 8) + 2 * Looks.outerEdge(f)
+		-- Under the icon as it stands now: for an end flash's pop, the icon it covers (a totem bar
+		-- slot), so the shapes and their dark disc stay behind that slot's neighbours too.
+		x.back:SetFrameLevel(math.max((f.over or f):GetFrameLevel() - 1, 0))
+		x.size = size
+		local h = size + 2 * Looks.outerEdge(f.over or f)
 		local c = ns.SCHOOL_COLOR[school] or ns.SCHOOL_COLOR.spirit
 		look.play(x, f, c, k, h, st, school)
 	end

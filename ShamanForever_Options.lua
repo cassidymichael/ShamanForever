@@ -253,11 +253,13 @@ local function popBlock(p, owner, icon, kind, growOnly)
 		p:slider("Motion speed", nil, 0.5, 2, 0.1, pct, r.get("speed"), r.set("speed"), own)
 		return
 	end
-	-- The looks are for Ready: a page whose pop is for something else (the totem bar's, the imbue's)
-	-- offers only the classic one. The classic rows stay, as every other event still pops with them.
-	if kind == "ready" then
+	-- The looks are for Ready and Ran out (ns.Looks.POP_EVENTS): a page whose pop is for a warning
+	-- (the imbue's) offers only the classic one. The classic rows stay, as the warnings still pop
+	-- with them.
+	if ns.Looks.POP_EVENTS[kind] then
 		local look = lookRows(p, r, "pop", "Look", "Pop looks", own)
-		p:text("Other events keep the Classic look below.", showWhen(function() return look().key ~= "classic" end, own))
+		p:text("Killed early, Grounded and the imbue dropping keep the Classic look below.",
+			showWhen(function() return look().key ~= "classic" end, own))
 	end
 	p:checkbox("Flash", "A quick flash of light over the icon.", r.get("flash"), r.set("flash"), own)
 	p:checkbox("Ring burst", "A ring that spreads out from the icon.", r.get("ring"), r.set("ring"), own)

@@ -411,7 +411,9 @@ function ns.playPop(f, kind, owner)
 	local x = popFx(f)
 	local motion, S = ns.Looks.popMotion(st, f)
 	local k = 1 / math.max(st.speed, 0.1)   -- duration multiplier
-	local h = math.max(f:GetHeight(), 8)
+	-- popSize: the icon's size, set by whoever knows it where a read could be secret (an end flash
+	-- over the totem bar's slot, under its secure button).
+	local h = math.max(f.popSize or f:GetHeight(), 8)
 	for _, m in ipairs({ "grow", "bounce", "hop", "shake", "shakeV" }) do x[m]:Stop() end
 	if motion == "pop" then
 		local a = x.grow.a
@@ -464,7 +466,7 @@ function ns.playPop(f, kind, owner)
 		x.star:SetSize(h, h)
 		x.bursts.play(x.star, { dur = 0.45 * k, from = h * 1.2, to = h * 3.5, spin = -0.5 })
 	end
-	if st.play then st.play(x, k) end   -- a pop look's own light (ns.Looks.popStyle)
+	if st.play then st.play(x, k, h) end   -- a pop look's own light (ns.Looks.popStyle)
 end
 
 -- The end of a totem, over `anchor`. Nothing here reads a secret: play() hands the gone totem's
@@ -491,6 +493,7 @@ function ns.makeEndFlash(parent, anchor, owner, over)
 	kf:EnableMouse(false)
 	kf.pop = CreateFrame("Frame", nil, kf)
 	kf.pop:SetAllPoints()
+	kf.pop.over = over   -- the icon whose school and frame its pop's looks take
 	kf.body = CreateFrame("Frame", nil, kf.pop)
 	kf.body:SetAllPoints()
 	kf.body:SetAlpha(0)
@@ -567,6 +570,7 @@ function ns.makeEndFlash(parent, anchor, owner, over)
 		-- fitSize: the picture's size, set by whoever lays it out where the flash sits in from anchor
 		-- (the totem bar's slots, inside their border), so no size is read under a secure button.
 		local size = self.fitSize or anchor:GetWidth()
+		self.pop.popSize = size
 		local soft = opts.expired and opts.ranOut
 		if soft then
 			local c = opts.ranOut
