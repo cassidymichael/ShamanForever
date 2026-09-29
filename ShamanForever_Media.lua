@@ -173,8 +173,8 @@ function M.text(o)
 	return (M.fontPath(S.value(o, "text", "font"))), outline, S.value(o, "text", "shadow")
 end
 
--- Shadows set on a string at run time may not draw on this client (another addon's finding, not
--- ours): shadows carried by a font object do, so a shadowed string takes one first.
+-- Shadows set on a string at run time may not draw on this client (EllesmereUI's finding, not yet
+-- tested here): shadows carried by a font object do, so a shadowed string takes one first.
 local shadowFont, plainFont
 local function primer(on)
 	if not shadowFont then
