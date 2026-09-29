@@ -594,7 +594,7 @@ L.TOTEM_ICON = TOTEM_ICON
 local PREVIEW_LEFT = { earth = { 250, 300 }, fire = { 38, 55 }, water = { 83, 300 }, air = { 165, 300 } }
 local POP_ITEMS = 3   -- "No totem" and two totems: enough to show the look within the header
 L.PREVIEW.totembar = {
-	stage = true, heroH = 280, uptime = true,
+	stage = true, heroH = 210, uptime = true,
 	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" }, { "killed", "Killed early" },
 		{ "range", "Out of range" }, { "offpick", "Not your pick" }, { "picking", "Picking" } },
 	-- Blizzard's: nothing to preview. Active totems: only totems that are down, so no picking. Out of
