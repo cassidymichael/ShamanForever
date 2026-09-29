@@ -546,6 +546,7 @@ end
 -- Frame looks. "line" is the default look.
 ------------------------------------------------------------------------
 local GOLD = { 0.71, 0.55, 0.29, 1 }   -- the options window's gold
+Looks.GOLD = GOLD
 local BRONZE_HI, BRONZE_LO, BRONZE_DARK = { 0.85, 0.68, 0.39, 1 }, { 0.43, 0.29, 0.13, 1 }, { 0.10, 0.07, 0.03, 1 }
 -- Blizzard's Cooldown Manager and action button art. The plain names draw Forever's bronze art
 -- (tested 2026-09-28); the action button's mask is drawn 64 over a 45 icon, as Blizzard draws it.

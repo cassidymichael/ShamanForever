@@ -199,6 +199,7 @@ end
 -- place everything the same way. Each reads the bar's settings (cfg) at the call.
 ------------------------------------------------------------------------
 local POP_STEP = 3    -- a picker's padding, and the gap between its buttons
+TB.POP_FILL = { 0, 0, 0, 0.72 }   -- a picker's plain fill (a Look can draw its own)
 TB.BADGE_GAP = 3      -- between a slot and its "not your pick" badge
 local EXTRA_GAP = 6   -- added to the spacing between the extras and the slots
 
@@ -284,6 +285,7 @@ function TB.plainArrow(t)
 end
 -- The arrow tab along anchor's picker side, arrowSize deep, and its glyph sized and turned.
 local GLYPH_TURN = { up = 0, down = math.pi, right = -math.pi / 2, left = math.pi / 2 }
+TB.GLYPH_TURN = GLYPH_TURN
 function TB.placeArrow(tab, anchor, glyph)
 	local c = TB.eff()
 	local deep = c.arrowSize
@@ -538,7 +540,7 @@ for index, el in ipairs(ELEMENTS) do
 	pop:SetSize(1, 1)
 	pop.bg = pop:CreateTexture(nil, "BACKGROUND")
 	pop.bg:SetAllPoints()
-	pop.bg:SetColorTexture(0, 0, 0, 0.72)
+	pop.bg:SetColorTexture(TB.POP_FILL[1], TB.POP_FILL[2], TB.POP_FILL[3], TB.POP_FILL[4])
 	pop:SetFrameStrata("HIGH")
 	pop.buttons = {}
 	s.popout = pop

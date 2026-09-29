@@ -705,7 +705,8 @@ L.PREVIEW.totembar = {
 		h.pop = CreateFrame("Frame", nil, bar)
 		h.pop.bg = h.pop:CreateTexture(nil, "BACKGROUND")
 		h.pop.bg:SetAllPoints()
-		h.pop.bg:SetColorTexture(0, 0, 0, 0.72)
+		local fill = ns.TotemBar.POP_FILL
+		h.pop.bg:SetColorTexture(fill[1], fill[2], fill[3], fill[4])
 		h.pop.items = {}
 		for i = 1, POP_ITEMS do
 			local it = CreateFrame("Frame", nil, h.pop)

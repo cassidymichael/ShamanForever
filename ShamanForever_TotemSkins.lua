@@ -23,7 +23,7 @@ TB.skin = SK
 
 local S = ns.Style
 local BLACK = { 0, 0, 0, 1 }
-local GOLD = { 0.71, 0.55, 0.29, 1 }        -- the options window's gold, as ns.Looks' Gold hairline
+local GOLD = ns.Looks.GOLD                  -- the options window's gold, as ns.Looks' Gold hairline
 local RED = { 0.9, 0.12, 0.08, 1 }          -- out of range
 local TRAY = { 0.047, 0.035, 0.024 }         -- the Pixel look's dark fill
 local hasAtlas = ns.Looks.hasAtlas
@@ -486,7 +486,6 @@ local function turn(tex, deg)
 end
 -- The quarter turn of the flyout's end pieces for pickers opening each way, as Blizzard's.
 local FLY_TURN = { up = 0, down = 180, right = 90, left = 270 }
-local GLYPH_TURN = { up = 0, down = math.pi, right = -math.pi / 2, left = math.pi / 2 }   -- as TB.placeArrow
 
 -- The arrow tab's look (TB.makeArrowLook; TB.placeArrow has placed it). "flyout": the action bar
 -- flyout's end piece and arrow.
@@ -520,7 +519,7 @@ function SK.styleArrow(t)
 	local g = t.glyph
 	g:SetAtlas(FLY_ARROW)
 	g:SetBlendMode("BLEND")
-	g:SetRotation(GLYPH_TURN[dir])
+	g:SetRotation(TB.GLYPH_TURN[dir])
 end
 
 -- "flyout": the action bar flyout's pieces (as Blizzard's FlyoutPopupMixin lays them out): its
@@ -573,7 +572,6 @@ end
 
 -- A picker's look (pop: the popout, with its bg), for element el, buttons psz wide. Default: a
 -- plain dark fill. "tray": the Pixel tray's fill and edge, the element's name at the far end.
-local PLAIN_POP = { 0, 0, 0, 0.72 }
 function SK.stylePopout(pop, el, psz)
 	local kind = SK.current().picker
 	local p = pop.skin
@@ -603,7 +601,8 @@ function SK.stylePopout(pop, el, psz)
 		kind = nil
 	end
 	if not kind then
-		if p then pop.bg:SetColorTexture(PLAIN_POP[1], PLAIN_POP[2], PLAIN_POP[3], PLAIN_POP[4]) end
+		local fill = TB.POP_FILL
+		if p then pop.bg:SetColorTexture(fill[1], fill[2], fill[3], fill[4]) end
 		return
 	end
 	if not p then
