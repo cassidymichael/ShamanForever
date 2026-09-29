@@ -522,7 +522,14 @@ local function layoutElements()
 	for key, e in pairs(ELEMENTS) do
 		if not isEnabled(key) then hideFrame(e.frame) end
 	end
-	for gi in ipairs(db.groups) do layoutGroup(gi) end
+	-- A group holding Blizzard's aura button (ns.makeAuraSlot) waits while auras are secret out of
+	-- combat too: its icons' size can change with the border, and the button can't follow until then.
+	local secret = ns.aurasSecret()
+	for gi, g in ipairs(db.groups) do
+		local held = false
+		for _, key in ipairs(g.members) do if ELEMENTS[key].frame.auraButton then held = true end end
+		if held and secret then ns.retryAfterCombat("layout", layoutElements) else layoutGroup(gi) end
+	end
 	for gi = #db.groups + 1, #groupFrames do hideFrame(groupFrames[gi]) end
 	each("afterGroups")
 	ns.refitRings()

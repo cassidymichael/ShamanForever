@@ -694,6 +694,7 @@ function AuraSlot:setup()
 		c:SetUnit(o.unit or "player")
 		pcall(c.EnableMouse, c, false)   -- unlocked drags start on the group frame underneath
 		self.container = c
+		f.auraButton = true   -- the layout waits while it can't restyle the button (layoutElements)
 		c:AddAuraSlot(o.slot, o.filter or "HELPFUL", {
 			candidateFilters = candidates(o),
 			initializeFrame = function(button) initAuraButton(self, button) end,
