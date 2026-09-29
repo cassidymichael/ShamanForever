@@ -35,8 +35,7 @@ local function setting(key, name) return ns.elementSetting(key, name) end
 -- key, spellKey (ns.Spells), icon (fallback), school, blurb (the line under its name in the
 -- options), reagent (item ID; counted only while the spell's tooltip names it: ns.Reagents.takes),
 -- duration (seconds, until an aura read says), defaults (its own option defaults, over its parts':
--- PARTS below), preview (its preview mode script: ShamanForever_Preview.lua). Adding one is a line
--- here, in the order the options list them.
+-- PARTS below). Adding one is a line here, in the order the options list them.
 local BUFFS = {
 	{ key = "waterwalking", spellKey = "waterWalking", icon = 135863, school = "water", reagent = 17058, duration = 600,
 		blurb = "Time left while it's up.",

@@ -255,8 +255,7 @@ local function reset(ic, icon)
 end
 
 -- A timer frozen in its current style: frac of a span `length` seconds long gone. While the HUD's
--- preview draws a state (L.paint, below) it runs from that moment instead, unless the preview holds
--- still.
+-- preview draws a state (L.paint, below) it runs from that moment instead.
 local stage   -- set by L.paint while it draws; nil for the options' own previews
 local function frozen(t, frac, length)
 	if not t then return end
@@ -264,10 +263,8 @@ local function frozen(t, frac, length)
 	if not stage then t:static(frac, length) return end
 	length = length or 30
 	stage.ends = math.max(stage.ends or 0, stage.start + (1 - frac) * length)
-	if stage.run then
-		pcall(t.cd.Resume, t.cd)   -- a still picture paused it
-		t:setTime(stage.start - frac * length, length)
-	else t:static(frac, length) end
+	pcall(t.cd.Resume, t.cd)   -- a moment's frozen timer, drawn after the state, paused it
+	t:setTime(stage.start - frac * length, length)
 end
 
 -- An element's Expiring look (its Expiring block's settings), over a timer in its last seconds.
@@ -303,6 +300,7 @@ local function totemPreview(def)
 	local g = def.grounded   -- Grounding: its early end is Grounded, in air blue with no cross
 	return {
 		cooldown = true, uptime = true,
+		typical = "active",
 		states = { { "ready", "Ready" }, { "active", "Totem down" }, { "expiring", "Expiring" }, { "ranout", "Ran out" }, { "cd", "Cooldown" },
 			{ "killed", g and "Grounded" or "Killed early" } },
 		-- Ran out (Mana Tide, Grounding) and Killed early / Grounded play their flash as in game;
@@ -358,11 +356,14 @@ local function totemPreview(def)
 end
 
 -- Every element's preview, by key: states ({ state, label }), render(icon, state), pop(icon, state)
--- for the states with a moment, and the timers its icon has (cooldown, uptime). An element with
+-- for the states with a moment, and the timers its icon has (cooldown, uptime). For the HUD's
+-- preview mode (ShamanForever_Preview.lua): typical, its state in an ordinary moment of a fight
+-- (else its first), and warning, its state while warning (none: it has no warning). An element with
 -- logic of its own has its own here; the others are made from their def by their kind (below).
 L.PREVIEW = {
 	shield = {
 		uptime = true, barInset = function() return ns.Shield.timeBarInset() end,
+		warning = "down",
 		states = { { "up3", "3 charges" }, { "up1", "1 charge" }, { "down", "No shield" }, { "drop", "Dropped in combat" } },
 		render = function(ic, st)
 			local d = db()
@@ -399,6 +400,7 @@ L.PREVIEW = {
 		end,
 	},
 	shock = {
+		warning = "both",
 		cooldown = true,
 		states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" }, { "range", "Out of range" }, { "both", "Both" } },
 		pop = function(ic, st) if st == "ready" and opt("shock", "readyPop") then ic:Pop() end end,
@@ -415,6 +417,7 @@ L.PREVIEW = {
 	},
 	imbue = {
 		uptime = true,
+		typical = "fine", warning = "missing",
 		states = { { "missing", "No imbue" }, { "low", "Running low" }, { "fine", "Plenty left" } },
 		pop = function(ic, st) if st == "missing" and db().imbuePop then ic:Pop("imbue") end end,
 		render = function(ic, st)
@@ -435,6 +438,7 @@ L.PREVIEW = {
 	},
 	firenova = {
 		cooldown = true, uptime = true,
+		typical = "out", warning = "nototem",
 		states = { { "ready", "Ready" }, { "nototem", "No fire totem" }, { "out", "Fire totem out" }, { "expiring", "Totem expiring" } },
 		pop = function(ic, st)
 			if st == "ready" and opt("firenova", "readyPop") then ic:Pop() end
@@ -484,6 +488,7 @@ local function cooldownPreview(def)
 	return {
 		cooldown = true, uptime = (def.window or (def.primed and def.primed.duration)) and true or false,
 		states = states,
+		typical = "cd", warning = def.reagent and "out" or nil,
 		pop = function(ic, st)
 			if st == "ready" then
 				if not def.noReady and opt(key, "readyPop") then ic:Pop("ready") end
@@ -520,6 +525,7 @@ local function buffPreview(def)
 	return {
 		uptime = true,
 		states = states,
+		warning = def.breath and "underwater" or def.reagent and "out" or nil,
 		-- Elemental Focus's pop is the grow-and-settle Blizzard's button plays (not the full pop).
 		pop = function(ic, st)
 			if st == "up" and def.proc and opt(key, "primedPop") then
@@ -557,6 +563,7 @@ end
 -- idle (not down, nothing to warn about).
 L.PREVIEW.tremor = {
 	uptime = true,
+	typical = "idle", warning = "warn",
 	states = { { "warn", "Warning" }, { "down", "Tremor down" }, { "idle", "Not down, no warning" } },
 	pop = function(ic, st) if st == "warn" and opt("tremor", "alertPop") then ic:Pop("ready") end end,
 	render = function(ic, st)
@@ -600,10 +607,10 @@ for _, key in ipairs(ns.ELEMENT_KEYS) do
 end
 
 -- An element's preview state drawn for the HUD's preview mode (ShamanForever_Preview.lua), on an
--- icon made by L.makePreviewIcon: its timers run from `at` (GetTime), or hold still unless run.
--- Returns when the state's timer runs out, if it has one.
-function L.paint(ic, key, st, at, run)
-	stage = { start = at, run = run }
+-- icon made by L.makePreviewIcon: its timers run from `at` (GetTime). Returns when the state's
+-- timer runs out, if it has one.
+function L.paint(ic, key, st, at)
+	stage = { start = at }
 	local ok, err = pcall(L.PREVIEW[key].render, ic, st)
 	local ends = stage.ends
 	stage = nil
