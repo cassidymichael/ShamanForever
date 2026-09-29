@@ -374,12 +374,6 @@ local function drawnLook(b, shape)
 	return shape == "bar" and barParts(look) or look
 end
 
--- One screen pixel, in f's units.
-local function pixel(f)
-	local _, physicalHeight = GetPhysicalScreenSize()
-	return 768 / (physicalHeight or 768) / f:GetEffectiveScale()
-end
-
 -- How far in from the edge of a box w wide (the element's Size, in f's units) the icon's picture
 -- sits, so that border b drawn round it stays inside the box: the reach of its lines and sliced
 -- art (whole screen pixels, as they are drawn, for f's scale), or of its stretched art, which
@@ -396,7 +390,7 @@ function Looks.inset(f, b, w, shape)
 	elseif art and art.inset then
 		local share = math.max(art.inset[1], art.inset[2], art.inset[3], art.inset[4])
 		if share > 0 then
-			local one = pixel(f)
+			local one = ns.pixel(f)
 			out = math.max(out, math.ceil(share * w / (1 + 2 * share) / one - 0.01) * one)
 		end
 	end
