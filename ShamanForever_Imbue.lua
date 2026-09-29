@@ -135,7 +135,6 @@ local function drawImbue(now, quiet)
 	if showTime and not unreadable then
 		local total = math.max(imbueState.total or left, left)
 		imbue.upTimer:setTime(imbueState.expiresAt - total, total)
-		if left < 60 then imbue.upTimer:setTint(1, 0.3, 0.3) else imbue.upTimer:setTint(nil) end
 	else
 		imbue.upTimer:clear()
 	end
