@@ -18,9 +18,24 @@
 --   seen in game. If one fails, that element's gate goes to alpha 0 until a later call works (the
 --   next target change, the next refresh, or the end of combat): it shows nothing rather than the
 --   last target's aura.
+--
+-- Flame Shock, beside the aura itself:
+-- * Expiring (its last seconds): the button's time can't be read, so the warning runs from our
+--   own last Flame Shock cast (UNIT_SPELLCAST_SUCCEEDED, plain) plus the DoT's length, and sits
+--   under Blizzard's button, which the engine hides the moment the DoT is gone (Timer:setClock). The
+--   DoT on the target came from that cast or an earlier one, so it never has more time left than
+--   the cast says: a warning can come late or not at all (the DoT was cast before a /reload, or a
+--   later cast was resisted or went to another target), never early. Its length is 12 s for every
+--   rank (DB2, build 70009), raised if an out-of-combat read ever sees a longer one.
+-- * Not on target: out of combat, auras are plain reads (C_Secrets.ShouldAurasBeSecret is false),
+--   so the target's debuffs are read and the look is exact: shown only when the read worked and
+--   found none of yours. In combat nothing says whether it's gone (auras are secret, and the button
+--   hiding is invisible to addon code), so the look goes as combat starts (PLAYER_REGEN_DISABLED,
+--   before lockdown) and nothing shows for it until combat ends: a miss, never a guess. The same
+--   holds while auras are secret out of combat (a PvP match, an encounter).
 
 local _, ns = ...
-local say, Spells = ns.say, ns.Spells
+local say, Spells, isSecret = ns.say, ns.Spells, ns.isSecret
 
 local T = { name = "target" }
 ns.Target = T
@@ -30,14 +45,18 @@ local setting = ns.elementSetting
 -- The target's aura elements, in the order the options list them. filter: the aura slot's filter
 -- string; candidates(def): its candidate filters (default: the spell IDs of auraKey). The page's
 -- texts (ShamanForever_OptionsElements.lua): idleText, procHeader, popTip, glowTip, upLabel (its
--- preview's state). defaults: its own option defaults (ns.elementSetting).
+-- preview's state); expiring and missing: its Expiring and Not on target blocks (Flame Shock's,
+-- below). defaults: its own option defaults (ns.elementSetting).
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
 		icon = 135813, school = "fire", blurb = "Shows while your Flame Shock is on your target.",
 		idleText = "Idle is when your target doesn't have it", procHeader = "On your target",
 		popTip = "When it shows on your target. The icon grows and settles, at the Pop style's size and speed.",
 		glowTip = "While it's on your target.", upLabel = "On target",
-		defaults = { idleAlpha = 0, primedPop = false, primedGlow = false }, experimental = "Flame Shock on target" },
+		expiring = true, missing = true,   -- its Expiring and Not on target blocks
+		defaults = { idleAlpha = 0, primedPop = false, primedGlow = false, expire = { secs = 3 },
+			missGrey = true, missRing = false, missPulse = false },
+		experimental = "Flame Shock on target" },
 	{ key = "purge", spellKey = "purge", filter = "HELPFUL", icon = 136075, school = "spirit",
 		blurb = "Shows while your target has a Magic buff to purge.",
 		-- Every Magic buff; with Skip long buffs, only those lasting at most Longest buff (the
@@ -94,11 +113,15 @@ local function buildButton(def, slot, button, cd)
 	if button.AddAuraAssignedAnimation then ns.try("target pop", button.AddAuraAssignedAnimation, button, def.popAnim) end
 end
 
-local function styleButton(def, size)
+local function styleButton(def, size, slot)
 	def.glow:restyle()
 	def.glow:fit(size)
 	def.glow:SetShown(setting(def.key, "primedGlow") and true or false)
 	def.popAnim:restyle(setting(def.key, "primedPop") and true or false)
+	if def.expiring then
+		ns.try("target expiring", slot.timer.setExpire, slot.timer, ns.Timer.expireOpts(def.key), def.icon, size)
+		slot.timer:setClock(def.clockOn and def.clock or nil)
+	end
 end
 
 for _, def in ipairs(TARGET) do
@@ -123,7 +146,7 @@ for _, def in ipairs(TARGET) do
 		sites = { container = "target container " .. def.key, style = "target style " .. def.key,
 			filter = "target filter " .. def.key },
 		onButton = function(slot, button, cd) buildButton(def, slot, button, cd) end,
-		onStyle = function(_, size) styleButton(def, size) end,
+		onStyle = function(slot, size) styleButton(def, size, slot) end,
 		onError = function(err) ns.noteError("target container " .. def.key, err) end,
 	})
 	ns.registerElement(def.key, { frame = f, label = def.spell, defaults = def.defaults,
@@ -179,6 +202,86 @@ local function driveGate(def)
 	if not ok then ns.noteError("target gate " .. def.key, err) end
 end
 
+------------------------------------------------------------------------
+-- Flame Shock: its expiring clock and the Not on target look (see the file's header)
+------------------------------------------------------------------------
+local FLAME = TARGET[1]
+local fsSecs = 12   -- the DoT's length, every rank (DB2, build 70009); raised if a read sees more
+local fighting = false   -- from PLAYER_REGEN_DISABLED (before lockdown) to PLAYER_REGEN_ENABLED
+-- clockOn: a cast has set it.
+FLAME.clock = C_DurationUtil and C_DurationUtil.CreateDuration and C_DurationUtil.CreateDuration() or nil
+
+-- Our own cast of any rank: the clock starts again.
+local function noteFlameShock()
+	local d = FLAME.clock
+	if not d or not ns.try("flame shock clock", d.SetTimeFromStart, d, GetTime(), fsSecs) then return end
+	FLAME.clockOn = true
+	local timer = FLAME.aura.timer
+	if timer then timer:setClock(d) end
+end
+
+local function readable() return not fighting and not InCombatLockdown() and not ns.aurasSecret() end
+
+-- Whether your Flame Shock is on the target: true or false out of combat, nil when that can't be
+-- told (a read that fails or comes back secret). Any rank counts, by ID or by the client's name.
+local function flameShockOnTarget()
+	local ids = idMap(FLAME)
+	for i = 1, 40 do
+		local ok, a = pcall(C_UnitAuras.GetAuraDataByIndex, "target", i, "HARMFUL|PLAYER")
+		if not ok or isSecret(a) then return nil end
+		if a == nil then return false end
+		local id, name, dur = a.spellId, a.name, a.duration
+		if isSecret(id) or isSecret(name) then return nil end
+		if ids[id] or Spells.keyOf(id) == "flameShock" or name == FLAME.spell then
+			if not isSecret(dur) and type(dur) == "number" and dur > fsSecs then fsSecs = dur end
+			return true
+		end
+	end
+	return nil
+end
+
+-- Out of combat, auras readable, a hostile target you can act on, Flame Shock known: whether it's
+-- missing from the target (false while anything is unknown).
+local function flameShockMissing()
+	if not (FLAME.spellID and readable() and hostileTarget() and not ns.cantAct()) then return false end
+	return flameShockOnTarget() == false
+end
+
+-- The element's look for it: grey, red ring, fade in and out, from its Not on target block. Out of
+-- combat only (its icon is an ancestor of Blizzard's button); combat's start clears it.
+local function applyMissing()
+	local def, f = FLAME, FLAME.frame
+	local on = def.missingNow and ns.isEnabled(def.key)
+	local grey = on and setting(def.key, "missGrey") and true or false
+	local ring = on and setting(def.key, "missRing") and true or false
+	local pulse = on and setting(def.key, "missPulse") and true or false
+	f.tex:SetDesaturated(grey or not def.spellID)
+	f:SetRingShown(ring)
+	f:SetPulsing(pulse)
+	def.missLook = grey or ring or pulse
+end
+
+-- Read again, and the element's look and Shocks' mark follow (ShamanForever_Shock.lua).
+local function checkMissing()
+	if fighting or InCombatLockdown() then return end
+	FLAME.missingNow = flameShockMissing()
+	applyMissing()
+	ns.Shock.markFlameShock(FLAME.missingNow)
+end
+
+-- Combat starts (before lockdown): the look and the mark go, and the icon to its idle alpha at once
+-- (a fade would stop part way, ns.fadeTo).
+local function combatStarts()
+	fighting = true
+	FLAME.missingNow = false
+	applyMissing()
+	ns.Shock.markFlameShock(false)
+	local f = FLAME.frame
+	local a = (FLAME.spellID and ns.getAccount().locked) and ns.idleAlpha(FLAME.key) or 1
+	f:SetAlpha(a)
+	ns.fadeTo(f, a)
+end
+
 local function refreshAura(def)
 	local f, key = def.frame, def.key
 	if not ns.isEnabled(key) then return end
@@ -190,10 +293,10 @@ local function refreshAura(def)
 	end
 	f.tex:SetTexture(def.icon)
 	-- Not learned yet (seen only while the preview shows such elements): a plain grey icon.
-	f.tex:SetDesaturated(not def.spellID)
-	-- The button says whether it's up; the icon under it is the idle look (out of combat only: the
-	-- frame is an ancestor of Blizzard's button, ns.fadeTo).
-	ns.fadeTo(f, (def.spellID and ns.getAccount().locked) and ns.idleAlpha(key) or 1)
+	if not def.missing then f.tex:SetDesaturated(not def.spellID) end
+	-- The button says whether it's up; the icon under it is the idle look, or at full with a Not on
+	-- target look (out of combat only: the frame is an ancestor of Blizzard's button, ns.fadeTo).
+	ns.fadeTo(f, (def.spellID and ns.getAccount().locked and not def.missLook) and ns.idleAlpha(key) or 1)
 end
 
 ------------------------------------------------------------------------
@@ -223,6 +326,7 @@ function T.applyTimers()
 end
 
 function T.applyLayout()
+	checkMissing()   -- its looks may have changed
 	for _, def in ipairs(TARGET) do
 		if def.spellID and ns.isEnabled(def.key) then def.aura:setup() end
 		-- Skip long buffs or Longest buff changed: the slot's filter again. SetAuraSlotCandidateFilters
@@ -243,15 +347,38 @@ function T.afterGroups()
 end
 
 function T.refresh()
+	checkMissing()
 	for _, def in ipairs(TARGET) do refreshAura(def) end
 end
 T.tick = T.refresh
+
+function T.onCast(spellID)
+	if Spells.keyOf(spellID) == "flameShock" then noteFlameShock() end
+end
 
 function T.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "PLAYER_TARGET_CHANGED")
 	ns.registerEvent(ev, "UNIT_FACTION", "target")   -- a target that turns hostile or friendly
-	ev:SetScript("OnEvent", retarget)
+	-- Out of combat only: in combat the handler returns before anything is read.
+	ns.registerEvent(ev, "UNIT_AURA", "target")
+	ns.registerEvent(ev, "PLAYER_REGEN_DISABLED")
+	ns.registerEvent(ev, "PLAYER_REGEN_ENABLED")
+	ev:SetScript("OnEvent", function(_, event)
+		if event == "PLAYER_REGEN_DISABLED" then combatStarts()
+		elseif event == "PLAYER_REGEN_ENABLED" then
+			fighting = false
+			checkMissing()
+			refreshAura(FLAME)
+		elseif event == "UNIT_AURA" then
+			if readable() then checkMissing(); refreshAura(FLAME) end
+		else
+			retarget()
+			checkMissing()
+			refreshAura(FLAME)
+		end
+	end)
+	ns.onCanActChange(function() checkMissing(); refreshAura(FLAME) end)
 end
 
 -- /sf debug
@@ -263,6 +390,10 @@ function T.debug()
 			tostring(def.unit), tostring(def.driven), def.failed or 0, def.stale and " (hidden until one works)" or "")
 	end
 	say("target attackable %s", tostring(hostileTarget()))
+	local on = readable() and flameShockOnTarget()
+	say("%s on target: %s; not-on-target look %s; expiring clock %s (%.0f s)", FLAME.spell,
+		readable() and tostring(on) or "not read (combat or secret auras)", tostring(FLAME.missingNow),
+		FLAME.clockOn and "set" or "not set", fsSecs)
 end
 
 ns.registerModule(T)

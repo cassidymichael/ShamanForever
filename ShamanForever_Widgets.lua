@@ -169,7 +169,9 @@ end
 -- After a layout (a group's or the bar's Scale may have changed): every ring on screen re-measures.
 function ns.refitRings()
 	for r in pairs(rings) do
-		if r.edges[1]:IsShown() then r:fit() end
+		-- A ring under Blizzard's aura button reads secret; its owner fits it as it restyles.
+		local shown = r.edges[1]:IsShown()
+		if not ns.isSecret(shown) and shown then r:fit() end
 	end
 end
 

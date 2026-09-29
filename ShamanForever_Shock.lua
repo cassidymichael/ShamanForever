@@ -1,6 +1,6 @@
 -- Shocks: the tracked shock's cooldown, whether the target is in its range and whether there's mana
--- for it (or for another shock, the Mana check), the pop when it's ready, the "use me" glow and the
--- interrupt cue.
+-- for it (or for another shock, the Mana check), the pop when it's ready, the "use me" glow, the
+-- interrupt cue and the Flame Shock mark.
 --
 -- Nothing here reads a secret value: the cooldown is a duration object that Blizzard's widgets draw,
 -- range and mana are read with the answer checked for a secret first, and the ready glow's alpha is
@@ -17,6 +17,10 @@
 -- glow's own alpha (as the ready glow). The three alphas multiply, so the glow shows only when all
 -- three hold. Read ten times a second while the option is on and the target can be attacked; no
 -- cast event is needed.
+--
+-- The Flame Shock mark (experimental, off by default): a small Flame Shock icon in the icon's corner
+-- while your hostile target doesn't have your Flame Shock. ShamanForever_Target.lua says when:
+-- out of combat only, where the target's auras are plain reads; nothing in combat.
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
@@ -44,6 +48,7 @@ local shockIDs = {}
 local usedShock, shockSpellID, manaSpellID
 local defaults = CopyTable(CD.READY_DEFAULTS)
 defaults.castGlow, defaults.castColor = false, { 1, 0.35, 0.85, 1 }   -- the interrupt cue
+defaults.fsMark = false   -- the Flame Shock mark
 ns.registerElement("shock", { frame = shock, label = "Shocks", paint = function(t) t:SetTexture(shockIcon) end,
 	learned = function() return next(shockIDs) ~= nil end,   -- any shock
 	defaults = defaults,
@@ -201,6 +206,49 @@ local function applyCast()
 end
 
 ------------------------------------------------------------------------
+-- Flame Shock mark, off by default (see the file's header)
+------------------------------------------------------------------------
+-- A small icon inside the top right corner of an icon (the HUD's, or a preview's): the spell's icon
+-- on a dark edge a screen pixel wide, a share of the icon's size. place(size) lays it out.
+local MARK_SHARE = 0.42
+function SK.makeMark(ic)
+	local m = CreateFrame("Frame", nil, ic)
+	m.back = m:CreateTexture(nil, "ARTWORK")
+	m.back:SetAllPoints()
+	m.back:SetColorTexture(0, 0, 0, 0.9)
+	m.icon = m:CreateTexture(nil, "ARTWORK", nil, 1)
+	ns.cropIcon(m.icon)
+	function m.place(size)
+		local level = ic.textFrame:GetFrameLevel() + 1   -- over the swipe and the countdown
+		local scale = m:GetEffectiveScale()   -- the edge is in screen pixels
+		if size == m.size and level == m.level and scale == m.scale then return end
+		m.size, m.level, m.scale = size, level, scale
+		m:SetFrameLevel(level)
+		local s = math.max(math.floor(size * MARK_SHARE + 0.5), 8)
+		local edge = ns.linePx(m, 1)
+		m:SetSize(s, s)
+		m:ClearAllPoints()
+		m:SetPoint("TOPRIGHT", ic, "TOPRIGHT", 0, 0)
+		m.icon:ClearAllPoints()
+		m.icon:SetPoint("TOPLEFT", edge, -edge)
+		m.icon:SetPoint("BOTTOMRIGHT", -edge, edge)
+		m.icon:SetTexture(Spells.icon("flameShock") or 135813)
+	end
+	m:Hide()
+	return m
+end
+local mark = SK.makeMark(shock)
+local markWanted = false   -- ShamanForever_Target.lua's last word
+
+-- missing: Flame Shock isn't on the hostile target (said out of combat only).
+function SK.markFlameShock(missing)
+	markWanted = missing and true or false
+	local on = markWanted and ns.isEnabled("shock") and setting("shock", "fsMark") and true or false
+	if on then mark.place(ns.sizeOf("shock")) end
+	mark:SetShown(on)
+end
+
+------------------------------------------------------------------------
 -- Hooks (ShamanForever.lua calls them; see ns.registerModule)
 ------------------------------------------------------------------------
 -- After a spellbook scan: the shocks' names and highest known ranks, the one the icon tracks and
@@ -247,6 +295,7 @@ function SK.afterGroups()
 	refreshMana()
 	refreshRange()
 	applyCast()
+	SK.markFlameShock(markWanted)   -- a new size or frame level
 end
 
 -- After a layout (settings may have changed): the looks, then the mana read again.
@@ -310,6 +359,8 @@ function SK.debug()
 	say("interrupt cue: %s, polling %s; reads %d, casting %d; can't be interrupted: secret %d, true %d, false %d, nil %d",
 		castWanted() and "on" or "off", tostring(castTicker:IsShown()), cast.reads, cast.casting, cast.kickSecret,
 		cast.kickTrue, cast.kickFalse, cast.kickNil)
+	say("Flame Shock mark: %s, missing %s, shown %s", setting("shock", "fsMark") and "on" or "off",
+		tostring(markWanted), tostring(mark:IsShown()))
 end
 
 ns.registerModule(SK)

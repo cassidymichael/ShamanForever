@@ -348,6 +348,11 @@ local function buildShock(p)
 		:format(ns.Spells.name("earthShock")), eget("shock", "castGlow"), eset("shock", "castGlow"))
 	ns.Look.expBadge(castRow, "Interrupt cue"):SetPoint("LEFT", castRow.check.Text, "RIGHT", 10, 0)
 	p:color("Glow colour", nil, eget("shock", "castColor"), eset("shock", "castColor"), showWhen(eget("shock", "castGlow")))
+	local flame = ns.Spells.name("flameShock")
+	p:header(flame)
+	local markRow = p:checkbox("Mark when not on target", ("A small %s icon in the corner while your target doesn't have your %s. Out of combat only.")
+		:format(flame, flame), eget("shock", "fsMark"), eset("shock", "fsMark"))
+	ns.Look.expBadge(markRow, "Flame Shock on target"):SetPoint("LEFT", markRow.check.Text, "RIGHT", 10, 0)
 	effectBlocks(p, "shock")
 end
 
@@ -513,6 +518,12 @@ local function buildBuff(p, def)
 				function(v) return string.format("%d min", v) end, eget(key, "skipLongMins"), eset(key, "skipLongMins"))
 		end)
 	end
+	if def.missing then
+		warningBlock(p, "Not on target", eget(key, "missGrey"), eset(key, "missGrey"), eget(key, "missRing"), eset(key, "missRing"),
+			eget(key, "missPulse"), eset(key, "missPulse"), function()
+				p:text("While your hostile target doesn't have it. Out of combat only.")
+			end)
+	end
 	timerSettings(p, "Time left", key, "uptime")
 	if def.proc then
 		-- Elemental Focus's texts, unless the def has its own (the target's auras, ShamanForever_Target.lua).
@@ -520,6 +531,7 @@ local function buildBuff(p, def)
 		p:checkbox("Pop", def.popTip or "The moment it procs. The icon grows and settles, at the Pop style's size and speed.",
 			eget(key, "primedPop"), eset(key, "primedPop"))
 		p:checkbox("Pulsing glow", def.glowTip or "While it's up.", eget(key, "primedGlow"), eset(key, "primedGlow"))
+		if def.expiring then expiringBlock(p, key, 10, 1) end
 	else
 		expiringBlock(p, key, 120, 5)
 	end

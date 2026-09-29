@@ -406,12 +406,18 @@ L.PREVIEW = {
 		warning = "both",
 		cooldown = true,
 		states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" }, { "range", "Out of range" }, { "both", "Both" },
-			{ "casting", "Target casting" } },
+			{ "casting", "Target casting" }, { "flame", ns.Spells.name("flameShock") .. " not on target" } },
 		pop = function(ic, st) if st == "ready" and opt("shock", "readyPop") then ic:Pop() end end,
 		render = function(ic, st)
 			local d = db()
 			local icons = { earth = 136026, flame = 135813, frost = 135849 }
 			reset(ic, icons[d.shock] or 136026)
+			if ic.fsMark then ic.fsMark:Hide() end
+			if st == "flame" and opt("shock", "fsMark") then
+				if not ic.fsMark then ic.fsMark = ns.Shock.makeMark(ic) end
+				ic.fsMark.place(ic:GetWidth())
+				ic.fsMark:Show()
+			end
 			if st == "ready" then ic:SetGlowShown(opt("shock", "readyGlow")) end
 			if st == "casting" then
 				local c = opt("shock", "castColor")
@@ -536,7 +542,8 @@ end
 local function buffPreview(def)
 	local key = def.key
 	local states = { { "up", def.proc and (def.upLabel or ns.Spells.name("clearcasting")) or "Up" } }
-	if not def.proc then table.insert(states, { "expiring", "Expiring" }) end
+	if not def.proc or def.expiring then table.insert(states, { "expiring", "Expiring" }) end
+	if def.missing then table.insert(states, { "missing", "Not on target" }) end
 	table.insert(states, { "idle", "Not up" })
 	if def.reagent then
 		table.insert(states, { "low", "Not up, few left" })
@@ -546,7 +553,7 @@ local function buffPreview(def)
 	return {
 		uptime = true,
 		states = states,
-		warning = def.breath and "underwater" or def.reagent and "out" or nil,
+		warning = def.breath and "underwater" or def.reagent and "out" or def.missing and "missing" or nil,
 		-- Elemental Focus's pop is the grow-and-settle Blizzard's button plays (not the full pop).
 		pop = function(ic, st)
 			if st == "up" and def.proc and opt(key, "primedPop") then
@@ -562,7 +569,14 @@ local function buffPreview(def)
 					frozen(ic.upT, 0.3, 15)
 					ic:SetGlowShown(opt(key, "primedGlow"))
 				else frozen(ic.upT, 0.3, 600) end
-			elseif st == "expiring" then expiringLook(ic, key, 600)
+			elseif st == "expiring" then expiringLook(ic, key, def.proc and 12 or 600)
+			elseif st == "missing" then
+				local grey, ring, pulse = opt(key, "missGrey"), opt(key, "missRing"), opt(key, "missPulse")
+				if grey or ring or pulse then
+					ic.tex:SetDesaturated(grey)
+					ic:SetRingShown(ring)
+					ic:SetPulsing(pulse)
+				else idleLook(ic, key) end
 			elseif st == "idle" then idleLook(ic, key)
 			elseif st == "low" or st == "out" then
 				-- Running low isn't idle when Idle counts reagents (the default).
