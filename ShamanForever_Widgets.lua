@@ -329,7 +329,7 @@ end
 
 -- Pop: the burst when something happens (a cooldown ready, an imbue dropping, a totem ending).
 -- Its style is its owner's (General's, or an element's or the totem bar's own): a motion (none,
--- grow, bounce, hop, shake, or one per school: ns.Looks.popMotion) with a size and speed, and
+-- grow, bounce, hop, shake) with a size and speed, and
 -- optional light (a flash over the icon, a ring spreading out, a star behind it), tinted by what
 -- happened. For Ready, a pop look's light in place of that (ns.Looks.popStyle); the motion stays
 -- the style's. Every part is built on the frame the first time it pops.
@@ -409,7 +409,7 @@ function ns.playPop(f, kind, owner)
 	if not f:IsVisible() then return end
 	local st = ns.Looks.popStyle(ns.Style.get(owner, "pop"), kind or "ready", f)
 	local x = popFx(f)
-	local motion, S = ns.Looks.popMotion(st, f)
+	local motion, S = st.motion, st.size
 	local k = 1 / math.max(st.speed, 0.1)   -- duration multiplier
 	-- popSize: the icon's size, set by whoever knows it where a read could be secret (an end flash
 	-- over the totem bar's slot, under its secure button).

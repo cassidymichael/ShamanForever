@@ -3,7 +3,7 @@
 --   frame      the edge around an icon, in its border's look (rings of lines, corner caps, art
 --              over or around the icon, a mask on the icon's picture)
 --   glow       the pulsing glow's looks (ns.makeGlow calls in)
---   pop        the pop's looks past the classic one, and its motion by school (ns.playPop calls in)
+--   pop        the pop's looks past the classic one (ns.playPop calls in)
 --   burster    textures that grow and fade over a pop's short life
 -- Our own media are named by path, never by file ID: the client gives our loose files IDs that
 -- change between client starts (tested 2026-09-28). Blizzard's art is named by atlas and checked
@@ -1154,15 +1154,3 @@ function Looks.popStyle(st, kind, f)
 	return out
 end
 
--- The pop's motion "school": each school moves its own way (earth bounces, fire and spirit grow,
--- water hops, air shakes), each at a share of the style's distance (at the default distance: the
--- sizes these were drawn at).
-local SCHOOL_MOTION = { earth = { "bounce", 0.35 }, fire = { "pop", 0.625 }, water = { "hop", 0.3 },
-	air = { "shake", 0.875 }, spirit = { "pop", 0.45 } }
-
--- The motion pop style st moves f with, and its distance: st's own, or for "school", f's school's.
-function Looks.popMotion(st, f)
-	if st.motion ~= "school" then return st.motion, st.size end
-	local m = SCHOOL_MOTION[schoolOf(f)] or SCHOOL_MOTION.spirit
-	return m[1], 1 + (st.size - 1) * m[2]
-end

@@ -256,7 +256,7 @@ end
 -- light's colour the icon shows (ready, imbue, expired, killed). Look (the light) and Motion (how
 -- the icon moves) are separate settings: a look never changes the motion.
 local POP_MOTIONS = { { "none", "None" }, { "pop", "Grow" }, { "bounce", "Bounce" }, { "hop", "Hop" },
-	{ "shake", "Shake side to side" }, { "shakeV", "Shake up and down" }, { "school", "By school" } }
+	{ "shake", "Shake side to side" }, { "shakeV", "Shake up and down" } }
 -- growOnly: the element's pop is the grow-and-settle Blizzard's aura button plays (Elemental Focus),
 -- so only the motion's size and speed apply.
 local function popBlock(p, owner, icon, kind, growOnly)
@@ -278,7 +278,7 @@ local function popBlock(p, owner, icon, kind, growOnly)
 	local function bySchool()
 		if growOnly then return false end
 		local st = r.style()
-		return st.motion == "school" or (looks and ns.Style.look("pop", st.look).bySchool) or false
+		return (looks and ns.Style.look("pop", st.look).bySchool) or false
 	end
 	p:header("Pop style")
 	if owner == nil then
@@ -315,7 +315,7 @@ local function popBlock(p, owner, icon, kind, growOnly)
 	p:checkbox("Star burst", "A star of light behind the icon.", r.get("star"), r.set("star"), own)
 	p:checkbox("Colour by event", "Gold when ready, blue for the imbue, white when a totem runs out, red when killed, pale blue when Grounded. Off: white.",
 		r.get("tint"), r.set("tint"), own)
-	p:dropdown("Motion", "How the icon moves, whatever the look. By school: earth bounces, fire and spirit grow, water hops, air shakes.",
+	p:dropdown("Motion", "How the icon moves, whatever the look.",
 		POP_MOTIONS, r.get("motion"), r.set("motion"), own, 190)
 	local moves = showWhen(function() return r.style().motion ~= "none" end, own)
 	p:slider("Motion distance", "How far it grows, hops or shakes.", 1.1, 1.8, 0.05, pct, r.get("size"), r.set("size"), moves)
