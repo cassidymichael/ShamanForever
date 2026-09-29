@@ -1020,18 +1020,14 @@ function L.buildHero(parent, key)
 			b.text:SetTextColor(on and 1 or 0.78, on and 0.84 or 0.74, on and 0.5 or 0.68)
 		end
 		if not def.stage then
-			-- On whole screen pixels: a cooldown's swipe snaps to pixels and the icon's texture doesn't,
-			-- so at a fractional position a sliver of the icon shows beside the swipe.
+			-- On whole screen pixels, as the HUD's icons are (ns.placeOnPixels says why).
 			local ic = self.previewIcon
 			ic:ClearAllPoints()
 			ic:SetPoint("LEFT", p, "LEFT", 16, -6)
 			local l, t = ic:GetLeft(), ic:GetTop()
-			local ok, _, screenH = pcall(GetPhysicalScreenSize)
-			if l and t and ok and type(screenH) == "number" and screenH > 0 then
-				local px = 768 / screenH / ic:GetEffectiveScale()   -- one screen pixel, in the icon's units
-				local dx = math.floor(l / px + 0.5) * px - l
-				local dy = math.floor(t / px + 0.5) * px - t
-				ic:SetPoint("LEFT", p, "LEFT", 16 + dx, -6 + dy)
+			if l and t then
+				local px = ns.pixel(ic)
+				ic:SetPoint("LEFT", p, "LEFT", 16 + ns.roundPx(l, px) - l, -6 + ns.roundPx(t, px) - t)
 			end
 		end
 		if def.stage then def.render(self, previewState[key]) else
