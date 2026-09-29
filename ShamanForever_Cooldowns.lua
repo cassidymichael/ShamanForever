@@ -260,6 +260,12 @@ function CD.noteCast(f, spellID)
 	r.castAt = GetTime()
 	if plainCooldown(spellID) == "own" then r.armed, r.by, r.castAt = true, nil, nil end
 end
+-- Forgets a pending ready (the element is off, or its spell not known): a cast it didn't see can't
+-- leave one armed for later.
+function CD.resetReady(f)
+	local r = f.ready
+	if r then r.armed, r.by, r.castAt = nil, nil, nil end
+end
 -- True inside the OnCooldownDone of a ready (not a global cooldown's end).
 function CD.readyNow(f) return f.ready ~= nil and f.ready.at == GetTime() end
 -- A cooldown timer's duration, by the element's Global cooldown style: on, with the GCD (every cast
@@ -502,12 +508,14 @@ function refreshCooldown(def, inEvent)
 		-- window or primed buff could be spent unseen: it ends here rather than come back stale.
 		def.cdRunning = nil
 		endActive(def)
+		CD.resetReady(def.frame)
 		return
 	end
 	local f = def.frame
 	if f.killed and not (setting(def.key, "killed") and setting(def.key, "killedMark")) then f.killed.mark:Hide() end
 	if not def.spellID then
 		-- Not learned yet: a plain grey icon.
+		CD.resetReady(f)
 		fadeTo(def, 1)
 		def.idle = nil
 		f.tex:SetDesaturated(true)

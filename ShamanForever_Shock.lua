@@ -58,7 +58,7 @@ end
 
 -- inEvent: from SPELL_UPDATE_COOLDOWN (onCooldowns).
 local function refreshCooldown(inEvent)
-	if not shockSpellID or not ns.isEnabled("shock") then return end
+	if not shockSpellID or not ns.isEnabled("shock") then return CD.resetReady(shock) end
 	local dur = CD.cooldownFor(shock, "shock", shockSpellID, inEvent)
 	if dur then shock.cdTimer:set(dur) end
 end
