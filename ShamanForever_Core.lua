@@ -380,6 +380,11 @@ local DEFS = {
 	waterBreathing  = { ids = { 131 }, en = "Water Breathing" },
 	elementalFocus  = { ids = { 16164 }, en = "Elemental Focus" },   -- a passive talent
 	clearcasting    = { ids = { 16246 }, en = "Clearcasting" },      -- its buff
+	-- Maelstrom Weapon, the talent. Its buff (the stacks) has the same client name, so it stays out
+	-- of this map: two keys sharing a name would leave the name lookup to file a new same-named ID
+	-- (409946, the rune spell that grants the talent) under either one at random. ShamanForever_
+	-- Maelstrom.lua tracks the buff's ID directly and registers its own self-check.
+	maelstromWeapon = { ids = { 408498 }, en = "Maelstrom Weapon" },
 	-- Spells that spend a primed effect (Nature's Swiftness's buff, Stormstrike's debuff).
 	healingWave     = { ids = { 331 }, en = "Healing Wave" },
 	lesserHealingWave = { ids = { 8004 }, en = "Lesser Healing Wave" },

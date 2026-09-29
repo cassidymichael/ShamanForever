@@ -711,6 +711,39 @@ end
 local PAGE = { shield = buildShield, shock = buildShock, imbue = buildImbue, cooldown = buildCooldown, buff = buildBuff,
 	tremor = buildTremor }
 
+-- Maelstrom Weapon's page (ShamanForever_Maelstrom.lua): its stacks, then the five-stack look.
+local HIGHLIGHT = { { "glow", "Glow" }, { "wash", "Colour" }, { "none", "None" } }
+local function buildMaelstrom(p, def)
+	local key = def.key
+	local function on(name) return function() return ns.elementSetting(key, name) end end
+	elementDisplay(p, key)
+	idleBlock(p, def)
+	p:header("Stacks")
+	p:checkbox("Stack bar", "One segment per stack.", eget(key, "stackBar"), eset(key, "stackBar"))
+	local barOn = showWhen(on("stackBar"))
+	p:slider("Bar height", nil, 1, 20, 1, px, eget(key, "stackBarHeight"), eset(key, "stackBarHeight"), barOn)
+	p:color("Bar colour", nil, eget(key, "stackBarColor"), eset(key, "stackBarColor"), barOn)
+	p:checkbox("Stack number", nil, eget(key, "stackCount"), eset(key, "stackCount"))
+	local numberOn = showWhen(on("stackCount"))
+	p:dropdown("Number position", nil, { { "corner", "Corner" }, { "center", "Centre" } }, eget(key, "countPos"),
+		eset(key, "countPos"), numberOn)
+	p:slider("Number size", nil, 8, 40, 1, int, eget(key, "countSize"), eset(key, "countSize"), numberOn)
+	p:checkbox("Colour at five", "The number takes its own colour at five stacks.", eget(key, "fullCount"),
+		eset(key, "fullCount"), numberOn)
+	p:color("Five colour", nil, eget(key, "fullCountColor"), eset(key, "fullCountColor"),
+		showWhen(function() return ns.elementSetting(key, "stackCount") and ns.elementSetting(key, "fullCount") end))
+	timerSettings(p, "Time left", key, "uptime")
+	p:header("Five stacks")
+	p:dropdown("Highlight", "Over the icon at five stacks.", HIGHLIGHT, eget(key, "highlight"), eset(key, "highlight"), nil, 140)
+	local lit = showWhen(function() return ns.elementSetting(key, "highlight") ~= "none" end)
+	p:color("Highlight colour", nil, eget(key, "highlightColor"), eset(key, "highlightColor"), lit)
+	p:checkbox("Pop", "The highlight bursts out from the middle as the fifth stack lands.", eget(key, "fullPop"),
+		eset(key, "fullPop"), lit)
+	p:checkbox("Pulsing glow", "The highlight pulses while at five, at the Pulsing glow style's speed.",
+		eget(key, "fullGlow"), eset(key, "fullGlow"), lit)
+end
+PAGE.maelstrom = buildMaelstrom
+
 -- Every element's page, in the order the options list them.
 function EP.build(newPage)
 	for _, key in ipairs(ns.ELEMENT_KEYS) do

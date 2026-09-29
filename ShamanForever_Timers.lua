@@ -61,6 +61,8 @@ T.ELEMENT_DEFAULTS = {
 	waterwalking = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
 	waterbreathing = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
 	elementalfocus = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
+	-- Maelstrom Weapon's time left is Blizzard's own button swipe: no text, no bar.
+	maelstrom = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
 	-- Tremor Totem's five minutes while it's down: minutes in the middle and a time bar.
 	tremor = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
 }
@@ -74,6 +76,8 @@ T.CANT = {
 	firenova = { uptime = { swipe = ONE_SWIPE } },
 	manatide = { uptime = { swipe = ONE_SWIPE } },
 	grounding = { uptime = { swipe = ONE_SWIPE } },
+	-- Not one of the above: Blizzard's own timer, like the shield's and Elemental Focus's.
+	maelstrom = { bar = "Its timer is Blizzard's own; a time bar can't follow it." },
 	farseer = { uptime = { swipe = ONE_SWIPE } },
 	stormstrike = { uptime = { swipe = ONE_SWIPE } },
 }

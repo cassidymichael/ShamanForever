@@ -29,6 +29,7 @@ ShamanForever_Sounds.lua
 ShamanForever_Totems.lua
 ShamanForever_Reagents.lua
 ShamanForever_Cooldowns.lua
+ShamanForever_Maelstrom.lua
 ShamanForever_Shock.lua
 ShamanForever_Target.lua
 ShamanForever_Buffs.lua
