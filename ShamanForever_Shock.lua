@@ -103,6 +103,7 @@ local function refreshMana()
 end
 
 CD.popWhenReady(shock, "shock")
+CD.soundWhenReady(shock, "shock")
 
 ------------------------------------------------------------------------
 -- Ready glow ("use me"), off by default: while the shock is off cooldown (ShamanForever_Cooldowns.lua

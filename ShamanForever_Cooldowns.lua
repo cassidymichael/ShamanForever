@@ -575,12 +575,31 @@ local function refreshCooldowns(inEvent)
 	for _, def in ipairs(COOLDOWNS) do refreshCooldown(def, inEvent) end
 end
 
+-- The ready sound (ShamanForever_Sounds.lua), at the ready pop's moment (popWhenReady, hooked
+-- first): not when a global cooldown ends, nor for a spell that needs a totem while none is down.
+-- Separate from the pop, which can be off while the sound is on. Only while the icon is on screen,
+-- and not in the moment it comes into view: a hidden timer's end may reach it only then, late.
+local function soundWhenReady(f, key, totemSlot)
+	f:HookScript("OnShow", function() f.shownAt = GetTime() end)
+	f.ownCd:HookScript("OnCooldownDone", function()
+		if not f:IsVisible() or GetTime() - (f.shownAt or 0) < JUST_SHOWN then return end
+		if not CD.readyNow(f) then return end   -- not armed by our cast, or stale
+		if totemSlot then
+			local ok, d = safe(GetTotemDuration, totemSlot)
+			if not (ok and d) then return end
+		end
+		ns.Sounds.element(key, "readySound")
+	end)
+end
+CD.soundWhenReady = soundWhenReady
+
 for _, def in ipairs(COOLDOWNS) do
 	if def.primed then
 		def.spends = {}
 		for _, k in ipairs(def.primed.spends) do def.spends[k] = true end
 	end
 	popWhenReady(def.frame, def.key, def.needsTotem)
+	if not def.noReady then soundWhenReady(def.frame, def.key, def.needsTotem) end
 	-- A cooldown ending can make it idle (see applyIdle); read on the next frame.
 	def.frame.cd:HookScript("OnCooldownDone", function() C_Timer.After(0, function() refreshCooldown(def) end) end)
 end
@@ -611,6 +630,8 @@ Totems.subscribe(function(event, slot, arg)
 				f.killed.mark:Hide()
 			elseif event == "gone" and Totems.ownerOf(slot) == def.spellKey and ns.isEnabled(key) then
 				local dur = arg
+				-- Ran out or killed: one sound, in combat too, while the icon is on screen.
+				if f:IsVisible() then ns.Sounds.element(key, "goneSound", true) end
 				if def.ranOut then
 					-- Its colour with an hourglass, rather than the pop.
 					if setting(key, "ranOutFlash") then

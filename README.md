@@ -68,6 +68,7 @@ These haven't been tested in game yet: they need spells or talents I haven't bee
 ### Warnings and timers
 
 - Warning looks for a missing shield, imbue or totem, or one running out: grey icon, red ring, fade in and out.
+- Sounds: pick one for a spell coming ready, your imbue dropping, a totem ending or the Tremor warning, from the game's sounds or any LibSharedMedia sound your other addons bring. None play until you pick one.
 - A pulsing glow and a pop when something happens: a spell ready, a totem expiring or killed, your imbue dropping, a proc. Choose the glow's colour, speed and depth.
 - Glow looks: a soft inner glow, or (experimental) an outer halo, Blizzard's proc glow, sparks running round the edge, the element's school texture, or a heartbeat.
 - Pop style, one part at a time in any mix: its colour (by event, or by school for a spell ready or a totem running out), a flash (plain or Blizzard's edge flash), a burst (a ring, a star, both, shapes, painted bursts, a rune ring, or one for each school) and a motion (grow, bounce, hop, shake or none). Colour by school, the edge flash and the drawn bursts are experimental.

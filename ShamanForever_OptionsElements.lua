@@ -152,6 +152,7 @@ local function readyBlock(p, key, glowTip, afterPop)
 	p:checkbox("Pop", "The moment the cooldown ends.", eget(key, "readyPop"), eset(key, "readyPop"))
 	if afterPop then afterPop() end
 	if glowTip then p:checkbox("Pulsing glow", glowTip, eget(key, "readyGlow"), eset(key, "readyGlow")) end
+	ns.Sounds.row(p, "Sound", "The moment the cooldown ends.", eget(key, "readySound"), eset(key, "readySound"))
 end
 
 -- Standard block: the look while the element has nothing going on (the cooldown and buff elements),
@@ -297,6 +298,7 @@ local function buildImbue(p)
 		end)
 	p:checkbox("Pulsing glow", "A glow inside the icon that pulses.", get("imbueGlow"), set("imbueGlow"))
 	p:checkbox("Pop", "The moment your imbue runs out or is lost.", get("imbuePop"), set("imbuePop"))
+	ns.Sounds.row(p, "Sound", "The moment your imbue runs out or is lost.", eget("imbue", "lostSound"), eset("imbue", "lostSound"))
 
 	p:header("Time left")
 	p:slider("Show under", nil, 0, 30, 1,
@@ -409,6 +411,10 @@ local function buildCooldown(p, def)
 		elseif def.totemSlot then
 			p:checkbox("Pop when it runs out", "The totem pops and fades the moment it runs out.", eget(key, "expiredPop"), eset(key, "expiredPop"))
 		end
+	end
+	if def.totemSlot then
+		ns.Sounds.row(p, "Sound when it ends", "When it runs out or is killed. Not when you dismiss it.",
+			eget(key, "goneSound"), eset(key, "goneSound"))
 	end
 	if def.grounded then groundedBlock(p, key)
 	elseif def.totemSlot then
@@ -630,11 +636,7 @@ local function buildTremor(p)
 	p:dropdown("Position", nil, WORD_POS, eget(key, "wordPos"), eset(key, "wordPos"), text, 160)
 	p:slider("Text X offset", nil, -100, 100, 1, px, eget(key, "wordX"), eset(key, "wordX"), text)
 	p:slider("Text Y offset", nil, -100, 100, 1, px, eget(key, "wordY"), eset(key, "wordY"), text)
-	p:dropdown("Sound", "Plays when it starts warning.", ns.Tremor.SOUNDS, eget(key, "alertSound"), function(v)
-		ns.elementOpts(key).alertSound = v
-		ns.Tremor.playSound(v)
-		relayout()
-	end, nil, 160)
+	ns.Sounds.row(p, "Sound", "The moment it starts warning.", eget(key, "alertSound"), eset(key, "alertSound"))
 	effectBlocks(p, key)
 end
 

@@ -109,6 +109,7 @@ read_globals = {
     "PTR_IssueReporter",
     "PetFrame",
     "PlaySound",
+    "PlaySoundFile",
     "PlayerBottomManagedFrameContainer",
     "PlayerFrame",
     "QuickKeybindFrame",

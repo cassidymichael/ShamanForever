@@ -502,6 +502,7 @@ local function buildGeneral(p)
 	gcdBlock(p, nil)
 	glowBlock(p, nil, 136026)
 	popBlock(p, nil, 136026, "ready")
+	ns.Sounds.generalBlock(p)
 
 	p:header("Minimap")
 	p:checkbox("Show the minimap button", "Click it to open these options. Also listed in the minimap's addon menu.",
@@ -552,6 +553,7 @@ local function buildProfiles(p)
 		{ "Export", function() OP.showShare("export") end, "This profile as text, to share.", 90 },
 		{ "Import", function() OP.showShare("import") end, "Profile text from someone else. It becomes a new profile.", 90 },
 	})
+
 end
 
 -- A heading with a gold glow that flashes when a button elsewhere brings the reader to it.
@@ -856,6 +858,7 @@ local function buildTotemBar(p)
 	local WARN = { grey = "warnGrey", ring = "warnRing", pulse = "warnPulse", glow = "warnGlow" }
 	expiringLooks(p, function(k) return tget(WARN[k]) end, function(k) return tset(WARN[k]) end, "slot")
 	p:checkbox("Pop when it runs out", "The totem pops and fades the moment it runs out.", tget("expiredPop"), tset("expiredPop"))
+	ns.Sounds.row(p, "Sound when it ends", "When a totem runs out or is killed. Not when you dismiss it.", tget("goneSound"), tset("goneSound"))
 	local secs = function(v) return v == 0 and "Off" or string.format("%d s", v) end
 	p:slider("Warn in the last", nil, 0, 30, 1, secs, tget("warn"), tset("warn"))
 	p:text("Totems with their own warning time, instead of the default:", function() return next(c().warnOver) ~= nil end)

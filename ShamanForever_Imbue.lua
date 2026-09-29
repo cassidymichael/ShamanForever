@@ -196,8 +196,12 @@ function IM.refresh()
 	-- warns: the imbue is missing either way.
 	local quiet = ns.cantAct()
 	drawImbue(now, quiet)
-	-- The moment it drops (imbues stay readable in combat): pop, the weapon coming off included.
-	if had and r == false and db.imbuePop and not quiet then imbue:Pop("imbue") end
+	-- The moment it drops (imbues stay readable in combat): pop and sound, the sound while the icon
+	-- is on screen; the weapon coming off included.
+	if had and r == false and not quiet then
+		if db.imbuePop then imbue:Pop("imbue") end
+		if imbue:IsVisible() then ns.Sounds.element("imbue", "lostSound", true) end
+	end
 end
 
 -- Our own successful cast: remembered, so an imbue not recognised by ID or icon is learned on the next read.
