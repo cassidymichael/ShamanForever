@@ -219,8 +219,12 @@ local function makeGlow(parent, over, owner, unlisted)
 	g.anim:SetLooping("BOUNCE")
 	g.fade = g.anim:CreateAnimation("Alpha")
 	g.fade:SetFromAlpha(1); g.fade:SetSmoothing("IN_OUT")
-	g:SetScript("OnShow", function(self) self.anim:Play() end)
-	g:SetScript("OnHide", function(self) self.anim:Stop() end)
+	-- Not under Blizzard's aura button: the client refuses script handlers there (blocked by secret
+	-- aspects, seen 2026-09-29), and the button plays the glow's animation itself.
+	if not unlisted then
+		g:SetScript("OnShow", function(self) self.anim:Play() end)
+		g:SetScript("OnHide", function(self) self.anim:Stop() end)
+	end
 	-- The owner's style; a fixed colour (killed early's red) wins over its colour.
 	function g:restyle()
 		local st = ns.Style.get(self.owner, "glow")
