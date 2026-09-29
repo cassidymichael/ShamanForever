@@ -975,15 +975,17 @@ function layout()
 			ns.applyBorder(e.vis, border)
 		end
 	end
+	-- Hover mode (not while binding keys): no catch button, the picker hides itself instead. Every
+	-- slot, shown or not, so none keeps the other mode's catch button.
+	local hoverMode = feat("pickHover") and not kbOpen
+	picker:SetAttribute("sf-hovermode", hoverMode)
+	for _, el in ipairs(ELEMENTS) do slots[el].popout.catch:SetShown(not hoverMode) end
 	for _, s in ipairs(shown) do
 		local b = s.button
 		b:SetAttribute("*type1", feat("cast") and "action" or nil)
 		-- Alt+click picks only in Everything (in Active totems an empty slot is invisible); off, it
 		-- casts like a plain click.
 		b:SetAttribute("sf-altpick", barOn() and cfg().mode == "everything")
-		-- Hover mode (not while binding keys): no catch button, the picker hides itself instead.
-		picker:SetAttribute("sf-hovermode", feat("pickHover") and not kbOpen)
-		s.popout.catch:SetShown(not feat("pickHover"))
 		b:SetAttribute("action", multiAction(s.slot))
 		castKeys[s.el]:SetAttribute("action", multiAction(s.slot))
 		ns.applyBorder(s.vis, border)
