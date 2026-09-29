@@ -645,6 +645,7 @@ end
 -- Glow looks. The default is "soft", the soft inner glow. Each look is an entry with:
 --   uses      the glow style's fields it reads (color, speed, low, width); the options show those
 --   steady    it doesn't breathe (the glow's pulse is off; speed may time its own motion)
+--   bySchool  it differs by school (the options preview it on one icon per school)
 --   build(g)  its regions and animation groups, under g.inner (breathing) or g (not); returns
 --             parts: { roots = { frames }, anims = { groups played while it shows }, aura = { the
 --             groups Blizzard's aura button plays in their place, when the glow is under it } }
@@ -857,7 +858,7 @@ local MATERIAL = {   -- school -> tile move (in tiles), seconds a tile
 	earth = { 0, 0, 1 }, fire = { 0, 1, 2.2 }, water = { 1, -1, 5 }, air = { 1, 0, 1.2 }, spirit = { 1, -1, 5 },
 }
 local material = {
-	uses = { color = true, speed = true, low = true, width = true },
+	uses = { color = true, speed = true, low = true, width = true }, bySchool = true,
 	build = function(g)
 		local r = root(g.inner)
 		local parts = { roots = { r }, soft = softPart(r, 0.35) }
@@ -1092,6 +1093,7 @@ local EFFECTS = {
 
 local function addPop(key, name, entry)
 	entry.name, entry.experimental = name, key ~= "classic" or nil
+	entry.bySchool = key ~= "classic" or nil   -- each takes the school's colour
 	S.addLook("pop", key, entry)
 end
 addPop("classic", "Classic", {})

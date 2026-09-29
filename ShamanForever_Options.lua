@@ -176,8 +176,52 @@ local function previewBorder(owner)
 	return ns.borderFor(owner)
 end
 
+-- A style block's preview: one 40 icon of the page's (icon), or one per school while bySchool()
+-- (a look or motion that differs by school: earth, fire, water, air and spirit side by side; the
+-- totem bar's four), made the first time they show. x: where the first sits in its row f. Each
+-- wears its owner's border inside its 40, as on the HUD. Returns shown(), the icons it shows now,
+-- and place(), for the row's refresh, which lays them out and returns them.
+local SCHOOL_ICONS = { { "earth", 136098 }, { "fire", 135825 }, { "water", 135127 }, { "air", 136114 },
+	{ "spirit", 136051 } }   -- Stoneskin, Searing, Healing Stream, Windfury, Lightning Shield
+local SCHOOL_GAP = 72   -- from one school's icon to the next: room for the light between them
+local function previewIcons(f, owner, icon, x, bySchool)
+	local one = ns.makeIcon(f, 40, owner)
+	one.tex:SetTexture(icon)
+	local schools = {}
+	local v = {}
+	function v.shown()
+		if not bySchool() then return { one } end
+		if #schools == 0 then
+			for _, s in ipairs(SCHOOL_ICONS) do
+				if owner ~= "totembar" or s[1] ~= "spirit" then
+					local ic = ns.makeIcon(f, 40, owner)
+					ic.school = s[1]   -- the school its looks take (ns.Looks)
+					ic.tex:SetTexture(s[2])
+					ic.glowF:restyle()
+					ic:Hide()
+					table.insert(schools, ic)
+				end
+			end
+		end
+		return schools
+	end
+	function v.place()
+		local list = v.shown()
+		one:SetShown(list[1] == one)
+		for i, ic in ipairs(schools) do
+			ic:SetShown(list == schools)
+			if list == schools then
+				ic:SetPoint("LEFT", f, "LEFT", x + (i - 1) * SCHOOL_GAP + ns.Looks.fit(ic, previewBorder(owner), 40), 0)
+			end
+		end
+		if list[1] == one then one:SetPoint("LEFT", f, "LEFT", x + ns.Looks.fit(one, previewBorder(owner), 40), 0) end
+		return list
+	end
+	return v
+end
+
 -- Standard block: the pulsing glow's style, with an icon glowing all the time that follows every
--- change at once.
+-- change at once (one per school for a look that differs by school).
 local function glowBlock(p, owner, icon)
 	local function after() ns.applyGlowStyle(); OP.refresh() end
 	local r = styleRows(owner, "glow", after)
@@ -189,15 +233,12 @@ local function glowBlock(p, owner, icon)
 	local own = showWhen(r.own)
 	local f = p:row(64)
 	p:label(f, "Preview")
-	local ic = ns.makeIcon(f, 40, owner)
-	ic:SetPoint("LEFT", f, "LEFT", LABEL_W + 24, 0)
-	ic.tex:SetTexture(icon)
+	local look
+	local icons = previewIcons(f, owner, icon, LABEL_W + 24, function() return look().bySchool end)
 	p:add(f, 64, own, function()
-		-- A 40 icon, its border inside that size as on the HUD.
-		ic:SetPoint("LEFT", f, "LEFT", LABEL_W + 24 + ns.Looks.fit(ic, previewBorder(owner), 40), 0)
-		ic:SetGlowShown(true)
+		for _, ic in ipairs(icons.place()) do ic:SetGlowShown(true) end
 	end)
-	local look = lookRows(p, r, "glow", "Look", "Glow looks", own)
+	look = lookRows(p, r, "glow", "Look", "Glow looks", own)
 	reloadLine(p, function() return ns.auraGlowStale(owner) end,
 		function(n) return n == 1 and "changes glow" or "change glow" end, own)
 	local function uses(field) return showWhen(function() return look().uses[field] end, own) end
@@ -219,15 +260,26 @@ local POP_MOTIONS = { { "none", "None" }, { "pop", "Grow" }, { "bounce", "Bounce
 -- growOnly: the element's pop is the grow-and-settle Blizzard's aura button plays (Elemental Focus),
 -- so only the motion's size and speed apply.
 local function popBlock(p, owner, icon, kind, growOnly)
-	local ic
+	local icons
 	local function playPop()
-		if not growOnly then ic:Pop(kind) return end
-		if not ic.growPop then ic.growPop = ns.makeGrowPop(ic, owner) end
-		ic.growPop:restyle(true)
-		ic.growPop:Play()
+		for _, ic in ipairs(icons.shown()) do
+			if growOnly then
+				if not ic.growPop then ic.growPop = ns.makeGrowPop(ic, owner) end
+				ic.growPop:restyle(true)
+				ic.growPop:Play()
+			else ic:Pop(kind) end
+		end
 	end
-	local function after() OP.refresh(); if ic and ic:IsVisible() then playPop() end end
+	local function after() OP.refresh(); if icons and icons.shown()[1]:IsVisible() then playPop() end end
 	local r = styleRows(owner, "pop", after)
+	-- The looks are for Ready and Ran out (ns.Looks.POP_EVENTS): a page whose pop is for a warning
+	-- (the imbue's) offers only the classic one.
+	local looks = not growOnly and ns.Looks.POP_EVENTS[kind]
+	local function bySchool()
+		if growOnly then return false end
+		local st = r.style()
+		return st.motion == "school" or (looks and ns.Style.look("pop", st.look).bySchool) or false
+	end
 	p:header("Pop style")
 	if owner == nil then
 		p:anchor("pop")
@@ -236,16 +288,15 @@ local function popBlock(p, owner, icon, kind, growOnly)
 	local own = showWhen(r.own)
 	local f = p:row(56)
 	p:label(f, "Try it")
-	ic = ns.makeIcon(f, 40, owner)
-	ic:SetPoint("LEFT", f, "LEFT", LABEL_W + 16, 0)
-	ic.tex:SetTexture(icon)
+	icons = previewIcons(f, owner, icon, LABEL_W + 16, bySchool)
 	local play = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
 	play:SetSize(80, 22)
-	play:SetPoint("LEFT", ic, "RIGHT", 24, 0)
 	play:SetText("Play")
 	play:SetScript("OnClick", playPop)
 	p:add(f, 56, own, function()
-		ic:SetPoint("LEFT", f, "LEFT", LABEL_W + 16 + ns.Looks.fit(ic, previewBorder(owner), 40), 0)
+		local list = icons.place()
+		play:ClearAllPoints()
+		play:SetPoint("LEFT", list[#list], "RIGHT", 24, 0)
 	end)
 	if growOnly then
 		p:text("It grows and settles; only its size and speed can change.", own)
@@ -253,10 +304,8 @@ local function popBlock(p, owner, icon, kind, growOnly)
 		p:slider("Motion speed", nil, 0.5, 2, 0.1, pct, r.get("speed"), r.set("speed"), own)
 		return
 	end
-	-- The looks are for Ready and Ran out (ns.Looks.POP_EVENTS): a page whose pop is for a warning
-	-- (the imbue's) offers only the classic one. The classic rows stay, as the warnings still pop
-	-- with them.
-	if ns.Looks.POP_EVENTS[kind] then
+	-- The classic rows stay under a look, as the warnings still pop with them.
+	if looks then
 		local look = lookRows(p, r, "pop", "Look", "Pop looks", own)
 		p:text("Killed early, Grounded and the imbue dropping keep the Classic look below.",
 			showWhen(function() return look().key ~= "classic" end, own))
