@@ -41,8 +41,12 @@ K.confirm("SHAMANFOREVER_SPLIT", "Split %s into one group per element?\nPutting 
 	function(id) ns.splitGroup(id) end)
 K.confirm("SHAMANFOREVER_HIDEALL", "Hide every element in %s?\nEach one's Show setting becomes Hidden.", "Hide all",
 	function(id) ns.hideGroup(id) end)
+local forgetFold   -- below: a deleted group's fold goes with it
 K.confirm("SHAMANFOREVER_DELETE_GROUP", "Delete the group %s?\n%s", "Delete", function(id)
-	if ns.deleteGroup(id) then ns.Options.refresh() end
+	if ns.deleteGroup(id) then
+		forgetFold(id)
+		ns.Options.refresh()
+	end
 end)
 local function askDelete(g)
 	if not g then return end
@@ -647,10 +651,23 @@ local function buildSlot(p, i)
 	slots[i] = s
 end
 
--- A panel for every group, and each panel's fold kept by its group's id, so a folded group stays
--- folded when the ones before it are deleted.
+-- A panel's fold is kept by its group: saved with the account like every block's, under the
+-- profile's name and the group's id (ids are a profile's own), so a folded group stays folded when
+-- the ones before it are deleted. A deleted group's fold is forgotten, and a group made since the
+-- page last drew starts open, so a new group never takes an old one's fold with its id.
+local function foldKey(id) return "layout:" .. tostring(ns.profileName()) .. ":group" .. id end
+function forgetFold(id) ns.getAccount().foldedBlocks[foldKey(id)] = nil end
+local seenIds, seenProfile   -- the groups when the page last drew, and whose they were
+
 function ensureSlots()
 	local groups = db().groups
+	local profile = ns.profileName()
+	local ids = {}
+	for _, g in ipairs(groups) do
+		ids[g.id] = true
+		if seenIds and seenProfile == profile and not seenIds[g.id] then forgetFold(g.id) end
+	end
+	seenIds, seenProfile = ids, profile
 	-- An edit whose group is gone (deleted, another profile) ends, so it can't come back on a new
 	-- group that gets the same id.
 	if renaming and not ns.groupById(renaming.id) then
@@ -660,7 +677,7 @@ function ensureSlots()
 	end
 	for i = #slots + 1, #groups do buildSlot(page, i) end
 	for i, s in ipairs(slots) do
-		if groups[i] then s.block.key = "layout:group" .. groups[i].id end
+		if groups[i] then s.block.key = foldKey(groups[i].id) end
 	end
 end
 
