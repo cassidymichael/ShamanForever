@@ -196,7 +196,7 @@ function PO.attach(f)
 				if e:IsShown() and e:IsMouseOver() then ns.Options.openElement(key) return end
 			end
 		end
-		ns.Options.open("layout", self.groupId)
+		ns.Options.openGroup(self.groupId)
 	end)
 end
 

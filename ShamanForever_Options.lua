@@ -1365,7 +1365,7 @@ function OP.refresh()
 	end)
 end
 
--- groupId: the group the Layout page shows.
+-- groupId: the group the Groups & Layout page marks in its list (OP.openGroup also goes to it).
 function OP.open(page, groupId)
 	if not ns.getDB() then return end
 	if not win then buildWindow() end
@@ -1423,10 +1423,12 @@ function OP.showExperimental() showAboutSection(aboutExp) end
 function OP.showFeedback() showAboutSection(aboutFeedback) end
 
 
--- From an element's page: Layout with that group (by id) chosen, from the top.
+-- Groups & Layout, scrolled to the panel of the group with this id, whose header flashes.
 function OP.openGroup(id)
 	OP.open("layout", id)
-	pages.layout.scroll:SetVerticalScroll(0)
+	local p = pages.layout
+	local f = ns.LayoutPage.headerOf(id)
+	if f then scrollTo(p, f, function() p:flash(f) end) end
 end
 
 -- Closes the window; true if it was open.
