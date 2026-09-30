@@ -472,7 +472,12 @@ function T.applyLayout()
 end
 
 function T.afterGroups()
-	for _, def in ipairs(TARGET) do def.aura:style() end
+	for _, def in ipairs(TARGET) do
+		def.aura:style()
+		-- The button takes a new size or look on the next frame (AuraSlot:style): the underlay
+		-- waits again meanwhile.
+		if def.under then T.appear(def.under) end
+	end
 end
 
 function T.refresh()
