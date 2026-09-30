@@ -179,6 +179,9 @@ cd:SetDrawSwipe(false)
 cd:SetDrawEdge(false)
 cd:SetDrawBling(false)
 cd:SetCountdownFont("ShamanForeverSwingFont")
+-- Always tenths (2.3, 0.4): the swing is a few seconds, well under the threshold below which the
+-- Cooldown's own numbers show tenths.
+pcall(cd.SetCountdownMillisecondsThreshold, cd, 60)
 local okText, cdFont = pcall(cd.GetCountdownFontString, cd)
 local cdText = okText and cdFont or nil
 
