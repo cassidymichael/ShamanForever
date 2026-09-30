@@ -204,36 +204,40 @@ local function anim(g, kind, order)
 end
 
 -- One burst part: a texture on parent that waits unseen, then grows, fades, turns and moves all
--- at once, as one group. Its base alpha is 0, so it shows only while its group plays (an Alpha
--- animation leaves the base alpha when it ends or stops). The wait is a step of its own at alpha
--- 0, not a start delay: nothing of it shows before its time, whatever a delayed animation does
--- meanwhile.
+-- at once, as one group, in the shape Blizzard's own bursts take: a texture at alpha 0 and a group
+-- that sets its final alpha (the fade's 0), so its end leaves the texture at 0 whatever the group's
+-- other animations left behind. The wait is an Alpha holding 0 from the start (Blizzard's idiom),
+-- the rest start after the delay, all in one order: no order of the group takes no time. Hidden
+-- while no style uses it (Rig:style).
 local function newPart(parent, spec)
 	local t = parent:CreateTexture(nil, "OVERLAY")
-	t:SetAlpha(0)
 	if spec and spec.atlas then
 		if ns.Looks.hasAtlas(spec.atlas) then t:SetAtlas(spec.atlas) else t:SetTexture(spec.file) end
 	end
+	t:SetAlpha(0)
+	t:Hide()
 	local g = t:CreateAnimationGroup()
+	g:SetToFinalAlpha(true)
 	g.wait = anim(g, "Alpha", 1)
-	g.wait:SetFromAlpha(0); g.wait:SetToAlpha(0)
-	g.grow = anim(g, "Scale", 2)
+	g.wait:SetFromAlpha(0); g.wait:SetToAlpha(0); g.wait:SetDuration(0)
+	g.grow = anim(g, "Scale", 1)
 	g.grow:SetSmoothing("OUT")
-	g.fade = anim(g, "Alpha", 2)
+	g.fade = anim(g, "Alpha", 1)
 	g.fade:SetToAlpha(0)
-	g.turn = anim(g, "Rotation", 2)
+	g.turn = anim(g, "Rotation", 1)
 	g.turn:SetSmoothing("OUT")
-	g.move = anim(g, "Translation", 2)
+	g.move = anim(g, "Translation", 1)
 	g.move:SetSmoothing("OUT")
 	return { tex = t, group = g }
 end
 
 -- A part's values from its spec: h the icon height its sizes are in (the sheen's: the frame's
 -- own), c the pop's colour, k the duration multiplier. After delay, the size eases out and the
--- alpha fades evenly (late for slow) over dur.
+-- alpha fades evenly (late for slow) over dur. Its alpha is set to 0 again once its texture is.
 local function stylePart(p, spec, parent, h, c, k)
 	local t, g = p.tex, p.group
 	if not spec.atlas then t:SetTexture(spec.file) end
+	t:SetAlpha(0)
 	t:SetBlendMode(spec.add and "ADD" or "BLEND")
 	t:SetDrawLayer(spec.layer, spec.sub or 0)
 	t:SetDesaturated(spec.desat and true or false)
@@ -260,9 +264,8 @@ local function stylePart(p, spec, parent, h, c, k)
 	g.fade:SetFromAlpha(spec.a or 1)
 	g.fade:SetSmoothing(spec.slow and "IN" or "NONE")
 	g.turn:SetDegrees(math.deg(spec.spin or 0))
-	g.wait:SetDuration((spec.delay or 0) * k)
-	local dur = spec.dur * k
-	for _, a in ipairs({ g.grow, g.fade, g.turn, g.move }) do a:SetDuration(dur) end
+	local delay, dur = (spec.delay or 0) * k, spec.dur * k
+	for _, a in ipairs({ g.grow, g.fade, g.turn, g.move }) do a:SetStartDelay(delay); a:SetDuration(dur) end
 end
 
 local Rig = {}
@@ -302,6 +305,7 @@ local function newRig(f, icon, level)
 	r.flash:SetBlendMode("ADD")
 	r.flash:SetAlpha(0)
 	r.flashAnim = r.flash:CreateAnimationGroup()
+	r.flashAnim:SetToFinalAlpha(true)   -- ends at flashOut's 0, as the burst parts do
 	r.flashIn, r.flashOut = anim(r.flashAnim, "Alpha", 1), anim(r.flashAnim, "Alpha", 2)
 	r.flashIn:SetFromAlpha(0)
 	r.flashOut:SetToAlpha(0)
@@ -332,8 +336,12 @@ end
 -- the same groups can be handed to an aura button, which plays them on each new aura.
 function Rig:groups() return self.all end
 
+-- Stops every group, and puts the flash and burst textures back at alpha 0, whatever a group
+-- stopped before its end leaves them at.
 function Rig:stop()
 	for _, g in ipairs(self.all) do g:Stop() end
+	self.flash:SetAlpha(0)
+	for _, p in pairs(self.parts) do p.tex:SetAlpha(0) end
 end
 
 -- The motion's steps: step i scales from a to b, or moves by x, y, over dur with smoothing (the
@@ -432,6 +440,8 @@ function Rig:style(st, size, c, school, muted)
 			on[p.group] = true
 		end
 	end
+	-- Only the parts this style uses are shown (each sized and anchored above).
+	for _, p in pairs(self.parts) do p.tex:SetShown(on[p.group] or false) end
 end
 
 -- Shows the parts style() marked and hides the rest. An aura button plays every group handed to it,
@@ -445,8 +455,8 @@ end
 
 -- Stops every group, then plays those style() marked.
 function Rig:play()
+	self:stop()
 	for _, g in ipairs(self.all) do
-		g:Stop()
 		if self.playing[g] then g:Play() end
 	end
 end
