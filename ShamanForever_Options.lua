@@ -1055,14 +1055,14 @@ local function buildTotemBar(p)
 	p.gate = nil
 end
 
--- Standard row: the look of a glow something else must cover completely (ns.makeInsideGlow), from
--- the looks drawn inside the icon only, and a line saying why the choice is short. Its colour, speed
--- and the rest come from the element's Pulsing glow style.
-local function insideGlowLook(p, getLook, setLook, shown)
-	local choices = {}
-	for _, look in ipairs(ns.insideGlowLooks()) do table.insert(choices, { look.key, look.name }) end
-	p:dropdown("Glow look", nil, choices, getLook, setLook, shown, 170)
-	p:text("Only looks drawn inside the icon can show here.", shown)
+-- Standard row: a warning's own Glow look (ns.makeWarningGlow), and the EXPERIMENTAL badge under
+-- it while the look picked isn't tested in game yet. Its colour, speed and the rest come from the
+-- element's Pulsing glow style.
+local function warningGlowLook(p, getLook, setLook, shown)
+	p:dropdown("Glow look", nil, lookChoices("glow"), getLook, setLook, shown, 190)
+	local f = p:row(22)
+	ns.Look.expBadge(f, "Glow looks"):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
+	p:add(f, 22, showWhen(function() return ns.Style.look("glow", getLook()).experimental end, shown))
 end
 
 -- The helpers and standard blocks the Groups & Layout page and the element pages share
@@ -1074,7 +1074,7 @@ OP.kit = {
 	generalRow = generalRow, borderRows = borderRows,
 	timerSettings = timerSettings, gcdBlock = gcdBlock, glowBlock = glowBlock, popBlock = popBlock,
 	textBlock = textBlock, barRows = barRows,
-	expiringLooks = expiringLooks, killedBlock = killedBlock, insideGlowLook = insideGlowLook,
+	expiringLooks = expiringLooks, killedBlock = killedBlock, warningGlowLook = warningGlowLook,
 }
 
 ------------------------------------------------------------------------

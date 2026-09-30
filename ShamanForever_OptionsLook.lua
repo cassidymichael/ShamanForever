@@ -338,20 +338,20 @@ L.PREVIEW = {
 			local d = db()
 			local water = d.shieldTrack == "water"
 			reset(ic, water and 132315 or 136051)
-			if ic.insideGlow then ic.insideGlow:Hide() end
+			if ic.warnGlow then ic.warnGlow:Hide() end
 			if st == "down" then
 				ic.tex:SetDesaturated(d.emptyGrey)
 				if d.emptyTint then ic.tex:SetVertexColor(1, 0.35, 0.35) end
 				ic:SetRingShown(d.emptyRing)
 				ic:SetPulsing(d.emptyPulse)
-				-- The HUD's glow here: No shield's own Glow look, one drawn inside the icon only.
+				-- The HUD's glow here: No shield's own Glow look.
 				if d.emptyGlow then
-					if not ic.insideGlow then
-						ic.insideGlow = ns.makeInsideGlow(ic, ic, "shield", function() return db().emptyGlowLook end)
+					if not ic.warnGlow then
+						ic.warnGlow = ns.makeWarningGlow(ic, ic, "shield", function() return db().emptyGlowLook end)
 					end
-					ic.insideGlow:restyle()
-					ic.insideGlow:fit(ic:GetWidth())
-					ic.insideGlow:Show()
+					ic.warnGlow:restyle()
+					ic.warnGlow:fit(ic:GetWidth())
+					ic.warnGlow:Show()
 				end
 				return
 			end
@@ -523,7 +523,7 @@ local function buffPreview(def)
 		end,
 		render = function(ic, st)
 			reset(ic, def.icon)
-			if ic.insideGlow then ic.insideGlow:Hide() end
+			if ic.warnGlow then ic.warnGlow:Hide() end
 			if st == "up" then
 				if def.proc then
 					if not def.noTimer then frozen(ic.upT, 0.3, 15) end
@@ -536,14 +536,14 @@ local function buffPreview(def)
 				ic.tex:SetDesaturated(opt(key, "missGrey"))
 				ic:SetRingShown(opt(key, "missRing"))
 				ic:SetPulsing(opt(key, "missPulse"))
-				-- The HUD's glow here: its own Glow look, one drawn inside the icon only.
+				-- The HUD's glow here: its own Glow look.
 				if opt(key, "missGlow") then
-					if not ic.insideGlow then
-						ic.insideGlow = ns.makeInsideGlow(ic, ic, nil, function() return opt(key, "missGlowLook") end)
+					if not ic.warnGlow then
+						ic.warnGlow = ns.makeWarningGlow(ic, ic, nil, function() return opt(key, "missGlowLook") end)
 					end
-					ic.insideGlow:restyle()
-					ic.insideGlow:fit(ic:GetWidth())
-					ic.insideGlow:Show()
+					ic.warnGlow:restyle()
+					ic.warnGlow:fit(ic:GetWidth())
+					ic.warnGlow:Show()
 				end
 			elseif st == "idle" then idleLook(ic, key)
 			elseif st == "low" or st == "out" then

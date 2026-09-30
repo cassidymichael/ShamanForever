@@ -268,14 +268,12 @@ local glows = {}
 -- over as the button is made, and a new look's as the look changes, out of combat; a look whose
 -- animations the button won't take stays the old one (until a /reload; ns.auraGlowStale).
 local auraGlows = {}
--- inside: only a look drawn within the icon (ns.Looks' inside), else the default look; for a glow
--- something else must cover completely (ns.makeInsideGlow). g.lookFor(), if set: the look's key,
--- in place of its style's (colour, speed and the rest still come from the style).
--- g.onLayout(g, parts), if set: called as a look's parts are made and after each fit (their sizes
--- and scales may have changed), for the owner's own touches (Flame Shock's Not on target masks).
-local function makeGlow(parent, over, owner, unlisted, inside)
+-- g.lookFor(), if set: the look's key, in place of its style's (colour, speed and the rest still
+-- come from the style). g.onLayout(g, parts), if set: called as a look's parts are made and after
+-- each fit (their sizes and scales may have changed), for the owner's own touches.
+local function makeGlow(parent, over, owner, unlisted)
 	local g = CreateFrame("Frame", nil, parent)
-	g.owner, g.unlisted, g.inside = owner, unlisted, inside
+	g.owner, g.unlisted = owner, unlisted
 	-- The icon whose frame and school its looks follow; never Blizzard's aura button (it and its
 	-- parts are off limits in combat): an unlisted glow takes its owner's school and no frame.
 	g.over = not unlisted and (over or parent) or nil
@@ -302,10 +300,9 @@ local function makeGlow(parent, over, owner, unlisted, inside)
 		end
 		return p or nil
 	end
-	-- The look drawn for a style's: itself, or the default look where the client refused its parts
-	-- or where the glow must stay inside the icon and the look doesn't (inside).
+	-- The look drawn for a style's: itself, or the default look where the client refused its parts.
 	local function drawn(look)
-		if not (inside and not look.inside) and parts(look) then return look end
+		if parts(look) then return look end
 		return ns.Style.look("glow", ns.Style.KINDS.glow.defaults.look)
 	end
 	if unlisted then table.insert(auraGlows, g) end
@@ -405,22 +402,11 @@ local function makeGlow(parent, over, owner, unlisted, inside)
 end
 ns.makeGlow = makeGlow
 function ns.applyGlowStyle() for _, g in ipairs(glows) do g:restyle() end end
--- The glow looks drawn only within the icon (ns.Looks' inside), in the options' order: the looks a
--- glow that something else must cover completely can take.
-function ns.insideGlowLooks()
-	local out = {}
-	for _, look in ipairs(ns.Style.LOOKS.glow.order) do
-		if look.inside then table.insert(out, look) end
-	end
-	return out
-end
-
--- A pulsing glow over `over` (on parent) in a look drawn within the icon only: the one lookFor()
--- names (its key; one that isn't inside draws the default look), with owner's glow style's colour,
--- speed, depth and thickness. For a warning drawn under Blizzard's aura button, which its opaque
--- icon must cover completely (Flame Shock's Not on target; Shields' No shield).
-function ns.makeInsideGlow(parent, over, owner, lookFor)
-	local g = makeGlow(parent, over, owner, false, true)
+-- A pulsing glow over `over` (on parent) in the look lookFor() names (its key), with owner's glow
+-- style's colour, speed, depth and thickness: a warning's own Glow look (Shields' No shield, Flame
+-- Shock's Not on target: their clip looks, below, and the options' previews).
+function ns.makeWarningGlow(parent, over, owner, lookFor)
+	local g = makeGlow(parent, over, owner)
 	g.lookFor = lookFor
 	g:restyle()
 	return g
@@ -1035,9 +1021,7 @@ function ns.makeClipLook(frame, opts)
 	h.clip:SetPoint("BOTTOMRIGHT", h.cell, "BOTTOMRIGHT", 0, 0)
 	h.look = CreateFrame("Frame", nil, h.clip, "DisableUntrustedLayoutScriptsTemplate")
 	h.look:SetAllPoints(h.cell)
-	h.glow = makeGlow(h.look, frame, opts.owner)
-	h.glow.lookFor = opts.lookFor
-	h.glow:restyle()
+	h.glow = ns.makeWarningGlow(h.look, frame, opts.owner, opts.lookFor)
 	return h
 end
 

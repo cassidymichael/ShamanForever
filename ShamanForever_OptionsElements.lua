@@ -13,7 +13,7 @@ local relayout, respell, get, set = K.relayout, K.respell, K.get, K.set
 local pct, int, px = Page.pct, Page.int, Page.px
 local SHOW_CHOICES = K.SHOW_CHOICES
 local timerSettings, gcdBlock, glowBlock, popBlock = K.timerSettings, K.gcdBlock, K.glowBlock, K.popBlock
-local expiringLooks, killedBlock, insideGlowLook = K.expiringLooks, K.killedBlock, K.insideGlowLook
+local expiringLooks, killedBlock, warningGlowLook = K.expiringLooks, K.killedBlock, K.warningGlowLook
 
 local function db() return ns.getDB() end
 
@@ -311,9 +311,9 @@ local function buildShield(p)
 	warningBlock(p, "No shield", get("emptyGrey"), set("emptyGrey"), get("emptyRing"), set("emptyRing"), get("emptyPulse"),
 		set("emptyPulse"))
 	p:checkbox("Red tint", "Tint the icon red.", get("emptyTint"), set("emptyTint"))
-	p:checkbox("Pulsing glow", "A glow inside the icon that pulses. Its colour and speed are the Pulsing glow style's.",
+	p:checkbox("Pulsing glow", "A glow that pulses. Its colour and speed are the Pulsing glow style's.",
 		get("emptyGlow"), set("emptyGlow"))
-	insideGlowLook(p, get("emptyGlowLook"), set("emptyGlowLook"), showWhen(get("emptyGlow")))
+	warningGlowLook(p, get("emptyGlowLook"), set("emptyGlowLook"), showWhen(get("emptyGlow")))
 
 	timerSettings(p, "Time left", "shield", "uptime")
 	gcdBlock(p, "shield")
@@ -520,9 +520,9 @@ local function buildBuff(p, def)
 			eget(key, "missPulse"), eset(key, "missPulse"), function()
 				p:text("While your hostile target doesn't have it.")
 			end)
-		p:checkbox("Pulsing glow", "A glow inside the icon that pulses, in General's Pulsing glow colour and speed.",
+		p:checkbox("Pulsing glow", "A glow that pulses, in General's Pulsing glow colour and speed.",
 			eget(key, "missGlow"), eset(key, "missGlow"))
-		insideGlowLook(p, eget(key, "missGlowLook"), eset(key, "missGlowLook"), showWhen(eget(key, "missGlow")))
+		warningGlowLook(p, eget(key, "missGlowLook"), eset(key, "missGlowLook"), showWhen(eget(key, "missGlow")))
 	end
 	local function procBlock()
 		-- Elemental Focus's texts, unless the def has its own (the target's auras, ShamanForever_Target.lua).
