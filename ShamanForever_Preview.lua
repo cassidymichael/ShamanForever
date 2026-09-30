@@ -200,7 +200,10 @@ local function place(key, r)
 	h:Show()
 	r.live = true
 	-- The shield's and Elemental Focus's own border shows under their stand-in, while their group does.
-	ns.applyBorder(standIns[key], not (f.aboveProtected and f:IsVisible()) and ns.borderFor(key) or nil)
+	-- Flame Shock's and Purge's is on parts that show only with a hostile target or its aura
+	-- (standInBorder): the stand-in draws theirs.
+	local own = f.aboveProtected and f:IsVisible() and not ns.ELEMENTS[key].standInBorder
+	ns.applyBorder(standIns[key], not own and ns.borderFor(key) or nil)
 	if r.nextAt then paintElement(key, r, false) else startStep(key, r, false) end
 end
 

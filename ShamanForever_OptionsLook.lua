@@ -282,6 +282,20 @@ local function expiringLook(ic, key, length)
 end
 local function opt(key, name) return ns.elementSetting(key, name) end
 
+-- Flame Shock's Expiring (drawn by the engine on the HUD): its 12 s time left, 2 s from the end, with
+-- the bar in the Expiring colour and the countdown red, as its settings say.
+local function engineExpireLook(ic, key)
+	local secs = opt(key, "expireSecs") or 0
+	local left = secs > 0 and math.min(2, secs) or 2
+	frozen(ic.upT, 1 - left / 12, 12)
+	if secs <= 0 or not ic.upT then return end
+	if opt(key, "expireBar") and ic.upT.bar then
+		local c = opt(key, "expireBarColor")
+		ic.upT.bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
+	end
+	if opt(key, "expireText") then ic.upT.font:SetTextColor(1, 0.2, 0.2, 1) end
+end
+
 local previewState = {}   -- element key -> its header's preview state
 
 -- An idle element as the preview shows it: its Idle opacity, but never quite invisible (0% shows as
@@ -400,13 +414,24 @@ L.PREVIEW = {
 	shock = {
 		warning = "both",
 		cooldown = true,
-		states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" }, { "range", "Out of range" }, { "both", "Both" } },
+		states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" }, { "range", "Out of range" }, { "both", "Both" },
+			{ "casting", "Target casting" }, { "flame", ns.Spells.name("flameShock") .. " not on target" } },
 		pop = function(ic, st) if st == "ready" and opt("shock", "readyPop") then ic:Pop() end end,
 		render = function(ic, st)
 			local d = db()
 			local icons = { earth = 136026, flame = 135813, frost = 135849 }
 			reset(ic, icons[d.shock] or 136026)
+			if ic.fsMark then ic.fsMark:Hide() end
+			if st == "flame" and opt("shock", "fsMark") then
+				if not ic.fsMark then ic.fsMark = ns.Shock.makeMark(ic) end
+				ic.fsMark.place(ic:GetWidth())
+				ic.fsMark:Show()
+			end
 			if st == "ready" then ic:SetGlowShown(opt("shock", "readyGlow")) end
+			if st == "casting" then
+				local c = opt("shock", "castColor")
+				ic:SetGlowShown(opt("shock", "castGlow"), c[1], c[2], c[3])
+			end
 			if st == "cd" then frozen(ic.cdT, 0.4, 6)
 			elseif st == "range" or st == "both" then ic:SetBodyPaint(d.rangeStyle, 1, 0.25, 0.25, d.rangeIntensity, d.rangeTint)
 			elseif st == "mana" then ic:SetBodyPaint(d.manaStyle, 0.2, 0.45, 1, d.manaIntensity, d.manaTint) end
@@ -526,8 +551,9 @@ end
 local function buffPreview(def)
 	local key = def.key
 	local states = { { "up", def.proc and (def.upLabel or ns.Spells.name("clearcasting")) or "Up" } }
-	if not def.proc then table.insert(states, { "expiring", "Expiring" }) end
-	table.insert(states, { "idle", "Not up" })
+	if not def.proc or def.engineExpire then table.insert(states, { "expiring", "Expiring" }) end
+	if def.missing then table.insert(states, { "missing", "Not on target" }) end
+	table.insert(states, { "idle", def.idleLabel or "Not up" })
 	if def.reagent then
 		table.insert(states, { "low", "Not up, few left" })
 		table.insert(states, { "out", "Not up, none left" })
@@ -536,10 +562,10 @@ local function buffPreview(def)
 	return {
 		uptime = true,
 		states = states,
-		warning = def.breath and "underwater" or def.reagent and "out" or nil,
+		warning = def.breath and "underwater" or def.reagent and "out" or def.missing and "missing" or nil,
 		-- Elemental Focus's pop is the grow-and-settle Blizzard's button plays (not the full pop).
 		pop = function(ic, st)
-			if st == "up" and def.proc and opt(key, "primedPop") then
+			if st == "up" and def.proc and not def.noPop and opt(key, "primedPop") then
 				if not ic.growPop then ic.growPop = ns.makeGrowPop(ic, key) end
 				ic.growPop:restyle(true)
 				ic.growPop:Play()
@@ -547,12 +573,28 @@ local function buffPreview(def)
 		end,
 		render = function(ic, st)
 			reset(ic, def.icon)
+			if ic.insideGlow then ic.insideGlow:Hide() end
 			if st == "up" then
 				if def.proc then
-					frozen(ic.upT, 0.3, 15)
+					if not def.noTimer then frozen(ic.upT, 0.3, 15) end
 					ic:SetGlowShown(opt(key, "primedGlow"))
 				else frozen(ic.upT, 0.3, 600) end
+			elseif st == "expiring" and def.engineExpire then engineExpireLook(ic, key)
 			elseif st == "expiring" then expiringLook(ic, key, 600)
+			elseif st == "missing" then
+				-- At full with a hostile target, whatever its looks (none: the plain icon).
+				ic.tex:SetDesaturated(opt(key, "missGrey"))
+				ic:SetRingShown(opt(key, "missRing"))
+				ic:SetPulsing(opt(key, "missPulse"))
+				-- The HUD's glow here: its own Glow look, one drawn inside the icon only.
+				if opt(key, "missGlow") then
+					if not ic.insideGlow then
+						ic.insideGlow = ns.makeInsideGlow(ic, ic, key, function() return opt(key, "missGlowLook") end)
+					end
+					ic.insideGlow:restyle()
+					ic.insideGlow:fit(ic:GetWidth())
+					ic.insideGlow:Show()
+				end
 			elseif st == "idle" then idleLook(ic, key)
 			elseif st == "low" or st == "out" then
 				-- Running low isn't idle when Idle counts reagents (the default).

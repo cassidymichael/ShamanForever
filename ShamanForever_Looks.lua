@@ -211,7 +211,6 @@ local function drawSlice(f, art)
 	end
 	local px = ns.linePx(f, art.px)
 	local k = px / art.margin
-	if k <= 0 then h:Hide(); return 0 end   -- SetScale refuses 0 (a frame not laid out yet)
 	h:SetScale(k)
 	local w, hh = f:GetWidth(), f:GetHeight()
 	if ns.isSecret(w) or ns.isSecret(hh) then return px end   -- under a secure button: sized at the next layout
@@ -738,7 +737,6 @@ local function softPart(parent, alpha)
 end
 local function styleSoft(h, c) h.tex:SetVertexColor(c[1], c[2], c[3], (c[4] or 1) * h.alpha) end
 local function fitSoft(g, h, size, width)
-	if not (size and size > 0) then return end   -- not laid out yet (a preview slot): SetScale refuses 0
 	local th = math.min(math.max(size * (width or 0.2), 1), size * 0.45)
 	local k = th / SOFT_MARGIN
 	h:SetScale(k)
@@ -792,8 +790,9 @@ local halo = {
 }
 
 -- Blizzard's action bar proc glow: a burst that settles into a ring of moving light, in its
--- own gold unless the glow's colour is changed. Under Blizzard's aura button only the ring plays
--- (script handlers there never run, so nothing can start it when the burst ends).
+-- own gold unless the glow's colour is changed. Under Blizzard's aura button (g.unlisted) only the
+-- ring, which the button plays: the burst needs a script to hand over to the ring and none runs
+-- there, and the burst's flipbook drew there as a whole sprite sheet (seen 2026-09-30).
 local proc = {
 	uses = { color = true }, steady = true,
 	build = function(g)
@@ -803,17 +802,23 @@ local proc = {
 			return parts
 		end
 		local r = root(g.inner)
-		local start, loop = r:CreateTexture(nil, "OVERLAY"), r:CreateTexture(nil, "OVERLAY")
-		start:SetAtlas(PROC_START)
+		local loop = r:CreateTexture(nil, "OVERLAY")
 		loop:SetAtlas(PROC_LOOP)
-		local startG, loopG = flipBook(start, 6, 5, 30, 0.7), flipBook(loop, 6, 5, 30, 1, "REPEAT")
+		local loopG = flipBook(loop, 6, 5, 30, 1, "REPEAT")
+		if g.unlisted then
+			return { roots = { r }, loop = loop, texs = { loop }, anims = { loopG }, aura = { loopG }, stop = { loopG } }
+		end
+		local start = r:CreateTexture(nil, "OVERLAY")
+		start:SetAtlas(PROC_START)
+		local startG = flipBook(start, 6, 5, 30, 0.7)
 		startG:SetScript("OnFinished", function() if r:IsVisible() then loopG:Play() end end)
-		return { roots = { r }, start = start, loop = loop, anims = { startG }, aura = { loopG }, stop = { loopG } }
+		return { roots = { r }, start = start, loop = loop, texs = { start, loop }, anims = { startG }, aura = { loopG },
+			stop = { loopG } }
 	end,
 	style = function(g, parts, st, c)
 		if parts.fallback then return soft.style(g, parts, st, c) end
 		local own = not g.fixed and c[1] == GOLD_GLOW[1] and c[2] == GOLD_GLOW[2] and c[3] == GOLD_GLOW[3]
-		for _, t in ipairs({ parts.start, parts.loop }) do
+		for _, t in ipairs(parts.texs) do
 			t:SetDesaturated(not own)
 			if own then t:SetVertexColor(1, 1, 1, c[4] or 1) else t:SetVertexColor(c[1], c[2], c[3], c[4] or 1) end
 		end
@@ -821,8 +826,10 @@ local proc = {
 	fit = function(g, parts, size, out)
 		if parts.fallback then return soft.fit(g, parts, size) end
 		local s = size + 2 * out
-		parts.start:SetSize(s * 150 / 45, s * 150 / 45)
-		parts.start:SetPoint("CENTER", g, "CENTER", 0, 0)
+		if parts.start then
+			parts.start:SetSize(s * 150 / 45, s * 150 / 45)
+			parts.start:SetPoint("CENTER", g, "CENTER", 0, 0)
+		end
 		parts.loop:SetSize(s * 1.4, s * 1.4)
 		parts.loop:SetPoint("CENTER", g, "CENTER", 0, 0)
 	end,

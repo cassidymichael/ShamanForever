@@ -208,18 +208,19 @@ end
 -- icon). fit(size) lays it out for an icon of that size.
 local glows = {}
 -- unlisted: left out of ns.applyGlowStyle, for a glow under Blizzard's aura button, which its owner
--- restyles only when that's allowed (out of combat, auras not secret). It keeps the look it had as
--- the button was made (until a /reload; ns.auraGlowStale), and allAnims() lists what the button
--- must play for it (script handlers under the button never run, so its OnShow can't).
+-- restyles only when that's allowed (out of combat, auras not secret). The button plays its
+-- animations (script handlers under it never run, so its OnShow can't): g:bindButton hands them
+-- over as the button is made, and a new look's as the look changes, out of combat; a look whose
+-- animations the button won't take stays the old one (until a /reload; ns.auraGlowStale).
 local auraGlows = {}
 -- inside: only a look drawn within the icon (ns.Looks' inside), else the default look; for a glow
--- something else must cover completely (under Blizzard's aura button, which covers it while its
--- aura is up).
-local insideGlows = {}
+-- something else must cover completely (ns.makeInsideGlow). g.lookFor(), if set: the look's key,
+-- in place of its style's (colour, speed and the rest still come from the style).
+-- g.onLayout(g, parts), if set: called as a look's parts are made and after each fit (their sizes
+-- and scales may have changed), for the owner's own touches (Flame Shock's Not on target masks).
 local function makeGlow(parent, over, owner, unlisted, inside)
 	local g = CreateFrame("Frame", nil, parent)
 	g.owner, g.unlisted, g.inside = owner, unlisted, inside
-	if inside then table.insert(insideGlows, g) end
 	-- The icon whose frame and school its looks follow; never Blizzard's aura button (it and its
 	-- parts are off limits in combat): an unlisted glow takes its owner's school and no frame.
 	g.over = not unlisted and (over or parent) or nil
@@ -242,13 +243,14 @@ local function makeGlow(parent, over, owner, unlisted, inside)
 			if p then ns.Looks.levelParts(p) end
 			for _, r in ipairs(p and p.roots or {}) do r:Hide() end
 			g.parts[look.key] = p
+			if p and g.onLayout then ns.try("glow layout", g.onLayout, g, p) end
 		end
 		return p or nil
 	end
 	-- The look drawn for a style's: itself, or the default look where the client refused its parts
-	-- or where the glow must stay inside the icon and the look reaches past it.
+	-- or where the glow must stay inside the icon and the look doesn't (inside).
 	local function drawn(look)
-		if not (unlisted and look.noAura) and not (inside and not look.inside) and parts(look) then return look end
+		if not (inside and not look.inside) and parts(look) then return look end
 		return ns.Style.look("glow", ns.Style.KINDS.glow.defaults.look)
 	end
 	if unlisted then table.insert(auraGlows, g) end
@@ -270,6 +272,19 @@ local function makeGlow(parent, over, owner, unlisted, inside)
 		g:SetScript("OnShow", function(self) play(self, true) end)
 		g:SetScript("OnHide", function(self) play(self, false) end)
 	end
+	-- An unlisted glow's button: its animations handed over now (the button plays them while its
+	-- aura shows); a new look's are handed in restyle. Each only once (the button refuses a repeat).
+	function g:bindButton(button)
+		self.button, self.handed = button, {}
+		for _, a in ipairs(self:allAnims()) do self:hand(a) end
+	end
+	function g:hand(a)
+		if self.handed[a] then return true end
+		local b = self.button
+		local ok = b.AddAuraShownAnimation ~= nil and ns.try("glow hand-off", b.AddAuraShownAnimation, b, a)
+		if ok then self.handed[a] = true end
+		return ok
+	end
 	-- Every animation group Blizzard's aura button must play for this glow (unlisted glows).
 	function g:allAnims()
 		local out = { self.anim }
@@ -280,9 +295,17 @@ local function makeGlow(parent, over, owner, unlisted, inside)
 	-- The owner's style; a fixed colour (killed early's red) wins over its colour.
 	function g:restyle()
 		local st = ns.Style.get(self.owner, "glow")
-		local look = unlisted and self.look or drawn(ns.Style.look("glow", st.look))
+		local look = drawn(ns.Style.look("glow", self.lookFor and self.lookFor() or st.look))
+		-- Under the button, a new look only once the button has taken its animations: out of combat,
+		-- auras readable (it refuses calls otherwise); else the old look stays for now.
+		if unlisted and self.look and look ~= self.look then
+			local ok = self.button ~= nil and not InCombatLockdown() and not ns.aurasSecret()
+			local p = ok and parts(look)
+			for _, a in ipairs(p and p.aura or {}) do ok = ok and self:hand(a) end
+			if not ok then look = self.look end
+		end
 		if look ~= self.look then
-			local running = self.look ~= nil and self:IsShown()
+			local running = not unlisted and self.look ~= nil and self:IsShown()
 			if running then play(self, false) end
 			local old = self.look and self.parts[self.look.key]
 			for _, r in ipairs(old and old.roots or {}) do r:Hide() end
@@ -290,6 +313,11 @@ local function makeGlow(parent, over, owner, unlisted, inside)
 			local p = parts(look)
 			for _, r in ipairs(p and p.roots or {}) do r:Show() end
 			if running then play(self, true) end
+			-- Under the button: the new look's animations start now; the button restarts them as its
+			-- aura shows (a look's old ones keep playing on its hidden parts).
+			if unlisted and self.button then
+				for _, a in ipairs(p and p.aura or {}) do pcall(a.Play, a) end
+			end
 		end
 		self.width = st.width   -- kept for fit, which the ready glows call ten times a second
 		-- A running pulse restarts only when its timing changed, so other changes don't make it jump.
@@ -310,7 +338,10 @@ local function makeGlow(parent, over, owner, unlisted, inside)
 		if size == self.iconSize and self.width == self.fitWidth and out == self.fitOut then return end
 		self.iconSize, self.fitWidth, self.fitOut = size, self.width, out
 		local p = parts(self.look)
-		if p then self.look.fit(self, p, size, out) end
+		if p then
+			self.look.fit(self, p, size, out)
+			if self.onLayout then ns.try("glow layout", self.onLayout, self, p) end
+		end
 	end
 	function g:color(r, gg, b) self.fixed = { r, gg, b, 1 }; self:restyle() end
 	g:restyle()
@@ -319,24 +350,27 @@ local function makeGlow(parent, over, owner, unlisted, inside)
 end
 ns.makeGlow = makeGlow
 function ns.applyGlowStyle() for _, g in ipairs(glows) do g:restyle() end end
--- The glows whose style's look can't be drawn where they are (one that must stay inside the icon,
--- and the look reaches past it), among those whose style is owner's: they show the default look
--- instead. Returns their names (the element's, and the glow's label if it has one), and that look's
--- name.
-function ns.auraGlowSwapped(owner)
+-- The glow looks drawn only within the icon (ns.Looks' inside), in the options' order: the looks a
+-- glow that something else must cover completely can take.
+function ns.insideGlowLooks()
 	local out = {}
-	local function check(list, swapped)
-		for _, g in ipairs(list) do
-			local reaches = owner == g.owner or (owner == nil and ns.Style.follows(g.owner, "glow"))
-			if reaches and swapped(ns.Style.look("glow", ns.Style.get(g.owner, "glow").look)) then
-				local name = ns.Look.elementName(g.owner)
-				table.insert(out, g.label and (name .. "'s " .. g.label .. " glow") or name)
-			end
-		end
+	for _, look in ipairs(ns.Style.LOOKS.glow.order) do
+		if look.inside then table.insert(out, look) end
 	end
-	check(insideGlows, function(look) return not look.inside end)
-	return out, ns.Style.look("glow", ns.Style.KINDS.glow.defaults.look).name
+	return out
 end
+
+-- A pulsing glow over `over` (on parent) in a look drawn within the icon only: the one lookFor()
+-- names (its key; one that isn't inside draws the default look), with owner's glow style's colour,
+-- speed, depth and thickness. For a warning drawn under Blizzard's aura button, which its opaque
+-- icon must cover completely (Flame Shock's Not on target; Shields' No shield).
+function ns.makeInsideGlow(parent, over, owner, lookFor)
+	local g = makeGlow(parent, over, owner, false, true)
+	g.lookFor = lookFor
+	g:restyle()
+	return g
+end
+
 -- The owners of glows under Blizzard's aura button whose look differs from their style's now,
 -- among those whose style is owner's (nil: General's): they change after a /reload (the options
 -- say so). Returns their keys.
@@ -344,7 +378,8 @@ function ns.auraGlowStale(owner)
 	local out = {}
 	for _, g in ipairs(auraGlows) do
 		local reaches = owner == g.owner or (owner == nil and ns.Style.follows(g.owner, "glow"))
-		if reaches and g.look ~= ns.Style.look("glow", ns.Style.get(g.owner, "glow").look) then
+		local want = ns.Style.look("glow", ns.Style.get(g.owner, "glow").look)
+		if reaches and g.look ~= want then
 			table.insert(out, g.owner)
 		end
 	end
@@ -694,6 +729,15 @@ AuraSlot.__index = AuraSlot
 --   parent       what the container hangs from (default frame); name: a global name, or nil
 --   sites        { container = , style = , filter = }: names for its waiting work and caught errors
 --   iconAlpha()  the aura icon's alpha as the button is made (optional)
+--   ownIcon()    a texture to show on the button in place of the aura's icon (optional): set once,
+--                as the button is made, and never handed to Blizzard, so the aura's icon never shows
+--                and nothing under the button is written to later (refused in combat)
+--   noTimer      no time left: the button is handed no cooldown or bar, and the slot has no timer
+--   extras       { { key, init(slot, button) }, ... }: more slots in the same container, taking the
+--                same aura (its candidate filters), each a bare button of its own (no icon) laid
+--                over the first, frame levels above it in order, for parts the one button can't
+--                hold (it drives one bar and one text); init makes its parts, as Blizzard makes it.
+--                slot.extras[key] is its button.
 --   barInset()   how far above the bottom edge its time bar sits there (optional; ns.Timer.new)
 --   onButton(slot, button, cd)  the caller's own parts, once Blizzard has made the button
 --   onStyle(slot, size)         the caller's own restyle, after the shared one
@@ -718,12 +762,19 @@ local function initAuraButton(slot, button)
 	tex:SetAllPoints()
 	ns.cropIconExact(tex)
 	if o.iconAlpha then tex:SetAlpha(o.iconAlpha()) end
-	button:SetIcon(tex)
+	if o.ownIcon then tex:SetTexture(o.ownIcon()) else button:SetIcon(tex) end
 	slot.icon = tex
 	-- A frame look's mask and art: only now, on the button (ns.Looks.auraMask).
 	ns.try(o.sites.style, ns.Looks.auraMask, button, tex, o.key)
 	local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
 	cd:SetAllPoints()
+	slot.cd = cd
+	if o.noTimer then
+		cd:SetHideCountdownNumbers(true)
+		if o.onButton then o.onButton(slot, button, cd) end
+		slot.button = button
+		return
+	end
 	-- Its timer: swipe and countdown on the Cooldown, and a time bar the button drives from the
 	-- aura's own time (SetDurationBar; a bar of ours followed it in combat, tested 2026-09-27). We
 	-- only style and show the bar. A client that refuses it gets no bar rather than a still one.
@@ -736,9 +787,22 @@ local function initAuraButton(slot, button)
 	end
 	slot.timer:apply()
 	button:SetDurationCooldown(cd)
-	slot.cd = cd
 	if o.onButton then o.onButton(slot, button, cd) end
 	slot.button = button
+end
+
+-- An extra slot's button (opts.extras), called by Blizzard as it makes it: placed over the first,
+-- no mouse, and its parts.
+local function initExtraButton(slot, x, button)
+	local size = ns.sizeOf(slot.opts.key)
+	button:SetSize(size, size)
+	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
+	pcall(button.EnableMouse, button, false)
+	pcall(button.SetMouseClickEnabled, button, false)
+	pcall(button.SetMouseMotionEnabled, button, false)
+	slot.extras = slot.extras or {}
+	slot.extras[x.key] = button
+	x.init(slot, button)
 end
 
 -- The slot's candidate filters: opts.candidates() if given, else its spell IDs.
@@ -770,6 +834,12 @@ function AuraSlot:setup()
 			candidateFilters = candidates(o),
 			initializeFrame = function(button) initAuraButton(self, button) end,
 		})
+		for _, x in ipairs(o.extras or {}) do
+			c:AddAuraSlot(o.slot .. "-" .. x.key, o.filter or "HELPFUL", {
+				candidateFilters = candidates(o),
+				initializeFrame = function(button) initExtraButton(self, x, button) end,
+			})
+		end
 	end)
 	if not ok then
 		self.err = tostring(err)
@@ -803,9 +873,18 @@ function AuraSlot:styleNow()
 		c:SetFrameStrata(f:GetFrameStrata())
 		c:SetFrameLevel(f.textFrame:GetFrameLevel() + 5)
 		self.button:SetSize(size, size)
+		-- Extra slots' buttons over the first and its parts, in order, two levels apart (their own
+		-- parts take the level between); set from our own levels, never read back from the buttons.
+		for i, x in ipairs(o.extras or {}) do
+			local b = self.extras and self.extras[x.key]
+			if b then
+				b:SetSize(size, size)
+				b:SetFrameLevel(f.textFrame:GetFrameLevel() + 5 + 2 * i + 2)
+			end
+		end
 		-- Its own try: a look the button refuses mustn't stop the timer and the caller's parts.
 		ns.try(o.sites.style .. ": look", ns.Looks.auraStyle, self, size)
-		self.timer:apply()
+		if self.timer then self.timer:apply() end
 		if o.onStyle then o.onStyle(self, size) end
 	end)
 	if not ok then ns.retryAfterCombat(o.sites.style, function() self:styleNow() end) end
@@ -820,6 +899,15 @@ function AuraSlot:refilter()
 	if ns.deferWhileAurasSecret(o.sites.filter, function() self:refilter() end) then return end
 	local filters = candidates(o)
 	local ok = ns.try(o.sites.filter, self.container.SetAuraSlotCandidateFilters, self.container, o.slot, filters)
+	-- The extras last to first: a part that covers another (Flame Shock's Expiring cover) comes after
+	-- what it covers, so a refilter that stops part way leaves no uncovered part taking a new aura.
+	local extras = o.extras or {}
+	for i = #extras, 1, -1 do
+		if ok then
+			ok = ns.try(o.sites.filter, self.container.SetAuraSlotCandidateFilters, self.container,
+				o.slot .. "-" .. extras[i].key, filters)
+		end
+	end
 	if ok then self.filtered = filters.includeSpellIDs
 	else ns.retryAfterCombat(o.sites.filter, function() self:refilter() end) end
 end

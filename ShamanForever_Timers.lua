@@ -47,9 +47,8 @@ T.ELEMENT_DEFAULTS = {
 	-- The shield's time bar, when on, along the top: its charge bar is along the bottom.
 	shield = { uptime = { text = false, swipe = false, swipeAlpha = 0.5, swipeReverse = false, bar = false, barEdge = "top" } },
 	imbue = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = false } },
-	-- Aura-button elements: their own timer, no bar under Blizzard's button.
-	flameshock = { uptime = { text = true, bar = false } },
-	purge = { uptime = { text = true, bar = false } },
+	-- Flame Shock's time left: the countdown and a bar along the bottom, Blizzard's button drives both.
+	flameshock = { uptime = { text = true, bar = true, barEdge = "bottom" } },
 	-- Their time left as a bar only (whatever General says): the countdown shows the cooldown.
 	earthbind = { uptime = { text = false, bar = true } },
 	stoneclaw = { uptime = { text = false, bar = true } },
@@ -318,6 +317,12 @@ function Timer:apply()
 			fs:SetPoint("CENTER", a, "CENTER", 0, 0); fs:SetJustifyH("CENTER")
 		end
 	end
+end
+
+-- The colour its time bar takes (its element's school, or the style's colour).
+function Timer:barRGB()
+	local s = S.get(self.key, self.kind)
+	return s.barElement and schoolColor(self) or s.barColor
 end
 
 -- Show a duration object, or clear with nil.

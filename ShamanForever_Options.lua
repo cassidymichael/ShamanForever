@@ -244,11 +244,6 @@ local function glowBlock(p, owner, icon)
 	look = lookRows(p, r, "glow", "Look", "Glow looks", own)
 	reloadLine(p, function() return ns.auraGlowStale(owner) end,
 		function(n) return n == 1 and "changes glow" or "change glow" end, own)
-	-- A glow that must stay inside the icon, and the look reaches past it (ns.auraGlowSwapped).
-	p:text(function()
-		local names, name = ns.auraGlowSwapped(owner)
-		return string.format("%s %s %s instead.", table.concat(names, " and "), #names == 1 and "shows" or "show", name)
-	end, showWhen(function() return #(ns.auraGlowSwapped(owner)) > 0 end, own))
 	local function uses(field) return showWhen(function() return look().uses[field] end, own) end
 	p:color("Colour", "Colour and opacity. Killed early, Grounded and Ran out keep their own colours.", r.get("color"), r.set("color"), uses("color"))
 	p:slider("Pulse length", "One pulse, in seconds.", 0.2, 2, 0.1, function(v) return string.format("%.1f s", v) end,
@@ -629,6 +624,7 @@ local function buildAbout(p)
 	if ns.Looks.anyExperimental("border") then p:experimental("Border looks", "General > Border") end
 	if ns.Looks.anyExperimental("glow") then p:experimental("Glow looks", "General > Pulsing glow style") end
 	p:experimental("Pop flashes and bursts", "General > Pop style")
+	p:experimental("Interrupt cue", "Elements > Shocks > Target casting")
 	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
 		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
@@ -926,6 +922,16 @@ local function buildTotemBar(p)
 	p.gate = nil
 end
 
+-- Standard row: the look of a glow something else must cover completely (ns.makeInsideGlow), from
+-- the looks drawn inside the icon only, and a line saying why the choice is short. Its colour, speed
+-- and the rest come from the element's Pulsing glow style.
+local function insideGlowLook(p, getLook, setLook, shown)
+	local choices = {}
+	for _, look in ipairs(ns.insideGlowLooks()) do table.insert(choices, { look.key, look.name }) end
+	p:dropdown("Glow look", nil, choices, getLook, setLook, shown, 170)
+	p:text("Only looks drawn inside the icon can show here.", shown)
+end
+
 -- The helpers and standard blocks the Groups & Layout page and the element pages share
 -- (ShamanForever_OptionsLayout.lua, ShamanForever_OptionsElements.lua).
 OP.kit = {
@@ -934,7 +940,7 @@ OP.kit = {
 	COMBAT_SHOW = COMBAT_SHOW, STAY_TIP = STAY_TIP, staySecs = staySecs,
 	generalRow = generalRow, borderRows = borderRows,
 	timerSettings = timerSettings, gcdBlock = gcdBlock, glowBlock = glowBlock, popBlock = popBlock,
-	expiringLooks = expiringLooks, killedBlock = killedBlock,
+	expiringLooks = expiringLooks, killedBlock = killedBlock, insideGlowLook = insideGlowLook,
 }
 
 ------------------------------------------------------------------------
