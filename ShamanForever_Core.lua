@@ -284,6 +284,13 @@ local function fadeOf(frame)
 	return ag
 end
 
+-- Whether frame's fade after combat is playing. The fade leaves the frame's own alpha as it was
+-- (GetAlpha doesn't see it), so a frame that must know it's fully drawn asks here.
+function AfterCombat.fading(frame)
+	local ag = fades[frame]
+	return ag ~= nil and ag:IsPlaying() and true or false
+end
+
 local function fadeOut(o)
 	if InCombatLockdown() then return end
 	-- It may have stopped staying meanwhile (unlocked, Show set to Always, Stay set to 0): no fade.
