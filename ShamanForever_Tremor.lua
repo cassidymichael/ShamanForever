@@ -98,7 +98,6 @@ ns.registerElement(KEY, { frame = f, label = def.spell, defaults = def.defaults,
 	learned = function() return def.spellID ~= nil end,
 	paint = function(t) t:SetTexture(def.iconID or def.icon) end,
 	kind = "tremor", def = def, spell = def.spellKey, icon = def.icon, school = def.school,
-	keySpell = false,   -- a warning: what to cast is up to the player
 	blurb = "Warns near mobs that fear, charm or sleep." })
 
 ------------------------------------------------------------------------

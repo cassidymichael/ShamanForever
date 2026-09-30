@@ -17,7 +17,7 @@ ns.Imbue = IM
 local imbue = ns.newElementIcon("imbue")
 local anyKnown = false   -- any imbue known (IM.resolve): the element's learned()
 ns.registerElement("imbue", { frame = imbue, label = "Weapon Imbue", paint = function(t) t:SetTexture(IM.icon()) end,
-	learned = function() return anyKnown end, keySpell = function() return IM.keySpell() end,
+	learned = function() return anyKnown end,
 	kind = "imbue", icon = 136086, school = "spirit", blurb = "Warns when your main hand has no imbue." })
 
 -- The key is also the spell's key in ns.Spells; name is its display name (the client's). ids are
@@ -108,12 +108,6 @@ local function preferredImbueIcon()
 	return imbueIconFor(db.imbuePreferred == "last" and (acct.imbueLast or "rockbiter") or db.imbuePreferred)
 end
 IM.preferredIcon = preferredImbueIcon
--- The spell whose key the icon shows (Show keybinding text): the imbue on, else the one it offers.
-function IM.keySpell()
-	local db, acct = ns.getDB(), ns.getAccount()
-	local key = imbueState.key or (db.imbuePreferred == "last" and acct.imbueLast or db.imbuePreferred)
-	return IMBUES[key] and key or "rockbiter"
-end
 function IM.icon() return imbueIcon end
 
 -- quiet: no imbue can be put on now, so a missing one shows grey, without the warning.

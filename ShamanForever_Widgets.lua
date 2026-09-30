@@ -55,8 +55,8 @@ function ns.placeScaledText(fs, icon, size, point, x, y, relPoint)
 	return px
 end
 
--- The key bound to a button or an element, in its top-right corner (the totem bar's buttons and
--- Show keybinding text on elements): a light grey label whose font the caller sets, at keyTextSize.
+-- The key bound to a totem bar button, in its top-right corner: a light grey label whose font the
+-- caller sets, at keyTextSize.
 function ns.makeKeyText(parent)
 	local fs = parent:CreateFontString(nil, "OVERLAY")
 	fs:SetFont(STANDARD_TEXT_FONT, 12, "OUTLINE")

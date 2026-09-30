@@ -31,7 +31,6 @@ local shockIcon = 136026
 local shockIDs = {}
 local usedShock, shockSpellID, manaSpellID
 ns.registerElement("shock", { frame = shock, label = "Shocks", paint = function(t) t:SetTexture(shockIcon) end,
-	keySpell = function() return SHOCK_SPELL[usedShock or "earth"] end,   -- the shock it tracks
 	learned = function() return next(shockIDs) ~= nil end,   -- any shock
 	defaults = CopyTable(CD.READY_DEFAULTS),
 	kind = "shock", icon = 136026, school = "spirit", blurb = "Cooldown, range and mana." })
