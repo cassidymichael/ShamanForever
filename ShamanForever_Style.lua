@@ -87,7 +87,8 @@ S.register("border", {
 --   uses           the style fields it reads, field -> true (the options show only those)
 --   fields         field -> { name, tip, range = { min, max }, step, format }: a field it reads its
 --                  own way, offered under its own label while it is picked
---   preview        hints for previews: { play = "loop" | "hover" | "still", bg = "dark" | "snow", size }
+--   preview        hints for previews: { play = "loop" | "hover" | "still", bg = "dark" | "snow",
+--                  size }
 --   credit         "ai": drawn with art made with an AI model
 -- A field's own metadata (S.addField): name (as pickers and the previewer's axes name it), where
 -- (the page and block it's on), groups ({ key, name } in picker order) and preview (the default
@@ -177,7 +178,8 @@ function S.offered(kind, field, current)
 	return out
 end
 
--- Looks: the choices of a kind's `look` field (border, glow). The kind's default look is added first.
+-- Looks: the choices of a kind's `look` field (border, glow). The kind's default look is added
+-- first.
 function S.addLook(kind, key, entry) S.addChoice(kind, "look", key, entry) end
 function S.look(kind, key) return S.choice(kind, "look", key) end
 

@@ -335,7 +335,8 @@ local function popBlock(p, owner, icon, kind)
 	-- Colour is for Ready and Ran out (ns.Looks.POP_EVENTS): a page whose pop is for a warning (the
 	-- imbue's) keeps the warning's colour and doesn't offer it.
 	local colored = ns.Looks.POP_EVENTS[kind]
-	-- One icon per school while the colour or the burst differs by school (not on an element's page).
+	-- One icon per school while the colour or the burst differs by school (not on an element's
+	-- page).
 	local function burst() return ns.Style.choice("pop", "burst", r.style().burst) end
 	local function bySchool()
 		return (colored and r.style().colorBy == "school") or burst().bySchool or false
