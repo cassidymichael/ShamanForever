@@ -31,12 +31,25 @@ local TRAY = { 0.047, 0.035, 0.024 }         -- the Pixel look's dark fill
 -- Our art for Stone and bronze (AI-made plinth and medallion, a drawn gem), by path.
 local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Art\\Looks\\"
 local PLINTH, GEM = MEDIA .. "Plinth", MEDIA .. "Gem"
--- Plinth.tga's pieces, { x, y, w, h } in texels of its 256 square: the left end, one opening (a
--- slot's tile, the plinth's full height), the rune divider between slots, the right end, and a
--- swatch of plain stone. boxTop: from the tile's top to where a slot's box starts (the opening,
--- a little taller than wide, centred on the box).
-local PL = { capL = { 1, 0, 53, 204 }, tile = { 56, 0, 92, 204 }, divider = { 150, 0, 48, 204 },
-	capR = { 200, 0, 53, 204 }, stone = { 2, 208, 96, 46 }, boxTop = 55.4, gemDrop = 47.6 }
+-- Plinth.tga (512x256): three one-piece plinths for four slots, each drawn once (no tiling), for a
+-- slot PL_SLOT texels wide: rect { x, y, w, h }, each opening's left edge and the openings' top
+-- (from the rect's top left), and the bottom rail's middle, where the gems sit. Then plain stone
+-- for the pickers (a tall strip) and the plug that seals a socket.
+local PL_SLOT = 48
+local PLINTHS = {
+	slim = { rect = { 1, 174, 248, 60 }, slotX = { 13.6, 71.2, 128.8, 186.4 }, slotY = 7.2, railMid = 58.2 },
+	normal = { rect = { 1, 100, 284, 72 }, slotX = { 21.6, 86, 150.4, 214.8 }, slotY = 13.2, railMid = 69.6 },
+	grand = { rect = { 1, 1, 322, 97 }, slotX = { 27.6, 100.8, 173.6, 246.4 }, slotY = 25.2, railMid = 92 },
+}
+local STONE = { 325, 1, 64, 254 }
+SK.PLINTHS = { { "slim", "Slim" }, { "normal", "Normal" }, { "grand", "Grand" } }   -- the options' order
+-- The plinth picked now; the gap between two slots and before the first, as shares of a slot.
+local function plinthNow()
+	return PLINTHS[ns.getDB() and TB.cfg().stonePlinth] or PLINTHS.normal
+end
+local function shares(pl)
+	return (pl.slotX[2] - pl.slotX[1] - PL_SLOT) / PL_SLOT, pl.slotX[1] / PL_SLOT
+end
 -- Gem.tga's cells (texture coordinates): lit (a glow round it), unlit, and the bronze setting.
 local GEM_LIT, GEM_UNLIT, GEM_SET = { 0, 0.5, 0, 0.5 }, { 0.5, 1, 0, 0.5 }, { 0, 0.5, 0.5, 1 }
 local GEM_DARK = { 0.33, 0.31, 0.28 }
@@ -60,8 +73,6 @@ end
 --                  slot turns red)
 --   picker         the pickers' look ("tray", "stone")
 --   arrow          the arrow tab's look ("bronze")
---   extrasGap      the gap between the slots and Call and Recall, as a share of the slots' size,
---                  when the look owns the spacing
 --   badgeGap(size) how far past the slot the look hangs something on the badge's side ("not your
 --                  pick" sits beyond it)
 --   rangeText      the Out of range section's line while the look owns its rows
@@ -89,19 +100,23 @@ add("pixel", {
 
 -- The Stone and bronze plinth's reach past a slot's box, above and below, for slots of this size.
 local function plinthReach(size)
-	local u = size / PL.tile[3]
-	return PL.boxTop * u, (PL.tile[4] - PL.boxTop - PL.tile[3]) * u
+	local pl = plinthNow()
+	local u = size / PL_SLOT
+	return pl.slotY * u, (pl.rect[4] - pl.slotY - PL_SLOT) * u
 end
 
 -- The bar set in a carved granite plinth (fixed art: it sets the spacing, a row, pickers opening
--- up), a gem under each slot lit in its element's colour while the totem is down and red out of
--- range, Call and Recall in round bronze medallions.
+-- up), a gem on the bottom rail under each slot lit in its element's colour while the totem is
+-- down and red out of range, Call and Recall in round bronze medallions.
 add("stone", {
 	name = "Stone and bronze", experimental = true,
-	-- It keeps the time bar in the icon: the plinth's gems sit under the slot.
-	owns = { border = true, range = true, rangeHeight = true, spacing = PL.divider[3] / PL.tile[3],
-		dir = "row", pop = "up", barPlace = true },
-	extrasGap = 0.2,
+	-- It keeps the time bar in the icon: the plinth's gems sit under the slot. Its spacing is the
+	-- plinth's, Call and Recall just past its ends.
+	owns = function()
+		local gap, cap = shares(plinthNow())
+		return { border = true, range = true, rangeHeight = true, spacing = gap, extrasGap = cap + 0.12,
+			dir = "row", pop = "up", barPlace = true }
+	end,
 	border = borderStyle("line", 1), extrasBorder = borderStyle("medallion"),
 	behind = "plinth", mark = "gem", picker = "stone", arrow = "bronze",
 	badgeGap = function(size) return select(2, plinthReach(size)) end,
@@ -122,13 +137,21 @@ function SK.anyExperimental()
 end
 
 ------------------------------------------------------------------------
--- Settings a look owns: owns = { border = true, spacing = share, dir = "row", pop = "up",
+-- Settings a look owns: owns = { border = true, spacing = share, extrasGap = share (the gap to
+-- Call and Recall), dir = "row", pop = "up",
 -- range = true (the range colours), rangeHeight = true, barPlace = true (the time bar's place) }.
 -- The options hide what it owns; the layout reads it through TB.eff().
 ------------------------------------------------------------------------
+-- The settings the look picked now owns (a look's owns can be a function of its own settings).
+local function ownsNow()
+	local o = SK.current().owns
+	if type(o) == "function" then return o() end
+	return o
+end
+
 -- Whether the look picked now owns a setting (the options).
 function SK.owns(field)
-	local o = SK.current().owns
+	local o = ownsNow()
 	return o ~= nil and o[field] ~= nil
 end
 
@@ -136,7 +159,7 @@ local POPS = { row = { up = true, down = true }, column = { right = true, left =
 -- The value the look gives a bar setting (TB.eff), or nil: the player's own. A look that sets the
 -- direction keeps the player's picker side when it fits that direction.
 function SK.owned(field)
-	local o = SK.current().owns
+	local o = ownsNow()
 	if not o then return nil end
 	if field == "dir" then return o.dir end
 	if field == "pop" and o.pop then return o.pop end
@@ -164,10 +187,10 @@ function SK.extrasBorder() return SK.current().extrasBorder end
 -- The gap between slots and between the slots and Call and Recall for slots of this size, when the
 -- look sets them (nil: the player's Spacing).
 function SK.spacing(size)
-	local share = SK.current().owns
-	share = share and share.spacing
+	local o = ownsNow()
+	local share = o and o.spacing
 	if not share then return nil end
-	return size * share, size * (SK.current().extrasGap or share)
+	return size * share, size * (o.extrasGap or share)
 end
 
 -- Where the time bar sits (the totem bar's setting): "in" the icon, where the timer draws it, or
@@ -251,15 +274,21 @@ local function tray(host, boxes, size, on)
 	t:Show()
 end
 
--- A texture showing one of Plinth.tga's pieces.
+-- A texture showing a piece of Plinth.tga ({ x, y, w, h } in texels).
 local function plinthPiece(t, r)
 	t:SetTexture(PLINTH)
-	t:SetTexCoord(r[1] / 256, (r[1] + r[3]) / 256, r[2] / 256, (r[2] + r[4]) / 256)
+	t:SetTexCoord(r[1] / 512, (r[1] + r[3]) / 512, r[2] / 256, (r[2] + r[4]) / 256)
 end
--- The Stone and bronze plinth: a tile round each slot's box, the rune divider between two slots,
--- an end before the first and after the last, all the plinth's height; and under each slot a gem
--- in its bronze setting. Laid round the boxes, which the look's own spacing puts exactly a
--- divider apart. A row only (the look sets it).
+-- The gem under a slot: its size, and how far its middle sits below the slot's box (on the
+-- plinth's bottom rail).
+local function gemPlace(size, px)
+	local pl = plinthNow()
+	local u = size / PL_SLOT
+	return ns.roundPx(size * 0.6, px), ns.roundPx((pl.railMid - pl.slotY - PL_SLOT) * u, px)
+end
+-- The Stone and bronze plinth: the picked one, one piece round the four slots' boxes, stretched
+-- from the first box to the last so its openings meet them whatever the rounding; and under each
+-- slot a gem in its bronze setting on the bottom rail. A row only (the look sets it).
 local plinths = setmetatable({}, { __mode = "k" })   -- host -> its plinth
 local function plinth(host, boxes, size, on)
 	local f = plinths[host]
@@ -270,40 +299,24 @@ local function plinth(host, boxes, size, on)
 	if not f then
 		f = CreateFrame("Frame", nil, host)
 		f:EnableMouse(false)
-		f.capL, f.capR = f:CreateTexture(nil, "BACKGROUND"), f:CreateTexture(nil, "BACKGROUND")
-		plinthPiece(f.capL, PL.capL)
-		plinthPiece(f.capR, PL.capR)
-		f.tiles, f.dividers, f.gems = {}, {}, {}
+		f.art = f:CreateTexture(nil, "BACKGROUND")
+		f.gems = {}
 		plinths[host] = f
 	end
 	f:SetFrameLevel(host:GetFrameLevel())
 	f:SetAllPoints(host)
+	local pl = plinthNow()
 	local px = ns.pixel(host)
-	local u = size / PL.tile[3]
-	local up, down = plinthReach(size)
-	up, down = ns.roundPx(up, px), ns.roundPx(down, px)
-	local function piece(list, i, r)
-		local t = list[i]
-		if not t then
-			t = f:CreateTexture(nil, "BACKGROUND")
-			plinthPiece(t, r)
-			list[i] = t
-		end
-		t:ClearAllPoints()
-		t:Show()
-		return t
-	end
-	local g, drop = ns.roundPx(size * 0.42, px), ns.roundPx(PL.gemDrop * u, px)
+	local u = size / PL_SLOT
+	local r = pl.rect
+	plinthPiece(f.art, r)
+	f.art:ClearAllPoints()
+	f.art:SetPoint("TOPLEFT", boxes[1], "TOPLEFT", -pl.slotX[1] * u, pl.slotY * u)
+	f.art:SetPoint("BOTTOMRIGHT", boxes[#boxes], "BOTTOMRIGHT", (r[3] - pl.slotX[4] - PL_SLOT) * u,
+		-(r[4] - pl.slotY - PL_SLOT) * u)
+	local g, drop = gemPlace(size, px)
 	local used = {}
-	for i, box in ipairs(boxes) do
-		local t = piece(f.tiles, i, PL.tile)
-		t:SetPoint("TOPLEFT", box, "TOPLEFT", 0, up)
-		t:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", 0, -down)
-		if i < #boxes then
-			local d = piece(f.dividers, i, PL.divider)
-			d:SetPoint("TOPLEFT", box, "TOPRIGHT", 0, up)
-			d:SetPoint("BOTTOMRIGHT", boxes[i + 1], "BOTTOMLEFT", 0, -down)
-		end
+	for _, box in ipairs(boxes) do
 		local gem = f.gems[box]
 		if not gem then
 			gem = { set = f:CreateTexture(nil, "ARTWORK", nil, 1),
@@ -321,27 +334,16 @@ local function plinth(host, boxes, size, on)
 		end
 		used[box] = true
 	end
-	for i = #boxes + 1, #f.tiles do f.tiles[i]:Hide() end
-	for i = math.max(#boxes, 1), #f.dividers do f.dividers[i]:Hide() end
 	for box, gem in pairs(f.gems) do
 		if not used[box] then gem.set:Hide(); gem.gem:Hide() end
 	end
-	local capW = ns.roundPx(PL.capL[3] * u, px)
-	f.capL:ClearAllPoints()
-	f.capL:SetPoint("TOPRIGHT", boxes[1], "TOPLEFT", 0, up)
-	f.capL:SetPoint("BOTTOMRIGHT", boxes[1], "BOTTOMLEFT", 0, -down)
-	f.capL:SetWidth(capW)
-	f.capR:ClearAllPoints()
-	f.capR:SetPoint("TOPLEFT", boxes[#boxes], "TOPRIGHT", 0, up)
-	f.capR:SetPoint("BOTTOMLEFT", boxes[#boxes], "BOTTOMRIGHT", 0, -down)
-	f.capR:SetWidth(capW)
 	f:Show()
 end
 
 function SK.layoutBar(host, boxes, size, row)
 	local look = SK.current()
 	tray(host, boxes, size, look.behind == "tray" and TB.cfg().pixelTray and #boxes > 0)
-	plinth(host, boxes, size, look.behind == "plinth" and row and #boxes > 0)
+	plinth(host, boxes, size, look.behind == "plinth" and row and #boxes == 4)
 end
 
 -- A slot's own mark under it (lit while its totem is down), on host beside box: the plinth's gem,
@@ -459,7 +461,7 @@ function SK.stylePopout(pop)
 		-- Plain stone from the plinth, darkened, edged dark then bronze.
 		p = p or { lines = {} }
 		pop.skin = p
-		plinthPiece(pop.bg, PL.stone)
+		plinthPiece(pop.bg, STONE)
 		pop.bg:SetVertexColor(0.8, 0.8, 0.8, 1)
 		insetRings(pop, p.lines, { { 1, BRONZE_DARK }, { 2, BRONZE } })
 		return
@@ -488,9 +490,7 @@ function SK.markRect(frame, size, inset)
 	if not kind then return nil end
 	if kind == "gem" then
 		-- The plinth's gem under the slot (SK.layoutBar).
-		local px = ns.pixel(frame)
-		local g = ns.roundPx(size * 0.42, px)
-		local drop = ns.roundPx(PL.gemDrop * size / PL.tile[3], px)
+		local g, drop = gemPlace(size, ns.pixel(frame))
 		return (size - g) / 2, -(size + drop - g / 2), g, g
 	end
 	return inset, -inset, size - 2 * inset, ns.linePx(frame, TB.cfg().rangeHeight)

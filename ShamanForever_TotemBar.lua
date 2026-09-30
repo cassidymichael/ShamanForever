@@ -89,6 +89,7 @@ TB.DEFAULTS = {
 	skin = "default",         -- the bar's theme (ShamanForever_TotemSkins.lua)
 	pixelTray = true,         -- the Pixel theme's tray behind the slots
 	pixelEdge = 1,            -- its element-coloured edge (screen pixels)
+	stonePlinth = "normal",   -- the Stone and bronze theme's plinth: slim | normal | grand
 	barPlace = "in",          -- the time bars: in the icon | out: beside it, away from the pickers
 }
 
@@ -123,6 +124,7 @@ local function cfg()
 		if t.mode ~= "blizzard" and t.mode ~= "active" and t.mode ~= "everything" then t.mode = nil end
 		if t.show ~= "always" and t.show ~= "active" and t.show ~= "combat" and t.show ~= "target" then t.show = nil end
 		if t.barPlace ~= "in" and t.barPlace ~= "out" then t.barPlace = nil end
+		if t.stonePlinth ~= "slim" and t.stonePlinth ~= "normal" and t.stonePlinth ~= "grand" then t.stonePlinth = nil end
 		-- The default per-totem times, by the client's names (English until they have loaded; the
 		-- lookup in warnSecs also takes the English name, so either works).
 		if type(t.warnOver) ~= "table" then

@@ -793,6 +793,7 @@ local function buildTotemBar(p)
 		theme("pixel"))
 	p:slider("Edge thickness", "The element-coloured edge round each slot, in pixels.", 1, 4, 1, px,
 		tget("pixelEdge"), tset("pixelEdge"), theme("pixel"))
+	p:dropdown("Plinth", nil, TB.skin.PLINTHS, tget("stonePlinth"), tset("stonePlinth"), theme("stone"), 140)
 
 	p:header("Layout")
 	-- The elements in bar order (first: the left end of a row, the top of a column). Drag one to move
