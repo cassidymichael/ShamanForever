@@ -96,8 +96,9 @@ end
 function EP.buildOverview(p)
 	-- A page title and a line, then the list on its own: no block, so nothing to fold.
 	p:pageTitle("Elements")
-	p:text("Most of the HUD is made of elements, mostly icons. Each element sits in one group, and"
-		.. " groups are what you move around the screen while positioning is unlocked.")
+	p:text("Most of ShamanForever's HUD indicators are \"elements\", usually icon-shaped things which"
+		.. " always fit inside one \"group\", and \"groups\" get moved around the screen in the unlocked"
+		.. " mode.")
 	-- Columns sized to fit the page's panel at the window's least width; they keep their places when
 	-- it's wider.
 	local GROUP_X, SHOW_X, OPEN_X = 150, 276, 368
