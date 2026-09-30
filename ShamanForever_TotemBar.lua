@@ -32,32 +32,32 @@ TB.ELEMENTS, TB.NAME, TB.SLOT = ELEMENTS, NAME, SLOT
 -- Per profile, in db.totemBar.
 TB.DEFAULTS = {
 	mode = "everything",      -- the Totems cards: blizzard (our bar off) | active (totems and timers) | everything
-	point = "CENTER", x = -340, y = -100,   -- x, y in UIParent units, so scaling keeps the centre
+	point = "CENTER", x = -353, y = -182,   -- x, y in UIParent units, so scaling keeps the centre
 	scale = 1,
 	alpha = 1,
 	-- always | active (in combat or a totem down) | combat | target (in combat or with an enemy target)
 	show = "always",
 	fadeAfter = 0,            -- seconds it stays once combat ends, then fades out (0: none)
-	order = { "earth", "fire", "water", "air" },
+	order = { "fire", "earth", "water", "air" },   -- Blizzard's slot order
 	hidden = {},              -- element -> true to leave its slot out
 	dir = "row",              -- row | column
 	pop = "up",               -- where pickers open: up | down (row), right | left (column)
-	spacing = 6,
+	spacing = 2,
 	-- The Buttons settings (cast, arrows, call, recall) only apply in Everything.
 	cast = true,              -- left-click casts the element's pick
 	arrows = true,            -- arrow tab opens the element's picker
-	arrowSize = 18,
+	arrowSize = 20,
 	tips = "always",          -- always | ooc | never
 	keys = false,             -- each button's key, in its corner
 	call = true,              -- Call of the Elements button, once learned
 	recall = true,            -- Totemic Recall button: right-click dismisses all; left-click casts it once learned
-	extras = "ends",          -- where they sit: ends (Call first, Recall last, as Blizzard's) | before | after the slots
+	extras = "after",         -- where they sit: ends (Call first, Recall last, as Blizzard's) | before | after the slots
 	extrasScale = 0.8,        -- their size, as a share of the slots' (centred on the slots' line)
 	sizeFollow = true,        -- icon size from General; off: size (set from General's the first time)
 	-- border, glow, pop, timers: the bar's own styles, if it has them (ShamanForever_Style.lua)
 	empty = "pick",           -- a totem not down: pick (the element's pick) | frame (element colour) | blank
 	idleGrey = false,         -- the pick, greyed (off: in colour)
-	idleAlpha = 0.4,          -- the pick's opacity
+	idleAlpha = 0.35,         -- the pick's opacity
 	offPick = true,           -- a totem down that isn't the pick: show the pick small beside the slot
 	badgeSize = 0.45,         -- that badge, as a share of the slot's size
 	badgeAlpha = 0.75,        -- its opacity
@@ -78,7 +78,7 @@ TB.DEFAULTS = {
 	killedGlow = true,        --   a red glow around the slot
 	killedMark = true,        --   a red cross over the slot until it is recast, up to 5 s
 	range = true,             -- a strip along the top: are you in range of your own totem's buff (ShamanForever_TotemRange.lua)
-	rangeHeight = 4,          --   its height in screen pixels (ns.linePx)
+	rangeHeight = 5,          --   its height in screen pixels (ns.linePx)
 	rangeIn = { 0.2, 0.8, 0.25, 0 },       --   with the buff (0: nothing shows in range)
 	rangeOut = { 0.9, 0.12, 0.08, 0.85 },  --   without it
 	pickHover = false,        -- hovering a slot or its tab opens its picker (Everything)
