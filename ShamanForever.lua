@@ -88,6 +88,7 @@ local DEFAULTS = {
 	emptyTint = false,
 	emptyPulse = false,
 	emptyGlow = true,
+	emptyGlowLook = "soft",   -- its look: one drawn inside the icon only (ns.insideGlowLooks)
 	underlayUp = 0.25,      -- underlay strength while the shield is believed up (0 = none)
 	shieldIconAlpha = 1,    -- manual multiplier on the compensated shield icon alpha
 	-- shock

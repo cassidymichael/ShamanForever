@@ -181,8 +181,30 @@ ns.cropIconExact(under.tex)
 under.tex:SetPoint("TOPLEFT", shield, "TOPLEFT", 0, 0)   -- placed with the button (placeUnder)
 under.tex:SetSize(1, 1)
 under.ring = ns.makeRing(under.inner, under.tex)   -- inside the inset picture
--- Its pulsing glow: only a look drawn inside the icon, over the inset picture.
-under.glow = ns.makeGlow(under.inner, under.tex, "shield", false, true)
+-- Every texture under frame in the icon's shape, over the inset picture. Masks are textures too,
+-- but take no mask themselves (a look's own masks live there).
+local function shapeTextures(frame)
+	for _, r in ipairs({ frame:GetRegions() }) do
+		if r:IsObjectType("Texture") and not r:IsObjectType("MaskTexture") then
+			ns.Looks.maskOver(shield, r, under.tex)
+		end
+	end
+	for _, c in ipairs({ frame:GetChildren() }) do shapeTextures(c) end
+end
+-- Its pulsing glow: its own look (No shield's Glow look), one drawn inside the icon only, over the
+-- inset picture, in the Pulsing glow style's colour and speed. Its look before the profile loads
+-- (the glow is made at load): the default.
+under.tex.owner = "shield"   -- its looks take their school from what they cover: the element's
+under.glow = ns.makeInsideGlow(under.inner, under.tex, "shield", function()
+	local db = ns.getDB()
+	return db and db.emptyGlowLook or nil
+end)
+-- Its textures take the shape as they're made and each time they're fitted, in combat too (a look
+-- changed with the options open): never a square corner past the button.
+under.glow.onLayout = function(_, parts)
+	for _, r in ipairs(parts.roots or {}) do shapeTextures(r) end
+end
+for _, parts in pairs(under.glow.parts) do if parts then under.glow.onLayout(under.glow, parts) end end
 under.pulse = ns.makePulse(under.tex, "fade")
 
 -- After our own cast of a shield it tracks, the underlay stays hidden this long (seconds). Blizzard
@@ -270,8 +292,8 @@ under:SetScript("OnShow", function(self)
 	if self.pulseOn then self.pulse:Play() end   -- a hidden frame's animations stop
 end)
 
--- The underlay's glow and every texture of its look in the icon's shape, over the inset picture
--- (after a new glow look, placeUnder, SH.applyTimers).
+-- The underlay's picture and ring in the icon's shape, and its glow in its look now, fitted to the
+-- inset picture (placeUnder, SH.applyTimers); the glow's textures shape themselves (onLayout).
 local function shapeUnder()
 	local f, u = shield, under
 	ns.Looks.maskOver(f, u.tex)
@@ -279,14 +301,6 @@ local function shapeUnder()
 	local g = u.glow
 	g:restyle()
 	if u.size then g:fit(math.max(u.size - 2 * ns.pixel(u), 1)) end
-	local function shape(frame)
-		for _, r in ipairs({ frame:GetRegions() }) do
-			-- Masks are textures too, but take no mask themselves (the look's own masks live here).
-			if r:IsObjectType("Texture") and not r:IsObjectType("MaskTexture") then ns.Looks.maskOver(f, r, u.tex) end
-		end
-		for _, c in ipairs({ frame:GetChildren() }) do shape(c) end
-	end
-	shape(g.inner)
 end
 
 -- With the button's restyle (styleNative), so the two always change together: the underlay's
@@ -404,7 +418,7 @@ function SH.style() native:style() end
 
 -- The shield's timer takes its current style (ns.applyTimers). It sits on Blizzard's button, so it
 -- comes with the button's restyle, which waits for combat to end. The underlay's glow takes a new
--- look at once (its own frames; the options call this after a glow style change).
+-- look or style at once (its own frames; the options call this after a glow style change).
 function SH.applyTimers()
 	SH.style()
 	shapeUnder()

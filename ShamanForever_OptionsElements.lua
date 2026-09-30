@@ -311,8 +311,9 @@ local function buildShield(p)
 	warningBlock(p, "No shield", get("emptyGrey"), set("emptyGrey"), get("emptyRing"), set("emptyRing"), get("emptyPulse"),
 		set("emptyPulse"), function() p:text("While your shield is down, in combat too.") end)
 	p:checkbox("Red tint", "Tint the icon red.", get("emptyTint"), set("emptyTint"))
-	p:checkbox("Pulsing glow", "A glow inside the icon that pulses. Looks that reach past the icon show as Soft inner here.",
+	p:checkbox("Pulsing glow", "A glow inside the icon that pulses. Its colour and speed are the Pulsing glow style's.",
 		get("emptyGlow"), set("emptyGlow"))
+	insideGlowLook(p, get("emptyGlowLook"), set("emptyGlowLook"), showWhen(get("emptyGlow")))
 
 	timerSettings(p, "Time left", "shield", "uptime")
 	gcdBlock(p, "shield")
