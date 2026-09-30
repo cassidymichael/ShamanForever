@@ -77,7 +77,7 @@ function Page.new(win, key, title, indent)
 	-- window or a longer page brings into view can be clicked. While the window is resized the page
 	-- holds its place and is laid out once, at its end (Page.startResize).
 	local page = setmetatable({ win = win, key = key, title = title, indent = indent, scroll = scroll,
-		content = content, items = {}, blockList = {}, subs = {} }, Page)
+		content = content, items = {}, blockList = {}, subs = {}, pageOwns = {}, ownIds = {} }, Page)
 	scroll:SetScript("OnSizeChanged", function(self, w)
 		if not Page.resizing then content:SetWidth(w) end
 		self:UpdateScrollChildRect()
@@ -336,14 +336,27 @@ function Page:placeRule(run)
 	run.rule:Show()
 end
 
--- Folds or opens block b, and lays the page out again at once, its scroll range with it.
-function Page:setFolded(b, fold)
-	folded()[b.key] = fold or nil
+-- Lays the page out again at once, its scroll range with it (after a fold).
+function Page:relaid()
 	self:refresh()
 	local s = self.scroll
 	s:UpdateScrollChildRect()
 	local range = s:GetVerticalScrollRange()
 	if s:GetVerticalScroll() > range then s:SetVerticalScroll(range) end
+end
+
+-- Folds or opens block b.
+function Page:setFolded(b, fold)
+	folded()[b.key] = fold or nil
+	self:relaid()
+end
+
+-- Folds or opens every block whose header shows.
+function Page:foldAll(fold)
+	for _, b in ipairs(self.blockList) do
+		if b.head.visible then folded()[b.key] = fold or nil end
+	end
+	self:relaid()
 end
 
 -- Opens the block holding frame (a row or a header), for a jump that lands on it.
@@ -426,6 +439,160 @@ function Page:label(f, text, tip)
 	return fs
 end
 
+------------------------------------------------------------------------
+-- What a block owns: the settings its rows write, as refs that the helpers binding rows to settings
+-- add (Page:owns), so a block can tell whether it differs from the defaults, and reset them.
+------------------------------------------------------------------------
+-- A ref names one setting: { elem = key, name } (an element's own, db.elementOpts), { general =
+-- name } (the profile's, db), { bar = "totembar" or "swing", name }, { group = g or a function
+-- returning it, name }. Any ref may also carry:
+--   after    the follow-up its row runs after a change; a reset runs each one once
+--   default  a function returning the value to compare with, in place of its kind's
+--   reset    a function that resets it, in place of its kind's: for a row that does more than
+--            store the value (a group's Scale keeps its centre, Show goes through ns.setShow)
+local REF = {}
+
+-- A kind of ref. spec.id(ref): unique per setting, for one ref per setting in a block. A stored
+-- value: holder(ref), the table it is saved in (nil while there is none: no group chosen);
+-- slot(ref), its field there; default(ref); unset, true where nil means the default (a reset clears
+-- it; otherwise a reset stores a copy of the default). A kind that is more than a stored value
+-- gives changed(ref) and reset(ref) instead.
+function Page.refKind(kind, spec) REF[kind] = spec end
+
+local function copy(v) return type(v) == "table" and CopyTable(v) or v end
+
+-- Whether two saved values are the same: tables field by field, numbers to a hair (a typed 0.33).
+local function same(a, b)
+	if type(a) ~= type(b) then return false end
+	if type(a) == "number" then return math.abs(a - b) < 1e-6 end
+	if type(a) ~= "table" then return a == b end
+	for k, v in pairs(a) do if not same(v, b[k]) then return false end end
+	for k in pairs(b) do if a[k] == nil then return false end end
+	return true
+end
+Page.same = same
+
+local function defaultOf(r)
+	if r.default then return r.default() end
+	return REF[r.kind].default(r)
+end
+
+local function refChanged(r)
+	local k = REF[r.kind]
+	if k.changed then return k.changed(r) end
+	local t = k.holder(r)
+	if not t then return false end
+	local v = t[k.slot(r)]
+	if v == nil and k.unset then return false end
+	return not same(v, defaultOf(r))
+end
+
+-- Resets every ref in list, then the follow-ups once each: the rows' own, the glows' restyle and a
+-- relayout (which repaints the options). The same path as changing each setting by hand, so its
+-- combat rules hold: layout waits for combat to end, aura buttons restyle out of combat.
+local function resetRefs(list)
+	local afters, seen = {}, {}
+	for _, r in ipairs(list) do
+		local k = REF[r.kind]
+		if r.reset then r.reset()
+		elseif k.reset then k.reset(r)
+		else
+			local t = k.holder(r)
+			if t then
+				if k.unset then t[k.slot(r)] = nil else t[k.slot(r)] = copy(defaultOf(r)) end
+			end
+		end
+		if r.after and not seen[r.after] then
+			seen[r.after] = true
+			table.insert(afters, r.after)
+		end
+	end
+	for _, f in ipairs(afters) do f() end
+	ns.Effects.applyStyle()
+	ns.Options.kit.relayout()
+end
+
+local function anyChanged(list)
+	for _, r in ipairs(list) do if refChanged(r) then return true end end
+	return false
+end
+
+-- Asks before run(), a reset of what name names.
+local function askReset(name, run)
+	if not StaticPopupDialogs.SHAMANFOREVER_RESET then
+		ns.Options.kit.confirm("SHAMANFOREVER_RESET", "Reset %s to defaults?", "Reset", function(fn) fn() end)
+	end
+	StaticPopup_Show("SHAMANFOREVER_RESET", name, nil, run)
+end
+
+-- An element's own setting; field: one field of a table setting (its Expiring's). Unset is its
+-- default.
+Page.refKind("elem", {
+	id = function(r) return r.elem .. "." .. r.name .. (r.field and "." .. r.field or "") end,
+	holder = function(r)
+		local o = ns.elementOpts(r.elem)
+		if not r.field then return o end
+		return type(o[r.name]) == "table" and o[r.name] or nil
+	end,
+	slot = function(r) return r.field or r.name end,
+	default = function(r) return ns.elementDefault(r.elem, r.name) end,
+	unset = true,
+})
+Page.refKind("general", {
+	id = function(r) return r.general end,
+	holder = function() return ns.getDB() end,
+	slot = function(r) return r.general end,
+	default = function(r) return ns.DEFAULTS[r.general] end,
+})
+local BARS = { totembar = "TotemBar", swing = "Swing" }   -- their modules (cfg, DEFAULTS)
+Page.refKind("bar", {
+	id = function(r) return r.bar .. "." .. r.name end,
+	holder = function(r) return ns[BARS[r.bar]].cfg() end,
+	slot = function(r) return r.name end,
+	default = function(r) return ns[BARS[r.bar]].DEFAULTS[r.name] end,
+})
+Page.refKind("group", {
+	id = function(r) return tostring(r.group) .. "." .. r.name end,
+	holder = function(r) if type(r.group) == "function" then return r.group() end return r.group end,
+	slot = function(r) return r.name end,
+	default = function(r) return ns.GROUP_DEFAULTS[r.name] end,
+})
+
+-- Adds ref to the block being built; a row outside any block (a page with panels = false) adds it
+-- to the page's own list, which only a whole-page reset reads.
+function Page:owns(ref)
+	for kind in pairs(REF) do
+		if ref[kind] ~= nil then ref.kind = kind end
+	end
+	assert(ref.kind, "Page:owns: a ref of no known kind")
+	local into = self.block or self
+	local id = ref.kind .. ":" .. REF[ref.kind].id(ref)
+	if into.ownIds[id] then return end
+	into.ownIds[id] = true
+	table.insert(into == self and self.pageOwns or into.owns, ref)
+end
+
+-- A block: its header's text (name), fold key, rows (items) and refs (owns).
+local Block = {}
+Block.__index = Block
+function Block:changed() return anyChanged(self.owns) end
+function Block:reset() resetRefs(self.owns) end
+function Block:askReset() askReset(self.name, function() self:reset() end) end
+
+-- The whole page: every block's refs and its own.
+function Page:refs()
+	local out = {}
+	for _, r in ipairs(self.pageOwns) do table.insert(out, r) end
+	for _, b in ipairs(self.blockList) do
+		for _, r in ipairs(b.owns) do table.insert(out, r) end
+	end
+	return out
+end
+function Page:changed() return anyChanged(self:refs()) end
+function Page:reset() resetRefs(self:refs()) end
+-- name: what the question calls the page ("Stormstrike").
+function Page:askReset(name) askReset(name, function() self:reset() end) end
+
 -- A header starts a block, which runs to the next one. icon: an optional texture before the text.
 function Page:header(text, shown, note, icon)
 	local f = self:row(36)
@@ -437,7 +604,8 @@ function Page:header(text, shown, note, icon)
 		local key = self.key .. ":" .. text
 		if self.blockKeys[key] then key = key .. "#" .. #self.blockList end
 		self.blockKeys[key] = true
-		block = { index = #self.blockList + 1, key = key, items = {} }
+		block = setmetatable({ index = #self.blockList + 1, key = key, name = text, items = {}, owns = {},
+			ownIds = {} }, Block)
 		table.insert(self.blockList, block)
 		self.block = block
 		-- The fold arrow (painted by paintHeader).
