@@ -4,6 +4,8 @@
 
 - New profiles use the Blizzard bar texture, with slightly brighter bar colours to suit it.
 - Flame Shock: its Expiring colour no longer shows as a flat strip on textured time bars.
+- Totem bar: the arrow keys nudge it while positioning, and groups snap to it.
+- Totem bar: the Not your pick badge sits against its slot.
 
 ## 0.10.0 (2026-09-30)
 
