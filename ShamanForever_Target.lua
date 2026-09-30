@@ -231,12 +231,14 @@ end
 -- (a change of unit refreshes the container), refreshed on a change from one such target to
 -- another, and at no unit otherwise. A call that fails (see the file's header) leaves def.unit nil,
 -- so the next refresh tries again, as does the end of combat; meanwhile the gate is at alpha 0.
-local function retarget()
+-- only: that element alone (a refresh finding its unit behind), else both. Flame Shock's underlay
+-- waits again only when its own container is called.
+local function retarget(only)
 	local unit = wantedUnit()
 	for _, def in ipairs(TARGET) do
-		if def.under then def.under.appear:Stop(); def.under.appear:Play() end
-		local c = def.aura.container
+		local c = (only == nil or only == def) and def.aura.container
 		if c then
+			if def.under then def.under.appear:Stop(); def.under.appear:Play() end
 			local ok = true
 			if def.unit ~= unit then
 				ok = ns.try("target aura unit", c.SetUnit, c, unit)
@@ -253,7 +255,7 @@ local function retarget()
 				def.unit, def.stale = nil, true
 				def.failed = (def.failed or 0) + 1
 				gateAlpha(def)
-				ns.retryAfterCombat("target retarget", retarget)
+				ns.retryAfterCombat("target retarget", function() retarget() end)
 			end
 		end
 	end
@@ -388,7 +390,7 @@ local function refreshAura(def)
 	-- it's made, and again after a failed call or when a target change was missed.
 	if def.aura.container then
 		driveGate(def)
-		if def.unit ~= wantedUnit() then retarget() end
+		if def.unit ~= wantedUnit() then retarget(def) end
 	end
 	f.tex:SetTexture(def.icon)
 	-- Not learned yet (seen only while the preview shows such elements): a plain grey icon.
