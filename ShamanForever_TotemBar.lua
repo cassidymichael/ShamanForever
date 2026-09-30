@@ -211,7 +211,7 @@ end
 ------------------------------------------------------------------------
 local POP_STEP = 3    -- a picker's padding, and the gap between its buttons
 TB.POP_FILL = { 0, 0, 0, 0.72 }   -- a picker's plain fill (a Look can draw its own)
-TB.BADGE_GAP = 3      -- between a slot and its "not your pick" badge
+TB.BADGE_GAP = 0      -- between a slot and its "not your pick" badge: adjacent, moved by its offset
 local EXTRA_GAP = 6   -- added to the spacing between the extras and the slots
 
 -- Where everything sits along the bar, from its left or top end: Call and Recall before the slots
@@ -1266,8 +1266,10 @@ mover:Hide()
 mover.label = mover:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 mover.label:SetPoint("BOTTOMLEFT", mover, "TOPLEFT", 0, 2)
 mover.label:SetText("Totem bar")
+local movable = { frame = bar }
 mover:SetScript("OnDragStart", function(self)
 	if InCombatLockdown() then return end
+	ns.Positioning.selectMovable(movable)
 	self:StartMoving()
 end)
 mover:SetScript("OnDragStop", function(self)
@@ -1281,7 +1283,9 @@ mover:SetScript("OnDragStop", function(self)
 	layout()
 end)
 mover:SetScript("OnMouseUp", function(_, button)
-	if button == "RightButton" and ns.Options.open then ns.Options.open("totembar") end
+	if InCombatLockdown() then return end
+	if button == "LeftButton" then ns.Positioning.selectMovable(movable)
+	elseif button == "RightButton" and ns.Options.open then ns.Options.open("totembar") end
 end)
 -- As for groups: mouse wheel, icon size (lines stay crisp); Shift + wheel, scale (everything grows,
 -- lines too); Ctrl + wheel, opacity.
@@ -1306,16 +1310,26 @@ function mover.update()
 		mover:ClearAllPoints()
 		mover:SetPoint("TOPLEFT", bar, "TOPLEFT", -2, 2)
 		mover:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 2, -2)
+		if ns.Positioning.isSelected(movable) then mover:SetBackdropBorderColor(1, 0.82, 0, 1)
+		else mover:SetBackdropBorderColor(0.2, 0.6, 1, 0.9) end
+		mover.label:SetText("Totem bar")
 	end
-	if on then mover.label:SetText("Totem bar") end
 	mover:SetShown(on)
 end
 
+-- Joins positioning as the swing timer does: groups snap to the bar, and the arrow keys nudge it
+-- once selected (by UIParent units, as its saved offset is).
+function movable.nudge(dx, dy)
+	local c = cfg()
+	c.x, c.y = c.x + dx, c.y + dy
+	ns.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
+end
 -- Combat started while unlocked: the handle goes at once (it is a plain frame).
-function TB.lockInCombat()
+function movable.lock()
 	mover:Hide()
 	ns.retryAfterCombat("totem bar layout", layout)
 end
+ns.Positioning.addMovable(movable)
 
 ------------------------------------------------------------------------
 -- Quick Keybind Mode (Blizzard's, from Options > Keybindings; EllesmereUI's /kb opens it). While it is

@@ -4,8 +4,9 @@
 --
 -- ShamanForever.lua owns the groups and lays them out; it hands each group frame here once
 -- (PO.attach), and calls PO.decorate on every layout and PO.update after it. A frame that moves on
--- its own, outside the groups (the swing timer), joins in through PO.addMovable: groups snap to it,
--- it snaps to them (PO.snap), and the arrow keys nudge it once selected (PO.selectMovable).
+-- its own, outside the groups (the totem bar, the swing timer), joins in through PO.addMovable:
+-- groups snap to it and the arrow keys nudge it once selected (PO.selectMovable); the swing timer
+-- snaps to them too (PO.snap).
 
 local _, ns = ...
 local say = ns.say
@@ -279,7 +280,7 @@ function PO.select(id)
 	ns.layoutElements()
 end
 
--- A frame that moves on its own, outside the groups (the swing timer). m: frame (what groups snap
+-- A frame that moves on its own, outside the groups (the totem bar, the swing timer). m: frame (what groups snap
 -- to while it shows), nudge(dx, dy) (the arrow keys moved it, in UIParent units) and lock() (combat
 -- started while unlocked: its handle goes at once).
 function PO.addMovable(m) table.insert(movables, m) end
@@ -507,7 +508,6 @@ function PO.lockInCombat()
 	showGuides()
 	PO.update()
 	ns.retryAfterCombat("layout", ns.layoutElements)
-	ns.TotemBar.lockInCombat()
 	for _, m in ipairs(movables) do m.lock() end
 	ns.Options.refresh()
 end
