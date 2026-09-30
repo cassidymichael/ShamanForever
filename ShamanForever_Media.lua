@@ -180,25 +180,9 @@ function M.text(o)
 	return (M.fontPath(S.value(o, "text", "font"))), outline, S.value(o, "text", "shadow")
 end
 
--- Shadows set on a string at run time may not draw on this client (EllesmereUI's finding, not yet
--- tested here): shadows carried by a font object do, so a shadowed string takes one first.
-local shadowFont, plainFont
-local function primer(on)
-	if not shadowFont then
-		shadowFont = CreateFont("ShamanForeverShadowFont")
-		shadowFont:SetFont(STANDARD_TEXT_FONT, 12, "")
-		shadowFont:SetShadowOffset(1, -1)
-		shadowFont:SetShadowColor(0, 0, 0, 1)
-		plainFont = CreateFont("ShamanForeverPlainFont")
-		plainFont:SetFont(STANDARD_TEXT_FONT, 12, "")
-		plainFont:SetShadowOffset(0, 0)
-	end
-	return on and shadowFont or plainFont
-end
-
--- A string or a font object with an owner's look at size. A shadow is set only once one has been
--- on, so with the defaults this is the same call as always. SetFontObject may reset the text colour
--- to the font object's, so a string keeps the colour it had: callers set theirs once or on a change.
+-- A string or a font object with an owner's look at size. A shadow set straight on a string draws
+-- on this client, with no font object behind it (tested 2026-09-30). Turning one off is set only on
+-- what had one.
 local function shade(r, shadow)
 	if shadow or r.sfShadow ~= nil then
 		r:SetShadowColor(0, 0, 0, shadow and 1 or 0)
@@ -208,11 +192,6 @@ local function shade(r, shadow)
 end
 function M.setFont(fs, o, size)
 	local path, flags, shadow = M.text(o)
-	if shadow or fs.sfShadow ~= nil then
-		local r, g, b, a = fs:GetTextColor()
-		fs:SetFontObject(primer(shadow))
-		fs:SetTextColor(r, g, b, a)
-	end
 	fs:SetFont(path, size, flags)
 	shade(fs, shadow)
 end
