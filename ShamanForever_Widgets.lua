@@ -287,8 +287,9 @@ AuraSlot.__index = AuraSlot
 --   sites        { container = , style = , filter = }: names for its waiting work and caught errors
 --   iconAlpha()  the aura icon's alpha as the button is made (optional)
 --   ownIcon()    a texture to show on the button in place of the aura's icon (optional): set once,
---                as the button is made, and never handed to Blizzard, so the aura's icon never shows
---                and nothing under the button is written to later (refused in combat)
+--                as the button is made, and never handed to Blizzard as its icon, so the aura's
+--                icon never shows and Blizzard never writes to ours (a pop's animation may still
+--                move it)
 --   noTimer      no time left: the button is handed no cooldown or bar, and the slot has no timer
 --   host(slot, button)  a frame of the caller's under the button, covering it, that the icon, its
 --                border look and the timer go on in place of the button itself (optional; made as
