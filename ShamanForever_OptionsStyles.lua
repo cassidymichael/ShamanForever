@@ -49,9 +49,7 @@ local function dress(c)
 	over.pop.colorBy = view.colorBy
 	for k, v in pairs(c.fields()) do over[c.kind][k] = v end
 	local sc = schoolOf(view.school)
-	t:wear(nil, over)
-	t:school(sc.key)
-	t:icon(sc.icon)
+	t:dress(nil, over, sc.key, sc.icon)
 	t:glow(c.kind == "glow")
 end
 

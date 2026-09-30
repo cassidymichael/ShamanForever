@@ -1253,6 +1253,13 @@ do
 
 	function Tile:icon(tex) self.ic.tex:SetTexture(tex) end
 
+	-- wear, school and icon at once: one restyle and fit.
+	function Tile:dress(base, over, s, tex)
+		self.ic.school = s
+		self:icon(tex)
+		self:wear(base, over)
+	end
+
 	-- The icon sized and set in for its border, centred in the tile's box.
 	function Tile:fit()
 		local size = self.size
