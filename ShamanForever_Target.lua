@@ -192,11 +192,14 @@ function T.makeExpireBar(button)
 end
 
 -- A step colour curve over the time left: red under secs, colour c from there.
-local curves = {}
+-- One per threshold and colour, kept up to 32 (a colour picker's drag makes many), then made afresh.
+local curves, cached = {}, 0
 local function textCurve(secs, c)
 	if not (C_CurveUtil and C_CurveUtil.CreateColorCurve and CreateColor) then return nil end
 	local id = string.format("%d:%.3f:%.3f:%.3f:%.3f", secs, c[1], c[2], c[3], c[4] or 1)
 	if curves[id] == nil then
+		if cached >= 32 then wipe(curves); cached = 0 end
+		cached = cached + 1
 		local curve = C_CurveUtil.CreateColorCurve()
 		if Enum and Enum.LuaCurveType then pcall(curve.SetType, curve, Enum.LuaCurveType.Step) end
 		curve:AddPoint(0, CreateColor(RED[1], RED[2], RED[3], RED[4]))
