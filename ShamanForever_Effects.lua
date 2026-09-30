@@ -558,7 +558,7 @@ function E.pop(f, kind, owner)
 	if not f:IsVisible() then return end
 	kind = kind or "ready"
 	local st = ns.Style.get(owner, "pop")
-	local school = ns.Looks.schoolOf(f)
+	local school = ns.Looks.effectSchool(f)
 	local c = popColor(st, kind, school)
 	f.popRig = f.popRig or newRig(f)
 	f.popRig:stop()   -- nothing plays while its values change
@@ -857,7 +857,7 @@ function Host:stylePop(size)
 	if not pops then rig:hideAll() end   -- Pop off wins even if a setter below is refused
 	ns.try("aura pop style " .. self.key, function()
 		local st = pops and ns.Style.get(self.key, "pop") or NO_POP
-		local school = ns.Looks.schoolOf(self.f)
+		local school = ns.Looks.effectSchool(self.f)
 		rig:style(st, size, popColor(st, self.aura.popKind or "ready", school), school)
 	end)
 	-- Whatever styling did or didn't finish, the parts shown are exactly those marked to play.

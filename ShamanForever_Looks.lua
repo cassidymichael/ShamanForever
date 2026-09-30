@@ -39,6 +39,25 @@ local function schoolOf(f)
 	return e and e.school or "spirit"
 end
 
+-- The school an element's pop and School material glow take: the one picked for them (its
+-- popSchool setting) unless own, else its own now (ownSchool(), for an element whose school follows
+-- its state), else the element's.
+function Looks.elementSchool(key, own)
+	local e = ns.ELEMENTS[key]
+	if not e then return "spirit" end
+	if not own and ns.getDB and ns.getDB() then
+		local pick = ns.elementSetting(key, "popSchool")
+		if ns.SCHOOL_COLOR[pick] then return pick end
+	end
+	return e.ownSchool and e.ownSchool() or e.school or "spirit"
+end
+-- As schoolOf, with an element's pick for its pop and School material glow.
+local function effectSchool(f)
+	if f.over then f = f.over end
+	if f.school then return f.school end
+	return type(f.owner) == "string" and Looks.elementSchool(f.owner) or "spirit"
+end
+
 ------------------------------------------------------------------------
 -- Frames: a border look's entry (a choice, S.addLook: name, group, uses and the rest) has any of
 -- these parts.
@@ -874,7 +893,7 @@ local material = {
 		local k = st.strength or 1
 		parts.soft.alpha = math.min(0.35 * math.max(k, 1), 1)
 		styleSoft(parts.soft, c)
-		local school = schoolOf(g)
+		local school = effectSchool(g)
 		parts.school = school
 		parts.mat:SetTexture(MEDIA .. "Mat-" .. school:sub(1, 1):upper() .. school:sub(2), "REPEAT", "REPEAT")
 		parts.mat:SetTexCoord(0, 3, 0, 3)
@@ -1103,8 +1122,9 @@ end
 -- dropping are warnings: their pops keep their own colours.
 Looks.POP_EVENTS = { ready = true, expired = true }
 
--- The school f's looks take (the pop's colour by school, its drawn bursts' shapes).
-Looks.schoolOf = schoolOf
+-- The school f's looks take (its border's school colour), and the one its pop's colour by school,
+-- drawn bursts and School material glow take.
+Looks.schoolOf, Looks.effectSchool = schoolOf, effectSchool
 
 -- Blizzard's cooldown-done flash, a light running round the edge, made stronger than Blizzard draws
 -- it (too faint at 44, tested 2026-09-28): added, and a second copy a little larger. Its two

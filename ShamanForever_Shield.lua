@@ -42,8 +42,8 @@ ns.Shield = SH
 -- cast and its buff (wowhead.com/forever). Spells by key in ns.Spells (ShamanForever_Core.lua); the
 -- IDs the aura slot matches grow with the spellbook's and the live aura's.
 local SHIELDS = {
-	lightning = { spell = "lightningShield", icon = 136051 },
-	water     = { spell = "waterShield",     icon = 132315 },
+	lightning = { spell = "lightningShield", icon = 136051, school = "air" },
+	water     = { spell = "waterShield",     icon = 132315, school = "water" },
 }
 local SHIELD_ORDER = { "lightning", "water" }
 
@@ -77,7 +77,8 @@ ns.registerElement("shield", { frame = shield, label = "Shields", paint = functi
 	borderHost = edge,
 	-- Preview mode: its border is on Blizzard's button, not its frame (ShamanForever_Preview.lua).
 	standInBorder = true,
-	kind = "shield", icon = 136051, school = "spirit", blurb = "Charges and time left. Warns when it's gone." })
+	kind = "shield", icon = 136051, school = "spirit", blurb = "Charges and time left. Warns when it's gone.",
+	ownSchool = function() return SH.school() end })
 
 -- Per shield at runtime: name (the client's), spellID and bookIcon (highest known rank), known. The
 -- IDs that count as it are ns.Spells' (seeds, spellbook, and the live aura's, learned here); castIDs
@@ -141,6 +142,12 @@ function SH.icon()
 	local s = SHIELDS[shownShield()]
 	return s.bookIcon or s.icon
 end
+-- The school of the shield it shows (air for Lightning Shield, water for Water Shield), for its
+-- glow's looks that go by school; nil while it knows neither.
+function SH.school()
+	local s = SHIELDS[shownShield()]
+	return s.known and s.school or nil
+end
 
 -- The shield an own cast is a cast of, if any: by its own spell IDs (its seeds, the ranks the
 -- player knows, the live aura's), never by name alone. Spells that share a shield's name without
@@ -182,6 +189,7 @@ SH.learned = anyTrackedShieldKnown
 function SH.knows(key) return SHIELDS[key] ~= nil and SHIELDS[key].known == true end
 
 local standIn   -- preview mode's icon over the shield (SH.preview, below)
+local glowSchool   -- the school the No shield look's glow was last styled for (SH.applyEmptyLook)
 
 ------------------------------------------------------------------------
 -- The No shield look (see the top of this file)
@@ -331,6 +339,12 @@ function SH.applyEmptyLook()
 	-- button's (a faint border under it at Idle below full).
 	edge:SetShown(not (known and covered))
 	look.tex:SetTexture(icon)
+	-- Its glow's looks that go by school follow the shield it shows.
+	local school = SH.school()
+	if school ~= glowSchool then
+		glowSchool = school
+		look.glow:restyle()
+	end
 	lookOn = (known and covered and ns.isEnabled("shield")) and true or false
 	if standIn then
 		-- Preview mode (SH.preview, below). The stand-in draws the state shown over everything, the

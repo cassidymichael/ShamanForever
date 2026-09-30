@@ -191,9 +191,39 @@ local function previewBorder(owner)
 	return ns.borderFor(owner)
 end
 
+-- Whether a style's owner is an element (its page's).
+local function isElement(owner) return type(owner) == "string" and ns.ELEMENTS[owner] ~= nil end
+
+-- An element's pick of the element its pop and School material glow take (popSchool: its own
+-- setting, not a style field, so it stays whether or not the element follows General).
+local POP_SCHOOLS = { { "earth", "Earth" }, { "fire", "Fire" }, { "water", "Water" }, { "air", "Air" },
+	{ "spirit", "Spirit" } }
+local function popSchoolRow(p, key, shown)
+	local function get()
+		local v = ns.elementSetting(key, "popSchool")
+		return ns.SCHOOL_COLOR[v] and v or "own"
+	end
+	local function set(v)
+		ns.elementOpts(key).popSchool = v ~= "own" and v or nil
+		ns.Effects.applyStyle()
+		ns.applyTimers()
+		OP.refresh()
+	end
+	p:dropdown("Element", "The element its pop and School material glow take.", function()
+		local own = ns.Looks.elementSchool(key, true)
+		local out = { { "own", "Its own" } }
+		for _, sc in ipairs(POP_SCHOOLS) do
+			table.insert(out, sc)
+			if sc[1] == own then out[1][2] = "Its own (" .. sc[2] .. ")" end
+		end
+		return out
+	end, get, set, shown, 190)
+end
+
 -- A style block's preview: one 40 icon of the page's (icon), or one per school while bySchool()
--- (a look or motion that differs by school: earth, fire, water, air and spirit side by side; the
--- totem bar's four), made the first time they show. x: where the first sits in its row f. Each
+-- on a page that isn't an element's (a look or motion that differs by school: earth, fire, water,
+-- air and spirit side by side; the totem bar's four), made the first time they show. An element's
+-- page shows its own icon, in the school it takes. x: where the first sits in its row f. Each
 -- wears its owner's border inside its 40, as on the HUD. Returns shown(), the icons it shows now,
 -- and place(), for the row's refresh, which lays them out and returns them.
 local SCHOOL_ICONS = { { "earth", 136098 }, { "fire", 135825 }, { "water", 135127 }, { "air", 136114 },
@@ -205,7 +235,7 @@ local function previewIcons(f, owner, icon, x, bySchool)
 	local schools = {}
 	local v = {}
 	function v.shown()
-		if not bySchool() then return { one } end
+		if isElement(owner) or not bySchool() then return { one } end
 		if #schools == 0 then
 			for _, s in ipairs(SCHOOL_ICONS) do
 				if owner ~= "totembar" or s[1] ~= "spirit" then
@@ -257,6 +287,7 @@ local function glowBlock(p, owner, icon)
 		for _, ic in ipairs(icons.place()) do ic:SetGlowShown(true) end
 	end)
 	look = choiceRows(p, r, "glow", "look", "Look", nil, own)
+	if isElement(owner) then popSchoolRow(p, owner, showWhen(function() return look().bySchool end)) end
 	reloadLine(p, function() return ns.Effects.auraGlowStale(owner) end,
 		function(n) return n == 1 and "changes glow" or "change glow" end, own)
 	-- A row for a field the look reads, unless it labels that field its own way (its fields).
@@ -304,7 +335,7 @@ local function popBlock(p, owner, icon, kind)
 	-- Colour is for Ready and Ran out (ns.Looks.POP_EVENTS): a page whose pop is for a warning (the
 	-- imbue's) keeps the warning's colour and doesn't offer it.
 	local colored = ns.Looks.POP_EVENTS[kind]
-	-- One icon per school while the colour or the burst differs by school.
+	-- One icon per school while the colour or the burst differs by school (not on an element's page).
 	local function burst() return ns.Style.choice("pop", "burst", r.style().burst) end
 	local function bySchool()
 		return (colored and r.style().colorBy == "school") or burst().bySchool or false
@@ -327,6 +358,7 @@ local function popBlock(p, owner, icon, kind)
 		play:ClearAllPoints()
 		play:SetPoint("LEFT", list[#list], "RIGHT", 24, 0)
 	end)
+	if isElement(owner) then popSchoolRow(p, owner, showWhen(bySchool)) end
 	if colored then
 		local color = choiceRows(p, r, "pop", "colorBy", "Colour", "For Ready and Ran out. By event: gold when ready, white when a totem runs out. Killed early, Grounded and the imbue dropping keep their own colours.", own)
 		p:text("By school suits this burst.", showWhen(function() return color().key == "event" and burst().bySchool end, own))
