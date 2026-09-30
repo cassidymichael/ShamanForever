@@ -1050,6 +1050,7 @@ local navPreview
 
 -- The nav's looks: the current page marked, and element pages not learned yet greyed.
 local function refreshNav()
+	if navList then navList.order() end
 	for _, b in ipairs(navButtons) do
 		local on = b.page == currentPage
 		b.sel:SetShown(on)
@@ -1157,17 +1158,35 @@ local function buildNav()
 	local child = CreateFrame("Frame", nil, list)
 	child:SetWidth(NAV_W - 8)
 	list:SetScrollChild(child)
-	local n = 0
+	local byKey, n = {}, 0
 	for _, p in ipairs(pageOrder) do
 		local e = ns.ELEMENTS[p.key]
 		if e and e.kind then
 			local b = add(p.key, ns.Look.elementName(p.key), e.icon, true, child)
 			b:SetWidth(NAV_W - 42)   -- room for the bar
-			b.listTop = n * NAV_SUB_STEP
-			b:SetPoint("TOPLEFT", child, "TOPLEFT", 8 + 16, -b.listTop)
+			byKey[p.key] = b
 			n = n + 1
 		end
 	end
+	-- The buttons in the Elements list's order (learned, not learned, other races'), set again when
+	-- it changes.
+	local placed
+	function list.order()
+		local seq = {}
+		for _, key in ipairs(ns.ElementPages.ordered()) do
+			if byKey[key] then table.insert(seq, key) end
+		end
+		local sig = table.concat(seq, ",")
+		if sig == placed then return end
+		placed = sig
+		for i, key in ipairs(seq) do
+			local b = byKey[key]
+			b.listTop = (i - 1) * NAV_SUB_STEP
+			b:ClearAllPoints()
+			b:SetPoint("TOPLEFT", child, "TOPLEFT", 8 + 16, -b.listTop)
+		end
+	end
+	list.order()
 	-- Shades at an edge with more beyond it, and the bar, on a frame above the buttons.
 	local over = CreateFrame("Frame", nil, list)
 	over:SetAllPoints()

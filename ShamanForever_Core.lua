@@ -376,6 +376,17 @@ local DEFS = {
 	lavaBurst       = { ids = { 408490, 1238299, 1238300 }, en = "Lava Burst" },   -- Forever's own, ranks 1 to 3
 	totemicProjection = { ids = { 437009 }, en = "Totemic Projection" },
 	reincarnation   = { ids = { 20608 }, en = "Reincarnation" },
+	-- Racials (build 70124's spell tables; none seen on a character yet). Other spells share their
+	-- names (War Stomp has 16 IDs, Berserking 4), so each is matched by ID.
+	bloodFury       = { ids = { 20572 }, byID = true, en = "Blood Fury" },                -- Orc
+	shatterCurse    = { ids = { 1299026 }, byID = true, en = "Shatter Curse" },           -- Orc
+	berserking      = { ids = { 20554 }, byID = true, en = "Berserking" },                -- Troll
+	rapidRegeneration = { ids = { 1260270 }, byID = true, en = "Rapid Regeneration" },    -- Troll
+	warStomp        = { ids = { 20549 }, byID = true, en = "War Stomp" },                 -- Tauren
+	stoneform       = { ids = { 20594 }, byID = true, en = "Stoneform" },                 -- Dwarf
+	-- Windshaper Skyborne. Which of the two IDs the spellbook shows is unconfirmed; tried in order.
+	walkOnAir       = { ids = { 1259416, 1308663 }, byID = true, en = "Walk on Air" },
+	skysight        = { ids = { 1259686 }, byID = true, en = "Skysight" },                -- Windshaper Skyborne
 	waterWalking    = { ids = { 546 }, en = "Water Walking" },   -- the buffs have the same IDs
 	waterBreathing  = { ids = { 131 }, en = "Water Breathing" },
 	elementalFocus  = { ids = { 16164 }, en = "Elemental Focus" },   -- a passive talent
@@ -418,7 +429,7 @@ local function resolveNames()
 			n = n or nameOf(id)
 		end
 		names[key] = n or d.en
-		keyByName[names[key]] = key
+		if not d.byID then keyByName[names[key]] = key end
 	end
 end
 resolveNames()
@@ -505,20 +516,39 @@ function Spells.known(key)
 	local e = book[key]
 	if e then return e.id, e.icon end
 	-- Not in the spellbook view (a talent, or the scan ran early): ask the client by name, and
-	-- whether the player knows what it names.
-	local ok, info = safe(C_Spell.GetSpellInfo, Spells.name(key))
+	-- whether the player knows what it names. Not for a spell matched by ID alone (byID): its name
+	-- is shared with other spells.
+	local ok, info
+	if not (DEFS[key] and DEFS[key].byID) then ok, info = safe(C_Spell.GetSpellInfo, Spells.name(key)) end
 	if ok and type(info) == "table" and info.spellID and not isSecret(info.spellID) and playerKnows(info.spellID) then
 		keyByID[info.spellID] = key
 		return info.spellID, info.iconID
 	end
 	-- The name can resolve to another spell of the same name (a passive's active part, another
 	-- series of ranks): any ID on record for the spell that the player knows.
-	for id in pairs(Spells.ids(key)) do
+	-- The listed seed IDs are tried in their order, then any others learned since.
+	local tried = {}
+	local function try(id)
+		if tried[id] then return end
+		tried[id] = true
 		if (type(info) ~= "table" or id ~= info.spellID) and playerKnows(id, true) then
 			local tok, tex = safe(C_Spell.GetSpellTexture, id)
 			return id, tok and not isSecret(tex) and tex or nil
 		end
 	end
+	for _, id in ipairs(DEFS[key] and DEFS[key].ids or {}) do
+		local got, tex = try(id)
+		if got then return got, tex end
+	end
+	for id in pairs(Spells.ids(key)) do
+		local got, tex = try(id)
+		if got then return got, tex end
+	end
+end
+
+-- Whether a list of race IDs (UnitRace's third value) leaves the player out; no list, no limit.
+function Spells.otherRace(races)
+	return races ~= nil and not tContains(races, (select(3, UnitRace("player"))))
 end
 
 -- A spell's icon from its seed IDs, known or not (the options show every element).

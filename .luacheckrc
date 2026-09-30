@@ -144,6 +144,7 @@ read_globals = {
     "UnitIsUnit",
     "UnitName",
     "UnitOnTaxi",
+    "UnitRace",
     "UnregisterStateDriver",
     "abs",
     "assert",

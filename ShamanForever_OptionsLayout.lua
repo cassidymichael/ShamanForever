@@ -79,7 +79,7 @@ local function elementName(key) return ns.Look.elementName(key) end
 -- Its name, and what keeps it off screen or in combat only.
 local function chipText(key)
 	local tags = {}
-	if not ns.isLearned(key) then table.insert(tags, "not learned") end
+	if not ns.isLearned(key) then table.insert(tags, ns.notLearnedText(key):lower()) end
 	local mode = ns.showMode(key)
 	if mode == "never" then table.insert(tags, "hidden")
 	elseif mode == "combat" then table.insert(tags, "in combat") end

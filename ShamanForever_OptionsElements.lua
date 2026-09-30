@@ -17,14 +17,25 @@ local expiringLooks, killedBlock = K.expiringLooks, K.killedBlock
 
 local function db() return ns.getDB() end
 
--- The elements in the options' order (the nav and the Elements list): by name, A to Z, in the
--- client's language.
+-- The elements in the options' order (the nav and the Elements list): the ones the character has
+-- learned, then the ones it hasn't, then other races' racials; each band by name, A to Z, in the
+-- client's language. Read when asked, so a spell learned since moves up.
 local function byName()
 	local keys, name = {}, ns.Look.elementName
-	for i, key in ipairs(ns.ELEMENT_KEYS) do keys[i] = key end
-	table.sort(keys, function(a, b) return name(a):lower() < name(b):lower() end)
+	local band = {}
+	for i, key in ipairs(ns.ELEMENT_KEYS) do
+		keys[i] = key
+		band[key] = ns.isLearned(key) and 0 or ns.Spells.otherRace(ns.ELEMENTS[key].race) and 2 or 1
+	end
+	table.sort(keys, function(a, b)
+		if band[a] ~= band[b] then return band[a] < band[b] end
+		local na, nb = name(a):lower(), name(b):lower()
+		if na ~= nb then return na < nb end
+		return a < b
+	end)
 	return keys
 end
+EP.ordered = byName
 
 -- The Group choices: every group by name, then New group; an ungrouped element's reads Ungrouped.
 -- Choosing one moves the element there (to its end) and leaves its Show as it is.
@@ -106,7 +117,8 @@ function EP.buildOverview(p)
 		col("Show", SHOW_X + 6)
 		p:add(f, 20)
 	end
-	for _, key in ipairs(byName()) do
+	local rowKeys = byName()
+	for _, key in ipairs(rowKeys) do
 		local e = ns.ELEMENTS[key]
 		local f = p:row(34)
 		local icon = f:CreateTexture(nil, "ARTWORK")
@@ -121,7 +133,7 @@ function EP.buildOverview(p)
 		-- Every element is listed; one the character doesn't know yet says so (the HUD leaves it out).
 		local unknown = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 		unknown:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -1)
-		unknown:SetText("Not learned")
+		unknown:SetText(ns.notLearnedText(key))
 		-- The Group choices: every group by name, then New group. Choosing one moves the element
 		-- there (to its end) and leaves its Show as it is.
 		local group = menuCell(f, 120, function(_, root)
@@ -197,6 +209,12 @@ function EP.buildOverview(p)
 			groupOpen:SetShown(g ~= nil)
 		end)
 	end
+	-- The rows follow the order again at each layout: they are the last items added.
+	local rows, first = {}, #p.items - #rowKeys
+	for i, key in ipairs(rowKeys) do rows[key] = p.items[first + i] end
+	function p.beforeRefresh()
+		for i, key in ipairs(byName()) do p.items[first + i] = rows[key] end
+	end
 end
 
 -- Every element page, in one order: its header, Display (Show, Group), Idle (where it has one), its
@@ -207,7 +225,9 @@ local function elementDisplay(p, key)
 	ELEMENT_PAGES[key] = p.key
 	p:hero(key)
 	p:callout("Not learned yet. It shows on screen once your character knows the spell.",
-		function() return not ns.isLearned(key) end)
+		function() return not ns.isLearned(key) and not ns.Spells.otherRace(ns.ELEMENTS[key].race) end)
+	p:callout("Not your race. It shows on screen only for the races that have this spell.",
+		function() return not ns.isLearned(key) and ns.Spells.otherRace(ns.ELEMENTS[key].race) end)
 	p:header("Display")
 	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return ns.showMode(key) end,
 		function(v) ns.setShow(key, v) end, nil, 140)

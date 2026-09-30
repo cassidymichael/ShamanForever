@@ -91,6 +91,12 @@ local DEFAULTS = {
 		{ id = 10, name = "Totemic Projection", point = "CENTER", x = -526, y = -180, scale = 1, alpha = 0.6,
 			sizeFollow = false, size = 40,
 			orientation = "horizontal", growth = "forward", spacing = 2, members = { "projection" } },
+		-- Every racial; only the player's own race shows, the rest take no room.
+		{ id = 11, name = "Racials", point = "CENTER", x = -578, y = -60, scale = 1, alpha = 0.8,
+			sizeFollow = false, size = 40,
+			orientation = "vertical", growth = "forward", spacing = 2,
+			members = { "bloodfury", "shattercurse", "berserking", "rapidregeneration", "warstomp",
+				"stoneform", "walkonair", "skysight" } },
 	},
 	known = {},             -- element keys placed at least once; a new one joins its default group
 	elementOpts = {},       -- per-element settings by key, e.g. { shock = { show = "combat" } }; every element starts shown
@@ -241,12 +247,24 @@ end
 ------------------------------------------------------------------------
 -- Whether the character knows the element's spell. The options list every element, marking the
 -- ones not learned; the HUD leaves those out until they are, except while the preview shows them
--- (its Show not learned, ShamanForever_Preview.lua), so they can be placed.
+-- (its Show not learned, ShamanForever_Preview.lua), so they can be placed. Another race's racials
+-- are never drawn.
 local function isLearned(key)
 	local e = ELEMENTS[key]
 	return e == nil or not e.learned or e.learned() and true or false
 end
-local function onHUD(key) return isLearned(key) or ns.Preview.showsUnlearned() end
+-- What the options say of an element that isn't learned: its spell belongs to other races
+-- (e.race, a list of race IDs, UnitRace's third value), or the character doesn't know it yet.
+function ns.notLearnedText(key)
+	local e = ELEMENTS[key]
+	if e and Spells.otherRace(e.race) then return "Not your race" end
+	return "Not learned"
+end
+local function onHUD(key)
+	if isLearned(key) then return true end
+	local e = ELEMENTS[key]
+	return ns.Preview.showsUnlearned() and not (e and Spells.otherRace(e.race))
+end
 
 -- The group an element sits in and its place among the members; nil for an ungrouped element.
 -- Whether it is drawn is its own "show" setting, so hiding one keeps its place.
@@ -975,10 +993,15 @@ end)
 function ns.debugReport()
 	say("in combat %s", tostring(InCombatLockdown()))
 	-- Every tracked spell: the client's name and the rank known (by spell ID, not name).
-	local known = {}
+	local known, otherRace = {}, {}
+	for _, e in pairs(ELEMENTS) do
+		if e.spell and Spells.otherRace(e.race) then otherRace[e.spell] = true end
+	end
 	for key in pairs(Spells.DEFS) do
-		local id = Spells.known(key)
-		table.insert(known, string.format("%s=%s", Spells.name(key), id and tostring(id) or "-"))
+		if not otherRace[key] then
+			local id = Spells.known(key)
+			table.insert(known, string.format("%s=%s", Spells.name(key), id and tostring(id) or "-"))
+		end
 	end
 	table.sort(known)
 	say("spells: %s", table.concat(known, ", "))
@@ -986,7 +1009,7 @@ function ns.debugReport()
 	say("profile %s", tostring(profileName))
 	say("%s", ns.TotemBar.debug())
 	local function listed(key)
-		local mode = isLearned(key) and showMode(key) or "not learned"
+		local mode = isLearned(key) and showMode(key) or ns.notLearnedText(key):lower()
 		return mode == "always" and key or (key .. " (" .. mode .. ")")
 	end
 	for _, g in ipairs(db.groups) do
