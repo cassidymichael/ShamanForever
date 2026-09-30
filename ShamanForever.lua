@@ -149,12 +149,12 @@ local ELEMENT_KEYS = { "shield", "shock", "imbue" }
 -- options and while dragging; stack is its frame's (ns.newElementIcon); fadeFrames lists other
 -- frames of its own that ignore its group's alpha, for the group's fade after combat;
 -- standInBorder: preview mode's stand-in draws its border (its own isn't on its frame). learned()
--- says whether the character knows its spell (none: always); defaults holds the defaults of every option it has (see
--- elementSetting). The options show it by its spell's name in the client's language (spell, an
--- ns.Spells key), else its label, with its icon, its school's art (earth, fire, water, air, spirit),
--- blurb (a line under its name) and experimental (a feature name: not tested in game); kind picks
--- its page and preview (ShamanForever_OptionsElements.lua, _OptionsLook.lua), which read def, the
--- module's own table for it.
+-- says whether the character knows its spell (none: always); defaults holds the defaults of every
+-- option it has (see elementSetting). The options show it by its spell's name in the client's
+-- language (spell, an ns.Spells key), else its label, with its icon, its school's art (earth, fire,
+-- water, air, spirit), blurb (a line under its name) and experimental (a feature name: not tested
+-- in game); kind picks its page and preview (ShamanForever_OptionsElements.lua, _OptionsLook.lua),
+-- which read def, the module's own table for it.
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
 function ns.registerElement(key, e)
