@@ -154,7 +154,11 @@ local function styleButton(def, size, slot)
 	if def.engineExpire then
 		ns.try("flame shock expiring", styleExpire, def, size, slot)
 		-- The glow over the Expiring bars (+10 to +13), under the countdown (+15).
-		def.glow:SetFrameLevel(def.frame.textFrame:GetFrameLevel() + 14)
+		local g, level = def.glow, def.frame.textFrame:GetFrameLevel() + 14
+		g:SetFrameLevel(level)
+		g.inner:SetFrameLevel(level)
+		local parts = g.look and g.parts[g.look.key]
+		if parts then ns.Looks.levelParts(parts) end   -- its look's frames, at the new level
 	end
 	if def.edge then ns.try("target border " .. def.key, ns.applyBorder, def.edge, ns.borderFor(def.key)) end
 	def.glow:restyle()
@@ -259,7 +263,9 @@ function styleExpireText(def, slot, st, secs)
 		def.textHolder:SetFrameLevel(def.frame.textFrame:GetFrameLevel() + 15)   -- over the Expiring bars and the glow
 		fs:SetFont(STANDARD_TEXT_FONT, st.textSize, "OUTLINE")
 		fs:ClearAllPoints()
-		if st.textPos == "topleft" then fs:SetPoint("TOPLEFT", b, "TOPLEFT", 1, -1)
+		-- Placed as Timer:apply places the countdown: clear of a bar along that edge.
+		if st.textPos == "topleft" then
+			fs:SetPoint("TOPLEFT", b, "TOPLEFT", 1, (t and t.barOn and st.barEdge == "top") and -(st.barHeight + 1) or -1)
 		elseif st.textPos == "bottom" then fs:SetPoint("BOTTOM", b, "BOTTOM", 0, (t and t.barOn and st.barEdge == "bottom") and st.barHeight + 1 or 1)
 		else fs:SetPoint("CENTER", b, "CENTER", 0, 0) end
 		def.textOn = ns.try("flame shock countdown", b.SetDurationText, b, fs, { textColor = { curve = textOn, property = REMAINING } })
