@@ -779,10 +779,11 @@ local halo = {
 }
 
 -- Blizzard's action bar proc glow: a burst that settles into a ring of moving light, in its
--- own gold unless the glow's colour is changed. Under Blizzard's aura button only the ring plays
--- (script handlers there never run, so nothing can start it when the burst ends).
+-- own gold unless the glow's colour is changed. Not under Blizzard's aura button (noAura): its
+-- flipbooks drew there as whole sprite sheets, a grid of rings and squares round the icon (seen
+-- 2026-09-30 on Purge), so a glow there takes the default look instead.
 local proc = {
-	uses = { color = true }, steady = true,
+	uses = { color = true }, steady = true, noAura = true,
 	build = function(g)
 		if not (Looks.hasAtlas(PROC_START) and Looks.hasAtlas(PROC_LOOP)) then
 			local parts = soft.build(g)

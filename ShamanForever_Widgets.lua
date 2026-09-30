@@ -242,9 +242,10 @@ local function makeGlow(parent, over, owner, unlisted)
 		end
 		return p or nil
 	end
-	-- The look drawn for a style's: itself, or the default look where the client refused its parts.
+	-- The look drawn for a style's: itself, or the default look where the client refused its parts
+	-- or, under Blizzard's aura button, where the look can't be drawn there (noAura).
 	local function drawn(look)
-		if parts(look) then return look end
+		if not (unlisted and look.noAura) and parts(look) then return look end
 		return ns.Style.look("glow", ns.Style.KINDS.glow.defaults.look)
 	end
 	if unlisted then table.insert(auraGlows, g) end
@@ -322,7 +323,9 @@ function ns.auraGlowStale(owner)
 	local out = {}
 	for _, g in ipairs(auraGlows) do
 		local reaches = owner == g.owner or (owner == nil and ns.Style.follows(g.owner, "glow"))
-		if reaches and g.look ~= ns.Style.look("glow", ns.Style.get(g.owner, "glow").look) then
+		local want = ns.Style.look("glow", ns.Style.get(g.owner, "glow").look)
+		if want.noAura then want = ns.Style.look("glow", ns.Style.KINDS.glow.defaults.look) end
+		if reaches and g.look ~= want then
 			table.insert(out, g.owner)
 		end
 	end
