@@ -914,14 +914,13 @@ function Page:copyField(label, value, icon, color)
 	return self:add(f, 30)
 end
 
--- An experimental feature, where to find it, and its feedback badge.
+-- An experimental feature and where to find it (feedback is About's own section, above the list).
 function Page:experimental(name, where)
 	local f = self:row(28)
 	self:label(f, name)
 	local w = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 	w:SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
 	w:SetText(where)
-	ns.Look.expBadge(f, name, "Give feedback"):SetPoint("LEFT", w, "RIGHT", 10, 0)
 	return self:add(f, 28)
 end
 
