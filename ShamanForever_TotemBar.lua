@@ -425,17 +425,19 @@ local slots = {}    -- element -> slot record
 local bySlot = {}   -- Blizzard's totem slot -> slot record
 TB.slots, TB.frame = slots, bar
 
--- Frame levels over a slot's button, bottom to top: the look (+2: icon), the timer's time-left bar
--- (+8, kept under the range strip so it never hides the range mark), the range strip (+9 to +12:
--- ours, Blizzard's aura button and our colour on it; ShamanForever_TotemRange.lua), the expiring
--- warning (+13 to +14: Timer:setExpire, ShamanForever_Timers.lua, lifted by liftWarning), then
--- everything drawn over the whole icon: the GCD sweep, the timer's Cooldown (swipe, countdown text),
--- the key, the end flashes. The strip's in-range part is opaque (the buff's icon under its colour),
--- so what sits under it is hidden: the expiring warning sits over it, or its flash would stop at
--- the strip.
+-- Frame levels over a slot's button, bottom to top: the look (+2: icon), the range strip (+9 to
+-- +12: ours, Blizzard's aura button and our colour on it; ShamanForever_TotemRange.lua), the
+-- expiring warning (+13 to +15: Timer:setExpire, ShamanForever_Timers.lua, lifted by liftWarning,
+-- with its glow), the timer's time-left bar (+16), then everything drawn over the whole icon: the
+-- GCD sweep, the timer's Cooldown (swipe, countdown text), the key, the end flashes. The strip's
+-- in-range part is opaque (the buff's icon under its colour), so what sits under it is hidden: the
+-- expiring warning sits over it, or its flash would stop at the strip. The time bar sits over the
+-- warning, readable in a totem's last seconds; a bar along the top edge hides the strip under it
+-- (a mark missed, never one shown falsely).
 TB.RANGE_LEVEL = 9
-local WARN_LEVEL = TB.RANGE_LEVEL + 4   -- the expiring warning, its glow one over
-local OVER_RANGE = TB.RANGE_LEVEL + 6
+local WARN_LEVEL = TB.RANGE_LEVEL + 4       -- the expiring warning; its glow + 1, the glow's parts + 2
+local TIME_BAR_LEVEL = TB.RANGE_LEVEL + 7
+local OVER_RANGE = TB.RANGE_LEVEL + 8
 local LOOK_LEVEL = 2   -- the look's level over the button (v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL))
 local LOOK_OVER_RANGE = OVER_RANGE - LOOK_LEVEL   -- the same, over the look's level
 
@@ -514,7 +516,7 @@ for index, el in ipairs(ELEMENTS) do
 	-- Time left: a timer (text, swipe, bar), above the warning layer so it stays readable.
 	s.timer = ns.Timer.new(v, "totembar", "uptime", { anchor = v, school = el })
 	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 1)
-	s.timer.bar:SetFrameLevel(b:GetFrameLevel() + TB.RANGE_LEVEL - 1)
+	s.timer.bar:SetFrameLevel(b:GetFrameLevel() + TIME_BAR_LEVEL)
 	v.cd = s.timer.cd
 	s.keys = keyLayer(v)
 	s.gcd = gcdSweep(v)
