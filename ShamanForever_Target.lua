@@ -20,17 +20,6 @@
 --   last target's aura.
 --
 -- Flame Shock, beside the aura itself:
--- * Expiring (its last seconds), switched off (T.EXPIRING): the client refuses our alpha under
---   Blizzard's button in combat (tested 2026-09-30), so it could never show in a fight. The code
---   stays for a route the engine draws. As built: the button's time can't be read, so it runs from
---   our own last Flame Shock cast (UNIT_SPELLCAST_SUCCEEDED, plain) plus the DoT's length, and sits
---   under Blizzard's button, which the engine hides the moment the DoT is gone (Timer:setClock). The
---   DoT on the target came from that cast or an earlier one, so it never has more time left than
---   the cast says: a warning can come late or not at all (the DoT was cast before a /reload, or a
---   later cast was resisted or went to another target), never early, as long as the DoT lasts no
---   longer than the length the clock uses: 12 s for every rank in the game's spell data (build
---   70009), checked again after each patch. An out-of-combat read that happens to see a longer DoT
---   raises it for the session, a rare bonus rather than the safeguard.
 -- * Idle is no hostile target. With one, the Not on target look is drawn by the engine, in combat
 --   too, with nothing read: an underlay of ours (the icon, grey by default) sits under Blizzard's
 --   button, shown by a state driver while the target is hostile and alive and you're not dead. With
@@ -43,8 +32,8 @@
 --     and say exactly that yours isn't there;
 --   - Blizzard's container follows a new target on its next frame, so the underlay waits two
 --     frames each time it shows or the target changes (T.appear);
---   - it hides (alpha 0) while the container isn't made, isn't following the target (a refused call
---     in combat) or its expiring warning is stuck: a miss, never a false warning.
+--   - it hides (alpha 0) while the container isn't made or isn't following the target (a refused
+--     call in combat): a miss, never a false warning.
 --   Shocks' mark can't be covered by the button, so it stays out of combat only (the read).
 
 local _, ns = ...
@@ -54,8 +43,6 @@ local T = { name = "target" }
 ns.Target = T
 
 local setting = ns.elementSetting
--- Flame Shock's Expiring (see the file's header): off, its page block and preview state with it.
-T.EXPIRING = false
 local gateAlpha, retarget   -- below
 
 -- The target's aura elements, in the order the options list them. filter: the aura slot's filter
@@ -63,15 +50,14 @@ local gateAlpha, retarget   -- below
 -- texts (ShamanForever_OptionsElements.lua): idleText, procHeader, popTip, glowTip, upLabel and
 -- idleLabel (its preview's up and idle states). noPop: no pop when it shows (its glow only).
 -- ownIcon: its own icon on the button, never the aura's. buttonBorder: its border on the button
--- too. noTimer: no time left. expiring and missing: its Expiring and Not on target blocks (Flame
--- Shock's, below). defaults: its own option defaults (ns.elementSetting).
+-- too. noTimer: no time left. missing: its Not on target block (Flame Shock's, below). defaults: its own option defaults (ns.elementSetting).
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
 		icon = 135813, school = "fire", blurb = "Shows while your Flame Shock is on your target.",
 		idleText = "Idle is when you have no hostile target", procHeader = "On your target",
 		popTip = "When it shows on your target. The icon grows and settles, at the Pop style's size and speed.",
 		glowTip = "While it's on your target.", upLabel = "On target", idleLabel = "No target",
-		expiring = T.EXPIRING, missing = true,   -- its Expiring and Not on target blocks
+		missing = true,   -- its Not on target block
 		defaults = { idleAlpha = 0, primedPop = false, primedGlow = false, expire = { secs = 3 },
 			missGrey = true, missRing = false, missPulse = false },
 		experimental = "Flame Shock on target" },
@@ -146,12 +132,6 @@ local function styleButton(def, size, slot)
 	def.glow:fit(size)
 	def.glow:SetShown(setting(def.key, "primedGlow") and true or false)
 	if def.popAnim then def.popAnim:restyle(setting(def.key, "primedPop") and true or false) end
-	if def.expiring then
-		-- A refused write while it was lit: the element hides until a 0 goes through (Timers.lua).
-		slot.timer.onStuck = slot.timer.onStuck or function(on) def.stuck = on; gateAlpha(def) end
-		ns.try("target expiring", slot.timer.setExpire, slot.timer, ns.Timer.expireOpts(def.key), def.icon, size)
-		slot.timer:setClock(def.clockOn and def.clock or nil)
-	end
 end
 
 for _, def in ipairs(TARGET) do
@@ -233,11 +213,10 @@ end
 table.insert(ns.DEFAULTS.groups, { name = "Target", point = "CENTER", x = 122, y = 11, scale = 0.9, alpha = 0.75,
 	orientation = "horizontal", growth = "forward", spacing = 6, members = { "flameshock", "purge" } })
 
--- The gate's alpha: 0 while its container may show the last target's aura (stale) or its expiring
--- warning may be stuck lit (stuck, Timer's onStuck), else 1. The gate is our own frame, an ancestor
--- of the container.
+-- The gate's alpha: 0 while its container may show the last target's aura (stale), else 1. The
+-- gate is our own frame, an ancestor of the container.
 function gateAlpha(def)
-	ns.try("target gate alpha", def.gate.SetAlpha, def.gate, (def.stale or def.stuck) and 0 or 1)
+	ns.try("target gate alpha", def.gate.SetAlpha, def.gate, def.stale and 0 or 1)
 	if def.under then T.underAlpha(def) end
 end
 
@@ -254,12 +233,12 @@ function T.appear(u)
 end
 
 -- The Not on target underlay's opacity: its group's while it can be trusted (its container made
--- and following the target, no stuck expiring warning), else 0. Our own frame, not an ancestor of
+-- and following the target), else 0. Our own frame, not an ancestor of
 -- the container: allowed in combat (it has to be: a failed retarget in combat hides it).
 function T.underAlpha(def)
 	local u = def.under
 	local g = ns.groupOf(def.key)
-	local trusted = u.on and u.trusted ~= false and not def.stale and not def.stuck
+	local trusted = u.on and u.trusted ~= false and not def.stale
 	-- Hidden too while preview mode's stand-in shows over it (its idle state is see-through); the
 	-- preview's start and end lay the HUD out, which calls this (T.afterGroups).
 	u:SetAlpha((trusted and not ns.Preview.isOn()) and (g and g.alpha or 1) or 0)
@@ -315,26 +294,10 @@ local function driveGate(def)
 end
 
 ------------------------------------------------------------------------
--- Flame Shock: its expiring clock and the Not on target look (see the file's header)
+-- Flame Shock: the Not on target look (see the file's header)
 ------------------------------------------------------------------------
 local FLAME = TARGET[1]
--- The DoT's length, every rank (the game's spell data, build 70009; checked after each patch). A
--- read that sees a longer one raises it for this session.
-local fsSecs = 12
 local fighting = false   -- from PLAYER_REGEN_DISABLED (before lockdown) to PLAYER_REGEN_ENABLED
--- clockOn: a cast has set it.
-FLAME.clock = C_DurationUtil and C_DurationUtil.CreateDuration and C_DurationUtil.CreateDuration() or nil
-
--- Our own cast of any rank: the clock starts again.
-local function noteFlameShock()
-	local d = FLAME.clock
-	FLAME.castAt = GetTime()
-	local ok = d and ns.try("flame shock clock", d.SetTimeFromStart, d, FLAME.castAt, fsSecs)
-	-- A clock that couldn't be set is dropped: an older cast's time would make the warning early.
-	FLAME.clockOn = ok and true or false
-	local timer = FLAME.aura.timer
-	if timer then timer:setClock(ok and d or nil) end
-end
 
 local function readable() return not fighting and not InCombatLockdown() and not ns.aurasSecret() end
 
@@ -346,20 +309,9 @@ local function flameShockOnTarget()
 		local ok, a = pcall(C_UnitAuras.GetAuraDataByIndex, "target", i, "HARMFUL|PLAYER")
 		if not ok or isSecret(a) then return nil end
 		if a == nil then return false end
-		local id, name, dur = a.spellId, a.name, a.duration
+		local id, name = a.spellId, a.name
 		if isSecret(id) or isSecret(name) then return nil end
-		if ids[id] or Spells.keyOf(id) == "flameShock" or name == FLAME.spell then
-			if not isSecret(dur) and type(dur) == "number" and dur > fsSecs then
-				fsSecs = dur
-				-- The running clock takes the longer length too.
-				local d = FLAME.clock
-				if FLAME.clockOn and FLAME.castAt and not ns.try("flame shock clock", d.SetTimeFromStart, d, FLAME.castAt, fsSecs) then
-					FLAME.clockOn = false
-					if FLAME.aura.timer then FLAME.aura.timer:setClock(nil) end
-				end
-			end
-			return true
-		end
+		if ids[id] or Spells.keyOf(id) == "flameShock" or name == FLAME.spell then return true end
 	end
 	return nil
 end
@@ -506,10 +458,6 @@ function T.refresh()
 end
 T.tick = T.refresh
 
-function T.onCast(spellID)
-	if Spells.keyOf(spellID) == "flameShock" then noteFlameShock() end
-end
-
 function T.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "PLAYER_TARGET_CHANGED")
@@ -541,16 +489,14 @@ end
 function T.debug()
 	for _, def in ipairs(TARGET) do
 		local a = def.aura
-		say("%s: spell %s, container %s%s, unit %s, gate driver %s, failed unit calls %d%s%s", def.spell,
+		say("%s: spell %s, container %s%s, unit %s, gate driver %s, failed unit calls %d%s", def.spell,
 			tostring(def.spellID), a.container and "made" or "not made", a.err and (", error: " .. a.err) or "",
-			tostring(def.unit), tostring(def.driven), def.failed or 0, def.stale and " (hidden until one works)" or "",
-			def.stuck and " (hidden: its expiring warning couldn't be turned off)" or "")
+			tostring(def.unit), tostring(def.driven), def.failed or 0, def.stale and " (hidden until one works)" or "")
 	end
 	say("target attackable %s", tostring(hostileTarget()))
 	local on = readable() and flameShockOnTarget()
-	say("%s on target: %s; not-on-target look %s; expiring clock %s (%.0f s)", FLAME.spell,
-		readable() and tostring(on) or "not read (combat or secret auras)", tostring(FLAME.missingNow),
-		FLAME.clockOn and "set" or "not set", fsSecs)
+	say("%s on target: %s; not-on-target look %s", FLAME.spell,
+		readable() and tostring(on) or "not read (combat or secret auras)", tostring(FLAME.missingNow))
 end
 
 ns.registerModule(T)

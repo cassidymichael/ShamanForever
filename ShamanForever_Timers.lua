@@ -378,47 +378,8 @@ end
 -- `secs`, else 0: ns.lastSeconds), so it works in combat; evaluated ten times a second for every
 -- timer that has one. It sits just above the icon, below the cooldowns and their countdowns, so
 -- those stay readable (the totem bar does the same).
---
--- On an aura timer (on Blizzard's aura button) the warning is a frame of ours under the button, so
--- it shows only while the button does, that is while the aura is up: the engine hides it with the
--- aura. The button's own time can't be read, so the caller hands it a duration of its own to run
--- from (Timer:setClock). Under the button no script handler runs, so the button plays its pulse and
--- glow (handed animations). Whether the client lets us set its alpha in combat, in an encounter or
--- in a PvP match is untested in game, so a refused call must leave no warning lit:
--- * It is set to 0 as every combat and restriction starts, and on each loading screen (a match
---   starts behind one), in or out of lockdown: a refused 0 costs nothing.
--- * A refusal in the ticker stops its tries until combat or the restriction ends; the tries start
---   again on the frame after (auras plain again).
--- * If a call is refused while the warning was last set above 0, the owner hides the element
---   (t.onStuck(true), its own gate frame) until a 0 goes through (t.onStuck(false)).
 ------------------------------------------------------------------------
 local warning = {}   -- timers with an expiry warning
-local isSecret = ns.isSecret
--- One write to an aura timer's warning; true if the client took it. t.expLast: the last alpha taken
--- (a secret one counts as above 0).
-local function auraWrite(t, a)
-	local ok, err = pcall(t.exp.SetAlpha, t.exp, a)
-	if ok then
-		t.expLast = isSecret(a) and 1 or a
-		if t.expStuck and t.expLast == 0 then
-			t.expStuck = nil
-			if t.onStuck then t.onStuck(false) end
-		end
-	else
-		ns.noteError("timer expiring on an aura", err)
-		if (t.expLast or 0) > 0 and not t.expStuck then
-			t.expStuck = true
-			if t.onStuck then t.onStuck(true) end
-		end
-	end
-	return ok
-end
-local function expAlpha(t, a)
-	if not t.aura then t.exp:SetAlpha(a) return end
-	if t.expBlocked then return end
-	if t.expStuck then auraWrite(t, 0) return end   -- a 0 first; the next tick writes the value
-	if not auraWrite(t, a) then t.expBlocked = true end
-end
 local ticker = CreateFrame("Frame")   -- shown only while some timer has a warning
 ticker.t = 0
 ticker:Hide()
@@ -427,64 +388,14 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 	if self.t < 0.1 then return end
 	self.t = 0
 	for t in pairs(warning) do
-		local d = t.clock or t.last
-		if t.expBlocked then
-			-- Stuck lit: a 0 again once a second, until one goes through.
-			if t.expStuck then
-				t.retry = (t.retry or 0) + 1
-				if t.retry >= 10 then t.retry = 0; auraWrite(t, 0) end
-			end
-		elseif d then
+		local d = t.last
+		if d then
 			-- pcall, not ns.try: this runs ten times a second and must not allocate.
 			local ok, a = pcall(d.EvaluateRemainingDuration, d, t.expCurve)
-			if ok then expAlpha(t, a) else expAlpha(t, 0); ns.noteError("timer expiring", a) end
-		else expAlpha(t, 0) end
+			if ok then t.exp:SetAlpha(a) else t.exp:SetAlpha(0); ns.noteError("timer expiring", a) end
+		else t.exp:SetAlpha(0) end
 	end
 end)
--- Aura timers' warnings (see above): to 0 at every start, and their tries free again once combat or
--- a restriction has ended (nothing is written during that dispatch).
-local ACTIVATING = Enum and Enum.AddOnRestrictionState and Enum.AddOnRestrictionState.Activating or 1
-local function zeroAura()
-	for t in pairs(warning) do
-		if t.aura then auraWrite(t, 0) end
-	end
-end
-local function unblockAura()
-	for t in pairs(warning) do
-		if t.aura then
-			t.expBlocked = nil
-			if t.expStuck then auraWrite(t, 0) end
-		end
-	end
-end
-local restrict = CreateFrame("Frame")
-for _, event in ipairs({ "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "ADDON_RESTRICTION_STATE_CHANGED",
-	"PLAYER_LEAVING_WORLD", "PLAYER_ENTERING_WORLD" }) do
-	ns.registerEvent(restrict, event)
-end
-restrict:SetScript("OnEvent", function(_, event, _, state)
-	if event == "ADDON_RESTRICTION_STATE_CHANGED" then
-		if not isSecret(state) and state == ACTIVATING then zeroAura() end
-	elseif event == "PLAYER_REGEN_ENABLED" then
-		for t in pairs(warning) do if t.aura then t.expBlocked = nil end end
-	else zeroAura() end
-end)
--- The frame after a restriction ends (ShamanForever_Core.lua), with auras plain again.
-ns.onRestrictionEnd(unblockAura)
-
--- An aura timer's expiring warning runs from d, a duration object of the caller's (the button's
--- own time can't be read); nil: none, the warning stays hidden.
-function Timer:setClock(d)
-	self.clock = d
-	local x = self.exp
-	if not (x and warning[self]) then return end
-	local a = 0
-	if d then
-		local ok, v = pcall(d.EvaluateRemainingDuration, d, self.expCurve)
-		if ok then a = v end
-	end
-	expAlpha(self, a)
-end
 
 T.EXPIRE_DEFAULTS = { secs = 5, grey = false, ring = false, pulse = true, glow = false }
 
@@ -501,88 +412,61 @@ function T.expireOpts(key)
 	return out
 end
 
--- The warning's frame, on first use. On an aura timer it is under Blizzard's button: no script
--- handler (the client refuses them there), its pulse and glow played by the button (handed once),
--- no mask following (the button's shape is set when it is made), and frame levels set only if
--- they read plain (they may read secret there).
-local function makeExpire(self)
-	-- On the timer's parent (so an owner's alpha still gates it), but at the icon's level + 1:
-	-- below the cooldowns, which the caller keeps above it.
-	local x = CreateFrame("Frame", nil, self.parent)
-	x:SetAllPoints(self.anchor)
-	if self.aura then
-		ns.try("timer expiring level", function()
-			local level = self.cd:GetFrameLevel()
-			x:SetFrameLevel(level)
-			self.cd:SetFrameLevel(level + 1)
-			if self.bar then self.bar:SetFrameLevel(level + 2) end
-		end)
-	else x:SetFrameLevel(self.anchor:GetFrameLevel() + 1) end
-	x:SetAlpha(0)
-	x.grey = x:CreateTexture(nil, "ARTWORK")
-	x.grey:SetAllPoints()
-	ns.cropIconExact(x.grey)
-	x.grey:SetDesaturated(true)
-	x.ring = ns.makeRing(x, x, self.aura)
-	x.dim = x:CreateTexture(nil, "OVERLAY")
-	x.dim:SetAllPoints()
-	x.dim:SetColorTexture(0, 0, 0, 1)
-	x.dim:SetAlpha(0)
-	x.pulse = ns.makePulse(x.dim, "dim")
-	x.glow = ns.makeGlow(x, self.anchor, self.key, self.aura)
-	self.exp = x
-	if self.aura then
-		-- The button plays them while the aura shows; the pulse is seen only with Fade in and out.
-		local b = self.parent
-		if b.AddAuraShownAnimation then
-			ns.try("timer expiring pulse", b.AddAuraShownAnimation, b, x.pulse)
-			for _, a in ipairs(x.glow:allAnims()) do ns.try("timer expiring glow", b.AddAuraShownAnimation, b, a) end
-		end
-		ns.try("timer expiring pulse", x.pulse.Play, x.pulse)   -- an aura up now shows it without a new one
-	else
-		-- A hidden ancestor (combat-only visibility, Alt-Z) stops the pulse; start it again on show.
-		x:SetScript("OnShow", function(s) if s.pulseOn then s.pulse:Play() end end)
-		ns.Looks.followMask(self.anchor, x.grey, x.dim)   -- a rounded or cut-corner icon's shape
-	end
-	return x
-end
-
--- e: { secs, grey, ring, pulse, glow } (secs 0 turns it off); icon: the texture the grey copy shows;
--- size: the icon's size where it can't be read (an aura timer: out of combat only, from its slot's
--- restyle).
-function Timer:setExpire(e, icon, size)
+-- e: { secs, grey, ring, pulse, glow } (secs 0 turns it off); icon: the texture the grey copy shows.
+function Timer:setExpire(e, icon)
 	if not e or e.secs <= 0 or not ns.lastSeconds(e.secs) then
 		warning[self] = nil
 		if next(warning) == nil then ticker:Hide() end
 		local x = self.exp
 		if x then
-			if self.aura then auraWrite(self, 0) else x:SetAlpha(0) end
+			x:SetAlpha(0)
 			x.pulseOn = false
-			if self.aura then x.dim:Hide() else x.pulse:Stop(); x.dim:SetAlpha(0) end
+			x.pulse:Stop(); x.dim:SetAlpha(0)
 			x.glow:Hide()
 		end
 		return
 	end
-	local x = self.exp or makeExpire(self)
-	if self.aura then x.glow:restyle() end   -- unlisted: its owner restyles it
-	x.glow:fit(size or self.anchor:GetWidth())
+	local x = self.exp
+	if not x then
+		-- On the timer's parent (so an owner's alpha still gates it), but at the icon's level + 1:
+		-- below the cooldowns, which the caller keeps above it.
+		x = CreateFrame("Frame", nil, self.parent)
+		x:SetAllPoints(self.anchor)
+		x:SetFrameLevel(self.anchor:GetFrameLevel() + 1)
+		x:SetAlpha(0)
+		x.grey = x:CreateTexture(nil, "ARTWORK")
+		x.grey:SetAllPoints()
+		ns.cropIconExact(x.grey)
+		x.grey:SetDesaturated(true)
+		x.ring = ns.makeRing(x, x)
+		x.dim = x:CreateTexture(nil, "OVERLAY")
+		x.dim:SetAllPoints()
+		x.dim:SetColorTexture(0, 0, 0, 1)
+		x.dim:SetAlpha(0)
+		x.pulse = ns.makePulse(x.dim, "dim")
+		-- A hidden ancestor (combat-only visibility, Alt-Z) stops the pulse; start it again on show.
+		x:SetScript("OnShow", function(s) if s.pulseOn then s.pulse:Play() end end)
+		x.glow = ns.makeGlow(x, self.anchor, self.key)   -- made on first use
+		self.exp = x
+		ns.Looks.followMask(self.anchor, x.grey, x.dim)   -- a rounded or cut-corner icon's shape
+	end
+	x.glow:fit(self.anchor:GetWidth())
 	x.glow:SetShown(e.glow)
 	if icon then x.grey:SetTexture(icon) end
 	x.grey:SetShown(e.grey)
 	x.ring:show(e.ring)
 	x.pulseOn = e.pulse and true or false
-	if self.aura then x.dim:SetShown(x.pulseOn)
 	-- Callers repeat this (the totem bar on every totem change): a running pulse isn't restarted.
-	elseif not e.pulse then x.pulse:Stop(); x.dim:SetAlpha(0)
+	if not e.pulse then x.pulse:Stop(); x.dim:SetAlpha(0)
 	elseif not x.pulse:IsPlaying() then x.pulse:Play() end
 	self.expCurve = ns.lastSeconds(e.secs)
 	warning[self] = true
 	ticker:Show()
 	-- At once, not on the next tick (a totem recast in its last seconds drops the old warning now).
-	local d = self.clock or self.last
+	local d = self.last
 	if d then
 		local ok, a = pcall(d.EvaluateRemainingDuration, d, self.expCurve)
-		if ok then expAlpha(self, a) else expAlpha(self, 0) end   -- a may be secret: only handed on
+		if ok then x:SetAlpha(a) else x:SetAlpha(0) end   -- a may be secret: never compared, only handed on
 	end
 end
 

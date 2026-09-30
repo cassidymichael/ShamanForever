@@ -134,11 +134,9 @@ local RING_COLOR = { 1, 0, 0, 0.9 }
 local Ring = {}
 Ring.__index = Ring
 local rings = setmetatable({}, { __mode = "k" })
--- unlisted: left out of ns.refitRings, for a ring under Blizzard's aura button (its shown state reads
--- secret there); its owner fits it as it restyles.
-function ns.makeRing(parent, anchor, unlisted)
+function ns.makeRing(parent, anchor)
 	local r = setmetatable({ anchor = anchor, edges = {} }, Ring)
-	if not unlisted then rings[r] = true end
+	rings[r] = true
 	for i = 1, 4 do
 		local t = parent:CreateTexture(nil, "OVERLAY", nil, 6)
 		t:Hide()
