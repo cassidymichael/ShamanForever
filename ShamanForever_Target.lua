@@ -37,10 +37,9 @@
 --   your Flame Shock on the target the button's opaque icon covers it; without, it shows. So:
 --   - the cover must be opaque: the gate ignores its group's opacity (the aura's icon draws at full)
 --     and the underlay takes the group's opacity itself;
---   - only looks inside the icon may show in combat (grey, fade in and out), a screen pixel in from
---     its edges; the red ring could show past a masked look's corners, so it shows only out of
---     combat, where the target's debuffs are plain reads (C_Secrets.ShouldAurasBeSecret is false)
---     and say exactly that yours isn't there;
+--   - only looks inside the icon may show (grey, fade in and out, the red ring), a screen pixel in
+--     from its edges and in a rounded or cut-corner look's shape (Looks.maskOver), so the button's
+--     icon covers every pixel of them;
 --   - Blizzard's container follows a new target on its next frame, so the underlay waits two
 --     frames each time it shows or the target changes (T.appear);
 --   - it hides (alpha 0) while the container isn't made or isn't following the target (a refused
@@ -316,7 +315,7 @@ for _, def in ipairs(TARGET) do
 		u.tex = u.inner:CreateTexture(nil, "ARTWORK")
 		ns.cropIconExact(u.tex)
 		u.tex:SetTexture(def.icon)
-		u.ring = ns.makeRing(u.inner, f.tex)
+		u.ring = ns.makeRing(u.inner, u.tex)   -- inside the inset picture
 		u.pulse = ns.makePulse(u.tex, "fade")
 		-- Every frame while shown: the target still hostile and alive, and the container on it. The
 		-- state driver checks only every 0.2 s (and at once only on a target change), while the
@@ -498,10 +497,9 @@ local function flameShockMissing()
 	return flameShockOnTarget() == false
 end
 
--- The underlay's looks, from the Not on target block, out of combat. Grey and Fade in and out are
--- inside the icon, so the button covers them: they show in combat too. The red ring could show at a
--- masked look's corners past the button's icon, so it shows only out of combat, and only when the
--- read says your Flame Shock isn't there.
+-- The underlay's looks, from the Not on target block, out of combat: grey, fade in and out and the
+-- red ring, all inside the inset picture and in its shape, so the button covers them while your
+-- Flame Shock is up: they show in combat too.
 local function styleUnder()
 	local def, f, u = FLAME, FLAME.frame, FLAME.under
 	if InCombatLockdown() then return end
@@ -519,7 +517,8 @@ local function styleUnder()
 	u.pulseOn = setting(def.key, "missPulse") and true or false
 	if not u.pulseOn then u.pulse:Stop()
 	elseif not u.pulse:IsPlaying() then u.pulse:Play() end
-	u.ring:show((not fighting and def.missingNow and setting(def.key, "missRing")) and true or false)
+	u.ring:show(setting(def.key, "missRing") and true or false)
+	for _, e in ipairs(u.ring.edges) do ns.Looks.maskOver(f, e, u.tex) end
 	T.underAlpha(def)
 end
 
@@ -531,7 +530,7 @@ local function checkMissing()
 	ns.Shock.markFlameShock(FLAME.missingNow)
 end
 
--- Combat starts (before lockdown): the red ring and the mark go (out of combat only), and the icon
+-- Combat starts (before lockdown): the mark goes (out of combat only), and the icon
 -- to its idle alpha at once (a fade would stop part way, ns.fadeTo).
 local function combatStarts()
 	fighting = true
