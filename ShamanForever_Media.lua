@@ -46,8 +46,11 @@ local FONTS = {
 local NOT_OFFERED = { ["fonts\\2002b.ttf"] = true }
 local FLAT = "Interface\\Buttons\\WHITE8x8"
 -- The game's bar textures; atlas: an atlas name (the Cooldown Manager's bar, as the nameplates use).
+-- "Blizzard" is the target frame's fill, one band shaded to a highlight along its middle, in place
+-- of LibSharedMedia's UI-StatusBar under that name: that file holds a bright band over a dim one,
+-- which on a thin bar reads as two bars.
 local BARS = {
-	{ "Blizzard", "Interface\\TargetingFrame\\UI-StatusBar" },
+	{ "Blizzard", "Interface\\TargetingFrame\\UI-TargetingFrame-BarFill" },
 	{ "Blizzard Raid Bar", "Interface\\RaidFrame\\Raid-Bar-Hp-Fill" },
 	{ "Blizzard Character Skills Bar", "Interface\\PaperDollInfoFrame\\UI-Character-Skills-Bar" },
 	{ "Blizzard Cooldown Bar", "UI-HUD-CoolDownManager-Bar", atlas = true },
