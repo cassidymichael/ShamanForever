@@ -16,7 +16,7 @@ More screenshots: [options gallery](docs/gallery/README.md).
 
 A collection of highly configurable HUD elements designed to help shamans playing World of Warcraft: Forever.
 
-- **Totem Bar**: Fully configurable totem bar replacing default or active totems frames: drop, pick and dismiss totems, Call of the Elements and Totemic Recall, an out-of-range warning, key bindings, themes (experimental), and more.
+- **Totem Bar**: Fully configurable totem bar replacing default or active totems frames: drop, pick and dismiss totems, Call of the Elements and Totemic Recall, an out-of-range warning, key bindings, themes, and more.
 - **Shock Trackers**: Earth, Flame, and Frost shock monitoring.
 - **Target Trackers**: Flame Shock on your target with its time left (a bar that changes colour near the end) and a look while it's missing, and Purge when your target has a Magic buff.
 - **Shield Helpers**: Lightning Shield and Water Shield tracking.
@@ -29,7 +29,7 @@ A collection of highly configurable HUD elements designed to help shamans playin
 
 The addon organizes these elements into configurable groups with unlock and preview modes for customizable on-screen placement. Each element can fade or hide while it's idle, for example a shock shown only while it cools down.
 
-Some features are experimental, not yet tested in game; the About page lists them.
+Some features are experimental: not fully tested, and may not work properly. The About page lists them.
 
 ## Usage
 

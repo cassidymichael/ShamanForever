@@ -42,7 +42,7 @@ local BUFFS = {
 		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, pulse = false } }, experimental = "Water Breathing" },
 	{ key = "elementalfocus", spellKey = "elementalFocus", buffKey = "clearcasting", icon = 136170, school = "spirit",
 		blurb = "Shows while " .. Spells.name("clearcasting") .. " is up.",
-		proc = true, defaults = { idleAlpha = 0 }, experimental = "Elemental Focus" },
+		proc = true, defaults = { idleAlpha = 0 } },
 }
 
 ------------------------------------------------------------------------
