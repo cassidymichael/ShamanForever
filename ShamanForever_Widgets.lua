@@ -956,20 +956,22 @@ function AuraSlot:refilter()
 end
 
 ------------------------------------------------------------------------
--- A clip look: a warning glow that may reach past the icon's edge, shown exactly while an aura is
--- gone, in combat too, with nothing read (tested in combat 2026-09-30).
+-- A clip look: a missing look (the icon's picture, grey or tinted, a red ring, a fade in and out,
+-- and a pulsing glow that may reach past the icon's edge), shown exactly while an aura is gone, in
+-- combat too, with nothing read (tested in combat 2026-09-30).
 -- * The sensor: a container of its own with one aura group of one invisible button, as big as the
 --   look's reach (the cell). Blizzard sizes a group's container to its buttons: to the button while
 --   the aura is up, to 1 px once it's gone. Its width is secret; nothing of ours reads it.
 -- * A clip frame of ours runs from the container's right edge to the cell's right edge: nothing
 --   while the aura is up (the button is a little wider than the cell), the whole cell once it's
---   gone. The look inside it is drawn only there, by the engine.
+--   gone. The look inside it is drawn only there, by the engine. So nothing of it lies under the
+--   aura's own icon, and that icon can take its group's opacity like any other.
 -- * Frames anchored to a container with an aura group must inherit
 --   DisableUntrustedLayoutScriptsTemplate as they are made (Blizzard's note in AddAuraGroup): the
 --   clip and the look's holder do.
--- * The chain: gate (the caller's state driver, if any) > hold (its alpha ours, allowed in combat)
---   > clip > look > the glow. The sensor hangs apart, so it keeps up with the aura while the chain
---   is hidden.
+-- * The chain: hold (its alpha ours, allowed in combat) > clip > look > the picture and ring (art),
+--   and the glow over them. The sensor hangs apart, so it keeps up with the aura while the
+--   chain is hidden.
 -- * The sensor is made, restyled and refiltered only out of combat with auras readable, as an aura
 --   slot is. The hold stays at 0 while the sensor can't be trusted: not made, a size or spell IDs it
 --   hasn't taken yet, not on the unit asked for, and for two frames after it's made, restyled,
@@ -997,7 +999,7 @@ local function shapeTextures(frame, f, over)
 	for _, c in ipairs({ frame:GetChildren() }) do shapeTextures(c, f, over) end
 end
 
--- frame: the element icon the look is drawn round. opts:
+-- frame: the element icon the look is drawn on (its picture, frame.tex, and round it). opts:
 --   key            the element: its icon size (ns.sizeOf); also the aura group's name
 --   parent         what the chain hangs from; sensorParent, what the sensor hangs from (shown
 --                  whenever the chain may be)
@@ -1005,21 +1007,22 @@ end
 --                  and filter (default "HELPFUL")
 --   ids()          the spell IDs it matches
 --   needUnit       the unit it must be on for the look to show (a sensor that follows the target)
---   driver         the gate's state driver, registered as the sensor is made (out of combat)
---   shape          the icon's inset picture (a texture): the looks drawn within the icon (`inside`,
---                  ns.Looks) take the icon's rounded or cut-corner shape over it; the looks that
---                  reach past the icon take none
 --   owner, lookFor the glow's style owner (nil: General's) and lookFor() its look's key
 --   sites          { container = , style = , filter = }: names for waiting work and caught errors
--- The glow is h.glow (ns.makeGlow). h:want(on) shows it or not; nothing is made until h:setup().
+-- Its parts: h.tex (the icon's picture; the caller sets its texture), h.ring, h.pulse (the
+-- picture's fade) and h.glow (ns.makeWarningGlow). The glow looks drawn within the icon (`inside`,
+-- ns.Looks) take the icon's rounded or cut-corner shape over the picture; the looks that reach past
+-- it take none. h:want(on) shows the look or not, h:setParts which of its parts show; nothing is
+-- made until h:setup(). h.filtered: the spell IDs its sensor last took.
 function ns.makeClipLook(frame, opts)
 	local h = setmetatable({ frame = frame, opts = opts }, ClipLook)
-	h.gate = CreateFrame("Frame", nil, opts.parent)
-	h.gate:SetAllPoints(frame)
-	h.hold = CreateFrame("Frame", nil, h.gate)
+	h.hold = CreateFrame("Frame", nil, opts.parent)
 	h.hold:SetAllPoints(frame)
 	h.hold:SetAlpha(0)
-	h.hold:SetScript("OnShow", function() h:wait() end)
+	h.hold:SetScript("OnShow", function()
+		h:wait()
+		if h.fadeOn then h.pulse:Play() end   -- a hidden frame's animations stop
+	end)
 	h.tick = function(f)   -- the wait's OnUpdate (wait)
 		h.waiting = h.waiting - 1
 		if h.waiting > 0 then return end
@@ -1038,17 +1041,23 @@ function ns.makeClipLook(frame, opts)
 	h.clip:SetPoint("BOTTOMRIGHT", h.cell, "BOTTOMRIGHT", 0, 0)
 	h.look = CreateFrame("Frame", nil, h.clip, "DisableUntrustedLayoutScriptsTemplate")
 	h.look:SetAllPoints(h.cell)
+	-- The picture over the icon's own, with its ring just inside its edge, under the glow.
+	h.art = CreateFrame("Frame", nil, h.look)
+	h.art:SetAllPoints(frame)
+	h.tex = h.art:CreateTexture(nil, "ARTWORK")
+	ns.cropIconExact(h.tex)
+	h.tex:SetAllPoints(frame.tex)
+	h.ring = ns.makeRing(h.art, h.tex)
+	h.pulse = ns.makePulse(h.tex, "fade")
 	h.glow = ns.makeWarningGlow(h.look, frame, opts.owner, opts.lookFor)
-	if opts.shape then
-		-- As a look's parts are made and each time they're fitted (a look changed with the options
-		-- open, in combat too).
-		h.glow.onLayout = function(_, parts, look)
-			if not look.inside then return end
-			for _, r in ipairs(parts.roots or {}) do shapeTextures(r, frame, opts.shape) end
-		end
-		for key, parts in pairs(h.glow.parts) do
-			if parts then h.glow.onLayout(h.glow, parts, ns.Style.look("glow", key)) end
-		end
+	-- As a look's parts are made and each time they're fitted (a look changed with the options open,
+	-- in combat too).
+	h.glow.onLayout = function(_, parts, look)
+		if not look.inside then return end
+		for _, r in ipairs(parts.roots or {}) do shapeTextures(r, frame, h.tex) end
+	end
+	for key, parts in pairs(h.glow.parts) do
+		if parts then h.glow.onLayout(h.glow, parts, ns.Style.look("glow", key)) end
 	end
 	return h
 end
@@ -1058,8 +1067,10 @@ local function cellWidth(size, frame)
 	return math.ceil(2 * CLIP_REACH * (size + 2 * ns.Looks.outerEdge(frame)))
 end
 
--- The hold at 0 now, and back on its second OnUpdate from here: after the container's own next
--- update, in this frame's pass or the next one's (as the aura slots' underlays wait).
+-- The hold at 0 now, and back on its second OnUpdate from here. Blizzard's container updates in its
+-- own next OnUpdate after a change (or after it shows), in this frame's pass or the next one's; the
+-- hold comes back a pass after that, so before the frame drawn after that update, never the one
+-- before. Our own frame: allowed in combat.
 function ClipLook:wait()
 	self.waiting = 2
 	self.hold:SetAlpha(0)
@@ -1079,14 +1090,36 @@ function ClipLook:update()
 	self.hold:SetAlpha((self.wanted and self:ready()) and 1 or 0)
 end
 
--- The caller's condition for the look (its setting, and whatever its own warning waits for).
+-- The caller's condition for the look (whatever its own warning waits for).
 function ClipLook:want(on)
-	on = on and true or false
-	if on ~= self.wanted then
-		self.wanted = on
-		self.glow:SetShown(on)
-	end
+	self.wanted = on and true or false
 	self:update()
+end
+
+-- Which parts of the look show: the picture grey, tinted red, the ring, the picture's fade in and
+-- out, the glow. Our own frames and textures: allowed in combat.
+function ClipLook:setParts(grey, tint, ring, fade, glow)
+	local t = self.tex
+	t:SetDesaturated(grey and true or false)
+	if tint then t:SetVertexColor(1, 0.35, 0.35) else t:SetVertexColor(1, 1, 1) end
+	self.ring:show(ring)
+	self.fadeOn = fade and true or false
+	if not self.fadeOn then self.pulse:Stop()
+	elseif not self.pulse:IsPlaying() then self.pulse:Play() end
+	glow = glow and true or false
+	if glow ~= self.glowOn then
+		self.glowOn = glow
+		self.glow:SetShown(glow)
+	end
+end
+
+-- The picture and ring in the icon's look's shape now, and the glow in its look now (after a
+-- layout, a size or a look change).
+function ClipLook:reshape()
+	local f = self.frame
+	ns.Looks.maskOver(f, self.tex)
+	for _, e in ipairs(self.ring.edges) do ns.Looks.maskOver(f, e, self.tex) end
+	self.glow:restyle()
 end
 
 -- Makes the sensor, once (out of combat, auras readable; else when that ends). Once made it stays;
@@ -1133,10 +1166,6 @@ function ClipLook:setup()
 	end
 	self.width = w
 	self:took(size, ids)
-	if o.driver then
-		local okD, errD = pcall(RegisterStateDriver, self.gate, "visibility", o.driver)
-		if not okD then ns.noteError(o.sites.container, errD) end
-	end
 	self:wait()
 end
 
@@ -1234,12 +1263,14 @@ function ClipLook:follow(unit)
 	return ok
 end
 
--- Frame levels: the whole chain at lv, the glow's breathing layer too (its look's parts take that
--- level as it shows, Looks.levelParts).
+-- Frame levels: the chain and the picture at lv; the glow and its breathing layer a level above
+-- (its look's parts take that level as it shows, Looks.levelParts).
 function ClipLook:setLevel(lv)
-	for _, f in ipairs({ self.gate, self.hold, self.clip, self.look, self.glow, self.glow.inner }) do
+	for _, f in ipairs({ self.hold, self.clip, self.look, self.art }) do
 		f:SetFrameLevel(lv)
 	end
+	self.glow:SetFrameLevel(lv + 1)
+	self.glow.inner:SetFrameLevel(lv + 1)
 end
 
 -- For /sf debug: one line of its state.

@@ -359,7 +359,6 @@ for _, def in ipairs(TARGET) do
 		def.past = ns.makeClipLook(f, {
 			key = def.key, parent = u.inner, sensorParent = def.gate, unit = wantedUnit,
 			needUnit = "target",
-			shape = u.tex,
 			filter = def.filter, ids = function() return idMap(def) end,
 			lookFor = function()
 				local ok, look = pcall(setting, def.key, "missGlowLook")
@@ -542,7 +541,9 @@ local function stateUnder()
 	u.on = (a.container and not a.err and def.spellID and ns.isEnabled(def.key)) and true or false
 	if not u.pulseOn then u.pulse:Stop()
 	elseif not u.pulse:IsPlaying() then u.pulse:Play() end
-	def.past:want(setting(def.key, "missGlow"))
+	local glow = setting(def.key, "missGlow")
+	def.past:setParts(false, false, false, false, glow)
+	def.past:want(glow)
 	T.underAlpha(def)
 end
 
