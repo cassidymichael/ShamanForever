@@ -47,7 +47,7 @@ TB.DEFAULTS = {
 	cast = true,              -- left-click casts the element's pick
 	arrows = true,            -- arrow tab opens the element's picker
 	arrowSize = 20,
-	tips = "always",          -- always | ooc | never
+	tips = "ooc",             -- always | ooc | never
 	keys = false,             -- each button's key, in its corner
 	call = true,              -- Call of the Elements button, once learned
 	recall = true,            -- Totemic Recall button: right-click dismisses all; left-click casts it once learned
@@ -81,7 +81,7 @@ TB.DEFAULTS = {
 	rangeHeight = 5,          --   its height in screen pixels (ns.linePx)
 	rangeIn = { 0.2, 0.8, 0.25, 0 },       --   with the buff (0: nothing shows in range)
 	rangeOut = { 0.9, 0.12, 0.08, 0.85 },  --   without it
-	pickHover = false,        -- hovering a slot or its tab opens its picker (Everything)
+	pickHover = true,         -- hovering a slot or its tab opens its picker (Everything)
 }
 
 local isSecret = ns.isSecret
