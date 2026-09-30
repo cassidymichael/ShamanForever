@@ -53,7 +53,7 @@ end
 
 -- On an element's page, where "Hidden keeps its place" is shown as text under the control.
 local SHOW_TIP_PAGE = "Choosing Always or In combat again puts it back where it was. Groups have their own Show on the Groups & Layout page; an element shows only when both allow it. Everything visible shows while positioning is unlocked."
-local SHOW_TIP = "When the element is drawn. Hidden keeps its place in its group, so choosing Always or In combat again puts it back where it was. Groups have their own Show on the Groups & Layout page; an element shows only when both it and its group allow it. Everything visible shows while the layout is unlocked."
+local SHOW_TIP = "When the element is drawn. Hidden keeps its place in its group, so choosing Always or In combat again puts it back where it was. Groups have their own Show on the Groups & Layout page; an element shows only when both it and its group allow it."
 
 ------------------------------------------------------------------------
 -- Elements: an overview of every element, and one page per real element under it in the nav.
@@ -102,20 +102,65 @@ function EP.buildOverview(p)
 	p:text("Most of ShamanForever's HUD indicators are \"elements\", usually icon-shaped things which"
 		.. " always fit inside one \"group\", and \"groups\" get moved around the screen in the unlocked"
 		.. " mode.")
-	-- Columns sized to fit the page's panel at the window's least width; they keep their places when
-	-- it's wider.
-	local GROUP_X, SHOW_X = 150, 296
-	do
-		local f = p:row(20)
-		local function col(text, x)
-			local fs = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-			fs:SetPoint("LEFT", x, 0)
-			fs:SetText(text)
+	-- Columns: each has a least width (what fits the window at its narrowest) and a share of any
+	-- width beyond the least. Positions are worked out from the page's width on every layout.
+	local COLS = {
+		{ key = "name", label = "Element", min = 150, grow = 0.25, x0 = 32 },
+		{ key = "group", label = "Group", min = 100, grow = 0.25, max = 200 },
+		{ key = "link", label = "Group settings", min = 100, grow = 0 },
+		{ key = "show", label = "Show", min = 80, grow = 0.1, max = 130 },
+		{ key = "styles", label = "Own styles", min = 120, grow = 0.4 },
+	}
+	local GAP = 6
+	local function place(width)
+		local least = GAP * (#COLS - 1)
+		for _, c in ipairs(COLS) do least = least + c.min end
+		local extra = math.max(width - least, 0)
+		local x, out = 0, {}
+		for _, c in ipairs(COLS) do
+			local w = c.min + extra * c.grow
+			if c.max then w = math.min(w, c.max) end
+			out[c.key] = { x = x, w = w }
+			x = x + w + GAP
 		end
-		col("Element", 32)
-		col("Group", GROUP_X + 6)
-		col("Show", SHOW_X + 6)
-		p:add(f, 20)
+		-- Width left by the capped columns goes to the last.
+		local last = COLS[#COLS].key
+		out[last].w = math.max(out[last].w, width - out[last].x)
+		return out
+	end
+	local heads = {}
+	do
+		-- Taller than its text, which sits at its foot: a gap between the explainer and the table.
+		local f = p:row(36)
+		for _, c in ipairs(COLS) do
+			local fs = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+			fs:SetJustifyH("LEFT")
+			fs:SetWordWrap(false)
+			heads[c.key] = fs
+			fs:SetText(c.label)
+		end
+		p:add(f, 36, nil, function()
+			local pos = place(p:width())
+			for _, c in ipairs(COLS) do
+				local fs = heads[c.key]
+				local inset = (c.key == "name" and 32) or (c.key == "link" and 0) or 6
+				fs:ClearAllPoints()
+				fs:SetPoint("BOTTOMLEFT", pos[c.key].x + inset, 4)
+				fs:SetWidth(pos[c.key].w - inset)
+			end
+		end)
+	end
+	-- The styles an element has its own of (General's otherwise), by name: the timers, glow and pop
+	-- it offers, from ns.Style.
+	local STYLE_NAMES = { { "cooldown", "Cooldown timer" }, { "uptime", "Time left timer" },
+		{ "glow", "Pulsing glow" }, { "pop", "Pop" } }
+	local function ownStyles(key)
+		local S, out = ns.Style, {}
+		for _, k in ipairs(STYLE_NAMES) do
+			local spec = S.KINDS[k[1]]
+			if spec and tContains(spec.users, key) and not S.follows(key, k[1]) then table.insert(out, k[2]) end
+		end
+		return out
 	end
 	local rowKeys = byName()
 	for _, key in ipairs(rowKeys) do
@@ -127,7 +172,6 @@ function EP.buildOverview(p)
 		ns.cropIcon(icon)
 		local name = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 		name:SetPoint("LEFT", 32, 0)
-		name:SetWidth(GROUP_X - 36)
 		name:SetJustifyH("LEFT")
 		name:SetWordWrap(false)
 		-- Every element is listed; one the character doesn't know yet says so (the HUD leaves it out).
@@ -145,7 +189,6 @@ function EP.buildOverview(p)
 			end
 			root:CreateButton("New group", function() ns.placeElement(key, "new"); ns.Options.refresh() end)
 		end)
-		group:SetPoint("LEFT", GROUP_X, 0)
 		local show = menuCell(f, 86, function(_, root)
 			for _, c in ipairs(SHOW_CHOICES) do
 				root:CreateRadio(c[2], function() return ns.showMode(key) == c[1] end, function()
@@ -154,7 +197,6 @@ function EP.buildOverview(p)
 				end)
 			end
 		end)
-		show:SetPoint("LEFT", SHOW_X, 0)
 		show:HookScript("OnEnter", function(self)
 			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 			GameTooltip:SetText("Show")
@@ -162,40 +204,65 @@ function EP.buildOverview(p)
 			GameTooltip:Show()
 		end)
 		show:HookScript("OnLeave", function() GameTooltip:Hide() end)
+		local function openPage() if ELEMENT_PAGES[key] then ns.Options.open(ELEMENT_PAGES[key]) end end
 		-- Its own page: its icon and name are the link, lit gold under the mouse.
 		local open = CreateFrame("Button", nil, f)
 		open:SetPoint("TOPLEFT", 0, 0)
-		open:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", GROUP_X - 4, 0)
-		open:SetScript("OnClick", function()
-			if ELEMENT_PAGES[key] then ns.Options.open(ELEMENT_PAGES[key]) end
-		end)
+		open:SetPoint("BOTTOMRIGHT", name, "BOTTOMRIGHT", 4, -8)
+		open:SetScript("OnClick", openPage)
 		open:SetScript("OnEnter", function() name:SetTextColor(1, 0.82, 0) end)
 		open:SetScript("OnLeave", function() name:SetTextColor(1, 1, 1) end)
-		-- Its group on Groups & Layout (none while ungrouped): a small arrow after the Group cell.
+		-- Its group on Groups & Layout (none while ungrouped): a dim link, lit under the mouse.
 		local groupOpen = CreateFrame("Button", nil, f)
-		groupOpen:SetSize(16, 16)
-		groupOpen:SetPoint("LEFT", group, "RIGHT", 2, 0)
-		groupOpen.arrow = groupOpen:CreateTexture(nil, "ARTWORK")
-		groupOpen.arrow:SetTexture("Interface\\Buttons\\UI-TotemBar")
-		groupOpen.arrow:SetTexCoord(0.5625, 0.71875, 0.34375, 0.3828125)
-		groupOpen.arrow:SetSize(10, 6)
-		groupOpen.arrow:SetRotation(-math.pi / 2)   -- the art points up; this points right
-		groupOpen.arrow:SetPoint("CENTER")
-		groupOpen:SetAlpha(0.5)
+		groupOpen:SetHeight(20)
+		groupOpen.text = groupOpen:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+		groupOpen.text:SetPoint("LEFT", 0, 0)
+		groupOpen.text:SetText("Open group >")
+		groupOpen.text:SetTextColor(0.6, 0.6, 0.6)
 		groupOpen:SetScript("OnClick", function()
 			local g = ns.groupOf(key)
 			if g then ns.Options.openGroup(g.id) end
 		end)
 		groupOpen:SetScript("OnEnter", function(self)
-			self:SetAlpha(1)
+			self.text:SetTextColor(1, 0.82, 0)
 			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 			GameTooltip:SetText("Group settings")
+			GameTooltip:AddLine("This group's settings on the Groups & Layout page.", 1, 1, 1, true)
 			GameTooltip:Show()
 		end)
-		groupOpen:SetScript("OnLeave", function(self) self:SetAlpha(0.5); GameTooltip:Hide() end)
+		groupOpen:SetScript("OnLeave", function(self)
+			self.text:SetTextColor(0.6, 0.6, 0.6)
+			GameTooltip:Hide()
+		end)
+		-- Which styles it has of its own, small text; the full list on hover.
+		local styles = CreateFrame("Frame", nil, f)
+		styles:EnableMouse(true)
+		styles:SetHeight(20)
+		styles.text = styles:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		styles.text:SetPoint("LEFT", 6, 0)
+		styles.text:SetPoint("RIGHT", -2, 0)
+		styles.text:SetJustifyH("LEFT")
+		styles.text:SetWordWrap(false)
+		styles:SetScript("OnEnter", function(self)
+			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+			GameTooltip:SetText("Own styles")
+			local own = ownStyles(key)
+			if #own == 0 then
+				GameTooltip:AddLine("Follows General for its timers, glow and pop.", 1, 1, 1, true)
+			else
+				GameTooltip:AddLine(table.concat(own, ", "), 1, 1, 1, true)
+				GameTooltip:AddLine("The rest follow General.", 0.7, 0.7, 0.7, true)
+			end
+			GameTooltip:Show()
+		end)
+		styles:SetScript("OnLeave", function() GameTooltip:Hide() end)
+		local SHORT = { ["Cooldown timer"] = "cooldown", ["Time left timer"] = "time left",
+			["Pulsing glow"] = "glow", ["Pop"] = "pop" }
 		p:add(f, 34, nil, function()
 			e.paint(icon)
 			local learned = ns.isLearned(key)
+			local pos = place(p:width())
+			name:SetWidth(pos.name.w - 36)
 			name:SetText(e.label)
 			name:ClearAllPoints()
 			name:SetPoint("LEFT", 32, learned and 0 or 6)
@@ -205,6 +272,21 @@ function EP.buildOverview(p)
 			group.text:SetText(g and g.name or "Ungrouped")
 			local mode = ns.showMode(key)
 			for _, c in ipairs(SHOW_CHOICES) do if c[1] == mode then show.text:SetText(c[2]) end end
+			for _, cell in ipairs({ { group, "group" }, { show, "show" }, { groupOpen, "link" },
+				{ styles, "styles" } }) do
+				cell[1]:ClearAllPoints()
+				cell[1]:SetPoint("LEFT", pos[cell[2]].x, 0)
+				cell[1]:SetWidth(pos[cell[2]].w)
+			end
+			local own, short = ownStyles(key), {}
+			for i, n in ipairs(own) do short[i] = SHORT[n] end
+			if #own == 0 then
+				styles.text:SetText("General")
+				styles.text:SetTextColor(0.6, 0.6, 0.6)
+			else
+				styles.text:SetText("Own: " .. table.concat(short, ", "))
+				styles.text:SetTextColor(1, 1, 1)
+			end
 			open:SetEnabled(ELEMENT_PAGES[key] ~= nil)
 			groupOpen:SetShown(g ~= nil)
 		end)
