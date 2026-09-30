@@ -257,7 +257,8 @@ local function popGrid(p)
 		if m.experimental then col.badge = L.expBadge(sec.frame, motionList.name) end
 		table.insert(cols, col)
 	end
-	local flashName = function() return S.choice("pop", "flash", view.flash).name end
+	local function flashName() return S.choice("pop", "flash", view.flash).name end
+	local function colorName() return S.choice("pop", "colorBy", view.colorBy).name:lower() end
 	for _, b in ipairs(bursts) do
 		local row = { cells = {} }
 		row.text = sec.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -271,8 +272,9 @@ local function popGrid(p)
 		end
 		for _, m in ipairs(motions) do
 			local c = newCell(sec.frame, "pop",
-				function() return { burst = b.key, motion = m.key, flash = view.flash } end,
-				function() return b.name .. ", " .. m.name .. " and " .. flashName() end, true)
+				function() return { burst = b.key, motion = m.key, flash = view.flash, colorBy = view.colorBy } end,
+				function() return b.name .. ", " .. m.name .. ", " .. flashName() .. " and colour " .. colorName() end,
+				true)
 			table.insert(row.cells, c)
 			table.insert(sec.cells, c)
 		end
