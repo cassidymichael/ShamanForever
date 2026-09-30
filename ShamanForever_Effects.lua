@@ -273,20 +273,30 @@ Rig.__index = Rig
 
 -- The rig on f. Its light sits on a frame above the icon's text (f.effects, where the icon has
 -- one, so an idle icon's fade leaves it at full); the drawn bursts' back parts on a frame behind
--- the icon.
-local function newRig(f)
+-- the icon (f.over's, where f is a frame over another icon).
+-- icon, level: on Blizzard's aura button (the aura route), the aura's icon texture, which moves with
+-- f, and the light's frame level (levels there may read back as secret, so none is read).
+local function newRig(f, icon, level)
 	local r = setmetatable({ f = f, parts = {}, playing = {} }, Rig)
 	-- The motion: one group on f, a Scale and a Translation for each of its steps (a motion uses
-	-- some; the rest take no time and move nothing).
+	-- some; the rest take no time and move nothing); the same steps on the aura's icon.
 	r.motion = f:CreateAnimationGroup()
 	r.scale, r.move = {}, {}
 	for i = 1, MOTION_STEPS do
 		r.scale[i] = anim(r.motion, "Scale", i)
 		r.move[i] = anim(r.motion, "Translation", i)
 	end
+	if icon then
+		r.iconMotion = icon:CreateAnimationGroup()
+		r.iconScale, r.iconMove = {}, {}
+		for i = 1, MOTION_STEPS do
+			r.iconScale[i] = anim(r.iconMotion, "Scale", i)
+			r.iconMove[i] = anim(r.iconMotion, "Translation", i)
+		end
+	end
 	local fx = CreateFrame("Frame", nil, f.effects or f)
 	fx:SetAllPoints()
-	fx:SetFrameLevel(f:GetFrameLevel() + 12)
+	fx:SetFrameLevel(level or f:GetFrameLevel() + 12)
 	fx:EnableMouse(false)
 	r.fx = fx
 	r.flash = fx:CreateTexture(nil, "OVERLAY")
@@ -311,11 +321,13 @@ local function newRig(f)
 	local where = { back = r.back, front = fx, clip = r.clip }
 	for name, at in pairs(ns.Looks.POP_PARTS) do r.parts[name] = newPart(where[at]) end
 	r.all = { r.motion, r.flashAnim }
+	if r.iconMotion then table.insert(r.all, r.iconMotion) end
 	for _, e in ipairs(r.edge or {}) do table.insert(r.all, e.group) end
 	for _, p in pairs(r.parts) do table.insert(r.all, p.group) end
 	-- A hidden frame holds its animations, so a pop cut short by a hide (its group hiding as combat
-	-- ends) would finish when the icon next shows. A hide ends it instead.
-	fx:SetScript("OnHide", function() r:stop() end)
+	-- ends) would finish when the icon next shows. A hide ends it instead. Not under an aura button:
+	-- scripts there never run, and the button stops what it plays when the aura goes.
+	if not icon then fx:SetScript("OnHide", function() r:stop() end) end
 	return r
 end
 
@@ -327,14 +339,17 @@ function Rig:stop()
 	for _, g in ipairs(self.all) do g:Stop() end
 end
 
--- The motion's steps: step i scales from a to b, or moves by x, y, over dur with smoothing.
+-- The motion's steps: step i scales from a to b, or moves by x, y, over dur with smoothing (the
+-- aura's icon's too, on the aura route).
 function Rig:scaleStep(i, a, b, dur, smoothing)
-	local s = self.scale[i]
-	s:SetScaleFrom(a, a); s:SetScaleTo(b, b); s:SetDuration(dur); s:SetSmoothing(smoothing)
+	for _, s in ipairs({ self.scale[i], self.iconScale and self.iconScale[i] }) do
+		s:SetScaleFrom(a, a); s:SetScaleTo(b, b); s:SetDuration(dur); s:SetSmoothing(smoothing)
+	end
 end
 function Rig:moveStep(i, x, y, dur, smoothing)
-	local m = self.move[i]
-	m:SetOffset(x, y); m:SetDuration(dur); m:SetSmoothing(smoothing)
+	for _, m in ipairs({ self.move[i], self.iconMove and self.iconMove[i] }) do
+		m:SetOffset(x, y); m:SetDuration(dur); m:SetSmoothing(smoothing)
+	end
 end
 
 -- The motion for the style: S its size, k the duration multiplier, h the icon's height. Returns
@@ -422,6 +437,15 @@ function Rig:style(st, size, c, school, muted)
 	end
 end
 
+-- Shows the parts style() marked and hides the rest. An aura button plays every group handed to it,
+-- so on the aura route a part the style doesn't use must draw nothing whatever its group does.
+function Rig:showPlaying()
+	local on = self.playing
+	self.flash:SetShown(on[self.flashAnim] == true)
+	for _, e in ipairs(self.edge or {}) do e.tex:SetShown(on[e.group] == true) end
+	for _, p in pairs(self.parts) do p.tex:SetShown(on[p.group] == true) end
+end
+
 -- Stops every group, then plays those style() marked.
 function Rig:play()
 	for _, g in ipairs(self.all) do
@@ -435,17 +459,21 @@ end
 -- whatever the Colour, so it never reads as the full ready pop.
 -- Nothing on a frame that isn't visible (a combat-only group out of combat): it would wait there and
 -- play when the frame next shows, for something long over.
+-- The pop's colour for kind: the event's, or the school's for Ready and Ran out when style st says
+-- so. A warning (killed early, grounded, the imbue dropping, blocked) always keeps its own.
+local function popColor(st, kind, school)
+	if st.colorBy == "school" and ns.Looks.POP_EVENTS[kind] then
+		return ns.SCHOOL_COLOR[school] or ns.SCHOOL_COLOR.spirit
+	end
+	return POP_TINT[kind] or POP_TINT.ready
+end
+
 function E.pop(f, kind, owner)
 	if not f:IsVisible() then return end
 	kind = kind or "ready"
 	local st = ns.Style.get(owner, "pop")
-	-- The colour: the event's, or the school's for Ready and Ran out when the style says so. A
-	-- warning (killed early, grounded, the imbue dropping, blocked) always keeps its own.
 	local school = ns.Looks.schoolOf(f)
-	local c = POP_TINT[kind] or POP_TINT.ready
-	if st.colorBy == "school" and ns.Looks.POP_EVENTS[kind] then
-		c = ns.SCHOOL_COLOR[school] or ns.SCHOOL_COLOR.spirit
-	end
+	local c = popColor(st, kind, school)
 	f.popRig = f.popRig or newRig(f)
 	-- popSize: the icon's size, set by whoever knows it where a read could be secret (an end flash
 	-- over the totem bar's slot, under its secure button).
@@ -616,25 +644,62 @@ function E.growPop(region, owner)
 end
 
 ------------------------------------------------------------------------
--- The effect host: an element's one glow and one pop, in its one glow look and pop style. Here the
--- element is drawn by our own icon, so the host shows the glow and plays the pop directly. Other
+-- The effect host: an element's one glow and one pop, in its one glow look and pop style. Other
 -- glows an element has (a ready glow on its gate, its timer's expiring glow, an end flash's red
--- glow) are E.glow with the element as owner: one look and style, several places it shows.
+-- glow) are E.glow with the element as owner: one look and style, several places it shows. Two
+-- routes behind the same calls:
+-- * Frame route: our own icon draws the element, so the host shows the glow and plays the pop
+--   directly.
+-- * Aura route: Blizzard's aura button draws it (Elemental Focus, Purge). Its glow is a clip look
+--   lit while the aura is up (ns.makeClipLook, inverted), drawn by the engine outside the button's
+--   tree, in every look. Its pop is a rig made under the button as Blizzard makes it (h:bind),
+--   every group of it handed over once with AddAuraAssignedAnimation: the button plays them on
+--   each new aura, in combat too (tested 2026-10-01; a recast over a live aura is an update and
+--   plays none). The motion moves the aura's icon and our body frame over it (the border and the
+--   pop's light) together. Restyled only out of combat with auras readable (the aura slot's
+--   restyle); nothing under the button runs a script or is read.
 ------------------------------------------------------------------------
 local Host = {}
 Host.__index = Host
 
+-- A pop that draws and moves nothing: the aura route's rig while the element's Pop is off.
+local NO_POP = { colorBy = "event", flash = "none", burst = "none", motion = "none", size = 1, speed = 1 }
+
 -- f: the element's icon; key: its style owner (an element key, "totembar", or nil for General's).
--- h.glowF is its glow (E.glow over f).
-function E.host(f, key)
+-- Frame route: h.glowF is its glow (E.glow over f). Aura route, opts.aura:
+--   slot                     the aura slot showing the aura (ns.makeAuraSlot): the glow waits
+--                            until its sensor took the same filters
+--   parent, sensorParent     what the glow's chain and its sensor hang from
+--   unit, needUnit, filter   as ns.makeClipLook's; ids() or candidates(), the slot's own
+--   popKind, popOn()         its pop's kind (the colour; default "ready"), and whether it pops
+--   sites                    names for the sensor's waiting work and caught errors
+function E.host(f, key, opts)
 	local h = setmetatable({ f = f, key = key }, Host)
-	h.glowF = E.glow(f, f, key)
+	local a = opts and opts.aura
+	if not a then
+		h.glowF = E.glow(f, f, key)
+		return h
+	end
+	h.aura = a
+	h.up = ns.makeClipLook(f, {
+		key = key, owner = key, invert = true, glowOnly = true,
+		parent = a.parent, sensorParent = a.sensorParent or a.parent,
+		unit = a.unit, needUnit = a.needUnit, filter = a.filter, ids = a.ids, candidates = a.candidates,
+		agrees = function() return a.slot.applied ~= nil and a.slot.applied == h.up.applied end,
+		sites = a.sites,
+	})
 	return h
 end
 
--- The glow on or off, fitted to the icon; r, g, b: a colour of its own (killed early's red) in
--- place of the style's.
+-- The glow on or off; r, g, b: a colour of its own (killed early's red) in place of the style's.
+-- Frame route: shown now, fitted to the icon. Aura route: wanted, and drawn exactly while the aura
+-- is up.
 function Host:glow(on, r, g, b)
+	if self.up then
+		self.up:setParts(false, false, false, false, on)
+		self.up:want(on)
+		return
+	end
 	local gl = self.glowF
 	if on then
 		gl:fit(self.f:GetWidth())
@@ -644,9 +709,73 @@ function Host:glow(on, r, g, b)
 	gl:SetShown(on and true or false)
 end
 
--- The pop for kind (default ready), now: nothing while the icon isn't visible.
-function Host:pop(kind) E.pop(self.f, kind or "ready", self.key) end
+-- The pop for kind (default ready), now: nothing while the icon isn't visible. On the aura route
+-- the button plays it; this does nothing.
+function Host:pop(kind)
+	if self.aura then return end
+	E.pop(self.f, kind or "ready", self.key)
+end
 
--- The glow restyled from its style, and fitted to an icon of size.
-function Host:restyle() self.glowF:restyle() end
-function Host:fit(size) self.glowF:fit(size) end
+-- The glow restyled from its style, and fitted to an icon of size (the aura route's glow fits as
+-- its sensor takes a size).
+function Host:restyle()
+	if self.up then self.up:reshape() else self.glowF:restyle() end
+end
+function Host:fit(size)
+	if self.glowF then self.glowF:fit(size) end
+end
+
+-- Aura route: the rig on Blizzard's button, from the aura slot's onButton (as Blizzard makes the
+-- button): a body frame over the button that moves with its icon (the caller hangs the element's
+-- border there), the rig on it with its light at level, styled, and every group handed to the
+-- button. Returns the body.
+function Host:bind(button, icon, level)
+	if self.body then return self.body end
+	local body = CreateFrame("Frame", nil, button)
+	body:SetAllPoints(button)
+	body.over = self.f   -- the element's own icon: its school, its frame's reach, the level behind it
+	self.body, self.handed = body, 0
+	local ok = ns.try("aura pop " .. self.key, function()
+		self.rig = newRig(body, icon, level)
+		self:stylePop(ns.sizeOf(self.key))   -- styled before its groups are handed over
+	end)
+	if not ok or not button.AddAuraAssignedAnimation then return body end
+	for _, g in ipairs(self.rig:groups()) do
+		if ns.try("aura pop hand-off " .. self.key, button.AddAuraAssignedAnimation, button, g) then
+			self.handed = self.handed + 1
+		end
+	end
+	return body
+end
+
+-- Aura route, out of combat with auras readable (the aura slot's restyle): the rig for an icon of
+-- size, in the element's pop style while it pops (popOn), else drawing and moving nothing.
+function Host:stylePop(size)
+	local rig = self.rig
+	if not rig then return end
+	local st = self.aura.popOn() and ns.Style.get(self.key, "pop") or NO_POP
+	local kind = self.aura.popKind or "ready"
+	local school = ns.Looks.schoolOf(self.f)
+	rig:style(st, size, popColor(st, kind, school), school)
+	rig:showPlaying()
+end
+
+-- Aura route: the glow's sensor made (out of combat, auras readable), refiltered with the slot,
+-- pointed at a unit, its levels and look now (after a layout, a size or a look change).
+function Host:setup() if self.up then self.up:setup() end end
+function Host:refilter() if self.up then self.up:refilter() end end
+function Host:follow(unit) return not self.up or self.up:follow(unit) end
+function Host:setLevel(lv) if self.up then self.up:setLevel(lv) end end
+function Host:style()
+	if not self.up then return end
+	self.up:reshape()
+	self.up:style()
+end
+function Host:checkIDs() if self.up then self.up:checkIDs() end end
+
+-- For /sf debug: one line of the aura route's state.
+function Host:describe()
+	if not self.up then return "frame route" end
+	return string.format("glow %s; pop %s, %d of %d groups handed", self.up:describe(),
+		self.rig and "made" or "not made", self.handed or 0, self.rig and #self.rig:groups() or 0)
+end
