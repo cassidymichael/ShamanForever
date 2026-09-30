@@ -703,7 +703,7 @@ end
 --   steady    it doesn't breathe (the glow's pulse is off; speed may time its own motion)
 --   bySchool  it differs by school (the options preview it on one icon per school)
 --   inside    drawn only within the icon: a warning's glow on the element takes the icon's shape
---             (ns.makeClipLook's `shape`); the other looks reach past it and take none
+--             (over ns.makeClipLook's picture); the other looks reach past it and take none
 --   build(g)  its regions and animation groups, under g.inner (breathing) or g (not); returns
 --             parts: { roots = { frames }, anims = { groups played while it shows }, aura = { the
 --             groups Blizzard's aura button plays in their place, when the glow is under it } }
