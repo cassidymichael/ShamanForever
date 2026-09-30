@@ -18,6 +18,7 @@ A collection of highly configurable HUD elements designed to help shamans playin
 
 - **Totem Bar**: Fully configurable totem bar replacing default or active totems frames: drop, pick and dismiss totems, Call of the Elements and Totemic Recall, an out-of-range warning, and key bindings
 - **Shock Trackers**: Earth, Flame, and Frost shock monitoring
+- **Target Trackers**: Flame Shock on your target with its time left (a bar that changes colour near the end) and a look while it's missing, and Purge when your target has a Magic buff
 - **Shield Helpers**: Lightning Shield and Water Shield tracking
 - **Weapon Imbues**: Rockbiter, Flametongue, Frostbrand, and Windfury imbue status
 - **Swing Timer**: melee swing timer shown as a bar

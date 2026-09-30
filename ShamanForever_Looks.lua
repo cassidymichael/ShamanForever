@@ -274,6 +274,7 @@ end
 -- Textures other code lays over an icon's picture (the expiring warning's grey copy and dimming),
 -- registered with Looks.followMask: they take the icon's mask too.
 local followers = setmetatable({}, { __mode = "k" })   -- icon frame -> { texture, ... }
+local ownShape = setmetatable({}, { __mode = "k" })    -- icon frame -> { texture -> over } (Looks.maskOver)
 local maskSpecs = setmetatable({}, { __mode = "k" })   -- icon frame -> its mask spec now
 
 -- Masks tex (a texture over f's picture) with spec, or takes its mask off (spec nil). The mask is
@@ -288,7 +289,14 @@ local function maskOne(f, tex, spec, over)
 			m = tex:GetParent():CreateMaskTexture()
 			f.frameMasks[tex] = m
 		end
-		placeMask(m, spec, over, over:GetWidth(), over:GetHeight())
+		-- over's size in the mask's own units: a texture on a scaled frame (a soft glow's) is masked
+		-- by the size over has on screen.
+		local w, h = over:GetWidth(), over:GetHeight()
+		local a, b = over:GetEffectiveScale(), tex:GetParent():GetEffectiveScale()
+		if not (ns.isSecret(w) or ns.isSecret(h) or ns.isSecret(a) or ns.isSecret(b)) and b > 0 then
+			w, h = w * a / b, h * a / b
+		end
+		placeMask(m, spec, over, w, h)
 		if not m.on then tex:AddMaskTexture(m); m.on = true end
 	elseif m and m.on then
 		tex:RemoveMaskTexture(m)
@@ -306,6 +314,17 @@ local function drawMask(f, spec)
 	maskOne(f, f.manaOverlay, spec, over)
 	maskOne(f, f.warn and f.warn.grey, spec, over)
 	for _, t in ipairs(followers[f] or {}) do maskOne(f, t, spec, over) end
+	for t, o in pairs(ownShape[f] or {}) do maskOne(f, t, spec, o) end
+end
+
+-- Masks tex with icon frame f's look, in the place and size of over (default tex itself: a texture
+-- set in from the picture's edges takes the whole shape, set in by as much), now and on each change
+-- of look. Call again after moving them.
+function Looks.maskOver(f, tex, over)
+	local map = ownShape[f] or {}
+	ownShape[f] = map
+	map[tex] = over or tex
+	if maskSpecs[f] then maskOne(f, tex, maskSpecs[f], map[tex]) end
 end
 
 -- Registers textures laid over icon frame f's picture, to take its mask (now, and on each change).
@@ -725,8 +744,9 @@ local function fitSoft(g, h, size, width)
 	h:SetPoint("CENTER", g, "CENTER", 0, 0)
 end
 
+-- inside: drawn only within the icon (a glow that must stay inside it can take it).
 local soft = {
-	uses = { color = true, speed = true, low = true, width = true },
+	uses = { color = true, speed = true, low = true, width = true }, inside = true,
 	build = function(g)
 		local r = root(g.inner)
 		return { roots = { r }, soft = softPart(r) }
@@ -769,8 +789,9 @@ local halo = {
 }
 
 -- Blizzard's action bar proc glow: a burst that settles into a ring of moving light, in its
--- own gold unless the glow's colour is changed. Under Blizzard's aura button only the ring plays
--- (script handlers there never run, so nothing can start it when the burst ends).
+-- own gold unless the glow's colour is changed. Under Blizzard's aura button (g.unlisted) only the
+-- ring, which the button plays: the burst needs a script to hand over to the ring and none runs
+-- there, and the burst's flipbook drew there as a whole sprite sheet (seen 2026-09-30).
 local proc = {
 	uses = { color = true }, steady = true,
 	build = function(g)
@@ -780,17 +801,23 @@ local proc = {
 			return parts
 		end
 		local r = root(g.inner)
-		local start, loop = r:CreateTexture(nil, "OVERLAY"), r:CreateTexture(nil, "OVERLAY")
-		start:SetAtlas(PROC_START)
+		local loop = r:CreateTexture(nil, "OVERLAY")
 		loop:SetAtlas(PROC_LOOP)
-		local startG, loopG = flipBook(start, 6, 5, 30, 0.7), flipBook(loop, 6, 5, 30, 1, "REPEAT")
+		local loopG = flipBook(loop, 6, 5, 30, 1, "REPEAT")
+		if g.unlisted then
+			return { roots = { r }, loop = loop, texs = { loop }, anims = { loopG }, aura = { loopG }, stop = { loopG } }
+		end
+		local start = r:CreateTexture(nil, "OVERLAY")
+		start:SetAtlas(PROC_START)
+		local startG = flipBook(start, 6, 5, 30, 0.7)
 		startG:SetScript("OnFinished", function() if r:IsVisible() then loopG:Play() end end)
-		return { roots = { r }, start = start, loop = loop, anims = { startG }, aura = { loopG }, stop = { loopG } }
+		return { roots = { r }, start = start, loop = loop, texs = { start, loop }, anims = { startG }, aura = { loopG },
+			stop = { loopG } }
 	end,
 	style = function(g, parts, st, c)
 		if parts.fallback then return soft.style(g, parts, st, c) end
 		local own = not g.fixed and c[1] == GOLD_GLOW[1] and c[2] == GOLD_GLOW[2] and c[3] == GOLD_GLOW[3]
-		for _, t in ipairs({ parts.start, parts.loop }) do
+		for _, t in ipairs(parts.texs) do
 			t:SetDesaturated(not own)
 			if own then t:SetVertexColor(1, 1, 1, c[4] or 1) else t:SetVertexColor(c[1], c[2], c[3], c[4] or 1) end
 		end
@@ -798,8 +825,10 @@ local proc = {
 	fit = function(g, parts, size, out)
 		if parts.fallback then return soft.fit(g, parts, size) end
 		local s = size + 2 * out
-		parts.start:SetSize(s * 150 / 45, s * 150 / 45)
-		parts.start:SetPoint("CENTER", g, "CENTER", 0, 0)
+		if parts.start then
+			parts.start:SetSize(s * 150 / 45, s * 150 / 45)
+			parts.start:SetPoint("CENTER", g, "CENTER", 0, 0)
+		end
 		parts.loop:SetSize(s * 1.4, s * 1.4)
 		parts.loop:SetPoint("CENTER", g, "CENTER", 0, 0)
 	end,
@@ -863,7 +892,7 @@ local MATERIAL = {   -- school -> tile move (in tiles), seconds a tile
 -- Intensity: below 100% the material dims; above it the glow under it brightens too (the material
 -- itself is already at full opacity, so more light has to come from the soft glow beneath).
 local material = {
-	uses = { color = true, speed = true, strength = true }, bySchool = true,
+	uses = { color = true, speed = true, strength = true }, bySchool = true, inside = true,
 	build = function(g)
 		local r = root(g.inner)
 		local parts = { roots = { r }, soft = softPart(r, 0.35) }

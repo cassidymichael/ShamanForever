@@ -13,7 +13,7 @@ local relayout, respell, get, set = K.relayout, K.respell, K.get, K.set
 local pct, int, px = Page.pct, Page.int, Page.px
 local SHOW_CHOICES = K.SHOW_CHOICES
 local timerSettings, gcdBlock, glowBlock, popBlock = K.timerSettings, K.gcdBlock, K.glowBlock, K.popBlock
-local expiringLooks, killedBlock = K.expiringLooks, K.killedBlock
+local expiringLooks, killedBlock, insideGlowLook = K.expiringLooks, K.killedBlock, K.insideGlowLook
 
 local function db() return ns.getDB() end
 
@@ -507,23 +507,53 @@ local function buildBuff(p, def)
 		p:checkbox("Red ring", "A red ring inside the icon edge.", eget(key, "breathRing"), eset(key, "breathRing"), on)
 		p:checkbox("Fade in and out", nil, eget(key, "breathPulse"), eset(key, "breathPulse"), on)
 	end
-	if def.skipLongSeconds then
+	if def.skipLong then
+		local lo, hi, step = def.skipLong[1], def.skipLong[2], def.skipLong[3]
 		p:header("Track")
-		p:checkbox("Skip long buffs", ("Leaves out buffs that last over %d minutes, or have no end.")
-			:format(def.skipLongSeconds / 60), eget(key, "skipLong"), eset(key, "skipLong"))
+		local skip = p:checkbox("Skip long buffs", "Leaves out buffs that last longer than Longest buff, and buffs with no end.",
+			eget(key, "skipLong"), eset(key, "skipLong"))
+		p:sub(skip, eget(key, "skipLong"), function()
+			p:slider("Longest buff", "Buffs up to this long count.", lo, hi, step,
+				function(v) return string.format("%d min", v) end, eget(key, "skipLongMins"), eset(key, "skipLongMins"))
+		end)
 	end
-	timerSettings(p, "Time left", key, "uptime")
-	if def.proc then
+	if def.missing then
+		warningBlock(p, "Not on target", eget(key, "missGrey"), eset(key, "missGrey"), eget(key, "missRing"), eset(key, "missRing"),
+			eget(key, "missPulse"), eset(key, "missPulse"), function()
+				p:text("While your hostile target doesn't have it.")
+			end)
+		p:checkbox("Pulsing glow", "A glow inside the icon that pulses, in General's Pulsing glow colour and speed.",
+			eget(key, "missGlow"), eset(key, "missGlow"))
+		insideGlowLook(p, eget(key, "missGlowLook"), eset(key, "missGlowLook"), showWhen(eget(key, "missGlow")))
+	end
+	local function procBlock()
 		-- Elemental Focus's texts, unless the def has its own (the target's auras, ShamanForever_Target.lua).
 		p:header(def.procHeader or ns.Spells.name("clearcasting"))
-		p:checkbox("Pop", def.popTip or "The moment it procs. The icon grows and settles, at the Pop style's size and speed.",
-			eget(key, "primedPop"), eset(key, "primedPop"))
+		if not def.noPop then
+			p:checkbox("Pop", def.popTip or "The moment it procs. The icon grows and settles, at the Pop style's size and speed.",
+				eget(key, "primedPop"), eset(key, "primedPop"))
+		end
 		p:checkbox("Pulsing glow", def.glowTip or "While it's up.", eget(key, "primedGlow"), eset(key, "primedGlow"))
-	else
-		expiringBlock(p, key, 120, 5)
 	end
+	-- Flame Shock: after Not on target, its time left and Expiring.
+	if not def.noTimer then timerSettings(p, "Time left", key, "uptime") end
+	if def.engineExpire then
+		-- Flame Shock's, drawn by the engine: only what it can change in a fight.
+		p:header("Expiring")
+		p:slider("Warn in the last", "Seconds before it runs out. Zero turns the warning off.", 0, 10, 1,
+			function(v) return v == 0 and "Off" or string.format("%d s", v) end, eget(key, "expireSecs"), eset(key, "expireSecs"))
+		local warns = function() return (ns.elementSetting(key, "expireSecs") or 0) > 0 end
+		p:checkbox("Bar colour", "The time bar takes this colour in the last seconds.", eget(key, "expireBar"),
+			eset(key, "expireBar"), showWhen(warns))
+		p:color("Colour", nil, eget(key, "expireBarColor"), eset(key, "expireBarColor"),
+			showWhen(function() return warns() and ns.elementSetting(key, "expireBar") end))
+		p:checkbox("Red countdown", "The countdown turns red in the last seconds.", eget(key, "expireText"),
+			eset(key, "expireText"), showWhen(warns))
+	end
+	if def.proc and not def.noGlow then procBlock()
+	elseif not def.proc then expiringBlock(p, key, 120, 5) end
 	-- The water buffs never pop; Elemental Focus's pop is the grow Blizzard's button plays.
-	effectBlocks(p, key, nil, true, def.proc and "grow" or false)
+	effectBlocks(p, key, nil, not def.noGlow, def.proc and not def.noPop and "grow" or false)
 end
 
 -- Tremor Totem's watchlist: a box that searches the list and adds a name, Add target, the list (a

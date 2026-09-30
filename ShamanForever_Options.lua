@@ -921,6 +921,16 @@ local function buildTotemBar(p)
 	p.gate = nil
 end
 
+-- Standard row: the look of a glow something else must cover completely (ns.makeInsideGlow), from
+-- the looks drawn inside the icon only, and a line saying why the choice is short. Its colour, speed
+-- and the rest come from the element's Pulsing glow style.
+local function insideGlowLook(p, getLook, setLook, shown)
+	local choices = {}
+	for _, look in ipairs(ns.insideGlowLooks()) do table.insert(choices, { look.key, look.name }) end
+	p:dropdown("Glow look", nil, choices, getLook, setLook, shown, 170)
+	p:text("Only looks drawn inside the icon can show here.", shown)
+end
+
 -- The helpers and standard blocks the Groups & Layout page and the element pages share
 -- (ShamanForever_OptionsLayout.lua, ShamanForever_OptionsElements.lua).
 OP.kit = {
@@ -929,7 +939,7 @@ OP.kit = {
 	COMBAT_SHOW = COMBAT_SHOW, STAY_TIP = STAY_TIP, staySecs = staySecs,
 	generalRow = generalRow, borderRows = borderRows,
 	timerSettings = timerSettings, gcdBlock = gcdBlock, glowBlock = glowBlock, popBlock = popBlock,
-	expiringLooks = expiringLooks, killedBlock = killedBlock,
+	expiringLooks = expiringLooks, killedBlock = killedBlock, insideGlowLook = insideGlowLook,
 }
 
 ------------------------------------------------------------------------

@@ -138,14 +138,16 @@ root:SetAllPoints(UIParent)
 -- _Buffs, _Tremor, ...).
 local ELEMENT_KEYS = { "shield", "shock", "imbue" }
 -- key -> { frame, label, paint(texture), getSize(size), stack(), learned(), borderHost, shape,
--- defaults, and for the options spell, icon, school, blurb, experimental, kind, def }. db.groups
--- decides where each one shows. getSize gives its width and height for its group's icon size, so
--- elements need not be square; borderHost is the part its group's border is drawn on (a child
--- covering the whole frame; default the frame), so the border hides when that part does; shape
--- "bar" marks an element that is a bar, not an icon, which takes only the border parts that fit a
--- bar (ns.applyBorder); paint draws what stands in for it in the options and while
--- dragging; stack is its frame's (ns.newElementIcon). learned() says whether the character knows
--- its spell (none: always); defaults holds the defaults of every option it has (see
+-- fadeFrames, standInBorder, defaults, and for the options spell, icon, school, blurb,
+-- experimental, kind, def }. db.groups decides where each one shows. getSize gives its width and
+-- height for its group's icon size, so elements need not be square; borderHost is the part its
+-- group's border is drawn on (a child covering the whole frame; default the frame), so the border
+-- hides when that part does; shape "bar" marks an element that is a bar, not an icon, which takes
+-- only the border parts that fit a bar (ns.applyBorder); paint draws what stands in for it in the
+-- options and while dragging; stack is its frame's (ns.newElementIcon); fadeFrames lists other
+-- frames of its own that ignore its group's alpha, for the group's fade after combat;
+-- standInBorder: preview mode's stand-in draws its border (its own isn't on its frame). learned()
+-- says whether the character knows its spell (none: always); defaults holds the defaults of every option it has (see
 -- elementSetting). The options show it by its spell's name in the client's language (spell, an
 -- ns.Spells key), else its label, with its icon, its school's art (earth, fire, water, air, spirit),
 -- blurb (a line under its name) and experimental (a feature name: not tested in game); kind picks
@@ -550,12 +552,13 @@ local function afterCombat(gf)
 			local when = acct.locked and SHOW_WHEN[g.show]
 			return not when or SecureCmdOptionParse(when) == "show"
 		end,
-		-- The group, and its members' effects layers, which ignore its alpha.
+		-- The group, and its members' effects layers and fadeFrames, which ignore its alpha.
 		frames = function()
 			local list, g = { gf }, group()
 			for _, key in ipairs(g and g.members or {}) do
 				local fx = ELEMENTS[key].frame.effects
 				if fx then table.insert(list, fx) end
+				for _, extra in ipairs(ELEMENTS[key].fadeFrames or {}) do table.insert(list, extra) end
 			end
 			return list
 		end,
