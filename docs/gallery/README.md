@@ -1,17 +1,22 @@
 # Gallery
 
-Screenshots of ShamanForever 0.8.0 on the World of Warcraft: Forever beta: the HUD in game, and
-the options window. Features marked experimental haven't been tested in game yet. These images are
-not part of the addon download.
+Screenshots of ShamanForever on the World of Warcraft: Forever beta: the HUD in game, and the
+options window. The HUD shots are from 30 September 2026 and include features still in testing;
+the options window shots are from 0.8.0. Features marked experimental haven't been tested in game
+yet. These images are not part of the addon download.
 
 The options window shots are taken automatically in game, which is itself experimental: a shot can
 start at an odd scroll position, and a few pages may be missing or out of order.
 
 ## On screen
 
-![Element groups and the totem bar in game, with a totem picker open](hud-elements.png)
+![Preview mode with positioning unlocked: every group labelled, ready to drag into place](hud-preview-and-unlocked.png)
 
-![Positioning unlocked: drag groups and the totem bar into place](hud-positioning.png)
+![Preview mode: every element in a typical state, as it looks in a fight](hud-preview.png)
+
+![The HUD live at a low level, with only the first spells learned](hud-live-low-level.png)
+
+![Element groups and the totem bar in game, with a totem picker open](hud-elements.png)
 
 ## Home
 

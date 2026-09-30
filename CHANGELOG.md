@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Positioning: the mouse wheel changes icon size again, Shift + wheel the scale.
+- The swing timer swings in preview mode; its countdown always shows tenths, and Empty as it goes
+  drains the same way it fills.
+- Elements are listed A to Z in the options.
+- Fixed an error when preview mode showed the totem bar.
+
 ## 0.9.0 (2026-09-30)
 
 - Swing timer added.

@@ -211,6 +211,7 @@ local function drawSlice(f, art)
 	end
 	local px = ns.linePx(f, art.px)
 	local k = px / art.margin
+	if k <= 0 then h:Hide(); return 0 end   -- SetScale refuses 0 (a frame not laid out yet)
 	h:SetScale(k)
 	local w, hh = f:GetWidth(), f:GetHeight()
 	if ns.isSecret(w) or ns.isSecret(hh) then return px end   -- under a secure button: sized at the next layout
@@ -734,6 +735,7 @@ local function softPart(parent, alpha)
 end
 local function styleSoft(h, c) h.tex:SetVertexColor(c[1], c[2], c[3], (c[4] or 1) * h.alpha) end
 local function fitSoft(g, h, size, width)
+	if not (size and size > 0) then return end   -- not laid out yet (a preview slot): SetScale refuses 0
 	local th = math.min(math.max(size * (width or 0.2), 1), size * 0.45)
 	local k = th / SOFT_MARGIN
 	h:SetScale(k)

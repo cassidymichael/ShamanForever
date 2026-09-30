@@ -17,6 +17,15 @@ local expiringLooks, killedBlock, insideGlowLook = K.expiringLooks, K.killedBloc
 
 local function db() return ns.getDB() end
 
+-- The elements in the options' order (the nav and the Elements list): by name, A to Z, in the
+-- client's language.
+local function byName()
+	local keys, name = {}, ns.Look.elementName
+	for i, key in ipairs(ns.ELEMENT_KEYS) do keys[i] = key end
+	table.sort(keys, function(a, b) return name(a):lower() < name(b):lower() end)
+	return keys
+end
+
 -- The Group choices: every group by name, then New group; an ungrouped element's reads Ungrouped.
 -- Choosing one moves the element there (to its end) and leaves its Show as it is.
 local function groupMenu(dd, key)
@@ -100,7 +109,7 @@ function EP.buildOverview(p)
 		col("Show", SHOW_X + 6)
 		p:add(f, 20)
 	end
-	for _, key in ipairs(ns.ELEMENT_KEYS) do
+	for _, key in ipairs(byName()) do
 		local e = ns.ELEMENTS[key]
 		local f = p:row(34)
 		local icon = f:CreateTexture(nil, "ARTWORK")
@@ -781,7 +790,7 @@ PAGE.maelstrom = buildMaelstrom
 
 -- Every element's page, in the order the options list them.
 function EP.build(newPage)
-	for _, key in ipairs(ns.ELEMENT_KEYS) do
+	for _, key in ipairs(byName()) do
 		local e = ns.ELEMENTS[key]
 		local build = e.kind and PAGE[e.kind]
 		if build then build(newPage(key, e.label, true), e.def) end

@@ -2,9 +2,9 @@
 
 A configurable HUD for shamans on World of Warcraft: Forever: the buffs, imbues and cooldowns a shaman watches, as icons you can arrange anywhere. Requires WoW: Forever (interface 16001).
 
-![ShamanForever in game](screenshot.png)
+<a href="docs/gallery/README.md"><img src="docs/gallery/hud-preview-and-unlocked.png" width="560" alt="ShamanForever's HUD in preview mode with positioning unlocked"></a>
 
-More screenshots: [options gallery](docs/gallery/README.md).
+More screenshots: [gallery](docs/gallery/README.md).
 
 ## Download
 
