@@ -838,6 +838,15 @@ function Host:stylePop(size)
 	rig:showPlaying()
 end
 
+-- Aura route, out of combat: the rig's frames (flash, edge, burst parts) drawn at alpha 0 while
+-- quiet, so a pop that plays then draws nothing; back at 1 after. Our own frames only.
+function Host:setQuiet(on)
+	local rig = self.rig
+	if not rig then return end
+	local a = on and 0 or 1
+	for _, fr in ipairs({ rig.fx, rig.front, rig.back }) do fr:SetAlpha(a) end
+end
+
 -- Aura route: how long the pop's motion takes in its style now (0 for none), for parts of the
 -- caller's that show only while it moves.
 function Host:motionLength() return self.rig and self.rig.motionLength or 0 end

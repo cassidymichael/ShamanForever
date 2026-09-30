@@ -2,22 +2,24 @@
 -- next Lightning Bolt is instant and free.
 --
 -- The stacks are secret in combat, as every aura is, so Blizzard's aura container draws them
--- (ns.makeAuraSlot, as for the shield's charges). Four slots follow the same buff:
+-- (ns.makeAuraSlot, as for the shield's charges). Three jobs on four slots follow the same buff:
 -- 1. The stacks: the buff's icon and time left, the stack number and a stack bar (one segment per
 --    stack), all drawn by Blizzard's button.
--- 2. The pop at five, on two slots. Blizzard's button plays handed animations only when an aura is newly
---    assigned to it (AddAuraAssignedAnimation) or it first shows (AddAuraShownAnimation), and a
---    new stack is neither: it updates the same aura (Blizzard_CustomAuraButton.lua,
---    ApplyAuraAssignmentAnimations and ApplyVisibility). So the pop has a container of its own that
---    is visible only at five: it hangs from a bar a second button shows only from five stacks (its
---    minApplications; the gate tested 2026-09-28 on Lightning Shield's charges), and a container
---    does its work only while visible (Blizzard_ManagedAuraContainer.lua: its dirty flags wait for
---    an OnUpdate that runs when visible). At the fifth stack it shows, takes the buff as a new aura,
---    and its button plays the pop (ns.Effects' rig on it, the aura route). Staying at five, a
---    refresh or a stack more is an update of the same aura there: nothing plays again. Below five it
---    is hidden, so a buff that goes and comes back is new to it again at its fifth stack.
--- 3. At five: a button of its own drives an invisible bar five steps long, and a clip from the icon's
---    reach on the left to that bar's fill edge covers the icon and its reach at exactly five
+-- 2. The pop at five, on two slots. Blizzard's button plays handed animations only when an aura is
+--    newly assigned to it (AddAuraAssignedAnimation) or it first shows (AddAuraShownAnimation),
+--    and a new stack is neither: it updates the same aura (Blizzard_CustomAuraButton.lua,
+--    ApplyAuraAssignmentAnimations and ApplyVisibility). So the pop has a container of its own
+--    that is visible only at five: it hangs from a bar a second button shows only from five
+--    stacks (its minApplications), and a container does its work only while visible
+--    (Blizzard_ManagedAuraContainer.lua: its dirty flags wait for an OnUpdate that runs when
+--    visible). At the fifth stack it shows, takes the buff as a new aura, and its button plays
+--    the pop (ns.Effects' rig on it, the aura route). Staying at five, a refresh or a stack more
+--    is an update of the same aura there: nothing plays again. Below five it is hidden, so a buff
+--    that goes and comes back is new to it again at its fifth stack. The same buff is assigned
+--    to it again at login, /reload, a loading screen, a refilter and the container's first pass,
+--    with no new stack: each starts a quiet spell (quietPop) in which the pop draws nothing.
+-- 3. At five: a button of its own drives an invisible bar five steps long, and a clip from the
+--    icon's reach on the left to that bar's fill edge covers the icon and its reach at exactly five
 --    stacks and is empty below (Shields' one-charge clip, aimed at five of five; tested there in
 --    combat 2026-10-01). In it, the Pulsing glow in the element's look: it hangs under the button,
 --    where scripts never run, so the button plays its animations (handed with
@@ -308,12 +310,15 @@ local fx = ns.Effects.host(f, KEY, { aura = { popOnly = true, popLevel = 5 + LIG
 	popOn = function() return setting("fullPop") end } })
 
 -- The rig's values again, and the holds' length: the copy of the icon and its border show only
--- while the motion plays (no motion: never).
+-- while the motion plays (no motion: never). While quiet (below) they never show.
+local quiet = false
 local function stylePop(slot, size)
 	ns.try("maelstrom pop border", ns.applyBorder, slot.edge, ns.borderFor(KEY))
+	if slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end   -- the copy's (auraMask)
+	fx:setQuiet(quiet)
 	fx:stylePop(size)
 	local len = fx:motionLength()
-	local a = len > 0 and 1 or 0
+	local a = (len > 0 and not quiet) and 1 or 0
 	for _, g in ipairs(slot.holds) do
 		g.hold:SetFromAlpha(a)
 		g.hold:SetToAlpha(a)
@@ -393,12 +398,41 @@ end
 
 local gateSlot   -- below
 
+-- Blizzard hands the pop's button its animations whenever it assigns the buff to it, and that also
+-- happens with no new fifth stack: at login, /reload and loading screens (a full aura update), a
+-- refilter, the container's first pass, turning Pop on. So for QUIET seconds from each of those
+-- the pop's visible parts stay off (the copy and border holds at 0, the rig's frames at alpha 0),
+-- set out of combat only (they are Blizzard's animations and our frames beside its button); then
+-- restored. Accepted limits: a group shown in combat, a refilter mid-fight or a loading screen in
+-- combat can't be quieted, and a quiet that ends in combat is restored after it.
+local QUIET = 2
+local quietToken
+local function restylePop()
+	if pop.button and not InCombatLockdown() and not ns.aurasSecret() then
+		ns.try("maelstrom pop quiet", stylePop, pop, ns.sizeOf(KEY))
+	end
+	pop:style()
+end
+local function quietPop()
+	if InCombatLockdown() then return end
+	quiet = true
+	local token = {}
+	quietToken = token
+	restylePop()
+	C_Timer.After(QUIET, function()
+		if quietToken ~= token then return end
+		quiet = false
+		restylePop()
+	end)
+end
+
 -- The pop's container on the gate's bar, once the bar took its count, while Pop is on. Made from
 -- the layout or the gate's restyle, never as Blizzard makes a button (frames made there can't run
 -- scripts); out of combat with auras readable (the aura slot waits for that).
 local function setupPop()
 	if pop.container or pop.err or not (gateSlot.gated and setting("fullPop")) then return end
 	pop.opts.parent = gateSlot.gateBar
+	quietPop()   -- before the container exists: its first assignment plays nothing
 	pop:setup()
 end
 
@@ -563,6 +597,7 @@ local function styleAll() for _, s in ipairs(SLOTS) do s:style() end end
 function M.follow(s)
 	src = s or BUFF
 	wipe(formatters); made = 0
+	quietPop()
 	for _, slot in ipairs(SLOTS) do slot:refilter() end
 	ns.applyLayout()
 	ns.refreshAll()
@@ -644,12 +679,23 @@ function M.sanitize(db)
 	end
 end
 
+-- A loading screen sends a full aura update: the buff is assigned to the pop again.
+local worldEv = CreateFrame("Frame")
+ns.registerEvent(worldEv, "PLAYER_ENTERING_WORLD")
+worldEv:SetScript("OnEvent", function()
+	if pop.container then quietPop() end
+end)
+
 M.applyTimers = styleAll
 -- After a layout: the containers made once (only for a character with the buff), then their looks.
 -- The gate and the pop's container only while Pop is on, the one at five only for its glow or
 -- Idle: with one made but unused, Blizzard would still register it for every player UNIT_AURA for
 -- a look the player turned off.
+local popWasOn = false
 function M.applyLayout()
+	local popOn = src.learned() and ns.isEnabled(KEY) and setting("fullPop") and true or false
+	if popOn and not popWasOn and pop.container then quietPop() end   -- Pop or element on
+	popWasOn = popOn
 	if src.learned() and ns.isEnabled(KEY) then
 		stacks:setup()
 		if setting("fullPop") then
