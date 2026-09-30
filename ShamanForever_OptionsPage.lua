@@ -514,7 +514,8 @@ end
 --   default  a function returning the value to compare with, in place of its kind's
 --   reset    a function of the ref that resets it, in place of its kind's: for a row that does
 --            more than store the value (a group's Scale keeps its centre, Show goes through
---            ns.setShow)
+--            ns.setShow). It returns false when it can't now (Show in combat), as by hand.
+--   label    what a refused reset is called, in the line that says so
 local REF = {}
 
 -- A kind of ref. spec.id(ref): unique per setting, for one ref per setting in a block. A stored
@@ -555,19 +556,22 @@ end
 
 -- Resets every ref in list, then the follow-ups once each: the rows' own, the glows' restyle and a
 -- relayout (which repaints the options). The same path as changing each setting by hand, so its
--- combat rules hold: layout waits for combat to end, aura buttons restyle out of combat.
+-- combat rules hold: layout waits for combat to end, aura buttons restyle out of combat, and what
+-- can't change in combat is left, said once.
 local function resetRefs(list)
-	local afters, seen = {}, {}
+	local afters, seen, refused = {}, {}, {}
 	for _, r in ipairs(list) do
 		local k = REF[r.kind]
-		if r.reset then r.reset(r)
-		elseif k.reset then k.reset(r)
+		local done
+		if r.reset then done = r.reset(r)
+		elseif k.reset then done = k.reset(r)
 		else
 			local t = k.holder(r)
 			if t then
 				if k.unset then t[k.slot(r)] = nil else t[k.slot(r)] = copy(defaultOf(r)) end
 			end
 		end
+		if done == false then table.insert(refused, r.label or r.name) end
 		if r.after and not seen[r.after] then
 			seen[r.after] = true
 			table.insert(afters, r.after)
@@ -576,6 +580,9 @@ local function resetRefs(list)
 	if not seen[ns.Options.kit.relayout] then table.insert(afters, ns.Options.kit.relayout) end
 	ns.Effects.applyStyle()
 	for _, f in ipairs(afters) do f() end
+	if #refused > 0 then
+		ns.say("layout changes wait until combat ends; not reset: %s", table.concat(refused, ", "))
+	end
 end
 
 local function anyChanged(list)

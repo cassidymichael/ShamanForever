@@ -330,8 +330,11 @@ local function elementDisplay(p, key)
 	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return ns.showMode(key) end,
 		function(v) ns.setShow(key, v) end, nil, 140)
 	local function showDefault() return ns.elementDefault(key, "show") or "always" end
-	p:owns({ elem = key, name = "show", default = showDefault,
-		reset = function() ns.setShow(key, showDefault()) end })
+	-- Refused in combat, as by hand; checked first so ns.setShow doesn't say so too.
+	p:owns({ elem = key, name = "show", label = "Show", default = showDefault, reset = function()
+		if InCombatLockdown() then return false end
+		ns.setShow(key, showDefault())
+	end })
 	p:text("Hidden keeps its place in its group.")
 	-- Its menu is groupMenu's; the get only tells the row when to show another name.
 	local groupRow = p:dropdown("Group", "Which group it sits in. Groups are arranged on the Groups & Layout page; ungrouped elements aren't on screen.",
