@@ -20,6 +20,17 @@
 --   last target's aura.
 --
 -- Flame Shock, beside the aura itself:
+-- * Time left and Expiring, drawn by the engine from the aura's own time (tested in combat
+--   2026-09-30): the time bar is ours, handed to Blizzard's button (SetDurationBar), and so are two
+--   more bars on two more buttons on the same aura (a button drives one bar), for the bar's
+--   Expiring colour. The DoT is 12 s at every rank (the game's spell data, checked after each
+--   patch), so its last N seconds are the bar's first N/12 (it drains to the left). In a clip frame
+--   over that stretch, a bar in the Expiring colour drains with the time bar, so it shows there
+--   whenever the time bar does; over it, a bar in the time bar's own colour, as long as 240 of
+--   those stretches and placed so its end crosses the stretch in the 0.05 s at the threshold: it
+--   covers the Expiring colour until then, and is gone after. The countdown's red is the button's
+--   duration text through a step colour curve. All set out of combat, nothing written in combat;
+--   the buttons hide the moment the DoT is gone.
 -- * Idle is no hostile target. With one, the Not on target look is drawn by the engine, in combat
 --   too, with nothing read: an underlay of ours (the icon, grey by default) sits under Blizzard's
 --   button, shown by a state driver while the target is hostile and alive and you're not dead. With
@@ -50,16 +61,18 @@ local gateAlpha, retarget   -- below
 -- texts (ShamanForever_OptionsElements.lua): idleText, procHeader, popTip, glowTip, upLabel and
 -- idleLabel (its preview's up and idle states). noPop: no pop when it shows (its glow only).
 -- ownIcon: its own icon on the button, never the aura's. buttonBorder: its border on the button
--- too. noTimer: no time left. missing: its Not on target block (Flame Shock's, below). defaults: its own option defaults (ns.elementSetting).
+-- too. noTimer: no time left. missing, engineExpire: its Not on target and Expiring blocks (Flame
+-- Shock's, below). defaults: its own option defaults (ns.elementSetting).
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
 		icon = 135813, school = "fire", blurb = "Shows while your Flame Shock is on your target.",
 		idleText = "Idle is when you have no hostile target", procHeader = "On your target",
 		popTip = "When it shows on your target. The icon grows and settles, at the Pop style's size and speed.",
 		glowTip = "While it's on your target.", upLabel = "On target", idleLabel = "No target",
-		missing = true,   -- its Not on target block
-		defaults = { idleAlpha = 0, primedPop = false, primedGlow = false, expire = { secs = 3 },
-			missGrey = true, missRing = false, missPulse = false },
+		missing = true, engineExpire = true,   -- its Not on target and Expiring blocks
+		defaults = { idleAlpha = 0, primedPop = false, primedGlow = false,
+			missGrey = true, missRing = false, missPulse = false,
+			expireSecs = 3, expireBar = true, expireBarColor = { 1, 0.2, 0.15, 1 }, expireText = false },
 		experimental = "Flame Shock on target" },
 	{ key = "purge", spellKey = "purge", filter = "HELPFUL", icon = 136075, school = "spirit",
 		blurb = "Shows while your target has a Magic buff to purge.",
@@ -115,6 +128,15 @@ local function buildButton(def, slot, button, cd)
 		def.edge = CreateFrame("Frame", nil, button)
 		def.edge:SetAllPoints(button)
 	end
+	if def.engineExpire then
+		-- The countdown that can turn red (styleExpire): a font string of ours over the button,
+		-- its font set before it's handed over (Blizzard writes at once).
+		def.textHolder = CreateFrame("Frame", nil, button)
+		def.textHolder:SetAllPoints(button)
+		def.durText = def.textHolder:CreateFontString(nil, "OVERLAY")
+		def.durText:SetFont(STANDARD_TEXT_FONT, 12, "OUTLINE")
+		def.durText:Hide()
+	end
 	def.glow = ns.makeGlow(button, button, def.key, true)
 	-- Levels under the aura button may read as secret: a failed read leaves the default level.
 	ns.try("aura glow level", function() def.glow:SetFrameLevel(cd:GetFrameLevel() + 2) end)
@@ -126,12 +148,106 @@ local function buildButton(def, slot, button, cd)
 	if button.AddAuraAssignedAnimation then ns.try("target pop", button.AddAuraAssignedAnimation, button, def.popAnim) end
 end
 
+local styleExpire   -- below
+
 local function styleButton(def, size, slot)
+	if def.engineExpire then ns.try("flame shock expiring", styleExpire, def, size, slot) end
 	if def.edge then ns.try("target border " .. def.key, ns.applyBorder, def.edge, ns.borderFor(def.key)) end
 	def.glow:restyle()
 	def.glow:fit(size)
 	def.glow:SetShown(setting(def.key, "primedGlow") and true or false)
 	if def.popAnim then def.popAnim:restyle(setting(def.key, "primedPop") and true or false) end
+end
+
+------------------------------------------------------------------------
+-- Flame Shock's Expiring, drawn by the engine (see the file's header)
+------------------------------------------------------------------------
+local FS_SECS = 12   -- the DoT's length, every rank (the game's spell data, build 70009)
+local FAST = 240     -- the cover bar's length, in threshold stretches: 12 s / 240 = 0.05 s to cross
+local WHITE = "Interface\\Buttons\\WHITE8x8"
+local RED = { 1, 0.2, 0.2, 1 }
+local REMAINING = Enum and Enum.DurationTextBindingProperty and Enum.DurationTextBindingProperty.RemainingDuration or 0
+
+-- A bar on an extra button (made as Blizzard makes the button): in a clip frame, draining with the
+-- aura's time left like the time bar (the button drives it).
+function T.makeExpireBar(button)
+	local x = {}
+	x.clip = CreateFrame("Frame", nil, button)
+	x.clip:SetClipsChildren(true)
+	x.clip:Hide()
+	x.bar = CreateFrame("StatusBar", nil, x.clip)
+	x.bar:SetStatusBarTexture(WHITE)
+	x.ok = ns.try("flame shock expiring bar", button.SetDurationBar, button, x.bar, ns.Timer.AURA_BAR)
+	return x
+end
+
+-- A step colour curve over the time left: red under secs, colour c from there.
+local curves = {}
+local function textCurve(secs, c)
+	if not (C_CurveUtil and C_CurveUtil.CreateColorCurve and CreateColor) then return nil end
+	local id = string.format("%d:%.3f:%.3f:%.3f:%.3f", secs, c[1], c[2], c[3], c[4] or 1)
+	if curves[id] == nil then
+		local curve = C_CurveUtil.CreateColorCurve()
+		if Enum and Enum.LuaCurveType then pcall(curve.SetType, curve, Enum.LuaCurveType.Step) end
+		curve:AddPoint(0, CreateColor(RED[1], RED[2], RED[3], RED[4]))
+		curve:AddPoint(secs, CreateColor(c[1], c[2], c[3], c[4] or 1))
+		curves[id] = curve
+	end
+	return curves[id]
+end
+
+-- The Expiring block's settings, out of combat (the slot's restyle): the two bars placed over the
+-- time bar's first secs/12, and the countdown handed to the button with its curve, or given back.
+function styleExpire(def, size, slot)
+	local key, t = def.key, slot.timer
+	local st = ns.Style.get(key, "uptime")
+	local secs = setting(key, "expireSecs")
+	if type(secs) ~= "number" or secs ~= secs then secs = def.defaults.expireSecs end
+	secs = math.min(math.max(math.floor(secs + 0.5), 0), 10)
+	local red, cover = def.redBar, def.coverBar
+	local barOn = secs > 0 and setting(key, "expireBar") and t and t.barOn and red and cover and red.ok and cover.ok
+	for _, x in ipairs({ red, cover }) do x.clip:SetShown(barOn and true or false) end
+	if barOn then
+		local h, edge = st.barHeight, st.barEdge == "top" and "TOPLEFT" or "BOTTOMLEFT"
+		local w = size * secs / FS_SECS
+		for _, x in ipairs({ red, cover }) do
+			x.clip:ClearAllPoints()
+			x.clip:SetPoint(edge, slot.button, edge, 0, 0)
+			x.clip:SetSize(w, h)
+			x.bar:ClearAllPoints()
+		end
+		-- The Expiring colour, lined up with the time bar: it shows over the stretch's fill.
+		local c = setting(key, "expireBarColor")
+		red.bar:SetSize(size, h)
+		red.bar:SetPoint("TOPLEFT", red.clip, "TOPLEFT", 0, 0)
+		red.bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
+		-- The cover: its end at the stretch's right edge at secs left, and past its left 0.05 s later.
+		local long = w * FAST
+		cover.bar:SetSize(long, h)
+		cover.bar:SetPoint("TOPLEFT", cover.clip, "TOPLEFT", w - long * secs / FS_SECS, 0)
+		local k = t:barRGB()
+		cover.bar:SetStatusBarColor(k[1], k[2], k[3], k[4] or 1)
+	end
+	-- The countdown: the button's duration text in place of the Cooldown's numbers, red under secs.
+	local fs, b = def.durText, slot.button
+	local textOn = secs > 0 and setting(key, "expireText") and st.text and fs ~= nil and textCurve(secs, st.textColor)
+	if textOn then
+		def.textHolder:SetFrameLevel(def.frame.textFrame:GetFrameLevel() + 13)   -- over the extra buttons
+		fs:SetFont(STANDARD_TEXT_FONT, st.textSize, "OUTLINE")
+		fs:ClearAllPoints()
+		if st.textPos == "topleft" then fs:SetPoint("TOPLEFT", b, "TOPLEFT", 1, -1)
+		elseif st.textPos == "bottom" then fs:SetPoint("BOTTOM", b, "BOTTOM", 0, (t and t.barOn and st.barEdge == "bottom") and st.barHeight + 1 or 1)
+		else fs:SetPoint("CENTER", b, "CENTER", 0, 0) end
+		def.textOn = ns.try("flame shock countdown", b.SetDurationText, b, fs, { textColor = { curve = textOn, property = REMAINING } })
+		if def.textOn then
+			fs:Show()
+			if t then t.cd:SetHideCountdownNumbers(true) end
+		end
+	elseif def.textOn then
+		ns.try("flame shock countdown", b.ClearDurationText, b)
+		fs:Hide()
+		def.textOn = false
+	end
 end
 
 for _, def in ipairs(TARGET) do
@@ -194,6 +310,10 @@ for _, def in ipairs(TARGET) do
 		ids = function() return idMap(def) end,
 		candidates = def.candidates and function() return def.candidates(def) end,
 		ownIcon = def.ownIcon and function() return def.icon end, noTimer = def.noTimer,
+		extras = def.engineExpire and {
+			{ key = "expire", init = function(_, b) def.redBar = T.makeExpireBar(b) end },
+			{ key = "cover", init = function(_, b) def.coverBar = T.makeExpireBar(b) end },
+		} or nil,
 		sites = { container = "target container " .. def.key, style = "target style " .. def.key,
 			filter = "target filter " .. def.key },
 		onButton = function(slot, button, cd) buildButton(def, slot, button, cd) end,

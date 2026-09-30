@@ -282,6 +282,20 @@ local function expiringLook(ic, key, length)
 end
 local function opt(key, name) return ns.elementSetting(key, name) end
 
+-- Flame Shock's Expiring (drawn by the engine on the HUD): its 12 s time left, 2 s from the end, with
+-- the bar in the Expiring colour and the countdown red, as its settings say.
+local function engineExpireLook(ic, key)
+	local secs = opt(key, "expireSecs") or 0
+	local left = secs > 0 and math.min(2, secs) or 2
+	frozen(ic.upT, 1 - left / 12, 12)
+	if secs <= 0 or not ic.upT then return end
+	if opt(key, "expireBar") and ic.upT.bar then
+		local c = opt(key, "expireBarColor")
+		ic.upT.bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
+	end
+	if opt(key, "expireText") then ic.upT.font:SetTextColor(1, 0.2, 0.2, 1) end
+end
+
 local previewState = {}   -- element key -> its header's preview state
 
 -- An idle element as the preview shows it: its Idle opacity, but never quite invisible (0% shows as
@@ -542,7 +556,7 @@ end
 local function buffPreview(def)
 	local key = def.key
 	local states = { { "up", def.proc and (def.upLabel or ns.Spells.name("clearcasting")) or "Up" } }
-	if not def.proc or def.expiring then table.insert(states, { "expiring", "Expiring" }) end
+	if not def.proc or def.engineExpire then table.insert(states, { "expiring", "Expiring" }) end
 	if def.missing then table.insert(states, { "missing", "Not on target" }) end
 	table.insert(states, { "idle", def.idleLabel or "Not up" })
 	if def.reagent then
@@ -569,7 +583,8 @@ local function buffPreview(def)
 					if not def.noTimer then frozen(ic.upT, 0.3, 15) end
 					ic:SetGlowShown(opt(key, "primedGlow"))
 				else frozen(ic.upT, 0.3, 600) end
-			elseif st == "expiring" then expiringLook(ic, key, def.proc and 12 or 600)
+			elseif st == "expiring" and def.engineExpire then engineExpireLook(ic, key)
+			elseif st == "expiring" then expiringLook(ic, key, 600)
 			elseif st == "missing" then
 				-- At full with a hostile target, whatever its looks (none: the plain icon).
 				ic.tex:SetDesaturated(opt(key, "missGrey"))

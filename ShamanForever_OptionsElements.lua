@@ -533,7 +533,19 @@ local function buildBuff(p, def)
 				eget(key, "primedPop"), eset(key, "primedPop"))
 		end
 		p:checkbox("Pulsing glow", def.glowTip or "While it's up.", eget(key, "primedGlow"), eset(key, "primedGlow"))
-		if def.expiring then expiringBlock(p, key, 10, 1) end
+		if def.engineExpire then
+			-- Flame Shock's, drawn by the engine: only what it can change in a fight.
+			p:header("Expiring")
+			p:slider("Warn in the last", "Seconds before it runs out. Zero turns the warning off.", 0, 10, 1,
+				function(v) return v == 0 and "Off" or string.format("%d s", v) end, eget(key, "expireSecs"), eset(key, "expireSecs"))
+			local warns = function() return (ns.elementSetting(key, "expireSecs") or 0) > 0 end
+			p:checkbox("Bar colour", "The time bar takes this colour in the last seconds.", eget(key, "expireBar"),
+				eset(key, "expireBar"), showWhen(warns))
+			p:color("Colour", nil, eget(key, "expireBarColor"), eset(key, "expireBarColor"),
+				showWhen(function() return warns() and ns.elementSetting(key, "expireBar") end))
+			p:checkbox("Red countdown", "The countdown turns red in the last seconds.", eget(key, "expireText"),
+				eset(key, "expireText"), showWhen(warns))
+		end
 	else
 		expiringBlock(p, key, 120, 5)
 	end

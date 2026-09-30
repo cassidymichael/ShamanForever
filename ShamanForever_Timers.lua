@@ -320,6 +320,12 @@ function Timer:apply()
 	end
 end
 
+-- The colour its time bar takes (its element's school, or the style's colour).
+function Timer:barRGB()
+	local s = S.get(self.key, self.kind)
+	return s.barElement and schoolColor(self) or s.barColor
+end
+
 -- Show a duration object, or clear with nil.
 function Timer:set(d)
 	if not d then return self:clear() end
