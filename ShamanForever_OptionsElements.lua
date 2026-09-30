@@ -94,13 +94,13 @@ function EP.buildOverview(p)
 	-- Columns: each has a least width (what fits the window at its narrowest) and a share of any
 	-- width beyond the least. Positions are worked out from the page's width on every layout.
 	local COLS = {
-		{ key = "name", label = "Element", min = 150, grow = 0.2, x0 = 32 },
-		{ key = "group", label = "Group", min = 120, grow = 0.3, max = 240 },
-		{ key = "link", label = "Group settings", min = 96, grow = 0 },
-		{ key = "show", label = "Show", min = 86, grow = 0.1, max = 130 },
-		{ key = "styles", label = "Own styles", min = 130, grow = 0.4 },
+		{ key = "name", label = "Element", min = 140, grow = 0.2, x0 = 32 },
+		{ key = "group", label = "Group", min = 110, grow = 0.3, max = 240 },
+		{ key = "link", label = "Group settings", min = 90, grow = 0 },
+		{ key = "show", label = "Show", min = 80, grow = 0.1, max = 130 },
+		{ key = "styles", label = "Own styles", min = 120, grow = 0.4 },
 	}
-	local GAP = 8
+	local GAP = 6
 	local function place(width)
 		local least = GAP * (#COLS - 1)
 		for _, c in ipairs(COLS) do least = least + c.min end
