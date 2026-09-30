@@ -265,7 +265,7 @@ end
 local POP_COLORS = { { "event", "By event" }, { "school", "By school" } }
 local POP_FLASHES = { { "none", "None" }, { "plain", "Plain flash" }, { "edge", "Blizzard's edge flash" } }
 local POP_BURSTS = { { "none", "None" }, { "ring", "Ring" }, { "star", "Star" }, { "both", "Ring and star" },
-	{ "shapes", "Shapes" }, { "painted", "Painted" }, { "rune", "Rune ring" }, { "school", "By school" } }
+	{ "shapes", "Shapes" }, { "painted", "Emblem" }, { "rune", "Rune circle" }, { "school", "Element effect" } }
 local POP_MOTIONS = { { "none", "None" }, { "pop", "Grow" }, { "bounce", "Bounce" }, { "hop", "Hop" },
 	{ "shake", "Shake side to side" }, { "shakeV", "Shake up and down" } }
 -- Choices not tested in game yet (About's Experimental list), and bursts drawn per school.
@@ -701,7 +701,7 @@ local function buildAbout(p)
 		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
 		"Francisque Millet, Mountain Landscape with Lightning (air). Corner and divider ornaments: public domain / CC0, Wikimedia Commons. " ..
 		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood texture CC0, ambientCG. Link icons: Simple Icons, CC0. " ..
-		"The Carved stone, Aged bronze and Carved wood borders and the Painted bursts pop: made with an AI image model (Google Gemini), as were the plinth and medallions of the Stone and bronze totem theme.")
+		"The Carved stone, Aged bronze and Carved wood borders and the Emblem pop burst: made with an AI image model (Google Gemini), as were the plinth and medallions of the Stone and bronze totem theme.")
 end
 
 ------------------------------------------------------------------------
