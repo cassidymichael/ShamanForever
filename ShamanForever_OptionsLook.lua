@@ -470,7 +470,9 @@ L.PREVIEW.maelstrom = {
 		if n > 0 then frozen(ic.upT, 0.3, 30) end
 		-- Idle while not up, unless Never; with Below five stacks, below five too.
 		local when = opt("maelstrom", "idleWhen")
-		if (n == 0 and when ~= "never") or (when == "five" and n < M.maxStacks()) then idleLook(ic, "maelstrom") end
+		if (n == 0 and when ~= "never") or (when == "five" and n < M.maxStacks()) then
+			idleLook(ic, "maelstrom")
+		end
 	end,
 }
 -- The preview's counts: plenty, "few left" (at the Low mark, at least 1) and none.
@@ -568,7 +570,9 @@ local function buffPreview(def)
 			-- The count shows in every state when set to Always (the default).
 			if def.reagent and st ~= "low" and st ~= "out" then L.reagentLook(ic, key, PLENTY) end
 			-- Flame Shock with Idle when "On your target": idle while it's up.
-			if (st == "up" or st == "expiring") and opt(key, "idleWhen") == "target" then idleLook(ic, key) end
+			if (st == "up" or st == "expiring") and opt(key, "idleWhen") == "target" then
+				idleLook(ic, key)
+			end
 		end,
 	}
 end

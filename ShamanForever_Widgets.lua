@@ -476,8 +476,8 @@ function AuraSlot:styleNow()
 end
 
 -- The slot's filters again, from opts.ids() (the IDs that count can grow) or opts.candidates(),
--- once the container is made. Out of combat only, and not while auras are secret: waits for that, and a refused call is
--- noted and tried again when combat ends.
+-- once the container is made. Out of combat only, and not while auras are secret: waits for that,
+-- and a refused call is noted and tried again when combat ends.
 function AuraSlot:refilter()
 	if not self.container or self.err then return end
 	local o = self.opts

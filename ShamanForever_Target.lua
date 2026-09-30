@@ -37,10 +37,10 @@
 --   on it: then Blizzard's button sits at the Idle opacity (a frame between the gate and its
 --   container, set out of combat and held through a fight) and the element shows in full only as
 --   Not on target. With a hostile target, the Not on target look (the icon grey by default, fade in
---   and out, the red ring, the pulsing glow in its Pulsing glow style) is drawn by the engine, in combat too,
---   with nothing read: a clip look (ns.makeClipLook) whose sensor follows the target with the
---   container shows it only while the target lacks your Flame Shock. So nothing of it lies under
---   Blizzard's button, which takes its group's opacity like any icon. Its holder:
+--   and out, the red ring, the pulsing glow in its Pulsing glow style) is drawn by the engine, in
+--   combat too, with nothing read: a clip look (ns.makeClipLook) whose sensor follows the target
+--   with the container shows it only while the target lacks your Flame Shock. So nothing of it lies
+--   under Blizzard's button, which takes its group's opacity like any icon. Its holder:
 --   - is shown by a state driver while the target is hostile and alive and you're not dead;
 --   - hides (alpha 0) while the container isn't made or isn't following the target (a refused
 --     call in combat): a miss, never a false warning;

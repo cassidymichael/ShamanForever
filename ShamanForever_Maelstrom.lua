@@ -609,7 +609,8 @@ function M.debug()
 	for id in pairs(src.ids()) do table.insert(ids, tostring(id)) end
 	table.sort(ids)
 	local function state(slot)
-		return (slot.container and "made" or "not made") .. (slot.err and (" (error: " .. slot.err .. ")") or "")
+		local err = slot.err and (" (error: " .. slot.err .. ")") or ""
+		return (slot.container and "made" or "not made") .. err
 	end
 	say("maelstrom: spell %s, following %s (%d stacks), stacks container %s, highlight container %s, "
 		.. "container at five %s (sensor %s, glow %s); idle %s, copy counts %s",

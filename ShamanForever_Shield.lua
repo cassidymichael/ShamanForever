@@ -282,13 +282,14 @@ end
 -- Both put the gate at the Idle opacity, and with it Blizzard's button, its border and the global
 -- cooldown's sweep, set out of combat and held through a fight. The button needs no telling when
 -- the shield goes: it hides that moment, in combat too, with its border, and the No shield look,
--- which doesn't hang from the gate, shows in full with its own copy of the border (lookEdge). Down out of combat the gate stays at the Idle opacity: the button is hidden
--- then anyway, and a shield cast in the next fight is idle, as it should be. "2 or more charges"
--- adds the one-charge copy (below): the icon in full, drawn by the engine at exactly one charge.
--- Idle applies only while positioning is locked, the element is on, a shield it tracks is known
--- and Blizzard's button is made. A change in combat (a setting, the lock) waits for its end, as
--- the gate does: until then the icon stays as it was set. In preview mode, out of combat, the gate
--- follows the settings as it does on the HUD, and the stand-in draws over it.
+-- which doesn't hang from the gate, shows in full with its own copy of the border (lookEdge).
+-- Down out of combat the gate stays at the Idle opacity: the button is hidden then anyway, and a
+-- shield cast in the next fight is idle, as it should be. "2 or more charges" adds the one-charge
+-- copy (below): the icon in full, drawn by the engine at exactly one charge. Idle applies only
+-- while positioning is locked, the element is on, a shield it tracks is known and Blizzard's
+-- button is made. A change in combat (a setting, the lock) waits for its end, as the gate does:
+-- until then the icon stays as it was set. In preview mode, out of combat, the gate follows the
+-- settings as it does on the HUD, and the stand-in draws over it.
 local function idleWhen()
 	local w = ns.elementSetting("shield", "idleWhen")
 	return (w == "up" or w == "charges") and w or "never"

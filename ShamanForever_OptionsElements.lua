@@ -329,7 +329,8 @@ local function buildShield(p, def)
 	warningBlock(p, "No shield", get("emptyGrey"), set("emptyGrey"), get("emptyRing"), set("emptyRing"), get("emptyPulse"),
 		set("emptyPulse"))
 	p:checkbox("Red tint", "Tint the icon red.", get("emptyTint"), set("emptyTint"))
-	p:checkbox("Pulsing glow", "A glow that pulses, in the Pulsing glow style.", get("emptyGlow"), set("emptyGlow"))
+	p:checkbox("Pulsing glow", "A glow that pulses, in the Pulsing glow style.",
+		get("emptyGlow"), set("emptyGlow"))
 
 	timerSettings(p, "Time left", "shield", "uptime")
 	gcdBlock(p, "shield")

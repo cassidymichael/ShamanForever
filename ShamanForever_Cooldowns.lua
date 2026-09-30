@@ -183,7 +183,8 @@ local function effectsOf(def)
 		table.insert(glow, "primed")
 		table.insert(pop, "primed")
 	end
-	if (def.needsTotem or def.totemSlot or timed) and looks ~= false and (looks == nil or tContains(looks, "glow")) then
+	local expires = def.needsTotem or def.totemSlot or timed
+	if expires and looks ~= false and (looks == nil or tContains(looks, "glow")) then
 		table.insert(glow, "expiring")
 	end
 	if def.grounded then
