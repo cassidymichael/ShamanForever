@@ -14,7 +14,6 @@ local pct, int, px = Page.pct, Page.int, Page.px
 local SHOW_CHOICES = K.SHOW_CHOICES
 local timerSettings, gcdBlock, glowBlock, popBlock = K.timerSettings, K.gcdBlock, K.glowBlock, K.popBlock
 local expiringLooks, killedBlock = K.expiringLooks, K.killedBlock
-local warningGlowLook = K.warningGlowLook
 
 local function db() return ns.getDB() end
 
@@ -273,12 +272,11 @@ local function idleBlock(p, def)
 end
 
 -- Standard blocks at the end of a page: the pulsing glow's and the pop's styles, General's or its
--- own. glow, pop: whether the element has any (a block that could change nothing isn't shown).
--- pop: false for none, "grow" for the grow-and-settle only (Elemental Focus).
-local function effectBlocks(p, key, popKind, glow, pop)
-	local icon = ns.ELEMENTS[key].icon
-	if glow ~= false then glowBlock(p, key, icon) end
-	if pop ~= false then popBlock(p, key, icon, popKind or "ready", pop == "grow") end
+-- own, where the element has something they apply to (its effects, ns.registerElement).
+local function effectBlocks(p, key)
+	local e = ns.ELEMENTS[key]
+	if #e.effects.glow > 0 then glowBlock(p, key, e.icon) end
+	if #e.effects.pop > 0 then popBlock(p, key, e.icon, e.effects.popKind or "ready") end
 end
 
 -- Standard block: the look while something is missing. first: an optional row before the three.
@@ -331,14 +329,12 @@ local function buildShield(p, def)
 	warningBlock(p, "No shield", get("emptyGrey"), set("emptyGrey"), get("emptyRing"), set("emptyRing"), get("emptyPulse"),
 		set("emptyPulse"))
 	p:checkbox("Red tint", "Tint the icon red.", get("emptyTint"), set("emptyTint"))
-	p:checkbox("Pulsing glow",
-		"A glow that pulses. Its colour and speed are the Pulsing glow style's.",
+	p:checkbox("Pulsing glow", "A glow that pulses, in the Pulsing glow style.",
 		get("emptyGlow"), set("emptyGlow"))
-	warningGlowLook(p, get("emptyGlowLook"), set("emptyGlowLook"), showWhen(get("emptyGlow")))
 
 	timerSettings(p, "Time left", "shield", "uptime")
 	gcdBlock(p, "shield")
-	effectBlocks(p, "shield", nil, nil, false)   -- it never pops
+	effectBlocks(p, "shield")
 end
 
 local function buildShock(p, def)
@@ -396,7 +392,7 @@ local function buildImbue(p, def)
 			function(v) return v == 0 and "Never" or string.format("%d min", v) end, get("imbueWarnMins"), set("imbueWarnMins"))
 		p:text("Time left shows once it's below this. 0 never shows it.")
 	end)
-	effectBlocks(p, "imbue", "imbue")
+	effectBlocks(p, "imbue")
 end
 
 -- Primed: when it starts (from your cast), what spends it, and how it looks meanwhile.
@@ -454,17 +450,6 @@ local function expiringBlock(p, key, maxSecs, step, only)
 	expiringLooks(p, xget, xset, "icon", showWhen(function() return ns.Timer.expireOpts(key).secs > 0 end), only)
 end
 
--- Whether a cooldown element has a pulsing glow anywhere (else its Pulsing glow style is left out).
-local function cooldownHasGlow(def)
-	if def.needsTotem or def.totemSlot or def.readyGlow then return true end
-	if def.primed and def.primedLooks ~= false then return true end
-	local looks = def.expireLooks
-	if (def.window or (def.primed and def.primed.duration)) and looks ~= false then
-		if looks == nil or tContains(looks, "glow") then return true end
-	end
-	return false
-end
-
 -- One page per cooldown element; the blocks depend on what the element tracks.
 local function buildCooldown(p, def)
 	local key = def.key
@@ -477,7 +462,7 @@ local function buildCooldown(p, def)
 	end
 	timerSettings(p, "Cooldown", key, "cooldown")
 	gcdBlock(p, key)
-	local timed = def.window or (def.primed and def.primed.duration)
+	local timed, expires = ns.cooldownTimes(def)
 	if def.needsTotem then timerSettings(p, "Fire totem's time left", key, "uptime")
 	elseif def.totemSlot or def.window then timerSettings(p, "Time left", key, "uptime")
 	elseif timed then timerSettings(p, "Primed time left", key, "uptime") end
@@ -490,7 +475,7 @@ local function buildCooldown(p, def)
 			end or nil)
 	end
 	if def.primed then primedBlock(p, def) end
-	if (def.needsTotem or def.totemSlot or timed) and def.expireLooks ~= false then
+	if expires then
 		expiringBlock(p, key, 30, 1, def.expireLooks)
 		if def.ranOut then
 			p:checkbox("Flash when it runs out", "Its icon, greyed under its colour, with an hourglass.", eget(key, "ranOutFlash"), eset(key, "ranOutFlash"))
@@ -510,7 +495,7 @@ local function buildCooldown(p, def)
 		killedBlock(p, function(n) return eget(key, n) end, function(n) return eset(key, n) end, "icon",
 			"Flash when it dies early")
 	end
-	effectBlocks(p, key, nil, cooldownHasGlow(def), not def.noReady or def.totemSlot ~= nil or def.primed ~= nil)
+	effectBlocks(p, key)
 end
 
 -- One page per buff element (ShamanForever_Buffs.lua).
@@ -541,17 +526,14 @@ local function buildBuff(p, def)
 			eget(key, "missPulse"), eset(key, "missPulse"), function()
 				p:text("While your hostile target doesn't have it.")
 			end)
-		p:checkbox("Pulsing glow",
-			"A glow that pulses, in General's Pulsing glow colour and speed.",
+		p:checkbox("Pulsing glow", "A glow that pulses, in the Pulsing glow style.",
 			eget(key, "missGlow"), eset(key, "missGlow"))
-		warningGlowLook(p, eget(key, "missGlowLook"), eset(key, "missGlowLook"),
-			showWhen(eget(key, "missGlow")))
 	end
 	local function procBlock()
 		-- Elemental Focus's texts, unless the def has its own (the target's auras, ShamanForever_Target.lua).
 		p:header(def.procHeader or ns.Spells.name("clearcasting"))
 		if not def.noPop then
-			p:checkbox("Pop", def.popTip or "The moment it procs. The icon grows and settles, at the Pop style's size and speed.",
+			p:checkbox("Pop", def.popTip or "The moment it procs.",
 				eget(key, "primedPop"), eset(key, "primedPop"))
 		end
 		p:checkbox("Pulsing glow", def.glowTip or "While it's up.", eget(key, "primedGlow"), eset(key, "primedGlow"))
@@ -573,8 +555,7 @@ local function buildBuff(p, def)
 	end
 	if def.proc and not def.noGlow then procBlock()
 	elseif not def.proc then expiringBlock(p, key, 120, 5) end
-	-- The water buffs never pop; Elemental Focus's pop is the grow Blizzard's button plays.
-	effectBlocks(p, key, nil, not def.noGlow, def.proc and not def.noPop and "grow" or false)
+	effectBlocks(p, key)
 end
 
 -- Tremor Totem's watchlist: a box that searches the list and adds a name, Add target, the list (a
@@ -767,7 +748,7 @@ local PAGE = { shield = buildShield, shock = buildShock, imbue = buildImbue, coo
 	tremor = buildTremor }
 
 -- Maelstrom Weapon's page (ShamanForever_Maelstrom.lua): its stacks, then the five-stack look.
-local HIGHLIGHT = { { "glow", "Glow" }, { "wash", "Colour" }, { "none", "None" } }
+local HIGHLIGHT = { { "wash", "Colour" }, { "none", "None" } }
 local function buildMaelstrom(p, def)
 	local key = def.key
 	local function on(name) return function() return ns.elementSetting(key, name) end end
@@ -789,13 +770,14 @@ local function buildMaelstrom(p, def)
 		showWhen(function() return ns.elementSetting(key, "stackCount") and ns.elementSetting(key, "fullCount") end))
 	timerSettings(p, "Time left", key, "uptime")
 	p:header("Five stacks")
-	p:dropdown("Highlight", "Over the icon at five stacks.", HIGHLIGHT, eget(key, "highlight"), eset(key, "highlight"), nil, 140)
+	p:checkbox("Pulsing glow", "While at five.", eget(key, "fullGlow"), eset(key, "fullGlow"))
+	p:dropdown("Highlight", "A colour over the icon at five stacks.", HIGHLIGHT, eget(key, "highlight"),
+		eset(key, "highlight"), nil, 140)
 	local lit = showWhen(function() return ns.elementSetting(key, "highlight") ~= "none" end)
 	p:color("Highlight colour", nil, eget(key, "highlightColor"), eset(key, "highlightColor"), lit)
 	p:checkbox("Pop", "The highlight bursts out from the middle as the fifth stack lands.", eget(key, "fullPop"),
 		eset(key, "fullPop"), lit)
-	p:checkbox("Pulsing glow", "The highlight pulses while at five, at the Pulsing glow style's speed.",
-		eget(key, "fullGlow"), eset(key, "fullGlow"), lit)
+	effectBlocks(p, key)
 end
 PAGE.maelstrom = buildMaelstrom
 

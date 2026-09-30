@@ -97,6 +97,7 @@ def.frame = f
 ns.registerElement(KEY, { frame = f, label = def.spell, defaults = def.defaults,
 	learned = function() return def.spellID ~= nil end,
 	paint = function(t) t:SetTexture(def.iconID or def.icon) end,
+	effects = { glow = { "warning" }, pop = { "warning" } },
 	kind = "tremor", def = def, spell = def.spellKey, icon = def.icon, school = def.school,
 	blurb = "Warns near mobs that fear, charm or sleep." })
 

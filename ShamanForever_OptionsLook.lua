@@ -306,7 +306,7 @@ local function totemPreview(def)
 			local key = def.key
 			local function flash(opts, secs)
 				if opts then
-					if not ic.endFlash then ic.endFlash = ns.makeEndFlash(ic, ic, key) end
+					if not ic.endFlash then ic.endFlash = ns.Effects.endFlash(ic, ic, key) end
 					ic.endFlash:setIcon(def.iconID or def.icon)
 					ic.endFlash:play(nil, opts)
 				end
@@ -366,22 +366,12 @@ L.PREVIEW = {
 			local d = db()
 			local water = d.shieldTrack == "water"
 			reset(ic, water and 132315 or 136051)
-			if ic.warnGlow then ic.warnGlow:Hide() end
 			if st == "down" then
 				ic.tex:SetDesaturated(d.emptyGrey)
 				if d.emptyTint then ic.tex:SetVertexColor(1, 0.35, 0.35) end
 				ic:SetRingShown(d.emptyRing)
 				ic:SetPulsing(d.emptyPulse)
-				-- The HUD's glow here: No shield's own Glow look.
-				if d.emptyGlow then
-					if not ic.warnGlow then
-						ic.warnGlow = ns.makeWarningGlow(ic, ic, "shield",
-							function() return db().emptyGlowLook end)
-					end
-					ic.warnGlow:restyle()
-					ic.warnGlow:fit(ic:GetWidth())
-					ic.warnGlow:Show()
-				end
+				ic:SetGlowShown(d.emptyGlow)
 				return
 			end
 			local n = st == "up3" and 3 or st == "up2" and 2 or 1
@@ -477,7 +467,12 @@ L.PREVIEW.maelstrom = {
 		reset(ic, M.icon)
 		local n = ({ s1 = 1, s4 = M.maxStacks() - 1, s5 = M.maxStacks() })[st] or 0
 		M.drawPreview(ic, n)
-		if n > 0 then frozen(ic.upT, 0.3, 30) else idleLook(ic, "maelstrom") end
+		if n > 0 then frozen(ic.upT, 0.3, 30) end
+		-- Idle while not up, unless Never; with Below five stacks, below five too.
+		local when = opt("maelstrom", "idleWhen")
+		if (n == 0 and when ~= "never") or (when == "five" and n < M.maxStacks()) then
+			idleLook(ic, "maelstrom")
+		end
 	end,
 }
 -- The preview's counts: plenty, "few left" (at the Low mark, at least 1) and none.
@@ -542,17 +537,11 @@ local function buffPreview(def)
 		uptime = true,
 		states = states,
 		warning = def.breath and "underwater" or def.reagent and "out" or def.missing and "missing" or nil,
-		-- Elemental Focus's pop is the grow-and-settle Blizzard's button plays (not the full pop).
 		pop = function(ic, st)
-			if st == "up" and def.proc and not def.noPop and opt(key, "primedPop") then
-				if not ic.growPop then ic.growPop = ns.makeGrowPop(ic, key) end
-				ic.growPop:restyle(true)
-				ic.growPop:Play()
-			end
+			if st == "up" and def.proc and not def.noPop and opt(key, "primedPop") then ic:Pop("ready") end
 		end,
 		render = function(ic, st)
 			reset(ic, def.icon)
-			if ic.warnGlow then ic.warnGlow:Hide() end
 			if st == "up" then
 				if def.proc then
 					if not def.noTimer then frozen(ic.upT, 0.3, 15) end
@@ -565,17 +554,9 @@ local function buffPreview(def)
 				ic.tex:SetDesaturated(opt(key, "missGrey"))
 				ic:SetRingShown(opt(key, "missRing"))
 				ic:SetPulsing(opt(key, "missPulse"))
-				-- The HUD's glow here: its own Glow look.
-				if opt(key, "missGlow") then
-					if not ic.warnGlow then
-						ic.warnGlow = ns.makeWarningGlow(ic, ic, nil,
-							function() return opt(key, "missGlowLook") end)
-					end
-					ic.warnGlow:restyle()
-					ic.warnGlow:fit(ic:GetWidth())
-					ic.warnGlow:Show()
-				end
-			elseif st == "idle" then idleLook(ic, key)
+				ic:SetGlowShown(opt(key, "missGlow"))
+			elseif st == "idle" then
+				if opt(key, "idleWhen") ~= "never" then idleLook(ic, key) end
 			elseif st == "low" or st == "out" then
 				-- Running low isn't idle when Idle counts reagents (the default).
 				if not opt(key, "reagentShow") then idleLook(ic, key) end
@@ -588,6 +569,10 @@ local function buffPreview(def)
 			end
 			-- The count shows in every state when set to Always (the default).
 			if def.reagent and st ~= "low" and st ~= "out" then L.reagentLook(ic, key, PLENTY) end
+			-- Flame Shock with Idle when "On your target": idle while it's up.
+			if (st == "up" or st == "expiring") and opt(key, "idleWhen") == "target" then
+				idleLook(ic, key)
+			end
 		end,
 	}
 end

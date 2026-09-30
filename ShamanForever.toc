@@ -23,6 +23,7 @@ ShamanForever_Style.lua
 ShamanForever_Media.lua
 ShamanForever_Widgets.lua
 ShamanForever_Looks.lua
+ShamanForever_Effects.lua
 ShamanForever_Timers.lua
 ShamanForever.lua
 ShamanForever_Shield.lua

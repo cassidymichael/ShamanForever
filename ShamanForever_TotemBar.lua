@@ -520,10 +520,10 @@ for index, el in ipairs(ELEMENTS) do
 	ns.cropIcon(badge.icon)
 	badge:Hide()
 	s.badge = badge
-	-- Killed early and ran out (ns.makeEndFlash): on their own frames, since the slot's look can be
-	-- invisible (Active totems). Two frames: each has its own secret gate.
-	local kf = ns.makeEndFlash(bar, b, "totembar", v)
-	s.expired = ns.makeEndFlash(bar, b, "totembar", v)
+	-- Killed early and ran out (ns.Effects.endFlash): on their own frames, since the slot's look can
+	-- be invisible (Active totems). Two frames: each has its own secret gate.
+	local kf = ns.Effects.endFlash(bar, b, "totembar", v)
+	s.expired = ns.Effects.endFlash(bar, b, "totembar", v)
 	s.killed = kf
 	kf:SetFrameLevel(b:GetFrameLevel() + OVER_RANGE + 4)
 	s.expired:SetFrameLevel(b:GetFrameLevel() + OVER_RANGE + 4)
@@ -1537,11 +1537,11 @@ end
 
 ------------------------------------------------------------------------
 -- Killed early. When a slot empties, its last duration object still says how much time the totem
--- had left (tested 2026-09-25); ns.makeEndFlash turns that into the flash's alpha through a curve,
--- so for a totem that simply ran out the flash stays invisible (its run-out pop plays instead).
--- Our own dismissals and a slot that fills again at once (a new totem cast over it) don't flash:
--- ns.Totems only calls a totem gone without either. The cross (killedMark) sits under the same gate
--- and goes on a recast or after 5 s.
+-- had left (tested 2026-09-25); ns.Effects.endFlash turns that into the flash's alpha through a
+-- curve, so for a totem that simply ran out the flash stays invisible (its run-out pop plays
+-- instead). Our own dismissals and a slot that fills again at once (a new totem cast over it)
+-- don't flash: ns.Totems only calls a totem gone without either. The cross (killedMark) sits under
+-- the same gate and goes on a recast or after 5 s.
 ------------------------------------------------------------------------
 -- Subscribed after the totem elements (ShamanForever_Cooldowns.lua loads first): they hear first.
 ns.Totems.subscribe(function(event, slot, was)

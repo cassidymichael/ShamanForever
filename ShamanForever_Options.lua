@@ -126,14 +126,11 @@ local function lookChoices(kind)
 	return out
 end
 
--- A look picker: the dropdown, and an EXPERIMENTAL badge under it while the look picked isn't
--- tested in game yet. For a style's rows (r, from styleRows) the look is the style's; a warning's
--- own look gives getLook (its key) and setLook instead (r nil). Returns the look now.
-local function lookRows(p, r, kind, label, feature, shown, getLook, setLook)
-	getLook = getLook or function() return r.style().look end
-	local function look() return ns.Style.look(kind, getLook()) end
-	p:dropdown(label, nil, lookChoices(kind), function() return look().key end,
-		setLook or r.set("look"), shown, 190)
+-- A look picker for a style's rows (r, from styleRows): the dropdown, and an EXPERIMENTAL badge
+-- under it while the look picked isn't tested in game yet. Returns the look now.
+local function lookRows(p, r, kind, label, feature, shown)
+	local function look() return ns.Style.look(kind, r.style().look) end
+	p:dropdown(label, nil, lookChoices(kind), function() return look().key end, r.set("look"), shown, 190)
 	local f = p:row(22)
 	ns.Look.expBadge(f, feature):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
 	p:add(f, 22, showWhen(function() return look().experimental end, shown))
@@ -229,10 +226,10 @@ end
 -- Standard block: the pulsing glow's style, with an icon glowing all the time that follows every
 -- change at once (one per school for a look that differs by school).
 local function glowBlock(p, owner, icon)
-	-- ns.applyGlowStyle only restyles the listed glows; some elements' aura-button glows (Maelstrom's
-	-- pulse, Elemental Focus's proc glow) aren't on that list and only pick up a style change through
-	-- their module's applyTimers hook.
-	local function after() ns.applyGlowStyle(); ns.applyTimers(); OP.refresh() end
+	-- ns.Effects.applyStyle only restyles the listed glows; a glow under Blizzard's aura button
+	-- (Maelstrom's at five) isn't on that list and only picks up a style change through its
+	-- module's applyTimers hook.
+	local function after() ns.Effects.applyStyle(); ns.applyTimers(); OP.refresh() end
 	local r = styleRows(owner, "glow", after)
 	p:header("Pulsing glow style")
 	if owner == nil then
@@ -248,7 +245,7 @@ local function glowBlock(p, owner, icon)
 		for _, ic in ipairs(icons.place()) do ic:SetGlowShown(true) end
 	end)
 	look = lookRows(p, r, "glow", "Look", "Glow looks", own)
-	reloadLine(p, function() return ns.auraGlowStale(owner) end,
+	reloadLine(p, function() return ns.Effects.auraGlowStale(owner) end,
 		function(n) return n == 1 and "changes glow" or "change glow" end, own)
 	local function uses(field) return showWhen(function() return look().uses[field] end, own) end
 	p:color("Colour", "Colour and opacity. Killed early, Grounded and Ran out keep their own colours.", r.get("color"), r.set("color"), uses("color"))
@@ -268,33 +265,30 @@ end
 local POP_COLORS = { { "event", "By event" }, { "school", "By school" } }
 local POP_FLASHES = { { "none", "None" }, { "plain", "Plain flash" }, { "edge", "Blizzard's edge flash" } }
 local POP_BURSTS = { { "none", "None" }, { "ring", "Ring" }, { "star", "Star" }, { "both", "Ring and star" },
-	{ "shapes", "Shapes" }, { "painted", "Painted" }, { "rune", "Rune ring" }, { "school", "By school" } }
+	{ "shapes", "Shapes" }, { "painted", "Emblem" }, { "rune", "Rune circle" }, { "school", "Element effect" } }
 local POP_MOTIONS = { { "none", "None" }, { "pop", "Grow" }, { "bounce", "Bounce" }, { "hop", "Hop" },
 	{ "shake", "Shake side to side" }, { "shakeV", "Shake up and down" } }
 -- Choices not tested in game yet (About's Experimental list), and bursts drawn per school.
 local POP_EXPERIMENTAL = { school = true, edge = true, shapes = true, painted = true, rune = true }
 local SCHOOL_BURSTS = { school = true, shapes = true, painted = true }
--- growOnly: the element's pop is the grow-and-settle Blizzard's aura button plays (Elemental Focus),
--- so only the motion's size and speed apply.
-local function popBlock(p, owner, icon, kind, growOnly)
+local function popBlock(p, owner, icon, kind)
 	local icons
 	local function playPop()
-		for _, ic in ipairs(icons.shown()) do
-			if growOnly then
-				if not ic.growPop then ic.growPop = ns.makeGrowPop(ic, owner) end
-				ic.growPop:restyle(true)
-				ic.growPop:Play()
-			else ic:Pop(kind) end
-		end
+		for _, ic in ipairs(icons.shown()) do ic:Pop(kind) end
 	end
-	local function after() OP.refresh(); if icons and icons.shown()[1]:IsVisible() then playPop() end end
+	-- ns.applyTimers: the pops Blizzard's aura buttons play (Elemental Focus, Purge) take a style
+	-- change through their module's hook, once out of combat.
+	local function after()
+		ns.applyTimers()
+		OP.refresh()
+		if icons and icons.shown()[1]:IsVisible() then playPop() end
+	end
 	local r = styleRows(owner, "pop", after)
 	-- Colour is for Ready and Ran out (ns.Looks.POP_EVENTS): a page whose pop is for a warning (the
 	-- imbue's) keeps the warning's colour and doesn't offer it.
-	local colored = not growOnly and ns.Looks.POP_EVENTS[kind]
+	local colored = ns.Looks.POP_EVENTS[kind]
 	-- One icon per school while the colour or the burst differs by school.
 	local function bySchool()
-		if growOnly then return false end
 		local st = r.style()
 		return (colored and st.colorBy == "school") or SCHOOL_BURSTS[st.burst] or false
 	end
@@ -316,12 +310,6 @@ local function popBlock(p, owner, icon, kind, growOnly)
 		play:ClearAllPoints()
 		play:SetPoint("LEFT", list[#list], "RIGHT", 24, 0)
 	end)
-	if growOnly then
-		p:text("It grows and settles; only its size and speed can change.", own)
-		p:slider("Motion distance", "How far it grows.", 1.1, 1.8, 0.05, pct, r.get("size"), r.set("size"), own)
-		p:slider("Motion speed", nil, 0.5, 2, 0.1, pct, r.get("speed"), r.set("speed"), own)
-		return
-	end
 	if colored then
 		p:dropdown("Colour", "For Ready and Ran out. By event: gold when ready, white when a totem runs out. Killed early, Grounded and the imbue dropping keep their own colours.",
 			POP_COLORS, r.get("colorBy"), r.set("colorBy"), own, 190)
@@ -713,7 +701,7 @@ local function buildAbout(p)
 		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
 		"Francisque Millet, Mountain Landscape with Lightning (air). Corner and divider ornaments: public domain / CC0, Wikimedia Commons. " ..
 		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood texture CC0, ambientCG. Link icons: Simple Icons, CC0. " ..
-		"The Carved stone, Aged bronze and Carved wood borders and the Painted bursts pop: made with an AI image model (Google Gemini), as were the plinth and medallions of the Stone and bronze totem theme.")
+		"The Carved stone, Aged bronze and Carved wood borders and the Emblem pop burst: made with an AI image model (Google Gemini), as were the plinth and medallions of the Stone and bronze totem theme.")
 end
 
 ------------------------------------------------------------------------
@@ -1058,13 +1046,6 @@ local function buildTotemBar(p)
 	p.gate = nil
 end
 
--- Standard row: a warning's own Glow look (ns.makeWarningGlow), and the EXPERIMENTAL badge under
--- it while the look picked isn't tested in game yet. Its colour, speed and the rest come from the
--- element's Pulsing glow style.
-local function warningGlowLook(p, getLook, setLook, shown)
-	lookRows(p, nil, "glow", "Glow look", "Glow looks", shown, getLook, setLook)
-end
-
 -- The helpers and standard blocks the Groups & Layout page and the element pages share
 -- (ShamanForever_OptionsLayout.lua, ShamanForever_OptionsElements.lua).
 OP.kit = {
@@ -1074,7 +1055,7 @@ OP.kit = {
 	generalRow = generalRow, borderRows = borderRows,
 	timerSettings = timerSettings, gcdBlock = gcdBlock, glowBlock = glowBlock, popBlock = popBlock,
 	textBlock = textBlock, barRows = barRows,
-	expiringLooks = expiringLooks, killedBlock = killedBlock, warningGlowLook = warningGlowLook,
+	expiringLooks = expiringLooks, killedBlock = killedBlock,
 }
 
 ------------------------------------------------------------------------

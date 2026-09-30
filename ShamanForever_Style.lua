@@ -40,8 +40,9 @@ S.register("glow", {
 	-- a look that has an intensity is (1 = as drawn). Killed early's glow keeps its red.
 	defaults = { look = "soft", color = { 1, 0.8, 0.25, 1 }, speed = 0.5, low = 0.25, width = 0.2, strength = 1 },
 	path = { "glowStyle" },
-	-- Purge's glow starts as Blizzard's proc ring, its own style rather than General's.
-	ownerDefaults = { purge = { look = "proc" } },
+	-- Purge's glow starts as Blizzard's proc ring, and Shields' No shield and Flame Shock's Not on
+	-- target glows as the soft inner glow: their own styles rather than General's.
+	ownerDefaults = { purge = { look = "proc" }, shield = { look = "soft" }, flameshock = { look = "soft" } },
 })
 S.register("pop", {
 	-- One setting per part, each changing only its own: colorBy (event | school: the colour for

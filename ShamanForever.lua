@@ -109,7 +109,6 @@ local DEFAULTS = {
 	emptyTint = false,
 	emptyPulse = false,
 	emptyGlow = true,
-	emptyGlowLook = "soft",   -- its look (a glow look's key)
 	-- shock
 	shock = "earth",        -- which shock the icon tracks
 	manaSpell = "tracked",  -- tracked | earth | flame | frost
@@ -157,7 +156,7 @@ root:SetAllPoints(UIParent)
 -- _Buffs, _Tremor, ...).
 local ELEMENT_KEYS = { "shield", "shock", "imbue" }
 -- key -> { frame, label, paint(texture), getSize(size), stack(), learned(), borderHost, shape,
--- standInBorder, defaults, and for the options spell, icon, school, blurb,
+-- standInBorder, defaults, effects, and for the options spell, icon, school, blurb,
 -- experimental, kind, def }. db.groups decides where each one shows. getSize gives its width and
 -- height for its group's icon size, so elements need not be square; borderHost is the part its
 -- group's border is drawn on (a child covering the whole frame; default the frame), so the border
@@ -170,11 +169,16 @@ local ELEMENT_KEYS = { "shield", "shock", "imbue" }
 -- language (spell, an ns.Spells key), else its label, with its icon, its school's art (earth, fire,
 -- water, air, spirit), blurb (a line under its name) and experimental (a feature name: not tested
 -- in game); kind picks its page and preview (ShamanForever_OptionsElements.lua, _OptionsLook.lua),
--- which read def, the module's own table for it.
+-- which read def, the module's own table for it. effects = { glow = { states }, pop = { states },
+-- popKind }: what can glow and what can pop (each a list of names, empty for none; its settings
+-- are the element's own), and the pop's kind (its colour; default "ready"). The options show the
+-- Pulsing glow style and Pop style blocks only where a list isn't empty.
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
+local NO_EFFECTS = { glow = {}, pop = {} }
 function ns.registerElement(key, e)
 	e.getSize = e.getSize or iconSize
+	e.effects = e.effects or NO_EFFECTS
 	e.stack = e.stack or e.frame.stack
 	ELEMENTS[key] = e
 	if not tContains(ELEMENT_KEYS, key) then table.insert(ELEMENT_KEYS, key) end
@@ -854,7 +858,7 @@ end
 
 -- Everything drawn again from the active profile.
 local function redraw()
-	resolveSpells(); ns.applyGlowStyle(); applyLayout(); refreshAll()
+	resolveSpells(); ns.Effects.applyStyle(); applyLayout(); refreshAll()
 	ns.Options.refresh()
 end
 
@@ -942,7 +946,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 			end
 		end)
 		lastSpells = resolveSpells()
-		ns.applyGlowStyle()
+		ns.Effects.applyStyle()
 		applyLayout()
 		refreshAll()
 		root:Show()

@@ -27,6 +27,7 @@ ns.registerElement("imbue", { frame = imbue, label = "Weapon Imbue", paint = fun
 	-- Idle: hidden while an imbue is on and its time isn't showing (idleWhen: never | notlow | on).
 	defaults = { idleWhen = "notlow", idleAlpha = 0 },
 	def = { key = "imbue", idleChoices = IDLE_CHOICES },
+	effects = { glow = { "missing" }, pop = { "lost" }, popKind = "imbue" },
 	kind = "imbue", icon = 136086, school = "spirit", blurb = "Warns when your main hand has no imbue." })
 
 -- The key is also the spell's key in ns.Spells; name is its display name (the client's). ids are
