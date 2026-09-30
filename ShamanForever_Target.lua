@@ -181,8 +181,10 @@ for _, def in ipairs(TARGET) do
 		hold:SetFromAlpha(0); hold:SetToAlpha(0); hold:SetDuration(0.1); hold:SetOrder(1)
 		local come = u.appear:CreateAnimation("Alpha")
 		come:SetFromAlpha(0); come:SetToAlpha(1); come:SetDuration(0.1); come:SetOrder(2)
+		u.appear:SetToFinalAlpha(true)
+		u.appear:SetScript("OnFinished", function() u.inner:SetAlpha(1) end)
 		u:SetScript("OnShow", function(self)
-			self.appear:Play()
+			T.appear(self)
 			if self.pulseOn then self.pulse:Play() end   -- a hidden frame's animations stop
 		end)
 		def.under = u
@@ -218,6 +220,14 @@ function gateAlpha(def)
 	if def.under then T.underAlpha(def) end
 end
 
+-- The underlay's wait (see the file's header), from alpha 0 at once: an animation's first value may
+-- only apply after the next frame is drawn. Our own frame: allowed in combat.
+function T.appear(u)
+	u.inner:SetAlpha(0)
+	u.appear:Stop()
+	u.appear:Play()
+end
+
 -- The Not on target underlay's opacity: its group's while it can be trusted (its container made
 -- and following the target, no stuck expiring warning), else 0. Our own frame, not an ancestor of
 -- the container: allowed in combat (it has to be: a failed retarget in combat hides it).
@@ -238,7 +248,7 @@ local function retarget(only)
 	for _, def in ipairs(TARGET) do
 		local c = (only == nil or only == def) and def.aura.container
 		if c then
-			if def.under then def.under.appear:Stop(); def.under.appear:Play() end
+			if def.under then T.appear(def.under) end
 			local ok = true
 			if def.unit ~= unit then
 				ok = ns.try("target aura unit", c.SetUnit, c, unit)
