@@ -91,7 +91,8 @@ local TARGET = {
 		skipLong = { 1, 60, 1 },   -- Longest buff's range and step, in minutes (its page's slider)
 		idleText = "Idle while your target has nothing to purge", procHeader = "Something to purge",
 		ownIcon = true, noTimer = true, buttonBorder = true,
-		popTip = "The moment your target has one.", glowTip = "While your target has one.",
+		popTip = "Each time a new buff lands on your target, or you target one that has one.",
+		glowTip = "While your target has one.",
 		upLabel = "Magic buff", idleLabel = "Nothing to purge",
 		defaults = { idleAlpha = 0, primedPop = true, primedGlow = true, skipLong = false, skipLongMins = 2 },
 		experimental = "Purge" },
@@ -128,22 +129,21 @@ local function idMap(def)
 	return def.ids
 end
 
--- Levels over the element's icon (its container's is the text's + 5, ns.makeAuraSlot): the glow
--- over the aura's button, the pop's light over that. Set from our own levels, never read from
--- Blizzard's button.
-local GLOW_LEVEL, POP_LEVEL = 11, 13
-
 -- Our parts on Blizzard's button, once it is made: the pop's rig (as Elemental Focus's), which the
 -- button plays each time a new aura lands.
 local function buildButton(def, slot, button)
-	local body = def.fx and def.fx:bind(button, slot.icon, def.frame.textFrame:GetFrameLevel() + POP_LEVEL)
+	if def.fx then def.fx:bind(button, slot.icon) end
 	-- buttonBorder: the group's border drawn on the button too, so it shows exactly with it (the
 	-- element's own frame, and its border, sit at its Idle opacity), on the rig's body so the two
 	-- move together. Drawn out of combat only.
 	if def.buttonBorder or def.missing then
-		def.edge = CreateFrame("Frame", nil, body or button)
-		def.edge:SetAllPoints(button)
-		def.edge.owner = def.key   -- its school colour (ns.Looks)
+		if def.fx then
+			def.edge = def.fx:makeEdge(button)
+		else
+			def.edge = CreateFrame("Frame", nil, button)
+			def.edge:SetAllPoints(button)
+			def.edge.owner = def.key   -- its school colour (ns.Looks)
+		end
 	end
 	if def.engineExpire then
 		-- The countdown that can turn red (styleExpire): a font string of ours over the button,
@@ -575,7 +575,7 @@ local function styleUp()
 	if InCombatLockdown() then return end
 	for _, def in ipairs(TARGET) do
 		if def.fx then
-			def.fx:setLevel(def.frame.textFrame:GetFrameLevel() + GLOW_LEVEL)
+			def.fx:levelGlow()
 			def.fx:style()
 		end
 	end

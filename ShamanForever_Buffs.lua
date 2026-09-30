@@ -149,19 +149,12 @@ local function procIDMap(def)
 	return def.procIDs
 end
 
--- Levels over the element's icon (its container's is the text's + 5, ns.makeAuraSlot): the glow
--- over the proc's button, the pop's light over that. Set from our own levels, never read from
--- Blizzard's button.
-local GLOW_LEVEL, POP_LEVEL = 11, 13
-
 -- The pop's rig on Blizzard's button, once it is made, with the group's border on the rig's body
 -- so the two move together: the border shows exactly with the proc (the element's own frame, and
 -- its border, sit at its Idle opacity). Styled out of combat only (styleProc).
 local function buildProc(def, slot, button)
-	local body = def.fx:bind(button, slot.icon, def.frame.textFrame:GetFrameLevel() + POP_LEVEL)
-	def.edge = CreateFrame("Frame", nil, body)
-	def.edge:SetAllPoints(body)
-	def.edge.owner = def.key   -- its school colour (ns.Looks)
+	def.fx:bind(button, slot.icon)
+	def.edge = def.fx:makeEdge(button)
 end
 
 -- Our parts again, for the current size and settings (after the aura slot's own restyle).
@@ -173,7 +166,7 @@ end
 -- The glow's sensor for the current size, look and levels (out of combat; it waits for that).
 local function styleGlow(def)
 	if InCombatLockdown() then return end
-	def.fx:setLevel(def.frame.textFrame:GetFrameLevel() + GLOW_LEVEL)
+	def.fx:levelGlow()
 	def.fx:style()
 end
 

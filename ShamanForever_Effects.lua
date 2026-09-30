@@ -417,13 +417,22 @@ function Rig:style(st, size, c, school, muted)
 		on[self.flashAnim] = true
 	end
 	local burst = st.burst
+	-- On the aura route (self.guard) each burst part is styled on its own, so one refused call
+	-- leaves the others, and the final show and hide, done.
+	local function part(name, fn)
+		if self.guard then ns.try("aura pop " .. name, fn) else fn() end
+	end
 	if burst == "ring" or burst == "both" then
-		stylePart(self.parts.ring, RING, self.fx, size, c, k)
-		on[self.parts.ring.group] = true
+		part("ring", function()
+			stylePart(self.parts.ring, RING, self.fx, size, c, k)
+			on[self.parts.ring.group] = true
+		end)
 	end
 	if burst == "star" or burst == "both" then
-		stylePart(self.parts.star, STAR, self.fx, size, c, k)
-		on[self.parts.star.group] = true
+		part("star", function()
+			stylePart(self.parts.star, STAR, self.fx, size, c, k)
+			on[self.parts.star.group] = true
+		end)
 	end
 	-- A drawn burst: sized by the icon with its frame; its back parts under the icon as it stands
 	-- now (for an end flash's pop, the icon it covers: a totem bar slot, so the shapes and their
@@ -434,14 +443,29 @@ function Rig:style(st, size, c, school, muted)
 		self.back:SetFrameLevel(math.max(over:GetFrameLevel() - 1, 0))
 		local h = size + 2 * ns.Looks.outerEdge(over)
 		for _, spec in ipairs(drawn) do
-			local p = self.parts[spec.name]
-			if spec.shift then stylePart(p, spec, self.clip, size, c, k)
-			else stylePart(p, spec, p.tex:GetParent(), h, c, k) end
-			on[p.group] = true
+			part(spec.name, function()
+				local p = self.parts[spec.name]
+				if spec.shift then stylePart(p, spec, self.clip, size, c, k)
+				else stylePart(p, spec, p.tex:GetParent(), h, c, k) end
+				on[p.group] = true
+			end)
 		end
 	end
 	-- Only the parts this style uses are shown (each sized and anchored above).
+	self:showParts()
+end
+
+function Rig:showParts()
+	local on = self.playing
 	for _, p in pairs(self.parts) do p.tex:SetShown(on[p.group] or false) end
+end
+
+-- Every part hidden and nothing marked to play: a restyle that must not draw starts here.
+function Rig:hideAll()
+	wipe(self.playing)
+	self.flash:Hide()
+	for _, e in ipairs(self.edge or {}) do e.tex:Hide() end
+	for _, p in pairs(self.parts) do p.tex:Hide() end
 end
 
 -- Shows the flashes style() marked and hides the rest, as style() does the burst parts. An aura
@@ -712,18 +736,38 @@ function Host:fit(size)
 	if self.glowF then self.glowF:fit(size) end
 end
 
+-- Levels over the element's icon (its container's is the text's + 5, ns.makeAuraSlot): the glow
+-- over the button, the pop's light over that. Set from our own levels, never read from Blizzard's.
+local GLOW_LEVEL, POP_LEVEL = 11, 13
+
+-- Aura route: the glow's levels now, from the element's own frame (out of combat).
+function Host:levelGlow()
+	if self.up then self.up:setLevel(self.f.textFrame:GetFrameLevel() + GLOW_LEVEL) end
+end
+
+-- Aura route: the element's border frame on the button, covering it, under the rig's body when
+-- there is one (so the two move together), in the element's school colour (ns.Looks).
+function Host:makeEdge(button)
+	local edge = CreateFrame("Frame", nil, self.body or button)
+	edge:SetAllPoints(button)
+	edge.owner = self.key
+	return edge
+end
+
 -- Aura route: the rig on Blizzard's button, from the aura slot's onButton (as Blizzard makes the
 -- button): a body frame over the button that moves with its icon (the caller hangs the element's
--- border there), the rig on it with its light at level, styled, and every group handed to the
--- button. Returns the body.
-function Host:bind(button, icon, level)
+-- border there), the rig on it with its light above the element's text, styled, and every group
+-- handed to the button. Returns the body.
+function Host:bind(button, icon)
 	if self.body then return self.body end
+	local level = self.f.textFrame:GetFrameLevel() + POP_LEVEL
 	local body = CreateFrame("Frame", nil, button)
 	body:SetAllPoints(button)
 	body.over = self.f   -- the element's own icon: its school, its frame's reach, the level behind it
 	self.body, self.handed = body, 0
 	local ok = ns.try("aura pop " .. self.key, function()
 		self.rig = newRig(body, icon, level)
+		self.rig.guard = true
 		self:stylePop(ns.sizeOf(self.key))   -- styled before its groups are handed over
 	end)
 	if not ok or not button.AddAuraAssignedAnimation then return body end
@@ -740,10 +784,15 @@ end
 function Host:stylePop(size)
 	local rig = self.rig
 	if not rig then return end
-	local st = self.aura.popOn() and ns.Style.get(self.key, "pop") or NO_POP
-	local kind = self.aura.popKind or "ready"
-	local school = ns.Looks.schoolOf(self.f)
-	rig:style(st, size, popColor(st, kind, school), school)
+	local pops = self.aura.popOn()
+	if not pops then rig:hideAll() end   -- Pop off wins even if a setter below is refused
+	ns.try("aura pop style " .. self.key, function()
+		local st = pops and ns.Style.get(self.key, "pop") or NO_POP
+		local school = ns.Looks.schoolOf(self.f)
+		rig:style(st, size, popColor(st, self.aura.popKind or "ready", school), school)
+	end)
+	-- Whatever styling did or didn't finish, the parts shown are exactly those marked to play.
+	rig:showParts()
 	rig:showPlaying()
 end
 
