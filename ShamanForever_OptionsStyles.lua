@@ -66,14 +66,16 @@ local AFTER = {
 }
 K.confirm("SHAMANFOREVER_USE_STYLE", "Use %s for General's %s?", "Use", function(run) run() end)
 
--- Writes the fields a cell shows into General's style, then what a change by hand runs.
-local function use(c)
-	for k, v in pairs(c.fields()) do S.set(nil, c.kind, k, v) end
-	AFTER[c.kind]()
+-- Writes fields into General's style of kind, then what a change by hand runs.
+local function use(kind, fields)
+	for k, v in pairs(fields) do S.set(nil, kind, k, v) end
+	AFTER[kind]()
 end
 
+-- The fields as the cell shows them when asked: the strip may change while the question is open.
 local function askUse(c)
-	StaticPopup_Show("SHAMANFOREVER_USE_STYLE", c.name(), KIND_NAMES[c.kind], function() use(c) end)
+	local fields = c.fields()
+	StaticPopup_Show("SHAMANFOREVER_USE_STYLE", c.name(), KIND_NAMES[c.kind], function() use(c.kind, fields) end)
 end
 
 local function menu(c)
