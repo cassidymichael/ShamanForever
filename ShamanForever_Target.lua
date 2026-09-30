@@ -94,7 +94,8 @@ local TARGET = {
 T.ELEMENTS = TARGET
 
 -- The longest buff that counts, in seconds (the aura slot's maxDuration), or nil for every buff:
--- Skip long buffs and Longest buff, a damaged value read as its default and held to the slider's range.
+-- Skip long buffs and Longest buff, a damaged value read as its default and held to the slider's
+-- range.
 function T.longest(def)
 	if not def.skipLong or not setting(def.key, "skipLong") then return nil end
 	local lo, hi = def.skipLong[1], def.skipLong[2]
@@ -194,7 +195,8 @@ function T.makeExpireBar(button)
 end
 
 -- A step colour curve over the time left: red under secs, colour c from there.
--- One per threshold and colour, kept up to 32 (a colour picker's drag makes many), then made afresh.
+-- One per threshold and colour, kept up to 32 (a colour picker's drag makes many), then made
+-- afresh.
 local curves, cached = {}, 0
 local function textCurve(secs, c)
 	if not (C_CurveUtil and C_CurveUtil.CreateColorCurve and CreateColor) then return nil end
@@ -244,7 +246,8 @@ function styleExpire(def, size, slot)
 			x.clip:SetSize(w, h)
 			x.bar:ClearAllPoints()
 		end
-		-- The cover first: its end at the stretch's right edge at secs left, past its left 0.05 s later.
+		-- The cover first: its end at the stretch's right edge at secs left, past its left 0.05 s
+		-- later.
 		local long = w * FAST
 		cover.bar:SetSize(long, h)
 		cover.bar:SetPoint("TOPLEFT", cover.clip, "TOPLEFT", w - long * secs / FS_SECS, 0)
@@ -267,7 +270,8 @@ function styleExpireText(def, slot, st, secs)
 	local fs, b = def.durText, slot.button
 	local textOn = secs > 0 and setting(key, "expireText") and st.text and fs ~= nil and textCurve(secs, st.textColor)
 	if textOn then
-		def.textHolder:SetFrameLevel(def.frame.textFrame:GetFrameLevel() + 15)   -- over the Expiring bars and the glow
+		-- Over the Expiring bars and the glow.
+		def.textHolder:SetFrameLevel(def.frame.textFrame:GetFrameLevel() + 15)
 		fs:SetFont(STANDARD_TEXT_FONT, st.textSize, "OUTLINE")
 		fs:ClearAllPoints()
 		-- Placed as Timer:apply places the countdown: clear of a bar along that edge.
@@ -383,7 +387,8 @@ for _, def in ipairs(TARGET) do
 	})
 	ns.registerElement(def.key, { frame = f, label = def.spell, defaults = def.defaults,
 		fadeFrames = def.missing and { def.gate } or nil,   -- it ignores the group's alpha
-		standInBorder = true,   -- preview mode: its border isn't on its frame (ShamanForever_Preview.lua)
+		-- Preview mode: its border isn't on its frame (ShamanForever_Preview.lua).
+		standInBorder = true,
 		learned = function() return def.spellID ~= nil end,
 		paint = function(t) t:SetTexture(def.icon) end,
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
@@ -415,8 +420,8 @@ function T.appear(u)
 end
 
 -- The Not on target underlay's opacity: its group's while it can be trusted (its container made
--- and following the target), else 0. Our own frame, not an ancestor of
--- the container: allowed in combat (it has to be: a failed retarget in combat hides it).
+-- and following the target), else 0. Our own frame, not an ancestor of the container: allowed in
+-- combat (it has to be: a failed retarget in combat hides it).
 function T.underAlpha(def)
 	local u = def.under
 	local g = ns.groupOf(def.key)
@@ -541,13 +546,15 @@ end
 local function styleUnder()
 	local def, f, u = FLAME, FLAME.frame, FLAME.under
 	if InCombatLockdown() then return end
-	u:SetFrameLevel(f.textFrame:GetFrameLevel() + 1)   -- over the icon, under the container (+5)
-	-- A screen pixel in from the icon's edges, so rounding at any scale leaves no edge past the button.
+	u:SetFrameLevel(f.textFrame:GetFrameLevel() + 1)   -- over the icon, under the container
+	-- A screen pixel in from the icon's edges, so rounding at any scale leaves no edge past the
+	-- button.
 	local px = ns.pixel(u)
 	u.tex:ClearAllPoints()
 	u.tex:SetPoint("TOPLEFT", f.tex, "TOPLEFT", px, -px)
 	u.tex:SetPoint("BOTTOMRIGHT", f.tex, "BOTTOMRIGHT", -px, px)
-	-- A rounded or cut-corner look's shape over the inset picture itself, so its curves are set in too.
+	-- A rounded or cut-corner look's shape over the inset picture itself, so its curves are set in
+	-- too.
 	ns.Looks.maskOver(f, u.tex)
 	u.tex:SetDesaturated(setting(def.key, "missGrey") and true or false)
 	u.pulseOn = setting(def.key, "missPulse") and true or false
@@ -570,8 +577,8 @@ local function checkMissing()
 	ns.Shock.markFlameShock(FLAME.missingNow)
 end
 
--- Combat starts (before lockdown): the mark goes (out of combat only), and the icon
--- to its idle alpha at once (a fade would stop part way, ns.fadeTo).
+-- Combat starts (before lockdown): the mark goes (out of combat only), and the icon to its idle
+-- alpha at once (a fade would stop part way, ns.fadeTo).
 local function combatStarts()
 	fighting = true
 	FLAME.missingNow = false
