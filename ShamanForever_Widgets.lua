@@ -216,6 +216,8 @@ local auraGlows = {}
 -- inside: only a look drawn within the icon (ns.Looks' inside), else the default look; for a glow
 -- something else must cover completely (Flame Shock's Not on target, under Blizzard's button).
 local insideGlows = {}
+-- g.onLayout(g, parts), if set: called as a look's parts are made and after each fit (their sizes
+-- and scales may have changed), for the owner's own touches (Flame Shock's Not on target masks).
 local function makeGlow(parent, over, owner, unlisted, inside)
 	local g = CreateFrame("Frame", nil, parent)
 	g.owner, g.unlisted, g.inside = owner, unlisted, inside
@@ -242,6 +244,7 @@ local function makeGlow(parent, over, owner, unlisted, inside)
 			if p then ns.Looks.levelParts(p) end
 			for _, r in ipairs(p and p.roots or {}) do r:Hide() end
 			g.parts[look.key] = p
+			if p and g.onLayout then ns.try("glow layout", g.onLayout, g, p) end
 		end
 		return p or nil
 	end
@@ -336,7 +339,10 @@ local function makeGlow(parent, over, owner, unlisted, inside)
 		if size == self.iconSize and self.width == self.fitWidth and out == self.fitOut then return end
 		self.iconSize, self.fitWidth, self.fitOut = size, self.width, out
 		local p = parts(self.look)
-		if p then self.look.fit(self, p, size, out) end
+		if p then
+			self.look.fit(self, p, size, out)
+			if self.onLayout then ns.try("glow layout", self.onLayout, self, p) end
+		end
 	end
 	function g:color(r, gg, b) self.fixed = { r, gg, b, 1 }; self:restyle() end
 	g:restyle()
