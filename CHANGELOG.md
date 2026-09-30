@@ -2,20 +2,13 @@
 
 ## Unreleased
 
-- New profiles use the Blizzard bar texture, with slightly brighter bar colours to suit it.
-- Flame Shock: its Expiring colour no longer shows as a flat strip on textured time bars.
-- Totem bar: the arrow keys nudge it while positioning, and groups snap to it.
-- Totem bar: the Not your pick badge sits against its slot.
-- Shields' No shield and Flame Shock's Not on target: their pulsing glow can use every glow look,
-  including ones past the icon's edge, in combat too.
-- Shields and Flame Shock follow their group's opacity, and their No shield and Not on target
-  looks show at any opacity.
-- Idle for every element: the shocks, every cooldown and Weapon Imbue choose when they count as
-  idle (Never, Ready, Cooling down), and fade or hide then. Weapon Imbue's Hide until low is now
-  its Idle choice. Totem cooldowns fade to 30% by default.
-- Elemental Focus and Maelstrom Weapon show their border while the buff is up.
-- Shields: an Idle choice (Never, Shield up, 2 or more charges), faint or hidden while idle. With 2
-  or more charges it shows in full at one charge, in combat too.
+- Idle for every element: fade or hide an element while it has nothing going on (on cooldown, off
+  cooldown, not active, etc). Shields can show only at one charge.
+- Glows, pops and opacity work the same on every element, including Shields, Flame Shock and procs,
+  in combat too.
+- Totem bar: arrow keys nudge it while positioning.
+- New profiles use the Blizzard bar texture.
+- Many other minor fixes and improvements.
 
 ## 0.10.0 (2026-09-30)
 
