@@ -777,8 +777,9 @@ AuraSlot.__index = AuraSlot
 --   noTimer      no time left: the button is handed no cooldown or bar, and the slot has no timer
 --   host(slot, button)  a frame of the caller's under the button, covering it, that the icon, its
 --                border look and the timer go on in place of the button itself (optional; made as
---                Blizzard makes the button, before them): parts that show only within a clip there.
---                slot.host is it
+--                Blizzard makes the button, before them): parts that show only within a clip there
+--                (the icon can't be clipped from the button's own parent chain). slot.host is it
+--                (the button itself when there is none)
 --   extras       { { key, init(slot, button) }, ... }: more slots in the same container, taking the
 --                same aura (its candidate filters), each a bare button of its own (no icon) laid
 --                over the first, frame levels above it in order, for parts the one button can't

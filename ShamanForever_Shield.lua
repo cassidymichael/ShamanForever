@@ -72,9 +72,9 @@ ns.registerElement("shield", { frame = shield, label = "Shields", paint = functi
 	defaults = { idleWhen = "never", idleAlpha = 0.3 },
 	def = { key = "shield", idleChoices = IDLE_CHOICES },
 	borderHost = edge,
-	-- Preview mode: its border is at the gate's opacity (Idle), so its stand-in draws its own
-	-- (ShamanForever_Preview.lua).
-	standInBorder = true,
+	-- Preview mode: its border is at the gate's opacity, so while that is below full (Idle on) its
+	-- stand-in draws its own; else the real one shows (ShamanForever_Preview.lua).
+	standInBorder = function() return SH.gateIdle() end,
 	kind = "shield", icon = 136051, school = "spirit", blurb = "Charges and time left. Warns when it's gone." })
 
 -- Per shield at runtime: name (the client's), spellID and bookIcon (highest known rank), known. The
@@ -261,9 +261,13 @@ end
 -- Its group or the element was hidden: the state may have changed meanwhile.
 holder:SetScript("OnShow", function() setLook(stateNow()) end)
 
--- The look's levels, shape and size, after a layout (a size, scale or look change); its copy of
--- the element's border without the inner art, which the look draws itself (ClipLook:reshape).
+-- The look's copy of the element's border without the inner art, which the look draws itself
+-- (ClipLook:reshape). It draws at full while the gate is below full and the look shows, over the
+-- gate's own edge at the Idle opacity: with a see-through border colour both show while the shield
+-- is gone (the engine decides when the look shows and nothing of ours can tell, so the gate's edge
+-- can't step aside).
 local lookEdge   -- below, with the look
+-- The look's levels, shape and size, after a layout (a size, scale or look change).
 local function placeLook()
 	look:setLevel(shield.textFrame:GetFrameLevel() + 1)   -- over the icon, under the container (+5)
 	look:reshape()
@@ -285,15 +289,15 @@ end
 -- adds the one-charge copy (below): the icon in full, drawn by the engine at exactly one charge.
 -- Idle applies only while positioning is locked, the element is on, a shield it tracks is known
 -- and Blizzard's button is made. A change in combat (a setting, the lock) waits for its end, as
--- the gate does: until then the icon stays as it was set. Preview mode leaves the gate as it is
--- (its stand-in draws over it): a protected frame's ancestor changed there could miss its way back
--- if a fight began.
+-- the gate does: until then the icon stays as it was set. In preview mode, out of combat, the gate
+-- follows the settings as it does on the HUD, and the stand-in draws over it.
 local function idleWhen()
 	local w = ns.elementSetting("shield", "idleWhen")
 	return (w == "up" or w == "charges") and w or "never"
 end
 local copyReady, full   -- below, with the copy
 local gateNow = 1   -- the gate's alpha, as last set
+function SH.gateIdle() return gateNow < 1 end   -- Idle is on: the shield's border is below full
 
 -- The gate's alpha for the settings and state now. Out of combat only.
 local function applyIdle()
@@ -711,6 +715,9 @@ local function buildCopy(slot, button)
 	end
 	-- A copy that can't be styled never counts: the gate stays at full.
 	slot.built = ns.try("shield copy style", styleCopy, slot, ns.sizeOf("shield"))
+	-- Blizzard is still inside initializeFrame, and the copy counts only once it is made: the
+	-- looks decide again the next frame.
+	C_Timer.After(0, SH.applyEmptyLook)
 end
 
 copy = ns.makeAuraSlot(shield, {
@@ -726,14 +733,30 @@ copy = ns.makeAuraSlot(shield, {
 	onError = function(err) ns.noteError("shield copy container", err) end,
 })
 
+-- Whether the copy is made, sized and filtered for every shield tracked: until then the gate stays
+-- at full. While a restyle for a new Size is queued (it runs the next frame) the answer stays what
+-- it was, so a dragged Size slider doesn't flicker the gate; a copy that wasn't ready then still
+-- isn't (a faint shield at one charge would be a false state).
+local readyLast = false
 copyReady = function()
-	if not (copy.built and copy.sensed and copy.size == ns.sizeOf("shield")) then return false end
-	local have = copy.filtered
-	if not have then return false end
-	for id in pairs(shieldIDMap()) do
-		if not have[id] then return false end
+	local ready = copy.built and copy.sensed and copy.size == ns.sizeOf("shield") and copy.filtered ~= nil
+	if not ready and copy.built and copy.sensed and copy.size and copy.filtered and copy.styleSoon then
+		ready = readyLast   -- only the size is behind
 	end
-	return true
+	if ready then
+		for id in pairs(shieldIDMap()) do
+			if not copy.filtered[id] then ready = false break end
+		end
+	end
+	readyLast = ready and true or false
+	return readyLast
+end
+
+-- A refilter that finished late (out of combat, auras readable again) lets the gate decide again.
+local baseRefilter = copy.refilter
+function copy:refilter()
+	baseRefilter(self)
+	if self.filtered then C_Timer.After(0, SH.applyEmptyLook) end
 end
 
 -- Auras can be secret out of combat too (PvP matches, encounters): then keep the last read.
@@ -780,6 +803,7 @@ end
 -- the GCD (read in SPELL_UPDATE_COOLDOWN, as the timers are).
 local shieldGCD = ns.makeGCDSweep(shield)
 shieldGCD:SetParent(gate)   -- at the button's opacity: an idle shield's sweep is as faint as it
+-- (at one charge with "2 or more charges" it stays at the Idle opacity over the full copy: accepted)
 -- inCooldownEvent: called from SPELL_UPDATE_COOLDOWN, the only place isOnGCD is vouched for.
 local function refreshGCD(inCooldownEvent)
 	local id = ns.isEnabled("shield") and ns.Style.value("shield", "gcd", "show")
