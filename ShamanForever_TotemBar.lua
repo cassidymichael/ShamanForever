@@ -83,6 +83,7 @@ TB.DEFAULTS = {
 	rangeOut = { 0.9, 0.12, 0.08, 0.85 },  --   without it
 	pickHover = false,        -- hovering a slot or its tab opens its picker (Everything)
 	skin = "default",         -- the bar's Look (ShamanForever_TotemSkins.lua)
+	barStyle = "default",     -- the time bars: default (the timer's own) | cdm (the Cooldown Manager's, under the slot)
 }
 
 local isSecret = ns.isSecret
@@ -115,6 +116,7 @@ local function cfg()
 		t.enabled, t.hideTotemFrame, t.hideActionBar, t.killedPulse, t.follow = nil, nil, nil, nil, nil
 		if t.mode ~= "blizzard" and t.mode ~= "active" and t.mode ~= "everything" then t.mode = nil end
 		if t.show ~= "always" and t.show ~= "active" and t.show ~= "combat" and t.show ~= "target" then t.show = nil end
+		if t.barStyle ~= "default" and t.barStyle ~= "cdm" then t.barStyle = nil end
 		-- The default per-totem times, by the client's names (English until they have loaded; the
 		-- lookup in warnSecs also takes the English name, so either works).
 		if type(t.warnOver) ~= "table" then
@@ -997,7 +999,7 @@ local function layoutPopout(s, size, known)
 	end
 	for i = #ids + 1, #pop.buttons do pop.buttons[i]:Hide() end
 	TB.placePopout(pop, s.button, #ids, psz)
-	TB.skin.stylePopout(pop, s.el, psz)
+	TB.skin.stylePopout(pop)
 	-- Hover mode's strip: as wide as the slot or the picker, whichever is wider.
 	local strip, dir, b = pop.strip, TB.eff().pop, s.button
 	local across = math.max(size, psz + 2 * POP_STEP)

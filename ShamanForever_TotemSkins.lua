@@ -28,17 +28,10 @@ local RED = { 0.9, 0.12, 0.08, 1 }          -- out of range
 local TRAY = { 0.047, 0.035, 0.024 }         -- the Pixel look's dark fill
 local hasAtlas = ns.Looks.hasAtlas
 
--- Blizzard's art, by the names in Forever's own UI (a missing atlas draws the plain part instead).
--- The Cooldown Manager's plain names draw Forever's bronze art (tested 2026-09-28: the bar, its
--- background and pip); the out-of-range shadow and the action bar's flyout
--- pieces are in Forever's UI source but not yet seen drawn on this client.
+-- The Cooldown Manager's time bar art, by its plain names, which draw Forever's bronze art (tested
+-- 2026-09-28: the bar, its background and pip). A missing atlas draws the plain part instead.
 local CDM_BAR, CDM_BAR_BG, CDM_PIP = "UI-HUD-CoolDownManager-Bar", "UI-HUD-CoolDownManager-Bar-BG",
 	"UI-HUD-CoolDownManager-Bar-Pip"
-local CDM_OOR = "UI-CooldownManager-OORshadow"
-local OOR_TINT = { 0.64, 0.15, 0.15 }         -- the Cooldown Manager's out-of-range colour
-local FLY_START, FLY_END = "UI-HUD-ActionBar-IconFrame-FlyoutBottom", "UI-HUD-ActionBar-IconFrame-FlyoutButton"
-local FLY_MID, FLY_MID_ACROSS = "!UI-HUD-ActionBar-IconFrame-FlyoutMid", "_UI-HUD-ActionBar-IconFrame-FlyoutMidLeft"
-local FLY_ARROW = "UI-HUD-ActionBar-Flyout"
 
 -- Our art for Stone and bronze (AI-made plinth and medallion, a drawn gem), by path.
 local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Art\\Looks\\"
@@ -66,13 +59,11 @@ end
 -- SK.owned), and the parts it draws its own way:
 --   border, extrasBorder  border styles for the slots and for Call and Recall
 --   behind         what sits behind the slots: "tray", "plinth" (with a gem under each slot)
---   timeBar        the slots' time bars: "tip" (a bright line at the fill's end), "cdm" (the
---                  Cooldown Manager's bronze-rimmed bar and pip, outside the slot)
---   mark           the out-of-range mark: "edge" (the strip, solid red), "tint" (the strip in the
---                  Cooldown Manager's out-of-range red and shadow), "gem" (the gem under the slot
---                  turns red)
---   picker         the pickers' look ("tray", "flyout", "stone")
---   arrow          the arrow tab's look ("flyout", "bronze")
+--   timeBar        the slots' time bars: "tip" (a bright line at the fill's end)
+--   mark           the out-of-range mark: "edge" (the strip, solid red), "gem" (the gem under the
+--                  slot turns red)
+--   picker         the pickers' look ("tray", "stone")
+--   arrow          the arrow tab's look ("bronze")
 --   extrasGap      the gap between the slots and Call and Recall, as a share of the slots' size,
 --                  when the look owns the spacing
 --   badgeGap(size) how far past the slot the look hangs something on the badge's side ("not your
@@ -100,27 +91,6 @@ add("pixel", {
 	rangeText = "Out of range, for totems that buff you: a red edge along the top of the slot.",
 })
 
--- The Cooldown Manager's time bar under a slot: its height and its gap from the slot, and how far
--- it reaches past the slot's edge with its rim.
-local function cdmBar(size)
-	local h, gap = math.max(math.floor(size * 6 / 44 + 0.5), 3), math.max(math.floor(size * 3 / 44 + 0.5), 2)
-	return h, gap, gap + h + math.max(math.floor(h / 3 + 0.5), 1)
-end
-
--- Blizzard's own UI: the Cooldown Manager's rounded icons and time bars, Forever's action button
--- frame on Call and Recall, the action bar's flyout for the pickers, out of range in its red.
-add("blizzard", {
-	name = "Blizzard", experimental = true,
-	owns = { border = true, range = true, timeBar = true },
-	border = borderStyle("cdm"), extrasBorder = borderStyle("button"),
-	timeBar = "cdm", mark = "tint", picker = "flyout", arrow = "flyout",
-	-- The time bar hangs under a row's slots (over them when pickers open down), where the badge
-	-- goes; in a column it sits in the gap below each slot.
-	badgeGap = function(size) return TB.eff().dir == "row" and select(3, cdmBar(size)) or 0 end,
-	gapAdd = function(size) return TB.eff().dir == "column" and select(3, cdmBar(size)) or 0 end,
-	rangeText = "Out of range, for totems that buff you: a strip along the top of the slot in Blizzard's out-of-range red.",
-})
-
 -- The Stone and bronze plinth's reach past a slot's box, above and below, for slots of this size.
 local function plinthReach(size)
 	local u = size / PL.tile[3]
@@ -132,8 +102,9 @@ end
 -- range, Call and Recall in round bronze medallions.
 add("stone", {
 	name = "Stone and bronze", experimental = true,
+	-- It keeps the time bar inside the slot: the plinth's gems sit under it.
 	owns = { border = true, range = true, rangeHeight = true, spacing = PL.divider[3] / PL.tile[3], dir = "row",
-		pop = "up" },
+		pop = "up", barStyle = true },
 	extrasGap = 0.2,
 	border = borderStyle("line", 1), extrasBorder = borderStyle("medallion"),
 	behind = "plinth", mark = "gem", picker = "stone", arrow = "bronze",
@@ -156,8 +127,8 @@ end
 
 ------------------------------------------------------------------------
 -- Settings a look owns: owns = { border = true, spacing = share, dir = "row", pop = "up",
--- range = true (the range colours), rangeHeight = true, timeBar = true }. The options hide what it owns; the layout reads it through
--- TB.eff().
+-- range = true (the range colours), rangeHeight = true, barStyle = true (the time bar's Style) }.
+-- The options hide what it owns; the layout reads it through TB.eff().
 ------------------------------------------------------------------------
 -- Whether the look picked now owns a setting (the options).
 function SK.owns(field)
@@ -194,18 +165,37 @@ function SK.spacing(size)
 	return size * share, size * (SK.current().extrasGap or share)
 end
 
--- How far past the slot's edge the look hangs something on the side away from the picker (a time
--- bar under the slot, the plinth's stone): the "not your pick" badge sits beyond it.
-function SK.badgeGap(size)
-	local f = SK.current().badgeGap
-	return f and f(size) or 0
+-- The time bar's Style (the totem bar's setting): "cdm", the Cooldown Manager's bar under the slot,
+-- or "default", the timer's own bar; a look that owns it keeps the timer's.
+function SK.barStyle()
+	if SK.owns("barStyle") or not ns.getDB() then return "default" end
+	return TB.cfg().barStyle
 end
 
--- What the look hangs in the gaps between slots, added to them.
-function SK.gapAdd(size)
-	local f = SK.current().gapAdd
-	return f and f(size) or 0
+-- The Cooldown Manager's time bar under a slot: its height and its gap from the slot, and how far
+-- it reaches past the slot's edge with its rim.
+local function cdmBar(size)
+	local h, gap = math.max(math.floor(size * 6 / 44 + 0.5), 3), math.max(math.floor(size * 3 / 44 + 0.5), 2)
+	return h, gap, gap + h + math.max(math.floor(h / 3 + 0.5), 1)
 end
+-- How far the Cooldown Manager's time bar reaches past the slot: under a row's slots (over them
+-- when pickers open down), where the badge goes; in a column, in the gap below each slot. 0 while
+-- the time bars are off or in their default style.
+local function cdmReach(size, row)
+	if SK.barStyle() ~= "cdm" or not ns.Style.value("totembar", "uptime", "bar") then return 0 end
+	if (TB.eff().dir == "row") ~= row then return 0 end
+	return select(3, cdmBar(size))
+end
+
+-- How far past the slot's edge the look or the time bar hangs something on the side away from the
+-- picker (the plinth's stone, a Cooldown Manager bar): the "not your pick" badge sits beyond it.
+function SK.badgeGap(size)
+	local f = SK.current().badgeGap
+	return (f and f(size) or 0) + cdmReach(size, true)
+end
+
+-- What hangs in the gaps between slots (a column's Cooldown Manager bars), added to them.
+function SK.gapAdd(size) return cdmReach(size, false) end
 
 ------------------------------------------------------------------------
 -- Drawing. Each call draws the look picked now, or takes down what another look drew; a part a
@@ -398,7 +388,7 @@ local function tip(t, on)
 	x:Show()
 end
 
--- "cdm": the Cooldown Manager's bar (its texture, its bronze-rimmed background and pip) across the
+-- The Cooldown Manager's style: its bar (its texture, its bronze-rimmed background and pip) across the
 -- slot's picture, outside the slot on the badge's side: under a row whose pickers open up or a
 -- column, over a row whose pickers open down.
 local function cdmTimeBar(t, anchor, size, on)
@@ -459,115 +449,31 @@ end
 
 function SK.styleTimer(t, anchor, size)
 	if not (t and t.bar) then return end
-	local kind = SK.current().timeBar
-	cdmTimeBar(t, anchor, size, kind == "cdm")
-	tip(t, kind == "tip")
+	local cdm = SK.barStyle() == "cdm"
+	cdmTimeBar(t, anchor, size, cdm)
+	tip(t, not cdm and SK.current().timeBar == "tip")
 end
 
--- Turns a texture showing an atlas by a quarter turn (deg: 0, 90, 180 or 270), as Blizzard turns
--- its flyout's pieces: through its texture coordinates, so the atlas's own part of its file is
--- kept.
-local function turn(tex, deg)
-	if deg == 0 then return end
-	local c = { tex:GetTexCoord() }
-	if deg == 90 then tex:SetTexCoord(c[3], c[4], c[7], c[8], c[1], c[2], c[5], c[6])
-	elseif deg == 180 then tex:SetTexCoord(c[7], c[8], c[5], c[6], c[3], c[4], c[1], c[2])
-	else tex:SetTexCoord(c[5], c[6], c[1], c[2], c[7], c[8], c[3], c[4]) end
-end
--- The quarter turn of the flyout's end pieces for pickers opening each way, as Blizzard's.
-local FLY_TURN = { up = 0, down = 180, right = 90, left = 270 }
-
--- The arrow tab's look (TB.makeArrowLook; TB.placeArrow has placed it). "flyout": the action bar
--- flyout's end piece and arrow.
+-- The arrow tab's look (TB.makeArrowLook; TB.placeArrow has placed it). "bronze": the plain tab
+-- edged in the plinth's bronze.
 function SK.styleArrow(t)
 	local kind = SK.current().arrow
-	if kind == "flyout" and not (hasAtlas(FLY_ARROW) and hasAtlas(FLY_END)) then kind = nil end
 	if t.skinned then
 		TB.plainArrow(t)
-		if t.skinBg then t.skinBg:Hide() end
 		t.skinned = nil
 	end
 	if not kind then return end
 	t.skinned = true
-	if kind == "bronze" then
-		-- The plain tab, edged in the plinth's bronze.
-		t:SetBackdropBorderColor(BRONZE[1], BRONZE[2], BRONZE[3], BRONZE[4])
-		return
-	end
-	local dir = TB.eff().pop
-	t:SetBackdropColor(0, 0, 0, 0)
-	t:SetBackdropBorderColor(0, 0, 0, 0)
-	local bg = t.skinBg
-	if not bg then
-		bg = t:CreateTexture(nil, "BACKGROUND", nil, 1)
-		bg:SetAllPoints()
-		t.skinBg = bg
-	end
-	bg:SetAtlas(FLY_END)
-	turn(bg, FLY_TURN[dir])
-	bg:Show()
-	local g = t.glyph
-	g:SetAtlas(FLY_ARROW)
-	g:SetBlendMode("BLEND")
-	g:SetRotation(TB.GLYPH_TURN[dir])
+	t:SetBackdropBorderColor(BRONZE[1], BRONZE[2], BRONZE[3], BRONZE[4])
 end
 
--- "flyout": the action bar flyout's pieces (as Blizzard's FlyoutPopupMixin lays them out): its
--- start at the slot, its end cap at the far end, the middle between. Returns false when the
--- client lacks a piece (the plain fill then).
-local function flyout(pop, p, psz)
-	if not (hasAtlas(FLY_START) and hasAtlas(FLY_END) and hasAtlas(FLY_MID) and hasAtlas(FLY_MID_ACROSS)) then
-		return false
-	end
-	local f = p.fly
-	if not f then
-		f = { start = pop:CreateTexture(nil, "BACKGROUND", nil, 1), mid = pop:CreateTexture(nil, "BACKGROUND", nil, 1),
-			finish = pop:CreateTexture(nil, "BACKGROUND", nil, 1) }
-		p.fly = f
-	end
-	local dir = TB.eff().pop
-	local along = dir == "up" or dir == "down"
-	local thick = psz + 6   -- the picker's width across (TB.placePopout)
-	local ends = { up = { "BOTTOM", "TOP" }, down = { "TOP", "BOTTOM" }, right = { "LEFT", "RIGHT" }, left = { "RIGHT", "LEFT" } }
-	for _, piece in ipairs({ { f.start, FLY_START, 1 }, { f.finish, FLY_END, 2 } }) do
-		local t, name = piece[1], piece[2]
-		local info = C_Texture.GetAtlasInfo(name)
-		local long = thick * (info.height or 1) / math.max(info.width or 1, 1)
-		t:SetAtlas(name)
-		turn(t, FLY_TURN[dir])
-		t:ClearAllPoints()
-		t:SetPoint(ends[dir][piece[3]])
-		if along then t:SetSize(thick, long) else t:SetSize(long, thick) end
-		t:Show()
-	end
-	local m = f.mid
-	m:SetAtlas(along and FLY_MID or FLY_MID_ACROSS)
-	if dir == "down" or dir == "left" then turn(m, 180) end
-	pcall(along and m.SetVertTile or m.SetHorizTile, m, true)
-	m:ClearAllPoints()
-	if along then
-		m:SetPoint("LEFT")
-		m:SetPoint("RIGHT")
-		m:SetPoint(ends[dir][1], f.start, ends[dir][2])
-		m:SetPoint(ends[dir][2], f.finish, ends[dir][1])
-	else
-		m:SetPoint("TOP")
-		m:SetPoint("BOTTOM")
-		m:SetPoint(ends[dir][1], f.start, ends[dir][2])
-		m:SetPoint(ends[dir][2], f.finish, ends[dir][1])
-	end
-	m:Show()
-	return true
-end
-
--- A picker's look (pop: the popout, with its bg), for element el, buttons psz wide. Default: a
--- plain dark fill. "tray": the Pixel tray's fill and edge.
-function SK.stylePopout(pop, el, psz)
+-- A picker's look (pop: the popout, with its bg). Default: a plain dark fill. "tray": the Pixel
+-- tray's fill and edge. "stone": plain stone from the plinth.
+function SK.stylePopout(pop)
 	local kind = SK.current().picker
 	local p = pop.skin
 	if p then
 		for _, t in ipairs(p.lines) do t:Hide() end
-		if p.fly then for _, t in pairs(p.fly) do t:Hide() end end
 		pop.bg:SetVertexColor(1, 1, 1, 1)
 		pop.bg:SetTexCoord(0, 1, 0, 1)
 	end
@@ -579,15 +485,6 @@ function SK.stylePopout(pop, el, psz)
 		pop.bg:SetVertexColor(0.8, 0.8, 0.8, 1)
 		insetRings(pop, p.lines, { { 1, BRONZE_DARK }, { 2, BRONZE } })
 		return
-	end
-	if kind == "flyout" then
-		p = p or { lines = {} }
-		pop.skin = p
-		if flyout(pop, p, psz) then
-			pop.bg:SetColorTexture(0, 0, 0, 0)
-			return
-		end
-		kind = nil
 	end
 	if not kind then
 		local fill = TB.POP_FILL
@@ -621,15 +518,14 @@ function SK.markRect(frame, size, inset)
 	return inset, -inset, size - 2 * inset, ns.linePx(frame, TB.cfg().rangeHeight)
 end
 
--- The mark's parts on m, made the first time a look draws there; icon: the slot's picture, whose
--- mask (a rounded look's) they take.
+-- The mark's part on m, made the first time a look draws there; icon: the slot's picture, whose
+-- mask (a rounded border look's) it takes.
 local function markParts(m, icon)
 	local p = m.skinParts
 	if p then return p end
-	p = { shade = m:CreateTexture(nil, "ARTWORK", nil, 1), edge = m:CreateTexture(nil, "ARTWORK", nil, 2) }
+	p = { shade = m:CreateTexture(nil, "ARTWORK", nil, 1) }
 	p.shade:SetAllPoints()
-	p.edge:SetAllPoints()
-	if icon then ns.Looks.followMask(icon, p.shade, p.edge) end
+	if icon then ns.Looks.followMask(icon, p.shade) end
 	m.skinParts = p
 	return p
 end
@@ -641,7 +537,7 @@ function SK.paintMark(m, w, h, icon)
 	local p = m.skinParts
 	if not kind then
 		if p then
-			p.shade:Hide(); p.edge:Hide()
+			p.shade:Hide()
 			m.bg:Show()
 		end
 		return false
@@ -650,20 +546,11 @@ function SK.paintMark(m, w, h, icon)
 	m.bg:Hide()
 	p.shade:SetVertexColor(1, 1, 1, 1)
 	p.shade:SetTexCoord(0, 1, 0, 1)
-	p.edge:Hide()
 	if kind == "gem" then
 		-- The gem, lit red.
 		p.shade:SetTexture(GEM)
 		p.shade:SetTexCoord(GEM_LIT[1], GEM_LIT[2], GEM_LIT[3], GEM_LIT[4])
 		p.shade:SetVertexColor(RED[1], RED[2], RED[3], 1)
-	elseif kind == "tint" then
-		-- The strip in the Cooldown Manager's out-of-range red, under its shadow.
-		p.shade:SetColorTexture(OOR_TINT[1], OOR_TINT[2], OOR_TINT[3], 0.9)
-		if hasAtlas(CDM_OOR) then
-			p.edge:SetAtlas(CDM_OOR)
-			p.edge:SetAlpha(0.5)
-			p.edge:Show()
-		end
 	else
 		-- "edge": the strip, solid red.
 		p.shade:SetColorTexture(RED[1], RED[2], RED[3], RED[4])

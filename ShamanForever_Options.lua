@@ -909,8 +909,12 @@ local function buildTotemBar(p)
 	end)
 
 	p.gate = TB.barOn
-	timerSettings(p, "Time left", "totembar", "uptime", changed, nil, nil, owned("timeBar"))
-	p:text("The look sets the time bar's place, height and texture.", owned("timeBar"))
+	local function cdmBars() return TB.skin.barStyle() == "cdm" end
+	timerSettings(p, "Time left", "totembar", "uptime", changed, nil, nil, cdmBars)
+	-- The bar's own, whether its timers follow General or not.
+	p:dropdown("Time bar style", "Cooldown Manager: Blizzard's bronze-rimmed bar, under the slot.",
+		{ { "default", "Default" }, { "cdm", "Cooldown Manager" } }, tget("barStyle"), tset("barStyle"),
+		function() return ns.Style.value("totembar", "uptime", "bar") and not TB.skin.owns("barStyle") end, 190)
 	textBlock(p, "totembar", changed)
 
 	p.gate = full
