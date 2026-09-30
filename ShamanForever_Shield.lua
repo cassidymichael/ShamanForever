@@ -460,7 +460,7 @@ local function buildNative(slot, button, cd)
 
 	-- Blizzard writes the count immediately on registration, so the font must already be set.
 	local fs = overlay:CreateFontString(nil, "OVERLAY", nil, 7)
-	fs:SetFont(STANDARD_TEXT_FONT, db.countSize, "OUTLINE")
+	ns.Media.setFont(fs, nil, db.countSize)
 	SH.placeCount(fs, button)
 	button:SetApplicationCount(fs)
 	slot.fs = fs
@@ -470,7 +470,7 @@ local function buildNative(slot, button, cd)
 	bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 0, 0)
 	bar:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 0)
 	bar:SetHeight(db.chargeBarHeight)
-	bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+	bar:SetStatusBarTexture(ns.Media.barTexture())
 	bar:SetStatusBarColor(db.chargeBarColor[1], db.chargeBarColor[2], db.chargeBarColor[3], db.chargeBarColor[4] or 1)
 	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
 	bar.bg:SetAllPoints()
@@ -557,11 +557,12 @@ local function styleNative(slot, size)
 		t:SetPoint("BOTTOM", slot.ticks, "BOTTOMLEFT", size * i / slot.maxCharges, 0)
 	end
 	slot.bar:SetHeight(db.chargeBarHeight)
+	slot.bar:SetStatusBarTexture(ns.Media.barTexture())
 	slot.bar:SetStatusBarColor(db.chargeBarColor[1], db.chargeBarColor[2], db.chargeBarColor[3], db.chargeBarColor[4] or 1)
 	slot.bar:SetAlpha(db.showBar and 1 or 0)
 	slot.ticks:SetAlpha(db.showBar and 1 or 0)
 	slot.fs:SetAlpha(db.showCount and 1 or 0)
-	slot.fs:SetFont(STANDARD_TEXT_FONT, db.countSize, "OUTLINE")
+	ns.Media.setFont(slot.fs, nil, db.countSize)
 	SH.placeCount(slot.fs, slot.button)
 	placeUnder(size)   -- the underlay follows the button's size and shape
 	SH.applyEmptyLook()   -- the button may be new: the underlay now has it on top

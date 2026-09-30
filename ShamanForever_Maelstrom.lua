@@ -167,7 +167,7 @@ local function applyCountFormat(slot)
 end
 
 local function placeCount(fs, button)
-	fs:SetFont(STANDARD_TEXT_FONT, number("countSize"), "OUTLINE")
+	ns.Media.setFont(fs, nil, number("countSize"))
 	fs:ClearAllPoints()
 	if setting("countPos") == "corner" then
 		-- Clear of the stack bar along the bottom edge, when it's on.
@@ -190,6 +190,7 @@ local function styleStacks(slot, size)
 	slot.numFrame:SetFrameLevel(base + 7)   -- above the bar and its ticks: the count is never clipped
 	local c = color("stackBarColor")
 	slot.bar:SetHeight(number("stackBarHeight"))
+	slot.bar:SetStatusBarTexture(ns.Media.barTexture())   -- before the colour
 	slot.bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
 	-- Again with the bar's range, which a new source changes (the options, out of combat).
 	ns.try("maelstrom stack bar", slot.button.SetApplicationBar, slot.button, slot.bar,
@@ -235,7 +236,7 @@ local function buildStacks(slot, button)
 	local bar = CreateFrame("StatusBar", nil, overlay)
 	bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 0, 0)
 	bar:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 0)
-	bar:SetStatusBarTexture(WHITE)
+	bar:SetStatusBarTexture(ns.Media.barTexture())
 	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
 	bar.bg:SetAllPoints()
 	bar.bg:SetColorTexture(0, 0, 0, 0.6)
@@ -388,6 +389,7 @@ function M.drawPreview(ic, n)
 	p.bg:SetColorTexture(0, 0, 0, 0.6)
 	p.bg:SetShown(barOn)
 	local c = color("stackBarColor")
+	local path, atlas = ns.Media.barOf(ns.Style.value(nil, "bar", "texture"))   -- the HUD's bar texture
 	local segW = (w - (max - 1)) / max
 	for i = 1, math.max(max, #p.segs) do
 		local t = p.segs[i]
@@ -395,7 +397,8 @@ function M.drawPreview(ic, n)
 		t:ClearAllPoints()
 		t:SetPoint("BOTTOMLEFT", ic, "BOTTOMLEFT", (i - 1) * (segW + 1), 0)
 		t:SetSize(segW, h)
-		t:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
+		if atlas then t:SetAtlas(path) else t:SetTexture(path) end
+		t:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
 		t:SetShown(barOn and i <= n)
 	end
 	if n > 0 and setting("stackCount") then

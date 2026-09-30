@@ -88,7 +88,7 @@ f.tex:SetTexture(def.icon)
 f.upTimer = ns.Timer.new(f, KEY, "uptime", { cd = f.cd, school = def.school })
 -- The word by the icon; styled by TR.styleWord (TR.afterGroups).
 f.word = f.textFrame:CreateFontString(nil, "OVERLAY")
-f.word:SetFont(STANDARD_TEXT_FONT, 16, "OUTLINE")
+ns.Media.setFont(f.word, nil, 16)
 f.word:SetText(TR.WORD)
 f.word:Hide()
 f.stack()

@@ -42,16 +42,65 @@ ns.COUNT_JUSTIFY = { TOPLEFT = "LEFT", BOTTOMLEFT = "LEFT", TOPRIGHT = "RIGHT", 
 ns.BASE_ICON_SIZE = 44
 -- A font string on an icon: size at the base icon size (it grows and shrinks with the icon), placed
 -- at a point of the icon (a corner, CENTER, or TOP / BOTTOM for text above or below it) with an
--- offset. Restated only when something changed; returns the font size used.
+-- offset, in General's text style. Restated only when something changed; returns the font size
+-- used.
 function ns.placeScaledText(fs, icon, size, point, x, y, relPoint)
 	local px = math.max(math.floor(size * icon:GetWidth() / ns.BASE_ICON_SIZE + 0.5), 6)
-	local sig = string.format("%d%s%s%s,%s", px, point, relPoint or point, x, y)
+	local sig = string.format("%d%s%s%s,%s%s", px, point, relPoint or point, x, y, ns.Media.textKey())
 	if fs.placed == sig then return px end
 	fs.placed = sig
-	fs:SetFont(STANDARD_TEXT_FONT, px, "OUTLINE")
+	ns.Media.setFont(fs, nil, px)
 	fs:ClearAllPoints()
 	fs:SetPoint(point, icon, relPoint or point, x, y)
 	return px
+end
+
+-- The key bound to a totem bar button, in its top-right corner: a light grey label whose font the
+-- caller sets, at keyTextSize.
+function ns.makeKeyText(parent)
+	local fs = parent:CreateFontString(nil, "OVERLAY")
+	fs:SetFont(STANDARD_TEXT_FONT, 12, "OUTLINE")
+	fs:SetPoint("TOPRIGHT", -2, -2)
+	fs:SetTextColor(0.85, 0.85, 0.85)
+	return fs
+end
+-- Its font size on an icon size pixels wide, for a size set at the base icon size: it scales with
+-- the icon.
+function ns.keyTextSize(size, base) return math.max(6, math.floor(base * size / ns.BASE_ICON_SIZE + 0.5)) end
+-- A binding's key in the compact form action bar addons use (Bartender's and Dominos' LibKeyBound,
+-- ElvUI): a letter per modifier, then the key, short: "SWU" for Shift + Mouse Wheel Up, "C5" for
+-- Ctrl-5, "AM4" for Alt + Mouse Button 4, "N7" for Num Pad 7. A key without a short name here
+-- takes the client's own short text for it (GetBindingText's abbreviated form). "" for none.
+local MODIFIERS = { ALT = "A", CTRL = "C", SHIFT = "S", META = "M" }
+local SHORT_KEYS = {
+	MOUSEWHEELUP = "WU", MOUSEWHEELDOWN = "WD",
+	SPACE = "Sp", BACKSPACE = "BS", CAPSLOCK = "Cap", TAB = "Tab", ENTER = "Ent", ESCAPE = "Esc",
+	INSERT = "Ins", DELETE = "Del", HOME = "Hm", END = "End", PAGEUP = "PU", PAGEDOWN = "PD",
+	UP = "Up", DOWN = "Dn", LEFT = "Lt", RIGHT = "Rt",
+	NUMLOCK = "NL", SCROLLLOCK = "SL", PRINTSCREEN = "PS", PAUSE = "Pau",
+	NUMPADPLUS = "N+", NUMPADMINUS = "N-", NUMPADMULTIPLY = "N*", NUMPADDIVIDE = "N/",
+	NUMPADDECIMAL = "N.", NUMPADEQUALS = "N=",
+}
+local keyLabels = {}   -- binding key -> its label
+function ns.keyLabel(key)
+	if not key then return "" end
+	local label = keyLabels[key]
+	if label then return label end
+	local mods, rest = "", key
+	while true do
+		local m, after = rest:match("^(%u+)%-(.+)$")
+		if not (m and MODIFIERS[m]) then break end
+		mods, rest = mods .. MODIFIERS[m], after
+	end
+	local short = SHORT_KEYS[rest] or rest:match("^BUTTON(%d+)$") and "M" .. rest:match("^BUTTON(%d+)$")
+		or rest:match("^NUMPAD(%d)$") and "N" .. rest:match("^NUMPAD(%d)$")
+	if not short then
+		short = #rest <= 3 and rest or GetBindingText(rest, 1)
+		if type(short) ~= "string" or short == "" then short = rest end
+	end
+	label = mods .. short
+	keyLabels[key] = label
+	return label
 end
 
 -- An element icon easing to a new opacity: slowly into idle, quickly back (each rate covers 0 to 1).
@@ -946,7 +995,7 @@ function ns.makeIcon(parent, size, owner)
 	f.textFrame:SetAllPoints()
 	f.textFrame:SetFrameLevel(f.cd:GetFrameLevel() + 2)
 	f.count = f.textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
-	f.count:SetFont(STANDARD_TEXT_FONT, math.floor(size * 0.45), "OUTLINE")
+	ns.Media.setFont(f.count, owner, math.floor(size * 0.45))
 	f.count:SetPoint("BOTTOMRIGHT", 2, -2)
 	f.count:SetJustifyH("RIGHT")
 	local okFS, cdText = pcall(f.cd.GetCountdownFontString, f.cd)

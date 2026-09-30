@@ -130,7 +130,7 @@ local function makeStandIn(key, gf)
 	if key == "tremor" then
 		-- Its word on the text layer, as on the HUD (the options preview makes one clipped to its panel).
 		ic.word = ic.textFrame:CreateFontString(nil, "OVERLAY")
-		ic.word:SetFont(STANDARD_TEXT_FONT, 16, "OUTLINE")
+		ns.Media.setFont(ic.word, nil, 16)
 		ic.word:SetText(ns.Tremor.WORD)
 	end
 	holders[key], standIns[key] = h, ic

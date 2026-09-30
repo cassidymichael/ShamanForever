@@ -30,7 +30,6 @@ local SW = { name = "swing" }
 ns.Swing = SW
 
 local MAIN_HAND = Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.MainHand or 0
-local WHITE = "Interface\\Buttons\\WHITE8x8"
 local ELAPSED = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.ElapsedTime or 0
 local REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime or 1
 local IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
@@ -56,7 +55,7 @@ SW.DEFAULTS = {
 	deplete = false,          -- starts full and empties
 	countdown = false, countdownSize = 12, countdownColor = { 1, 1, 1, 1 },
 	countdownPos = "center",  -- left | center | right of the bar
-	-- border: its own, if it has one (ShamanForever_Style.lua)
+	-- border, textStyle, barStyle: its own, if it has one (ShamanForever_Style.lua)
 }
 -- Number settings: the options sliders' ranges. Anything outside (a damaged or hand-made import) is
 -- clamped, so the layout never gets a scale of 0 or a NaN.
@@ -115,7 +114,7 @@ SW.BACKGROUND = { 0, 0, 0, 0.6 }
 function SW.makeBar(parent)
 	local b = CreateFrame("StatusBar", nil, parent)
 	b:SetAllPoints()
-	b:SetStatusBarTexture(WHITE)
+	b:SetStatusBarTexture(ns.Media.barTexture("swing"))
 	b:SetMinMaxValues(0, 1)
 	b:SetValue(0)
 	local spark = b:CreateTexture(nil, "OVERLAY")
@@ -127,6 +126,7 @@ end
 -- so the moving edge travels the same way as when filling. The spark is a line: two screen pixels
 -- wide at any size (ns.linePx).
 function SW.styleBar(b)
+	b:SetStatusBarTexture(ns.Media.barTexture("swing"))   -- General's, or its own; before the fill colour
 	local c = cfg()
 	local fromRight = (c.fillFrom == "right") ~= c.deplete
 	b:SetReverseFill(fromRight)
@@ -146,7 +146,7 @@ local TEXT_SIDE = { left = "LEFT", center = "CENTER", right = "RIGHT" }
 function SW.styleCountdown()
 	local c = cfg()
 	local k = c.countdownColor
-	font:SetFont(STANDARD_TEXT_FONT, c.countdownSize, "OUTLINE")
+	ns.Media.setFontObject(font, "swing", c.countdownSize)   -- General's text style, or its own
 	font:SetTextColor(k[1], k[2], k[3], k[4] or 1)
 end
 function SW.placeCountdown(fs, anchor)
@@ -332,8 +332,8 @@ local function layout()
 	ns.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
 	-- "bar": only the parts of a border look that fit a bar, where looks have parts.
 	ns.applyBorder(face, SW.border(), "bar")
-	paintFill()
 	SW.styleBar(bar)
+	paintFill()
 	SW.styleCountdown()
 	cd:SetCountdownFont("ShamanForeverSwingFont")
 	cd:SetHideCountdownNumbers(not c.countdown)

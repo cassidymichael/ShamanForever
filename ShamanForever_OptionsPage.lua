@@ -655,7 +655,8 @@ function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown)
 	end)
 end
 
--- choices: list of { value, text }, or a function returning one
+-- choices: list of { value, text }, or a function returning one. A choice's init(button), if it has
+-- one, dresses its line in the open list (Blizzard's menu initializer: button.fontString is the text).
 function Page:dropdown(label, tip, choices, get, set, shown, width)
 	local f = self:row(34)
 	f.label = self:label(f, label, tip)
@@ -663,25 +664,31 @@ function Page:dropdown(label, tip, choices, get, set, shown, width)
 	dd:SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
 	dd:SetWidth(width or 200)
 	dd:SetupMenu(function(_, rootDescription)
+		rootDescription:SetScrollMode(400)   -- a long list (fonts, textures) scrolls past 400 px
 		for _, c in ipairs(type(choices) == "function" and choices() or choices) do
-			rootDescription:CreateRadio(c[2], function() return get() == c[1] end, function() set(c[1]) end)
+			local item = rootDescription:CreateRadio(c[2], function() return get() == c[1] end, function() set(c[1]) end)
+			if c.init then item:AddInitializer(c.init) end
 		end
 	end)
 	f.dropdown = dd
 	-- The menu is made again (its text with it) only when the value or the choices changed since the
 	-- last refresh: making it is the costliest part of a page's refresh. A row with a menu of its own
 	-- (SetupMenu after this) gives a get that changes whenever its text should.
+	-- Never while the list is open: Blizzard rebuilds an open menu in place, and a scrolling one
+	-- keeps its old rows in its scroll list (blank gaps). A change then waits for it to close.
 	local was
-	return self:add(f, 34, shown, function()
+	local function update()
 		local now = tostring(get())
 		if type(choices) == "function" then
 			for _, c in ipairs(choices()) do now = now .. "\1" .. tostring(c[1]) .. "=" .. tostring(c[2]) end
 		end
-		if now ~= was then
+		if now ~= was and not dd:IsMenuOpen() then
 			was = now
 			dd:GenerateMenu()
 		end
-	end)
+	end
+	dd:RegisterCallback("OnMenuClose", function() C_Timer.After(0, update) end, f)
+	return self:add(f, 34, shown, update)
 end
 
 -- A colour swatch; clicking opens Blizzard's colour picker, with opacity unless opaque (a colour

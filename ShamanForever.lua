@@ -47,6 +47,8 @@ local DEFAULTS = {
 	glowStyle = CopyTable(ns.Style.KINDS.glow.defaults),
 	popStyle = CopyTable(ns.Style.KINDS.pop.defaults),
 	gcdStyle = CopyTable(ns.Style.KINDS.gcd.defaults),
+	textStyle = CopyTable(ns.Style.KINDS.text.defaults),   -- ShamanForever_Media.lua
+	barStyle = CopyTable(ns.Style.KINDS.bar.defaults),
 	-- Default layout: just below the centre of the screen, side by side, ready to be dragged where
 	-- the player wants them (the totem bar sits below, see TotemBar.lua). Offsets are in each group's
 	-- scaled units (a 0.9 group's are divided by 0.9). An example more than a plan: players make their
