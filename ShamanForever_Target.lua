@@ -396,9 +396,18 @@ for _, def in ipairs(TARGET) do
 end
 
 -- Their place in the default layout: a group of their own right of Elemental Focus's row, so no
--- existing group changes when they join a profile. name: the group's name where groups have one.
-table.insert(ns.DEFAULTS.groups, { name = "Target", point = "CENTER", x = 122, y = 11, scale = 0.9, alpha = 0.75,
-	orientation = "horizontal", growth = "forward", spacing = 6, members = { "flameshock", "purge" } })
+-- existing group changes when they join a profile. Skipped when the default layout already lists
+-- them (the main file's DEFAULTS.groups can hold a Target group of its own).
+local listed = false
+for _, g in ipairs(ns.DEFAULTS.groups) do
+	for _, key in ipairs(g.members or {}) do
+		if key == "flameshock" or key == "purge" then listed = true end
+	end
+end
+if not listed then
+	table.insert(ns.DEFAULTS.groups, { name = "Target", point = "CENTER", x = 122, y = 11, scale = 0.9,
+		alpha = 0.75, orientation = "horizontal", growth = "forward", spacing = 6, members = { "flameshock", "purge" } })
+end
 
 -- The gate's alpha: 0 while its container may show the last target's aura (stale), else 1. The
 -- gate is our own frame, an ancestor of the container.
