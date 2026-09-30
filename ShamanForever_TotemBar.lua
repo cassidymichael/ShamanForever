@@ -211,7 +211,7 @@ end
 ------------------------------------------------------------------------
 local POP_STEP = 3    -- a picker's padding, and the gap between its buttons
 TB.POP_FILL = { 0, 0, 0, 0.72 }   -- a picker's plain fill (a Look can draw its own)
-TB.BADGE_GAP = 3      -- between a slot and its "not your pick" badge
+TB.BADGE_GAP = 0      -- between a slot and its "not your pick" badge: adjacent, moved by its offset
 local EXTRA_GAP = 6   -- added to the spacing between the extras and the slots
 
 -- Where everything sits along the bar, from its left or top end: Call and Recall before the slots
