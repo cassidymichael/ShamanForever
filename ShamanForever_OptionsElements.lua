@@ -94,7 +94,8 @@ local function linkCell(parent, width, text, onClick)
 end
 
 function EP.buildOverview(p)
-	p:header("Elements")
+	-- A page title and a line, then the list on its own: no block, so nothing to fold.
+	p:pageTitle("Elements")
 	p:text("Most of the HUD is made of elements, mostly icons. Each element sits in one group, and"
 		.. " groups are what you move around the screen while positioning is unlocked.")
 	-- Columns sized to fit the page's panel at the window's least width; they keep their places when
