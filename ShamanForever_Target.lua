@@ -170,7 +170,9 @@ end
 ------------------------------------------------------------------------
 -- Flame Shock's Expiring, drawn by the engine (see the file's header)
 ------------------------------------------------------------------------
-local FS_SECS = 12   -- the DoT's length, every rank (the game's spell data, build 70009)
+-- The DoT's length, every rank (the game's spell data, build 70124). A plain read of another length
+-- turns the bar cue off until one reads this again (flameShockOnTarget).
+local FS_SECS = 12
 local FAST = 240     -- the cover bar's length, in threshold stretches: 12 s / 240 = 0.05 s to cross
 local WHITE = "Interface\\Buttons\\WHITE8x8"
 local RED = { 1, 0.2, 0.2, 1 }
@@ -216,7 +218,7 @@ function styleExpire(def, size, slot)
 	-- The cover must hide the Expiring colour completely: not with a see-through bar colour.
 	local k = t and t:barRGB()
 	local barOn = secs > 0 and setting(key, "expireBar") and t and t.barOn and red and cover and red.ok and cover.ok
-		and ns.isColor(k) and (k[4] or 1) >= 1
+		and ns.isColor(k) and (k[4] or 1) >= 1 and not def.lengthOff
 	-- Both hidden first; shown together last, only if every step before worked: an Expiring colour
 	-- without its cover would be a warning for the whole DoT.
 	for _, x in ipairs({ red, cover }) do if x then x.clip:Hide() end end
@@ -459,9 +461,20 @@ local function flameShockOnTarget()
 		local ok, a = pcall(C_UnitAuras.GetAuraDataByIndex, "target", i, "HARMFUL|PLAYER")
 		if not ok or isSecret(a) then return nil end
 		if a == nil then return false end
-		local id, name = a.spellId, a.name
+		local id, name, dur = a.spellId, a.name, a.duration
 		if isSecret(id) or isSecret(name) then return nil end
-		if ids[id] or Spells.keyOf(id) == "flameShock" or name == FLAME.spell then return true end
+		if ids[id] or Spells.keyOf(id) == "flameShock" or name == FLAME.spell then
+			-- The Expiring bar places its change by FS_SECS: another length turns it off, until a read
+			-- gives FS_SECS again.
+			if not isSecret(dur) and type(dur) == "number" and dur > 0 then
+				local off = math.abs(dur - FS_SECS) > 0.05
+				if off ~= (FLAME.lengthOff or false) then
+					FLAME.lengthOff = off
+					FLAME.aura:style()
+				end
+			end
+			return true
+		end
 	end
 	return nil
 end
