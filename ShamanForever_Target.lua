@@ -1,8 +1,7 @@
 -- Your hostile target: your Flame Shock on it and a Magic buff on it to Purge. Both are experimental.
 -- Tested on open-world mobs in combat (2026-09-30): the containers following the target, Flame
 -- Shock's cover, time bar and Expiring, Purge's icon and glow. Not yet tested in a PvP match or an
--- encounter, where auras are secret out of combat too. T.hostile() is also the interrupt cue's test
--- (Shocks).
+-- encounter, where auras are secret out of combat too.
 --
 -- What can be read, and when:
 -- * Auras on another unit are secret to addon code, so only Blizzard's aura container can show
@@ -110,7 +109,6 @@ local plainYes = ns.plainYes
 local function hostileTarget()
 	return plainYes(UnitCanAttack, "player", "target") and not plainYes(UnitIsDead, "target")
 end
-T.hostile = hostileTarget
 local function wantedUnit() return hostileTarget() and "target" or "none" end
 
 ------------------------------------------------------------------------

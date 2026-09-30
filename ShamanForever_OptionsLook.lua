@@ -420,7 +420,7 @@ L.PREVIEW = {
 		warning = "both",
 		cooldown = true,
 		states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" }, { "range", "Out of range" }, { "both", "Both" },
-			{ "casting", "Target casting" }, { "flame", ns.Spells.name("flameShock") .. " not on target" } },
+			{ "flame", ns.Spells.name("flameShock") .. " not on target" } },
 		pop = function(ic, st) if st == "ready" and opt("shock", "readyPop") then ic:Pop() end end,
 		render = function(ic, st)
 			local d = db()
@@ -433,10 +433,6 @@ L.PREVIEW = {
 				ic.fsMark:Show()
 			end
 			if st == "ready" then ic:SetGlowShown(opt("shock", "readyGlow")) end
-			if st == "casting" then
-				local c = opt("shock", "castColor")
-				ic:SetGlowShown(opt("shock", "castGlow"), c[1], c[2], c[3])
-			end
 			if st == "cd" then frozen(ic.cdT, 0.4, 6)
 			elseif st == "range" or st == "both" then ic:SetBodyPaint(d.rangeStyle, 1, 0.25, 0.25, d.rangeIntensity, d.rangeTint)
 			elseif st == "mana" then ic:SetBodyPaint(d.manaStyle, 0.2, 0.45, 1, d.manaIntensity, d.manaTint) end
