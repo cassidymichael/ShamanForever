@@ -51,7 +51,7 @@ local ELEMENT_PAGES = {}   -- key -> page key, filled as element pages are built
 
 -- The overview's controls, light enough for a table: a flat cell with a thin border and small text
 -- that lights up under the mouse. A menu cell shows its value and a small arrow, and opens its menu
--- (gen, a menu generator) at the cursor; a link cell's gold text says it goes somewhere.
+-- (gen, a menu generator) at the cursor.
 local function tableCell(parent, width, font)
 	local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
 	b:SetSize(width, 20)
@@ -84,19 +84,16 @@ local function menuCell(parent, width, gen)
 	end)
 	return b
 end
-local function linkCell(parent, width, text, onClick)
-	local b = tableCell(parent, width, "GameFontNormalSmall")
-	b.text:SetPoint("CENTER")
-	b.text:SetText(text)
-	b:SetScript("OnClick", onClick)
-	return b
-end
 
 function EP.buildOverview(p)
-	p:header("Elements")
+	-- A page title and a line, then the list on its own: no block, so nothing to fold.
+	p:pageTitle("Elements")
+	p:text("Most of ShamanForever's HUD indicators are \"elements\", usually icon-shaped things which"
+		.. " always fit inside one \"group\", and \"groups\" get moved around the screen in the unlocked"
+		.. " mode.")
 	-- Columns sized to fit the page's panel at the window's least width; they keep their places when
 	-- it's wider.
-	local GROUP_X, SHOW_X, OPEN_X = 150, 276, 368
+	local GROUP_X, SHOW_X = 150, 296
 	do
 		local f = p:row(20)
 		local function col(text, x)
@@ -153,16 +150,37 @@ function EP.buildOverview(p)
 			GameTooltip:Show()
 		end)
 		show:HookScript("OnLeave", function() GameTooltip:Hide() end)
-		-- Its own page, and its group on Groups & Layout (none while ungrouped).
-		local open = linkCell(f, 106, "Element settings", function()
+		-- Its own page: its icon and name are the link, lit gold under the mouse.
+		local open = CreateFrame("Button", nil, f)
+		open:SetPoint("TOPLEFT", 0, 0)
+		open:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", GROUP_X - 4, 0)
+		open:SetScript("OnClick", function()
 			if ELEMENT_PAGES[key] then ns.Options.open(ELEMENT_PAGES[key]) end
 		end)
-		open:SetPoint("LEFT", OPEN_X, 0)
-		local groupOpen = linkCell(f, 100, "Group settings", function()
+		open:SetScript("OnEnter", function() name:SetTextColor(1, 0.82, 0) end)
+		open:SetScript("OnLeave", function() name:SetTextColor(1, 1, 1) end)
+		-- Its group on Groups & Layout (none while ungrouped): a small arrow after the Group cell.
+		local groupOpen = CreateFrame("Button", nil, f)
+		groupOpen:SetSize(16, 16)
+		groupOpen:SetPoint("LEFT", group, "RIGHT", 2, 0)
+		groupOpen.arrow = groupOpen:CreateTexture(nil, "ARTWORK")
+		groupOpen.arrow:SetTexture("Interface\\Buttons\\UI-TotemBar")
+		groupOpen.arrow:SetTexCoord(0.5625, 0.71875, 0.34375, 0.3828125)
+		groupOpen.arrow:SetSize(10, 6)
+		groupOpen.arrow:SetRotation(-math.pi / 2)   -- the art points up; this points right
+		groupOpen.arrow:SetPoint("CENTER")
+		groupOpen:SetAlpha(0.5)
+		groupOpen:SetScript("OnClick", function()
 			local g = ns.groupOf(key)
 			if g then ns.Options.openGroup(g.id) end
 		end)
-		groupOpen:SetPoint("LEFT", open, "RIGHT", 6, 0)
+		groupOpen:SetScript("OnEnter", function(self)
+			self:SetAlpha(1)
+			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+			GameTooltip:SetText("Group settings")
+			GameTooltip:Show()
+		end)
+		groupOpen:SetScript("OnLeave", function(self) self:SetAlpha(0.5); GameTooltip:Hide() end)
 		p:add(f, 34, nil, function()
 			e.paint(icon)
 			local learned = ns.isLearned(key)
@@ -175,7 +193,7 @@ function EP.buildOverview(p)
 			group.text:SetText(g and g.name or "Ungrouped")
 			local mode = ns.showMode(key)
 			for _, c in ipairs(SHOW_CHOICES) do if c[1] == mode then show.text:SetText(c[2]) end end
-			open:SetShown(ELEMENT_PAGES[key] ~= nil)
+			open:SetEnabled(ELEMENT_PAGES[key] ~= nil)
 			groupOpen:SetShown(g ~= nil)
 		end)
 	end
