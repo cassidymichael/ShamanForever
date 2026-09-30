@@ -91,6 +91,12 @@ local DEFAULTS = {
 		{ id = 10, name = "Totemic Projection", point = "CENTER", x = -526, y = -180, scale = 1, alpha = 0.6,
 			sizeFollow = false, size = 40,
 			orientation = "horizontal", growth = "forward", spacing = 2, members = { "projection" } },
+		-- Every racial; only the player's own race shows, the rest take no room.
+		{ id = 11, name = "Racials", point = "CENTER", x = -474, y = -60, scale = 1, alpha = 0.8,
+			sizeFollow = false, size = 40,
+			orientation = "vertical", growth = "forward", spacing = 2,
+			members = { "bloodfury", "shattercurse", "berserking", "rapidregeneration", "warstomp",
+				"stoneform", "walkonair", "skysight" } },
 	},
 	known = {},             -- element keys placed at least once; a new one joins its default group
 	elementOpts = {},       -- per-element settings by key, e.g. { shock = { show = "combat" } }; every element starts shown

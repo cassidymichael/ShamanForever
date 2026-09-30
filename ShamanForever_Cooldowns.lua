@@ -119,39 +119,43 @@ local COOLDOWNS = {
 		reagent = 17030, noReady = true, cd = 3600,
 		defaults = { idleAlpha = 0, readyPop = false }, experimental = "Reincarnation" },
 	-- Racials, one line each (race IDs: Orc 2, Dwarf 3, Tauren 6, Troll 8, Windshaper Skyborne 96).
-	-- Buff windows have nothing to recast as they end, so Expiring is off by default. Idle defaults
-	-- to ready-and-unused (idleWhen "offcd"), so a racial that sits ready all day stays faint.
+	-- Buff windows have nothing to recast as they end, so Expiring is off by default. Racials are
+	-- never idle by default.
 	{ key = "bloodfury", spellKey = "bloodFury", icon = 135726, race = { 2 }, window = 15,
 		school = "fire",
 		blurb = "Cooldown, and time left while it's on.", readyGlow = true,
 		expireLooks = { "grey", "pulse" }, cd = 120,
-		defaults = { expire = { secs = 0, pulse = true } }, experimental = "Blood Fury" },
+		defaults = { idleWhen = "never", expire = { secs = 0, pulse = true } }, experimental = "Blood Fury" },
 	{ key = "shattercurse", spellKey = "shatterCurse", icon = 136082, race = { 2 }, window = 8,
 		school = "spirit",
 		blurb = "Cooldown, and time left while it's on.", readyGlow = true,
 		expireLooks = { "grey", "pulse" }, cd = 180,
-		defaults = { expire = { secs = 0, pulse = true } }, experimental = "Shatter Curse" },
+		defaults = { idleWhen = "never", expire = { secs = 0, pulse = true } }, experimental = "Shatter Curse" },
 	{ key = "berserking", spellKey = "berserking", icon = 135727, race = { 8 }, window = 10,
 		school = "fire",
 		blurb = "Cooldown, and time left while it's on.", readyGlow = true,
 		expireLooks = { "grey", "pulse" }, cd = 180,
-		defaults = { expire = { secs = 0, pulse = true } }, experimental = "Berserking" },
+		defaults = { idleWhen = "never", expire = { secs = 0, pulse = true } }, experimental = "Berserking" },
 	{ key = "rapidregeneration", spellKey = "rapidRegeneration", icon = 1850550, race = { 8 },
 		school = "water",
-		blurb = "Cooldown.", readyGlow = true, cd = 180, experimental = "Rapid Regeneration" },
+		blurb = "Cooldown.", readyGlow = true, cd = 180,
+		defaults = { idleWhen = "never" }, experimental = "Rapid Regeneration" },
 	{ key = "warstomp", spellKey = "warStomp", icon = 132368, race = { 6 }, school = "earth",
-		blurb = "Cooldown.", readyGlow = true, cd = 120, experimental = "War Stomp" },
+		blurb = "Cooldown.", readyGlow = true, cd = 120,
+		defaults = { idleWhen = "never" }, experimental = "War Stomp" },
 	{ key = "stoneform", spellKey = "stoneform", icon = 136225, race = { 3 }, window = 8,
 		school = "earth",
 		blurb = "Cooldown, and time left while it's on.", readyGlow = true,
 		expireLooks = { "grey", "pulse" }, cd = 180,
-		defaults = { expire = { secs = 0, pulse = true } }, experimental = "Stoneform" },
+		defaults = { idleWhen = "never", expire = { secs = 0, pulse = true } }, experimental = "Stoneform" },
 	-- Walk on Air has no time-left window: the glide's real length is unseen, and a time left shown
 	-- after it ended would be a false state. Cooldown only, until the length is seen in game.
 	{ key = "walkonair", spellKey = "walkOnAir", icon = 132845, race = { 96 }, school = "air",
-		blurb = "Cooldown.", readyGlow = true, cd = 120, experimental = "Walk on Air" },
+		blurb = "Cooldown.", readyGlow = true, cd = 120,
+		defaults = { idleWhen = "never" }, experimental = "Walk on Air" },
 	{ key = "skysight", spellKey = "skysight", icon = 1029587, race = { 96 }, school = "air",
-		blurb = "Cooldown.", readyGlow = true, cd = 120, experimental = "Skysight" },
+		blurb = "Cooldown.", readyGlow = true, cd = 120,
+		defaults = { idleWhen = "never" }, experimental = "Skysight" },
 }
 
 -- Option defaults (ns.elementSetting) by part: every cooldown element has Ready and Idle, the rest
