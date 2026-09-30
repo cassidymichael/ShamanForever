@@ -350,7 +350,7 @@ local function field(key) return function() return view[key] end, function(v) vi
 ------------------------------------------------------------------------
 function SP.build(p)
 	p:pageTitle("Styles")
-	p:text("Each look on its own, everything else as shipped. Hover a pop to play it; right-click any look to use it in General.")
+	p:text("Right-click a look to use it in General. Hover a pop to play it.")
 	local schools = {}
 	for _, sc in ipairs(L.SCHOOLS) do table.insert(schools, { sc.key, schoolName(sc) }) end
 	chips(p, "Element", schools, field("school"))
