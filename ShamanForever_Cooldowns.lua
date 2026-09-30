@@ -172,10 +172,18 @@ local function withParts(def)
 	end
 end
 
+-- Whether a cooldown element has a time left of its own to count (timed: a buff window or a
+-- primed buff's duration) and an Expiring block (expires). Its options page and effectsOf share it.
+function ns.cooldownTimes(def)
+	local timed = def.window or (def.primed and def.primed.duration)
+	local expires = (def.needsTotem or def.totemSlot or timed) and def.expireLooks ~= false
+	return timed, expires and true or false
+end
+
 -- What a cooldown element can glow and pop for (ns.registerElement's effects), from its parts.
 local function effectsOf(def)
 	local glow, pop = {}, {}
-	local timed = def.window or (def.primed and def.primed.duration)
+	local _, expires = ns.cooldownTimes(def)
 	local looks = def.expireLooks
 	if def.readyGlow or def.needsTotem then table.insert(glow, "ready") end
 	if not def.noReady then table.insert(pop, "ready") end
@@ -183,8 +191,7 @@ local function effectsOf(def)
 		table.insert(glow, "primed")
 		table.insert(pop, "primed")
 	end
-	local expires = def.needsTotem or def.totemSlot or timed
-	if expires and looks ~= false and (looks == nil or tContains(looks, "glow")) then
+	if expires and (looks == nil or tContains(looks, "glow")) then
 		table.insert(glow, "expiring")
 	end
 	if def.grounded then

@@ -462,7 +462,7 @@ local function buildCooldown(p, def)
 	end
 	timerSettings(p, "Cooldown", key, "cooldown")
 	gcdBlock(p, key)
-	local timed = def.window or (def.primed and def.primed.duration)
+	local timed, expires = ns.cooldownTimes(def)
 	if def.needsTotem then timerSettings(p, "Fire totem's time left", key, "uptime")
 	elseif def.totemSlot or def.window then timerSettings(p, "Time left", key, "uptime")
 	elseif timed then timerSettings(p, "Primed time left", key, "uptime") end
@@ -475,7 +475,7 @@ local function buildCooldown(p, def)
 			end or nil)
 	end
 	if def.primed then primedBlock(p, def) end
-	if (def.needsTotem or def.totemSlot or timed) and def.expireLooks ~= false then
+	if expires then
 		expiringBlock(p, key, 30, 1, def.expireLooks)
 		if def.ranOut then
 			p:checkbox("Flash when it runs out", "Its icon, greyed under its colour, with an hourglass.", eget(key, "ranOutFlash"), eset(key, "ranOutFlash"))
