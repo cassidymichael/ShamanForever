@@ -188,6 +188,12 @@ end
 -- It plays on a rig: a fixed set of parts on the frame that pops, each a texture (or the frame
 -- itself, for the motion) with one animation group whose values the style sets. Nothing is driven
 -- by script. Made the first time the frame pops.
+-- Nothing with a Scale, Rotation or Translation of its own sits under the frame the motion moves:
+-- burst textures with scale animations under an icon playing the motion drew across the whole
+-- screen (seen 2026-09-25 and 2026-10-01), while textures with scale animations under a still
+-- frame draw as asked (the glow looks'). So the bursts sit on frames beside the icon, anchored to
+-- it; the flashes, whose animations only fade or flip, stay on the icon and move with it. No
+-- animation takes no time, and every Scale and Rotation turns about the centre.
 local POP_TINT = { ready = { 1, 0.82, 0.25 }, imbue = { 0.35, 0.65, 1 }, expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 },
 	grounded = { 0.56, 0.76, 0.92 }, blocked = { 0.6, 0.6, 0.6 } }
 local BLACK = { 0, 0, 0 }
@@ -199,19 +205,21 @@ local RING = { name = "ring", atlas = "ArtifactsFX-YellowRing", file = "Interfac
 local STAR = { name = "star", atlas = "AftLevelup-WhiteStarBurst", file = "Interface\\Cooldown\\star4",
 	layer = "BACKGROUND", add = true, desat = true, from = 1.2, to = 3.5, dur = 0.45, a = 1, spin = -0.5 }
 local MOTION_STEPS = 4
+local SHORTEST = 0.01   -- a burst part's shortest wait, and a motion step no motion uses (s)
 
 local function anim(g, kind, order)
 	local a = g:CreateAnimation(kind)
 	a:SetOrder(order)
+	if kind == "Scale" or kind == "Rotation" then a:SetOrigin("CENTER", 0, 0) end
 	return a
 end
 
 -- One burst part: a texture on parent that waits unseen, then grows, fades, turns and moves all
 -- at once, as one group, in the shape Blizzard's own bursts take: a texture at alpha 0 and a group
 -- that sets its final alpha (the fade's 0), so its end leaves the texture at 0 whatever the group's
--- other animations left behind. The wait is an Alpha holding 0 from the start (Blizzard's idiom),
--- the rest start after the delay, all in one order: no order of the group takes no time. Hidden
--- while no style uses it (Rig:style).
+-- other animations left behind. The wait is an Alpha holding 0 from the start (Blizzard's idiom)
+-- for the delay, at least SHORTEST; the rest start after it, all in one order. Hidden while no
+-- style uses it (Rig:style).
 local function newPart(parent, spec)
 	local t = parent:CreateTexture(nil, "OVERLAY")
 	if spec and spec.atlas then
@@ -222,7 +230,7 @@ local function newPart(parent, spec)
 	local g = t:CreateAnimationGroup()
 	g:SetToFinalAlpha(true)
 	g.wait = anim(g, "Alpha", 1)
-	g.wait:SetFromAlpha(0); g.wait:SetToAlpha(0); g.wait:SetDuration(0)
+	g.wait:SetFromAlpha(0); g.wait:SetToAlpha(0)
 	g.grow = anim(g, "Scale", 1)
 	g.grow:SetSmoothing("OUT")
 	g.fade = anim(g, "Alpha", 1)
@@ -267,29 +275,30 @@ local function stylePart(p, spec, parent, h, c, k)
 	g.fade:SetFromAlpha(spec.a or 1)
 	g.fade:SetSmoothing(spec.slow and "IN" or "NONE")
 	g.turn:SetDegrees(math.deg(spec.spin or 0))
-	local delay, dur = (spec.delay or 0) * k, spec.dur * k
+	local delay, dur = math.max((spec.delay or 0) * k, SHORTEST), spec.dur * k
+	g.wait:SetDuration(delay)
 	for _, a in ipairs({ g.grow, g.fade, g.turn, g.move }) do a:SetStartDelay(delay); a:SetDuration(dur) end
 end
 
 local Rig = {}
 Rig.__index = Rig
 
--- The rig on f. Its light sits on a frame above the icon's text (f.effects, where the icon has
--- one, so an idle icon's fade leaves it at full); the drawn bursts' back parts on a frame behind
--- the icon.
+-- The rig on f. The flashes sit on a frame above the icon's text (fx, on f.effects where the icon
+-- has one, so an idle icon's fade leaves them at full) and move with the icon; the bursts on two
+-- frames beside it (front, level with fx, and back, behind the icon), anchored to it and kept under
+-- its parent (Rig:home).
 local function newRig(f)
 	local r = setmetatable({ f = f, parts = {}, playing = {} }, Rig)
-	-- The motion: one group on f, a Scale and a Translation for each of its steps (a motion uses
-	-- some; the rest take no time and move nothing).
-	r.motion = f:CreateAnimationGroup()
+	-- The motion: two groups on f, one of Scales and one of Translations, a step each per order
+	-- (Rig:styleMotion). Only the ones a motion uses play.
+	r.motionScale, r.motionMove = f:CreateAnimationGroup(), f:CreateAnimationGroup()
 	r.scale, r.move = {}, {}
 	for i = 1, MOTION_STEPS do
-		r.scale[i] = anim(r.motion, "Scale", i)
-		r.move[i] = anim(r.motion, "Translation", i)
+		r.scale[i] = anim(r.motionScale, "Scale", i)
+		r.move[i] = anim(r.motionMove, "Translation", i)
 	end
 	local fx = CreateFrame("Frame", nil, f.effects or f)
 	fx:SetAllPoints()
-	fx:SetFrameLevel(f:GetFrameLevel() + 12)
 	fx:EnableMouse(false)
 	r.fx = fx
 	r.flash = fx:CreateTexture(nil, "OVERLAY")
@@ -304,21 +313,26 @@ local function newRig(f)
 	r.flashOut:SetToAlpha(0)
 	r.flashOut:SetSmoothing("OUT")
 	r.edge = ns.Looks.popEdge(fx)
-	r.back = CreateFrame("Frame", nil, f.effects or f)
-	r.back:SetAllPoints()
-	r.back:EnableMouse(false)
-	r.clip = CreateFrame("Frame", nil, fx)
+	for _, name in ipairs({ "front", "back" }) do
+		local b = CreateFrame("Frame", nil, f:GetParent())
+		b:SetAllPoints(f)
+		b:EnableMouse(false)
+		if f.effects then b:SetIgnoreParentAlpha(true) end   -- at full on an idle icon, as fx is
+		r[name] = b
+	end
+	r.clip = CreateFrame("Frame", nil, r.front)
 	r.clip:SetAllPoints()
 	r.clip:SetClipsChildren(true)
 	r.clip:EnableMouse(false)
-	r.parts.ring, r.parts.star = newPart(fx, RING), newPart(fx, STAR)
-	local where = { back = r.back, front = fx, clip = r.clip }
+	r.parts.ring, r.parts.star = newPart(r.front, RING), newPart(r.front, STAR)
+	local where = { back = r.back, front = r.front, clip = r.clip }
 	for name, at in pairs(ns.Looks.POP_PARTS) do r.parts[name] = newPart(where[at]) end
-	r.all = { r.motion, r.flashAnim }
+	r.all = { r.motionScale, r.motionMove, r.flashAnim }
 	for _, e in ipairs(r.edge or {}) do table.insert(r.all, e.group) end
 	for _, p in pairs(r.parts) do table.insert(r.all, p.group) end
 	-- A hidden frame holds its animations, so a pop cut short by a hide (its group hiding as combat
-	-- ends) would finish when the icon next shows. A hide ends it instead.
+	-- ends) would finish when the icon next shows. A hide ends it instead: fx hides with the icon,
+	-- and the stop takes the bursts beside it down too.
 	fx:SetScript("OnHide", function() r:stop() end)
 	return r
 end
@@ -335,6 +349,21 @@ function Rig:stop()
 	for _, p in pairs(self.parts) do p.tex:SetAlpha(0) end
 end
 
+-- The bursts' frames under the icon's parent now (a layout or the preview can move the icon to
+-- another), at the light's level. Not in combat: a parent there may be a protected group's frame;
+-- the icon's next pop out of combat catches up.
+function Rig:home()
+	local f, front, back = self.f, self.front, self.back
+	local parent = f:GetParent()
+	if parent ~= front:GetParent() and not InCombatLockdown() then
+		front:SetParent(parent)
+		back:SetParent(parent)
+	end
+	local level = f:GetFrameLevel() + 12
+	self.fx:SetFrameLevel(level)
+	front:SetFrameLevel(level)
+end
+
 -- The motion's steps: step i scales from a to b, or moves by x, y, over dur with smoothing.
 function Rig:scaleStep(i, a, b, dur, smoothing)
 	local s = self.scale[i]
@@ -346,19 +375,20 @@ function Rig:moveStep(i, x, y, dur, smoothing)
 end
 
 -- The motion for the style: S its size, k the duration multiplier, h the icon's height. Returns
--- whether there is one.
+-- its groups in use (a table of group -> true), or nil for none. The steps a motion doesn't use
+-- come after its own, scale by 1 or move by 0 and take SHORTEST each: a group that plays them (the
+-- aura route plays every group) changes nothing.
 function Rig:styleMotion(motion, S, k, h)
-	for i = 1, MOTION_STEPS do
-		self:scaleStep(i, 1, 1, 0, "NONE")
-		self:moveStep(i, 0, 0, 0, "NONE")
-	end
+	local scales, moves = 0, 0
 	if motion == "pop" then
 		self:scaleStep(1, 1, S, 0.12 * k, "OUT")
 		self:scaleStep(2, S, 1, 0.25 * k, "IN_OUT")
+		scales = 2
 	elseif motion == "hop" then
 		local up = h * (S - 1) * 0.8
 		self:moveStep(1, 0, up, 0.12 * k, "OUT")
 		self:moveStep(2, 0, -up, 0.2 * k, "IN")
+		moves = 2
 	elseif motion == "shake" or motion == "shakeV" then   -- side to side, or up and down
 		local d = h * (S - 1) * 0.3
 		local sx, sy = motion == "shake" and d or 0, motion == "shakeV" and d or 0
@@ -366,16 +396,19 @@ function Rig:styleMotion(motion, S, k, h)
 		self:moveStep(2, -2 * sx, -2 * sy, 0.07 * k, "NONE")
 		self:moveStep(3, 2 * sx, 2 * sy, 0.07 * k, "NONE")
 		self:moveStep(4, -sx, -sy, 0.05 * k, "NONE")
+		moves = 4
 	elseif motion == "bounce" then   -- overshoot, dip, settle
 		local u, o = 1 - (S - 1) * 0.25, 1 + (S - 1) * 0.15
 		self:scaleStep(1, 1, S, 0.12 * k, "OUT")
 		self:scaleStep(2, S, u, 0.12 * k, "IN_OUT")
 		self:scaleStep(3, u, o, 0.1 * k, "IN_OUT")
 		self:scaleStep(4, o, 1, 0.08 * k, "IN")
-	else
-		return false
+		scales = 4
 	end
-	return true
+	for i = scales + 1, MOTION_STEPS do self:scaleStep(i, 1, 1, SHORTEST, "NONE") end
+	for i = moves + 1, MOTION_STEPS do self:moveStep(i, 0, 0, SHORTEST, "NONE") end
+	if scales + moves == 0 then return nil end
+	return { [self.motionScale] = scales > 0 or nil, [self.motionMove] = moves > 0 or nil }
 end
 
 -- The rig's values for pop style st: size the icon's height (never read under a secure button),
@@ -385,7 +418,8 @@ function Rig:style(st, size, c, school, muted)
 	local k = 1 / math.max(st.speed, 0.1)   -- duration multiplier
 	local on = self.playing
 	wipe(on)
-	if self:styleMotion(st.motion, st.size, k, size) then on[self.motion] = true end
+	self:home()
+	for g in pairs(self:styleMotion(st.motion, st.size, k, size) or {}) do on[g] = true end
 	local flash = st.flash
 	if flash == "edge" and not self.edge then flash = "plain" end
 	if flash == "edge" then
@@ -406,11 +440,11 @@ function Rig:style(st, size, c, school, muted)
 	end
 	local burst = st.burst
 	if burst == "ring" or burst == "both" then
-		stylePart(self.parts.ring, RING, self.fx, size, c, k)
+		stylePart(self.parts.ring, RING, self.front, size, c, k)
 		on[self.parts.ring.group] = true
 	end
 	if burst == "star" or burst == "both" then
-		stylePart(self.parts.star, STAR, self.fx, size, c, k)
+		stylePart(self.parts.star, STAR, self.front, size, c, k)
 		on[self.parts.star.group] = true
 	end
 	-- A drawn burst: sized by the icon with its frame; its back parts under the icon as it stands
@@ -457,6 +491,7 @@ function E.pop(f, kind, owner)
 		c = ns.SCHOOL_COLOR[school] or ns.SCHOOL_COLOR.spirit
 	end
 	f.popRig = f.popRig or newRig(f)
+	f.popRig:stop()   -- nothing plays while its values change
 	-- popSize: the icon's size, set by whoever knows it where a read could be secret (an end flash
 	-- over the totem bar's slot, under its secure button).
 	f.popRig:style(st, math.max(f.popSize or f:GetHeight(), 8), c, school, kind == "blocked")
