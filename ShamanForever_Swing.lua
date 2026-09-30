@@ -45,10 +45,10 @@ local NO_IMBUE = { 0.6, 0.6, 0.6 }
 ------------------------------------------------------------------------
 SW.DEFAULTS = {
 	show = "combat",          -- combat | always | never (Hidden: off, nothing runs)
-	-- Just under the first row (shield, shocks, Fire Nova) and above the totem bar, as wide as that
-	-- row. x, y in UIParent units, so scaling keeps the centre.
-	point = "CENTER", x = 0, y = -70,
-	width = 144, height = 10,   -- in the bar's own units: Scale grows them, lines too
+	-- Just under the first row (shield, shocks, Fire Nova, ...), a little narrower than it is with
+	-- everything learned. x, y in UIParent units, so scaling keeps the centre.
+	point = "CENTER", x = 0, y = -251,
+	width = 220, height = 7,   -- in the bar's own units: Scale grows them, lines too
 	scale = 1,
 	alpha = 0.75,
 	colorBy = "imbue", color = { 0.9, 0.7, 0.2, 1 },   -- imbue | custom
