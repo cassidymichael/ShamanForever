@@ -39,16 +39,17 @@
 --   your Flame Shock on the target the button's opaque icon covers it; without, it shows. So:
 --   - the cover must be opaque: the gate ignores its group's opacity (the aura's icon draws at full)
 --     and the underlay takes the group's opacity itself;
---   - only looks inside the icon may show (grey, fade in and out, the red ring), a screen pixel in
---     from its edges and in a rounded or cut-corner look's shape (Looks.maskOver), so the button's
---     icon covers every pixel of them;
+--   - the underlay itself is only the icon's picture (grey, fade in and out, the red ring), a screen
+--     pixel in from its edges and in a rounded or cut-corner look's shape (Looks.maskOver), so the
+--     button's icon covers every pixel of them;
 --   - Blizzard's container follows a new target on its next frame, so the underlay waits two
 --     frames each time it shows or the target changes (T.appear);
 --   - it hides (alpha 0) while the container isn't made or isn't following the target (a refused
 --     call in combat): a miss, never a false warning.
---   The pulsing glow, in any look (some reach past the icon's edge), is a clip look on the
---   underlay (ns.makeClipLook): its sensor follows the target with the container, and it shows
---   only while the underlay does and the target lacks your Flame Shock, drawn by the engine.
+--   The pulsing glow, in any look (some reach past the icon's edge; the ones within it take the
+--   icon's shape), is a clip look on the underlay (ns.makeClipLook): its sensor follows the target
+--   with the container, and it shows only while the underlay does and the target lacks your Flame
+--   Shock, drawn by the engine.
 
 local _, ns = ...
 local say, Spells, isSecret = ns.say, ns.Spells, ns.isSecret
@@ -356,14 +357,18 @@ for _, def in ipairs(TARGET) do
 		-- style of its own), a clip look on the underlay (see the file's header), its sensor on the
 		-- gate beside Blizzard's container. Its look before the profile loads: the default.
 		def.past = ns.makeClipLook(f, {
-			key = def.key, parent = u.inner, sensorParent = def.gate, unit = wantedUnit, needUnit = "target",
+			key = def.key, parent = u.inner, sensorParent = def.gate, unit = wantedUnit,
+			needUnit = "target",
+			shape = u.tex,
 			filter = def.filter, ids = function() return idMap(def) end,
 			lookFor = function()
 				local ok, look = pcall(setting, def.key, "missGlowLook")
 				return ok and look or nil
 			end,
-			sites = { container = "target glow sensor " .. def.key, style = "target glow style " .. def.key,
-				filter = "target glow filter " .. def.key },
+			sites = {
+				container = "target glow sensor " .. def.key, style = "target glow style " .. def.key,
+				filter = "target glow filter " .. def.key,
+			},
 		})
 	end
 	def.aura = ns.makeAuraSlot(f, {
@@ -596,7 +601,9 @@ local function refreshAura(def)
 	if def.aura.container then
 		driveGate(def)
 		local p = def.past
-		if def.unit ~= wantedUnit() or (p and p.container and p.unit ~= wantedUnit()) then retarget(def) end
+		if def.unit ~= wantedUnit() or (p and p.container and p.unit ~= wantedUnit()) then
+			retarget(def)
+		end
 	end
 	f.tex:SetTexture(def.icon)
 	-- Not learned yet (seen only while the preview shows such elements): a plain grey icon.
@@ -723,8 +730,8 @@ function T.debug()
 	say("target attackable %s", tostring(hostileTarget()))
 	local on = readWanted() and flameShockOnTarget()
 	say("%s on target: %s", FLAME.spell, readWanted() and tostring(on) or "not read (combat, secret auras or no target)")
-	say("%s Not on target glow: chosen %s; %s", FLAME.spell, tostring(setting(FLAME.key, "missGlowLook")),
-		FLAME.past:describe())
+	say("%s Not on target glow: chosen %s; %s", FLAME.spell,
+		tostring(setting(FLAME.key, "missGlowLook")), FLAME.past:describe())
 	say("%s red countdown handed %s", FLAME.spell, tostring(FLAME.textHanded))
 end
 

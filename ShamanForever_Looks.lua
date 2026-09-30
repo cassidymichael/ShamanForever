@@ -702,6 +702,8 @@ end
 --             show those
 --   steady    it doesn't breathe (the glow's pulse is off; speed may time its own motion)
 --   bySchool  it differs by school (the options preview it on one icon per school)
+--   inside    drawn only within the icon: a warning's glow on the element takes the icon's shape
+--             (ns.makeClipLook's `shape`); the other looks reach past it and take none
 --   build(g)  its regions and animation groups, under g.inner (breathing) or g (not); returns
 --             parts: { roots = { frames }, anims = { groups played while it shows }, aura = { the
 --             groups Blizzard's aura button plays in their place, when the glow is under it } }
@@ -780,7 +782,7 @@ local function fitSoft(g, h, size, width)
 end
 
 local soft = {
-	uses = { color = true, speed = true, low = true, width = true },
+	uses = { color = true, speed = true, low = true, width = true }, inside = true,
 	build = function(g)
 		local r = root(g.inner)
 		return { roots = { r }, soft = softPart(r) }
@@ -926,7 +928,7 @@ local MATERIAL = {   -- school -> tile move (in tiles), seconds a tile
 -- Intensity: below 100% the material dims; above it the glow under it brightens too (the material
 -- itself is already at full opacity, so more light has to come from the soft glow beneath).
 local material = {
-	uses = { color = true, speed = true, strength = true }, bySchool = true,
+	uses = { color = true, speed = true, strength = true }, bySchool = true, inside = true,
 	build = function(g)
 		local r = root(g.inner)
 		local parts = { roots = { r }, soft = softPart(r, 0.35) }

@@ -15,9 +15,9 @@
 --    the underlay shows the moment it goes, drawn by the engine with nothing read or inferred. So:
 --    - the cover must be opaque: the container hangs from a gate that ignores the group's opacity
 --      (the shield draws at full), and the underlay takes the group's opacity itself;
---    - only looks inside the icon: grey, tint, fade and the ring, a screen pixel in from the icon's
---      edges and in a rounded or cut-corner look's shape, so the button's icon covers every pixel
---      of them;
+--    - the underlay itself is only the icon's picture: grey, tint, fade and the ring, a screen pixel
+--      in from the icon's edges and in a rounded or cut-corner look's shape, so the button's icon
+--      covers every pixel of them;
 --    - checked every frame (plain reads, and writes to our own frames only, allowed in combat), it
 --      hides while it can't be trusted: the button not made, a new spell ID or look the button
 --      can't take until combat ends, preview mode, and a moment after our own cast of a shield it
@@ -31,9 +31,10 @@
 --    when its group fades out after combat, or across a loading screen. In a PvP match auras stay
 --    secret out of combat too (Blizzard's API documentation; not yet seen in a battleground): the
 --    button is the switch until it ends.
---    The pulsing glow, in any look (some reach past the icon's edge), is a clip look on the
---    underlay (ns.makeClipLook): shown by the engine only while no shield it tracks is up, and
---    only while the underlay shows its warning, so it waits for everything the underlay waits for.
+--    The pulsing glow, in any look (some reach past the icon's edge; the ones within it take the
+--    icon's shape), is a clip look on the underlay (ns.makeClipLook): shown by the engine only while
+--    no shield it tracks is up, and only while the underlay shows its warning, so it waits for
+--    everything the underlay waits for.
 -- 3. After a login or /reload in combat or in a PvP match the button is made only once auras are
 --    readable; until then Shields shows its plain icon: a miss, never a false warning.
 --
@@ -374,12 +375,15 @@ end
 -- loads (the glow is made at load): the default.
 past = ns.makeClipLook(shield, {
 	key = "shield", parent = under.inner, sensorParent = gate, ids = shieldIDMap, owner = "shield",
+	shape = under.tex,
 	lookFor = function()
 		local db = ns.getDB()
 		return db and db.emptyGlowLook or nil
 	end,
 	driver = "[@player,dead] hide; show",
-	sites = { container = "shield glow sensor", style = "shield glow style", filter = "shield glow filter" },
+	sites = {
+		container = "shield glow sensor", style = "shield glow style", filter = "shield glow filter",
+	},
 })
 
 -- Whether the slot matches every spell ID of every tracked shield (coverTrusted): a slot missing
@@ -437,8 +441,9 @@ end
 function SH.style() native:style() end
 
 -- The shield's timer takes its current style (ns.applyTimers). It sits on Blizzard's button, so it
--- comes with the button's restyle, which waits for combat to end. The underlay's glow takes a new
--- look or style at once (its own frames; the options call this after a glow style change).
+-- comes with the button's restyle, which waits for combat to end. The underlay's picture, ring and
+-- glow (its new look or style) follow at once: our own frames (the options call this after a
+-- timer or glow style change).
 function SH.applyTimers()
 	SH.style()
 	shapeUnder()

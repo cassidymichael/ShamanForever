@@ -269,8 +269,8 @@ local glows = {}
 -- animations the button won't take stays the old one (until a /reload; ns.auraGlowStale).
 local auraGlows = {}
 -- g.lookFor(), if set: the look's key, in place of its style's (colour, speed and the rest still
--- come from the style). g.onLayout(g, parts), if set: called as a look's parts are made and after
--- each fit (their sizes and scales may have changed), for the owner's own touches.
+-- come from the style). g.onLayout(g, parts, look), if set: called as a look's parts are made and
+-- after each fit (their sizes and scales may have changed), for the owner's own touches.
 local function makeGlow(parent, over, owner, unlisted)
 	local g = CreateFrame("Frame", nil, parent)
 	g.owner, g.unlisted = owner, unlisted
@@ -296,7 +296,7 @@ local function makeGlow(parent, over, owner, unlisted)
 			if p then ns.Looks.levelParts(p) end
 			for _, r in ipairs(p and p.roots or {}) do r:Hide() end
 			g.parts[look.key] = p
-			if p and g.onLayout then ns.try("glow layout", g.onLayout, g, p) end
+			if p and g.onLayout then ns.try("glow layout", g.onLayout, g, p, look) end
 		end
 		return p or nil
 	end
@@ -392,7 +392,7 @@ local function makeGlow(parent, over, owner, unlisted)
 		local p = parts(self.look)
 		if p then
 			self.look.fit(self, p, size, out)
-			if self.onLayout then ns.try("glow layout", self.onLayout, self, p) end
+			if self.onLayout then ns.try("glow layout", self.onLayout, self, p, self.look) end
 		end
 	end
 	function g:color(r, gg, b) self.fixed = { r, gg, b, 1 }; self:restyle() end
@@ -978,10 +978,24 @@ end
 ------------------------------------------------------------------------
 local ClipLook = {}
 ClipLook.__index = ClipLook
-local CLIP_SLACK = 2    -- the sensor's button this much wider than the cell: the clip empty, not 1 px
+-- The sensor's button is this much wider than the cell: the clip empty, not 1 px.
+local CLIP_SLACK = 2
 -- How far the look reaches from the icon's centre, in widths of the icon with its frame: the Proc
--- glow's opening burst, the widest look (Heartbeat's ring reaches 1.22).
+-- glow's opening burst, the widest look, reaches 150/45 of the icon with its frame (its flipbook is
+-- 150 wide for a 45 icon; Heartbeat's ring reaches 1.22), so 1.7 has 0.07 to spare. A look that
+-- reaches further is clipped: raise this with it.
 local CLIP_REACH = 1.7
+
+-- Every texture under frame (but masks: they take none) in icon frame f's look's shape, over the
+-- rect of over (Looks.maskOver: re-placed on each call and look change).
+local function shapeTextures(frame, f, over)
+	for _, r in ipairs({ frame:GetRegions() }) do
+		if r:IsObjectType("Texture") and not r:IsObjectType("MaskTexture") then
+			ns.Looks.maskOver(f, r, over)
+		end
+	end
+	for _, c in ipairs({ frame:GetChildren() }) do shapeTextures(c, f, over) end
+end
 
 -- frame: the element icon the look is drawn round. opts:
 --   key            the element: its icon size (ns.sizeOf); also the aura group's name
@@ -992,6 +1006,9 @@ local CLIP_REACH = 1.7
 --   ids()          the spell IDs it matches
 --   needUnit       the unit it must be on for the look to show (a sensor that follows the target)
 --   driver         the gate's state driver, registered as the sensor is made (out of combat)
+--   shape          the icon's inset picture (a texture): the looks drawn within the icon (`inside`,
+--                  ns.Looks) take the icon's rounded or cut-corner shape over it; the looks that
+--                  reach past the icon take none
 --   owner, lookFor the glow's style owner (nil: General's) and lookFor() its look's key
 --   sites          { container = , style = , filter = }: names for waiting work and caught errors
 -- The glow is h.glow (ns.makeGlow). h:want(on) shows it or not; nothing is made until h:setup().
@@ -1022,6 +1039,17 @@ function ns.makeClipLook(frame, opts)
 	h.look = CreateFrame("Frame", nil, h.clip, "DisableUntrustedLayoutScriptsTemplate")
 	h.look:SetAllPoints(h.cell)
 	h.glow = ns.makeWarningGlow(h.look, frame, opts.owner, opts.lookFor)
+	if opts.shape then
+		-- As a look's parts are made and each time they're fitted (a look changed with the options
+		-- open, in combat too).
+		h.glow.onLayout = function(_, parts, look)
+			if not look.inside then return end
+			for _, r in ipairs(parts.roots or {}) do shapeTextures(r, frame, opts.shape) end
+		end
+		for key, parts in pairs(h.glow.parts) do
+			if parts then h.glow.onLayout(h.glow, parts, ns.Style.look("glow", key)) end
+		end
+	end
 	return h
 end
 
@@ -1163,7 +1191,8 @@ function ClipLook:styleNow()
 	self:wait()
 	local ok = ns.try(o.sites.style, function()
 		self.container:SetFrameStrata(self.frame:GetFrameStrata())
-		self.container:SetAuraGroupLayout(o.key, { elementWidth = w + CLIP_SLACK, elementHeight = w })
+		self.container:SetAuraGroupLayout(o.key,
+			{ elementWidth = w + CLIP_SLACK, elementHeight = w })
 		self.cell:SetSize(w, w)
 	end)
 	if ok then
@@ -1197,7 +1226,9 @@ function ClipLook:follow(unit)
 	if not c or self.err then return true end
 	local ok = true
 	if self.unit ~= unit then ok = ns.try(self.opts.sites.container .. " unit", c.SetUnit, c, unit)
-	elseif unit ~= "none" then ok = ns.try(self.opts.sites.container .. " refresh", c.UpdateAllAuras, c) end
+	elseif unit ~= "none" then
+		ok = ns.try(self.opts.sites.container .. " refresh", c.UpdateAllAuras, c)
+	end
 	self.unit = ok and unit or nil
 	self:wait()
 	return ok
@@ -1213,7 +1244,8 @@ end
 
 -- For /sf debug: one line of its state.
 function ClipLook:describe()
-	return string.format("sensor %s%s, size %s (icon %s), spell IDs %s, unit %s, wanted %s, waiting %s, drawn %s",
+	return string.format(
+		"sensor %s%s, size %s (icon %s), spell IDs %s, unit %s, wanted %s, waiting %s, drawn %s",
 		self.container and "made" or "not made", self.err and (" (error: " .. self.err .. ")") or "",
 		tostring(self.size), tostring(ns.sizeOf(self.opts.key)), self.idsOK and "matched" or "behind",
 		tostring(self.unit), tostring(self.wanted), tostring(self.waiting ~= nil),
