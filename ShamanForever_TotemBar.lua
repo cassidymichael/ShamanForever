@@ -107,6 +107,11 @@ local RANGES = {
 local function finite(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
 
+-- The per-totem warning times a profile starts with (warnOver), by the client's names.
+function TB.warnOverDefaults()
+	return { [ns.Spells.name("earthbind")] = 5, [ns.Spells.name("stoneclaw")] = 5, [ns.Spells.name("manaTide")] = 3 }
+end
+
 -- The profile's bar settings, with defaults filled and wrong types or values reset (imported profiles).
 local cfgTable
 local function cfg()
@@ -128,10 +133,7 @@ local function cfg()
 		if t.stonePlinth ~= "slim" and t.stonePlinth ~= "normal" and t.stonePlinth ~= "grand" then t.stonePlinth = nil end
 		-- The default per-totem times, by the client's names (English until they have loaded; the
 		-- lookup in warnSecs also takes the English name, so either works).
-		if type(t.warnOver) ~= "table" then
-			t.warnOver = { [ns.Spells.name("earthbind")] = 5, [ns.Spells.name("stoneclaw")] = 5,
-				[ns.Spells.name("manaTide")] = 3 }
-		end
+		if type(t.warnOver) ~= "table" then t.warnOver = TB.warnOverDefaults() end
 		for k, v in pairs(TB.DEFAULTS) do
 			if type(t[k]) ~= type(v) then t[k] = type(v) == "table" and CopyTable(v) or v end
 		end

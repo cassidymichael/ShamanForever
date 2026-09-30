@@ -567,6 +567,11 @@ end
 
 local function get(key) return function() return db()[key] end end
 local function set(key, after) return function(v) db()[key] = v; (after or relayout)() end end
+-- A profile setting's row: its getter and setter (as get and set); the block being built owns it.
+local function gopt(p, key, after)
+	p:owns({ general = key, after = after or relayout })
+	return get(key), set(key, after)
+end
 
 
 ------------------------------------------------------------------------
@@ -610,7 +615,7 @@ local function buildGeneral(p)
 	p:header("Icon size")
 	p:anchor("size")
 	p:slider("Icon size", "Every group's and the totem bar's, unless it has its own.", 24, 96, 1, int,
-		get("iconSize"), set("iconSize"))
+		gopt(p, "iconSize"))
 	-- Who has an own icon size: groups with something in them, then the totem bar.
 	local function ownSizes()
 		local out = {}
@@ -773,7 +778,16 @@ local function buildTotemBar(p)
 	local function c() return TB.cfg() end
 	local function changed() TB.applySettings(); OP.refresh() end
 	local function tget(key) return function() return c()[key] end end
-	local function tset(key) return function(v) c()[key] = v; changed() end end
+	-- The block being built owns a bar setting; ref: the rest of its ref (a reset of its own).
+	local function own(key, ref)
+		ref = ref or {}
+		ref.bar, ref.name, ref.after = "totembar", key, changed
+		p:owns(ref)
+	end
+	local function tset(key)
+		own(key)
+		return function(v) c()[key] = v; changed() end
+	end
 
 	p:hero("totembar")
 	p:callout("Not learned yet. It shows on screen once your character knows a totem.",
@@ -782,6 +796,7 @@ local function buildTotemBar(p)
 	-- show only where they apply (Buttons in Everything, the rest while our bar is on).
 	local full = function() return c().mode == "everything" end
 	p:header("Totems")
+	own("mode", { reset = function() TB.setMode(TB.DEFAULTS.mode) end })
 	p:cards("Use", nil, {
 		{ "blizzard", "Blizzard's", "Interface\\Icons\\INV_Misc_Gear_01" },
 		{ "active", "Active totems", "Interface\\Icons\\Spell_Nature_TimeStop" },
@@ -840,6 +855,8 @@ local function buildTotemBar(p)
 	-- it; the box shows or hides its slot. The drag follows Groups & Layout's: a ghost on the cursor
 	-- and a white line where it will land.
 	local ORDER_H, ORDER_W = 28, 260
+	own("order")
+	own("hidden")
 	p:text("Drag to reorder.")
 	local list = p:row(4 * ORDER_H)
 	local rows, dragFrom = {}, nil
@@ -917,11 +934,14 @@ local function buildTotemBar(p)
 			r:SetAlpha(1)
 		end
 	end)
-	p:dropdown("Direction", nil, { { "row", "Row" }, { "column", "Column" } }, tget("dir"), function(v)
+	-- The pickers open the new direction's first way.
+	local function setDir(v)
 		c().dir = v
 		c().pop = v == "row" and "up" or "right"
-		changed()
-	end, free("dir"), 140)
+	end
+	own("dir", { reset = function() setDir(TB.DEFAULTS.dir) end })
+	p:dropdown("Direction", nil, { { "row", "Row" }, { "column", "Column" } }, tget("dir"),
+		function(v) setDir(v); changed() end, free("dir"), 140)
 	p:dropdown("Pickers open", "Which way the totem picker opens from a slot.", function()
 		if TB.eff().dir == "row" then return { { "up", "Up" }, { "down", "Down" } } end
 		return { { "right", "Right" }, { "left", "Left" } }
@@ -940,16 +960,22 @@ local function buildTotemBar(p)
 		return TB.skin.owns("dir") or TB.skin.owns("pop") or TB.skin.owns("spacing") or TB.skin.owns("extras")
 	end)
 	-- Its own size is not its scale: scale grows everything, text, arrows, spacing and lines included.
+	own("sizeFollow", { reset = function() TB.setSizeFollow(TB.DEFAULTS.sizeFollow) end })
 	local sizeFollow = generalRow(p, "Icon size same as General", "Use the icon size on the General page.",
 		tget("sizeFollow"), function(v) TB.setSizeFollow(v); changed() end, "size")
+	-- Its own size (none until the switch is first turned off) matters only while the switch is
+	-- off, itself a change; a reset clears it, so turning the switch off starts from General's again.
+	own("size", { default = tget("size"), reset = function() c().size = nil end })
 	p:sub(sizeFollow, function() return not c().sizeFollow end, function()
 		p:slider("Icon size", nil, 24, 96, 1, px,
-			tget("size"), tset("size"))
+			tget("size"), function(v) c().size = v; changed() end)
 	end)
 	p:dropdown("Call and Recall", "Where they sit on the bar.", { { "ends", "Both ends" }, { "before", "Before the slots" }, { "after", "After the slots" } },
 		tget("extras"), tset("extras"),
 		showWhen(function() return (c().call or c().recall) and not TB.skin.owns("extras") end, full), 180)
 	-- Its size: the theme's own where it keeps one (a smaller default).
+	own("extrasScale")
+	own("stoneExtrasScale")
 	p:slider("Call and Recall size", "As a share of the slots' size.", 0.5, 1.5, 0.05,
 		pct, function() return TB.eff().extrasScale end,
 		function(v) c()[TB.skin.extrasScaleKey()] = v; changed() end,
@@ -1035,6 +1061,8 @@ local function buildTotemBar(p)
 	ns.Sounds.row(p, "Sound when it ends", "When a totem runs out or is killed. Not when you dismiss it.", tget("goneSound"), tset("goneSound"))
 	local secs = function(v) return v == 0 and "Off" or string.format("%d s", v) end
 	p:slider("Warn in the last", nil, 0, 30, 1, secs, tget("warn"), tset("warn"))
+	-- Its defaults are named by the client's spell names.
+	own("warnOver", { default = TB.warnOverDefaults })
 	p:text("Totems with their own warning time, instead of the default:", function() return next(c().warnOver) ~= nil end)
 	-- Each totem's own time, with a small X at the end of its row to drop it. Totems are kept by the
 	-- client's name for them (any rank), so row i shows the i-th name in order.
@@ -1097,7 +1125,7 @@ end
 -- The helpers and standard blocks the Groups & Layout page and the element pages share
 -- (ShamanForever_OptionsLayout.lua, ShamanForever_OptionsElements.lua).
 OP.kit = {
-	relayout = relayout, respell = respell, get = get, set = set, confirm = confirm,
+	relayout = relayout, respell = respell, get = get, set = set, gopt = gopt, confirm = confirm,
 	SHOW_CHOICES = SHOW_CHOICES,
 	COMBAT_SHOW = COMBAT_SHOW, STAY_TIP = STAY_TIP, staySecs = staySecs,
 	generalRow = generalRow, borderRows = borderRows,

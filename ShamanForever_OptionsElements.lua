@@ -9,7 +9,7 @@ ns.ElementPages = EP
 
 local Page, K = ns.Page, ns.Options.kit
 local showWhen, setTip, panelBackdrop = Page.showWhen, Page.setTip, Page.panelBackdrop
-local relayout, respell, get, set = K.relayout, K.respell, K.get, K.set
+local relayout, respell, get, gopt = K.relayout, K.respell, K.get, K.gopt
 local pct, int, px = Page.pct, Page.int, Page.px
 local SHOW_CHOICES = K.SHOW_CHOICES
 local timerSettings, gcdBlock, glowBlock, popBlock = K.timerSettings, K.gcdBlock, K.glowBlock, K.popBlock
@@ -27,12 +27,6 @@ end
 local eopt = K.eopt
 -- Its value, for what only reads it (a row shown while it's on).
 local function eread(key, name) return function() return ns.elementSetting(key, name) end end
--- A profile setting (db) bound to a row on an element's page (the shield's, the shock's...), as
--- eopt.
-local function gopt(p, name, after)
-	p:owns({ general = name, after = after or relayout })
-	return get(name), set(name, after)
-end
 
 -- The elements in the options' order (the nav and the Elements list): the ones the character has
 -- learned, then the ones it hasn't, then other races' racials; each band by name, A to Z, in the
