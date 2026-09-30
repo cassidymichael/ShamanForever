@@ -578,6 +578,7 @@ local function buffPreview(def)
 		end,
 		render = function(ic, st)
 			reset(ic, def.icon)
+			if ic.insideGlow then ic.insideGlow:Hide() end
 			if st == "up" then
 				if def.proc then
 					if not def.noTimer then frozen(ic.upT, 0.3, 15) end
@@ -590,7 +591,13 @@ local function buffPreview(def)
 				ic.tex:SetDesaturated(opt(key, "missGrey"))
 				ic:SetRingShown(opt(key, "missRing"))
 				ic:SetPulsing(opt(key, "missPulse"))
-				ic:SetGlowShown(opt(key, "missGlow"))
+				-- The HUD's glow here takes only a look drawn inside the icon (Soft inner otherwise):
+				-- the preview's does the same.
+				if opt(key, "missGlow") then
+					if not ic.insideGlow then ic.insideGlow = ns.makeGlow(ic, ic, key, false, true) end
+					ic.insideGlow:fit(ic:GetWidth())
+					ic.insideGlow:Show()
+				end
 			elseif st == "idle" then idleLook(ic, key)
 			elseif st == "low" or st == "out" then
 				-- Running low isn't idle when Idle counts reagents (the default).

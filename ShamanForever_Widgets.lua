@@ -351,16 +351,16 @@ local function makeGlow(parent, over, owner, unlisted, inside)
 end
 ns.makeGlow = makeGlow
 function ns.applyGlowStyle() for _, g in ipairs(glows) do g:restyle() end end
--- The glows that must stay inside the icon (inside) whose style's look doesn't, among those whose
--- style is owner's (nil: General's): they show the default look instead. Returns their names (the
--- element's, and the glow's label if it has one), and that look's name.
+-- The HUD's glows that must stay inside the icon (inside) whose style's look doesn't, among those
+-- whose style is owner's (nil: General's): they show the default look instead. Returns their names
+-- (the element's and the glow's label; previews' copies carry none and aren't counted), and that
+-- look's name.
 function ns.auraGlowSwapped(owner)
 	local out = {}
 	for _, g in ipairs(insideGlows) do
 		local reaches = owner == g.owner or (owner == nil and ns.Style.follows(g.owner, "glow"))
-		if reaches and not ns.Style.look("glow", ns.Style.get(g.owner, "glow").look).inside then
-			local name = ns.Look.elementName(g.owner)
-			table.insert(out, g.label and (name .. "'s " .. g.label .. " glow") or name)
+		if g.label and reaches and not ns.Style.look("glow", ns.Style.get(g.owner, "glow").look).inside then
+			table.insert(out, ns.Look.elementName(g.owner) .. "'s " .. g.label .. " glow")
 		end
 	end
 	return out, ns.Style.look("glow", ns.Style.KINDS.glow.defaults.look).name
