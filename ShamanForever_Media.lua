@@ -259,13 +259,43 @@ function M.settle()
 	end
 	if not settling and #queue > 0 then settling = true; C_Timer.After(0, settleStep) end
 end
--- A few seconds after login, once other addons have registered their fonts.
+-- During the loading screen: every font other addons have shared so far is asked for once, each on
+-- a string of its own. An assumption being tested (2026-09-30): the client loads an addon's font
+-- file only when something asks for it while the game loads, which would be why other addons'
+-- fonts never load when first tried after login. Each path once, no retries; unknown files are
+-- never asked for (that throws). Done at this file's load and at each addon's load until login.
+local preloaded = {}
+local function preload()
+	local l = lsm()
+	if not l then return end
+	local holder
+	for _, path in pairs(l:HashTable("font")) do
+		if type(path) == "string" and not preloaded[path] and not builtIn[path] and known(path) then
+			preloaded[path] = true
+			if not holder then
+				holder = CreateFrame("Frame", nil, UIParent)
+				holder:SetSize(1, 1)
+				holder:SetPoint("BOTTOMLEFT")
+				holder:SetAlpha(0.01)
+			end
+			local fs = holder:CreateFontString(nil, "BACKGROUND")
+			fs:SetPoint("BOTTOMLEFT")
+			pcall(fs.SetFont, fs, path, 2, "")
+			fs:SetText("Ag")
+		end
+	end
+end
+preload()
+
+-- A few seconds after login, once other addons have registered their fonts: which fonts load.
 do
 	local ev = CreateFrame("Frame")
-	ev:SetScript("OnEvent", function(self)
+	ev:SetScript("OnEvent", function(self, event)
+		if event == "ADDON_LOADED" then preload() return end
 		self:UnregisterAllEvents()
 		C_Timer.After(3, M.settle)
 	end)
+	ns.registerEvent(ev, "ADDON_LOADED")
 	ns.registerEvent(ev, "PLAYER_LOGIN")
 end
 
