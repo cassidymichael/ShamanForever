@@ -337,6 +337,7 @@ end
 
 local function buildShock(p)
 	elementDisplay(p, "shock")
+	idleBlock(p, { key = "shock", idleChoices = ns.Cooldowns.IDLE_CHOICES })
 	p:header("Tracking")
 	local icons = { earth = 136026, flame = 135813, frost = 135849 }
 	local cards = {}

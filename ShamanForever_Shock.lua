@@ -23,17 +23,26 @@ for key, spell in pairs(SHOCK_SPELL) do SHOCKS[key] = Spells.name(spell) end
 local SHOCK_ORDER = { "earth", "flame", "frost" }
 SK.SHOCKS, SK.ORDER = SHOCKS, SHOCK_ORDER
 
-local shock = ns.newElementIcon("shock")
+-- Effects on a layer that ignores the icon's alpha, so an idle icon doesn't fade the ready glow.
+local shock = ns.newElementIcon("shock", { effects = true })
 shock.cdTimer = ns.Timer.new(shock, "shock", "cooldown", { cd = shock.cd, school = "spirit" })
+shock.stack()
 local shockIcon = 136026
 -- By SK.resolve: the known shocks' spell IDs by choice, the shock the icon tracks (usedShock) and
 -- its spell ID, and the Mana check's spell ID.
 local shockIDs = {}
 local usedShock, shockSpellID, manaSpellID
+local defaults = CopyTable(CD.READY_DEFAULTS)
+defaults.idleWhen, defaults.idleAlpha = "never", 0.3
 ns.registerElement("shock", { frame = shock, label = "Shocks", paint = function(t) t:SetTexture(shockIcon) end,
 	learned = function() return next(shockIDs) ~= nil end,   -- any shock
-	defaults = CopyTable(CD.READY_DEFAULTS),
+	defaults = defaults,
 	kind = "shock", icon = 136026, school = "spirit", blurb = "Cooldown, range and mana." })
+
+-- Idle: the cooldown's own (ShamanForever_Cooldowns.lua's applyIdle); range and mana keep their
+-- own looks and don't count. idleDef is the table it works on, the shock standing in for a
+-- cooldown element.
+local idleDef = { key = "shock", frame = shock }
 
 local shockState = { outOfRange = false, noMana = false }
 local rangeCheckID   -- the spell whose range check is on
@@ -58,10 +67,20 @@ end
 
 -- inEvent: from SPELL_UPDATE_COOLDOWN (onCooldowns).
 local function refreshCooldown(inEvent)
-	if not shockSpellID or not ns.isEnabled("shock") then return CD.resetReady(shock) end
+	if not shockSpellID or not ns.isEnabled("shock") then
+		-- Read afresh when it's back; full until then.
+		idleDef.cdRunning, idleDef.idle, idleDef.idleAt = nil, nil, nil
+		ns.fadeTo(shock, 1)
+		return CD.resetReady(shock)
+	end
 	local dur = CD.cooldownFor(shock, "shock", shockSpellID, inEvent)
 	if dur then shock.cdTimer:set(dur) end
+	idleDef.spellID = shockSpellID
+	CD.applyIdle(idleDef, false, inEvent)
 end
+idleDef.refresh = function() refreshCooldown() end
+-- A cooldown's end fires no event: read on the next frame.
+shock.cd:HookScript("OnCooldownDone", function() C_Timer.After(0, refreshCooldown) end)
 
 -- While the element is off (hidden, or no shock known) nothing is read and its looks are cleared,
 -- so none comes back stale when it shows again.
@@ -133,6 +152,7 @@ function SK.resolve()
 		end
 	end
 	shockSpellID = shockIDs[usedShock]
+	idleDef.cdRunning = nil   -- another spell's cooldown may be running
 	shockIcon = icons[usedShock] or Spells.icon(SHOCK_SPELL[usedShock]) or 136026
 	shock.tex:SetTexture(shockIcon)
 	-- Not learned yet (seen only while the preview shows such elements): a plain grey icon.
