@@ -9,7 +9,6 @@ ignore = {
 }
 read_globals = {
     "ACCEPT",
-    "ActionBarController",
     "AddToAutoHide",
     "ButtonFrameTemplate_HideButtonBar",
     "ButtonFrameTemplate_HidePortrait",
@@ -63,7 +62,6 @@ read_globals = {
     "GameTooltip_AddHighlightLine",
     "GameTooltip_AddInstructionLine",
     "GameTooltip_AddNormalLine",
-    "GetActionBarPage",
     "GetActionCooldown",
     "GetActionInfo",
     "GetActionTexture",
@@ -89,10 +87,6 @@ read_globals = {
     "GetTotemInfo",
     "GetWeaponEnchantInfo",
     "HasAction",
-    "HasBonusActionBar",
-    "HasOverrideActionBar",
-    "HasTempShapeshiftActionBar",
-    "HasVehicleActionBar",
     "HideUIPanel",
     "InCombatLockdown",
     "IsAltKeyDown",

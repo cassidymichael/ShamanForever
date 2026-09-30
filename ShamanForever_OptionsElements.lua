@@ -201,11 +201,6 @@ local function elementDisplay(p, key)
 		refresh()
 		edit:SetShown(ns.groupOf(key) ~= nil)
 	end
-	if ns.showsKey(key) then
-		p:checkbox("Show keybinding text", "The key that casts it from your action bars, in its corner.",
-			function() return ns.elementSetting(key, "keys") == true end,
-			function(v) ns.elementOpts(key).keys = v or nil; relayout() end)
-	end
 end
 
 -- An element's own option (db.elementOpts), with its default (ns.elementSetting).
