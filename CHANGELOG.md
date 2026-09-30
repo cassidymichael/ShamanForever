@@ -2,12 +2,17 @@
 
 ## Unreleased
 
-- Positioning: the mouse wheel changes icon size again, Shift + wheel the scale.
-- The swing timer swings in preview mode; its countdown always shows tenths, and Empty as it goes
-  drains the same way it fills.
-- Elements are listed A to Z in the options.
-- Fixed an error when preview mode showed the totem bar.
-- New default layout and looks for new profiles.
+- New: Flame Shock and Purge (experimental). Flame Shock goes grey while your hostile target
+  doesn't have it, in combat too, with an optional red ring and glow, and its time bar changes
+  colour near the end. Purge lights while your target has a Magic buff.
+- Shields: the No shield warning shows the moment your shield drops, in combat too. The In-combat
+  fallback and Icon opacity settings are gone.
+- Text and Bars: choose the font, outline, shadow and bar texture, including other addons' fonts.
+  The totem bar and swing timer can have their own.
+- Totem bar: themes (Pixel, and Stone and bronze, experimental), time bars beside the icons, and
+  key text with size, offset and colour.
+- New profiles start with a new default layout.
+- Many other minor fixes and improvements.
 
 ## 0.9.0 (2026-09-30)
 
