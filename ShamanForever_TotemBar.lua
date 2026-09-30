@@ -65,6 +65,7 @@ TB.DEFAULTS = {
 	badgeSize = 0.45,         -- that badge, as a share of the slot's size
 	badgeAlpha = 0.75,        -- its opacity
 	badgeSat = 0.5,           -- its colour (0 grey, 1 full colour)
+	badgeX = 0, badgeY = 0,   -- its offset from its place beside the slot
 	warnGrey = false,
 	warnRing = false,
 	warnPulse = true,
@@ -99,7 +100,7 @@ local RANGES = {
 	scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { -10, 20 }, size = { 24, 96 },
 	arrowSize = { 8, 32 }, extrasScale = { 0.5, 1.5 }, idleAlpha = { 0.1, 1 },
 	badgeSize = { 0.25, 0.8 }, badgeAlpha = { 0.1, 1 }, badgeSat = { 0, 1 }, warn = { 0, 30 }, rangeHeight = { 1, 12 },
-	fadeAfter = { 0, 10 }, keySize = { 6, 30 }, keyX = { -20, 20 }, keyY = { -20, 20 }, pixelEdge = { 1, 4 },
+	fadeAfter = { 0, 10 }, badgeX = { -30, 30 }, badgeY = { -30, 30 }, keySize = { 6, 30 }, keyX = { -20, 20 }, keyY = { -20, 20 }, pixelEdge = { 1, 4 },
 }
 local function finite(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
@@ -326,12 +327,14 @@ function TB.layoutBadge(bd, anchor, size, border)
 	bd:SetAlpha(c.badgeAlpha)
 	TB.saturate(bd.icon, c.badgeSat)
 	bd:ClearAllPoints()
-	-- Past what the theme or the time bar hangs under the slot.
+	-- Past what the theme or the time bar hangs under the slot, then moved by the player's offset (in
+	-- the bar's units, as the key text's: it grows with the bar's Scale).
 	local gap = TB.BADGE_GAP + inset + TB.skin.badgeGap(size)
-	if c.pop == "up" then bd:SetPoint("TOP", anchor, "BOTTOM", 0, -gap)
-	elseif c.pop == "down" then bd:SetPoint("BOTTOM", anchor, "TOP", 0, gap)
-	elseif c.pop == "right" then bd:SetPoint("RIGHT", anchor, "LEFT", -gap, 0)
-	else bd:SetPoint("LEFT", anchor, "RIGHT", gap, 0) end
+	local x, y = c.badgeX, c.badgeY
+	if c.pop == "up" then bd:SetPoint("TOP", anchor, "BOTTOM", x, y - gap)
+	elseif c.pop == "down" then bd:SetPoint("BOTTOM", anchor, "TOP", x, y + gap)
+	elseif c.pop == "right" then bd:SetPoint("RIGHT", anchor, "LEFT", x - gap, y)
+	else bd:SetPoint("LEFT", anchor, "RIGHT", x + gap, y) end
 end
 
 -- A button's look v over its button b (size wide), set in by its border's reach so that the
