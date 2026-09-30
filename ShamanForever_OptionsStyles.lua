@@ -116,7 +116,6 @@ local function take(sec)
 	local s = size()
 	for _, c in ipairs(sec.cells) do
 		c.tile = L.tilePool.acquire(c.frame, s)
-		c.tile:point("CENTER", c.frame, "TOP", 0, -c.stageH / 2)
 		dress(c)
 	end
 end
@@ -139,8 +138,12 @@ local function newSection(p, place)
 		-- A strip change dresses the tiles again: given back, taken anew (the pool reuses them).
 		if sec.stale then give(sec); sec.stale = false end
 		sec.height = place(sec, p:width())
-		for _, c in ipairs(sec.cells) do paintCell(c) end
 		if f:IsVisible() then take(sec) end
+		-- Each tile centred in its cell's stage, which follows the page's width in the pop grid.
+		for _, c in ipairs(sec.cells) do
+			paintCell(c)
+			if c.tile then c.tile:point("CENTER", c.frame, "TOP", 0, -c.stageH / 2) end
+		end
 	end)
 	table.insert(sections, sec)
 	return sec
