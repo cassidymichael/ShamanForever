@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- New profiles use the Blizzard bar texture, with slightly brighter bar colours to suit it.
+- Flame Shock: its Expiring colour no longer shows as a flat strip on textured time bars.
+
 ## 0.10.0 (2026-09-30)
 
 - New: Flame Shock and Purge (experimental). Flame Shock goes grey while your hostile target
