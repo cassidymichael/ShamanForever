@@ -16,8 +16,17 @@ ns.Imbue = IM
 
 local imbue = ns.newElementIcon("imbue")
 local anyKnown = false   -- any imbue known (IM.resolve): the element's learned()
+local IDLE_CHOICES = {
+	{ "never", "Never", "It always shows in full" },
+	{ "notlow", "On, not running low",
+		"Idle while an imbue is on and its time left isn't low" },
+	{ "on", "On", "Idle while an imbue is on", "Idle whatever its time left is." },
+}
 ns.registerElement("imbue", { frame = imbue, label = "Weapon Imbue", paint = function(t) t:SetTexture(IM.icon()) end,
 	learned = function() return anyKnown end,
+	-- Idle: hidden while an imbue is on and its time isn't showing (idleWhen: never | notlow | on).
+	defaults = { idleWhen = "notlow", idleAlpha = 0 },
+	def = { key = "imbue", idleChoices = IDLE_CHOICES },
 	kind = "imbue", icon = 136086, school = "spirit", blurb = "Warns when your main hand has no imbue." })
 
 -- The key is also the spell's key in ns.Spells; name is its display name (the client's). ids are
@@ -138,8 +147,10 @@ local function drawImbue(now, quiet)
 	else
 		imbue.upTimer:clear()
 	end
-	-- Hidden by alpha, not Hide, so it keeps its place in the group and shows again at once.
-	imbue:SetAlpha((acct.locked and on and db.imbueHideActive and not showTime) and 0 or 1)
+	-- Idle is faded by alpha, not Hide, so it keeps its place in the group and shows again at once.
+	local when = ns.elementSetting("imbue", "idleWhen")
+	local idle = acct.locked and on and (when == "on" or (when == "notlow" and not showTime))
+	ns.fadeTo(imbue, idle and ns.idleAlpha("imbue") or 1)
 end
 
 -- Not learned yet (seen only while the preview shows such elements): a plain grey icon, nothing
@@ -153,7 +164,7 @@ local function drawNotLearned()
 	imbue:SetGlowShown(false)
 	imbue.timer:Hide()
 	imbue.upTimer:clear()
-	imbue:SetAlpha(1)
+	ns.fadeTo(imbue, 1)
 end
 
 function IM.refresh()

@@ -65,7 +65,7 @@ local gateAlpha, holderAlpha, retarget   -- below
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
 		icon = 135813, school = "fire", blurb = "Shows while your Flame Shock is on your target.",
-		idleText = "Idle is when you have no hostile target",
+		idleText = "Idle while you have no hostile target",
 		noPop = true,
 		noGlow = true, upLabel = "On target", idleLabel = "No target",
 		missing = true, engineExpire = true,   -- its Not on target and Expiring blocks
@@ -81,7 +81,7 @@ local TARGET = {
 		-- buffs don't keep it lit.
 		candidates = function(def) return { includeDispelTypes = { Magic = true }, maxDuration = T.longest(def) } end,
 		skipLong = { 1, 60, 1 },   -- Longest buff's range and step, in minutes (its page's slider)
-		idleText = "Idle is when your target has nothing to purge", procHeader = "Something to purge",
+		idleText = "Idle while your target has nothing to purge", procHeader = "Something to purge",
 		noPop = true, ownIcon = true, noTimer = true, buttonBorder = true,
 		glowTip = "While your target has one.", upLabel = "Magic buff", idleLabel = "Nothing to purge",
 		defaults = { idleAlpha = 0, primedGlow = true, skipLong = false, skipLongMins = 2 },

@@ -65,11 +65,11 @@ local setting = ns.elementSetting
 --   experimental        a feature name: not tested in game (the level cap is 20)
 local COOLDOWNS = {
 	{ key = "earthbind", spellKey = "earthbind", icon = 136102, totemSlot = 2, duration = 45, school = "earth",
-		blurb = "Cooldown, and time left while it's down.", defaults = { idleAlpha = 0.2 } },
+		blurb = "Cooldown, and time left while it's down.", defaults = {} },
 	{ key = "stoneclaw", spellKey = "stoneclaw", icon = 136097, totemSlot = 2, duration = 15, school = "earth",
-		blurb = "Cooldown, and time left while it's down.", defaults = { idleAlpha = 0.2 } },
+		blurb = "Cooldown, and time left while it's down.", defaults = {} },
 	{ key = "firenova",  spellKey = "fireNova",  icon = 135824, needsTotem = 1, school = "fire",
-		blurb = "Cooldown. Needs a fire totem." },
+		blurb = "Cooldown. Needs a fire totem.", defaults = { idleWhen = "never" } },
 	-- Emergency cooldowns: plainly visible while ready.
 	{ key = "naturesswiftness", spellKey = "naturesSwiftness", icon = 136076, school = "water",
 		blurb = "Cooldown, and a glow while your next Nature spell is instant.",
@@ -77,14 +77,14 @@ local COOLDOWNS = {
 			"ghostWolf", "farSight" },
 			buffKey = "naturesSwiftness",
 			text = "From your cast until your next Nature spell with a cast time." },
-		cd = 180, defaults = { idleAlpha = 1 }, experimental = "Nature's Swiftness" },
+		cd = 180, defaults = { idleWhen = "never" }, experimental = "Nature's Swiftness" },
 	{ key = "manatide", spellKey = "manaTide", icon = 135861, totemSlot = 3, duration = 12, school = "water",
 		blurb = "Cooldown, and time left while it's down.",
 		ranOut = true, cd = 300,
-		defaults = { idleAlpha = 1, expire = { secs = 3, glow = true, pulse = false } }, experimental = "Mana Tide Totem" },
+		defaults = { idleWhen = "never", expire = { secs = 3, glow = true, pulse = false } }, experimental = "Mana Tide Totem" },
 	{ key = "grounding", spellKey = "grounding", icon = 136039, totemSlot = 4, duration = 45, school = "air",
 		blurb = "Cooldown, time left, and a flash when it takes a spell.",
-		grounded = true, ranOut = true, cd = 15, defaults = { idleAlpha = 0.2 }, experimental = "Grounding Totem" },
+		grounded = true, ranOut = true, cd = 15, defaults = {}, experimental = "Grounding Totem" },
 	-- Rotation: full while ready, like the shocks.
 	-- On Forever, Stormstrike leaves a 12 s debuff with one charge on the target: the shaman's next
 	-- Lightning Bolt, Chain Lightning or Earth Shock on it hits 20% harder. Auras can't be read in
@@ -96,19 +96,19 @@ local COOLDOWNS = {
 			text = "From your cast for 12 s, or until your next Lightning Bolt, Chain Lightning or Earth Shock. " ..
 				"Other Nature damage on the target can also use it up, which can't be seen." },
 		primedLooks = false, expireLooks = false, readyGlow = true, cd = 8,
-		defaults = { idleAlpha = 1, primedPop = false, primedGlow = false, expire = { secs = 0 } }, experimental = "Stormstrike" },
+		defaults = { idleWhen = "never", primedPop = false, primedGlow = false, expire = { secs = 0 } }, experimental = "Stormstrike" },
 	{ key = "riptide", spellKey = "riptide", icon = 252995, school = "water", blurb = "Cooldown.",
-		readyGlow = true, cd = 6, defaults = { idleAlpha = 1 }, experimental = "Riptide" },
+		readyGlow = true, cd = 6, defaults = { idleWhen = "never" }, experimental = "Riptide" },
 	-- Short cooldowns, back many times a fight: no Ready pop unless the player asks for it.
 	{ key = "lavaburst", spellKey = "lavaBurst", icon = 237582, school = "fire", blurb = "Cooldown.",
-		readyGlow = true, cd = 10, defaults = { idleAlpha = 1, readyPop = false }, experimental = "Lava Burst" },
+		readyGlow = true, cd = 10, defaults = { idleWhen = "never", readyPop = false }, experimental = "Lava Burst" },
 	{ key = "chainlightning", spellKey = "chainLightning", icon = 136015, school = "air", blurb = "Cooldown.",
-		readyGlow = true, cd = 6, defaults = { idleAlpha = 1, readyPop = false }, experimental = "Chain Lightning" },
+		readyGlow = true, cd = 6, defaults = { idleWhen = "never", readyPop = false }, experimental = "Chain Lightning" },
 	{ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, window = 25, school = "air",
 		blurb = "Cooldown, and time left while it's on.",
 		readyGlow = true, expireLooks = { "grey", "pulse" }, cd = 180,
 		-- Expiring off: nothing to recast as it ends. Turned on, it fades in and out.
-		defaults = { idleAlpha = 1, expire = { secs = 0, pulse = true } }, experimental = "Rage of the Farseer" },
+		defaults = { idleWhen = "never", expire = { secs = 0, pulse = true } }, experimental = "Rage of the Farseer" },
 	{ key = "projection", spellKey = "totemicProjection", icon = 136099, school = "spirit", blurb = "Cooldown.",
 		cd = 60, experimental = "Totemic Projection" },
 	-- Out of sight while ready: seen on cooldown, or when Ankhs run low.
@@ -122,10 +122,11 @@ local COOLDOWNS = {
 -- come with what it has. A def's own defaults win over them.
 local PARTS = {
 	ready = { readyPop = true, readyGlow = false },
-	idle = { idleAlpha = 0.35 },
-	-- Fire Nova: the no-fire-totem look, and when it counts as idle (never | nototem | offcd).
+	-- idleWhen: never | offcd | oncd (Fire Nova also nototem); see applyIdle.
+	idle = { idleAlpha = 0.3, idleWhen = "offcd" },
+	-- Fire Nova: the no-fire-totem look.
 	-- readyNoTotem: its cooldown ending with no fire totem down plays a greyed pop (grey) or nothing (none).
-	needsTotem = { blockedGrey = true, blockedRing = false, blockedPulse = false, idleWhen = "never", readyNoTotem = "grey" },
+	needsTotem = { blockedGrey = true, blockedRing = false, blockedPulse = false, readyNoTotem = "grey" },
 	-- A totem's end: ran out (the pop) or killed early (Killed early's flash and cross).
 	totemSlot = { expiredPop = true, killed = true, killedPop = true, killedGlow = true, killedMark = true },
 	ranOut = { ranOutFlash = true, ranOutPop = false, ranOutGlow = false },   -- ran out, as a flash
@@ -134,7 +135,34 @@ local PARTS = {
 	reagent = Reagents.DEFAULTS,
 }
 CD.READY_DEFAULTS = PARTS.ready   -- the shock's too
+-- The Idle block's choices (see idleBlock in ShamanForever_OptionsElements.lua).
+local IDLE_NEVER = { "never", "Never", "It always shows in full" }
+local IDLE_OFFCD = { "offcd", "Ready", "Idle while it's ready%s" }
+local IDLE_ONCD = { "oncd", "Cooling down", "Idle while it's cooling down%s",
+	"Shown in full only while it's ready." }
+-- Fire Nova: no fire totem out and ready, ready either way, or cooling down with no fire totem out.
+local FIRE_NOVA_CHOICES = {
+	IDLE_NEVER,
+	{ "nototem", "No fire totem", "Idle while it's ready and no fire totem is out",
+		"Idle only while it can't be cast." },
+	{ "offcd", "Ready", "Idle while it's ready, with or without a fire totem out",
+		"With or without a fire totem out." },
+	{ "oncd", "Cooling down, no fire totem", "Idle while it's cooling down and no fire totem is out",
+		IDLE_ONCD[4] },
+}
+CD.IDLE_CHOICES = { IDLE_NEVER, IDLE_OFFCD, IDLE_ONCD }
+-- The same two choices with what else keeps the element out of idle named in their labels.
+local function extraChoices(also)
+	return { IDLE_NEVER, { IDLE_OFFCD[1], "Ready, " .. also, IDLE_OFFCD[3] },
+		{ IDLE_ONCD[1], "Cooling down, " .. also, IDLE_ONCD[3], IDLE_ONCD[4] } }
+end
 local function withParts(def)
+	def.idleAlso = def.totemSlot and " and its totem isn't out" or def.primed and " and it isn't primed"
+		or def.window and " and it isn't active" or nil
+	def.idleChoices = def.needsTotem and FIRE_NOVA_CHOICES
+		or def.totemSlot and extraChoices("no totem out") or def.primed and extraChoices("not primed")
+		or def.window and extraChoices("not active") or CD.IDLE_CHOICES
+	if def.reagent then def.idleExtra = Reagents.IDLE_EXTRA end
 	def.defaults = def.defaults or {}
 	local fill = ns.fillDefaults
 	fill(def.defaults, PARTS.ready)
@@ -353,35 +381,51 @@ CD.popWhenReady = popWhenReady
 -- such care. Going idle waits IDLE_DELAY at full opacity first, so a ready or run-out pop plays at full.
 local IDLE_DELAY = 1.5
 ns.IDLE_DELAY = IDLE_DELAY   -- the options preview and preview mode wait as long
-local refreshCooldown           -- below
+local refreshCooldown           -- below (each cooldown def's refresh)
+-- Whether the spell's own cooldown is running, and whether that is certain. An unreadable answer
+-- reports running but uncertain: Ready then treats it as busy, Cooling down as not idle.
 local function ownCooldownRunning(def, inEvent)
 	local ok, info = safe(C_Spell.GetSpellCooldown, def.spellID)
-	if not ok or type(info) ~= "table" or isSecret(info.isActive) then return true end   -- can't tell: not idle
-	if info.isActive == false then def.cdRunning = false return false end
+	if not ok or type(info) ~= "table" or isSecret(info.isActive) then
+		def.cdRunning = nil   -- read afresh once it's readable
+		return true, false
+	end
+	if info.isActive == false then def.cdRunning = false return false, true end
 	if inEvent or def.cdRunning == nil then
-		if isSecret(info.isOnGCD) then return true end
+		if isSecret(info.isOnGCD) then return true, false end
 		def.cdRunning = info.isOnGCD ~= true
 	end
-	return def.cdRunning
+	return def.cdRunning, true
 end
 local function fadeTo(def, alpha) ns.fadeTo(def.frame, alpha) end
 
--- totemBusy: our totem is down (Earthbind, Stoneclaw), or any fire totem is (Fire Nova).
+-- The "Idle when" choice (idleWhen): never | offcd (idle while off cooldown) | oncd (idle while
+-- cooling down, so full only while ready); Fire Nova also nototem (off cooldown with no fire totem
+-- down). totemBusy: our totem is down (Earthbind, Stoneclaw), or any fire totem is (Fire Nova).
+-- def needs key, frame, spellID and a refresh function (the element's own, for the fade after the
+-- pop's moment); the shock passes such a table too.
+-- The options preview's copy of these rules is L.idles (ShamanForever_OptionsLook.lua).
 local function applyIdle(def, totemBusy, inEvent)
-	local when = def.needsTotem and setting(def.key, "idleWhen")   -- Fire Nova: never | nototem | offcd
-	local cdRunning = ownCooldownRunning(def, inEvent)   -- always, so its kept answer stays current
-	local busy = not ns.getAccount().locked or when == "never" or cdRunning
-	if not busy and totemBusy then busy = when ~= "offcd" end
+	local when = setting(def.key, "idleWhen")
+	-- Always read, so its kept answer stays current.
+	local running, certain = ownCooldownRunning(def, inEvent)
+	local busy
+	if when == "oncd" then busy = not (running and certain) else busy = running end
+	busy = busy or when == "never" or not ns.getAccount().locked
+	-- A held state (a totem down, a primed buff, low reagents) is never idle. Only Fire Nova's own
+	-- Off cooldown choice ignores its fire totem.
+	if not busy and totemBusy then busy = not (def.needsTotem and when == "offcd") end
 	if busy then def.idleAt = nil
 	elseif def.idle == false then
 		-- Just went idle: full for a moment, then refresh to fade.
 		def.idleAt = GetTime() + IDLE_DELAY
-		C_Timer.After(IDLE_DELAY + 0.05, function() refreshCooldown(def) end)
+		C_Timer.After(IDLE_DELAY + 0.05, function() def.refresh(def) end)
 	end
 	local waiting = def.idleAt and GetTime() < def.idleAt
 	fadeTo(def, (busy or waiting) and 1 or ns.idleAlpha(def.key))
 	def.idle = not busy
 end
+CD.applyIdle = applyIdle
 
 ------------------------------------------------------------------------
 -- Cooldown elements: refresh
@@ -594,6 +638,7 @@ end
 CD.soundWhenReady = soundWhenReady
 
 for _, def in ipairs(COOLDOWNS) do
+	def.refresh = refreshCooldown
 	if def.primed then
 		def.spends = {}
 		for _, k in ipairs(def.primed.spends) do def.spends[k] = true end

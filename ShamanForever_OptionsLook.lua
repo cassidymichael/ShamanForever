@@ -255,6 +255,29 @@ local previewState = {}   -- element key -> its header's preview state
 local FAINT = 0.12
 function L.idleAlpha(key) return math.max(ns.idleAlpha(key), FAINT) end
 local function idleLook(ic, key) ic:SetAlpha(L.idleAlpha(key)) end
+-- Whether a preview state is one an element is idle in, by its Idle when: the cooldown elements,
+-- the shocks and the imbue (the others draw their idle look in their own render). A state's cooldown
+-- is running in "cd" (Fire Nova has no other); the rest of a cooldown element's states are off
+-- cooldown or something of its own going on. The shocks' range and mana states are off cooldown.
+function L.idles(key, st)
+	local e = ns.ELEMENTS[key]
+	local when = e and ns.elementSetting(key, "idleWhen")
+	if not when or when == "never" then return false end
+	if e.kind == "imbue" then return (st == "fine") or (st == "low" and when == "on") end
+	if e.kind == "shock" then return (st == "cd") == (when == "oncd") end
+	if e.kind ~= "cooldown" then return false end
+	-- A held state (a totem down, primed, a buff window, low reagents shown) is never idle.
+	if when == "oncd" then
+		local lowIdle = ns.elementSetting(key, "reagentShow") == false
+		return st == "cd" or ((st == "low" or st == "out") and lowIdle)
+	end
+	if e.def.needsTotem then
+		if when == "offcd" then return st ~= "cd" end   -- off cooldown, a fire totem or not
+		return st == "nototem" or st == "ready"          -- nototem: and no fire totem down
+	end
+	return st == "ready"
+end
+
 -- Ready, then idle: as on the HUD, the icon holds full for a moment after its ready pop, then fades.
 local IDLE_DELAY = ns.IDLE_DELAY
 local function idleSoon(ic, key, st)
@@ -292,7 +315,6 @@ local function totemPreview(def)
 			end
 			if st == "ready" then
 				if opt(key, "readyPop") then ic:Pop("ready") end
-				idleSoon(ic, key, st)
 			elseif st == "ranout" and def.ranOut then
 				flash(opt(key, "ranOutFlash") and { expired = true, ranOut = ns.SCHOOL_COLOR[def.school],
 					pop = opt(key, "ranOutPop"), glow = opt(key, "ranOutGlow") }, 1.4)
@@ -406,19 +428,20 @@ L.PREVIEW = {
 			else
 				reset(ic, ns.Imbue.icon())
 				if st == "low" and d.imbueWarnMins > 0 then frozen(ic.upT, 0.95, 3600) end
-				if st == "fine" and d.imbueHideActive then ic:SetAlpha(0.15) end
 			end
 		end,
 	},
 	firenova = {
 		cooldown = true, uptime = true,
 		typical = "out", warning = "nototem",
-		states = { { "ready", "Ready" }, { "nototem", "No fire totem" }, { "out", "Fire totem out" }, { "expiring", "Totem expiring" } },
+		states = { { "ready", "Ready" }, { "nototem", "No fire totem" }, { "out", "Fire totem out" }, { "expiring", "Totem expiring" },
+			{ "cd", "Cooldown" } },
 		pop = function(ic, st)
 			if st == "ready" and opt("firenova", "readyPop") then ic:Pop() end
 		end,
 		render = function(ic, st)
 			reset(ic, 135824)
+			if st == "cd" then frozen(ic.cdT, 0.4, 6) return end
 			if st == "expiring" then expiringLook(ic, "firenova", 55) return end
 			if st == "nototem" then
 				ic.tex:SetDesaturated(opt("firenova", "blockedGrey"))
@@ -479,7 +502,6 @@ local function cooldownPreview(def)
 		pop = function(ic, st)
 			if st == "ready" then
 				if not def.noReady and opt(key, "readyPop") then ic:Pop("ready") end
-				idleSoon(ic, key, st)
 			elseif st == "primed" and def.primedLooks ~= false and opt(key, "primedPop") then ic:Pop("ready") end
 		end,
 		render = function(ic, st)
@@ -1060,6 +1082,8 @@ function L.buildHero(parent, key)
 			h:refresh()
 			-- A state with a moment (killed, ready, dropped) plays its pop once, as in game.
 			if def.pop then def.pop(def.stage and h or h.previewIcon, self.state) end
+			-- Idle comes after a moment at full, as on the HUD (a refresh shows it at once).
+			if not def.stage and L.idles(key, self.state) then idleSoon(h.previewIcon, key, self.state) end
 		end)
 		table.insert(h.stateButtons, b)
 	end
@@ -1125,7 +1149,15 @@ function L.buildHero(parent, key)
 				ic:SetPoint("LEFT", p, "LEFT", x + ns.roundPx(l, px) - l, -6 + ns.roundPx(t, px) - t)
 			end
 		end
-		if def.stage then def.render(self, previewState[key]) else def.render(self.previewIcon, previewState[key]) end
+		local st = previewState[key]
+		if def.stage then def.render(self, st) else
+			def.render(self.previewIcon, st)
+			-- A state kept through a refresh (a setting changed) shows its idle look at once.
+			if self.shownState == nil or self.shownState == st then
+				if L.idles(key, st) then idleLook(self.previewIcon, key) end
+			end
+			self.shownState = st
+		end
 	end
 	return h
 end

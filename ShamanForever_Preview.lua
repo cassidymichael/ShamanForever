@@ -82,15 +82,7 @@ local function barSteps(el)
 	return { opts.mode == "warnings" and BAR_WARNING[el] or { "down" } }
 end
 
--- Whether a state is the element's idle one on the HUD: a cooldown element that's ready (Fire Nova
--- by its Idle when), which fades to its Idle opacity, never quite to nothing here.
-local function idles(key, st)
-	local e = ns.ELEMENTS[key]
-	if e.kind ~= "cooldown" then return false end
-	if not e.def.needsTotem then return st == "ready" end
-	local when = ns.elementSetting(key, "idleWhen")
-	return (st == "nototem" and when ~= "never") or (st == "out" and when == "offcd")
-end
+local idles = L.idles   -- whether a state is the element's idle one on the HUD (ShamanForever_OptionsLook.lua)
 
 ------------------------------------------------------------------------
 -- Stand-ins, and parking the real elements

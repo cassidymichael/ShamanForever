@@ -24,6 +24,11 @@ R.DEFAULTS = {
 	reagentRing = true, reagentPulse = true,
 }
 
+-- The Idle block's second dropdown (idleBlock in ShamanForever_OptionsElements.lua).
+R.IDLE_EXTRA = { key = "reagentShow", label = "Running low",
+	tip = "Running low or out counts as something going on, even at 0%.",
+	choices = { { true, "Shows it" }, { false, "Stays idle" } } }
+
 -- How many the player carries, or nil when that can't be read.
 function R.count(def)
 	local ok, n = safe(C_Item and C_Item.GetItemCount, def.reagent)
