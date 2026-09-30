@@ -21,6 +21,10 @@
 --    Nothing else can mark the fifth stack: the button plays handed animations only when a buff is
 --    new to its slot or first shows, and Blizzard's aura sounds come with every added stack
 --    (Blizzard_CustomAuraButton.lua, C_UnitAuras.AddAuraSound).
+--    Idle when "Below five stacks": the stacks' button sits at the Idle opacity (its gate, set out
+--    of combat and held through a fight), and the clip also holds a copy of the element at five in
+--    full: the aura's icon, its border, time left and number drawn by this button, the stack bar
+--    full.
 -- The five in its own colour: a numeric rule formatter hands Blizzard one format per count, so the
 -- engine picks it. Blizzard prints only counts from 2 without one (below, "The stack number").
 -- Nothing here reads the buff or compares its stacks. Under Blizzard's buttons nothing gets a script
@@ -57,7 +61,7 @@ local CENTER_FILL = Enum and Enum.StatusBarFillStyle and Enum.StatusBarFillStyle
 
 -- Its option defaults (ns.elementSetting), and the ranges its numbers are kept in.
 M.DEFAULTS = {
-	idleAlpha = 0,
+	idleWhen = "notup", idleAlpha = 0,
 	stackBar = true, stackBarHeight = 6, stackBarColor = { 0.52, 0.69, 1, 1 },
 	stackCount = true, countPos = "center", countSize = 18,
 	fullCount = true, fullCountColor = { 1, 0.82, 0.25, 1 },   -- the number at five, in its colour
@@ -66,7 +70,8 @@ M.DEFAULTS = {
 	fullGlow = true,    -- the Pulsing glow while at five
 }
 M.RANGES = { stackBarHeight = { 1, 20 }, countSize = { 8, 40 } }
-local CHOICES = { highlight = { wash = true, none = true }, countPos = { corner = true, center = true } }
+local CHOICES = { highlight = { wash = true, none = true }, countPos = { corner = true, center = true },
+	idleWhen = { never = true, notup = true, five = true } }
 
 local function setting(name) return ns.elementSetting(KEY, name) end
 local function color(name)
@@ -108,8 +113,18 @@ ns.registerElement(KEY, { frame = f, label = Spells.name("maelstromWeapon"), def
 	standInBorder = true,
 	kind = "maelstrom", def = M, spell = "maelstromWeapon", icon = M.icon, school = "air",
 	blurb = "Its stacks, with a highlight at five.", experimental = "Maelstrom Weapon" })
--- For the options' Idle block: it's a buff (its Idle is "not up").
-M.key, M.buff = KEY, true
+-- For the options' Idle block: its "Idle when" choices (idleWhen).
+M.key = KEY
+M.idleChoices = {
+	{ "never", "Never", "It always shows in full" },
+	{ "notup", "Not up", "Idle while it isn't up" },
+	{ "five", "Below five stacks", "Idle while it's below five stacks or not up",
+		"Below five stacks: shown in full only at five." },
+}
+local function idleWhen()
+	local w = setting("idleWhen")
+	return CHOICES.idleWhen[w] and w or "notup"
+end
 
 -- Its time left is Blizzard's button's own swipe: no text, no bar (its defaults and CANT note are
 -- with every other element's in ShamanForever_Timers.lua).
@@ -183,22 +198,29 @@ end
 ------------------------------------------------------------------------
 -- 1. The stacks: number and bar, on an overlay above the time left's swipe
 ------------------------------------------------------------------------
+-- slot.copy: the copy at five (below), its parts slot.levelUp levels higher, its bar always full.
 local function styleStacks(slot, size)
 	local on = setting("stackBar")
-	local base = baseLevel()
+	local base = baseLevel() + (slot.levelUp or 0)
 	slot.overlay:SetFrameLevel(base + 4)
 	slot.bar:SetFrameLevel(base + 5)
 	slot.tickFrame:SetFrameLevel(base + 6)
 	slot.numFrame:SetFrameLevel(base + 7)   -- above the bar and its ticks: the count is never clipped
 	slot.edge:SetFrameLevel(base + 8)
 	ns.try("maelstrom border", ns.applyBorder, slot.edge, ns.borderFor(KEY))
+	if slot.copy and slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end   -- the host's (auraMask)
 	local c = color("stackBarColor")
 	slot.bar:SetHeight(number("stackBarHeight"))
 	slot.bar:SetStatusBarTexture(ns.Media.barTexture())   -- before the colour
 	slot.bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
-	-- Again with the bar's range, which a new source changes (the options, out of combat).
-	ns.try("maelstrom stack bar", slot.button.SetApplicationBar, slot.button, slot.bar,
-		{ minApplications = 0, maxApplications = src.max })
+	if slot.copy then
+		slot.bar:SetMinMaxValues(0, src.max)
+		slot.bar:SetValue(src.max)
+	else
+		-- Again with the bar's range, which a new source changes (the options, out of combat).
+		ns.try("maelstrom stack bar", slot.button.SetApplicationBar, slot.button, slot.bar,
+			{ minApplications = 0, maxApplications = src.max })
+	end
 	for i = 1, src.max - 1 do
 		local t = slot.ticks[i]
 		if not t then
@@ -220,20 +242,23 @@ local function styleStacks(slot, size)
 	applyCountFormat(slot)
 end
 
--- Made by Blizzard's initializeFrame: each step on its own, so one refused leaves the rest.
-local function buildStacks(slot, button)
+-- Made by Blizzard's initializeFrame: each step on its own, so one refused leaves the rest. into:
+-- the frame the parts hang from (default the button; the copy's host at five).
+local function buildStacks(slot, button, into)
 	slot.button = button
+	into = into or button
 	-- The group's border drawn on the button too, so it shows exactly with the buff (the element's
 	-- own frame, and its border, sit at its Idle opacity). Styled out of combat only (styleStacks).
-	slot.edge = CreateFrame("Frame", nil, button)
+	slot.edge = CreateFrame("Frame", nil, into)
 	slot.edge:SetAllPoints(button)
-	local overlay = CreateFrame("Frame", nil, button)
-	overlay:SetAllPoints()
+	slot.edge.owner = KEY   -- its school colour (ns.Looks)
+	local overlay = CreateFrame("Frame", nil, into)
+	overlay:SetAllPoints(button)
 	slot.overlay = overlay
 	-- The count's own frame, above the bar and its ticks (styleStacks sets its level), so the bar
 	-- never draws over the digits.
-	local numFrame = CreateFrame("Frame", nil, button)
-	numFrame:SetAllPoints()
+	local numFrame = CreateFrame("Frame", nil, into)
+	numFrame:SetAllPoints(button)
 	slot.numFrame = numFrame
 	-- The font must be set first: Blizzard writes the count at once.
 	local fs = numFrame:CreateFontString(nil, "OVERLAY", nil, 7)
@@ -255,8 +280,13 @@ local function buildStacks(slot, button)
 	ns.try("maelstrom stacks build", styleStacks, slot, ns.sizeOf(KEY))
 end
 
+-- The stacks' button hangs from this gate: its Idle opacity with "Below five stacks" (applyIdle).
+-- An ancestor of the button: its alpha changes only out of combat.
+local gate = CreateFrame("Frame", nil, f.effects)
+gate:SetAllPoints(f)
+
 local stacks = ns.makeAuraSlot(f, {
-	key = KEY, slot = "stacks", ids = function() return src.ids() end, parent = f.effects,
+	key = KEY, slot = "stacks", ids = function() return src.ids() end, parent = gate,
 	sites = { container = "maelstrom container", style = "maelstrom style", filter = "maelstrom filter" },
 	onButton = function(slot, button) buildStacks(slot, button) end,
 	onStyle = function(slot, size) styleStacks(slot, size) end,
@@ -267,8 +297,8 @@ local stacks = ns.makeAuraSlot(f, {
 -- 2. The highlight: the gated bar and its burst
 ------------------------------------------------------------------------
 -- Levels over the containers' (baseLevel): the stacks' parts at 4 to 8, the copy at five (below)
--- from 9, then the highlight and the glow at five over everything.
-local HL_LEVEL, GLOW_LEVEL = 14, 16
+-- from 9 to 18, then the highlight and the glow at five over everything.
+local HL_LEVEL, GLOW_LEVEL = 20, 22
 
 local function styleFull(slot)
 	slot.cd:SetAlpha(0)   -- the stacks' button shows the time left
@@ -317,7 +347,9 @@ local full = ns.makeAuraSlot(f, {
 -- The glow's reach past the icon's edge, as a clip look's (ns.makeClipLook: the widest look, Proc
 -- glow's opening burst, reaches 1.7 widths of the icon with its frame from its centre).
 local REACH = 1.7
-local FIVE_LEVEL = 9   -- its container, levels above the stacks' (ns.makeAuraSlot's level)
+-- Its container, levels above the stacks' (ns.makeAuraSlot's level); the copy's icon and swipe; its
+-- parts as the stacks' (styleStacks) that many levels higher.
+local FIVE_LEVEL, HOST_LEVEL, COPY_UP = 9, 12, 10
 
 -- The sensor bar and the clip over it, for an icon of size: the bar src.max steps long (a step:
 -- the icon with its reach both ways, and 2 px), its fill edge on the reach's right edge at the most
@@ -346,13 +378,15 @@ local function fiveHost(slot, button)
 	slot.sensor = bar
 	local clip = CreateFrame("Frame", nil, button, "DisableUntrustedLayoutScriptsTemplate")
 	clip:SetClipsChildren(true)
+	clip:SetFrameLevel(baseLevel() + HOST_LEVEL)
 	slot.clip = clip
 	placeFive(slot, button, ns.sizeOf(KEY))
 	slot.sensed = ns.try("maelstrom five sensor", button.SetApplicationBar, button, bar,
 		{ minApplications = 0, maxApplications = src.max, interpolation = IMMEDIATE })
 	local host = CreateFrame("Frame", nil, clip)
 	host:SetAllPoints(button)
-	host:SetAlpha(0)
+	host:SetFrameLevel(baseLevel() + HOST_LEVEL)
+	host:SetAlpha(0)   -- the copy: shown by applyIdle
 	return host
 end
 
@@ -361,7 +395,8 @@ local function styleFive(slot, size)
 	placeFive(slot, slot.button, size)
 	ns.try("maelstrom five sensor", slot.button.SetApplicationBar, slot.button, slot.sensor,
 		{ minApplications = 0, maxApplications = src.max, interpolation = IMMEDIATE })
-	slot.cd:SetAlpha(0)   -- the stacks' button shows the time left
+	slot.cd:SetFrameLevel(base + HOST_LEVEL + 1)
+	styleStacks(slot, size)   -- the copy's parts
 	local g = slot.glow
 	g:SetFrameLevel(base + GLOW_LEVEL)
 	g.inner:SetFrameLevel(base + GLOW_LEVEL)
@@ -371,13 +406,22 @@ local function styleFive(slot, size)
 	g:SetShown((setting("fullGlow") and slot.sensed) and true or false)
 end
 
--- Once Blizzard has made the button: the glow in the clip, its animations handed to the button.
+local applyIdle   -- below
+
+-- Once Blizzard has made the button: the glow in the clip, its animations handed to the button,
+-- and the copy's parts on the host (the stacks' parts, drawn full).
 local function buildFive(slot, button)
 	slot.button = button
 	local g = ns.Effects.glow(slot.clip, button, KEY, { underButton = true })
 	g:bindButton(button)
 	slot.glow = g
-	ns.try("maelstrom five build", styleFive, slot, ns.sizeOf(KEY))
+	slot.copy, slot.levelUp = true, COPY_UP
+	buildStacks(slot, button, slot.host)
+	-- A copy that can't be styled never counts: the stacks stay in full.
+	slot.built = ns.try("maelstrom five build", styleFive, slot, ns.sizeOf(KEY))
+	-- Blizzard is still inside initializeFrame, and the copy counts only once it is made: Idle
+	-- decides again the next frame.
+	C_Timer.After(0, function() applyIdle() end)
 end
 
 local five = ns.makeAuraSlot(f, {
@@ -386,9 +430,35 @@ local five = ns.makeAuraSlot(f, {
 	sites = { container = "maelstrom five container", style = "maelstrom five style",
 		filter = "maelstrom five filter" },
 	onButton = function(slot, button) buildFive(slot, button) end,
-	onStyle = function(slot, size) styleFive(slot, size) end,
+	onStyle = function(slot, size)
+		styleFive(slot, size)
+		applyIdle()   -- it may count now
+	end,
 	onError = function(err) ns.noteError("maelstrom five container", err) end,
 })
+
+-- Whether the copy at five is made, sized and filtered as the stacks' slot is: until then the
+-- stacks stay in full (a missed idle, never a faint icon at five). While a restyle for a new Size
+-- is queued the answer stays what it was, so a dragged Size slider doesn't flicker it.
+local readyLast = false
+local function copyReady()
+	local ok = five.built and five.sensed and five.applied ~= nil and five.applied == stacks.applied
+	local ready = ok and five.size == ns.sizeOf(KEY)
+	if ok and not ready and five.styleSoon then ready = readyLast end
+	readyLast = ready and true or false
+	return readyLast
+end
+
+-- Idle "Below five stacks": the stacks' gate at the Idle opacity and the copy shown, set out of
+-- combat and held through a fight (a change in combat waits for its end). Only while positioning
+-- is locked, the element is on and learned, and the copy counts.
+function applyIdle()
+	if InCombatLockdown() then return end
+	local on = idleWhen() == "five" and src.learned() and ns.isEnabled(KEY) and ns.getAccount().locked
+		and copyReady()
+	gate:SetAlpha(on and ns.idleAlpha(KEY) or 1)
+	if five.host then five.host:SetAlpha(on and 1 or 0) end
+end
 
 local SLOTS = { stacks, full, five }
 
@@ -396,6 +466,7 @@ local SLOTS = { stacks, full, five }
 -- The icon under Blizzard's buttons: the look while the buff isn't up
 ------------------------------------------------------------------------
 local function refresh()
+	applyIdle()
 	if not ns.isEnabled(KEY) then return end
 	f.tex:SetTexture(M.icon)
 	if not src.learned() then
@@ -406,7 +477,7 @@ local function refresh()
 	end
 	f.tex:SetDesaturated(false)
 	-- The buttons say when it's up, on the effects layer, which ignores this icon's alpha.
-	ns.fadeTo(f, ns.getAccount().locked and ns.idleAlpha(KEY) or 1)
+	ns.fadeTo(f, (ns.getAccount().locked and idleWhen() ~= "never") and ns.idleAlpha(KEY) or 1)
 end
 
 local function styleAll() for _, s in ipairs(SLOTS) do s:style() end end
@@ -524,7 +595,7 @@ function M.applyLayout()
 	if src.learned() and ns.isEnabled(KEY) then
 		stacks:setup()
 		if setting("highlight") ~= "none" then full:setup() end
-		if setting("fullGlow") then five:setup() end
+		if setting("fullGlow") or idleWhen() == "five" then five:setup() end
 	end
 	styleAll()
 	refresh()
@@ -541,9 +612,10 @@ function M.debug()
 		return (slot.container and "made" or "not made") .. (slot.err and (" (error: " .. slot.err .. ")") or "")
 	end
 	say("maelstrom: spell %s, following %s (%d stacks), stacks container %s, highlight container %s, "
-		.. "container at five %s (sensor %s, glow %s)",
+		.. "container at five %s (sensor %s, glow %s); idle %s, copy counts %s",
 		tostring(M.spellID), table.concat(ids, ","), src.max, state(stacks), state(full), state(five),
-		tostring(five.sensed), five.glow and five.glow.look and five.glow.look.key or "none")
+		tostring(five.sensed), five.glow and five.glow.look and five.glow.look.key or "none",
+		idleWhen(), tostring(copyReady()))
 end
 
 ns.registerModule(M)

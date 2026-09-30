@@ -467,7 +467,10 @@ L.PREVIEW.maelstrom = {
 		reset(ic, M.icon)
 		local n = ({ s1 = 1, s4 = M.maxStacks() - 1, s5 = M.maxStacks() })[st] or 0
 		M.drawPreview(ic, n)
-		if n > 0 then frozen(ic.upT, 0.3, 30) else idleLook(ic, "maelstrom") end
+		if n > 0 then frozen(ic.upT, 0.3, 30) end
+		-- Idle while not up, unless Never; with Below five stacks, below five too.
+		local when = opt("maelstrom", "idleWhen")
+		if (n == 0 and when ~= "never") or (when == "five" and n < M.maxStacks()) then idleLook(ic, "maelstrom") end
 	end,
 }
 -- The preview's counts: plenty, "few left" (at the Low mark, at least 1) and none.
