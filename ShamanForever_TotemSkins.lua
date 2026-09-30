@@ -78,6 +78,7 @@ end
 --   badgeGap(size) how far past the slot the look hangs something on the badge's side ("not your
 --                  pick" sits beyond it)
 --   rangeText      the Out of range section's line while the look owns its rows
+--   mark and rangeText can be functions of the look's own settings
 ------------------------------------------------------------------------
 SK.LIST, SK.byKey = {}, {}
 local function add(key, entry)
@@ -116,13 +117,18 @@ add("stone", {
 	-- plinth's, Call and Recall just past its ends.
 	owns = function()
 		local gap, cap = shares(plinthNow())
-		return { border = true, range = true, rangeHeight = true, spacing = gap, extrasGap = cap + 0.12,
-			dir = "row", pop = "up", barPlace = true }
+		-- Without its gems, out of range is the red edge, at the player's Height.
+		return { border = true, range = true, rangeHeight = TB.cfg().stoneGems or nil, spacing = gap,
+			extrasGap = cap + 0.12, dir = "row", pop = "up", barPlace = true }
 	end,
 	border = borderStyle("line", 1), extrasBorder = borderStyle("medallion"),
-	behind = "plinth", mark = "gem", picker = "stone", arrow = "bronze", fixedSlots = true,
+	behind = "plinth", picker = "stone", arrow = "bronze", fixedSlots = true,
+	mark = function() return TB.cfg().stoneGems and "gem" or "edge" end,
 	badgeGap = function(size) return select(2, plinthReach(size)) end,
-	rangeText = "Out of range, for totems that buff you: the gem under the slot turns red.",
+	rangeText = function()
+		if TB.cfg().stoneGems then return "Out of range, for totems that buff you: the gem under the slot turns red." end
+		return "Out of range, for totems that buff you: a red edge along the top of the slot."
+	end,
 })
 
 -- The look picked now (an unknown key, from a newer version's profile: Default).
@@ -130,6 +136,18 @@ local DEFAULT = SK.byKey.default
 function SK.current()
 	if not ns.getDB() then return DEFAULT end
 	return SK.byKey[TB.cfg().skin] or DEFAULT
+end
+
+-- The look's out-of-range mark now (nil: Default's strip), and its Out of range line.
+function SK.mark()
+	local m = SK.current().mark
+	if type(m) == "function" then return m() end
+	return m
+end
+function SK.rangeText()
+	local t = SK.current().rangeText
+	if type(t) == "function" then return t() end
+	return t
 end
 
 -- Whether the look picked now is drawn round four fixed slots (the bar keeps a place for each).
@@ -321,6 +339,7 @@ local function plinth(host, boxes, size, on, sealed)
 	f.art:SetPoint("BOTTOMRIGHT", boxes[#boxes], "BOTTOMRIGHT", (r[3] - pl.slotX[4] - PL_SLOT) * u,
 		-(r[4] - pl.slotY - PL_SLOT) * u)
 	local g, drop = gemPlace(size, px)
+	local gems = TB.cfg().stoneGems
 	local used = {}
 	f.sealed = sealed or {}
 	for i, box in ipairs(boxes) do
@@ -348,7 +367,7 @@ local function plinth(host, boxes, size, on, sealed)
 			x:ClearAllPoints()
 			x:SetPoint("CENTER", box, "BOTTOM", 0, -drop)
 			x:SetSize(g, g)
-			x:Show()
+			x:SetShown(gems)
 		end
 		used[box] = true
 	end
@@ -508,7 +527,7 @@ end
 -- ("forbidden object"), so it can't show the slot's own totem instead of the buff's, and a MOD
 -- tint under a parent at alpha 0 still tints.
 function SK.markRect(frame, size, inset)
-	local kind = SK.current().mark
+	local kind = SK.mark()
 	if not kind then return nil end
 	if kind == "gem" then
 		-- The plinth's gem under the slot (SK.layoutBar).
@@ -533,7 +552,7 @@ end
 -- Draws the look's mark on m (a frame with .bg, w by h), or takes it down (w nil, or Default).
 -- Returns true when the look drew it; false: the caller colours m.bg as the strip.
 function SK.paintMark(m, w, h, icon)
-	local kind = w and SK.current().mark
+	local kind = w and SK.mark()
 	local p = m.skinParts
 	if not kind then
 		if p then
@@ -564,7 +583,7 @@ end
 -- it: in range it shows the strip of the buff's icon, uncoloured, or the gem lit in the element's
 -- colour.
 function SK.styleRangeButton(p, s)
-	local kind = SK.current().mark
+	local kind = SK.mark()
 	if p.gem then p.gem:Hide() end
 	-- The buff's icon: hidden by its colour's alpha where the look draws its own art (preview mode
 	-- hides it by its alpha).

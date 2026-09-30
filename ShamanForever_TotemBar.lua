@@ -90,6 +90,7 @@ TB.DEFAULTS = {
 	pixelTray = true,         -- the Pixel theme's tray behind the slots
 	pixelEdge = 1,            -- its element-coloured edge (screen pixels)
 	stonePlinth = "normal",   -- the Stone and bronze theme's plinth: slim | normal | grand
+	stoneGems = true,         --   its gems (off: out of range is the red edge)
 	barPlace = "in",          -- the time bars: in the icon | out: beside it, away from the pickers
 }
 

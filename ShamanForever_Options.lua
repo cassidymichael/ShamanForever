@@ -794,6 +794,8 @@ local function buildTotemBar(p)
 	p:slider("Edge thickness", "The element-coloured edge round each slot, in pixels.", 1, 4, 1, px,
 		tget("pixelEdge"), tset("pixelEdge"), theme("pixel"))
 	p:dropdown("Plinth", nil, TB.skin.PLINTHS, tget("stonePlinth"), tset("stonePlinth"), theme("stone"), 140)
+	p:checkbox("Gems", "A gem under each slot, lit while its totem is down, red out of range.", tget("stoneGems"),
+		tset("stoneGems"), theme("stone"))
 
 	p:header("Layout")
 	-- The elements in bar order (first: the left end of a row, the top of a column). Drag one to move
@@ -973,7 +975,7 @@ local function buildTotemBar(p)
 	p:header("Out of range")
 	p:text("A strip along the top of a slot shows whether you're getting your own totem's buff, for totems that buff you. In range shows nothing at 0% opacity, the default.",
 		free("range"))
-	p:text(function() return TB.skin.current().rangeText or "" end, owned("range"))
+	p:text(function() return TB.skin.rangeText() or "" end, owned("range"))
 	local range = p:checkbox("Show", nil, tget("range"), tset("range"))
 	p:sub(range, tget("range"), function()
 		p:slider("Height", "In pixels.", 1, 12, 1, px, tget("rangeHeight"), tset("rangeHeight"), free("rangeHeight"))
