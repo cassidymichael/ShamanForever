@@ -76,7 +76,8 @@ end
 --   mark           the out-of-range mark: "edge" (the strip, solid red), "gem" (the gem under the
 --                  slot turns red)
 --   picker         the pickers' look ("tray", "stone")
---   arrow          the arrow tab's look ("bronze")
+--   arrow          the arrow tab's look ("stone")
+--   popPad         a margin round a picker's buttons, as a share of a button's size
 --   badgeGap(size) how far past the slot the look hangs something on the badge's side ("not your
 --                  pick" sits beyond it)
 --   rangeText      the Out of range section's line while the look owns its rows
@@ -126,7 +127,8 @@ add("stone", {
 			extrasScale = TB.cfg().stoneExtrasScale }
 	end,
 	border = borderStyle("line", 1), extrasBorder = borderStyle("medallion"),
-	behind = "plinth", picker = "stone", arrow = "bronze", fixedSlots = true,
+	behind = "plinth", picker = "stone", arrow = "stone", fixedSlots = true,
+	popPad = 0.15,
 	extrasScaleKey = "stoneExtrasScale",
 	mark = function() return TB.cfg().stoneGems and "gem" or "edge" end,
 	badgeGap = function(size) return select(2, plinthReach(size)) end,
@@ -157,6 +159,12 @@ end
 
 -- The bar setting Call and Recall's size is kept in under the look picked now.
 function SK.extrasScaleKey() return SK.current().extrasScaleKey or "extrasScale" end
+
+-- The margin round a picker's buttons, for buttons psz wide (TB.popLength).
+function SK.popPad(psz)
+	local k = SK.current().popPad
+	return k and math.floor(psz * k + 0.5) or 0
+end
 
 -- Whether the look picked now is drawn round four fixed slots (the bar keeps a place for each).
 function SK.fixedSlots() return SK.current().fixedSlots == true end
@@ -484,17 +492,40 @@ function SK.styleTimer(t, anchor, size)
 	tip(t, not out and SK.current().timeBar == "tip")
 end
 
--- The arrow tab's look (TB.makeArrowLook; TB.placeArrow has placed it). "bronze": the plain tab
--- edged in the plinth's bronze.
+-- Plain stone for a frame f, from the plinth's tall strip without stretching it: as much of the
+-- strip as fits f's shape. A size that reads as secret or empty (a frame anchored to a secure
+-- button) takes a short piece.
+local function stoneFor(t, f)
+	local w, h = f:GetSize()
+	local r = STONE
+	local th = r[3] * 0.4
+	if not (ns.isSecret(w) or ns.isSecret(h)) and w > 0 and h > 0 then th = math.min(r[4], r[3] * h / w) end
+	plinthPiece(t, { r[1], r[2], r[3], th })
+end
+
+-- The arrow tab's look (TB.makeArrowLook; TB.placeArrow has placed it). "stone": the pickers'
+-- stone, edged in the plinth's bronze.
 function SK.styleArrow(t)
 	local kind = SK.current().arrow
 	if t.skinned then
 		TB.plainArrow(t)
+		if t.skinBg then t.skinBg:Hide() end
 		t.skinned = nil
 	end
 	if not kind then return end
 	t.skinned = true
+	t:SetBackdropColor(0, 0, 0, 0)
 	t:SetBackdropBorderColor(BRONZE[1], BRONZE[2], BRONZE[3], BRONZE[4])
+	local bg = t.skinBg
+	if not bg then
+		bg = t:CreateTexture(nil, "BACKGROUND", nil, 1)
+		bg:SetPoint("TOPLEFT", 1, -1)
+		bg:SetPoint("BOTTOMRIGHT", -1, 1)
+		t.skinBg = bg
+	end
+	stoneFor(bg, t)
+	bg:SetVertexColor(0.8, 0.8, 0.8, 1)
+	bg:Show()
 end
 
 -- A picker's look (pop: the popout, with its bg). Default: a plain dark fill. "tray": the Pixel
@@ -508,10 +539,10 @@ function SK.stylePopout(pop)
 		pop.bg:SetTexCoord(0, 1, 0, 1)
 	end
 	if kind == "stone" then
-		-- Plain stone from the plinth, darkened, edged dark then bronze.
+		-- Plain stone from the plinth, darkened, edged dark then bronze, the buttons set in it.
 		p = p or { lines = {} }
 		pop.skin = p
-		plinthPiece(pop.bg, STONE)
+		stoneFor(pop.bg, pop)
 		pop.bg:SetVertexColor(0.8, 0.8, 0.8, 1)
 		insetRings(pop, p.lines, { { 1, BRONZE_DARK }, { 2, BRONZE } })
 		return

@@ -250,13 +250,15 @@ function TB.along(n, size, px)
 	return list, math.max(hi - lo, size), line
 end
 
--- A picker's button size, for slots of this size, and its length for n buttons of that size.
+-- A picker's button size, for slots of this size, and its length for n buttons of that size. A
+-- theme can frame the buttons in a wider margin (TB.skin.popPad), all round.
 function TB.popButtonSize(size) return math.floor(size * 0.8 + 0.5) end
-function TB.popLength(n, psz) return POP_STEP + n * (psz + POP_STEP) end
+function TB.popLength(n, psz) return POP_STEP + n * (psz + POP_STEP) + 2 * TB.skin.popPad(psz) end
+local function popThick(psz) return psz + 2 * POP_STEP + 2 * TB.skin.popPad(psz) end
 -- A picker of n buttons (psz) beside anchor, a slot, on the side pickers open, past the arrow tab.
 function TB.placePopout(pop, anchor, n, psz)
 	local c = TB.eff()
-	local len, thick, tab = TB.popLength(n, psz), psz + 2 * POP_STEP, c.arrowSize
+	local len, thick, tab = TB.popLength(n, psz), popThick(psz), c.arrowSize
 	pop:ClearAllPoints()
 	if c.pop == "up" then pop:SetSize(thick, len); pop:SetPoint("BOTTOM", anchor, "TOP", 0, tab + 4)
 	elseif c.pop == "down" then pop:SetSize(thick, len); pop:SetPoint("TOP", anchor, "BOTTOM", 0, -tab - 4)
@@ -268,7 +270,7 @@ function TB.placePopButton(b, pop, i, psz)
 	local c = TB.eff()
 	b:SetSize(psz, psz)
 	b:ClearAllPoints()
-	local off = POP_STEP + (i - 1) * (psz + POP_STEP)
+	local off = POP_STEP + TB.skin.popPad(psz) + (i - 1) * (psz + POP_STEP)
 	if c.pop == "up" then b:SetPoint("BOTTOM", pop, "BOTTOM", 0, off)
 	elseif c.pop == "down" then b:SetPoint("TOP", pop, "TOP", 0, -off)
 	elseif c.pop == "right" then b:SetPoint("LEFT", pop, "LEFT", off, 0)
@@ -1021,7 +1023,7 @@ local function layoutPopout(s, size, known)
 	TB.skin.stylePopout(pop)
 	-- Hover mode's strip: as wide as the slot or the picker, whichever is wider.
 	local strip, dir, b = pop.strip, TB.eff().pop, s.button
-	local across = math.max(size, psz + 2 * POP_STEP)
+	local across = math.max(size, popThick(psz))
 	strip:ClearAllPoints()
 	if dir == "up" then strip:SetPoint("BOTTOM", b, "TOP"); strip:SetPoint("TOP", pop, "TOP"); strip:SetWidth(across)
 	elseif dir == "down" then strip:SetPoint("TOP", b, "BOTTOM"); strip:SetPoint("BOTTOM", pop, "BOTTOM"); strip:SetWidth(across)
