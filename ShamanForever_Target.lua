@@ -67,10 +67,10 @@ local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
 		icon = 135813, school = "fire", blurb = "Shows while your Flame Shock is on your target.",
 		idleText = "Idle is when you have no hostile target", procHeader = "On your target",
-		popTip = "When it shows on your target. The icon grows and settles, at the Pop style's size and speed.",
+		noPop = true,
 		glowTip = "While it's on your target.", upLabel = "On target", idleLabel = "No target",
 		missing = true, engineExpire = true,   -- its Not on target and Expiring blocks
-		defaults = { idleAlpha = 0, primedPop = false, primedGlow = false,
+		defaults = { idleAlpha = 0, primedGlow = false,
 			missGrey = true, missRing = false, missPulse = false,
 			-- Magenta: it stands out against the fire school's orange time bar.
 			expireSecs = 3, expireBar = true, expireBarColor = { 1, 0.2, 0.8, 1 }, expireText = false },
