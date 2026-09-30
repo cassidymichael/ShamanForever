@@ -1,15 +1,10 @@
 -- Shocks: the tracked shock's cooldown, whether the target is in its range and whether there's mana
--- for it (or for another shock, the Mana check), the pop when it's ready, the "use me" glow and the
--- Flame Shock mark.
+-- for it (or for another shock, the Mana check), the pop when it's ready and the "use me" glow.
 --
 -- Nothing here reads a secret value: the cooldown is a duration object that Blizzard's widgets draw,
 -- range and mana are read with the answer checked for a secret first, and the ready glow's alpha is
 -- the cooldown's remaining time through a curve (ShamanForever_Cooldowns.lua, which this file
 -- shares the cooldown reads with).
---
--- The Flame Shock mark (experimental, off by default): a small Flame Shock icon in the icon's corner
--- while your hostile target doesn't have your Flame Shock. ShamanForever_Target.lua says when:
--- out of combat only, where the target's auras are plain reads; nothing in combat.
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
@@ -35,11 +30,9 @@ local shockIcon = 136026
 -- its spell ID, and the Mana check's spell ID.
 local shockIDs = {}
 local usedShock, shockSpellID, manaSpellID
-local defaults = CopyTable(CD.READY_DEFAULTS)
-defaults.fsMark = false   -- the Flame Shock mark
 ns.registerElement("shock", { frame = shock, label = "Shocks", paint = function(t) t:SetTexture(shockIcon) end,
 	learned = function() return next(shockIDs) ~= nil end,   -- any shock
-	defaults = defaults,
+	defaults = CopyTable(CD.READY_DEFAULTS),
 	kind = "shock", icon = 136026, school = "spirit", blurb = "Cooldown, range and mana." })
 
 local shockState = { outOfRange = false, noMana = false }
@@ -118,49 +111,6 @@ local function syncGlowTicker()
 end
 
 ------------------------------------------------------------------------
--- Flame Shock mark, off by default (see the file's header)
-------------------------------------------------------------------------
--- A small icon inside the top right corner of an icon (the HUD's, or a preview's): the spell's icon
--- on a dark edge a screen pixel wide, a share of the icon's size. place(size) lays it out.
-local MARK_SHARE = 0.42
-function SK.makeMark(ic)
-	local m = CreateFrame("Frame", nil, ic)
-	m.back = m:CreateTexture(nil, "ARTWORK")
-	m.back:SetAllPoints()
-	m.back:SetColorTexture(0, 0, 0, 0.9)
-	m.icon = m:CreateTexture(nil, "ARTWORK", nil, 1)
-	ns.cropIcon(m.icon)
-	function m.place(size)
-		local level = ic.textFrame:GetFrameLevel() + 1   -- over the swipe and the countdown
-		local scale = m:GetEffectiveScale()   -- the edge is in screen pixels
-		if size == m.size and level == m.level and scale == m.scale then return end
-		m.size, m.level, m.scale = size, level, scale
-		m:SetFrameLevel(level)
-		local s = math.max(math.floor(size * MARK_SHARE + 0.5), 8)
-		local edge = ns.linePx(m, 1)
-		m:SetSize(s, s)
-		m:ClearAllPoints()
-		m:SetPoint("TOPRIGHT", ic, "TOPRIGHT", 0, 0)
-		m.icon:ClearAllPoints()
-		m.icon:SetPoint("TOPLEFT", edge, -edge)
-		m.icon:SetPoint("BOTTOMRIGHT", -edge, edge)
-		m.icon:SetTexture(Spells.icon("flameShock") or 135813)
-	end
-	m:Hide()
-	return m
-end
-local mark = SK.makeMark(shock)
-local markWanted = false   -- ShamanForever_Target.lua's last word
-
--- missing: Flame Shock isn't on the hostile target (said out of combat only).
-function SK.markFlameShock(missing)
-	markWanted = missing and true or false
-	local on = markWanted and ns.isEnabled("shock") and setting("shock", "fsMark") and true or false
-	if on then mark.place(ns.sizeOf("shock")) end
-	mark:SetShown(on)
-end
-
-------------------------------------------------------------------------
 -- Hooks (ShamanForever.lua calls them; see ns.registerModule)
 ------------------------------------------------------------------------
 -- After a spellbook scan: the shocks' names and highest known ranks, the one the icon tracks and
@@ -206,7 +156,6 @@ function SK.applyTimers() shock.cdTimer:apply() end
 function SK.afterGroups()
 	refreshMana()
 	refreshRange()
-	SK.markFlameShock(markWanted)   -- a new size or frame level
 end
 
 -- After a layout (settings may have changed): the looks, then the mana read again.
@@ -261,8 +210,6 @@ function SK.debug()
 		say("%s id %s rank %s usable=%s noPower=%s inRange=%s", SHOCKS[key], tostring(id),
 			e and e.rank or "?", describeArg(usable), describeArg(noPower), describeArg(inRange))
 	end
-	say("Flame Shock mark: %s, missing %s, shown %s", setting("shock", "fsMark") and "on" or "off",
-		tostring(markWanted), tostring(mark:IsShown()))
 end
 
 ns.registerModule(SK)

@@ -419,19 +419,12 @@ L.PREVIEW = {
 	shock = {
 		warning = "both",
 		cooldown = true,
-		states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" }, { "range", "Out of range" }, { "both", "Both" },
-			{ "flame", ns.Spells.name("flameShock") .. " not on target" } },
+		states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" }, { "range", "Out of range" }, { "both", "Both" } },
 		pop = function(ic, st) if st == "ready" and opt("shock", "readyPop") then ic:Pop() end end,
 		render = function(ic, st)
 			local d = db()
 			local icons = { earth = 136026, flame = 135813, frost = 135849 }
 			reset(ic, icons[d.shock] or 136026)
-			if ic.fsMark then ic.fsMark:Hide() end
-			if st == "flame" and opt("shock", "fsMark") then
-				if not ic.fsMark then ic.fsMark = ns.Shock.makeMark(ic) end
-				ic.fsMark.place(ic:GetWidth())
-				ic.fsMark:Show()
-			end
 			if st == "ready" then ic:SetGlowShown(opt("shock", "readyGlow")) end
 			if st == "cd" then frozen(ic.cdT, 0.4, 6)
 			elseif st == "range" or st == "both" then ic:SetBodyPaint(d.rangeStyle, 1, 0.25, 0.25, d.rangeIntensity, d.rangeTint)

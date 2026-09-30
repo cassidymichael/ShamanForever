@@ -352,11 +352,6 @@ local function buildShock(p)
 	timerSettings(p, "Cooldown", "shock", "cooldown")
 	gcdBlock(p, "shock")
 	readyBlock(p, "shock", "While it's off cooldown.")
-	local flame = ns.Spells.name("flameShock")
-	p:header(flame)
-	local markRow = p:checkbox("Mark when not on target", ("A small %s icon in the corner while your target doesn't have your %s. Out of combat only.")
-		:format(flame, flame), eget("shock", "fsMark"), eset("shock", "fsMark"))
-	ns.Look.expBadge(markRow, "Flame Shock on target"):SetPoint("LEFT", markRow.check.Text, "RIGHT", 10, 0)
 	effectBlocks(p, "shock")
 end
 

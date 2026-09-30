@@ -47,7 +47,6 @@
 --     frames each time it shows or the target changes (T.appear);
 --   - it hides (alpha 0) while the container isn't made or isn't following the target (a refused
 --     call in combat): a miss, never a false warning.
---   Shocks' mark can't be covered by the button, so it stays out of combat only (the read).
 
 local _, ns = ...
 local say, Spells, isSecret = ns.say, ns.Spells, ns.isSecret
@@ -525,17 +524,10 @@ local function flameShockOnTarget()
 	return nil
 end
 
--- Whether anything shows it: the element, or Shocks with its mark on.
-local function missingWanted()
-	return ns.isEnabled(FLAME.key) or (ns.isEnabled("shock") and setting("shock", "fsMark"))
-end
-
--- Out of combat, auras readable, a hostile target you can act on, Flame Shock known: whether it's
--- missing from the target (false while anything is unknown, or nothing shows it: no read then).
-local function flameShockMissing()
-	if not missingWanted() then return false end
-	if not (FLAME.spellID and readable() and hostileTarget() and not ns.cantAct()) then return false end
-	return flameShockOnTarget() == false
+-- Whether a read is worth making now: out of combat, auras readable, a hostile target, Flame Shock
+-- known and shown. The read serves the Expiring bar's length check (flameShockOnTarget).
+local function readWanted()
+	return FLAME.spellID and ns.isEnabled(FLAME.key) and readable() and hostileTarget()
 end
 
 -- The underlay's state, cheap enough for every target change and the 1 s tick: whether it can be
@@ -580,21 +572,18 @@ local function styleUnder()
 	stateUnder()
 end
 
--- Read again, and the element's look and Shocks' mark follow (ShamanForever_Shock.lua).
+-- Out of combat: the target read again (readWanted), and the underlay's state.
 local function checkMissing()
 	if fighting or InCombatLockdown() then return end
-	FLAME.missingNow = flameShockMissing()
+	if readWanted() then flameShockOnTarget() end
 	stateUnder()
-	ns.Shock.markFlameShock(FLAME.missingNow)
 end
 
--- Combat starts (before lockdown): the mark goes (out of combat only), and the icon to its idle
--- alpha at once (a fade would stop part way, ns.fadeTo).
+-- Combat starts (before lockdown): the icon to its idle alpha at once (a fade would stop part way,
+-- ns.fadeTo).
 local function combatStarts()
 	fighting = true
-	FLAME.missingNow = false
 	styleUnder()
-	ns.Shock.markFlameShock(false)
 	local f = FLAME.frame
 	local a = (FLAME.spellID and ns.getAccount().locked) and ns.idleAlpha(FLAME.key) or 1
 	f:SetAlpha(a)
@@ -703,7 +692,7 @@ function T.start()
 			checkMissing()
 			refreshAura(FLAME)
 		elseif event == "UNIT_AURA" then
-			if not readable() or (not FLAME.missingNow and not missingWanted()) then return end
+			if not readWanted() then return end
 			checkMissing()
 			refreshAura(FLAME)
 		else
@@ -724,9 +713,8 @@ function T.debug()
 			tostring(def.unit), tostring(def.driven), def.failed or 0, def.stale and " (hidden until one works)" or "")
 	end
 	say("target attackable %s", tostring(hostileTarget()))
-	local on = readable() and flameShockOnTarget()
-	say("%s on target: %s; not-on-target look %s", FLAME.spell,
-		readable() and tostring(on) or "not read (combat or secret auras)", tostring(FLAME.missingNow))
+	local on = readWanted() and flameShockOnTarget()
+	say("%s on target: %s", FLAME.spell, readWanted() and tostring(on) or "not read (combat, secret auras or no target)")
 	local g = FLAME.under and FLAME.under.glow
 	if g then
 		say("%s Not on target glow: drawn %s, chosen %s, shown %s; red countdown handed %s", FLAME.spell,
