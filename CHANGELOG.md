@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.10.0 (2026-09-30)
 
 - New: Flame Shock and Purge (experimental). Flame Shock goes grey while your hostile target
   doesn't have it, in combat too, with an optional red ring and glow, and its time bar changes
