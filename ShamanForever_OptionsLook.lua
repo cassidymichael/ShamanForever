@@ -750,6 +750,13 @@ L.PREVIEW.totembar = {
 		for _, el in ipairs(c.order) do
 			if not c.hidden[el] and (not canList or #ns.Totems.knownTotems(TB.SLOT[el]) > 0) then table.insert(els, el) end
 		end
+		-- The places along the bar: those slots, or with a theme drawn round four fixed slots (Stone
+		-- and bronze) every element's, those not shown kept as sealed sockets.
+		local places = els
+		if TB.skin.fixedSlots() and #els > 0 then places = c.order end
+		local placeIdx, liveIdx = {}, {}
+		for i, el in ipairs(places) do placeIdx[el] = i end
+		for i, el in ipairs(els) do liveIdx[el] = i end
 		local row = TB.eff().dir == "row"   -- the theme's own, if it has one
 		local picking = st == "picking" and #els > 0
 		local psz = TB.popButtonSize(size)
@@ -758,7 +765,7 @@ L.PREVIEW.totembar = {
 		local popLen = TB.popLength(items, psz)
 		-- Along the bar as on it (TB.along: Call and Recall before and after the slots), with
 		-- room for one slot even when none shows. Its line is as thick as its largest button.
-		local seq, along, line = TB.along(math.max(#els, 1), size)
+		local seq, along, line = TB.along(math.max(#places, 1), size)
 		local badge = st == "offpick" and c.offPick
 			and TB.badgeSize(size) + TB.BADGE_GAP + TB.skin.badgeGap(size) or 0
 		local across = line + (picking and (c.arrowSize + 4 + popLen) or 0) + badge
@@ -819,11 +826,11 @@ L.PREVIEW.totembar = {
 			if el then
 				ic.box:SetSize(size, size)
 				ic.box:ClearAllPoints()
-				place(ic.box, slotAt[i], (line - size) / 2)
+				place(ic.box, slotAt[placeIdx[el]], (line - size) / 2)
 				ic.school = el
 				local o = ns.Looks.fit(ic, border, size)
 				ic:ClearAllPoints()
-				place(ic, slotAt[i] + o, (line - size) / 2 + o)
+				place(ic, slotAt[placeIdx[el]] + o, (line - size) / 2 + o)
 				local pick = TB.pickTexture(el)
 				if ns.isSecret(pick) then pick = nil end   -- never compared while secret (combat)
 				reset(ic, pick or TOTEM_ICON[el])
@@ -901,9 +908,21 @@ L.PREVIEW.totembar = {
 		end
 		-- What the theme draws behind the bar and under each slot (lit while its totem is down), and
 		-- the time bars' style.
-		local boxes = {}
-		for i, ic in ipairs(h.slots) do if els[i] then boxes[i] = ic.box end end
-		TB.skin.layoutBar(bar, boxes, size, row)
+		-- A sealed socket takes a spare slot's box (there are four, and a sealed one shows no slot).
+		local boxes, sealed, spare = {}, {}, #els
+		for pi, el in ipairs(places) do
+			local i = liveIdx[el]
+			if i then boxes[pi] = h.slots[i].box
+			else
+				spare = spare + 1
+				local b = h.slots[spare].box
+				b:SetSize(size, size)
+				b:ClearAllPoints()
+				place(b, slotAt[pi], (line - size) / 2)
+				boxes[pi], sealed[b] = b, true
+			end
+		end
+		TB.skin.layoutBar(bar, boxes, size, row, sealed)
 		for i, ic in ipairs(h.slots) do
 			local el = els[i]
 			if el then

@@ -41,7 +41,7 @@ local PLINTHS = {
 	normal = { rect = { 1, 100, 284, 72 }, slotX = { 21.6, 86, 150.4, 214.8 }, slotY = 13.2, railMid = 69.6 },
 	grand = { rect = { 1, 1, 322, 97 }, slotX = { 27.6, 100.8, 173.6, 246.4 }, slotY = 25.2, railMid = 92 },
 }
-local STONE = { 325, 1, 64, 254 }
+local STONE, PLUG = { 325, 1, 64, 254 }, { 391, 1, 48, 48 }
 SK.PLINTHS = { { "slim", "Slim" }, { "normal", "Normal" }, { "grand", "Grand" } }   -- the options' order
 -- The plinth picked now; the gap between two slots and before the first, as shares of a slot.
 local function plinthNow()
@@ -68,6 +68,8 @@ end
 --   border, extrasBorder  border styles for the slots (or a function returning one) and for Call
 --                  and Recall
 --   behind         what sits behind the slots: "tray", "plinth" (with a gem under each slot)
+--   fixedSlots     drawn round four slots: every element keeps its place, one not shown (not
+--                  learned, or hidden) a sealed socket
 --   timeBar        the slots' time bars: "tip" (a bright line at the fill's end)
 --   mark           the out-of-range mark: "edge" (the strip, solid red), "gem" (the gem under the
 --                  slot turns red)
@@ -118,7 +120,7 @@ add("stone", {
 			dir = "row", pop = "up", barPlace = true }
 	end,
 	border = borderStyle("line", 1), extrasBorder = borderStyle("medallion"),
-	behind = "plinth", mark = "gem", picker = "stone", arrow = "bronze",
+	behind = "plinth", mark = "gem", picker = "stone", arrow = "bronze", fixedSlots = true,
 	badgeGap = function(size) return select(2, plinthReach(size)) end,
 	rangeText = "Out of range, for totems that buff you: the gem under the slot turns red.",
 })
@@ -129,6 +131,9 @@ function SK.current()
 	if not ns.getDB() then return DEFAULT end
 	return SK.byKey[TB.cfg().skin] or DEFAULT
 end
+
+-- Whether the look picked now is drawn round four fixed slots (the bar keeps a place for each).
+function SK.fixedSlots() return SK.current().fixedSlots == true end
 
 -- Whether any look is experimental (About's list).
 function SK.anyExperimental()
@@ -288,9 +293,10 @@ local function gemPlace(size, px)
 end
 -- The Stone and bronze plinth: the picked one, one piece round the four slots' boxes, stretched
 -- from the first box to the last so its openings meet them whatever the rounding; and under each
--- slot a gem in its bronze setting on the bottom rail. A row only (the look sets it).
+-- slot a gem in its bronze setting on the bottom rail. A sealed box's socket is plugged with stone
+-- and its gem stays dark. A row only (the look sets it).
 local plinths = setmetatable({}, { __mode = "k" })   -- host -> its plinth
-local function plinth(host, boxes, size, on)
+local function plinth(host, boxes, size, on, sealed)
 	local f = plinths[host]
 	if not on then
 		if f then f:Hide() end
@@ -300,7 +306,7 @@ local function plinth(host, boxes, size, on)
 		f = CreateFrame("Frame", nil, host)
 		f:EnableMouse(false)
 		f.art = f:CreateTexture(nil, "BACKGROUND")
-		f.gems = {}
+		f.gems, f.plugs = {}, {}
 		plinths[host] = f
 	end
 	f:SetFrameLevel(host:GetFrameLevel())
@@ -316,7 +322,19 @@ local function plinth(host, boxes, size, on)
 		-(r[4] - pl.slotY - PL_SLOT) * u)
 	local g, drop = gemPlace(size, px)
 	local used = {}
-	for _, box in ipairs(boxes) do
+	f.sealed = sealed or {}
+	for i, box in ipairs(boxes) do
+		local plug = f.plugs[i]
+		if f.sealed[box] then
+			if not plug then
+				plug = f:CreateTexture(nil, "ARTWORK")
+				plinthPiece(plug, PLUG)
+				f.plugs[i] = plug
+			end
+			plug:ClearAllPoints()
+			plug:SetAllPoints(box)
+			plug:Show()
+		elseif plug then plug:Hide() end
 		local gem = f.gems[box]
 		if not gem then
 			gem = { set = f:CreateTexture(nil, "ARTWORK", nil, 1),
@@ -337,21 +355,25 @@ local function plinth(host, boxes, size, on)
 	for box, gem in pairs(f.gems) do
 		if not used[box] then gem.set:Hide(); gem.gem:Hide() end
 	end
+	for box in pairs(f.sealed) do SK.light(host, box, nil, false, true) end
 	f:Show()
 end
 
-function SK.layoutBar(host, boxes, size, row)
+-- sealed: boxes (in boxes) whose slot doesn't show: a fixed-slot theme's sealed sockets.
+function SK.layoutBar(host, boxes, size, row, sealed)
 	local look = SK.current()
 	tray(host, boxes, size, look.behind == "tray" and TB.cfg().pixelTray and #boxes > 0)
-	plinth(host, boxes, size, look.behind == "plinth" and row and #boxes == 4)
+	plinth(host, boxes, size, look.behind == "plinth" and row and #boxes == 4, sealed)
 end
 
 -- A slot's own mark under it (lit while its totem is down), on host beside box: the plinth's gem,
--- in the element's colour or dark. Plain textures, so any time.
-function SK.light(host, box, el, lit)
+-- in the element's colour or dark; always dark on a sealed socket (force: the plinth's own call).
+-- Plain textures, so any time.
+function SK.light(host, box, el, lit, force)
 	local f = plinths[host]
 	local gem = f and f.gems[box]
-	if not gem then return end
+	if not gem or (f.sealed[box] and not force) then return end
+	if f.sealed[box] then lit = false end
 	local t, c = gem.gem, lit and ns.SCHOOL_COLOR[el] or GEM_DARK
 	local cell = lit and GEM_LIT or GEM_UNLIT
 	t:SetTexCoord(cell[1], cell[2], cell[3], cell[4])

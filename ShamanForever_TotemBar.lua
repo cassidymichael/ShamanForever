@@ -1109,11 +1109,18 @@ function layout()
 	-- Everything along the bar, in order: extras before, slots, extras after (TB.along), each
 	-- centred on the bar's line to the nearest whole pixel, whatever its size. Nothing while no
 	-- totem is known.
+	-- The places along it: the slots that show, or, for a theme drawn round four fixed slots (Stone
+	-- and bronze), every element's in order, those that don't show kept as sealed sockets.
+	local places = shown
+	if TB.skin.fixedSlots() and #shown > 0 then
+		places = {}
+		for _, el in ipairs(c.order) do table.insert(places, slots[el]) end
+	end
 	local seq, long, across = {}, size, size
-	if hasTotems or (preview and preview.all) then seq, long, across = TB.along(#shown, size, px) end
+	if hasTotems or (preview and preview.all) then seq, long, across = TB.along(#places, size, px) end
 	local on = {}   -- the extras that show -> their size
 	for _, it in ipairs(seq) do
-		local b, sz = it.extra and extras[it.key].button or shown[it.key].button, it.size
+		local b, sz = it.extra and extras[it.key].button or places[it.key].button, it.size
 		if it.extra then on[it.key] = sz end
 		b:SetSize(sz, sz)
 		-- Its key label scales with the icon.
@@ -1167,10 +1174,13 @@ function layout()
 		layoutPopout(s, size, known[s.el])
 	end
 	if row then bar:SetSize(long, across) else bar:SetSize(across, long) end
-	-- What the theme draws behind the slots, round the slots' buttons.
-	local boxes = {}
-	for i, s in ipairs(shown) do boxes[i] = s.button end
-	TB.skin.layoutBar(bar, boxes, size, row)
+	-- What the theme draws behind the slots, round the slots' buttons (a hidden one: a sealed socket).
+	local boxes, sealed = {}, {}
+	for i, s in ipairs(places) do
+		boxes[i] = s.button
+		if not s.button:IsShown() then sealed[s.button] = true end
+	end
+	TB.skin.layoutBar(bar, boxes, size, row, sealed)
 	ns.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
 	if TB.range then TB.range.layout(size) end   -- after the scale: its height is a line's
 	refreshSlots()
