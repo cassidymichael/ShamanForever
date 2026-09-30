@@ -92,7 +92,7 @@ local DEFAULTS = {
 			sizeFollow = false, size = 40,
 			orientation = "horizontal", growth = "forward", spacing = 2, members = { "projection" } },
 		-- Every racial; only the player's own race shows, the rest take no room.
-		{ id = 11, name = "Racials", point = "CENTER", x = -474, y = -60, scale = 1, alpha = 0.8,
+		{ id = 11, name = "Racials", point = "CENTER", x = -578, y = -60, scale = 1, alpha = 0.8,
 			sizeFollow = false, size = 40,
 			orientation = "vertical", growth = "forward", spacing = 2,
 			members = { "bloodfury", "shattercurse", "berserking", "rapidregeneration", "warstomp",
