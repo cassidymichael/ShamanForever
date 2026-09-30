@@ -94,9 +94,9 @@ function EP.buildOverview(p)
 	-- Columns: each has a least width (what fits the window at its narrowest) and a share of any
 	-- width beyond the least. Positions are worked out from the page's width on every layout.
 	local COLS = {
-		{ key = "name", label = "Element", min = 140, grow = 0.2, x0 = 32 },
-		{ key = "group", label = "Group", min = 110, grow = 0.3, max = 240 },
-		{ key = "link", label = "Group settings", min = 90, grow = 0 },
+		{ key = "name", label = "Element", min = 150, grow = 0.25, x0 = 32 },
+		{ key = "group", label = "Group", min = 100, grow = 0.25, max = 200 },
+		{ key = "link", label = "Group settings", min = 100, grow = 0 },
 		{ key = "show", label = "Show", min = 80, grow = 0.1, max = 130 },
 		{ key = "styles", label = "Own styles", min = 120, grow = 0.4 },
 	}
@@ -204,7 +204,7 @@ function EP.buildOverview(p)
 		groupOpen:SetHeight(20)
 		groupOpen.text = groupOpen:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 		groupOpen.text:SetPoint("LEFT", 0, 0)
-		groupOpen.text:SetText("Open >")
+		groupOpen.text:SetText("Open group >")
 		groupOpen.text:SetTextColor(0.6, 0.6, 0.6)
 		groupOpen:SetScript("OnClick", function()
 			local g = ns.groupOf(key)
@@ -221,15 +221,15 @@ function EP.buildOverview(p)
 			self.text:SetTextColor(0.6, 0.6, 0.6)
 			GameTooltip:Hide()
 		end)
-		-- Which styles it has of its own, small text; its page opens on click.
-		local styles = CreateFrame("Button", nil, f)
+		-- Which styles it has of its own, small text; the full list on hover.
+		local styles = CreateFrame("Frame", nil, f)
+		styles:EnableMouse(true)
 		styles:SetHeight(20)
 		styles.text = styles:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		styles.text:SetPoint("LEFT", 6, 0)
 		styles.text:SetPoint("RIGHT", -2, 0)
 		styles.text:SetJustifyH("LEFT")
 		styles.text:SetWordWrap(false)
-		styles:SetScript("OnClick", openPage)
 		styles:SetScript("OnEnter", function(self)
 			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 			GameTooltip:SetText("Own styles")
@@ -275,7 +275,6 @@ function EP.buildOverview(p)
 				styles.text:SetTextColor(1, 1, 1)
 			end
 			open:SetEnabled(ELEMENT_PAGES[key] ~= nil)
-			styles:SetEnabled(ELEMENT_PAGES[key] ~= nil)
 			groupOpen:SetShown(g ~= nil)
 		end)
 	end
