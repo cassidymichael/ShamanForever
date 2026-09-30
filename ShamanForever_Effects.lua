@@ -119,6 +119,7 @@ function E.glow(parent, over, owner, opts)
 			self.look, self.fitWidth = look, nil   -- lay the new look out at the next fit
 			local p = parts(look)
 			for _, r in ipairs(p and p.roots or {}) do r:Show() end
+			if self.held then for _, r in ipairs(p and p.moving or {}) do r:Hide() end end
 			if running then play(self, true) end
 			-- Under the button: the new look's animations start now; the button restarts them as its
 			-- aura shows (a look's old ones keep playing on its hidden parts).
@@ -149,6 +150,26 @@ function E.glow(parent, over, owner, opts)
 			self.look.fit(self, p, size, out)
 			if self.onLayout then ns.try("glow layout", self.onLayout, self, p, self.look) end
 		end
+	end
+	-- Hides the look's moving parts for secs, while a pop moves a frame above the glow.
+	function g:hold(secs)
+		local p = self.look and self.parts[self.look.key]
+		if p and p.moving then
+			for _, a in ipairs(p.anims or {}) do a:Stop() end
+			for _, r in ipairs(p.moving) do r:Hide() end
+		end
+		self.held, self.holdToken = true, (self.holdToken or 0) + 1
+		local token = self.holdToken
+		C_Timer.After(secs, function()
+			if self.holdToken ~= token then return end
+			self.held = false
+			local q = self.look and self.parts[self.look.key]
+			if not (q and q.moving) then return end
+			for _, r in ipairs(q.moving) do r:Show() end
+			if self:IsShown() then
+				for _, a in ipairs(q.anims or {}) do a:Play() end
+			end
+		end)
 	end
 	function g:color(r, gg, b) self.fixed = { r, gg, b, 1 }; self:restyle() end
 	g:restyle()
@@ -188,9 +209,10 @@ end
 -- Nothing with a Scale, Rotation or Translation of its own sits under the frame the motion moves:
 -- burst textures with scale animations under an icon playing the motion drew across the whole
 -- screen (seen 2026-09-25 and 2026-10-01), while textures with scale animations under a still
--- frame draw as asked (the glow looks'). So the bursts sit on frames beside the icon, anchored to
--- it; the flashes, whose animations only fade or flip, stay on the icon and move with it. No
--- animation takes no time, and every Scale and Rotation turns about the centre.
+-- frame draw as asked. So the bursts sit on frames beside the icon, anchored to it; the flashes,
+-- whose animations only fade or flip, stay on the icon and move with it. No animation takes no
+-- time, and every Scale and Rotation turns about the centre. Glows stay under the icon: their
+-- moving parts hide while the motion plays (g:hold).
 local POP_TINT = { ready = { 1, 0.82, 0.25 }, imbue = { 0.35, 0.65, 1 }, expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 },
 	grounded = { 0.56, 0.76, 0.92 }, blocked = { 0.6, 0.6, 0.6 } }
 local BLACK = { 0, 0, 0 }
@@ -203,6 +225,7 @@ local STAR = { name = "star", atlas = "AftLevelup-WhiteStarBurst", file = "Inter
 	layer = "BACKGROUND", add = true, desat = true, from = 1.2, to = 3.5, dur = 0.45, a = 1, spin = -0.5 }
 local MOTION_STEPS = 4
 local SHORTEST = 0.01   -- a burst part's shortest wait, and a motion step no motion uses (s)
+local HOLD_MARGIN = 0.05   -- a glow's moving parts stay hidden this long past the motion (s)
 
 local function anim(g, kind, order)
 	local a = g:CreateAnimation(kind)
@@ -548,6 +571,15 @@ function E.pop(f, kind, owner)
 	-- over the totem bar's slot, under its secure button).
 	f.popRig:style(st, math.max(f.popSize or f:GetHeight(), 8), c, school, kind == "blocked")
 	f.popRig:play()
+	-- Glows under f: their scaling or moving parts would draw across the screen during the motion.
+	local length = f.popRig.motionLength
+	if length > 0 then
+		for _, g in ipairs(glows) do
+			local up = g:GetParent()
+			while up and up ~= f do up = up:GetParent() end
+			if up then g:hold(length + HOLD_MARGIN) end
+		end
+	end
 end
 
 -- The end of a totem, over `anchor`. Nothing here reads a secret: play() hands the gone totem's
