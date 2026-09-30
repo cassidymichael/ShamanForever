@@ -974,7 +974,7 @@ end
 -- gone, in combat too, with nothing read (tested in combat 2026-09-30).
 -- * The sensor: a container of its own with one aura group of one invisible button, as big as the
 --   look's reach (the cell). Blizzard sizes a group's container to its buttons: to the button while
---   the aura is up, to nothing once it's gone. Its width is secret; nothing of ours reads it.
+--   the aura is up, to 1 px once it's gone. Its width is secret; nothing of ours reads it.
 -- * A clip frame of ours runs from the container's right edge to the cell's right edge: nothing
 --   while the aura is up (the button is a little wider than the cell), the whole cell once it's
 --   gone. The look inside it is drawn only there, by the engine.
@@ -1094,7 +1094,7 @@ function ClipLook:setup()
 		c:SetFrameStrata(self.frame:GetFrameStrata())
 		c:SetUnit(unit)
 		pcall(c.EnableMouse, c, false)
-		pcall(c.SetFlowLayoutPadding, c, 0, 0, 0, 0)   -- empty is width 0
+		pcall(c.SetFlowLayoutPadding, c, 0, 0, 0, 0)   -- empty is 1 px wide (its layout's least)
 		self.container = c
 		self.unit = unit
 		self.cell:SetSize(w, w)
@@ -1219,13 +1219,12 @@ function ClipLook:follow(unit)
 	return ok
 end
 
--- Frame levels: the chain from lv up (the glow's own parts follow it as it shows).
+-- Frame levels: the whole chain at lv, the glow's breathing layer too (its look's parts take that
+-- level as it shows, Looks.levelParts).
 function ClipLook:setLevel(lv)
-	self.gate:SetFrameLevel(lv)
-	self.hold:SetFrameLevel(lv)
-	self.clip:SetFrameLevel(lv)
-	self.look:SetFrameLevel(lv)
-	self.glow:SetFrameLevel(lv)
+	for _, f in ipairs({ self.gate, self.hold, self.clip, self.look, self.glow, self.glow.inner }) do
+		f:SetFrameLevel(lv)
+	end
 end
 
 -- For /sf debug: one line of its state.
