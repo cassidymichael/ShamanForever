@@ -525,7 +525,7 @@ end
 --   owner, lookFor the glow's style owner (nil: General's) and lookFor() its look's key
 --   sites          { container = , style = , filter = }: names for waiting work and caught errors
 -- Its parts: h.tex (the icon's picture; the caller sets its texture), h.ring, h.pulse (the
--- picture's fade) and h.glow (ns.makeWarningGlow). The glow looks drawn within the icon (`inside`,
+-- picture's fade) and h.glow (ns.Effects.glow). The glow looks drawn within the icon (`inside`,
 -- ns.Looks) take the icon's rounded or cut-corner shape over the picture; the looks that reach past
 -- it take none. h:want(on) shows the look or not, h:setParts which of its parts show; nothing is
 -- made until h:setup(). h.filtered: the spell IDs its sensor last took.

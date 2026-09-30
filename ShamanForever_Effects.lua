@@ -190,7 +190,6 @@ end
 -- by script. Made the first time the frame pops.
 local POP_TINT = { ready = { 1, 0.82, 0.25 }, imbue = { 0.35, 0.65, 1 }, expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 },
 	grounded = { 0.56, 0.76, 0.92 }, blocked = { 0.6, 0.6, 0.6 } }
-E.POP_TINT = POP_TINT
 local BLACK = { 0, 0, 0 }
 -- The ring spreads from just inside the icon to 2.2 icon heights; the star turns as it spreads
 -- from 1.2 to 3.5, behind the ring. Parts as ns.Looks' drawn bursts' (Looks.popParts), plus an
@@ -320,7 +319,8 @@ local function newRig(f)
 	return r
 end
 
--- Every animation group of the rig (the caller doesn't change the list).
+-- Every animation group of the rig (the caller doesn't change the list): none has a script, so
+-- the same groups can be handed to an aura button, which plays them on each new aura.
 function Rig:groups() return self.all end
 
 function Rig:stop()
