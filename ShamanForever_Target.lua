@@ -58,9 +58,9 @@ local gateAlpha, retarget   -- below
 -- string; candidates(def): its candidate filters (default: the spell IDs of auraKey). The page's
 -- texts (ShamanForever_OptionsElements.lua): idleText, procHeader, popTip, glowTip, upLabel and
 -- idleLabel (its preview's up and idle states). noPop: no pop when it shows (its glow only).
--- ownIcon: its own icon on the button, never the aura's. noTimer: no time left. expiring and
--- missing: its Expiring and Not on target blocks (Flame Shock's, below). defaults: its own option
--- defaults (ns.elementSetting).
+-- ownIcon: its own icon on the button, never the aura's. buttonBorder: its border on the button
+-- too. noTimer: no time left. expiring and missing: its Expiring and Not on target blocks (Flame
+-- Shock's, below). defaults: its own option defaults (ns.elementSetting).
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
 		icon = 135813, school = "fire", blurb = "Shows while your Flame Shock is on your target.",
@@ -79,7 +79,7 @@ local TARGET = {
 		candidates = function(def) return { includeDispelTypes = { Magic = true }, maxDuration = T.longest(def) } end,
 		skipLong = { 1, 60, 1 },   -- Longest buff's range and step, in minutes (its page's slider)
 		idleText = "Idle is when your target has nothing to purge", procHeader = "Something to purge",
-		noPop = true, ownIcon = true, noTimer = true,
+		noPop = true, ownIcon = true, noTimer = true, buttonBorder = true,
 		glowTip = "While your target has one.", upLabel = "Magic buff", idleLabel = "Nothing to purge",
 		defaults = { idleAlpha = 0, primedGlow = true, skipLong = false, skipLongMins = 2 },
 		experimental = "Purge" },
@@ -119,6 +119,12 @@ end
 -- Our parts on Blizzard's button, once it is made (as Elemental Focus's): a glow the button plays
 -- while the aura shows, and a grow pop it plays each time a new one lands.
 local function buildButton(def, slot, button, cd)
+	-- buttonBorder: the group's border drawn on the button too, so it shows exactly with it (the
+	-- element's own frame, and its border, sit at its Idle opacity). Drawn out of combat only.
+	if def.buttonBorder then
+		def.edge = CreateFrame("Frame", nil, button)
+		def.edge:SetAllPoints(button)
+	end
 	def.glow = ns.makeGlow(button, button, def.key, true)
 	-- Levels under the aura button may read as secret: a failed read leaves the default level.
 	ns.try("aura glow level", function() def.glow:SetFrameLevel(cd:GetFrameLevel() + 2) end)
@@ -131,6 +137,7 @@ local function buildButton(def, slot, button, cd)
 end
 
 local function styleButton(def, size, slot)
+	if def.edge then ns.applyBorder(def.edge, ns.borderFor(def.key)) end
 	def.glow:restyle()
 	def.glow:fit(size)
 	def.glow:SetShown(setting(def.key, "primedGlow") and true or false)
