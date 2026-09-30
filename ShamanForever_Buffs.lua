@@ -161,6 +161,7 @@ local function buildProc(def, slot, button)
 	local body = def.fx:bind(button, slot.icon, def.frame.textFrame:GetFrameLevel() + POP_LEVEL)
 	def.edge = CreateFrame("Frame", nil, body)
 	def.edge:SetAllPoints(body)
+	def.edge.owner = def.key   -- its school colour (ns.Looks)
 end
 
 -- Our parts again, for the current size and settings (after the aura slot's own restyle).

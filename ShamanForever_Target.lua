@@ -143,6 +143,7 @@ local function buildButton(def, slot, button)
 	if def.buttonBorder or def.missing then
 		def.edge = CreateFrame("Frame", nil, body or button)
 		def.edge:SetAllPoints(button)
+		def.edge.owner = def.key   -- its school colour (ns.Looks)
 	end
 	if def.engineExpire then
 		-- The countdown that can turn red (styleExpire): a font string of ours over the button,
@@ -328,6 +329,7 @@ for _, def in ipairs(TARGET) do
 		-- up the icon shows no border then.
 		def.idleEdge = CreateFrame("Frame", nil, f)
 		def.idleEdge:SetAllPoints(f)
+		def.idleEdge.owner = def.key
 		-- Not on target (see the file's header): its holder, over the icon, and the look on it.
 		local h = CreateFrame("Frame", nil, def.gate)
 		h:SetAllPoints(f)
