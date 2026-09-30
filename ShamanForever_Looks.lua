@@ -796,10 +796,12 @@ local proc = {
 }
 
 -- Two sparks running round the edge over a faint steady inner glow, in Translation steps
--- (one a side); Pulse length sets how long a lap takes (a quarter of it a side, times 3.2).
+-- (one a side, a quarter of the lap each).
 local SPARK_PATH = { { 1, 0 }, { 0, -1 }, { -1, 0 }, { 0, 1 } }   -- from the top left, clockwise
 local spark = {
-	uses = { color = true, speed = true, width = true }, steady = true,
+	uses = { color = true, lap = true, width = true }, steady = true,
+	fields = { lap = { name = "Lap time", tip = "One lap round the icon.", range = S.KINDS.glow.ranges.lap, step = 0.1,
+		format = "%.1f s" } },
 	build = function(g)
 		local r = root(g.inner)
 		local parts = { roots = { r }, soft = softPart(r, 0.45), sparks = {}, anims = {}, moving = { r } }
@@ -827,7 +829,7 @@ local spark = {
 		for _, t in ipairs(parts.sparks) do
 			local red, gr, b = light(c)
 			t:SetVertexColor(red, gr, b, c[4] or 1)
-			for _, a in ipairs(t.steps) do a:SetDuration(st.speed * 0.8) end
+			for _, a in ipairs(t.steps) do a:SetDuration(st.lap / 4) end
 		end
 	end,
 	fit = function(g, parts, size)

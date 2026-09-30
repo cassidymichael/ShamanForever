@@ -36,9 +36,12 @@ end
 
 S.register("glow", {
 	-- Its look (S.addLook; ShamanForever_Looks.lua), colour, one pulse's length (s), the dimmest it
-	-- gets between pulses, how far in from the edges it reaches (share of the icon), and how bright
-	-- a look that has an intensity is (1 = as drawn). Killed early's glow keeps its red.
-	defaults = { look = "soft", color = { 1, 0.8, 0.25, 1 }, speed = 0.5, low = 0.25, width = 0.2, strength = 1 },
+	-- gets between pulses, how far in from the edges it reaches (share of the icon), how bright
+	-- a look that has an intensity is (1 = as drawn), and how long a lap round the icon takes (s)
+	-- for a look that runs round it. Killed early's glow keeps its red.
+	defaults = { look = "soft", color = { 1, 0.8, 0.25, 1 }, speed = 0.5, low = 0.25, width = 0.2, strength = 1,
+		lap = 1.6 },
+	ranges = { lap = { 0.6, 4 } },
 	path = { "glowStyle" },
 	-- Purge's glow starts as Blizzard's proc ring, and Shields' No shield and Flame Shock's Not on
 	-- target glows as the soft inner glow: their own styles rather than General's.

@@ -259,10 +259,24 @@ local function glowBlock(p, owner, icon)
 	look = choiceRows(p, r, "glow", "look", "Look", nil, own)
 	reloadLine(p, function() return ns.Effects.auraGlowStale(owner) end,
 		function(n) return n == 1 and "changes glow" or "change glow" end, own)
-	local function uses(field) return showWhen(function() return look().uses[field] end, own) end
+	-- A row for a field the look reads, unless it labels that field its own way (its fields).
+	local function uses(field)
+		return showWhen(function() local l = look(); return l.uses[field] and not (l.fields and l.fields[field]) end, own)
+	end
 	p:color("Colour", "Colour and opacity. Killed early, Grounded and Ran out keep their own colours.", r.get("color"), r.set("color"), uses("color"))
 	p:slider("Pulse length", "One pulse, in seconds.", 0.2, 2, 0.1, function(v) return string.format("%.1f s", v) end,
 		r.get("speed"), r.set("speed"), uses("speed"))
+	-- Each look's own fields, under its own labels while it is picked.
+	for _, e in ipairs(ns.Style.choices("glow", "look")) do
+		local names = {}
+		for field in pairs(e.fields or {}) do table.insert(names, field) end
+		table.sort(names)
+		for _, field in ipairs(names) do
+			local fd = e.fields[field]
+			p:slider(fd.name, fd.tip, fd.range[1], fd.range[2], fd.step, function(v) return string.format(fd.format, v) end,
+				r.get(field), r.set(field), showWhen(function() return look() == e end, own))
+		end
+	end
 	local setLow = r.set("low")
 	p:slider("Pulse depth", "How much it fades between pulses. 0% is steady.", 0, 1, 0.05, pct,
 		function() return 1 - r.style().low end, function(v) setLow(1 - v) end, uses("low"))
