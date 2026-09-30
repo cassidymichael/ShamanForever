@@ -5,8 +5,9 @@
 -- Rule for this client: never do Lua math or comparisons on a possibly-secret value. In combat, show
 -- state through Blizzard's own widgets instead: the aura container for the shield, duration objects
 -- for cooldowns and totem timers, curves and SetAlpha for anything that must appear or disappear.
--- What can't be read in combat is inferred from our own casts, which can: the shield's "up" state
--- (ShamanForever_Shield.lua), primed states and buff windows (_Cooldowns), the water buffs (_Buffs).
+-- What can't be read in combat is inferred from our own casts, which can: primed states and buff
+-- windows (_Cooldowns), the water buffs (_Buffs). The shield needs no inference: Blizzard's button
+-- over its No shield look is the switch (ShamanForever_Shield.lua).
 
 local ADDON, ns = ...
 local say, isSecret = ns.say, ns.isSecret
@@ -88,6 +89,7 @@ local DEFAULTS = {
 	emptyTint = false,
 	emptyPulse = false,
 	emptyGlow = true,
+	emptyGlowLook = "soft",   -- its look: one drawn inside the icon only (ns.insideGlowLooks)
 	underlayUp = 0.25,      -- underlay strength while the shield is believed up (0 = none)
 	shieldIconAlpha = 1,    -- manual multiplier on the compensated shield icon alpha
 	-- shock
@@ -147,12 +149,12 @@ local ELEMENT_KEYS = { "shield", "shock", "imbue" }
 -- options and while dragging; stack is its frame's (ns.newElementIcon); fadeFrames lists other
 -- frames of its own that ignore its group's alpha, for the group's fade after combat;
 -- standInBorder: preview mode's stand-in draws its border (its own isn't on its frame). learned()
--- says whether the character knows its spell (none: always); defaults holds the defaults of every option it has (see
--- elementSetting). The options show it by its spell's name in the client's language (spell, an
--- ns.Spells key), else its label, with its icon, its school's art (earth, fire, water, air, spirit),
--- blurb (a line under its name) and experimental (a feature name: not tested in game); kind picks
--- its page and preview (ShamanForever_OptionsElements.lua, _OptionsLook.lua), which read def, the
--- module's own table for it.
+-- says whether the character knows its spell (none: always); defaults holds the defaults of every
+-- option it has (see elementSetting). The options show it by its spell's name in the client's
+-- language (spell, an ns.Spells key), else its label, with its icon, its school's art (earth, fire,
+-- water, air, spirit), blurb (a line under its name) and experimental (a feature name: not tested
+-- in game); kind picks its page and preview (ShamanForever_OptionsElements.lua, _OptionsLook.lua),
+-- which read def, the module's own table for it.
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
 function ns.registerElement(key, e)

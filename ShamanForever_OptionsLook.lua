@@ -381,25 +381,29 @@ L.PREVIEW = {
 	shield = {
 		uptime = true, barInset = function() return ns.Shield.timeBarInset() end,
 		warning = "down",
-		states = { { "up3", "3 charges" }, { "up1", "1 charge" }, { "down", "No shield" }, { "drop", "Dropped in combat" } },
+		states = { { "up3", "3 charges" }, { "up1", "1 charge" }, { "down", "No shield" } },
 		render = function(ic, st)
 			local d = db()
 			local water = d.shieldTrack == "water"
 			reset(ic, water and 132315 or 136051)
-			if st == "down" or st == "drop" then
+			if ic.insideGlow then ic.insideGlow:Hide() end
+			if st == "down" then
 				ic.tex:SetDesaturated(d.emptyGrey)
 				if d.emptyTint then ic.tex:SetVertexColor(1, 0.35, 0.35) end
-				if st == "down" then
-					ic:SetRingShown(d.emptyRing)
-					ic:SetPulsing(d.emptyPulse)
-					ic:SetGlowShown(d.emptyGlow)
-				else
-					ic.tex:SetAlpha(math.max(d.underlayUp, 0.08))
+				ic:SetRingShown(d.emptyRing)
+				ic:SetPulsing(d.emptyPulse)
+				-- The HUD's glow here: No shield's own Glow look, one drawn inside the icon only.
+				if d.emptyGlow then
+					if not ic.insideGlow then
+						ic.insideGlow = ns.makeInsideGlow(ic, ic, "shield", function() return db().emptyGlowLook end)
+					end
+					ic.insideGlow:restyle()
+					ic.insideGlow:fit(ic:GetWidth())
+					ic.insideGlow:Show()
 				end
 				return
 			end
 			local n = st == "up3" and 3 or 1
-			ic.tex:SetAlpha(d.shieldIconAlpha)
 			frozen(ic.upT, 0.38, 600)
 			if d.showBar then
 				local c = d.chargeBarColor or { 0.35, 0.75, 1 }

@@ -2,9 +2,9 @@
 
 A configurable HUD for shamans on World of Warcraft: Forever: the buffs, imbues and cooldowns a shaman watches, as icons you can arrange anywhere. Requires WoW: Forever (interface 16001).
 
-<a href="docs/gallery/README.md"><img src="docs/gallery/hud-preview-and-unlocked.png" width="560" alt="ShamanForever's HUD in preview mode with positioning unlocked"></a>
+![ShamanForever in game](screenshot.png)
 
-More screenshots: [gallery](docs/gallery/README.md).
+More screenshots: [options gallery](docs/gallery/README.md).
 
 ## Download
 
@@ -19,7 +19,7 @@ A collection of highly configurable HUD elements designed to help shamans playin
 - **Totem Bar**: Fully configurable totem bar replacing default or active totems frames: drop, pick and dismiss totems, Call of the Elements and Totemic Recall, an out-of-range warning, and key bindings
 - **Shock Trackers**: Earth, Flame, and Frost shock monitoring
 - **Target Trackers**: Flame Shock on your target with its time left (a bar that changes colour near the end) and a look while it's missing, and Purge when your target has a Magic buff
-- **Shield Helpers**: Lightning Shield and Water Shield tracking
+- **Shield Helpers**: Lightning Shield and Water Shield tracking, and a No shield warning the moment the shield drops, in combat too
 - **Weapon Imbues**: Rockbiter, Flametongue, Frostbrand, and Windfury imbue status
 - **Swing Timer**: melee swing timer shown as a bar
 - **Spell Trackers**: Stormstrike, Fire Nova, Lava Burst, Chain Lightning, Riptide, Rage of the Farseer, Nature's Swiftness, Mana Tide Totem, each with the timers, bars, glows and pops that suit it

@@ -743,8 +743,8 @@ AuraSlot.__index = AuraSlot
 --   onStyle(slot, size)         the caller's own restyle, after the shared one
 --   onError(err)                the container couldn't be made on this client
 -- Nothing is made until slot:setup(). The slot then holds container, button, icon (the aura's
--- texture), cd and timer (swipe, countdown and time bar), or err; and after slot:refilter(), filtered
--- (the spell IDs it last gave the slot).
+-- texture), cd and timer (swipe, countdown and time bar), or err; size, the size its button was last
+-- given; and after slot:refilter(), filtered (the spell IDs it last gave the slot).
 function ns.makeAuraSlot(frame, opts)
 	return setmetatable({ frame = frame, opts = opts }, AuraSlot)
 end
@@ -754,6 +754,7 @@ local function initAuraButton(slot, button)
 	local o = slot.opts
 	local size = ns.sizeOf(o.key)
 	button:SetSize(size, size)
+	slot.size = size
 	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
 	pcall(button.EnableMouse, button, false)
 	pcall(button.SetMouseClickEnabled, button, false)
@@ -873,6 +874,7 @@ function AuraSlot:styleNow()
 		c:SetFrameStrata(f:GetFrameStrata())
 		c:SetFrameLevel(f.textFrame:GetFrameLevel() + 5)
 		self.button:SetSize(size, size)
+		self.size = size
 		-- Extra slots' buttons over the first and its parts, in order, two levels apart (their own
 		-- parts take the level between); set from our own levels, never read back from the buttons.
 		for i, x in ipairs(o.extras or {}) do

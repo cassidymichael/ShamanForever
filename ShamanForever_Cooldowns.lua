@@ -23,7 +23,7 @@
 -- * Buff windows and primed states come from our own casts, which are readable in combat: Rage of the
 --   Farseer's window runs a fixed time from its cast; Nature's Swiftness and Stormstrike are primed
 --   from their cast until our casts of the spells that spend them (or its time runs out). That is an
---   inference, like the shield's; Nature's Swiftness is corrected from its buff whenever auras are
+--   inference; Nature's Swiftness is corrected from its buff whenever auras are
 --   readable (out of combat, and not in a PvP match). Death ends it, and Rage of the Farseer's window.
 
 local _, ns = ...

@@ -326,6 +326,9 @@ function Looks.maskOver(f, tex, over)
 	map[tex] = over or tex
 	if maskSpecs[f] then maskOne(f, tex, maskSpecs[f], map[tex]) end
 end
+-- The mask spec icon frame f's look gives it now (nil: none). The same table while the look's shape
+-- is the same, so a caller can tell whether the shape changed since it last looked.
+function Looks.maskSpec(f) return maskSpecs[f] end
 
 -- Registers textures laid over icon frame f's picture, to take its mask (now, and on each change).
 function Looks.followMask(f, ...)
@@ -526,6 +529,14 @@ function Looks.auraStyle(slot, size)
 	elseif not spec then made.spec = nil end
 	made.look = made.spec and lookFor(b) or nil
 	swipeOne(slot.button, slot.cd, made.look, size)
+end
+
+-- The shape the aura button's icon (the aura slot's icon) has now: its mask's spec, or nil while it
+-- is square (made without a mask, or its mask plain). Changed only as the button takes a new shape,
+-- so it is never ahead of the button.
+function Looks.auraShape(icon)
+	local made = icon and auraMade[icon]
+	return made and made.mask and made.spec or nil
 end
 
 -- The aura elements whose button's shape differs from their border look now (a masked look on a
