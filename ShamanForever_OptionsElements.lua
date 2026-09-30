@@ -524,8 +524,7 @@ local function buildBuff(p, def)
 				p:text("While your hostile target doesn't have it. The red ring shows out of combat only.")
 			end)
 	end
-	if not def.noTimer then timerSettings(p, "Time left", key, "uptime") end
-	if def.proc then
+	local function procBlock()
 		-- Elemental Focus's texts, unless the def has its own (the target's auras, ShamanForever_Target.lua).
 		p:header(def.procHeader or ns.Spells.name("clearcasting"))
 		if not def.noPop then
@@ -533,22 +532,26 @@ local function buildBuff(p, def)
 				eget(key, "primedPop"), eset(key, "primedPop"))
 		end
 		p:checkbox("Pulsing glow", def.glowTip or "While it's up.", eget(key, "primedGlow"), eset(key, "primedGlow"))
-		if def.engineExpire then
-			-- Flame Shock's, drawn by the engine: only what it can change in a fight.
-			p:header("Expiring")
-			p:slider("Warn in the last", "Seconds before it runs out. Zero turns the warning off.", 0, 10, 1,
-				function(v) return v == 0 and "Off" or string.format("%d s", v) end, eget(key, "expireSecs"), eset(key, "expireSecs"))
-			local warns = function() return (ns.elementSetting(key, "expireSecs") or 0) > 0 end
-			p:checkbox("Bar colour", "The time bar takes this colour in the last seconds.", eget(key, "expireBar"),
-				eset(key, "expireBar"), showWhen(warns))
-			p:color("Colour", nil, eget(key, "expireBarColor"), eset(key, "expireBarColor"),
-				showWhen(function() return warns() and ns.elementSetting(key, "expireBar") end))
-			p:checkbox("Red countdown", "The countdown turns red in the last seconds.", eget(key, "expireText"),
-				eset(key, "expireText"), showWhen(warns))
-		end
-	else
-		expiringBlock(p, key, 120, 5)
 	end
+	-- Flame Shock: On your target right after Not on target, the two looks about the target; then
+	-- its time left and Expiring.
+	if def.missing then procBlock() end
+	if not def.noTimer then timerSettings(p, "Time left", key, "uptime") end
+	if def.engineExpire then
+		-- Flame Shock's, drawn by the engine: only what it can change in a fight.
+		p:header("Expiring")
+		p:slider("Warn in the last", "Seconds before it runs out. Zero turns the warning off.", 0, 10, 1,
+			function(v) return v == 0 and "Off" or string.format("%d s", v) end, eget(key, "expireSecs"), eset(key, "expireSecs"))
+		local warns = function() return (ns.elementSetting(key, "expireSecs") or 0) > 0 end
+		p:checkbox("Bar colour", "The time bar takes this colour in the last seconds.", eget(key, "expireBar"),
+			eset(key, "expireBar"), showWhen(warns))
+		p:color("Colour", nil, eget(key, "expireBarColor"), eset(key, "expireBarColor"),
+			showWhen(function() return warns() and ns.elementSetting(key, "expireBar") end))
+		p:checkbox("Red countdown", "The countdown turns red in the last seconds.", eget(key, "expireText"),
+			eset(key, "expireText"), showWhen(warns))
+	end
+	if def.proc and not def.missing then procBlock()
+	elseif not def.proc then expiringBlock(p, key, 120, 5) end
 	-- The water buffs never pop; Elemental Focus's pop is the grow Blizzard's button plays.
 	effectBlocks(p, key, nil, true, def.proc and not def.noPop and "grow" or false)
 end
