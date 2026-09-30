@@ -123,10 +123,12 @@ function SW.makeBar(parent)
 	b.spark = spark
 	return b
 end
--- The side it fills from, and the spark on the fill's free edge. The spark is a line: two screen
--- pixels wide at any size (ns.linePx).
+-- The side it fills from, and the spark on the fill's free edge. Emptying takes the opposite side,
+-- so the moving edge travels the same way as when filling. The spark is a line: two screen pixels
+-- wide at any size (ns.linePx).
 function SW.styleBar(b)
-	local fromRight = cfg().fillFrom == "right"
+	local c = cfg()
+	local fromRight = (c.fillFrom == "right") ~= c.deplete
 	b:SetReverseFill(fromRight)
 	local fill, side = b:GetStatusBarTexture(), fromRight and "LEFT" or "RIGHT"
 	b.spark:ClearAllPoints()
