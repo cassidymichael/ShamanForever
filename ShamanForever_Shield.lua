@@ -53,8 +53,10 @@ local shield = ns.newElementIcon("shield")   -- its icon: the plain one, while t
 -- ancestor of the button takes no alpha change in combat); the No shield look doesn't hang from it.
 local gate = CreateFrame("Frame", nil, shield)
 gate:SetAllPoints(shield)
--- The element's border (lines, sliced and inner art), on the gate, so Idle dims it with the shield.
--- Not an ancestor of the button: its own parts can change at any time.
+-- The element's border (lines, sliced and inner art) while Blizzard's button isn't made: then the
+-- button draws it (its own edge, under it, so it shows and hides with the shield), and the No shield
+-- look draws it while the shield is gone. Not an ancestor of the button: its own parts can change
+-- at any time.
 local edge = CreateFrame("Frame", nil, gate)
 edge:SetAllPoints(shield)
 edge.owner = "shield"   -- its school colour (ns.Looks)
@@ -73,9 +75,8 @@ ns.registerElement("shield", { frame = shield, label = "Shields", paint = functi
 	def = { key = "shield", idleChoices = IDLE_CHOICES },
 	effects = { glow = { "missing" }, pop = {} },   -- it never pops
 	borderHost = edge,
-	-- Preview mode: its border is at the gate's opacity, so while that is below full (Idle on) its
-	-- stand-in draws its own; else the real one shows (ShamanForever_Preview.lua).
-	standInBorder = function() return SH.gateIdle() end,
+	-- Preview mode: its border is on Blizzard's button, not its frame (ShamanForever_Preview.lua).
+	standInBorder = true,
 	kind = "shield", icon = 136051, school = "spirit", blurb = "Charges and time left. Warns when it's gone." })
 
 -- Per shield at runtime: name (the client's), spellID and bookIcon (highest known rank), known. The
@@ -263,10 +264,7 @@ end
 holder:SetScript("OnShow", function() setLook(stateNow()) end)
 
 -- The look's copy of the element's border without the inner art, which the look draws itself
--- (ClipLook:reshape). It draws at full while the gate is below full and the look shows, over the
--- gate's own edge at the Idle opacity: with a see-through border colour both show while the shield
--- is gone (the engine decides when the look shows and nothing of ours can tell, so the gate's edge
--- can't step aside).
+-- (ClipLook:reshape): the border while the shield is gone, as the button's own is while it's up.
 local lookEdge   -- below, with the look
 -- The look's levels, shape and size, after a layout (a size, scale or look change).
 local function placeLook()
@@ -281,11 +279,10 @@ end
 ------------------------------------------------------------------------
 -- Idle (idleWhen): never | up (idle while the shield is up) | charges (idle at 2 or more charges)
 ------------------------------------------------------------------------
--- Both put the gate at the Idle opacity, and with it Blizzard's button, the element's border and
--- the global cooldown's sweep, set out of combat and held through a fight. The button needs no
--- telling when the shield goes: it hides that moment, in combat too, and the No shield look, which
--- doesn't hang from the gate, shows in full with its own copy of the border (lookEdge) while the
--- gate is below full. Down out of combat the gate stays at the Idle opacity: the button is hidden
+-- Both put the gate at the Idle opacity, and with it Blizzard's button, its border and the global
+-- cooldown's sweep, set out of combat and held through a fight. The button needs no telling when
+-- the shield goes: it hides that moment, in combat too, with its border, and the No shield look,
+-- which doesn't hang from the gate, shows in full with its own copy of the border (lookEdge). Down out of combat the gate stays at the Idle opacity: the button is hidden
 -- then anyway, and a shield cast in the next fight is idle, as it should be. "2 or more charges"
 -- adds the one-charge copy (below): the icon in full, drawn by the engine at exactly one charge.
 -- Idle applies only while positioning is locked, the element is on, a shield it tracks is known
@@ -298,7 +295,6 @@ local function idleWhen()
 end
 local copyReady, full   -- below, with the copy
 local gateNow = 1   -- the gate's alpha, as last set
-function SH.gateIdle() return gateNow < 1 end   -- Idle is on: the shield's border is below full
 
 -- The gate's alpha for the settings and state now. Out of combat only.
 local function applyIdle()
@@ -309,7 +305,6 @@ local function applyIdle()
 	gateNow = on and ns.idleAlpha("shield") or 1
 	gate:SetAlpha(gateNow)
 	full:SetAlpha((on and when == "charges") and 1 or 0)
-	lookEdge:SetShown(gateNow < 1)
 end
 
 -- The shield's looks, from its settings and state: the element's own icon (only seen while the
@@ -328,13 +323,12 @@ function SH.applyEmptyLook()
 	shield:SetRingShown(false)
 	shield:SetPulsing(false)
 	shield:SetGlowShown(false)
-	-- One border at any time. The edge draws the border's lines and sliced art round the icon, at
-	-- the gate's opacity, always; the No shield look adds its own at full while the gate is below
-	-- full (applyIdle). The border look's inner art (over the icon) is drawn by the aura button
-	-- while the shield is up and by the No shield look while it's gone (ns.makeClipLook), each
-	-- exactly with what it belongs to, so the edge's own copy stays down while those are made: the
-	-- button is see-through at partial opacity, and a copy under it would show as a second one.
-	if edge.frameOverlay then edge.frameOverlay:SetShown(not (known and covered)) end
+	-- One border at any time. Once Blizzard's button is made, the button draws the border while the
+	-- shield is up (its edge and its inner art, at the gate's opacity) and the No shield look while
+	-- it's gone (lookEdge and ns.makeClipLook's art, in full), each exactly with what it belongs to;
+	-- the element's own edge draws it only until then. The one-charge copy draws its own over the
+	-- button's (a faint border under it at Idle below full).
+	edge:SetShown(not (known and covered))
 	look.tex:SetTexture(icon)
 	lookOn = (known and covered and ns.isEnabled("shield")) and true or false
 	if standIn then
@@ -379,7 +373,6 @@ look = ns.makeClipLook(shield, {
 lookEdge = CreateFrame("Frame", nil, look.art)
 lookEdge:SetAllPoints(shield)
 lookEdge.owner = "shield"
-lookEdge:Hide()
 
 -- Whether the sensor matches every spell ID of every tracked shield: a sensor missing one would
 -- stay empty over that shield, so the look waits (ns.makeClipLook). Matching more (a Track just
@@ -445,11 +438,15 @@ function SH.applyTimers()
 	look:reshape()
 end
 
--- Our parts on Blizzard's button, once it is made: the charge number and the charge bar with its
--- ticks, on an overlay above the cooldown so nothing Blizzard hides takes them along.
+-- Our parts on Blizzard's button, once it is made: the element's border (lines and sliced art; the
+-- slot draws its inner art), and the charge number and the charge bar with its ticks, on an overlay
+-- above the cooldown so nothing Blizzard hides takes them along.
 local function buildNative(slot, button, cd)
 	local db = ns.getDB()
 	local size = ns.sizeOf("shield")
+	slot.edge = CreateFrame("Frame", nil, button)
+	slot.edge:SetAllPoints(button)
+	slot.edge.owner = "shield"   -- its school colour (ns.Looks)
 	local overlay = CreateFrame("Frame", nil, button)
 	overlay:SetAllPoints()
 	overlay:SetFrameLevel(cd:GetFrameLevel() + 2)
@@ -547,6 +544,8 @@ end
 -- Our parts again, for the current size and settings (after the aura slot's own restyle).
 local function styleNative(slot, size)
 	local db = ns.getDB()
+	ns.try("shield border", ns.applyBorder, slot.edge, ns.borderFor("shield"))
+	if slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end   -- the button's own (auraMask)
 	applyCountFormat(slot)
 	for i, t in ipairs(slot.tickTextures or {}) do
 		t:ClearAllPoints()
