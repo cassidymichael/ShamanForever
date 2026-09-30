@@ -95,6 +95,8 @@ end
 
 function EP.buildOverview(p)
 	p:header("Elements")
+	p:text("Most of the HUD is made of elements, mostly icons. Each element sits in one group, and"
+		.. " groups are what you move around the screen while positioning is unlocked.")
 	-- Columns sized to fit the page's panel at the window's least width; they keep their places when
 	-- it's wider.
 	local GROUP_X, SHOW_X, OPEN_X = 150, 276, 368
