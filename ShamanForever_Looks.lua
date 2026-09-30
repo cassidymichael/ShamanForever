@@ -40,7 +40,8 @@ local function schoolOf(f)
 end
 
 ------------------------------------------------------------------------
--- Frames: a border look's entry has any of these parts (the options also read name, S.addLook).
+-- Frames: a border look's entry (a choice, S.addLook: name, group, uses and the rest) has any of
+-- these parts.
 --   rings  lines round the icon's edge, listed outside in. Each is { px, color }, or has a colour
 --          per side (top, bottom, left, right) in place of color. px: screen pixels (default 1) or
 --          the name of a border setting that holds them ("size", the Border size). A colour is
@@ -58,9 +59,9 @@ end
 --   swipe  a file for the icon's cooldown swipes (f.cd, and those Looks.followSwipe registers),
 --          shaped like the mask; swipeInset: or the swipes inset this share of the icon's width
 --          each side, inside the mask's shape, as Blizzard insets its action buttons' cooldowns.
---   experimental  not tested in game yet (the options badge it).
 --   hidden   not offered in the options' Border look lists: drawn only for a totem bar Look
 --            (ShamanForever_TotemSkins.lua).
+-- uses names the border settings its rings and caps read ("size", "color", "capSize", "capColor").
 -- A look whose Blizzard art is missing from the client draws a plain 1 px black line instead.
 -- A look drawn with AI-made art is credited in the README and About's Art text.
 -- Lines and caps are screen pixels (ns.linePx): crisp, grown by Scale, not by icon Size. They sit
@@ -94,16 +95,8 @@ local function pxOf(px, b)
 	return px or 1
 end
 
--- Whether a look uses a border setting ("size", "color", "capSize", "capColor"): the options show
--- only those it uses.
-function Looks.uses(look, field)
-	for _, r in ipairs(look.rings or {}) do
-		if r.px == field or r.color == field then return true end
-		for _, side in ipairs(SIDES) do if r[side] == field then return true end end
-	end
-	local caps = look.caps
-	return caps ~= nil and (caps.px == field or caps.color == field)
-end
+-- Whether a look (a choice's entry) uses a style setting: the options show only those it uses.
+function Looks.uses(look, field) return look.uses ~= nil and look.uses[field] == true end
 
 -- Each ring is four textures: top and bottom span the corners, left and right fill between them.
 -- Drawn inside out; returns how far the rings reach outside the icon's edge.
@@ -593,51 +586,46 @@ local CDM_MASK, CDM_OVERLAY = "UI-HUD-CoolDownManager-Mask", "UI-HUD-CoolDownMan
 local CDM_SWIPE = "Interface\\HUD\\UI-HUD-CoolDownManager-Icon-Swipe"
 local AB_MASK, AB_FRAME = "UI-HUD-ActionBar-IconFrame-Mask", "UI-HUD-ActionBar-IconFrame"
 
-S.addLook("border", "line", { name = "Line", rings = { { px = "size", color = "color" } } })
-S.addLook("border", "hairline", { name = "Gold hairline",
+S.addField("border", "look", { name = "Border look", where = "General > Border", preview = { play = "still" },
+	groups = { { "lines", "Lines" }, { "blizzard", "Blizzard's" }, { "painted", "Painted" } } })
+S.addLook("border", "line", { name = "Line", group = "lines", uses = { size = true, color = true },
+	rings = { { px = "size", color = "color" } } })
+S.addLook("border", "hairline", { name = "Gold hairline", group = "lines",
 	rings = { { color = BLACK }, { color = GOLD }, { color = BLACK } } })
 -- Lit from the top left; the lit band is Border size thick.
-S.addLook("border", "bevel", { name = "Bronze bevel",
+S.addLook("border", "bevel", { name = "Bronze bevel", group = "lines", uses = { size = true },
 	rings = { { color = BLACK }, { px = "size", top = BRONZE_HI, left = BRONZE_HI, bottom = BRONZE_LO, right = BRONZE_LO },
 		{ color = BRONZE_DARK } } })
-S.addLook("border", "caps", { name = "Corner caps",
+S.addLook("border", "caps", { name = "Corner caps", group = "lines",
+	uses = { size = true, color = true, capSize = true, capColor = true },
 	rings = { { px = "size", color = "color" } }, caps = { px = "capSize", len = 6, color = "capColor" } })
 -- Rounded corners and a soft dark edge, as on the Cooldown Manager's icons.
-S.addLook("border", "cdm", { name = "Cooldown Manager",
+S.addLook("border", "cdm", { name = "Cooldown Manager", group = "blizzard",
 	mask = { atlas = CDM_MASK }, swipe = CDM_SWIPE, art = { atlas = CDM_OVERLAY, inset = { 0.18, 0.18, 0.16, 0.16 } } })
 -- Cut corners in a dark bronze frame, as on Forever's action buttons.
-S.addLook("border", "button", { name = "Forever action button",
+S.addLook("border", "button", { name = "Forever action button", group = "blizzard",
 	mask = { atlas = AB_MASK, scale = 64 / 45 }, swipeInset = 3 / 45,
 	art = { atlas = AB_FRAME, inset = { 0, 1 / 45, 0, 0 } } })
--- Painted frames (AI-made art), 9-sliced from 128 px art; margin: the painted frame's width in
--- texels.
-S.addLook("border", "stone", { name = "Carved stone",
+-- Painted frames, 9-sliced from 128 px art; margin: the painted frame's width in texels.
+S.addLook("border", "stone", { name = "Carved stone", group = "painted", credit = "ai",
 	rings = { { color = BLACK } }, art = { file = MEDIA .. "Frame-Stone", margin = 27, px = 6 } })
-S.addLook("border", "bronze", { name = "Aged bronze",
+S.addLook("border", "bronze", { name = "Aged bronze", group = "painted", credit = "ai",
 	rings = { { color = BLACK } }, art = { file = MEDIA .. "Frame-Bronze", margin = 14, px = 4 } })
-S.addLook("border", "wood", { name = "Carved wood",
+S.addLook("border", "wood", { name = "Carved wood", group = "painted", credit = "ai",
 	rings = { { color = BLACK } }, art = { file = MEDIA .. "Frame-Wood", margin = 22, px = 6 } })
 -- For the totem bar's Looks only: the Border size of the slot's element colour inside 1 px of black.
-S.addLook("border", "schooledge", { name = "School edge", hidden = true,
-	rings = { { color = BLACK }, { px = "size", color = "school" } } })
--- For the totem bar's Looks only: a round picture in a bronze medallion (AI-made art), whose
--- opening overlaps the picture's edge a little.
+S.addLook("border", "schooledge", { name = "School edge", group = "lines", hidden = true, bySchool = true,
+	uses = { size = true }, rings = { { color = BLACK }, { px = "size", color = "school" } } })
+-- For the totem bar's Looks only: a round picture in a bronze medallion, whose opening overlaps the
+-- picture's edge a little.
 local ROUND = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
-S.addLook("border", "medallion", { name = "Medallion", hidden = true,
+S.addLook("border", "medallion", { name = "Medallion", group = "painted", hidden = true, credit = "ai",
 	mask = { file = ROUND }, swipe = ROUND, art = { file = MEDIA .. "Medallion", inset = { 0.35, 0.35, 0.35, 0.35 } } })
 
--- Whether any of a kind's looks is experimental (About's list).
-function Looks.anyExperimental(kind)
-	for _, e in ipairs(S.LOOKS[kind].order) do if e.experimental then return true end end
-	return false
-end
-
 ------------------------------------------------------------------------
--- Glow looks. The default is "soft", the soft inner glow. Each look is an entry with:
---   uses      the glow style's fields it reads (color, speed, low, width, strength); the options
---             show those
+-- Glow looks. The default is "soft", the soft inner glow. Each look is a choice (S.addLook: name,
+-- uses, bySchool and the rest; uses from color, speed, low, width, strength) with:
 --   steady    it doesn't breathe (the glow's pulse is off; speed may time its own motion)
---   bySchool  it differs by school (the options preview it on one icon per school)
 --   inside    drawn only within the icon: a warning's glow on the element takes the icon's shape
 --             (over ns.makeClipLook's picture); the other looks reach past it and take none
 --   build(g)  its regions and animation groups, under g.inner (breathing) or g (not); returns
@@ -932,6 +920,7 @@ local heartbeat = {
 	end,
 }
 
+S.addField("glow", "look", { name = "Glow look", where = "General > Pulsing glow style", preview = { play = "loop" } })
 local function addGlow(key, name, entry)
 	entry.name = name
 	S.addLook("glow", key, entry)

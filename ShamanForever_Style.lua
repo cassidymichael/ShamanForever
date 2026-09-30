@@ -72,25 +72,112 @@ S.register("border", {
 	path = { "border" },
 })
 
--- Looks: named ways of drawing a kind (a border's lines or art, a glow, a pop), picked by the
--- kind's `look` field through the same resolution as its other fields (General, then an owner's
--- own). Each is a data entry that the kind's drawing code reads (ShamanForever_Looks.lua); the
--- options offer them in the order they were added. entry: name (as the options show it) and the
--- fields the drawing reads. The kind's default look is added first.
-S.LOOKS = {}
-function S.addLook(kind, key, entry)
-	local l = S.LOOKS[kind] or { order = {}, byKey = {} }
-	S.LOOKS[kind] = l
-	entry.key = key
-	table.insert(l.order, entry)
+-- Choices: the named values a style field picks from (a border's or a glow's look, the pop's
+-- flash, burst and motion), resolved like the kind's other fields (General, then an owner's own).
+-- Each is a data entry that pickers, previews, About's Experimental list and the drawing code
+-- read (ShamanForever_Looks.lua); pickers offer them by group, in the order they were added.
+-- entry: the fields its drawing reads, and:
+--   name, tip      as the options show it: a few plain words; tip one short line, or none
+--   group          its section in pickers (a key of its field's groups)
+--   experimental   not fully tested in game yet (the options badge it; About lists it)
+--   hidden         not offered in pickers: drawn for a saved value, or for another part's use
+--   bySchool       it differs by school (previews show one icon per school)
+--   uses           the style fields it reads, field -> true (the options show only those)
+--   fields         field -> { name, tip, range = { min, max }, step, format }: a field it reads its
+--                  own way, offered under its own label while it is picked
+--   preview        hints for previews: { play = "loop" | "hover" | "still", bg = "dark" | "snow", size }
+--   credit         "ai": drawn with art made with an AI model
+-- A field's own metadata (S.addField): name (as pickers and the previewer's axes name it), where
+-- (the page and block it's on), groups ({ key, name } in picker order) and preview (the default
+-- for its entries).
+local CHOICES, FIELDS = {}, {}   -- kind -> field -> its list; FIELDS: every list, in order
+local function listOf(kind, field)
+	CHOICES[kind] = CHOICES[kind] or {}
+	local l = CHOICES[kind][field]
+	if not l then
+		l = { kind = kind, field = field, groups = {}, order = {}, byKey = {} }
+		CHOICES[kind][field] = l
+		table.insert(FIELDS, l)
+	end
+	return l
+end
+
+function S.addField(kind, field, meta)
+	local l = listOf(kind, field)
+	for k, v in pairs(meta) do l[k] = v end
+end
+
+-- A field's list (its metadata, order and byKey), or nil; every field's list, in order.
+function S.field(kind, field) return CHOICES[kind] and CHOICES[kind][field] end
+function S.fields() return FIELDS end
+
+-- Adds a choice, or replaces the one with the same key in its place.
+function S.addChoice(kind, field, key, entry)
+	local l = listOf(kind, field)
+	entry.key, entry.kind, entry.field = key, kind, field
+	entry.uses = entry.uses or {}
+	local old = l.byKey[key]
+	if old then
+		for i, e in ipairs(l.order) do if e == old then l.order[i] = entry end end
+	else
+		table.insert(l.order, entry)
+	end
 	l.byKey[key] = entry
 end
--- The entry a look's key names. An unknown key (a profile shared from a newer version) gets the
--- kind's default look.
-function S.look(kind, key)
-	local l = S.LOOKS[kind]
-	return l.byKey[key] or l.byKey[S.KINDS[kind].defaults.look]
+
+-- Every choice of a field, hidden ones too, in the order added (the caller doesn't change it).
+function S.choices(kind, field)
+	local l = S.field(kind, field)
+	return l and l.order or {}
 end
+
+-- The entry a key names. An unknown key (a profile shared from a newer version) gets the field's
+-- default.
+function S.choice(kind, field, key)
+	local l = S.field(kind, field)
+	if not l then return nil end
+	return l.byKey[key] or l.byKey[S.KINDS[kind].defaults[field]]
+end
+
+-- A picker's sections: { group, name, list } in the field's group order (then any ungrouped
+-- choices, under no name), each list the choices offered in the order added. current: the key
+-- picked now, offered in its section even when hidden, so a saved value still reads.
+function S.sections(kind, field, current)
+	local l = S.field(kind, field)
+	local out, at = {}, {}
+	if not l then return out end
+	for _, g in ipairs(l.groups) do
+		local sec = { group = g[1], name = g[2], list = {} }
+		table.insert(out, sec)
+		at[g[1]] = sec
+	end
+	for _, e in ipairs(l.order) do
+		if not e.hidden or e.key == current then
+			local sec = at[e.group or false]
+			if not sec then
+				sec = { group = e.group, list = {} }
+				table.insert(out, sec)
+				at[e.group or false] = sec
+			end
+			table.insert(sec.list, e)
+		end
+	end
+	for i = #out, 1, -1 do if #out[i].list == 0 then table.remove(out, i) end end
+	return out
+end
+
+-- The choices a picker offers, in its sections' order (S.sections).
+function S.offered(kind, field, current)
+	local out = {}
+	for _, sec in ipairs(S.sections(kind, field, current)) do
+		for _, e in ipairs(sec.list) do table.insert(out, e) end
+	end
+	return out
+end
+
+-- Looks: the choices of a kind's `look` field (border, glow). The kind's default look is added first.
+function S.addLook(kind, key, entry) S.addChoice(kind, "look", key, entry) end
+function S.look(kind, key) return S.choice(kind, "look", key) end
 
 local isColor = ns.isColor
 

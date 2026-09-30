@@ -116,25 +116,37 @@ local function ownLine(p, kind)
 end
 
 
--- A style kind's looks (ns.Style.addLook), for a dropdown: all but those kept for the totem bar's
--- Looks.
-local function lookChoices(kind)
-	local out = {}
-	for _, e in ipairs(ns.Style.LOOKS[kind].order) do
-		if not e.hidden then table.insert(out, { e.key, e.name }) end
+-- A picker for a style field's choices (ns.Style.addChoice; r from styleRows): a dropdown in
+-- sections by the choices' groups, titled, and an EXPERIMENTAL badge under it while the choice
+-- picked isn't fully tested. A saved choice no longer offered shows in its section while picked.
+-- Returns the choice's entry now.
+local function choiceRows(p, r, kind, field, label, tip, shown)
+	local St = ns.Style
+	local function now() return St.choice(kind, field, r.style()[field]) end
+	local function key() return now().key end
+	local set = r.set(field)
+	local function list()
+		local out = {}
+		for _, e in ipairs(St.offered(kind, field, key())) do table.insert(out, { e.key, e.name }) end
+		return out
 	end
-	return out
-end
-
--- A look picker for a style's rows (r, from styleRows): the dropdown, and an EXPERIMENTAL badge
--- under it while the look picked isn't tested in game yet. Returns the look now.
-local function lookRows(p, r, kind, label, feature, shown)
-	local function look() return ns.Style.look(kind, r.style().look) end
-	p:dropdown(label, nil, lookChoices(kind), function() return look().key end, r.set("look"), shown, 190)
+	local dd = p:dropdown(label, tip, list, key, set, shown, 190).dropdown
+	dd:SetupMenu(function(_, root)
+		root:SetScrollMode(400)
+		for i, sec in ipairs(St.sections(kind, field, key())) do
+			if sec.name then
+				if i > 1 then root:CreateDivider() end
+				root:CreateTitle(sec.name)
+			end
+			for _, e in ipairs(sec.list) do
+				root:CreateRadio(e.name, function() return key() == e.key end, function() set(e.key) end)
+			end
+		end
+	end)
 	local f = p:row(22)
-	ns.Look.expBadge(f, feature):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
-	p:add(f, 22, showWhen(function() return look().experimental end, shown))
-	return look
+	ns.Look.expBadge(f, St.field(kind, field).name):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
+	p:add(f, 22, showWhen(function() return now().experimental end, shown))
+	return now
 end
 
 -- A line naming the elements (keys(), a list) that take a change after a /reload, shown while
@@ -157,7 +169,7 @@ local function borderRows(p, owner, after, label, shown)
 	if owner ~= nil then followRow(p, owner, "border", after, label, shown) end
 	local bordered = function() return r.own() and r.style().show end
 	p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"), showWhen(r.own, shown))
-	local look = lookRows(p, r, "border", "Border look", "Border looks", showWhen(bordered, shown))
+	local look = choiceRows(p, r, "border", "look", "Border look", nil, showWhen(bordered, shown))
 	local function uses(part) return function() return bordered() and ns.Looks.uses(look(), part) end end
 	-- Blizzard's aura button takes a mask only as it is made (ns.Looks.auraMask).
 	local function stale()
@@ -244,7 +256,7 @@ local function glowBlock(p, owner, icon)
 	p:add(f, 64, own, function()
 		for _, ic in ipairs(icons.place()) do ic:SetGlowShown(true) end
 	end)
-	look = lookRows(p, r, "glow", "Look", "Glow looks", own)
+	look = choiceRows(p, r, "glow", "look", "Look", nil, own)
 	reloadLine(p, function() return ns.Effects.auraGlowStale(owner) end,
 		function(n) return n == 1 and "changes glow" or "change glow" end, own)
 	local function uses(field) return showWhen(function() return look().uses[field] end, own) end
@@ -679,6 +691,11 @@ local function buildAbout(p)
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
 		local e = ns.ELEMENTS[key]
 		if e.experimental then p:experimental(e.experimental, "Elements > " .. e.label) end
+	end
+	for _, l in ipairs(ns.Style.fields()) do
+		for _, e in ipairs(l.order) do
+			if e.experimental and not e.hidden then p:experimental(e.name, l.where .. " > " .. l.name) end
+		end
 	end
 	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
