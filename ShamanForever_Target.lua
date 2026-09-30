@@ -33,7 +33,10 @@
 --   covers the Expiring colour until then, and is gone after. The countdown's red is the button's
 --   duration text through a step colour curve. All set out of combat, nothing written in combat;
 --   the buttons hide the moment the DoT is gone.
--- * Idle is no hostile target. With one, the Not on target look (the icon grey by default, fade in
+-- * Idle is no hostile target, and with "On your target" (idleWhen) also while your Flame Shock is
+--   on it: then Blizzard's button sits at the Idle opacity (a frame between the gate and its
+--   container, set out of combat and held through a fight) and the element shows in full only as
+--   Not on target. With a hostile target, the Not on target look (the icon grey by default, fade in
 --   and out, the red ring, the pulsing glow in its Pulsing glow style) is drawn by the engine, in combat too,
 --   with nothing read: a clip look (ns.makeClipLook) whose sensor follows the target with the
 --   container shows it only while the target lacks your Flame Shock. So nothing of it lies under
@@ -65,11 +68,16 @@ local gateAlpha, holderAlpha, retarget   -- below
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
 		icon = 135813, school = "fire", blurb = "Shows while your Flame Shock is on your target.",
-		idleText = "Idle while you have no hostile target",
+		idleChoices = {
+			{ "never", "Never", "It always shows in full" },
+			{ "notarget", "No hostile target", "Idle while you have no hostile target" },
+			{ "target", "On your target", "Idle while it's on your target, and with no hostile target",
+				"On your target: shown in full only as Not on target." },
+		},
 		noPop = true,
 		noGlow = true, upLabel = "On target", idleLabel = "No target",
 		missing = true, engineExpire = true,   -- its Not on target and Expiring blocks
-		defaults = { idleAlpha = 0,
+		defaults = { idleWhen = "notarget", idleAlpha = 0,
 			missGrey = true, missRing = false, missPulse = false, missGlow = true,
 			-- Magenta: it stands out against the fire school's orange time bar.
 			expireSecs = 3, expireBar = true, expireBarColor = { 1, 0.2, 0.8, 1 }, expireText = false },
@@ -132,7 +140,7 @@ local function buildButton(def, slot, button)
 	-- buttonBorder: the group's border drawn on the button too, so it shows exactly with it (the
 	-- element's own frame, and its border, sit at its Idle opacity), on the rig's body so the two
 	-- move together. Drawn out of combat only.
-	if def.buttonBorder then
+	if def.buttonBorder or def.missing then
 		def.edge = CreateFrame("Frame", nil, body or button)
 		def.edge:SetAllPoints(button)
 	end
@@ -153,7 +161,10 @@ local function styleButton(def, size, slot)
 	if def.engineExpire then
 		ns.try("flame shock expiring", styleExpire, def, size, slot)
 	end
-	if def.edge then ns.try("target border " .. def.key, ns.applyBorder, def.edge, ns.borderFor(def.key)) end
+	if def.edge then
+		ns.try("target border " .. def.key, ns.applyBorder, def.edge, ns.borderFor(def.key))
+		if def.edge.frameOverlay then def.edge.frameOverlay:Hide() end   -- the button's own (auraMask)
+	end
 	if def.fx then ns.try("target pop " .. def.key, def.fx.stylePop, def.fx, size) end
 end
 
@@ -303,17 +314,18 @@ for _, def in ipairs(TARGET) do
 	def.gate:SetAllPoints(f)
 	def.gate:Hide()
 	if def.missing then
+		-- Blizzard's container hangs from this frame, at the Idle opacity with "On your target".
+		def.idle = CreateFrame("Frame", nil, def.gate)
+		def.idle:SetAllPoints(f)
 		-- One border at any time. Blizzard's button is see-through at partial opacity, so the
-		-- element's own border must not lie under it while the holder draws the group's. The two
-		-- are complements, each shown by a state driver (driveGate), so exactly one shows:
-		--   idleEdge  the element's own border (lines, sliced and inner art, at its Idle opacity):
-		--             with no hostile target, and while you're dead (the holder is hidden then);
-		--   holder    the group's border, lines and sliced art only (at the group's opacity, with a
-		--             hostile target): the aura button draws the inner art while the aura is up,
-		--             and the Not on target look while it's gone (ns.makeClipLook).
-		-- While dead with a hostile target and your Flame Shock up, a look with inner art (an
-		-- experimental border look) shows it twice, the button's and the frame's: rare, and only
-		-- at Idle above 0.
+		-- element's own border must not lie under it. Three draw it, each shown exactly with what
+		-- it belongs to:
+		--   idleEdge  the element's own (lines, sliced and inner art, at its Idle opacity): with no
+		--             hostile target, by a state driver (driveGate);
+		--   the button's edge (def.edge) and inner art: while your Flame Shock is up;
+		--   the Not on target look's (lookEdge) and inner art (ns.makeClipLook): while it's gone.
+		-- While you're dead with a hostile target the look is hidden, so without your Flame Shock
+		-- up the icon shows no border then.
 		def.idleEdge = CreateFrame("Frame", nil, f)
 		def.idleEdge:SetAllPoints(f)
 		-- Not on target (see the file's header): its holder, over the icon, and the look on it.
@@ -351,9 +363,13 @@ for _, def in ipairs(TARGET) do
 			},
 		})
 		def.missLook.tex:SetTexture(def.icon)
+		-- The look's copy of the border, without the inner art the look draws itself.
+		def.lookEdge = CreateFrame("Frame", nil, def.missLook.art)
+		def.lookEdge:SetAllPoints(f)
+		def.lookEdge.owner = def.key
 	end
 	def.aura = ns.makeAuraSlot(f, {
-		key = def.key, slot = def.key, unit = "none", filter = def.filter, parent = def.gate,
+		key = def.key, slot = def.key, unit = "none", filter = def.filter, parent = def.idle or def.gate,
 		ids = function() return idMap(def) end,
 		candidates = def.candidates and function() return def.candidates(def) end,
 		ownIcon = def.ownIcon and function() return def.icon end, noTimer = def.noTimer,
@@ -476,9 +492,8 @@ local function driveGate(def)
 		ok, err = pcall(RegisterStateDriver, def.holder, "visibility",
 			"[@player,dead] hide; " .. HOSTILE)
 		if not ok then ns.noteError("target warning " .. def.key, err) end
-		-- The element's own border shows exactly when the holder's group border doesn't.
-		ok, err = pcall(RegisterStateDriver, def.idleEdge, "visibility",
-			"[@player,dead] show; [@target,harm,nodead] hide; show")
+		-- The element's own border: with no hostile target (see idleEdge).
+		ok, err = pcall(RegisterStateDriver, def.idleEdge, "visibility", "[@target,harm,nodead] hide; show")
 		if not ok then ns.noteError("target border " .. def.key, err) end
 	end
 end
@@ -542,6 +557,9 @@ local function styleLook()
 	if InCombatLockdown() then return end
 	h:SetFrameLevel(f.textFrame:GetFrameLevel() + 1)   -- over the icon, under the container
 	look:setLevel(h:GetFrameLevel() + 1)
+	def.lookEdge:SetFrameLevel(h:GetFrameLevel() + 1)   -- the picture's: under the glow
+	ns.applyBorder(def.lookEdge, ns.borderFor(def.key))
+	if def.lookEdge.frameOverlay then def.lookEdge.frameOverlay:Hide() end
 	look:setParts(setting(def.key, "missGrey"), false, setting(def.key, "missRing"),
 		setting(def.key, "missPulse"), setting(def.key, "missGlow"))
 	-- Its sensor's restyle waits while auras are secret; the look waits with it.
@@ -568,14 +586,31 @@ local function checkMissing()
 	stateLook()
 end
 
+-- The icon's own opacity under the button and the look (its idle look): its Idle opacity while
+-- positioning is locked and it's learned, unless Idle when is Never.
+local function frameAlpha(def)
+	local idles = def.spellID and ns.getAccount().locked and setting(def.key, "idleWhen") ~= "never"
+	return idles and ns.idleAlpha(def.key) or 1
+end
+
+-- "On your target": Blizzard's button at the Idle opacity, out of combat only (the frame is an
+-- ancestor of the button).
+local function applyIdle(def)
+	if not def.idle or InCombatLockdown() then return end
+	local on = def.spellID and ns.isEnabled(def.key) and ns.getAccount().locked
+		and setting(def.key, "idleWhen") == "target"
+	def.idle:SetAlpha(on and ns.idleAlpha(def.key) or 1)
+end
+
 -- Combat starts (before lockdown): the icon to its idle alpha at once (a fade would stop part way,
 -- ns.fadeTo).
 local function combatStarts()
 	fighting = true
 	styleLook()
 	styleUp()
+	applyIdle(FLAME)
 	local f = FLAME.frame
-	local a = (FLAME.spellID and ns.getAccount().locked) and ns.idleAlpha(FLAME.key) or 1
+	local a = frameAlpha(FLAME)
 	f:SetAlpha(a)
 	ns.fadeTo(f, a)
 end
@@ -604,7 +639,8 @@ local function refreshAura(def)
 	-- The button says whether it's up, Flame Shock's Not on target whether the target lacks it; the
 	-- icon under both is the idle look (out of combat only: the frame is an ancestor of Blizzard's
 	-- button, ns.fadeTo).
-	ns.fadeTo(f, (def.spellID and ns.getAccount().locked) and ns.idleAlpha(key) or 1)
+	ns.fadeTo(f, frameAlpha(def))
+	applyIdle(def)
 end
 
 ------------------------------------------------------------------------
@@ -673,15 +709,7 @@ end
 function T.afterGroups()
 	for _, def in ipairs(TARGET) do
 		def.aura:style()
-		if def.holder then
-			holderAlpha(def)
-			-- The element's own border (idleEdge) sits at its Idle opacity and hides with a hostile
-			-- target; then the icon shows (Blizzard's button, or Not on target) and the group's
-			-- border, drawn round the holder, takes its place: the inner art left to the button and
-			-- the look (see idleEdge).
-			ns.applyBorder(def.holder, ns.borderFor(def.key))
-			if def.holder.frameOverlay then def.holder.frameOverlay:Hide() end
-		end
+		if def.holder then holderAlpha(def) end
 	end
 	styleLook()   -- a new size or scale
 	styleUp()

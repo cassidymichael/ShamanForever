@@ -553,7 +553,8 @@ local function buffPreview(def)
 				ic:SetRingShown(opt(key, "missRing"))
 				ic:SetPulsing(opt(key, "missPulse"))
 				ic:SetGlowShown(opt(key, "missGlow"))
-			elseif st == "idle" then idleLook(ic, key)
+			elseif st == "idle" then
+				if opt(key, "idleWhen") ~= "never" then idleLook(ic, key) end
 			elseif st == "low" or st == "out" then
 				-- Running low isn't idle when Idle counts reagents (the default).
 				if not opt(key, "reagentShow") then idleLook(ic, key) end
@@ -566,6 +567,8 @@ local function buffPreview(def)
 			end
 			-- The count shows in every state when set to Always (the default).
 			if def.reagent and st ~= "low" and st ~= "out" then L.reagentLook(ic, key, PLENTY) end
+			-- Flame Shock with Idle when "On your target": idle while it's up.
+			if (st == "up" or st == "expiring") and opt(key, "idleWhen") == "target" then idleLook(ic, key) end
 		end,
 	}
 end
