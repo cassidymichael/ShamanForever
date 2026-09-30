@@ -384,7 +384,8 @@ local DEFS = {
 	rapidRegeneration = { ids = { 1260270 }, byID = true, en = "Rapid Regeneration" },    -- Troll
 	warStomp        = { ids = { 20549 }, byID = true, en = "War Stomp" },                 -- Tauren
 	stoneform       = { ids = { 20594 }, byID = true, en = "Stoneform" },                 -- Dwarf
-	walkOnAir       = { ids = { 1259416, 1308663 }, byID = true, en = "Walk on Air" },    -- Windshaper Skyborne; which the spellbook shows is unconfirmed
+	-- Windshaper Skyborne. Which of the two IDs the spellbook shows is unconfirmed; tried in order.
+	walkOnAir       = { ids = { 1259416, 1308663 }, byID = true, en = "Walk on Air" },
 	skysight        = { ids = { 1259686 }, byID = true, en = "Skysight" },                -- Windshaper Skyborne
 	waterWalking    = { ids = { 546 }, en = "Water Walking" },   -- the buffs have the same IDs
 	waterBreathing  = { ids = { 131 }, en = "Water Breathing" },
@@ -525,12 +526,29 @@ function Spells.known(key)
 	end
 	-- The name can resolve to another spell of the same name (a passive's active part, another
 	-- series of ranks): any ID on record for the spell that the player knows.
-	for id in pairs(Spells.ids(key)) do
+	-- The listed seed IDs are tried in their order, then any others learned since.
+	local tried = {}
+	local function try(id)
+		if tried[id] then return end
+		tried[id] = true
 		if (type(info) ~= "table" or id ~= info.spellID) and playerKnows(id, true) then
 			local tok, tex = safe(C_Spell.GetSpellTexture, id)
 			return id, tok and not isSecret(tex) and tex or nil
 		end
 	end
+	for _, id in ipairs(DEFS[key] and DEFS[key].ids or {}) do
+		local got, tex = try(id)
+		if got then return got, tex end
+	end
+	for id in pairs(Spells.ids(key)) do
+		local got, tex = try(id)
+		if got then return got, tex end
+	end
+end
+
+-- Whether a list of race IDs (UnitRace's third value) leaves the player out; no list, no limit.
+function Spells.otherRace(races)
+	return races ~= nil and not tContains(races, (select(3, UnitRace("player"))))
 end
 
 -- A spell's icon from its seed IDs, known or not (the options show every element).
