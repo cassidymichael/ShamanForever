@@ -319,9 +319,11 @@ function M.bars()
 	if l then
 		local more = {}
 		for name, path in pairs(l:HashTable("statusbar")) do
-			-- Not LibSharedMedia's own "Solid": that's Flat.
-			local flat = type(path) == "string" and path:lower() == FLAT:lower()
-			if type(name) == "string" and not barByName[name] and not flat then table.insert(more, { name, name }) end
+			-- Not LibSharedMedia's own "Solid": that's Flat. Not a blank file either: an addon's
+			-- stand-in for media it can't find (EllesmereUI's "Texture Not Found"), which draws nothing.
+			local file = type(path) == "string" and path:lower() or ""
+			local skip = file == FLAT:lower() or file:match("[\\/]blank%.%w+$")
+			if type(name) == "string" and not barByName[name] and not skip then table.insert(more, { name, name }) end
 		end
 		table.sort(more, function(a, b) return a[1] < b[1] end)
 		for _, b in ipairs(more) do table.insert(out, b) end
