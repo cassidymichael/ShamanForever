@@ -26,6 +26,9 @@
 --   (ShamanForever_Buffs.lua).
 -- * The totem bar holds secure buttons: it draws the preview's states on its own slots
 --   (ShamanForever_TotemBar.lua), and shows or hides only in its layout, out of combat.
+-- * The swing timer is not an element: the real bar shows and swings with made-up swings, as its
+--   own code draws them (ShamanForever_Swing.lua). Busy swings faster, with a cast now and then
+--   clearing it.
 -- Stand-ins hang from frames of their own that take their group's scale and opacity, not from the
 -- group, so a group or element set to show only in combat shows too.
 
@@ -268,6 +271,7 @@ local function restart()
 	end
 	for _, el in ipairs(ns.TotemBar.ELEMENTS) do stagger(barRuns[el]) end
 	ticker:SetShown(on)
+	ns.Swing.preview(on and opts.mode or nil)
 end
 
 ------------------------------------------------------------------------
@@ -447,6 +451,7 @@ function PV.close(forCombat)
 	wipe(runs)
 	wipe(barRuns)
 	unparkAll()
+	ns.Swing.preview(nil)
 	ns.Shield.preview(nil)
 	ns.Buffs.preview(false)
 	ns.TotemBar.preview(nil)

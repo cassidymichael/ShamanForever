@@ -17,7 +17,6 @@ externals:
     tag: v12.0.3
 
 ignore:
-  - screenshot.png
   - CHANGELOG.md
   - RELEASE_NOTES.md
   - docs

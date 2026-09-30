@@ -94,10 +94,10 @@ function SP.build(p)
 		SHOWS, get("show"), set("show"), nil, 160)
 
 	p:header("Layout")
-	p:slider("Width", "Shift + mouse wheel over the bar while positioning is unlocked does the same.",
+	p:slider("Width", "Mouse wheel over the bar while positioning is unlocked does the same.",
 		R.width[1], R.width[2], 4, px, get("width"), set("width"))
 	p:slider("Height", nil, R.height[1], R.height[2], 1, px, get("height"), set("height"))
-	p:slider("Scale", "Grows everything on the bar, borders too. Mouse wheel over the bar while positioning is unlocked does the same.",
+	p:slider("Scale", "Grows everything on the bar, borders too. Shift + mouse wheel over the bar while positioning is unlocked does the same.",
 		R.scale[1], R.scale[2], 0.05, times, get("scale"), set("scale"))
 	p:slider("Opacity", "Ctrl + mouse wheel over the bar while positioning is unlocked does the same.",
 		R.alpha[1], R.alpha[2], 0.05, pct, get("alpha"), set("alpha"))
