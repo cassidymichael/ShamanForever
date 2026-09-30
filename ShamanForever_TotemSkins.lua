@@ -630,10 +630,10 @@ end
 -- frame's units), or nil: the strip along the top. inset: how far the picture sits in from the box.
 -- Blizzard's part covers the mark in range with the buff's icon, which can be another totem's (the
 -- buff lingers after a swap within an element), so a mark over the picture is the strip, exactly as
--- Default sizes it: the buff's icon never shows more than a strip. A whole-picture mark waits on
--- /sfprobe totemlooks: whether our own art under Blizzard's part takes the slot's secret icon in
--- combat (to show the slot's totem, not the buff's), and whether a MOD tint under a parent at
--- alpha 0 stays invisible.
+-- Default sizes it: the buff's icon never shows more than a strip. No whole-picture mark (tested
+-- 2026-09-30): in combat our own texture under Blizzard's part refuses SetTexture and SetAlpha
+-- ("forbidden object"), so it can't show the slot's own totem instead of the buff's, and a MOD
+-- tint under a parent at alpha 0 still tints.
 function SK.markRect(frame, size, inset)
 	local kind = SK.current().mark
 	if not kind then return nil end
