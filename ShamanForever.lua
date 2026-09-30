@@ -19,12 +19,12 @@ local Spells = ns.Spells
 -- a deleted group's may be given to a later one), and a name, unique in the profile; it stays when
 -- its last element leaves, until deleted.
 local GROUP_DEFAULTS = {
-	point = "CENTER", x = 0, y = -160, scale = 1, alpha = 0.75,
+	point = "CENTER", x = 0, y = -160, scale = 1, alpha = 0.8,
 	-- Icon size: General's, or the group's own (Size keeps lines crisp; Scale grows everything).
 	sizeFollow = true, size = 44,
 	orientation = "horizontal",  -- horizontal | vertical
 	growth = "forward",          -- forward (right / down) | backward (left / up)
-	spacing = 6,
+	spacing = 2,
 	-- always | combat | target (in combat or with an enemy target); always shown while unlocked
 	show = "always",
 	fadeAfter = 0,               -- seconds it stays once combat ends, then fades out (0: none)
