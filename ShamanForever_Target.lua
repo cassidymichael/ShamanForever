@@ -273,16 +273,20 @@ function styleExpireText(def, slot, st, secs)
 			fs:SetPoint("TOPLEFT", b, "TOPLEFT", 1, (t and t.barOn and st.barEdge == "top") and -(st.barHeight + 1) or -1)
 		elseif st.textPos == "bottom" then fs:SetPoint("BOTTOM", b, "BOTTOM", 0, (t and t.barOn and st.barEdge == "bottom") and st.barHeight + 1 or 1)
 		else fs:SetPoint("CENTER", b, "CENTER", 0, 0) end
-		def.textOn = ns.try("flame shock countdown", b.SetDurationText, b, fs, { textColor = { curve = textOn, property = REMAINING } })
-		if def.textOn then
+		if ns.try("flame shock countdown", b.SetDurationText, b, fs, { textColor = { curve = textOn, property = REMAINING } }) then
+			def.textHanded = true
 			fs:Show()
 			if t then t.cd:SetHideCountdownNumbers(true) end
+			return
 		end
-	elseif def.textOn then
+	end
+	-- Off, or handing it failed: given back, whatever state the last call left, so only the
+	-- Cooldown's own countdown shows (as its style says: Timer:apply ran just before).
+	if fs then
 		ns.try("flame shock countdown", b.ClearDurationText, b)
 		fs:Hide()
-		def.textOn = false
 	end
+	def.textHanded = false
 end
 
 for _, def in ipairs(TARGET) do
