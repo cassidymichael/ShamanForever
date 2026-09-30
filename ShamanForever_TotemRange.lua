@@ -115,10 +115,6 @@ local PARTS = {
 	{ key = "own", filter = "HELPFUL|PLAYER", color = "rangeIn", level = 1 },
 }
 
--- A part's look (while auras are readable, or from Blizzard's init). Under the colour, opaque, the
--- slice of the buff's icon that the strip covers (a totem's buff has the totem's icon): whatever is
--- below is always hidden, so the colours can be see-through, down to not shown at all. The bar's
--- theme can draw it its own way (TB.skin.styleRangeButton).
 -- What Blizzard's part is styled for: the bar's theme and the mark's size. Our mark is repainted at
 -- every layout, Blizzard's part only while auras are readable, so after a layout that couldn't
 -- reach it (auras secret) the two can differ, and our mark could show where the part no longer
@@ -127,6 +123,10 @@ local function styledFor(s)
 	return TB.skin.current().key .. ":" .. tostring(s.rangeW) .. "x" .. tostring(s.rangeH)
 end
 
+-- A part's look (while auras are readable, or from Blizzard's init). Under the colour, opaque, the
+-- slice of the buff's icon that the strip covers (a totem's buff has the totem's icon): whatever is
+-- below is always hidden, so the colours can be see-through, down to not shown at all. The bar's
+-- theme can draw it its own way (TB.skin.styleRangeButton).
 local function styleButton(s, part)
 	local c, p = TB.cfg(), s.rangeParts[part.key]
 	local ok = ns.try("totem range: style", function()
