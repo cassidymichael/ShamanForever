@@ -1,40 +1,38 @@
--- Shield (Lightning or Water): underlay (our "no shield" look) + Blizzard's secure aura button on top
+-- Shields (Lightning or Water): Blizzard's aura button shows the shield; under it, our No shield look
 --
 -- The two shields exclude each other, so one aura slot matches every shield the player tracks
 -- (db.shieldTrack) and Blizzard shows whichever is up, switching exactly when the player swaps
 -- mid-fight. Both have 3 charges, so one charge bar fits both.
 --
--- How it works, and the one inference it makes:
 -- 1. Blizzard's CustomAuraContainer draws the shield: icon, charge count, charge bar, and its time
 --    as a swipe, countdown or bar. Its untainted code reads the aura, so all of this is exact in
---    combat. Sanctioned.
--- 2. Under Blizzard's button sits our underlay: the grey icon, red ring and pulse that say "no
---    shield". It should show only when Blizzard's button is hidden, but nothing tells addon code
---    when that happens in combat: reads by index or instance (GetAuraDuration,
---    GetUnitAuraInstanceIDs) throw and reads by spell come back empty, UNIT_AURA brings nothing
---    readable, script handlers under the button never run, and the button only animates its own
---    descendants (tested 2026-09-23). So the underlay follows `believedUp`:
---    * out of combat: exact, read from the aura (SH.refresh). Except in a PvP match: auras stay
---      secret for the whole match (Blizzard's API documentation; not yet seen in a battleground),
---      so the in-combat rules below hold until it ends;
---    * in combat: set to up when UNIT_SPELLCAST_SUCCEEDED reports our own cast of a tracked shield,
---      known by the shield's own spell IDs (castOf, below), never by its name. Our own cast events
---      stay readable: SecretWhenUnitSpellCastRestricted hides other units' casts, and any spell
---      Blizzard flags always secret; shield casts read plain in combat. The combat log is never
---      read. The inference is only "a successful shield cast means that shield is up". Casting an untracked shield sets it to
---      down, since that shield replaces the tracked one (the same inference, applied to exclusivity).
---    * Nothing else can set it to down in combat. A shield that drops mid-fight shows the underlay at
---      the "In-combat fallback" strength (No shield block; underlayUp) until the recast or combat
---      (or the match) ends.
---    * Why keep the inference: without it, entering combat with no shield and casting one mid-fight
---      leaves the full "no shield" look bleeding through the live shield until combat ends
---      (at group opacity below 100%).
---    * After a login or /reload in combat or in a PvP match the belief is unknown until a cast or a
---      read, and nothing warns. Blizzard's button is made only while auras are readable, so until
---      then nothing covers the underlay either: believed up or not known, it shows the plain icon.
--- 3. The underlay matters at all only because the group's opacity makes Blizzard's button
---    translucent, so the underlay bleeds through it; nativeIconAlpha compensates so the stack
---    matches the group's opacity. At 100% group opacity the button hides the underlay completely.
+--    combat, and its button hides the moment the shield goes, in combat too.
+-- 2. Under the button sits the underlay, the No shield look: grey, the red tint, fade in and out,
+--    the red ring and a pulsing glow. Nothing tells addon code in combat when the button hides
+--    (reads by index or instance throw, reads by spell come back empty, UNIT_AURA brings nothing
+--    readable, script handlers under the button never run; tested 2026-09-23). So in combat the
+--    button itself is the switch: its opaque icon covers the underlay while the shield is up, and
+--    the underlay shows the moment it goes, drawn by the engine with nothing read or inferred. So:
+--    - the cover must be opaque: the container hangs from a gate that ignores the group's opacity
+--      (the shield draws at full), and the underlay takes the group's opacity itself;
+--    - only looks inside the icon: grey, tint, fade, the ring, and a glow in a look drawn inside it
+--      (Soft inner or School material), a screen pixel in from the icon's edges and in a rounded or
+--      cut-corner look's shape, so the button's icon covers every pixel of them;
+--    - checked every frame (plain reads, and writes to our own frames only, allowed in combat), it
+--      hides while it can't be trusted: the button not made, a new spell ID or look the button
+--      can't take until combat ends, preview mode, and a moment after our own cast of a shield it
+--      tracks (a recast must never flash it) or a loading screen. While you can't act (dead, a
+--      ghost, a flight path, a vehicle) it shows the grey alone, without the warning, or nothing
+--      without Grey icon;
+--    - Blizzard's container catches up with the aura on its next frame after it shows, so the
+--      underlay waits two frames each time it shows.
+--    Out of combat, auras readable, the underlay follows a read of the aura instead (refreshAura):
+--    shown only while no shield it tracks is up. So nothing lies under a live shield between fights,
+--    when its group fades out after combat, or across a loading screen. In a PvP match auras stay
+--    secret out of combat too (Blizzard's API documentation; not yet seen in a battleground): the
+--    button is the switch until it ends.
+-- 3. After a login or /reload in combat or in a PvP match the button is made only once auras are
+--    readable; until then Shields shows its plain icon: a miss, never a false warning.
 --
 -- ShamanForever.lua calls in through the module hooks (ns.registerModule).
 
@@ -55,9 +53,15 @@ local SHIELDS = {
 }
 local SHIELD_ORDER = { "lightning", "water" }
 
-local shield = ns.newElementIcon("shield")   -- the underlay
+local shield = ns.newElementIcon("shield")   -- its icon: the plain one, while nothing covers it
+-- What Blizzard's container hangs from: at full opacity whatever its group's, so the button's icon
+-- covers the underlay completely (the underlay takes the group's opacity itself, below).
+local gate = CreateFrame("Frame", nil, shield)
+gate:SetAllPoints(shield)
+gate:SetIgnoreParentAlpha(true)
 ns.registerElement("shield", { frame = shield, label = "Shields", paint = function(t) t:SetTexture(SH.icon()) end,
 	learned = function() return SH.learned() end,
+	fadeFrames = { gate },   -- it ignores the group's alpha
 	kind = "shield", icon = 136051, school = "spirit", blurb = "Charges and time left. Warns when it's gone." })
 
 -- Per shield at runtime: name (the client's), spellID and bookIcon (highest known rank), known. The
@@ -68,9 +72,8 @@ for _, s in pairs(SHIELDS) do
 	s.castIDs = {}
 	for _, id in ipairs(Spells.DEFS[s.spell].ids) do s.castIDs[id] = true end
 end
--- The shield up (lightning | water), "none", or nil until known: read when auras are readable, else
--- set by our cast (see above). Kept as which shield, not as "a tracked one is up", so a new Track
--- chosen while auras can't be read (in combat, a PvP match) is judged at once.
+-- The shield up (lightning | water), "none", or nil until known: the last read, while auras were
+-- readable. Kept as which shield, not as "a tracked one is up", so a new Track is judged at once.
 local upShield
 local native   -- Blizzard's aura container over the underlay, and our parts on its button (below)
 
@@ -78,7 +81,7 @@ local function tracksShield(key)
 	local track = ns.getDB().shieldTrack
 	return track == "either" or track == key
 end
--- Whether a shield the player tracks is believed up: nil while not known.
+-- Whether a shield the player tracks was up at the last read: nil while not known.
 local function believedUp()
 	if upShield == nil then return nil end
 	return upShield ~= "none" and tracksShield(upShield)
@@ -163,79 +166,172 @@ SH.learned = anyTrackedShieldKnown
 function SH.knows(key) return SHIELDS[key] ~= nil and SHIELDS[key].known == true end
 
 local standIn, standInState   -- preview mode's icon over the shield and its state (SH.preview, below)
-local nativeIconAlpha   -- below
 
--- The underlay is meant to show only when Blizzard's button is hidden, i.e. when the shield is down,
--- so grey and tint apply unconditionally. Frame alpha is applied per texture, so while the shield is
--- up the translucent button stacks on the underlay and reads darker than the shock icon. The engine
--- does not tell us about the hide in combat, so the ring and the underlay strength follow our belief:
--- faded while believed up, full when believed down. Blizzard's icon alpha then compensates for the
--- remaining bleed-through (see nativeIconAlpha) so the stack sums to the display opacity exactly.
-function SH.applyEmptyLook()
-	local db = ns.getDB()
-	shield.tex:SetTexture(SH.icon())
-	if standIn then
-		-- Preview mode (SH.preview, below). Up: the underlay in its "up" look, and the stand-in over it
-		-- compensated as Blizzard's icon is; alone (its group hidden), at its own. It steps aside
-		-- while the shield is really up, so Blizzard's button shows the real one. Down or dropped:
-		-- the stand-in alone, as drawn, over Blizzard's button; a dark backing under a dropped one's
-		-- faded icon while the shield is really up, so the real one doesn't show through.
-		local up = standInState ~= "down" and standInState ~= "drop"
-		shield.tex:SetDesaturated(db.emptyGrey)
-		if db.emptyTint then shield.tex:SetVertexColor(1, 0.35, 0.35) else shield.tex:SetVertexColor(1, 1, 1) end
-		shield.tex:SetAlpha(up and db.underlayUp or 0)
-		shield:SetRingShown(false)
-		shield:SetPulsing(false)
-		local shown = shield:IsVisible()
-		local real = shown and believedUp() == true and native.button ~= nil and not native.err
-		if up then standIn.tex:SetAlpha(shown and nativeIconAlpha() or db.shieldIconAlpha) end
-		standIn:SetAlpha(up and real and 0 or 1)
-		if standIn.backing then standIn.backing:SetShown(standInState == "drop" and real) end
-		return
-	end
-	if not anyTrackedShieldKnown() then
-		-- Not learned yet (or Water Shield without its talent): a plain grey icon, as for cooldowns.
-		shield.tex:SetDesaturated(true)
-		shield.tex:SetVertexColor(1, 1, 1)
-		shield.tex:SetAlpha(1)
-		shield:SetRingShown(false)
-		shield:SetPulsing(false)
-		shield:SetGlowShown(false)
-		return
-	end
-	local down = believedUp() == false   -- not known yet: no warning
-	if not down and not (native.button and not native.err) then
-		-- Nothing of Blizzard's over it yet: the underlay is all that shows, so the plain icon.
-		shield.tex:SetDesaturated(false)
-		shield.tex:SetVertexColor(1, 1, 1)
-		shield.tex:SetAlpha(1)
-		shield:SetRingShown(false)
-		shield:SetPulsing(false)
-		shield:SetGlowShown(false)
-		return
-	end
-	-- Dead, a ghost or on a flight path, no shield can be cast: the grey alone, without the warning.
-	local warn = not ns.cantAct()
-	shield.tex:SetDesaturated(db.emptyGrey)
-	if db.emptyTint and warn then shield.tex:SetVertexColor(1, 0.35, 0.35) else shield.tex:SetVertexColor(1, 1, 1) end
-	shield.tex:SetAlpha(down and 1 or db.underlayUp)
-	shield:SetRingShown(down and db.emptyRing and warn)
-	-- Only while known down: a drop in combat (or a match) is not seen until the recast or its end.
-	shield:SetPulsing(down and db.emptyPulse and warn)
-	-- Under Blizzard's button, which is hidden while the shield is down: nothing covers it then.
-	shield:SetGlowShown(down and db.emptyGlow and warn)
+------------------------------------------------------------------------
+-- The underlay (see the top of this file)
+------------------------------------------------------------------------
+-- Over the element's own icon, under Blizzard's container (styleNative sets both levels).
+local under = CreateFrame("Frame", nil, gate)
+under:SetAllPoints(shield)
+under:SetAlpha(0)
+under.inner = CreateFrame("Frame", nil, under)   -- the wait's alpha (appear), apart from under's own
+under.inner:SetAllPoints()
+under.tex = under.inner:CreateTexture(nil, "ARTWORK")
+ns.cropIconExact(under.tex)
+under.tex:SetPoint("TOPLEFT", shield, "TOPLEFT", 0, 0)   -- placed with the button (placeUnder)
+under.tex:SetSize(1, 1)
+under.ring = ns.makeRing(under.inner, under.tex)   -- inside the inset picture
+-- Its pulsing glow: only a look drawn inside the icon, over the inset picture.
+under.glow = ns.makeGlow(under.inner, under.tex, "shield", false, true)
+under.pulse = ns.makePulse(under.tex, "fade")
+
+-- After our own cast of a shield it tracks, the underlay stays hidden this long (seconds). Blizzard
+-- handles a recast in one aura update (the old aura's removal and the new one's arrival refresh the
+-- slot once), so the button shouldn't hide for a frame; this keeps a recast from ever flashing the
+-- warning if a removal and an arrival come apart. A shield just cast can't be gone this soon.
+-- LOAD_HOLD: after a loading screen, while the client lists the player's auras again.
+local CAST_HOLD, LOAD_HOLD = 0.3, 1
+local holdUntil = 0
+local fighting = false   -- from PLAYER_REGEN_DISABLED (before lockdown) to PLAYER_REGEN_ENABLED
+
+-- In combat, or auras secret out of combat: the button is the switch. Else the read is.
+local function covering() return fighting or InCombatLockdown() or ns.aurasSecret() end
+
+-- The player can't act on a warning: dead, a ghost, a flight path, a vehicle.
+local function blocked()
+	return ns.cantAct() or ns.plainYes(UnitInVehicle, "player")
 end
 
--- With display opacity a and underlay strength u, an icon alpha b gives a stacked result of
--- a*b + (1 - a*b)*a*u; solving that for a yields b = (1 - u) / (1 - a*u). The display opacity is
--- that of the shield's group.
-function nativeIconAlpha()
-	local db = ns.getDB()
+-- While the button is the switch: whether it can be trusted to cover the underlay exactly. Its
+-- slot matches every spell ID the shields it tracks have now (a new rank or Track waits for
+-- combat's end there), it has the shape the icon has now (a new look waits too; the size can't
+-- change in combat, and the underlay's is set only with the button's), its gate is at full
+-- opacity, and our own shield cast or a loading screen isn't a moment ago.
+local function coverTrusted()
+	return native.idsOK and ns.Looks.maskSpec(shield) == native.shape and gate:GetAlpha() > 0.99
+		and GetTime() >= holdUntil
+end
+
+-- What the underlay shows now: "warn" (the No shield look), "grey" (the grey alone: you can't act),
+-- or nil (hidden).
+local function underState()
+	if not under.on or standIn then return nil end
+	if covering() then
+		if not coverTrusted() then return nil end
+	elseif believedUp() ~= false then return nil end
+	if blocked() then return ns.getDB().emptyGrey and "grey" or nil end
+	return "warn"
+end
+
+-- The wait: hidden now, and back on its second OnUpdate from here. Blizzard's container updates in
+-- its own next OnUpdate after a change (or after it shows), in this frame's pass or the next one's;
+-- ours comes back a pass after that, so before the frame drawn after the container's update, never
+-- the one before. Our own frame: allowed in combat.
+local function appear()
+	under.inner:SetAlpha(0)
+	under.hold = 2
+end
+
+-- The underlay's looks for its state: the full No shield look, or the grey alone. Our own frames
+-- and textures (not under Blizzard's button): allowed in combat.
+local function lookUnder()
+	local db, warn = ns.getDB(), under.state == "warn"
+	under.tex:SetDesaturated(db.emptyGrey and true or false)
+	if warn and db.emptyTint then under.tex:SetVertexColor(1, 0.35, 0.35) else under.tex:SetVertexColor(1, 1, 1) end
+	under.ring:show(warn and db.emptyRing)
+	under.pulseOn = warn and db.emptyPulse and true or false
+	if not under.pulseOn then under.pulse:Stop()
+	elseif not under.pulse:IsPlaying() then under.pulse:Play() end
+	under.glow:SetShown(warn and db.emptyGlow and true or false)
+end
+
+-- Shows the underlay in state st (underState), at its group's opacity, or hides it (alpha 0).
+local function setUnder(st)
+	if st ~= nil and under.state == nil then appear() end
+	under.state = st
 	local g = ns.groupOf("shield")
-	local a, u = g and g.alpha or 1, db.underlayUp
-	local d = 1 - a * u   -- 0 at full opacity and full underlay: then any b stacks the same, and 1 is natural
-	local b = (u > 0 and d > 0) and (1 - u) / d or 1
-	return math.min(math.max(b * db.shieldIconAlpha, 0.05), 1)
+	under:SetAlpha(st and (g and g.alpha or 1) or 0)
+	lookUnder()
+end
+
+-- Every frame while shown: its state now. The state changes the frame a read goes the other way
+-- (dead, a flight path, our cast), so it never waits for an event.
+under:SetScript("OnUpdate", function(self)
+	if self.hold then
+		self.hold = self.hold - 1
+		if self.hold <= 0 then self.hold = nil; self.inner:SetAlpha(1) end
+	end
+	local st = underState()
+	if st ~= self.state then setUnder(st) end
+end)
+under:SetScript("OnShow", function(self)
+	appear()   -- its group or the element was hidden: the container may be a frame behind
+	setUnder(underState())
+	if self.pulseOn then self.pulse:Play() end   -- a hidden frame's animations stop
+end)
+
+-- The underlay's glow and every texture of its look in the icon's shape, over the inset picture
+-- (after a new glow look, placeUnder, SH.applyTimers).
+local function shapeUnder()
+	local f, u = shield, under
+	ns.Looks.maskOver(f, u.tex)
+	for _, e in ipairs(u.ring.edges) do ns.Looks.maskOver(f, e, u.tex) end
+	local g = u.glow
+	g:restyle()
+	if u.size then g:fit(math.max(u.size - 2 * ns.pixel(u), 1)) end
+	local function shape(frame)
+		for _, r in ipairs({ frame:GetRegions() }) do
+			-- Masks are textures too, but take no mask themselves (the look's own masks live here).
+			if r:IsObjectType("Texture") and not r:IsObjectType("MaskTexture") then ns.Looks.maskOver(f, r, u.tex) end
+		end
+		for _, c in ipairs({ frame:GetChildren() }) do shape(c) end
+	end
+	shape(g.inner)
+end
+
+-- With the button's restyle (styleNative), so the two always change together: the underlay's
+-- picture a screen pixel in from the button's edges (rounding at any scale leaves no edge past it),
+-- at the button's size from the same corner, and the icon's shape now (the button's, coverTrusted).
+local function placeUnder(size)
+	local u = under
+	u:SetFrameLevel(shield.textFrame:GetFrameLevel() + 1)   -- over the icon, under the container (+5)
+	local px = ns.pixel(u)
+	local inner = math.max(size - 2 * px, 1)
+	u.tex:ClearAllPoints()
+	u.tex:SetPoint("TOPLEFT", shield, "TOPLEFT", px, -px)
+	u.tex:SetSize(inner, inner)
+	u.size = size
+	native.shape = ns.Looks.maskSpec(shield)
+	shapeUnder()
+end
+
+-- The shield's looks, from its settings and state: the element's own icon (only seen while nothing
+-- covers it), the underlay and, in preview mode, the stand-in.
+function SH.applyEmptyLook()
+	local icon = SH.icon()
+	local known = anyTrackedShieldKnown()
+	local covered = native.button ~= nil and not native.err
+	-- The icon: grey while not learned (as for cooldowns); the plain icon while Blizzard's button
+	-- isn't made (a /reload in combat, until auras are readable); under the button, nothing.
+	shield.tex:SetTexture(icon)
+	shield.tex:SetDesaturated(not known)
+	shield.tex:SetVertexColor(1, 1, 1)
+	shield.tex:SetAlpha((known and covered) and 0 or 1)
+	shield:SetRingShown(false)
+	shield:SetPulsing(false)
+	shield:SetGlowShown(false)
+	under.tex:SetTexture(icon)
+	under.on = (known and covered and under.size ~= nil and ns.isEnabled("shield")) and true or false
+	if standIn then
+		-- Preview mode (SH.preview, below). The stand-in draws the state shown over everything, the
+		-- underlay hidden: shield up, at full opacity whatever its group's, as Blizzard's button draws
+		-- the shield; down, at its group's, unless the real shield may be up under it, whose opaque
+		-- button would show through.
+		local up = standInState ~= "down"
+		local realUp = covered and believedUp() ~= false
+		standIn:SetIgnoreParentAlpha(up or realUp)
+	end
+	setUnder(underState())
 end
 
 local function setUpShield(key)
@@ -254,9 +350,26 @@ local function shieldIDMap()
 	return map
 end
 
+-- Whether the slot matches every spell ID of every tracked shield (coverTrusted): a slot missing
+-- one would leave the button hidden over that shield. Matching more (a Track just narrowed) only
+-- keeps the button up over a shield that no longer counts: a miss, not a false warning.
+local function checkIDs()
+	local have = native.filtered
+	local ok = have ~= nil
+	if ok then
+		for id in pairs(shieldIDMap()) do
+			if not have[id] then ok = false break end
+		end
+	end
+	native.idsOK = ok
+end
+
 -- The slot's filter can only change while auras are readable; a change meanwhile waits for that
 -- (ns.makeAuraSlot).
-local function applyShieldFilter() native:refilter() end
+local function applyShieldFilter()
+	native:refilter()
+	checkIDs()
+end
 
 local function learnShieldID(key, id)
 	local s = SHIELDS[key]
@@ -290,8 +403,12 @@ end
 function SH.style() native:style() end
 
 -- The shield's timer takes its current style (ns.applyTimers). It sits on Blizzard's button, so it
--- comes with the button's restyle, which waits for combat to end.
-SH.applyTimers = SH.style
+-- comes with the button's restyle, which waits for combat to end. The underlay's glow takes a new
+-- look at once (its own frames; the options call this after a glow style change).
+function SH.applyTimers()
+	SH.style()
+	shapeUnder()
+end
 
 -- Our parts on Blizzard's button, once it is made: the charge number and the charge bar with its
 -- ticks, on an overlay above the cooldown so nothing Blizzard hides takes them along.
@@ -401,7 +518,6 @@ local function styleNative(slot, size)
 		t:SetPoint("TOP", slot.ticks, "TOPLEFT", size * i / slot.maxCharges, 0)
 		t:SetPoint("BOTTOM", slot.ticks, "BOTTOMLEFT", size * i / slot.maxCharges, 0)
 	end
-	slot.icon:SetAlpha(nativeIconAlpha())
 	slot.bar:SetHeight(db.chargeBarHeight)
 	slot.bar:SetStatusBarColor(db.chargeBarColor[1], db.chargeBarColor[2], db.chargeBarColor[3], db.chargeBarColor[4] or 1)
 	slot.bar:SetAlpha(db.showBar and 1 or 0)
@@ -409,6 +525,7 @@ local function styleNative(slot, size)
 	slot.fs:SetAlpha(db.showCount and 1 or 0)
 	slot.fs:SetFont(STANDARD_TEXT_FONT, db.countSize, "OUTLINE")
 	SH.placeCount(slot.fs, slot.button)
+	placeUnder(size)   -- the underlay follows the button's size and shape
 	SH.applyEmptyLook()   -- the button may be new: the underlay now has it on top
 end
 
@@ -422,9 +539,8 @@ end
 -- Made only while auras are readable (after a /reload in combat or a PvP match, when that ends);
 -- once made, it stays.
 native = ns.makeAuraSlot(shield, {
-	key = "shield", slot = "shield", ids = shieldIDMap, name = "ShamanForeverAuraContainer",
+	key = "shield", slot = "shield", ids = shieldIDMap, name = "ShamanForeverAuraContainer", parent = gate,
 	sites = { container = "shield container", style = "shield style", filter = "shield filter" },
-	iconAlpha = nativeIconAlpha,
 	barInset = SH.timeBarInset,
 	onButton = buildNative, onStyle = styleNative,
 	onError = function(err)
@@ -432,10 +548,10 @@ native = ns.makeAuraSlot(shield, {
 	end,
 })
 
--- Auras can be secret out of combat too (PvP matches, encounters): then keep the belief.
+-- Auras can be secret out of combat too (PvP matches, encounters): then keep the last read.
 local function aurasReadable() return not InCombatLockdown() and not ns.aurasSecret() end
 
--- While auras are readable: sync our belief and learn the live spell IDs. Looked up by the client's
+-- While auras are readable: which shield is up, and the live spell IDs. Looked up by the client's
 -- name for the shield, which every rank shares.
 local function refreshAura()
 	if not aurasReadable() then return end
@@ -455,13 +571,16 @@ local function refreshAura()
 	setUpShield(upKey or "none")
 end
 
--- Our own successful cast (UNIT_SPELLCAST_SUCCEEDED, spellID not secret). The one inference: our
--- cast means that shield is up and the other is gone (see the top of this file).
+-- Our own successful cast (UNIT_SPELLCAST_SUCCEEDED, spellID not secret): the shield the underlay
+-- shows in Either, the cast hold (CAST_HOLD), and a rank the slot doesn't match yet, which the slot
+-- takes once combat ends (the underlay waits meanwhile: coverTrusted).
 function SH.onCast(spellID)
 	local cast = castOf(spellID)
 	if not cast then return end
 	ns.getAccount().lastShield = cast
-	setUpShield(cast)
+	if tracksShield(cast) then holdUntil = GetTime() + CAST_HOLD end
+	learnShieldID(cast, spellID)
+	SH.applyEmptyLook()
 end
 
 -- The global cooldown on the shield, when its Global cooldown style is on. The shield's time left
@@ -493,11 +612,19 @@ end
 -- After a layout (settings may have changed): Blizzard's container made once, then its looks.
 function SH.applyLayout()
 	native:setup()
+	-- The IDs the slot was made with: given again, so the slot records them (checkIDs).
+	if native.container and not native.filtered then applyShieldFilter() end
 	SH.style()
 	SH.applyEmptyLook()
 end
-SH.afterGroups = SH.style   -- the alpha compensation follows the group's opacity
+-- The button's restyle for a new size or look, and the underlay's opacity follows its group's.
+function SH.afterGroups()
+	SH.style()
+	SH.applyEmptyLook()
+end
 function SH.refresh()
+	if native.container and not native.filtered then applyShieldFilter() end
+	checkIDs()
 	refreshAura()
 	refreshGCD(false)
 end
@@ -506,15 +633,38 @@ SH.onCooldowns = refreshGCD
 function SH.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "UNIT_AURA", "player")
-	ev:SetScript("OnEvent", refreshAura)
+	ns.registerEvent(ev, "PLAYER_REGEN_DISABLED")
+	ns.registerEvent(ev, "PLAYER_REGEN_ENABLED")
+	ns.registerEvent(ev, "PLAYER_ENTERING_WORLD")
+	ev:SetScript("OnEvent", function(_, event)
+		if event == "PLAYER_ENTERING_WORLD" then
+			holdUntil = math.max(holdUntil, GetTime() + LOAD_HOLD)
+			return
+		elseif event == "PLAYER_REGEN_DISABLED" then
+			fighting = true
+			checkIDs()
+		elseif event == "PLAYER_REGEN_ENABLED" then
+			fighting = false
+			refreshAura()
+		else
+			refreshAura()
+			return
+		end
+		SH.applyEmptyLook()
+	end)
 	ns.onCanActChange(SH.applyEmptyLook)   -- death, resurrection, a flight path
 end
 
 -- /sf debug
 function SH.debug()
 	local up = believedUp()
-	say("shield tracking %s (last %s), believed up %s (shield up %s)", ns.getDB().shieldTrack,
+	say("shield tracking %s (last %s), up at the last read %s (shield up %s)", ns.getDB().shieldTrack,
 		ns.getAccount().lastShield, up == nil and "unknown" or tostring(up), tostring(upShield))
+	say("no-shield look: %s, %s, state %s; button %s, spell IDs %s, shape %s, gate %s, cast hold %s",
+		under.on and "on" or "off", covering() and "button decides" or "read decides", tostring(under.state),
+		native.button and "made" or "not made", native.idsOK and "matched" or "behind",
+		ns.Looks.maskSpec(shield) == native.shape and "matched" or "behind",
+		gate:GetAlpha() > 0.99 and "full" or "not full", GetTime() < holdUntil and "on" or "off")
 	for _, key in ipairs(SHIELD_ORDER) do
 		local s = SHIELDS[key]
 		local e = Spells.bookEntry(s.spell)
@@ -527,16 +677,14 @@ function SH.debug()
 end
 
 ------------------------------------------------------------------------
--- Preview mode (ShamanForever_Preview.lua) shows the shield up, down or dropped. Blizzard's button
--- can't be shown, hidden or faked by addon code, so the preview draws a stand-in over it. While the
--- preview shows it up, the stand-in steps aside when the shield is really up and Blizzard's button
--- shows the real one, and the underlay keeps its "up" look under either, so the stack has the
--- group's opacity. Down or dropped, the stand-in covers the button (SH.applyEmptyLook). Only our
--- own textures change, which is allowed at any time; the frame itself is never hidden (ns.fadeTo).
+-- Preview mode (ShamanForever_Preview.lua) shows the shield up or down. Blizzard's button can't be
+-- shown, hidden or faked by addon code, so the preview draws a stand-in over it, and the underlay
+-- hides meanwhile (SH.applyEmptyLook sets the stand-in's opacity). Only our own frames change;
+-- the element's frame itself is never hidden (ns.fadeTo).
 ------------------------------------------------------------------------
 shield.aboveProtected = true   -- Blizzard's button hangs from it
--- icon: the preview's stand-in, just drawn in state (an options preview state: up3, up1, down,
--- drop); nil when the preview ends.
+-- icon: the preview's stand-in, just drawn in state (an options preview state: up3, up1, down);
+-- nil when the preview ends.
 function SH.preview(icon, state)
 	standIn, standInState = icon, state
 	SH.applyEmptyLook()
