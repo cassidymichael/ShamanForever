@@ -523,7 +523,7 @@ local function buildBuff(p, def)
 			eget(key, "missPulse"), eset(key, "missPulse"), function()
 				p:text("While your hostile target doesn't have it.")
 			end)
-		p:checkbox("Pulsing glow", "A glow inside the icon that pulses. Its colour and speed are the Pulsing glow style's.",
+		p:checkbox("Pulsing glow", "A glow inside the icon that pulses, in General's Pulsing glow colour and speed.",
 			eget(key, "missGlow"), eset(key, "missGlow"))
 		insideGlowLook(p, eget(key, "missGlowLook"), eset(key, "missGlowLook"), showWhen(eget(key, "missGlow")))
 	end
@@ -536,9 +536,7 @@ local function buildBuff(p, def)
 		end
 		p:checkbox("Pulsing glow", def.glowTip or "While it's up.", eget(key, "primedGlow"), eset(key, "primedGlow"))
 	end
-	-- Flame Shock: On your target right after Not on target, the two looks about the target; then
-	-- its time left and Expiring.
-	if def.missing then procBlock() end
+	-- Flame Shock: after Not on target, its time left and Expiring.
 	if not def.noTimer then timerSettings(p, "Time left", key, "uptime") end
 	if def.engineExpire then
 		-- Flame Shock's, drawn by the engine: only what it can change in a fight.
@@ -553,10 +551,10 @@ local function buildBuff(p, def)
 		p:checkbox("Red countdown", "The countdown turns red in the last seconds.", eget(key, "expireText"),
 			eset(key, "expireText"), showWhen(warns))
 	end
-	if def.proc and not def.missing then procBlock()
+	if def.proc and not def.noGlow then procBlock()
 	elseif not def.proc then expiringBlock(p, key, 120, 5) end
 	-- The water buffs never pop; Elemental Focus's pop is the grow Blizzard's button plays.
-	effectBlocks(p, key, nil, true, def.proc and not def.noPop and "grow" or false)
+	effectBlocks(p, key, nil, not def.noGlow, def.proc and not def.noPop and "grow" or false)
 end
 
 -- Tremor Totem's watchlist: a box that searches the list and adds a name, Add target, the list (a

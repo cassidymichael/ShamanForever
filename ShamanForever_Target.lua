@@ -62,18 +62,19 @@ local gateAlpha, retarget   -- below
 -- The target's aura elements, in the order the options list them. filter: the aura slot's filter
 -- string; candidates(def): its candidate filters (default: the spell IDs of auraKey). The page's
 -- texts (ShamanForever_OptionsElements.lua): idleText, procHeader, popTip, glowTip, upLabel and
--- idleLabel (its preview's up and idle states). noPop: no pop when it shows (its glow only).
+-- idleLabel (its preview's up and idle states). noPop: no pop when it shows. noGlow: no glow while
+-- it's up.
 -- ownIcon: its own icon on the button, never the aura's. buttonBorder: its border on the button
 -- too. noTimer: no time left. missing, engineExpire: its Not on target and Expiring blocks (Flame
 -- Shock's, below). defaults: its own option defaults (ns.elementSetting).
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
 		icon = 135813, school = "fire", blurb = "Shows while your Flame Shock is on your target.",
-		idleText = "Idle is when you have no hostile target", procHeader = "On your target",
+		idleText = "Idle is when you have no hostile target",
 		noPop = true,
-		glowTip = "While it's on your target.", upLabel = "On target", idleLabel = "No target",
+		noGlow = true, upLabel = "On target", idleLabel = "No target",
 		missing = true, engineExpire = true,   -- its Not on target and Expiring blocks
-		defaults = { idleAlpha = 0, primedGlow = false,
+		defaults = { idleAlpha = 0,
 			missGrey = true, missRing = false, missPulse = false, missGlow = true, missGlowLook = "soft",
 			-- Magenta: it stands out against the fire school's orange time bar.
 			expireSecs = 3, expireBar = true, expireBarColor = { 1, 0.2, 0.8, 1 }, expireText = false },
@@ -142,10 +143,12 @@ local function buildButton(def, slot, button, cd)
 		def.durText:SetFont(STANDARD_TEXT_FONT, 12, "OUTLINE")
 		def.durText:Hide()
 	end
-	def.glow = ns.makeGlow(button, button, def.key, true)
-	-- Levels under the aura button may read as secret: a failed read leaves the default level.
-	ns.try("aura glow level", function() def.glow:SetFrameLevel(cd:GetFrameLevel() + 2) end)
-	def.glow:bindButton(button)
+	if not def.noGlow then
+		def.glow = ns.makeGlow(button, button, def.key, true)
+		-- Levels under the aura button may read as secret: a failed read leaves the default level.
+		ns.try("aura glow level", function() def.glow:SetFrameLevel(cd:GetFrameLevel() + 2) end)
+		def.glow:bindButton(button)
+	end
 	if def.noPop then return end
 	def.popAnim = ns.makeGrowPop(slot.icon, def.key)
 	if button.AddAuraAssignedAnimation then ns.try("target pop", button.AddAuraAssignedAnimation, button, def.popAnim) end
@@ -156,17 +159,13 @@ local styleExpire, styleExpireText   -- below
 local function styleButton(def, size, slot)
 	if def.engineExpire then
 		ns.try("flame shock expiring", styleExpire, def, size, slot)
-		-- The glow over the Expiring bars (+10 to +13), under the countdown (+15).
-		local g, level = def.glow, def.frame.textFrame:GetFrameLevel() + 14
-		g:SetFrameLevel(level)
-		g.inner:SetFrameLevel(level)
-		local parts = g.look and g.parts[g.look.key]
-		if parts then ns.Looks.levelParts(parts) end   -- its look's frames, at the new level
 	end
 	if def.edge then ns.try("target border " .. def.key, ns.applyBorder, def.edge, ns.borderFor(def.key)) end
-	def.glow:restyle()
-	def.glow:fit(size)
-	def.glow:SetShown(setting(def.key, "primedGlow") and true or false)
+	if def.glow then
+		def.glow:restyle()
+		def.glow:fit(size)
+		def.glow:SetShown(setting(def.key, "primedGlow") and true or false)
+	end
 	if def.popAnim then def.popAnim:restyle(setting(def.key, "primedPop") and true or false) end
 end
 
@@ -270,7 +269,7 @@ function styleExpireText(def, slot, st, secs)
 	local fs, b = def.durText, slot.button
 	local textOn = secs > 0 and setting(key, "expireText") and st.text and fs ~= nil and textCurve(secs, st.textColor)
 	if textOn then
-		-- Over the Expiring bars and the glow.
+		-- Over the Expiring bars.
 		def.textHolder:SetFrameLevel(def.frame.textFrame:GetFrameLevel() + 15)
 		fs:SetFont(STANDARD_TEXT_FONT, st.textSize, "OUTLINE")
 		fs:ClearAllPoints()
@@ -338,7 +337,8 @@ for _, def in ipairs(TARGET) do
 		-- Its looks take their school from what they cover (ns.Looks' schoolOf): the element's.
 		u.tex.owner = def.key
 		-- Its look before the profile loads (the glow is made at load): the default.
-		u.glow = ns.makeInsideGlow(u.inner, u.tex, def.key, function()
+		-- In General's Pulsing glow style (colour, speed, thickness): the element has no style of its own.
+		u.glow = ns.makeInsideGlow(u.inner, u.tex, nil, function()
 			local ok, look = pcall(setting, def.key, "missGlowLook")
 			return ok and look or nil
 		end)
