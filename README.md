@@ -16,16 +16,16 @@ More screenshots: [options gallery](docs/gallery/README.md).
 
 A collection of highly configurable HUD elements designed to help shamans playing World of Warcraft: Forever.
 
-- **Totem Bar**: Fully configurable totem bar replacing default or active totems frames: drop, pick and dismiss totems, Call of the Elements and Totemic Recall, an out-of-range warning, and key bindings; three totem themes (Default, Pixel, Stone and bronze), with time bars in or beside the icons
-- **Shock Trackers**: Earth, Flame, and Frost shock monitoring
-- **Target Trackers**: Flame Shock on your target with its time left (a bar that changes colour near the end) and a look while it's missing, and Purge when your target has a Magic buff
-- **Shield Helpers**: Lightning Shield and Water Shield tracking, and a No shield warning the moment the shield drops, in combat too
-- **Weapon Imbues**: Rockbiter, Flametongue, Frostbrand, and Windfury imbue status
-- **Swing Timer**: melee swing timer shown as a bar
-- **Spell Trackers**: Stormstrike, Fire Nova, Lava Burst, Chain Lightning, Riptide, Rage of the Farseer, Nature's Swiftness, Mana Tide Totem, each with the timers, bars, glows and pops that suit it
-- **Totem Trackers**: Earthbind, Tremor, Grounding, and Stoneclaw Totem helpers
-- **Utility Trackers**: Elemental Focus, Water Walking, Water Breathing, Maelstrom Weapon, Totemic Projection, Reincarnation
-- **Text and Bars**: font, outline, shadow and bar texture for the HUD, from the game's or any that another addon shares through LibSharedMedia; the totem bar and swing timer can have their own text, and the swing timer its own bar texture
+- **Totem Bar**: Fully configurable totem bar replacing default or active totems frames: drop, pick and dismiss totems, Call of the Elements and Totemic Recall, an out-of-range warning, key bindings, themes (experimental), and more.
+- **Shock Trackers**: Earth, Flame, and Frost shock monitoring.
+- **Target Trackers**: Flame Shock on your target with its time left (a bar that changes colour near the end) and a look while it's missing, and Purge when your target has a Magic buff.
+- **Shield Helpers**: Lightning Shield and Water Shield tracking.
+- **Weapon Imbues**: Rockbiter, Flametongue, Frostbrand, and Windfury imbue status.
+- **Swing Timer**: melee swing timer shown as a bar.
+- **Spell Trackers**: Stormstrike, Fire Nova, Lava Burst, Chain Lightning, Riptide, Rage of the Farseer, Nature's Swiftness, Mana Tide Totem, each with the timers, bars, glows and pops that suit it.
+- **Totem Trackers**: Earthbind, Tremor, Grounding, and Stoneclaw Totem helpers.
+- **Utility Trackers**: Elemental Focus, Water Walking, Water Breathing, Maelstrom Weapon, Totemic Projection, Reincarnation.
+- **Text and Bars**: font, outline, shadow and bar texture for the HUD, from the game's or any that another addon shares through LibSharedMedia.
 
 The addon organizes these elements into configurable groups with unlock and preview modes for customizable on-screen placement.
 
