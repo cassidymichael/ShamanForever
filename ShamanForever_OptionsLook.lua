@@ -159,6 +159,21 @@ local function showFeedback(anchor, feature)
 	pop:Show()
 end
 
+-- A plain tag in the experimental badge's size and shape (RECOMMENDED on a card), in a calm green;
+-- not a link.
+function L.tagBadge(parent, text)
+	local b = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+	b:SetBackdrop(ns.BACKDROP)
+	b:SetBackdropColor(0.55, 0.82, 0.5, 0.08)
+	b:SetBackdropBorderColor(0.55, 0.82, 0.5, 0.5)
+	b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	b.text:SetPoint("CENTER", 0, 0)
+	b.text:SetText(text)
+	b.text:SetTextColor(0.62, 0.86, 0.56)
+	b:SetSize(b.text:GetStringWidth() + 12, 16)
+	return b
+end
+
 -- With a label ("Give feedback", on About) the badge opens the feedback link. Without one it reads
 -- EXPERIMENTAL, marking an untested choice, and leads to About's Experimental section.
 function L.expBadge(parent, feature, label)
