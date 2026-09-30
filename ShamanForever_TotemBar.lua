@@ -1629,8 +1629,9 @@ local function paintSlot(s, rec)
 			strip.bg:SetAllPoints()
 			s.previewRange = strip
 		end
-		-- Over Blizzard's part and its colour (+10 to +12, ShamanForever_TotemRange.lua).
-		strip:SetFrameLevel(s.button:GetFrameLevel() + 14)
+		-- Where the real mark's band is (+9 to +12, ShamanForever_TotemRange.lua; the preview hides
+		-- our parts on Blizzard's), under the expiring warning and the time bar, as on the bar.
+		strip:SetFrameLevel(s.button:GetFrameLevel() + TB.RANGE_LEVEL + 3)
 		strip:ClearAllPoints()
 		-- Where the Look puts its mark, and what it draws; else the strip along the top.
 		local x, y, w, h = TB.skin.markRect(strip, size, s.inset or 0)
