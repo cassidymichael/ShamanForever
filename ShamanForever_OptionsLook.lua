@@ -586,7 +586,7 @@ local function buffPreview(def)
 			if st == "up" then
 				if def.proc then
 					if not def.noTimer then frozen(ic.upT, 0.3, 15) end
-					ic:SetGlowShown(opt(key, "primedGlow"))
+					ic:SetGlowShown(not def.noGlow and opt(key, "primedGlow"))
 				else frozen(ic.upT, 0.3, 600) end
 			elseif st == "expiring" and def.engineExpire then engineExpireLook(ic, key)
 			elseif st == "expiring" then expiringLook(ic, key, 600)
@@ -598,7 +598,7 @@ local function buffPreview(def)
 				-- The HUD's glow here: its own Glow look, one drawn inside the icon only.
 				if opt(key, "missGlow") then
 					if not ic.insideGlow then
-						ic.insideGlow = ns.makeInsideGlow(ic, ic, key, function() return opt(key, "missGlowLook") end)
+						ic.insideGlow = ns.makeInsideGlow(ic, ic, nil, function() return opt(key, "missGlowLook") end)
 					end
 					ic.insideGlow:restyle()
 					ic.insideGlow:fit(ic:GetWidth())
