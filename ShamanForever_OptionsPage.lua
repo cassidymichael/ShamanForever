@@ -570,9 +570,9 @@ local function resetRefs(list)
 			table.insert(afters, r.after)
 		end
 	end
-	for _, f in ipairs(afters) do f() end
+	if not seen[ns.Options.kit.relayout] then table.insert(afters, ns.Options.kit.relayout) end
 	ns.Effects.applyStyle()
-	ns.Options.kit.relayout()
+	for _, f in ipairs(afters) do f() end
 end
 
 local function anyChanged(list)
