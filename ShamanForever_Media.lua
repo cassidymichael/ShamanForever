@@ -41,8 +41,9 @@ local FONTS = {
 	{ "Arial Narrow", "Fonts\\ARIALN.TTF" },
 	{ "Morpheus", "Fonts\\MORPHEUS.TTF" },
 	{ "Skurri", "Fonts\\SKURRI.TTF" },
-	{ "2002 Bold", "Fonts\\2002B.TTF" },
 }
+-- Not offered, from LibSharedMedia either: 2002 Bold looks the same as Friz Quadrata.
+local NOT_OFFERED = { ["fonts\\2002b.ttf"] = true }
 local FLAT = "Interface\\Buttons\\WHITE8x8"
 -- The game's bar textures; atlas: an atlas name (the Cooldown Manager's bar, as the nameplates use).
 local BARS = {
@@ -252,7 +253,10 @@ function M.fonts(current)
 	if l then
 		local more = {}
 		for name, path in pairs(l:HashTable("font")) do
-			if not fontByName[name] and type(name) == "string" then table.insert(more, { name, name, path }) end
+			if not fontByName[name] and type(name) == "string" and type(path) == "string"
+				and not NOT_OFFERED[path:lower()] then
+				table.insert(more, { name, name, path })
+			end
 		end
 		table.sort(more, function(a, b) return a[1] < b[1] end)
 		for _, f in ipairs(more) do table.insert(out, f) end
