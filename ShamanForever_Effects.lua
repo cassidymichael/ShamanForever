@@ -181,77 +181,255 @@ end
 ------------------------------------------------------------------------
 -- The burst when something happens (a cooldown ready, an imbue dropping, a totem ending).
 -- Its style is its owner's (General's, or an element's or the totem bar's own), one setting per
--- part: a motion (none, grow, bounce, hop, shake) with a size and speed; a flash over the icon
--- (plain, or Blizzard's edge flash); a burst (a ring spreading out, a star behind it, or one of
--- ns.Looks' drawn bursts); and their colour, by what happened or by school. Every part is built
--- on the frame the first time it pops.
+-- part, each changing only its own: a motion (none, grow, bounce, hop, shake) with a size and
+-- speed; a flash over the icon (plain, or Blizzard's edge flash); a burst (a ring spreading out, a
+-- star behind it, or one of ns.Looks' drawn bursts); and their colour, by what happened or by
+-- school.
+-- It plays on a rig: a fixed set of parts on the frame that pops, each a texture (or the frame
+-- itself, for the motion) with one animation group whose values the style sets. Nothing is driven
+-- by script. Made the first time the frame pops.
 local POP_TINT = { ready = { 1, 0.82, 0.25 }, imbue = { 0.35, 0.65, 1 }, expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 },
 	grounded = { 0.56, 0.76, 0.92 }, blocked = { 0.6, 0.6, 0.6 } }
 E.POP_TINT = POP_TINT
--- An atlas if the client has it, else a plain texture.
-local function atlasOr(t, atlas, file)
-	local ok = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas)
-	if ok then t:SetAtlas(atlas) else t:SetTexture(file) end
-end
-local function anim(g, kind, order, smoothing)
+local BLACK = { 0, 0, 0 }
+-- The ring spreads from just inside the icon to 2.2 icon heights; the star turns as it spreads
+-- from 1.2 to 3.5, behind the ring. Parts as ns.Looks' drawn bursts' (Looks.popParts), plus an
+-- atlas (with a file for a client without it), desaturated to take the pop's colour.
+local RING = { name = "ring", atlas = "ArtifactsFX-YellowRing", file = "Interface\\Buttons\\UI-ActionButton-Border",
+	layer = "OVERLAY", add = true, desat = true, from = 0.9, to = 2.2, dur = 0.45, a = 1 }
+local STAR = { name = "star", atlas = "AftLevelup-WhiteStarBurst", file = "Interface\\Cooldown\\star4",
+	layer = "BACKGROUND", add = true, desat = true, from = 1.2, to = 3.5, dur = 0.45, a = 1, spin = -0.5 }
+local MOTION_STEPS = 4
+
+local function anim(g, kind, order)
 	local a = g:CreateAnimation(kind)
 	a:SetOrder(order)
-	if smoothing then a:SetSmoothing(smoothing) end
 	return a
 end
-local function popFx(f)
-	if f.popFx then return f.popFx end
-	local x = {}
-	-- Motions: one group each, values set on every play (size and speed can change).
-	x.grow = f:CreateAnimationGroup()
-	x.grow.a = { anim(x.grow, "Scale", 1, "OUT"), anim(x.grow, "Scale", 2, "IN_OUT") }
-	x.bounce = f:CreateAnimationGroup()
-	x.bounce.a = { anim(x.bounce, "Scale", 1, "OUT"), anim(x.bounce, "Scale", 2, "IN_OUT"), anim(x.bounce, "Scale", 3, "IN_OUT"), anim(x.bounce, "Scale", 4, "IN") }
-	x.hop = f:CreateAnimationGroup()
-	x.hop.a = { anim(x.hop, "Translation", 1, "OUT"), anim(x.hop, "Translation", 2, "IN") }
-	x.shake = f:CreateAnimationGroup()
-	x.shake.a = { anim(x.shake, "Translation", 1), anim(x.shake, "Translation", 2), anim(x.shake, "Translation", 3), anim(x.shake, "Translation", 4) }
-	x.shakeV = f:CreateAnimationGroup()
-	x.shakeV.a = { anim(x.shakeV, "Translation", 1), anim(x.shakeV, "Translation", 2), anim(x.shakeV, "Translation", 3), anim(x.shakeV, "Translation", 4) }
-	-- Light, on a frame above the icon's text.
+
+-- One burst part: a texture on parent that waits unseen, then grows, fades, turns and moves all
+-- at once, as one group. Its base alpha is 0, so it shows only while its group plays (an Alpha
+-- animation leaves the base alpha when it ends or stops). The wait is a step of its own at alpha
+-- 0, not a start delay: nothing of it shows before its time, whatever a delayed animation does
+-- meanwhile.
+local function newPart(parent, spec)
+	local t = parent:CreateTexture(nil, "OVERLAY")
+	t:SetAlpha(0)
+	if spec and spec.atlas then
+		if ns.Looks.hasAtlas(spec.atlas) then t:SetAtlas(spec.atlas) else t:SetTexture(spec.file) end
+	end
+	local g = t:CreateAnimationGroup()
+	g.wait = anim(g, "Alpha", 1)
+	g.wait:SetFromAlpha(0); g.wait:SetToAlpha(0)
+	g.grow = anim(g, "Scale", 2)
+	g.grow:SetSmoothing("OUT")
+	g.fade = anim(g, "Alpha", 2)
+	g.fade:SetToAlpha(0)
+	g.turn = anim(g, "Rotation", 2)
+	g.turn:SetSmoothing("OUT")
+	g.move = anim(g, "Translation", 2)
+	g.move:SetSmoothing("OUT")
+	return { tex = t, group = g }
+end
+
+-- A part's values from its spec: h the icon height its sizes are in (the sheen's: the frame's
+-- own), c the pop's colour, k the duration multiplier. After delay, the size eases out and the
+-- alpha fades evenly (late for slow) over dur.
+local function stylePart(p, spec, parent, h, c, k)
+	local t, g = p.tex, p.group
+	if not spec.atlas then t:SetTexture(spec.file) end
+	t:SetBlendMode(spec.add and "ADD" or "BLEND")
+	t:SetDrawLayer(spec.layer, spec.sub or 0)
+	t:SetDesaturated(spec.desat and true or false)
+	local col = spec.dark and BLACK or spec.color or c
+	t:SetVertexColor(col[1], col[2], col[3])
+	t:ClearAllPoints()
+	local shift = spec.shift
+	if shift then
+		-- The sheen: the frame-sized picture slides across the frame, clipped to it.
+		local s = shift[1]
+		t:SetPoint("TOPLEFT", parent, "TOPLEFT", -s * h, s * h)
+		t:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -s * h, s * h)
+		g.grow:SetScaleTo(1, 1)
+		local d = shift[2] - shift[1]
+		g.move:SetOffset(-d * h, d * h)
+	else
+		t:SetSize(h * spec.from, h * spec.from * (spec.sy or 1))
+		t:SetPoint("CENTER", parent, "CENTER", 0, 0)
+		local grow = spec.to / spec.from
+		g.grow:SetScaleTo(grow, grow)
+		g.move:SetOffset(0, h * (spec.rise or 0))
+	end
+	g.grow:SetScaleFrom(1, 1)
+	g.fade:SetFromAlpha(spec.a or 1)
+	g.fade:SetSmoothing(spec.slow and "IN" or "NONE")
+	g.turn:SetDegrees(math.deg(spec.spin or 0))
+	g.wait:SetDuration((spec.delay or 0) * k)
+	local dur = spec.dur * k
+	for _, a in ipairs({ g.grow, g.fade, g.turn, g.move }) do a:SetDuration(dur) end
+end
+
+local Rig = {}
+Rig.__index = Rig
+
+-- The rig on f. Its light sits on a frame above the icon's text (f.effects, where the icon has
+-- one, so an idle icon's fade leaves it at full); the drawn bursts' back parts on a frame behind
+-- the icon.
+local function newRig(f)
+	local r = setmetatable({ f = f, parts = {}, playing = {} }, Rig)
+	-- The motion: one group on f, a Scale and a Translation for each of its steps (a motion uses
+	-- some; the rest take no time and move nothing).
+	r.motion = f:CreateAnimationGroup()
+	r.scale, r.move = {}, {}
+	for i = 1, MOTION_STEPS do
+		r.scale[i] = anim(r.motion, "Scale", i)
+		r.move[i] = anim(r.motion, "Translation", i)
+	end
 	local fx = CreateFrame("Frame", nil, f.effects or f)
 	fx:SetAllPoints()
 	fx:SetFrameLevel(f:GetFrameLevel() + 12)
 	fx:EnableMouse(false)
-	x.fx = fx
-	x.flash = fx:CreateTexture(nil, "OVERLAY")
-	x.flash:SetAllPoints()
-	x.flash:SetTexture("Interface\\Buttons\\WHITE8x8")
-	x.flash:SetBlendMode("ADD")
-	x.flash:SetAlpha(0)
-	x.flashAnim = x.flash:CreateAnimationGroup()
-	x.flashAnim.a = { anim(x.flashAnim, "Alpha", 1), anim(x.flashAnim, "Alpha", 2, "OUT") }
-	x.flashAnim:SetScript("OnFinished", function() x.flash:SetAlpha(0) end)
-	-- Ring and star: sized frame by frame (not scale animations), so they never reach further than
-	-- the sizes given here, a couple of icon widths.
-	x.ring = fx:CreateTexture(nil, "OVERLAY")
-	x.ring:SetPoint("CENTER")
-	atlasOr(x.ring, "ArtifactsFX-YellowRing", "Interface\\Buttons\\UI-ActionButton-Border")
-	x.ring:SetBlendMode("ADD")
-	x.ring:Hide()
-	x.star = fx:CreateTexture(nil, "BACKGROUND")
-	x.star:SetPoint("CENTER")
-	atlasOr(x.star, "AftLevelup-WhiteStarBurst", "Interface\\Cooldown\\star4")
-	x.star:SetBlendMode("ADD")
-	x.star:Hide()
-	x.bursts = ns.Looks.burster(fx)
-	-- A hidden frame runs no OnUpdate and holds its animations, so a pop cut short by a hide (its
-	-- group hiding as combat ends) would finish when the icon next shows. A hide ends it instead.
-	fx:SetScript("OnHide", function()
-		x.bursts.clear()
-		for _, m in ipairs({ "grow", "bounce", "hop", "shake", "shakeV" }) do x[m]:Stop() end
-		x.flashAnim:Stop()
-		x.flash:SetAlpha(0)
-		for _, g in ipairs(x.gcd or {}) do g.group:Stop() end
-	end)
-	f.popFx = x
-	return x
+	r.fx = fx
+	r.flash = fx:CreateTexture(nil, "OVERLAY")
+	r.flash:SetAllPoints()
+	r.flash:SetTexture("Interface\\Buttons\\WHITE8x8")
+	r.flash:SetBlendMode("ADD")
+	r.flash:SetAlpha(0)
+	r.flashAnim = r.flash:CreateAnimationGroup()
+	r.flashIn, r.flashOut = anim(r.flashAnim, "Alpha", 1), anim(r.flashAnim, "Alpha", 2)
+	r.flashIn:SetFromAlpha(0)
+	r.flashOut:SetToAlpha(0)
+	r.flashOut:SetSmoothing("OUT")
+	r.edge = ns.Looks.popEdge(fx)
+	r.back = CreateFrame("Frame", nil, f.effects or f)
+	r.back:SetAllPoints()
+	r.back:EnableMouse(false)
+	r.clip = CreateFrame("Frame", nil, fx)
+	r.clip:SetAllPoints()
+	r.clip:SetClipsChildren(true)
+	r.clip:EnableMouse(false)
+	r.parts.ring, r.parts.star = newPart(fx, RING), newPart(fx, STAR)
+	local where = { back = r.back, front = fx, clip = r.clip }
+	for name, at in pairs(ns.Looks.POP_PARTS) do r.parts[name] = newPart(where[at]) end
+	r.all = { r.motion, r.flashAnim }
+	for _, e in ipairs(r.edge or {}) do table.insert(r.all, e.group) end
+	for _, p in pairs(r.parts) do table.insert(r.all, p.group) end
+	-- A hidden frame holds its animations, so a pop cut short by a hide (its group hiding as combat
+	-- ends) would finish when the icon next shows. A hide ends it instead.
+	fx:SetScript("OnHide", function() r:stop() end)
+	return r
 end
+
+-- Every animation group of the rig (the caller doesn't change the list).
+function Rig:groups() return self.all end
+
+function Rig:stop()
+	for _, g in ipairs(self.all) do g:Stop() end
+end
+
+-- The motion's steps: step i scales from a to b, or moves by x, y, over dur with smoothing.
+function Rig:scaleStep(i, a, b, dur, smoothing)
+	local s = self.scale[i]
+	s:SetScaleFrom(a, a); s:SetScaleTo(b, b); s:SetDuration(dur); s:SetSmoothing(smoothing)
+end
+function Rig:moveStep(i, x, y, dur, smoothing)
+	local m = self.move[i]
+	m:SetOffset(x, y); m:SetDuration(dur); m:SetSmoothing(smoothing)
+end
+
+-- The motion for the style: S its size, k the duration multiplier, h the icon's height. Returns
+-- whether there is one.
+function Rig:styleMotion(motion, S, k, h)
+	for i = 1, MOTION_STEPS do
+		self:scaleStep(i, 1, 1, 0, "NONE")
+		self:moveStep(i, 0, 0, 0, "NONE")
+	end
+	if motion == "pop" then
+		self:scaleStep(1, 1, S, 0.12 * k, "OUT")
+		self:scaleStep(2, S, 1, 0.25 * k, "IN_OUT")
+	elseif motion == "hop" then
+		local up = h * (S - 1) * 0.8
+		self:moveStep(1, 0, up, 0.12 * k, "OUT")
+		self:moveStep(2, 0, -up, 0.2 * k, "IN")
+	elseif motion == "shake" or motion == "shakeV" then   -- side to side, or up and down
+		local d = h * (S - 1) * 0.3
+		local sx, sy = motion == "shake" and d or 0, motion == "shakeV" and d or 0
+		self:moveStep(1, sx, sy, 0.04 * k, "NONE")
+		self:moveStep(2, -2 * sx, -2 * sy, 0.07 * k, "NONE")
+		self:moveStep(3, 2 * sx, 2 * sy, 0.07 * k, "NONE")
+		self:moveStep(4, -sx, -sy, 0.05 * k, "NONE")
+	elseif motion == "bounce" then   -- overshoot, dip, settle
+		local u, o = 1 - (S - 1) * 0.25, 1 + (S - 1) * 0.15
+		self:scaleStep(1, 1, S, 0.12 * k, "OUT")
+		self:scaleStep(2, S, u, 0.12 * k, "IN_OUT")
+		self:scaleStep(3, u, o, 0.1 * k, "IN_OUT")
+		self:scaleStep(4, o, 1, 0.08 * k, "IN")
+	else
+		return false
+	end
+	return true
+end
+
+-- The rig's values for pop style st: size the icon's height (never read under a secure button),
+-- c the colour, school the icon's, muted a dimmer flash (a pop that can't be acted on). Marks
+-- the groups play() plays.
+function Rig:style(st, size, c, school, muted)
+	local k = 1 / math.max(st.speed, 0.1)   -- duration multiplier
+	local on = self.playing
+	wipe(on)
+	if self:styleMotion(st.motion, st.size, k, size) then on[self.motion] = true end
+	local flash = st.flash
+	if flash == "edge" and not self.edge then flash = "plain" end
+	if flash == "edge" then
+		for _, e in ipairs(self.edge) do
+			local s = size * e.grow
+			e.tex:SetSize(s, s)
+			e.tex:SetVertexColor(c[1] * 0.6 + 0.4, c[2] * 0.6 + 0.4, c[3] * 0.6 + 0.4)
+			e.group.flip:SetDuration(0.75 * k)
+			e.group.show:SetDuration(0.75 * k)
+			on[e.group] = true
+		end
+	elseif flash == "plain" then
+		self.flash:SetVertexColor(c[1], c[2], c[3])
+		local peak = muted and 0.4 or 0.8
+		self.flashIn:SetToAlpha(peak); self.flashIn:SetDuration(0.06 * k)
+		self.flashOut:SetFromAlpha(peak); self.flashOut:SetDuration(0.3 * k)
+		on[self.flashAnim] = true
+	end
+	local burst = st.burst
+	if burst == "ring" or burst == "both" then
+		stylePart(self.parts.ring, RING, self.fx, size, c, k)
+		on[self.parts.ring.group] = true
+	end
+	if burst == "star" or burst == "both" then
+		stylePart(self.parts.star, STAR, self.fx, size, c, k)
+		on[self.parts.star.group] = true
+	end
+	-- A drawn burst: sized by the icon with its frame; its back parts under the icon as it stands
+	-- now (for an end flash's pop, the icon it covers: a totem bar slot, so the shapes and their
+	-- dark disc stay behind that slot's neighbours too).
+	local drawn = ns.Looks.popParts(burst, school)
+	if drawn then
+		local over = self.f.over or self.f
+		self.back:SetFrameLevel(math.max(over:GetFrameLevel() - 1, 0))
+		local h = size + 2 * ns.Looks.outerEdge(over)
+		for _, spec in ipairs(drawn) do
+			local p = self.parts[spec.name]
+			if spec.shift then stylePart(p, spec, self.clip, size, c, k)
+			else stylePart(p, spec, p.tex:GetParent(), h, c, k) end
+			on[p.group] = true
+		end
+	end
+end
+
+-- Stops every group, then plays those style() marked.
+function Rig:play()
+	for _, g in ipairs(self.all) do
+		g:Stop()
+		if self.playing[g] then g:Play() end
+	end
+end
+
 -- kind: ready | imbue | expired | killed | grounded (the tint); owner: whose style (nil: General's).
 -- blocked: ready but it can't be cast (Fire Nova with no fire totem): grey and a dimmer flash,
 -- whatever the Colour, so it never reads as the full ready pop.
@@ -261,73 +439,18 @@ function E.pop(f, kind, owner)
 	if not f:IsVisible() then return end
 	kind = kind or "ready"
 	local st = ns.Style.get(owner, "pop")
-	local x = popFx(f)
-	local motion, S = st.motion, st.size
-	local k = 1 / math.max(st.speed, 0.1)   -- duration multiplier
-	-- popSize: the icon's size, set by whoever knows it where a read could be secret (an end flash
-	-- over the totem bar's slot, under its secure button).
-	local h = math.max(f.popSize or f:GetHeight(), 8)
-	for _, m in ipairs({ "grow", "bounce", "hop", "shake", "shakeV" }) do x[m]:Stop() end
-	if motion == "pop" then
-		local a = x.grow.a
-		a[1]:SetScaleFrom(1, 1); a[1]:SetScaleTo(S, S); a[1]:SetDuration(0.12 * k)
-		a[2]:SetScaleFrom(S, S); a[2]:SetScaleTo(1, 1); a[2]:SetDuration(0.25 * k)
-		x.grow:Play()
-	elseif motion == "hop" then
-		local a, up = x.hop.a, h * (S - 1) * 0.8
-		a[1]:SetOffset(0, up); a[1]:SetDuration(0.12 * k)
-		a[2]:SetOffset(0, -up); a[2]:SetDuration(0.2 * k)
-		x.hop:Play()
-	elseif motion == "shake" or motion == "shakeV" then   -- side to side, or up and down
-		local g, d = x[motion], h * (S - 1) * 0.3
-		local sx, sy = motion == "shake" and 1 or 0, motion == "shakeV" and 1 or 0
-		local a = g.a
-		a[1]:SetOffset(d * sx, d * sy); a[1]:SetDuration(0.04 * k)
-		a[2]:SetOffset(-2 * d * sx, -2 * d * sy); a[2]:SetDuration(0.07 * k)
-		a[3]:SetOffset(2 * d * sx, 2 * d * sy); a[3]:SetDuration(0.07 * k)
-		a[4]:SetOffset(-d * sx, -d * sy); a[4]:SetDuration(0.05 * k)
-		g:Play()
-	elseif motion == "bounce" then   -- overshoot, dip, settle
-		local a, u, o = x.bounce.a, 1 - (S - 1) * 0.25, 1 + (S - 1) * 0.15
-		a[1]:SetScaleFrom(1, 1); a[1]:SetScaleTo(S, S); a[1]:SetDuration(0.12 * k)
-		a[2]:SetScaleFrom(S, S); a[2]:SetScaleTo(u, u); a[2]:SetDuration(0.12 * k)
-		a[3]:SetScaleFrom(u, u); a[3]:SetScaleTo(o, o); a[3]:SetDuration(0.1 * k)
-		a[4]:SetScaleFrom(o, o); a[4]:SetScaleTo(1, 1); a[4]:SetDuration(0.08 * k)
-		x.bounce:Play()
-	end
 	-- The colour: the event's, or the school's for Ready and Ran out when the style says so. A
 	-- warning (killed early, grounded, the imbue dropping, blocked) always keeps its own.
-	local muted = kind == "blocked"
+	local school = ns.Looks.schoolOf(f)
 	local c = POP_TINT[kind] or POP_TINT.ready
 	if st.colorBy == "school" and ns.Looks.POP_EVENTS[kind] then
-		c = ns.SCHOOL_COLOR[ns.Looks.schoolOf(f)] or ns.SCHOOL_COLOR.spirit
+		c = ns.SCHOOL_COLOR[school] or ns.SCHOOL_COLOR.spirit
 	end
-	x.flashAnim:Stop()
-	local flash = st.flash
-	if flash == "edge" and not ns.Looks.popFlash(x, c, k, h) then flash = "plain" end
-	if flash == "plain" then
-		x.flash:SetVertexColor(c[1], c[2], c[3])
-		local a, peak = x.flashAnim.a, muted and 0.4 or 0.8
-		a[1]:SetFromAlpha(0); a[1]:SetToAlpha(peak); a[1]:SetDuration(0.06 * k)
-		a[2]:SetFromAlpha(peak); a[2]:SetToAlpha(0); a[2]:SetDuration(0.3 * k)
-		x.flashAnim:Play()
-	end
-	-- The ring spreads from just inside the icon to 2.2 icon widths; the star from 1.2 to 3.5.
-	x.bursts.stop(x.ring); x.bursts.stop(x.star)
-	local burst = st.burst
-	if burst == "ring" or burst == "both" then
-		x.ring:SetDesaturated(true)
-		x.ring:SetVertexColor(c[1], c[2], c[3])
-		x.ring:SetSize(h * 0.9, h * 0.9)
-		x.bursts.play(x.ring, { dur = 0.45 * k, from = h * 0.9, to = h * 2.2 })
-	end
-	if burst == "star" or burst == "both" then
-		x.star:SetDesaturated(true)
-		x.star:SetVertexColor(c[1], c[2], c[3])
-		x.star:SetSize(h, h)
-		x.bursts.play(x.star, { dur = 0.45 * k, from = h * 1.2, to = h * 3.5, spin = -0.5 })
-	end
-	ns.Looks.popBurst(x, f, burst, c, k, h)   -- a drawn burst (shapes, painted, rune, by school)
+	f.popRig = f.popRig or newRig(f)
+	-- popSize: the icon's size, set by whoever knows it where a read could be secret (an end flash
+	-- over the totem bar's slot, under its secure button).
+	f.popRig:style(st, math.max(f.popSize or f:GetHeight(), 8), c, school, kind == "blocked")
+	f.popRig:play()
 end
 
 -- The end of a totem, over `anchor`. Nothing here reads a secret: play() hands the gone totem's
@@ -491,3 +614,4 @@ function E.growPop(region, owner)
 	g:restyle()
 	return g
 end
+

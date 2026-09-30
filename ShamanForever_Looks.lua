@@ -3,8 +3,8 @@
 --   frame      the edge around an icon, in its border's look (rings of lines, corner caps, art
 --              over or around the icon, a mask on the icon's picture)
 --   glow       the pulsing glow's looks (ns.Effects.glow calls in)
---   pop        the pop's edge flash and drawn bursts (not looks: ns.Effects.pop calls in by part)
---   burster    textures that grow and fade over a pop's short life
+--   pop        the pop's edge flash and drawn bursts, as data (not looks: ns.Effects' pop rig
+--              reads them by part)
 -- Our own media are named by path, never by file ID: the client gives our loose files IDs that
 -- change between client starts (tested 2026-09-28). Blizzard's art is named by atlas and checked
 -- before use (C_Texture.GetAtlasInfo): a missing atlas draws nothing, so each look has a fallback.
@@ -629,78 +629,6 @@ function Looks.anyExperimental(kind)
 end
 
 ------------------------------------------------------------------------
--- Burster: textures that grow, fade and turn frame by frame (the pop's ring and star, the looks'
--- shapes), sized directly, not by a Scale animation, so they never reach further than asked.
--- driver: the frame whose OnUpdate runs while any burst does. A burst:
---   dur, from, to     its life (s) and sizes (square; sy makes it sy as tall as wide)
---   spin              radians turned over its life
---   a, slow           its alpha at the start (default 1), fading to 0; slow: fades late
---   delay             seconds before it starts (hidden until then)
---   rise              how far its centre moves up over its life (down if negative)
---   halo, haloA       a texture of the caller's (dark, normal blend) that follows it, a little
---                     larger, at haloA of its alpha: an added burst vanishes on bright ground
---                     without one (tested 2026-09-28: white bursts on snow)
---   shift             { from, to }: slides the texture's picture across its rect (the sheen)
---                     in place of sizing it
-------------------------------------------------------------------------
-local HALO_SCALE = 1.08
-function Looks.burster(driver)
-	local B, run = {}, {}   -- run: texture -> its burst
-	local function step(self, elapsed)
-		for tex, b in pairs(run) do
-			b.t = b.t + elapsed
-			local t = b.t - (b.delay or 0)
-			if t < 0 then
-				tex:SetAlpha(0)
-				if b.halo then b.halo:SetAlpha(0) end
-			else
-				local p = math.min(t / b.dur, 1)
-				local e = 1 - (1 - p) * (1 - p)   -- ease out
-				local fade = (b.a or 1) * (b.slow and (1 - p * p) or (1 - p))
-				tex:SetAlpha(fade)
-				if b.shift then
-					local s = b.shift[1] + (b.shift[2] - b.shift[1]) * e
-					tex:SetTexCoord(s, 1 + s, s, 1 + s)
-				else
-					local size = b.from + (b.to - b.from) * e
-					tex:SetSize(size, size * (b.sy or 1))
-					if b.spin then tex:SetRotation(b.spin * e) end
-					if b.rise then tex:SetPoint("CENTER", tex:GetParent(), "CENTER", 0, b.rise * e) end
-					local h = b.halo
-					if h then
-						h:SetSize(size * HALO_SCALE, size * (b.sy or 1) * HALO_SCALE)
-						h:SetAlpha(fade * (b.haloA or 0.6))
-						if b.spin then h:SetRotation(b.spin * e) end
-						if b.rise then h:SetPoint("CENTER", h:GetParent(), "CENTER", 0, b.rise * e) end
-					end
-				end
-				if p >= 1 then B.stop(tex) end
-			end
-		end
-		if next(run) == nil then self:SetScript("OnUpdate", nil) end
-	end
-	-- Starts a burst on tex (sized by the caller for its first frame).
-	function B.play(tex, b)
-		b.t = 0
-		run[tex] = b
-		tex:Show()
-		if b.halo then b.halo:Show() end
-		driver:SetScript("OnUpdate", step)
-	end
-	function B.stop(tex)
-		local b = run[tex]
-		if b and b.halo then b.halo:Hide() end
-		run[tex] = nil
-		tex:Hide()
-	end
-	function B.clear()
-		for tex in pairs(run) do B.stop(tex) end
-		driver:SetScript("OnUpdate", nil)
-	end
-	return B
-end
-
-------------------------------------------------------------------------
 -- Glow looks. The default is "soft", the soft inner glow. Each look is an entry with:
 --   uses      the glow style's fields it reads (color, speed, low, width, strength); the options
 --             show those
@@ -1009,181 +937,160 @@ addGlow("material", "School material", material)
 addGlow("heartbeat", "Heartbeat", heartbeat)
 
 ------------------------------------------------------------------------
--- The pop's parts past ns.Effects.pop's own plain flash, ring and star: Blizzard's edge flash
--- (Looks.popFlash) and the drawn bursts (Looks.popBurst), in the colour ns.Effects.pop gives them. A
--- burst's shapes follow the school of the icon it pops on. Shapes spread behind the icon over a
--- dark halo, so they read on bright ground; the sheen crosses the icon.
+-- The pop's parts past ns.Effects' own plain flash, ring and star: Blizzard's edge flash
+-- (Looks.popEdge) and the drawn bursts (Looks.popParts), as data for the pop's rig. A burst's
+-- shapes follow the school of the icon it pops on. Shapes spread behind the icon over a dark halo,
+-- so they read on bright ground (an added burst vanishes on bright ground without one, tested
+-- 2026-09-28: white bursts on snow); the sheen crosses the icon.
+-- A drawn burst is a list of parts, each a texture that grows (or shrinks), fades, turns and rises
+-- over its short life, in the colour the pop gives it:
+--   name         the rig's texture it takes (Looks.POP_PARTS)
+--   file         its texture
+--   layer, sub   its draw layer and sublevel
+--   add          added light (else blended); dark: black (the halo and the disc under a burst);
+--                color: a colour of its own
+--   from, to     its size at the start and at the end, in icon heights (the icon with its frame;
+--                square, or sy as tall as wide)
+--   dur, delay   its life and the wait before it starts, in seconds at the style's speed 1
+--   a, slow      its alpha at the start, fading to 0; slow: fading late
+--   spin, rise   radians it turns over its life; icon heights its centre moves up (down if less
+--                than 0)
+--   shift        { from, to }: the sheen's picture slides across the icon from and to these
+--                shares of it (up and left as they grow), in place of growing
 ------------------------------------------------------------------------
 local GCD_FLASH = "UI-HUD-ActionBar-GCD-Flipbook"
 local SCHOOLS = { earth = "Earth", fire = "Fire", water = "Water", air = "Air", spirit = "Spirit" }
 local SPIN = { earth = -0.35, fire = 0.25, water = -0.35, air = -1.2, spirit = -0.35 }
 local SHEEN = { earth = { -0.7, 0.7 }, fire = { -0.7, 0.7 }, water = { 0.7, -0.7 }, air = { -0.7, 0.7 }, spirit = { -0.7, 0.7 } }
+local HALO_SCALE, HALO_ALPHA = 1.08, 0.6
 
--- One of x's textures by name: front (over the icon, on the pop's light frame) or back (behind
--- the icon), made on first use. wrap: the file's wrap mode (default the client's).
-local function part(x, name, back, file, add, wrap)
-	x.parts = x.parts or {}
-	local t = x.parts[name]
-	if not t then
-		t = (back and x.back or x.fx):CreateTexture(nil, back and "ARTWORK" or "OVERLAY")
-		t:SetPoint("CENTER")
-		t:Hide()
-		x.parts[name] = t
-	end
-	if wrap then t:SetTexture(file, wrap, wrap) else t:SetTexture(file) end
-	t:SetBlendMode(add and "ADD" or "BLEND")
-	return t
-end
+-- The rig's textures for the drawn bursts, and where each sits: behind the icon, over it (on the
+-- pop's light frame), or over it clipped to its edge.
+Looks.POP_PARTS = { disc = "back", shape1 = "back", shape1Dark = "back", shape2 = "back", ring1 = "back",
+	ring2 = "back", spark = "front", sheen = "clip" }
 
--- A burst of file on x (behind the icon unless front), tinted c, from and to in icon heights h.
--- dark: with a dark copy under it (the halo that keeps it readable on bright ground).
-local function burst(x, name, file, c, h, from, to, b, front, dark)
-	local t = part(x, name, not front, file, true)
-	t:SetVertexColor(c[1], c[2], c[3])
-	t:SetSize(h * from, h * from)
-	t:SetRotation(0)
-	t:SetPoint("CENTER")
-	b.from, b.to = h * from, h * to
+-- A burst of file into out, from and to in icon heights, t its timing and motion (dur, delay, a,
+-- slow, spin, rise, sy, color). Behind the icon unless front. dark: with a dark copy under it, a
+-- little larger (the halo that keeps it readable on bright ground).
+local function burst(out, name, file, from, to, t, front, dark)
+	local a = t.a or 1
+	table.insert(out, { name = name, file = file, layer = front and "OVERLAY" or "ARTWORK", add = true,
+		color = t.color, from = from, to = to, dur = t.dur, delay = t.delay, a = a, slow = t.slow,
+		spin = t.spin, rise = t.rise, sy = t.sy })
 	if dark then
-		local d = part(x, name .. "Dark", true, file, false)
-		d:SetDrawLayer("BACKGROUND")
-		d:SetVertexColor(0, 0, 0)
-		d:SetRotation(0)
-		d:SetPoint("CENTER")
-		b.halo, b.haloA = d, 0.6
+		table.insert(out, { name = name .. "Dark", file = file, layer = "BACKGROUND", dark = true,
+			from = from * HALO_SCALE, to = to * HALO_SCALE, dur = t.dur, delay = t.delay, a = a * HALO_ALPHA,
+			slow = t.slow, spin = t.spin, rise = t.rise, sy = t.sy })
 	end
-	x.bursts.play(t, b)
-	return t
 end
 -- The dark disc under a burst: widest a little inside to, fading late.
-local function disc(x, h, to, dur, delay)
-	local t = part(x, "disc", true, MEDIA .. "Disc-Dark", false)
-	t:SetDrawLayer("BACKGROUND", -1)
-	t:SetVertexColor(0, 0, 0)
-	t:SetSize(h * to * 0.55, h * to * 0.55)
-	x.bursts.play(t, { dur = dur * 1.1, delay = delay, from = h * to * 0.55, to = h * to * 0.95, a = 0.75, slow = true })
+local function disc(out, to, dur, delay)
+	table.insert(out, { name = "disc", file = MEDIA .. "Disc-Dark", layer = "BACKGROUND", sub = -1, dark = true,
+		from = to * 0.55, to = to * 0.95, dur = dur * 1.1, delay = delay, a = 0.75, slow = true })
 end
--- A soft band crossing the icon.
-local function sheen(x, c, school, dur, delay)
-	local t = part(x, "sheen", false, MEDIA .. "Sheen", true, CLAMP)
-	t:ClearAllPoints()
-	t:SetAllPoints(x.fx)
-	t:SetVertexColor(c[1], c[2], c[3])
-	x.bursts.play(t, { dur = dur, delay = delay, a = 0.9, shift = SHEEN[school] or SHEEN.spirit })
+-- A soft band crossing the icon, in the school's direction.
+local function sheen(out, school, dur, delay)
+	table.insert(out, { name = "sheen", file = MEDIA .. "Sheen", layer = "OVERLAY", add = true, dur = dur,
+		delay = delay, a = 0.9, shift = SHEEN[school] or SHEEN.spirit })
 end
 local function shapeFile(school) return MEDIA .. "Shape-" .. (SCHOOLS[school] or "Spirit") end
 
--- Blizzard's cooldown-done flash, a light running round the edge, made stronger than
--- Blizzard draws it (too faint at 44, tested 2026-09-28): added, and a second copy a little larger.
-local function gcdFlash(x, c, k, s)
-	if not x.gcd then
-		x.gcd = {}
-		for i, grow in ipairs({ 1, 1.15 }) do
-			local t = x.fx:CreateTexture(nil, "OVERLAY", nil, 2)
-			t:SetAtlas(GCD_FLASH)
-			t:SetDesaturated(true)
-			t:SetBlendMode("ADD")
-			t:SetPoint("CENTER", x.fx, "CENTER", 0, 1)
-			t.grow = grow
-			x.gcd[i] = { tex = t, group = flipBook(t, 11, 2, 22, 0.75) }
-		end
-	end
-	for _, g in ipairs(x.gcd) do
-		g.tex:SetSize(s * g.tex.grow, s * g.tex.grow)
-		g.tex:SetVertexColor(c[1] * 0.6 + 0.4, c[2] * 0.6 + 0.4, c[3] * 0.6 + 0.4)
-		g.group:Stop()
-		g.group.flip:SetDuration(0.75 * k)
-		g.group.show:SetDuration(0.75 * k)
-		g.group:Play()
-	end
-end
-
--- Shapes spreading behind the icon (drawn or painted); a sheen in the school's
--- direction crosses the icon.
+-- Shapes spreading behind the icon (drawn or painted); a sheen in the school's direction crosses
+-- the icon.
 local function shapes(file, to)
-	return function(x, c, k, h, school)
-		disc(x, h, 3.0, 0.5 * k)
-		burst(x, "shape1", file(school), c, h, 1.0, to, { dur = 0.5 * k, spin = SPIN[school] }, false, true)
-		sheen(x, c, school, 0.34 * k)
+	return function(out, school)
+		disc(out, 3.0, 0.5)
+		burst(out, "shape1", file(school), 1.0, to, { dur = 0.5, spin = SPIN[school] }, false, true)
+		sheen(out, school, 0.34)
 	end
 end
 
 -- Each school its own effect: earth slams, fire flares up, water ripples twice, air spins,
 -- spirit gathers in and bursts.
 local EFFECTS = {
-	earth = function(x, c, k, h)
-		burst(x, "shape1", shapeFile("earth"), c, h, 0.8, 2.7, { dur = 0.5 * k, spin = 0.25, delay = 0.06 * k }, false, true)
-		burst(x, "ring1", MEDIA .. "Ring-Soft", c, h, 1.0, 2.6, { dur = 0.55 * k, sy = 0.42, rise = -h * 0.32, a = 0.9, delay = 0.06 * k })
-		sheen(x, c, "earth", 0.34 * k, 0.05 * k)
+	earth = function(out)
+		burst(out, "shape1", shapeFile("earth"), 0.8, 2.7, { dur = 0.5, spin = 0.25, delay = 0.06 }, false, true)
+		burst(out, "ring1", MEDIA .. "Ring-Soft", 1.0, 2.6, { dur = 0.55, sy = 0.42, rise = -0.32, a = 0.9, delay = 0.06 })
+		sheen(out, "earth", 0.34, 0.05)
 	end,
-	fire = function(x, c, k, h)
-		burst(x, "shape1", shapeFile("fire"), c, h, 1.0, 3.1, { dur = 0.55 * k, rise = h * 0.35, spin = 0.2 }, false, true)
-		burst(x, "shape2", shapeFile("fire"), { 1, 0.8, 0.45 }, h, 0.8, 1.9, { dur = 0.35 * k, rise = h * 0.5, spin = -0.3, a = 0.7 })
-		sheen(x, c, "fire", 0.34 * k)
+	fire = function(out)
+		burst(out, "shape1", shapeFile("fire"), 1.0, 3.1, { dur = 0.55, rise = 0.35, spin = 0.2 }, false, true)
+		burst(out, "shape2", shapeFile("fire"), 0.8, 1.9, { dur = 0.35, rise = 0.5, spin = -0.3, a = 0.7,
+			color = { 1, 0.8, 0.45 } })
+		sheen(out, "fire", 0.34)
 	end,
-	water = function(x, c, k, h)
-		burst(x, "ring1", MEDIA .. "Ring-Soft", c, h, 0.9, 2.4, { dur = 0.5 * k, a = 0.9 })
-		burst(x, "ring2", MEDIA .. "Ring-Soft", c, h, 0.9, 2.4, { dur = 0.5 * k, a = 0.7, delay = 0.16 * k })
-		burst(x, "shape1", shapeFile("water"), c, h, 1.1, 2.8, { dur = 0.6 * k, delay = 0.05 * k }, false, true)
-		sheen(x, c, "water", 0.34 * k)
+	water = function(out)
+		burst(out, "ring1", MEDIA .. "Ring-Soft", 0.9, 2.4, { dur = 0.5, a = 0.9 })
+		burst(out, "ring2", MEDIA .. "Ring-Soft", 0.9, 2.4, { dur = 0.5, a = 0.7, delay = 0.16 })
+		burst(out, "shape1", shapeFile("water"), 1.1, 2.8, { dur = 0.6, delay = 0.05 }, false, true)
+		sheen(out, "water", 0.34)
 	end,
-	air = function(x, c, k, h)
-		burst(x, "shape1", shapeFile("air"), c, h, 1.0, 3.2, { dur = 0.6 * k, spin = -2.1 }, false, true)
-		burst(x, "shape2", shapeFile("air"), { 1, 1, 1 }, h, 0.8, 2.0, { dur = 0.45 * k, spin = -1.6, a = 0.5 })
-		sheen(x, c, "air", 0.24 * k)
+	air = function(out)
+		burst(out, "shape1", shapeFile("air"), 1.0, 3.2, { dur = 0.6, spin = -2.1 }, false, true)
+		burst(out, "shape2", shapeFile("air"), 0.8, 2.0, { dur = 0.45, spin = -1.6, a = 0.5, color = { 1, 1, 1 } })
+		sheen(out, "air", 0.24)
 	end,
-	spirit = function(x, c, k, h)
-		burst(x, "ring1", MEDIA .. "Ring-Soft", c, h, 2.8, 1.0, { dur = 0.26 * k, a = 0.9, slow = true })
-		burst(x, "shape1", shapeFile("spirit"), c, h, 0.9, 3.2, { dur = 0.5 * k, spin = 0.6, delay = 0.22 * k }, false, true)
-		burst(x, "spark", MEDIA .. "Spark", c, h, 0.4, 1.6, { dur = 0.4 * k, a = 0.9, delay = 0.22 * k }, true)
+	spirit = function(out)
+		burst(out, "ring1", MEDIA .. "Ring-Soft", 2.8, 1.0, { dur = 0.26, a = 0.9, slow = true })
+		burst(out, "shape1", shapeFile("spirit"), 0.9, 3.2, { dur = 0.5, spin = 0.6, delay = 0.22 }, false, true)
+		burst(out, "spark", MEDIA .. "Spark", 0.4, 1.6, { dur = 0.4, a = 0.9, delay = 0.22 }, true)
 	end,
 }
 
--- The drawn bursts: burst(x, c, k, h, school), h the icon's height with its frame.
+-- The drawn bursts: each fills out with its parts for school.
 local BURSTS = {
 	shapes = shapes(shapeFile, 3.0),
 	painted = shapes(function(school) return MEDIA .. "Burst-" .. (SCHOOLS[school] or "Spirit") end, 3.2),
-	rune = function(x, c, k, h)
-		disc(x, h, 2.6, 0.6 * k)
-		burst(x, "shape1", MEDIA .. "Rune-Ring", c, h, 1.05, 2.6, { dur = 0.62 * k, spin = 0.55 }, false, true)
-		burst(x, "spark", MEDIA .. "Spark", { 1, 1, 1 }, h, 1.2, 2.2, { dur = 0.35 * k, a = 0.8 }, true)
+	rune = function(out)
+		disc(out, 2.6, 0.6)
+		burst(out, "shape1", MEDIA .. "Rune-Ring", 1.05, 2.6, { dur = 0.62, spin = 0.55 }, false, true)
+		burst(out, "spark", MEDIA .. "Spark", 1.2, 2.2, { dur = 0.35, a = 0.8, color = { 1, 1, 1 } }, true)
 	end,
-	school = function(x, c, k, h, school)
-		disc(x, h, 3.0, 0.6 * k)
+	school = function(out, school)
+		disc(out, 3.0, 0.6)
 		local effect = EFFECTS[school] or EFFECTS.spirit
-		effect(x, c, k, h)
+		effect(out)
 	end,
 }
+
+-- The parts of the drawn burst named key ("shapes", "painted", "rune", "school") for an icon of
+-- school; nil for the others (ns.Effects' own ring and star, or none). Made once each: the same
+-- table every time, never changed.
+local popParts = {}
+function Looks.popParts(key, school)
+	local draw = BURSTS[key]
+	if not draw then return nil end
+	local id = key .. ":" .. tostring(school)
+	if not popParts[id] then
+		popParts[id] = {}
+		draw(popParts[id], school)
+	end
+	return popParts[id]
+end
 
 -- The events whose pop takes the style's Colour (by event or by school): Ready, and a totem that
 -- ran out (the totem bar's pops, and the totem elements'). Killed early, Grounded and the imbue
 -- dropping are warnings: their pops keep their own colours.
 Looks.POP_EVENTS = { ready = true, expired = true }
 
--- The school f's looks take (ns.Effects.pop's colour by school).
+-- The school f's looks take (the pop's colour by school, its drawn bursts' shapes).
 Looks.schoolOf = schoolOf
 
--- Blizzard's edge flash on x, a pop's parts (ns.Effects.pop's), tinted c, k its duration multiplier,
--- size the icon's height (ns.Effects.pop's, never read under a secure button). Returns false on a
--- client without the art, for a plain flash in its place.
-function Looks.popFlash(x, c, k, size)
-	if not Looks.hasAtlas(GCD_FLASH) then return false end
-	gcdFlash(x, c, k, size)
-	return true
-end
-
--- The drawn burst named key ("shapes", "painted", "rune", "school"; the others are ns.Effects.pop's
--- own) on f, whose pop's parts are x: tinted c, k its duration multiplier, size as for popFlash.
-function Looks.popBurst(x, f, key, c, k, size)
-	local draw = BURSTS[key]
-	if not draw then return end
-	if not x.back then   -- behind the icon: only these bursts need it
-		x.back = CreateFrame("Frame", nil, f.effects or f)
-		x.back:SetAllPoints()
-		x.back:EnableMouse(false)
+-- Blizzard's cooldown-done flash, a light running round the edge, made stronger than Blizzard draws
+-- it (too faint at 44, tested 2026-09-28): added, and a second copy a little larger. Its two
+-- textures on parent, each { tex, group, grow }: group.flip and group.show (its FlipBook, and the
+-- Alpha that shows it while it plays) are timed by the caller, and grow is its size over the
+-- icon's. nil on a client without the art: the pop's plain flash stands in.
+function Looks.popEdge(parent)
+	if not Looks.hasAtlas(GCD_FLASH) then return nil end
+	local out = {}
+	for i, grow in ipairs({ 1, 1.15 }) do
+		local t = parent:CreateTexture(nil, "OVERLAY", nil, 2)
+		t:SetAtlas(GCD_FLASH)
+		t:SetDesaturated(true)
+		t:SetBlendMode("ADD")
+		t:SetPoint("CENTER", parent, "CENTER", 0, 1)
+		out[i] = { tex = t, group = flipBook(t, 11, 2, 22, 0.75), grow = grow }
 	end
-	-- Under the icon as it stands now: for an end flash's pop, the icon it covers (a totem bar
-	-- slot), so the shapes and their dark disc stay behind that slot's neighbours too.
-	x.back:SetFrameLevel(math.max((f.over or f):GetFrameLevel() - 1, 0))
-	draw(x, c, k, size + 2 * Looks.outerEdge(f.over or f), schoolOf(f))
+	return out
 end
