@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: the Heartbeat and Outer halo glows no longer flash across the screen when an icon pops.
+
 ## 0.11.1 (2026-10-01)
 
 - Racial abilities as elements (experimental): Stoneform, Blood Fury, Berserking, War Stomp and
