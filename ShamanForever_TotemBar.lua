@@ -91,6 +91,7 @@ TB.DEFAULTS = {
 	pixelEdge = 1,            -- its element-coloured edge (screen pixels)
 	stonePlinth = "normal",   -- the Stone and bronze theme's plinth: slim | normal | grand
 	stoneGems = true,         --   its gems (off: out of range is the red edge)
+	stoneExtrasScale = 0.7,   --   its Call and Recall size (the theme sets them one on each side)
 	barPlace = "in",          -- the time bars: in the icon | out: beside it, away from the pickers
 }
 
@@ -102,7 +103,7 @@ local RANGES = {
 	scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { -10, 20 }, size = { 24, 96 },
 	arrowSize = { 8, 32 }, extrasScale = { 0.5, 1.5 }, idleAlpha = { 0.1, 1 },
 	badgeSize = { 0.25, 0.8 }, badgeAlpha = { 0.1, 1 }, badgeSat = { 0, 1 }, warn = { 0, 30 }, rangeHeight = { 1, 12 },
-	fadeAfter = { 0, 10 }, badgeX = { -30, 30 }, badgeY = { -30, 30 }, keySize = { 6, 30 }, keyX = { -20, 20 }, keyY = { -20, 20 }, pixelEdge = { 1, 4 },
+	fadeAfter = { 0, 10 }, badgeX = { -30, 30 }, badgeY = { -30, 30 }, keySize = { 6, 30 }, keyX = { -20, 20 }, keyY = { -20, 20 }, pixelEdge = { 1, 4 }, stoneExtrasScale = { 0.5, 1.5 },
 }
 local function finite(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
@@ -706,7 +707,7 @@ for _, e in pairs(extras) do keyTexts[e.button] = e.keys.text end
 
 -- Which extras show, and where: the keys before the slots and the keys after them.
 local function extraSides()
-	local c = cfg()
+	local c = TB.eff()
 	local list = {}
 	if feat("call") and knows(CALL) then table.insert(list, "Call") end
 	if feat("recall") then table.insert(list, "Recall") end

@@ -893,11 +893,14 @@ local function buildTotemBar(p)
 		free("spacing"))
 	p:text(function()
 		local names = {}
-		for _, it in ipairs({ { "dir", "Direction" }, { "pop", "Pickers open" }, { "spacing", "Spacing" } }) do
+		for _, it in ipairs({ { "dir", "Direction" }, { "pop", "Pickers open" }, { "spacing", "Spacing" },
+				{ "extras", "Call and Recall" } }) do
 			if TB.skin.owns(it[1]) then table.insert(names, it[2]) end
 		end
 		return table.concat(names, ", ") .. ": set by the theme."
-	end, function() return TB.skin.owns("dir") or TB.skin.owns("pop") or TB.skin.owns("spacing") end)
+	end, function()
+		return TB.skin.owns("dir") or TB.skin.owns("pop") or TB.skin.owns("spacing") or TB.skin.owns("extras")
+	end)
 	-- Its own size is not its scale: scale grows everything, text, arrows, spacing and lines included.
 	local sizeFollow = generalRow(p, "Icon size same as General", "Use the icon size on the General page.",
 		tget("sizeFollow"), function(v) TB.setSizeFollow(v); changed() end, "size")
@@ -906,9 +909,12 @@ local function buildTotemBar(p)
 			tget("size"), tset("size"))
 	end)
 	p:dropdown("Call and Recall", "Where they sit on the bar.", { { "ends", "Both ends" }, { "before", "Before the slots" }, { "after", "After the slots" } },
-		tget("extras"), tset("extras"), showWhen(function() return c().call or c().recall end, full), 180)
+		tget("extras"), tset("extras"),
+		showWhen(function() return (c().call or c().recall) and not TB.skin.owns("extras") end, full), 180)
+	-- Its size: the theme's own where it keeps one (a smaller default).
 	p:slider("Call and Recall size", "As a share of the slots' size.", 0.5, 1.5, 0.05,
-		pct, tget("extrasScale"), tset("extrasScale"),
+		pct, function() return TB.eff().extrasScale end,
+		function(v) c()[TB.skin.extrasScaleKey()] = v; changed() end,
 		showWhen(function() return c().call or c().recall end, full))
 	p:slider("Scale", "Grows everything on the bar, borders too.", 0.5, 3, 0.05,
 		times, tget("scale"), tset("scale"))

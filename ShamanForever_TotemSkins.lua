@@ -68,6 +68,8 @@ end
 --   border, extrasBorder  border styles for the slots (or a function returning one) and for Call
 --                  and Recall
 --   behind         what sits behind the slots: "tray", "plinth" (with a gem under each slot)
+--   extrasScaleKey the bar setting that holds Call and Recall's size under this look (its own
+--                  default); the options' size row edits it
 --   fixedSlots     drawn round four slots: every element keeps its place, one not shown (not
 --                  learned, or hidden) a sealed socket
 --   timeBar        the slots' time bars: "tip" (a bright line at the fill's end)
@@ -118,11 +120,14 @@ add("stone", {
 	owns = function()
 		local gap, cap = shares(plinthNow())
 		-- Without its gems, out of range is the red edge, at the player's Height.
+		-- Call and Recall one on each side, as on Blizzard's totem bar, at the theme's own size.
 		return { border = true, range = true, rangeHeight = TB.cfg().stoneGems or nil, spacing = gap,
-			extrasGap = cap + 0.12, dir = "row", pop = "up", barPlace = true }
+			extrasGap = cap + 0.12, dir = "row", pop = "up", barPlace = true, extras = "ends",
+			extrasScale = TB.cfg().stoneExtrasScale }
 	end,
 	border = borderStyle("line", 1), extrasBorder = borderStyle("medallion"),
 	behind = "plinth", picker = "stone", arrow = "bronze", fixedSlots = true,
+	extrasScaleKey = "stoneExtrasScale",
 	mark = function() return TB.cfg().stoneGems and "gem" or "edge" end,
 	badgeGap = function(size) return select(2, plinthReach(size)) end,
 	rangeText = function()
@@ -150,6 +155,9 @@ function SK.rangeText()
 	return t
 end
 
+-- The bar setting Call and Recall's size is kept in under the look picked now.
+function SK.extrasScaleKey() return SK.current().extrasScaleKey or "extrasScale" end
+
 -- Whether the look picked now is drawn round four fixed slots (the bar keeps a place for each).
 function SK.fixedSlots() return SK.current().fixedSlots == true end
 
@@ -162,7 +170,8 @@ end
 ------------------------------------------------------------------------
 -- Settings a look owns: owns = { border = true, spacing = share, extrasGap = share (the gap to
 -- Call and Recall), dir = "row", pop = "up",
--- range = true (the range colours), rangeHeight = true, barPlace = true (the time bar's place) }.
+-- range = true (the range colours), rangeHeight = true, barPlace = true (the time bar's place),
+-- extras = "ends" (Call and Recall's place), extrasScale = n (their size) }.
 -- The options hide what it owns; the layout reads it through TB.eff().
 ------------------------------------------------------------------------
 -- The settings the look picked now owns (a look's owns can be a function of its own settings).
@@ -184,7 +193,7 @@ local POPS = { row = { up = true, down = true }, column = { right = true, left =
 function SK.owned(field)
 	local o = ownsNow()
 	if not o then return nil end
-	if field == "dir" then return o.dir end
+	if field == "dir" or field == "extras" or field == "extrasScale" then return o[field] end
 	if field == "pop" and o.pop then return o.pop end
 	if field == "pop" and o.dir then
 		local pop = TB.cfg().pop
