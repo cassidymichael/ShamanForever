@@ -53,8 +53,18 @@ local shield = ns.newElementIcon("shield")   -- its icon: the plain one, while t
 -- shield look doesn't hang from it.
 local gate = CreateFrame("Frame", nil, shield)
 gate:SetAllPoints(shield)
+-- The Idle block's choices (idleWhen; see idleBlock in ShamanForever_OptionsElements.lua).
+local IDLE_CHOICES = {
+	{ "never", "Never", "It always shows in full" },
+	{ "up", "Shield up", "Idle while your shield is up", "Shown in full only as No shield." },
+	{ "charges", "2 or more charges",
+		"Idle while it has 2 or more charges. It shows in full at 1 charge and as No shield at 0",
+		"Shown in full at 1 charge and as No shield." },
+}
 ns.registerElement("shield", { frame = shield, label = "Shields", paint = function(t) t:SetTexture(SH.icon()) end,
 	learned = function() return SH.learned() end,
+	defaults = { idleWhen = "never", idleAlpha = 0.3 },
+	def = { key = "shield", idleChoices = IDLE_CHOICES },
 	kind = "shield", icon = 136051, school = "spirit", blurb = "Charges and time left. Warns when it's gone." })
 
 -- Per shield at runtime: name (the client's), spellID and bookIcon (highest known rank), known. The
