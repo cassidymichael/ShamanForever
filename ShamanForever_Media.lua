@@ -32,7 +32,7 @@ S.register("text", {
 	path = { "textStyle" },
 })
 S.register("bar", {
-	defaults = { texture = "" },   -- a name; "" is flat
+	defaults = { texture = "Blizzard" },   -- a name; "" is flat
 	path = { "barStyle" },
 })
 

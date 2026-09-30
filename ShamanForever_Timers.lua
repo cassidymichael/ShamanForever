@@ -30,12 +30,12 @@ T.DEFAULTS = {
 	cooldown = {
 		text = true, textSize = 18, textColor = { 1, 1, 1, 1 }, textPos = "center", abbrev = 0,
 		swipe = true, swipeAlpha = 0.65, swipeReverse = false,
-		bar = false, barHeight = 8, barElement = true, barColor = { 0.9, 0.8, 0.3, 1 }, barEdge = "top",
+		bar = false, barHeight = 8, barElement = true, barColor = { 1, 0.9, 0.35, 1 }, barEdge = "top",
 	},
 	uptime = {
 		text = true, textSize = 12, textColor = { 0.5, 1, 0.4, 1 }, textPos = "auto", abbrev = 0,
 		swipe = false, swipeAlpha = 0.6, swipeReverse = true,
-		bar = true, barHeight = 8, barElement = true, barColor = { 0.4, 0.9, 0.3, 1 }, barEdge = "bottom",
+		bar = true, barHeight = 8, barElement = true, barColor = { 0.46, 1, 0.35, 1 }, barEdge = "bottom",
 	},
 }
 for _, kind in ipairs(T.KINDS) do
@@ -207,7 +207,7 @@ local fonts = 0
 --   anchor = the icon the parts cover (default parent)
 --   cd     = an existing Cooldown to use (its frame level is kept)
 --   dual   = the icon also shows the other kind of timer ("auto" text then goes top-left)
---   school = colour for "element colour" bars (a key of ns.SCHOOL_COLOR), or a function returning one
+--   school = colour for "element colour" bars (a key of ns.SCHOOL_BAR_COLOR), or a function returning one
 --   aura   = the timer is on Blizzard's aura button (ns.makeAuraSlot), which draws the time: the
 --            button drives the bar (T.AURA_BAR), so it is shown whenever the style has one and is
 --            never fed a duration here; its looks change only out of combat (the slot's restyle)
@@ -249,8 +249,8 @@ end
 
 local function schoolColor(t)
 	local school = type(t.school) == "function" and t.school() or t.school
-	local c = school and ns.SCHOOL_COLOR[school]
-	return c or { 0.4, 0.9, 0.3 }
+	local c = school and ns.SCHOOL_BAR_COLOR[school]
+	return c or { 0.46, 1, 0.35 }
 end
 
 -- Takes the current style. Safe any time for our own frames; the shield's Cooldown is restyled

@@ -37,7 +37,7 @@ SW.ICON = Spells.icon("attack") or 135274   -- Attack's icon, or a sword if the 
 
 -- The fill's colour by the main hand's imbue (ShamanForever_Imbue.lua), grey with none.
 local IMBUE_SCHOOL = { rockbiter = "earth", flametongue = "fire", frostbrand = "water", windfury = "air" }
-local NO_IMBUE = { 0.6, 0.6, 0.6 }
+local NO_IMBUE = { 0.7, 0.7, 0.7 }
 
 ------------------------------------------------------------------------
 -- Settings: per profile, in db.swingBar
@@ -50,7 +50,7 @@ SW.DEFAULTS = {
 	width = 220, height = 7,   -- in the bar's own units: Scale grows them, lines too
 	scale = 1,
 	alpha = 0.75,
-	colorBy = "imbue", color = { 0.9, 0.7, 0.2, 1 },   -- imbue | custom
+	colorBy = "imbue", color = { 1, 0.8, 0.25, 1 },   -- imbue | custom
 	fillFrom = "left",        -- left | right: the side the fill starts from
 	deplete = false,          -- starts full and empties
 	countdown = false, countdownSize = 12, countdownColor = { 1, 1, 1, 1 },
@@ -200,7 +200,7 @@ local function fillColor()
 	local c = cfg()
 	if c.colorBy == "custom" then return c.color end
 	local school = IMBUE_SCHOOL[ns.Imbue.mainHand() or ""]
-	return school and ns.SCHOOL_COLOR[school] or NO_IMBUE
+	return school and ns.SCHOOL_BAR_COLOR[school] or NO_IMBUE
 end
 SW.fillColor = fillColor
 local function paintFill()
