@@ -529,7 +529,8 @@ local function styleUnder()
 	g:fit(math.max(ns.sizeOf(def.key) - 2 * px, 1))
 	local function shape(frame)
 		for _, r in ipairs({ frame:GetRegions() }) do
-			if r:IsObjectType("Texture") then ns.Looks.maskOver(f, r, u.tex) end
+			-- Masks are textures too, but take no mask themselves (the look's own masks live here).
+			if r:IsObjectType("Texture") and not r:IsObjectType("MaskTexture") then ns.Looks.maskOver(f, r, u.tex) end
 		end
 		for _, c in ipairs({ frame:GetChildren() }) do shape(c) end
 	end
