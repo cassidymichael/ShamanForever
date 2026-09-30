@@ -316,6 +316,7 @@ end
 -- each only where the element has something it applies to.
 local function elementDisplay(p, key)
 	ELEMENT_PAGES[key] = p.key
+	p.resetAll = { text = function() return "Reset " .. ns.Look.elementName(key) end, ask = function() EP.askReset(key) end }
 	p:hero(key)
 	p:callout("Not learned yet. It shows on screen once your character knows the spell.",
 		function() return not ns.isLearned(key) and not ns.Spells.otherRace(ns.ELEMENTS[key].race) end)

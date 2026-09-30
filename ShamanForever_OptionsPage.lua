@@ -417,36 +417,53 @@ local function paintArrow(t, isFolded)
 	end
 end
 
--- The header's arrow and, folded, what's on.
+-- Small text links, muted grey and gold under the mouse: Expand all and Collapse all, and the
+-- Reset links.
+local LINK_H, LINK_GAP = 18, 14
+local LINK_GREY = 0.62
+local function textLink(parent, text, onClick)
+	local b = CreateFrame("Button", nil, parent)
+	b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	b.text:SetPoint("LEFT")
+	b:SetScript("OnClick", onClick)
+	b:SetScript("OnEnter", function() b.text:SetTextColor(1, 0.82, 0) end)
+	b:SetScript("OnLeave", function() b.text:SetTextColor(LINK_GREY, LINK_GREY, LINK_GREY) end)
+	b.text:SetTextColor(LINK_GREY, LINK_GREY, LINK_GREY)
+	function b.say(t)
+		b.text:SetText(t)
+		b:SetSize(b.text:GetStringWidth() + 2, LINK_H)
+	end
+	b.say(text)
+	return b
+end
+
+-- The Reset links, shown while what they reset has changes, each asking first: a block's at the
+-- right of its header, and a page's own (page.resetAll: { text(), ask() }, an element page's
+-- "Reset <name>") at the left of the fold row. Placed here only.
+local function placeResets(header, foldRow)
+	if header then header.reset:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", 0, 5) end
+	if foldRow then foldRow.resetAll:SetPoint("LEFT", foldRow, "LEFT", 4, 0) end
+end
+
+-- The header's arrow, its Reset link and, folded, what's on (left of the link while it shows).
 function Page:paintHeader(b)
 	local f = b.head.frame
 	local isFolded = folded()[b.key] and true or false
 	paintArrow(f.arrow, isFolded)
+	local changed = b:changed()
+	f.reset:SetShown(changed)
+	local resetW = changed and f.reset:GetWidth() + LINK_GAP or 0
 	f.says:SetShown(isFolded)
 	if isFolded then
+		f.says:SetPoint("BOTTOMRIGHT", -resetW, 9)
 		f.says:SetText(onList(b))
 		local used = f.textX + f.text:GetStringWidth() + (f.note and 10 + f.note:GetStringWidth() or 0)
-		f.says:SetWidth(math.max(self.rowW - used - 24, 1))   -- cut short with "..." where it's long
+		f.says:SetWidth(math.max(self.rowW - used - resetW - 24, 1))   -- cut short with "..." where it's long
 	end
 end
 
 -- Expand all and Collapse all: a thin row of two text links at the top of the page, above every
 -- block, on pages with two blocks or more. Shift-click on any header does the same.
-local FOLD_ROW_H, LINK_GAP = 18, 14
-local LINK_GREY = 0.62
-local function foldLink(row, text, onClick)
-	local b = CreateFrame("Button", nil, row)
-	b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	b.text:SetPoint("LEFT")
-	b.text:SetText(text)
-	b:SetSize(b.text:GetStringWidth() + 2, FOLD_ROW_H)
-	b:SetScript("OnClick", onClick)
-	b:SetScript("OnEnter", function() b.text:SetTextColor(1, 0.82, 0) end)
-	b:SetScript("OnLeave", function() b.text:SetTextColor(LINK_GREY, LINK_GREY, LINK_GREY) end)
-	b.text:SetTextColor(LINK_GREY, LINK_GREY, LINK_GREY)
-	return b
-end
-
 -- The row at the top of the page (on shows whether it's there); returns the height it takes.
 function Page:placeFoldRow(on)
 	local row = self.foldRow
@@ -456,21 +473,26 @@ function Page:placeFoldRow(on)
 	end
 	if not row then
 		row = CreateFrame("Frame", nil, self.content)
-		row:SetHeight(FOLD_ROW_H)
-		row.collapse = foldLink(row, "Collapse all", function() self:foldAll(true) end)
+		row:SetHeight(LINK_H)
+		row.collapse = textLink(row, "Collapse all", function() self:foldAll(true) end)
 		row.collapse:SetPoint("RIGHT", row, "RIGHT", 0, 0)
-		row.expand = foldLink(row, "Expand all", function() self:foldAll(false) end)
+		row.expand = textLink(row, "Expand all", function() self:foldAll(false) end)
 		row.expand:SetPoint("RIGHT", row.collapse, "LEFT", -LINK_GAP, 0)
+		if self.resetAll then
+			row.resetAll = textLink(row, "", self.resetAll.ask)
+			placeResets(nil, row)
+		end
 		self.foldRow = row
 	end
 	row:ClearAllPoints()
 	row:SetPoint("TOPLEFT", self.content, "TOPLEFT", 0, 0)
 	row:SetPoint("TOPRIGHT", self.content, "TOPRIGHT", 0, 0)
 	row:Show()
-	return FOLD_ROW_H
+	return LINK_H
 end
 
--- Each link dims, and takes no clicks, while it would change nothing.
+-- Each fold link dims, and takes no clicks, while it would change nothing; the page's Reset link
+-- shows while the page has changes.
 function Page:paintFoldRow()
 	local row = self.foldRow
 	if not (row and row:IsShown()) then return end
@@ -483,6 +505,10 @@ function Page:paintFoldRow()
 	for _, pair in ipairs({ { row.expand, anyFolded }, { row.collapse, anyOpen } }) do
 		pair[1]:SetEnabled(pair[2])
 		pair[1]:SetAlpha(pair[2] and 1 or 0.45)
+	end
+	if row.resetAll then
+		row.resetAll.say(self.resetAll.text())
+		row.resetAll:SetShown(self:changed())
 	end
 end
 
@@ -722,10 +748,12 @@ function Page:header(text, shown, note, icon)
 		f.arrow = f:CreateTexture(nil, "ARTWORK")
 		f.arrow:SetPoint("CENTER", f, "BOTTOMLEFT", 6, 15)
 		f.says = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-		f.says:SetPoint("BOTTOMRIGHT", 0, 9)
 		f.says:SetJustifyH("RIGHT")
 		f.says:SetWordWrap(false)
 		f.says:Hide()
+		f.reset = textLink(f, "Reset", function() block:askReset() end)
+		f.reset:Hide()
+		placeResets(f)
 		x = 16
 	end
 	f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
