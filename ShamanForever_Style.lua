@@ -47,10 +47,11 @@ S.register("pop", {
 	defaults = { colorBy = "event", flash = "plain", burst = "star", motion = "shakeV", size = 1.4, speed = 1 },
 	path = { "popStyle" },   -- not "pop": the totem bar's pop is where its pickers open
 })
--- Whether buttons show the global cooldown's sweep after every cast, as action bars do. Off, an
--- element with a cooldown of its own still shows that cooldown, which its own cast starts.
+-- Whether buttons show the global cooldown's sweep after every cast, as action bars do (on by
+-- default). Off, an element with a cooldown of its own still shows that cooldown, which its own
+-- cast starts.
 S.register("gcd", {
-	defaults = { show = false },
+	defaults = { show = true },
 	path = { "gcdStyle" },
 	-- Reincarnation's hour-long cooldown never needs the sweep, whatever General says.
 	ownerDefaults = { reincarnation = { show = false } },
