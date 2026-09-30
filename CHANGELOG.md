@@ -8,6 +8,12 @@
 - Totem bar: the Not your pick badge sits against its slot.
 - Shields' No shield and Flame Shock's Not on target: their pulsing glow can use every glow look,
   including ones past the icon's edge, in combat too.
+- Shields and Flame Shock follow their group's opacity, and their No shield and Not on target
+  looks show at any opacity.
+- Idle for every element: the shocks, every cooldown and Weapon Imbue choose when they count as
+  idle (Never, Ready, Cooling down), and fade or hide then. Weapon Imbue's Hide until low is now
+  its Idle choice. Totem cooldowns fade to 30% by default.
+- Elemental Focus and Maelstrom Weapon show their border while the buff is up.
 
 ## 0.10.0 (2026-09-30)
 

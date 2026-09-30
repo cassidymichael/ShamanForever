@@ -27,7 +27,7 @@ A collection of highly configurable HUD elements designed to help shamans playin
 - **Utility Trackers**: Elemental Focus, Water Walking, Water Breathing, Maelstrom Weapon, Totemic Projection, Reincarnation.
 - **Text and Bars**: font, outline, shadow and bar texture for the HUD, from the game's or any that another addon shares through LibSharedMedia.
 
-The addon organizes these elements into configurable groups with unlock and preview modes for customizable on-screen placement.
+The addon organizes these elements into configurable groups with unlock and preview modes for customizable on-screen placement. Each element can fade or hide while it's idle, for example a shock shown only while it cools down.
 
 Some features are experimental, not yet tested in game; the About page lists them.
 
