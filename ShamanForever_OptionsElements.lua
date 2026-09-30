@@ -273,11 +273,11 @@ local function idleBlock(p, def)
 end
 
 -- Standard blocks at the end of a page: the pulsing glow's and the pop's styles, General's or its
--- own. glow, pop: whether the element has any (a block that could change nothing isn't shown).
-local function effectBlocks(p, key, popKind, glow, pop)
-	local icon = ns.ELEMENTS[key].icon
-	if glow ~= false then glowBlock(p, key, icon) end
-	if pop ~= false then popBlock(p, key, icon, popKind or "ready") end
+-- own, where the element has something they apply to (its effects, ns.registerElement).
+local function effectBlocks(p, key)
+	local e = ns.ELEMENTS[key]
+	if #e.effects.glow > 0 then glowBlock(p, key, e.icon) end
+	if #e.effects.pop > 0 then popBlock(p, key, e.icon, e.effects.popKind or "ready") end
 end
 
 -- Standard block: the look while something is missing. first: an optional row before the three.
@@ -337,7 +337,7 @@ local function buildShield(p, def)
 
 	timerSettings(p, "Time left", "shield", "uptime")
 	gcdBlock(p, "shield")
-	effectBlocks(p, "shield", nil, nil, false)   -- it never pops
+	effectBlocks(p, "shield")
 end
 
 local function buildShock(p, def)
@@ -395,7 +395,7 @@ local function buildImbue(p, def)
 			function(v) return v == 0 and "Never" or string.format("%d min", v) end, get("imbueWarnMins"), set("imbueWarnMins"))
 		p:text("Time left shows once it's below this. 0 never shows it.")
 	end)
-	effectBlocks(p, "imbue", "imbue")
+	effectBlocks(p, "imbue")
 end
 
 -- Primed: when it starts (from your cast), what spends it, and how it looks meanwhile.
@@ -453,17 +453,6 @@ local function expiringBlock(p, key, maxSecs, step, only)
 	expiringLooks(p, xget, xset, "icon", showWhen(function() return ns.Timer.expireOpts(key).secs > 0 end), only)
 end
 
--- Whether a cooldown element has a pulsing glow anywhere (else its Pulsing glow style is left out).
-local function cooldownHasGlow(def)
-	if def.needsTotem or def.totemSlot or def.readyGlow then return true end
-	if def.primed and def.primedLooks ~= false then return true end
-	local looks = def.expireLooks
-	if (def.window or (def.primed and def.primed.duration)) and looks ~= false then
-		if looks == nil or tContains(looks, "glow") then return true end
-	end
-	return false
-end
-
 -- One page per cooldown element; the blocks depend on what the element tracks.
 local function buildCooldown(p, def)
 	local key = def.key
@@ -509,7 +498,7 @@ local function buildCooldown(p, def)
 		killedBlock(p, function(n) return eget(key, n) end, function(n) return eset(key, n) end, "icon",
 			"Flash when it dies early")
 	end
-	effectBlocks(p, key, nil, cooldownHasGlow(def), not def.noReady or def.totemSlot ~= nil or def.primed ~= nil)
+	effectBlocks(p, key)
 end
 
 -- One page per buff element (ShamanForever_Buffs.lua).
@@ -572,8 +561,7 @@ local function buildBuff(p, def)
 	end
 	if def.proc and not def.noGlow then procBlock()
 	elseif not def.proc then expiringBlock(p, key, 120, 5) end
-	-- The water buffs never pop.
-	effectBlocks(p, key, nil, not def.noGlow, def.proc and not def.noPop)
+	effectBlocks(p, key)
 end
 
 -- Tremor Totem's watchlist: a box that searches the list and adds a name, Add target, the list (a
@@ -795,6 +783,7 @@ local function buildMaelstrom(p, def)
 		eset(key, "fullPop"), lit)
 	p:checkbox("Pulsing glow", "The highlight pulses while at five, at the Pulsing glow style's speed.",
 		eget(key, "fullGlow"), eset(key, "fullGlow"), lit)
+	effectBlocks(p, key)
 end
 PAGE.maelstrom = buildMaelstrom
 

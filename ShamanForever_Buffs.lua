@@ -86,6 +86,8 @@ for _, def in ipairs(BUFFS) do
 		paint = function(t) t:SetTexture(def.icon) end,
 		-- Preview mode: the proc's border is on Blizzard's button, not its frame (ShamanForever_Preview.lua).
 		standInBorder = def.proc,
+		-- The water buffs never pop.
+		effects = def.proc and { glow = { "up" }, pop = { "up" } } or { glow = { "expiring" }, pop = {} },
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
 		experimental = def.experimental })
 end

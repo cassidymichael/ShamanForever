@@ -388,6 +388,7 @@ for _, def in ipairs(TARGET) do
 		borderHost = def.idleEdge,
 		-- Preview mode: its border isn't on its frame (ShamanForever_Preview.lua).
 		standInBorder = true,
+		effects = { glow = def.noGlow and {} or { "up" }, pop = def.noPop and {} or { "up" } },
 		learned = function() return def.spellID ~= nil end,
 		paint = function(t) t:SetTexture(def.icon) end,
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,

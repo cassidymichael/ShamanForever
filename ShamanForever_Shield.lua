@@ -71,6 +71,7 @@ ns.registerElement("shield", { frame = shield, label = "Shields", paint = functi
 	learned = function() return SH.learned() end,
 	defaults = { idleWhen = "never", idleAlpha = 0.3 },
 	def = { key = "shield", idleChoices = IDLE_CHOICES },
+	effects = { glow = { "missing" }, pop = {} },   -- it never pops
 	borderHost = edge,
 	-- Preview mode: its border is at the gate's opacity, so while that is below full (Idle on) its
 	-- stand-in draws its own; else the real one shows (ShamanForever_Preview.lua).
