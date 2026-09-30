@@ -544,7 +544,7 @@ local function buffPreview(def)
 	local states = { { "up", def.proc and (def.upLabel or ns.Spells.name("clearcasting")) or "Up" } }
 	if not def.proc or def.expiring then table.insert(states, { "expiring", "Expiring" }) end
 	if def.missing then table.insert(states, { "missing", "Not on target" }) end
-	table.insert(states, { "idle", "Not up" })
+	table.insert(states, { "idle", def.idleLabel or "Not up" })
 	if def.reagent then
 		table.insert(states, { "low", "Not up, few left" })
 		table.insert(states, { "out", "Not up, none left" })
@@ -571,12 +571,10 @@ local function buffPreview(def)
 				else frozen(ic.upT, 0.3, 600) end
 			elseif st == "expiring" then expiringLook(ic, key, def.proc and 12 or 600)
 			elseif st == "missing" then
-				local grey, ring, pulse = opt(key, "missGrey"), opt(key, "missRing"), opt(key, "missPulse")
-				if grey or ring or pulse then
-					ic.tex:SetDesaturated(grey)
-					ic:SetRingShown(ring)
-					ic:SetPulsing(pulse)
-				else idleLook(ic, key) end
+				-- At full with a hostile target, whatever its looks (none: the plain icon).
+				ic.tex:SetDesaturated(opt(key, "missGrey"))
+				ic:SetRingShown(opt(key, "missRing"))
+				ic:SetPulsing(opt(key, "missPulse"))
 			elseif st == "idle" then idleLook(ic, key)
 			elseif st == "low" or st == "out" then
 				-- Running low isn't idle when Idle counts reagents (the default).

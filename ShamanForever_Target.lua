@@ -56,16 +56,17 @@ local gateAlpha   -- below
 
 -- The target's aura elements, in the order the options list them. filter: the aura slot's filter
 -- string; candidates(def): its candidate filters (default: the spell IDs of auraKey). The page's
--- texts (ShamanForever_OptionsElements.lua): idleText, procHeader, popTip, glowTip, upLabel (its
--- preview's state). noPop: no pop when it shows (its glow only). ownIcon: its own icon on the
--- button, never the aura's. noTimer: no time left. expiring and missing: its Expiring and Not on target blocks (Flame
--- Shock's, below). defaults: its own option defaults (ns.elementSetting).
+-- texts (ShamanForever_OptionsElements.lua): idleText, procHeader, popTip, glowTip, upLabel and
+-- idleLabel (its preview's up and idle states). noPop: no pop when it shows (its glow only).
+-- ownIcon: its own icon on the button, never the aura's. noTimer: no time left. expiring and
+-- missing: its Expiring and Not on target blocks (Flame Shock's, below). defaults: its own option
+-- defaults (ns.elementSetting).
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
 		icon = 135813, school = "fire", blurb = "Shows while your Flame Shock is on your target.",
 		idleText = "Idle is when you have no hostile target", procHeader = "On your target",
 		popTip = "When it shows on your target. The icon grows and settles, at the Pop style's size and speed.",
-		glowTip = "While it's on your target.", upLabel = "On target",
+		glowTip = "While it's on your target.", upLabel = "On target", idleLabel = "No target",
 		expiring = true, missing = true,   -- its Expiring and Not on target blocks
 		defaults = { idleAlpha = 0, primedPop = false, primedGlow = false, expire = { secs = 3 },
 			missGrey = true, missRing = false, missPulse = false },
@@ -79,7 +80,7 @@ local TARGET = {
 		skipLong = { 1, 30, 1 },   -- Longest buff's range and step, in minutes (its page's slider)
 		idleText = "Idle is when your target has nothing to purge", procHeader = "Something to purge",
 		noPop = true, ownIcon = true, noTimer = true,
-		glowTip = "While your target has one.", upLabel = "Magic buff",
+		glowTip = "While your target has one.", upLabel = "Magic buff", idleLabel = "Nothing to purge",
 		defaults = { idleAlpha = 0, primedGlow = true, skipLong = false, skipLongMins = 2 },
 		experimental = "Purge" },
 }
