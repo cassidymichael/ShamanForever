@@ -27,7 +27,8 @@ end
 local eopt = K.eopt
 -- Its value, for what only reads it (a row shown while it's on).
 local function eread(key, name) return function() return ns.elementSetting(key, name) end end
--- A profile setting (db) bound to a row on an element's page (the shield's, the shock's...), as eopt.
+-- A profile setting (db) bound to a row on an element's page (the shield's, the shock's...), as
+-- eopt.
 local function gopt(p, name, after)
 	p:owns({ general = name, after = after or relayout })
 	return get(name), set(name, after)
@@ -419,7 +420,8 @@ local function effectBlocks(p, key)
 end
 
 -- Standard block: the look while something is missing. opt(name) gives a row's getter and setter;
--- names: the settings of Grey icon, Red ring and Fade in and out. first: an optional row before them.
+-- names: the settings of Grey icon, Red ring and Fade in and out. first: an optional row before
+-- them.
 local function warningBlock(p, title, opt, names, first)
 	p:header(title)
 	if first then first() end
