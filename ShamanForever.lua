@@ -5,8 +5,9 @@
 -- Rule for this client: never do Lua math or comparisons on a possibly-secret value. In combat, show
 -- state through Blizzard's own widgets instead: the aura container for the shield, duration objects
 -- for cooldowns and totem timers, curves and SetAlpha for anything that must appear or disappear.
--- What can't be read in combat is inferred from our own casts, which can: the shield's "up" state
--- (ShamanForever_Shield.lua), primed states and buff windows (_Cooldowns), the water buffs (_Buffs).
+-- What can't be read in combat is inferred from our own casts, which can: primed states and buff
+-- windows (_Cooldowns), the water buffs (_Buffs). The shield needs no inference: Blizzard's button
+-- over its No shield look is the switch (ShamanForever_Shield.lua).
 
 local ADDON, ns = ...
 local say, isSecret = ns.say, ns.isSecret
