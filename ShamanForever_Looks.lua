@@ -871,6 +871,13 @@ local spark = {
 local MATERIAL = {   -- school -> tile move (in tiles), seconds a tile
 	earth = { 0, 0, 1 }, fire = { 0, 1, 2.2 }, water = { 1, -1, 5 }, air = { 1, 0, 1.2 }, spirit = { 1, -1, 5 },
 }
+-- The drift for the school and the size last fitted (none yet: fit sets it).
+local function materialDrift(parts)
+	local size = parts.size
+	if not size then return end
+	local mv = MATERIAL[parts.school or "spirit"] or MATERIAL.spirit
+	parts.move:SetOffset(mv[1] * size, mv[2] * size)
+end
 -- Intensity: below 100% the material dims; above it the glow under it brightens too (the material
 -- itself is already at full opacity, so more light has to come from the soft glow beneath).
 local material = {
@@ -899,14 +906,15 @@ local material = {
 		parts.mat:SetTexCoord(0, 3, 0, 3)
 		parts.mat:SetVertexColor(c[1], c[2], c[3], (c[4] or 1) * math.min(k, 1))
 		parts.move:SetDuration((MATERIAL[school] or MATERIAL.spirit)[3])
+		materialDrift(parts)
 	end,
 	fit = function(g, parts, size)
 		fitSoft(g, parts.soft, size)
-		local mv = MATERIAL[parts.school or "spirit"] or MATERIAL.spirit
 		parts.mat:SetSize(size * 3, size * 3)
 		parts.mat:ClearAllPoints()
 		parts.mat:SetPoint("CENTER", g, "CENTER", 0, 0)
-		parts.move:SetOffset(mv[1] * size, mv[2] * size)
+		parts.size = size
+		materialDrift(parts)
 	end,
 }
 
