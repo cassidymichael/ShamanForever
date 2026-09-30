@@ -291,6 +291,15 @@ function styleExpireText(def, slot, st, secs)
 	def.textHanded = false
 end
 
+-- Every texture under frame (but masks: they take none; a look's own live here) in icon frame f's
+-- look's shape, over the rect of over (Looks.maskOver: re-placed on each call and look change).
+local function shapeUnder(frame, f, over)
+	for _, r in ipairs({ frame:GetRegions() }) do
+		if r:IsObjectType("Texture") and not r:IsObjectType("MaskTexture") then ns.Looks.maskOver(f, r, over) end
+	end
+	for _, c in ipairs({ frame:GetChildren() }) do shapeUnder(c, f, over) end
+end
+
 for _, def in ipairs(TARGET) do
 	def.buff, def.proc = true, true   -- the buff kind's page and preview, as Elemental Focus
 	def.spell = Spells.name(def.spellKey)
@@ -325,6 +334,12 @@ for _, def in ipairs(TARGET) do
 		u.tex.owner = def.key
 		u.glow = ns.makeGlow(u.inner, u.tex, def.key, false, true)
 		u.glow.label = "Not on target"
+		-- Every texture of its look in the picture's shape as it's made and each time it's fitted, in
+		-- combat too (a look changed with the options open): never a square corner past the button.
+		u.glow.onLayout = function(_, parts)
+			for _, r in ipairs(parts.roots or {}) do shapeUnder(r, f, u.tex) end
+		end
+		for _, parts in pairs(u.glow.parts) do if parts then u.glow.onLayout(u.glow, parts) end end
 		u.pulse = ns.makePulse(u.tex, "fade")
 		-- Every frame while shown: the target still hostile and alive, and the container on it. The
 		-- state driver checks only every 0.2 s (and at once only on a target change), while the
@@ -506,14 +521,25 @@ local function flameShockMissing()
 	return flameShockOnTarget() == false
 end
 
--- The underlay's looks, from the Not on target block, out of combat: grey, fade in and out, the red
--- ring and the pulsing glow, all inside the inset picture and in its shape, so the button covers them while your
--- Flame Shock is up: they show in combat too.
+-- The underlay's state, cheap enough for every target change and the 1 s tick: whether it can be
+-- trusted (its container made and on), its fade and glow running as its settings say, its opacity.
+local function stateUnder()
+	local def, u = FLAME, FLAME.under
+	local a = def.aura
+	u.on = (a.container and not a.err and def.spellID and ns.isEnabled(def.key)) and true or false
+	if not u.pulseOn then u.pulse:Stop()
+	elseif not u.pulse:IsPlaying() then u.pulse:Play() end
+	u.glow:SetShown(setting(def.key, "missGlow") and true or false)
+	T.underAlpha(def)
+end
+
+-- The underlay's looks, from the Not on target block, out of combat: grey, fade in and out, the
+-- red ring and the pulsing glow, all inside the inset picture and in its shape, so Blizzard's
+-- button covers them while your Flame Shock is up; they show in combat too. Run on a layout, a
+-- style change and at combat's start and end; then the state.
 local function styleUnder()
 	local def, f, u = FLAME, FLAME.frame, FLAME.under
 	if InCombatLockdown() then return end
-	local a = def.aura
-	u.on = (a.container and not a.err and def.spellID and ns.isEnabled(def.key)) and true or false
 	u:SetFrameLevel(f.textFrame:GetFrameLevel() + 1)   -- over the icon, under the container (+5)
 	-- A screen pixel in from the icon's edges, so rounding at any scale leaves no edge past the button.
 	local px = ns.pixel(u)
@@ -524,31 +550,22 @@ local function styleUnder()
 	ns.Looks.maskOver(f, u.tex)
 	u.tex:SetDesaturated(setting(def.key, "missGrey") and true or false)
 	u.pulseOn = setting(def.key, "missPulse") and true or false
-	if not u.pulseOn then u.pulse:Stop()
-	elseif not u.pulse:IsPlaying() then u.pulse:Play() end
 	u.ring:show(setting(def.key, "missRing") and true or false)
 	for _, e in ipairs(u.ring.edges) do ns.Looks.maskOver(f, e, u.tex) end
-	-- The glow: fitted to the inset picture, and every texture of its look in the picture's shape.
+	-- The glow, fitted to the inset picture at its size now (a layout held while auras are secret
+	-- keeps the old one); its textures take the shape as they're made and fitted (onLayout).
 	local g = u.glow
 	g:restyle()
-	g:fit(math.max(ns.sizeOf(def.key) - 2 * px, 1))
-	local function shape(frame)
-		for _, r in ipairs({ frame:GetRegions() }) do
-			-- Masks are textures too, but take no mask themselves (the look's own masks live here).
-			if r:IsObjectType("Texture") and not r:IsObjectType("MaskTexture") then ns.Looks.maskOver(f, r, u.tex) end
-		end
-		for _, c in ipairs({ frame:GetChildren() }) do shape(c) end
-	end
-	shape(g.inner)
-	g:SetShown(setting(def.key, "missGlow") and true or false)
-	T.underAlpha(def)
+	local w = f.tex:GetWidth()
+	if not ns.isSecret(w) then g:fit(math.max(w - 2 * px, 1)) end
+	stateUnder()
 end
 
 -- Read again, and the element's look and Shocks' mark follow (ShamanForever_Shock.lua).
 local function checkMissing()
 	if fighting or InCombatLockdown() then return end
 	FLAME.missingNow = flameShockMissing()
-	styleUnder()
+	stateUnder()
 	ns.Shock.markFlameShock(FLAME.missingNow)
 end
 
@@ -607,6 +624,7 @@ end
 
 function T.applyTimers()
 	for _, def in ipairs(TARGET) do def.aura:style() end
+	styleUnder()   -- a glow style change (the options call this)
 end
 
 function T.applyLayout()
@@ -623,7 +641,8 @@ function T.applyLayout()
 		def.aura:style()
 		refreshAura(def)
 	end
-	checkMissing()   -- its looks may have changed, and its container may be new
+	styleUnder()     -- its looks may have changed
+	checkMissing()   -- and its container may be new
 end
 
 function T.afterGroups()
@@ -640,6 +659,7 @@ function T.afterGroups()
 			ns.applyBorder(def.under, ns.borderFor(def.key))
 		end
 	end
+	styleUnder()   -- a new size or scale
 end
 
 function T.refresh()
@@ -660,6 +680,7 @@ function T.start()
 		if event == "PLAYER_REGEN_DISABLED" then combatStarts()
 		elseif event == "PLAYER_REGEN_ENABLED" then
 			fighting = false
+			styleUnder()
 			checkMissing()
 			refreshAura(FLAME)
 		elseif event == "UNIT_AURA" then
