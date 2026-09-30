@@ -15,6 +15,9 @@
 -- out and no swing came (out of range, facing away), the bar stays at its end: the swing is due.
 -- Auto attack off clears it, and so does death.
 --
+-- Preview mode (ShamanForever_Preview.lua) drives it with made-up swings through the same drawing
+-- (SW.preview): a swing after swing on the real bar, and in its Busy mode a cast clearing it.
+--
 -- ShamanForever.lua calls in through the module hooks (ns.registerModule): afterGroups lays it out
 -- with every layout of the HUD. Its events are registered only while it's on (not Hidden), so it
 -- costs nothing while it's off.
@@ -120,10 +123,12 @@ function SW.makeBar(parent)
 	b.spark = spark
 	return b
 end
--- The side it fills from, and the spark on the fill's free edge. The spark is a line: two screen
--- pixels wide at any size (ns.linePx).
+-- The side it fills from, and the spark on the fill's free edge. Emptying takes the opposite side,
+-- so the moving edge travels the same way as when filling. The spark is a line: two screen pixels
+-- wide at any size (ns.linePx).
 function SW.styleBar(b)
-	local fromRight = cfg().fillFrom == "right"
+	local c = cfg()
+	local fromRight = (c.fillFrom == "right") ~= c.deplete
 	b:SetReverseFill(fromRight)
 	local fill, side = b:GetStatusBarTexture(), fromRight and "LEFT" or "RIGHT"
 	b.spark:ClearAllPoints()
@@ -174,6 +179,9 @@ cd:SetDrawSwipe(false)
 cd:SetDrawEdge(false)
 cd:SetDrawBling(false)
 cd:SetCountdownFont("ShamanForeverSwingFont")
+-- Always tenths (2.3, 0.4): the swing is a few seconds, well under the threshold below which the
+-- Cooldown's own numbers show tenths.
+pcall(cd.SetCountdownMillisecondsThreshold, cd, 60)
 local okText, cdFont = pcall(cd.GetCountdownFontString, cd)
 local cdText = okText and cdFont or nil
 
@@ -184,6 +192,8 @@ local cdText = okText and cdFont or nil
 -- secret count PLAYER_SWING for /sf debug.
 local state = { endsAt = nil, swings = 0, secret = 0, casts = 0 }
 local duration = C_DurationUtil and C_DurationUtil.CreateDuration and C_DurationUtil.CreateDuration()
+-- Preview mode's made-up swings (see SW.preview): mode is nil while it's off.
+local pv = { mode = nil, action = "swing", count = 0, nextAt = 0 }
 
 -- The fill's colour: the imbue's school, or the custom one.
 local function fillColor()
@@ -249,7 +259,7 @@ end
 -- the swing, so the one on the bar is no longer true.
 local function onCastStart()
 	state.casts = state.casts + 1
-	if state.endsAt then clearSwing() end
+	if state.endsAt and not pv.mode then clearSwing() end
 end
 
 ------------------------------------------------------------------------
@@ -292,6 +302,7 @@ end
 local mover
 local function visibilityDriver()
 	if not SW.isOn() then return "hide" end
+	if pv.mode then return "show" end   -- preview mode: out of combat, its swings show
 	if not ns.getAccount().locked then return "show" end
 	if cfg().show == "combat" then return "[petbattle] hide; [combat] show; hide" end
 	return "[petbattle] hide; show"
@@ -336,6 +347,55 @@ end
 function SW.apply()
 	cfgTable = nil
 	layout()
+end
+
+------------------------------------------------------------------------
+-- Preview mode: made-up swings on the real bar
+------------------------------------------------------------------------
+-- The bar shows (whatever its Show says) and swings again and again through startSwing, so it
+-- wears the player's Direction, colour, texture, countdown, size, scale and border as it does in
+-- a fight. Preview and Warnings swing at a typical weapon's speed. Busy swings faster, and after
+-- two swings a cast cuts the third short: the bar clears, and comes back with the next swing, as
+-- it does in a fight. The loop runs a frame's work only while preview mode is on. It never starts
+-- in combat: preview mode itself ends when combat starts.
+local PREVIEW_SWINGS = {
+	preview = { speed = 2.6 },
+	warnings = { speed = 2.6 },
+	busy = { speed = 1.6, swings = 2, cutAt = 0.6, gap = 1 },   -- a cast at cutAt of the third
+}
+local pvFrame = CreateFrame("Frame")
+pvFrame:Hide()
+pvFrame:SetScript("OnUpdate", function()
+	local now = GetTime()
+	if now < pv.nextAt then return end
+	if not (SW.isOn() and duration) then
+		pv.action, pv.count, pv.nextAt = "swing", 0, 0   -- switched off meanwhile: from a swing again
+		return
+	end
+	local p = PREVIEW_SWINGS[pv.mode]
+	if pv.action == "cast" then
+		clearSwing()
+		pv.action, pv.count, pv.nextAt = "swing", 0, now + p.gap
+		return
+	end
+	startSwing(p.speed)
+	pv.count = pv.count + 1
+	if p.swings and pv.count > p.swings then
+		pv.action, pv.nextAt = "cast", now + p.speed * p.cutAt
+	else
+		pv.nextAt = now + p.speed
+	end
+end)
+
+-- mode: "preview", "warnings" or "busy" starts the swings (from a fresh one if it's a change of
+-- mode); nil ends them, and the bar is as a fight leaves it: no swing, hidden.
+function SW.preview(mode)
+	if mode and not PREVIEW_SWINGS[mode] then mode = nil end
+	local was = pv.mode
+	pv.mode, pv.action, pv.count, pv.nextAt = mode, "swing", 0, 0
+	pvFrame:SetShown(mode ~= nil)
+	if not mode then clearSwing() end
+	if (mode ~= nil) ~= (was ~= nil) then layout() end   -- its visibility, out of combat
 end
 
 ------------------------------------------------------------------------
