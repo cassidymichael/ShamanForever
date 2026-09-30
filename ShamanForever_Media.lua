@@ -24,7 +24,7 @@ local S = ns.Style
 
 S.register("text", {
 	-- font: a name ("" is the game's font); outline: "" | OUTLINE | THICKOUTLINE.
-	defaults = { font = "", outline = "OUTLINE", shadow = false },
+	defaults = { font = "", outline = "OUTLINE", shadow = true },
 	path = { "textStyle" },
 })
 S.register("bar", {
