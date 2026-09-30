@@ -191,9 +191,10 @@ local function place(key, r)
 	h:SetAlpha(gf:GetAlpha())
 	h:Show()
 	r.live = true
-	-- The shield's own border shows under its stand-in, while its group does. Flame Shock's, Purge's,
-	-- Elemental Focus's and Maelstrom's is on parts that show only with a hostile target or their
-	-- aura (standInBorder): the stand-in draws theirs.
+	-- An element above Blizzard's button keeps its own border under its stand-in, while its group
+	-- shows, unless that border is on parts that show only with a hostile target or their aura, or
+	-- at its Idle opacity (standInBorder: the shield, Flame Shock, Purge, Elemental Focus,
+	-- Maelstrom): the stand-in draws theirs.
 	local own = f.aboveProtected and f:IsVisible() and not ns.ELEMENTS[key].standInBorder
 	ns.applyBorder(standIns[key], not own and ns.borderFor(key) or nil)
 	if r.nextAt then paintElement(key, r, false) else startStep(key, r, false) end

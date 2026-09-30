@@ -360,7 +360,8 @@ L.PREVIEW = {
 	shield = {
 		uptime = true, barInset = function() return ns.Shield.timeBarInset() end,
 		warning = "down",
-		states = { { "up3", "3 charges" }, { "up2", "2 charges" }, { "up1", "1 charge" }, { "down", "No shield" } },
+		states = { { "up3", "3 charges" }, { "up2", "2 charges" }, { "up1", "1 charge" },
+			{ "down", "No shield" } },
 		render = function(ic, st)
 			local d = db()
 			local water = d.shieldTrack == "water"

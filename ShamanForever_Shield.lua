@@ -63,7 +63,8 @@ local IDLE_CHOICES = {
 	{ "never", "Never", "It always shows in full" },
 	{ "up", "Shield up", "Idle while your shield is up", "Shown in full only as No shield." },
 	{ "charges", "2 or more charges",
-		"Idle while it has 2 or more charges. It shows in full at 1 charge and as No shield at 0",
+		"Idle while your shield has 2 or more charges. "
+			.. "It shows in full at 1 charge and as No shield at 0",
 		"Shown in full at 1 charge and as No shield." },
 }
 ns.registerElement("shield", { frame = shield, label = "Shields", paint = function(t) t:SetTexture(SH.icon()) end,
@@ -267,6 +268,7 @@ local function placeLook()
 	look:setLevel(shield.textFrame:GetFrameLevel() + 1)   -- over the icon, under the container (+5)
 	look:reshape()
 	look:style()
+	lookEdge:SetFrameLevel(shield.textFrame:GetFrameLevel() + 1)   -- the picture's: under the glow
 	ns.applyBorder(lookEdge, ns.borderFor("shield"))
 	if lookEdge.frameOverlay then lookEdge.frameOverlay:Hide() end
 end
@@ -360,10 +362,11 @@ local function shieldIDMap()
 end
 
 -- The No shield look, its glow in its Glow look and the shield's Pulsing glow style, past the
--- icon's edge if the look reaches there. Its sensor hangs beside Blizzard's container. The glow's
--- look before the profile loads (it is made at load): the default.
+-- icon's edge if the look reaches there. Its sensor hangs from the element's frame, not the gate:
+-- nothing the look relies on sits under the gate, which is at 0 with an Idle opacity of 0%. The
+-- glow's look before the profile loads (it is made at load): the default.
 look = ns.makeClipLook(shield, {
-	key = "shield", parent = holder, sensorParent = gate, ids = shieldIDMap, owner = "shield",
+	key = "shield", parent = holder, sensorParent = shield, ids = shieldIDMap, owner = "shield",
 	lookFor = function()
 		local db = ns.getDB()
 		return db and db.emptyGlowLook or nil
@@ -403,7 +406,8 @@ local function learnShieldID(key, id)
 	local function matches(c)
 		return c.container == nil or c.err ~= nil or (c.filtered and c.filtered[id])
 	end
-	if matches(native) and matches(look) and matches(copy) then look:checkIDs() else applyShieldFilter() end
+	if matches(native) and matches(look) and matches(copy) then look:checkIDs()
+	else applyShieldFilter() end
 end
 
 -- After a spellbook scan (ns.resolveSpells): each shield's name, highest known rank and icon, and the
@@ -653,7 +657,8 @@ local function styleCopy(slot, size)
 	local bar = slot.bar
 	bar:SetHeight(db.chargeBarHeight)
 	bar:SetStatusBarTexture(ns.Media.barTexture())
-	bar:SetStatusBarColor(db.chargeBarColor[1], db.chargeBarColor[2], db.chargeBarColor[3], db.chargeBarColor[4] or 1)
+	local c = db.chargeBarColor
+	bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
 	bar:SetAlpha(db.showBar and 1 or 0)
 	for i, t in ipairs(slot.tickTextures) do
 		t:ClearAllPoints()
@@ -711,7 +716,8 @@ end
 copy = ns.makeAuraSlot(shield, {
 	key = "shield", slot = "shieldcopy", ids = shieldIDMap, parent = full, level = IDLE_LEVEL,
 	host = copyHost, barInset = SH.timeBarInset,
-	sites = { container = "shield copy container", style = "shield copy style", filter = "shield copy filter" },
+	sites = { container = "shield copy container", style = "shield copy style",
+		filter = "shield copy filter" },
 	onButton = function(slot, button) buildCopy(slot, button) end,
 	onStyle = function(slot, size)
 		styleCopy(slot, size)
@@ -875,8 +881,8 @@ function SH.debug()
 	say("aura container %s%s", native.container and "created" or "not created",
 		native.err and (", error: " .. native.err) or "")
 	say("no-shield sensor: %s", look:describe())
-	say("idle %s at %.2f, gate %.2f; one-charge copy %s%s, button %s, sensor %s, counts %s", idleWhen(),
-		ns.idleAlpha("shield"), gateNow, copy.container and "made" or "not made",
+	say("idle %s at %.2f, gate %.2f; one-charge copy %s%s, button %s, sensor %s, counts %s",
+		idleWhen(), ns.idleAlpha("shield"), gateNow, copy.container and "made" or "not made",
 		copy.err and (" (error: " .. copy.err .. ")") or "", copy.built and "built" or "not made",
 		tostring(copy.sensed), tostring(copyReady()))
 	local t = {} for id in pairs(shieldIDMap()) do table.insert(t, tostring(id)) end table.sort(t)
