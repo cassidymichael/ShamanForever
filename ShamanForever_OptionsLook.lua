@@ -347,7 +347,8 @@ L.PREVIEW = {
 				-- The HUD's glow here: No shield's own Glow look.
 				if d.emptyGlow then
 					if not ic.warnGlow then
-						ic.warnGlow = ns.makeWarningGlow(ic, ic, "shield", function() return db().emptyGlowLook end)
+						ic.warnGlow = ns.makeWarningGlow(ic, ic, "shield",
+							function() return db().emptyGlowLook end)
 					end
 					ic.warnGlow:restyle()
 					ic.warnGlow:fit(ic:GetWidth())
@@ -539,7 +540,8 @@ local function buffPreview(def)
 				-- The HUD's glow here: its own Glow look.
 				if opt(key, "missGlow") then
 					if not ic.warnGlow then
-						ic.warnGlow = ns.makeWarningGlow(ic, ic, nil, function() return opt(key, "missGlowLook") end)
+						ic.warnGlow = ns.makeWarningGlow(ic, ic, nil,
+							function() return opt(key, "missGlowLook") end)
 					end
 					ic.warnGlow:restyle()
 					ic.warnGlow:fit(ic:GetWidth())
