@@ -244,7 +244,7 @@ local function glowBlock(p, owner, icon)
 	look = lookRows(p, r, "glow", "Look", "Glow looks", own)
 	reloadLine(p, function() return ns.auraGlowStale(owner) end,
 		function(n) return n == 1 and "changes glow" or "change glow" end, own)
-	-- The look can't be drawn on Blizzard's aura button (ns.auraGlowSwapped): what those show instead.
+	-- A glow that must stay inside the icon and the look doesn't (ns.auraGlowSwapped): what it shows.
 	p:text(function()
 		local names, name = ns.auraGlowSwapped(owner)
 		return string.format("%s %s %s instead.", table.concat(names, " and "), #names == 1 and "shows" or "show", name)

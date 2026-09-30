@@ -788,13 +788,10 @@ local halo = {
 
 -- Blizzard's action bar proc glow: a burst that settles into a ring of moving light, in its
 -- own gold unless the glow's colour is changed. Under Blizzard's aura button (g.unlisted) only the
--- ring: the burst needs a script to hand over to it, and none runs there; the button plays the
--- ring (handed over, g:bindButton). The first build there, with the burst, drew both flipbooks as
--- whole sprite sheets (a grid of rings and squares, 2026-09-30); PROC_ON_AURA false takes the
--- default look there instead, if the ring alone does too.
-local PROC_ON_AURA = true
+-- ring, which the button plays: the burst needs a script to hand over to the ring and none runs
+-- there, and the burst's flipbook drew there as a whole sprite sheet (seen 2026-09-30).
 local proc = {
-	uses = { color = true }, steady = true, noAura = not PROC_ON_AURA,
+	uses = { color = true }, steady = true,
 	build = function(g)
 		if not (Looks.hasAtlas(PROC_START) and Looks.hasAtlas(PROC_LOOP)) then
 			local parts = soft.build(g)
