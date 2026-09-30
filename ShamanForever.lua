@@ -46,30 +46,48 @@ local DEFAULTS = {
 	glowStyle = CopyTable(ns.Style.KINDS.glow.defaults),
 	popStyle = CopyTable(ns.Style.KINDS.pop.defaults),
 	gcdStyle = CopyTable(ns.Style.KINDS.gcd.defaults),
-	-- Default layout: just below the centre of the screen, side by side, ready to be dragged where
-	-- the player wants them (the totem bar sits below, see TotemBar.lua). Offsets are in each group's
-	-- scaled units (a 0.9 group's are divided by 0.9). An example more than a plan: players make their
-	-- own groups. Elements not learned yet take no room, so a new character sees only the first row.
-	-- Groups are centred on their position and grow both ways. Around the first row (shield, shocks,
-	-- Fire Nova; the imbue left; the earth totems and Grounding right): the Clearcasting proc just
-	-- above it, Reincarnation up and left, every other cooldown and buff in a row above, and Tremor
-	-- Totem's warning alone at the top, larger and at full opacity; it is unseen until it warns.
+	-- Default layout: the first row (shield, shock, Fire Nova, Stormstrike, Riptide, Lava Burst and
+	-- Chain Lightning) just below the centre of the screen, ready to be dragged where the player
+	-- wants it. Around it: the weapon imbue and Tremor Totem's warning (larger, at 90% opacity; it
+	-- is unseen until it warns) above the centre, Elemental Focus and Maelstrom Weapon under it
+	-- with the earth totems to their left and Flame Shock and Purge to their right, and a column of
+	-- long cooldowns, the water buffs, Totemic Projection and Reincarnation to the left (the totem
+	-- bar sits among them, see TotemBar.lua; the swing timer below the first row). An example more
+	-- than a plan: players make their own groups. Offsets are in each group's scaled units, so a
+	-- scaled group's are its whole-number screen offsets divided by its scale. Elements not learned
+	-- yet take no room.
 	groups = {
-		{ id = 1, name = "Main", point = "CENTER", x = 0, y = -40, scale = 1, alpha = 0.75,
-			orientation = "horizontal", growth = "forward", spacing = 6, members = { "shield", "shock", "firenova" } },
-		{ id = 2, name = "Imbue", point = "CENTER", x = -110, y = -40, scale = 1, alpha = 0.75,
-			orientation = "horizontal", growth = "forward", spacing = 6, members = { "imbue" } },
-		{ id = 3, name = "Totems", point = "CENTER", x = 156, y = -44, scale = 0.9, alpha = 0.6,
-			orientation = "horizontal", growth = "forward", spacing = 6, members = { "earthbind", "stoneclaw", "grounding" } },
-		{ id = 4, name = "Procs", point = "CENTER", x = 0, y = 11, scale = 0.9, alpha = 0.75,
-			orientation = "horizontal", growth = "forward", spacing = 6, members = { "elementalfocus" } },
-		{ id = 5, name = "Tremor", point = "CENTER", x = 0, y = 104, scale = 1.25, alpha = 1,
-			orientation = "horizontal", growth = "forward", spacing = 6, members = { "tremor" } },
-		{ id = 6, name = "Reincarnation", point = "CENTER", x = -122, y = 11, scale = 0.9, alpha = 0.75,
-			orientation = "horizontal", growth = "forward", spacing = 6, members = { "reincarnation" } },
-		{ id = 7, name = "Cooldowns", point = "CENTER", x = 0, y = 62, scale = 0.9, alpha = 0.75,
-			orientation = "horizontal", growth = "forward", spacing = 6, members = { "naturesswiftness", "manatide",
-				"stormstrike", "riptide", "farseer", "projection", "waterwalking", "waterbreathing" } },
+		{ id = 1, name = "Main", point = "CENTER", x = 0, y = -216, scale = 1, alpha = 0.8,
+			orientation = "horizontal", growth = "forward", spacing = 2,
+			members = { "shield", "shock", "firenova", "stormstrike", "lavaburst", "chainlightning", "riptide" } },
+		{ id = 2, name = "Imbue", point = "CENTER", x = 0, y = 58 / 1.25, scale = 1.25, alpha = 0.9,
+			orientation = "horizontal", growth = "forward", spacing = 2, members = { "imbue" } },
+		{ id = 3, name = "Totems", point = "CENTER", x = -144, y = -153, scale = 1, alpha = 0.8,
+			sizeFollow = false, size = 38,
+			orientation = "horizontal", growth = "forward", spacing = 2,
+			members = { "earthbind", "stoneclaw", "grounding" } },
+		{ id = 4, name = "Procs", point = "CENTER", x = 0, y = -154, scale = 1, alpha = 0.9,
+			sizeFollow = false, size = 50,
+			orientation = "horizontal", growth = "forward", spacing = 2,
+			members = { "elementalfocus", "maelstrom" } },
+		{ id = 5, name = "Tremor", point = "CENTER", x = -252 / 1.25, y = 58 / 1.25, scale = 1.25, alpha = 0.9,
+			orientation = "horizontal", growth = "forward", spacing = 2, members = { "tremor" } },
+		{ id = 6, name = "Cooldowns", point = "CENTER", x = -526, y = -60, scale = 1, alpha = 0.8,
+			orientation = "vertical", growth = "forward", spacing = 2,
+			members = { "naturesswiftness", "manatide", "farseer" } },
+		-- Members that no module registers are dropped when a profile loads.
+		{ id = 7, name = "Target", point = "CENTER", x = 148, y = -153, scale = 1, alpha = 0.8,
+			sizeFollow = false, size = 38,
+			orientation = "horizontal", growth = "forward", spacing = 2, members = { "flameshock", "purge" } },
+		{ id = 8, name = "Utility", point = "CENTER", x = -610, y = -180, scale = 1, alpha = 0.6,
+			sizeFollow = false, size = 40,
+			orientation = "horizontal", growth = "forward", spacing = 2,
+			members = { "waterbreathing", "waterwalking" } },
+		{ id = 9, name = "Reincarnation", point = "CENTER", x = -590, y = -260, scale = 1, alpha = 0.6,
+			orientation = "horizontal", growth = "forward", spacing = 2, members = { "reincarnation" } },
+		{ id = 10, name = "Totemic Projection", point = "CENTER", x = -526, y = -180, scale = 1, alpha = 0.6,
+			sizeFollow = false, size = 40,
+			orientation = "horizontal", growth = "forward", spacing = 2, members = { "projection" } },
 	},
 	known = {},             -- element keys placed at least once; a new one joins its default group
 	elementOpts = {},       -- per-element settings by key, e.g. { shock = { show = "combat" } }; every element starts shown
