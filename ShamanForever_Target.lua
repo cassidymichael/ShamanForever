@@ -318,6 +318,8 @@ for _, def in ipairs(TARGET) do
 		u.tex:SetTexture(def.icon)
 		u.ring = ns.makeRing(u.inner, u.tex)   -- inside the inset picture
 		-- Its pulsing glow: only a look drawn inside the icon (inside), over the inset picture.
+		-- Its looks take their school from what they cover (ns.Looks' schoolOf): the element's.
+		u.tex.owner = def.key
 		u.glow = ns.makeGlow(u.inner, u.tex, def.key, false, true)
 		u.glow.label = "Not on target"
 		u.pulse = ns.makePulse(u.tex, "fade")
@@ -682,6 +684,11 @@ function T.debug()
 	local on = readable() and flameShockOnTarget()
 	say("%s on target: %s; not-on-target look %s", FLAME.spell,
 		readable() and tostring(on) or "not read (combat or secret auras)", tostring(FLAME.missingNow))
+	local g = FLAME.under and FLAME.under.glow
+	if g then
+		say("%s Not on target glow: drawn %s, style's %s, shown %s", FLAME.spell, g.look and g.look.key or "none",
+			tostring(ns.Style.get(FLAME.key, "glow").look), tostring(g:IsShown()))
+	end
 end
 
 ns.registerModule(T)
