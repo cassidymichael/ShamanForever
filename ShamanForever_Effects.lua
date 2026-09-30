@@ -477,7 +477,8 @@ function Rig:style(st, size, c, school, muted)
 		self.flashOut:SetFromAlpha(peak); self.flashOut:SetDuration(0.3 * k)
 		on[self.flashAnim] = true
 	end
-	local burst = ns.Style.choice("pop", "burst", st.burst)
+	-- A burst this version doesn't know (a profile from a newer one) draws none.
+	local burst = ns.Style.field("pop", "burst").byKey[st.burst] or ns.Style.choice("pop", "burst", "none")
 	-- On the aura route (self.guard) each burst part is styled on its own, so one refused call
 	-- leaves the others, and the final show and hide, done.
 	local function part(name, fn)
