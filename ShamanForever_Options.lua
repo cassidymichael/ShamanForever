@@ -314,7 +314,8 @@ local function popBlock(p, owner, icon, kind)
 		play:SetPoint("LEFT", list[#list], "RIGHT", 24, 0)
 	end)
 	if colored then
-		choiceRows(p, r, "pop", "colorBy", "Colour", "For Ready and Ran out. By event: gold when ready, white when a totem runs out. Killed early, Grounded and the imbue dropping keep their own colours.", own)
+		local color = choiceRows(p, r, "pop", "colorBy", "Colour", "For Ready and Ran out. By event: gold when ready, white when a totem runs out. Killed early, Grounded and the imbue dropping keep their own colours.", own)
+		p:text("By school suits this burst.", showWhen(function() return color().key == "event" and burst().bySchool end, own))
 	end
 	choiceRows(p, r, "pop", "flash", "Flash", "Over the icon.", own)
 	choiceRows(p, r, "pop", "burst", "Burst", "Around the icon. Element effect: each element its own.", own)
