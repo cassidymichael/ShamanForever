@@ -14,6 +14,8 @@
   idle (Never, Ready, Cooling down), and fade or hide then. Weapon Imbue's Hide until low is now
   its Idle choice. Totem cooldowns fade to 30% by default.
 - Elemental Focus and Maelstrom Weapon show their border while the buff is up.
+- Shields: an Idle choice (Never, Shield up, 2 or more charges), faint or hidden while idle. With 2
+  or more charges it shows in full at one charge, in combat too.
 
 ## 0.10.0 (2026-09-30)
 
