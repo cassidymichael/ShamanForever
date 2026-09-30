@@ -247,7 +247,8 @@ end
 ------------------------------------------------------------------------
 -- Whether the character knows the element's spell. The options list every element, marking the
 -- ones not learned; the HUD leaves those out until they are, except while the preview shows them
--- (its Show not learned, ShamanForever_Preview.lua), so they can be placed.
+-- (its Show not learned, ShamanForever_Preview.lua), so they can be placed. Another race's racials
+-- are never drawn.
 local function isLearned(key)
 	local e = ELEMENTS[key]
 	return e == nil or not e.learned or e.learned() and true or false
@@ -259,7 +260,11 @@ function ns.notLearnedText(key)
 	if e and Spells.otherRace(e.race) then return "Not your race" end
 	return "Not learned"
 end
-local function onHUD(key) return isLearned(key) or ns.Preview.showsUnlearned() end
+local function onHUD(key)
+	if isLearned(key) then return true end
+	local e = ELEMENTS[key]
+	return ns.Preview.showsUnlearned() and not (e and Spells.otherRace(e.race))
+end
 
 -- The group an element sits in and its place among the members; nil for an ungrouped element.
 -- Whether it is drawn is its own "show" setting, so hiding one keeps its place.
