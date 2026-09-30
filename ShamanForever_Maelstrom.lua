@@ -99,6 +99,8 @@ f.stack()
 
 ns.registerElement(KEY, { frame = f, label = Spells.name("maelstromWeapon"), defaults = M.DEFAULTS,
 	learned = function() return src.learned() end, paint = function(t) t:SetTexture(M.icon) end,
+	-- Preview mode: its border is on Blizzard's button, not its frame (ShamanForever_Preview.lua).
+	standInBorder = true,
 	kind = "maelstrom", def = M, spell = "maelstromWeapon", icon = M.icon, school = "air",
 	blurb = "Its stacks, with a highlight at five.", experimental = "Maelstrom Weapon" })
 -- For the options' Idle block: it's a buff (its Idle is "not up").
@@ -183,6 +185,8 @@ local function styleStacks(slot, size)
 	slot.bar:SetFrameLevel(base + 5)
 	slot.tickFrame:SetFrameLevel(base + 6)
 	slot.numFrame:SetFrameLevel(base + 7)   -- above the bar and its ticks: the count is never clipped
+	slot.edge:SetFrameLevel(base + 8)
+	ns.try("maelstrom border", ns.applyBorder, slot.edge, ns.borderFor(KEY))
 	local c = color("stackBarColor")
 	slot.bar:SetHeight(number("stackBarHeight"))
 	slot.bar:SetStatusBarTexture(ns.Media.barTexture())   -- before the colour
@@ -214,6 +218,10 @@ end
 -- Made by Blizzard's initializeFrame: each step on its own, so one refused leaves the rest.
 local function buildStacks(slot, button)
 	slot.button = button
+	-- The group's border drawn on the button too, so it shows exactly with the buff (the element's
+	-- own frame, and its border, sit at its Idle opacity). Styled out of combat only (styleStacks).
+	slot.edge = CreateFrame("Frame", nil, button)
+	slot.edge:SetAllPoints(button)
 	local overlay = CreateFrame("Frame", nil, button)
 	overlay:SetAllPoints()
 	slot.overlay = overlay

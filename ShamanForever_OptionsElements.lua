@@ -337,7 +337,7 @@ local function buildShield(p)
 
 	timerSettings(p, "Time left", "shield", "uptime")
 	gcdBlock(p, "shield")
-	effectBlocks(p, "shield")
+	effectBlocks(p, "shield", nil, nil, false)   -- it never pops
 end
 
 local function buildShock(p, def)
