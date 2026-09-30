@@ -98,91 +98,25 @@ function L.divider(parent)
 end
 
 ------------------------------------------------------------------------
--- Experimental badge: click for copyable feedback links (links cannot be clicked in game): Discord,
--- the CurseForge comments, or GitHub issues.
+-- Experimental badge
 ------------------------------------------------------------------------
-local pop
-local function linkBox(label, anchor, y)
-	local fs = pop:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-	fs:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, y)
-	fs:SetWidth(70)
-	fs:SetJustifyH("LEFT")
-	fs:SetText(label)
-	local e = CreateFrame("EditBox", nil, pop, "InputBoxTemplate")
-	e:SetSize(270, 22)
-	e:SetPoint("LEFT", fs, "RIGHT", 6, 0)
-	e:SetAutoFocus(false)
-	e:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
-	e:SetScript("OnEscapePressed", function() pop:Hide() end)
-	e:SetScript("OnTextChanged", function(self, user) if user then self:SetText(self.url); self:HighlightText() end end)
-	return fs, e
-end
-local function showFeedback(anchor, feature)
-	if not pop then
-		pop = CreateFrame("Frame", "ShamanForeverFeedback", UIParent, "BackdropTemplate")
-		pop:SetSize(372, 154)
-		pop:SetFrameStrata("TOOLTIP")
-		pop:SetBackdrop(ns.BACKDROP)
-		pop:SetBackdropColor(0.06, 0.05, 0.04, 0.98)
-		pop:SetBackdropBorderColor(0.73, 0.55, 0.22, 1)
-		pop:EnableMouse(true)
-		pop.title = pop:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-		pop.title:SetPoint("TOPLEFT", 12, -10)
-		pop.text = pop:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-		pop.text:SetPoint("TOPLEFT", pop.title, "BOTTOMLEFT", 0, -6)
-		pop.text:SetText("Not tested in game yet. Tell us how it went, any of these ways:")
-		local dcLabel, dc = linkBox("Discord", pop.text, -12)
-		dc.url = L.DISCORD
-		dc:SetText(dc.url)
-		pop.dc = dc
-		local cfLabel
-		cfLabel, pop.cf = linkBox("CurseForge", dcLabel, -16)
-		pop.cf.url = L.CURSEFORGE .. "/comments"
-		pop.cf:SetText(pop.cf.url)
-		local ghLabel
-		ghLabel, pop.edit = linkBox("GitHub", cfLabel, -16)
-		pop.edit.url = L.REPO .. "/issues"
-		pop.edit:SetText(pop.edit.url)
-		pop.hint = pop:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-		pop.hint:SetPoint("TOPLEFT", ghLabel, "BOTTOMLEFT", 0, -12)
-		pop.hint:SetText("Click a link, then Ctrl+C to copy")
-		local close = CreateFrame("Button", nil, pop, "UIPanelCloseButtonNoScripts")
-		close:SetPoint("TOPRIGHT", 0, 0)
-		close:SetScript("OnClick", function() pop:Hide() end)
-	end
-	pop.title:SetText("|cffe0b060Experimental:|r " .. feature)
-	pop.dc:SetCursorPosition(0)
-	pop.cf:SetCursorPosition(0)
-	pop.edit:SetCursorPosition(0)
-	pop:ClearAllPoints()
-	pop:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -4)
-	pop:Show()
-end
-
--- With a label ("Give feedback", on About) the badge opens the feedback link. Without one it reads
--- EXPERIMENTAL, marking an untested choice, and leads to About's Experimental section.
-function L.expBadge(parent, feature, label)
+-- EXPERIMENTAL, marking an untested choice; it leads to About's Experimental section.
+function L.expBadge(parent, feature)
 	local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
 	b:SetBackdrop(ns.BACKDROP)
 	b:SetBackdropColor(0.95, 0.77, 0.42, 0.08)
 	b:SetBackdropBorderColor(0.95, 0.77, 0.42, 0.5)
 	b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	b.text:SetPoint("CENTER", 0, 0)
-	b.text:SetText(label or "EXPERIMENTAL")
+	b.text:SetText("EXPERIMENTAL")
 	b.text:SetTextColor(0.95, 0.77, 0.42)
 	b:SetSize(b.text:GetStringWidth() + 12, 16)
 	b.feature = feature
-	b:SetScript("OnClick", function(self)
-		if label then showFeedback(self, self.feature) else ns.Options.showExperimental() end
-	end)
+	b:SetScript("OnClick", function() ns.Options.showExperimental() end)
 	b:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		if label then
-			GameTooltip:SetText("Click for a feedback link")
-		else
-			GameTooltip:SetText("Not tested in game yet")
-			GameTooltip:AddLine("Click to see all experimental features.", 1, 1, 1)
-		end
+		GameTooltip:SetText("Not tested in game yet")
+		GameTooltip:AddLine("Click to see all experimental features.", 1, 1, 1)
 		GameTooltip:Show()
 	end)
 	b:SetScript("OnLeave", function() GameTooltip:Hide() end)
