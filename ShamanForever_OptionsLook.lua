@@ -461,7 +461,7 @@ end
 L.PREVIEW.maelstrom = {
 	uptime = true,
 	states = { { "s1", "1 stack" }, { "s4", "4 stacks" }, { "s5", "5 stacks" }, { "idle", "Not up" } },
-	pop = function(ic, st) if st == "s5" then ns.Maelstrom.previewPop(ic) end end,
+	pop = function(ic, st) if st == "s5" and opt("maelstrom", "fullPop") then ic:Pop("ready") end end,
 	render = function(ic, st)
 		local M = ns.Maelstrom
 		reset(ic, M.icon)

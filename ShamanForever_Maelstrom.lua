@@ -1,26 +1,29 @@
--- Maelstrom Weapon (an Enhancement talent): its stacks, and a highlight at five, when the next
--- Lightning Bolt is instant and free.
+-- Maelstrom Weapon (an Enhancement talent): its stacks, and a pop and a glow at five, when the
+-- next Lightning Bolt is instant and free.
 --
 -- The stacks are secret in combat, as every aura is, so Blizzard's aura container draws them
--- (ns.makeAuraSlot, as for the shield's charges). Three slots follow the same buff:
+-- (ns.makeAuraSlot, as for the shield's charges). Four slots follow the same buff:
 -- 1. The stacks: the buff's icon and time left, the stack number and a stack bar (one segment per
 --    stack), all drawn by Blizzard's button.
--- 2. The highlight (Colour): a second button whose only visible part is a bar. Blizzard shows that
---    bar only from four stacks (its minApplications) and fills it from four to five, with no
---    background: nothing shows at four, the whole bar at five (the gate tested 2026-09-28 on
---    Lightning Shield's charges). The bar is the highlight, over the icon, drawn by the engine.
---    Its pop: Blizzard eases the bar to each new count of the same buff (ExponentialEaseOut) and
---    the bar fills from its centre, so the fifth stack makes the highlight burst out from the
---    middle. A new buff, or one read after a /reload, is drawn at once.
--- 3. At five: a third button drives an invisible bar five steps long, and a clip from the icon's
+-- 2. The pop at five, on two slots. Blizzard's button plays handed animations only when an aura is newly
+--    assigned to it (AddAuraAssignedAnimation) or it first shows (AddAuraShownAnimation), and a
+--    new stack is neither: it updates the same aura (Blizzard_CustomAuraButton.lua,
+--    ApplyAuraAssignmentAnimations and ApplyVisibility). So the pop has a container of its own that
+--    is visible only at five: it hangs from a bar a second button shows only from five stacks (its
+--    minApplications; the gate tested 2026-09-28 on Lightning Shield's charges), and a container
+--    does its work only while visible (Blizzard_ManagedAuraContainer.lua: its dirty flags wait for
+--    an OnUpdate that runs when visible). At the fifth stack it shows, takes the buff as a new aura,
+--    and its button plays the pop (ns.Effects' rig on it, the aura route). Staying at five, a
+--    refresh or a stack more is an update of the same aura there: nothing plays again. Below five it
+--    is hidden, so a buff that goes and comes back is new to it again at its fifth stack.
+-- 3. At five: a button of its own drives an invisible bar five steps long, and a clip from the icon's
 --    reach on the left to that bar's fill edge covers the icon and its reach at exactly five
 --    stacks and is empty below (Shields' one-charge clip, aimed at five of five; tested there in
 --    combat 2026-10-01). In it, the Pulsing glow in the element's look: it hangs under the button,
 --    where scripts never run, so the button plays its animations (handed with
 --    AddAuraShownAnimation) while the buff is up, and the clip shows them only at five.
---    Nothing else can mark the fifth stack: the button plays handed animations only when a buff is
---    new to its slot or first shows, and Blizzard's aura sounds come with every added stack
---    (Blizzard_CustomAuraButton.lua, C_UnitAuras.AddAuraSound).
+--    No sound marks the fifth stack: Blizzard's aura sounds come with every added stack
+--    (C_UnitAuras.AddAuraSound).
 --    Idle when "Below five stacks": the stacks' button sits at the Idle opacity (its gate, set out
 --    of combat and held through a fight), and the clip also holds a copy of the element at five in
 --    full: the aura's icon, its border, time left and number drawn by this button, the stack bar
@@ -56,8 +59,7 @@ ns.Maelstrom = M
 local KEY = "maelstrom"
 local WHITE = "Interface\\Buttons\\WHITE8x8"
 local SI = Enum and Enum.StatusBarInterpolation
-local EASE, IMMEDIATE = SI and SI.ExponentialEaseOut or 1, SI and SI.Immediate or 0
-local CENTER_FILL = Enum and Enum.StatusBarFillStyle and Enum.StatusBarFillStyle.Center or "CENTER"
+local IMMEDIATE = SI and SI.Immediate or 0
 
 -- Its option defaults (ns.elementSetting), and the ranges its numbers are kept in.
 M.DEFAULTS = {
@@ -65,12 +67,11 @@ M.DEFAULTS = {
 	stackBar = true, stackBarHeight = 6, stackBarColor = { 0.52, 0.69, 1, 1 },
 	stackCount = true, countPos = "center", countSize = 18,
 	fullCount = true, fullCountColor = { 1, 0.82, 0.25, 1 },   -- the number at five, in its colour
-	highlight = "none", highlightColor = { 1, 0.82, 0.25, 1 },  -- wash | none: a colour over the icon
-	fullPop = true,     -- the highlight bursts out as the fifth stack lands
+	fullPop = true,     -- the Pop as the fifth stack lands
 	fullGlow = true,    -- the Pulsing glow while at five
 }
 M.RANGES = { stackBarHeight = { 1, 20 }, countSize = { 8, 40 } }
-local CHOICES = { highlight = { wash = true, none = true }, countPos = { corner = true, center = true },
+local CHOICES = { countPos = { corner = true, center = true },
 	idleWhen = { never = true, notup = true, five = true } }
 
 local function setting(name) return ns.elementSetting(KEY, name) end
@@ -107,12 +108,11 @@ f.stack()
 
 ns.registerElement(KEY, { frame = f, label = Spells.name("maelstromWeapon"), defaults = M.DEFAULTS,
 	learned = function() return src.learned() end, paint = function(t) t:SetTexture(M.icon) end,
-	-- Its pop is the highlight's own burst (Pop, under Five stacks), not the Pop style's.
-	effects = { glow = { "full" }, pop = {} },
+	effects = { glow = { "full" }, pop = { "full" } },
 	-- Preview mode: its border is on Blizzard's button, not its frame (ShamanForever_Preview.lua).
 	standInBorder = true,
 	kind = "maelstrom", def = M, spell = "maelstromWeapon", icon = M.icon, school = "air",
-	blurb = "Its stacks, with a highlight at five.", experimental = "Maelstrom Weapon" })
+	blurb = "Its stacks, with a pop and a glow at five.", experimental = "Maelstrom Weapon" })
 -- For the options' Idle block: its "Idle when" choices (idleWhen).
 M.key = KEY
 M.idleChoices = {
@@ -294,51 +294,125 @@ local stacks = ns.makeAuraSlot(f, {
 })
 
 ------------------------------------------------------------------------
--- 2. The highlight: the gated bar and its burst
+-- 2. The pop at five: the gate, and the pop's own container on it (see the top of this file)
 ------------------------------------------------------------------------
 -- Levels over the containers' (baseLevel): the stacks' parts at 4 to 8, the copy at five (below)
--- from 9 to 18, then the highlight and the glow at five over everything.
-local HL_LEVEL, GLOW_LEVEL = 20, 22
+-- from 9 to 18, the pop's button (its moving icon and border) from 19, the glow at five at 22, and
+-- the pop's light over everything.
+local POP_LEVEL, GLOW_LEVEL, LIGHT_LEVEL = 19, 22, 24
+local SHORTEST = 0.01   -- an animation's shortest length (none takes no time)
 
-local function styleFull(slot)
-	slot.cd:SetAlpha(0)   -- the stacks' button shows the time left
-	local base = baseLevel()
-	slot.holder:SetFrameLevel(base + HL_LEVEL)
-	slot.hl:SetFrameLevel(base + HL_LEVEL + 1)
-	local look, c = setting("highlight"), color("highlightColor")
-	local bar = slot.hl
-	bar:SetStatusBarTexture(WHITE)
-	ns.try("maelstrom highlight look", function() bar:SetFillStyle(CENTER_FILL) end)
-	-- The colour over the whole icon, so fainter.
-	bar:SetStatusBarColor(c[1], c[2], c[3], (c[4] or 1) * 0.4)
-	bar:SetAlpha(look == "none" and 0 or 1)
-	if slot.container then slot.container:SetShown(look ~= "none") end
-	ns.try("maelstrom highlight", slot.button.SetApplicationBar, slot.button, bar, {
-		minApplications = src.max - 1, maxApplications = src.max,
-		interpolation = setting("fullPop") and EASE or IMMEDIATE,
-	})
+-- The pop: ns.Effects' rig on the pop's button (the aura route), in the element's Pop style while
+-- Pop is on. Its light over the element's text by baseLevel's 5, then LIGHT_LEVEL.
+local fx = ns.Effects.host(f, KEY, { aura = { popOnly = true, popLevel = 5 + LIGHT_LEVEL,
+	popOn = function() return setting("fullPop") end } })
+
+-- The rig's values again, and the holds' length: the copy of the icon and its border show only
+-- while the motion plays (no motion: never).
+local function stylePop(slot, size)
+	ns.try("maelstrom pop border", ns.applyBorder, slot.edge, ns.borderFor(KEY))
+	fx:stylePop(size)
+	local len = fx:motionLength()
+	local a = len > 0 and 1 or 0
+	for _, g in ipairs(slot.holds) do
+		g.hold:SetFromAlpha(a)
+		g.hold:SetToAlpha(a)
+		g.hold:SetDuration(math.max(len, SHORTEST))
+	end
 end
 
-local function buildFull(slot, button)
+-- As Blizzard makes the pop's button: the rig (its motion moves the button's icon, a copy of the
+-- element's, and a border of the element's on the rig's body), every group handed to the button.
+-- The copy (on the slot's host, with the border look's art) and its border sit at alpha 0, so the
+-- stacks' own icon, number and bar show; an Alpha holding each at 1 for the motion's length,
+-- handed over too, shows them only while they move.
+local function buildPop(slot, button)
 	slot.button = button
-	local holder = CreateFrame("Frame", nil, button)
-	holder:SetAllPoints()
-	slot.holder = holder
-	local bar = CreateFrame("StatusBar", nil, holder)
+	fx:bind(button, slot.icon)
+	slot.edge = fx:makeEdge(button)
+	slot.edge:SetAlpha(0)
+	slot.holds = {}
+	for _, r in ipairs({ slot.host, slot.edge }) do
+		local g = r:CreateAnimationGroup()
+		g.hold = g:CreateAnimation("Alpha")
+		g.hold:SetFromAlpha(0)
+		g.hold:SetToAlpha(0)
+		g.hold:SetDuration(SHORTEST)
+		table.insert(slot.holds, g)
+		ns.try("maelstrom pop hand-off", button.AddAuraAssignedAnimation, button, g)
+	end
+	ns.try("maelstrom pop build", stylePop, slot, ns.sizeOf(KEY))
+end
+
+-- A frame over a button for its icon, its border look's art and its swipe, at alpha 0 (the aura
+-- slot's host): the gate draws nothing, the pop's copy shows only while it moves.
+local function unseenHost(_, button)
+	local h = CreateFrame("Frame", nil, button)
+	h:SetAllPoints(button)
+	h:SetAlpha(0)
+	return h
+end
+
+-- Until setupPop gives it the gate's bar, the pop's container would hang from a frame that never
+-- shows: a container made anywhere else would take the buff at its first stack and pop there.
+local nowhere = CreateFrame("Frame")
+nowhere:Hide()
+local pop = ns.makeAuraSlot(f, {
+	key = KEY, slot = "pop", ids = function() return src.ids() end, parent = nowhere, level = POP_LEVEL,
+	noTimer = true, ownIcon = function() return M.icon end, host = unseenHost,
+	sites = { container = "maelstrom pop container", style = "maelstrom pop style",
+		filter = "maelstrom pop filter" },
+	onButton = function(slot, button) buildPop(slot, button) end,
+	onStyle = function(slot, size) stylePop(slot, size) end,
+	onError = function(err) ns.noteError("maelstrom pop container", err) end,
+})
+
+-- The gate: a button whose bar Blizzard shows only from the most stacks (its min and max), drawing
+-- nothing. Made hidden, so only Blizzard's own count shows it; a bar the button refused
+-- (or held at an old count) is taken back and hidden, never left showing the pop's container.
+local function styleGate(slot)
+	local ok = ns.try("maelstrom pop gate", slot.button.SetApplicationBar, slot.button, slot.gateBar,
+		{ minApplications = src.max, maxApplications = src.max, interpolation = IMMEDIATE })
+	if not ok then
+		pcall(slot.button.ClearApplicationBar, slot.button)
+		slot.gateBar:Hide()
+	end
+	slot.gated = ok
+end
+
+local function buildGate(slot, button)
+	slot.button = button
+	local bar = CreateFrame("StatusBar", nil, button)
 	bar:SetAllPoints(button)
 	bar:SetStatusBarTexture(WHITE)
-	slot.hl = bar
-	ns.try("maelstrom highlight build", styleFull, slot)
+	bar:SetStatusBarColor(0, 0, 0, 0)
+	bar:Hide()
+	slot.gateBar = bar
+	ns.try("maelstrom pop gate build", styleGate, slot)
 end
 
-local full = ns.makeAuraSlot(f, {
-	key = KEY, slot = "full", ids = function() return src.ids() end, parent = f.effects,
-	iconAlpha = function() return 0 end,   -- the stacks' button has the icon
-	sites = { container = "maelstrom highlight container", style = "maelstrom highlight style",
-		filter = "maelstrom highlight filter" },
-	onButton = function(slot, button) buildFull(slot, button) end,
-	onStyle = function(slot) styleFull(slot) end,
-	onError = function(err) ns.noteError("maelstrom highlight container", err) end,
+local gateSlot   -- below
+
+-- The pop's container on the gate's bar, once the bar took its count, while Pop is on. Made from
+-- the layout or the gate's restyle, never as Blizzard makes a button (frames made there can't run
+-- scripts); out of combat with auras readable (the aura slot waits for that).
+local function setupPop()
+	if pop.container or pop.err or not (gateSlot.gated and setting("fullPop")) then return end
+	pop.opts.parent = gateSlot.gateBar
+	pop:setup()
+end
+
+gateSlot = ns.makeAuraSlot(f, {
+	key = KEY, slot = "gate", ids = function() return src.ids() end, parent = f.effects,
+	noTimer = true, host = unseenHost,
+	sites = { container = "maelstrom pop gate container", style = "maelstrom pop gate style",
+		filter = "maelstrom pop gate filter" },
+	onButton = function(slot, button) buildGate(slot, button) end,
+	onStyle = function(slot)
+		styleGate(slot)
+		setupPop()
+	end,
+	onError = function(err) ns.noteError("maelstrom pop gate container", err) end,
 })
 
 ------------------------------------------------------------------------
@@ -462,7 +536,7 @@ function applyIdle()
 	if five.host then five.host:SetAlpha(on and 1 or 0) end
 end
 
-local SLOTS = { stacks, full, five }
+local SLOTS = { stacks, gateSlot, pop, five }
 
 ------------------------------------------------------------------------
 -- The icon under Blizzard's buttons: the look while the buff isn't up
@@ -505,12 +579,6 @@ local function previewParts(ic)
 	p:SetFrameLevel(ic.textFrame:GetFrameLevel() + 1)
 	p.bg = p:CreateTexture(nil, "BACKGROUND")
 	p.segs = {}
-	p.hl = p:CreateTexture(nil, "OVERLAY")
-	p.hl:SetAllPoints(ic)
-	p.burst = p.hl:CreateAnimationGroup()
-	local grow = p.burst:CreateAnimation("Scale")
-	grow:SetOrigin("CENTER", 0, 0); grow:SetScaleFrom(0.01, 1); grow:SetScaleTo(1, 1)
-	grow:SetDuration(0.35); grow:SetSmoothing("OUT")
 	ic.mw = p
 	return p
 end
@@ -546,20 +614,8 @@ function M.drawPreview(ic, n)
 		else ic.count:SetTextColor(1, 1, 1, 1) end
 		ic.count:Show()
 	end
-	local hc = color("highlightColor")
-	p.hl:SetTexture(WHITE)
-	p.hl:SetVertexColor(hc[1], hc[2], hc[3], (hc[4] or 1) * 0.4)
-	p.hl:SetShown(n >= max and setting("highlight") ~= "none")
 	-- The glow at five: the preview icon's own, in the element's Pulsing glow style.
 	ic:SetGlowShown(n >= max and setting("fullGlow"))
-end
-
--- The moment of the fifth stack in the preview: the highlight's burst, when Pop is on.
-function M.previewPop(ic)
-	if not setting("fullPop") or setting("highlight") == "none" then return end
-	local p = previewParts(ic)
-	p.burst:Stop()
-	p.burst:Play()
 end
 
 ------------------------------------------------------------------------
@@ -580,7 +636,7 @@ function M.sanitize(db)
 		if v ~= nil and (type(v) ~= "number" or v ~= v) then o[name] = nil
 		elseif v ~= nil then o[name] = math.min(math.max(v, r[1]), r[2]) end
 	end
-	for _, name in ipairs({ "stackBarColor", "fullCountColor", "highlightColor" }) do
+	for _, name in ipairs({ "stackBarColor", "fullCountColor" }) do
 		if o[name] ~= nil and not ns.isColor(o[name]) then o[name] = nil end
 	end
 	for name, ok in pairs(CHOICES) do
@@ -590,13 +646,16 @@ end
 
 M.applyTimers = styleAll
 -- After a layout: the containers made once (only for a character with the buff), then their looks.
--- The highlight's container only when Highlight isn't None, the one at five only for its glow:
--- with one made but unused, Blizzard would still register it for every player UNIT_AURA for a
--- look the player turned off.
+-- The gate and the pop's container only while Pop is on, the one at five only for its glow or
+-- Idle: with one made but unused, Blizzard would still register it for every player UNIT_AURA for
+-- a look the player turned off.
 function M.applyLayout()
 	if src.learned() and ns.isEnabled(KEY) then
 		stacks:setup()
-		if setting("highlight") ~= "none" then full:setup() end
+		if setting("fullPop") then
+			gateSlot:setup()
+			setupPop()
+		end
 		if setting("fullGlow") or idleWhen() == "five" then five:setup() end
 	end
 	styleAll()
@@ -614,9 +673,11 @@ function M.debug()
 		local err = slot.err and (" (error: " .. slot.err .. ")") or ""
 		return (slot.container and "made" or "not made") .. err
 	end
-	say("maelstrom: spell %s, following %s (%d stacks), stacks container %s, highlight container %s, "
-		.. "container at five %s (sensor %s, glow %s); idle %s, copy counts %s",
-		tostring(M.spellID), table.concat(ids, ","), src.max, state(stacks), state(full), state(five),
+	say("maelstrom: spell %s, following %s (%d stacks), stacks container %s, pop gate container %s "
+		.. "(gated %s), pop container %s (%s), container at five %s (sensor %s, glow %s); idle %s, "
+		.. "copy counts %s",
+		tostring(M.spellID), table.concat(ids, ","), src.max, state(stacks), state(gateSlot),
+		tostring(gateSlot.gated), state(pop), fx:describe(), state(five),
 		tostring(five.sensed), five.glow and five.glow.look and five.glow.look.key or "none",
 		idleWhen(), tostring(copyReady()))
 end
