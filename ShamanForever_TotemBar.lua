@@ -50,7 +50,7 @@ TB.DEFAULTS = {
 	tips = "always",          -- always | ooc | never
 	keys = false,             -- each button's key, in its corner
 	keySize = 13,             --   its size at the base icon size (it grows with the icon)
-	keyX = -2, keyY = -2,     --   its offset from the top-right corner
+	keyX = 0, keyY = 0,       --   its offset from the top-right corner
 	keyColor = { 0.85, 0.85, 0.85, 1 },
 	call = true,              -- Call of the Elements button, once learned
 	recall = true,            -- Totemic Recall button: right-click dismisses all; left-click casts it once learned
