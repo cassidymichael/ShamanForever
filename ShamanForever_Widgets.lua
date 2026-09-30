@@ -843,10 +843,13 @@ function AuraSlot:refilter()
 	if ns.deferWhileAurasSecret(o.sites.filter, function() self:refilter() end) then return end
 	local filters = candidates(o)
 	local ok = ns.try(o.sites.filter, self.container.SetAuraSlotCandidateFilters, self.container, o.slot, filters)
-	for _, x in ipairs(o.extras or {}) do
+	-- The extras last to first: a part that covers another (Flame Shock's Expiring cover) comes after
+	-- what it covers, so a refilter that stops part way leaves no uncovered part taking a new aura.
+	local extras = o.extras or {}
+	for i = #extras, 1, -1 do
 		if ok then
 			ok = ns.try(o.sites.filter, self.container.SetAuraSlotCandidateFilters, self.container,
-				o.slot .. "-" .. x.key, filters)
+				o.slot .. "-" .. extras[i].key, filters)
 		end
 	end
 	if ok then self.filtered = filters.includeSpellIDs
