@@ -77,7 +77,7 @@ local TARGET = {
 		-- container's maxDuration, which also leaves out buffs with no end), so a player's long
 		-- buffs don't keep it lit.
 		candidates = function(def) return { includeDispelTypes = { Magic = true }, maxDuration = T.longest(def) } end,
-		skipLong = { 1, 30, 1 },   -- Longest buff's range and step, in minutes (its page's slider)
+		skipLong = { 1, 60, 1 },   -- Longest buff's range and step, in minutes (its page's slider)
 		idleText = "Idle is when your target has nothing to purge", procHeader = "Something to purge",
 		noPop = true, ownIcon = true, noTimer = true,
 		glowTip = "While your target has one.", upLabel = "Magic buff", idleLabel = "Nothing to purge",
