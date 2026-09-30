@@ -29,12 +29,21 @@
 --   longer than the length the clock uses: 12 s for every rank in the game's spell data (build
 --   70009), checked again after each patch. An out-of-combat read that happens to see a longer DoT
 --   raises it for the session, a rare bonus rather than the safeguard.
--- * Not on target: out of combat, auras are plain reads (C_Secrets.ShouldAurasBeSecret is false),
---   so the target's debuffs are read and the look is exact: shown only when the read worked and
---   found none of yours. In combat nothing says whether it's gone (auras are secret, and the button
---   hiding is invisible to addon code), so the look goes as combat starts (PLAYER_REGEN_DISABLED,
---   before lockdown) and nothing shows for it until combat ends: a miss, never a guess. The same
---   holds while auras are secret out of combat (a PvP match, an encounter).
+-- * Idle is no hostile target. With one, the Not on target look is drawn by the engine, in combat
+--   too, with nothing read: an underlay of ours (the icon, grey by default) sits under Blizzard's
+--   button, shown by a state driver while the target is hostile and alive and you're not dead. With
+--   your Flame Shock on the target the button's opaque icon covers it; without, it shows. So:
+--   - the cover must be opaque: the gate ignores its group's opacity (the aura's icon draws at full)
+--     and the underlay takes the group's opacity itself;
+--   - only looks inside the icon may show in combat (grey, fade in and out), a screen pixel in from
+--     its edges; the red ring could show past a masked look's corners, so it shows only out of
+--     combat, where the target's debuffs are plain reads (C_Secrets.ShouldAurasBeSecret is false)
+--     and say exactly that yours isn't there;
+--   - Blizzard's container follows a new target on its next frame, so the underlay waits 0.1 s
+--     each time it shows or the target changes;
+--   - it hides (alpha 0) while the container isn't made, isn't following the target (a refused call
+--     in combat) or its expiring warning is stuck: a miss, never a false warning.
+--   Shocks' mark can't be covered by the button, so it stays out of combat only (the read).
 
 local _, ns = ...
 local say, Spells, isSecret = ns.say, ns.Spells, ns.isSecret
@@ -54,7 +63,7 @@ local gateAlpha   -- below
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
 		icon = 135813, school = "fire", blurb = "Shows while your Flame Shock is on your target.",
-		idleText = "Idle is when your target doesn't have it", procHeader = "On your target",
+		idleText = "Idle is when you have no hostile target", procHeader = "On your target",
 		popTip = "When it shows on your target. The icon grows and settles, at the Pop style's size and speed.",
 		glowTip = "While it's on your target.", upLabel = "On target",
 		expiring = true, missing = true,   -- its Expiring and Not on target blocks
@@ -148,6 +157,35 @@ for _, def in ipairs(TARGET) do
 	def.gate = CreateFrame("Frame", nil, f.effects)
 	def.gate:SetAllPoints(f)
 	def.gate:Hide()
+	if def.missing then
+		-- Not on target, drawn under Blizzard's button (see the file's header): the gate at full
+		-- opacity whatever its group's, so the button's icon covers it completely; the underlay
+		-- takes the group's opacity itself (styleUnder).
+		def.gate:SetIgnoreParentAlpha(true)
+		local u = CreateFrame("Frame", nil, def.gate)
+		u:SetAllPoints(f)
+		u:Hide()   -- until its state driver (driveGate)
+		u.inner = CreateFrame("Frame", nil, u)   -- the appear delay's alpha, apart from u's own
+		u.inner:SetAllPoints()
+		u.tex = u.inner:CreateTexture(nil, "ARTWORK")
+		ns.cropIconExact(u.tex)
+		u.tex:SetTexture(def.icon)
+		ns.Looks.followMask(f, u.tex)   -- a rounded or cut-corner look's shape, as the icon's
+		u.ring = ns.makeRing(u.inner, f.tex)
+		u.pulse = ns.makePulse(u.tex, "fade")
+		-- Hidden for its first 0.1 s each time it shows or the target changes: Blizzard's container
+		-- follows a new target on its next frame, so the cover could be a frame late.
+		u.appear = u.inner:CreateAnimationGroup()
+		local hold = u.appear:CreateAnimation("Alpha")
+		hold:SetFromAlpha(0); hold:SetToAlpha(0); hold:SetDuration(0.1); hold:SetOrder(1)
+		local come = u.appear:CreateAnimation("Alpha")
+		come:SetFromAlpha(0); come:SetToAlpha(1); come:SetDuration(0.1); come:SetOrder(2)
+		u:SetScript("OnShow", function(self)
+			self.appear:Play()
+			if self.pulseOn then self.pulse:Play() end   -- a hidden frame's animations stop
+		end)
+		def.under = u
+	end
 	def.aura = ns.makeAuraSlot(f, {
 		key = def.key, slot = def.key, unit = "none", filter = def.filter, parent = def.gate,
 		ids = function() return idMap(def) end,
@@ -176,6 +214,16 @@ table.insert(ns.DEFAULTS.groups, { name = "Target", point = "CENTER", x = 122, y
 -- of the container.
 function gateAlpha(def)
 	ns.try("target gate alpha", def.gate.SetAlpha, def.gate, (def.stale or def.stuck) and 0 or 1)
+	if def.under then T.underAlpha(def) end
+end
+
+-- The Not on target underlay's opacity: its group's while it can be trusted (its container made
+-- and following the target, no stuck expiring warning), else 0. Our own frame, not an ancestor of
+-- the container: allowed in combat (it has to be: a failed retarget in combat hides it).
+function T.underAlpha(def)
+	local u = def.under
+	local g = ns.groupOf(def.key)
+	u:SetAlpha((u.on and not def.stale and not def.stuck) and (g and g.alpha or 1) or 0)
 end
 
 -- The target's aura slots follow the target: pointed at it while it's something you can attack
@@ -185,6 +233,7 @@ end
 local function retarget()
 	local unit = wantedUnit()
 	for _, def in ipairs(TARGET) do
+		if def.under then def.under.appear:Stop(); def.under.appear:Play() end
 		local c = def.aura.container
 		if c then
 			local ok = true
@@ -217,6 +266,11 @@ local function driveGate(def)
 	def.driven = true
 	local ok, err = pcall(RegisterStateDriver, def.gate, "visibility", HOSTILE)
 	if not ok then ns.noteError("target gate " .. def.key, err) end
+	-- The underlay: also not while you're dead (nothing can be cast).
+	if def.under then
+		ok, err = pcall(RegisterStateDriver, def.under, "visibility", "[@player,dead] hide; " .. HOSTILE)
+		if not ok then ns.noteError("target underlay " .. def.key, err) end
+	end
 end
 
 ------------------------------------------------------------------------
@@ -282,34 +336,43 @@ local function flameShockMissing()
 	return flameShockOnTarget() == false
 end
 
--- The element's look for it: grey, red ring, fade in and out, from its Not on target block. Out of
--- combat only (its icon is an ancestor of Blizzard's button); combat's start clears it.
-local function applyMissing()
-	local def, f = FLAME, FLAME.frame
-	local on = def.missingNow and ns.isEnabled(def.key)
-	local grey = on and setting(def.key, "missGrey") and true or false
-	local ring = on and setting(def.key, "missRing") and true or false
-	local pulse = on and setting(def.key, "missPulse") and true or false
-	f.tex:SetDesaturated(grey or not def.spellID)
-	f:SetRingShown(ring)
-	f:SetPulsing(pulse)
-	def.missLook = grey or ring or pulse
+-- The underlay's looks, from the Not on target block, out of combat. Grey and Fade in and out are
+-- inside the icon, so the button covers them: they show in combat too. The red ring could show at a
+-- masked look's corners past the button's icon, so it shows only out of combat, and only when the
+-- read says your Flame Shock isn't there.
+local function styleUnder()
+	local def, f, u = FLAME, FLAME.frame, FLAME.under
+	if InCombatLockdown() then return end
+	local a = def.aura
+	u.on = (a.container and not a.err and def.spellID and ns.isEnabled(def.key)) and true or false
+	u:SetFrameLevel(f.textFrame:GetFrameLevel() + 1)   -- over the icon, under the container (+5)
+	-- A screen pixel in from the icon's edges, so rounding at any scale leaves no edge past the button.
+	local px = ns.pixel(u)
+	u.tex:ClearAllPoints()
+	u.tex:SetPoint("TOPLEFT", f.tex, "TOPLEFT", px, -px)
+	u.tex:SetPoint("BOTTOMRIGHT", f.tex, "BOTTOMRIGHT", -px, px)
+	u.tex:SetDesaturated(setting(def.key, "missGrey") and true or false)
+	u.pulseOn = setting(def.key, "missPulse") and true or false
+	if not u.pulseOn then u.pulse:Stop()
+	elseif not u.pulse:IsPlaying() then u.pulse:Play() end
+	u.ring:show((not fighting and def.missingNow and setting(def.key, "missRing")) and true or false)
+	T.underAlpha(def)
 end
 
 -- Read again, and the element's look and Shocks' mark follow (ShamanForever_Shock.lua).
 local function checkMissing()
 	if fighting or InCombatLockdown() then return end
 	FLAME.missingNow = flameShockMissing()
-	applyMissing()
+	styleUnder()
 	ns.Shock.markFlameShock(FLAME.missingNow)
 end
 
--- Combat starts (before lockdown): the look and the mark go, and the icon to its idle alpha at once
--- (a fade would stop part way, ns.fadeTo).
+-- Combat starts (before lockdown): the red ring and the mark go (out of combat only), and the icon
+-- to its idle alpha at once (a fade would stop part way, ns.fadeTo).
 local function combatStarts()
 	fighting = true
 	FLAME.missingNow = false
-	applyMissing()
+	styleUnder()
 	ns.Shock.markFlameShock(false)
 	local f = FLAME.frame
 	local a = (FLAME.spellID and ns.getAccount().locked) and ns.idleAlpha(FLAME.key) or 1
@@ -328,10 +391,11 @@ local function refreshAura(def)
 	end
 	f.tex:SetTexture(def.icon)
 	-- Not learned yet (seen only while the preview shows such elements): a plain grey icon.
-	if not def.missing then f.tex:SetDesaturated(not def.spellID) end
-	-- The button says whether it's up; the icon under it is the idle look, or at full with a Not on
-	-- target look (out of combat only: the frame is an ancestor of Blizzard's button, ns.fadeTo).
-	ns.fadeTo(f, (def.spellID and ns.getAccount().locked and not def.missLook) and ns.idleAlpha(key) or 1)
+	f.tex:SetDesaturated(not def.spellID)
+	-- The button says whether it's up, Flame Shock's underlay whether the target lacks it; the icon
+	-- under both is the idle look (out of combat only: the frame is an ancestor of Blizzard's
+	-- button, ns.fadeTo).
+	ns.fadeTo(f, (def.spellID and ns.getAccount().locked) and ns.idleAlpha(key) or 1)
 end
 
 ------------------------------------------------------------------------
@@ -361,7 +425,6 @@ function T.applyTimers()
 end
 
 function T.applyLayout()
-	checkMissing()   -- its looks may have changed
 	for _, def in ipairs(TARGET) do
 		if def.spellID and ns.isEnabled(def.key) then def.aura:setup() end
 		-- Skip long buffs or Longest buff changed: the slot's filter again. SetAuraSlotCandidateFilters
@@ -375,6 +438,7 @@ function T.applyLayout()
 		def.aura:style()
 		refreshAura(def)
 	end
+	checkMissing()   -- its looks may have changed, and its container may be new
 end
 
 function T.afterGroups()

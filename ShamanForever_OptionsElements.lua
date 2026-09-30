@@ -521,7 +521,7 @@ local function buildBuff(p, def)
 	if def.missing then
 		warningBlock(p, "Not on target", eget(key, "missGrey"), eset(key, "missGrey"), eget(key, "missRing"), eset(key, "missRing"),
 			eget(key, "missPulse"), eset(key, "missPulse"), function()
-				p:text("While your hostile target doesn't have it. Out of combat only.")
+				p:text("While your hostile target doesn't have it. The red ring shows out of combat only.")
 			end)
 	end
 	if not def.noTimer then timerSettings(p, "Time left", key, "uptime") end
