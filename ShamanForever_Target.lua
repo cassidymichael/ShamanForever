@@ -40,8 +40,8 @@
 --   your Flame Shock on the target the button's opaque icon covers it; without, it shows. So:
 --   - the cover must be opaque: the gate ignores its group's opacity (the aura's icon draws at full)
 --     and the underlay takes the group's opacity itself;
---   - only looks inside the icon may show (grey, fade in and out, the red ring, a pulsing glow in a
---     look drawn inside the icon: Soft inner or School material), a screen pixel in
+--   - only looks inside the icon may show (grey, fade in and out, the red ring, a pulsing glow in
+--     one of the looks drawn inside the icon, its own Glow look), a screen pixel in
 --     from its edges and in a rounded or cut-corner look's shape (Looks.maskOver), so the button's
 --     icon covers every pixel of them;
 --   - Blizzard's container follows a new target on its next frame, so the underlay waits two
@@ -74,7 +74,7 @@ local TARGET = {
 		glowTip = "While it's on your target.", upLabel = "On target", idleLabel = "No target",
 		missing = true, engineExpire = true,   -- its Not on target and Expiring blocks
 		defaults = { idleAlpha = 0, primedGlow = false,
-			missGrey = true, missRing = false, missPulse = false, missGlow = true,
+			missGrey = true, missRing = false, missPulse = false, missGlow = true, missGlowLook = "soft",
 			-- Magenta: it stands out against the fire school's orange time bar.
 			expireSecs = 3, expireBar = true, expireBarColor = { 1, 0.2, 0.8, 1 }, expireText = false },
 		experimental = "Flame Shock on target" },
@@ -333,11 +333,15 @@ for _, def in ipairs(TARGET) do
 		ns.cropIconExact(u.tex)
 		u.tex:SetTexture(def.icon)
 		u.ring = ns.makeRing(u.inner, u.tex)   -- inside the inset picture
-		-- Its pulsing glow: only a look drawn inside the icon (inside), over the inset picture.
+		-- Its pulsing glow: its own look, one drawn inside the icon only (the block's Glow look), over
+		-- the inset picture, in the Pulsing glow style's colour and speed.
 		-- Its looks take their school from what they cover (ns.Looks' schoolOf): the element's.
 		u.tex.owner = def.key
-		u.glow = ns.makeGlow(u.inner, u.tex, def.key, false, true)
-		u.glow.label = "Not on target"
+		-- Its look before the profile loads (the glow is made at load): the default.
+		u.glow = ns.makeInsideGlow(u.inner, u.tex, def.key, function()
+			local ok, look = pcall(setting, def.key, "missGlowLook")
+			return ok and look or nil
+		end)
 		-- Every texture of its look in the picture's shape as it's made and each time it's fitted, in
 		-- combat too (a look changed with the options open): never a square corner past the button.
 		u.glow.onLayout = function(_, parts)
@@ -727,8 +731,8 @@ function T.debug()
 		readable() and tostring(on) or "not read (combat or secret auras)", tostring(FLAME.missingNow))
 	local g = FLAME.under and FLAME.under.glow
 	if g then
-		say("%s Not on target glow: drawn %s, style's %s, shown %s; red countdown handed %s", FLAME.spell,
-			g.look and g.look.key or "none", tostring(ns.Style.get(FLAME.key, "glow").look), tostring(g:IsShown()),
+		say("%s Not on target glow: drawn %s, chosen %s, shown %s; red countdown handed %s", FLAME.spell,
+			g.look and g.look.key or "none", tostring(setting(FLAME.key, "missGlowLook")), tostring(g:IsShown()),
 			tostring(FLAME.textHanded))
 	end
 end

@@ -13,7 +13,7 @@ local relayout, respell, get, set = K.relayout, K.respell, K.get, K.set
 local pct, int, px = Page.pct, Page.int, Page.px
 local SHOW_CHOICES = K.SHOW_CHOICES
 local timerSettings, gcdBlock, glowBlock, popBlock = K.timerSettings, K.gcdBlock, K.glowBlock, K.popBlock
-local expiringLooks, killedBlock = K.expiringLooks, K.killedBlock
+local expiringLooks, killedBlock, insideGlowLook = K.expiringLooks, K.killedBlock, K.insideGlowLook
 
 local function db() return ns.getDB() end
 
@@ -523,8 +523,9 @@ local function buildBuff(p, def)
 			eget(key, "missPulse"), eset(key, "missPulse"), function()
 				p:text("While your hostile target doesn't have it.")
 			end)
-		p:checkbox("Pulsing glow", "A glow inside the icon that pulses. Looks that reach past the icon show as Soft inner here.",
+		p:checkbox("Pulsing glow", "A glow inside the icon that pulses. Its colour and speed are the Pulsing glow style's.",
 			eget(key, "missGlow"), eset(key, "missGlow"))
+		insideGlowLook(p, eget(key, "missGlowLook"), eset(key, "missGlowLook"), showWhen(eget(key, "missGlow")))
 	end
 	local function procBlock()
 		-- Elemental Focus's texts, unless the def has its own (the target's auras, ShamanForever_Target.lua).

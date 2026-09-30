@@ -591,10 +591,12 @@ local function buffPreview(def)
 				ic.tex:SetDesaturated(opt(key, "missGrey"))
 				ic:SetRingShown(opt(key, "missRing"))
 				ic:SetPulsing(opt(key, "missPulse"))
-				-- The HUD's glow here takes only a look drawn inside the icon (Soft inner otherwise):
-				-- the preview's does the same.
+				-- The HUD's glow here: its own Glow look, one drawn inside the icon only.
 				if opt(key, "missGlow") then
-					if not ic.insideGlow then ic.insideGlow = ns.makeGlow(ic, ic, key, false, true) end
+					if not ic.insideGlow then
+						ic.insideGlow = ns.makeInsideGlow(ic, ic, key, function() return opt(key, "missGlowLook") end)
+					end
+					ic.insideGlow:restyle()
 					ic.insideGlow:fit(ic:GetWidth())
 					ic.insideGlow:Show()
 				end
