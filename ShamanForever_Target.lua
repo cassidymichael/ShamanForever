@@ -20,8 +20,10 @@
 --   last target's aura.
 --
 -- Flame Shock, beside the aura itself:
--- * Expiring (its last seconds): the button's time can't be read, so the warning runs from our
---   own last Flame Shock cast (UNIT_SPELLCAST_SUCCEEDED, plain) plus the DoT's length, and sits
+-- * Expiring (its last seconds), switched off (T.EXPIRING): the client refuses our alpha under
+--   Blizzard's button in combat (tested 2026-09-30), so it could never show in a fight. The code
+--   stays for a route the engine draws. As built: the button's time can't be read, so it runs from
+--   our own last Flame Shock cast (UNIT_SPELLCAST_SUCCEEDED, plain) plus the DoT's length, and sits
 --   under Blizzard's button, which the engine hides the moment the DoT is gone (Timer:setClock). The
 --   DoT on the target came from that cast or an earlier one, so it never has more time left than
 --   the cast says: a warning can come late or not at all (the DoT was cast before a /reload, or a
@@ -52,6 +54,8 @@ local T = { name = "target" }
 ns.Target = T
 
 local setting = ns.elementSetting
+-- Flame Shock's Expiring (see the file's header): off, its page block and preview state with it.
+T.EXPIRING = false
 local gateAlpha, retarget   -- below
 
 -- The target's aura elements, in the order the options list them. filter: the aura slot's filter
@@ -67,7 +71,7 @@ local TARGET = {
 		idleText = "Idle is when you have no hostile target", procHeader = "On your target",
 		popTip = "When it shows on your target. The icon grows and settles, at the Pop style's size and speed.",
 		glowTip = "While it's on your target.", upLabel = "On target", idleLabel = "No target",
-		expiring = true, missing = true,   -- its Expiring and Not on target blocks
+		expiring = T.EXPIRING, missing = true,   -- its Expiring and Not on target blocks
 		defaults = { idleAlpha = 0, primedPop = false, primedGlow = false, expire = { secs = 3 },
 			missGrey = true, missRing = false, missPulse = false },
 		experimental = "Flame Shock on target" },
