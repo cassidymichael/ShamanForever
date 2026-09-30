@@ -21,9 +21,9 @@
 --   shows is changed. Every layout puts it back in its group first; this file parks it again after.
 -- * The shield and Elemental Focus hold Blizzard's protected aura button, and a frame holding it
 --   takes no change in combat: parked, it could stay hidden for a fight. They are never parked. Their
---   stand-in sits over the button, and meanwhile the shield's module hides its underlay and sets the
---   stand-in's opacity for the state shown (ShamanForever_Shield.lua) and Elemental Focus's clears
---   its icon (ShamanForever_Buffs.lua).
+--   stand-in sits over the button, and meanwhile the shield's module turns its No shield look off
+--   and sets the stand-in's opacity (ShamanForever_Shield.lua) and Elemental Focus's clears its
+--   icon (ShamanForever_Buffs.lua).
 -- * The totem bar holds secure buttons: it draws the preview's states on its own slots
 --   (ShamanForever_TotemBar.lua), and shows or hides only in its layout, out of combat.
 -- * The swing timer is not an element: the real bar shows and swings with made-up swings, as its
@@ -154,7 +154,7 @@ local function paintElement(key, r, moment)
 	local ic, st = standIns[key], r.steps[r.i][1]
 	ic.momentToken, ic.idleToken = nil, nil   -- what an options preview's moment left waiting
 	local ends = L.paint(ic, key, st, r.at)
-	if key == "shield" then ns.Shield.preview(ic, st) end
+	if key == "shield" then ns.Shield.preview(ic) end
 	if idles(key, st) and not (r.idleAt and GetTime() < r.idleAt) then setAlpha(ic, L.idleAlpha(key))
 	else setAlpha(ic, ic:GetAlpha()) end
 	local pop = L.PREVIEW[key].pop

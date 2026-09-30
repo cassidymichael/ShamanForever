@@ -341,9 +341,6 @@ function Looks.maskOver(f, tex, over)
 	map[tex] = over or tex
 	if maskSpecs[f] then maskOne(f, tex, maskSpecs[f], map[tex]) end
 end
--- The mask spec icon frame f's look gives it now (nil: none). The same table while the look's shape
--- is the same, so a caller can tell whether the shape changed since it last looked.
-function Looks.maskSpec(f) return maskSpecs[f] end
 
 -- Registers textures laid over icon frame f's picture, to take its mask (now, and on each change).
 function Looks.followMask(f, ...)
@@ -454,7 +451,22 @@ function Looks.fit(f, b, w, h, opts)
 	local o = Looks.inset(host, b, math.min(w, h or w), shape)
 	f:SetSize(w - 2 * o, (h or w) - 2 * o)
 	ns.applyBorder(host, b, shape)
+	if host ~= f then
+		-- The mask and the swipe belong to the icon's picture, not to the part the border is on.
+		local look = drawnLook(b, shape)
+		local mask = look and maskOf(look)
+		drawMask(f, mask)
+		drawSwipe(f, mask and look)
+		f.frameOuter = host.frameOuter
+	end
 	return o
+end
+
+-- Draws b's stretched art (the inner overlay of a look such as Cooldown Manager) on part f alone,
+-- or takes it down: for a frame that shows it where no other part of the border does.
+function Looks.overlay(f, b, shape)
+	local look = drawnLook(b, shape)
+	drawOverlay(f, look and look.art)
 end
 
 -- Draws b (a border style) round f in its look, or takes it down (b off, or a size of 0 for a
@@ -544,14 +556,6 @@ function Looks.auraStyle(slot, size)
 	elseif not spec then made.spec = nil end
 	made.look = made.spec and lookFor(b) or nil
 	swipeOne(slot.button, slot.cd, made.look, size)
-end
-
--- The shape the aura button's icon (the aura slot's icon) has now: its mask's spec, or nil while it
--- is square (made without a mask, or its mask plain). Changed only as the button takes a new shape,
--- so it is never ahead of the button.
-function Looks.auraShape(icon)
-	local made = icon and auraMade[icon]
-	return made and made.mask and made.spec or nil
 end
 
 -- The aura elements whose button's shape differs from their border look now (a masked look on a
@@ -703,7 +707,7 @@ end
 --   steady    it doesn't breathe (the glow's pulse is off; speed may time its own motion)
 --   bySchool  it differs by school (the options preview it on one icon per school)
 --   inside    drawn only within the icon: a warning's glow on the element takes the icon's shape
---             (ns.makeClipLook's `shape`); the other looks reach past it and take none
+--             (over ns.makeClipLook's picture); the other looks reach past it and take none
 --   build(g)  its regions and animation groups, under g.inner (breathing) or g (not); returns
 --             parts: { roots = { frames }, anims = { groups played while it shows }, aura = { the
 --             groups Blizzard's aura button plays in their place, when the glow is under it } }

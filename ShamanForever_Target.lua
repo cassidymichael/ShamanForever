@@ -33,23 +33,17 @@
 --   covers the Expiring colour until then, and is gone after. The countdown's red is the button's
 --   duration text through a step colour curve. All set out of combat, nothing written in combat;
 --   the buttons hide the moment the DoT is gone.
--- * Idle is no hostile target. With one, the Not on target look is drawn by the engine, in combat
---   too, with nothing read: an underlay of ours (the icon, grey by default) sits under Blizzard's
---   button, shown by a state driver while the target is hostile and alive and you're not dead. With
---   your Flame Shock on the target the button's opaque icon covers it; without, it shows. So:
---   - the cover must be opaque: the gate ignores its group's opacity (the aura's icon draws at full)
---     and the underlay takes the group's opacity itself;
---   - the underlay itself is only the icon's picture (grey, fade in and out, the red ring), a screen
---     pixel in from its edges and in a rounded or cut-corner look's shape (Looks.maskOver), so the
---     button's icon covers every pixel of them;
---   - Blizzard's container follows a new target on its next frame, so the underlay waits two
---     frames each time it shows or the target changes (T.appear);
---   - it hides (alpha 0) while the container isn't made or isn't following the target (a refused
---     call in combat): a miss, never a false warning.
---   The pulsing glow, in any look (some reach past the icon's edge; the ones within it take the
---   icon's shape), is a clip look on the underlay (ns.makeClipLook): its sensor follows the target
---   with the container, and it shows only while the underlay does and the target lacks your Flame
---   Shock, drawn by the engine.
+-- * Idle is no hostile target. With one, the Not on target look (the icon grey by default, fade in
+--   and out, the red ring, the pulsing glow in any look) is drawn by the engine, in combat too,
+--   with nothing read: a clip look (ns.makeClipLook) whose sensor follows the target with the
+--   container shows it only while the target lacks your Flame Shock. So nothing of it lies under
+--   Blizzard's button, which takes its group's opacity like any icon. Its holder:
+--   - is shown by a state driver while the target is hostile and alive and you're not dead;
+--   - hides (alpha 0) while the container isn't made or isn't following the target (a refused
+--     call in combat): a miss, never a false warning;
+--   - hangs from the gate, so it hides with it, and the sensor with it.
+--   The sensor follows a new target on its next frame, so the look waits two frames each time it
+--   shows or the target changes (ns.makeClipLook).
 
 local _, ns = ...
 local say, Spells, isSecret = ns.say, ns.Spells, ns.isSecret
@@ -58,7 +52,7 @@ local T = { name = "target" }
 ns.Target = T
 
 local setting = ns.elementSetting
-local gateAlpha, retarget   -- below
+local gateAlpha, holderAlpha, retarget   -- below
 
 -- The target's aura elements, in the order the options list them. filter: the aura slot's filter
 -- string; candidates(def): its candidate filters (default: the spell IDs of auraKey). The page's
@@ -315,61 +309,59 @@ for _, def in ipairs(TARGET) do
 	def.gate:SetAllPoints(f)
 	def.gate:Hide()
 	if def.missing then
-		-- Not on target, drawn under Blizzard's button (see the file's header): the gate at full
-		-- opacity whatever its group's, so the button's icon covers it completely; the underlay
-		-- takes the group's opacity itself (styleUnder).
-		def.gate:SetIgnoreParentAlpha(true)
-		local u = CreateFrame("Frame", nil, def.gate)
-		u:SetAllPoints(f)
-		u:Hide()   -- until its state driver (driveGate)
-		u.inner = CreateFrame("Frame", nil, u)   -- the wait's alpha (T.appear), apart from u's own
-		u.inner:SetAllPoints()
-		u.tex = u.inner:CreateTexture(nil, "ARTWORK")
-		ns.cropIconExact(u.tex)
-		u.tex:SetTexture(def.icon)
-		u.ring = ns.makeRing(u.inner, u.tex)   -- inside the inset picture
-		u.pulse = ns.makePulse(u.tex, "fade")
+		-- One border at any time. Blizzard's button is see-through at partial opacity, so the
+		-- element's own border must not lie under it while the holder draws the group's. The two
+		-- are complements, each shown by a state driver (driveGate), so exactly one shows:
+		--   idleEdge  the element's own border (lines, sliced and inner art, at its Idle opacity):
+		--             with no hostile target, and while you're dead (the holder is hidden then);
+		--   holder    the group's border, lines and sliced art only (at the group's opacity, with a
+		--             hostile target): the aura button draws the inner art while the aura is up,
+		--             and the Not on target look while it's gone (ns.makeClipLook).
+		-- While dead with a hostile target and your Flame Shock up, a look with inner art (an
+		-- experimental border look) shows it twice, the button's and the frame's: rare, and only
+		-- at Idle above 0.
+		def.idleEdge = CreateFrame("Frame", nil, f)
+		def.idleEdge:SetAllPoints(f)
+		-- Not on target (see the file's header): its holder, over the icon, and the look on it.
+		local h = CreateFrame("Frame", nil, def.gate)
+		h:SetAllPoints(f)
+		h:Hide()   -- until its state driver (driveGate)
 		-- Every frame while shown: the target still hostile and alive, and the container on it. The
 		-- state driver checks only every 0.2 s (and at once only on a target change), while the
-		-- button goes the moment a dying target's debuffs clear: so the underlay hides itself here,
+		-- button goes the moment a dying target's debuffs clear: so the holder hides itself here,
 		-- and asks for the container to follow a target that came back or turned (plain reads, and
 		-- SetAlpha on our own frame, allowed in combat).
-		u:SetScript("OnUpdate", function(self)
-			if self.hold then   -- the wait (T.appear)
-				self.hold = self.hold - 1
-				if self.hold <= 0 then self.hold = nil; self.inner:SetAlpha(1) end
-			end
+		h:SetScript("OnUpdate", function(self)
 			local ok = hostileTarget() and def.unit == "target" and not ns.cantAct()
 			if ok ~= self.trusted then
 				self.trusted = ok
-				T.underAlpha(def)
+				holderAlpha(def)
 			end
 			if not ok and not def.stale and def.unit ~= wantedUnit() then retarget(def) end
 		end)
-		u:SetScript("OnShow", function(self)
+		h:SetScript("OnShow", function(self)
 			self.trusted = hostileTarget() and def.unit == "target" and not ns.cantAct()
-			T.underAlpha(def)
-			T.appear(self)
-			if self.pulseOn then self.pulse:Play() end   -- a hidden frame's animations stop
+			holderAlpha(def)
 		end)
-		def.under = u
-		-- Its pulsing glow: the block's Glow look in General's Pulsing glow style (the element has no
-		-- style of its own), a clip look on the underlay (see the file's header), its sensor on the
-		-- gate beside Blizzard's container. Its look before the profile loads: the default.
-		def.past = ns.makeClipLook(f, {
-			key = def.key, parent = u.inner, sensorParent = def.gate, unit = wantedUnit,
+		def.holder = h
+		-- The look, its glow in the block's Glow look and General's Pulsing glow style (the element
+		-- has no style of its own); its sensor on the gate beside Blizzard's container. The glow's
+		-- look before the profile loads: the default.
+		def.missLook = ns.makeClipLook(f, {
+			key = def.key, parent = h, sensorParent = def.gate, unit = wantedUnit,
 			needUnit = "target",
-			shape = u.tex,
 			filter = def.filter, ids = function() return idMap(def) end,
 			lookFor = function()
 				local ok, look = pcall(setting, def.key, "missGlowLook")
 				return ok and look or nil
 			end,
 			sites = {
-				container = "target glow sensor " .. def.key, style = "target glow style " .. def.key,
-				filter = "target glow filter " .. def.key,
+				container = "target warning sensor " .. def.key,
+				style = "target warning style " .. def.key,
+				filter = "target warning filter " .. def.key,
 			},
 		})
+		def.missLook.tex:SetTexture(def.icon)
 	end
 	def.aura = ns.makeAuraSlot(f, {
 		key = def.key, slot = def.key, unit = "none", filter = def.filter, parent = def.gate,
@@ -387,7 +379,7 @@ for _, def in ipairs(TARGET) do
 		onError = function(err) ns.noteError("target container " .. def.key, err) end,
 	})
 	ns.registerElement(def.key, { frame = f, label = def.spell, defaults = def.defaults,
-		fadeFrames = def.missing and { def.gate } or nil,   -- it ignores the group's alpha
+		borderHost = def.idleEdge,
 		-- Preview mode: its border isn't on its frame (ShamanForever_Preview.lua).
 		standInBorder = true,
 		learned = function() return def.spellID ~= nil end,
@@ -414,45 +406,30 @@ end
 -- gate is our own frame, an ancestor of the container.
 function gateAlpha(def)
 	ns.try("target gate alpha", def.gate.SetAlpha, def.gate, def.stale and 0 or 1)
-	if def.under then T.underAlpha(def) end
+	if def.holder then holderAlpha(def) end
 end
 
--- The underlay's wait: hidden now, and back on its second OnUpdate from here. A change asks
--- Blizzard's container to update (UpdateAllAuras, SetUnit, a shown container: all mark it dirty),
--- and it does so in its own next OnUpdate, in this frame's pass or the next one's. Ours comes back
--- a pass after that, so before the frame drawn after the container's update, never the one before:
--- one or two frames hidden, not a fixed time. Needed on a change between two hostile targets too,
--- when the underlay stays shown: without it the last target's button state (no Flame Shock, so
--- grey) would be drawn once over a target that has it. Our own frame: allowed in combat.
-function T.appear(u)
-	u.inner:SetAlpha(0)
-	u.hold = 2
-end
-
--- The Not on target underlay's opacity: its group's while it can be trusted (its container made
--- and following the target), else 0. Our own frame, not an ancestor of the container: allowed in
--- combat (it has to be: a failed retarget in combat hides it).
-function T.underAlpha(def)
-	local u = def.under
-	local g = ns.groupOf(def.key)
-	local trusted = u.on and u.trusted ~= false and not def.stale
+-- The Not on target holder's opacity: 1 while it can be trusted (its container made and following
+-- the target), else 0. Our own frame, not an ancestor of a container: allowed in combat (it has to
+-- be: a failed retarget in combat hides it).
+function holderAlpha(def)
+	local h = def.holder
+	local trusted = h.on and h.trusted ~= false and not def.stale
 	-- Hidden too while preview mode's stand-in shows over it (its idle state is see-through); the
 	-- preview's start and end lay the HUD out, which calls this (T.afterGroups).
-	u:SetAlpha((trusted and not ns.Preview.isOn()) and (g and g.alpha or 1) or 0)
+	h:SetAlpha((trusted and not ns.Preview.isOn()) and 1 or 0)
 end
 
 -- The target's aura slots follow the target: pointed at it while it's something you can attack
 -- (a change of unit refreshes the container), refreshed on a change from one such target to
 -- another, and at no unit otherwise. A call that fails (see the file's header) leaves def.unit nil,
 -- so the next refresh tries again, as does the end of combat; meanwhile the gate is at alpha 0.
--- only: that element alone (a refresh finding its unit behind), else both. Flame Shock's underlay
--- waits again only when its own container is called.
+-- only: that element alone (a refresh finding its unit behind), else both.
 function retarget(only)
 	local unit = wantedUnit()
 	for _, def in ipairs(TARGET) do
 		local c = (only == nil or only == def) and def.aura.container
 		if c then
-			if def.under then T.appear(def.under) end
 			local ok = true
 			if def.unit ~= unit then
 				ok = ns.try("target aura unit", c.SetUnit, c, unit)
@@ -472,8 +449,9 @@ function retarget(only)
 				ns.retryAfterCombat("target retarget", function() retarget() end)
 			end
 		end
-		-- The glow's sensor, the same way; a refused call holds the glow off (ns.makeClipLook).
-		if def.past and (only == nil or only == def) and not def.past:follow(unit) then
+		-- Not on target's sensor, the same way; a refused call holds the look off, and it waits two
+		-- frames on each call (ns.makeClipLook).
+		if def.missLook and (only == nil or only == def) and not def.missLook:follow(unit) then
 			ns.retryAfterCombat("target retarget", function() retarget() end)
 		end
 	end
@@ -487,10 +465,15 @@ local function driveGate(def)
 	def.driven = true
 	local ok, err = pcall(RegisterStateDriver, def.gate, "visibility", HOSTILE)
 	if not ok then ns.noteError("target gate " .. def.key, err) end
-	-- The underlay: also not while you're dead (nothing can be cast).
-	if def.under then
-		ok, err = pcall(RegisterStateDriver, def.under, "visibility", "[@player,dead] hide; " .. HOSTILE)
-		if not ok then ns.noteError("target underlay " .. def.key, err) end
+	-- Not on target's holder: also not while you're dead (nothing can be cast).
+	if def.holder then
+		ok, err = pcall(RegisterStateDriver, def.holder, "visibility",
+			"[@player,dead] hide; " .. HOSTILE)
+		if not ok then ns.noteError("target warning " .. def.key, err) end
+		-- The element's own border shows exactly when the holder's group border doesn't.
+		ok, err = pcall(RegisterStateDriver, def.idleEdge, "visibility",
+			"[@player,dead] show; [@target,harm,nodead] hide; show")
+		if not ok then ns.noteError("target border " .. def.key, err) end
 	end
 end
 
@@ -534,59 +517,45 @@ local function readWanted()
 	return FLAME.spellID and ns.isEnabled(FLAME.key) and readable() and hostileTarget()
 end
 
--- The underlay's state, cheap enough for every target change and the 1 s tick: whether it can be
--- trusted (its container made and on), its fade and glow running as its settings say, its opacity.
-local function stateUnder()
-	local def, u = FLAME, FLAME.under
+-- The look's state, cheap enough for every target change and the 1 s tick: whether it can be
+-- trusted (its container made and on), and its holder's opacity.
+local function stateLook()
+	local def = FLAME
 	local a = def.aura
-	u.on = (a.container and not a.err and def.spellID and ns.isEnabled(def.key)) and true or false
-	if not u.pulseOn then u.pulse:Stop()
-	elseif not u.pulse:IsPlaying() then u.pulse:Play() end
-	def.past:want(setting(def.key, "missGlow"))
-	T.underAlpha(def)
+	local on = a.container and not a.err and def.spellID and ns.isEnabled(def.key)
+	def.holder.on = on and true or false
+	def.missLook:want(def.holder.on)
+	holderAlpha(def)
 end
 
--- The underlay's looks, from the Not on target block, out of combat: grey, fade in and out and the
--- red ring, all inside the inset picture and in its shape, so Blizzard's button covers them while
--- your Flame Shock is up; they show in combat too; and the pulsing glow's look and size. Run on a
--- layout, a style change and at combat's start and end; then the state.
-local function styleUnder()
-	local def, f, u = FLAME, FLAME.frame, FLAME.under
+-- The look from the Not on target block, out of combat: grey, fade in and out, the red ring and the
+-- pulsing glow, its level, shape and size. Run on a layout, a style change and at combat's start
+-- and end; then the state.
+local function styleLook()
+	local def, f, h, look = FLAME, FLAME.frame, FLAME.holder, FLAME.missLook
 	if InCombatLockdown() then return end
-	u:SetFrameLevel(f.textFrame:GetFrameLevel() + 1)   -- over the icon, under the container
-	-- A screen pixel in from the icon's edges, so rounding at any scale leaves no edge past the
-	-- button.
-	local px = ns.pixel(u)
-	u.tex:ClearAllPoints()
-	u.tex:SetPoint("TOPLEFT", f.tex, "TOPLEFT", px, -px)
-	u.tex:SetPoint("BOTTOMRIGHT", f.tex, "BOTTOMRIGHT", -px, px)
-	-- A rounded or cut-corner look's shape over the inset picture itself, so its curves are set in
-	-- too.
-	ns.Looks.maskOver(f, u.tex)
-	u.tex:SetDesaturated(setting(def.key, "missGrey") and true or false)
-	u.pulseOn = setting(def.key, "missPulse") and true or false
-	u.ring:show(setting(def.key, "missRing") and true or false)
-	for _, e in ipairs(u.ring.edges) do ns.Looks.maskOver(f, e, u.tex) end
-	-- The glow: over the picture and ring, in its look now, at the icon's size (its sensor's
-	-- restyle waits while auras are secret; the glow waits with it, ns.makeClipLook).
-	def.past:setLevel(u:GetFrameLevel() + 2)
-	def.past.glow:restyle()
-	def.past:style()
-	stateUnder()
+	h:SetFrameLevel(f.textFrame:GetFrameLevel() + 1)   -- over the icon, under the container
+	look:setLevel(h:GetFrameLevel() + 1)
+	look:setParts(setting(def.key, "missGrey"), false, setting(def.key, "missRing"),
+		setting(def.key, "missPulse"), setting(def.key, "missGlow"))
+	-- Its sensor's restyle waits while auras are secret; the look waits with it.
+	look:reshape()
+	look:style()
+	stateLook()
 end
 
--- Out of combat: the target read again (readWanted), and the underlay's state.
+-- Out of combat: the target read again (readWanted), and the look's state.
 local function checkMissing()
 	if fighting or InCombatLockdown() then return end
 	if readWanted() then flameShockOnTarget() end
-	stateUnder()
+	stateLook()
 end
 
 -- Combat starts (before lockdown): the icon to its idle alpha at once (a fade would stop part way,
 -- ns.fadeTo).
 local function combatStarts()
 	fighting = true
-	styleUnder()
+	styleLook()
 	local f = FLAME.frame
 	local a = (FLAME.spellID and ns.getAccount().locked) and ns.idleAlpha(FLAME.key) or 1
 	f:SetAlpha(a)
@@ -600,7 +569,7 @@ local function refreshAura(def)
 	-- it's made, and again after a failed call or when a target change was missed.
 	if def.aura.container then
 		driveGate(def)
-		local p = def.past
+		local p = def.missLook
 		if def.unit ~= wantedUnit() or (p and p.container and p.unit ~= wantedUnit()) then
 			retarget(def)
 		end
@@ -608,8 +577,8 @@ local function refreshAura(def)
 	f.tex:SetTexture(def.icon)
 	-- Not learned yet (seen only while the preview shows such elements): a plain grey icon.
 	f.tex:SetDesaturated(not def.spellID)
-	-- The button says whether it's up, Flame Shock's underlay whether the target lacks it; the icon
-	-- under both is the idle look (out of combat only: the frame is an ancestor of Blizzard's
+	-- The button says whether it's up, Flame Shock's Not on target whether the target lacks it; the
+	-- icon under both is the idle look (out of combat only: the frame is an ancestor of Blizzard's
 	-- button, ns.fadeTo).
 	ns.fadeTo(f, (def.spellID and ns.getAccount().locked) and ns.idleAlpha(key) or 1)
 end
@@ -625,17 +594,17 @@ function T.resolve()
 		def.spellID = Spells.known(def.spellKey)
 		local before = def.ids
 		def.ids = nil
-		-- A new rank (a new spell ID) goes into the slot's filter, and the glow's sensor's.
+		-- A new rank (a new spell ID) goes into the slot's filter, and the look's sensor's.
 		if def.auraKey and before and def.aura.container then
 			for id in pairs(idMap(def)) do
 				if not before[id] then
 					def.aura:refilter()
-					if def.past then def.past:refilter() end
+					if def.missLook then def.missLook:refilter() end
 					break
 				end
 			end
 		end
-		if def.past then def.past:checkIDs() end
+		if def.missLook then def.missLook:checkIDs() end
 		table.insert(sig, tostring(def.spellID))
 	end
 	return table.concat(sig, ",")
@@ -643,15 +612,16 @@ end
 
 function T.applyTimers()
 	for _, def in ipairs(TARGET) do def.aura:style() end
-	styleUnder()   -- a glow style change (the options call this)
+	styleLook()   -- a glow style change (the options call this)
 end
 
 function T.applyLayout()
 	for _, def in ipairs(TARGET) do
 		if def.spellID and ns.isEnabled(def.key) then
 			def.aura:setup()
-			-- The glow's sensor: made once the glow is first on (then it stays).
-			if def.past and setting(def.key, "missGlow") then def.past:setup() end
+			-- Made whenever the element is learned and on: the sensor carries the whole look (its
+			-- picture, the grey and the ring too), not the glow alone.
+			if def.missLook then def.missLook:setup() end
 		end
 		-- Skip long buffs or Longest buff changed: the slot's filter again. SetAuraSlotCandidateFilters
 		-- changes a made slot's filters in place (Blizzard_CustomAuraContainer.lua), so the container
@@ -664,25 +634,24 @@ function T.applyLayout()
 		def.aura:style()
 		refreshAura(def)
 	end
-	styleUnder()     -- its looks may have changed
+	styleLook()     -- its looks may have changed
 	checkMissing()   -- and its container may be new
 end
 
 function T.afterGroups()
 	for _, def in ipairs(TARGET) do
 		def.aura:style()
-		-- The button takes a new size or look on the next frame (AuraSlot:style): the underlay
-		-- waits again meanwhile. Its opacity follows the group's (Ctrl+wheel too).
-		if def.under then
-			T.appear(def.under)
-			T.underAlpha(def)
-			-- The element's frame sits at its Idle opacity, so its border fades with it. With a
-			-- hostile target the icon shows (the grey, or Blizzard's button over it) and its border
-			-- must too: a second one, the group's, drawn round the underlay, which shows then.
-			ns.applyBorder(def.under, ns.borderFor(def.key))
+		if def.holder then
+			holderAlpha(def)
+			-- The element's own border (idleEdge) sits at its Idle opacity and hides with a hostile
+			-- target; then the icon shows (Blizzard's button, or Not on target) and the group's
+			-- border, drawn round the holder, takes its place: the inner art left to the button and
+			-- the look (see idleEdge).
+			ns.applyBorder(def.holder, ns.borderFor(def.key))
+			if def.holder.frameOverlay then def.holder.frameOverlay:Hide() end
 		end
 	end
-	styleUnder()   -- a new size or scale
+	styleLook()   -- a new size or scale
 end
 
 function T.refresh()
@@ -703,7 +672,7 @@ function T.start()
 		if event == "PLAYER_REGEN_DISABLED" then combatStarts()
 		elseif event == "PLAYER_REGEN_ENABLED" then
 			fighting = false
-			styleUnder()
+			styleLook()
 			checkMissing()
 			refreshAura(FLAME)
 		elseif event == "UNIT_AURA" then
@@ -730,8 +699,8 @@ function T.debug()
 	say("target attackable %s", tostring(hostileTarget()))
 	local on = readWanted() and flameShockOnTarget()
 	say("%s on target: %s", FLAME.spell, readWanted() and tostring(on) or "not read (combat, secret auras or no target)")
-	say("%s Not on target glow: chosen %s; %s", FLAME.spell,
-		tostring(setting(FLAME.key, "missGlowLook")), FLAME.past:describe())
+	say("%s Not on target: glow look %s; sensor %s", FLAME.spell,
+		tostring(setting(FLAME.key, "missGlowLook")), FLAME.missLook:describe())
 	say("%s red countdown handed %s", FLAME.spell, tostring(FLAME.textHanded))
 end
 
