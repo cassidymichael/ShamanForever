@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Racial abilities as elements (experimental): Stoneform, Blood Fury, Berserking, War Stomp and
+  more, in a new Racials group.
+- Maelstrom Weapon pops at five stacks.
+- The Elements page is easier to use.
+- Many other minor fixes and improvements.
+
 ## 0.11.0 (2026-10-01)
 
 - Idle for every element: fade or hide an element while it has nothing going on (on cooldown, off
