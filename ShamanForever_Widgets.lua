@@ -768,12 +768,17 @@ AuraSlot.__index = AuraSlot
 --   key          the element: its icon size (ns.sizeOf) and its timer's style
 --   slot, ids()  the aura slot's name, and the spell ID map it matches (read when it is made)
 --   parent       what the container hangs from (default frame); name: a global name, or nil
+--   level        frame levels above the usual (optional): a slot drawn over another's parts
 --   sites        { container = , style = , filter = }: names for its waiting work and caught errors
 --   iconAlpha()  the aura icon's alpha as the button is made (optional)
 --   ownIcon()    a texture to show on the button in place of the aura's icon (optional): set once,
 --                as the button is made, and never handed to Blizzard, so the aura's icon never shows
 --                and nothing under the button is written to later (refused in combat)
 --   noTimer      no time left: the button is handed no cooldown or bar, and the slot has no timer
+--   host(slot, button)  a frame of the caller's under the button, covering it, that the icon, its
+--                border look and the timer go on in place of the button itself (optional; made as
+--                Blizzard makes the button, before them): parts that show only within a clip there.
+--                slot.host is it
 --   extras       { { key, init(slot, button) }, ... }: more slots in the same container, taking the
 --                same aura (its candidate filters), each a bare button of its own (no icon) laid
 --                over the first, frame levels above it in order, for parts the one button can't
@@ -800,15 +805,17 @@ local function initAuraButton(slot, button)
 	pcall(button.EnableMouse, button, false)
 	pcall(button.SetMouseClickEnabled, button, false)
 	pcall(button.SetMouseMotionEnabled, button, false)
-	local tex = button:CreateTexture(nil, "ARTWORK")
+	local host = o.host and o.host(slot, button) or button
+	slot.host = host
+	local tex = host:CreateTexture(nil, "ARTWORK")
 	tex:SetAllPoints()
 	ns.cropIconExact(tex)
 	if o.iconAlpha then tex:SetAlpha(o.iconAlpha()) end
 	if o.ownIcon then tex:SetTexture(o.ownIcon()) else button:SetIcon(tex) end
 	slot.icon = tex
-	-- A frame look's mask and art: only now, on the button (ns.Looks.auraMask).
-	ns.try(o.sites.style, ns.Looks.auraMask, button, tex, o.key)
-	local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
+	-- A frame look's mask and art: only now, as the button is made (ns.Looks.auraMask).
+	ns.try(o.sites.style, ns.Looks.auraMask, host, tex, o.key)
+	local cd = CreateFrame("Cooldown", nil, host, "CooldownFrameTemplate")
 	cd:SetAllPoints()
 	slot.cd = cd
 	if o.noTimer then
@@ -821,7 +828,7 @@ local function initAuraButton(slot, button)
 	-- aura's own time (SetDurationBar; a bar of ours followed it in combat, tested 2026-09-27). We
 	-- only style and show the bar. A client that refuses it gets no bar rather than a still one.
 	local e = ns.ELEMENTS[o.key]
-	slot.timer = ns.Timer.new(button, o.key, "uptime", { cd = cd, anchor = button, aura = true,
+	slot.timer = ns.Timer.new(host, o.key, "uptime", { cd = cd, anchor = host, aura = true,
 		school = e and e.school, barInset = o.barInset })
 	if not ns.try("aura time bar", button.SetDurationBar, button, slot.timer.bar, ns.Timer.AURA_BAR) then
 		slot.timer.bar:Hide()
@@ -867,7 +874,7 @@ function AuraSlot:setup()
 		c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
 		c:SetSize(size, size)
 		c:SetFrameStrata(f:GetFrameStrata())
-		c:SetFrameLevel(f.textFrame:GetFrameLevel() + 5)
+		c:SetFrameLevel(f.textFrame:GetFrameLevel() + 5 + (o.level or 0))
 		c:SetUnit(o.unit or "player")
 		pcall(c.EnableMouse, c, false)   -- unlocked drags start on the group frame underneath
 		self.container = c
@@ -913,7 +920,7 @@ function AuraSlot:styleNow()
 		local size, f, c = ns.sizeOf(o.key), self.frame, self.container
 		c:SetSize(size, size)
 		c:SetFrameStrata(f:GetFrameStrata())
-		c:SetFrameLevel(f.textFrame:GetFrameLevel() + 5)
+		c:SetFrameLevel(f.textFrame:GetFrameLevel() + 5 + (o.level or 0))
 		self.button:SetSize(size, size)
 		self.size = size
 		-- Extra slots' buttons over the first and its parts, in order, two levels apart (their own

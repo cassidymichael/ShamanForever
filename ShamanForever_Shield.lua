@@ -85,6 +85,7 @@ end
 -- readable. Kept as which shield, not as "a tracked one is up", so a new Track is judged at once.
 local upShield
 local native   -- Blizzard's aura container, and our parts on its button (below)
+local copy     -- "2 or more charges": the one-charge copy's aura slot (below)
 
 local function tracksShield(key)
 	local track = ns.getDB().shieldTrack
@@ -284,7 +285,7 @@ local function idleWhen()
 	local w = ns.elementSetting("shield", "idleWhen")
 	return (w == "up" or w == "charges") and w or "never"
 end
-local copyReady   -- below, with the copy
+local copyReady, full   -- below, with the copy
 local gateNow = 1   -- the gate's alpha, as last set
 
 -- The gate's alpha for the settings and state now. Out of combat only.
@@ -295,6 +296,7 @@ local function applyIdle()
 		and (when ~= "charges" or copyReady())
 	gateNow = on and ns.idleAlpha("shield") or 1
 	gate:SetAlpha(gateNow)
+	full:SetAlpha((on and when == "charges") and 1 or 0)
 	lookEdge:SetShown(gateNow < 1)
 end
 
@@ -379,6 +381,7 @@ local function checkIDs() look:checkIDs() end
 local function applyShieldFilter()
 	native:refilter()
 	look:refilter()
+	copy:refilter()
 	checkIDs()   -- a refilter that waits leaves the look waiting too
 end
 
@@ -393,7 +396,7 @@ local function learnShieldID(key, id)
 	local function matches(c)
 		return c.container == nil or c.err ~= nil or (c.filtered and c.filtered[id])
 	end
-	if matches(native) and matches(look) then look:checkIDs() else applyShieldFilter() end
+	if matches(native) and matches(look) and matches(copy) then look:checkIDs() else applyShieldFilter() end
 end
 
 -- After a spellbook scan (ns.resolveSpells): each shield's name, highest known rank and icon, and the
@@ -417,7 +420,10 @@ end
 
 -- Blizzard's button and its parts are off limits to addon code in combat, and while auras are
 -- secret: the aura slot's restyle waits until that ends (ns.makeAuraSlot).
-function SH.style() native:style() end
+function SH.style()
+	native:style()
+	copy:style()
+end
 
 -- The shield's timer takes its current style (ns.applyTimers). It sits on Blizzard's button, so it
 -- comes with the button's restyle, which waits for combat to end. The No shield look's glow (its
@@ -566,8 +572,156 @@ native = ns.makeAuraSlot(shield, {
 	end,
 })
 
--- The one-charge copy isn't made yet: "2 or more charges" stays at full meanwhile.
-copyReady = function() return false end
+------------------------------------------------------------------------
+-- "2 or more charges": the one-charge copy
+------------------------------------------------------------------------
+-- A second aura slot on the same shield, in a container of its own that hangs from `full`, our
+-- frame at full opacity in the group's chain (not the gate): so the copy takes its group's opacity
+-- and its fade after combat like any icon, with nothing ignoring a parent's alpha. Its button
+-- drives an invisible charge bar three steps long (a step: the icon with its border's reach both
+-- ways, and slack), starting the reach left of the icon; a clip runs from one step back from the
+-- bar's fill edge to the icon's right edge and its reach. At one charge the clip covers the icon
+-- and its border; at two or three it is empty (its left edge past its right); at none the button
+-- is hidden. So the engine draws the copy at exactly one charge, in combat too, with nothing read
+-- (tested in combat 2026-10-01). Blizzard sets a new count on the bar at once (no easing), so the
+-- copy never slides in on a fresh cast.
+-- In the clip, the shield as its button draws it at one charge: the aura's own icon (Blizzard sets
+-- it), the border look's inner art and mask (ns.makeAuraSlot's host), its lines and sliced art,
+-- the charge number (Blizzard's, through the same formatter), a charge bar at one of three (ours:
+-- it only ever shows at one) and the time left (Blizzard's, on the copy's own cooldown and bar).
+-- Frames under Blizzard's button take no script handlers and may read back as secret, so all of it
+-- is plain frames and textures, placed from our own values: made as Blizzard makes the button, and
+-- restyled with the slot (out of combat, auras readable).
+-- It counts (copyReady) only once its button is made and built, at the icon's size, and matching
+-- every shield the element tracks: until then the gate stays at full, a missed idle. A sensor bar
+-- the button refuses leaves the clip over the whole copy: the icon in full, never hidden.
+local IDLE_LEVEL = 8   -- the copy's container, levels above the shield's button and its parts
+local WHITE = "Interface\\Buttons\\WHITE8x8"
+local SI = Enum and Enum.StatusBarInterpolation
+local IMMEDIATE = SI and SI.Immediate or 0
+
+full = CreateFrame("Frame", nil, shield)
+full:SetAllPoints(shield)
+full:SetAlpha(0)   -- shown by applyIdle
+
+-- The sensor bar and the clip over it, for an icon of size (see above).
+local function placeClip(slot, button, size)
+	local reach = math.ceil(ns.Looks.outerEdge(shield)) + 2
+	local step = size + 2 * reach + 2
+	local bar, clip = slot.sensor, slot.clip
+	bar:ClearAllPoints()
+	bar:SetPoint("TOPLEFT", button, "TOPLEFT", -reach, reach)
+	bar:SetSize(3 * step, 2)
+	clip:ClearAllPoints()
+	clip:SetPoint("TOPLEFT", bar:GetStatusBarTexture(), "TOPRIGHT", -step, 0)
+	clip:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", reach, -reach)
+end
+
+-- As Blizzard makes the button: the sensor, the clip and the copy's frame, where the aura slot
+-- puts the icon, its border look and the timer (ns.makeAuraSlot's host).
+local function copyHost(slot, button)
+	local bar = CreateFrame("StatusBar", nil, button)
+	bar:SetStatusBarTexture(WHITE)
+	bar:SetStatusBarColor(0, 0, 0, 0)
+	bar:SetMinMaxValues(0, 3)
+	bar:SetValue(0)   -- until Blizzard sets it: the clip over the whole copy
+	slot.sensor = bar
+	local clip = CreateFrame("Frame", nil, button, "DisableUntrustedLayoutScriptsTemplate")
+	clip:SetClipsChildren(true)
+	slot.clip = clip
+	placeClip(slot, button, ns.sizeOf("shield"))
+	slot.sensed = ns.try("shield copy sensor", button.SetApplicationBar, button, bar,
+		{ minApplications = 0, maxApplications = 3, interpolation = IMMEDIATE })
+	local host = CreateFrame("Frame", nil, clip)
+	host:SetAllPoints(button)
+	return host
+end
+
+-- The copy's own parts again, for the current size and settings.
+local function styleCopy(slot, size)
+	local db = ns.getDB()
+	placeClip(slot, slot.button, size)
+	ns.try("shield copy border", ns.applyBorder, slot.edge, ns.borderFor("shield"))
+	if slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end   -- the host's own (auraMask)
+	local bar = slot.bar
+	bar:SetHeight(db.chargeBarHeight)
+	bar:SetStatusBarTexture(ns.Media.barTexture())
+	bar:SetStatusBarColor(db.chargeBarColor[1], db.chargeBarColor[2], db.chargeBarColor[3], db.chargeBarColor[4] or 1)
+	bar:SetAlpha(db.showBar and 1 or 0)
+	for i, t in ipairs(slot.tickTextures) do
+		t:ClearAllPoints()
+		t:SetPoint("TOP", bar, "TOPLEFT", size * i / 3, 0)
+		t:SetPoint("BOTTOM", bar, "BOTTOMLEFT", size * i / 3, 0)
+		t:SetAlpha(db.showBar and 1 or 0)
+	end
+	applyCountFormat(slot)
+	ns.Media.setFont(slot.fs, nil, db.countSize)
+	SH.placeCount(slot.fs, slot.host)
+	slot.fs:SetAlpha(db.showCount and 1 or 0)
+end
+
+-- Once Blizzard has made the button: the border's lines, the charge number and the charge bar at
+-- one of three, on the copy.
+local function buildCopy(slot, button)
+	slot.button = button   -- (the slot records it too, after this)
+	local host = slot.host
+	slot.edge = CreateFrame("Frame", nil, host)
+	slot.edge:SetAllPoints(host)
+	slot.edge.owner = "shield"
+	local parts = CreateFrame("Frame", nil, host)
+	parts:SetAllPoints(host)
+	-- Over the cooldown and its time bar, as on the shield's button. Levels under the button may
+	-- read as secret: a failed read leaves the default level (the number and bar under the swipe).
+	ns.try("shield copy level", function() parts:SetFrameLevel(slot.cd:GetFrameLevel() + 2) end)
+	slot.parts = parts
+	local db = ns.getDB()
+	-- Blizzard writes the count as it takes the font string, so the font comes first.
+	local fs = parts:CreateFontString(nil, "OVERLAY", nil, 7)
+	ns.Media.setFont(fs, nil, db.countSize)
+	SH.placeCount(fs, host)
+	button:SetApplicationCount(fs)
+	slot.fs = fs
+	local bar = CreateFrame("StatusBar", nil, parts)
+	bar:SetPoint("BOTTOMLEFT", host, "BOTTOMLEFT", 0, 0)
+	bar:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", 0, 0)
+	bar:SetMinMaxValues(0, 3)
+	bar:SetValue(1)
+	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
+	bar.bg:SetAllPoints()
+	bar.bg:SetColorTexture(0, 0, 0, 0.6)
+	slot.bar = bar
+	slot.tickTextures = {}
+	for i = 1, 2 do
+		local t = parts:CreateTexture(nil, "OVERLAY")
+		t:SetColorTexture(0, 0, 0, 0.9)
+		t:SetWidth(1)
+		slot.tickTextures[i] = t
+	end
+	-- A copy that can't be styled never counts: the gate stays at full.
+	slot.built = ns.try("shield copy style", styleCopy, slot, ns.sizeOf("shield"))
+end
+
+copy = ns.makeAuraSlot(shield, {
+	key = "shield", slot = "shieldcopy", ids = shieldIDMap, parent = full, level = IDLE_LEVEL,
+	host = copyHost, barInset = SH.timeBarInset,
+	sites = { container = "shield copy container", style = "shield copy style", filter = "shield copy filter" },
+	onButton = function(slot, button) buildCopy(slot, button) end,
+	onStyle = function(slot, size)
+		styleCopy(slot, size)
+		SH.applyEmptyLook()   -- it may count now
+	end,
+	onError = function(err) ns.noteError("shield copy container", err) end,
+})
+
+copyReady = function()
+	if not (copy.built and copy.sensed and copy.size == ns.sizeOf("shield")) then return false end
+	local have = copy.filtered
+	if not have then return false end
+	for id in pairs(shieldIDMap()) do
+		if not have[id] then return false end
+	end
+	return true
+end
 
 -- Auras can be secret out of combat too (PvP matches, encounters): then keep the last read.
 local function aurasReadable() return not InCombatLockdown() and not ns.aurasSecret() end
@@ -639,8 +793,11 @@ end
 function SH.applyLayout()
 	native:setup()
 	look:setup()
-	-- The IDs the slot was made with: given again, so the slot records them.
+	-- The one-charge copy, once "2 or more charges" is chosen (it stays once made).
+	if idleWhen() == "charges" and ns.isEnabled("shield") then copy:setup() end
+	-- The IDs the slots were made with: given again, so the slots record them.
 	if native.container and not native.filtered then native:refilter() end
+	if copy.container and not copy.filtered then copy:refilter() end
 	SH.style()
 	SH.applyEmptyLook()
 end
@@ -652,6 +809,7 @@ function SH.afterGroups()
 end
 function SH.refresh()
 	if native.container and not native.filtered then native:refilter() end
+	if copy.container and not copy.filtered then copy:refilter() end
 	checkIDs()
 	refreshAura()
 	refreshGCD(false)
@@ -710,6 +868,10 @@ function SH.debug()
 	say("aura container %s%s", native.container and "created" or "not created",
 		native.err and (", error: " .. native.err) or "")
 	say("no-shield sensor: %s", look:describe())
+	say("idle %s at %.2f, gate %.2f; one-charge copy %s%s, button %s, sensor %s, counts %s", idleWhen(),
+		ns.idleAlpha("shield"), gateNow, copy.container and "made" or "not made",
+		copy.err and (" (error: " .. copy.err .. ")") or "", copy.built and "built" or "not made",
+		tostring(copy.sensed), tostring(copyReady()))
 	local t = {} for id in pairs(shieldIDMap()) do table.insert(t, tostring(id)) end table.sort(t)
 	say("tracked spell IDs: %s", table.concat(t, ","))
 end
