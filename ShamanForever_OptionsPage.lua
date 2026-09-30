@@ -263,6 +263,7 @@ function Page:refresh()
 		open, gap = nil, true
 	end
 	for _, b in ipairs(self.blockList) do b.drawn = false end
+	local first, heads = nil, 0   -- the first block whose header shows, and how many show
 	for _, it in ipairs(self.items) do
 		local b = it.block
 		if it.head then close() end   -- a header, shown or not, ends the block before it
@@ -289,7 +290,10 @@ function Page:refresh()
 					ns.say("options: a row on the %s page failed to update: %s", self.key, tostring(err))
 				end
 			end
-			if it.head then self:paintHeader(b) end
+			if it.head then
+				first, heads = first or b, heads + 1
+				self:paintHeader(b, b == first)
+			end
 			it.frame:ClearAllPoints()
 			it.frame:SetPoint("TOPLEFT", self.content, "TOPLEFT", left, -y)
 			it.frame:SetPoint("TOPRIGHT", self.content, "TOPRIGHT", -right, -y)
@@ -301,6 +305,7 @@ function Page:refresh()
 	end
 	close()
 	for _, b in ipairs(self.blockList) do if not b.drawn then hidePanel(b) end end
+	self:placeFoldBar(heads >= 2 and first or nil)
 	for _, run in ipairs(self.subs) do self:placeRule(run) end
 	self.rowW = nil
 	self.content:SetHeight(math.max(y, bottom, 1))
@@ -409,17 +414,75 @@ local function paintArrow(t, isFolded)
 	end
 end
 
--- The header's arrow and, folded, what's on.
-function Page:paintHeader(b)
+-- Fold all and Open all: two small arrow buttons at the right of the page's first header, on pages
+-- with two blocks or more. Shift-click on any header does the same.
+local FOLD_BAR_W, FOLD_BUTTON = 40, 18
+
+-- The header's arrow and, folded, what's on. first: the page's first header, which leaves room for
+-- the fold buttons.
+function Page:paintHeader(b, first)
 	local f = b.head.frame
 	local isFolded = folded()[b.key] and true or false
 	paintArrow(f.arrow, isFolded)
 	f.says:SetShown(isFolded)
 	if isFolded then
+		local room = first and FOLD_BAR_W or 0
+		f.says:SetPoint("BOTTOMRIGHT", -room, 9)
 		f.says:SetText(onList(b))
 		local used = f.textX + f.text:GetStringWidth() + (f.note and 10 + f.note:GetStringWidth() or 0)
-		f.says:SetWidth(math.max(self.rowW - used - 24, 1))   -- cut short with "..." where it's long
+		f.says:SetWidth(math.max(self.rowW - used - room - 24, 1))   -- cut short with "..." where it's long
 	end
+end
+
+local function foldButton(bar, fold, x)
+	local b = CreateFrame("Button", nil, bar)
+	b:SetSize(FOLD_BUTTON, FOLD_BUTTON)
+	b:SetPoint("RIGHT", x, 0)
+	b.tex = b:CreateTexture(nil, "ARTWORK")
+	b.tex:SetPoint("CENTER")
+	paintArrow(b.tex, not fold)   -- the arrow that opens a folded block opens them all
+	local hl = b:CreateTexture(nil, "HIGHLIGHT")
+	hl:SetAllPoints()
+	hl:SetColorTexture(1, 1, 1, 0.12)
+	local text = fold and "Fold all" or "Open all"
+	Page.setTip(b, text, "Shift-click a header does the same.")
+	return b
+end
+
+-- The fold buttons on head's block (nil: none), each dimmed while it would change nothing.
+function Page:placeFoldBar(head)
+	local bar = self.foldBar
+	if not head then
+		if bar then bar:Hide() end
+		return
+	end
+	if not bar then
+		bar = CreateFrame("Frame", nil, self.content)
+		bar:SetSize(FOLD_BAR_W, FOLD_BUTTON)
+		bar.open = foldButton(bar, false, -FOLD_BUTTON - 4)
+		bar.fold = foldButton(bar, true, 0)
+		bar.open:SetScript("OnClick", function() self:foldAll(false) end)
+		bar.fold:SetScript("OnClick", function() self:foldAll(true) end)
+		self.foldBar = bar
+	end
+	local frame = head.head.frame
+	if bar:GetParent() ~= frame then
+		bar:SetParent(frame)
+		bar:ClearAllPoints()
+		bar:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 7)
+	end
+	local anyFolded, anyOpen = false, false
+	for _, b in ipairs(self.blockList) do
+		if b.head.visible then
+			if folded()[b.key] then anyFolded = true else anyOpen = true end
+		end
+	end
+	for _, pair in ipairs({ { bar.open, anyFolded }, { bar.fold, anyOpen } }) do
+		pair[1]:SetEnabled(pair[2])
+		pair[1].tex:SetDesaturated(not pair[2])
+		pair[1].tex:SetAlpha(pair[2] and 1 or 0.4)
+	end
+	bar:Show()
 end
 
 function Page:row(height)
@@ -644,13 +707,27 @@ function Page:header(text, shown, note, icon)
 	if block then
 		block.head = self.items[#self.items]
 		block.head.head = true
-		-- The whole header folds and opens its block, and lights up under the mouse.
+		-- The whole header folds and opens its block (with Shift, every block), and lights up under
+		-- the mouse.
 		local r, g, bl = f.text:GetTextColor()
 		f:EnableMouse(true)
-		f:SetScript("OnEnter", function() f.text:SetTextColor(1, 0.93, 0.6) end)
-		f:SetScript("OnLeave", function() f.text:SetTextColor(r, g, bl) end)
+		f:SetScript("OnEnter", function()
+			f.text:SetTextColor(1, 0.93, 0.6)
+			GameTooltip:SetOwner(f, "ANCHOR_NONE")
+			GameTooltip:ClearAllPoints()
+			GameTooltip:SetPoint("BOTTOMLEFT", f, "TOPLEFT", f.textX, -4)
+			GameTooltip:SetText(text)
+			GameTooltip:AddLine("Shift-click to fold or open every block.", 1, 1, 1, true)
+			GameTooltip:Show()
+		end)
+		f:SetScript("OnLeave", function()
+			f.text:SetTextColor(r, g, bl)
+			GameTooltip:Hide()
+		end)
 		f:SetScript("OnMouseUp", function(_, button)
-			if button == "LeftButton" then self:setFolded(block, not folded()[block.key]) end
+			if button ~= "LeftButton" then return end
+			local fold = not folded()[block.key]
+			if IsShiftKeyDown() then self:foldAll(fold) else self:setFolded(block, fold) end
 		end)
 	end
 	return f
