@@ -83,6 +83,8 @@ TB.DEFAULTS = {
 	rangeOut = { 0.9, 0.12, 0.08, 0.85 },  --   without it
 	pickHover = false,        -- hovering a slot or its tab opens its picker (Everything)
 	skin = "default",         -- the bar's Look (ShamanForever_TotemSkins.lua)
+	pixelTray = true,         -- the Pixel theme's tray behind the slots
+	pixelEdge = 1,            -- its element-coloured edge (screen pixels)
 	barStyle = "default",     -- the time bars: default (the timer's own) | cdm (the Cooldown Manager's, under the slot)
 }
 
@@ -94,7 +96,7 @@ local RANGES = {
 	scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { -10, 20 }, size = { 24, 96 },
 	arrowSize = { 8, 32 }, extrasScale = { 0.5, 1.5 }, idleAlpha = { 0.1, 1 },
 	badgeSize = { 0.25, 0.8 }, badgeAlpha = { 0.1, 1 }, badgeSat = { 0, 1 }, warn = { 0, 30 }, rangeHeight = { 1, 12 },
-	fadeAfter = { 0, 10 },
+	fadeAfter = { 0, 10 }, pixelEdge = { 1, 4 },
 }
 local function finite(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end

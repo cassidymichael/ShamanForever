@@ -57,7 +57,8 @@ end
 ------------------------------------------------------------------------
 -- The looks, in the order the options offer them. An entry has name, experimental, owns (see
 -- SK.owned), and the parts it draws its own way:
---   border, extrasBorder  border styles for the slots and for Call and Recall
+--   border, extrasBorder  border styles for the slots (or a function returning one) and for Call
+--                  and Recall
 --   behind         what sits behind the slots: "tray", "plinth" (with a gem under each slot)
 --   timeBar        the slots' time bars: "tip" (a bright line at the fill's end)
 --   mark           the out-of-range mark: "edge" (the strip, solid red), "gem" (the gem under the
@@ -85,7 +86,7 @@ add("default", { name = "Default" })
 add("pixel", {
 	name = "Pixel", experimental = true,
 	owns = { border = true, range = true },
-	border = borderStyle("schooledge"), extrasBorder = borderStyle("hairline"),
+	border = function() return borderStyle("schooledge", TB.cfg().pixelEdge) end, extrasBorder = borderStyle("hairline"),
 	behind = "tray", timeBar = "tip", mark = "edge",
 	picker = "tray",
 	rangeText = "Out of range, for totems that buff you: a red edge along the top of the slot.",
@@ -152,8 +153,17 @@ function SK.owned(field)
 	return nil
 end
 
--- The slots' border style, and Call and Recall's (nil: the bar's own, General's or its own).
-function SK.border() return SK.current().border end
+-- The slots' border style, and Call and Recall's (nil: the bar's own, General's or its own). A
+-- look's border can be a function of its own settings.
+local borders = {}   -- a look's border function's result, kept while it is the same
+function SK.border()
+	local b = SK.current().border
+	if type(b) ~= "function" then return b end
+	local made = b()
+	local key = made.look .. made.size
+	borders[key] = borders[key] or made
+	return borders[key]
+end
 function SK.extrasBorder() return SK.current().extrasBorder end
 
 -- The gap between slots and between the slots and Call and Recall for slots of this size, when the
@@ -343,7 +353,7 @@ end
 
 function SK.layoutBar(host, boxes, size, row)
 	local look = SK.current()
-	tray(host, boxes, size, look.behind == "tray" and #boxes > 0)
+	tray(host, boxes, size, look.behind == "tray" and TB.cfg().pixelTray and #boxes > 0)
 	plinth(host, boxes, size, look.behind == "plinth" and row and #boxes > 0)
 end
 

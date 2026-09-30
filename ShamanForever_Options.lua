@@ -691,13 +691,13 @@ local function buildAbout(p)
 	if ns.Looks.anyExperimental("border") then p:experimental("Border looks", "General > Border") end
 	if ns.Looks.anyExperimental("glow") then p:experimental("Glow looks", "General > Pulsing glow style") end
 	p:experimental("Pop flashes and bursts", "General > Pop style")
-	if ns.TotemBar.skin.anyExperimental() then p:experimental("Totem bar looks", "Totem bar > Look") end
+	if ns.TotemBar.skin.anyExperimental() then p:experimental("Totem themes", "Totem bar > Totem theme") end
 	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
 		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
 		"Francisque Millet, Mountain Landscape with Lightning (air). Corner and divider ornaments: public domain / CC0, Wikimedia Commons. " ..
 		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood texture CC0, ambientCG. Link icons: Simple Icons, CC0. " ..
-		"The Carved stone, Aged bronze and Carved wood borders and the Painted bursts pop: made with an AI image model (Google Gemini), as were the plinth and medallions of the Stone and bronze totem bar look.")
+		"The Carved stone, Aged bronze and Carved wood borders and the Painted bursts pop: made with an AI image model (Google Gemini), as were the plinth and medallions of the Stone and bronze totem theme.")
 end
 
 ------------------------------------------------------------------------
@@ -747,15 +747,6 @@ local function buildTotemBar(p)
 
 	p.gate = TB.barOn
 	p:header("Display")
-	-- The bar's Look (ShamanForever_TotemSkins.lua): the rows for what a look owns hide while
-	-- it is picked.
-	local skins = {}
-	for _, e in ipairs(TB.skin.LIST) do table.insert(skins, { e.key, e.name }) end
-	p:dropdown("Look", "How the whole bar is drawn.", skins, function() return TB.skin.current().key end,
-		tset("skin"), nil, 190)
-	local expRow = p:row(22)
-	ns.Look.expBadge(expRow, "Totem bar looks"):SetPoint("LEFT", expRow, "LEFT", LABEL_W, 0)
-	p:add(expRow, 22, function() return TB.skin.current().experimental or false end)
 	local function free(field) return function() return not TB.skin.owns(field) end end
 	local function owned(field) return function() return TB.skin.owns(field) end end
 	local show = p:dropdown("Show", "When the bar is on screen. It always shows while positioning is unlocked.",
@@ -768,6 +759,21 @@ local function buildTotemBar(p)
 	p:dropdown("Tooltips", nil, { { "always", "Always" }, { "ooc", "Out of combat" }, { "never", "Never" } },
 		tget("tips"), tset("tips"), nil, 160)
 	p:checkbox("Show keybinding text", "Each button's key, in its corner.", tget("keys"), tset("keys"))
+
+	-- The bar's theme (ShamanForever_TotemSkins.lua, its Looks), and each theme's own settings under
+	-- it. The rows for what a theme owns hide elsewhere on the page while it is picked.
+	p:header("Totem theme")
+	local skins = {}
+	for _, e in ipairs(TB.skin.LIST) do table.insert(skins, { e.key, e.name }) end
+	p:dropdown("Theme", "How the whole bar is drawn.", skins, function() return TB.skin.current().key end,
+		tset("skin"), nil, 190)
+	local expRow = p:row(22)
+	ns.Look.expBadge(expRow, "Totem themes"):SetPoint("LEFT", expRow, "LEFT", LABEL_W, 0)
+	p:add(expRow, 22, function() return TB.skin.current().experimental or false end)
+	local function theme(key) return function() return TB.skin.current().key == key end end
+	p:checkbox("Tray", "A dark tray edged in gold behind the slots.", tget("pixelTray"), tset("pixelTray"), theme("pixel"))
+	p:slider("Edge thickness", "The element-coloured edge round each slot, in pixels.", 1, 4, 1, px,
+		tget("pixelEdge"), tset("pixelEdge"), theme("pixel"))
 
 	p:header("Layout")
 	-- The elements in bar order (first: the left end of a row, the top of a column). Drag one to move
@@ -867,7 +873,7 @@ local function buildTotemBar(p)
 		for _, it in ipairs({ { "dir", "Direction" }, { "pop", "Pickers open" }, { "spacing", "Spacing" } }) do
 			if TB.skin.owns(it[1]) then table.insert(names, it[2]) end
 		end
-		return table.concat(names, ", ") .. ": set by the look."
+		return table.concat(names, ", ") .. ": set by the theme."
 	end, function() return TB.skin.owns("dir") or TB.skin.owns("pop") or TB.skin.owns("spacing") end)
 	-- Its own size is not its scale: scale grows everything, text, arrows, spacing and lines included.
 	local sizeFollow = generalRow(p, "Icon size same as General", "Use the icon size on the General page.",
@@ -888,7 +894,7 @@ local function buildTotemBar(p)
 
 	-- With Layout: heavier borders go with the spacing.
 	p:header("Border")
-	p:text("Set by the look.", owned("border"))
+	p:text("Set by the theme.", owned("border"))
 	borderRows(p, "totembar", changed, nil, free("border"))
 
 	p.gate = full

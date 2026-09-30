@@ -578,9 +578,9 @@ S.addLook("border", "bronze", { name = "Aged bronze", experimental = true,
 	rings = { { color = BLACK } }, art = { file = MEDIA .. "Frame-Bronze", margin = 14, px = 4 } })
 S.addLook("border", "wood", { name = "Carved wood", experimental = true,
 	rings = { { color = BLACK } }, art = { file = MEDIA .. "Frame-Wood", margin = 22, px = 6 } })
--- For the totem bar's Looks only: 1 px of the slot's element colour inside 1 px of black.
+-- For the totem bar's Looks only: the Border size of the slot's element colour inside 1 px of black.
 S.addLook("border", "schooledge", { name = "School edge", hidden = true,
-	rings = { { color = BLACK }, { color = "school" } } })
+	rings = { { color = BLACK }, { px = "size", color = "school" } } })
 -- For the totem bar's Looks only: a round picture in a bronze medallion (AI-made art), whose
 -- opening overlaps the picture's edge a little.
 local ROUND = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
