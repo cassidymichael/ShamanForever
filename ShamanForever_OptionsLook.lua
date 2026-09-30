@@ -1321,6 +1321,7 @@ do
 			table.insert(made, t)
 		end
 		t.released = nil
+		t.ic.glowF.parked = nil
 		t.size = size
 		t.box:SetParent(parent)
 		t.box:SetSize(size, size)
@@ -1333,11 +1334,13 @@ do
 		return t
 	end
 
-	-- Hidden, its glow and pop stopped, ready to be acquired again.
+	-- Hidden, its glow and pop stopped and its glow left out of style changes (ns.Effects.applyStyle),
+	-- ready to be acquired again.
 	function Pool.release(t)
 		if t.released then return end
 		t.released = true
 		t:glow(false)
+		t.ic.glowF.parked = true
 		t.box:Hide()
 		if t.ic.popRig then t.ic.popRig:stop() end
 		t.box:ClearAllPoints()
