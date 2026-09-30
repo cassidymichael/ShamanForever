@@ -458,7 +458,8 @@ function Page:paintHeader(b)
 		f.says:SetPoint("BOTTOMRIGHT", -resetW, 9)
 		f.says:SetText(onList(b))
 		local used = f.textX + f.text:GetStringWidth() + (f.note and 10 + f.note:GetStringWidth() or 0)
-		f.says:SetWidth(math.max(self.rowW - used - resetW - 24, 1))   -- cut short with "..." where it's long
+		-- Cut short with "..." where it's long.
+		f.says:SetWidth(math.max(self.rowW - used - resetW - 24, 1))
 	end
 end
 
@@ -539,6 +540,7 @@ end
 -- may also carry:
 --   after    the follow-up its row runs after a change; a reset runs each one once
 --   default  a function returning the value to compare with, in place of its kind's
+--   changed  a function of the ref: whether it differs from its default, in place of the compare
 --   reset    a function of the ref that resets it, in place of its kind's: for a row that does
 --            more than store the value (a group's Scale keeps its centre, Show goes through
 --            ns.setShow). It returns false when it can't now (Show in combat), as by hand.
@@ -572,6 +574,7 @@ end
 Page.refDefault = defaultOf
 
 local function refChanged(r)
+	if r.changed then return r.changed(r) end
 	local k = REF[r.kind]
 	if k.changed then return k.changed(r) end
 	local t = k.holder(r)

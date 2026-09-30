@@ -109,7 +109,8 @@ local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
 
 -- The per-totem warning times a profile starts with (warnOver), by the client's names.
 function TB.warnOverDefaults()
-	return { [ns.Spells.name("earthbind")] = 5, [ns.Spells.name("stoneclaw")] = 5, [ns.Spells.name("manaTide")] = 3 }
+	local name = ns.Spells.name
+	return { [name("earthbind")] = 5, [name("stoneclaw")] = 5, [name("manaTide")] = 3 }
 end
 
 -- The profile's bar settings, with defaults filled and wrong types or values reset (imported profiles).

@@ -75,7 +75,9 @@ local function generalRow(p, label, tip, get, set, anchor, shown)
 end
 
 -- The block being built owns an owner's style, for its reset.
-local function ownStyle(p, owner, kind, after) p:owns({ style = kind, owner = owner, after = after }) end
+local function ownStyle(p, owner, kind, after)
+	p:owns({ style = kind, owner = owner, after = after })
+end
 
 -- "Same as General" for a style: on, the rows under it hide; off the first time, the owner keeps
 -- the look it has as its own, and later its own values come back.
@@ -182,7 +184,8 @@ end
 -- shows its own icon, in the school its pop takes. Each wears its owner's border inside its 40,
 -- as on the HUD. The tiles are taken while the row shows and given back when it hides. Returns
 -- sync(), for the row's refresh and before a pop: the tiles in the owner's styles now, laid out.
-local PREVIEW_SIZE, SCHOOL_GAP = 40, 72   -- the gap: from one tile to the next, room for a glow's light
+-- The gap: from one tile to the next, room for a glow's light.
+local PREVIEW_SIZE, SCHOOL_GAP = 40, 72
 local function previewTiles(f, owner, icon, x, bySchool)
 	local pool, held = ns.Look.tilePool, {}
 	f:HookScript("OnHide", function()
@@ -1066,8 +1069,10 @@ local function buildTotemBar(p)
 	ns.Sounds.row(p, "Sound when it ends", "When a totem runs out or is killed. Not when you dismiss it.", tget("goneSound"), tset("goneSound"))
 	local secs = function(v) return v == 0 and "Off" or string.format("%d s", v) end
 	p:slider("Warn in the last", nil, 0, 30, 1, secs, tget("warn"), tset("warn"))
-	-- Its defaults are named by the client's spell names.
-	own("warnOver", { default = TB.warnOverDefaults })
+	-- Its defaults are named by the client's spell names, which may not have loaded when they were
+	-- filled in: never counted as changed, only reset.
+	own("warnOver", { changed = function() return false end,
+		reset = function() c().warnOver = TB.warnOverDefaults() end })
 	p:text("Totems with their own warning time, instead of the default:", function() return next(c().warnOver) ~= nil end)
 	-- Each totem's own time, with a small X at the end of its row to drop it. Totems are kept by the
 	-- client's name for them (any rank), so row i shows the i-th name in order.
