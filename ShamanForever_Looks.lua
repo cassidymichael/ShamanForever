@@ -642,7 +642,9 @@ end
 --             (over ns.makeClipLook's picture); the other looks reach past it and take none
 --   build(g)  its regions and animation groups, under g.inner (breathing) or g (not); returns
 --             parts: { roots = { frames }, anims = { groups played while it shows }, aura = { the
---             groups Blizzard's aura button plays in their place, when the glow is under it } }
+--             groups Blizzard's aura button plays in their place, when the glow is under it },
+--             moving = { the roots whose regions scale or move: hidden while a pop moves the
+--             icon, ns.Effects } }
 --   style(g, parts, st, c)       colours and timing; c is the colour (st.color or a fixed one)
 --   fit(g, parts, size, out)     sizes for an icon of size, whose frame reaches out past its edge
 ------------------------------------------------------------------------
@@ -744,7 +746,7 @@ local halo = {
 		t:SetBlendMode("ADD")
 		local grow, s = anim(t, "Scale", "BOUNCE")
 		s:SetScaleFrom(1, 1); s:SetScaleTo(1.07, 1.07); s:SetSmoothing("IN_OUT")
-		return { roots = { r }, halo = t, grow = grow, scale = s, anims = { grow }, aura = { grow } }
+		return { roots = { r }, halo = t, grow = grow, scale = s, anims = { grow }, aura = { grow }, moving = { r } }
 	end,
 	style = function(g, parts, st, c)
 		if parts.fallback then return soft.style(g, parts, st, c) end
@@ -813,7 +815,7 @@ local spark = {
 	uses = { color = true, speed = true, width = true }, steady = true,
 	build = function(g)
 		local r = root(g.inner)
-		local parts = { roots = { r }, soft = softPart(r, 0.45), sparks = {}, anims = {} }
+		local parts = { roots = { r }, soft = softPart(r, 0.45), sparks = {}, anims = {}, moving = { r } }
 		for i, corner in ipairs({ "TOPLEFT", "BOTTOMRIGHT" }) do
 			local t = r:CreateTexture(nil, "OVERLAY", nil, 1)
 			t:SetTexture(MEDIA .. "Spark")
@@ -876,6 +878,7 @@ local material = {
 		t:AddMaskTexture(m)
 		local drift, a = anim(t, "Translation", "REPEAT")
 		parts.mat, parts.drift, parts.move, parts.anims, parts.aura = t, drift, a, { drift }, { drift }
+		parts.moving = { r }
 		return parts
 	end,
 	style = function(g, parts, st, c)
@@ -914,7 +917,8 @@ local heartbeat = {
 		s:SetScaleFrom(0.9, 0.9); s:SetScaleTo(1.65, 1.65); s:SetSmoothing("OUT")
 		local a = beat:CreateAnimation("Alpha")
 		a:SetFromAlpha(0.9); a:SetToAlpha(0); a:SetSmoothing("OUT")
-		return { roots = { r, o }, soft = softPart(r, 0.6), ring = ring, beat = { s, a }, anims = { beat }, aura = { beat } }
+		return { roots = { r, o }, soft = softPart(r, 0.6), ring = ring, beat = { s, a }, anims = { beat }, aura = { beat },
+			moving = { o } }
 	end,
 	style = function(g, parts, st, c)
 		styleSoft(parts.soft, c)
