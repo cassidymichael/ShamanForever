@@ -72,7 +72,8 @@ local TARGET = {
 		missing = true, engineExpire = true,   -- its Not on target and Expiring blocks
 		defaults = { idleAlpha = 0, primedPop = false, primedGlow = false,
 			missGrey = true, missRing = false, missPulse = false,
-			expireSecs = 3, expireBar = true, expireBarColor = { 1, 0.2, 0.15, 1 }, expireText = false },
+			-- Magenta: it stands out against the fire school's orange time bar.
+			expireSecs = 3, expireBar = true, expireBarColor = { 1, 0.2, 0.8, 1 }, expireText = false },
 		experimental = "Flame Shock on target" },
 	{ key = "purge", spellKey = "purge", filter = "HELPFUL", icon = 136075, school = "spirit",
 		blurb = "Shows while your target has a Magic buff to purge.",
