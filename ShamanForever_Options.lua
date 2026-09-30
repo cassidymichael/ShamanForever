@@ -430,9 +430,9 @@ end
 -- first: an optional function adding the element's own rows at the top of the block, under its
 -- header.
 local TEXT_POS = { { "auto", "Auto" }, { "center", "Centre" }, { "topleft", "Top left" }, { "bottom", "Bottom" } }
--- barSet: a function, true while something else sets the time bar's place and height (the totem
--- bar's Look): those rows hide.
-local function timerSettings(p, title, key, kind, after, note, first, barSet)
+-- barPlaced: a function, true while something else places the time bar (the totem bar's bar beside
+-- the icon): Bar edge hides.
+local function timerSettings(p, title, key, kind, after, note, first, barPlaced)
 	after = after or retime
 	local cant = ns.Timer.cant(key, kind)
 	local r = styleRows(key, kind, after)
@@ -477,9 +477,9 @@ local function timerSettings(p, title, key, kind, after, note, first, barSet)
 	end)
 	local bar = p:checkbox("Time bar", "A bar along an edge that drains.", tg("bar"), ts("bar"), part("bar"))
 	p:sub(bar, on("bar"), function()
-		local placed = function() return not (barSet and barSet()) end
-		p:slider("Bar height", nil, 1, 20, 1, px, tg("barHeight"), ts("barHeight"), placed)
-		p:dropdown("Bar edge", nil, { { "bottom", "Bottom" }, { "top", "Top" } }, tg("barEdge"), ts("barEdge"), placed, 140)
+		p:slider("Bar height", nil, 1, 20, 1, px, tg("barHeight"), ts("barHeight"))
+		p:dropdown("Bar edge", nil, { { "bottom", "Bottom" }, { "top", "Top" } }, tg("barEdge"), ts("barEdge"),
+			function() return not (barPlaced and barPlaced()) end, 140)
 		local colour = p:dropdown("Bar colour", nil, { { true, "Element colour" }, { false, "Custom" } }, tg("barElement"),
 			ts("barElement"), nil, 160)
 		p:sub(colour, function() return not style().barElement end, function()
@@ -919,12 +919,12 @@ local function buildTotemBar(p)
 	end)
 
 	p.gate = TB.barOn
-	local function cdmBars() return TB.skin.barStyle() == "cdm" end
-	timerSettings(p, "Time left", "totembar", "uptime", changed, nil, nil, cdmBars)
+	local function beside() return TB.skin.barPlace() == "out" end
+	timerSettings(p, "Time left", "totembar", "uptime", changed, nil, nil, beside)
 	-- The bar's own, whether its timers follow General or not.
-	p:dropdown("Time bar style", "Cooldown Manager: Blizzard's bronze-rimmed bar, under the slot.",
-		{ { "default", "Default" }, { "cdm", "Cooldown Manager" } }, tget("barStyle"), tset("barStyle"),
-		function() return ns.Style.value("totembar", "uptime", "bar") and not TB.skin.owns("barStyle") end, 190)
+	p:dropdown("Time bar position", "Beside the icon: on the side away from the pickers.",
+		{ { "in", "In the icon" }, { "out", "Beside the icon" } }, tget("barPlace"), tset("barPlace"),
+		function() return ns.Style.value("totembar", "uptime", "bar") and not TB.skin.owns("barPlace") end, 190)
 	textBlock(p, "totembar", changed)
 
 	p.gate = full

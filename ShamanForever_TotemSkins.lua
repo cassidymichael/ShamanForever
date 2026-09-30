@@ -26,12 +26,7 @@ local BLACK = { 0, 0, 0, 1 }
 local GOLD = ns.Looks.GOLD                  -- the options window's gold, as ns.Looks' Gold hairline
 local RED = { 0.9, 0.12, 0.08, 1 }          -- out of range
 local TRAY = { 0.047, 0.035, 0.024 }         -- the Pixel look's dark fill
-local hasAtlas = ns.Looks.hasAtlas
 
--- The Cooldown Manager's time bar art, by its plain names, which draw Forever's bronze art (tested
--- 2026-09-28: the bar, its background and pip). A missing atlas draws the plain part instead.
-local CDM_BAR, CDM_BAR_BG, CDM_PIP = "UI-HUD-CoolDownManager-Bar", "UI-HUD-CoolDownManager-Bar-BG",
-	"UI-HUD-CoolDownManager-Bar-Pip"
 
 -- Our art for Stone and bronze (AI-made plinth and medallion, a drawn gem), by path.
 local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Art\\Looks\\"
@@ -69,7 +64,6 @@ end
 --                  when the look owns the spacing
 --   badgeGap(size) how far past the slot the look hangs something on the badge's side ("not your
 --                  pick" sits beyond it)
---   gapAdd(size)   what the look hangs in the gaps between slots, added to the Spacing
 --   rangeText      the Out of range section's line while the look owns its rows
 ------------------------------------------------------------------------
 SK.LIST, SK.byKey = {}, {}
@@ -104,9 +98,9 @@ end
 -- range, Call and Recall in round bronze medallions.
 add("stone", {
 	name = "Stone and bronze", experimental = true,
-	-- It keeps the time bar inside the slot: the plinth's gems sit under it.
+	-- It keeps the time bar in the icon: the plinth's gems sit under the slot.
 	owns = { border = true, range = true, rangeHeight = true, spacing = PL.divider[3] / PL.tile[3],
-		dir = "row", pop = "up", barStyle = true },
+		dir = "row", pop = "up", barPlace = true },
 	extrasGap = 0.2,
 	border = borderStyle("line", 1), extrasBorder = borderStyle("medallion"),
 	behind = "plinth", mark = "gem", picker = "stone", arrow = "bronze",
@@ -129,7 +123,7 @@ end
 
 ------------------------------------------------------------------------
 -- Settings a look owns: owns = { border = true, spacing = share, dir = "row", pop = "up",
--- range = true (the range colours), rangeHeight = true, barStyle = true (the time bar's Style) }.
+-- range = true (the range colours), rangeHeight = true, barPlace = true (the time bar's place) }.
 -- The options hide what it owns; the layout reads it through TB.eff().
 ------------------------------------------------------------------------
 -- Whether the look picked now owns a setting (the options).
@@ -176,38 +170,28 @@ function SK.spacing(size)
 	return size * share, size * (SK.current().extrasGap or share)
 end
 
--- The time bar's Style (the totem bar's setting): "cdm", the Cooldown Manager's bar under the slot,
--- or "default", the timer's own bar; a look that owns it keeps the timer's.
-function SK.barStyle()
-	if SK.owns("barStyle") or not ns.getDB() then return "default" end
-	return TB.cfg().barStyle
+-- Where the time bar sits (the totem bar's setting): "in" the icon, where the timer draws it, or
+-- "out", beside the icon on the side away from the pickers; a theme that owns it keeps it in.
+function SK.barPlace()
+	if SK.owns("barPlace") or not ns.getDB() then return "in" end
+	return TB.cfg().barPlace
 end
 
--- The Cooldown Manager's time bar under a slot: its height and its gap from the slot, and how far
--- it reaches past the slot's edge with its rim.
-local function cdmBar(size)
-	local h = math.max(math.floor(size * 6 / 44 + 0.5), 3)
-	local gap = math.max(math.floor(size * 3 / 44 + 0.5), 2)
-	return h, gap, gap + h + math.max(math.floor(h / 3 + 0.5), 1)
-end
--- How far the Cooldown Manager's time bar reaches past the slot: under a row's slots (over them
--- when pickers open down), where the badge goes; in a column, in the gap below each slot. 0 while
--- the time bars are off or in their default style.
-local function cdmReach(size, row)
-	if SK.barStyle() ~= "cdm" or not ns.Style.value("totembar", "uptime", "bar") then return 0 end
-	if (TB.eff().dir == "row") ~= row then return 0 end
-	return select(3, cdmBar(size))
+-- The bar beside the icon: its gap from the slot's box, and how far it reaches past the box with
+-- its thickness (the Bar height); 0 while the bar is off or in the icon.
+local function outGap(size) return math.max(math.floor(size * 3 / 44 + 0.5), 2) end
+local function outReach(size)
+	if SK.barPlace() ~= "out" or not ns.Style.value("totembar", "uptime", "bar") then return 0 end
+	return outGap(size) + ns.Style.value("totembar", "uptime", "barHeight")
 end
 
 -- How far past the slot's edge the look or the time bar hangs something on the side away from the
--- picker (the plinth's stone, a Cooldown Manager bar): the "not your pick" badge sits beyond it.
+-- picker (the plinth's stone, a time bar beside the icon): the "not your pick" badge, which sits on
+-- that side too, goes beyond it.
 function SK.badgeGap(size)
 	local f = SK.current().badgeGap
-	return (f and f(size) or 0) + cdmReach(size, true)
+	return (f and f(size) or 0) + outReach(size)
 end
-
--- What hangs in the gaps between slots (a column's Cooldown Manager bars), added to them.
-function SK.gapAdd(size) return cdmReach(size, false) end
 
 ------------------------------------------------------------------------
 -- Drawing. Each call draws the look picked now, or takes down what another look drew; a part a
@@ -401,71 +385,51 @@ local function tip(t, on)
 	x:Show()
 end
 
--- The Cooldown Manager's style: its bar (its texture, bronze-rimmed background and pip) across the
--- slot's picture, outside the slot on the badge's side: under a row whose pickers open up or a
--- column, over a row whose pickers open down.
-local function cdmTimeBar(t, anchor, size, on)
+-- The time bar beside the icon, on the side away from the pickers (the badge's side): under or
+-- over a row's slots, running across the picture; left or right of a column's, running up it. Its
+-- texture and colours stay the timer's (the Bars style), its thickness its Bar height; the timer's
+-- dark background under it marks the empty part.
+local AWAY = { up = "below", down = "above", right = "left", left = "right" }
+local function outsideBar(t, anchor, size, on)
 	local bar = t.bar
-	local x = bar.skinCDM
 	if not on then
-		if x then
-			x.bg:Hide()
-			x.pip:Hide()
-			bar.bg:SetAlpha(1)
+		if bar.sfOutside then
+			bar:SetOrientation("HORIZONTAL")
+			bar:SetRotatesTexture(false)
+			bar.sfOutside = nil
 		end
 		return
 	end
-	if not x then
-		x = { bg = bar:CreateTexture(nil, "BACKGROUND", nil, -1),
-			pip = bar:CreateTexture(nil, "OVERLAY", nil, 6) }
-		bar.skinCDM = x
-	end
+	bar.sfOutside = true
 	local _, border = TB.look()
-	local o = ns.Looks.inset(anchor, border, size)
-	local h, gap = cdmBar(size)
-	local e = TB.eff()
+	local d = ns.Looks.inset(anchor, border, size) + outGap(size)
+	local thick = ns.Style.value("totembar", "uptime", "barHeight")
+	local side = AWAY[TB.eff().pop]
 	bar:ClearAllPoints()
-	if e.dir == "row" and e.pop == "down" then
-		bar:SetPoint("BOTTOMLEFT", anchor, "TOPLEFT", 0, o + gap)
-		bar:SetPoint("BOTTOMRIGHT", anchor, "TOPRIGHT", 0, o + gap)
+	if side == "below" or side == "above" then
+		local y = side == "below" and -d or d
+		local edge, from = side == "below" and "TOP" or "BOTTOM", side == "below" and "BOTTOM" or "TOP"
+		bar:SetPoint(edge .. "LEFT", anchor, from .. "LEFT", 0, y)
+		bar:SetPoint(edge .. "RIGHT", anchor, from .. "RIGHT", 0, y)
+		bar:SetHeight(thick)
+		bar:SetOrientation("HORIZONTAL")
+		bar:SetRotatesTexture(false)
 	else
-		bar:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -o - gap)
-		bar:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", 0, -o - gap)
+		local x = side == "left" and -d or d
+		local edge, from = side == "left" and "RIGHT" or "LEFT", side == "left" and "LEFT" or "RIGHT"
+		bar:SetPoint("TOP" .. edge, anchor, "TOP" .. from, x, 0)
+		bar:SetPoint("BOTTOM" .. edge, anchor, "BOTTOM" .. from, x, 0)
+		bar:SetWidth(thick)
+		bar:SetOrientation("VERTICAL")
+		bar:SetRotatesTexture(true)
 	end
-	bar:SetHeight(h)
-	if hasAtlas(CDM_BAR) then
-		local r, g, b, a = bar:GetStatusBarColor()   -- the timer's colour, restated over the new texture
-		bar:SetStatusBarTexture(CDM_BAR)
-		bar:SetStatusBarColor(r, g, b, a)
-	end
-	local rim = math.max(math.floor(h / 3 + 0.5), 1)
-	if hasAtlas(CDM_BAR_BG) then
-		x.bg:SetAtlas(CDM_BAR_BG)
-		x.bg:ClearAllPoints()
-		x.bg:SetPoint("TOPLEFT", -rim, rim)
-		x.bg:SetPoint("BOTTOMRIGHT", rim, -rim)
-		x.bg:Show()
-		bar.bg:SetAlpha(0)
-	else
-		x.bg:Hide()
-		bar.bg:SetAlpha(1)
-	end
-	local info = hasAtlas(CDM_PIP) and C_Texture.GetAtlasInfo(CDM_PIP)
-	if info and info.height and info.height > 0 then
-		local ph = h * 2.2
-		x.pip:SetAtlas(CDM_PIP)
-		x.pip:SetSize(ph * info.width / info.height, ph)
-		x.pip:ClearAllPoints()
-		x.pip:SetPoint("CENTER", bar:GetStatusBarTexture(), "RIGHT", 0, 0)
-		x.pip:Show()
-	else x.pip:Hide() end
 end
 
 function SK.styleTimer(t, anchor, size)
 	if not (t and t.bar) then return end
-	local cdm = SK.barStyle() == "cdm"
-	cdmTimeBar(t, anchor, size, cdm)
-	tip(t, not cdm and SK.current().timeBar == "tip")
+	local out = SK.barPlace() == "out"
+	outsideBar(t, anchor, size, out)
+	tip(t, not out and SK.current().timeBar == "tip")
 end
 
 -- The arrow tab's look (TB.makeArrowLook; TB.placeArrow has placed it). "bronze": the plain tab

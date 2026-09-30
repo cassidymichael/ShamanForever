@@ -85,8 +85,7 @@ TB.DEFAULTS = {
 	skin = "default",         -- the bar's theme (ShamanForever_TotemSkins.lua)
 	pixelTray = true,         -- the Pixel theme's tray behind the slots
 	pixelEdge = 1,            -- its element-coloured edge (screen pixels)
-	barStyle = "default",     -- the time bars: default (the timer's own) | cdm (the Cooldown
-	                          --   Manager's, under the slot)
+	barPlace = "in",          -- the time bars: in the icon | out: beside it, away from the pickers
 }
 
 local isSecret = ns.isSecret
@@ -119,7 +118,7 @@ local function cfg()
 		t.enabled, t.hideTotemFrame, t.hideActionBar, t.killedPulse, t.follow = nil, nil, nil, nil, nil
 		if t.mode ~= "blizzard" and t.mode ~= "active" and t.mode ~= "everything" then t.mode = nil end
 		if t.show ~= "always" and t.show ~= "active" and t.show ~= "combat" and t.show ~= "target" then t.show = nil end
-		if t.barStyle ~= "default" and t.barStyle ~= "cdm" then t.barStyle = nil end
+		if t.barPlace ~= "in" and t.barPlace ~= "out" then t.barPlace = nil end
 		-- The default per-totem times, by the client's names (English until they have loaded; the
 		-- lookup in warnSecs also takes the English name, so either works).
 		if type(t.warnOver) ~= "table" then
@@ -221,8 +220,6 @@ function TB.along(n, size, px)
 	-- A look that sets the bar in fixed art gives its own gaps (in the slots' size).
 	local own, ownExtra = TB.skin.spacing(size)
 	if own then gap, extraGap = own, ownExtra end
-	local more = TB.skin.gapAdd(size)   -- what the look hangs in the gaps (a column's time bars)
-	gap, extraGap = gap + more, extraGap + more
 	if px then gap, extraGap = round(gap), round(extraGap) end
 	local list, long = {}, 0
 	local function put(key, space, sz, extra)
