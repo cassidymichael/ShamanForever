@@ -256,7 +256,8 @@ local FAINT = 0.12
 function L.idleAlpha(key) return math.max(ns.idleAlpha(key), FAINT) end
 local function idleLook(ic, key) ic:SetAlpha(L.idleAlpha(key)) end
 -- Whether a preview state is one an element is idle in, by its Idle when: the cooldown elements,
--- the shocks and the imbue (the others draw their idle look in their own render). A state's cooldown
+-- the shocks, the imbue and the shield (the others draw their idle look in their own render). A
+-- shield is idle in its up states (Shield up) or at 2 or 3 charges (2 or more). A state's cooldown
 -- is running in "cd" (Fire Nova has no other); the rest of a cooldown element's states are off
 -- cooldown or something of its own going on. The shocks' range and mana states are off cooldown.
 function L.idles(key, st)
@@ -265,6 +266,10 @@ function L.idles(key, st)
 	if not when or when == "never" then return false end
 	if e.kind == "imbue" then return (st == "fine") or (st == "low" and when == "on") end
 	if e.kind == "shock" then return (st == "cd") == (when == "oncd") end
+	if e.kind == "shield" then
+		if when == "up" then return st ~= "down" end
+		return when == "charges" and (st == "up3" or st == "up2")
+	end
 	if e.kind ~= "cooldown" then return false end
 	-- A held state (a totem down, primed, a buff window, low reagents shown) is never idle.
 	if when == "oncd" then
@@ -355,7 +360,7 @@ L.PREVIEW = {
 	shield = {
 		uptime = true, barInset = function() return ns.Shield.timeBarInset() end,
 		warning = "down",
-		states = { { "up3", "3 charges" }, { "up1", "1 charge" }, { "down", "No shield" } },
+		states = { { "up3", "3 charges" }, { "up2", "2 charges" }, { "up1", "1 charge" }, { "down", "No shield" } },
 		render = function(ic, st)
 			local d = db()
 			local water = d.shieldTrack == "water"
@@ -378,7 +383,7 @@ L.PREVIEW = {
 				end
 				return
 			end
-			local n = st == "up3" and 3 or 1
+			local n = st == "up3" and 3 or st == "up2" and 2 or 1
 			frozen(ic.upT, 0.38, 600)
 			if d.showBar then
 				local c = d.chargeBarColor or { 0.35, 0.75, 1 }

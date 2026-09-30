@@ -71,6 +71,9 @@ ns.registerElement("shield", { frame = shield, label = "Shields", paint = functi
 	defaults = { idleWhen = "never", idleAlpha = 0.3 },
 	def = { key = "shield", idleChoices = IDLE_CHOICES },
 	borderHost = edge,
+	-- Preview mode: its border is at the gate's opacity (Idle), so its stand-in draws its own
+	-- (ShamanForever_Preview.lua).
+	standInBorder = true,
 	kind = "shield", icon = 136051, school = "spirit", blurb = "Charges and time left. Warns when it's gone." })
 
 -- Per shield at runtime: name (the client's), spellID and bookIcon (highest known rank), known. The
@@ -279,8 +282,10 @@ end
 -- then anyway, and a shield cast in the next fight is idle, as it should be. "2 or more charges"
 -- adds the one-charge copy (below): the icon in full, drawn by the engine at exactly one charge.
 -- Idle applies only while positioning is locked, the element is on, a shield it tracks is known
--- and Blizzard's button is made, and not in preview mode. A change in combat (a setting, the lock)
--- waits for its end, as the gate does: until then the icon stays as it was set.
+-- and Blizzard's button is made. A change in combat (a setting, the lock) waits for its end, as
+-- the gate does: until then the icon stays as it was set. Preview mode leaves the gate as it is
+-- (its stand-in draws over it): a protected frame's ancestor changed there could miss its way back
+-- if a fight began.
 local function idleWhen()
 	local w = ns.elementSetting("shield", "idleWhen")
 	return (w == "up" or w == "charges") and w or "never"
@@ -292,7 +297,7 @@ local gateNow = 1   -- the gate's alpha, as last set
 local function applyIdle()
 	if InCombatLockdown() then return end
 	local when = idleWhen()
-	local on = when ~= "never" and lookOn and not standIn and ns.getAccount().locked
+	local on = when ~= "never" and lookOn and ns.getAccount().locked
 		and (when ~= "charges" or copyReady())
 	gateNow = on and ns.idleAlpha("shield") or 1
 	gate:SetAlpha(gateNow)
@@ -328,7 +333,9 @@ function SH.applyEmptyLook()
 	if standIn then
 		-- Preview mode (SH.preview, below). The stand-in draws the state shown over everything, the
 		-- look off: at its group's opacity, as Blizzard's button draws the shield, but at full
-		-- while the real shield may be up under it, which would show through.
+		-- while the real shield may be up under it, which would show through. Drawn idle it is
+		-- see-through all the same: the real shield under it shows a little (at its own Idle
+		-- opacity; in full at exactly one charge with "2 or more charges").
 		standIn:SetIgnoreParentAlpha(covered and believedUp() ~= false)
 	end
 	setLook(stateNow())
