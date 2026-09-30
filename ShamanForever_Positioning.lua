@@ -186,16 +186,16 @@ function PO.attach(f)
 		showGuides()
 		if not InCombatLockdown() then ns.layoutElements() end
 	end)
-	-- Wheel: scale (everything grows, lines too); Shift: icon size (lines stay crisp); Ctrl: opacity.
+	-- Wheel: icon size (lines stay crisp); Shift: scale (everything grows, lines too); Ctrl: opacity.
 	f:SetScript("OnMouseWheel", function(self, delta)
 		local g = ns.groupById(self.groupId)
 		if acct().locked or InCombatLockdown() or not g then return end
 		local sx, sy = ns.screenCenter(self)
 		if IsControlKeyDown() then g.alpha = clamp(round2(g.alpha + delta * 0.05), 0.1, 1)
-		elseif IsShiftKeyDown() then
+		elseif IsShiftKeyDown() then g.scale = clamp(round2(g.scale + delta * 0.05), 0.5, 3)
+		else
 			if g.sizeFollow then g.sizeFollow, g.size = false, db().iconSize end   -- its own from here on
 			g.size = clamp(g.size + delta * 2, 24, 96)
-		else g.scale = clamp(round2(g.scale + delta * 0.05), 0.5, 3)
 		end
 		if sx then ns.setGroupCenter(g, sx, sy) end   -- grow about the centre, not the anchor
 		ns.layoutElements()
@@ -350,8 +350,8 @@ do
 	local HELP = {
 		{ "Drag", "Move a group or the totem bar" },
 		{ "Click, then arrow keys", "Nudge a group (Shift: 10x)" },
-		{ "Mouse wheel", "Scale: everything grows, borders too" },
-		{ "Shift + wheel", "Icon size: borders not scaled with it" },
+		{ "Mouse wheel", "Icon size: borders not scaled with it" },
+		{ "Shift + wheel", "Scale: everything grows, borders too" },
 		{ "Ctrl + wheel", "Opacity" },
 		{ "Right-click", "The group's settings" },
 		{ "Shift + right-click", "The settings of the element under the cursor" },

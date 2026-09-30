@@ -404,15 +404,15 @@ local function describe()
 	local c = cfg()
 	return string.format("Swing timer: %d x %d, scale %.2f, opacity %.0f%%", c.width, c.height, c.scale, c.alpha * 100)
 end
--- As for groups and the totem bar: mouse wheel, scale (everything grows, lines too); Shift + wheel,
--- width (lines stay crisp); Ctrl + wheel, opacity. Each grows about the bar's centre.
+-- As for groups and the totem bar: mouse wheel, width (lines stay crisp); Shift + wheel, scale
+-- (everything grows, lines too); Ctrl + wheel, opacity. Each grows about the bar's centre.
 mover:SetScript("OnMouseWheel", function(self, delta)
 	if InCombatLockdown() then return end
 	local c = cfg()
 	local function step(key) c[key] = clamp(math.floor((c[key] + delta * 0.05) * 100 + 0.5) / 100, RANGES[key]) end
 	if IsControlKeyDown() then step("alpha")
-	elseif IsShiftKeyDown() then c.width = clamp(c.width + delta * 4, RANGES.width)
-	else step("scale")
+	elseif IsShiftKeyDown() then step("scale")
+	else c.width = clamp(c.width + delta * 4, RANGES.width)
 	end
 	layout()
 	self.label:SetText(describe())
