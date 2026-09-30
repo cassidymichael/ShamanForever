@@ -148,7 +148,7 @@ local function buildButton(def, slot, button, cd)
 	if button.AddAuraAssignedAnimation then ns.try("target pop", button.AddAuraAssignedAnimation, button, def.popAnim) end
 end
 
-local styleExpire   -- below
+local styleExpire, styleExpireText   -- below
 
 local function styleButton(def, size, slot)
 	if def.engineExpire then ns.try("flame shock expiring", styleExpire, def, size, slot) end
@@ -208,29 +208,42 @@ function styleExpire(def, size, slot)
 	-- The cover must hide the Expiring colour completely: not with a see-through bar colour.
 	local k = t and t:barRGB()
 	local barOn = secs > 0 and setting(key, "expireBar") and t and t.barOn and red and cover and red.ok and cover.ok
-		and k and (k[4] or 1) >= 1
-	for _, x in ipairs({ red, cover }) do x.clip:SetShown(barOn and true or false) end
-	if barOn then
+		and ns.isColor(k) and (k[4] or 1) >= 1
+	-- Both hidden first; shown together last, only if every step before worked: an Expiring colour
+	-- without its cover would be a warning for the whole DoT.
+	for _, x in ipairs({ red, cover }) do if x then x.clip:Hide() end end
+	if not barOn then return styleExpireText(def, slot, st, secs) end
+	local c = setting(key, "expireBarColor")
+	if not ns.isColor(c) then c = def.defaults.expireBarColor end
+	local placed = ns.try("flame shock expiring place", function()
 		local h, edge = st.barHeight, st.barEdge == "top" and "TOPLEFT" or "BOTTOMLEFT"
 		local w = size * secs / FS_SECS
-		for _, x in ipairs({ red, cover }) do
+		for _, x in ipairs({ cover, red }) do
 			x.clip:ClearAllPoints()
 			x.clip:SetPoint(edge, slot.button, edge, 0, 0)
 			x.clip:SetSize(w, h)
 			x.bar:ClearAllPoints()
 		end
-		-- The Expiring colour, lined up with the time bar: it shows over the stretch's fill.
-		local c = setting(key, "expireBarColor")
-		red.bar:SetSize(size, h)
-		red.bar:SetPoint("TOPLEFT", red.clip, "TOPLEFT", 0, 0)
-		red.bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
-		-- The cover: its end at the stretch's right edge at secs left, and past its left 0.05 s later.
+		-- The cover first: its end at the stretch's right edge at secs left, past its left 0.05 s later.
 		local long = w * FAST
 		cover.bar:SetSize(long, h)
 		cover.bar:SetPoint("TOPLEFT", cover.clip, "TOPLEFT", w - long * secs / FS_SECS, 0)
-		cover.bar:SetStatusBarColor(k[1], k[2], k[3], k[4] or 1)
+		cover.bar:SetStatusBarColor(k[1], k[2], k[3], 1)
+		-- The Expiring colour, lined up with the time bar: it shows over the stretch's fill.
+		red.bar:SetSize(size, h)
+		red.bar:SetPoint("TOPLEFT", red.clip, "TOPLEFT", 0, 0)
+		red.bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
+	end)
+	if placed then
+		cover.clip:Show()
+		red.clip:Show()
 	end
-	-- The countdown: the button's duration text in place of the Cooldown's numbers, red under secs.
+	styleExpireText(def, slot, st, secs)
+end
+
+-- The countdown: the button's duration text in place of the Cooldown's numbers, red under secs.
+function styleExpireText(def, slot, st, secs)
+	local key, t = def.key, slot.timer
 	local fs, b = def.durText, slot.button
 	local textOn = secs > 0 and setting(key, "expireText") and st.text and fs ~= nil and textCurve(secs, st.textColor)
 	if textOn then
