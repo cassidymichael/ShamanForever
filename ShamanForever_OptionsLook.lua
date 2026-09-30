@@ -542,13 +542,8 @@ local function buffPreview(def)
 		uptime = true,
 		states = states,
 		warning = def.breath and "underwater" or def.reagent and "out" or def.missing and "missing" or nil,
-		-- Elemental Focus's pop is the grow-and-settle Blizzard's button plays (not the full pop).
 		pop = function(ic, st)
-			if st == "up" and def.proc and not def.noPop and opt(key, "primedPop") then
-				if not ic.growPop then ic.growPop = ns.Effects.growPop(ic, key) end
-				ic.growPop:restyle(true)
-				ic.growPop:Play()
-			end
+			if st == "up" and def.proc and not def.noPop and opt(key, "primedPop") then ic:Pop("ready") end
 		end,
 		render = function(ic, st)
 			reset(ic, def.icon)

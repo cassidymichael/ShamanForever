@@ -58,7 +58,7 @@ local gateAlpha, holderAlpha, retarget   -- below
 -- string; candidates(def): its candidate filters (default: the spell IDs of auraKey). The page's
 -- texts (ShamanForever_OptionsElements.lua): idleText, procHeader, popTip, glowTip, upLabel and
 -- idleLabel (its preview's up and idle states). noPop: no pop when it shows. noGlow: no glow while
--- it's up.
+-- it's up. Otherwise its glow and pop are its effect host's aura route (ns.Effects.host).
 -- ownIcon: its own icon on the button, never the aura's. buttonBorder: its border on the button
 -- too. noTimer: no time left. missing, engineExpire: its Not on target and Expiring blocks (Flame
 -- Shock's, below). defaults: its own option defaults (ns.elementSetting).
@@ -82,9 +82,10 @@ local TARGET = {
 		candidates = function(def) return { includeDispelTypes = { Magic = true }, maxDuration = T.longest(def) } end,
 		skipLong = { 1, 60, 1 },   -- Longest buff's range and step, in minutes (its page's slider)
 		idleText = "Idle while your target has nothing to purge", procHeader = "Something to purge",
-		noPop = true, ownIcon = true, noTimer = true, buttonBorder = true,
-		glowTip = "While your target has one.", upLabel = "Magic buff", idleLabel = "Nothing to purge",
-		defaults = { idleAlpha = 0, primedGlow = true, skipLong = false, skipLongMins = 2 },
+		ownIcon = true, noTimer = true, buttonBorder = true,
+		popTip = "The moment your target has one.", glowTip = "While your target has one.",
+		upLabel = "Magic buff", idleLabel = "Nothing to purge",
+		defaults = { idleAlpha = 0, primedPop = true, primedGlow = true, skipLong = false, skipLongMins = 2 },
 		experimental = "Purge" },
 }
 T.ELEMENTS = TARGET
@@ -119,13 +120,20 @@ local function idMap(def)
 	return def.ids
 end
 
--- Our parts on Blizzard's button, once it is made (as Elemental Focus's): a glow the button plays
--- while the aura shows, and a grow pop it plays each time a new one lands.
-local function buildButton(def, slot, button, cd)
+-- Levels over the element's icon (its container's is the text's + 5, ns.makeAuraSlot): the glow
+-- over the aura's button, the pop's light over that. Set from our own levels, never read from
+-- Blizzard's button.
+local GLOW_LEVEL, POP_LEVEL = 11, 13
+
+-- Our parts on Blizzard's button, once it is made: the pop's rig (as Elemental Focus's), which the
+-- button plays each time a new aura lands.
+local function buildButton(def, slot, button)
+	local body = def.fx and def.fx:bind(button, slot.icon, def.frame.textFrame:GetFrameLevel() + POP_LEVEL)
 	-- buttonBorder: the group's border drawn on the button too, so it shows exactly with it (the
-	-- element's own frame, and its border, sit at its Idle opacity). Drawn out of combat only.
+	-- element's own frame, and its border, sit at its Idle opacity), on the rig's body so the two
+	-- move together. Drawn out of combat only.
 	if def.buttonBorder then
-		def.edge = CreateFrame("Frame", nil, button)
+		def.edge = CreateFrame("Frame", nil, body or button)
 		def.edge:SetAllPoints(button)
 	end
 	if def.engineExpire then
@@ -137,15 +145,6 @@ local function buildButton(def, slot, button, cd)
 		def.durText:SetFont(STANDARD_TEXT_FONT, 12, "OUTLINE")
 		def.durText:Hide()
 	end
-	if not def.noGlow then
-		def.glow = ns.Effects.glow(button, button, def.key, { underButton = true })
-		-- Levels under the aura button may read as secret: a failed read leaves the default level.
-		ns.try("aura glow level", function() def.glow:SetFrameLevel(cd:GetFrameLevel() + 2) end)
-		def.glow:bindButton(button)
-	end
-	if def.noPop then return end
-	def.popAnim = ns.Effects.growPop(slot.icon, def.key)
-	if button.AddAuraAssignedAnimation then ns.try("target pop", button.AddAuraAssignedAnimation, button, def.popAnim) end
 end
 
 local styleExpire, styleExpireText   -- below
@@ -155,12 +154,7 @@ local function styleButton(def, size, slot)
 		ns.try("flame shock expiring", styleExpire, def, size, slot)
 	end
 	if def.edge then ns.try("target border " .. def.key, ns.applyBorder, def.edge, ns.borderFor(def.key)) end
-	if def.glow then
-		def.glow:restyle()
-		def.glow:fit(size)
-		def.glow:SetShown(setting(def.key, "primedGlow") and true or false)
-	end
-	if def.popAnim then def.popAnim:restyle(setting(def.key, "primedPop") and true or false) end
+	if def.fx then ns.try("target pop " .. def.key, def.fx.stylePop, def.fx, size) end
 end
 
 ------------------------------------------------------------------------
@@ -374,10 +368,22 @@ for _, def in ipairs(TARGET) do
 		} or nil,
 		sites = { container = "target container " .. def.key, style = "target style " .. def.key,
 			filter = "target filter " .. def.key },
-		onButton = function(slot, button, cd) buildButton(def, slot, button, cd) end,
+		onButton = function(slot, button) buildButton(def, slot, button) end,
 		onStyle = function(slot, size) styleButton(def, size, slot) end,
 		onError = function(err) ns.noteError("target container " .. def.key, err) end,
 	})
+	-- Its glow and pop (unless it has none): the glow's chain and sensor on the gate, so they hide
+	-- with it, and its sensor follows the target with the slot (retarget).
+	if not (def.noGlow and def.noPop) then
+		def.fx = ns.Effects.host(f, def.key, { aura = {
+			slot = def.aura, parent = def.gate, unit = wantedUnit, needUnit = "target", filter = def.filter,
+			ids = function() return idMap(def) end,
+			candidates = def.candidates and function() return def.candidates(def) end,
+			popOn = function() return not def.noPop and setting(def.key, "primedPop") end,
+			sites = { container = "target glow sensor " .. def.key, style = "target glow style " .. def.key,
+				filter = "target glow filter " .. def.key },
+		} })
+	end
 	ns.registerElement(def.key, { frame = f, label = def.spell, defaults = def.defaults,
 		borderHost = def.idleEdge,
 		-- Preview mode: its border isn't on its frame (ShamanForever_Preview.lua).
@@ -449,10 +455,14 @@ function retarget(only)
 				ns.retryAfterCombat("target retarget", function() retarget() end)
 			end
 		end
-		-- Not on target's sensor, the same way; a refused call holds the look off, and it waits two
-		-- frames on each call (ns.makeClipLook).
-		if def.missLook and (only == nil or only == def) and not def.missLook:follow(unit) then
-			ns.retryAfterCombat("target retarget", function() retarget() end)
+		-- Not on target's sensor and the glow's, the same way; a refused call holds the look off, and
+		-- it waits two frames on each call (ns.makeClipLook).
+		if only == nil or only == def then
+			for _, look in ipairs({ def.missLook or false, def.fx and def.fx.up or false }) do
+				if look and not look:follow(unit) then
+					ns.retryAfterCombat("target retarget", function() retarget() end)
+				end
+			end
 		end
 	end
 end
@@ -544,6 +554,17 @@ local function styleLook()
 	stateLook()
 end
 
+-- The glow's sensor for the current size, look and levels (out of combat; it waits for that).
+local function styleUp()
+	if InCombatLockdown() then return end
+	for _, def in ipairs(TARGET) do
+		if def.fx then
+			def.fx:setLevel(def.frame.textFrame:GetFrameLevel() + GLOW_LEVEL)
+			def.fx:style()
+		end
+	end
+end
+
 -- Out of combat: the target read again (readWanted), and the look's state.
 local function checkMissing()
 	if fighting or InCombatLockdown() then return end
@@ -556,6 +577,7 @@ end
 local function combatStarts()
 	fighting = true
 	styleLook()
+	styleUp()
 	local f = FLAME.frame
 	local a = (FLAME.spellID and ns.getAccount().locked) and ns.idleAlpha(FLAME.key) or 1
 	f:SetAlpha(a)
@@ -564,13 +586,19 @@ end
 
 local function refreshAura(def)
 	local f, key = def.frame, def.key
+	-- The glow while the aura is up: not while preview mode's stand-in shows over it.
+	if def.fx then
+		def.fx:glow(not def.noGlow and def.spellID ~= nil and ns.isEnabled(key) and setting(key, "primedGlow")
+			and not ns.Preview.isOn())
+	end
 	if not ns.isEnabled(key) then return end
 	-- A container made once combat ended (its setup waited): its gate's driver. Its unit: set when
 	-- it's made, and again after a failed call or when a target change was missed.
 	if def.aura.container then
 		driveGate(def)
-		local p = def.missLook
-		if def.unit ~= wantedUnit() or (p and p.container and p.unit ~= wantedUnit()) then
+		local p, u = def.missLook, def.fx and def.fx.up
+		if def.unit ~= wantedUnit() or (p and p.container and p.unit ~= wantedUnit())
+			or (u and u.container and u.unit ~= wantedUnit()) then
 			retarget(def)
 		end
 	end
@@ -600,11 +628,13 @@ function T.resolve()
 				if not before[id] then
 					def.aura:refilter()
 					if def.missLook then def.missLook:refilter() end
+					if def.fx then def.fx:refilter() end
 					break
 				end
 			end
 		end
 		if def.missLook then def.missLook:checkIDs() end
+		if def.fx then def.fx:checkIDs() end
 		table.insert(sig, tostring(def.spellID))
 	end
 	return table.concat(sig, ",")
@@ -613,6 +643,7 @@ end
 function T.applyTimers()
 	for _, def in ipairs(TARGET) do def.aura:style() end
 	styleLook()   -- a glow style change (the options call this)
+	styleUp()
 end
 
 function T.applyLayout()
@@ -622,19 +653,24 @@ function T.applyLayout()
 			-- Made whenever the element is learned and on: the sensor carries the whole look (its
 			-- picture, the grey and the ring too), not the glow alone.
 			if def.missLook then def.missLook:setup() end
+			if def.fx then def.fx:setup() end
 		end
 		-- Skip long buffs or Longest buff changed: the slot's filter again. SetAuraSlotCandidateFilters
 		-- changes a made slot's filters in place (Blizzard_CustomAuraContainer.lua), so the container
 		-- isn't rebuilt; the call waits for combat and secret auras to end (AuraSlot:refilter).
 		if def.candidates and def.aura.container then
 			local longest = T.longest(def) or false
-			if def.longestApplied ~= nil and def.longestApplied ~= longest then def.aura:refilter() end
+			if def.longestApplied ~= nil and def.longestApplied ~= longest then
+				def.aura:refilter()
+				def.fx:refilter()   -- the glow's sensor takes the same filters
+			end
 			def.longestApplied = longest
 		end
 		def.aura:style()
 		refreshAura(def)
 	end
 	styleLook()     -- its looks may have changed
+	styleUp()
 	checkMissing()   -- and its container may be new
 end
 
@@ -652,6 +688,8 @@ function T.afterGroups()
 		end
 	end
 	styleLook()   -- a new size or scale
+	styleUp()
+	for _, def in ipairs(TARGET) do refreshAura(def) end   -- preview mode's start and end come here
 end
 
 function T.refresh()
@@ -673,6 +711,7 @@ function T.start()
 		elseif event == "PLAYER_REGEN_ENABLED" then
 			fighting = false
 			styleLook()
+			styleUp()
 			checkMissing()
 			refreshAura(FLAME)
 		elseif event == "UNIT_AURA" then
@@ -702,6 +741,9 @@ function T.debug()
 	say("%s Not on target: glow look %s; sensor %s", FLAME.spell,
 		tostring(setting(FLAME.key, "missGlowLook")), FLAME.missLook:describe())
 	say("%s red countdown handed %s", FLAME.spell, tostring(FLAME.textHanded))
+	for _, def in ipairs(TARGET) do
+		if def.fx then say("%s: %s", def.spell, def.fx:describe()) end
+	end
 end
 
 ns.registerModule(T)

@@ -623,26 +623,6 @@ function E.endFlash(parent, anchor, owner, over)
 	return kf
 end
 
--- A grow-and-settle pop as an animation group on region (a texture or frame), sized and timed by
--- owner's pop style: the one kind of pop Blizzard's aura button can play for us (Elemental Focus),
--- and its previews. restyle() takes the current style; on = false makes it a no-op (scale 1).
-function E.growPop(region, owner)
-	local g = region:CreateAnimationGroup()
-	local up = g:CreateAnimation("Scale")
-	up:SetOrder(1); up:SetOrigin("CENTER", 0, 0)
-	local down = g:CreateAnimation("Scale")
-	down:SetOrder(2); down:SetOrigin("CENTER", 0, 0)
-	function g:restyle(on)
-		local st = ns.Style.get(owner, "pop")
-		local s = on == false and 1 or st.size
-		local k = 1 / math.max(st.speed, 0.1)
-		up:SetScaleFrom(1, 1); up:SetScaleTo(s, s); up:SetDuration(0.12 * k)
-		down:SetScaleFrom(s, s); down:SetScaleTo(1, 1); down:SetDuration(0.25 * k)
-	end
-	g:restyle()
-	return g
-end
-
 ------------------------------------------------------------------------
 -- The effect host: an element's one glow and one pop, in its one glow look and pop style. Other
 -- glows an element has (a ready glow on its gate, its timer's expiring glow, an end flash's red

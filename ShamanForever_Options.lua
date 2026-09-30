@@ -274,27 +274,24 @@ local POP_MOTIONS = { { "none", "None" }, { "pop", "Grow" }, { "bounce", "Bounce
 -- Choices not tested in game yet (About's Experimental list), and bursts drawn per school.
 local POP_EXPERIMENTAL = { school = true, edge = true, shapes = true, painted = true, rune = true }
 local SCHOOL_BURSTS = { school = true, shapes = true, painted = true }
--- growOnly: the element's pop is the grow-and-settle Blizzard's aura button plays (Elemental Focus),
--- so only the motion's size and speed apply.
-local function popBlock(p, owner, icon, kind, growOnly)
+local function popBlock(p, owner, icon, kind)
 	local icons
 	local function playPop()
-		for _, ic in ipairs(icons.shown()) do
-			if growOnly then
-				if not ic.growPop then ic.growPop = ns.Effects.growPop(ic, owner) end
-				ic.growPop:restyle(true)
-				ic.growPop:Play()
-			else ic:Pop(kind) end
-		end
+		for _, ic in ipairs(icons.shown()) do ic:Pop(kind) end
 	end
-	local function after() OP.refresh(); if icons and icons.shown()[1]:IsVisible() then playPop() end end
+	-- ns.applyTimers: the pops Blizzard's aura buttons play (Elemental Focus, Purge) take a style
+	-- change through their module's hook, once out of combat.
+	local function after()
+		ns.applyTimers()
+		OP.refresh()
+		if icons and icons.shown()[1]:IsVisible() then playPop() end
+	end
 	local r = styleRows(owner, "pop", after)
 	-- Colour is for Ready and Ran out (ns.Looks.POP_EVENTS): a page whose pop is for a warning (the
 	-- imbue's) keeps the warning's colour and doesn't offer it.
-	local colored = not growOnly and ns.Looks.POP_EVENTS[kind]
+	local colored = ns.Looks.POP_EVENTS[kind]
 	-- One icon per school while the colour or the burst differs by school.
 	local function bySchool()
-		if growOnly then return false end
 		local st = r.style()
 		return (colored and st.colorBy == "school") or SCHOOL_BURSTS[st.burst] or false
 	end
@@ -316,12 +313,6 @@ local function popBlock(p, owner, icon, kind, growOnly)
 		play:ClearAllPoints()
 		play:SetPoint("LEFT", list[#list], "RIGHT", 24, 0)
 	end)
-	if growOnly then
-		p:text("It grows and settles; only its size and speed can change.", own)
-		p:slider("Motion distance", "How far it grows.", 1.1, 1.8, 0.05, pct, r.get("size"), r.set("size"), own)
-		p:slider("Motion speed", nil, 0.5, 2, 0.1, pct, r.get("speed"), r.set("speed"), own)
-		return
-	end
 	if colored then
 		p:dropdown("Colour", "For Ready and Ran out. By event: gold when ready, white when a totem runs out. Killed early, Grounded and the imbue dropping keep their own colours.",
 			POP_COLORS, r.get("colorBy"), r.set("colorBy"), own, 190)

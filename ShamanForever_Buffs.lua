@@ -14,14 +14,11 @@
 --   refills after surfacing; MIRROR_TIMER_STOP only once it's full.
 -- * Elemental Focus: a proc can't be foreseen, so in combat only Blizzard's aura container
 --   can show it (ns.makeAuraSlot, as for the shield). Its button draws the icon and time left
---   (swipe, countdown or bar); our glow is a child of that button, so it shows exactly when
---   the button does. The container sits on the effects layer, which ignores the icon's alpha:
---   Idle fades only the icon under it (the look while no proc is up), never the proc itself.
---   Script handlers under the button never run, but the button plays animations handed to it
---   (Blizzard_CustomAuraButton.lua): AddAuraShownAnimation runs the glow's pulse while the
---   proc shows, AddAuraAssignedAnimation our pop each time a proc arrives (both tested in
---   combat on Lightning Shield, 2026-09-27; not yet on the proc). On a client without them
---   the pop plays when the proc is seen while auras are readable.
+--   (swipe, countdown or bar). The container sits on the effects layer, which ignores the icon's
+--   alpha: Idle fades only the icon under it (the look while no proc is up), never the proc
+--   itself. Its glow and pop are its effect host's aura route (ns.Effects.host): the glow a clip
+--   look lit exactly while the proc is up, the pop played by the button each time a proc arrives
+--   (both tested in combat on Lightning Shield, 2026-10-01; not yet on the proc).
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
@@ -150,60 +147,54 @@ local function procIDMap(def)
 	return def.procIDs
 end
 
--- Our parts on Blizzard's button, once it is made. Our glow, above the cooldown: a child of the
--- button, so it shows exactly when the button does. Its OnShow can't start the pulse under the
--- button, so the button plays it. The pop: the icon grows and settles, played by the button on each
--- new proc; sized by the pop style (styleProc), a no-op while the Pop option is off.
-local function buildProc(def, slot, button, cd)
-	-- The group's border drawn on the button too, so it shows exactly with the proc (the element's
-	-- own frame, and its border, sit at its Idle opacity). Styled out of combat only (styleProc).
-	def.edge = CreateFrame("Frame", nil, button)
-	def.edge:SetAllPoints(button)
-	def.glow = ns.Effects.glow(button, button, def.key, { underButton = true })
-	-- Levels under the aura button may read as secret: a failed read leaves the default level.
-	ns.try("aura glow level", function() def.glow:SetFrameLevel(cd:GetFrameLevel() + 2) end)
-	def.glow:bindButton(button)
-	def.popAnim = ns.Effects.growPop(slot.icon, def.key)
-	if button.AddAuraAssignedAnimation then
-		def.buttonPops = ns.try("proc pop", button.AddAuraAssignedAnimation, button, def.popAnim)
-	end
+-- Levels over the element's icon (its container's is the text's + 5, ns.makeAuraSlot): the glow
+-- over the proc's button, the pop's light over that. Set from our own levels, never read from
+-- Blizzard's button.
+local GLOW_LEVEL, POP_LEVEL = 11, 13
+
+-- The pop's rig on Blizzard's button, once it is made, with the group's border on the rig's body
+-- so the two move together: the border shows exactly with the proc (the element's own frame, and
+-- its border, sit at its Idle opacity). Styled out of combat only (styleProc).
+local function buildProc(def, slot, button)
+	local body = def.fx:bind(button, slot.icon, def.frame.textFrame:GetFrameLevel() + POP_LEVEL)
+	def.edge = CreateFrame("Frame", nil, body)
+	def.edge:SetAllPoints(body)
 end
 
 -- Our parts again, for the current size and settings (after the aura slot's own restyle).
 local function styleProc(def, size)
 	ns.try("proc border " .. def.key, ns.applyBorder, def.edge, ns.borderFor(def.key))
-	def.glow:restyle()
-	def.glow:fit(size)
-	def.glow:SetShown(setting(def.key, "primedGlow") and true or false)
-	def.popAnim:restyle(setting(def.key, "primedPop") and true or false)
+	ns.try("proc pop " .. def.key, def.fx.stylePop, def.fx, size)
 end
 
--- The proc's aura slot, on the effects layer (made while auras are readable; once made, it stays).
+-- The glow's sensor for the current size, look and levels (out of combat; it waits for that).
+local function styleGlow(def)
+	if InCombatLockdown() then return end
+	def.fx:setLevel(def.frame.textFrame:GetFrameLevel() + GLOW_LEVEL)
+	def.fx:style()
+end
+
+-- The proc's aura slot, on the effects layer (made while auras are readable; once made, it stays),
+-- and its effect host: the glow on the effects layer beside it, the pop on its button.
 local function makeProcSlot(def)
-	return ns.makeAuraSlot(def.frame, {
-		key = def.key, slot = "proc", ids = function() return procIDMap(def) end, parent = def.frame.effects,
-		sites = { container = "proc container " .. def.key, style = "proc style " .. def.key },
-		onButton = function(slot, button, cd) buildProc(def, slot, button, cd) end,
+	local ids = function() return procIDMap(def) end
+	def.aura = ns.makeAuraSlot(def.frame, {
+		key = def.key, slot = "proc", ids = ids, parent = def.frame.effects,
+		sites = { container = "proc container " .. def.key, style = "proc style " .. def.key,
+			filter = "proc filter " .. def.key },
+		onButton = function(slot, button) buildProc(def, slot, button) end,
 		onStyle = function(_, size) styleProc(def, size) end,
 		onError = function(err) ns.noteError("proc container " .. def.key, err) end,
 	})
+	def.fx = ns.Effects.host(def.frame, def.key, { aura = {
+		slot = def.aura, parent = def.frame.effects, ids = ids,
+		popOn = function() return setting(def.key, "primedPop") end,
+		sites = { container = "proc glow sensor " .. def.key, style = "proc glow style " .. def.key,
+			filter = "proc glow filter " .. def.key },
+	} })
 end
 for _, def in ipairs(BUFFS) do
-	if def.proc then def.aura = makeProcSlot(def) end
-end
-
--- While auras are readable: whether the proc is up, for the pop the moment it comes.
-local function readProc(def)
-	if InCombatLockdown() or ns.aurasSecret() or not C_UnitAuras then return end
-	local up = false
-	for id in pairs(procIDMap(def)) do
-		local ok, a = safe(C_UnitAuras.GetPlayerAuraBySpellID, id)
-		if ok and type(a) == "table" then up = true break end
-	end
-	if up and def.procUp == false and not def.buttonPops and def.popAnim and ns.isEnabled(def.key) and setting(def.key, "primedPop") then
-		ns.try("proc pop", def.popAnim.Play, def.popAnim)   -- out of combat, auras readable: allowed
-	end
-	def.procUp = up
+	if def.proc then makeProcSlot(def) end
 end
 
 ------------------------------------------------------------------------
@@ -214,7 +205,10 @@ local previewing = false   -- preview mode's stand-ins show (B.preview, below)
 local function refreshBuff(def)
 	local f, key = def.frame, def.key
 	if def.proc then f.tex:SetAlpha(previewing and 0 or 1) end
-	if not ns.isEnabled(key) then return end
+	if not ns.isEnabled(key) then
+		if def.proc then def.fx:glow(false) end
+		return
+	end
 	f.tex:SetTexture(def.iconID or def.icon)
 	if not def.spellID then
 		-- Not learned yet (seen only while the preview shows such elements): a plain grey icon.
@@ -227,8 +221,10 @@ local function refreshBuff(def)
 	end
 	f.tex:SetDesaturated(false)
 	if def.proc then
-		-- The button says whether it's up; the icon under it is the idle look. The frame is an
-		-- ancestor of Blizzard's button, so its alpha only changes out of combat (ns.fadeTo).
+		-- The button says whether it's up, and the glow's sensor; the icon under it is the idle
+		-- look. The frame is an ancestor of Blizzard's button, so its alpha only changes out of
+		-- combat (ns.fadeTo).
+		def.fx:glow(setting(key, "primedGlow") and not previewing)
 		ns.fadeTo(f, ns.getAccount().locked and ns.idleAlpha(key) or 1)
 		return
 	end
@@ -262,7 +258,19 @@ function B.resolve()
 		local known, icon = Spells.known(def.spellKey)
 		if known ~= def.spellID then def.takesReagent = nil end   -- a new rank: read its tooltip again
 		def.spellID = known
+		local before = def.procIDs
 		def.procIDs = nil
+		-- A proc ID learned since: the slot and the glow's sensor take it together.
+		if def.proc and before and def.aura.container then
+			for id in pairs(procIDMap(def)) do
+				if not before[id] then
+					def.aura:refilter()
+					def.fx:refilter()
+					break
+				end
+			end
+		end
+		if def.proc then def.fx:checkIDs() end
 		-- A passive talent (Elemental Focus) has no icon of its own worth showing: keep the buff's.
 		if not def.proc then def.iconID = icon end
 		table.insert(sig, tostring(known))
@@ -278,17 +286,35 @@ function B.applyTimers()
 			t:setExpire(ns.Timer.expireOpts(def.key), def.iconID or def.icon)
 		end
 	end
-	for _, def in ipairs(BUFFS) do if def.proc then def.aura:style() end end
+	for _, def in ipairs(BUFFS) do
+		if def.proc then
+			def.aura:style()
+			styleGlow(def)   -- a glow style change (the options call this)
+		end
+	end
 end
 
 function B.applyLayout()
 	for _, def in ipairs(BUFFS) do
-		if def.proc and def.spellID and ns.isEnabled(def.key) then def.aura:setup() end
-		if def.proc then def.aura:style() end
+		if def.proc and def.spellID and ns.isEnabled(def.key) then
+			def.aura:setup()
+			def.fx:setup()
+		end
+		if def.proc then
+			def.aura:style()
+			styleGlow(def)
+		end
 	end
 	refreshAll()
 end
-B.afterGroups = function() for _, def in ipairs(BUFFS) do if def.proc then def.aura:style() end end end
+B.afterGroups = function()
+	for _, def in ipairs(BUFFS) do
+		if def.proc then
+			def.aura:style()
+			styleGlow(def)   -- a new size or scale
+		end
+	end
+end
 
 -- Whether the breath bar is draining now (a /reload under water, or after a loading screen that
 -- missed its events): negative scale means draining.
@@ -305,7 +331,7 @@ end
 function B.refresh()
 	readBreath()
 	for _, def in ipairs(BUFFS) do
-		if def.proc then readProc(def) else readAura(def) end
+		if not def.proc then readAura(def) end
 	end
 	refreshAll()
 end
@@ -362,9 +388,8 @@ function B.debug()
 		local state
 		if def.proc then
 			local a = def.aura
-			state = string.format("container %s%s, button plays the pop %s, up (out of combat) %s",
-				a.container and "made" or "not made", a.err and (", error: " .. a.err) or "", tostring(def.buttonPops),
-				tostring(def.procUp))
+			state = string.format("container %s%s; %s", a.container and "made" or "not made",
+				a.err and (", error: " .. a.err) or "", def.fx:describe())
 		else
 			state = def.upUntil and string.format("up, %.0f s left", def.upUntil - GetTime()) or "not up"
 			if def.reagent then state = string.format("%s, reagent %s (takes it: %s, Reagent Economy %s)", state,

@@ -274,11 +274,10 @@ end
 
 -- Standard blocks at the end of a page: the pulsing glow's and the pop's styles, General's or its
 -- own. glow, pop: whether the element has any (a block that could change nothing isn't shown).
--- pop: false for none, "grow" for the grow-and-settle only (Elemental Focus).
 local function effectBlocks(p, key, popKind, glow, pop)
 	local icon = ns.ELEMENTS[key].icon
 	if glow ~= false then glowBlock(p, key, icon) end
-	if pop ~= false then popBlock(p, key, icon, popKind or "ready", pop == "grow") end
+	if pop ~= false then popBlock(p, key, icon, popKind or "ready") end
 end
 
 -- Standard block: the look while something is missing. first: an optional row before the three.
@@ -551,7 +550,7 @@ local function buildBuff(p, def)
 		-- Elemental Focus's texts, unless the def has its own (the target's auras, ShamanForever_Target.lua).
 		p:header(def.procHeader or ns.Spells.name("clearcasting"))
 		if not def.noPop then
-			p:checkbox("Pop", def.popTip or "The moment it procs. The icon grows and settles, at the Pop style's size and speed.",
+			p:checkbox("Pop", def.popTip or "The moment it procs.",
 				eget(key, "primedPop"), eset(key, "primedPop"))
 		end
 		p:checkbox("Pulsing glow", def.glowTip or "While it's up.", eget(key, "primedGlow"), eset(key, "primedGlow"))
@@ -573,8 +572,8 @@ local function buildBuff(p, def)
 	end
 	if def.proc and not def.noGlow then procBlock()
 	elseif not def.proc then expiringBlock(p, key, 120, 5) end
-	-- The water buffs never pop; Elemental Focus's pop is the grow Blizzard's button plays.
-	effectBlocks(p, key, nil, not def.noGlow, def.proc and not def.noPop and "grow" or false)
+	-- The water buffs never pop.
+	effectBlocks(p, key, nil, not def.noGlow, def.proc and not def.noPop)
 end
 
 -- Tremor Totem's watchlist: a box that searches the list and adds a name, Add target, the list (a
