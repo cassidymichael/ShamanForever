@@ -3,8 +3,8 @@
 --   frame      the edge around an icon, in its border's look (rings of lines, corner caps, art
 --              over or around the icon, a mask on the icon's picture)
 --   glow       the pulsing glow's looks (ns.Effects.glow calls in)
---   pop        the pop's edge flash and drawn bursts, as data (not looks: ns.Effects' pop rig
---              reads them by part)
+--   pop        the pop's choices (colour, flash, burst, motion), its edge flash and its drawn
+--              bursts as data (ns.Effects' pop rig reads them by part)
 -- Our own media are named by path, never by file ID: the client gives our loose files IDs that
 -- change between client starts (tested 2026-09-28). Blizzard's art is named by atlas and checked
 -- before use (C_Texture.GetAtlasInfo): a missing atlas draws nothing, so each look has a fallback.
@@ -933,8 +933,10 @@ addGlow("material", "School material", material)
 addGlow("heartbeat", "Heartbeat", heartbeat)
 
 ------------------------------------------------------------------------
--- The pop's parts past ns.Effects' own plain flash, ring and star: Blizzard's edge flash
--- (Looks.popEdge) and the drawn bursts (Looks.popParts), as data for the pop's rig. A burst's
+-- The pop: its choices (S.addChoice: colour, flash, burst, motion), and its parts past
+-- ns.Effects' own plain flash, ring and star: Blizzard's edge flash (Looks.popEdge) and the drawn
+-- bursts (Looks.popParts), as data for the pop's rig. A burst entry names the rig's own parts it
+-- plays (rigParts: "ring", "star") or draws its parts (draw(out, school)). A burst's
 -- shapes follow the school of the icon it pops on. Shapes spread behind the icon over a dark halo,
 -- so they read on bright ground (an added burst vanishes on bright ground without one, tested
 -- 2026-09-28: white bursts on snow); the sheen crosses the icon.
@@ -1033,28 +1035,58 @@ local EFFECTS = {
 	end,
 }
 
--- The drawn bursts: each fills out with its parts for school.
-local BURSTS = {
-	shapes = shapes(shapeFile, 3.0),
-	painted = shapes(function(school) return MEDIA .. "Burst-" .. (SCHOOLS[school] or "Spirit") end, 3.2),
-	rune = function(out)
-		disc(out, 2.6, 0.6)
-		burst(out, "shape1", MEDIA .. "Rune-Ring", 1.05, 2.6, { dur = 0.62, spin = 0.55 }, false, true)
-		burst(out, "spark", MEDIA .. "Spark", 1.2, 2.2, { dur = 0.35, a = 0.8, color = { 1, 1, 1 } }, true)
-	end,
-	school = function(out, school)
+local POP = "General > Pop style"
+S.addField("pop", "colorBy", { name = "Colour", where = POP, preview = { play = "hover" } })
+S.addChoice("pop", "colorBy", "event", { name = "By event" })
+S.addChoice("pop", "colorBy", "school", { name = "By school", bySchool = true })
+
+S.addField("pop", "flash", { name = "Flash", where = POP, preview = { play = "hover" } })
+S.addChoice("pop", "flash", "none", { name = "None" })
+S.addChoice("pop", "flash", "plain", { name = "Plain flash", uses = { colorBy = true } })
+S.addChoice("pop", "flash", "edge", { name = "Blizzard's edge flash", uses = { colorBy = true } })
+
+S.addField("pop", "burst", { name = "Burst", where = POP, preview = { play = "hover" },
+	groups = { { "plain", "Plain" }, { "element", "Element" }, { "other", "Other" } } })
+local function addBurst(key, entry)
+	if entry.rigParts or entry.draw then entry.uses = { colorBy = true } end
+	S.addChoice("pop", "burst", key, entry)
+end
+addBurst("none", { name = "None", group = "plain" })
+addBurst("ring", { name = "Ring", group = "plain", rigParts = { "ring" } })
+addBurst("star", { name = "Star", group = "plain", rigParts = { "star" } })
+addBurst("both", { name = "Ring and star", group = "plain", rigParts = { "ring", "star" } })
+addBurst("painted", { name = "Emblem", group = "element", bySchool = true, credit = "ai",
+	tip = "An element's symbol spreads out behind the icon.",
+	draw = shapes(function(school) return MEDIA .. "Burst-" .. (SCHOOLS[school] or "Spirit") end, 3.2) })
+addBurst("school", { name = "Element effect", group = "element", bySchool = true,
+	tip = "Each element its own effect: earth slams, fire flares, water ripples, air spins, spirit gathers.",
+	draw = function(out, school)
 		disc(out, 3.0, 0.6)
 		local effect = EFFECTS[school] or EFFECTS.spirit
 		effect(out)
-	end,
-}
+	end })
+addBurst("rune", { name = "Rune circle", group = "other",
+	draw = function(out)
+		disc(out, 2.6, 0.6)
+		burst(out, "shape1", MEDIA .. "Rune-Ring", 1.05, 2.6, { dur = 0.62, spin = 0.55 }, false, true)
+		burst(out, "spark", MEDIA .. "Spark", 1.2, 2.2, { dur = 0.35, a = 0.8, color = { 1, 1, 1 } }, true)
+	end })
+-- Emblem in flat drawn art: kept for a saved value.
+addBurst("shapes", { name = "Shapes", group = "element", hidden = true, bySchool = true, draw = shapes(shapeFile, 3.0) })
 
--- The parts of the drawn burst named key ("shapes", "painted", "rune", "school") for an icon of
--- school; nil for the others (ns.Effects' own ring and star, or none). Made once each: the same
--- table every time, never changed.
+S.addField("pop", "motion", { name = "Motion", where = POP, preview = { play = "hover" } })
+S.addChoice("pop", "motion", "none", { name = "None" })
+for _, m in ipairs({ { "pop", "Grow" }, { "bounce", "Bounce" }, { "hop", "Hop" }, { "shake", "Shake side to side" },
+	{ "shakeV", "Shake up and down" } }) do
+	S.addChoice("pop", "motion", m[1], { name = m[2], uses = { size = true } })
+end
+
+-- The parts of the drawn burst named key for an icon of school; nil for a burst that draws none
+-- (ns.Effects' own ring and star, or none). Made once each: the same table every time, never
+-- changed.
 local popParts = {}
 function Looks.popParts(key, school)
-	local draw = BURSTS[key]
+	local draw = S.choice("pop", "burst", key).draw
 	if not draw then return nil end
 	local id = key .. ":" .. tostring(school)
 	if not popParts[id] then

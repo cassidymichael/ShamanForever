@@ -274,14 +274,6 @@ end
 -- Standard block: the pop's style, with an icon that pops on every change and on Play. kind: the
 -- event the icon pops for (ready, imbue, expired, killed). One setting per part (colour, flash,
 -- burst, motion), each changing only its own, in any mix.
-local POP_COLORS = { { "event", "By event" }, { "school", "By school" } }
-local POP_FLASHES = { { "none", "None" }, { "plain", "Plain flash" }, { "edge", "Blizzard's edge flash" } }
-local POP_BURSTS = { { "none", "None" }, { "ring", "Ring" }, { "star", "Star" }, { "both", "Ring and star" },
-	{ "shapes", "Shapes" }, { "painted", "Emblem" }, { "rune", "Rune circle" }, { "school", "Element effect" } }
-local POP_MOTIONS = { { "none", "None" }, { "pop", "Grow" }, { "bounce", "Bounce" }, { "hop", "Hop" },
-	{ "shake", "Shake side to side" }, { "shakeV", "Shake up and down" } }
--- Bursts drawn per school.
-local SCHOOL_BURSTS = { school = true, shapes = true, painted = true }
 local function popBlock(p, owner, icon, kind)
 	local icons
 	local function playPop()
@@ -299,9 +291,9 @@ local function popBlock(p, owner, icon, kind)
 	-- imbue's) keeps the warning's colour and doesn't offer it.
 	local colored = ns.Looks.POP_EVENTS[kind]
 	-- One icon per school while the colour or the burst differs by school.
+	local function burst() return ns.Style.choice("pop", "burst", r.style().burst) end
 	local function bySchool()
-		local st = r.style()
-		return (colored and st.colorBy == "school") or SCHOOL_BURSTS[st.burst] or false
+		return (colored and r.style().colorBy == "school") or burst().bySchool or false
 	end
 	p:header("Pop style")
 	if owner == nil then
@@ -322,13 +314,12 @@ local function popBlock(p, owner, icon, kind)
 		play:SetPoint("LEFT", list[#list], "RIGHT", 24, 0)
 	end)
 	if colored then
-		p:dropdown("Colour", "For Ready and Ran out. By event: gold when ready, white when a totem runs out. Killed early, Grounded and the imbue dropping keep their own colours.",
-			POP_COLORS, r.get("colorBy"), r.set("colorBy"), own, 190)
+		choiceRows(p, r, "pop", "colorBy", "Colour", "For Ready and Ran out. By event: gold when ready, white when a totem runs out. Killed early, Grounded and the imbue dropping keep their own colours.", own)
 	end
-	p:dropdown("Flash", "Over the icon.", POP_FLASHES, r.get("flash"), r.set("flash"), own, 190)
-	p:dropdown("Burst", "Around the icon. Element effect: each element its own.", POP_BURSTS, r.get("burst"), r.set("burst"), own, 190)
-	p:dropdown("Motion", "How the icon moves.", POP_MOTIONS, r.get("motion"), r.set("motion"), own, 190)
-	local moves = showWhen(function() return r.style().motion ~= "none" end, own)
+	choiceRows(p, r, "pop", "flash", "Flash", "Over the icon.", own)
+	choiceRows(p, r, "pop", "burst", "Burst", "Around the icon. Element effect: each element its own.", own)
+	local motion = choiceRows(p, r, "pop", "motion", "Motion", "How the icon moves.", own)
+	local moves = showWhen(function() return motion().uses.size end, own)
 	p:slider("Motion distance", "How far it grows, hops or shakes.", 1.1, 1.8, 0.05, pct, r.get("size"), r.set("size"), moves)
 	p:slider("Speed", nil, 0.5, 2, 0.1, pct, r.get("speed"), r.set("speed"), own)
 	if owner == nil then ownLine(p, "pop") end

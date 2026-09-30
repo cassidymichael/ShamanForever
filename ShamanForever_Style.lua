@@ -45,10 +45,9 @@ S.register("glow", {
 	ownerDefaults = { purge = { look = "proc" }, shield = { look = "soft" }, flameshock = { look = "soft" } },
 })
 S.register("pop", {
-	-- One setting per part, each changing only its own: colorBy (event | school: the colour for
-	-- Ready and Ran out; warnings keep theirs), flash (none | plain | edge), burst (none | ring |
-	-- star | both | shapes | painted | rune | school), motion (none | pop = grow | bounce | hop |
-	-- shake | shakeV) with its distance (size) and speed, which times the whole pop.
+	-- One setting per part, each changing only its own: colorBy (the colour for Ready and Ran out;
+	-- warnings keep theirs), flash, burst, motion (choices: ShamanForever_Looks.lua) with its
+	-- distance (size), and speed, which times the whole pop.
 	defaults = { colorBy = "event", flash = "plain", burst = "star", motion = "shakeV", size = 1.4, speed = 1 },
 	path = { "popStyle" },   -- not "pop": the totem bar's pop is where its pickers open
 })
