@@ -1,12 +1,12 @@
--- Totem bar: its Look (the options' word for it), the ways the whole bar can be drawn. Default is
--- the bar as its own settings draw it; another look draws the slots, their time bars, the
+-- Totem bar: its theme (a "look" in the code, `skin` in its settings), the ways the whole bar can
+-- be drawn. Default is the bar as its own settings draw it; another look draws the slots, their time bars, the
 -- out-of-range mark, the pickers and what sits behind the bar its own way. Each look is a data
 -- entry (the list below); the totem bar, its range strip and the options' preview of the bar
 -- call the functions below, which leave everything as it was for Default and take down what
 -- another look drew when the player goes back to it.
 --
 -- A look can own some of the bar's settings (its `owns`): while it is picked the bar uses the
--- look's value and the options hide that setting ("Set by the look"), and the player's own value
+-- look's value and the options hide that setting ("set by the theme"), and the player's own value
 -- stays saved for Default or another look. The slots' border is a border style drawn through
 -- ns.Looks like any other; the rest is the bar's own art.
 --
@@ -86,7 +86,8 @@ add("default", { name = "Default" })
 add("pixel", {
 	name = "Pixel", experimental = true,
 	owns = { border = true, range = true },
-	border = function() return borderStyle("schooledge", TB.cfg().pixelEdge) end, extrasBorder = borderStyle("hairline"),
+	border = function() return borderStyle("schooledge", TB.cfg().pixelEdge) end,
+	extrasBorder = borderStyle("hairline"),
 	behind = "tray", timeBar = "tip", mark = "edge",
 	picker = "tray",
 	rangeText = "Out of range, for totems that buff you: a red edge along the top of the slot.",
@@ -104,8 +105,8 @@ end
 add("stone", {
 	name = "Stone and bronze", experimental = true,
 	-- It keeps the time bar inside the slot: the plinth's gems sit under it.
-	owns = { border = true, range = true, rangeHeight = true, spacing = PL.divider[3] / PL.tile[3], dir = "row",
-		pop = "up", barStyle = true },
+	owns = { border = true, range = true, rangeHeight = true, spacing = PL.divider[3] / PL.tile[3],
+		dir = "row", pop = "up", barStyle = true },
 	extrasGap = 0.2,
 	border = borderStyle("line", 1), extrasBorder = borderStyle("medallion"),
 	behind = "plinth", mark = "gem", picker = "stone", arrow = "bronze",
@@ -185,7 +186,8 @@ end
 -- The Cooldown Manager's time bar under a slot: its height and its gap from the slot, and how far
 -- it reaches past the slot's edge with its rim.
 local function cdmBar(size)
-	local h, gap = math.max(math.floor(size * 6 / 44 + 0.5), 3), math.max(math.floor(size * 3 / 44 + 0.5), 2)
+	local h = math.max(math.floor(size * 6 / 44 + 0.5), 3)
+	local gap = math.max(math.floor(size * 3 / 44 + 0.5), 2)
 	return h, gap, gap + h + math.max(math.floor(h / 3 + 0.5), 1)
 end
 -- How far the Cooldown Manager's time bar reaches past the slot: under a row's slots (over them
@@ -320,7 +322,8 @@ local function plinth(host, boxes, size, on)
 		end
 		local gem = f.gems[box]
 		if not gem then
-			gem = { set = f:CreateTexture(nil, "ARTWORK", nil, 1), gem = f:CreateTexture(nil, "ARTWORK", nil, 2) }
+			gem = { set = f:CreateTexture(nil, "ARTWORK", nil, 1),
+				gem = f:CreateTexture(nil, "ARTWORK", nil, 2) }
 			gem.set:SetTexture(GEM)
 			gem.set:SetTexCoord(GEM_SET[1], GEM_SET[2], GEM_SET[3], GEM_SET[4])
 			gem.gem:SetTexture(GEM)
@@ -398,7 +401,7 @@ local function tip(t, on)
 	x:Show()
 end
 
--- The Cooldown Manager's style: its bar (its texture, its bronze-rimmed background and pip) across the
+-- The Cooldown Manager's style: its bar (its texture, bronze-rimmed background and pip) across the
 -- slot's picture, outside the slot on the badge's side: under a row whose pickers open up or a
 -- column, over a row whose pickers open down.
 local function cdmTimeBar(t, anchor, size, on)
@@ -413,7 +416,8 @@ local function cdmTimeBar(t, anchor, size, on)
 		return
 	end
 	if not x then
-		x = { bg = bar:CreateTexture(nil, "BACKGROUND", nil, -1), pip = bar:CreateTexture(nil, "OVERLAY", nil, 6) }
+		x = { bg = bar:CreateTexture(nil, "BACKGROUND", nil, -1),
+			pip = bar:CreateTexture(nil, "OVERLAY", nil, 6) }
 		bar.skinCDM = x
 	end
 	local _, border = TB.look()

@@ -735,7 +735,7 @@ L.PREVIEW.totembar = {
 		for _, el in ipairs(c.order) do
 			if not c.hidden[el] and (not canList or #ns.Totems.knownTotems(TB.SLOT[el]) > 0) then table.insert(els, el) end
 		end
-		local row = TB.eff().dir == "row"   -- the Look's own, if it has one
+		local row = TB.eff().dir == "row"   -- the theme's own, if it has one
 		local picking = st == "picking" and #els > 0
 		local psz = TB.popButtonSize(size)
 		local known = picking and TB.known(els[1]) or {}
@@ -744,7 +744,8 @@ L.PREVIEW.totembar = {
 		-- Along the bar as on it (TB.along: Call and Recall before and after the slots), with
 		-- room for one slot even when none shows. Its line is as thick as its largest button.
 		local seq, along, line = TB.along(math.max(#els, 1), size)
-		local badge = st == "offpick" and c.offPick and TB.badgeSize(size) + TB.BADGE_GAP + TB.skin.badgeGap(size) or 0
+		local badge = st == "offpick" and c.offPick
+			and TB.badgeSize(size) + TB.BADGE_GAP + TB.skin.badgeGap(size) or 0
 		local across = line + (picking and (c.arrowSize + 4 + popLen) or 0) + badge
 		-- Room: the preview area between the title band and the state buttons.
 		local w = h:GetWidth()
@@ -883,8 +884,8 @@ L.PREVIEW.totembar = {
 				end
 			end
 		end
-		-- What the Look draws behind the bar and under each slot (lit while its totem is down), and
-		-- its time bars.
+		-- What the theme draws behind the bar and under each slot (lit while its totem is down), and
+		-- the time bars' style.
 		local boxes = {}
 		for i, ic in ipairs(h.slots) do if els[i] then boxes[i] = ic.box end end
 		TB.skin.layoutBar(bar, boxes, size, row)

@@ -82,10 +82,11 @@ TB.DEFAULTS = {
 	rangeIn = { 0.2, 0.8, 0.25, 0 },       --   with the buff (0: nothing shows in range)
 	rangeOut = { 0.9, 0.12, 0.08, 0.85 },  --   without it
 	pickHover = false,        -- hovering a slot or its tab opens its picker (Everything)
-	skin = "default",         -- the bar's Look (ShamanForever_TotemSkins.lua)
+	skin = "default",         -- the bar's theme (ShamanForever_TotemSkins.lua)
 	pixelTray = true,         -- the Pixel theme's tray behind the slots
 	pixelEdge = 1,            -- its element-coloured edge (screen pixels)
-	barStyle = "default",     -- the time bars: default (the timer's own) | cdm (the Cooldown Manager's, under the slot)
+	barStyle = "default",     -- the time bars: default (the timer's own) | cdm (the Cooldown
+	                          --   Manager's, under the slot)
 }
 
 local isSecret = ns.isSecret
@@ -168,8 +169,8 @@ TB.isShaman = isShaman
 local function feat(key) local c = cfg(); return barOn() and c.mode == "everything" and c[key] or false end
 TB.barOn, TB.feat = barOn, feat
 
--- The bar's settings as its layout uses them: the player's, or its Look's where the look owns one
--- (TB.skin.owned). The player's own values stay saved, for when another look is picked.
+-- The bar's settings as its layout uses them: the player's, or its theme's where it owns one
+-- (TB.skin.owned). The player's own values stay saved, for when another theme is picked.
 local effective = setmetatable({}, { __index = function(_, k)
 	local v = TB.skin.owned(k)
 	if v ~= nil then return v end
@@ -177,7 +178,7 @@ local effective = setmetatable({}, { __index = function(_, k)
 end })
 function TB.eff() return effective end
 
--- The slots' size and border (General's, the bar's own, or its Look's), and Call and Recall's
+-- The slots' size and border (General's, the bar's own, or its theme's), and Call and Recall's
 -- border (the slots' unless the look gives them their own).
 local function look()
 	local c, db = cfg(), ns.getDB()
@@ -325,7 +326,8 @@ function TB.layoutBadge(bd, anchor, size, border)
 	bd:SetAlpha(c.badgeAlpha)
 	TB.saturate(bd.icon, c.badgeSat)
 	bd:ClearAllPoints()
-	local gap = TB.BADGE_GAP + inset + TB.skin.badgeGap(size)   -- past what the look hangs under the slot
+	-- Past what the theme or the time bar hangs under the slot.
+	local gap = TB.BADGE_GAP + inset + TB.skin.badgeGap(size)
 	if c.pop == "up" then bd:SetPoint("TOP", anchor, "BOTTOM", 0, -gap)
 	elseif c.pop == "down" then bd:SetPoint("BOTTOM", anchor, "TOP", 0, gap)
 	elseif c.pop == "right" then bd:SetPoint("RIGHT", anchor, "LEFT", -gap, 0)
@@ -435,7 +437,7 @@ TB.slots, TB.frame = slots, bar
 -- warning, readable in a totem's last seconds; a bar along the top edge hides the strip under it
 -- (a mark missed, never one shown falsely).
 TB.RANGE_LEVEL = 9
-local WARN_LEVEL = TB.RANGE_LEVEL + 4       -- the expiring warning; its glow + 1, the glow's parts + 2
+local WARN_LEVEL = TB.RANGE_LEVEL + 4   -- the expiring warning; its glow + 1, its parts + 2
 local TIME_BAR_LEVEL = TB.RANGE_LEVEL + 7
 local OVER_RANGE = TB.RANGE_LEVEL + 8
 local LOOK_LEVEL = 2   -- the look's level over the button (v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL))
@@ -1098,7 +1100,7 @@ function layout()
 	local row = c.dir == "row"
 	if row and c.pop ~= "up" and c.pop ~= "down" then c.pop = "up" end
 	if not row and c.pop ~= "right" and c.pop ~= "left" then c.pop = "right" end
-	row = TB.eff().dir == "row"   -- the Look's own direction, if it has one
+	row = TB.eff().dir == "row"   -- the theme's own direction, if it has one
 	-- Everything along the bar, in order: extras before, slots, extras after (TB.along), each
 	-- centred on the bar's line to the nearest whole pixel, whatever its size. Nothing while no
 	-- totem is known.
@@ -1153,7 +1155,7 @@ function layout()
 		layoutPopout(s, size, known[s.el])
 	end
 	if row then bar:SetSize(long, across) else bar:SetSize(across, long) end
-	-- What the Look draws behind the slots, round the slots' buttons.
+	-- What the theme draws behind the slots, round the slots' buttons.
 	local boxes = {}
 	for i, s in ipairs(shown) do boxes[i] = s.button end
 	TB.skin.layoutBar(bar, boxes, size, row)
@@ -1633,7 +1635,7 @@ local function paintSlot(s, rec)
 		-- our parts on Blizzard's), under the expiring warning and the time bar, as on the bar.
 		strip:SetFrameLevel(s.button:GetFrameLevel() + TB.RANGE_LEVEL + 3)
 		strip:ClearAllPoints()
-		-- Where the Look puts its mark, and what it draws; else the strip along the top.
+		-- Where the theme puts its mark, and what it draws; else the strip along the top.
 		local x, y, w, h = TB.skin.markRect(strip, size, s.inset or 0)
 		if x then
 			strip:SetPoint("TOPLEFT", s.button, "TOPLEFT", x, y)

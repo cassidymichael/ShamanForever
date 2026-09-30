@@ -118,8 +118,8 @@ local PARTS = {
 -- A part's look (while auras are readable, or from Blizzard's init). Under the colour, opaque, the
 -- slice of the buff's icon that the strip covers (a totem's buff has the totem's icon): whatever is
 -- below is always hidden, so the colours can be see-through, down to not shown at all. The bar's
--- Look can draw it its own way (TB.skin.styleRangeButton).
--- What Blizzard's part is styled for: the bar's Look and the mark's size. Our mark is repainted at
+-- theme can draw it its own way (TB.skin.styleRangeButton).
+-- What Blizzard's part is styled for: the bar's theme and the mark's size. Our mark is repainted at
 -- every layout, Blizzard's part only while auras are readable, so after a layout that couldn't
 -- reach it (auras secret) the two can differ, and our mark could show where the part no longer
 -- covers it: partLive keeps the mark dark until they match again.
@@ -228,7 +228,7 @@ end
 local function place(s, size, ownOnly)
 	local c, b, gate, o = TB.cfg(), s.button, s.rangeGate, s.inset or 0
 	gate:ClearAllPoints()
-	-- Where the bar's Look puts its mark, and what it draws there; else the strip.
+	-- Where the bar's theme puts its mark, and what it draws there; else the strip.
 	local x, y, w, h = TB.skin.markRect(gate, size, o)
 	if not x then x, y, w, h = o, -o, size - 2 * o, ns.linePx(gate, c.rangeHeight) end
 	gate:SetPoint("TOPLEFT", b, "TOPLEFT", x, y)

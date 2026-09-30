@@ -255,7 +255,7 @@ function S.ownStyles(kind)
 	for _, key in ipairs(S.KINDS[kind].users) do
 		local offered = key ~= "totembar" or ns.TotemBar.barOn()
 		if key == "swing" then offered = ns.Swing and ns.Swing.isOn() end
-		-- The totem bar's theme (its Look) can draw its border its own way, whatever the bar's own style says.
+		-- The totem bar's theme can draw its border its own way, whatever the bar's own style says.
 		if offered and key == "totembar" and kind == "border" and ns.TotemBar.skin.owns("border") then
 			table.insert(out, "Totem bar (its theme)")
 		elseif offered and not S.follows(key, kind) then table.insert(out, S.ownerName(key)) end

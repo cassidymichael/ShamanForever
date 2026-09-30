@@ -691,7 +691,9 @@ local function buildAbout(p)
 	if ns.Looks.anyExperimental("border") then p:experimental("Border looks", "General > Border") end
 	if ns.Looks.anyExperimental("glow") then p:experimental("Glow looks", "General > Pulsing glow style") end
 	p:experimental("Pop flashes and bursts", "General > Pop style")
-	if ns.TotemBar.skin.anyExperimental() then p:experimental("Totem themes", "Totem bar > Totem theme") end
+	if ns.TotemBar.skin.anyExperimental() then
+		p:experimental("Totem themes", "Totem bar > Totem theme")
+	end
 	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
 		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
@@ -760,7 +762,7 @@ local function buildTotemBar(p)
 		tget("tips"), tset("tips"), nil, 160)
 	p:checkbox("Show keybinding text", "Each button's key, in its corner.", tget("keys"), tset("keys"))
 
-	-- The bar's theme (ShamanForever_TotemSkins.lua, its Looks), and each theme's own settings under
+	-- The bar's theme (ShamanForever_TotemSkins.lua), and each theme's own settings under
 	-- it. The rows for what a theme owns hide elsewhere on the page while it is picked.
 	p:header("Totem theme")
 	local skins = {}
@@ -771,7 +773,8 @@ local function buildTotemBar(p)
 	ns.Look.expBadge(expRow, "Totem themes"):SetPoint("LEFT", expRow, "LEFT", LABEL_W, 0)
 	p:add(expRow, 22, function() return TB.skin.current().experimental or false end)
 	local function theme(key) return function() return TB.skin.current().key == key end end
-	p:checkbox("Tray", "A dark tray edged in gold behind the slots.", tget("pixelTray"), tset("pixelTray"), theme("pixel"))
+	p:checkbox("Tray", "A dark tray edged in gold behind the slots.", tget("pixelTray"), tset("pixelTray"),
+		theme("pixel"))
 	p:slider("Edge thickness", "The element-coloured edge round each slot, in pixels.", 1, 4, 1, px,
 		tget("pixelEdge"), tset("pixelEdge"), theme("pixel"))
 
@@ -865,7 +868,8 @@ local function buildTotemBar(p)
 	p:dropdown("Pickers open", "Which way the totem picker opens from a slot.", function()
 		if TB.eff().dir == "row" then return { { "up", "Up" }, { "down", "Down" } } end
 		return { { "right", "Right" }, { "left", "Left" } }
-	end, function() return TB.eff().pop end, tset("pop"), function() return full() and not TB.skin.owns("pop") end, 140)
+	end, function() return TB.eff().pop end, tset("pop"),
+		function() return full() and not TB.skin.owns("pop") end, 140)
 	p:slider("Spacing", "Gap between the slots. Below 0 they overlap.", -10, 20, 1, px, tget("spacing"), tset("spacing"),
 		free("spacing"))
 	p:text(function()
