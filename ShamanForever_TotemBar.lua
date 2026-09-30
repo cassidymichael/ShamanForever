@@ -421,15 +421,17 @@ local slots = {}    -- element -> slot record
 local bySlot = {}   -- Blizzard's totem slot -> slot record
 TB.slots, TB.frame = slots, bar
 
--- Frame levels over a slot's button, bottom to top: the look (+2: icon), the expiring warning
--- (+3 to +4: Timer:setExpire, ShamanForever_Timers.lua), the timer's time-left bar (+8, kept under
--- the range strip so it never hides the range mark), the range strip (+9 to +12: ours, Blizzard's
--- aura button and our colour on it; ShamanForever_TotemRange.lua), then everything drawn over the
--- whole icon: the GCD sweep, the timer's Cooldown (swipe, countdown text), the key, the end
--- flashes. The strip's in-range part is opaque (the buff's icon under its colour), so what sits
--- under it is hidden.
+-- Frame levels over a slot's button, bottom to top: the look (+2: icon), the timer's time-left bar
+-- (+8, kept under the range strip so it never hides the range mark), the range strip (+9 to +12:
+-- ours, Blizzard's aura button and our colour on it; ShamanForever_TotemRange.lua), the expiring
+-- warning (+13 to +14: Timer:setExpire, ShamanForever_Timers.lua, lifted by liftWarning), then
+-- everything drawn over the whole icon: the GCD sweep, the timer's Cooldown (swipe, countdown text),
+-- the key, the end flashes. The strip's in-range part is opaque (the buff's icon under its colour),
+-- so what sits under it is hidden: the expiring warning sits over it, or its flash would stop at
+-- the strip.
 TB.RANGE_LEVEL = 9
-local OVER_RANGE = TB.RANGE_LEVEL + 4
+local WARN_LEVEL = TB.RANGE_LEVEL + 4   -- the expiring warning, its glow one over
+local OVER_RANGE = TB.RANGE_LEVEL + 6
 local LOOK_LEVEL = 2   -- the look's level over the button (v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL))
 local LOOK_OVER_RANGE = OVER_RANGE - LOOK_LEVEL   -- the same, over the look's level
 
@@ -755,6 +757,17 @@ function TB.drawTimeLeft(s)
 	if TB.range then TB.range.drawTimeLeft(s) end
 end
 
+-- The slot's expiring warning (made by the timer on first use, just over the icon) over the range
+-- strip, once: see the frame levels above.
+local function liftWarning(s)
+	local x = s.timer.exp
+	if not x or x.sfLifted then return end
+	local lv = s.button:GetFrameLevel() + WARN_LEVEL
+	x:SetFrameLevel(lv)
+	x.glow:SetFrameLevel(lv + 1)
+	x.sfLifted = true
+end
+
 local function refreshSlot(s)
 	local c, v = cfg(), s.vis
 	local was = s.dur   -- a slot that had a totem and now has none ended it (Killed early, below)
@@ -783,6 +796,7 @@ local function refreshSlot(s)
 		else s.badge:Hide() end
 		s.dur = d
 		s.timer:setExpire({ secs = warnSecs(c, down), grey = c.warnGrey, ring = c.warnRing, pulse = c.warnPulse, glow = c.warnGlow })
+		liftWarning(s)
 		if iok and (isSecret(icon) or icon) then s.timer:setExpireIcon(icon) end
 		TB.drawTimeLeft(s)
 		TB.skin.slotState(s, true)
@@ -1631,6 +1645,7 @@ local function paintSlot(s, rec)
 		local left, life = ns.Look.PREVIEW_LEFT[s.el][1], ns.Look.PREVIEW_LEFT[s.el][2]
 		if st == "expiring" then left = 5 end
 		s.timer:setExpire({ secs = c.warn, grey = c.warnGrey, ring = c.warnRing, pulse = c.warnPulse, glow = c.warnGlow }, icon)
+		liftWarning(s)
 		s.timer:setTime(rec.at - (life - left), life)
 		TB.skin.slotState(s, true)
 		return rec.at + left
