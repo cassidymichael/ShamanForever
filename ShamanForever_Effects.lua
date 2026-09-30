@@ -264,9 +264,10 @@ local function newPart(parent, spec)
 end
 
 -- A part's values from its spec: h the icon height its sizes are in (the sheen's: the frame's
--- own), c the pop's colour, k the duration multiplier. After delay, the size eases out and the
--- alpha fades evenly (late for slow) over dur. Its alpha is set to 0 again once its texture is.
-local function stylePart(p, spec, parent, h, c, k)
+-- own), c the pop's colour, k the duration multiplier, reach a factor on its sizes (not the
+-- sheen's). After delay, the size eases out and the alpha fades evenly (late for slow) over dur.
+-- Its alpha is set to 0 again once its texture is.
+local function stylePart(p, spec, parent, h, c, k, reach)
 	local t, g = p.tex, p.group
 	if not spec.atlas then t:SetTexture(spec.file) end
 	t:SetAlpha(0)
@@ -286,7 +287,8 @@ local function stylePart(p, spec, parent, h, c, k)
 		local d = shift[2] - shift[1]
 		g.move:SetOffset(-d * h, d * h)
 	else
-		t:SetSize(h * spec.from, h * spec.from * (spec.sy or 1))
+		local from = h * spec.from * (reach or 1)
+		t:SetSize(from, from * (spec.sy or 1))
 		t:SetPoint("CENTER", parent, "CENTER", 0, 0)
 		local grow = spec.to / spec.from
 		g.grow:SetScaleTo(grow, grow)
@@ -486,7 +488,7 @@ function Rig:style(st, size, c, school, muted)
 	end
 	for _, name in ipairs(burst.rigParts or {}) do
 		part(name, function()
-			stylePart(self.parts[name], RIG_PARTS[name], self.front, size, c, k)
+			stylePart(self.parts[name], RIG_PARTS[name], self.front, size, c, k, st.reach)
 			on[self.parts[name].group] = true
 		end)
 	end
@@ -502,7 +504,7 @@ function Rig:style(st, size, c, school, muted)
 			part(spec.name, function()
 				local p = self.parts[spec.name]
 				if spec.shift then stylePart(p, spec, self.clip, size, c, k)
-				else stylePart(p, spec, p.tex:GetParent(), h, c, k) end
+				else stylePart(p, spec, p.tex:GetParent(), h, c, k, st.reach) end
 				on[p.group] = true
 			end)
 		end

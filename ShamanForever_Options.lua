@@ -366,6 +366,9 @@ local function popBlock(p, owner, icon, kind)
 	end
 	choiceRows(p, r, "pop", "flash", "Flash", "Over the icon.", own)
 	choiceRows(p, r, "pop", "burst", "Burst", "Around the icon. Element effect: each element its own.", own)
+	local reach = ns.Style.KINDS.pop.ranges.reach
+	p:slider("Reach", "How far the burst spreads.", reach[1], reach[2], 0.05, pct, r.get("reach"), r.set("reach"),
+		showWhen(function() return burst().uses.reach end, own))
 	local motion = choiceRows(p, r, "pop", "motion", "Motion", "How the icon moves.", own)
 	local moves = showWhen(function() return motion().uses.size end, own)
 	p:slider("Motion distance", "How far it grows, hops or shakes.", 1.1, 1.8, 0.05, pct, r.get("size"), r.set("size"), moves)

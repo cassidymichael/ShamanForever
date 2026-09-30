@@ -1077,7 +1077,7 @@ S.addChoice("pop", "flash", "edge", { name = "Blizzard's edge flash", uses = { c
 S.addField("pop", "burst", { name = "Burst", where = POP, preview = { play = "hover" },
 	groups = { { "plain", "Plain" }, { "element", "Element" }, { "other", "Other" } } })
 local function addBurst(key, entry)
-	if entry.rigParts or entry.draw then entry.uses = { colorBy = true } end
+	if entry.rigParts or entry.draw then entry.uses = { colorBy = true, reach = true } end
 	S.addChoice("pop", "burst", key, entry)
 end
 addBurst("none", { name = "None", group = "plain" })
