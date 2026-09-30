@@ -226,13 +226,14 @@ end
 
 -- While the button is the switch: whether it can be trusted to cover the underlay exactly. Its
 -- slot matches every spell ID the shields it tracks have now (a new rank or Track waits for
--- combat's end there), it has the shape the icon has now (a new look waits too; the size can't
--- change in combat, and the underlay's is set only with the button's), its gate is at full
+-- combat's end there), it has the size the underlay was placed for and the shape the icon has now
+-- (a new size or look waits too), its gate is at full
 -- opacity and not fading out with its group after combat (where auras stay secret out of combat,
 -- the button would be see-through meanwhile), and our own shield cast or a loading screen isn't a
 -- moment ago.
 local function coverTrusted()
-	return native.idsOK and ns.Looks.maskSpec(shield) == native.shape and gate:GetAlpha() > 0.99
+	return native.idsOK and under.size == native.size and ns.Looks.maskSpec(shield) == native.shape
+		and gate:GetAlpha() > 0.99
 		and not ns.AfterCombat.fading(gate) and GetTime() >= holdUntil
 end
 
