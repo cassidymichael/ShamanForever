@@ -207,9 +207,9 @@ local function elementDisplay(p, key)
 	ELEMENT_PAGES[key] = p.key
 	p:hero(key)
 	p:callout("Not learned yet. It shows on screen once your character knows the spell.",
-		function() return not ns.isLearned(key) and ns.notLearnedText(key) == "Not learned" end)
+		function() return not ns.isLearned(key) and not ns.Spells.otherRace(ns.ELEMENTS[key].race) end)
 	p:callout("Not your race. It shows on screen only for the races that have this spell.",
-		function() return not ns.isLearned(key) and ns.notLearnedText(key) ~= "Not learned" end)
+		function() return not ns.isLearned(key) and ns.Spells.otherRace(ns.ELEMENTS[key].race) end)
 	p:header("Display")
 	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return ns.showMode(key) end,
 		function(v) ns.setShow(key, v) end, nil, 140)

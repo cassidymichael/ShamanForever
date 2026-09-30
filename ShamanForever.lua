@@ -250,7 +250,7 @@ end
 -- (e.race, a list of race IDs, UnitRace's third value), or the character doesn't know it yet.
 function ns.notLearnedText(key)
 	local e = ELEMENTS[key]
-	if e and e.race and not tContains(e.race, (select(3, UnitRace("player")))) then return "Not your race" end
+	if e and Spells.otherRace(e.race) then return "Not your race" end
 	return "Not learned"
 end
 local function onHUD(key) return isLearned(key) or ns.Preview.showsUnlearned() end
@@ -982,10 +982,15 @@ end)
 function ns.debugReport()
 	say("in combat %s", tostring(InCombatLockdown()))
 	-- Every tracked spell: the client's name and the rank known (by spell ID, not name).
-	local known = {}
+	local known, otherRace = {}, {}
+	for _, e in pairs(ELEMENTS) do
+		if e.spell and Spells.otherRace(e.race) then otherRace[e.spell] = true end
+	end
 	for key in pairs(Spells.DEFS) do
-		local id = Spells.known(key)
-		table.insert(known, string.format("%s=%s", Spells.name(key), id and tostring(id) or "-"))
+		if not otherRace[key] then
+			local id = Spells.known(key)
+			table.insert(known, string.format("%s=%s", Spells.name(key), id and tostring(id) or "-"))
+		end
 	end
 	table.sort(known)
 	say("spells: %s", table.concat(known, ", "))
@@ -993,7 +998,7 @@ function ns.debugReport()
 	say("profile %s", tostring(profileName))
 	say("%s", ns.TotemBar.debug())
 	local function listed(key)
-		local mode = isLearned(key) and showMode(key) or "not learned"
+		local mode = isLearned(key) and showMode(key) or ns.notLearnedText(key):lower()
 		return mode == "always" and key or (key .. " (" .. mode .. ")")
 	end
 	for _, g in ipairs(db.groups) do
