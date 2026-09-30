@@ -138,13 +138,13 @@ local function buildButton(def, slot, button, cd)
 		def.durText:Hide()
 	end
 	if not def.noGlow then
-		def.glow = ns.makeGlow(button, button, def.key, true)
+		def.glow = ns.Effects.glow(button, button, def.key, { underButton = true })
 		-- Levels under the aura button may read as secret: a failed read leaves the default level.
 		ns.try("aura glow level", function() def.glow:SetFrameLevel(cd:GetFrameLevel() + 2) end)
 		def.glow:bindButton(button)
 	end
 	if def.noPop then return end
-	def.popAnim = ns.makeGrowPop(slot.icon, def.key)
+	def.popAnim = ns.Effects.growPop(slot.icon, def.key)
 	if button.AddAuraAssignedAnimation then ns.try("target pop", button.AddAuraAssignedAnimation, button, def.popAnim) end
 end
 

@@ -2,8 +2,8 @@
 -- style's `look` field picks, and the shared pieces that draw them:
 --   frame      the edge around an icon, in its border's look (rings of lines, corner caps, art
 --              over or around the icon, a mask on the icon's picture)
---   glow       the pulsing glow's looks (ns.makeGlow calls in)
---   pop        the pop's edge flash and drawn bursts (not looks: ns.playPop calls in by part)
+--   glow       the pulsing glow's looks (ns.Effects.glow calls in)
+--   pop        the pop's edge flash and drawn bursts (not looks: ns.Effects.pop calls in by part)
 --   burster    textures that grow and fade over a pop's short life
 -- Our own media are named by path, never by file ID: the client gives our loose files IDs that
 -- change between client starts (tested 2026-09-28). Blizzard's art is named by atlas and checked
@@ -829,7 +829,7 @@ local halo = {
 }
 
 -- Blizzard's action bar proc glow: a burst that settles into a ring of moving light, in its
--- own gold unless the glow's colour is changed. Under Blizzard's aura button (g.unlisted) only the
+-- own gold unless the glow's colour is changed. Under Blizzard's aura button (g.underButton) only the
 -- ring, which the button plays: the burst needs a script to hand over to the ring and none runs
 -- there, and the burst's flipbook drew there as a whole sprite sheet (seen 2026-09-30).
 local proc = {
@@ -844,7 +844,7 @@ local proc = {
 		local loop = r:CreateTexture(nil, "OVERLAY")
 		loop:SetAtlas(PROC_LOOP)
 		local loopG = flipBook(loop, 6, 5, 30, 1, "REPEAT")
-		if g.unlisted then
+		if g.underButton then
 			return { roots = { r }, loop = loop, texs = { loop }, anims = { loopG }, aura = { loopG }, stop = { loopG } }
 		end
 		local start = r:CreateTexture(nil, "OVERLAY")
@@ -1009,8 +1009,8 @@ addGlow("material", "School material", material)
 addGlow("heartbeat", "Heartbeat", heartbeat)
 
 ------------------------------------------------------------------------
--- The pop's parts past ns.playPop's own plain flash, ring and star: Blizzard's edge flash
--- (Looks.popFlash) and the drawn bursts (Looks.popBurst), in the colour ns.playPop gives them. A
+-- The pop's parts past ns.Effects.pop's own plain flash, ring and star: Blizzard's edge flash
+-- (Looks.popFlash) and the drawn bursts (Looks.popBurst), in the colour ns.Effects.pop gives them. A
 -- burst's shapes follow the school of the icon it pops on. Shapes spread behind the icon over a
 -- dark halo, so they read on bright ground; the sheen crosses the icon.
 ------------------------------------------------------------------------
@@ -1160,11 +1160,11 @@ local BURSTS = {
 -- dropping are warnings: their pops keep their own colours.
 Looks.POP_EVENTS = { ready = true, expired = true }
 
--- The school f's looks take (ns.playPop's colour by school).
+-- The school f's looks take (ns.Effects.pop's colour by school).
 Looks.schoolOf = schoolOf
 
--- Blizzard's edge flash on x, a pop's parts (ns.playPop's), tinted c, k its duration multiplier,
--- size the icon's height (ns.playPop's, never read under a secure button). Returns false on a
+-- Blizzard's edge flash on x, a pop's parts (ns.Effects.pop's), tinted c, k its duration multiplier,
+-- size the icon's height (ns.Effects.pop's, never read under a secure button). Returns false on a
 -- client without the art, for a plain flash in its place.
 function Looks.popFlash(x, c, k, size)
 	if not Looks.hasAtlas(GCD_FLASH) then return false end
@@ -1172,7 +1172,7 @@ function Looks.popFlash(x, c, k, size)
 	return true
 end
 
--- The drawn burst named key ("shapes", "painted", "rune", "school"; the others are ns.playPop's
+-- The drawn burst named key ("shapes", "painted", "rune", "school"; the others are ns.Effects.pop's
 -- own) on f, whose pop's parts are x: tinted c, k its duration multiplier, size as for popFlash.
 function Looks.popBurst(x, f, key, c, k, size)
 	local draw = BURSTS[key]

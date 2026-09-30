@@ -854,7 +854,7 @@ end
 
 -- Everything drawn again from the active profile.
 local function redraw()
-	resolveSpells(); ns.applyGlowStyle(); applyLayout(); refreshAll()
+	resolveSpells(); ns.Effects.applyStyle(); applyLayout(); refreshAll()
 	ns.Options.refresh()
 end
 
@@ -942,7 +942,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 			end
 		end)
 		lastSpells = resolveSpells()
-		ns.applyGlowStyle()
+		ns.Effects.applyStyle()
 		applyLayout()
 		refreshAll()
 		root:Show()

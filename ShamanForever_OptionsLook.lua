@@ -301,7 +301,7 @@ local function totemPreview(def)
 			local key = def.key
 			local function flash(opts, secs)
 				if opts then
-					if not ic.endFlash then ic.endFlash = ns.makeEndFlash(ic, ic, key) end
+					if not ic.endFlash then ic.endFlash = ns.Effects.endFlash(ic, ic, key) end
 					ic.endFlash:setIcon(def.iconID or def.icon)
 					ic.endFlash:play(nil, opts)
 				end
@@ -369,8 +369,8 @@ L.PREVIEW = {
 				-- The HUD's glow here: No shield's own Glow look.
 				if d.emptyGlow then
 					if not ic.warnGlow then
-						ic.warnGlow = ns.makeWarningGlow(ic, ic, "shield",
-							function() return db().emptyGlowLook end)
+						ic.warnGlow = ns.Effects.glow(ic, ic, "shield",
+							{ lookFor = function() return db().emptyGlowLook end })
 					end
 					ic.warnGlow:restyle()
 					ic.warnGlow:fit(ic:GetWidth())
@@ -539,7 +539,7 @@ local function buffPreview(def)
 		-- Elemental Focus's pop is the grow-and-settle Blizzard's button plays (not the full pop).
 		pop = function(ic, st)
 			if st == "up" and def.proc and not def.noPop and opt(key, "primedPop") then
-				if not ic.growPop then ic.growPop = ns.makeGrowPop(ic, key) end
+				if not ic.growPop then ic.growPop = ns.Effects.growPop(ic, key) end
 				ic.growPop:restyle(true)
 				ic.growPop:Play()
 			end
@@ -562,8 +562,8 @@ local function buffPreview(def)
 				-- The HUD's glow here: its own Glow look.
 				if opt(key, "missGlow") then
 					if not ic.warnGlow then
-						ic.warnGlow = ns.makeWarningGlow(ic, ic, nil,
-							function() return opt(key, "missGlowLook") end)
+						ic.warnGlow = ns.Effects.glow(ic, ic, nil,
+							{ lookFor = function() return opt(key, "missGlowLook") end })
 					end
 					ic.warnGlow:restyle()
 					ic.warnGlow:fit(ic:GetWidth())

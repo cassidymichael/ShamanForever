@@ -159,11 +159,11 @@ local function buildProc(def, slot, button, cd)
 	-- own frame, and its border, sit at its Idle opacity). Styled out of combat only (styleProc).
 	def.edge = CreateFrame("Frame", nil, button)
 	def.edge:SetAllPoints(button)
-	def.glow = ns.makeGlow(button, button, def.key, true)
+	def.glow = ns.Effects.glow(button, button, def.key, { underButton = true })
 	-- Levels under the aura button may read as secret: a failed read leaves the default level.
 	ns.try("aura glow level", function() def.glow:SetFrameLevel(cd:GetFrameLevel() + 2) end)
 	def.glow:bindButton(button)
-	def.popAnim = ns.makeGrowPop(slot.icon, def.key)
+	def.popAnim = ns.Effects.growPop(slot.icon, def.key)
 	if button.AddAuraAssignedAnimation then
 		def.buttonPops = ns.try("proc pop", button.AddAuraAssignedAnimation, button, def.popAnim)
 	end

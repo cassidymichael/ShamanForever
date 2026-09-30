@@ -454,7 +454,7 @@ function Timer:setExpire(e, icon)
 		x.pulse = ns.makePulse(x.dim, "dim")
 		-- A hidden ancestor (combat-only visibility, Alt-Z) stops the pulse; start it again on show.
 		x:SetScript("OnShow", function(s) if s.pulseOn then s.pulse:Play() end end)
-		x.glow = ns.makeGlow(x, self.anchor, self.key)   -- made on first use
+		x.glow = ns.Effects.glow(x, self.anchor, self.key)   -- made on first use
 		self.exp = x
 		ns.Looks.followMask(self.anchor, x.grey, x.dim)   -- a rounded or cut-corner icon's shape
 	end

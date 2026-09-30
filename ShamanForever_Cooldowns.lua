@@ -192,7 +192,7 @@ local function makeCooldownIcon(def)
 		-- "a fire totem is down", and nested, the two multiply. Others leave the gate at 1.
 		f.readyGate = CreateFrame("Frame", nil, f.effects)
 		f.readyGate:SetAllPoints()
-		f.readyGlow = ns.makeGlow(f.readyGate, f, def.key)
+		f.readyGlow = ns.Effects.glow(f.readyGate, f, def.key)
 	end
 	if def.needsTotem then
 		-- "No totem" warning layer: a grey copy of the icon and a red ring, above the icon and below the
@@ -666,7 +666,7 @@ end
 
 -- Our totems (ShamanForever_Totems.lua): a recast takes away the element's killed-early cross; the
 -- end of a totem element's totem plays its ends, each gated on the time the totem had left
--- (ns.makeEndFlash): killed early (Grounded for Grounding), or ran out.
+-- (ns.Effects.endFlash): killed early (Grounded for Grounding), or ran out.
 Totems.subscribe(function(event, slot, arg)
 	for _, def in ipairs(COOLDOWNS) do
 		if def.totemSlot == slot then
@@ -680,25 +680,25 @@ Totems.subscribe(function(event, slot, arg)
 				if def.ranOut then
 					-- Its colour with an hourglass, rather than the pop.
 					if setting(key, "ranOutFlash") then
-						if not f.expired then f.expired = ns.makeEndFlash(f.effects, f, key) end
+						if not f.expired then f.expired = ns.Effects.endFlash(f.effects, f, key) end
 						f.expired:setIcon(def.iconID or def.icon)
 						f.expired:play(dur, { expired = true, ranOut = ns.SCHOOL_COLOR[def.school],
 							pop = setting(key, "ranOutPop"), glow = setting(key, "ranOutGlow") })
 					end
 				elseif setting(key, "expiredPop") then
-					if not f.expired then f.expired = ns.makeEndFlash(f.effects, f, key) end
+					if not f.expired then f.expired = ns.Effects.endFlash(f.effects, f, key) end
 					f.expired:setIcon(def.iconID or def.icon)
 					f.expired:play(dur, { expired = true, pop = true })
 				end
 				if def.grounded then
 					-- Grounding's early end: it took a spell (or was destroyed), shown as a success.
 					if setting(key, "grounded") then
-						if not f.killed then f.killed = ns.makeEndFlash(f.effects, f, key) end
+						if not f.killed then f.killed = ns.Effects.endFlash(f.effects, f, key) end
 						f.killed:setIcon(def.iconID or def.icon)
 						f.killed:play(dur, { grounded = true, pop = setting(key, "groundedPop"), glow = setting(key, "groundedGlow") })
 					end
 				elseif setting(key, "killed") then
-					if not f.killed then f.killed = ns.makeEndFlash(f.effects, f, key) end
+					if not f.killed then f.killed = ns.Effects.endFlash(f.effects, f, key) end
 					f.killed:setIcon(def.iconID or def.icon)
 					f.killed:play(dur, { pop = setting(key, "killedPop"), glow = setting(key, "killedGlow"),
 						mark = setting(key, "killedMark") })

@@ -229,10 +229,10 @@ end
 -- Standard block: the pulsing glow's style, with an icon glowing all the time that follows every
 -- change at once (one per school for a look that differs by school).
 local function glowBlock(p, owner, icon)
-	-- ns.applyGlowStyle only restyles the listed glows; some elements' aura-button glows (Maelstrom's
-	-- pulse, Elemental Focus's proc glow) aren't on that list and only pick up a style change through
-	-- their module's applyTimers hook.
-	local function after() ns.applyGlowStyle(); ns.applyTimers(); OP.refresh() end
+	-- ns.Effects.applyStyle only restyles the listed glows; some elements' aura-button glows
+	-- (Maelstrom's pulse, Elemental Focus's proc glow) aren't on that list and only pick up a style
+	-- change through their module's applyTimers hook.
+	local function after() ns.Effects.applyStyle(); ns.applyTimers(); OP.refresh() end
 	local r = styleRows(owner, "glow", after)
 	p:header("Pulsing glow style")
 	if owner == nil then
@@ -248,7 +248,7 @@ local function glowBlock(p, owner, icon)
 		for _, ic in ipairs(icons.place()) do ic:SetGlowShown(true) end
 	end)
 	look = lookRows(p, r, "glow", "Look", "Glow looks", own)
-	reloadLine(p, function() return ns.auraGlowStale(owner) end,
+	reloadLine(p, function() return ns.Effects.auraGlowStale(owner) end,
 		function(n) return n == 1 and "changes glow" or "change glow" end, own)
 	local function uses(field) return showWhen(function() return look().uses[field] end, own) end
 	p:color("Colour", "Colour and opacity. Killed early, Grounded and Ran out keep their own colours.", r.get("color"), r.set("color"), uses("color"))
@@ -281,7 +281,7 @@ local function popBlock(p, owner, icon, kind, growOnly)
 	local function playPop()
 		for _, ic in ipairs(icons.shown()) do
 			if growOnly then
-				if not ic.growPop then ic.growPop = ns.makeGrowPop(ic, owner) end
+				if not ic.growPop then ic.growPop = ns.Effects.growPop(ic, owner) end
 				ic.growPop:restyle(true)
 				ic.growPop:Play()
 			else ic:Pop(kind) end
@@ -1058,9 +1058,9 @@ local function buildTotemBar(p)
 	p.gate = nil
 end
 
--- Standard row: a warning's own Glow look (ns.makeWarningGlow), and the EXPERIMENTAL badge under
--- it while the look picked isn't tested in game yet. Its colour, speed and the rest come from the
--- element's Pulsing glow style.
+-- Standard row: a warning's own Glow look (ns.Effects.glow's lookFor), and the EXPERIMENTAL badge
+-- under it while the look picked isn't tested in game yet. Its colour, speed and the rest come from
+-- the element's Pulsing glow style.
 local function warningGlowLook(p, getLook, setLook, shown)
 	lookRows(p, nil, "glow", "Glow look", "Glow looks", shown, getLook, setLook)
 end
