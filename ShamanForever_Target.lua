@@ -482,6 +482,10 @@ function T.afterGroups()
 		if def.under then
 			T.appear(def.under)
 			T.underAlpha(def)
+			-- The element's frame sits at its Idle opacity, so its border fades with it. With a
+			-- hostile target the icon shows (the grey, or Blizzard's button over it) and its border
+			-- must too: a second one, the group's, drawn round the underlay, which shows then.
+			ns.applyBorder(def.under, ns.borderFor(def.key))
 		end
 	end
 end
