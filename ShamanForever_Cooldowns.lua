@@ -142,9 +142,10 @@ local IDLE_ONCD = { "oncd", "On cooldown", "Idle is when it's on cooldown%s",
 	"Shown in full only while it's ready." }
 local FIRE_NOVA_CHOICES = {
 	IDLE_NEVER,
-	{ "nototem", "Off cooldown, no fire totem", "Idle is when it's off cooldown and no fire totem is down",
-		"It can't be cast." },
-	{ "offcd", "Off cooldown", "Idle is when it's off cooldown", "Whether a fire totem is down or not." },
+	{ "nototem", "Off cooldown, no fire totem",
+		"Idle is when it's off cooldown and no fire totem is down", "Idle only while it can't be cast." },
+	{ "offcd", "Off cooldown", "Idle is when it's off cooldown",
+		"With or without a fire totem down." },
 	{ "oncd", "On cooldown", "Idle is when it's on cooldown and no fire totem is down",
 		IDLE_ONCD[4] },
 }
@@ -377,7 +378,10 @@ local refreshCooldown           -- below (each cooldown def's refresh)
 -- reports running but uncertain: Off cooldown then treats it as busy, On cooldown as not idle.
 local function ownCooldownRunning(def, inEvent)
 	local ok, info = safe(C_Spell.GetSpellCooldown, def.spellID)
-	if not ok or type(info) ~= "table" or isSecret(info.isActive) then return true, false end
+	if not ok or type(info) ~= "table" or isSecret(info.isActive) then
+		def.cdRunning = nil   -- read afresh once it's readable
+		return true, false
+	end
 	if info.isActive == false then def.cdRunning = false return false, true end
 	if inEvent or def.cdRunning == nil then
 		if isSecret(info.isOnGCD) then return true, false end
@@ -392,13 +396,17 @@ local function fadeTo(def, alpha) ns.fadeTo(def.frame, alpha) end
 -- down). totemBusy: our totem is down (Earthbind, Stoneclaw), or any fire totem is (Fire Nova).
 -- def needs key, frame, spellID and a refresh function (the element's own, for the fade after the
 -- pop's moment); the shock passes such a table too.
+-- The options preview's copy of these rules is L.idles (ShamanForever_OptionsLook.lua).
 local function applyIdle(def, totemBusy, inEvent)
 	local when = setting(def.key, "idleWhen")
-	local running, certain = ownCooldownRunning(def, inEvent)   -- always, so its kept answer stays current
+	-- Always read, so its kept answer stays current.
+	local running, certain = ownCooldownRunning(def, inEvent)
 	local busy
 	if when == "oncd" then busy = not (running and certain) else busy = running end
 	busy = busy or when == "never" or not ns.getAccount().locked
-	if not busy and totemBusy then busy = when ~= "offcd" end
+	-- A held state (a totem down, a primed buff, low reagents) is never idle. Only Fire Nova's own
+	-- Off cooldown choice ignores its fire totem.
+	if not busy and totemBusy then busy = not (def.needsTotem and when == "offcd") end
 	if busy then def.idleAt = nil
 	elseif def.idle == false then
 		-- Just went idle: full for a moment, then refresh to fade.

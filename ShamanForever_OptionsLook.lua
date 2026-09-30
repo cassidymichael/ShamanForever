@@ -266,8 +266,15 @@ function L.idles(key, st)
 	if e.kind == "imbue" then return (st == "fine") or (st == "low" and when == "on") end
 	if e.kind == "shock" then return (st == "cd") == (when == "oncd") end
 	if e.kind ~= "cooldown" then return false end
-	if when == "oncd" then return st == "cd" end
-	if e.def.needsTotem then return (st == "nototem") or (st == "out" and when == "offcd") end
+	-- A held state (a totem down, primed, a buff window, low reagents shown) is never idle.
+	if when == "oncd" then
+		local lowIdle = ns.elementSetting(key, "reagentShow") == false
+		return st == "cd" or ((st == "low" or st == "out") and lowIdle)
+	end
+	if e.def.needsTotem then
+		if when == "offcd" then return st ~= "cd" end   -- off cooldown, a fire totem or not
+		return st == "nototem" or st == "ready"          -- nototem: and no fire totem down
+	end
 	return st == "ready"
 end
 
