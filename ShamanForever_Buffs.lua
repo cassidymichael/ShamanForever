@@ -84,6 +84,8 @@ for _, def in ipairs(BUFFS) do
 	ns.registerElement(def.key, { frame = def.frame, label = def.spell,
 		defaults = def.defaults, learned = function() return def.spellID ~= nil end,
 		paint = function(t) t:SetTexture(def.icon) end,
+		-- Preview mode: the proc's border is on Blizzard's button, not its frame (ShamanForever_Preview.lua).
+		standInBorder = def.proc,
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
 		experimental = def.experimental })
 end
@@ -150,6 +152,10 @@ end
 -- button, so the button plays it. The pop: the icon grows and settles, played by the button on each
 -- new proc; sized by the pop style (styleProc), a no-op while the Pop option is off.
 local function buildProc(def, slot, button, cd)
+	-- The group's border drawn on the button too, so it shows exactly with the proc (the element's
+	-- own frame, and its border, sit at its Idle opacity). Styled out of combat only (styleProc).
+	def.edge = CreateFrame("Frame", nil, button)
+	def.edge:SetAllPoints(button)
 	def.glow = ns.makeGlow(button, button, def.key, true)
 	-- Levels under the aura button may read as secret: a failed read leaves the default level.
 	ns.try("aura glow level", function() def.glow:SetFrameLevel(cd:GetFrameLevel() + 2) end)
@@ -162,6 +168,7 @@ end
 
 -- Our parts again, for the current size and settings (after the aura slot's own restyle).
 local function styleProc(def, size)
+	ns.try("proc border " .. def.key, ns.applyBorder, def.edge, ns.borderFor(def.key))
 	def.glow:restyle()
 	def.glow:fit(size)
 	def.glow:SetShown(setting(def.key, "primedGlow") and true or false)
