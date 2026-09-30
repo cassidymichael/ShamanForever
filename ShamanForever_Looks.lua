@@ -530,6 +530,14 @@ function Looks.auraStyle(slot, size)
 	swipeOne(slot.button, slot.cd, made.look, size)
 end
 
+-- The shape the aura button's icon (the aura slot's icon) has now: its mask's spec, or nil while it
+-- is square (made without a mask, or its mask plain). Changed only as the button takes a new shape,
+-- so it is never ahead of the button.
+function Looks.auraShape(icon)
+	local made = icon and auraMade[icon]
+	return made and made.mask and made.spec or nil
+end
+
 -- The aura elements whose button's shape differs from their border look now (a masked look on a
 -- button made without a mask), among those whose border is owner's (nil: General's; a group): they
 -- change after a /reload (the options say so).

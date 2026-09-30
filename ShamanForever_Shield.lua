@@ -224,16 +224,22 @@ local function blocked()
 	return ns.cantAct() or ns.plainYes(UnitInVehicle, "player")
 end
 
+-- Whether the button's icon covers the underlay's shape: square (it covers any), or in the same
+-- rounded or cut-corner shape as the icon's look now, which the underlay follows at once (a new
+-- look waits for combat's end on the button).
+local function shapeCovers()
+	local shape = ns.Looks.auraShape(native.icon)
+	return shape == nil or shape == ns.Looks.maskSpec(shield)
+end
+
 -- While the button is the switch: whether it can be trusted to cover the underlay exactly. Its
 -- slot matches every spell ID the shields it tracks have now (a new rank or Track waits for
--- combat's end there), it has the size the underlay was placed for and the shape the icon has now
--- (a new size or look waits too), its gate is at full
--- opacity and not fading out with its group after combat (where auras stay secret out of combat,
--- the button would be see-through meanwhile), and our own shield cast or a loading screen isn't a
--- moment ago.
+-- combat's end there), it has the size the underlay was placed for (a new size waits too) and a
+-- shape that covers it, its gate is at full opacity and not fading out with its group after combat
+-- (where auras stay secret out of combat, the button would be see-through meanwhile), and our own
+-- shield cast or a loading screen isn't a moment ago.
 local function coverTrusted()
-	return native.idsOK and under.size == native.size and ns.Looks.maskSpec(shield) == native.shape
-		and gate:GetAlpha() > 0.99
+	return native.idsOK and under.size == native.size and shapeCovers() and gate:GetAlpha() > 0.99
 		and not ns.AfterCombat.fading(gate) and GetTime() >= holdUntil
 end
 
@@ -323,7 +329,7 @@ end
 
 -- With the button's restyle (styleNative), so the two always change together: the underlay's
 -- picture a screen pixel in from the button's edges (rounding at any scale leaves no edge past it),
--- at the button's size from the same corner, and the icon's shape now (the button's, coverTrusted).
+-- at the button's size from the same corner.
 local function placeUnder(size)
 	local u = under
 	u:SetFrameLevel(shield.textFrame:GetFrameLevel() + 1)   -- over the icon, under the container (+5)
@@ -333,7 +339,6 @@ local function placeUnder(size)
 	u.tex:SetPoint("TOPLEFT", shield, "TOPLEFT", px, -px)
 	u.tex:SetSize(inner, inner)
 	u.size = size
-	native.shape = ns.Looks.maskSpec(shield)
 	shapeUnder()
 end
 
@@ -705,7 +710,7 @@ function SH.debug()
 	say("no-shield look: %s, %s, state %s; button %s, spell IDs %s, shape %s, gate %s, cast hold %s",
 		under.on and "on" or "off", covering() and "button decides" or "read decides", tostring(under.state),
 		native.button and "made" or "not made", native.idsOK and "matched" or "behind",
-		ns.Looks.maskSpec(shield) == native.shape and "matched" or "behind",
+		shapeCovers() and "covers" or "behind",
 		gate:GetAlpha() > 0.99 and "full" or "not full", GetTime() < holdUntil and "on" or "off")
 	for _, key in ipairs(SHIELD_ORDER) do
 		local s = SHIELDS[key]
