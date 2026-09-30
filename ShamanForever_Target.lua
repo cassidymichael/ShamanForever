@@ -80,8 +80,7 @@ local TARGET = {
 		defaults = { idleWhen = "notarget", idleAlpha = 0,
 			missGrey = true, missRing = false, missPulse = false, missGlow = true,
 			-- Magenta: it stands out against the fire school's orange time bar.
-			expireSecs = 3, expireBar = true, expireBarColor = { 1, 0.2, 0.8, 1 }, expireText = false },
-		experimental = "Flame Shock on target" },
+			expireSecs = 3, expireBar = true, expireBarColor = { 1, 0.2, 0.8, 1 }, expireText = false } },
 	{ key = "purge", spellKey = "purge", filter = "HELPFUL", icon = 136075, school = "spirit",
 		blurb = "Shows while your target has a Magic buff to purge.",
 		-- Every Magic buff; with Skip long buffs, only those lasting at most Longest buff (the
@@ -94,8 +93,7 @@ local TARGET = {
 		popTip = "Each time a new buff lands on your target, or you target one that has one.",
 		glowTip = "While your target has one.",
 		upLabel = "Magic buff", idleLabel = "Nothing to purge",
-		defaults = { idleAlpha = 0, primedPop = false, primedGlow = true, skipLong = false, skipLongMins = 2 },
-		experimental = "Purge" },
+		defaults = { idleAlpha = 0, primedPop = false, primedGlow = true, skipLong = false, skipLongMins = 2 } },
 }
 T.ELEMENTS = TARGET
 

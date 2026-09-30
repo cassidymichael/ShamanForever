@@ -268,8 +268,7 @@ local POP_BURSTS = { { "none", "None" }, { "ring", "Ring" }, { "star", "Star" },
 	{ "shapes", "Shapes" }, { "painted", "Emblem" }, { "rune", "Rune circle" }, { "school", "Element effect" } }
 local POP_MOTIONS = { { "none", "None" }, { "pop", "Grow" }, { "bounce", "Bounce" }, { "hop", "Hop" },
 	{ "shake", "Shake side to side" }, { "shakeV", "Shake up and down" } }
--- Choices not tested in game yet (About's Experimental list), and bursts drawn per school.
-local POP_EXPERIMENTAL = { school = true, edge = true, shapes = true, painted = true, rune = true }
+-- Bursts drawn per school.
 local SCHOOL_BURSTS = { school = true, shapes = true, painted = true }
 local function popBlock(p, owner, icon, kind)
 	local icons
@@ -315,13 +314,7 @@ local function popBlock(p, owner, icon, kind)
 			POP_COLORS, r.get("colorBy"), r.set("colorBy"), own, 190)
 	end
 	p:dropdown("Flash", "Over the icon.", POP_FLASHES, r.get("flash"), r.set("flash"), own, 190)
-	p:dropdown("Burst", "Around the icon. By school: each school its own.", POP_BURSTS, r.get("burst"), r.set("burst"), own, 190)
-	local fx = p:row(22)
-	ns.Look.expBadge(fx, "Pop flashes and bursts"):SetPoint("LEFT", fx, "LEFT", LABEL_W, 0)
-	p:add(fx, 22, showWhen(function()
-		local st = r.style()
-		return (colored and POP_EXPERIMENTAL[st.colorBy]) or POP_EXPERIMENTAL[st.flash] or POP_EXPERIMENTAL[st.burst] or false
-	end, own))
+	p:dropdown("Burst", "Around the icon. Element effect: each element its own.", POP_BURSTS, r.get("burst"), r.set("burst"), own, 190)
 	p:dropdown("Motion", "How the icon moves.", POP_MOTIONS, r.get("motion"), r.set("motion"), own, 190)
 	local moves = showWhen(function() return r.style().motion ~= "none" end, own)
 	p:slider("Motion distance", "How far it grows, hops or shakes.", 1.1, 1.8, 0.05, pct, r.get("size"), r.set("size"), moves)
@@ -681,20 +674,11 @@ local function buildAbout(p)
 		.. "working on this project (and many millions of AI tokens). Thank you!")
 	link(p, "Ko-fi", ns.Look.KOFI, "kofi")
 	aboutExp = flashingHeader(p, "Experimental", "Interface\\Icons\\INV_Gizmo_02")
-	p:text("I can't test these in game yet. If you can, please try them and tell me whether they work and what could be improved.")
-	p:experimental("Water Shield", "Shields > Track")
-	p:experimental("Either shield", "Shields > Track")
+	p:text("These features aren't fully tested and may not work properly. Please use the feedback options above"
+		.. " to help me out and improve the addon.")
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
 		local e = ns.ELEMENTS[key]
 		if e.experimental then p:experimental(e.experimental, "Elements > " .. e.label) end
-	end
-	p:experimental("Swing timer", "Swing timer")
-	p:experimental("Active totems mode", "Totem bar > Use")
-	if ns.Looks.anyExperimental("border") then p:experimental("Border looks", "General > Border") end
-	if ns.Looks.anyExperimental("glow") then p:experimental("Glow looks", "General > Pulsing glow style") end
-	p:experimental("Pop flashes and bursts", "General > Pop style")
-	if ns.TotemBar.skin.anyExperimental() then
-		p:experimental("Totem themes", "Totem bar > Totem theme")
 	end
 	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
@@ -736,7 +720,7 @@ local function buildTotemBar(p)
 	p:header("Totems")
 	p:cards("Use", nil, {
 		{ "blizzard", "Blizzard's", "Interface\\Icons\\INV_Misc_Gear_01" },
-		{ "active", "Active totems", "Interface\\Icons\\Spell_Nature_TimeStop", "Active totems mode" },
+		{ "active", "Active totems", "Interface\\Icons\\Spell_Nature_TimeStop" },
 		{ "everything", "Everything", "Interface\\Icons\\Spell_Shaman_DropAll_01", tag = "RECOMMENDED" },
 	}, tget("mode"), function(v) TB.setMode(v); changed() end)
 	-- What the mode does, then how the bar is used in it.

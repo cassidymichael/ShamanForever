@@ -90,7 +90,7 @@ add("default", { name = "Default" })
 -- Pixel lines in the options' gold: school-coloured edges on the slots, a dark tray behind them,
 -- a red edge along the top out of range.
 add("pixel", {
-	name = "Pixel", experimental = true,
+	name = "Pixel",
 	owns = { border = true, range = true },
 	border = function() return borderStyle("schooledge", TB.cfg().pixelEdge) end,
 	extrasBorder = borderStyle("hairline"),
@@ -109,7 +109,7 @@ end
 -- The bar set in a carved granite plinth (fixed art: it sets the spacing, a row, pickers opening
 -- up), Call and Recall in round bronze medallions. Out of range is Default's strip.
 add("stone", {
-	name = "Stone and bronze", experimental = true,
+	name = "Stone and bronze",
 	-- It keeps the time bar in the icon. Its spacing is the plinth's, Call and Recall just past its
 	-- ends.
 	owns = function()

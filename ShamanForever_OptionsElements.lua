@@ -317,14 +317,13 @@ local function buildShield(p, def)
 	elementDisplay(p, "shield")
 	idleBlock(p, def)
 	p:header("Tracking")
-	-- Lightning Shield is the tested default; the Water Shield modes are experimental until tested in game.
 	p:cards("Track", nil, {
 		{ "lightning", ns.Spells.name("lightningShield"), 136051 },
-		{ "water", ns.Spells.name("waterShield"), 132315, "Water Shield" },
-		{ "either", "Either", 136051, "Either shield" },
+		{ "water", ns.Spells.name("waterShield"), 132315 },
+		{ "either", "Either", 136051 },
 	}, get("shieldTrack"), set("shieldTrack", respell))
 	p:text("Only one shield can be up at a time. With one chosen, the other counts as no shield.")
-	-- Lightning, the tested default, reads a Water Shield that is up as no shield.
+	-- Lightning, the default, reads a Water Shield that is up as no shield.
 	p:callout(("You know %s: choose Either to count it."):format(ns.Spells.name("waterShield")),
 		function() return db().shieldTrack == "lightning" and ns.Shield.knows("water") end)
 	p:header("Charges")

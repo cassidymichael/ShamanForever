@@ -603,19 +603,19 @@ S.addLook("border", "bevel", { name = "Bronze bevel",
 S.addLook("border", "caps", { name = "Corner caps",
 	rings = { { px = "size", color = "color" } }, caps = { px = "capSize", len = 6, color = "capColor" } })
 -- Rounded corners and a soft dark edge, as on the Cooldown Manager's icons.
-S.addLook("border", "cdm", { name = "Cooldown Manager", experimental = true,
+S.addLook("border", "cdm", { name = "Cooldown Manager",
 	mask = { atlas = CDM_MASK }, swipe = CDM_SWIPE, art = { atlas = CDM_OVERLAY, inset = { 0.18, 0.18, 0.16, 0.16 } } })
 -- Cut corners in a dark bronze frame, as on Forever's action buttons.
-S.addLook("border", "button", { name = "Forever action button", experimental = true,
+S.addLook("border", "button", { name = "Forever action button",
 	mask = { atlas = AB_MASK, scale = 64 / 45 }, swipeInset = 3 / 45,
 	art = { atlas = AB_FRAME, inset = { 0, 1 / 45, 0, 0 } } })
 -- Painted frames (AI-made art), 9-sliced from 128 px art; margin: the painted frame's width in
 -- texels.
-S.addLook("border", "stone", { name = "Carved stone", experimental = true,
+S.addLook("border", "stone", { name = "Carved stone",
 	rings = { { color = BLACK } }, art = { file = MEDIA .. "Frame-Stone", margin = 27, px = 6 } })
-S.addLook("border", "bronze", { name = "Aged bronze", experimental = true,
+S.addLook("border", "bronze", { name = "Aged bronze",
 	rings = { { color = BLACK } }, art = { file = MEDIA .. "Frame-Bronze", margin = 14, px = 4 } })
-S.addLook("border", "wood", { name = "Carved wood", experimental = true,
+S.addLook("border", "wood", { name = "Carved wood",
 	rings = { { color = BLACK } }, art = { file = MEDIA .. "Frame-Wood", margin = 22, px = 6 } })
 -- For the totem bar's Looks only: the Border size of the slot's element colour inside 1 px of black.
 S.addLook("border", "schooledge", { name = "School edge", hidden = true,
@@ -930,7 +930,7 @@ local heartbeat = {
 }
 
 local function addGlow(key, name, entry)
-	entry.name, entry.experimental = name, key ~= "soft" or nil
+	entry.name = name
 	S.addLook("glow", key, entry)
 end
 addGlow("soft", "Soft inner", soft)
