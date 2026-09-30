@@ -7,17 +7,17 @@
 -- 1. Blizzard's CustomAuraContainer draws the shield: icon, charge count, charge bar, and its time
 --    as a swipe, countdown or bar. Its untainted code reads the aura, so all of this is exact in
 --    combat, and its button hides the moment the shield goes, in combat too.
--- 2. Under the button sits the underlay, the No shield look: grey, the red tint, fade in and out,
---    the red ring and a pulsing glow. Nothing tells addon code in combat when the button hides
+-- 2. Under the button sits the underlay, the No shield look: grey, the red tint, fade in and out
+--    and the red ring. Nothing tells addon code in combat when the button hides
 --    (reads by index or instance throw, reads by spell come back empty, UNIT_AURA brings nothing
 --    readable, script handlers under the button never run; tested 2026-09-23). So in combat the
 --    button itself is the switch: its opaque icon covers the underlay while the shield is up, and
 --    the underlay shows the moment it goes, drawn by the engine with nothing read or inferred. So:
 --    - the cover must be opaque: the container hangs from a gate that ignores the group's opacity
 --      (the shield draws at full), and the underlay takes the group's opacity itself;
---    - only looks inside the icon: grey, tint, fade, the ring, and a glow in a look drawn inside it
---      (Soft inner or School material), a screen pixel in from the icon's edges and in a rounded or
---      cut-corner look's shape, so the button's icon covers every pixel of them;
+--    - the underlay itself is only the icon's picture: grey, tint, fade and the ring, a screen pixel
+--      in from the icon's edges and in a rounded or cut-corner look's shape, so the button's icon
+--      covers every pixel of them;
 --    - checked every frame (plain reads, and writes to our own frames only, allowed in combat), it
 --      hides while it can't be trusted: the button not made, a new spell ID or look the button
 --      can't take until combat ends, preview mode, and a moment after our own cast of a shield it
@@ -31,6 +31,10 @@
 --    when its group fades out after combat, or across a loading screen. In a PvP match auras stay
 --    secret out of combat too (Blizzard's API documentation; not yet seen in a battleground): the
 --    button is the switch until it ends.
+--    The pulsing glow, in any look (some reach past the icon's edge; the ones within it take the
+--    icon's shape), is a clip look on the underlay (ns.makeClipLook): shown by the engine only while
+--    no shield it tracks is up, and only while the underlay shows its warning, so it waits for
+--    everything the underlay waits for.
 -- 3. After a login or /reload in combat or in a PvP match the button is made only once auras are
 --    readable; until then Shields shows its plain icon: a miss, never a false warning.
 --
@@ -172,6 +176,7 @@ local standIn, standInState   -- preview mode's icon over the shield and its sta
 ------------------------------------------------------------------------
 -- Over the element's own icon, under Blizzard's container (styleNative sets both levels).
 local under = CreateFrame("Frame", nil, gate)
+local past   -- the pulsing glow (a clip look, below)
 under:SetAllPoints(shield)
 under:SetAlpha(0)
 under.inner = CreateFrame("Frame", nil, under)   -- the wait's alpha (appear), apart from under's own
@@ -181,30 +186,6 @@ ns.cropIconExact(under.tex)
 under.tex:SetPoint("TOPLEFT", shield, "TOPLEFT", 0, 0)   -- placed with the button (placeUnder)
 under.tex:SetSize(1, 1)
 under.ring = ns.makeRing(under.inner, under.tex)   -- inside the inset picture
--- Every texture under frame in the icon's shape, over the inset picture. Masks are textures too,
--- but take no mask themselves (a look's own masks live there).
-local function shapeTextures(frame)
-	for _, r in ipairs({ frame:GetRegions() }) do
-		if r:IsObjectType("Texture") and not r:IsObjectType("MaskTexture") then
-			ns.Looks.maskOver(shield, r, under.tex)
-		end
-	end
-	for _, c in ipairs({ frame:GetChildren() }) do shapeTextures(c) end
-end
--- Its pulsing glow: its own look (No shield's Glow look), one drawn inside the icon only, over the
--- inset picture, in the Pulsing glow style's colour and speed. Its look before the profile loads
--- (the glow is made at load): the default.
-under.tex.owner = "shield"   -- its looks take their school from what they cover: the element's
-under.glow = ns.makeInsideGlow(under.inner, under.tex, "shield", function()
-	local db = ns.getDB()
-	return db and db.emptyGlowLook or nil
-end)
--- Its textures take the shape as they're made and each time they're fitted, in combat too (a look
--- changed with the options open): never a square corner past the button.
-under.glow.onLayout = function(_, parts)
-	for _, r in ipairs(parts.roots or {}) do shapeTextures(r) end
-end
-for _, parts in pairs(under.glow.parts) do if parts then under.glow.onLayout(under.glow, parts) end end
 under.pulse = ns.makePulse(under.tex, "fade")
 
 -- After our own cast of a shield it tracks, the underlay stays hidden this long (seconds). Blizzard
@@ -276,7 +257,7 @@ local function lookUnder()
 	under.pulseOn = warn and db.emptyPulse and true or false
 	if not under.pulseOn then under.pulse:Stop()
 	elseif not under.pulse:IsPlaying() then under.pulse:Play() end
-	under.glow:SetShown(warn and db.emptyGlow and true or false)
+	past:want(warn and db.emptyGlow)
 end
 
 -- Shows the underlay in state st (underState), at its group's opacity, or hides it (alpha 0).
@@ -316,15 +297,13 @@ under:SetScript("OnShow", function(self)
 	if self.pulseOn then self.pulse:Play() end   -- a hidden frame's animations stop
 end)
 
--- The underlay's picture and ring in the icon's shape, and its glow in its look now, fitted to the
--- inset picture (placeUnder, SH.applyTimers); the glow's textures shape themselves (onLayout).
+-- The underlay's picture and ring in the icon's shape, and the glow in its look now (placeUnder,
+-- SH.applyTimers).
 local function shapeUnder()
 	local f, u = shield, under
 	ns.Looks.maskOver(f, u.tex)
 	for _, e in ipairs(u.ring.edges) do ns.Looks.maskOver(f, e, u.tex) end
-	local g = u.glow
-	g:restyle()
-	if u.size then g:fit(math.max(u.size - 2 * ns.pixel(u), 1)) end
+	past.glow:restyle()
 end
 
 -- With the button's restyle (styleNative), so the two always change together: the underlay's
@@ -339,7 +318,9 @@ local function placeUnder(size)
 	u.tex:SetPoint("TOPLEFT", shield, "TOPLEFT", px, -px)
 	u.tex:SetSize(inner, inner)
 	u.size = size
+	past:setLevel(u:GetFrameLevel() + 2)   -- over the underlay's picture and ring
 	shapeUnder()
+	past:style()
 end
 
 -- The shield's looks, from its settings and state: the element's own icon (only seen while nothing
@@ -388,6 +369,23 @@ local function shieldIDMap()
 	return map
 end
 
+-- The pulsing glow: No shield's Glow look in the shield's Pulsing glow style, past the icon's edge
+-- if the look reaches there, on the underlay (which gives it the group's opacity and its waits).
+-- Its sensor hangs beside Blizzard's container, shown whenever that is. Its look before the profile
+-- loads (the glow is made at load): the default.
+past = ns.makeClipLook(shield, {
+	key = "shield", parent = under.inner, sensorParent = gate, ids = shieldIDMap, owner = "shield",
+	shape = under.tex,
+	lookFor = function()
+		local db = ns.getDB()
+		return db and db.emptyGlowLook or nil
+	end,
+	driver = "[@player,dead] hide; show",
+	sites = {
+		container = "shield glow sensor", style = "shield glow style", filter = "shield glow filter",
+	},
+})
+
 -- Whether the slot matches every spell ID of every tracked shield (coverTrusted): a slot missing
 -- one would leave the button hidden over that shield. Matching more (a Track just narrowed) only
 -- keeps the button up over a shield that no longer counts: a miss, not a false warning.
@@ -400,12 +398,14 @@ local function checkIDs()
 		end
 	end
 	native.idsOK = ok
+	past:checkIDs()
 end
 
 -- The slot's filter can only change while auras are readable; a change meanwhile waits for that
 -- (ns.makeAuraSlot).
 local function applyShieldFilter()
 	native:refilter()
+	past:refilter()
 	checkIDs()
 end
 
@@ -441,8 +441,9 @@ end
 function SH.style() native:style() end
 
 -- The shield's timer takes its current style (ns.applyTimers). It sits on Blizzard's button, so it
--- comes with the button's restyle, which waits for combat to end. The underlay's glow takes a new
--- look or style at once (its own frames; the options call this after a glow style change).
+-- comes with the button's restyle, which waits for combat to end. The underlay's picture, ring and
+-- glow (its new look or style) follow at once: our own frames (the options call this after a
+-- timer or glow style change).
 function SH.applyTimers()
 	SH.style()
 	shapeUnder()
@@ -654,6 +655,8 @@ end
 -- After a layout (settings may have changed): Blizzard's container made once, then its looks.
 function SH.applyLayout()
 	native:setup()
+	-- The glow's sensor: made once the glow is first on (then it stays).
+	if ns.getDB().emptyGlow then past:setup() end
 	-- The IDs the slot was made with: given again, so the slot records them (checkIDs).
 	if native.container and not native.filtered then applyShieldFilter() end
 	SH.style()
@@ -662,6 +665,7 @@ end
 -- The button's restyle for a new size or look, and the underlay's opacity follows its group's.
 function SH.afterGroups()
 	SH.style()
+	past:style()
 	SH.applyEmptyLook()
 end
 function SH.refresh()
@@ -720,6 +724,7 @@ function SH.debug()
 	end
 	say("aura container %s%s", native.container and "created" or "not created",
 		native.err and (", error: " .. native.err) or "")
+	say("no-shield glow: %s", past:describe())
 	local t = {} for id in pairs(shieldIDMap()) do table.insert(t, tostring(id)) end table.sort(t)
 	say("tracked spell IDs: %s", table.concat(t, ","))
 end

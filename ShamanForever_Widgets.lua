@@ -268,14 +268,12 @@ local glows = {}
 -- over as the button is made, and a new look's as the look changes, out of combat; a look whose
 -- animations the button won't take stays the old one (until a /reload; ns.auraGlowStale).
 local auraGlows = {}
--- inside: only a look drawn within the icon (ns.Looks' inside), else the default look; for a glow
--- something else must cover completely (ns.makeInsideGlow). g.lookFor(), if set: the look's key,
--- in place of its style's (colour, speed and the rest still come from the style).
--- g.onLayout(g, parts), if set: called as a look's parts are made and after each fit (their sizes
--- and scales may have changed), for the owner's own touches (Flame Shock's Not on target masks).
-local function makeGlow(parent, over, owner, unlisted, inside)
+-- g.lookFor(), if set: the look's key, in place of its style's (colour, speed and the rest still
+-- come from the style). g.onLayout(g, parts, look), if set: called as a look's parts are made and
+-- after each fit (their sizes and scales may have changed), for the owner's own touches.
+local function makeGlow(parent, over, owner, unlisted)
 	local g = CreateFrame("Frame", nil, parent)
-	g.owner, g.unlisted, g.inside = owner, unlisted, inside
+	g.owner, g.unlisted = owner, unlisted
 	-- The icon whose frame and school its looks follow; never Blizzard's aura button (it and its
 	-- parts are off limits in combat): an unlisted glow takes its owner's school and no frame.
 	g.over = not unlisted and (over or parent) or nil
@@ -298,14 +296,13 @@ local function makeGlow(parent, over, owner, unlisted, inside)
 			if p then ns.Looks.levelParts(p) end
 			for _, r in ipairs(p and p.roots or {}) do r:Hide() end
 			g.parts[look.key] = p
-			if p and g.onLayout then ns.try("glow layout", g.onLayout, g, p) end
+			if p and g.onLayout then ns.try("glow layout", g.onLayout, g, p, look) end
 		end
 		return p or nil
 	end
-	-- The look drawn for a style's: itself, or the default look where the client refused its parts
-	-- or where the glow must stay inside the icon and the look doesn't (inside).
+	-- The look drawn for a style's: itself, or the default look where the client refused its parts.
 	local function drawn(look)
-		if not (inside and not look.inside) and parts(look) then return look end
+		if parts(look) then return look end
 		return ns.Style.look("glow", ns.Style.KINDS.glow.defaults.look)
 	end
 	if unlisted then table.insert(auraGlows, g) end
@@ -395,7 +392,7 @@ local function makeGlow(parent, over, owner, unlisted, inside)
 		local p = parts(self.look)
 		if p then
 			self.look.fit(self, p, size, out)
-			if self.onLayout then ns.try("glow layout", self.onLayout, self, p) end
+			if self.onLayout then ns.try("glow layout", self.onLayout, self, p, self.look) end
 		end
 	end
 	function g:color(r, gg, b) self.fixed = { r, gg, b, 1 }; self:restyle() end
@@ -405,22 +402,11 @@ local function makeGlow(parent, over, owner, unlisted, inside)
 end
 ns.makeGlow = makeGlow
 function ns.applyGlowStyle() for _, g in ipairs(glows) do g:restyle() end end
--- The glow looks drawn only within the icon (ns.Looks' inside), in the options' order: the looks a
--- glow that something else must cover completely can take.
-function ns.insideGlowLooks()
-	local out = {}
-	for _, look in ipairs(ns.Style.LOOKS.glow.order) do
-		if look.inside then table.insert(out, look) end
-	end
-	return out
-end
-
--- A pulsing glow over `over` (on parent) in a look drawn within the icon only: the one lookFor()
--- names (its key; one that isn't inside draws the default look), with owner's glow style's colour,
--- speed, depth and thickness. For a warning drawn under Blizzard's aura button, which its opaque
--- icon must cover completely (Flame Shock's Not on target; Shields' No shield).
-function ns.makeInsideGlow(parent, over, owner, lookFor)
-	local g = makeGlow(parent, over, owner, false, true)
+-- A pulsing glow over `over` (on parent) in the look lookFor() names (its key), with owner's glow
+-- style's colour, speed, depth and thickness: a warning's own Glow look (Shields' No shield, Flame
+-- Shock's Not on target: their clip looks, below, and the options' previews).
+function ns.makeWarningGlow(parent, over, owner, lookFor)
+	local g = makeGlow(parent, over, owner)
 	g.lookFor = lookFor
 	g:restyle()
 	return g
@@ -967,6 +953,303 @@ function AuraSlot:refilter()
 	end
 	if ok then self.filtered = filters.includeSpellIDs
 	else ns.retryAfterCombat(o.sites.filter, function() self:refilter() end) end
+end
+
+------------------------------------------------------------------------
+-- A clip look: a warning glow that may reach past the icon's edge, shown exactly while an aura is
+-- gone, in combat too, with nothing read (tested in combat 2026-09-30).
+-- * The sensor: a container of its own with one aura group of one invisible button, as big as the
+--   look's reach (the cell). Blizzard sizes a group's container to its buttons: to the button while
+--   the aura is up, to 1 px once it's gone. Its width is secret; nothing of ours reads it.
+-- * A clip frame of ours runs from the container's right edge to the cell's right edge: nothing
+--   while the aura is up (the button is a little wider than the cell), the whole cell once it's
+--   gone. The look inside it is drawn only there, by the engine.
+-- * Frames anchored to a container with an aura group must inherit
+--   DisableUntrustedLayoutScriptsTemplate as they are made (Blizzard's note in AddAuraGroup): the
+--   clip and the look's holder do.
+-- * The chain: gate (the caller's state driver, if any) > hold (its alpha ours, allowed in combat)
+--   > clip > look > the glow. The sensor hangs apart, so it keeps up with the aura while the chain
+--   is hidden.
+-- * The sensor is made, restyled and refiltered only out of combat with auras readable, as an aura
+--   slot is. The hold stays at 0 while the sensor can't be trusted: not made, a size or spell IDs it
+--   hasn't taken yet, not on the unit asked for, and for two frames after it's made, restyled,
+--   pointed at a unit or shown (Blizzard's container catches up on its next frame). A change
+--   waiting for combat's end is a miss, never a false warning.
+------------------------------------------------------------------------
+local ClipLook = {}
+ClipLook.__index = ClipLook
+-- The sensor's button is this much wider than the cell: the clip empty, not 1 px.
+local CLIP_SLACK = 2
+-- How far the look reaches from the icon's centre, in widths of the icon with its frame: the Proc
+-- glow's opening burst, the widest look, reaches 150/45 of the icon with its frame (its flipbook is
+-- 150 wide for a 45 icon; Heartbeat's ring reaches 1.22), so 1.7 has 0.07 to spare. A look that
+-- reaches further is clipped: raise this with it.
+local CLIP_REACH = 1.7
+
+-- Every texture under frame (but masks: they take none) in icon frame f's look's shape, over the
+-- rect of over (Looks.maskOver: re-placed on each call and look change).
+local function shapeTextures(frame, f, over)
+	for _, r in ipairs({ frame:GetRegions() }) do
+		if r:IsObjectType("Texture") and not r:IsObjectType("MaskTexture") then
+			ns.Looks.maskOver(f, r, over)
+		end
+	end
+	for _, c in ipairs({ frame:GetChildren() }) do shapeTextures(c, f, over) end
+end
+
+-- frame: the element icon the look is drawn round. opts:
+--   key            the element: its icon size (ns.sizeOf); also the aura group's name
+--   parent         what the chain hangs from; sensorParent, what the sensor hangs from (shown
+--                  whenever the chain may be)
+--   unit, filter   the sensor's unit as it's made (default "player"; a function: its answer then)
+--                  and filter (default "HELPFUL")
+--   ids()          the spell IDs it matches
+--   needUnit       the unit it must be on for the look to show (a sensor that follows the target)
+--   driver         the gate's state driver, registered as the sensor is made (out of combat)
+--   shape          the icon's inset picture (a texture): the looks drawn within the icon (`inside`,
+--                  ns.Looks) take the icon's rounded or cut-corner shape over it; the looks that
+--                  reach past the icon take none
+--   owner, lookFor the glow's style owner (nil: General's) and lookFor() its look's key
+--   sites          { container = , style = , filter = }: names for waiting work and caught errors
+-- The glow is h.glow (ns.makeGlow). h:want(on) shows it or not; nothing is made until h:setup().
+function ns.makeClipLook(frame, opts)
+	local h = setmetatable({ frame = frame, opts = opts }, ClipLook)
+	h.gate = CreateFrame("Frame", nil, opts.parent)
+	h.gate:SetAllPoints(frame)
+	h.hold = CreateFrame("Frame", nil, h.gate)
+	h.hold:SetAllPoints(frame)
+	h.hold:SetAlpha(0)
+	h.hold:SetScript("OnShow", function() h:wait() end)
+	h.tick = function(f)   -- the wait's OnUpdate (wait)
+		h.waiting = h.waiting - 1
+		if h.waiting > 0 then return end
+		h.waiting = nil
+		f:SetScript("OnUpdate", nil)
+		h:update()
+	end
+	-- The cell: the look's reach, centred on the icon, sized only as the sensor is (style).
+	h.cell = CreateFrame("Frame", nil, opts.sensorParent)
+	h.cell:SetPoint("CENTER", frame, "CENTER", 0, 0)
+	h.cell:SetSize(1, 1)
+	h.clip = CreateFrame("Frame", nil, h.hold, "DisableUntrustedLayoutScriptsTemplate")
+	h.clip:SetClipsChildren(true)
+	-- Empty until the sensor is made (setup): from the cell's right edge to itself.
+	h.clip:SetPoint("TOPLEFT", h.cell, "TOPRIGHT", 0, 0)
+	h.clip:SetPoint("BOTTOMRIGHT", h.cell, "BOTTOMRIGHT", 0, 0)
+	h.look = CreateFrame("Frame", nil, h.clip, "DisableUntrustedLayoutScriptsTemplate")
+	h.look:SetAllPoints(h.cell)
+	h.glow = ns.makeWarningGlow(h.look, frame, opts.owner, opts.lookFor)
+	if opts.shape then
+		-- As a look's parts are made and each time they're fitted (a look changed with the options
+		-- open, in combat too).
+		h.glow.onLayout = function(_, parts, look)
+			if not look.inside then return end
+			for _, r in ipairs(parts.roots or {}) do shapeTextures(r, frame, opts.shape) end
+		end
+		for key, parts in pairs(h.glow.parts) do
+			if parts then h.glow.onLayout(h.glow, parts, ns.Style.look("glow", key)) end
+		end
+	end
+	return h
+end
+
+-- The cell's width for an icon of size: the look's reach both ways, with the icon's frame.
+local function cellWidth(size, frame)
+	return math.ceil(2 * CLIP_REACH * (size + 2 * ns.Looks.outerEdge(frame)))
+end
+
+-- The hold at 0 now, and back on its second OnUpdate from here: after the container's own next
+-- update, in this frame's pass or the next one's (as the aura slots' underlays wait).
+function ClipLook:wait()
+	self.waiting = 2
+	self.hold:SetAlpha(0)
+	self.hold:SetScript("OnUpdate", self.tick)
+end
+
+-- Whether the sensor can be trusted now (see above).
+function ClipLook:ready()
+	local o = self.opts
+	return self.container ~= nil and not self.err and self.idsOK == true and not self.waiting
+		and self.size == ns.sizeOf(o.key) and (o.needUnit == nil or self.unit == o.needUnit)
+end
+
+-- The hold's alpha: 1 while the caller wants the look and the sensor can be trusted, else 0. Our
+-- own frame: allowed in combat.
+function ClipLook:update()
+	self.hold:SetAlpha((self.wanted and self:ready()) and 1 or 0)
+end
+
+-- The caller's condition for the look (its setting, and whatever its own warning waits for).
+function ClipLook:want(on)
+	on = on and true or false
+	if on ~= self.wanted then
+		self.wanted = on
+		self.glow:SetShown(on)
+	end
+	self:update()
+end
+
+-- Makes the sensor, once (out of combat, auras readable; else when that ends). Once made it stays;
+-- a client that refuses it gets err, and the look never shows.
+function ClipLook:setup()
+	if self.container or self.err then return end
+	local o = self.opts
+	if ns.deferWhileAurasSecret(o.sites.container, function() self:setup() end) then return end
+	local size = ns.sizeOf(o.key)
+	local w = cellWidth(size, self.frame)
+	local ids = o.ids()
+	local unit = type(o.unit) == "function" and o.unit() or o.unit or "player"
+	local ok, err = pcall(function()
+		local c = CreateFrame("AuraContainer", nil, o.sensorParent, "CustomAuraContainerTemplate")
+		c:SetPoint("TOPLEFT", self.cell, "TOPLEFT", 0, 0)
+		-- An intrinsic frame doesn't inherit placement (see the aura slot, above).
+		c:SetFrameStrata(self.frame:GetFrameStrata())
+		c:SetUnit(unit)
+		pcall(c.EnableMouse, c, false)
+		pcall(c.SetFlowLayoutPadding, c, 0, 0, 0, 0)   -- empty is 1 px wide (its layout's least)
+		self.container = c
+		self.unit = unit
+		self.cell:SetSize(w, w)
+		c:AddAuraGroup(o.key, o.filter or "HELPFUL", {
+			candidateFilters = { includeSpellIDs = ids }, maxFrameCount = 1,
+			layout = { elementWidth = w + CLIP_SLACK, elementHeight = w },
+			initializeFrame = function(b)
+				b:SetSize(1, 1)
+				pcall(b.EnableMouse, b, false)
+				pcall(b.SetMouseClickEnabled, b, false)
+				pcall(b.SetMouseMotionEnabled, b, false)
+			end,
+		})
+		self.clip:ClearAllPoints()
+		self.clip:SetPoint("TOPLEFT", c, "TOPRIGHT", 0, 0)
+		self.clip:SetPoint("BOTTOMRIGHT", self.cell, "BOTTOMRIGHT", 0, 0)
+	end)
+	if not ok then
+		self.err = tostring(err)
+		if self.container then self.container:Hide() end
+		ns.noteError(o.sites.container, self.err)
+		self:update()
+		return
+	end
+	self.width = w
+	self:took(size, ids)
+	if o.driver then
+		local okD, errD = pcall(RegisterStateDriver, self.gate, "visibility", o.driver)
+		if not okD then ns.noteError(o.sites.container, errD) end
+	end
+	self:wait()
+end
+
+-- Records the size and spell IDs the sensor now has, and fits the glow to that size.
+function ClipLook:took(size, ids)
+	if size then
+		self.size = size
+		self.glow:fit(size)
+	end
+	if ids then
+		self.filtered = {}
+		for id in pairs(ids) do self.filtered[id] = true end
+	end
+	self:checkIDs()
+end
+
+-- Whether the sensor matches every spell ID ids() gives now: a sensor missing one would stay empty
+-- over that aura, a false warning. Call it whenever those may have grown.
+function ClipLook:checkIDs()
+	local have = self.filtered
+	local ok = have ~= nil
+	if ok then
+		for id in pairs(self.opts.ids()) do
+			if not have[id] then ok = false break end
+		end
+	end
+	self.idsOK = ok
+	self:update()
+end
+
+-- The sensor and the look for the icon's size now: at once while nothing changed, else the sensor
+-- waits for combat's end and auras readable, and the hold stays at 0 meanwhile (ready). Once a
+-- frame at most, on the next.
+function ClipLook:style()
+	self:update()
+	if not self.container or self.err or self.styleSoon then return end
+	self.styleSoon = true
+	C_Timer.After(0, function()
+		self.styleSoon = false
+		self:styleNow()
+	end)
+end
+function ClipLook:styleNow()
+	local o = self.opts
+	local size = ns.sizeOf(o.key)
+	local w = cellWidth(size, self.frame)
+	if w == self.width then
+		self:took(size)
+		return
+	end
+	if ns.deferWhileAurasSecret(o.sites.style, function() self:styleNow() end) then return end
+	self:wait()
+	local ok = ns.try(o.sites.style, function()
+		self.container:SetFrameStrata(self.frame:GetFrameStrata())
+		self.container:SetAuraGroupLayout(o.key,
+			{ elementWidth = w + CLIP_SLACK, elementHeight = w })
+		self.cell:SetSize(w, w)
+	end)
+	if ok then
+		self.width = w
+		self:took(size)
+	else
+		ns.retryAfterCombat(o.sites.style, function() self:styleNow() end)
+	end
+end
+
+-- The sensor's spell IDs again, from ids() (out of combat, auras readable; else when that ends).
+function ClipLook:refilter()
+	if not self.container or self.err then return end
+	local o = self.opts
+	if ns.deferWhileAurasSecret(o.sites.filter, function() self:refilter() end) then return end
+	local ids = o.ids()
+	self:wait()
+	if ns.try(o.sites.filter, self.container.SetAuraGroupCandidateFilters, self.container, o.key,
+		{ includeSpellIDs = ids }) then
+		self:took(nil, ids)
+	else
+		ns.retryAfterCombat(o.sites.filter, function() self:refilter() end)
+	end
+end
+
+-- Points the sensor at unit ("none" for no unit), or refreshes it on the same one (a new target
+-- that is the same kind of unit). Allowed in combat: Blizzard restricts the aura button, not the
+-- container. Returns false when the client refused; the hold stays at 0 until a call works.
+function ClipLook:follow(unit)
+	local c = self.container
+	if not c or self.err then return true end
+	local ok = true
+	if self.unit ~= unit then ok = ns.try(self.opts.sites.container .. " unit", c.SetUnit, c, unit)
+	elseif unit ~= "none" then
+		ok = ns.try(self.opts.sites.container .. " refresh", c.UpdateAllAuras, c)
+	end
+	self.unit = ok and unit or nil
+	self:wait()
+	return ok
+end
+
+-- Frame levels: the whole chain at lv, the glow's breathing layer too (its look's parts take that
+-- level as it shows, Looks.levelParts).
+function ClipLook:setLevel(lv)
+	for _, f in ipairs({ self.gate, self.hold, self.clip, self.look, self.glow, self.glow.inner }) do
+		f:SetFrameLevel(lv)
+	end
+end
+
+-- For /sf debug: one line of its state.
+function ClipLook:describe()
+	return string.format(
+		"sensor %s%s, size %s (icon %s), spell IDs %s, unit %s, wanted %s, waiting %s, drawn %s",
+		self.container and "made" or "not made", self.err and (" (error: " .. self.err .. ")") or "",
+		tostring(self.size), tostring(ns.sizeOf(self.opts.key)), self.idsOK and "matched" or "behind",
+		tostring(self.unit), tostring(self.wanted), tostring(self.waiting ~= nil),
+		self.glow.look and self.glow.look.key or "none")
 end
 
 -- owner: whose glow and pop style it uses (an element key, "totembar", or nil for General's).

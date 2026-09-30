@@ -126,11 +126,14 @@ local function lookChoices(kind)
 	return out
 end
 
--- A look picker for a style's rows (r, from styleRows): the dropdown, and an EXPERIMENTAL badge
--- under it while the look picked isn't tested in game yet. Returns the look now.
-local function lookRows(p, r, kind, label, feature, shown)
-	local function look() return ns.Style.look(kind, r.style().look) end
-	p:dropdown(label, nil, lookChoices(kind), function() return look().key end, r.set("look"), shown, 190)
+-- A look picker: the dropdown, and an EXPERIMENTAL badge under it while the look picked isn't
+-- tested in game yet. For a style's rows (r, from styleRows) the look is the style's; a warning's
+-- own look gives getLook (its key) and setLook instead (r nil). Returns the look now.
+local function lookRows(p, r, kind, label, feature, shown, getLook, setLook)
+	getLook = getLook or function() return r.style().look end
+	local function look() return ns.Style.look(kind, getLook()) end
+	p:dropdown(label, nil, lookChoices(kind), function() return look().key end,
+		setLook or r.set("look"), shown, 190)
 	local f = p:row(22)
 	ns.Look.expBadge(f, feature):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
 	p:add(f, 22, showWhen(function() return look().experimental end, shown))
@@ -1055,14 +1058,11 @@ local function buildTotemBar(p)
 	p.gate = nil
 end
 
--- Standard row: the look of a glow something else must cover completely (ns.makeInsideGlow), from
--- the looks drawn inside the icon only, and a line saying why the choice is short. Its colour, speed
--- and the rest come from the element's Pulsing glow style.
-local function insideGlowLook(p, getLook, setLook, shown)
-	local choices = {}
-	for _, look in ipairs(ns.insideGlowLooks()) do table.insert(choices, { look.key, look.name }) end
-	p:dropdown("Glow look", nil, choices, getLook, setLook, shown, 170)
-	p:text("Only looks drawn inside the icon can show here.", shown)
+-- Standard row: a warning's own Glow look (ns.makeWarningGlow), and the EXPERIMENTAL badge under
+-- it while the look picked isn't tested in game yet. Its colour, speed and the rest come from the
+-- element's Pulsing glow style.
+local function warningGlowLook(p, getLook, setLook, shown)
+	lookRows(p, nil, "glow", "Glow look", "Glow looks", shown, getLook, setLook)
 end
 
 -- The helpers and standard blocks the Groups & Layout page and the element pages share
@@ -1074,7 +1074,7 @@ OP.kit = {
 	generalRow = generalRow, borderRows = borderRows,
 	timerSettings = timerSettings, gcdBlock = gcdBlock, glowBlock = glowBlock, popBlock = popBlock,
 	textBlock = textBlock, barRows = barRows,
-	expiringLooks = expiringLooks, killedBlock = killedBlock, insideGlowLook = insideGlowLook,
+	expiringLooks = expiringLooks, killedBlock = killedBlock, warningGlowLook = warningGlowLook,
 }
 
 ------------------------------------------------------------------------
