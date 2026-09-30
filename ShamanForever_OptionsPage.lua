@@ -251,7 +251,14 @@ function Page:refresh()
 			ns.say("options: the %s page header failed to update: %s", self.key, tostring(err))
 		end
 	end
-	local y, bottom = 0, 0   -- bottom: of any row standing beside others (float)
+	-- Headers that show: two or more, and the page starts with the fold row.
+	local heads = 0
+	for _, b in ipairs(self.blockList) do
+		if not b.head.shown or b.head.shown() then heads = heads + 1 end
+	end
+	self.heads = heads
+	-- bottom: of any row standing beside others (float)
+	local y, bottom = self:placeFoldRow(heads >= 2), 0
 	local width = self.content:GetWidth()
 	-- open: the block being laid out, while its header shows; gap: owed before the next row shown.
 	local open, gap = nil, false
@@ -263,7 +270,6 @@ function Page:refresh()
 		open, gap = nil, true
 	end
 	for _, b in ipairs(self.blockList) do b.drawn = false end
-	local first, heads = nil, 0   -- the first block whose header shows, and how many show
 	for _, it in ipairs(self.items) do
 		local b = it.block
 		if it.head then close() end   -- a header, shown or not, ends the block before it
@@ -290,10 +296,7 @@ function Page:refresh()
 					ns.say("options: a row on the %s page failed to update: %s", self.key, tostring(err))
 				end
 			end
-			if it.head then
-				first, heads = first or b, heads + 1
-				self:paintHeader(b, b == first)
-			end
+			if it.head then self:paintHeader(b) end
 			it.frame:ClearAllPoints()
 			it.frame:SetPoint("TOPLEFT", self.content, "TOPLEFT", left, -y)
 			it.frame:SetPoint("TOPRIGHT", self.content, "TOPRIGHT", -right, -y)
@@ -305,8 +308,7 @@ function Page:refresh()
 	end
 	close()
 	for _, b in ipairs(self.blockList) do if not b.drawn then hidePanel(b) end end
-	self.heads = heads
-	self:placeFoldBar(heads >= 2 and first or nil)
+	self:paintFoldRow()
 	for _, run in ipairs(self.subs) do self:placeRule(run) end
 	self.rowW = nil
 	self.content:SetHeight(math.max(y, bottom, 1))
@@ -415,75 +417,73 @@ local function paintArrow(t, isFolded)
 	end
 end
 
--- Fold all and Open all: two small arrow buttons at the right of the page's first header, on pages
--- with two blocks or more. Shift-click on any header does the same.
-local FOLD_BAR_W, FOLD_BUTTON = 40, 18
-
--- The header's arrow and, folded, what's on. first: the page's first header, which leaves room for
--- the fold buttons.
-function Page:paintHeader(b, first)
+-- The header's arrow and, folded, what's on.
+function Page:paintHeader(b)
 	local f = b.head.frame
 	local isFolded = folded()[b.key] and true or false
 	paintArrow(f.arrow, isFolded)
 	f.says:SetShown(isFolded)
 	if isFolded then
-		local room = first and FOLD_BAR_W or 0
-		f.says:SetPoint("BOTTOMRIGHT", -room, 9)
 		f.says:SetText(onList(b))
 		local used = f.textX + f.text:GetStringWidth() + (f.note and 10 + f.note:GetStringWidth() or 0)
-		f.says:SetWidth(math.max(self.rowW - used - room - 24, 1))   -- cut short with "..." where it's long
+		f.says:SetWidth(math.max(self.rowW - used - 24, 1))   -- cut short with "..." where it's long
 	end
 end
 
-local function foldButton(bar, fold, x)
-	local b = CreateFrame("Button", nil, bar)
-	b:SetSize(FOLD_BUTTON, FOLD_BUTTON)
-	b:SetPoint("RIGHT", x, 0)
-	b.tex = b:CreateTexture(nil, "ARTWORK")
-	b.tex:SetPoint("CENTER")
-	paintArrow(b.tex, not fold)   -- the arrow that opens a folded block opens them all
-	local hl = b:CreateTexture(nil, "HIGHLIGHT")
-	hl:SetAllPoints()
-	hl:SetColorTexture(1, 1, 1, 0.12)
-	local text = fold and "Fold all" or "Open all"
-	Page.setTip(b, text, "Shift-click a header does the same.")
+-- Expand all and Collapse all: a thin row of two text links at the top of the page, above every
+-- block, on pages with two blocks or more. Shift-click on any header does the same.
+local FOLD_ROW_H, LINK_GAP = 18, 14
+local LINK_GREY = 0.62
+local function foldLink(row, text, onClick)
+	local b = CreateFrame("Button", nil, row)
+	b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	b.text:SetPoint("LEFT")
+	b.text:SetText(text)
+	b:SetSize(b.text:GetStringWidth() + 2, FOLD_ROW_H)
+	b:SetScript("OnClick", onClick)
+	b:SetScript("OnEnter", function() b.text:SetTextColor(1, 0.82, 0) end)
+	b:SetScript("OnLeave", function() b.text:SetTextColor(LINK_GREY, LINK_GREY, LINK_GREY) end)
+	b.text:SetTextColor(LINK_GREY, LINK_GREY, LINK_GREY)
 	return b
 end
 
--- The fold buttons on head's block (nil: none), each dimmed while it would change nothing.
-function Page:placeFoldBar(head)
-	local bar = self.foldBar
-	if not head then
-		if bar then bar:Hide() end
-		return
+-- The row at the top of the page (on shows whether it's there); returns the height it takes.
+function Page:placeFoldRow(on)
+	local row = self.foldRow
+	if not on then
+		if row then row:Hide() end
+		return 0
 	end
-	if not bar then
-		bar = CreateFrame("Frame", nil, self.content)
-		bar:SetSize(FOLD_BAR_W, FOLD_BUTTON)
-		bar.open = foldButton(bar, false, -FOLD_BUTTON - 4)
-		bar.fold = foldButton(bar, true, 0)
-		bar.open:SetScript("OnClick", function() self:foldAll(false) end)
-		bar.fold:SetScript("OnClick", function() self:foldAll(true) end)
-		self.foldBar = bar
+	if not row then
+		row = CreateFrame("Frame", nil, self.content)
+		row:SetHeight(FOLD_ROW_H)
+		row.collapse = foldLink(row, "Collapse all", function() self:foldAll(true) end)
+		row.collapse:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+		row.expand = foldLink(row, "Expand all", function() self:foldAll(false) end)
+		row.expand:SetPoint("RIGHT", row.collapse, "LEFT", -LINK_GAP, 0)
+		self.foldRow = row
 	end
-	local frame = head.head.frame
-	if bar:GetParent() ~= frame then
-		bar:SetParent(frame)
-		bar:ClearAllPoints()
-		bar:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 7)
-	end
+	row:ClearAllPoints()
+	row:SetPoint("TOPLEFT", self.content, "TOPLEFT", 0, 0)
+	row:SetPoint("TOPRIGHT", self.content, "TOPRIGHT", 0, 0)
+	row:Show()
+	return FOLD_ROW_H
+end
+
+-- Each link dims, and takes no clicks, while it would change nothing.
+function Page:paintFoldRow()
+	local row = self.foldRow
+	if not (row and row:IsShown()) then return end
 	local anyFolded, anyOpen = false, false
 	for _, b in ipairs(self.blockList) do
 		if b.head.visible then
 			if folded()[b.key] then anyFolded = true else anyOpen = true end
 		end
 	end
-	for _, pair in ipairs({ { bar.open, anyFolded }, { bar.fold, anyOpen } }) do
+	for _, pair in ipairs({ { row.expand, anyFolded }, { row.collapse, anyOpen } }) do
 		pair[1]:SetEnabled(pair[2])
-		pair[1].tex:SetDesaturated(not pair[2])
-		pair[1].tex:SetAlpha(pair[2] and 1 or 0.4)
+		pair[1]:SetAlpha(pair[2] and 1 or 0.45)
 	end
-	bar:Show()
 end
 
 function Page:row(height)
@@ -734,7 +734,7 @@ function Page:header(text, shown, note, icon)
 			GameTooltip:ClearAllPoints()
 			GameTooltip:SetPoint("BOTTOMLEFT", f, "TOPLEFT", f.textX, -4)
 			GameTooltip:SetText(text)
-			GameTooltip:AddLine("Shift-click to fold or open every block.", 1, 1, 1, true)
+			GameTooltip:AddLine("Shift-click to expand or collapse every block.", 1, 1, 1, true)
 			GameTooltip:Show()
 		end)
 		f:SetScript("OnLeave", function()
