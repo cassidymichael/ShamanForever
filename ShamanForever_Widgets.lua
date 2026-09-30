@@ -208,9 +208,10 @@ end
 -- icon). fit(size) lays it out for an icon of that size.
 local glows = {}
 -- unlisted: left out of ns.applyGlowStyle, for a glow under Blizzard's aura button, which its owner
--- restyles only when that's allowed (out of combat, auras not secret). It keeps the look it had as
--- the button was made (until a /reload; ns.auraGlowStale), and allAnims() lists what the button
--- must play for it (script handlers under the button never run, so its OnShow can't).
+-- restyles only when that's allowed (out of combat, auras not secret). The button plays its
+-- animations (script handlers under it never run, so its OnShow can't): g:bindButton hands them
+-- over as the button is made, and a new look's as the look changes, out of combat; a look whose
+-- animations the button won't take stays the old one (until a /reload; ns.auraGlowStale).
 local auraGlows = {}
 local function makeGlow(parent, over, owner, unlisted)
 	local g = CreateFrame("Frame", nil, parent)
@@ -265,6 +266,19 @@ local function makeGlow(parent, over, owner, unlisted)
 		g:SetScript("OnShow", function(self) play(self, true) end)
 		g:SetScript("OnHide", function(self) play(self, false) end)
 	end
+	-- An unlisted glow's button: its animations handed over now (the button plays them while its
+	-- aura shows); a new look's are handed in restyle. Each only once (the button refuses a repeat).
+	function g:bindButton(button)
+		self.button, self.handed = button, {}
+		for _, a in ipairs(self:allAnims()) do self:hand(a) end
+	end
+	function g:hand(a)
+		if self.handed[a] then return true end
+		local b = self.button
+		local ok = b.AddAuraShownAnimation ~= nil and ns.try("glow hand-off", b.AddAuraShownAnimation, b, a)
+		if ok then self.handed[a] = true end
+		return ok
+	end
 	-- Every animation group Blizzard's aura button must play for this glow (unlisted glows).
 	function g:allAnims()
 		local out = { self.anim }
@@ -275,9 +289,17 @@ local function makeGlow(parent, over, owner, unlisted)
 	-- The owner's style; a fixed colour (killed early's red) wins over its colour.
 	function g:restyle()
 		local st = ns.Style.get(self.owner, "glow")
-		local look = unlisted and self.look or drawn(ns.Style.look("glow", st.look))
+		local look = drawn(ns.Style.look("glow", st.look))
+		-- Under the button, a new look only once the button has taken its animations: out of combat,
+		-- auras readable (it refuses calls otherwise); else the old look stays for now.
+		if unlisted and self.look and look ~= self.look then
+			local ok = self.button ~= nil and not InCombatLockdown() and not ns.aurasSecret()
+			local p = ok and parts(look)
+			for _, a in ipairs(p and p.aura or {}) do ok = ok and self:hand(a) end
+			if not ok then look = self.look end
+		end
 		if look ~= self.look then
-			local running = self.look ~= nil and self:IsShown()
+			local running = not unlisted and self.look ~= nil and self:IsShown()
 			if running then play(self, false) end
 			local old = self.look and self.parts[self.look.key]
 			for _, r in ipairs(old and old.roots or {}) do r:Hide() end
@@ -285,6 +307,11 @@ local function makeGlow(parent, over, owner, unlisted)
 			local p = parts(look)
 			for _, r in ipairs(p and p.roots or {}) do r:Show() end
 			if running then play(self, true) end
+			-- Under the button: the new look's animations start now; the button restarts them as its
+			-- aura shows (a look's old ones keep playing on its hidden parts).
+			if unlisted and self.button then
+				for _, a in ipairs(p and p.aura or {}) do pcall(a.Play, a) end
+			end
 		end
 		self.width = st.width   -- kept for fit, which the ready glows call ten times a second
 		-- A running pulse restarts only when its timing changed, so other changes don't make it jump.
@@ -317,6 +344,20 @@ function ns.applyGlowStyle() for _, g in ipairs(glows) do g:restyle() end end
 -- The owners of glows under Blizzard's aura button whose look differs from their style's now,
 -- among those whose style is owner's (nil: General's): they change after a /reload (the options
 -- say so). Returns their keys.
+-- The owners of glows under Blizzard's aura button whose style's look can't be drawn there
+-- (noAura), among those whose style is owner's: they show the default look instead. Returns their
+-- keys, and that look's name.
+function ns.auraGlowSwapped(owner)
+	local out = {}
+	for _, g in ipairs(auraGlows) do
+		local reaches = owner == g.owner or (owner == nil and ns.Style.follows(g.owner, "glow"))
+		if reaches and ns.Style.look("glow", ns.Style.get(g.owner, "glow").look).noAura then
+			table.insert(out, g.owner)
+		end
+	end
+	return out, ns.Style.look("glow", ns.Style.KINDS.glow.defaults.look).name
+end
+
 function ns.auraGlowStale(owner)
 	local out = {}
 	for _, g in ipairs(auraGlows) do
