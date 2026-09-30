@@ -511,21 +511,21 @@ function Looks.outerEdge(f) return f and f.frameOuter or 0 end
 -- changed or hidden, and a mask it has takes the new shape, or a plain one for a look without.
 -- A mask it never had can only come with a new button: that look waits for a /reload (the options
 -- say so). The element's frame keeps its own art too, for while the button is hidden (no aura).
--- button: the frame the icon is on, the button or the aura slot's host under it (made with it).
+-- host: the frame the icon is on, the button or the aura slot's host under it (made with it).
 local auraMade = setmetatable({}, { __mode = "k" })   -- aura icon -> { key, spec, mask, look, art }
-function Looks.auraMask(button, tex, key)
+function Looks.auraMask(host, tex, key)
 	local b = ns.borderFor(key)
 	local spec, art, size = maskFor(b), artFor(b), ns.sizeOf(key)
 	local made = { key = key, spec = spec, look = spec and lookFor(b), art = art }
 	auraMade[tex] = made
 	if art then
-		local t = button:CreateTexture(nil, "OVERLAY", nil, 7)
+		local t = host:CreateTexture(nil, "OVERLAY", nil, 7)
 		if art.atlas then t:SetAtlas(art.atlas) else t:SetTexture(art.file) end
-		placeArt(t, art, button, size)
+		placeArt(t, art, host, size)
 		made.artTex = t
 	end
 	if spec then
-		local m = button:CreateMaskTexture()
+		local m = host:CreateMaskTexture()
 		placeMask(m, spec, tex, size)
 		tex:AddMaskTexture(m)
 		made.mask = m
@@ -540,7 +540,7 @@ local PLAIN_MASK = { file = WHITE }   -- a mask that hides nothing: a look witho
 function Looks.auraStyle(slot, size)
 	local made = slot.icon and auraMade[slot.icon]
 	if not made then return end
-	local host = slot.host or slot.button
+	local host = slot.host
 	local b = ns.borderFor(made.key)
 	local art, spec = artFor(b), maskFor(b)
 	if art ~= made.art then
@@ -566,7 +566,7 @@ end
 -- change after a /reload (the options say so).
 -- Returns their keys.
 function Looks.auraStale(owner)
-	local out, db = {}, ns.getDB()
+	local out, seen, db = {}, {}, ns.getDB()
 	for _, made in pairs(auraMade) do
 		local group
 		for _, g in ipairs(db and db.groups or {}) do
@@ -574,8 +574,9 @@ function Looks.auraStale(owner)
 		end
 		local reaches = owner == group or (owner == nil and (group == nil or S.follows(group, "border")))
 		local b = ns.borderFor(made.key)
-		if reaches and (maskFor(b) ~= made.spec or artFor(b) ~= made.art) then table.insert(out, made.key) end
+		if reaches and (maskFor(b) ~= made.spec or artFor(b) ~= made.art) then seen[made.key] = true end
 	end
+	for key in pairs(seen) do table.insert(out, key) end   -- one entry per element (a copy shares it)
 	table.sort(out)
 	return out
 end
