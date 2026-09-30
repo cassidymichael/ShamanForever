@@ -582,13 +582,8 @@ local function anyChanged(list)
 	return false
 end
 
--- Asks before run(), a reset of what name names.
-local function askReset(name, run)
-	if not StaticPopupDialogs.SHAMANFOREVER_RESET then
-		ns.Options.kit.confirm("SHAMANFOREVER_RESET", "Reset %s to defaults?", "Reset", function(fn) fn() end)
-	end
-	StaticPopup_Show("SHAMANFOREVER_RESET", name, nil, run)
-end
+-- Asks before run(), a reset of what name names (the dialog: ShamanForever_Options.lua).
+local function askReset(name, run) StaticPopup_Show("SHAMANFOREVER_RESET_SETTINGS", name, nil, run) end
 
 -- An element's own setting; field: one field of a table setting (its Expiring's). Unset is its
 -- default.
