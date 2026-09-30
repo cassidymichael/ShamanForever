@@ -528,15 +528,17 @@ local function buildBuff(p, def)
 	if def.proc then
 		-- Elemental Focus's texts, unless the def has its own (the target's auras, ShamanForever_Target.lua).
 		p:header(def.procHeader or ns.Spells.name("clearcasting"))
-		p:checkbox("Pop", def.popTip or "The moment it procs. The icon grows and settles, at the Pop style's size and speed.",
-			eget(key, "primedPop"), eset(key, "primedPop"))
+		if not def.noPop then
+			p:checkbox("Pop", def.popTip or "The moment it procs. The icon grows and settles, at the Pop style's size and speed.",
+				eget(key, "primedPop"), eset(key, "primedPop"))
+		end
 		p:checkbox("Pulsing glow", def.glowTip or "While it's up.", eget(key, "primedGlow"), eset(key, "primedGlow"))
 		if def.expiring then expiringBlock(p, key, 10, 1) end
 	else
 		expiringBlock(p, key, 120, 5)
 	end
 	-- The water buffs never pop; Elemental Focus's pop is the grow Blizzard's button plays.
-	effectBlocks(p, key, nil, true, def.proc and "grow" or false)
+	effectBlocks(p, key, nil, true, def.proc and not def.noPop and "grow" or false)
 end
 
 -- Tremor Totem's watchlist: a box that searches the list and adds a name, Add target, the list (a

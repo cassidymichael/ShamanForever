@@ -48,7 +48,7 @@ local gateAlpha   -- below
 -- The target's aura elements, in the order the options list them. filter: the aura slot's filter
 -- string; candidates(def): its candidate filters (default: the spell IDs of auraKey). The page's
 -- texts (ShamanForever_OptionsElements.lua): idleText, procHeader, popTip, glowTip, upLabel (its
--- preview's state); expiring and missing: its Expiring and Not on target blocks (Flame Shock's,
+-- preview's state); noPop: no pop when it shows (its glow only); expiring and missing: its Expiring and Not on target blocks (Flame Shock's,
 -- below). defaults: its own option defaults (ns.elementSetting).
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
@@ -68,9 +68,9 @@ local TARGET = {
 		candidates = function(def) return { includeDispelTypes = { Magic = true }, maxDuration = T.longest(def) } end,
 		skipLong = { 1, 30, 1 },   -- Longest buff's range and step, in minutes (its page's slider)
 		idleText = "Idle is when your target has nothing to purge", procHeader = "Something to purge",
-		popTip = "When one shows on your target. The icon grows and settles, at the Pop style's size and speed.",
+		noPop = true,
 		glowTip = "While your target has one.", upLabel = "Magic buff",
-		defaults = { idleAlpha = 0, primedPop = true, primedGlow = true, skipLong = false, skipLongMins = 2 },
+		defaults = { idleAlpha = 0, primedGlow = true, skipLong = false, skipLongMins = 2 },
 		experimental = "Purge" },
 }
 T.ELEMENTS = TARGET
@@ -114,6 +114,7 @@ local function buildButton(def, slot, button, cd)
 	if button.AddAuraShownAnimation then
 		for _, a in ipairs(def.glow:allAnims()) do ns.try("target glow", button.AddAuraShownAnimation, button, a) end
 	end
+	if def.noPop then return end
 	def.popAnim = ns.makeGrowPop(slot.icon, def.key)
 	if button.AddAuraAssignedAnimation then ns.try("target pop", button.AddAuraAssignedAnimation, button, def.popAnim) end
 end
@@ -122,7 +123,7 @@ local function styleButton(def, size, slot)
 	def.glow:restyle()
 	def.glow:fit(size)
 	def.glow:SetShown(setting(def.key, "primedGlow") and true or false)
-	def.popAnim:restyle(setting(def.key, "primedPop") and true or false)
+	if def.popAnim then def.popAnim:restyle(setting(def.key, "primedPop") and true or false) end
 	if def.expiring then
 		-- A refused write while it was lit: the element hides until a 0 goes through (Timers.lua).
 		slot.timer.onStuck = slot.timer.onStuck or function(on) def.stuck = on; gateAlpha(def) end
