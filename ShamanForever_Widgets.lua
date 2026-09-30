@@ -672,6 +672,9 @@ AuraSlot.__index = AuraSlot
 --   parent       what the container hangs from (default frame); name: a global name, or nil
 --   sites        { container = , style = , filter = }: names for its waiting work and caught errors
 --   iconAlpha()  the aura icon's alpha as the button is made (optional)
+--   ownIcon()    a texture to show on the button in place of the aura's icon (optional): set once,
+--                as the button is made, and never handed to Blizzard, so the aura's icon never shows
+--                and nothing under the button is written to later (refused in combat)
 --   barInset()   how far above the bottom edge its time bar sits there (optional; ns.Timer.new)
 --   onButton(slot, button, cd)  the caller's own parts, once Blizzard has made the button
 --   onStyle(slot, size)         the caller's own restyle, after the shared one
@@ -696,7 +699,7 @@ local function initAuraButton(slot, button)
 	tex:SetAllPoints()
 	ns.cropIconExact(tex)
 	if o.iconAlpha then tex:SetAlpha(o.iconAlpha()) end
-	button:SetIcon(tex)
+	if o.ownIcon then tex:SetTexture(o.ownIcon()) else button:SetIcon(tex) end
 	slot.icon = tex
 	-- A frame look's mask and art: only now, on the button (ns.Looks.auraMask).
 	ns.try(o.sites.style, ns.Looks.auraMask, button, tex, o.key)
