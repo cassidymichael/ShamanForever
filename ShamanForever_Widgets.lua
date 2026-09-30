@@ -677,6 +677,11 @@ AuraSlot.__index = AuraSlot
 --                as the button is made, and never handed to Blizzard, so the aura's icon never shows
 --                and nothing under the button is written to later (refused in combat)
 --   noTimer      no time left: the button is handed no cooldown or bar, and the slot has no timer
+--   extras       { { key, init(slot, button) }, ... }: more slots in the same container, taking the
+--                same aura (its candidate filters), each a bare button of its own (no icon) laid
+--                over the first, frame levels above it in order, for parts the one button can't
+--                hold (it drives one bar and one text); init makes its parts, as Blizzard makes it.
+--                slot.extras[key] is its button.
 --   barInset()   how far above the bottom edge its time bar sits there (optional; ns.Timer.new)
 --   onButton(slot, button, cd)  the caller's own parts, once Blizzard has made the button
 --   onStyle(slot, size)         the caller's own restyle, after the shared one
@@ -730,6 +735,20 @@ local function initAuraButton(slot, button)
 	slot.button = button
 end
 
+-- An extra slot's button (opts.extras), called by Blizzard as it makes it: placed over the first,
+-- no mouse, and its parts.
+local function initExtraButton(slot, x, button)
+	local size = ns.sizeOf(slot.opts.key)
+	button:SetSize(size, size)
+	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
+	pcall(button.EnableMouse, button, false)
+	pcall(button.SetMouseClickEnabled, button, false)
+	pcall(button.SetMouseMotionEnabled, button, false)
+	slot.extras = slot.extras or {}
+	slot.extras[x.key] = button
+	x.init(slot, button)
+end
+
 -- The slot's candidate filters: opts.candidates() if given, else its spell IDs.
 local function candidates(o)
 	if o.candidates then return o.candidates() end
@@ -759,6 +778,12 @@ function AuraSlot:setup()
 			candidateFilters = candidates(o),
 			initializeFrame = function(button) initAuraButton(self, button) end,
 		})
+		for _, x in ipairs(o.extras or {}) do
+			c:AddAuraSlot(o.slot .. "-" .. x.key, o.filter or "HELPFUL", {
+				candidateFilters = candidates(o),
+				initializeFrame = function(button) initExtraButton(self, x, button) end,
+			})
+		end
 	end)
 	if not ok then
 		self.err = tostring(err)
@@ -792,6 +817,15 @@ function AuraSlot:styleNow()
 		c:SetFrameStrata(f:GetFrameStrata())
 		c:SetFrameLevel(f.textFrame:GetFrameLevel() + 5)
 		self.button:SetSize(size, size)
+		-- Extra slots' buttons over the first and its parts, in order, two levels apart (their own
+		-- parts take the level between); set from our own levels, never read back from the buttons.
+		for i, x in ipairs(o.extras or {}) do
+			local b = self.extras and self.extras[x.key]
+			if b then
+				b:SetSize(size, size)
+				b:SetFrameLevel(f.textFrame:GetFrameLevel() + 5 + 2 * i + 2)
+			end
+		end
 		-- Its own try: a look the button refuses mustn't stop the timer and the caller's parts.
 		ns.try(o.sites.style .. ": look", ns.Looks.auraStyle, self, size)
 		if self.timer then self.timer:apply() end
@@ -809,6 +843,12 @@ function AuraSlot:refilter()
 	if ns.deferWhileAurasSecret(o.sites.filter, function() self:refilter() end) then return end
 	local filters = candidates(o)
 	local ok = ns.try(o.sites.filter, self.container.SetAuraSlotCandidateFilters, self.container, o.slot, filters)
+	for _, x in ipairs(o.extras or {}) do
+		if ok then
+			ok = ns.try(o.sites.filter, self.container.SetAuraSlotCandidateFilters, self.container,
+				o.slot .. "-" .. x.key, filters)
+		end
+	end
 	if ok then self.filtered = filters.includeSpellIDs
 	else ns.retryAfterCombat(o.sites.filter, function() self:refilter() end) end
 end
