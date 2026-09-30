@@ -615,3 +615,38 @@ function E.growPop(region, owner)
 	return g
 end
 
+------------------------------------------------------------------------
+-- The effect host: an element's one glow and one pop, in its one glow look and pop style. Here the
+-- element is drawn by our own icon, so the host shows the glow and plays the pop directly. Other
+-- glows an element has (a ready glow on its gate, its timer's expiring glow, an end flash's red
+-- glow) are E.glow with the element as owner: one look and style, several places it shows.
+------------------------------------------------------------------------
+local Host = {}
+Host.__index = Host
+
+-- f: the element's icon; key: its style owner (an element key, "totembar", or nil for General's).
+-- h.glowF is its glow (E.glow over f).
+function E.host(f, key)
+	local h = setmetatable({ f = f, key = key }, Host)
+	h.glowF = E.glow(f, f, key)
+	return h
+end
+
+-- The glow on or off, fitted to the icon; r, g, b: a colour of its own (killed early's red) in
+-- place of the style's.
+function Host:glow(on, r, g, b)
+	local gl = self.glowF
+	if on then
+		gl:fit(self.f:GetWidth())
+		if r then gl:color(r, g, b)
+		elseif gl.fixed then gl.fixed = nil; gl:restyle() end
+	end
+	gl:SetShown(on and true or false)
+end
+
+-- The pop for kind (default ready), now: nothing while the icon isn't visible.
+function Host:pop(kind) E.pop(self.f, kind or "ready", self.key) end
+
+-- The glow restyled from its style, and fitted to an icon of size.
+function Host:restyle() self.glowF:restyle() end
+function Host:fit(size) self.glowF:fit(size) end

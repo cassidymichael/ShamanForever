@@ -850,15 +850,11 @@ function ns.makeIcon(parent, size, owner)
 		if shown then self.ring:color(r, g, b, a) end
 		self.ring:show(shown)
 	end
-	-- Glow (gold by default) and pop, for warnings and moments worth catching the eye.
-	f.glowF = ns.Effects.glow(f, f, owner)
-	f.SetGlowShown = function(self, shown, r, g, b)
-		if shown then
-			self.glowF:fit(self:GetWidth())
-			if r then self.glowF:color(r, g, b) elseif self.glowF.fixed then self.glowF.fixed = nil; self.glowF:restyle() end
-		end
-		self.glowF:SetShown(shown and true or false)
-	end
-	f.Pop = function(self, kind) ns.Effects.pop(self, kind or "ready", self.owner) end
+	-- Glow (gold by default) and pop, for warnings and moments worth catching the eye: its effect
+	-- host's (ns.Effects).
+	f.fx = ns.Effects.host(f, owner)
+	f.glowF = f.fx.glowF
+	f.SetGlowShown = function(self, shown, r, g, b) self.fx:glow(shown, r, g, b) end
+	f.Pop = function(self, kind) self.fx:pop(kind) end
 	return f
 end
