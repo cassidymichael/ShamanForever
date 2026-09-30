@@ -6,6 +6,8 @@
 - Flame Shock: its Expiring colour no longer shows as a flat strip on textured time bars.
 - Totem bar: the arrow keys nudge it while positioning, and groups snap to it.
 - Totem bar: the Not your pick badge sits against its slot.
+- Shields' No shield and Flame Shock's Not on target: their pulsing glow can use every glow look,
+  including ones past the icon's edge, in combat too.
 
 ## 0.10.0 (2026-09-30)
 
