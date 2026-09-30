@@ -305,6 +305,7 @@ function Page:refresh()
 	end
 	close()
 	for _, b in ipairs(self.blockList) do if not b.drawn then hidePanel(b) end end
+	self.heads = heads
 	self:placeFoldBar(heads >= 2 and first or nil)
 	for _, run in ipairs(self.subs) do self:placeRule(run) end
 	self.rowW = nil
@@ -716,11 +717,12 @@ function Page:header(text, shown, note, icon)
 		block.head = self.items[#self.items]
 		block.head.head = true
 		-- The whole header folds and opens its block (with Shift, every block), and lights up under
-		-- the mouse.
+		-- the mouse. Its tooltip, like the fold buttons, only on a page with two blocks or more.
 		local r, g, bl = f.text:GetTextColor()
 		f:EnableMouse(true)
 		f:SetScript("OnEnter", function()
 			f.text:SetTextColor(1, 0.93, 0.6)
+			if (self.heads or 0) < 2 then return end
 			GameTooltip:SetOwner(f, "ANCHOR_NONE")
 			GameTooltip:ClearAllPoints()
 			GameTooltip:SetPoint("BOTTOMLEFT", f, "TOPLEFT", f.textX, -4)
