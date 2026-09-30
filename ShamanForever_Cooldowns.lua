@@ -65,9 +65,9 @@ local setting = ns.elementSetting
 --   experimental        a feature name: not tested in game (the level cap is 20)
 local COOLDOWNS = {
 	{ key = "earthbind", spellKey = "earthbind", icon = 136102, totemSlot = 2, duration = 45, school = "earth",
-		blurb = "Cooldown, and time left while it's down." },
+		blurb = "Cooldown, and time left while it's down.", defaults = { idleAlpha = 0.2 } },
 	{ key = "stoneclaw", spellKey = "stoneclaw", icon = 136097, totemSlot = 2, duration = 15, school = "earth",
-		blurb = "Cooldown, and time left while it's down." },
+		blurb = "Cooldown, and time left while it's down.", defaults = { idleAlpha = 0.2 } },
 	{ key = "firenova",  spellKey = "fireNova",  icon = 135824, needsTotem = 1, school = "fire",
 		blurb = "Cooldown. Needs a fire totem." },
 	-- Emergency cooldowns: plainly visible while ready.
@@ -84,7 +84,7 @@ local COOLDOWNS = {
 		defaults = { idleAlpha = 1, expire = { secs = 3, glow = true, pulse = false } }, experimental = "Mana Tide Totem" },
 	{ key = "grounding", spellKey = "grounding", icon = 136039, totemSlot = 4, duration = 45, school = "air",
 		blurb = "Cooldown, time left, and a flash when it takes a spell.",
-		grounded = true, ranOut = true, cd = 15, experimental = "Grounding Totem" },
+		grounded = true, ranOut = true, cd = 15, defaults = { idleAlpha = 0.2 }, experimental = "Grounding Totem" },
 	-- Rotation: full while ready, like the shocks.
 	-- On Forever, Stormstrike leaves a 12 s debuff with one charge on the target: the shaman's next
 	-- Lightning Bolt, Chain Lightning or Earth Shock on it hits 20% harder. Auras can't be read in
