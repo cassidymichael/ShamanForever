@@ -215,7 +215,7 @@ local glows = {}
 local auraGlows = {}
 local function makeGlow(parent, over, owner, unlisted)
 	local g = CreateFrame("Frame", nil, parent)
-	g.owner = owner
+	g.owner, g.unlisted = owner, unlisted
 	-- The icon whose frame and school its looks follow; never Blizzard's aura button (it and its
 	-- parts are off limits in combat): an unlisted glow takes its owner's school and no frame.
 	g.over = not unlisted and (over or parent) or nil

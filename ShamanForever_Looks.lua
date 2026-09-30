@@ -779,11 +779,14 @@ local halo = {
 }
 
 -- Blizzard's action bar proc glow: a burst that settles into a ring of moving light, in its
--- own gold unless the glow's colour is changed. Not under Blizzard's aura button (noAura): its
--- flipbooks drew there as whole sprite sheets, a grid of rings and squares round the icon (seen
--- 2026-09-30 on Purge), so a glow there takes the default look instead.
+-- own gold unless the glow's colour is changed. Under Blizzard's aura button (g.unlisted) only the
+-- ring: the burst needs a script to hand over to it, and none runs there; the button plays the
+-- ring (handed over, g:bindButton). The first build there, with the burst, drew both flipbooks as
+-- whole sprite sheets (a grid of rings and squares, 2026-09-30); PROC_ON_AURA false takes the
+-- default look there instead, if the ring alone does too.
+local PROC_ON_AURA = true
 local proc = {
-	uses = { color = true }, steady = true, noAura = true,
+	uses = { color = true }, steady = true, noAura = not PROC_ON_AURA,
 	build = function(g)
 		if not (Looks.hasAtlas(PROC_START) and Looks.hasAtlas(PROC_LOOP)) then
 			local parts = soft.build(g)
@@ -791,17 +794,23 @@ local proc = {
 			return parts
 		end
 		local r = root(g.inner)
-		local start, loop = r:CreateTexture(nil, "OVERLAY"), r:CreateTexture(nil, "OVERLAY")
-		start:SetAtlas(PROC_START)
+		local loop = r:CreateTexture(nil, "OVERLAY")
 		loop:SetAtlas(PROC_LOOP)
-		local startG, loopG = flipBook(start, 6, 5, 30, 0.7), flipBook(loop, 6, 5, 30, 1, "REPEAT")
+		local loopG = flipBook(loop, 6, 5, 30, 1, "REPEAT")
+		if g.unlisted then
+			return { roots = { r }, loop = loop, texs = { loop }, anims = { loopG }, aura = { loopG }, stop = { loopG } }
+		end
+		local start = r:CreateTexture(nil, "OVERLAY")
+		start:SetAtlas(PROC_START)
+		local startG = flipBook(start, 6, 5, 30, 0.7)
 		startG:SetScript("OnFinished", function() if r:IsVisible() then loopG:Play() end end)
-		return { roots = { r }, start = start, loop = loop, anims = { startG }, aura = { loopG }, stop = { loopG } }
+		return { roots = { r }, start = start, loop = loop, texs = { start, loop }, anims = { startG }, aura = { loopG },
+			stop = { loopG } }
 	end,
 	style = function(g, parts, st, c)
 		if parts.fallback then return soft.style(g, parts, st, c) end
 		local own = not g.fixed and c[1] == GOLD_GLOW[1] and c[2] == GOLD_GLOW[2] and c[3] == GOLD_GLOW[3]
-		for _, t in ipairs({ parts.start, parts.loop }) do
+		for _, t in ipairs(parts.texs) do
 			t:SetDesaturated(not own)
 			if own then t:SetVertexColor(1, 1, 1, c[4] or 1) else t:SetVertexColor(c[1], c[2], c[3], c[4] or 1) end
 		end
@@ -809,8 +818,10 @@ local proc = {
 	fit = function(g, parts, size, out)
 		if parts.fallback then return soft.fit(g, parts, size) end
 		local s = size + 2 * out
-		parts.start:SetSize(s * 150 / 45, s * 150 / 45)
-		parts.start:SetPoint("CENTER", g, "CENTER", 0, 0)
+		if parts.start then
+			parts.start:SetSize(s * 150 / 45, s * 150 / 45)
+			parts.start:SetPoint("CENTER", g, "CENTER", 0, 0)
+		end
 		parts.loop:SetSize(s * 1.4, s * 1.4)
 		parts.loop:SetPoint("CENTER", g, "CENTER", 0, 0)
 	end,
