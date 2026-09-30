@@ -1,9 +1,9 @@
 -- Totem bar: its theme (a "look" in the code, `skin` in its settings), the ways the whole bar can
--- be drawn. Default is the bar as its own settings draw it; another look draws the slots, their time bars, the
--- out-of-range mark, the pickers and what sits behind the bar its own way. Each look is a data
--- entry (the list below); the totem bar, its range strip and the options' preview of the bar
--- call the functions below, which leave everything as it was for Default and take down what
--- another look drew when the player goes back to it.
+-- be drawn. Default is the bar as its own settings draw it; another look draws the slots, their
+-- time bars, the out-of-range mark, the pickers and what sits behind the bar its own way. Each
+-- look is a data entry (the list below); the totem bar, its range strip and the options' preview
+-- of the bar call the functions below, which leave everything as it was for Default and take down
+-- what another look drew when the player goes back to it.
 --
 -- A look can own some of the bar's settings (its `owns`): while it is picked the bar uses the
 -- look's value and the options hide that setting ("set by the theme"), and the player's own value
@@ -33,16 +33,17 @@ local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Art\\Looks\\"
 local PLINTH = MEDIA .. "Plinth"
 -- Plinth.tga (512x256): three one-piece plinths for four slots, each drawn once (no tiling), for a
 -- slot PL_SLOT texels wide: rect { x, y, w, h }, each opening's left edge and the openings' top
--- (from the rect's top left), and the bottom rail's middle. Then plain stone
--- for the pickers (a tall strip) and the plug that seals a socket.
+-- (from the rect's top left); and the plug that seals a socket. (The file also holds a strip of
+-- plain stone that nothing draws now: the pickers are the plinths' own pieces.)
 local PL_SLOT = 48
 local PLINTHS = {
-	slim = { rect = { 1, 174, 248, 60 }, slotX = { 13.6, 71.2, 128.8, 186.4 }, slotY = 7.2, railMid = 58.2 },
-	normal = { rect = { 1, 100, 284, 72 }, slotX = { 21.6, 86, 150.4, 214.8 }, slotY = 13.2, railMid = 69.6 },
-	grand = { rect = { 1, 1, 322, 97 }, slotX = { 27.6, 100.8, 173.6, 246.4 }, slotY = 25.2, railMid = 92 },
+	slim = { rect = { 1, 174, 248, 60 }, slotX = { 13.6, 71.2, 128.8, 186.4 }, slotY = 7.2 },
+	normal = { rect = { 1, 100, 284, 72 }, slotX = { 21.6, 86, 150.4, 214.8 }, slotY = 13.2 },
+	grand = { rect = { 1, 1, 322, 97 }, slotX = { 27.6, 100.8, 173.6, 246.4 }, slotY = 25.2 },
 }
-local STONE, PLUG = { 325, 1, 64, 254 }, { 391, 1, 48, 48 }
-SK.PLINTHS = { { "slim", "Slim" }, { "normal", "Normal" }, { "grand", "Grand" } }   -- the options' order
+local PLUG = { 391, 1, 48, 48 }
+-- The options' order.
+SK.PLINTHS = { { "slim", "Slim" }, { "normal", "Normal" }, { "grand", "Grand" } }
 -- The plinth picked now; the gap between two slots and before the first, as shares of a slot.
 local function plinthNow()
 	return PLINTHS[ns.getDB() and TB.cfg().stonePlinth] or PLINTHS.normal
@@ -50,8 +51,6 @@ end
 local function shares(pl)
 	return (pl.slotX[2] - pl.slotX[1] - PL_SLOT) / PL_SLOT, pl.slotX[1] / PL_SLOT
 end
-local BRONZE = { 0.64, 0.48, 0.24, 1 }
-local BRONZE_DARK = { 0.10, 0.07, 0.03, 1 }
 
 -- A border style (ns.Style's "border" kind, every field) drawn in one of ns.Looks' border looks.
 local function borderStyle(look, size)
@@ -73,7 +72,7 @@ end
 --   mark           the out-of-range mark: "edge" (the strip, solid red)
 --   picker         the pickers' look ("tray", "stone")
 --   arrow          the arrow tab's look ("stone")
---   popPad         a margin round a picker's buttons, as a share of a button's size
+--   picker "stone" also draws the picker's measures (SK.popMetrics)
 --   badgeGap(size) how far past the slot the look hangs something on the badge's side ("not your
 --                  pick" sits beyond it)
 --   rangeText      the Out of range section's line while the look owns its rows
@@ -121,7 +120,6 @@ add("stone", {
 	end,
 	border = borderStyle("line", 1), extrasBorder = borderStyle("medallion"),
 	behind = "plinth", picker = "stone", arrow = "stone", fixedSlots = true,
-	popPad = 0.15,
 	extrasScaleKey = "stoneExtrasScale",
 	badgeGap = function(size) return select(2, plinthReach(size)) end,
 })
@@ -148,10 +146,17 @@ end
 -- The bar setting Call and Recall's size is kept in under the look picked now.
 function SK.extrasScaleKey() return SK.current().extrasScaleKey or "extrasScale" end
 
--- The margin round a picker's buttons, for buttons psz wide (TB.popLength).
-function SK.popPad(psz)
-	local k = SK.current().popPad
-	return k and math.floor(psz * k + 0.5) or 0
+-- A stone picker is a small plinth stood on end: the picked plinth's pieces turned a quarter, its
+-- right end at the slot, an opening per button with a rune divider between, its left end at the
+-- far end; the rails run up its sides. Its measures, for buttons psz wide as the openings: the
+-- ends, the gap between buttons, the width across (TB.popLength); nil for a plain picker.
+function SK.popMetrics(psz)
+	if SK.current().picker ~= "stone" then return nil end
+	local pl = plinthNow()
+	local u = psz / PL_SLOT
+	local r = pl.rect
+	local gap = (pl.slotX[2] - pl.slotX[1] - PL_SLOT) * u
+	return (r[3] - pl.slotX[4] - PL_SLOT) * u, pl.slotX[1] * u, gap, r[4] * u
 end
 
 -- Whether the look picked now is drawn round four fixed slots (the bar keeps a place for each).
@@ -432,16 +437,19 @@ end
 -- Plain stone for a frame f, from the plinth's tall strip without stretching it: as much of the
 -- strip as fits f's shape. A size that reads as secret or empty (a frame anchored to a secure
 -- button) takes a short piece.
-local function stoneFor(t, f)
-	local w, h = f:GetSize()
-	local r = STONE
-	local th = r[3] * 0.4
-	if not (ns.isSecret(w) or ns.isSecret(h)) and w > 0 and h > 0 then th = math.min(r[4], r[3] * h / w) end
-	plinthPiece(t, { r[1], r[2], r[3], th })
+-- A texture showing columns [c0, c1) of the picked plinth (texels from its left), turned a
+-- quarter clockwise: the plinth's left becomes the top, its top rail the right side.
+local function turnedPiece(t, c0, c1)
+	local r = plinthNow().rect
+	local x0, x1 = (r[1] + c0) / 512, (r[1] + c1) / 512
+	local y0, y1 = r[2] / 256, (r[2] + r[4]) / 256
+	t:SetTexture(PLINTH)
+	t:SetTexCoord(x0, y1, x1, y1, x0, y0, x1, y0)
 end
 
--- The arrow tab's look (TB.makeArrowLook; TB.placeArrow has placed it). "stone": the pickers'
--- stone, edged in the plinth's bronze.
+-- The arrow tab's look (TB.makeArrowLook; TB.placeArrow has placed it). "stone": the stone
+-- picker's foot (the plinth's right end, turned), the arrow in bronze.
+local ARROW_BRONZE = { 0.9, 0.72, 0.42 }
 function SK.styleArrow(t)
 	local kind = SK.current().arrow
 	if t.skinned then
@@ -452,36 +460,81 @@ function SK.styleArrow(t)
 	if not kind then return end
 	t.skinned = true
 	t:SetBackdropColor(0, 0, 0, 0)
-	t:SetBackdropBorderColor(BRONZE[1], BRONZE[2], BRONZE[3], BRONZE[4])
+	t:SetBackdropBorderColor(0, 0, 0, 0)
 	local bg = t.skinBg
 	if not bg then
 		bg = t:CreateTexture(nil, "BACKGROUND", nil, 1)
-		bg:SetPoint("TOPLEFT", 1, -1)
-		bg:SetPoint("BOTTOMRIGHT", -1, 1)
+		bg:SetAllPoints()
 		t.skinBg = bg
 	end
-	stoneFor(bg, t)
-	bg:SetVertexColor(0.8, 0.8, 0.8, 1)
+	local pl = plinthNow()
+	turnedPiece(bg, pl.slotX[4] + PL_SLOT, pl.rect[3])
 	bg:Show()
+	-- The glyph is Blizzard's added highlight art (a black ground): tinted, still added.
+	t.glyph:SetVertexColor(ARROW_BRONZE[1], ARROW_BRONZE[2], ARROW_BRONZE[3], 1)
 end
 
--- A picker's look (pop: the popout, with its bg). Default: a plain dark fill. "tray": the Pixel
--- tray's fill and edge. "stone": plain stone from the plinth.
-function SK.stylePopout(pop)
+-- The stone picker's pieces on pop for n buttons (the measures of SK.popMetrics): from the slot's
+-- end, the foot, then an opening per button with a divider between, then the head.
+local function stonePicker(pop, p, n, psz)
+	local pl = plinthNow()
+	local first, last, gap = SK.popMetrics(psz)
+	local f = p.stone
+	if not f then
+		f = { head = pop:CreateTexture(nil, "BACKGROUND", nil, 1),
+			foot = pop:CreateTexture(nil, "BACKGROUND", nil, 1), tiles = {}, divs = {} }
+		p.stone = f
+	end
+	local x1, x2, x4 = pl.slotX[1], pl.slotX[2], pl.slotX[4]
+	local function place(t, y, h)
+		t:ClearAllPoints()
+		t:SetPoint("BOTTOMLEFT", pop, "BOTTOMLEFT", 0, y)
+		t:SetPoint("BOTTOMRIGHT", pop, "BOTTOMRIGHT", 0, y)
+		t:SetHeight(h)
+		t:Show()
+	end
+	turnedPiece(f.foot, x4 + PL_SLOT, pl.rect[3])
+	place(f.foot, 0, first)
+	local y = first
+	for i = 1, n do
+		local t = f.tiles[i] or pop:CreateTexture(nil, "BACKGROUND", nil, 1)
+		f.tiles[i] = t
+		turnedPiece(t, x1, x1 + PL_SLOT)
+		place(t, y, psz)
+		y = y + psz
+		if i < n then
+			local d = f.divs[i] or pop:CreateTexture(nil, "BACKGROUND", nil, 1)
+			f.divs[i] = d
+			turnedPiece(d, x1 + PL_SLOT, x2)
+			place(d, y, gap)
+			y = y + gap
+		end
+	end
+	for i = n + 1, #f.tiles do f.tiles[i]:Hide() end
+	for i = math.max(n, 1), #f.divs do f.divs[i]:Hide() end
+	turnedPiece(f.head, 0, x1)
+	place(f.head, y, last)
+end
+
+-- A picker's look (pop: the popout, with its bg), for n buttons psz wide. Default: a plain dark
+-- fill. "tray": the Pixel tray's fill and edge. "stone": a small plinth stood on end.
+function SK.stylePopout(pop, n, psz)
 	local kind = SK.current().picker
 	local p = pop.skin
 	if p then
 		for _, t in ipairs(p.lines) do t:Hide() end
-		pop.bg:SetVertexColor(1, 1, 1, 1)
-		pop.bg:SetTexCoord(0, 1, 0, 1)
+		if p.stone then
+			p.stone.head:Hide()
+			p.stone.foot:Hide()
+			for _, t in ipairs(p.stone.tiles) do t:Hide() end
+			for _, t in ipairs(p.stone.divs) do t:Hide() end
+		end
 	end
 	if kind == "stone" then
-		-- Plain stone from the plinth, darkened, edged dark then bronze, the buttons set in it.
 		p = p or { lines = {} }
 		pop.skin = p
-		stoneFor(pop.bg, pop)
-		pop.bg:SetVertexColor(0.8, 0.8, 0.8, 1)
-		insetRings(pop, p.lines, { { 1, BRONZE_DARK }, { 2, BRONZE } })
+		pop.bg:SetColorTexture(0, 0, 0, 0)
+		stonePicker(pop, p, n, psz)
 		return
 	end
 	if not kind then

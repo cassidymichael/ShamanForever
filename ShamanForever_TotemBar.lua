@@ -249,15 +249,24 @@ function TB.along(n, size, px)
 	return list, math.max(hi - lo, size), line
 end
 
--- A picker's button size, for slots of this size, and its length for n buttons of that size. A
--- theme can frame the buttons in a wider margin (TB.skin.popPad), all round.
+-- A picker's button size, for slots of this size. Its measures for buttons psz wide: the margin
+-- before the first button (at the slot's end) and after the last, the gap between buttons, and its
+-- width across; a theme can draw its own (TB.skin.popMetrics). Its length for n buttons.
 function TB.popButtonSize(size) return math.floor(size * 0.8 + 0.5) end
-function TB.popLength(n, psz) return POP_STEP + n * (psz + POP_STEP) + 2 * TB.skin.popPad(psz) end
-local function popThick(psz) return psz + 2 * POP_STEP + 2 * TB.skin.popPad(psz) end
+local function popDims(psz)
+	local first, last, gap, thick = TB.skin.popMetrics(psz)
+	if first then return first, last, gap, thick end
+	return POP_STEP, POP_STEP, POP_STEP, psz + 2 * POP_STEP
+end
+function TB.popLength(n, psz)
+	local first, last, gap = popDims(psz)
+	return first + last + n * psz + (n - 1) * gap
+end
 -- A picker of n buttons (psz) beside anchor, a slot, on the side pickers open, past the arrow tab.
 function TB.placePopout(pop, anchor, n, psz)
 	local c = TB.eff()
-	local len, thick, tab = TB.popLength(n, psz), popThick(psz), c.arrowSize
+	local len, tab = TB.popLength(n, psz), c.arrowSize
+	local thick = select(4, popDims(psz))
 	pop:ClearAllPoints()
 	if c.pop == "up" then pop:SetSize(thick, len); pop:SetPoint("BOTTOM", anchor, "TOP", 0, tab + 4)
 	elseif c.pop == "down" then pop:SetSize(thick, len); pop:SetPoint("TOP", anchor, "BOTTOM", 0, -tab - 4)
@@ -269,7 +278,8 @@ function TB.placePopButton(b, pop, i, psz)
 	local c = TB.eff()
 	b:SetSize(psz, psz)
 	b:ClearAllPoints()
-	local off = POP_STEP + TB.skin.popPad(psz) + (i - 1) * (psz + POP_STEP)
+	local first, _, gap = popDims(psz)
+	local off = first + (i - 1) * (psz + gap)
 	if c.pop == "up" then b:SetPoint("BOTTOM", pop, "BOTTOM", 0, off)
 	elseif c.pop == "down" then b:SetPoint("TOP", pop, "TOP", 0, -off)
 	elseif c.pop == "right" then b:SetPoint("LEFT", pop, "LEFT", off, 0)
@@ -293,6 +303,7 @@ function TB.plainArrow(t)
 	t.glyph:SetTexture("Interface\\Buttons\\UI-TotemBar")
 	t.glyph:SetTexCoord(0.5625, 0.71875, 0.34375, 0.3828125)
 	t.glyph:SetBlendMode("ADD")
+	t.glyph:SetVertexColor(1, 1, 1, 1)
 end
 -- The arrow tab along anchor's picker side, arrowSize deep, and its glyph sized and turned.
 local GLYPH_TURN = { up = 0, down = math.pi, right = -math.pi / 2, left = math.pi / 2 }
@@ -1017,10 +1028,10 @@ local function layoutPopout(s, size, known)
 	end
 	for i = #ids + 1, #pop.buttons do pop.buttons[i]:Hide() end
 	TB.placePopout(pop, s.button, #ids, psz)
-	TB.skin.stylePopout(pop)
+	TB.skin.stylePopout(pop, #ids, psz)
 	-- Hover mode's strip: as wide as the slot or the picker, whichever is wider.
 	local strip, dir, b = pop.strip, TB.eff().pop, s.button
-	local across = math.max(size, popThick(psz))
+	local across = math.max(size, select(4, popDims(psz)))
 	strip:ClearAllPoints()
 	if dir == "up" then strip:SetPoint("BOTTOM", b, "TOP"); strip:SetPoint("TOP", pop, "TOP"); strip:SetWidth(across)
 	elseif dir == "down" then strip:SetPoint("TOP", b, "BOTTOM"); strip:SetPoint("BOTTOM", pop, "BOTTOM"); strip:SetWidth(across)

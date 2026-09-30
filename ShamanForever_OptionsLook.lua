@@ -935,7 +935,7 @@ L.PREVIEW.totembar = {
 			TB.skin.styleArrow(h.tab)
 			local p = h.pop
 			TB.placePopout(p, first.box, items, psz)
-			TB.skin.stylePopout(p)
+			TB.skin.stylePopout(p, items, psz)
 			for i, it in ipairs(p.items) do
 				it:SetShown(i <= items)
 				TB.placePopButton(it, p, i, psz)
