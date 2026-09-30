@@ -1206,17 +1206,19 @@ end
 -- Look tiles: an icon wearing a look that isn't saved anywhere, for pickers and previews. A tile
 -- is ns.makeIcon on a sandbox owner (a table of its own, so General and every element are
 -- untouched) and draws through the HUD's own code: the icon, its effect host, Looks.fit, the pop.
+-- L.tilePool.acquire makes one; release gives it back (tiles are never made per refresh).
 ------------------------------------------------------------------------
 -- The five schools in their order: key, colour, and a sample icon of each (Stoneskin, Searing,
 -- Healing Stream, Windfury, Lightning Shield).
 L.SCHOOLS = {
-	{ key = "earth", icon = 136098 }, { key = "fire", icon = 135825 }, { key = "water", icon = 135127 },
-	{ key = "air", icon = 136114 }, { key = "spirit", icon = 136051 },
+	{ key = "earth", icon = 136098 }, { key = "fire", icon = 135825 },
+	{ key = "water", icon = 135127 }, { key = "air", icon = 136114 },
+	{ key = "spirit", icon = 136051 },
 }
 for _, s in ipairs(L.SCHOOLS) do s.color = ns.SCHOOL_COLOR[s.key] end
 
 do
-	local KINDS = { border = "border", glow = "glow", pop = "pop" }   -- over's keys -> style kinds
+	local KINDS = { "border", "glow", "pop" }   -- the style kinds a tile wears; over's keys
 	local Tile = {}
 	Tile.__index = Tile
 
@@ -1234,9 +1236,9 @@ do
 	-- Wears the styles base uses (an owner: nil for General's, an element key, "totembar", a group's
 	-- table) with over on top: { border = {...}, glow = {...}, pop = {...} }, fields of each kind.
 	function Tile:wear(base, over)
-		for key, kind in pairs(KINDS) do
+		for _, kind in ipairs(KINDS) do
 			local st = ns.Style.get(base, kind)
-			for k, v in pairs(over and over[key] or {}) do st[k] = copy(v) end
+			for k, v in pairs(over and over[kind] or {}) do st[k] = copy(v) end
 			setStyle(self.owner, kind, st)
 		end
 		self.ic.glowF:restyle()
@@ -1268,7 +1270,7 @@ do
 	-- The pop of kind (default ready) now.
 	function Tile:pop(kind) self.ic:Pop(kind) end
 
-	-- The name under the tile, and a badge to the right of it: true for EXPERIMENTAL, or a word.
+	-- The name under the tile, and a badge under that: true for EXPERIMENTAL, or a word.
 	function Tile:label(text, badge)
 		if not self.text then
 			self.text = self.box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -1296,8 +1298,8 @@ do
 	function Tile:point(...) self.box:ClearAllPoints(); self.box:SetPoint(...) end
 
 	local function make(parent, size)
-		local t = setmetatable({ size = size, owner = { name = "Preview" } }, Tile)
-		for _, kind in pairs(KINDS) do setStyle(t.owner, kind) end
+		local t = setmetatable({ size = size, owner = {} }, Tile)
+		for _, kind in ipairs(KINDS) do setStyle(t.owner, kind) end
 		t.box = CreateFrame("Frame", nil, parent)
 		t.box:SetSize(size, size)
 		t.ic = ns.makeIcon(t.box, size, t.owner)
@@ -1311,13 +1313,14 @@ do
 	L.tilePool = Pool
 
 	-- A tile of size in parent, wearing General, in no school, the first school's sample icon,
-	-- hidden glow and no label; shown.
+	-- hidden glow and no label; shown, and not anchored: the caller places t.box (t:point).
 	function Pool.acquire(parent, size)
 		local t = table.remove(free)
 		if not t then
 			t = make(parent, size)
 			table.insert(made, t)
 		end
+		t.released = nil
 		t.size = size
 		t.box:SetParent(parent)
 		t.box:SetSize(size, size)
@@ -1332,6 +1335,8 @@ do
 
 	-- Hidden, its glow and pop stopped, ready to be acquired again.
 	function Pool.release(t)
+		if t.released then return end
+		t.released = true
 		t:glow(false)
 		t.box:Hide()
 		if t.ic.popRig then t.ic.popRig:stop() end
