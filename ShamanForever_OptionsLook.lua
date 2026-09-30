@@ -906,8 +906,7 @@ L.PREVIEW.totembar = {
 				end
 			end
 		end
-		-- What the theme draws behind the bar and under each slot (lit while its totem is down), and
-		-- the time bars' style.
+		-- What the theme draws behind the bar, and the time bars' place.
 		-- A sealed socket takes a spare slot's box (there are four, and a sealed one shows no slot).
 		local boxes, sealed, spare = {}, {}, #els
 		for pi, el in ipairs(places) do
@@ -924,12 +923,7 @@ L.PREVIEW.totembar = {
 		end
 		TB.skin.layoutBar(bar, boxes, size, row, sealed)
 		for i, ic in ipairs(h.slots) do
-			local el = els[i]
-			if el then
-				local empty = st == "idle" or (st == "killed" and el == expEl) or (picking and i == 1)
-				TB.skin.light(bar, ic.box, el, not empty)
-				TB.skin.styleTimer(ic.upT, ic, size)
-			end
+			if els[i] then TB.skin.styleTimer(ic.upT, ic, size) end
 		end
 		-- Picking: the first slot's arrow tab and a short popout of its totems.
 		h.tab:SetShown(picking and TB.feat("arrows"))

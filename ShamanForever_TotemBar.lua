@@ -90,7 +90,6 @@ TB.DEFAULTS = {
 	pixelTray = true,         -- the Pixel theme's tray behind the slots
 	pixelEdge = 1,            -- its element-coloured edge (screen pixels)
 	stonePlinth = "normal",   -- the Stone and bronze theme's plinth: slim | normal | grand
-	stoneGems = true,         --   its gems (off: out of range is the red edge)
 	stoneExtrasScale = 0.7,   --   its Call and Recall size (the theme sets them one on each side)
 	barPlace = "in",          -- the time bars: in the icon | out: beside it, away from the pickers
 }
@@ -822,7 +821,6 @@ local function refreshSlot(s)
 		liftWarning(s)
 		if iok and (isSecret(icon) or icon) then s.timer:setExpireIcon(icon) end
 		TB.drawTimeLeft(s)
-		TB.skin.slotState(s, true)
 		return true
 	end
 	s.dur = nil
@@ -849,7 +847,6 @@ local function refreshSlot(s)
 		v.icon:SetTexture(nil)
 		v.bg:SetColorTexture(0, 0, 0, 0)
 	end
-	TB.skin.slotState(s, false)
 	return false
 end
 
@@ -1688,7 +1685,6 @@ local function paintSlot(s, rec)
 		s.timer:setExpire({ secs = c.warn, grey = c.warnGrey, ring = c.warnRing, pulse = c.warnPulse, glow = c.warnGlow }, icon)
 		liftWarning(s)
 		s.timer:setTime(rec.at - (life - left), life)
-		TB.skin.slotState(s, true)
 		return rec.at + left
 	end
 	-- Not down (killed early and ran out leave the slot empty): as refreshSlot draws it.
@@ -1706,7 +1702,6 @@ local function paintSlot(s, rec)
 		v.icon:SetTexture(nil)
 		v.bg:SetColorTexture(0, 0, 0, 0)
 	end
-	TB.skin.slotState(s, false)
 end
 
 -- After every layout while it shows: every slot's state again.

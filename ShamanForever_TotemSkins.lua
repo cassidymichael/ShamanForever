@@ -28,12 +28,12 @@ local RED = { 0.9, 0.12, 0.08, 1 }          -- out of range
 local TRAY = { 0.047, 0.035, 0.024 }         -- the Pixel look's dark fill
 
 
--- Our art for Stone and bronze (AI-made plinth and medallion, a drawn gem), by path.
+-- Our art for Stone and bronze (AI-made plinth and medallion), by path.
 local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Art\\Looks\\"
-local PLINTH, GEM = MEDIA .. "Plinth", MEDIA .. "Gem"
+local PLINTH = MEDIA .. "Plinth"
 -- Plinth.tga (512x256): three one-piece plinths for four slots, each drawn once (no tiling), for a
 -- slot PL_SLOT texels wide: rect { x, y, w, h }, each opening's left edge and the openings' top
--- (from the rect's top left), and the bottom rail's middle, where the gems sit. Then plain stone
+-- (from the rect's top left), and the bottom rail's middle. Then plain stone
 -- for the pickers (a tall strip) and the plug that seals a socket.
 local PL_SLOT = 48
 local PLINTHS = {
@@ -50,9 +50,6 @@ end
 local function shares(pl)
 	return (pl.slotX[2] - pl.slotX[1] - PL_SLOT) / PL_SLOT, pl.slotX[1] / PL_SLOT
 end
--- Gem.tga's cells (texture coordinates): lit (a glow round it), unlit, and the bronze setting.
-local GEM_LIT, GEM_UNLIT, GEM_SET = { 0, 0.5, 0, 0.5 }, { 0.5, 1, 0, 0.5 }, { 0, 0.5, 0.5, 1 }
-local GEM_DARK = { 0.33, 0.31, 0.28 }
 local BRONZE = { 0.64, 0.48, 0.24, 1 }
 local BRONZE_DARK = { 0.10, 0.07, 0.03, 1 }
 
@@ -67,14 +64,13 @@ end
 -- SK.owned), and the parts it draws its own way:
 --   border, extrasBorder  border styles for the slots (or a function returning one) and for Call
 --                  and Recall
---   behind         what sits behind the slots: "tray", "plinth" (with a gem under each slot)
+--   behind         what sits behind the slots: "tray", "plinth"
 --   extrasScaleKey the bar setting that holds Call and Recall's size under this look (its own
 --                  default); the options' size row edits it
 --   fixedSlots     drawn round four slots: every element keeps its place, one not shown (not
 --                  learned, or hidden) a sealed socket
 --   timeBar        the slots' time bars: "tip" (a bright line at the fill's end)
---   mark           the out-of-range mark: "edge" (the strip, solid red), "gem" (the gem under the
---                  slot turns red)
+--   mark           the out-of-range mark: "edge" (the strip, solid red)
 --   picker         the pickers' look ("tray", "stone")
 --   arrow          the arrow tab's look ("stone")
 --   popPad         a margin round a picker's buttons, as a share of a button's size
@@ -112,30 +108,22 @@ local function plinthReach(size)
 end
 
 -- The bar set in a carved granite plinth (fixed art: it sets the spacing, a row, pickers opening
--- up), a gem on the bottom rail under each slot lit in its element's colour while the totem is
--- down and red out of range, Call and Recall in round bronze medallions.
+-- up), Call and Recall in round bronze medallions. Out of range is Default's strip.
 add("stone", {
 	name = "Stone and bronze", experimental = true,
-	-- It keeps the time bar in the icon: the plinth's gems sit under the slot. Its spacing is the
-	-- plinth's, Call and Recall just past its ends.
+	-- It keeps the time bar in the icon. Its spacing is the plinth's, Call and Recall just past its
+	-- ends.
 	owns = function()
 		local gap, cap = shares(plinthNow())
-		-- Without its gems, out of range is the red edge, at the player's Height.
 		-- Call and Recall one on each side, as on Blizzard's totem bar, at the theme's own size.
-		return { border = true, range = true, rangeHeight = TB.cfg().stoneGems or nil, spacing = gap,
-			extrasGap = cap + 0.12, dir = "row", pop = "up", barPlace = true, extras = "ends",
-			extrasScale = TB.cfg().stoneExtrasScale }
+		return { border = true, spacing = gap, extrasGap = cap + 0.12, dir = "row", pop = "up",
+			barPlace = true, extras = "ends", extrasScale = TB.cfg().stoneExtrasScale }
 	end,
 	border = borderStyle("line", 1), extrasBorder = borderStyle("medallion"),
 	behind = "plinth", picker = "stone", arrow = "stone", fixedSlots = true,
 	popPad = 0.15,
 	extrasScaleKey = "stoneExtrasScale",
-	mark = function() return TB.cfg().stoneGems and "gem" or "edge" end,
 	badgeGap = function(size) return select(2, plinthReach(size)) end,
-	rangeText = function()
-		if TB.cfg().stoneGems then return "Out of range, for totems that buff you: the gem under the slot turns red." end
-		return "Out of range, for totems that buff you: a red edge along the top of the slot."
-	end,
 })
 
 -- The look picked now (an unknown key, from a newer version's profile: Default).
@@ -319,17 +307,9 @@ local function plinthPiece(t, r)
 	t:SetTexture(PLINTH)
 	t:SetTexCoord(r[1] / 512, (r[1] + r[3]) / 512, r[2] / 256, (r[2] + r[4]) / 256)
 end
--- The gem under a slot: its size, and how far its middle sits below the slot's box (on the
--- plinth's bottom rail).
-local function gemPlace(size, px)
-	local pl = plinthNow()
-	local u = size / PL_SLOT
-	return ns.roundPx(size * 0.6, px), ns.roundPx((pl.railMid - pl.slotY - PL_SLOT) * u, px)
-end
 -- The Stone and bronze plinth: the picked one, one piece round the four slots' boxes, stretched
--- from the first box to the last so its openings meet them whatever the rounding; and under each
--- slot a gem in its bronze setting on the bottom rail. A sealed box's socket is plugged with stone
--- and its gem stays dark. A row only (the look sets it).
+-- from the first box to the last so its openings meet them whatever the rounding. A sealed box's
+-- socket is plugged with stone. A row only (the look sets it).
 local plinths = setmetatable({}, { __mode = "k" })   -- host -> its plinth
 local function plinth(host, boxes, size, on, sealed)
 	local f = plinths[host]
@@ -341,13 +321,12 @@ local function plinth(host, boxes, size, on, sealed)
 		f = CreateFrame("Frame", nil, host)
 		f:EnableMouse(false)
 		f.art = f:CreateTexture(nil, "BACKGROUND")
-		f.gems, f.plugs = {}, {}
+		f.plugs = {}
 		plinths[host] = f
 	end
 	f:SetFrameLevel(host:GetFrameLevel())
 	f:SetAllPoints(host)
 	local pl = plinthNow()
-	local px = ns.pixel(host)
 	local u = size / PL_SLOT
 	local r = pl.rect
 	plinthPiece(f.art, r)
@@ -355,13 +334,10 @@ local function plinth(host, boxes, size, on, sealed)
 	f.art:SetPoint("TOPLEFT", boxes[1], "TOPLEFT", -pl.slotX[1] * u, pl.slotY * u)
 	f.art:SetPoint("BOTTOMRIGHT", boxes[#boxes], "BOTTOMRIGHT", (r[3] - pl.slotX[4] - PL_SLOT) * u,
 		-(r[4] - pl.slotY - PL_SLOT) * u)
-	local g, drop = gemPlace(size, px)
-	local gems = TB.cfg().stoneGems
-	local used = {}
-	f.sealed = sealed or {}
+	sealed = sealed or {}
 	for i, box in ipairs(boxes) do
 		local plug = f.plugs[i]
-		if f.sealed[box] then
+		if sealed[box] then
 			if not plug then
 				plug = f:CreateTexture(nil, "ARTWORK")
 				plinthPiece(plug, PLUG)
@@ -371,27 +347,7 @@ local function plinth(host, boxes, size, on, sealed)
 			plug:SetAllPoints(box)
 			plug:Show()
 		elseif plug then plug:Hide() end
-		local gem = f.gems[box]
-		if not gem then
-			gem = { set = f:CreateTexture(nil, "ARTWORK", nil, 1),
-				gem = f:CreateTexture(nil, "ARTWORK", nil, 2) }
-			gem.set:SetTexture(GEM)
-			gem.set:SetTexCoord(GEM_SET[1], GEM_SET[2], GEM_SET[3], GEM_SET[4])
-			gem.gem:SetTexture(GEM)
-			f.gems[box] = gem
-		end
-		for _, x in pairs(gem) do
-			x:ClearAllPoints()
-			x:SetPoint("CENTER", box, "BOTTOM", 0, -drop)
-			x:SetSize(g, g)
-			x:SetShown(gems)
-		end
-		used[box] = true
 	end
-	for box, gem in pairs(f.gems) do
-		if not used[box] then gem.set:Hide(); gem.gem:Hide() end
-	end
-	for box in pairs(f.sealed) do SK.light(host, box, nil, false, true) end
 	f:Show()
 end
 
@@ -400,25 +356,6 @@ function SK.layoutBar(host, boxes, size, row, sealed)
 	local look = SK.current()
 	tray(host, boxes, size, look.behind == "tray" and TB.cfg().pixelTray and #boxes > 0)
 	plinth(host, boxes, size, look.behind == "plinth" and row and #boxes == 4, sealed)
-end
-
--- A slot's own mark under it (lit while its totem is down), on host beside box: the plinth's gem,
--- in the element's colour or dark; always dark on a sealed socket (force: the plinth's own call).
--- Plain textures, so any time.
-function SK.light(host, box, el, lit, force)
-	local f = plinths[host]
-	local gem = f and f.gems[box]
-	if not gem or (f.sealed[box] and not force) then return end
-	if f.sealed[box] then lit = false end
-	local t, c = gem.gem, lit and ns.SCHOOL_COLOR[el] or GEM_DARK
-	local cell = lit and GEM_LIT or GEM_UNLIT
-	t:SetTexCoord(cell[1], cell[2], cell[3], cell[4])
-	t:SetVertexColor(c[1], c[2], c[3], 1)
-end
-
--- A slot's totem state changed (the bar's refresh and its preview mode; any time, combat included).
-function SK.slotState(s, down)
-	SK.light(TB.frame, s.button, s.el, down)
 end
 
 -- After a slot timer's apply(): the look's time bar. anchor: the slot's picture.
@@ -569,11 +506,6 @@ end
 function SK.markRect(frame, size, inset)
 	local kind = SK.mark()
 	if not kind then return nil end
-	if kind == "gem" then
-		-- The plinth's gem under the slot (SK.layoutBar).
-		local g, drop = gemPlace(size, ns.pixel(frame))
-		return (size - g) / 2, -(size + drop - g / 2), g, g
-	end
 	return inset, -inset, size - 2 * inset, ns.linePx(frame, TB.cfg().rangeHeight)
 end
 
@@ -603,51 +535,17 @@ function SK.paintMark(m, w, h, icon)
 	end
 	p = markParts(m, icon)
 	m.bg:Hide()
-	p.shade:SetVertexColor(1, 1, 1, 1)
-	p.shade:SetTexCoord(0, 1, 0, 1)
-	if kind == "gem" then
-		-- The gem, lit red.
-		p.shade:SetTexture(GEM)
-		p.shade:SetTexCoord(GEM_LIT[1], GEM_LIT[2], GEM_LIT[3], GEM_LIT[4])
-		p.shade:SetVertexColor(RED[1], RED[2], RED[3], 1)
-	else
-		-- "edge": the strip, solid red.
-		p.shade:SetColorTexture(RED[1], RED[2], RED[3], RED[4])
-	end
+	-- "edge": the strip, solid red.
+	p.shade:SetColorTexture(RED[1], RED[2], RED[3], RED[4])
 	p.shade:Show()
 	return true
 end
 
 -- Blizzard's part over the mark (TotemRange's styleButton, out of combat): p { button, icon, over };
 -- the icon is already cropped to the mark's share of the picture. Returns true when the look styled
--- it: in range it shows the strip of the buff's icon, uncoloured, or the gem lit in the element's
--- colour.
+-- it: in range it shows the strip of the buff's icon, uncoloured.
 function SK.styleRangeButton(p, s)
-	local kind = SK.mark()
-	if p.gem then p.gem:Hide() end
-	-- The buff's icon: hidden by its colour's alpha where the look draws its own art (preview mode
-	-- hides it by its alpha).
-	if p.iconHidden then
-		p.icon:SetVertexColor(1, 1, 1, 1)
-		p.iconHidden = nil
-	end
-	if not kind then return false end
+	if not SK.mark() then return false end
 	p.over.bg:SetColorTexture(0, 0, 0, 0)
-	if kind == "gem" then
-		-- In range, the gem lit in the element's colour over the red one. The holder hides the whole
-		-- part while no buff totem of yours is down in the slot (TotemRange's showStrip); in combat
-		-- that is its alpha on a frame holding Blizzard's button, not yet tested. If a lingering buff
-		-- turns out to keep this lit over an emptied slot in combat, the lit gem goes out-of-combat
-		-- only.
-		p.icon:SetVertexColor(1, 1, 1, 0)
-		p.iconHidden = true
-		local c = ns.SCHOOL_COLOR[s.el]
-		p.gem = p.gem or p.over:CreateTexture(nil, "ARTWORK", nil, 1)
-		p.gem:SetTexture(GEM)
-		p.gem:SetTexCoord(GEM_LIT[1], GEM_LIT[2], GEM_LIT[3], GEM_LIT[4])
-		p.gem:SetVertexColor(c[1], c[2], c[3], 1)
-		p.gem:SetAllPoints(p.button)
-		p.gem:Show()
-	end
 	return true
 end
