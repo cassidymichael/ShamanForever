@@ -453,7 +453,9 @@ end
 -- combat and held through a fight (a change in combat waits for its end). Only while positioning
 -- is locked, the element is on and learned, and the copy counts.
 function applyIdle()
-	if InCombatLockdown() then return end
+	-- Blizzard's button refuses our calls in combat and while auras are secret: run again when
+	-- they are readable.
+	if ns.deferWhileAurasSecret("maelstrom idle", applyIdle) then return end
 	local on = idleWhen() == "five" and src.learned() and ns.isEnabled(KEY) and ns.getAccount().locked
 		and copyReady()
 	gate:SetAlpha(on and ns.idleAlpha(KEY) or 1)
