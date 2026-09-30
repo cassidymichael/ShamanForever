@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.0 (2026-10-01)
 
 - Idle for every element: fade or hide an element while it has nothing going on (on cooldown, off
   cooldown, not active, etc). Shields can show only at one charge.
