@@ -762,13 +762,19 @@ function TB.drawTimeLeft(s)
 end
 
 -- The slot's expiring warning (made by the timer on first use, just over the icon) over the range
--- strip, once: see the frame levels above.
+-- strip, once: see the frame levels above. Its glow, the glow's breathing frame and any look's
+-- parts it has made already (levelled to it as they were made) come up with it.
 local function liftWarning(s)
 	local x = s.timer.exp
 	if not x or x.sfLifted then return end
 	local lv = s.button:GetFrameLevel() + WARN_LEVEL
 	x:SetFrameLevel(lv)
-	x.glow:SetFrameLevel(lv + 1)
+	local g = x.glow
+	g:SetFrameLevel(lv + 1)
+	if g.inner then g.inner:SetFrameLevel(lv + 2) end
+	for _, parts in pairs(g.parts or {}) do
+		if parts then ns.Looks.levelParts(parts) end
+	end
 	x.sfLifted = true
 end
 
