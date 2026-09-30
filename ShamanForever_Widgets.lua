@@ -66,8 +66,41 @@ function ns.makeKeyText(parent)
 end
 -- Its font size on an icon size pixels wide: it scales with the icon.
 function ns.keyTextSize(size) return math.max(8, math.floor(size * 0.3 + 0.5)) end
--- A binding's key, short ("S-1" for Shift-1), or "" for none.
-function ns.keyLabel(key) return key and GetBindingText(key, 1) or "" end
+-- A binding's key in the compact form action bar addons use (Bartender's and Dominos' LibKeyBound,
+-- ElvUI): a letter per modifier, then the key, short: "SWU" for Shift + Mouse Wheel Up, "C5" for
+-- Ctrl-5, "AM4" for Alt + Mouse Button 4, "N7" for Num Pad 7. A key without a short name here
+-- takes the client's own short text for it (GetBindingText's abbreviated form). "" for none.
+local MODIFIERS = { ALT = "A", CTRL = "C", SHIFT = "S", META = "M" }
+local SHORT_KEYS = {
+	MOUSEWHEELUP = "WU", MOUSEWHEELDOWN = "WD",
+	SPACE = "Sp", BACKSPACE = "BS", CAPSLOCK = "Cap", TAB = "Tab", ENTER = "Ent", ESCAPE = "Esc",
+	INSERT = "Ins", DELETE = "Del", HOME = "Hm", END = "End", PAGEUP = "PU", PAGEDOWN = "PD",
+	UP = "Up", DOWN = "Dn", LEFT = "Lt", RIGHT = "Rt",
+	NUMLOCK = "NL", SCROLLLOCK = "SL", PRINTSCREEN = "PS", PAUSE = "Pau",
+	NUMPADPLUS = "N+", NUMPADMINUS = "N-", NUMPADMULTIPLY = "N*", NUMPADDIVIDE = "N/",
+	NUMPADDECIMAL = "N.", NUMPADEQUALS = "N=",
+}
+local keyLabels = {}   -- binding key -> its label
+function ns.keyLabel(key)
+	if not key then return "" end
+	local label = keyLabels[key]
+	if label then return label end
+	local mods, rest = "", key
+	while true do
+		local m, after = rest:match("^(%u+)%-(.+)$")
+		if not (m and MODIFIERS[m]) then break end
+		mods, rest = mods .. MODIFIERS[m], after
+	end
+	local short = SHORT_KEYS[rest] or rest:match("^BUTTON(%d+)$") and "M" .. rest:match("^BUTTON(%d+)$")
+		or rest:match("^NUMPAD(%d)$") and "N" .. rest:match("^NUMPAD(%d)$")
+	if not short then
+		short = #rest <= 3 and rest or GetBindingText(rest, 1)
+		if type(short) ~= "string" or short == "" then short = rest end
+	end
+	label = mods .. short
+	keyLabels[key] = label
+	return label
+end
 
 -- An element icon easing to a new opacity: slowly into idle, quickly back (each rate covers 0 to 1).
 -- A frame above Blizzard's protected aura button (frame.aboveProtected) takes no alpha change in
