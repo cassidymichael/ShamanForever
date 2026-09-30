@@ -1001,7 +1001,8 @@ local CLIP_REACH = 1.7
 --   key            the element: its icon size (ns.sizeOf); also the aura group's name
 --   parent         what the chain hangs from; sensorParent, what the sensor hangs from (shown
 --                  whenever the chain may be)
---   unit, filter   the sensor's unit (default "player") and filter (default "HELPFUL")
+--   unit, filter   the sensor's unit as it's made (default "player"; a function: its answer then)
+--                  and filter (default "HELPFUL")
 --   ids()          the spell IDs it matches
 --   needUnit       the unit it must be on for the look to show (a sensor that follows the target)
 --   driver         the gate's state driver, registered as the sensor is made (out of combat)
@@ -1085,16 +1086,17 @@ function ClipLook:setup()
 	local size = ns.sizeOf(o.key)
 	local w = cellWidth(size, self.frame)
 	local ids = o.ids()
+	local unit = type(o.unit) == "function" and o.unit() or o.unit or "player"
 	local ok, err = pcall(function()
 		local c = CreateFrame("AuraContainer", nil, o.sensorParent, "CustomAuraContainerTemplate")
 		c:SetPoint("TOPLEFT", self.cell, "TOPLEFT", 0, 0)
 		-- An intrinsic frame doesn't inherit placement (see the aura slot, above).
 		c:SetFrameStrata(self.frame:GetFrameStrata())
-		c:SetUnit(o.unit or "player")
+		c:SetUnit(unit)
 		pcall(c.EnableMouse, c, false)
 		pcall(c.SetFlowLayoutPadding, c, 0, 0, 0, 0)   -- empty is width 0
 		self.container = c
-		self.unit = o.unit or "player"
+		self.unit = unit
 		self.cell:SetSize(w, w)
 		c:AddAuraGroup(o.key, o.filter or "HELPFUL", {
 			candidateFilters = { includeSpellIDs = ids }, maxFrameCount = 1,
