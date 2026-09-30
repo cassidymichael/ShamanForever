@@ -2,18 +2,22 @@
 -- Lightning Bolt is instant and free.
 --
 -- The stacks are secret in combat, as every aura is, so Blizzard's aura container draws them
--- (ns.makeAuraSlot, as for the shield's charges). Two slots follow the same buff:
+-- (ns.makeAuraSlot, as for the shield's charges). Three slots follow the same buff:
 -- 1. The stacks: the buff's icon and time left, the stack number and a stack bar (one segment per
 --    stack), all drawn by Blizzard's button.
--- 2. The five-stack look: a second button whose only visible part is a bar. Blizzard shows that bar
---    only from four stacks (its minApplications) and fills it from four to five, with no
+-- 2. The highlight (Colour): a second button whose only visible part is a bar. Blizzard shows that
+--    bar only from four stacks (its minApplications) and fills it from four to five, with no
 --    background: nothing shows at four, the whole bar at five (the gate tested 2026-09-28 on
 --    Lightning Shield's charges). The bar is the highlight, over the icon, drawn by the engine.
---    - Its pop: Blizzard eases the bar to each new count of the same buff (ExponentialEaseOut) and
---      the bar fills from its centre, so the fifth stack makes the highlight burst out from the
---      middle. A new buff, or one read after a /reload, is drawn at once.
---    - Its pulsing glow: an animation handed to that button, which plays it while the buff is up;
---      it is seen only while the highlight is.
+--    Its pop: Blizzard eases the bar to each new count of the same buff (ExponentialEaseOut) and
+--    the bar fills from its centre, so the fifth stack makes the highlight burst out from the
+--    middle. A new buff, or one read after a /reload, is drawn at once.
+-- 3. At five: a third button drives an invisible bar five steps long, and a clip from the icon's
+--    reach on the left to that bar's fill edge covers the icon and its reach at exactly five
+--    stacks and is empty below (Shields' one-charge clip, aimed at five of five; tested there in
+--    combat 2026-10-01). In it, the Pulsing glow in the element's look: it hangs under the button,
+--    where scripts never run, so the button plays its animations (handed with
+--    AddAuraShownAnimation) while the buff is up, and the clip shows them only at five.
 --    Nothing else can mark the fifth stack: the button plays handed animations only when a buff is
 --    new to its slot or first shows, and Blizzard's aura sounds come with every added stack
 --    (Blizzard_CustomAuraButton.lua, C_UnitAuras.AddAuraSound).
@@ -25,7 +29,7 @@
 --
 -- ShamanForever.lua calls in through the module hooks (ns.registerModule).
 
-local ADDON, ns = ...
+local _, ns = ...
 local say, isSecret, safe = ns.say, ns.isSecret, ns.safe
 local Spells = ns.Spells
 
@@ -47,7 +51,6 @@ ns.Maelstrom = M
 
 local KEY = "maelstrom"
 local WHITE = "Interface\\Buttons\\WHITE8x8"
-local EDGE_GLOW = "Interface\\AddOns\\" .. ADDON .. "\\Art\\Edge-Glow"
 local SI = Enum and Enum.StatusBarInterpolation
 local EASE, IMMEDIATE = SI and SI.ExponentialEaseOut or 1, SI and SI.Immediate or 0
 local CENTER_FILL = Enum and Enum.StatusBarFillStyle and Enum.StatusBarFillStyle.Center or "CENTER"
@@ -58,12 +61,12 @@ M.DEFAULTS = {
 	stackBar = true, stackBarHeight = 6, stackBarColor = { 0.52, 0.69, 1, 1 },
 	stackCount = true, countPos = "center", countSize = 18,
 	fullCount = true, fullCountColor = { 1, 0.82, 0.25, 1 },   -- the number at five, in its colour
-	highlight = "glow", highlightColor = { 1, 0.82, 0.25, 1 },  -- glow | wash | none
+	highlight = "none", highlightColor = { 1, 0.82, 0.25, 1 },  -- wash | none: a colour over the icon
 	fullPop = true,     -- the highlight bursts out as the fifth stack lands
-	fullGlow = false,   -- the highlight pulses while at five
+	fullGlow = true,    -- the Pulsing glow while at five
 }
 M.RANGES = { stackBarHeight = { 1, 20 }, countSize = { 8, 40 } }
-local CHOICES = { highlight = { glow = true, wash = true, none = true }, countPos = { corner = true, center = true } }
+local CHOICES = { highlight = { wash = true, none = true }, countPos = { corner = true, center = true } }
 
 local function setting(name) return ns.elementSetting(KEY, name) end
 local function color(name)
@@ -99,6 +102,8 @@ f.stack()
 
 ns.registerElement(KEY, { frame = f, label = Spells.name("maelstromWeapon"), defaults = M.DEFAULTS,
 	learned = function() return src.learned() end, paint = function(t) t:SetTexture(M.icon) end,
+	-- Its pop is the highlight's own burst (Pop, under Five stacks), not the Pop style's.
+	effects = { glow = { "full" }, pop = {} },
 	-- Preview mode: its border is on Blizzard's button, not its frame (ShamanForever_Preview.lua).
 	standInBorder = true,
 	kind = "maelstrom", def = M, spell = "maelstromWeapon", icon = M.icon, school = "air",
@@ -259,39 +264,29 @@ local stacks = ns.makeAuraSlot(f, {
 })
 
 ------------------------------------------------------------------------
--- 2. The five-stack look: the gated bar, its burst and its pulse
+-- 2. The highlight: the gated bar and its burst
 ------------------------------------------------------------------------
+-- Levels over the containers' (baseLevel): the stacks' parts at 4 to 8, the copy at five (below)
+-- from 9, then the highlight and the glow at five over everything.
+local HL_LEVEL, GLOW_LEVEL = 14, 16
+
 local function styleFull(slot)
 	slot.cd:SetAlpha(0)   -- the stacks' button shows the time left
 	local base = baseLevel()
-	slot.holder:SetFrameLevel(base + 8)
-	slot.hl:SetFrameLevel(base + 9)
+	slot.holder:SetFrameLevel(base + HL_LEVEL)
+	slot.hl:SetFrameLevel(base + HL_LEVEL + 1)
 	local look, c = setting("highlight"), color("highlightColor")
 	local bar = slot.hl
-	bar:SetStatusBarTexture(look == "wash" and WHITE or EDGE_GLOW)
-	ns.try("maelstrom highlight look", function()
-		local t = bar:GetStatusBarTexture()
-		t:SetBlendMode(look == "wash" and "BLEND" or "ADD")
-		bar:SetFillStyle(CENTER_FILL)
-	end)
-	-- The wash is the colour over the whole icon, so fainter.
-	bar:SetStatusBarColor(c[1], c[2], c[3], (c[4] or 1) * (look == "wash" and 0.4 or 1))
+	bar:SetStatusBarTexture(WHITE)
+	ns.try("maelstrom highlight look", function() bar:SetFillStyle(CENTER_FILL) end)
+	-- The colour over the whole icon, so fainter.
+	bar:SetStatusBarColor(c[1], c[2], c[3], (c[4] or 1) * 0.4)
 	bar:SetAlpha(look == "none" and 0 or 1)
 	if slot.container then slot.container:SetShown(look ~= "none") end
 	ns.try("maelstrom highlight", slot.button.SetApplicationBar, slot.button, bar, {
 		minApplications = src.max - 1, maxApplications = src.max,
 		interpolation = setting("fullPop") and EASE or IMMEDIATE,
 	})
-	-- The pulse plays only while Pulsing glow is on and the highlight is shown: SetLooping(NONE)
-	-- makes Blizzard's handed animation play once per buff and stop, so it costs nothing per frame
-	-- while the option is off (the default).
-	local pulseOn = setting("fullGlow") and look ~= "none"
-	local st = ns.Style.get(KEY, "glow")
-	ns.try("maelstrom pulse style", function()
-		slot.pulse:SetLooping(pulseOn and "BOUNCE" or "NONE")
-		slot.fade:SetDuration(st.speed)
-		slot.fade:SetToAlpha(pulseOn and st.low or 1)
-	end)
 end
 
 local function buildFull(slot, button)
@@ -301,31 +296,101 @@ local function buildFull(slot, button)
 	slot.holder = holder
 	local bar = CreateFrame("StatusBar", nil, holder)
 	bar:SetAllPoints(button)
-	bar:SetStatusBarTexture(EDGE_GLOW)
+	bar:SetStatusBarTexture(WHITE)
 	slot.hl = bar
-	-- The pulse, on the holder (so the bar's own alpha stays ours for the look): the button plays it.
-	-- styleFull sets its looping (below, via buildFull's own call) to match Pulsing glow.
-	local pulse = holder:CreateAnimationGroup()
-	local fade = pulse:CreateAnimation("Alpha")
-	fade:SetFromAlpha(1); fade:SetToAlpha(1); fade:SetDuration(0.5); fade:SetSmoothing("IN_OUT")
-	slot.pulse, slot.fade = pulse, fade
-	if button.AddAuraShownAnimation then
-		slot.pulseHanded = ns.try("maelstrom pulse", button.AddAuraShownAnimation, button, pulse)
-	end
 	ns.try("maelstrom highlight build", styleFull, slot)
 end
 
 local full = ns.makeAuraSlot(f, {
 	key = KEY, slot = "full", ids = function() return src.ids() end, parent = f.effects,
 	iconAlpha = function() return 0 end,   -- the stacks' button has the icon
-	sites = { container = "maelstrom five container", style = "maelstrom five style",
-		filter = "maelstrom five filter" },
+	sites = { container = "maelstrom highlight container", style = "maelstrom highlight style",
+		filter = "maelstrom highlight filter" },
 	onButton = function(slot, button) buildFull(slot, button) end,
 	onStyle = function(slot) styleFull(slot) end,
+	onError = function(err) ns.noteError("maelstrom highlight container", err) end,
+})
+
+------------------------------------------------------------------------
+-- 3. At five: the clip, and the Pulsing glow in it (see the top of this file)
+------------------------------------------------------------------------
+-- The glow's reach past the icon's edge, as a clip look's (ns.makeClipLook: the widest look, Proc
+-- glow's opening burst, reaches 1.7 widths of the icon with its frame from its centre).
+local REACH = 1.7
+local FIVE_LEVEL = 9   -- its container, levels above the stacks' (ns.makeAuraSlot's level)
+
+-- The sensor bar and the clip over it, for an icon of size: the bar src.max steps long (a step:
+-- the icon with its reach both ways, and 2 px), its fill edge on the reach's right edge at the most
+-- stacks and a step left of its left edge at one fewer.
+local function placeFive(slot, button, size)
+	local reach = math.ceil(REACH * (size + 2 * ns.Looks.outerEdge(f)) - size / 2)
+	local step = size + 2 * reach + 2
+	local bar, clip = slot.sensor, slot.clip
+	bar:ClearAllPoints()
+	bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", size + reach - src.max * step, -reach)
+	bar:SetSize(src.max * step, 2)
+	clip:ClearAllPoints()
+	clip:SetPoint("TOPLEFT", button, "TOPLEFT", -reach, reach)
+	clip:SetPoint("BOTTOMRIGHT", bar:GetStatusBarTexture(), "BOTTOMRIGHT", 0, 0)
+	return bar
+end
+
+-- As Blizzard makes the button: the sensor, the clip and the frame in it where the aura slot puts
+-- the icon and the timer (ns.makeAuraSlot's host), unseen for now.
+local function fiveHost(slot, button)
+	local bar = CreateFrame("StatusBar", nil, button)
+	bar:SetStatusBarTexture(WHITE)
+	bar:SetStatusBarColor(0, 0, 0, 0)
+	bar:SetMinMaxValues(0, src.max)
+	bar:SetValue(0)   -- until Blizzard sets it: the clip empty
+	slot.sensor = bar
+	local clip = CreateFrame("Frame", nil, button, "DisableUntrustedLayoutScriptsTemplate")
+	clip:SetClipsChildren(true)
+	slot.clip = clip
+	placeFive(slot, button, ns.sizeOf(KEY))
+	slot.sensed = ns.try("maelstrom five sensor", button.SetApplicationBar, button, bar,
+		{ minApplications = 0, maxApplications = src.max, interpolation = IMMEDIATE })
+	local host = CreateFrame("Frame", nil, clip)
+	host:SetAllPoints(button)
+	host:SetAlpha(0)
+	return host
+end
+
+local function styleFive(slot, size)
+	local base = baseLevel()
+	placeFive(slot, slot.button, size)
+	ns.try("maelstrom five sensor", slot.button.SetApplicationBar, slot.button, slot.sensor,
+		{ minApplications = 0, maxApplications = src.max, interpolation = IMMEDIATE })
+	slot.cd:SetAlpha(0)   -- the stacks' button shows the time left
+	local g = slot.glow
+	g:SetFrameLevel(base + GLOW_LEVEL)
+	g.inner:SetFrameLevel(base + GLOW_LEVEL)
+	g:restyle()
+	g:fit(size)
+	-- Shown only when its sensor works: a bar the button refused would leave the clip empty.
+	g:SetShown((setting("fullGlow") and slot.sensed) and true or false)
+end
+
+-- Once Blizzard has made the button: the glow in the clip, its animations handed to the button.
+local function buildFive(slot, button)
+	slot.button = button
+	local g = ns.Effects.glow(slot.clip, button, KEY, { underButton = true })
+	g:bindButton(button)
+	slot.glow = g
+	ns.try("maelstrom five build", styleFive, slot, ns.sizeOf(KEY))
+end
+
+local five = ns.makeAuraSlot(f, {
+	key = KEY, slot = "five", ids = function() return src.ids() end, parent = f.effects, level = FIVE_LEVEL,
+	host = fiveHost,
+	sites = { container = "maelstrom five container", style = "maelstrom five style",
+		filter = "maelstrom five filter" },
+	onButton = function(slot, button) buildFive(slot, button) end,
+	onStyle = function(slot, size) styleFive(slot, size) end,
 	onError = function(err) ns.noteError("maelstrom five container", err) end,
 })
 
-local SLOTS = { stacks, full }
+local SLOTS = { stacks, full, five }
 
 ------------------------------------------------------------------------
 -- The icon under Blizzard's buttons: the look while the buff isn't up
@@ -373,10 +438,6 @@ local function previewParts(ic)
 	local grow = p.burst:CreateAnimation("Scale")
 	grow:SetOrigin("CENTER", 0, 0); grow:SetScaleFrom(0.01, 1); grow:SetScaleTo(1, 1)
 	grow:SetDuration(0.35); grow:SetSmoothing("OUT")
-	p.pulse = p.hl:CreateAnimationGroup()
-	p.pulse:SetLooping("BOUNCE")
-	p.fade = p.pulse:CreateAnimation("Alpha")
-	p.fade:SetFromAlpha(1); p.fade:SetSmoothing("IN_OUT")
 	ic.mw = p
 	return p
 end
@@ -412,20 +473,12 @@ function M.drawPreview(ic, n)
 		else ic.count:SetTextColor(1, 1, 1, 1) end
 		ic.count:Show()
 	end
-	local look = setting("highlight")
-	local lit = n >= max and look ~= "none"
 	local hc = color("highlightColor")
-	p.hl:SetTexture(look == "wash" and WHITE or EDGE_GLOW)
-	p.hl:SetBlendMode(look == "wash" and "BLEND" or "ADD")
-	p.hl:SetVertexColor(hc[1], hc[2], hc[3], (hc[4] or 1) * (look == "wash" and 0.4 or 1))
-	p.hl:SetShown(lit)
-	local st = ns.Style.get(KEY, "glow")
-	if lit and setting("fullGlow") then
-		p.fade:SetDuration(st.speed); p.fade:SetToAlpha(st.low)
-		if not p.pulse:IsPlaying() then p.pulse:Play() end
-	else
-		p.pulse:Stop()
-	end
+	p.hl:SetTexture(WHITE)
+	p.hl:SetVertexColor(hc[1], hc[2], hc[3], (hc[4] or 1) * 0.4)
+	p.hl:SetShown(n >= max and setting("highlight") ~= "none")
+	-- The glow at five: the preview icon's own, in the element's Pulsing glow style.
+	ic:SetGlowShown(n >= max and setting("fullGlow"))
 end
 
 -- The moment of the fifth stack in the preview: the highlight's burst, when Pop is on.
@@ -464,12 +517,14 @@ end
 
 M.applyTimers = styleAll
 -- After a layout: the containers made once (only for a character with the buff), then their looks.
--- The five-stack container only when Highlight isn't None: with it made but hidden, Blizzard would
--- still register it for every player UNIT_AURA for a look the player turned off.
+-- The highlight's container only when Highlight isn't None, the one at five only for its glow:
+-- with one made but unused, Blizzard would still register it for every player UNIT_AURA for a
+-- look the player turned off.
 function M.applyLayout()
 	if src.learned() and ns.isEnabled(KEY) then
 		stacks:setup()
 		if setting("highlight") ~= "none" then full:setup() end
+		if setting("fullGlow") then five:setup() end
 	end
 	styleAll()
 	refresh()
@@ -482,12 +537,13 @@ function M.debug()
 	local ids = {}
 	for id in pairs(src.ids()) do table.insert(ids, tostring(id)) end
 	table.sort(ids)
-	say("maelstrom: spell %s, following %s (%d stacks), stacks container %s%s, five-stack container %s%s, "
-		.. "pulse handed %s",
-		tostring(M.spellID), table.concat(ids, ","), src.max,
-		stacks.container and "made" or "not made", stacks.err and (" (error: " .. stacks.err .. ")") or "",
-		full.container and "made" or "not made", full.err and (" (error: " .. full.err .. ")") or "",
-		tostring(full.pulseHanded))
+	local function state(slot)
+		return (slot.container and "made" or "not made") .. (slot.err and (" (error: " .. slot.err .. ")") or "")
+	end
+	say("maelstrom: spell %s, following %s (%d stacks), stacks container %s, highlight container %s, "
+		.. "container at five %s (sensor %s, glow %s)",
+		tostring(M.spellID), table.concat(ids, ","), src.max, state(stacks), state(full), state(five),
+		tostring(five.sensed), five.glow and five.glow.look and five.glow.look.key or "none")
 end
 
 ns.registerModule(M)

@@ -226,9 +226,9 @@ end
 -- Standard block: the pulsing glow's style, with an icon glowing all the time that follows every
 -- change at once (one per school for a look that differs by school).
 local function glowBlock(p, owner, icon)
-	-- ns.Effects.applyStyle only restyles the listed glows; some elements' aura-button glows
-	-- (Maelstrom's pulse, Elemental Focus's proc glow) aren't on that list and only pick up a style
-	-- change through their module's applyTimers hook.
+	-- ns.Effects.applyStyle only restyles the listed glows; a glow under Blizzard's aura button
+	-- (Maelstrom's at five) isn't on that list and only picks up a style change through its
+	-- module's applyTimers hook.
 	local function after() ns.Effects.applyStyle(); ns.applyTimers(); OP.refresh() end
 	local r = styleRows(owner, "glow", after)
 	p:header("Pulsing glow style")
