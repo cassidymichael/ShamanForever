@@ -52,7 +52,7 @@ local T = { name = "target" }
 ns.Target = T
 
 local setting = ns.elementSetting
-local gateAlpha   -- below
+local gateAlpha, retarget   -- below
 
 -- The target's aura elements, in the order the options list them. filter: the aura slot's filter
 -- string; candidates(def): its candidate filters (default: the spell IDs of auraKey). The page's
@@ -183,7 +183,22 @@ for _, def in ipairs(TARGET) do
 		come:SetFromAlpha(0); come:SetToAlpha(1); come:SetDuration(0.1); come:SetOrder(2)
 		u.appear:SetToFinalAlpha(true)
 		u.appear:SetScript("OnFinished", function() u.inner:SetAlpha(1) end)
+		-- Every frame while shown: the target still hostile and alive, and the container on it. The
+		-- state driver checks only every 0.2 s (and at once only on a target change), while the
+		-- button goes the moment a dying target's debuffs clear: so the underlay hides itself here,
+		-- and asks for the container to follow a target that came back or turned (plain reads, and
+		-- SetAlpha on our own frame, allowed in combat).
+		u:SetScript("OnUpdate", function(self)
+			local ok = hostileTarget() and def.unit == "target" and not ns.cantAct()
+			if ok ~= self.trusted then
+				self.trusted = ok
+				T.underAlpha(def)
+			end
+			if not ok and not def.stale and def.unit ~= wantedUnit() then retarget(def) end
+		end)
 		u:SetScript("OnShow", function(self)
+			self.trusted = hostileTarget() and def.unit == "target" and not ns.cantAct()
+			T.underAlpha(def)
 			T.appear(self)
 			if self.pulseOn then self.pulse:Play() end   -- a hidden frame's animations stop
 		end)
@@ -234,7 +249,8 @@ end
 function T.underAlpha(def)
 	local u = def.under
 	local g = ns.groupOf(def.key)
-	u:SetAlpha((u.on and not def.stale and not def.stuck) and (g and g.alpha or 1) or 0)
+	local trusted = u.on and u.trusted ~= false and not def.stale and not def.stuck
+	u:SetAlpha(trusted and (g and g.alpha or 1) or 0)
 end
 
 -- The target's aura slots follow the target: pointed at it while it's something you can attack
@@ -243,7 +259,7 @@ end
 -- so the next refresh tries again, as does the end of combat; meanwhile the gate is at alpha 0.
 -- only: that element alone (a refresh finding its unit behind), else both. Flame Shock's underlay
 -- waits again only when its own container is called.
-local function retarget(only)
+function retarget(only)
 	local unit = wantedUnit()
 	for _, def in ipairs(TARGET) do
 		local c = (only == nil or only == def) and def.aura.container
