@@ -215,6 +215,7 @@ for _, def in ipairs(TARGET) do
 		onError = function(err) ns.noteError("target container " .. def.key, err) end,
 	})
 	ns.registerElement(def.key, { frame = f, label = def.spell, defaults = def.defaults,
+		fadeFrames = def.missing and { def.gate } or nil,   -- it ignores the group's alpha
 		learned = function() return def.spellID ~= nil end,
 		paint = function(t) t:SetTexture(def.icon) end,
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
@@ -475,8 +476,11 @@ function T.afterGroups()
 	for _, def in ipairs(TARGET) do
 		def.aura:style()
 		-- The button takes a new size or look on the next frame (AuraSlot:style): the underlay
-		-- waits again meanwhile.
-		if def.under then T.appear(def.under) end
+		-- waits again meanwhile. Its opacity follows the group's (Ctrl+wheel too).
+		if def.under then
+			T.appear(def.under)
+			T.underAlpha(def)
+		end
 	end
 end
 
