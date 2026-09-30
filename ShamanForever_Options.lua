@@ -1466,6 +1466,7 @@ end
 
 confirm("SHAMANFOREVER_RESET", "Reset profile %s to defaults?\nIts layout and every setting are lost.", "Reset",
 	function() ns.Profiles.reset(); ns.say("profile reset to defaults") end)
+confirm("SHAMANFOREVER_RESET_SETTINGS", "Reset %s to defaults?", "Reset", function(run) run() end)
 confirm("SHAMANFOREVER_DELETE_PROFILE", "Delete profile %s?\nCharacters using it go back to Default.", "Delete",
 	function() ns.Profiles.delete() end)
 

@@ -84,7 +84,10 @@ function SP.build(p)
 	local function c() return SW.cfg() end
 	local function changed() SW.apply(); ns.Options.refresh() end
 	local function get(key) return function() return c()[key] end end
-	local function set(key) return function(v) c()[key] = v; changed() end end
+	local function set(key)
+		p:owns({ bar = "swing", name = key, after = changed })
+		return function(v) c()[key] = v; changed() end
+	end
 	local function custom() return c().colorBy == "custom" end
 	local text = showWhen(get("countdown"))
 
