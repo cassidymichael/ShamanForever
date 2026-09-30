@@ -509,7 +509,8 @@ end
 ------------------------------------------------------------------------
 -- A ref names one setting: { elem = key, name } (an element's own, db.elementOpts), { general =
 -- name } (the profile's, db), { bar = "totembar" or "swing", name }, { group = g or a function
--- returning it, name }. Any ref may also carry:
+-- returning it, name }, { style = kind, owner } (a whole style: General's or an owner's). Any ref
+-- may also carry:
 --   after    the follow-up its row runs after a change; a reset runs each one once
 --   default  a function returning the value to compare with, in place of its kind's
 --   reset    a function of the ref that resets it, in place of its kind's: for a row that does
@@ -634,6 +635,36 @@ Page.refKind("group", {
 			end
 		end
 		return ns.GROUP_DEFAULTS[r.name]
+	end,
+})
+
+-- A style (ShamanForever_Style.lua): owner nil for General's, an owner key, or a function returning
+-- a group (nil while none is chosen). Changed: off how it ships (a "Same as General" switched, or
+-- values of its own that differ); a reset puts it back as shipped.
+local function styleOwner(r)
+	if type(r.owner) == "function" then
+		local o = r.owner()
+		return o, o ~= nil
+	end
+	return r.owner, true
+end
+Page.refKind("style", {
+	id = function(r) return r.style .. "." .. tostring(r.owner) end,
+	changed = function(r)
+		local St = ns.Style
+		local o, chosen = styleOwner(r)
+		if not chosen then return false end
+		local follows, shipped = St.shipped(o, r.style)
+		if o ~= nil then
+			local now = St.follows(o, r.style)
+			if now ~= follows then return true end
+			if now then return false end
+		end
+		return not same(St.get(o, r.style), shipped)
+	end,
+	reset = function(r)
+		local o, chosen = styleOwner(r)
+		if chosen then ns.Style.reset(o, r.style) end
 	end,
 })
 

@@ -74,10 +74,14 @@ local function generalRow(p, label, tip, get, set, anchor, shown)
 	return row
 end
 
+-- The block being built owns an owner's style, for its reset.
+local function ownStyle(p, owner, kind, after) p:owns({ style = kind, owner = owner, after = after }) end
+
 -- "Same as General" for a style: on, the rows under it hide; off the first time, the owner keeps
 -- the look it has as its own, and later its own values come back.
 local function followRow(p, owner, kind, after, label, shown)
 	if type(owner) == "string" then ns.Style.addUser(kind, owner) end
+	ownStyle(p, owner, kind, after)
 	return generalRow(p, label or "Same as General", "Use the settings on the General page.",
 		function() local o = resolve(owner); return o ~= nil and ns.Style.follows(o, kind) end,
 		function(v)
@@ -89,9 +93,10 @@ local function followRow(p, owner, kind, after, label, shown)
 end
 
 -- A style's rows: style() now, get(field) and set(field) for controls, and own(), whether the rows
--- apply (General's, or an owner with its own).
-local function styleRows(owner, kind, after)
+-- apply (General's, or an owner with its own). The block being built owns the style.
+local function styleRows(p, owner, kind, after)
 	local St = ns.Style
+	ownStyle(p, owner, kind, after)
 	local r = {}
 	function r.style()
 		local o = resolve(owner)
@@ -165,7 +170,7 @@ end
 -- when combat ends, as every other layout setting does; the previews here take it at once.
 local function borderRows(p, owner, after, label, shown)
 	after = after or relayout
-	local r = styleRows(owner, "border", after)
+	local r = styleRows(p, owner, "border", after)
 	if owner ~= nil then followRow(p, owner, "border", after, label, shown) end
 	local bordered = function() return r.own() and r.style().show end
 	p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"), showWhen(r.own, shown))
@@ -203,12 +208,12 @@ local function popSchoolRow(p, key, shown)
 		local v = ns.elementSetting(key, "popSchool")
 		return ns.SCHOOL_COLOR[v] and v or "own"
 	end
+	local function after() ns.Effects.applyStyle(); ns.applyTimers(); OP.refresh() end
 	local function set(v)
 		ns.elementOpts(key).popSchool = v ~= "own" and v or nil
-		ns.Effects.applyStyle()
-		ns.applyTimers()
-		OP.refresh()
+		after()
 	end
+	p:owns({ elem = key, name = "popSchool", after = after })
 	p:dropdown("Element", "The element its pop and School material glow take.", function()
 		local own = ns.Looks.elementSchool(key, true)
 		local out = { { "own", "Its own" } }
@@ -272,8 +277,8 @@ local function glowBlock(p, owner, icon)
 	-- (Maelstrom's at five) isn't on that list and only picks up a style change through its
 	-- module's applyTimers hook.
 	local function after() ns.Effects.applyStyle(); ns.applyTimers(); OP.refresh() end
-	local r = styleRows(owner, "glow", after)
 	p:header("Pulsing glow style")
+	local r = styleRows(p, owner, "glow", after)
 	if owner == nil then
 		p:anchor("glow")
 		p:text("Every pulsing glow. Elements and the totem bar can have their own.")
@@ -331,7 +336,8 @@ local function popBlock(p, owner, icon, kind)
 		OP.refresh()
 		if icons and icons.shown()[1]:IsVisible() then playPop() end
 	end
-	local r = styleRows(owner, "pop", after)
+	p:header("Pop style")
+	local r = styleRows(p, owner, "pop", after)
 	-- Colour is for Ready and Ran out (ns.Looks.POP_EVENTS): a page whose pop is for a warning (the
 	-- imbue's) keeps the warning's colour and doesn't offer it.
 	local colored = ns.Looks.POP_EVENTS[kind]
@@ -341,7 +347,6 @@ local function popBlock(p, owner, icon, kind)
 	local function bySchool()
 		return (colored and r.style().colorBy == "school") or burst().bySchool or false
 	end
-	p:header("Pop style")
 	if owner == nil then
 		p:anchor("pop")
 		p:text("The burst when something happens: a cooldown ready, an imbue dropping, a totem ending. Elements and the totem bar can have their own.")
@@ -423,8 +428,8 @@ local function fontChoices(current)
 end
 local function textBlock(p, owner, after)
 	after = after or relayout
-	local r = styleRows(owner, "text", after)
 	p:header("Text")
+	local r = styleRows(p, owner, "text", after)
 	if owner == nil then
 		p:anchor("text")
 		p:text("Timers, counts and keys. The totem bar and the swing timer can have their own.")
@@ -442,7 +447,7 @@ end
 -- bar's own, with Same as General. The list shows each texture as a strip.
 local function barRows(p, owner, after)
 	after = after or relayout
-	local r = styleRows(owner, "bar", after)
+	local r = styleRows(p, owner, "bar", after)
 	if owner then followRow(p, owner, "bar", after, "Texture same as General") end
 	local own = showWhen(r.own)
 	local c = ns.SCHOOL_COLOR.water
@@ -482,13 +487,13 @@ local TEXT_POS = { { "auto", "Auto" }, { "center", "Centre" }, { "topleft", "Top
 local function timerSettings(p, title, key, kind, after, note, first, barPlaced)
 	after = after or retime
 	local cant = ns.Timer.cant(key, kind)
-	local r = styleRows(key, kind, after)
+	p:header(title)
+	local r = styleRows(p, key, kind, after)
 	local style, tg, ts, own = r.style, r.get, r.set, r.own
 	-- A part's switch hides while following General, or when the game can't do it; the rows under it
 	-- hang on it while it's on.
 	local function part(name) return showWhen(function() return not cant[name] and own() end) end
 	local function on(field) return function() return style()[field] end end
-	p:header(title)
 	if not key then p:anchor(kind) end
 	if first then first() end
 	if note then p:text(note) end
@@ -540,8 +545,8 @@ end
 -- otherwise an element's or the totem bar's, with Same as General.
 local function gcdBlock(p, key)
 	local function after() ns.refreshAll(); ns.TotemBar.refreshGCD(); OP.refresh() end
-	local r = styleRows(key, "gcd", after)
 	p:header("Global cooldown")
+	local r = styleRows(p, key, "gcd", after)
 	if key then followRow(p, key, "gcd", after)
 	else
 		p:anchor("gcd")
