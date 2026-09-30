@@ -297,8 +297,9 @@ local COUNT_POINTS = { { "BOTTOMRIGHT", "Bottom right" }, { "BOTTOMLEFT", "Botto
 -- A look choice (tint, overlay, both) greys out the strength it does not use.
 local function lookUses(key, part) return function() local v = db()[key]; return v == part or v == "both" end end
 
-local function buildShield(p)
+local function buildShield(p, def)
 	elementDisplay(p, "shield")
+	idleBlock(p, def)
 	p:header("Tracking")
 	-- Lightning Shield is the tested default; the Water Shield modes are experimental until tested in game.
 	p:cards("Track", nil, {
