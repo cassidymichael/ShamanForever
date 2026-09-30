@@ -72,7 +72,9 @@ local function makeBuffIcon(def)
 end
 
 for _, def in ipairs(BUFFS) do
-	def.buff = true   -- for the options: its Idle is "not up", not "off cooldown"
+	def.buff = true   -- for the options page and preview
+	def.idleText = def.proc and ("Idle is when " .. Spells.name("clearcasting") .. " isn't up") or "Idle is when it isn't up"
+	if def.reagent then def.idleExtra = ns.Reagents.IDLE_EXTRA end
 	def.spell = Spells.name(def.spellKey)
 	def.icon = Spells.icon(def.buffKey or def.spellKey) or def.icon
 	def.defaults = def.defaults or {}

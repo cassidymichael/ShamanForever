@@ -226,31 +226,46 @@ local function readyBlock(p, key, glowTip, afterPop)
 	ns.Sounds.row(p, "Sound", "The moment the cooldown ends.", eget(key, "readySound"), eset(key, "readySound"))
 end
 
--- Standard block: the look while the element has nothing going on (the cooldown and buff elements),
--- right under Display. An element with a reagent can count running low as something going on.
-local IDLE_WHEN = { { "never", "Never" }, { "nototem", "Off cooldown, no fire totem" }, { "offcd", "Off cooldown" } }
+-- Standard block: the look while the element has nothing going on, right under Display. What the
+-- element offers comes from its def:
+--   idleChoices = { { value, label, text, tip }, ... }   the "Idle when" choices (setting idleWhen);
+--                       text is the line saying what idle is (%s: def.idleAlso, what else keeps it
+--                       out of idle), tip the dropdown's help. A choice with value "never" hides
+--                       the opacity slider.
+--   idleText            the line when there is no choice
+--   idleExtra           a second dropdown { key, label, tip, choices } (the reagents' Running low)
 local function idleBlock(p, def)
-	local key, fireNova = def.key, def.needsTotem
+	local key, choices = def.key, def.idleChoices
+	local function when() return ns.elementSetting(key, "idleWhen") end
+	local function never() return choices ~= nil and when() == "never" end
 	p:header("Idle")
-	local base = def.buff and (def.idleText or def.proc and ("Idle is when " .. ns.Spells.name("clearcasting") .. " isn't up")
-		or "Idle is when it isn't up") or "Idle is when it's off cooldown"
-	if fireNova then
-		p:text("Idle is when there's nothing to track. At 0% it's hidden and keeps its place in the group.")
-		p:dropdown("Idle when", "Off cooldown, no fire totem: it can't be cast. Off cooldown: whether a fire totem is down or not.",
-			IDLE_WHEN, eget(key, "idleWhen"), eset(key, "idleWhen"), nil, 210)
-	elseif def.reagent then
-		p:text(base .. ". At 0% it's hidden and keeps its place in the group.")
-		local what = def.buff and "Not up" or "Off cooldown"
-		p:dropdown("Idle when", "With enough reagents: running low or out shows it, even at 0%.",
-			{ { true, what .. ", enough reagents" }, { false, what } }, eget(key, "reagentShow"), eset(key, "reagentShow"), nil, 230)
+	if choices then
+		local options, tips = {}, {}
+		for _, c in ipairs(choices) do
+			table.insert(options, { c[1], c[2] })
+			if c[4] then table.insert(tips, c[2] .. ": " .. c[4]) end
+		end
+		p:text(function()
+			for _, c in ipairs(choices) do
+				if c[1] == when() then
+					return c[3]:format(def.idleAlso or "") .. (c[1] == "never" and ""
+						or ". At 0% it's hidden and keeps its place in the group.")
+				end
+			end
+			return ""
+		end)
+		p:dropdown("Idle when", table.concat(tips, " "), options, eget(key, "idleWhen"), eset(key, "idleWhen"), nil, 230)
 	else
-		local also = def.totemSlot and " and its totem isn't down" or def.primed and " and not primed"
-			or def.window and " and not active" or ""
-		p:text(base .. also .. ". At 0% it's hidden and keeps its place in the group.")
+		p:text((def.idleText or "Idle is when it isn't up") .. ". At 0% it's hidden and keeps its place in the group.")
+	end
+	local extra = def.idleExtra
+	if extra then
+		p:dropdown(extra.label, extra.tip, extra.choices, eget(key, extra.key), eset(key, extra.key),
+			choices and showWhen(function() return not never() end) or nil, 230)
 	end
 	p:slider("Idle opacity", "The icon's opacity while idle.",
 		0, 1, 0.05, pct, eget(key, "idleAlpha"), eset(key, "idleAlpha"),
-		fireNova and showWhen(function() return ns.elementSetting(key, "idleWhen") ~= "never" end) or nil)
+		choices and showWhen(function() return not never() end) or nil)
 end
 
 -- Standard blocks at the end of a page: the pulsing glow's and the pop's styles, General's or its
