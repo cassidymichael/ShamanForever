@@ -94,7 +94,7 @@ local TARGET = {
 		popTip = "Each time a new buff lands on your target, or you target one that has one.",
 		glowTip = "While your target has one.",
 		upLabel = "Magic buff", idleLabel = "Nothing to purge",
-		defaults = { idleAlpha = 0, primedPop = true, primedGlow = true, skipLong = false, skipLongMins = 2 },
+		defaults = { idleAlpha = 0, primedPop = false, primedGlow = true, skipLong = false, skipLongMins = 2 },
 		experimental = "Purge" },
 }
 T.ELEMENTS = TARGET
