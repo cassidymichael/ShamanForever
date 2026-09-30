@@ -2,7 +2,7 @@
 --   text  font, outline and shadow for every piece of text an owner draws (timers, counts, keys,
 --         words); General's, or the totem bar's or the swing timer's own
 --   bar   the texture of every bar (time bars, the shield's charge bar, Maelstrom's stack bar,
---         the swing timer); General's only
+--         the swing timer); General's, or the swing timer's own
 -- Choices are stored by name, never by path. The game's fonts and bars are built in; others come
 -- from LibSharedMedia when another addon has loaded it (we don't ship it: it only brings media that
 -- other addons register, and those bring it with them).
@@ -346,20 +346,24 @@ local function bar(name)
 end
 M.barOf = bar
 
--- The texture every bar uses now (SetStatusBarTexture takes a file or an atlas; tested 2026-09-28,
--- in combat too, with a running timer and its colour kept).
-function M.barTexture() return (bar(S.value(nil, "bar", "texture"))) end
+-- Owners of a bar texture: General (nil) and the swing timer; every other bar draws with General's.
+local function barOwner(o) return o == "swing" and o or nil end
+local function barName(o) return S.value(barOwner(o), "bar", "texture") end
 
-function M.barInUse(name) return S.value(nil, "bar", "texture") == name end
+-- The texture an owner's bars use now (SetStatusBarTexture takes a file or an atlas; tested
+-- 2026-09-28, in combat too, with a running timer and its colour kept).
+function M.barTexture(o) return (bar(barName(o))) end
 
--- Why the chosen bar isn't drawing, as the options say under the control; nil when it is.
-function M.barProblem()
-	local name = S.value(nil, "bar", "texture")
+function M.barInUse(name) return barName(nil) == name or barName("swing") == name end
+
+-- Why an owner's chosen bar isn't drawing, as the options say under the control; nil when it is.
+function M.barProblem(o)
+	local name = barName(o)
 	if select(3, bar(name)) == false then return "Not found: " .. name .. ". Using Flat." end
 end
 
--- The bars to offer: Flat, the game's, then other addons', each { name, label }.
-function M.bars()
+-- The bars to offer an owner: Flat, the game's, then other addons', each { name, label }.
+function M.bars(o)
 	local out = { { "", "Flat" } }
 	for _, b in ipairs(BARS) do
 		if not b.atlas or (C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(b[2])) then
@@ -379,7 +383,7 @@ function M.bars()
 		table.sort(more, function(a, b) return a[1] < b[1] end)
 		for _, b in ipairs(more) do table.insert(out, b) end
 	end
-	local current = S.value(nil, "bar", "texture")
+	local current = barName(o)
 	local listed = false
 	for _, b in ipairs(out) do if b[1] == current then listed = true end end
 	if not listed then table.insert(out, { current, current }) end

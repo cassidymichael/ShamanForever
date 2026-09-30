@@ -108,6 +108,7 @@ function SP.build(p)
 	p:dropdown("Colour", nil, COLOR, get("colorBy"), set("colorBy"), nil, 160)
 	p:text("Your main hand's imbue, grey with none.", showWhen(function() return not custom() end))
 	p:color("Custom colour", nil, get("color"), set("color"), showWhen(custom))
+	K.barRows(p, "swing", changed)
 
 	p:header("Countdown")
 	p:checkbox("Countdown text", "The time to the next swing, on the bar.", get("countdown"), set("countdown"))
