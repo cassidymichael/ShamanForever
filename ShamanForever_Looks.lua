@@ -643,8 +643,7 @@ end
 --   build(g)  its regions and animation groups, under g.inner (breathing) or g (not); returns
 --             parts: { roots = { frames }, anims = { groups played while it shows }, aura = { the
 --             groups Blizzard's aura button plays in their place, when the glow is under it },
---             moving = { the roots whose regions scale or move: hidden while a pop moves the
---             icon, ns.Effects } }
+--             moving = { the roots whose regions scale or move: hidden while a pop moves the icon } }
 --   style(g, parts, st, c)       colours and timing; c is the colour (st.color or a fixed one)
 --   fit(g, parts, size, out)     sizes for an icon of size, whose frame reaches out past its edge
 ------------------------------------------------------------------------

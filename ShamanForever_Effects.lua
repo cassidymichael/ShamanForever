@@ -119,6 +119,7 @@ function E.glow(parent, over, owner, opts)
 			self.look, self.fitWidth = look, nil   -- lay the new look out at the next fit
 			local p = parts(look)
 			for _, r in ipairs(p and p.roots or {}) do r:Show() end
+			if self.held then for _, r in ipairs(p and p.moving or {}) do r:Hide() end end
 			if running then play(self, true) end
 			-- Under the button: the new look's animations start now; the button restarts them as its
 			-- aura shows (a look's old ones keep playing on its hidden parts).
@@ -150,22 +151,23 @@ function E.glow(parent, over, owner, opts)
 			if self.onLayout then ns.try("glow layout", self.onLayout, self, p, self.look) end
 		end
 	end
-	-- The look's parts that scale or move (parts.moving) hidden for secs, while a pop's motion moves
-	-- a frame the glow hangs under (E.pop), then shown with their animations started again. A
-	-- later hold outlasts this one's timer; a look changed meanwhile keeps its parts as restyle left
-	-- them (the old look's hidden).
+	-- Hides the look's moving parts for secs, while a pop moves a frame above the glow.
 	function g:hold(secs)
 		local p = self.look and self.parts[self.look.key]
-		if not (p and p.moving) then return end
-		for _, a in ipairs(p.anims or {}) do a:Stop() end
-		for _, r in ipairs(p.moving) do r:Hide() end
-		self.holdToken = (self.holdToken or 0) + 1
+		if p and p.moving then
+			for _, a in ipairs(p.anims or {}) do a:Stop() end
+			for _, r in ipairs(p.moving) do r:Hide() end
+		end
+		self.held, self.holdToken = true, (self.holdToken or 0) + 1
 		local token = self.holdToken
 		C_Timer.After(secs, function()
-			if self.holdToken ~= token or not self.look or self.parts[self.look.key] ~= p then return end
-			for _, r in ipairs(p.moving) do r:Show() end
+			if self.holdToken ~= token then return end
+			self.held = false
+			local q = self.look and self.parts[self.look.key]
+			if not (q and q.moving) then return end
+			for _, r in ipairs(q.moving) do r:Show() end
 			if self:IsShown() then
-				for _, a in ipairs(p.anims or {}) do a:Play() end
+				for _, a in ipairs(q.anims or {}) do a:Play() end
 			end
 		end)
 	end
@@ -209,8 +211,8 @@ end
 -- screen (seen 2026-09-25 and 2026-10-01), while textures with scale animations under a still
 -- frame draw as asked. So the bursts sit on frames beside the icon, anchored to it; the flashes,
 -- whose animations only fade or flip, stay on the icon and move with it. No animation takes no
--- time, and every Scale and Rotation turns about the centre. Glows stay under the icon (a ready
--- glow's gate is on it): their parts that scale or move are hidden while the motion plays.
+-- time, and every Scale and Rotation turns about the centre. Glows stay under the icon: their
+-- moving parts hide while the motion plays (g:hold).
 local POP_TINT = { ready = { 1, 0.82, 0.25 }, imbue = { 0.35, 0.65, 1 }, expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 },
 	grounded = { 0.56, 0.76, 0.92 }, blocked = { 0.6, 0.6, 0.6 } }
 local BLACK = { 0, 0, 0 }
@@ -223,7 +225,7 @@ local STAR = { name = "star", atlas = "AftLevelup-WhiteStarBurst", file = "Inter
 	layer = "BACKGROUND", add = true, desat = true, from = 1.2, to = 3.5, dur = 0.45, a = 1, spin = -0.5 }
 local MOTION_STEPS = 4
 local SHORTEST = 0.01   -- a burst part's shortest wait, and a motion step no motion uses (s)
-local HOLD_MARGIN = 0.05   -- how long a glow's moving parts stay hidden past the motion (s)
+local HOLD_MARGIN = 0.05   -- a glow's moving parts stay hidden this long past the motion (s)
 
 local function anim(g, kind, order)
 	local a = g:CreateAnimation(kind)
@@ -569,8 +571,7 @@ function E.pop(f, kind, owner)
 	-- over the totem bar's slot, under its secure button).
 	f.popRig:style(st, math.max(f.popSize or f:GetHeight(), 8), c, school, kind == "blocked")
 	f.popRig:play()
-	-- The glows under f sit under the motion too: their parts that scale or move wait it out, as
-	-- such parts drew across the whole screen there, as the bursts did (seen 2026-10-01).
+	-- Glows under f: their scaling or moving parts would draw across the screen during the motion.
 	local length = f.popRig.motionLength
 	if length > 0 then
 		for _, g in ipairs(glows) do
