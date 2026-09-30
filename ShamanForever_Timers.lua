@@ -47,7 +47,6 @@ T.ELEMENT_DEFAULTS = {
 	-- The shield's time bar, when on, along the top: its charge bar is along the bottom.
 	shield = { uptime = { text = false, swipe = false, swipeAlpha = 0.5, swipeReverse = false, bar = false, barEdge = "top" } },
 	imbue = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = false } },
-	-- Aura-button elements: their own timer, no bar under Blizzard's button.
 	-- Flame Shock's time left: the countdown and a bar along the bottom, Blizzard's button drives both.
 	flameshock = { uptime = { text = true, bar = true, barEdge = "bottom" } },
 	-- Their time left as a bar only (whatever General says): the countdown shows the cooldown.

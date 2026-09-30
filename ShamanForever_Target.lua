@@ -1,5 +1,8 @@
--- Your hostile target: your Flame Shock on it and a Magic buff on it to Purge. Both are experimental:
--- not yet tested on a target in combat. T.hostile() is also the interrupt cue's test (Shocks).
+-- Your hostile target: your Flame Shock on it and a Magic buff on it to Purge. Both are experimental.
+-- Tested on open-world mobs in combat (2026-09-30): the containers following the target, Flame
+-- Shock's cover, time bar and Expiring, Purge's icon and glow. Not yet tested in a PvP match or an
+-- encounter, where auras are secret out of combat too. T.hostile() is also the interrupt cue's test
+-- (Shocks).
 --
 -- What can be read, and when:
 -- * Auras on another unit are secret to addon code, so only Blizzard's aura container can show
@@ -686,8 +689,9 @@ function T.debug()
 		readable() and tostring(on) or "not read (combat or secret auras)", tostring(FLAME.missingNow))
 	local g = FLAME.under and FLAME.under.glow
 	if g then
-		say("%s Not on target glow: drawn %s, style's %s, shown %s", FLAME.spell, g.look and g.look.key or "none",
-			tostring(ns.Style.get(FLAME.key, "glow").look), tostring(g:IsShown()))
+		say("%s Not on target glow: drawn %s, style's %s, shown %s; red countdown handed %s", FLAME.spell,
+			g.look and g.look.key or "none", tostring(ns.Style.get(FLAME.key, "glow").look), tostring(g:IsShown()),
+			tostring(FLAME.textHanded))
 	end
 end
 
