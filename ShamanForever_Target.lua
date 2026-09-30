@@ -39,8 +39,8 @@
 --     its edges; the red ring could show past a masked look's corners, so it shows only out of
 --     combat, where the target's debuffs are plain reads (C_Secrets.ShouldAurasBeSecret is false)
 --     and say exactly that yours isn't there;
---   - Blizzard's container follows a new target on its next frame, so the underlay waits 0.1 s
---     each time it shows or the target changes;
+--   - Blizzard's container follows a new target on its next frame, so the underlay waits two
+--     frames each time it shows or the target changes (T.appear);
 --   - it hides (alpha 0) while the container isn't made, isn't following the target (a refused call
 --     in combat) or its expiring warning is stuck: a miss, never a false warning.
 --   Shocks' mark can't be covered by the button, so it stays out of combat only (the read).
@@ -137,7 +137,7 @@ local function buildButton(def, slot, button, cd)
 end
 
 local function styleButton(def, size, slot)
-	if def.edge then ns.applyBorder(def.edge, ns.borderFor(def.key)) end
+	if def.edge then ns.try("target border " .. def.key, ns.applyBorder, def.edge, ns.borderFor(def.key)) end
 	def.glow:restyle()
 	def.glow:fit(size)
 	def.glow:SetShown(setting(def.key, "primedGlow") and true or false)
@@ -173,28 +173,23 @@ for _, def in ipairs(TARGET) do
 		local u = CreateFrame("Frame", nil, def.gate)
 		u:SetAllPoints(f)
 		u:Hide()   -- until its state driver (driveGate)
-		u.inner = CreateFrame("Frame", nil, u)   -- the appear delay's alpha, apart from u's own
+		u.inner = CreateFrame("Frame", nil, u)   -- the wait's alpha (T.appear), apart from u's own
 		u.inner:SetAllPoints()
 		u.tex = u.inner:CreateTexture(nil, "ARTWORK")
 		ns.cropIconExact(u.tex)
 		u.tex:SetTexture(def.icon)
 		u.ring = ns.makeRing(u.inner, f.tex)
 		u.pulse = ns.makePulse(u.tex, "fade")
-		-- Hidden for its first 0.1 s each time it shows or the target changes: Blizzard's container
-		-- follows a new target on its next frame, so the cover could be a frame late.
-		u.appear = u.inner:CreateAnimationGroup()
-		local hold = u.appear:CreateAnimation("Alpha")
-		hold:SetFromAlpha(0); hold:SetToAlpha(0); hold:SetDuration(0.1); hold:SetOrder(1)
-		local come = u.appear:CreateAnimation("Alpha")
-		come:SetFromAlpha(0); come:SetToAlpha(1); come:SetDuration(0.1); come:SetOrder(2)
-		u.appear:SetToFinalAlpha(true)
-		u.appear:SetScript("OnFinished", function() u.inner:SetAlpha(1) end)
 		-- Every frame while shown: the target still hostile and alive, and the container on it. The
 		-- state driver checks only every 0.2 s (and at once only on a target change), while the
 		-- button goes the moment a dying target's debuffs clear: so the underlay hides itself here,
 		-- and asks for the container to follow a target that came back or turned (plain reads, and
 		-- SetAlpha on our own frame, allowed in combat).
 		u:SetScript("OnUpdate", function(self)
+			if self.hold then   -- the wait (T.appear)
+				self.hold = self.hold - 1
+				if self.hold <= 0 then self.hold = nil; self.inner:SetAlpha(1) end
+			end
 			local ok = hostileTarget() and def.unit == "target" and not ns.cantAct()
 			if ok ~= self.trusted then
 				self.trusted = ok
@@ -242,12 +237,16 @@ function gateAlpha(def)
 	if def.under then T.underAlpha(def) end
 end
 
--- The underlay's wait (see the file's header), from alpha 0 at once: an animation's first value may
--- only apply after the next frame is drawn. Our own frame: allowed in combat.
+-- The underlay's wait: hidden now, and back on its second OnUpdate from here. A change asks
+-- Blizzard's container to update (UpdateAllAuras, SetUnit, a shown container: all mark it dirty),
+-- and it does so in its own next OnUpdate, in this frame's pass or the next one's. Ours comes back
+-- a pass after that, so before the frame drawn after the container's update, never the one before:
+-- one or two frames hidden, not a fixed time. Needed on a change between two hostile targets too,
+-- when the underlay stays shown: without it the last target's button state (no Flame Shock, so
+-- grey) would be drawn once over a target that has it. Our own frame: allowed in combat.
 function T.appear(u)
 	u.inner:SetAlpha(0)
-	u.appear:Stop()
-	u.appear:Play()
+	u.hold = 2
 end
 
 -- The Not on target underlay's opacity: its group's while it can be trusted (its container made
