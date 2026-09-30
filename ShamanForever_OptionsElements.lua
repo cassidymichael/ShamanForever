@@ -369,8 +369,14 @@ local function buildShock(p)
 	effectBlocks(p, "shock")
 end
 
+local IMBUE_IDLE = {
+	{ "never", "Never", "It always shows in full" },
+	{ "notlow", "Imbue on and time not low", "Idle is when an imbue is on and its time left isn't low" },
+	{ "on", "Imbue on", "Idle is when an imbue is on", "Whatever its time left." },
+}
 local function buildImbue(p)
 	elementDisplay(p, "imbue")
+	idleBlock(p, { key = "imbue", idleChoices = IMBUE_IDLE })
 	warningBlock(p, "No imbue", get("imbueMissingGrey"), set("imbueMissingGrey"), get("imbueMissingRing"), set("imbueMissingRing"),
 		get("imbuePulse"), set("imbuePulse"), function()
 			local cards = { { "last", "Last used", 136086 } }
@@ -388,8 +394,6 @@ local function buildImbue(p)
 		p:slider("Show under", nil, 0, 30, 1,
 			function(v) return v == 0 and "Never" or string.format("%d min", v) end, get("imbueWarnMins"), set("imbueWarnMins"))
 		p:text("Time left shows once it's below this. 0 never shows it.")
-		p:checkbox("Hide until low", nil, get("imbueHideActive"), set("imbueHideActive"))
-		p:text("While an imbue is on, the icon stays hidden until the time left shows. It keeps its place in the group.")
 	end)
 	effectBlocks(p, "imbue", "imbue")
 end
