@@ -104,11 +104,6 @@ ns.registerElement(KEY, { frame = f, label = Spells.name("maelstromWeapon"), def
 -- For the options' Idle block: it's a buff (its Idle is "not up").
 M.key, M.buff = KEY, true
 
--- Its place in the default layout: a group of its own left of Elemental Focus, above the first row.
--- name: the group's name where groups have one.
-table.insert(ns.DEFAULTS.groups, { name = "Maelstrom", point = "CENTER", x = -62, y = 11, scale = 0.9,
-	alpha = 0.75, orientation = "horizontal", growth = "forward", spacing = 6, members = { KEY } })
-
 -- Its time left is Blizzard's button's own swipe: no text, no bar (its defaults and CANT note are
 -- with every other element's in ShamanForever_Timers.lua).
 

@@ -7,6 +7,7 @@
   drains the same way it fills.
 - Elements are listed A to Z in the options.
 - Fixed an error when preview mode showed the totem bar.
+- New default layout and looks for new profiles.
 
 ## 0.9.0 (2026-09-30)
 

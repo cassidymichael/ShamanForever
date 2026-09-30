@@ -28,7 +28,7 @@ local function timeColors()
 end
 T.DEFAULTS = {
 	cooldown = {
-		text = true, textSize = 20, textColor = { 1, 1, 1, 1 }, textPos = "center", abbrev = 0,
+		text = true, textSize = 18, textColor = { 1, 1, 1, 1 }, textPos = "center", abbrev = 0,
 		swipe = true, swipeAlpha = 0.65, swipeReverse = false,
 		bar = false, barHeight = 8, barElement = true, barColor = { 0.9, 0.8, 0.3, 1 }, barEdge = "top",
 	},
