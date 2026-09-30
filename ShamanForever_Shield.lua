@@ -247,6 +247,8 @@ local function underState()
 	return "warn"
 end
 
+local watch   -- below
+
 -- The wait: hidden now, and back on its second OnUpdate from here. Blizzard's container updates in
 -- its own next OnUpdate after a change (or after it shows), in this frame's pass or the next one's;
 -- ours comes back a pass after that, so before the frame drawn after the container's update, never
@@ -254,6 +256,7 @@ end
 local function appear()
 	under.inner:SetAlpha(0)
 	under.hold = 2
+	watch()
 end
 
 -- The underlay's looks for its state: the full No shield look, or the grey alone. Our own frames
@@ -278,16 +281,28 @@ local function setUnder(st)
 	lookUnder()
 end
 
--- Every frame while shown: its state now. The state changes the frame a read goes the other way
--- (dead, a flight path, our cast), so it never waits for an event.
-under:SetScript("OnUpdate", function(self)
+-- Every frame while the button is the switch, a wait runs or a hold hasn't ended: its state now.
+-- The state changes the frame a read goes the other way (dead, a flight path, our cast), so it
+-- never waits for an event. Out of combat, with auras readable, the events that change the read or
+-- the settings decide (SH.applyEmptyLook), and it stops.
+local function guard(self)
 	if self.hold then
 		self.hold = self.hold - 1
 		if self.hold <= 0 then self.hold = nil; self.inner:SetAlpha(1) end
 	end
 	local st = underState()
 	if st ~= self.state then setUnder(st) end
-end)
+	if not (self.hold or covering() or GetTime() < holdUntil) then
+		self:SetScript("OnUpdate", nil)
+		self.watching = false
+	end
+end
+-- Starts the guard, if it isn't running (it stops itself once nothing needs it).
+function watch()
+	if under.watching then return end
+	under.watching = true
+	under:SetScript("OnUpdate", guard)
+end
 under:SetScript("OnShow", function(self)
 	appear()   -- its group or the element was hidden: the container may be a frame behind
 	setUnder(underState())
@@ -348,6 +363,7 @@ function SH.applyEmptyLook()
 		standIn:SetIgnoreParentAlpha(up or realUp)
 	end
 	setUnder(underState())
+	watch()
 end
 
 local function setUpShield(key)
@@ -594,7 +610,10 @@ function SH.onCast(spellID)
 	local cast = castOf(spellID)
 	if not cast then return end
 	ns.getAccount().lastShield = cast
-	if tracksShield(cast) then holdUntil = GetTime() + CAST_HOLD end
+	if tracksShield(cast) then
+		holdUntil = GetTime() + CAST_HOLD
+		watch()
+	end
 	learnShieldID(cast, spellID)
 	SH.applyEmptyLook()
 end
@@ -652,9 +671,15 @@ function SH.start()
 	ns.registerEvent(ev, "PLAYER_REGEN_DISABLED")
 	ns.registerEvent(ev, "PLAYER_REGEN_ENABLED")
 	ns.registerEvent(ev, "PLAYER_ENTERING_WORLD")
+	-- Auras may turn secret out of combat (a PvP match, an encounter): the button becomes the switch.
+	ns.registerEvent(ev, "ADDON_RESTRICTION_STATE_CHANGED")
 	ev:SetScript("OnEvent", function(_, event)
 		if event == "PLAYER_ENTERING_WORLD" then
 			holdUntil = math.max(holdUntil, GetTime() + LOAD_HOLD)
+			watch()
+			return
+		elseif event == "ADDON_RESTRICTION_STATE_CHANGED" then
+			watch()
 			return
 		elseif event == "PLAYER_REGEN_DISABLED" then
 			fighting = true
