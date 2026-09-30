@@ -223,6 +223,7 @@ local RING = { name = "ring", atlas = "ArtifactsFX-YellowRing", file = "Interfac
 	layer = "OVERLAY", add = true, desat = true, from = 0.9, to = 2.2, dur = 0.45, a = 1 }
 local STAR = { name = "star", atlas = "AftLevelup-WhiteStarBurst", file = "Interface\\Cooldown\\star4",
 	layer = "BACKGROUND", add = true, desat = true, from = 1.2, to = 3.5, dur = 0.45, a = 1, spin = -0.5 }
+local RIG_PARTS = { ring = RING, star = STAR }   -- a burst's rigParts
 local MOTION_STEPS = 4
 local SHORTEST = 0.01   -- a burst part's shortest wait, and a motion step no motion uses (s)
 local HOLD_MARGIN = 0.05   -- a glow's moving parts stay hidden this long past the motion (s)
@@ -263,9 +264,10 @@ local function newPart(parent, spec)
 end
 
 -- A part's values from its spec: h the icon height its sizes are in (the sheen's: the frame's
--- own), c the pop's colour, k the duration multiplier. After delay, the size eases out and the
--- alpha fades evenly (late for slow) over dur. Its alpha is set to 0 again once its texture is.
-local function stylePart(p, spec, parent, h, c, k)
+-- own), c the pop's colour, k the duration multiplier, reach a factor on its sizes (not the
+-- sheen's). After delay, the size eases out and the alpha fades evenly (late for slow) over dur.
+-- Its alpha is set to 0 again once its texture is.
+local function stylePart(p, spec, parent, h, c, k, reach)
 	local t, g = p.tex, p.group
 	if not spec.atlas then t:SetTexture(spec.file) end
 	t:SetAlpha(0)
@@ -285,7 +287,8 @@ local function stylePart(p, spec, parent, h, c, k)
 		local d = shift[2] - shift[1]
 		g.move:SetOffset(-d * h, d * h)
 	else
-		t:SetSize(h * spec.from, h * spec.from * (spec.sy or 1))
+		local from = h * spec.from * (reach or 1)
+		t:SetSize(from, from * (spec.sy or 1))
 		t:SetPoint("CENTER", parent, "CENTER", 0, 0)
 		local grow = spec.to / spec.from
 		g.grow:SetScaleTo(grow, grow)
@@ -476,28 +479,23 @@ function Rig:style(st, size, c, school, muted)
 		self.flashOut:SetFromAlpha(peak); self.flashOut:SetDuration(0.3 * k)
 		on[self.flashAnim] = true
 	end
-	local burst = st.burst
+	-- A burst this version doesn't know (a profile from a newer one) draws none.
+	local burst = ns.Style.field("pop", "burst").byKey[st.burst] or ns.Style.choice("pop", "burst", "none")
 	-- On the aura route (self.guard) each burst part is styled on its own, so one refused call
 	-- leaves the others, and the final show and hide, done.
 	local function part(name, fn)
 		if self.guard then ns.try("aura pop " .. name, fn) else fn() end
 	end
-	if burst == "ring" or burst == "both" then
-		part("ring", function()
-			stylePart(self.parts.ring, RING, self.front, size, c, k)
-			on[self.parts.ring.group] = true
-		end)
-	end
-	if burst == "star" or burst == "both" then
-		part("star", function()
-			stylePart(self.parts.star, STAR, self.front, size, c, k)
-			on[self.parts.star.group] = true
+	for _, name in ipairs(burst.rigParts or {}) do
+		part(name, function()
+			stylePart(self.parts[name], RIG_PARTS[name], self.front, size, c, k, st.reach)
+			on[self.parts[name].group] = true
 		end)
 	end
 	-- A drawn burst: sized by the icon with its frame; its back parts under the icon as it stands
 	-- now (for an end flash's pop, the icon it covers: a totem bar slot, so the shapes and their
 	-- dark disc stay behind that slot's neighbours too).
-	local drawn = ns.Looks.popParts(burst, school)
+	local drawn = ns.Looks.popParts(burst.key, school)
 	if drawn then
 		local over = self.f.over or self.f
 		self.back:SetFrameLevel(math.max(over:GetFrameLevel() - 1, 0))
@@ -506,7 +504,7 @@ function Rig:style(st, size, c, school, muted)
 			part(spec.name, function()
 				local p = self.parts[spec.name]
 				if spec.shift then stylePart(p, spec, self.clip, size, c, k)
-				else stylePart(p, spec, p.tex:GetParent(), h, c, k) end
+				else stylePart(p, spec, p.tex:GetParent(), h, c, k, st.reach) end
 				on[p.group] = true
 			end)
 		end
@@ -563,7 +561,7 @@ function E.pop(f, kind, owner)
 	if not f:IsVisible() then return end
 	kind = kind or "ready"
 	local st = ns.Style.get(owner, "pop")
-	local school = ns.Looks.schoolOf(f)
+	local school = ns.Looks.effectSchool(f)
 	local c = popColor(st, kind, school)
 	f.popRig = f.popRig or newRig(f)
 	f.popRig:stop()   -- nothing plays while its values change
@@ -862,7 +860,7 @@ function Host:stylePop(size)
 	if not pops then rig:hideAll() end   -- Pop off wins even if a setter below is refused
 	ns.try("aura pop style " .. self.key, function()
 		local st = pops and ns.Style.get(self.key, "pop") or NO_POP
-		local school = ns.Looks.schoolOf(self.f)
+		local school = ns.Looks.effectSchool(self.f)
 		rig:style(st, size, popColor(st, self.aura.popKind or "ready", school), school)
 	end)
 	-- Whatever styling did or didn't finish, the parts shown are exactly those marked to play.

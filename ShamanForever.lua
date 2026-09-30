@@ -178,7 +178,8 @@ local ELEMENT_KEYS = { "shield", "shock", "imbue" }
 -- which read def, the module's own table for it. effects = { glow = { states }, pop = { states },
 -- popKind }: what can glow and what can pop (each a list of names, empty for none; its settings
 -- are the element's own), and the pop's kind (its colour; default "ready"). The options show the
--- Pulsing glow style and Pop style blocks only where a list isn't empty.
+-- Pulsing glow style and Pop style blocks only where a list isn't empty. ownSchool(), if set: the
+-- school its pop and School material glow take now, where that follows its state (nil: school).
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
 local NO_EFFECTS = { glow = {}, pop = {} }

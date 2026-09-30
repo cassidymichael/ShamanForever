@@ -116,25 +116,37 @@ local function ownLine(p, kind)
 end
 
 
--- A style kind's looks (ns.Style.addLook), for a dropdown: all but those kept for the totem bar's
--- Looks.
-local function lookChoices(kind)
-	local out = {}
-	for _, e in ipairs(ns.Style.LOOKS[kind].order) do
-		if not e.hidden then table.insert(out, { e.key, e.name }) end
+-- A picker for a style field's choices (ns.Style.addChoice; r from styleRows): a dropdown in
+-- sections by the choices' groups, titled, and an EXPERIMENTAL badge under it while the choice
+-- picked isn't fully tested. A saved choice no longer offered shows in its section while picked.
+-- Returns the choice's entry now.
+local function choiceRows(p, r, kind, field, label, tip, shown)
+	local St = ns.Style
+	local function now() return St.choice(kind, field, r.style()[field]) end
+	local function key() return now().key end
+	local set = r.set(field)
+	local function list()
+		local out = {}
+		for _, e in ipairs(St.offered(kind, field, key())) do table.insert(out, { e.key, e.name }) end
+		return out
 	end
-	return out
-end
-
--- A look picker for a style's rows (r, from styleRows): the dropdown, and an EXPERIMENTAL badge
--- under it while the look picked isn't tested in game yet. Returns the look now.
-local function lookRows(p, r, kind, label, feature, shown)
-	local function look() return ns.Style.look(kind, r.style().look) end
-	p:dropdown(label, nil, lookChoices(kind), function() return look().key end, r.set("look"), shown, 190)
+	local dd = p:dropdown(label, tip, list, key, set, shown, 190).dropdown
+	dd:SetupMenu(function(_, root)
+		root:SetScrollMode(400)
+		for i, sec in ipairs(St.sections(kind, field, key())) do
+			if sec.name then
+				if i > 1 then root:CreateDivider() end
+				root:CreateTitle(sec.name)
+			end
+			for _, e in ipairs(sec.list) do
+				root:CreateRadio(e.name, function() return key() == e.key end, function() set(e.key) end)
+			end
+		end
+	end)
 	local f = p:row(22)
-	ns.Look.expBadge(f, feature):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
-	p:add(f, 22, showWhen(function() return look().experimental end, shown))
-	return look
+	ns.Look.expBadge(f, St.field(kind, field).name):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
+	p:add(f, 22, showWhen(function() return now().experimental end, shown))
+	return now
 end
 
 -- A line naming the elements (keys(), a list) that take a change after a /reload, shown while
@@ -157,7 +169,7 @@ local function borderRows(p, owner, after, label, shown)
 	if owner ~= nil then followRow(p, owner, "border", after, label, shown) end
 	local bordered = function() return r.own() and r.style().show end
 	p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"), showWhen(r.own, shown))
-	local look = lookRows(p, r, "border", "Border look", "Border looks", showWhen(bordered, shown))
+	local look = choiceRows(p, r, "border", "look", "Border look", nil, showWhen(bordered, shown))
 	local function uses(part) return function() return bordered() and ns.Looks.uses(look(), part) end end
 	-- Blizzard's aura button takes a mask only as it is made (ns.Looks.auraMask).
 	local function stale()
@@ -179,9 +191,39 @@ local function previewBorder(owner)
 	return ns.borderFor(owner)
 end
 
+-- Whether a style's owner is an element (its page's).
+local function isElement(owner) return type(owner) == "string" and ns.ELEMENTS[owner] ~= nil end
+
+-- An element's pick of the element its pop and School material glow take (popSchool: its own
+-- setting, not a style field, so it stays whether or not the element follows General).
+local POP_SCHOOLS = { { "earth", "Earth" }, { "fire", "Fire" }, { "water", "Water" }, { "air", "Air" },
+	{ "spirit", "Spirit" } }
+local function popSchoolRow(p, key, shown)
+	local function get()
+		local v = ns.elementSetting(key, "popSchool")
+		return ns.SCHOOL_COLOR[v] and v or "own"
+	end
+	local function set(v)
+		ns.elementOpts(key).popSchool = v ~= "own" and v or nil
+		ns.Effects.applyStyle()
+		ns.applyTimers()
+		OP.refresh()
+	end
+	p:dropdown("Element", "The element its pop and School material glow take.", function()
+		local own = ns.Looks.elementSchool(key, true)
+		local out = { { "own", "Its own" } }
+		for _, sc in ipairs(POP_SCHOOLS) do
+			table.insert(out, sc)
+			if sc[1] == own then out[1][2] = "Its own (" .. sc[2] .. ")" end
+		end
+		return out
+	end, get, set, shown, 190)
+end
+
 -- A style block's preview: one 40 icon of the page's (icon), or one per school while bySchool()
--- (a look or motion that differs by school: earth, fire, water, air and spirit side by side; the
--- totem bar's four), made the first time they show. x: where the first sits in its row f. Each
+-- on a page that isn't an element's (a look or motion that differs by school: earth, fire, water,
+-- air and spirit side by side; the totem bar's four), made the first time they show. An element's
+-- page shows its own icon, in the school it takes. x: where the first sits in its row f. Each
 -- wears its owner's border inside its 40, as on the HUD. Returns shown(), the icons it shows now,
 -- and place(), for the row's refresh, which lays them out and returns them.
 local SCHOOL_ICONS = { { "earth", 136098 }, { "fire", 135825 }, { "water", 135127 }, { "air", 136114 },
@@ -193,7 +235,7 @@ local function previewIcons(f, owner, icon, x, bySchool)
 	local schools = {}
 	local v = {}
 	function v.shown()
-		if not bySchool() then return { one } end
+		if isElement(owner) or not bySchool() then return { one } end
 		if #schools == 0 then
 			for _, s in ipairs(SCHOOL_ICONS) do
 				if owner ~= "totembar" or s[1] ~= "spirit" then
@@ -244,13 +286,28 @@ local function glowBlock(p, owner, icon)
 	p:add(f, 64, own, function()
 		for _, ic in ipairs(icons.place()) do ic:SetGlowShown(true) end
 	end)
-	look = lookRows(p, r, "glow", "Look", "Glow looks", own)
+	look = choiceRows(p, r, "glow", "look", "Look", nil, own)
+	if isElement(owner) then popSchoolRow(p, owner, showWhen(function() return look().bySchool end)) end
 	reloadLine(p, function() return ns.Effects.auraGlowStale(owner) end,
 		function(n) return n == 1 and "changes glow" or "change glow" end, own)
-	local function uses(field) return showWhen(function() return look().uses[field] end, own) end
+	-- A row for a field the look reads, unless it labels that field its own way (its fields).
+	local function uses(field)
+		return showWhen(function() local l = look(); return l.uses[field] and not (l.fields and l.fields[field]) end, own)
+	end
 	p:color("Colour", "Colour and opacity. Killed early, Grounded and Ran out keep their own colours.", r.get("color"), r.set("color"), uses("color"))
 	p:slider("Pulse length", "One pulse, in seconds.", 0.2, 2, 0.1, function(v) return string.format("%.1f s", v) end,
 		r.get("speed"), r.set("speed"), uses("speed"))
+	-- Each look's own fields, under its own labels while it is picked.
+	for _, e in ipairs(ns.Style.choices("glow", "look")) do
+		local names = {}
+		for field in pairs(e.fields or {}) do table.insert(names, field) end
+		table.sort(names)
+		for _, field in ipairs(names) do
+			local fd = e.fields[field]
+			p:slider(fd.name, fd.tip, fd.range[1], fd.range[2], fd.step, function(v) return string.format(fd.format, v) end,
+				r.get(field), r.set(field), showWhen(function() return look() == e end, own))
+		end
+	end
 	local setLow = r.set("low")
 	p:slider("Pulse depth", "How much it fades between pulses. 0% is steady.", 0, 1, 0.05, pct,
 		function() return 1 - r.style().low end, function(v) setLow(1 - v) end, uses("low"))
@@ -262,14 +319,6 @@ end
 -- Standard block: the pop's style, with an icon that pops on every change and on Play. kind: the
 -- event the icon pops for (ready, imbue, expired, killed). One setting per part (colour, flash,
 -- burst, motion), each changing only its own, in any mix.
-local POP_COLORS = { { "event", "By event" }, { "school", "By school" } }
-local POP_FLASHES = { { "none", "None" }, { "plain", "Plain flash" }, { "edge", "Blizzard's edge flash" } }
-local POP_BURSTS = { { "none", "None" }, { "ring", "Ring" }, { "star", "Star" }, { "both", "Ring and star" },
-	{ "shapes", "Shapes" }, { "painted", "Emblem" }, { "rune", "Rune circle" }, { "school", "Element effect" } }
-local POP_MOTIONS = { { "none", "None" }, { "pop", "Grow" }, { "bounce", "Bounce" }, { "hop", "Hop" },
-	{ "shake", "Shake side to side" }, { "shakeV", "Shake up and down" } }
--- Bursts drawn per school.
-local SCHOOL_BURSTS = { school = true, shapes = true, painted = true }
 local function popBlock(p, owner, icon, kind)
 	local icons
 	local function playPop()
@@ -286,10 +335,11 @@ local function popBlock(p, owner, icon, kind)
 	-- Colour is for Ready and Ran out (ns.Looks.POP_EVENTS): a page whose pop is for a warning (the
 	-- imbue's) keeps the warning's colour and doesn't offer it.
 	local colored = ns.Looks.POP_EVENTS[kind]
-	-- One icon per school while the colour or the burst differs by school.
+	-- One icon per school while the colour or the burst differs by school (not on an element's
+	-- page).
+	local function burst() return ns.Style.choice("pop", "burst", r.style().burst) end
 	local function bySchool()
-		local st = r.style()
-		return (colored and st.colorBy == "school") or SCHOOL_BURSTS[st.burst] or false
+		return (colored and r.style().colorBy == "school") or burst().bySchool or false
 	end
 	p:header("Pop style")
 	if owner == nil then
@@ -309,14 +359,18 @@ local function popBlock(p, owner, icon, kind)
 		play:ClearAllPoints()
 		play:SetPoint("LEFT", list[#list], "RIGHT", 24, 0)
 	end)
+	if isElement(owner) then popSchoolRow(p, owner, showWhen(bySchool)) end
 	if colored then
-		p:dropdown("Colour", "For Ready and Ran out. By event: gold when ready, white when a totem runs out. Killed early, Grounded and the imbue dropping keep their own colours.",
-			POP_COLORS, r.get("colorBy"), r.set("colorBy"), own, 190)
+		local color = choiceRows(p, r, "pop", "colorBy", "Colour", "For Ready and Ran out. By event: gold when ready, white when a totem runs out. Killed early, Grounded and the imbue dropping keep their own colours.", own)
+		p:text("By school suits this burst.", showWhen(function() return color().key == "event" and burst().bySchool end, own))
 	end
-	p:dropdown("Flash", "Over the icon.", POP_FLASHES, r.get("flash"), r.set("flash"), own, 190)
-	p:dropdown("Burst", "Around the icon. Element effect: each element its own.", POP_BURSTS, r.get("burst"), r.set("burst"), own, 190)
-	p:dropdown("Motion", "How the icon moves.", POP_MOTIONS, r.get("motion"), r.set("motion"), own, 190)
-	local moves = showWhen(function() return r.style().motion ~= "none" end, own)
+	choiceRows(p, r, "pop", "flash", "Flash", "Over the icon.", own)
+	choiceRows(p, r, "pop", "burst", "Burst", "Around the icon. Element effect: each element its own.", own)
+	local reach = ns.Style.KINDS.pop.ranges.reach
+	p:slider("Reach", "How far the burst spreads.", reach[1], reach[2], 0.05, pct, r.get("reach"), r.set("reach"),
+		showWhen(function() return burst().uses.reach end, own))
+	local motion = choiceRows(p, r, "pop", "motion", "Motion", "How the icon moves.", own)
+	local moves = showWhen(function() return motion().uses.size end, own)
 	p:slider("Motion distance", "How far it grows, hops or shakes.", 1.1, 1.8, 0.05, pct, r.get("size"), r.set("size"), moves)
 	p:slider("Speed", nil, 0.5, 2, 0.1, pct, r.get("speed"), r.set("speed"), own)
 	if owner == nil then ownLine(p, "pop") end
@@ -679,6 +733,11 @@ local function buildAbout(p)
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
 		local e = ns.ELEMENTS[key]
 		if e.experimental then p:experimental(e.experimental, "Elements > " .. e.label) end
+	end
+	for _, l in ipairs(ns.Style.fields()) do
+		for _, e in ipairs(l.order) do
+			if e.experimental and not e.hidden then p:experimental(e.name, l.where .. " > " .. l.name) end
+		end
 	end
 	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
