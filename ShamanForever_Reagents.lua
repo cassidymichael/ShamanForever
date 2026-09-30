@@ -26,7 +26,7 @@ R.DEFAULTS = {
 
 -- The Idle block's second dropdown (idleBlock in ShamanForever_OptionsElements.lua).
 R.IDLE_EXTRA = { key = "reagentShow", label = "Running low",
-	tip = "Shows it: running low or out counts as something going on, even at 0%.",
+	tip = "Running low or out counts as something going on, even at 0%.",
 	choices = { { true, "Shows it" }, { false, "Stays idle" } } }
 
 -- How many the player carries, or nil when that can't be read.

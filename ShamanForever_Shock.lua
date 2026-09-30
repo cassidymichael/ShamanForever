@@ -37,6 +37,7 @@ defaults.idleWhen, defaults.idleAlpha = "never", 0.3
 ns.registerElement("shock", { frame = shock, label = "Shocks", paint = function(t) t:SetTexture(shockIcon) end,
 	learned = function() return next(shockIDs) ~= nil end,   -- any shock
 	defaults = defaults,
+	def = { key = "shock", idleChoices = CD.IDLE_CHOICES },
 	kind = "shock", icon = 136026, school = "spirit", blurb = "Cooldown, range and mana." })
 
 -- Idle: the cooldown's own (ShamanForever_Cooldowns.lua's applyIdle); range and mana keep their

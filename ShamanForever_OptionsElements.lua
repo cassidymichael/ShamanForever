@@ -228,7 +228,8 @@ end
 
 -- Standard block: the look while the element has nothing going on, right under Display. What the
 -- element offers comes from its def:
---   idleChoices = { { value, label, text, tip }, ... }   the "Idle when" choices (setting idleWhen);
+--   idleChoices = { { value, label, text, tip }, ... }
+--                       the "Idle when" choices (setting idleWhen);
 --                       text is the line saying what idle is (%s: def.idleAlso, what else keeps it
 --                       out of idle), tip the dropdown's help. A choice with value "never" hides
 --                       the opacity slider.
@@ -243,20 +244,22 @@ local function idleBlock(p, def)
 		local options, tips = {}, {}
 		for _, c in ipairs(choices) do
 			table.insert(options, { c[1], c[2] })
-			if c[4] then table.insert(tips, c[2] .. ": " .. c[4]) end
+			if c[4] then table.insert(tips, c[4]) end
 		end
 		p:text(function()
 			for _, c in ipairs(choices) do
 				if c[1] == when() then
-					return c[3]:format(def.idleAlso or "") .. (c[1] == "never" and ""
+					return c[3]:format(def.idleAlso or "") .. (c[1] == "never" and "."
 						or ". At 0% it's hidden and keeps its place in the group.")
 				end
 			end
 			return ""
 		end)
-		p:dropdown("Idle when", table.concat(tips, " "), options, eget(key, "idleWhen"), eset(key, "idleWhen"), nil, 230)
+		p:dropdown("Idle when", table.concat(tips, " "), options, eget(key, "idleWhen"), eset(key, "idleWhen"),
+			nil, 230)
 	else
-		p:text((def.idleText or "Idle is when it isn't up") .. ". At 0% it's hidden and keeps its place in the group.")
+		p:text((def.idleText or "Idle is when it isn't up")
+			.. ". At 0% it's hidden and keeps its place in the group.")
 	end
 	local extra = def.idleExtra
 	if extra then
@@ -335,9 +338,9 @@ local function buildShield(p)
 	effectBlocks(p, "shield")
 end
 
-local function buildShock(p)
+local function buildShock(p, def)
 	elementDisplay(p, "shock")
-	idleBlock(p, { key = "shock", idleChoices = ns.Cooldowns.IDLE_CHOICES })
+	idleBlock(p, def)
 	p:header("Tracking")
 	local icons = { earth = 136026, flame = 135813, frost = 135849 }
 	local cards = {}
@@ -369,14 +372,9 @@ local function buildShock(p)
 	effectBlocks(p, "shock")
 end
 
-local IMBUE_IDLE = {
-	{ "never", "Never", "It always shows in full" },
-	{ "notlow", "Imbue on and time not low", "Idle is when an imbue is on and its time left isn't low" },
-	{ "on", "Imbue on", "Idle is when an imbue is on", "Whatever its time left." },
-}
-local function buildImbue(p)
+local function buildImbue(p, def)
 	elementDisplay(p, "imbue")
-	idleBlock(p, { key = "imbue", idleChoices = IMBUE_IDLE })
+	idleBlock(p, def)
 	warningBlock(p, "No imbue", get("imbueMissingGrey"), set("imbueMissingGrey"), get("imbueMissingRing"), set("imbueMissingRing"),
 		get("imbuePulse"), set("imbuePulse"), function()
 			local cards = { { "last", "Last used", 136086 } }

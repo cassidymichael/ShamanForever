@@ -16,10 +16,17 @@ ns.Imbue = IM
 
 local imbue = ns.newElementIcon("imbue")
 local anyKnown = false   -- any imbue known (IM.resolve): the element's learned()
+local IDLE_CHOICES = {
+	{ "never", "Never", "It always shows in full" },
+	{ "notlow", "Imbue on and time not low",
+		"Idle is when an imbue is on and its time left isn't low" },
+	{ "on", "Imbue on", "Idle is when an imbue is on", "Idle whatever its time left is." },
+}
 ns.registerElement("imbue", { frame = imbue, label = "Weapon Imbue", paint = function(t) t:SetTexture(IM.icon()) end,
 	learned = function() return anyKnown end,
 	-- Idle: hidden while an imbue is on and its time isn't showing (idleWhen: never | notlow | on).
 	defaults = { idleWhen = "notlow", idleAlpha = 0 },
+	def = { key = "imbue", idleChoices = IDLE_CHOICES },
 	kind = "imbue", icon = 136086, school = "spirit", blurb = "Warns when your main hand has no imbue." })
 
 -- The key is also the spell's key in ns.Spells; name is its display name (the client's). ids are
