@@ -88,8 +88,6 @@ local DEFAULTS = {
 	emptyTint = false,
 	emptyPulse = false,
 	emptyGlow = true,
-	underlayUp = 0.25,      -- underlay strength while the shield is believed up (0 = none)
-	shieldIconAlpha = 1,    -- manual multiplier on the compensated shield icon alpha
 	-- shock
 	shock = "earth",        -- which shock the icon tracks
 	manaSpell = "tracked",  -- tracked | earth | flame | frost

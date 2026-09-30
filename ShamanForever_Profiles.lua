@@ -173,7 +173,7 @@ end
 -- The same ranges as the options' sliders, so an imported profile can't hold what the options can't set.
 local RANGES = {
 	iconSize = { 24, 96 }, countSize = { 8, 64 }, chargeBarHeight = { 1, 20 },
-	underlayUp = { 0, 1 }, shieldIconAlpha = { 0.5, 1 }, manaRing = { 0.1, 1 }, manaIntensity = { 0.1, 1 },
+	manaRing = { 0.1, 1 }, manaIntensity = { 0.1, 1 },
 	manaTint = { 0.1, 1 }, rangeIntensity = { 0.1, 1 }, rangeTint = { 0.1, 1 }, imbueWarnMins = { 0, 30 },
 }
 local GROUP_RANGES = { scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { -20, 40 }, size = { 24, 96 },
