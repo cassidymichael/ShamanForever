@@ -346,15 +346,16 @@ local function bar(name)
 end
 M.barOf = bar
 
--- Owners of a bar texture: General (nil) and the swing timer; every other bar draws with General's.
-local function barOwner(o) return o == "swing" and o or nil end
+-- Owners of a bar texture: General (nil), the totem bar (its time bars) and the swing timer; every
+-- other bar draws with General's.
+local function barOwner(o) return (o == "swing" or o == "totembar") and o or nil end
 local function barName(o) return S.value(barOwner(o), "bar", "texture") end
 
 -- The texture an owner's bars use now (SetStatusBarTexture takes a file or an atlas; tested
 -- 2026-09-28, in combat too, with a running timer and its colour kept).
 function M.barTexture(o) return (bar(barName(o))) end
 
-function M.barInUse(name) return barName(nil) == name or barName("swing") == name end
+function M.barInUse(name) return barName(nil) == name or barName("totembar") == name or barName("swing") == name end
 
 -- Why an owner's chosen bar isn't drawing, as the options say under the control; nil when it is.
 function M.barProblem(o)

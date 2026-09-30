@@ -400,8 +400,8 @@ local function textBlock(p, owner, after)
 	if owner == nil then ownLine(p, "text") end
 end
 
--- A bar texture's rows (ShamanForever_Media.lua): owner nil, General's; "swing", the swing timer's
--- own, with Same as General. The list shows each texture as a strip.
+-- A bar texture's rows (ShamanForever_Media.lua): owner nil, General's; "totembar" or "swing", the
+-- bar's own, with Same as General. The list shows each texture as a strip.
 local function barRows(p, owner, after)
 	after = after or relayout
 	local r = styleRows(owner, "bar", after)
@@ -429,7 +429,7 @@ end
 local function barBlock(p)
 	p:header("Bars")
 	p:anchor("bar")
-	p:text("Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer. The swing timer can have its own.")
+	p:text("Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer. The totem bar's time bars and the swing timer can have their own.")
 	barRows(p, nil)
 	ownLine(p, "bar")
 end
@@ -940,6 +940,8 @@ local function buildTotemBar(p)
 	p:dropdown("Time bar position", "Beside the icon: on the side away from the pickers.",
 		{ { "in", "In the icon" }, { "out", "Beside the icon" } }, tget("barPlace"), tset("barPlace"),
 		function() return ns.Style.value("totembar", "uptime", "bar") and not TB.skin.owns("barPlace") end, 190)
+	-- The time bars' texture: General's, or the bar's own (in the icon or beside it).
+	barRows(p, "totembar", changed)
 	textBlock(p, "totembar", changed)
 
 	p.gate = full

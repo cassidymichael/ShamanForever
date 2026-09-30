@@ -290,7 +290,8 @@ function Timer:apply()
 		local a = self.anchor
 		bar:ClearAllPoints()
 		bar:SetHeight(s.barHeight)
-		bar:SetStatusBarTexture(ns.Media.barTexture())   -- before the colour, which is restated below
+		-- General's texture, or its owner's own (the totem bar's); before the colour, restated below.
+		bar:SetStatusBarTexture(ns.Media.barTexture(self.key))
 		if s.barEdge == "top" then
 			bar:SetPoint("TOPLEFT", a, "TOPLEFT", 0, 0); bar:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, 0)
 		else
