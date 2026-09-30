@@ -49,7 +49,7 @@ local gateAlpha   -- below
 -- string; candidates(def): its candidate filters (default: the spell IDs of auraKey). The page's
 -- texts (ShamanForever_OptionsElements.lua): idleText, procHeader, popTip, glowTip, upLabel (its
 -- preview's state). noPop: no pop when it shows (its glow only). ownIcon: its own icon on the
--- button, never the aura's. expiring and missing: its Expiring and Not on target blocks (Flame
+-- button, never the aura's. noTimer: no time left. expiring and missing: its Expiring and Not on target blocks (Flame
 -- Shock's, below). defaults: its own option defaults (ns.elementSetting).
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
@@ -69,7 +69,7 @@ local TARGET = {
 		candidates = function(def) return { includeDispelTypes = { Magic = true }, maxDuration = T.longest(def) } end,
 		skipLong = { 1, 30, 1 },   -- Longest buff's range and step, in minutes (its page's slider)
 		idleText = "Idle is when your target has nothing to purge", procHeader = "Something to purge",
-		noPop = true, ownIcon = true,
+		noPop = true, ownIcon = true, noTimer = true,
 		glowTip = "While your target has one.", upLabel = "Magic buff",
 		defaults = { idleAlpha = 0, primedGlow = true, skipLong = false, skipLongMins = 2 },
 		experimental = "Purge" },
@@ -152,7 +152,7 @@ for _, def in ipairs(TARGET) do
 		key = def.key, slot = def.key, unit = "none", filter = def.filter, parent = def.gate,
 		ids = function() return idMap(def) end,
 		candidates = def.candidates and function() return def.candidates(def) end,
-		ownIcon = def.ownIcon and function() return def.icon end,
+		ownIcon = def.ownIcon and function() return def.icon end, noTimer = def.noTimer,
 		sites = { container = "target container " .. def.key, style = "target style " .. def.key,
 			filter = "target filter " .. def.key },
 		onButton = function(slot, button, cd) buildButton(def, slot, button, cd) end,

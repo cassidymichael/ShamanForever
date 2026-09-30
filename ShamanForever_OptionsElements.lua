@@ -524,7 +524,7 @@ local function buildBuff(p, def)
 				p:text("While your hostile target doesn't have it. Out of combat only.")
 			end)
 	end
-	timerSettings(p, "Time left", key, "uptime")
+	if not def.noTimer then timerSettings(p, "Time left", key, "uptime") end
 	if def.proc then
 		-- Elemental Focus's texts, unless the def has its own (the target's auras, ShamanForever_Target.lua).
 		p:header(def.procHeader or ns.Spells.name("clearcasting"))

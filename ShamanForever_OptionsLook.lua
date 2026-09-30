@@ -566,7 +566,7 @@ local function buffPreview(def)
 			reset(ic, def.icon)
 			if st == "up" then
 				if def.proc then
-					frozen(ic.upT, 0.3, 15)
+					if not def.noTimer then frozen(ic.upT, 0.3, 15) end
 					ic:SetGlowShown(opt(key, "primedGlow"))
 				else frozen(ic.upT, 0.3, 600) end
 			elseif st == "expiring" then expiringLook(ic, key, def.proc and 12 or 600)

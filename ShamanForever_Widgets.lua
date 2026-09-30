@@ -675,6 +675,7 @@ AuraSlot.__index = AuraSlot
 --   ownIcon()    a texture to show on the button in place of the aura's icon (optional): set once,
 --                as the button is made, and never handed to Blizzard, so the aura's icon never shows
 --                and nothing under the button is written to later (refused in combat)
+--   noTimer      no time left: the button is handed no cooldown or bar, and the slot has no timer
 --   barInset()   how far above the bottom edge its time bar sits there (optional; ns.Timer.new)
 --   onButton(slot, button, cd)  the caller's own parts, once Blizzard has made the button
 --   onStyle(slot, size)         the caller's own restyle, after the shared one
@@ -705,6 +706,13 @@ local function initAuraButton(slot, button)
 	ns.try(o.sites.style, ns.Looks.auraMask, button, tex, o.key)
 	local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
 	cd:SetAllPoints()
+	slot.cd = cd
+	if o.noTimer then
+		cd:SetHideCountdownNumbers(true)
+		if o.onButton then o.onButton(slot, button, cd) end
+		slot.button = button
+		return
+	end
 	-- Its timer: swipe and countdown on the Cooldown, and a time bar the button drives from the
 	-- aura's own time (SetDurationBar; a bar of ours followed it in combat, tested 2026-09-27). We
 	-- only style and show the bar. A client that refuses it gets no bar rather than a still one.
@@ -717,7 +725,6 @@ local function initAuraButton(slot, button)
 	end
 	slot.timer:apply()
 	button:SetDurationCooldown(cd)
-	slot.cd = cd
 	if o.onButton then o.onButton(slot, button, cd) end
 	slot.button = button
 end
@@ -786,7 +793,7 @@ function AuraSlot:styleNow()
 		self.button:SetSize(size, size)
 		-- Its own try: a look the button refuses mustn't stop the timer and the caller's parts.
 		ns.try(o.sites.style .. ": look", ns.Looks.auraStyle, self, size)
-		self.timer:apply()
+		if self.timer then self.timer:apply() end
 		if o.onStyle then o.onStyle(self, size) end
 	end)
 	if not ok then ns.retryAfterCombat(o.sites.style, function() self:styleNow() end) end
