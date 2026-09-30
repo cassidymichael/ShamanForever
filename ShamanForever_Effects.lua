@@ -444,13 +444,13 @@ function Rig:style(st, size, c, school, muted)
 	for _, p in pairs(self.parts) do p.tex:SetShown(on[p.group] or false) end
 end
 
--- Shows the parts style() marked and hides the rest. An aura button plays every group handed to it,
--- so on the aura route a part the style doesn't use must draw nothing whatever its group does.
+-- Shows the flashes style() marked and hides the rest, as style() does the burst parts. An aura
+-- button plays every group handed to it, so on the aura route a part the style doesn't use must
+-- draw nothing whatever its group does.
 function Rig:showPlaying()
 	local on = self.playing
 	self.flash:SetShown(on[self.flashAnim] == true)
 	for _, e in ipairs(self.edge or {}) do e.tex:SetShown(on[e.group] == true) end
-	for _, p in pairs(self.parts) do p.tex:SetShown(on[p.group] == true) end
 end
 
 -- Stops every group, then plays those style() marked.
