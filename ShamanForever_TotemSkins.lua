@@ -71,8 +71,7 @@ end
 --   mark           the out-of-range mark: "edge" (the strip, solid red), "tint" (the strip in the
 --                  Cooldown Manager's out-of-range red and shadow), "gem" (the gem under the slot
 --                  turns red)
---   picker, popHead      the pickers' look ("tray", "flyout", "stone") and the length of its
---                  heading at the far end
+--   picker         the pickers' look ("tray", "flyout", "stone")
 --   arrow          the arrow tab's look ("flyout", "bronze")
 --   extrasGap      the gap between the slots and Call and Recall, as a share of the slots' size,
 --                  when the look owns the spacing
@@ -97,7 +96,7 @@ add("pixel", {
 	owns = { border = true, range = true },
 	border = borderStyle("schooledge"), extrasBorder = borderStyle("hairline"),
 	behind = "tray", timeBar = "tip", mark = "edge",
-	picker = "tray", popHead = function(psz) return math.floor(psz * 0.5 + 0.5) end,
+	picker = "tray",
 	rangeText = "Out of range, for totems that buff you: a red edge along the top of the slot.",
 })
 
@@ -193,15 +192,6 @@ function SK.spacing(size)
 	share = share and share.spacing
 	if not share then return nil end
 	return size * share, size * (SK.current().extrasGap or share)
-end
-
--- Extra length at a picker's far end (the look's heading there), for buttons psz wide: only on a
--- picker that opens up or down, as the heading is a line of text across it.
-function SK.popHead(psz)
-	local f = SK.current().popHead
-	local dir = f and TB.eff().pop
-	if dir ~= "up" and dir ~= "down" then return 0 end
-	return f(psz)
 end
 
 -- How far past the slot's edge the look hangs something on the side away from the picker (a time
@@ -571,20 +561,19 @@ local function flyout(pop, p, psz)
 end
 
 -- A picker's look (pop: the popout, with its bg), for element el, buttons psz wide. Default: a
--- plain dark fill. "tray": the Pixel tray's fill and edge, the element's name at the far end.
+-- plain dark fill. "tray": the Pixel tray's fill and edge.
 function SK.stylePopout(pop, el, psz)
 	local kind = SK.current().picker
 	local p = pop.skin
 	if p then
 		for _, t in ipairs(p.lines) do t:Hide() end
-		p.name:Hide()
 		if p.fly then for _, t in pairs(p.fly) do t:Hide() end end
 		pop.bg:SetVertexColor(1, 1, 1, 1)
 		pop.bg:SetTexCoord(0, 1, 0, 1)
 	end
 	if kind == "stone" then
 		-- Plain stone from the plinth, darkened, edged dark then bronze.
-		p = p or { lines = {}, name = pop:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall") }
+		p = p or { lines = {} }
 		pop.skin = p
 		plinthPiece(pop.bg, PL.stone)
 		pop.bg:SetVertexColor(0.8, 0.8, 0.8, 1)
@@ -592,7 +581,7 @@ function SK.stylePopout(pop, el, psz)
 		return
 	end
 	if kind == "flyout" then
-		p = p or { lines = {}, name = pop:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall") }
+		p = p or { lines = {} }
 		pop.skin = p
 		if flyout(pop, p, psz) then
 			pop.bg:SetColorTexture(0, 0, 0, 0)
@@ -605,25 +594,10 @@ function SK.stylePopout(pop, el, psz)
 		if p then pop.bg:SetColorTexture(fill[1], fill[2], fill[3], fill[4]) end
 		return
 	end
-	if not p then
-		p = { lines = {} }
-		p.name = pop:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-		pop.skin = p
-	end
+	p = p or { lines = {} }
+	pop.skin = p
 	pop.bg:SetColorTexture(TRAY[1], TRAY[2], TRAY[3], 0.9)
-	local d = insetRings(pop, p.lines, { { 1, BLACK }, { 1, GOLD } })
-	-- The name, along a picker that opens up or down (one opening sideways has no room for it).
-	local dir, head = TB.eff().pop, SK.popHead(psz)
-	local name = p.name
-	name:ClearAllPoints()
-	if head > 0 and (dir == "up" or dir == "down") then
-		ns.Media.setFont(name, "totembar", math.max(math.floor(psz * 0.26 + 0.5), 7))
-		name:SetTextColor(0.85, 0.75, 0.54)
-		name:SetText(string.upper(TB.NAME[el] or ""))
-		local y = d + (head - d) / 2
-		if dir == "up" then name:SetPoint("CENTER", pop, "TOP", 0, -y) else name:SetPoint("CENTER", pop, "BOTTOM", 0, y) end
-		name:Show()
-	else name:Hide() end
+	insetRings(pop, p.lines, { { 1, BLACK }, { 1, GOLD } })
 end
 
 -- Out of range: where the look's mark sits (x, y from the slot's box's top left, w, h, in the

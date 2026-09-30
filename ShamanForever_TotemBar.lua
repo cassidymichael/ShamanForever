@@ -246,7 +246,7 @@ function TB.popLength(n, psz) return POP_STEP + n * (psz + POP_STEP) end
 -- A picker of n buttons (psz) beside anchor, a slot, on the side pickers open, past the arrow tab.
 function TB.placePopout(pop, anchor, n, psz)
 	local c = TB.eff()
-	local len, thick, tab = TB.popLength(n, psz) + TB.skin.popHead(psz), psz + 2 * POP_STEP, c.arrowSize
+	local len, thick, tab = TB.popLength(n, psz), psz + 2 * POP_STEP, c.arrowSize
 	pop:ClearAllPoints()
 	if c.pop == "up" then pop:SetSize(thick, len); pop:SetPoint("BOTTOM", anchor, "TOP", 0, tab + 4)
 	elseif c.pop == "down" then pop:SetSize(thick, len); pop:SetPoint("TOP", anchor, "BOTTOM", 0, -tab - 4)

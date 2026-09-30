@@ -740,7 +740,7 @@ L.PREVIEW.totembar = {
 		local psz = TB.popButtonSize(size)
 		local known = picking and TB.known(els[1]) or {}
 		local items = math.min(POP_ITEMS, 1 + #known)
-		local popLen = TB.popLength(items, psz) + TB.skin.popHead(psz)
+		local popLen = TB.popLength(items, psz)
 		-- Along the bar as on it (TB.along: Call and Recall before and after the slots), with
 		-- room for one slot even when none shows. Its line is as thick as its largest button.
 		local seq, along, line = TB.along(math.max(#els, 1), size)
