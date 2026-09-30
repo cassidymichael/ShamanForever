@@ -151,7 +151,11 @@ end
 local styleExpire, styleExpireText   -- below
 
 local function styleButton(def, size, slot)
-	if def.engineExpire then ns.try("flame shock expiring", styleExpire, def, size, slot) end
+	if def.engineExpire then
+		ns.try("flame shock expiring", styleExpire, def, size, slot)
+		-- The glow over the Expiring bars (+10 to +13), under the countdown (+15).
+		def.glow:SetFrameLevel(def.frame.textFrame:GetFrameLevel() + 14)
+	end
 	if def.edge then ns.try("target border " .. def.key, ns.applyBorder, def.edge, ns.borderFor(def.key)) end
 	def.glow:restyle()
 	def.glow:fit(size)
@@ -218,6 +222,11 @@ function styleExpire(def, size, slot)
 	local placed = ns.try("flame shock expiring place", function()
 		local h, edge = st.barHeight, st.barEdge == "top" and "TOPLEFT" or "BOTTOMLEFT"
 		local w = size * secs / FS_SECS
+		-- Levels set here, from our own frame's (the extra buttons sit at +9 and +11): the Expiring
+		-- colour under the cover; the glow and the countdown above both (styleButton, below).
+		local base = def.frame.textFrame:GetFrameLevel()
+		red.clip:SetFrameLevel(base + 10); red.bar:SetFrameLevel(base + 11)
+		cover.clip:SetFrameLevel(base + 12); cover.bar:SetFrameLevel(base + 13)
 		for _, x in ipairs({ cover, red }) do
 			x.clip:ClearAllPoints()
 			x.clip:SetPoint(edge, slot.button, edge, 0, 0)
@@ -247,7 +256,7 @@ function styleExpireText(def, slot, st, secs)
 	local fs, b = def.durText, slot.button
 	local textOn = secs > 0 and setting(key, "expireText") and st.text and fs ~= nil and textCurve(secs, st.textColor)
 	if textOn then
-		def.textHolder:SetFrameLevel(def.frame.textFrame:GetFrameLevel() + 13)   -- over the extra buttons
+		def.textHolder:SetFrameLevel(def.frame.textFrame:GetFrameLevel() + 15)   -- over the Expiring bars and the glow
 		fs:SetFont(STANDARD_TEXT_FONT, st.textSize, "OUTLINE")
 		fs:ClearAllPoints()
 		if st.textPos == "topleft" then fs:SetPoint("TOPLEFT", b, "TOPLEFT", 1, -1)
