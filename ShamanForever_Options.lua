@@ -697,6 +697,7 @@ local function buildAbout(p)
 		if e.experimental then p:experimental(e.experimental, "Elements > " .. e.label) end
 	end
 	p:experimental("Swing timer", "Swing timer")
+	p:experimental("Active totems mode", "Totem bar > Use")
 	if ns.Looks.anyExperimental("border") then p:experimental("Border looks", "General > Border") end
 	if ns.Looks.anyExperimental("glow") then p:experimental("Glow looks", "General > Pulsing glow style") end
 	p:experimental("Pop flashes and bursts", "General > Pop style")
@@ -743,8 +744,8 @@ local function buildTotemBar(p)
 	p:header("Totems")
 	p:cards("Use", nil, {
 		{ "blizzard", "Blizzard's", "Interface\\Icons\\INV_Misc_Gear_01" },
-		{ "active", "Active totems", "Interface\\Icons\\Spell_Nature_TimeStop" },
-		{ "everything", "Everything", "Interface\\Icons\\Spell_Shaman_DropAll_01" },
+		{ "active", "Active totems", "Interface\\Icons\\Spell_Nature_TimeStop", "Active totems mode" },
+		{ "everything", "Everything", "Interface\\Icons\\Spell_Shaman_DropAll_01", tag = "RECOMMENDED" },
 	}, tget("mode"), function(v) TB.setMode(v); changed() end)
 	-- What the mode does, then how the bar is used in it.
 	local KEYS = "Keys: Options > Keybindings > ShamanForever."
