@@ -376,14 +376,32 @@ local function candidates(o)
 	return { includeSpellIDs = o.ids() }
 end
 
+-- A string that is the same for two candidate filter tables exactly when they match the same
+-- auras: what an aura slot and a clip look last took, compared (ns.makeClipLook's agrees).
+local function filterSig(filters)
+	local parts = {}
+	for k, v in pairs(filters) do
+		if type(v) == "table" then
+			local keys = {}
+			for x, on in pairs(v) do if on then table.insert(keys, tostring(x)) end end
+			table.sort(keys)
+			table.insert(parts, k .. "=" .. table.concat(keys, ","))
+		else table.insert(parts, k .. "=" .. tostring(v)) end
+	end
+	table.sort(parts)
+	return table.concat(parts, ";")
+end
+
 -- Makes the container and its slot, once (out of combat, auras readable; else when that ends).
 -- Once made it stays; a client that refuses it gets err and onError. Beside the opts above, it
 -- takes unit (default "player"), filter (default "HELPFUL") and candidates() (the slot's
--- candidate filters, in place of includeSpellIDs = ids()).
+-- candidate filters, in place of includeSpellIDs = ids()). slot.applied: the filters it last took
+-- (filterSig), nil while not known.
 function AuraSlot:setup()
 	if self.container or self.err then return end
 	local o, f = self.opts, self.frame
 	if ns.deferWhileAurasSecret(o.sites.container, function() self:setup() end) then return end
+	local filters = candidates(o)
 	local ok, err = pcall(function()
 		local size = ns.sizeOf(o.key)
 		local c = CreateFrame("AuraContainer", o.name, o.parent or f, "CustomAuraContainerTemplate")
@@ -396,12 +414,12 @@ function AuraSlot:setup()
 		self.container = c
 		f.auraButton = true   -- the layout waits while it can't restyle the button (layoutElements)
 		c:AddAuraSlot(o.slot, o.filter or "HELPFUL", {
-			candidateFilters = candidates(o),
+			candidateFilters = filters,
 			initializeFrame = function(button) initAuraButton(self, button) end,
 		})
 		for _, x in ipairs(o.extras or {}) do
 			c:AddAuraSlot(o.slot .. "-" .. x.key, o.filter or "HELPFUL", {
-				candidateFilters = candidates(o),
+				candidateFilters = filters,
 				initializeFrame = function(button) initExtraButton(self, x, button) end,
 			})
 		end
@@ -411,6 +429,7 @@ function AuraSlot:setup()
 		if self.container then self.container:Hide() end
 		o.onError(self.err)
 	else
+		self.applied = filterSig(filters)
 		self:style()   -- a layout queued before it (a /reload in combat) found no button to style
 	end
 end
@@ -456,14 +475,15 @@ function AuraSlot:styleNow()
 	if not ok then ns.retryAfterCombat(o.sites.style, function() self:styleNow() end) end
 end
 
--- The slot's filter again, from opts.ids() (the IDs that count can grow), once the container is
--- made. Out of combat only, and not while auras are secret: waits for that, and a refused call is
+-- The slot's filters again, from opts.ids() (the IDs that count can grow) or opts.candidates(),
+-- once the container is made. Out of combat only, and not while auras are secret: waits for that, and a refused call is
 -- noted and tried again when combat ends.
 function AuraSlot:refilter()
 	if not self.container or self.err then return end
 	local o = self.opts
 	if ns.deferWhileAurasSecret(o.sites.filter, function() self:refilter() end) then return end
 	local filters = candidates(o)
+	self.applied = nil   -- until every slot has taken them
 	local ok = ns.try(o.sites.filter, self.container.SetAuraSlotCandidateFilters, self.container, o.slot, filters)
 	-- The extras last to first: a part that covers another (Flame Shock's Expiring cover) comes after
 	-- what it covers, so a refilter that stops part way leaves no uncovered part taking a new aura.
@@ -474,21 +494,26 @@ function AuraSlot:refilter()
 				o.slot .. "-" .. extras[i].key, filters)
 		end
 	end
-	if ok then self.filtered = filters.includeSpellIDs
+	if ok then self.filtered, self.applied = filters.includeSpellIDs, filterSig(filters)
 	else ns.retryAfterCombat(o.sites.filter, function() self:refilter() end) end
 end
 
 ------------------------------------------------------------------------
 -- A clip look: a missing look (the icon's picture, grey or tinted, a red ring, a fade in and out,
 -- and a pulsing glow that may reach past the icon's edge), shown exactly while an aura is gone, in
--- combat too, with nothing read (tested in combat 2026-09-30).
+-- combat too, with nothing read (tested in combat 2026-09-30). Inverted (opts.invert), the same
+-- glow shown exactly while the aura is up (tested in combat 2026-10-01).
 -- * The sensor: a container of its own with one aura group of one invisible button, as big as the
---   look's reach (the cell). Blizzard sizes a group's container to its buttons: to the button while
---   the aura is up, to 1 px once it's gone. Its width is secret; nothing of ours reads it.
+--   look's reach (the cell) and CLIP_SLACK wider. Blizzard sizes a group's container to its
+--   buttons: to the button while the aura is up, to 1 px once it's gone. Its width is secret;
+--   nothing of ours reads it.
 -- * A clip frame of ours runs from the container's right edge to the cell's right edge: nothing
 --   while the aura is up (the button is a little wider than the cell), the whole cell once it's
---   gone. The look inside it is drawn only there, by the engine. So nothing of it lies under the
---   aura's own icon, and that icon can take its group's opacity like any other.
+--   gone. Inverted, it runs from the container's left edge to CLIP_SLACK inside its right edge:
+--   the cell while the aura is up, nothing once it's gone (with the clip on the right edge itself,
+--   about 1 px of the look showed with the aura down; 2 px inside, none). The look inside it is
+--   drawn only there, by the engine. So nothing of it lies under the aura's own icon, and that
+--   icon can take its group's opacity like any other.
 -- * Frames anchored to a container with an aura group must inherit
 --   DisableUntrustedLayoutScriptsTemplate as they are made (Blizzard's note in AddAuraGroup): the
 --   clip and the look's holder do.
@@ -496,10 +521,12 @@ end
 --   and the glow over them. The sensor hangs apart, so it keeps up with the aura while the
 --   chain is hidden.
 -- * The sensor is made, restyled and refiltered only out of combat with auras readable, as an aura
---   slot is. The hold stays at 0 while the sensor can't be trusted: not made, a size or spell IDs it
+--   slot is. The hold stays at 0 while the sensor can't be trusted: not made, a size or filters it
 --   hasn't taken yet, not on the unit asked for, and for two frames after it's made, restyled,
 --   pointed at a unit or shown (Blizzard's container catches up on its next frame). A change
 --   waiting for combat's end is a miss, never a false warning.
+-- * Inverted, beside the aura slot that shows the aura: the sensor must match exactly what the slot
+--   matches (opts.agrees), or the glow could show with no aura shown, a false state.
 ------------------------------------------------------------------------
 local ClipLook = {}
 ClipLook.__index = ClipLook
@@ -528,15 +555,20 @@ end
 --                  whenever the chain may be)
 --   unit, filter   the sensor's unit as it's made (default "player"; a function: its answer then)
 --                  and filter (default "HELPFUL")
---   ids()          the spell IDs it matches
+--   ids()          the spell IDs it matches; or candidates(), its candidate filters (an aura
+--                  slot's: ns.makeAuraSlot)
 --   needUnit       the unit it must be on for the look to show (a sensor that follows the target)
---   owner, lookFor the glow's style owner (nil: General's) and lookFor() its look's key
+--   owner          the glow's style owner (nil: General's)
+--   invert         lit while the aura is up, not while it's gone
+--   glowOnly       the glow alone: no picture, no ring
+--   agrees()       whether the aura slot showing the aura took the filters the sensor did
+--                  (h.applied), for an inverted look (optional)
 --   sites          { container = , style = , filter = }: names for waiting work and caught errors
 -- Its parts: h.tex (the icon's picture; the caller sets its texture), h.ring, h.pulse (the
 -- picture's fade) and h.glow (ns.Effects.glow). The glow looks drawn within the icon (`inside`,
 -- ns.Looks) take the icon's rounded or cut-corner shape over the picture; the looks that reach past
 -- it take none. h:want(on) shows the look or not, h:setParts which of its parts show; nothing is
--- made until h:setup(). h.filtered: the spell IDs its sensor last took.
+-- made until h:setup(). h.filtered: the spell IDs its sensor last took; h.applied: its filters.
 function ns.makeClipLook(frame, opts)
 	local h = setmetatable({ frame = frame, opts = opts }, ClipLook)
 	h.hold = CreateFrame("Frame", nil, opts.parent)
@@ -572,6 +604,7 @@ function ns.makeClipLook(frame, opts)
 	h.tex:SetAllPoints(frame.tex)
 	h.ring = ns.makeRing(h.art, h.tex)
 	h.pulse = ns.makePulse(h.tex, "fade")
+	if opts.glowOnly then h.art:Hide() end
 	h.glow = ns.Effects.glow(h.look, frame, opts.owner, { lookFor = opts.lookFor })
 	-- As a look's parts are made and each time they're fitted (a look changed with the options
 	-- open, in combat too).
@@ -605,6 +638,7 @@ function ClipLook:ready()
 	local o = self.opts
 	return self.container ~= nil and not self.err and self.idsOK == true and not self.waiting
 		and self.size == ns.sizeOf(o.key) and (o.needUnit == nil or self.unit == o.needUnit)
+		and (o.agrees == nil or o.agrees() == true)
 end
 
 -- The hold's alpha: 1 while the caller wants the look and the sensor can be trusted, else 0. Our
@@ -640,11 +674,31 @@ end
 -- look's own border part: it shows exactly while the aura is gone, where the aura button's copy
 -- of it isn't), and the glow in its look now (after a layout, a size or a look change).
 function ClipLook:reshape()
+	if self.opts.glowOnly then self.glow:restyle() return end
 	local f = self.frame
 	ns.Looks.overlay(self.art, ns.borderFor(self.opts.key))
 	ns.Looks.maskOver(f, self.tex)
 	for _, e in ipairs(self.ring.edges) do ns.Looks.maskOver(f, e, self.tex) end
 	self.glow:restyle()
+end
+
+-- The sensor's candidate filters now: opts.candidates(), else its spell IDs.
+local function sensorFilters(o)
+	if o.candidates then return o.candidates() end
+	return { includeSpellIDs = o.ids() }
+end
+
+-- The clip over the made sensor c: from its right edge to the cell's (lit while the aura is gone),
+-- or inverted from its left edge to CLIP_SLACK inside its right edge (lit while it's up).
+local function clipTo(self, c)
+	self.clip:ClearAllPoints()
+	if self.opts.invert then
+		self.clip:SetPoint("TOPLEFT", c, "TOPLEFT", 0, 0)
+		self.clip:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", -CLIP_SLACK, 0)
+	else
+		self.clip:SetPoint("TOPLEFT", c, "TOPRIGHT", 0, 0)
+		self.clip:SetPoint("BOTTOMRIGHT", self.cell, "BOTTOMRIGHT", 0, 0)
+	end
 end
 
 -- Makes the sensor, once (out of combat, auras readable; else when that ends). Once made it stays;
@@ -655,7 +709,7 @@ function ClipLook:setup()
 	if ns.deferWhileAurasSecret(o.sites.container, function() self:setup() end) then return end
 	local size = ns.sizeOf(o.key)
 	local w = cellWidth(size, self.frame)
-	local ids = o.ids()
+	local filters = sensorFilters(o)
 	local unit = type(o.unit) == "function" and o.unit() or o.unit or "player"
 	local ok, err = pcall(function()
 		local c = CreateFrame("AuraContainer", nil, o.sensorParent, "CustomAuraContainerTemplate")
@@ -669,7 +723,7 @@ function ClipLook:setup()
 		self.unit = unit
 		self.cell:SetSize(w, w)
 		c:AddAuraGroup(o.key, o.filter or "HELPFUL", {
-			candidateFilters = { includeSpellIDs = ids }, maxFrameCount = 1,
+			candidateFilters = filters, maxFrameCount = 1,
 			layout = { elementWidth = w + CLIP_SLACK, elementHeight = w },
 			initializeFrame = function(b)
 				b:SetSize(1, 1)
@@ -678,9 +732,7 @@ function ClipLook:setup()
 				pcall(b.SetMouseMotionEnabled, b, false)
 			end,
 		})
-		self.clip:ClearAllPoints()
-		self.clip:SetPoint("TOPLEFT", c, "TOPRIGHT", 0, 0)
-		self.clip:SetPoint("BOTTOMRIGHT", self.cell, "BOTTOMRIGHT", 0, 0)
+		clipTo(self, c)
 	end)
 	if not ok then
 		self.err = tostring(err)
@@ -690,31 +742,34 @@ function ClipLook:setup()
 		return
 	end
 	self.width = w
-	self:took(size, ids)
+	self:took(size, filters)
 	self:wait()
 end
 
--- Records the size and spell IDs the sensor now has, and fits the glow to that size.
-function ClipLook:took(size, ids)
+-- Records the size and filters the sensor now has, and fits the glow to that size.
+function ClipLook:took(size, filters)
 	if size then
 		self.size = size
 		self.glow:fit(size)
 	end
-	if ids then
+	if filters then
+		self.applied = filterSig(filters)
 		self.filtered = {}
-		for id in pairs(ids) do self.filtered[id] = true end
+		for id in pairs(filters.includeSpellIDs or {}) do self.filtered[id] = true end
 	end
 	self:checkIDs()
 end
 
--- Whether the sensor matches every spell ID ids() gives now: a sensor missing one would stay empty
--- over that aura, a false warning. Call it whenever those may have grown.
+-- Whether the sensor matches what it should now. By spell IDs: every one ids() gives (a sensor
+-- missing one would stay empty over that aura, a false warning); call it whenever those may have
+-- grown. By candidate filters: exactly those candidates() gives.
 function ClipLook:checkIDs()
-	local have = self.filtered
-	local ok = have ~= nil
-	if ok then
-		for id in pairs(self.opts.ids()) do
-			if not have[id] then ok = false break end
+	local o, ok = self.opts, false
+	if o.candidates then ok = self.applied ~= nil and self.applied == filterSig(o.candidates())
+	elseif self.filtered then
+		ok = true
+		for id in pairs(o.ids()) do
+			if not self.filtered[id] then ok = false break end
 		end
 	end
 	self.idsOK = ok
@@ -757,16 +812,16 @@ function ClipLook:styleNow()
 	end
 end
 
--- The sensor's spell IDs again, from ids() (out of combat, auras readable; else when that ends).
+-- The sensor's filters again, from ids() or candidates() (out of combat, auras readable; else
+-- when that ends).
 function ClipLook:refilter()
 	if not self.container or self.err then return end
 	local o = self.opts
 	if ns.deferWhileAurasSecret(o.sites.filter, function() self:refilter() end) then return end
-	local ids = o.ids()
+	local filters = sensorFilters(o)
 	self:wait()
-	if ns.try(o.sites.filter, self.container.SetAuraGroupCandidateFilters, self.container, o.key,
-		{ includeSpellIDs = ids }) then
-		self:took(nil, ids)
+	if ns.try(o.sites.filter, self.container.SetAuraGroupCandidateFilters, self.container, o.key, filters) then
+		self:took(nil, filters)
 	else
 		ns.retryAfterCombat(o.sites.filter, function() self:refilter() end)
 	end
@@ -801,9 +856,12 @@ end
 -- For /sf debug: one line of its state.
 function ClipLook:describe()
 	return string.format(
-		"sensor %s%s, size %s (icon %s), spell IDs %s, unit %s, wanted %s, waiting %s, drawn %s",
+		"%ssensor %s%s, size %s (icon %s), filters %s, unit %s, wanted %s, waiting %s, drawn %s",
+		self.opts.invert and "while up: " or "",
 		self.container and "made" or "not made", self.err and (" (error: " .. self.err .. ")") or "",
-		tostring(self.size), tostring(ns.sizeOf(self.opts.key)), self.idsOK and "matched" or "behind",
+		tostring(self.size), tostring(ns.sizeOf(self.opts.key)),
+		not self.idsOK and "behind" or (self.opts.agrees and not self.opts.agrees()) and "not the slot's"
+			or "matched",
 		tostring(self.unit), tostring(self.wanted), tostring(self.waiting ~= nil),
 		self.glow.look and self.glow.look.key or "none")
 end
