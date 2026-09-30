@@ -288,7 +288,14 @@ local function maskOne(f, tex, spec, over)
 			m = tex:GetParent():CreateMaskTexture()
 			f.frameMasks[tex] = m
 		end
-		placeMask(m, spec, over, over:GetWidth(), over:GetHeight())
+		-- over's size in the mask's own units: a texture on a scaled frame (a soft glow's) is masked
+		-- by the size over has on screen.
+		local w, h = over:GetWidth(), over:GetHeight()
+		local a, b = over:GetEffectiveScale(), tex:GetParent():GetEffectiveScale()
+		if not (ns.isSecret(w) or ns.isSecret(h) or ns.isSecret(a) or ns.isSecret(b)) and b > 0 then
+			w, h = w * a / b, h * a / b
+		end
+		placeMask(m, spec, over, w, h)
 		if not m.on then tex:AddMaskTexture(m); m.on = true end
 	elseif m and m.on then
 		tex:RemoveMaskTexture(m)
@@ -735,8 +742,9 @@ local function fitSoft(g, h, size, width)
 	h:SetPoint("CENTER", g, "CENTER", 0, 0)
 end
 
+-- inside: drawn only within the icon (a glow that must stay inside it can take it).
 local soft = {
-	uses = { color = true, speed = true, low = true, width = true },
+	uses = { color = true, speed = true, low = true, width = true }, inside = true,
 	build = function(g)
 		local r = root(g.inner)
 		return { roots = { r }, soft = softPart(r) }
@@ -885,7 +893,7 @@ local MATERIAL = {   -- school -> tile move (in tiles), seconds a tile
 -- Intensity: below 100% the material dims; above it the glow under it brightens too (the material
 -- itself is already at full opacity, so more light has to come from the soft glow beneath).
 local material = {
-	uses = { color = true, speed = true, strength = true }, bySchool = true,
+	uses = { color = true, speed = true, strength = true }, bySchool = true, inside = true,
 	build = function(g)
 		local r = root(g.inner)
 		local parts = { roots = { r }, soft = softPart(r, 0.35) }

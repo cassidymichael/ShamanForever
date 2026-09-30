@@ -246,9 +246,7 @@ local function glowBlock(p, owner, icon)
 		function(n) return n == 1 and "changes glow" or "change glow" end, own)
 	-- The look can't be drawn on Blizzard's aura button (ns.auraGlowSwapped): what those show instead.
 	p:text(function()
-		local keys, name = ns.auraGlowSwapped(owner)
-		local names = {}
-		for _, key in ipairs(keys) do table.insert(names, ns.Look.elementName(key)) end
+		local names, name = ns.auraGlowSwapped(owner)
 		return string.format("%s %s %s instead.", table.concat(names, " and "), #names == 1 and "shows" or "show", name)
 	end, showWhen(function() return #(ns.auraGlowSwapped(owner)) > 0 end, own))
 	local function uses(field) return showWhen(function() return look().uses[field] end, own) end

@@ -523,6 +523,8 @@ local function buildBuff(p, def)
 			eget(key, "missPulse"), eset(key, "missPulse"), function()
 				p:text("While your hostile target doesn't have it.")
 			end)
+		p:checkbox("Pulsing glow", "A glow inside the icon that pulses. Looks that reach past the icon show as Soft inner here.",
+			eget(key, "missGlow"), eset(key, "missGlow"))
 	end
 	local function procBlock()
 		-- Elemental Focus's texts, unless the def has its own (the target's auras, ShamanForever_Target.lua).

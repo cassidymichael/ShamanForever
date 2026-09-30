@@ -213,9 +213,13 @@ local glows = {}
 -- over as the button is made, and a new look's as the look changes, out of combat; a look whose
 -- animations the button won't take stays the old one (until a /reload; ns.auraGlowStale).
 local auraGlows = {}
-local function makeGlow(parent, over, owner, unlisted)
+-- inside: only a look drawn within the icon (ns.Looks' inside), else the default look; for a glow
+-- something else must cover completely (Flame Shock's Not on target, under Blizzard's button).
+local insideGlows = {}
+local function makeGlow(parent, over, owner, unlisted, inside)
 	local g = CreateFrame("Frame", nil, parent)
-	g.owner, g.unlisted = owner, unlisted
+	g.owner, g.unlisted, g.inside = owner, unlisted, inside
+	if inside then table.insert(insideGlows, g) end
 	-- The icon whose frame and school its looks follow; never Blizzard's aura button (it and its
 	-- parts are off limits in combat): an unlisted glow takes its owner's school and no frame.
 	g.over = not unlisted and (over or parent) or nil
@@ -244,7 +248,7 @@ local function makeGlow(parent, over, owner, unlisted)
 	-- The look drawn for a style's: itself, or the default look where the client refused its parts
 	-- or, under Blizzard's aura button, where the look can't be drawn there (noAura).
 	local function drawn(look)
-		if not (unlisted and look.noAura) and parts(look) then return look end
+		if not (unlisted and look.noAura) and not (inside and not look.inside) and parts(look) then return look end
 		return ns.Style.look("glow", ns.Style.KINDS.glow.defaults.look)
 	end
 	if unlisted then table.insert(auraGlows, g) end
@@ -344,17 +348,23 @@ function ns.applyGlowStyle() for _, g in ipairs(glows) do g:restyle() end end
 -- The owners of glows under Blizzard's aura button whose look differs from their style's now,
 -- among those whose style is owner's (nil: General's): they change after a /reload (the options
 -- say so). Returns their keys.
--- The owners of glows under Blizzard's aura button whose style's look can't be drawn there
--- (noAura), among those whose style is owner's: they show the default look instead. Returns their
--- keys, and that look's name.
+-- The glows whose style's look can't be drawn where they are (under Blizzard's aura button:
+-- noAura; one that must stay inside the icon: not inside), among those whose style is owner's:
+-- they show the default look instead. Returns their names (the element's, and the glow's label
+-- if it has one), and that look's name.
 function ns.auraGlowSwapped(owner)
 	local out = {}
-	for _, g in ipairs(auraGlows) do
-		local reaches = owner == g.owner or (owner == nil and ns.Style.follows(g.owner, "glow"))
-		if reaches and ns.Style.look("glow", ns.Style.get(g.owner, "glow").look).noAura then
-			table.insert(out, g.owner)
+	local function check(list, swapped)
+		for _, g in ipairs(list) do
+			local reaches = owner == g.owner or (owner == nil and ns.Style.follows(g.owner, "glow"))
+			if reaches and swapped(ns.Style.look("glow", ns.Style.get(g.owner, "glow").look)) then
+				local name = ns.Look.elementName(g.owner)
+				table.insert(out, g.label and (name .. "'s " .. g.label .. " glow") or name)
+			end
 		end
 	end
+	check(auraGlows, function(look) return look.noAura end)
+	check(insideGlows, function(look) return not look.inside end)
 	return out, ns.Style.look("glow", ns.Style.KINDS.glow.defaults.look).name
 end
 

@@ -37,7 +37,8 @@
 --   your Flame Shock on the target the button's opaque icon covers it; without, it shows. So:
 --   - the cover must be opaque: the gate ignores its group's opacity (the aura's icon draws at full)
 --     and the underlay takes the group's opacity itself;
---   - only looks inside the icon may show (grey, fade in and out, the red ring), a screen pixel in
+--   - only looks inside the icon may show (grey, fade in and out, the red ring, a pulsing glow in a
+--     look drawn inside the icon: Soft inner or School material), a screen pixel in
 --     from its edges and in a rounded or cut-corner look's shape (Looks.maskOver), so the button's
 --     icon covers every pixel of them;
 --   - Blizzard's container follows a new target on its next frame, so the underlay waits two
@@ -70,7 +71,7 @@ local TARGET = {
 		glowTip = "While it's on your target.", upLabel = "On target", idleLabel = "No target",
 		missing = true, engineExpire = true,   -- its Not on target and Expiring blocks
 		defaults = { idleAlpha = 0, primedGlow = false,
-			missGrey = true, missRing = false, missPulse = false,
+			missGrey = true, missRing = false, missPulse = false, missGlow = true,
 			-- Magenta: it stands out against the fire school's orange time bar.
 			expireSecs = 3, expireBar = true, expireBarColor = { 1, 0.2, 0.8, 1 }, expireText = false },
 		experimental = "Flame Shock on target" },
@@ -316,6 +317,9 @@ for _, def in ipairs(TARGET) do
 		ns.cropIconExact(u.tex)
 		u.tex:SetTexture(def.icon)
 		u.ring = ns.makeRing(u.inner, u.tex)   -- inside the inset picture
+		-- Its pulsing glow: only a look drawn inside the icon (inside), over the inset picture.
+		u.glow = ns.makeGlow(u.inner, u.tex, def.key, false, true)
+		u.glow.label = "Not on target"
 		u.pulse = ns.makePulse(u.tex, "fade")
 		-- Every frame while shown: the target still hostile and alive, and the container on it. The
 		-- state driver checks only every 0.2 s (and at once only on a target change), while the
@@ -497,8 +501,8 @@ local function flameShockMissing()
 	return flameShockOnTarget() == false
 end
 
--- The underlay's looks, from the Not on target block, out of combat: grey, fade in and out and the
--- red ring, all inside the inset picture and in its shape, so the button covers them while your
+-- The underlay's looks, from the Not on target block, out of combat: grey, fade in and out, the red
+-- ring and the pulsing glow, all inside the inset picture and in its shape, so the button covers them while your
 -- Flame Shock is up: they show in combat too.
 local function styleUnder()
 	local def, f, u = FLAME, FLAME.frame, FLAME.under
@@ -519,6 +523,18 @@ local function styleUnder()
 	elseif not u.pulse:IsPlaying() then u.pulse:Play() end
 	u.ring:show(setting(def.key, "missRing") and true or false)
 	for _, e in ipairs(u.ring.edges) do ns.Looks.maskOver(f, e, u.tex) end
+	-- The glow: fitted to the inset picture, and every texture of its look in the picture's shape.
+	local g = u.glow
+	g:restyle()
+	g:fit(math.max(ns.sizeOf(def.key) - 2 * px, 1))
+	local function shape(frame)
+		for _, r in ipairs({ frame:GetRegions() }) do
+			if r:IsObjectType("Texture") then ns.Looks.maskOver(f, r, u.tex) end
+		end
+		for _, c in ipairs({ frame:GetChildren() }) do shape(c) end
+	end
+	shape(g.inner)
+	g:SetShown(setting(def.key, "missGlow") and true or false)
 	T.underAlpha(def)
 end
 
