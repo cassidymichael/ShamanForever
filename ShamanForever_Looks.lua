@@ -564,9 +564,9 @@ function Looks.auraStyle(slot, size)
 		made.art = art
 	end
 	if made.artTex and made.art then placeArt(made.artTex, made.art, host, size) end
-	placeMask(made.mask, spec or PLAIN_MASK, slot.icon, size)
-	made.spec = spec
-	made.look = spec and lookFor(b) or nil
+	if made.mask then placeMask(made.mask, spec or PLAIN_MASK, slot.icon, size) end
+	made.spec = made.mask and spec or nil
+	made.look = made.spec and lookFor(b) or nil
 	swipeOne(host, slot.cd, made.look, size)
 end
 
