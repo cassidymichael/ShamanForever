@@ -258,7 +258,7 @@ local function idleBlock(p, def)
 		p:dropdown("Idle when", table.concat(tips, " "), options, eget(key, "idleWhen"), eset(key, "idleWhen"),
 			nil, 230)
 	else
-		p:text((def.idleText or "Idle is when it isn't up")
+		p:text((def.idleText or "Idle while it isn't up")
 			.. ". At 0% it's hidden and keeps its place in the group.")
 	end
 	local extra = def.idleExtra
@@ -722,7 +722,7 @@ local function buildTremor(p)
 	local key = "tremor"
 	elementDisplay(p, key)
 	p:header("Idle")
-	p:text("Idle is when nothing warns. At 0% it's hidden and keeps its place in the group.")
+	p:text("Idle while nothing warns. At 0% it's hidden and keeps its place in the group.")
 	p:dropdown("Idle when", "No warning: also while your Tremor Totem is down. Totem not down and no warning: its time left shows while it's down.",
 		TREMOR_IDLE_WHEN, eget(key, "idleWhen"), eset(key, "idleWhen"), nil, 250)
 	p:slider("Idle opacity", "The icon's opacity while idle.", 0, 1, 0.05, pct, eget(key, "idleAlpha"), eset(key, "idleAlpha"))
