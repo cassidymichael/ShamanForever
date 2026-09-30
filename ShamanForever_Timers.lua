@@ -48,7 +48,8 @@ T.ELEMENT_DEFAULTS = {
 	shield = { uptime = { text = false, swipe = false, swipeAlpha = 0.5, swipeReverse = false, bar = false, barEdge = "top" } },
 	imbue = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = false } },
 	-- Aura-button elements: their own timer, no bar under Blizzard's button.
-	flameshock = { uptime = { text = true, bar = false } },
+	-- Flame Shock's time left: the countdown and a bar along the bottom, Blizzard's button drives both.
+	flameshock = { uptime = { text = true, bar = true, barEdge = "bottom" } },
 	-- Their time left as a bar only (whatever General says): the countdown shows the cooldown.
 	earthbind = { uptime = { text = false, bar = true } },
 	stoneclaw = { uptime = { text = false, bar = true } },
