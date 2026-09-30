@@ -244,6 +244,11 @@ function styleExpire(def, size, slot)
 		end
 		-- The cover first: its end at the stretch's right edge at secs left, past its left 0.05 s
 		-- later.
+		-- Both in the time bar's texture, so the cover matches the fill it lies on (a texture
+		-- shaded across the bar, as the game's are, looks the same stretched along it).
+		local tex = ns.Media.barTexture(t.key)
+		cover.bar:SetStatusBarTexture(tex)
+		red.bar:SetStatusBarTexture(tex)
 		local long = w * FAST
 		cover.bar:SetSize(long, h)
 		cover.bar:SetPoint("TOPLEFT", cover.clip, "TOPLEFT", w - long * secs / FS_SECS, 0)
