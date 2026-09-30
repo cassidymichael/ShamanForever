@@ -1050,8 +1050,8 @@ function ns.makeClipLook(frame, opts)
 	h.ring = ns.makeRing(h.art, h.tex)
 	h.pulse = ns.makePulse(h.tex, "fade")
 	h.glow = ns.makeWarningGlow(h.look, frame, opts.owner, opts.lookFor)
-	-- As a look's parts are made and each time they're fitted (a look changed with the options open,
-	-- in combat too).
+	-- As a look's parts are made and each time they're fitted (a look changed with the options
+	-- open, in combat too).
 	h.glow.onLayout = function(_, parts, look)
 		if not look.inside then return end
 		for _, r in ipairs(parts.roots or {}) do shapeTextures(r, frame, h.tex) end
@@ -1113,10 +1113,12 @@ function ClipLook:setParts(grey, tint, ring, fade, glow)
 	end
 end
 
--- The picture and ring in the icon's look's shape now, and the glow in its look now (after a
--- layout, a size or a look change).
+-- The picture and ring in the icon's look's shape now, the border look's inner art over them (the
+-- look's own border part: it shows exactly while the aura is gone, where the aura button's copy
+-- of it isn't), and the glow in its look now (after a layout, a size or a look change).
 function ClipLook:reshape()
 	local f = self.frame
+	ns.Looks.overlay(self.art, ns.borderFor(self.opts.key))
 	ns.Looks.maskOver(f, self.tex)
 	for _, e in ipairs(self.ring.edges) do ns.Looks.maskOver(f, e, self.tex) end
 	self.glow:restyle()

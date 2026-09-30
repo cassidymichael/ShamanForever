@@ -309,6 +309,19 @@ for _, def in ipairs(TARGET) do
 	def.gate:SetAllPoints(f)
 	def.gate:Hide()
 	if def.missing then
+		-- One border at any time. Blizzard's button is see-through at partial opacity, so the
+		-- element's own border must not lie under it while the holder draws the group's. The two
+		-- are complements, each shown by a state driver (driveGate), so exactly one shows:
+		--   idleEdge  the element's own border (lines, sliced and inner art, at its Idle opacity):
+		--             with no hostile target, and while you're dead (the holder is hidden then);
+		--   holder    the group's border, lines and sliced art only (at the group's opacity, with a
+		--             hostile target): the aura button draws the inner art while the aura is up,
+		--             and the Not on target look while it's gone (ns.makeClipLook).
+		-- While dead with a hostile target and your Flame Shock up, a look with inner art (an
+		-- experimental border look) shows it twice, the button's and the frame's: rare, and only
+		-- at Idle above 0.
+		def.idleEdge = CreateFrame("Frame", nil, f)
+		def.idleEdge:SetAllPoints(f)
 		-- Not on target (see the file's header): its holder, over the icon, and the look on it.
 		local h = CreateFrame("Frame", nil, def.gate)
 		h:SetAllPoints(f)
@@ -335,7 +348,8 @@ for _, def in ipairs(TARGET) do
 		-- has no style of its own); its sensor on the gate beside Blizzard's container. The glow's
 		-- look before the profile loads: the default.
 		def.missLook = ns.makeClipLook(f, {
-			key = def.key, parent = h, sensorParent = def.gate, unit = wantedUnit, needUnit = "target",
+			key = def.key, parent = h, sensorParent = def.gate, unit = wantedUnit,
+			needUnit = "target",
 			filter = def.filter, ids = function() return idMap(def) end,
 			lookFor = function()
 				local ok, look = pcall(setting, def.key, "missGlowLook")
@@ -343,7 +357,8 @@ for _, def in ipairs(TARGET) do
 			end,
 			sites = {
 				container = "target warning sensor " .. def.key,
-				style = "target warning style " .. def.key, filter = "target warning filter " .. def.key,
+				style = "target warning style " .. def.key,
+				filter = "target warning filter " .. def.key,
 			},
 		})
 		def.missLook.tex:SetTexture(def.icon)
@@ -364,6 +379,7 @@ for _, def in ipairs(TARGET) do
 		onError = function(err) ns.noteError("target container " .. def.key, err) end,
 	})
 	ns.registerElement(def.key, { frame = f, label = def.spell, defaults = def.defaults,
+		borderHost = def.idleEdge,
 		-- Preview mode: its border isn't on its frame (ShamanForever_Preview.lua).
 		standInBorder = true,
 		learned = function() return def.spellID ~= nil end,
@@ -451,8 +467,13 @@ local function driveGate(def)
 	if not ok then ns.noteError("target gate " .. def.key, err) end
 	-- Not on target's holder: also not while you're dead (nothing can be cast).
 	if def.holder then
-		ok, err = pcall(RegisterStateDriver, def.holder, "visibility", "[@player,dead] hide; " .. HOSTILE)
+		ok, err = pcall(RegisterStateDriver, def.holder, "visibility",
+			"[@player,dead] hide; " .. HOSTILE)
 		if not ok then ns.noteError("target warning " .. def.key, err) end
+		-- The element's own border shows exactly when the holder's group border doesn't.
+		ok, err = pcall(RegisterStateDriver, def.idleEdge, "visibility",
+			"[@player,dead] show; [@target,harm,nodead] hide; show")
+		if not ok then ns.noteError("target border " .. def.key, err) end
 	end
 end
 
@@ -501,14 +522,15 @@ end
 local function stateLook()
 	local def = FLAME
 	local a = def.aura
-	def.holder.on = (a.container and not a.err and def.spellID and ns.isEnabled(def.key)) and true or false
+	local on = a.container and not a.err and def.spellID and ns.isEnabled(def.key)
+	def.holder.on = on and true or false
 	def.missLook:want(def.holder.on)
 	holderAlpha(def)
 end
 
 -- The look from the Not on target block, out of combat: grey, fade in and out, the red ring and the
--- pulsing glow, its level, shape and size. Run on a layout, a style change and at combat's start and
--- end; then the state.
+-- pulsing glow, its level, shape and size. Run on a layout, a style change and at combat's start
+-- and end; then the state.
 local function styleLook()
 	local def, f, h, look = FLAME, FLAME.frame, FLAME.holder, FLAME.missLook
 	if InCombatLockdown() then return end
@@ -597,6 +619,8 @@ function T.applyLayout()
 	for _, def in ipairs(TARGET) do
 		if def.spellID and ns.isEnabled(def.key) then
 			def.aura:setup()
+			-- Made whenever the element is learned and on: the sensor carries the whole look (its
+			-- picture, the grey and the ring too), not the glow alone.
 			if def.missLook then def.missLook:setup() end
 		end
 		-- Skip long buffs or Longest buff changed: the slot's filter again. SetAuraSlotCandidateFilters
@@ -619,10 +643,12 @@ function T.afterGroups()
 		def.aura:style()
 		if def.holder then
 			holderAlpha(def)
-			-- The element's frame sits at its Idle opacity, so its border fades with it. With a
-			-- hostile target the icon shows (Blizzard's button, or Not on target) and its border
-			-- must too: a second one, the group's, drawn round the holder, which shows then.
+			-- The element's own border (idleEdge) sits at its Idle opacity and hides with a hostile
+			-- target; then the icon shows (Blizzard's button, or Not on target) and the group's
+			-- border, drawn round the holder, takes its place: the inner art left to the button and
+			-- the look (see idleEdge).
 			ns.applyBorder(def.holder, ns.borderFor(def.key))
+			if def.holder.frameOverlay then def.holder.frameOverlay:Hide() end
 		end
 	end
 	styleLook()   -- a new size or scale

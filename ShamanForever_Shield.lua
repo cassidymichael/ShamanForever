@@ -19,8 +19,8 @@
 --      preview mode, and a moment after our own cast of a shield it tracks (a recast must never
 --      flash it) or a loading screen; its sensor adds its own waits (a new spell ID, size or look
 --      it can't take until combat ends, and two frames each time it shows). While you can't act
---      (dead, a ghost, a flight path, a vehicle) it shows the grey alone, without the warning, or
---      nothing without Grey icon;
+--      (a flight path, a vehicle) it shows the grey alone, without the warning, or nothing without
+--      Grey icon; while you're dead a state driver on its holder hides it, in combat too;
 --    - out of combat, auras readable, it also follows a read of the aura (refreshAura): shown only
 --      while no shield it tracks is up. In a PvP match auras stay secret out of combat too
 --      (Blizzard's API documentation; not yet seen in a battleground): the sensor alone decides
@@ -163,9 +163,18 @@ local standIn   -- preview mode's icon over the shield (SH.preview, below)
 ------------------------------------------------------------------------
 -- The No shield look (see the top of this file)
 ------------------------------------------------------------------------
--- Its holder, over the element's own icon; its guard runs here.
+-- Its holder, over the element's own icon; its guard runs here. A state driver hides it while
+-- you're dead, so the engine backs the guard up in combat (the guard only checks once a frame). It
+-- wins over the grey-only look: dead shows nothing, a miss, never a false warning.
 local holder = CreateFrame("Frame", nil, shield)
 holder:SetAllPoints(shield)
+local driven = false
+local function driveHolder()
+	if driven or InCombatLockdown() then return end
+	driven = true
+	local ok, err = pcall(RegisterStateDriver, holder, "visibility", "[@player,dead] hide; show")
+	if not ok then ns.noteError("shield warning holder", err) end
+end
 local look   -- the clip look (below)
 local lookOn, lookState, watching = false, nil, false
 
@@ -203,8 +212,8 @@ local function setLook(st)
 	if st ~= nil and lookState == nil then look:wait() end
 	lookState = st
 	local db, warn = ns.getDB(), st == "warn"
-	look:setParts(db.emptyGrey, warn and db.emptyTint, warn and db.emptyRing, warn and db.emptyPulse,
-		warn and db.emptyGlow)
+	look:setParts(db.emptyGrey, warn and db.emptyTint, warn and db.emptyRing,
+		warn and db.emptyPulse, warn and db.emptyGlow)
 	look:want(st ~= nil)
 end
 
@@ -241,6 +250,7 @@ end
 -- The shield's looks, from its settings and state: the element's own icon (only seen while the
 -- button isn't made), the No shield look and, in preview mode, the stand-in.
 function SH.applyEmptyLook()
+	driveHolder()
 	local icon = SH.icon()
 	local known = anyTrackedShieldKnown()
 	local covered = native.button ~= nil and not native.err
@@ -253,12 +263,18 @@ function SH.applyEmptyLook()
 	shield:SetRingShown(false)
 	shield:SetPulsing(false)
 	shield:SetGlowShown(false)
+	-- One border at any time. The element's frame draws the border's lines and sliced art round the
+	-- icon, once, always. The border look's inner art (over the icon) is drawn by the aura button
+	-- while the shield is up and by the No shield look while it's gone (ns.makeClipLook), each
+	-- exactly with what it belongs to, so the frame's own copy stays down while those are made: the
+	-- button is see-through at partial opacity, and a copy under it would show as a second one.
+	if shield.frameOverlay then shield.frameOverlay:SetShown(not (known and covered)) end
 	look.tex:SetTexture(icon)
 	lookOn = (known and covered and ns.isEnabled("shield")) and true or false
 	if standIn then
 		-- Preview mode (SH.preview, below). The stand-in draws the state shown over everything, the
-		-- look off: at its group's opacity, as Blizzard's button draws the shield, but at full while
-		-- the real shield may be up under it, which would show through.
+		-- look off: at its group's opacity, as Blizzard's button draws the shield, but at full
+		-- while the real shield may be up under it, which would show through.
 		standIn:SetIgnoreParentAlpha(covered and believedUp() ~= false)
 	end
 	setLook(stateNow())
@@ -314,8 +330,13 @@ local function learnShieldID(key, id)
 	if type(id) ~= "number" or isSecret(id) then return end
 	s.castIDs[id] = true
 	Spells.learn(s.spell, id)
-	local has = native.filtered and native.filtered[id] and look.filtered and look.filtered[id]
-	if tracksShield(key) and not has then applyShieldFilter() end
+	if not tracksShield(key) then return end
+	-- A container that isn't made, or failed, has nothing to refilter: it counts as matching, so an
+	-- aura read doesn't ask again for ever.
+	local function matches(c)
+		return c.container == nil or c.err ~= nil or (c.filtered and c.filtered[id])
+	end
+	if matches(native) and matches(look) then look:checkIDs() else applyShieldFilter() end
 end
 
 -- After a spellbook scan (ns.resolveSpells): each shield's name, highest known rank and icon, and the
@@ -582,6 +603,9 @@ function SH.start()
 	ns.registerEvent(ev, "PLAYER_REGEN_DISABLED")
 	ns.registerEvent(ev, "PLAYER_REGEN_ENABLED")
 	ns.registerEvent(ev, "PLAYER_ENTERING_WORLD")
+	-- A vehicle turns the look to the grey alone, or back (blocked).
+	ns.registerEvent(ev, "UNIT_ENTERED_VEHICLE", "player")
+	ns.registerEvent(ev, "UNIT_EXITED_VEHICLE", "player")
 	-- Auras may turn secret out of combat (a PvP match, an encounter): the button becomes the switch.
 	ns.registerEvent(ev, "ADDON_RESTRICTION_STATE_CHANGED")
 	ev:SetScript("OnEvent", function(_, event)
@@ -598,6 +622,8 @@ function SH.start()
 		elseif event == "PLAYER_REGEN_ENABLED" then
 			fighting = false
 			refreshAura()
+		elseif event == "UNIT_ENTERED_VEHICLE" or event == "UNIT_EXITED_VEHICLE" then
+			watch()   -- the look re-evaluated below
 		else
 			refreshAura()
 			return
