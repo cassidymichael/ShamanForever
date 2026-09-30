@@ -1094,7 +1094,7 @@ function L.buildHero(parent, key)
 			local g = ns.groupOf(key)
 			local shows = { always = "Always", combat = "In combat", never = "Hidden" }
 			self.tags:SetText(string.format("%s  ·  %s%s", g and g.name or "Ungrouped", shows[ns.showMode(key)] or "",
-				ns.isLearned(key) and "" or "  ·  Not learned"))
+				ns.isLearned(key) and "" or "  ·  " .. ns.notLearnedText(key)))
 		end
 		-- A stage can offer only some states (the totem bar's mode): the others hide, the rest close
 		-- up, and a state that no longer applies falls back to def.fallback or the first one left.

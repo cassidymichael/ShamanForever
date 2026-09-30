@@ -376,6 +376,16 @@ local DEFS = {
 	lavaBurst       = { ids = { 408490, 1238299, 1238300 }, en = "Lava Burst" },   -- Forever's own, ranks 1 to 3
 	totemicProjection = { ids = { 437009 }, en = "Totemic Projection" },
 	reincarnation   = { ids = { 20608 }, en = "Reincarnation" },
+	-- Racials (build 70124's spell tables; none seen on a character yet). Other spells share their
+	-- names (War Stomp has 16 IDs, Berserking 4), so each is matched by ID.
+	bloodFury       = { ids = { 20572 }, byID = true, en = "Blood Fury" },                -- Orc
+	shatterCurse    = { ids = { 1299026 }, byID = true, en = "Shatter Curse" },           -- Orc
+	berserking      = { ids = { 20554 }, byID = true, en = "Berserking" },                -- Troll
+	rapidRegeneration = { ids = { 1260270 }, byID = true, en = "Rapid Regeneration" },    -- Troll
+	warStomp        = { ids = { 20549 }, byID = true, en = "War Stomp" },                 -- Tauren
+	stoneform       = { ids = { 20594 }, byID = true, en = "Stoneform" },                 -- Dwarf
+	walkOnAir       = { ids = { 1259416, 1308663 }, byID = true, en = "Walk on Air" },    -- Windshaper Skyborne; which the spellbook shows is unconfirmed
+	skysight        = { ids = { 1259686 }, byID = true, en = "Skysight" },                -- Windshaper Skyborne
 	waterWalking    = { ids = { 546 }, en = "Water Walking" },   -- the buffs have the same IDs
 	waterBreathing  = { ids = { 131 }, en = "Water Breathing" },
 	elementalFocus  = { ids = { 16164 }, en = "Elemental Focus" },   -- a passive talent
@@ -418,7 +428,7 @@ local function resolveNames()
 			n = n or nameOf(id)
 		end
 		names[key] = n or d.en
-		keyByName[names[key]] = key
+		if not d.byID then keyByName[names[key]] = key end
 	end
 end
 resolveNames()
@@ -505,8 +515,10 @@ function Spells.known(key)
 	local e = book[key]
 	if e then return e.id, e.icon end
 	-- Not in the spellbook view (a talent, or the scan ran early): ask the client by name, and
-	-- whether the player knows what it names.
-	local ok, info = safe(C_Spell.GetSpellInfo, Spells.name(key))
+	-- whether the player knows what it names. Not for a spell matched by ID alone (byID): its name
+	-- is shared with other spells.
+	local ok, info
+	if not (DEFS[key] and DEFS[key].byID) then ok, info = safe(C_Spell.GetSpellInfo, Spells.name(key)) end
 	if ok and type(info) == "table" and info.spellID and not isSecret(info.spellID) and playerKnows(info.spellID) then
 		keyByID[info.spellID] = key
 		return info.spellID, info.iconID

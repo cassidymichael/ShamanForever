@@ -143,6 +143,7 @@ read_globals = {
     "UnitIsPlayer",
     "UnitIsUnit",
     "UnitName",
+    "UnitRace",
     "UnitOnTaxi",
     "UnregisterStateDriver",
     "abs",

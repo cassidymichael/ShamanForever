@@ -246,6 +246,13 @@ local function isLearned(key)
 	local e = ELEMENTS[key]
 	return e == nil or not e.learned or e.learned() and true or false
 end
+-- What the options say of an element that isn't learned: its spell belongs to other races
+-- (e.race, a list of race IDs, UnitRace's third value), or the character doesn't know it yet.
+function ns.notLearnedText(key)
+	local e = ELEMENTS[key]
+	if e and e.race and not tContains(e.race, (select(3, UnitRace("player")))) then return "Not your race" end
+	return "Not learned"
+end
 local function onHUD(key) return isLearned(key) or ns.Preview.showsUnlearned() end
 
 -- The group an element sits in and its place among the members; nil for an ungrouped element.

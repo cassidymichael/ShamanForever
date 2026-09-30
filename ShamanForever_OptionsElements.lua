@@ -121,7 +121,7 @@ function EP.buildOverview(p)
 		-- Every element is listed; one the character doesn't know yet says so (the HUD leaves it out).
 		local unknown = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 		unknown:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -1)
-		unknown:SetText("Not learned")
+		unknown:SetText(ns.notLearnedText(key))
 		-- The Group choices: every group by name, then New group. Choosing one moves the element
 		-- there (to its end) and leaves its Show as it is.
 		local group = menuCell(f, 120, function(_, root)
@@ -207,7 +207,9 @@ local function elementDisplay(p, key)
 	ELEMENT_PAGES[key] = p.key
 	p:hero(key)
 	p:callout("Not learned yet. It shows on screen once your character knows the spell.",
-		function() return not ns.isLearned(key) end)
+		function() return not ns.isLearned(key) and ns.notLearnedText(key) == "Not learned" end)
+	p:callout("Not your race. It shows on screen only for the races that have this spell.",
+		function() return not ns.isLearned(key) and ns.notLearnedText(key) ~= "Not learned" end)
 	p:header("Display")
 	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return ns.showMode(key) end,
 		function(v) ns.setShow(key, v) end, nil, 140)

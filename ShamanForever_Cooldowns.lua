@@ -60,6 +60,8 @@ local setting = ns.elementSetting
 --   expireLooks = { ... } the Expiring looks it offers, when not all of them (Rage of the Farseer:
 --                       nothing to recast as it ends, so no glow or ring); false for no Expiring
 --   primedLooks = false no Primed pop or glow, only its time left (Stormstrike)
+--   race = { ids }      a racial: the race IDs that have it (UnitRace's third value); other races
+--                       see "Not your race" and it stays off the HUD
 --   cd = seconds        its cooldown's length, for the options preview only
 --   defaults = { ... }  its own option defaults (ns.elementSetting), over its parts' (PARTS)
 --   experimental        a feature name: not tested in game (the level cap is 20)
@@ -116,6 +118,30 @@ local COOLDOWNS = {
 		blurb = "Cooldown, and your Ankhs when they run low.",
 		reagent = 17030, noReady = true, cd = 3600,
 		defaults = { idleAlpha = 0, readyPop = false }, experimental = "Reincarnation" },
+	-- Racials, one line each (race IDs: Orc 2, Dwarf 3, Tauren 6, Troll 8, Windshaper Skyborne 96).
+	-- Buff windows have nothing to recast as they end, so Expiring is off by default. Idle defaults
+	-- to ready-and-unused (idleWhen "offcd"), so a racial that sits ready all day stays faint.
+	{ key = "bloodfury", spellKey = "bloodFury", icon = 135726, race = { 2 }, window = 15, school = "fire",
+		blurb = "Cooldown, and time left while it's on.", readyGlow = true, expireLooks = { "grey", "pulse" }, cd = 120,
+		defaults = { expire = { secs = 0, pulse = true } }, experimental = "Blood Fury" },
+	{ key = "shattercurse", spellKey = "shatterCurse", icon = 136082, race = { 2 }, window = 8, school = "spirit",
+		blurb = "Cooldown, and time left while it's on.", readyGlow = true, expireLooks = { "grey", "pulse" }, cd = 180,
+		defaults = { expire = { secs = 0, pulse = true } }, experimental = "Shatter Curse" },
+	{ key = "berserking", spellKey = "berserking", icon = 135727, race = { 8 }, window = 10, school = "fire",
+		blurb = "Cooldown, and time left while it's on.", readyGlow = true, expireLooks = { "grey", "pulse" }, cd = 180,
+		defaults = { expire = { secs = 0, pulse = true } }, experimental = "Berserking" },
+	{ key = "rapidregeneration", spellKey = "rapidRegeneration", icon = 1850550, race = { 8 }, school = "water",
+		blurb = "Cooldown.", readyGlow = true, cd = 180, experimental = "Rapid Regeneration" },
+	{ key = "warstomp", spellKey = "warStomp", icon = 132368, race = { 6 }, school = "earth",
+		blurb = "Cooldown.", readyGlow = true, cd = 120, experimental = "War Stomp" },
+	{ key = "stoneform", spellKey = "stoneform", icon = 136225, race = { 3 }, window = 8, school = "earth",
+		blurb = "Cooldown, and time left while it's on.", readyGlow = true, expireLooks = { "grey", "pulse" }, cd = 180,
+		defaults = { expire = { secs = 0, pulse = true } }, experimental = "Stoneform" },
+	{ key = "walkonair", spellKey = "walkOnAir", icon = 132845, race = { 96 }, window = 10, school = "air",
+		blurb = "Cooldown, and time left while it's on.", readyGlow = true, expireLooks = { "grey", "pulse" }, cd = 120,
+		defaults = { expire = { secs = 0, pulse = true } }, experimental = "Walk on Air" },
+	{ key = "skysight", spellKey = "skysight", icon = 1029587, race = { 96 }, school = "air",
+		blurb = "Cooldown.", readyGlow = true, cd = 120, experimental = "Skysight" },
 }
 
 -- Option defaults (ns.elementSetting) by part: every cooldown element has Ready and Idle, the rest
@@ -261,7 +287,7 @@ for _, def in ipairs(COOLDOWNS) do
 		defaults = def.defaults, learned = function() return def.spellID ~= nil end,
 		paint = function(t) t:SetTexture(def.iconID or def.icon) end, effects = effectsOf(def),
 		kind = "cooldown", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
-		experimental = def.experimental })
+		experimental = def.experimental, race = def.race })
 end
 
 ------------------------------------------------------------------------
@@ -827,7 +853,11 @@ function CD.resolve()
 	for _, def in ipairs(COOLDOWNS) do
 		def.spell = Spells.name(def.spellKey)
 		ns.ELEMENTS[def.key].label = def.spell
-		local known, knownIcon = Spells.known(def.spellKey)
+		-- A racial of other races is never known, whatever the spellbook says.
+		local known, knownIcon
+		if not def.race or tContains(def.race, (select(3, UnitRace("player")))) then
+			known, knownIcon = Spells.known(def.spellKey)
+		end
 		if known ~= def.spellID then def.takesReagent = nil end   -- a new rank: read its tooltip again
 		def.spellID, def.iconID = known, knownIcon
 		table.insert(sig, tostring(def.spellID)); table.insert(sig, tostring(def.iconID))
