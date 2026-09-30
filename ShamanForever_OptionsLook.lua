@@ -1208,12 +1208,12 @@ end
 -- untouched) and draws through the HUD's own code: the icon, its effect host, Looks.fit, the pop.
 -- L.tilePool.acquire makes one; release gives it back (tiles are never made per refresh).
 ------------------------------------------------------------------------
--- The five schools in their order: key, colour, and a sample icon of each (Stoneskin, Searing,
--- Healing Stream, Windfury, Lightning Shield).
+-- The five schools in their order: key, name, colour, and a sample icon of each (Stoneskin,
+-- Searing, Healing Stream, Windfury, Lightning Shield).
 L.SCHOOLS = {
-	{ key = "earth", icon = 136098 }, { key = "fire", icon = 135825 },
-	{ key = "water", icon = 135127 }, { key = "air", icon = 136114 },
-	{ key = "spirit", icon = 136051 },
+	{ key = "earth", name = "Earth", icon = 136098 }, { key = "fire", name = "Fire", icon = 135825 },
+	{ key = "water", name = "Water", icon = 135127 }, { key = "air", name = "Air", icon = 136114 },
+	{ key = "spirit", name = "Spirit", icon = 136051 },
 }
 for _, s in ipairs(L.SCHOOLS) do s.color = ns.SCHOOL_COLOR[s.key] end
 

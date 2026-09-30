@@ -253,8 +253,6 @@ end
 
 -- An element's pick of the element its pop and School material glow take (popSchool: its own
 -- setting, not a style field, so it stays whether or not the element follows General).
-local POP_SCHOOLS = { { "earth", "Earth" }, { "fire", "Fire" }, { "water", "Water" }, { "air", "Air" },
-	{ "spirit", "Spirit" } }
 local function popSchoolRow(p, key, shown)
 	local function get()
 		local v = ns.elementSetting(key, "popSchool")
@@ -269,56 +267,12 @@ local function popSchoolRow(p, key, shown)
 	p:dropdown("Element", "The element its pop and School material glow take.", function()
 		local own = ns.Looks.elementSchool(key, true)
 		local out = { { "own", "Its own" } }
-		for _, sc in ipairs(POP_SCHOOLS) do
-			table.insert(out, sc)
-			if sc[1] == own then out[1][2] = "Its own (" .. sc[2] .. ")" end
+		for _, sc in ipairs(ns.Look.SCHOOLS) do
+			table.insert(out, { sc.key, sc.name })
+			if sc.key == own then out[1][2] = "Its own (" .. sc.name .. ")" end
 		end
 		return out
 	end, get, set, shown, 190)
-end
-
--- A style block's preview: one 40 icon of the page's (icon), or one per school while bySchool()
--- on a page that isn't an element's (a look or motion that differs by school: earth, fire, water,
--- air and spirit side by side; the totem bar's four), made the first time they show. An element's
--- page shows its own icon, in the school it takes. x: where the first sits in its row f. Each
--- wears its owner's border inside its 40, as on the HUD. Returns shown(), the icons it shows now,
--- and place(), for the row's refresh, which lays them out and returns them.
-local SCHOOL_ICONS = { { "earth", 136098 }, { "fire", 135825 }, { "water", 135127 }, { "air", 136114 },
-	{ "spirit", 136051 } }   -- Stoneskin, Searing, Healing Stream, Windfury, Lightning Shield
-local function previewIcons(f, owner, icon, x, bySchool)
-	local one = ns.makeIcon(f, 40, owner)
-	one.tex:SetTexture(icon)
-	local schools = {}
-	local v = {}
-	function v.shown()
-		if isElement(owner) or not bySchool() then return { one } end
-		if #schools == 0 then
-			for _, s in ipairs(SCHOOL_ICONS) do
-				if owner ~= "totembar" or s[1] ~= "spirit" then
-					local ic = ns.makeIcon(f, 40, owner)
-					ic.school = s[1]   -- the school its looks take (ns.Looks)
-					ic.tex:SetTexture(s[2])
-					ic.glowF:restyle()
-					ic:Hide()
-					table.insert(schools, ic)
-				end
-			end
-		end
-		return schools
-	end
-	function v.place()
-		local list = v.shown()
-		one:SetShown(list[1] == one)
-		for i, ic in ipairs(schools) do
-			ic:SetShown(list == schools)
-			if list == schools then
-				ic:SetPoint("LEFT", f, "LEFT", x + (i - 1) * SCHOOL_GAP + ns.Looks.fit(ic, previewBorder(owner), 40), 0)
-			end
-		end
-		if list[1] == one then one:SetPoint("LEFT", f, "LEFT", x + ns.Looks.fit(one, previewBorder(owner), 40), 0) end
-		return list
-	end
-	return v
 end
 
 -- Standard block: the pulsing glow's style, with an icon glowing all the time that follows every
@@ -338,9 +292,9 @@ local function glowBlock(p, owner, icon)
 	local f = p:row(64)
 	p:label(f, "Preview")
 	local look
-	local icons = previewIcons(f, owner, icon, LABEL_W + 24, function() return look().bySchool end)
+	local sync = previewTiles(f, owner, icon, LABEL_W + 24, function() return look().bySchool end)
 	p:add(f, 64, own, function()
-		for _, ic in ipairs(icons.place()) do ic:SetGlowShown(true) end
+		for _, t in ipairs(sync()) do t:glow(true) end
 	end)
 	look = choiceRows(p, r, "glow", "look", "Look", nil, own)
 	if isElement(owner) then popSchoolRow(p, owner, showWhen(function() return look().bySchool end)) end
@@ -376,16 +330,16 @@ end
 -- event the icon pops for (ready, imbue, expired, killed). One setting per part (colour, flash,
 -- burst, motion), each changing only its own, in any mix.
 local function popBlock(p, owner, icon, kind)
-	local icons
+	local f, sync   -- the preview's row, and its tiles in the style now
 	local function playPop()
-		for _, ic in ipairs(icons.shown()) do ic:Pop(kind) end
+		for _, t in ipairs(sync()) do t:pop(kind) end
 	end
 	-- ns.applyTimers: the pops Blizzard's aura buttons play (Elemental Focus, Purge) take a style
 	-- change through their module's hook, once out of combat.
 	local function after()
 		ns.applyTimers()
 		OP.refresh()
-		if icons and icons.shown()[1]:IsVisible() then playPop() end
+		if f and f:IsVisible() then playPop() end
 	end
 	p:header("Pop style")
 	local r = styleRows(p, owner, "pop", after)
@@ -403,17 +357,17 @@ local function popBlock(p, owner, icon, kind)
 		p:text("The burst when something happens: a cooldown ready, an imbue dropping, a totem ending. Elements and the totem bar can have their own.")
 	else followRow(p, owner, "pop", after) end
 	local own = showWhen(r.own)
-	local f = p:row(56)
+	f = p:row(56)
 	p:label(f, "Try it")
-	icons = previewIcons(f, owner, icon, LABEL_W + 16, bySchool)
+	sync = previewTiles(f, owner, icon, LABEL_W + 16, bySchool)
 	local play = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
 	play:SetSize(80, 22)
 	play:SetText("Play")
 	play:SetScript("OnClick", playPop)
 	p:add(f, 56, own, function()
-		local list = icons.place()
+		local list = sync()
 		play:ClearAllPoints()
-		play:SetPoint("LEFT", list[#list], "RIGHT", 24, 0)
+		play:SetPoint("LEFT", list[#list].box, "RIGHT", 24, 0)
 	end)
 	if isElement(owner) then popSchoolRow(p, owner, showWhen(bySchool)) end
 	if colored then
