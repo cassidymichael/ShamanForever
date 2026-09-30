@@ -273,6 +273,7 @@ end
 -- Textures other code lays over an icon's picture (the expiring warning's grey copy and dimming),
 -- registered with Looks.followMask: they take the icon's mask too.
 local followers = setmetatable({}, { __mode = "k" })   -- icon frame -> { texture, ... }
+local ownShape = setmetatable({}, { __mode = "k" })    -- icon frame -> { texture, ... } (Looks.maskOver)
 local maskSpecs = setmetatable({}, { __mode = "k" })   -- icon frame -> its mask spec now
 
 -- Masks tex (a texture over f's picture) with spec, or takes its mask off (spec nil). The mask is
@@ -305,6 +306,17 @@ local function drawMask(f, spec)
 	maskOne(f, f.manaOverlay, spec, over)
 	maskOne(f, f.warn and f.warn.grey, spec, over)
 	for _, t in ipairs(followers[f] or {}) do maskOne(f, t, spec, over) end
+	for _, t in ipairs(ownShape[f] or {}) do maskOne(f, t, spec, t) end
+end
+
+-- Masks tex with icon frame f's look, in tex's own place and size (a texture set in from the
+-- picture's edges takes the whole shape, set in by as much), now and on each change of look. Call
+-- again after moving tex.
+function Looks.maskOver(f, tex)
+	local list = ownShape[f] or {}
+	ownShape[f] = list
+	if not tContains(list, tex) then table.insert(list, tex) end
+	if maskSpecs[f] then maskOne(f, tex, maskSpecs[f], tex) end
 end
 
 -- Registers textures laid over icon frame f's picture, to take its mask (now, and on each change).

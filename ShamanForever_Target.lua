@@ -171,7 +171,6 @@ for _, def in ipairs(TARGET) do
 		u.tex = u.inner:CreateTexture(nil, "ARTWORK")
 		ns.cropIconExact(u.tex)
 		u.tex:SetTexture(def.icon)
-		ns.Looks.followMask(f, u.tex)   -- a rounded or cut-corner look's shape, as the icon's
 		u.ring = ns.makeRing(u.inner, f.tex)
 		u.pulse = ns.makePulse(u.tex, "fade")
 		-- Hidden for its first 0.1 s each time it shows or the target changes: Blizzard's container
@@ -380,6 +379,8 @@ local function styleUnder()
 	u.tex:ClearAllPoints()
 	u.tex:SetPoint("TOPLEFT", f.tex, "TOPLEFT", px, -px)
 	u.tex:SetPoint("BOTTOMRIGHT", f.tex, "BOTTOMRIGHT", -px, px)
+	-- A rounded or cut-corner look's shape over the inset picture itself, so its curves are set in too.
+	ns.Looks.maskOver(f, u.tex)
 	u.tex:SetDesaturated(setting(def.key, "missGrey") and true or false)
 	u.pulseOn = setting(def.key, "missPulse") and true or false
 	if not u.pulseOn then u.pulse:Stop()
