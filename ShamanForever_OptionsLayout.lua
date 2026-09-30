@@ -569,7 +569,12 @@ end
 local function buildSettings(p)
 	local G = selected
 	local function get(key) return function() local g = G(); return g and g[key] end end
-	local function set(key) return function(v) local g = G(); if g then g[key] = v; relayout() end end end
+	-- The page owns what the chosen group's rows write (it has no blocks), for a reset of the group.
+	local function owns(key, reset) p:owns({ group = G, name = key, after = relayout, reset = reset }) end
+	local function set(key)
+		owns(key)
+		return function(v) local g = G(); if g then g[key] = v; relayout() end end
+	end
 	local show = p:dropdown("Show", "When the group is on screen. Everything visible shows while positioning is unlocked.",
 		K.COMBAT_SHOW, get("show"), set("show"), nil, 240)
 	p:sub(show, function() local g = G(); return g ~= nil and g.show ~= "always" end, function()
@@ -581,6 +586,7 @@ local function buildSettings(p)
 	p:dropdown("Growth", "Which way the row or column extends from its first element.",
 		{ { "forward", "Right / down" }, { "backward", "Left / up" } }, get("growth"), set("growth"))
 	p:slider("Spacing", "Gap between the group's elements. Below 0 they overlap.", -20, 40, 1, int, get("spacing"), set("spacing"))
+	owns("sizeFollow")
 	local follow = K.generalRow(p, "Icon size same as General", "Use the icon size on the General page.",
 		get("sizeFollow"),
 		function(v)
@@ -594,15 +600,17 @@ local function buildSettings(p)
 		p:slider("Icon size", nil, 24, 96, 1, int, get("size"), set("size"))
 	end)
 	p:text("Icon size keeps borders and rings crisp. Scale grows everything, borders and rings included.")
+	local function setScale(v)
+		local g = G()
+		if not g then return end
+		-- Offsets are in the group's own units: rescale them so the centre stays put.
+		if g.point == "CENTER" then g.x, g.y = g.x * g.scale / v, g.y * g.scale / v end
+		g.scale = v
+		relayout()
+	end
+	owns("scale", function() setScale(ns.GROUP_DEFAULTS.scale) end)
 	p:slider("Scale", "Grows everything in the group, borders and rings too.", 0.5, 3, 0.05, times,
-		get("scale"), function(v)
-			local g = G()
-			if not g then return end
-			-- Offsets are in the group's own units: rescale them so the centre stays put.
-			if g.point == "CENTER" then g.x, g.y = g.x * g.scale / v, g.y * g.scale / v end
-			g.scale = v
-			relayout()
-		end)
+		get("scale"), setScale)
 	p:slider("Opacity", "Transparency of the group.", 0.1, 1, 0.05, pct, get("alpha"), set("alpha"))
 	K.borderRows(p, G, relayout, "Border same as General")
 	p:buttons({
