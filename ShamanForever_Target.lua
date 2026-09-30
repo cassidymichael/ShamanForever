@@ -383,6 +383,7 @@ for _, def in ipairs(TARGET) do
 	})
 	ns.registerElement(def.key, { frame = f, label = def.spell, defaults = def.defaults,
 		fadeFrames = def.missing and { def.gate } or nil,   -- it ignores the group's alpha
+		standInBorder = true,   -- preview mode: its border isn't on its frame (ShamanForever_Preview.lua)
 		learned = function() return def.spellID ~= nil end,
 		paint = function(t) t:SetTexture(def.icon) end,
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
