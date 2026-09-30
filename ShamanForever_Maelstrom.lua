@@ -55,7 +55,7 @@ local CENTER_FILL = Enum and Enum.StatusBarFillStyle and Enum.StatusBarFillStyle
 -- Its option defaults (ns.elementSetting), and the ranges its numbers are kept in.
 M.DEFAULTS = {
 	idleAlpha = 0,
-	stackBar = true, stackBarHeight = 6, stackBarColor = { 0.45, 0.6, 1, 1 },
+	stackBar = true, stackBarHeight = 6, stackBarColor = { 0.52, 0.69, 1, 1 },
 	stackCount = true, countPos = "center", countSize = 18,
 	fullCount = true, fullCountColor = { 1, 0.82, 0.25, 1 },   -- the number at five, in its colour
 	highlight = "glow", highlightColor = { 1, 0.82, 0.25, 1 },  -- glow | wash | none

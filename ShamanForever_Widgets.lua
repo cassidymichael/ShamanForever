@@ -4,8 +4,8 @@
 
 local _, ns = ...
 
--- The five element schools' colours (spirit covers anything mixed): time bars in "element colour",
--- the totem bar's slots, the options' art.
+-- The five element schools' colours (spirit covers anything mixed): the totem bar's slots, the
+-- options' art.
 ns.SCHOOL_COLOR = {
 	earth  = { 0.75, 0.54, 0.24 },
 	fire   = { 0.89, 0.38, 0.18 },
@@ -13,6 +13,12 @@ ns.SCHOOL_COLOR = {
 	air    = { 0.56, 0.76, 0.92 },
 	spirit = { 0.73, 0.64, 0.90 },
 }
+-- The same, a little brighter, for bars: a textured fill (the default Blizzard one) darkens its
+-- colour.
+ns.SCHOOL_BAR_COLOR = {}
+for school, c in pairs(ns.SCHOOL_COLOR) do
+	ns.SCHOOL_BAR_COLOR[school] = { math.min(1, c[1] * 1.15), math.min(1, c[2] * 1.15), math.min(1, c[3] * 1.15) }
+end
 
 -- A flat backdrop: a solid fill and a 1 px edge, coloured by the caller.
 ns.BACKDROP = { bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 }
