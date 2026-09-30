@@ -205,7 +205,10 @@ function styleExpire(def, size, slot)
 	if type(secs) ~= "number" or secs ~= secs then secs = def.defaults.expireSecs end
 	secs = math.min(math.max(math.floor(secs + 0.5), 0), 10)
 	local red, cover = def.redBar, def.coverBar
+	-- The cover must hide the Expiring colour completely: not with a see-through bar colour.
+	local k = t and t:barRGB()
 	local barOn = secs > 0 and setting(key, "expireBar") and t and t.barOn and red and cover and red.ok and cover.ok
+		and k and (k[4] or 1) >= 1
 	for _, x in ipairs({ red, cover }) do x.clip:SetShown(barOn and true or false) end
 	if barOn then
 		local h, edge = st.barHeight, st.barEdge == "top" and "TOPLEFT" or "BOTTOMLEFT"
@@ -225,7 +228,6 @@ function styleExpire(def, size, slot)
 		local long = w * FAST
 		cover.bar:SetSize(long, h)
 		cover.bar:SetPoint("TOPLEFT", cover.clip, "TOPLEFT", w - long * secs / FS_SECS, 0)
-		local k = t:barRGB()
 		cover.bar:SetStatusBarColor(k[1], k[2], k[3], k[4] or 1)
 	end
 	-- The countdown: the button's duration text in place of the Cooldown's numbers, red under secs.
