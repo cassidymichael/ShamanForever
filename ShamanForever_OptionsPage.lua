@@ -674,17 +674,21 @@ function Page:dropdown(label, tip, choices, get, set, shown, width)
 	-- The menu is made again (its text with it) only when the value or the choices changed since the
 	-- last refresh: making it is the costliest part of a page's refresh. A row with a menu of its own
 	-- (SetupMenu after this) gives a get that changes whenever its text should.
+	-- Never while the list is open: Blizzard rebuilds an open menu in place, and a scrolling one
+	-- keeps its old rows in its scroll list (blank gaps). A change then waits for it to close.
 	local was
-	return self:add(f, 34, shown, function()
+	local function update()
 		local now = tostring(get())
 		if type(choices) == "function" then
 			for _, c in ipairs(choices()) do now = now .. "\1" .. tostring(c[1]) .. "=" .. tostring(c[2]) end
 		end
-		if now ~= was then
+		if now ~= was and not dd:IsMenuOpen() then
 			was = now
 			dd:GenerateMenu()
 		end
-	end)
+	end
+	dd:RegisterCallback("OnMenuClose", function() C_Timer.After(0, update) end, f)
+	return self:add(f, 34, shown, update)
 end
 
 -- A colour swatch; clicking opens Blizzard's colour picker, with opacity unless opaque (a colour
