@@ -10,8 +10,8 @@ ns.Profiles = P
 -- it has learned about the game.
 local ACCOUNT_DEFAULTS = {
 	locked = true,
-	snap = false,           -- unlocked drags snap to other groups, the screen centre and the grid
-	grid = false,           -- grid over the screen while unlocked
+	snap = true,            -- unlocked drags snap to other groups, the screen centre and the grid
+	grid = true,            -- grid over the screen while unlocked
 	gridSize = 32,
 	hideIssueReporter = false,  -- beta: hide Blizzard's Issue Reporter button (its position is kept either way)
 	minimalArt = false,     -- options window without banners and ornaments; kept ready, no control for now
