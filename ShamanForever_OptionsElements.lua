@@ -119,21 +119,22 @@ function EP.buildOverview(p)
 	end
 	local heads = {}
 	do
-		local f = p:row(20)
+		-- Taller than its text, which sits at its foot: a gap between the explainer and the table.
+		local f = p:row(36)
 		for _, c in ipairs(COLS) do
-			local fs = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+			local fs = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 			fs:SetJustifyH("LEFT")
 			fs:SetWordWrap(false)
 			heads[c.key] = fs
 			fs:SetText(c.label)
 		end
-		p:add(f, 20, nil, function()
+		p:add(f, 36, nil, function()
 			local pos = place(p:width())
 			for _, c in ipairs(COLS) do
 				local fs = heads[c.key]
 				local inset = (c.key == "name" and 32) or (c.key == "link" and 0) or 6
 				fs:ClearAllPoints()
-				fs:SetPoint("LEFT", pos[c.key].x + inset, 0)
+				fs:SetPoint("BOTTOMLEFT", pos[c.key].x + inset, 4)
 				fs:SetWidth(pos[c.key].w - inset)
 			end
 		end)
