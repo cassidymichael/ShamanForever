@@ -137,23 +137,31 @@ local PARTS = {
 CD.READY_DEFAULTS = PARTS.ready   -- the shock's too
 -- The Idle block's choices (see idleBlock in ShamanForever_OptionsElements.lua).
 local IDLE_NEVER = { "never", "Never", "It always shows in full" }
-local IDLE_OFFCD = { "offcd", "Off cooldown", "Idle is when it's off cooldown%s" }
-local IDLE_ONCD = { "oncd", "On cooldown", "Idle is when it's on cooldown%s",
+local IDLE_OFFCD = { "offcd", "Ready", "Idle while it's ready%s" }
+local IDLE_ONCD = { "oncd", "Cooling down", "Idle while it's cooling down%s",
 	"Shown in full only while it's ready." }
+-- Fire Nova: no fire totem out and ready, ready either way, or cooling down with no fire totem out.
 local FIRE_NOVA_CHOICES = {
 	IDLE_NEVER,
-	{ "nototem", "Off cooldown, no fire totem",
-		"Idle is when it's off cooldown and no fire totem is down", "Idle only while it can't be cast." },
-	{ "offcd", "Off cooldown", "Idle is when it's off cooldown",
-		"With or without a fire totem down." },
-	{ "oncd", "On cooldown", "Idle is when it's on cooldown and no fire totem is down",
+	{ "nototem", "No fire totem", "Idle while it's ready and no fire totem is out",
+		"Idle only while it can't be cast." },
+	{ "offcd", "Ready", "Idle while it's ready, with or without a fire totem out",
+		"With or without a fire totem out." },
+	{ "oncd", "Cooling down, no fire totem", "Idle while it's cooling down and no fire totem is out",
 		IDLE_ONCD[4] },
 }
 CD.IDLE_CHOICES = { IDLE_NEVER, IDLE_OFFCD, IDLE_ONCD }
+-- The same two choices with what else keeps the element out of idle named in their labels.
+local function extraChoices(also)
+	return { IDLE_NEVER, { IDLE_OFFCD[1], "Ready, " .. also, IDLE_OFFCD[3] },
+		{ IDLE_ONCD[1], "Cooling down, " .. also, IDLE_ONCD[3], IDLE_ONCD[4] } }
+end
 local function withParts(def)
-	def.idleChoices = def.needsTotem and FIRE_NOVA_CHOICES or CD.IDLE_CHOICES
-	def.idleAlso = def.totemSlot and " and its totem isn't down" or def.primed and " and not primed"
-		or def.window and " and not active" or nil
+	def.idleAlso = def.totemSlot and " and its totem isn't out" or def.primed and " and it isn't primed"
+		or def.window and " and it isn't active" or nil
+	def.idleChoices = def.needsTotem and FIRE_NOVA_CHOICES
+		or def.totemSlot and extraChoices("no totem out") or def.primed and extraChoices("not primed")
+		or def.window and extraChoices("not active") or CD.IDLE_CHOICES
 	if def.reagent then def.idleExtra = Reagents.IDLE_EXTRA end
 	def.defaults = def.defaults or {}
 	local fill = ns.fillDefaults
@@ -375,7 +383,7 @@ local IDLE_DELAY = 1.5
 ns.IDLE_DELAY = IDLE_DELAY   -- the options preview and preview mode wait as long
 local refreshCooldown           -- below (each cooldown def's refresh)
 -- Whether the spell's own cooldown is running, and whether that is certain. An unreadable answer
--- reports running but uncertain: Off cooldown then treats it as busy, On cooldown as not idle.
+-- reports running but uncertain: Ready then treats it as busy, Cooling down as not idle.
 local function ownCooldownRunning(def, inEvent)
 	local ok, info = safe(C_Spell.GetSpellCooldown, def.spellID)
 	if not ok or type(info) ~= "table" or isSecret(info.isActive) then

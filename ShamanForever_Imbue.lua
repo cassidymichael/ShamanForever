@@ -18,9 +18,9 @@ local imbue = ns.newElementIcon("imbue")
 local anyKnown = false   -- any imbue known (IM.resolve): the element's learned()
 local IDLE_CHOICES = {
 	{ "never", "Never", "It always shows in full" },
-	{ "notlow", "Imbue on and time not low",
-		"Idle is when an imbue is on and its time left isn't low" },
-	{ "on", "Imbue on", "Idle is when an imbue is on", "Idle whatever its time left is." },
+	{ "notlow", "On, not running low",
+		"Idle while an imbue is on and its time left isn't low" },
+	{ "on", "On", "Idle while an imbue is on", "Idle whatever its time left is." },
 }
 ns.registerElement("imbue", { frame = imbue, label = "Weapon Imbue", paint = function(t) t:SetTexture(IM.icon()) end,
 	learned = function() return anyKnown end,
