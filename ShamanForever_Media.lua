@@ -2,7 +2,7 @@
 --   text  font, outline and shadow for every piece of text an owner draws (timers, counts, keys,
 --         words); General's, or the totem bar's or the swing timer's own
 --   bar   the texture of every bar (time bars, the shield's charge bar, Maelstrom's stack bar,
---         the swing timer); General's only
+--         the swing timer); General's, or the swing timer's own
 -- Choices are stored by name, never by path. The game's fonts and bars are built in; others come
 -- from LibSharedMedia when another addon has loaded it (we don't ship it: it only brings media that
 -- other addons register, and those bring it with them).
@@ -12,8 +12,12 @@
 -- * SetFont with a file the client doesn't have throws, and taints even inside pcall: every path is
 --   checked with C_UIFileAsset.IsKnownFile first (without it, only the game's own fonts are used).
 -- * SetFont returns false for most fonts the client hasn't drawn yet, leaving the string with no
---   font. So each font is tried once on a hidden string, then again each second up to three more
---   times, before any of our text takes it.
+--   font. So each font is tried on a test string, then again every half second for five seconds,
+--   before any of our text takes it. The string is shown, too faint and small to see: a hidden one
+--   may never make the client load a file.
+-- * Every font on offer is settled that way a few seconds after login, a few per frame, so the
+--   options' list offers only fonts that load and never loses one while the player looks at it. A
+--   font still being tried when the list opens is left out until it loads.
 
 local _, ns = ...
 
@@ -84,7 +88,8 @@ end
 ------------------------------------------------------------------------
 local state = {}     -- path -> "ok" | "wait" (tried, not loaded yet) | "bad" (never loaded) | "missing"
 local tries = {}     -- path -> times tried
-local tester         -- a hidden string fonts are tried on
+local TRIES, RETRY_SECS = 11, 0.5   -- the first try and ten more, over five seconds
+local tester         -- the string fonts are tried on
 local waiting = false
 local fontGen = 0    -- bumped when a font's state changes (M.textKey's cache)
 
@@ -97,11 +102,15 @@ end
 
 local function try(path)
 	if not tester then
-		local f = CreateFrame("Frame")
-		f:Hide()
-		tester = f:CreateFontString()
+		local f = CreateFrame("Frame", nil, UIParent)
+		f:SetSize(1, 1)
+		f:SetPoint("BOTTOMLEFT")
+		f:SetAlpha(0.01)
+		tester = f:CreateFontString(nil, "BACKGROUND")
+		tester:SetPoint("BOTTOMLEFT")
 	end
-	local ok, res = pcall(tester.SetFont, tester, path, 12, "")
+	local ok, res = pcall(tester.SetFont, tester, path, 2, "")
+	tester:SetText("Ag")
 	tries[path] = (tries[path] or 0) + 1
 	return ok and res ~= false and tester:GetFont() ~= nil
 end
@@ -117,11 +126,11 @@ function retry()
 				state[path] = "ok"
 				fontGen = fontGen + 1
 				if M.fontInUse(nil, path) then used = true end
-			elseif tries[path] > 3 then state[path] = "bad"   -- the first try and three more
+			elseif tries[path] >= TRIES then state[path] = "bad"
 			else waiting = true end
 		end
 	end
-	if waiting then C_Timer.After(1, retry) end
+	if waiting then C_Timer.After(RETRY_SECS, retry) end
 	if used then M.changed() else ns.Options.refresh() end
 end
 
@@ -133,7 +142,7 @@ local function check(path)
 	elseif try(path) then st = "ok"
 	else
 		st = "wait"
-		if not waiting then waiting = true; C_Timer.After(1, retry) end
+		if not waiting then waiting = true; C_Timer.After(RETRY_SECS, retry) end
 	end
 	state[path] = st
 	fontGen = fontGen + 1
@@ -225,9 +234,44 @@ function M.textKey(o)
 	return c.key
 end
 
+-- Every font on offer that hasn't been tried, tried a few per frame (check, then its retries).
+local queue, queued, settling = {}, {}, false
+local function settleStep()
+	for _ = 1, 4 do
+		local path = table.remove(queue, 1)
+		if not path then settling = false; return end
+		check(path)
+	end
+	C_Timer.After(0, settleStep)
+end
+function M.settle()
+	for _, f in ipairs(FONTS) do
+		if not state[f[2]] and not queued[f[2]] then queued[f[2]] = true; table.insert(queue, f[2]) end
+	end
+	local l = lsm()
+	if l then
+		for _, path in pairs(l:HashTable("font")) do
+			if type(path) == "string" and not state[path] and not queued[path] and not NOT_OFFERED[path:lower()] then
+				queued[path] = true
+				table.insert(queue, path)
+			end
+		end
+	end
+	if not settling and #queue > 0 then settling = true; C_Timer.After(0, settleStep) end
+end
+-- A few seconds after login, once other addons have registered their fonts.
+do
+	local ev = CreateFrame("Frame")
+	ev:SetScript("OnEvent", function(self)
+		self:UnregisterAllEvents()
+		C_Timer.After(3, M.settle)
+	end)
+	ns.registerEvent(ev, "PLAYER_LOGIN")
+end
+
 -- The fonts to offer: Default, the game's, then other addons', each { name, label, path or nil };
--- fonts known not to load are left out, except the one chosen now. Nothing is tried here: the list
--- is built on every refresh of its page, and a font is tried only when the open list draws it.
+-- only fonts known to load, and the one chosen now. Nothing is tried here: the list is built on
+-- every refresh of its page, and fonts are tried by M.settle.
 function M.fonts(current)
 	local out = { { "", "Default" } }
 	for _, f in ipairs(FONTS) do table.insert(out, { f[1], f[1], f[2] }) end
@@ -243,11 +287,15 @@ function M.fonts(current)
 		table.sort(more, function(a, b) return a[1] < b[1] end)
 		for _, f in ipairs(more) do table.insert(out, f) end
 	end
-	local list = {}
+	-- Only fonts known to load (Default has no file), and the one chosen now; any not tried yet
+	-- start settling.
+	local list, unsettled = {}, false
 	for _, f in ipairs(out) do
 		local st = f[3] and state[f[3]]
-		if f[1] == current or (st ~= "missing" and st ~= "bad") then table.insert(list, f) end
+		if f[3] and st == nil then unsettled = true end
+		if f[1] == current or not f[3] or st == "ok" then table.insert(list, f) end
 	end
+	if unsettled then M.settle() end
 	if current ~= "" and not pathOf(current) then table.insert(list, { current, current }) end
 	return list
 end
@@ -298,20 +346,24 @@ local function bar(name)
 end
 M.barOf = bar
 
--- The texture every bar uses now (SetStatusBarTexture takes a file or an atlas; tested 2026-09-28,
--- in combat too, with a running timer and its colour kept).
-function M.barTexture() return (bar(S.value(nil, "bar", "texture"))) end
+-- Owners of a bar texture: General (nil) and the swing timer; every other bar draws with General's.
+local function barOwner(o) return o == "swing" and o or nil end
+local function barName(o) return S.value(barOwner(o), "bar", "texture") end
 
-function M.barInUse(name) return S.value(nil, "bar", "texture") == name end
+-- The texture an owner's bars use now (SetStatusBarTexture takes a file or an atlas; tested
+-- 2026-09-28, in combat too, with a running timer and its colour kept).
+function M.barTexture(o) return (bar(barName(o))) end
 
--- Why the chosen bar isn't drawing, as the options say under the control; nil when it is.
-function M.barProblem()
-	local name = S.value(nil, "bar", "texture")
+function M.barInUse(name) return barName(nil) == name or barName("swing") == name end
+
+-- Why an owner's chosen bar isn't drawing, as the options say under the control; nil when it is.
+function M.barProblem(o)
+	local name = barName(o)
 	if select(3, bar(name)) == false then return "Not found: " .. name .. ". Using Flat." end
 end
 
--- The bars to offer: Flat, the game's, then other addons', each { name, label }.
-function M.bars()
+-- The bars to offer an owner: Flat, the game's, then other addons', each { name, label }.
+function M.bars(o)
 	local out = { { "", "Flat" } }
 	for _, b in ipairs(BARS) do
 		if not b.atlas or (C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(b[2])) then
@@ -331,7 +383,7 @@ function M.bars()
 		table.sort(more, function(a, b) return a[1] < b[1] end)
 		for _, b in ipairs(more) do table.insert(out, b) end
 	end
-	local current = S.value(nil, "bar", "texture")
+	local current = barName(o)
 	local listed = false
 	for _, b in ipairs(out) do if b[1] == current then listed = true end end
 	if not listed then table.insert(out, { current, current }) end

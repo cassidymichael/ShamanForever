@@ -52,7 +52,7 @@ SW.DEFAULTS = {
 	deplete = false,          -- starts full and empties
 	countdown = false, countdownSize = 12, countdownColor = { 1, 1, 1, 1 },
 	countdownPos = "center",  -- left | center | right of the bar
-	-- border, textStyle: its own, if it has one (ShamanForever_Style.lua)
+	-- border, textStyle, barStyle: its own, if it has one (ShamanForever_Style.lua)
 }
 -- Number settings: the options sliders' ranges. Anything outside (a damaged or hand-made import) is
 -- clamped, so the layout never gets a scale of 0 or a NaN.
@@ -111,7 +111,7 @@ SW.BACKGROUND = { 0, 0, 0, 0.6 }
 function SW.makeBar(parent)
 	local b = CreateFrame("StatusBar", nil, parent)
 	b:SetAllPoints()
-	b:SetStatusBarTexture(ns.Media.barTexture())
+	b:SetStatusBarTexture(ns.Media.barTexture("swing"))
 	b:SetMinMaxValues(0, 1)
 	b:SetValue(0)
 	local spark = b:CreateTexture(nil, "OVERLAY")
@@ -122,7 +122,7 @@ end
 -- The side it fills from, and the spark on the fill's free edge. The spark is a line: two screen
 -- pixels wide at any size (ns.linePx).
 function SW.styleBar(b)
-	b:SetStatusBarTexture(ns.Media.barTexture())   -- General's bar texture; before the fill colour
+	b:SetStatusBarTexture(ns.Media.barTexture("swing"))   -- General's, or its own; before the fill colour
 	local fromRight = cfg().fillFrom == "right"
 	b:SetReverseFill(fromRight)
 	local fill, side = b:GetStatusBarTexture(), fromRight and "LEFT" or "RIGHT"

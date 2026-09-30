@@ -49,6 +49,9 @@ TB.DEFAULTS = {
 	arrowSize = 18,
 	tips = "always",          -- always | ooc | never
 	keys = false,             -- each button's key, in its corner
+	keySize = 13,             --   its size at the base icon size (it grows with the icon)
+	keyX = -2, keyY = -2,     --   its offset from the top-right corner
+	keyColor = { 0.85, 0.85, 0.85, 1 },
 	call = true,              -- Call of the Elements button, once learned
 	recall = true,            -- Totemic Recall button: right-click dismisses all; left-click casts it once learned
 	extras = "ends",          -- where they sit: ends (Call first, Recall last, as Blizzard's) | before | after the slots
@@ -96,7 +99,7 @@ local RANGES = {
 	scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { -10, 20 }, size = { 24, 96 },
 	arrowSize = { 8, 32 }, extrasScale = { 0.5, 1.5 }, idleAlpha = { 0.1, 1 },
 	badgeSize = { 0.25, 0.8 }, badgeAlpha = { 0.1, 1 }, badgeSat = { 0, 1 }, warn = { 0, 30 }, rangeHeight = { 1, 12 },
-	fadeAfter = { 0, 10 }, pixelEdge = { 1, 4 },
+	fadeAfter = { 0, 10 }, keySize = { 6, 30 }, keyX = { -20, 20 }, keyY = { -20, 20 }, pixelEdge = { 1, 4 },
 }
 local function finite(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
@@ -147,7 +150,7 @@ local function cfg()
 			else t.warnOver[name] = clamp(v, RANGES.warn) end
 		end
 		if type(t.size) ~= "number" then t.size = nil end
-		for _, k in ipairs({ "rangeIn", "rangeOut" }) do
+		for _, k in ipairs({ "rangeIn", "rangeOut", "keyColor" }) do
 			if not ns.isColor(t[k]) then t[k] = CopyTable(TB.DEFAULTS[k]) end
 		end
 		cfgTable = t
@@ -1109,7 +1112,14 @@ function layout()
 		if it.extra then on[it.key] = sz end
 		b:SetSize(sz, sz)
 		-- Its key label scales with the icon.
-		if keyTexts[b] then ns.Media.setFont(keyTexts[b], "totembar", ns.keyTextSize(sz)) end
+		local kt = keyTexts[b]
+		if kt then
+			local k = c.keyColor
+			ns.Media.setFont(kt, "totembar", ns.keyTextSize(sz, c.keySize))
+			kt:ClearAllPoints()
+			kt:SetPoint("TOPRIGHT", c.keyX, c.keyY)
+			kt:SetTextColor(k[1], k[2], k[3], k[4] or 1)
+		end
 		b:ClearAllPoints()
 		local side = ns.roundPx((across - sz) / 2, px)
 		if row then b:SetPoint("TOPLEFT", bar, "TOPLEFT", it.offset, -side) else b:SetPoint("TOPLEFT", bar, "TOPLEFT", side, -it.offset) end

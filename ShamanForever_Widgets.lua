@@ -64,8 +64,9 @@ function ns.makeKeyText(parent)
 	fs:SetTextColor(0.85, 0.85, 0.85)
 	return fs
 end
--- Its font size on an icon size pixels wide: it scales with the icon.
-function ns.keyTextSize(size) return math.max(8, math.floor(size * 0.3 + 0.5)) end
+-- Its font size on an icon size pixels wide, for a size set at the base icon size: it scales with
+-- the icon.
+function ns.keyTextSize(size, base) return math.max(6, math.floor(base * size / ns.BASE_ICON_SIZE + 0.5)) end
 -- A binding's key in the compact form action bar addons use (Bartender's and Dominos' LibKeyBound,
 -- ElvUI): a letter per modifier, then the key, short: "SWU" for Shift + Mouse Wheel Up, "C5" for
 -- Ctrl-5, "AM4" for Alt + Mouse Button 4, "N7" for Num Pad 7. A key without a short name here

@@ -400,17 +400,17 @@ local function textBlock(p, owner, after)
 	if owner == nil then ownLine(p, "text") end
 end
 
--- General's bar texture (ShamanForever_Media.lua): every time bar, the shield's charge bar,
--- Maelstrom's stack bar and the swing timer. The list shows each texture as a strip.
-local function barBlock(p)
-	local r = styleRows(nil, "bar", relayout)
-	p:header("Bars")
-	p:anchor("bar")
-	p:text("Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer.")
+-- A bar texture's rows (ShamanForever_Media.lua): owner nil, General's; "swing", the swing timer's
+-- own, with Same as General. The list shows each texture as a strip.
+local function barRows(p, owner, after)
+	after = after or relayout
+	local r = styleRows(owner, "bar", after)
+	if owner then followRow(p, owner, "bar", after, "Texture same as General") end
+	local own = showWhen(r.own)
 	local c = ns.SCHOOL_COLOR.water
 	p:dropdown("Texture", nil, function()
 		local out = {}
-		for _, b in ipairs(ns.Media.bars()) do
+		for _, b in ipairs(ns.Media.bars(owner)) do
 			table.insert(out, { b[1], b[2], init = function(button)
 				local tex = button:AttachTexture()
 				tex:SetSize(64, 10)
@@ -421,8 +421,17 @@ local function barBlock(p)
 			end })
 		end
 		return out
-	end, r.get("texture"), r.set("texture"), nil, 200)
-	p:text(function() return ns.Media.barProblem() or "" end, function() return ns.Media.barProblem() ~= nil end)
+	end, r.get("texture"), r.set("texture"), own, 200)
+	local function problem() return ns.Media.barProblem(owner) end
+	p:text(function() return problem() or "" end, showWhen(function() return r.own() and problem() ~= nil end))
+end
+-- General's: every time bar, the shield's charge bar, Maelstrom's stack bar and the swing timer.
+local function barBlock(p)
+	p:header("Bars")
+	p:anchor("bar")
+	p:text("Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer. The swing timer can have its own.")
+	barRows(p, nil)
+	ownLine(p, "bar")
 end
 
 -- Standard block: a timer's look (ShamanForever_Timers.lua). key nil: General's for the kind, with
@@ -760,7 +769,13 @@ local function buildTotemBar(p)
 	end)
 	p:dropdown("Tooltips", nil, { { "always", "Always" }, { "ooc", "Out of combat" }, { "never", "Never" } },
 		tget("tips"), tset("tips"), nil, 160)
-	p:checkbox("Show keybinding text", "Each button's key, in its corner.", tget("keys"), tset("keys"))
+	local keys = p:checkbox("Show keybinding text", "Each button's key, in its corner.", tget("keys"), tset("keys"))
+	p:sub(keys, tget("keys"), function()
+		p:slider("Text size", "At the default icon size. It grows with the icon.", 6, 30, 1, int, tget("keySize"), tset("keySize"))
+		p:slider("X offset", "From the top-right corner.", -20, 20, 1, px, tget("keyX"), tset("keyX"))
+		p:slider("Y offset", "From the top-right corner.", -20, 20, 1, px, tget("keyY"), tset("keyY"))
+		p:color("Text colour", nil, tget("keyColor"), tset("keyColor"))
+	end)
 
 	-- The bar's theme (ShamanForever_TotemSkins.lua), and each theme's own settings under
 	-- it. The rows for what a theme owns hide elsewhere on the page while it is picked.
@@ -1035,7 +1050,7 @@ OP.kit = {
 	COMBAT_SHOW = COMBAT_SHOW, STAY_TIP = STAY_TIP, staySecs = staySecs,
 	generalRow = generalRow, borderRows = borderRows,
 	timerSettings = timerSettings, gcdBlock = gcdBlock, glowBlock = glowBlock, popBlock = popBlock,
-	textBlock = textBlock,
+	textBlock = textBlock, barRows = barRows,
 	expiringLooks = expiringLooks, killedBlock = killedBlock,
 }
 
