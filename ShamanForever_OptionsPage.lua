@@ -243,6 +243,7 @@ local function hidePanel(b)
 end
 
 function Page:refresh()
+	if self.beforeRefresh then self.beforeRefresh() end
 	if self.fixed then
 		local ok, err = pcall(self.fixed.refresh, self.fixed)
 		if not ok and not self.fixedReported then
