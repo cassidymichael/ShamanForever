@@ -867,7 +867,6 @@ local PAGE = { shield = buildShield, shock = buildShock, imbue = buildImbue, coo
 	tremor = buildTremor }
 
 -- Maelstrom Weapon's page (ShamanForever_Maelstrom.lua): its stacks, then the five-stack look.
-local HIGHLIGHT = { { "wash", "Colour" }, { "none", "None" } }
 local function buildMaelstrom(p, def)
 	local key = def.key
 	local function on(name) return function() return ns.elementSetting(key, name) end end
@@ -889,13 +888,8 @@ local function buildMaelstrom(p, def)
 		showWhen(function() return ns.elementSetting(key, "stackCount") and ns.elementSetting(key, "fullCount") end))
 	timerSettings(p, "Time left", key, "uptime")
 	p:header("Five stacks")
+	p:checkbox("Pop", "The moment it reaches five.", eget(key, "fullPop"), eset(key, "fullPop"))
 	p:checkbox("Pulsing glow", "While at five.", eget(key, "fullGlow"), eset(key, "fullGlow"))
-	p:dropdown("Highlight", "A colour over the icon at five stacks.", HIGHLIGHT, eget(key, "highlight"),
-		eset(key, "highlight"), nil, 140)
-	local lit = showWhen(function() return ns.elementSetting(key, "highlight") ~= "none" end)
-	p:color("Highlight colour", nil, eget(key, "highlightColor"), eset(key, "highlightColor"), lit)
-	p:checkbox("Pop", "The highlight bursts out from the middle as the fifth stack lands.", eget(key, "fullPop"),
-		eset(key, "fullPop"), lit)
 	effectBlocks(p, key)
 end
 PAGE.maelstrom = buildMaelstrom

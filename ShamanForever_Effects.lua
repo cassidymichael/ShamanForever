@@ -390,18 +390,19 @@ end
 -- The motion for the style: S its size, k the duration multiplier, h the icon's height. Returns
 -- its groups in use (a table of group -> true), or nil for none. The steps a motion doesn't use
 -- come after its own, scale by 1 or move by 0 and take SHORTEST each: a group that plays them (the
--- aura route plays every group) changes nothing.
+-- aura route plays every group) changes nothing. self.motionLength: how long its own steps take
+-- (0 for none).
 function Rig:styleMotion(motion, S, k, h)
-	local scales, moves = 0, 0
+	local scales, moves, length = 0, 0, 0
 	if motion == "pop" then
 		self:scaleStep(1, 1, S, 0.12 * k, "OUT")
 		self:scaleStep(2, S, 1, 0.25 * k, "IN_OUT")
-		scales = 2
+		scales, length = 2, 0.37 * k
 	elseif motion == "hop" then
 		local up = h * (S - 1) * 0.8
 		self:moveStep(1, 0, up, 0.12 * k, "OUT")
 		self:moveStep(2, 0, -up, 0.2 * k, "IN")
-		moves = 2
+		moves, length = 2, 0.32 * k
 	elseif motion == "shake" or motion == "shakeV" then   -- side to side, or up and down
 		local d = h * (S - 1) * 0.3
 		local sx, sy = motion == "shake" and d or 0, motion == "shakeV" and d or 0
@@ -409,15 +410,16 @@ function Rig:styleMotion(motion, S, k, h)
 		self:moveStep(2, -2 * sx, -2 * sy, 0.07 * k, "NONE")
 		self:moveStep(3, 2 * sx, 2 * sy, 0.07 * k, "NONE")
 		self:moveStep(4, -sx, -sy, 0.05 * k, "NONE")
-		moves = 4
+		moves, length = 4, 0.23 * k
 	elseif motion == "bounce" then   -- overshoot, dip, settle
 		local u, o = 1 - (S - 1) * 0.25, 1 + (S - 1) * 0.15
 		self:scaleStep(1, 1, S, 0.12 * k, "OUT")
 		self:scaleStep(2, S, u, 0.12 * k, "IN_OUT")
 		self:scaleStep(3, u, o, 0.1 * k, "IN_OUT")
 		self:scaleStep(4, o, 1, 0.08 * k, "IN")
-		scales = 4
+		scales, length = 4, 0.42 * k
 	end
+	self.motionLength = length
 	for i = scales + 1, MOTION_STEPS do self:scaleStep(i, 1, 1, SHORTEST, "NONE") end
 	for i = moves + 1, MOTION_STEPS do self:moveStep(i, 0, 0, SHORTEST, "NONE") end
 	if scales + moves == 0 then return nil end
@@ -719,6 +721,8 @@ local NO_POP = { colorBy = "event", flash = "none", burst = "none", motion = "no
 --   parent, sensorParent     what the glow's chain and its sensor hang from
 --   unit, needUnit, filter   as ns.makeClipLook's; ids() or candidates(), the slot's own
 --   popKind, popOn()         its pop's kind (the colour; default "ready"), and whether it pops
+--   popLevel                 its light's frame level over the element's text (default POP_LEVEL)
+--   popOnly                  no glow: the element draws its own (Maelstrom Weapon's at five)
 --   sites                    names for the sensor's waiting work and caught errors
 function E.host(f, key, opts)
 	local h = setmetatable({ f = f, key = key }, Host)
@@ -728,6 +732,7 @@ function E.host(f, key, opts)
 		return h
 	end
 	h.aura = a
+	if a.popOnly then return h end
 	h.up = ns.makeClipLook(f, {
 		key = key, owner = key, invert = true, glowOnly = true,
 		parent = a.parent, sensorParent = a.sensorParent or a.parent,
@@ -748,6 +753,7 @@ function Host:glow(on, r, g, b)
 		return
 	end
 	local gl = self.glowF
+	if not gl then return end   -- a pop-only host
 	if on then
 		gl:fit(self.f:GetWidth())
 		if r then gl:color(r, g, b)
@@ -766,7 +772,7 @@ end
 -- The glow restyled from its style, and fitted to an icon of size (the aura route's glow fits as
 -- its sensor takes a size).
 function Host:restyle()
-	if self.up then self.up:reshape() else self.glowF:restyle() end
+	if self.up then self.up:reshape() elseif self.glowF then self.glowF:restyle() end
 end
 function Host:fit(size)
 	if self.glowF then self.glowF:fit(size) end
@@ -796,7 +802,7 @@ end
 -- handed to the button. Returns the body.
 function Host:bind(button, icon)
 	if self.body then return self.body end
-	local level = self.f.textFrame:GetFrameLevel() + POP_LEVEL
+	local level = self.f.textFrame:GetFrameLevel() + (self.aura.popLevel or POP_LEVEL)
 	local body = CreateFrame("Frame", nil, button)
 	body:SetAllPoints(button)
 	body.over = self.f   -- the element's own icon: its school, its frame's reach, the level behind it
@@ -832,6 +838,19 @@ function Host:stylePop(size)
 	rig:showPlaying()
 end
 
+-- Aura route, out of combat: the rig's frames (flash, edge, burst parts) drawn at alpha 0 while
+-- quiet, so a pop that plays then draws nothing; back at 1 after. Our own frames only.
+function Host:setQuiet(on)
+	local rig = self.rig
+	if not rig then return end
+	local a = on and 0 or 1
+	for _, fr in ipairs({ rig.fx, rig.front, rig.back }) do fr:SetAlpha(a) end
+end
+
+-- Aura route: how long the pop's motion takes in its style now (0 for none), for parts of the
+-- caller's that show only while it moves.
+function Host:motionLength() return self.rig and self.rig.motionLength or 0 end
+
 -- Aura route: the glow's sensor made (out of combat, auras readable), refiltered with the slot,
 -- pointed at a unit, its levels and look now (after a layout, a size or a look change).
 function Host:setup() if self.up then self.up:setup() end end
@@ -847,7 +866,7 @@ function Host:checkIDs() if self.up then self.up:checkIDs() end end
 
 -- For /sf debug: one line of the aura route's state.
 function Host:describe()
-	if not self.up then return "frame route" end
-	return string.format("glow %s; pop %s, %d of %d groups handed", self.up:describe(),
+	if not self.aura then return "frame route" end
+	return string.format("glow %s; pop %s, %d of %d groups handed", self.up and self.up:describe() or "none",
 		self.rig and "made" or "not made", self.handed or 0, self.rig and #self.rig:groups() or 0)
 end
