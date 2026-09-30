@@ -608,7 +608,7 @@ local function buildSettings(p)
 		g.scale = v
 		relayout()
 	end
-	owns("scale", function() setScale(ns.GROUP_DEFAULTS.scale) end)
+	owns("scale", function(r) setScale(Page.refDefault(r)) end)
 	p:slider("Scale", "Grows everything in the group, borders and rings too.", 0.5, 3, 0.05, times,
 		get("scale"), setScale)
 	p:slider("Opacity", "Transparency of the group.", 0.1, 1, 0.05, pct, get("alpha"), set("alpha"))

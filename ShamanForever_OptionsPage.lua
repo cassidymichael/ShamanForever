@@ -511,8 +511,9 @@ end
 -- returning it, name }. Any ref may also carry:
 --   after    the follow-up its row runs after a change; a reset runs each one once
 --   default  a function returning the value to compare with, in place of its kind's
---   reset    a function that resets it, in place of its kind's: for a row that does more than
---            store the value (a group's Scale keeps its centre, Show goes through ns.setShow)
+--   reset    a function of the ref that resets it, in place of its kind's: for a row that does
+--            more than store the value (a group's Scale keeps its centre, Show goes through
+--            ns.setShow)
 local REF = {}
 
 -- A kind of ref. spec.id(ref): unique per setting, for one ref per setting in a block. A stored
@@ -539,6 +540,7 @@ local function defaultOf(r)
 	if r.default then return r.default() end
 	return REF[r.kind].default(r)
 end
+Page.refDefault = defaultOf
 
 local function refChanged(r)
 	local k = REF[r.kind]
@@ -557,7 +559,7 @@ local function resetRefs(list)
 	local afters, seen = {}, {}
 	for _, r in ipairs(list) do
 		local k = REF[r.kind]
-		if r.reset then r.reset()
+		if r.reset then r.reset(r)
 		elseif k.reset then k.reset(r)
 		else
 			local t = k.holder(r)
@@ -614,11 +616,22 @@ Page.refKind("bar", {
 	slot = function(r) return r.name end,
 	default = function(r) return ns[BARS[r.bar]].DEFAULTS[r.name] end,
 })
+-- A group's default: the profile's shipped group with its id and name (ns.DEFAULTS.groups), where
+-- that one sets it, else the new-group template's.
+local function groupOf(r) if type(r.group) == "function" then return r.group() end return r.group end
 Page.refKind("group", {
 	id = function(r) return tostring(r.group) .. "." .. r.name end,
-	holder = function(r) if type(r.group) == "function" then return r.group() end return r.group end,
+	holder = groupOf,
 	slot = function(r) return r.name end,
-	default = function(r) return ns.GROUP_DEFAULTS[r.name] end,
+	default = function(r)
+		local g = groupOf(r)
+		for _, shipped in ipairs(g and ns.DEFAULTS.groups or {}) do
+			if shipped.id == g.id and shipped.name == g.name and shipped[r.name] ~= nil then
+				return shipped[r.name]
+			end
+		end
+		return ns.GROUP_DEFAULTS[r.name]
+	end,
 })
 
 -- Adds ref to the block being built; a row outside any block (a page with panels = false) adds it
