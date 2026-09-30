@@ -250,7 +250,9 @@ function T.underAlpha(def)
 	local u = def.under
 	local g = ns.groupOf(def.key)
 	local trusted = u.on and u.trusted ~= false and not def.stale and not def.stuck
-	u:SetAlpha(trusted and (g and g.alpha or 1) or 0)
+	-- Hidden too while preview mode's stand-in shows over it (its idle state is see-through); the
+	-- preview's start and end lay the HUD out, which calls this (T.afterGroups).
+	u:SetAlpha((trusted and not ns.Preview.isOn()) and (g and g.alpha or 1) or 0)
 end
 
 -- The target's aura slots follow the target: pointed at it while it's something you can attack
