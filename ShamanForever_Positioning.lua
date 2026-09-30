@@ -227,7 +227,7 @@ function PO.decorate(gf, g)
 	gf:SetBackdropColor(0, 0, 0, unlocked and 0.4 or 0)
 	if chosen then gf:SetBackdropBorderColor(1, 0.82, 0, 1)
 	else gf:SetBackdropBorderColor(0.2, 0.6, 1, unlocked and 0.9 or 0) end
-	gf.label:SetText(chosen and (g.name .. " (arrow keys move it)") or g.name)
+	gf.label:SetText(g.name)
 	gf.label:SetShown(unlocked)
 end
 

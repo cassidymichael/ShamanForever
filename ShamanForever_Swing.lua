@@ -427,7 +427,7 @@ function mover.update()
 		local chosen = ns.Positioning.isSelected(movable)
 		if chosen then mover:SetBackdropBorderColor(1, 0.82, 0, 1)
 		else mover:SetBackdropBorderColor(0.2, 0.6, 1, 0.9) end
-		mover.label:SetText(chosen and "Swing timer (arrow keys move it)" or "Swing timer")
+		mover.label:SetText("Swing timer")
 	end
 	mover:SetShown(on)
 end
