@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Pop style: Reach sets how far the burst spreads, and each element can choose which element its
+  burst and School material glow take.
+- Travelling spark has its own Lap time.
+- The Border look, Pulsing glow and Burst lists are grouped.
+- Expand all and Collapse all at the top of each options page.
 - Fixed: the Heartbeat and Outer halo glows no longer flash across the screen when an icon pops.
 
 ## 0.11.1 (2026-10-01)
