@@ -44,7 +44,8 @@ end
 --   rings  lines round the icon's edge, listed outside in. Each is { px, color }, or has a colour
 --          per side (top, bottom, left, right) in place of color. px: screen pixels (default 1) or
 --          the name of a border setting that holds them ("size", the Border size). A colour is
---          { r, g, b, a }, or the name of a border setting that holds one ("color").
+--          { r, g, b, a }, the name of a border setting that holds one ("color"), or "school": the
+--          school colour of the icon it is drawn round (a totem bar slot's element).
 --   caps   { px, len, color }: an L on each corner, px thick (px and color as for rings), its outer
 --          edge on the rings' or further out when it is thicker than they are, its arms running len
 --          along the icon's edges past the corner (screen pixels).
@@ -58,6 +59,8 @@ end
 --          shaped like the mask; swipeInset: or the swipes inset this share of the icon's width
 --          each side, inside the mask's shape, as Blizzard insets its action buttons' cooldowns.
 --   experimental  not tested in game yet (the options badge it).
+--   hidden   not offered in the options' Border look lists: drawn only for a totem bar Look
+--            (ShamanForever_TotemSkins.lua).
 -- A look whose Blizzard art is missing from the client draws a plain 1 px black line instead.
 -- A look drawn with AI-made art is credited in the README and About's Art text.
 -- Lines and caps are screen pixels (ns.linePx): crisp, grown by Scale, not by icon Size. They sit
@@ -69,8 +72,20 @@ local SIDES = { "top", "bottom", "left", "right" }
 local CORNERS = { { "TOPLEFT", -1, 1 }, { "TOPRIGHT", 1, 1 }, { "BOTTOMLEFT", -1, -1 }, { "BOTTOMRIGHT", 1, -1 } }
 local BLACK = { 0, 0, 0, 1 }
 
--- A part's colour or thickness (screen pixels): its own, or the border setting it names.
-local function colorOf(c, b)
+-- A part's colour or thickness (screen pixels): its own, or the border setting it names, or the
+-- school colour of f, the icon it is drawn round.
+local schoolColors = {}   -- school -> { r, g, b, 1 }
+local function colorOf(c, b, f)
+	if c == "school" then
+		local school = f and schoolOf(f) or "spirit"
+		local k = schoolColors[school]
+		if not k then
+			local sc = ns.SCHOOL_COLOR[school] or ns.SCHOOL_COLOR.spirit
+			k = { sc[1], sc[2], sc[3], 1 }
+			schoolColors[school] = k
+		end
+		return k
+	end
 	if type(c) == "string" then return b[c] or BLACK end
 	return c
 end
@@ -103,7 +118,7 @@ local function drawRings(f, rings, b)
 			n = n + 1
 			local t = tex[n] or f:CreateTexture(nil, "BACKGROUND", nil, -8)
 			tex[n] = t
-			local c = colorOf(ring[side] or ring.color, b)
+			local c = colorOf(ring[side] or ring.color, b, f)
 			t:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
 			t:ClearAllPoints()
 			t:Show()
@@ -147,7 +162,7 @@ local function drawCaps(f, caps, out, b)
 	local px = ns.linePx(f, pxOf(caps.px, b))
 	local o = math.max(out, px)
 	local len = o + ns.linePx(f, caps.len or 6)
-	local c = colorOf(caps.color, b)
+	local c = colorOf(caps.color, b, f)
 	for i, corner in ipairs(CORNERS) do
 		local point, x, y = corner[1], corner[2] * o, corner[3] * o
 		-- along: the arm along the top or bottom; down: the one down the side.
@@ -562,6 +577,7 @@ end
 -- Frame looks. "line" is the default look.
 ------------------------------------------------------------------------
 local GOLD = { 0.71, 0.55, 0.29, 1 }   -- the options window's gold
+Looks.GOLD = GOLD
 local BRONZE_HI, BRONZE_LO, BRONZE_DARK = { 0.85, 0.68, 0.39, 1 }, { 0.43, 0.29, 0.13, 1 }, { 0.10, 0.07, 0.03, 1 }
 -- Blizzard's Cooldown Manager and action button art. The plain names draw Forever's bronze art
 -- (tested 2026-09-28); the action button's mask is drawn 64 over a 45 icon, as Blizzard draws it.
@@ -593,6 +609,14 @@ S.addLook("border", "bronze", { name = "Aged bronze", experimental = true,
 	rings = { { color = BLACK } }, art = { file = MEDIA .. "Frame-Bronze", margin = 14, px = 4 } })
 S.addLook("border", "wood", { name = "Carved wood", experimental = true,
 	rings = { { color = BLACK } }, art = { file = MEDIA .. "Frame-Wood", margin = 22, px = 6 } })
+-- For the totem bar's Looks only: the Border size of the slot's element colour inside 1 px of black.
+S.addLook("border", "schooledge", { name = "School edge", hidden = true,
+	rings = { { color = BLACK }, { px = "size", color = "school" } } })
+-- For the totem bar's Looks only: a round picture in a bronze medallion (AI-made art), whose
+-- opening overlaps the picture's edge a little.
+local ROUND = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+S.addLook("border", "medallion", { name = "Medallion", hidden = true,
+	mask = { file = ROUND }, swipe = ROUND, art = { file = MEDIA .. "Medallion", inset = { 0.35, 0.35, 0.35, 0.35 } } })
 
 -- Whether any of a kind's looks is experimental (About's list).
 function Looks.anyExperimental(kind)

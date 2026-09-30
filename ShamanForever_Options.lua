@@ -116,10 +116,13 @@ local function ownLine(p, kind)
 end
 
 
--- A style kind's looks (ns.Style.addLook), for a dropdown.
+-- A style kind's looks (ns.Style.addLook), for a dropdown: all but those kept for the totem bar's
+-- Looks.
 local function lookChoices(kind)
 	local out = {}
-	for _, e in ipairs(ns.Style.LOOKS[kind].order) do table.insert(out, { e.key, e.name }) end
+	for _, e in ipairs(ns.Style.LOOKS[kind].order) do
+		if not e.hidden then table.insert(out, { e.key, e.name }) end
+	end
 	return out
 end
 
@@ -397,8 +400,8 @@ local function textBlock(p, owner, after)
 	if owner == nil then ownLine(p, "text") end
 end
 
--- A bar texture's rows (ShamanForever_Media.lua): owner nil, General's; "swing", the swing timer's
--- own, with Same as General. The list shows each texture as a strip.
+-- A bar texture's rows (ShamanForever_Media.lua): owner nil, General's; "totembar" or "swing", the
+-- bar's own, with Same as General. The list shows each texture as a strip.
 local function barRows(p, owner, after)
 	after = after or relayout
 	local r = styleRows(owner, "bar", after)
@@ -426,7 +429,7 @@ end
 local function barBlock(p)
 	p:header("Bars")
 	p:anchor("bar")
-	p:text("Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer. The swing timer can have its own.")
+	p:text("Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer. The totem bar's time bars and the swing timer can have their own.")
 	barRows(p, nil)
 	ownLine(p, "bar")
 end
@@ -436,7 +439,9 @@ end
 -- first: an optional function adding the element's own rows at the top of the block, under its
 -- header.
 local TEXT_POS = { { "auto", "Auto" }, { "center", "Centre" }, { "topleft", "Top left" }, { "bottom", "Bottom" } }
-local function timerSettings(p, title, key, kind, after, note, first)
+-- barPlaced: a function, true while something else places the time bar (the totem bar's bar beside
+-- the icon): Bar edge hides.
+local function timerSettings(p, title, key, kind, after, note, first, barPlaced)
 	after = after or retime
 	local cant = ns.Timer.cant(key, kind)
 	local r = styleRows(key, kind, after)
@@ -482,7 +487,8 @@ local function timerSettings(p, title, key, kind, after, note, first)
 	local bar = p:checkbox("Time bar", "A bar along an edge that drains.", tg("bar"), ts("bar"), part("bar"))
 	p:sub(bar, on("bar"), function()
 		p:slider("Bar height", nil, 1, 20, 1, px, tg("barHeight"), ts("barHeight"))
-		p:dropdown("Bar edge", nil, { { "bottom", "Bottom" }, { "top", "Top" } }, tg("barEdge"), ts("barEdge"), nil, 140)
+		p:dropdown("Bar edge", nil, { { "bottom", "Bottom" }, { "top", "Top" } }, tg("barEdge"), ts("barEdge"),
+			function() return not (barPlaced and barPlaced()) end, 140)
 		local colour = p:dropdown("Bar colour", nil, { { true, "Element colour" }, { false, "Custom" } }, tg("barElement"),
 			ts("barElement"), nil, 160)
 		p:sub(colour, function() return not style().barElement end, function()
@@ -691,15 +697,19 @@ local function buildAbout(p)
 		if e.experimental then p:experimental(e.experimental, "Elements > " .. e.label) end
 	end
 	p:experimental("Swing timer", "Swing timer")
+	p:experimental("Active totems mode", "Totem bar > Use")
 	if ns.Looks.anyExperimental("border") then p:experimental("Border looks", "General > Border") end
 	if ns.Looks.anyExperimental("glow") then p:experimental("Glow looks", "General > Pulsing glow style") end
 	p:experimental("Pop flashes and bursts", "General > Pop style")
+	if ns.TotemBar.skin.anyExperimental() then
+		p:experimental("Totem themes", "Totem bar > Totem theme")
+	end
 	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
 	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
 		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
 		"Francisque Millet, Mountain Landscape with Lightning (air). Corner and divider ornaments: public domain / CC0, Wikimedia Commons. " ..
 		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood texture CC0, ambientCG. Link icons: Simple Icons, CC0. " ..
-		"The Carved stone, Aged bronze and Carved wood borders and the Painted bursts pop: made with an AI image model (Google Gemini).")
+		"The Carved stone, Aged bronze and Carved wood borders and the Painted bursts pop: made with an AI image model (Google Gemini), as were the plinth and medallions of the Stone and bronze totem theme.")
 end
 
 ------------------------------------------------------------------------
@@ -734,8 +744,8 @@ local function buildTotemBar(p)
 	p:header("Totems")
 	p:cards("Use", nil, {
 		{ "blizzard", "Blizzard's", "Interface\\Icons\\INV_Misc_Gear_01" },
-		{ "active", "Active totems", "Interface\\Icons\\Spell_Nature_TimeStop" },
-		{ "everything", "Everything", "Interface\\Icons\\Spell_Shaman_DropAll_01" },
+		{ "active", "Active totems", "Interface\\Icons\\Spell_Nature_TimeStop", "Active totems mode" },
+		{ "everything", "Everything", "Interface\\Icons\\Spell_Shaman_DropAll_01", tag = "RECOMMENDED" },
 	}, tget("mode"), function(v) TB.setMode(v); changed() end)
 	-- What the mode does, then how the bar is used in it.
 	local KEYS = "Keys: Options > Keybindings > ShamanForever."
@@ -749,6 +759,8 @@ local function buildTotemBar(p)
 
 	p.gate = TB.barOn
 	p:header("Display")
+	local function free(field) return function() return not TB.skin.owns(field) end end
+	local function owned(field) return function() return TB.skin.owns(field) end end
 	local show = p:dropdown("Show", "When the bar is on screen. It always shows while positioning is unlocked.",
 		{ { "always", "Always" }, { "active", "In combat or a totem down" }, { "combat", "In combat" },
 			{ "target", "In combat or with an enemy target" } },
@@ -765,6 +777,23 @@ local function buildTotemBar(p)
 		p:slider("Y offset", "From the top-right corner.", -20, 20, 1, px, tget("keyY"), tset("keyY"))
 		p:color("Text colour", nil, tget("keyColor"), tset("keyColor"))
 	end)
+
+	-- The bar's theme (ShamanForever_TotemSkins.lua), and each theme's own settings under
+	-- it. The rows for what a theme owns hide elsewhere on the page while it is picked.
+	p:header("Totem theme")
+	local skins = {}
+	for _, e in ipairs(TB.skin.LIST) do table.insert(skins, { e.key, e.name }) end
+	p:dropdown("Theme", "How the whole bar is drawn.", skins, function() return TB.skin.current().key end,
+		tset("skin"), nil, 190)
+	local expRow = p:row(22)
+	ns.Look.expBadge(expRow, "Totem themes"):SetPoint("LEFT", expRow, "LEFT", LABEL_W, 0)
+	p:add(expRow, 22, function() return TB.skin.current().experimental or false end)
+	local function theme(key) return function() return TB.skin.current().key == key end end
+	p:checkbox("Tray", "A dark tray edged in gold behind the slots.", tget("pixelTray"), tset("pixelTray"),
+		theme("pixel"))
+	p:slider("Edge thickness", "The element-coloured edge round each slot, in pixels.", 1, 4, 1, px,
+		tget("pixelEdge"), tset("pixelEdge"), theme("pixel"))
+	p:dropdown("Plinth", nil, TB.skin.PLINTHS, tget("stonePlinth"), tset("stonePlinth"), theme("stone"), 140)
 
 	p:header("Layout")
 	-- The elements in bar order (first: the left end of a row, the top of a column). Drag one to move
@@ -852,12 +881,24 @@ local function buildTotemBar(p)
 		c().dir = v
 		c().pop = v == "row" and "up" or "right"
 		changed()
-	end, nil, 140)
+	end, free("dir"), 140)
 	p:dropdown("Pickers open", "Which way the totem picker opens from a slot.", function()
-		if c().dir == "row" then return { { "up", "Up" }, { "down", "Down" } } end
+		if TB.eff().dir == "row" then return { { "up", "Up" }, { "down", "Down" } } end
 		return { { "right", "Right" }, { "left", "Left" } }
-	end, tget("pop"), tset("pop"), full, 140)
-	p:slider("Spacing", "Gap between the slots. Below 0 they overlap.", -10, 20, 1, px, tget("spacing"), tset("spacing"))
+	end, function() return TB.eff().pop end, tset("pop"),
+		function() return full() and not TB.skin.owns("pop") end, 140)
+	p:slider("Spacing", "Gap between the slots. Below 0 they overlap.", -10, 20, 1, px, tget("spacing"), tset("spacing"),
+		free("spacing"))
+	p:text(function()
+		local names = {}
+		for _, it in ipairs({ { "dir", "Direction" }, { "pop", "Pickers open" }, { "spacing", "Spacing" },
+				{ "extras", "Call and Recall" } }) do
+			if TB.skin.owns(it[1]) then table.insert(names, it[2]) end
+		end
+		return table.concat(names, ", ") .. ": set by the theme."
+	end, function()
+		return TB.skin.owns("dir") or TB.skin.owns("pop") or TB.skin.owns("spacing") or TB.skin.owns("extras")
+	end)
 	-- Its own size is not its scale: scale grows everything, text, arrows, spacing and lines included.
 	local sizeFollow = generalRow(p, "Icon size same as General", "Use the icon size on the General page.",
 		tget("sizeFollow"), function(v) TB.setSizeFollow(v); changed() end, "size")
@@ -866,9 +907,12 @@ local function buildTotemBar(p)
 			tget("size"), tset("size"))
 	end)
 	p:dropdown("Call and Recall", "Where they sit on the bar.", { { "ends", "Both ends" }, { "before", "Before the slots" }, { "after", "After the slots" } },
-		tget("extras"), tset("extras"), showWhen(function() return c().call or c().recall end, full), 180)
+		tget("extras"), tset("extras"),
+		showWhen(function() return (c().call or c().recall) and not TB.skin.owns("extras") end, full), 180)
+	-- Its size: the theme's own where it keeps one (a smaller default).
 	p:slider("Call and Recall size", "As a share of the slots' size.", 0.5, 1.5, 0.05,
-		pct, tget("extrasScale"), tset("extrasScale"),
+		pct, function() return TB.eff().extrasScale end,
+		function(v) c()[TB.skin.extrasScaleKey()] = v; changed() end,
 		showWhen(function() return c().call or c().recall end, full))
 	p:slider("Scale", "Grows everything on the bar, borders too.", 0.5, 3, 0.05,
 		times, tget("scale"), tset("scale"))
@@ -877,7 +921,8 @@ local function buildTotemBar(p)
 
 	-- With Layout: heavier borders go with the spacing.
 	p:header("Border")
-	borderRows(p, "totembar", changed)
+	p:text("Set by the theme.", owned("border"))
+	borderRows(p, "totembar", changed, nil, free("border"))
 
 	p.gate = full
 	p:header("Buttons")
@@ -897,7 +942,14 @@ local function buildTotemBar(p)
 	end)
 
 	p.gate = TB.barOn
-	timerSettings(p, "Time left", "totembar", "uptime", changed)
+	local function beside() return TB.skin.barPlace() == "out" end
+	timerSettings(p, "Time left", "totembar", "uptime", changed, nil, nil, beside)
+	-- The bar's own, whether its timers follow General or not.
+	p:dropdown("Time bar position", "Beside the icon: on the side away from the pickers.",
+		{ { "in", "In the icon" }, { "out", "Beside the icon" } }, tget("barPlace"), tset("barPlace"),
+		function() return ns.Style.value("totembar", "uptime", "bar") and not TB.skin.owns("barPlace") end, 190)
+	-- The time bars' texture: General's, or the bar's own (in the icon or beside it).
+	barRows(p, "totembar", changed)
 	textBlock(p, "totembar", changed)
 
 	p.gate = full
@@ -919,16 +971,20 @@ local function buildTotemBar(p)
 		p:slider("Size", nil, 0.25, 0.8, 0.05, pct, tget("badgeSize"), tset("badgeSize"))
 		p:slider("Opacity", nil, 0.1, 1, 0.05, pct, tget("badgeAlpha"), tset("badgeAlpha"))
 		p:slider("Colour", "0% is grey, 100% full colour.", 0, 1, 0.05, pct, tget("badgeSat"), tset("badgeSat"))
+		p:slider("X offset", "From its place beside the slot.", -30, 30, 1, px, tget("badgeX"), tset("badgeX"))
+		p:slider("Y offset", "From its place beside the slot.", -30, 30, 1, px, tget("badgeY"), tset("badgeY"))
 	end)
 
 	p.gate = TB.barOn
 	p:header("Out of range")
-	p:text("A strip along the top of a slot shows whether you're getting your own totem's buff, for totems that buff you. In range shows nothing at 0% opacity, the default.")
+	p:text("A strip along the top of a slot shows whether you're getting your own totem's buff, for totems that buff you. In range shows nothing at 0% opacity, the default.",
+		free("range"))
+	p:text(function() return TB.skin.rangeText() or "" end, owned("range"))
 	local range = p:checkbox("Show", nil, tget("range"), tset("range"))
 	p:sub(range, tget("range"), function()
-		p:slider("Height", "In pixels.", 1, 12, 1, px, tget("rangeHeight"), tset("rangeHeight"))
-		p:color("In range", "Colour and opacity.", tget("rangeIn"), tset("rangeIn"))
-		p:color("Out of range", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"))
+		p:slider("Height", "In pixels.", 1, 12, 1, px, tget("rangeHeight"), tset("rangeHeight"), free("rangeHeight"))
+		p:color("In range", "Colour and opacity.", tget("rangeIn"), tset("rangeIn"), free("range"))
+		p:color("Out of range", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"), free("range"))
 		p:text("A buff lingers a few seconds after you leave its range. Another shaman's totem of the same type can replace your buff, so yours shows as out of range.")
 	end)
 

@@ -115,18 +115,29 @@ local PARTS = {
 	{ key = "own", filter = "HELPFUL|PLAYER", color = "rangeIn", level = 1 },
 }
 
+-- What Blizzard's part is styled for: the bar's theme and the mark's size. Our mark is repainted at
+-- every layout, Blizzard's part only while auras are readable, so after a layout that couldn't
+-- reach it (auras secret) the two can differ, and our mark could show where the part no longer
+-- covers it: partLive keeps the mark dark until they match again.
+local function styledFor(s)
+	return TB.skin.current().key .. ":" .. tostring(s.rangeW) .. "x" .. tostring(s.rangeH)
+end
+
 -- A part's look (while auras are readable, or from Blizzard's init). Under the colour, opaque, the
 -- slice of the buff's icon that the strip covers (a totem's buff has the totem's icon): whatever is
--- below is always hidden, so the colours can be see-through, down to not shown at all.
+-- below is always hidden, so the colours can be see-through, down to not shown at all. The bar's
+-- theme can draw it its own way (TB.skin.styleRangeButton).
 local function styleButton(s, part)
 	local c, p = TB.cfg(), s.rangeParts[part.key]
-	ns.try("totem range: style", function()
+	local ok = ns.try("totem range: style", function()
 		p.button:SetSize(s.rangeW, s.rangeH)
 		local share = math.min(s.rangeH / math.max(s.rangeSize, 1), 1)
 		p.icon:SetTexCoord(0.08, 0.92, 0.08, 0.08 + 0.84 * share)   -- the slot's icon crop, top part
+		if TB.skin.styleRangeButton(p, s) then return end
 		local k = c[part.color]
 		p.over.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
 	end)
+	s.rangeStyled = ok and styledFor(s) or nil
 end
 
 -- Called by Blizzard (untainted) once, right after it creates the part's button.
@@ -208,6 +219,7 @@ end
 -- Whether Blizzard's part is made and shown over our mark (rangeShown: place showed its container).
 local function partLive(s)
 	return s.rangeShown and not s.rangeError and s.rangeParts.own ~= nil and s.rangeSlots.own == true
+		and s.rangeStyled == styledFor(s)
 end
 
 -- Size, place and colour our strip and Blizzard's part (out of combat). The height is a line's (ns.linePx), as borders are.
@@ -216,12 +228,16 @@ end
 local function place(s, size, ownOnly)
 	local c, b, gate, o = TB.cfg(), s.button, s.rangeGate, s.inset or 0
 	gate:ClearAllPoints()
-	gate:SetPoint("TOPLEFT", b, "TOPLEFT", o, -o)
-	local w, h = size - 2 * o, ns.linePx(gate, c.rangeHeight)
+	-- Where the bar's theme puts its mark, and what it draws there; else the strip.
+	local x, y, w, h = TB.skin.markRect(gate, size, o)
+	if not x then x, y, w, h = o, -o, size - 2 * o, ns.linePx(gate, c.rangeHeight) end
+	gate:SetPoint("TOPLEFT", b, "TOPLEFT", x, y)
 	gate:SetSize(w, h)
-	local k = c.rangeOut
-	s.rangeMark.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
-	s.rangeW, s.rangeH, s.rangeSize = w, h, w
+	if not TB.skin.paintMark(s.rangeMark, w, h, s.vis) then
+		local k = c.rangeOut
+		s.rangeMark.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
+	end
+	s.rangeW, s.rangeH, s.rangeSize = w, h, size - 2 * o
 	local ct = s.rangeContainer
 	if not ct or ownOnly then return end
 	ct:ClearAllPoints()

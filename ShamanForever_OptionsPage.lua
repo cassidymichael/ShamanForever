@@ -790,7 +790,8 @@ function Page.panelBackdrop(f, r, g, b)
 	f:SetBackdropBorderColor(r or 0.23, g or 0.17, b or 0.10, 1)
 end
 
--- Pick one value from a row of icon cards. choices: { value, text, icon, experimental feature name }.
+-- Pick one value from a row of icon cards. choices: { value, text, icon, experimental feature name },
+-- and optionally tag = a word for a plain badge in the same place (RECOMMENDED).
 local CARD_W, CARD_H = 84, 84
 function Page:cards(label, tip, choices, get, set, shown)
 	local f = self:row(CARD_H + 8)
@@ -810,8 +811,8 @@ function Page:cards(label, tip, choices, get, set, shown)
 		b.text:SetPoint("TOP", b.icon, "BOTTOM", 0, -5)
 		b.text:SetWidth(CARD_W - 6)
 		b.text:SetText(c[2])
-		if c[4] then
-			local badge = ns.Look.expBadge(b, c[4])
+		local badge = c[4] and ns.Look.expBadge(b, c[4]) or c.tag and ns.Look.tagBadge(b, c.tag)
+		if badge then
 			badge:SetScale(0.8)
 			badge:SetPoint("BOTTOM", 0, 5)
 		end

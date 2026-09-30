@@ -159,6 +159,21 @@ local function showFeedback(anchor, feature)
 	pop:Show()
 end
 
+-- A plain tag in the experimental badge's size and shape (RECOMMENDED on a card), in a calm green;
+-- not a link.
+function L.tagBadge(parent, text)
+	local b = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+	b:SetBackdrop(ns.BACKDROP)
+	b:SetBackdropColor(0.55, 0.82, 0.5, 0.08)
+	b:SetBackdropBorderColor(0.55, 0.82, 0.5, 0.5)
+	b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	b.text:SetPoint("CENTER", 0, 0)
+	b.text:SetText(text)
+	b.text:SetTextColor(0.62, 0.86, 0.56)
+	b:SetSize(b.text:GetStringWidth() + 12, 16)
+	return b
+end
+
 -- With a label ("Give feedback", on About) the badge opens the feedback link. Without one it reads
 -- EXPERIMENTAL, marking an untested choice, and leads to About's Experimental section.
 function L.expBadge(parent, feature, label)
@@ -740,7 +755,8 @@ L.PREVIEW.totembar = {
 		h.pop = CreateFrame("Frame", nil, bar)
 		h.pop.bg = h.pop:CreateTexture(nil, "BACKGROUND")
 		h.pop.bg:SetAllPoints()
-		h.pop.bg:SetColorTexture(0, 0, 0, 0.72)
+		local fill = ns.TotemBar.POP_FILL
+		h.pop.bg:SetColorTexture(fill[1], fill[2], fill[3], fill[4])
 		h.pop.items = {}
 		for i = 1, POP_ITEMS do
 			local it = CreateFrame("Frame", nil, h.pop)
@@ -758,7 +774,7 @@ L.PREVIEW.totembar = {
 	render = function(h, st)
 		local TB = ns.TotemBar
 		local c = TB.cfg()
-		local size, border = TB.look()
+		local size, border, extrasBorder = TB.look()
 		h.barFrame:SetShown(c.mode ~= "blizzard")
 		if c.mode == "blizzard" then h.fitNote:SetText("") return end
 		local full = c.mode == "everything"
@@ -769,7 +785,14 @@ L.PREVIEW.totembar = {
 		for _, el in ipairs(c.order) do
 			if not c.hidden[el] and (not canList or #ns.Totems.knownTotems(TB.SLOT[el]) > 0) then table.insert(els, el) end
 		end
-		local row = c.dir == "row"
+		-- The places along the bar: those slots, or with a theme drawn round four fixed slots (Stone
+		-- and bronze) every element's, those not shown kept as sealed sockets.
+		local places = els
+		if TB.skin.fixedSlots() and #els > 0 then places = c.order end
+		local placeIdx, liveIdx = {}, {}
+		for i, el in ipairs(places) do placeIdx[el] = i end
+		for i, el in ipairs(els) do liveIdx[el] = i end
+		local row = TB.eff().dir == "row"   -- the theme's own, if it has one
 		local picking = st == "picking" and #els > 0
 		local psz = TB.popButtonSize(size)
 		local known = picking and TB.known(els[1]) or {}
@@ -777,8 +800,9 @@ L.PREVIEW.totembar = {
 		local popLen = TB.popLength(items, psz)
 		-- Along the bar as on it (TB.along: Call and Recall before and after the slots), with
 		-- room for one slot even when none shows. Its line is as thick as its largest button.
-		local seq, along, line = TB.along(math.max(#els, 1), size)
-		local badge = st == "offpick" and c.offPick and TB.badgeSize(size) + TB.BADGE_GAP or 0
+		local seq, along, line = TB.along(math.max(#places, 1), size)
+		local badge = st == "offpick" and c.offPick
+			and TB.badgeSize(size) + TB.BADGE_GAP + TB.skin.badgeGap(size) or 0
 		local across = line + (picking and (c.arrowSize + 4 + popLen) or 0) + badge
 		-- Room: the preview area between the title band and the state buttons.
 		local w = h:GetWidth()
@@ -796,7 +820,7 @@ L.PREVIEW.totembar = {
 		local bw, bh = (row and along or across), (row and across or along)
 		bar:SetSize(bw, bh)
 		bar:ClearAllPoints()
-		local dir = c.pop
+		local dir = TB.eff().pop
 		bar:SetPoint("CENTER", h.area, "CENTER", 0, 0)
 		-- Slots sit on the side the pickers open away from, leaving room for the badge (which hangs
 		-- opposite the picker) inside the box. off: along the bar's axis.
@@ -816,7 +840,7 @@ L.PREVIEW.totembar = {
 		for _, it in ipairs(seq) do
 			if it.extra then
 				local ic = h.extras[it.key]
-				local o = ns.Looks.fit(ic, border, it.size)   -- inside its size, as on the bar
+				local o = ns.Looks.fit(ic, extrasBorder, it.size)   -- inside its size, as on the bar
 				ic:ClearAllPoints()
 				place(ic, it.offset + o, (line - it.size) / 2 + o)
 				local learned = TB.extraLearned(it.key)
@@ -837,23 +861,33 @@ L.PREVIEW.totembar = {
 			if el then
 				ic.box:SetSize(size, size)
 				ic.box:ClearAllPoints()
-				place(ic.box, slotAt[i], (line - size) / 2)
+				place(ic.box, slotAt[placeIdx[el]], (line - size) / 2)
 				ic.school = el
 				local o = ns.Looks.fit(ic, border, size)
 				ic:ClearAllPoints()
-				place(ic, slotAt[i] + o, (line - size) / 2 + o)
+				place(ic, slotAt[placeIdx[el]] + o, (line - size) / 2 + o)
 				local pick = TB.pickTexture(el)
 				if ns.isSecret(pick) then pick = nil end   -- never compared while secret (combat)
 				reset(ic, pick or TOTEM_ICON[el])
 				ic.badge:Hide()
 				if st == "range" then
-					-- The first slot out of range, the others in range. Its height is a line's, as on the bar.
-					local k = i == 1 and c.rangeOut or c.rangeIn
-					ic.rangeF:ClearAllPoints()
-					ic.rangeF:SetPoint("TOPLEFT", ic, "TOPLEFT", 0, 0)
-					ic.rangeF:SetSize(size - 2 * o, ns.linePx(ic, c.rangeHeight))
-					ic.rangeF.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
-					ic.rangeF:Show()
+					-- The first slot out of range, the others in range. Its height is a line's, as on the bar;
+					-- a Look draws its own mark where it puts it, and nothing in range.
+					local f = ic.rangeF
+					f:ClearAllPoints()
+					local x, y, mw, mh = TB.skin.markRect(f, size, o)
+					if x then
+						f:SetPoint("TOPLEFT", ic.box, "TOPLEFT", x, y)
+						f:SetSize(mw, mh)
+						f:SetShown(i == 1 and TB.skin.paintMark(f, mw, mh, ic))
+					else
+						local k = i == 1 and c.rangeOut or c.rangeIn
+						f:SetPoint("TOPLEFT", ic, "TOPLEFT", 0, 0)
+						f:SetSize(size - 2 * o, ns.linePx(ic, c.rangeHeight))
+						TB.skin.paintMark(f)
+						f.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
+						f:Show()
+					end
 				end
 				if st == "offpick" and i == 1 then
 					-- Another of the element's totems down, with the pick shown small beside it.
@@ -907,6 +941,25 @@ L.PREVIEW.totembar = {
 				end
 			end
 		end
+		-- What the theme draws behind the bar, and the time bars' place.
+		-- A sealed socket takes a spare slot's box (there are four, and a sealed one shows no slot).
+		local boxes, sealed, spare = {}, {}, #els
+		for pi, el in ipairs(places) do
+			local i = liveIdx[el]
+			if i then boxes[pi] = h.slots[i].box
+			else
+				spare = spare + 1
+				local b = h.slots[spare].box
+				b:SetSize(size, size)
+				b:ClearAllPoints()
+				place(b, slotAt[pi], (line - size) / 2)
+				boxes[pi], sealed[b] = b, true
+			end
+		end
+		TB.skin.layoutBar(bar, boxes, size, row, sealed)
+		for i, ic in ipairs(h.slots) do
+			if els[i] then TB.skin.styleTimer(ic.upT, ic, size) end
+		end
 		-- Picking: the first slot's arrow tab and a short popout of its totems.
 		h.tab:SetShown(picking and TB.feat("arrows"))
 		h.pop:SetShown(picking)
@@ -914,8 +967,10 @@ L.PREVIEW.totembar = {
 			-- As on the bar (the same placement): the tab, then the picker past it.
 			local first = h.slots[1]
 			TB.placeArrow(h.tab, first.box, h.tab.glyph)
+			TB.skin.styleArrow(h.tab)
 			local p = h.pop
 			TB.placePopout(p, first.box, items, psz)
+			TB.skin.stylePopout(p, items, psz)
 			for i, it in ipairs(p.items) do
 				it:SetShown(i <= items)
 				TB.placePopButton(it, p, i, psz)

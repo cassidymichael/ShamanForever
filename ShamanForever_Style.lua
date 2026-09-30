@@ -5,8 +5,8 @@
 --   border            the edge around icons, in one of its looks; groups, the totem bar and the
 --                     swing timer
 --   gcd               the global cooldown's sweep, on or off; the cooldown elements and the totem bar
---   text, bar         fonts and bar textures (ShamanForever_Media.lua); text: the totem bar and the
---                     swing timer, bar: the swing timer
+--   text, bar         fonts and bar textures (ShamanForever_Media.lua); both: the totem bar and the
+--                     swing timer
 -- An owner is nil (General), an element key, "totembar", "swing" (the swing timer), or a group's
 -- table. A kind's settings sit at the same path under each holder: the profile for General
 -- (db.glowStyle, db.timers.cooldown), else the element's options, the totem bar's or the swing
@@ -257,7 +257,10 @@ function S.ownStyles(kind)
 	for _, key in ipairs(S.KINDS[kind].users) do
 		local offered = key ~= "totembar" or ns.TotemBar.barOn()
 		if key == "swing" then offered = ns.Swing and ns.Swing.isOn() end
-		if offered and not S.follows(key, kind) then table.insert(out, S.ownerName(key)) end
+		-- The totem bar's theme can draw its border its own way, whatever the bar's own style says.
+		if offered and key == "totembar" and kind == "border" and ns.TotemBar.skin.owns("border") then
+			table.insert(out, "Totem bar (its theme)")
+		elseif offered and not S.follows(key, kind) then table.insert(out, S.ownerName(key)) end
 	end
 	return out
 end
