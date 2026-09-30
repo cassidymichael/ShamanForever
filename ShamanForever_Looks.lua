@@ -274,6 +274,7 @@ end
 -- Textures other code lays over an icon's picture (the expiring warning's grey copy and dimming),
 -- registered with Looks.followMask: they take the icon's mask too.
 local followers = setmetatable({}, { __mode = "k" })   -- icon frame -> { texture, ... }
+local ownShape = setmetatable({}, { __mode = "k" })    -- icon frame -> { texture -> over } (Looks.maskOver)
 local maskSpecs = setmetatable({}, { __mode = "k" })   -- icon frame -> its mask spec now
 
 -- Masks tex (a texture over f's picture) with spec, or takes its mask off (spec nil). The mask is
@@ -288,7 +289,14 @@ local function maskOne(f, tex, spec, over)
 			m = tex:GetParent():CreateMaskTexture()
 			f.frameMasks[tex] = m
 		end
-		placeMask(m, spec, over, over:GetWidth(), over:GetHeight())
+		-- over's size in the mask's own units: a texture on a scaled frame (a soft glow's) is masked
+		-- by the size over has on screen.
+		local w, h = over:GetWidth(), over:GetHeight()
+		local a, b = over:GetEffectiveScale(), tex:GetParent():GetEffectiveScale()
+		if not (ns.isSecret(w) or ns.isSecret(h) or ns.isSecret(a) or ns.isSecret(b)) and b > 0 then
+			w, h = w * a / b, h * a / b
+		end
+		placeMask(m, spec, over, w, h)
 		if not m.on then tex:AddMaskTexture(m); m.on = true end
 	elseif m and m.on then
 		tex:RemoveMaskTexture(m)
@@ -306,7 +314,21 @@ local function drawMask(f, spec)
 	maskOne(f, f.manaOverlay, spec, over)
 	maskOne(f, f.warn and f.warn.grey, spec, over)
 	for _, t in ipairs(followers[f] or {}) do maskOne(f, t, spec, over) end
+	for t, o in pairs(ownShape[f] or {}) do maskOne(f, t, spec, o) end
 end
+
+-- Masks tex with icon frame f's look, in the place and size of over (default tex itself: a texture
+-- set in from the picture's edges takes the whole shape, set in by as much), now and on each change
+-- of look. Call again after moving them.
+function Looks.maskOver(f, tex, over)
+	local map = ownShape[f] or {}
+	ownShape[f] = map
+	map[tex] = over or tex
+	if maskSpecs[f] then maskOne(f, tex, maskSpecs[f], map[tex]) end
+end
+-- The mask spec icon frame f's look gives it now (nil: none). The same table while the look's shape
+-- is the same, so a caller can tell whether the shape changed since it last looked.
+function Looks.maskSpec(f) return maskSpecs[f] end
 
 -- Registers textures laid over icon frame f's picture, to take its mask (now, and on each change).
 function Looks.followMask(f, ...)
@@ -725,8 +747,9 @@ local function fitSoft(g, h, size, width)
 	h:SetPoint("CENTER", g, "CENTER", 0, 0)
 end
 
+-- inside: drawn only within the icon (a glow that must stay inside it can take it).
 local soft = {
-	uses = { color = true, speed = true, low = true, width = true },
+	uses = { color = true, speed = true, low = true, width = true }, inside = true,
 	build = function(g)
 		local r = root(g.inner)
 		return { roots = { r }, soft = softPart(r) }
@@ -863,7 +886,7 @@ local MATERIAL = {   -- school -> tile move (in tiles), seconds a tile
 -- Intensity: below 100% the material dims; above it the glow under it brightens too (the material
 -- itself is already at full opacity, so more light has to come from the soft glow beneath).
 local material = {
-	uses = { color = true, speed = true, strength = true }, bySchool = true,
+	uses = { color = true, speed = true, strength = true }, bySchool = true, inside = true,
 	build = function(g)
 		local r = root(g.inner)
 		local parts = { roots = { r }, soft = softPart(r, 0.35) }

@@ -244,6 +244,11 @@ local function glowBlock(p, owner, icon)
 	look = lookRows(p, r, "glow", "Look", "Glow looks", own)
 	reloadLine(p, function() return ns.auraGlowStale(owner) end,
 		function(n) return n == 1 and "changes glow" or "change glow" end, own)
+	-- A glow that must stay inside the icon, and the look reaches past it (ns.auraGlowSwapped).
+	p:text(function()
+		local names, name = ns.auraGlowSwapped(owner)
+		return string.format("%s %s %s instead.", table.concat(names, " and "), #names == 1 and "shows" or "show", name)
+	end, showWhen(function() return #(ns.auraGlowSwapped(owner)) > 0 end, own))
 	local function uses(field) return showWhen(function() return look().uses[field] end, own) end
 	p:color("Colour", "Colour and opacity. Killed early, Grounded and Ran out keep their own colours.", r.get("color"), r.set("color"), uses("color"))
 	p:slider("Pulse length", "One pulse, in seconds.", 0.2, 2, 0.1, function(v) return string.format("%.1f s", v) end,
