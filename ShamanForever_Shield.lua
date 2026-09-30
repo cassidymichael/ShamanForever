@@ -664,8 +664,8 @@ function SH.afterGroups()
 	SH.applyEmptyLook()
 end
 function SH.refresh()
-	if native.container and not native.filtered then applyShieldFilter() end
-	checkIDs()
+	-- applyShieldFilter checks the IDs itself.
+	if native.container and not native.filtered then applyShieldFilter() else checkIDs() end
 	refreshAura()
 	refreshGCD(false)
 end
