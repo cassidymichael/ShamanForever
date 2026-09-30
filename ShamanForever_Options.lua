@@ -164,6 +164,53 @@ local function reloadLine(p, keys, verb, shown)
 	end, showWhen(function() return #keys() > 0 end, shown))
 end
 
+-- Whether a style's owner is an element (its page's).
+local function isElement(owner) return type(owner) == "string" and ns.ELEMENTS[owner] ~= nil end
+
+-- The border a preview icon wears: its owner's (an element's is its group's; the totem bar's may be
+-- its theme's).
+local function previewBorder(owner)
+	local o = resolve(owner)
+	if o == "totembar" then local _, b = ns.TotemBar.look(); return b end
+	if isElement(o) then return ns.borderFor(o) end
+	return o == nil and ns.Style.general("border") or ns.Style.get(o, "border")
+end
+
+-- A style block's preview: tiles from the pool (ns.Look.tilePool) wearing the owner's styles, in
+-- row f from x. One of the page's icon (a value, or a function returning one), or one per school
+-- while bySchool() on a page that isn't an element's (the totem bar's four). An element's page
+-- shows its own icon, in the school its pop takes. Each wears its owner's border inside its 40,
+-- as on the HUD. The tiles are taken while the row shows and given back when it hides. Returns
+-- sync(), for the row's refresh and before a pop: the tiles in the owner's styles now, laid out.
+local PREVIEW_SIZE, SCHOOL_GAP = 40, 72   -- the gap: from one tile to the next, room for a glow's light
+local function previewTiles(f, owner, icon, x, bySchool)
+	local pool, held = ns.Look.tilePool, {}
+	f:HookScript("OnHide", function()
+		while #held > 0 do pool.release(table.remove(held)) end
+	end)
+	return function()
+		local o = resolve(owner)
+		local schools = {}
+		if not isElement(o) and bySchool() then
+			for _, sc in ipairs(ns.Look.SCHOOLS) do
+				if o ~= "totembar" or sc.key ~= "spirit" then table.insert(schools, sc) end
+			end
+		end
+		local n = math.max(#schools, 1)
+		while #held > n do pool.release(table.remove(held)) end
+		while #held < n do table.insert(held, pool.acquire(f, PREVIEW_SIZE)) end
+		local border = previewBorder(owner)
+		for i, t in ipairs(held) do
+			local sc = schools[i]
+			t:wear(o, { border = border })
+			t:icon(sc and sc.icon or type(icon) == "function" and icon() or icon)
+			t:school(sc and sc.key or isElement(o) and ns.Looks.elementSchool(o) or nil)
+			t:point("LEFT", f, "LEFT", x + (i - 1) * SCHOOL_GAP, 0)
+		end
+		return held
+	end
+end
+
 -- Standard rows: the border around icons, General's or an owner's (a group, the totem bar). Sizes
 -- and colours show only for looks that use them. The HUD lays out only out of combat (the shield's
 -- group and the totem bar's buttons are protected then), so a change made in combat reaches it
@@ -173,8 +220,23 @@ local function borderRows(p, owner, after, label, shown)
 	local r = styleRows(p, owner, "border", after)
 	if owner ~= nil then followRow(p, owner, "border", after, label, shown) end
 	local bordered = function() return r.own() and r.style().show end
+	local look
+	-- Not the swing timer's: its page's header shows the bar itself.
+	if owner ~= "swing" then
+		local f = p:row(52)
+		p:label(f, "Preview")
+		-- A group's first element, the totem bar's earth slot, or General's sample.
+		local function icon()
+			local o = resolve(owner)
+			if o == "totembar" then return 136098 end
+			local first = type(o) == "table" and o.members and ns.ELEMENTS[o.members[1]]
+			return first and first.icon or 136026
+		end
+		local sync = previewTiles(f, owner, icon, LABEL_W + 24, function() return look().bySchool end)
+		p:add(f, 52, showWhen(r.own, shown), sync)
+	end
 	p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"), showWhen(r.own, shown))
-	local look = choiceRows(p, r, "border", "look", "Border look", nil, showWhen(bordered, shown))
+	look = choiceRows(p, r, "border", "look", "Border look", nil, showWhen(bordered, shown))
 	local function uses(part) return function() return bordered() and ns.Looks.uses(look(), part) end end
 	-- Blizzard's aura button takes a mask only as it is made (ns.Looks.auraMask).
 	local function stale()
@@ -188,16 +250,6 @@ local function borderRows(p, owner, after, label, shown)
 	p:slider("Cap size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("capSize"), r.set("capSize"), showWhen(uses("capSize"), shown))
 	p:color("Cap colour", "Colour and opacity.", r.get("capColor"), r.set("capColor"), showWhen(uses("capColor"), shown))
 end
-
--- The border a preview icon wears: its owner's.
-local function previewBorder(owner)
-	if owner == nil then return ns.Style.general("border") end
-	if owner == "totembar" then local _, b = ns.TotemBar.look(); return b end
-	return ns.borderFor(owner)
-end
-
--- Whether a style's owner is an element (its page's).
-local function isElement(owner) return type(owner) == "string" and ns.ELEMENTS[owner] ~= nil end
 
 -- An element's pick of the element its pop and School material glow take (popSchool: its own
 -- setting, not a style field, so it stays whether or not the element follows General).
@@ -233,7 +285,6 @@ end
 -- and place(), for the row's refresh, which lays them out and returns them.
 local SCHOOL_ICONS = { { "earth", 136098 }, { "fire", 135825 }, { "water", 135127 }, { "air", 136114 },
 	{ "spirit", 136051 } }   -- Stoneskin, Searing, Healing Stream, Windfury, Lightning Shield
-local SCHOOL_GAP = 72   -- from one school's icon to the next: room for the light between them
 local function previewIcons(f, owner, icon, x, bySchool)
 	local one = ns.makeIcon(f, 40, owner)
 	one.tex:SetTexture(icon)
