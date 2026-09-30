@@ -109,7 +109,6 @@ local DEFAULTS = {
 	emptyTint = false,
 	emptyPulse = false,
 	emptyGlow = true,
-	emptyGlowLook = "soft",   -- its look (a glow look's key)
 	-- shock
 	shock = "earth",        -- which shock the icon tracks
 	manaSpell = "tracked",  -- tracked | earth | flame | frost

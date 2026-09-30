@@ -34,7 +34,7 @@
 --   duration text through a step colour curve. All set out of combat, nothing written in combat;
 --   the buttons hide the moment the DoT is gone.
 -- * Idle is no hostile target. With one, the Not on target look (the icon grey by default, fade in
---   and out, the red ring, the pulsing glow in any look) is drawn by the engine, in combat too,
+--   and out, the red ring, the pulsing glow in its Pulsing glow style) is drawn by the engine, in combat too,
 --   with nothing read: a clip look (ns.makeClipLook) whose sensor follows the target with the
 --   container shows it only while the target lacks your Flame Shock. So nothing of it lies under
 --   Blizzard's button, which takes its group's opacity like any icon. Its holder:
@@ -70,7 +70,7 @@ local TARGET = {
 		noGlow = true, upLabel = "On target", idleLabel = "No target",
 		missing = true, engineExpire = true,   -- its Not on target and Expiring blocks
 		defaults = { idleAlpha = 0,
-			missGrey = true, missRing = false, missPulse = false, missGlow = true, missGlowLook = "soft",
+			missGrey = true, missRing = false, missPulse = false, missGlow = true,
 			-- Magenta: it stands out against the fire school's orange time bar.
 			expireSecs = 3, expireBar = true, expireBarColor = { 1, 0.2, 0.8, 1 }, expireText = false },
 		experimental = "Flame Shock on target" },
@@ -338,17 +338,12 @@ for _, def in ipairs(TARGET) do
 			holderAlpha(def)
 		end)
 		def.holder = h
-		-- The look, its glow in the block's Glow look and General's Pulsing glow style (the element
-		-- has no style of its own); its sensor on the gate beside Blizzard's container. The glow's
-		-- look before the profile loads: the default.
+		-- The look, its glow in the element's Pulsing glow style; its sensor on the gate beside
+		-- Blizzard's container.
 		def.missLook = ns.makeClipLook(f, {
 			key = def.key, parent = h, sensorParent = def.gate, unit = wantedUnit,
-			needUnit = "target",
+			needUnit = "target", owner = def.key,
 			filter = def.filter, ids = function() return idMap(def) end,
-			lookFor = function()
-				local ok, look = pcall(setting, def.key, "missGlowLook")
-				return ok and look or nil
-			end,
 			sites = {
 				container = "target warning sensor " .. def.key,
 				style = "target warning style " .. def.key,
@@ -388,7 +383,7 @@ for _, def in ipairs(TARGET) do
 		borderHost = def.idleEdge,
 		-- Preview mode: its border isn't on its frame (ShamanForever_Preview.lua).
 		standInBorder = true,
-		effects = { glow = def.noGlow and {} or { "up" }, pop = def.noPop and {} or { "up" } },
+		effects = { glow = { def.missing and "missing" or "up" }, pop = def.noPop and {} or { "up" } },
 		learned = function() return def.spellID ~= nil end,
 		paint = function(t) t:SetTexture(def.icon) end,
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
@@ -739,8 +734,7 @@ function T.debug()
 	say("target attackable %s", tostring(hostileTarget()))
 	local on = readWanted() and flameShockOnTarget()
 	say("%s on target: %s", FLAME.spell, readWanted() and tostring(on) or "not read (combat, secret auras or no target)")
-	say("%s Not on target: glow look %s; sensor %s", FLAME.spell,
-		tostring(setting(FLAME.key, "missGlowLook")), FLAME.missLook:describe())
+	say("%s Not on target: sensor %s", FLAME.spell, FLAME.missLook:describe())
 	say("%s red countdown handed %s", FLAME.spell, tostring(FLAME.textHanded))
 	for _, def in ipairs(TARGET) do
 		if def.fx then say("%s: %s", def.spell, def.fx:describe()) end

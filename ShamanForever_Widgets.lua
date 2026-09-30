@@ -558,7 +558,7 @@ end
 --   ids()          the spell IDs it matches; or candidates(), its candidate filters (an aura
 --                  slot's: ns.makeAuraSlot)
 --   needUnit       the unit it must be on for the look to show (a sensor that follows the target)
---   owner          the glow's style owner (nil: General's)
+--   owner          the glow's style owner (nil: General's), its look, colour and the rest
 --   invert         lit while the aura is up, not while it's gone
 --   glowOnly       the glow alone: no picture, no ring
 --   agrees()       whether the aura slot showing the aura took the filters the sensor did
@@ -605,7 +605,7 @@ function ns.makeClipLook(frame, opts)
 	h.ring = ns.makeRing(h.art, h.tex)
 	h.pulse = ns.makePulse(h.tex, "fade")
 	if opts.glowOnly then h.art:Hide() end
-	h.glow = ns.Effects.glow(h.look, frame, opts.owner, { lookFor = opts.lookFor })
+	h.glow = ns.Effects.glow(h.look, frame, opts.owner)
 	-- As a look's parts are made and each time they're fitted (a look changed with the options
 	-- open, in combat too).
 	h.glow.onLayout = function(_, parts, look)

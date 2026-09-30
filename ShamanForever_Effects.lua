@@ -15,9 +15,6 @@ ns.Effects = E
 -- "totembar"; nil for General's): its look (one of ns.Looks' glow looks), colour, pulse length,
 -- pulse depth (low is the dimmest it gets) and thickness (how far in it reaches, as a share of the
 -- icon). fit(size) lays it out for an icon of that size. opts:
---   lookFor()    the look's key, in place of its style's (colour, speed and the rest still come
---                from the style): a warning's own Glow look (Shields' No shield, Flame Shock's Not
---                on target: their clip looks, and the options' previews)
 --   underButton  a glow under Blizzard's aura button, left out of E.applyStyle: its owner restyles
 --                it only when that's allowed (out of combat, auras not secret). The button plays its
 --                animations (script handlers under it never run, so its OnShow can't): g:bindButton
@@ -31,7 +28,7 @@ local auraGlows = {}
 function E.glow(parent, over, owner, opts)
 	local underButton = opts and opts.underButton or false
 	local g = CreateFrame("Frame", nil, parent)
-	g.owner, g.lookFor, g.underButton = owner, opts and opts.lookFor, underButton
+	g.owner, g.underButton = owner, underButton
 	-- The icon whose frame and school its looks follow; never Blizzard's aura button (it and its
 	-- parts are off limits in combat): a glow under it takes its owner's school and no frame.
 	g.over = not underButton and (over or parent) or nil
@@ -105,7 +102,7 @@ function E.glow(parent, over, owner, opts)
 	-- The owner's style; a fixed colour (killed early's red) wins over its colour.
 	function g:restyle()
 		local st = ns.Style.get(self.owner, "glow")
-		local look = drawn(ns.Style.look("glow", self.lookFor and self.lookFor() or st.look))
+		local look = drawn(ns.Style.look("glow", st.look))
 		-- Under the button, a new look only once the button has taken its animations: out of combat,
 		-- auras readable (it refuses calls otherwise); else the old look stays for now.
 		if underButton and self.look and look ~= self.look then

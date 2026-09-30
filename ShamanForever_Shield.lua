@@ -366,16 +366,11 @@ local function shieldIDMap()
 	return map
 end
 
--- The No shield look, its glow in its Glow look and the shield's Pulsing glow style, past the
--- icon's edge if the look reaches there. Its sensor hangs from the element's frame, not the gate:
--- nothing the look relies on sits under the gate, which is at 0 with an Idle opacity of 0%. The
--- glow's look before the profile loads (it is made at load): the default.
+-- The No shield look, its glow in the shield's Pulsing glow style, past the icon's edge if the look
+-- reaches there. Its sensor hangs from the element's frame, not the gate: nothing the look relies
+-- on sits under the gate, which is at 0 with an Idle opacity of 0%.
 look = ns.makeClipLook(shield, {
 	key = "shield", parent = holder, sensorParent = shield, ids = shieldIDMap, owner = "shield",
-	lookFor = function()
-		local db = ns.getDB()
-		return db and db.emptyGlowLook or nil
-	end,
 	sites = {
 		container = "shield warning sensor", style = "shield warning style",
 		filter = "shield warning filter",

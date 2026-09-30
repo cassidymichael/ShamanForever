@@ -366,22 +366,12 @@ L.PREVIEW = {
 			local d = db()
 			local water = d.shieldTrack == "water"
 			reset(ic, water and 132315 or 136051)
-			if ic.warnGlow then ic.warnGlow:Hide() end
 			if st == "down" then
 				ic.tex:SetDesaturated(d.emptyGrey)
 				if d.emptyTint then ic.tex:SetVertexColor(1, 0.35, 0.35) end
 				ic:SetRingShown(d.emptyRing)
 				ic:SetPulsing(d.emptyPulse)
-				-- The HUD's glow here: No shield's own Glow look.
-				if d.emptyGlow then
-					if not ic.warnGlow then
-						ic.warnGlow = ns.Effects.glow(ic, ic, "shield",
-							{ lookFor = function() return db().emptyGlowLook end })
-					end
-					ic.warnGlow:restyle()
-					ic.warnGlow:fit(ic:GetWidth())
-					ic.warnGlow:Show()
-				end
+				ic:SetGlowShown(d.emptyGlow)
 				return
 			end
 			local n = st == "up3" and 3 or st == "up2" and 2 or 1
@@ -547,7 +537,6 @@ local function buffPreview(def)
 		end,
 		render = function(ic, st)
 			reset(ic, def.icon)
-			if ic.warnGlow then ic.warnGlow:Hide() end
 			if st == "up" then
 				if def.proc then
 					if not def.noTimer then frozen(ic.upT, 0.3, 15) end
@@ -560,16 +549,7 @@ local function buffPreview(def)
 				ic.tex:SetDesaturated(opt(key, "missGrey"))
 				ic:SetRingShown(opt(key, "missRing"))
 				ic:SetPulsing(opt(key, "missPulse"))
-				-- The HUD's glow here: its own Glow look.
-				if opt(key, "missGlow") then
-					if not ic.warnGlow then
-						ic.warnGlow = ns.Effects.glow(ic, ic, nil,
-							{ lookFor = function() return opt(key, "missGlowLook") end })
-					end
-					ic.warnGlow:restyle()
-					ic.warnGlow:fit(ic:GetWidth())
-					ic.warnGlow:Show()
-				end
+				ic:SetGlowShown(opt(key, "missGlow"))
 			elseif st == "idle" then idleLook(ic, key)
 			elseif st == "low" or st == "out" then
 				-- Running low isn't idle when Idle counts reagents (the default).

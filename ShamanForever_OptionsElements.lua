@@ -14,7 +14,6 @@ local pct, int, px = Page.pct, Page.int, Page.px
 local SHOW_CHOICES = K.SHOW_CHOICES
 local timerSettings, gcdBlock, glowBlock, popBlock = K.timerSettings, K.gcdBlock, K.glowBlock, K.popBlock
 local expiringLooks, killedBlock = K.expiringLooks, K.killedBlock
-local warningGlowLook = K.warningGlowLook
 
 local function db() return ns.getDB() end
 
@@ -330,10 +329,7 @@ local function buildShield(p, def)
 	warningBlock(p, "No shield", get("emptyGrey"), set("emptyGrey"), get("emptyRing"), set("emptyRing"), get("emptyPulse"),
 		set("emptyPulse"))
 	p:checkbox("Red tint", "Tint the icon red.", get("emptyTint"), set("emptyTint"))
-	p:checkbox("Pulsing glow",
-		"A glow that pulses. Its colour and speed are the Pulsing glow style's.",
-		get("emptyGlow"), set("emptyGlow"))
-	warningGlowLook(p, get("emptyGlowLook"), set("emptyGlowLook"), showWhen(get("emptyGlow")))
+	p:checkbox("Pulsing glow", "A glow that pulses, in the Pulsing glow style.", get("emptyGlow"), set("emptyGlow"))
 
 	timerSettings(p, "Time left", "shield", "uptime")
 	gcdBlock(p, "shield")
@@ -529,11 +525,8 @@ local function buildBuff(p, def)
 			eget(key, "missPulse"), eset(key, "missPulse"), function()
 				p:text("While your hostile target doesn't have it.")
 			end)
-		p:checkbox("Pulsing glow",
-			"A glow that pulses, in General's Pulsing glow colour and speed.",
+		p:checkbox("Pulsing glow", "A glow that pulses, in the Pulsing glow style.",
 			eget(key, "missGlow"), eset(key, "missGlow"))
-		warningGlowLook(p, eget(key, "missGlowLook"), eset(key, "missGlowLook"),
-			showWhen(eget(key, "missGlow")))
 	end
 	local function procBlock()
 		-- Elemental Focus's texts, unless the def has its own (the target's auras, ShamanForever_Target.lua).
