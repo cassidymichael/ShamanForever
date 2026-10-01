@@ -22,11 +22,11 @@ start at an odd scroll position, and a few pages may be missing or out of order.
 
 ![Home: version, warnings and where to send feedback](home.png)
 
-## General
+## Global settings
 
-![General options: icon size, border and timers](general.png)
+![Global settings: icon size, border and timers](general.png)
 
-![General: pulsing glow and pop styles](general-glow-pop.png)
+![Global settings: pulsing glow and pop styles](general-glow-pop.png)
 
 ## Groups & Layout
 
