@@ -679,7 +679,7 @@ local function previewRows(p, kind, rows)
 	local text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	text:SetPoint("LEFT", f, "LEFT", 4, 0)
 	text:SetTextColor(0.72, 0.72, 0.72)
-	text:SetText("Preview only. All settings:")
+	text:SetText("Preview only. Not all settings affect all styles. All settings:")
 	local block = BLOCKS[kind]
 	local go = link(f, GENERAL .. " > " .. block[2], function() ns.Options.openGeneral(block[1]) end)
 	go:SetPoint("LEFT", text, "RIGHT", 6, 0)
