@@ -683,7 +683,23 @@ local function previewRows(p, kind, rows)
 	local block = BLOCKS[kind]
 	local go = link(f, GENERAL .. " > " .. block[2], function() ns.Options.openGeneral(block[1]) end)
 	go:SetPoint("LEFT", text, "RIGHT", 6, 0)
-	p:add(f, 22)
+	-- Reset: the section's preview back to as shipped, at once (nothing saved is lost); a grey text
+	-- link like the blocks' own Reset, shown while there is something to reset.
+	local grey = 0.62
+	local reset = CreateFrame("Button", nil, f)
+	reset.text = reset:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	reset.text:SetPoint("RIGHT")
+	reset.text:SetText("Reset")
+	reset.text:SetTextColor(grey, grey, grey)
+	reset:SetSize(reset.text:GetStringWidth() + 2, 16)
+	reset:SetPoint("RIGHT", f, "RIGHT", -4, 0)
+	reset:SetScript("OnEnter", function() reset.text:SetTextColor(1, 0.82, 0) end)
+	reset:SetScript("OnLeave", function() reset.text:SetTextColor(grey, grey, grey) end)
+	reset:SetScript("OnClick", function()
+		wipe(preview[kind])
+		restyleAll()
+	end)
+	p:add(f, 22, nil, function() reset:SetShown(next(preview[kind]) ~= nil) end)
 end
 
 local pct, px = Page.pct, Page.px
