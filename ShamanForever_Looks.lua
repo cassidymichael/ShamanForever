@@ -582,7 +582,7 @@ local CDM_MASK, CDM_OVERLAY = "UI-HUD-CoolDownManager-Mask", "UI-HUD-CoolDownMan
 local CDM_SWIPE = "Interface\\HUD\\UI-HUD-CoolDownManager-Icon-Swipe"
 local AB_MASK, AB_FRAME = "UI-HUD-ActionBar-IconFrame-Mask", "UI-HUD-ActionBar-IconFrame"
 
-S.addField("border", "look", { name = "Border look", where = "General > Border style", preview = { play = "still" },
+S.addField("border", "look", { name = "Border look", where = "Global settings > Border style", preview = { play = "still" },
 	groups = { { "lines", "Lines" }, { "blizzard", "Blizzard's" }, { "painted", "Painted" } } })
 S.addLook("border", "line", { name = "Line", group = "lines", uses = { size = true, color = true },
 	rings = { { px = "size", color = "color" } } })
@@ -958,7 +958,7 @@ local heartbeat = {
 	end,
 }
 
-S.addField("glow", "look", { name = "Glow look", where = "General > Pulsing glow style", preview = { play = "loop" } })
+S.addField("glow", "look", { name = "Glow look", where = "Global settings > Pulsing glow style", preview = { play = "loop" } })
 local function addGlow(key, name, entry)
 	entry.name = name
 	S.addLook("glow", key, entry)
@@ -1073,7 +1073,7 @@ local EFFECTS = {
 	end,
 }
 
-local POP = "General > Pop style"
+local POP = "Global settings > Pop style"
 S.addField("pop", "colorBy", { name = "Colour", where = POP, preview = { play = "hover" } })
 S.addChoice("pop", "colorBy", "event", { name = "By event" })
 S.addChoice("pop", "colorBy", "school", { name = "By school", bySchool = true })

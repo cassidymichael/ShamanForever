@@ -259,10 +259,10 @@ function EP.buildOverview(p)
 			GameTooltip:SetText("Own styles")
 			local own = ownStyles(key)
 			if #own == 0 then
-				GameTooltip:AddLine("Follows General for its timers, glow and pop.", 1, 1, 1, true)
+				GameTooltip:AddLine("Follows Global styles for its timers, glow and pop.", 1, 1, 1, true)
 			else
 				GameTooltip:AddLine(table.concat(own, ", "), 1, 1, 1, true)
-				GameTooltip:AddLine("The rest follow General.", 0.7, 0.7, 0.7, true)
+				GameTooltip:AddLine("The rest follow Global styles.", 0.7, 0.7, 0.7, true)
 			end
 			GameTooltip:Show()
 		end)
@@ -292,7 +292,7 @@ function EP.buildOverview(p)
 			local own, short = ownStyles(key), {}
 			for i, n in ipairs(own) do short[i] = SHORT[n] end
 			if #own == 0 then
-				styles.text:SetText("General")
+				styles.text:SetText("Global")
 				styles.text:SetTextColor(0.6, 0.6, 0.6)
 			else
 				styles.text:SetText("Own: " .. table.concat(short, ", "))

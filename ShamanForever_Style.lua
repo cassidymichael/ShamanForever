@@ -245,8 +245,8 @@ local function at(h, path, create)
 	return t
 end
 
--- General's style for a kind.
-function S.general(kind)
+-- The global style for a kind.
+function S.global(kind)
 	local spec = S.KINDS[kind]
 	return clean(at(holder(nil), spec.path), spec.defaults, spec.ranges)
 end
@@ -273,7 +273,7 @@ end
 
 -- An owner's own style before any change: General's, with the owner's own defaults on top.
 local function base(owner, kind)
-	local s = S.general(kind)
+	local s = S.global(kind)
 	local d = ownerDefaults(owner, kind)
 	if d then for k, v in pairs(d) do s[k] = type(v) == "table" and CopyTable(v) or v end end
 	return s
@@ -281,7 +281,7 @@ end
 
 -- The style an owner uses now.
 function S.get(owner, kind)
-	if S.follows(owner, kind) then return S.general(kind) end
+	if S.follows(owner, kind) then return S.global(kind) end
 	return clean(S.override(owner, kind), base(owner, kind), S.KINDS[kind].ranges)
 end
 
@@ -341,7 +341,7 @@ end
 function S.shipped(owner, kind)
 	local spec = S.KINDS[kind]
 	if owner == nil then return true, clean(nil, spec.defaults, spec.ranges) end
-	if ownerDefaults(owner, kind) == nil then return true, S.general(kind) end
+	if ownerDefaults(owner, kind) == nil then return true, S.global(kind) end
 	return false, base(owner, kind)
 end
 

@@ -65,7 +65,7 @@ local AFTER = {
 	glow = function() ns.Effects.applyStyle(); ns.applyTimers(); ns.Options.refresh() end,
 	pop = function() ns.applyTimers(); ns.Options.refresh() end,
 }
-K.confirm("SHAMANFOREVER_USE_STYLE", "Use %s for General's %s?", "Use", function(run) run() end)
+K.confirm("SHAMANFOREVER_USE_STYLE", "Use %s for the global %s?", "Use", function(run) run() end)
 
 -- Writes fields into General's style of kind, then what a change by hand runs.
 local function use(kind, fields)
@@ -84,7 +84,7 @@ local function menu(c)
 	if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
 	MenuUtil.CreateContextMenu(c.frame, function(_, root)
 		root:CreateTitle(c.name())
-		root:CreateButton("Use as General setting", function() askUse(c) end)
+		root:CreateButton("Use as Global style", function() askUse(c) end)
 	end)
 end
 
@@ -634,7 +634,7 @@ local function header(p)
 	local intro = h:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	intro:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
 	intro:SetTextColor(0.72, 0.72, 0.72)
-	intro:SetText("Right-click a look to use it in General. Hover or click a pop to play it.")
+	intro:SetText("Right-click a look to use it as a global style. Hover or click a pop to play it.")
 	local schools = {}
 	for _, sc in ipairs(L.SCHOOLS) do table.insert(schools, { sc.key, sc.name }) end
 	table.insert(schools, { ALL, "All" })
@@ -654,7 +654,7 @@ end
 -- The page
 ------------------------------------------------------------------------
 -- The page the full settings are on, as the nav names it, and each kind's block there.
-local GENERAL = "General"
+local GLOBAL = "Global settings"
 local BLOCKS = { border = { "border", "Border style" }, glow = { "glow", "Pulsing glow style" },
 	pop = { "pop", "Pop style" } }
 
@@ -681,7 +681,7 @@ local function previewRows(p, kind, rows)
 	text:SetTextColor(0.72, 0.72, 0.72)
 	text:SetText("Preview only. Not all settings affect all styles. All settings:")
 	local block = BLOCKS[kind]
-	local go = link(f, GENERAL .. " > " .. block[2], function() ns.Options.openGeneral(block[1]) end)
+	local go = link(f, GLOBAL .. " > " .. block[2], function() ns.Options.openGlobal(block[1]) end)
 	go:SetPoint("LEFT", text, "RIGHT", 6, 0)
 	-- Reset: the section's preview back to as shipped, at once (nothing saved is lost); shown while
 	-- there is something to reset.

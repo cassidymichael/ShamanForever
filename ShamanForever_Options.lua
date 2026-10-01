@@ -62,15 +62,15 @@ local pct, times, int, px = Page.pct, Page.times, Page.int, Page.px
 ------------------------------------------------------------------------
 local function resolve(owner) if type(owner) == "function" then return owner() end return owner end
 
--- A switch to use General's settings, with a button to them (General's page, scrolled to anchor).
-local function generalRow(p, label, tip, get, set, anchor, shown)
+-- A switch to use the global setting, with a button to it (Global settings, scrolled to anchor).
+local function globalRow(p, label, tip, get, set, anchor, shown)
 	local row = p:checkbox(label, tip, get, set, shown)
 	local b = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-	b:SetSize(100, 22)
+	b:SetText("Edit Global styles")
+	b:SetSize(math.max(100, (b:GetTextWidth() or 0) + 24), 22)
 	b:SetPoint("LEFT", row.check.Text, "RIGHT", 12, 0)
-	b:SetText("Edit General")
-	b:SetScript("OnClick", function() OP.openGeneral(anchor) end)
-	setTip(b, "Edit General", "These settings on the General page.")
+	b:SetScript("OnClick", function() OP.openGlobal(anchor) end)
+	setTip(b, "Edit Global styles", "These settings in Global settings.")
 	return row
 end
 
@@ -84,7 +84,7 @@ end
 local function followRow(p, owner, kind, after, label, shown)
 	if type(owner) == "string" then ns.Style.addUser(kind, owner) end
 	ownStyle(p, owner, kind, after)
-	return generalRow(p, label or "Same as General", "Use the settings on the General page.",
+	return globalRow(p, label or "Same as Global", "Use the global style.",
 		function() local o = resolve(owner); return o ~= nil and ns.Style.follows(o, kind) end,
 		function(v)
 			local o = resolve(owner)
@@ -102,7 +102,7 @@ local function styleRows(p, owner, kind, after)
 	local r = {}
 	function r.style()
 		local o = resolve(owner)
-		if o == nil then return St.general(kind) end
+		if o == nil then return St.global(kind) end
 		return St.get(o, kind)
 	end
 	function r.own() local o = resolve(owner); return o == nil or not St.follows(o, kind) end
@@ -175,7 +175,7 @@ local function previewBorder(owner)
 	local o = resolve(owner)
 	if o == "totembar" then local _, b = ns.TotemBar.look(); return b end
 	if isElement(o) then return ns.borderFor(o) end
-	return o == nil and ns.Style.general("border") or ns.Style.get(o, "border")
+	return o == nil and ns.Style.global("border") or ns.Style.get(o, "border")
 end
 
 -- A style block's preview: tiles from the pool (ns.Look.tilePool) wearing the owner's styles, in
@@ -449,7 +449,7 @@ end
 local function barRows(p, owner, after)
 	after = after or relayout
 	local r = styleRows(p, owner, "bar", after)
-	if owner then followRow(p, owner, "bar", after, "Texture same as General") end
+	if owner then followRow(p, owner, "bar", after, "Texture same as Global") end
 	local own = showWhen(r.own)
 	local c = ns.SCHOOL_COLOR.water
 	p:dropdown("Texture", nil, function()
@@ -609,10 +609,28 @@ local function buildHome(p)
 	})
 end
 
--- General: the styles everything follows unless it has its own, then housekeeping.
-local function buildGeneral(p)
-	p:pageTitle("General - Global Options")
-	p:text("Elements, groups and the totem bar use these unless they have their own.")
+-- Global settings: first the small settings that belong to no element, then the global styles
+-- everything follows unless it has its own.
+local function buildGlobal(p)
+	p:pageTitle("Global settings")
+
+	p:section("General")
+	p:header("Minimap")
+	p:checkbox("Show the minimap button", "Click it to open these options. Also listed in the minimap's addon menu.",
+		function() return not (acct().minimap and acct().minimap.hide) end,
+		function(v)
+			if type(acct().minimap) ~= "table" then acct().minimap = {} end
+			acct().minimap.hide = not v
+			ns.applyMinimapButton()
+		end)
+	ns.Sounds.generalBlock(p)
+	local hasReporter = ns.IssueReporter.has
+	p:header("Beta", hasReporter)
+	p:checkbox("Hide the Issue Reporter button", "Blizzard's beta Issue Reporter button. ShamanForever also remembers where you drag it.",
+		function() return acct().hideIssueReporter end, function(v) acct().hideIssueReporter = v; ns.IssueReporter.apply() end, hasReporter)
+
+	p:section("Global styles")
+	p:text("These apply to all components within the addon, which can be overridden within each component's settings.")
 	p:header("Icon size")
 	p:anchor("size")
 	p:slider("Icon size", "Every group's and the totem bar's, unless it has its own.", 24, 96, 1, int,
@@ -639,21 +657,6 @@ local function buildGeneral(p)
 	ownLine(p, "border")
 	glowBlock(p, nil, 136026)
 	popBlock(p, nil, 136026, "ready")
-	ns.Sounds.generalBlock(p)
-
-	p:header("Minimap")
-	p:checkbox("Show the minimap button", "Click it to open these options. Also listed in the minimap's addon menu.",
-		function() return not (acct().minimap and acct().minimap.hide) end,
-		function(v)
-			if type(acct().minimap) ~= "table" then acct().minimap = {} end
-			acct().minimap.hide = not v
-			ns.applyMinimapButton()
-		end)
-
-	local hasReporter = ns.IssueReporter.has
-	p:header("Beta", hasReporter)
-	p:checkbox("Hide the Issue Reporter button", "Blizzard's beta Issue Reporter button. ShamanForever also remembers where you drag it.",
-		function() return acct().hideIssueReporter end, function(v) acct().hideIssueReporter = v; ns.IssueReporter.apply() end, hasReporter)
 end
 
 -- Asks for a profile name, then passes it to action, which returns an error message or nil.
@@ -962,7 +965,7 @@ local function buildTotemBar(p)
 	end)
 	-- Its own size is not its scale: scale grows everything, text, arrows, spacing and lines included.
 	own("sizeFollow", { reset = function() TB.setSizeFollow(TB.DEFAULTS.sizeFollow) end })
-	local sizeFollow = generalRow(p, "Icon size same as General", "Use the icon size on the General page.",
+	local sizeFollow = globalRow(p, "Icon size same as Global", "Use the global icon size.",
 		tget("sizeFollow"), function(v) TB.setSizeFollow(v); changed() end, "size")
 	-- Its own size (none until the switch is first turned off) matters only while the switch is
 	-- off, itself a change; a reset clears it, so turning the switch off starts from General's again.
@@ -1131,7 +1134,7 @@ OP.kit = {
 	relayout = relayout, respell = respell, get = get, set = set, gopt = gopt, confirm = confirm,
 	SHOW_CHOICES = SHOW_CHOICES,
 	COMBAT_SHOW = COMBAT_SHOW, STAY_TIP = STAY_TIP, staySecs = staySecs,
-	generalRow = generalRow, borderRows = borderRows,
+	globalRow = globalRow, borderRows = borderRows,
 	timerSettings = timerSettings, gcdBlock = gcdBlock, glowBlock = glowBlock, popBlock = popBlock,
 	textBlock = textBlock, barRows = barRows,
 	expiringLooks = expiringLooks, killedBlock = killedBlock,
@@ -1216,7 +1219,7 @@ local function buildNav()
 		y = y - 30
 	end
 	top("home", "Home", "Interface\\Icons\\ClassIcon_Shaman")
-	top("general", "General", "Interface\\Icons\\INV_Misc_Gear_01")
+	top("general", "Global settings", "Interface\\Icons\\INV_Misc_Gear_01")
 	top("styles", "Styles explorer", "Interface\\Icons\\INV_Misc_Gem_Variety_01")
 	top("layout", "Groups & Layout", "Interface\\Icons\\Spell_Nature_Invisibilty")
 	top("totembar", "Totem bar", "Interface\\Icons\\Spell_Shaman_DropAll_01")
@@ -1489,7 +1492,8 @@ local function buildWindow()
 	win:HookScript("OnHide", function() shownNow(false) end)
 
 	buildHome(newPage("home", "Home"))
-	buildGeneral(newPage("general", "General"))
+	-- Its key stays "general": saved as the page last open and in its folded blocks' keys.
+	buildGlobal(newPage("general", "Global settings"))
 	ns.StylesPage.build(newPage("styles", "Styles explorer"))
 	ns.LayoutPage.build(newPage("layout", "Groups & Layout"))
 	buildTotemBar(newPage("totembar", "Totem bar"))
@@ -1698,9 +1702,9 @@ local function scrollTo(p, frame, after)
 	end)
 end
 
--- From an Edit General button: General, scrolled to the settings named anchor (a style's kind),
--- whose header flashes.
-function OP.openGeneral(anchor)
+-- From an Edit Global styles button: Global settings, scrolled to the settings named anchor (a
+-- style's kind), whose header flashes.
+function OP.openGlobal(anchor)
 	OP.open("general")
 	local p = pages.general
 	local f = p and p.anchors and p.anchors[anchor]

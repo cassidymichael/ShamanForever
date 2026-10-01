@@ -1018,7 +1018,7 @@ function ns.debugReport()
 		for _, key in ipairs(g.members) do table.insert(names, listed(key)) end
 		say("group %d %s: %s, %s, size %d%s, scale %.2f, opacity %.2f, at %s %.0f,%.0f%s", g.id, g.name,
 			#names > 0 and table.concat(names, ",") or "empty", g.orientation, groupSize(g),
-			g.sizeFollow and " (General)" or "", g.scale, g.alpha, g.point, g.x, g.y,
+			g.sizeFollow and " (Global)" or "", g.scale, g.alpha, g.point, g.x, g.y,
 			g.show == "always" and "" or string.format(", shows %s, stays %ds", g.show, g.fadeAfter))
 	end
 	local loose = {}
