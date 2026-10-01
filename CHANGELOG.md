@@ -2,8 +2,11 @@
 
 ## Unreleased
 
+- Global settings (was General): a General section for the minimap, sounds and beta options, then
+  the Global styles every element uses unless it has its own.
+- Options sections start collapsed, apart from the ones used most.
 - Styles explorer: a page showing every border, glow and pop look, with a right-click to use one
-  in General.
+  as a global style.
 - Grow and Bounce pops are smooth, the Heartbeat glow beats steadily, and Fire's Element effect is
   centred.
 - Reset links: each options section you've changed can go back to its defaults, and each element
