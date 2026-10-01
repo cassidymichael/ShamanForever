@@ -7,7 +7,8 @@
 - It is tested in game from the branch, then merged into `main` keeping its commits
   (`git merge --ff-only`, or `--no-ff` for a larger piece of work). The branch is then deleted.
 - A branch that adds, removes or changes something players can do (not just a setting) updates the
-  README's Features section before it is merged. Experimental features are listed as experimental.
+  README's Features section before it is merged, in broad strokes (the About page lists what's
+  experimental, so the Features section doesn't).
 - Changes that don't touch what players get (docs, CI, repo files) can go straight to `main`.
 - A pull request only when a written record of a larger change helps; not for every change.
 

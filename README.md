@@ -16,29 +16,42 @@ More screenshots: [options gallery](docs/gallery/README.md).
 
 A collection of highly configurable HUD elements designed to help shamans playing World of Warcraft: Forever.
 
-- **Totem Bar**: Fully configurable totem bar replacing default or active totems frames: drop, pick and dismiss totems, Call of the Elements and Totemic Recall, an out-of-range warning, key bindings, themes, and more.
-- **Shock Trackers**: Earth, Flame, and Frost shock monitoring.
-- **Target Trackers**: Flame Shock on your target with its time left (a bar that changes colour near the end) and a look while it's missing, and Purge when your target has a Magic buff.
-- **Shield Helpers**: Lightning Shield and Water Shield tracking.
-- **Weapon Imbues**: Rockbiter, Flametongue, Frostbrand, and Windfury imbue status.
-- **Swing Timer**: melee swing timer shown as a bar.
-- **Spell Trackers**: Stormstrike, Fire Nova, Lava Burst, Chain Lightning, Riptide, Rage of the Farseer, Nature's Swiftness, Mana Tide Totem, each with the timers, bars, glows and pops that suit it.
-- **Totem Trackers**: Earthbind, Tremor, Grounding, and Stoneclaw Totem helpers.
-- **Utility Trackers**: Elemental Focus, Water Walking, Water Breathing, Maelstrom Weapon, Totemic Projection, Reincarnation.
-- **Racial Trackers**: your race's racial abilities (experimental).
-- **Text and Bars**: font, outline, shadow and bar texture for the HUD, from the game's or any that another addon shares through LibSharedMedia.
-- **Styles explorer**: every border look, pulsing glow and pop side by side on one page; right-click one to use it.
+Some highlights include:
 
-The addon organizes these elements into configurable groups with unlock and preview modes for customizable on-screen placement. Each element can fade or hide while it's idle, for example a shock shown only while it cools down.
+**Totem bar**: Fully configurable totem bar replacing the default or active totem frames: drop, pick and dismiss totems, Call of the Elements and Totemic Recall, out of range warning, key bindings, themes, and more.
 
-Some features are experimental: not fully tested, and may not work properly. The About page lists them.
+**Shield helpers**: Lightning Shield and Water Shield tracking. Style and animate based on charges left.
+
+**Shock trackers**: Earth, Flame, and Frost Shock monitoring for cooldown, range, mana.
+
+**Flame Shock**: Track Flame Shock on your target with style and animations based on time left or debuff missing.
+
+**Purge**: Show and glow an icon when your target has a purgeable magic buff, with buff duration filter.
+
+**Weapon Imbues**: Rockbiter, Flametongue, Frostbrand, and Windfury imbue status. Warn when missing.
+
+**Swing timer**: Melee swing timer shown as a bar.
+
+**Dedicated ability and proc trackers**: Custom made indicators for shaman abilities such as Stormstrike, Fire Nova, Chain Lightning, Riptide, Rage of the Farseer, Nature's Swiftness, Mana Tide Totem, Earthbind Totem, Tremor Totem, Grounding Totem, Stoneclaw Totem, Totemic Projection, Elemental Focus, Maelstrom Weapon. Not just cooldowns, also event, duration and condition-based warnings and animation styles.
+
+**Utility and reagent trackers**: Water Walking, Water Breathing, Reincarnation. Know when you are low on reagents, see Reincarnation cooldown, get warnings on buff expiry or when drowning.
+
+**Racial trackers**: All shaman races have their racial abilities included; Stoneform, Blood Fury, Shatter Curse, Berserking, Rapid Regeneration, Skysight, Walk on Air, War Stomp.
+
+**Extremely customisable styling**: Font and text styles, border options, bar textures, including those from other installed addons through LibSharedMedia.
+
+**Layout and preview system**: Drag and drop element groups live on the screen and quickly adjust size, scale, opacity. Get a sense of the action with preview modes. Structured group-based layout for consistency of layout.
+
+**Many opacity and idle settings**: Control the opacity of all groups, plus dedicated "idle when" logic to allow setups like hiding an element when it's on or off cooldown, when a buff is up or down, only in combat, and more.
+
+... and many more! Feature requests are highly encouraged. Please help us make this addon more valuable for all shamans!
 
 ## Usage
 
-- `/sf` opens the options window (also the minimap button, and under Escape > Options > AddOns). Right-click the minimap button to lock or unlock positioning.
-- Key bindings for the totem bar: Escape > Options > Keybindings > ShamanForever, or hover the bar in Quick Keybind Mode. Each button can show its key.
-- `/sf lock` to unlock positioning and move and scale groups on screen (the bar that appears lists the controls), `/sf lock` again when done.
-- `/sf preview` shows the whole HUD in a typical moment while you arrange it, `/sf preview` again to stop.
+*   `/sf` opens the options window (or use the minimap button).
+*   Key bindings for the totem bar: Escape > Options > Keybindings > ShamanForever, or use the Quick Keybinds feature.
+*   `/sf lock` to unlock positioning.
+*   `/sf preview` shows your HUD in various modes to get a sense of it in action.
 
 ## Feedback
 
