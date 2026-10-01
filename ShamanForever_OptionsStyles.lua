@@ -27,7 +27,7 @@ local HOLD = 1.2           -- seconds a playing cell keeps its tile: past the lo
 -- What every cell shows, chosen on the strip at the top: the element the looks take and its sample
 -- icon (or All: a look that differs by element once for each), the backdrop, the icon size, the scale of every section (to see a border up close), the
 -- pop's colour, and the pop grid's flash. For this session.
-local view = { school = "fire", backdrop = "dark", size = "small", scale = 1,
+local view = { school = "fire", backdrop = "dark", size = "small", scale = 1.2,
 	colorBy = S.KINDS.pop.defaults.colorBy, flash = S.KINDS.pop.defaults.flash }
 local stamp = 0   -- counts strip changes: a tile dressed before the last one dresses again
 
