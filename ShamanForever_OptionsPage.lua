@@ -1052,7 +1052,7 @@ function Page:dropdown(label, tip, choices, get, set, shown, width, menu)
 	local dd = CreateFrame("DropdownButton", nil, f, "WowStyle1DropdownTemplate")
 	dd:SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
 	dd:SetWidth(width or 200)
-	-- Its menu is made when the row first shows, not on every show (Blizzard's OnShow): see update.
+	-- Not Blizzard's rebuild on every show: see update.
 	dd:SetScript("OnShow", nil)
 	menu = menu or function(_, rootDescription)
 		rootDescription:SetScrollMode(400)   -- a long list (fonts, textures) scrolls past 400 px
@@ -1062,9 +1062,7 @@ function Page:dropdown(label, tip, choices, get, set, shown, width, menu)
 		end
 	end
 	f.dropdown = dd
-	-- The menu is made the first time the row shows, then again (its text with it) only when the
-	-- value or the choices changed since the last refresh: making it is the costliest part of a
-	-- page's refresh. Opening it makes it afresh (Blizzard's).
+	-- The menu: made on the row's first show, then only when the value or choices change (costly).
 	-- Never while the list is open: Blizzard rebuilds an open menu in place, and a scrolling one
 	-- keeps its old rows in its scroll list (blank gaps). A change then waits for it to close.
 	local was

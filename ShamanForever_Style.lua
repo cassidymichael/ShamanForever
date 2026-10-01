@@ -305,9 +305,7 @@ function S.value(owner, kind, field)
 	return v
 end
 
--- One options repaint's reads (S.beginReads to S.endReads, which may nest): S.read and
--- S.readShipped work a style out once per owner and kind, until a change. What they return is
--- shared: read it, never change it.
+-- One options repaint's reads, each style once until a change. Shared: never change what they return.
 local reads, readDepth, GLOBAL = nil, 0, {}
 function S.beginReads()
 	readDepth = readDepth + 1
