@@ -1,4 +1,4 @@
--- Your hostile target: your Flame Shock on it and a Magic buff on it to Purge. Both are experimental.
+-- Your hostile target: your Flame Shock on it and a Magic buff on it to Purge.
 -- Tested on open-world mobs in combat (2026-09-30): the containers following the target, Flame
 -- Shock's cover, time bar and Expiring, Purge's icon and glow. Not yet tested in a PvP match or an
 -- encounter, where auras are secret out of combat too.
