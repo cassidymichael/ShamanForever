@@ -38,10 +38,11 @@ S.register("glow", {
 	-- Its look (S.addLook; ShamanForever_Looks.lua), colour, one pulse's length (s), the dimmest it
 	-- gets between pulses, how far in from the edges it reaches (share of the icon), how bright
 	-- a look that has an intensity is (1 = as drawn), and how long a lap round the icon takes (s)
-	-- for a look that runs round it. Killed early's glow keeps its red.
+	-- for a look that runs round it, and, for School material, its pattern's size (in icon widths)
+	-- and how fast it drifts (1 = as drawn). Killed early's glow keeps its red.
 	defaults = { look = "soft", color = { 1, 0.8, 0.25, 1 }, speed = 0.5, low = 0.25, width = 0.2, strength = 1,
-		lap = 1.6 },
-	ranges = { lap = { 0.6, 4 } },
+		lap = 1.6, scale = 1.5, drift = 1 },
+	ranges = { lap = { 0.6, 4 }, scale = { 0.5, 2 }, drift = { 0.25, 3 } },
 	path = { "glowStyle" },
 	-- Purge's glow starts as Blizzard's proc ring, and Shields' No shield and Flame Shock's Not on
 	-- target glows as the soft inner glow: their own styles rather than General's.
@@ -89,7 +90,8 @@ S.register("border", {
 --   bySchool       it differs by school (previews show one icon per school)
 --   uses           the style fields it reads, field -> true (the options show only those)
 --   fields         field -> { name, tip, range = { min, max }, step, format }: a field it reads its
---                  own way, offered under its own label while it is picked
+--                  own way, offered under its own label while it is picked (format: a string for
+--                  string.format, or a function of the value)
 --   preview        hints for previews: { play = "loop" | "hover" | "still", bg = "dark" | "snow",
 --                  size }
 --   credit         "ai": drawn with art made with an AI model

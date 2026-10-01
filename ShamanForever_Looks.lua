@@ -847,55 +847,77 @@ local spark = {
 }
 
 -- The inner glow carrying its school's texture, drifting. The texture is larger than the icon
--- and slides one tile under a mask of the glow's shape, which stays put. Whether a mask holds still
--- while its texture moves is untested: if it doesn't, the texture shows still.
-local MATERIAL = {   -- school -> tile move (in tiles), seconds a tile
-	earth = { 0, 0, 1 }, fire = { 0, 1, 2.2 }, water = { 1, -1, 5 }, air = { 1, 0, 1.2 }, spirit = { 1, -1, 5 },
+-- (the icon plus a tile each side) and slides one tile under a mask of the glow's shape, which
+-- stays put. Whether a mask holds still while its texture moves is untested: if it doesn't, the
+-- texture shows still.
+local MATERIAL = {   -- school -> tile move (in tiles), seconds a tile at Drift speed 1
+	earth = { 0, 0, 0.7 }, fire = { 0, 1, 1.4 }, water = { 1, -1, 3 }, air = { 1, 0, 0.8 }, spirit = { 1, -1, 3 },
 }
--- The drift for the school and the size last fitted (none yet: fit sets it).
-local function materialDrift(parts)
+-- The texture's size, tiling and drift for the school, size and pattern size last set.
+local function materialLayout(g, parts)
 	local size = parts.size
-	if not size then return end
+	if not (size and parts.pattern) then return end
 	local mv = MATERIAL[parts.school or "spirit"] or MATERIAL.spirit
-	parts.move:SetOffset(mv[1] * size, mv[2] * size)
+	local tile = size * parts.pattern
+	local side = size + 2 * tile
+	local cover = side / tile
+	for i, t in ipairs(parts.tex) do
+		t:SetSize(side, side)
+		t:ClearAllPoints()
+		t:SetPoint("CENTER", g, "CENTER", 0, 0)
+		t:SetTexCoord(0, cover, 0, cover)
+		parts.moves[i]:SetOffset(mv[1] * tile, mv[2] * tile)
+	end
 end
--- Intensity: below 100% the material dims; above it the glow under it brightens too (the material
--- itself is already at full opacity, so more light has to come from the soft glow beneath).
+-- Intensity: below 100% the material dims; above it a second copy of it adds light, twice as
+-- bright at 200%.
 local material = {
-	uses = { color = true, speed = true, strength = true }, bySchool = true, inside = true,
+	uses = { color = true, strength = true, width = true }, bySchool = true, inside = true, steady = true,
+	fields = {
+		scale = { name = "Pattern size", tip = "How big the pattern is.", range = S.KINDS.glow.ranges.scale, step = 0.1,
+			format = "%.1fx" },
+		drift = { name = "Drift speed", tip = "How fast the pattern moves.", range = S.KINDS.glow.ranges.drift, step = 0.05,
+			format = "%.2fx" },
+		width = { name = "Rim", tip = "How far in the edge glow reaches.", range = { 0.1, 0.5 }, step = 0.05,
+			format = function(v) return string.format("%d%%", v * 100 + 0.5) end },
+	},
 	build = function(g)
 		local r = root(g.inner)
-		local parts = { roots = { r }, soft = softPart(r, 0.35) }
-		local t = r:CreateTexture(nil, "OVERLAY", nil, 1)
-		t:SetBlendMode("ADD")
+		local parts = { roots = { r }, soft = softPart(r, 0.6), tex = {}, moves = {}, anims = {}, aura = {}, moving = { r } }
 		local m = r:CreateMaskTexture()
 		m:SetTexture(MEDIA .. "Glow-Inner", CLAMP, CLAMP)
 		m:SetAllPoints(g)
-		t:AddMaskTexture(m)
-		local drift, a = anim(t, "Translation", "REPEAT")
-		parts.mat, parts.drift, parts.move, parts.anims, parts.aura = t, drift, a, { drift }, { drift }
-		parts.moving = { r }
+		for i = 1, 2 do
+			local t = r:CreateTexture(nil, "OVERLAY", nil, i)
+			t:SetBlendMode("ADD")
+			t:AddMaskTexture(m)
+			local drift, a = anim(t, "Translation", "REPEAT")
+			parts.tex[i], parts.moves[i] = t, a
+			table.insert(parts.anims, drift)
+			table.insert(parts.aura, drift)
+		end
 		return parts
 	end,
 	style = function(g, parts, st, c)
 		local k = st.strength or 1
-		parts.soft.alpha = math.min(0.35 * math.max(k, 1), 1)
 		styleSoft(parts.soft, c)
 		local school = effectSchool(g)
 		parts.school = school
-		parts.mat:SetTexture(MEDIA .. "Mat-" .. school:sub(1, 1):upper() .. school:sub(2), "REPEAT", "REPEAT")
-		parts.mat:SetTexCoord(0, 3, 0, 3)
-		parts.mat:SetVertexColor(c[1], c[2], c[3], (c[4] or 1) * math.min(k, 1))
-		parts.move:SetDuration((MATERIAL[school] or MATERIAL.spirit)[3])
-		materialDrift(parts)
+		parts.pattern = st.scale
+		local file = MEDIA .. "Mat-" .. school:sub(1, 1):upper() .. school:sub(2)
+		local alpha = { math.min(k, 1), math.min(math.max(k - 1, 0), 1) }
+		for i, t in ipairs(parts.tex) do
+			t:SetTexture(file, "REPEAT", "REPEAT")
+			t:SetVertexColor(c[1], c[2], c[3], (c[4] or 1) * alpha[i])
+			t:SetShown(alpha[i] > 0)
+			parts.moves[i]:SetDuration((MATERIAL[school] or MATERIAL.spirit)[3] / math.max(st.drift or 1, 0.1))
+		end
+		materialLayout(g, parts)
 	end,
 	fit = function(g, parts, size)
-		fitSoft(g, parts.soft, size)
-		parts.mat:SetSize(size * 3, size * 3)
-		parts.mat:ClearAllPoints()
-		parts.mat:SetPoint("CENTER", g, "CENTER", 0, 0)
+		fitSoft(g, parts.soft, size, g.width)
 		parts.size = size
-		materialDrift(parts)
+		materialLayout(g, parts)
 	end,
 }
 
