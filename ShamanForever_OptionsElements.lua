@@ -161,8 +161,8 @@ function EP.buildOverview(p)
 			end
 		end)
 	end
-	-- The styles an element has its own of (General's otherwise), by name: the timers, glow and pop
-	-- it offers, from ns.Style.
+	-- The styles an element has its own of (the global ones otherwise), by name: the timers, glow
+	-- and pop it offers, from ns.Style.
 	local STYLE_NAMES = { { "cooldown", "Cooldown timer" }, { "uptime", "Time left timer" },
 		{ "glow", "Pulsing glow" }, { "pop", "Pop" } }
 	local function ownStyles(key)
@@ -409,8 +409,8 @@ local function idleBlock(p, def)
 		choices and showWhen(function() return not never() end) or nil)
 end
 
--- Standard blocks at the end of a page: the pulsing glow's and the pop's styles, General's or its
--- own, where the element has something they apply to (its effects, ns.registerElement).
+-- Standard blocks at the end of a page: the pulsing glow's and the pop's styles, the global ones or
+-- its own, where the element has something they apply to (its effects, ns.registerElement).
 local function effectBlocks(p, key)
 	local e = ns.ELEMENTS[key]
 	if #e.effects.glow > 0 then glowBlock(p, key, e.icon) end

@@ -201,8 +201,8 @@ local function cleanProfile(t)
 	end
 	clampNumbers(out, RANGES, DEFAULTS)
 	if out.chargeBarColor and not ns.isColor(out.chargeBarColor) then out.chargeBarColor = nil end
-	-- General's styles are cleaned when read (ShamanForever_Style.lua); so are elements' own, and the
-	-- totem bar's settings (ShamanForever_TotemBar.lua).
+	-- The global styles are cleaned when read (ShamanForever_Style.lua); so are elements' own, and
+	-- the totem bar's settings (ShamanForever_TotemBar.lua).
 	if out.elementOpts then
 		for key, o in pairs(out.elementOpts) do
 			if type(key) ~= "string" or type(o) ~= "table" then out.elementOpts[key] = nil

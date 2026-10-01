@@ -592,7 +592,7 @@ local function buildSettings(p)
 		function(v)
 			local g = G()
 			if not g then return end
-			if not v then g.size = db().iconSize end   -- its own starts from General's, so nothing jumps
+			if not v then g.size = db().iconSize end   -- from the global size: nothing jumps
 			g.sizeFollow = v
 			relayout()
 		end, "size")

@@ -35,7 +35,7 @@ local GAME = {
 local gameByName = {}
 for _, g in ipairs(GAME) do gameByName[g[1]] = g end
 
--- Output channels (PlaySound's), for General.
+-- Output channels (PlaySound's), for Global settings.
 S.CHANNELS = { { "Master", "Master" }, { "SFX", "Sound effects" }, { "Dialog", "Dialog" } }
 local CHANNEL_OK = { Master = true, SFX = true, Dialog = true }
 
@@ -168,7 +168,7 @@ function S.row(p, label, tip, get, set, shown)
 	return row
 end
 
--- General's Sounds block: the channel every sound plays on.
+-- Global settings' Sounds block: the channel every sound plays on.
 function S.generalBlock(p)
 	p:header("Sounds")
 	p:text("Elements and the totem bar pick their own sounds, on their pages. All start at None.")

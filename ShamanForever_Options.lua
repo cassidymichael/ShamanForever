@@ -56,9 +56,9 @@ end
 local pct, times, int, px = Page.pct, Page.times, Page.int, Page.px
 
 ------------------------------------------------------------------------
--- Styles (ShamanForever_Style.lua): General sets each one; an element, a group or the totem bar can
--- have its own. owner: nil for General, an element key, "totembar", or a function returning the
--- selected group (nil while there is none).
+-- Styles (ShamanForever_Style.lua): Global styles set each one; an element, a group or the totem
+-- bar can have its own. owner: nil for the global one, an element key, "totembar", or a function
+-- returning the selected group (nil while there is none).
 ------------------------------------------------------------------------
 local function resolve(owner) if type(owner) == "function" then return owner() end return owner end
 
@@ -79,7 +79,7 @@ local function ownStyle(p, owner, kind, after)
 	p:owns({ style = kind, owner = owner, after = after })
 end
 
--- "Same as General" for a style: on, the rows under it hide; off the first time, the owner keeps
+-- "Same as Global" for a style: on, the rows under it hide; off the first time, the owner keeps
 -- the look it has as its own, and later its own values come back.
 local function followRow(p, owner, kind, after, label, shown)
 	if type(owner) == "string" then ns.Style.addUser(kind, owner) end
@@ -95,7 +95,7 @@ local function followRow(p, owner, kind, after, label, shown)
 end
 
 -- A style's rows: style() now, get(field) and set(field) for controls, and own(), whether the rows
--- apply (General's, or an owner with its own). The block being built owns the style.
+-- apply (the global style, or an owner with its own). The block being built owns the style.
 local function styleRows(p, owner, kind, after)
 	local St = ns.Style
 	ownStyle(p, owner, kind, after)
@@ -116,7 +116,7 @@ local function styleRows(p, owner, kind, after)
 	return r
 end
 
--- General's lookup of what currently has its own, under a style's rows.
+-- Global styles' lookup of what currently has its own, under a style's rows.
 local function ownLine(p, kind)
 	p:text(function() return "Currently using their own: " .. table.concat(ns.Style.ownStyles(kind), ", ") end,
 		function() return #ns.Style.ownStyles(kind) > 0 end)
@@ -214,10 +214,11 @@ local function previewTiles(f, owner, icon, x, bySchool)
 	end
 end
 
--- Standard rows: the border around icons, General's or an owner's (a group, the totem bar). Sizes
--- and colours show only for looks that use them. The HUD lays out only out of combat (the shield's
--- group and the totem bar's buttons are protected then), so a change made in combat reaches it
--- when combat ends, as every other layout setting does; the previews here take it at once.
+-- Standard rows: the border around icons, the global one or an owner's (a group, the totem bar).
+-- Sizes and colours show only for looks that use them. The HUD lays out only out of combat (the
+-- shield's group and the totem bar's buttons are protected then), so a change made in combat
+-- reaches it when combat ends, as every other layout setting does; the previews here take it at
+-- once.
 local function borderRows(p, owner, after, label, shown)
 	after = after or relayout
 	local r = styleRows(p, owner, "border", after)
@@ -228,7 +229,7 @@ local function borderRows(p, owner, after, label, shown)
 	if owner ~= "swing" then
 		local f = p:row(52)
 		p:label(f, "Preview")
-		-- A group's first element, the totem bar's earth slot, or General's sample.
+		-- A group's first element, the totem bar's earth slot, or Global styles' sample.
 		local function icon()
 			local o = resolve(owner)
 			if o == "totembar" then return 136098 end
@@ -248,7 +249,7 @@ local function borderRows(p, owner, after, label, shown)
 end
 
 -- An element's pick of the element its pop and School material glow take (popSchool: its own
--- setting, not a style field, so it stays whether or not the element follows General).
+-- setting, not a style field, so it stays whether or not the element follows the global style).
 local function popSchoolRow(p, key, shown)
 	local function get()
 		local v = ns.elementSetting(key, "popSchool")
@@ -411,8 +412,8 @@ local function killedBlock(p, get, set, noun, label)
 end
 
 -- Standard block: the text style (ShamanForever_Media.lua), the font, outline and shadow of all an
--- owner's text: timers, counts, keys. owner nil: General's; "totembar" or "swing": the bar's own,
--- with Same as General. The list draws each font in itself, once it's known to load.
+-- owner's text: timers, counts, keys. owner nil: the global one; "totembar" or "swing": the bar's
+-- own, with Same as Global. The list draws each font in itself, once it's known to load.
 local function fontChoices(current)
 	local out = {}
 	for _, f in ipairs(ns.Media.fonts(current)) do
@@ -444,8 +445,8 @@ local function textBlock(p, owner, after)
 	if owner == nil then ownLine(p, "text") end
 end
 
--- A bar texture's rows (ShamanForever_Media.lua): owner nil, General's; "totembar" or "swing", the
--- bar's own, with Same as General. The list shows each texture as a strip.
+-- A bar texture's rows (ShamanForever_Media.lua): owner nil, the global one; "totembar" or "swing",
+-- the bar's own, with Same as Global. The list shows each texture as a strip.
 local function barRows(p, owner, after)
 	after = after or relayout
 	local r = styleRows(p, owner, "bar", after)
@@ -469,7 +470,8 @@ local function barRows(p, owner, after)
 	local function problem() return ns.Media.barProblem(owner) end
 	p:text(function() return problem() or "" end, showWhen(function() return r.own() and problem() ~= nil end))
 end
--- General's: every time bar, the shield's charge bar, Maelstrom's stack bar and the swing timer.
+-- The global one: every time bar, the shield's charge bar, Maelstrom's stack bar and the swing
+-- timer.
 local function barBlock(p)
 	p:header("Bar texture")
 	p:anchor("bar")
@@ -478,8 +480,9 @@ local function barBlock(p)
 	ownLine(p, "bar")
 end
 
--- Standard block: a timer's look (ShamanForever_Timers.lua). key nil: General's for the kind, with
--- note under its header; otherwise an element's own ("totembar" for the totem bar), with Same as General.
+-- Standard block: a timer's look (ShamanForever_Timers.lua). key nil: the global one for the kind,
+-- with note under its header; otherwise an element's own ("totembar" for the totem bar), with
+-- Same as Global.
 -- first: an optional function adding the element's own rows at the top of the block, under its
 -- header.
 local TEXT_POS = { { "auto", "Auto" }, { "center", "Centre" }, { "topleft", "Top left" }, { "bottom", "Bottom" } }
@@ -491,8 +494,8 @@ local function timerSettings(p, title, key, kind, after, note, first, barPlaced)
 	p:header(title)
 	local r = styleRows(p, key, kind, after)
 	local style, tg, ts, own = r.style, r.get, r.set, r.own
-	-- A part's switch hides while following General, or when the game can't do it; the rows under it
-	-- hang on it while it's on.
+	-- A part's switch hides while following the global style, or when the game can't do it; the
+	-- rows under it hang on it while it's on.
 	local function part(name) return showWhen(function() return not cant[name] and own() end) end
 	local function on(field) return function() return style()[field] end end
 	if not key then p:anchor(kind) end
@@ -542,8 +545,8 @@ local function timerSettings(p, title, key, kind, after, note, first, barPlaced)
 	if not key then ownLine(p, kind) end
 end
 
--- Standard block: the global cooldown's sweep, on or off (the gcd style). key nil: General's;
--- otherwise an element's or the totem bar's, with Same as General.
+-- Standard block: the global cooldown's sweep, on or off (the gcd style). key nil: the global one;
+-- otherwise an element's or the totem bar's, with Same as Global.
 local function gcdBlock(p, key)
 	local function after() ns.refreshAll(); ns.TotemBar.refreshGCD(); OP.refresh() end
 	p:header("Global cooldown")
@@ -968,7 +971,8 @@ local function buildTotemBar(p)
 	local sizeFollow = globalRow(p, "Icon size same as Global", "Use the global icon size.",
 		tget("sizeFollow"), function(v) TB.setSizeFollow(v); changed() end, "size")
 	-- Its own size (none until the switch is first turned off) matters only while the switch is
-	-- off, itself a change; a reset clears it, so turning the switch off starts from General's again.
+	-- off, itself a change; a reset clears it, so turning the switch off starts from the global one
+	-- again.
 	own("size", { default = tget("size"), reset = function() c().size = nil end })
 	p:sub(sizeFollow, function() return not c().sizeFollow end, function()
 		p:slider("Icon size", nil, 24, 96, 1, px,
@@ -1014,11 +1018,11 @@ local function buildTotemBar(p)
 	p.gate = TB.barOn
 	local function beside() return TB.skin.barPlace() == "out" end
 	timerSettings(p, "Time left", "totembar", "uptime", changed, nil, nil, beside)
-	-- The bar's own, whether its timers follow General or not.
+	-- The bar's own, whether its timers follow the global ones or not.
 	p:dropdown("Time bar position", "Beside the icon: on the side away from the pickers.",
 		{ { "in", "In the icon" }, { "out", "Beside the icon" } }, tget("barPlace"), tset("barPlace"),
 		function() return ns.Style.value("totembar", "uptime", "bar") and not TB.skin.owns("barPlace") end, 190)
-	-- The time bars' texture: General's, or the bar's own (in the icon or beside it).
+	-- The time bars' texture: the global one, or the bar's own (in the icon or beside it).
 	barRows(p, "totembar", changed)
 	textBlock(p, "totembar", changed)
 

@@ -171,7 +171,7 @@ local function makePreviewIcon(parent, key, preview)
 end
 L.makePreviewIcon = makePreviewIcon   -- the HUD's preview mode draws its stand-ins with these
 
--- Filled segments out of n (n = 1 gives a fraction bar); r, g, b the fill colour, on General's bar
+-- Filled segments out of n (n = 1 gives a fraction bar); r, g, b the fill colour, on the global bar
 -- texture as the HUD's charge bar.
 local function setBar(ic, n, filled, r, g, b)
 	local w = ic:GetWidth()
@@ -1204,7 +1204,7 @@ end
 
 ------------------------------------------------------------------------
 -- Look tiles: an icon wearing a look that isn't saved anywhere, for pickers and previews. A tile
--- is ns.makeIcon on a sandbox owner (a table of its own, so General and every element are
+-- is ns.makeIcon on a sandbox owner (a table of its own, so the global style and every element are
 -- untouched) and draws through the HUD's own code: the icon, its effect host, Looks.fit, the pop.
 -- L.tilePool.acquire makes one; release gives it back (tiles are never made per refresh).
 ------------------------------------------------------------------------
@@ -1224,8 +1224,8 @@ do
 
 	local function copy(v) return type(v) == "table" and CopyTable(v) or v end
 
-	-- The sandbox's table for a kind: a clean copy of style st (whole, so General never shows
-	-- through), not following General.
+	-- The sandbox's table for a kind: a clean copy of style st (whole, so the global style never
+	-- shows through), not following the global style.
 	local function setStyle(owner, kind, st)
 		local spec = ns.Style.KINDS[kind]
 		local t = ns.Style.clean(st, spec.defaults, spec.ranges)
@@ -1233,8 +1233,9 @@ do
 		owner[spec.path[1]] = t
 	end
 
-	-- Wears the styles base uses (an owner: nil for General's, an element key, "totembar", a group's
-	-- table) with over on top: { border = {...}, glow = {...}, pop = {...} }, fields of each kind.
+	-- Wears the styles base uses (an owner: nil for the global one, an element key, "totembar", a
+	-- group's table) with over on top: { border = {...}, glow = {...}, pop = {...} }, fields of
+	-- each kind.
 	function Tile:wear(base, over)
 		for _, kind in ipairs(KINDS) do
 			local st = ns.Style.get(base, kind)
@@ -1328,11 +1329,11 @@ do
 	local Pool = {}
 	L.tilePool = Pool
 
-	-- A tile of size in parent, wearing General, in no school, the first school's sample icon,
-	-- hidden glow and no label; shown, and not anchored: the caller places t.box (t:point). want: a
-	-- tile given back earlier, taken again while it's free (the looks it wore are made already), or
-	-- a test: the newest free tile that passes it is taken first. strict: a tile is made rather
-	-- than take one the test refuses.
+	-- A tile of size in parent, wearing the global style, in no school, the first school's sample
+	-- icon, hidden glow and no label; shown, and not anchored: the caller places t.box (t:point).
+	-- want: a tile given back earlier, taken again while it's free (the looks it wore are made
+	-- already), or a test: the newest free tile that passes it is taken first. strict: a tile is
+	-- made rather than take one the test refuses.
 	function Pool.acquire(parent, size, want, strict)
 		local t
 		if want then

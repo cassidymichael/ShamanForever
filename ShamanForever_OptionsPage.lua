@@ -542,8 +542,8 @@ end
 ------------------------------------------------------------------------
 -- A ref names one setting: { elem = key, name } (an element's own, db.elementOpts), { general =
 -- name } (the profile's, db), { bar = "totembar" or "swing", name }, { group = g or a function
--- returning it, name }, { style = kind, owner } (a whole style: General's or an owner's). Any ref
--- may also carry:
+-- returning it, name }, { style = kind, owner } (a whole style: the global one or an owner's). Any
+-- ref may also carry:
 --   after    the follow-up its row runs after a change; a reset runs each one once
 --   default  a function returning the value to compare with, in place of its kind's
 --   changed  a function of the ref: whether it differs from its default, in place of the compare
@@ -673,9 +673,9 @@ Page.refKind("group", {
 	end,
 })
 
--- A style (ShamanForever_Style.lua): owner nil for General's, an owner key, or a function returning
--- a group (nil while none is chosen). Changed: off how it ships (a "Same as General" switched, or
--- values of its own that differ); a reset puts it back as shipped.
+-- A style (ShamanForever_Style.lua): owner nil for the global one, an owner key, or a function
+-- returning a group (nil while none is chosen). Changed: off how it ships (a "Same as Global"
+-- switched, or values of its own that differ); a reset puts it back as shipped.
 local function styleOwner(r)
 	if type(r.owner) == "function" then
 		local o = r.owner()
@@ -877,7 +877,7 @@ function Page.flash(_, frame)
 	flash:Play()
 end
 
--- Names the last row added, for ns.Options.openGeneral and the like to scroll to.
+-- Names the last row added, for ns.Options.openGlobal and the like to scroll to.
 function Page:anchor(name)
 	self.anchors = self.anchors or {}
 	self.anchors[name] = self.items[#self.items].frame

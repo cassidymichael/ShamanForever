@@ -1,8 +1,8 @@
 -- The options window's Styles explorer page: a gallery of every border look, pulsing glow and
 -- pop, each on one sample icon with everything else as shipped (never the player's own settings).
--- Right-click one to use it in General. The looks come from ns.Style's choices, so a new one shows
--- up here with no page code. The border and glow icons are look tiles (ns.Look.tilePool), taken
--- while their section shows and given back when it hides; the pop grid's cells hold a still
+-- Right-click one to use it as a global style. The looks come from ns.Style's choices, so a new one
+-- shows up here with no page code. The border and glow icons are look tiles (ns.Look.tilePool),
+-- taken while their section shows and given back when it hides; the pop grid's cells hold a still
 -- picture and take a tile only while they play. Nothing here runs while the page is closed.
 local _, ns = ...
 
@@ -45,7 +45,7 @@ local function schoolOf(key)
 end
 
 -- An owner whose border, glow and pop are as shipped, for the tiles to wear: every field set, so
--- ns.Style reads nothing from General.
+-- ns.Style reads nothing from the global styles.
 local NEUTRAL = {}
 for _, kind in ipairs({ "border", "glow", "pop" }) do
 	local spec = S.KINDS[kind]
@@ -55,7 +55,7 @@ for _, kind in ipairs({ "border", "glow", "pop" }) do
 end
 
 ------------------------------------------------------------------------
--- Using a look in General
+-- Using a look as a global style
 ------------------------------------------------------------------------
 local KIND_NAMES = { border = "border look", glow = "pulsing glow", pop = "pop" }
 local AFTER = {
@@ -67,7 +67,7 @@ local AFTER = {
 }
 K.confirm("SHAMANFOREVER_USE_STYLE", "Use %s for the global %s?", "Use", function(run) run() end)
 
--- Writes fields into General's style of kind, then what a change by hand runs.
+-- Writes fields into the global style of kind, then what a change by hand runs.
 local function use(kind, fields)
 	for k, v in pairs(fields) do S.set(nil, kind, k, v) end
 	AFTER[kind]()
@@ -417,7 +417,7 @@ local function flowSection(p, kind, field)
 			g.title:SetText(part.name)
 		end
 		for _, e in ipairs(part.list) do
-			-- A border cell also turns General's border on: it shows one.
+			-- A border cell also turns the global border on: it shows one.
 			local fields = kind == "border" and function() return { look = e.key, show = true } end
 				or function() return { [field] = e.key } end
 			-- A look that differs by element: one cell, and one per element for All.

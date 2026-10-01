@@ -2,9 +2,9 @@
 --
 -- A timer has three parts, each on or off: countdown text, swipe and time bar. There are two kinds:
 -- "cooldown" (a spell not ready yet) and "uptime" (a totem, shield or imbue running, "Time left"
--- in the UI). Each kind is a style (ShamanForever_Style.lua): General holds one (db.timers); an
--- element, or the totem bar, can have its own (elementOpts(key).timers[kind],
--- db.totemBar.timers[kind]) or follow General.
+-- in the UI). Each kind is a style (ShamanForever_Style.lua): the global style holds one
+-- (db.timers); an element, or the totem bar, can have its own (elementOpts(key).timers[kind],
+-- db.totemBar.timers[kind]) or follow the global style.
 --
 -- Every timer is fed a duration object, so nothing here reads a time: Cooldown and StatusBar take
 -- the object, and the bar's "run out" alpha comes from a curve (secret values go straight to
@@ -41,15 +41,16 @@ T.DEFAULTS = {
 for _, kind in ipairs(T.KINDS) do
 	for k, v in pairs(timeColors()) do T.DEFAULTS[kind][k] = v end
 end
--- Elements that look different from General until the player says otherwise: applied over
--- General's style, and they do not follow it by default.
+-- Elements that look different from the global style until the player says otherwise: applied over
+-- the global style, and they do not follow it by default.
 T.ELEMENT_DEFAULTS = {
 	-- The shield's time bar, when on, along the top: its charge bar is along the bottom.
 	shield = { uptime = { text = false, swipe = false, swipeAlpha = 0.5, swipeReverse = false, bar = false, barEdge = "top" } },
 	imbue = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = false } },
 	-- Flame Shock's time left: the countdown and a bar along the bottom, Blizzard's button drives both.
 	flameshock = { uptime = { text = true, bar = true, barEdge = "bottom" } },
-	-- Their time left as a bar only (whatever General says): the countdown shows the cooldown.
+	-- Their time left as a bar only (whatever the global style says): the countdown shows the
+	-- cooldown.
 	earthbind = { uptime = { text = false, bar = true } },
 	stoneclaw = { uptime = { text = false, bar = true } },
 	manatide = { uptime = { text = false, bar = true } },
@@ -94,8 +95,8 @@ local TIMER_IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarI
 -- How Blizzard's aura button drives an aura timer's bar (its SetDurationBar options): as ours do.
 T.AURA_BAR = { interpolation = TIMER_IMMEDIATE, direction = TIMER_REMAINING }
 
--- Both kinds are styles (ShamanForever_Style.lua): General's in db.timers[kind], an element's or the
--- totem bar's own in its timers[kind].
+-- Both kinds are styles (ShamanForever_Style.lua): the global one in db.timers[kind], an element's
+-- or the totem bar's own in its timers[kind].
 local S = ns.Style
 for _, kind in ipairs(T.KINDS) do
 	local own = {}
@@ -280,7 +281,7 @@ function Timer:apply()
 		pcall(cd.SetCountdownMillisecondsThreshold, cd, ms)
 	end
 	local c = s.textColor
-	ns.Media.setFontObject(self.font, self.key, s.textSize)   -- General's text style, or the totem bar's
+	ns.Media.setFontObject(self.font, self.key, s.textSize)   -- global text style, or the bar's
 	self.font:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 	cd:SetCountdownFont(self.fontName)
 	self.barOn = self.bar ~= nil and s.bar and not cant.bar
@@ -289,7 +290,8 @@ function Timer:apply()
 		local a = self.anchor
 		bar:ClearAllPoints()
 		bar:SetHeight(s.barHeight)
-		-- General's texture, or its owner's own (the totem bar's); before the colour, restated below.
+		-- The global texture, or its owner's own (the totem bar's); before the colour, restated
+		-- below.
 		bar:SetStatusBarTexture(ns.Media.barTexture(self.key))
 		if s.barEdge == "top" then
 			bar:SetPoint("TOPLEFT", a, "TOPLEFT", 0, 0); bar:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, 0)
