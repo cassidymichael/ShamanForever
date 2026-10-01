@@ -421,8 +421,13 @@ end
 -- Reset links.
 local LINK_H, LINK_GAP = 18, 14
 local LINK_GREY = 0.62
-local function textLink(parent, text, onClick)
+-- How far a Reset link takes clicks past its text, each way (x, y): 30 px tall in all, so a
+-- click meant for it doesn't land on the header beside it and fold the block.
+local RESET_PAD_X, RESET_PAD_Y = 8, 6
+-- pad: true for a Reset link's larger hit area.
+local function textLink(parent, text, onClick, pad)
 	local b = CreateFrame("Button", nil, parent)
+	if pad then b:SetHitRectInsets(-RESET_PAD_X, -RESET_PAD_X, -RESET_PAD_Y, -RESET_PAD_Y) end
 	b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	b.text:SetPoint("LEFT")
 	b:SetScript("OnClick", onClick)
@@ -480,7 +485,7 @@ function Page:placeFoldRow(on)
 		row.expand = textLink(row, "Expand all", function() self:foldAll(false) end)
 		row.expand:SetPoint("RIGHT", row.collapse, "LEFT", -LINK_GAP, 0)
 		if self.resetAll then
-			row.resetAll = textLink(row, "", self.resetAll.ask)
+			row.resetAll = textLink(row, "", self.resetAll.ask, true)
 			placeResets(nil, row)
 		end
 		self.foldRow = row
@@ -754,7 +759,7 @@ function Page:header(text, shown, note, icon)
 		f.says:SetJustifyH("RIGHT")
 		f.says:SetWordWrap(false)
 		f.says:Hide()
-		f.reset = textLink(f, "Reset", function() block:askReset() end)
+		f.reset = textLink(f, "Reset", function() block:askReset() end, true)
 		f.reset:Hide()
 		placeResets(f)
 		x = 16
@@ -805,6 +810,9 @@ function Page:header(text, shown, note, icon)
 		end)
 		f:SetScript("OnMouseUp", function(_, button)
 			if button ~= "LeftButton" then return end
+			-- A click on the Reset link, anywhere in its hit area, is the link's alone.
+			local link = f.reset
+			if link:IsShown() and link:IsMouseOver(RESET_PAD_Y, -RESET_PAD_Y, -RESET_PAD_X, RESET_PAD_X) then return end
 			local fold = not folded()[block.key]
 			if IsShiftKeyDown() then self:foldAll(fold) else self:setFolded(block, fold) end
 		end)
