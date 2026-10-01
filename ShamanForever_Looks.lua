@@ -1040,8 +1040,8 @@ local EFFECTS = {
 		sheen(out, "earth", 0.34, 0.05)
 	end,
 	fire = function(out)
-		burst(out, "shape1", shapeFile("fire"), 1.0, 3.1, { dur = 0.55, rise = 0.35, spin = 0.2 }, false, true)
-		burst(out, "shape2", shapeFile("fire"), 0.8, 1.9, { dur = 0.35, rise = 0.5, spin = -0.3, a = 0.7,
+		burst(out, "shape1", shapeFile("fire"), 1.0, 3.1, { dur = 0.55, spin = 0.2 }, false, true)
+		burst(out, "shape2", shapeFile("fire"), 0.8, 1.9, { dur = 0.35, spin = -0.3, a = 0.7,
 			color = { 1, 0.8, 0.45 } })
 		sheen(out, "fire", 0.34)
 	end,
