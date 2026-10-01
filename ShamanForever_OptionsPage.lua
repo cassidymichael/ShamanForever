@@ -288,11 +288,11 @@ function Page:paint()
 	for _, it in ipairs(self.items) do
 		local b = it.block
 		if it.head or it.ends then close() end   -- a header or a section ends the block before it
-		local show = not it.shown or it.shown()
+		-- A folded block keeps only its header; one whose header is hidden can't fold.
+		local show = not (b and not it.head and b.head.visible and isFolded(b))
+		show = show and (not it.shown or it.shown())
 		local sub = it.sub
 		if show and sub then show = sub.parent.visible and sub.active() and true or false end
-		-- A folded block keeps only its header; one whose header is hidden can't fold.
-		if show and b and not it.head and b.head.visible and isFolded(b) then show = false end
 		it.visible = show
 		it.frame:SetShown(show)
 		if show then
