@@ -221,7 +221,8 @@ end
 ------------------------------------------------------------------------
 -- A cell: its frame (the backdrop and the mouse), the tile it holds, and what it shows: kind
 -- (border, glow or pop), fields() (the style fields it sets), name() (for the menu and the
--- question), school (its own element, or the strip's) and pop (a pop grid cell: hovering plays it).
+-- question), school (its own element, or the strip's) and pop (a pop grid cell: hovering or a
+-- click plays it).
 local function newCell(parent, kind, fields, name, pop)
 	local c = { kind = kind, fields = fields, name = name, pop = pop }
 	local f = CreateFrame("Button", nil, parent)
@@ -232,7 +233,9 @@ local function newCell(parent, kind, fields, name, pop)
 		ns.cropIcon(c.still.pic)
 	end
 	f:SetScript("OnEnter", function() if c.pop then play(c) end end)
-	f:SetScript("OnMouseUp", function(_, button) if button == "RightButton" then menu(c) end end)
+	f:SetScript("OnMouseUp", function(_, button)
+		if button == "RightButton" then menu(c) elseif c.pop then play(c) end
+	end)
 	c.frame = f
 	return c
 end
@@ -476,7 +479,7 @@ local function field(key) return function() return view[key] end, function(v) vi
 ------------------------------------------------------------------------
 function SP.build(p)
 	p:pageTitle("Styles explorer")
-	p:text("Right-click a look to use it in General. Hover a pop to play it.")
+	p:text("Right-click a look to use it in General. Hover or click a pop to play it.")
 	local schools = {}
 	for _, sc in ipairs(L.SCHOOLS) do table.insert(schools, { sc.key, sc.name }) end
 	chips(p, "Element", schools, field("school"))
