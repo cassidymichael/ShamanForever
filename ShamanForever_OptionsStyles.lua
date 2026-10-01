@@ -102,13 +102,42 @@ local function cellShown(c)
 	return c.perSchool == (view.school == ALL)
 end
 
+-- The shipped settings, but with the Global border: what the glow and pop cells wear, so each looks
+-- as it does on an element that follows Global. The border cells show each look on its own.
+local function worn()
+	local b = S.global("border")
+	b.follow = false
+	local o = {}
+	for k, v in pairs(NEUTRAL) do o[k] = v end
+	o[S.KINDS.border.path[1]] = b
+	return o
+end
+
+-- A string that differs when a settings table's contents do.
+local function sigOf(v)
+	if type(v) ~= "table" then return tostring(v) end
+	local parts = {}
+	for k, x in pairs(v) do parts[#parts + 1] = tostring(k) .. "=" .. sigOf(x) end
+	table.sort(parts)
+	return "{" .. table.concat(parts, ",") .. "}"
+end
+
+-- Counts a change of the Global border like a strip change, so the cells wearing it dress again.
+local borderSig
+local function syncBorder()
+	local sig = sigOf(S.global("border"))
+	if sig == borderSig then return end
+	if borderSig then stamp = stamp + 1 end
+	borderSig = sig
+end
+
 -- A cell's tile in its look, on shipped settings, in its element, at the strip's size.
 local function dress(c)
 	local sc = cellSchool(c)
 	local own = {}
 	for k, v in pairs(preview[c.kind]) do own[k] = v end
 	for k, v in pairs(c.fields()) do own[k] = v end
-	c.tile:dress(NEUTRAL, { [c.kind] = own }, sc.key, sc.icon, size())
+	c.tile:dress(c.kind == "border" and NEUTRAL or worn(), { [c.kind] = own }, sc.key, sc.icon, size())
 	c.tile:glow(c.kind == "glow")
 	c.dressed = stamp
 end
@@ -165,22 +194,27 @@ local function giveTile(c)
 	c.tile = nil
 end
 
--- A pop grid cell at rest: the sample icon in the shipped border, which is one line (ns.Style's
--- border defaults), as a picture over a square of the line's colour; the tile that plays draws the
--- real thing over it.
+-- A pop grid cell at rest: the sample icon in the Global border, drawn by the HUD's own border
+-- code (Looks.fit) on a bare icon (a picture and nothing else), set as a tile's icon is, so the tile
+-- that plays looks the same under it.
 local function paintStill(c)
-	local st, s, b = c.still, size(), NEUTRAL.border
-	st.edge:ClearAllPoints()
-	st.edge:SetPoint("CENTER", c.frame, "TOP", 0, -c.stageH / 2)
-	st.edge:SetSize(s, s)
-	local o = b.show and ns.linePx(c.frame, b.size) or 0
-	st.edge:SetColorTexture(b.color[1], b.color[2], b.color[3], b.color[4] or 1)
-	st.edge:SetShown(b.show and not c.tile)
-	st.pic:ClearAllPoints()
-	st.pic:SetPoint("TOPLEFT", st.edge, "TOPLEFT", o, -o)
-	st.pic:SetPoint("BOTTOMRIGHT", st.edge, "BOTTOMRIGHT", -o, o)
-	st.pic:SetTexture(cellSchool(c).icon)
-	st.pic:SetShown(not c.tile)
+	syncBorder()
+	local st, s = c.still, size()
+	st.box:ClearAllPoints()
+	st.box:SetPoint("CENTER", c.frame, "TOP", 0, -c.stageH / 2)
+	st.box:SetSize(s, s)
+	local sc = cellSchool(c)
+	local key = table.concat({ borderSig, s, sc.key, c.frame:GetEffectiveScale() }, "|")
+	if st.drawn ~= key then
+		st.drawn = key
+		local b = worn()[S.KINDS.border.path[1]]
+		st.ic.school = sc.key
+		st.ic.tex:SetTexture(sc.icon)
+		ns.Looks.fit(st.ic, b, s)
+		st.ic:ClearAllPoints()
+		st.ic:SetPoint("CENTER", st.box, "CENTER", 0, 0)
+	end
+	st.box:SetShown(not c.tile)
 end
 
 ------------------------------------------------------------------------
@@ -247,7 +281,7 @@ local function warm(sec)
 		local t = pool.acquire(c.frame, size())
 		local sc = cellSchool(c)
 		local nothing = { pop = { burst = "none", motion = "none", flash = "none" } }
-		t:dress(NEUTRAL, nothing, sc.key, sc.icon, size())
+		t:dress(worn(), nothing, sc.key, sc.icon, size())
 		t:point("CENTER", c.frame, "TOP", 0, -c.stageH / 2)
 		t:pop("ready")
 		table.insert(warming, t)
@@ -268,14 +302,14 @@ local function newCell(parent, kind, fields, name, pop)
 	f.bg = f:CreateTexture(nil, "BACKGROUND")
 	f.bg:SetAllPoints()
 	if pop then
-		c.still = { edge = f:CreateTexture(nil, "ARTWORK"),
-			pic = f:CreateTexture(nil, "ARTWORK", nil, 1) }
-		ns.cropIcon(c.still.pic)
+		local box = CreateFrame("Frame", nil, f)
+		local ic = CreateFrame("Frame", nil, box)
+		ic.tex = ic:CreateTexture(nil, "ARTWORK")
+		ic.tex:SetAllPoints()
+		ns.cropIconExact(ic.tex)
 		-- Snapped as a tile's picture is, so the tile that plays lands on the same pixels.
-		if c.still.pic.SetSnapToPixelGrid then
-			c.still.pic:SetSnapToPixelGrid(true)
-			c.still.pic:SetTexelSnappingBias(0)
-		end
+		if ic.tex.SetSnapToPixelGrid then ic.tex:SetSnapToPixelGrid(true) end
+		c.still = { box = box, ic = ic }
 	end
 	f:SetScript("OnEnter", function() if c.pop then play(c) end end)
 	f:SetScript("OnMouseUp", function(_, button)
@@ -335,6 +369,7 @@ local function newSection(p, place, grid)
 		sec.box:SetSize(w, h)
 		sec.height = h * k
 		local visible = f:IsVisible()
+		syncBorder()
 		-- Cells hidden now give back first, so a cell shown again finds its own tile free.
 		for _, c in ipairs(sec.cells) do
 			if c.tile and not c.frame:IsShown() then
