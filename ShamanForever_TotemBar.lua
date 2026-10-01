@@ -107,10 +107,31 @@ local RANGES = {
 local function finite(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
 
--- The per-totem warning times a profile starts with (warnOver), by the client's names.
+-- The per-totem warning times a profile starts with (warnOver): spell key -> seconds.
+local WARN_OVER = { earthbind = 5, stoneclaw = 5, manaTide = 3 }
+
+-- Those times, by the client's names.
 function TB.warnOverDefaults()
-	local name = ns.Spells.name
-	return { [name("earthbind")] = 5, [name("stoneclaw")] = 5, [name("manaTide")] = 3 }
+	local out = {}
+	for key, secs in pairs(WARN_OVER) do out[ns.Spells.name(key)] = secs end
+	return out
+end
+
+-- Whether per-totem times (over) differ from those a profile starts with. A starting totem's time
+-- is found under the client's name, or the English one saved before the names loaded, as warnSecs
+-- reads it.
+function TB.warnOverChanged(over)
+	local seen = {}
+	for key, secs in pairs(WARN_OVER) do
+		local name = ns.Spells.name(key)
+		if over[name] == nil then name = ns.Spells.DEFS[key].en end
+		if over[name] ~= secs then return true end
+		seen[name] = true
+	end
+	for name in pairs(over) do
+		if not seen[name] then return true end
+	end
+	return false
 end
 
 -- The profile's bar settings, with defaults filled and wrong types or values reset (imported profiles).

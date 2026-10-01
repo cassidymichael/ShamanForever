@@ -1070,8 +1070,8 @@ local function buildTotemBar(p)
 	local secs = function(v) return v == 0 and "Off" or string.format("%d s", v) end
 	p:slider("Warn in the last", nil, 0, 30, 1, secs, tget("warn"), tset("warn"))
 	-- Its defaults are named by the client's spell names, which may not have loaded when they were
-	-- filled in: never counted as changed, only reset.
-	own("warnOver", { changed = function() return false end,
+	-- filled in: compared by TB.warnOverChanged, which takes either name.
+	own("warnOver", { changed = function() return TB.warnOverChanged(c().warnOver) end,
 		reset = function() c().warnOver = TB.warnOverDefaults() end })
 	p:text("Totems with their own warning time, instead of the default:", function() return next(c().warnOver) ~= nil end)
 	-- Each totem's own time, with a small X at the end of its row to drop it. Totems are kept by the
