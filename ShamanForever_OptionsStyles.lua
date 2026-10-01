@@ -107,9 +107,9 @@ end
 -- Making a tile takes a while (an icon with its effects); taking a free one back doesn't. At most
 -- MAKE_PER_FRAME are made a frame, and the page refreshes the next frame for the rest.
 local budget, budgetAt, again = 0, nil, false
-local function mayMake()
+local function mayMake(spare)
 	local _, free = pool.counts()
-	if free > 0 then return true end
+	if free - (spare or 0) > 0 then return true end
 	local now = GetTime()
 	if now ~= budgetAt then budget, budgetAt = MAKE_PER_FRAME, now end
 	if budget > 0 then
@@ -128,13 +128,18 @@ local players = {}   -- tiles that have played in the pop grid: their pops' part
 -- A cell takes back the tile it had last time where it can: that one has its look made already.
 -- A border or glow cell new to the page leaves the pop grid's players free for it. A pop plays
 -- at once, made or not.
+local function isPlayer(t) return tContains(players, t) end
+local function notPlayer(t) return not isPlayer(t) end
 local function takeTile(c, want)
-	if not c.pop and not mayMake() then return false end
 	want = want or c.last
-	if not (want and want.released) and not c.pop then
-		want = function(t) return not tContains(players, t) end
+	local strict = false
+	if not c.pop then
+		if not (want and want.released) then want, strict = notPlayer, true end
+		local spare = 0
+		for _, t in ipairs(players) do if t.released then spare = spare + 1 end end
+		if strict and not mayMake(spare) then return false end
 	end
-	c.tile = pool.acquire(c.frame, size(), want)
+	c.tile = pool.acquire(c.frame, size(), want, strict)
 	dress(c)
 	placeTile(c)
 	return true
