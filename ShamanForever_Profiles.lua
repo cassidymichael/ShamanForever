@@ -18,7 +18,7 @@ local ACCOUNT_DEFAULTS = {
 	keepOptionsOpen = false,  -- false: the options window steps aside while positioning or previewing
 	lastShield = "lightning",  -- the shield last cast or seen; its icon is the no-shield look in "either" mode
 	imbueIDs = {},            -- learned enchant ID -> imbue key
-	foldedBlocks = {},        -- "page:Header" -> true: options blocks the player folded (ShamanForever_OptionsPage.lua)
+	foldedBlocks = {},        -- "page:Header" -> true folded, false open (ShamanForever_OptionsPage.lua)
 	fearCasters = {},         -- the player's edits to Tremor's mob list (ShamanForever_Tremor.lua)
 	profiles = {},            -- name -> settings (ShamanForever.lua's DEFAULTS)
 	chars = {},               -- "Name-Realm" -> { profile = name }

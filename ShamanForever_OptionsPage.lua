@@ -25,9 +25,16 @@ local SLIDER_SPAN_W = 400   -- a slider and its value box, at most
 local TEXT_MAX_W = 600   -- text and boxed notices wrap here at the most (the page's width at 864)
 -- A block's panel: its rows inset from its sides, room under its last row, a gap to the next block.
 local PANEL_PAD, PANEL_PAD_B, BLOCK_GAP = 10, 6, 10
--- Folded blocks are saved with the account, by page and header text ("general:Border style"), so they
--- stay folded across a /reload.
+-- Folded and opened blocks are saved with the account, by page and header text ("general:Border
+-- style" = true folded, false open), so they stay as left across a /reload. A block never folded or
+-- opened starts folded, unless it's its page's first (page.firstFolded: that one too), its page has
+-- page.allOpen, or it's under a section made open (Page:section).
 local function folded() return ns.getAccount().foldedBlocks end
+local function isFolded(b)
+	local v = folded()[b.key]
+	if v == nil then return b.startFolded end
+	return v
+end
 local allPages = {}   -- every page made
 -- A sub's rows: indented a level at a time, two at most, beside a rule down from under their parent.
 local SUB_INDENT, SUB_MAX, RULE_X = 24, 2, 12
@@ -277,7 +284,7 @@ function Page:refresh()
 		local sub = it.sub
 		if show and sub then show = sub.parent.visible and sub.active() and true or false end
 		-- A folded block keeps only its header; one whose header is hidden can't fold.
-		if show and b and not it.head and b.head.visible and folded()[b.key] then show = false end
+		if show and b and not it.head and b.head.visible and isFolded(b) then show = false end
 		it.visible = show
 		it.frame:SetShown(show)
 		if show then
@@ -355,14 +362,14 @@ end
 
 -- Folds or opens block b.
 function Page:setFolded(b, fold)
-	folded()[b.key] = fold or nil
+	folded()[b.key] = fold and true or false
 	self:relaid()
 end
 
 -- Folds or opens every block whose header shows.
 function Page:foldAll(fold)
 	for _, b in ipairs(self.blockList) do
-		if b.head.visible then folded()[b.key] = fold or nil end
+		if b.head.visible then folded()[b.key] = fold and true or false end
 	end
 	self:relaid()
 end
@@ -371,7 +378,7 @@ end
 function Page:reveal(frame)
 	for _, it in ipairs(self.items) do
 		if it.frame == frame then
-			if it.block and folded()[it.block.key] then self:setFolded(it.block, false) end
+			if it.block and isFolded(it.block) then self:setFolded(it.block, false) end
 			return
 		end
 	end
@@ -396,8 +403,8 @@ end
 -- totem bar art, turned to point down while open and right while folded.
 local ARROW_BOX = 14
 local arrowAtlas = {}   -- atlas name -> its info, or false where the client lacks it
-local function paintArrow(t, isFolded)
-	local name = isFolded and "Professions-recipe-header-expand" or "Professions-recipe-header-collapse"
+local function paintArrow(t, shut)
+	local name = shut and "Professions-recipe-header-expand" or "Professions-recipe-header-collapse"
 	local info = arrowAtlas[name]
 	if info == nil then
 		info = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(name)
@@ -413,7 +420,7 @@ local function paintArrow(t, isFolded)
 		t:SetTexCoord(0.5625, 0.71875, 0.34375, 0.3828125)
 		t:SetBlendMode("ADD")
 		t:SetSize(12, 7)
-		t:SetRotation(isFolded and -math.pi / 2 or math.pi)
+		t:SetRotation(shut and -math.pi / 2 or math.pi)
 	end
 end
 
@@ -454,13 +461,13 @@ end
 -- The header's arrow, its Reset link and, folded, what's on (left of the link while it shows).
 function Page:paintHeader(b)
 	local f = b.head.frame
-	local isFolded = folded()[b.key] and true or false
-	paintArrow(f.arrow, isFolded)
+	local shut = isFolded(b) and true or false
+	paintArrow(f.arrow, shut)
 	local changed = b:changed()
 	f.reset:SetShown(changed)
 	local resetW = changed and f.reset:GetWidth() + LINK_GAP or 0
-	f.says:SetShown(isFolded)
-	if isFolded then
+	f.says:SetShown(shut)
+	if shut then
 		f.says:SetPoint("BOTTOMRIGHT", -resetW, 9)
 		f.says:SetText(onList(b))
 		local used = f.textX + f.text:GetStringWidth() + (f.note and 10 + f.note:GetStringWidth() or 0)
@@ -506,7 +513,7 @@ function Page:paintFoldRow()
 	local anyFolded, anyOpen = false, false
 	for _, b in ipairs(self.blockList) do
 		if b.head.visible then
-			if folded()[b.key] then anyFolded = true else anyOpen = true end
+			if isFolded(b) then anyFolded = true else anyOpen = true end
 		end
 	end
 	for _, pair in ipairs({ { row.expand, anyFolded }, { row.collapse, anyOpen } }) do
@@ -749,8 +756,9 @@ function Page:header(text, shown, note, icon)
 		local key = self.key .. ":" .. text
 		if self.blockKeys[key] then key = key .. "#" .. #self.blockList end
 		self.blockKeys[key] = true
+		local first = #self.blockList == 0 and not self.firstFolded
 		block = setmetatable({ index = #self.blockList + 1, key = key, name = text, items = {}, owns = {},
-			ownIds = {} }, Block)
+			ownIds = {}, startFolded = not (first or self.allOpen or self.openRun) }, Block)
 		table.insert(self.blockList, block)
 		self.block = block
 		-- The fold arrow (painted by paintHeader).
@@ -814,7 +822,7 @@ function Page:header(text, shown, note, icon)
 			-- A click on the Reset link, anywhere in its hit area, is the link's alone.
 			local link = f.reset
 			if link:IsShown() and link:IsMouseOver(RESET_PAD_Y, -RESET_PAD_Y, -RESET_PAD_X, RESET_PAD_X) then return end
-			local fold = not folded()[block.key]
+			local fold = not isFolded(block)
 			if IsShiftKeyDown() then self:foldAll(fold) else self:setFolded(block, fold) end
 		end)
 	end
@@ -834,10 +842,11 @@ end
 
 -- A section heading over a run of blocks, a step above a block's header: larger, at the page's
 -- edge, on a full rule, with no panel and no fold. It ends the block before it; the rows after it
--- belong to no block until the next header.
+-- belong to no block until the next header. open: its blocks start open (until the next section).
 local SECTION_H, SECTION_SIZE = 46, 18
-function Page:section(text)
+function Page:section(text, open)
 	self.block = nil
+	self.openRun = open or nil
 	local f = self:row(SECTION_H)
 	f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	local file, _, flags = GameFontNormalLarge:GetFont()

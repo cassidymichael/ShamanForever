@@ -617,7 +617,7 @@ end
 local function buildGlobal(p)
 	p:pageTitle("Global settings")
 
-	p:section("General")
+	p:section("General", true)   -- its blocks start open; the global styles' start folded
 	p:header("Minimap")
 	p:checkbox("Show the minimap button", "Click it to open these options. Also listed in the minimap's addon menu.",
 		function() return not (acct().minimap and acct().minimap.hide) end,

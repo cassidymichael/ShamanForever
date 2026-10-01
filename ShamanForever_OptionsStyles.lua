@@ -698,6 +698,7 @@ local function secs(v) return string.format("%.1f s", v) end
 
 function SP.build(p)
 	header(p)
+	p.allOpen = true   -- the gallery is the page: its sections start open
 	p:header("Border look")
 	previewRows(p, "border", { { "Border size", "size", 1, 8, 1, px } })
 	flowSection(p, "border", "look")
