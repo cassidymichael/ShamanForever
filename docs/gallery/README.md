@@ -2,11 +2,11 @@
 
 Screenshots of ShamanForever on the World of Warcraft: Forever beta: the HUD in game, and the
 options window. The HUD shots are from 30 September 2026 and include features still in testing;
-the options window shots are from 0.8.0. Features marked experimental aren't fully
+the options window shots are from 1 October 2026. Features marked experimental aren't fully
 tested yet. These images are not part of the addon download.
 
-The options window shots are taken automatically in game, which is itself experimental: a shot can
-start at an odd scroll position, and a few pages may be missing or out of order.
+The options window shots are taken automatically in game, one page at a time in the order of the
+window's list.
 
 ## On screen
 
@@ -20,76 +20,108 @@ start at an odd scroll position, and a few pages may be missing or out of order.
 
 ## Home
 
-![Home: version, warnings and where to send feedback](home.png)
+![Home](home.png)
 
 ## Global settings
 
-![Global settings: icon size, border and timers](general.png)
+![Global settings](global-settings.png)
 
-![Global settings: pulsing glow and pop styles](general-glow-pop.png)
+![Global settings (part 2)](global-settings-part-2.png)
+
+![Global settings (part 3)](global-settings-part-3.png)
+
+## Styles explorer
+
+![Styles explorer](styles-explorer.png)
+
+![Styles explorer (part 2)](styles-explorer-part-2.png)
 
 ## Groups & Layout
 
-![Groups & Layout: the groups, each with its elements and settings](layout.png)
+![Groups & Layout](layout.png)
 
 ## Totem bar
 
-![Totem bar options](totem-bar.png)
+![Totem bar](totem-bar.png)
 
-![Totem bar: expiring, killed early, glow and pop styles](totem-bar-effects.png)
+![Totem bar (part 2)](totem-bar-part-2.png)
+
+## Swing timer
+
+![Swing timer](swing-timer.png)
 
 ## Elements
 
-![Every element, its group and when it shows](elements.png)
+![Elements](elements.png)
 
-## Shields
+## Element pages
 
-![Shields options](shields.png)
+![Earthbind Totem](earthbind-totem.png)
 
-## Shocks
+![Fire Nova](fire-nova.png)
 
-![Shocks options](shocks.png)
+![Flame Shock](flame-shock.png)
 
-## Weapon Imbue
+![Purge](purge.png)
 
-![Weapon Imbue options](weapon-imbue.png)
+![Shields](shields.png)
 
-## Earthbind Totem
+![Shocks](shocks.png)
 
-![Earthbind Totem, killed early](earthbind-totem.png)
+![Stoneclaw Totem](stoneclaw-totem.png)
 
-![Earthbind Totem with its own glow and pop styles](earthbind-totem-styles.png)
+![Stoneform](stoneform.png)
 
-## Fire Nova
+![Tremor Totem](tremor-totem.png)
 
-![Fire Nova with no fire totem down](fire-nova.png)
+![Weapon Imbue](weapon-imbue.png)
 
-## Tremor Totem
+![Chain Lightning](chain-lightning.png)
 
-![Tremor Totem warning](tremor-totem.png)
+![Elemental Focus](elemental-focus.png)
 
-![Tremor Totem: the watchlist of mobs that fear, charm or sleep](tremor-totem-watchlist.png)
+![Grounding Totem](grounding-totem.png)
 
-## Mana Tide Totem (experimental)
+![Lava Burst](lava-burst.png)
 
-![Mana Tide Totem running out](mana-tide-totem.png)
+![Maelstrom Weapon](maelstrom-weapon.png)
 
-## Nature's Swiftness (experimental)
+![Mana Tide Totem](mana-tide-totem.png)
 
-![Nature's Swiftness primed](natures-swiftness.png)
+![Nature's Swiftness](natures-swiftness.png)
 
-## Reincarnation (experimental)
+![Rage of the Farseer](rage-of-the-farseer.png)
 
-![Reincarnation with few Ankhs left](reincarnation.png)
+![Reincarnation](reincarnation.png)
 
-## Water Breathing (experimental)
+![Riptide](riptide.png)
 
-![Water Breathing: under water without it](water-breathing.png)
+![Stormstrike](stormstrike.png)
 
-## Elemental Focus (experimental)
+![Totemic Projection](totemic-projection.png)
 
-![Elemental Focus: Clearcasting up](elemental-focus.png)
+![Water Breathing](water-breathing.png)
+
+![Water Walking](water-walking.png)
+
+![Berserking](berserking.png)
+
+![Blood Fury](blood-fury.png)
+
+![Rapid Regeneration](rapid-regeneration.png)
+
+![Shatter Curse](shatter-curse.png)
+
+![Skysight](skysight.png)
+
+![Walk on Air](walk-on-air.png)
+
+![War Stomp](war-stomp.png)
+
+## Profiles
+
+![Profiles](profiles.png)
 
 ## About
 
-![About: the experimental features, each with a feedback link](about-experimental.png)
+![About](about.png)
