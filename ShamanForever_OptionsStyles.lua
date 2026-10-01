@@ -222,7 +222,7 @@ local function warm(sec)
 		sec.warming = false
 		for i = #warming, 1, -1 do
 			local t = table.remove(warming, i)
-			if not tContains(players, t) then table.insert(players, t) end
+			if #players < PLAYERS and not tContains(players, t) then table.insert(players, t) end
 			pool.release(t)
 		end
 		return
