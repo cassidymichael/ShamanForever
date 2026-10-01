@@ -1,8 +1,8 @@
--- The options window's Styles page: a gallery of every border look, pulsing glow and pop, each
--- on one sample icon with everything else as shipped (never the player's own settings). Right-click
--- one to use it in General. The looks come from ns.Style's choices, so a new one shows up here
--- with no page code. Every icon is a look tile (ns.Look.tilePool), taken while its section shows
--- and given back when it hides: nothing here runs while the page is closed.
+-- The options window's Styles explorer page: a gallery of every border look, pulsing glow and
+-- pop, each on one sample icon with everything else as shipped (never the player's own settings).
+-- Right-click one to use it in General. The looks come from ns.Style's choices, so a new one shows
+-- up here with no page code. Every icon is a look tile (ns.Look.tilePool), taken while its section
+-- shows and given back when it hides: nothing here runs while the page is closed.
 local _, ns = ...
 
 local SP = {}
@@ -347,7 +347,7 @@ local function field(key) return function() return view[key] end, function(v) vi
 -- The page
 ------------------------------------------------------------------------
 function SP.build(p)
-	p:pageTitle("Styles")
+	p:pageTitle("Styles explorer")
 	p:text("Right-click a look to use it in General. Hover a pop to play it.")
 	local schools = {}
 	for _, sc in ipairs(L.SCHOOLS) do table.insert(schools, { sc.key, schoolName(sc) }) end
