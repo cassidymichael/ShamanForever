@@ -1,5 +1,5 @@
 -- Tremor warning
--- Mob identity is secret in dungeons and raids: such a mob is never matched.
+-- A mob whose identity is secret (as expected in instances) is never matched.
 -- Earth slot unknown after a login or /reload in combat: nothing warns until it can be read.
 
 local _, ns = ...
