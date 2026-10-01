@@ -249,12 +249,13 @@ local function hidePanel(b)
 	for i = 1, 4 do b.panel.edges[i]:Hide() end
 end
 
--- One repaint reads each style once (ns.Style.read).
+-- One repaint reads each style once (ns.Style.read); an error is reported with its stack, and the
+-- reads end either way.
+local function report(err) geterrorhandler()(err) end
 function Page:refresh()
 	ns.Style.beginReads()
-	local ok, err = pcall(self.paint, self)
+	xpcall(function() self:paint() end, report)
 	ns.Style.endReads()
-	if not ok then error(err, 0) end
 end
 
 function Page:paint()
