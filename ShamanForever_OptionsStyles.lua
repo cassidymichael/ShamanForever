@@ -568,18 +568,23 @@ local function scaleSlider(parent, x, y)
 	s:SetPoint("LEFT", parent, "TOPLEFT", x + HEAD_LABEL_W - 6, y)
 	local value = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	value:SetPoint("LEFT", s, "RIGHT", 8, 0)
-	local updating = false
+	local updating, moves = false, 0
 	s:Init(view.scale, 1, 2, 10)
+	-- The sections take the scale at once; the tiles dress again (their lines on whole pixels at it)
+	-- once the slider has rested a moment, not at every step of a drag.
 	s:RegisterCallback(MinimalSliderWithSteppersMixin.Event.OnValueChanged, function(_, v)
 		if updating then return end
 		v = math.floor(v * 10 + 0.5) / 10
-		if v == view.scale then return end
+		if math.abs(v - view.scale) < 0.001 then return end
 		view.scale = v
-		restyleAll()
+		moves = moves + 1
+		local this = moves
+		ns.Options.refresh()
+		C_Timer.After(0.3, function() if moves == this then restyleAll() end end)
 	end, s)
 	return function()
 		value:SetText(Page.pct(view.scale))
-		if not (s.Slider and s.Slider:GetValue() == view.scale) then
+		if not (s.Slider and math.abs(s.Slider:GetValue() - view.scale) < 0.001) then
 			updating = true
 			s:SetValue(view.scale)
 			updating = false
