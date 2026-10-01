@@ -258,6 +258,11 @@ local function newCell(parent, kind, fields, name, pop)
 	if pop then
 		c.still = { edge = f:CreateTexture(nil, "ARTWORK"), pic = f:CreateTexture(nil, "ARTWORK", nil, 1) }
 		ns.cropIcon(c.still.pic)
+		-- Snapped as a tile's picture is, so the tile that plays lands on the same pixels.
+		if c.still.pic.SetSnapToPixelGrid then
+			c.still.pic:SetSnapToPixelGrid(true)
+			c.still.pic:SetTexelSnappingBias(0)
+		end
 	end
 	f:SetScript("OnEnter", function() if c.pop then play(c) end end)
 	f:SetScript("OnMouseUp", function(_, button)
