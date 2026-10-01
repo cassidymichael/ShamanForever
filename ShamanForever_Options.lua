@@ -110,13 +110,12 @@ local function styleRows(p, owner, kind, after)
 	local St = ns.Style
 	ownStyle(p, owner, kind, after)
 	local r = {}
-	function r.style()
-		local o = resolve(owner)
-		if o == nil then return St.global(kind) end
-		return St.get(o, kind)
-	end
+	function r.style() return St.read(resolve(owner), kind) end
 	function r.own() local o = resolve(owner); return o == nil or not St.follows(o, kind) end
-	function r.get(field) return function() return r.style()[field] end end
+	function r.get(field)
+		if type(St.KINDS[kind].defaults[field]) == "table" then return function() return r.style()[field] end end
+		return function() return St.value(resolve(owner), kind, field) end
+	end
 	function r.set(field) return function(v)
 		local o = resolve(owner)
 		if o == nil and owner ~= nil then return end   -- no group selected
@@ -185,7 +184,7 @@ local function previewBorder(owner)
 	local o = resolve(owner)
 	if o == "totembar" then local _, b = ns.TotemBar.look(); return b end
 	if isElement(o) then return ns.borderFor(o) end
-	return o == nil and ns.Style.global("border") or ns.Style.get(o, "border")
+	return ns.Style.read(o, "border")
 end
 
 -- A style block's preview: tiles from the pool (ns.Look.tilePool) wearing the owner's styles, in

@@ -249,7 +249,15 @@ local function hidePanel(b)
 	for i = 1, 4 do b.panel.edges[i]:Hide() end
 end
 
+-- One repaint reads each style once (ns.Style.read).
 function Page:refresh()
+	ns.Style.beginReads()
+	local ok, err = pcall(self.paint, self)
+	ns.Style.endReads()
+	if not ok then error(err, 0) end
+end
+
+function Page:paint()
 	if self.beforeRefresh then self.beforeRefresh() end
 	if self.fixed then
 		local ok, err = pcall(self.fixed.refresh, self.fixed)
@@ -276,7 +284,7 @@ function Page:refresh()
 		open.drawn = true
 		open, gap = nil, true
 	end
-	for _, b in ipairs(self.blockList) do b.drawn = false end
+	for _, b in ipairs(self.blockList) do b.drawn, b.painted = false, nil end
 	for _, it in ipairs(self.items) do
 		local b = it.block
 		if it.head or it.ends then close() end   -- a header or a section ends the block before it
@@ -316,6 +324,7 @@ function Page:refresh()
 	close()
 	for _, b in ipairs(self.blockList) do if not b.drawn then hidePanel(b) end end
 	self:paintFoldRow()
+	for _, b in ipairs(self.blockList) do b.painted = nil end
 	for _, run in ipairs(self.subs) do self:placeRule(run) end
 	self.rowW = nil
 	self.content:SetHeight(math.max(y, bottom, 1))
@@ -464,6 +473,7 @@ function Page:paintHeader(b)
 	local shut = isFolded(b) and true or false
 	paintArrow(f.arrow, shut)
 	local changed = b:changed()
+	b.painted = changed
 	f.reset:SetShown(changed)
 	local resetW = changed and f.reset:GetWidth() + LINK_GAP or 0
 	f.says:SetShown(shut)
@@ -696,13 +706,13 @@ Page.refKind("style", {
 		local St = ns.Style
 		local o, chosen = styleOwner(r)
 		if not chosen then return false end
-		local follows, shipped = St.shipped(o, r.style)
+		local follows, shipped = St.readShipped(o, r.style)
 		if o ~= nil then
 			local now = St.follows(o, r.style)
 			if now ~= follows then return true end
 			if now then return false end
 		end
-		return not same(St.get(o, r.style), shipped)
+		return not same(St.read(o, r.style), shipped)
 	end,
 	reset = function(r)
 		local o, chosen = styleOwner(r)
@@ -740,7 +750,16 @@ function Page:refs()
 	end
 	return out
 end
-function Page:changed() return anyChanged(self:refs()) end
+-- A block's answer from its header's paint in this repaint, where there was one.
+function Page:changed()
+	if anyChanged(self.pageOwns) then return true end
+	for _, b in ipairs(self.blockList) do
+		local c = b.painted
+		if c == nil then c = b:changed() end
+		if c then return true end
+	end
+	return false
+end
 function Page:reset() resetRefs(self:refs()) end
 -- name: what the question calls the page ("Stormstrike").
 function Page:askReset(name) askReset(name, function() self:reset() end) end

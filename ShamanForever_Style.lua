@@ -305,10 +305,40 @@ function S.value(owner, kind, field)
 	return v
 end
 
+-- One options repaint's reads (S.beginReads to S.endReads, which may nest): S.read and
+-- S.readShipped work a style out once per owner and kind, until a change. What they return is
+-- shared: read it, never change it.
+local reads, readDepth, GLOBAL = nil, 0, {}
+function S.beginReads()
+	readDepth = readDepth + 1
+	reads = reads or {}
+end
+function S.endReads()
+	readDepth = readDepth - 1
+	if readDepth <= 0 then reads, readDepth = nil, 0 end
+end
+local function forget() if reads then reads = {} end end
+
+local function memo(name, fn, owner, kind)
+	if not reads then return fn(owner, kind) end
+	local key = name .. kind
+	local t = reads[key]
+	if not t then t = {}; reads[key] = t end
+	local hit = t[owner == nil and GLOBAL or owner]
+	if not hit then
+		hit = { fn(owner, kind) }
+		t[owner == nil and GLOBAL or owner] = hit
+	end
+	return hit[1], hit[2]
+end
+function S.read(owner, kind) return memo("get", S.get, owner, kind) end
+function S.readShipped(owner, kind) return memo("shipped", S.shipped, owner, kind) end
+
 -- Stop following the global style: the first time, the owner starts from the global look with its
 -- own defaults on top (for most owners, the look it had). Follow again: its own values are kept for
 -- later.
 function S.setFollow(owner, kind, follow)
+	forget()
 	local o = S.override(owner, kind, true)
 	if not o then return end
 	if not follow then
@@ -319,6 +349,7 @@ end
 
 -- Change one part of a style: the global one (owner nil) or an owner's own.
 function S.set(owner, kind, field, value)
+	forget()
 	local spec = S.KINDS[kind]
 	if owner == nil then
 		local h = holder(nil)
@@ -351,6 +382,7 @@ end
 -- Back to how it ships: the global one to the kind's defaults; an owner's own table removed, so it
 -- follows the global style again, or has its own defaults over the global one where it has them.
 function S.reset(owner, kind)
+	forget()
 	local spec = S.KINDS[kind]
 	local path, last = spec.path, #spec.path
 	local parent = holder(owner)
