@@ -333,6 +333,31 @@ function S.set(owner, kind, field, value)
 	S.override(owner, kind, true)[field] = value
 end
 
+-- How an owner's style ships: whether it follows General, and the style it has then (the kind's
+-- defaults for General; General's, with the owner's own defaults on top, for an owner that has
+-- them).
+function S.shipped(owner, kind)
+	local spec = S.KINDS[kind]
+	if owner == nil then return true, clean(nil, spec.defaults, spec.ranges) end
+	if ownerDefaults(owner, kind) == nil then return true, S.general(kind) end
+	return false, base(owner, kind)
+end
+
+-- Back to how it ships: General's to the kind's defaults; an owner's own table removed, so it
+-- follows General again, or has its own defaults over General's where it has them.
+function S.reset(owner, kind)
+	local spec = S.KINDS[kind]
+	local path, last = spec.path, #spec.path
+	local parent = holder(owner)
+	for i = 1, last - 1 do
+		if type(parent) ~= "table" then return end
+		if owner == nil and type(parent[path[i]]) ~= "table" then parent[path[i]] = {} end
+		parent = parent[path[i]]
+	end
+	if type(parent) ~= "table" then return end
+	parent[path[last]] = owner == nil and clean(nil, spec.defaults, spec.ranges) or nil
+end
+
 -- An owner's name, as the options show it.
 function S.ownerName(owner)
 	if type(owner) == "table" then return owner.name or "A group" end
