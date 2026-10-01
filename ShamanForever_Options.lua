@@ -15,7 +15,8 @@ local LOGO_SIZE, LOGO_X, LOGO_Y = 112, -19, 24   -- the logo badge over the wind
 local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
 
 local win
-local pages, pageOrder, currentPage = {}, {}, nil
+-- Every page's key, title and builder (stubs, pageOrder); pages: those built, on first show.
+local pages, pageOrder, stubs, currentPage = {}, {}, {}, nil
 
 local function db() return ns.getDB() end
 local function acct() return ns.getAccount() end
@@ -41,10 +42,20 @@ end
 -- layout, since the shield's Track decides whether Shields counts as learned.
 local function respell() ns.resolveSpells(); ns.applyLayout(); ns.refreshAll(); OP.refresh() end
 
-local function newPage(key, title, indent)
-	local p = Page.new(win, key, title, indent)
+local function newPage(key, title, indent, build)
+	local stub = { key = key, title = title, indent = indent, build = build }
+	stubs[key] = stub
+	table.insert(pageOrder, stub)
+end
+
+-- A page, built now if it hasn't been.
+local function pageOf(key)
+	local p = pages[key]
+	if p or not stubs[key] then return p end
+	local stub = stubs[key]
+	p = Page.new(win, key, stub.title, stub.indent)
+	stub.build(p)
 	pages[key] = p
-	table.insert(pageOrder, p)
 	return p
 end
 
@@ -82,7 +93,6 @@ end
 -- "Same as Global" for a style: on, the rows under it hide; off the first time, the owner keeps
 -- the look it has as its own, and later its own values come back.
 local function followRow(p, owner, kind, after, label, shown)
-	if type(owner) == "string" then ns.Style.addUser(kind, owner) end
 	ownStyle(p, owner, kind, after)
 	return globalRow(p, label or "Same as Global", "Use the global style.",
 		function() local o = resolve(owner); return o ~= nil and ns.Style.follows(o, kind) end,
@@ -1168,17 +1178,19 @@ local function refreshNav()
 end
 
 local function showPage(key)
+	if not stubs[key] then key = "home" end
+	local page = pageOf(key)
 	currentPage = key
 	acct().optionsPage = key   -- reopened next time, across reloads (account-wide, like the window's size)
-	for _, p in ipairs(pageOrder) do
-		p.scroll:SetShown(p.key == key)
-		if p.fixed then p.fixed:SetShown(p.key == key) end
+	for _, p in pairs(pages) do
+		p.scroll:SetShown(p == page)
+		if p.fixed then p.fixed:SetShown(p == page) end
 	end
 	refreshNav()
 	for _, b in ipairs(navButtons) do
 		if b.page == key and b.sub and navList then navList.reveal(b) end
 	end
-	pages[key]:refresh()
+	page:refresh()
 end
 
 -- The nav: main pages, then every element's page (indented) in a list of its own that scrolls when
@@ -1374,6 +1386,25 @@ local function buildNav()
 	navList = list
 end
 
+-- What can have its own style of each kind, known before any page that sets one is built: the
+-- global "Currently using their own" lines and the Elements overview read it.
+local USER_KINDS = {
+	totembar = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
+	swing = { "border", "text", "bar" },
+	element = { "cooldown", "uptime", "gcd", "glow", "pop" },
+}
+local function addStyleUsers()
+	local St = ns.Style
+	for _, owner in ipairs({ "totembar", "swing" }) do
+		for _, kind in ipairs(USER_KINDS[owner]) do St.addUser(kind, owner) end
+	end
+	for _, key in ipairs(ns.ElementPages.ordered()) do
+		if ns.ElementPages.pageOf(key) then
+			for _, kind in ipairs(USER_KINDS.element) do St.addUser(kind, key) end
+		end
+	end
+end
+
 local function buildWindow()
 	-- Blizzard's portrait window: gold frame, round portrait, title and close button.
 	win = CreateFrame("Frame", "ShamanForeverOptionsFrame", UIParent, "ButtonFrameTemplate")
@@ -1495,17 +1526,18 @@ local function buildWindow()
 	win:HookScript("OnShow", function() shownNow(true) end)
 	win:HookScript("OnHide", function() shownNow(false) end)
 
-	buildHome(newPage("home", "Home"))
+	newPage("home", "Home", nil, buildHome)
 	-- Its key stays "general": saved as the page last open and in its folded blocks' keys.
-	buildGlobal(newPage("general", "Global settings"))
-	ns.StylesPage.build(newPage("styles", "Styles explorer"))
-	ns.LayoutPage.build(newPage("layout", "Groups & Layout"))
-	buildTotemBar(newPage("totembar", "Totem bar"))
-	ns.SwingPage.build(newPage("swing", "Swing timer"))
-	ns.ElementPages.buildOverview(newPage("elements", "Elements"))
-	ns.ElementPages.build(newPage)
-	buildProfiles(newPage("profiles", "Profiles"))
-	buildAbout(newPage("about", "About"))
+	newPage("general", "Global settings", nil, buildGlobal)
+	newPage("styles", "Styles explorer", nil, ns.StylesPage.build)
+	newPage("layout", "Groups & Layout", nil, ns.LayoutPage.build)
+	newPage("totembar", "Totem bar", nil, buildTotemBar)
+	newPage("swing", "Swing timer", nil, ns.SwingPage.build)
+	newPage("elements", "Elements", nil, ns.ElementPages.buildOverview)
+	ns.ElementPages.register(newPage)
+	newPage("profiles", "Profiles", nil, buildProfiles)
+	newPage("about", "About", nil, buildAbout)
+	addStyleUsers()
 	buildNav()
 	win:Hide()
 end
@@ -1685,7 +1717,7 @@ function OP.open(page, groupId)
 	if groupId then ns.LayoutPage.choose(groupId) end
 	win:Show()
 	local last = acct().optionsPage
-	showPage(page or currentPage or (last and pages[last] and last) or "home")
+	showPage(page or currentPage or (last and stubs[last] and last) or "home")
 end
 
 -- An element's own page, or the Elements overview for one without a page.
@@ -1715,16 +1747,17 @@ function OP.openGlobal(anchor)
 	if f then scrollTo(p, f, function() p:flash(f) end) end
 end
 
--- About, scrolled to one of its headings, which flashes.
-local function showAboutSection(section)
+-- About, scrolled to one of its headings (read once the page is built), which flashes.
+local function showAboutSection(which)
 	OP.open("about")
+	local section = which()
 	if not section then return end
 	scrollTo(section.page, section.header, function() section.page:flash(section.header) end)
 end
 -- From an EXPERIMENTAL badge: About's Experimental section.
-function OP.showExperimental() showAboutSection(aboutExp) end
+function OP.showExperimental() showAboutSection(function() return aboutExp end) end
 -- From Home's Give feedback button: About's Feedback section.
-function OP.showFeedback() showAboutSection(aboutFeedback) end
+function OP.showFeedback() showAboutSection(function() return aboutFeedback end) end
 
 
 -- Groups & Layout showing the group with this id, whose header flashes.

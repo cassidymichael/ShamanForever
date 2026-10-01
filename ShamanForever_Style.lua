@@ -27,8 +27,8 @@ S.KINDS = {}
 -- range: a value outside it, from an old or shared profile, is held to it).
 function S.register(kind, spec) S.KINDS[kind] = spec; spec.users = {} end
 
--- Owner keys that offer a kind on their options page (the options register them as they build),
--- for the global "Own style" line.
+-- Owner keys whose options page can give them their own style of a kind (registered when the
+-- window is made), for the global "Own style" line.
 function S.addUser(kind, owner)
 	local users = S.KINDS[kind].users
 	if not tContains(users, owner) then table.insert(users, owner) end

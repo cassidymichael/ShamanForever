@@ -69,8 +69,6 @@ local SHOW_TIP = "When the element is drawn. Hidden keeps its place in its group
 ------------------------------------------------------------------------
 -- Elements: an overview of every element, and one page per real element under it in the nav.
 ------------------------------------------------------------------------
-local ELEMENT_PAGES = {}   -- key -> page key, filled as element pages are built
-
 -- The overview's controls, light enough for a table: a flat cell with a thin border and small text
 -- that lights up under the mouse. A menu cell shows its value and a small arrow, and opens its menu
 -- (gen, a menu generator) at the cursor.
@@ -215,7 +213,7 @@ function EP.buildOverview(p)
 			GameTooltip:Show()
 		end)
 		show:HookScript("OnLeave", function() GameTooltip:Hide() end)
-		local function openPage() if ELEMENT_PAGES[key] then ns.Options.open(ELEMENT_PAGES[key]) end end
+		local function openPage() if EP.pageOf(key) then ns.Options.open(EP.pageOf(key)) end end
 		-- Its own page: its icon and name are the link, lit gold under the mouse.
 		local open = CreateFrame("Button", nil, f)
 		open:SetPoint("TOPLEFT", 0, 0)
@@ -298,7 +296,7 @@ function EP.buildOverview(p)
 				styles.text:SetText("Own: " .. table.concat(short, ", "))
 				styles.text:SetTextColor(1, 1, 1)
 			end
-			open:SetEnabled(ELEMENT_PAGES[key] ~= nil)
+			open:SetEnabled(EP.pageOf(key) ~= nil)
 			groupOpen:SetShown(g ~= nil)
 		end)
 	end
@@ -315,7 +313,6 @@ end
 -- left), the event blocks (Ready, Expiring, Killed early), then Pulsing glow style and Pop style,
 -- each only where the element has something it applies to.
 local function elementDisplay(p, key)
-	ELEMENT_PAGES[key] = p.key
 	p.resetAll = {
 		text = function() return "Reset " .. ns.Look.elementName(key) end,
 		ask = function() EP.askReset(key) end,
@@ -948,22 +945,26 @@ local function buildMaelstrom(p, def)
 end
 PAGE.maelstrom = buildMaelstrom
 
--- Every element's page, in the order the options list them.
-local pageObjects = {}   -- key -> its page
-function EP.build(newPage)
+-- Every element's page, in the order the options list them, each built when it first shows.
+local pageObjects = {}   -- key -> its page, once built
+function EP.register(newPage)
 	for _, key in ipairs(byName()) do
 		local e = ns.ELEMENTS[key]
 		local build = e.kind and PAGE[e.kind]
 		if build then
-			local p = newPage(key, e.label, true)
-			pageObjects[key] = p
-			build(p, e.def)
+			newPage(key, e.label, true, function(p)
+				pageObjects[key] = p
+				build(p, e.def)
+			end)
 		end
 	end
 end
 
--- The page key of an element's own page, nil for one without.
-function EP.pageOf(key) return ELEMENT_PAGES[key] end
+-- The page key of an element's own page (its own key), nil for one without.
+function EP.pageOf(key)
+	local e = ns.ELEMENTS[key]
+	return e and e.kind and PAGE[e.kind] and key or nil
+end
 
 -- Every setting on an element's page back to its default, after a confirm.
 function EP.askReset(key)
