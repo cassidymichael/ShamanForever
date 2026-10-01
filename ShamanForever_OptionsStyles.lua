@@ -25,7 +25,7 @@ local PLAYERS = 6          -- pop grid cells playing at once (a row's worth)
 local HOLD = 1.2           -- seconds a playing cell keeps its tile: past the longest pop
 
 -- What every cell shows, chosen on the strip at the top: the element the looks take and its sample
--- icon, the backdrop, the icon size, the scale of every section (to see a border up close), the
+-- icon (or All: a look that differs by element once for each), the backdrop, the icon size, the scale of every section (to see a border up close), the
 -- pop's colour, and the pop grid's flash. For this session.
 local view = { school = "fire", backdrop = "dark", size = "small", scale = 1,
 	colorBy = S.KINDS.pop.defaults.colorBy, flash = S.KINDS.pop.defaults.flash }
@@ -83,7 +83,14 @@ end
 ------------------------------------------------------------------------
 -- Cells and their tiles
 ------------------------------------------------------------------------
-local function cellSchool(c) return schoolOf(c.school or view.school) end
+-- With All, a cell whose look is the same in every element takes spirit's.
+local ALL, REST = "all", "spirit"
+local function cellSchool(c) return schoolOf(c.school or (view.school == ALL and REST or view.school)) end
+-- Whether a cell shows for the strip's element: one per element with All, else the one cell.
+local function cellShown(c)
+	if c.perSchool == nil then return true end
+	return c.perSchool == (view.school == ALL)
+end
 
 -- A cell's tile in its look, on shipped settings, in its element, at the strip's size.
 local function dress(c)
@@ -116,10 +123,18 @@ local function mayMake()
 	return false
 end
 
+local players = {}   -- tiles that have played in the pop grid: their pops' parts are made
+
 -- A cell takes back the tile it had last time where it can: that one has its look made already.
+-- A border or glow cell new to the page leaves the pop grid's players free for it. A pop plays
+-- at once, made or not.
 local function takeTile(c, want)
-	if not mayMake() then return false end
-	c.tile = pool.acquire(c.frame, size(), want or c.last)
+	if not c.pop and not mayMake() then return false end
+	want = want or c.last
+	if not (want and want.released) and not c.pop then
+		want = function(t) return not tContains(players, t) end
+	end
+	c.tile = pool.acquire(c.frame, size(), want)
 	dress(c)
 	placeTile(c)
 	return true
@@ -153,7 +168,6 @@ end
 ------------------------------------------------------------------------
 -- Playing the pop grid: a few tiles move from cell to cell, each held while its pop plays
 ------------------------------------------------------------------------
-local players = {}   -- tiles that have played here, taken again first: their pops' parts are made
 local playing = {}   -- cell -> when its pop started
 local warming = {}   -- tiles held while their pops' parts are made, before any play
 
@@ -205,7 +219,11 @@ local function warm(sec)
 		return
 	end
 	if mayMake() then
-		local c = sec.cells[#warming + 1]
+		local c, n = nil, 0
+		for _, o in ipairs(sec.cells) do
+			if o.frame:IsShown() then n = n + 1 end
+			if n == #warming + 1 then c = o break end
+		end
 		local t = pool.acquire(c.frame, size())
 		local sc = cellSchool(c)
 		t:dress(NEUTRAL, { pop = { burst = "none", motion = "none", flash = "none" } }, sc.key, sc.icon, size())
@@ -274,10 +292,17 @@ local function newSection(p, place, grid)
 		sec.box:SetSize(w, h)
 		sec.height = h * k
 		local visible = f:IsVisible()
+		-- Cells hidden now give back first, so a cell shown again finds its own tile free.
+		for _, c in ipairs(sec.cells) do
+			if c.tile and not c.frame:IsShown() then
+				if playing[c] then stopPlay(c) else giveTile(c) end
+			end
+		end
 		for _, c in ipairs(sec.cells) do
 			paintCell(c)
+			local on = c.frame:IsShown()
 			if c.tile and c.dressed ~= stamp then dress(c) end
-			if not grid and visible and not c.tile then takeTile(c) end
+			if not grid and visible and on and not c.tile then takeTile(c) end
 			if c.tile then placeTile(c) end
 			if c.still then paintStill(c) end
 		end
@@ -315,15 +340,19 @@ local function flowSection(p, kind, field)
 			local ch = stageH + 30 + (g.badged and 18 or 0)
 			local x = 0
 			for _, c in ipairs(g.cells) do
-				if x > 0 and x + cw > w then x, y = 0, y + ch + GAP end
-				c.stageH = stageH
-				c.frame:ClearAllPoints()
-				c.frame:SetPoint("TOPLEFT", sec.box, "TOPLEFT", x, -y)
-				c.frame:SetSize(cw, ch)
-				c.text:SetWidth(cw - 6)
-				c.text:ClearAllPoints()
-				c.text:SetPoint("TOP", c.frame, "TOP", 0, -(stageH + 2))
-				x = x + cw + GAP
+				local on = cellShown(c)
+				c.frame:SetShown(on)
+				if on then
+					if x > 0 and x + cw > w then x, y = 0, y + ch + GAP end
+					c.stageH = stageH
+					c.frame:ClearAllPoints()
+					c.frame:SetPoint("TOPLEFT", sec.box, "TOPLEFT", x, -y)
+					c.frame:SetSize(cw, ch)
+					c.text:SetWidth(cw - 6)
+					c.text:ClearAllPoints()
+					c.text:SetPoint("TOP", c.frame, "TOP", 0, -(stageH + 2))
+					x = x + cw + GAP
+				end
 			end
 			y = y + ch + GAP * 2
 		end
@@ -339,17 +368,23 @@ local function flowSection(p, kind, field)
 			-- A border cell also turns General's border on: it shows one.
 			local fields = kind == "border" and function() return { look = e.key, show = true } end
 				or function() return { [field] = e.key } end
-			local c = newCell(sec.box, kind, fields, function() return e.name end)
-			c.text = c.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-			c.text:SetMaxLines(2)
-			c.text:SetText(e.name)
-			if e.experimental then
-				c.badge = L.expBadge(c.frame, list.name)
-				c.badge:SetPoint("TOP", c.text, "BOTTOM", 0, -2)
-				g.badged = true
+			-- A look that differs by element: one cell, and one per element for All.
+			local schools = { false }
+			if e.bySchool then for _, sc in ipairs(L.SCHOOLS) do table.insert(schools, sc) end end
+			for _, sc in ipairs(schools) do
+				local c = newCell(sec.box, kind, fields, function() return e.name end)
+				if e.bySchool then c.perSchool, c.school = sc and true or false, sc and sc.key or nil end
+				c.text = c.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+				c.text:SetMaxLines(2)
+				c.text:SetText(sc and (e.name .. ": " .. sc.name) or e.name)
+				if e.experimental then
+					c.badge = L.expBadge(c.frame, list.name)
+					c.badge:SetPoint("TOP", c.text, "BOTTOM", 0, -2)
+					g.badged = true
+				end
+				table.insert(g.cells, c)
+				table.insert(sec.cells, c)
 			end
-			table.insert(g.cells, c)
-			table.insert(sec.cells, c)
 		end
 		table.insert(groups, g)
 	end
@@ -392,7 +427,14 @@ local function popGrid(p)
 				col.badge:SetPoint("BOTTOM", col.text, "TOP", 0, 2)
 			end
 		end
-		for i, row in ipairs(rows) do
+		local i = 0
+		for _, row in ipairs(rows) do
+			local on = row.shown()
+			row.text:SetShown(on)
+			row.play:SetShown(on)
+			if row.badge then row.badge:SetShown(on) end
+			for _, c in ipairs(row.cells) do c.frame:SetShown(on) end
+			if on then i = i + 1 end
 			local y = headH + (i - 1) * pitch
 			row.text:ClearAllPoints()
 			row.text:SetPoint("TOPLEFT", sec.box, "TOPLEFT", 2, -(y + pitch / 2 - 14))
@@ -405,7 +447,7 @@ local function popGrid(p)
 				c.frame:SetSize(pitch - 1, pitch - 1)
 			end
 		end
-		return headH + #rows * pitch
+		return headH + i * pitch
 	end, true)
 	for _, m in ipairs(motions) do
 		local col = { text = sec.box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall") }
@@ -416,13 +458,14 @@ local function popGrid(p)
 	end
 	local function flashName() return S.choice("pop", "flash", view.flash).name end
 	local function colorName() return S.choice("pop", "colorBy", view.colorBy).name:lower() end
-	for _, b in ipairs(bursts) do
+	-- A burst that differs by element: one row, and one per element for All, named for it.
+	local function addRow(b, sc)
 		local row = { cells = {} }
 		row.text = sec.box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		row.text:SetWidth(ROW_HEAD_W - 44)
 		row.text:SetJustifyH("LEFT")
-		local sub = groupName[b.group] and ("\n|cff9a9aa0" .. groupName[b.group] .. "|r") or ""
-		row.text:SetText(b.name .. sub)
+		local sub = sc and sc.name or groupName[b.group]
+		row.text:SetText(b.name .. (sub and ("\n|cff9a9aa0" .. sub .. "|r") or ""))
 		if b.experimental then
 			row.badge = L.expBadge(sec.box, burstList.name)
 			row.badge:SetPoint("TOPLEFT", row.text, "BOTTOMLEFT", 0, -2)
@@ -432,12 +475,18 @@ local function popGrid(p)
 				function() return { burst = b.key, motion = m.key, flash = view.flash, colorBy = view.colorBy } end,
 				function() return b.name .. ", " .. m.name .. ", " .. flashName() .. " and colour " .. colorName() end,
 				true)
+			if b.bySchool then c.perSchool, c.school = sc and true or false, sc and sc.key or nil end
 			table.insert(row.cells, c)
 			table.insert(sec.cells, c)
 		end
+		function row.shown() return cellShown(row.cells[1]) end
 		-- Play: the row's cells at once.
 		row.play = link(sec.box, "Play", function() for _, c in ipairs(row.cells) do play(c) end end)
 		table.insert(rows, row)
+	end
+	for _, b in ipairs(bursts) do
+		addRow(b)
+		if b.bySchool then for _, sc in ipairs(L.SCHOOLS) do addRow(b, sc) end end
 	end
 	return sec
 end
@@ -528,6 +577,7 @@ local function header(p)
 	intro:SetText("Right-click a look to use it in General. Hover or click a pop to play it.")
 	local schools = {}
 	for _, sc in ipairs(L.SCHOOLS) do table.insert(schools, { sc.key, sc.name }) end
+	table.insert(schools, { ALL, "All" })
 	local paints = {
 		chips(h, "Element", schools, "school", 14, -74),
 		chips(h, "Background", { { "dark", "Dark" }, { "snow", "Snow" } }, "backdrop", 14, -100),
