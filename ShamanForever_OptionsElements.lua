@@ -32,16 +32,15 @@ local function eread(key, name) return function() return ns.elementSetting(key, 
 -- learned, then the ones it hasn't, then other races' racials; each band by name, A to Z, in the
 -- client's language. Read when asked, so a spell learned since moves up.
 local function byName()
-	local keys, name = {}, ns.Look.elementName
-	local band = {}
+	local keys, band, lower = {}, {}, {}
 	for i, key in ipairs(ns.ELEMENT_KEYS) do
 		keys[i] = key
 		band[key] = ns.isLearned(key) and 0 or ns.Spells.otherRace(ns.ELEMENTS[key].race) and 2 or 1
+		lower[key] = ns.Look.elementName(key):lower()
 	end
 	table.sort(keys, function(a, b)
 		if band[a] ~= band[b] then return band[a] < band[b] end
-		local na, nb = name(a):lower(), name(b):lower()
-		if na ~= nb then return na < nb end
+		if lower[a] ~= lower[b] then return lower[a] < lower[b] end
 		return a < b
 	end)
 	return keys
@@ -121,7 +120,9 @@ function EP.buildOverview(p)
 		{ key = "styles", label = "Own styles", min = 120, grow = 0.4 },
 	}
 	local GAP = 6
+	local placed, placedW   -- the columns at the page's width last worked out
 	local function place(width)
+		if width == placedW then return placed end
 		local least = GAP * (#COLS - 1)
 		for _, c in ipairs(COLS) do least = least + c.min end
 		local extra = math.max(width - least, 0)
@@ -135,6 +136,7 @@ function EP.buildOverview(p)
 		-- Width left by the capped columns goes to the last.
 		local last = COLS[#COLS].key
 		out[last].w = math.max(out[last].w, width - out[last].x)
+		placed, placedW = out, width
 		return out
 	end
 	local heads = {}
@@ -267,6 +269,7 @@ function EP.buildOverview(p)
 		styles:SetScript("OnLeave", function() GameTooltip:Hide() end)
 		local SHORT = { ["Cooldown timer"] = "cooldown", ["Time left timer"] = "time left",
 			["Pulsing glow"] = "glow", ["Pop"] = "pop" }
+		local cells = { { group, "group" }, { show, "show" }, { groupOpen, "link" }, { styles, "styles" } }
 		p:add(f, 34, nil, function()
 			e.paint(icon)
 			local learned = ns.isLearned(key)
@@ -281,8 +284,7 @@ function EP.buildOverview(p)
 			group.text:SetText(g and g.name or "Ungrouped")
 			local mode = ns.showMode(key)
 			for _, c in ipairs(SHOW_CHOICES) do if c[1] == mode then show.text:SetText(c[2]) end end
-			for _, cell in ipairs({ { group, "group" }, { show, "show" }, { groupOpen, "link" },
-				{ styles, "styles" } }) do
+			for _, cell in ipairs(cells) do
 				cell[1]:ClearAllPoints()
 				cell[1]:SetPoint("LEFT", pos[cell[2]].x, 0)
 				cell[1]:SetWidth(pos[cell[2]].w)

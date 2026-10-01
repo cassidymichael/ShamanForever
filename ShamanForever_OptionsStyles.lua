@@ -125,7 +125,7 @@ end
 -- Counts a change of the Global border like a strip change, so the cells wearing it dress again.
 local borderSig
 local function syncBorder()
-	local sig = sigOf(S.global("border"))
+	local sig = sigOf(S.read(nil, "border"))
 	if sig == borderSig then return end
 	if borderSig then stamp = stamp + 1 end
 	borderSig = sig
@@ -198,7 +198,6 @@ end
 -- code (Looks.fit) on a bare icon (a picture and nothing else), set as a tile's icon is, so the tile
 -- that plays looks the same under it.
 local function paintStill(c)
-	syncBorder()
 	local st, s = c.still, size()
 	st.box:ClearAllPoints()
 	st.box:SetPoint("CENTER", c.frame, "TOP", 0, -c.stageH / 2)
@@ -227,6 +226,7 @@ local function stopPlay(c)
 	if not playing[c] then return end
 	playing[c] = nil
 	giveTile(c)
+	syncBorder()
 	paintStill(c)
 end
 
@@ -245,6 +245,7 @@ local function play(c)
 		if n >= PLAYERS then stopPlay(oldest) end
 		if not takeTile(c, freePlayer()) then return end
 		if #players < PLAYERS and not tContains(players, c.tile) then table.insert(players, c.tile) end
+		syncBorder()
 		paintStill(c)
 	end
 	playing[c] = GetTime()
