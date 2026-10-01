@@ -82,7 +82,7 @@ function SP.build(p)
 	local SW, K = ns.Swing, ns.Options.kit
 	local R = SW.RANGES
 	local function c() return SW.cfg() end
-	local function changed() SW.apply(); ns.Options.refresh() end
+	local changed = K.perFrame(function() SW.apply(); ns.Options.refresh() end)
 	local function get(key) return function() return c()[key] end end
 	local function set(key)
 		p:owns({ bar = "swing", name = key, after = changed })
