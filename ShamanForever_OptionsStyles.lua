@@ -25,8 +25,9 @@ local PLAYERS = 6          -- pop grid cells playing at once (a row's worth)
 local HOLD = 1.2           -- seconds a playing cell keeps its tile: past the longest pop
 
 -- What every cell shows, chosen on the strip at the top: the element the looks take and its sample
--- icon, the backdrop, the icon size, the pop's colour, and the pop grid's flash. For this session.
-local view = { school = "fire", backdrop = "dark", size = "small",
+-- icon, the backdrop, the icon size, the scale of every section (to see a border up close), the
+-- pop's colour, and the pop grid's flash. For this session.
+local view = { school = "fire", backdrop = "dark", size = "small", scale = 1,
 	colorBy = S.KINDS.pop.defaults.colorBy, flash = S.KINDS.pop.defaults.flash }
 local stamp = 0   -- counts strip changes: a tile dressed before the last one dresses again
 
@@ -259,12 +260,19 @@ end
 -- place(sec, width) lays the cells out and returns the height they take. A section of tiles
 -- (border and glow) takes one for each cell while it shows; the pop grid's cells take theirs as
 -- they play.
+-- The cells sit on sec.box, at the strip's scale.
 local function newSection(p, place, grid)
 	local f = p:row(1)
-	local sec = { frame = f, cells = {}, height = 1, grid = grid }
+	local sec = { frame = f, box = CreateFrame("Frame", nil, f), cells = {}, height = 1, grid = grid }
+	sec.box:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
 	f:SetScript("OnHide", function() give(sec) end)
 	p:add(f, function() return sec.height end, nil, function()
-		sec.height = place(sec, p:width())
+		local k = view.scale
+		local w = p:width() / k
+		sec.box:SetScale(k)
+		local h = place(sec, w)
+		sec.box:SetSize(w, h)
+		sec.height = h * k
 		local visible = f:IsVisible()
 		for _, c in ipairs(sec.cells) do
 			paintCell(c)
@@ -301,7 +309,7 @@ local function flowSection(p, kind, field)
 		for _, g in ipairs(groups) do
 			if g.title then
 				g.title:ClearAllPoints()
-				g.title:SetPoint("TOPLEFT", sec.frame, "TOPLEFT", 2, -y)
+				g.title:SetPoint("TOPLEFT", sec.box, "TOPLEFT", 2, -y)
 				y = y + 16
 			end
 			local ch = stageH + 30 + (g.badged and 18 or 0)
@@ -310,7 +318,7 @@ local function flowSection(p, kind, field)
 				if x > 0 and x + cw > w then x, y = 0, y + ch + GAP end
 				c.stageH = stageH
 				c.frame:ClearAllPoints()
-				c.frame:SetPoint("TOPLEFT", sec.frame, "TOPLEFT", x, -y)
+				c.frame:SetPoint("TOPLEFT", sec.box, "TOPLEFT", x, -y)
 				c.frame:SetSize(cw, ch)
 				c.text:SetWidth(cw - 6)
 				c.text:ClearAllPoints()
@@ -324,14 +332,14 @@ local function flowSection(p, kind, field)
 	for _, part in ipairs(parts) do
 		local g = { cells = {} }
 		if part.name and #parts > 1 then
-			g.title = sec.frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+			g.title = sec.box:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 			g.title:SetText(part.name)
 		end
 		for _, e in ipairs(part.list) do
 			-- A border cell also turns General's border on: it shows one.
 			local fields = kind == "border" and function() return { look = e.key, show = true } end
 				or function() return { [field] = e.key } end
-			local c = newCell(sec.frame, kind, fields, function() return e.name end)
+			local c = newCell(sec.box, kind, fields, function() return e.name end)
 			c.text = c.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 			c.text:SetMaxLines(2)
 			c.text:SetText(e.name)
@@ -378,7 +386,7 @@ local function popGrid(p)
 		for j, col in ipairs(cols) do
 			col.text:SetWidth(pitch - 4)
 			col.text:ClearAllPoints()
-			col.text:SetPoint("BOTTOM", sec.frame, "TOPLEFT", ROW_HEAD_W + (j - 0.5) * pitch, -(headH - 4))
+			col.text:SetPoint("BOTTOM", sec.box, "TOPLEFT", ROW_HEAD_W + (j - 0.5) * pitch, -(headH - 4))
 			if col.badge then
 				col.badge:ClearAllPoints()
 				col.badge:SetPoint("BOTTOM", col.text, "TOP", 0, 2)
@@ -387,40 +395,40 @@ local function popGrid(p)
 		for i, row in ipairs(rows) do
 			local y = headH + (i - 1) * pitch
 			row.text:ClearAllPoints()
-			row.text:SetPoint("TOPLEFT", sec.frame, "TOPLEFT", 2, -(y + pitch / 2 - 14))
+			row.text:SetPoint("TOPLEFT", sec.box, "TOPLEFT", 2, -(y + pitch / 2 - 14))
 			row.play:ClearAllPoints()
-			row.play:SetPoint("TOPRIGHT", sec.frame, "TOPLEFT", ROW_HEAD_W - 8, -(y + pitch / 2 - 14))
+			row.play:SetPoint("TOPRIGHT", sec.box, "TOPLEFT", ROW_HEAD_W - 8, -(y + pitch / 2 - 14))
 			for j, c in ipairs(row.cells) do
 				c.stageH = pitch - 1
 				c.frame:ClearAllPoints()
-				c.frame:SetPoint("TOPLEFT", sec.frame, "TOPLEFT", ROW_HEAD_W + (j - 1) * pitch, -y)
+				c.frame:SetPoint("TOPLEFT", sec.box, "TOPLEFT", ROW_HEAD_W + (j - 1) * pitch, -y)
 				c.frame:SetSize(pitch - 1, pitch - 1)
 			end
 		end
 		return headH + #rows * pitch
 	end, true)
 	for _, m in ipairs(motions) do
-		local col = { text = sec.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall") }
+		local col = { text = sec.box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall") }
 		col.text:SetMaxLines(2)
 		col.text:SetText(m.name)
-		if m.experimental then col.badge = L.expBadge(sec.frame, motionList.name) end
+		if m.experimental then col.badge = L.expBadge(sec.box, motionList.name) end
 		table.insert(cols, col)
 	end
 	local function flashName() return S.choice("pop", "flash", view.flash).name end
 	local function colorName() return S.choice("pop", "colorBy", view.colorBy).name:lower() end
 	for _, b in ipairs(bursts) do
 		local row = { cells = {} }
-		row.text = sec.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		row.text = sec.box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		row.text:SetWidth(ROW_HEAD_W - 44)
 		row.text:SetJustifyH("LEFT")
 		local sub = groupName[b.group] and ("\n|cff9a9aa0" .. groupName[b.group] .. "|r") or ""
 		row.text:SetText(b.name .. sub)
 		if b.experimental then
-			row.badge = L.expBadge(sec.frame, burstList.name)
+			row.badge = L.expBadge(sec.box, burstList.name)
 			row.badge:SetPoint("TOPLEFT", row.text, "BOTTOMLEFT", 0, -2)
 		end
 		for _, m in ipairs(motions) do
-			local c = newCell(sec.frame, "pop",
+			local c = newCell(sec.box, "pop",
 				function() return { burst = b.key, motion = m.key, flash = view.flash, colorBy = view.colorBy } end,
 				function() return b.name .. ", " .. m.name .. ", " .. flashName() .. " and colour " .. colorName() end,
 				true)
@@ -428,7 +436,7 @@ local function popGrid(p)
 			table.insert(sec.cells, c)
 		end
 		-- Play: the row's cells at once.
-		row.play = link(sec.frame, "Play", function() for _, c in ipairs(row.cells) do play(c) end end)
+		row.play = link(sec.box, "Play", function() for _, c in ipairs(row.cells) do play(c) end end)
 		table.insert(rows, row)
 	end
 	return sec
@@ -470,6 +478,35 @@ local function chips(parent, label, items, key, x, y)
 	end
 end
 
+-- Scale, 100% to 200%, at x, y in parent; returns refresh().
+local function scaleSlider(parent, x, y)
+	local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	fs:SetPoint("LEFT", parent, "TOPLEFT", x, y)
+	fs:SetText("Scale")
+	local s = CreateFrame("Frame", nil, parent, "MinimalSliderWithSteppersTemplate")
+	s:SetSize(150, 20)
+	s:SetPoint("LEFT", parent, "TOPLEFT", x + HEAD_LABEL_W - 6, y)
+	local value = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	value:SetPoint("LEFT", s, "RIGHT", 8, 0)
+	local updating = false
+	s:Init(view.scale, 1, 2, 10)
+	s:RegisterCallback(MinimalSliderWithSteppersMixin.Event.OnValueChanged, function(_, v)
+		if updating then return end
+		v = math.floor(v * 10 + 0.5) / 10
+		if v == view.scale then return end
+		view.scale = v
+		restyleAll()
+	end, s)
+	return function()
+		value:SetText(Page.pct(view.scale))
+		if not (s.Slider and s.Slider:GetValue() == view.scale) then
+			updating = true
+			s:SetValue(view.scale)
+			updating = false
+		end
+	end
+end
+
 local function choiceItems(kind, field)
 	local out = {}
 	for _, e in ipairs(S.offered(kind, field)) do table.insert(out, { e.key, e.name }) end
@@ -497,6 +534,7 @@ local function header(p)
 		chips(h, "Size", { { "small", "Small" }, { "large", "Large" } }, "size", HEAD_COL2, -100),
 		chips(h, "Colour", choiceItems("pop", "colorBy"), "colorBy", 14, -126),
 	}
+	table.insert(paints, scaleSlider(h, HEAD_COL2, -126))
 	function h.refresh() for _, paint in ipairs(paints) do paint() end end
 	p:pin(h)
 end
