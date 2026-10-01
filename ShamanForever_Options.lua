@@ -304,7 +304,7 @@ local function glowBlock(p, owner, icon)
 		table.sort(names)
 		for _, field in ipairs(names) do
 			local fd = e.fields[field]
-			p:slider(fd.name, fd.tip, fd.range[1], fd.range[2], fd.step, function(v) return string.format(fd.format, v) end,
+			p:slider(fd.name, fd.tip, fd.range[1], fd.range[2], fd.step, function(v) return type(fd.format) == "function" and fd.format(v) or string.format(fd.format, v) end,
 				r.get(field), r.set(field), showWhen(function() return look() == e end, own))
 		end
 	end
