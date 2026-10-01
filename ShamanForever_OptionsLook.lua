@@ -1330,11 +1330,15 @@ do
 
 	-- A tile of size in parent, wearing General, in no school, the first school's sample icon,
 	-- hidden glow and no label; shown, and not anchored: the caller places t.box (t:point). want: a
-	-- tile given back earlier, taken again while it's free (the looks it wore are made already).
+	-- tile given back earlier, taken again while it's free (the looks it wore are made already), or
+	-- a test: the newest free tile that passes it is taken first.
 	function Pool.acquire(parent, size, want)
 		local t
-		if want and want.released then
-			for i = #free, 1, -1 do if free[i] == want then t = table.remove(free, i) break end end
+		if want then
+			for i = #free, 1, -1 do
+				local f = free[i]
+				if f == want or (type(want) == "function" and want(f)) then t = table.remove(free, i) break end
+			end
 		end
 		t = t or table.remove(free)
 		if not t then
