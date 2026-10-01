@@ -13,11 +13,14 @@ local Page, K, L, S = ns.Page, ns.Options.kit, ns.Look, ns.Style
 local pool = L.tilePool
 
 local SIZES = { small = 40, large = 64 }
--- A cell's backdrop, and the text on it.
+-- A cell's backdrop: a colour, or the game's ground (Winterspring's snow, Elwynn's grass) tiled
+-- every TILE units and tinted; and the text on it.
 local BACKDROPS = {
 	dark = { bg = { 0.04, 0.045, 0.06 }, text = { 0.8, 0.8, 0.83 } },
-	snow = { bg = { 0.91, 0.93, 0.95 }, text = { 0.2, 0.22, 0.25 }, light = true },
+	snow = { file = 189053, tint = { 1, 1, 1 }, text = { 0.2, 0.22, 0.25 }, light = true },
+	grass = { file = 187126, tint = { 0.75, 0.75, 0.75 }, text = { 1, 1, 0.92 } },
 }
+local TILE = 256
 local GAP = 6              -- between cells in a row section
 local ROW_HEAD_W = 120     -- the pop grid's row names and their Play
 local MAKE_PER_FRAME = 3   -- tiles made in one frame at most: the first open spreads over a few
@@ -272,8 +275,16 @@ local function schoolText(sc, light)
 end
 
 local function paintCell(c)
-	local b = BACKDROPS[view.backdrop]
-	c.frame.bg:SetColorTexture(b.bg[1], b.bg[2], b.bg[3], 1)
+	local b, bg = BACKDROPS[view.backdrop], c.frame.bg
+	if b.file then
+		bg:SetTexture(b.file, "REPEAT", "REPEAT")
+		bg:SetVertexColor(b.tint[1], b.tint[2], b.tint[3], 1)
+		bg:SetTexCoord(0, c.frame:GetWidth() / TILE, 0, c.frame:GetHeight() / TILE)
+	else
+		bg:SetColorTexture(b.bg[1], b.bg[2], b.bg[3], 1)
+		bg:SetVertexColor(1, 1, 1, 1)
+		bg:SetTexCoord(0, 1, 0, 1)
+	end
 	if c.text then c.text:SetTextColor(b.text[1], b.text[2], b.text[3]) end
 	if c.label then c.text:SetText(c.label(b.light)) end
 end
@@ -595,7 +606,7 @@ local function header(p)
 	table.insert(schools, { ALL, "All" })
 	local paints = {
 		chips(h, "Element", schools, "school", 14, -74),
-		chips(h, "Background", { { "dark", "Dark" }, { "snow", "Snow" } }, "backdrop", 14, -100),
+		chips(h, "Background", { { "dark", "Dark" }, { "snow", "Snow" }, { "grass", "Grass" } }, "backdrop", 14, -100),
 		chips(h, "Size", { { "small", "Small" }, { "large", "Large" } }, "size", HEAD_COL2, -100),
 		chips(h, "Colour", choiceItems("pop", "colorBy"), "colorBy", 14, -126),
 	}
