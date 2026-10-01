@@ -1,12 +1,31 @@
 # Gallery
 
 Screenshots of ShamanForever on the World of Warcraft: Forever beta: the HUD in game, and the
-options window. The HUD shots are from 30 September 2026 and include features still in testing;
-the options window shots are from 1 October 2026. Features marked experimental aren't fully
-tested yet. These images are not part of the addon download.
+options window. The HUD shots are from 30 September 2026, the highlights and options window shots
+from 1 October 2026. These images are not part of the addon download.
 
 The options window shots are taken automatically in game, one page at a time in the order of the
 window's list.
+
+## Highlights
+
+![The Elements page: every element with its group, when it shows and its own styles](elements-list-ingame.png)
+
+![Shields: charges, the No shield look and its styles](shields-element-settings.png)
+
+![Flame Shock on your target: time left and the Not on target look](flame-shock-element-settings.png)
+
+![Purge: a Magic buff on your target to purge](purge-element-settings.png)
+
+![Tremor Totem: the warning and its mob list](tremor-element-settings.png)
+
+![The Stone and bronze totem bar theme, with a totem picker open](totem-theme-experimental.png)
+
+![Styles explorer: border looks](styles-explorer-borders.png)
+
+![Styles explorer: pulsing glows](styles-explorer-pulsing-glows.png)
+
+![Styles explorer: pops](styles-explorer-pops.png)
 
 ## On screen
 
