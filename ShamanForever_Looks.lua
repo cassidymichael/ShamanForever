@@ -287,7 +287,7 @@ end
 -- size (default square; a mask larger than the picture is centred on it).
 local function placeMask(m, spec, over, w, h)
 	if spec.atlas then m:SetAtlas(spec.atlas, false, nil, nil, CLAMP, CLAMP)
-	else m:SetTexture(spec.file, CLAMP, CLAMP) end
+	else m:SetTexture(spec.file, spec.wrap or CLAMP, spec.wrap or CLAMP) end
 	m:ClearAllPoints()
 	-- A size that reads as secret (the totem bar's picture, under its secure button) can't be
 	-- scaled: the mask then covers the picture exactly, a little tighter than the look's own.
@@ -516,14 +516,16 @@ function Looks.outerEdge(f) return f and f.frameOuter or 0 end
 
 -- Blizzard's aura button (the shield, Elemental Focus via ns.makeAuraSlot) takes a mask only when
 -- it is made on the button while Blizzard makes the button (the slot's initializeFrame); one made
--- on our frames, or added later in combat, is refused (tested 2026-09-28). So a masked look's mask
--- is made there, from the element's border look at that moment, and so is its stretched art: the
--- aura's icon on the button covers everything drawn on the element's own frame. key: the element.
--- Later, out of combat (Looks.auraStyle), the button follows the look picked since: its art is
--- changed or hidden, and a mask it has takes the new shape, or a plain one for a look without.
--- A mask it never had can only come with a new button: that look waits for a /reload (the options
--- say so). The element's frame keeps its own art too, for while the button is hidden (no aura).
+-- on our frames, or added later in combat, is refused. So every button gets its mask there: the
+-- element's look's shape, or a plain one that hides nothing, and so does its stretched art: the
+-- aura's icon on the button covers everything drawn on the element's own frame. Later, out of
+-- combat (Looks.auraStyle), the button follows the look picked since: its art is changed or
+-- hidden and its mask takes the new shape. The element's frame keeps its own art too, for while
+-- the button is hidden (no aura). key: the element.
 -- host: the frame the icon is on, the button or the aura slot's host under it (made with it).
+-- The plain mask is a solid white texture clamped to its edge texels (wrap "CLAMP", not the
+-- black-blending wrap the shaped masks use), so it leaves every pixel of the icon as it was.
+local PLAIN_MASK = { file = WHITE, wrap = "CLAMP" }
 local auraMade = setmetatable({}, { __mode = "k" })   -- aura icon -> { key, spec, mask, look, art }
 function Looks.auraMask(host, tex, key)
 	local b = ns.borderFor(key)
@@ -536,19 +538,16 @@ function Looks.auraMask(host, tex, key)
 		placeArt(t, art, host, size)
 		made.artTex = t
 	end
-	if spec then
-		local m = host:CreateMaskTexture()
-		placeMask(m, spec, tex, size)
-		tex:AddMaskTexture(m)
-		made.mask = m
-	end
+	local m = host:CreateMaskTexture()
+	placeMask(m, spec or PLAIN_MASK, tex, size)
+	tex:AddMaskTexture(m)
+	made.mask = m
 end
 
 -- The aura slot's restyle (out of combat, auras readable; AuraSlot:style): the button takes the
--- element's border look now (its art, and its mask's shape where it has a mask), placed for the
--- icon's size, and the swipe in the mask's shape. All on the slot's host (the button, or the
--- caller's frame covering it: ns.makeAuraSlot).
-local PLAIN_MASK = { file = WHITE }   -- a mask that hides nothing: a look without one
+-- element's border look now (its art and its mask's shape), placed for the icon's size, and the
+-- swipe in the mask's shape. All on the slot's host (the button, or the caller's frame covering
+-- it: ns.makeAuraSlot).
 function Looks.auraStyle(slot, size)
 	local made = slot.icon and auraMade[slot.icon]
 	if not made then return end
@@ -565,32 +564,10 @@ function Looks.auraStyle(slot, size)
 		made.art = art
 	end
 	if made.artTex and made.art then placeArt(made.artTex, made.art, host, size) end
-	if made.mask then
-		placeMask(made.mask, spec or PLAIN_MASK, slot.icon, size)
-		made.spec = spec
-	elseif not spec then made.spec = nil end
+	if made.mask then placeMask(made.mask, spec or PLAIN_MASK, slot.icon, size) end
+	made.spec = made.mask and spec or nil
 	made.look = made.spec and lookFor(b) or nil
 	swipeOne(host, slot.cd, made.look, size)
-end
-
--- The aura elements whose button's shape differs from their border look now (a masked look on a
--- button made without a mask), among those whose border is owner's (nil: General's; a group): they
--- change after a /reload (the options say so).
--- Returns their keys.
-function Looks.auraStale(owner)
-	local out, seen, db = {}, {}, ns.getDB()
-	for _, made in pairs(auraMade) do
-		local group
-		for _, g in ipairs(db and db.groups or {}) do
-			for _, k in ipairs(g.members) do if k == made.key then group = g end end
-		end
-		local reaches = owner == group or (owner == nil and (group == nil or S.follows(group, "border")))
-		local b = ns.borderFor(made.key)
-		if reaches and (maskFor(b) ~= made.spec or artFor(b) ~= made.art) then seen[made.key] = true end
-	end
-	for key in pairs(seen) do table.insert(out, key) end   -- one entry per element (a copy shares it)
-	table.sort(out)
-	return out
 end
 
 ------------------------------------------------------------------------
@@ -605,7 +582,7 @@ local CDM_MASK, CDM_OVERLAY = "UI-HUD-CoolDownManager-Mask", "UI-HUD-CoolDownMan
 local CDM_SWIPE = "Interface\\HUD\\UI-HUD-CoolDownManager-Icon-Swipe"
 local AB_MASK, AB_FRAME = "UI-HUD-ActionBar-IconFrame-Mask", "UI-HUD-ActionBar-IconFrame"
 
-S.addField("border", "look", { name = "Border look", where = "General > Border", preview = { play = "still" },
+S.addField("border", "look", { name = "Border look", where = "General > Border style", preview = { play = "still" },
 	groups = { { "lines", "Lines" }, { "blizzard", "Blizzard's" }, { "painted", "Painted" } } })
 S.addLook("border", "line", { name = "Line", group = "lines", uses = { size = true, color = true },
 	rings = { { px = "size", color = "color" } } })
@@ -866,55 +843,77 @@ local spark = {
 }
 
 -- The inner glow carrying its school's texture, drifting. The texture is larger than the icon
--- and slides one tile under a mask of the glow's shape, which stays put. Whether a mask holds still
--- while its texture moves is untested: if it doesn't, the texture shows still.
-local MATERIAL = {   -- school -> tile move (in tiles), seconds a tile
-	earth = { 0, 0, 1 }, fire = { 0, 1, 2.2 }, water = { 1, -1, 5 }, air = { 1, 0, 1.2 }, spirit = { 1, -1, 5 },
+-- (the icon plus a tile each side) and slides one tile under a mask of the glow's shape, which
+-- stays put. Whether a mask holds still while its texture moves is untested: if it doesn't, the
+-- texture shows still.
+local MATERIAL = {   -- school -> tile move (in tiles), seconds a tile at Drift speed 1
+	earth = { 0, 0, 0.7 }, fire = { 0, 1, 1.4 }, water = { 1, -1, 3 }, air = { 1, 0, 0.8 }, spirit = { 1, -1, 3 },
 }
--- The drift for the school and the size last fitted (none yet: fit sets it).
-local function materialDrift(parts)
+-- The texture's size, tiling and drift for the school, size and pattern size last set.
+local function materialLayout(g, parts)
 	local size = parts.size
-	if not size then return end
+	if not (size and parts.pattern) then return end
 	local mv = MATERIAL[parts.school or "spirit"] or MATERIAL.spirit
-	parts.move:SetOffset(mv[1] * size, mv[2] * size)
+	local tile = size * parts.pattern
+	local side = size + 2 * tile
+	local cover = side / tile
+	for i, t in ipairs(parts.tex) do
+		t:SetSize(side, side)
+		t:ClearAllPoints()
+		t:SetPoint("CENTER", g, "CENTER", 0, 0)
+		t:SetTexCoord(0, cover, 0, cover)
+		parts.moves[i]:SetOffset(mv[1] * tile, mv[2] * tile)
+	end
 end
--- Intensity: below 100% the material dims; above it the glow under it brightens too (the material
--- itself is already at full opacity, so more light has to come from the soft glow beneath).
+-- Intensity: below 100% the material dims; above it a second copy of it adds light, twice as
+-- bright at 200%.
 local material = {
-	uses = { color = true, speed = true, strength = true }, bySchool = true, inside = true,
+	uses = { color = true, strength = true, width = true }, bySchool = true, inside = true, steady = true,
+	fields = {
+		scale = { name = "Pattern size", tip = "How big the pattern is.", range = S.KINDS.glow.ranges.scale, step = 0.1,
+			format = "%.1fx" },
+		drift = { name = "Drift speed", tip = "How fast the pattern moves.", range = S.KINDS.glow.ranges.drift, step = 0.05,
+			format = "%.2fx" },
+		width = { name = "Rim", tip = "How far in the edge glow reaches.", range = { 0.1, 0.5 }, step = 0.05,
+			format = function(v) return string.format("%d%%", v * 100 + 0.5) end },
+	},
 	build = function(g)
 		local r = root(g.inner)
-		local parts = { roots = { r }, soft = softPart(r, 0.35) }
-		local t = r:CreateTexture(nil, "OVERLAY", nil, 1)
-		t:SetBlendMode("ADD")
+		local parts = { roots = { r }, soft = softPart(r, 0.6), tex = {}, moves = {}, anims = {}, aura = {}, moving = { r } }
 		local m = r:CreateMaskTexture()
 		m:SetTexture(MEDIA .. "Glow-Inner", CLAMP, CLAMP)
 		m:SetAllPoints(g)
-		t:AddMaskTexture(m)
-		local drift, a = anim(t, "Translation", "REPEAT")
-		parts.mat, parts.drift, parts.move, parts.anims, parts.aura = t, drift, a, { drift }, { drift }
-		parts.moving = { r }
+		for i = 1, 2 do
+			local t = r:CreateTexture(nil, "OVERLAY", nil, i)
+			t:SetBlendMode("ADD")
+			t:AddMaskTexture(m)
+			local drift, a = anim(t, "Translation", "REPEAT")
+			parts.tex[i], parts.moves[i] = t, a
+			table.insert(parts.anims, drift)
+			table.insert(parts.aura, drift)
+		end
 		return parts
 	end,
 	style = function(g, parts, st, c)
 		local k = st.strength or 1
-		parts.soft.alpha = math.min(0.35 * math.max(k, 1), 1)
 		styleSoft(parts.soft, c)
 		local school = effectSchool(g)
 		parts.school = school
-		parts.mat:SetTexture(MEDIA .. "Mat-" .. school:sub(1, 1):upper() .. school:sub(2), "REPEAT", "REPEAT")
-		parts.mat:SetTexCoord(0, 3, 0, 3)
-		parts.mat:SetVertexColor(c[1], c[2], c[3], (c[4] or 1) * math.min(k, 1))
-		parts.move:SetDuration((MATERIAL[school] or MATERIAL.spirit)[3])
-		materialDrift(parts)
+		parts.pattern = st.scale
+		local file = MEDIA .. "Mat-" .. school:sub(1, 1):upper() .. school:sub(2)
+		local alpha = { math.min(k, 1), math.min(math.max(k - 1, 0), 1) }
+		for i, t in ipairs(parts.tex) do
+			t:SetTexture(file, "REPEAT", "REPEAT")
+			t:SetVertexColor(c[1], c[2], c[3], (c[4] or 1) * alpha[i])
+			t:SetShown(alpha[i] > 0)
+			parts.moves[i]:SetDuration((MATERIAL[school] or MATERIAL.spirit)[3] / math.max(st.drift or 1, 0.1))
+		end
+		materialLayout(g, parts)
 	end,
 	fit = function(g, parts, size)
-		fitSoft(g, parts.soft, size)
-		parts.mat:SetSize(size * 3, size * 3)
-		parts.mat:ClearAllPoints()
-		parts.mat:SetPoint("CENTER", g, "CENTER", 0, 0)
+		fitSoft(g, parts.soft, size, g.width)
 		parts.size = size
-		materialDrift(parts)
+		materialLayout(g, parts)
 	end,
 }
 

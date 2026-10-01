@@ -25,7 +25,7 @@ local SLIDER_SPAN_W = 400   -- a slider and its value box, at most
 local TEXT_MAX_W = 600   -- text and boxed notices wrap here at the most (the page's width at 864)
 -- A block's panel: its rows inset from its sides, room under its last row, a gap to the next block.
 local PANEL_PAD, PANEL_PAD_B, BLOCK_GAP = 10, 6, 10
--- Folded blocks are saved with the account, by page and header text ("general:Border"), so they
+-- Folded blocks are saved with the account, by page and header text ("general:Border style"), so they
 -- stay folded across a /reload.
 local function folded() return ns.getAccount().foldedBlocks end
 local allPages = {}   -- every page made
@@ -417,36 +417,59 @@ local function paintArrow(t, isFolded)
 	end
 end
 
--- The header's arrow and, folded, what's on.
+-- Small text links, muted grey and gold under the mouse: Expand all and Collapse all, and the
+-- Reset links.
+local LINK_H, LINK_GAP = 18, 14
+local LINK_GREY = 0.62
+-- How far a Reset link takes clicks past its text, each way (x, y): 30 px tall in all, so a
+-- click meant for it doesn't land on the header beside it and fold the block.
+local RESET_PAD_X, RESET_PAD_Y = 8, 6
+-- pad: true for a Reset link's larger hit area.
+local function textLink(parent, text, onClick, pad)
+	local b = CreateFrame("Button", nil, parent)
+	if pad then b:SetHitRectInsets(-RESET_PAD_X, -RESET_PAD_X, -RESET_PAD_Y, -RESET_PAD_Y) end
+	b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	b.text:SetPoint("LEFT")
+	b:SetScript("OnClick", onClick)
+	b:SetScript("OnEnter", function() b.text:SetTextColor(1, 0.82, 0) end)
+	b:SetScript("OnLeave", function() b.text:SetTextColor(LINK_GREY, LINK_GREY, LINK_GREY) end)
+	b.text:SetTextColor(LINK_GREY, LINK_GREY, LINK_GREY)
+	function b.say(t)
+		b.text:SetText(t)
+		b:SetSize(b.text:GetStringWidth() + 2, LINK_H)
+	end
+	b.say(text)
+	return b
+end
+
+-- The Reset links, shown while what they reset has changes, each asking first: a block's at the
+-- right of its header, and a page's own (page.resetAll: { text(), ask() }, an element page's
+-- "Reset <name>") at the left of the fold row. Placed here only.
+local function placeResets(header, foldRow)
+	if header then header.reset:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", 0, 5) end
+	if foldRow then foldRow.resetAll:SetPoint("LEFT", foldRow, "LEFT", 4, 0) end
+end
+
+-- The header's arrow, its Reset link and, folded, what's on (left of the link while it shows).
 function Page:paintHeader(b)
 	local f = b.head.frame
 	local isFolded = folded()[b.key] and true or false
 	paintArrow(f.arrow, isFolded)
+	local changed = b:changed()
+	f.reset:SetShown(changed)
+	local resetW = changed and f.reset:GetWidth() + LINK_GAP or 0
 	f.says:SetShown(isFolded)
 	if isFolded then
+		f.says:SetPoint("BOTTOMRIGHT", -resetW, 9)
 		f.says:SetText(onList(b))
 		local used = f.textX + f.text:GetStringWidth() + (f.note and 10 + f.note:GetStringWidth() or 0)
-		f.says:SetWidth(math.max(self.rowW - used - 24, 1))   -- cut short with "..." where it's long
+		-- Cut short with "..." where it's long.
+		f.says:SetWidth(math.max(self.rowW - used - resetW - 24, 1))
 	end
 end
 
 -- Expand all and Collapse all: a thin row of two text links at the top of the page, above every
 -- block, on pages with two blocks or more. Shift-click on any header does the same.
-local FOLD_ROW_H, LINK_GAP = 18, 14
-local LINK_GREY = 0.62
-local function foldLink(row, text, onClick)
-	local b = CreateFrame("Button", nil, row)
-	b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	b.text:SetPoint("LEFT")
-	b.text:SetText(text)
-	b:SetSize(b.text:GetStringWidth() + 2, FOLD_ROW_H)
-	b:SetScript("OnClick", onClick)
-	b:SetScript("OnEnter", function() b.text:SetTextColor(1, 0.82, 0) end)
-	b:SetScript("OnLeave", function() b.text:SetTextColor(LINK_GREY, LINK_GREY, LINK_GREY) end)
-	b.text:SetTextColor(LINK_GREY, LINK_GREY, LINK_GREY)
-	return b
-end
-
 -- The row at the top of the page (on shows whether it's there); returns the height it takes.
 function Page:placeFoldRow(on)
 	local row = self.foldRow
@@ -456,21 +479,26 @@ function Page:placeFoldRow(on)
 	end
 	if not row then
 		row = CreateFrame("Frame", nil, self.content)
-		row:SetHeight(FOLD_ROW_H)
-		row.collapse = foldLink(row, "Collapse all", function() self:foldAll(true) end)
+		row:SetHeight(LINK_H)
+		row.collapse = textLink(row, "Collapse all", function() self:foldAll(true) end)
 		row.collapse:SetPoint("RIGHT", row, "RIGHT", 0, 0)
-		row.expand = foldLink(row, "Expand all", function() self:foldAll(false) end)
+		row.expand = textLink(row, "Expand all", function() self:foldAll(false) end)
 		row.expand:SetPoint("RIGHT", row.collapse, "LEFT", -LINK_GAP, 0)
+		if self.resetAll then
+			row.resetAll = textLink(row, "", self.resetAll.ask, true)
+			placeResets(nil, row)
+		end
 		self.foldRow = row
 	end
 	row:ClearAllPoints()
 	row:SetPoint("TOPLEFT", self.content, "TOPLEFT", 0, 0)
 	row:SetPoint("TOPRIGHT", self.content, "TOPRIGHT", 0, 0)
 	row:Show()
-	return FOLD_ROW_H
+	return LINK_H
 end
 
--- Each link dims, and takes no clicks, while it would change nothing.
+-- Each fold link dims, and takes no clicks, while it would change nothing; the page's Reset link
+-- shows while the page has changes.
 function Page:paintFoldRow()
 	local row = self.foldRow
 	if not (row and row:IsShown()) then return end
@@ -483,6 +511,10 @@ function Page:paintFoldRow()
 	for _, pair in ipairs({ { row.expand, anyFolded }, { row.collapse, anyOpen } }) do
 		pair[1]:SetEnabled(pair[2])
 		pair[1]:SetAlpha(pair[2] and 1 or 0.45)
+	end
+	if row.resetAll then
+		row.resetAll.say(self.resetAll.text())
+		row.resetAll:SetShown(self:changed())
 	end
 end
 
@@ -509,9 +541,11 @@ end
 ------------------------------------------------------------------------
 -- A ref names one setting: { elem = key, name } (an element's own, db.elementOpts), { general =
 -- name } (the profile's, db), { bar = "totembar" or "swing", name }, { group = g or a function
--- returning it, name }. Any ref may also carry:
+-- returning it, name }, { style = kind, owner } (a whole style: General's or an owner's). Any ref
+-- may also carry:
 --   after    the follow-up its row runs after a change; a reset runs each one once
 --   default  a function returning the value to compare with, in place of its kind's
+--   changed  a function of the ref: whether it differs from its default, in place of the compare
 --   reset    a function of the ref that resets it, in place of its kind's: for a row that does
 --            more than store the value (a group's Scale keeps its centre, Show goes through
 --            ns.setShow). It returns false when it can't now (Show in combat), as by hand.
@@ -545,6 +579,7 @@ end
 Page.refDefault = defaultOf
 
 local function refChanged(r)
+	if r.changed then return r.changed(r) end
 	local k = REF[r.kind]
 	if k.changed then return k.changed(r) end
 	local t = k.holder(r)
@@ -637,6 +672,36 @@ Page.refKind("group", {
 	end,
 })
 
+-- A style (ShamanForever_Style.lua): owner nil for General's, an owner key, or a function returning
+-- a group (nil while none is chosen). Changed: off how it ships (a "Same as General" switched, or
+-- values of its own that differ); a reset puts it back as shipped.
+local function styleOwner(r)
+	if type(r.owner) == "function" then
+		local o = r.owner()
+		return o, o ~= nil
+	end
+	return r.owner, true
+end
+Page.refKind("style", {
+	id = function(r) return r.style .. "." .. tostring(r.owner) end,
+	changed = function(r)
+		local St = ns.Style
+		local o, chosen = styleOwner(r)
+		if not chosen then return false end
+		local follows, shipped = St.shipped(o, r.style)
+		if o ~= nil then
+			local now = St.follows(o, r.style)
+			if now ~= follows then return true end
+			if now then return false end
+		end
+		return not same(St.get(o, r.style), shipped)
+	end,
+	reset = function(r)
+		local o, chosen = styleOwner(r)
+		if chosen then ns.Style.reset(o, r.style) end
+	end,
+})
+
 -- Adds ref to the block being built; a row outside any block (a page with panels = false) adds it
 -- to the page's own list, which only a whole-page reset reads.
 function Page:owns(ref)
@@ -691,10 +756,12 @@ function Page:header(text, shown, note, icon)
 		f.arrow = f:CreateTexture(nil, "ARTWORK")
 		f.arrow:SetPoint("CENTER", f, "BOTTOMLEFT", 6, 15)
 		f.says = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-		f.says:SetPoint("BOTTOMRIGHT", 0, 9)
 		f.says:SetJustifyH("RIGHT")
 		f.says:SetWordWrap(false)
 		f.says:Hide()
+		f.reset = textLink(f, "Reset", function() block:askReset() end, true)
+		f.reset:Hide()
+		placeResets(f)
 		x = 16
 	end
 	f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
@@ -743,6 +810,9 @@ function Page:header(text, shown, note, icon)
 		end)
 		f:SetScript("OnMouseUp", function(_, button)
 			if button ~= "LeftButton" then return end
+			-- A click on the Reset link, anywhere in its hit area, is the link's alone.
+			local link = f.reset
+			if link:IsShown() and link:IsMouseOver(RESET_PAD_Y, -RESET_PAD_Y, -RESET_PAD_X, RESET_PAD_X) then return end
 			local fold = not folded()[block.key]
 			if IsShiftKeyDown() then self:foldAll(fold) else self:setFolded(block, fold) end
 		end)

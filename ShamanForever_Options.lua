@@ -74,10 +74,16 @@ local function generalRow(p, label, tip, get, set, anchor, shown)
 	return row
 end
 
+-- The block being built owns an owner's style, for its reset.
+local function ownStyle(p, owner, kind, after)
+	p:owns({ style = kind, owner = owner, after = after })
+end
+
 -- "Same as General" for a style: on, the rows under it hide; off the first time, the owner keeps
 -- the look it has as its own, and later its own values come back.
 local function followRow(p, owner, kind, after, label, shown)
 	if type(owner) == "string" then ns.Style.addUser(kind, owner) end
+	ownStyle(p, owner, kind, after)
 	return generalRow(p, label or "Same as General", "Use the settings on the General page.",
 		function() local o = resolve(owner); return o ~= nil and ns.Style.follows(o, kind) end,
 		function(v)
@@ -89,9 +95,10 @@ local function followRow(p, owner, kind, after, label, shown)
 end
 
 -- A style's rows: style() now, get(field) and set(field) for controls, and own(), whether the rows
--- apply (General's, or an owner with its own).
-local function styleRows(owner, kind, after)
+-- apply (General's, or an owner with its own). The block being built owns the style.
+local function styleRows(p, owner, kind, after)
 	local St = ns.Style
+	ownStyle(p, owner, kind, after)
 	local r = {}
 	function r.style()
 		local o = resolve(owner)
@@ -159,110 +166,109 @@ local function reloadLine(p, keys, verb, shown)
 	end, showWhen(function() return #keys() > 0 end, shown))
 end
 
+-- Whether a style's owner is an element (its page's).
+local function isElement(owner) return type(owner) == "string" and ns.ELEMENTS[owner] ~= nil end
+
+-- The border a preview icon wears: its owner's (an element's is its group's; the totem bar's may be
+-- its theme's).
+local function previewBorder(owner)
+	local o = resolve(owner)
+	if o == "totembar" then local _, b = ns.TotemBar.look(); return b end
+	if isElement(o) then return ns.borderFor(o) end
+	return o == nil and ns.Style.general("border") or ns.Style.get(o, "border")
+end
+
+-- A style block's preview: tiles from the pool (ns.Look.tilePool) wearing the owner's styles, in
+-- row f from x. One of the page's icon (a value, or a function returning one), or one per school
+-- while bySchool() on a page that isn't an element's (the totem bar's four). An element's page
+-- shows its own icon, in the school its pop takes. Each wears its owner's border inside its 40,
+-- as on the HUD. The tiles are taken while the row shows and given back when it hides. Returns
+-- sync(), for the row's refresh and before a pop: the tiles in the owner's styles now, laid out.
+-- The gap: from one tile to the next, room for a glow's light.
+local PREVIEW_SIZE, SCHOOL_GAP = 40, 72
+local function previewTiles(f, owner, icon, x, bySchool)
+	local pool, held = ns.Look.tilePool, {}
+	f:HookScript("OnHide", function()
+		while #held > 0 do pool.release(table.remove(held)) end
+	end)
+	return function()
+		local o = resolve(owner)
+		local schools = {}
+		if not isElement(o) and bySchool() then
+			for _, sc in ipairs(ns.Look.SCHOOLS) do
+				if o ~= "totembar" or sc.key ~= "spirit" then table.insert(schools, sc) end
+			end
+		end
+		local n = math.max(#schools, 1)
+		while #held > n do pool.release(table.remove(held)) end
+		while #held < n do table.insert(held, pool.acquire(f, PREVIEW_SIZE)) end
+		local border = previewBorder(owner)
+		for i, t in ipairs(held) do
+			local sc = schools[i]
+			t:wear(o, { border = border })
+			t:icon(sc and sc.icon or type(icon) == "function" and icon() or icon)
+			t:school(sc and sc.key or isElement(o) and ns.Looks.elementSchool(o) or nil)
+			t:point("LEFT", f, "LEFT", x + (i - 1) * SCHOOL_GAP, 0)
+		end
+		return held
+	end
+end
+
 -- Standard rows: the border around icons, General's or an owner's (a group, the totem bar). Sizes
 -- and colours show only for looks that use them. The HUD lays out only out of combat (the shield's
 -- group and the totem bar's buttons are protected then), so a change made in combat reaches it
 -- when combat ends, as every other layout setting does; the previews here take it at once.
 local function borderRows(p, owner, after, label, shown)
 	after = after or relayout
-	local r = styleRows(owner, "border", after)
+	local r = styleRows(p, owner, "border", after)
 	if owner ~= nil then followRow(p, owner, "border", after, label, shown) end
 	local bordered = function() return r.own() and r.style().show end
-	p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"), showWhen(r.own, shown))
-	local look = choiceRows(p, r, "border", "look", "Border look", nil, showWhen(bordered, shown))
-	local function uses(part) return function() return bordered() and ns.Looks.uses(look(), part) end end
-	-- Blizzard's aura button takes a mask only as it is made (ns.Looks.auraMask).
-	local function stale()
-		local o = resolve(owner)
-		if o == nil and owner ~= nil then return {} end   -- no group selected
-		return ns.Looks.auraStale(o)
+	local look
+	-- Not the swing timer's: its page's header shows the bar itself.
+	if owner ~= "swing" then
+		local f = p:row(52)
+		p:label(f, "Preview")
+		-- A group's first element, the totem bar's earth slot, or General's sample.
+		local function icon()
+			local o = resolve(owner)
+			if o == "totembar" then return 136098 end
+			local first = type(o) == "table" and o.members and ns.ELEMENTS[o.members[1]]
+			return first and first.icon or 136026
+		end
+		local sync = previewTiles(f, owner, icon, LABEL_W + 24, function() return look().bySchool end)
+		p:add(f, 52, showWhen(r.own, shown), sync)
 	end
-	reloadLine(p, stale, function(n) return n == 1 and "changes shape" or "change shape" end, shown)
+	p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"), showWhen(r.own, shown))
+	look = choiceRows(p, r, "border", "look", "Border look", nil, showWhen(bordered, shown))
+	local function uses(part) return function() return bordered() and ns.Looks.uses(look(), part) end end
 	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("size"), r.set("size"), showWhen(uses("size"), shown))
 	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), showWhen(uses("color"), shown))
 	p:slider("Cap size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("capSize"), r.set("capSize"), showWhen(uses("capSize"), shown))
 	p:color("Cap colour", "Colour and opacity.", r.get("capColor"), r.set("capColor"), showWhen(uses("capColor"), shown))
 end
 
--- The border a preview icon wears: its owner's.
-local function previewBorder(owner)
-	if owner == nil then return ns.Style.general("border") end
-	if owner == "totembar" then local _, b = ns.TotemBar.look(); return b end
-	return ns.borderFor(owner)
-end
-
--- Whether a style's owner is an element (its page's).
-local function isElement(owner) return type(owner) == "string" and ns.ELEMENTS[owner] ~= nil end
-
 -- An element's pick of the element its pop and School material glow take (popSchool: its own
 -- setting, not a style field, so it stays whether or not the element follows General).
-local POP_SCHOOLS = { { "earth", "Earth" }, { "fire", "Fire" }, { "water", "Water" }, { "air", "Air" },
-	{ "spirit", "Spirit" } }
 local function popSchoolRow(p, key, shown)
 	local function get()
 		local v = ns.elementSetting(key, "popSchool")
 		return ns.SCHOOL_COLOR[v] and v or "own"
 	end
+	local function after() ns.Effects.applyStyle(); ns.applyTimers(); OP.refresh() end
 	local function set(v)
 		ns.elementOpts(key).popSchool = v ~= "own" and v or nil
-		ns.Effects.applyStyle()
-		ns.applyTimers()
-		OP.refresh()
+		after()
 	end
+	p:owns({ elem = key, name = "popSchool", after = after })
 	p:dropdown("Element", "The element its pop and School material glow take.", function()
 		local own = ns.Looks.elementSchool(key, true)
 		local out = { { "own", "Its own" } }
-		for _, sc in ipairs(POP_SCHOOLS) do
-			table.insert(out, sc)
-			if sc[1] == own then out[1][2] = "Its own (" .. sc[2] .. ")" end
+		for _, sc in ipairs(ns.Look.SCHOOLS) do
+			table.insert(out, { sc.key, sc.name })
+			if sc.key == own then out[1][2] = "Its own (" .. sc.name .. ")" end
 		end
 		return out
 	end, get, set, shown, 190)
-end
-
--- A style block's preview: one 40 icon of the page's (icon), or one per school while bySchool()
--- on a page that isn't an element's (a look or motion that differs by school: earth, fire, water,
--- air and spirit side by side; the totem bar's four), made the first time they show. An element's
--- page shows its own icon, in the school it takes. x: where the first sits in its row f. Each
--- wears its owner's border inside its 40, as on the HUD. Returns shown(), the icons it shows now,
--- and place(), for the row's refresh, which lays them out and returns them.
-local SCHOOL_ICONS = { { "earth", 136098 }, { "fire", 135825 }, { "water", 135127 }, { "air", 136114 },
-	{ "spirit", 136051 } }   -- Stoneskin, Searing, Healing Stream, Windfury, Lightning Shield
-local SCHOOL_GAP = 72   -- from one school's icon to the next: room for the light between them
-local function previewIcons(f, owner, icon, x, bySchool)
-	local one = ns.makeIcon(f, 40, owner)
-	one.tex:SetTexture(icon)
-	local schools = {}
-	local v = {}
-	function v.shown()
-		if isElement(owner) or not bySchool() then return { one } end
-		if #schools == 0 then
-			for _, s in ipairs(SCHOOL_ICONS) do
-				if owner ~= "totembar" or s[1] ~= "spirit" then
-					local ic = ns.makeIcon(f, 40, owner)
-					ic.school = s[1]   -- the school its looks take (ns.Looks)
-					ic.tex:SetTexture(s[2])
-					ic.glowF:restyle()
-					ic:Hide()
-					table.insert(schools, ic)
-				end
-			end
-		end
-		return schools
-	end
-	function v.place()
-		local list = v.shown()
-		one:SetShown(list[1] == one)
-		for i, ic in ipairs(schools) do
-			ic:SetShown(list == schools)
-			if list == schools then
-				ic:SetPoint("LEFT", f, "LEFT", x + (i - 1) * SCHOOL_GAP + ns.Looks.fit(ic, previewBorder(owner), 40), 0)
-			end
-		end
-		if list[1] == one then one:SetPoint("LEFT", f, "LEFT", x + ns.Looks.fit(one, previewBorder(owner), 40), 0) end
-		return list
-	end
-	return v
 end
 
 -- Standard block: the pulsing glow's style, with an icon glowing all the time that follows every
@@ -272,8 +278,8 @@ local function glowBlock(p, owner, icon)
 	-- (Maelstrom's at five) isn't on that list and only picks up a style change through its
 	-- module's applyTimers hook.
 	local function after() ns.Effects.applyStyle(); ns.applyTimers(); OP.refresh() end
-	local r = styleRows(owner, "glow", after)
 	p:header("Pulsing glow style")
+	local r = styleRows(p, owner, "glow", after)
 	if owner == nil then
 		p:anchor("glow")
 		p:text("Every pulsing glow. Elements and the totem bar can have their own.")
@@ -282,9 +288,9 @@ local function glowBlock(p, owner, icon)
 	local f = p:row(64)
 	p:label(f, "Preview")
 	local look
-	local icons = previewIcons(f, owner, icon, LABEL_W + 24, function() return look().bySchool end)
+	local sync = previewTiles(f, owner, icon, LABEL_W + 24, function() return look().bySchool end)
 	p:add(f, 64, own, function()
-		for _, ic in ipairs(icons.place()) do ic:SetGlowShown(true) end
+		for _, t in ipairs(sync()) do t:glow(true) end
 	end)
 	look = choiceRows(p, r, "glow", "look", "Look", nil, own)
 	if isElement(owner) then popSchoolRow(p, owner, showWhen(function() return look().bySchool end)) end
@@ -304,7 +310,7 @@ local function glowBlock(p, owner, icon)
 		table.sort(names)
 		for _, field in ipairs(names) do
 			local fd = e.fields[field]
-			p:slider(fd.name, fd.tip, fd.range[1], fd.range[2], fd.step, function(v) return string.format(fd.format, v) end,
+			p:slider(fd.name, fd.tip, fd.range[1], fd.range[2], fd.step, function(v) return type(fd.format) == "function" and fd.format(v) or string.format(fd.format, v) end,
 				r.get(field), r.set(field), showWhen(function() return look() == e end, own))
 		end
 	end
@@ -320,18 +326,19 @@ end
 -- event the icon pops for (ready, imbue, expired, killed). One setting per part (colour, flash,
 -- burst, motion), each changing only its own, in any mix.
 local function popBlock(p, owner, icon, kind)
-	local icons
+	local f, sync   -- the preview's row, and its tiles in the style now
 	local function playPop()
-		for _, ic in ipairs(icons.shown()) do ic:Pop(kind) end
+		for _, t in ipairs(sync()) do t:pop(kind) end
 	end
 	-- ns.applyTimers: the pops Blizzard's aura buttons play (Elemental Focus, Purge) take a style
 	-- change through their module's hook, once out of combat.
 	local function after()
 		ns.applyTimers()
 		OP.refresh()
-		if icons and icons.shown()[1]:IsVisible() then playPop() end
+		if f and f:IsVisible() then playPop() end
 	end
-	local r = styleRows(owner, "pop", after)
+	p:header("Pop style")
+	local r = styleRows(p, owner, "pop", after)
 	-- Colour is for Ready and Ran out (ns.Looks.POP_EVENTS): a page whose pop is for a warning (the
 	-- imbue's) keeps the warning's colour and doesn't offer it.
 	local colored = ns.Looks.POP_EVENTS[kind]
@@ -341,23 +348,22 @@ local function popBlock(p, owner, icon, kind)
 	local function bySchool()
 		return (colored and r.style().colorBy == "school") or burst().bySchool or false
 	end
-	p:header("Pop style")
 	if owner == nil then
 		p:anchor("pop")
 		p:text("The burst when something happens: a cooldown ready, an imbue dropping, a totem ending. Elements and the totem bar can have their own.")
 	else followRow(p, owner, "pop", after) end
 	local own = showWhen(r.own)
-	local f = p:row(56)
+	f = p:row(56)
 	p:label(f, "Try it")
-	icons = previewIcons(f, owner, icon, LABEL_W + 16, bySchool)
+	sync = previewTiles(f, owner, icon, LABEL_W + 16, bySchool)
 	local play = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
 	play:SetSize(80, 22)
 	play:SetText("Play")
 	play:SetScript("OnClick", playPop)
 	p:add(f, 56, own, function()
-		local list = icons.place()
+		local list = sync()
 		play:ClearAllPoints()
-		play:SetPoint("LEFT", list[#list], "RIGHT", 24, 0)
+		play:SetPoint("LEFT", list[#list].box, "RIGHT", 24, 0)
 	end)
 	if isElement(owner) then popSchoolRow(p, owner, showWhen(bySchool)) end
 	if colored then
@@ -423,8 +429,8 @@ local function fontChoices(current)
 end
 local function textBlock(p, owner, after)
 	after = after or relayout
-	local r = styleRows(owner, "text", after)
-	p:header("Text")
+	p:header("Text style")
+	local r = styleRows(p, owner, "text", after)
 	if owner == nil then
 		p:anchor("text")
 		p:text("Timers, counts and keys. The totem bar and the swing timer can have their own.")
@@ -442,7 +448,7 @@ end
 -- bar's own, with Same as General. The list shows each texture as a strip.
 local function barRows(p, owner, after)
 	after = after or relayout
-	local r = styleRows(owner, "bar", after)
+	local r = styleRows(p, owner, "bar", after)
 	if owner then followRow(p, owner, "bar", after, "Texture same as General") end
 	local own = showWhen(r.own)
 	local c = ns.SCHOOL_COLOR.water
@@ -465,7 +471,7 @@ local function barRows(p, owner, after)
 end
 -- General's: every time bar, the shield's charge bar, Maelstrom's stack bar and the swing timer.
 local function barBlock(p)
-	p:header("Bars")
+	p:header("Bar texture")
 	p:anchor("bar")
 	p:text("Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer. The totem bar's time bars and the swing timer can have their own.")
 	barRows(p, nil)
@@ -482,13 +488,13 @@ local TEXT_POS = { { "auto", "Auto" }, { "center", "Centre" }, { "topleft", "Top
 local function timerSettings(p, title, key, kind, after, note, first, barPlaced)
 	after = after or retime
 	local cant = ns.Timer.cant(key, kind)
-	local r = styleRows(key, kind, after)
+	p:header(title)
+	local r = styleRows(p, key, kind, after)
 	local style, tg, ts, own = r.style, r.get, r.set, r.own
 	-- A part's switch hides while following General, or when the game can't do it; the rows under it
 	-- hang on it while it's on.
 	local function part(name) return showWhen(function() return not cant[name] and own() end) end
 	local function on(field) return function() return style()[field] end end
-	p:header(title)
 	if not key then p:anchor(kind) end
 	if first then first() end
 	if note then p:text(note) end
@@ -540,8 +546,8 @@ end
 -- otherwise an element's or the totem bar's, with Same as General.
 local function gcdBlock(p, key)
 	local function after() ns.refreshAll(); ns.TotemBar.refreshGCD(); OP.refresh() end
-	local r = styleRows(key, "gcd", after)
 	p:header("Global cooldown")
+	local r = styleRows(p, key, "gcd", after)
 	if key then followRow(p, key, "gcd", after)
 	else
 		p:anchor("gcd")
@@ -562,6 +568,11 @@ end
 
 local function get(key) return function() return db()[key] end end
 local function set(key, after) return function(v) db()[key] = v; (after or relayout)() end end
+-- A profile setting's row: its getter and setter (as get and set); the block being built owns it.
+local function gopt(p, key, after)
+	p:owns({ general = key, after = after or relayout })
+	return get(key), set(key, after)
+end
 
 
 ------------------------------------------------------------------------
@@ -605,7 +616,7 @@ local function buildGeneral(p)
 	p:header("Icon size")
 	p:anchor("size")
 	p:slider("Icon size", "Every group's and the totem bar's, unless it has its own.", 24, 96, 1, int,
-		get("iconSize"), set("iconSize"))
+		gopt(p, "iconSize"))
 	-- Who has an own icon size: groups with something in them, then the totem bar.
 	local function ownSizes()
 		local out = {}
@@ -617,15 +628,15 @@ local function buildGeneral(p)
 	end
 	p:text(function() return "Currently using their own: " .. table.concat(ownSizes(), ", ") end,
 		function() return #ownSizes() > 0 end)
-	p:header("Border")
-	p:anchor("border")
-	borderRows(p, nil)
-	ownLine(p, "border")
 	timerSettings(p, "Cooldowns", nil, "cooldown", nil, "A spell you can't cast yet.")
 	gcdBlock(p, nil)   -- beside Cooldowns: the global cooldown sweeps the same timers
 	timerSettings(p, "Time left", nil, "uptime", nil, "A totem, shield or imbue running.")
 	textBlock(p, nil)
 	barBlock(p)
+	p:header("Border style")
+	p:anchor("border")
+	borderRows(p, nil)
+	ownLine(p, "border")
 	glowBlock(p, nil, 136026)
 	popBlock(p, nil, 136026, "ready")
 	ns.Sounds.generalBlock(p)
@@ -768,7 +779,16 @@ local function buildTotemBar(p)
 	local function c() return TB.cfg() end
 	local function changed() TB.applySettings(); OP.refresh() end
 	local function tget(key) return function() return c()[key] end end
-	local function tset(key) return function(v) c()[key] = v; changed() end end
+	-- The block being built owns a bar setting; ref: the rest of its ref (a reset of its own).
+	local function own(key, ref)
+		ref = ref or {}
+		ref.bar, ref.name, ref.after = "totembar", key, changed
+		p:owns(ref)
+	end
+	local function tset(key)
+		own(key)
+		return function(v) c()[key] = v; changed() end
+	end
 
 	p:hero("totembar")
 	p:callout("Not learned yet. It shows on screen once your character knows a totem.",
@@ -777,6 +797,7 @@ local function buildTotemBar(p)
 	-- show only where they apply (Buttons in Everything, the rest while our bar is on).
 	local full = function() return c().mode == "everything" end
 	p:header("Totems")
+	own("mode", { reset = function() TB.setMode(TB.DEFAULTS.mode) end })
 	p:cards("Use", nil, {
 		{ "blizzard", "Blizzard's", "Interface\\Icons\\INV_Misc_Gear_01" },
 		{ "active", "Active totems", "Interface\\Icons\\Spell_Nature_TimeStop" },
@@ -835,6 +856,8 @@ local function buildTotemBar(p)
 	-- it; the box shows or hides its slot. The drag follows Groups & Layout's: a ghost on the cursor
 	-- and a white line where it will land.
 	local ORDER_H, ORDER_W = 28, 260
+	own("order")
+	own("hidden")
 	p:text("Drag to reorder.")
 	local list = p:row(4 * ORDER_H)
 	local rows, dragFrom = {}, nil
@@ -912,11 +935,14 @@ local function buildTotemBar(p)
 			r:SetAlpha(1)
 		end
 	end)
-	p:dropdown("Direction", nil, { { "row", "Row" }, { "column", "Column" } }, tget("dir"), function(v)
+	-- The pickers open the new direction's first way.
+	local function setDir(v)
 		c().dir = v
 		c().pop = v == "row" and "up" or "right"
-		changed()
-	end, free("dir"), 140)
+	end
+	own("dir", { reset = function() setDir(TB.DEFAULTS.dir) end })
+	p:dropdown("Direction", nil, { { "row", "Row" }, { "column", "Column" } }, tget("dir"),
+		function(v) setDir(v); changed() end, free("dir"), 140)
 	p:dropdown("Pickers open", "Which way the totem picker opens from a slot.", function()
 		if TB.eff().dir == "row" then return { { "up", "Up" }, { "down", "Down" } } end
 		return { { "right", "Right" }, { "left", "Left" } }
@@ -935,16 +961,22 @@ local function buildTotemBar(p)
 		return TB.skin.owns("dir") or TB.skin.owns("pop") or TB.skin.owns("spacing") or TB.skin.owns("extras")
 	end)
 	-- Its own size is not its scale: scale grows everything, text, arrows, spacing and lines included.
+	own("sizeFollow", { reset = function() TB.setSizeFollow(TB.DEFAULTS.sizeFollow) end })
 	local sizeFollow = generalRow(p, "Icon size same as General", "Use the icon size on the General page.",
 		tget("sizeFollow"), function(v) TB.setSizeFollow(v); changed() end, "size")
+	-- Its own size (none until the switch is first turned off) matters only while the switch is
+	-- off, itself a change; a reset clears it, so turning the switch off starts from General's again.
+	own("size", { default = tget("size"), reset = function() c().size = nil end })
 	p:sub(sizeFollow, function() return not c().sizeFollow end, function()
 		p:slider("Icon size", nil, 24, 96, 1, px,
-			tget("size"), tset("size"))
+			tget("size"), function(v) c().size = v; changed() end)
 	end)
 	p:dropdown("Call and Recall", "Where they sit on the bar.", { { "ends", "Both ends" }, { "before", "Before the slots" }, { "after", "After the slots" } },
 		tget("extras"), tset("extras"),
 		showWhen(function() return (c().call or c().recall) and not TB.skin.owns("extras") end, full), 180)
 	-- Its size: the theme's own where it keeps one (a smaller default).
+	own("extrasScale")
+	own("stoneExtrasScale")
 	p:slider("Call and Recall size", "As a share of the slots' size.", 0.5, 1.5, 0.05,
 		pct, function() return TB.eff().extrasScale end,
 		function(v) c()[TB.skin.extrasScaleKey()] = v; changed() end,
@@ -955,7 +987,7 @@ local function buildTotemBar(p)
 		pct, tget("alpha"), tset("alpha"))
 
 	-- With Layout: heavier borders go with the spacing.
-	p:header("Border")
+	p:header("Border style")
 	p:text("Set by the theme.", owned("border"))
 	borderRows(p, "totembar", changed, nil, free("border"))
 
@@ -1030,6 +1062,10 @@ local function buildTotemBar(p)
 	ns.Sounds.row(p, "Sound when it ends", "When a totem runs out or is killed. Not when you dismiss it.", tget("goneSound"), tset("goneSound"))
 	local secs = function(v) return v == 0 and "Off" or string.format("%d s", v) end
 	p:slider("Warn in the last", nil, 0, 30, 1, secs, tget("warn"), tset("warn"))
+	-- Its defaults are named by the client's spell names, which may not have loaded when they were
+	-- filled in: compared by TB.warnOverChanged, which takes either name.
+	own("warnOver", { changed = function() return TB.warnOverChanged(c().warnOver) end,
+		reset = function() c().warnOver = TB.warnOverDefaults() end })
 	p:text("Totems with their own warning time, instead of the default:", function() return next(c().warnOver) ~= nil end)
 	-- Each totem's own time, with a small X at the end of its row to drop it. Totems are kept by the
 	-- client's name for them (any rank), so row i shows the i-th name in order.
@@ -1092,7 +1128,7 @@ end
 -- The helpers and standard blocks the Groups & Layout page and the element pages share
 -- (ShamanForever_OptionsLayout.lua, ShamanForever_OptionsElements.lua).
 OP.kit = {
-	relayout = relayout, respell = respell, get = get, set = set, confirm = confirm,
+	relayout = relayout, respell = respell, get = get, set = set, gopt = gopt, confirm = confirm,
 	SHOW_CHOICES = SHOW_CHOICES,
 	COMBAT_SHOW = COMBAT_SHOW, STAY_TIP = STAY_TIP, staySecs = staySecs,
 	generalRow = generalRow, borderRows = borderRows,

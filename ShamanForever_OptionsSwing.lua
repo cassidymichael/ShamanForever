@@ -120,6 +120,6 @@ function SP.build(p)
 	p:color("Text colour", nil, get("countdownColor"), set("countdownColor"), text)
 	K.textBlock(p, "swing", changed)
 
-	p:header("Border")
+	p:header("Border style")
 	K.borderRows(p, "swing", changed)
 end

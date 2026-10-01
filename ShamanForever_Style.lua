@@ -38,10 +38,11 @@ S.register("glow", {
 	-- Its look (S.addLook; ShamanForever_Looks.lua), colour, one pulse's length (s), the dimmest it
 	-- gets between pulses, how far in from the edges it reaches (share of the icon), how bright
 	-- a look that has an intensity is (1 = as drawn), and how long a lap round the icon takes (s)
-	-- for a look that runs round it. Killed early's glow keeps its red.
+	-- for a look that runs round it, and, for School material, its pattern's size (in icon widths)
+	-- and how fast it drifts (1 = as drawn). Killed early's glow keeps its red.
 	defaults = { look = "soft", color = { 1, 0.8, 0.25, 1 }, speed = 0.5, low = 0.25, width = 0.2, strength = 1,
-		lap = 1.6 },
-	ranges = { lap = { 0.6, 4 } },
+		lap = 1.6, scale = 1.5, drift = 1 },
+	ranges = { lap = { 0.6, 4 }, scale = { 0.5, 2 }, drift = { 0.25, 3 } },
 	path = { "glowStyle" },
 	-- Purge's glow starts as Blizzard's proc ring, and Shields' No shield and Flame Shock's Not on
 	-- target glows as the soft inner glow: their own styles rather than General's.
@@ -89,7 +90,8 @@ S.register("border", {
 --   bySchool       it differs by school (previews show one icon per school)
 --   uses           the style fields it reads, field -> true (the options show only those)
 --   fields         field -> { name, tip, range = { min, max }, step, format }: a field it reads its
---                  own way, offered under its own label while it is picked
+--                  own way, offered under its own label while it is picked (format: a string for
+--                  string.format, or a function of the value)
 --   preview        hints for previews: { play = "loop" | "hover" | "still", bg = "dark" | "snow",
 --                  size }
 --   credit         "ai": drawn with art made with an AI model
@@ -331,6 +333,31 @@ function S.set(owner, kind, field, value)
 	end
 	S.setFollow(owner, kind, false)
 	S.override(owner, kind, true)[field] = value
+end
+
+-- How an owner's style ships: whether it follows General, and the style it has then (the kind's
+-- defaults for General; General's, with the owner's own defaults on top, for an owner that has
+-- them).
+function S.shipped(owner, kind)
+	local spec = S.KINDS[kind]
+	if owner == nil then return true, clean(nil, spec.defaults, spec.ranges) end
+	if ownerDefaults(owner, kind) == nil then return true, S.general(kind) end
+	return false, base(owner, kind)
+end
+
+-- Back to how it ships: General's to the kind's defaults; an owner's own table removed, so it
+-- follows General again, or has its own defaults over General's where it has them.
+function S.reset(owner, kind)
+	local spec = S.KINDS[kind]
+	local path, last = spec.path, #spec.path
+	local parent = holder(owner)
+	for i = 1, last - 1 do
+		if type(parent) ~= "table" then return end
+		if owner == nil and type(parent[path[i]]) ~= "table" then parent[path[i]] = {} end
+		parent = parent[path[i]]
+	end
+	if type(parent) ~= "table" then return end
+	parent[path[last]] = owner == nil and clean(nil, spec.defaults, spec.ranges) or nil
 end
 
 -- An owner's name, as the options show it.
