@@ -1253,8 +1253,12 @@ do
 
 	function Tile:icon(tex) self.ic.tex:SetTexture(tex) end
 
-	-- wear, school and icon at once: one restyle and fit.
-	function Tile:dress(base, over, s, tex)
+	-- wear, school and icon at once, and a new size if given: one restyle and fit.
+	function Tile:dress(base, over, s, tex, size)
+		if size then
+			self.size = size
+			self.box:SetSize(size, size)
+		end
 		self.ic.school = s
 		self:icon(tex)
 		self:wear(base, over)
@@ -1325,9 +1329,14 @@ do
 	L.tilePool = Pool
 
 	-- A tile of size in parent, wearing General, in no school, the first school's sample icon,
-	-- hidden glow and no label; shown, and not anchored: the caller places t.box (t:point).
-	function Pool.acquire(parent, size)
-		local t = table.remove(free)
+	-- hidden glow and no label; shown, and not anchored: the caller places t.box (t:point). want: a
+	-- tile given back earlier, taken again while it's free (the looks it wore are made already).
+	function Pool.acquire(parent, size, want)
+		local t
+		if want and want.released then
+			for i = #free, 1, -1 do if free[i] == want then t = table.remove(free, i) break end end
+		end
+		t = t or table.remove(free)
 		if not t then
 			t = make(parent, size)
 			table.insert(made, t)
