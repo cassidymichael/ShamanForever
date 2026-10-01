@@ -138,7 +138,12 @@ function E.glow(parent, over, owner, opts)
 		if p then look.style(self, p, st, k) end
 		if self.iconSize then self:fit(self.iconSize) end
 		-- Under the aura button IsShown is secret; the button restarts that glow itself.
-		if retime and not underButton and self:IsShown() then self.anim:Stop(); self.anim:Play() end
+		if retime and not underButton and self:IsShown() then
+			self.anim:Stop(); self.anim:Play()
+			if p and p.paced then
+				for _, a in ipairs(p.anims or {}) do a:Stop(); a:Play() end
+			end
+		end
 	end
 	-- out: how far the icon's frame reaches past its edge (looks drawn outside it start there).
 	function g:fit(size)
@@ -167,6 +172,7 @@ function E.glow(parent, over, owner, opts)
 			if not (q and q.moving) then return end
 			for _, r in ipairs(q.moving) do r:Show() end
 			if self:IsShown() then
+				if q.paced then self.anim:Stop(); self.anim:Play() end
 				for _, a in ipairs(q.anims or {}) do a:Play() end
 			end
 		end)
@@ -402,10 +408,10 @@ function Rig:home()
 end
 
 -- The motion's steps: step i scales from a to b, or moves by x, y, over dur with smoothing (the
--- aura's icon's too, on the aura route).
+-- aura's icon's too, on the aura route). Scale steps compose, so each runs as the ratio b / a.
 function Rig:scaleStep(i, a, b, dur, smoothing)
 	for _, s in ipairs({ self.scale[i], self.iconScale and self.iconScale[i] }) do
-		s:SetScaleFrom(a, a); s:SetScaleTo(b, b); s:SetDuration(dur); s:SetSmoothing(smoothing)
+		s:SetScaleFrom(1, 1); s:SetScaleTo(b / a, b / a); s:SetDuration(dur); s:SetSmoothing(smoothing)
 	end
 end
 function Rig:moveStep(i, x, y, dur, smoothing)
