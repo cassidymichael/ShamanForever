@@ -1,26 +1,4 @@
--- Swing timer: the time to your next main-hand swing, on a bar of its own that fills (or empties)
--- as the swing comes due. Like the totem bar, it sits outside the groups: its own place, size,
--- scale, opacity, Show and border, per profile in db.swingBar.
---
--- The engine sends PLAYER_SWING(swingDuration, swingType) with every auto attack, carrying the time
--- to the next one; Blizzard's own swing bar is timed from it too. The duration is plain in combat
--- and the gaps between swings match it within 0.04 s (tested 2026-09-28, open world), and it comes
--- with Blizzard's bar off too. So each swing sets the bar from the engine's own number, as a
--- duration object the StatusBar fills from: nothing is polled between swings.
---
--- Best effort, one swing at a time: nothing else is modelled, so a swing moved by a weapon swap or
--- an attack speed change (secret in combat, tested 2026-09-28) is right again from the next swing.
--- A cast-time spell restarts the swing, and the engine doesn't say when the next one lands, so the
--- bar is cleared when such a cast starts and shows again from the next swing. When the time runs
--- out and no swing came (out of range, facing away), the bar stays at its end: the swing is due.
--- Auto attack off clears it, and so does death.
---
--- Preview mode (ShamanForever_Preview.lua) drives it with made-up swings through the same drawing
--- (SW.preview): a swing after swing on the real bar, and in its Busy mode a cast clearing it.
---
--- ShamanForever.lua calls in through the module hooks (ns.registerModule): afterGroups lays it out
--- with every layout of the HUD. Its events are registered only while it's on (not Hidden), so it
--- costs nothing while it's off.
+-- Swing timer
 
 local _, ns = ...
 local say, isSecret = ns.say, ns.isSecret
@@ -33,42 +11,32 @@ local MAIN_HAND = Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.MainHan
 local ELAPSED = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.ElapsedTime or 0
 local REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime or 1
 local IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
-SW.ICON = Spells.icon("attack") or 135274   -- Attack's icon, or a sword if the client can't say
+SW.ICON = Spells.icon("attack") or 135274
 
--- The fill's colour by the main hand's imbue (ShamanForever_Imbue.lua), grey with none.
 local IMBUE_SCHOOL = { rockbiter = "earth", flametongue = "fire", frostbrand = "water", windfury = "air" }
 local NO_IMBUE = { 0.7, 0.7, 0.7 }
 
-------------------------------------------------------------------------
--- Settings: per profile, in db.swingBar
-------------------------------------------------------------------------
+-- Settings
 SW.DEFAULTS = {
-	show = "combat",          -- combat | always | never (Hidden: off, nothing runs)
-	-- Just under the first row (shield, shocks, Fire Nova, ...), a little narrower than it is with
-	-- everything learned. x, y in UIParent units, so scaling keeps the centre.
+	show = "combat",   -- combat | always | never
 	point = "CENTER", x = 0, y = -251,
-	width = 220, height = 7,   -- in the bar's own units: Scale grows them, lines too
+	width = 220, height = 7,
 	scale = 1,
 	alpha = 0.75,
-	colorBy = "imbue", color = { 1, 0.8, 0.25, 1 },   -- imbue | custom
-	fillFrom = "left",        -- left | right: the side the fill starts from
-	deplete = false,          -- starts full and empties
+	colorBy = "imbue", color = { 1, 0.8, 0.25, 1 },
+	fillFrom = "left",
+	deplete = false,
 	countdown = false, countdownSize = 12, countdownColor = { 1, 1, 1, 1 },
-	countdownPos = "center",  -- left | center | right of the bar
-	-- border, textStyle, barStyle: its own, if it has one (ShamanForever_Style.lua)
+	countdownPos = "center",
 }
--- Number settings: the options sliders' ranges. Anything outside (a damaged or hand-made import) is
--- clamped, so the layout never gets a scale of 0 or a NaN.
 local RANGES = { width = { 40, 400 }, height = { 4, 40 }, scale = { 0.5, 3 }, alpha = { 0.1, 1 },
 	countdownSize = { 8, 40 } }
 SW.RANGES = RANGES
--- Settings that are one of a few words: the first is kept where the value isn't one of them.
 local CHOICES = { show = { "combat", "always", "never" }, colorBy = { "imbue", "custom" },
 	fillFrom = { "left", "right" }, countdownPos = { "center", "left", "right" } }
 local function finite(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
 
--- The profile's settings, with defaults filled and wrong types or values reset (imported profiles).
 local cfgTable
 local function cfg()
 	local db = ns.getDB()
@@ -96,20 +64,9 @@ local function cfg()
 end
 SW.cfg = cfg
 
--- On at all: a shaman, and Show isn't Hidden.
 function SW.isOn() return ns.isActive() and cfg().show ~= "never" end
 
-------------------------------------------------------------------------
--- The bar
-------------------------------------------------------------------------
--- f: the bar's place, scale, opacity and visibility (its state driver). face, on it: what shows,
--- only while a swing is under way or positioning is unlocked: a dark strip, the fill over it (a
--- StatusBar fed each swing's duration object) with a spark on its edge, the countdown (the client's
--- own cooldown text, placed left, middle or right) and the border, drawn on the face so it hides
--- with it.
 
--- The bar's look, shared with its preview (ShamanForever_OptionsSwing.lua): the strip's colour, and
--- the fill filling parent with a spark on its edge (the StatusBar, its spark as .spark).
 SW.BACKGROUND = { 0, 0, 0, 0.6 }
 function SW.makeBar(parent)
 	local b = CreateFrame("StatusBar", nil, parent)
@@ -122,9 +79,6 @@ function SW.makeBar(parent)
 	b.spark = spark
 	return b
 end
--- The side it fills from, and the spark on the fill's free edge. Emptying takes the opposite side,
--- so the moving edge travels the same way as when filling. The spark is a line: two screen pixels
--- wide at any size (ns.linePx).
 function SW.styleBar(b)
 	b:SetStatusBarTexture(ns.Media.barTexture("swing"))   -- global or its own; before the fill colour
 	local c = cfg()
@@ -137,8 +91,6 @@ function SW.styleBar(b)
 	b.spark:SetWidth(ns.linePx(b, 2))
 end
 
--- The countdown's text style, one font object for the bar and its preview (a cooldown's text and a
--- plain font string both take it), and where it sits on the bar it's given.
 local font = CreateFont("ShamanForeverSwingFont")
 font:SetFont(STANDARD_TEXT_FONT, SW.DEFAULTS.countdownSize, "OUTLINE")
 SW.font = font
@@ -146,7 +98,7 @@ local TEXT_SIDE = { left = "LEFT", center = "CENTER", right = "RIGHT" }
 function SW.styleCountdown()
 	local c = cfg()
 	local k = c.countdownColor
-	ns.Media.setFontObject(font, "swing", c.countdownSize)   -- the global text style, or its own
+	ns.Media.setFontObject(font, "swing", c.countdownSize)
 	font:SetTextColor(k[1], k[2], k[3], k[4] or 1)
 end
 function SW.placeCountdown(fs, anchor)
@@ -156,7 +108,6 @@ function SW.placeCountdown(fs, anchor)
 	fs:SetJustifyH(side)
 end
 
--- The border it wears: the global one, or its own.
 function SW.border() return ns.Style.get("swing", "border") end
 
 local f = CreateFrame("Frame", nil, UIParent)
@@ -165,7 +116,7 @@ f:Hide()
 SW.frame = f
 local face = CreateFrame("Frame", nil, f)
 face:SetAllPoints()
-face:Hide()   -- shown from the first swing
+face:Hide()
 face.bg = face:CreateTexture(nil, "BACKGROUND")
 face.bg:SetAllPoints()
 face.bg:SetColorTexture(unpack(SW.BACKGROUND))
@@ -179,23 +130,14 @@ cd:SetDrawSwipe(false)
 cd:SetDrawEdge(false)
 cd:SetDrawBling(false)
 cd:SetCountdownFont("ShamanForeverSwingFont")
--- Always tenths (2.3, 0.4): the swing is a few seconds, well under the threshold below which the
--- Cooldown's own numbers show tenths.
 pcall(cd.SetCountdownMillisecondsThreshold, cd, 60)
 local okText, cdFont = pcall(cd.GetCountdownFontString, cd)
 local cdText = okText and cdFont or nil
 
-------------------------------------------------------------------------
--- The swing
-------------------------------------------------------------------------
--- endsAt: when the swing under way comes due (GetTime's clock), nil while none is known. swings and
--- secret count PLAYER_SWING for /sf debug.
 local state = { endsAt = nil, swings = 0, secret = 0, casts = 0 }
 local duration = C_DurationUtil and C_DurationUtil.CreateDuration and C_DurationUtil.CreateDuration()
--- Preview mode's made-up swings (see SW.preview): mode is nil while it's off.
 local pv = { mode = nil, action = "swing", count = 0, nextAt = 0 }
 
--- The fill's colour: the imbue's school, or the custom one.
 local function fillColor()
 	local c = cfg()
 	if c.colorBy == "custom" then return c.color end
@@ -208,8 +150,6 @@ local function paintFill()
 	bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
 end
 
--- The face shows with a swing under way, and while positioning is unlocked (the strip and border
--- then show where the bar goes).
 local function drawFace() face:SetShown(bar:IsShown() or not ns.getAccount().locked) end
 
 local function clearSwing()
@@ -219,7 +159,6 @@ local function clearSwing()
 	drawFace()
 end
 
--- The swing under way on the bar and the countdown: filling as it comes due, or emptying.
 local function drawSwing()
 	local direction = cfg().deplete and REMAINING or ELAPSED
 	if not ns.try("swing bar", bar.SetTimerDuration, bar, duration, IMMEDIATE, direction) then
@@ -231,7 +170,6 @@ local function drawSwing()
 	drawFace()
 end
 
--- A swing of swingDuration seconds starts now (a plain number).
 local function startSwing(swingDuration)
 	local now = GetTime()
 	if not ns.try("swing duration", duration.SetTimeFromStart, duration, now, swingDuration) then
@@ -246,8 +184,7 @@ local function onSwing(swingDuration, swingType)
 	if isSecret(swingType) or swingType ~= MAIN_HAND then return end
 	state.swings = state.swings + 1
 	if isSecret(swingDuration) or type(swingDuration) ~= "number" or swingDuration <= 0 or not duration then
-		-- A secret duration can't time a bar (a duration object takes plain numbers only): the bar
-		-- empties until a plain one comes.
+		-- Secret: a duration object takes plain numbers only
 		if isSecret(swingDuration) then state.secret = state.secret + 1 end
 		clearSwing()
 		return
@@ -255,22 +192,19 @@ local function onSwing(swingDuration, swingType)
 	startSwing(swingDuration)
 end
 
--- A cast that takes time began (UNIT_SPELLCAST_START is not sent for instant spells): it restarts
--- the swing, so the one on the bar is no longer true.
+-- A cast-time spell restarts the swing: clear the bar
 local function onCastStart()
 	state.casts = state.casts + 1
 	if state.endsAt and not pv.mode then clearSwing() end
 end
 
-------------------------------------------------------------------------
--- Events: registered only while it's on
-------------------------------------------------------------------------
+-- Events
 local ev, listening = nil, false
 local EVENTS = {
 	{ "PLAYER_SWING" },
 	{ "UNIT_SPELLCAST_START", "player" },
 	{ "UNIT_INVENTORY_CHANGED", "player" },
-	{ "PLAYER_LEAVE_COMBAT" },   -- auto attack off
+	{ "PLAYER_LEAVE_COMBAT" },
 	{ "PLAYER_DEAD" },
 }
 
@@ -278,13 +212,12 @@ local function onEvent(_, event, a1, a2)
 	if event == "PLAYER_SWING" then onSwing(a1, a2)
 	elseif event == "UNIT_SPELLCAST_START" then onCastStart()
 	elseif event == "UNIT_INVENTORY_CHANGED" then
-		paintFill()   -- an imbue put on or lost: the fill takes its colour now, and the options preview
+		paintFill()
 		ns.Options.refresh()
 	elseif event == "PLAYER_LEAVE_COMBAT" or event == "PLAYER_DEAD" then clearSwing()
 	end
 end
 
--- Registers the events while it's on; off, drops them and the swing under way.
 local function listen(on)
 	if not ev or on == listening then return end
 	listening = on
@@ -296,13 +229,11 @@ local function listen(on)
 	end
 end
 
-------------------------------------------------------------------------
--- Visibility: its state driver
-------------------------------------------------------------------------
+-- Visibility
 local mover
 local function visibilityDriver()
 	if not SW.isOn() then return "hide" end
-	if pv.mode then return "show" end   -- preview mode: out of combat, its swings show
+	if pv.mode then return "show" end
 	if not ns.getAccount().locked then return "show" end
 	if cfg().show == "combat" then return "[petbattle] hide; [combat] show; hide" end
 	return "[petbattle] hide; show"
@@ -316,21 +247,16 @@ local function drive()
 	end
 end
 
-------------------------------------------------------------------------
--- Layout (out of combat: its state driver can only change then)
-------------------------------------------------------------------------
+-- Layout (out of combat)
 local function layout()
 	if ns.deferInCombat("swing layout", layout) then return end
 	local c = cfg()
 	listen(SW.isOn())
-	-- Scale and opacity first: the size and position are whole screen pixels at the scale
-	-- (ns.placeOnPixels says why), and the border's lines are measured for it.
 	f:SetScale(c.scale)
 	f:SetAlpha(c.alpha)
 	local px = ns.pixel(f)
 	f:SetSize(math.max(ns.roundPx(c.width, px), px), math.max(ns.roundPx(c.height, px), px))
 	ns.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
-	-- "bar": only the parts of a border look that fit a bar, where looks have parts.
 	ns.applyBorder(face, SW.border(), "bar")
 	SW.styleBar(bar)
 	paintFill()
@@ -343,25 +269,16 @@ local function layout()
 	mover.update()
 end
 
--- Settings changed (options page): laid out now, or when combat ends.
 function SW.apply()
 	cfgTable = nil
 	layout()
 end
 
-------------------------------------------------------------------------
--- Preview mode: made-up swings on the real bar
-------------------------------------------------------------------------
--- The bar shows (whatever its Show says) and swings again and again through startSwing, so it
--- wears the player's Direction, colour, texture, countdown, size, scale and border as it does in
--- a fight. Preview and Warnings swing at a typical weapon's speed. Busy swings faster, and after
--- two swings a cast cuts the third short: the bar clears, and comes back with the next swing, as
--- it does in a fight. The loop runs a frame's work only while preview mode is on. It never starts
--- in combat: preview mode itself ends when combat starts.
+-- Preview
 local PREVIEW_SWINGS = {
 	preview = { speed = 2.6 },
 	warnings = { speed = 2.6 },
-	busy = { speed = 1.6, swings = 2, cutAt = 0.6, gap = 1 },   -- a cast at cutAt of the third
+	busy = { speed = 1.6, swings = 2, cutAt = 0.6, gap = 1 },
 }
 local pvFrame = CreateFrame("Frame")
 pvFrame:Hide()
@@ -369,7 +286,7 @@ pvFrame:SetScript("OnUpdate", function()
 	local now = GetTime()
 	if now < pv.nextAt then return end
 	if not (SW.isOn() and duration) then
-		pv.action, pv.count, pv.nextAt = "swing", 0, 0   -- switched off meanwhile: from a swing again
+		pv.action, pv.count, pv.nextAt = "swing", 0, 0
 		return
 	end
 	local p = PREVIEW_SWINGS[pv.mode]
@@ -387,21 +304,16 @@ pvFrame:SetScript("OnUpdate", function()
 	end
 end)
 
--- mode: "preview", "warnings" or "busy" starts the swings (from a fresh one if it's a change of
--- mode); nil ends them, and the bar is as a fight leaves it: no swing, hidden.
 function SW.preview(mode)
 	if mode and not PREVIEW_SWINGS[mode] then mode = nil end
 	local was = pv.mode
 	pv.mode, pv.action, pv.count, pv.nextAt = mode, "swing", 0, 0
 	pvFrame:SetShown(mode ~= nil)
 	if not mode then clearSwing() end
-	if (mode ~= nil) ~= (was ~= nil) then layout() end   -- its visibility, out of combat
+	if (mode ~= nil) ~= (was ~= nil) then layout() end
 end
 
-------------------------------------------------------------------------
--- Positioning: a handle over the bar while positioning is unlocked. Dragged by hand, not with
--- StartMoving, so it snaps as groups do (ns.Positioning).
-------------------------------------------------------------------------
+-- Positioning
 mover = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
 mover:SetFrameStrata("DIALOG")
 mover:SetBackdrop(ns.BACKDROP)
@@ -414,13 +326,11 @@ mover.label = mover:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 mover.label:SetPoint("BOTTOMLEFT", mover, "TOPLEFT", 0, 2)
 
 local movable = { frame = f }
--- The arrow keys: moved by dx, dy (UIParent units).
 function movable.nudge(dx, dy)
 	local c = cfg()
 	c.x, c.y = c.x + dx, c.y + dy
 	ns.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
 end
--- Combat started while unlocked: the handle goes, and the strip with it (plain frames).
 function movable.lock()
 	mover:SetScript("OnUpdate", nil)
 	mover:Hide()
@@ -429,7 +339,6 @@ function movable.lock()
 end
 ns.Positioning.addMovable(movable)
 
--- f's centre, from the cursor while dragging (UIParent units from its bottom left), snapped.
 local function dragUpdate(self)
 	if InCombatLockdown() then movable.lock() return end
 	local ui = UIParent:GetEffectiveScale()
@@ -464,8 +373,6 @@ local function describe()
 	local c = cfg()
 	return string.format("Swing timer: %d x %d, scale %.2f, opacity %.0f%%", c.width, c.height, c.scale, c.alpha * 100)
 end
--- As for groups and the totem bar: mouse wheel, width (lines stay crisp); Shift + wheel, scale
--- (everything grows, lines too); Ctrl + wheel, opacity. Each grows about the bar's centre.
 mover:SetScript("OnMouseWheel", function(self, delta)
 	if InCombatLockdown() then return end
 	local c = cfg()
@@ -492,10 +399,6 @@ function mover.update()
 	mover:SetShown(on)
 end
 
-------------------------------------------------------------------------
--- Hooks (ShamanForever.lua calls them; see ns.registerModule)
-------------------------------------------------------------------------
--- Its own layout, with every layout of the HUD (settings, the lock, a profile loaded).
 SW.afterGroups = layout
 
 function SW.start()

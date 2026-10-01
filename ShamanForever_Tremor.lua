@@ -1,29 +1,6 @@
--- Tremor Totem: a warning to put it down. It warns while a mob that casts fear, charm or sleep (the
--- effects Tremor Totem removes) is your target or has its nameplate on screen, and (if the player
--- turns it on) while one of those effects is on you and for 10 s after. It stays quiet while your
--- Tremor Totem is down, and while you couldn't drop one: dead, a ghost, on a flight path or in a
--- vehicle.
--- The mobs are a watchlist the player can change on the element's page: open-world mobs from
--- Classic's database (ShamanForever_TremorList.lua) and the player's own, matched by NPC ID, else by
--- name. While the totem is down the element shows its time left. It is idle while nothing warns
--- (the default), or with Idle when set so, only while the totem also isn't down.
---
--- What can be read, and when:
--- * A mob's name and GUID (the GUID holds its NPC ID). Blizzard makes creature identity secret to
---   addons in dungeons and raids, in and out of combat (12.0 API notes); in the open world it stays
---   readable in combat (tested 2026-09-27). C_Secrets.ShouldUnitIdentityBeSecret says so per unit, and a mob whose
---   identity is secret is simply not matched. Nothing here compares a secret.
--- * Loss of control on the player (C_LossOfControl.GetActiveLossOfControlData): not secret, spell
---   ID included. Only other units' loss of control is. An effect counts when its spell is one
---   Tremor removes (ns.Tremor.SPELLS: every spell with a fear, charm or sleep mechanic in Forever's
---   client data). Its type doesn't decide: a Wrathtail Priestess's Sleep (15970) came as STUN (seen
---   2026-09-27), and a Horror such as Death Coil, which Tremor doesn't remove, likely comes as FEAR.
---   /sf debug still shows the type.
--- * Our Tremor Totem: the earth slot holds the totem we last cast into it (ShamanForever_Totems.lua,
---   readable in combat), and the slot has a duration object while a totem is out. With no cast since
---   a login or /reload in combat or in a PvP match, the slot can't say which totem it holds: that
---   one might be Tremor, so nothing warns until the slot can be read again (combat or the match
---   ends), the totem goes, or we cast into the slot.
+-- Tremor warning
+-- Mob identity is secret in dungeons and raids: such a mob is never matched.
+-- Earth slot unknown after a login or /reload in combat: nothing warns until it can be read.
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
@@ -33,24 +10,19 @@ local TR = { name = "tremor" }
 ns.Tremor = TR
 
 local KEY = "tremor"
-local EARTH = 2        -- the earth totem slot
-local HOLD = 10        -- seconds the warning stays after a fear, charm or sleep on us ends (the tick ends it)
-local SOUND_GAP = 10   -- seconds between sounds, so mobs coming and going don't repeat it
-TR.WORD = "Tremor!"    -- by the icon while it warns
+local EARTH = 2
+local HOLD = 10   -- seconds
+local SOUND_GAP = 10   -- seconds
+TR.WORD = "Tremor!"
 
--- Loss-of-control types that name what Tremor Totem removes (C_LossOfControl's locType), for /sf
--- debug only: an effect counts by its spell.
 local TREMOR_TYPES = { FEAR = true, FEAR_MECHANIC = true, CHARM = true, POSSESS = true, SLEEP = true }
-local tremorSpells = {}   -- spell ID -> true, from TR.SPELLS (ShamanForever_TremorList.lua), at start
+local tremorSpells = {}
 
 local function setting(name) return ns.elementSetting(KEY, name) end
--- A value from a pcall that is safe to use: nil when the call failed or the value is secret.
 local function plain(ok, v)
 	if ok and not isSecret(v) then return v end
 end
 
--- The word's look from the element's settings, on the icon `icon` (the HUD's, or the options
--- preview's): its point, the icon's point it sits against, and the gap between them.
 local WORD_POINTS = { below = { "TOP", "BOTTOM", -4 }, above = { "BOTTOM", "TOP", 4 }, center = { "CENTER", "CENTER", 0 } }
 local WORD_COLOR = { 1, 0.82, 0, 1 }
 local function num(name, fallback)
@@ -66,27 +38,17 @@ function TR.styleWord(fs, icon)
 	fs:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 end
 
-------------------------------------------------------------------------
--- Element
-------------------------------------------------------------------------
 local def = { key = KEY, spellKey = "tremor", icon = 136108, school = "earth", duration = 300,
-	-- idleWhen: nowarning (idle while nothing warns) | notdown (and the totem isn't down).
 	defaults = { idleAlpha = 0, idleWhen = "nowarning", tremorTarget = true, tremorPlates = true, tremorFeared = false,
 		alertPop = true, alertGlow = true, alertText = true, alertSound = "none",
-		-- The word: its size at a 44 px icon (it scales with the icon), colour, where it sits
-		-- (below | above | center) and an offset in pixels.
 		wordSize = 16, wordColor = CopyTable(WORD_COLOR), wordPos = "below", wordX = 0, wordY = 0 } }
 TR.def = def
 def.spell = Spells.name(def.spellKey)
 def.icon = Spells.icon(def.spellKey) or def.icon
 
--- Effects on a layer that ignores the icon's alpha (as the cooldown elements do): the glow shows
--- in full over an icon still fading in.
 local f = ns.newElementIcon(KEY, { effects = true })
 f.tex:SetTexture(def.icon)
--- Our Tremor Totem's time left while it's down. Tremor has no cooldown, so the icon's swipe is free.
 f.upTimer = ns.Timer.new(f, KEY, "uptime", { cd = f.cd, school = def.school })
--- The word by the icon; styled by TR.styleWord (TR.afterGroups).
 f.word = f.textFrame:CreateFontString(nil, "OVERLAY")
 ns.Media.setFont(f.word, nil, 16)
 f.word:SetText(TR.WORD)
@@ -101,14 +63,9 @@ ns.registerElement(KEY, { frame = f, label = def.spell, defaults = def.defaults,
 	kind = "tremor", def = def, spell = def.spellKey, icon = def.icon, school = def.school,
 	blurb = "Warns near mobs that fear, charm or sleep." })
 
-------------------------------------------------------------------------
 -- The watchlist
-------------------------------------------------------------------------
--- The seeds (TR.SEEDS, ShamanForever_TremorList.lua) with the player's edits in acct.fearCasters:
--- added = { [lower-case name] = { name = as shown, id = NPC ID or nil, zone = zone text or nil } },
--- removed = { [lower-case name] = true } for seeds taken off the list.
-local listIDs, listNames = {}, {}   -- NPC ID -> true; lower-case name -> true
-local rows = {}                     -- the list as the options show it, by name
+local listIDs, listNames = {}, {}
+local rows = {}
 local counts = { mobs = 0, added = 0, removed = 0 }
 local function edits() return ns.getAccount().fearCasters end
 
@@ -178,8 +135,6 @@ local function rebuild()
 	for _ in pairs(e.removed) do counts.removed = counts.removed + 1 end
 end
 
--- The list for the options, filtered by a search text (name or zone) and, with ownOnly, to the
--- mobs the player added; counts for its footer.
 function TR.rows(search, ownOnly)
 	search = strtrim((search or "")):lower()
 	if search == "" and not ownOnly then return rows end
@@ -191,10 +146,7 @@ function TR.rows(search, ownOnly)
 end
 function TR.counts() return counts end
 
-------------------------------------------------------------------------
--- Matching a unit against the list
-------------------------------------------------------------------------
--- Whether a GUID is a mob's (Creature or Vehicle; a player's pet's starts Pet), and its NPC ID.
+-- Matching
 local function mobID(guid)
 	local kind, _, _, _, _, id = strsplit("-", guid)
 	if kind == "Creature" or kind == "Vehicle" then return true, tonumber(id) end
@@ -202,10 +154,8 @@ local function mobID(guid)
 end
 local function npcID(guid) return select(2, mobID(guid)) end
 
-local hiddenSeen = 0   -- units whose identity was secret, for /sf debug
+local hiddenSeen = 0
 
--- Whether unit is a live, hostile mob on the list: true or false, or nil when the game hides who
--- it is.
 local function listed(unit)
 	if not plain(safe(UnitExists, unit)) then return false end
 	if plain(safe(UnitIsPlayer, unit)) then return false end
@@ -219,8 +169,7 @@ local function listed(unit)
 	local guid = plain(safe(UnitGUID, unit))
 	if type(guid) == "string" then
 		told = true
-		-- Not a mob: an enemy player's pet can carry a listed mob's name (tamed, or named so), but
-		-- casts only its family's abilities.
+		-- Not a mob: an enemy pet can carry a listed mob's name
 		local mob, id = mobID(guid)
 		if not mob then return false end
 		if id and listIDs[id] then return true end
@@ -232,14 +181,12 @@ local function listed(unit)
 	return nil
 end
 
-------------------------------------------------------------------------
--- What the warning watches
-------------------------------------------------------------------------
+-- Watching
 local targetListed = false
-local plates = {}          -- nameplate unit -> true while it shows a listed mob
-local feared = false       -- a fear, charm or sleep on us now
-local holdUntil = 0        -- after one ends, the warning stays until then (GetTime's clock)
-local controlSeen = {}     -- the last few losses of control on us, any type, for /sf debug
+local plates = {}
+local feared = false
+local holdUntil = 0
+local controlSeen = {}
 
 local function checkTarget()
 	targetListed = setting("tremorTarget") and listed("target") == true or false
@@ -254,7 +201,6 @@ local function checkAllPlates()
 	for i = 1, 40 do checkPlate("nameplate" .. i) end
 end
 
--- Whether a loss of control is one Tremor removes, by its spell; and whether its type says so.
 local function controlMatch(d)
 	local id, t = d.spellID, d.locType
 	local bySpell = type(id) == "number" and not isSecret(id) and tremorSpells[id] == true
@@ -287,9 +233,6 @@ local function readControl()
 	if was and not feared then holdUntil = GetTime() + HOLD end
 end
 
--- Whether our Tremor Totem is out (nil: a totem is out but which one can't be told), and the earth
--- slot's duration object. The slot's totem is the last one we cast into it; unknown (a /reload with
--- it out), the slot itself says while it's readable, by its spell or else its icon (Totems.identify).
 local function tremorOut()
 	local dur = plain(safe(GetTotemDuration, EARTH))
 	if dur == nil then return false end
@@ -302,11 +245,9 @@ local function tremorOut()
 	return key == "tremor", dur
 end
 
-------------------------------------------------------------------------
 -- The warning
-------------------------------------------------------------------------
 local alerting = false
-local why   -- what set it off last, for /sf debug
+local why
 
 local function setAlert(on)
 	f:SetGlowShown(on and setting("alertGlow"))
@@ -325,7 +266,6 @@ local function refresh()
 	end
 	f.tex:SetTexture(def.iconID or def.icon)
 	if not def.spellID then
-		-- Not learned yet (seen only while the preview shows such elements): a plain grey icon.
 		f.tex:SetDesaturated(true)
 		f.upTimer:clear()
 		setAlert(false)
@@ -336,23 +276,18 @@ local function refresh()
 	local out, dur = tremorOut()
 	if out then f.upTimer:set(dur) else f.upTimer:clear() end
 	local held = GetTime() < holdUntil
-	-- Only while the earth slot is known not to hold Tremor, and while a totem could be dropped: not
-	-- dead, a ghost, on a flight path or in a vehicle (none of them secret for the player).
 	local want = out == false and (targetListed or next(plates) ~= nil or feared or held)
 		and not ns.cantAct() and not plain(safe(UnitInVehicle, "player"))
 	if want then
 		why = targetListed and "target" or next(plates) and "nameplate" or feared and "on you" or "just after"
 	end
 	setAlert(want)
-	-- Idle while nothing warns, or (Idle when "notdown") only while the totem isn't down either.
 	local busy = want or not ns.getAccount().locked or (out and setting("idleWhen") == "notdown")
 	ns.fadeTo(f, busy and 1 or ns.idleAlpha(KEY))
 end
 TR.refresh = refresh
 
-------------------------------------------------------------------------
--- List edits (the options). Each says what it did in chat.
-------------------------------------------------------------------------
+-- List edits
 local function changed()
 	rebuild()
 	checkTarget()
@@ -367,7 +302,6 @@ local function isSeed(lower)
 	end
 end
 
--- A mob by name (typed in the options), with its NPC ID and zone when it's the target.
 function TR.add(name, id, zone)
 	name = strtrim(((name or ""):gsub("%s+", " ")))
 	if name == "" then return end
@@ -427,10 +361,6 @@ function TR.restore()
 	say("every mob from the addon's list is back")
 end
 
-------------------------------------------------------------------------
--- Hooks (ShamanForever.lua calls them; see ns.registerModule)
-------------------------------------------------------------------------
--- Saved edits read from old saves or shared text can hold anything.
 function TR.sanitize(_, acct)
 	local e = acct.fearCasters
 	if type(e) ~= "table" then e = {}; acct.fearCasters = e end
@@ -459,7 +389,6 @@ function TR.applyTimers()
 	f.upTimer:apply()
 end
 
--- The word follows the icon's size and its own settings.
 function TR.afterGroups() TR.styleWord(f.word, f) end
 
 function TR.applyLayout()
@@ -470,11 +399,11 @@ function TR.applyLayout()
 	refresh()
 end
 
-TR.onCooldowns = refresh   -- a cast or a totem update: our Tremor may have gone down or up
+TR.onCooldowns = refresh
 
 function TR.tick()
-	checkTarget()   -- the target may have died
-	if feared then readControl() end   -- in case its end came with no loss-of-control event
+	checkTarget()
+	if feared then readControl() end
 	refresh()
 end
 
@@ -486,7 +415,6 @@ function TR.start()
 		"PLAYER_ENTERING_WORLD" }) do
 		ns.registerEvent(ev, event)
 	end
-	-- Ours only, as Blizzard's own loss-of-control frame registers them.
 	ns.registerEvent(ev, "LOSS_OF_CONTROL_ADDED", "player")
 	ns.registerEvent(ev, "LOSS_OF_CONTROL_UPDATE", "player")
 	ev:SetScript("OnEvent", function(_, event, unit)
@@ -505,7 +433,7 @@ function TR.start()
 	checkTarget()
 	checkAllPlates()
 	readControl()
-	ns.onCanActChange(refresh)   -- death, resurrection, a flight path: at once, not at the next tick
+	ns.onCanActChange(refresh)
 end
 
 -- /sf debug

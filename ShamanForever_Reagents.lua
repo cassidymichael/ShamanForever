@@ -1,10 +1,4 @@
--- Reagents (Reincarnation's Ankh, the water buffs' reagents): whether the spell still takes one,
--- how many the player carries, and the count on the icon, in its low colour at or below the Low
--- mark, with the missing look when there are none. While low the element isn't idle, so it shows
--- even at Idle opacity 0. Used by the cooldown elements, the buff elements and the options' previews.
---
--- An element here is any table with key, frame, spellID and reagent (an item ID); the reagent's
--- state is kept on it: takesReagent, reagentReadAt and reagentRead (for /sf debug).
+-- Reagents
 
 local _, ns = ...
 local isSecret, safe = ns.isSecret, ns.safe
@@ -14,9 +8,6 @@ ns.Reagents = R
 
 local setting = ns.elementSetting
 
--- A reagent element's option defaults (ns.elementSetting): the count (always | low | never), its Low
--- mark, whether running low holds it out of idle, the count's text (its colour while plenty and
--- while low or none, its size and place), and the none-left looks.
 R.DEFAULTS = {
 	reagentCount = "always", reagentLow = 2, reagentShow = true,
 	reagentColor = { 1, 1, 1, 1 }, reagentLowColor = { 1, 0.82, 0, 1 },
@@ -24,32 +15,20 @@ R.DEFAULTS = {
 	reagentRing = true, reagentPulse = true,
 }
 
--- The Idle block's second dropdown (idleBlock in ShamanForever_OptionsElements.lua).
 R.IDLE_EXTRA = { key = "reagentShow", label = "Running low",
 	tip = "Running low or out counts as something going on, even at 0%.",
 	choices = { { true, "Shows it" }, { false, "Stays idle" } } }
 
--- How many the player carries, or nil when that can't be read.
 function R.count(def)
 	local ok, n = safe(C_Item and C_Item.GetItemCount, def.reagent)
 	if ok and type(n) == "number" and not isSecret(n) then return n end
 end
 
--- Whether the spell still takes its reagent. It may not: an account perk, Reagent Economy, removes
--- the vendor reagents of class abilities, and a count or warning would then be false. So while the
--- perk is known nothing shows and nothing is kept. Else the spell's tooltip decides, and only a yes
--- (it names the item) shows the count and its looks; a no, or nil while it can't be told yet, shows
--- neither. The tooltip is read while auras are readable, and again once its answer is 30 s old (a
--- tooltip can be incomplete while the client loads it); a nil at the next refresh.
+-- The Reagent Economy perk removes the reagent: then nothing shows
 local RECHECK = 30
-local PERK, PERK_AURA = 1225503, 1262643   -- Reagent Economy, and its aura ("no reagent use")
+local PERK, PERK_AURA = 1225503, 1262643
 ns.Spells.addCheck("Reagent Economy", { PERK, PERK_AURA })
--- The perk: its spell, else (while auras are readable) its aura. Read at each spellbook scan
--- (R.readPerk, from the resolves), after any aura change while it isn't known (R.auraChanged: its
--- aura can come after the first read at login, or with a perk bought mid-session), and at most
--- every RECHECK s while auras are readable; in between, and while auras are secret, the last
--- answer. Once known it stays known for the session: a read that misses it later (a loading
--- screen) must not bring back a count or warning the perk made false.
+-- Once known, stays known for the session
 local perk, perkReadAt = false, -math.huge
 function R.readPerk()
 	if perk then return end
@@ -65,10 +44,7 @@ local function perkKnown()
 	end
 	return perk
 end
-R.perkKnown = perkKnown   -- for /sf debug
--- An aura on the player changed (UNIT_AURA, out of combat; one handler calls it): while the perk
--- isn't known, the next check reads again. Returns whether it will, so the caller refreshes the
--- reagent elements only then; once the perk is known an aura change can't alter them.
+R.perkKnown = perkKnown
 function R.auraChanged()
 	if perk then return false end
 	perkReadAt = -math.huge
@@ -77,14 +53,13 @@ end
 function R.takes(def)
 	if perkKnown() then def.takesReagent = nil return false end
 	if def.takesReagent ~= nil and GetTime() - (def.reagentReadAt or 0) < RECHECK then return def.takesReagent end
-	-- While auras are secret (combat, a PvP match) the perk's aura can't be seen, so the tooltip isn't
-	-- read either: only an answer from a readable moment stands, and nil shows nothing.
+	-- Auras secret: only an answer from a readable moment stands
 	if InCombatLockdown() or ns.aurasSecret() then return def.takesReagent end
 	def.reagentReadAt = GetTime()
 	if not (def.spellID and C_TooltipInfo and C_TooltipInfo.GetSpellByID and C_Item and C_Item.GetItemNameByID) then return nil end
 	local ok, item = safe(C_Item.GetItemNameByID, def.reagent)
 	if not ok or type(item) ~= "string" or isSecret(item) then
-		safe(C_Item.RequestLoadItemDataByID, def.reagent)   -- asked again on the next refresh
+		safe(C_Item.RequestLoadItemDataByID, def.reagent)
 		return nil
 	end
 	local tok, data = safe(C_TooltipInfo.GetSpellByID, def.spellID)
@@ -98,21 +73,16 @@ function R.takes(def)
 	return def.takesReagent
 end
 
--- A number setting, or its default when the saved one isn't a number (shared text can hold anything).
 local function num(key, name)
 	local v = setting(key, name)
 	if type(v) ~= "number" or v ~= v then v = ns.elementDefault(key, name) end
 	return v
 end
 
--- The count for n reagents on an icon (the HUD's and the options' previews), as the element's
--- Reagent settings say: when it shows, its colours (plenty; low or none), size and place. Returns
--- whether n is low, and the none-left looks wanted (ring, pulse), which the caller sets together
--- with any other look on that icon, so a running pulse isn't restarted.
 local COUNT_JUSTIFY = ns.COUNT_JUSTIFY
 function R.draw(f, key, n)
 	local low = n <= num(key, "reagentLow")
-	local show = setting(key, "reagentCount")   -- always | low | never
+	local show = setting(key, "reagentCount")
 	local fs = f.count
 	if show == "always" or (show == "low" and low) then
 		local pos = setting(key, "reagentPos")
@@ -123,7 +93,7 @@ function R.draw(f, key, n)
 		local c = setting(key, name)
 		if not ns.isColor(c) then c = ns.elementDefault(key, name) end
 		local shown = string.format("%d%.3f%.3f%.3f%.3f", n, c[1], c[2], c[3], c[4] or 1)
-		if fs.shown ~= shown then   -- the text and colour only when they change
+		if fs.shown ~= shown then
 			fs.shown = shown
 			fs:SetText(n)
 			fs:SetTextColor(c[1], c[2], c[3], c[4] or 1)
@@ -134,9 +104,6 @@ function R.draw(f, key, n)
 	return low, out and setting(key, "reagentRing") or false, out and setting(key, "reagentPulse") or false
 end
 
--- Reads the count and draws it, once the tooltip says the spell takes the reagent (R.takes).
--- Returns whether it's low enough to hold the element out of idle (Idle when counts reagents), and
--- the none-left looks wanted (see R.draw).
 function R.refresh(def)
 	local n = def.reagent and R.takes(def) == true and R.count(def)
 	def.reagentRead = n
