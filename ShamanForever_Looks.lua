@@ -917,8 +917,11 @@ local material = {
 	end,
 }
 
--- A steady inner glow and a ring that swells out from the frame's edge, like a ping: the
--- glow breathes with the pulse settings, the ring every 1.8 pulse lengths.
+-- A steady inner glow and a ring that swells out from the frame's edge, like a ping: the glow
+-- breathes with the pulse settings, and the ring beats once per breath (two pulse lengths, down and
+-- back), started with it. The ring fades in over the first part of its swell and out as it
+-- reaches full size, so it never shows at full brightness at its smallest.
+local BEAT_IN = 0.15   -- the share of a beat the ring takes to fade in
 local heartbeat = {
 	uses = { color = true, speed = true, low = true, width = true },
 	build = function(g)
@@ -926,19 +929,26 @@ local heartbeat = {
 		local ring = o:CreateTexture(nil, "OVERLAY")
 		ring:SetTexture(MEDIA .. "Glow-Outer")
 		ring:SetBlendMode("ADD")
+		ring:SetAlpha(0)
 		local beat = ring:CreateAnimationGroup()
 		beat:SetLooping("REPEAT")
 		local s = beat:CreateAnimation("Scale")
 		s:SetScaleFrom(0.9, 0.9); s:SetScaleTo(1.65, 1.65); s:SetSmoothing("OUT")
-		local a = beat:CreateAnimation("Alpha")
-		a:SetFromAlpha(0.9); a:SetToAlpha(0); a:SetSmoothing("OUT")
-		return { roots = { r, o }, soft = softPart(r, 0.6), ring = ring, beat = { s, a }, anims = { beat }, aura = { beat },
-			moving = { o } }
+		local up = beat:CreateAnimation("Alpha")
+		up:SetFromAlpha(0); up:SetToAlpha(0.9); up:SetSmoothing("OUT")
+		local down = beat:CreateAnimation("Alpha")
+		down:SetFromAlpha(0.9); down:SetToAlpha(0); down:SetSmoothing("OUT")
+		return { roots = { r, o }, soft = softPart(r, 0.6), ring = ring, beat = { s, up, down }, anims = { beat },
+			aura = { beat }, moving = { o }, paced = true }
 	end,
 	style = function(g, parts, st, c)
 		styleSoft(parts.soft, c)
 		parts.ring:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
-		for _, a in ipairs(parts.beat) do a:SetDuration(st.speed * 1.8) end
+		local len = st.speed * 2
+		local s, up, down = unpack(parts.beat)
+		s:SetDuration(len)
+		up:SetDuration(len * BEAT_IN)
+		down:SetStartDelay(len * BEAT_IN); down:SetDuration(len * (1 - BEAT_IN))
 	end,
 	fit = function(g, parts, size, out)
 		fitSoft(g, parts.soft, size, g.width)

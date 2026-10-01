@@ -138,7 +138,12 @@ function E.glow(parent, over, owner, opts)
 		if p then look.style(self, p, st, k) end
 		if self.iconSize then self:fit(self.iconSize) end
 		-- Under the aura button IsShown is secret; the button restarts that glow itself.
-		if retime and not underButton and self:IsShown() then self.anim:Stop(); self.anim:Play() end
+		if retime and not underButton and self:IsShown() then
+			self.anim:Stop(); self.anim:Play()
+			if p and p.paced then
+				for _, a in ipairs(p.anims or {}) do a:Stop(); a:Play() end
+			end
+		end
 	end
 	-- out: how far the icon's frame reaches past its edge (looks drawn outside it start there).
 	function g:fit(size)
@@ -167,6 +172,7 @@ function E.glow(parent, over, owner, opts)
 			if not (q and q.moving) then return end
 			for _, r in ipairs(q.moving) do r:Show() end
 			if self:IsShown() then
+				if q.paced then self.anim:Stop(); self.anim:Play() end
 				for _, a in ipairs(q.anims or {}) do a:Play() end
 			end
 		end)
