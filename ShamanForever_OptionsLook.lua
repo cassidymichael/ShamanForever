@@ -1310,6 +1310,11 @@ do
 		t.box = CreateFrame("Frame", nil, parent)
 		t.box:SetSize(size, size)
 		t.ic = ns.makeIcon(t.box, size, t.owner)
+		-- The HUD sits its icons on whole pixels, where a picture drawn off the pixel grid (as an
+		-- icon's is, to match its cooldown swipe) and a border's art agree on every edge. A tile sits
+		-- wherever its page puts it, so its picture snaps to the grid as the art does, or a sliver of
+		-- it shows past art drawn flush with its edge (Forever action button).
+		if t.ic.tex.SetSnapToPixelGrid then t.ic.tex:SetSnapToPixelGrid(true) end
 		return t
 	end
 
