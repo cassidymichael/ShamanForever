@@ -1,52 +1,12 @@
--- Your hostile target: your Flame Shock on it and a Magic buff on it to Purge.
--- Tested on open-world mobs in combat (2026-09-30): the containers following the target, Flame
--- Shock's cover, time bar and Expiring, Purge's icon and glow. Not yet tested in a PvP match or an
--- encounter, where auras are secret out of combat too.
---
--- What can be read, and when:
--- * Auras on another unit are secret to addon code, so only Blizzard's aura container can show
---   them (ns.makeAuraSlot, as for the shield). Flame Shock is matched by its spell IDs: Blizzard's
---   container allows that for your debuffs on a unit you can attack (Blizzard_CustomAuraContainer.lua).
---   Purge's slot takes the target's helpful auras of the Magic dispel type, a filter with no such
---   limit. Either way the engine picks the aura and draws it: a filter the client refuses shows
---   nothing, never the wrong aura.
--- * The container doesn't follow a target change by itself (Blizzard's target frame refreshes its
---   own). So on each change it is pointed at the target while that is something you can attack,
---   and at no unit otherwise; and a state driver ([@target,harm,nodead]) hides it while the target
---   isn't one, so a friendly target's buffs can never show as something to purge.
--- * A change from one attackable target to another keeps the gate shown, so only our refresh
---   (UpdateAllAuras) moves the container off the last target's aura. Blizzard's source restricts the
---   aura button, not the container, so SetUnit and UpdateAllAuras should work in combat; not yet
---   seen in game. If one fails, that element's gate goes to alpha 0 until a later call works (the
---   next target change, the next refresh, or the end of combat): it shows nothing rather than the
---   last target's aura.
---
--- Flame Shock, beside the aura itself:
--- * Time left and Expiring, drawn by the engine from the aura's own time (tested in combat
---   2026-09-30): the time bar is ours, handed to Blizzard's button (SetDurationBar), and so are two
---   more bars on two more buttons on the same aura (a button drives one bar), for the bar's
---   Expiring colour. The DoT is 12 s at every rank (the game's spell data, checked after each
---   patch), so its last N seconds are the bar's first N/12 (it drains to the left). In a clip frame
---   over that stretch, a bar in the Expiring colour drains with the time bar, so it shows there
---   whenever the time bar does; over it, a bar in the time bar's own colour, as long as 240 of
---   those stretches and placed so its end crosses the stretch in the 0.05 s at the threshold: it
---   covers the Expiring colour until then, and is gone after. The countdown's red is the button's
---   duration text through a step colour curve. All set out of combat, nothing written in combat;
---   the buttons hide the moment the DoT is gone.
--- * Idle is no hostile target, and with "On your target" (idleWhen) also while your Flame Shock is
---   on it: then Blizzard's button sits at the Idle opacity (a frame between the gate and its
---   container, set out of combat and held through a fight) and the element shows in full only as
---   Not on target. With a hostile target, the Not on target look (the icon grey by default, fade in
---   and out, the red ring, the pulsing glow in its Pulsing glow style) is drawn by the engine, in
---   combat too, with nothing read: a clip look (ns.makeClipLook) whose sensor follows the target
---   with the container shows it only while the target lacks your Flame Shock. So nothing of it lies
---   under Blizzard's button, which takes its group's opacity like any icon. Its holder:
---   - is shown by a state driver while the target is hostile and alive and you're not dead;
---   - hides (alpha 0) while the container isn't made or isn't following the target (a refused
---     call in combat): a miss, never a false warning;
---   - hangs from the gate, so it hides with it, and the sensor with it.
---   The sensor follows a new target on its next frame, so the look waits two frames each time it
---   shows or the target changes (ns.makeClipLook).
+-- Target: your Flame Shock on it, and a Magic buff on it to Purge
+-- Only Blizzard's aura container can show auras on another unit. The engine picks the aura, so a
+-- filter the client refuses shows nothing, never the wrong aura.
+-- The container doesn't follow a target change: it is pointed at the target (no unit when not
+-- attackable), and a state driver ([@target,harm,nodead]) hides it for friendly targets.
+-- A failed call (refused in combat) sets the gate to alpha 0: nothing shows rather than the last
+-- target's aura.
+-- Flame Shock's Expiring colour is a clip-framed bar over the time bar's first N/12 (the DoT is 12 s
+-- at every rank), with a cover bar; all set out of combat only.
 
 local _, ns = ...
 local say, Spells, isSecret = ns.say, ns.Spells, ns.isSecret
@@ -55,16 +15,10 @@ local T = { name = "target" }
 ns.Target = T
 
 local setting = ns.elementSetting
-local gateAlpha, holderAlpha, retarget   -- below
+local gateAlpha, holderAlpha, retarget
 
--- The target's aura elements, in the order the options list them. filter: the aura slot's filter
--- string; candidates(def): its candidate filters (default: the spell IDs of auraKey). The page's
--- texts (ShamanForever_OptionsElements.lua): idleText, procHeader, popTip, glowTip, upLabel and
--- idleLabel (its preview's up and idle states). noPop: no pop when it shows. noGlow: no glow while
--- it's up. Otherwise its glow and pop are its effect host's aura route (ns.Effects.host).
--- ownIcon: its own icon on the button, never the aura's. buttonBorder: its border on the button
--- too. noTimer: no time left. missing, engineExpire: its Not on target and Expiring blocks (Flame
--- Shock's, below). defaults: its own option defaults (ns.elementSetting).
+-- Fields: filter, candidates(def), noPop, noGlow, ownIcon, buttonBorder, noTimer, missing,
+-- engineExpire, defaults; page texts idleText, procHeader, popTip, glowTip, upLabel, idleLabel
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
 		icon = 135813, school = "fire", blurb = "Shows while your Flame Shock is on your target.",
@@ -76,18 +30,16 @@ local TARGET = {
 		},
 		noPop = true,
 		noGlow = true, upLabel = "On target", idleLabel = "No target",
-		missing = true, engineExpire = true,   -- its Not on target and Expiring blocks
+		missing = true, engineExpire = true,
 		defaults = { idleWhen = "notarget", idleAlpha = 0,
 			missGrey = true, missRing = false, missPulse = false, missGlow = true,
-			-- Magenta: it stands out against the fire school's orange time bar.
 			expireSecs = 3, expireBar = true, expireBarColor = { 1, 0.2, 0.8, 1 }, expireText = false } },
 	{ key = "purge", spellKey = "purge", filter = "HELPFUL", icon = 136075, school = "spirit",
 		blurb = "Shows while your target has a Magic buff to purge.",
-		-- Every Magic buff; with Skip long buffs, only those lasting at most Longest buff (the
-		-- container's maxDuration, which also leaves out buffs with no end), so a player's long
-		-- buffs don't keep it lit.
+		-- Skip long buffs: only those lasting at most Longest buff (maxDuration also leaves out buffs with
+		-- no end)
 		candidates = function(def) return { includeDispelTypes = { Magic = true }, maxDuration = T.longest(def) } end,
-		skipLong = { 1, 60, 1 },   -- Longest buff's range and step, in minutes (its page's slider)
+		skipLong = { 1, 60, 1 },   -- minutes
 		idleText = "Idle while your target has nothing to purge", procHeader = "Something to purge",
 		ownIcon = true, noTimer = true, buttonBorder = true,
 		popTip = "Each time a new buff lands on your target, or you target one that has one.",
@@ -97,9 +49,6 @@ local TARGET = {
 }
 T.ELEMENTS = TARGET
 
--- The longest buff that counts, in seconds (the aura slot's maxDuration), or nil for every buff:
--- Skip long buffs and Longest buff, a damaged value read as its default and held to the slider's
--- range.
 function T.longest(def)
 	if not def.skipLong or not setting(def.key, "skipLong") then return nil end
 	local lo, hi = def.skipLong[1], def.skipLong[2]
@@ -108,17 +57,14 @@ function T.longest(def)
 	return math.min(math.max(m, lo), hi) * 60
 end
 
--- While the target is something you can attack and alive. Anything unreadable counts as not.
+-- Unreadable counts as not
 local plainYes = ns.plainYes
 local function hostileTarget()
 	return plainYes(UnitCanAttack, "player", "target") and not plainYes(UnitIsDead, "target")
 end
 local function wantedUnit() return hostileTarget() and "target" or "none" end
 
-------------------------------------------------------------------------
--- Flame Shock and Purge: Blizzard's aura container on the target
-------------------------------------------------------------------------
--- Every ID the slot matches (seeds, and any learned since); made again at each spellbook scan.
+-- Aura container on the target
 local function idMap(def)
 	if not def.ids then
 		def.ids = {}
@@ -127,25 +73,19 @@ local function idMap(def)
 	return def.ids
 end
 
--- Our parts on Blizzard's button, once it is made: the pop's rig (as Elemental Focus's), which the
--- button plays each time a new aura lands.
 local function buildButton(def, slot, button)
 	if def.fx then def.fx:bind(button, slot.icon) end
-	-- buttonBorder: the group's border drawn on the button too, so it shows exactly with it (the
-	-- element's own frame, and its border, sit at its Idle opacity), on the rig's body so the two
-	-- move together. Drawn out of combat only.
 	if def.buttonBorder or def.missing then
 		if def.fx then
 			def.edge = def.fx:makeEdge(button)
 		else
 			def.edge = CreateFrame("Frame", nil, button)
 			def.edge:SetAllPoints(button)
-			def.edge.owner = def.key   -- its school colour (ns.Looks)
+			def.edge.owner = def.key
 		end
 	end
 	if def.engineExpire then
-		-- The countdown that can turn red (styleExpire): a font string of ours over the button,
-		-- its font set before it's handed over (Blizzard writes at once).
+		-- Font set before it's handed over (Blizzard writes at once)
 		def.textHolder = CreateFrame("Frame", nil, button)
 		def.textHolder:SetAllPoints(button)
 		def.durText = def.textHolder:CreateFontString(nil, "OVERLAY")
@@ -154,7 +94,7 @@ local function buildButton(def, slot, button)
 	end
 end
 
-local styleExpire, styleExpireText   -- below
+local styleExpire, styleExpireText
 
 local function styleButton(def, size, slot)
 	if def.engineExpire then
@@ -162,24 +102,19 @@ local function styleButton(def, size, slot)
 	end
 	if def.edge then
 		ns.try("target border " .. def.key, ns.applyBorder, def.edge, ns.borderFor(def.key))
-		if def.edge.frameOverlay then def.edge.frameOverlay:Hide() end   -- the button's own (auraMask)
+		if def.edge.frameOverlay then def.edge.frameOverlay:Hide() end
 	end
 	if def.fx then ns.try("target pop " .. def.key, def.fx.stylePop, def.fx, size) end
 end
 
-------------------------------------------------------------------------
--- Flame Shock's Expiring, drawn by the engine (see the file's header)
-------------------------------------------------------------------------
--- The DoT's length, every rank (the game's spell data, build 70124). A plain read of another length
--- turns the bar cue off until one reads this again (flameShockOnTarget).
+-- Flame Shock's Expiring, drawn by the engine
+-- A plain read of another DoT length turns the bar cue off (flameShockOnTarget)
 local FS_SECS = 12
-local FAST = 240     -- the cover bar's length, in threshold stretches: 12 s / 240 = 0.05 s to cross
+local FAST = 240   -- 12 s / 240 = 0.05 s to cross
 local WHITE = "Interface\\Buttons\\WHITE8x8"
 local RED = { 1, 0.2, 0.2, 1 }
 local REMAINING = Enum and Enum.DurationTextBindingProperty and Enum.DurationTextBindingProperty.RemainingDuration or 0
 
--- A bar on an extra button (made as Blizzard makes the button): in a clip frame, draining with the
--- aura's time left like the time bar (the button drives it).
 function T.makeExpireBar(button)
 	local x = {}
 	x.clip = CreateFrame("Frame", nil, button)
@@ -191,9 +126,7 @@ function T.makeExpireBar(button)
 	return x
 end
 
--- A step colour curve over the time left: red under secs, colour c from there.
--- One per threshold and colour, kept up to 32 (a colour picker's drag makes many), then made
--- afresh.
+-- Step colour curve: red under secs, colour c from there (32 kept)
 local curves, cached = {}, 0
 local function textCurve(secs, c)
 	if not (C_CurveUtil and C_CurveUtil.CreateColorCurve and CreateColor) then return nil end
@@ -210,8 +143,6 @@ local function textCurve(secs, c)
 	return curves[id]
 end
 
--- The Expiring block's settings, out of combat (the slot's restyle): the two bars placed over the
--- time bar's first secs/12, and the countdown handed to the button with its curve, or given back.
 function styleExpire(def, size, slot)
 	local key, t = def.key, slot.timer
 	local st = ns.Style.get(key, "uptime")
@@ -219,12 +150,12 @@ function styleExpire(def, size, slot)
 	if type(secs) ~= "number" or secs ~= secs then secs = def.defaults.expireSecs end
 	secs = math.min(math.max(math.floor(secs + 0.5), 0), 10)
 	local red, cover = def.redBar, def.coverBar
-	-- The cover must hide the Expiring colour completely: not with a see-through bar colour.
+	-- The cover must hide the Expiring colour completely: no see-through colour
 	local k = t and t:barRGB()
 	local barOn = secs > 0 and setting(key, "expireBar") and t and t.barOn and red and cover and red.ok and cover.ok
 		and ns.isColor(k) and (k[4] or 1) >= 1 and not def.lengthOff
-	-- Both hidden first; shown together last, only if every step before worked: an Expiring colour
-	-- without its cover would be a warning for the whole DoT.
+	-- Both hidden first, shown together last: an Expiring colour without its cover would warn for the
+	-- whole DoT
 	for _, x in ipairs({ red, cover }) do if x then x.clip:Hide() end end
 	if not barOn then return styleExpireText(def, slot, st, secs) end
 	local c = setting(key, "expireBarColor")
@@ -232,8 +163,7 @@ function styleExpire(def, size, slot)
 	local placed = ns.try("flame shock expiring place", function()
 		local h, edge = st.barHeight, st.barEdge == "top" and "TOPLEFT" or "BOTTOMLEFT"
 		local w = size * secs / FS_SECS
-		-- Levels set here, from our own frame's (the extra buttons sit at +9 and +11): the Expiring
-		-- colour under the cover; the glow and the countdown above both (styleButton, below).
+		-- Levels: Expiring colour under the cover; glow and countdown above both
 		local base = def.frame.textFrame:GetFrameLevel()
 		red.clip:SetFrameLevel(base + 10); red.bar:SetFrameLevel(base + 11)
 		cover.clip:SetFrameLevel(base + 12); cover.bar:SetFrameLevel(base + 13)
@@ -243,10 +173,6 @@ function styleExpire(def, size, slot)
 			x.clip:SetSize(w, h)
 			x.bar:ClearAllPoints()
 		end
-		-- The cover first: its end at the stretch's right edge at secs left, past its left 0.05 s
-		-- later.
-		-- Both in the time bar's texture, so the cover matches the fill it lies on (a texture
-		-- shaded across the bar, as the game's are, looks the same stretched along it).
 		local tex = ns.Media.barTexture(t.key)
 		cover.bar:SetStatusBarTexture(tex)
 		red.bar:SetStatusBarTexture(tex)
@@ -254,7 +180,6 @@ function styleExpire(def, size, slot)
 		cover.bar:SetSize(long, h)
 		cover.bar:SetPoint("TOPLEFT", cover.clip, "TOPLEFT", w - long * secs / FS_SECS, 0)
 		cover.bar:SetStatusBarColor(k[1], k[2], k[3], 1)
-		-- The Expiring colour, lined up with the time bar: it shows over the stretch's fill.
 		red.bar:SetSize(size, h)
 		red.bar:SetPoint("TOPLEFT", red.clip, "TOPLEFT", 0, 0)
 		red.bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
@@ -266,17 +191,14 @@ function styleExpire(def, size, slot)
 	styleExpireText(def, slot, st, secs)
 end
 
--- The countdown: the button's duration text in place of the Cooldown's numbers, red under secs.
 function styleExpireText(def, slot, st, secs)
 	local key, t = def.key, slot.timer
 	local fs, b = def.durText, slot.button
 	local textOn = secs > 0 and setting(key, "expireText") and st.text and fs ~= nil and textCurve(secs, st.textColor)
 	if textOn then
-		-- Over the Expiring bars.
 		def.textHolder:SetFrameLevel(def.frame.textFrame:GetFrameLevel() + 15)
 		fs:SetFont(STANDARD_TEXT_FONT, st.textSize, "OUTLINE")
 		fs:ClearAllPoints()
-		-- Placed as Timer:apply places the countdown: clear of a bar along that edge.
 		if st.textPos == "topleft" then
 			fs:SetPoint("TOPLEFT", b, "TOPLEFT", 1, (t and t.barOn and st.barEdge == "top") and -(st.barHeight + 1) or -1)
 		elseif st.textPos == "bottom" then fs:SetPoint("BOTTOM", b, "BOTTOM", 0, (t and t.barOn and st.barEdge == "bottom") and st.barHeight + 1 or 1)
@@ -288,8 +210,6 @@ function styleExpireText(def, slot, st, secs)
 			return
 		end
 	end
-	-- Off, or handing it failed: given back, whatever state the last call left, so only the
-	-- Cooldown's own countdown shows (as its style says: Timer:apply ran just before).
 	if fs then
 		ns.try("flame shock countdown", b.ClearDurationText, b)
 		fs:Hide()
@@ -298,45 +218,31 @@ function styleExpireText(def, slot, st, secs)
 end
 
 for _, def in ipairs(TARGET) do
-	def.buff, def.proc = true, true   -- the buff kind's page and preview, as Elemental Focus
+	def.buff, def.proc = true, true
 	def.spell = Spells.name(def.spellKey)
 	def.icon = Spells.icon(def.spellKey) or def.icon
-	-- Effects on a layer that ignores the icon's alpha: Idle fades only the icon under the button.
+	-- Idle fades only the icon under the button
 	local f = ns.newElementIcon(def.key, { effects = true })
 	f.tex:SetTexture(def.icon)
 	f.stack()
-	f.aboveProtected = true   -- Blizzard's aura button sits under it
+	f.aboveProtected = true
 	def.frame = f
-	-- The container hangs from this gate, shown by its state driver only while the target is
-	-- something you can attack; hidden until that driver is on.
 	def.gate = CreateFrame("Frame", nil, f.effects)
 	def.gate:SetAllPoints(f)
 	def.gate:Hide()
 	if def.missing then
-		-- Blizzard's container hangs from this frame, at the Idle opacity with "On your target".
 		def.idle = CreateFrame("Frame", nil, def.gate)
 		def.idle:SetAllPoints(f)
-		-- One border at any time. Blizzard's button is see-through at partial opacity, so the
-		-- element's own border must not lie under it. Three draw it, each shown exactly with what
-		-- it belongs to:
-		--   idleEdge  the element's own (lines, sliced and inner art, at its Idle opacity): with no
-		--             hostile target, by a state driver (driveGate);
-		--   the button's edge (def.edge) and inner art: while your Flame Shock is up;
-		--   the Not on target look's (lookEdge) and inner art (ns.makeClipLook): while it's gone.
-		-- While you're dead with a hostile target the look is hidden, so without your Flame Shock
-		-- up the icon shows no border then.
+		-- One border at any time (Blizzard's button is see-through at partial opacity): idleEdge with no
+		-- hostile target, the button's while Flame Shock is up, the look's while it's gone
 		def.idleEdge = CreateFrame("Frame", nil, f)
 		def.idleEdge:SetAllPoints(f)
 		def.idleEdge.owner = def.key
-		-- Not on target (see the file's header): its holder, over the icon, and the look on it.
 		local h = CreateFrame("Frame", nil, def.gate)
 		h:SetAllPoints(f)
-		h:Hide()   -- until its state driver (driveGate)
-		-- Every frame while shown: the target still hostile and alive, and the container on it. The
-		-- state driver checks only every 0.2 s (and at once only on a target change), while the
-		-- button goes the moment a dying target's debuffs clear: so the holder hides itself here,
-		-- and asks for the container to follow a target that came back or turned (plain reads, and
-		-- SetAlpha on our own frame, allowed in combat).
+		h:Hide()
+		-- Every frame while shown: the state driver checks only every 0.2 s, so the holder hides itself
+		-- when the target dies (plain reads, SetAlpha on our own frame: allowed in combat)
 		h:SetScript("OnUpdate", function(self)
 			local ok = hostileTarget() and def.unit == "target" and not ns.cantAct()
 			if ok ~= self.trusted then
@@ -350,8 +256,6 @@ for _, def in ipairs(TARGET) do
 			holderAlpha(def)
 		end)
 		def.holder = h
-		-- The look, its glow in the element's Pulsing glow style; its sensor on the gate beside
-		-- Blizzard's container.
 		def.missLook = ns.makeClipLook(f, {
 			key = def.key, parent = h, sensorParent = def.gate, unit = wantedUnit,
 			needUnit = "target", owner = def.key,
@@ -363,7 +267,6 @@ for _, def in ipairs(TARGET) do
 			},
 		})
 		def.missLook.tex:SetTexture(def.icon)
-		-- The look's copy of the border, without the inner art the look draws itself.
 		def.lookEdge = CreateFrame("Frame", nil, def.missLook.art)
 		def.lookEdge:SetAllPoints(f)
 		def.lookEdge.owner = def.key
@@ -383,8 +286,6 @@ for _, def in ipairs(TARGET) do
 		onStyle = function(slot, size) styleButton(def, size, slot) end,
 		onError = function(err) ns.noteError("target container " .. def.key, err) end,
 	})
-	-- Its glow and pop (unless it has none): the glow's chain and sensor on the gate, so they hide
-	-- with it, and its sensor follows the target with the slot (retarget).
 	if not (def.noGlow and def.noPop) then
 		def.fx = ns.Effects.host(f, def.key, { aura = {
 			slot = def.aura, parent = def.gate, unit = wantedUnit, needUnit = "target", filter = def.filter,
@@ -397,7 +298,6 @@ for _, def in ipairs(TARGET) do
 	end
 	ns.registerElement(def.key, { frame = f, label = def.spell, defaults = def.defaults,
 		borderHost = def.idleEdge,
-		-- Preview mode: its border isn't on its frame (ShamanForever_Preview.lua).
 		standInBorder = true,
 		effects = { glow = { def.missing and "missing" or "up" }, pop = def.noPop and {} or { "up" } },
 		learned = function() return def.spellID ~= nil end,
@@ -406,9 +306,6 @@ for _, def in ipairs(TARGET) do
 		experimental = def.experimental })
 end
 
--- Their place in the default layout: a group of their own right of Elemental Focus's row, so no
--- existing group changes when they join a profile. Skipped when the default layout already lists
--- them (the main file's DEFAULTS.groups can hold a Target group of its own).
 local listed = false
 for _, g in ipairs(ns.DEFAULTS.groups) do
 	for _, key in ipairs(g.members or {}) do
@@ -420,29 +317,22 @@ if not listed then
 		alpha = 0.75, orientation = "horizontal", growth = "forward", spacing = 6, members = { "flameshock", "purge" } })
 end
 
--- The gate's alpha: 0 while its container may show the last target's aura (stale), else 1. The
--- gate is our own frame, an ancestor of the container.
+-- 0 while the container may show the last target's aura (stale)
 function gateAlpha(def)
 	ns.try("target gate alpha", def.gate.SetAlpha, def.gate, def.stale and 0 or 1)
 	if def.holder then holderAlpha(def) end
 end
 
--- The Not on target holder's opacity: 1 while it can be trusted (its container made and following
--- the target), else 0. Our own frame, not an ancestor of a container: allowed in combat (it has to
--- be: a failed retarget in combat hides it).
+-- 1 while the look can be trusted (container made and following the target); our own frame, so
+-- allowed in combat
 function holderAlpha(def)
 	local h = def.holder
 	local trusted = h.on and h.trusted ~= false and not def.stale
-	-- Hidden too while preview mode's stand-in shows over it (its idle state is see-through); the
-	-- preview's start and end lay the HUD out, which calls this (T.afterGroups).
 	h:SetAlpha((trusted and not ns.Preview.isOn()) and 1 or 0)
 end
 
--- The target's aura slots follow the target: pointed at it while it's something you can attack
--- (a change of unit refreshes the container), refreshed on a change from one such target to
--- another, and at no unit otherwise. A call that fails (see the file's header) leaves def.unit nil,
--- so the next refresh tries again, as does the end of combat; meanwhile the gate is at alpha 0.
--- only: that element alone (a refresh finding its unit behind), else both.
+-- Slots follow the target: pointed at it while attackable, refreshed on a change between targets,
+-- at no unit otherwise. A failed call leaves def.unit nil, so the next refresh retries.
 function retarget(only)
 	local unit = wantedUnit()
 	for _, def in ipairs(TARGET) do
@@ -467,8 +357,6 @@ function retarget(only)
 				ns.retryAfterCombat("target retarget", function() retarget() end)
 			end
 		end
-		-- Not on target's sensor and the glow's, the same way; a refused call holds the look off, and
-		-- it waits two frames on each call (ns.makeClipLook).
 		if only == nil or only == def then
 			for _, look in ipairs({ def.missLook or false, def.fx and def.fx.up or false }) do
 				if look and not look:follow(unit) then
@@ -479,35 +367,28 @@ function retarget(only)
 	end
 end
 
--- Once, out of combat, when its container is made: the gate's state driver. One that can't be set
--- keeps the gate hidden, so the element shows nothing rather than a friendly target's auras.
 local HOSTILE = "[@target,harm,nodead] show; hide"
 local function driveGate(def)
 	if def.driven or not def.aura.container or InCombatLockdown() then return end
 	def.driven = true
 	local ok, err = pcall(RegisterStateDriver, def.gate, "visibility", HOSTILE)
 	if not ok then ns.noteError("target gate " .. def.key, err) end
-	-- Not on target's holder: also not while you're dead (nothing can be cast).
 	if def.holder then
 		ok, err = pcall(RegisterStateDriver, def.holder, "visibility",
 			"[@player,dead] hide; " .. HOSTILE)
 		if not ok then ns.noteError("target warning " .. def.key, err) end
-		-- The element's own border: with no hostile target (see idleEdge).
 		ok, err = pcall(RegisterStateDriver, def.idleEdge, "visibility", "[@target,harm,nodead] hide; show")
 		if not ok then ns.noteError("target border " .. def.key, err) end
 	end
 end
 
-------------------------------------------------------------------------
--- Flame Shock: the Not on target look (see the file's header)
-------------------------------------------------------------------------
+-- Flame Shock: the Not on target look
 local FLAME = TARGET[1]
-local fighting = false   -- from PLAYER_REGEN_DISABLED (before lockdown) to PLAYER_REGEN_ENABLED
+local fighting = false
 
 local function readable() return not fighting and not InCombatLockdown() and not ns.aurasSecret() end
 
--- Whether your Flame Shock is on the target: true or false out of combat, nil when that can't be
--- told (a read that fails or comes back secret). Any rank counts, by ID or by the client's name.
+-- nil when it can't be told (read fails or secret). Any rank counts, by ID or the client's name
 local function flameShockOnTarget()
 	local ids = idMap(FLAME)
 	for i = 1, 40 do
@@ -517,8 +398,7 @@ local function flameShockOnTarget()
 		local id, name, dur = a.spellId, a.name, a.duration
 		if isSecret(id) or isSecret(name) then return nil end
 		if ids[id] or Spells.keyOf(id) == "flameShock" or name == FLAME.spell then
-			-- The Expiring bar places its change by FS_SECS: another length turns it off, until a read
-			-- gives FS_SECS again.
+			-- Another length turns the Expiring bar off until a read gives FS_SECS again
 			if not isSecret(dur) and type(dur) == "number" and dur > 0 then
 				local off = math.abs(dur - FS_SECS) > 0.05
 				if off ~= (FLAME.lengthOff or false) then
@@ -532,14 +412,10 @@ local function flameShockOnTarget()
 	return nil
 end
 
--- Whether a read is worth making now: out of combat, auras readable, a hostile target, Flame Shock
--- known and shown. The read serves the Expiring bar's length check (flameShockOnTarget).
 local function readWanted()
 	return FLAME.spellID and ns.isEnabled(FLAME.key) and readable() and hostileTarget()
 end
 
--- The look's state, cheap enough for every target change and the 1 s tick: whether it can be
--- trusted (its container made and on), and its holder's opacity.
 local function stateLook()
 	local def = FLAME
 	local a = def.aura
@@ -549,26 +425,21 @@ local function stateLook()
 	holderAlpha(def)
 end
 
--- The look from the Not on target block, out of combat: grey, fade in and out, the red ring and the
--- pulsing glow, its level, shape and size. Run on a layout, a style change and at combat's start
--- and end; then the state.
 local function styleLook()
 	local def, f, h, look = FLAME, FLAME.frame, FLAME.holder, FLAME.missLook
 	if InCombatLockdown() then return end
 	h:SetFrameLevel(f.textFrame:GetFrameLevel() + 1)   -- over the icon, under the container
 	look:setLevel(h:GetFrameLevel() + 1)
-	def.lookEdge:SetFrameLevel(h:GetFrameLevel() + 1)   -- the picture's: under the glow
+	def.lookEdge:SetFrameLevel(h:GetFrameLevel() + 1)
 	ns.applyBorder(def.lookEdge, ns.borderFor(def.key))
 	if def.lookEdge.frameOverlay then def.lookEdge.frameOverlay:Hide() end
 	look:setParts(setting(def.key, "missGrey"), false, setting(def.key, "missRing"),
 		setting(def.key, "missPulse"), setting(def.key, "missGlow"))
-	-- Its sensor's restyle waits while auras are secret; the look waits with it.
 	look:reshape()
 	look:style()
 	stateLook()
 end
 
--- The glow's sensor for the current size, look and levels (out of combat; it waits for that).
 local function styleUp()
 	if InCombatLockdown() then return end
 	for _, def in ipairs(TARGET) do
@@ -579,22 +450,18 @@ local function styleUp()
 	end
 end
 
--- Out of combat: the target read again (readWanted), and the look's state.
 local function checkMissing()
 	if fighting or InCombatLockdown() then return end
 	if readWanted() then flameShockOnTarget() end
 	stateLook()
 end
 
--- The icon's own opacity under the button and the look (its idle look): its Idle opacity while
--- positioning is locked and it's learned, unless Idle when is Never.
 local function frameAlpha(def)
 	local idles = def.spellID and ns.getAccount().locked and setting(def.key, "idleWhen") ~= "never"
 	return idles and ns.idleAlpha(def.key) or 1
 end
 
--- "On your target": Blizzard's button at the Idle opacity, out of combat only (the frame is an
--- ancestor of the button).
+-- Out of combat only (an ancestor of the button)
 local function applyIdle(def)
 	if not def.idle or InCombatLockdown() then return end
 	local on = def.spellID and ns.isEnabled(def.key) and ns.getAccount().locked
@@ -602,8 +469,7 @@ local function applyIdle(def)
 	def.idle:SetAlpha(on and ns.idleAlpha(def.key) or 1)
 end
 
--- Combat starts (before lockdown): the icon to its idle alpha at once (a fade would stop part way,
--- ns.fadeTo).
+-- Combat starts: icon to its idle alpha at once (a fade would stop part way)
 local function combatStarts()
 	fighting = true
 	styleLook()
@@ -617,14 +483,11 @@ end
 
 local function refreshAura(def)
 	local f, key = def.frame, def.key
-	-- The glow while the aura is up: not while preview mode's stand-in shows over it.
 	if def.fx then
 		def.fx:glow(not def.noGlow and def.spellID ~= nil and ns.isEnabled(key) and setting(key, "primedGlow")
 			and not ns.Preview.isOn())
 	end
 	if not ns.isEnabled(key) then return end
-	-- A container made once combat ended (its setup waited): its gate's driver. Its unit: set when
-	-- it's made, and again after a failed call or when a target change was missed.
 	if def.aura.container then
 		driveGate(def)
 		local p, u = def.missLook, def.fx and def.fx.up
@@ -634,18 +497,11 @@ local function refreshAura(def)
 		end
 	end
 	f.tex:SetTexture(def.icon)
-	-- Not learned yet (seen only while the preview shows such elements): a plain grey icon.
 	f.tex:SetDesaturated(not def.spellID)
-	-- The button says whether it's up, Flame Shock's Not on target whether the target lacks it; the
-	-- icon under both is the idle look (out of combat only: the frame is an ancestor of Blizzard's
-	-- button, ns.fadeTo).
 	ns.fadeTo(f, frameAlpha(def))
 	applyIdle(def)
 end
 
-------------------------------------------------------------------------
--- Hooks (ShamanForever.lua calls them; see ns.registerModule)
-------------------------------------------------------------------------
 function T.resolve()
 	local sig = {}
 	for _, def in ipairs(TARGET) do
@@ -654,7 +510,6 @@ function T.resolve()
 		def.spellID = Spells.known(def.spellKey)
 		local before = def.ids
 		def.ids = nil
-		-- A new rank (a new spell ID) goes into the slot's filter, and the look's sensor's.
 		if def.auraKey and before and def.aura.container then
 			for id in pairs(idMap(def)) do
 				if not before[id] then
@@ -674,7 +529,7 @@ end
 
 function T.applyTimers()
 	for _, def in ipairs(TARGET) do def.aura:style() end
-	styleLook()   -- a glow style change (the options call this)
+	styleLook()
 	styleUp()
 end
 
@@ -682,28 +537,25 @@ function T.applyLayout()
 	for _, def in ipairs(TARGET) do
 		if def.spellID and ns.isEnabled(def.key) then
 			def.aura:setup()
-			-- Made whenever the element is learned and on: the sensor carries the whole look (its
-			-- picture, the grey and the ring too), not the glow alone.
 			if def.missLook then def.missLook:setup() end
 			if def.fx then def.fx:setup() end
 		end
-		-- Skip long buffs or Longest buff changed: the slot's filter again. SetAuraSlotCandidateFilters
-		-- changes a made slot's filters in place (Blizzard_CustomAuraContainer.lua), so the container
-		-- isn't rebuilt; the call waits for combat and secret auras to end (AuraSlot:refilter).
+		-- SetAuraSlotCandidateFilters changes a made slot's filters in place; the call waits for combat
+		-- and secret auras
 		if def.candidates and def.aura.container then
 			local longest = T.longest(def) or false
 			if def.longestApplied ~= nil and def.longestApplied ~= longest then
 				def.aura:refilter()
-				def.fx:refilter()   -- the glow's sensor takes the same filters
+				def.fx:refilter()
 			end
 			def.longestApplied = longest
 		end
 		def.aura:style()
 		refreshAura(def)
 	end
-	styleLook()     -- its looks may have changed
+	styleLook()
 	styleUp()
-	checkMissing()   -- and its container may be new
+	checkMissing()
 end
 
 function T.afterGroups()
@@ -711,9 +563,9 @@ function T.afterGroups()
 		def.aura:style()
 		if def.holder then holderAlpha(def) end
 	end
-	styleLook()   -- a new size or scale
+	styleLook()
 	styleUp()
-	for _, def in ipairs(TARGET) do refreshAura(def) end   -- preview mode's start and end come here
+	for _, def in ipairs(TARGET) do refreshAura(def) end
 end
 
 function T.refresh()
@@ -725,8 +577,7 @@ T.tick = T.refresh
 function T.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "PLAYER_TARGET_CHANGED")
-	ns.registerEvent(ev, "UNIT_FACTION", "target")   -- a target that turns hostile or friendly
-	-- Out of combat only: in combat the handler returns before anything is read.
+	ns.registerEvent(ev, "UNIT_FACTION", "target")
 	ns.registerEvent(ev, "UNIT_AURA", "target")
 	ns.registerEvent(ev, "PLAYER_REGEN_DISABLED")
 	ns.registerEvent(ev, "PLAYER_REGEN_ENABLED")

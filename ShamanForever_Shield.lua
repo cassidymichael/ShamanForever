@@ -1,34 +1,9 @@
--- Shields (Lightning or Water): Blizzard's aura button shows the shield; our No shield look shows
--- exactly while it's gone
---
--- The two shields exclude each other, so one aura slot matches every shield the player tracks
--- (db.shieldTrack) and Blizzard shows whichever is up, switching exactly when the player swaps
--- mid-fight. Both have 3 charges, so one charge bar fits both.
---
--- 1. Blizzard's CustomAuraContainer draws the shield: icon, charge count, charge bar, and its time
---    as a swipe, countdown or bar. Its untainted code reads the aura, so all of this is exact in
---    combat, and its button hides the moment the shield goes, in combat too. It takes its group's
---    opacity like any icon.
--- 2. The No shield look (grey, the red tint, fade in and out, the red ring and the pulsing glow) is
---    a clip look (ns.makeClipLook): drawn by the engine only while no shield it tracks is up, in
---    combat too, with nothing read. Nothing tells addon code in combat when the shield goes (reads
---    by index or instance throw, reads by spell come back empty, UNIT_AURA brings nothing readable,
---    script handlers under the button never run; tested 2026-09-23), so:
---    - checked every frame while auras can't be read (plain reads, and writes to our own frames
---      only, allowed in combat), the look is off while it can't be trusted: the button not made,
---      preview mode, and a moment after our own cast of a shield it tracks (a recast must never
---      flash it) or a loading screen; its sensor adds its own waits (a new spell ID, size or look
---      it can't take until combat ends, and two frames each time it shows). While you can't act
---      (a flight path, a vehicle) it shows the grey alone, without the warning, or nothing without
---      Grey icon; while you're dead a state driver on its holder hides it, in combat too;
---    - out of combat, auras readable, it also follows a read of the aura (refreshAura): shown only
---      while no shield it tracks is up. In a PvP match auras stay secret out of combat too
---      (Blizzard's API documentation; not yet seen in a battleground): the sensor alone decides
---      until it ends.
--- 3. After a login or /reload in combat or in a PvP match the button is made only once auras are
---    readable; until then Shields shows its plain icon: a miss, never a false warning.
---
--- ShamanForever.lua calls in through the module hooks (ns.registerModule).
+-- Shields (Lightning or Water)
+-- Blizzard's aura button shows the shield; the No shield look is a clip look the engine draws only
+-- while no tracked shield is up, in combat too, with nothing read. One aura slot matches every
+-- tracked shield (they exclude each other).
+-- Until the button can be made (a login in combat or a PvP match) the plain icon shows: a miss,
+-- never a false warning.
 
 local _, ns = ...
 local say, isSecret, safe = ns.say, ns.isSecret, ns.safe
@@ -37,30 +12,21 @@ local Spells = ns.Spells
 local SH = { name = "shield" }
 ns.Shield = SH
 
--- Elemental shields. Only one can be on the shaman at a time (Water Shield's tooltip says so), so one
--- element shows whichever is up. Water Shield is a Restoration talent on Forever; 408510 is both its
--- cast and its buff (wowhead.com/forever). Spells by key in ns.Spells (ShamanForever_Core.lua); the
--- IDs the aura slot matches grow with the spellbook's and the live aura's.
+-- Only one shield can be on at a time; Water Shield is a talent here (408510: its cast and buff)
 local SHIELDS = {
 	lightning = { spell = "lightningShield", icon = 136051, school = "air" },
 	water     = { spell = "waterShield",     icon = 132315, school = "water" },
 }
 local SHIELD_ORDER = { "lightning", "water" }
 
-local shield = ns.newElementIcon("shield")   -- its icon: the plain one, while the button isn't made
--- What Blizzard's container hangs from: the button's own opacity, under its group's, which is its
--- Idle opacity while it idles (applyIdle, below). Its alpha changes only out of combat (an
--- ancestor of the button takes no alpha change in combat); the No shield look doesn't hang from it.
+local shield = ns.newElementIcon("shield")
+-- Blizzard's container hangs from this: its alpha changes only out of combat (an ancestor of the button)
 local gate = CreateFrame("Frame", nil, shield)
 gate:SetAllPoints(shield)
--- The element's border (lines, sliced and inner art) while Blizzard's button isn't made: then the
--- button draws it (its own edge, under it, so it shows and hides with the shield), and the No shield
--- look draws it while the shield is gone. Not an ancestor of the button: its own parts can change
--- at any time.
+-- The element's border while Blizzard's button isn't made
 local edge = CreateFrame("Frame", nil, gate)
 edge:SetAllPoints(shield)
-edge.owner = "shield"   -- its school colour (ns.Looks)
--- The Idle block's choices (idleWhen; see idleBlock in ShamanForever_OptionsElements.lua).
+edge.owner = "shield"
 local IDLE_CHOICES = {
 	{ "never", "Never", "It always shows in full" },
 	{ "up", "Shield up", "Idle while your shield is up", "Shown in full only as No shield." },
@@ -73,45 +39,35 @@ ns.registerElement("shield", { frame = shield, label = "Shields", paint = functi
 	learned = function() return SH.learned() end,
 	defaults = { idleWhen = "never", idleAlpha = 0.3 },
 	def = { key = "shield", idleChoices = IDLE_CHOICES },
-	effects = { glow = { "missing" }, pop = {} },   -- it never pops
+	effects = { glow = { "missing" }, pop = {} },
 	borderHost = edge,
-	-- Preview mode: its border is on Blizzard's button, not its frame (ShamanForever_Preview.lua).
 	standInBorder = true,
 	kind = "shield", icon = 136051, school = "spirit", blurb = "Charges and time left. Warns when it's gone.",
 	ownSchool = function() return SH.school() end })
 
--- Per shield at runtime: name (the client's), spellID and bookIcon (highest known rank), known. The
--- IDs that count as it are ns.Spells' (seeds, spellbook, and the live aura's, learned here); castIDs
--- the ones that count as a cast of it (castOf, below).
 for _, s in pairs(SHIELDS) do
 	s.name = Spells.name(s.spell)
 	s.castIDs = {}
 	for _, id in ipairs(Spells.DEFS[s.spell].ids) do s.castIDs[id] = true end
 end
--- The shield up (lightning | water), "none", or nil until known: the last read, while auras were
--- readable. Kept as which shield, not as "a tracked one is up", so a new Track is judged at once.
+-- Kept as which shield, not "a tracked one is up", so a new Track is judged at once
 local upShield
-local native   -- Blizzard's aura container, and our parts on its button (below)
-local copy     -- "2 or more charges": the one-charge copy's aura slot (below)
+local native
+local copy   -- one-charge copy's aura slot
 
 local function tracksShield(key)
 	local track = ns.getDB().shieldTrack
 	return track == "either" or track == key
 end
--- Whether a shield the player tracks was up at the last read: nil while not known.
 local function believedUp()
 	if upShield == nil then return nil end
 	return upShield ~= "none" and tracksShield(upShield)
 end
 
--- The charge number's offset from its point (ns.COUNT_JUSTIFY has the points): in a corner it is
--- nudged 2 px outward.
 local COUNT_NUDGE = { CENTER = { 0, 0 }, TOPLEFT = { -2, 2 }, TOPRIGHT = { 2, 2 }, BOTTOMLEFT = { -2, -2 },
 	BOTTOMRIGHT = { 2, -2 } }
--- 0.8.0 and earlier saved "center" or "corner" (the bottom right).
 local COUNT_POS_SAVED = { center = "CENTER", corner = "BOTTOMRIGHT" }
 
--- Places the charge number fs on icon, as the settings say (the HUD's and the options' preview).
 function SH.placeCount(fs, icon)
 	local pos = ns.getDB().countPos
 	local nudge = COUNT_NUDGE[pos]
@@ -120,7 +76,6 @@ function SH.placeCount(fs, icon)
 	fs:SetJustifyH(ns.COUNT_JUSTIFY[pos])
 end
 
--- A profile's shield settings, and the account's last shield, made valid (when a profile loads).
 function SH.sanitize(db, acct)
 	if db.shieldTrack ~= "either" and not SHIELDS[db.shieldTrack] then db.shieldTrack = "lightning" end
 	db.countPos = COUNT_POS_SAVED[db.countPos] or db.countPos
@@ -129,8 +84,6 @@ function SH.sanitize(db, acct)
 	if not ns.isColor(db.countLastColor) then db.countLastColor = CopyTable(ns.DEFAULTS.countLastColor) end
 end
 
--- Which shield the no-shield look shows: the tracked one, or in "either" mode the one last cast or
--- seen, falling back to one the player actually knows.
 local function shownShield()
 	local track, last = ns.getDB().shieldTrack, ns.getAccount().lastShield
 	if SHIELDS[track] then return track end
@@ -142,19 +95,13 @@ function SH.icon()
 	local s = SHIELDS[shownShield()]
 	return s.bookIcon or s.icon
 end
--- The school of the shield it shows (air for Lightning Shield, water for Water Shield), for its
--- glow's looks that go by school; nil while it knows neither.
 function SH.school()
 	local s = SHIELDS[shownShield()]
 	return s.known and s.school or nil
 end
 
--- The shield an own cast is a cast of, if any: by its own spell IDs (its seeds, the ranks the
--- player knows, the live aura's), never by name alone. Spells that share a shield's name without
--- being its cast, such as the bolts Lightning Shield fires as it loses a charge (build 70009 has
--- more than twenty spells of that name), must not count as a new shield. An ID not on record counts
--- only when it has the shield's name and the client says plainly that the player knows it (a rank
--- not seen yet), which a triggered effect is not. A no is kept until the next spellbook scan.
+-- Match by spell ID, never by name alone: spells sharing a shield's name (the bolts Lightning Shield
+-- fires) aren't casts of it. An unknown ID counts only when the client says plainly the player knows it.
 local notCast = {}
 local function castOf(id)
 	if type(id) ~= "number" or isSecret(id) or notCast[id] then return nil end
@@ -162,12 +109,12 @@ local function castOf(id)
 		if SHIELDS[key].castIDs[id] then return key end
 	end
 	local n = Spells.nameOf(id)
-	if not n then return nil end   -- a name can come late on a cold start: asked again next time
+	if not n then return nil end
 	for _, key in ipairs(SHIELD_ORDER) do
 		local s = SHIELDS[key]
 		if n == s.name then
 			local ok, mine = safe(C_SpellBook.IsSpellKnown, id)
-			if not ok or isSecret(mine) then return nil end   -- no answer: asked again next time
+			if not ok or isSecret(mine) then return nil end
 			if mine == true then
 				s.castIDs[id] = true
 				return key
@@ -183,20 +130,14 @@ local function anyTrackedShieldKnown()
 	for key, s in pairs(SHIELDS) do if tracksShield(key) and s.known then return true end end
 	return false
 end
--- The element's learned() (ns.registerElement): a shield it tracks (its Track setting) is known.
 SH.learned = anyTrackedShieldKnown
--- Whether the character knows a shield (lightning | water), tracked or not (the options).
 function SH.knows(key) return SHIELDS[key] ~= nil and SHIELDS[key].known == true end
 
-local standIn   -- preview mode's icon over the shield (SH.preview, below)
-local glowSchool   -- the school the No shield look's glow was last styled for (SH.applyEmptyLook)
+local standIn
+local glowSchool
 
-------------------------------------------------------------------------
--- The No shield look (see the top of this file)
-------------------------------------------------------------------------
--- Its holder, over the element's own icon; its guard runs here. A state driver hides it while
--- you're dead, so the engine backs the guard up in combat (the guard only checks once a frame). It
--- wins over the grey-only look: dead shows nothing, a miss, never a false warning.
+-- The No shield look
+-- Dead: a state driver hides it, in combat too; it shows nothing, never a false warning
 local holder = CreateFrame("Frame", nil, shield)
 holder:SetAllPoints(shield)
 local driven = false
@@ -206,28 +147,21 @@ local function driveHolder()
 	local ok, err = pcall(RegisterStateDriver, holder, "visibility", "[@player,dead] hide; show")
 	if not ok then ns.noteError("shield warning holder", err) end
 end
-local look   -- the clip look (below)
+local look
 local lookOn, lookState, watching = false, nil, false
 
--- After our own cast of a shield it tracks, the look stays off this long (seconds). Blizzard
--- handles a recast in one aura update (the old aura's removal and the new one's arrival refresh the
--- slot once), so the sensor shouldn't empty for a frame; this keeps a recast from ever flashing the
--- warning if a removal and an arrival come apart. A shield just cast can't be gone this soon.
--- LOAD_HOLD: after a loading screen, while the client lists the player's auras again.
+-- After our own cast of a tracked shield the look stays off this long: a recast must never flash it
+-- LOAD_HOLD: after a loading screen, until the client lists the auras again
 local CAST_HOLD, LOAD_HOLD = 0.3, 1
 local holdUntil = 0
-local fighting = false   -- from PLAYER_REGEN_DISABLED (before lockdown) to PLAYER_REGEN_ENABLED
+local fighting = false
 
--- In combat, or auras secret out of combat: the sensor alone decides. Else the read does too.
 local function aurasUnread() return fighting or InCombatLockdown() or ns.aurasSecret() end
 
--- The player can't act on a warning: dead, a ghost, a flight path, a vehicle.
 local function blocked()
 	return ns.cantAct() or ns.plainYes(UnitInVehicle, "player")
 end
 
--- What the look shows now: "warn" (the No shield look), "grey" (the grey alone: you can't act), or
--- nil (nothing).
 local function stateNow()
 	if not lookOn or standIn then return nil end
 	if aurasUnread() then
@@ -237,8 +171,7 @@ local function stateNow()
 	return "warn"
 end
 
--- Shows the look in state st (stateNow), or not. It waits two frames each time it comes on, as it
--- does each time it shows (ns.makeClipLook): the sensor may be a frame behind.
+-- Waits two frames each time it comes on: the sensor may be a frame behind
 local function setLook(st)
 	if st ~= nil and lookState == nil then look:wait() end
 	lookState = st
@@ -248,12 +181,9 @@ local function setLook(st)
 	look:want(st ~= nil)
 end
 
-local watch   -- below
+local watch
 
--- Every frame while auras can't be read or a hold hasn't ended: the state now. It changes the frame
--- a read goes the other way (dead, a flight path, our cast), so it never waits for an event. Out of
--- combat, with auras readable, the events that change the read or the settings decide
--- (SH.applyEmptyLook), and it stops.
+-- Every frame while auras can't be read or a hold hasn't ended; otherwise events decide
 local function guard(self)
 	local st = stateNow()
 	if st ~= lookState then setLook(st) end
@@ -262,50 +192,33 @@ local function guard(self)
 		watching = false
 	end
 end
--- Starts the guard, if it isn't running (it stops itself once nothing needs it).
 function watch()
 	if watching then return end
 	watching = true
 	holder:SetScript("OnUpdate", guard)
 end
--- Its group or the element was hidden: the state may have changed meanwhile.
 holder:SetScript("OnShow", function() setLook(stateNow()) end)
 
--- The look's copy of the element's border without the inner art, which the look draws itself
--- (ClipLook:reshape): the border while the shield is gone, as the button's own is while it's up.
-local lookEdge   -- below, with the look
--- The look's levels, shape and size, after a layout (a size, scale or look change).
+local lookEdge
 local function placeLook()
-	look:setLevel(shield.textFrame:GetFrameLevel() + 1)   -- over the icon, under the container (+5)
+	look:setLevel(shield.textFrame:GetFrameLevel() + 1)   -- over the icon, under the container
 	look:reshape()
 	look:style()
-	lookEdge:SetFrameLevel(shield.textFrame:GetFrameLevel() + 1)   -- the picture's: under the glow
+	lookEdge:SetFrameLevel(shield.textFrame:GetFrameLevel() + 1)
 	ns.applyBorder(lookEdge, ns.borderFor("shield"))
 	if lookEdge.frameOverlay then lookEdge.frameOverlay:Hide() end
 end
 
-------------------------------------------------------------------------
--- Idle (idleWhen): never | up (idle while the shield is up) | charges (idle at 2 or more charges)
-------------------------------------------------------------------------
--- Both put the gate at the Idle opacity, and with it Blizzard's button, its border and the global
--- cooldown's sweep, set out of combat and held through a fight. The button needs no telling when
--- the shield goes: it hides that moment, in combat too, with its border, and the No shield look,
--- which doesn't hang from the gate, shows in full with its own copy of the border (lookEdge).
--- Down out of combat the gate stays at the Idle opacity: the button is hidden then anyway, and a
--- shield cast in the next fight is idle, as it should be. "2 or more charges" adds the one-charge
--- copy (below): the icon in full, drawn by the engine at exactly one charge. Idle applies only
--- while positioning is locked, the element is on, a shield it tracks is known and Blizzard's
--- button is made. A change in combat (a setting, the lock) waits for its end, as the gate does:
--- until then the icon stays as it was set. In preview mode, out of combat, the gate follows the
--- settings as it does on the HUD, and the stand-in draws over it.
+-- Idle
+-- Idle puts the gate, and with it Blizzard's button, at the Idle opacity: set out of combat, held
+-- through a fight. The No shield look doesn't hang from the gate and shows in full.
 local function idleWhen()
 	local w = ns.elementSetting("shield", "idleWhen")
 	return (w == "up" or w == "charges") and w or "never"
 end
-local copyReady, full   -- below, with the copy
-local gateNow = 1   -- the gate's alpha, as last set
+local copyReady, full
+local gateNow = 1
 
--- The gate's alpha for the settings and state now. Out of combat only.
 local function applyIdle()
 	if InCombatLockdown() then return end
 	local when = idleWhen()
@@ -316,15 +229,11 @@ local function applyIdle()
 	full:SetAlpha((on and when == "charges") and 1 or 0)
 end
 
--- The shield's looks, from its settings and state: the element's own icon (only seen while the
--- button isn't made), the No shield look and, in preview mode, the stand-in.
 function SH.applyEmptyLook()
 	driveHolder()
 	local icon = SH.icon()
 	local known = anyTrackedShieldKnown()
 	local covered = native.button ~= nil and not native.err
-	-- The icon: grey while not learned (as for cooldowns); the plain icon while Blizzard's button
-	-- isn't made (a /reload in combat, until auras are readable); under the button, nothing.
 	shield.tex:SetTexture(icon)
 	shield.tex:SetDesaturated(not known)
 	shield.tex:SetVertexColor(1, 1, 1)
@@ -332,14 +241,10 @@ function SH.applyEmptyLook()
 	shield:SetRingShown(false)
 	shield:SetPulsing(false)
 	shield:SetGlowShown(false)
-	-- One border at any time. Once Blizzard's button is made, the button draws the border while the
-	-- shield is up (its edge and its inner art, at the gate's opacity) and the No shield look while
-	-- it's gone (lookEdge and ns.makeClipLook's art, in full), each exactly with what it belongs to;
-	-- the element's own edge draws it only until then. The one-charge copy draws its own over the
-	-- button's (a faint border under it at Idle below full).
+	-- One border at any time: the button's while the shield is up, the look's while it's gone, the
+	-- element's own until the button is made
 	edge:SetShown(not (known and covered))
 	look.tex:SetTexture(icon)
-	-- Its glow's looks that go by school follow the shield it shows.
 	local school = SH.school()
 	if school ~= glowSchool then
 		glowSchool = school
@@ -347,11 +252,8 @@ function SH.applyEmptyLook()
 	end
 	lookOn = (known and covered and ns.isEnabled("shield")) and true or false
 	if standIn then
-		-- Preview mode (SH.preview, below). The stand-in draws the state shown over everything, the
-		-- look off: at its group's opacity, as Blizzard's button draws the shield, but at full
-		-- while the real shield may be up under it, which would show through. Drawn idle it is
-		-- see-through all the same: the real shield under it shows a little (at its own Idle
-		-- opacity; in full at exactly one charge with "2 or more charges").
+		-- The stand-in draws the state shown over everything, at full opacity while the real shield may be
+		-- up under it
 		standIn:SetIgnoreParentAlpha(covered and believedUp() ~= false)
 	end
 	setLook(stateNow())
@@ -364,7 +266,6 @@ local function setUpShield(key)
 	SH.applyEmptyLook()
 end
 
--- Every spell ID of every tracked shield: what Blizzard's aura slot matches.
 local function shieldIDMap()
 	local map = {}
 	for key, s in pairs(SHIELDS) do
@@ -375,9 +276,7 @@ local function shieldIDMap()
 	return map
 end
 
--- The No shield look, its glow in the shield's Pulsing glow style, past the icon's edge if the look
--- reaches there. Its sensor hangs from the element's frame, not the gate: nothing the look relies
--- on sits under the gate, which is at 0 with an Idle opacity of 0%.
+-- The sensor hangs from the element's frame, not the gate (which is 0 at Idle 0%)
 look = ns.makeClipLook(shield, {
 	key = "shield", parent = holder, sensorParent = shield, ids = shieldIDMap, owner = "shield",
 	sites = {
@@ -389,18 +288,15 @@ lookEdge = CreateFrame("Frame", nil, look.art)
 lookEdge:SetAllPoints(shield)
 lookEdge.owner = "shield"
 
--- Whether the sensor matches every spell ID of every tracked shield: a sensor missing one would
--- stay empty over that shield, so the look waits (ns.makeClipLook). Matching more (a Track just
--- narrowed) only keeps it empty over a shield that no longer counts: a miss, not a false warning.
+-- A sensor missing a tracked ID would stay empty over that shield, so the look waits
 local function checkIDs() look:checkIDs() end
 
--- The filters can only change while auras are readable; a change meanwhile waits for that
--- (ns.makeAuraSlot, ns.makeClipLook).
+-- Filters only change while auras are readable
 local function applyShieldFilter()
 	native:refilter()
 	look:refilter()
 	copy:refilter()
-	checkIDs()   -- a refilter that waits leaves the look waiting too
+	checkIDs()
 end
 
 local function learnShieldID(key, id)
@@ -409,8 +305,7 @@ local function learnShieldID(key, id)
 	s.castIDs[id] = true
 	Spells.learn(s.spell, id)
 	if not tracksShield(key) then return end
-	-- A container that isn't made, or failed, has nothing to refilter: it counts as matching, so an
-	-- aura read doesn't ask again for ever.
+	-- A container not made, or failed, has nothing to refilter: it counts as matching
 	local function matches(c)
 		return c.container == nil or c.err ~= nil or (c.filtered and c.filtered[id])
 	end
@@ -418,63 +313,51 @@ local function learnShieldID(key, id)
 	else applyShieldFilter() end
 end
 
--- After a spellbook scan (ns.resolveSpells): each shield's name, highest known rank and icon, and the
--- slot's filter to match. Returns a signature of what it found.
 function SH.resolve()
 	local sig = {}
-	wipe(notCast)   -- names and known spells may have changed
+	wipe(notCast)
 	for key, s in pairs(SHIELDS) do
 		s.name = Spells.name(s.spell)
-		-- The highest rank known, read as every element reads it: the spellbook's, else the client's
-		-- answer (a talent's spell, such as Water Shield, can be missing from the spellbook view).
+		-- A talent's spell (Water Shield) can be missing from the spellbook view
 		s.spellID, s.bookIcon = Spells.known(s.spell)
 		s.known = s.spellID ~= nil
 		if s.spellID then learnShieldID(key, s.spellID) end
 		table.insert(sig, tostring(s.spellID))
 	end
-	applyShieldFilter()   -- the tracked shields may have changed
-	SH.applyEmptyLook()   -- and with them whether the shield up counts
+	applyShieldFilter()
+	SH.applyEmptyLook()
 	return table.concat(sig, ",")
 end
 
--- Blizzard's button and its parts are off limits to addon code in combat, and while auras are
--- secret: the aura slot's restyle waits until that ends (ns.makeAuraSlot).
 function SH.style()
 	native:style()
 	copy:style()
 end
 
--- The shield's timer takes its current style (ns.applyTimers). It sits on Blizzard's button, so it
--- comes with the button's restyle, which waits for combat to end. The No shield look's glow (its
--- new look or style) follows at once: our own frames (the options call this after a timer or glow
--- style change).
 function SH.applyTimers()
 	SH.style()
 	look:reshape()
 end
 
--- Our parts on Blizzard's button, once it is made: the element's border (lines and sliced art; the
--- slot draws its inner art), and the charge number and the charge bar with its ticks, on an overlay
--- above the cooldown so nothing Blizzard hides takes them along.
 local function buildNative(slot, button, cd)
 	local db = ns.getDB()
 	local size = ns.sizeOf("shield")
 	slot.edge = CreateFrame("Frame", nil, button)
 	slot.edge:SetAllPoints(button)
-	slot.edge.owner = "shield"   -- its school colour (ns.Looks)
+	slot.edge.owner = "shield"
 	local overlay = CreateFrame("Frame", nil, button)
 	overlay:SetAllPoints()
 	overlay:SetFrameLevel(cd:GetFrameLevel() + 2)
 	slot.overlay = overlay
 
-	-- Blizzard writes the count immediately on registration, so the font must already be set.
+	-- Blizzard writes the count on registration: font first
 	local fs = overlay:CreateFontString(nil, "OVERLAY", nil, 7)
 	ns.Media.setFont(fs, nil, db.countSize)
 	SH.placeCount(fs, button)
 	button:SetApplicationCount(fs)
 	slot.fs = fs
 
-	-- Charge bar along the bottom edge: min 0 so one charge is one third, not empty.
+	-- min 0: one charge is one third, not empty
 	local bar = CreateFrame("StatusBar", nil, overlay)
 	bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 0, 0)
 	bar:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 0)
@@ -506,14 +389,8 @@ local function buildNative(slot, button, cd)
 	fs:SetAlpha(db.showCount and 1 or 0)
 end
 
--- The charge number's last charge. Without a formatter Blizzard prints a count only from 2, so a
--- numeric rule formatter is always used once Charge number is on: one rule per count, the last one
--- wrapped in a colour code only when Different colour last charge is on (Blizzard_CustomAuraButton.lua;
--- ShamanPower does the same on Forever). Blizzard formats inside the button's aura update, where an
--- error would stop the rest of it, so it is tried on the counts 0 to 3 first (out of combat, in the
--- slot's restyle) and only handed over once it gives a string for each; nil falls back to Blizzard's
--- own count (hides the 1). One formatter per colour (plus the plain one), made on first use. The few
--- kept are dropped while a colour is being dragged through many (the button keeps the one it was given).
+-- Without a formatter Blizzard prints a count only from 2: a numeric rule formatter is used, tried
+-- on counts 0 to 3 first (an error would stop Blizzard's aura update); nil falls back to its count
 local lastFormatters, made = {}, 0
 local function byte(v) return math.floor(math.min(math.max(v, 0), 1) * 255 + 0.5) end
 local function countOptions()
@@ -547,8 +424,6 @@ local function countOptions()
 	end
 	return fm and { formatter = fm } or nil
 end
--- Hands the count its formatter again when that changed. Blizzard's own count (the tested path) is
--- never registered again until a formatter has been given.
 local function applyCountFormat(slot)
 	local opts = countOptions()
 	local fm = opts and opts.formatter or nil
@@ -556,11 +431,10 @@ local function applyCountFormat(slot)
 	if ns.try("shield count", slot.button.SetApplicationCount, slot.button, slot.fs, opts) then slot.countFormatter = fm end
 end
 
--- Our parts again, for the current size and settings (after the aura slot's own restyle).
 local function styleNative(slot, size)
 	local db = ns.getDB()
 	ns.try("shield border", ns.applyBorder, slot.edge, ns.borderFor("shield"))
-	if slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end   -- the button's own (auraMask)
+	if slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
 	applyCountFormat(slot)
 	for i, t in ipairs(slot.tickTextures or {}) do
 		t:ClearAllPoints()
@@ -575,18 +449,15 @@ local function styleNative(slot, size)
 	slot.fs:SetAlpha(db.showCount and 1 or 0)
 	ns.Media.setFont(slot.fs, nil, db.countSize)
 	SH.placeCount(slot.fs, slot.button)
-	SH.applyEmptyLook()   -- the button may be new
+	SH.applyEmptyLook()
 end
 
--- The time bar on the bottom edge sits on the charge bar, which is drawn over it (the options'
--- preview too).
+-- The time bar sits on the charge bar, which is drawn over it
 function SH.timeBarInset()
 	local db = ns.getDB()
 	return db.showBar and db.chargeBarHeight or 0
 end
 
--- Made only while auras are readable (after a /reload in combat or a PvP match, when that ends);
--- once made, it stays.
 native = ns.makeAuraSlot(shield, {
 	key = "shield", slot = "shield", ids = shieldIDMap, name = "ShamanForeverAuraContainer", parent = gate,
 	sites = { container = "shield container", style = "shield style", filter = "shield filter" },
@@ -597,39 +468,22 @@ native = ns.makeAuraSlot(shield, {
 	end,
 })
 
-------------------------------------------------------------------------
 -- "2 or more charges": the one-charge copy
-------------------------------------------------------------------------
--- A second aura slot on the same shield, in a container of its own that hangs from `full`, our
--- frame at full opacity in the group's chain (not the gate): so the copy takes its group's opacity
--- and its fade after combat like any icon, with nothing ignoring a parent's alpha. Its button
--- drives an invisible charge bar three steps long (a step: the icon with its border's reach both
--- ways, and slack), starting the reach left of the icon; a clip runs from one step back from the
--- bar's fill edge to the icon's right edge and its reach. At one charge the clip covers the icon
--- and its border; at two or three it is empty (its left edge past its right); at none the button
--- is hidden. So the engine draws the copy at exactly one charge, in combat too, with nothing read
--- (tested in combat 2026-10-01). Blizzard sets a new count on the bar at once (no easing), so the
--- copy never slides in on a fresh cast.
--- In the clip, the shield as its button draws it at one charge: the aura's own icon (Blizzard sets
--- it), the border look's inner art and mask (ns.makeAuraSlot's host), its lines and sliced art,
--- the charge number (Blizzard's, through the same formatter), a charge bar at one of three (ours:
--- it only ever shows at one) and the time left (Blizzard's, on the copy's own cooldown and bar).
--- Frames under Blizzard's button take no script handlers and may read back as secret, so all of it
--- is plain frames and textures, placed from our own values: made as Blizzard makes the button, and
--- restyled with the slot (out of combat, auras readable).
--- It counts (copyReady) only once its button is made and built, at the icon's size, and matching
--- every shield the element tracks: until then the gate stays at full, a missed idle. A sensor bar
--- the button refuses leaves the clip over the whole copy: the icon in full, never hidden.
-local IDLE_LEVEL = 8   -- the copy's container, levels above the shield's button and its parts
+-- A second aura slot whose bar and clip make the engine draw the copy at exactly one charge, in
+-- combat, with nothing read. It hangs from `full`, in the group's alpha chain.
+-- Frames under Blizzard's button take no scripts and may read back secret: all plain frames, placed
+-- from our own values.
+-- It counts (copyReady) only once made, sized and matching every tracked shield; until then the gate
+-- stays full.
+local IDLE_LEVEL = 8   -- levels above the shield's button and its parts
 local WHITE = "Interface\\Buttons\\WHITE8x8"
 local SI = Enum and Enum.StatusBarInterpolation
 local IMMEDIATE = SI and SI.Immediate or 0
 
 full = CreateFrame("Frame", nil, shield)
 full:SetAllPoints(shield)
-full:SetAlpha(0)   -- shown by applyIdle
+full:SetAlpha(0)
 
--- The sensor bar and the clip over it, for an icon of size (see above).
 local function placeClip(slot, button, size)
 	local reach = math.ceil(ns.Looks.outerEdge(shield)) + 2
 	local step = size + 2 * reach + 2
@@ -642,14 +496,12 @@ local function placeClip(slot, button, size)
 	clip:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", reach, -reach)
 end
 
--- As Blizzard makes the button: the sensor, the clip and the copy's frame, where the aura slot
--- puts the icon, its border look and the timer (ns.makeAuraSlot's host).
 local function copyHost(slot, button)
 	local bar = CreateFrame("StatusBar", nil, button)
 	bar:SetStatusBarTexture(WHITE)
 	bar:SetStatusBarColor(0, 0, 0, 0)
 	bar:SetMinMaxValues(0, 3)
-	bar:SetValue(0)   -- until Blizzard sets it: the clip over the whole copy
+	bar:SetValue(0)
 	slot.sensor = bar
 	local clip = CreateFrame("Frame", nil, button, "DisableUntrustedLayoutScriptsTemplate")
 	clip:SetClipsChildren(true)
@@ -662,12 +514,11 @@ local function copyHost(slot, button)
 	return host
 end
 
--- The copy's own parts again, for the current size and settings.
 local function styleCopy(slot, size)
 	local db = ns.getDB()
 	placeClip(slot, slot.button, size)
 	ns.try("shield copy border", ns.applyBorder, slot.edge, ns.borderFor("shield"))
-	if slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end   -- the host's own (auraMask)
+	if slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
 	local bar = slot.bar
 	bar:SetHeight(db.chargeBarHeight)
 	bar:SetStatusBarTexture(ns.Media.barTexture())
@@ -686,22 +537,19 @@ local function styleCopy(slot, size)
 	slot.fs:SetAlpha(db.showCount and 1 or 0)
 end
 
--- Once Blizzard has made the button: the border's lines, the charge number and the charge bar at
--- one of three, on the copy.
 local function buildCopy(slot, button)
-	slot.button = button   -- (the slot records it too, after this)
+	slot.button = button
 	local host = slot.host
 	slot.edge = CreateFrame("Frame", nil, host)
 	slot.edge:SetAllPoints(host)
 	slot.edge.owner = "shield"
 	local parts = CreateFrame("Frame", nil, host)
 	parts:SetAllPoints(host)
-	-- Over the cooldown and its time bar, as on the shield's button. Levels under the button may
-	-- read as secret: a failed read leaves the default level (the number and bar under the swipe).
+	-- Levels under the button may read secret: a failed read leaves the default
 	ns.try("shield copy level", function() parts:SetFrameLevel(slot.cd:GetFrameLevel() + 2) end)
 	slot.parts = parts
 	local db = ns.getDB()
-	-- Blizzard writes the count as it takes the font string, so the font comes first.
+	-- Font first: Blizzard writes the count as it takes the font string
 	local fs = parts:CreateFontString(nil, "OVERLAY", nil, 7)
 	ns.Media.setFont(fs, nil, db.countSize)
 	SH.placeCount(fs, host)
@@ -723,10 +571,7 @@ local function buildCopy(slot, button)
 		t:SetWidth(1)
 		slot.tickTextures[i] = t
 	end
-	-- A copy that can't be styled never counts: the gate stays at full.
 	slot.built = ns.try("shield copy style", styleCopy, slot, ns.sizeOf("shield"))
-	-- Blizzard is still inside initializeFrame, and the copy counts only once it is made: the
-	-- looks decide again the next frame.
 	C_Timer.After(0, SH.applyEmptyLook)
 end
 
@@ -738,20 +583,17 @@ copy = ns.makeAuraSlot(shield, {
 	onButton = function(slot, button) buildCopy(slot, button) end,
 	onStyle = function(slot, size)
 		styleCopy(slot, size)
-		SH.applyEmptyLook()   -- it may count now
+		SH.applyEmptyLook()
 	end,
 	onError = function(err) ns.noteError("shield copy container", err) end,
 })
 
--- Whether the copy is made, sized and filtered for every shield tracked: until then the gate stays
--- at full. While a restyle for a new Size is queued (it runs the next frame) the answer stays what
--- it was, so a dragged Size slider doesn't flicker the gate; a copy that wasn't ready then still
--- isn't (a faint shield at one charge would be a false state).
+-- While a restyle for a new Size is queued the answer stays: a dragged Size slider mustn't flicker the gate
 local readyLast = false
 copyReady = function()
 	local ready = copy.built and copy.sensed and copy.size == ns.sizeOf("shield") and copy.filtered ~= nil
 	if not ready and copy.built and copy.sensed and copy.size and copy.filtered and copy.styleSoon then
-		ready = readyLast   -- only the size is behind
+		ready = readyLast
 	end
 	if ready then
 		for id in pairs(shieldIDMap()) do
@@ -762,18 +604,15 @@ copyReady = function()
 	return readyLast
 end
 
--- A refilter that finished late (out of combat, auras readable again) lets the gate decide again.
 local baseRefilter = copy.refilter
 function copy:refilter()
 	baseRefilter(self)
 	if self.filtered then C_Timer.After(0, SH.applyEmptyLook) end
 end
 
--- Auras can be secret out of combat too (PvP matches, encounters): then keep the last read.
+-- Auras can be secret out of combat too: keep the last read
 local function aurasReadable() return not InCombatLockdown() and not ns.aurasSecret() end
 
--- While auras are readable: which shield is up, and the live spell IDs. Looked up by the client's
--- name for the shield, which every rank shares.
 local function refreshAura()
 	if not aurasReadable() then return end
 	local upKey
@@ -792,9 +631,6 @@ local function refreshAura()
 	setUpShield(upKey or "none")
 end
 
--- Our own successful cast (UNIT_SPELLCAST_SUCCEEDED, spellID not secret): the shield the look shows
--- in Either, the cast hold (CAST_HOLD), and a rank the filters don't match yet, which they take
--- once combat ends (the look waits meanwhile: checkIDs).
 function SH.onCast(spellID)
 	local cast = castOf(spellID)
 	if not cast then return end
@@ -807,14 +643,10 @@ function SH.onCast(spellID)
 	SH.applyEmptyLook()
 end
 
--- The global cooldown on the shield, when its Global cooldown style is on. The shield's time left
--- is Blizzard's aura button's own cooldown, so the GCD gets its own sweep, above that button (it
--- darkens the charges too, for the GCD's length). Timed by the shown shield's spell, while that is on
--- the GCD (read in SPELL_UPDATE_COOLDOWN, as the timers are).
+-- The GCD gets its own sweep above the button (Blizzard's button owns the shield's time left)
 local shieldGCD = ns.makeGCDSweep(shield)
-shieldGCD:SetParent(gate)   -- at the button's opacity: an idle shield's sweep is as faint as it
--- (at one charge with "2 or more charges" it stays at the Idle opacity over the full copy: accepted)
--- inCooldownEvent: called from SPELL_UPDATE_COOLDOWN, the only place isOnGCD is vouched for.
+shieldGCD:SetParent(gate)
+-- inCooldownEvent: from SPELL_UPDATE_COOLDOWN
 local function refreshGCD(inCooldownEvent)
 	local id = ns.isEnabled("shield") and ns.Style.value("shield", "gcd", "show")
 		and Spells.known(SHIELDS[shownShield()].spell)
@@ -824,31 +656,22 @@ local function refreshGCD(inCooldownEvent)
 		d = ok and dur or nil
 	end
 	if not d then
-		-- Elsewhere a running sweep stays (it ends on its own), unless the sweep is off.
 		if inCooldownEvent or not id then shieldGCD:Clear() end
 		return
 	end
-	-- Above Blizzard's button and the one-charge copy, wherever regrouping left the container.
 	shieldGCD:SetFrameLevel((native.container or shield.textFrame):GetFrameLevel() + 20)
 	shieldGCD:SetCooldownFromDurationObject(d)
 end
 
-------------------------------------------------------------------------
--- Hooks (ShamanForever.lua calls them; see ns.registerModule)
-------------------------------------------------------------------------
--- After a layout (settings may have changed): Blizzard's container made once, then its looks.
 function SH.applyLayout()
 	native:setup()
 	look:setup()
-	-- The one-charge copy, once "2 or more charges" is chosen (it stays once made).
 	if idleWhen() == "charges" and ns.isEnabled("shield") then copy:setup() end
-	-- The IDs the slots were made with: given again, so the slots record them.
 	if native.container and not native.filtered then native:refilter() end
 	if copy.container and not copy.filtered then copy:refilter() end
 	SH.style()
 	SH.applyEmptyLook()
 end
--- The button's restyle and the look's place for a new size, scale or look.
 function SH.afterGroups()
 	SH.style()
 	placeLook()
@@ -862,17 +685,15 @@ function SH.refresh()
 	refreshGCD(false)
 end
 SH.onCooldowns = refreshGCD
--- A shaman logged in: the aura, read again whenever it changes (while auras are readable).
 function SH.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "UNIT_AURA", "player")
 	ns.registerEvent(ev, "PLAYER_REGEN_DISABLED")
 	ns.registerEvent(ev, "PLAYER_REGEN_ENABLED")
 	ns.registerEvent(ev, "PLAYER_ENTERING_WORLD")
-	-- A vehicle turns the look to the grey alone, or back (blocked).
 	ns.registerEvent(ev, "UNIT_ENTERED_VEHICLE", "player")
 	ns.registerEvent(ev, "UNIT_EXITED_VEHICLE", "player")
-	-- Auras may turn secret out of combat (a PvP match, an encounter): the button becomes the switch.
+	-- Auras may turn secret out of combat: the button becomes the switch
 	ns.registerEvent(ev, "ADDON_RESTRICTION_STATE_CHANGED")
 	ev:SetScript("OnEvent", function(_, event)
 		if event == "PLAYER_ENTERING_WORLD" then
@@ -889,14 +710,14 @@ function SH.start()
 			fighting = false
 			refreshAura()
 		elseif event == "UNIT_ENTERED_VEHICLE" or event == "UNIT_EXITED_VEHICLE" then
-			watch()   -- the look re-evaluated below
+			watch()
 		else
 			refreshAura()
 			return
 		end
 		SH.applyEmptyLook()
 	end)
-	ns.onCanActChange(SH.applyEmptyLook)   -- death, resurrection, a flight path
+	ns.onCanActChange(SH.applyEmptyLook)
 end
 
 -- /sf debug
@@ -923,14 +744,8 @@ function SH.debug()
 	say("tracked spell IDs: %s", table.concat(t, ","))
 end
 
-------------------------------------------------------------------------
--- Preview mode (ShamanForever_Preview.lua) shows the shield up or down. Blizzard's button can't be
--- shown, hidden or faked by addon code, so the preview draws a stand-in over it, and the No shield
--- look is off meanwhile (SH.applyEmptyLook sets the stand-in's opacity). Only our own frames
--- change; the element's frame itself is never hidden (ns.fadeTo).
-------------------------------------------------------------------------
-shield.aboveProtected = true   -- Blizzard's button hangs from it
--- icon: the preview's stand-in, just drawn in a state; nil when the preview ends.
+-- Preview: Blizzard's button can't be shown or hidden by addon code, so a stand-in draws over it
+shield.aboveProtected = true
 function SH.preview(icon)
 	standIn = icon
 	SH.applyEmptyLook()

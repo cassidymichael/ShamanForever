@@ -1,16 +1,5 @@
--- Timers: one way to show a duration everywhere.
---
--- A timer has three parts, each on or off: countdown text, swipe and time bar. There are two kinds:
--- "cooldown" (a spell not ready yet) and "uptime" (a totem, shield or imbue running, "Time left"
--- in the UI). Each kind is a style (ShamanForever_Style.lua): the global style holds one
--- (db.timers); an element, or the totem bar, can have its own (elementOpts(key).timers[kind],
--- db.totemBar.timers[kind]) or follow the global style.
---
--- Every timer is fed a duration object, so nothing here reads a time: Cooldown and StatusBar take
--- the object, and the bar's "run out" alpha comes from a curve (secret values go straight to
--- SetAlpha). Plain times (the imbue) become a duration object through C_DurationUtil.
--- The countdown's colour by time left is a numeric formatter the Cooldown draws with (see "The
--- countdown's formatter" below), so it needs no reading of the time either.
+-- Timers
+-- Fed duration objects, so nothing here reads a time: secret values go straight to widgets and curves.
 
 local _, ns = ...
 
@@ -18,8 +7,7 @@ local T = {}
 ns.Timer = T
 
 T.KINDS = { "cooldown", "uptime" }
--- Colour by time left: off, or two steps (Soon, then Now) below which the countdown takes a colour.
--- Tenths: seconds below which the countdown shows tenths (0: never).
+-- Tenths: seconds below which the countdown shows tenths (0: never)
 local function timeColors()
 	return {
 		timeColors = false, soon = 10, soonColor = { 1, 0.85, 0.1, 1 }, now = 3, nowColor = { 1, 0.25, 0.2, 1 },
@@ -41,42 +29,30 @@ T.DEFAULTS = {
 for _, kind in ipairs(T.KINDS) do
 	for k, v in pairs(timeColors()) do T.DEFAULTS[kind][k] = v end
 end
--- Elements that look different from the global style until the player says otherwise: applied over
--- the global style, and they do not follow it by default.
+-- Elements that look different from the global style until the player says otherwise
 T.ELEMENT_DEFAULTS = {
-	-- The shield's time bar, when on, along the top: its charge bar is along the bottom.
 	shield = { uptime = { text = false, swipe = false, swipeAlpha = 0.5, swipeReverse = false, bar = false, barEdge = "top" } },
 	imbue = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = false } },
-	-- Flame Shock's time left: the countdown and a bar along the bottom, Blizzard's button drives both.
 	flameshock = { uptime = { text = true, bar = true, barEdge = "bottom" } },
-	-- Their time left as a bar only (whatever the global style says): the countdown shows the
-	-- cooldown.
 	earthbind = { uptime = { text = false, bar = true } },
 	stoneclaw = { uptime = { text = false, bar = true } },
 	manatide = { uptime = { text = false, bar = true } },
 	grounding = { uptime = { text = false, bar = true } },
-	-- Stormstrike's time left is how long its empowered spell waits: a bar only.
 	stormstrike = { uptime = { text = false, bar = true } },
-	-- Ten-minute buffs: minutes in the middle, and a bar.
 	waterwalking = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
 	waterbreathing = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
 	elementalfocus = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
-	-- Maelstrom Weapon's time left is Blizzard's own button swipe: no text, no bar.
 	maelstrom = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
-	-- Tremor Totem's five minutes while it's down: minutes in the middle and a time bar.
 	tremor = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
 }
--- Parts an element's timer can't have, and why (shown on its page): for every kind, or under a
--- kind's name for that kind only.
+-- Parts an element's timer can't have, and why (shown on its page)
 local ONE_SWIPE = "The cooldown has the swipe; time left shows as text or a bar."
 T.CANT = {
-	-- One icon, two timers: only the cooldown sweeps.
 	earthbind = { uptime = { swipe = ONE_SWIPE } },
 	stoneclaw = { uptime = { swipe = ONE_SWIPE } },
 	firenova = { uptime = { swipe = ONE_SWIPE } },
 	manatide = { uptime = { swipe = ONE_SWIPE } },
 	grounding = { uptime = { swipe = ONE_SWIPE } },
-	-- Not one of the above: Blizzard's own timer, like the shield's and Elemental Focus's.
 	maelstrom = { bar = "Its timer is Blizzard's own; a time bar can't follow it." },
 	farseer = { uptime = { swipe = ONE_SWIPE } },
 	stormstrike = { uptime = { swipe = ONE_SWIPE } },
@@ -92,11 +68,8 @@ end
 local WHITE = "Interface\\Buttons\\WHITE8x8"
 local TIMER_REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime or 1
 local TIMER_IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
--- How Blizzard's aura button drives an aura timer's bar (its SetDurationBar options): as ours do.
 T.AURA_BAR = { interpolation = TIMER_IMMEDIATE, direction = TIMER_REMAINING }
 
--- Both kinds are styles (ShamanForever_Style.lua): the global one in db.timers[kind], an element's
--- or the totem bar's own in its timers[kind].
 local S = ns.Style
 for _, kind in ipairs(T.KINDS) do
 	local own = {}
@@ -106,16 +79,10 @@ for _, kind in ipairs(T.KINDS) do
 	})
 end
 
-------------------------------------------------------------------------
--- The countdown's formatter: colour by time left (and tenths with it). A numeric rule formatter
--- (C_StringUtil.CreateNumericRuleFormatter) handed to the Cooldown (SetCountdownFormatter) turns
--- the time left into the countdown's text inside the engine, with a colour code wrapped into each
--- rule's format, so it follows secret durations in combat with no polling. It replaces the
--- Cooldown's own formatting, so its rules repeat the Time format setting: seconds, "2m" above a
--- minute (or "1:31" below the Time format's threshold) and "1h". Everything rounds up, as the
--- Cooldown's own numbers do. Only Colour by time left needs it: tenths alone are the Cooldown's
--- own (SetCountdownMillisecondsThreshold), and a timer with neither keeps the Cooldown's own text.
-------------------------------------------------------------------------
+-- The countdown's formatter
+-- A numeric rule formatter handed to the Cooldown colours by time left inside the engine, so it
+-- follows secret durations. It replaces the Cooldown's own formatting: its rules repeat the Time
+-- format. Everything rounds up.
 local ROUND_UP = Enum and Enum.NumericRuleFormatRounding and Enum.NumericRuleFormatRounding.Up or 1
 
 local function secsIn(v, lo, hi)
@@ -123,7 +90,6 @@ local function secsIn(v, lo, hi)
 	return math.min(math.max(v, lo), hi)
 end
 
--- The Cooldown's own formats, lowest threshold first (a rule applies from its threshold up).
 local function formatRules(abbrev, tenths)
 	local rules = {}
 	if tenths > 0 then
@@ -148,9 +114,6 @@ local function colorCode(c)
 	return string.format("|cff%02x%02x%02x", byte(c[1]), byte(c[2]), byte(c[3]))
 end
 
--- The formatter's breakpoints: a cut at every format rule's threshold and at each colour step,
--- each carrying the format that applies there, in the colour of its step (none above Soon: the
--- text keeps its own colour).
 local function breakpoints(s, abbrev, tenths)
 	local rules = formatRules(abbrev, tenths)
 	local soon, now = secsIn(s.soon, 0, 3600), secsIn(s.now, 0, 3600)
@@ -173,8 +136,7 @@ local function breakpoints(s, abbrev, tenths)
 	return out
 end
 
--- One formatter per look, shared by every timer with it; a timer also keeps its own, so dropping
--- the cache (while the options are being dragged through many looks) never frees one in use.
+-- One formatter per look; a timer keeps its own, so dropping the cache never frees one in use
 local formatters, cached = {}, 0
 local function formatterFor(s)
 	if not s.timeColors then return nil end
@@ -197,23 +159,13 @@ local function formatterFor(s)
 	return f or nil
 end
 
-------------------------------------------------------------------------
 -- The widget
-------------------------------------------------------------------------
 local Timer = {}
 Timer.__index = Timer
 local fonts = 0
 
--- parent: frame the parts go on; opts:
---   anchor = the icon the parts cover (default parent)
---   cd     = an existing Cooldown to use (its frame level is kept)
---   dual   = the icon also shows the other kind of timer ("auto" text then goes top-left)
---   school = colour for "element colour" bars (a key of ns.SCHOOL_BAR_COLOR), or a function returning one
---   aura   = the timer is on Blizzard's aura button (ns.makeAuraSlot), which draws the time: the
---            button drives the bar (T.AURA_BAR), so it is shown whenever the style has one and is
---            never fed a duration here; its looks change only out of combat (the slot's restyle)
---   barInset = function returning how far above the bottom edge a bottom bar sits (the shield's
---            charge bar is along that edge, drawn over it)
+-- opts: anchor, cd (an existing Cooldown), dual, school, aura (on Blizzard's aura button: it
+-- drives the bar, so it is never fed a duration here), barInset
 function T.new(parent, key, kind, opts)
 	opts = opts or {}
 	local t = setmetatable({ key = key, kind = kind, parent = parent, anchor = opts.anchor or parent, dual = opts.dual,
@@ -224,8 +176,8 @@ function T.new(parent, key, kind, opts)
 		cd:SetAllPoints(t.anchor)
 	end
 	cd:SetDrawEdge(false)
-	cd:SetDrawBling(kind == "cooldown")   -- the ready flash, for cooldowns only
-	cd:SetSwipeTexture(WHITE)   -- square, so a cropped icon has no bright sliver at the edge
+	cd:SetDrawBling(kind == "cooldown")
+	cd:SetSwipeTexture(WHITE)
 	t.cd = cd
 	fonts = fonts + 1
 	t.fontName = "ShamanForeverTimerFont" .. fonts
@@ -254,8 +206,7 @@ local function schoolColor(t)
 	return c or { 0.46, 1, 0.35 }
 end
 
--- Takes the current style. Safe any time for our own frames; the shield's Cooldown is restyled
--- only out of combat by its caller.
+-- Safe any time for our own frames; the shield's Cooldown is restyled out of combat only by its caller
 function Timer:apply()
 	local s = S.get(self.key, self.kind)
 	local cant = T.cant(self.key, self.kind)
@@ -264,11 +215,7 @@ function Timer:apply()
 	cd:SetSwipeColor(0, 0, 0, s.swipeAlpha)
 	cd:SetReverse(s.swipeReverse)
 	cd:SetHideCountdownNumbers(not s.text or cant.text ~= nil)
-	-- Minutes read "2m"; under abbrev seconds they read "1:31" (0: never). Under a minute the client
-	-- always shows plain seconds.
 	pcall(cd.SetCountdownAbbrevThreshold, cd, s.abbrev)
-	-- Colour by time left (a formatter, which then does the above and the tenths too), or tenths
-	-- alone (the Cooldown's own). A timer that never had either is left alone.
 	local text = s.text and not cant.text
 	local fm = text and formatterFor(s) or nil
 	if fm ~= self.formatter then
@@ -281,7 +228,7 @@ function Timer:apply()
 		pcall(cd.SetCountdownMillisecondsThreshold, cd, ms)
 	end
 	local c = s.textColor
-	ns.Media.setFontObject(self.font, self.key, s.textSize)   -- global text style, or the bar's
+	ns.Media.setFontObject(self.font, self.key, s.textSize)
 	self.font:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 	cd:SetCountdownFont(self.fontName)
 	self.barOn = self.bar ~= nil and s.bar and not cant.bar
@@ -290,8 +237,6 @@ function Timer:apply()
 		local a = self.anchor
 		bar:ClearAllPoints()
 		bar:SetHeight(s.barHeight)
-		-- The global texture, or its owner's own (the totem bar's); before the colour, restated
-		-- below.
 		bar:SetStatusBarTexture(ns.Media.barTexture(self.key))
 		if s.barEdge == "top" then
 			bar:SetPoint("TOPLEFT", a, "TOPLEFT", 0, 0); bar:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, 0)
@@ -304,7 +249,7 @@ function Timer:apply()
 		if self.aura then bar:SetShown(self.barOn)
 		elseif not self.barOn then bar:Hide() end
 	end
-	if self.last then self:set(self.last) end   -- show a part just turned on, at once
+	if self.last then self:set(self.last) end
 	local fs = self.fs
 	if fs then
 		local pos = s.textPos
@@ -323,13 +268,11 @@ function Timer:apply()
 	end
 end
 
--- The colour its time bar takes (its element's school, or the style's colour).
 function Timer:barRGB()
 	local s = S.get(self.key, self.kind)
 	return s.barElement and schoolColor(self) or s.barColor
 end
 
--- Show a duration object, or clear with nil.
 function Timer:set(d)
 	if not d then return self:clear() end
 	self.last = d
@@ -337,7 +280,7 @@ function Timer:set(d)
 	local bar = self.bar
 	if bar and self.barOn then
 		ns.try("timer bar", bar.SetTimerDuration, bar, d, TIMER_IMMEDIATE, TIMER_REMAINING)
-		-- 0 once run out: an expired duration object can linger on the bar.
+		-- 0 once run out: an expired duration object can linger on the bar
 		if ns.CURVE_LIVE then
 			local ok, a = ns.try("timer bar alpha", d.EvaluateRemainingDuration, d, ns.CURVE_LIVE)
 			if ok then bar:SetAlpha(a) else bar:SetAlpha(1) end
@@ -346,7 +289,6 @@ function Timer:set(d)
 	elseif bar then bar:Hide() end
 end
 
--- Show a plain time span (start and length in seconds, GetTime's clock).
 function Timer:setTime(start, length)
 	if C_DurationUtil and C_DurationUtil.CreateDuration then
 		self.own = self.own or C_DurationUtil.CreateDuration()
@@ -369,7 +311,6 @@ function Timer:clear()
 	if self.bar then self.bar:Hide() end
 end
 
--- A frozen picture for the options previews: frac of the time gone, of a span `length` long.
 function Timer:static(frac, length)
 	length = length or 30
 	self.cd:SetCooldown(GetTime() - frac * length, length)
@@ -382,15 +323,10 @@ function Timer:static(frac, length)
 	end
 end
 
-------------------------------------------------------------------------
--- Expiring: a warning over the icon in a timer's last seconds (grey icon, red ring, fade in and
--- out, pulsing glow, any mix). Its alpha is the remaining time through a curve (1 inside the last
--- `secs`, else 0: ns.lastSeconds), so it works in combat; evaluated ten times a second for every
--- timer that has one. It sits just above the icon, below the cooldowns and their countdowns, so
--- those stay readable (the totem bar does the same).
-------------------------------------------------------------------------
-local warning = {}   -- timers with an expiry warning
-local ticker = CreateFrame("Frame")   -- shown only while some timer has a warning
+-- Expiring: a warning over the icon in a timer's last seconds. Its alpha is the time left through
+-- a curve, evaluated ten times a second, so it works in combat.
+local warning = {}
+local ticker = CreateFrame("Frame")
 ticker.t = 0
 ticker:Hide()
 ticker:SetScript("OnUpdate", function(self, elapsed)
@@ -400,7 +336,7 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 	for t in pairs(warning) do
 		local d = t.last
 		if d then
-			-- pcall, not ns.try: this runs ten times a second and must not allocate.
+			-- pcall, not ns.try: ten times a second, must not allocate
 			local ok, a = pcall(d.EvaluateRemainingDuration, d, t.expCurve)
 			if ok then t.exp:SetAlpha(a) else t.exp:SetAlpha(0); ns.noteError("timer expiring", a) end
 		else t.exp:SetAlpha(0) end
@@ -409,20 +345,18 @@ end)
 
 T.EXPIRE_DEFAULTS = { secs = 5, grey = false, ring = false, pulse = true, glow = false }
 
--- An element's expiring warning (its time left's last seconds): its own settings over its own
--- defaults (ns.elementDefault's "expire") over everyone's.
 function T.expireOpts(key)
 	local o = ns.elementOpts(key).expire
 	local own = ns.elementDefault(key, "expire")
 	local out = {}
 	for k, v in pairs(T.EXPIRE_DEFAULTS) do
 		if type(own) == "table" and type(own[k]) == type(v) then v = own[k] end
-		if type(o) == "table" and type(o[k]) == type(v) then out[k] = o[k] else out[k] = v end   -- a saved false counts
+		if type(o) == "table" and type(o[k]) == type(v) then out[k] = o[k] else out[k] = v end
 	end
 	return out
 end
 
--- e: { secs, grey, ring, pulse, glow } (secs 0 turns it off); icon: the texture the grey copy shows.
+-- e: { secs, grey, ring, pulse, glow } (secs 0: off)
 function Timer:setExpire(e, icon)
 	if not e or e.secs <= 0 or not ns.lastSeconds(e.secs) then
 		warning[self] = nil
@@ -438,8 +372,6 @@ function Timer:setExpire(e, icon)
 	end
 	local x = self.exp
 	if not x then
-		-- On the timer's parent (so an owner's alpha still gates it), but at the icon's level + 1:
-		-- below the cooldowns, which the caller keeps above it.
 		x = CreateFrame("Frame", nil, self.parent)
 		x:SetAllPoints(self.anchor)
 		x:SetFrameLevel(self.anchor:GetFrameLevel() + 1)
@@ -454,11 +386,11 @@ function Timer:setExpire(e, icon)
 		x.dim:SetColorTexture(0, 0, 0, 1)
 		x.dim:SetAlpha(0)
 		x.pulse = ns.makePulse(x.dim, "dim")
-		-- A hidden ancestor (combat-only visibility, Alt-Z) stops the pulse; start it again on show.
+		-- A hidden ancestor stops the pulse: start it again on show
 		x:SetScript("OnShow", function(s) if s.pulseOn then s.pulse:Play() end end)
-		x.glow = ns.Effects.glow(x, self.anchor, self.key)   -- made on first use
+		x.glow = ns.Effects.glow(x, self.anchor, self.key)
 		self.exp = x
-		ns.Looks.followMask(self.anchor, x.grey, x.dim)   -- a rounded or cut-corner icon's shape
+		ns.Looks.followMask(self.anchor, x.grey, x.dim)
 	end
 	x.glow:fit(self.anchor:GetWidth())
 	x.glow:SetShown(e.glow)
@@ -466,28 +398,23 @@ function Timer:setExpire(e, icon)
 	x.grey:SetShown(e.grey)
 	x.ring:show(e.ring)
 	x.pulseOn = e.pulse and true or false
-	-- Callers repeat this (the totem bar on every totem change): a running pulse isn't restarted.
+	-- Callers repeat this: a running pulse isn't restarted
 	if not e.pulse then x.pulse:Stop(); x.dim:SetAlpha(0)
 	elseif not x.pulse:IsPlaying() then x.pulse:Play() end
 	self.expCurve = ns.lastSeconds(e.secs)
 	warning[self] = true
 	ticker:Show()
-	-- At once, not on the next tick (a totem recast in its last seconds drops the old warning now).
 	local d = self.last
 	if d then
 		local ok, a = pcall(d.EvaluateRemainingDuration, d, self.expCurve)
-		if ok then x:SetAlpha(a) else x:SetAlpha(0) end   -- a may be secret: never compared, only handed on
+		if ok then x:SetAlpha(a) else x:SetAlpha(0) end   -- a may be secret: never compared
 	end
 end
 
--- The grey copy's icon, when it changes with what is shown (the totem bar's totem; a secret icon
--- in combat is fine, SetTexture takes it).
 function Timer:setExpireIcon(icon)
 	if self.exp then ns.try("timer expiring icon", self.exp.grey.SetTexture, self.exp.grey, icon) end
 end
 
--- Frame levels again, after the caller moved the icon (regrouping): the warning just above the
--- anchor, the bar just above the timer's Cooldown.
 function Timer:restack()
 	local x = self.exp
 	if x then
