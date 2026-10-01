@@ -161,8 +161,8 @@ function EP.buildOverview(p)
 			end
 		end)
 	end
-	-- The styles an element has its own of (General's otherwise), by name: the timers, glow and pop
-	-- it offers, from ns.Style.
+	-- The styles an element has its own of (the global ones otherwise), by name: the timers, glow
+	-- and pop it offers, from ns.Style.
 	local STYLE_NAMES = { { "cooldown", "Cooldown timer" }, { "uptime", "Time left timer" },
 		{ "glow", "Pulsing glow" }, { "pop", "Pop" } }
 	local function ownStyles(key)
@@ -259,10 +259,10 @@ function EP.buildOverview(p)
 			GameTooltip:SetText("Own styles")
 			local own = ownStyles(key)
 			if #own == 0 then
-				GameTooltip:AddLine("Follows General for its timers, glow and pop.", 1, 1, 1, true)
+				GameTooltip:AddLine("Follows Global styles for its timers, glow and pop.", 1, 1, 1, true)
 			else
 				GameTooltip:AddLine(table.concat(own, ", "), 1, 1, 1, true)
-				GameTooltip:AddLine("The rest follow General.", 0.7, 0.7, 0.7, true)
+				GameTooltip:AddLine("The rest follow Global styles.", 0.7, 0.7, 0.7, true)
 			end
 			GameTooltip:Show()
 		end)
@@ -292,7 +292,7 @@ function EP.buildOverview(p)
 			local own, short = ownStyles(key), {}
 			for i, n in ipairs(own) do short[i] = SHORT[n] end
 			if #own == 0 then
-				styles.text:SetText("General")
+				styles.text:SetText("Global")
 				styles.text:SetTextColor(0.6, 0.6, 0.6)
 			else
 				styles.text:SetText("Own: " .. table.concat(short, ", "))
@@ -325,7 +325,7 @@ local function elementDisplay(p, key)
 		function() return not ns.isLearned(key) and not ns.Spells.otherRace(ns.ELEMENTS[key].race) end)
 	p:callout("Not your race. It shows on screen only for the races that have this spell.",
 		function() return not ns.isLearned(key) and ns.Spells.otherRace(ns.ELEMENTS[key].race) end)
-	p:header("Display")
+	p:header("Display", nil, nil, nil, { open = true })
 	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return ns.showMode(key) end,
 		function(v) ns.setShow(key, v) end, nil, 140)
 	local function showDefault() return ns.elementDefault(key, "show") or "always" end
@@ -409,8 +409,8 @@ local function idleBlock(p, def)
 		choices and showWhen(function() return not never() end) or nil)
 end
 
--- Standard blocks at the end of a page: the pulsing glow's and the pop's styles, General's or its
--- own, where the element has something they apply to (its effects, ns.registerElement).
+-- Standard blocks at the end of a page: the pulsing glow's and the pop's styles, the global ones or
+-- its own, where the element has something they apply to (its effects, ns.registerElement).
 local function effectBlocks(p, key)
 	local e = ns.ELEMENTS[key]
 	if #e.effects.glow > 0 then glowBlock(p, key, e.icon) end

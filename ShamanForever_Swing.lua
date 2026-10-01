@@ -126,7 +126,7 @@ end
 -- so the moving edge travels the same way as when filling. The spark is a line: two screen pixels
 -- wide at any size (ns.linePx).
 function SW.styleBar(b)
-	b:SetStatusBarTexture(ns.Media.barTexture("swing"))   -- General's, or its own; before the fill colour
+	b:SetStatusBarTexture(ns.Media.barTexture("swing"))   -- global or its own; before the fill colour
 	local c = cfg()
 	local fromRight = (c.fillFrom == "right") ~= c.deplete
 	b:SetReverseFill(fromRight)
@@ -146,7 +146,7 @@ local TEXT_SIDE = { left = "LEFT", center = "CENTER", right = "RIGHT" }
 function SW.styleCountdown()
 	local c = cfg()
 	local k = c.countdownColor
-	ns.Media.setFontObject(font, "swing", c.countdownSize)   -- General's text style, or its own
+	ns.Media.setFontObject(font, "swing", c.countdownSize)   -- the global text style, or its own
 	font:SetTextColor(k[1], k[2], k[3], k[4] or 1)
 end
 function SW.placeCountdown(fs, anchor)
@@ -156,7 +156,7 @@ function SW.placeCountdown(fs, anchor)
 	fs:SetJustifyH(side)
 end
 
--- The border it wears: General's, or its own.
+-- The border it wears: the global one, or its own.
 function SW.border() return ns.Style.get("swing", "border") end
 
 local f = CreateFrame("Frame", nil, UIParent)

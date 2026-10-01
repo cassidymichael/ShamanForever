@@ -18,7 +18,7 @@ local ACCOUNT_DEFAULTS = {
 	keepOptionsOpen = false,  -- false: the options window steps aside while positioning or previewing
 	lastShield = "lightning",  -- the shield last cast or seen; its icon is the no-shield look in "either" mode
 	imbueIDs = {},            -- learned enchant ID -> imbue key
-	foldedBlocks = {},        -- "page:Header" -> true: options blocks the player folded (ShamanForever_OptionsPage.lua)
+	foldedBlocks = {},        -- "page:Header" -> true folded, false open (ShamanForever_OptionsPage.lua)
 	fearCasters = {},         -- the player's edits to Tremor's mob list (ShamanForever_Tremor.lua)
 	profiles = {},            -- name -> settings (ShamanForever.lua's DEFAULTS)
 	chars = {},               -- "Name-Realm" -> { profile = name }
@@ -201,8 +201,8 @@ local function cleanProfile(t)
 	end
 	clampNumbers(out, RANGES, DEFAULTS)
 	if out.chargeBarColor and not ns.isColor(out.chargeBarColor) then out.chargeBarColor = nil end
-	-- General's styles are cleaned when read (ShamanForever_Style.lua); so are elements' own, and the
-	-- totem bar's settings (ShamanForever_TotemBar.lua).
+	-- The global styles are cleaned when read (ShamanForever_Style.lua); so are elements' own, and
+	-- the totem bar's settings (ShamanForever_TotemBar.lua).
 	if out.elementOpts then
 		for key, o in pairs(out.elementOpts) do
 			if type(key) ~= "string" or type(o) ~= "table" then out.elementOpts[key] = nil

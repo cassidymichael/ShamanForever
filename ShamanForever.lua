@@ -21,7 +21,8 @@ local Spells = ns.Spells
 -- its last element leaves, until deleted.
 local GROUP_DEFAULTS = {
 	point = "CENTER", x = 0, y = -160, scale = 1, alpha = 0.8,
-	-- Icon size: General's, or the group's own (Size keeps lines crisp; Scale grows everything).
+	-- Icon size: the global one, or the group's own (Size keeps lines crisp; Scale grows
+	-- everything).
 	sizeFollow = true, size = 44,
 	orientation = "horizontal",  -- horizontal | vertical
 	growth = "forward",          -- forward (right / down) | backward (left / up)
@@ -40,9 +41,9 @@ local SHOW_WHEN = {
 -- A profile: the layout and how every element looks.
 local DEFAULTS = {
 	iconSize = ns.BASE_ICON_SIZE,   -- base element size; a group can have its own, and its scale multiplies it
-	-- General's styles (ShamanForever_Style.lua): the border around every element, the pulsing glow
-	-- and the pop. Groups and the totem bar can have their own border; elements and the totem bar
-	-- their own glow and pop.
+	-- The global styles (ShamanForever_Style.lua): the border around every element, the pulsing
+	-- glow and the pop. Groups and the totem bar can have their own border; elements and the totem
+	-- bar their own glow and pop.
 	border = CopyTable(ns.Style.KINDS.border.defaults),
 	glowStyle = CopyTable(ns.Style.KINDS.glow.defaults),
 	popStyle = CopyTable(ns.Style.KINDS.pop.defaults),
@@ -135,7 +136,7 @@ local DEFAULTS = {
 	imbueWarnMins = 5,        -- show time left below this many minutes (0 = never)
 	totemBar = {},            -- the totem bar's settings (ShamanForever_TotemBar.lua fills its defaults)
 	swingBar = {},            -- the swing timer's settings (ShamanForever_Swing.lua fills its defaults)
-	-- General's timer styles, one per kind (ShamanForever_Timers.lua); elements and the totem bar
+	-- The global timer styles, one per kind (ShamanForever_Timers.lua); elements and the totem bar
 	-- follow them unless they have their own.
 	timers = { cooldown = CopyTable(ns.Timer.DEFAULTS.cooldown), uptime = CopyTable(ns.Timer.DEFAULTS.uptime) },
 }
@@ -309,7 +310,7 @@ end
 -- always | combat | never
 local function showMode(key) return elementOpts(key).show or "always" end
 
--- A group's icon size: its own, or General's.
+-- A group's icon size: its own, or the global one.
 local function groupSize(g) return (g and not g.sizeFollow and g.size) or db.iconSize end
 -- An element's icon: its group's size (in whole pixels, as layoutGroup sizes it) less its
 -- border, which is drawn inside that size (ns.Looks.inset; layoutGroup places it so).
@@ -724,7 +725,7 @@ local function resolveSpells()
 	return table.concat(sig, ";")
 end
 
--- Every timer takes its current style (General's or its own).
+-- Every timer takes its current style (the global one or its own).
 local function applyTimers()
 	each("applyTimers")
 	ns.TotemBar.applyTimers()
@@ -1018,7 +1019,7 @@ function ns.debugReport()
 		for _, key in ipairs(g.members) do table.insert(names, listed(key)) end
 		say("group %d %s: %s, %s, size %d%s, scale %.2f, opacity %.2f, at %s %.0f,%.0f%s", g.id, g.name,
 			#names > 0 and table.concat(names, ",") or "empty", g.orientation, groupSize(g),
-			g.sizeFollow and " (General)" or "", g.scale, g.alpha, g.point, g.x, g.y,
+			g.sizeFollow and " (Global)" or "", g.scale, g.alpha, g.point, g.x, g.y,
 			g.show == "always" and "" or string.format(", shows %s, stays %ds", g.show, g.fadeAfter))
 	end
 	local loose = {}

@@ -1,11 +1,11 @@
 -- The options window's page kit: a page is a scrolling column of rows (headers, text, checkboxes,
 -- sliders, dropdowns, colours, cards, buttons...). Rows can hide themselves; refresh reflows the
 -- visible ones and pulls every control's value from the saved settings. Each header starts a block
--- that runs to the next header and sits on a faint panel; clicking the header folds the block. Rows
--- that only apply while another is on hang under it (Page:sub), indented, on a thin gold rule. Also
--- the drag and drop the pages' lists share. The pages themselves are built in
--- ShamanForever_Options.lua, Layout in ShamanForever_OptionsLayout.lua, and the elements' in
--- ShamanForever_OptionsElements.lua.
+-- that runs to the next header and sits on a faint panel; clicking the header folds the block. A
+-- section heading (Page:section) stands over a run of blocks. Rows that only apply while another
+-- is on hang under it (Page:sub), indented, on a thin gold rule. Also the drag and drop the pages'
+-- lists share. The pages themselves are built in ShamanForever_Options.lua, Layout in
+-- ShamanForever_OptionsLayout.lua, and the elements' in ShamanForever_OptionsElements.lua.
 
 local _, ns = ...
 
@@ -25,9 +25,16 @@ local SLIDER_SPAN_W = 400   -- a slider and its value box, at most
 local TEXT_MAX_W = 600   -- text and boxed notices wrap here at the most (the page's width at 864)
 -- A block's panel: its rows inset from its sides, room under its last row, a gap to the next block.
 local PANEL_PAD, PANEL_PAD_B, BLOCK_GAP = 10, 6, 10
--- Folded blocks are saved with the account, by page and header text ("general:Border style"), so they
--- stay folded across a /reload.
+-- Folded and opened blocks are saved with the account, by page and header text ("general:Border
+-- style" = true folded, false open), so they stay as left across a /reload. A block never folded or
+-- opened starts folded, unless it's its page's first (page.firstFolded: that one too), its page has
+-- page.allOpen, it's under a section made open (Page:section), or its header says open.
 local function folded() return ns.getAccount().foldedBlocks end
+local function isFolded(b)
+	local v = folded()[b.key]
+	if v == nil then return b.startFolded end
+	return v
+end
 local allPages = {}   -- every page made
 -- A sub's rows: indented a level at a time, two at most, beside a rule down from under their parent.
 local SUB_INDENT, SUB_MAX, RULE_X = 24, 2, 12
@@ -272,12 +279,12 @@ function Page:refresh()
 	for _, b in ipairs(self.blockList) do b.drawn = false end
 	for _, it in ipairs(self.items) do
 		local b = it.block
-		if it.head then close() end   -- a header, shown or not, ends the block before it
+		if it.head or it.ends then close() end   -- a header or a section ends the block before it
 		local show = not it.shown or it.shown()
 		local sub = it.sub
 		if show and sub then show = sub.parent.visible and sub.active() and true or false end
 		-- A folded block keeps only its header; one whose header is hidden can't fold.
-		if show and b and not it.head and b.head.visible and folded()[b.key] then show = false end
+		if show and b and not it.head and b.head.visible and isFolded(b) then show = false end
 		it.visible = show
 		it.frame:SetShown(show)
 		if show then
@@ -355,14 +362,14 @@ end
 
 -- Folds or opens block b.
 function Page:setFolded(b, fold)
-	folded()[b.key] = fold or nil
+	folded()[b.key] = fold and true or false
 	self:relaid()
 end
 
 -- Folds or opens every block whose header shows.
 function Page:foldAll(fold)
 	for _, b in ipairs(self.blockList) do
-		if b.head.visible then folded()[b.key] = fold or nil end
+		if b.head.visible then folded()[b.key] = fold and true or false end
 	end
 	self:relaid()
 end
@@ -371,7 +378,7 @@ end
 function Page:reveal(frame)
 	for _, it in ipairs(self.items) do
 		if it.frame == frame then
-			if it.block and folded()[it.block.key] then self:setFolded(it.block, false) end
+			if it.block and isFolded(it.block) then self:setFolded(it.block, false) end
 			return
 		end
 	end
@@ -396,8 +403,8 @@ end
 -- totem bar art, turned to point down while open and right while folded.
 local ARROW_BOX = 14
 local arrowAtlas = {}   -- atlas name -> its info, or false where the client lacks it
-local function paintArrow(t, isFolded)
-	local name = isFolded and "Professions-recipe-header-expand" or "Professions-recipe-header-collapse"
+local function paintArrow(t, shut)
+	local name = shut and "Professions-recipe-header-expand" or "Professions-recipe-header-collapse"
 	local info = arrowAtlas[name]
 	if info == nil then
 		info = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(name)
@@ -413,7 +420,7 @@ local function paintArrow(t, isFolded)
 		t:SetTexCoord(0.5625, 0.71875, 0.34375, 0.3828125)
 		t:SetBlendMode("ADD")
 		t:SetSize(12, 7)
-		t:SetRotation(isFolded and -math.pi / 2 or math.pi)
+		t:SetRotation(shut and -math.pi / 2 or math.pi)
 	end
 end
 
@@ -454,13 +461,13 @@ end
 -- The header's arrow, its Reset link and, folded, what's on (left of the link while it shows).
 function Page:paintHeader(b)
 	local f = b.head.frame
-	local isFolded = folded()[b.key] and true or false
-	paintArrow(f.arrow, isFolded)
+	local shut = isFolded(b) and true or false
+	paintArrow(f.arrow, shut)
 	local changed = b:changed()
 	f.reset:SetShown(changed)
 	local resetW = changed and f.reset:GetWidth() + LINK_GAP or 0
-	f.says:SetShown(isFolded)
-	if isFolded then
+	f.says:SetShown(shut)
+	if shut then
 		f.says:SetPoint("BOTTOMRIGHT", -resetW, 9)
 		f.says:SetText(onList(b))
 		local used = f.textX + f.text:GetStringWidth() + (f.note and 10 + f.note:GetStringWidth() or 0)
@@ -506,7 +513,7 @@ function Page:paintFoldRow()
 	local anyFolded, anyOpen = false, false
 	for _, b in ipairs(self.blockList) do
 		if b.head.visible then
-			if folded()[b.key] then anyFolded = true else anyOpen = true end
+			if isFolded(b) then anyFolded = true else anyOpen = true end
 		end
 	end
 	for _, pair in ipairs({ { row.expand, anyFolded }, { row.collapse, anyOpen } }) do
@@ -542,8 +549,8 @@ end
 ------------------------------------------------------------------------
 -- A ref names one setting: { elem = key, name } (an element's own, db.elementOpts), { general =
 -- name } (the profile's, db), { bar = "totembar" or "swing", name }, { group = g or a function
--- returning it, name }, { style = kind, owner } (a whole style: General's or an owner's). Any ref
--- may also carry:
+-- returning it, name }, { style = kind, owner } (a whole style: the global one or an owner's). Any
+-- ref may also carry:
 --   after    the follow-up its row runs after a change; a reset runs each one once
 --   default  a function returning the value to compare with, in place of its kind's
 --   changed  a function of the ref: whether it differs from its default, in place of the compare
@@ -673,9 +680,9 @@ Page.refKind("group", {
 	end,
 })
 
--- A style (ShamanForever_Style.lua): owner nil for General's, an owner key, or a function returning
--- a group (nil while none is chosen). Changed: off how it ships (a "Same as General" switched, or
--- values of its own that differ); a reset puts it back as shipped.
+-- A style (ShamanForever_Style.lua): owner nil for the global one, an owner key, or a function
+-- returning a group (nil while none is chosen). Changed: off how it ships (a "Same as Global"
+-- switched, or values of its own that differ); a reset puts it back as shipped.
 local function styleOwner(r)
 	if type(r.owner) == "function" then
 		local o = r.owner()
@@ -739,7 +746,8 @@ function Page:reset() resetRefs(self:refs()) end
 function Page:askReset(name) askReset(name, function() self:reset() end) end
 
 -- A header starts a block, which runs to the next one. icon: an optional texture before the text.
-function Page:header(text, shown, note, icon)
+-- opts.open: the block starts open (while the player hasn't folded or opened it).
+function Page:header(text, shown, note, icon, opts)
 	local f = self:row(36)
 	local block, x = nil, 0
 	if self.panels ~= false then
@@ -749,8 +757,9 @@ function Page:header(text, shown, note, icon)
 		local key = self.key .. ":" .. text
 		if self.blockKeys[key] then key = key .. "#" .. #self.blockList end
 		self.blockKeys[key] = true
+		local first = #self.blockList == 0 and not self.firstFolded
 		block = setmetatable({ index = #self.blockList + 1, key = key, name = text, items = {}, owns = {},
-			ownIds = {} }, Block)
+			ownIds = {}, startFolded = not (first or self.allOpen or self.openRun or (opts and opts.open)) }, Block)
 		table.insert(self.blockList, block)
 		self.block = block
 		-- The fold arrow (painted by paintHeader).
@@ -814,7 +823,7 @@ function Page:header(text, shown, note, icon)
 			-- A click on the Reset link, anywhere in its hit area, is the link's alone.
 			local link = f.reset
 			if link:IsShown() and link:IsMouseOver(RESET_PAD_Y, -RESET_PAD_Y, -RESET_PAD_X, RESET_PAD_X) then return end
-			local fold = not folded()[block.key]
+			local fold = not isFolded(block)
 			if IsShiftKeyDown() then self:foldAll(fold) else self:setFolded(block, fold) end
 		end)
 	end
@@ -830,6 +839,30 @@ function Page:pageTitle(text)
 	f.text:SetShadowOffset(1, -1)
 	f.text:SetText(text)
 	return self:add(f, 40)
+end
+
+-- A section heading over a run of blocks, a step above a block's header: larger, at the page's
+-- edge, on a full rule, with no panel and no fold. It ends the block before it; the rows after it
+-- belong to no block until the next header. open: its blocks start open (until the next section).
+local SECTION_H, SECTION_SIZE = 46, 18
+function Page:section(text, open)
+	self.block = nil
+	self.openRun = open or nil
+	local f = self:row(SECTION_H)
+	f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+	local file, _, flags = GameFontNormalLarge:GetFont()
+	if file then f.text:SetFont(file, SECTION_SIZE, flags) end
+	f.text:SetPoint("BOTTOMLEFT", 4, 9)
+	f.text:SetShadowOffset(1, -1)
+	f.text:SetText(text)
+	local line = f:CreateTexture(nil, "ARTWORK")
+	line:SetColorTexture(0.85, 0.71, 0.42, 0.6)
+	line:SetHeight(1)
+	line:SetPoint("BOTTOMLEFT", 0, 3)
+	line:SetPoint("BOTTOMRIGHT", 0, 3)
+	self:add(f, SECTION_H)
+	self.items[#self.items].ends = true
+	return f
 end
 
 -- A brief gold glow behind a row (a header), to show where a button has brought the reader. The
@@ -854,7 +887,7 @@ function Page.flash(_, frame)
 	flash:Play()
 end
 
--- Names the last row added, for ns.Options.openGeneral and the like to scroll to.
+-- Names the last row added, for ns.Options.openGlobal and the like to scroll to.
 function Page:anchor(name)
 	self.anchors = self.anchors or {}
 	self.anchors[name] = self.items[#self.items].frame

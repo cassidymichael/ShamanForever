@@ -1,8 +1,8 @@
 -- Media: the HUD's fonts and bar textures. Two styles (ShamanForever_Style.lua):
 --   text  font, outline and shadow for every piece of text an owner draws (timers, counts, keys,
---         words); General's, or the totem bar's or the swing timer's own
+--         words); the global one, or the totem bar's or the swing timer's own
 --   bar   the texture of every bar (time bars, the shield's charge bar, Maelstrom's stack bar,
---         the swing timer); General's, or the swing timer's own
+--         the swing timer); the global one, or the swing timer's own
 -- Choices are stored by name, never by path. The game's fonts and bars are built in; others come
 -- from LibSharedMedia when another addon has loaded it (we don't ship it: it only brings media that
 -- other addons register, and those bring it with them).
@@ -170,12 +170,13 @@ function M.fontPath(name)
 	return path
 end
 
--- Owners of text: General (nil), the totem bar and the swing timer; everything else draws with
--- General's.
+-- Owners of text: the global one (nil), the totem bar and the swing timer; everything else draws
+-- with the global one.
 local OWNERS = { totembar = true, swing = true }
 local function owner(o) return OWNERS[o] and o or nil end
 
--- Whether General's, the totem bar's or the swing timer's text uses a font, by name or by path.
+-- Whether the global one, the totem bar's or the swing timer's text uses a font, by name or by
+-- path.
 function M.fontInUse(name, path)
 	for _, o in ipairs({ false, "totembar", "swing" }) do
 		local n = S.value(o or nil, "text", "font")
@@ -214,8 +215,8 @@ function M.setFontObject(obj, o, size)
 end
 
 -- What changes when an owner's text changes: for callers that restate a font only on a change.
--- General's is kept until its stored style, a font's state or the game's font changes: counts and
--- key text ask on every draw.
+-- The global one is kept until its stored style, a font's state or the game's font changes: counts
+-- and key text ask on every draw.
 local function textKeyOf(o)
 	local path, flags, shadow = M.text(o)
 	return path .. flags .. (shadow and "s" or "")
@@ -376,8 +377,8 @@ local function bar(name)
 end
 M.barOf = bar
 
--- Owners of a bar texture: General (nil), the totem bar (its time bars) and the swing timer; every
--- other bar draws with General's.
+-- Owners of a bar texture: the global one (nil), the totem bar (its time bars) and the swing timer;
+-- every other bar draws with the global one.
 local function barOwner(o) return (o == "swing" or o == "totembar") and o or nil end
 local function barName(o) return S.value(barOwner(o), "bar", "texture") end
 

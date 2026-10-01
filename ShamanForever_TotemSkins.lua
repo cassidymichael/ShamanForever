@@ -204,7 +204,7 @@ function SK.owned(field)
 	return nil
 end
 
--- The slots' border style, and Call and Recall's (nil: the bar's own, General's or its own). A
+-- The slots' border style, and Call and Recall's (nil: the bar's own, the global one or its own). A
 -- look's border can be a function of its own settings.
 local borders = {}   -- a look's border function's result, kept while it is the same
 function SK.border()

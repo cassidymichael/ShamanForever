@@ -1,8 +1,8 @@
 -- The options window's Styles explorer page: a gallery of every border look, pulsing glow and
 -- pop, each on one sample icon with everything else as shipped (never the player's own settings).
--- Right-click one to use it in General. The looks come from ns.Style's choices, so a new one shows
--- up here with no page code. The border and glow icons are look tiles (ns.Look.tilePool), taken
--- while their section shows and given back when it hides; the pop grid's cells hold a still
+-- Right-click one to use it as a global style. The looks come from ns.Style's choices, so a new one
+-- shows up here with no page code. The border and glow icons are look tiles (ns.Look.tilePool),
+-- taken while their section shows and given back when it hides; the pop grid's cells hold a still
 -- picture and take a tile only while they play. Nothing here runs while the page is closed.
 local _, ns = ...
 
@@ -45,7 +45,7 @@ local function schoolOf(key)
 end
 
 -- An owner whose border, glow and pop are as shipped, for the tiles to wear: every field set, so
--- ns.Style reads nothing from General.
+-- ns.Style reads nothing from the global styles.
 local NEUTRAL = {}
 for _, kind in ipairs({ "border", "glow", "pop" }) do
 	local spec = S.KINDS[kind]
@@ -55,7 +55,7 @@ for _, kind in ipairs({ "border", "glow", "pop" }) do
 end
 
 ------------------------------------------------------------------------
--- Using a look in General
+-- Using a look as a global style
 ------------------------------------------------------------------------
 local KIND_NAMES = { border = "border look", glow = "pulsing glow", pop = "pop" }
 local AFTER = {
@@ -65,9 +65,9 @@ local AFTER = {
 	glow = function() ns.Effects.applyStyle(); ns.applyTimers(); ns.Options.refresh() end,
 	pop = function() ns.applyTimers(); ns.Options.refresh() end,
 }
-K.confirm("SHAMANFOREVER_USE_STYLE", "Use %s for General's %s?", "Use", function(run) run() end)
+K.confirm("SHAMANFOREVER_USE_STYLE", "Use %s for the global %s?", "Use", function(run) run() end)
 
--- Writes fields into General's style of kind, then what a change by hand runs.
+-- Writes fields into the global style of kind, then what a change by hand runs.
 local function use(kind, fields)
 	for k, v in pairs(fields) do S.set(nil, kind, k, v) end
 	AFTER[kind]()
@@ -84,7 +84,7 @@ local function menu(c)
 	if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
 	MenuUtil.CreateContextMenu(c.frame, function(_, root)
 		root:CreateTitle(c.name())
-		root:CreateButton("Use as General setting", function() askUse(c) end)
+		root:CreateButton("Use as Global style", function() askUse(c) end)
 	end)
 end
 
@@ -417,7 +417,7 @@ local function flowSection(p, kind, field)
 			g.title:SetText(part.name)
 		end
 		for _, e in ipairs(part.list) do
-			-- A border cell also turns General's border on: it shows one.
+			-- A border cell also turns the global border on: it shows one.
 			local fields = kind == "border" and function() return { look = e.key, show = true } end
 				or function() return { [field] = e.key } end
 			-- A look that differs by element: one cell, and one per element for All.
@@ -634,7 +634,7 @@ local function header(p)
 	local intro = h:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	intro:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
 	intro:SetTextColor(0.72, 0.72, 0.72)
-	intro:SetText("Right-click a look to use it in General. Hover or click a pop to play it.")
+	intro:SetText("Right-click a look to use it as a global style. Hover or click a pop to play it.")
 	local schools = {}
 	for _, sc in ipairs(L.SCHOOLS) do table.insert(schools, { sc.key, sc.name }) end
 	table.insert(schools, { ALL, "All" })
@@ -654,7 +654,7 @@ end
 -- The page
 ------------------------------------------------------------------------
 -- The page the full settings are on, as the nav names it, and each kind's block there.
-local GENERAL = "General"
+local GLOBAL = "Global settings"
 local BLOCKS = { border = { "border", "Border style" }, glow = { "glow", "Pulsing glow style" },
 	pop = { "pop", "Pop style" } }
 
@@ -681,7 +681,7 @@ local function previewRows(p, kind, rows)
 	text:SetTextColor(0.72, 0.72, 0.72)
 	text:SetText("Preview only. Not all settings affect all styles. All settings:")
 	local block = BLOCKS[kind]
-	local go = link(f, GENERAL .. " > " .. block[2], function() ns.Options.openGeneral(block[1]) end)
+	local go = link(f, GLOBAL .. " > " .. block[2], function() ns.Options.openGlobal(block[1]) end)
 	go:SetPoint("LEFT", text, "RIGHT", 6, 0)
 	-- Reset: the section's preview back to as shipped, at once (nothing saved is lost); shown while
 	-- there is something to reset.
@@ -698,6 +698,7 @@ local function secs(v) return string.format("%.1f s", v) end
 
 function SP.build(p)
 	header(p)
+	p.allOpen = true   -- the gallery is the page: its sections start open
 	p:header("Border look")
 	previewRows(p, "border", { { "Border size", "size", 1, 8, 1, px } })
 	flowSection(p, "border", "look")

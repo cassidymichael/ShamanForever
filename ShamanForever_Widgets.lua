@@ -48,7 +48,7 @@ ns.COUNT_JUSTIFY = { TOPLEFT = "LEFT", BOTTOMLEFT = "LEFT", TOPRIGHT = "RIGHT", 
 ns.BASE_ICON_SIZE = 44
 -- A font string on an icon: size at the base icon size (it grows and shrinks with the icon), placed
 -- at a point of the icon (a corner, CENTER, or TOP / BOTTOM for text above or below it) with an
--- offset, in General's text style. Restated only when something changed; returns the font size
+-- offset, in the global text style. Restated only when something changed; returns the font size
 -- used.
 function ns.placeScaledText(fs, icon, size, point, x, y, relPoint)
 	local px = math.max(math.floor(size * icon:GetWidth() / ns.BASE_ICON_SIZE + 0.5), 6)
@@ -559,7 +559,7 @@ end
 --   ids()          the spell IDs it matches; or candidates(), its candidate filters (an aura
 --                  slot's: ns.makeAuraSlot)
 --   needUnit       the unit it must be on for the look to show (a sensor that follows the target)
---   owner          the glow's style owner (nil: General's), its look, colour and the rest
+--   owner          the glow's style owner (nil: the global one), its look, colour and the rest
 --   invert         lit while the aura is up, not while it's gone
 --   glowOnly       the glow alone: no picture, no ring
 --   agrees()       whether the aura slot showing the aura took the filters the sensor did
@@ -867,7 +867,7 @@ function ClipLook:describe()
 		self.glow.look and self.glow.look.key or "none")
 end
 
--- owner: whose glow and pop style it uses (an element key, "totembar", or nil for General's).
+-- owner: whose glow and pop style it uses (an element key, "totembar", or nil for the global one).
 function ns.makeIcon(parent, size, owner)
 	local f = CreateFrame("Frame", nil, parent)
 	f.owner = owner

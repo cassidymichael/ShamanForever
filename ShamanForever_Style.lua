@@ -1,5 +1,5 @@
--- Styles: looks set once on the General page that elements, groups and the totem bar follow, each
--- able to have its own instead ("Same as General" in the options). One mechanism for every kind:
+-- Styles: looks set once on Global settings that elements, groups and the totem bar follow, each
+-- able to have its own instead ("Same as Global" in the options). One mechanism for every kind:
 --   cooldown, uptime  timers (ShamanForever_Timers.lua); elements and the totem bar
 --   glow, pop         the pulsing glow and the pop (ShamanForever.lua); elements and the totem bar
 --   border            the edge around icons, in one of its looks; groups, the totem bar and the
@@ -7,12 +7,12 @@
 --   gcd               the global cooldown's sweep, on or off; the cooldown elements and the totem bar
 --   text, bar         fonts and bar textures (ShamanForever_Media.lua); both: the totem bar and the
 --                     swing timer
--- An owner is nil (General), an element key, "totembar", "swing" (the swing timer), or a group's
--- table. A kind's settings sit at the same path under each holder: the profile for General
--- (db.glowStyle, db.timers.cooldown), else the element's options, the totem bar's or the swing
--- timer's settings, or the group itself. An owner's own table also
--- holds `follow`; turning it off the first time starts from General's look (with the owner's own
--- defaults on top), and turning it back on keeps its own values for later.
+-- An owner is nil (the global style), an element key, "totembar", "swing" (the swing timer), or a
+-- group's table. A kind's settings sit at the same path under each holder: the profile for the
+-- global style (db.glowStyle, db.timers.cooldown), else the element's options, the totem bar's or
+-- the swing timer's settings, or the group itself. An owner's own table also holds `follow`;
+-- turning it off the first time starts from the global look (with the owner's own defaults on top),
+-- and turning it back on keeps its own values for later.
 
 local _, ns = ...
 
@@ -22,13 +22,13 @@ ns.Style = S
 S.KINDS = {}
 -- spec: defaults (every field, with its default), path (keys under a holder; unique among an
 -- element's options, the totem bar's settings and a group's fields), ownerDefaults (owner key ->
--- fields that owner starts with over General's; such an owner doesn't follow General until the
--- player says so), ranges (field -> { min, max } for numbers the options offer in a range: a value
--- outside it, from an old or shared profile, is held to it).
+-- fields that owner starts with over the global one; such an owner doesn't follow the global style
+-- until the player says so), ranges (field -> { min, max } for numbers the options offer in a
+-- range: a value outside it, from an old or shared profile, is held to it).
 function S.register(kind, spec) S.KINDS[kind] = spec; spec.users = {} end
 
 -- Owner keys that offer a kind on their options page (the options register them as they build),
--- for General's "Own style" line.
+-- for the global "Own style" line.
 function S.addUser(kind, owner)
 	local users = S.KINDS[kind].users
 	if not tContains(users, owner) then table.insert(users, owner) end
@@ -45,7 +45,7 @@ S.register("glow", {
 	ranges = { lap = { 0.6, 4 }, scale = { 0.5, 2 }, drift = { 0.25, 3 } },
 	path = { "glowStyle" },
 	-- Purge's glow starts as Blizzard's proc ring, and Shields' No shield and Flame Shock's Not on
-	-- target glows as the soft inner glow: their own styles rather than General's.
+	-- target glows as the soft inner glow: their own styles rather than the global one.
 	ownerDefaults = { purge = { look = "proc" }, shield = { look = "soft" }, flameshock = { look = "soft" } },
 })
 S.register("pop", {
@@ -64,7 +64,7 @@ S.register("pop", {
 S.register("gcd", {
 	defaults = { show = true },
 	path = { "gcdStyle" },
-	-- Reincarnation's hour-long cooldown never needs the sweep, whatever General says.
+	-- Reincarnation's hour-long cooldown never needs the sweep, whatever the global style says.
 	ownerDefaults = { reincarnation = { show = false } },
 })
 -- look: how it is drawn (S.addLook; ShamanForever_Looks.lua). Some looks draw their own lines and
@@ -79,9 +79,10 @@ S.register("border", {
 })
 
 -- Choices: the named values a style field picks from (a border's or a glow's look, the pop's
--- flash, burst and motion), resolved like the kind's other fields (General, then an owner's own).
--- Each is a data entry that pickers, previews, About's Experimental list and the drawing code
--- read (ShamanForever_Looks.lua); pickers offer them by group, in the order they were added.
+-- flash, burst and motion), resolved like the kind's other fields (the global style, then an
+-- owner's own). Each is a data entry that pickers, previews, About's Experimental list and the
+-- drawing code read (ShamanForever_Looks.lua); pickers offer them by group, in the order they were
+-- added.
 -- entry: the fields its drawing reads, and:
 --   name, tip      as the options show it: a few plain words; tip one short line, or none
 --   group          its section in pickers (a key of its field's groups)
@@ -245,8 +246,8 @@ local function at(h, path, create)
 	return t
 end
 
--- General's style for a kind.
-function S.general(kind)
+-- The global style for a kind.
+function S.global(kind)
 	local spec = S.KINDS[kind]
 	return clean(at(holder(nil), spec.path), spec.defaults, spec.ranges)
 end
@@ -263,7 +264,7 @@ local function ownerDefaults(owner, kind)
 	return d and d[owner] or nil
 end
 
--- Whether an owner follows General for a kind.
+-- Whether an owner follows the global style for a kind.
 function S.follows(owner, kind)
 	if owner == nil then return true end
 	local o = S.override(owner, kind)
@@ -271,9 +272,9 @@ function S.follows(owner, kind)
 	return ownerDefaults(owner, kind) == nil
 end
 
--- An owner's own style before any change: General's, with the owner's own defaults on top.
+-- An owner's own style before any change: the global one, with the owner's own defaults on top.
 local function base(owner, kind)
-	local s = S.general(kind)
+	local s = S.global(kind)
 	local d = ownerDefaults(owner, kind)
 	if d then for k, v in pairs(d) do s[k] = type(v) == "table" and CopyTable(v) or v end end
 	return s
@@ -281,13 +282,14 @@ end
 
 -- The style an owner uses now.
 function S.get(owner, kind)
-	if S.follows(owner, kind) then return S.general(kind) end
+	if S.follows(owner, kind) then return S.global(kind) end
 	return clean(S.override(owner, kind), base(owner, kind), S.KINDS[kind].ranges)
 end
 
 -- One plain (not table) field of the style an owner uses now, as S.get would give it, without
 -- building the style: for callers that run on every cooldown event.
--- It repeats S.get's order (General, the owner's defaults, its own values): change both together.
+-- It repeats S.get's order (the global style, the owner's defaults, its own values): change both
+-- together.
 function S.value(owner, kind, field)
 	local spec = S.KINDS[kind]
 	local v = spec.defaults[field]
@@ -303,8 +305,9 @@ function S.value(owner, kind, field)
 	return v
 end
 
--- Stop following General: the first time, the owner starts from General's look with its own
--- defaults on top (for most owners, the look it had). Follow again: its own values are kept for later.
+-- Stop following the global style: the first time, the owner starts from the global look with its
+-- own defaults on top (for most owners, the look it had). Follow again: its own values are kept for
+-- later.
 function S.setFollow(owner, kind, follow)
 	local o = S.override(owner, kind, true)
 	if not o then return end
@@ -314,13 +317,13 @@ function S.setFollow(owner, kind, follow)
 	o.follow = follow
 end
 
--- Change one part of a style: General's (owner nil) or an owner's own.
+-- Change one part of a style: the global one (owner nil) or an owner's own.
 function S.set(owner, kind, field, value)
 	local spec = S.KINDS[kind]
 	if owner == nil then
 		local h = holder(nil)
 		if not h then return end
-		-- Keep General's table whole and clean, whatever an old or shared profile left in it.
+		-- Keep the global table whole and clean, whatever an old or shared profile left in it.
 		local path, parent = spec.path, h
 		for i = 1, #path - 1 do
 			if type(parent[path[i]]) ~= "table" then parent[path[i]] = {} end
@@ -335,18 +338,18 @@ function S.set(owner, kind, field, value)
 	S.override(owner, kind, true)[field] = value
 end
 
--- How an owner's style ships: whether it follows General, and the style it has then (the kind's
--- defaults for General; General's, with the owner's own defaults on top, for an owner that has
--- them).
+-- How an owner's style ships: whether it follows the global style, and the style it has then (the
+-- kind's defaults for the global style; the global one, with the owner's own defaults on top, for
+-- an owner that has them).
 function S.shipped(owner, kind)
 	local spec = S.KINDS[kind]
 	if owner == nil then return true, clean(nil, spec.defaults, spec.ranges) end
-	if ownerDefaults(owner, kind) == nil then return true, S.general(kind) end
+	if ownerDefaults(owner, kind) == nil then return true, S.global(kind) end
 	return false, base(owner, kind)
 end
 
--- Back to how it ships: General's to the kind's defaults; an owner's own table removed, so it
--- follows General again, or has its own defaults over General's where it has them.
+-- Back to how it ships: the global one to the kind's defaults; an owner's own table removed, so it
+-- follows the global style again, or has its own defaults over the global one where it has them.
 function S.reset(owner, kind)
 	local spec = S.KINDS[kind]
 	local path, last = spec.path, #spec.path
@@ -368,7 +371,8 @@ function S.ownerName(owner)
 	return owner
 end
 
--- Everything with its own style for a kind (names, in the options' order): General's "Own style" line.
+-- Everything with its own style for a kind (names, in the options' order): the global "Own style"
+-- line.
 function S.ownStyles(kind)
 	local out = {}
 	if kind == "border" then

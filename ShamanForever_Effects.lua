@@ -12,9 +12,9 @@ ns.Effects = E
 ------------------------------------------------------------------------
 -- A pulsing glow inside an icon: soft light over the icon's art and inside its border, breathing.
 -- `over` is the icon it covers (default: the parent). Its style is its owner's (an element key or
--- "totembar"; nil for General's): its look (one of ns.Looks' glow looks), colour, pulse length,
--- pulse depth (low is the dimmest it gets) and thickness (how far in it reaches, as a share of the
--- icon). fit(size) lays it out for an icon of that size. opts:
+-- "totembar"; nil for the global one): its look (one of ns.Looks' glow looks), colour, pulse
+-- length, pulse depth (low is the dimmest it gets) and thickness (how far in it reaches, as a share
+-- of the icon). fit(size) lays it out for an icon of that size. opts:
 --   underButton  a glow under Blizzard's aura button, left out of E.applyStyle: its owner restyles
 --                it only when that's allowed (out of combat, auras not secret). The button plays its
 --                animations (script handlers under it never run, so its OnShow can't): g:bindButton
@@ -187,8 +187,8 @@ end
 function E.applyStyle() for _, g in ipairs(glows) do if not g.parked then g:restyle() end end end
 
 -- The owners of glows under Blizzard's aura button whose look differs from their style's now,
--- among those whose style is owner's (nil: General's): they change after a /reload (the options
--- say so). Returns their keys.
+-- among those whose style is owner's (nil: the global one): they change after a /reload (the
+-- options say so). Returns their keys.
 function E.auraGlowStale(owner)
 	local out = {}
 	for _, g in ipairs(auraGlows) do
@@ -205,8 +205,8 @@ end
 -- The pop
 ------------------------------------------------------------------------
 -- The burst when something happens (a cooldown ready, an imbue dropping, a totem ending).
--- Its style is its owner's (General's, or an element's or the totem bar's own), one setting per
--- part, each changing only its own: a motion (none, grow, bounce, hop, shake) with a size and
+-- Its style is its owner's (the global one, or an element's or the totem bar's own), one setting
+-- per part, each changing only its own: a motion (none, grow, bounce, hop, shake) with a size and
 -- speed; a flash over the icon (plain, or Blizzard's edge flash); a burst (a ring spreading out, a
 -- star behind it, or one of ns.Looks' drawn bursts); and their colour, by what happened or by
 -- school.
@@ -550,7 +550,8 @@ function Rig:play()
 	end
 end
 
--- kind: ready | imbue | expired | killed | grounded (the tint); owner: whose style (nil: General's).
+-- kind: ready | imbue | expired | killed | grounded (the tint); owner: whose style (nil: the
+-- global one).
 -- blocked: ready but it can't be cast (Fire Nova with no fire totem): grey and a dimmer flash,
 -- whatever the Colour, so it never reads as the full ready pop.
 -- Nothing on a frame that isn't visible (a combat-only group out of combat): it would wait there and
@@ -751,7 +752,8 @@ Host.__index = Host
 -- A pop that draws and moves nothing: the aura route's rig while the element's Pop is off.
 local NO_POP = { colorBy = "event", flash = "none", burst = "none", motion = "none", size = 1, speed = 1 }
 
--- f: the element's icon; key: its style owner (an element key, "totembar", or nil for General's).
+-- f: the element's icon; key: its style owner (an element key, "totembar", or nil for the
+-- global one).
 -- Frame route: h.glowF is its glow (E.glow over f). Aura route, opts.aura:
 --   slot                     the aura slot showing the aura (ns.makeAuraSlot): the glow waits
 --                            until its sensor took the same filters

@@ -587,12 +587,12 @@ local function buildSettings(p)
 		{ { "forward", "Right / down" }, { "backward", "Left / up" } }, get("growth"), set("growth"))
 	p:slider("Spacing", "Gap between the group's elements. Below 0 they overlap.", -20, 40, 1, int, get("spacing"), set("spacing"))
 	owns("sizeFollow")
-	local follow = K.generalRow(p, "Icon size same as General", "Use the icon size on the General page.",
+	local follow = K.globalRow(p, "Icon size same as Global", "Use the global icon size.",
 		get("sizeFollow"),
 		function(v)
 			local g = G()
 			if not g then return end
-			if not v then g.size = db().iconSize end   -- its own starts from General's, so nothing jumps
+			if not v then g.size = db().iconSize end   -- from the global size: nothing jumps
 			g.sizeFollow = v
 			relayout()
 		end, "size")
@@ -612,7 +612,7 @@ local function buildSettings(p)
 	p:slider("Scale", "Grows everything in the group, borders and rings too.", 0.5, 3, 0.05, times,
 		get("scale"), setScale)
 	p:slider("Opacity", "Transparency of the group.", 0.1, 1, 0.05, pct, get("alpha"), set("alpha"))
-	K.borderRows(p, G, relayout, "Border same as General")
+	K.borderRows(p, G, relayout, "Border same as Global")
 	p:buttons({
 		-- Hard to undo, so each asks first.
 		{ "Centre on screen", function() askAbout("SHAMANFOREVER_CENTER", G()) end, "Moves the group to the middle of the screen.", 130 },

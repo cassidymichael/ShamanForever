@@ -56,7 +56,7 @@ TB.DEFAULTS = {
 	recall = true,            -- Totemic Recall button: right-click dismisses all; left-click casts it once learned
 	extras = "after",         -- where they sit: ends (Call first, Recall last, as Blizzard's) | before | after the slots
 	extrasScale = 0.8,        -- their size, as a share of the slots' (centred on the slots' line)
-	sizeFollow = true,        -- icon size from General; off: size (set from General's the first time)
+	sizeFollow = true,        -- icon size: the global one; off: size (set from it the first time)
 	-- border, glow, pop, timers: the bar's own styles, if it has them (ShamanForever_Style.lua)
 	empty = "pick",           -- a totem not down: pick (the element's pick) | frame (element colour) | blank
 	idleGrey = false,         -- the pick, greyed (off: in colour)
@@ -208,14 +208,14 @@ local effective = setmetatable({}, { __index = function(_, k)
 end })
 function TB.eff() return effective end
 
--- The slots' size and border (General's, the bar's own, or its theme's), and Call and Recall's
+-- The slots' size and border (the global one, the bar's own, or its theme's), and Call and Recall's
 -- border (the slots' unless the look gives them their own).
 local function look()
 	local c, db = cfg(), ns.getDB()
 	local border = TB.skin.border() or ns.Style.get("totembar", "border")
 	return (not c.sizeFollow and c.size) or db.iconSize, border, TB.skin.extrasBorder() or border
 end
--- Own icon size from General's current one, the first time; later its own is kept.
+-- Own icon size from the current global one, the first time; later its own is kept.
 function TB.setSizeFollow(follow)
 	local c = cfg()
 	if not follow and not c.size then c.size = ns.getDB().iconSize end
@@ -1245,7 +1245,8 @@ afterCombat = ns.AfterCombat.new({
 	frames = function() return { bar } end,
 })
 
--- The slots' timers take their current style (General's or the bar's own). Plain frames, so any time.
+-- The slots' timers take their current style (the global one or the bar's own). Plain frames, so
+-- any time.
 function TB.applyTimers()
 	local size = look()
 	for _, el in ipairs(ELEMENTS) do
@@ -1320,7 +1321,7 @@ mover:SetScript("OnMouseWheel", function(self, delta)
 	if IsControlKeyDown() then step("alpha")
 	elseif IsShiftKeyDown() then step("scale")
 	else
-		local from = look()   -- the size it has now, General's or its own
+		local from = look()   -- the size it has now, the global one or its own
 		c.sizeFollow = false
 		c.size = clamp(from + delta * 2, RANGES.size)
 	end
