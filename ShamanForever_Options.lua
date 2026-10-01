@@ -149,8 +149,7 @@ local function choiceRows(p, r, kind, field, label, tip, shown)
 		for _, e in ipairs(St.offered(kind, field, key())) do table.insert(out, { e.key, e.name }) end
 		return out
 	end
-	local dd = p:dropdown(label, tip, list, key, set, shown, 190).dropdown
-	dd:SetupMenu(function(_, root)
+	p:dropdown(label, tip, list, key, set, shown, 190, function(_, root)
 		root:SetScrollMode(400)
 		for i, sec in ipairs(St.sections(kind, field, key())) do
 			if sec.name then
@@ -1112,10 +1111,7 @@ local function buildTotemBar(p)
 		setTip(x, "Remove", "Use the time above for this totem.")
 	end
 	-- Adding is an action, not a choice kept: plain entries under a prompt, not radio buttons.
-	local add = p:dropdown("Add a totem", "Give a totem its own warning time.", {}, function() return nil end, function() end, nil, 220)
-	local dd = add.dropdown
-	pcall(dd.SetDefaultText, dd, "Choose a totem")
-	dd:SetupMenu(function(_, root)
+	local add = p:dropdown("Add a totem", "Give a totem its own warning time.", {}, function() return nil end, function() end, nil, 220, function(_, root)
 		local names, seen = {}, {}
 		for slot = 1, 4 do
 			for _, id in ipairs(ns.Totems.knownTotems(slot)) do
@@ -1132,6 +1128,7 @@ local function buildTotemBar(p)
 		end
 		if #names == 0 then root:CreateTitle("Every totem you know has its own time") end
 	end)
+	pcall(add.dropdown.SetDefaultText, add.dropdown, "Choose a totem")
 
 	killedBlock(p, tget, tset, "slot", "Flash when a totem dies early")
 

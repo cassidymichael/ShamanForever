@@ -1043,23 +1043,27 @@ end
 
 -- choices: list of { value, text }, or a function returning one. A choice's init(button), if it has
 -- one, dresses its line in the open list (Blizzard's menu initializer: button.fontString is the text).
-function Page:dropdown(label, tip, choices, get, set, shown, width)
+-- menu: a menu generator of the row's own in place of those choices; its get then changes whenever
+-- the dropdown's text should.
+function Page:dropdown(label, tip, choices, get, set, shown, width, menu)
 	local f = self:row(34)
 	f.label = self:label(f, label, tip)
 	local dd = CreateFrame("DropdownButton", nil, f, "WowStyle1DropdownTemplate")
 	dd:SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
 	dd:SetWidth(width or 200)
-	dd:SetupMenu(function(_, rootDescription)
+	-- Its menu is made when the row first shows, not on every show (Blizzard's OnShow): see update.
+	dd:SetScript("OnShow", nil)
+	menu = menu or function(_, rootDescription)
 		rootDescription:SetScrollMode(400)   -- a long list (fonts, textures) scrolls past 400 px
 		for _, c in ipairs(type(choices) == "function" and choices() or choices) do
 			local item = rootDescription:CreateRadio(c[2], function() return get() == c[1] end, function() set(c[1]) end)
 			if c.init then item:AddInitializer(c.init) end
 		end
-	end)
+	end
 	f.dropdown = dd
-	-- The menu is made again (its text with it) only when the value or the choices changed since the
-	-- last refresh: making it is the costliest part of a page's refresh. A row with a menu of its own
-	-- (SetupMenu after this) gives a get that changes whenever its text should.
+	-- The menu is made the first time the row shows, then again (its text with it) only when the
+	-- value or the choices changed since the last refresh: making it is the costliest part of a
+	-- page's refresh. Opening it makes it afresh (Blizzard's).
 	-- Never while the list is open: Blizzard rebuilds an open menu in place, and a scrolling one
 	-- keeps its old rows in its scroll list (blank gaps). A change then waits for it to close.
 	local was
@@ -1068,7 +1072,10 @@ function Page:dropdown(label, tip, choices, get, set, shown, width)
 		if type(choices) == "function" then
 			for _, c in ipairs(choices()) do now = now .. "\1" .. tostring(c[1]) .. "=" .. tostring(c[2]) end
 		end
-		if now ~= was and not dd:IsMenuOpen() then
+		if was == nil then
+			was = now
+			dd:SetupMenu(menu)
+		elseif now ~= was and not dd:IsMenuOpen() then
 			was = now
 			dd:GenerateMenu()
 		end

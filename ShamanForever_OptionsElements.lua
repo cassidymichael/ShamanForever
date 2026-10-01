@@ -49,16 +49,15 @@ EP.ordered = byName
 
 -- The Group choices: every group by name, then New group; an ungrouped element's reads Ungrouped.
 -- Choosing one moves the element there (to its end) and leaves its Show as it is.
-local function groupMenu(dd, key)
-	pcall(dd.SetDefaultText, dd, "Ungrouped")
-	dd:SetupMenu(function(_, root)
+local function groupMenu(key)
+	return function(_, root)
 		for _, g in ipairs(db().groups) do
 			root:CreateRadio(g.name, function() return ns.groupOf(key) == g end, function()
 				if ns.groupOf(key) ~= g then ns.placeElement(key, g.id) end
 			end)
 		end
 		root:CreateButton("New group", function() ns.placeElement(key, "new") end)
-	end)
+	end
 end
 
 -- On an element's page, where "Hidden keeps its place" is shown as text under the control.
@@ -336,8 +335,9 @@ local function elementDisplay(p, key)
 	p:text("Hidden keeps its place in its group.")
 	-- Its menu is groupMenu's; the get only tells the row when to show another name.
 	local groupRow = p:dropdown("Group", "Which group it sits in. Groups are arranged on the Groups & Layout page; ungrouped elements aren't on screen.",
-		{}, function() local g = ns.groupOf(key); return g and g.id .. ":" .. g.name or "" end, function() end, nil, 140)
-	groupMenu(groupRow.dropdown, key)
+		{}, function() local g = ns.groupOf(key); return g and g.id .. ":" .. g.name or "" end, function() end, nil, 140,
+		groupMenu(key))
+	pcall(groupRow.dropdown.SetDefaultText, groupRow.dropdown, "Ungrouped")
 	local edit = CreateFrame("Button", nil, groupRow, "UIPanelButtonTemplate")
 	edit:SetSize(110, 22)
 	edit:SetPoint("LEFT", groupRow.dropdown, "RIGHT", 8, 0)
