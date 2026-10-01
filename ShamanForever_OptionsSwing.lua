@@ -92,7 +92,7 @@ function SP.build(p)
 	local text = showWhen(get("countdown"))
 
 	p:hero("swing")
-	p:header("Display")
+	p:header("Display", nil, nil, nil, { open = true })
 	p:dropdown("Show", "It shows from your first swing. While positioning is unlocked it always shows, unless Hidden.",
 		SHOWS, get("show"), set("show"), nil, 160)
 

@@ -28,7 +28,7 @@ local PANEL_PAD, PANEL_PAD_B, BLOCK_GAP = 10, 6, 10
 -- Folded and opened blocks are saved with the account, by page and header text ("general:Border
 -- style" = true folded, false open), so they stay as left across a /reload. A block never folded or
 -- opened starts folded, unless it's its page's first (page.firstFolded: that one too), its page has
--- page.allOpen, or it's under a section made open (Page:section).
+-- page.allOpen, it's under a section made open (Page:section), or its header says open.
 local function folded() return ns.getAccount().foldedBlocks end
 local function isFolded(b)
 	local v = folded()[b.key]
@@ -746,7 +746,8 @@ function Page:reset() resetRefs(self:refs()) end
 function Page:askReset(name) askReset(name, function() self:reset() end) end
 
 -- A header starts a block, which runs to the next one. icon: an optional texture before the text.
-function Page:header(text, shown, note, icon)
+-- opts.open: the block starts open (while the player hasn't folded or opened it).
+function Page:header(text, shown, note, icon, opts)
 	local f = self:row(36)
 	local block, x = nil, 0
 	if self.panels ~= false then
@@ -758,7 +759,7 @@ function Page:header(text, shown, note, icon)
 		self.blockKeys[key] = true
 		local first = #self.blockList == 0 and not self.firstFolded
 		block = setmetatable({ index = #self.blockList + 1, key = key, name = text, items = {}, owns = {},
-			ownIds = {}, startFolded = not (first or self.allOpen or self.openRun) }, Block)
+			ownIds = {}, startFolded = not (first or self.allOpen or self.openRun or (opts and opts.open)) }, Block)
 		table.insert(self.blockList, block)
 		self.block = block
 		-- The fold arrow (painted by paintHeader).

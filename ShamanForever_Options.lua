@@ -691,7 +691,7 @@ local function buildProfiles(p)
 			"Every setting in this profile back to defaults, including the layout.", 90 },
 	})
 
-	p:header("Share")
+	p:header("Share", nil, nil, nil, { open = true })
 	p:buttons({
 		{ "Export", function() OP.showShare("export") end, "This profile as text, to share.", 90 },
 		{ "Import", function() OP.showShare("import") end, "Profile text from someone else. It becomes a new profile.", 90 },
@@ -740,7 +740,7 @@ local function buildAbout(p)
 	link(p, "Discord", ns.Look.DISCORD, "discord")
 	link(p, "CurseForge", ns.Look.CURSEFORGE .. "/comments", "curseforge")
 	link(p, "GitHub", ns.Look.REPO .. "/issues", "github")
-	p:header("Support", nil, nil, "Interface\\Icons\\INV_Misc_Coin_01")
+	p:header("Support", nil, nil, "Interface\\Icons\\INV_Misc_Coin_01", { open = true })
 	p:text("If you'd like to support this addon, please feel free to buy me a coffee. I have spent many hours "
 		.. "working on this project (and many millions of AI tokens). Thank you!")
 	link(p, "Ko-fi", ns.Look.KOFI, "kofi")
@@ -802,7 +802,7 @@ local function buildTotemBar(p)
 	-- The Totems cards decide which of ours and Blizzard's totem frames show; the sections below
 	-- show only where they apply (Buttons in Everything, the rest while our bar is on).
 	local full = function() return c().mode == "everything" end
-	p:header("Totems")
+	p:header("Totems", nil, nil, nil, { open = true })
 	own("mode", { reset = function() TB.setMode(TB.DEFAULTS.mode) end })
 	p:cards("Use", nil, {
 		{ "blizzard", "Blizzard's", "Interface\\Icons\\INV_Misc_Gear_01" },
@@ -820,7 +820,7 @@ local function buildTotemBar(p)
 		.. "Right-click a totem to dismiss it. Alt+click a slot to pick its totem. " .. BAR_KEYS, full)
 
 	p.gate = TB.barOn
-	p:header("Display")
+	p:header("Display", nil, nil, nil, { open = true })
 	local function free(field) return function() return not TB.skin.owns(field) end end
 	local function owned(field) return function() return TB.skin.owns(field) end end
 	local show = p:dropdown("Show", "When the bar is on screen. It always shows while positioning is unlocked.",
