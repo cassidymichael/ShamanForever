@@ -1,11 +1,11 @@
 -- The options window's page kit: a page is a scrolling column of rows (headers, text, checkboxes,
 -- sliders, dropdowns, colours, cards, buttons...). Rows can hide themselves; refresh reflows the
 -- visible ones and pulls every control's value from the saved settings. Each header starts a block
--- that runs to the next header and sits on a faint panel; clicking the header folds the block. Rows
--- that only apply while another is on hang under it (Page:sub), indented, on a thin gold rule. Also
--- the drag and drop the pages' lists share. The pages themselves are built in
--- ShamanForever_Options.lua, Layout in ShamanForever_OptionsLayout.lua, and the elements' in
--- ShamanForever_OptionsElements.lua.
+-- that runs to the next header and sits on a faint panel; clicking the header folds the block. A
+-- section heading (Page:section) stands over a run of blocks. Rows that only apply while another
+-- is on hang under it (Page:sub), indented, on a thin gold rule. Also the drag and drop the pages'
+-- lists share. The pages themselves are built in ShamanForever_Options.lua, Layout in
+-- ShamanForever_OptionsLayout.lua, and the elements' in ShamanForever_OptionsElements.lua.
 
 local _, ns = ...
 
@@ -272,7 +272,7 @@ function Page:refresh()
 	for _, b in ipairs(self.blockList) do b.drawn = false end
 	for _, it in ipairs(self.items) do
 		local b = it.block
-		if it.head then close() end   -- a header, shown or not, ends the block before it
+		if it.head or it.ends then close() end   -- a header or a section ends the block before it
 		local show = not it.shown or it.shown()
 		local sub = it.sub
 		if show and sub then show = sub.parent.visible and sub.active() and true or false end
@@ -830,6 +830,29 @@ function Page:pageTitle(text)
 	f.text:SetShadowOffset(1, -1)
 	f.text:SetText(text)
 	return self:add(f, 40)
+end
+
+-- A section heading over a run of blocks, a step above a block's header: larger, at the page's
+-- edge, on a full rule, with no panel and no fold. It ends the block before it; the rows after it
+-- belong to no block until the next header.
+local SECTION_H, SECTION_SIZE = 46, 18
+function Page:section(text)
+	self.block = nil
+	local f = self:row(SECTION_H)
+	f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+	local file, _, flags = GameFontNormalLarge:GetFont()
+	if file then f.text:SetFont(file, SECTION_SIZE, flags) end
+	f.text:SetPoint("BOTTOMLEFT", 4, 9)
+	f.text:SetShadowOffset(1, -1)
+	f.text:SetText(text)
+	local line = f:CreateTexture(nil, "ARTWORK")
+	line:SetColorTexture(0.85, 0.71, 0.42, 0.6)
+	line:SetHeight(1)
+	line:SetPoint("BOTTOMLEFT", 0, 3)
+	line:SetPoint("BOTTOMRIGHT", 0, 3)
+	self:add(f, SECTION_H)
+	self.items[#self.items].ends = true
+	return f
 end
 
 -- A brief gold glow behind a row (a header), to show where a button has brought the reader. The
