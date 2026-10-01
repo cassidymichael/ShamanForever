@@ -1,24 +1,18 @@
 # Changelog
 
-## Unreleased
+## 0.12.0 (2026-10-01)
 
-- Global settings (was General): a General section for the minimap, sounds and beta options, then
-  the Global styles every element uses unless it has its own.
-- Options sections start collapsed, apart from the ones used most.
-- Styles explorer: a page showing every border, glow and pop look, with a right-click to use one
-  as a global style.
-- Grow and Bounce pops are smooth, the Heartbeat glow beats steadily, and Fire's Element effect is
-  centred.
-- Reset links: each options section you've changed can go back to its defaults, and each element
-  page has Reset <element>. Resetting the whole profile is still there too.
+- Styles explorer: a new page showing every border, glow and pop look side by side; right-click one
+  to use it as a global style.
+- Global settings (was General), with Reset links on every section you've changed, a whole-element
+  reset, and Expand all / Collapse all; sections start collapsed apart from the ones used most.
+- Pops and glows: Reach for how far a burst spreads, a chosen element for each element's burst,
+  smoother Grow and Bounce, a steadier Heartbeat, a clearer School material, and Travelling spark's
+  own Lap time.
 - Borders with rounded or cut corners apply to Shields and procs at once, with no /reload.
-- School material is easier to see, with its own Pattern size, Drift speed and Rim.
-- Pop style: Reach sets how far the burst spreads, and each element can choose which element its
-  burst and School material glow take.
-- Travelling spark has its own Lap time.
-- The Border look, Pulsing glow and Burst lists are grouped.
-- Expand all and Collapse all at the top of each options page.
-- Fixed: the Heartbeat and Outer halo glows no longer flash across the screen when an icon pops.
+- Fixed: Heartbeat and Outer halo no longer flash across the screen when an icon pops, and option
+  pages no longer stretch while a preview plays.
+- Many other minor fixes and improvements.
 
 ## 0.11.1 (2026-10-01)
 
