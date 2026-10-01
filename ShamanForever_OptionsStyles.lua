@@ -11,7 +11,7 @@ ns.StylesPage = SP
 local Page, K, L, S = ns.Page, ns.Options.kit, ns.Look, ns.Style
 local LABEL_W = Page.LABEL_W
 
-local SIZES = { small = 40, large = 56 }
+local SIZES = { small = 40, large = 64 }
 -- A cell's backdrop, and the text on it.
 local BACKDROPS = {
 	dark = { bg = { 0.04, 0.045, 0.06 }, text = { 0.8, 0.8, 0.83 } },
