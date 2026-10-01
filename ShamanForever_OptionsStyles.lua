@@ -27,10 +27,10 @@ local MAKE_PER_FRAME = 3   -- tiles made in one frame at most: the first open sp
 local PLAYERS = 6          -- pop grid cells playing at once (a row's worth)
 local HOLD = 1.2           -- seconds a playing cell keeps its tile: past the longest pop
 
--- What every cell shows, chosen on the strip at the top: the element the looks take and its sample
--- icon (or All: a look that differs by element once for each), the backdrop, the icon size, the scale of every section (to see a border up close), the
--- pop's colour, and the pop grid's flash. For this session.
--- It opens on every element at once, with the pops coloured by element.
+-- What every cell shows, chosen on the strip at the top: the element the looks take and its
+-- sample icon (or All: a look that differs by element once for each), the backdrop, the icon size,
+-- the scale of every section (to see a border up close), the pop's colour, and the pop grid's
+-- flash. For this session. It opens on every element at once, with the pops coloured by element.
 local view = { school = "all", backdrop = "dark", size = "small", scale = 1.2, colorBy = "school",
 	flash = S.KINDS.pop.defaults.flash }
 local stamp = 0   -- counts strip changes: a tile dressed before the last one dresses again
@@ -73,7 +73,8 @@ end
 -- The fields as the cell shows them when asked: the strip may change while the question is open.
 local function askUse(c)
 	local fields = c.fields()
-	StaticPopup_Show("SHAMANFOREVER_USE_STYLE", c.name(), KIND_NAMES[c.kind], function() use(c.kind, fields) end)
+	StaticPopup_Show("SHAMANFOREVER_USE_STYLE", c.name(), KIND_NAMES[c.kind],
+		function() use(c.kind, fields) end)
 end
 
 local function menu(c)
@@ -89,7 +90,9 @@ end
 ------------------------------------------------------------------------
 -- With All, a cell whose look is the same in every element takes spirit's.
 local ALL, REST = "all", "spirit"
-local function cellSchool(c) return schoolOf(c.school or (view.school == ALL and REST or view.school)) end
+local function cellSchool(c)
+	return schoolOf(c.school or (view.school == ALL and REST or view.school))
+end
 -- Whether a cell shows for the strip's element: one per element with All, else the one cell.
 local function cellShown(c)
 	if c.perSchool == nil then return true end
@@ -235,7 +238,8 @@ local function warm(sec)
 		end
 		local t = pool.acquire(c.frame, size())
 		local sc = cellSchool(c)
-		t:dress(NEUTRAL, { pop = { burst = "none", motion = "none", flash = "none" } }, sc.key, sc.icon, size())
+		local nothing = { pop = { burst = "none", motion = "none", flash = "none" } }
+		t:dress(NEUTRAL, nothing, sc.key, sc.icon, size())
 		t:point("CENTER", c.frame, "TOP", 0, -c.stageH / 2)
 		t:pop("ready")
 		table.insert(warming, t)
@@ -256,7 +260,8 @@ local function newCell(parent, kind, fields, name, pop)
 	f.bg = f:CreateTexture(nil, "BACKGROUND")
 	f.bg:SetAllPoints()
 	if pop then
-		c.still = { edge = f:CreateTexture(nil, "ARTWORK"), pic = f:CreateTexture(nil, "ARTWORK", nil, 1) }
+		c.still = { edge = f:CreateTexture(nil, "ARTWORK"),
+			pic = f:CreateTexture(nil, "ARTWORK", nil, 1) }
 		ns.cropIcon(c.still.pic)
 		-- Snapped as a tile's picture is, so the tile that plays lands on the same pixels.
 		if c.still.pic.SetSnapToPixelGrid then
@@ -275,8 +280,8 @@ end
 -- An element's name in its colour, darker on a light backdrop so it stays readable.
 local function schoolText(sc, light)
 	local c, k = sc.color, light and 0.6 or 1
-	return string.format("|cff%02x%02x%02x%s|r", math.floor(c[1] * k * 255), math.floor(c[2] * k * 255),
-		math.floor(c[3] * k * 255), sc.name)
+	local function hex(x) return math.floor(x * k * 255) end
+	return string.format("|cff%02x%02x%02x%s|r", hex(c[1]), hex(c[2]), hex(c[3]), sc.name)
 end
 
 local function paintCell(c)
@@ -495,7 +500,8 @@ local function popGrid(p)
 		row.text = sec.box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		row.text:SetWidth(ROW_HEAD_W - 44)
 		row.text:SetJustifyH("LEFT")
-		local sub = sc and schoolText(sc) or groupName[b.group] and ("|cff9a9aa0" .. groupName[b.group] .. "|r")
+		local group = groupName[b.group]
+		local sub = sc and schoolText(sc) or group and ("|cff9a9aa0" .. group .. "|r")
 		row.text:SetText(b.name .. (sub and ("\n" .. sub) or ""))
 		if b.experimental then
 			row.badge = L.expBadge(sec.box, burstList.name)
@@ -503,8 +509,12 @@ local function popGrid(p)
 		end
 		for _, m in ipairs(motions) do
 			local c = newCell(sec.box, "pop",
-				function() return { burst = b.key, motion = m.key, flash = view.flash, colorBy = view.colorBy } end,
-				function() return b.name .. ", " .. m.name .. ", " .. flashName() .. " and colour " .. colorName() end,
+				function()
+					return { burst = b.key, motion = m.key, flash = view.flash, colorBy = view.colorBy }
+				end,
+				function()
+					return b.name .. ", " .. m.name .. ", " .. flashName() .. " and colour " .. colorName()
+				end,
 				true)
 			if b.bySchool then c.perSchool, c.school = sc and true or false, sc and sc.key or nil end
 			table.insert(row.cells, c)
@@ -616,7 +626,8 @@ local function header(p)
 	table.insert(schools, { ALL, "All" })
 	local paints = {
 		chips(h, "Element", schools, "school", 14, -74),
-		chips(h, "Background", { { "dark", "Dark" }, { "snow", "Snow" }, { "grass", "Grass" } }, "backdrop", 14, -100),
+		chips(h, "Background", { { "dark", "Dark" }, { "snow", "Snow" }, { "grass", "Grass" } }, "backdrop",
+			14, -100),
 		chips(h, "Size", { { "small", "Small" }, { "large", "Large" } }, "size", HEAD_COL2, -100),
 		chips(h, "Colour", choiceItems("pop", "colorBy"), "colorBy", 14, -126),
 	}
