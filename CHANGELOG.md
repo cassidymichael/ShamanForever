@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Reset links: each options section you've changed can go back to its defaults, and each element
+  page has Reset <element>. Resetting the whole profile is still there too.
+- Borders with rounded or cut corners apply to Shields and procs at once, with no /reload.
+- School material is easier to see, with its own Pattern size, Drift speed and Rim.
 - Pop style: Reach sets how far the burst spreads, and each element can choose which element its
   burst and School material glow take.
 - Travelling spark has its own Lap time.
