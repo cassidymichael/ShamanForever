@@ -34,6 +34,9 @@ local HOLD = 1.2           -- seconds a playing cell keeps its tile: past the lo
 local view = { school = "all", backdrop = "dark", size = "small", scale = 1.2, colorBy = "school",
 	flash = S.KINDS.pop.defaults.flash }
 local stamp = 0   -- counts strip changes: a tile dressed before the last one dresses again
+-- Each section's preview settings (its own sliders): style fields over the shipped ones, for the
+-- gallery only, never saved.
+local preview = { border = {}, glow = {}, pop = {} }
 
 local function size() return SIZES[view.size] end
 local function schoolOf(key)
@@ -102,7 +105,10 @@ end
 -- A cell's tile in its look, on shipped settings, in its element, at the strip's size.
 local function dress(c)
 	local sc = cellSchool(c)
-	c.tile:dress(NEUTRAL, { [c.kind] = c.fields() }, sc.key, sc.icon, size())
+	local own = {}
+	for k, v in pairs(preview[c.kind]) do own[k] = v end
+	for k, v in pairs(c.fields()) do own[k] = v end
+	c.tile:dress(NEUTRAL, { [c.kind] = own }, sc.key, sc.icon, size())
 	c.tile:glow(c.kind == "glow")
 	c.dressed = stamp
 end
@@ -211,7 +217,9 @@ local function play(c)
 	c.tile:pop("ready")
 	c.token = (c.token or 0) + 1
 	local token = c.token
-	C_Timer.After(HOLD, function() if c.token == token then stopPlay(c) end end)
+	-- A slower pop (its preview Speed) is held longer.
+	local hold = HOLD / math.min(preview.pop.speed or 1, 1)
+	C_Timer.After(hold, function() if c.token == token then stopPlay(c) end end)
 end
 
 local function stopAll()
@@ -354,6 +362,15 @@ local function restyleAll()
 	stamp = stamp + 1
 	stopAll()
 	ns.Options.refresh()
+end
+
+-- The same, once a run of changes (a slider's drag) has rested a moment.
+local changes = 0
+local function restyleSoon()
+	changes = changes + 1
+	local this = changes
+	ns.Options.refresh()
+	C_Timer.After(0.3, function() if changes == this then restyleAll() end end)
 end
 
 -- Cells in rows that wrap at the page's width, under each group's title (the border looks'
@@ -578,7 +595,7 @@ local function scaleSlider(parent, x, y)
 	s:SetPoint("LEFT", parent, "TOPLEFT", x + HEAD_LABEL_W - 6, y)
 	local value = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	value:SetPoint("LEFT", s, "RIGHT", 8, 0)
-	local updating, moves = false, 0
+	local updating = false
 	s:Init(view.scale, 1, 2, 10)
 	-- The sections take the scale at once; the tiles dress again (their lines on whole pixels at it)
 	-- once the slider has rested a moment, not at every step of a drag.
@@ -587,10 +604,7 @@ local function scaleSlider(parent, x, y)
 		v = math.floor(v * 10 + 0.5) / 10
 		if math.abs(v - view.scale) < 0.001 then return end
 		view.scale = v
-		moves = moves + 1
-		local this = moves
-		ns.Options.refresh()
-		C_Timer.After(0.3, function() if moves == this then restyleAll() end end)
+		restyleSoon()
 	end, s)
 	return function()
 		value:SetText(Page.pct(view.scale))
@@ -639,16 +653,65 @@ end
 ------------------------------------------------------------------------
 -- The page
 ------------------------------------------------------------------------
+-- The page the full settings are on, as the nav names it, and each kind's block there.
+local GENERAL = "General"
+local BLOCKS = { border = { "border", "Border style" }, glow = { "glow", "Pulsing glow style" },
+	pop = { "pop", "Pop style" } }
+
+-- A section's preview sliders, rows { label, field, min, max, step, format, flip } (flip: the slider
+-- shows 1 - the value, as Pulse depth does), then a line saying they're a preview, with a link to
+-- the block that has them all.
+local function previewRows(p, kind, rows)
+	local shipped = NEUTRAL[S.KINDS[kind].path[1]]
+	for _, r in ipairs(rows) do
+		local field, flip = r[2], r[7]
+		local function get()
+			local v = preview[kind][field] or shipped[field]
+			return flip and 1 - v or v
+		end
+		local function set(v)
+			preview[kind][field] = flip and 1 - v or v
+			restyleSoon()
+		end
+		p:slider(r[1], nil, r[3], r[4], r[5], r[6], get, set)
+	end
+	local f = p:row(22)
+	local text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	text:SetPoint("LEFT", f, "LEFT", 4, 0)
+	text:SetTextColor(0.72, 0.72, 0.72)
+	text:SetText("Preview only. All settings:")
+	local block = BLOCKS[kind]
+	local go = link(f, GENERAL .. " > " .. block[2], function() ns.Options.openGeneral(block[1]) end)
+	go:SetPoint("LEFT", text, "RIGHT", 6, 0)
+	p:add(f, 22)
+end
+
+local pct, px = Page.pct, Page.px
+local function secs(v) return string.format("%.1f s", v) end
+
 function SP.build(p)
 	header(p)
 	p:header("Border look")
+	previewRows(p, "border", { { "Border size", "size", 1, 8, 1, px } })
 	flowSection(p, "border", "look")
 	p:header("Pulsing glow")
+	previewRows(p, "glow", {
+		{ "Pulse length", "speed", 0.2, 2, 0.1, secs },
+		{ "Pulse depth", "low", 0, 1, 0.05, pct, true },
+		{ "Thickness", "width", 0.1, 0.5, 0.05, pct },
+		{ "Intensity", "strength", 0.2, 2.5, 0.1, pct },
+	})
 	flowSection(p, "glow", "look")
 	p:header("Pop")
 	-- The flash every pop in the grid takes.
 	local f = p:row(26)
 	local paint = chips(f, S.field("pop", "flash").name, choiceItems("pop", "flash"), "flash", 4, -13)
 	p:add(f, 26, nil, paint)
+	local reach = S.KINDS.pop.ranges.reach
+	previewRows(p, "pop", {
+		{ "Motion distance", "size", 1.1, 1.8, 0.05, pct },
+		{ "Speed", "speed", 0.5, 2, 0.1, pct },
+		{ "Reach", "reach", reach[1], reach[2], 0.05, pct },
+	})
 	popGrid(p)
 end
