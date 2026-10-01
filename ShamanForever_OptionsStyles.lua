@@ -16,7 +16,7 @@ local SIZES = { small = 40, large = 64 }
 -- A cell's backdrop, and the text on it.
 local BACKDROPS = {
 	dark = { bg = { 0.04, 0.045, 0.06 }, text = { 0.8, 0.8, 0.83 } },
-	snow = { bg = { 0.91, 0.93, 0.95 }, text = { 0.2, 0.22, 0.25 } },
+	snow = { bg = { 0.91, 0.93, 0.95 }, text = { 0.2, 0.22, 0.25 }, light = true },
 }
 local GAP = 6              -- between cells in a row section
 local ROW_HEAD_W = 120     -- the pop grid's row names and their Play
@@ -263,10 +263,18 @@ local function newCell(parent, kind, fields, name, pop)
 	return c
 end
 
+-- An element's name in its colour, darker on a light backdrop so it stays readable.
+local function schoolText(sc, light)
+	local c, k = sc.color, light and 0.6 or 1
+	return string.format("|cff%02x%02x%02x%s|r", math.floor(c[1] * k * 255), math.floor(c[2] * k * 255),
+		math.floor(c[3] * k * 255), sc.name)
+end
+
 local function paintCell(c)
 	local b = BACKDROPS[view.backdrop]
 	c.frame.bg:SetColorTexture(b.bg[1], b.bg[2], b.bg[3], 1)
 	if c.text then c.text:SetTextColor(b.text[1], b.text[2], b.text[3]) end
+	if c.label then c.text:SetText(c.label(b.light)) end
 end
 
 ------------------------------------------------------------------------
@@ -381,7 +389,8 @@ local function flowSection(p, kind, field)
 				if e.bySchool then c.perSchool, c.school = sc and true or false, sc and sc.key or nil end
 				c.text = c.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 				c.text:SetMaxLines(2)
-				c.text:SetText(sc and (e.name .. ": " .. sc.name) or e.name)
+				c.text:SetText(e.name)
+				if sc then c.label = function(light) return e.name .. ": " .. schoolText(sc, light) end end
 				if e.experimental then
 					c.badge = L.expBadge(c.frame, list.name)
 					c.badge:SetPoint("TOP", c.text, "BOTTOM", 0, -2)
@@ -469,8 +478,8 @@ local function popGrid(p)
 		row.text = sec.box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		row.text:SetWidth(ROW_HEAD_W - 44)
 		row.text:SetJustifyH("LEFT")
-		local sub = sc and sc.name or groupName[b.group]
-		row.text:SetText(b.name .. (sub and ("\n|cff9a9aa0" .. sub .. "|r") or ""))
+		local sub = sc and schoolText(sc) or groupName[b.group] and ("|cff9a9aa0" .. groupName[b.group] .. "|r")
+		row.text:SetText(b.name .. (sub and ("\n" .. sub) or ""))
 		if b.experimental then
 			row.badge = L.expBadge(sec.box, burstList.name)
 			row.badge:SetPoint("TOPLEFT", row.text, "BOTTOMLEFT", 0, -2)
