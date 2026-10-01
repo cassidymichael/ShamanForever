@@ -401,10 +401,10 @@ function Rig:home()
 end
 
 -- The motion's steps: step i scales from a to b, or moves by x, y, over dur with smoothing (the
--- aura's icon's too, on the aura route).
+-- aura's icon's too, on the aura route). Scale steps compose, so each runs as the ratio b / a.
 function Rig:scaleStep(i, a, b, dur, smoothing)
 	for _, s in ipairs({ self.scale[i], self.iconScale and self.iconScale[i] }) do
-		s:SetScaleFrom(a, a); s:SetScaleTo(b, b); s:SetDuration(dur); s:SetSmoothing(smoothing)
+		s:SetScaleFrom(1, 1); s:SetScaleTo(b / a, b / a); s:SetDuration(dur); s:SetSmoothing(smoothing)
 	end
 end
 function Rig:moveStep(i, x, y, dur, smoothing)
