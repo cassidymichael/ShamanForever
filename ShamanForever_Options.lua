@@ -241,13 +241,6 @@ local function borderRows(p, owner, after, label, shown)
 	p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"), showWhen(r.own, shown))
 	look = choiceRows(p, r, "border", "look", "Border look", nil, showWhen(bordered, shown))
 	local function uses(part) return function() return bordered() and ns.Looks.uses(look(), part) end end
-	-- Blizzard's aura button takes a mask only as it is made (ns.Looks.auraMask).
-	local function stale()
-		local o = resolve(owner)
-		if o == nil and owner ~= nil then return {} end   -- no group selected
-		return ns.Looks.auraStale(o)
-	end
-	reloadLine(p, stale, function(n) return n == 1 and "changes shape" or "change shape" end, shown)
 	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("size"), r.set("size"), showWhen(uses("size"), shown))
 	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), showWhen(uses("color"), shown))
 	p:slider("Cap size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("capSize"), r.set("capSize"), showWhen(uses("capSize"), shown))

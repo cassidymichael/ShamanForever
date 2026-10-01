@@ -570,10 +570,6 @@ function Looks.auraStyle(slot, size)
 	swipeOne(host, slot.cd, made.look, size)
 end
 
--- The aura elements whose button's shape differs from their border look now: none, every button
--- has a mask it reshapes.
-function Looks.auraStale() return {} end
-
 ------------------------------------------------------------------------
 -- Frame looks. "line" is the default look.
 ------------------------------------------------------------------------
