@@ -436,7 +436,7 @@ local function fontChoices(current)
 end
 local function textBlock(p, owner, after)
 	after = after or relayout
-	p:header("Text")
+	p:header("Text style")
 	local r = styleRows(p, owner, "text", after)
 	if owner == nil then
 		p:anchor("text")
@@ -478,7 +478,7 @@ local function barRows(p, owner, after)
 end
 -- General's: every time bar, the shield's charge bar, Maelstrom's stack bar and the swing timer.
 local function barBlock(p)
-	p:header("Bars")
+	p:header("Bar texture")
 	p:anchor("bar")
 	p:text("Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer. The totem bar's time bars and the swing timer can have their own.")
 	barRows(p, nil)
@@ -635,15 +635,15 @@ local function buildGeneral(p)
 	end
 	p:text(function() return "Currently using their own: " .. table.concat(ownSizes(), ", ") end,
 		function() return #ownSizes() > 0 end)
-	p:header("Border")
-	p:anchor("border")
-	borderRows(p, nil)
-	ownLine(p, "border")
 	timerSettings(p, "Cooldowns", nil, "cooldown", nil, "A spell you can't cast yet.")
 	gcdBlock(p, nil)   -- beside Cooldowns: the global cooldown sweeps the same timers
 	timerSettings(p, "Time left", nil, "uptime", nil, "A totem, shield or imbue running.")
 	textBlock(p, nil)
 	barBlock(p)
+	p:header("Border style")
+	p:anchor("border")
+	borderRows(p, nil)
+	ownLine(p, "border")
 	glowBlock(p, nil, 136026)
 	popBlock(p, nil, 136026, "ready")
 	ns.Sounds.generalBlock(p)
@@ -994,7 +994,7 @@ local function buildTotemBar(p)
 		pct, tget("alpha"), tset("alpha"))
 
 	-- With Layout: heavier borders go with the spacing.
-	p:header("Border")
+	p:header("Border style")
 	p:text("Set by the theme.", owned("border"))
 	borderRows(p, "totembar", changed, nil, free("border"))
 

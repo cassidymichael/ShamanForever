@@ -605,7 +605,7 @@ local CDM_MASK, CDM_OVERLAY = "UI-HUD-CoolDownManager-Mask", "UI-HUD-CoolDownMan
 local CDM_SWIPE = "Interface\\HUD\\UI-HUD-CoolDownManager-Icon-Swipe"
 local AB_MASK, AB_FRAME = "UI-HUD-ActionBar-IconFrame-Mask", "UI-HUD-ActionBar-IconFrame"
 
-S.addField("border", "look", { name = "Border look", where = "General > Border", preview = { play = "still" },
+S.addField("border", "look", { name = "Border look", where = "General > Border style", preview = { play = "still" },
 	groups = { { "lines", "Lines" }, { "blizzard", "Blizzard's" }, { "painted", "Painted" } } })
 S.addLook("border", "line", { name = "Line", group = "lines", uses = { size = true, color = true },
 	rings = { { px = "size", color = "color" } } })

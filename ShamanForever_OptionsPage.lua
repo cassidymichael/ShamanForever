@@ -25,7 +25,7 @@ local SLIDER_SPAN_W = 400   -- a slider and its value box, at most
 local TEXT_MAX_W = 600   -- text and boxed notices wrap here at the most (the page's width at 864)
 -- A block's panel: its rows inset from its sides, room under its last row, a gap to the next block.
 local PANEL_PAD, PANEL_PAD_B, BLOCK_GAP = 10, 6, 10
--- Folded blocks are saved with the account, by page and header text ("general:Border"), so they
+-- Folded blocks are saved with the account, by page and header text ("general:Border style"), so they
 -- stay folded across a /reload.
 local function folded() return ns.getAccount().foldedBlocks end
 local allPages = {}   -- every page made
