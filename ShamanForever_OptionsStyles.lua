@@ -10,7 +10,6 @@ local SP = {}
 ns.StylesPage = SP
 
 local Page, K, L, S = ns.Page, ns.Options.kit, ns.Look, ns.Style
-local LABEL_W = Page.LABEL_W
 local pool = L.tilePool
 
 local SIZES = { small = 40, large = 64 }
@@ -436,34 +435,39 @@ local function popGrid(p)
 end
 
 ------------------------------------------------------------------------
--- The strip: a row of flat buttons, the chosen one outlined in gold
+-- The strip: rows of flat buttons, the chosen one outlined in gold, in a header that stays put
+-- while the page scrolls under it
 ------------------------------------------------------------------------
-local function chips(p, label, items, get, set)
-	local f = p:row(26)
-	p:label(f, label)
-	local buttons, x = {}, LABEL_W
+local HEAD_H, HEAD_LABEL_W, HEAD_COL2 = 162, 84, 300
+
+-- A label and its buttons at x, y in parent, choosing view[key]; returns refresh(), which marks
+-- the one chosen.
+local function chips(parent, label, items, key, x, y)
+	local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	fs:SetPoint("LEFT", parent, "TOPLEFT", x, y)
+	fs:SetText(label)
+	local buttons, bx = {}, x + HEAD_LABEL_W
 	for _, it in ipairs(items) do
-		local b = CreateFrame("Button", nil, f, "BackdropTemplate")
+		local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
 		b:SetBackdrop(ns.BACKDROP)
 		b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		b.text:SetPoint("CENTER")
 		b.text:SetText(it[2])
 		local w = math.ceil(b.text:GetStringWidth()) + 20
 		b:SetSize(w, 20)
-		b:SetPoint("LEFT", f, "LEFT", x, 0)
-		x = x + w + 2
+		b:SetPoint("LEFT", parent, "TOPLEFT", bx, y)
+		bx = bx + w + 2
 		b:SetScript("OnClick", function()
-			if get() == it[1] then return end
-			set(it[1])
+			if view[key] == it[1] then return end
+			view[key] = it[1]
 			restyleAll()
 		end)
 		b.value = it[1]
 		table.insert(buttons, b)
 	end
-	p:add(f, 26, nil, function()
-		for _, b in ipairs(buttons) do L.paintChoice(b, get() == b.value) end
-	end)
-	return f
+	return function()
+		for _, b in ipairs(buttons) do L.paintChoice(b, view[key] == b.value) end
+	end
 end
 
 local function choiceItems(kind, field)
@@ -472,26 +476,44 @@ local function choiceItems(kind, field)
 	return out
 end
 
-local function field(key) return function() return view[key] end, function(v) view[key] = v end end
+local function header(p)
+	local h = CreateFrame("Frame", nil, p.win, "BackdropTemplate")
+	h:SetHeight(HEAD_H - 14)
+	h.heroH = HEAD_H
+	Page.panelBackdrop(h)
+	local title = h:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+	title:SetPoint("TOPLEFT", 14, -12)
+	title:SetShadowOffset(1, -1)
+	title:SetText("Styles explorer")
+	local intro = h:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	intro:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
+	intro:SetTextColor(0.72, 0.72, 0.72)
+	intro:SetText("Right-click a look to use it in General. Hover or click a pop to play it.")
+	local schools = {}
+	for _, sc in ipairs(L.SCHOOLS) do table.insert(schools, { sc.key, sc.name }) end
+	local paints = {
+		chips(h, "Element", schools, "school", 14, -74),
+		chips(h, "Background", { { "dark", "Dark" }, { "snow", "Snow" } }, "backdrop", 14, -100),
+		chips(h, "Size", { { "small", "Small" }, { "large", "Large" } }, "size", HEAD_COL2, -100),
+		chips(h, "Colour", choiceItems("pop", "colorBy"), "colorBy", 14, -126),
+	}
+	function h.refresh() for _, paint in ipairs(paints) do paint() end end
+	p:pin(h)
+end
 
 ------------------------------------------------------------------------
 -- The page
 ------------------------------------------------------------------------
 function SP.build(p)
-	p:pageTitle("Styles explorer")
-	p:text("Right-click a look to use it in General. Hover or click a pop to play it.")
-	local schools = {}
-	for _, sc in ipairs(L.SCHOOLS) do table.insert(schools, { sc.key, sc.name }) end
-	chips(p, "Element", schools, field("school"))
-	chips(p, "Background", { { "dark", "Dark" }, { "snow", "Snow" } }, field("backdrop"))
-	chips(p, "Size", { { "small", "Small" }, { "large", "Large" } }, field("size"))
-	chips(p, "Colour", choiceItems("pop", "colorBy"), field("colorBy"))
-
+	header(p)
 	p:header("Border look")
 	flowSection(p, "border", "look")
 	p:header("Pulsing glow")
 	flowSection(p, "glow", "look")
 	p:header("Pop")
-	chips(p, S.field("pop", "flash").name, choiceItems("pop", "flash"), field("flash"))
+	-- The flash every pop in the grid takes.
+	local f = p:row(26)
+	local paint = chips(f, S.field("pop", "flash").name, choiceItems("pop", "flash"), "flash", 4, -13)
+	p:add(f, 26, nil, paint)
 	popGrid(p)
 end
