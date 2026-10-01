@@ -51,14 +51,15 @@ local function newPage(key, title, indent, build)
 	table.insert(pageOrder, stub)
 end
 
--- A page, built now if it hasn't been.
+-- A page, built now if it hasn't been. Kept before its builder runs: a builder that fails raises
+-- its error once, not a new page on every try.
 local function pageOf(key)
 	local p = pages[key]
 	if p or not stubs[key] then return p end
 	local stub = stubs[key]
 	p = Page.new(win, key, stub.title, stub.indent)
-	stub.build(p)
 	pages[key] = p
+	stub.build(p)
 	return p
 end
 
