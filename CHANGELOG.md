@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Styles explorer: a page showing every border, glow and pop look, with a right-click to use one
+  in General.
+- Grow and Bounce pops are smooth, the Heartbeat glow beats steadily, and Fire's Element effect is
+  centred.
 - Reset links: each options section you've changed can go back to its defaults, and each element
   page has Reset <element>. Resetting the whole profile is still there too.
 - Borders with rounded or cut corners apply to Shields and procs at once, with no /reload.
