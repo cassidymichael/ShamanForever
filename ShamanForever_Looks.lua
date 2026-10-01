@@ -1157,6 +1157,8 @@ function Looks.popEdge(parent)
 		t:SetDesaturated(true)
 		t:SetBlendMode("ADD")
 		t:SetPoint("CENTER", parent, "CENTER", 0, 1)
+		t:SetSize(1, 1)   -- the pop's style sizes it; unsized it takes the sheet's own 2048 px
+		t:Hide()
 		out[i] = { tex = t, group = flipBook(t, 11, 2, 22, 0.75), grow = grow }
 	end
 	return out

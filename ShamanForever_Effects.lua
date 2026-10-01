@@ -518,6 +518,7 @@ function Rig:style(st, size, c, school, muted)
 	end
 	-- Only the parts this style uses are shown (each sized and anchored above).
 	self:showParts()
+	for _, e in ipairs(self.edge or {}) do e.tex:SetShown(on[e.group] == true) end
 end
 
 function Rig:showParts()
