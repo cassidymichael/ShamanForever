@@ -441,6 +441,7 @@ local function textLink(parent, text, onClick, pad)
 	b.say(text)
 	return b
 end
+Page.textLink = textLink   -- for the pages' own links (the Styles explorer's preview Reset)
 
 -- The Reset links, shown while what they reset has changes, each asking first: a block's at the
 -- right of its header, and a page's own (page.resetAll: { text(), ask() }, an element page's

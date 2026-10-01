@@ -1208,12 +1208,12 @@ end
 -- untouched) and draws through the HUD's own code: the icon, its effect host, Looks.fit, the pop.
 -- L.tilePool.acquire makes one; release gives it back (tiles are never made per refresh).
 ------------------------------------------------------------------------
--- The five schools in their order: key, name, colour, and a sample icon of each (Stoneskin,
--- Searing, Healing Stream, Windfury, Lightning Shield).
+-- The five schools in their order: key, name, colour, and a sample icon of each (Strength of
+-- Earth, Searing, Healing Stream, Windfury, Ghost Wolf).
 L.SCHOOLS = {
-	{ key = "earth", name = "Earth", icon = 136098 }, { key = "fire", name = "Fire", icon = 135825 },
+	{ key = "earth", name = "Earth", icon = 136023 }, { key = "fire", name = "Fire", icon = 135825 },
 	{ key = "water", name = "Water", icon = 135127 }, { key = "air", name = "Air", icon = 136114 },
-	{ key = "spirit", name = "Spirit", icon = 136051 },
+	{ key = "spirit", name = "Spirit", icon = "Interface\\Icons\\Spell_Nature_SpiritWolf" },
 }
 for _, s in ipairs(L.SCHOOLS) do s.color = ns.SCHOOL_COLOR[s.key] end
 
@@ -1252,6 +1252,17 @@ do
 	end
 
 	function Tile:icon(tex) self.ic.tex:SetTexture(tex) end
+
+	-- wear, school and icon at once, and a new size if given: one restyle and fit.
+	function Tile:dress(base, over, s, tex, size)
+		if size then
+			self.size = size
+			self.box:SetSize(size, size)
+		end
+		self.ic.school = s
+		self:icon(tex)
+		self:wear(base, over)
+	end
 
 	-- The icon sized and set in for its border, centred in the tile's box.
 	function Tile:fit()
@@ -1303,6 +1314,11 @@ do
 		t.box = CreateFrame("Frame", nil, parent)
 		t.box:SetSize(size, size)
 		t.ic = ns.makeIcon(t.box, size, t.owner)
+		-- The HUD sits its icons on whole pixels, where a picture drawn off the pixel grid (as an
+		-- icon's is, to match its cooldown swipe) and a border's art agree on every edge. A tile sits
+		-- wherever its page puts it, so its picture snaps to the grid as the art does, or a sliver of
+		-- it shows past art drawn flush with its edge (Forever action button).
+		if t.ic.tex.SetSnapToPixelGrid then t.ic.tex:SetSnapToPixelGrid(true) end
 		return t
 	end
 
@@ -1313,14 +1329,25 @@ do
 	L.tilePool = Pool
 
 	-- A tile of size in parent, wearing General, in no school, the first school's sample icon,
-	-- hidden glow and no label; shown, and not anchored: the caller places t.box (t:point).
-	function Pool.acquire(parent, size)
-		local t = table.remove(free)
+	-- hidden glow and no label; shown, and not anchored: the caller places t.box (t:point). want: a
+	-- tile given back earlier, taken again while it's free (the looks it wore are made already), or
+	-- a test: the newest free tile that passes it is taken first. strict: a tile is made rather
+	-- than take one the test refuses.
+	function Pool.acquire(parent, size, want, strict)
+		local t
+		if want then
+			for i = #free, 1, -1 do
+				local f = free[i]
+				if f == want or (type(want) == "function" and want(f)) then t = table.remove(free, i) break end
+			end
+		end
+		if not (t or strict) then t = table.remove(free) end
 		if not t then
 			t = make(parent, size)
 			table.insert(made, t)
 		end
 		t.released = nil
+		t.ic.glowF.parked = nil
 		t.size = size
 		t.box:SetParent(parent)
 		t.box:SetSize(size, size)
@@ -1333,11 +1360,13 @@ do
 		return t
 	end
 
-	-- Hidden, its glow and pop stopped, ready to be acquired again.
+	-- Hidden, its glow and pop stopped and its glow left out of style changes (ns.Effects.applyStyle),
+	-- ready to be acquired again.
 	function Pool.release(t)
 		if t.released then return end
 		t.released = true
 		t:glow(false)
+		t.ic.glowF.parked = true
 		t.box:Hide()
 		if t.ic.popRig then t.ic.popRig:stop() end
 		t.box:ClearAllPoints()

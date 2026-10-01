@@ -177,7 +177,8 @@ function E.glow(parent, over, owner, opts)
 	return g
 end
 -- Every glow restyled from its style now (not those under an aura button: their owners do it).
-function E.applyStyle() for _, g in ipairs(glows) do g:restyle() end end
+-- A parked glow (a look tile given back to its pool) is restyled when it is taken again instead.
+function E.applyStyle() for _, g in ipairs(glows) do if not g.parked then g:restyle() end end end
 
 -- The owners of glows under Blizzard's aura button whose look differs from their style's now,
 -- among those whose style is owner's (nil: General's): they change after a /reload (the options
