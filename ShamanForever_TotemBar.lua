@@ -184,7 +184,7 @@ function TB.eff() return effective end
 
 local function look()
 	local c, db = cfg(), ns.getDB()
-	local border = TB.skin.border() or ns.Style.get("totembar", "border")
+	local border = TB.skin.border() or ns.borderFor("totembar")
 	return (not c.sizeFollow and c.size) or db.iconSize, border, TB.skin.extrasBorder() or border
 end
 function TB.setSizeFollow(follow)

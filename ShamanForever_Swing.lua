@@ -110,7 +110,7 @@ function SW.placeCountdown(fs, anchor)
 	fs:SetJustifyH(side)
 end
 
-function SW.border() return ns.Style.get("swing", "border") end
+function SW.border() return ns.borderFor("swing") end
 
 local f = CreateFrame("Frame", nil, UIParent)
 f:SetSize(SW.DEFAULTS.width, SW.DEFAULTS.height)
