@@ -19,6 +19,9 @@ local ELEMENTS = { "earth", "fire", "water", "air" }
 local SLOT = { fire = 1, earth = 2, water = 3, air = 4 }
 local NAME = { earth = "Earth", fire = "Fire", water = "Water", air = "Air" }
 TB.ELEMENTS, TB.NAME, TB.SLOT = ELEMENTS, NAME, SLOT
+-- Each slot's icon where the client gives none
+local TOTEM_ICON = { earth = 136098, fire = 135825, water = 135127, air = 136114 }
+TB.TOTEM_ICON = TOTEM_ICON
 
 TB.DEFAULTS = {
 	mode = "everything",   -- blizzard | active | everything
@@ -1681,13 +1684,15 @@ function TB.hasTotems() return hasTotems end
 -- Preview mode: slots drawn in the requested states on plain frames; showing slots and the bar
 -- happens in layout()
 TB.PREVIEW_STATES = { "down", "expiring", "killed", "ranout", "empty" }
+-- Each slot's totem in a preview: seconds left of its length
+TB.PREVIEW_LEFT = { earth = { 250, 300 }, fire = { 38, 55 }, water = { 83, 300 }, air = { 165, 300 } }
 
 local function paintSlot(s, rec)
 	local c, v, st = cfg(), s.vis, rec.st
 	local shown = s.button:IsShown()
 	local pick = GetActionTexture and GetActionTexture(multiAction(s.slot))
 	if isSecret(pick) then pick = nil end
-	local icon = pick or ns.Look.TOTEM_ICON[s.el]
+	local icon = pick or TOTEM_ICON[s.el]
 	s.badge:Hide()
 	s.killed:setIcon(icon)
 	s.expired:setIcon(icon)
@@ -1724,7 +1729,7 @@ local function paintSlot(s, rec)
 		v.icon:SetDesaturated(false)
 		v.icon:SetAlpha(1)
 		v.bg:SetColorTexture(0, 0, 0, 1)
-		local left, life = ns.Look.PREVIEW_LEFT[s.el][1], ns.Look.PREVIEW_LEFT[s.el][2]
+		local left, life = TB.PREVIEW_LEFT[s.el][1], TB.PREVIEW_LEFT[s.el][2]
 		if st == "expiring" then left = 5 end
 		s.timer:setExpire(c.expire, icon)
 		liftWarning(s)

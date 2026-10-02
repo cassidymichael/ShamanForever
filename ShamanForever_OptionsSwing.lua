@@ -5,7 +5,7 @@ local _, ns = ...
 local SP = {}
 ns.SwingPage = SP
 
-local Page, L = ns.Page, ns.Look
+local Page = ns.Page
 local showWhen, times, pct, int, px = Page.showWhen, Page.times, Page.pct, Page.int, Page.px
 
 local SHOWS = { { "combat", "In combat" }, { "always", "Always" }, { "never", "Hidden" } }
@@ -13,12 +13,9 @@ local SHOW_NAME = { combat = "In combat", always = "Always", never = "Hidden" }
 local FROM = { { "left", "Left to right" }, { "right", "Right to left" } }
 local TEXT_POS = { { "left", "Left" }, { "center", "Middle" }, { "right", "Right" } }
 
-L.IDENTITY.swing = { label = "Swing timer", icon = ns.Swing.ICON, school = ns.THEME.fallback,
-	blurb = "Time to your next melee swing.",
-	tags = function() return SHOW_NAME[ns.Swing.cfg().show] or "" end }
-
+-- Header: the bar is its stage
 local FILL, LENGTH = 0.55, 2.6
-L.PREVIEW.swing = {
+local PREVIEW = {
 	stage = true, heroH = 150,
 	states = { { "swinging", "Swinging" }, { "due", "Swing due" } },
 	stateShown = function() return true end,
@@ -127,4 +124,6 @@ function SP.build(p)
 	end
 end
 
-ns.registerBar("swing", { icon = ns.Swing.ICON, page = { order = 60, build = SP.build } })
+ns.registerBar("swing", { icon = ns.Swing.ICON, school = ns.THEME.fallback, blurb = "Time to your next melee swing.",
+	tags = function() return SHOW_NAME[ns.Swing.cfg().show] or "" end,
+	preview = PREVIEW, page = { order = 60, build = SP.build } })
