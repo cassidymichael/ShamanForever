@@ -685,7 +685,7 @@ function TB.drawTimeLeft(s)
 		local ok, a = ns.try("totem bar: time bar", d.EvaluateRemainingDuration, d, ns.CURVE_LIVE)
 		if ok then tbar:SetAlpha(a) end
 	end
-	if TB.range then TB.range.drawTimeLeft(s) end
+	TB.range.drawTimeLeft(s)
 end
 
 -- The slot's expiring warning over the range strip, once: see the frame levels above
@@ -764,7 +764,7 @@ local function refreshSlots()
 		local s = slots[el]
 		s.down = refreshSlot(s)
 		if s.down then down = true end
-		if TB.range then TB.range.refresh(s) end
+		TB.range.refresh(s)
 	end
 	anyDown = down
 end
@@ -1054,7 +1054,7 @@ function layout()
 	end
 	TB.skin.layoutBar(bar, boxes, size, row, sealed)
 	ns.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
-	if TB.range then TB.range.layout(size) end
+	TB.range.layout(size)
 	refreshSlots()
 	refreshKeys()
 	refreshGCD()
@@ -1540,10 +1540,10 @@ end
 function TB.preview(p)
 	if p then
 		preview = { all = p.all, states = preview and preview.states or {} }
-		if TB.range then TB.range.preview(true) end
+		TB.range.preview(true)
 	elseif preview then
 		preview = nil
-		if TB.range then TB.range.preview(false) end
+		TB.range.preview(false)
 		for _, el in ipairs(ELEMENTS) do
 			local s = slots[el]
 			s.killed:stop()
