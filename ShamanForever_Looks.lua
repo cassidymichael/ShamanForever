@@ -562,14 +562,33 @@ local soft = {
 	fit = function(g, parts, size) fitSoft(g, parts.soft, size, g.width) end,
 }
 
-local halo = {
+-- A look made of Blizzard's atlases, drawn as the soft look on a client that lacks one
+local function orSoft(look, ...)
+	local atlases, build, style, fit = { ... }, look.build, look.style, look.fit
+	function look.build(g)
+		for _, a in ipairs(atlases) do
+			if not Looks.hasAtlas(a) then
+				local parts = soft.build(g)
+				parts.fallback = true
+				return parts
+			end
+		end
+		return build(g)
+	end
+	function look.style(g, parts, st, c)
+		if parts.fallback then return soft.style(g, parts, st, c) end
+		return style(g, parts, st, c)
+	end
+	function look.fit(g, parts, size, out)
+		if parts.fallback then return soft.fit(g, parts, size) end
+		return fit(g, parts, size, out)
+	end
+	return look
+end
+
+local halo = orSoft({
 	uses = { color = true, speed = true, low = true },
 	build = function(g)
-		if not Looks.hasAtlas(ACTIVE_GLOW) then
-			local parts = soft.build(g)
-			parts.fallback = true
-			return parts
-		end
 		local r = root(g.inner)
 		local t = r:CreateTexture(nil, "OVERLAY")
 		t:SetAtlas(ACTIVE_GLOW)
@@ -580,28 +599,21 @@ local halo = {
 		return { roots = { r }, halo = t, grow = grow, scale = s, anims = { grow }, aura = { grow }, moving = { r } }
 	end,
 	style = function(g, parts, st, c)
-		if parts.fallback then return soft.style(g, parts, st, c) end
 		parts.halo:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
 		parts.scale:SetDuration(st.speed)
 	end,
 	fit = function(g, parts, size, out)
-		if parts.fallback then return soft.fit(g, parts, size) end
 		local d = out + size * 0.24
 		parts.halo:ClearAllPoints()
 		parts.halo:SetPoint("TOPLEFT", g, "TOPLEFT", -d, d)
 		parts.halo:SetPoint("BOTTOMRIGHT", g, "BOTTOMRIGHT", d, -d)
 	end,
-}
+}, ACTIVE_GLOW)
 
 -- Blizzard's proc glow; under the aura button only its ring (the burst needs a script).
-local proc = {
+local proc = orSoft({
 	uses = { color = true }, steady = true,
 	build = function(g)
-		if not (Looks.hasAtlas(PROC_START) and Looks.hasAtlas(PROC_LOOP)) then
-			local parts = soft.build(g)
-			parts.fallback = true
-			return parts
-		end
 		local r = root(g.inner)
 		local loop = r:CreateTexture(nil, "OVERLAY")
 		loop:SetAtlas(PROC_LOOP)
@@ -617,7 +629,6 @@ local proc = {
 			stop = { loopG } }
 	end,
 	style = function(g, parts, st, c)
-		if parts.fallback then return soft.style(g, parts, st, c) end
 		local own = not g.fixed and c[1] == GOLD_GLOW[1] and c[2] == GOLD_GLOW[2] and c[3] == GOLD_GLOW[3]
 		for _, t in ipairs(parts.texs) do
 			t:SetDesaturated(not own)
@@ -625,7 +636,6 @@ local proc = {
 		end
 	end,
 	fit = function(g, parts, size, out)
-		if parts.fallback then return soft.fit(g, parts, size) end
 		local s = size + 2 * out
 		if parts.start then
 			parts.start:SetSize(s * 150 / 45, s * 150 / 45)
@@ -634,7 +644,7 @@ local proc = {
 		parts.loop:SetSize(s * 1.4, s * 1.4)
 		parts.loop:SetPoint("CENTER", g, "CENTER", 0, 0)
 	end,
-}
+}, PROC_START, PROC_LOOP)
 
 local SPARK_PATH = { { 1, 0 }, { 0, -1 }, { -1, 0 }, { 0, 1 } }
 local spark = {
