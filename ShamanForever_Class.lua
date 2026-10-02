@@ -126,6 +126,8 @@ ns.Spells.add({
 	frostbrand      = { ids = { 8033 }, en = "Frostbrand Weapon" },
 	windfury        = { ids = { 8232 }, en = "Windfury Weapon" },
 	call            = { ids = { 66842 }, en = "Call of the Elements" },
+	callAncestors   = { ids = { 66843 }, en = "Call of the Ancestors" },   -- level 30
+	callSpirits     = { ids = { 66844 }, en = "Call of the Spirits" },   -- level 40
 	recall          = { ids = { 36936 }, en = "Totemic Recall" },
 	tremor          = { ids = { 8143 }, en = "Tremor Totem" },   -- level 18
 	-- Talents or above the level-20 cap: seeds from foreverdiff.com, found on the client with the right name

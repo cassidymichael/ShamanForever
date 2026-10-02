@@ -612,6 +612,8 @@ L.PREVIEW.totembar = {
 		for _, key in ipairs({ "Call", "Recall" }) do
 			h.extras[key] = ns.makeIcon(bar, 56)
 		end
+		h.extras.Call.num = ns.makeKeyText(h.extras.Call)
+		h.extras.Call.num:SetTextColor(1, 1, 1)
 		h.kMark = CreateFrame("Frame", nil, bar)
 		h.kMark:SetFrameLevel(bar:GetFrameLevel() + 20)
 		h.kMark.x = h.kMark:CreateTexture(nil, "OVERLAY")
@@ -701,6 +703,14 @@ L.PREVIEW.totembar = {
 				ic.tex:SetTexture(TB.extraTexture(it.key))
 				ic.tex:SetDesaturated(not learned)
 				ic.tex:SetAlpha(learned and 1 or 0.6)
+				if ic.num then
+					local set, count = ns.TotemSets.active(), ns.TotemSets.count()
+					ns.Media.setFont(ic.num, "totembar", ns.keyTextSize(it.size, c.keySize))
+					ic.num:ClearAllPoints()
+					ic.num:SetPoint("BOTTOMRIGHT", -1, 2)
+					ic.num:SetText(set)
+					ic.num:SetShown(c.setNumber and count > 1)
+				end
 				ic:Show()
 			else slotAt[it.key] = it.offset end
 		end

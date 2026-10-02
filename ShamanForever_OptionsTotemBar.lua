@@ -224,6 +224,21 @@ local function build(p)
 			ns.Spells.name("call"), ns.Spells.name("recall"))
 	end)
 
+	-- Only once a second Call is known
+	p.gate = function() return full() and ns.TotemSets.count() > 1 end
+	p:header("Totem sets")
+	local setsRow = p:row(22)
+	ns.Look.expBadge(setsRow, "Totem sets"):SetPoint("LEFT", setsRow, "LEFT", LABEL_W, 0)
+	p:add(setsRow, 22)
+	p:text("Each Call drops its own set of four totems. The bar uses one set at a time: its slots, "
+		.. "picks, Call button and keys.")
+	p:dropdown("Switch sets", "How the Call button changes the set.",
+		{ { "popout", "Picker on the Call button" }, { "cycle", "Right-click the Call button" } },
+		tget("setSwitch"), tset("setSwitch"), nil, 240)
+	p:checkbox("Show set number", "On the Call button.", tget("setNumber"), tset("setNumber"))
+	p:text(ns.TotemSets.switchInCombat() and "Key: Next totem set."
+		or "Sets switch out of combat only. Key: Next totem set.")
+
 	p.gate = TB.barOn
 	local function beside() return TB.skin.barPlace() == "out" end
 	K.timerSettings(p, "Time left", "totembar", "uptime", changed, nil, nil, beside)
