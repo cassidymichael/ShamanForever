@@ -13,7 +13,8 @@ local REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerD
 local IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
 SW.ICON = Spells.icon("attack") or 135274
 
--- Colour: custom, or an element's that offers one to a bar (its barColor), the first by default
+-- Colour: custom, or an element's that offers one to a bar (its barColor), the first by default:
+-- only elements whose files load before this one (TOC order)
 local COLOR_BY = {}
 for _, key in ipairs(ns.ELEMENT_KEYS) do
 	if ns.ELEMENTS[key].barColor then table.insert(COLOR_BY, key) end
