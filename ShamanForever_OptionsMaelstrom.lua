@@ -20,16 +20,19 @@ local function buildMaelstrom(p, def)
 	p:checkbox("Stack number", nil, eopt(p, key, "count", "number"))
 	local numberOn = showWhen(eread(key, "count", "number"))
 	local posGet, posSet = eopt(p, key, "count", "pos")
-	p:dropdown("Number position", nil, { { "BOTTOMRIGHT", "Corner" }, { "CENTER", "Centre" } }, posGet, posSet, numberOn)
+	local POS = { { "BOTTOMRIGHT", "Corner" }, { "CENTER", "Centre" } }
+	p:dropdown("Number position", nil, POS, posGet, posSet, numberOn)
 	eslider(p, key, "Number size", nil, int, numberOn, "count", "size")
 	local markGet, markSet = eopt(p, key, "count", "mark")
-	p:checkbox("Colour at five", "The number takes its own colour at five stacks.", markGet, markSet, numberOn)
+	p:checkbox("Colour at five", "The number takes its own colour at five stacks.", markGet, markSet,
+		numberOn)
 	local markColorGet, markColorSet = eopt(p, key, "count", "markColor")
 	p:color("Five colour", nil, markColorGet, markColorSet, showWhen(function()
 		return ns.elementSetting(key, "count", "number") and ns.elementSetting(key, "count", "mark")
 	end))
 	timerSettings(p, "Time left", key, "uptime")
-	activeBlock(p, key, { title = "Five stacks", tips = { pop = "The moment it reaches five.", glow = "While at five." } })
+	activeBlock(p, key, { title = "Five stacks",
+		tips = { pop = "The moment it reaches five.", glow = "While at five." } })
 	lookBlocks(p, key)
 end
 

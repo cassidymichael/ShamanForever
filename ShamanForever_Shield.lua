@@ -775,7 +775,8 @@ shield.aboveProtected = true
 local PREVIEW = {
 	uptime = true, barInset = timeBarInset,
 	warning = "down",
-	states = { { "up3", "3 charges" }, { "up2", "2 charges" }, { "up1", "1 charge" }, { "down", "No shield" } },
+	states = { { "up3", "3 charges" }, { "up2", "2 charges" }, { "up1", "1 charge" },
+		{ "down", "No shield" } },
 	render = function(ic, st, P)
 		P.reset(ic, SHIELDS[setting("shield", "track") == "water" and "water" or "lightning"].icon)
 		if st == "down" then

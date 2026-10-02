@@ -166,17 +166,21 @@ ns.registerPart("totemSlot", {
 			endSound = "When it runs out or is killed. Not when you dismiss it." } },
 		killed = function(def)
 			if def.grounded then
-				return { title = "Grounded", tips = { glow = "In blue." }, flash = { "Flash when it takes a spell",
-					"The totem flashes blue over its icon when it ends early: it took a spell, or was destroyed." } }
+				return { title = "Grounded", tips = { glow = "In blue." }, flash = {
+					"Flash when it takes a spell",
+					"The totem flashes blue over its icon when it ends early: it took a spell, "
+						.. "or was destroyed." } }
 			end
 			return { flash = { "Flash when it dies early",
-				"The dead totem flashes red over its icon. Not when you dismiss it or it runs out." } }
+				"The dead totem flashes red over its icon. Not when you dismiss it or it runs out." }
+			}
 		end,
 	},
 	preview = {
 		uptime = true, typical = "active",
 		states = function(def)
-			return { { "active", "Totem down", 20 }, { "expiring", "Expiring", 22 }, { "ranout", "Ran out", 23 },
+			return { { "active", "Totem down", 20 }, { "expiring", "Expiring", 22 },
+				{ "ranout", "Ran out", 23 },
 				{ "killed", def.grounded and "Grounded" or "Killed early", 60 } }
 		end,
 		render = function(ic, st, def, P)
@@ -197,15 +201,16 @@ ns.registerPart("totemSlot", {
 			local key = def.key
 			local function on(name, field) return setting(key, name, field) end
 			if st == "ranout" and def.ranOut then
-				endFlash(ic, def, P, st, on("ended", "flash") and { expired = true, ranOut = ns.THEME.color[def.school],
-					pop = on("ended", "pop"), glow = on("ended", "glow") }, 1.4)
+				endFlash(ic, def, P, st, on("ended", "flash") and { expired = true,
+					ranOut = ns.THEME.color[def.school], pop = on("ended", "pop"),
+					glow = on("ended", "glow") }, 1.4)
 			elseif st == "ranout" and on("ended", "pop") then ic:Pop("expired")
 			elseif st == "killed" and def.grounded then
-				endFlash(ic, def, P, st, on("killed", "flash") and { grounded = true, pop = on("killed", "pop"),
-					glow = on("killed", "glow") }, 2.1)
+				endFlash(ic, def, P, st, on("killed", "flash") and { grounded = true,
+					pop = on("killed", "pop"), glow = on("killed", "glow") }, 2.1)
 			elseif st == "killed" then
-				endFlash(ic, def, P, st, on("killed", "flash") and { pop = on("killed", "pop"), glow = on("killed", "glow"),
-					mark = on("killed", "mark") }, 2.1)
+				endFlash(ic, def, P, st, on("killed", "flash") and { pop = on("killed", "pop"),
+					glow = on("killed", "glow"), mark = on("killed", "mark") }, 2.1)
 			end
 		end,
 	},
@@ -225,18 +230,21 @@ local FIRE_NOVA_CHOICES = {
 }
 ns.registerPart("needsTotem", {
 	kind = "cooldown", after = "readyGlow",
-	defaults = { warn = { grey = true, ring = false, fade = false }, ready = { glow = false, blocked = "grey" } },
+	defaults = { warn = { grey = true, ring = false, fade = false },
+		ready = { glow = false, blocked = "grey" } },
 	glow = true,
 	idle = { choices = FIRE_NOVA_CHOICES },
 	page = {
 		warn = { title = "No fire totem" },
 		uptime = "Fire totem's time left",
 		ready = { glowTip = "While it's off cooldown and a fire totem is down.",
-			blocked = { "Without a fire totem", "The pop when the cooldown ends with no fire totem down." } },
+			blocked = { "Without a fire totem",
+				"The pop when the cooldown ends with no fire totem down." } },
 	},
 	preview = {
 		uptime = true, typical = "out", warning = "nototem",
-		states = { { "nototem", "No fire totem", 20 }, { "out", "Fire totem out", 21 }, { "expiring", "Totem expiring", 22 } },
+		states = { { "nototem", "No fire totem", 20 }, { "out", "Fire totem out", 21 },
+			{ "expiring", "Totem expiring", 22 } },
 		render = function(ic, st, def, P)
 			local key = def.key
 			local life = def.duration or 45

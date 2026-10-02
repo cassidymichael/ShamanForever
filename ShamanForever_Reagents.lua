@@ -16,7 +16,8 @@ local DEFAULTS = { reagent = {
 	size = 14, pos = "BOTTOMRIGHT", x = 0, y = 0,
 	ring = true, fade = true,
 } }
-local RANGES = { reagent = { low = { 0, 10, 1 }, size = { 8, 40, 1 }, x = { -50, 50, 1 }, y = { -50, 50, 1 } } }
+local RANGES = { reagent = { low = { 0, 10, 1 }, size = { 8, 40, 1 }, x = { -50, 50, 1 },
+	y = { -50, 50, 1 } } }
 
 local IDLE_EXTRA = { name = "reagent", field = "lowKeepsShown", label = "Running low",
 	tip = "Running low or out counts as something going on, even at 0%.",
@@ -140,12 +141,15 @@ ns.registerPart("reagent", {
 		states = { { "low", "Few left", 70 }, { "out", "None left", 71 } },
 		render = function(ic, st, def, P, pv)
 			local key = def.key
-			if st == "low" or st == "out" then pv.rest(ic, P, setting(key, "reagent", "lowKeepsShown")) end
+			if st == "low" or st == "out" then
+				pv.rest(ic, P, setting(key, "reagent", "lowKeepsShown"))
+			end
 			look(ic, key, st == "out" and 0 or st == "low" and fewLeft(key) or PLENTY)
 		end,
 		idles = function(st, def, when)
 			if st ~= "low" and st ~= "out" then return nil end
-			return (when == "oncd" or when == "oncdany") and setting(def.key, "reagent", "lowKeepsShown") == false
+			local oncd = when == "oncd" or when == "oncdany"
+			return oncd and setting(def.key, "reagent", "lowKeepsShown") == false
 		end,
 	},
 })

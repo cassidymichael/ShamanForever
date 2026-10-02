@@ -72,7 +72,9 @@ ns.registerPart("engineExpire", {
 	kind = "buff", after = "missing",
 	preview = {
 		states = { { "expiring", "Expiring", 20 } },
-		render = function(ic, st, def, P) if st == "expiring" then P.engineExpire(ic, def.key) end end,
+		render = function(ic, st, def, P)
+			if st == "expiring" then P.engineExpire(ic, def.key) end
+		end,
 	},
 })
 -- skipLong: leaves out buffs longer than a choice (the aura container's maxDuration)
@@ -82,7 +84,8 @@ ns.registerPart("skipLong", {
 	ranges = { skipLongMins = { 1, 60, 1 } },
 	page = { own = { "toggle", title = "Track", name = "skipLong", label = "Skip long buffs",
 		tip = "Leaves out buffs that last longer than Longest buff, and buffs with no end.",
-		sub = { name = "skipLongMins", label = "Longest buff", tip = "Buffs up to this long count.", unit = "min" } } },
+		sub = { name = "skipLongMins", label = "Longest buff", tip = "Buffs up to this long count.",
+			unit = "min" } } },
 })
 
 function T.longest(def)

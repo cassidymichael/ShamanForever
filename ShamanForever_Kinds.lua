@@ -70,7 +70,8 @@ local function listOf(kind, name)
 	local k = KINDS[kind]
 	if not k then return NONE end
 	if not k.resolved then
-		k.resolved = { parts = resolve(k.parts, k.joins.parts), slots = resolve(k.slots, k.joins.slots) }
+		k.resolved = { parts = resolve(k.parts, k.joins.parts),
+			slots = resolve(k.slots, k.joins.slots) }
 	end
 	return k.resolved[name]
 end
@@ -201,7 +202,9 @@ local function check(kind, def, list)
 		if type(own) ~= "table" or type(own[1]) ~= "table" then own = { own } end
 		for _, b in ipairs(own) do
 			local name = K and b and K.ownName(b)
-			if name and not K.ownBuilder(name) then ns.noteError(site(kind, name), "no own block") end
+			if name and not K.ownBuilder(name) then
+				ns.noteError(site(kind, name), "no own block")
+			end
 		end
 	end
 end
@@ -236,7 +239,8 @@ end
 function KD.finish()
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
 		local e = ns.ELEMENTS[key]
-		if e.kind and KINDS[e.kind] and #listOf(e.kind, "parts") > 0 and e.def and not e.def.finished then
+		local parts = e.kind and KINDS[e.kind] and #listOf(e.kind, "parts") > 0
+		if parts and e.def and not e.def.finished then
 			ns.try("kinds: " .. key, finishOne, e)
 		end
 	end

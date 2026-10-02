@@ -124,7 +124,8 @@ local function drawImbue(now, quiet)
 	imbueIcon = key and imbueIconFor(key) or preferredImbueIcon()
 	local grey, tint, ring, fade, glow = ns.warnParts("imbue", "warn")
 	local warns = missing and not quiet
-	imbue:SetWarnParts(missing and grey, warns and tint, warns and ring, warns and fade, warns and glow)
+	imbue:SetWarnParts(missing and grey, warns and tint, warns and ring, warns and fade,
+		warns and glow)
 	imbue.tex:SetTexture(imbueIcon)
 	if unreadable then
 		imbue.timer:SetText("?")

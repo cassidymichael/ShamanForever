@@ -552,7 +552,8 @@ local function drawPreview(ic, n)
 end
 local PREVIEW = {
 	uptime = true,
-	states = { { "s1", "1 stack" }, { "s4", "4 stacks" }, { "s5", "5 stacks" }, { "idle", "Not up" } },
+	states = { { "s1", "1 stack" }, { "s4", "4 stacks" }, { "s5", "5 stacks" },
+		{ "idle", "Not up" } },
 	pop = function(ic, st) if st == "s5" and setting("active", "pop") then ic:Pop("ready") end end,
 	render = function(ic, st, P)
 		P.reset(ic, M.icon)

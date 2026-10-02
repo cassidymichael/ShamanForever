@@ -35,7 +35,8 @@ local function coverCoords(w, h)
 end
 L.PANEL = { 29 / 255, 24 / 255, 19 / 255 }
 
-local TOTEMBAR = { label = "Totem bar", icon = "Interface\\Icons\\Spell_Shaman_DropAll_01", school = ns.THEME.fallback,
+local TOTEMBAR = { label = "Totem bar", icon = "Interface\\Icons\\Spell_Shaman_DropAll_01",
+	school = ns.THEME.fallback,
 	blurb = "Your totems, their timers, and a pick for each element.",
 	tags = function()
 		local TB = ns.TotemBar

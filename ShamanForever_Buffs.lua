@@ -40,8 +40,9 @@ ns.registerPart("buff", {
 		uptime = function(def) return not def.noTimer and "Time left" or nil end,
 		expire = {},
 		active = function(def)
-			return { title = def.procHeader or procName(def), tips = { pop = def.popTip or "The moment it procs.",
-				glow = def.glowTip or "While it's up." } }
+			local tips = { pop = def.popTip or "The moment it procs.",
+				glow = def.glowTip or "While it's up." }
+			return { title = def.procHeader or procName(def), tips = tips }
 		end,
 	},
 	preview = {

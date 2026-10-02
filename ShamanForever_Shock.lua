@@ -47,11 +47,11 @@ local function paint(f, outOfRange, noMana)
 	f.manaOverlay:Hide()
 	f.tex:SetVertexColor(1, 1, 1)
 	if outOfRange then
-		f:SetBodyPaint(setting("shock", "range", "look"), 1, 0.25, 0.25, setting("shock", "range", "overlay"),
-			setting("shock", "range", "tint"))
+		f:SetBodyPaint(setting("shock", "range", "look"), 1, 0.25, 0.25,
+			setting("shock", "range", "overlay"), setting("shock", "range", "tint"))
 	elseif noMana then
-		f:SetBodyPaint(setting("shock", "mana", "look"), 0.2, 0.45, 1, setting("shock", "mana", "overlay"),
-			setting("shock", "mana", "tint"))
+		f:SetBodyPaint(setting("shock", "mana", "look"), 0.2, 0.45, 1,
+			setting("shock", "mana", "overlay"), setting("shock", "mana", "tint"))
 	end
 	f:SetRingShown(noMana, 0.2, 0.45, 1, setting("shock", "mana", "ring"))
 end
@@ -213,9 +213,11 @@ end
 local PREVIEW = {
 	warning = "both",
 	cooldown = true,
-	states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" }, { "range", "Out of range" },
-		{ "both", "Both" } },
-	pop = function(ic, st) if st == "ready" and setting("shock", "ready", "pop") then ic:Pop() end end,
+	states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" },
+		{ "range", "Out of range" }, { "both", "Both" } },
+	pop = function(ic, st)
+		if st == "ready" and setting("shock", "ready", "pop") then ic:Pop() end
+	end,
 	render = function(ic, st, P)
 		P.reset(ic, SHOCK_ICON[setting("shock", "track")] or SHOCK_ICON.earth)
 		if st == "ready" then ic:SetGlowShown(setting("shock", "ready", "glow")) end

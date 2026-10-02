@@ -18,12 +18,12 @@ local function buildImbue(p, def)
 	end
 	p:cards("Icon", nil, cards, eopt(p, key, "icon"))
 	p:text("The icon shown while no imbue is on.")
-	warnBlock(p, key, { title = "No imbue", tips = { pop = "The moment your imbue runs out or is lost.",
-		sound = "The moment your imbue runs out or is lost." } })
+	local lost = "The moment your imbue runs out or is lost."
+	warnBlock(p, key, { title = "No imbue", tips = { pop = lost, sound = lost } })
 
 	timerSettings(p, "Time left", key, "uptime", nil, nil, function()
-		eslider(p, key, "Show under", nil, function(v) return v == 0 and "Never" or string.format("%d min", v) end,
-			nil, "showUnderMins")
+		local function mins(v) return v == 0 and "Never" or string.format("%d min", v) end
+		eslider(p, key, "Show under", nil, mins, nil, "showUnderMins")
 		p:text("Time left shows once it's below this. 0 never shows it.")
 	end)
 	lookBlocks(p, key)

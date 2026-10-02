@@ -382,7 +382,8 @@ end
 -- element's state table (warn, expire): a look it doesn't declare is off.
 function ns.warnParts(key, name)
 	local function part(field)
-		return ns.elementDefault(key, name, field) ~= nil and ns.elementSetting(key, name, field) and true or false
+		if ns.elementDefault(key, name, field) == nil then return false end
+		return ns.elementSetting(key, name, field) and true or false
 	end
 	return part("grey"), part("tint"), part("ring"), part("fade"), part("glow")
 end
@@ -400,7 +401,9 @@ function ns.makeWarnOverlay(f)
 	w.pulse = ns.makePulse(w.grey, "fade")
 	w:SetAlpha(0)
 	-- Hiding a frame stops its animations
-	w:SetScript("OnShow", function(self) if self.pulseOn and not self.pulse:IsPlaying() then self.pulse:Play() end end)
+	w:SetScript("OnShow", function(self)
+		if self.pulseOn and not self.pulse:IsPlaying() then self.pulse:Play() end
+	end)
 	function w:setIcon(icon) self.grey:SetTexture(icon) end
 	function w:setParts(grey, _, ring, fade)
 		self.grey:SetShown(grey and true or false)
@@ -759,7 +762,8 @@ function ns.makeIcon(parent, size, owner)
 		tint = tint and true or false
 		if tint ~= (self.warnTint or false) then
 			self.warnTint = tint
-			if tint then self.tex:SetVertexColor(1, 0.35, 0.35) else self.tex:SetVertexColor(1, 1, 1) end
+			if tint then self.tex:SetVertexColor(1, 0.35, 0.35)
+			else self.tex:SetVertexColor(1, 1, 1) end
 		end
 		self:SetRingShown(ring)
 		self:SetPulsing(fade)

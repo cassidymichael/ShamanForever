@@ -22,7 +22,9 @@ local function buildShock(p, def)
 	p:header("Tracking")
 	local SK = ns.Shock
 	local cards = {}
-	for _, shock in ipairs(SK.ORDER) do table.insert(cards, { shock, SK.SHOCKS[shock], SK.ICONS[shock] }) end
+	for _, shock in ipairs(SK.ORDER) do
+		table.insert(cards, { shock, SK.SHOCKS[shock], SK.ICONS[shock] })
+	end
 	p:cards("Track", "Its cooldown and range.", cards, eopt(p, key, "track", nil, respell))
 	local manaChoices = { { "tracked", "Tracked shock" } }
 	for _, shock in ipairs(SK.ORDER) do table.insert(manaChoices, { shock, SK.SHOCKS[shock] }) end

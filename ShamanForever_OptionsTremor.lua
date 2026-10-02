@@ -94,7 +94,8 @@ local function mobList(p)
 	restore:SetSize(180, 22)
 	restore:SetPoint("TOPRIGHT", panel, "BOTTOMRIGHT", 0, -5)
 	restore:SetText("Restore removed defaults")
-	setTip(restore, "Restore removed defaults", "Puts back the mobs you removed from the default list. Mobs you added stay as they are.")
+	setTip(restore, "Restore removed defaults",
+		"Puts back the mobs you removed from the default list. Mobs you added stay as they are.")
 	restore:SetScript("OnClick", function() T.restore() end)
 
 	local shown = 0
@@ -110,7 +111,9 @@ local function mobList(p)
 		local c = T.counts()
 		local parts = { string.format("%d mobs", c.mobs) }
 		if c.added > 0 then table.insert(parts, string.format("%d added", c.added)) end
-		if c.removed > 0 then table.insert(parts, string.format("%d removed from the defaults", c.removed)) end
+		if c.removed > 0 then
+			table.insert(parts, string.format("%d removed from the defaults", c.removed))
+		end
 		count:SetText(table.concat(parts, ", "))
 		restore:SetEnabled(c.removed > 0)
 	end
@@ -145,8 +148,10 @@ local function linkLine(p, text, tip, onClick)
 	return p:add(f, 22)
 end
 
-local WORD_POS = { { "below", "Below the icon" }, { "above", "Above the icon" }, { "center", "On the icon" } }
-local TREMOR_IDLE_WHEN = { { "nowarning", "No warning" }, { "notdown", "Totem not down and no warning" } }
+local WORD_POS = { { "below", "Below the icon" }, { "above", "Above the icon" },
+	{ "center", "On the icon" } }
+local TREMOR_IDLE_WHEN = { { "nowarning", "No warning" },
+	{ "notdown", "Totem not down and no warning" } }
 local function buildTremor(p)
 	local key = "tremor"
 	local function opt(name) return eopt(p, key, name) end
@@ -154,22 +159,26 @@ local function buildTremor(p)
 	p:header("Idle")
 	p:text("Idle while nothing warns. At 0% it's hidden and keeps its place in the group.")
 	local whenGet, whenSet = opt("idleWhen")
-	p:dropdown("Idle when", "No warning: also while your Tremor Totem is down. Totem not down and no warning: its time left shows while it's down.",
+	p:dropdown("Idle when", "No warning: also while your Tremor Totem is down. Totem not down and no "
+		.. "warning: its time left shows while it's down.",
 		TREMOR_IDLE_WHEN, whenGet, whenSet, nil, 250)
 	eslider(p, key, "Idle opacity", "The icon's opacity while idle.", pct, nil, "idleAlpha")
 	p:header("Warn when")
 	p:checkbox("Your target is on the list", nil, opt("tremorTarget"))
 	p:checkbox("A mob on the list is near", "Its nameplate is on screen.", opt("tremorPlates"))
 	p:text("Needs enemy nameplates on.", showWhen(eread(key, "tremorPlates")))
-	p:checkbox("You're feared, charmed or asleep", "And for 10 s after, in case it comes again.", opt("tremorFeared"))
+	p:checkbox("You're feared, charmed or asleep", "And for 10 s after, in case it comes again.",
+		opt("tremorFeared"))
 	p:text("The game hides party members' crowd control, so this covers only you.")
-	p:text("None of these while your Tremor Totem is down, or while you're dead, on a flight path or in a vehicle.")
+	p:text("None of these while your Tremor Totem is down, or while you're dead, on a flight path or "
+		.. "in a vehicle.")
 	p:header("Tremor warning watchlist")
-	p:callout("In dungeons and raids the game hides mob names from addons, so the watchlist can't work there. "
-		.. "Only \"You're feared, charmed or asleep\" can, when it's on.")
+	p:callout("In dungeons and raids the game hides mob names from addons, so the watchlist can't "
+		.. "work there. Only \"You're feared, charmed or asleep\" can, when it's on.")
 	p:text("Mobs that cast fear, charm or sleep.")
 	mobList(p)
-	linkLine(p, "Suggest a mob for the default list", "Opens Feedback, on the About page.", function() ns.Options.showFeedback() end)
+	linkLine(p, "Suggest a mob for the default list", "Opens Feedback, on the About page.",
+		function() ns.Options.showFeedback() end)
 	timerSettings(p, "Time left", key, "uptime", nil,
 		"Its time left while it's down. With the default Idle (\"No warning\", 0%) it isn't seen.")
 	activeBlock(p, key, { title = "When it warns", tips = { pop = "The moment it starts warning.",
@@ -177,7 +186,8 @@ local function buildTremor(p)
 		local textGet, textSet = s.opt("active", "text")
 		p:checkbox("Text", "Shows \"" .. ns.Tremor.WORD .. "\" by the icon.", textGet, textSet)
 		local text = showWhen(textGet)
-		eslider(p, key, "Text size", "At the default icon size; it grows with the icon.", int, text, "wordSize")
+		eslider(p, key, "Text size", "At the default icon size; it grows with the icon.", int, text,
+			"wordSize")
 		local colorGet, colorSet = opt("wordColor")
 		p:color("Text colour", nil, colorGet, colorSet, text)
 		local posGet, posSet = opt("wordPos")
