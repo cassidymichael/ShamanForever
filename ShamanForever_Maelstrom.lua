@@ -74,6 +74,8 @@ ns.registerElement(KEY, { frame = f, label = Spells.name("maelstromWeapon"), def
 	learned = function() return src.learned() end, paint = function(t) t:SetTexture(M.icon) end,
 	effects = { glow = { "full" }, pop = { "full" } },
 	standInBorder = true,
+	styles = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
+	timerCant = { bar = "Its timer is Blizzard's own; a time bar can't follow it." },
 	kind = "maelstrom", def = M, spell = "maelstromWeapon", icon = M.icon, school = "air",
 	blurb = "Its stacks, with a pop and a glow at five.", experimental = "Maelstrom Weapon" })
 M.key = KEY

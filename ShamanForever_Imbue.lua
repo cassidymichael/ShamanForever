@@ -18,6 +18,8 @@ local IDLE_CHOICES = {
 ns.registerElement("imbue", { frame = imbue, label = "Weapon Imbue", paint = function(t) t:SetTexture(IM.icon()) end,
 	learned = function() return anyKnown end,
 	defaults = { idleWhen = "notlow", idleAlpha = 0 },
+	styles = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false,
+		bar = false } },
 	def = { key = "imbue", idleChoices = IDLE_CHOICES },
 	effects = { glow = { "missing" }, pop = { "lost" }, popKind = "imbue" },
 	kind = "imbue", icon = 136086, school = "spirit", blurb = "Warns when your main hand has no imbue." })

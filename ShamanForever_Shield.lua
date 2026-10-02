@@ -38,6 +38,8 @@ local IDLE_CHOICES = {
 ns.registerElement("shield", { frame = shield, label = "Shields", paint = function(t) t:SetTexture(SH.icon()) end,
 	learned = function() return SH.learned() end,
 	defaults = { idleWhen = "never", idleAlpha = 0.3 },
+	styles = { glow = { look = "soft" },
+		uptime = { text = false, swipe = false, swipeAlpha = 0.5, swipeReverse = false, bar = false, barEdge = "top" } },
 	def = { key = "shield", idleChoices = IDLE_CHOICES },
 	effects = { glow = { "missing" }, pop = {} },
 	borderHost = edge,

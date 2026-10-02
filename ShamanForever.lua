@@ -135,7 +135,8 @@ local ELEMENT_KEYS = {}
 -- parts that fit a bar); paint: what stands in for it in the options and while dragging;
 -- standInBorder: preview's stand-in draws its border; learned(): none means always; kind: picks its
 -- options page and preview; effects = { glow = { states }, pop = { states }, popKind };
--- ownSchool(): the school its pop and glow take now, where that follows its state
+-- ownSchool(): the school its pop and glow take now, where that follows its state; styles: its own
+-- shipped look, { kind = fields }; timerCant: timer parts it can't have, and why
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
 local NO_EFFECTS = { glow = {}, pop = {} }
@@ -143,6 +144,8 @@ function ns.registerElement(key, e)
 	e.getSize = e.getSize or iconSize
 	e.effects = e.effects or NO_EFFECTS
 	e.stack = e.stack or e.frame.stack
+	if e.styles then ns.Style.setOwnerDefaults(key, e.styles) end
+	if e.timerCant then ns.Timer.CANT[key] = e.timerCant end
 	ELEMENTS[key] = e
 	if not tContains(ELEMENT_KEYS, key) then table.insert(ELEMENT_KEYS, key) end
 end

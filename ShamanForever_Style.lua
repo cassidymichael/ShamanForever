@@ -20,7 +20,6 @@ S.register("glow", {
 		lap = 1.6, scale = 1.5, drift = 1 },
 	ranges = { lap = { 0.6, 4 }, scale = { 0.5, 2 }, drift = { 0.25, 3 } },
 	path = { "glowStyle" },
-	ownerDefaults = { purge = { look = "proc" }, shield = { look = "soft" }, flameshock = { look = "soft" } },
 })
 S.register("pop", {
 	defaults = { colorBy = "event", flash = "plain", burst = "star", motion = "shakeV", size = 1.4, speed = 1,
@@ -32,8 +31,6 @@ S.register("pop", {
 S.register("gcd", {
 	defaults = { show = true },
 	path = { "gcdStyle" },
-	-- Reincarnation never needs the sweep
-	ownerDefaults = { reincarnation = { show = false } },
 })
 S.register("border", {
 	defaults = { show = true, look = "line", size = 2, color = { 0, 0, 0, 1 }, capSize = 3,
@@ -41,6 +38,15 @@ S.register("border", {
 	ranges = { size = { 0, 8 }, capSize = { 1, 8 } },
 	path = { "border" },
 })
+
+-- An owner's own shipped look, { kind = fields }: it starts not following Global
+function S.setOwnerDefaults(owner, byKind)
+	for kind, d in pairs(byKind) do
+		local spec = S.KINDS[kind]
+		spec.ownerDefaults = spec.ownerDefaults or {}
+		spec.ownerDefaults[owner] = d
+	end
+end
 
 -- Choices: the named values a style field picks from
 local CHOICES, FIELDS = {}, {}

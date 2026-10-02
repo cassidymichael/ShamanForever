@@ -22,6 +22,7 @@ local gateAlpha, holderAlpha, retarget
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
 		icon = 135813, school = "fire", blurb = "Shows while your Flame Shock is on your target.",
+		styles = { glow = { look = "soft" }, uptime = { text = true, bar = true, barEdge = "bottom" } },
 		idleChoices = {
 			{ "never", "Never", "It always shows in full" },
 			{ "notarget", "No hostile target", "Idle while you have no hostile target" },
@@ -35,6 +36,7 @@ local TARGET = {
 			missGrey = true, missRing = false, missPulse = false, missGlow = true,
 			expireSecs = 3, expireBar = true, expireBarColor = { 1, 0.2, 0.8, 1 }, expireText = false } },
 	{ key = "purge", spellKey = "purge", filter = "HELPFUL", icon = 136075, school = "spirit",
+		styles = { glow = { look = "proc" } },
 		blurb = "Shows while your target has a Magic buff to purge.",
 		-- Skip long buffs: only those lasting at most Longest buff (maxDuration also leaves out buffs with
 		-- no end)
@@ -303,7 +305,7 @@ for _, def in ipairs(TARGET) do
 		learned = function() return def.spellID ~= nil end,
 		paint = function(t) t:SetTexture(def.icon) end,
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
-		experimental = def.experimental })
+		experimental = def.experimental, styles = def.styles })
 end
 
 local listed = false
