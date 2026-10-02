@@ -6,21 +6,17 @@ ns.ElementPages = EP
 
 local Page, K = ns.Page, ns.Options.kit
 local showWhen, setTip, panelBackdrop = Page.showWhen, Page.setTip, Page.panelBackdrop
-local relayout, respell, get, gopt = K.relayout, K.respell, K.get, K.gopt
+local respell, get, gopt = K.respell, K.get, K.gopt
 local pct, int, px = Page.pct, Page.int, Page.px
 local SHOW_CHOICES = K.SHOW_CHOICES
-local timerSettings, gcdBlock, glowBlock, popBlock = K.timerSettings, K.gcdBlock, K.glowBlock, K.popBlock
-local expiringLooks, killedBlock = K.expiringLooks, K.killedBlock
+local timerSettings, gcdBlock = K.timerSettings, K.gcdBlock
+local eopt, eread, COUNT_POINTS = K.eopt, K.eread, K.COUNT_POINTS
+local elementDisplay, idleBlock, readyBlock, lookBlocks = K.elementDisplay, K.idleBlock, K.readyBlock, K.lookBlocks
+local warningBlock, primedBlock, reagentBlocks = K.warningBlock, K.primedBlock, K.reagentBlocks
+local groundedBlock, expiringBlock, procBlock = K.groundedBlock, K.expiringBlock, K.procBlock
+local killedBlock = K.killedBlock
 
 local function db() return ns.getDB() end
-
-function K.eopt(p, key, name)
-	p:owns({ elem = key, name = name, after = relayout })
-	return function() return ns.elementSetting(key, name) end,
-		function(v) ns.elementOpts(key)[name] = v; relayout() end
-end
-local eopt = K.eopt
-local function eread(key, name) return function() return ns.elementSetting(key, name) end end
 
 -- Learned first, then not learned, then other races' racials; each by name.
 local function byName()
@@ -39,18 +35,7 @@ local function byName()
 end
 EP.ordered = byName
 
-local function groupMenu(key)
-	return function(_, root)
-		for _, g in ipairs(db().groups) do
-			root:CreateRadio(g.name, function() return ns.groupOf(key) == g end, function()
-				if ns.groupOf(key) ~= g then ns.placeElement(key, g.id) end
-			end)
-		end
-		root:CreateButton("New group", function() ns.placeElement(key, "new") end)
-	end
-end
 
-local SHOW_TIP_PAGE = "Choosing Always or In combat again puts it back where it was. Groups have their own Show on the Groups & Layout page; an element shows only when both allow it. Everything visible shows while positioning is unlocked."
 local SHOW_TIP = "When the element is drawn. Hidden keeps its place in its group, so choosing Always or In combat again puts it back where it was. Groups have their own Show on the Groups & Layout page; an element shows only when both it and its group allow it."
 
 -- Elements overview
@@ -279,110 +264,11 @@ function EP.buildOverview(p)
 	end
 end
 
--- Every element page in one order: header, Display, Idle, own settings, standard blocks.
-local function elementDisplay(p, key)
-	p.resetAll = {
-		text = function() return "Reset " .. ns.Look.elementName(key) end,
-		ask = function() EP.askReset(key) end,
-	}
-	p:hero(key)
-	p:callout("Not learned yet. It shows on screen once your character knows the spell.",
-		function() return not ns.isLearned(key) and not ns.Spells.otherRace(ns.ELEMENTS[key].race) end)
-	p:callout("Not your race. It shows on screen only for the races that have this spell.",
-		function() return not ns.isLearned(key) and ns.Spells.otherRace(ns.ELEMENTS[key].race) end)
-	p:header("Display", nil, nil, nil, { open = true })
-	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return ns.showMode(key) end,
-		function(v) ns.setShow(key, v) end, nil, 140)
-	local function showDefault() return ns.elementDefault(key, "show") or "always" end
-	p:owns({ elem = key, name = "show", label = "Show", default = showDefault, reset = function()
-		if InCombatLockdown() then return false end
-		ns.setShow(key, showDefault())
-	end })
-	p:text("Hidden keeps its place in its group.")
-	local groupRow = p:dropdown("Group", "Which group it sits in. Groups are arranged on the Groups & Layout page; ungrouped elements aren't on screen.",
-		{}, function() local g = ns.groupOf(key); return g and g.id .. ":" .. g.name or "" end, function() end, nil, 140,
-		groupMenu(key))
-	pcall(groupRow.dropdown.SetDefaultText, groupRow.dropdown, "Ungrouped")
-	local edit = CreateFrame("Button", nil, groupRow, "UIPanelButtonTemplate")
-	edit:SetSize(110, 22)
-	edit:SetPoint("LEFT", groupRow.dropdown, "RIGHT", 8, 0)
-	edit:SetText("Group settings")
-	edit:SetScript("OnClick", function() local g = ns.groupOf(key); if g then ns.Options.openGroup(g.id) end end)
-	setTip(edit, "Group settings", "This group's settings on the Groups & Layout page.")
-	local item = p.items[#p.items]
-	local refresh = item.refresh
-	item.refresh = function()
-		refresh()
-		edit:SetShown(ns.groupOf(key) ~= nil)
-	end
-end
 
-local function readyBlock(p, key, glowTip, afterPop)
-	p:header("Ready")
-	p:checkbox("Pop", "The moment the cooldown ends.", eopt(p, key, "readyPop"))
-	if afterPop then afterPop() end
-	if glowTip then p:checkbox("Pulsing glow", glowTip, eopt(p, key, "readyGlow")) end
-	ns.Sounds.row(p, "Sound", "The moment the cooldown ends.", eopt(p, key, "readySound"))
-end
 
--- Idle block, from the element's def (idleChoices, idleText, idleExtra).
-local function idleBlock(p, def)
-	local key, choices = def.key, def.idleChoices
-	local function when() return ns.elementSetting(key, "idleWhen") end
-	local function never() return choices ~= nil and when() == "never" end
-	p:header("Idle")
-	if choices then
-		local options, tips = {}, {}
-		for _, c in ipairs(choices) do
-			table.insert(options, { c[1], c[2] })
-			if c[4] then table.insert(tips, c[4]) end
-		end
-		p:text(function()
-			for _, c in ipairs(choices) do
-				if c[1] == when() then
-					return c[3]:format(def.idleAlso or "") .. (c[1] == "never" and "."
-						or ". At 0% it's hidden and keeps its place in the group.")
-				end
-			end
-			return ""
-		end)
-		local whenGet, whenSet = eopt(p, key, "idleWhen")
-		p:dropdown("Idle when", table.concat(tips, " "), options, whenGet, whenSet, nil, 230)
-	else
-		p:text((def.idleText or "Idle while it isn't up")
-			.. ". At 0% it's hidden and keeps its place in the group.")
-	end
-	local extra = def.idleExtra
-	if extra then
-		local extraGet, extraSet = eopt(p, key, extra.key)
-		p:dropdown(extra.label, extra.tip, extra.choices, extraGet, extraSet,
-			choices and showWhen(function() return not never() end) or nil, 230)
-	end
-	local alphaGet, alphaSet = eopt(p, key, "idleAlpha")
-	p:slider("Idle opacity", "The icon's opacity while idle.", 0, 1, 0.05, pct, alphaGet, alphaSet,
-		choices and showWhen(function() return not never() end) or nil)
-end
 
-local function lookBlocks(p, key)
-	local e = ns.ELEMENTS[key]
-	if #e.effects.glow > 0 then glowBlock(p, key, e.icon) end
-	if #e.effects.pop > 0 then popBlock(p, key, e.icon, e.effects.popKind or "ready") end
-	p:header("Border style")
-	K.borderRows(p, key, relayout)
-	p:header("Frame style")
-	K.frameRows(p, key, "frame", relayout)
-end
 
-local function warningBlock(p, title, opt, names, first)
-	p:header(title)
-	if first then first() end
-	p:checkbox("Grey icon", "Desaturate the icon.", opt(names[1]))
-	p:checkbox("Red ring", "A red ring inside the icon edge.", opt(names[2]))
-	p:checkbox("Fade in and out", nil, opt(names[3]))
-end
 
-local COUNT_POINTS = { { "BOTTOMRIGHT", "Bottom right" }, { "BOTTOMLEFT", "Bottom left" }, { "TOPRIGHT", "Top right" },
-	{ "TOPLEFT", "Top left" }, { "CENTER", "Centre" } }
 
 local function lookUses(key, part) return function() local v = db()[key]; return v == part or v == "both" end end
 
@@ -490,73 +376,9 @@ local function buildImbue(p, def)
 	lookBlocks(p, "imbue")
 end
 
-local function primedBlock(p, def)
-	local key = def.key
-	p:header("Primed")
-	if def.primed.text then p:text(def.primed.text) end
-	if def.primedLooks == false then return end
-	p:checkbox("Pop", "The moment it's primed.", eopt(p, key, "primedPop"))
-	p:checkbox("Pulsing glow", "While it's primed.", eopt(p, key, "primedGlow"))
-end
 
-local COUNT_WHEN = { { "always", "Always" }, { "low", "When low or none" }, { "never", "Never" } }
-local function reagentBlocks(p, def)
-	local key = def.key
-	p:header("Reagent")
-	p:text("Only counted if the spell still needs one.")
-	local countGet, countSet = eopt(p, key, "reagentCount")
-	p:dropdown("Show count", "How many you carry, on the icon.", COUNT_WHEN, countGet, countSet, nil, 170)
-	local counted = showWhen(function() return ns.elementSetting(key, "reagentCount") ~= "never" end)
-	p:slider("Low at", "At this many or fewer, the count takes the low colour, and Idle can count it as running low.", 0, 10, 1, int, eopt(p, key, "reagentLow"))
-	local colorGet, colorSet = eopt(p, key, "reagentColor")
-	p:color("Count colour", "While you have enough.", colorGet, colorSet, counted)
-	local lowGet, lowSet = eopt(p, key, "reagentLowColor")
-	p:color("Low colour", "At the Low mark or below, and at none.", lowGet, lowSet, counted)
-	local sizeGet, sizeSet = eopt(p, key, "reagentSize")
-	p:slider("Text size", "At the default icon size; it grows with the icon.", 8, 40, 1, int, sizeGet, sizeSet, counted)
-	local posGet, posSet = eopt(p, key, "reagentPos")
-	p:dropdown("Position", nil, COUNT_POINTS, posGet, posSet, counted, 150)
-	local xGet, xSet = eopt(p, key, "reagentX")
-	p:slider("Text X offset", nil, -50, 50, 1, px, xGet, xSet, counted)
-	local yGet, ySet = eopt(p, key, "reagentY")
-	p:slider("Text Y offset", nil, -50, 50, 1, px, yGet, ySet, counted)
-	p:header("None left")
-	p:checkbox("Red ring", "A red ring inside the icon edge.", eopt(p, key, "reagentRing"))
-	p:checkbox("Fade in and out", nil, eopt(p, key, "reagentPulse"))
-end
 
-local function groundedBlock(p, key)
-	p:header("Grounded")
-	p:checkbox("Flash when it takes a spell", "The totem flashes blue over its icon when it ends early: it took a spell, or was destroyed.",
-		eopt(p, key, "grounded"))
-	local on = showWhen(eread(key, "grounded"))
-	local popGet, popSet = eopt(p, key, "groundedPop")
-	p:checkbox("Pop", "The icon bursts for a moment.", popGet, popSet, on)
-	local glowGet, glowSet = eopt(p, key, "groundedGlow")
-	p:checkbox("Pulsing glow", "In blue.", glowGet, glowSet, on)
-end
 
-local function expiringBlock(p, key, maxSecs, step, only)
-	local function xget(k) return function() return ns.Timer.expireOpts(key)[k] end end
-	local function xdefault(k) return function()
-		local v, own = ns.Timer.EXPIRE_DEFAULTS[k], ns.elementDefault(key, "expire")
-		if type(own) == "table" and type(own[k]) == type(v) then v = own[k] end
-		return v
-	end end
-	local function xset(k)
-		p:owns({ elem = key, name = "expire", field = k, default = xdefault(k), after = relayout })
-		return function(v)
-			local o = ns.elementOpts(key)
-			if type(o.expire) ~= "table" then o.expire = {} end
-			o.expire[k] = v
-			relayout()
-		end
-	end
-	p:header("Expiring")
-	p:slider("Warn in the last", "Seconds before it runs out. Zero turns the warning off.", 0, maxSecs, step,
-		function(v) return v == 0 and "Off" or string.format("%d s", v) end, xget("secs"), xset("secs"))
-	expiringLooks(p, xget, xset, "icon", showWhen(function() return ns.Timer.expireOpts(key).secs > 0 end), only)
-end
 
 local function buildCooldown(p, def)
 	local key = def.key
@@ -639,13 +461,6 @@ local function buildBuff(p, def)
 		end)
 		p:checkbox("Pulsing glow", "A glow that pulses, in the Pulsing glow style.", opt("missGlow"))
 	end
-	local function procBlock()
-		p:header(def.procHeader or ns.Spells.name("clearcasting"))
-		if not def.noPop then
-			p:checkbox("Pop", def.popTip or "The moment it procs.", opt("primedPop"))
-		end
-		p:checkbox("Pulsing glow", def.glowTip or "While it's up.", opt("primedGlow"))
-	end
 	if not def.noTimer then timerSettings(p, "Time left", key, "uptime") end
 	if def.engineExpire then
 		-- Flame Shock's, drawn by the engine: only what it can change in a fight.
@@ -661,7 +476,7 @@ local function buildBuff(p, def)
 		local textGet, textSet = opt("expireText")
 		p:checkbox("Red countdown", "The countdown turns red in the last seconds.", textGet, textSet, showWhen(warns))
 	end
-	if def.proc and not def.noGlow then procBlock()
+	if def.proc and not def.noGlow then procBlock(p, def, opt)
 	elseif not def.proc then expiringBlock(p, key, 120, 5) end
 	lookBlocks(p, key)
 end
@@ -907,3 +722,6 @@ function EP.askReset(key)
 	local p = pageObjects[key]
 	if p then p:askReset("every " .. ns.Look.elementName(key) .. " setting") end
 end
+
+ns.Options.registerPage("elements", { title = "Elements", icon = ns.Options.ART .. "Elements.tga", order = 70,
+	build = EP.buildOverview })

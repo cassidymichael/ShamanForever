@@ -5,13 +5,14 @@ local OP = {}
 ns.Options = OP
 
 local Page = ns.Page
-local showWhen, setTip, panelBackdrop = Page.showWhen, Page.setTip, Page.panelBackdrop
+local setTip, panelBackdrop = Page.setTip, Page.panelBackdrop
 
-local WIDTH, NAV_W, LABEL_W = Page.WIDTH, Page.NAV_W, Page.LABEL_W
+local WIDTH, NAV_W = Page.WIDTH, Page.NAV_W
 local HEIGHT, MIN_H, MAX_H = 700, 560, 1300
 local MAX_W = 1600
 local LOGO_SIZE, LOGO_X, LOGO_Y = 112, -19, 24
 local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
+OP.ART = ART
 
 local win
 local pages, pageOrder, stubs, currentPage = {}, {}, {}, nil
@@ -37,6 +38,22 @@ local retime = perFrame(function() ns.applyTimers(); OP.refresh() end)
 local reglow = perFrame(function() ns.Effects.applyStyle(); ns.applyTimers(); OP.refresh() end)
 local function respell() ns.resolveSpells(); ns.applyLayout(); ns.refreshAll(); OP.refresh() end
 
+local K = {}
+OP.kit = K
+K.perFrame, K.relayout, K.retime, K.reglow, K.respell = perFrame, relayout, retime, reglow, respell
+
+-- Pages register at load: title, icon, build, order (the order they build in, and their place in
+-- the top nav), bottom (height above the window's foot: a lower nav page, placed by it, not order).
+local registered, registeredKeys = {}, {}
+function OP.registerPage(key, spec)
+	assert(not registeredKeys[key], "page registered twice: " .. tostring(key))
+	assert(spec.title and spec.build, "page needs a title and build: " .. tostring(key))
+	local page = CopyTable(spec)
+	page.key, page.order = key, spec.order or 100
+	registeredKeys[key] = true
+	table.insert(registered, page)
+end
+
 local function newPage(key, title, indent, build)
 	local stub = { key = key, title = title, indent = indent, build = build }
 	stubs[key] = stub
@@ -55,590 +72,7 @@ local function pageOf(key)
 end
 
 -- Settings helpers
-local pct, times, int, px = Page.pct, Page.times, Page.int, Page.px
-
--- Styles
-local function resolve(owner) if type(owner) == "function" then return owner() end return owner end
-
-local function globalRow(p, label, tip, get, set, anchor, shown)
-	local row = p:checkbox(label, tip, get, set, shown)
-	local b = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-	b:SetText("Edit Global styles")
-	b:SetSize(math.max(100, (b:GetTextWidth() or 0) + 24), 22)
-	b:SetPoint("LEFT", row.check.Text, "RIGHT", 12, 0)
-	b:SetScript("OnClick", function() OP.openGlobal(anchor) end)
-	setTip(b, "Edit Global styles", "These settings in Global settings.")
-	return row
-end
-
-local function ownStyle(p, owner, kind, after)
-	p:owns({ style = kind, owner = owner, after = after })
-end
-
-local function followRow(p, owner, kind, after, label, shown)
-	ownStyle(p, owner, kind, after)
-	return globalRow(p, label or "Same as Global", "Use the global style.",
-		function() local o = resolve(owner); return o ~= nil and ns.Style.follows(o, kind) end,
-		function(v)
-			local o = resolve(owner)
-			if o == nil then return end
-			ns.Style.setFollow(o, kind, v)
-			after()
-		end, kind, shown)
-end
-
-local function styleRows(p, owner, kind, after)
-	local St = ns.Style
-	ownStyle(p, owner, kind, after)
-	local r = {}
-	function r.style() return St.read(resolve(owner), kind) end
-	function r.own() local o = resolve(owner); return o == nil or not St.follows(o, kind) end
-	function r.get(field)
-		if type(St.KINDS[kind].defaults[field]) == "table" then return function() return r.style()[field] end end
-		return function() return St.value(resolve(owner), kind, field) end
-	end
-	function r.set(field) return function(v)
-		local o = resolve(owner)
-		if o == nil and owner ~= nil then return end
-		St.set(o, kind, field, v)
-		after()
-	end end
-	return r
-end
-
-local function ownLine(p, kind)
-	p:text(function() return "Currently using their own: " .. table.concat(ns.Style.ownStyles(kind), ", ") end,
-		function() return #ns.Style.ownStyles(kind) > 0 end)
-end
-
-local function choiceRows(p, r, kind, field, label, tip, shown)
-	local St = ns.Style
-	local function now() return St.choice(kind, field, r.style()[field]) end
-	local function key() return now().key end
-	local set = r.set(field)
-	local function list()
-		local out = {}
-		for _, e in ipairs(St.offered(kind, field, key())) do table.insert(out, { e.key, e.name }) end
-		return out
-	end
-	p:dropdown(label, tip, list, key, set, shown, 190, function(_, root)
-		root:SetScrollMode(400)
-		for i, sec in ipairs(St.sections(kind, field, key())) do
-			if sec.name then
-				if i > 1 then root:CreateDivider() end
-				root:CreateTitle(sec.name)
-			end
-			for _, e in ipairs(sec.list) do
-				root:CreateRadio(e.name, function() return key() == e.key end, function() set(e.key) end)
-			end
-		end
-	end)
-	local f = p:row(22)
-	ns.Look.expBadge(f, St.field(kind, field).name):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
-	p:add(f, 22, showWhen(function() return now().experimental end, shown))
-	return now
-end
-
-local function reloadLine(p, keys, verb, shown)
-	p:text(function()
-		local names = {}
-		for _, key in ipairs(keys()) do table.insert(names, ns.Look.elementName(key)) end
-		return table.concat(names, " and ") .. " " .. verb(#names) .. " after a /reload."
-	end, showWhen(function() return #keys() > 0 end, shown))
-end
-
-local function isElement(owner) return type(owner) == "string" and ns.ELEMENTS[owner] ~= nil end
-
-local function previewBorder(owner)
-	local o = resolve(owner)
-	if o == "totembar" then local _, b = ns.TotemBar.look(); return b end
-	if isElement(o) then return ns.borderFor(o) end
-	return ns.Style.read(o, "border")
-end
-
--- A style block's preview: pooled tiles in the owner's styles; framed adds its element frame.
-local PREVIEW_SIZE, SCHOOL_GAP = 40, 72
-local NO_FRAME = { look = "none" }
-local function previewTiles(f, owner, icon, x, bySchool, framed)
-	local pool, held = ns.Look.tilePool, {}
-	f:HookScript("OnHide", function()
-		while #held > 0 do pool.release(table.remove(held)) end
-	end)
-	return function()
-		local o = resolve(owner)
-		local schools = {}
-		if not isElement(o) and bySchool() then
-			for _, sc in ipairs(ns.Look.SCHOOLS) do
-				if o ~= "totembar" or sc.key ~= "spirit" then table.insert(schools, sc) end
-			end
-		end
-		local n = math.max(#schools, 1)
-		while #held > n do pool.release(table.remove(held)) end
-		while #held < n do table.insert(held, pool.acquire(f, PREVIEW_SIZE)) end
-		local border = previewBorder(owner)
-		local x0 = type(x) == "function" and x() or x
-		for i, t in ipairs(held) do
-			local sc = schools[i]
-			t:wear(o, { border = border, frame = not framed and NO_FRAME or nil })
-			t:icon(sc and sc.icon or type(icon) == "function" and icon() or icon)
-			t:school(sc and sc.key or isElement(o) and ns.Looks.elementSchool(o) or nil)
-			t:point("LEFT", f, "LEFT", x0 + (i - 1) * SCHOOL_GAP, 0)
-		end
-		return held
-	end
-end
-
--- The HUD lays out only out of combat, so a change made in combat reaches it when combat ends;
--- -- previews here take it at once.
-local function borderRows(p, owner, after, label, shown)
-	after = after or relayout
-	local r = styleRows(p, owner, "border", after)
-	if owner ~= nil then followRow(p, owner, "border", after, label, shown) end
-	local bordered = function() return r.own() and r.style().show end
-	local look
-	if owner ~= "swing" then
-		local f = p:row(52)
-		p:label(f, "Preview")
-		local function icon()
-			local o = resolve(owner)
-			if o == "totembar" then return 136098 end
-			return isElement(o) and ns.ELEMENTS[o].icon or 136026
-		end
-		local sync = previewTiles(f, owner, icon, LABEL_W + 24, function() return look().bySchool end)
-		p:add(f, 52, showWhen(r.own, shown), sync)
-	end
-	p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"), showWhen(r.own, shown))
-	look = choiceRows(p, r, "border", "look", "Border look", nil, showWhen(bordered, shown))
-	local function uses(part) return function() return bordered() and ns.Looks.uses(look(), part) end end
-	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("size"), r.set("size"), showWhen(uses("size"), shown))
-	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), showWhen(uses("color"), shown))
-	p:slider("Cap size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("capSize"), r.set("capSize"), showWhen(uses("capSize"), shown))
-	p:color("Cap colour", "Colour and opacity.", r.get("capColor"), r.set("capColor"), showWhen(uses("capColor"), shown))
-end
-
--- Art frames: kind "frame" round each icon, "groupframe" round a group or bar.
--- opts: shown; spacing = { get, set, min, max, size, enabled } offers a repeating look's spacing.
-local NO_REACH = { left = 0, right = 0, top = 0, bottom = 0 }
-local function frameRows(p, owner, kind, after, opts)
-	after = after or relayout
-	opts = opts or {}
-	local St, FR = ns.Style, ns.Frames
-	local shown = opts.shown
-	local wip = p:row(22)
-	ns.Look.expBadge(wip, "Art frames"):SetPoint("LEFT", wip, "LEFT", LABEL_W, 0)
-	p:add(wip, 22, shown)
-	local r = styleRows(p, owner, kind, after)
-	if owner ~= nil then followRow(p, owner, kind, after, nil, shown) end
-	local own = showWhen(r.own, shown)
-	local function key() local o = resolve(owner); return type(o) == "string" and o or nil end
-	local function look() return St.look(kind, r.style().look) end
-	local function framed() return not look().none end
-	local showAll = false
-	local function offered(all)
-		local out, cur, has = {}, look(), false
-		for _, e in ipairs(FR.available(kind, key(), all)) do
-			table.insert(out, e)
-			if e == cur then has = true end
-		end
-		if not has then table.insert(out, cur) end
-		return out
-	end
-	if kind == "frame" then
-		local f = p:row(52)
-		p:label(f, "Preview")
-		local function reach() return FR.usable(look()) and look().reach or NO_REACH end
-		local function height()
-			local rc = reach()
-			return math.max(52, math.ceil((1 + rc.top + rc.bottom) * PREVIEW_SIZE) + 8)
-		end
-		local function icon()
-			local o = resolve(owner)
-			return isElement(o) and ns.ELEMENTS[o].icon or 136026
-		end
-		local sync = previewTiles(f, owner, icon,
-			function() return LABEL_W + 24 + math.ceil(reach().left * PREVIEW_SIZE) end, function() return false end, true)
-		p:add(f, height, own, function()
-			f:SetHeight(height())
-			sync()
-		end)
-	end
-	local set = r.set("look")
-	local fields = St.field(kind, "look")
-	local function menu(_, root)
-		root:SetScrollMode(400)
-		local k = key()
-		local secs, at = {}, {}
-		local function section(id, name)
-			if not at[id] then
-				at[id] = { name = name, list = {} }
-				table.insert(secs, at[id])
-			end
-			return at[id]
-		end
-		section("lead")
-		if k then section("mine", "Made for " .. ns.Look.elementName(k)) end
-		for _, g in ipairs(fields.groups) do section(g[1], g[2]) end
-		for _, e in ipairs(offered(showAll)) do
-			local m = FR.madeFor(e, k)
-			local id = e.none and "lead" or m == true and "mine" or m == false and "others" or e.group or "lead"
-			table.insert(section(id, id == "others" and "Made for others" or nil).list, e)
-		end
-		local first = true
-		for _, sec in ipairs(secs) do
-			if #sec.list > 0 then
-				if sec.name then
-					if not first then root:CreateDivider() end
-					root:CreateTitle(sec.name)
-				end
-				first = false
-				for _, e in ipairs(sec.list) do
-					local item = root:CreateRadio(e.name, function() return look() == e end, function() set(e.key) end)
-					if e.weight then
-						item:AddInitializer(function(button)
-							if not button.AttachFontString then return end
-							local fs = button:AttachFontString()
-							fs:SetFontObject("GameFontDisableSmall")
-							fs:SetPoint("RIGHT", button, "RIGHT", -4, 0)
-							fs:SetText(e.weight)
-						end)
-					end
-				end
-			end
-		end
-	end
-	p:dropdown(fields.name, nil, function()
-		local out = {}
-		for _, e in ipairs(offered(showAll)) do table.insert(out, { e.key, e.name }) end
-		return out
-	end, function() return look().key end, set, own, 190, menu)
-	local exp = p:row(22)
-	ns.Look.expBadge(exp, fields.name):SetPoint("LEFT", exp, "LEFT", LABEL_W, 0)
-	p:add(exp, 22, showWhen(function() return look().experimental end, own))
-	p:checkbox("Show all looks", "Also looks made for something else.", function() return showAll end,
-		function(v) showAll = v; OP.refresh() end,
-		showWhen(function() return #offered(true) > #offered(false) end, own))
-	local tints = showWhen(function() return framed() and look().uses.color end, own)
-	p:color("Frame colour", "Tints the art. White keeps its own colours.", r.get("color"), r.set("color"), tints, true)
-	p:slider("Frame opacity", nil, 0.1, 1, 0.05, pct, r.get("alpha"), r.set("alpha"), showWhen(framed, own))
-	if kind == "frame" and owner ~= nil then
-		-- What a solid look's wings need from its group's spacing
-		local function room()
-			local o, l = resolve(owner), look()
-			if l.weight ~= "solid" or not FR.usable(l) then return nil end
-			local g = ns.groupOf(o)
-			if not (g and #g.members > 1) then return nil end
-			local rc, size = l.reach, ns.groupSize(g)
-			local n = g.orientation == "vertical" and rc.top + rc.bottom or rc.left + rc.right
-			n = math.ceil(n * size)
-			return n > 0 and n or nil
-		end
-		p:text(function() return string.format("Needs about %d spacing in its group to clear its neighbours.", room() or 0) end,
-			showWhen(function() return room() ~= nil end, own))
-	end
-	local sp = opts.spacing
-	if sp then
-		local function fit()
-			local l = look()
-			if l.none or not FR.usable(l) then return nil end
-			local n = FR.fitSpacing(l, sp.size())
-			return n and math.floor(n + 0.5)
-		end
-		local f = p:row(28)
-		f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-		f.text:SetTextColor(0.72, 0.72, 0.72)
-		f.text:SetPoint("LEFT", 4, 0)
-		local use = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-		use:SetSize(60, 22)
-		use:SetText("Use")
-		use:SetPoint("LEFT", f.text, "RIGHT", 10, 0)
-		use:SetScript("OnClick", function()
-			local n = fit()
-			if n then sp.set(math.min(math.max(n, sp.min), sp.max)) end
-		end)
-		setTip(use, "Use", "Sets Spacing to this.")
-		p:add(f, 28, showWhen(function() return fit() ~= nil end, own), function()
-			local n = fit() or 0
-			f.text:SetText(string.format("Fits at Spacing %d.", n))
-			use:SetEnabled(sp.get() ~= n and (not sp.enabled or sp.enabled()))
-		end)
-	end
-	if opts.note then p:text(opts.note, showWhen(framed, own)) end
-end
-
--- Whether a bar draws a group frame of its own
-local function barFramed(bar) return tContains(ns.Style.bar(bar).kinds, "groupframe") end
-
--- popSchool is its own setting, not a style field, so it stays whether or not the element
--- -- follows Global.
-local function popSchoolRow(p, key, shown)
-	local function get()
-		local v = ns.elementSetting(key, "popSchool")
-		return ns.SCHOOL_COLOR[v] and v or "own"
-	end
-	local function set(v)
-		ns.elementOpts(key).popSchool = v ~= "own" and v or nil
-		reglow()
-	end
-	p:owns({ elem = key, name = "popSchool", after = reglow })
-	p:dropdown("Element", "The element its pop and School material glow take.", function()
-		local own = ns.Looks.elementSchool(key, true)
-		local out = { { "own", "Its own" } }
-		for _, sc in ipairs(ns.Look.SCHOOLS) do
-			table.insert(out, { sc.key, sc.name })
-			if sc.key == own then out[1][2] = "Its own (" .. sc.name .. ")" end
-		end
-		return out
-	end, get, set, shown, 190)
-end
-
-local function glowBlock(p, owner, icon)
-	local after = reglow
-	p:header("Pulsing glow style")
-	local r = styleRows(p, owner, "glow", after)
-	if owner == nil then
-		p:anchor("glow")
-		p:text("Every pulsing glow. Elements and the totem bar can have their own.")
-	else followRow(p, owner, "glow", after) end
-	local own = showWhen(r.own)
-	local f = p:row(64)
-	p:label(f, "Preview")
-	local look
-	local sync = previewTiles(f, owner, icon, LABEL_W + 24, function() return look().bySchool end)
-	p:add(f, 64, own, function()
-		for _, t in ipairs(sync()) do t:glow(true) end
-	end)
-	look = choiceRows(p, r, "glow", "look", "Look", nil, own)
-	if isElement(owner) then popSchoolRow(p, owner, showWhen(function() return look().bySchool end)) end
-	reloadLine(p, function() return ns.Effects.auraGlowStale(owner) end,
-		function(n) return n == 1 and "changes glow" or "change glow" end, own)
-	local function uses(field)
-		return showWhen(function() local l = look(); return l.uses[field] and not (l.fields and l.fields[field]) end, own)
-	end
-	p:color("Colour", "Colour and opacity. Killed early, Grounded and Ran out keep their own colours.", r.get("color"), r.set("color"), uses("color"))
-	p:slider("Pulse length", "One pulse, in seconds.", 0.2, 2, 0.1, function(v) return string.format("%.1f s", v) end,
-		r.get("speed"), r.set("speed"), uses("speed"))
-	for _, e in ipairs(ns.Style.choices("glow", "look")) do
-		local names = {}
-		for field in pairs(e.fields or {}) do table.insert(names, field) end
-		table.sort(names)
-		for _, field in ipairs(names) do
-			local fd = e.fields[field]
-			p:slider(fd.name, fd.tip, fd.range[1], fd.range[2], fd.step, function(v) return type(fd.format) == "function" and fd.format(v) or string.format(fd.format, v) end,
-				r.get(field), r.set(field), showWhen(function() return look() == e end, own))
-		end
-	end
-	local setLow = r.set("low")
-	p:slider("Pulse depth", "How much it fades between pulses. 0% is steady.", 0, 1, 0.05, pct,
-		function() return 1 - r.style().low end, function(v) setLow(1 - v) end, uses("low"))
-	p:slider("Thickness", "How far in from the edges it reaches.", 0.1, 0.5, 0.05, pct, r.get("width"), r.set("width"), uses("width"))
-	p:slider("Intensity", "How bright it is. Above 100% it adds light.", 0.2, 2.5, 0.1, pct, r.get("strength"), r.set("strength"), uses("strength"))
-	if owner == nil then ownLine(p, "glow") end
-end
-
-local function popBlock(p, owner, icon, kind)
-	local f, sync
-	local function playPop()
-		for _, t in ipairs(sync()) do t:pop(kind) end
-	end
-	local after = perFrame(function()
-		ns.applyTimers()
-		OP.refresh()
-		if f and f:IsVisible() then playPop() end
-	end)
-	p:header("Pop style")
-	local r = styleRows(p, owner, "pop", after)
-	-- Colour is for Ready and Ran out only; a warning's pop keeps its own.
-	local colored = ns.Looks.POP_EVENTS[kind]
-	local function burst() return ns.Style.choice("pop", "burst", r.style().burst) end
-	local function bySchool()
-		return (colored and r.style().colorBy == "school") or burst().bySchool or false
-	end
-	if owner == nil then
-		p:anchor("pop")
-		p:text("The burst when something happens: a cooldown ready, an imbue dropping, a totem ending. Elements and the totem bar can have their own.")
-	else followRow(p, owner, "pop", after) end
-	local own = showWhen(r.own)
-	f = p:row(56)
-	p:label(f, "Try it")
-	sync = previewTiles(f, owner, icon, LABEL_W + 16, bySchool)
-	local play = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-	play:SetSize(80, 22)
-	play:SetText("Play")
-	play:SetScript("OnClick", playPop)
-	p:add(f, 56, own, function()
-		local list = sync()
-		play:ClearAllPoints()
-		play:SetPoint("LEFT", list[#list].box, "RIGHT", 24, 0)
-	end)
-	if isElement(owner) then popSchoolRow(p, owner, showWhen(bySchool)) end
-	if colored then
-		local color = choiceRows(p, r, "pop", "colorBy", "Colour", "For Ready and Ran out. By event: gold when ready, white when a totem runs out. Killed early, Grounded and the imbue dropping keep their own colours.", own)
-		p:text("By school suits this burst.", showWhen(function() return color().key == "event" and burst().bySchool end, own))
-	end
-	choiceRows(p, r, "pop", "flash", "Flash", "Over the icon.", own)
-	choiceRows(p, r, "pop", "burst", "Burst", "Around the icon. Element effect: each element its own.", own)
-	local reach = ns.Style.KINDS.pop.ranges.reach
-	p:slider("Reach", "How far the burst spreads.", reach[1], reach[2], 0.05, pct, r.get("reach"), r.set("reach"),
-		showWhen(function() return burst().uses.reach end, own))
-	local motion = choiceRows(p, r, "pop", "motion", "Motion", "How the icon moves.", own)
-	local moves = showWhen(function() return motion().uses.size end, own)
-	p:slider("Motion distance", "How far it grows, hops or shakes.", 1.1, 1.8, 0.05, pct, r.get("size"), r.set("size"), moves)
-	p:slider("Speed", nil, 0.5, 2, 0.1, pct, r.get("speed"), r.set("speed"), own)
-	if owner == nil then ownLine(p, "pop") end
-end
-
-local function expiringLooks(p, get, set, noun, shown, only)
-	local offer = {}
-	for _, k in ipairs(only or { "grey", "ring", "pulse", "glow" }) do offer[k] = true end
-	if offer.grey then p:checkbox("Grey icon", "Desaturate the icon.", get("grey"), set("grey"), shown) end
-	if offer.ring then p:checkbox("Red ring", "A red ring inside the icon edge.", get("ring"), set("ring"), shown) end
-	if offer.pulse then p:checkbox("Fade in and out", nil, get("pulse"), set("pulse"), shown) end
-	if offer.glow then
-		p:checkbox("Pulsing glow", "A glow inside the " .. noun .. " that pulses.", get("glow"), set("glow"), shown)
-	end
-end
-
-local function killedBlock(p, get, set, noun, label)
-	p:header("Killed early")
-	local killed = p:checkbox(label, "The dead totem flashes red over its " .. noun .. ". Not when you dismiss it or it runs out.",
-		get("killed"), set("killed"))
-	p:sub(killed, get("killed"), function()
-		p:checkbox("Pop", "The " .. noun .. " bursts for a moment.", get("killedPop"), set("killedPop"))
-		p:checkbox("Pulsing glow", "In red.", get("killedGlow"), set("killedGlow"))
-		p:checkbox("Cross until recast", "A red cross stays over the " .. noun .. " until you recast it, up to 5 s.",
-			get("killedMark"), set("killedMark"))
-	end)
-end
-
-local function fontChoices(current)
-	local out = {}
-	for _, f in ipairs(ns.Media.fonts(current)) do
-		local path = f[3]
-		table.insert(out, { f[1], f[2], init = path and function(button)
-			local obj = ns.Media.menuFont(path)
-			if not obj then return end
-			local fs = button.fontString
-			fs:SetFontObject(obj)
-			fs:SetTextToFit(fs:GetText())
-		end })
-	end
-	return out
-end
-local function textBlock(p, owner, after)
-	after = after or relayout
-	p:header("Text style")
-	local r = styleRows(p, owner, "text", after)
-	if owner == nil then
-		p:anchor("text")
-		p:text("Timers, counts and keys. The totem bar and the swing timer can have their own.")
-	else followRow(p, owner, "text", after) end
-	local own = showWhen(r.own)
-	local function problem() return ns.Media.fontProblem(r.style().font) end
-	p:dropdown("Font", nil, function() return fontChoices(r.style().font) end, r.get("font"), r.set("font"), own, 200)
-	p:text(function() return problem() or "" end, showWhen(function() return r.own() and problem() ~= nil end))
-	p:dropdown("Outline", nil, ns.Media.OUTLINES, r.get("outline"), r.set("outline"), own, 160)
-	p:checkbox("Shadow", "A dark shadow under the text.", r.get("shadow"), r.set("shadow"), own)
-	if owner == nil then ownLine(p, "text") end
-end
-
-local function barRows(p, owner, after)
-	after = after or relayout
-	local r = styleRows(p, owner, "bar", after)
-	if owner then followRow(p, owner, "bar", after, "Texture same as Global") end
-	local own = showWhen(r.own)
-	local c = ns.SCHOOL_COLOR.water
-	p:dropdown("Texture", nil, function()
-		local out = {}
-		for _, b in ipairs(ns.Media.bars(owner)) do
-			table.insert(out, { b[1], b[2], init = function(button)
-				local tex = button:AttachTexture()
-				tex:SetSize(64, 10)
-				tex:SetPoint("LEFT", button.fontString, "RIGHT", 8, 0)
-				local path, atlas = ns.Media.barOf(b[1])
-				if atlas then tex:SetAtlas(path) else tex:SetTexture(path) end
-				tex:SetVertexColor(c[1], c[2], c[3])
-			end })
-		end
-		return out
-	end, r.get("texture"), r.set("texture"), own, 200)
-	local function problem() return ns.Media.barProblem(owner) end
-	p:text(function() return problem() or "" end, showWhen(function() return r.own() and problem() ~= nil end))
-end
-local function barBlock(p)
-	p:header("Bar texture")
-	p:anchor("bar")
-	p:text("Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer. The totem bar's time bars and the swing timer can have their own.")
-	barRows(p, nil)
-	ownLine(p, "bar")
-end
-
-local TEXT_POS = { { "auto", "Auto" }, { "center", "Centre" }, { "topleft", "Top left" }, { "bottom", "Bottom" } }
-local function timerSettings(p, title, key, kind, after, note, first, barPlaced)
-	after = after or retime
-	local cant = ns.Timer.cant(key, kind)
-	p:header(title)
-	local r = styleRows(p, key, kind, after)
-	local style, tg, ts, own = r.style, r.get, r.set, r.own
-	local function part(name) return showWhen(function() return not cant[name] and own() end) end
-	local function on(field) return function() return style()[field] end end
-	if not key then p:anchor(kind) end
-	if first then first() end
-	if note then p:text(note) end
-	if key then followRow(p, key, kind, after) end
-	for _, why in pairs(cant) do p:text(why, own) end
-	local text = p:checkbox("Countdown text", "Numbers counting down.", tg("text"), ts("text"), part("text"))
-	p:sub(text, on("text"), function()
-		p:slider("Text size", nil, 6, 48, 1, int, tg("textSize"), ts("textSize"))
-		p:color("Text colour", nil, tg("textColor"), ts("textColor"))
-		p:dropdown("Text position", "Auto: centred, or top-left on an icon that also shows a cooldown.", TEXT_POS,
-			tg("textPos"), ts("textPos"), nil, 140)
-		p:dropdown("Time format", "How minutes show. Minutes round up; the last minute always counts seconds.", {
-			{ 0, "2m, then seconds" }, { 120, "1:31 in the last 2 minutes" },
-			{ 300, "1:31 in the last 5 minutes" }, { 600, "1:31 in the last 10 minutes" },
-		}, tg("abbrev"), ts("abbrev"), nil, 220)
-		local colored = p:checkbox("Colour by time left", "The numbers change colour near the end.", tg("timeColors"),
-			ts("timeColors"))
-		local function seconds(v) return string.format("%d s", v) end
-		p:sub(colored, on("timeColors"), function()
-			p:slider("Soon", "Seconds left when the first colour starts.", 1, 60, 1, seconds, tg("soon"), ts("soon"))
-			p:color("Soon colour", nil, tg("soonColor"), ts("soonColor"), nil, true)
-			p:slider("Now", "Seconds left when the second colour starts.", 1, 60, 1, seconds, tg("now"), ts("now"))
-			p:color("Now colour", nil, tg("nowColor"), ts("nowColor"), nil, true)
-		end)
-		p:slider("Tenths below", "Tenths of a second under this many seconds.", 0, 10, 1,
-			function(v) return v == 0 and "Off" or seconds(v) end, tg("tenths"), ts("tenths"))
-	end)
-	local swipe = p:checkbox("Swipe", "A shade that sweeps round the icon.", tg("swipe"), ts("swipe"), part("swipe"))
-	p:sub(swipe, on("swipe"), function()
-		p:slider("Swipe darkness", nil, 0.1, 1, 0.05, pct, tg("swipeAlpha"), ts("swipeAlpha"))
-		p:checkbox("Swipe darkens as time runs out", "Off: it lightens, like most cooldowns.", tg("swipeReverse"), ts("swipeReverse"))
-	end)
-	local bar = p:checkbox("Time bar", "A bar along an edge that drains.", tg("bar"), ts("bar"), part("bar"))
-	p:sub(bar, on("bar"), function()
-		p:slider("Bar height", nil, 1, 20, 1, px, tg("barHeight"), ts("barHeight"))
-		p:dropdown("Bar edge", nil, { { "bottom", "Bottom" }, { "top", "Top" } }, tg("barEdge"), ts("barEdge"),
-			function() return not (barPlaced and barPlaced()) end, 140)
-		local colour = p:dropdown("Bar colour", nil, { { true, "Element colour" }, { false, "Custom" } }, tg("barElement"),
-			ts("barElement"), nil, 160)
-		p:sub(colour, function() return not style().barElement end, function()
-			p:color("Custom bar colour", nil, tg("barColor"), ts("barColor"))
-		end)
-	end)
-	if not key then ownLine(p, kind) end
-end
-
-local function gcdBlock(p, key)
-	local function after() ns.refreshAll(); ns.TotemBar.refreshGCD(); OP.refresh() end
-	p:header("Global cooldown")
-	local r = styleRows(p, key, "gcd", after)
-	if key then followRow(p, key, "gcd", after)
-	else
-		p:anchor("gcd")
-		p:text("Elements and the totem bar can have their own.")
-	end
-	p:checkbox("Show global cooldown", "The sweep after every cast, as on action bars.", r.get("show"), r.set("show"), showWhen(r.own))
-	if not key then ownLine(p, "gcd") end
-end
+local int = Page.int
 
 local function confirm(which, text, button, action)
 	StaticPopupDialogs[which] = {
@@ -719,35 +153,35 @@ local function buildGlobal(p)
 	end
 	p:text(function() return "Currently using their own: " .. table.concat(ownSizes(), ", ") end,
 		function() return #ownSizes() > 0 end)
-	timerSettings(p, "Cooldowns", nil, "cooldown", nil, "A spell you can't cast yet.")
-	gcdBlock(p, nil)
-	timerSettings(p, "Time left", nil, "uptime", nil, "A totem, shield or imbue running.")
-	textBlock(p, nil)
-	barBlock(p)
+	K.timerSettings(p, "Cooldowns", nil, "cooldown", nil, "A spell you can't cast yet.")
+	K.gcdBlock(p, nil)
+	K.timerSettings(p, "Time left", nil, "uptime", nil, "A totem, shield or imbue running.")
+	K.textBlock(p, nil)
+	K.barBlock(p)
 	p:header("Border style")
 	p:anchor("border")
 	p:text("Every border. Elements, the totem bar and the swing timer can have their own.")
-	borderRows(p, nil)
-	ownLine(p, "border")
+	K.borderRows(p, nil)
+	K.ownLine(p, "border")
 	p:header("Frame style")
 	p:anchor("frame")
 	p:text("Art round each icon. Elements can have their own.")
-	frameRows(p, nil, "frame")
-	ownLine(p, "frame")
+	K.frameRows(p, nil, "frame")
+	K.ownLine(p, "frame")
 	p:header("Group frame style")
 	p:anchor("groupframe")
 	p:text(function()
 		local names = { "Groups" }
 		for _, bar in ipairs(ns.Style.bars()) do
-			if barFramed(bar) then table.insert(names, "the " .. ns.Style.bar(bar).label:lower()) end
+			if K.barFramed(bar) then table.insert(names, "the " .. ns.Style.bar(bar).label:lower()) end
 		end
 		local who = #names == 1 and names[1] or table.concat(names, ", ", 1, #names - 1) .. " and " .. names[#names]
 		return "Art round a whole group. " .. who .. " can have their own."
 	end)
-	frameRows(p, nil, "groupframe")
-	ownLine(p, "groupframe")
-	glowBlock(p, nil, 136026)
-	popBlock(p, nil, 136026, "ready")
+	K.frameRows(p, nil, "groupframe")
+	K.ownLine(p, "groupframe")
+	K.glowBlock(p, nil, 136026)
+	K.popBlock(p, nil, 136026, "ready")
 end
 
 local nameAction
@@ -856,357 +290,23 @@ local function buildAbout(p)
 	if #ai > 0 then p:text("Frames made with the same model: " .. table.concat(ai, ", ") .. ".") end
 end
 
+-- Key stays "general": it is saved as the last page and in folded blocks' keys.
+OP.registerPage("home", { title = "Home", icon = "Interface\\Icons\\ClassIcon_Shaman", order = 10, build = buildHome })
+OP.registerPage("general", { title = "Global settings", icon = "Interface\\Icons\\INV_Misc_Gear_01", order = 20,
+	build = buildGlobal })
+OP.registerPage("profiles", { title = "Profiles", icon = "Interface\\Icons\\INV_Misc_Note_01", order = 80,
+	bottom = 100, build = buildProfiles })
+OP.registerPage("about", { title = "About", icon = "Interface\\Icons\\INV_Misc_Book_09", order = 90, bottom = 70,
+	build = buildAbout })
+
 -- Show choices
 local SHOW_CHOICES = { { "always", "Always" }, { "combat", "In combat" }, { "never", "Hidden" } }
 local COMBAT_SHOW = { { "always", "Always" }, { "combat", "In combat" }, { "target", "In combat or with an enemy target" } }
 local STAY_TIP = "Seconds it stays once combat ends, then it fades out."
 local function staySecs(v) return v == 0 and "None" or string.format("%d s", v) end
 
--- Totem bar
-local MAX_WARN_ROWS = 32
-
-local function buildTotemBar(p)
-	local TB = ns.TotemBar
-	local function c() return TB.cfg() end
-	local changed = perFrame(function() TB.applySettings(); OP.refresh() end)
-	local function tget(key) return function() return c()[key] end end
-	local function own(key, ref)
-		ref = ref or {}
-		ref.bar, ref.name, ref.after = "totembar", key, changed
-		p:owns(ref)
-	end
-	local function tset(key)
-		own(key)
-		return function(v) c()[key] = v; changed() end
-	end
-
-	p:hero("totembar")
-	p:callout("Not learned yet. It shows on screen once your character knows a totem.",
-		function() return TB.barOn() and not TB.hasTotems() end)
-	local full = function() return c().mode == "everything" end
-	p:header("Totems", nil, nil, nil, { open = true })
-	own("mode", { reset = function() TB.setMode(TB.DEFAULTS.mode) end })
-	p:cards("Use", nil, {
-		{ "blizzard", "Blizzard's", "Interface\\Icons\\INV_Misc_Gear_01" },
-		{ "active", "Active totems", "Interface\\Icons\\Spell_Nature_TimeStop" },
-		{ "everything", "Everything", "Interface\\Icons\\Spell_Shaman_DropAll_01", tag = "RECOMMENDED" },
-	}, tget("mode"), function(v) TB.setMode(v); changed() end)
-	local KEYS = "Keys: Options > Keybindings > " .. ns.NAME .. "."
-	local BAR_KEYS = "Keys: Options > Keybindings > " .. ns.NAME .. ", or hover the bar in Quick Keybind Mode."
-	p:text(ns.NAME .. "'s totem bar is off. Blizzard's totem bar and active totems display are on.\n"
-		.. "The totem key bindings still work. " .. KEYS, function() return c().mode == "blizzard" end)
-	p:text("Keeps Blizzard's totem bar, but replaces Blizzard's active totems display usually shown under the player frame.\n"
-		.. "Right-click a totem to dismiss it. " .. BAR_KEYS, function() return c().mode == "active" end)
-	p:text("Both of Blizzard's totem frames are replaced by " .. ns.NAME .. ".\n"
-		.. "Right-click a totem to dismiss it. Alt+click a slot to pick its totem. " .. BAR_KEYS, full)
-
-	p.gate = TB.barOn
-	p:header("Display", nil, nil, nil, { open = true })
-	local function free(field) return function() return not TB.skin.owns(field) end end
-	local function owned(field) return function() return TB.skin.owns(field) end end
-	local show = p:dropdown("Show", "When the bar is on screen. It always shows while positioning is unlocked.",
-		{ { "always", "Always" }, { "active", "In combat or a totem down" }, { "combat", "In combat" },
-			{ "target", "In combat or with an enemy target" } },
-		tget("show"), tset("show"), nil, 250)
-	p:sub(show, function() return c().show ~= "always" end, function()
-		p:slider("Stay after combat", STAY_TIP, 0, 10, 1, staySecs, tget("fadeAfter"), tset("fadeAfter"))
-	end)
-	p:dropdown("Tooltips", nil, { { "always", "Always" }, { "ooc", "Out of combat" }, { "never", "Never" } },
-		tget("tips"), tset("tips"), nil, 160)
-	local keys = p:checkbox("Show keybinding text", "Each button's key, in its corner.", tget("keys"), tset("keys"))
-	p:sub(keys, tget("keys"), function()
-		p:slider("Text size", "At the default icon size. It grows with the icon.", 6, 30, 1, int, tget("keySize"), tset("keySize"))
-		p:slider("X offset", "From the top-right corner.", -20, 20, 1, px, tget("keyX"), tset("keyX"))
-		p:slider("Y offset", "From the top-right corner.", -20, 20, 1, px, tget("keyY"), tset("keyY"))
-		p:color("Text colour", nil, tget("keyColor"), tset("keyColor"))
-	end)
-
-	p:header("Totem theme")
-	local skins = {}
-	for _, e in ipairs(TB.skin.LIST) do table.insert(skins, { e.key, e.name }) end
-	p:dropdown("Theme", "How the whole bar is drawn.", skins, function() return TB.skin.current().key end,
-		tset("skin"), nil, 190)
-	local expRow = p:row(22)
-	ns.Look.expBadge(expRow, "Totem themes"):SetPoint("LEFT", expRow, "LEFT", LABEL_W, 0)
-	p:add(expRow, 22, function() return TB.skin.current().experimental or false end)
-	local function theme(key) return function() return TB.skin.current().key == key end end
-	p:checkbox("Tray", "A dark tray edged in gold behind the slots.", tget("pixelTray"), tset("pixelTray"),
-		theme("pixel"))
-	p:slider("Edge thickness", "The element-coloured edge round each slot, in pixels.", 1, 4, 1, px,
-		tget("pixelEdge"), tset("pixelEdge"), theme("pixel"))
-	p:dropdown("Plinth", nil, TB.skin.PLINTHS, tget("stonePlinth"), tset("stonePlinth"), theme("stone"), 140)
-
-	p:header("Layout")
-	local ORDER_H, ORDER_W = 28, 260
-	own("order")
-	own("hidden")
-	p:text("Drag to reorder.")
-	local list = p:row(4 * ORDER_H)
-	local rows, dragFrom = {}, nil
-	local line = Page.dropLine(list)
-	local function dropAt()
-		return Page.dropPosition(rows, function(r) return r == rows[dragFrom] end)
-	end
-	local ghost = Page.dragGhost(function()
-		local at, others = dropAt()
-		line:SetShown(Page.placeDropLine(line, others, at))
-	end)
-	local function endDrag(drop)
-		local from = dragFrom
-		local at = from and drop and dropAt()
-		dragFrom = nil
-		ghost:Hide()
-		line:Hide()
-		if not from then return end
-		if at then
-			local o = c().order
-			local el = table.remove(o, from)
-			table.insert(o, at, el)
-			changed()
-		end
-		OP.refresh()
-	end
-	-- Leaving the page or closing the window mid-drag drops nothing.
-	list:SetScript("OnHide", function() endDrag(false) end)
-	for i = 1, 4 do
-		local r = CreateFrame("Button", nil, list)
-		r:SetSize(ORDER_W, ORDER_H - 2)
-		r:SetPoint("TOPLEFT", list, "TOPLEFT", 0, -(i - 1) * ORDER_H)
-		local bg = r:CreateTexture(nil, "BACKGROUND")
-		bg:SetAllPoints()
-		bg:SetColorTexture(1, 1, 1, 0.06)
-		local hl = r:CreateTexture(nil, "HIGHLIGHT")
-		hl:SetAllPoints()
-		hl:SetColorTexture(1, 1, 1, 0.12)
-		local cb = CreateFrame("CheckButton", nil, r, "UICheckButtonTemplate")
-		cb:SetSize(26, 26)
-		cb:SetPoint("LEFT", 0, 0)
-		cb:SetScript("OnClick", function(self)
-			c().hidden[r.el] = not self:GetChecked() or nil
-			changed()
-		end)
-		setTip(cb, "Slot", "Show this element's slot.")
-		r.cb = cb
-		r.icon = r:CreateTexture(nil, "ARTWORK")
-		r.icon:SetSize(20, 20)
-		r.icon:SetPoint("LEFT", cb, "RIGHT", 4, 0)
-		ns.cropIcon(r.icon)
-		r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-		r.text:SetPoint("LEFT", r.icon, "RIGHT", 6, 0)
-		r:RegisterForDrag("LeftButton")
-		r:SetScript("OnDragStart", function(self)
-			dragFrom = i
-			self:SetAlpha(0.35)
-			ghost.icon:SetTexture(self.icon:GetTexture())
-			ghost.text:SetText(self.text:GetText())
-			ghost:Show()
-		end)
-		r:SetScript("OnDragStop", function() endDrag(true) end)
-		setTip(r, "Order", "Drag to change where the element sits on the bar.")
-		rows[i] = r
-	end
-	p:add(list, 4 * ORDER_H, nil, function()
-		for i, r in ipairs(rows) do
-			local el = c().order[i]
-			r.el = el
-			r.icon:SetTexture(ns.Look.TOTEM_ICON[el])
-			r.text:SetText(TB.NAME[el])
-			r.cb:SetChecked(not c().hidden[el])
-			r:SetAlpha(1)
-		end
-	end)
-	local function setDir(v)
-		c().dir = v
-		c().pop = v == "row" and "up" or "right"
-	end
-	own("dir", { reset = function() setDir(TB.DEFAULTS.dir) end })
-	p:dropdown("Direction", nil, { { "row", "Row" }, { "column", "Column" } }, tget("dir"),
-		function(v) setDir(v); changed() end, free("dir"), 140)
-	p:dropdown("Pickers open", "Which way the totem picker opens from a slot.", function()
-		if TB.eff().dir == "row" then return { { "up", "Up" }, { "down", "Down" } } end
-		return { { "right", "Right" }, { "left", "Left" } }
-	end, function() return TB.eff().pop end, tset("pop"),
-		function() return full() and not TB.skin.owns("pop") end, 140)
-	p:slider("Spacing", "Gap between the slots. Below 0 they overlap.", -10, 20, 1, px, tget("spacing"), tset("spacing"),
-		free("spacing"))
-	p:text(function()
-		local names = {}
-		for _, it in ipairs({ { "dir", "Direction" }, { "pop", "Pickers open" }, { "spacing", "Spacing" },
-				{ "extras", "Call and Recall" } }) do
-			if TB.skin.owns(it[1]) then table.insert(names, it[2]) end
-		end
-		return table.concat(names, ", ") .. ": set by the theme."
-	end, function()
-		return TB.skin.owns("dir") or TB.skin.owns("pop") or TB.skin.owns("spacing") or TB.skin.owns("extras")
-	end)
-	own("sizeFollow", { reset = function() TB.setSizeFollow(TB.DEFAULTS.sizeFollow) end })
-	local sizeFollow = globalRow(p, "Icon size same as Global", "Use the global icon size.",
-		tget("sizeFollow"), function(v) TB.setSizeFollow(v); changed() end, "size")
-	own("size", { default = tget("size"), reset = function() c().size = nil end })
-	p:sub(sizeFollow, function() return not c().sizeFollow end, function()
-		p:slider("Icon size", nil, 24, 96, 1, px,
-			tget("size"), function(v) c().size = v; changed() end)
-	end)
-	p:dropdown("Call and Recall", "Where they sit on the bar.", { { "ends", "Both ends" }, { "before", "Before the slots" }, { "after", "After the slots" } },
-		tget("extras"), tset("extras"),
-		showWhen(function() return (c().call or c().recall) and not TB.skin.owns("extras") end, full), 180)
-	own("extrasScale")
-	own("stoneExtrasScale")
-	p:slider("Call and Recall size", "As a share of the slots' size.", 0.5, 1.5, 0.05,
-		pct, function() return TB.eff().extrasScale end,
-		function(v) c()[TB.skin.extrasScaleKey()] = v; changed() end,
-		showWhen(function() return c().call or c().recall end, full))
-	p:slider("Scale", "Grows everything on the bar, borders too.", 0.5, 3, 0.05,
-		times, tget("scale"), tset("scale"))
-	p:slider("Opacity", nil, 0.1, 1, 0.05,
-		pct, tget("alpha"), tset("alpha"))
-
-	p:header("Border style")
-	p:text("Set by the theme.", owned("border"))
-	borderRows(p, "totembar", changed, nil, free("border"))
-	if barFramed("totembar") then
-		p:header("Frame style")
-		frameRows(p, "totembar", "groupframe", changed, { spacing = {
-			get = tget("spacing"), set = function(v) c().spacing = v; changed() end, min = -10, max = 20,
-			size = function() return (TB.look()) end, enabled = free("spacing") } })
-	end
-
-	p.gate = full
-	p:header("Buttons")
-	p:checkbox("Left-click casts your pick", "Left-click a slot to drop that element's picked totem.", tget("cast"), tset("cast"))
-	local arrows = p:checkbox("Arrow opens a totem picker", "A tab on each slot opens its totems. Works in combat.",
-		tget("arrows"), tset("arrows"))
-	p:sub(arrows, tget("arrows"), function()
-		p:slider("Arrow size", "How deep the tab is.", 8, 32, 1, px, tget("arrowSize"), tset("arrowSize"))
-	end)
-	p:checkbox("Open pickers on hover", "Hovering a slot opens its totems. Works in combat.",
-		tget("pickHover"), tset("pickHover"))
-	p:checkbox(ns.Spells.name("call"), nil, tget("call"), tset("call"))
-	p:checkbox(ns.Spells.name("recall"), nil, tget("recall"), tset("recall"))
-	p:text(function()
-		return string.format("%s shows once you know it. Right-click %s to dismiss all totems, even before you learn it.",
-			ns.Spells.name("call"), ns.Spells.name("recall"))
-	end)
-
-	p.gate = TB.barOn
-	local function beside() return TB.skin.barPlace() == "out" end
-	timerSettings(p, "Time left", "totembar", "uptime", changed, nil, nil, beside)
-	p:dropdown("Time bar position", "Beside the icon: on the side away from the pickers.",
-		{ { "in", "In the icon" }, { "out", "Beside the icon" } }, tget("barPlace"), tset("barPlace"),
-		function() return ns.Style.value("totembar", "uptime", "bar") and not TB.skin.owns("barPlace") end, 190)
-	barRows(p, "totembar", changed)
-	textBlock(p, "totembar", changed)
-
-	p.gate = full
-	gcdBlock(p, "totembar")
-	p:header("Totem not down")
-	local look = p:dropdown("Look", "How a slot looks while its totem isn't down.",
-		{ { "pick", "Your pick" }, { "frame", "Element colour" }, { "blank", "Blank" } }, tget("empty"), tset("empty"), nil, 180)
-	p:sub(look, function() return c().empty == "pick" end, function()
-		p:checkbox("Greyed", "Off: the pick in colour.", tget("idleGrey"), tset("idleGrey"))
-		p:slider("Opacity", nil, 0.1, 1, 0.05, pct, tget("idleAlpha"), tset("idleAlpha"))
-		p:text("With No totem picked, the slot shows its element colour.")
-	end)
-
-	p:header("Not your pick")
-	p:text("When a different totem is down, your pick shows small beside the slot.")
-	local offPick = p:checkbox("Show your pick", "On the side away from the picker.",
-		tget("offPick"), tset("offPick"))
-	p:sub(offPick, tget("offPick"), function()
-		p:slider("Size", nil, 0.25, 0.8, 0.05, pct, tget("badgeSize"), tset("badgeSize"))
-		p:slider("Opacity", nil, 0.1, 1, 0.05, pct, tget("badgeAlpha"), tset("badgeAlpha"))
-		p:slider("Colour", "0% is grey, 100% full colour.", 0, 1, 0.05, pct, tget("badgeSat"), tset("badgeSat"))
-		p:slider("X offset", "From its place beside the slot.", -30, 30, 1, px, tget("badgeX"), tset("badgeX"))
-		p:slider("Y offset", "From its place beside the slot.", -30, 30, 1, px, tget("badgeY"), tset("badgeY"))
-	end)
-
-	p.gate = TB.barOn
-	p:header("Out of range")
-	p:text("A strip along the top of a slot shows whether you're getting your own totem's buff, for totems that buff you. In range shows nothing at 0% opacity, the default.",
-		free("range"))
-	p:text(function() return TB.skin.rangeText() or "" end, owned("range"))
-	local range = p:checkbox("Show", nil, tget("range"), tset("range"))
-	p:sub(range, tget("range"), function()
-		p:slider("Height", "In pixels.", 1, 12, 1, px, tget("rangeHeight"), tset("rangeHeight"), free("rangeHeight"))
-		p:color("In range", "Colour and opacity.", tget("rangeIn"), tset("rangeIn"), free("range"))
-		p:color("Out of range", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"), free("range"))
-		p:text("A buff lingers a few seconds after you leave its range. Another shaman's totem of the same type can replace your buff, so yours shows as out of range.")
-	end)
-
-	p:header("Expiring")
-	local WARN = { grey = "warnGrey", ring = "warnRing", pulse = "warnPulse", glow = "warnGlow" }
-	expiringLooks(p, function(k) return tget(WARN[k]) end, function(k) return tset(WARN[k]) end, "slot")
-	p:checkbox("Pop when it runs out", "The totem pops and fades the moment it runs out.", tget("expiredPop"), tset("expiredPop"))
-	ns.Sounds.row(p, "Sound when it ends", "When a totem runs out or is killed. Not when you dismiss it.", tget("goneSound"), tset("goneSound"))
-	local secs = function(v) return v == 0 and "Off" or string.format("%d s", v) end
-	p:slider("Warn in the last", nil, 0, 30, 1, secs, tget("warn"), tset("warn"))
-	-- Defaults use spell names that may not have loaded yet: TB.warnOverChanged accepts either.
-	own("warnOver", { changed = function() return TB.warnOverChanged(c().warnOver) end,
-		reset = function() c().warnOver = TB.warnOverDefaults() end })
-	p:text("Totems with their own warning time, instead of the default:", function() return next(c().warnOver) ~= nil end)
-	-- Totems are kept by the client's name for them (any rank).
-	local function overName(i)
-		local names = {}
-		for name in pairs(c().warnOver) do table.insert(names, name) end
-		table.sort(names)
-		return names[i]
-	end
-	for i = 1, MAX_WARN_ROWS do
-		local row = p:slider("", nil, 0, 30, 1, secs,
-			function() local name = overName(i); return name and c().warnOver[name] or c().warn end,
-			function(v) local name = overName(i); if name then c().warnOver[name] = v; changed() end end,
-			function() return overName(i) ~= nil end)
-		local item = p.items[#p.items]
-		local refresh = item.refresh
-		item.refresh = function()
-			row.label:SetText(((overName(i) or ""):gsub(" Totem$", "")))
-			refresh()
-		end
-		local x = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-		x:SetSize(24, 22)
-		x:SetPoint("RIGHT", row, "RIGHT", -2, 0)
-		x:SetText("X")
-		x:SetScript("OnClick", function()
-			local name = overName(i)
-			if name then c().warnOver[name] = nil; changed() end
-		end)
-		setTip(x, "Remove", "Use the time above for this totem.")
-	end
-	local add = p:dropdown("Add a totem", "Give a totem its own warning time.", {}, function() return nil end, function() end, nil, 220, function(_, root)
-		local names, seen = {}, {}
-		for slot = 1, 4 do
-			for _, id in ipairs(ns.Totems.knownTotems(slot)) do
-				local name = ns.Spells.nameOf(id)
-				if name and not seen[name] and c().warnOver[name] == nil then
-					seen[name] = true
-					table.insert(names, name)
-				end
-			end
-		end
-		table.sort(names)
-		for _, name in ipairs(names) do
-			root:CreateButton(name, function() c().warnOver[name] = c().warn; changed() end)
-		end
-		if #names == 0 then root:CreateTitle("Every totem you know has its own time") end
-	end)
-	pcall(add.dropdown.SetDefaultText, add.dropdown, "Choose a totem")
-
-	killedBlock(p, tget, tset, "slot", "Flash when a totem dies early")
-
-	glowBlock(p, "totembar", 136098)
-	popBlock(p, "totembar", 136098, "expired")
-	p.gate = nil
-end
-
-OP.kit = {
-	relayout = relayout, perFrame = perFrame, respell = respell, get = get, set = set, gopt = gopt, confirm = confirm,
-	SHOW_CHOICES = SHOW_CHOICES,
-	COMBAT_SHOW = COMBAT_SHOW, STAY_TIP = STAY_TIP, staySecs = staySecs,
-	globalRow = globalRow, borderRows = borderRows, frameRows = frameRows, barFramed = barFramed,
-	timerSettings = timerSettings, gcdBlock = gcdBlock, glowBlock = glowBlock, popBlock = popBlock,
-	textBlock = textBlock, barRows = barRows,
-	expiringLooks = expiringLooks, killedBlock = killedBlock,
-}
+K.get, K.set, K.gopt, K.confirm = get, set, gopt, confirm
+K.SHOW_CHOICES, K.COMBAT_SHOW, K.STAY_TIP, K.staySecs = SHOW_CHOICES, COMBAT_SHOW, STAY_TIP, staySecs
 
 -- Window
 local navButtons, navDivider, navLock, navList = {}, nil, nil, nil
@@ -1283,13 +383,9 @@ local function buildNav()
 		b:SetPoint("TOPLEFT", win, "TOPLEFT", 12, y)
 		y = y - 30
 	end
-	top("home", "Home", "Interface\\Icons\\ClassIcon_Shaman")
-	top("general", "Global settings", "Interface\\Icons\\INV_Misc_Gear_01")
-	top("styles", "Styles explorer", "Interface\\Icons\\INV_Misc_Gem_Variety_01")
-	top("layout", "Groups & Layout", "Interface\\Icons\\Spell_Nature_Invisibilty")
-	top("totembar", "Totem bar", "Interface\\Icons\\Spell_Shaman_DropAll_01")
-	top("swing", "Swing timer", ns.Swing.ICON)
-	top("elements", "Elements", ART .. "Elements.tga")
+	for _, spec in ipairs(registered) do
+		if not spec.bottom then top(spec.key, spec.title, spec.icon) end
+	end
 	navPreview = CreateFrame("Button", nil, win, "UIPanelButtonTemplate")
 	navPreview:SetSize(NAV_W - 32, 22)
 	navPreview:SetPoint("BOTTOMLEFT", 16, 38)
@@ -1304,8 +400,11 @@ local function buildNav()
 	setTip(navLock, "Positioning", "Unlocked, drag groups, the totem bar and the swing timer on screen. /sf lock does the same.")
 	function navLock.refresh() navLock:SetText(acct().locked and "Unlock positioning" or "Lock positioning") end
 	navLock.refresh()
-	add("about", "About", "Interface\\Icons\\INV_Misc_Book_09"):SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 12, 70)
-	add("profiles", "Profiles", "Interface\\Icons\\INV_Misc_Note_01"):SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 12, 100)
+	for _, spec in ipairs(registered) do
+		if spec.bottom then
+			add(spec.key, spec.title, spec.icon):SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 12, spec.bottom)
+		end
+	end
 	navDivider = ns.Look.divider(win)
 	navDivider:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 20, 136)
 	navDivider:SetWidth(NAV_W - 36)
@@ -1547,17 +646,9 @@ local function buildWindow()
 	win:HookScript("OnShow", function() shownNow(true) end)
 	win:HookScript("OnHide", function() shownNow(false) end)
 
-	newPage("home", "Home", nil, buildHome)
-	-- Key stays "general": it is saved as the last page and in folded blocks' keys.
-	newPage("general", "Global settings", nil, buildGlobal)
-	newPage("styles", "Styles explorer", nil, ns.StylesPage.build)
-	newPage("layout", "Groups & Layout", nil, ns.LayoutPage.build)
-	newPage("totembar", "Totem bar", nil, buildTotemBar)
-	newPage("swing", "Swing timer", nil, ns.SwingPage.build)
-	newPage("elements", "Elements", nil, ns.ElementPages.buildOverview)
+	table.sort(registered, function(x, y) return x.order < y.order end)
+	for _, spec in ipairs(registered) do newPage(spec.key, spec.title, nil, spec.build) end
 	ns.ElementPages.register(newPage)
-	newPage("profiles", "Profiles", nil, buildProfiles)
-	newPage("about", "About", nil, buildAbout)
 	addStyleUsers()
 	buildNav()
 	win:Hide()
