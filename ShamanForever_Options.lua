@@ -533,8 +533,8 @@ end
 local ELEMENT_KINDS = { "cooldown", "uptime", "gcd", "glow", "pop", "border", "frame" }
 local function addStyleUsers()
 	local St = ns.Style
-	for _, owner in ipairs(St.bars()) do
-		for _, kind in ipairs(St.bar(owner).kinds) do St.addUser(kind, owner) end
+	for _, owner in ipairs(ns.Bars.list()) do
+		for _, kind in ipairs(ns.Bars.get(owner).kinds) do St.addUser(kind, owner) end
 	end
 	for _, key in ipairs(ns.ElementPages.ordered()) do
 		if ns.ElementPages.pageOf(key) then
