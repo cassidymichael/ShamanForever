@@ -780,7 +780,7 @@ ns.layoutElements, ns.applyLayout, ns.applyTimers = layoutElements, applyLayout,
 ns.placeElement, ns.addGroup, ns.renameGroup, ns.deleteGroup = placeElement, addGroup, renameGroup, deleteGroup
 ns.hideGroup, ns.centerGroup = hideGroup, centerGroup
 ns.setShow = setShow
-ns.resolveSpells, ns.refreshAll = resolveSpells, refreshAll
+ns.resolveSpells, ns.refreshAll, ns.refreshCooldownsSoon = resolveSpells, refreshAll, refreshCooldownsSoon
 function ns.borderFor(key)
 	return ns.Style.get((groupOf(key)), "border")
 end
@@ -810,7 +810,6 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		ns.applyMinimapButton()
 		reg("UNIT_SPELLCAST_SUCCEEDED", "player")
 		reg("SPELL_UPDATE_COOLDOWN")
-		reg("PLAYER_TOTEM_UPDATE")
 		reg("SPELLS_CHANGED")
 		reg("PLAYER_REGEN_ENABLED")
 		-- A restriction ended (a match, an encounter): auras may be readable with no combat end to say so;
@@ -837,8 +836,6 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		refreshCooldownsSoon()
 	elseif event == "SPELL_UPDATE_COOLDOWN" then
 		ns.try("cooldown refresh", flushCooldowns, true)
-	elseif event == "PLAYER_TOTEM_UPDATE" then
-		refreshCooldownsSoon()
 	elseif event == "SPELLS_CHANGED" then
 		-- Fires often (shapeshifts, zoning): relayout only when a tracked spell changed
 		local found = resolveSpells()
