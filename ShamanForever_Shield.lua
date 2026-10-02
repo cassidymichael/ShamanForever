@@ -732,10 +732,6 @@ function SH.start()
 		checkIDs()
 		SH.applyEmptyLook()
 	end)
-	ns.onCombatEnd(function()
-		refreshAura()
-		SH.applyEmptyLook()
-	end)
 	ns.onCanActChange(SH.applyEmptyLook)
 end
 
