@@ -377,6 +377,41 @@ function AuraSlot:refilter()
 	else ns.retryAfterCombat(o.sites.filter, function() self:refilter() end) end
 end
 
+-- The warning look: grey, tint, ring, fade, glow. The same five go to the icon itself
+-- (f:SetWarnParts), to a warn overlay and to a clip look (setParts). ns.warnParts reads them from an
+-- element's state table (warn, expire): a look it doesn't declare is off.
+function ns.warnParts(key, name)
+	local function part(field)
+		return ns.elementDefault(key, name, field) ~= nil and ns.elementSetting(key, name, field) and true or false
+	end
+	return part("grey"), part("tint"), part("ring"), part("fade"), part("glow")
+end
+
+-- A warning look over an icon, its alpha set by its owner (a curve in combat): grey, ring and fade
+-- only, all an element drawn this way declares
+function ns.makeWarnOverlay(f)
+	local w = CreateFrame("Frame", nil, f)
+	w:SetAllPoints()
+	w.grey = w:CreateTexture(nil, "ARTWORK")
+	w.grey:SetAllPoints(f.tex)
+	ns.cropIconExact(w.grey)
+	w.grey:SetDesaturated(true)
+	w.ring = ns.makeRing(w, f.tex)
+	w.pulse = ns.makePulse(w.grey, "fade")
+	w:SetAlpha(0)
+	-- Hiding a frame stops its animations
+	w:SetScript("OnShow", function(self) if self.pulseOn and not self.pulse:IsPlaying() then self.pulse:Play() end end)
+	function w:setIcon(icon) self.grey:SetTexture(icon) end
+	function w:setParts(grey, _, ring, fade)
+		self.grey:SetShown(grey and true or false)
+		self.ring:show(ring)
+		self.pulseOn = fade and true or false
+		if not self.pulseOn then self.pulse:Stop()
+		elseif not self.pulse:IsPlaying() then self.pulse:Play() end
+	end
+	return w
+end
+
 -- Clip look: shown exactly while an aura is gone (inverted: while it is up), in combat too, nothing
 -- -- read. A sensor container sizes to its aura button; a clip frame of ours shows the look only
 -- -- within that. A change waiting for combat's end is a miss, never a false warning.
@@ -717,6 +752,13 @@ function ns.makeIcon(parent, size, owner)
 	f.glowF = f.fx.glowF
 	f.glowF:SetFrameLevel(f:GetFrameLevel() + 2)
 	f.SetGlowShown = function(self, shown, r, g, b) self.fx:glow(shown, r, g, b) end
+	f.SetWarnParts = function(self, grey, tint, ring, fade, glow)
+		self.tex:SetDesaturated(grey and true or false)
+		if tint then self.tex:SetVertexColor(1, 0.35, 0.35) else self.tex:SetVertexColor(1, 1, 1) end
+		self:SetRingShown(ring)
+		self:SetPulsing(fade)
+		self:SetGlowShown(glow)
+	end
 	f.Pop = function(self, kind) self.fx:pop(kind) end
 	return f
 end

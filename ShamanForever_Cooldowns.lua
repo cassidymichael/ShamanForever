@@ -228,20 +228,8 @@ local function makeCooldownIcon(def)
 		f.readyGate:SetAllPoints()
 		f.readyGlow = ns.Effects.glow(f.readyGate, f, def.key)
 	end
-	if def.needsTotem then
-		-- Fire Nova warning: a grey copy and red ring, alpha from a possibly-secret boolean
-		f.warn = CreateFrame("Frame", nil, f)
-		f.warn:SetAllPoints()
-		f.warn.grey = f.warn:CreateTexture(nil, "ARTWORK")
-		f.warn.grey:SetAllPoints(f.tex)
-		ns.cropIconExact(f.warn.grey)
-		f.warn.grey:SetDesaturated(true)
-		f.warn.ring = ns.makeRing(f.warn, f.tex)
-		f.warn.pulse = ns.makePulse(f.warn.grey, "fade")
-		f.warn:SetAlpha(0)
-		-- Hiding a frame stops its animations
-		f.warn:SetScript("OnShow", function(w) if w.pulseOn and not w.pulse:IsPlaying() then w.pulse:Play() end end)
-	end
+	-- Fire Nova's warning: its alpha from a possibly-secret boolean
+	if def.needsTotem then f.warn = ns.makeWarnOverlay(f) end
 	-- Layers, bottom up: icon, warning, swipe, timer bar, text
 	f.stack()
 	return f
@@ -610,13 +598,8 @@ local function styleCooldown(def)
 	f.tex:SetTexture(def.iconID or def.icon)
 	local w = f.warn
 	if not w then return end
-	w.grey:SetTexture(def.iconID or def.icon)
-	w.grey:SetShown(setting(def.key, "warn", "grey"))
-	w.ring:show(setting(def.key, "warn", "ring"))
-	w.pulseOn = setting(def.key, "warn", "fade")
-	if w.pulseOn then
-		if not w.pulse:IsPlaying() then w.pulse:Play() end
-	else w.pulse:Stop() end
+	w:setIcon(def.iconID or def.icon)
+	w:setParts(ns.warnParts(def.key, "warn"))
 end
 
 -- Totem ends: killed early (Grounded for Grounding) or ran out, gated on the time left

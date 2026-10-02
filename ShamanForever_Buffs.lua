@@ -370,7 +370,7 @@ function B.start()
 	end)
 end
 
-function B.preview(shown)
+function B.onPreview(shown)
 	previewing = shown
 	refreshAll()
 end

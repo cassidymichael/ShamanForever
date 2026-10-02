@@ -30,7 +30,7 @@ local function num(name, fallback)
 	if type(v) ~= "number" or v ~= v then return fallback end
 	return v
 end
-function TR.styleWord(fs, icon)
+local function styleWord(fs, icon)
 	local pt = WORD_POINTS[setting("wordPos")] or WORD_POINTS.below
 	ns.placeScaledText(fs, icon, num("wordSize", 16), pt[1], num("wordX", 0), pt[3] + num("wordY", 0), pt[2])
 	local c = setting("wordColor")
@@ -43,7 +43,6 @@ local def = { key = KEY, spellKey = "tremor", icon = 136108, school = "earth", d
 		active = { pop = true, glow = true, text = true, sound = "none" },
 		wordSize = 16, wordColor = CopyTable(WORD_COLOR), wordPos = "below", wordX = 0, wordY = 0 },
 	ranges = { wordSize = { 8, 40, 1 }, wordX = { -100, 100, 1 }, wordY = { -100, 100, 1 } } }
-TR.def = def
 def.spell = Spells.name(def.spellKey)
 def.icon = Spells.icon(def.spellKey) or def.icon
 
@@ -392,10 +391,10 @@ function TR.applyTimers()
 	f.upTimer:apply()
 end
 
-function TR.afterGroups() TR.styleWord(f.word, f) end
+function TR.afterGroups() styleWord(f.word, f) end
 
 function TR.applyLayout()
-	TR.styleWord(f.word, f)
+	styleWord(f.word, f)
 	checkTarget()
 	checkAllPlates()
 	readControl()
@@ -466,5 +465,43 @@ function TR.debug()
 	say("  feared now %s, holding %s; losses of control seen (Tremor removes it?): %s", tostring(feared),
 		tostring(GetTime() < holdUntil), #controlSeen > 0 and table.concat(controlSeen, "; ") or "none")
 end
+
+-- Preview (ns.registerKind); standIn: /sf preview's stand-in gets its word
+local PREVIEW = {
+	uptime = true,
+	typical = "idle", warning = "warn",
+	states = { { "warn", "Warning" }, { "down", "Tremor down" }, { "idle", "Not down, no warning" } },
+	pop = function(ic, st) if st == "warn" and setting("active", "pop") then ic:Pop("ready") end end,
+	render = function(ic, st, P)
+		P.reset(ic, def.iconID or def.icon)
+		if not ic.word then
+			local clip = CreateFrame("Frame", nil, ic:GetParent())
+			clip:SetAllPoints(ic:GetParent())
+			clip:SetClipsChildren(true)
+			clip:SetFrameLevel(ic.textFrame:GetFrameLevel() + 1)
+			ic.word = clip:CreateFontString(nil, "OVERLAY")
+			ns.Media.setFont(ic.word, nil, 20)
+			ic.word:SetText(TR.WORD)
+		end
+		styleWord(ic.word, ic)
+		ic.word:Hide()
+		if st == "warn" then
+			ic:SetGlowShown(setting("active", "glow"))
+			ic.word:SetShown(setting("active", "text") and true or false)
+			return
+		end
+		if st == "down" then
+			P.frozen(ic.upT, 0.3, 300)
+			if setting("idleWhen") == "notdown" then return end
+		end
+		P.idle(ic, KEY)
+	end,
+	standIn = function(ic)
+		ic.word = ic.textFrame:CreateFontString(nil, "OVERLAY")
+		ns.Media.setFont(ic.word, nil, 16)
+		ic.word:SetText(TR.WORD)
+	end,
+}
+ns.registerKind("tremor", { preview = function() return PREVIEW end })
 
 ns.registerModule(TR)

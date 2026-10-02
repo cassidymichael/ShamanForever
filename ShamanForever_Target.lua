@@ -457,8 +457,7 @@ local function styleLook()
 	def.lookEdge:SetFrameLevel(lv + 1)
 	ns.Frames.dress(def.lookEdge, def.key, lv + 1)
 	if def.lookEdge.frameOverlay then def.lookEdge.frameOverlay:Hide() end
-	look:setParts(setting(def.key, "warn", "grey"), false, setting(def.key, "warn", "ring"),
-		setting(def.key, "warn", "fade"), setting(def.key, "warn", "glow"))
+	look:setParts(ns.warnParts(def.key, "warn"))
 	look:reshape()
 	look:style()
 	stateLook()

@@ -194,10 +194,7 @@ local function expiringLook(ic, key, length)
 	local secs = opt(key, "expire", "secs") or 0
 	frozen(ic.upT, 1 - math.min(secs > 0 and secs or 5, length) / length, length)
 	if secs <= 0 then return end
-	if opt(key, "expire", "grey") then ic.tex:SetDesaturated(true) end
-	ic:SetRingShown(opt(key, "expire", "ring"))
-	ic:SetPulsing(opt(key, "expire", "fade"))
-	ic:SetGlowShown(opt(key, "expire", "glow"))
+	ic:SetWarnParts(ns.warnParts(key, "expire"))
 end
 
 local function engineExpireLook(ic, key)
@@ -217,18 +214,12 @@ local previewState = {}
 local FAINT = 0.12
 function L.idleAlpha(key) return math.max(ns.idleAlpha(key), FAINT) end
 local function idleLook(ic, key) ic:SetAlpha(L.idleAlpha(key)) end
+-- Whether a state goes idle once its moment has played (the preview's own rule)
 function L.idles(key, st)
-	local e = ns.ELEMENTS[key]
-	local when = e and ns.elementSetting(key, "idleWhen")
+	local when = ns.ELEMENTS[key] and ns.elementSetting(key, "idleWhen")
 	if not when or when == "never" then return false end
-	if e.kind == "imbue" then return (st == "fine") or (st == "low" and when == "on") end
-	if e.kind == "shock" then return (st == "cd") == (when == "oncd") end
-	if e.kind == "shield" then
-		if when == "up" then return st ~= "down" end
-		return when == "charges" and (st == "up3" or st == "up2")
-	end
 	local pv = L.PREVIEW[key]
-	return pv and pv.idles and pv.idles(st, when) or false
+	return pv and pv.idles and pv.idles(st, when) and true or false
 end
 
 local IDLE_DELAY = ns.IDLE_DELAY
@@ -241,130 +232,6 @@ local function idleSoon(ic, key, st)
 end
 
 L.PREVIEW = {}
-local SHIELD = {
-		uptime = true, barInset = function() return ns.Shield.timeBarInset() end,
-		warning = "down",
-		states = { { "up3", "3 charges" }, { "up2", "2 charges" }, { "up1", "1 charge" },
-			{ "down", "No shield" } },
-		render = function(ic, st)
-			local water = opt("shield", "track") == "water"
-			reset(ic, water and 132315 or 136051)
-			if st == "down" then
-				ic.tex:SetDesaturated(opt("shield", "warn", "grey"))
-				if opt("shield", "warn", "tint") then ic.tex:SetVertexColor(1, 0.35, 0.35) end
-				ic:SetRingShown(opt("shield", "warn", "ring"))
-				ic:SetPulsing(opt("shield", "warn", "fade"))
-				ic:SetGlowShown(opt("shield", "warn", "glow"))
-				return
-			end
-			local n = st == "up3" and 3 or st == "up2" and 2 or 1
-			frozen(ic.upT, 0.38, 600)
-			local function count(field) return opt("shield", "count", field) end
-			if count("bar") then
-				local c = count("barColor")
-				ic.bar:SetHeight(count("barHeight"))
-				setBar(ic, 3, n, c[1], c[2], c[3])
-			end
-			if count("number") then
-				ns.Media.setFont(ic.count, nil, count("size"))
-				ns.Shield.placeCount(ic.count, ic)
-				ic.count:SetText(n)
-				ic.count:Show()
-				local c = (n == 1 and count("mark")) and count("markColor") or { 1, 1, 1 }
-				ic.count:SetTextColor(c[1], c[2], c[3])
-			end
-		end,
-}
-ns.registerKind("shield", { preview = function() return SHIELD end })
-local SHOCK = {
-		warning = "both",
-		cooldown = true,
-		states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" }, { "range", "Out of range" }, { "both", "Both" } },
-		pop = function(ic, st) if st == "ready" and opt("shock", "ready", "pop") then ic:Pop() end end,
-		render = function(ic, st)
-			local icons = { earth = 136026, flame = 135813, frost = 135849 }
-			reset(ic, icons[opt("shock", "track")] or 136026)
-			if st == "ready" then ic:SetGlowShown(opt("shock", "ready", "glow")) end
-			if st == "cd" then frozen(ic.cdT, 0.4, 6)
-			elseif st == "range" or st == "both" then
-				ic:SetBodyPaint(opt("shock", "range", "look"), 1, 0.25, 0.25, opt("shock", "range", "overlay"),
-					opt("shock", "range", "tint"))
-			elseif st == "mana" then
-				ic:SetBodyPaint(opt("shock", "mana", "look"), 0.2, 0.45, 1, opt("shock", "mana", "overlay"),
-					opt("shock", "mana", "tint"))
-			end
-			if st == "mana" or st == "both" then ic:SetRingShown(true, 0.2, 0.45, 1, opt("shock", "mana", "ring")) end
-		end,
-}
-ns.registerKind("shock", { preview = function() return SHOCK end })
-local IMBUE = {
-		uptime = true,
-		typical = "fine", warning = "missing",
-		states = { { "missing", "No imbue" }, { "low", "Running low" }, { "fine", "Plenty left" } },
-		pop = function(ic, st) if st == "missing" and opt("imbue", "warn", "pop") then ic:Pop("imbue") end end,
-		render = function(ic, st)
-			if st == "missing" then
-				reset(ic, ns.Imbue.preferredIcon())
-				ic.tex:SetDesaturated(opt("imbue", "warn", "grey"))
-				ic:SetRingShown(opt("imbue", "warn", "ring"))
-				ic:SetPulsing(opt("imbue", "warn", "fade"))
-				ic:SetGlowShown(opt("imbue", "warn", "glow"))
-			else
-				reset(ic, ns.Imbue.icon())
-				if st == "low" and opt("imbue", "showUnderMins") > 0 then frozen(ic.upT, 0.95, 3600) end
-			end
-		end,
-}
-ns.registerKind("imbue", { preview = function() return IMBUE end })
-local MAELSTROM = {
-	uptime = true,
-	states = { { "s1", "1 stack" }, { "s4", "4 stacks" }, { "s5", "5 stacks" }, { "idle", "Not up" } },
-	pop = function(ic, st) if st == "s5" and opt("maelstrom", "active", "pop") then ic:Pop("ready") end end,
-	render = function(ic, st)
-		local M = ns.Maelstrom
-		reset(ic, M.icon)
-		local n = ({ s1 = 1, s4 = M.maxStacks() - 1, s5 = M.maxStacks() })[st] or 0
-		M.drawPreview(ic, n)
-		if n > 0 then frozen(ic.upT, 0.3, 30) end
-		local when = opt("maelstrom", "idleWhen")
-		if (n == 0 and when ~= "never") or (when == "five" and n < M.maxStacks()) then
-			idleLook(ic, "maelstrom")
-		end
-	end,
-}
-ns.registerKind("maelstrom", { preview = function() return MAELSTROM end })
-local TREMOR = {
-	uptime = true,
-	typical = "idle", warning = "warn",
-	states = { { "warn", "Warning" }, { "down", "Tremor down" }, { "idle", "Not down, no warning" } },
-	pop = function(ic, st) if st == "warn" and opt("tremor", "active", "pop") then ic:Pop("ready") end end,
-	render = function(ic, st)
-		local def = ns.Tremor.def
-		reset(ic, def.iconID or def.icon)
-		if not ic.word then
-			local clip = CreateFrame("Frame", nil, ic:GetParent())
-			clip:SetAllPoints(ic:GetParent())
-			clip:SetClipsChildren(true)
-			clip:SetFrameLevel(ic.textFrame:GetFrameLevel() + 1)
-			ic.word = clip:CreateFontString(nil, "OVERLAY")
-			ns.Media.setFont(ic.word, nil, 20)
-			ic.word:SetText(ns.Tremor.WORD)
-		end
-		ns.Tremor.styleWord(ic.word, ic)
-		ic.word:Hide()
-		if st == "warn" then
-			ic:SetGlowShown(opt("tremor", "active", "glow"))
-			ic.word:SetShown(opt("tremor", "active", "text") and true or false)
-			return
-		end
-		if st == "down" then
-			frozen(ic.upT, 0.3, 300)
-			if opt("tremor", "idleWhen") == "notdown" then return end
-		end
-		idleLook(ic, "tremor")
-	end,
-}
-ns.registerKind("tremor", { preview = function() return TREMOR end })
 
 -- An element's preview, from its kind; made when first asked for
 setmetatable(L.PREVIEW, { __index = function(t, key)

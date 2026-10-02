@@ -76,11 +76,8 @@ local function makeStandIn(key, gf)
 	local ic = L.makePreviewIcon(h, key, L.PREVIEW[key])
 	ic:SetAllPoints(h)
 	if ic.upT then ic.upT:restack(2) end
-	if key == "tremor" then
-		ic.word = ic.textFrame:CreateFontString(nil, "OVERLAY")
-		ns.Media.setFont(ic.word, nil, 16)
-		ic.word:SetText(ns.Tremor.WORD)
-	end
+	local pv = L.PREVIEW[key]
+	if pv.standIn then pv.standIn(ic) end
 	holders[key], standIns[key] = h, ic
 	return ic, h
 end
@@ -98,10 +95,11 @@ local function paintElement(key, r, moment)
 	local ic, st = standIns[key], r.steps[r.i][1]
 	ic.momentToken, ic.idleToken = nil, nil
 	local ends = L.paint(ic, key, st, r.at)
-	if key == "shield" then ns.Shield.preview(ic) end
+	local pv = L.PREVIEW[key]
+	if pv.hold then pv.hold(ic) end
 	if idles(key, st) and not (r.idleAt and GetTime() < r.idleAt) then setAlpha(ic, L.idleAlpha(key))
 	else setAlpha(ic, ic:GetAlpha()) end
-	local pop = L.PREVIEW[key].pop
+	local pop = pv.pop
 	if moment and pop then ns.try("preview pop " .. key, pop, ic, st, L.kit) end
 	return ends
 end
@@ -372,7 +370,7 @@ function PV.open()
 	on = true
 	optionsAside = not ns.getAccount().keepOptionsOpen and ns.Options.hide() or false
 	restart()
-	ns.Buffs.preview(true)
+	ns.eachModule("onPreview", true)
 	ns.TotemBar.preview({ all = opts.unlearned })
 	ns.applyLayout()
 	panel:Show()
@@ -395,8 +393,11 @@ function PV.close(forCombat)
 	wipe(barRuns)
 	unparkAll()
 	ns.Swing.preview(nil)
-	ns.Shield.preview(nil)
-	ns.Buffs.preview(false)
+	for _, key in ipairs(ns.ELEMENT_KEYS) do
+		local pv = L.PREVIEW[key]
+		if pv and pv.hold then pv.hold(nil) end
+	end
+	ns.eachModule("onPreview", false)
 	ns.TotemBar.preview(nil)
 	ns.applyLayout()
 	ns.refreshAll()

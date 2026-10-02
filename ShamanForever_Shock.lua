@@ -13,7 +13,8 @@ local SHOCK_SPELL = { earth = "earthShock", flame = "flameShock", frost = "frost
 local SHOCKS = {}
 for key, spell in pairs(SHOCK_SPELL) do SHOCKS[key] = Spells.name(spell) end
 local SHOCK_ORDER = { "earth", "flame", "frost" }
-SK.SHOCKS, SK.ORDER = SHOCKS, SHOCK_ORDER
+local SHOCK_ICON = { earth = 136026, flame = 135813, frost = 135849 }
+SK.SHOCKS, SK.ORDER, SK.ICONS = SHOCKS, SHOCK_ORDER, SHOCK_ICON
 
 local shock = ns.newElementIcon("shock", { effects = true })
 shock.cdTimer = ns.Timer.new(shock, "shock", "cooldown", { cd = shock.cd, school = "spirit" })
@@ -42,21 +43,24 @@ local shockState = { outOfRange = false, noMana = false }
 local rangeCheckID
 
 -- Out of range: red body; no mana: blue body and ring; both: red body, blue ring
+local function paint(f, outOfRange, noMana)
+	f.manaOverlay:Hide()
+	f.tex:SetVertexColor(1, 1, 1)
+	if outOfRange then
+		f:SetBodyPaint(setting("shock", "range", "look"), 1, 0.25, 0.25, setting("shock", "range", "overlay"),
+			setting("shock", "range", "tint"))
+	elseif noMana then
+		f:SetBodyPaint(setting("shock", "mana", "look"), 0.2, 0.45, 1, setting("shock", "mana", "overlay"),
+			setting("shock", "mana", "tint"))
+	end
+	f:SetRingShown(noMana, 0.2, 0.45, 1, setting("shock", "mana", "ring"))
+end
 local drawn
 local function drawTint()
 	local now = (shockState.outOfRange and "r" or "") .. (shockState.noMana and "m" or "")
 	if now == drawn then return end
 	drawn = now
-	shock.manaOverlay:Hide()
-	shock.tex:SetVertexColor(1, 1, 1)
-	if shockState.outOfRange then
-		shock:SetBodyPaint(setting("shock", "range", "look"), 1, 0.25, 0.25, setting("shock", "range", "overlay"),
-			setting("shock", "range", "tint"))
-	elseif shockState.noMana then
-		shock:SetBodyPaint(setting("shock", "mana", "look"), 0.2, 0.45, 1, setting("shock", "mana", "overlay"),
-			setting("shock", "mana", "tint"))
-	end
-	shock:SetRingShown(shockState.noMana, 0.2, 0.45, 1, setting("shock", "mana", "ring"))
+	paint(shock, shockState.outOfRange, shockState.noMana)
 end
 
 local function refreshCooldown(inEvent)
@@ -204,5 +208,22 @@ function SK.debug()
 			e and e.rank or "?", describeArg(usable), describeArg(noPower), describeArg(inRange))
 	end
 end
+
+-- Preview (ns.registerKind)
+local PREVIEW = {
+	warning = "both",
+	cooldown = true,
+	states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" }, { "range", "Out of range" },
+		{ "both", "Both" } },
+	pop = function(ic, st) if st == "ready" and setting("shock", "ready", "pop") then ic:Pop() end end,
+	render = function(ic, st, P)
+		P.reset(ic, SHOCK_ICON[setting("shock", "track")] or SHOCK_ICON.earth)
+		if st == "ready" then ic:SetGlowShown(setting("shock", "ready", "glow")) end
+		if st == "cd" then P.frozen(ic.cdT, 0.4, 6) end
+		paint(ic, st == "range" or st == "both", st == "mana" or st == "both")
+	end,
+	idles = function(st, when) return (st == "cd") == (when == "oncd") end,
+}
+ns.registerKind("shock", { preview = function() return PREVIEW end })
 
 ns.registerModule(SK)

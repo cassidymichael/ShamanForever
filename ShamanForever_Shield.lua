@@ -78,7 +78,7 @@ end
 local COUNT_NUDGE = { CENTER = { 0, 0 }, TOPLEFT = { -2, 2 }, TOPRIGHT = { 2, 2 }, BOTTOMLEFT = { -2, -2 },
 	BOTTOMRIGHT = { 2, -2 } }
 
-function SH.placeCount(fs, icon)
+local function placeCount(fs, icon)
 	local pos = count("pos")
 	local nudge = COUNT_NUDGE[pos]
 	fs:ClearAllPoints()
@@ -189,9 +189,8 @@ local function setLook(st)
 	if st ~= nil and lookState == nil then look:wait() end
 	lookState = st
 	local w = st == "warn"
-	look:setParts(setting("shield", "warn", "grey"), w and setting("shield", "warn", "tint"),
-		w and setting("shield", "warn", "ring"), w and setting("shield", "warn", "fade"),
-		w and setting("shield", "warn", "glow"))
+	local grey, tint, ring, fade, glow = ns.warnParts("shield", "warn")
+	look:setParts(grey, w and tint, w and ring, w and fade, w and glow)
 	look:want(st ~= nil)
 end
 
@@ -386,7 +385,7 @@ local function buildNative(slot, button, cd)
 	-- Blizzard writes the count on registration: font first
 	local fs = overlay:CreateFontString(nil, "OVERLAY", nil, 7)
 	ns.Media.setFont(fs, nil, count("size"))
-	SH.placeCount(fs, button)
+	placeCount(fs, button)
 	button:SetApplicationCount(fs)
 	slot.fs = fs
 
@@ -480,12 +479,12 @@ local function styleNative(slot, size)
 	slot.ticks:SetAlpha(count("bar") and 1 or 0)
 	slot.fs:SetAlpha(count("number") and 1 or 0)
 	ns.Media.setFont(slot.fs, nil, count("size"))
-	SH.placeCount(slot.fs, slot.button)
+	placeCount(slot.fs, slot.button)
 	SH.applyEmptyLook()
 end
 
 -- The time bar sits on the charge bar, which is drawn over it
-function SH.timeBarInset()
+local function timeBarInset()
 	return count("bar") and count("barHeight") or 0
 end
 
@@ -493,7 +492,7 @@ native = ns.makeAuraSlot(shield, {
 	key = "shield", slot = "shield", ids = shieldIDMap, parent = gate,
 	name = ns.NAME .. "AuraContainer",
 	sites = { container = "shield container", style = "shield style", filter = "shield filter" },
-	barInset = SH.timeBarInset,
+	barInset = timeBarInset,
 	onButton = buildNative, onStyle = styleNative,
 	onError = function(err)
 		say("Blizzard aura container failed on this client; the shield icon will not update: %s", err)
@@ -563,7 +562,7 @@ local function styleCopy(slot, size)
 	end
 	applyCountFormat(slot)
 	ns.Media.setFont(slot.fs, nil, count("size"))
-	SH.placeCount(slot.fs, slot.host)
+	placeCount(slot.fs, slot.host)
 	slot.fs:SetAlpha(count("number") and 1 or 0)
 end
 
@@ -581,7 +580,7 @@ local function buildCopy(slot, button)
 	-- Font first: Blizzard writes the count as it takes the font string
 	local fs = parts:CreateFontString(nil, "OVERLAY", nil, 7)
 	ns.Media.setFont(fs, nil, count("size"))
-	SH.placeCount(fs, host)
+	placeCount(fs, host)
 	button:SetApplicationCount(fs)
 	slot.fs = fs
 	local bar = CreateFrame("StatusBar", nil, parts)
@@ -606,7 +605,7 @@ end
 
 copy = ns.makeAuraSlot(shield, {
 	key = "shield", slot = "shieldcopy", ids = shieldIDMap, parent = full, level = IDLE_LEVEL,
-	host = copyHost, barInset = SH.timeBarInset,
+	host = copyHost, barInset = timeBarInset,
 	sites = { container = "shield copy container", style = "shield copy style",
 		filter = "shield copy filter" },
 	onButton = function(slot, button) buildCopy(slot, button) end,
@@ -770,11 +769,44 @@ function SH.debug()
 	say("tracked spell IDs: %s", table.concat(t, ","))
 end
 
--- Preview: Blizzard's button can't be shown or hidden by addon code, so a stand-in draws over it
+-- Preview (ns.registerKind): Blizzard's button can't be shown or hidden by addon code, so a stand-in
+-- draws over it (hold)
 shield.aboveProtected = true
-function SH.preview(icon)
-	standIn = icon
-	SH.applyEmptyLook()
-end
+local PREVIEW = {
+	uptime = true, barInset = timeBarInset,
+	warning = "down",
+	states = { { "up3", "3 charges" }, { "up2", "2 charges" }, { "up1", "1 charge" }, { "down", "No shield" } },
+	render = function(ic, st, P)
+		P.reset(ic, SHIELDS[setting("shield", "track") == "water" and "water" or "lightning"].icon)
+		if st == "down" then
+			ic:SetWarnParts(ns.warnParts("shield", "warn"))
+			return
+		end
+		local n = st == "up3" and 3 or st == "up2" and 2 or 1
+		P.frozen(ic.upT, 0.38, 600)
+		if count("bar") then
+			local c = count("barColor")
+			ic.bar:SetHeight(count("barHeight"))
+			P.setBar(ic, 3, n, c[1], c[2], c[3])
+		end
+		if count("number") then
+			ns.Media.setFont(ic.count, nil, count("size"))
+			placeCount(ic.count, ic)
+			ic.count:SetText(n)
+			ic.count:Show()
+			local c = (n == 1 and count("mark")) and count("markColor") or { 1, 1, 1 }
+			ic.count:SetTextColor(c[1], c[2], c[3])
+		end
+	end,
+	idles = function(st, when)
+		if when == "up" then return st ~= "down" end
+		return when == "charges" and (st == "up3" or st == "up2")
+	end,
+	hold = function(icon)
+		standIn = icon
+		SH.applyEmptyLook()
+	end,
+}
+ns.registerKind("shield", { preview = function() return PREVIEW end })
 
 ns.registerModule(SH)

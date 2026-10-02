@@ -161,6 +161,7 @@ end
 --   tick()                 once a second
 --   onCast(spellID)        our own successful cast
 --   debug()                its part of /sf debug
+--   onPreview(on)          /sf preview started or ended
 local MODULES = {}
 function ns.registerModule(m) table.insert(MODULES, m) end
 -- One module's error is reported but doesn't stop the modules after it
@@ -169,6 +170,7 @@ local function each(hook, ...)
 		if m[hook] then securecallfunction(m[hook], ...) end
 	end
 end
+ns.eachModule = each
 
 -- Groups
 -- Whether the character knows the element's spell. The HUD leaves unlearned ones out, except while
