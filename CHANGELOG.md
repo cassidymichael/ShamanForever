@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.1 (2026-10-02)
 
 - The options window opens faster and uses far less memory.
 - Works on the latest WoW Forever beta build (1.60.1.70170).
