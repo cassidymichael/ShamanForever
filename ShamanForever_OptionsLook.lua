@@ -169,6 +169,7 @@ local function reset(ic, icon)
 	ic.tex:SetTexture(icon)
 	ic.tex:SetDesaturated(false)
 	ic.tex:SetVertexColor(1, 1, 1)
+	ic.warnTint = nil
 	ic.tex:SetAlpha(1)
 	ic:SetAlpha(1)
 	ic.manaOverlay:Hide()

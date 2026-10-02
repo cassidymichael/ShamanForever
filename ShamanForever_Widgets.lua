@@ -754,7 +754,13 @@ function ns.makeIcon(parent, size, owner)
 	f.SetGlowShown = function(self, shown, r, g, b) self.fx:glow(shown, r, g, b) end
 	f.SetWarnParts = function(self, grey, tint, ring, fade, glow)
 		self.tex:SetDesaturated(grey and true or false)
-		if tint then self.tex:SetVertexColor(1, 0.35, 0.35) else self.tex:SetVertexColor(1, 1, 1) end
+		-- The colour is set only when the tint changes (other looks colour this icon too); whoever
+		-- sets the colour itself clears warnTint
+		tint = tint and true or false
+		if tint ~= (self.warnTint or false) then
+			self.warnTint = tint
+			if tint then self.tex:SetVertexColor(1, 0.35, 0.35) else self.tex:SetVertexColor(1, 1, 1) end
+		end
 		self:SetRingShown(ring)
 		self:SetPulsing(fade)
 		self:SetGlowShown(glow)
