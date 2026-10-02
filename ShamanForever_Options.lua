@@ -224,6 +224,9 @@ local function frameRows(p, owner, kind, after, opts)
 	opts = opts or {}
 	local St, FR = ns.Style, ns.Frames
 	local shown = opts.shown
+	local wip = p:row(22)
+	ns.Look.expBadge(wip, "Art frames"):SetPoint("LEFT", wip, "LEFT", LABEL_W, 0)
+	p:add(wip, 22, shown)
 	local r = styleRows(p, owner, kind, after)
 	if owner ~= nil then followRow(p, owner, kind, after, nil, shown) end
 	local own = showWhen(r.own, shown)
@@ -832,6 +835,7 @@ local function buildAbout(p)
 		local e = ns.ELEMENTS[key]
 		if e.experimental then p:experimental(e.experimental, "Elements > " .. e.label) end
 	end
+	p:experimental("Art frames", "Frame and Group frame styles")
 	for _, l in ipairs(ns.Style.fields()) do
 		for _, e in ipairs(l.order) do
 			if e.experimental and not e.hidden then p:experimental(e.name, l.where .. " > " .. l.name) end
