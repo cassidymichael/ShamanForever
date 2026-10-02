@@ -599,11 +599,10 @@ function T.start()
 		end
 	end)
 	ns.onCombatStart(combatStarts)
+	-- The reads come with every module's refresh, before this
 	ns.onCombatEnd(function()
 		styleLook()
 		styleUp()
-		checkMissing()
-		refreshAura(FLAME)
 	end)
 	ns.onCanActChange(function() checkMissing(); refreshAura(FLAME) end)
 end
