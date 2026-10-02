@@ -56,6 +56,11 @@ ShamanForever_Options.lua
 ShamanForever_OptionsBlocks.lua
 ShamanForever_OptionsLayout.lua
 ShamanForever_OptionsElements.lua
+ShamanForever_OptionsShield.lua
+ShamanForever_OptionsShock.lua
+ShamanForever_OptionsImbue.lua
+ShamanForever_OptionsMaelstrom.lua
+ShamanForever_OptionsTremor.lua
 ShamanForever_OptionsTotemBar.lua
 ShamanForever_OptionsSwing.lua
 ShamanForever_OptionsStyles.lua
