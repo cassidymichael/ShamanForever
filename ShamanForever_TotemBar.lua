@@ -441,6 +441,50 @@ local function gcdSweep(v)
 	return cd
 end
 
+-- A picker's parts for a button (s.button, s.index): its arrow, the popout (protected, so the
+-- snippets can show and hide it in combat), a catch button and a hover strip
+local function makePicker(s, name)
+	local ar = CreateFrame("Button", nil, bar, "SecureActionButtonTemplate")
+	-- Above every open picker's catch button, so another slot's arrow opens in one click
+	ar:SetFrameStrata("HIGH")
+	ar:RegisterForClicks("AnyUp")
+	ar:SetAttribute("sf-pick", s.index)
+	wrapClick(ar, ARROW_CLICK)
+	s.arrow = ar
+	local av = TB.makeArrowLook(bar)
+	av:SetAllPoints(ar)
+	av:SetFrameLevel(ar:GetFrameLevel() + 2)
+	av:EnableMouse(false)
+	av:SetAlpha(0)
+	s.arrowVis = av
+	local pop = CreateFrame("Frame", "ShamanForeverTotemPopout" .. name, bar, "SecureFrameTemplate")
+	pop:Hide()
+	pop:SetSize(1, 1)
+	pop.bg = pop:CreateTexture(nil, "BACKGROUND")
+	pop.bg:SetAllPoints()
+	pop.bg:SetColorTexture(TB.POP_FILL[1], TB.POP_FILL[2], TB.POP_FILL[3], TB.POP_FILL[4])
+	pop:SetFrameStrata("HIGH")
+	pop.buttons = {}
+	s.popout = pop
+	SecureHandlerSetFrameRef(picker, "pop" .. s.index, pop)
+	-- Catch button: screen-wide, under the pickers, closes an open one
+	local catch = CreateFrame("Button", nil, pop, "SecureActionButtonTemplate")
+	catch:SetAllPoints(UIParent)
+	catch:SetFrameLevel(pop:GetFrameLevel() + 1)
+	catch:RegisterForClicks("AnyUp")
+	catch:SetAttribute("sf-pick", s.index)
+	wrapClick(catch, CATCH_CLICK)
+	pop.catch = catch
+	-- Hover strip: from the slot to the picker's far end so the mouse can cross; hover mode only
+	local strip = CreateFrame("Frame", nil, pop, "SecureFrameTemplate")
+	strip:SetFrameLevel(pop:GetFrameLevel() + 1)
+	strip:EnableMouse(true)
+	strip:SetAttribute("sf-pick", s.index)
+	strip:Hide()
+	pop.strip = strip
+	SecureHandlerSetFrameRef(picker, "strip" .. s.index, strip)
+	SecureHandlerSetFrameRef(picker, "slot" .. s.index, s.button)
+end
 
 for index, el in ipairs(ELEMENTS) do
 	local slot = SLOT[el]
@@ -491,48 +535,7 @@ for index, el in ipairs(ELEMENTS) do
 	s.gcd = gcdSweep(v)
 	s.command = "CLICK ShamanForeverKeyCast" .. NAME[el] .. ":LeftButton"
 
-	local ar = CreateFrame("Button", nil, bar, "SecureActionButtonTemplate")
-	-- Above every open picker's catch button, so another slot's arrow opens in one click
-	ar:SetFrameStrata("HIGH")
-	ar:RegisterForClicks("AnyUp")
-	ar:SetAttribute("sf-pick", index)
-	wrapClick(ar, ARROW_CLICK)
-	s.arrow = ar
-	local av = TB.makeArrowLook(bar)
-	av:SetAllPoints(ar)
-	av:SetFrameLevel(ar:GetFrameLevel() + 2)
-	av:EnableMouse(false)
-	av:SetAlpha(0)
-	s.arrowVis = av
-
-	-- Popout: protected, so the snippets can show and hide it in combat
-	local pop = CreateFrame("Frame", "ShamanForeverTotemPopout" .. NAME[el], bar, "SecureFrameTemplate")
-	pop:Hide()
-	pop:SetSize(1, 1)
-	pop.bg = pop:CreateTexture(nil, "BACKGROUND")
-	pop.bg:SetAllPoints()
-	pop.bg:SetColorTexture(TB.POP_FILL[1], TB.POP_FILL[2], TB.POP_FILL[3], TB.POP_FILL[4])
-	pop:SetFrameStrata("HIGH")
-	pop.buttons = {}
-	s.popout = pop
-	SecureHandlerSetFrameRef(picker, "pop" .. index, pop)
-	-- Catch button: screen-wide, under the pickers, closes an open one
-	local catch = CreateFrame("Button", nil, pop, "SecureActionButtonTemplate")
-	catch:SetAllPoints(UIParent)
-	catch:SetFrameLevel(pop:GetFrameLevel() + 1)
-	catch:RegisterForClicks("AnyUp")
-	catch:SetAttribute("sf-pick", index)
-	wrapClick(catch, CATCH_CLICK)
-	pop.catch = catch
-	-- Hover strip: from the slot to the picker's far end so the mouse can cross; hover mode only
-	local strip = CreateFrame("Frame", nil, pop, "SecureFrameTemplate")
-	strip:SetFrameLevel(pop:GetFrameLevel() + 1)
-	strip:EnableMouse(true)
-	strip:SetAttribute("sf-pick", index)
-	strip:Hide()
-	pop.strip = strip
-	SecureHandlerSetFrameRef(picker, "strip" .. index, strip)
-	SecureHandlerSetFrameRef(picker, "slot" .. index, b)
+	makePicker(s, NAME[el])
 end
 
 -- Close every picker (out of combat): one hidden through the bar would come back open
@@ -867,6 +870,19 @@ local saidWait = false
 local hasTotems = false
 local paintPreview
 
+-- The popout beside its button, and the hover strip between them
+local function placePicker(pop, b, n, size, psz)
+	TB.placePopout(pop, b, n, psz)
+	TB.skin.stylePopout(pop, n, psz)
+	local strip, dir = pop.strip, TB.eff().pop
+	local across = math.max(size, select(4, popDims(psz)))
+	strip:ClearAllPoints()
+	if dir == "up" then strip:SetPoint("BOTTOM", b, "TOP"); strip:SetPoint("TOP", pop, "TOP"); strip:SetWidth(across)
+	elseif dir == "down" then strip:SetPoint("TOP", b, "BOTTOM"); strip:SetPoint("BOTTOM", pop, "BOTTOM"); strip:SetWidth(across)
+	elseif dir == "right" then strip:SetPoint("LEFT", b, "RIGHT"); strip:SetPoint("RIGHT", pop, "RIGHT"); strip:SetHeight(across)
+	else strip:SetPoint("RIGHT", b, "LEFT"); strip:SetPoint("LEFT", pop, "LEFT"); strip:SetHeight(across) end
+end
+
 local function layoutPopout(s, size, known)
 	local pop = s.popout
 	local slot = s.slot
@@ -916,15 +932,7 @@ local function layoutPopout(s, size, known)
 		p:Show()
 	end
 	for i = #ids + 1, #pop.buttons do pop.buttons[i]:Hide() end
-	TB.placePopout(pop, s.button, #ids, psz)
-	TB.skin.stylePopout(pop, #ids, psz)
-	local strip, dir, b = pop.strip, TB.eff().pop, s.button
-	local across = math.max(size, select(4, popDims(psz)))
-	strip:ClearAllPoints()
-	if dir == "up" then strip:SetPoint("BOTTOM", b, "TOP"); strip:SetPoint("TOP", pop, "TOP"); strip:SetWidth(across)
-	elseif dir == "down" then strip:SetPoint("TOP", b, "BOTTOM"); strip:SetPoint("BOTTOM", pop, "BOTTOM"); strip:SetWidth(across)
-	elseif dir == "right" then strip:SetPoint("LEFT", b, "RIGHT"); strip:SetPoint("RIGHT", pop, "RIGHT"); strip:SetHeight(across)
-	else strip:SetPoint("RIGHT", b, "LEFT"); strip:SetPoint("LEFT", pop, "LEFT"); strip:SetHeight(across) end
+	placePicker(pop, s.button, #ids, size, psz)
 end
 
 local function layoutArrow(s)
