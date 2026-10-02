@@ -174,9 +174,6 @@ end
 -- The pop
 -- No Scale, Rotation or Translation under the frame the motion moves: bursts sit on frames beside
 -- -- the icon, flashes (fade and flip only) stay on it.
-local POP_TINT = { ready = { 1, 0.82, 0.25 }, lost = { 0.35, 0.65, 1 },
-	expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 }, grounded = { 0.56, 0.76, 0.92 },
-	blocked = { 0.6, 0.6, 0.6 } }
 local BLACK = { 0, 0, 0 }
 local RING = { name = "ring", atlas = "ArtifactsFX-YellowRing", file = "Interface\\Buttons\\UI-ActionButton-Border",
 	layer = "OVERLAY", add = true, desat = true, from = 0.9, to = 2.2, dur = 0.45, a = 1 }
@@ -456,16 +453,17 @@ function Rig:play()
 	end
 end
 
--- blocked: ready but can't be cast; grey and a dimmer flash.
--- Nothing on a hidden frame: it would play on its next show.
 local function popColor(st, kind, school)
-	if st.colorBy == "school" and ns.Looks.POP_EVENTS[kind] then
+	local k = ns.Looks.POP_KINDS[kind] or ns.Looks.POP_KINDS.ready
+	if st.colorBy == "school" and k.byStyle then
 		local theme = ns.THEME
 		return theme.color[school] or theme.color[theme.fallback]
 	end
-	return POP_TINT[kind] or POP_TINT.ready
+	return k.color
 end
 
+-- kind: a Looks.POP_KINDS key ("blocked": a dimmer flash). Nothing on a hidden frame: it would play
+-- on its next show.
 function E.pop(f, kind, owner)
 	if not f:IsVisible() then return end
 	kind = kind or "ready"
@@ -575,7 +573,7 @@ function E.endFlash(parent, anchor, owner, over)
 			local c = opts.ranOut
 			self.glow:color(c[1], c[2], c[3]); self.red:SetColorTexture(c[1], c[2], c[3], 0.45)
 		elseif opts.grounded then
-			local c = POP_TINT.grounded
+			local c = ns.Looks.POP_KINDS.grounded.color
 			self.glow:color(c[1], c[2], c[3]); self.red:SetColorTexture(c[1], c[2], c[3], 0.7)
 		else
 			self.glow:color(1, 0.12, 0.08); self.red:SetColorTexture(0.95, 0.12, 0.08, 0.7)
