@@ -171,7 +171,7 @@ function SK.barPlace()
 	return TB.cfg().barPlace
 end
 
-local function outGap(size) return math.max(math.floor(size * 3 / 44 + 0.5), 2) end
+local function outGap(size) return math.max(math.floor(size * 3 / ns.BASE_ICON_SIZE + 0.5), 2) end
 local function outReach(size)
 	if SK.barPlace() ~= "out" or not ns.Style.value("totembar", "uptime", "bar") then return 0 end
 	return outGap(size) + ns.Style.value("totembar", "uptime", "barHeight")
