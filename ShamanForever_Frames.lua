@@ -501,8 +501,9 @@ local function artKnown(a, cropped)
 	return fileKnown(a.file or MEDIA .. a.path)
 end
 
-local known, missing, unchecked = {}, {}, {}
--- Whether the client has all of a look's art (checked once per look); art it can't check is drawn
+local known = {}
+-- Whether the client has all of a look's art (checked once per look); art it can't check is drawn,
+-- the look marked artUnchecked
 function FR.hasArt(look)
 	if not look or look.none then return true end
 	local v = known[look]
@@ -517,17 +518,13 @@ function FR.hasArt(look)
 		end)
 		known[look] = v
 		if not v then
-			table.insert(missing, look.key)
 			ns.noteError("frame look " .. tostring(look.key), "art missing on this client")
 		elseif unsure then
-			table.insert(unchecked, look.key)
+			look.artUnchecked = true
 		end
 	end
 	return v
 end
--- Looks whose art this client lacks, and those it couldn't check, as found so far
-function FR.missingArt() return missing end
-function FR.uncheckedArt() return unchecked end
 
 -- Registered well, for this class, its art on the client
 function FR.usable(look)
