@@ -88,8 +88,10 @@ function ns.aurasSecret()
 	local ok, v = safe(C_Secrets and C_Secrets.ShouldAurasBeSecret)
 	return ok and (isSecret(v) or v == true) or false
 end
+-- Aura reads and aura container calls
+function ns.aurasReadable() return not InCombatLockdown() and not ns.aurasSecret() end
 function ns.deferWhileAurasSecret(key, fn)
-	if InCombatLockdown() or ns.aurasSecret() then ns.retryAfterCombat(key, fn) return true end
+	if not ns.aurasReadable() then ns.retryAfterCombat(key, fn) return true end
 	queued[key] = nil
 	return false
 end
