@@ -919,7 +919,7 @@ Looks.POP_KINDS = {
 Looks.POP_EVENTS = {}
 for kind, k in pairs(Looks.POP_KINDS) do Looks.POP_EVENTS[kind] = k.byStyle or nil end
 
-Looks.schoolOf, Looks.effectSchool = schoolOf, effectSchool
+Looks.effectSchool = effectSchool
 
 -- Blizzard's cooldown-done flash, doubled to be seen; nil without the art.
 function Looks.popEdge(parent)
