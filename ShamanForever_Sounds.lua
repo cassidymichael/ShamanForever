@@ -102,7 +102,9 @@ local auraSounds = {}   -- owner -> { value, ids, trigger, sig, handles }
 
 local function dropAura(a)
 	if not (C_UnitAuras and C_UnitAuras.RemoveAuraSound) then return end
-	for _, h in ipairs(a.handles) do ns.try("aura sound: remove", C_UnitAuras.RemoveAuraSound, h) end
+	for _, h in ipairs(a.handles) do
+		ns.try("aura sound: remove", C_UnitAuras.RemoveAuraSound, h)
+	end
 	wipe(a.handles)
 end
 

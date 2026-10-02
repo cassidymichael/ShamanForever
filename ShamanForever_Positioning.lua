@@ -283,7 +283,10 @@ nudger:SetScript("OnHide", function(self) self.held = nil end)
 -- Hidden at the start of combat, back after
 ns.onCombatStart(function()
 	nudger:Hide()
-	if ns.isActive() and not acct().locked then PO.lockInCombat(); say("positioning locked for combat") end
+	if ns.isActive() and not acct().locked then
+		PO.lockInCombat()
+		say("positioning locked for combat")
+	end
 end)
 ns.onCombatEnd(syncNudger)
 
@@ -438,8 +441,8 @@ end
 
 -- Combat locks positioning. Showing, moving and mouse changes on group frames are dropped in combat
 -- (the shield's group holds Blizzard's protected button), so only the looks change; the full
--- layout runs when combat ends. Called at PLAYER_REGEN_DISABLED, before lockdown: groups stop
--- taking the mouse, or they would eat clicks, camera drags and wheel zoom for the whole fight.
+-- layout runs when combat ends. Groups stop taking the mouse, or they would eat clicks, camera
+-- drags and wheel zoom for the whole fight.
 function PO.lockInCombat()
 	acct().locked = true
 	optionsSteppedAside = false

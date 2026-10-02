@@ -81,7 +81,7 @@ end
 
 -- Work that waits for combat to end: protected frames and Blizzard's aura container refuse changes
 -- in combat. `if ns.deferInCombat(key, fn) then return end`: queued once per key in combat and run
--- at PLAYER_REGEN_ENABLED; out of combat it runs now.
+-- when combat ends; out of combat it runs now.
 -- Aura containers also refuse calls while auras are secret out of combat (PvP, encounters):
 -- ns.deferWhileAurasSecret; the queue also runs when an addon restriction ends.
 -- States: combat (lockdown), restricted (a match or encounter: same secrets, no lockdown), readable.
@@ -112,7 +112,7 @@ function ns.setVisibilityDriver(frame, expr, site)
 	return (ns.try(site, UnregisterStateDriver, frame, "visibility"))
 end
 local INACTIVE = Enum and Enum.AddOnRestrictionState and Enum.AddOnRestrictionState.Inactive or 0
--- fn(endedAt) runs the frame after a restriction ends, once, after the queue
+-- fn(endedAt) runs the frame after a restriction ends, once, after the queue (not on starts)
 local afterEnd, endedAt = {}, nil
 function ns.onRestrictionEnd(fn) table.insert(afterEnd, fn) end
 local function runQueue()
@@ -191,7 +191,7 @@ end
 
 -- After combat: a combat-only group or bar can stay a few seconds once combat ends, then fade. Its
 -- visibility stays with its state driver (an addon Show, Hide or SetAlpha on a frame holding a
--- protected one is dropped in combat): at PLAYER_REGEN_DISABLED the driver becomes a plain "show",
+-- protected one is dropped in combat): when combat starts the driver becomes a plain "show",
 -- out of combat it fades, then its own driver returns. The fade is an Alpha animation with no end
 -- value: the frame's alpha never changes.
 local AfterCombat = {}
@@ -284,13 +284,13 @@ function AfterCombat.ended()
 end
 
 -- Combat and restrictions: one frame; listeners run in the order they were added, each on its own.
--- PLAYER_REGEN_DISABLED comes before lockdown starts.
 local fighting = false
 local startFns, endFns, changeFns = {}, {}, {}
+-- The fighting flag, set when combat starts, before lockdown; InCombatLockdown() is for protected calls
 function ns.inCombat() return fighting or InCombatLockdown() end
 function ns.onCombatStart(fn) table.insert(startFns, fn) end
 function ns.onCombatEnd(fn) table.insert(endFns, fn) end
--- Any restriction change: a match or an encounter starting or ending
+-- Any restriction change, at once, before the queue: a match or an encounter starting or ending
 function ns.onRestrictionChange(fn) table.insert(changeFns, fn) end
 local function tell(fns, site) for _, fn in ipairs(fns) do ns.try(site, fn) end end
 
@@ -331,7 +331,8 @@ local function restrictionChanged(state)
 end
 
 local combat = CreateFrame("Frame")
-for _, event in ipairs({ "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "ADDON_RESTRICTION_STATE_CHANGED" }) do
+local EVENTS = { "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "ADDON_RESTRICTION_STATE_CHANGED" }
+for _, event in ipairs(EVENTS) do
 	ns.registerEvent(combat, event)
 end
 combat:SetScript("OnEvent", function(_, event, _, state)

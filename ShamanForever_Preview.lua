@@ -415,8 +415,7 @@ function PV.afterGroups()
 	panel.refresh()
 end
 
--- Ends when combat starts: PLAYER_REGEN_DISABLED comes before lockdown, so the layout that restores
--- the real HUD runs at once
+-- Ends when combat starts, so the layout that restores the real HUD runs at once
 function PV.start()
 	ns.onCombatStart(function()
 		if not on then return end

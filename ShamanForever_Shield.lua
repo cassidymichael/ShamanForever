@@ -475,7 +475,8 @@ function SH.timeBarInset()
 end
 
 native = ns.makeAuraSlot(shield, {
-	key = "shield", slot = "shield", ids = shieldIDMap, name = ns.NAME .. "AuraContainer", parent = gate,
+	key = "shield", slot = "shield", ids = shieldIDMap, parent = gate,
+	name = ns.NAME .. "AuraContainer",
 	sites = { container = "shield container", style = "shield style", filter = "shield filter" },
 	barInset = SH.timeBarInset,
 	onButton = buildNative, onStyle = styleNative,

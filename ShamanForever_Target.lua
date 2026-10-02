@@ -364,8 +364,10 @@ local function driveGate(def)
 	def.driven = true
 	ns.setVisibilityDriver(def.gate, HOSTILE, "target gate " .. def.key)
 	if def.holder then
-		ns.setVisibilityDriver(def.holder, "[@player,dead] hide; " .. HOSTILE, "target warning " .. def.key)
-		ns.setVisibilityDriver(def.idleEdge, "[@target,harm,nodead] hide; show", "target border " .. def.key)
+		ns.setVisibilityDriver(def.holder, "[@player,dead] hide; " .. HOSTILE,
+			"target warning " .. def.key)
+		ns.setVisibilityDriver(def.idleEdge, "[@target,harm,nodead] hide; show",
+			"target border " .. def.key)
 	end
 end
 

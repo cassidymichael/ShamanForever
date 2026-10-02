@@ -316,8 +316,8 @@ function R.start()
 	ns.onCombatEnd(function()
 		for _, el in ipairs(TB.ELEMENTS) do R.refresh(TB.slots[el]) end
 	end)
-	-- Before the lockdown: drop any holder whose slot has no buff totem of ours down (a lingering buff
-	-- from a totem that went out of combat would show at the pull)
+	-- Drop any holder whose slot has no buff totem of ours down (a lingering buff from a totem
+	-- that went out of combat would show at the pull)
 	ns.onCombatStart(function()
 		for _, el in ipairs(TB.ELEMENTS) do
 			local s = TB.slots[el]

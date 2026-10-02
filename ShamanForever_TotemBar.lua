@@ -1413,8 +1413,9 @@ end
 -- Only for the class; its first layout comes with the HUD's
 function TB.start()
 	local ev = CreateFrame("Frame")
-	for _, e in ipairs({ "PLAYER_ENTERING_WORLD", "PLAYER_TOTEM_UPDATE", "SPELLS_CHANGED", "ACTIONBAR_SLOT_CHANGED",
-			"UPDATE_MULTI_CAST_ACTIONBAR", "UPDATE_BINDINGS", "SPELL_UPDATE_COOLDOWN" }) do
+	for _, e in ipairs({ "PLAYER_ENTERING_WORLD", "PLAYER_TOTEM_UPDATE", "SPELLS_CHANGED",
+			"ACTIONBAR_SLOT_CHANGED", "UPDATE_MULTI_CAST_ACTIONBAR", "UPDATE_BINDINGS",
+			"SPELL_UPDATE_COOLDOWN" }) do
 		ns.registerEvent(ev, e)
 	end
 	ns.registerEvent(ev, "UNIT_SPELLCAST_SUCCEEDED", "player")
