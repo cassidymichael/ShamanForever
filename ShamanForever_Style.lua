@@ -1,18 +1,4 @@
--- Styles: looks set once on Global settings that elements, groups and the totem bar follow, each
--- able to have its own instead ("Same as Global" in the options). One mechanism for every kind:
---   cooldown, uptime  timers (ShamanForever_Timers.lua); elements and the totem bar
---   glow, pop         the pulsing glow and the pop (ShamanForever.lua); elements and the totem bar
---   border            the edge around icons, in one of its looks; groups, the totem bar and the
---                     swing timer
---   gcd               the global cooldown's sweep, on or off; the cooldown elements and the totem bar
---   text, bar         fonts and bar textures (ShamanForever_Media.lua); both: the totem bar and the
---                     swing timer
--- An owner is nil (the global style), an element key, "totembar", "swing" (the swing timer), or a
--- group's table. A kind's settings sit at the same path under each holder: the profile for the
--- global style (db.glowStyle, db.timers.cooldown), else the element's options, the totem bar's or
--- the swing timer's settings, or the group itself. An owner's own table also holds `follow`;
--- turning it off the first time starts from the global look (with the owner's own defaults on top),
--- and turning it back on keeps its own values for later.
+-- Styles: looks set once on Global that owners follow or replace with their own
 
 local _, ns = ...
 
@@ -20,86 +6,44 @@ local S = {}
 ns.Style = S
 
 S.KINDS = {}
--- spec: defaults (every field, with its default), path (keys under a holder; unique among an
--- element's options, the totem bar's settings and a group's fields), ownerDefaults (owner key ->
--- fields that owner starts with over the global one; such an owner doesn't follow the global style
--- until the player says so), ranges (field -> { min, max } for numbers the options offer in a
--- range: a value outside it, from an old or shared profile, is held to it).
+-- Kind spec
 function S.register(kind, spec) S.KINDS[kind] = spec; spec.users = {} end
 
--- Owner keys whose options page can give them their own style of a kind (registered when the
--- window is made), for the global "Own style" line.
+-- Owners whose page offers their own style of a kind
 function S.addUser(kind, owner)
 	local users = S.KINDS[kind].users
 	if not tContains(users, owner) then table.insert(users, owner) end
 end
 
 S.register("glow", {
-	-- Its look (S.addLook; ShamanForever_Looks.lua), colour, one pulse's length (s), the dimmest it
-	-- gets between pulses, how far in from the edges it reaches (share of the icon), how bright
-	-- a look that has an intensity is (1 = as drawn), and how long a lap round the icon takes (s)
-	-- for a look that runs round it, and, for School material, its pattern's size (in icon widths)
-	-- and how fast it drifts (1 = as drawn). Killed early's glow keeps its red.
 	defaults = { look = "soft", color = { 1, 0.8, 0.25, 1 }, speed = 0.5, low = 0.25, width = 0.2, strength = 1,
 		lap = 1.6, scale = 1.5, drift = 1 },
 	ranges = { lap = { 0.6, 4 }, scale = { 0.5, 2 }, drift = { 0.25, 3 } },
 	path = { "glowStyle" },
-	-- Purge's glow starts as Blizzard's proc ring, and Shields' No shield and Flame Shock's Not on
-	-- target glows as the soft inner glow: their own styles rather than the global one.
 	ownerDefaults = { purge = { look = "proc" }, shield = { look = "soft" }, flameshock = { look = "soft" } },
 })
 S.register("pop", {
-	-- One setting per part, each changing only its own: colorBy (the colour for Ready and Ran out;
-	-- warnings keep theirs), flash, burst, motion (choices: ShamanForever_Looks.lua) with its
-	-- distance (size), the burst's reach (a factor on its sizes), and speed, which times the
-	-- whole pop.
 	defaults = { colorBy = "event", flash = "plain", burst = "star", motion = "shakeV", size = 1.4, speed = 1,
 		reach = 1 },
 	ranges = { reach = { 0.6, 1.3 } },
 	path = { "popStyle" },   -- not "pop": the totem bar's pop is where its pickers open
 })
--- Whether buttons show the global cooldown's sweep after every cast, as action bars do (on by
--- default). Off, an element with a cooldown of its own still shows that cooldown, which its own
--- cast starts.
+-- Global cooldown sweep
 S.register("gcd", {
 	defaults = { show = true },
 	path = { "gcdStyle" },
-	-- Reincarnation's hour-long cooldown never needs the sweep, whatever the global style says.
+	-- Reincarnation never needs the sweep
 	ownerDefaults = { reincarnation = { show = false } },
 })
--- look: how it is drawn (S.addLook; ShamanForever_Looks.lua). Some looks draw their own lines and
--- colours, so size and colour only apply where the look uses them; capSize and capColor are the
--- corner caps' (screen pixels, and a colour).
 S.register("border", {
 	defaults = { show = true, look = "line", size = 2, color = { 0, 0, 0, 1 }, capSize = 3,
 		capColor = { 0.85, 0.68, 0.39, 1 } },
-	-- The options' slider ranges (size 0, from older profiles, still means no line).
 	ranges = { size = { 0, 8 }, capSize = { 1, 8 } },
 	path = { "border" },
 })
 
--- Choices: the named values a style field picks from (a border's or a glow's look, the pop's
--- flash, burst and motion), resolved like the kind's other fields (the global style, then an
--- owner's own). Each is a data entry that pickers, previews, About's Experimental list and the
--- drawing code read (ShamanForever_Looks.lua); pickers offer them by group, in the order they were
--- added.
--- entry: the fields its drawing reads, and:
---   name, tip      as the options show it: a few plain words; tip one short line, or none
---   group          its section in pickers (a key of its field's groups)
---   experimental   not fully tested in game yet (the options badge it; About lists it)
---   hidden         not offered in pickers: drawn for a saved value, or for another part's use
---   bySchool       it differs by school (previews show one icon per school)
---   uses           the style fields it reads, field -> true (the options show only those)
---   fields         field -> { name, tip, range = { min, max }, step, format }: a field it reads its
---                  own way, offered under its own label while it is picked (format: a string for
---                  string.format, or a function of the value)
---   preview        hints for previews: { play = "loop" | "hover" | "still", bg = "dark" | "snow",
---                  size }
---   credit         "ai": drawn with art made with an AI model
--- A field's own metadata (S.addField): name (as pickers and the previewer's axes name it), where
--- (the page and block it's on), groups ({ key, name } in picker order) and preview (the default
--- for its entries).
-local CHOICES, FIELDS = {}, {}   -- kind -> field -> its list; FIELDS: every list, in order
+-- Choices: the named values a style field picks from
+local CHOICES, FIELDS = {}, {}
 local function listOf(kind, field)
 	CHOICES[kind] = CHOICES[kind] or {}
 	local l = CHOICES[kind][field]
@@ -116,11 +60,9 @@ function S.addField(kind, field, meta)
 	for k, v in pairs(meta) do l[k] = v end
 end
 
--- A field's list (its metadata, order and byKey), or nil; every field's list, in order.
 function S.field(kind, field) return CHOICES[kind] and CHOICES[kind][field] end
 function S.fields() return FIELDS end
 
--- Adds a choice, or replaces the one with the same key in its place.
 function S.addChoice(kind, field, key, entry)
 	local l = listOf(kind, field)
 	entry.key, entry.kind, entry.field = key, kind, field
@@ -134,23 +76,19 @@ function S.addChoice(kind, field, key, entry)
 	l.byKey[key] = entry
 end
 
--- Every choice of a field, hidden ones too, in the order added (the caller doesn't change it).
 function S.choices(kind, field)
 	local l = S.field(kind, field)
 	return l and l.order or {}
 end
 
--- The entry a key names. An unknown key (a profile shared from a newer version) gets the field's
--- default.
+-- An unknown key gets the field's default.
 function S.choice(kind, field, key)
 	local l = S.field(kind, field)
 	if not l then return nil end
 	return l.byKey[key] or l.byKey[S.KINDS[kind].defaults[field]]
 end
 
--- A picker's sections: { group, name, list } in the field's group order (then any ungrouped
--- choices, under no name), each list the choices offered in the order added. current: the key
--- picked now, offered in its section even when hidden, so a saved value still reads.
+-- A picker's sections, in group order; current stays offered even when hidden.
 function S.sections(kind, field, current)
 	local l = S.field(kind, field)
 	local out, at = {}, {}
@@ -175,7 +113,6 @@ function S.sections(kind, field, current)
 	return out
 end
 
--- The choices a picker offers, in its sections' order (S.sections).
 function S.offered(kind, field, current)
 	local out = {}
 	for _, sec in ipairs(S.sections(kind, field, current)) do
@@ -184,14 +121,11 @@ function S.offered(kind, field, current)
 	return out
 end
 
--- Looks: the choices of a kind's `look` field (border, glow). The kind's default look is added
--- first.
 function S.addLook(kind, key, entry) S.addChoice(kind, "look", key, entry) end
 function S.look(kind, key) return S.choice(kind, "look", key) end
 
 local isColor = ns.isColor
 
--- A number held to its range (ranges: field -> { min, max }); not a number (NaN): the default.
 local function inRange(ranges, k, x, default)
 	local r = ranges and ranges[k]
 	if not r then return x end
@@ -199,12 +133,10 @@ local function inRange(ranges, k, x, default)
 	return math.min(math.max(x, r[1]), r[2])
 end
 
--- A clean copy of t: every field of def, taken from t where it has the right type (and, for a
--- field in ranges, held to its range).
 local function clean(t, def, ranges)
 	local out = {}
 	for k, v in pairs(def) do
-		local x   -- not `type(t) == "table" and t[k]`: with no t, that false would win over a true default
+		local x   -- not `type(t) == "table" and t[k]`: a false would beat a true default
 		if type(t) == "table" then x = t[k] end
 		if type(v) == "table" then out[k] = isColor(x) and { x[1], x[2], x[3], type(x[4]) == "number" and x[4] or 1 } or CopyTable(v)
 		elseif type(x) == type(v) then out[k] = type(x) == "number" and inRange(ranges, k, x, v) or x
@@ -214,7 +146,6 @@ local function clean(t, def, ranges)
 end
 S.clean = clean
 
--- An owner's own table, cleaned, with its follow switch (shared profiles).
 function S.cleanOwn(t, kind)
 	if type(t) ~= "table" then return nil end
 	local out = clean(t, S.KINDS[kind].defaults, S.KINDS[kind].ranges)
@@ -222,7 +153,6 @@ function S.cleanOwn(t, kind)
 	return out
 end
 
--- The table an owner's settings hang from; nil while there is none (before the profile loads).
 local function holder(owner)
 	if type(owner) == "table" then return owner end
 	local db = ns.getDB and ns.getDB()
@@ -232,7 +162,6 @@ local function holder(owner)
 	return ns.elementOpts and ns.elementOpts(owner)
 end
 
--- The table at a kind's path under h (made on the way when create).
 local function at(h, path, create)
 	local t = h
 	for _, k in ipairs(path) do
@@ -246,13 +175,11 @@ local function at(h, path, create)
 	return t
 end
 
--- The global style for a kind.
 function S.global(kind)
 	local spec = S.KINDS[kind]
 	return clean(at(holder(nil), spec.path), spec.defaults, spec.ranges)
 end
 
--- An owner's stored table for a kind; nil if it has none (and not create).
 function S.override(owner, kind, create)
 	local h = holder(owner)
 	if not h then return nil end
@@ -264,7 +191,6 @@ local function ownerDefaults(owner, kind)
 	return d and d[owner] or nil
 end
 
--- Whether an owner follows the global style for a kind.
 function S.follows(owner, kind)
 	if owner == nil then return true end
 	local o = S.override(owner, kind)
@@ -272,7 +198,6 @@ function S.follows(owner, kind)
 	return ownerDefaults(owner, kind) == nil
 end
 
--- An owner's own style before any change: the global one, with the owner's own defaults on top.
 local function base(owner, kind)
 	local s = S.global(kind)
 	local d = ownerDefaults(owner, kind)
@@ -280,16 +205,12 @@ local function base(owner, kind)
 	return s
 end
 
--- The style an owner uses now.
 function S.get(owner, kind)
 	if S.follows(owner, kind) then return S.global(kind) end
 	return clean(S.override(owner, kind), base(owner, kind), S.KINDS[kind].ranges)
 end
 
--- One plain (not table) field of the style an owner uses now, as S.get would give it, without
--- building the style: for callers that run on every cooldown event.
--- It repeats S.get's order (the global style, the owner's defaults, its own values): change both
--- together.
+-- Same order as S.get: change both together.
 function S.value(owner, kind, field)
 	local spec = S.KINDS[kind]
 	local v = spec.defaults[field]
@@ -305,7 +226,7 @@ function S.value(owner, kind, field)
 	return v
 end
 
--- One options repaint's reads, each style once until a change. Shared: never change what they return.
+-- One options repaint's reads, each style once until a change.
 local reads, readDepth, GLOBAL = nil, 0, {}
 function S.beginReads()
 	readDepth = readDepth + 1
@@ -332,9 +253,6 @@ end
 function S.read(owner, kind) return memo("get", S.get, owner, kind) end
 function S.readShipped(owner, kind) return memo("shipped", S.shipped, owner, kind) end
 
--- Stop following the global style: the first time, the owner starts from the global look with its
--- own defaults on top (for most owners, the look it had). Follow again: its own values are kept for
--- later.
 function S.setFollow(owner, kind, follow)
 	forget()
 	local o = S.override(owner, kind, true)
@@ -345,14 +263,12 @@ function S.setFollow(owner, kind, follow)
 	o.follow = follow
 end
 
--- Change one part of a style: the global one (owner nil) or an owner's own.
 function S.set(owner, kind, field, value)
 	forget()
 	local spec = S.KINDS[kind]
 	if owner == nil then
 		local h = holder(nil)
 		if not h then return end
-		-- Keep the global table whole and clean, whatever an old or shared profile left in it.
 		local path, parent = spec.path, h
 		for i = 1, #path - 1 do
 			if type(parent[path[i]]) ~= "table" then parent[path[i]] = {} end
@@ -367,9 +283,6 @@ function S.set(owner, kind, field, value)
 	S.override(owner, kind, true)[field] = value
 end
 
--- How an owner's style ships: whether it follows the global style, and the style it has then (the
--- kind's defaults for the global style; the global one, with the owner's own defaults on top, for
--- an owner that has them).
 function S.shipped(owner, kind)
 	local spec = S.KINDS[kind]
 	if owner == nil then return true, clean(nil, spec.defaults, spec.ranges) end
@@ -377,8 +290,6 @@ function S.shipped(owner, kind)
 	return false, base(owner, kind)
 end
 
--- Back to how it ships: the global one to the kind's defaults; an owner's own table removed, so it
--- follows the global style again, or has its own defaults over the global one where it has them.
 function S.reset(owner, kind)
 	forget()
 	local spec = S.KINDS[kind]
@@ -393,7 +304,6 @@ function S.reset(owner, kind)
 	parent[path[last]] = owner == nil and clean(nil, spec.defaults, spec.ranges) or nil
 end
 
--- An owner's name, as the options show it.
 function S.ownerName(owner)
 	if type(owner) == "table" then return owner.name or "A group" end
 	if owner == "totembar" then return "Totem bar" end
@@ -401,8 +311,6 @@ function S.ownerName(owner)
 	return owner
 end
 
--- Everything with its own style for a kind (names, in the options' order): the global "Own style"
--- line.
 function S.ownStyles(kind)
 	local out = {}
 	if kind == "border" then
@@ -414,7 +322,7 @@ function S.ownStyles(kind)
 	for _, key in ipairs(S.KINDS[kind].users) do
 		local offered = key ~= "totembar" or ns.TotemBar.barOn()
 		if key == "swing" then offered = ns.Swing and ns.Swing.isOn() end
-		-- The totem bar's theme can draw its border its own way, whatever the bar's own style says.
+		-- The totem bar's theme can draw its own border.
 		if offered and key == "totembar" and kind == "border" and ns.TotemBar.skin.owns("border") then
 			table.insert(out, "Totem bar (its theme)")
 		elseif offered and not S.follows(key, kind) then table.insert(out, S.ownerName(key)) end

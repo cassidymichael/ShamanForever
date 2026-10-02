@@ -1,11 +1,4 @@
--- The options window's page kit: a page is a scrolling column of rows (headers, text, checkboxes,
--- sliders, dropdowns, colours, cards, buttons...). Rows can hide themselves; refresh reflows the
--- visible ones and pulls every control's value from the saved settings. Each header starts a block
--- that runs to the next header and sits on a faint panel; clicking the header folds the block. A
--- section heading (Page:section) stands over a run of blocks. Rows that only apply while another
--- is on hang under it (Page:sub), indented, on a thin gold rule. Also the drag and drop the pages'
--- lists share. The pages themselves are built in ShamanForever_Options.lua, Layout in
--- ShamanForever_OptionsLayout.lua, and the elements' in ShamanForever_OptionsElements.lua.
+-- Page kit: scrolling pages of rows grouped into foldable blocks
 
 local _, ns = ...
 
@@ -13,34 +6,25 @@ local Page = {}
 Page.__index = Page
 ns.Page = Page
 
--- The window's geometry, shared with ShamanForever_Options.lua. The player may make it wider (the
--- nav keeps its width; the page takes the rest) and taller. Pages stay one column as wide as the
--- page: labels, sliders and dropdowns keep their widths, and text wraps at a readable width.
-Page.WIDTH, Page.NAV_W = 864, 200   -- the least width; the nav: room for its element list's scroll bar
-Page.PAGE_TOP = -38   -- pages start below the title bar
+Page.WIDTH, Page.NAV_W = 864, 200
+Page.PAGE_TOP = -38
 Page.LABEL_W = 150
 local WIDTH, NAV_W, PAGE_TOP, LABEL_W = Page.WIDTH, Page.NAV_W, Page.PAGE_TOP, Page.LABEL_W
-local ROW_W = WIDTH - NAV_W - 64                  -- initial row width; rows then follow the window
-local SLIDER_SPAN_W = 400   -- a slider and its value box, at most
-local TEXT_MAX_W = 600   -- text and boxed notices wrap here at the most (the page's width at 864)
--- A block's panel: its rows inset from its sides, room under its last row, a gap to the next block.
+local ROW_W = WIDTH - NAV_W - 64
+local SLIDER_SPAN_W = 400
+local TEXT_MAX_W = 600
 local PANEL_PAD, PANEL_PAD_B, BLOCK_GAP = 10, 6, 10
--- Folded and opened blocks are saved with the account, by page and header text ("general:Border
--- style" = true folded, false open), so they stay as left across a /reload. A block never folded or
--- opened starts folded, unless it's its page's first (page.firstFolded: that one too), its page has
--- page.allOpen, it's under a section made open (Page:section), or its header says open.
+-- Fold state is saved per page and header text; an untouched block starts folded unless it is
+-- -- the page's first, under an open section, or its page or header says open.
 local function folded() return ns.getAccount().foldedBlocks end
 local function isFolded(b)
 	local v = folded()[b.key]
 	if v == nil then return b.startFolded end
 	return v
 end
-local allPages = {}   -- every page made
--- A sub's rows: indented a level at a time, two at most, beside a rule down from under their parent.
+local allPages = {}
 local SUB_INDENT, SUB_MAX, RULE_X = 24, 2, 12
 
--- above: over the frame's top-left corner, for full-width rows, whose right edge is far from the
--- mouse on the label; otherwise to the right of the frame.
 function Page.setTip(frame, title, text, above)
 	if not text then return end
 	frame:SetScript("OnEnter", function(self)
@@ -56,22 +40,16 @@ function Page.setTip(frame, title, text, above)
 	frame:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
-------------------------------------------------------------------------
 -- Pages
-------------------------------------------------------------------------
--- A page of the options window (win), scrolling in the area right of the nav.
 function Page.new(win, key, title, indent)
-	-- Blizzard's modern scroll frame and slim bar; the old one if this client lacks it.
 	local ok, scroll = pcall(CreateFrame, "ScrollFrame", "ShamanForeverOptionsScroll_" .. key, win, "ScrollFrameTemplate")
 	if not (ok and scroll and scroll.ScrollBar) then
 		scroll = CreateFrame("ScrollFrame", "ShamanForeverOptionsScroll_" .. key .. "Old", win, "UIPanelScrollFrameTemplate")
 	else
 		if scroll.ScrollBar.SetHideIfUnscrollable then scroll.ScrollBar:SetHideIfUnscrollable(true) end
-		-- A clear gutter between the page and the slim bar.
 		scroll.ScrollBar:ClearAllPoints()
 		scroll.ScrollBar:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 14, 0)
 		scroll.ScrollBar:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", 14, 0)
-		-- A mouse wheel step: Blizzard's default is 30 px, about one row; two rows feels right.
 		if scroll.SetPanExtent then scroll:SetPanExtent(64) end
 	end
 	scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, PAGE_TOP)
@@ -79,10 +57,6 @@ function Page.new(win, key, title, indent)
 	local content = CreateFrame("Frame", nil, scroll)
 	content:SetSize(ROW_W, 1)
 	scroll:SetScrollChild(content)
-	-- Update the scroll frame's child rect (its scroll range and the area where rows take clicks)
-	-- after every resize and reflow, as Blizzard's pages do after a layout, so rows that a taller
-	-- window or a longer page brings into view can be clicked. While the window is resized the page
-	-- holds its place and is laid out once, at its end (Page.startResize).
 	local page = setmetatable({ win = win, key = key, title = title, indent = indent, scroll = scroll,
 		content = content, items = {}, blockList = {}, subs = {}, pageOwns = {}, ownIds = {} }, Page)
 	scroll:SetScript("OnSizeChanged", function(self, w)
@@ -92,29 +66,24 @@ function Page.new(win, key, title, indent)
 		if not Page.resizing then ns.Options.refresh() end
 	end)
 	content:SetScript("OnSizeChanged", function() scroll:UpdateScrollChildRect() end)
-	-- Blizzard's handler, run first, sets the position again from its scroll bar's fraction of the
-	-- range, and the range can come in a layout pass after ours: put the held place back after it.
+	-- Blizzard's handler re-sets the position from its scroll bar's fraction: the held place is put
+	-- -- back after it.
 	scroll:HookScript("OnScrollRangeChanged", function() if page.hold then page:keepScroll() end end)
 	scroll:Hide()
 	table.insert(allPages, page)
 	return page
 end
 
--- Resizing the window changes the scroll frame's size and range under the scroll bar, which keeps
--- the position as a fraction of the range and feeds back on itself (the range follows the frame,
--- the position follows the range), and that can send the page to the top. So from the grip's press
--- until two frames after its release the page holds its place and puts it back after every size
--- change, layout and range change, and it is not laid out while the grip is held: rows keep their
--- width, cut off or with room to spare, and one layout comes when the grip is let go. The row at
--- the top of the view stays there.
-local resized   -- the page holding its place through a resize
+-- Resizing feeds back on itself (the range follows the frame, the position the range) and can send
+-- -- the page to the top: from the grip's press until two frames after its release the page holds
+-- -- its place, and it is laid out once at the end.
+local resized
 
 function Page.startResize(page)
 	if not page then return end
 	Page.resizing, resized = true, page
 	local offset = page.scroll:GetVerticalScroll()
 	local hold = { offset = offset }
-	-- The row at the top of the view, and how far into it the view starts.
 	for _, it in ipairs(page.items) do
 		if it.visible and it.y and it.y + it.h > offset then
 			hold.row, hold.dy = it, offset - it.y
@@ -128,7 +97,6 @@ function Page.endResize()
 	local page = resized
 	Page.resizing, resized = nil, nil
 	if not page then return end
-	-- The widths the frozen size changes left alone, on every page; the page on show laid out now.
 	for _, p in ipairs(allPages) do
 		local w = p.scroll:GetWidth()
 		if math.abs(p.content:GetWidth() - w) > 0.5 then
@@ -138,20 +106,18 @@ function Page.endResize()
 	end
 	if page.scroll:IsVisible() then page:refresh() end
 	page:keepScroll()
-	-- The layout the last size change queued, and the range changes it brings, come a frame later.
 	local hold = page.hold
 	C_Timer.After(0, function()
 		page:keepScroll()
 		C_Timer.After(0, function()
-			if page.hold ~= hold then return end   -- a new resize holds it now
+			if page.hold ~= hold then return end
 			page:keepScroll()
 			page.hold = nil
 		end)
 	end)
 end
 
--- Puts the held place back, within the range. At a range of 0 it waits for the next range change:
--- a page that fits has no place to keep, and the range may not be settled yet.
+-- At a range of 0 it waits for the next range change.
 function Page:keepScroll()
 	local hold, s = self.hold, self.scroll
 	if not hold or hold.busy then return end
@@ -161,20 +127,13 @@ function Page:keepScroll()
 	if row and row.visible and row.y then want = row.y + hold.dy end
 	want = math.max(0, math.min(want, range))
 	if math.abs(s:GetVerticalScroll() - want) > 0.5 then
-		hold.busy = true   -- not again from inside the scroll handlers setting it runs
+		hold.busy = true
 		s:SetVerticalScroll(want)
 		hold.busy = false
 	end
 end
 
--- shown: nil, or a function: the row is hidden while it returns false.
--- Set around a run of rows, like the gate: inset, a function returning the rows' left and right
--- margins inside the page (a second column); float, a function: while true, the rows after it start
--- level with it instead of below it, so it stands beside them (give them an inset to make room).
--- A page with panels = false (set before its first header) has no blocks: its rows use the whole
--- page, as the Groups & Layout page's group list does.
 function Page:add(frame, height, shown, refresh)
-	-- A page-wide gate (set around a run of rows) hides them all while it returns false.
 	local gate = self.gate
 	if gate then
 		local inner = shown
@@ -189,10 +148,6 @@ function Page:add(frame, height, shown, refresh)
 	return frame
 end
 
--- Rows that apply only while parent (a row just added: a checkbox, a dropdown...) shows and
--- active() is true: build() adds them. They hide with their parent, sit a level in, and hang on a
--- thin gold rule from under the parent down to the last of them that shows. A sub inside a sub
--- goes one level deeper; two levels at most. Their own shown, if any, still applies.
 function Page:sub(parent, active, build)
 	local parentItem
 	for i = #self.items, 1, -1 do
@@ -209,16 +164,12 @@ function Page:sub(parent, active, build)
 	self.subRun = outer
 end
 
--- The width of the row being refreshed (the page's, less its insets): what its controls fit into.
 function Page:width() return self.rowW or self.content:GetWidth() end
 
--- A row that shows only while active() is true (and shown(), if given).
 function Page.showWhen(active, shown)
 	return function() return (not shown or shown()) and active() and true or false end
 end
 
--- A block's panel, from top to bottom (down from the page's top): a faint fill and a thin border,
--- drawn on the page itself, under its rows.
 local function placePanel(content, b, top, bottom)
 	if not b.panel then
 		local fill = content:CreateTexture(nil, "BACKGROUND")
@@ -249,8 +200,6 @@ local function hidePanel(b)
 	for i = 1, 4 do b.panel.edges[i]:Hide() end
 end
 
--- One repaint reads each style once (ns.Style.read); an error is reported with its stack, and the
--- reads end either way.
 local function report(err) geterrorhandler()(err) end
 function Page:refresh()
 	ns.Style.beginReads()
@@ -267,16 +216,13 @@ function Page:paint()
 			ns.say("options: the %s page header failed to update: %s", self.key, tostring(err))
 		end
 	end
-	-- Headers that show: two or more, and the page starts with the fold row.
 	local heads = 0
 	for _, b in ipairs(self.blockList) do
 		if not b.head.shown or b.head.shown() then heads = heads + 1 end
 	end
 	self.heads = heads
-	-- bottom: of any row standing beside others (float)
 	local y, bottom = self:placeFoldRow(heads >= 2), 0
 	local width = self.content:GetWidth()
-	-- open: the block being laid out, while its header shows; gap: owed before the next row shown.
 	local open, gap = nil, false
 	local function close()
 		if not open then return end
@@ -288,8 +234,7 @@ function Page:paint()
 	for _, b in ipairs(self.blockList) do b.drawn, b.painted = false, nil end
 	for _, it in ipairs(self.items) do
 		local b = it.block
-		if it.head or it.ends then close() end   -- a header or a section ends the block before it
-		-- A folded block keeps only its header; one whose header is hidden can't fold.
+		if it.head or it.ends then close() end
 		local show = not (b and not it.head and b.head.visible and isFolded(b))
 		show = show and (not it.shown or it.shown())
 		local sub = it.sub
@@ -304,7 +249,7 @@ function Page:paint()
 			if it.inset then left, right = it.inset() end
 			left, right = left + pad + (sub and sub.depth * SUB_INDENT or 0), right + pad
 			self.rowW = width - left - right
-			-- One failing row must not blank the rest of the page: report it once and carry on.
+			-- One failing row must not blank the rest of the page.
 			if it.refresh then
 				local ok, err = pcall(it.refresh)
 				if not ok and not it.reported then
@@ -336,7 +281,6 @@ function Page:paint()
 	if self.afterRefresh then self.afterRefresh() end
 end
 
--- A sub's rule: from just under its parent's box down to near the foot of its last row shown.
 function Page:placeRule(run)
 	local parent, low = run.parent, nil
 	if parent.visible then
@@ -361,7 +305,6 @@ function Page:placeRule(run)
 	run.rule:Show()
 end
 
--- Lays the page out again at once, its scroll range with it (after a fold).
 function Page:relaid()
 	self:refresh()
 	local s = self.scroll
@@ -370,13 +313,11 @@ function Page:relaid()
 	if s:GetVerticalScroll() > range then s:SetVerticalScroll(range) end
 end
 
--- Folds or opens block b.
 function Page:setFolded(b, fold)
 	folded()[b.key] = fold and true or false
 	self:relaid()
 end
 
--- Folds or opens every block whose header shows.
 function Page:foldAll(fold)
 	for _, b in ipairs(self.blockList) do
 		if b.head.visible then folded()[b.key] = fold and true or false end
@@ -384,7 +325,6 @@ function Page:foldAll(fold)
 	self:relaid()
 end
 
--- Opens the block holding frame (a row or a header), for a jump that lands on it.
 function Page:reveal(frame)
 	for _, it in ipairs(self.items) do
 		if it.frame == frame then
@@ -394,8 +334,6 @@ function Page:reveal(frame)
 	end
 end
 
--- What a folded block has on: the names of its ticked boxes that show (not those in a sub), the
--- first three and a count.
 local function onList(b)
 	local on = {}
 	for _, it in ipairs(b.items) do
@@ -408,11 +346,9 @@ local function onList(b)
 	return table.concat(on, ", ")
 end
 
--- The fold arrow before a header: the expand and collapse icons of Blizzard's trainer and
--- profession recipe headers, fitted to a 14 px box. A client without them gets the arrow from the
--- totem bar art, turned to point down while open and right while folded.
+-- A client without the trainer's atlases gets the totem bar's arrow.
 local ARROW_BOX = 14
-local arrowAtlas = {}   -- atlas name -> its info, or false where the client lacks it
+local arrowAtlas = {}
 local function paintArrow(t, shut)
 	local name = shut and "Professions-recipe-header-expand" or "Professions-recipe-header-collapse"
 	local info = arrowAtlas[name]
@@ -434,14 +370,10 @@ local function paintArrow(t, shut)
 	end
 end
 
--- Small text links, muted grey and gold under the mouse: Expand all and Collapse all, and the
--- Reset links.
 local LINK_H, LINK_GAP = 18, 14
 local LINK_GREY = 0.62
--- How far a Reset link takes clicks past its text, each way (x, y): 30 px tall in all, so a
--- click meant for it doesn't land on the header beside it and fold the block.
+-- A larger hit area, so a click doesn't land on the header and fold the block.
 local RESET_PAD_X, RESET_PAD_Y = 8, 6
--- pad: true for a Reset link's larger hit area.
 local function textLink(parent, text, onClick, pad)
 	local b = CreateFrame("Button", nil, parent)
 	if pad then b:SetHitRectInsets(-RESET_PAD_X, -RESET_PAD_X, -RESET_PAD_Y, -RESET_PAD_Y) end
@@ -458,17 +390,13 @@ local function textLink(parent, text, onClick, pad)
 	b.say(text)
 	return b
 end
-Page.textLink = textLink   -- for the pages' own links (the Styles explorer's preview Reset)
+Page.textLink = textLink
 
--- The Reset links, shown while what they reset has changes, each asking first: a block's at the
--- right of its header, and a page's own (page.resetAll: { text(), ask() }, an element page's
--- "Reset <name>") at the left of the fold row. Placed here only.
 local function placeResets(header, foldRow)
 	if header then header.reset:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", 0, 5) end
 	if foldRow then foldRow.resetAll:SetPoint("LEFT", foldRow, "LEFT", 4, 0) end
 end
 
--- The header's arrow, its Reset link and, folded, what's on (left of the link while it shows).
 function Page:paintHeader(b)
 	local f = b.head.frame
 	local shut = isFolded(b) and true or false
@@ -482,14 +410,10 @@ function Page:paintHeader(b)
 		f.says:SetPoint("BOTTOMRIGHT", -resetW, 9)
 		f.says:SetText(onList(b))
 		local used = f.textX + f.text:GetStringWidth() + (f.note and 10 + f.note:GetStringWidth() or 0)
-		-- Cut short with "..." where it's long.
 		f.says:SetWidth(math.max(self.rowW - used - resetW - 24, 1))
 	end
 end
 
--- Expand all and Collapse all: a thin row of two text links at the top of the page, above every
--- block, on pages with two blocks or more. Shift-click on any header does the same.
--- The row at the top of the page (on shows whether it's there); returns the height it takes.
 function Page:placeFoldRow(on)
 	local row = self.foldRow
 	if not on then
@@ -516,8 +440,6 @@ function Page:placeFoldRow(on)
 	return LINK_H
 end
 
--- Each fold link dims, and takes no clicks, while it would change nothing; the page's Reset link
--- shows while the page has changes.
 function Page:paintFoldRow()
 	local row = self.foldRow
 	if not (row and row:IsShown()) then return end
@@ -554,33 +476,15 @@ function Page:label(f, text, tip)
 	return fs
 end
 
-------------------------------------------------------------------------
--- What a block owns: the settings its rows write, as refs that the helpers binding rows to settings
--- add (Page:owns), so a block can tell whether it differs from the defaults, and reset them.
-------------------------------------------------------------------------
--- A ref names one setting: { elem = key, name } (an element's own, db.elementOpts), { general =
--- name } (the profile's, db), { bar = "totembar" or "swing", name }, { group = g or a function
--- returning it, name }, { style = kind, owner } (a whole style: the global one or an owner's). Any
--- ref may also carry:
---   after    the follow-up its row runs after a change; a reset runs each one once
---   default  a function returning the value to compare with, in place of its kind's
---   changed  a function of the ref: whether it differs from its default, in place of the compare
---   reset    a function of the ref that resets it, in place of its kind's: for a row that does
---            more than store the value (a group's Scale keeps its centre, Show goes through
---            ns.setShow). It returns false when it can't now (Show in combat), as by hand.
---   label    what a refused reset is called, in the line that says so
+-- What a block owns: refs to its settings, to tell whether it differs and to reset it.
+-- Ref kinds: elem, general, bar, group, style; optional after, default, changed, reset, label.
 local REF = {}
 
--- A kind of ref. spec.id(ref): unique per setting, for one ref per setting in a block. A stored
--- value: holder(ref), the table it is saved in (nil while there is none: no group chosen);
--- slot(ref), its field there; default(ref); unset, true where nil means the default (a reset clears
--- it; otherwise a reset stores a copy of the default). A kind that is more than a stored value
--- gives changed(ref) and reset(ref) instead.
 function Page.refKind(kind, spec) REF[kind] = spec end
 
 local function copy(v) return type(v) == "table" and CopyTable(v) or v end
 
--- Whether two saved values are the same: tables field by field, numbers to a hair (a typed 0.33).
+-- Numbers compare to a hair (a typed 0.33).
 local function same(a, b)
 	if type(a) ~= type(b) then return false end
 	if type(a) == "number" then return math.abs(a - b) < 1e-6 end
@@ -608,10 +512,8 @@ local function refChanged(r)
 	return not same(v, defaultOf(r))
 end
 
--- Resets every ref in list, then the follow-ups once each: the rows' own, the glows' restyle and a
--- relayout (which repaints the options). The same path as changing each setting by hand, so its
--- combat rules hold: layout waits for combat to end, aura buttons restyle out of combat, and what
--- can't change in combat is left, said once.
+-- The same path as a change by hand, so combat rules hold: layout waits, aura buttons restyle
+-- -- after combat, and what can't change in combat is left, said once.
 local function resetRefs(list)
 	local afters, seen, refused = {}, {}, {}
 	for _, r in ipairs(list) do
@@ -644,11 +546,8 @@ local function anyChanged(list)
 	return false
 end
 
--- Asks before run(), a reset of what name names (the dialog: ShamanForever_Options.lua).
 local function askReset(name, run) StaticPopup_Show("SHAMANFOREVER_RESET_SETTINGS", name, nil, run) end
 
--- An element's own setting; field: one field of a table setting (its Expiring's). Unset is its
--- default.
 Page.refKind("elem", {
 	id = function(r) return r.elem .. "." .. r.name .. (r.field and "." .. r.field or "") end,
 	holder = function(r)
@@ -666,15 +565,13 @@ Page.refKind("general", {
 	slot = function(r) return r.general end,
 	default = function(r) return ns.DEFAULTS[r.general] end,
 })
-local BARS = { totembar = "TotemBar", swing = "Swing" }   -- their modules (cfg, DEFAULTS)
+local BARS = { totembar = "TotemBar", swing = "Swing" }
 Page.refKind("bar", {
 	id = function(r) return r.bar .. "." .. r.name end,
 	holder = function(r) return ns[BARS[r.bar]].cfg() end,
 	slot = function(r) return r.name end,
 	default = function(r) return ns[BARS[r.bar]].DEFAULTS[r.name] end,
 })
--- A group's default: the profile's shipped group with its id and name (ns.DEFAULTS.groups), where
--- that one sets it, else the new-group template's.
 local function groupOf(r) if type(r.group) == "function" then return r.group() end return r.group end
 Page.refKind("group", {
 	id = function(r) return tostring(r.group) .. "." .. r.name end,
@@ -691,9 +588,6 @@ Page.refKind("group", {
 	end,
 })
 
--- A style (ShamanForever_Style.lua): owner nil for the global one, an owner key, or a function
--- returning a group (nil while none is chosen). Changed: off how it ships (a "Same as Global"
--- switched, or values of its own that differ); a reset puts it back as shipped.
 local function styleOwner(r)
 	if type(r.owner) == "function" then
 		local o = r.owner()
@@ -721,8 +615,6 @@ Page.refKind("style", {
 	end,
 })
 
--- Adds ref to the block being built; a row outside any block (a page with panels = false) adds it
--- to the page's own list, which only a whole-page reset reads.
 function Page:owns(ref)
 	for kind in pairs(REF) do
 		if ref[kind] ~= nil then ref.kind = kind end
@@ -735,14 +627,12 @@ function Page:owns(ref)
 	table.insert(into == self and self.pageOwns or into.owns, ref)
 end
 
--- A block: its header's text (name), fold key, rows (items) and refs (owns).
 local Block = {}
 Block.__index = Block
 function Block:changed() return anyChanged(self.owns) end
 function Block:reset() resetRefs(self.owns) end
 function Block:askReset() askReset(self.name, function() self:reset() end) end
 
--- The whole page: every block's refs and its own.
 function Page:refs()
 	local out = {}
 	for _, r in ipairs(self.pageOwns) do table.insert(out, r) end
@@ -751,7 +641,6 @@ function Page:refs()
 	end
 	return out
 end
--- A block's answer from its header's paint in this repaint, where there was one.
 function Page:changed()
 	if anyChanged(self.pageOwns) then return true end
 	for _, b in ipairs(self.blockList) do
@@ -762,17 +651,13 @@ function Page:changed()
 	return false
 end
 function Page:reset() resetRefs(self:refs()) end
--- name: what the question calls the page ("Stormstrike").
 function Page:askReset(name) askReset(name, function() self:reset() end) end
 
--- A header starts a block, which runs to the next one. icon: an optional texture before the text.
--- opts.open: the block starts open (while the player hasn't folded or opened it).
 function Page:header(text, shown, note, icon, opts)
 	local f = self:row(36)
 	local block, x = nil, 0
 	if self.panels ~= false then
-		-- Named by its text, so the saved fold state survives changes to the blocks before it; a
-		-- second header with the same text on a page gets a number.
+		-- Named by its text, so fold state survives changes before it.
 		self.blockKeys = self.blockKeys or {}
 		local key = self.key .. ":" .. text
 		if self.blockKeys[key] then key = key .. "#" .. #self.blockList end
@@ -782,7 +667,6 @@ function Page:header(text, shown, note, icon, opts)
 			ownIds = {}, startFolded = not (first or self.allOpen or self.openRun or (opts and opts.open)) }, Block)
 		table.insert(self.blockList, block)
 		self.block = block
-		-- The fold arrow (painted by paintHeader).
 		f.arrow = f:CreateTexture(nil, "ARTWORK")
 		f.arrow:SetPoint("CENTER", f, "BOTTOMLEFT", 6, 15)
 		f.says = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
@@ -820,8 +704,6 @@ function Page:header(text, shown, note, icon, opts)
 	if block then
 		block.head = self.items[#self.items]
 		block.head.head = true
-		-- The whole header folds and opens its block (with Shift, every block), and lights up under
-		-- the mouse. Its tooltip, like the fold buttons, only on a page with two blocks or more.
 		local r, g, bl = f.text:GetTextColor()
 		f:EnableMouse(true)
 		f:SetScript("OnEnter", function()
@@ -840,7 +722,6 @@ function Page:header(text, shown, note, icon, opts)
 		end)
 		f:SetScript("OnMouseUp", function(_, button)
 			if button ~= "LeftButton" then return end
-			-- A click on the Reset link, anywhere in its hit area, is the link's alone.
 			local link = f.reset
 			if link:IsShown() and link:IsMouseOver(RESET_PAD_Y, -RESET_PAD_Y, -RESET_PAD_X, RESET_PAD_X) then return end
 			local fold = not isFolded(block)
@@ -850,8 +731,6 @@ function Page:header(text, shown, note, icon, opts)
 	return f
 end
 
--- A page's own title, above its blocks: in the title style of the element pages' headers, with no
--- panel and no fold.
 function Page:pageTitle(text)
 	local f = self:row(40)
 	f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
@@ -861,9 +740,6 @@ function Page:pageTitle(text)
 	return self:add(f, 40)
 end
 
--- A section heading over a run of blocks, a step above a block's header: larger, at the page's
--- edge, on a full rule, with no panel and no fold. It ends the block before it; the rows after it
--- belong to no block until the next header. open: its blocks start open (until the next section).
 local SECTION_H, SECTION_SIZE = 46, 18
 function Page:section(text, open)
 	self.block = nil
@@ -885,8 +761,6 @@ function Page:section(text, open)
 	return f
 end
 
--- A brief gold glow behind a row (a header), to show where a button has brought the reader. The
--- glow and its animation are made on first use and nothing runs between flashes.
 function Page.flash(_, frame)
 	local flash = frame.flashAnim
 	if not flash then
@@ -907,14 +781,11 @@ function Page.flash(_, frame)
 	flash:Play()
 end
 
--- Names the last row added, for ns.Options.openGlobal and the like to scroll to.
 function Page:anchor(name)
 	self.anchors = self.anchors or {}
 	self.anchors[name] = self.items[#self.items].frame
 end
 
--- Wraps to the page width; the row grows to fit. str may be a function, re-read on every refresh.
--- Helper text, in grey so it reads apart from the controls.
 local HELP_GREY = 0.72
 function Page:text(str, shown)
 	local f = self:row(20)
@@ -940,21 +811,17 @@ function Page:checkbox(label, tip, get, set, shown)
 	Page.setTip(cb, label, tip)
 	f.check = cb
 	self:add(f, 30, shown, function() cb:SetChecked(get() and true or false) end)
-	self.items[#self.items].says = function() return get() and label or nil end   -- for a folded header
+	self.items[#self.items].says = function() return get() and label or nil end
 	return f
 end
 
--- How a slider's value reads in the box beside it, where the player can also type one.
 function Page.pct(v) return string.format("%.0f%%", v * 100) end
 function Page.times(v) return string.format("%.2fx", v) end
 function Page.int(v) return string.format("%d", v) end
 function Page.px(v) return string.format("%d px", v) end
-local NUMBER = "%-?%d*%.?%d+"   -- the first number in a text: "44", "-5", "1.25", "44 px", "100%"
+local NUMBER = "%-?%d*%.?%d+"
 local BOX_W, BOX_GAP = 52, 10
 
--- A value's units as its label shows them: how many label units one of the value's makes (100 for
--- a percent of a 0-1 value, else 1), and the decimals the label shows. Read from the label at the
--- top of the range, or the bottom where the top reads as a word ("Off").
 local function unitsOf(fmt, minV, maxV)
 	for _, v in ipairs({ maxV, minV }) do
 		local text = fmt(v)
@@ -968,16 +835,12 @@ local function unitsOf(fmt, minV, maxV)
 	return 1, 0
 end
 
--- fmt: Page.px, Page.int, Page.times, Page.pct or a function of the row's own (seconds, "Off").
--- The slider moves in steps; a number typed in the box takes effect on Enter as typed, in the
--- label's units and to the decimals it shows, held to the slider's range, with the slider at the
--- nearest step. Escape, or leaving the box any other way, keeps the value as it was.
 function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown)
 	local f = self:row(34)
 	f.label = self:label(f, label, tip)
 	local s = CreateFrame("Frame", nil, f, "MinimalSliderWithSteppersTemplate")
 	s:SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
-	local updating = false   -- while the page sets the value itself
+	local updating = false
 	local per, decimals = unitsOf(fmt, minV, maxV)
 	local function snap(v)
 		v = math.floor(v / step + 0.5) * step
@@ -990,7 +853,7 @@ function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown)
 		if updating then return end
 		v = snap(v)
 		set(v)
-		box:ClearFocus()   -- moving the slider drops a number half typed
+		box:ClearFocus()
 		box:SetText(fmt(v))
 	end, s)
 	box:SetSize(BOX_W, 20)
@@ -999,7 +862,6 @@ function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown)
 	box:SetMaxLetters(8)
 	box:SetFontObject("GameFontHighlight")
 	box:SetJustifyH("CENTER")
-	-- While typing, the bare number (in the label's units); otherwise the value as it reads.
 	box:SetScript("OnEditFocusGained", function(b)
 		local text = string.format("%." .. decimals .. "f", (get() or minV) * per)
 		if decimals > 0 then text = text:gsub("0+$", ""):gsub("%.$", "") end
@@ -1016,7 +878,7 @@ function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown)
 		if n then
 			local scale = 10 ^ decimals
 			n = math.floor(n * scale + 0.5) / scale / per
-			-- Rounded again past the label's decimals, so a percent's 0.33 isn't 0.33000000000000002.
+			-- Rounded again past the label's decimals (0.33, not 0.33000000000000002).
 			local v = tonumber(string.format("%." .. (decimals + (per == 100 and 2 or 0)) .. "f", n))
 			v = math.min(math.max(v, minV), maxV)
 			set(v)
@@ -1027,11 +889,10 @@ function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown)
 		b:ClearFocus()
 	end)
 	return self:add(f, 34, shown, function()
-		-- The slider and its box share the row's width, up to their own; the slider takes what the
-		-- box leaves, so a narrow window never pushes the box past its edge.
+		-- A narrow window never pushes the box past its edge.
 		local span = math.min(self:width() - LABEL_W - 8, SLIDER_SPAN_W)
 		s:SetWidth(math.max(span - BOX_GAP - BOX_W, 80))
-		-- Set only when it differs: setting it formats and lays out the slider again.
+		-- Set only when it differs: setting reformats the slider.
 		local v = get() or minV
 		if not (s.Slider and s.Slider:GetValue() == v) then
 			updating = true
@@ -1042,29 +903,23 @@ function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown)
 	end)
 end
 
--- choices: list of { value, text }, or a function returning one. A choice's init(button), if it has
--- one, dresses its line in the open list (Blizzard's menu initializer: button.fontString is the text).
--- menu: a menu generator of the row's own in place of those choices; its get then changes whenever
--- the dropdown's text should.
 function Page:dropdown(label, tip, choices, get, set, shown, width, menu)
 	local f = self:row(34)
 	f.label = self:label(f, label, tip)
 	local dd = CreateFrame("DropdownButton", nil, f, "WowStyle1DropdownTemplate")
 	dd:SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
 	dd:SetWidth(width or 200)
-	-- Not Blizzard's rebuild on every show: see update.
 	dd:SetScript("OnShow", nil)
 	menu = menu or function(_, rootDescription)
-		rootDescription:SetScrollMode(400)   -- a long list (fonts, textures) scrolls past 400 px
+		rootDescription:SetScrollMode(400)
 		for _, c in ipairs(type(choices) == "function" and choices() or choices) do
 			local item = rootDescription:CreateRadio(c[2], function() return get() == c[1] end, function() set(c[1]) end)
 			if c.init then item:AddInitializer(c.init) end
 		end
 	end
 	f.dropdown = dd
-	-- The menu: made on the row's first show, then only when the value or choices change (costly).
-	-- Never while the list is open: Blizzard rebuilds an open menu in place, and a scrolling one
-	-- keeps its old rows in its scroll list (blank gaps). A change then waits for it to close.
+	-- Never while the list is open: Blizzard rebuilds it in place and a scrolling one keeps old rows
+	-- -- (blank gaps); a change waits for it to close.
 	local was
 	local function update()
 		local now = tostring(get())
@@ -1083,8 +938,6 @@ function Page:dropdown(label, tip, choices, get, set, shown, width, menu)
 	return self:add(f, 34, shown, update)
 end
 
--- A colour swatch; clicking opens Blizzard's colour picker, with opacity unless opaque (a colour
--- that can only be solid, like one inside text). get/set use { r, g, b, a }.
 function Page:color(label, tip, get, set, shown, opaque)
 	local f = self:row(30)
 	self:label(f, label, tip)
@@ -1092,7 +945,7 @@ function Page:color(label, tip, get, set, shown, opaque)
 	b:SetSize(22, 22)
 	b:SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
 	b:SetBackdrop(ns.BACKDROP)
-	b:SetBackdropColor(0.5, 0.5, 0.5, 1)   -- shows through a translucent colour
+	b:SetBackdropColor(0.5, 0.5, 0.5, 1)
 	b:SetBackdropBorderColor(1, 1, 1, 0.6)
 	b.swatch = b:CreateTexture(nil, "ARTWORK")
 	b.swatch:SetPoint("TOPLEFT", 2, -2)
@@ -1117,7 +970,6 @@ function Page:color(label, tip, get, set, shown, opaque)
 	end)
 end
 
--- A button whose text follows the settings, e.g. Unlock / Lock.
 function Page:button(textFn, onClick, tip, width, shown)
 	local f = self:row(32)
 	local btn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
@@ -1134,7 +986,6 @@ function Page:button(textFn, onClick, tip, width, shown)
 	return self:add(f, 32, shown, function() btn:SetText(textFn()) end)
 end
 
--- list: { { text, onClick, tip, width, enabled }, ... }; enabled is an optional function.
 function Page:buttons(list, shown)
 	local f = self:row(32)
 	local x = 0
@@ -1155,9 +1006,6 @@ function Page:buttons(list, shown)
 	end)
 end
 
--- A page header pinned above the page's scrolling area (so an element's preview stays in view while
--- settings change). The scrollbar starts below it, so the header spans the full page width, with
--- the same margin on the right (from the window's inner edge) as on the left (from the nav).
 function Page:pin(h)
 	local win = self.win
 	h:SetParent(win)
@@ -1170,20 +1018,16 @@ function Page:pin(h)
 	return h
 end
 
--- An element page's header (ShamanForever_OptionsLook.lua): art, identity and a live preview.
 function Page:hero(key)
 	return self:pin(ns.Look.buildHero(self.win, key))
 end
 
--- The options' panel look: a dark fill and a thin border (brown unless given).
 function Page.panelBackdrop(f, r, g, b)
 	f:SetBackdrop(ns.BACKDROP)
 	f:SetBackdropColor(0.09, 0.075, 0.06, 1)
 	f:SetBackdropBorderColor(r or 0.23, g or 0.17, b or 0.10, 1)
 end
 
--- Pick one value from a row of icon cards. choices: { value, text, icon, experimental feature name },
--- and optionally tag = a word for a plain badge in the same place (RECOMMENDED).
 local CARD_W, CARD_H = 84, 84
 function Page:cards(label, tip, choices, get, set, shown)
 	local f = self:row(CARD_H + 8)
@@ -1224,7 +1068,6 @@ function Page:cards(label, tip, choices, get, set, shown)
 	end)
 end
 
--- Big buttons side by side, for the most common actions. list: { icon, titleFn, subtitleFn, onClick }.
 function Page:bigButtons(list)
 	local H, GAP = 56, 10
 	local f = self:row(H + 8)
@@ -1261,7 +1104,6 @@ function Page:bigButtons(list)
 	end)
 end
 
--- A boxed notice, e.g. the beta warning: as wide as the page, up to the width text wraps at.
 function Page:callout(text, shown)
 	local f = self:row(40)
 	local box = CreateFrame("Frame", nil, f, "BackdropTemplate")
@@ -1279,8 +1121,6 @@ function Page:callout(text, shown)
 	end)
 end
 
--- Read-only text the player can select and copy (links cannot be clicked in game).
--- icon, color: an optional small icon before the label (a white one tinted, e.g. a site's logo).
 function Page:copyField(label, value, icon, color)
 	local f = self:row(30)
 	local fs = self:label(f, label)
@@ -1306,7 +1146,6 @@ function Page:copyField(label, value, icon, color)
 	return self:add(f, 30)
 end
 
--- An experimental feature and where to find it (feedback is About's own section, above the list).
 function Page:experimental(name, where)
 	local f = self:row(28)
 	self:label(f, name)
@@ -1316,11 +1155,8 @@ function Page:experimental(name, where)
 	return self:add(f, 28)
 end
 
-------------------------------------------------------------------------
--- Drag and drop in a list (the Groups & Layout page's elements, the totem bar's order): a ghost of
--- the dragged item follows the cursor, and a white line marks where it will land.
-------------------------------------------------------------------------
--- The ghost: an icon and a label on the cursor while shown. onMove runs as it follows.
+-- Drag and drop in a list
+-- K 952 1058
 function Page.dragGhost(onMove)
 	local ghost = CreateFrame("Frame", nil, UIParent)
 	ghost:SetFrameStrata("TOOLTIP")
@@ -1351,8 +1187,6 @@ function Page.dropLine(parent)
 	return line
 end
 
--- Where a drop lands among items (top to bottom; skip(item) leaves out the one being dragged): its
--- place among the others, by the cursor's height, and those others.
 function Page.dropPosition(items, skip)
 	local _, cy = GetCursorPosition()
 	local at, others = 1, {}
@@ -1366,7 +1200,6 @@ function Page.dropPosition(items, skip)
 	return at, others
 end
 
--- The drop line above others[at], or under the last one. False when there are no others to place it by.
 function Page.placeDropLine(line, others, at)
 	line:ClearAllPoints()
 	if #others == 0 then return false end

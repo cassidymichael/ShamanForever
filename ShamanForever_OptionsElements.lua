@@ -1,7 +1,4 @@
--- The options window's element pages: the Elements overview, and one page per element (its header
--- with a live preview, Display, Idle, its own settings, then the standard blocks), including the
--- Tremor warning's watchlist. The window, its other pages and the standard blocks are
--- ShamanForever_Options.lua's (ns.Options.kit).
+-- Element pages
 local _, ns = ...
 
 local EP = {}
@@ -17,20 +14,15 @@ local expiringLooks, killedBlock = K.expiringLooks, K.killedBlock
 
 local function db() return ns.getDB() end
 
--- An element's own option (db.elementOpts): a row's getter (with its default, ns.elementSetting)
--- and setter; the block being built owns it.
 function K.eopt(p, key, name)
 	p:owns({ elem = key, name = name, after = relayout })
 	return function() return ns.elementSetting(key, name) end,
 		function(v) ns.elementOpts(key)[name] = v; relayout() end
 end
 local eopt = K.eopt
--- Its value, for what only reads it (a row shown while it's on).
 local function eread(key, name) return function() return ns.elementSetting(key, name) end end
 
--- The elements in the options' order (the nav and the Elements list): the ones the character has
--- learned, then the ones it hasn't, then other races' racials; each band by name, A to Z, in the
--- client's language. Read when asked, so a spell learned since moves up.
+-- Learned first, then not learned, then other races' racials; each by name.
 local function byName()
 	local keys, band, lower = {}, {}, {}
 	for i, key in ipairs(ns.ELEMENT_KEYS) do
@@ -47,8 +39,6 @@ local function byName()
 end
 EP.ordered = byName
 
--- The Group choices: every group by name, then New group; an ungrouped element's reads Ungrouped.
--- Choosing one moves the element there (to its end) and leaves its Show as it is.
 local function groupMenu(key)
 	return function(_, root)
 		for _, g in ipairs(db().groups) do
@@ -60,16 +50,10 @@ local function groupMenu(key)
 	end
 end
 
--- On an element's page, where "Hidden keeps its place" is shown as text under the control.
 local SHOW_TIP_PAGE = "Choosing Always or In combat again puts it back where it was. Groups have their own Show on the Groups & Layout page; an element shows only when both allow it. Everything visible shows while positioning is unlocked."
 local SHOW_TIP = "When the element is drawn. Hidden keeps its place in its group, so choosing Always or In combat again puts it back where it was. Groups have their own Show on the Groups & Layout page; an element shows only when both it and its group allow it."
 
-------------------------------------------------------------------------
--- Elements: an overview of every element, and one page per real element under it in the nav.
-------------------------------------------------------------------------
--- The overview's controls, light enough for a table: a flat cell with a thin border and small text
--- that lights up under the mouse. A menu cell shows its value and a small arrow, and opens its menu
--- (gen, a menu generator) at the cursor.
+-- Elements overview
 local function tableCell(parent, width, font)
 	local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
 	b:SetSize(width, 20)
@@ -104,13 +88,10 @@ local function menuCell(parent, width, gen)
 end
 
 function EP.buildOverview(p)
-	-- A page title and a line, then the list on its own: no block, so nothing to fold.
 	p:pageTitle("Elements")
 	p:text("Most of ShamanForever's HUD indicators are \"elements\", usually icon-shaped things which"
 		.. " always fit inside one \"group\", and \"groups\" get moved around the screen in the unlocked"
 		.. " mode.")
-	-- Columns: each has a least width (what fits the window at its narrowest) and a share of any
-	-- width beyond the least. Positions are worked out from the page's width on every layout.
 	local COLS = {
 		{ key = "name", label = "Element", min = 150, grow = 0.25, x0 = 32 },
 		{ key = "group", label = "Group", min = 100, grow = 0.25, max = 200 },
@@ -119,7 +100,7 @@ function EP.buildOverview(p)
 		{ key = "styles", label = "Own styles", min = 120, grow = 0.4 },
 	}
 	local GAP = 6
-	local placed, placedW   -- the columns at the page's width last worked out
+	local placed, placedW
 	local function place(width)
 		if width == placedW then return placed end
 		local least = GAP * (#COLS - 1)
@@ -132,7 +113,6 @@ function EP.buildOverview(p)
 			out[c.key] = { x = x, w = w }
 			x = x + w + GAP
 		end
-		-- Width left by the capped columns goes to the last.
 		local last = COLS[#COLS].key
 		out[last].w = math.max(out[last].w, width - out[last].x)
 		placed, placedW = out, width
@@ -140,7 +120,6 @@ function EP.buildOverview(p)
 	end
 	local heads = {}
 	do
-		-- Taller than its text, which sits at its foot: a gap between the explainer and the table.
 		local f = p:row(36)
 		for _, c in ipairs(COLS) do
 			local fs = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -160,8 +139,6 @@ function EP.buildOverview(p)
 			end
 		end)
 	end
-	-- The styles an element has its own of (the global ones otherwise), by name: the timers, glow
-	-- and pop it offers, from ns.Style.
 	local STYLE_NAMES = { { "cooldown", "Cooldown timer" }, { "uptime", "Time left timer" },
 		{ "glow", "Pulsing glow" }, { "pop", "Pop" } }
 	local function ownStyles(key)
@@ -184,12 +161,9 @@ function EP.buildOverview(p)
 		name:SetPoint("LEFT", 32, 0)
 		name:SetJustifyH("LEFT")
 		name:SetWordWrap(false)
-		-- Every element is listed; one the character doesn't know yet says so (the HUD leaves it out).
 		local unknown = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 		unknown:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -1)
 		unknown:SetText(ns.notLearnedText(key))
-		-- The Group choices: every group by name, then New group. Choosing one moves the element
-		-- there (to its end) and leaves its Show as it is.
 		local group = menuCell(f, 120, function(_, root)
 			for _, g in ipairs(db().groups) do
 				root:CreateRadio(g.name, function() return ns.groupOf(key) == g end, function()
@@ -215,14 +189,12 @@ function EP.buildOverview(p)
 		end)
 		show:HookScript("OnLeave", function() GameTooltip:Hide() end)
 		local function openPage() if EP.pageOf(key) then ns.Options.open(EP.pageOf(key)) end end
-		-- Its own page: its icon and name are the link, lit gold under the mouse.
 		local open = CreateFrame("Button", nil, f)
 		open:SetPoint("TOPLEFT", 0, 0)
 		open:SetPoint("BOTTOMRIGHT", name, "BOTTOMRIGHT", 4, -8)
 		open:SetScript("OnClick", openPage)
 		open:SetScript("OnEnter", function() name:SetTextColor(1, 0.82, 0) end)
 		open:SetScript("OnLeave", function() name:SetTextColor(1, 1, 1) end)
-		-- Its group on Groups & Layout (none while ungrouped): a dim link, lit under the mouse.
 		local groupOpen = CreateFrame("Button", nil, f)
 		groupOpen:SetHeight(20)
 		groupOpen.text = groupOpen:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -244,7 +216,6 @@ function EP.buildOverview(p)
 			self.text:SetTextColor(0.6, 0.6, 0.6)
 			GameTooltip:Hide()
 		end)
-		-- Which styles it has of its own, small text; the full list on hover.
 		local styles = CreateFrame("Frame", nil, f)
 		styles:EnableMouse(true)
 		styles:SetHeight(20)
@@ -301,7 +272,6 @@ function EP.buildOverview(p)
 			groupOpen:SetShown(g ~= nil)
 		end)
 	end
-	-- The rows follow the order again at each layout: they are the last items added.
 	local rows, first = {}, #p.items - #rowKeys
 	for i, key in ipairs(rowKeys) do rows[key] = p.items[first + i] end
 	function p.beforeRefresh()
@@ -309,10 +279,7 @@ function EP.buildOverview(p)
 	end
 end
 
--- Every element page, in one order: its header, Display (Show, Group), Idle (where it has one), its
--- own settings, then the standard blocks: the missing-look Warning, the timers (Cooldown, Time
--- left), the event blocks (Ready, Expiring, Killed early), then Pulsing glow style and Pop style,
--- each only where the element has something it applies to.
+-- Every element page in one order: header, Display, Idle, own settings, standard blocks.
 local function elementDisplay(p, key)
 	p.resetAll = {
 		text = function() return "Reset " .. ns.Look.elementName(key) end,
@@ -327,13 +294,11 @@ local function elementDisplay(p, key)
 	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return ns.showMode(key) end,
 		function(v) ns.setShow(key, v) end, nil, 140)
 	local function showDefault() return ns.elementDefault(key, "show") or "always" end
-	-- Refused in combat, as by hand; checked first so ns.setShow doesn't say so too.
 	p:owns({ elem = key, name = "show", label = "Show", default = showDefault, reset = function()
 		if InCombatLockdown() then return false end
 		ns.setShow(key, showDefault())
 	end })
 	p:text("Hidden keeps its place in its group.")
-	-- Its menu is groupMenu's; the get only tells the row when to show another name.
 	local groupRow = p:dropdown("Group", "Which group it sits in. Groups are arranged on the Groups & Layout page; ungrouped elements aren't on screen.",
 		{}, function() local g = ns.groupOf(key); return g and g.id .. ":" .. g.name or "" end, function() end, nil, 140,
 		groupMenu(key))
@@ -352,8 +317,6 @@ local function elementDisplay(p, key)
 	end
 end
 
--- Standard block: the moment a cooldown ends. A pop, and with glowTip a "use me" glow (off by
--- default). afterPop: an optional row right after Pop, before the glow (like warningBlock's first).
 local function readyBlock(p, key, glowTip, afterPop)
 	p:header("Ready")
 	p:checkbox("Pop", "The moment the cooldown ends.", eopt(p, key, "readyPop"))
@@ -362,15 +325,7 @@ local function readyBlock(p, key, glowTip, afterPop)
 	ns.Sounds.row(p, "Sound", "The moment the cooldown ends.", eopt(p, key, "readySound"))
 end
 
--- Standard block: the look while the element has nothing going on, right under Display. What the
--- element offers comes from its def:
---   idleChoices = { { value, label, text, tip }, ... }
---                       the "Idle when" choices (setting idleWhen);
---                       text is the line saying what idle is (%s: def.idleAlso, what else keeps it
---                       out of idle), tip the dropdown's help. A choice with value "never" hides
---                       the opacity slider.
---   idleText            the line when there is no choice
---   idleExtra           a second dropdown { key, label, tip, choices } (the reagents' Running low)
+-- Idle block, from the element's def (idleChoices, idleText, idleExtra).
 local function idleBlock(p, def)
 	local key, choices = def.key, def.idleChoices
 	local function when() return ns.elementSetting(key, "idleWhen") end
@@ -408,17 +363,12 @@ local function idleBlock(p, def)
 		choices and showWhen(function() return not never() end) or nil)
 end
 
--- Standard blocks at the end of a page: the pulsing glow's and the pop's styles, the global ones or
--- its own, where the element has something they apply to (its effects, ns.registerElement).
 local function effectBlocks(p, key)
 	local e = ns.ELEMENTS[key]
 	if #e.effects.glow > 0 then glowBlock(p, key, e.icon) end
 	if #e.effects.pop > 0 then popBlock(p, key, e.icon, e.effects.popKind or "ready") end
 end
 
--- Standard block: the look while something is missing. opt(name) gives a row's getter and setter;
--- names: the settings of Grey icon, Red ring and Fade in and out. first: an optional row before
--- them.
 local function warningBlock(p, title, opt, names, first)
 	p:header(title)
 	if first then first() end
@@ -427,11 +377,9 @@ local function warningBlock(p, title, opt, names, first)
 	p:checkbox("Fade in and out", nil, opt(names[3]))
 end
 
--- Where a number on the icon sits (the shield's charges, a reagent count).
 local COUNT_POINTS = { { "BOTTOMRIGHT", "Bottom right" }, { "BOTTOMLEFT", "Bottom left" }, { "TOPRIGHT", "Top right" },
 	{ "TOPLEFT", "Top left" }, { "CENTER", "Centre" } }
 
--- A look choice (tint, overlay, both) greys out the strength it does not use.
 local function lookUses(key, part) return function() local v = db()[key]; return v == part or v == "both" end end
 
 local function buildShield(p, def)
@@ -518,7 +466,7 @@ local function buildImbue(p, def)
 	idleBlock(p, def)
 	warningBlock(p, "No imbue", opt, { "imbueMissingGrey", "imbueMissingRing", "imbuePulse" }, function()
 		local cards = { { "last", "Last used", 136086 } }
-		-- The client's names; " Weapon" is trimmed where it has one (English).
+		-- " Weapon" is trimmed from the client's names (English).
 		for _, key in ipairs(ns.Imbue.ORDER) do table.insert(cards, { key, (ns.Imbue.IMBUES[key].name:gsub(" Weapon$", "")), ns.Imbue.IMBUES[key].icon }) end
 		p:cards("Icon", nil, cards, opt("imbuePreferred"))
 		p:text("The icon shown while no imbue is on.")
@@ -527,7 +475,6 @@ local function buildImbue(p, def)
 	p:checkbox("Pop", "The moment your imbue runs out or is lost.", opt("imbuePop"))
 	ns.Sounds.row(p, "Sound", "The moment your imbue runs out or is lost.", eopt(p, "imbue", "lostSound"))
 
-	-- One Time left block: when it shows first, then its look.
 	timerSettings(p, "Time left", "imbue", "uptime", nil, nil, function()
 		p:slider("Show under", nil, 0, 30, 1,
 			function(v) return v == 0 and "Never" or string.format("%d min", v) end, opt("imbueWarnMins"))
@@ -536,7 +483,6 @@ local function buildImbue(p, def)
 	effectBlocks(p, "imbue")
 end
 
--- Primed: when it starts (from your cast), what spends it, and how it looks meanwhile.
 local function primedBlock(p, def)
 	local key = def.key
 	p:header("Primed")
@@ -546,7 +492,6 @@ local function primedBlock(p, def)
 	p:checkbox("Pulsing glow", "While it's primed.", eopt(p, key, "primedGlow"))
 end
 
--- Reagent: the count on the icon and when it's low, then the look when there are none.
 local COUNT_WHEN = { { "always", "Always" }, { "low", "When low or none" }, { "never", "Never" } }
 local function reagentBlocks(p, def)
 	local key = def.key
@@ -573,7 +518,6 @@ local function reagentBlocks(p, def)
 	p:checkbox("Fade in and out", nil, eopt(p, key, "reagentPulse"))
 end
 
--- Grounded: Grounding's early end, which means it took a spell for you.
 local function groundedBlock(p, key)
 	p:header("Grounded")
 	p:checkbox("Flash when it takes a spell", "The totem flashes blue over its icon when it ends early: it took a spell, or was destroyed.",
@@ -585,10 +529,8 @@ local function groundedBlock(p, key)
 	p:checkbox("Pulsing glow", "In blue.", glowGet, glowSet, on)
 end
 
--- Expiring: a warning in the last seconds of its time left. only: the looks offered (all if nil).
 local function expiringBlock(p, key, maxSecs, step, only)
 	local function xget(k) return function() return ns.Timer.expireOpts(key)[k] end end
-	-- A field's default: the element's own over everyone's, as ns.Timer.expireOpts reads them.
 	local function xdefault(k) return function()
 		local v, own = ns.Timer.EXPIRE_DEFAULTS[k], ns.elementDefault(key, "expire")
 		if type(own) == "table" and type(own[k]) == type(v) then v = own[k] end
@@ -609,7 +551,6 @@ local function expiringBlock(p, key, maxSecs, step, only)
 	expiringLooks(p, xget, xset, "icon", showWhen(function() return ns.Timer.expireOpts(key).secs > 0 end), only)
 end
 
--- One page per cooldown element; the blocks depend on what the element tracks.
 local function buildCooldown(p, def)
 	local key = def.key
 	local function opt(name) return eopt(p, key, name) end
@@ -660,7 +601,6 @@ local function buildCooldown(p, def)
 	effectBlocks(p, key)
 end
 
--- One page per buff element (ShamanForever_Buffs.lua).
 local function buildBuff(p, def)
 	local key = def.key
 	local function opt(name) return eopt(p, key, name) end
@@ -693,14 +633,12 @@ local function buildBuff(p, def)
 		p:checkbox("Pulsing glow", "A glow that pulses, in the Pulsing glow style.", opt("missGlow"))
 	end
 	local function procBlock()
-		-- Elemental Focus's texts, unless the def has its own (the target's auras, ShamanForever_Target.lua).
 		p:header(def.procHeader or ns.Spells.name("clearcasting"))
 		if not def.noPop then
 			p:checkbox("Pop", def.popTip or "The moment it procs.", opt("primedPop"))
 		end
 		p:checkbox("Pulsing glow", def.glowTip or "While it's up.", opt("primedGlow"))
 	end
-	-- Flame Shock: after Not on target, its time left and Expiring.
 	if not def.noTimer then timerSettings(p, "Time left", key, "uptime") end
 	if def.engineExpire then
 		-- Flame Shock's, drawn by the engine: only what it can change in a fight.
@@ -721,9 +659,7 @@ local function buildBuff(p, def)
 	effectBlocks(p, key)
 end
 
--- Tremor Totem's watchlist: a box that searches the list and adds a name, Add target, the list (a
--- remove button on each mob) and a count. The list is a ScrollBox, which recycles its rows, so
--- hundreds of mobs take a dozen frames.
+-- Tremor watchlist: a ScrollBox recycles its rows, so hundreds of mobs take a dozen frames.
 local MOB_ROW_H, MOB_ROWS, MOB_LIST_W = 22, 9, 640
 local function mobList(p)
 	local T = ns.Tremor
@@ -753,7 +689,6 @@ local function mobList(p)
 	ownOnly.Text:SetText("Only mobs you added")
 	setTip(ownOnly, "Only mobs you added", "Hides the default list's mobs.")
 
-	-- As wide as the page, up to MOB_LIST_W: in a wide window a longer line reads no better.
 	local panel = CreateFrame("Frame", nil, f, "BackdropTemplate")
 	panelBackdrop(panel)
 	panel:SetPoint("TOPLEFT", 0, -32)
@@ -814,8 +749,8 @@ local function mobList(p)
 	setTip(restore, "Restore removed defaults", "Puts back the mobs you removed from the default list. Mobs you added stay as they are.")
 	restore:SetScript("OnClick", function() T.restore() end)
 
-	local shown = 0   -- rows matching the search
-	local listW       -- the row's width at the page's last layout (the panels' padding included)
+	local shown = 0
+	local listW
 	local function fill()
 		panel:SetWidth(math.min(listW or p:width(), MOB_LIST_W))
 		local text = box:GetText()
@@ -839,7 +774,6 @@ local function mobList(p)
 	box:SetScript("OnTextChanged", fill)
 	box:SetScript("OnEditFocusGained", fill)
 	box:SetScript("OnEditFocusLost", fill)
-	-- Enter adds only a name the list doesn't have; while the search finds mobs it just closes.
 	box:SetScript("OnEnterPressed", function(self)
 		if shown == 0 then addTyped() end
 		self:ClearFocus()
@@ -850,7 +784,6 @@ local function mobList(p)
 	return p:add(f, H, nil, function() listW = p:width(); fill() end)
 end
 
--- A line that reads as a link and opens another part of the options.
 local function linkLine(p, text, tip, onClick)
 	local f = p:row(22)
 	local b = CreateFrame("Button", nil, f)
@@ -864,7 +797,6 @@ local function linkLine(p, text, tip, onClick)
 	return p:add(f, 22)
 end
 
--- Tremor Totem's page (ShamanForever_Tremor.lua).
 local WORD_POS = { { "below", "Below the icon" }, { "above", "Above the icon" }, { "center", "On the icon" } }
 local TREMOR_IDLE_WHEN = { { "nowarning", "No warning" }, { "notdown", "Totem not down and no warning" } }
 local function buildTremor(p)
@@ -911,11 +843,9 @@ local function buildTremor(p)
 	effectBlocks(p, key)
 end
 
--- Each kind of element's page (the registry's kind); it gets the element's def.
 local PAGE = { shield = buildShield, shock = buildShock, imbue = buildImbue, cooldown = buildCooldown, buff = buildBuff,
 	tremor = buildTremor }
 
--- Maelstrom Weapon's page (ShamanForever_Maelstrom.lua): its stacks, then the five-stack look.
 local function buildMaelstrom(p, def)
 	local key = def.key
 	local function opt(name) return eopt(p, key, name) end
@@ -947,8 +877,7 @@ local function buildMaelstrom(p, def)
 end
 PAGE.maelstrom = buildMaelstrom
 
--- Every element's page, in the order the options list them, each built when it first shows.
-local pageObjects = {}   -- key -> its page, once built
+local pageObjects = {}
 function EP.register(newPage)
 	for _, key in ipairs(byName()) do
 		local e = ns.ELEMENTS[key]
@@ -962,13 +891,11 @@ function EP.register(newPage)
 	end
 end
 
--- The page key of an element's own page (its own key), nil for one without.
 function EP.pageOf(key)
 	local e = ns.ELEMENTS[key]
 	return e and e.kind and PAGE[e.kind] and key or nil
 end
 
--- Every setting on an element's page back to its default, after a confirm.
 function EP.askReset(key)
 	local p = pageObjects[key]
 	if p then p:askReset("every " .. ns.Look.elementName(key) .. " setting") end

@@ -1,28 +1,24 @@
--- Options window, opened with /sf. The entry under Escape > Options > AddOns only points here: the
--- Settings list is built once, so it cannot follow groups being added and removed.
+-- Options window
 local ADDON, ns = ...
 
 local OP = {}
 ns.Options = OP
 
-local Page = ns.Page   -- ShamanForever_OptionsPage.lua: the page kit
+local Page = ns.Page
 local showWhen, setTip, panelBackdrop = Page.showWhen, Page.setTip, Page.panelBackdrop
 
 local WIDTH, NAV_W, LABEL_W = Page.WIDTH, Page.NAV_W, Page.LABEL_W
-local HEIGHT, MIN_H, MAX_H = 700, 560, 1300   -- the player may make it taller
-local MAX_W = 1600                              -- and wider, from WIDTH
-local LOGO_SIZE, LOGO_X, LOGO_Y = 112, -19, 24   -- the logo badge over the window's top-left corner
+local HEIGHT, MIN_H, MAX_H = 700, 560, 1300
+local MAX_W = 1600
+local LOGO_SIZE, LOGO_X, LOGO_Y = 112, -19, 24
 local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
 
 local win
--- Every page's key, title and builder (stubs, pageOrder); pages: those built, on first show.
 local pages, pageOrder, stubs, currentPage = {}, {}, {}, nil
 
 local function db() return ns.getDB() end
 local function acct() return ns.getAccount() end
--- Settings are written at once; what follows them (the HUD's layout or restyle, the page's repaint)
--- runs once per frame, so a slider drag or a colour-picker move restyles once a frame, not once per
--- step. The repaint also covers combat, where the layout itself waits for combat to end.
+-- Settings write at once; what follows (layout or restyle, repaint) runs once a frame.
 local function perFrame(fn)
 	local queued = false
 	return function()
@@ -35,14 +31,10 @@ local function perFrame(fn)
 	end
 end
 local relayout = perFrame(function() ns.applyLayout(); OP.refresh() end)
--- Timer rows: only the timers take the new look, not the whole layout.
 local retime = perFrame(function() ns.applyTimers(); OP.refresh() end)
--- Glow rows: the glows restyle; ns.Effects.applyStyle only restyles the listed glows, and a glow
--- under Blizzard's aura button (Maelstrom's at five) takes a style change through its module's
--- applyTimers hook.
+-- ns.Effects.applyStyle restyles only the listed glows; one under the aura button goes through
+-- -- its module's applyTimers.
 local reglow = perFrame(function() ns.Effects.applyStyle(); ns.applyTimers(); OP.refresh() end)
--- A spell choice (the shield or shock tracked, the Mana check): the spells looked up again, and a
--- layout, since the shield's Track decides whether Shields counts as learned.
 local function respell() ns.resolveSpells(); ns.applyLayout(); ns.refreshAll(); OP.refresh() end
 
 local function newPage(key, title, indent, build)
@@ -51,8 +43,7 @@ local function newPage(key, title, indent, build)
 	table.insert(pageOrder, stub)
 end
 
--- A page, built now if it hasn't been. Kept before its builder runs: a builder that fails raises
--- its error once, not a new page on every try.
+-- Kept before its builder runs: a builder that fails raises once, not on every try.
 local function pageOf(key)
 	local p = pages[key]
 	if p or not stubs[key] then return p end
@@ -63,21 +54,12 @@ local function pageOf(key)
 	return p
 end
 
-
-------------------------------------------------------------------------
 -- Settings helpers
-------------------------------------------------------------------------
--- How slider values read (the page kit's).
 local pct, times, int, px = Page.pct, Page.times, Page.int, Page.px
 
-------------------------------------------------------------------------
--- Styles (ShamanForever_Style.lua): Global styles set each one; an element, a group or the totem
--- bar can have its own. owner: nil for the global one, an element key, "totembar", or a function
--- returning the selected group (nil while there is none).
-------------------------------------------------------------------------
+-- Styles
 local function resolve(owner) if type(owner) == "function" then return owner() end return owner end
 
--- A switch to use the global setting, with a button to it (Global settings, scrolled to anchor).
 local function globalRow(p, label, tip, get, set, anchor, shown)
 	local row = p:checkbox(label, tip, get, set, shown)
 	local b = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
@@ -89,13 +71,10 @@ local function globalRow(p, label, tip, get, set, anchor, shown)
 	return row
 end
 
--- The block being built owns an owner's style, for its reset.
 local function ownStyle(p, owner, kind, after)
 	p:owns({ style = kind, owner = owner, after = after })
 end
 
--- "Same as Global" for a style: on, the rows under it hide; off the first time, the owner keeps
--- the look it has as its own, and later its own values come back.
 local function followRow(p, owner, kind, after, label, shown)
 	ownStyle(p, owner, kind, after)
 	return globalRow(p, label or "Same as Global", "Use the global style.",
@@ -108,8 +87,6 @@ local function followRow(p, owner, kind, after, label, shown)
 		end, kind, shown)
 end
 
--- A style's rows: style() now, get(field) and set(field) for controls, and own(), whether the rows
--- apply (the global style, or an owner with its own). The block being built owns the style.
 local function styleRows(p, owner, kind, after)
 	local St = ns.Style
 	ownStyle(p, owner, kind, after)
@@ -122,24 +99,18 @@ local function styleRows(p, owner, kind, after)
 	end
 	function r.set(field) return function(v)
 		local o = resolve(owner)
-		if o == nil and owner ~= nil then return end   -- no group selected
+		if o == nil and owner ~= nil then return end
 		St.set(o, kind, field, v)
 		after()
 	end end
 	return r
 end
 
--- Global styles' lookup of what currently has its own, under a style's rows.
 local function ownLine(p, kind)
 	p:text(function() return "Currently using their own: " .. table.concat(ns.Style.ownStyles(kind), ", ") end,
 		function() return #ns.Style.ownStyles(kind) > 0 end)
 end
 
-
--- A picker for a style field's choices (ns.Style.addChoice; r from styleRows): a dropdown in
--- sections by the choices' groups, titled, and an EXPERIMENTAL badge under it while the choice
--- picked isn't fully tested. A saved choice no longer offered shows in its section while picked.
--- Returns the choice's entry now.
 local function choiceRows(p, r, kind, field, label, tip, shown)
 	local St = ns.Style
 	local function now() return St.choice(kind, field, r.style()[field]) end
@@ -168,8 +139,6 @@ local function choiceRows(p, r, kind, field, label, tip, shown)
 	return now
 end
 
--- A line naming the elements (keys(), a list) that take a change after a /reload, shown while
--- there are any: "<names> <verb> after a /reload."
 local function reloadLine(p, keys, verb, shown)
 	p:text(function()
 		local names = {}
@@ -178,11 +147,8 @@ local function reloadLine(p, keys, verb, shown)
 	end, showWhen(function() return #keys() > 0 end, shown))
 end
 
--- Whether a style's owner is an element (its page's).
 local function isElement(owner) return type(owner) == "string" and ns.ELEMENTS[owner] ~= nil end
 
--- The border a preview icon wears: its owner's (an element's is its group's; the totem bar's may be
--- its theme's).
 local function previewBorder(owner)
 	local o = resolve(owner)
 	if o == "totembar" then local _, b = ns.TotemBar.look(); return b end
@@ -190,13 +156,7 @@ local function previewBorder(owner)
 	return ns.Style.read(o, "border")
 end
 
--- A style block's preview: tiles from the pool (ns.Look.tilePool) wearing the owner's styles, in
--- row f from x. One of the page's icon (a value, or a function returning one), or one per school
--- while bySchool() on a page that isn't an element's (the totem bar's four). An element's page
--- shows its own icon, in the school its pop takes. Each wears its owner's border inside its 40,
--- as on the HUD. The tiles are taken while the row shows and given back when it hides. Returns
--- sync(), for the row's refresh and before a pop: the tiles in the owner's styles now, laid out.
--- The gap: from one tile to the next, room for a glow's light.
+-- A style block's preview: tiles from a pool wearing the owner's styles.
 local PREVIEW_SIZE, SCHOOL_GAP = 40, 72
 local function previewTiles(f, owner, icon, x, bySchool)
 	local pool, held = ns.Look.tilePool, {}
@@ -226,22 +186,17 @@ local function previewTiles(f, owner, icon, x, bySchool)
 	end
 end
 
--- Standard rows: the border around icons, the global one or an owner's (a group, the totem bar).
--- Sizes and colours show only for looks that use them. The HUD lays out only out of combat (the
--- shield's group and the totem bar's buttons are protected then), so a change made in combat
--- reaches it when combat ends, as every other layout setting does; the previews here take it at
--- once.
+-- The HUD lays out only out of combat, so a change made in combat reaches it when combat ends;
+-- -- previews here take it at once.
 local function borderRows(p, owner, after, label, shown)
 	after = after or relayout
 	local r = styleRows(p, owner, "border", after)
 	if owner ~= nil then followRow(p, owner, "border", after, label, shown) end
 	local bordered = function() return r.own() and r.style().show end
 	local look
-	-- Not the swing timer's: its page's header shows the bar itself.
 	if owner ~= "swing" then
 		local f = p:row(52)
 		p:label(f, "Preview")
-		-- A group's first element, the totem bar's earth slot, or Global styles' sample.
 		local function icon()
 			local o = resolve(owner)
 			if o == "totembar" then return 136098 end
@@ -260,8 +215,8 @@ local function borderRows(p, owner, after, label, shown)
 	p:color("Cap colour", "Colour and opacity.", r.get("capColor"), r.set("capColor"), showWhen(uses("capColor"), shown))
 end
 
--- An element's pick of the element its pop and School material glow take (popSchool: its own
--- setting, not a style field, so it stays whether or not the element follows the global style).
+-- popSchool is its own setting, not a style field, so it stays whether or not the element
+-- -- follows Global.
 local function popSchoolRow(p, key, shown)
 	local function get()
 		local v = ns.elementSetting(key, "popSchool")
@@ -283,8 +238,6 @@ local function popSchoolRow(p, key, shown)
 	end, get, set, shown, 190)
 end
 
--- Standard block: the pulsing glow's style, with an icon glowing all the time that follows every
--- change at once (one per school for a look that differs by school).
 local function glowBlock(p, owner, icon)
 	local after = reglow
 	p:header("Pulsing glow style")
@@ -305,14 +258,12 @@ local function glowBlock(p, owner, icon)
 	if isElement(owner) then popSchoolRow(p, owner, showWhen(function() return look().bySchool end)) end
 	reloadLine(p, function() return ns.Effects.auraGlowStale(owner) end,
 		function(n) return n == 1 and "changes glow" or "change glow" end, own)
-	-- A row for a field the look reads, unless it labels that field its own way (its fields).
 	local function uses(field)
 		return showWhen(function() local l = look(); return l.uses[field] and not (l.fields and l.fields[field]) end, own)
 	end
 	p:color("Colour", "Colour and opacity. Killed early, Grounded and Ran out keep their own colours.", r.get("color"), r.set("color"), uses("color"))
 	p:slider("Pulse length", "One pulse, in seconds.", 0.2, 2, 0.1, function(v) return string.format("%.1f s", v) end,
 		r.get("speed"), r.set("speed"), uses("speed"))
-	-- Each look's own fields, under its own labels while it is picked.
 	for _, e in ipairs(ns.Style.choices("glow", "look")) do
 		local names = {}
 		for field in pairs(e.fields or {}) do table.insert(names, field) end
@@ -331,16 +282,11 @@ local function glowBlock(p, owner, icon)
 	if owner == nil then ownLine(p, "glow") end
 end
 
--- Standard block: the pop's style, with an icon that pops on every change and on Play. kind: the
--- event the icon pops for (ready, imbue, expired, killed). One setting per part (colour, flash,
--- burst, motion), each changing only its own, in any mix.
 local function popBlock(p, owner, icon, kind)
-	local f, sync   -- the preview's row, and its tiles in the style now
+	local f, sync
 	local function playPop()
 		for _, t in ipairs(sync()) do t:pop(kind) end
 	end
-	-- ns.applyTimers: the pops Blizzard's aura buttons play (Elemental Focus, Purge) take a style
-	-- change through their module's hook, once out of combat.
 	local after = perFrame(function()
 		ns.applyTimers()
 		OP.refresh()
@@ -348,11 +294,8 @@ local function popBlock(p, owner, icon, kind)
 	end)
 	p:header("Pop style")
 	local r = styleRows(p, owner, "pop", after)
-	-- Colour is for Ready and Ran out (ns.Looks.POP_EVENTS): a page whose pop is for a warning (the
-	-- imbue's) keeps the warning's colour and doesn't offer it.
+	-- Colour is for Ready and Ran out only; a warning's pop keeps its own.
 	local colored = ns.Looks.POP_EVENTS[kind]
-	-- One icon per school while the colour or the burst differs by school (not on an element's
-	-- page).
 	local function burst() return ns.Style.choice("pop", "burst", r.style().burst) end
 	local function bySchool()
 		return (colored and r.style().colorBy == "school") or burst().bySchool or false
@@ -391,9 +334,6 @@ local function popBlock(p, owner, icon, kind)
 	if owner == nil then ownLine(p, "pop") end
 end
 
--- Standard block rows: the looks of the Expiring warning. get(field) and set(field) make a row's
--- getter and setter for "grey", "ring", "pulse" or "glow"; noun is where the glow sits. only: a
--- list of the looks offered, when not all four.
 local function expiringLooks(p, get, set, noun, shown, only)
 	local offer = {}
 	for _, k in ipairs(only or { "grey", "ring", "pulse", "glow" }) do offer[k] = true end
@@ -405,8 +345,6 @@ local function expiringLooks(p, get, set, noun, shown, only)
 	end
 end
 
--- Standard block: Killed early. get(name) and set(name) make a row's getter and setter; noun is what
--- flashes (the element's icon, or a slot of the totem bar).
 local function killedBlock(p, get, set, noun, label)
 	p:header("Killed early")
 	local killed = p:checkbox(label, "The dead totem flashes red over its " .. noun .. ". Not when you dismiss it or it runs out.",
@@ -419,9 +357,6 @@ local function killedBlock(p, get, set, noun, label)
 	end)
 end
 
--- Standard block: the text style (ShamanForever_Media.lua), the font, outline and shadow of all an
--- owner's text: timers, counts, keys. owner nil: the global one; "totembar" or "swing": the bar's
--- own, with Same as Global. The list draws each font in itself, once it's known to load.
 local function fontChoices(current)
 	local out = {}
 	for _, f in ipairs(ns.Media.fonts(current)) do
@@ -453,8 +388,6 @@ local function textBlock(p, owner, after)
 	if owner == nil then ownLine(p, "text") end
 end
 
--- A bar texture's rows (ShamanForever_Media.lua): owner nil, the global one; "totembar" or "swing",
--- the bar's own, with Same as Global. The list shows each texture as a strip.
 local function barRows(p, owner, after)
 	after = after or relayout
 	local r = styleRows(p, owner, "bar", after)
@@ -478,8 +411,6 @@ local function barRows(p, owner, after)
 	local function problem() return ns.Media.barProblem(owner) end
 	p:text(function() return problem() or "" end, showWhen(function() return r.own() and problem() ~= nil end))
 end
--- The global one: every time bar, the shield's charge bar, Maelstrom's stack bar and the swing
--- timer.
 local function barBlock(p)
 	p:header("Bar texture")
 	p:anchor("bar")
@@ -488,29 +419,19 @@ local function barBlock(p)
 	ownLine(p, "bar")
 end
 
--- Standard block: a timer's look (ShamanForever_Timers.lua). key nil: the global one for the kind,
--- with note under its header; otherwise an element's own ("totembar" for the totem bar), with
--- Same as Global.
--- first: an optional function adding the element's own rows at the top of the block, under its
--- header.
 local TEXT_POS = { { "auto", "Auto" }, { "center", "Centre" }, { "topleft", "Top left" }, { "bottom", "Bottom" } }
--- barPlaced: a function, true while something else places the time bar (the totem bar's bar beside
--- the icon): Bar edge hides.
 local function timerSettings(p, title, key, kind, after, note, first, barPlaced)
 	after = after or retime
 	local cant = ns.Timer.cant(key, kind)
 	p:header(title)
 	local r = styleRows(p, key, kind, after)
 	local style, tg, ts, own = r.style, r.get, r.set, r.own
-	-- A part's switch hides while following the global style, or when the game can't do it; the
-	-- rows under it hang on it while it's on.
 	local function part(name) return showWhen(function() return not cant[name] and own() end) end
 	local function on(field) return function() return style()[field] end end
 	if not key then p:anchor(kind) end
 	if first then first() end
 	if note then p:text(note) end
 	if key then followRow(p, key, kind, after) end
-	-- What the game can't do here, said once instead of showing rows that could never apply.
 	for _, why in pairs(cant) do p:text(why, own) end
 	local text = p:checkbox("Countdown text", "Numbers counting down.", tg("text"), ts("text"), part("text"))
 	p:sub(text, on("text"), function()
@@ -553,8 +474,6 @@ local function timerSettings(p, title, key, kind, after, note, first, barPlaced)
 	if not key then ownLine(p, kind) end
 end
 
--- Standard block: the global cooldown's sweep, on or off (the gcd style). key nil: the global one;
--- otherwise an element's or the totem bar's, with Same as Global.
 local function gcdBlock(p, key)
 	local function after() ns.refreshAll(); ns.TotemBar.refreshGCD(); OP.refresh() end
 	p:header("Global cooldown")
@@ -568,7 +487,6 @@ local function gcdBlock(p, key)
 	if not key then ownLine(p, "gcd") end
 end
 
--- Confirmations. data is what the question is about (a group's id); action gets it.
 local function confirm(which, text, button, action)
 	StaticPopupDialogs[which] = {
 		text = text, button1 = button, button2 = CANCEL,
@@ -579,28 +497,23 @@ end
 
 local function get(key) return function() return db()[key] end end
 local function set(key, after) return function(v) db()[key] = v; (after or relayout)() end end
--- A profile setting's row: its getter and setter (as get and set); the block being built owns it.
 local function gopt(p, key, after)
 	p:owns({ general = key, after = after or relayout })
 	return get(key), set(key, after)
 end
 
-
-------------------------------------------------------------------------
--- Page contents
-------------------------------------------------------------------------
+-- Pages
 local function lockText() return acct().locked and "Unlock positioning" or "Lock positioning" end
 local function toggleLock() ns.setLocked(not acct().locked); OP.refresh() end
 local function lockSub() return acct().locked and "Move groups and the totem bar on screen" or "Done moving? Lock them" end
 
-local aboutExp, aboutFeedback   -- About's headings a button brings the reader to (OP.showExperimental, OP.showFeedback)
+local aboutExp, aboutFeedback
 
 local function addonVersion()
 	local getMeta = C_AddOns and C_AddOns.GetAddOnMetadata or GetAddOnMetadata
 	return getMeta and getMeta(ADDON, "Version") or "?"
 end
 
--- Home, the page the window opens on: name, version, warnings and where to send feedback.
 local function buildHome(p)
 	p:pin(ns.Look.buildIntro(win, addonVersion()))
 	p:bigButtons({
@@ -608,8 +521,7 @@ local function buildHome(p)
 		{ "Interface\\Icons\\Spell_Nature_Invisibilty", function() return "Groups & Layout" end,
 			function() return "Set up groups of elements" end, function() OP.open("layout") end },
 	})
-	p:add(p:row(24), 24)   -- room between the big buttons and Feedback
-	-- Feedback, in large type: it matters most on this page.
+	p:add(p:row(24), 24)
 	local lead = p:text("Ideas, requests, bugs? Please let me know!")
 	lead.text:SetFontObject("GameFontHighlightMedium")
 	lead.text:SetTextColor(1, 0.92, 0.75)
@@ -620,12 +532,10 @@ local function buildHome(p)
 	})
 end
 
--- Global settings: first the small settings that belong to no element, then the global styles
--- everything follows unless it has its own.
 local function buildGlobal(p)
 	p:pageTitle("Global settings")
 
-	p:section("General", true)   -- its blocks start open; the global styles' start folded
+	p:section("General", true)
 	p:header("Minimap")
 	p:checkbox("Show the minimap button", "Click it to open these options. Also listed in the minimap's addon menu.",
 		function() return not (acct().minimap and acct().minimap.hide) end,
@@ -646,7 +556,6 @@ local function buildGlobal(p)
 	p:anchor("size")
 	p:slider("Icon size", "Every group's and the totem bar's, unless it has its own.", 24, 96, 1, int,
 		gopt(p, "iconSize"))
-	-- Who has an own icon size: groups with something in them, then the totem bar.
 	local function ownSizes()
 		local out = {}
 		for _, g in ipairs(db().groups) do
@@ -658,7 +567,7 @@ local function buildGlobal(p)
 	p:text(function() return "Currently using their own: " .. table.concat(ownSizes(), ", ") end,
 		function() return #ownSizes() > 0 end)
 	timerSettings(p, "Cooldowns", nil, "cooldown", nil, "A spell you can't cast yet.")
-	gcdBlock(p, nil)   -- beside Cooldowns: the global cooldown sweeps the same timers
+	gcdBlock(p, nil)
 	timerSettings(p, "Time left", nil, "uptime", nil, "A totem, shield or imbue running.")
 	textBlock(p, nil)
 	barBlock(p)
@@ -670,7 +579,6 @@ local function buildGlobal(p)
 	popBlock(p, nil, 136026, "ready")
 end
 
--- Asks for a profile name, then passes it to action, which returns an error message or nil.
 local nameAction
 local function askName(prompt, initial, action)
 	nameAction = { prompt = prompt, initial = initial or "", run = action }
@@ -707,13 +615,11 @@ local function buildProfiles(p)
 
 end
 
--- A heading a button elsewhere can bring the reader to (OP.showExperimental, OP.showFeedback).
 local function flashingHeader(p, text, icon)
 	return { page = p, header = p:header(text, nil, nil, icon) }
 end
 
--- Link icons: white site logos (Simple Icons, CC0), tinted with each site's colour. PNG paths need
--- their extension (the client only adds .tga or .blp itself).
+-- PNG paths need their extension (the client only adds .tga or .blp itself).
 local LINKS = {
 	discord = { ART .. "Link-Discord.png", { 0.35, 0.40, 0.95 } },
 	curseforge = { ART .. "Link-CurseForge.png", { 0.95, 0.39, 0.21 } },
@@ -722,7 +628,6 @@ local LINKS = {
 }
 local function link(p, label, url, site) p:copyField(label, url, LINKS[site][1], LINKS[site][2]) end
 
--- About's title card: the logo, the name, the version and what it is.
 local function aboutCard(p)
 	local f = CreateFrame("Frame", nil, p.content, "BackdropTemplate")
 	f:SetHeight(78)
@@ -772,20 +677,13 @@ local function buildAbout(p)
 		"The Carved stone, Aged bronze and Carved wood borders and the Emblem pop burst: made with an AI image model (Google Gemini), as were the plinth and medallions of the Stone and bronze totem theme.")
 end
 
-------------------------------------------------------------------------
--- Show choices, shared by the element pages and the Groups & Layout page (_OptionsLayout)
-------------------------------------------------------------------------
--- An element's Show. Hidden keeps its place in its group.
+-- Show choices
 local SHOW_CHOICES = { { "always", "Always" }, { "combat", "In combat" }, { "never", "Hidden" } }
--- A group's Show, and its time on screen once combat ends (the totem bar has both too).
 local COMBAT_SHOW = { { "always", "Always" }, { "combat", "In combat" }, { "target", "In combat or with an enemy target" } }
 local STAY_TIP = "Seconds it stays once combat ends, then it fades out."
 local function staySecs(v) return v == 0 and "None" or string.format("%d s", v) end
 
-------------------------------------------------------------------------
--- Totem bar (ShamanForever_TotemBar.lua)
-------------------------------------------------------------------------
--- Rows for the per-totem warning times: one per totem given its own time, at most this many.
+-- Totem bar
 local MAX_WARN_ROWS = 32
 
 local function buildTotemBar(p)
@@ -793,7 +691,6 @@ local function buildTotemBar(p)
 	local function c() return TB.cfg() end
 	local changed = perFrame(function() TB.applySettings(); OP.refresh() end)
 	local function tget(key) return function() return c()[key] end end
-	-- The block being built owns a bar setting; ref: the rest of its ref (a reset of its own).
 	local function own(key, ref)
 		ref = ref or {}
 		ref.bar, ref.name, ref.after = "totembar", key, changed
@@ -807,8 +704,6 @@ local function buildTotemBar(p)
 	p:hero("totembar")
 	p:callout("Not learned yet. It shows on screen once your character knows a totem.",
 		function() return TB.barOn() and not TB.hasTotems() end)
-	-- The Totems cards decide which of ours and Blizzard's totem frames show; the sections below
-	-- show only where they apply (Buttons in Everything, the rest while our bar is on).
 	local full = function() return c().mode == "everything" end
 	p:header("Totems", nil, nil, nil, { open = true })
 	own("mode", { reset = function() TB.setMode(TB.DEFAULTS.mode) end })
@@ -817,7 +712,6 @@ local function buildTotemBar(p)
 		{ "active", "Active totems", "Interface\\Icons\\Spell_Nature_TimeStop" },
 		{ "everything", "Everything", "Interface\\Icons\\Spell_Shaman_DropAll_01", tag = "RECOMMENDED" },
 	}, tget("mode"), function(v) TB.setMode(v); changed() end)
-	-- What the mode does, then how the bar is used in it.
 	local KEYS = "Keys: Options > Keybindings > ShamanForever."
 	local BAR_KEYS = "Keys: Options > Keybindings > ShamanForever, or hover the bar in Quick Keybind Mode."
 	p:text("ShamanForever's totem bar is off. Blizzard's totem bar and active totems display are on.\n"
@@ -848,8 +742,6 @@ local function buildTotemBar(p)
 		p:color("Text colour", nil, tget("keyColor"), tset("keyColor"))
 	end)
 
-	-- The bar's theme (ShamanForever_TotemSkins.lua), and each theme's own settings under
-	-- it. The rows for what a theme owns hide elsewhere on the page while it is picked.
 	p:header("Totem theme")
 	local skins = {}
 	for _, e in ipairs(TB.skin.LIST) do table.insert(skins, { e.key, e.name }) end
@@ -866,9 +758,6 @@ local function buildTotemBar(p)
 	p:dropdown("Plinth", nil, TB.skin.PLINTHS, tget("stonePlinth"), tset("stonePlinth"), theme("stone"), 140)
 
 	p:header("Layout")
-	-- The elements in bar order (first: the left end of a row, the top of a column). Drag one to move
-	-- it; the box shows or hides its slot. The drag follows Groups & Layout's: a ghost on the cursor
-	-- and a white line where it will land.
 	local ORDER_H, ORDER_W = 28, 260
 	own("order")
 	own("hidden")
@@ -876,7 +765,6 @@ local function buildTotemBar(p)
 	local list = p:row(4 * ORDER_H)
 	local rows, dragFrom = {}, nil
 	local line = Page.dropLine(list)
-	-- Where the dragged element would land: its place among the other three.
 	local function dropAt()
 		return Page.dropPosition(rows, function(r) return r == rows[dragFrom] end)
 	end
@@ -886,7 +774,6 @@ local function buildTotemBar(p)
 	end)
 	local function endDrag(drop)
 		local from = dragFrom
-		-- Where it lands, read while the dragged row is still left out of the others.
 		local at = from and drop and dropAt()
 		dragFrom = nil
 		ghost:Hide()
@@ -898,7 +785,7 @@ local function buildTotemBar(p)
 			table.insert(o, at, el)
 			changed()
 		end
-		OP.refresh()   -- also restores the dimmed row
+		OP.refresh()
 	end
 	-- Leaving the page or closing the window mid-drag drops nothing.
 	list:SetScript("OnHide", function() endDrag(false) end)
@@ -949,7 +836,6 @@ local function buildTotemBar(p)
 			r:SetAlpha(1)
 		end
 	end)
-	-- The pickers open the new direction's first way.
 	local function setDir(v)
 		c().dir = v
 		c().pop = v == "row" and "up" or "right"
@@ -974,13 +860,9 @@ local function buildTotemBar(p)
 	end, function()
 		return TB.skin.owns("dir") or TB.skin.owns("pop") or TB.skin.owns("spacing") or TB.skin.owns("extras")
 	end)
-	-- Its own size is not its scale: scale grows everything, text, arrows, spacing and lines included.
 	own("sizeFollow", { reset = function() TB.setSizeFollow(TB.DEFAULTS.sizeFollow) end })
 	local sizeFollow = globalRow(p, "Icon size same as Global", "Use the global icon size.",
 		tget("sizeFollow"), function(v) TB.setSizeFollow(v); changed() end, "size")
-	-- Its own size (none until the switch is first turned off) matters only while the switch is
-	-- off, itself a change; a reset clears it, so turning the switch off starts from the global one
-	-- again.
 	own("size", { default = tget("size"), reset = function() c().size = nil end })
 	p:sub(sizeFollow, function() return not c().sizeFollow end, function()
 		p:slider("Icon size", nil, 24, 96, 1, px,
@@ -989,7 +871,6 @@ local function buildTotemBar(p)
 	p:dropdown("Call and Recall", "Where they sit on the bar.", { { "ends", "Both ends" }, { "before", "Before the slots" }, { "after", "After the slots" } },
 		tget("extras"), tset("extras"),
 		showWhen(function() return (c().call or c().recall) and not TB.skin.owns("extras") end, full), 180)
-	-- Its size: the theme's own where it keeps one (a smaller default).
 	own("extrasScale")
 	own("stoneExtrasScale")
 	p:slider("Call and Recall size", "As a share of the slots' size.", 0.5, 1.5, 0.05,
@@ -1001,7 +882,6 @@ local function buildTotemBar(p)
 	p:slider("Opacity", nil, 0.1, 1, 0.05,
 		pct, tget("alpha"), tset("alpha"))
 
-	-- With Layout: heavier borders go with the spacing.
 	p:header("Border style")
 	p:text("Set by the theme.", owned("border"))
 	borderRows(p, "totembar", changed, nil, free("border"))
@@ -1026,11 +906,9 @@ local function buildTotemBar(p)
 	p.gate = TB.barOn
 	local function beside() return TB.skin.barPlace() == "out" end
 	timerSettings(p, "Time left", "totembar", "uptime", changed, nil, nil, beside)
-	-- The bar's own, whether its timers follow the global ones or not.
 	p:dropdown("Time bar position", "Beside the icon: on the side away from the pickers.",
 		{ { "in", "In the icon" }, { "out", "Beside the icon" } }, tget("barPlace"), tset("barPlace"),
 		function() return ns.Style.value("totembar", "uptime", "bar") and not TB.skin.owns("barPlace") end, 190)
-	-- The time bars' texture: the global one, or the bar's own (in the icon or beside it).
 	barRows(p, "totembar", changed)
 	textBlock(p, "totembar", changed)
 
@@ -1077,13 +955,11 @@ local function buildTotemBar(p)
 	ns.Sounds.row(p, "Sound when it ends", "When a totem runs out or is killed. Not when you dismiss it.", tget("goneSound"), tset("goneSound"))
 	local secs = function(v) return v == 0 and "Off" or string.format("%d s", v) end
 	p:slider("Warn in the last", nil, 0, 30, 1, secs, tget("warn"), tset("warn"))
-	-- Its defaults are named by the client's spell names, which may not have loaded when they were
-	-- filled in: compared by TB.warnOverChanged, which takes either name.
+	-- Defaults use spell names that may not have loaded yet: TB.warnOverChanged accepts either.
 	own("warnOver", { changed = function() return TB.warnOverChanged(c().warnOver) end,
 		reset = function() c().warnOver = TB.warnOverDefaults() end })
 	p:text("Totems with their own warning time, instead of the default:", function() return next(c().warnOver) ~= nil end)
-	-- Each totem's own time, with a small X at the end of its row to drop it. Totems are kept by the
-	-- client's name for them (any rank), so row i shows the i-th name in order.
+	-- Totems are kept by the client's name for them (any rank).
 	local function overName(i)
 		local names = {}
 		for name in pairs(c().warnOver) do table.insert(names, name) end
@@ -1111,7 +987,6 @@ local function buildTotemBar(p)
 		end)
 		setTip(x, "Remove", "Use the time above for this totem.")
 	end
-	-- Adding is an action, not a choice kept: plain entries under a prompt, not radio buttons.
 	local add = p:dropdown("Add a totem", "Give a totem its own warning time.", {}, function() return nil end, function() end, nil, 220, function(_, root)
 		local names, seen = {}, {}
 		for slot = 1, 4 do
@@ -1138,8 +1013,6 @@ local function buildTotemBar(p)
 	p.gate = nil
 end
 
--- The helpers and standard blocks the Groups & Layout page and the element pages share
--- (ShamanForever_OptionsLayout.lua, ShamanForever_OptionsElements.lua).
 OP.kit = {
 	relayout = relayout, perFrame = perFrame, respell = respell, get = get, set = set, gopt = gopt, confirm = confirm,
 	SHOW_CHOICES = SHOW_CHOICES,
@@ -1150,13 +1023,10 @@ OP.kit = {
 	expiringLooks = expiringLooks, killedBlock = killedBlock,
 }
 
-------------------------------------------------------------------------
 -- Window
-------------------------------------------------------------------------
-local navButtons, navDivider, navLock, navList = {}, nil, nil, nil   -- navList: the element pages' list
+local navButtons, navDivider, navLock, navList = {}, nil, nil, nil
 local navPreview
 
--- The nav's looks: the current page marked, and element pages not learned yet greyed.
 local function refreshNav()
 	if navList then navList.order() end
 	for _, b in ipairs(navButtons) do
@@ -1177,7 +1047,7 @@ local function showPage(key)
 	if not stubs[key] then key = "home" end
 	local page = pageOf(key)
 	currentPage = key
-	acct().optionsPage = key   -- reopened next time, across reloads (account-wide, like the window's size)
+	acct().optionsPage = key
 	for _, p in pairs(pages) do
 		p.scroll:SetShown(p == page)
 		if p.fixed then p.fixed:SetShown(p == page) end
@@ -1189,8 +1059,6 @@ local function showPage(key)
 	page:refresh()
 end
 
--- The nav: main pages, then every element's page (indented) in a list of its own that scrolls when
--- the window is too short for them all, then Profiles and About at the bottom.
 local NAV_SUB_H, NAV_SUB_STEP = 24, 26
 local function buildNav()
 	local function add(pageKey, text, icon, sub, parent)
@@ -1224,7 +1092,7 @@ local function buildNav()
 		table.insert(navButtons, b)
 		return b
 	end
-	local y = LOGO_Y - LOGO_SIZE - 1   -- just below the logo
+	local y = LOGO_Y - LOGO_SIZE - 1
 	local function top(...)
 		local b = add(...)
 		b:SetPoint("TOPLEFT", win, "TOPLEFT", 12, y)
@@ -1237,8 +1105,6 @@ local function buildNav()
 	top("totembar", "Totem bar", "Interface\\Icons\\Spell_Shaman_DropAll_01")
 	top("swing", "Swing timer", ns.Swing.ICON)
 	top("elements", "Elements", ART .. "Elements.tga")
-	-- Footer: positioning's lock, one click either way (as /sf lock); its label says what it does.
-	-- Above it, the preview (as /sf preview), on or off the same way.
 	navPreview = CreateFrame("Button", nil, win, "UIPanelButtonTemplate")
 	navPreview:SetSize(NAV_W - 32, 22)
 	navPreview:SetPoint("BOTTOMLEFT", 16, 38)
@@ -1253,15 +1119,11 @@ local function buildNav()
 	setTip(navLock, "Positioning", "Unlocked, drag groups, the totem bar and the swing timer on screen. /sf lock does the same.")
 	function navLock.refresh() navLock:SetText(acct().locked and "Unlock positioning" or "Lock positioning") end
 	navLock.refresh()
-	-- Profiles and About, up from the footer, under the divider.
 	add("about", "About", "Interface\\Icons\\INV_Misc_Book_09"):SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 12, 70)
 	add("profiles", "Profiles", "Interface\\Icons\\INV_Misc_Note_01"):SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 12, 100)
 	navDivider = ns.Look.divider(win)
 	navDivider:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 20, 136)
 	navDivider:SetWidth(NAV_W - 36)
-	-- The element pages between them. The list starts at the window's edge so the selected page's
-	-- accent (left of its button) isn't clipped. It scrolls by whole rows, so a row is never cut in
-	-- half at the top, with a slim bar down its right edge while there's more than fits.
 	local list = CreateFrame("ScrollFrame", nil, win)
 	list:SetPoint("TOPLEFT", win, "TOPLEFT", 4, y)
 	list:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 4, 148)
@@ -1274,13 +1136,11 @@ local function buildNav()
 		local e = ns.ELEMENTS[p.key]
 		if e and e.kind then
 			local b = add(p.key, ns.Look.elementName(p.key), e.icon, true, child)
-			b:SetWidth(NAV_W - 42)   -- room for the bar
+			b:SetWidth(NAV_W - 42)
 			byKey[p.key] = b
 			n = n + 1
 		end
 	end
-	-- The buttons in the Elements list's order (learned, not learned, other races'), set again when
-	-- it changes.
 	local placed
 	function list.order()
 		local seq = {}
@@ -1298,7 +1158,6 @@ local function buildNav()
 		end
 	end
 	list.order()
-	-- Shades at an edge with more beyond it, and the bar, on a frame above the buttons.
 	local over = CreateFrame("Frame", nil, list)
 	over:SetAllPoints()
 	over:SetFrameLevel(child:GetFrameLevel() + 5)
@@ -1326,13 +1185,12 @@ local function buildNav()
 	thumb:SetScript("OnEnter", function(t) t.tex:SetAlpha(1) end)
 	thumb:SetScript("OnLeave", function(t) if not t.drag then t.tex:SetAlpha(0.55) end end)
 
-	-- The furthest it scrolls: whole rows, enough to bring the last one fully into view.
 	function list.maxScroll()
 		return math.max(math.ceil((n * NAV_SUB_STEP - list:GetHeight()) / NAV_SUB_STEP), 0) * NAV_SUB_STEP
 	end
 	local function place()
 		local h, max = list:GetHeight(), list.maxScroll()
-		child:SetHeight(math.max(h + max, 1))   -- the scroll frame's own range must reach max
+		child:SetHeight(math.max(h + max, 1))
 		local scrolls = max > 0
 		track:SetShown(scrolls)
 		if not scrolls then return end
@@ -1349,7 +1207,6 @@ local function buildNav()
 		list.moreBelow:SetShown(v < list.maxScroll() - 0.5)
 		place()
 	end
-	-- The selected page's button in view.
 	function list.reveal(b)
 		local v, h = list:GetVerticalScroll(), list:GetHeight()
 		if b.listTop < v then list.scrollTo(b.listTop)
@@ -1357,7 +1214,6 @@ local function buildNav()
 			list.scrollTo(math.ceil((b.listTop + NAV_SUB_H - h) / NAV_SUB_STEP) * NAV_SUB_STEP)
 		end
 	end
-	-- The bar: drag the thumb, or click the track to jump there.
 	local function scrollToCursor(grab)
 		local _, cy = GetCursorPosition()
 		cy = cy / track:GetEffectiveScale()
@@ -1367,7 +1223,7 @@ local function buildNav()
 	end
 	thumb:SetScript("OnMouseDown", function(t)
 		local _, cy = GetCursorPosition()
-		t.drag = t:GetTop() - cy / t:GetEffectiveScale()   -- where on the thumb it was grabbed
+		t.drag = t:GetTop() - cy / t:GetEffectiveScale()
 		t:SetScript("OnUpdate", function() scrollToCursor(t.drag) end)
 	end)
 	thumb:SetScript("OnMouseUp", function(t)
@@ -1382,8 +1238,6 @@ local function buildNav()
 	navList = list
 end
 
--- What can have its own style of each kind, known before any page that sets one is built: the
--- global "Currently using their own" lines and the Elements overview read it.
 local USER_KINDS = {
 	totembar = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
 	swing = { "border", "text", "bar" },
@@ -1402,25 +1256,21 @@ local function addStyleUsers()
 end
 
 local function buildWindow()
-	-- Blizzard's portrait window: gold frame, round portrait, title and close button.
 	win = CreateFrame("Frame", "ShamanForeverOptionsFrame", UIParent, "ButtonFrameTemplate")
 	if ButtonFrameTemplate_HideButtonBar then pcall(ButtonFrameTemplate_HideButtonBar, win) end
 	if win.Inset then win.Inset:Hide() end
 	if win.SetTitle then win:SetTitle("ShamanForever") end
-	-- The title a little larger than Blizzard's default for this frame.
 	local title = win.TitleContainer and win.TitleContainer.TitleText or win.TitleText
 	if title then
 		local font, size, flags = title:GetFont()
 		if font and size then title:SetFont(font, size + 2, flags) end
 	end
-	-- The logo: the crest alone (Art/Logo-Icon, with alpha) as a badge over the top-left corner, on
-	-- Blizzard's plain-cornered border. At the portrait's size (62 px, inside the ring) its detail was
-	-- lost; the ring can't grow (it is part of the frame's corner art). A soft shadow lifts it off the frame.
+	-- The crest is a badge over the corner: the portrait ring can't grow.
 	if ButtonFrameTemplate_HidePortrait then pcall(ButtonFrameTemplate_HidePortrait, win) end
 	local logo = CreateFrame("Frame", nil, win)
 	logo:SetSize(LOGO_SIZE, LOGO_SIZE)
 	logo:SetPoint("TOPLEFT", win, "TOPLEFT", LOGO_X, LOGO_Y)
-	logo:SetFrameLevel(600)   -- above the frame's border and title bar
+	logo:SetFrameLevel(600)
 	local LOGO = "Interface\\AddOns\\ShamanForever\\Art\\Logo-Icon"
 	logo.shadow = logo:CreateTexture(nil, "BACKGROUND")
 	logo.shadow:SetTexture(LOGO)
@@ -1430,7 +1280,6 @@ local function buildWindow()
 	logo.tex = logo:CreateTexture(nil, "ARTWORK")
 	logo.tex:SetTexture(LOGO)
 	logo.tex:SetAllPoints()
-	-- Our warm charcoal inside the frame.
 	local bg = win:CreateTexture(nil, "BACKGROUND", nil, 2)
 	bg:SetPoint("TOPLEFT", 2, -22)
 	bg:SetPoint("BOTTOMRIGHT", -2, 2)
@@ -1446,13 +1295,11 @@ local function buildWindow()
 	navEdge:SetWidth(1)
 	navEdge:SetColorTexture(0.23, 0.17, 0.10, 1)
 
-	-- Its size, kept within its limits and the screen.
 	local function fit(v, least, most, screen) return math.max(math.min(v, most, screen), least) end
 	local function fitW(w) return fit(w, WIDTH, MAX_W, UIParent:GetWidth()) end
 	local function fitH(h) return fit(h, MIN_H, MAX_H, UIParent:GetHeight()) end
 	win:SetSize(fitW(acct().optionsWidth or WIDTH), fitH(acct().optionsHeight or HEIGHT))
-	-- Its place: where the player left its top-left corner (account-wide, like its size), kept on
-	-- the screen; centred until it's moved. In UIParent's units: the window's scale is its parent's.
+	-- In UIParent's units: the window's scale is its parent's.
 	local a = acct()
 	win:ClearAllPoints()
 	if a.optionsLeft and a.optionsTop then
@@ -1467,7 +1314,6 @@ local function buildWindow()
 		local left, top = win:GetLeft(), win:GetTop()
 		if left and top then acct().optionsLeft, acct().optionsTop = math.floor(left + 0.5), math.floor(top + 0.5) end
 	end
-	-- The grip changes width and height, and pins the top-left corner.
 	local grip = CreateFrame("Button", nil, win)
 	grip:SetSize(16, 16)
 	grip:SetPoint("BOTTOMRIGHT", -3, 3)
@@ -1486,7 +1332,7 @@ local function buildWindow()
 		win:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
 		self.startX, self.startY = GetCursorPosition()
 		self.startW, self.startH = win:GetSize()
-		Page.startResize(pages[currentPage])   -- the page keeps its place as the window resizes
+		Page.startResize(pages[currentPage])
 		self:SetScript("OnUpdate", sizeToCursor)
 	end)
 	local function endResize()
@@ -1497,8 +1343,7 @@ local function buildWindow()
 		savePlace()
 	end
 	grip:SetScript("OnMouseUp", endResize)
-	-- Closed mid-drag (Escape, the key binding), the release may never come: end a resize here, or
-	-- the size follows the cursor on reopening. (Groups & Layout ends its own drags.)
+	-- Closed mid-drag, the release may never come: end a resize here.
 	win:HookScript("OnHide", function()
 		if grip:GetScript("OnUpdate") then endResize() end
 	end)
@@ -1513,8 +1358,7 @@ local function buildWindow()
 		win:StopMovingOrSizing()
 		savePlace()
 	end)
-	table.insert(UISpecialFrames, win:GetName())   -- Escape closes it
-	-- Positioning's and the preview's Options buttons say whether they will show or hide the window.
+	table.insert(UISpecialFrames, win:GetName())
 	local function shownNow(shown)
 		ns.Positioning.optionsShown(shown)
 		ns.Preview.optionsShown(shown)
@@ -1523,7 +1367,7 @@ local function buildWindow()
 	win:HookScript("OnHide", function() shownNow(false) end)
 
 	newPage("home", "Home", nil, buildHome)
-	-- Its key stays "general": saved as the page last open and in its folded blocks' keys.
+	-- Key stays "general": it is saved as the last page and in folded blocks' keys.
 	newPage("general", "Global settings", nil, buildGlobal)
 	newPage("styles", "Styles explorer", nil, ns.StylesPage.build)
 	newPage("layout", "Groups & Layout", nil, ns.LayoutPage.build)
@@ -1544,11 +1388,10 @@ confirm("SHAMANFOREVER_RESET_SETTINGS", "Reset %s to defaults?", "Reset", functi
 confirm("SHAMANFOREVER_DELETE_PROFILE", "Delete profile %s?\nCharacters using it go back to Default.", "Delete",
 	function() ns.Profiles.delete() end)
 
--- The edit box moved from dialog.editBox to dialog.EditBox / GetEditBox() over the Retail versions.
+-- editBox is dialog.EditBox on newer clients.
 local function popupEditBox(dialog)
 	return dialog.GetEditBox and dialog:GetEditBox() or dialog.EditBox or dialog.editBox
 end
--- A name that fails (taken, empty) asks again with the reason, keeping what was typed.
 local function submitName(text)
 	local action = nameAction
 	nameAction = nil
@@ -1578,8 +1421,6 @@ StaticPopupDialogs["SHAMANFOREVER_PROFILE_NAME"] = {
 	timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
 }
 
--- Profile sharing: one small window, in export mode (the text, selected for copying) or import mode
--- (an empty box to paste into).
 local share
 local function buildShare()
 	local f = CreateFrame("Frame", "ShamanForeverShareFrame", UIParent, "BackdropTemplate")
@@ -1594,7 +1435,7 @@ local function buildShare()
 	f:SetScript("OnDragStart", f.StartMoving)
 	f:SetScript("OnDragStop", f.StopMovingOrSizing)
 	panelBackdrop(f, 0.55, 0.42, 0.22)
-	table.insert(UISpecialFrames, f:GetName())   -- Escape closes it
+	table.insert(UISpecialFrames, f:GetName())
 
 	f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	f.title:SetPoint("TOPLEFT", 14, -12)
@@ -1617,7 +1458,6 @@ local function buildShare()
 	e:SetWidth(460 - 24 - 36)
 	e:SetScript("OnEscapePressed", function() f:Hide() end)
 	scroll:SetScrollChild(e)
-	-- Clicking anywhere in the box starts typing, not just on the lines of text.
 	boxBg:EnableMouse(true)
 	boxBg:SetScript("OnMouseDown", function() e:SetFocus() end)
 	f.edit = e
@@ -1636,10 +1476,8 @@ local function buildShare()
 	f.secondary:SetText(CANCEL)
 	f.secondary:SetScript("OnClick", function() f:Hide() end)
 
-	-- Import mode: the Import button waits for some text, and a problem shows in the note.
 	e:SetScript("OnTextChanged", function(self, user)
 		if f.mode == "export" then
-			-- Read-only: typing puts the text back.
 			if user then self:SetText(f.exported); self:HighlightText() end
 			return
 		end
@@ -1692,7 +1530,6 @@ function OP.showShare(mode)
 	end
 end
 
--- Several changes in one frame (a slider drag, a drop) refresh the visible page once.
 local refreshQueued = false
 function OP.refresh()
 	if not (win and win:IsShown()) or refreshQueued then return end
@@ -1704,11 +1541,10 @@ function OP.refresh()
 	end)
 end
 
--- groupId: the group the Groups & Layout page marks in its list (OP.openGroup also goes to it).
 function OP.open(page, groupId)
 	if not ns.getDB() then return end
 	if not win then buildWindow() end
-	-- In combat HideUIPanel is blocked (and says so); Settings then stays open under the window.
+	-- In combat HideUIPanel is blocked; Settings stays open under the window.
 	if SettingsPanel and SettingsPanel:IsShown() and not InCombatLockdown() then HideUIPanel(SettingsPanel) end
 	if groupId then ns.LayoutPage.choose(groupId) end
 	win:Show()
@@ -1716,14 +1552,11 @@ function OP.open(page, groupId)
 	showPage(page or currentPage or (last and stubs[last] and last) or "home")
 end
 
--- An element's own page, or the Elements overview for one without a page.
 function OP.openElement(key)
 	if not win then buildWindow() end
 	OP.open(ns.ElementPages.pageOf(key) or "elements")
 end
 
--- Scrolls a page so frame (one of its rows) sits at the top, once the page has laid out. A folded
--- block holding it opens first.
 local function scrollTo(p, frame, after)
 	p:reveal(frame)
 	C_Timer.After(0, function()
@@ -1734,8 +1567,6 @@ local function scrollTo(p, frame, after)
 	end)
 end
 
--- From an Edit Global styles button: Global settings, scrolled to the settings named anchor (a
--- style's kind), whose header flashes.
 function OP.openGlobal(anchor)
 	OP.open("general")
 	local p = pages.general
@@ -1743,20 +1574,15 @@ function OP.openGlobal(anchor)
 	if f then scrollTo(p, f, function() p:flash(f) end) end
 end
 
--- About, scrolled to one of its headings (read once the page is built), which flashes.
 local function showAboutSection(which)
 	OP.open("about")
 	local section = which()
 	if not section then return end
 	scrollTo(section.page, section.header, function() section.page:flash(section.header) end)
 end
--- From an EXPERIMENTAL badge: About's Experimental section.
 function OP.showExperimental() showAboutSection(function() return aboutExp end) end
--- From Home's Give feedback button: About's Feedback section.
 function OP.showFeedback() showAboutSection(function() return aboutFeedback end) end
 
-
--- Groups & Layout showing the group with this id, whose header flashes.
 function OP.openGroup(id)
 	OP.open("layout", id)
 	local p = pages.layout
@@ -1766,7 +1592,6 @@ end
 
 function OP.isShown() return win ~= nil and win:IsShown() end
 
--- Closes the window; true if it was open.
 function OP.hide()
 	if not (win and win:IsShown()) then return false end
 	win:Hide()
@@ -1777,7 +1602,6 @@ function OP.toggle()
 	if win and win:IsShown() then win:Hide() else OP.open() end
 end
 
--- Escape > Options > AddOns > ShamanForever: a pointer to the window above.
 local category
 function OP.build()
 	if category or not (Settings and Settings.RegisterCanvasLayoutCategory) then return end
