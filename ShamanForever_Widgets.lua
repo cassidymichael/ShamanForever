@@ -445,8 +445,14 @@ function ns.makeClipLook(frame, opts)
 	return h
 end
 
-local function cellWidth(size, frame)
-	return math.ceil(2 * CLIP_REACH * (size + 2 * ns.Looks.outerEdge(frame)))
+-- A look with the element's border also carries its art frame: the cell takes in the frame's reach
+local function cellWidth(size, frame, o)
+	local half = CLIP_REACH * (size + 2 * ns.Looks.outerEdge(frame))
+	if not o.glowOnly then
+		local r, box = ns.Frames.reach(o.key), ns.boxOf(o.key)
+		half = math.max(half, box * (0.5 + math.max(r.left, r.right, r.top, r.bottom)) + 1)
+	end
+	return math.ceil(2 * half)
 end
 
 -- Hold at 0 now, back on its second OnUpdate: Blizzard's container updates on its next OnUpdate
@@ -518,7 +524,7 @@ function ClipLook:setup()
 	local o = self.opts
 	if ns.deferWhileAurasSecret(o.sites.container, function() self:setup() end) then return end
 	local size = ns.sizeOf(o.key)
-	local w = cellWidth(size, self.frame)
+	local w = cellWidth(size, self.frame, o)
 	local filters = sensorFilters(o)
 	local unit = type(o.unit) == "function" and o.unit() or o.unit or "player"
 	local ok, err = pcall(function()
@@ -596,7 +602,7 @@ end
 function ClipLook:styleNow()
 	local o = self.opts
 	local size = ns.sizeOf(o.key)
-	local w = cellWidth(size, self.frame)
+	local w = cellWidth(size, self.frame, o)
 	if w == self.width then
 		self:took(size)
 		return
