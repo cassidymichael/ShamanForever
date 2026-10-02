@@ -107,10 +107,21 @@ end
 local function isElement(owner) return type(owner) == "string" and ns.ELEMENTS[owner] ~= nil end
 local function barOf(owner) return type(owner) == "string" and ns.Bars.get(owner) or nil end
 
-local function previewBorder(owner)
+-- Style block tiles: a bar's from its registration, an element's icon, else Global's
+local function tilesOf(owner)
+	local bar = barOf(resolve(owner))
+	return bar and (bar.tiles or {})
+end
+local function tileIcon(owner)
 	local o = resolve(owner)
-	local bar = barOf(o)
-	if bar and bar.previewBorder then return bar.previewBorder() end
+	local tiles = tilesOf(o)
+	if tiles then return tiles.icon end
+	return isElement(o) and ns.ELEMENTS[o].icon or 136026
+end
+local function tileBorder(owner)
+	local o = resolve(owner)
+	local tiles = tilesOf(o)
+	if tiles and tiles.border then return tiles.border() end
 	if isElement(o) then return ns.borderFor(o) end
 	return ns.Style.read(o, "border")
 end
@@ -118,7 +129,7 @@ end
 -- A style block's preview: pooled tiles in the owner's styles; framed adds its element frame.
 local PREVIEW_SIZE, SCHOOL_GAP = 40, 72
 local NO_FRAME = { look = "none" }
-local function previewTiles(f, owner, icon, x, bySchool, framed)
+local function previewTiles(f, owner, x, bySchool, framed)
 	local pool, held = ns.Look.tilePool, {}
 	f:HookScript("OnHide", function()
 		while #held > 0 do pool.release(table.remove(held)) end
@@ -127,7 +138,7 @@ local function previewTiles(f, owner, icon, x, bySchool, framed)
 		local o = resolve(owner)
 		local schools = {}
 		if not isElement(o) and bySchool() then
-			local only = barOf(o) and barOf(o).schools
+			local only = tilesOf(o) and tilesOf(o).schools
 			for _, sc in ipairs(ns.Look.SCHOOLS) do
 				if not only or tContains(only, sc.key) then table.insert(schools, sc) end
 			end
@@ -135,12 +146,12 @@ local function previewTiles(f, owner, icon, x, bySchool, framed)
 		local n = math.max(#schools, 1)
 		while #held > n do pool.release(table.remove(held)) end
 		while #held < n do table.insert(held, pool.acquire(f, PREVIEW_SIZE)) end
-		local border = previewBorder(owner)
+		local border = tileBorder(owner)
 		local x0 = type(x) == "function" and x() or x
 		for i, t in ipairs(held) do
 			local sc = schools[i]
 			t:wear(o, { border = border, frame = not framed and NO_FRAME or nil })
-			t:icon(sc and sc.icon or type(icon) == "function" and icon() or icon)
+			t:icon(sc and sc.icon or tileIcon(o))
 			t:school(sc and sc.key or isElement(o) and ns.Looks.elementSchool(o) or nil)
 			t:point("LEFT", f, "LEFT", x0 + (i - 1) * SCHOOL_GAP, 0)
 		end
@@ -156,16 +167,11 @@ local function borderRows(p, owner, after, label, shown)
 	if owner ~= nil then followRow(p, owner, "border", after, label, shown) end
 	local bordered = function() return r.own() and r.style().show end
 	local look
-	local bar = barOf(owner)
-	if not bar or bar.previewIcon then
+	local tiles = tilesOf(owner)
+	if not tiles or tiles.icon then
 		local f = p:row(52)
 		p:label(f, "Preview")
-		local function icon()
-			if bar then return bar.previewIcon end
-			local o = resolve(owner)
-			return isElement(o) and ns.ELEMENTS[o].icon or 136026
-		end
-		local sync = previewTiles(f, owner, icon, LABEL_W + 24, function() return look().bySchool end)
+		local sync = previewTiles(f, owner, LABEL_W + 24, function() return look().bySchool end)
 		p:add(f, 52, showWhen(r.own, shown), sync)
 	end
 	p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"), showWhen(r.own, shown))
@@ -212,11 +218,7 @@ local function frameRows(p, owner, kind, after, opts)
 			local rc = reach()
 			return math.max(52, math.ceil((1 + rc.top + rc.bottom) * PREVIEW_SIZE) + 8)
 		end
-		local function icon()
-			local o = resolve(owner)
-			return isElement(o) and ns.ELEMENTS[o].icon or 136026
-		end
-		local sync = previewTiles(f, owner, icon,
+		local sync = previewTiles(f, owner,
 			function() return LABEL_W + 24 + math.ceil(reach().left * PREVIEW_SIZE) end, function() return false end, true)
 		p:add(f, height, own, function()
 			f:SetHeight(height())
@@ -352,7 +354,7 @@ local function popSchoolRow(p, key, shown)
 	end, get, set, shown, 190)
 end
 
-local function glowBlock(p, owner, icon)
+local function glowBlock(p, owner)
 	local after = reglow
 	p:header("Pulsing glow style")
 	local r = styleRows(p, owner, "glow", after)
@@ -364,7 +366,7 @@ local function glowBlock(p, owner, icon)
 	local f = p:row(64)
 	p:label(f, "Preview")
 	local look
-	local sync = previewTiles(f, owner, icon, LABEL_W + 24, function() return look().bySchool end)
+	local sync = previewTiles(f, owner, LABEL_W + 24, function() return look().bySchool end)
 	p:add(f, 64, own, function()
 		for _, t in ipairs(sync()) do t:glow(true) end
 	end)
@@ -396,7 +398,7 @@ local function glowBlock(p, owner, icon)
 	if owner == nil then ownLine(p, "glow") end
 end
 
-local function popBlock(p, owner, icon, kind)
+local function popBlock(p, owner, kind)
 	local f, sync
 	local function playPop()
 		for _, t in ipairs(sync()) do t:pop(kind) end
@@ -422,7 +424,7 @@ local function popBlock(p, owner, icon, kind)
 	local own = showWhen(r.own)
 	f = p:row(56)
 	p:label(f, "Try it")
-	sync = previewTiles(f, owner, icon, LABEL_W + 16, bySchool)
+	sync = previewTiles(f, owner, LABEL_W + 16, bySchool)
 	local play = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
 	play:SetSize(80, 22)
 	play:SetText("Play")
@@ -695,8 +697,8 @@ end
 
 local function lookBlocks(p, key)
 	local e = ns.ELEMENTS[key]
-	if e.effects.glow then glowBlock(p, key, e.icon) end
-	if e.effects.pop then popBlock(p, key, e.icon, e.effects.popKind or "ready") end
+	if e.effects.glow then glowBlock(p, key) end
+	if e.effects.pop then popBlock(p, key, e.effects.popKind or "ready") end
 	p:header("Border style")
 	K.borderRows(p, key, relayout)
 	p:header("Frame style")

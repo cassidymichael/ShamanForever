@@ -181,8 +181,8 @@ local function buildGlobal(p)
 	p:text("Art round a whole group. " .. K.ownersText("Groups", "groupframe"))
 	K.frameRows(p, nil, "groupframe")
 	K.ownLine(p, "groupframe")
-	K.glowBlock(p, nil, 136026)
-	K.popBlock(p, nil, 136026, "ready")
+	K.glowBlock(p, nil)
+	K.popBlock(p, nil, "ready")
 end
 
 local nameAction

@@ -137,8 +137,8 @@ end
 -- returning when it ends.
 -- Options: icon, school, blurb, tags() and preview (its page header: a stage, as _Kinds says); page
 -- = { order, build } (titled and iconned as the bar); experiments = { { name, where } } (About's
--- list); ownSize() (its icon size isn't Global's); previewIcon, schools, previewBorder() (its style
--- blocks' tiles: their icon, the schools they show (else all), their border; no previewIcon: none)
+-- list); ownSize() (its icon size isn't Global's); tiles = { icon, schools, border() } (its style
+-- blocks' sample tiles: their icon, the schools they show (else all), their border; none: no tiles)
 local BARS, BAR_ORDER = {}, {}
 local Bars = {}
 ns.Bars = Bars
