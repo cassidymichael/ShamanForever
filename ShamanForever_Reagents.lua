@@ -10,15 +10,15 @@ local setting = ns.elementSetting
 
 -- when: the count shows always | low | never; lowKeepsShown: running low isn't idle; ring and fade:
 -- the None left look
-R.DEFAULTS = { reagent = {
+local DEFAULTS = { reagent = {
 	when = "always", low = 2, lowKeepsShown = true,
 	color = { 1, 1, 1, 1 }, lowColor = { 1, 0.82, 0, 1 },
 	size = 14, pos = "BOTTOMRIGHT", x = 0, y = 0,
 	ring = true, fade = true,
 } }
-R.RANGES = { reagent = { low = { 0, 10, 1 }, size = { 8, 40, 1 }, x = { -50, 50, 1 }, y = { -50, 50, 1 } } }
+local RANGES = { reagent = { low = { 0, 10, 1 }, size = { 8, 40, 1 }, x = { -50, 50, 1 }, y = { -50, 50, 1 } } }
 
-R.IDLE_EXTRA = { name = "reagent", field = "lowKeepsShown", label = "Running low",
+local IDLE_EXTRA = { name = "reagent", field = "lowKeepsShown", label = "Running low",
 	tip = "Running low or out counts as something going on, even at 0%.",
 	choices = { { true, "Shows it" }, { false, "Stays idle" } } }
 
@@ -117,3 +117,34 @@ function R.refresh(def)
 	local low, ring, pulse = R.draw(def.frame, def.key, n)
 	return low and setting(def.key, "reagent", "lowKeepsShown") and true or false, ring, pulse
 end
+
+-- The reagent part (ns.registerPart): its count and None left look, for any kind
+local PLENTY = 15
+local function fewLeft(key)
+	local v = setting(key, "reagent", "low")
+	return math.max(type(v) == "number" and v == v and v or 2, 1)
+end
+local function look(ic, key, n)
+	local _, ring, pulse = R.draw(ic, key, n)
+	ic:SetRingShown(ring)
+	ic:SetPulsing(pulse)
+end
+ns.registerPart("reagent", {
+	defaults = DEFAULTS,
+	ranges = RANGES,
+	idle = { extra = IDLE_EXTRA },
+	page = { own = "reagent" },
+	preview = {
+		warning = "out",
+		states = { { "low", "Few left", 70 }, { "out", "None left", 71 } },
+		render = function(ic, st, def, P, pv)
+			local key = def.key
+			if st == "low" or st == "out" then pv.rest(ic, P, setting(key, "reagent", "lowKeepsShown")) end
+			look(ic, key, st == "out" and 0 or st == "low" and fewLeft(key) or PLENTY)
+		end,
+		idles = function(st, def, when)
+			if st ~= "low" and st ~= "out" then return nil end
+			return (when == "oncd" or when == "oncdany") and setting(def.key, "reagent", "lowKeepsShown") == false
+		end,
+	},
+})

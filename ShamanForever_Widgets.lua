@@ -96,6 +96,8 @@ fader:SetScript("OnUpdate", function(self, elapsed)
 	end
 	if next(fading) == nil then self:Hide() end
 end)
+-- Going idle waits this long, so a pop plays at full first
+ns.IDLE_DELAY = 1.5
 function ns.fadeTo(f, alpha)
 	if f.aboveProtected and InCombatLockdown() then return end
 	if math.abs(f:GetAlpha() - alpha) < 0.005 then

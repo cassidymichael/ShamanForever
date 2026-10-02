@@ -227,16 +227,8 @@ function L.idles(key, st)
 		if when == "up" then return st ~= "down" end
 		return when == "charges" and (st == "up3" or st == "up2")
 	end
-	if e.kind ~= "cooldown" then return false end
-	if when == "oncd" or when == "oncdany" then
-		local lowIdle = ns.elementSetting(key, "reagent", "lowKeepsShown") == false
-		return st == "cd" or ((st == "low" or st == "out") and lowIdle)
-	end
-	if e.def.needsTotem then
-		if when == "offcd" then return st ~= "cd" end
-		return st == "nototem" or st == "ready"
-	end
-	return st == "ready"
+	local pv = L.PREVIEW[key]
+	return pv and pv.idles and pv.idles(st, when) or false
 end
 
 local IDLE_DELAY = ns.IDLE_DELAY
@@ -246,62 +238,6 @@ local function idleSoon(ic, key, st)
 	C_Timer.After(IDLE_DELAY, function()
 		if ic.idleToken == token and previewState[key] == st then idleLook(ic, key) end
 	end)
-end
-
-local function totemPreview(def)
-	local g = def.grounded
-	return {
-		cooldown = true, uptime = true,
-		typical = "active",
-		states = { { "ready", "Ready" }, { "active", "Totem down" }, { "expiring", "Expiring" }, { "ranout", "Ran out" }, { "cd", "Cooldown" },
-			{ "killed", g and "Grounded" or "Killed early" } },
-		pop = function(ic, st)
-			local key = def.key
-			local function flash(opts, secs)
-				if opts then
-					if not ic.endFlash then ic.endFlash = ns.Effects.endFlash(ic, ic, key) end
-					ic.endFlash:setIcon(def.iconID or def.icon)
-					ic.endFlash:play(nil, opts)
-				end
-				local token = {}
-				ic.momentToken, ic.momentDone = token, false
-				C_Timer.After(opts and secs or 0, function()
-					if ic.momentToken ~= token or previewState[key] ~= st then return end
-					ic.momentDone = true
-					frozen(ic.cdT, 0.05, def.cd or 15)
-				end)
-			end
-			if st == "ready" then
-				if opt(key, "ready", "pop") then ic:Pop("ready") end
-			elseif st == "ranout" and def.ranOut then
-				flash(opt(key, "ended", "flash") and { expired = true, ranOut = ns.THEME.color[def.school],
-					pop = opt(key, "ended", "pop"), glow = opt(key, "ended", "glow") }, 1.4)
-			elseif st == "ranout" and opt(key, "ended", "pop") then ic:Pop("expired")
-			elseif st == "killed" and g then
-				flash(opt(key, "killed", "flash") and { grounded = true, pop = opt(key, "killed", "pop"),
-					glow = opt(key, "killed", "glow") }, 2.1)
-			elseif st == "killed" then
-				flash(opt(key, "killed", "flash") and { pop = opt(key, "killed", "pop"), glow = opt(key, "killed", "glow"),
-					mark = opt(key, "killed", "mark") }, 2.1)
-			end
-		end,
-		render = function(ic, st)
-			reset(ic, def.iconID or def.icon)
-			local e = ic.endFlash
-			if e and st ~= ic.flashState then
-				e:stop()
-				ic.momentDone = false
-			end
-			ic.flashState = st
-			local cd = def.cd or 15
-			if st == "expiring" then expiringLook(ic, def.key, def.duration or 45)
-			elseif st == "active" then frozen(ic.upT, 0.45, def.duration or 45)
-			elseif st == "cd" then frozen(ic.cdT, 0.4, cd)
-			elseif (st == "ranout" and def.ranOut) or st == "killed" then
-				if ic.momentDone then frozen(ic.cdT, 0.05, cd) end
-			end
-		end,
-	}
 end
 
 L.PREVIEW = {
@@ -377,34 +313,7 @@ L.PREVIEW = {
 			end
 		end,
 	},
-	firenova = {
-		cooldown = true, uptime = true,
-		typical = "out", warning = "nototem",
-		states = { { "ready", "Ready" }, { "nototem", "No fire totem" }, { "out", "Fire totem out" }, { "expiring", "Totem expiring" },
-			{ "cd", "Cooldown" } },
-		pop = function(ic, st)
-			if st == "ready" and opt("firenova", "ready", "pop") then ic:Pop() end
-		end,
-		render = function(ic, st)
-			reset(ic, 135824)
-			if st == "cd" then frozen(ic.cdT, 0.4, 6) return end
-			if st == "expiring" then expiringLook(ic, "firenova", 55) return end
-			if st == "nototem" then
-				ic.tex:SetDesaturated(opt("firenova", "warn", "grey"))
-				ic:SetRingShown(opt("firenova", "warn", "ring"))
-				ic:SetPulsing(opt("firenova", "warn", "fade"))
-			elseif st == "out" then
-				frozen(ic.upT, 0.2, 55)
-				ic:SetGlowShown(opt("firenova", "ready", "glow"))
-			end
-		end,
-	},
 }
-function L.reagentLook(ic, key, n)
-	local _, ring, pulse = ns.Reagents.draw(ic, key, n)
-	ic:SetRingShown(ring)
-	ic:SetPulsing(pulse)
-end
 L.PREVIEW.maelstrom = {
 	uptime = true,
 	states = { { "s1", "1 stack" }, { "s4", "4 stacks" }, { "s5", "5 stacks" }, { "idle", "Not up" } },
@@ -421,99 +330,6 @@ L.PREVIEW.maelstrom = {
 		end
 	end,
 }
-local PLENTY = 15
-local function fewLeft(key)
-	local v = opt(key, "reagent", "low")
-	return math.max(type(v) == "number" and v == v and v or 2, 1)
-end
-
-local function cooldownPreview(def)
-	local key, states = def.key, { { "ready", "Ready" }, { "cd", "Cooldown" } }
-	if def.primed then table.insert(states, { "primed", "Primed" }) end
-	if def.window then
-		table.insert(states, { "active", "Active" })
-		table.insert(states, { "expiring", "Expiring" })
-	end
-	if def.reagent then
-		table.insert(states, { "low", "Few left" })
-		table.insert(states, { "out", "None left" })
-	end
-	local long = def.cd or 60
-	return {
-		cooldown = true, uptime = (def.window or (def.primed and def.primed.duration)) and true or false,
-		states = states,
-		typical = "cd", warning = def.reagent and "out" or nil,
-		pop = function(ic, st)
-			if st == "ready" then
-				if opt(key, "ready", "pop") then ic:Pop("ready") end
-			elseif st == "primed" and opt(key, "active", "pop") then ic:Pop("ready") end
-		end,
-		render = function(ic, st)
-			reset(ic, def.iconID or def.icon)
-			if st == "ready" then ic:SetGlowShown(opt(key, "ready", "glow"))
-			elseif st == "cd" then frozen(ic.cdT, 0.4, long)
-			elseif st == "primed" then
-				ic:SetGlowShown(opt(key, "active", "glow"))
-				if def.primed.duration then frozen(ic.upT, 0.3, def.primed.duration) end
-			elseif st == "active" then frozen(ic.upT, 0.3, def.window)
-			elseif st == "expiring" then expiringLook(ic, key, def.window)
-			elseif st == "low" or st == "out" then frozen(ic.cdT, 0.4, long) end
-			if def.reagent then L.reagentLook(ic, key, st == "out" and 0 or st == "low" and fewLeft(key) or PLENTY) end
-		end,
-	}
-end
-
-local function buffPreview(def)
-	local key = def.key
-	local states = { { "up", def.proc and (def.upLabel or ns.Spells.name("clearcasting")) or "Up" } }
-	if not def.proc or def.engineExpire then table.insert(states, { "expiring", "Expiring" }) end
-	if def.missing then table.insert(states, { "missing", "Not on target" }) end
-	table.insert(states, { "idle", def.idleLabel or "Not up" })
-	if def.reagent then
-		table.insert(states, { "low", "Not up, few left" })
-		table.insert(states, { "out", "Not up, none left" })
-	end
-	if def.breath then table.insert(states, { "underwater", "Under water" }) end
-	return {
-		uptime = true,
-		states = states,
-		warning = def.breath and "underwater" or def.reagent and "out" or def.missing and "missing" or nil,
-		pop = function(ic, st)
-			if st == "up" and def.proc and opt(key, "active", "pop") then ic:Pop("ready") end
-		end,
-		render = function(ic, st)
-			reset(ic, def.icon)
-			if st == "up" then
-				if def.proc then
-					if not def.noTimer then frozen(ic.upT, 0.3, 15) end
-					ic:SetGlowShown(opt(key, "active", "glow"))
-				else frozen(ic.upT, 0.3, 600) end
-			elseif st == "expiring" and def.engineExpire then engineExpireLook(ic, key)
-			elseif st == "expiring" then expiringLook(ic, key, 600)
-			elseif st == "missing" then
-				ic.tex:SetDesaturated(opt(key, "warn", "grey"))
-				ic:SetRingShown(opt(key, "warn", "ring"))
-				ic:SetPulsing(opt(key, "warn", "fade"))
-				ic:SetGlowShown(opt(key, "warn", "glow"))
-			elseif st == "idle" then
-				if opt(key, "idleWhen") ~= "never" then idleLook(ic, key) end
-			elseif st == "low" or st == "out" then
-				if not opt(key, "reagent", "lowKeepsShown") then idleLook(ic, key) end
-				L.reagentLook(ic, key, st == "out" and 0 or fewLeft(key))
-			elseif st == "underwater" then
-				if opt(key, "warn", "on") then
-					ic:SetRingShown(opt(key, "warn", "ring"))
-					ic:SetPulsing(opt(key, "warn", "fade"))
-				else idleLook(ic, key) end
-			end
-			if def.reagent and st ~= "low" and st ~= "out" then L.reagentLook(ic, key, PLENTY) end
-			if (st == "up" or st == "expiring") and opt(key, "idleWhen") == "target" then
-				idleLook(ic, key)
-			end
-		end,
-	}
-end
-
 L.PREVIEW.tremor = {
 	uptime = true,
 	typical = "idle", warning = "warn",
@@ -546,19 +362,20 @@ L.PREVIEW.tremor = {
 	end,
 }
 
-local KIND_PREVIEW = {
-	cooldown = function(def) return def.totemSlot and totemPreview(def) or cooldownPreview(def) end,
-	buff = buffPreview,
-}
-for _, key in ipairs(ns.ELEMENT_KEYS) do
-	local e = ns.ELEMENTS[key]
-	local make = e.kind and KIND_PREVIEW[e.kind]
-	if make and not L.PREVIEW[key] then L.PREVIEW[key] = make(e.def) end
-end
+-- An element's preview, from its kind; made when first asked for
+setmetatable(L.PREVIEW, { __index = function(t, key)
+	local pv = ns.Kinds.previewOf(key)
+	if pv then rawset(t, key, pv) end
+	return pv
+end })
+
+-- What a preview draws with: render(ic, st, P), pop(ic, st, P)
+L.kit = { reset = reset, frozen = frozen, expiring = expiringLook, engineExpire = engineExpireLook, idle = idleLook,
+	setBar = setBar, current = function(key) return previewState[key] end }
 
 function L.paint(ic, key, st, at)
 	stage = { start = at }
-	local ok, err = pcall(L.PREVIEW[key].render, ic, st)
+	local ok, err = pcall(L.PREVIEW[key].render, ic, st, L.kit)
 	local ends = stage.ends
 	stage = nil
 	if not ok then ns.noteError("preview " .. key, err) end
@@ -965,7 +782,7 @@ function L.buildHero(parent, key)
 		b:SetScript("OnClick", function(self)
 			previewState[key] = self.state
 			h:refresh()
-			if def.pop then def.pop(def.stage and h or h.previewIcon, self.state) end
+			if def.pop then def.pop(def.stage and h or h.previewIcon, self.state, L.kit) end
 			if not def.stage and L.idles(key, self.state) then idleSoon(h.previewIcon, key, self.state) end
 		end)
 		table.insert(h.stateButtons, b)
@@ -1033,8 +850,8 @@ function L.buildHero(parent, key)
 			if framed then ns.Frames.mount(self.frameHost, key, bw) else ns.Frames.draw(self.frameHost) end
 		end
 		local st = previewState[key]
-		if def.stage then def.render(self, st) else
-			def.render(self.previewIcon, st)
+		if def.stage then def.render(self, st, L.kit) else
+			def.render(self.previewIcon, st, L.kit)
 			if self.shownState == nil or self.shownState == st then
 				if L.idles(key, st) then idleLook(self.previewIcon, key) end
 			end

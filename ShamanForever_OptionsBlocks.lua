@@ -762,13 +762,13 @@ local function lookRows(p, s, name, opts, shown)
 	end
 end
 
--- warn: opts.title, first() (rows above its looks), on = { label, tip } (its switch, when it has
+-- warn: opts.title, text (a line above its looks), on = { label, tip } (its switch, when it has
 -- one), noun, sounds (the sound choices), after
 local function warnBlock(p, owner, opts)
 	local s = store(p, owner, opts.after)
 	if not s.has("warn") then return end
 	p:header(opts.title)
-	if opts.first then opts.first() end
+	if opts.text then p:text(opts.text) end
 	local function rows()
 		lookRows(p, s, "warn", opts)
 		check(p, s, "warn", "pop", "Pop", tipOf(opts, "pop"))
@@ -781,14 +781,18 @@ local function warnBlock(p, owner, opts)
 	else rows() end
 end
 
--- ready: opts.glowTip, afterPop(s) (rows under its pop)
+-- ready: opts.glowTip, blocked = { label, tip } (its pop while it can't be used)
+local BLOCKED = { { "grey", "Greyed pop" }, { "none", "Nothing" } }
 local function readyBlock(p, owner, opts)
 	opts = opts or {}
 	local s = store(p, owner, opts.after)
 	if not s.has("ready") then return end
 	p:header("Ready")
 	check(p, s, "ready", "pop", "Pop", "The moment the cooldown ends.")
-	if opts.afterPop then opts.afterPop(s) end
+	if opts.blocked and s.has("ready", "blocked") then
+		local get, set = s.opt("ready", "blocked")
+		p:dropdown(opts.blocked[1], opts.blocked[2], BLOCKED, get, set, showWhen(s.get("ready", "pop")), 150)
+	end
 	check(p, s, "ready", "glow", "Pulsing glow", opts.glowTip or "While it's off cooldown.")
 	soundRow(p, s, "ready", "Sound", "The moment the cooldown ends.")
 end
@@ -881,7 +885,20 @@ local function reagentBlocks(p, def)
 	lookRows(p, store(p, key), "reagent", {})
 end
 
+-- A setting switched on, with a number under it: b = { title, name, label, tip, sub = { name, label,
+-- tip, unit } }
+local function toggleBlock(p, key, b)
+	p:header(b.title)
+	local on = p:checkbox(b.label, b.tip, eopt(p, key, b.name))
+	local sub = b.sub
+	if not sub then return end
+	p:sub(on, eread(key, b.name), function()
+		eslider(p, key, sub.label, sub.tip, function(v) return string.format("%d %s", v, sub.unit) end, nil, sub.name)
+	end)
+end
+
 K.eopt, K.eread, K.eslider, K.COUNT_POINTS = eopt, eread, eslider, COUNT_POINTS
+K.toggleBlock = toggleBlock
 K.elementDisplay, K.idleBlock, K.lookBlocks, K.reagentBlocks = elementDisplay, idleBlock, lookBlocks, reagentBlocks
 K.warnBlock, K.readyBlock, K.activeBlock, K.expiringBlock, K.killedBlock = warnBlock, readyBlock, activeBlock,
 	expiringBlock, killedBlock

@@ -371,64 +371,37 @@ local function buildImbue(p, def)
 	lookBlocks(p, key)
 end
 
-local function buildCooldown(p, def)
+-- A kind made of parts: Display and Idle, its slots' standard blocks with its parts' words, then the
+-- look blocks
+local OWN = {
+	reagent = function(p, def) reagentBlocks(p, def) end,
+	toggle = function(p, def, b) K.toggleBlock(p, def.key, b) end,
+}
+local SLOT = {
+	own = function(p, def, list)
+		for _, b in ipairs(list) do
+			local name = type(b) == "table" and b[1] or b
+			OWN[name](p, def, b)
+		end
+	end,
+	warn = function(p, def, o) warnBlock(p, def.key, o) end,
+	cooldown = function(p, def, title) timerSettings(p, title, def.key, "cooldown") end,
+	gcd = function(p, def) gcdBlock(p, def.key) end,
+	uptime = function(p, def, title) timerSettings(p, title, def.key, "uptime") end,
+	ready = function(p, def, o) readyBlock(p, def.key, o) end,
+	active = function(p, def, o) activeBlock(p, def.key, o) end,
+	expire = function(p, def, o) expiringBlock(p, def.key, o) end,
+	killed = function(p, def, o) killedBlock(p, def.key, o) end,
+}
+local function partsPage(p, def)
 	local key = def.key
+	local kind = ns.ELEMENTS[key].kind
 	elementDisplay(p, key)
 	idleBlock(p, def)
-	if def.reagent then reagentBlocks(p, def) end
-	warnBlock(p, key, { title = "No fire totem" })
-	timerSettings(p, "Cooldown", key, "cooldown")
-	gcdBlock(p, key)
-	local timed = ns.cooldownTimes(def)
-	if def.needsTotem then timerSettings(p, "Fire totem's time left", key, "uptime")
-	elseif def.totemSlot or def.window then timerSettings(p, "Time left", key, "uptime")
-	elseif timed then timerSettings(p, "Primed time left", key, "uptime") end
-	readyBlock(p, key, def.needsTotem and {
-		glowTip = "While it's off cooldown and a fire totem is down.",
-		afterPop = function(s)
-			local get, set = s.opt("ready", "blocked")
-			p:dropdown("Without a fire totem", "The pop when the cooldown ends with no fire totem down.",
-				{ { "grey", "Greyed pop" }, { "none", "Nothing" } }, get, set, showWhen(s.get("ready", "pop")), 150)
-		end,
-	} or nil)
-	activeBlock(p, key, { title = "Primed", text = def.primed and def.primed.text,
-		tips = { pop = "The moment it's primed.", glow = "While it's primed." } })
-	expiringBlock(p, key, { tips = { endPop = "The totem pops and fades the moment it runs out.",
-		endSound = "When it runs out or is killed. Not when you dismiss it." } })
-	if def.grounded then
-		killedBlock(p, key, { title = "Grounded", tips = { glow = "In blue." }, flash = { "Flash when it takes a spell",
-			"The totem flashes blue over its icon when it ends early: it took a spell, or was destroyed." } })
-	else
-		killedBlock(p, key, { flash = { "Flash when it dies early",
-			"The dead totem flashes red over its icon. Not when you dismiss it or it runs out." } })
+	for _, slot in ipairs(ns.Kinds.get(kind).slots) do
+		local words = ns.Kinds.slot(kind, def, slot)
+		if words ~= nil then SLOT[slot](p, def, words) end
 	end
-	lookBlocks(p, key)
-end
-
-local function buildBuff(p, def)
-	local key = def.key
-	elementDisplay(p, key)
-	idleBlock(p, def)
-	if ns.elementDefault(key, "skipLong") ~= nil then
-		p:header("Track")
-		local skip = p:checkbox("Skip long buffs", "Leaves out buffs that last longer than Longest buff, and buffs with no end.",
-			eopt(p, key, "skipLong"))
-		p:sub(skip, eread(key, "skipLong"), function()
-			eslider(p, key, "Longest buff", "Buffs up to this long count.",
-				function(v) return string.format("%d min", v) end, nil, "skipLongMins")
-		end)
-	end
-	if def.reagent then reagentBlocks(p, def) end
-	if def.breath then
-		warnBlock(p, key, { title = "Under water", on = { "Warn without it", "While your breath bar drains and it isn't up." } })
-	elseif def.missing then
-		warnBlock(p, key, { title = "Not on target", tips = { glow = "A glow that pulses, in the Pulsing glow style." },
-			first = function() p:text("While your hostile target doesn't have it.") end })
-	end
-	if not def.noTimer then timerSettings(p, "Time left", key, "uptime") end
-	expiringBlock(p, key)
-	activeBlock(p, key, { title = def.procHeader or ns.Spells.name("clearcasting"),
-		tips = { pop = def.popTip or "The moment it procs.", glow = def.glowTip or "While it's up." } })
 	lookBlocks(p, key)
 end
 
@@ -613,7 +586,7 @@ local function buildTremor(p)
 	lookBlocks(p, key)
 end
 
-local PAGE = { shield = buildShield, shock = buildShock, imbue = buildImbue, cooldown = buildCooldown, buff = buildBuff,
+local PAGE = { shield = buildShield, shock = buildShock, imbue = buildImbue, cooldown = partsPage, buff = partsPage,
 	tremor = buildTremor }
 
 local function buildMaelstrom(p, def)

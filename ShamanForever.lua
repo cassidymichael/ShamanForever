@@ -842,6 +842,7 @@ reg("PLAYER_LOGIN")
 ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 	if event == "ADDON_LOADED" then
 		if arg1 ~= ADDON then return end
+		ns.Kinds.finish()
 		acct = ns.Profiles.load()
 		selectProfile(ns.Profiles.saved())
 		ns.Options.build()

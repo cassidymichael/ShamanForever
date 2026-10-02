@@ -102,7 +102,7 @@ local function paintElement(key, r, moment)
 	if idles(key, st) and not (r.idleAt and GetTime() < r.idleAt) then setAlpha(ic, L.idleAlpha(key))
 	else setAlpha(ic, ic:GetAlpha()) end
 	local pop = L.PREVIEW[key].pop
-	if moment and pop then ns.try("preview pop " .. key, pop, ic, st) end
+	if moment and pop then ns.try("preview pop " .. key, pop, ic, st, L.kit) end
 	return ends
 end
 
