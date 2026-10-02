@@ -322,7 +322,7 @@ ns.registerPart("expire", {
 		return { expire = e }
 	end,
 	ranges = function(def) return { expire = { secs = def.expireRange or { 0, 30, 1 } } } end,
-	glow = function(def) return def.defaults.expire.glow ~= nil and { "expire" } or nil end,
+	glow = function(def) return def.defaults.expire.glow ~= nil end,
 })
 
 -- e: { secs, grey, ring, fade, glow } (secs 0: off), an element's or the totem bar's expire

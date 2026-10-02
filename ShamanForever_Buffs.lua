@@ -90,8 +90,8 @@ ns.registerPart("breath", {
 ns.registerPart("proc", {
 	has = function(def) return def.proc and not (def.noPop and def.noGlow) end,
 	defaults = { active = { pop = true, glow = true } },
-	glow = function(def) return not def.noGlow and { "active" } or nil end,
-	pop = function(def) return not def.noPop and { "active" } or nil end,
+	glow = function(def) return not def.noGlow end,
+	pop = function(def) return not def.noPop end,
 	preview = {
 		pop = function(ic, st, def)
 			if st == "up" and setting(def.key, "active", "pop") then ic:Pop("ready") end

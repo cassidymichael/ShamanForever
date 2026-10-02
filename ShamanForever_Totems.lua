@@ -158,8 +158,7 @@ ns.registerPart("totemSlot", {
 			or { flash = true, pop = true, glow = true, mark = true }
 		return { ended = ended(def), killed = killed }
 	end,
-	glow = function(def) return { "killed", def.ranOut and "ended" or nil } end,
-	pop = { "killed", "ended" },
+	glow = true, pop = true,
 	idle = { held = "no totem out", also = " and its totem isn't out" },
 	page = {
 		uptime = "Time left",
@@ -227,7 +226,7 @@ local FIRE_NOVA_CHOICES = {
 ns.registerPart("needsTotem", {
 	kind = "cooldown", after = "readyGlow",
 	defaults = { warn = { grey = true, ring = false, fade = false }, ready = { glow = false, blocked = "grey" } },
-	glow = { "ready" },
+	glow = true,
 	idle = { choices = FIRE_NOVA_CHOICES },
 	page = {
 		warn = { title = "No fire totem" },

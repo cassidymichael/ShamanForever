@@ -681,8 +681,8 @@ end
 
 local function lookBlocks(p, key)
 	local e = ns.ELEMENTS[key]
-	if #e.effects.glow > 0 then glowBlock(p, key, e.icon) end
-	if #e.effects.pop > 0 then popBlock(p, key, e.icon, e.effects.popKind or "ready") end
+	if e.effects.glow then glowBlock(p, key, e.icon) end
+	if e.effects.pop then popBlock(p, key, e.icon, e.effects.popKind or "ready") end
 	p:header("Border style")
 	K.borderRows(p, key, relayout)
 	p:header("Frame style")

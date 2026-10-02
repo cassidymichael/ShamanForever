@@ -47,7 +47,7 @@ ns.registerElement("shield", { frame = shield, label = "Shields", paint = functi
 	styles = { glow = { look = "soft" },
 		uptime = { text = false, swipe = false, swipeAlpha = 0.5, swipeReverse = false, bar = false, barEdge = "top" } },
 	def = { key = "shield", idleChoices = IDLE_CHOICES },
-	effects = { glow = { "warn" }, pop = {} },
+	effects = { glow = true, pop = false },
 	borderHost = edge,
 	standInBorder = true,
 	kind = "shield", icon = 136051, school = "spirit", blurb = "Charges and time left. Warns when it's gone.",

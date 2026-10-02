@@ -27,7 +27,7 @@ ns.registerElement("imbue", { frame = imbue, label = "Weapon Imbue",
 	styles = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false,
 		bar = false } },
 	def = { key = "imbue", idleChoices = IDLE_CHOICES },
-	effects = { glow = { "warn" }, pop = { "warn" }, popKind = "lost" },
+	effects = { glow = true, pop = true, popKind = "lost" },
 	-- A bar can take its colour (the swing timer's Colour)
 	barColor = { label = "Imbue colour", text = "Your main hand's imbue, grey with none.",
 		color = function() return IM.barColor() end },

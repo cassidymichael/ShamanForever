@@ -104,13 +104,14 @@ local ELEMENT_KEYS = {}
 -- page and preview (ns.registerKind); a kind made of parts fills defaults, ranges and effects from
 -- def's parts (_Kinds); defaults: its settings' defaults, which also declare the fields of each
 -- state and event it has (_Profiles has the vocabulary); ranges: its numbers' { min, max, step },
--- shaped as its defaults; effects = { glow = { states }, pop = { states }, popKind };
+-- shaped as its defaults; effects = { glow, pop, popKind }: whether it has a pulsing glow and a pop
+-- (its page then offers their styles), and the pop it plays;
 -- ownSchool(): the school its pop and glow take now, where that follows its state; styles: its own
 -- shipped look, { kind = fields }; timerCant: timer parts it can't have, and why; barColor = { label,
 -- text, color() }: a colour a bar can follow
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
-local NO_EFFECTS = { glow = {}, pop = {} }
+local NO_EFFECTS = { glow = false, pop = false }
 local BASE_RANGES = { idleAlpha = { 0, 1, 0.05 } }
 function ns.registerElement(key, e)
 	e.getSize = e.getSize or iconSize

@@ -59,7 +59,7 @@ def.frame = f
 ns.registerElement(KEY, { frame = f, label = def.spell, defaults = def.defaults, ranges = def.ranges,
 	learned = function() return def.spellID ~= nil end,
 	paint = function(t) t:SetTexture(def.iconID or def.icon) end,
-	effects = { glow = { "active" }, pop = { "active" } },
+	effects = { glow = true, pop = true },
 	styles = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false,
 		bar = true } },
 	kind = "tremor", def = def, spell = def.spellKey, icon = def.icon, school = def.school,

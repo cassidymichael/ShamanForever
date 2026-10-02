@@ -34,7 +34,7 @@ ns.registerElement("shock", { frame = shock, label = "Shocks", paint = function(
 		ready = { pop = true, glow = false, sound = "none" } },
 	ranges = { mana = { overlay = PAINT, tint = PAINT, ring = PAINT }, range = { overlay = PAINT, tint = PAINT } },
 	def = { key = "shock", idleChoices = CD.IDLE_CHOICES },
-	effects = { glow = { "ready" }, pop = { "ready" } },
+	effects = { glow = true, pop = true },
 	kind = "shock", icon = 136026, school = "spirit", blurb = "Cooldown, range and mana." })
 
 local idleDef = { key = "shock", frame = shock }

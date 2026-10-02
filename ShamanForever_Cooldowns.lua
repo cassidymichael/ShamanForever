@@ -164,9 +164,9 @@ ns.registerPart("cooldown", {
 ns.registerPart("ready", {
 	has = function(def) return not def.noReady end,
 	defaults = { ready = { pop = true, sound = "none" } },
-	pop = { "ready" },
+	pop = true,
 })
-ns.registerPart("readyGlow", { defaults = { ready = { glow = false } }, glow = { "ready" } })
+ns.registerPart("readyGlow", { defaults = { ready = { glow = false } }, glow = true })
 -- A buff window from our own cast (window: its seconds)
 ns.registerPart("window", {
 	idle = { held = "not active", also = " and it isn't active" },
@@ -186,8 +186,8 @@ ns.registerPart("primed", {
 	defaults = function(def)
 		return def.primedLooks ~= false and { active = { pop = true, glow = true } } or nil
 	end,
-	glow = function(def) return def.primedLooks ~= false and { "active" } or nil end,
-	pop = function(def) return def.primedLooks ~= false and { "active" } or nil end,
+	glow = function(def) return def.primedLooks ~= false end,
+	pop = function(def) return def.primedLooks ~= false end,
 	idle = { held = "not primed", also = " and it isn't primed" },
 	page = {
 		uptime = function(def) return def.primed.duration and "Primed time left" or nil end,

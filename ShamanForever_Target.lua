@@ -56,7 +56,7 @@ T.ELEMENTS = TARGET
 -- missing: warns while your hostile target doesn't have it
 ns.registerPart("missing", {
 	kind = "buff", after = "reagent",
-	glow = { "warn" },
+	glow = true,
 	page = { warn = { title = "Not on target", text = "While your hostile target doesn't have it.",
 		tips = { glow = "A glow that pulses, in the Pulsing glow style." } } },
 	preview = {

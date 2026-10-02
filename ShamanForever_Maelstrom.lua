@@ -73,7 +73,7 @@ f.stack()
 
 ns.registerElement(KEY, { frame = f, label = Spells.name("maelstromWeapon"), defaults = M.DEFAULTS, ranges = M.RANGES,
 	learned = function() return src.learned() end, paint = function(t) t:SetTexture(M.icon) end,
-	effects = { glow = { "active" }, pop = { "active" } },
+	effects = { glow = true, pop = true },
 	standInBorder = true,
 	styles = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
 	timerCant = { bar = "Its timer is Blizzard's own; a time bar can't follow it." },

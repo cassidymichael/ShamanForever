@@ -114,7 +114,8 @@ function KD.get(kind) return KINDS[kind] end
 --   has(def)          whether def has it; without it the part's name doubles as the row flag:
 --                     def[name] set (not nil or false) means it has it
 --   defaults, ranges  its settings' defaults and { min, max, step } (the shapes: _Profiles)
---   glow, pop         the effect states it adds; popKind: the pop it plays
+--   glow, pop         whether it adds a pulsing glow or a pop (its page then offers their style
+--                     blocks); popKind: the pop it plays
 --   idle              words for the Idle block: choices, held (what keeps it shown, for its
 --                     kind's own choices), also, text, extra
 --   page              by slot: a title (timers), the slot's block options, or for own a block
@@ -222,10 +223,10 @@ local function finishOne(e)
 		local r = value(p.ranges, def)
 		if r then ns.fillParts(e.ranges, r) end
 	end
-	local glow, pop = {}, {}
+	local glow, pop = false, false
 	for _, p in ipairs(list) do
-		for _, st in ipairs(value(p.glow, def) or NONE) do table.insert(glow, st) end
-		for _, st in ipairs(value(p.pop, def) or NONE) do table.insert(pop, st) end
+		glow = glow or value(p.glow, def) and true or false
+		pop = pop or value(p.pop, def) and true or false
 	end
 	local popKind = firstOf(list, function(p) return p.popKind end)
 	e.effects = { glow = glow, pop = pop, popKind = popKind }
