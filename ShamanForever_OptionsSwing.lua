@@ -10,11 +10,10 @@ local showWhen, times, pct, int, px = Page.showWhen, Page.times, Page.pct, Page.
 
 local SHOWS = { { "combat", "In combat" }, { "always", "Always" }, { "never", "Hidden" } }
 local SHOW_NAME = { combat = "In combat", always = "Always", never = "Hidden" }
-local COLOR = { { "imbue", "Imbue colour" }, { "custom", "Custom" } }
 local FROM = { { "left", "Left to right" }, { "right", "Right to left" } }
 local TEXT_POS = { { "left", "Left" }, { "center", "Middle" }, { "right", "Right" } }
 
-L.IDENTITY.swing = { label = "Swing timer", icon = ns.Swing.ICON, school = "spirit",
+L.IDENTITY.swing = { label = "Swing timer", icon = ns.Swing.ICON, school = ns.THEME.fallback,
 	blurb = "Time to your next melee swing.",
 	tags = function() return SHOW_NAME[ns.Swing.cfg().show] or "" end }
 
@@ -100,8 +99,16 @@ function SP.build(p)
 	p:header("Bar")
 	p:dropdown("Direction", nil, FROM, get("fillFrom"), set("fillFrom"), nil, 160)
 	p:checkbox("Empty as it goes", "Starts full and empties, instead of filling.", get("deplete"), set("deplete"))
-	p:dropdown("Colour", nil, COLOR, get("colorBy"), set("colorBy"), nil, 160)
-	p:text("Your main hand's imbue, grey with none.", showWhen(function() return not custom() end))
+	local colors = {}
+	for _, key in ipairs(SW.COLOR_BY) do
+		local e = ns.ELEMENTS[key]
+		table.insert(colors, { key, e and e.barColor.label or "Custom" })
+	end
+	p:dropdown("Colour", nil, colors, get("colorBy"), set("colorBy"), nil, 160)
+	p:text(function()
+		local e = ns.ELEMENTS[c().colorBy]
+		return e and e.barColor.text or ""
+	end, showWhen(function() return not custom() end))
 	p:color("Custom colour", nil, get("color"), set("color"), showWhen(custom))
 	K.barRows(p, "swing", changed)
 

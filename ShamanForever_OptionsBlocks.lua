@@ -120,7 +120,7 @@ local function previewTiles(f, owner, icon, x, bySchool, framed)
 		local schools = {}
 		if not isElement(o) and bySchool() then
 			for _, sc in ipairs(ns.Look.SCHOOLS) do
-				if o ~= "totembar" or sc.key ~= "spirit" then table.insert(schools, sc) end
+				if o ~= "totembar" or sc.key ~= ns.THEME.fallback then table.insert(schools, sc) end
 			end
 		end
 		local n = math.max(#schools, 1)

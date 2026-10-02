@@ -100,12 +100,14 @@ local ELEMENT_KEYS = {}
 -- getSize: width and height for the group's icon size (elements need not be square); borderHost:
 -- the part its border is drawn on; shape "bar": a bar, not an icon (takes only the border
 -- parts that fit a bar); paint: what stands in for it in the options and while dragging;
--- standInBorder: preview's stand-in draws its border; learned(): none means always; kind: picks its
--- options page and preview; defaults: its settings' defaults, which also declare the fields of each
+-- standInBorder: preview's stand-in draws its border; learned(): none means always; kind: its options
+-- page and preview (ns.registerKind); a kind made of parts fills defaults, ranges and effects from
+-- def's parts (_Kinds); defaults: its settings' defaults, which also declare the fields of each
 -- state and event it has (_Profiles has the vocabulary); ranges: its numbers' { min, max, step },
 -- shaped as its defaults; effects = { glow = { states }, pop = { states }, popKind };
 -- ownSchool(): the school its pop and glow take now, where that follows its state; styles: its own
--- shipped look, { kind = fields }; timerCant: timer parts it can't have, and why
+-- shipped look, { kind = fields }; timerCant: timer parts it can't have, and why; barColor = { label,
+-- text, color() }: a colour a bar can follow
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
 local NO_EFFECTS = { glow = {}, pop = {} }

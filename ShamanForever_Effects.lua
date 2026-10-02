@@ -174,7 +174,7 @@ end
 -- The pop
 -- No Scale, Rotation or Translation under the frame the motion moves: bursts sit on frames beside
 -- -- the icon, flashes (fade and flip only) stay on it.
-local POP_TINT = { ready = { 1, 0.82, 0.25 }, imbue = { 0.35, 0.65, 1 }, expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 },
+local POP_TINT = { ready = { 1, 0.82, 0.25 }, lost = { 0.35, 0.65, 1 }, expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 },
 	grounded = { 0.56, 0.76, 0.92 }, blocked = { 0.6, 0.6, 0.6 } }
 local BLACK = { 0, 0, 0 }
 local RING = { name = "ring", atlas = "ArtifactsFX-YellowRing", file = "Interface\\Buttons\\UI-ActionButton-Border",

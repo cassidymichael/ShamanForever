@@ -26,15 +26,18 @@ ns.registerElement("imbue", { frame = imbue, label = "Weapon Imbue", paint = fun
 	styles = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false,
 		bar = false } },
 	def = { key = "imbue", idleChoices = IDLE_CHOICES },
-	effects = { glow = { "missing" }, pop = { "lost" }, popKind = "imbue" },
+	effects = { glow = { "warn" }, pop = { "warn" }, popKind = "lost" },
+	-- A bar can take its colour (the swing timer's Colour)
+	barColor = { label = "Imbue colour", text = "Your main hand's imbue, grey with none.",
+		color = function() return IM.barColor() end },
 	kind = "imbue", icon = 136086, school = "spirit", blurb = "Warns when your main hand has no imbue." })
 
--- ids are enchant IDs (item data), not spell IDs
+-- ids are enchant IDs (item data), not spell IDs; school: its colour on a bar
 local IMBUES = {
-	rockbiter   = { icon = 136086, ids = { 29, 6, 1, 503, 1663, 683, 1664 } },
-	flametongue = { icon = 135814, ids = { 5, 4, 3, 523, 1665, 1666 } },
-	frostbrand  = { icon = 135847, ids = { 2, 12, 524, 1667, 1668 } },
-	windfury    = { icon = 136018, ids = { 283, 284, 525, 1669 } },
+	rockbiter   = { icon = 136086, school = "earth", ids = { 29, 6, 1, 503, 1663, 683, 1664 } },
+	flametongue = { icon = 135814, school = "fire", ids = { 5, 4, 3, 523, 1665, 1666 } },
+	frostbrand  = { icon = 135847, school = "water", ids = { 2, 12, 524, 1667, 1668 } },
+	windfury    = { icon = 136018, school = "air", ids = { 283, 284, 525, 1669 } },
 }
 for key, m in pairs(IMBUES) do m.name = Spells.name(key) end
 local IMBUE_ORDER = { "rockbiter", "flametongue", "frostbrand", "windfury" }
@@ -92,9 +95,11 @@ local function imbueKeyFor(w)
 	end
 end
 
-function IM.mainHand()
+local NO_IMBUE = { 0.7, 0.7, 0.7 }
+function IM.barColor()
 	local r = readMainHand()
-	return r and imbueKeyFor(r) or nil
+	local m = r and IMBUES[imbueKeyFor(r) or ""]
+	return m and ns.THEME.barColor[m.school] or NO_IMBUE
 end
 
 imbueIcon = imbueIconFor("rockbiter")
@@ -184,7 +189,7 @@ function IM.refresh()
 	local quiet = ns.cantAct()
 	drawImbue(now, quiet)
 	if had and r == false and not quiet then
-		if warn("pop") then imbue:Pop("imbue") end
+		if warn("pop") then imbue:Pop("lost") end
 		if imbue:IsVisible() then ns.Sounds.element("imbue", "warn", true) end
 	end
 end
@@ -239,7 +244,7 @@ local PREVIEW = {
 	uptime = true,
 	typical = "fine", warning = "missing",
 	states = { { "missing", "No imbue" }, { "low", "Running low" }, { "fine", "Plenty left" } },
-	pop = function(ic, st) if st == "missing" and warn("pop") then ic:Pop("imbue") end end,
+	pop = function(ic, st) if st == "missing" and warn("pop") then ic:Pop("lost") end end,
 	render = function(ic, st, P)
 		if st == "missing" then
 			P.reset(ic, preferredImbueIcon())

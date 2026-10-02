@@ -11,9 +11,14 @@ L.WAGO = "https://addons.wago.io/addons/shamanforever"
 L.DISCORD = "https://discord.gg/VaXH8CQZFG"
 L.KOFI = "https://ko-fi.com/cassidycloud"
 
-L.SCHOOL = {}
-for school, c in pairs(ns.THEME.color) do
-	L.SCHOOL[school] = { c[1], c[2], c[3], banner = ns.THEME.banner[school] }
+-- The schools, from the class theme: in order (L.SCHOOLS) and by key (L.SCHOOL), one entry each; an
+-- entry's [1] to [3] are its colour
+L.SCHOOLS, L.SCHOOL = {}, {}
+for i, key in ipairs(ns.THEME.order) do
+	local c = ns.THEME.color[key]
+	local sc = { c[1], c[2], c[3], key = key, name = ns.THEME.name[key], icon = ns.THEME.icon[key], color = c,
+		banner = ns.THEME.banner[key] }
+	L.SCHOOLS[i], L.SCHOOL[key] = sc, sc
 end
 -- Banners are 1400x260 art in the top-left of a 2048x512 file: cropped to the header, never stretched.
 local ART_W, ART_H, FILE_W, FILE_H = 1400, 260, 2048, 512
@@ -30,7 +35,7 @@ local function coverCoords(w, h)
 end
 L.PANEL = { 29 / 255, 24 / 255, 19 / 255 }
 
-local TOTEMBAR = { label = "Totem bar", icon = "Interface\\Icons\\Spell_Shaman_DropAll_01", school = "spirit",
+local TOTEMBAR = { label = "Totem bar", icon = "Interface\\Icons\\Spell_Shaman_DropAll_01", school = ns.THEME.fallback,
 	blurb = "Your totems, their timers, and a pick for each element.",
 	tags = function()
 		local TB = ns.TotemBar
@@ -776,10 +781,6 @@ function L.buildIntro(parent, version)
 end
 
 -- Look tiles: an icon wearing a look that isn't saved anywhere, drawn by the HUD's own code.
-L.SCHOOLS = {}
-for i, key in ipairs(ns.THEME.order) do
-	L.SCHOOLS[i] = { key = key, name = ns.THEME.name[key], icon = ns.THEME.icon[key], color = ns.THEME.color[key] }
-end
 
 do
 	local KINDS = { "border", "glow", "pop", "frame" }
