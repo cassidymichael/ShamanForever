@@ -240,8 +240,8 @@ local function idleSoon(ic, key, st)
 	end)
 end
 
-L.PREVIEW = {
-	shield = {
+L.PREVIEW = {}
+local SHIELD = {
 		uptime = true, barInset = function() return ns.Shield.timeBarInset() end,
 		warning = "down",
 		states = { { "up3", "3 charges" }, { "up2", "2 charges" }, { "up1", "1 charge" },
@@ -274,8 +274,9 @@ L.PREVIEW = {
 				ic.count:SetTextColor(c[1], c[2], c[3])
 			end
 		end,
-	},
-	shock = {
+}
+ns.registerKind("shield", { preview = function() return SHIELD end })
+local SHOCK = {
 		warning = "both",
 		cooldown = true,
 		states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" }, { "range", "Out of range" }, { "both", "Both" } },
@@ -294,8 +295,9 @@ L.PREVIEW = {
 			end
 			if st == "mana" or st == "both" then ic:SetRingShown(true, 0.2, 0.45, 1, opt("shock", "mana", "ring")) end
 		end,
-	},
-	imbue = {
+}
+ns.registerKind("shock", { preview = function() return SHOCK end })
+local IMBUE = {
 		uptime = true,
 		typical = "fine", warning = "missing",
 		states = { { "missing", "No imbue" }, { "low", "Running low" }, { "fine", "Plenty left" } },
@@ -312,9 +314,9 @@ L.PREVIEW = {
 				if st == "low" and opt("imbue", "showUnderMins") > 0 then frozen(ic.upT, 0.95, 3600) end
 			end
 		end,
-	},
 }
-L.PREVIEW.maelstrom = {
+ns.registerKind("imbue", { preview = function() return IMBUE end })
+local MAELSTROM = {
 	uptime = true,
 	states = { { "s1", "1 stack" }, { "s4", "4 stacks" }, { "s5", "5 stacks" }, { "idle", "Not up" } },
 	pop = function(ic, st) if st == "s5" and opt("maelstrom", "active", "pop") then ic:Pop("ready") end end,
@@ -330,7 +332,8 @@ L.PREVIEW.maelstrom = {
 		end
 	end,
 }
-L.PREVIEW.tremor = {
+ns.registerKind("maelstrom", { preview = function() return MAELSTROM end })
+local TREMOR = {
 	uptime = true,
 	typical = "idle", warning = "warn",
 	states = { { "warn", "Warning" }, { "down", "Tremor down" }, { "idle", "Not down, no warning" } },
@@ -361,6 +364,7 @@ L.PREVIEW.tremor = {
 		idleLook(ic, "tremor")
 	end,
 }
+ns.registerKind("tremor", { preview = function() return TREMOR end })
 
 -- An element's preview, from its kind; made when first asked for
 setmetatable(L.PREVIEW, { __index = function(t, key)

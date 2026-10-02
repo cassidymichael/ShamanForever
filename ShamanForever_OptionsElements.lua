@@ -586,8 +586,10 @@ local function buildTremor(p)
 	lookBlocks(p, key)
 end
 
-local PAGE = { shield = buildShield, shock = buildShock, imbue = buildImbue, cooldown = partsPage, buff = partsPage,
-	tremor = buildTremor }
+ns.registerKind("shield", { page = buildShield })
+ns.registerKind("shock", { page = buildShock })
+ns.registerKind("imbue", { page = buildImbue })
+ns.registerKind("tremor", { page = buildTremor })
 
 local function buildMaelstrom(p, def)
 	local key = def.key
@@ -614,13 +616,19 @@ local function buildMaelstrom(p, def)
 	activeBlock(p, key, { title = "Five stacks", tips = { pop = "The moment it reaches five.", glow = "While at five." } })
 	lookBlocks(p, key)
 end
-PAGE.maelstrom = buildMaelstrom
+ns.registerKind("maelstrom", { page = buildMaelstrom })
+
+-- An element's page builder: its kind's own, else the parts page for a kind made of parts
+local function builder(key)
+	local e = ns.ELEMENTS[key]
+	local k = e and e.kind and ns.Kinds.get(e.kind)
+	return k and (k.page or (k.parts and partsPage)) or nil
+end
 
 local pageObjects = {}
 function EP.register(newPage)
 	for _, key in ipairs(byName()) do
-		local e = ns.ELEMENTS[key]
-		local build = e.kind and PAGE[e.kind]
+		local e, build = ns.ELEMENTS[key], builder(key)
 		if build then
 			newPage(key, e.label, true, function(p)
 				pageObjects[key] = p
@@ -630,10 +638,7 @@ function EP.register(newPage)
 	end
 end
 
-function EP.pageOf(key)
-	local e = ns.ELEMENTS[key]
-	return e and e.kind and PAGE[e.kind] and key or nil
-end
+function EP.pageOf(key) return builder(key) and key or nil end
 
 function EP.askReset(key)
 	local p = pageObjects[key]
