@@ -55,20 +55,12 @@ TB.DEFAULTS = {
 	badgeAlpha = 0.75,
 	badgeSat = 0.5,
 	badgeX = 0, badgeY = 0,
-	warnGrey = false,
-	warnRing = false,
-	warnPulse = true,
-	warnGlow = false,
-	expiredPop = true,
-	goneSound = "none",
-	warn = 10,   -- seconds before the end (0: off)
-	-- Totem -> seconds, instead of warn; keyed by the client's rank-less spell name. cfg() fills the
-	-- defaults in the client's language
-	warnOver = {},
-	killed = true,
-	killedPop = true,
-	killedGlow = true,
-	killedMark = true,
+	-- The element settings' shapes (_Profiles). expire.secs: before the end (0: off); expire.over:
+	-- totem -> seconds, instead of secs, keyed by the client's rank-less spell name (cfg() fills the
+	-- defaults in the client's language)
+	expire = { secs = 10, grey = false, ring = false, fade = true, glow = false, over = {} },
+	ended = { pop = true, sound = "none" },
+	killed = { flash = true, pop = true, glow = true, mark = true },
 	range = true,
 	rangeHeight = 5,
 	rangeIn = { 0.2, 0.8, 0.25, 0 },
@@ -87,23 +79,26 @@ local isSecret = ns.isSecret
 local RANGES = {
 	scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { -10, 20 }, size = { 24, 96 },
 	arrowSize = { 8, 32 }, extrasScale = { 0.5, 1.5 }, idleAlpha = { 0.1, 1 },
-	badgeSize = { 0.25, 0.8 }, badgeAlpha = { 0.1, 1 }, badgeSat = { 0, 1 }, warn = { 0, 30 }, rangeHeight = { 1, 12 },
+	badgeSize = { 0.25, 0.8 }, badgeAlpha = { 0.1, 1 }, badgeSat = { 0, 1 }, rangeHeight = { 1, 12 },
 	fadeAfter = { 0, 10 }, badgeX = { -30, 30 }, badgeY = { -30, 30 }, keySize = { 6, 30 }, keyX = { -20, 20 }, keyY = { -20, 20 }, pixelEdge = { 1, 4 }, stoneExtrasScale = { 0.5, 1.5 },
 }
+local EXPIRE_SECS = { 0, 30, 1 }
+TB.RANGES = { expire = { secs = EXPIRE_SECS } }
+local EVENTS = { "expire", "ended", "killed" }
 local function finite(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
 
-local WARN_OVER = { earthbind = 5, stoneclaw = 5, manaTide = 3 }
+local EXPIRE_OVER = { earthbind = 5, stoneclaw = 5, manaTide = 3 }
 
-function TB.warnOverDefaults()
+function TB.overDefaults()
 	local out = {}
-	for key, secs in pairs(WARN_OVER) do out[ns.Spells.name(key)] = secs end
+	for key, secs in pairs(EXPIRE_OVER) do out[ns.Spells.name(key)] = secs end
 	return out
 end
 
-function TB.warnOverChanged(over)
+function TB.overChanged(over)
 	local seen = {}
-	for key, secs in pairs(WARN_OVER) do
+	for key, secs in pairs(EXPIRE_OVER) do
 		local name = ns.Spells.name(key)
 		if over[name] == nil then name = ns.Spells.DEFS[key].en end
 		if over[name] ~= secs then return true end
@@ -131,9 +126,16 @@ local function cfg()
 		if t.show ~= "always" and t.show ~= "active" and t.show ~= "combat" and t.show ~= "target" then t.show = nil end
 		if t.barPlace ~= "in" and t.barPlace ~= "out" then t.barPlace = nil end
 		if t.stonePlinth ~= "slim" and t.stonePlinth ~= "normal" and t.stonePlinth ~= "grand" then t.stonePlinth = nil end
-		if type(t.warnOver) ~= "table" then t.warnOver = TB.warnOverDefaults() end
+		if type(t.expire) ~= "table" then t.expire = {} end
+		if type(t.expire.over) ~= "table" then t.expire.over = TB.overDefaults() end
 		for k, v in pairs(TB.DEFAULTS) do
 			if type(t[k]) ~= type(v) then t[k] = type(v) == "table" and CopyTable(v) or v end
+		end
+		for _, name in ipairs(EVENTS) do
+			local e = t[name]
+			for k, v in pairs(TB.DEFAULTS[name]) do
+				if type(e[k]) ~= type(v) then e[k] = type(v) == "table" and CopyTable(v) or v end
+			end
 		end
 		for k, r in pairs(RANGES) do
 			if type(t[k]) == "number" then
@@ -149,9 +151,11 @@ local function cfg()
 		end
 		for _, el in ipairs(ELEMENTS) do if not seen[el] then table.insert(order, el) end end
 		t.order = order
-		for name, v in pairs(t.warnOver) do
-			if type(name) ~= "string" or type(v) ~= "number" or v ~= v then t.warnOver[name] = nil
-			else t.warnOver[name] = clamp(v, RANGES.warn) end
+		local x = t.expire
+		x.secs = x.secs == x.secs and clamp(x.secs, EXPIRE_SECS) or TB.DEFAULTS.expire.secs
+		for name, v in pairs(x.over) do
+			if type(name) ~= "string" or type(v) ~= "number" or v ~= v then x.over[name] = nil
+			else x.over[name] = clamp(v, EXPIRE_SECS) end
 		end
 		if type(t.size) ~= "number" then t.size = nil end
 		for _, k in ipairs({ "rangeIn", "rangeOut", "keyColor" }) do
@@ -167,7 +171,7 @@ TB.cfg = cfg
 local function barOn() return ns.isClass() and cfg().mode ~= "blizzard" end
 local function feat(key) local c = cfg(); return barOn() and c.mode == "everything" and c[key] or false end
 TB.barOn, TB.feat = barOn, feat
-ns.Style.registerBar("totembar", { cfg = cfg, DEFAULTS = TB.DEFAULTS, label = "Totem bar", on = barOn,
+ns.Style.registerBar("totembar", { cfg = cfg, DEFAULTS = TB.DEFAULTS, RANGES = TB.RANGES, label = "Totem bar", on = barOn,
 	kinds = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
 	-- Its theme can draw its own border
 	ownLabel = function(kind)
@@ -659,17 +663,19 @@ local function pickSpell(slot)
 	return id
 end
 
--- warnOver is keyed by the client's rank-less spell name; the English name counts too (older profiles)
+-- expire.over is keyed by the client's rank-less spell name; the English name counts too (older
+-- profiles)
 local function warnSecs(c, id)
-	if not id then return c.warn end
+	local x = c.expire
+	if not id then return x.secs end
 	local name = ns.Spells.nameOf(id)
-	local v = name and c.warnOver[name]
+	local v = name and x.over[name]
 	if v == nil then
 		local key = ns.Spells.keyOf(id)
 		local def = key and ns.Spells.DEFS[key]
-		v = def and c.warnOver[def.en]
+		v = def and x.over[def.en]
 	end
-	return v or c.warn
+	return v or x.secs
 end
 
 local anyDown = false
@@ -727,7 +733,8 @@ local function refreshSlot(s)
 			s.badge:Show()
 		else s.badge:Hide() end
 		s.dur = d
-		s.timer:setExpire({ secs = warnSecs(c, down), grey = c.warnGrey, ring = c.warnRing, pulse = c.warnPulse, glow = c.warnGlow })
+		local x = c.expire
+		s.timer:setExpire({ secs = warnSecs(c, down), grey = x.grey, ring = x.ring, fade = x.fade, glow = x.glow })
 		liftWarning(s)
 		if iok and (isSecret(icon) or icon) then s.timer:setExpireIcon(icon) end
 		TB.drawTimeLeft(s)
@@ -1084,7 +1091,7 @@ end
 function TB.applySettings()
 	cfgTable = nil
 	local c = cfg()
-	if not (c.killed and c.killedMark) then
+	if not (c.killed.flash and c.killed.mark) then
 		for _, el in ipairs(ELEMENTS) do slots[el].killed.mark:Hide() end
 	end
 	if InCombatLockdown() then
@@ -1366,9 +1373,10 @@ ns.Totems.subscribe(function(event, slot, was)
 	local s = bySlot[slot]
 	local c = cfg()
 	if not s.button:IsShown() then return end
-	if s.button:IsVisible() then ns.Sounds.play(c.goneSound, "totembar", nil, true) end
-	if c.expiredPop then s.expired:play(was, { expired = true, pop = true }) end
-	if c.killed then s.killed:play(was, { pop = c.killedPop, glow = c.killedGlow, mark = c.killedMark }) end
+	local k = c.killed
+	if s.button:IsVisible() then ns.Sounds.play(c.ended.sound, "totembar", nil, true) end
+	if c.ended.pop then s.expired:play(was, { expired = true, pop = true }) end
+	if k.flash then s.killed:play(was, { pop = k.pop, glow = k.glow, mark = k.mark }) end
 end)
 
 -- Events
@@ -1504,7 +1512,7 @@ local function paintSlot(s, rec)
 		v.bg:SetColorTexture(0, 0, 0, 1)
 		local left, life = ns.Look.PREVIEW_LEFT[s.el][1], ns.Look.PREVIEW_LEFT[s.el][2]
 		if st == "expiring" then left = 5 end
-		s.timer:setExpire({ secs = c.warn, grey = c.warnGrey, ring = c.warnRing, pulse = c.warnPulse, glow = c.warnGlow }, icon)
+		s.timer:setExpire(c.expire, icon)
 		liftWarning(s)
 		s.timer:setTime(rec.at - (life - left), life)
 		return rec.at + left
@@ -1564,9 +1572,9 @@ function TB.previewSlot(el, st, at, range, moment)
 	if st ~= "ranout" then s.expired:stop() end
 	local ends = paintSlot(s, rec)
 	moment = moment and s.button:IsShown()
-	if moment and st == "killed" and c.killed then
-		s.killed:play(nil, { pop = c.killedPop, glow = c.killedGlow, mark = c.killedMark })
-	elseif moment and st == "ranout" and c.expiredPop then
+	if moment and st == "killed" and c.killed.flash then
+		s.killed:play(nil, { pop = c.killed.pop, glow = c.killed.glow, mark = c.killed.mark })
+	elseif moment and st == "ranout" and c.ended.pop then
 		s.expired:play(nil, { expired = true, pop = true })
 	end
 	return ends

@@ -33,30 +33,31 @@ local TARGET = {
 		noGlow = true, upLabel = "On target", idleLabel = "No target",
 		missing = true, engineExpire = true,
 		defaults = { idleWhen = "notarget", idleAlpha = 0,
-			missGrey = true, missRing = false, missPulse = false, missGlow = true,
-			expireSecs = 3, expireBar = true, expireBarColor = { 1, 0.2, 0.8, 1 }, expireText = false } },
+			warn = { grey = true, ring = false, fade = false, glow = true },
+			expire = { secs = 3, bar = true, barColor = { 1, 0.2, 0.8, 1 }, text = false } },
+		ranges = { expire = { secs = { 0, 10, 1 } } } },
 	{ key = "purge", spellKey = "purge", filter = "HELPFUL", icon = 136075, school = "spirit",
 		styles = { glow = { look = "proc" } },
 		blurb = "Shows while your target has a Magic buff to purge.",
 		-- Skip long buffs: only those lasting at most Longest buff (maxDuration also leaves out buffs with
 		-- no end)
 		candidates = function(def) return { includeDispelTypes = { Magic = true }, maxDuration = T.longest(def) } end,
-		skipLong = { 1, 60, 1 },   -- minutes
 		idleText = "Idle while your target has nothing to purge", procHeader = "Something to purge",
 		ownIcon = true, noTimer = true, buttonBorder = true,
 		popTip = "Each time a new buff lands on your target, or you target one that has one.",
 		glowTip = "While your target has one.",
 		upLabel = "Magic buff", idleLabel = "Nothing to purge",
-		defaults = { idleAlpha = 0, primedPop = false, primedGlow = true, skipLong = false, skipLongMins = 2 } },
+		defaults = { idleAlpha = 0, active = { pop = false, glow = true }, skipLong = false, skipLongMins = 2 },
+		ranges = { skipLongMins = { 1, 60, 1 } } },
 }
 T.ELEMENTS = TARGET
 
 function T.longest(def)
-	if not def.skipLong or not setting(def.key, "skipLong") then return nil end
-	local lo, hi = def.skipLong[1], def.skipLong[2]
+	if not def.ranges.skipLongMins or not setting(def.key, "skipLong") then return nil end
+	local r = def.ranges.skipLongMins
 	local m = setting(def.key, "skipLongMins")
 	if type(m) ~= "number" or m ~= m then m = def.defaults.skipLongMins end
-	return math.min(math.max(m, lo), hi) * 60
+	return math.min(math.max(m, r[1]), r[2]) * 60
 end
 
 -- Unreadable counts as not
@@ -148,20 +149,20 @@ end
 function styleExpire(def, size, slot)
 	local key, t = def.key, slot.timer
 	local st = ns.Style.get(key, "uptime")
-	local secs = setting(key, "expireSecs")
-	if type(secs) ~= "number" or secs ~= secs then secs = def.defaults.expireSecs end
-	secs = math.min(math.max(math.floor(secs + 0.5), 0), 10)
+	local secs, r = setting(key, "expire", "secs"), def.ranges.expire.secs
+	if type(secs) ~= "number" or secs ~= secs then secs = def.defaults.expire.secs end
+	secs = math.min(math.max(math.floor(secs + 0.5), r[1]), r[2])
 	local red, cover = def.redBar, def.coverBar
 	-- The cover must hide the Expiring colour completely: no see-through colour
 	local k = t and t:barRGB()
-	local barOn = secs > 0 and setting(key, "expireBar") and t and t.barOn and red and cover and red.ok and cover.ok
+	local barOn = secs > 0 and setting(key, "expire", "bar") and t and t.barOn and red and cover and red.ok and cover.ok
 		and ns.isColor(k) and (k[4] or 1) >= 1 and not def.lengthOff
 	-- Both hidden first, shown together last: an Expiring colour without its cover would warn for the
 	-- whole DoT
 	for _, x in ipairs({ red, cover }) do if x then x.clip:Hide() end end
 	if not barOn then return styleExpireText(def, slot, st, secs) end
-	local c = setting(key, "expireBarColor")
-	if not ns.isColor(c) then c = def.defaults.expireBarColor end
+	local c = setting(key, "expire", "barColor")
+	if not ns.isColor(c) then c = def.defaults.expire.barColor end
 	local placed = ns.try("flame shock expiring place", function()
 		local h, edge = st.barHeight, st.barEdge == "top" and "TOPLEFT" or "BOTTOMLEFT"
 		local w = size * secs / FS_SECS
@@ -196,7 +197,7 @@ end
 function styleExpireText(def, slot, st, secs)
 	local key, t = def.key, slot.timer
 	local fs, b = def.durText, slot.button
-	local textOn = secs > 0 and setting(key, "expireText") and st.text and fs ~= nil and textCurve(secs, st.textColor)
+	local textOn = secs > 0 and setting(key, "expire", "text") and st.text and fs ~= nil and textCurve(secs, st.textColor)
 	if textOn then
 		def.textHolder:SetFrameLevel(def.frame.textFrame:GetFrameLevel() + 15)
 		fs:SetFont(STANDARD_TEXT_FONT, st.textSize, "OUTLINE")
@@ -293,12 +294,12 @@ for _, def in ipairs(TARGET) do
 			slot = def.aura, parent = def.gate, unit = wantedUnit, needUnit = "target", filter = def.filter,
 			ids = function() return idMap(def) end,
 			candidates = def.candidates and function() return def.candidates(def) end,
-			popOn = function() return not def.noPop and setting(def.key, "primedPop") end,
+			popOn = function() return not def.noPop and setting(def.key, "active", "pop") end,
 			sites = { container = "target glow sensor " .. def.key, style = "target glow style " .. def.key,
 				filter = "target glow filter " .. def.key },
 		} })
 	end
-	ns.registerElement(def.key, { frame = f, label = def.spell, defaults = def.defaults,
+	ns.registerElement(def.key, { frame = f, label = def.spell, defaults = def.defaults, ranges = def.ranges,
 		borderHost = def.idleEdge,
 		standInBorder = true,
 		effects = { glow = { def.missing and "missing" or "up" }, pop = def.noPop and {} or { "up" } },
@@ -422,8 +423,8 @@ local function styleLook()
 	def.lookEdge:SetFrameLevel(lv + 1)
 	ns.Frames.dress(def.lookEdge, def.key, lv + 1)
 	if def.lookEdge.frameOverlay then def.lookEdge.frameOverlay:Hide() end
-	look:setParts(setting(def.key, "missGrey"), false, setting(def.key, "missRing"),
-		setting(def.key, "missPulse"), setting(def.key, "missGlow"))
+	look:setParts(setting(def.key, "warn", "grey"), false, setting(def.key, "warn", "ring"),
+		setting(def.key, "warn", "fade"), setting(def.key, "warn", "glow"))
 	look:reshape()
 	look:style()
 	stateLook()
@@ -472,7 +473,7 @@ end
 local function refreshAura(def)
 	local f, key = def.frame, def.key
 	if def.fx then
-		def.fx:glow(not def.noGlow and def.spellID ~= nil and ns.isEnabled(key) and setting(key, "primedGlow")
+		def.fx:glow(not def.noGlow and def.spellID ~= nil and ns.isEnabled(key) and setting(key, "active", "glow")
 			and not ns.Preview.isOn())
 	end
 	if not ns.isEnabled(key) then return end

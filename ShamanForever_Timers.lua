@@ -309,22 +309,9 @@ ticker:SetScript("OnUpdate", ns.throttled(0.1, function()
 	end
 end))
 
-T.EXPIRE_DEFAULTS = { secs = 5, grey = false, ring = false, pulse = true, glow = false }
-
-function T.expireOpts(key)
-	local o = ns.elementOpts(key).expire
-	local own = ns.elementDefault(key, "expire")
-	local out = {}
-	for k, v in pairs(T.EXPIRE_DEFAULTS) do
-		if type(own) == "table" and type(own[k]) == type(v) then v = own[k] end
-		if type(o) == "table" and type(o[k]) == type(v) then out[k] = o[k] else out[k] = v end
-	end
-	return out
-end
-
--- e: { secs, grey, ring, pulse, glow } (secs 0: off)
+-- e: { secs, grey, ring, fade, glow } (secs 0: off), an element's or the totem bar's expire
 function Timer:setExpire(e, icon)
-	if not e or e.secs <= 0 or not ns.lastSeconds(e.secs) then
+	if not e or (e.secs or 0) <= 0 or not ns.lastSeconds(e.secs) then
 		warning[self] = nil
 		if next(warning) == nil then ticker:Hide() end
 		local x = self.exp
@@ -363,9 +350,9 @@ function Timer:setExpire(e, icon)
 	if icon then x.grey:SetTexture(icon) end
 	x.grey:SetShown(e.grey)
 	x.ring:show(e.ring)
-	x.pulseOn = e.pulse and true or false
+	x.pulseOn = e.fade and true or false
 	-- Callers repeat this: a running pulse isn't restarted
-	if not e.pulse then x.pulse:Stop(); x.dim:SetAlpha(0)
+	if not e.fade then x.pulse:Stop(); x.dim:SetAlpha(0)
 	elseif not x.pulse:IsPlaying() then x.pulse:Play() end
 	self.expCurve = ns.lastSeconds(e.secs)
 	warning[self] = true

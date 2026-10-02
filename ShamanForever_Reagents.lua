@@ -8,16 +8,16 @@ ns.Reagents = R
 
 local setting = ns.elementSetting
 
-R.DEFAULTS = {
-	reagentCount = "always", reagentLow = 2, reagentShow = true,
-	reagentColor = { 1, 1, 1, 1 }, reagentLowColor = { 1, 0.82, 0, 1 },
-	reagentSize = 14, reagentPos = "BOTTOMRIGHT", reagentX = 0, reagentY = 0,
-	reagentRing = true, reagentPulse = true,
-}
-ns.Profiles.addRanges(nil, { reagentLow = { 0, 10 }, reagentSize = { 8, 40 }, reagentX = { -50, 50 },
-	reagentY = { -50, 50 } })
+-- show: always | low | never; lowShows: running low isn't idle; ring and fade: the None left look
+R.DEFAULTS = { reagent = {
+	show = "always", low = 2, lowShows = true,
+	color = { 1, 1, 1, 1 }, lowColor = { 1, 0.82, 0, 1 },
+	size = 14, pos = "BOTTOMRIGHT", x = 0, y = 0,
+	ring = true, fade = true,
+} }
+R.RANGES = { reagent = { low = { 0, 10, 1 }, size = { 8, 40, 1 }, x = { -50, 50, 1 }, y = { -50, 50, 1 } } }
 
-R.IDLE_EXTRA = { key = "reagentShow", label = "Running low",
+R.IDLE_EXTRA = { name = "reagent", field = "lowShows", label = "Running low",
 	tip = "Running low or out counts as something going on, even at 0%.",
 	choices = { { true, "Shows it" }, { false, "Stays idle" } } }
 
@@ -75,25 +75,25 @@ function R.takes(def)
 	return def.takesReagent
 end
 
-local function num(key, name)
-	local v = setting(key, name)
-	if type(v) ~= "number" or v ~= v then v = ns.elementDefault(key, name) end
+local function num(key, field)
+	local v = setting(key, "reagent", field)
+	if type(v) ~= "number" or v ~= v then v = ns.elementDefault(key, "reagent", field) end
 	return v
 end
 
 local COUNT_JUSTIFY = ns.COUNT_JUSTIFY
 function R.draw(f, key, n)
-	local low = n <= num(key, "reagentLow")
-	local show = setting(key, "reagentCount")
+	local low = n <= num(key, "low")
+	local show = setting(key, "reagent", "show")
 	local fs = f.count
 	if show == "always" or (show == "low" and low) then
-		local pos = setting(key, "reagentPos")
+		local pos = setting(key, "reagent", "pos")
 		if not COUNT_JUSTIFY[pos] then pos = "BOTTOMRIGHT" end
-		ns.placeScaledText(fs, f, num(key, "reagentSize"), pos, num(key, "reagentX"), num(key, "reagentY"))
+		ns.placeScaledText(fs, f, num(key, "size"), pos, num(key, "x"), num(key, "y"))
 		fs:SetJustifyH(COUNT_JUSTIFY[pos])
-		local name = low and "reagentLowColor" or "reagentColor"
-		local c = setting(key, name)
-		if not ns.isColor(c) then c = ns.elementDefault(key, name) end
+		local field = low and "lowColor" or "color"
+		local c = setting(key, "reagent", field)
+		if not ns.isColor(c) then c = ns.elementDefault(key, "reagent", field) end
 		local shown = string.format("%d%.3f%.3f%.3f%.3f", n, c[1], c[2], c[3], c[4] or 1)
 		if fs.shown ~= shown then
 			fs.shown = shown
@@ -103,7 +103,7 @@ function R.draw(f, key, n)
 		fs:Show()
 	else fs:Hide() end
 	local out = n == 0
-	return low, out and setting(key, "reagentRing") or false, out and setting(key, "reagentPulse") or false
+	return low, out and setting(key, "reagent", "ring") or false, out and setting(key, "reagent", "fade") or false
 end
 
 function R.refresh(def)
@@ -114,5 +114,5 @@ function R.refresh(def)
 		return false, false, false
 	end
 	local low, ring, pulse = R.draw(def.frame, def.key, n)
-	return low and setting(def.key, "reagentShow") and true or false, ring, pulse
+	return low and setting(def.key, "reagent", "lowShows") and true or false, ring, pulse
 end

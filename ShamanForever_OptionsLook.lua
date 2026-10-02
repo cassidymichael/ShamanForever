@@ -49,7 +49,6 @@ function L.elementName(key)
 	return e.spell and ns.Spells.name(e.spell) or e.label or key
 end
 
-local function db() return ns.getDB() end
 
 -- Ornaments
 function L.addCorners(frame, size, inset)
@@ -190,27 +189,27 @@ local function frozen(t, frac, length)
 	t:setTime(stage.start - frac * length, length)
 end
 
+local function opt(key, name, field) return ns.elementSetting(key, name, field) end
 local function expiringLook(ic, key, length)
-	local e = ns.Timer.expireOpts(key)
-	frozen(ic.upT, 1 - math.min(e.secs > 0 and e.secs or 5, length) / length, length)
-	if e.secs <= 0 then return end
-	if e.grey then ic.tex:SetDesaturated(true) end
-	ic:SetRingShown(e.ring)
-	ic:SetPulsing(e.pulse)
-	ic:SetGlowShown(e.glow)
+	local secs = opt(key, "expire", "secs") or 0
+	frozen(ic.upT, 1 - math.min(secs > 0 and secs or 5, length) / length, length)
+	if secs <= 0 then return end
+	if opt(key, "expire", "grey") then ic.tex:SetDesaturated(true) end
+	ic:SetRingShown(opt(key, "expire", "ring"))
+	ic:SetPulsing(opt(key, "expire", "fade"))
+	ic:SetGlowShown(opt(key, "expire", "glow"))
 end
-local function opt(key, name) return ns.elementSetting(key, name) end
 
 local function engineExpireLook(ic, key)
-	local secs = opt(key, "expireSecs") or 0
+	local secs = opt(key, "expire", "secs") or 0
 	local left = secs > 0 and math.min(2, secs) or 2
 	frozen(ic.upT, 1 - left / 12, 12)
 	if secs <= 0 or not ic.upT then return end
-	if opt(key, "expireBar") and ic.upT.bar then
-		local c = opt(key, "expireBarColor")
+	if opt(key, "expire", "bar") and ic.upT.bar then
+		local c = opt(key, "expire", "barColor")
 		ic.upT.bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
 	end
-	if opt(key, "expireText") then ic.upT.font:SetTextColor(1, 0.2, 0.2, 1) end
+	if opt(key, "expire", "text") then ic.upT.font:SetTextColor(1, 0.2, 0.2, 1) end
 end
 
 local previewState = {}
@@ -230,7 +229,7 @@ function L.idles(key, st)
 	end
 	if e.kind ~= "cooldown" then return false end
 	if when == "oncd" or when == "oncdany" then
-		local lowIdle = ns.elementSetting(key, "reagentShow") == false
+		local lowIdle = ns.elementSetting(key, "reagent", "lowShows") == false
 		return st == "cd" or ((st == "low" or st == "out") and lowIdle)
 	end
 	if e.def.needsTotem then
@@ -273,15 +272,17 @@ local function totemPreview(def)
 				end)
 			end
 			if st == "ready" then
-				if opt(key, "readyPop") then ic:Pop("ready") end
+				if opt(key, "ready", "pop") then ic:Pop("ready") end
 			elseif st == "ranout" and def.ranOut then
-				flash(opt(key, "ranOutFlash") and { expired = true, ranOut = ns.SCHOOL_COLOR[def.school],
-					pop = opt(key, "ranOutPop"), glow = opt(key, "ranOutGlow") }, 1.4)
-			elseif st == "ranout" and opt(key, "expiredPop") then ic:Pop("expired")
+				flash(opt(key, "ended", "flash") and { expired = true, ranOut = ns.SCHOOL_COLOR[def.school],
+					pop = opt(key, "ended", "pop"), glow = opt(key, "ended", "glow") }, 1.4)
+			elseif st == "ranout" and opt(key, "ended", "pop") then ic:Pop("expired")
 			elseif st == "killed" and g then
-				flash(opt(key, "grounded") and { grounded = true, pop = opt(key, "groundedPop"), glow = opt(key, "groundedGlow") }, 2.1)
+				flash(opt(key, "killed", "flash") and { grounded = true, pop = opt(key, "killed", "pop"),
+					glow = opt(key, "killed", "glow") }, 2.1)
 			elseif st == "killed" then
-				flash(opt(key, "killed") and { pop = opt(key, "killedPop"), glow = opt(key, "killedGlow"), mark = opt(key, "killedMark") }, 2.1)
+				flash(opt(key, "killed", "flash") and { pop = opt(key, "killed", "pop"), glow = opt(key, "killed", "glow"),
+					mark = opt(key, "killed", "mark") }, 2.1)
 			end
 		end,
 		render = function(ic, st)
@@ -310,30 +311,30 @@ L.PREVIEW = {
 		states = { { "up3", "3 charges" }, { "up2", "2 charges" }, { "up1", "1 charge" },
 			{ "down", "No shield" } },
 		render = function(ic, st)
-			local d = db()
-			local water = d.shieldTrack == "water"
+			local water = opt("shield", "track") == "water"
 			reset(ic, water and 132315 or 136051)
 			if st == "down" then
-				ic.tex:SetDesaturated(d.emptyGrey)
-				if d.emptyTint then ic.tex:SetVertexColor(1, 0.35, 0.35) end
-				ic:SetRingShown(d.emptyRing)
-				ic:SetPulsing(d.emptyPulse)
-				ic:SetGlowShown(d.emptyGlow)
+				ic.tex:SetDesaturated(opt("shield", "warn", "grey"))
+				if opt("shield", "warn", "tint") then ic.tex:SetVertexColor(1, 0.35, 0.35) end
+				ic:SetRingShown(opt("shield", "warn", "ring"))
+				ic:SetPulsing(opt("shield", "warn", "fade"))
+				ic:SetGlowShown(opt("shield", "warn", "glow"))
 				return
 			end
 			local n = st == "up3" and 3 or st == "up2" and 2 or 1
 			frozen(ic.upT, 0.38, 600)
-			if d.showBar then
-				local c = d.chargeBarColor or { 0.35, 0.75, 1 }
-				ic.bar:SetHeight(d.chargeBarHeight or 8)
+			local function count(field) return opt("shield", "count", field) end
+			if count("bar") then
+				local c = count("barColor")
+				ic.bar:SetHeight(count("barHeight"))
 				setBar(ic, 3, n, c[1], c[2], c[3])
 			end
-			if d.showCount then
-				ns.Media.setFont(ic.count, nil, d.countSize)
+			if count("number") then
+				ns.Media.setFont(ic.count, nil, count("size"))
 				ns.Shield.placeCount(ic.count, ic)
 				ic.count:SetText(n)
 				ic.count:Show()
-				local c = (n == 1 and d.countOne) and d.countLastColor or { 1, 1, 1 }
+				local c = (n == 1 and count("mark")) and count("markColor") or { 1, 1, 1 }
 				ic.count:SetTextColor(c[1], c[2], c[3])
 			end
 		end,
@@ -342,34 +343,37 @@ L.PREVIEW = {
 		warning = "both",
 		cooldown = true,
 		states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" }, { "range", "Out of range" }, { "both", "Both" } },
-		pop = function(ic, st) if st == "ready" and opt("shock", "readyPop") then ic:Pop() end end,
+		pop = function(ic, st) if st == "ready" and opt("shock", "ready", "pop") then ic:Pop() end end,
 		render = function(ic, st)
-			local d = db()
 			local icons = { earth = 136026, flame = 135813, frost = 135849 }
-			reset(ic, icons[d.shock] or 136026)
-			if st == "ready" then ic:SetGlowShown(opt("shock", "readyGlow")) end
+			reset(ic, icons[opt("shock", "track")] or 136026)
+			if st == "ready" then ic:SetGlowShown(opt("shock", "ready", "glow")) end
 			if st == "cd" then frozen(ic.cdT, 0.4, 6)
-			elseif st == "range" or st == "both" then ic:SetBodyPaint(d.rangeStyle, 1, 0.25, 0.25, d.rangeIntensity, d.rangeTint)
-			elseif st == "mana" then ic:SetBodyPaint(d.manaStyle, 0.2, 0.45, 1, d.manaIntensity, d.manaTint) end
-			if st == "mana" or st == "both" then ic:SetRingShown(true, 0.2, 0.45, 1, d.manaRing) end
+			elseif st == "range" or st == "both" then
+				ic:SetBodyPaint(opt("shock", "range", "look"), 1, 0.25, 0.25, opt("shock", "range", "overlay"),
+					opt("shock", "range", "tint"))
+			elseif st == "mana" then
+				ic:SetBodyPaint(opt("shock", "mana", "look"), 0.2, 0.45, 1, opt("shock", "mana", "overlay"),
+					opt("shock", "mana", "tint"))
+			end
+			if st == "mana" or st == "both" then ic:SetRingShown(true, 0.2, 0.45, 1, opt("shock", "mana", "ring")) end
 		end,
 	},
 	imbue = {
 		uptime = true,
 		typical = "fine", warning = "missing",
 		states = { { "missing", "No imbue" }, { "low", "Running low" }, { "fine", "Plenty left" } },
-		pop = function(ic, st) if st == "missing" and db().imbuePop then ic:Pop("imbue") end end,
+		pop = function(ic, st) if st == "missing" and opt("imbue", "warn", "pop") then ic:Pop("imbue") end end,
 		render = function(ic, st)
-			local d = db()
 			if st == "missing" then
 				reset(ic, ns.Imbue.preferredIcon())
-				ic.tex:SetDesaturated(d.imbueMissingGrey)
-				ic:SetRingShown(d.imbueMissingRing)
-				ic:SetPulsing(d.imbuePulse)
-				ic:SetGlowShown(d.imbueGlow)
+				ic.tex:SetDesaturated(opt("imbue", "warn", "grey"))
+				ic:SetRingShown(opt("imbue", "warn", "ring"))
+				ic:SetPulsing(opt("imbue", "warn", "fade"))
+				ic:SetGlowShown(opt("imbue", "warn", "glow"))
 			else
 				reset(ic, ns.Imbue.icon())
-				if st == "low" and d.imbueWarnMins > 0 then frozen(ic.upT, 0.95, 3600) end
+				if st == "low" and opt("imbue", "showUnderMins") > 0 then frozen(ic.upT, 0.95, 3600) end
 			end
 		end,
 	},
@@ -379,19 +383,19 @@ L.PREVIEW = {
 		states = { { "ready", "Ready" }, { "nototem", "No fire totem" }, { "out", "Fire totem out" }, { "expiring", "Totem expiring" },
 			{ "cd", "Cooldown" } },
 		pop = function(ic, st)
-			if st == "ready" and opt("firenova", "readyPop") then ic:Pop() end
+			if st == "ready" and opt("firenova", "ready", "pop") then ic:Pop() end
 		end,
 		render = function(ic, st)
 			reset(ic, 135824)
 			if st == "cd" then frozen(ic.cdT, 0.4, 6) return end
 			if st == "expiring" then expiringLook(ic, "firenova", 55) return end
 			if st == "nototem" then
-				ic.tex:SetDesaturated(opt("firenova", "blockedGrey"))
-				ic:SetRingShown(opt("firenova", "blockedRing"))
-				ic:SetPulsing(opt("firenova", "blockedPulse"))
+				ic.tex:SetDesaturated(opt("firenova", "warn", "grey"))
+				ic:SetRingShown(opt("firenova", "warn", "ring"))
+				ic:SetPulsing(opt("firenova", "warn", "fade"))
 			elseif st == "out" then
 				frozen(ic.upT, 0.2, 55)
-				ic:SetGlowShown(opt("firenova", "readyGlow"))
+				ic:SetGlowShown(opt("firenova", "ready", "glow"))
 			end
 		end,
 	},
@@ -404,7 +408,7 @@ end
 L.PREVIEW.maelstrom = {
 	uptime = true,
 	states = { { "s1", "1 stack" }, { "s4", "4 stacks" }, { "s5", "5 stacks" }, { "idle", "Not up" } },
-	pop = function(ic, st) if st == "s5" and opt("maelstrom", "fullPop") then ic:Pop("ready") end end,
+	pop = function(ic, st) if st == "s5" and opt("maelstrom", "active", "pop") then ic:Pop("ready") end end,
 	render = function(ic, st)
 		local M = ns.Maelstrom
 		reset(ic, M.icon)
@@ -419,7 +423,7 @@ L.PREVIEW.maelstrom = {
 }
 local PLENTY = 15
 local function fewLeft(key)
-	local v = opt(key, "reagentLow")
+	local v = opt(key, "reagent", "low")
 	return math.max(type(v) == "number" and v == v and v or 2, 1)
 end
 
@@ -441,15 +445,15 @@ local function cooldownPreview(def)
 		typical = "cd", warning = def.reagent and "out" or nil,
 		pop = function(ic, st)
 			if st == "ready" then
-				if not def.noReady and opt(key, "readyPop") then ic:Pop("ready") end
-			elseif st == "primed" and def.primedLooks ~= false and opt(key, "primedPop") then ic:Pop("ready") end
+				if opt(key, "ready", "pop") then ic:Pop("ready") end
+			elseif st == "primed" and opt(key, "active", "pop") then ic:Pop("ready") end
 		end,
 		render = function(ic, st)
 			reset(ic, def.iconID or def.icon)
-			if st == "ready" then ic:SetGlowShown(def.readyGlow and opt(key, "readyGlow"))
+			if st == "ready" then ic:SetGlowShown(opt(key, "ready", "glow"))
 			elseif st == "cd" then frozen(ic.cdT, 0.4, long)
 			elseif st == "primed" then
-				ic:SetGlowShown(def.primedLooks ~= false and opt(key, "primedGlow"))
+				ic:SetGlowShown(opt(key, "active", "glow"))
 				if def.primed.duration then frozen(ic.upT, 0.3, def.primed.duration) end
 			elseif st == "active" then frozen(ic.upT, 0.3, def.window)
 			elseif st == "expiring" then expiringLook(ic, key, def.window)
@@ -475,31 +479,31 @@ local function buffPreview(def)
 		states = states,
 		warning = def.breath and "underwater" or def.reagent and "out" or def.missing and "missing" or nil,
 		pop = function(ic, st)
-			if st == "up" and def.proc and not def.noPop and opt(key, "primedPop") then ic:Pop("ready") end
+			if st == "up" and def.proc and opt(key, "active", "pop") then ic:Pop("ready") end
 		end,
 		render = function(ic, st)
 			reset(ic, def.icon)
 			if st == "up" then
 				if def.proc then
 					if not def.noTimer then frozen(ic.upT, 0.3, 15) end
-					ic:SetGlowShown(not def.noGlow and opt(key, "primedGlow"))
+					ic:SetGlowShown(opt(key, "active", "glow"))
 				else frozen(ic.upT, 0.3, 600) end
 			elseif st == "expiring" and def.engineExpire then engineExpireLook(ic, key)
 			elseif st == "expiring" then expiringLook(ic, key, 600)
 			elseif st == "missing" then
-				ic.tex:SetDesaturated(opt(key, "missGrey"))
-				ic:SetRingShown(opt(key, "missRing"))
-				ic:SetPulsing(opt(key, "missPulse"))
-				ic:SetGlowShown(opt(key, "missGlow"))
+				ic.tex:SetDesaturated(opt(key, "warn", "grey"))
+				ic:SetRingShown(opt(key, "warn", "ring"))
+				ic:SetPulsing(opt(key, "warn", "fade"))
+				ic:SetGlowShown(opt(key, "warn", "glow"))
 			elseif st == "idle" then
 				if opt(key, "idleWhen") ~= "never" then idleLook(ic, key) end
 			elseif st == "low" or st == "out" then
-				if not opt(key, "reagentShow") then idleLook(ic, key) end
+				if not opt(key, "reagent", "lowShows") then idleLook(ic, key) end
 				L.reagentLook(ic, key, st == "out" and 0 or fewLeft(key))
 			elseif st == "underwater" then
-				if opt(key, "breathWarn") then
-					ic:SetRingShown(opt(key, "breathRing"))
-					ic:SetPulsing(opt(key, "breathPulse"))
+				if opt(key, "warn", "on") then
+					ic:SetRingShown(opt(key, "warn", "ring"))
+					ic:SetPulsing(opt(key, "warn", "fade"))
 				else idleLook(ic, key) end
 			end
 			if def.reagent and st ~= "low" and st ~= "out" then L.reagentLook(ic, key, PLENTY) end
@@ -514,7 +518,7 @@ L.PREVIEW.tremor = {
 	uptime = true,
 	typical = "idle", warning = "warn",
 	states = { { "warn", "Warning" }, { "down", "Tremor down" }, { "idle", "Not down, no warning" } },
-	pop = function(ic, st) if st == "warn" and opt("tremor", "alertPop") then ic:Pop("ready") end end,
+	pop = function(ic, st) if st == "warn" and opt("tremor", "active", "pop") then ic:Pop("ready") end end,
 	render = function(ic, st)
 		local def = ns.Tremor.def
 		reset(ic, def.iconID or def.icon)
@@ -530,8 +534,8 @@ L.PREVIEW.tremor = {
 		ns.Tremor.styleWord(ic.word, ic)
 		ic.word:Hide()
 		if st == "warn" then
-			ic:SetGlowShown(opt("tremor", "alertGlow"))
-			ic.word:SetShown(opt("tremor", "alertText") and true or false)
+			ic:SetGlowShown(opt("tremor", "active", "glow"))
+			ic.word:SetShown(opt("tremor", "active", "text") and true or false)
 			return
 		end
 		if st == "down" then
@@ -754,13 +758,14 @@ L.PREVIEW.totembar = {
 				if st == "idle" and not full then
 					ic:Hide()
 				elseif st == "killed" and el == expEl then
-					h.popIcon = c.killed and c.killedPop and ic or nil
-					if c.killed then
+					local k = c.killed
+					h.popIcon = k.flash and k.pop and ic or nil
+					if k.flash then
 						ic.tex:SetDesaturated(true)
 						ic.manaOverlay:SetColorTexture(0.95, 0.12, 0.08, 0.7)
 						ic.manaOverlay:Show()
-						if c.killedGlow then ic:SetGlowShown(true, 1, 0.12, 0.08) end
-						if c.killedMark then
+						if k.glow then ic:SetGlowShown(true, 1, 0.12, 0.08) end
+						if k.mark then
 							h.kMark:ClearAllPoints(); h.kMark:SetAllPoints(ic)
 							h.kMark.x:SetSize((size - 2 * o) * 0.7, (size - 2 * o) * 0.7); h.kMark:Show()
 						end
@@ -778,10 +783,11 @@ L.PREVIEW.totembar = {
 					if expiring then left = 5 end
 					frozen(ic.upT, 1 - left / life, life)
 					if expiring then
-						if c.warnGrey then ic.tex:SetDesaturated(true) end
-						ic:SetRingShown(c.warnRing)
-						ic:SetPulsing(c.warnPulse)
-						ic:SetGlowShown(c.warnGlow)
+						local x = c.expire
+						if x.grey then ic.tex:SetDesaturated(true) end
+						ic:SetRingShown(x.ring)
+						ic:SetPulsing(x.fade)
+						ic:SetGlowShown(x.glow)
 					end
 				end
 			end

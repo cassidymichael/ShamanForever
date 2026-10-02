@@ -90,8 +90,9 @@ function S.play(value, alert, gap, zoning)
 	emit(value)
 end
 
-function S.element(key, name, zoning)
-	if ns.isEnabled(key) then S.play(ns.elementSetting(key, name), key .. ":" .. name, nil, zoning) end
+-- An element's sound for a state or event (its sound field)
+function S.element(key, event, zoning)
+	if ns.isEnabled(key) then S.play(ns.elementSetting(key, event, "sound"), key .. ":" .. event, nil, zoning) end
 end
 
 function S.test(value) emit(value) end

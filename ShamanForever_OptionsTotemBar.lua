@@ -277,65 +277,73 @@ local function build(p)
 		p:text("A buff lingers a few seconds after you leave its range. Another shaman's totem of the same type can replace your buff, so yours shows as out of range.")
 	end)
 
-	p:header("Expiring")
-	local WARN = { grey = "warnGrey", ring = "warnRing", pulse = "warnPulse", glow = "warnGlow" }
-	K.expiringLooks(p, function(k) return tget(WARN[k]) end, function(k) return tset(WARN[k]) end, "slot")
-	p:checkbox("Pop when it runs out", "The totem pops and fades the moment it runs out.", tget("expiredPop"), tset("expiredPop"))
-	ns.Sounds.row(p, "Sound when it ends", "When a totem runs out or is killed. Not when you dismiss it.", tget("goneSound"), tset("goneSound"))
-	local secs = function(v) return v == 0 and "Off" or string.format("%d s", v) end
-	p:slider("Warn in the last", nil, 0, 30, 1, secs, tget("warn"), tset("warn"))
-	-- Defaults use spell names that may not have loaded yet: TB.warnOverChanged accepts either.
-	own("warnOver", { changed = function() return TB.warnOverChanged(c().warnOver) end,
-		reset = function() c().warnOver = TB.warnOverDefaults() end })
-	p:text("Totems with their own warning time, instead of the default:", function() return next(c().warnOver) ~= nil end)
-	-- Totems are kept by the client's name for them (any rank).
-	local function overName(i)
-		local names = {}
-		for name in pairs(c().warnOver) do table.insert(names, name) end
-		table.sort(names)
-		return names[i]
-	end
-	for i = 1, MAX_WARN_ROWS do
-		local row = p:slider("", nil, 0, 30, 1, secs,
-			function() local name = overName(i); return name and c().warnOver[name] or c().warn end,
-			function(v) local name = overName(i); if name then c().warnOver[name] = v; changed() end end,
-			function() return overName(i) ~= nil end)
-		local item = p.items[#p.items]
-		local refresh = item.refresh
-		item.refresh = function()
-			row.label:SetText(((overName(i) or ""):gsub(" Totem$", "")))
-			refresh()
+	-- Defaults use spell names that may not have loaded yet: TB.overChanged accepts either.
+	local function over() return c().expire.over end
+	local function overRows()
+		p:owns({ bar = "totembar", name = "expire", field = "over", after = changed,
+			changed = function() return TB.overChanged(over()) end,
+			reset = function() c().expire.over = TB.overDefaults() end })
+		p:text("Totems with their own warning time, instead of the default:", function() return next(over()) ~= nil end)
+		-- Totems are kept by the client's name for them (any rank).
+		local function overName(i)
+			local names = {}
+			for name in pairs(over()) do table.insert(names, name) end
+			table.sort(names)
+			return names[i]
 		end
-		local x = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-		x:SetSize(24, 22)
-		x:SetPoint("RIGHT", row, "RIGHT", -2, 0)
-		x:SetText("X")
-		x:SetScript("OnClick", function()
-			local name = overName(i)
-			if name then c().warnOver[name] = nil; changed() end
-		end)
-		setTip(x, "Remove", "Use the time above for this totem.")
-	end
-	local add = p:dropdown("Add a totem", "Give a totem its own warning time.", {}, function() return nil end, function() end, nil, 220, function(_, root)
-		local names, seen = {}, {}
-		for slot = 1, 4 do
-			for _, id in ipairs(ns.Totems.knownTotems(slot)) do
-				local name = ns.Spells.nameOf(id)
-				if name and not seen[name] and c().warnOver[name] == nil then
-					seen[name] = true
-					table.insert(names, name)
+		local secs = function(v) return v == 0 and "Off" or string.format("%d s", v) end
+		local r = TB.RANGES.expire.secs
+		for i = 1, MAX_WARN_ROWS do
+			local row = p:slider("", nil, r[1], r[2], r[3], secs,
+				function() local name = overName(i); return name and over()[name] or c().expire.secs end,
+				function(v) local name = overName(i); if name then over()[name] = v; changed() end end,
+				function() return overName(i) ~= nil end)
+			local item = p.items[#p.items]
+			local refresh = item.refresh
+			item.refresh = function()
+				row.label:SetText(((overName(i) or ""):gsub(" Totem$", "")))
+				refresh()
+			end
+			local x = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+			x:SetSize(24, 22)
+			x:SetPoint("RIGHT", row, "RIGHT", -2, 0)
+			x:SetText("X")
+			x:SetScript("OnClick", function()
+				local name = overName(i)
+				if name then over()[name] = nil; changed() end
+			end)
+			setTip(x, "Remove", "Use the time above for this totem.")
+		end
+		local add = p:dropdown("Add a totem", "Give a totem its own warning time.", {}, function() return nil end, function() end, nil, 220, function(_, root)
+			local names, seen = {}, {}
+			for slot = 1, 4 do
+				for _, id in ipairs(ns.Totems.knownTotems(slot)) do
+					local name = ns.Spells.nameOf(id)
+					if name and not seen[name] and over()[name] == nil then
+						seen[name] = true
+						table.insert(names, name)
+					end
 				end
 			end
-		end
-		table.sort(names)
-		for _, name in ipairs(names) do
-			root:CreateButton(name, function() c().warnOver[name] = c().warn; changed() end)
-		end
-		if #names == 0 then root:CreateTitle("Every totem you know has its own time") end
-	end)
-	pcall(add.dropdown.SetDefaultText, add.dropdown, "Choose a totem")
-
-	K.killedBlock(p, tget, tset, "slot", "Flash when a totem dies early")
+			table.sort(names)
+			for _, name in ipairs(names) do
+				root:CreateButton(name, function() over()[name] = c().expire.secs; changed() end)
+			end
+			if #names == 0 then root:CreateTitle("Every totem you know has its own time") end
+		end)
+		pcall(add.dropdown.SetDefaultText, add.dropdown, "Choose a totem")
+	end
+	-- A totem with its own time can warn while the default is off
+	local function warns()
+		if c().expire.secs > 0 then return true end
+		for _, v in pairs(over()) do if v > 0 then return true end end
+		return false
+	end
+	K.expiringBlock(p, "totembar", { after = changed, noun = "slot", afterSecs = overRows, warns = warns,
+		tips = { endPop = "The totem pops and fades the moment it runs out.",
+			endSound = "When a totem runs out or is killed. Not when you dismiss it." } })
+	K.killedBlock(p, "totembar", { after = changed, noun = "slot", flash = { "Flash when a totem dies early",
+		"The dead totem flashes red over its slot. Not when you dismiss it or it runs out." } })
 
 	K.glowBlock(p, "totembar", 136098)
 	K.popBlock(p, "totembar", 136098, "expired")

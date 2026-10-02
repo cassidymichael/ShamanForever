@@ -6,15 +6,14 @@ ns.ElementPages = EP
 
 local Page, K = ns.Page, ns.Options.kit
 local showWhen, setTip, panelBackdrop = Page.showWhen, Page.setTip, Page.panelBackdrop
-local respell, get, gopt = K.respell, K.get, K.gopt
+local respell = K.respell
 local pct, int, px = Page.pct, Page.int, Page.px
 local SHOW_CHOICES = K.SHOW_CHOICES
 local timerSettings, gcdBlock = K.timerSettings, K.gcdBlock
-local eopt, eread, COUNT_POINTS = K.eopt, K.eread, K.COUNT_POINTS
-local elementDisplay, idleBlock, readyBlock, lookBlocks = K.elementDisplay, K.idleBlock, K.readyBlock, K.lookBlocks
-local warningBlock, primedBlock, reagentBlocks = K.warningBlock, K.primedBlock, K.reagentBlocks
-local groundedBlock, expiringBlock, procBlock = K.groundedBlock, K.expiringBlock, K.procBlock
-local killedBlock = K.killedBlock
+local eopt, eread, eslider, COUNT_POINTS = K.eopt, K.eread, K.eslider, K.COUNT_POINTS
+local elementDisplay, idleBlock, lookBlocks, reagentBlocks = K.elementDisplay, K.idleBlock, K.lookBlocks, K.reagentBlocks
+local warnBlock, readyBlock, activeBlock = K.warnBlock, K.readyBlock, K.activeBlock
+local expiringBlock, killedBlock = K.expiringBlock, K.killedBlock
 
 local function db() return ns.getDB() end
 
@@ -270,214 +269,166 @@ end
 
 
 
-local function lookUses(key, part) return function() local v = db()[key]; return v == part or v == "both" end end
+-- A shock state's look uses overlay or tint
+local function lookUses(state, part)
+	return function()
+		local v = ns.elementSetting("shock", state, "look")
+		return v == part or v == "both"
+	end
+end
 
 local function buildShield(p, def)
-	local function opt(name, after) return gopt(p, name, after) end
-	elementDisplay(p, "shield")
+	local key = "shield"
+	elementDisplay(p, key)
 	idleBlock(p, def)
 	p:header("Tracking")
 	p:cards("Track", nil, {
 		{ "lightning", ns.Spells.name("lightningShield"), 136051 },
 		{ "water", ns.Spells.name("waterShield"), 132315 },
 		{ "either", "Either", 136051 },
-	}, opt("shieldTrack", respell))
+	}, eopt(p, key, "track", nil, respell))
 	p:text("Only one shield can be up at a time. With one chosen, the other counts as no shield.")
 	-- Lightning, the default, reads a Water Shield that is up as no shield.
 	p:callout(("You know %s: choose Either to count it."):format(ns.Spells.name("waterShield")),
-		function() return db().shieldTrack == "lightning" and ns.Shield.knows("water") end)
+		function() return ns.elementSetting(key, "track") == "lightning" and ns.Shield.knows("water") end)
 	p:header("Charges")
-	local bar = p:checkbox("Charge bar", "One segment per charge.", opt("showBar"))
-	p:sub(bar, get("showBar"), function()
-		p:slider("Bar height", nil, 1, 20, 1, px, opt("chargeBarHeight"))
-		p:color("Bar colour", nil, opt("chargeBarColor"))
+	local bar = p:checkbox("Charge bar", "One segment per charge.", eopt(p, key, "count", "bar"))
+	p:sub(bar, eread(key, "count", "bar"), function()
+		eslider(p, key, "Bar height", nil, px, nil, "count", "barHeight")
+		p:color("Bar colour", nil, eopt(p, key, "count", "barColor"))
 	end)
-	local number = p:checkbox("Charge number", "The charges as a number.", opt("showCount"))
-	p:sub(number, get("showCount"), function()
-		local posGet, posSet = opt("countPos")
+	local number = p:checkbox("Charge number", "The charges as a number.", eopt(p, key, "count", "number"))
+	p:sub(number, eread(key, "count", "number"), function()
+		local posGet, posSet = eopt(p, key, "count", "pos")
 		p:dropdown("Number position", nil, COUNT_POINTS, posGet, posSet, nil, 150)
-		p:slider("Number size", nil, 8, 64, 1, int, opt("countSize"))
+		eslider(p, key, "Number size", nil, int, nil, "count", "size")
 		local last = p:checkbox("Different colour last charge", "Colours the 1, instead of plain white.",
-			opt("countOne"))
-		p:sub(last, get("countOne"), function()
-			p:color("Last charge colour", nil, opt("countLastColor"))
+			eopt(p, key, "count", "mark"))
+		p:sub(last, eread(key, "count", "mark"), function()
+			p:color("Last charge colour", nil, eopt(p, key, "count", "markColor"))
 		end)
 	end)
-
-	warningBlock(p, "No shield", opt, { "emptyGrey", "emptyRing", "emptyPulse" })
-	p:checkbox("Red tint", "Tint the icon red.", opt("emptyTint"))
-	p:checkbox("Pulsing glow", "A glow that pulses, in the Pulsing glow style.", opt("emptyGlow"))
-	local soundGet, soundSet = eopt(p, "shield", "removedSound")
-	ns.Sounds.row(p, "Sound", "When the shield goes: charges spent, cancelled or run out.", soundGet,
-		function(v) soundSet(v); ns.Shield.applyRemovedSound() end, nil, ns.Sounds.fileChoices)
-
-	timerSettings(p, "Time left", "shield", "uptime")
-	gcdBlock(p, "shield")
-	lookBlocks(p, "shield")
+	warnBlock(p, key, { title = "No shield", sounds = ns.Sounds.fileChoices,
+		tips = { glow = "A glow that pulses, in the Pulsing glow style.",
+			sound = "When the shield goes: charges spent, cancelled or run out." } })
+	timerSettings(p, "Time left", key, "uptime")
+	gcdBlock(p, key)
+	lookBlocks(p, key)
 end
 
 local function buildShock(p, def)
-	local function opt(name, after) return gopt(p, name, after) end
-	elementDisplay(p, "shock")
+	local key = "shock"
+	elementDisplay(p, key)
 	idleBlock(p, def)
 	p:header("Tracking")
 	local icons = { earth = 136026, flame = 135813, frost = 135849 }
 	local cards = {}
-	for _, key in ipairs(ns.Shock.ORDER) do table.insert(cards, { key, ns.Shock.SHOCKS[key], icons[key] }) end
-	p:cards("Track", "Its cooldown and range.", cards, opt("shock", respell))
+	for _, shock in ipairs(ns.Shock.ORDER) do table.insert(cards, { shock, ns.Shock.SHOCKS[shock], icons[shock] }) end
+	p:cards("Track", "Its cooldown and range.", cards, eopt(p, key, "track", nil, respell))
 	local manaChoices = { { "tracked", "Tracked shock" } }
-	for _, key in ipairs(ns.Shock.ORDER) do table.insert(manaChoices, { key, ns.Shock.SHOCKS[key] }) end
-	p:dropdown("Mana check", nil, manaChoices, opt("manaSpell", respell))
+	for _, shock in ipairs(ns.Shock.ORDER) do table.insert(manaChoices, { shock, ns.Shock.SHOCKS[shock] }) end
+	p:dropdown("Mana check", nil, manaChoices, eopt(p, key, "manaSpell", nil, respell))
 	p:text("The spell whose cost turns the icon blue when you're short of mana.")
 
 	local looks = { { "tint", "Tint" }, { "overlay", "Overlay" }, { "both", "Both" } }
 	p:header("No mana")
-	p:dropdown("Look", "Out of range wins over this look.", looks, opt("manaStyle"))
-	local manaOverlayGet, manaOverlaySet = opt("manaIntensity")
-	p:slider("Overlay", nil, 0.1, 1, 0.05, pct, manaOverlayGet, manaOverlaySet,
-		showWhen(lookUses("manaStyle", "overlay")))
-	local manaTintGet, manaTintSet = opt("manaTint")
-	p:slider("Tint", nil, 0.1, 1, 0.05, pct, manaTintGet, manaTintSet, showWhen(lookUses("manaStyle", "tint")))
-	p:slider("Ring", "The blue ring, shown even when out of range.", 0.1, 1, 0.05, pct, opt("manaRing"))
+	p:dropdown("Look", "Out of range wins over this look.", looks, eopt(p, key, "mana", "look"))
+	eslider(p, key, "Overlay", nil, pct, showWhen(lookUses("mana", "overlay")), "mana", "overlay")
+	eslider(p, key, "Tint", nil, pct, showWhen(lookUses("mana", "tint")), "mana", "tint")
+	eslider(p, key, "Ring", "The blue ring, shown even when out of range.", pct, nil, "mana", "ring")
 
 	p:header("Out of range")
-	p:dropdown("Look", nil, looks, opt("rangeStyle"))
-	local rangeOverlayGet, rangeOverlaySet = opt("rangeIntensity")
-	p:slider("Overlay", nil, 0.1, 1, 0.05, pct, rangeOverlayGet, rangeOverlaySet,
-		showWhen(lookUses("rangeStyle", "overlay")))
-	local rangeTintGet, rangeTintSet = opt("rangeTint")
-	p:slider("Tint", nil, 0.1, 1, 0.05, pct, rangeTintGet, rangeTintSet, showWhen(lookUses("rangeStyle", "tint")))
-	timerSettings(p, "Cooldown", "shock", "cooldown")
-	gcdBlock(p, "shock")
-	readyBlock(p, "shock", "While it's off cooldown.")
-	lookBlocks(p, "shock")
+	p:dropdown("Look", nil, looks, eopt(p, key, "range", "look"))
+	eslider(p, key, "Overlay", nil, pct, showWhen(lookUses("range", "overlay")), "range", "overlay")
+	eslider(p, key, "Tint", nil, pct, showWhen(lookUses("range", "tint")), "range", "tint")
+	timerSettings(p, "Cooldown", key, "cooldown")
+	gcdBlock(p, key)
+	readyBlock(p, key)
+	lookBlocks(p, key)
 end
 
 local function buildImbue(p, def)
-	local function opt(name) return gopt(p, name) end
-	elementDisplay(p, "imbue")
+	local key = "imbue"
+	elementDisplay(p, key)
 	idleBlock(p, def)
-	warningBlock(p, "No imbue", opt, { "imbueMissingGrey", "imbueMissingRing", "imbuePulse" }, function()
+	warnBlock(p, key, { title = "No imbue", tips = { pop = "The moment your imbue runs out or is lost.",
+		sound = "The moment your imbue runs out or is lost." }, first = function()
 		local cards = { { "last", "Last used", 136086 } }
 		-- " Weapon" is trimmed from the client's names (English).
-		for _, key in ipairs(ns.Imbue.ORDER) do table.insert(cards, { key, (ns.Imbue.IMBUES[key].name:gsub(" Weapon$", "")), ns.Imbue.IMBUES[key].icon }) end
-		p:cards("Icon", nil, cards, opt("imbuePreferred"))
+		for _, imbue in ipairs(ns.Imbue.ORDER) do
+			local m = ns.Imbue.IMBUES[imbue]
+			table.insert(cards, { imbue, (m.name:gsub(" Weapon$", "")), m.icon })
+		end
+		p:cards("Icon", nil, cards, eopt(p, key, "icon"))
 		p:text("The icon shown while no imbue is on.")
-	end)
-	p:checkbox("Pulsing glow", "A glow inside the icon that pulses.", opt("imbueGlow"))
-	p:checkbox("Pop", "The moment your imbue runs out or is lost.", opt("imbuePop"))
-	ns.Sounds.row(p, "Sound", "The moment your imbue runs out or is lost.", eopt(p, "imbue", "lostSound"))
+	end })
 
-	timerSettings(p, "Time left", "imbue", "uptime", nil, nil, function()
-		p:slider("Show under", nil, 0, 30, 1,
-			function(v) return v == 0 and "Never" or string.format("%d min", v) end, opt("imbueWarnMins"))
+	timerSettings(p, "Time left", key, "uptime", nil, nil, function()
+		eslider(p, key, "Show under", nil, function(v) return v == 0 and "Never" or string.format("%d min", v) end,
+			nil, "showUnderMins")
 		p:text("Time left shows once it's below this. 0 never shows it.")
 	end)
-	lookBlocks(p, "imbue")
+	lookBlocks(p, key)
 end
-
-
-
-
 
 local function buildCooldown(p, def)
 	local key = def.key
-	local function opt(name) return eopt(p, key, name) end
 	elementDisplay(p, key)
 	idleBlock(p, def)
 	if def.reagent then reagentBlocks(p, def) end
-	if def.needsTotem then
-		warningBlock(p, "No fire totem", opt, { "blockedGrey", "blockedRing", "blockedPulse" })
-	end
+	warnBlock(p, key, { title = "No fire totem" })
 	timerSettings(p, "Cooldown", key, "cooldown")
 	gcdBlock(p, key)
-	local timed, expires = ns.cooldownTimes(def)
+	local timed = ns.cooldownTimes(def)
 	if def.needsTotem then timerSettings(p, "Fire totem's time left", key, "uptime")
 	elseif def.totemSlot or def.window then timerSettings(p, "Time left", key, "uptime")
 	elseif timed then timerSettings(p, "Primed time left", key, "uptime") end
-	if not def.noReady then
-		readyBlock(p, key, def.needsTotem and "While it's off cooldown and a fire totem is down."
-			or def.readyGlow and "While it's off cooldown.", def.needsTotem and function()
-				local noTotemGet, noTotemSet = opt("readyNoTotem")
-				p:dropdown("Without a fire totem", "The pop when the cooldown ends with no fire totem down.",
-					{ { "grey", "Greyed pop" }, { "none", "Nothing" } }, noTotemGet, noTotemSet,
-					showWhen(eread(key, "readyPop")), 150)
-			end or nil)
-	end
-	if def.primed then primedBlock(p, def) end
-	if expires then
-		expiringBlock(p, key, 30, 1, def.expireLooks)
-		if def.ranOut then
-			p:checkbox("Flash when it runs out", "Its icon, greyed under its colour, with an hourglass.", opt("ranOutFlash"))
-			local on = showWhen(eread(key, "ranOutFlash"))
-			local popGet, popSet = opt("ranOutPop")
-			p:checkbox("Pop", "The icon bursts for a moment.", popGet, popSet, on)
-			local glowGet, glowSet = opt("ranOutGlow")
-			p:checkbox("Pulsing glow", "In its colour.", glowGet, glowSet, on)
-		elseif def.totemSlot then
-			p:checkbox("Pop when it runs out", "The totem pops and fades the moment it runs out.", opt("expiredPop"))
-		end
-	end
-	if def.totemSlot then
-		ns.Sounds.row(p, "Sound when it ends", "When it runs out or is killed. Not when you dismiss it.",
-			opt("goneSound"))
-	end
-	if def.grounded then groundedBlock(p, key)
-	elseif def.totemSlot then
-		killedBlock(p, function(n) return eread(key, n) end, function(n) local _, s = opt(n); return s end, "icon",
-			"Flash when it dies early")
+	readyBlock(p, key, def.needsTotem and {
+		glowTip = "While it's off cooldown and a fire totem is down.",
+		afterPop = function(s)
+			local get, set = s.opt("ready", "noTotem")
+			p:dropdown("Without a fire totem", "The pop when the cooldown ends with no fire totem down.",
+				{ { "grey", "Greyed pop" }, { "none", "Nothing" } }, get, set, showWhen(s.get("ready", "pop")), 150)
+		end,
+	} or nil)
+	activeBlock(p, key, { title = "Primed", text = def.primed and def.primed.text,
+		tips = { pop = "The moment it's primed.", glow = "While it's primed." } })
+	expiringBlock(p, key, { tips = { endPop = "The totem pops and fades the moment it runs out.",
+		endSound = "When it runs out or is killed. Not when you dismiss it." } })
+	if def.grounded then
+		killedBlock(p, key, { title = "Grounded", tips = { glow = "In blue." }, flash = { "Flash when it takes a spell",
+			"The totem flashes blue over its icon when it ends early: it took a spell, or was destroyed." } })
+	else
+		killedBlock(p, key, { flash = { "Flash when it dies early",
+			"The dead totem flashes red over its icon. Not when you dismiss it or it runs out." } })
 	end
 	lookBlocks(p, key)
 end
 
 local function buildBuff(p, def)
 	local key = def.key
-	local function opt(name) return eopt(p, key, name) end
 	elementDisplay(p, key)
 	idleBlock(p, def)
-	if def.reagent then reagentBlocks(p, def) end
-	if def.breath then
-		p:header("Under water")
-		p:checkbox("Warn without it", "While your breath bar drains and it isn't up.", opt("breathWarn"))
-		local on = showWhen(eread(key, "breathWarn"))
-		local ringGet, ringSet = opt("breathRing")
-		p:checkbox("Red ring", "A red ring inside the icon edge.", ringGet, ringSet, on)
-		local pulseGet, pulseSet = opt("breathPulse")
-		p:checkbox("Fade in and out", nil, pulseGet, pulseSet, on)
-	end
-	if def.skipLong then
-		local lo, hi, step = def.skipLong[1], def.skipLong[2], def.skipLong[3]
+	if ns.elementDefault(key, "skipLong") ~= nil then
 		p:header("Track")
 		local skip = p:checkbox("Skip long buffs", "Leaves out buffs that last longer than Longest buff, and buffs with no end.",
-			opt("skipLong"))
+			eopt(p, key, "skipLong"))
 		p:sub(skip, eread(key, "skipLong"), function()
-			p:slider("Longest buff", "Buffs up to this long count.", lo, hi, step,
-				function(v) return string.format("%d min", v) end, opt("skipLongMins"))
+			eslider(p, key, "Longest buff", "Buffs up to this long count.",
+				function(v) return string.format("%d min", v) end, nil, "skipLongMins")
 		end)
 	end
-	if def.missing then
-		warningBlock(p, "Not on target", opt, { "missGrey", "missRing", "missPulse" }, function()
-			p:text("While your hostile target doesn't have it.")
-		end)
-		p:checkbox("Pulsing glow", "A glow that pulses, in the Pulsing glow style.", opt("missGlow"))
+	if def.reagent then reagentBlocks(p, def) end
+	if def.breath then
+		warnBlock(p, key, { title = "Under water", on = { "Warn without it", "While your breath bar drains and it isn't up." } })
+	elseif def.missing then
+		warnBlock(p, key, { title = "Not on target", tips = { glow = "A glow that pulses, in the Pulsing glow style." },
+			first = function() p:text("While your hostile target doesn't have it.") end })
 	end
 	if not def.noTimer then timerSettings(p, "Time left", key, "uptime") end
-	if def.engineExpire then
-		-- Flame Shock's, drawn by the engine: only what it can change in a fight.
-		p:header("Expiring")
-		p:slider("Warn in the last", "Seconds before it runs out. Zero turns the warning off.", 0, 10, 1,
-			function(v) return v == 0 and "Off" or string.format("%d s", v) end, opt("expireSecs"))
-		local warns = function() return (ns.elementSetting(key, "expireSecs") or 0) > 0 end
-		local barGet, barSet = opt("expireBar")
-		p:checkbox("Bar colour", "The time bar takes this colour in the last seconds.", barGet, barSet, showWhen(warns))
-		local colorGet, colorSet = opt("expireBarColor")
-		p:color("Colour", nil, colorGet, colorSet,
-			showWhen(function() return warns() and ns.elementSetting(key, "expireBar") end))
-		local textGet, textSet = opt("expireText")
-		p:checkbox("Red countdown", "The countdown turns red in the last seconds.", textGet, textSet, showWhen(warns))
-	end
-	if def.proc and not def.noGlow then procBlock(p, def, opt)
-	elseif not def.proc then expiringBlock(p, key, 120, 5) end
+	expiringBlock(p, key)
+	activeBlock(p, key, { title = def.procHeader or ns.Spells.name("clearcasting"),
+		tips = { pop = def.popTip or "The moment it procs.", glow = def.glowTip or "While it's up." } })
 	lookBlocks(p, key)
 end
 
@@ -630,7 +581,7 @@ local function buildTremor(p)
 	local whenGet, whenSet = opt("idleWhen")
 	p:dropdown("Idle when", "No warning: also while your Tremor Totem is down. Totem not down and no warning: its time left shows while it's down.",
 		TREMOR_IDLE_WHEN, whenGet, whenSet, nil, 250)
-	p:slider("Idle opacity", "The icon's opacity while idle.", 0, 1, 0.05, pct, opt("idleAlpha"))
+	eslider(p, key, "Idle opacity", "The icon's opacity while idle.", pct, nil, "idleAlpha")
 	p:header("Warn when")
 	p:checkbox("Your target is on the list", nil, opt("tremorTarget"))
 	p:checkbox("A mob on the list is near", "Its nameplate is on screen.", opt("tremorPlates"))
@@ -646,22 +597,19 @@ local function buildTremor(p)
 	linkLine(p, "Suggest a mob for the default list", "Opens Feedback, on the About page.", function() ns.Options.showFeedback() end)
 	timerSettings(p, "Time left", key, "uptime", nil,
 		"Its time left while it's down. With the default Idle (\"No warning\", 0%) it isn't seen.")
-	p:header("When it warns")
-	p:checkbox("Pop", "The moment it starts warning.", opt("alertPop"))
-	p:checkbox("Pulsing glow", "While it warns.", opt("alertGlow"))
-	p:checkbox("Text", "Shows \"" .. ns.Tremor.WORD .. "\" by the icon.", opt("alertText"))
-	local text = showWhen(eread(key, "alertText"))
-	local sizeGet, sizeSet = opt("wordSize")
-	p:slider("Text size", "At the default icon size; it grows with the icon.", 8, 40, 1, int, sizeGet, sizeSet, text)
-	local colorGet, colorSet = opt("wordColor")
-	p:color("Text colour", nil, colorGet, colorSet, text)
-	local posGet, posSet = opt("wordPos")
-	p:dropdown("Position", nil, WORD_POS, posGet, posSet, text, 160)
-	local xGet, xSet = opt("wordX")
-	p:slider("Text X offset", nil, -100, 100, 1, px, xGet, xSet, text)
-	local yGet, ySet = opt("wordY")
-	p:slider("Text Y offset", nil, -100, 100, 1, px, yGet, ySet, text)
-	ns.Sounds.row(p, "Sound", "The moment it starts warning.", opt("alertSound"))
+	activeBlock(p, key, { title = "When it warns", tips = { pop = "The moment it starts warning.",
+		glow = "While it warns.", sound = "The moment it starts warning." }, extra = function(s)
+		local textGet, textSet = s.opt("active", "text")
+		p:checkbox("Text", "Shows \"" .. ns.Tremor.WORD .. "\" by the icon.", textGet, textSet)
+		local text = showWhen(textGet)
+		eslider(p, key, "Text size", "At the default icon size; it grows with the icon.", int, text, "wordSize")
+		local colorGet, colorSet = opt("wordColor")
+		p:color("Text colour", nil, colorGet, colorSet, text)
+		local posGet, posSet = opt("wordPos")
+		p:dropdown("Position", nil, WORD_POS, posGet, posSet, text, 160)
+		eslider(p, key, "Text X offset", nil, px, text, "wordX")
+		eslider(p, key, "Text Y offset", nil, px, text, "wordY")
+	end })
 	lookBlocks(p, key)
 end
 
@@ -670,31 +618,27 @@ local PAGE = { shield = buildShield, shock = buildShock, imbue = buildImbue, coo
 
 local function buildMaelstrom(p, def)
 	local key = def.key
-	local function opt(name) return eopt(p, key, name) end
 	elementDisplay(p, key)
 	idleBlock(p, def)
 	p:header("Stacks")
-	p:checkbox("Stack bar", "One segment per stack.", opt("stackBar"))
-	local barOn = showWhen(eread(key, "stackBar"))
-	local heightGet, heightSet = opt("stackBarHeight")
-	p:slider("Bar height", nil, 1, 20, 1, px, heightGet, heightSet, barOn)
-	local barColorGet, barColorSet = opt("stackBarColor")
+	p:checkbox("Stack bar", "One segment per stack.", eopt(p, key, "count", "bar"))
+	local barOn = showWhen(eread(key, "count", "bar"))
+	eslider(p, key, "Bar height", nil, px, barOn, "count", "barHeight")
+	local barColorGet, barColorSet = eopt(p, key, "count", "barColor")
 	p:color("Bar colour", nil, barColorGet, barColorSet, barOn)
-	p:checkbox("Stack number", nil, opt("stackCount"))
-	local numberOn = showWhen(eread(key, "stackCount"))
-	local posGet, posSet = opt("countPos")
+	p:checkbox("Stack number", nil, eopt(p, key, "count", "number"))
+	local numberOn = showWhen(eread(key, "count", "number"))
+	local posGet, posSet = eopt(p, key, "count", "pos")
 	p:dropdown("Number position", nil, { { "corner", "Corner" }, { "center", "Centre" } }, posGet, posSet, numberOn)
-	local sizeGet, sizeSet = opt("countSize")
-	p:slider("Number size", nil, 8, 40, 1, int, sizeGet, sizeSet, numberOn)
-	local fullGet, fullSet = opt("fullCount")
-	p:checkbox("Colour at five", "The number takes its own colour at five stacks.", fullGet, fullSet, numberOn)
-	local fullColorGet, fullColorSet = opt("fullCountColor")
-	p:color("Five colour", nil, fullColorGet, fullColorSet,
-		showWhen(function() return ns.elementSetting(key, "stackCount") and ns.elementSetting(key, "fullCount") end))
+	eslider(p, key, "Number size", nil, int, numberOn, "count", "size")
+	local markGet, markSet = eopt(p, key, "count", "mark")
+	p:checkbox("Colour at five", "The number takes its own colour at five stacks.", markGet, markSet, numberOn)
+	local markColorGet, markColorSet = eopt(p, key, "count", "markColor")
+	p:color("Five colour", nil, markColorGet, markColorSet, showWhen(function()
+		return ns.elementSetting(key, "count", "number") and ns.elementSetting(key, "count", "mark")
+	end))
 	timerSettings(p, "Time left", key, "uptime")
-	p:header("Five stacks")
-	p:checkbox("Pop", "The moment it reaches five.", opt("fullPop"))
-	p:checkbox("Pulsing glow", "While at five.", opt("fullGlow"))
+	activeBlock(p, key, { title = "Five stacks", tips = { pop = "The moment it reaches five.", glow = "While at five." } })
 	lookBlocks(p, key)
 end
 PAGE.maelstrom = buildMaelstrom

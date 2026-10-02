@@ -75,39 +75,6 @@ local DEFAULTS = {
 	},
 	known = {},
 	elementOpts = {},
-	-- shield
-	shieldTrack = "lightning",   -- lightning | water | either
-	countPos = "CENTER",
-	countSize = 20,
-	showBar = true,
-	chargeBarHeight = 8,
-	chargeBarColor = { 0.42, 0.84, 1, 1 },
-	showCount = false,
-	countOne = false,
-	countLastColor = { 1, 0.25, 0.2, 1 },
-	emptyRing = true,
-	emptyGrey = true,
-	emptyTint = false,
-	emptyPulse = false,
-	emptyGlow = true,
-	-- shock
-	shock = "earth",
-	manaSpell = "tracked",   -- tracked | earth | flame | frost
-	manaRing = 0.6,
-	manaStyle = "both",   -- overlay | tint | both
-	manaIntensity = 0.25,
-	manaTint = 0.8,
-	rangeStyle = "tint",   -- overlay | tint | both
-	rangeIntensity = 0.45,
-	rangeTint = 0.7,
-	-- weapon imbue
-	imbuePreferred = "last",   -- last | rockbiter | flametongue | frostbrand | windfury
-	imbueMissingRing = true,
-	imbueMissingGrey = true,
-	imbuePulse = true,
-	imbueGlow = true,
-	imbuePop = true,
-	imbueWarnMins = 5,   -- minutes (0: never)
 	totemBar = {},
 	swingBar = {},
 	timers = { cooldown = CopyTable(ns.Timer.DEFAULTS.cooldown), uptime = CopyTable(ns.Timer.DEFAULTS.uptime) },
@@ -422,6 +389,7 @@ end
 -- Makes db.groups consistent: fills fields, ids and names, drops unknown and duplicate members,
 -- places elements never seen before
 local function sanitize()
+	ns.Profiles.cleanElements(db.elementOpts)
 	each("sanitize", db, acct)
 	if type(db.groups) ~= "table" then db.groups = {} end
 	if type(db.known) ~= "table" then db.known = {} end
@@ -823,6 +791,7 @@ local function selectProfile(name)
 	if type(acct.profiles[name]) ~= "table" then acct.profiles[name] = {} end
 	profileName, db = name, acct.profiles[name]
 	for _, k in ipairs(RETIRED_KEYS) do db[k] = nil end
+	ns.Profiles.migrate(db)
 	fillDefaults(db, DEFAULTS)
 	sanitize()
 	ns.Profiles.remember(name)

@@ -7,7 +7,6 @@ local Spells = ns.Spells
 local IM = { name = "imbue" }
 ns.Imbue = IM
 
-ns.Profiles.addRanges({ imbueWarnMins = { 0, 30 } })
 local imbue = ns.newElementIcon("imbue")
 local anyKnown = false
 local IDLE_CHOICES = {
@@ -18,7 +17,11 @@ local IDLE_CHOICES = {
 }
 ns.registerElement("imbue", { frame = imbue, label = "Weapon Imbue", paint = function(t) t:SetTexture(IM.icon()) end,
 	learned = function() return anyKnown end,
-	defaults = { idleWhen = "notlow", idleAlpha = 0 },
+	defaults = { idleWhen = "notlow", idleAlpha = 0,
+		icon = "last",   -- the icon while none is on: last | rockbiter | flametongue | frostbrand | windfury
+		showUnderMins = 5,   -- time left shows under this (0: never)
+		warn = { grey = true, ring = true, fade = true, glow = true, pop = true, sound = "none" } },
+	ranges = { showUnderMins = { 0, 30, 1 } },
 	styles = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false,
 		bar = false } },
 	def = { key = "imbue", idleChoices = IDLE_CHOICES },
@@ -95,27 +98,29 @@ end
 
 local imbueIcon = imbueIconFor("rockbiter")
 local function preferredImbueIcon()
-	local db, acct = ns.getDB(), ns.getAccount()
-	return imbueIconFor(db.imbuePreferred == "last" and (acct.imbueLast or "rockbiter") or db.imbuePreferred)
+	local icon = ns.elementSetting("imbue", "icon")
+	return imbueIconFor(icon == "last" and (ns.getAccount().imbueLast or "rockbiter") or icon)
 end
 IM.preferredIcon = preferredImbueIcon
 function IM.icon() return imbueIcon end
 
 -- quiet: nothing can be cast now, so a missing imbue shows grey without the warning
+local function warn(field) return ns.elementSetting("imbue", "warn", field) end
+
 local function drawImbue(now, quiet)
-	local db, acct = ns.getDB(), ns.getAccount()
 	local on, key = imbueState.on, imbueState.key
 	local unreadable = imbueState.unreadable
 	local left = imbueState.expiresAt and imbueState.expiresAt - now
-	local warnAt = db.imbueWarnMins * 60
+	local mins = ns.elementSetting("imbue", "showUnderMins")
+	local warnAt = (type(mins) == "number" and mins or 0) * 60
 	local showTime = left ~= nil and warnAt > 0 and left <= warnAt
 	-- Missing look only when the read says none: unrecognised shows in colour, unreadable as "?"
 	local missing = on == false
 	imbueIcon = key and imbueIconFor(key) or preferredImbueIcon()
-	imbue.tex:SetDesaturated(missing and db.imbueMissingGrey or false)
-	imbue:SetRingShown(missing and db.imbueMissingRing and not quiet)
-	imbue:SetPulsing(missing and db.imbuePulse and not quiet)
-	imbue:SetGlowShown(missing and db.imbueGlow and not quiet)
+	imbue.tex:SetDesaturated(missing and warn("grey") or false)
+	imbue:SetRingShown(missing and warn("ring") and not quiet)
+	imbue:SetPulsing(missing and warn("fade") and not quiet)
+	imbue:SetGlowShown(missing and warn("glow") and not quiet)
 	imbue.tex:SetTexture(imbueIcon)
 	if unreadable then
 		imbue.timer:SetText("?")
@@ -130,7 +135,7 @@ local function drawImbue(now, quiet)
 	end
 	-- Idle fades by alpha, not Hide (keeps its place)
 	local when = ns.elementSetting("imbue", "idleWhen")
-	local idle = acct.locked and on and (when == "on" or (when == "notlow" and not showTime))
+	local idle = ns.getAccount().locked and on and (when == "on" or (when == "notlow" and not showTime))
 	ns.fadeTo(imbue, idle and ns.idleAlpha("imbue") or 1)
 end
 
@@ -152,7 +157,7 @@ function IM.refresh()
 		return
 	end
 	if not anyKnown then drawNotLearned() return end
-	local db, acct = ns.getDB(), ns.getAccount()
+	local acct = ns.getAccount()
 	local now = GetTime()
 	local r = readMainHand()
 	local had = imbueState.on
@@ -184,8 +189,8 @@ function IM.refresh()
 	local quiet = ns.cantAct()
 	drawImbue(now, quiet)
 	if had and r == false and not quiet then
-		if db.imbuePop then imbue:Pop("imbue") end
-		if imbue:IsVisible() then ns.Sounds.element("imbue", "lostSound", true) end
+		if warn("pop") then imbue:Pop("imbue") end
+		if imbue:IsVisible() then ns.Sounds.element("imbue", "warn", true) end
 	end
 end
 
