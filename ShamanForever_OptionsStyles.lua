@@ -1,9 +1,4 @@
--- The options window's Styles explorer page: a gallery of every border look, pulsing glow and
--- pop, each on one sample icon with everything else as shipped (never the player's own settings).
--- Right-click one to use it as a global style. The looks come from ns.Style's choices, so a new one
--- shows up here with no page code. The border and glow icons are look tiles (ns.Look.tilePool),
--- taken while their section shows and given back when it hides; the pop grid's cells hold a still
--- picture and take a tile only while they play. Nothing here runs while the page is closed.
+-- Styles explorer: border looks, glows and pops on sample icons, never the player's settings
 local _, ns = ...
 
 local SP = {}
@@ -13,29 +8,21 @@ local Page, K, L, S = ns.Page, ns.Options.kit, ns.Look, ns.Style
 local pool = L.tilePool
 
 local SIZES = { small = 40, large = 64 }
--- A cell's backdrop: a colour, or the game's ground (Winterspring's snow, Elwynn's grass) tiled
--- every TILE units and tinted; and the text on it.
 local BACKDROPS = {
 	dark = { bg = { 0.04, 0.045, 0.06 }, text = { 0.8, 0.8, 0.83 } },
 	snow = { file = 189053, tint = { 1, 1, 1 }, text = { 0.2, 0.22, 0.25 }, light = true },
 	grass = { file = 187126, tint = { 0.75, 0.75, 0.75 }, text = { 1, 1, 0.92 } },
 }
 local TILE = 256
-local GAP = 6              -- between cells in a row section
-local ROW_HEAD_W = 120     -- the pop grid's row names and their Play
-local MAKE_PER_FRAME = 3   -- tiles made in one frame at most: the first open spreads over a few
-local PLAYERS = 6          -- pop grid cells playing at once (a row's worth)
-local HOLD = 1.2           -- seconds a playing cell keeps its tile: past the longest pop
+local GAP = 6
+local ROW_HEAD_W = 120
+local MAKE_PER_FRAME = 3
+local PLAYERS = 6
+local HOLD = 1.2
 
--- What every cell shows, chosen on the strip at the top: the element the looks take and its
--- sample icon (or All: a look that differs by element once for each), the backdrop, the icon size,
--- the scale of every section (to see a border up close), the pop's colour, and the pop grid's
--- flash. For this session. It opens on every element at once, with the pops coloured by element.
 local view = { school = "all", backdrop = "dark", size = "small", scale = 1.2, colorBy = "school",
 	flash = S.KINDS.pop.defaults.flash }
-local stamp = 0   -- counts strip changes: a tile dressed before the last one dresses again
--- Each section's preview settings (its own sliders): style fields over the shipped ones, for the
--- gallery only, never saved.
+local stamp = 0
 local preview = { border = {}, glow = {}, pop = {} }
 
 local function size() return SIZES[view.size] end
@@ -44,8 +31,6 @@ local function schoolOf(key)
 	return L.SCHOOLS[1]
 end
 
--- An owner whose border, glow and pop are as shipped, for the tiles to wear: every field set, so
--- ns.Style reads nothing from the global styles.
 local NEUTRAL = {}
 for _, kind in ipairs({ "border", "glow", "pop" }) do
 	local spec = S.KINDS[kind]
@@ -54,26 +39,20 @@ for _, kind in ipairs({ "border", "glow", "pop" }) do
 	NEUTRAL[spec.path[1]] = t
 end
 
-------------------------------------------------------------------------
 -- Using a look as a global style
-------------------------------------------------------------------------
 local KIND_NAMES = { border = "border look", glow = "pulsing glow", pop = "pop" }
 local AFTER = {
 	border = K.relayout,
-	-- As the glow and pop blocks' own changes: glows under Blizzard's aura buttons take a style
-	-- through their module's hook.
 	glow = function() ns.Effects.applyStyle(); ns.applyTimers(); ns.Options.refresh() end,
 	pop = function() ns.applyTimers(); ns.Options.refresh() end,
 }
 K.confirm("SHAMANFOREVER_USE_STYLE", "Use %s for the global %s?", "Use", function(run) run() end)
 
--- Writes fields into the global style of kind, then what a change by hand runs.
 local function use(kind, fields)
 	for k, v in pairs(fields) do S.set(nil, kind, k, v) end
 	AFTER[kind]()
 end
 
--- The fields as the cell shows them when asked: the strip may change while the question is open.
 local function askUse(c)
 	local fields = c.fields()
 	StaticPopup_Show("SHAMANFOREVER_USE_STYLE", c.name(), KIND_NAMES[c.kind],
@@ -88,22 +67,16 @@ local function menu(c)
 	end)
 end
 
-------------------------------------------------------------------------
 -- Cells and their tiles
-------------------------------------------------------------------------
--- With All, a cell whose look is the same in every element takes spirit's.
 local ALL, REST = "all", "spirit"
 local function cellSchool(c)
 	return schoolOf(c.school or (view.school == ALL and REST or view.school))
 end
--- Whether a cell shows for the strip's element: one per element with All, else the one cell.
 local function cellShown(c)
 	if c.perSchool == nil then return true end
 	return c.perSchool == (view.school == ALL)
 end
 
--- The shipped settings, but with the Global border: what the glow and pop cells wear, so each looks
--- as it does on an element that follows Global. The border cells show each look on its own.
 local function worn()
 	local b = S.global("border")
 	b.follow = false
@@ -113,7 +86,6 @@ local function worn()
 	return o
 end
 
--- A string that differs when a settings table's contents do.
 local function sigOf(v)
 	if type(v) ~= "table" then return tostring(v) end
 	local parts = {}
@@ -122,7 +94,6 @@ local function sigOf(v)
 	return "{" .. table.concat(parts, ",") .. "}"
 end
 
--- Counts a change of the Global border like a strip change, so the cells wearing it dress again.
 local borderSig
 local function syncBorder()
 	local sig = sigOf(S.read(nil, "border"))
@@ -131,7 +102,6 @@ local function syncBorder()
 	borderSig = sig
 end
 
--- A cell's tile in its look, on shipped settings, in its element, at the strip's size.
 local function dress(c)
 	local sc = cellSchool(c)
 	local own = {}
@@ -146,8 +116,7 @@ local function placeTile(c)
 	c.tile:point("CENTER", c.frame, "TOP", 0, -c.stageH / 2)
 end
 
--- Making a tile takes a while (an icon with its effects); taking a free one back doesn't. At most
--- MAKE_PER_FRAME are made a frame, and the page refreshes the next frame for the rest.
+-- Making a tile takes a while: at most MAKE_PER_FRAME a frame.
 local budget, budgetAt, again = 0, nil, false
 local function mayMake(spare)
 	local _, free = pool.counts()
@@ -165,11 +134,8 @@ local function mayMake(spare)
 	return false
 end
 
-local players = {}   -- tiles that have played in the pop grid: their pops' parts are made
+local players = {}
 
--- A cell takes back the tile it had last time where it can: that one has its look made already.
--- A border or glow cell new to the page leaves the pop grid's players free for it. A pop plays
--- at once, made or not.
 local function isPlayer(t) return tContains(players, t) end
 local function notPlayer(t) return not isPlayer(t) end
 local function takeTile(c, want)
@@ -194,9 +160,6 @@ local function giveTile(c)
 	c.tile = nil
 end
 
--- A pop grid cell at rest: the sample icon in the Global border, drawn by the HUD's own border
--- code (Looks.fit) on a bare icon (a picture and nothing else), set as a tile's icon is, so the tile
--- that plays looks the same under it.
 local function paintStill(c)
 	local st, s = c.still, size()
 	st.box:ClearAllPoints()
@@ -216,11 +179,9 @@ local function paintStill(c)
 	st.box:SetShown(not c.tile)
 end
 
-------------------------------------------------------------------------
--- Playing the pop grid: a few tiles move from cell to cell, each held while its pop plays
-------------------------------------------------------------------------
-local playing = {}   -- cell -> when its pop started
-local warming = {}   -- tiles held while their pops' parts are made, before any play
+-- Playing the pop grid
+local playing = {}
+local warming = {}
 
 local function stopPlay(c)
 	if not playing[c] then return end
@@ -252,7 +213,6 @@ local function play(c)
 	c.tile:pop("ready")
 	c.token = (c.token or 0) + 1
 	local token = c.token
-	-- A slower pop (its preview Speed) is held longer.
 	local hold = HOLD / math.min(preview.pop.speed or 1, 1)
 	C_Timer.After(hold, function() if c.token == token then stopPlay(c) end end)
 end
@@ -261,8 +221,7 @@ local function stopAll()
 	for c in pairs(playing) do stopPlay(c) end
 end
 
--- Before any play, the grid's player tiles are made and popped once with nothing to show (which
--- makes their pops' parts), one a frame, over the first cells, which look the same at rest.
+-- Before any play the player tiles are popped once, so their pops' parts are made.
 local function warm(sec)
 	if #players + #warming >= PLAYERS or not sec.frame:IsVisible() then
 		sec.warming = false
@@ -290,13 +249,7 @@ local function warm(sec)
 	C_Timer.After(0, function() warm(sec) end)
 end
 
-------------------------------------------------------------------------
 -- Cells
-------------------------------------------------------------------------
--- A cell: its frame (the backdrop and the mouse), the tile it holds, and what it shows: kind
--- (border, glow or pop), fields() (the style fields it sets), name() (for the menu and the
--- question), school (its own element, or the strip's) and pop (a pop grid cell: hovering or a
--- click plays it).
 local function newCell(parent, kind, fields, name, pop)
 	local c = { kind = kind, fields = fields, name = name, pop = pop }
 	local f = CreateFrame("Button", nil, parent)
@@ -308,7 +261,6 @@ local function newCell(parent, kind, fields, name, pop)
 		ic.tex = ic:CreateTexture(nil, "ARTWORK")
 		ic.tex:SetAllPoints()
 		ns.cropIconExact(ic.tex)
-		-- Snapped as a tile's picture is, so the tile that plays lands on the same pixels.
 		if ic.tex.SetSnapToPixelGrid then ic.tex:SetSnapToPixelGrid(true) end
 		c.still = { box = box, ic = ic }
 	end
@@ -320,7 +272,6 @@ local function newCell(parent, kind, fields, name, pop)
 	return c
 end
 
--- An element's name in its colour, darker on a light backdrop so it stays readable.
 local function schoolText(sc, light)
 	local c, k = sc.color, light and 0.6 or 1
 	local function hex(x) return math.floor(x * k * 255) end
@@ -342,9 +293,7 @@ local function paintCell(c)
 	if c.label then c.text:SetText(c.label(b.light)) end
 end
 
-------------------------------------------------------------------------
--- Sections: a row of the page holding cells
-------------------------------------------------------------------------
+-- Sections
 local sections = {}
 
 local function give(sec)
@@ -353,10 +302,6 @@ local function give(sec)
 	end
 end
 
--- place(sec, width) lays the cells out and returns the height they take. A section of tiles
--- (border and glow) takes one for each cell while it shows; the pop grid's cells take theirs as
--- they play.
--- The cells sit on sec.box, at the strip's scale.
 local function newSection(p, place, grid)
 	local f = p:row(1)
 	local sec = { frame = f, box = CreateFrame("Frame", nil, f), cells = {}, height = 1, grid = grid }
@@ -371,7 +316,6 @@ local function newSection(p, place, grid)
 		sec.height = h * k
 		local visible = f:IsVisible()
 		syncBorder()
-		-- Cells hidden now give back first, so a cell shown again finds its own tile free.
 		for _, c in ipairs(sec.cells) do
 			if c.tile and not c.frame:IsShown() then
 				if playing[c] then stopPlay(c) else giveTile(c) end
@@ -400,7 +344,6 @@ local function restyleAll()
 	ns.Options.refresh()
 end
 
--- The same, once a run of changes (a slider's drag) has rested a moment.
 local changes = 0
 local function restyleSoon()
 	changes = changes + 1
@@ -409,8 +352,6 @@ local function restyleSoon()
 	C_Timer.After(0.3, function() if changes == this then restyleAll() end end)
 end
 
--- Cells in rows that wrap at the page's width, under each group's title (the border looks'
--- groups), each with its name under it.
 local function flowSection(p, kind, field)
 	local list = S.field(kind, field)
 	local parts = S.sections(kind, field)
@@ -453,10 +394,8 @@ local function flowSection(p, kind, field)
 			g.title:SetText(part.name)
 		end
 		for _, e in ipairs(part.list) do
-			-- A border cell also turns the global border on: it shows one.
 			local fields = kind == "border" and function() return { look = e.key, show = true } end
 				or function() return { [field] = e.key } end
-			-- A look that differs by element: one cell, and one per element for All.
 			local schools = { false }
 			if e.bySchool then for _, sc in ipairs(L.SCHOOLS) do table.insert(schools, sc) end end
 			for _, sc in ipairs(schools) do
@@ -480,10 +419,7 @@ local function flowSection(p, kind, field)
 	return sec
 end
 
-------------------------------------------------------------------------
--- The pop grid: bursts (rows, by group) against motions (columns), each cell with the flash above
-------------------------------------------------------------------------
--- A small text link.
+-- The pop grid
 local function link(parent, text, onClick)
 	local b = CreateFrame("Button", nil, parent)
 	b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -547,7 +483,6 @@ local function popGrid(p)
 	end
 	local function flashName() return S.choice("pop", "flash", view.flash).name end
 	local function colorName() return S.choice("pop", "colorBy", view.colorBy).name:lower() end
-	-- A burst that differs by element: one row, and one per element for All, named for it.
 	local function addRow(b, sc)
 		local row = { cells = {} }
 		row.text = sec.box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -574,7 +509,6 @@ local function popGrid(p)
 			table.insert(sec.cells, c)
 		end
 		function row.shown() return cellShown(row.cells[1]) end
-		-- Play: the row's cells at once.
 		row.play = link(sec.box, "Play", function() for _, c in ipairs(row.cells) do play(c) end end)
 		table.insert(rows, row)
 	end
@@ -585,14 +519,9 @@ local function popGrid(p)
 	return sec
 end
 
-------------------------------------------------------------------------
--- The strip: rows of flat buttons, the chosen one outlined in gold, in a header that stays put
--- while the page scrolls under it
-------------------------------------------------------------------------
+-- The strip
 local HEAD_H, HEAD_LABEL_W, HEAD_COL2 = 162, 84, 300
 
--- A label and its buttons at x, y in parent, choosing view[key]; returns refresh(), which marks
--- the one chosen.
 local function chips(parent, label, items, key, x, y)
 	local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	fs:SetPoint("LEFT", parent, "TOPLEFT", x, y)
@@ -621,7 +550,6 @@ local function chips(parent, label, items, key, x, y)
 	end
 end
 
--- Scale, 100% to 200%, at x, y in parent; returns refresh().
 local function scaleSlider(parent, x, y)
 	local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	fs:SetPoint("LEFT", parent, "TOPLEFT", x, y)
@@ -633,8 +561,6 @@ local function scaleSlider(parent, x, y)
 	value:SetPoint("LEFT", s, "RIGHT", 8, 0)
 	local updating = false
 	s:Init(view.scale, 1, 2, 10)
-	-- The sections take the scale at once; the tiles dress again (their lines on whole pixels at it)
-	-- once the slider has rested a moment, not at every step of a drag.
 	s:RegisterCallback(MinimalSliderWithSteppersMixin.Event.OnValueChanged, function(_, v)
 		if updating then return end
 		v = math.floor(v * 10 + 0.5) / 10
@@ -686,17 +612,12 @@ local function header(p)
 	p:pin(h)
 end
 
-------------------------------------------------------------------------
 -- The page
-------------------------------------------------------------------------
--- The page the full settings are on, as the nav names it, and each kind's block there.
+-- K 24 25 26 27 28 36
 local GLOBAL = "Global settings"
 local BLOCKS = { border = { "border", "Border style" }, glow = { "glow", "Pulsing glow style" },
 	pop = { "pop", "Pop style" } }
 
--- A section's preview sliders, rows { label, field, min, max, step, format, flip } (flip: the slider
--- shows 1 - the value, as Pulse depth does), then a line saying they're a preview, with a link to
--- the block that has them all.
 local function previewRows(p, kind, rows)
 	local shipped = NEUTRAL[S.KINDS[kind].path[1]]
 	for _, r in ipairs(rows) do
@@ -719,8 +640,6 @@ local function previewRows(p, kind, rows)
 	local block = BLOCKS[kind]
 	local go = link(f, GLOBAL .. " > " .. block[2], function() ns.Options.openGlobal(block[1]) end)
 	go:SetPoint("LEFT", text, "RIGHT", 6, 0)
-	-- Reset: the section's preview back to as shipped, at once (nothing saved is lost); shown while
-	-- there is something to reset.
 	local reset = Page.textLink(f, "Reset", function()
 		wipe(preview[kind])
 		restyleAll()
@@ -734,7 +653,7 @@ local function secs(v) return string.format("%.1f s", v) end
 
 function SP.build(p)
 	header(p)
-	p.allOpen = true   -- the gallery is the page: its sections start open
+	p.allOpen = true
 	p:header("Border look")
 	previewRows(p, "border", { { "Border size", "size", 1, 8, 1, px } })
 	flowSection(p, "border", "look")
@@ -747,7 +666,6 @@ function SP.build(p)
 	})
 	flowSection(p, "glow", "look")
 	p:header("Pop")
-	-- The flash every pop in the grid takes.
 	local f = p:row(26)
 	local paint = chips(f, S.field("pop", "flash").name, choiceItems("pop", "flash"), "flash", 4, -13)
 	p:add(f, 26, nil, paint)
