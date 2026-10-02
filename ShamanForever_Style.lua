@@ -51,10 +51,6 @@ S.register("groupframe", {
 	groups = true,   -- groups can have their own
 })
 
--- _Media's names for the bars (ns.Bars, main)
-function S.bar(key) return ns.Bars.get(key) end
-function S.bars() return ns.Bars.list() end
-
 -- An owner's own shipped look, { kind = fields }: it starts not following Global
 function S.setOwnerDefaults(owner, byKind)
 	for kind, d in pairs(byKind) do

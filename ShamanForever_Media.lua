@@ -134,12 +134,12 @@ function M.fontPath(name)
 	return path
 end
 
-local function owner(o) return S.bar(o) and o or nil end
+local function owner(o) return ns.Bars.get(o) and o or nil end
 
 -- Global's, or any bar's
 local function anyOwner(test)
 	if test(nil) then return true end
-	for _, o in ipairs(S.bars()) do if test(o) then return true end end
+	for _, o in ipairs(ns.Bars.list()) do if test(o) then return true end end
 	return false
 end
 
