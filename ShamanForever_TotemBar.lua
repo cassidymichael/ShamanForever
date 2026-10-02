@@ -674,7 +674,9 @@ for set, id in ipairs(SET_CALL) do
 		GameTooltip:Show()
 	end)
 	p:SetScript("OnLeave", function() GameTooltip:Hide() end)
-	p:SetScript("PostClick", function(_, button) if button == "LeftButton" then lockedCue() end end)
+	p:SetScript("PostClick", function(_, button)
+		if button == "LeftButton" and set ~= TS.active() then lockedCue() end
+	end)
 	wrapHover(p)   -- after its scripts: setting a script later would drop the wrap
 	setSlot.popout.buttons[set] = p
 end
