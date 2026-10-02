@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The options window opens faster and uses far less memory.
+
 ## 0.12.0 (2026-10-01)
 
 - Styles explorer: a new page showing every border, glow and pop look side by side; right-click one
