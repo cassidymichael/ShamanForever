@@ -699,7 +699,7 @@ function Host:stylePop(size)
 	ns.try("aura pop style " .. self.key, function()
 		local st = pops and ns.Style.get(self.key, "pop") or NO_POP
 		local school = ns.Looks.effectSchool(self.f)
-		rig:style(st, size, popColor(st, self.aura.popKind or "ready", school), school)
+		rig:style(st, size, popColor(st, "ready", school), school)
 	end)
 	-- Whatever styling did or didn't finish, the parts shown are exactly those marked to play.
 	rig:showParts()
