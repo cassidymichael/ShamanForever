@@ -120,7 +120,7 @@ for _, def in ipairs(BUFFS) do
 		experimental = def.experimental, styles = def.styles })
 end
 
--- Water buff time
+-- A timed buff's time
 local function setUp(def, start, length)
 	def.upUntil = start + length
 	def.frame.upTimer:setTime(start, length)
@@ -151,13 +151,13 @@ local function castOnSelf()
 	return not friend
 end
 
--- Under water without Water Breathing
+-- Under water without the breath buff
 local breathing = false
 local function underWaterWarns(def)
 	return def.breath and breathing and not def.upUntil and setting(def.key, "warn", "on") and not ns.cantAct()
 end
 
--- Elemental Focus
+-- Procs
 local function procIDMap(def)
 	if not def.procIDs then
 		def.procIDs = {}

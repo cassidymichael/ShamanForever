@@ -1,11 +1,11 @@
 -- Kinds and parts
 -- A kind is a family of elements offered the same way: its options page and its preview. A part is
--- one thing an element of a kind can have (a totem in a slot, a reagent, a primed state), declared
--- once: its settings, effects, page words and preview. Kinds and parts register in any file order
--- and every call adds to the earlier ones: a kind's parts and slots lists grow (a name already in
--- one stays where it is), any other field given again replaces the earlier value. A part joins a
--- kind's parts by naming the kind (kind, kinds), so the kind needn't list it. Elements take their
--- parts when the addon has loaded (KD.finish).
+-- one thing an element of a kind can have (a timer, a reagent, a primed state), declared once: its
+-- settings, effects, page words, preview and runtime hooks. Kinds and parts register in any file
+-- order (unless a kind's engine says otherwise) and every call adds to the earlier ones: a kind's
+-- parts and slots lists grow (a name already in one stays where it is), any other field given
+-- again replaces the earlier value. A part joins a kind's parts by naming the kind (kind, kinds),
+-- so the kind needn't list it. Elements take their parts when the addon has loaded (KD.finish).
 
 local _, ns = ...
 
@@ -87,8 +87,8 @@ function KD.slots(kind) return listOf(kind, "slots") end
 --   idles(st, when)    whether st goes idle once its moment has played, at Idle when = when
 --   standIn(ic)        /sf preview made ic, its stand-in: add what render expects on it
 --   hold(ic)           /sf preview paints ic over the element (nil: it ended)
--- A bar's preview drawn on its page's header instead (the totem bar, the swing timer): stage, heroH,
--- build(h), render(h, st, P), stateShown(st), fallback (the state while the shown one is hidden).
+-- A bar's preview, drawn on its page's header instead: stage, heroH, build(h), render(h, st, P),
+-- stateShown(st), fallback (the state while the shown one is hidden).
 local LISTS = { parts = true, slots = true }
 function ns.registerKind(kind, spec)
 	local k = kindOf(kind)
