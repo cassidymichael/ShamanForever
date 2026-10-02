@@ -1,8 +1,6 @@
 -- Totem bar options page
 local _, ns = ...
 
-local TBP = {}
-ns.TotemBarPage = TBP
 
 local K, Page = ns.Options.kit, ns.Page
 local showWhen, setTip = Page.showWhen, Page.setTip
@@ -11,7 +9,7 @@ local pct, times, int, px = Page.pct, Page.times, Page.int, Page.px
 
 local MAX_WARN_ROWS = 32
 
-function TBP.build(p)
+local function build(p)
 	local TB = ns.TotemBar
 	local function c() return TB.cfg() end
 	local changed = K.perFrame(function() TB.applySettings(); ns.Options.refresh() end)
@@ -345,4 +343,4 @@ function TBP.build(p)
 end
 
 ns.Options.registerPage("totembar", { title = "Totem bar", icon = "Interface\\Icons\\Spell_Shaman_DropAll_01",
-	order = 50, build = TBP.build })
+	order = 50, build = build })

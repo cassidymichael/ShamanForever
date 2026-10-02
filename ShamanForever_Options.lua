@@ -42,12 +42,16 @@ local K = {}
 OP.kit = K
 K.perFrame, K.relayout, K.retime, K.reglow, K.respell = perFrame, relayout, retime, reglow, respell
 
--- Pages register at load: title, icon, build, order (top of the nav, and the order they build in),
--- bottom (height above the window's foot, for the nav's lower pages).
-local registered = {}
+-- Pages register at load: title, icon, build, order (the order they build in, and their place in
+-- the top nav), bottom (height above the window's foot: a lower nav page, placed by it, not order).
+local registered, registeredKeys = {}, {}
 function OP.registerPage(key, spec)
-	spec.key = key
-	table.insert(registered, spec)
+	assert(not registeredKeys[key], "page registered twice: " .. tostring(key))
+	assert(spec.title and spec.build, "page needs a title and build: " .. tostring(key))
+	local page = CopyTable(spec)
+	page.key, page.order = key, spec.order or 100
+	registeredKeys[key] = true
+	table.insert(registered, page)
 end
 
 local function newPage(key, title, indent, build)
