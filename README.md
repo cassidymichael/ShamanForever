@@ -74,4 +74,9 @@ The options banners are public-domain paintings: Thomas Moran, *The Chasm of the
 
 ## Licence
 
-MIT, see LICENSE.
+Copyright (C) 2026 Michael Cassidy. ShamanForever is free software: you can redistribute it and/or
+modify it under the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later version. See LICENSE.
+
+Releases up to 0.12.1 were published under the MIT licence. The bundled libraries (LibStub,
+CallbackHandler, LibDataBroker, LibDBIcon) keep their own licences.
