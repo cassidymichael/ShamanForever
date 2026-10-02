@@ -86,9 +86,8 @@ end
 
 local previewOn = false
 
-local PARTS = {
-	{ key = "own", filter = "HELPFUL|PLAYER", color = "rangeIn", level = 1 },
-}
+-- Blizzard's part: lit while you have the buff
+local PART, PART_FILTER = "own", "HELPFUL|PLAYER"
 
 -- partLive keeps the mark dark until our mark and Blizzard's part are styled alike (a layout can't
 -- reach the part while auras are secret)
@@ -98,25 +97,23 @@ end
 
 -- Under the colour, the slice of the buff's icon the strip covers (opaque): what's below is always
 -- hidden, so colours can be see-through
-local function styleButton(s, part)
-	local c, p = TB.cfg(), s.rangeParts[part.key]
+local function styleButton(s)
+	local c, p = TB.cfg(), s.rangePart
 	local ok = ns.try("totem range: style", function()
 		p.button:SetSize(s.rangeW, s.rangeH)
 		local share = math.min(s.rangeH / math.max(s.rangeSize, 1), 1)
 		p.icon:SetTexCoord(0.08, 0.92, 0.08, 0.08 + 0.84 * share)
 		if TB.skin.styleRangeButton(p, s) then return end
-		local k = c[part.color]
+		local k = c.rangeIn
 		p.over.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
 	end)
 	s.rangeStyled = ok and styledFor(s) or nil
 end
 
-local function initButton(s, part, button)
+local function initButton(s, button)
 	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
-	button:SetFrameLevel(s.rangeContainer:GetFrameLevel() + part.level)
-	pcall(button.EnableMouse, button, false)
-	pcall(button.SetMouseClickEnabled, button, false)
-	pcall(button.SetMouseMotionEnabled, button, false)
+	button:SetFrameLevel(s.rangeContainer:GetFrameLevel() + 1)
+	ns.noMouse(button)
 	local icon = button:CreateTexture(nil, "ARTWORK")
 	icon:SetAllPoints()
 	button:SetIcon(icon)
@@ -125,51 +122,38 @@ local function initButton(s, part, button)
 	over:SetFrameLevel(button:GetFrameLevel() + 1)
 	over.bg = over:CreateTexture(nil, "ARTWORK")
 	over.bg:SetAllPoints()
-	s.rangeParts[part.key] = { button = button, icon = icon, over = over }
-	if s.rangeW then styleButton(s, part) end
+	s.rangePart = { button = button, icon = icon, over = over }
+	if s.rangeW then styleButton(s) end
 	if previewOn then icon:SetAlpha(0); over:SetAlpha(0) end
-end
-
-local function styleButtons(s)
-	for _, part in ipairs(PARTS) do
-		if s.rangeParts[part.key] then styleButton(s, part) end
-	end
 end
 
 -- Preview: hide our parts on Blizzard's button (never the container), back at once when it ends
 function R.preview(on)
 	previewOn = on
 	for _, el in ipairs(TB.ELEMENTS) do
-		local s = TB.slots[el]
-		for _, part in ipairs(PARTS) do
-			local p = s.rangeParts and s.rangeParts[part.key]
-			if p then
-				-- p.icon and p.over sit on Blizzard's aura button, which can be forbidden while auras are secret:
-				-- guarded so a refusal can't break the preview's start
-				ns.try("totem range: preview", function()
-					p.icon:SetAlpha(on and 0 or 1)
-					p.over:SetAlpha(on and 0 or 1)
-				end)
-			end
+		local p = TB.slots[el].rangePart
+		if p then
+			-- p.icon and p.over sit on Blizzard's aura button, which can be forbidden while auras are secret:
+			-- guarded so a refusal can't break the preview's start
+			ns.try("totem range: preview", function()
+				p.icon:SetAlpha(on and 0 or 1)
+				p.over:SetAlpha(on and 0 or 1)
+			end)
 		end
 	end
 end
 
 local function makeContainer(s)
-	s.rangeParts, s.rangeSlots = {}, {}
 	local ok, err = pcall(function()
 		local c = CreateFrame("AuraContainer", "ShamanForeverRange" .. TB.NAME[s.el], s.rangeHold, "CustomAuraContainerTemplate")
 		c:SetFrameLevel(s.button:GetFrameLevel() + TB.RANGE_LEVEL + 1)
 		c:SetUnit("player")
 		pcall(c.EnableMouse, c, false)
 		s.rangeContainer = c
-		-- Each part on its own, so one the client refuses can't stop the rest
-		for _, part in ipairs(PARTS) do
-			s.rangeSlots[part.key] = ns.try("totem range: " .. part.key .. " slot", c.AddAuraSlot, c, part.key, part.filter, {
-				candidateFilters = { includeSpellIDs = CopyTable(buffIDs[s.el]) },
-				initializeFrame = function(button) initButton(s, part, button) end,
-			})
-		end
+		s.rangeSlotOK = ns.try("totem range: slot", c.AddAuraSlot, c, PART, PART_FILTER, {
+			candidateFilters = { includeSpellIDs = CopyTable(buffIDs[s.el]) },
+			initializeFrame = function(button) initButton(s, button) end,
+		})
 	end)
 	if not ok then
 		s.rangeError = tostring(err)
@@ -179,7 +163,7 @@ local function makeContainer(s)
 end
 
 local function partLive(s)
-	return s.rangeShown and not s.rangeError and s.rangeParts.own ~= nil and s.rangeSlots.own == true
+	return s.rangeShown and not s.rangeError and s.rangePart ~= nil and s.rangeSlotOK == true
 		and s.rangeStyled == styledFor(s)
 end
 
@@ -203,20 +187,32 @@ local function place(s, size, ownOnly)
 	ct:SetAlpha(1)
 	ct:Show()
 	s.rangeShown = true
-	styleButtons(s)
+	if s.rangePart then styleButton(s) end
 end
 
 local function applyFilter(s)
 	local c = s.rangeContainer
-	if not c or not ns.aurasReadable() then return end
-	for _, part in ipairs(PARTS) do
-		if s.rangeSlots[part.key] then
-			ns.try("totem range: filter", c.SetAuraSlotCandidateFilters, c, part.key, { includeSpellIDs = CopyTable(buffIDs[s.el]) })
-		end
-	end
+	if not c or not s.rangeSlotOK or not ns.aurasReadable() then return end
+	ns.try("totem range: filter", c.SetAuraSlotCandidateFilters, c, PART,
+		{ includeSpellIDs = CopyTable(buffIDs[s.el]) })
 end
 
--- Ranks not listed: a buff whose name is the client's name for a listed buff is another rank of it
+-- Learned ranks, kept for the account: acct.rangeBuffIDs[el][id]
+local function sanitize(_, acct)
+	if type(acct.rangeBuffIDs) ~= "table" then acct.rangeBuffIDs = {} end
+	local saved = acct.rangeBuffIDs
+	for el, ids in pairs(saved) do
+		if buffIDs[el] and type(ids) == "table" then
+			for id, on in pairs(ids) do
+				if type(id) == "number" and on == true then buffIDs[el][id] = true else ids[id] = nil end
+			end
+		else saved[el] = nil end
+	end
+end
+ns.registerModule({ name = "totem range", sanitize = sanitize })
+
+-- Ranks not listed: a buff whose name is the client's name for a listed buff is another rank of it.
+-- Kept for the account: one read out of combat serves later sessions.
 local names = {}
 local function learn()
 	if not ns.aurasReadable() or not ns.isClass() or not enabled() then return end
@@ -237,6 +233,9 @@ local function learn()
 		local id = a.spellId
 		if el and not isSecret(id) and type(id) == "number" and not buffIDs[el][id] then
 			buffIDs[el][id] = true
+			local saved = ns.getAccount().rangeBuffIDs
+			saved[el] = saved[el] or {}
+			saved[el][id] = true
 			applyFilter(TB.slots[el])
 		end
 	end
