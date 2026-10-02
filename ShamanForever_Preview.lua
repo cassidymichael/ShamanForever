@@ -422,9 +422,7 @@ end
 -- Ends when combat starts: PLAYER_REGEN_DISABLED comes before lockdown, so the layout that restores
 -- the real HUD runs at once
 function PV.start()
-	local ev = CreateFrame("Frame")
-	ns.registerEvent(ev, "PLAYER_REGEN_DISABLED")
-	ev:SetScript("OnEvent", function()
+	ns.onCombatStart(function()
 		if not on then return end
 		PV.close(true)
 		say("preview off for combat")

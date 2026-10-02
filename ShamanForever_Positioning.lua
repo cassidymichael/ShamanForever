@@ -280,15 +280,12 @@ nudger:SetScript("OnUpdate", function(self, elapsed)
 	end
 end)
 nudger:SetScript("OnHide", function(self) self.held = nil end)
--- Hidden frames still get events: hide at the start of combat, back after
-nudger:SetScript("OnEvent", function(self, event)
-	if event == "PLAYER_REGEN_DISABLED" then
-		self:Hide()
-		if ns.isActive() and not acct().locked then PO.lockInCombat(); say("positioning locked for combat") end
-	else syncNudger() end
+-- Hidden at the start of combat, back after
+ns.onCombatStart(function()
+	nudger:Hide()
+	if ns.isActive() and not acct().locked then PO.lockInCombat(); say("positioning locked for combat") end
 end)
-ns.registerEvent(nudger, "PLAYER_REGEN_DISABLED")
-ns.registerEvent(nudger, "PLAYER_REGEN_ENABLED")
+ns.onCombatEnd(syncNudger)
 
 -- The bar while unlocked
 local wasUnlocked, optionsSteppedAside = false, false
