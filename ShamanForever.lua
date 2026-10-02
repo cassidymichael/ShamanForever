@@ -839,7 +839,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		reg("UNIT_SPELLCAST_SUCCEEDED", "player")
 		reg("SPELL_UPDATE_COOLDOWN")
 		reg("SPELLS_CHANGED")
-		reg("PLAYER_REGEN_ENABLED")
+		ns.onCombatEnd(refreshAll)
 		-- A restriction ended (a match, an encounter): auras may be readable with no combat end to say so;
 		-- skipped when a refresh since already read everything
 		ns.onRestrictionEnd(function(endedAt)
@@ -868,8 +868,6 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		-- Fires often (shapeshifts, zoning): relayout only when a tracked spell changed
 		local found = resolveSpells()
 		if found ~= lastSpells then lastSpells = found; applyLayout() end
-		refreshAll()
-	elseif event == "PLAYER_REGEN_ENABLED" then
 		refreshAll()
 	end
 end)
