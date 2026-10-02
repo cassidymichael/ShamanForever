@@ -543,11 +543,6 @@ function ClipLook:reshape()
 	self.glow:restyle()
 end
 
-local function sensorFilters(o)
-	if o.candidates then return o.candidates() end
-	return { includeSpellIDs = o.ids() }
-end
-
 local function clipTo(self, c)
 	self.clip:ClearAllPoints()
 	if self.opts.invert then
@@ -565,7 +560,7 @@ function ClipLook:setup()
 	if ns.deferWhileAurasSecret(o.sites.container, function() self:setup() end) then return end
 	local size = ns.sizeOf(o.key)
 	local w = cellWidth(size, self.frame, o)
-	local filters = sensorFilters(o)
+	local filters = candidates(o)
 	local unit = type(o.unit) == "function" and o.unit() or o.unit or "player"
 	local ok, err = pcall(function()
 		local c = CreateFrame("AuraContainer", nil, o.sensorParent, "CustomAuraContainerTemplate")
@@ -666,7 +661,7 @@ function ClipLook:refilter()
 	if not self.container or self.err then return end
 	local o = self.opts
 	if ns.deferWhileAurasSecret(o.sites.filter, function() self:refilter() end) then return end
-	local filters = sensorFilters(o)
+	local filters = candidates(o)
 	if filterSig(filters) == self.applied then return end
 	self:wait()
 	if ns.try(o.sites.filter, self.container.SetAuraGroupCandidateFilters, self.container, o.key, filters) then
