@@ -904,3 +904,30 @@ K.toggleBlock = toggleBlock
 K.elementDisplay, K.idleBlock, K.lookBlocks, K.reagentBlocks = elementDisplay, idleBlock, lookBlocks, reagentBlocks
 K.warnBlock, K.readyBlock, K.activeBlock, K.expiringBlock, K.killedBlock = warnBlock, readyBlock, activeBlock,
 	expiringBlock, killedBlock
+
+-- A parts page's builders: a slot's block, fn(p, def, words), and a block a part asks for in the own
+-- slot, fn(p, def, spec); the standard ones are below, calling the kit's blocks as they stand
+local SLOTS, OWNS = {}, {}
+function K.registerSlot(name, fn) SLOTS[name] = fn end
+function K.registerOwn(name, fn) OWNS[name] = fn end
+function K.slotBuilder(name) return SLOTS[name] end
+function K.ownBuilder(name) return OWNS[name] end
+-- An own block's name: the spec itself, or its first field
+function K.ownName(b) return type(b) == "table" and b[1] or b end
+
+K.registerOwn("reagent", function(p, def) K.reagentBlocks(p, def) end)
+K.registerOwn("toggle", function(p, def, b) K.toggleBlock(p, def.key, b) end)
+K.registerSlot("own", function(p, def, list)
+	for _, b in ipairs(list) do
+		local build = OWNS[K.ownName(b)]
+		if build then build(p, def, b) end
+	end
+end)
+K.registerSlot("warn", function(p, def, o) K.warnBlock(p, def.key, o) end)
+K.registerSlot("cooldown", function(p, def, title) K.timerSettings(p, title, def.key, "cooldown") end)
+K.registerSlot("gcd", function(p, def) K.gcdBlock(p, def.key) end)
+K.registerSlot("uptime", function(p, def, title) K.timerSettings(p, title, def.key, "uptime") end)
+K.registerSlot("ready", function(p, def, o) K.readyBlock(p, def.key, o) end)
+K.registerSlot("active", function(p, def, o) K.activeBlock(p, def.key, o) end)
+K.registerSlot("expire", function(p, def, o) K.expiringBlock(p, def.key, o) end)
+K.registerSlot("killed", function(p, def, o) K.killedBlock(p, def.key, o) end)

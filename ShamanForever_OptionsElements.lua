@@ -6,10 +6,7 @@ ns.ElementPages = EP
 
 local K = ns.Options.kit
 local SHOW_CHOICES = K.SHOW_CHOICES
-local timerSettings, gcdBlock = K.timerSettings, K.gcdBlock
-local elementDisplay, idleBlock, lookBlocks, reagentBlocks = K.elementDisplay, K.idleBlock, K.lookBlocks, K.reagentBlocks
-local warnBlock, readyBlock, activeBlock = K.warnBlock, K.readyBlock, K.activeBlock
-local expiringBlock, killedBlock = K.expiringBlock, K.killedBlock
+local elementDisplay, idleBlock, lookBlocks = K.elementDisplay, K.idleBlock, K.lookBlocks
 
 local function db() return ns.getDB() end
 
@@ -259,36 +256,16 @@ function EP.buildOverview(p)
 	end
 end
 
--- A kind made of parts: Display and Idle, its slots' standard blocks with its parts' words, then the
--- look blocks
-local OWN = {
-	reagent = function(p, def) reagentBlocks(p, def) end,
-	toggle = function(p, def, b) K.toggleBlock(p, def.key, b) end,
-}
-local SLOT = {
-	own = function(p, def, list)
-		for _, b in ipairs(list) do
-			local name = type(b) == "table" and b[1] or b
-			OWN[name](p, def, b)
-		end
-	end,
-	warn = function(p, def, o) warnBlock(p, def.key, o) end,
-	cooldown = function(p, def, title) timerSettings(p, title, def.key, "cooldown") end,
-	gcd = function(p, def) gcdBlock(p, def.key) end,
-	uptime = function(p, def, title) timerSettings(p, title, def.key, "uptime") end,
-	ready = function(p, def, o) readyBlock(p, def.key, o) end,
-	active = function(p, def, o) activeBlock(p, def.key, o) end,
-	expire = function(p, def, o) expiringBlock(p, def.key, o) end,
-	killed = function(p, def, o) killedBlock(p, def.key, o) end,
-}
+-- A kind made of parts: Display and Idle, its slots' blocks (K.registerSlot) with its parts' words,
+-- then the look blocks
 local function partsPage(p, def)
 	local key = def.key
 	local kind = ns.ELEMENTS[key].kind
 	elementDisplay(p, key)
 	idleBlock(p, def)
 	for _, slot in ipairs(ns.Kinds.slots(kind)) do
-		local words = ns.Kinds.slot(kind, def, slot)
-		if words ~= nil then SLOT[slot](p, def, words) end
+		local words, build = ns.Kinds.slot(kind, def, slot), K.slotBuilder(slot)
+		if words ~= nil and build then build(p, def, words) end
 	end
 	lookBlocks(p, key)
 end
