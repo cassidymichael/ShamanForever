@@ -48,6 +48,7 @@ S.register("groupframe", {
 	defaults = { look = "none", color = { 1, 1, 1, 1 }, alpha = 1 },
 	ranges = { alpha = { 0.1, 1 } },
 	path = { "groupFrameStyle" },
+	groups = true,   -- groups can have their own
 })
 
 -- Bars: owners with a settings table of their own, not an element's, in the order they register.
@@ -340,6 +341,12 @@ end
 
 function S.ownStyles(kind)
 	local out = {}
+	if S.KINDS[kind].groups then
+		local db = ns.getDB()
+		for _, g in ipairs(db and db.groups or {}) do
+			if #g.members > 0 and not S.follows(g, kind) then table.insert(out, S.ownerName(g)) end
+		end
+	end
 	for _, key in ipairs(S.KINDS[kind].users) do
 		local b = BARS[key]
 		local offered = not b or b.on()

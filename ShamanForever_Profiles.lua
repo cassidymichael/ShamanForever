@@ -168,6 +168,11 @@ local function cleanProfile(t)
 		if type(t[k]) == type(default) then out[k] = t[k] end
 	end
 	clampNumbers(out, RANGES, DEFAULTS)
+	for _, kind in ipairs({ "frame", "groupframe" }) do
+		local spec = ns.Style.KINDS[kind]
+		local name = spec.path[1]
+		if type(t[name]) == "table" then out[name] = ns.Style.clean(t[name], spec.defaults, spec.ranges) end
+	end
 	for k, default in pairs(DEFAULTS) do
 		if ns.isColor(default) and out[k] and not ns.isColor(out[k]) then out[k] = nil end
 	end
@@ -196,6 +201,7 @@ local function cleanProfile(t)
 				end
 				if type(g.name) == "string" then clean.name = ns.utf8Cut(g.name, ns.MAX_GROUP_NAME) end
 				clean.border = ns.Style.cleanOwn(g.border, "border")
+				clean.groupFrameStyle = ns.Style.cleanOwn(g.groupFrameStyle, "groupframe")
 				for _, key in ipairs(type(g.members) == "table" and g.members or {}) do
 					if type(key) == "string" then table.insert(clean.members, key) end
 				end
