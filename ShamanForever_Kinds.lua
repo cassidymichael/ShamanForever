@@ -26,19 +26,19 @@ end
 local function kindOf(kind)
 	local k = KINDS[kind]
 	if not k then
-		k = { parts = {}, slots = {}, joins = { parts = {}, slots = {} } }
+		k = { parts = {}, slots = {}, joins = {} }
 		KINDS[kind] = k
 	end
 	return k
 end
--- A name joining a kind's list: after (a name in it) or order (its place), else at the end
-local function join(kind, list, name, at)
+-- A part joining a kind's parts: after (a part in them), else at the end
+local function join(kind, name, after)
 	local k = kindOf(kind)
-	table.insert(k.joins[list], { name = name, after = at.after, order = at.order })
+	table.insert(k.joins, { name = name, after = after })
 	k.resolved = nil
 end
--- A kind's list with the names that joined it: anchored ones after their anchor (anchors can be
--- joined names themselves), then those with an order, then the rest in the order they joined
+-- A kind's parts with the parts that joined them: anchored ones after their anchor (anchors can be
+-- joined parts themselves), then the rest in the order they joined
 local function resolve(base, joins)
 	local list, pending = {}, {}
 	for _, n in ipairs(base) do table.insert(list, n) end
@@ -56,22 +56,17 @@ local function resolve(base, joins)
 			end
 		end
 	end
-	local ordered = {}
-	for _, j in ipairs(pending) do if j and j.order then table.insert(ordered, j) end end
-	table.sort(ordered, function(a, b) return a.order < b.order end)
-	for _, j in ipairs(ordered) do table.insert(list, math.min(j.order, #list + 1), j.name) end
 	for _, j in ipairs(pending) do
-		if j and not j.order and not indexOf(list, j.name) then table.insert(list, j.name) end
+		if j and not indexOf(list, j.name) then table.insert(list, j.name) end
 	end
 	return list
 end
--- A kind's parts and its page's slots, with every name that joined them
+-- A kind's parts, with every part that joined them, and its page's slots
 local function listOf(kind, name)
 	local k = KINDS[kind]
 	if not k then return NONE end
 	if not k.resolved then
-		k.resolved = { parts = resolve(k.parts, k.joins.parts),
-			slots = resolve(k.slots, k.joins.slots) }
+		k.resolved = { parts = resolve(k.parts, k.joins), slots = k.slots }
 	end
 	return k.resolved[name]
 end
@@ -109,14 +104,13 @@ end
 function KD.get(kind) return KINDS[kind] end
 
 -- spec (each field optional; a value may be a function of def):
---   kind, after/order a kind it joins: after a part in its list, or at a place in it (else at
---                     the end); kinds = { [kind] = { after, order } } for several
---   addSlot           { slot, after, order }: a page slot it brings to the kinds it joins
+--   kind, after       a kind it joins: after a part in its list (else at the end); kinds =
+--                     { [kind] = { after } } for several
 --   has(def)          whether def has it; without it the part's name doubles as the row flag:
 --                     def[name] set (not nil or false) means it has it
 --   defaults, ranges  its settings' defaults and { min, max, step } (the shapes: _Profiles)
 --   glow, pop         whether it adds a pulsing glow or a pop (its page then offers their style
---                     blocks); popKind: the pop it plays
+--                     blocks)
 --   idle              words for the Idle block: choices, held (what keeps it shown, for its
 --                     kind's own choices), also, text, extra
 --   page              by slot: a title (timers), the slot's block options, or for own a block
@@ -129,12 +123,8 @@ function ns.registerPart(name, spec)
 	PARTS[name] = merge(PARTS[name] or {}, spec)
 	PARTS[name].name = name
 	local kinds = spec.kinds or {}
-	if spec.kind then kinds[spec.kind] = { after = spec.after, order = spec.order } end
-	for kind, at in pairs(kinds) do
-		join(kind, "parts", name, at)
-		local slot = spec.addSlot
-		if slot then join(kind, "slots", slot[1], slot) end
-	end
+	if spec.kind then kinds[spec.kind] = { after = spec.after } end
+	for kind, at in pairs(kinds) do join(kind, name, at.after) end
 end
 
 local function value(v, def)
@@ -231,8 +221,7 @@ local function finishOne(e)
 		glow = glow or value(p.glow, def) and true or false
 		pop = pop or value(p.pop, def) and true or false
 	end
-	local popKind = firstOf(list, function(p) return p.popKind end)
-	e.effects = { glow = glow, pop = pop, popKind = popKind }
+	e.effects = { glow = glow, pop = pop }
 	fillIdle(def, list)
 end
 -- Each element on its own: one that fails is noted and the rest go on
