@@ -786,6 +786,8 @@ end
 TB.extraSides = extraSides
 function TB.extraTexture(key) return C_Spell.GetSpellTexture(key == "Call" and SET_CALL[sets.active] or RECALL) end
 function TB.extraLearned(key) return knows(key == "Call" and CALL or RECALL) end
+-- The active set and how many are known
+function TB.sets() return sets.active, sets.count end
 
 local function hover(s, arrows)
 	if arrows == nil then arrows = feat("arrows") end
