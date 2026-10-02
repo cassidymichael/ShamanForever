@@ -23,7 +23,7 @@ local SHARE_VERSION = 7
 
 -- Element settings (db.elementOpts[key]). A state or event is a table of fields, named the same on
 -- every element; an element's defaults declare the fields it has, and pages offer those.
---   warn    = { on, grey, ring, fade, tint, glow, pop, sound }   something is missing (No shield)
+--   warn    = { on, grey, ring, fade, tint, glow, pop, sound }   something is missing (a buff)
 --   active  = { pop, glow, text, sound }   something to use or act on (primed, a proc, five stacks)
 --   ready   = { pop, glow, sound, blocked }   the cooldown ends; glow while it's ready; blocked: the
 --             pop when it ends but can't be used now (grey | none)
@@ -33,9 +33,9 @@ local SHARE_VERSION = 7
 --   count   = { bar, barHeight, barColor, number, pos, size, mark, markColor }   charges or stacks
 --   reagent = { when, low, lowKeepsShown, color, lowColor, size, pos, x, y, ring, fade }
 -- grey, ring, fade, tint and glow are the looks a state shows; pop and sound play once, as it
--- starts: warn.pop and warn.sound as the warning begins (an imbue lost, a shield gone). The totem
--- bar's own settings use the same tables (expire, ended, killed). The effect and pop kind names
--- (warning, ranout, expired, grounded, killed, primed, ready) are a separate runtime set.
+-- starts: warn.pop and warn.sound as the warning begins (a buff lost). A bar's own settings use the
+-- same tables (expire, ended, killed). The effect and pop kind names (warning, ranout, expired,
+-- grounded, killed, primed, ready) are a separate runtime set.
 
 -- Renamed settings, moved as a profile loads or is imported. Drop after launch.
 -- root: a profile key -> element, name, field; element: within any element's settings, name (or
@@ -284,6 +284,7 @@ end
 local RANGES = { iconSize = { 24, 96 } }
 local GROUP_RANGES = { scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { -20, 40 }, size = { 24, 96 },
 	x = { -10000, 10000 }, y = { -10000, 10000 }, fadeAfter = { 0, 10 } }
+P.RANGES, P.GROUP_RANGES = RANGES, GROUP_RANGES
 local function clampNumbers(t, ranges, defaults)
 	for k, r in pairs(ranges) do
 		local v = t[k]
@@ -339,9 +340,9 @@ function P.cleanSettings(profile)
 			end
 		end
 	end
-	for _, name in ipairs(ns.Style.bars()) do
-		local bar = ns.Style.bar(name)
-		local t = bar.saved and profile[bar.saved]
+	for _, name in ipairs(ns.Bars.list()) do
+		local bar = ns.Bars.get(name)
+		local t = profile[bar.saved]
 		if type(t) == "table" then dropMistyped(t, bar.defaults) end
 	end
 end
@@ -352,6 +353,10 @@ local function cleanProfile(t)
 	local out = {}
 	for k, default in pairs(DEFAULTS) do
 		if type(t[k]) == type(default) then out[k] = t[k] end
+	end
+	for _, key in ipairs(ns.Bars.list()) do
+		local saved = ns.Bars.get(key).saved
+		if type(t[saved]) == "table" then out[saved] = t[saved] end
 	end
 	clampNumbers(out, RANGES, DEFAULTS)
 	for _, kind in ipairs({ "frame", "groupframe" }) do

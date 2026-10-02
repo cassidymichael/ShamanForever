@@ -75,8 +75,6 @@ local DEFAULTS = {
 	},
 	known = {},
 	elementOpts = {},
-	totemBar = {},
-	swingBar = {},
 	timers = { cooldown = CopyTable(ns.Timer.DEFAULTS.cooldown), uptime = CopyTable(ns.Timer.DEFAULTS.uptime) },
 }
 local RETIRED_KEYS = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "popMotion", "popSize", "popSpeed",
@@ -126,6 +124,52 @@ function ns.registerElement(key, e)
 	ELEMENTS[key] = e
 	if not tContains(ELEMENT_KEYS, key) then table.insert(ELEMENT_KEYS, key) end
 end
+
+-- Bars: a frame with settings of its own that isn't an element, in the order they register
+-- (ns.Bars.get, list). A module and its options file each give their half; a later value wins.
+-- Module (its half comes first): label; noun (how a sentence names it; "the " .. its lower-case
+-- label by default); the style side (ns.Style): cfg(), saved (required: the profile key holding its
+-- table), defaults, ranges (its numbers' { min, max, step }, shaped as defaults), on() (it is in use:
+-- its styles are offered), kinds (style kinds it can have its own of), ownLabel(kind) (its name when
+-- it draws that style itself); movable = { frame, nudge(dx, dy), lock() } (positioning); hud = {
+-- show(opts), slots, steps(slot, mode), step(slot, state, at, range, moment) }: /sf preview on the
+-- bar itself, show(nil) as it ends, each slot looping through its steps like an element, step
+-- returning when it ends.
+-- Options: icon, school, blurb, tags() and preview (its page header: a stage, as _Kinds says); page
+-- = { order, build } (titled and iconned as the bar); experiments = { { name, where } } (About's
+-- list); ownSize() (its icon size isn't Global's); tiles = { icon, schools, border() } (its style
+-- blocks' sample tiles: their icon, the schools they show (else all), their border; none: no tiles)
+local BARS, BAR_ORDER = {}, {}
+local Bars = {}
+ns.Bars = Bars
+function Bars.get(key) return BARS[key] end
+function Bars.list() return BAR_ORDER end
+-- How sentences name the bars test(bar) picks ("the swing timer"), in register order, after lead
+function Bars.nouns(test, lead)
+	local out = { lead }
+	for _, key in ipairs(BAR_ORDER) do
+		if not test or test(BARS[key]) then table.insert(out, BARS[key].noun) end
+	end
+	return out
+end
+function ns.registerBar(key, spec)
+	local bar = BARS[key]
+	if not bar then
+		-- Without the module's half its file failed to load: there is no bar
+		if not spec.saved then return end
+		bar = {}
+		BARS[key] = bar
+		table.insert(BAR_ORDER, key)
+	end
+	for k, v in pairs(spec) do bar[k] = v end
+	if not spec.noun and spec.label then bar.noun = "the " .. spec.label:lower() end
+	if spec.movable then ns.Positioning.addMovable(spec.movable) end
+	if spec.page then
+		ns.Options.registerPage(key, { title = bar.label, icon = bar.icon, order = spec.page.order,
+			build = spec.page.build })
+	end
+end
+
 -- An element's icon: opts.effects gives it an effects layer that ignores the icon's alpha (glows and
 -- flashes stay full when it idles) and takes its group's opacity instead (layoutGroup). f.stack()
 -- restates frame levels, bottom up: icon, its art frame (ns.Frames.LEVEL.over), effects and glow,
@@ -160,7 +204,7 @@ end
 --   applyLayout()          after a layout
 --   afterGroups()          the groups were just laid out
 --   refresh()              read everything again
---   onCooldowns(inEvent)   a cast, cooldown or totem changed
+--   onCooldowns(inEvent)   a cast, a cooldown or a module's own state changed
 --   tick()                 once a second
 --   onCast(spellID)        our own successful cast
 --   debug()                its part of /sf debug
@@ -465,11 +509,11 @@ local function groupFrame(id)
 	return f
 end
 
--- Combat-only visibility uses Blizzard's secure state driver. The shield's group and element frames
--- are ancestors of Blizzard's protected aura button, so an addon Show/Hide/SetAlpha on them is
--- dropped in combat. The manager re-applies its state every 0.2 s and won't show a frame it lets go
--- of, so a driven frame is never shown or hidden by hand. Out of combat only. Groups and elements
--- are driven separately: an element shows only when both allow it.
+-- Combat-only visibility uses Blizzard's secure state driver. A group and element holding
+-- Blizzard's protected aura button are its ancestors, so an addon Show/Hide/SetAlpha on them is
+-- dropped in combat. The manager re-applies its state every 0.2 s and won't show a frame it lets
+-- go of, so a driven frame is never shown or hidden by hand. Out of combat only. Groups and
+-- elements are driven separately: an element shows only when both allow it.
 local driven = {}
 local function setDriven(frame, when)
 	when = when or nil
@@ -541,7 +585,7 @@ local function afterCombat(gf)
 end
 
 -- Every member anchors to the group frame, never to another: a frame a protected frame anchors to
--- may turn protected too (the shield's button), so a chain could stop members changing in combat.
+-- may turn protected too (Blizzard's aura button), so a chain could stop members changing in combat.
 -- A member's Size is its box, border included; its art frame hangs where its border is drawn.
 local function layoutGroup(g)
 	local gf = groupFrame(g.id)
@@ -618,7 +662,7 @@ local function layoutGroup(g)
 	if n > 0 then showFrame(gf, groupWhen(g, gf)) else hideFrame(gf) end
 end
 
--- Deferred in combat: the shield's group is an ancestor of Blizzard's protected button
+-- Deferred in combat: a group can be an ancestor of Blizzard's protected aura button
 local function layoutElements()
 	if ns.deferInCombat("layout", layoutElements) then return end
 	for key, e in pairs(ELEMENTS) do
@@ -685,9 +729,9 @@ local function refreshAll()
 	each("refresh")
 end
 
--- A cast, a cooldown update and a totem update come in the same frame: SPELL_UPDATE_COOLDOWN
--- refreshes at once (isOnGCD is only vouched for inside it), the others wait a frame, by then with
--- the cast's totem owner
+-- A cast, a cooldown update and a module's own update come in the same frame:
+-- SPELL_UPDATE_COOLDOWN refreshes at once (isOnGCD is only vouched for inside it), the others wait
+-- a frame, by then with what the cast changed
 local cooldownsDirty = false
 local function flushCooldowns(inEvent)
 	cooldownsDirty = false
@@ -798,6 +842,10 @@ local function selectProfile(name)
 	for _, k in ipairs(RETIRED_KEYS) do db[k] = nil end
 	ns.Profiles.migrate(db)   -- renamed settings: drop after launch
 	fillDefaults(db, DEFAULTS)
+	for _, key in ipairs(BAR_ORDER) do
+		local saved = BARS[key].saved
+		if db[saved] == nil then db[saved] = {} end
+	end
 	sanitize()
 	ns.Profiles.remember(name)
 end

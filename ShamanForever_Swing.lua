@@ -71,9 +71,6 @@ end
 SW.cfg = cfg
 
 function SW.isOn() return ns.isActive() and cfg().show ~= "never" end
-ns.Style.registerBar("swing", { cfg = cfg, saved = "swingBar", defaults = SW.DEFAULTS, label = "Swing timer",
-	on = SW.isOn, kinds = { "border", "text", "bar" } })
-
 
 SW.BACKGROUND = { 0, 0, 0, 0.6 }
 function SW.makeBar(parent)
@@ -121,7 +118,6 @@ function SW.border() return ns.borderFor("swing") end
 local f = CreateFrame("Frame", nil, UIParent)
 f:SetSize(SW.DEFAULTS.width, SW.DEFAULTS.height)
 f:Hide()
-SW.frame = f
 local face = CreateFrame("Frame", nil, f)
 face:SetAllPoints()
 face:Hide()
@@ -310,7 +306,9 @@ pvFrame:SetScript("OnUpdate", function()
 	end
 end)
 
-function SW.preview(mode)
+-- opts: the preview's (its mode); nil as it ends
+local function showPreview(opts)
+	local mode = opts and opts.mode
 	if mode and not PREVIEW_SWINGS[mode] then mode = nil end
 	local was = pv.mode
 	pv.mode, pv.action, pv.count, pv.nextAt = mode, "swing", 0, 0
@@ -343,7 +341,6 @@ function movable.lock()
 	ns.Positioning.endSnap()
 	drawFace()
 end
-ns.Positioning.addMovable(movable)
 
 local function dragUpdate(self)
 	if InCombatLockdown() then movable.lock() return end
@@ -420,4 +417,7 @@ function SW.debug()
 		left and (left > 0 and string.format("next in %.1f s", left) or "due") or "no swing under way")
 end
 
+ns.registerBar("swing", { label = "Swing timer", cfg = cfg, saved = "swingBar", defaults = SW.DEFAULTS,
+	ranges = RANGES, on = SW.isOn, kinds = { "border", "text", "bar" }, movable = movable,
+	hud = { show = showPreview } })
 ns.registerModule(SW)

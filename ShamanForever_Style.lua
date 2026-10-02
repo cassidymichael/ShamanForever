@@ -25,7 +25,7 @@ S.register("pop", {
 	defaults = { colorBy = "event", flash = "plain", burst = "star", motion = "shakeV", size = 1.4, speed = 1,
 		reach = 1 },
 	ranges = { reach = { 0.6, 1.3 } },
-	path = { "popStyle" },   -- not "pop": the totem bar's pop is where its pickers open
+	path = { "popStyle" },   -- not "pop": a bar may have its own setting of that name
 })
 -- Global cooldown sweep
 S.register("gcd", {
@@ -51,17 +51,9 @@ S.register("groupframe", {
 	groups = true,   -- groups can have their own
 })
 
--- Bars: owners with a settings table of their own, not an element's, in the order they register.
--- spec: cfg(), saved (the profile key holding its table), defaults, ranges (optional: its numbers'
--- { min, max, step }, shaped as defaults), label, on() (its styles are offered now), kinds (style
--- kinds it can have its own of), ownLabel(kind) (optional: its name when it draws that style itself)
-local BARS, BAR_ORDER = {}, {}
-function S.registerBar(key, spec)
-	BARS[key] = spec
-	table.insert(BAR_ORDER, key)
-end
-function S.bar(key) return BARS[key] end
-function S.bars() return BAR_ORDER end
+-- _Media's names for the bars (ns.Bars, main)
+function S.bar(key) return ns.Bars.get(key) end
+function S.bars() return ns.Bars.list() end
 
 -- An owner's own shipped look, { kind = fields }: it starts not following Global
 function S.setOwnerDefaults(owner, byKind)
@@ -187,7 +179,8 @@ local function holder(owner)
 	if type(owner) == "table" then return owner end
 	local db = ns.getDB()
 	if not db or owner == nil then return db end
-	if BARS[owner] then return BARS[owner].cfg() end
+	local bar = ns.Bars.get(owner)
+	if bar then return bar.cfg() end
 	return ns.elementOpts(owner)
 end
 
@@ -335,7 +328,8 @@ end
 
 function S.ownerName(owner)
 	if type(owner) == "table" then return owner.name or "A group" end
-	if BARS[owner] then return BARS[owner].label end
+	local bar = ns.Bars.get(owner)
+	if bar then return bar.label end
 	return ns.Look.elementName(owner)
 end
 
@@ -348,7 +342,7 @@ function S.ownStyles(kind)
 		end
 	end
 	for _, key in ipairs(S.KINDS[kind].users) do
-		local b = BARS[key]
+		local b = ns.Bars.get(key)
 		local offered = not b or b.on()
 		local own = offered and b and b.ownLabel and b.ownLabel(kind)
 		if own then table.insert(out, own)

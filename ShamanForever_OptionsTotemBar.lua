@@ -1,13 +1,285 @@
 -- Totem bar options page
 local _, ns = ...
 
-
-local K, Page = ns.Options.kit, ns.Page
+local K, Page, L = ns.Options.kit, ns.Page, ns.Look
 local showWhen, setTip = Page.showWhen, Page.setTip
 local LABEL_W = Page.LABEL_W
 local pct, times, int, px = Page.pct, Page.times, Page.int, Page.px
 
 local MAX_WARN_ROWS = 32
+
+-- Header: the bar is its stage, drawn at real size, shrunk only to fit
+local POP_ITEMS = 3
+local PREVIEW
+PREVIEW = {
+	stage = true, heroH = 210, uptime = true,
+	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" }, { "killed", "Killed early" },
+		{ "range", "Out of range" }, { "offpick", "Not your pick" }, { "picking", "Picking" } },
+	stateShown = function(st)
+		local c = ns.TotemBar.cfg()
+		local mode = c.mode
+		if mode == "blizzard" then return false end
+		if st == "range" then return c.range end
+		return mode == "everything" or (st ~= "offpick" and st ~= "picking")
+	end,
+	fallback = "down",
+	pop = function(h, st) if st == "killed" and h.popIcon then h.popIcon:Pop("killed") end end,
+	build = function(h)
+		h.area = CreateFrame("Frame", nil, h)
+		h.area:SetPoint("TOPLEFT", h, "TOPLEFT", 40, -58)
+		h.area:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -40, 12)
+		local bar = CreateFrame("Frame", nil, h)
+		bar:SetSize(1, 1)
+		bar:SetFrameLevel(h:GetFrameLevel() + 5)
+		h.barFrame = bar
+		h.slots = {}
+		for i = 1, 4 do
+			local ic = L.makePreviewIcon(bar, "totembar", PREVIEW)
+			ic.box = CreateFrame("Frame", nil, bar)
+			ic.badge = CreateFrame("Frame", nil, bar)
+			ic.badge:SetFrameLevel(ic:GetFrameLevel() + 6)
+			ic.badge.icon = ic.badge:CreateTexture(nil, "ARTWORK")
+			ic.badge.icon:SetAllPoints()
+			ns.cropIcon(ic.badge.icon)
+			ic.rangeF = CreateFrame("Frame", nil, bar)
+			ic.rangeF:SetFrameLevel(ic:GetFrameLevel() + 7)
+			ic.rangeF.bg = ic.rangeF:CreateTexture(nil, "ARTWORK")
+			ic.rangeF.bg:SetAllPoints()
+			ns.Looks.followMask(ic, ic.rangeF.bg)
+			h.slots[i] = ic
+		end
+		h.extras = {}
+		for _, key in ipairs({ "Call", "Recall" }) do
+			h.extras[key] = ns.makeIcon(bar, 56)
+		end
+		h.extras.Call.num = ns.makeKeyText(h.extras.Call)
+		h.extras.Call.num:SetTextColor(1, 1, 1)
+		h.kMark = CreateFrame("Frame", nil, bar)
+		h.kMark:SetFrameLevel(bar:GetFrameLevel() + 20)
+		h.kMark.x = h.kMark:CreateTexture(nil, "OVERLAY")
+		h.kMark.x:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
+		h.kMark.x:SetPoint("CENTER")
+		h.tab = ns.TotemBar.makeArrowLook(bar)
+		h.pop = CreateFrame("Frame", nil, bar)
+		h.pop.bg = h.pop:CreateTexture(nil, "BACKGROUND")
+		h.pop.bg:SetAllPoints()
+		local fill = ns.TotemBar.POP_FILL
+		h.pop.bg:SetColorTexture(fill[1], fill[2], fill[3], fill[4])
+		h.pop.items = {}
+		for i = 1, POP_ITEMS do
+			local it = CreateFrame("Frame", nil, h.pop)
+			it.tex = it:CreateTexture(nil, "ARTWORK")
+			it.tex:SetAllPoints()
+			ns.cropIcon(it.tex)
+			it.x = it:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+			it.x:SetPoint("CENTER")
+			it.x:SetText("X")
+			h.pop.items[i] = it
+		end
+		h.fitNote = h:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+		h.fitNote:SetPoint("TOPRIGHT", h.area, "TOPRIGHT", 0, 0)
+	end,
+	render = function(h, st, P)
+		local TB = ns.TotemBar
+		local c = TB.cfg()
+		local size, border, extrasBorder = TB.look()
+		h.barFrame:SetShown(c.mode ~= "blizzard")
+		if c.mode == "blizzard" then h.fitNote:SetText("") return end
+		local full = c.mode == "everything"
+		local els = {}
+		local canList = GetMultiCastTotemSpells ~= nil and TB.hasTotems()
+		for _, el in ipairs(c.order) do
+			if not c.hidden[el] and (not canList or #ns.Totems.knownTotems(TB.SLOT[el]) > 0) then table.insert(els, el) end
+		end
+		local places = els
+		if TB.skin.fixedSlots() and #els > 0 then places = c.order end
+		local placeIdx, liveIdx = {}, {}
+		for i, el in ipairs(places) do placeIdx[el] = i end
+		for i, el in ipairs(els) do liveIdx[el] = i end
+		local row = TB.eff().dir == "row"
+		local picking = st == "picking" and #els > 0
+		local psz = TB.popButtonSize(size)
+		local known = picking and TB.known(els[1]) or {}
+		local items = math.min(POP_ITEMS, 1 + #known)
+		local popLen = TB.popLength(items, psz)
+		local seq, along, line = TB.along(math.max(#places, 1), size)
+		local badge = st == "offpick" and c.offPick
+			and TB.badgeSize(size) + TB.skin.badgeGap(size) or 0
+		local across = line + (picking and (c.arrowSize + 4 + popLen) or 0) + badge
+		local w = h:GetWidth()
+		if not w or w <= 0 then w = 600 end
+		local availW, availH = w - 80 - (h.stateW or 0), h.heroH - 14 - 58 - 12
+		local needW, needH = row and along or across, row and across or along
+		local real = c.scale
+		local fit = math.min(1, availW / (needW * real), availH / (needH * real))
+		local scale = real * fit
+		local bar = h.barFrame
+		bar:SetScale(scale)
+		h.fitNote:SetText(fit < 0.999 and string.format("Shown at %d%% to fit", math.floor(fit * 100 + 0.5)) or "")
+		local bw, bh = (row and along or across), (row and across or along)
+		bar:SetSize(bw, bh)
+		bar:ClearAllPoints()
+		local dir = TB.eff().pop
+		bar:SetPoint("CENTER", h.area, "CENTER", 0, 0)
+		local function place(ic, off, cross)
+			local x = badge + (cross or 0)
+			if row then
+				if dir == "down" then ic:SetPoint("TOPLEFT", bar, "TOPLEFT", off, -x)
+				else ic:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", off, x) end
+			else
+				if dir == "left" then ic:SetPoint("TOPRIGHT", bar, "TOPRIGHT", -x, -off)
+				else ic:SetPoint("TOPLEFT", bar, "TOPLEFT", x, -off) end
+			end
+		end
+		for _, ic in pairs(h.extras) do ic:Hide() end
+		local slotAt = {}
+		for _, it in ipairs(seq) do
+			if it.extra then
+				local ic = h.extras[it.key]
+				local o = ns.Looks.fit(ic, extrasBorder, it.size)
+				ic:ClearAllPoints()
+				place(ic, it.offset + o, (line - it.size) / 2 + o)
+				local learned = TB.extraLearned(it.key)
+				ic.tex:SetTexture(TB.extraTexture(it.key))
+				ic.tex:SetDesaturated(not learned)
+				ic.tex:SetAlpha(learned and 1 or 0.6)
+				if ic.num then
+					local set, count = ns.TotemSets.active(), ns.TotemSets.count()
+					ns.Media.setFont(ic.num, "totembar", ns.keyTextSize(it.size, c.keySize))
+					ic.num:ClearAllPoints()
+					ic.num:SetPoint("BOTTOMRIGHT", -1, 2)
+					ic.num:SetText(set)
+					ic.num:SetShown(c.setNumber and count > 1)
+				end
+				ic:Show()
+			else slotAt[it.key] = it.offset end
+		end
+		local expEl = tContains(els, "fire") and "fire" or els[1]
+		h.popIcon = nil
+		h.kMark:Hide()
+		for i, ic in ipairs(h.slots) do
+			local el = els[i]
+			ic:SetShown(el ~= nil)
+			ic.rangeF:Hide()
+			if el then
+				ic.box:SetSize(size, size)
+				ic.box:ClearAllPoints()
+				place(ic.box, slotAt[placeIdx[el]], (line - size) / 2)
+				ic.school = el
+				local o = ns.Looks.fit(ic, border, size)
+				ic:ClearAllPoints()
+				place(ic, slotAt[placeIdx[el]] + o, (line - size) / 2 + o)
+				local pick = TB.pickTexture(el)
+				if ns.isSecret(pick) then pick = nil end
+				P.reset(ic, pick or TB.TOTEM_ICON[el])
+				ic.badge:Hide()
+				if st == "range" then
+					local f = ic.rangeF
+					f:ClearAllPoints()
+					local x, y, mw, mh = TB.skin.markRect(f, size, o)
+					if x then
+						f:SetPoint("TOPLEFT", ic.box, "TOPLEFT", x, y)
+						f:SetSize(mw, mh)
+						f:SetShown(i == 1 and TB.skin.paintMark(f, mw, mh, ic))
+					else
+						local k = i == 1 and c.rangeOut or c.rangeIn
+						f:SetPoint("TOPLEFT", ic, "TOPLEFT", 0, 0)
+						f:SetSize(size - 2 * o, ns.linePx(ic, c.rangeHeight))
+						TB.skin.paintMark(f)
+						f.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
+						f:Show()
+					end
+				end
+				if st == "offpick" and i == 1 then
+					local other
+					for _, id in ipairs(TB.known(el)) do
+						local tex = C_Spell.GetSpellTexture(id)
+						if tex and not ns.isSecret(tex) and tex ~= pick then other = tex break end
+					end
+					ic.tex:SetTexture(other or TB.TOTEM_ICON[el])
+					if c.offPick and pick then
+						ic.badge.icon:SetTexture(pick)
+						TB.layoutBadge(ic.badge, ic.box, size, border)
+						ic.badge:Show()
+					end
+				end
+				local col = L.SCHOOL[el]
+				ic.upT.school = el
+				if st == "idle" and not full then
+					ic:Hide()
+				elseif st == "killed" and el == expEl then
+					local k = c.killed
+					h.popIcon = k.flash and k.pop and ic or nil
+					if k.flash then
+						ic.tex:SetDesaturated(true)
+						ic.manaOverlay:SetColorTexture(0.95, 0.12, 0.08, 0.7)
+						ic.manaOverlay:Show()
+						if k.glow then ic:SetGlowShown(true, 1, 0.12, 0.08) end
+						if k.mark then
+							h.kMark:ClearAllPoints(); h.kMark:SetAllPoints(ic)
+							h.kMark.x:SetSize((size - 2 * o) * 0.7, (size - 2 * o) * 0.7); h.kMark:Show()
+						end
+					elseif full then
+						ic.tex:SetDesaturated(c.idleGrey); ic.tex:SetAlpha(c.idleAlpha)
+					else ic:Hide() end
+				elseif st == "idle" or (picking and i == 1) then
+					if c.empty == "pick" and pick then
+						ic.tex:SetDesaturated(c.idleGrey); ic.tex:SetAlpha(c.idleAlpha)
+					elseif c.empty == "blank" then ic.tex:SetAlpha(0)
+					else ic.tex:SetColorTexture(col[1] * 0.35, col[2] * 0.35, col[3] * 0.35, 0.8) end
+				else
+					local expiring = st == "expiring" and el == expEl
+					local left, life = TB.PREVIEW_LEFT[el][1], TB.PREVIEW_LEFT[el][2]
+					if expiring then left = 5 end
+					P.frozen(ic.upT, 1 - left / life, life)
+					if expiring then
+						local x = c.expire
+						if x.grey then ic.tex:SetDesaturated(true) end
+						ic:SetRingShown(x.ring)
+						ic:SetPulsing(x.fade)
+						ic:SetGlowShown(x.glow)
+					end
+				end
+			end
+		end
+		local boxes, sealed, spare = {}, {}, #els
+		for pi, el in ipairs(places) do
+			local i = liveIdx[el]
+			if i then boxes[pi] = h.slots[i].box
+			else
+				spare = spare + 1
+				local b = h.slots[spare].box
+				b:SetSize(size, size)
+				b:ClearAllPoints()
+				place(b, slotAt[pi], (line - size) / 2)
+				boxes[pi], sealed[b] = b, true
+			end
+		end
+		TB.skin.layoutBar(bar, boxes, size, row, sealed)
+		for i, ic in ipairs(h.slots) do
+			if els[i] then TB.skin.styleTimer(ic.upT, ic, size) end
+		end
+		h.tab:SetShown(picking and TB.feat("arrows"))
+		h.pop:SetShown(picking)
+		if picking then
+			local first = h.slots[1]
+			TB.placeArrow(h.tab, first.box, h.tab.glyph)
+			TB.skin.styleArrow(h.tab)
+			local p = h.pop
+			TB.placePopout(p, first.box, items, psz)
+			TB.skin.stylePopout(p, items, psz)
+			for i, it in ipairs(p.items) do
+				it:SetShown(i <= items)
+				TB.placePopButton(it, p, i, psz)
+				if i == 1 then it.tex:SetColorTexture(0.1, 0.1, 0.1, 1); it.x:Show()
+				elseif known[i - 1] then
+					it.tex:SetTexture(C_Spell.GetSpellTexture(known[i - 1]))
+					it.x:Hide()
+				end
+			end
+		end
+	end,
+}
 
 local function build(p)
 	local TB = ns.TotemBar
@@ -157,7 +429,7 @@ local function build(p)
 		for i, r in ipairs(rows) do
 			local el = c().order[i]
 			r.el = el
-			r.icon:SetTexture(ns.Look.TOTEM_ICON[el])
+			r.icon:SetTexture(TB.TOTEM_ICON[el])
 			r.text:SetText(TB.NAME[el])
 			r.cb:SetChecked(not c().hidden[el])
 			r:SetAlpha(1)
@@ -352,8 +624,8 @@ local function build(p)
 	K.killedBlock(p, "totembar", { after = changed, noun = "slot", flash = { "Flash when a totem dies early",
 		"The dead totem flashes red over its slot. Not when you dismiss it or it runs out." } })
 
-	K.glowBlock(p, "totembar", 136098)
-	K.popBlock(p, "totembar", 136098, "expired")
+	K.glowBlock(p, "totembar")
+	K.popBlock(p, "totembar", "expired")
 	p:header("Border style")
 	p:text("Set by the theme.", owned("border"))
 	K.borderRows(p, "totembar", changed, nil, free("border"))
@@ -367,5 +639,19 @@ local function build(p)
 	p.gate = nil
 end
 
-ns.Options.registerPage("totembar", { title = "Totem bar", icon = "Interface\\Icons\\Spell_Shaman_DropAll_01",
-	order = 50, build = build })
+ns.registerBar("totembar", { icon = "Interface\\Icons\\Spell_Shaman_DropAll_01",
+	school = ns.THEME.fallback,
+	blurb = "Your totems, their timers, and a pick for each element.",
+	tags = function()
+		local TB = ns.TotemBar
+		local c = TB.cfg()
+		local shows = { always = "Always", active = "In combat or a totem down", combat = "In combat" }
+		if c.mode == "blizzard" then return TB.modeName() end
+		return string.format("%s  ·  %s%s", TB.modeName(), shows[c.show] or "",
+			TB.hasTotems() and "" or "  ·  Not learned")
+	end,
+	preview = PREVIEW, page = { order = 50, build = build },
+	ownSize = function() return not ns.TotemBar.cfg().sizeFollow end,
+	experiments = { { "Totem sets", "Totem sets, once you know a second Call" } },
+	tiles = { icon = ns.TotemBar.TOTEM_ICON.earth, schools = ns.TotemBar.ELEMENTS,
+		border = function() return select(2, ns.TotemBar.look()) end } })

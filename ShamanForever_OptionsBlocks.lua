@@ -57,6 +57,12 @@ local function styleRows(p, owner, kind, after)
 	return r
 end
 
+-- Who can have their own style of kind: lead (Elements, Groups or nil), then the bars that can
+local function ownersText(lead, kind)
+	local names = ns.Bars.nouns(function(bar) return tContains(bar.kinds, kind) end, lead)
+	return (ns.Look.wordList(names):gsub("^%l", string.upper)) .. " can have their own."
+end
+
 local function ownLine(p, kind)
 	p:text(function() return "Currently using their own: " .. table.concat(ns.Style.ownStyles(kind), ", ") end,
 		function() return #ns.Style.ownStyles(kind) > 0 end)
@@ -99,10 +105,23 @@ local function reloadLine(p, keys, verb, shown)
 end
 
 local function isElement(owner) return type(owner) == "string" and ns.ELEMENTS[owner] ~= nil end
+local function barOf(owner) return type(owner) == "string" and ns.Bars.get(owner) or nil end
 
-local function previewBorder(owner)
+-- Style block tiles: a bar's from its registration, an element's icon, else Global's
+local function tilesOf(owner)
+	local bar = barOf(resolve(owner))
+	return bar and (bar.tiles or {})
+end
+local function tileIcon(owner)
 	local o = resolve(owner)
-	if o == "totembar" then local _, b = ns.TotemBar.look(); return b end
+	local tiles = tilesOf(o)
+	if tiles then return tiles.icon end
+	return isElement(o) and ns.ELEMENTS[o].icon or 136026
+end
+local function tileBorder(owner)
+	local o = resolve(owner)
+	local tiles = tilesOf(o)
+	if tiles and tiles.border then return tiles.border() end
 	if isElement(o) then return ns.borderFor(o) end
 	return ns.Style.read(o, "border")
 end
@@ -110,7 +129,7 @@ end
 -- A style block's preview: pooled tiles in the owner's styles; framed adds its element frame.
 local PREVIEW_SIZE, SCHOOL_GAP = 40, 72
 local NO_FRAME = { look = "none" }
-local function previewTiles(f, owner, icon, x, bySchool, framed)
+local function previewTiles(f, owner, x, bySchool, framed)
 	local pool, held = ns.Look.tilePool, {}
 	f:HookScript("OnHide", function()
 		while #held > 0 do pool.release(table.remove(held)) end
@@ -119,19 +138,20 @@ local function previewTiles(f, owner, icon, x, bySchool, framed)
 		local o = resolve(owner)
 		local schools = {}
 		if not isElement(o) and bySchool() then
+			local only = tilesOf(o) and tilesOf(o).schools
 			for _, sc in ipairs(ns.Look.SCHOOLS) do
-				if o ~= "totembar" or sc.key ~= ns.THEME.fallback then table.insert(schools, sc) end
+				if not only or tContains(only, sc.key) then table.insert(schools, sc) end
 			end
 		end
 		local n = math.max(#schools, 1)
 		while #held > n do pool.release(table.remove(held)) end
 		while #held < n do table.insert(held, pool.acquire(f, PREVIEW_SIZE)) end
-		local border = previewBorder(owner)
+		local border = tileBorder(owner)
 		local x0 = type(x) == "function" and x() or x
 		for i, t in ipairs(held) do
 			local sc = schools[i]
 			t:wear(o, { border = border, frame = not framed and NO_FRAME or nil })
-			t:icon(sc and sc.icon or type(icon) == "function" and icon() or icon)
+			t:icon(sc and sc.icon or tileIcon(o))
 			t:school(sc and sc.key or isElement(o) and ns.Looks.elementSchool(o) or nil)
 			t:point("LEFT", f, "LEFT", x0 + (i - 1) * SCHOOL_GAP, 0)
 		end
@@ -147,15 +167,11 @@ local function borderRows(p, owner, after, label, shown)
 	if owner ~= nil then followRow(p, owner, "border", after, label, shown) end
 	local bordered = function() return r.own() and r.style().show end
 	local look
-	if owner ~= "swing" then
+	local tiles = tilesOf(owner)
+	if not tiles or tiles.icon then
 		local f = p:row(52)
 		p:label(f, "Preview")
-		local function icon()
-			local o = resolve(owner)
-			if o == "totembar" then return 136098 end
-			return isElement(o) and ns.ELEMENTS[o].icon or 136026
-		end
-		local sync = previewTiles(f, owner, icon, LABEL_W + 24, function() return look().bySchool end)
+		local sync = previewTiles(f, owner, LABEL_W + 24, function() return look().bySchool end)
 		p:add(f, 52, showWhen(r.own, shown), sync)
 	end
 	p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"), showWhen(r.own, shown))
@@ -202,11 +218,7 @@ local function frameRows(p, owner, kind, after, opts)
 			local rc = reach()
 			return math.max(52, math.ceil((1 + rc.top + rc.bottom) * PREVIEW_SIZE) + 8)
 		end
-		local function icon()
-			local o = resolve(owner)
-			return isElement(o) and ns.ELEMENTS[o].icon or 136026
-		end
-		local sync = previewTiles(f, owner, icon,
+		local sync = previewTiles(f, owner,
 			function() return LABEL_W + 24 + math.ceil(reach().left * PREVIEW_SIZE) end, function() return false end, true)
 		p:add(f, height, own, function()
 			f:SetHeight(height())
@@ -317,7 +329,7 @@ local function frameRows(p, owner, kind, after, opts)
 end
 
 -- Whether a bar draws a group frame of its own
-local function barFramed(bar) return tContains(ns.Style.bar(bar).kinds, "groupframe") end
+local function barFramed(bar) return tContains(ns.Bars.get(bar).kinds, "groupframe") end
 
 -- popSchool is its own setting, not a style field, so it stays whether or not the element
 -- -- follows Global.
@@ -342,19 +354,19 @@ local function popSchoolRow(p, key, shown)
 	end, get, set, shown, 190)
 end
 
-local function glowBlock(p, owner, icon)
+local function glowBlock(p, owner)
 	local after = reglow
 	p:header("Pulsing glow style")
 	local r = styleRows(p, owner, "glow", after)
 	if owner == nil then
 		p:anchor("glow")
-		p:text("Every pulsing glow. Elements and the totem bar can have their own.")
+		p:text("Every pulsing glow. " .. ownersText("Elements", "glow"))
 	else followRow(p, owner, "glow", after) end
 	local own = showWhen(r.own)
 	local f = p:row(64)
 	p:label(f, "Preview")
 	local look
-	local sync = previewTiles(f, owner, icon, LABEL_W + 24, function() return look().bySchool end)
+	local sync = previewTiles(f, owner, LABEL_W + 24, function() return look().bySchool end)
 	p:add(f, 64, own, function()
 		for _, t in ipairs(sync()) do t:glow(true) end
 	end)
@@ -386,7 +398,7 @@ local function glowBlock(p, owner, icon)
 	if owner == nil then ownLine(p, "glow") end
 end
 
-local function popBlock(p, owner, icon, kind)
+local function popBlock(p, owner, kind)
 	local f, sync
 	local function playPop()
 		for _, t in ipairs(sync()) do t:pop(kind) end
@@ -406,12 +418,13 @@ local function popBlock(p, owner, icon, kind)
 	end
 	if owner == nil then
 		p:anchor("pop")
-		p:text("The burst when something happens: a cooldown ready, an imbue dropping, a totem ending. Elements and the totem bar can have their own.")
+		p:text("The burst when something happens: a cooldown ready, an imbue dropping, a totem ending. "
+			.. ownersText("Elements", "pop"))
 	else followRow(p, owner, "pop", after) end
 	local own = showWhen(r.own)
 	f = p:row(56)
 	p:label(f, "Try it")
-	sync = previewTiles(f, owner, icon, LABEL_W + 16, bySchool)
+	sync = previewTiles(f, owner, LABEL_W + 16, bySchool)
 	local play = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
 	play:SetSize(80, 22)
 	play:SetText("Play")
@@ -458,7 +471,7 @@ local function textBlock(p, owner, after)
 	local r = styleRows(p, owner, "text", after)
 	if owner == nil then
 		p:anchor("text")
-		p:text("Timers, counts and keys. The totem bar and the swing timer can have their own.")
+		p:text("Timers, counts and keys. " .. ownersText(nil, "text"))
 	else followRow(p, owner, "text", after) end
 	local own = showWhen(r.own)
 	local function problem() return ns.Media.fontProblem(r.style().font) end
@@ -495,7 +508,8 @@ end
 local function barBlock(p)
 	p:header("Bar texture")
 	p:anchor("bar")
-	p:text("Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer. The totem bar's time bars and the swing timer can have their own.")
+	p:text("Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer. "
+		.. ownersText(nil, "bar"))
 	barRows(p, nil)
 	ownLine(p, "bar")
 end
@@ -555,20 +569,22 @@ local function timerSettings(p, title, key, kind, after, note, first, barPlaced)
 	if not key then ownLine(p, kind) end
 end
 
+-- Bars take it with their timers' style
 local function gcdBlock(p, key)
-	local function after() ns.refreshAll(); ns.TotemBar.refreshGCD(); OP.refresh() end
+	local function after() ns.applyTimers(); ns.refreshAll(); OP.refresh() end
 	p:header("Global cooldown")
 	local r = styleRows(p, key, "gcd", after)
 	if key then followRow(p, key, "gcd", after)
 	else
 		p:anchor("gcd")
-		p:text("Elements and the totem bar can have their own.")
+		p:text(ownersText("Elements", "gcd"))
 	end
 	p:checkbox("Show global cooldown", "The sweep after every cast, as on action bars.", r.get("show"), r.set("show"), showWhen(r.own))
 	if not key then ownLine(p, "gcd") end
 end
 
-K.globalRow, K.ownLine, K.borderRows, K.frameRows, K.barFramed = globalRow, ownLine, borderRows, frameRows, barFramed
+K.globalRow, K.ownersText, K.ownLine, K.borderRows = globalRow, ownersText, ownLine, borderRows
+K.frameRows, K.barFramed = frameRows, barFramed
 K.timerSettings, K.gcdBlock, K.glowBlock, K.popBlock = timerSettings, gcdBlock, glowBlock, popBlock
 K.textBlock, K.barRows, K.barBlock = textBlock, barRows, barBlock
 
@@ -681,8 +697,8 @@ end
 
 local function lookBlocks(p, key)
 	local e = ns.ELEMENTS[key]
-	if e.effects.glow then glowBlock(p, key, e.icon) end
-	if e.effects.pop then popBlock(p, key, e.icon, e.effects.popKind or "ready") end
+	if e.effects.glow then glowBlock(p, key) end
+	if e.effects.pop then popBlock(p, key, e.effects.popKind or "ready") end
 	p:header("Border style")
 	K.borderRows(p, key, relayout)
 	p:header("Frame style")
@@ -701,7 +717,7 @@ local function store(p, owner, after)
 		function s.default(name) return ns.elementDefault(owner, name) end
 		function s.range(name, field) return ns.elementRange(owner, name, field) end
 	else
-		local bar = ns.Style.bar(owner)
+		local bar = ns.Bars.get(owner)
 		after = after or relayout
 		function s.get(name, field)
 			return function()
@@ -899,7 +915,7 @@ local function toggleBlock(p, key, b)
 	end)
 end
 
-K.eopt, K.eread, K.eslider, K.COUNT_POINTS = eopt, eread, eslider, COUNT_POINTS
+K.eread, K.eslider, K.COUNT_POINTS = eread, eslider, COUNT_POINTS
 K.toggleBlock = toggleBlock
 K.elementDisplay, K.idleBlock, K.lookBlocks, K.reagentBlocks = elementDisplay, idleBlock, lookBlocks, reagentBlocks
 K.warnBlock, K.readyBlock, K.activeBlock, K.expiringBlock, K.killedBlock = warnBlock, readyBlock, activeBlock,

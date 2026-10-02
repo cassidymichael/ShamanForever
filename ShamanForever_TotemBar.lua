@@ -19,6 +19,9 @@ local ELEMENTS = { "earth", "fire", "water", "air" }
 local SLOT = { fire = 1, earth = 2, water = 3, air = 4 }
 local NAME = { earth = "Earth", fire = "Fire", water = "Water", air = "Air" }
 TB.ELEMENTS, TB.NAME, TB.SLOT = ELEMENTS, NAME, SLOT
+-- Each slot's icon where the client gives none
+local TOTEM_ICON = { earth = 136098, fire = 135825, water = 135127, air = 136114 }
+TB.TOTEM_ICON = TOTEM_ICON
 
 TB.DEFAULTS = {
 	mode = "everything",   -- blizzard | active | everything
@@ -178,13 +181,6 @@ TB.cfg = cfg
 local function barOn() return ns.isClass() and cfg().mode ~= "blizzard" end
 local function feat(key) local c = cfg(); return barOn() and c.mode == "everything" and c[key] or false end
 TB.barOn, TB.feat = barOn, feat
-ns.Style.registerBar("totembar", { cfg = cfg, saved = "totemBar", defaults = TB.DEFAULTS, ranges = TB.RANGES,
-	label = "Totem bar", on = barOn,
-	kinds = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
-	-- Its theme can draw its own border
-	ownLabel = function(kind)
-		if kind == "border" and TB.skin.owns("border") then return "Totem bar (its theme)" end
-	end })
 
 -- The player's settings, or the theme's where it owns one
 local effective = setmetatable({}, { __index = function(_, k)
@@ -218,7 +214,6 @@ end
 -- Geometry, shared with the options' preview of the bar
 local POP_STEP = 3
 TB.POP_FILL = { 0, 0, 0, 0.72 }
-TB.BADGE_GAP = 0
 local EXTRA_GAP = 6
 
 function TB.along(n, size, px)
@@ -325,7 +320,7 @@ function TB.layoutBadge(bd, anchor, size, border)
 	bd:SetAlpha(c.badgeAlpha)
 	TB.saturate(bd.icon, c.badgeSat)
 	bd:ClearAllPoints()
-	local gap = TB.BADGE_GAP + inset + TB.skin.badgeGap(size)
+	local gap = inset + TB.skin.badgeGap(size)
 	local x, y = c.badgeX, c.badgeY
 	if c.pop == "up" then bd:SetPoint("TOP", anchor, "BOTTOM", x, y - gap)
 	elseif c.pop == "down" then bd:SetPoint("BOTTOM", anchor, "TOP", x, y + gap)
@@ -1288,6 +1283,8 @@ function TB.applyTimers()
 		s.timer:apply()
 		TB.skin.styleTimer(s.timer, s.vis, size)
 	end
+	-- Off clears the sweep; on, the next cast shows it (a refresh here could cut one short)
+	if not ns.Style.value("totembar", "gcd", "show") then refreshGCD() end
 end
 
 function TB.applySettings()
@@ -1379,7 +1376,6 @@ function movable.lock()
 	mover:Hide()
 	ns.retryAfterCombat("totem bar layout", layout)
 end
-ns.Positioning.addMovable(movable)
 
 -- Quick Keybind Mode (Blizzard's): the bar shows, empty slots included. Keys are caught on our own
 -- plain frame and bound with SetBinding: calling Blizzard's QuickKeybindButtonTemplateMixin from
@@ -1688,14 +1684,18 @@ function TB.hasTotems() return hasTotems end
 
 -- Preview mode: slots drawn in the requested states on plain frames; showing slots and the bar
 -- happens in layout()
-TB.PREVIEW_STATES = { "down", "expiring", "killed", "ranout", "empty" }
+local PREVIEW_STATES = { "down", "expiring", "killed", "ranout", "empty" }
+local PREVIEW_WARNING = { earth = { "empty" }, fire = { "empty" }, water = { "down", range = true },
+	air = { "down", range = true } }
+-- Each slot's totem in a preview: seconds left of its length
+TB.PREVIEW_LEFT = { earth = { 250, 300 }, fire = { 38, 55 }, water = { 83, 300 }, air = { 165, 300 } }
 
 local function paintSlot(s, rec)
 	local c, v, st = cfg(), s.vis, rec.st
 	local shown = s.button:IsShown()
 	local pick = GetActionTexture and GetActionTexture(multiAction(s.slot))
 	if isSecret(pick) then pick = nil end
-	local icon = pick or ns.Look.TOTEM_ICON[s.el]
+	local icon = pick or TOTEM_ICON[s.el]
 	s.badge:Hide()
 	s.killed:setIcon(icon)
 	s.expired:setIcon(icon)
@@ -1732,7 +1732,7 @@ local function paintSlot(s, rec)
 		v.icon:SetDesaturated(false)
 		v.icon:SetAlpha(1)
 		v.bg:SetColorTexture(0, 0, 0, 1)
-		local left, life = ns.Look.PREVIEW_LEFT[s.el][1], ns.Look.PREVIEW_LEFT[s.el][2]
+		local left, life = TB.PREVIEW_LEFT[s.el][1], TB.PREVIEW_LEFT[s.el][2]
 		if st == "expiring" then left = 5 end
 		s.timer:setExpire(c.expire, icon)
 		liftWarning(s)
@@ -1762,9 +1762,10 @@ function paintPreview()
 	end
 end
 
-function TB.preview(p)
-	if p then
-		preview = { all = p.all, states = preview and preview.states or {} }
+-- opts: the preview's (unlearned: show every slot); nil as it ends
+local function showPreview(opts)
+	if opts then
+		preview = { all = opts.unlearned, states = preview and preview.states or {} }
 		TB.range.preview(true)
 	elseif preview then
 		preview = nil
@@ -1785,7 +1786,16 @@ function TB.preview(p)
 	end
 end
 
-function TB.previewSlot(el, st, at, range, moment)
+local function previewSteps(el, mode)
+	if mode == "busy" then
+		local steps = {}
+		for _, st in ipairs(PREVIEW_STATES) do table.insert(steps, { st }) end
+		return steps
+	end
+	return { mode == "warnings" and PREVIEW_WARNING[el] or { "down" } }
+end
+
+local function previewSlot(el, st, at, range, moment)
 	if not preview then return end
 	local rec = { st = st, at = at, range = range }
 	preview.states[el] = rec
@@ -1818,4 +1828,12 @@ function TB.debug()
 		mc and (mc:GetParent() == hiddenParent and "hidden" or (mc:GetParent() and mc:GetParent():GetName() or "?")) or "none")
 end
 
+ns.registerBar("totembar", { label = "Totem bar", cfg = cfg, saved = "totemBar", defaults = TB.DEFAULTS,
+	ranges = TB.RANGES, on = barOn, kinds = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
+	-- Its theme can draw its own border
+	ownLabel = function(kind)
+		if kind == "border" and TB.skin.owns("border") then return "Totem bar (its theme)" end
+	end,
+	movable = movable,
+	hud = { show = showPreview, slots = ELEMENTS, steps = previewSteps, step = previewSlot } })
 ns.registerModule(TB)
