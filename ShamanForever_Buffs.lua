@@ -314,7 +314,7 @@ function B.applyLayout()
 	end
 	refreshAll()
 end
-B.afterGroups = function()
+function B.afterGroups()
 	for _, def in ipairs(BUFFS) do
 		if def.proc then
 			def.aura:style()
