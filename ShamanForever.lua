@@ -251,9 +251,13 @@ end
 local function showMode(key) return elementOpts(key).show or "always" end
 
 local function groupSize(g) return (g and not g.sizeFollow and g.size) or db.iconSize end
+-- An element's box (its Size, border included) and its picture's size, in whole pixels
+local function boxOf(key)
+	return ns.roundPx(groupSize((groupOf(key))), ns.pixel(ELEMENTS[key].frame))
+end
 local function sizeOf(key)
 	local e = ELEMENTS[key]
-	local box = ns.roundPx(groupSize((groupOf(key))), ns.pixel(e.frame))
+	local box = boxOf(key)
 	return box - 2 * ns.Looks.inset(e.borderHost or e.frame, ns.borderFor(key), box, e.shape)
 end
 
@@ -527,7 +531,7 @@ end
 
 -- Every member anchors to the group frame, never to another: a frame a protected frame anchors to
 -- may turn protected too (the shield's button), so a chain could stop members changing in combat.
--- A member's Size is its box, border included.
+-- A member's Size is its box, border included; its art frame hangs where its border is drawn.
 local function layoutGroup(g)
 	local gf = groupFrame(g.id)
 	gf.afterCombat = gf.afterCombat or afterCombat(gf)
@@ -551,6 +555,7 @@ local function layoutGroup(g)
 			local w, h = e.getSize(groupSize(g))
 			w, h = ns.roundPx(w, px), ns.roundPx(h, px)
 			local inset = ns.Looks.fit(f, ns.borderFor(key), w, h, e)
+			ns.Frames.mountOwn(e.borderHost or f, key, w == h and w or nil)
 			table.insert(placed, { f, along + n * gap, w, h, inset })
 			if horizontal then along, across = along + w, math.max(across, h)
 			else along, across = along + h, math.max(across, w) end
@@ -788,7 +793,7 @@ ns.isEnabled, ns.showMode = isEnabled, showMode
 ns.isLearned = isLearned
 ns.elementOpts, ns.elementSetting, ns.elementDefault, ns.idleAlpha = elementOpts, elementSetting, elementDefault, idleAlpha
 ns.groupOf, ns.groupById = groupOf, groupById
-ns.groupFrames, ns.groupSize, ns.sizeOf = groupFrames, groupSize, sizeOf
+ns.groupFrames, ns.groupSize, ns.sizeOf, ns.boxOf = groupFrames, groupSize, sizeOf, boxOf
 ns.setGroupCenter, ns.screenCenter = setGroupCenter, screenCenter
 ns.layoutElements, ns.applyLayout, ns.applyTimers = layoutElements, applyLayout, applyTimers
 ns.placeElement, ns.addGroup, ns.renameGroup, ns.deleteGroup = placeElement, addGroup, renameGroup, deleteGroup

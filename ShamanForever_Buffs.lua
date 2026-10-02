@@ -117,7 +117,7 @@ local function buildProc(def, slot, button)
 end
 
 local function styleProc(def, size)
-	ns.try("proc border " .. def.key, ns.applyBorder, def.edge, ns.borderFor(def.key))
+	ns.try("proc border " .. def.key, ns.Frames.dress, def.edge, def.key)
 	ns.try("proc pop " .. def.key, def.fx.stylePop, def.fx, size)
 end
 

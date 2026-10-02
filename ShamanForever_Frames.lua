@@ -613,9 +613,10 @@ local function levelOf(look, base)
 	return max(0, base + d)
 end
 
--- An element look round carrier, whose box is box units square; style: { color, alpha }.
--- False (and nothing shown) for None, a bad look or missing art.
-function FR.draw(carrier, look, box, style)
+-- An element look round carrier, whose box is box units square; style: { color, alpha }; level: the
+-- carrier's, when the caller knows it (a secret read leaves the holder's own). False (and nothing
+-- shown) for None, a bad look or missing art.
+function FR.draw(carrier, look, box, style, level)
 	local m = carrier.frameMount
 	if not (look and look.art and FR.usable(look) and type(box) == "number" and box > 0) then
 		if m then m:Hide() end
@@ -630,7 +631,8 @@ function FR.draw(carrier, look, box, style)
 	m:ClearAllPoints()
 	m:SetPoint("CENTER", carrier, "CENTER", 0, 0)
 	m:SetSize(box, box)
-	m:SetFrameLevel(levelOf(look, carrier:GetFrameLevel()))
+	level = level or carrier:GetFrameLevel()
+	if not ns.isSecret(level) then m:SetFrameLevel(levelOf(look, level)) end
 	local t = m.tex
 	paint(t, look.art)
 	t:ClearAllPoints()
@@ -643,9 +645,20 @@ function FR.draw(carrier, look, box, style)
 end
 
 -- The owner's (element key, sandbox table, nil for Global) own or followed frame on carrier
-function FR.mount(carrier, owner, box)
+function FR.mount(carrier, owner, box, level)
 	local st = S.read(owner, "frame")
-	return FR.draw(carrier, S.look("frame", st.look), box, st)
+	return FR.draw(carrier, S.look("frame", st.look), box, st, level)
+end
+
+-- An element's frame on a frame of the element's own that draws its border
+function FR.mountOwn(carrier, key, box, level)
+	return FR.mount(carrier, key, box, level)
+end
+
+-- Its border and frame together, on one of those frames
+function FR.dress(edge, key, level)
+	ns.applyBorder(edge, ns.borderFor(key))
+	return FR.mountOwn(edge, key, ns.boxOf(key), level)
 end
 
 local function slicePart(m, p, look, style)

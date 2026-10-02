@@ -103,7 +103,7 @@ local function styleButton(def, size, slot)
 		ns.try("flame shock expiring", styleExpire, def, size, slot)
 	end
 	if def.edge then
-		ns.try("target border " .. def.key, ns.applyBorder, def.edge, ns.borderFor(def.key))
+		ns.try("target border " .. def.key, ns.Frames.dress, def.edge, def.key)
 		if def.edge.frameOverlay then def.edge.frameOverlay:Hide() end
 	end
 	if def.fx then ns.try("target pop " .. def.key, def.fx.stylePop, def.fx, size) end
@@ -430,10 +430,11 @@ end
 local function styleLook()
 	local def, f, h, look = FLAME, FLAME.frame, FLAME.holder, FLAME.missLook
 	if InCombatLockdown() then return end
-	h:SetFrameLevel(f.textFrame:GetFrameLevel() + 1)   -- over the icon, under the container
-	look:setLevel(h:GetFrameLevel() + 1)
-	def.lookEdge:SetFrameLevel(h:GetFrameLevel() + 1)
-	ns.applyBorder(def.lookEdge, ns.borderFor(def.key))
+	local lv = f.textFrame:GetFrameLevel() + 1   -- over the icon, under the container
+	h:SetFrameLevel(lv)
+	look:setLevel(lv + 1, 2)
+	def.lookEdge:SetFrameLevel(lv + 1)
+	ns.Frames.dress(def.lookEdge, def.key, lv + 1)
 	if def.lookEdge.frameOverlay then def.lookEdge.frameOverlay:Hide() end
 	look:setParts(setting(def.key, "missGrey"), false, setting(def.key, "missRing"),
 		setting(def.key, "missPulse"), setting(def.key, "missGlow"))

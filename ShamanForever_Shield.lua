@@ -8,6 +8,7 @@
 local _, ns = ...
 local say, isSecret, safe = ns.say, ns.isSecret, ns.safe
 local Spells = ns.Spells
+local FR = ns.Frames
 
 local SH = { name = "shield" }
 ns.Shield = SH
@@ -204,11 +205,12 @@ holder:SetScript("OnShow", function() setLook(stateNow()) end)
 
 local lookEdge
 local function placeLook()
-	look:setLevel(shield.textFrame:GetFrameLevel() + 1)   -- over the icon, under the container
+	local lv = shield.textFrame:GetFrameLevel() + 1   -- over the icon, under the container
+	look:setLevel(lv, 2)
 	look:reshape()
 	look:style()
-	lookEdge:SetFrameLevel(shield.textFrame:GetFrameLevel() + 1)
-	ns.applyBorder(lookEdge, ns.borderFor("shield"))
+	lookEdge:SetFrameLevel(lv)
+	FR.dress(lookEdge, "shield", lv)
 	if lookEdge.frameOverlay then lookEdge.frameOverlay:Hide() end
 end
 
@@ -436,7 +438,7 @@ end
 
 local function styleNative(slot, size)
 	local db = ns.getDB()
-	ns.try("shield border", ns.applyBorder, slot.edge, ns.borderFor("shield"))
+	ns.try("shield border", FR.dress, slot.edge, "shield")
 	if slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
 	applyCountFormat(slot)
 	for i, t in ipairs(slot.tickTextures or {}) do
@@ -520,7 +522,7 @@ end
 local function styleCopy(slot, size)
 	local db = ns.getDB()
 	placeClip(slot, slot.button, size)
-	ns.try("shield copy border", ns.applyBorder, slot.edge, ns.borderFor("shield"))
+	ns.try("shield copy border", FR.dress, slot.edge, "shield")
 	if slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
 	local bar = slot.bar
 	bar:SetHeight(db.chargeBarHeight)

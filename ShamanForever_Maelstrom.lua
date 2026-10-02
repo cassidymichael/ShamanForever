@@ -160,7 +160,7 @@ local function styleStacks(slot, size)
 	slot.tickFrame:SetFrameLevel(base + 6)
 	slot.numFrame:SetFrameLevel(base + 7)
 	slot.edge:SetFrameLevel(base + 8)
-	ns.try("maelstrom border", ns.applyBorder, slot.edge, ns.borderFor(KEY))
+	ns.try("maelstrom border", ns.Frames.dress, slot.edge, KEY, base + 8)
 	if slot.copy and slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
 	local c = color("stackBarColor")
 	slot.bar:SetHeight(number("stackBarHeight"))
@@ -249,7 +249,7 @@ local fx = ns.Effects.host(f, KEY, { aura = { popOnly = true, popLevel = 5 + LIG
 
 local quiet = false
 local function stylePop(slot, size)
-	ns.try("maelstrom pop border", ns.applyBorder, slot.edge, ns.borderFor(KEY))
+	ns.try("maelstrom pop border", ns.Frames.dress, slot.edge, KEY)
 	if slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
 	fx:setQuiet(quiet)
 	fx:stylePop(size)
