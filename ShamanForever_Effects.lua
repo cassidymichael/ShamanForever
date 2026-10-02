@@ -485,8 +485,6 @@ function E.pop(f, kind, owner)
 	end
 end
 
--- The end of a totem: Killed early, Ran out, Grounded, Ran out softly. Nothing here reads a secret:
--- the gone totem's last duration object goes to a curve, then SetAlpha.
 -- In over inDur, held for hold, out over outDur
 local function fadeGroup(body, inDur, hold, outDur, onFinished)
 	local g = body:CreateAnimationGroup()
@@ -498,6 +496,7 @@ local function fadeGroup(body, inDur, hold, outDur, onFinished)
 	return g
 end
 
+-- The end of a totem: killed early, ran out, ran out softly, grounded
 local killedCurve = ns.curve({ 0, 0, 1.2, 0, 1.25, 1, 36000, 1 })
 local expiredCurve = ns.curve({ 0, 1, 1.2, 1, 1.25, 0, 36000, 0 })
 function E.endFlash(parent, anchor, owner, over)
