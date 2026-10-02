@@ -487,6 +487,16 @@ end
 
 -- The end of a totem: Killed early, Ran out, Grounded, Ran out softly. Nothing here reads a secret:
 -- -- the gone totem's last duration object goes to a curve, then SetAlpha.
+-- In over inDur, held for hold, out over outDur
+local function fadeGroup(body, inDur, hold, outDur, onFinished)
+	local g = body:CreateAnimationGroup()
+	local fadeIn, fadeOut = anim(g, "Alpha", 1), anim(g, "Alpha", 2)
+	fadeIn:SetFromAlpha(0); fadeIn:SetToAlpha(1); fadeIn:SetDuration(inDur)
+	fadeOut:SetFromAlpha(1); fadeOut:SetToAlpha(0); fadeOut:SetDuration(outDur); fadeOut:SetStartDelay(hold)
+	g:SetScript("OnFinished", onFinished)
+	return g
+end
+
 local killedCurve = ns.curve({ 0, 0, 1.2, 0, 1.25, 1, 36000, 1 })
 local expiredCurve = ns.curve({ 0, 1, 1.2, 1, 1.25, 0, 36000, 0 })
 function E.endFlash(parent, anchor, owner, over)
@@ -510,24 +520,10 @@ function E.endFlash(parent, anchor, owner, over)
 	kf.red = kf.body:CreateTexture(nil, "OVERLAY")
 	kf.red:SetAllPoints()
 	kf.red:SetColorTexture(0.95, 0.12, 0.08, 0.7)
-	kf.flash = kf.body:CreateAnimationGroup()
-	local inA = kf.flash:CreateAnimation("Alpha")
-	inA:SetFromAlpha(0); inA:SetToAlpha(1); inA:SetDuration(0.12); inA:SetOrder(1)
-	local outA = kf.flash:CreateAnimation("Alpha")
-	outA:SetFromAlpha(1); outA:SetToAlpha(0); outA:SetDuration(1.4); outA:SetStartDelay(0.5); outA:SetOrder(2)
-	kf.flash:SetScript("OnFinished", function() kf.body:SetAlpha(0); kf.glow:Hide() end)
-	kf.quick = kf.body:CreateAnimationGroup()
-	local qIn = kf.quick:CreateAnimation("Alpha")
-	qIn:SetFromAlpha(0); qIn:SetToAlpha(1); qIn:SetDuration(0.05); qIn:SetOrder(1)
-	local qOut = kf.quick:CreateAnimation("Alpha")
-	qOut:SetFromAlpha(1); qOut:SetToAlpha(0); qOut:SetDuration(0.5); qOut:SetStartDelay(0.2); qOut:SetOrder(2)
-	kf.quick:SetScript("OnFinished", function() kf.body:SetAlpha(0); kf.glow:Hide() end)
-	kf.soft = kf.body:CreateAnimationGroup()
-	local sIn = kf.soft:CreateAnimation("Alpha")
-	sIn:SetFromAlpha(0); sIn:SetToAlpha(1); sIn:SetDuration(0.1); sIn:SetOrder(1)
-	local sOut = kf.soft:CreateAnimation("Alpha")
-	sOut:SetFromAlpha(1); sOut:SetToAlpha(0); sOut:SetDuration(0.9); sOut:SetStartDelay(0.3); sOut:SetOrder(2)
-	kf.soft:SetScript("OnFinished", function() kf.body:SetAlpha(0); kf.glow:Hide() end)
+	local function finished() kf.body:SetAlpha(0); kf.glow:Hide() end
+	kf.flash = fadeGroup(kf.body, 0.12, 0.5, 1.4, finished)
+	kf.quick = fadeGroup(kf.body, 0.05, 0.2, 0.5, finished)
+	kf.soft = fadeGroup(kf.body, 0.1, 0.3, 0.9, finished)
 	kf.hourglass = kf.body:CreateTexture(nil, "OVERLAY", nil, 2)
 	kf.hourglass:SetTexture("Interface\\Common\\mini-hourglass")
 	kf.hourglass:SetPoint("CENTER")
