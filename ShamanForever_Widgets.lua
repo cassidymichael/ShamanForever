@@ -357,11 +357,14 @@ function AuraSlot:styleNow()
 	if not ok then ns.retryAfterCombat(o.sites.style, function() self:styleNow() end) end
 end
 
+-- Only when the filters changed (callers ask on every spellbook change)
 function AuraSlot:refilter()
 	if not self.container or self.err then return end
 	local o = self.opts
 	if ns.deferWhileAurasSecret(o.sites.filter, function() self:refilter() end) then return end
 	local filters = candidates(o)
+	local sig = filterSig(filters)
+	if sig == self.applied then return end
 	self.applied = nil
 	local ok = ns.try(o.sites.filter, self.container.SetAuraSlotCandidateFilters, self.container, o.slot, filters)
 	-- Last to first: a part covering another comes after it, so a refilter stopping part way leaves
@@ -373,7 +376,7 @@ function AuraSlot:refilter()
 				o.slot .. "-" .. extras[i].key, filters)
 		end
 	end
-	if ok then self.filtered, self.applied = filters.includeSpellIDs, filterSig(filters)
+	if ok then self.filtered, self.applied = filters.includeSpellIDs, sig
 	else ns.retryAfterCombat(o.sites.filter, function() self:refilter() end) end
 end
 
@@ -657,11 +660,13 @@ function ClipLook:styleNow()
 	end
 end
 
+-- Only when the filters changed: a refilter holds the look off for two frames
 function ClipLook:refilter()
 	if not self.container or self.err then return end
 	local o = self.opts
 	if ns.deferWhileAurasSecret(o.sites.filter, function() self:refilter() end) then return end
 	local filters = sensorFilters(o)
+	if filterSig(filters) == self.applied then return end
 	self:wait()
 	if ns.try(o.sites.filter, self.container.SetAuraGroupCandidateFilters, self.container, o.key, filters) then
 		self:took(nil, filters)
