@@ -23,18 +23,25 @@ local setting = ns.elementSetting
 -- With a cooldown and time left: the cooldown has the swipe; time left as a bar
 local ONE_SWIPE = { uptime = { swipe = "The cooldown has the swipe; time left shows as text or a bar." } }
 local function barTimer() return { uptime = { text = false, bar = true } } end
+-- A buff window from our cast: time left while it's on, grey and faded at its end
+local function windowBuff(row)
+	row.blurb = "Cooldown, and time left while it's on."
+	row.timerCant, row.readyGlow = ONE_SWIPE, true
+	row.expireLooks = { "grey", "fade" }
+	row.defaults = { expire = { secs = 0, fade = true } }
+	return row
+end
 local COOLDOWNS = {
 	{ key = "earthbind", spellKey = "earthbind", icon = 136102, totemSlot = 2, duration = 45, cd = 15,
 		school = "earth",
 		blurb = "Cooldown, and time left while it's down.",
-		styles = barTimer(), timerCant = ONE_SWIPE, defaults = {} },
+		styles = barTimer(), timerCant = ONE_SWIPE, defaults = { idleWhen = "offcd" } },
 	{ key = "stoneclaw", spellKey = "stoneclaw", icon = 136097, totemSlot = 2, duration = 15, cd = 15,
 		school = "earth",
 		blurb = "Cooldown, and time left while it's down.",
-		styles = barTimer(), timerCant = ONE_SWIPE, defaults = {} },
+		styles = barTimer(), timerCant = ONE_SWIPE, defaults = { idleWhen = "offcd" } },
 	{ key = "firenova",  spellKey = "fireNova",  icon = 135824, needsTotem = 1, school = "fire",
-		blurb = "Cooldown. Needs a fire totem.", timerCant = ONE_SWIPE, cd = 6, duration = 55,
-		defaults = { idleWhen = "never" } },
+		blurb = "Cooldown. Needs a fire totem.", timerCant = ONE_SWIPE, cd = 6, duration = 55 },
 	-- Emergency cooldowns
 	{ key = "naturesswiftness", spellKey = "naturesSwiftness", icon = 136076, school = "water",
 		blurb = "Cooldown, and a glow while your next Nature spell is instant.",
@@ -42,16 +49,17 @@ local COOLDOWNS = {
 			"ghostWolf", "farSight" },
 			buffKey = "naturesSwiftness",
 			text = "From your cast until your next Nature spell with a cast time." },
-		cd = 180, defaults = { idleWhen = "never" }, experimental = "Nature's Swiftness" },
+		cd = 180, experimental = "Nature's Swiftness" },
 	{ key = "manatide", spellKey = "manaTide", icon = 135861, totemSlot = 3, duration = 12, school = "water",
 		blurb = "Cooldown, and time left while it's down.",
 		styles = barTimer(), timerCant = ONE_SWIPE,
 		ranOut = true, cd = 300,
-		defaults = { idleWhen = "never", expire = { secs = 3, glow = true, fade = false } }, experimental = "Mana Tide Totem" },
+		defaults = { expire = { secs = 3, glow = true, fade = false } }, experimental = "Mana Tide Totem" },
 	{ key = "grounding", spellKey = "grounding", icon = 136039, totemSlot = 4, duration = 45, school = "air",
 		blurb = "Cooldown, time left, and a flash when it takes a spell.",
 		styles = barTimer(), timerCant = ONE_SWIPE,
-		grounded = true, ranOut = true, cd = 15, defaults = {}, experimental = "Grounding Totem" },
+		grounded = true, ranOut = true, cd = 15, defaults = { idleWhen = "offcd" },
+		experimental = "Grounding Totem" },
 	-- Rotation
 	-- Stormstrike: timed from the cast, spent by our own casts only (auras are secret in combat).
 	{ key = "stormstrike", spellKey = "stormstrike", icon = 135963, school = "air",
@@ -61,61 +69,42 @@ local COOLDOWNS = {
 			text = "From your cast for 12 s, or until your next Lightning Bolt, Chain Lightning or Earth Shock. " ..
 				"Other Nature damage on the target can also use it up, which can't be seen." },
 		primedLooks = false, expireLooks = false, readyGlow = true, cd = 8,
-		defaults = { idleWhen = "never" }, experimental = "Stormstrike" },
+		experimental = "Stormstrike" },
 	{ key = "riptide", spellKey = "riptide", icon = 252995, school = "water", blurb = "Cooldown.",
-		readyGlow = true, cd = 6, defaults = { idleWhen = "never" }, experimental = "Riptide" },
+		readyGlow = true, cd = 6, experimental = "Riptide" },
 	-- Short cooldowns: no Ready pop by default
 	{ key = "lavaburst", spellKey = "lavaBurst", icon = 237582, school = "fire", blurb = "Cooldown.",
-		readyGlow = true, cd = 10, defaults = { idleWhen = "never", ready = { pop = false } }, experimental = "Lava Burst" },
+		readyGlow = true, cd = 10, defaults = { ready = { pop = false } }, experimental = "Lava Burst" },
 	{ key = "chainlightning", spellKey = "chainLightning", icon = 136015, school = "air", blurb = "Cooldown.",
-		readyGlow = true, cd = 6, defaults = { idleWhen = "never", ready = { pop = false } }, experimental = "Chain Lightning" },
-	{ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, window = 25, school = "air",
-		blurb = "Cooldown, and time left while it's on.",
-		timerCant = ONE_SWIPE,
-		readyGlow = true, expireLooks = { "grey", "fade" }, cd = 180,
-		defaults = { idleWhen = "never", expire = { secs = 0, fade = true } }, experimental = "Rage of the Farseer" },
+		readyGlow = true, cd = 6, defaults = { ready = { pop = false } }, experimental = "Chain Lightning" },
+	windowBuff({ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, window = 25, school = "air",
+		cd = 180, experimental = "Rage of the Farseer" }),
 	{ key = "projection", spellKey = "totemicProjection", icon = 136099, school = "spirit", blurb = "Cooldown.",
-		cd = 60, experimental = "Totemic Projection" },
+		cd = 60, defaults = { idleWhen = "offcd" }, experimental = "Totemic Projection" },
 	{ key = "reincarnation", spellKey = "reincarnation", icon = 136080, school = "spirit",
 		blurb = "Cooldown, and your Ankhs when they run low.",
 		styles = { gcd = { show = false } },   -- never needs the sweep
 		reagent = 17030, noReady = true, cd = 3600,
-		defaults = { idleAlpha = 0 }, experimental = "Reincarnation" },
+		defaults = { idleAlpha = 0, idleWhen = "offcd" }, experimental = "Reincarnation" },
 	-- Racials (race IDs: Orc 2, Dwarf 3, Tauren 6, Troll 8, Windshaper Skyborne 96)
-	{ key = "bloodfury", spellKey = "bloodFury", icon = 135726, race = { 2 }, window = 15,
-		school = "fire",
-		blurb = "Cooldown, and time left while it's on.", readyGlow = true, timerCant = ONE_SWIPE,
-		expireLooks = { "grey", "fade" }, cd = 120,
-		defaults = { idleWhen = "never", expire = { secs = 0, fade = true } }, experimental = "Blood Fury" },
-	{ key = "shattercurse", spellKey = "shatterCurse", icon = 136082, race = { 2 }, window = 8,
-		school = "spirit",
-		blurb = "Cooldown, and time left while it's on.", readyGlow = true, timerCant = ONE_SWIPE,
-		expireLooks = { "grey", "fade" }, cd = 180,
-		defaults = { idleWhen = "never", expire = { secs = 0, fade = true } }, experimental = "Shatter Curse" },
-	{ key = "berserking", spellKey = "berserking", icon = 135727, race = { 8 }, window = 10,
-		school = "fire",
-		blurb = "Cooldown, and time left while it's on.", readyGlow = true, timerCant = ONE_SWIPE,
-		expireLooks = { "grey", "fade" }, cd = 180,
-		defaults = { idleWhen = "never", expire = { secs = 0, fade = true } }, experimental = "Berserking" },
+	windowBuff({ key = "bloodfury", spellKey = "bloodFury", icon = 135726, race = { 2 }, window = 15,
+		school = "fire", cd = 120, experimental = "Blood Fury" }),
+	windowBuff({ key = "shattercurse", spellKey = "shatterCurse", icon = 136082, race = { 2 }, window = 8,
+		school = "spirit", cd = 180, experimental = "Shatter Curse" }),
+	windowBuff({ key = "berserking", spellKey = "berserking", icon = 135727, race = { 8 }, window = 10,
+		school = "fire", cd = 180, experimental = "Berserking" }),
 	{ key = "rapidregeneration", spellKey = "rapidRegeneration", icon = 1850550, race = { 8 },
-		school = "water",
-		blurb = "Cooldown.", readyGlow = true, cd = 180,
-		defaults = { idleWhen = "never" }, experimental = "Rapid Regeneration" },
+		school = "water", blurb = "Cooldown.", readyGlow = true, cd = 180,
+		experimental = "Rapid Regeneration" },
 	{ key = "warstomp", spellKey = "warStomp", icon = 132368, race = { 6 }, school = "earth",
-		blurb = "Cooldown.", readyGlow = true, cd = 120,
-		defaults = { idleWhen = "never" }, experimental = "War Stomp" },
-	{ key = "stoneform", spellKey = "stoneform", icon = 136225, race = { 3 }, window = 8,
-		school = "earth",
-		blurb = "Cooldown, and time left while it's on.", readyGlow = true, timerCant = ONE_SWIPE,
-		expireLooks = { "grey", "fade" }, cd = 180,
-		defaults = { idleWhen = "never", expire = { secs = 0, fade = true } }, experimental = "Stoneform" },
+		blurb = "Cooldown.", readyGlow = true, cd = 120, experimental = "War Stomp" },
+	windowBuff({ key = "stoneform", spellKey = "stoneform", icon = 136225, race = { 3 }, window = 8,
+		school = "earth", cd = 180, experimental = "Stoneform" }),
 	-- Walk on Air: cooldown only, its real length is unseen
 	{ key = "walkonair", spellKey = "walkOnAir", icon = 132845, race = { 96 }, school = "air",
-		blurb = "Cooldown.", readyGlow = true, cd = 120,
-		defaults = { idleWhen = "never" }, experimental = "Walk on Air" },
+		blurb = "Cooldown.", readyGlow = true, cd = 120, experimental = "Walk on Air" },
 	{ key = "skysight", spellKey = "skysight", icon = 1029587, race = { 96 }, school = "air",
-		blurb = "Cooldown.", readyGlow = true, cd = 120,
-		defaults = { idleWhen = "never" }, experimental = "Skysight" },
+		blurb = "Cooldown.", readyGlow = true, cd = 120, experimental = "Skysight" },
 }
 
 -- The kind and its parts (ns.registerPart); a row's flags name its parts. Other files' parts join
@@ -138,7 +127,7 @@ local function expires(def)
 end
 
 ns.registerPart("cooldown", {
-	defaults = { idleAlpha = 0.3, idleWhen = "offcd" },
+	defaults = { idleAlpha = 0.3, idleWhen = "never" },
 	idle = { choices = function(def)
 		return def.idleHeld and heldChoices(def.idleHeld) or CD.IDLE_CHOICES
 	end },
