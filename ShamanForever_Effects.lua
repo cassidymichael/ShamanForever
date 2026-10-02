@@ -670,11 +670,9 @@ function Host:levelGlow()
 	if self.up then self.up:setLevel(self.f.textFrame:GetFrameLevel() + GLOW_LEVEL) end
 end
 
+-- The button draws the border's overlay art itself
 function Host:makeEdge(button)
-	local edge = CreateFrame("Frame", nil, self.body or button)
-	edge:SetAllPoints(button)
-	edge.owner = self.key
-	return edge
+	return ns.Frames.edge(self.body or button, button, self.key, { overlay = false })
 end
 
 function Host:bind(button, icon)

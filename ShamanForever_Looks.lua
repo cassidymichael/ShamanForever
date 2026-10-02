@@ -151,7 +151,7 @@ end
 -- On f itself: over the picture, under its swipe, timers and text.
 local function drawOverlay(f, art)
 	local t = f.frameOverlay
-	if not art or art.margin or (art.atlas and not Looks.hasAtlas(art.atlas)) then
+	if not art or art.margin or f.noOverlay or (art.atlas and not Looks.hasAtlas(art.atlas)) then
 		if t then t:Hide() end
 		return
 	end

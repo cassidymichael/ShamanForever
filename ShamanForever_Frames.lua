@@ -669,6 +669,16 @@ function FR.mountOwn(carrier, key, box, level)
 	return ok
 end
 
+-- One of those frames, over anchor; overlay = false: the border's overlay art is drawn by what it
+-- sits on
+function FR.edge(parent, anchor, key, opts)
+	local edge = CreateFrame("Frame", nil, parent)
+	edge:SetAllPoints(anchor)
+	edge.owner = key
+	edge.noOverlay = opts and opts.overlay == false or nil
+	return edge
+end
+
 -- Its border and frame together, on one of those frames (bare: the border only)
 function FR.dress(edge, key, level, bare)
 	ns.Looks.applyBorder(edge, ns.borderFor(key))
