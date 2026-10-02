@@ -156,9 +156,11 @@ local function previewBorder(owner)
 	return ns.Style.read(o, "border")
 end
 
--- A style block's preview: tiles from a pool wearing the owner's styles.
+-- A style block's preview: tiles from a pool wearing the owner's styles; the element frame only
+-- -- when framed.
 local PREVIEW_SIZE, SCHOOL_GAP = 40, 72
-local function previewTiles(f, owner, icon, x, bySchool)
+local NO_FRAME = { look = "none" }
+local function previewTiles(f, owner, icon, x, bySchool, framed)
 	local pool, held = ns.Look.tilePool, {}
 	f:HookScript("OnHide", function()
 		while #held > 0 do pool.release(table.remove(held)) end
@@ -175,12 +177,13 @@ local function previewTiles(f, owner, icon, x, bySchool)
 		while #held > n do pool.release(table.remove(held)) end
 		while #held < n do table.insert(held, pool.acquire(f, PREVIEW_SIZE)) end
 		local border = previewBorder(owner)
+		local x0 = type(x) == "function" and x() or x
 		for i, t in ipairs(held) do
 			local sc = schools[i]
-			t:wear(o, { border = border })
+			t:wear(o, { border = border, frame = not framed and NO_FRAME or nil })
 			t:icon(sc and sc.icon or type(icon) == "function" and icon() or icon)
 			t:school(sc and sc.key or isElement(o) and ns.Looks.elementSchool(o) or nil)
-			t:point("LEFT", f, "LEFT", x + (i - 1) * SCHOOL_GAP, 0)
+			t:point("LEFT", f, "LEFT", x0 + (i - 1) * SCHOOL_GAP, 0)
 		end
 		return held
 	end
@@ -213,6 +216,155 @@ local function borderRows(p, owner, after, label, shown)
 	p:slider("Cap size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("capSize"), r.set("capSize"), showWhen(uses("capSize"), shown))
 	p:color("Cap colour", "Colour and opacity.", r.get("capColor"), r.set("capColor"), showWhen(uses("capColor"), shown))
 end
+
+-- Art frames: kind "frame" round each icon, "groupframe" round a group or bar.
+-- opts: shown; spacing = { get, set, min, max, size, enabled } offers a repeating look's spacing.
+local NO_REACH = { left = 0, right = 0, top = 0, bottom = 0 }
+local function frameRows(p, owner, kind, after, opts)
+	after = after or relayout
+	opts = opts or {}
+	local St, FR = ns.Style, ns.Frames
+	local shown = opts.shown
+	local r = styleRows(p, owner, kind, after)
+	if owner ~= nil then followRow(p, owner, kind, after, nil, shown) end
+	local own = showWhen(r.own, shown)
+	local function key() local o = resolve(owner); return type(o) == "string" and o or nil end
+	local function look() return St.look(kind, r.style().look) end
+	local function framed() return not look().none end
+	local showAll = false
+	local function offered(all)
+		local out, cur, has = {}, look(), false
+		for _, e in ipairs(FR.available(kind, key(), all)) do
+			table.insert(out, e)
+			if e == cur then has = true end
+		end
+		if not has then table.insert(out, cur) end
+		return out
+	end
+	if kind == "frame" then
+		local f = p:row(52)
+		p:label(f, "Preview")
+		local function reach() return FR.usable(look()) and look().reach or NO_REACH end
+		local function height()
+			local rc = reach()
+			return math.max(52, math.ceil((1 + rc.top + rc.bottom) * PREVIEW_SIZE) + 8)
+		end
+		local function icon()
+			local o = resolve(owner)
+			return isElement(o) and ns.ELEMENTS[o].icon or 136026
+		end
+		local sync = previewTiles(f, owner, icon,
+			function() return LABEL_W + 24 + math.ceil(reach().left * PREVIEW_SIZE) end, function() return false end, true)
+		p:add(f, height, own, function()
+			f:SetHeight(height())
+			sync()
+		end)
+	end
+	local set = r.set("look")
+	local fields = St.field(kind, "look")
+	local function menu(_, root)
+		root:SetScrollMode(400)
+		local k = key()
+		local secs, at = {}, {}
+		local function section(id, name)
+			if not at[id] then
+				at[id] = { name = name, list = {} }
+				table.insert(secs, at[id])
+			end
+			return at[id]
+		end
+		section("lead")
+		if k then section("mine", "Made for " .. ns.Look.elementName(k)) end
+		for _, g in ipairs(fields.groups) do section(g[1], g[2]) end
+		for _, e in ipairs(offered(showAll)) do
+			local m = FR.madeFor(e, k)
+			local id = e.none and "lead" or m == true and "mine" or m == false and "others" or e.group or "lead"
+			table.insert(section(id, id == "others" and "Made for others" or nil).list, e)
+		end
+		local first = true
+		for _, sec in ipairs(secs) do
+			if #sec.list > 0 then
+				if sec.name then
+					if not first then root:CreateDivider() end
+					root:CreateTitle(sec.name)
+				end
+				first = false
+				for _, e in ipairs(sec.list) do
+					local item = root:CreateRadio(e.name, function() return look() == e end, function() set(e.key) end)
+					if e.weight then
+						item:AddInitializer(function(button)
+							if not button.AttachFontString then return end
+							local fs = button:AttachFontString()
+							fs:SetFontObject("GameFontDisableSmall")
+							fs:SetPoint("RIGHT", button, "RIGHT", -4, 0)
+							fs:SetText(e.weight)
+						end)
+					end
+				end
+			end
+		end
+	end
+	p:dropdown(fields.name, nil, function()
+		local out = {}
+		for _, e in ipairs(offered(showAll)) do table.insert(out, { e.key, e.name }) end
+		return out
+	end, function() return look().key end, set, own, 190, menu)
+	local exp = p:row(22)
+	ns.Look.expBadge(exp, fields.name):SetPoint("LEFT", exp, "LEFT", LABEL_W, 0)
+	p:add(exp, 22, showWhen(function() return look().experimental end, own))
+	p:checkbox("Show all looks", "Also looks made for something else.", function() return showAll end,
+		function(v) showAll = v; OP.refresh() end,
+		showWhen(function() return #offered(true) > #offered(false) end, own))
+	local tints = showWhen(function() return framed() and look().uses.color end, own)
+	p:color("Frame colour", "Tints the art. White keeps its own colours.", r.get("color"), r.set("color"), tints, true)
+	p:slider("Frame opacity", nil, 0.1, 1, 0.05, pct, r.get("alpha"), r.set("alpha"), showWhen(framed, own))
+	if kind == "frame" and owner ~= nil then
+		-- What a solid look's wings need from its group's spacing
+		local function room()
+			local o, l = resolve(owner), look()
+			if l.weight ~= "solid" or not FR.usable(l) then return nil end
+			local g = ns.groupOf(o)
+			if not (g and #g.members > 1) then return nil end
+			local rc, size = l.reach, ns.groupSize(g)
+			local n = g.orientation == "vertical" and rc.top + rc.bottom or rc.left + rc.right
+			n = math.ceil(n * size)
+			return n > 0 and n or nil
+		end
+		p:text(function() return string.format("Needs about %d spacing in its group to clear its neighbours.", room() or 0) end,
+			showWhen(function() return room() ~= nil end, own))
+	end
+	local sp = opts.spacing
+	if sp then
+		local function fit()
+			local l = look()
+			if l.none or not FR.usable(l) then return nil end
+			local n = FR.fitSpacing(l, sp.size())
+			return n and math.floor(n + 0.5)
+		end
+		local f = p:row(28)
+		f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		f.text:SetTextColor(0.72, 0.72, 0.72)
+		f.text:SetPoint("LEFT", 4, 0)
+		local use = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+		use:SetSize(60, 22)
+		use:SetText("Use")
+		use:SetPoint("LEFT", f.text, "RIGHT", 10, 0)
+		use:SetScript("OnClick", function()
+			local n = fit()
+			if n then sp.set(math.min(math.max(n, sp.min), sp.max)) end
+		end)
+		setTip(use, "Use", "Sets Spacing to this.")
+		p:add(f, 28, showWhen(function() return fit() ~= nil end, own), function()
+			local n = fit() or 0
+			f.text:SetText(string.format("Fits at Spacing %d.", n))
+			use:SetEnabled(sp.get() ~= n and (not sp.enabled or sp.enabled()))
+		end)
+	end
+	if opts.note then p:text(opts.note, showWhen(framed, own)) end
+end
+
+-- Whether a bar draws a group frame of its own
+local function barFramed(bar) return tContains(ns.Style.bar(bar).kinds, "groupframe") end
 
 -- popSchool is its own setting, not a style field, so it stays whether or not the element
 -- -- follows Global.
@@ -575,6 +727,23 @@ local function buildGlobal(p)
 	p:text("Every border. Elements, the totem bar and the swing timer can have their own.")
 	borderRows(p, nil)
 	ownLine(p, "border")
+	p:header("Frame style")
+	p:anchor("frame")
+	p:text("Art round each icon. Elements can have their own.")
+	frameRows(p, nil, "frame")
+	ownLine(p, "frame")
+	p:header("Group frame style")
+	p:anchor("groupframe")
+	p:text(function()
+		local names = { "Groups" }
+		for _, bar in ipairs(ns.Style.bars()) do
+			if barFramed(bar) then table.insert(names, "the " .. ns.Style.bar(bar).label:lower()) end
+		end
+		local who = #names == 1 and names[1] or table.concat(names, ", ", 1, #names - 1) .. " and " .. names[#names]
+		return "Art round a whole group. " .. who .. " can have their own."
+	end)
+	frameRows(p, nil, "groupframe")
+	ownLine(p, "groupframe")
 	glowBlock(p, nil, 136026)
 	popBlock(p, nil, 136026, "ready")
 end
@@ -885,6 +1054,12 @@ local function buildTotemBar(p)
 	p:header("Border style")
 	p:text("Set by the theme.", owned("border"))
 	borderRows(p, "totembar", changed, nil, free("border"))
+	if barFramed("totembar") then
+		p:header("Frame style")
+		frameRows(p, "totembar", "groupframe", changed, { spacing = {
+			get = tget("spacing"), set = function(v) c().spacing = v; changed() end, min = -10, max = 20,
+			size = function() return (TB.look()) end, enabled = free("spacing") } })
+	end
 
 	p.gate = full
 	p:header("Buttons")
@@ -1017,7 +1192,7 @@ OP.kit = {
 	relayout = relayout, perFrame = perFrame, respell = respell, get = get, set = set, gopt = gopt, confirm = confirm,
 	SHOW_CHOICES = SHOW_CHOICES,
 	COMBAT_SHOW = COMBAT_SHOW, STAY_TIP = STAY_TIP, staySecs = staySecs,
-	globalRow = globalRow, borderRows = borderRows,
+	globalRow = globalRow, borderRows = borderRows, frameRows = frameRows, barFramed = barFramed,
 	timerSettings = timerSettings, gcdBlock = gcdBlock, glowBlock = glowBlock, popBlock = popBlock,
 	textBlock = textBlock, barRows = barRows,
 	expiringLooks = expiringLooks, killedBlock = killedBlock,
@@ -1238,7 +1413,7 @@ local function buildNav()
 	navList = list
 end
 
-local ELEMENT_KINDS = { "cooldown", "uptime", "gcd", "glow", "pop", "border" }
+local ELEMENT_KINDS = { "cooldown", "uptime", "gcd", "glow", "pop", "border", "frame" }
 local function addStyleUsers()
 	local St = ns.Style
 	for _, owner in ipairs(St.bars()) do

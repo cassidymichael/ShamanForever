@@ -552,12 +552,14 @@ function FR.usable(look)
 	return FR.hasArt(look)
 end
 
+-- Whether a look was made for owner key: nil when made for none
 local function madeFor(look, key)
 	local m = look.madeFor
 	if m == nil then return nil end
 	if type(m) == "string" then return m == key end
 	return key ~= nil and tContains(m, key) or false
 end
+FR.madeFor = madeFor
 
 -- The looks a picker offers for owner key (nil: Global or a group): None, those made for it, the
 -- rest; looks made for other owners only with showAll
