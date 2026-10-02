@@ -10,7 +10,7 @@ local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Art\\Frames\\"
 local floor, max, min, abs = math.floor, math.max, math.min, math.abs
 
 -- Frame levels, from the carrier's (element) or the group frame's own; members sit at member
-FR.LEVEL = { under = -2, over = 1, top = 13, group = 0, groupTop = 16, member = 3 }
+FR.LEVEL = { under = -2, over = 1, group = 0, member = 3 }
 
 local SECTIONS = { { "blizzard", "Blizzard's" }, { "painted", "Painted" }, { "minimal", "Minimal" } }
 S.addField("frame", "look", { name = "Frame look", where = "Global settings > Frame style",
@@ -593,8 +593,7 @@ local function tint(tex, look, style)
 end
 
 local function levelOf(look, base)
-	local d = look.onTop and FR.LEVEL.top or look.layer == "under" and FR.LEVEL.under or FR.LEVEL.over
-	return max(0, base + d)
+	return max(0, base + (look.layer == "under" and FR.LEVEL.under or FR.LEVEL.over))
 end
 
 -- An element look round carrier, whose box is box units square; style: { color, alpha }; level: the
@@ -709,7 +708,7 @@ function FR.drawGroup(host, look, lay, style)
 	m:ClearAllPoints()
 	m:SetPoint("TOPLEFT", host, "TOPLEFT", lay.x or 0, -(lay.y or 0))
 	m:SetSize(geo.w, geo.h)
-	m:SetFrameLevel(max(0, host:GetFrameLevel() + (look.onTop and FR.LEVEL.groupTop or FR.LEVEL.group)))
+	m:SetFrameLevel(max(0, host:GetFrameLevel() + FR.LEVEL.group))
 	local n, sliced = 0, false
 	for _, p in ipairs(geo.parts) do
 		if p.slice then
