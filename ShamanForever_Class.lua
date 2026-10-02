@@ -2,6 +2,8 @@
 
 local _, ns = ...
 
+-- What a class supplies: token (its class file token), plural (in messages); cooldowns and buffs
+-- (rows for the cooldown and buff engines, from _ClassElements; optional)
 ns.CLASS = { token = "SHAMAN", plural = "shamans" }
 
 -- The art theme: what a class supplies for its icons' colour, art and effects. Every table is

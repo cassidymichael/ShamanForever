@@ -1,11 +1,11 @@
 -- Kinds and parts
 -- A kind is a family of elements offered the same way: its options page and its preview. A part is
--- one thing an element of a kind can have (a totem in a slot, a reagent, a primed state), declared
--- once: its settings, effects, page words and preview. Kinds and parts register in any file order
--- and every call adds to the earlier ones: a kind's parts and slots lists grow (a name already in
--- one stays where it is), any other field given again replaces the earlier value. A part joins a
--- kind's parts by naming the kind (kind, kinds), so the kind needn't list it. Elements take their
--- parts when the addon has loaded (KD.finish).
+-- one thing an element of a kind can have (a timer, a reagent, a primed state), declared once: its
+-- settings, effects, page words, preview and runtime hooks. Kinds and parts register in any file
+-- order (unless a kind's engine says otherwise) and every call adds to the earlier ones: a kind's
+-- parts and slots lists grow (a name already in one stays where it is), any other field given
+-- again replaces the earlier value. A part joins a kind's parts by naming the kind (kind, kinds),
+-- so the kind needn't list it. Elements take their parts when the addon has loaded (KD.finish).
 
 local _, ns = ...
 
@@ -26,19 +26,19 @@ end
 local function kindOf(kind)
 	local k = KINDS[kind]
 	if not k then
-		k = { parts = {}, slots = {}, joins = { parts = {}, slots = {} } }
+		k = { parts = {}, slots = {}, joins = {} }
 		KINDS[kind] = k
 	end
 	return k
 end
--- A name joining a kind's list: after (a name in it) or order (its place), else at the end
-local function join(kind, list, name, at)
+-- A part joining a kind's parts: after (a part in them), else at the end
+local function join(kind, name, after)
 	local k = kindOf(kind)
-	table.insert(k.joins[list], { name = name, after = at.after, order = at.order })
+	table.insert(k.joins, { name = name, after = after })
 	k.resolved = nil
 end
--- A kind's list with the names that joined it: anchored ones after their anchor (anchors can be
--- joined names themselves), then those with an order, then the rest in the order they joined
+-- A kind's parts with the parts that joined them: anchored ones after their anchor (anchors can be
+-- joined parts themselves), then the rest in the order they joined
 local function resolve(base, joins)
 	local list, pending = {}, {}
 	for _, n in ipairs(base) do table.insert(list, n) end
@@ -56,22 +56,17 @@ local function resolve(base, joins)
 			end
 		end
 	end
-	local ordered = {}
-	for _, j in ipairs(pending) do if j and j.order then table.insert(ordered, j) end end
-	table.sort(ordered, function(a, b) return a.order < b.order end)
-	for _, j in ipairs(ordered) do table.insert(list, math.min(j.order, #list + 1), j.name) end
 	for _, j in ipairs(pending) do
-		if j and not j.order and not indexOf(list, j.name) then table.insert(list, j.name) end
+		if j and not indexOf(list, j.name) then table.insert(list, j.name) end
 	end
 	return list
 end
--- A kind's parts and its page's slots, with every name that joined them
+-- A kind's parts, with every part that joined them, and its page's slots
 local function listOf(kind, name)
 	local k = KINDS[kind]
 	if not k then return NONE end
 	if not k.resolved then
-		k.resolved = { parts = resolve(k.parts, k.joins.parts),
-			slots = resolve(k.slots, k.joins.slots) }
+		k.resolved = { parts = resolve(k.parts, k.joins), slots = k.slots }
 	end
 	return k.resolved[name]
 end
@@ -80,9 +75,10 @@ function KD.slots(kind) return listOf(kind, "slots") end
 
 -- spec: parts (part names in page and preview order; the first is the kind's own, which every
 -- element of the kind has), slots (its page's standard blocks in order: own, warn, cooldown, gcd,
--- uptime, ready, active, expire, killed), prepare(def) (before its parts are read), page(p, def)
--- (else the parts page), preview(def, key) (else one made from its parts). parts and slots add to
--- the lists; the rest replace, so a module and its options file can each give their half.
+-- uptime, ready, active, expire, killed), prepare(def) (before its parts are kept; it may read
+-- part words, but not from a part whose has() reads what prepare sets), page(p, def) (else the
+-- parts page), preview(def, key) (else one made from its parts). parts and slots add to the lists;
+-- the rest replace, so a module and its options file can each give their half.
 -- A preview, whether made by hand or from parts:
 --   states             { { id, label }, ... }; the first is shown first
 --   typical, warning   the state /sf preview shows in Preview and in Warnings (else the first)
@@ -92,8 +88,8 @@ function KD.slots(kind) return listOf(kind, "slots") end
 --   idles(st, when)    whether st goes idle once its moment has played, at Idle when = when
 --   standIn(ic)        /sf preview made ic, its stand-in: add what render expects on it
 --   hold(ic)           /sf preview paints ic over the element (nil: it ended)
--- A bar's preview drawn on its page's header instead (the totem bar, the swing timer): stage, heroH,
--- build(h), render(h, st, P), stateShown(st), fallback (the state while the shown one is hidden).
+-- A bar's preview, drawn on its page's header instead: stage, heroH, build(h), render(h, st, P),
+-- stateShown(st), fallback (the state while the shown one is hidden).
 local LISTS = { parts = true, slots = true }
 function ns.registerKind(kind, spec)
 	local k = kindOf(kind)
@@ -109,32 +105,29 @@ end
 function KD.get(kind) return KINDS[kind] end
 
 -- spec (each field optional; a value may be a function of def):
---   kind, after/order a kind it joins: after a part in its list, or at a place in it (else at
---                     the end); kinds = { [kind] = { after, order } } for several
---   addSlot           { slot, after, order }: a page slot it brings to the kinds it joins
+--   kind, after       a kind it joins: after a part in its list (else at the end); kinds =
+--                     { [kind] = { after } } for several
 --   has(def)          whether def has it; without it the part's name doubles as the row flag:
 --                     def[name] set (not nil or false) means it has it
 --   defaults, ranges  its settings' defaults and { min, max, step } (the shapes: _Profiles)
 --   glow, pop         whether it adds a pulsing glow or a pop (its page then offers their style
---                     blocks); popKind: the pop it plays
---   idle              words for the Idle block: choices, held (what keeps it shown, for its
---                     kind's own choices), also, text, extra
+--                     blocks)
+--   idle              words for the Idle block: choices ({ value, label, text, tip, counts };
+--                     counts: the kind's own choice it counts as in the engine), held (what
+--                     keeps it shown, for its kind's own choices), also, text, extra
 --   page              by slot: a title (timers), the slot's block options, or for own a block
 --                     ("reagent", { "toggle", ... }) or a list of them
 --   preview           states ({ id, label, order }), uptime, cooldown, typical, warning, labels
 --                     (state labels over other parts'), render(ic, st, def, P, pv) (every state),
 --                     pop(ic, st, def, P), idles(st, def, when) (nil: no say), rest(ic, def, P,
 --                     keep) (the kind's look while nothing of its own is going on)
+--   runtime           hooks its kind's engine calls on the HUD (listed where the kind registers)
 function ns.registerPart(name, spec)
 	PARTS[name] = merge(PARTS[name] or {}, spec)
 	PARTS[name].name = name
 	local kinds = spec.kinds or {}
-	if spec.kind then kinds[spec.kind] = { after = spec.after, order = spec.order } end
-	for kind, at in pairs(kinds) do
-		join(kind, "parts", name, at)
-		local slot = spec.addSlot
-		if slot then join(kind, "slots", slot[1], slot) end
-	end
+	if spec.kind then kinds[spec.kind] = { after = spec.after } end
+	for kind, at in pairs(kinds) do join(kind, name, at.after) end
 end
 
 local function value(v, def)
@@ -142,7 +135,8 @@ local function value(v, def)
 	return v
 end
 
--- The parts def has: its kind's own first
+-- The parts def has: its kind's own first. Kept once the element has its parts (KD.finish): before
+-- that a part's has() may read fields its kind's prepare() hasn't set yet.
 local had = setmetatable({}, { __mode = "k" })
 local function partsOf(kind, def)
 	local list = had[def]
@@ -158,9 +152,10 @@ local function partsOf(kind, def)
 			if has then table.insert(list, p) end
 		end
 	end
-	had[def] = list
+	if def.finished then had[def] = list end
 	return list
 end
+KD.partsOf = partsOf
 
 -- Its parts, then its kind's own: the first that gives a field has it
 local function firstOf(list, get)
@@ -180,6 +175,14 @@ local function fillIdle(def, list)
 	if def.idleText == nil then def.idleText = value(word("text"), def) end
 	if def.idleExtra == nil then def.idleExtra = value(word("extra"), def) end
 	if def.idleChoices == nil then def.idleChoices = value(word("choices"), def) end
+end
+
+-- The engine's Idle choice for def's choice when: what its row counts as, else when
+function KD.idleMode(def, when)
+	for _, c in ipairs(def.idleChoices or NONE) do
+		if c[1] == when then return c.counts or when end
+	end
+	return when
 end
 
 -- A kind's names that lead nowhere, noted once: a part with no spec, a slot or own block with no
@@ -212,9 +215,9 @@ end
 -- An element of a kind with parts takes its parts' defaults, ranges, effects and idle words
 local function finishOne(e)
 	local def = e.def
-	def.finished = true
 	local k = KINDS[e.kind]
 	if k.prepare then k.prepare(def) end
+	def.finished = true
 	local list = partsOf(e.kind, def)
 	check(e.kind, def, list)
 	e.defaults = e.defaults or def.defaults or {}
@@ -231,8 +234,7 @@ local function finishOne(e)
 		glow = glow or value(p.glow, def) and true or false
 		pop = pop or value(p.pop, def) and true or false
 	end
-	local popKind = firstOf(list, function(p) return p.popKind end)
-	e.effects = { glow = glow, pop = pop, popKind = popKind }
+	e.effects = { glow = glow, pop = pop }
 	fillIdle(def, list)
 end
 -- Each element on its own: one that fails is noted and the rest go on

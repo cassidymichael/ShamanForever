@@ -1,6 +1,6 @@
 -- Buff elements
--- Water buffs in combat: auras are secret, so the timer runs on from the last read.
--- Elemental Focus: only Blizzard's aura container can show a proc in combat.
+-- A buff with a timer: auras are secret in combat, so the timer runs on from the last read.
+-- A proc: only Blizzard's aura container can show one in combat.
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
@@ -11,25 +11,11 @@ ns.Buffs = B
 
 local setting = ns.elementSetting
 
-local TEXT_TIMER = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center",
-	swipe = false, bar = true } }
-local BUFFS = {
-	{ key = "waterwalking", spellKey = "waterWalking", icon = 135863, school = "water", reagent = 17058, duration = 600,
-		blurb = "Time left while it's up.", styles = TEXT_TIMER,
-		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, fade = false } }, experimental = "Water Walking" },
-	{ key = "waterbreathing", spellKey = "waterBreathing", icon = 136148, school = "water", reagent = 17057, duration = 600,
-		breath = true, blurb = "Time left while it's up. Warns under water without it.", styles = TEXT_TIMER,
-		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, fade = false } }, experimental = "Water Breathing" },
-	{ key = "elementalfocus", spellKey = "elementalFocus", buffKey = "clearcasting", icon = 136170, school = "spirit",
-		blurb = "Shows while " .. Spells.name("clearcasting") .. " is up.",
-		proc = true, defaults = { idleAlpha = 0 },
-		styles = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
-	},
-}
+-- Elements: the class's rows (ns.CLASS.buffs)
+local BUFFS = ns.CLASS.buffs or {}
 
--- The kind and its parts (ns.registerPart); a row's flags name its parts. Target's rows are of this
--- kind too; parts from other files join it: Target's own, the reagent's (_Reagents), Expiring's
--- (_Timers).
+-- The kind and its parts (ns.registerPart); a row's flags name its parts. Other files' rows and
+-- parts join it: the reagent's (_Reagents), Expiring's (_Timers), a class's own.
 local function procName(def) return def.buffKey and Spells.name(def.buffKey) end
 ns.registerPart("buff", {
 	idle = { text = function(def)
@@ -133,7 +119,7 @@ for _, def in ipairs(BUFFS) do
 		experimental = def.experimental, styles = def.styles })
 end
 
--- Water buff time
+-- A timed buff's time
 local function setUp(def, start, length)
 	def.upUntil = start + length
 	def.frame.upTimer:setTime(start, length)
@@ -164,13 +150,13 @@ local function castOnSelf()
 	return not friend
 end
 
--- Under water without Water Breathing
+-- Under water without the breath buff
 local breathing = false
 local function underWaterWarns(def)
 	return def.breath and breathing and not def.upUntil and setting(def.key, "warn", "on") and not ns.cantAct()
 end
 
--- Elemental Focus
+-- Procs
 local function procIDMap(def)
 	if not def.procIDs then
 		def.procIDs = {}
@@ -314,7 +300,7 @@ function B.applyLayout()
 	end
 	refreshAll()
 end
-B.afterGroups = function()
+function B.afterGroups()
 	for _, def in ipairs(BUFFS) do
 		if def.proc then
 			def.aura:style()

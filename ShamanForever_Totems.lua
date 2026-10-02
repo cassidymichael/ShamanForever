@@ -1,7 +1,7 @@
 -- Totems
 
 local _, ns = ...
-local say, isSecret, describeArg = ns.say, ns.isSecret, ns.describeArg
+local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
 local Spells = ns.Spells
 
 local T = { name = "totems" }
@@ -127,8 +127,44 @@ function T.forget(slot)
 	owner[slot], spells[slot] = nil, nil
 end
 
--- Cooldown parts (ns.registerPart)
+-- A totem's end as the end flash plays it: s holds the event's settings (which: "ended", it ran
+-- out; "killed", it ended early), def is the element's row (none for the totem bar); nil: nothing
+-- plays
+function T.endOptions(s, which, def)
+	if which == "killed" then
+		if not s.flash then return nil end
+		if def and def.grounded then return { grounded = true, pop = s.pop, glow = s.glow } end
+		return { pop = s.pop, glow = s.glow, mark = s.mark }
+	end
+	if def and def.ranOut then
+		if not s.flash then return nil end
+		return { expired = true, ranOut = ns.THEME.color[def.school], pop = s.pop, glow = s.glow }
+	end
+	return s.pop and { expired = true, pop = true } or nil
+end
+
+-- Cooldown parts (ns.registerPart), with their runtime hooks (_Cooldowns)
 local setting = ns.elementSetting
+
+-- In combat the slot is secret: a totem timer shows only when the slot's totem is known to be ours
+local function slotMatch(def, slot)
+	local key, how, icon = T.identify(slot)
+	if key then return key == def.spellKey and 1 or 0, how end
+	if icon then
+		local mine = icon == def.iconID or icon == def.icon
+		if mine then T.setOwner(slot, def.spellKey) end
+		return mine and 1 or 0, how
+	end
+	return 0, how
+end
+local function debugWords(def, read)
+	local secret = "?"
+	if def.spellID and C_Secrets and C_Secrets.ShouldTotemSpellBeSecret then
+		local ok, v = pcall(C_Secrets.ShouldTotemSpellBeSecret, def.spellID)
+		secret = ok and describeArg(v) or "error"
+	end
+	return string.format("totem spell secret=%s, %s", secret, read)
+end
 
 -- totemSlot: a totem of its own in that slot; its end runs out (ranOut: a flash, not the pop) or is
 -- killed early (grounded: it took a spell)
@@ -137,12 +173,14 @@ local function ended(def)
 	if def.ranOut then e.flash, e.glow = true, false end
 	return e
 end
-local function endFlash(ic, def, P, st, opts, secs)
+-- The preview's end flash; secs: when the cooldown its end started shows (none: it doesn't)
+local function previewEnd(ic, def, P, st, opts, secs)
 	if opts then
 		if not ic.endFlash then ic.endFlash = ns.Effects.endFlash(ic, ic, def.key) end
 		ic.endFlash:setIcon(def.iconID or def.icon)
 		ic.endFlash:play(nil, opts)
 	end
+	if not secs then return end
 	local token = {}
 	ic.momentToken, ic.momentDone = token, false
 	C_Timer.After(opts and secs or 0, function()
@@ -198,20 +236,36 @@ ns.registerPart("totemSlot", {
 			end
 		end,
 		pop = function(ic, st, def, P)
-			local key = def.key
-			local function on(name, field) return setting(key, name, field) end
-			if st == "ranout" and def.ranOut then
-				endFlash(ic, def, P, st, on("ended", "flash") and { expired = true,
-					ranOut = ns.THEME.color[def.school], pop = on("ended", "pop"),
-					glow = on("ended", "glow") }, 1.4)
-			elseif st == "ranout" and on("ended", "pop") then ic:Pop("expired")
-			elseif st == "killed" and def.grounded then
-				endFlash(ic, def, P, st, on("killed", "flash") and { grounded = true,
-					pop = on("killed", "pop"), glow = on("killed", "glow") }, 2.1)
+			if st == "ranout" then
+				local opts = T.endOptions(ns.elementEvent(def.key, "ended"), "ended", def)
+				previewEnd(ic, def, P, st, opts, def.ranOut and 1.4 or nil)
 			elseif st == "killed" then
-				endFlash(ic, def, P, st, on("killed", "flash") and { pop = on("killed", "pop"),
-					glow = on("killed", "glow"), mark = on("killed", "mark") }, 2.1)
+				previewEnd(ic, def, P, st, T.endOptions(ns.elementEvent(def.key, "killed"), "killed", def), 2.1)
 			end
+		end,
+	},
+	runtime = {
+		refresh = function(def, _, held)
+			local f = def.frame
+			local tok, tdur = safe(GetTotemDuration, def.totemSlot)
+			if tok and tdur then
+				local match, how = slotMatch(def, def.totemSlot)
+				f.activeHolder:SetAlpha(match)
+				f.upTimer:set(tdur)
+				def.read, def.readHow = match, how
+				return held or match == 1
+			end
+			f.activeHolder:SetAlpha(0)
+			f.upTimer:clear()
+			def.read, def.readHow = "no totem in its slot", nil
+			return held
+		end,
+		debug = function(def)
+			local read = def.read == nil and "not checked" or describeArg(def.read)
+			if def.readHow then
+				read = string.format("slot %d timer, by %s, match %s", def.totemSlot, def.readHow, read)
+			end
+			return debugWords(def, read)
 		end,
 	},
 })
@@ -220,11 +274,11 @@ ns.registerPart("totemSlot", {
 local FIRE_NOVA_CHOICES = {
 	{ "never", "Never", "It always shows in full" },
 	{ "nototem", "No fire totem", "Idle while it's ready and no fire totem is out",
-		"Idle only while it can't be cast." },
+		"Idle only while it can't be cast.", counts = "offcd" },
 	{ "offcd", "Ready", "Idle while it's ready, with or without a fire totem out",
 		"With or without a fire totem out." },
 	{ "oncdany", "Cooling down", "Idle while it's cooling down, with or without a fire totem out",
-		"With or without a fire totem out." },
+		"With or without a fire totem out.", counts = "oncd" },
 	{ "oncd", "Cooling down, no fire totem", "Idle while it's cooling down and no fire totem is out",
 		"Shown in full only while it's ready." },
 }
@@ -262,7 +316,78 @@ ns.registerPart("needsTotem", {
 			return st == "nototem" or st == "ready"
 		end,
 	},
+	-- The slot's duration object drives everything, secret or not
+	runtime = {
+		refresh = function(def, _, held)
+			local f = def.frame
+			local tok, tdur = safe(GetTotemDuration, def.needsTotem)
+			f.activeHolder:SetAlpha(1)
+			if tok and tdur == nil then
+				f.warn:SetAlpha(1)
+				def.read = "no fire totem (no duration)"
+			else
+				local aok, alpha = false, nil
+				if tok and tdur and ns.CURVE_OVER then
+					aok, alpha = ns.try("fire nova warning", tdur.EvaluateRemainingDuration, tdur, ns.CURVE_OVER)
+				end
+				if aok and alpha ~= nil then
+					f.warn:SetAlpha(alpha)
+					def.read = alpha
+				else
+					f.warn:SetAlpha(0)
+					def.read = tok and "fire slot duration unreadable" or "fire slot duration error"
+				end
+			end
+			f.upTimer:set(tok and tdur or nil)
+			-- Only ever turned off here (the engine sets it each pass)
+			if not (tok and tdur) then f.cd:SetDrawBling(false) end
+			-- A totem out keeps it shown, unless its Idle choice counts either way
+			local when = setting(def.key, "idleWhen")
+			return held or (tok and tdur ~= nil and when ~= "offcd" and when ~= "oncdany")
+		end,
+		gate = function(def)
+			local ok, d = safe(GetTotemDuration, def.needsTotem)
+			if not ok then return nil end
+			return d and "ready" or "blocked"
+		end,
+		readyGate = function(def)
+			local tok, tdur = safe(GetTotemDuration, def.needsTotem)
+			if not (tok and tdur) then return nil end
+			local gok, g = ns.try("ready gate", tdur.EvaluateRemainingDuration, tdur, ns.CURVE_LIVE)
+			if gok then return g end
+			return 0
+		end,
+		debug = function(def)
+			local read = def.read == nil and "not checked" or describeArg(def.read)
+			if type(def.read) ~= "string" and def.read ~= nil then read = "warning alpha " .. read end
+			return debugWords(def, read)
+		end,
+	},
 })
+
+-- Totem ends on the elements with a totem of their own, gated on the time left
+local function playEnd(f, field, def, dur, opts)
+	if not opts then return end
+	if not f[field] then f[field] = ns.Effects.endFlash(f.effects, f, def.key) end
+	f[field]:setIcon(def.iconID or def.icon)
+	f[field]:play(dur, opts)
+end
+local function endOnElement(def, event, arg)
+	local f, key = def.frame, def.key
+	if event == "cast" and arg == def.spellKey and f.killed then
+		f.killed.mark:Hide()
+	elseif event == "gone" and T.ownerOf(def.totemSlot) == def.spellKey and ns.isEnabled(key) then
+		if f:IsVisible() then ns.Sounds.element(key, "ended", true) end
+		playEnd(f, "expired", def, arg, T.endOptions(ns.elementEvent(key, "ended"), "ended", def))
+		playEnd(f, "killed", def, arg, T.endOptions(ns.elementEvent(key, "killed"), "killed", def))
+	end
+end
+T.subscribe(function(event, slot, arg)
+	for _, key in ipairs(ns.ELEMENT_KEYS) do
+		local def = ns.ELEMENTS[key].def
+		if type(def) == "table" and def.totemSlot == slot then endOnElement(def, event, arg) end
+	end
+end)
 
 function T.start()
 	local ev = CreateFrame("Frame")
