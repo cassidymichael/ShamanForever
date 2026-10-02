@@ -89,6 +89,8 @@ local RENAMED = {
 		{ "reagentPos", "reagent", "pos" }, { "reagentX", "reagent", "x" }, { "reagentY", "reagent", "y" },
 		{ "reagentRing", "reagent", "ring" }, { "reagentPulse", "reagent", "fade" },
 	},
+	-- Old values, within any element's settings: name -> field -> old -> new
+	values = { count = { pos = { center = "CENTER", corner = "BOTTOMRIGHT" } } },
 	totemBar = {
 		{ "warn", "expire", "secs" }, { "warnGrey", "expire", "grey" }, { "warnRing", "expire", "ring" },
 		{ "warnPulse", "expire", "fade" }, { "warnGlow", "expire", "glow" }, { "warnOver", "expire", "over" },
@@ -136,7 +138,15 @@ function P.migrate(profile)
 		end
 	end
 	for _, o in pairs(opts) do
-		if type(o) == "table" then rename(o, RENAMED.element) end
+		if type(o) == "table" then
+			rename(o, RENAMED.element)
+			for name, fields in pairs(RENAMED.values) do
+				local t = o[name]
+				for field, map in pairs(fields) do
+					if type(t) == "table" and map[t[field]] then t[field] = map[t[field]] end
+				end
+			end
+		end
 	end
 	if type(profile.totemBar) == "table" then rename(profile.totemBar, RENAMED.totemBar) end
 end

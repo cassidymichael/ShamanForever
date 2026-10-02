@@ -29,17 +29,17 @@ local WHITE = "Interface\\Buttons\\WHITE8x8"
 local SI = Enum and Enum.StatusBarInterpolation
 local IMMEDIATE = SI and SI.Immediate or 0
 
--- count: the stack bar and number (pos: corner | center; mark: the number in markColor at five);
--- active: five stacks
+-- count: the stack bar and number (pos: BOTTOMRIGHT | CENTER; mark: the number in markColor at
+-- five); active: five stacks
 M.DEFAULTS = {
 	idleWhen = "notup", idleAlpha = 0,
-	count = { bar = true, barHeight = 6, barColor = { 0.52, 0.69, 1, 1 }, number = true, pos = "center", size = 18,
+	count = { bar = true, barHeight = 6, barColor = { 0.52, 0.69, 1, 1 }, number = true, pos = "CENTER", size = 18,
 		mark = true, markColor = { 1, 0.82, 0.25, 1 } },
 	active = { pop = true, glow = true },
 }
 M.RANGES = { count = { barHeight = { 1, 20, 1 }, size = { 8, 40, 1 } } }
 local CHOICES = { idleWhen = { never = true, notup = true, five = true } }
-local POS = { corner = true, center = true }
+local POS = { BOTTOMRIGHT = true, CENTER = true }
 
 local function setting(name, field) return ns.elementSetting(KEY, name, field) end
 local function count(field) return setting("count", field) end
@@ -143,7 +143,7 @@ end
 local function placeCount(fs, button)
 	ns.Media.setFont(fs, nil, number("size"))
 	fs:ClearAllPoints()
-	if count("pos") == "corner" then
+	if count("pos") == "BOTTOMRIGHT" then
 		local y = -2 + (count("bar") and (number("barHeight") + 1) or 0)
 		fs:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 2, y); fs:SetJustifyH("RIGHT")
 	else

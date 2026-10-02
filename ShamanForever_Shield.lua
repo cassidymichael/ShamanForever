@@ -77,7 +77,6 @@ end
 
 local COUNT_NUDGE = { CENTER = { 0, 0 }, TOPLEFT = { -2, 2 }, TOPRIGHT = { 2, 2 }, BOTTOMLEFT = { -2, -2 },
 	BOTTOMRIGHT = { 2, -2 } }
-local COUNT_POS_SAVED = { center = "CENTER", corner = "BOTTOMRIGHT" }
 
 function SH.placeCount(fs, icon)
 	local pos = count("pos")
@@ -92,7 +91,6 @@ function SH.sanitize(_, acct)
 	if o.track ~= nil and o.track ~= "either" and not SHIELDS[o.track] then o.track = nil end
 	local c = o.count
 	if type(c) == "table" then
-		c.pos = COUNT_POS_SAVED[c.pos] or c.pos
 		if c.pos ~= nil and not ns.COUNT_JUSTIFY[c.pos] then c.pos = nil end
 		for _, k in ipairs({ "barColor", "markColor" }) do
 			if c[k] ~= nil and not ns.isColor(c[k]) then c[k] = nil end
