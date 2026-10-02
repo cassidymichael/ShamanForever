@@ -660,10 +660,10 @@ function FR.mountOwn(carrier, key, box, level)
 	return ok
 end
 
--- Its border and frame together, on one of those frames
-function FR.dress(edge, key, level)
+-- Its border and frame together, on one of those frames (bare: the border only)
+function FR.dress(edge, key, level, bare)
 	ns.applyBorder(edge, ns.borderFor(key))
-	return FR.mountOwn(edge, key, ns.boxOf(key), level)
+	return FR.mountOwn(edge, key, not bare and ns.boxOf(key) or nil, level)
 end
 
 -- Hides (or brings back) an element's frames on its own carriers, while a stand-in draws it.

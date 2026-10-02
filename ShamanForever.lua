@@ -555,7 +555,9 @@ local function layoutGroup(g)
 			local w, h = e.getSize(groupSize(g))
 			w, h = ns.roundPx(w, px), ns.roundPx(h, px)
 			local inset = ns.Looks.fit(f, ns.borderFor(key), w, h, e)
-			ns.Frames.mountOwn(e.borderHost or f, key, w == h and w or nil)
+			-- An element over Blizzard's button frames the button's border instead
+			local own = e.borderHost or not f.aboveProtected
+			ns.Frames.mountOwn(e.borderHost or f, key, own and w == h and w or nil)
 			table.insert(placed, { f, along + n * gap, w, h, inset })
 			if horizontal then along, across = along + w, math.max(across, h)
 			else along, across = along + h, math.max(across, w) end

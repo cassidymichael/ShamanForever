@@ -160,7 +160,8 @@ local function styleStacks(slot, size)
 	slot.tickFrame:SetFrameLevel(base + 6)
 	slot.numFrame:SetFrameLevel(base + 7)
 	slot.edge:SetFrameLevel(base + 8)
-	ns.try("maelstrom border", ns.Frames.dress, slot.edge, KEY, base + 8)
+	-- The copy at five frames itself only over idled stacks: else the stacks' frame shows
+	ns.try("maelstrom border", ns.Frames.dress, slot.edge, KEY, base + 8, slot.copy and idleWhen() ~= "five")
 	if slot.copy and slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
 	local c = color("stackBarColor")
 	slot.bar:SetHeight(number("stackBarHeight"))
