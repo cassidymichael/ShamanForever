@@ -244,7 +244,7 @@ end
 
 -- A slot's words from def's parts: own collects every part's block; a title is the first given;
 -- block options merge, tips by field
-function KD.slot(kind, def, slot)
+function KD.words(kind, def, slot)
 	local out
 	for _, p in ipairs(partsOf(kind, def)) do
 		local v = p.page and value(p.page[slot], def)
@@ -271,7 +271,7 @@ end
 
 -- A preview made from def's parts: their states in order, each state drawn by every part in turn
 -- (the kind's own first)
-function KD.preview(kind, def)
+local function preview(kind, def)
 	local list = partsOf(kind, def)
 	local pv, states, labels = {}, {}, {}
 	for _, p in ipairs(list) do
@@ -327,7 +327,7 @@ function KD.previewOf(key)
 	if not k then return nil end
 	if k.preview then return k.preview(e.def, key) end
 	if #listOf(e.kind, "parts") > 0 then
-		local pv = KD.preview(e.kind, e.def)
+		local pv = preview(e.kind, e.def)
 		return #pv.states > 0 and pv or nil
 	end
 end

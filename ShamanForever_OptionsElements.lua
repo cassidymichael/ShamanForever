@@ -264,7 +264,7 @@ local function partsPage(p, def)
 	elementDisplay(p, key)
 	idleBlock(p, def)
 	for _, slot in ipairs(ns.Kinds.slots(kind)) do
-		local words, build = ns.Kinds.slot(kind, def, slot), K.slotBuilder(slot)
+		local words, build = ns.Kinds.words(kind, def, slot), K.slotBuilder(slot)
 		if words ~= nil and build then build(p, def, words) end
 	end
 	lookBlocks(p, key)
