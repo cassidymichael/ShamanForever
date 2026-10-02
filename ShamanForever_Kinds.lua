@@ -119,6 +119,7 @@ function KD.get(kind) return KINDS[kind] end
 --                     (state labels over other parts'), render(ic, st, def, P, pv) (every state),
 --                     pop(ic, st, def, P), idles(st, def, when) (nil: no say), rest(ic, def, P,
 --                     keep) (the kind's look while nothing of its own is going on)
+--   runtime           hooks its kind's engine calls on the HUD (listed where the kind registers)
 function ns.registerPart(name, spec)
 	PARTS[name] = merge(PARTS[name] or {}, spec)
 	PARTS[name].name = name
@@ -132,7 +133,8 @@ local function value(v, def)
 	return v
 end
 
--- The parts def has: its kind's own first
+-- The parts def has: its kind's own first. Kept once the element has its parts (KD.finish): before
+-- that a part's has() may read fields its kind's prepare() hasn't set yet.
 local had = setmetatable({}, { __mode = "k" })
 local function partsOf(kind, def)
 	local list = had[def]
@@ -148,9 +150,10 @@ local function partsOf(kind, def)
 			if has then table.insert(list, p) end
 		end
 	end
-	had[def] = list
+	if def.finished then had[def] = list end
 	return list
 end
+KD.partsOf = partsOf
 
 -- Its parts, then its kind's own: the first that gives a field has it
 local function firstOf(list, get)
@@ -202,9 +205,9 @@ end
 -- An element of a kind with parts takes its parts' defaults, ranges, effects and idle words
 local function finishOne(e)
 	local def = e.def
-	def.finished = true
 	local k = KINDS[e.kind]
 	if k.prepare then k.prepare(def) end
+	def.finished = true
 	local list = partsOf(e.kind, def)
 	check(e.kind, def, list)
 	e.defaults = e.defaults or def.defaults or {}
