@@ -306,8 +306,9 @@ local function combatStarts()
 	tell(startFns, "combat start")
 end
 
+-- Queued work runs first, still counted as combat
 local function combatEnds()
-	AfterCombat.ended()
+	ns.try("after combat", AfterCombat.ended)
 	runQueue()
 	fighting = false
 	tell(endFns, "combat end")
