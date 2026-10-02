@@ -492,7 +492,8 @@ local function fadeGroup(body, inDur, hold, outDur, onFinished)
 	local g = body:CreateAnimationGroup()
 	local fadeIn, fadeOut = anim(g, "Alpha", 1), anim(g, "Alpha", 2)
 	fadeIn:SetFromAlpha(0); fadeIn:SetToAlpha(1); fadeIn:SetDuration(inDur)
-	fadeOut:SetFromAlpha(1); fadeOut:SetToAlpha(0); fadeOut:SetDuration(outDur); fadeOut:SetStartDelay(hold)
+	fadeOut:SetFromAlpha(1); fadeOut:SetToAlpha(0)
+	fadeOut:SetDuration(outDur); fadeOut:SetStartDelay(hold)
 	g:SetScript("OnFinished", onFinished)
 	return g
 end

@@ -920,7 +920,7 @@ function Looks.popParts(key, school)
 	return popParts[id]
 end
 
--- What a pop marks, and its colour; byStyle: the Pop style's Colour applies (warnings keep their own)
+-- What a pop marks, and its colour; byStyle: the Pop style's Colour applies (not to warnings)
 Looks.POP_KINDS = {
 	ready = { color = { 1, 0.82, 0.25 }, byStyle = true },
 	expired = { color = { 0.95, 0.95, 0.95 }, byStyle = true },
