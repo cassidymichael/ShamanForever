@@ -844,6 +844,13 @@ local function buildAbout(p)
 		"Francisque Millet, Mountain Landscape with Lightning (air). Corner and divider ornaments: public domain / CC0, Wikimedia Commons. " ..
 		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood texture CC0, ambientCG. Link icons: Simple Icons, CC0. " ..
 		"The Carved stone, Aged bronze and Carved wood borders and the Emblem pop burst: made with an AI image model (Google Gemini), as were the plinth and medallions of the Stone and bronze totem theme.")
+	local ai = {}
+	for _, kind in ipairs({ "frame", "groupframe" }) do
+		for _, e in ipairs(ns.Style.choices(kind, "look")) do
+			if e.credit == "ai" and not e.hidden then table.insert(ai, e.name) end
+		end
+	end
+	if #ai > 0 then p:text("Frames made with the same model: " .. table.concat(ai, ", ") .. ".") end
 end
 
 -- Show choices
