@@ -434,28 +434,6 @@ FR.addGroupLook("none", { name = "None", none = true })
 
 function FR.look(kind, key) return S.look(kind, key) end
 
--- A backdrop edge file as pieces: square cells in a row (left, right, top, bottom, then the four
--- corners); top and bottom are stored upright. band = { from, to }: the edges' texels across a cell.
-function FR.strip(art, band)
-	local W, cell = art.size[1], art.size[2]
-	local n = floor(W / cell + 0.5)
-	local out = {}
-	for i, name in ipairs({ "l", "r", "t", "b", "tl", "tr", "bl", "br" }) do
-		local p = CopyTable(art)
-		local l, r = (i - 1) / n, i / n
-		local w = cell
-		local edge = i <= 4
-		if band and edge then
-			l, r = ((i - 1) * cell + band[1]) / W, ((i - 1) * cell + band[2]) / W
-			w = band[2] - band[1]
-		end
-		p.coords, p.size = { l, r, 0, 1 }, { w, cell }
-		if name == "t" or name == "b" then p.rotate = 90 end
-		out[name] = p
-	end
-	return out
-end
-
 -- One image cut as nine pieces round margin texels
 function FR.cut(art, margin)
 	local W, H = art.size[1], art.size[2]
