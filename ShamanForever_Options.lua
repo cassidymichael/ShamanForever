@@ -148,7 +148,10 @@ local function buildGlobal(p)
 		for _, g in ipairs(db().groups) do
 			if #g.members > 0 and not g.sizeFollow then table.insert(out, g.name) end
 		end
-		if ns.TotemBar.barOn() and not ns.TotemBar.cfg().sizeFollow then table.insert(out, "Totem bar") end
+		for _, key in ipairs(ns.Style.bars()) do
+			local bar = ns.Style.bar(key)
+			if bar.ownSize and bar.on() and bar.ownSize() then table.insert(out, bar.label) end
+		end
 		return out
 	end
 	p:text(function() return "Currently using their own: " .. table.concat(ownSizes(), ", ") end,
