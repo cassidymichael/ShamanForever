@@ -445,7 +445,7 @@ function ns.makeClipLook(frame, opts)
 	return h
 end
 
--- A look with the element's border also carries its art frame: the cell takes in the frame's reach
+-- Wide enough for the art frame on a look that carries the border
 local function cellWidth(size, frame, o)
 	local half = CLIP_REACH * (size + 2 * ns.Looks.outerEdge(frame))
 	if not o.glowOnly then

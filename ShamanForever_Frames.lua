@@ -1,6 +1,4 @@
--- Art frames: looks drawn round one element's icon (kind "frame") or round a whole group or bar
--- (kind "groupframe"). Looks are data (_FrameLooks); this file checks them, lays them out and draws
--- them on frames the caller owns. It reads no game state.
+-- Art frames round an element ("frame") or a group or bar ("groupframe"); looks are data (_FrameLooks)
 
 local ADDON, ns = ...
 
@@ -675,8 +673,7 @@ function FR.dress(edge, key, level, bare)
 	return FR.mountOwn(edge, key, not bare and ns.boxOf(key) or nil, level)
 end
 
--- Hides (or brings back) an element's frames on its own carriers, while a stand-in draws it.
--- Out of combat: some carriers sit under Blizzard's aura button.
+-- Hides an element's own frames while a stand-in draws it (out of combat)
 function FR.veil(key, on)
 	veiled[key] = on or nil
 	local a = S.read(key, "frame").alpha

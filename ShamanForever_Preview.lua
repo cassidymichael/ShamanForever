@@ -1,15 +1,6 @@
--- Preview mode (/sf preview): the HUD in a made-up moment
--- Elements show the states of their options preview on a stand-in icon over them, reading only
--- settings; nothing is saved. It ends when combat starts, and a layout puts the real HUD back.
--- Modes: Preview (an ordinary moment of a fight), Warnings (everything warning at once), Busy
--- (every state in turn, faster than a fight and out of step).
--- Elements are parked under a hidden frame of their group while a stand-in shows. The shield and
--- Elemental Focus hold Blizzard's protected button, which takes no change in combat, so they are
--- never parked: the stand-in sits over the button. The totem bar draws on its own slots; the swing
--- timer swings made-up swings.
--- Stand-ins hang from frames of their own that take their group's scale and opacity, so combat-only
--- groups show too, with their group's art frame on a frame of its own. A stand-in draws its element's
--- art frame; an element left under its stand-in has its own frames hidden meanwhile.
+-- Preview mode (/sf preview): the HUD in a made-up moment, drawn on stand-ins; nothing is saved and
+-- it ends when combat starts. Elements holding Blizzard's protected button stay under their
+-- stand-in rather than parked (no change to it in combat).
 
 local _, ns = ...
 local say = ns.say
