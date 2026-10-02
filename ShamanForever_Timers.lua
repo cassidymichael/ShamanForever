@@ -172,7 +172,7 @@ end
 
 local function schoolColor(t)
 	local school = type(t.school) == "function" and t.school() or t.school
-	local c = school and ns.SCHOOL_BAR_COLOR[school]
+	local c = school and ns.THEME.barColor[school]
 	return c or { 0.46, 1, 0.35 }
 end
 

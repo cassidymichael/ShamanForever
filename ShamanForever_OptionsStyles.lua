@@ -71,7 +71,7 @@ local function menu(c)
 end
 
 -- Cells and their tiles
-local ALL, REST = "all", "spirit"
+local ALL, REST = "all", ns.THEME.fallback
 local function cellSchool(c)
 	return schoolOf(c.school or (view.school == ALL and REST or view.school))
 end

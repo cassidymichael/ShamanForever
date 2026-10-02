@@ -617,7 +617,7 @@ Totems.subscribe(function(event, slot, arg)
 					if setting(key, "ranOutFlash") then
 						if not f.expired then f.expired = ns.Effects.endFlash(f.effects, f, key) end
 						f.expired:setIcon(def.iconID or def.icon)
-						f.expired:play(dur, { expired = true, ranOut = ns.SCHOOL_COLOR[def.school],
+						f.expired:play(dur, { expired = true, ranOut = ns.THEME.color[def.school],
 							pop = setting(key, "ranOutPop"), glow = setting(key, "ranOutGlow") })
 					end
 				elseif setting(key, "expiredPop") then

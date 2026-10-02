@@ -20,26 +20,28 @@ function Looks.hasAtlas(name)
 	return atlasKnown[name]
 end
 
+local THEME = ns.THEME
+
 local function schoolOf(f)
 	if f.over then f = f.over end
 	if f.school then return f.school end
 	local e = type(f.owner) == "string" and ns.ELEMENTS[f.owner]
-	return e and e.school or "spirit"
+	return e and e.school or THEME.fallback
 end
 
 function Looks.elementSchool(key, own)
 	local e = ns.ELEMENTS[key]
-	if not e then return "spirit" end
+	if not e then return THEME.fallback end
 	if not own and ns.getDB and ns.getDB() then
 		local pick = ns.elementSetting(key, "popSchool")
-		if ns.SCHOOL_COLOR[pick] then return pick end
+		if THEME.color[pick] then return pick end
 	end
-	return e.ownSchool and e.ownSchool() or e.school or "spirit"
+	return e.ownSchool and e.ownSchool() or e.school or THEME.fallback
 end
 local function effectSchool(f)
 	if f.over then f = f.over end
 	if f.school then return f.school end
-	return type(f.owner) == "string" and Looks.elementSchool(f.owner) or "spirit"
+	return type(f.owner) == "string" and Looks.elementSchool(f.owner) or THEME.fallback
 end
 
 -- Frames
@@ -50,10 +52,10 @@ local BLACK = { 0, 0, 0, 1 }
 local schoolColors = {}
 local function colorOf(c, b, f)
 	if c == "school" then
-		local school = f and schoolOf(f) or "spirit"
+		local school = f and schoolOf(f) or THEME.fallback
 		local k = schoolColors[school]
 		if not k then
-			local sc = ns.SCHOOL_COLOR[school] or ns.SCHOOL_COLOR.spirit
+			local sc = THEME.color[school] or THEME.color[THEME.fallback]
 			k = { sc[1], sc[2], sc[3], 1 }
 			schoolColors[school] = k
 		end
@@ -684,13 +686,11 @@ local spark = {
 }
 
 -- The school's texture drifting inside the glow's mask.
-local MATERIAL = {
-	earth = { 0, 0, 0.7 }, fire = { 0, 1, 1.4 }, water = { 1, -1, 3 }, air = { 1, 0, 0.8 }, spirit = { 1, -1, 3 },
-}
+local function materialOf(school) return THEME.material[school] or THEME.material[THEME.fallback] end
 local function materialLayout(g, parts)
 	local size = parts.size
 	if not (size and parts.pattern) then return end
-	local mv = MATERIAL[parts.school or "spirit"] or MATERIAL.spirit
+	local mv = materialOf(parts.school).move
 	local tile = size * parts.pattern
 	local side = size + 2 * tile
 	local cover = side / tile
@@ -735,13 +735,14 @@ local material = {
 		local school = effectSchool(g)
 		parts.school = school
 		parts.pattern = st.scale
-		local file = MEDIA .. "Mat-" .. school:sub(1, 1):upper() .. school:sub(2)
+		local mat = materialOf(school)
+		local file = MEDIA .. mat.file
 		local alpha = { math.min(k, 1), math.min(math.max(k - 1, 0), 1) }
 		for i, t in ipairs(parts.tex) do
 			t:SetTexture(file, "REPEAT", "REPEAT")
 			t:SetVertexColor(c[1], c[2], c[3], (c[4] or 1) * alpha[i])
 			t:SetShown(alpha[i] > 0)
-			parts.moves[i]:SetDuration((MATERIAL[school] or MATERIAL.spirit)[3] / math.max(st.drift or 1, 0.1))
+			parts.moves[i]:SetDuration(mat.move[3] / math.max(st.drift or 1, 0.1))
 		end
 		materialLayout(g, parts)
 	end,
@@ -804,9 +805,6 @@ addGlow("heartbeat", "Heartbeat", heartbeat)
 -- Pop looks
 -- -- A drawn burst is a list of parts: from/to and rise in icon heights, dur/delay in seconds.
 local GCD_FLASH = "UI-HUD-ActionBar-GCD-Flipbook"
-local SCHOOLS = { earth = "Earth", fire = "Fire", water = "Water", air = "Air", spirit = "Spirit" }
-local SPIN = { earth = -0.35, fire = 0.25, water = -0.35, air = -1.2, spirit = -0.35 }
-local SHEEN = { earth = { -0.7, 0.7 }, fire = { -0.7, 0.7 }, water = { 0.7, -0.7 }, air = { -0.7, 0.7 }, spirit = { -0.7, 0.7 } }
 local HALO_SCALE, HALO_ALPHA = 1.08, 0.6
 
 Looks.POP_PARTS = { disc = "back", shape1 = "back", shape1Dark = "back", shape2 = "back", ring1 = "back",
@@ -827,49 +825,29 @@ local function disc(out, to, dur, delay)
 	table.insert(out, { name = "disc", file = MEDIA .. "Disc-Dark", layer = "BACKGROUND", sub = -1, dark = true,
 		from = to * 0.55, to = to * 0.95, dur = dur * 1.1, delay = delay, a = 0.75, slow = true })
 end
+local function shapeOf(school) return THEME.shape[school] or THEME.shape[THEME.fallback] end
 local function sheen(out, school, dur, delay)
 	table.insert(out, { name = "sheen", file = MEDIA .. "Sheen", layer = "OVERLAY", add = true, dur = dur,
-		delay = delay, a = 0.9, shift = SHEEN[school] or SHEEN.spirit })
+		delay = delay, a = 0.9, shift = shapeOf(school).sheen })
 end
-local function shapeFile(school) return MEDIA .. "Shape-" .. (SCHOOLS[school] or "Spirit") end
+local function shapeFile(school) return MEDIA .. shapeOf(school).file end
 
 local function shapes(file, to)
 	return function(out, school)
 		disc(out, 3.0, 0.5)
-		burst(out, "shape1", file(school), 1.0, to, { dur = 0.5, spin = SPIN[school] }, false, true)
+		burst(out, "shape1", file(school), 1.0, to, { dur = 0.5, spin = shapeOf(school).spin }, false, true)
 		sheen(out, school, 0.34)
 	end
 end
 
-local EFFECTS = {
-	earth = function(out)
-		burst(out, "shape1", shapeFile("earth"), 0.8, 2.7, { dur = 0.5, spin = 0.25, delay = 0.06 }, false, true)
-		burst(out, "ring1", MEDIA .. "Ring-Soft", 1.0, 2.6, { dur = 0.55, sy = 0.42, rise = -0.32, a = 0.9, delay = 0.06 })
-		sheen(out, "earth", 0.34, 0.05)
-	end,
-	fire = function(out)
-		burst(out, "shape1", shapeFile("fire"), 1.0, 3.1, { dur = 0.55, spin = 0.2 }, false, true)
-		burst(out, "shape2", shapeFile("fire"), 0.8, 1.9, { dur = 0.35, spin = -0.3, a = 0.7,
-			color = { 1, 0.8, 0.45 } })
-		sheen(out, "fire", 0.34)
-	end,
-	water = function(out)
-		burst(out, "ring1", MEDIA .. "Ring-Soft", 0.9, 2.4, { dur = 0.5, a = 0.9 })
-		burst(out, "ring2", MEDIA .. "Ring-Soft", 0.9, 2.4, { dur = 0.5, a = 0.7, delay = 0.16 })
-		burst(out, "shape1", shapeFile("water"), 1.1, 2.8, { dur = 0.6, delay = 0.05 }, false, true)
-		sheen(out, "water", 0.34)
-	end,
-	air = function(out)
-		burst(out, "shape1", shapeFile("air"), 1.0, 3.2, { dur = 0.6, spin = -2.1 }, false, true)
-		burst(out, "shape2", shapeFile("air"), 0.8, 2.0, { dur = 0.45, spin = -1.6, a = 0.5, color = { 1, 1, 1 } })
-		sheen(out, "air", 0.24)
-	end,
-	spirit = function(out)
-		burst(out, "ring1", MEDIA .. "Ring-Soft", 2.8, 1.0, { dur = 0.26, a = 0.9, slow = true })
-		burst(out, "shape1", shapeFile("spirit"), 0.9, 3.2, { dur = 0.5, spin = 0.6, delay = 0.22 }, false, true)
-		burst(out, "spark", MEDIA .. "Spark", 0.4, 1.6, { dur = 0.4, a = 0.9, delay = 0.22 }, true)
-	end,
-}
+local function effect(out, school)
+	local spec = THEME.burst[school] or THEME.burst[THEME.fallback]
+	for _, part in ipairs(spec.parts) do
+		local file = part.art == "shape" and shapeFile(school) or MEDIA .. part.art
+		burst(out, part.name, file, part.from, part.to, part, part.front, part.dark)
+	end
+	if spec.sheen then sheen(out, school, spec.sheen.dur, spec.sheen.delay) end
+end
 
 local POP = "Global settings > Pop style"
 S.addField("pop", "colorBy", { name = "Colour", where = POP, preview = { play = "hover" } })
@@ -893,13 +871,12 @@ addBurst("star", { name = "Star", group = "plain", rigParts = { "star" } })
 addBurst("both", { name = "Ring and star", group = "plain", rigParts = { "ring", "star" } })
 addBurst("painted", { name = "Emblem", group = "element", bySchool = true, credit = "ai",
 	tip = "An element's symbol spreads out behind the icon.",
-	draw = shapes(function(school) return MEDIA .. "Burst-" .. (SCHOOLS[school] or "Spirit") end, 3.2) })
+	draw = shapes(function(school) return MEDIA .. shapeOf(school).emblem end, 3.2) })
 addBurst("school", { name = "Element effect", group = "element", bySchool = true,
-	tip = "Each element its own effect: earth slams, fire flares, water ripples, air spins, spirit gathers.",
+	tip = THEME.burstTip,
 	draw = function(out, school)
 		disc(out, 3.0, 0.6)
-		local effect = EFFECTS[school] or EFFECTS.spirit
-		effect(out)
+		effect(out, school)
 	end })
 addBurst("rune", { name = "Rune circle", group = "other",
 	draw = function(out)

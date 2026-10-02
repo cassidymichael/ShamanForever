@@ -144,7 +144,7 @@ local function fillColor()
 	local c = cfg()
 	if c.colorBy == "custom" then return c.color end
 	local school = IMBUE_SCHOOL[ns.Imbue.mainHand() or ""]
-	return school and ns.SCHOOL_BAR_COLOR[school] or NO_IMBUE
+	return school and ns.THEME.barColor[school] or NO_IMBUE
 end
 SW.fillColor = fillColor
 local function paintFill()

@@ -1,8 +1,96 @@
--- The class this addon is for, and its spells
+-- The class this addon is for, its art theme and its spells
 
 local _, ns = ...
 
 ns.CLASS = { token = "SHAMAN", plural = "shamans" }
+
+-- The art schools: the colour, art and effect axis of icons, glows, pops and headers
+ns.THEME = {
+	order = { "earth", "fire", "water", "air", "spirit" },
+	fallback = "spirit",
+	name = { earth = "Earth", fire = "Fire", water = "Water", air = "Air", spirit = "Spirit" },
+	color = {
+		earth  = { 0.75, 0.54, 0.24 },
+		fire   = { 0.89, 0.38, 0.18 },
+		water  = { 0.25, 0.69, 0.77 },
+		air    = { 0.56, 0.76, 0.92 },
+		spirit = { 0.73, 0.64, 0.90 },
+	},
+	icon = {
+		earth = 136023, fire = 135825, water = 135127, air = 136114,
+		spirit = "Interface\\Icons\\Spell_Nature_SpiritWolf",
+	},
+	banner = {
+		earth = "Banner-Earth.jpg", fire = "Banner-Fire.jpg", water = "Banner-Water.jpg",
+		air = "Banner-Air.jpg", spirit = "Banner-Spirit.jpg",
+	},
+	-- The glow material: its art and how the pattern drifts (x, y, seconds)
+	material = {
+		earth = { file = "Mat-Earth", move = { 0, 0, 0.7 } },
+		fire = { file = "Mat-Fire", move = { 0, 1, 1.4 } },
+		water = { file = "Mat-Water", move = { 1, -1, 3 } },
+		air = { file = "Mat-Air", move = { 1, 0, 0.8 } },
+		spirit = { file = "Mat-Spirit", move = { 1, -1, 3 } },
+	},
+	-- The pop's emblem art, its spin and the direction of its sheen
+	shape = {
+		earth = { file = "Shape-Earth", emblem = "Burst-Earth", spin = -0.35, sheen = { -0.7, 0.7 } },
+		fire = { file = "Shape-Fire", emblem = "Burst-Fire", spin = 0.25, sheen = { -0.7, 0.7 } },
+		water = { file = "Shape-Water", emblem = "Burst-Water", spin = -0.35, sheen = { 0.7, -0.7 } },
+		air = { file = "Shape-Air", emblem = "Burst-Air", spin = -1.2, sheen = { -0.7, 0.7 } },
+		spirit = { file = "Shape-Spirit", emblem = "Burst-Spirit", spin = -0.35, sheen = { -0.7, 0.7 } },
+	},
+	-- Each school's own pop: drawn parts (art "shape" is the school's shape) and an optional sheen
+	burst = {
+		earth = {
+			parts = {
+				{ name = "shape1", art = "shape", from = 0.8, to = 2.7, dur = 0.5, spin = 0.25, delay = 0.06,
+					dark = true },
+				{ name = "ring1", art = "Ring-Soft", from = 1.0, to = 2.6, dur = 0.55, sy = 0.42, rise = -0.32,
+					a = 0.9, delay = 0.06 },
+			},
+			sheen = { dur = 0.34, delay = 0.05 },
+		},
+		fire = {
+			parts = {
+				{ name = "shape1", art = "shape", from = 1.0, to = 3.1, dur = 0.55, spin = 0.2, dark = true },
+				{ name = "shape2", art = "shape", from = 0.8, to = 1.9, dur = 0.35, spin = -0.3, a = 0.7,
+					color = { 1, 0.8, 0.45 } },
+			},
+			sheen = { dur = 0.34 },
+		},
+		water = {
+			parts = {
+				{ name = "ring1", art = "Ring-Soft", from = 0.9, to = 2.4, dur = 0.5, a = 0.9 },
+				{ name = "ring2", art = "Ring-Soft", from = 0.9, to = 2.4, dur = 0.5, a = 0.7, delay = 0.16 },
+				{ name = "shape1", art = "shape", from = 1.1, to = 2.8, dur = 0.6, delay = 0.05, dark = true },
+			},
+			sheen = { dur = 0.34 },
+		},
+		air = {
+			parts = {
+				{ name = "shape1", art = "shape", from = 1.0, to = 3.2, dur = 0.6, spin = -2.1, dark = true },
+				{ name = "shape2", art = "shape", from = 0.8, to = 2.0, dur = 0.45, spin = -1.6, a = 0.5,
+					color = { 1, 1, 1 } },
+			},
+			sheen = { dur = 0.24 },
+		},
+		spirit = {
+			parts = {
+				{ name = "ring1", art = "Ring-Soft", from = 2.8, to = 1.0, dur = 0.26, a = 0.9, slow = true },
+				{ name = "shape1", art = "shape", from = 0.9, to = 3.2, dur = 0.5, spin = 0.6, delay = 0.22,
+					dark = true },
+				{ name = "spark", art = "Spark", from = 0.4, to = 1.6, dur = 0.4, a = 0.9, delay = 0.22,
+					front = true },
+			},
+		},
+	},
+	burstTip = "Each element its own effect: earth slams, fire flares, water ripples, air spins, spirit gathers.",
+}
+ns.THEME.barColor = {}
+for school, c in pairs(ns.THEME.color) do
+	ns.THEME.barColor[school] = { math.min(1, c[1] * 1.15), math.min(1, c[2] * 1.15), math.min(1, c[3] * 1.15) }
+end
 
 -- Seed IDs and English names, as _Core's DEFS
 
