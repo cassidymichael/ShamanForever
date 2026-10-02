@@ -141,6 +141,10 @@ local function drawCaps(f, caps, out, b)
 	return o - out
 end
 
+local function setArt(t, art)
+	if art.atlas then t:SetAtlas(art.atlas) else t:SetTexture(art.file) end
+end
+
 local function placeArt(t, art, over, w)
 	local i = art.inset
 	t:ClearAllPoints()
@@ -162,7 +166,7 @@ local function drawOverlay(f, art)
 	local w = f:GetWidth()
 	if ns.isSecret(w) then return end   -- secret under a secure button: next layout
 	placeArt(t, art, f, w)
-	if art.atlas then t:SetAtlas(art.atlas) else t:SetTexture(art.file) end
+	setArt(t, art)
 	t:Show()
 end
 
@@ -418,7 +422,7 @@ function Looks.auraMask(host, tex, key)
 	auraMade[tex] = made
 	if art then
 		local t = host:CreateTexture(nil, "OVERLAY", nil, 7)
-		if art.atlas then t:SetAtlas(art.atlas) else t:SetTexture(art.file) end
+		setArt(t, art)
 		placeArt(t, art, host, size)
 		made.artTex = t
 	end
@@ -438,7 +442,7 @@ function Looks.auraStyle(slot, size)
 		if art and not made.artTex then made.artTex = host:CreateTexture(nil, "OVERLAY", nil, 7) end
 		local t = made.artTex
 		if art then
-			if art.atlas then t:SetAtlas(art.atlas) else t:SetTexture(art.file) end
+			setArt(t, art)
 			t:Show()
 		elseif t then t:Hide() end
 		made.art = art
