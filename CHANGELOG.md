@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Borders are set per element, last on each element's page; groups no longer have their own. A
+  group's own border carries over to its elements.
+
 ## 0.12.1 (2026-10-02)
 
 - The options window opens faster and uses far less memory.
