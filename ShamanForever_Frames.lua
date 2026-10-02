@@ -69,7 +69,6 @@ local function commonError(e)
 	if type(e.name) ~= "string" or e.name == "" then return "no name" end
 	if e.weight ~= nil and not WEIGHT[e.weight] then return "weight is solid or wispy" end
 	if e.variants ~= nil and type(e.variants) ~= "table" then return "variants is a table" end
-	if e.tiling ~= nil and type(e.tiling) ~= "table" then return "tiling is a table" end
 	return listError(e.madeFor, "madeFor") or listError(e.classes, "classes")
 end
 
