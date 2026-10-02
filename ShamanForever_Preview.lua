@@ -73,10 +73,10 @@ local function makeStandIn(key, gf)
 	local h = CreateFrame("Frame", nil, gf:GetParent())
 	h:SetFrameLevel(gf:GetFrameLevel() + 30)   -- over everything in a group, Blizzard's buttons too
 	h:SetAllPoints(ns.ELEMENTS[key].frame)
-	local ic = L.makePreviewIcon(h, key, L.PREVIEW[key])
+	local pv = L.PREVIEW[key]
+	local ic = L.makePreviewIcon(h, key, pv)
 	ic:SetAllPoints(h)
 	if ic.upT then ic.upT:restack(2) end
-	local pv = L.PREVIEW[key]
 	if pv.standIn then pv.standIn(ic) end
 	holders[key], standIns[key] = h, ic
 	return ic, h

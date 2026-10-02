@@ -2,7 +2,8 @@
 local _, ns = ...
 
 local Page, K = ns.Page, ns.Options.kit
-local showWhen, setTip, panelBackdrop, pct, int, px = Page.showWhen, Page.setTip, Page.panelBackdrop, Page.pct, Page.int, Page.px
+local showWhen, setTip, panelBackdrop = Page.showWhen, Page.setTip, Page.panelBackdrop
+local pct, int, px = Page.pct, Page.int, Page.px
 local elementDisplay, lookBlocks, activeBlock = K.elementDisplay, K.lookBlocks, K.activeBlock
 local timerSettings, eopt, eread, eslider = K.timerSettings, K.eopt, K.eread, K.eslider
 
