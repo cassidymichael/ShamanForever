@@ -654,9 +654,6 @@ function Host:pop(kind)
 	E.pop(self.f, kind or "ready", self.key)
 end
 
-function Host:restyle()
-	if self.up then self.up:reshape() elseif self.glowF then self.glowF:restyle() end
-end
 function Host:fit(size)
 	if self.glowF then self.glowF:fit(size) end
 end
@@ -720,8 +717,6 @@ function Host:motionLength() return self.rig and self.rig.motionLength or 0 end
 
 function Host:setup() if self.up then self.up:setup() end end
 function Host:refilter() if self.up then self.up:refilter() end end
-function Host:follow(unit) return not self.up or self.up:follow(unit) end
-function Host:setLevel(lv) if self.up then self.up:setLevel(lv) end end
 function Host:style()
 	if not self.up then return end
 	self.up:reshape()
