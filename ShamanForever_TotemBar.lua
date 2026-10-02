@@ -633,7 +633,8 @@ follow(callKey)
 -- Asked to switch sets while they can't switch
 local cueAt = 0
 local function lockedCue()
-	if TS.switchInCombat() or TS.count() < 2 or not ns.inCombat() or GetTime() - cueAt < 1 then return end
+	if TS.switchInCombat() or TS.count() < 2 or not ns.inCombat() then return end
+	if GetTime() - cueAt < 1 then return end
 	cueAt = GetTime()
 	local errors = _G.UIErrorsFrame
 	if errors then errors:AddMessage("Totem sets can't switch in combat", 1, 0.1, 0.1)
@@ -701,7 +702,8 @@ local function closePopouts()
 end
 
 -- Next totem set: a key only
-local nextSet = CreateFrame("Button", "ShamanForeverKeyNextSet", UIParent, "SecureActionButtonTemplate")
+local nextSet = CreateFrame("Button", "ShamanForeverKeyNextSet", UIParent,
+	"SecureActionButtonTemplate")
 nextSet:RegisterForClicks("AnyDown", "AnyUp")
 wrapClick(nextSet, [[ if not down then owner:RunAttribute("sf-switch", 0) end return false ]])
 nextSet:SetScript("PostClick", function(_, _, down) if not down then lockedCue() end end)
@@ -891,7 +893,8 @@ end
 -- The active set: the picker header's sf-set, written by the switch snippet or by writeSet (out of
 -- combat); a hook keeps the plain side in step, in combat too
 local applying = false
--- The Call's icon and number; in combat while sets can't switch, the other sets greyed in its picker
+-- The Call's icon and number; in combat while sets can't switch, the other sets greyed in its
+-- picker
 local function paintSets()
 	local set = TS.active()
 	local locked = not TS.switchInCombat() and ns.inCombat()
@@ -1015,17 +1018,19 @@ local saidWait = false
 local hasTotems = false
 local paintPreview
 
--- The popout beside its button, and the hover strip between them
+-- The popout beside its button, and the hover strip from the button's picker side to the
+-- popout's far end
+local AHEAD = { up = "TOP", down = "BOTTOM", right = "RIGHT", left = "LEFT" }
+local BACK = { up = "BOTTOM", down = "TOP", right = "LEFT", left = "RIGHT" }
 local function placePicker(pop, b, n, size, psz)
 	TB.placePopout(pop, b, n, psz)
 	TB.skin.stylePopout(pop, n, psz)
 	local strip, dir = pop.strip, TB.eff().pop
 	local across = math.max(size, select(4, popDims(psz)))
 	strip:ClearAllPoints()
-	if dir == "up" then strip:SetPoint("BOTTOM", b, "TOP"); strip:SetPoint("TOP", pop, "TOP"); strip:SetWidth(across)
-	elseif dir == "down" then strip:SetPoint("TOP", b, "BOTTOM"); strip:SetPoint("BOTTOM", pop, "BOTTOM"); strip:SetWidth(across)
-	elseif dir == "right" then strip:SetPoint("LEFT", b, "RIGHT"); strip:SetPoint("RIGHT", pop, "RIGHT"); strip:SetHeight(across)
-	else strip:SetPoint("RIGHT", b, "LEFT"); strip:SetPoint("LEFT", pop, "LEFT"); strip:SetHeight(across) end
+	strip:SetPoint(BACK[dir], b, AHEAD[dir])
+	strip:SetPoint(AHEAD[dir], pop, AHEAD[dir])
+	if dir == "up" or dir == "down" then strip:SetWidth(across) else strip:SetHeight(across) end
 end
 
 local function layoutPopout(s, size, known)
@@ -1804,8 +1809,10 @@ function TB.debug()
 	local gok, ginfo = pcall(C_ActionBar.GetActionCooldown, multiAction(SLOT.earth))
 	local g = not gok and "error" or type(ginfo) ~= "table" and "none"
 		or isSecret(ginfo.isOnGCD) and "secret" or tostring(ginfo.isOnGCD)
-	ns.say("totem bar mode %s, show %s, driver %s, shown %s, totems known %s, set %d of %d, earth isOnGCD %s; TotemFrame parent %s alpha %s; Totem Action Bar parent %s",
-		c.mode, c.show, tostring(lastDriver), tostring(bar:IsShown()), tostring(hasTotems), TS.active(), TS.count(), g,
+	ns.say("totem bar mode %s, show %s, driver %s, shown %s, totems known %s, set %d of %d, "
+		.. "earth isOnGCD %s; TotemFrame parent %s alpha %s; Totem Action Bar parent %s",
+		c.mode, c.show, tostring(lastDriver), tostring(bar:IsShown()), tostring(hasTotems),
+		TS.active(), TS.count(), g,
 		TotemFrame and TotemFrame:GetParent() and (TotemFrame:GetParent():GetName() or "?") or "none",
 		TotemFrame and string.format("%.2f", TotemFrame:GetAlpha()) or "-",
 		mc and (mc:GetParent() == hiddenParent and "hidden" or (mc:GetParent() and mc:GetParent():GetName() or "?")) or "none")
