@@ -216,7 +216,28 @@ local function applyFilter(s)
 	end
 end
 
--- Ranks not listed: a buff whose name is the client's name for a listed buff is another rank of it
+-- Ranks not listed: a buff whose name is the client's name for a listed buff is another rank of it.
+-- Kept for the account (acct.rangeBuffIDs[el][id]): one read out of combat serves later sessions.
+local function learned()
+	local acct = ns.getAccount()
+	if type(acct.rangeBuffIDs) ~= "table" then acct.rangeBuffIDs = {} end
+	return acct.rangeBuffIDs
+end
+
+local merged = false
+local function mergeLearned()
+	if merged then return end
+	merged = true
+	local saved = learned()
+	for el, ids in pairs(saved) do
+		if buffIDs[el] and type(ids) == "table" then
+			for id, on in pairs(ids) do
+				if type(id) == "number" and on == true then buffIDs[el][id] = true else ids[id] = nil end
+			end
+		else saved[el] = nil end
+	end
+end
+
 local names = {}
 local function learn()
 	if not ns.aurasReadable() or not ns.isClass() or not enabled() then return end
@@ -237,6 +258,9 @@ local function learn()
 		local id = a.spellId
 		if el and not isSecret(id) and type(id) == "number" and not buffIDs[el][id] then
 			buffIDs[el][id] = true
+			local saved = learned()
+			saved[el] = saved[el] or {}
+			saved[el][id] = true
 			applyFilter(TB.slots[el])
 		end
 	end
@@ -247,6 +271,7 @@ function R.layout(size)
 	-- reruns after
 	local blocked = ns.deferWhileAurasSecret("totem range layout", function() R.layout(size) end)
 	local want = enabled() and ns.isClass()
+	if want then mergeLearned() end
 	for _, el in ipairs(TB.ELEMENTS) do
 		local s = TB.slots[el]
 		local on = want and s.button:IsShown()
