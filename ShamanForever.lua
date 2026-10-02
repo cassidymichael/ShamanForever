@@ -131,7 +131,7 @@ local ELEMENT_KEYS = {}
 -- key -> { frame, label, paint(texture), getSize(size), stack(), learned(), borderHost, shape,
 -- standInBorder, defaults, effects, ownSchool(), spell, icon, school, blurb, experimental, kind, def }
 -- getSize: width and height for the group's icon size (elements need not be square); borderHost:
--- the part the group's border is drawn on; shape "bar": a bar, not an icon (takes only the border
+-- the part its border is drawn on; shape "bar": a bar, not an icon (takes only the border
 -- parts that fit a bar); paint: what stands in for it in the options and while dragging;
 -- standInBorder: preview's stand-in draws its border; learned(): none means always; kind: picks its
 -- options page and preview; effects = { glow = { states }, pop = { states }, popKind };
@@ -524,7 +524,6 @@ local function layoutGroup(g)
 	gf:SetScale(g.scale)
 	local px = ns.pixel(gf)
 	local gap = ns.roundPx(g.spacing, px)   -- negative: members overlap
-	local border = ns.Style.get(g, "border")
 	local horizontal = g.orientation == "horizontal"
 	local forward = g.growth ~= "backward"
 	local n, along, across = 0, 0, 0
@@ -539,7 +538,7 @@ local function layoutGroup(g)
 		else
 			local w, h = e.getSize(groupSize(g))
 			w, h = ns.roundPx(w, px), ns.roundPx(h, px)
-			local inset = ns.Looks.fit(f, border, w, h, e)
+			local inset = ns.Looks.fit(f, ns.borderFor(key), w, h, e)
 			table.insert(placed, { f, along + n * gap, w, h, inset })
 			if horizontal then along, across = along + w, math.max(across, h)
 			else along, across = along + h, math.max(across, w) end
@@ -785,7 +784,7 @@ ns.hideGroup, ns.centerGroup = hideGroup, centerGroup
 ns.setShow = setShow
 ns.resolveSpells, ns.refreshAll, ns.refreshCooldownsSoon = resolveSpells, refreshAll, refreshCooldownsSoon
 function ns.borderFor(key)
-	return ns.Style.get((groupOf(key)), "border")
+	return ns.Style.get(key, "border")
 end
 
 -- Events

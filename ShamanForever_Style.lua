@@ -329,12 +329,6 @@ end
 
 function S.ownStyles(kind)
 	local out = {}
-	if kind == "border" then
-		local db = ns.getDB()
-		for _, g in ipairs(db and db.groups or {}) do
-			if #g.members > 0 and not S.follows(g, kind) then table.insert(out, S.ownerName(g)) end
-		end
-	end
 	for _, key in ipairs(S.KINDS[kind].users) do
 		local b = BARS[key]
 		local offered = not b or b.on()
