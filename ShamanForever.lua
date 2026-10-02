@@ -570,22 +570,30 @@ local function layoutGroup(g)
 		lo = math.min(lo, m[2])
 		hi = math.max(hi, m[2] + (horizontal and m[3] or m[4]))
 	end
+	-- cells: each member's box from the group box's top-left, for the group's art frame
+	local cells = {}
+	local span = hi - lo
 	for _, m in ipairs(placed) do
 		local f, o = m[1], m[5]
-		local offset = m[2] - lo + o
-		local side = ns.roundPx((across - (horizontal and m[4] or m[3])) / 2, px) + o
+		local at = m[2] - lo
+		local offset = at + o
+		local side = ns.roundPx((across - (horizontal and m[4] or m[3])) / 2, px)
 		f:ClearAllPoints()
 		if horizontal then
-			if forward then f:SetPoint("TOPLEFT", gf, "TOPLEFT", offset, -side)
-			else f:SetPoint("TOPRIGHT", gf, "TOPRIGHT", -offset, -side) end
+			if forward then f:SetPoint("TOPLEFT", gf, "TOPLEFT", offset, -side - o)
+			else f:SetPoint("TOPRIGHT", gf, "TOPRIGHT", -offset, -side - o) end
+			table.insert(cells, { x = forward and at or span - at - m[3], y = side })
 		else
-			if forward then f:SetPoint("TOPLEFT", gf, "TOPLEFT", side, -offset)
-			else f:SetPoint("BOTTOMLEFT", gf, "BOTTOMLEFT", side, offset) end
+			if forward then f:SetPoint("TOPLEFT", gf, "TOPLEFT", side + o, -offset)
+			else f:SetPoint("BOTTOMLEFT", gf, "BOTTOMLEFT", side + o, offset) end
+			table.insert(cells, { x = side, y = forward and at or span - at - m[4] })
 		end
 	end
 	along = math.max(hi - lo, px)
 	across = math.max(across, px)
 	if horizontal then gf:SetSize(along, across) else gf:SetSize(across, along) end
+	gf.frameLayout = { size = ns.roundPx(groupSize(g), px), cells = cells, vertical = not horizontal }
+	ns.Frames.mountGroup(gf, g, gf.frameLayout)
 	gf:SetAlpha(g.alpha)
 	for _, key in ipairs(g.members) do
 		local fx = ELEMENTS[key].frame.effects

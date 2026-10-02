@@ -687,7 +687,7 @@ end
 function FR.drawGroup(host, look, lay, style)
 	local m = host.groupFrameMount
 	if not (look and not look.none and FR.usable(look) and lay and type(lay.size) == "number" and lay.size > 0
-		and (lay.cells and #lay.cells > 0 or (lay.n or 1) > 0)) then
+		and (lay.cells and #lay.cells > 0 or not lay.cells and (lay.n or 1) > 0)) then
 		if m then m:Hide() end
 		return false
 	end
