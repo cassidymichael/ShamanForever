@@ -97,9 +97,6 @@ local INACTIVE = Enum and Enum.AddOnRestrictionState and Enum.AddOnRestrictionSt
 -- fn(endedAt) runs the frame after a restriction ends, once, after the queue
 local afterEnd, endedAt = {}, nil
 function ns.onRestrictionEnd(fn) table.insert(afterEnd, fn) end
-local combatEnd = CreateFrame("Frame")
-ns.registerEvent(combatEnd, "PLAYER_REGEN_ENABLED")
-ns.registerEvent(combatEnd, "ADDON_RESTRICTION_STATE_CHANGED")
 local function runQueue()
 	local order = queueOrder
 	queueOrder, listed = {}, {}
@@ -117,19 +114,6 @@ local function afterRestriction()
 	runQueue()
 	for _, fn in ipairs(afterEnd) do ns.try("restriction end", fn, at) end
 end
-combatEnd:SetScript("OnEvent", function(_, event, _, state)
-	if event == "ADDON_RESTRICTION_STATE_CHANGED" then
-		if isSecret(state) or state ~= INACTIVE or InCombatLockdown() then return end
-		-- Auras may still read secret while this is dispatched: next frame
-		if not endedAt then
-			endedAt = GetTime()
-			C_Timer.After(0, afterRestriction)
-		end
-	else
-		ns.AfterCombat.ended()
-	end
-	runQueue()
-end)
 
 -- Can the player act on a warning: dead, a ghost or on a flight path, nothing can be cast. A failed
 -- or secret read counts as able.
@@ -281,9 +265,19 @@ function AfterCombat.ended()
 	end
 end
 
-local combatStart = CreateFrame("Frame")
-ns.registerEvent(combatStart, "PLAYER_REGEN_DISABLED")
-combatStart:SetScript("OnEvent", function()
+-- Combat and restrictions: one frame; listeners run in the order they were added, each on its own.
+-- PLAYER_REGEN_DISABLED comes before lockdown starts.
+local fighting = false
+local startFns, endFns, changeFns = {}, {}, {}
+function ns.inCombat() return fighting or InCombatLockdown() end
+function ns.onCombatStart(fn) table.insert(startFns, fn) end
+function ns.onCombatEnd(fn) table.insert(endFns, fn) end
+-- Any restriction change: a match or an encounter starting or ending
+function ns.onRestrictionChange(fn) table.insert(changeFns, fn) end
+local function tell(fns, site) for _, fn in ipairs(fns) do ns.try(site, fn) end end
+
+local function combatStarts()
+	fighting = true
 	for _, o in ipairs(owners) do
 		stopFade(o)
 		if not InCombatLockdown() then
@@ -291,6 +285,36 @@ combatStart:SetScript("OnEvent", function()
 			if ok and type(secs) == "number" and secs > 0 then hold(o, true) end
 		end
 	end
+	tell(startFns, "combat start")
+end
+
+local function combatEnds()
+	AfterCombat.ended()
+	runQueue()
+	fighting = false
+	tell(endFns, "combat end")
+end
+
+local function restrictionChanged(state)
+	if not (isSecret(state) or state ~= INACTIVE or InCombatLockdown()) then
+		-- Auras may still read secret while this is dispatched: next frame
+		if not endedAt then
+			endedAt = GetTime()
+			C_Timer.After(0, afterRestriction)
+		end
+		runQueue()
+	end
+	tell(changeFns, "restriction change")
+end
+
+local combat = CreateFrame("Frame")
+for _, event in ipairs({ "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "ADDON_RESTRICTION_STATE_CHANGED" }) do
+	ns.registerEvent(combat, event)
+end
+combat:SetScript("OnEvent", function(_, event, _, state)
+	if event == "PLAYER_REGEN_DISABLED" then combatStarts()
+	elseif event == "PLAYER_REGEN_ENABLED" then combatEnds()
+	else restrictionChanged(state) end
 end)
 
 -- Spells, by ID: seed IDs (any rank; the first names it) and an English name used only when no seed
