@@ -1196,6 +1196,8 @@ function layout()
 		followSlot(slots[el].button, SLOT[el])
 		followSlot(castKeys[el], SLOT[el])
 	end
+	-- At once, so the slots and keys cast whatever follows; again at the end for new picker buttons
+	writeSet(set)
 	local size, border, extrasBorder = look()
 	-- Scale and opacity first: sizes, gaps and position are whole screen pixels at it
 	bar:SetScale(c.scale)
