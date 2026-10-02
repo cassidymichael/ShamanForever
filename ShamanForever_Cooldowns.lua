@@ -118,12 +118,8 @@ ns.registerPart("primed", {
 -- part that gives one.
 -- The icon (def.frame) has upTimer in activeHolder when its page has a Time left block, warn when
 -- it has a Warning block, and readyGlow in readyGate with the readyGlow part or a readyGate hook.
--- Icons are made as this file loads, so a part with hooks registers before it.
-ns.registerKind("cooldown", {
-	parts = { "cooldown", "ready", "readyGlow", "window", "primed" },
-	slots = { "own", "warn", "cooldown", "gcd", "uptime", "ready", "active", "expire", "killed" },
-	prepare = function(def) def.expires = hasUptime(def) and def.expireLooks ~= false end,
-})
+-- Icons are made as this file loads, so a part that needs one of these registers before it;
+-- prepare notes one that didn't.
 
 -- The first of def's parts with that runtime hook
 local function hookOf(def, name)
@@ -132,6 +128,25 @@ local function hookOf(def, name)
 		if h then return h end
 	end
 end
+
+local function checkFrames(def)
+	local f, missing = def.frame, nil
+	if hasUptime(def) and not f.upTimer then missing = "upTimer"
+	elseif KD.words("cooldown", def, "warn") and not f.warn then missing = "warn"
+	elseif hookOf(def, "readyGate") and not f.readyGate then missing = "readyGate" end
+	if missing then
+		ns.noteError("cooldowns: " .. def.key, "no " .. missing .. ": a part joined after its icon was made")
+	end
+end
+
+ns.registerKind("cooldown", {
+	parts = { "cooldown", "ready", "readyGlow", "window", "primed" },
+	slots = { "own", "warn", "cooldown", "gcd", "uptime", "ready", "active", "expire", "killed" },
+	prepare = function(def)
+		def.expires = hasUptime(def) and def.expireLooks ~= false
+		checkFrames(def)
+	end,
+})
 
 local function makeCooldownIcon(def)
 	-- The effects layer ignores the icon's alpha, so an idle icon doesn't fade them
