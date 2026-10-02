@@ -1,12 +1,8 @@
--- The Tremor warning's default watchlist: mobs that cast fear, charm or sleep (what Tremor
--- Totem removes). Open-world Classic Era NPCs from Wowhead's Classic database ("Used by NPC"
--- on each spell with one of those mechanics), compiled 2026-09-27. Dungeon and raid mobs are
--- left out: the game hides mob names from addons there. Forever may differ from Classic:
--- players add and remove mobs in the options.
+-- Tremor watchlist: default mobs
 
 local _, ns = ...
 
--- { npc ID, name, zone (AreaTable ID, 0 if unknown), effects (f fear, c charm, s sleep) }, by name.
+-- { npc ID, name, zone (AreaTable ID, 0 if unknown), effects (f fear, c charm, s sleep) }
 ns.Tremor.SEEDS = {
 	{ 4044, "Blackened Basilisk", 406, "s" },
 	{ 8521, "Blighted Horror", 139, "f" },
@@ -81,8 +77,7 @@ ns.Tremor.SEEDS = {
 	{ 743, "Wyrmkin Dreamwalker", 8, "s" },
 }
 
--- Every spell on Forever's client (build 1.60.1.70009) with a fear, charm or sleep mechanic,
--- except those a caster aims only at itself.
+-- Fear, charm and sleep spells, not self-aimed
 ns.Tremor.SPELLS = {
 	605, 700, 1090, 1098, 1513, 2637, 3109, 3636, 5134, 5246, 5484, 5782, 6213, 6215, 6358, 6605,
 	7093, 7399, 7645, 7967, 8040, 8122, 8124, 8399, 8715, 8901, 8902, 9159, 10888, 10890, 10911,

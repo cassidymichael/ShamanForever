@@ -1,23 +1,14 @@
--- Totem bar: one bar that can replace both of Blizzard's totem frames, the totems under the player
--- frame (timers, right-click dismiss) and the Totem Action Bar (a pick per element, arrow popouts).
---
--- Every click is a secure button set up out of combat, so it works in combat too:
--- * slot button: right-click "destroytotem" (totem-slot), left-click "action" on the element's
---   multi-cast action slot, so it casts whatever the element's pick is, and follows it.
--- * pickers: a secure header's snippets open and close the popouts (secure snippets work on Forever
---   since build 70009). The arrow tab toggles its popout, Alt+click on a slot opens it, and a click
---   outside it (the catch button) closes it. With "Open pickers on hover", entering a slot or its tab
---   opens it, and leaving the slot and the strip from it to the picker's far end closes it.
--- * popout: "multispell" buttons (spell 0 is "No totem") that change the pick, then close it.
--- Layout, attributes and anything that shows, hides or moves a secure button change only out of
--- combat; changes asked for in combat wait for it to end. Every layout, and the end of combat,
--- closes any open picker. What the player sees sits on plain frames over the secure buttons, so it
--- can change any time. Verbs, as in the modules: apply (settings changed), layout (out of combat),
--- refresh (read the slots and show them), draw (show what is known, ten times a second).
--- In combat, which totem is in a slot is secret: its icon is drawn by handing the secret icon to
--- SetTexture, timers come from the slot's duration object, and warnings are the remaining time
--- through a curve into SetAlpha. Which totem it is (per-totem warning times, "not your pick") comes
--- from our own casts (ns.Totems), by spell ID.
+-- Totem bar
+-- Every click is a secure button set up out of combat, so it works in combat: slot buttons
+-- (destroytotem, multi-cast action), pickers opened by a secure header's snippets, and "multispell"
+-- popout buttons (spell 0 is "No totem"). Layout, attributes and anything that shows, hides or
+-- moves a secure button happen out of combat only; what the player sees sits on plain frames over
+-- them.
+-- Verbs: apply (settings changed), layout (out of combat), refresh (read the slots and show them),
+-- draw (ten times a second).
+-- In combat the totem in a slot is secret: its icon goes straight to SetTexture, timers use the
+-- slot's duration object, warnings are a curve into SetAlpha. Which totem it is comes from our own
+-- casts (ns.Totems), by spell ID.
 
 local _, ns = ...
 
@@ -25,79 +16,74 @@ local TB = {}
 ns.TotemBar = TB
 
 local ELEMENTS = { "earth", "fire", "water", "air" }
-local SLOT = { fire = 1, earth = 2, water = 3, air = 4 }   -- Blizzard's totem slots
+local SLOT = { fire = 1, earth = 2, water = 3, air = 4 }
 local NAME = { earth = "Earth", fire = "Fire", water = "Water", air = "Air" }
 TB.ELEMENTS, TB.NAME, TB.SLOT = ELEMENTS, NAME, SLOT
 
--- Per profile, in db.totemBar.
 TB.DEFAULTS = {
-	mode = "everything",      -- the Totems cards: blizzard (our bar off) | active (totems and timers) | everything
-	point = "CENTER", x = -353, y = -182,   -- x, y in UIParent units, so scaling keeps the centre
+	mode = "everything",   -- blizzard | active | everything
+	point = "CENTER", x = -353, y = -182,
 	scale = 1,
 	alpha = 1,
 	-- always | active (in combat or a totem down) | combat | target (in combat or with an enemy target)
 	show = "always",
-	fadeAfter = 0,            -- seconds it stays once combat ends, then fades out (0: none)
-	order = { "fire", "earth", "water", "air" },   -- Blizzard's slot order
-	hidden = {},              -- element -> true to leave its slot out
-	dir = "row",              -- row | column
-	pop = "up",               -- where pickers open: up | down (row), right | left (column)
+	fadeAfter = 0,   -- seconds it stays once combat ends (0: none)
+	order = { "fire", "earth", "water", "air" },
+	hidden = {},
+	dir = "row",
+	pop = "up",   -- up | down (row), right | left (column)
 	spacing = 2,
-	-- The Buttons settings (cast, arrows, call, recall) only apply in Everything.
-	cast = true,              -- left-click casts the element's pick
-	arrows = true,            -- arrow tab opens the element's picker
+	-- The Buttons settings apply only in Everything
+	cast = true,
+	arrows = true,
 	arrowSize = 20,
-	tips = "ooc",             -- always | ooc | never
-	keys = false,             -- each button's key, in its corner
-	keySize = 13,             --   its size at the base icon size (it grows with the icon)
-	keyX = 0, keyY = 0,       --   its offset from the top-right corner
+	tips = "ooc",   -- always | ooc | never
+	keys = false,
+	keySize = 13,
+	keyX = 0, keyY = 0,
 	keyColor = { 0.85, 0.85, 0.85, 1 },
-	call = true,              -- Call of the Elements button, once learned
-	recall = true,            -- Totemic Recall button: right-click dismisses all; left-click casts it once learned
-	extras = "after",         -- where they sit: ends (Call first, Recall last, as Blizzard's) | before | after the slots
-	extrasScale = 0.8,        -- their size, as a share of the slots' (centred on the slots' line)
-	sizeFollow = true,        -- icon size: the global one; off: size (set from it the first time)
-	-- border, glow, pop, timers: the bar's own styles, if it has them (ShamanForever_Style.lua)
-	empty = "pick",           -- a totem not down: pick (the element's pick) | frame (element colour) | blank
-	idleGrey = false,         -- the pick, greyed (off: in colour)
-	idleAlpha = 0.35,         -- the pick's opacity
-	offPick = true,           -- a totem down that isn't the pick: show the pick small beside the slot
-	badgeSize = 0.45,         -- that badge, as a share of the slot's size
-	badgeAlpha = 0.75,        -- its opacity
-	badgeSat = 0.5,           -- its colour (0 grey, 1 full colour)
-	badgeX = 0, badgeY = 0,   -- its offset from its place beside the slot
+	call = true,
+	recall = true,
+	extras = "after",   -- ends | before | after the slots
+	extrasScale = 0.8,
+	sizeFollow = true,
+	empty = "pick",   -- pick | frame | blank
+	idleGrey = false,
+	idleAlpha = 0.35,
+	offPick = true,
+	badgeSize = 0.45,
+	badgeAlpha = 0.75,
+	badgeSat = 0.5,
+	badgeX = 0, badgeY = 0,
 	warnGrey = false,
 	warnRing = false,
 	warnPulse = true,
-	warnGlow = false,         -- a pulsing glow inside the slot (the bar's glow style)
-	expiredPop = true,        -- the totem pops and fades the moment it runs out
-	goneSound = "none",       -- a sound when a totem runs out or is killed (ShamanForever_Sounds.lua)
-	warn = 10,                -- seconds before the end (0 = off)
-	-- Totem -> seconds, instead of warn (short-lived ones). Keyed by the client's rank-less spell
-	-- name; the defaults (Earthbind and Stoneclaw, 5 s; Mana Tide, 3 s, as on its element: its
-	-- 5-minute cooldown allows no recast) are filled by cfg(), in the client's language.
+	warnGlow = false,
+	expiredPop = true,
+	goneSound = "none",
+	warn = 10,   -- seconds before the end (0: off)
+	-- Totem -> seconds, instead of warn; keyed by the client's rank-less spell name. cfg() fills the
+	-- defaults in the client's language
 	warnOver = {},
-	killed = true,            -- flash when a totem dies with time left, made of:
-	killedPop = true,         --   the slot bursts bigger for a moment
-	killedGlow = true,        --   a red glow around the slot
-	killedMark = true,        --   a red cross over the slot until it is recast, up to 5 s
-	range = true,             -- a strip along the top: are you in range of your own totem's buff (ShamanForever_TotemRange.lua)
-	rangeHeight = 5,          --   its height in screen pixels (ns.linePx)
-	rangeIn = { 0.2, 0.8, 0.25, 0 },       --   with the buff (0: nothing shows in range)
-	rangeOut = { 0.9, 0.12, 0.08, 0.85 },  --   without it
-	pickHover = true,         -- hovering a slot or its tab opens its picker (Everything)
-	skin = "default",         -- the bar's theme (ShamanForever_TotemSkins.lua)
-	pixelTray = true,         -- the Pixel theme's tray behind the slots
-	pixelEdge = 1,            -- its element-coloured edge (screen pixels)
-	stonePlinth = "normal",   -- the Stone and bronze theme's plinth: slim | normal | grand
-	stoneExtrasScale = 1,     --   its Call and Recall size (the theme sets them one on each side)
-	barPlace = "in",          -- the time bars: in the icon | out: beside it, away from the pickers
+	killed = true,
+	killedPop = true,
+	killedGlow = true,
+	killedMark = true,
+	range = true,
+	rangeHeight = 5,
+	rangeIn = { 0.2, 0.8, 0.25, 0 },
+	rangeOut = { 0.9, 0.12, 0.08, 0.85 },
+	pickHover = true,
+	skin = "default",
+	pixelTray = true,
+	pixelEdge = 1,
+	stonePlinth = "normal",   -- slim | normal | grand
+	stoneExtrasScale = 1,
+	barPlace = "in",   -- in | out
 }
 
 local isSecret = ns.isSecret
 
--- Number settings: the options sliders' ranges. Anything outside (a damaged or hand-made import)
--- is clamped, so layout() never gets a scale of 0 or a NaN.
 local RANGES = {
 	scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { -10, 20 }, size = { 24, 96 },
 	arrowSize = { 8, 32 }, extrasScale = { 0.5, 1.5 }, idleAlpha = { 0.1, 1 },
@@ -107,19 +93,14 @@ local RANGES = {
 local function finite(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
 
--- The per-totem warning times a profile starts with (warnOver): spell key -> seconds.
 local WARN_OVER = { earthbind = 5, stoneclaw = 5, manaTide = 3 }
 
--- Those times, by the client's names.
 function TB.warnOverDefaults()
 	local out = {}
 	for key, secs in pairs(WARN_OVER) do out[ns.Spells.name(key)] = secs end
 	return out
 end
 
--- Whether per-totem times (over) differ from those a profile starts with. A starting totem's time
--- is found under the client's name, or the English one saved before the names loaded, as warnSecs
--- reads it.
 function TB.warnOverChanged(over)
 	local seen = {}
 	for key, secs in pairs(WARN_OVER) do
@@ -134,16 +115,13 @@ function TB.warnOverChanged(over)
 	return false
 end
 
--- The profile's bar settings, with defaults filled and wrong types or values reset (imported profiles).
 local cfgTable
 local function cfg()
 	local db = ns.getDB()
 	if type(db.totemBar) ~= "table" then db.totemBar = {} end
 	local t = db.totemBar
 	if t ~= cfgTable then
-		-- Saves from before the Totems cards: "enabled" and Show "never" meant our bar off.
 		if t.mode == nil and (t.enabled == false or t.show == "never") then t.mode = "blizzard" end
-		-- Before styles (0.6.1 and earlier) one switch covered size and border: keep an own look as own.
 		if t.follow == false then
 			t.sizeFollow = false
 			if type(t.border) == "table" then t.border.follow = false end
@@ -153,8 +131,6 @@ local function cfg()
 		if t.show ~= "always" and t.show ~= "active" and t.show ~= "combat" and t.show ~= "target" then t.show = nil end
 		if t.barPlace ~= "in" and t.barPlace ~= "out" then t.barPlace = nil end
 		if t.stonePlinth ~= "slim" and t.stonePlinth ~= "normal" and t.stonePlinth ~= "grand" then t.stonePlinth = nil end
-		-- The default per-totem times, by the client's names (English until they have loaded; the
-		-- lookup in warnSecs also takes the English name, so either works).
 		if type(t.warnOver) ~= "table" then t.warnOver = TB.warnOverDefaults() end
 		for k, v in pairs(TB.DEFAULTS) do
 			if type(t[k]) ~= type(v) then t[k] = type(v) == "table" and CopyTable(v) or v end
@@ -187,9 +163,8 @@ local function cfg()
 end
 TB.cfg = cfg
 
--- What the mode allows: our bar at all (active or everything), and the Buttons settings (everything).
--- Only shamans get the bar: for any other class it stays hidden and Blizzard's frames are left alone.
-local playerClass   -- cached once known: it never changes
+-- Only shamans get the bar: other classes leave Blizzard's frames alone
+local playerClass
 local function isShaman()
 	if not playerClass then playerClass = select(2, UnitClass("player")) end
 	return playerClass == "SHAMAN"
@@ -199,8 +174,7 @@ TB.isShaman = isShaman
 local function feat(key) local c = cfg(); return barOn() and c.mode == "everything" and c[key] or false end
 TB.barOn, TB.feat = barOn, feat
 
--- The bar's settings as its layout uses them: the player's, or its theme's where it owns one
--- (TB.skin.owned). The player's own values stay saved, for when another theme is picked.
+-- The player's settings, or the theme's where it owns one
 local effective = setmetatable({}, { __index = function(_, k)
 	local v = TB.skin.owned(k)
 	if v ~= nil then return v end
@@ -208,47 +182,34 @@ local effective = setmetatable({}, { __index = function(_, k)
 end })
 function TB.eff() return effective end
 
--- The slots' size and border (the global one, the bar's own, or its theme's), and Call and Recall's
--- border (the slots' unless the look gives them their own).
 local function look()
 	local c, db = cfg(), ns.getDB()
 	local border = TB.skin.border() or ns.Style.get("totembar", "border")
 	return (not c.sizeFollow and c.size) or db.iconSize, border, TB.skin.extrasBorder() or border
 end
--- Own icon size from the current global one, the first time; later its own is kept.
 function TB.setSizeFollow(follow)
 	local c = cfg()
 	if not follow and not c.size then c.size = ns.getDB().iconSize end
 	c.sizeFollow = follow
 end
 
--- An element's multi-cast action slot (Call of the Elements' page, the first set).
 local function multiAction(slot)
 	local ok, bar = ns.try("totem bar: multi-cast page", C_ActionBar.GetMultiCastBarIndex)
 	if not ok or type(bar) ~= "number" or isSecret(bar) then bar = 12 end
 	return (bar - 1) * 12 + slot
 end
 
-------------------------------------------------------------------------
--- Geometry, shared with the options' preview of the bar (ShamanForever_OptionsLook.lua), so both
--- place everything the same way. Each reads the bar's settings (cfg) at the call.
-------------------------------------------------------------------------
-local POP_STEP = 3    -- a picker's padding, and the gap between its buttons
-TB.POP_FILL = { 0, 0, 0, 0.72 }   -- a picker's plain fill (a Look can draw its own)
-TB.BADGE_GAP = 0      -- between a slot and its "not your pick" badge: adjacent, moved by its offset
-local EXTRA_GAP = 6   -- added to the spacing between the extras and the slots
+-- Geometry, shared with the options' preview of the bar
+local POP_STEP = 3
+TB.POP_FILL = { 0, 0, 0, 0.72 }
+TB.BADGE_GAP = 0
+local EXTRA_GAP = 6
 
--- Where everything sits along the bar, from its left or top end: Call and Recall before the slots
--- (TB.extraSides, below), n slots of the given size, then Call and Recall after. Returns a list of
--- { key, offset, size, extra } (key: an extra's key, or the slot's place among the n), the bar's
--- length and its thickness (its largest button: every button is centred on its line).
 function TB.along(n, size, px)
 	local c = TB.eff()
 	local before, after = TB.extraSides()
-	-- px (one screen pixel in the bar's units): sizes and gaps in whole pixels, as on the bar.
 	local function round(v) return px and ns.roundPx(v, px) or math.floor(v + 0.5) end
 	local esz, gap, extraGap = round(size * c.extrasScale), c.spacing, c.spacing + EXTRA_GAP
-	-- A look that sets the bar in fixed art gives its own gaps (in the slots' size).
 	local own, ownExtra = TB.skin.spacing(size)
 	if own then gap, extraGap = own, ownExtra end
 	if px then gap, extraGap = round(gap), round(extraGap) end
@@ -261,8 +222,7 @@ function TB.along(n, size, px)
 	for _, k in ipairs(before) do put(k, gap, esz, true) end
 	for i = 1, n do put(i, i == 1 and extraGap or gap, size) end
 	for i, k in ipairs(after) do put(k, i == 1 and extraGap or gap, esz, true) end
-	-- Negative spacing overlaps buttons: one shorter than the overlap can start before the first or
-	-- end before the last, so the bar spans them all.
+	-- Negative spacing overlaps buttons: the bar spans them all
 	local lo, hi = 0, 0
 	for _, it in ipairs(list) do
 		lo = math.min(lo, it.offset)
@@ -273,9 +233,6 @@ function TB.along(n, size, px)
 	return list, math.max(hi - lo, size), line
 end
 
--- A picker's button size, for slots of this size. Its measures for buttons psz wide: the margin
--- before the first button (at the slot's end) and after the last, the gap between buttons, and its
--- width across; a theme can draw its own (TB.skin.popMetrics). Its length for n buttons.
 function TB.popButtonSize(size) return math.floor(size * 0.8 + 0.5) end
 local function popDims(psz)
 	local first, last, gap, thick = TB.skin.popMetrics(psz)
@@ -286,7 +243,6 @@ function TB.popLength(n, psz)
 	local first, last, gap = popDims(psz)
 	return first + last + n * psz + (n - 1) * gap
 end
--- A picker of n buttons (psz) beside anchor, a slot, on the side pickers open, past the arrow tab.
 function TB.placePopout(pop, anchor, n, psz)
 	local c = TB.eff()
 	local len, tab = TB.popLength(n, psz), c.arrowSize
@@ -297,7 +253,6 @@ function TB.placePopout(pop, anchor, n, psz)
 	elseif c.pop == "right" then pop:SetSize(len, thick); pop:SetPoint("LEFT", anchor, "RIGHT", tab + 4, 0)
 	else pop:SetSize(len, thick); pop:SetPoint("RIGHT", anchor, "LEFT", -tab - 4, 0) end
 end
--- A picker's i-th button (psz), counted from the slot's end.
 function TB.placePopButton(b, pop, i, psz)
 	local c = TB.eff()
 	b:SetSize(psz, psz)
@@ -310,8 +265,6 @@ function TB.placePopButton(b, pop, i, psz)
 	else b:SetPoint("RIGHT", pop, "RIGHT", -off, 0) end
 end
 
--- The arrow tab's look: dark, gold-edged, with the arrow from Blizzard's own totem bar art (its
--- flyout button highlight), turned by TB.placeArrow to point the way the picker opens.
 function TB.makeArrowLook(parent)
 	local t = CreateFrame("Frame", nil, parent, "BackdropTemplate")
 	t:SetBackdrop(ns.BACKDROP)
@@ -320,7 +273,6 @@ function TB.makeArrowLook(parent)
 	TB.plainArrow(t)
 	return t
 end
--- That look's colours and glyph (a Look can draw the tab its own way, then give it back).
 function TB.plainArrow(t)
 	t:SetBackdropColor(0.06, 0.05, 0.03, 0.92)
 	t:SetBackdropBorderColor(0.85, 0.71, 0.42, 0.9)
@@ -329,7 +281,6 @@ function TB.plainArrow(t)
 	t.glyph:SetBlendMode("ADD")
 	t.glyph:SetVertexColor(1, 1, 1, 1)
 end
--- The arrow tab along anchor's picker side, arrowSize deep, and its glyph sized and turned.
 local GLYPH_TURN = { up = 0, down = math.pi, right = -math.pi / 2, left = math.pi / 2 }
 TB.GLYPH_TURN = GLYPH_TURN
 function TB.placeArrow(tab, anchor, glyph)
@@ -344,31 +295,20 @@ function TB.placeArrow(tab, anchor, glyph)
 	glyph:SetRotation(GLYPH_TURN[c.pop])
 end
 
--- A texture's colour, from grey (0) to full (1); all or nothing where partial desaturation is missing.
 function TB.saturate(tex, sat)
 	if not pcall(tex.SetDesaturation, tex, 1 - sat) then tex:SetDesaturated(sat < 0.5) end
 end
 
--- The "not your pick" badge's size, for slots of this size.
 function TB.badgeSize(size) return math.max(math.floor(size * cfg().badgeSize + 0.5), 8) end
--- The badge (bd, with its icon) beside anchor, a slot, opposite the picker: below a row whose
--- pickers open up, and so on. Its look: size, opacity, colour, and a plain 1 px line, whatever look
--- the slots use (a small pick badge stays a plain line, not the slots' bevel or caps).
 function TB.layoutBadge(bd, anchor, size, border)
 	local c = TB.eff()
-	-- Only draw the setting's colour when the slots' own look actually uses it; other looks (Gold
-	-- hairline, Bronze bevel) hide that setting, and the badge shouldn't keep a colour
-	-- the player can no longer see or change.
 	local usesColor = border and border.show and ns.Looks.uses(ns.Style.look("border", border.look), "color")
 	local color = usesColor and border.color or { 0, 0, 0, 1 }
-	-- Its line inside its size, as the slots' borders are.
 	local inset = ns.Looks.fit(bd, border and border.show and { show = true, size = 1, color = color } or border,
 		TB.badgeSize(size))
 	bd:SetAlpha(c.badgeAlpha)
 	TB.saturate(bd.icon, c.badgeSat)
 	bd:ClearAllPoints()
-	-- Past what the theme or the time bar hangs under the slot, then moved by the player's offset (in
-	-- the bar's units, as the key text's: it grows with the bar's Scale).
 	local gap = TB.BADGE_GAP + inset + TB.skin.badgeGap(size)
 	local x, y = c.badgeX, c.badgeY
 	if c.pop == "up" then bd:SetPoint("TOP", anchor, "BOTTOM", x, y - gap)
@@ -377,8 +317,6 @@ function TB.layoutBadge(bd, anchor, size, border)
 	else bd:SetPoint("LEFT", anchor, "RIGHT", x + gap, y) end
 end
 
--- A button's look v over its button b (size wide), set in by its border's reach so that the
--- border, drawn round v, stays inside the button (ns.Looks.inset). Returns that inset.
 function TB.fitLook(v, b, border, size)
 	local o = ns.Looks.inset(v, border, size)
 	v:ClearAllPoints()
@@ -388,19 +326,16 @@ function TB.fitLook(v, b, border, size)
 	return o
 end
 
-------------------------------------------------------------------------
--- Frames. Created when the file loads, which is allowed even during a /reload in combat.
-------------------------------------------------------------------------
+-- Frames: created at file load, allowed even during a /reload in combat
 local bar = CreateFrame("Frame", "ShamanForeverTotemBar", UIParent)
 bar:SetSize(1, 1)
 bar:SetPoint("CENTER", 0, -120)
 bar:SetFrameStrata("MEDIUM")
 bar:Hide()
 
--- The pickers' header. Each popout is a protected frame it holds a reference to ("pop1".."pop4", by
--- the element's index in ELEMENTS); each button that opens or closes one carries that index
--- ("sf-pick") and, from its click, runs one of these snippets: open shows that popout and hides the
--- others (open 0 hides them all), close hides it.
+-- The pickers' header: popouts are protected frames it references; buttons carry their index
+-- ("sf-pick") and run its open and close snippets. Blizzard's secure hover driver alone can't close
+-- a hover picker: it never counts down if the mouse was gone at its first update.
 local picker = CreateFrame("Frame", nil, UIParent, "SecureHandlerBaseTemplate")
 picker:SetAttribute("sf-open", [[
 	local open = ...
@@ -420,8 +355,7 @@ picker:SetAttribute("sf-open", [[
 	end
 ]])
 picker:SetAttribute("sf-close", [[ self:GetFrameRef("pop" .. (...)):Hide() ]])
--- Snippets run round each button's own click (SecureHandlerWrapScript). Returning false skips the
--- button's own action; a second return value runs the post-snippet with it, after the action.
+-- Snippets run round each click (SecureHandlerWrapScript): returning false skips the button's action
 local ARROW_CLICK = [[
 	local i = self:GetAttribute("sf-pick")
 	if button == "RightButton" then owner:RunAttribute("sf-open", 0)   -- closes any open picker
@@ -433,8 +367,7 @@ local CATCH_CLICK = [[
 	owner:RunAttribute("sf-close", self:GetAttribute("sf-pick"))
 	return false
 ]]
--- Alt+left-click on a slot opens its picker instead of casting (when "sf-altpick" is on). Slots act
--- on the press (press-and-hold), so the press is skipped too; the picker opens on the release.
+-- Alt+click opens the picker: slots act on the press, so the press is skipped and it opens on the release
 local SLOT_CLICK = [[
 	if button == "LeftButton" and IsAltKeyDown() and self:GetAttribute("sf-altpick") then
 		if not down then owner:RunAttribute("sf-open", self:GetAttribute("sf-pick")) end
@@ -442,13 +375,11 @@ local SLOT_CLICK = [[
 	end
 ]]
 local PICK_CLICK, PICK_AFTER = [[ return nil, self:GetAttribute("sf-pick") ]], [[ owner:RunAttribute("sf-close", message) ]]
--- Hover mode: the mouse entering a slot or its tab opens that picker (wrapped round OnEnter, below).
 local HOVER_ENTER = [[
 	if owner:GetAttribute("sf-hovermode") then owner:RunAttribute("sf-open", self:GetAttribute("sf-pick")) end
 ]]
--- Hover mode: the mouse leaving a slot, its tab, its strip or a picker button closes the picker
--- unless it is still over the slot or the strip (IsUnderMouse is the cursor against each frame's
--- rect). A leave runs only on a frame whose enter is wrapped too (Blizzard's SecureHandlers).
+-- Hover leave closes the picker unless still over the slot or strip. A leave runs only on a frame
+-- whose enter is wrapped too
 local HOVER_LEAVE = [[
 	local i = self:GetAttribute("sf-pick")
 	if not owner:GetAttribute("sf-hovermode") then return end
@@ -466,28 +397,21 @@ end
 local function wrapClick(b, pre, post) SecureHandlerWrapScript(b, "OnClick", picker, pre, post) end
 
 
-local slots = {}    -- element -> slot record
-local bySlot = {}   -- Blizzard's totem slot -> slot record
+local slots = {}
+local bySlot = {}
 TB.slots, TB.frame = slots, bar
 
--- Frame levels over a slot's button, bottom to top: the look (+2: icon), the range strip (+9 to
--- +12: ours, Blizzard's aura button and our colour on it; ShamanForever_TotemRange.lua), the
--- expiring warning (+13 to +15: Timer:setExpire, ShamanForever_Timers.lua, lifted by liftWarning,
--- with its glow), the timer's time-left bar (+16), then everything drawn over the whole icon: the
--- GCD sweep, the timer's Cooldown (swipe, countdown text), the key, the end flashes. The strip's
--- in-range part is opaque (the buff's icon under its colour), so what sits under it is hidden: the
--- expiring warning sits over it, or its flash would stop at the strip. The time bar sits over the
--- warning, readable in a totem's last seconds; a bar along the top edge hides the strip under it
--- (a mark missed, never one shown falsely).
+-- Frame levels over a slot's button, bottom to top: look +2, range strip +9 to +12, expiring
+-- warning +13 to +15, time bar +16, then everything over the icon (GCD sweep, timer Cooldown, key,
+-- end flashes). The strip's in-range part is opaque, so the warning sits over it; a bar along the
+-- top edge hides the strip under it (a missed mark, never a false one).
 TB.RANGE_LEVEL = 9
-local WARN_LEVEL = TB.RANGE_LEVEL + 4   -- the expiring warning; its glow + 1, its parts + 2
+local WARN_LEVEL = TB.RANGE_LEVEL + 4
 local TIME_BAR_LEVEL = TB.RANGE_LEVEL + 7
 local OVER_RANGE = TB.RANGE_LEVEL + 8
-local LOOK_LEVEL = 2   -- the look's level over the button (v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL))
-local LOOK_OVER_RANGE = OVER_RANGE - LOOK_LEVEL   -- the same, over the look's level
+local LOOK_LEVEL = 2
+local LOOK_OVER_RANGE = OVER_RANGE - LOOK_LEVEL
 
--- Over a button's look (above its timer, and inside the look so it fades with it): the key bound to
--- it, in the top corner, and its highlight while Blizzard's Quick Keybind Mode is open.
 local KEY_HIGHLIGHT = "UI-HUD-ActionBar-IconFrame-Mouseover"
 local function keyLayer(v)
 	local f = CreateFrame("Frame", nil, v)
@@ -502,8 +426,6 @@ local function keyLayer(v)
 	return f
 end
 
--- The global cooldown's sweep over the icon (the expiring warning and the range strip too), below
--- the button's timer, so the time left stays readable.
 local function gcdSweep(v)
 	local cd = ns.makeGCDSweep(v)
 	cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE)
@@ -516,27 +438,23 @@ for index, el in ipairs(ELEMENTS) do
 	local s = { el = el, slot = slot, index = index }
 	slots[el], bySlot[slot] = s, s
 
-	-- The click area: right-click dismisses, left-click casts the pick, Alt+click opens the
-	-- element's picker (SLOT_CLICK; layout() turns it off outside Everything). Casts and dismissals
-	-- happen on the press (press-and-hold).
+	-- The click area: right-click dismisses, left-click casts the pick, Alt+click opens the picker; all on the press
 	local b = CreateFrame("Button", "ShamanForeverTotem" .. NAME[el], bar, "SecureActionButtonTemplate")
 	b:RegisterForClicks("AnyUp", "AnyDown")
 	b:SetAttribute("pressAndHoldAction", true)
-	-- "*" matches any modifier (a plain "type2" is only used with none held).
+	-- "*" matches any modifier (a plain "type2" only works with none held)
 	b:SetAttribute("*type2", "destroytotem")
 	b:SetAttribute("totem-slot", slot)
 	b:SetAttribute("sf-pick", index)
 	wrapClick(b, SLOT_CLICK)
 	s.button = b
 
-	-- What the player sees, on a plain frame over the button.
 	local v = CreateFrame("Frame", nil, bar)
 	v:SetAllPoints(b)
 	v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL)
 	v:EnableMouse(false)
 	s.vis = v
-	v.school = el   -- the school its looks take (ns.Looks)
-	-- "Not your pick": the element's pick, small, on the side away from the picker (a plain frame).
+	v.school = el
 	local badge = CreateFrame("Frame", nil, bar)
 	badge:SetFrameLevel(b:GetFrameLevel() + 6)
 	badge.icon = badge:CreateTexture(nil, "ARTWORK")
@@ -544,37 +462,28 @@ for index, el in ipairs(ELEMENTS) do
 	ns.cropIcon(badge.icon)
 	badge:Hide()
 	s.badge = badge
-	-- Killed early and ran out (ns.Effects.endFlash): on their own frames, since the slot's look can
-	-- be invisible (Active totems). Two frames: each has its own secret gate.
+	-- End flashes on their own frames (the slot's look can be invisible); each has its own secret gate
 	local kf = ns.Effects.endFlash(bar, b, "totembar", v)
 	s.expired = ns.Effects.endFlash(bar, b, "totembar", v)
 	s.killed = kf
 	kf:SetFrameLevel(b:GetFrameLevel() + OVER_RANGE + 4)
 	s.expired:SetFrameLevel(b:GetFrameLevel() + OVER_RANGE + 4)
-	-- Over the picture, inside the slot's border (TB.fitLook sets it in from the button).
 	for _, flash in ipairs({ kf, s.expired }) do flash:ClearAllPoints(); flash:SetAllPoints(v) end
 	v.bg = v:CreateTexture(nil, "BACKGROUND")
 	v.bg:SetAllPoints()
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
 	ns.cropIconExact(v.icon)
-	-- Time left: a timer (text, swipe, bar), above the warning layer so it stays readable.
 	s.timer = ns.Timer.new(v, "totembar", "uptime", { anchor = v, school = el })
 	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 1)
 	s.timer.bar:SetFrameLevel(b:GetFrameLevel() + TIME_BAR_LEVEL)
 	v.cd = s.timer.cd
 	s.keys = keyLayer(v)
 	s.gcd = gcdSweep(v)
-	s.command = "CLICK ShamanForeverKeyCast" .. NAME[el] .. ":LeftButton"   -- its key (Key bindings, below)
-	-- The expiring warning is the timer's (Timer:setExpire, as on the HUD): a grey copy of the icon, a
-	-- red ring, a dark pulsing layer and a glow, above the icon and below the cooldown, in the slot's
-	-- last seconds. refreshSlot gives it the totem's own warning time and icon.
+	s.command = "CLICK ShamanForeverKeyCast" .. NAME[el] .. ":LeftButton"
 
-	-- Arrow tab (secure, no action of its own: ARROW_CLICK toggles the popout; right-click closes any)
-	-- and its look (plain, shown while the mouse is over the slot or the tab).
 	local ar = CreateFrame("Button", nil, bar, "SecureActionButtonTemplate")
-	-- Above every open picker's catch button (layoutArrow sets the level), so another slot's arrow
-	-- opens its picker in one click and its own arrow closes it.
+	-- Above every open picker's catch button, so another slot's arrow opens in one click
 	ar:SetFrameStrata("HIGH")
 	ar:RegisterForClicks("AnyUp")
 	ar:SetAttribute("sf-pick", index)
@@ -587,7 +496,7 @@ for index, el in ipairs(ELEMENTS) do
 	av:SetAlpha(0)
 	s.arrowVis = av
 
-	-- Popout: protected, so the header's snippets can show and hide it in combat.
+	-- Popout: protected, so the snippets can show and hide it in combat
 	local pop = CreateFrame("Frame", "ShamanForeverTotemPopout" .. NAME[el], bar, "SecureFrameTemplate")
 	pop:Hide()
 	pop:SetSize(1, 1)
@@ -598,8 +507,7 @@ for index, el in ipairs(ELEMENTS) do
 	pop.buttons = {}
 	s.popout = pop
 	SecureHandlerSetFrameRef(picker, "pop" .. index, pop)
-	-- While the popout is open, a click anywhere else (left or right; not the arrow tabs, which sit
-	-- above it) lands on this invisible, screen-wide button under the pickers, and closes it.
+	-- Catch button: screen-wide, under the pickers, closes an open one
 	local catch = CreateFrame("Button", nil, pop, "SecureActionButtonTemplate")
 	catch:SetAllPoints(UIParent)
 	catch:SetFrameLevel(pop:GetFrameLevel() + 1)
@@ -607,9 +515,7 @@ for index, el in ipairs(ELEMENTS) do
 	catch:SetAttribute("sf-pick", index)
 	wrapClick(catch, CATCH_CLICK)
 	pop.catch = catch
-	-- Hover mode's strip: from the slot's edge to the picker's far end, over the tab and the gaps, so
-	-- the mouse can cross from the slot to the picker. It takes the mouse (below the tab and the
-	-- picker's buttons), so leaving it through a gap closes the picker too. Shown only in hover mode.
+	-- Hover strip: from the slot to the picker's far end so the mouse can cross; hover mode only
 	local strip = CreateFrame("Frame", nil, pop, "SecureFrameTemplate")
 	strip:SetFrameLevel(pop:GetFrameLevel() + 1)
 	strip:EnableMouse(true)
@@ -620,25 +526,18 @@ for index, el in ipairs(ELEMENTS) do
 	SecureHandlerSetFrameRef(picker, "slot" .. index, b)
 end
 
--- Close every picker (out of combat only). A picker hidden only through the bar would come back
--- open, with its screen-wide catch button, the next time the bar shows.
+-- Close every picker (out of combat): one hidden through the bar would come back open
 local function closePopouts()
 	if InCombatLockdown() then return end
 	for _, el in ipairs(ELEMENTS) do slots[el].popout:Hide() end
 end
 
-------------------------------------------------------------------------
--- Key bindings (Bindings.xml; Key Bindings > ShamanForever). Each is a CLICK binding to its own
--- invisible secure button, so keys work whatever the bar's settings, and even with the bar off:
--- cast an element's pick ("action" on its multi-cast slot), dismiss one slot ("destroytotem"),
--- Call of the Elements and Totemic Recall ("spell"), and dismiss all. A secure button does one
--- action per click, so "dismiss all" runs a macro that /clicks four dismiss helpers; /click sends a
--- release, so those act on release. That dismisses without a spell: no global cooldown, no mana back.
-------------------------------------------------------------------------
+-- Key bindings: each a CLICK binding to its own invisible secure button, so keys work with the bar
+-- off. "Dismiss all" runs a macro that /clicks four dismiss helpers (a click sends a release, so
+-- those act on release): no spell, so no global cooldown and no mana back.
 local CALL, RECALL = ns.Spells.DEFS.call.ids[1], ns.Spells.DEFS.recall.ids[1]
 _G.BINDING_HEADER_SHAMANFOREVER_TOTEMS = "Totems"
 _G["BINDING_NAME_CLICK ShamanForeverKeyDismissAll:LeftButton"] = "Dismiss all totems"
--- In the client's language; again at login, as names can come late on a cold start.
 local function nameBindings()
 	_G["BINDING_NAME_CLICK ShamanForeverKeyCall:LeftButton"] = ns.Spells.name("call")
 	_G["BINDING_NAME_CLICK ShamanForeverKeyRecall:LeftButton"] = ns.Spells.name("recall")
@@ -651,7 +550,7 @@ local function keyButton(name, kind)
 	b:SetAttribute("type", kind)
 	return b
 end
-local castKeys = {}   -- element -> its "cast your pick" key button
+local castKeys = {}
 local dismissAll = {}
 for _, el in ipairs(ELEMENTS) do
 	local slot = SLOT[el]
@@ -670,11 +569,7 @@ keyButton("ShamanForeverKeyRecall", "spell"):SetAttribute("spell", RECALL)
 local DISMISS_ALL = table.concat(dismissAll, "\n")
 keyButton("ShamanForeverKeyDismissAll", "macro"):SetAttribute("macrotext", DISMISS_ALL)
 
-------------------------------------------------------------------------
--- Call of the Elements and Totemic Recall on the bar. Call shows once learned. Recall always shows,
--- greyed until learned: right-click runs the "dismiss all" macro above, left-click casts Recall
--- once it is learned. Where they sit is c.extras; layout() places them with the slots.
-------------------------------------------------------------------------
+-- Call of the Elements and Totemic Recall: Recall always shows, greyed until learned
 local function knows(spell)
 	local ok, v = pcall(C_SpellBook.IsSpellKnown, spell)
 	return ok and v == true
@@ -697,7 +592,6 @@ end
 extras.Recall.button:SetAttribute("*type2", "macro")
 extras.Recall.button:SetAttribute("macrotext", DISMISS_ALL)
 
--- Each button's key, in its corner (any time: plain frames).
 local function refreshKeys()
 	local on = cfg().keys
 	local function draw(layer, command)
@@ -708,11 +602,8 @@ local function refreshKeys()
 	for _, e in pairs(extras) do draw(e.keys, e.command) end
 end
 
--- The global cooldown on each button that casts, when the bar's Global cooldown style is on: the
--- slots (their pick, by the multi-cast action) and Call and Recall once learned. Only while the
--- button's own cooldown is the GCD (isOnGCD, readable in combat; Blizzard vouches for it inside
--- SPELL_UPDATE_COOLDOWN, where this runs), so a totem's own longer cooldown isn't shown. A duration
--- object, so fine in combat.
+-- The GCD on each casting button when the bar's Global cooldown style is on; only while the
+-- button's own cooldown is the GCD (isOnGCD, vouched for inside SPELL_UPDATE_COOLDOWN)
 local function gcdOf(getInfo, getDuration, id)
 	local ok, info = pcall(getInfo, id)
 	if not ok or type(info) ~= "table" or isSecret(info.isOnGCD) or info.isOnGCD ~= true then return nil end
@@ -720,7 +611,6 @@ local function gcdOf(getInfo, getDuration, id)
 	return dok and d or nil
 end
 local function refreshGCD()
-	-- Not gated on the bar being shown: the cast that brings it up (in combat, a first totem) sweeps too.
 	local on = ns.Style.value("totembar", "gcd", "show")
 	for _, el in ipairs(ELEMENTS) do
 		local s = slots[el]
@@ -737,11 +627,10 @@ local function refreshGCD()
 end
 TB.refreshGCD = refreshGCD
 
-local keyTexts = {}   -- button -> its key label, for layout()
+local keyTexts = {}
 for _, el in ipairs(ELEMENTS) do keyTexts[slots[el].button] = slots[el].keys.text end
 for _, e in pairs(extras) do keyTexts[e.button] = e.keys.text end
 
--- Which extras show, and where: the keys before the slots and the keys after them.
 local function extraSides()
 	local c = TB.eff()
 	local list = {}
@@ -757,27 +646,20 @@ TB.extraSides = extraSides
 function TB.extraTexture(key) return C_Spell.GetSpellTexture(key == "Call" and CALL or RECALL) end
 function TB.extraLearned(key) return knows(key == "Call" and CALL or RECALL) end
 
--- Hover: the arrow tab's look shows while the mouse is over the slot, the tab or the open popout.
--- arrows: feat("arrows"), when the caller already has it.
 local function hover(s, arrows)
 	if arrows == nil then arrows = feat("arrows") end
 	local over = s.button:IsMouseOver() or s.arrow:IsMouseOver() or (s.popout:IsShown() and s.popout:IsMouseOver())
 	s.arrowVis:SetAlpha((over or s.popout:IsShown()) and arrows and 1 or 0)
 end
 
-------------------------------------------------------------------------
 -- Refreshing the slots (any time, combat included)
-------------------------------------------------------------------------
--- The element's pick, by spell ID (nil for "No totem").
 local function pickSpell(slot)
 	local ok, kind, id = ns.try("totem bar: pick", GetActionInfo, multiAction(slot))
 	if not ok or isSecret(kind) or isSecret(id) or kind ~= "spell" or type(id) ~= "number" then return nil end
 	return id
 end
 
--- A totem's own warning time (warnOver), else the bar's. warnOver is keyed by the client's rank-less
--- spell name; for the spells the addon tracks, the English name counts too (older profiles, and
--- defaults filled before the client's names had loaded).
+-- warnOver is keyed by the client's rank-less spell name; the English name counts too (older profiles)
 local function warnSecs(c, id)
 	if not id then return c.warn end
 	local name = ns.Spells.nameOf(id)
@@ -791,12 +673,10 @@ local function warnSecs(c, id)
 end
 
 local anyDown = false
-local kbOpen = false   -- Blizzard's Quick Keybind Mode is open (Quick Keybind Mode, below)
-local preview          -- what preview mode draws on the slots while it shows (Preview mode, below)
+local kbOpen = false
+local preview
 
--- The parts that follow the remaining time: the time bar once it has run out, and the range strip.
--- (The expiring warning follows it in Timers' own ticker.)
--- Values from the duration object may be secret, so they only ever go straight to SetAlpha.
+-- Values from the duration object may be secret: only ever straight to SetAlpha
 function TB.drawTimeLeft(s)
 	local d = s.dur
 	if not d then return end
@@ -808,9 +688,7 @@ function TB.drawTimeLeft(s)
 	if TB.range then TB.range.drawTimeLeft(s) end
 end
 
--- The slot's expiring warning (made by the timer on first use, just over the icon) over the range
--- strip, once: see the frame levels above. Its glow, the glow's breathing frame and any look's
--- parts it has made already (levelled to it as they were made) come up with it.
+-- The slot's expiring warning over the range strip, once: see the frame levels above
 local function liftWarning(s)
 	local x = s.timer.exp
 	if not x or x.sfLifted then return end
@@ -827,24 +705,21 @@ end
 
 local function refreshSlot(s)
 	local c, v = cfg(), s.vis
-	local was = s.dur   -- a slot that had a totem and now has none ended it (Killed early, below)
+	local was = s.dur
 	local ok, d = ns.try("totem bar: duration", GetTotemDuration, s.slot)
 	if ok and d then
-		-- A totem is down.
 		local iok, _, _, _, _, icon = ns.try("totem bar: totem info", GetTotemInfo, s.slot)
 		if iok and (isSecret(icon) or icon) then
 			ns.try("totem bar: icon", v.icon.SetTexture, v.icon, icon)
 			s.killed:setIcon(icon)
 			s.expired:setIcon(icon)
 		end
-		s.killed.mark:Hide()   -- recast: the cross goes
+		s.killed.mark:Hide()
 		v:SetAlpha(1)
 		v.icon:SetDesaturated(false)
 		v.icon:SetAlpha(1)
 		v.bg:SetColorTexture(0, 0, 0, 1)
 		s.timer:set(d)
-		-- Not the element's pick? Only when both are known: the totem down (ns.Totems.downSpell)
-		-- and a pick (not "No totem"); any rank of the pick counts as the pick.
 		local down = ns.Totems.downSpell(s.slot)
 		local pick = down and c.offPick and c.mode == "everything" and pickSpell(s.slot)
 		if pick and not ns.Spells.same(down, pick) then
@@ -861,12 +736,9 @@ local function refreshSlot(s)
 	s.dur = nil
 	if was then ns.Totems.slotEmptied(s.slot, was) end
 	s.badge:Hide()
-	-- Not down: the element's pick (greyed or in colour, at its opacity), or its colour, or nothing.
-	-- With nothing picked, "pick" falls back to the element colour.
 	s.timer:clear()
-	-- Active totems: only totems that are down show (the slot keeps its place; secure buttons can't
-	-- move in combat). A plain frame's alpha, so this works in combat too. In Quick Keybind Mode they
-	-- show, to be bound.
+	-- Active totems: the slot keeps its place (secure buttons can't move in combat); a plain frame's
+	-- alpha, so it works in combat
 	v:SetAlpha((c.mode == "everything" or kbOpen) and 1 or 0)
 	local tex = c.empty == "pick" and C_ActionBar.GetActionTexture(multiAction(s.slot))
 	if isSecret(tex) or tex then
@@ -886,7 +758,7 @@ local function refreshSlot(s)
 end
 
 local function refreshSlots()
-	if preview then return end   -- it draws the slots itself; the next layout after it reads them
+	if preview then return end
 	local down = false
 	for _, el in ipairs(ELEMENTS) do
 		local s = slots[el]
@@ -897,16 +769,13 @@ local function refreshSlots()
 	anyDown = down
 end
 
--- Refresh (any time), and when the first totem goes down or the last one goes, the bar's driver
--- for "In combat or a totem down" (out of combat only).
-local layout   -- Layout, below
+local layout
 local function refresh()
 	local wasDown = anyDown
 	refreshSlots()
 	if anyDown ~= wasDown and cfg().show == "active" then layout() end
 end
 
--- Ten times a second: the time bar's run-out alpha, the range strip, and the arrow tabs' hover.
 local ticker = CreateFrame("Frame")
 ticker.t = 0
 ticker:SetScript("OnUpdate", function(self, elapsed)
@@ -922,16 +791,10 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 	end
 end)
 
-------------------------------------------------------------------------
 -- Blizzard's totem frames
-------------------------------------------------------------------------
--- The totems under the player frame: made invisible and click-through rather than hidden, so
--- nothing moves in Blizzard's player-frame layout (hiding it from here would re-lay that out,
--- PetFrame included, from addon code). Left alone when another addon has taken it over.
--- Blizzard's managed-frame layout moves it between PlayerFrame and its layout containers (one has
--- no name), so "still Blizzard's" means anywhere under PlayerFrame or that container system; and
--- the same layout sets its alpha back to 1 when it shows its frames, so a hidden TotemFrame hides
--- again whenever its alpha is set.
+-- The totems under the player frame: made invisible and click-through rather than hidden, since
+-- hiding it would re-lay out PlayerFrame and PetFrame from addon code. Blizzard's layout sets its
+-- alpha back to 1 when it shows its frames, so a hidden TotemFrame hides again whenever alpha is set.
 local function totemFrameOurs()
 	if not ns.getDB() or not TotemFrame then return false end
 	local roots = { PlayerFrame or false, _G.PlayerBottomManagedFrameContainer or false }
@@ -954,7 +817,6 @@ local function setTotemFrameHidden(hide)
 end
 if TotemFrame then
 	hooksecurefunc(TotemFrame, "SetAlpha", function(self, a)
-		-- Another addon taking it over (and setting its alpha) gets it back visible (applyTotemFrame).
 		if totemFrameHidden and not settingAlpha and (isSecret(a) or a ~= 0) and totemFrameOurs() then
 			settingAlpha = true
 			self:SetAlpha(0)
@@ -965,8 +827,7 @@ end
 local function applyTotemFrame()
 	if not TotemFrame then return end
 	if not totemFrameOurs() then
-		-- Another addon took it over after we had hidden it (EllesmereUI's totem bar switched on
-		-- mid-session): give it back visible. TotemFrame isn't protected, so this is fine in combat.
+		-- Another addon took it over: give it back visible (TotemFrame isn't protected: fine in combat)
 		if totemFrameHidden then setTotemFrameHidden(false) end
 		return
 	end
@@ -976,7 +837,6 @@ local function applyTotemFrame()
 end
 if TotemFrame and TotemFrame.Update then hooksecurefunc(TotemFrame, "Update", applyTotemFrame) end
 
--- The Totem Action Bar: moved under a hidden frame out of combat, and back when wanted.
 local hiddenParent = CreateFrame("Frame")
 hiddenParent:Hide()
 local actionBarParent
@@ -992,20 +852,17 @@ local function applyActionBar()
 	end
 end
 
-------------------------------------------------------------------------
 -- Layout (out of combat only)
-------------------------------------------------------------------------
 local mover
-local saidWait = false   -- "changes wait until combat ends" said this combat
-local classDone = false  -- not a shaman: laid out hidden once, nothing more to do
-local hasTotems = false  -- a totem of any element is known (layout): until then the bar hides
-local paintPreview   -- Preview mode, below
+local saidWait = false
+local classDone = false
+local hasTotems = false
+local paintPreview
 
--- known: the element's known totems (ns.Totems.knownTotems), from layout().
 local function layoutPopout(s, size, known)
 	local pop = s.popout
 	local slot = s.slot
-	local ids = { 0 }   -- "No totem" first, nearest the slot (as Blizzard's)
+	local ids = { 0 }
 	for _, id in ipairs(known) do table.insert(ids, id) end
 	local psz = TB.popButtonSize(size)
 	local action = multiAction(slot)
@@ -1013,12 +870,12 @@ local function layoutPopout(s, size, known)
 		local p = pop.buttons[i]
 		if not p then
 			p = CreateFrame("Button", nil, pop, "SecureActionButtonTemplate")
-			-- On the release, whatever the "cast on key down" setting: it is the only click registered.
+			-- On the release, whatever the cast-on-key-down setting
 			p:RegisterForClicks("AnyUp")
 			p:SetAttribute("useOnKeyDown", false)
 			p:SetAttribute("*type1", "multispell")   -- right-click has no action: it only closes
 			p:SetAttribute("sf-pick", s.index)
-			wrapClick(p, PICK_CLICK, PICK_AFTER)   -- then the popout closes
+			wrapClick(p, PICK_CLICK, PICK_AFTER)
 			p:SetFrameLevel(pop:GetFrameLevel() + 5)
 			p.icon = p:CreateTexture(nil, "ARTWORK")
 			p.icon:SetAllPoints()
@@ -1053,7 +910,6 @@ local function layoutPopout(s, size, known)
 	for i = #ids + 1, #pop.buttons do pop.buttons[i]:Hide() end
 	TB.placePopout(pop, s.button, #ids, psz)
 	TB.skin.stylePopout(pop, #ids, psz)
-	-- Hover mode's strip: as wide as the slot or the picker, whichever is wider.
 	local strip, dir, b = pop.strip, TB.eff().pop, s.button
 	local across = math.max(size, select(4, popDims(psz)))
 	strip:ClearAllPoints()
@@ -1068,16 +924,12 @@ local function layoutArrow(s)
 	TB.placeArrow(ar, s.button, s.arrowVis.glyph)
 	TB.skin.styleArrow(s.arrowVis)
 	ar:SetShown(feat("arrows"))
-	-- Above every open picker's catch button (same strata), below the picker's own buttons.
 	ar:SetFrameLevel(s.popout.catch:GetFrameLevel() + 2)
 	s.arrowVis:SetShown(feat("arrows"))
 end
 
--- The bar's own driver, and the one it has now: a plain "show" while it stays after combat
--- (ns.AfterCombat, made with the layout below).
 local function ownDriver()
 	local c = cfg()
-	-- While preview mode draws the slots, the bar shows as in combat.
 	if preview then return barOn() and (hasTotems or preview.all) and "show" or "hide" end
 	if not barOn() or not hasTotems then return "hide" end
 	if kbOpen or not ns.getAccount().locked then return "show" end
@@ -1106,22 +958,16 @@ end
 function layout()
 	if ns.deferInCombat("totem bar layout", layout) then return end
 	if classDone then return end
-	-- Any open picker closes first: a layout can hide the bar or a slot under it (it would come back
-	-- open later).
+	-- Any open picker closes first: it would come back open later
 	closePopouts()
 	local c = cfg()
 	local size, border, extrasBorder = look()
-	-- Scale and opacity first: borders below are lines, sized for the bar's scale, and sizes, gaps
-	-- and the position are whole screen pixels at it (ns.placeOnPixels says why). Out of combat
-	-- only, like everything on a frame holding secure buttons.
+	-- Scale and opacity first: sizes, gaps and position are whole screen pixels at it
 	bar:SetScale(c.scale)
 	bar:SetAlpha(c.alpha)
 	local px = ns.pixel(bar)
 	size = ns.roundPx(size, px)
-	-- A slot shows for an element with a totem known (every element's where the client can't list
-	-- them). With no totem known at all (a new character's first levels) the bar has nothing to show
-	-- and hides, Call and Recall with it, in positioning mode too: like a group whose elements aren't
-	-- learned, it can be placed once there is something in it.
+	-- With no totem known the bar hides (Call and Recall too, in positioning mode as well)
 	local shown, known = {}, {}
 	local had = hasTotems
 	hasTotems = not GetMultiCastTotemSpells
@@ -1129,24 +975,19 @@ function layout()
 		known[el] = ns.Totems.knownTotems(SLOT[el])
 		if #known[el] > 0 then hasTotems = true end
 	end
-	if hasTotems ~= had then ns.Options.refresh() end   -- its page says "Not learned" until then
+	if hasTotems ~= had then ns.Options.refresh() end
 	for _, el in ipairs(c.order) do
 		local s = slots[el]
 		local on = barOn() and not c.hidden[el] and (#known[el] > 0 or not GetMultiCastTotemSpells or (preview and preview.all))
 		s.button:SetShown(on)
 		s.vis:SetShown(on)
-		if not on then s.killed.mark:Hide() end   -- a slot taken off the bar takes its cross along
+		if not on then s.killed.mark:Hide() end
 		if on then table.insert(shown, s) else s.arrow:Hide(); s.arrowVis:Hide() end
 	end
 	local row = c.dir == "row"
 	if row and c.pop ~= "up" and c.pop ~= "down" then c.pop = "up" end
 	if not row and c.pop ~= "right" and c.pop ~= "left" then c.pop = "right" end
-	row = TB.eff().dir == "row"   -- the theme's own direction, if it has one
-	-- Everything along the bar, in order: extras before, slots, extras after (TB.along), each
-	-- centred on the bar's line to the nearest whole pixel, whatever its size. Nothing while no
-	-- totem is known.
-	-- The places along it: the slots that show, or, for a theme drawn round four fixed slots (Stone
-	-- and bronze), every element's in order, those that don't show kept as sealed sockets.
+	row = TB.eff().dir == "row"
 	local places = shown
 	if TB.skin.fixedSlots() and #shown > 0 then
 		places = {}
@@ -1154,12 +995,11 @@ function layout()
 	end
 	local seq, long, across = {}, size, size
 	if hasTotems or (preview and preview.all) then seq, long, across = TB.along(#places, size, px) end
-	local on = {}   -- the extras that show -> their size
+	local on = {}
 	for _, it in ipairs(seq) do
 		local b, sz = it.extra and extras[it.key].button or places[it.key].button, it.size
 		if it.extra then on[it.key] = sz end
 		b:SetSize(sz, sz)
-		-- Its key label scales with the icon.
 		local kt = keyTexts[b]
 		if kt then
 			local k = c.keyColor
@@ -1185,8 +1025,6 @@ function layout()
 			TB.fitLook(e.vis, e.button, extrasBorder, on[key])
 		end
 	end
-	-- Hover mode (not while binding keys): the picker closes as the mouse leaves its slot and strip,
-	-- so there is no catch button. Every slot, shown or not, so none keeps the other mode's parts.
 	local hoverMode = feat("pickHover") and not kbOpen
 	picker:SetAttribute("sf-hovermode", hoverMode)
 	for _, el in ipairs(ELEMENTS) do
@@ -1196,13 +1034,11 @@ function layout()
 	for _, s in ipairs(shown) do
 		local b = s.button
 		b:SetAttribute("*type1", feat("cast") and "action" or nil)
-		-- Alt+click picks only in Everything (in Active totems an empty slot is invisible); off, it
-		-- casts like a plain click.
 		b:SetAttribute("sf-altpick", barOn() and cfg().mode == "everything")
 		b:SetAttribute("action", multiAction(s.slot))
 		castKeys[s.el]:SetAttribute("action", multiAction(s.slot))
-		s.inset = TB.fitLook(s.vis, b, border, size)   -- the range strip sits in by it too
-		s.killed.fitSize, s.expired.fitSize = size - 2 * s.inset, size - 2 * s.inset   -- over the picture
+		s.inset = TB.fitLook(s.vis, b, border, size)
+		s.killed.fitSize, s.expired.fitSize = size - 2 * s.inset, size - 2 * s.inset
 		s.timer:apply()
 		TB.skin.styleTimer(s.timer, s.vis, size)
 		layoutArrow(s)
@@ -1210,7 +1046,6 @@ function layout()
 		layoutPopout(s, size, known[s.el])
 	end
 	if row then bar:SetSize(long, across) else bar:SetSize(across, long) end
-	-- What the theme draws behind the slots, round the slots' buttons (a hidden one: a sealed socket).
 	local boxes, sealed = {}, {}
 	for i, s in ipairs(places) do
 		boxes[i] = s.button
@@ -1218,7 +1053,7 @@ function layout()
 	end
 	TB.skin.layoutBar(bar, boxes, size, row, sealed)
 	ns.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
-	if TB.range then TB.range.layout(size) end   -- after the scale: its height is a line's
+	if TB.range then TB.range.layout(size) end
 	refreshSlots()
 	refreshKeys()
 	refreshGCD()
@@ -1228,12 +1063,10 @@ function layout()
 	applyActionBar()
 	if mover then mover.update() end
 	if preview then paintPreview() end
-	-- Not a shaman: the bar is laid out hidden; nothing else will change that.
 	if playerClass and not isShaman() then classDone = true end
 end
 TB.layout = layout
 
--- Stay after combat, then fade out (ns.AfterCombat).
 afterCombat = ns.AfterCombat.new({
 	secs = function()
 		if not ns.getDB() or not barOn() or kbOpen or not ns.getAccount().locked then return 0 end
@@ -1245,8 +1078,6 @@ afterCombat = ns.AfterCombat.new({
 	frames = function() return { bar } end,
 })
 
--- The slots' timers take their current style (the global one or the bar's own). Plain frames, so
--- any time.
 function TB.applyTimers()
 	local size = look()
 	for _, el in ipairs(ELEMENTS) do
@@ -1256,16 +1087,14 @@ function TB.applyTimers()
 	end
 end
 
--- Settings changed (options page): relayout now, or when combat ends.
 function TB.applySettings()
 	cfgTable = nil
-	-- Crosses go at once when switched off (plain frames: fine in combat, unlike the layout).
 	local c = cfg()
 	if not (c.killed and c.killedMark) then
 		for _, el in ipairs(ELEMENTS) do slots[el].killed.mark:Hide() end
 	end
 	if InCombatLockdown() then
-		-- Once per combat: sliders call this on every step.
+		-- Once per combat: sliders call this on every step
 		if not saidWait then
 			saidWait = true
 			ns.say("totem bar changes wait until combat ends")
@@ -1274,9 +1103,7 @@ function TB.applySettings()
 	layout()
 end
 
-------------------------------------------------------------------------
--- Positioning: a handle over the bar while positioning is unlocked
-------------------------------------------------------------------------
+-- Positioning
 mover = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
 mover:SetFrameStrata("DIALOG")
 mover:SetBackdrop(ns.BACKDROP)
@@ -1312,8 +1139,6 @@ mover:SetScript("OnMouseUp", function(_, button)
 	if button == "LeftButton" then ns.Positioning.selectMovable(movable)
 	elseif button == "RightButton" and ns.Options.open then ns.Options.open("totembar") end
 end)
--- As for groups: mouse wheel, icon size (lines stay crisp); Shift + wheel, scale (everything grows,
--- lines too); Ctrl + wheel, opacity.
 mover:SetScript("OnMouseWheel", function(self, delta)
 	if InCombatLockdown() then return end
 	local c = cfg()
@@ -1321,7 +1146,7 @@ mover:SetScript("OnMouseWheel", function(self, delta)
 	if IsControlKeyDown() then step("alpha")
 	elseif IsShiftKeyDown() then step("scale")
 	else
-		local from = look()   -- the size it has now, the global one or its own
+		local from = look()
 		c.sizeFollow = false
 		c.size = clamp(from + delta * 2, RANGES.size)
 	end
@@ -1342,34 +1167,23 @@ function mover.update()
 	mover:SetShown(on)
 end
 
--- Joins positioning as the swing timer does: groups snap to the bar, and the arrow keys nudge it
--- once selected (by UIParent units, as its saved offset is).
 function movable.nudge(dx, dy)
 	local c = cfg()
 	c.x, c.y = c.x + dx, c.y + dy
 	ns.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
 end
--- Combat started while unlocked: the handle goes at once (it is a plain frame).
 function movable.lock()
 	mover:Hide()
 	ns.retryAfterCombat("totem bar layout", layout)
 end
 ns.Positioning.addMovable(movable)
 
-------------------------------------------------------------------------
--- Quick Keybind Mode (Blizzard's, from Options > Keybindings; EllesmereUI's /kb opens it). While it is
--- open, the bar shows, empty slots included, and hovering a button and pressing a key binds that key
--- to the button's own binding (the slots: cast the pick; Call; Recall).
--- The keys are caught on our own plain frame parked over the hovered button, and bound with
--- SetBinding, not through Blizzard's QuickKeybindButtonTemplateMixin: calling that from addon code
--- taints Blizzard's key handling (EllesmereUI saw keys it passes on, such as the screenshot key,
--- blocked afterwards). As Blizzard's: the key replaces the first key and keeps the second, Escape clears the
--- first, and OK saves (SaveBindings) or Cancel undoes (LoadBindings) our changes along with its own.
--- Controller buttons bind the same way.
-------------------------------------------------------------------------
+-- Quick Keybind Mode (Blizzard's): the bar shows, empty slots included. Keys are caught on our own
+-- plain frame and bound with SetBinding: calling Blizzard's QuickKeybindButtonTemplateMixin from
+-- addon code taints its key handling. OK saves (SaveBindings), Cancel undoes (LoadBindings).
 local catcher = CreateFrame("Frame", nil, UIParent)
 catcher:SetFrameStrata("FULLSCREEN_DIALOG")
-catcher:EnableMouse(true)   -- also stops clicks casting while binding
+catcher:EnableMouse(true)
 catcher:EnableKeyboard(true)
 catcher:EnableMouseWheel(true)
 catcher:Hide()
@@ -1397,11 +1211,9 @@ local function kbLeave()
 	if QuickKeybindTooltip then QuickKeybindTooltip:Hide() end
 end
 
--- Hovering a bar button: true when Quick Keybind Mode took the hover (no normal tooltip then).
 local function kbEnter(button, command, layer)
 	if not kbOpen or InCombatLockdown() then return false end
 	if not catcher.pad then
-		-- Out of combat, the first time: controller buttons as well as keys.
 		catcher.pad = true
 		if catcher.EnableGamePadButton then pcall(catcher.EnableGamePadButton, catcher, true) end
 	end
@@ -1429,17 +1241,16 @@ local function kbBind(input)
 		if key2 then SetBinding(key2, command, ctx) end
 		kbSay(KEY_UNBOUND)
 	else
-		-- The screenshot key stays the screenshot key; lone modifiers wait for the key they go with.
+		-- The screenshot key stays the screenshot key; lone modifiers wait for their key
 		if GetBindingFromClick and GetBindingFromClick(input) == "SCREENSHOT" then return end
 		local key = GetConvertedKeyOrButton and GetConvertedKeyOrButton(input) or input
 		if IsKeyPressIgnoredForBinding and IsKeyPressIgnoredForBinding(key) then return end
 		key = CreateKeyChordStringUsingMetaKeyState and CreateKeyChordStringUsingMetaKeyState(key) or key
-		local was = GetBindingAction(key)   -- what the key did before, if anything: now unbound
+		local was = GetBindingAction(key)
 		if key1 then SetBinding(key1, nil, ctx) end
 		if key2 then SetBinding(key2, nil, ctx) end
 		if SetBinding(key, command, ctx) then
 			if key2 and key2 ~= key then SetBinding(key2, command, ctx) end
-			-- Warn only when the key's old action is left with no key at all.
 			local lost = was and was ~= "" and was ~= command and not GetBindingKey(was, nil, ctx)
 			if lost then kbSay(KEY_UNBOUND_ERROR:format(GetBindingName(was))) else kbSay(KEY_BOUND) end
 		else
@@ -1453,8 +1264,7 @@ end
 
 catcher:SetScript("OnLeave", kbLeave)
 catcher:SetScript("OnKeyDown", function(_, key)
-	-- The screenshot key takes a screenshot, as in Blizzard's own mode: passing the key on wouldn't,
-	-- since Blizzard's keybind frame underneath takes every key.
+	-- The screenshot key takes a screenshot: Blizzard's keybind frame underneath takes every key
 	if GetBindingFromClick and GetBindingFromClick(key) == "SCREENSHOT" then
 		if Screenshot then Screenshot() end
 		return
@@ -1478,11 +1288,10 @@ local function setKeybindMode(open)
 		e.keys.glow:SetShown(open)
 		e.keys.glow:SetAlpha(0.5)
 	end
-	refreshSlots()  -- the empty slots' look, at once (also in combat, where the layout waits)
-	layout()   -- shows the bar and its empty slots, or puts them back (after combat, if in it)
+	refreshSlots()
+	layout()
 end
 
--- QuickKeybindFrame can load after PLAYER_LOGIN: hooked once it exists.
 local kbHooked = false
 local function hookQuickKeybind()
 	local f = QuickKeybindFrame
@@ -1503,9 +1312,7 @@ kbEvents:SetScript("OnEvent", function(self, event, name)
 	end
 end)
 
-------------------------------------------------------------------------
 -- Tooltips and hover on the slot buttons
-------------------------------------------------------------------------
 for _, el in ipairs(ELEMENTS) do
 	local s = slots[el]
 	s.button:SetScript("OnEnter", function(self)
@@ -1514,7 +1321,7 @@ for _, el in ipairs(ELEMENTS) do
 		local c = cfg()
 		if c.tips == "never" or (c.tips == "ooc" and InCombatLockdown()) then return end
 		local ok, d = pcall(GetTotemDuration, s.slot)
-		if not (ok and d) and c.mode ~= "everything" then return end   -- Active totems: an empty slot is invisible
+		if not (ok and d) and c.mode ~= "everything" then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 		if ok and d then
 			pcall(GameTooltip.SetTotem, GameTooltip, s.slot)
@@ -1529,16 +1336,15 @@ for _, el in ipairs(ELEMENTS) do
 	s.arrow:SetScript("OnEnter", function() hover(s) end)
 	s.arrow:SetScript("OnLeave", function() hover(s) end)
 end
--- Hover mode: wrapped after the scripts above are set (setting a script later would drop the wrap).
+-- Hover mode: wrapped after the scripts above are set (setting a script later would drop the wrap)
 for _, el in ipairs(ELEMENTS) do
 	wrapHover(slots[el].button, HOVER_ENTER)
 	wrapHover(slots[el].arrow, HOVER_ENTER)
 	wrapHover(slots[el].popout.strip)
 end
--- Hover mode: a picker the bar took along when it hid (Alt+Z hides the whole UI, in combat too) has
--- lost the hover driver, which drops hidden frames. It closes when the bar shows again, seen by an
--- explicitly protected child that stays shown (a wrapped script runs only on such a frame, and the
--- bar is a plain frame).
+-- Alt+Z hides the whole UI, in combat too, and drops hidden frames from the hover driver: a picker
+-- taken along must close when the bar shows again, via an explicitly protected child that stays
+-- shown (a wrapped script runs only on such a frame)
 local onShow = CreateFrame("Frame", nil, bar, "SecureFrameTemplate")
 SecureHandlerWrapScript(onShow, "OnShow", picker, [[
 	if owner:GetAttribute("sf-hovermode") then owner:RunAttribute("sf-open", 0) end
@@ -1560,15 +1366,9 @@ for _, e in pairs(extras) do
 	e.button:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
-------------------------------------------------------------------------
--- Killed early. When a slot empties, its last duration object still says how much time the totem
--- had left (tested 2026-09-25); ns.Effects.endFlash turns that into the flash's alpha through a
--- curve, so for a totem that simply ran out the flash stays invisible (its run-out pop plays
--- instead). Our own dismissals and a slot that fills again at once (a new totem cast over it)
--- don't flash: ns.Totems only calls a totem gone without either. The cross (killedMark) sits under
--- the same gate and goes on a recast or after 5 s.
-------------------------------------------------------------------------
--- Subscribed after the totem elements (ShamanForever_Cooldowns.lua loads first): they hear first.
+-- Killed early: a slot's last duration object says how much time the totem had left; endFlash
+-- turns that into a curve, so a totem that ran out shows no flash. Our own dismissals and an
+-- immediate recast don't flash.
 ns.Totems.subscribe(function(event, slot, was)
 	if event ~= "gone" or preview then return end
 	local s = bySlot[slot]
@@ -1579,19 +1379,15 @@ ns.Totems.subscribe(function(event, slot, was)
 	if c.killed then s.killed:play(was, { pop = c.killedPop, glow = c.killedGlow, mark = c.killedMark }) end
 end)
 
-------------------------------------------------------------------------
 -- Events
-------------------------------------------------------------------------
 local ev = CreateFrame("Frame")
 for _, e in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_TOTEM_UPDATE", "PLAYER_REGEN_ENABLED",
 		"SPELLS_CHANGED", "ACTIONBAR_SLOT_CHANGED", "UPDATE_MULTI_CAST_ACTIONBAR", "UPDATE_BINDINGS", "SPELL_UPDATE_COOLDOWN" }) do
 	ns.registerEvent(ev, e)
 end
 ns.registerEvent(ev, "UNIT_SPELLCAST_SUCCEEDED", "player")
--- After one of our casts: refresh once ShamanForever_Totems.lua has recorded which totem went into
--- which slot (ns.Totems; its handler may run after ours), so the order of this event and
--- PLAYER_TOTEM_UPDATE doesn't matter. Plain frames only, so fine in combat.
-local casts, refreshQueued = {}, false   -- spell IDs cast since the last check
+-- After one of our casts: refresh once ns.Totems has recorded the slot (its handler may run after ours)
+local casts, refreshQueued = {}, false
 local function refreshAfterCast(spell)
 	casts[spell] = true
 	if refreshQueued then return end
@@ -1611,7 +1407,6 @@ end
 ev:SetScript("OnEvent", function(_, event, arg1, ...)
 	if not ns.getDB() then return end
 	if not isShaman() and playerClass then
-		-- Only shamans get the bar: lay it out hidden once, then stop listening.
 		layout()
 		if classDone then
 			ev:UnregisterAllEvents()
@@ -1622,11 +1417,10 @@ ev:SetScript("OnEvent", function(_, event, arg1, ...)
 	if event == "PLAYER_TOTEM_UPDATE" then
 		refresh()
 	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
-		local _, spell = ...   -- unit, castGUID, spellID
+		local _, spell = ...
 		if isSecret(spell) or type(spell) ~= "number" then return end
 		refreshAfterCast(spell)
 	elseif event == "ACTIONBAR_SLOT_CHANGED" then
-		-- The element's multi-cast slots, or 0 (every slot).
 		local base = multiAction(1) - 1
 		if not isSecret(arg1) and type(arg1) == "number" and (arg1 == 0 or (arg1 > base and arg1 <= base + 12)) then refresh() end
 	elseif event == "UPDATE_BINDINGS" then
@@ -1635,8 +1429,6 @@ ev:SetScript("OnEvent", function(_, event, arg1, ...)
 		refreshGCD()
 	elseif event == "PLAYER_REGEN_ENABLED" then
 		saidWait = false
-		-- A queued layout has run already (ns.deferInCombat). A picker opened in combat and left open
-		-- closes now.
 		closePopouts()
 		if mover then mover.update() end
 	else
@@ -1645,8 +1437,6 @@ ev:SetScript("OnEvent", function(_, event, arg1, ...)
 	end
 end)
 
--- The Totems cards. Choosing Everything turns every button back on; Active totems and
--- Blizzard's leave them as they are (they don't apply there).
 TB.MODES = { { "blizzard", "Blizzard's" }, { "active", "Active totems" }, { "everything", "Everything" } }
 function TB.setMode(mode)
 	local c = cfg()
@@ -1657,10 +1447,8 @@ function TB.modeName()
 	for _, m in ipairs(TB.MODES) do if m[1] == cfg().mode then return m[2] end end
 	return "?"
 end
--- For the options preview: an element's pick as a texture, its known totems, and the look.
 function TB.pickTexture(el) return C_ActionBar.GetActionTexture(multiAction(SLOT[el])) end
 function TB.known(el)
-	-- The real picker's list when it is built (it matches the bar exactly), else Blizzard's.
 	local ids = {}
 	for _, p in ipairs(slots[el].popout.buttons) do
 		if p:IsShown() and p.spellID and p.spellID ~= 0 then table.insert(ids, p.spellID) end
@@ -1669,33 +1457,23 @@ function TB.known(el)
 	return ns.Totems.knownTotems(SLOT[el])
 end
 TB.look = look
--- Whether a totem is known, as of the last layout (the options mark the bar "Not learned" until then).
 function TB.hasTotems() return hasTotems end
 
-------------------------------------------------------------------------
--- Preview mode (ShamanForever_Preview.lua): the slots drawn in the states it asks for, on their
--- own looks, while the bar's reads, time bars and end flashes wait. The bar shows as in combat; with
--- Show not learned every element's slot shows, even while none of its totems is known. Only plain
--- frames are drawn on; showing slots and the bar happens in layout(), out of combat. When it ends,
--- the next layout reads the slots again.
-------------------------------------------------------------------------
--- The states a slot can be drawn in, in the order the preview's Busy mode plays them.
+-- Preview mode: slots drawn in the requested states on plain frames; showing slots and the bar
+-- happens in layout()
 TB.PREVIEW_STATES = { "down", "expiring", "killed", "ranout", "empty" }
 
--- A slot in a preview state (down | expiring | killed | ranout | empty) since rec.at, its timer
--- running; rec.range: its range strip shows. Returns when its timer runs out.
 local function paintSlot(s, rec)
 	local c, v, st = cfg(), s.vis, rec.st
-	local shown = s.button:IsShown()   -- the strip is a frame of its own
+	local shown = s.button:IsShown()
 	local pick = GetActionTexture and GetActionTexture(multiAction(s.slot))
-	if isSecret(pick) then pick = nil end   -- plain out of combat, where the preview runs
+	if isSecret(pick) then pick = nil end
 	local icon = pick or ns.Look.TOTEM_ICON[s.el]
 	s.badge:Hide()
 	s.killed:setIcon(icon)
 	s.expired:setIcon(icon)
-	-- The real strip: our red here, Blizzard's green in the range layout (ShamanForever_TotemRange.lua).
 	if s.rangeGate then s.rangeGate:SetAlpha(0) end
-	local size = s.button:GetWidth()   -- the slot's own: layout rounds it to whole pixels
+	local size = s.button:GetWidth()
 	local strip = s.previewRange
 	if rec.range and c.range and shown then
 		if not strip then
@@ -1704,11 +1482,8 @@ local function paintSlot(s, rec)
 			strip.bg:SetAllPoints()
 			s.previewRange = strip
 		end
-		-- Where the real mark's band is (+9 to +12, ShamanForever_TotemRange.lua; the preview hides
-		-- our parts on Blizzard's), under the expiring warning and the time bar, as on the bar.
 		strip:SetFrameLevel(s.button:GetFrameLevel() + TB.RANGE_LEVEL + 3)
 		strip:ClearAllPoints()
-		-- Where the theme puts its mark, and what it draws; else the strip along the top.
 		local x, y, w, h = TB.skin.markRect(strip, size, s.inset or 0)
 		if x then
 			strip:SetPoint("TOPLEFT", s.button, "TOPLEFT", x, y)
@@ -1725,7 +1500,7 @@ local function paintSlot(s, rec)
 	elseif strip then strip:Hide() end
 	v.icon:SetTexture(icon)
 	if st == "down" or st == "expiring" then
-		s.killed.mark:Hide()   -- recast
+		s.killed.mark:Hide()
 		v:SetAlpha(1)
 		v.icon:SetDesaturated(false)
 		v.icon:SetAlpha(1)
@@ -1737,7 +1512,6 @@ local function paintSlot(s, rec)
 		s.timer:setTime(rec.at - (life - left), life)
 		return rec.at + left
 	end
-	-- Not down (killed early and ran out leave the slot empty): as refreshSlot draws it.
 	s.timer:clear()
 	v:SetAlpha(c.mode == "everything" and 1 or 0)
 	if c.empty == "pick" and pick then
@@ -1754,7 +1528,6 @@ local function paintSlot(s, rec)
 	end
 end
 
--- After every layout while it shows: every slot's state again.
 function paintPreview()
 	for _, el in ipairs(ELEMENTS) do
 		local rec = preview.states[el]
@@ -1762,8 +1535,6 @@ function paintPreview()
 	end
 end
 
--- p: { all = every element's slot }, or nil when it ends. The caller lays the HUD out next
--- (ns.applyLayout or ns.layoutElements), which lays out the bar.
 function TB.preview(p)
 	if p then
 		preview = { all = p.all, states = preview and preview.states or {} }
@@ -1776,8 +1547,7 @@ function TB.preview(p)
 			s.killed:stop()
 			s.expired:stop()
 			if s.previewRange then s.previewRange:Hide() end
-			-- A totem that went meanwhile isn't news: no end flash for it when the slot is read, and
-			-- ns.Totems forgets it quietly.
+			-- A totem that went meanwhile isn't news: no end flash; ns.Totems forgets it quietly
 			if s.dur then
 				local ok, d = ns.try("totem bar: duration", GetTotemDuration, s.slot)
 				if ok and d == nil then ns.Totems.forget(s.slot) end
@@ -1788,14 +1558,11 @@ function TB.preview(p)
 	end
 end
 
--- A slot's state from `at` (GetTime): see paintSlot; moment: its end flash plays too. Returns when
--- its timer runs out, if it has one.
 function TB.previewSlot(el, st, at, range, moment)
 	if not preview then return end
 	local rec = { st = st, at = at, range = range }
 	preview.states[el] = rec
 	local s, c = slots[el], cfg()
-	-- The other state's flash and cross go: a slot that ran out wasn't killed early.
 	if st ~= "killed" then s.killed:stop() end
 	if st ~= "ranout" then s.expired:stop() end
 	local ends = paintSlot(s, rec)
@@ -1808,11 +1575,10 @@ function TB.previewSlot(el, st, at, range, moment)
 	return ends
 end
 
--- For /sf debug.
+-- /sf debug
 function TB.debug()
 	local c = cfg()
 	local mc = MultiCastActionBarFrame
-	-- The GCD sweep's test: is the first slot's isOnGCD readable (in combat too)?
 	local gok, ginfo = pcall(C_ActionBar.GetActionCooldown, multiAction(SLOT.earth))
 	local g = not gok and "error" or type(ginfo) ~= "table" and "none"
 		or isSecret(ginfo.isOnGCD) and "secret" or tostring(ginfo.isOnGCD)

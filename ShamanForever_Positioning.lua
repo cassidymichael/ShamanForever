@@ -1,12 +1,4 @@
--- Positioning (unlock mode): drag a group to move it (snapping to the grid and to other groups), the
--- mouse wheel for its scale, size and opacity, the arrow keys to nudge it, right-click for its
--- settings, and a small bar with the controls. Group membership is edited in the options window.
---
--- ShamanForever.lua owns the groups and lays them out; it hands each group frame here once
--- (PO.attach), and calls PO.decorate on every layout and PO.update after it. A frame that moves on
--- its own, outside the groups (the totem bar, the swing timer), joins in through PO.addMovable:
--- groups snap to it and the arrow keys nudge it once selected (PO.selectMovable); the swing timer
--- snaps to them too (PO.snap).
+-- Positioning (unlock mode)
 
 local _, ns = ...
 local say = ns.say
@@ -14,20 +6,17 @@ local say = ns.say
 local PO = {}
 ns.Positioning = PO
 
-local selectedGroup       -- the id of the group the arrow keys move (see Nudging)
-local selectedMovable     -- or the movable they move (PO.addMovable); never both
+local selectedGroup
+local selectedMovable
 local movables = {}
-local SNAP = 8   -- UI units: how close an edge must come to another group's edge or centre to snap
+local SNAP = 8   -- UI units
 local function round2(v) return math.floor(v * 100 + 0.5) / 100 end
 local function clamp(v, lo, hi) return math.min(math.max(v, lo), hi) end
 local function uiScale() return UIParent:GetEffectiveScale() end
 local function db() return ns.getDB() end
 local function acct() return ns.getAccount() end
 
-------------------------------------------------------------------------
 -- Grid and snap guides
-------------------------------------------------------------------------
--- Grid over the whole screen while unlocked, measured from the screen centre in UIParent units.
 local grid = CreateFrame("Frame", nil, UIParent)
 grid:SetAllPoints(UIParent)
 grid:SetFrameStrata("BACKGROUND")
@@ -66,7 +55,6 @@ local function drawGrid()
 	for i = n + 1, #grid.lines do grid.lines[i]:Hide() end
 end
 
--- Gold lines showing what a dragged group has snapped to.
 local guides = CreateFrame("Frame", nil, UIParent)
 guides:SetAllPoints(UIParent)
 guides:SetFrameStrata("BACKGROUND")
@@ -93,9 +81,6 @@ local function showGuides(gx, gy)
 	end
 end
 
--- Snaps one axis. pos is the group's centre, half its half-extent, targets the edges and centres of
--- other groups (and the screen centre). A group target within SNAP wins and returns a guide line;
--- otherwise, with a grid, the nearest of the group's two edges and centre lands on a grid line.
 local function snapAxis(pos, half, targets, origin, gs)
 	local bestAbs, shift, guide = SNAP, nil, nil
 	for _, t in ipairs(targets) do
@@ -116,13 +101,7 @@ local function snapAxis(pos, half, targets, origin, gs)
 	return pos
 end
 
-------------------------------------------------------------------------
--- Dragging, the mouse wheel and clicks on a group
-------------------------------------------------------------------------
--- Where a frame being dragged lands: its centre x, y (UIParent units from the bottom left) snapped
--- to other groups' and movables' edges and centres, the screen centre and the grid, with the guides
--- showing what it snapped to. frame: the group frame or movable being dragged, left out of the
--- targets.
+-- Dragging, the wheel and clicks
 function PO.snap(frame, x, y)
 	local a = acct()
 	local gx, gy
@@ -149,10 +128,9 @@ function PO.snap(frame, x, y)
 	showGuides(gx, gy)
 	return x, y
 end
--- A drag ended: the guides go.
 function PO.endSnap() showGuides() end
 
--- Groups are dragged by hand rather than with StartMoving so they can snap while moving.
+-- Dragged by hand rather than with StartMoving so they can snap while moving
 local function dragUpdate(self)
 	if InCombatLockdown() then self:SetScript("OnUpdate", nil); showGuides(); return end
 	local ui = uiScale()
@@ -164,7 +142,6 @@ local function dragUpdate(self)
 	ns.placeOnPixels(self, "CENTER", g.x, g.y)
 end
 
--- A new group frame: its outline, label and the unlock-mode handlers.
 function PO.attach(f)
 	f:SetMovable(true)
 	f:SetClampedToScreen(true)
@@ -187,7 +164,6 @@ function PO.attach(f)
 		showGuides()
 		if not InCombatLockdown() then ns.layoutElements() end
 	end)
-	-- Wheel: icon size (lines stay crisp); Shift: scale (everything grows, lines too); Ctrl: opacity.
 	f:SetScript("OnMouseWheel", function(self, delta)
 		local g = ns.groupById(self.groupId)
 		if acct().locked or InCombatLockdown() or not g then return end
@@ -195,15 +171,14 @@ function PO.attach(f)
 		if IsControlKeyDown() then g.alpha = clamp(round2(g.alpha + delta * 0.05), 0.1, 1)
 		elseif IsShiftKeyDown() then g.scale = clamp(round2(g.scale + delta * 0.05), 0.5, 3)
 		else
-			if g.sizeFollow then g.sizeFollow, g.size = false, db().iconSize end   -- its own from here on
+			if g.sizeFollow then g.sizeFollow, g.size = false, db().iconSize end
 			g.size = clamp(g.size + delta * 2, 24, 96)
 		end
-		if sx then ns.setGroupCenter(g, sx, sy) end   -- grow about the centre, not the anchor
+		if sx then ns.setGroupCenter(g, sx, sy) end
 		ns.layoutElements()
 		self.label:SetText(string.format("%s: size %d, scale %.2f, opacity %.0f%%", g.name,
 			ns.groupSize(g), g.scale, g.alpha * 100))
 	end)
-	-- Right-click: the group's settings. Shift-right-click: the settings of the element under the cursor.
 	f:SetScript("OnMouseUp", function(self, button)
 		local locked = acct().locked
 		if button == "LeftButton" and not locked and not InCombatLockdown() then PO.select(self.groupId) return end
@@ -219,7 +194,6 @@ function PO.attach(f)
 	end)
 end
 
--- On every layout: the outline, label and mouse while unlocked, nothing while locked.
 function PO.decorate(gf, g)
 	local unlocked = not acct().locked
 	local chosen = unlocked and selectedGroup == g.id
@@ -232,15 +206,10 @@ function PO.decorate(gf, g)
 	gf.label:SetShown(unlocked)
 end
 
-------------------------------------------------------------------------
--- Nudging: while unlocked, the arrow keys move the selected group by 1 (Shift: 10), repeating while
--- held; Escape deselects. Out of combat only, like dragging. Keyboard capture is restricted in combat
--- (EnableKeyboard is protected, SetPropagateKeyboardInput restricted), and a frame left swallowing
--- keys when combat starts would block every key for the fight. So: only the arrows (and Escape) are
--- kept, and only for the key press itself (propagation goes back on the next frame); the frame is
--- shown only while a group is selected out of combat; and it hides itself when combat starts, which
--- is always allowed for our own frame and stops all capture.
-------------------------------------------------------------------------
+-- Nudging: the arrow keys move the selected group by 1 (Shift: 10). Keyboard capture is restricted
+-- in combat, and a frame left swallowing keys when combat starts would block every key for the
+-- fight: only the arrows and Escape are kept, for the key press itself, and the frame hides itself
+-- at combat start (always allowed for our own frame).
 local NUDGE_KEYS = { UP = { 0, 1 }, DOWN = { 0, -1 }, LEFT = { -1, 0 }, RIGHT = { 1, 0 } }
 local nudger = CreateFrame("Frame", "ShamanForeverNudge", UIParent)
 nudger:Hide()
@@ -255,7 +224,7 @@ local function nudge(key)
 	local g = ns.groupById(selectedGroup)
 	local f = selectedGroup and ns.groupFrames[selectedGroup]
 	if not (g and d and f) then return end
-	g.x = g.x + d[1] * step / g.scale   -- offsets are in the group's scaled units
+	g.x = g.x + d[1] * step / g.scale
 	g.y = g.y + d[2] * step / g.scale
 	ns.placeOnPixels(f, g.point, g.x, g.y)
 end
@@ -263,8 +232,7 @@ end
 local function syncNudger()
 	local on = (selectedGroup ~= nil or selectedMovable ~= nil) and not acct().locked and not InCombatLockdown()
 	if on and not nudger.keys then
-		-- Out of combat only (both are restricted in combat), so not at file load: a /reload in
-		-- combat would lose them for the session.
+		-- Out of combat only (restricted in combat), so not at file load: a /reload in combat would lose them
 		nudger:EnableKeyboard(true)
 		nudger:SetPropagateKeyboardInput(true)
 		nudger.keys = true
@@ -272,7 +240,6 @@ local function syncNudger()
 	if on then nudger:Show() else nudger:Hide() end
 end
 
--- id: a group's id, or nil for none.
 function PO.select(id)
 	if selectedGroup == id and not selectedMovable then return end
 	selectedGroup, selectedMovable = id, nil
@@ -280,11 +247,9 @@ function PO.select(id)
 	ns.layoutElements()
 end
 
--- A frame that moves on its own, outside the groups (the totem bar, the swing timer). m: frame (what groups snap
--- to while it shows), nudge(dx, dy) (the arrow keys moved it, in UIParent units) and lock() (combat
--- started while unlocked: its handle goes at once).
+-- A frame that moves on its own (the totem bar, the swing timer). m: frame, nudge(dx, dy), lock()
+-- (combat started while unlocked)
 function PO.addMovable(m) table.insert(movables, m) end
--- The arrow keys move m (added with PO.addMovable) from here on.
 function PO.selectMovable(m)
 	if selectedMovable == m then return end
 	selectedGroup, selectedMovable = nil, m
@@ -315,7 +280,7 @@ nudger:SetScript("OnUpdate", function(self, elapsed)
 	end
 end)
 nudger:SetScript("OnHide", function(self) self.held = nil end)
--- Hidden frames still get events: hide at the start of combat, come back after it.
+-- Hidden frames still get events: hide at the start of combat, back after
 nudger:SetScript("OnEvent", function(self, event)
 	if event == "PLAYER_REGEN_DISABLED" then
 		self:Hide()
@@ -325,10 +290,8 @@ end)
 ns.registerEvent(nudger, "PLAYER_REGEN_DISABLED")
 ns.registerEvent(nudger, "PLAYER_REGEN_ENABLED")
 
-------------------------------------------------------------------------
--- The bar while unlocked: what the mouse does, snapping and grid toggles, Lock and Options.
-------------------------------------------------------------------------
-local wasUnlocked, optionsSteppedAside = false, false   -- see stepOptionsAside
+-- The bar while unlocked
+local wasUnlocked, optionsSteppedAside = false, false
 local tray = CreateFrame("Frame", "ShamanForeverTray", UIParent, "BackdropTemplate")
 tray:SetSize(560, 120)
 tray:SetFrameStrata("DIALOG")
@@ -347,7 +310,6 @@ do
 	local title = tray:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	title:SetPoint("TOPLEFT", 10, -10)
 	title:SetText("ShamanForever: positioning unlocked")
-	-- What the mouse and keys do: one control a line, the key in gold, then what it does.
 	local HELP = {
 		{ "Drag", "Move a group or the totem bar" },
 		{ "Click, then arrow keys", "Nudge a group (Shift: 10x)" },
@@ -369,7 +331,6 @@ do
 		what:SetPoint("TOPLEFT", KEY_W, -(i - 1) * LINE_H)
 		what:SetText(h[2])
 	end
-	-- Controls sit on a row under the hint, so a longer hint pushes them down instead of overlapping.
 	local row = CreateFrame("Frame", nil, tray)
 	row:SetPoint("TOPLEFT", tray.hint, "BOTTOMLEFT", 0, -10)
 	row:SetPoint("RIGHT", tray, "RIGHT", -10, 0)
@@ -398,7 +359,6 @@ do
 	tray.snap:SetPoint("LEFT", -4, 0)
 	tray.grid = check("Show grid", "grid", "A grid over the whole screen while unlocked. With snapping on, groups snap to it.")
 	tray.grid:SetPoint("LEFT", tray.snap.Text, "RIGHT", 16, 0)
-	-- Grid size: - value +, in steps of 4.
 	local function stepper(text, delta)
 		local b = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
 		b:SetSize(22, 20)
@@ -425,9 +385,6 @@ do
 	lock:SetPoint("RIGHT", 0, 0)
 	lock:SetText("Lock")
 	lock:SetScript("OnClick", function() ns.setLocked(true) end)
-	-- Shows or hides the options window, its label saying which it will do. The choice is kept
-	-- (keepOptionsOpen): the next unlock leaves the window as it was left here. Hidden this way, it
-	-- comes back when positioning locks, as when unlocking put it away.
 	tray.options = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
 	tray.options:SetSize(110, 22)
 	tray.options:SetPoint("RIGHT", lock, "LEFT", -6, 0)
@@ -448,15 +405,11 @@ do
 	tray.options:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
--- The Options button's label follows the window (ShamanForever_Options.lua calls this as it shows
--- and hides).
 function PO.optionsShown(shown)
 	tray.options:SetText(shown and "Hide options" or "Show options")
 end
 PO.optionsShown(false)
 
--- Unlocking closes the options window (unless the player keeps it open: the Options button) and
--- locking brings it back.
 local function stepOptionsAside(unlocked)
 	if unlocked == wasUnlocked then return end
 	wasUnlocked = unlocked
@@ -468,12 +421,11 @@ local function stepOptionsAside(unlocked)
 	end
 end
 
--- After every layout: the bar, grid, guides and nudging follow the lock.
 function PO.update()
 	local a = acct()
 	local unlocked = ns.isActive() and not a.locked
 	if not unlocked then selectedGroup, selectedMovable = nil, nil end
-	if selectedGroup and not ns.groupById(selectedGroup) then selectedGroup = nil end   -- deleted
+	if selectedGroup and not ns.groupById(selectedGroup) then selectedGroup = nil end
 	syncNudger()
 	tray:SetShown(unlocked)
 	tray:SetHeight(30 + tray.hint:GetHeight() + 10 + 26 + 8)
@@ -487,15 +439,13 @@ function PO.update()
 	if not unlocked then showGuides() end
 end
 
--- Combat locks positioning, and it cannot be unlocked until combat ends (ns.setLocked). Showing,
--- moving and mouse changes on group frames are dropped in combat (the shield's group holds
--- Blizzard's protected aura button), so only the looks change now: bar, grid, guides, outlines,
--- labels and the selection. The full layout runs when combat ends. Called from
--- PLAYER_REGEN_DISABLED, which comes before lockdown: then the groups also stop taking the mouse, or
--- they would eat clicks, camera drags and wheel zoom for the whole fight.
+-- Combat locks positioning. Showing, moving and mouse changes on group frames are dropped in combat
+-- (the shield's group holds Blizzard's protected button), so only the looks change; the full
+-- layout runs when combat ends. Called at PLAYER_REGEN_DISABLED, before lockdown: groups stop
+-- taking the mouse, or they would eat clicks, camera drags and wheel zoom for the whole fight.
 function PO.lockInCombat()
 	acct().locked = true
-	optionsSteppedAside = false   -- no options window popping up mid-fight
+	optionsSteppedAside = false
 	selectedGroup, selectedMovable = nil, nil
 	local free = not InCombatLockdown()
 	for _, gf in pairs(ns.groupFrames) do

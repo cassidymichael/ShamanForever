@@ -1,11 +1,4 @@
--- Weapon imbue (main hand): warns while no shaman imbue is on, shows which one is and, near the end,
--- its time left. Imbues are item data, not auras: C_Item.GetWeaponEnchantInfo lists them with
--- enchantType Imbue (C_PaperDollInfo.GetTemporaryEnchantmentInfo only covers stones and oils, tested
--- 2026-09-23). The API is not documented as secret and stays readable in combat, so it is read
--- directly every time. If a read fails the icon shows "?" rather than guessing, and /sf debug says
--- what came back.
---
--- ShamanForever.lua calls in through the module hooks (ns.registerModule).
+-- Weapon imbue
 
 local _, ns = ...
 local say, isSecret = ns.say, ns.isSecret
@@ -15,7 +8,7 @@ local IM = { name = "imbue" }
 ns.Imbue = IM
 
 local imbue = ns.newElementIcon("imbue")
-local anyKnown = false   -- any imbue known (IM.resolve): the element's learned()
+local anyKnown = false
 local IDLE_CHOICES = {
 	{ "never", "Never", "It always shows in full" },
 	{ "notlow", "On, not running low",
@@ -24,14 +17,12 @@ local IDLE_CHOICES = {
 }
 ns.registerElement("imbue", { frame = imbue, label = "Weapon Imbue", paint = function(t) t:SetTexture(IM.icon()) end,
 	learned = function() return anyKnown end,
-	-- Idle: hidden while an imbue is on and its time isn't showing (idleWhen: never | notlow | on).
 	defaults = { idleWhen = "notlow", idleAlpha = 0 },
 	def = { key = "imbue", idleChoices = IDLE_CHOICES },
 	effects = { glow = { "missing" }, pop = { "lost" }, popKind = "imbue" },
 	kind = "imbue", icon = 136086, school = "spirit", blurb = "Warns when your main hand has no imbue." })
 
--- The key is also the spell's key in ns.Spells; name is its display name (the client's). ids are
--- enchant IDs (item data), not spell IDs.
+-- ids are enchant IDs (item data), not spell IDs
 local IMBUES = {
 	rockbiter   = { icon = 136086, ids = { 29, 6, 1, 503, 1663, 683, 1664 } },
 	flametongue = { icon = 135814, ids = { 5, 4, 3, 523, 1665, 1666 } },
@@ -42,25 +33,18 @@ for key, m in pairs(IMBUES) do m.name = Spells.name(key) end
 local IMBUE_ORDER = { "rockbiter", "flametongue", "frostbrand", "windfury" }
 IM.IMBUES, IM.ORDER = IMBUES, IMBUE_ORDER
 local MAIN_HAND = Enum and Enum.WeaponSlot and Enum.WeaponSlot.MainHand or 0
-local MAIN_HAND_SLOT = 16   -- the main hand's inventory slot (INVSLOT_MAINHAND)
+local MAIN_HAND_SLOT = 16
 local IMBUE_TYPE = Enum and Enum.ItemEnchantType and Enum.ItemEnchantType.Imbue or 3
 
--- Recognised by enchant ID (seeded from the vanilla ranks), else by icon, else learned from our own cast.
+-- Recognised by enchant ID, else icon, else learned from a cast
 local imbueByID = {}
 for key, m in pairs(IMBUES) do
 	for _, id in ipairs(m.ids) do imbueByID[id] = key end
 end
 
--- on: an imbue is on (true), none is (false), or nil while it can't be read; key: which one, nil
--- when none is on or it isn't recognised; unreadable: the last read failed; read: what it said, for
--- /sf debug.
--- total: the longest time left seen for this imbue, its full length as far as we know (swipe and bar).
--- castKey, castAt: our last imbue cast and when. changedAt: when the weapon's imbue last changed (a
--- new enchant, or its time going up: a recast); lastID, lastLeft: the read before.
 local imbueState = { on = nil, key = nil, expiresAt = nil, total = nil, unreadable = false, read = "not checked",
 	castKey = nil, castAt = 0, changedAt = 0 }
 
--- Time left: a timer fed the imbue's readable time. imbue.timer only shows "?" when unreadable.
 imbue.upTimer = ns.Timer.new(imbue, "imbue", "uptime", { cd = imbue.cd, school = "spirit" })
 imbue.timer = imbue.textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
 ns.Media.setFont(imbue.timer, nil, 16)
@@ -72,8 +56,7 @@ local function imbueIconFor(key)
 	return icon or IMBUES[key].icon
 end
 
--- The main hand's imbue entry (enchantID, timeLeft in ms, enchantIconID), false when none is on,
--- nil when it cannot be read.
+-- false when none is on, nil when it can't be read
 local function readMainHand()
 	if not (C_Item and C_Item.GetWeaponEnchantInfo) then return nil end
 	local ok, list = pcall(C_Item.GetWeaponEnchantInfo, MAIN_HAND)
@@ -88,8 +71,6 @@ local function readMainHand()
 	return false
 end
 
--- Whether a weapon is in the main hand; true when that can't be read (the item isn't secret for
--- the player).
 local function hasWeapon()
 	local ok, id = ns.safe(GetInventoryItemID, "player", MAIN_HAND_SLOT)
 	if not ok or isSecret(id) then return true end
@@ -104,15 +85,12 @@ local function imbueKeyFor(w)
 	end
 end
 
--- The imbue on the main hand now (a key of IMBUES), read whether or not the element shows; nil when
--- none is on, it isn't recognised or it can't be read. The swing timer's colour.
 function IM.mainHand()
 	local r = readMainHand()
 	return r and imbueKeyFor(r) or nil
 end
 
 local imbueIcon = imbueIconFor("rockbiter")
--- The icon while no imbue is on: the player's pick, or the last one used.
 local function preferredImbueIcon()
 	local db, acct = ns.getDB(), ns.getAccount()
 	return imbueIconFor(db.imbuePreferred == "last" and (acct.imbueLast or "rockbiter") or db.imbuePreferred)
@@ -120,16 +98,15 @@ end
 IM.preferredIcon = preferredImbueIcon
 function IM.icon() return imbueIcon end
 
--- quiet: no imbue can be put on now, so a missing one shows grey, without the warning.
+-- quiet: nothing can be cast now, so a missing imbue shows grey without the warning
 local function drawImbue(now, quiet)
 	local db, acct = ns.getDB(), ns.getAccount()
 	local on, key = imbueState.on, imbueState.key
 	local unreadable = imbueState.unreadable
-	local left = imbueState.expiresAt and imbueState.expiresAt - now   -- set only while one is on
+	local left = imbueState.expiresAt and imbueState.expiresAt - now
 	local warnAt = db.imbueWarnMins * 60
 	local showTime = left ~= nil and warnAt > 0 and left <= warnAt
-	-- The missing look only when the read says none is on: an imbue on that isn't recognised shows
-	-- in colour (its own icon unknown, the preferred one), and an unreadable one only as "?".
+	-- Missing look only when the read says none: unrecognised shows in colour, unreadable as "?"
 	local missing = on == false
 	imbueIcon = key and imbueIconFor(key) or preferredImbueIcon()
 	imbue.tex:SetDesaturated(missing and db.imbueMissingGrey or false)
@@ -148,14 +125,12 @@ local function drawImbue(now, quiet)
 	else
 		imbue.upTimer:clear()
 	end
-	-- Idle is faded by alpha, not Hide, so it keeps its place in the group and shows again at once.
+	-- Idle fades by alpha, not Hide (keeps its place)
 	local when = ns.elementSetting("imbue", "idleWhen")
 	local idle = acct.locked and on and (when == "on" or (when == "notlow" and not showTime))
 	ns.fadeTo(imbue, idle and ns.idleAlpha("imbue") or 1)
 end
 
--- Not learned yet (seen only while the preview shows such elements): a plain grey icon, nothing
--- read.
 local function drawNotLearned()
 	imbueIcon = preferredImbueIcon()
 	imbue.tex:SetTexture(imbueIcon)
@@ -170,8 +145,6 @@ end
 
 function IM.refresh()
 	if not ns.isEnabled("imbue") then
-		-- Nothing is read while it's hidden, so nothing is kept: the first read once it shows again
-		-- isn't a drop.
 		imbueState.on, imbueState.key, imbueState.lastID, imbueState.lastLeft = nil, nil, nil, nil
 		return
 	end
@@ -181,7 +154,7 @@ function IM.refresh()
 	local r = readMainHand()
 	local had = imbueState.on
 	imbueState.unreadable = r == nil
-	imbueState.on = r and true or r   -- true, false, or nil
+	imbueState.on = r and true or r
 	imbueState.key, imbueState.expiresAt = nil, nil
 	if r == nil then
 		imbueState.read = "unreadable" .. (InCombatLockdown() and " (in combat)" or "")
@@ -193,8 +166,7 @@ function IM.refresh()
 		local left = r.timeLeft / 1000
 		if r.enchantID ~= imbueState.lastID or left > (imbueState.lastLeft or 0) + 1 then imbueState.changedAt = now end
 		imbueState.lastID, imbueState.lastLeft = r.enchantID, left
-		-- Unknown enchant that changed within 3 s of our cast: it is that imbue. (One that didn't change
-		-- is still the old imbue, which must not be learned under the new name.)
+		-- Unknown enchant changed within 3 s of our cast: that imbue (one that didn't change is the old one)
 		if not key and math.abs(now - imbueState.castAt) < 3 and math.abs(imbueState.changedAt - imbueState.castAt) < 3 then
 			key = imbueState.castKey; acct.imbueIDs[r.enchantID] = key
 		end
@@ -205,19 +177,15 @@ function IM.refresh()
 		imbueState.expiresAt = r.timeLeft > 0 and now + left or nil
 		if key then acct.imbueLast = key end
 	end
-	-- Dead, a ghost or on a flight path: nothing can be cast. A main hand with no weapon still
-	-- warns: the imbue is missing either way.
+	-- No weapon still warns
 	local quiet = ns.cantAct()
 	drawImbue(now, quiet)
-	-- The moment it drops (imbues stay readable in combat): pop and sound, the sound while the icon
-	-- is on screen; the weapon coming off included.
 	if had and r == false and not quiet then
 		if db.imbuePop then imbue:Pop("imbue") end
 		if imbue:IsVisible() then ns.Sounds.element("imbue", "lostSound", true) end
 	end
 end
 
--- Our own successful cast: remembered, so an imbue not recognised by ID or icon is learned on the next read.
 function IM.onCast(spellID)
 	local key = Spells.keyOf(spellID)
 	if not IMBUES[key] then return end
@@ -225,8 +193,6 @@ function IM.onCast(spellID)
 	IM.refresh()
 end
 
--- After a spellbook scan (ns.resolveSpells): the client's names, and which imbues are known.
--- Returns a signature of what it found, so learning one lays the HUD out again.
 function IM.resolve()
 	local sig = {}
 	anyKnown = false
@@ -239,20 +205,18 @@ function IM.resolve()
 	return table.concat(sig, ",")
 end
 
--- The timer and the "?" take their current style (ns.applyTimers).
 function IM.applyTimers()
 	imbue.upTimer:apply()
 	ns.Media.setFont(imbue.timer, nil, 16)
 end
 IM.applyLayout = IM.refresh
-IM.tick = IM.refresh   -- once a second: the time left
--- A shaman logged in: the weapon's own events.
+IM.tick = IM.refresh
 function IM.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "UNIT_INVENTORY_CHANGED", "player")
 	ns.registerEvent(ev, "PLAYER_EQUIPMENT_CHANGED")
 	ev:SetScript("OnEvent", function() IM.refresh() end)
-	ns.onCanActChange(function() IM.refresh() end)   -- death, resurrection, a flight path
+	ns.onCanActChange(function() IM.refresh() end)
 end
 
 -- /sf debug

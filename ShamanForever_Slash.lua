@@ -1,11 +1,10 @@
--- Ways in: /sf, the minimap button and the minimap's addon drawer.
+-- Slash command, minimap button, addon drawer
 
 local _, ns = ...
 local say = ns.say
 
 SLASH_SHAMANFOREVER1 = "/sf"
 SLASH_SHAMANFOREVER2 = "/shf"
--- /sf lock: toggles positioning and says so. Also right-click on the minimap button or drawer entry.
 local function toggleLock()
 	local acct = ns.getAccount()
 	if ns.setLocked(not acct.locked) then
@@ -21,8 +20,6 @@ local function launcherTip(tt)
 	tt:AddLine(ns.getAccount().locked and "Right-click: unlock positioning" or "Right-click: lock positioning", 1, 0.82, 0)
 end
 
--- The minimap button (LibDBIcon, as BugSack and most addons use): minimap button collectors such
--- as EllesmereUI's pick it up. Its position and hidden flag live in acct.minimap (account-wide).
 local minimapIcon
 function ns.applyMinimapButton()
 	local acct = ns.getAccount()
@@ -46,8 +43,6 @@ function ns.applyMinimapButton()
 	if acct.minimap.hide then minimapIcon:Hide("ShamanForever") else minimapIcon:Show("ShamanForever") end
 end
 
--- The minimap's addon drawer (Addon Compartment): the TOC names these; a click opens or closes the
--- options, as /sf does.
 _G.ShamanForever_OnAddonCompartmentClick = function(_, button) onLauncherClick(button) end
 _G.ShamanForever_OnAddonCompartmentEnter = function(_, button)
 	GameTooltip:SetOwner(button, "ANCHOR_LEFT")
@@ -61,7 +56,7 @@ SlashCmdList.SHAMANFOREVER = function(msg)
 	local cmd = (msg:match("^(%S*)") or ""):lower()
 	if cmd == "" or cmd == "options" or cmd == "config" then
 		ns.Options.toggle()
-	elseif cmd == "lock" then   -- toggles (/sf unlock also works, unlisted)
+	elseif cmd == "lock" then
 		toggleLock()
 	elseif cmd == "unlock" then
 		if ns.setLocked(false) then say("positioning unlocked: drag groups to move them, /sf lock when done") end

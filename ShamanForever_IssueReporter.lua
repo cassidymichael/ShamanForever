@@ -1,7 +1,4 @@
--- Beta only: tames Blizzard's "Issue Reporter" button (Blizzard_PTRFeedback), and can hide it. It
--- saves its position in its own SavedVariables, which the beta didn't load before build 70009, so it
--- came back to the middle of the screen on every login; we keep a copy in our settings and hand it
--- back. Since 70009 its own save may be enough; the copy stays until that is confirmed.
+-- Issue Reporter (beta)
 local _, ns = ...
 
 local IR = {}
@@ -11,11 +8,10 @@ local hooked = false
 
 local function acct() return ns.getAccount() end
 
--- Places the reporter at our saved spot and applies the hide setting. Its own OnShow re-places it
--- from Blizzard_PTRIssueReporter_Saved, so the position goes there too.
+-- Its OnShow re-places it from its own save, so set that too
 function IR.apply()
 	local f = PTR_IssueReporter
-	if not (f and f.text and acct()) then return end   -- f.text exists once its main view is built
+	if not (f and f.text and acct()) then return end
 	local pos = acct().issueReporterPos
 	if pos and Blizzard_PTRIssueReporter_Saved then
 		Blizzard_PTRIssueReporter_Saved.x, Blizzard_PTRIssueReporter_Saved.y = pos.x, pos.y
@@ -25,7 +21,7 @@ function IR.apply()
 	f:SetShown(not acct().hideIssueReporter)
 end
 
--- CreateMainView sets the OnShow and OnDragStop scripts, so ours are hooked on after it runs.
+-- Hook after CreateMainView: it sets the scripts
 local function afterMainView()
 	local f = PTR_IssueReporter
 	f:HookScript("OnShow", function(self)
@@ -41,7 +37,7 @@ end
 local function hook()
 	if hooked or not (PTR_IssueReporter and PTR_IssueReporter.CreateMainView) then return end
 	hooked = true
-	if PTR_IssueReporter.text then afterMainView()   -- already built
+	if PTR_IssueReporter.text then afterMainView()
 	else hooksecurefunc(PTR_IssueReporter, "CreateMainView", afterMainView) end
 end
 

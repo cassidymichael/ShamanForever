@@ -1,43 +1,35 @@
--- Saved settings: the account table (ShamanForeverDB) and its upgrades, and profiles: named sets of
--- settings in acct.profiles. Each character picks one (acct.chars); new characters start on Default.
--- Sharing a profile as text lives here too. The active profile itself is ShamanForever.lua's (ns.selectProfile).
+-- Saved settings and profiles
 
 local _, ns = ...
 local P = {}
 ns.Profiles = P
 
--- Settings for the whole account, outside profiles: how the player works with the addon, and what
--- it has learned about the game.
+-- Account-wide, outside profiles
 local ACCOUNT_DEFAULTS = {
 	locked = true,
-	snap = true,            -- unlocked drags snap to other groups, the screen centre and the grid
-	grid = true,            -- grid over the screen while unlocked
+	snap = true,
+	grid = true,
 	gridSize = 32,
-	hideIssueReporter = false,  -- beta: hide Blizzard's Issue Reporter button (its position is kept either way)
-	minimalArt = false,     -- options window without banners and ornaments; kept ready, no control for now
-	keepOptionsOpen = false,  -- false: the options window steps aside while positioning or previewing
-	lastShield = "lightning",  -- the shield last cast or seen; its icon is the no-shield look in "either" mode
-	imbueIDs = {},            -- learned enchant ID -> imbue key
-	foldedBlocks = {},        -- "page:Header" -> true folded, false open (ShamanForever_OptionsPage.lua)
-	fearCasters = {},         -- the player's edits to Tremor's mob list (ShamanForever_Tremor.lua)
-	profiles = {},            -- name -> settings (ShamanForever.lua's DEFAULTS)
-	chars = {},               -- "Name-Realm" -> { profile = name }
+	hideIssueReporter = false,
+	minimalArt = false,
+	keepOptionsOpen = false,
+	lastShield = "lightning",
+	imbueIDs = {},
+	foldedBlocks = {},
+	fearCasters = {},
+	profiles = {},
+	chars = {},
 }
 local DEFAULT_PROFILE = "Default"
 ns.DEFAULT_PROFILE = DEFAULT_PROFILE
--- Saved settings format. Bump it and add a step in P.load when a stored value must change.
+-- Bump and add a step in P.load when a stored value must change
 local SETTINGS_VERSION = 6
 
 local function acct() return ns.getAccount() end
 
-------------------------------------------------------------------------
 -- Characters
-------------------------------------------------------------------------
--- "Name-Realm", with the realm's spaces and dashes removed (as GetNormalizedRealmName gives it).
--- Built from GetRealmName every time: GetNormalizedRealmName isn't ready when settings load, and a
--- fallback there wrote a second, spaced key that won at login (the profile chosen later was lost).
--- nil until the game knows the character: on a cold start the name reads "Unknown" when settings
--- load (seen 2026-09-25), so the profile is looked up again at PLAYER_LOGIN.
+-- GetNormalizedRealmName isn't ready at load: built from GetRealmName. nil until the game knows
+-- the character (a cold start reads "Unknown").
 local UNKNOWN = _G.UNKNOWNOBJECT or "Unknown"
 local function charKey()
 	local name, realm = UnitName("player"), GetRealmName()
@@ -45,8 +37,7 @@ local function charKey()
 	if realm and realm ~= "" then return name .. "-" .. realm:gsub("[%s%-]", "") end
 end
 
--- Keys saved before that fix, with the realm's spaces: merged into the normalised ones (which hold
--- the latest choice when both exist).
+-- Keys saved with spaced realm names merge into the normalised ones
 local function mergeCharKeys(a)
 	local old = {}
 	for key in pairs(a.chars) do
@@ -59,20 +50,17 @@ local function mergeCharKeys(a)
 		if a.chars[norm] == nil then a.chars[norm] = a.chars[key] end
 		a.chars[key] = nil
 	end
-	-- Entries saved under "Unknown" before the name was known: they belong to no one.
 	for key in pairs(a.chars) do
 		if key:sub(1, #UNKNOWN + 1) == UNKNOWN .. "-" then a.chars[key] = nil end
 	end
 end
 
--- The profile this character last used (Default if none, or if it was deleted).
 function P.saved()
 	local a, key = acct(), charKey()
 	local name = key and a.chars[key] and a.chars[key].profile
 	return name and a.profiles[name] and name or DEFAULT_PROFILE
 end
 
--- Remembers the active profile for this character (once the game knows who it is).
 function P.remember(name)
 	local key = charKey()
 	if not key then return end
@@ -81,24 +69,19 @@ function P.remember(name)
 	a.chars[key].profile = name
 end
 
-------------------------------------------------------------------------
--- Loading (ADDON_LOADED): the saved table, brought up to date. Returns it.
-------------------------------------------------------------------------
+-- Loading
 function P.load()
 	ShamanForeverDB = ShamanForeverDB or {}
 	local a = ShamanForeverDB
-	-- A save from before profiles (0.3 and earlier) isn't upgraded: it starts from defaults.
 	if type(a.profiles) ~= "table" then wipe(a) end
 	a.settingsVersion = SETTINGS_VERSION
 	ns.fillDefaults(a, ACCOUNT_DEFAULTS)
-	a.testMode = nil   -- test elements are gone
+	a.testMode = nil
 	mergeCharKeys(a)
 	return a
 end
 
-------------------------------------------------------------------------
--- Profile list and edits (the options window's Profiles page)
-------------------------------------------------------------------------
+-- Profile list and edits
 function P.names()
 	local t = {}
 	for name in pairs(acct().profiles) do table.insert(t, name) end
@@ -106,13 +89,11 @@ function P.names()
 	return t
 end
 
--- Returns an error message, or nil once done.
 local function checkNewName(name)
 	if name == "" then return "a profile needs a name" end
 	if acct().profiles[name] then return "there is already a profile called " .. name end
 end
 
--- source: settings to copy into it, or nil for defaults.
 function P.new(name, source)
 	name = strtrim(name or "")
 	local err = checkNewName(name)
@@ -121,7 +102,6 @@ function P.new(name, source)
 	ns.useProfile(name)
 end
 
--- Default keeps its name: it is the profile new characters start on.
 function P.rename(name)
 	local old = ns.profileName()
 	if old == DEFAULT_PROFILE then return end
@@ -135,7 +115,6 @@ function P.rename(name)
 	ns.Options.refresh()
 end
 
--- Deletes the active profile; characters that used it go back to Default, which cannot be deleted.
 function P.delete()
 	local name = ns.profileName()
 	if name == DEFAULT_PROFILE then return end
@@ -145,15 +124,12 @@ function P.delete()
 	ns.useProfile(DEFAULT_PROFILE)
 end
 
--- The active profile back to defaults, keeping its name.
 function P.reset()
 	wipe(ns.getDB())
 	ns.useProfile(ns.profileName())
 end
 
-------------------------------------------------------------------------
--- Sharing: the active profile as text (CBOR, deflated, base64) behind a prefix, and back.
-------------------------------------------------------------------------
+-- Sharing
 local SHARE_PREFIX = "!SF1!"
 
 function P.export()
@@ -168,9 +144,7 @@ function P.export()
 	return text
 end
 
--- Numbers the options limit to a range; anything outside it (hand-made or damaged text) would break
--- the layout on every draw. Values are clamped, and NaN (v ~= v) falls back to the default.
--- The same ranges as the options' sliders, so an imported profile can't hold what the options can't set.
+-- Clamped; NaN falls back to the default
 local RANGES = {
 	iconSize = { 24, 96 }, countSize = { 8, 64 }, chargeBarHeight = { 1, 20 },
 	manaRing = { 0.1, 1 }, manaIntensity = { 0.1, 1 },
@@ -178,11 +152,9 @@ local RANGES = {
 }
 local GROUP_RANGES = { scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { -20, 40 }, size = { 24, 96 },
 	x = { -10000, 10000 }, y = { -10000, 10000 }, fadeAfter = { 0, 10 } }
--- An element's own numbers (db.elementOpts[key]), and its Expiring warning's.
 local ELEMENT_RANGES = { idleAlpha = { 0, 1 }, reagentLow = { 0, 10 }, reagentSize = { 8, 40 },
 	reagentX = { -50, 50 }, reagentY = { -50, 50 }, wordSize = { 8, 40 }, wordX = { -100, 100 }, wordY = { -100, 100 } }
 local EXPIRE_RANGES = { secs = { 0, 120 } }
--- defaults nil: a NaN is dropped, so the setting's own default applies.
 local function clampNumbers(t, ranges, defaults)
 	for k, r in pairs(ranges) do
 		local v = t[k]
@@ -192,7 +164,6 @@ local function clampNumbers(t, ranges, defaults)
 	end
 end
 
--- Keeps only known settings of the right type and range from shared text; the rest come from defaults.
 local function cleanProfile(t)
 	local DEFAULTS, GROUP_DEFAULTS = ns.DEFAULTS, ns.GROUP_DEFAULTS
 	local out = {}
@@ -201,8 +172,6 @@ local function cleanProfile(t)
 	end
 	clampNumbers(out, RANGES, DEFAULTS)
 	if out.chargeBarColor and not ns.isColor(out.chargeBarColor) then out.chargeBarColor = nil end
-	-- The global styles are cleaned when read (ShamanForever_Style.lua); so are elements' own, and
-	-- the totem bar's settings (ShamanForever_TotemBar.lua).
 	if out.elementOpts then
 		for key, o in pairs(out.elementOpts) do
 			if type(key) ~= "string" or type(o) ~= "table" then out.elementOpts[key] = nil
@@ -220,11 +189,9 @@ local function cleanProfile(t)
 				for k, default in pairs(GROUP_DEFAULTS) do
 					if type(g[k]) == type(default) then clean[k] = g[k] end
 				end
-				-- Shared before a group's Show had choices (sanitize still checks the value).
 				if g.combatOnly == true and clean.show == nil then clean.show = "combat" end
 				clampNumbers(clean, GROUP_RANGES, GROUP_DEFAULTS)
 				if clean.point and not ns.POINTS[clean.point] then clean.point = nil end
-				-- Ids and names are made whole and unique when the profile loads (sanitize).
 				if type(g.id) == "number" and g.id >= 1 and g.id <= ns.MAX_GROUP_ID and g.id % 1 == 0 then
 					clean.id = g.id
 				end
@@ -241,7 +208,6 @@ local function cleanProfile(t)
 	return out
 end
 
--- Returns the settings in shared text, or nil and why not.
 function P.decode(text)
 	local E = C_EncodingUtil
 	if not E then return nil, "sharing needs a newer game client" end

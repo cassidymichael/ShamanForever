@@ -1,23 +1,5 @@
--- Media: the HUD's fonts and bar textures. Two styles (ShamanForever_Style.lua):
---   text  font, outline and shadow for every piece of text an owner draws (timers, counts, keys,
---         words); the global one, or the totem bar's or the swing timer's own
---   bar   the texture of every bar (time bars, the shield's charge bar, Maelstrom's stack bar,
---         the swing timer); the global one, or the swing timer's own
--- Choices are stored by name, never by path. The game's fonts and bars are built in; others come
--- from LibSharedMedia when another addon has loaded it (we don't ship it: it only brings media that
--- other addons register, and those bring it with them).
---
--- A font is used only once it is known to load; until then, and for a font that is gone, the
--- game's font draws (tested 2026-09-28):
--- * SetFont with a file the client doesn't have throws, and taints even inside pcall: every path is
---   checked with C_UIFileAsset.IsKnownFile first (without it, only the game's own fonts are used).
--- * SetFont returns false for most fonts the client hasn't drawn yet, leaving the string with no
---   font. So each font is tried on a test string, then again every half second for five seconds,
---   before any of our text takes it. The string is shown, too faint and small to see: a hidden one
---   may never make the client load a file.
--- * Every font on offer is settled that way a few seconds after login, a few per frame, so the
---   options' list offers only fonts that load and never loses one while the player looks at it. A
---   font still being tried when the list opens is left out until it loads.
+-- Media: fonts and bar textures
+-- SetFont throws on a file the client lacks: check IsKnownFile first.
 
 local _, ns = ...
 
@@ -27,32 +9,26 @@ ns.Media = M
 local S = ns.Style
 
 S.register("text", {
-	-- font: a name ("" is the game's font); outline: "" | OUTLINE | THICKOUTLINE.
 	defaults = { font = "", outline = "OUTLINE", shadow = true },
 	path = { "textStyle" },
 })
 S.register("bar", {
-	defaults = { texture = "Blizzard" },   -- a name; "" is flat
+	defaults = { texture = "Blizzard" },
 	path = { "barStyle" },
 })
 
 M.OUTLINES = { { "", "None" }, { "OUTLINE", "Outline" }, { "THICKOUTLINE", "Thick outline" } }
 local OUTLINE_OK = { [""] = true, OUTLINE = true, THICKOUTLINE = true }
 
--- The game's fonts that load on a western client (tested 2026-09-28), under LibSharedMedia's names.
 local FONTS = {
 	{ "Friz Quadrata TT", "Fonts\\FRIZQT__.TTF" },
 	{ "Arial Narrow", "Fonts\\ARIALN.TTF" },
 	{ "Morpheus", "Fonts\\MORPHEUS.TTF" },
 	{ "Skurri", "Fonts\\SKURRI.TTF" },
 }
--- Not offered, from LibSharedMedia either: 2002 Bold looks the same as Friz Quadrata.
+-- 2002 Bold is not offered: same as Friz Quadrata
 local NOT_OFFERED = { ["fonts\\2002b.ttf"] = true }
 local FLAT = "Interface\\Buttons\\WHITE8x8"
--- The game's bar textures; atlas: an atlas name (the Cooldown Manager's bar, as the nameplates use).
--- "Blizzard" is the target frame's fill, one band shaded to a highlight along its middle, in place
--- of LibSharedMedia's UI-StatusBar under that name: that file holds a bright band over a dim one,
--- which on a thin bar reads as two bars.
 local BARS = {
 	{ "Blizzard", "Interface\\TargetingFrame\\UI-TargetingFrame-BarFill" },
 	{ "Blizzard Raid Bar", "Interface\\RaidFrame\\Raid-Bar-Hp-Fill" },
@@ -63,13 +39,10 @@ local fontByName, barByName, builtIn = {}, {}, {}
 for _, f in ipairs(FONTS) do fontByName[f[1]] = f[2]; builtIn[f[2]] = true end
 for _, b in ipairs(BARS) do barByName[b[1]] = b end
 
-------------------------------------------------------------------------
--- LibSharedMedia, when another addon loaded it (looked up until found: an addon that loads after us
--- brings it later). Its registrations after that re-apply the looks when a style uses the name.
-------------------------------------------------------------------------
+-- LibSharedMedia (optional)
 local LSM
 local function lsm()
-	local LibStub = _G.LibStub   -- ours (Libs/): always loaded first
+	local LibStub = _G.LibStub
 	if LSM == nil and LibStub then
 		LSM = LibStub("LibSharedMedia-3.0", true)
 		if LSM then
@@ -83,17 +56,14 @@ local function lsm()
 	return LSM
 end
 
-------------------------------------------------------------------------
 -- Fonts
-------------------------------------------------------------------------
-local state = {}     -- path -> "ok" | "wait" (tried, not loaded yet) | "bad" (never loaded) | "missing"
-local tries = {}     -- path -> times tried
-local TRIES, RETRY_SECS = 11, 0.5   -- the first try and ten more, over five seconds
-local tester         -- the string fonts are tried on
+local state = {}   -- path -> "ok" | "wait" (tried, not loaded yet) | "bad" (never loaded) | "missing"
+local tries = {}
+local TRIES, RETRY_SECS = 11, 0.5
+local tester
 local waiting = false
-local fontGen = 0    -- bumped when a font's state changes (M.textKey's cache)
+local fontGen = 0
 
--- Whether the client has the file. Without IsKnownFile, only the game's own fonts count.
 local function known(path)
 	if not (C_UIFileAsset and C_UIFileAsset.IsKnownFile) then return builtIn[path] == true end
 	local ok, yes = pcall(C_UIFileAsset.IsKnownFile, path)
@@ -116,7 +86,6 @@ local function try(path)
 end
 
 local retry
--- Tries every font still waiting; a font in use that now loads is applied.
 function retry()
 	waiting = false
 	local used = false
@@ -134,7 +103,6 @@ function retry()
 	if used then M.changed() else ns.Options.refresh() end
 end
 
--- A path's state, trying it the first time it's asked about.
 local function check(path)
 	local st = state[path]
 	if st then return st end
@@ -149,7 +117,6 @@ local function check(path)
 	return st
 end
 
--- A font's file, by name: nil for the game's font ("") or a name nobody offers now.
 local function pathOf(name)
 	if name == "" then return nil end
 	local p = fontByName[name]
@@ -158,9 +125,7 @@ local function pathOf(name)
 	return l and l:Fetch("font", name, true) or nil
 end
 
--- The file to draw a font with, and why it isn't that font when it can't be: "missing" (no addon
--- offers it now, or the file isn't there), "wait" (not loaded yet) or "bad" (never loaded). The
--- game's font is read each time: other addons may replace it at login.
+-- The game's font is read each time: other addons may replace it at login
 function M.fontPath(name)
 	if name == "" then return STANDARD_TEXT_FONT end
 	local path = pathOf(name)
@@ -170,13 +135,9 @@ function M.fontPath(name)
 	return path
 end
 
--- Owners of text: the global one (nil), the totem bar and the swing timer; everything else draws
--- with the global one.
 local OWNERS = { totembar = true, swing = true }
 local function owner(o) return OWNERS[o] and o or nil end
 
--- Whether the global one, the totem bar's or the swing timer's text uses a font, by name or by
--- path.
 function M.fontInUse(name, path)
 	for _, o in ipairs({ false, "totembar", "swing" }) do
 		local n = S.value(o or nil, "text", "font")
@@ -185,7 +146,6 @@ function M.fontInUse(name, path)
 	return false
 end
 
--- An owner's text look: file, outline flags, shadow.
 function M.text(o)
 	o = owner(o)
 	local outline = S.value(o, "text", "outline")
@@ -193,9 +153,6 @@ function M.text(o)
 	return (M.fontPath(S.value(o, "text", "font"))), outline, S.value(o, "text", "shadow")
 end
 
--- A string or a font object with an owner's look at size. A shadow set straight on a string draws
--- on this client, with no font object behind it (tested 2026-09-30). Turning one off is set only on
--- what had one.
 local function shade(r, shadow)
 	if shadow or r.sfShadow ~= nil then
 		r:SetShadowColor(0, 0, 0, shadow and 1 or 0)
@@ -214,9 +171,6 @@ function M.setFontObject(obj, o, size)
 	shade(obj, shadow)
 end
 
--- What changes when an owner's text changes: for callers that restate a font only on a change.
--- The global one is kept until its stored style, a font's state or the game's font changes: counts
--- and key text ask on every draw.
 local function textKeyOf(o)
 	local path, flags, shadow = M.text(o)
 	return path .. flags .. (shadow and "s" or "")
@@ -235,7 +189,6 @@ function M.textKey(o)
 	return c.key
 end
 
--- Every font on offer that hasn't been tried, tried a few per frame (check, then its retries).
 local queue, queued, settling = {}, {}, false
 local function settleStep()
 	for _ = 1, 4 do
@@ -260,11 +213,7 @@ function M.settle()
 	end
 	if not settling and #queue > 0 then settling = true; C_Timer.After(0, settleStep) end
 end
--- During the loading screen: every font other addons have shared so far is asked for once, each on
--- a string of its own. An assumption being tested (2026-09-30): the client loads an addon's font
--- file only when something asks for it while the game loads, which would be why other addons'
--- fonts never load when first tried after login. Each path once, no retries; unknown files are
--- never asked for (that throws). Done at this file's load and at each addon's load until login.
+-- Loading screen: ask for each shared font once; never unknown files (that throws)
 local preloaded = {}
 local function preload()
 	local l = lsm()
@@ -288,7 +237,6 @@ local function preload()
 end
 preload()
 
--- A few seconds after login, once other addons have registered their fonts: which fonts load.
 do
 	local ev = CreateFrame("Frame")
 	ev:SetScript("OnEvent", function(self, event)
@@ -300,9 +248,6 @@ do
 	ns.registerEvent(ev, "PLAYER_LOGIN")
 end
 
--- The fonts to offer: Default, the game's, then other addons', each { name, label, path or nil };
--- only fonts known to load, and the one chosen now. Nothing is tried here: the list is built on
--- every refresh of its page, and fonts are tried by M.settle.
 function M.fonts(current)
 	local out = { { "", "Default" } }
 	for _, f in ipairs(FONTS) do table.insert(out, { f[1], f[1], f[2] }) end
@@ -318,8 +263,6 @@ function M.fonts(current)
 		table.sort(more, function(a, b) return a[1] < b[1] end)
 		for _, f in ipairs(more) do table.insert(out, f) end
 	end
-	-- Only fonts known to load (Default has no file), and the one chosen now; any not tried yet
-	-- start settling.
 	local list, unsettled = {}, false
 	for _, f in ipairs(out) do
 		local st = f[3] and state[f[3]]
@@ -331,9 +274,6 @@ function M.fonts(current)
 	return list
 end
 
--- A font object drawing a font, for the options' open list, which draws each font in itself (its
--- lines take font objects, not SetFont); nil until the font is known to load. Tries it the first
--- time.
 local menuFonts, menuCount = {}, 0
 function M.menuFont(path)
 	if not (path and check(path) == "ok") then return nil end
@@ -349,7 +289,6 @@ function M.menuFont(path)
 	return obj
 end
 
--- Why a font isn't drawing, as the options say under the control; nil when it is.
 function M.fontProblem(name)
 	local _, why = M.fontPath(name)
 	if why == "missing" then return "Not found: " .. name .. ". Using the game's font." end
@@ -357,11 +296,7 @@ function M.fontProblem(name)
 	if why == "wait" then return "Loading " .. name .. "..." end
 end
 
-------------------------------------------------------------------------
 -- Bars
-------------------------------------------------------------------------
--- A bar texture by name: its file or atlas, and whether it's an atlas; Flat, with false as a third
--- value, when nothing offers the name now.
 local function bar(name)
 	if name == "" then return FLAT, false end
 	local b = barByName[name]
@@ -377,24 +312,18 @@ local function bar(name)
 end
 M.barOf = bar
 
--- Owners of a bar texture: the global one (nil), the totem bar (its time bars) and the swing timer;
--- every other bar draws with the global one.
 local function barOwner(o) return (o == "swing" or o == "totembar") and o or nil end
 local function barName(o) return S.value(barOwner(o), "bar", "texture") end
 
--- The texture an owner's bars use now (SetStatusBarTexture takes a file or an atlas; tested
--- 2026-09-28, in combat too, with a running timer and its colour kept).
 function M.barTexture(o) return (bar(barName(o))) end
 
 function M.barInUse(name) return barName(nil) == name or barName("totembar") == name or barName("swing") == name end
 
--- Why an owner's chosen bar isn't drawing, as the options say under the control; nil when it is.
 function M.barProblem(o)
 	local name = barName(o)
 	if select(3, bar(name)) == false then return "Not found: " .. name .. ". Using Flat." end
 end
 
--- The bars to offer an owner: Flat, the game's, then other addons', each { name, label }.
 function M.bars(o)
 	local out = { { "", "Flat" } }
 	for _, b in ipairs(BARS) do
@@ -406,8 +335,7 @@ function M.bars(o)
 	if l then
 		local more = {}
 		for name, path in pairs(l:HashTable("statusbar")) do
-			-- Not LibSharedMedia's own "Solid": that's Flat. Not a blank file either: an addon's
-			-- stand-in for media it can't find (EllesmereUI's "Texture Not Found"), which draws nothing.
+			-- Not an addon's "not found" stand-in (it draws nothing)
 			local file = type(path) == "string" and path:lower() or ""
 			local skip = file == FLAT:lower() or file:match("[\\/]blank%.%w+$")
 			if type(name) == "string" and not barByName[name] and not skip then table.insert(more, { name, name }) end
@@ -422,9 +350,8 @@ function M.bars(o)
 	return out
 end
 
--- A look changed (a font loaded, another addon registered one in use): everything drawn again.
 function M.changed()
-	fontGen = fontGen + 1   -- another addon's font may now sit under the same name
+	fontGen = fontGen + 1
 	if ns.isActive() then ns.applyLayout() end
 	ns.Options.refresh()
 end

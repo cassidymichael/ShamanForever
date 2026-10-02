@@ -1,65 +1,40 @@
--- ShamanForever: a shaman HUD for World of Warcraft: Forever (shields, shocks, weapon imbues, totems).
--- This file holds the defaults, the element registry and the module hooks, groups and their layout,
--- the active profile, and the events; each element's own logic is in its module.
---
--- Rule for this client: never do Lua math or comparisons on a possibly-secret value. In combat, show
--- state through Blizzard's own widgets instead: the aura container for the shield, duration objects
--- for cooldowns and totem timers, curves and SetAlpha for anything that must appear or disappear.
--- What can't be read in combat is inferred from our own casts, which can: primed states and buff
--- windows (_Cooldowns), the water buffs (_Buffs). The shield needs no inference: Blizzard's button
--- over its No shield look is the switch (ShamanForever_Shield.lua).
+-- ShamanForever: a shaman HUD for WoW: Forever
+-- Rule: never do Lua math or comparisons on a possibly-secret value. In combat, show state through
+-- Blizzard's own widgets (the aura container, duration objects, curves into SetAlpha); what can't
+-- be read is inferred from our own casts.
 
 local ADDON, ns = ...
 local say, isSecret = ns.say, ns.isSecret
 local Spells = ns.Spells
 
--- An element sits in one group, or in none (ungrouped: not drawn, its settings kept). The group owns
--- its position, scale, opacity and flow; whether the element is drawn (always, in combat, never) is
--- its own setting in db.elementOpts. Positions are offsets in the group's own (scaled) units. A group
--- also has an id, which never changes while it exists (what the options and positioning hold on to;
--- a deleted group's may be given to a later one), and a name, unique in the profile; it stays when
--- its last element leaves, until deleted.
+-- Groups have an id (stable while the group exists) and a unique name. An ungrouped element isn't
+-- drawn; its settings are kept.
 local GROUP_DEFAULTS = {
 	point = "CENTER", x = 0, y = -160, scale = 1, alpha = 0.8,
-	-- Icon size: the global one, or the group's own (Size keeps lines crisp; Scale grows
-	-- everything).
 	sizeFollow = true, size = 44,
-	orientation = "horizontal",  -- horizontal | vertical
-	growth = "forward",          -- forward (right / down) | backward (left / up)
+	orientation = "horizontal",
+	growth = "forward",   -- forward (right / down) | backward (left / up)
 	spacing = 2,
 	-- always | combat | target (in combat or with an enemy target); always shown while unlocked
 	show = "always",
-	fadeAfter = 0,               -- seconds it stays once combat ends, then fades out (0: none)
+	fadeAfter = 0,   -- seconds (0: none)
 }
--- A group's Show as its state driver's conditions (none for always). "harm" is any target you can
--- attack; a dead one doesn't count.
+-- A group's Show as its state driver's conditions; "harm" is any target you can attack, alive
 local SHOW_WHEN = {
 	combat = "[combat] show; hide",
 	target = "[combat] show; [@target,exists,harm,nodead] show; hide",
 }
 
--- A profile: the layout and how every element looks.
 local DEFAULTS = {
-	iconSize = ns.BASE_ICON_SIZE,   -- base element size; a group can have its own, and its scale multiplies it
-	-- The global styles (ShamanForever_Style.lua): the border around every element, the pulsing
-	-- glow and the pop. Groups and the totem bar can have their own border; elements and the totem
-	-- bar their own glow and pop.
+	iconSize = ns.BASE_ICON_SIZE,
 	border = CopyTable(ns.Style.KINDS.border.defaults),
 	glowStyle = CopyTable(ns.Style.KINDS.glow.defaults),
 	popStyle = CopyTable(ns.Style.KINDS.pop.defaults),
 	gcdStyle = CopyTable(ns.Style.KINDS.gcd.defaults),
-	textStyle = CopyTable(ns.Style.KINDS.text.defaults),   -- ShamanForever_Media.lua
+	textStyle = CopyTable(ns.Style.KINDS.text.defaults),
 	barStyle = CopyTable(ns.Style.KINDS.bar.defaults),
-	-- Default layout: the first row (shield, shock, Fire Nova, Stormstrike, Riptide, Lava Burst and
-	-- Chain Lightning) just below the centre of the screen, ready to be dragged where the player
-	-- wants it. Around it: the weapon imbue and Tremor Totem's warning (larger, at 90% opacity; it
-	-- is unseen until it warns) above the centre, Elemental Focus and Maelstrom Weapon under it
-	-- with the earth totems to their left and Flame Shock and Purge to their right, and a column of
-	-- long cooldowns, the water buffs, Totemic Projection and Reincarnation to the left (the totem
-	-- bar sits among them, see TotemBar.lua; the swing timer below the first row). An example more
-	-- than a plan: players make their own groups. Offsets are in each group's scaled units, so a
-	-- scaled group's are its whole-number screen offsets divided by its scale. Elements not learned
-	-- yet take no room.
+	-- Default layout: an example more than a plan (players make their own groups). Offsets are in each
+	-- group's scaled units. Elements not learned yet take no room.
 	groups = {
 		{ id = 1, name = "Main", point = "CENTER", x = 0, y = -216, scale = 1, alpha = 0.8,
 			orientation = "horizontal", growth = "forward", spacing = 2,
@@ -79,7 +54,6 @@ local DEFAULTS = {
 		{ id = 6, name = "Cooldowns", point = "CENTER", x = -526, y = -60, scale = 1, alpha = 0.8,
 			orientation = "vertical", growth = "forward", spacing = 2,
 			members = { "naturesswiftness", "manatide", "farseer" } },
-		-- Members that no module registers are dropped when a profile loads.
 		{ id = 7, name = "Target", point = "CENTER", x = 148, y = -153, scale = 1, alpha = 0.8,
 			sizeFollow = false, size = 38,
 			orientation = "horizontal", growth = "forward", spacing = 2, members = { "flameshock", "purge" } },
@@ -92,95 +66,76 @@ local DEFAULTS = {
 		{ id = 10, name = "Totemic Projection", point = "CENTER", x = -526, y = -180, scale = 1, alpha = 0.6,
 			sizeFollow = false, size = 40,
 			orientation = "horizontal", growth = "forward", spacing = 2, members = { "projection" } },
-		-- Every racial; only the player's own race shows, the rest take no room.
+		-- Racials: only the player's race shows
 		{ id = 11, name = "Racials", point = "CENTER", x = -578, y = -60, scale = 1, alpha = 0.8,
 			sizeFollow = false, size = 40,
 			orientation = "vertical", growth = "forward", spacing = 2,
 			members = { "bloodfury", "shattercurse", "berserking", "rapidregeneration", "warstomp",
 				"stoneform", "walkonair", "skysight" } },
 	},
-	known = {},             -- element keys placed at least once; a new one joins its default group
-	elementOpts = {},       -- per-element settings by key, e.g. { shock = { show = "combat" } }; every element starts shown
+	known = {},
+	elementOpts = {},
 	-- shield
-	shieldTrack = "lightning", -- lightning | water | either: which shield counts as "up" (water and either are experimental)
-	countPos = "CENTER",    -- the charge number: CENTER, TOPLEFT, TOPRIGHT, BOTTOMLEFT or BOTTOMRIGHT
+	shieldTrack = "lightning",   -- lightning | water | either
+	countPos = "CENTER",
 	countSize = 20,
-	showBar = true,         -- charge bar along the bottom of the icon
+	showBar = true,
 	chargeBarHeight = 8,
 	chargeBarColor = { 0.42, 0.84, 1, 1 },
-	showCount = false,      -- charge number: always 3, 2, 1, via a formatter (Blizzard alone hides the 1)
-	countOne = false,       -- colour the 1 in countLastColor instead of plain white
+	showCount = false,
+	countOne = false,
 	countLastColor = { 1, 0.25, 0.2, 1 },
-	emptyRing = true,       -- no-shield look
+	emptyRing = true,
 	emptyGrey = true,
 	emptyTint = false,
 	emptyPulse = false,
 	emptyGlow = true,
 	-- shock
-	shock = "earth",        -- which shock the icon tracks
-	manaSpell = "tracked",  -- tracked | earth | flame | frost
-	manaRing = 0.6,         -- not enough mana: blue ring inside the icon edge, this opaque
-	manaStyle = "both",     -- not enough mana (alone): overlay | tint | both on the icon body
+	shock = "earth",
+	manaSpell = "tracked",   -- tracked | earth | flame | frost
+	manaRing = 0.6,
+	manaStyle = "both",   -- overlay | tint | both
 	manaIntensity = 0.25,
 	manaTint = 0.8,
-	rangeStyle = "tint",    -- out of range: overlay | tint | both, painted on the icon body
+	rangeStyle = "tint",   -- overlay | tint | both
 	rangeIntensity = 0.45,
 	rangeTint = 0.7,
 	-- weapon imbue
-	imbuePreferred = "last",  -- icon while none is on: last | rockbiter | flametongue | frostbrand | windfury
+	imbuePreferred = "last",   -- last | rockbiter | flametongue | frostbrand | windfury
 	imbueMissingRing = true,
 	imbueMissingGrey = true,
 	imbuePulse = true,
-	imbueGlow = true,         -- a pulsing glow while no imbue is on
-	imbuePop = true,          -- the icon bursts bigger the moment the imbue drops
-	imbueWarnMins = 5,        -- show time left below this many minutes (0 = never)
-	totemBar = {},            -- the totem bar's settings (ShamanForever_TotemBar.lua fills its defaults)
-	swingBar = {},            -- the swing timer's settings (ShamanForever_Swing.lua fills its defaults)
-	-- The global timer styles, one per kind (ShamanForever_Timers.lua); elements and the totem bar
-	-- follow them unless they have their own.
+	imbueGlow = true,
+	imbuePop = true,
+	imbueWarnMins = 5,   -- minutes (0: never)
+	totemBar = {},
+	swingBar = {},
 	timers = { cooldown = CopyTable(ns.Timer.DEFAULTS.cooldown), uptime = CopyTable(ns.Timer.DEFAULTS.uptime) },
 }
--- Settings a profile no longer has: dropped when it loads.
 local RETIRED_KEYS = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "popMotion", "popSize", "popSpeed",
 	"popFlash", "popRing", "popStar", "popTint" }
-local acct       -- ShamanForeverDB: account settings, and every profile
-local db         -- the active profile
+local acct
+local db
 local profileName
-local isShaman = false   -- set at PLAYER_LOGIN: other classes get no HUD
+local isShaman = false
 
-------------------------------------------------------------------------
 -- Elements and their modules
-------------------------------------------------------------------------
--- root spans the screen and takes no input: the parent of every group (each anchored to UIParent),
--- hidden as a whole for other classes. Not named ShamanForeverFrame: older versions dragged a frame
--- of that name, and the client's layout cache would re-anchor it.
+-- root spans the screen and takes no input: the parent of every group, hidden for other classes.
+-- Not named ShamanForeverFrame: older versions dragged a frame of that name and the layout cache
+-- would re-anchor it.
 local root = CreateFrame("Frame", "ShamanForeverRoot", UIParent)
 root:SetAllPoints(UIParent)
 
--- Every element, in the order the options list them: these three first, then each one as its module
--- registers it (ns.registerElement), in the order the TOC loads the modules and each lists its own.
--- Each is made and registered by its module (ShamanForever_Shield, _Shock, _Imbue, _Cooldowns,
--- _Buffs, _Tremor, ...).
+-- Every element, in the order the options list them
 local ELEMENT_KEYS = { "shield", "shock", "imbue" }
 -- key -> { frame, label, paint(texture), getSize(size), stack(), learned(), borderHost, shape,
--- standInBorder, defaults, effects, and for the options spell, icon, school, blurb,
--- experimental, kind, def }. db.groups decides where each one shows. getSize gives its width and
--- height for its group's icon size, so elements need not be square; borderHost is the part its
--- group's border is drawn on (a child covering the whole frame; default the frame), so the border
--- hides when that part does; shape "bar" marks an element that is a bar, not an icon, which takes
--- only the border parts that fit a bar (ns.applyBorder); paint draws what stands in for it in the
--- options and while dragging; stack is its frame's (ns.newElementIcon); standInBorder: preview
--- mode's stand-in draws its border (its own isn't on its frame). learned()
--- says whether the character knows its spell (none: always); defaults holds the defaults of every
--- option it has (see elementSetting). The options show it by its spell's name in the client's
--- language (spell, an ns.Spells key), else its label, with its icon, its school's art (earth, fire,
--- water, air, spirit), blurb (a line under its name) and experimental (a feature name: not tested
--- in game); kind picks its page and preview (ShamanForever_OptionsElements.lua, _OptionsLook.lua),
--- which read def, the module's own table for it. effects = { glow = { states }, pop = { states },
--- popKind }: what can glow and what can pop (each a list of names, empty for none; its settings
--- are the element's own), and the pop's kind (its colour; default "ready"). The options show the
--- Pulsing glow style and Pop style blocks only where a list isn't empty. ownSchool(), if set: the
--- school its pop and School material glow take now, where that follows its state (nil: school).
+-- standInBorder, defaults, effects, ownSchool(), spell, icon, school, blurb, experimental, kind, def }
+-- getSize: width and height for the group's icon size (elements need not be square); borderHost:
+-- the part the group's border is drawn on; shape "bar": a bar, not an icon (takes only the border
+-- parts that fit a bar); paint: what stands in for it in the options and while dragging;
+-- standInBorder: preview's stand-in draws its border; learned(): none means always; kind: picks its
+-- options page and preview; effects = { glow = { states }, pop = { states }, popKind };
+-- ownSchool(): the school its pop and glow take now, where that follows its state
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
 local NO_EFFECTS = { glow = {}, pop = {} }
@@ -191,14 +146,10 @@ function ns.registerElement(key, e)
 	ELEMENTS[key] = e
 	if not tContains(ELEMENT_KEYS, key) then table.insert(ELEMENT_KEYS, key) end
 end
--- An element's icon (ShamanForever_Widgets.lua), on the HUD's root frame. opts.effects gives it an
--- effects layer (f.effects) that ignores the icon's alpha and holds its glow, so an idle icon's fade
--- (Idle opacity) leaves the glows, the pops' light and the end flashes at full; the layer takes its
--- group's opacity instead (layoutGroup). Such an icon has f.stack(), which restates its layers'
--- frame levels, bottom up: the icon, the effects and glow with any warning layer (f.warn), the swipe,
--- the cooldown timer's bar (f.cdTimer), the text, and the time left's parts (f.upTimer). Its caller
--- adds those parts, then calls f.stack(); layoutGroup calls it again after regrouping, since
--- reparenting moves frame levels.
+-- An element's icon: opts.effects gives it an effects layer that ignores the icon's alpha (glows and
+-- flashes stay full when it idles) and takes its group's opacity instead (layoutGroup). f.stack()
+-- restates frame levels, bottom up: icon, effects and glow, swipe, cooldown timer bar, text, time
+-- left; layoutGroup calls it after regrouping.
 function ns.newElementIcon(key, opts)
 	local f = ns.makeIcon(root, DEFAULTS.iconSize, key)
 	f.count:Hide()
@@ -221,42 +172,34 @@ function ns.newElementIcon(key, opts)
 	return f
 end
 
--- The element modules, each a table of optional hooks this file calls, in the order they loaded:
---   start()                a shaman logged in: register the module's own events
---   resolve()              after a spellbook scan; returns a signature of what it found
---   sanitize(db, acct)     a profile loaded: make its settings valid
+-- Module hooks (all optional; a module also has a name for the error log):
+--   start()                a shaman logged in
+--   resolve()              after a spellbook scan; returns a signature
+--   sanitize(db, acct)     a profile loaded
 --   applyTimers()          every timer takes its current style
---   applyLayout()          after a layout (settings may have changed): looks, then a fresh read
---   afterGroups()          the groups were just laid out (sizes, scales, opacity)
+--   applyLayout()          after a layout
+--   afterGroups()          the groups were just laid out
 --   refresh()              read everything again
---   onCooldowns(inEvent)   a cast, cooldown or totem changed; inEvent: from SPELL_UPDATE_COOLDOWN
+--   onCooldowns(inEvent)   a cast, cooldown or totem changed
 --   tick()                 once a second
---   onCast(spellID)        our own successful cast (not secret)
+--   onCast(spellID)        our own successful cast
 --   debug()                its part of /sf debug
--- and a name, for the error log.
 local MODULES = {}
 function ns.registerModule(m) table.insert(MODULES, m) end
--- One module's error is reported (Blizzard's error handler: BugSack or the error frame) but doesn't
--- stop the modules after it.
+-- One module's error is reported but doesn't stop the modules after it
 local function each(hook, ...)
 	for _, m in ipairs(MODULES) do
 		if m[hook] then securecallfunction(m[hook], ...) end
 	end
 end
 
-------------------------------------------------------------------------
 -- Groups
-------------------------------------------------------------------------
--- Whether the character knows the element's spell. The options list every element, marking the
--- ones not learned; the HUD leaves those out until they are, except while the preview shows them
--- (its Show not learned, ShamanForever_Preview.lua), so they can be placed. Another race's racials
--- are never drawn.
+-- Whether the character knows the element's spell. The HUD leaves unlearned ones out, except while
+-- the preview shows them; other races' racials are never drawn.
 local function isLearned(key)
 	local e = ELEMENTS[key]
 	return e == nil or not e.learned or e.learned() and true or false
 end
--- What the options say of an element that isn't learned: its spell belongs to other races
--- (e.race, a list of race IDs, UnitRace's third value), or the character doesn't know it yet.
 function ns.notLearnedText(key)
 	local e = ELEMENTS[key]
 	if e and Spells.otherRace(e.race) then return "Not your race" end
@@ -268,15 +211,12 @@ local function onHUD(key)
 	return ns.Preview.showsUnlearned() and not (e and Spells.otherRace(e.race))
 end
 
--- The group an element sits in and its place among the members; nil for an ungrouped element.
--- Whether it is drawn is its own "show" setting, so hiding one keeps its place.
 local function groupOf(key)
 	for _, g in ipairs(db.groups) do
 		for i, k in ipairs(g.members) do if k == key then return g, i end end
 	end
 end
 
--- A group by its id, and its place in the list.
 local function groupById(id)
 	if id == nil then return nil end
 	for i, g in ipairs(db.groups) do if g.id == id then return g, i end end
@@ -288,9 +228,8 @@ local function elementOpts(key)
 	return o
 end
 
--- An element's option (db.elementOpts[key]) with its default: its registry entry's defaults, which
--- its module fills from the parts the element has (a cooldown's Ready, a totem's end, a reagent...)
--- under its own. Every element starts with its pops on and its "use me" glows off.
+-- An element's option with its default (the registry entry's defaults); every element starts with
+-- its pops on and its "use me" glows off
 local function elementDefault(key, name)
 	local own = ELEMENTS[key] and ELEMENTS[key].defaults
 	if own then return own[name] end
@@ -300,20 +239,15 @@ local function elementSetting(key, name)
 	if v == nil then return elementDefault(key, name) end
 	return v
 end
--- An element's opacity while idle, 0 to 1 (a damaged value falls back to its default).
 local function idleAlpha(key)
 	local v = elementSetting(key, "idleAlpha")
 	if type(v) ~= "number" or v ~= v then v = elementDefault(key, "idleAlpha") end
 	return math.min(math.max(v, 0), 1)
 end
 
--- always | combat | never
 local function showMode(key) return elementOpts(key).show or "always" end
 
--- A group's icon size: its own, or the global one.
 local function groupSize(g) return (g and not g.sizeFollow and g.size) or db.iconSize end
--- An element's icon: its group's size (in whole pixels, as layoutGroup sizes it) less its
--- border, which is drawn inside that size (ns.Looks.inset; layoutGroup places it so).
 local function sizeOf(key)
 	local e = ELEMENTS[key]
 	local box = ns.roundPx(groupSize((groupOf(key))), ns.pixel(e.frame))
@@ -327,8 +261,6 @@ local function removeElement(key)
 	if g then table.remove(g.members, i) end
 end
 
--- Names: unique in the profile. A new group is "Group N", the lowest N free; a name another group
--- has gets a number added.
 local function nameTaken(name, except)
 	for _, g in ipairs(db.groups) do
 		if g ~= except and g.name == name then return true end
@@ -340,9 +272,6 @@ local function freeName()
 	while nameTaken("Group " .. n) do n = n + 1 end
 	return "Group " .. n
 end
--- name as g's (g may be nil for a group not made yet): trimmed, without the escape character, cut
--- to the Name box's limit, and numbered if taken (cut further to leave room for the suffix). nil
--- for an empty name.
 local function uniqueName(name, g)
 	name = ns.utf8Cut(strtrim((tostring(name or ""):gsub("|", ""))), ns.MAX_GROUP_NAME)
 	if name == "" then return nil end
@@ -356,8 +285,7 @@ local function uniqueName(name, g)
 	end
 end
 
--- The next free id: one past the highest used, unless that would pass the bound (an id imported at
--- or near it), in which case the lowest free one instead, so the comment on fixIds' bound always holds.
+-- The next free id: one past the highest, unless that would pass the bound, then the lowest free one
 local function nextId()
 	local max, used = 0, {}
 	for _, g in ipairs(db.groups) do
@@ -371,15 +299,13 @@ local function nextId()
 	for id = 1, ns.MAX_GROUP_ID do
 		if not used[id] then return id end
 	end
-	return ns.MAX_GROUP_ID   -- every id taken: fixIds keeps the group count well under this bound
+	return ns.MAX_GROUP_ID
 end
 
--- A group added at the end of the list, with a template's settings (or the defaults), a new id and
--- the lowest free "Group N" name.
 local function newGroup(template)
 	local g = {}
 	for k, v in pairs(GROUP_DEFAULTS) do
-		if template and template[k] ~= nil then g[k] = template[k] else g[k] = v end   -- a template's false counts
+		if template and template[k] ~= nil then g[k] = template[k] else g[k] = v end
 	end
 	if template and template.border then g.border = CopyTable(template.border) end
 	g.members = {}
@@ -389,9 +315,8 @@ local function newGroup(template)
 	return g
 end
 
--- Where an element new to a profile goes: with the elements it sits beside in the default layout
--- (the group holding any of them), else in a group made like that default one (once per pass), else
--- the first group. made: default group -> the group made for it in this pass.
+-- Where an element new to a profile goes: with the elements it sits beside in the default layout,
+-- else a group made like that default (once per pass), else the first group
 local function placeNew(key, made)
 	for _, dg in ipairs(DEFAULTS.groups) do
 		for _, k in ipairs(dg.members) do
@@ -403,7 +328,7 @@ local function placeNew(key, made)
 				local g = made[dg]
 				if not g then
 					g = newGroup(dg)
-					g.name = uniqueName(dg.name, g) or g.name   -- keep "Group N" if dg has no name
+					g.name = uniqueName(dg.name, g) or g.name
 					made[dg] = g
 				end
 				table.insert(g.members, key)
@@ -414,9 +339,8 @@ local function placeNew(key, made)
 	table.insert((db.groups[1] or newGroup()).members, key)
 end
 
--- Ids: whole numbers, one per group, bounded (so two ids can never merge into one past float
--- precision); a group saved without one (before groups had ids, or with one out of range) gets the
--- next free one, in list order.
+-- Ids: whole numbers, one per group, bounded so two can't merge at float precision; one without
+-- gets the next free
 local function fixIds()
 	local used = {}
 	for _, g in ipairs(db.groups) do
@@ -430,9 +354,6 @@ local function fixIds()
 	end
 end
 
--- Names: a group saved without one (before groups had names) takes its default group's when all
--- its elements sit in that one in the default layout, else "Group N" by its place in the list.
--- Taken names get a number added.
 local function defaultName(g)
 	if #g.members == 0 then return nil end
 	for _, dg in ipairs(DEFAULTS.groups) do
@@ -454,21 +375,18 @@ local function fixNames()
 	end
 end
 
--- Makes db.groups consistent: fills missing group fields, gives each group an id and a name, drops
--- unknown and duplicate members, and places elements never seen before (new in an update) where
--- the default layout has them (placeNew). Elements seen before but in no group stay ungrouped. A
--- group left empty stays.
+-- Makes db.groups consistent: fills fields, ids and names, drops unknown and duplicate members,
+-- places elements never seen before
 local function sanitize()
 	each("sanitize", db, acct)
 	if type(db.groups) ~= "table" then db.groups = {} end
 	if type(db.known) ~= "table" then db.known = {} end
 	local seen = {}
 	for _, g in ipairs(db.groups) do
-		if g.combatOnly then g.show = "combat" end   -- saved before a group's Show had choices
+		if g.combatOnly then g.show = "combat" end
 		g.combatOnly = nil
 		for k, v in pairs(GROUP_DEFAULTS) do if g[k] == nil then g[k] = v end end
 		if g.show ~= "combat" and g.show ~= "target" then g.show = "always" end
-		-- A border saved before styles (0.6.1 and earlier) was the group's own.
 		if type(g.border) == "table" and g.border.follow == nil then g.border.follow = false end
 		local kept = {}
 		for _, key in ipairs(type(g.members) == "table" and g.members or {}) do
@@ -492,7 +410,6 @@ local function sanitize()
 	for _, key in ipairs(fresh) do placeNew(key, made) end
 end
 
--- Places a group so its centre sits at screen coordinates (the units GetCursorPosition returns).
 local function setGroupCenter(g, sx, sy)
 	local ui = UIParent:GetEffectiveScale()
 	local w, h = UIParent:GetSize()
@@ -508,8 +425,6 @@ local function screenCenter(f)
 	return x * s, y * s
 end
 
--- One frame per group id, made on first use and kept (a deleted group's stays hidden); positioning
--- (ShamanForever_Positioning.lua) adds its outline, label and handlers.
 local groupFrames = {}
 local function groupFrame(id)
 	local f = groupFrames[id]
@@ -522,14 +437,12 @@ local function groupFrame(id)
 	return f
 end
 
--- Combat-only visibility uses Blizzard's secure state driver, the standard technique for this. The
--- shield's group and element frames are ancestors of Blizzard's protected aura button, so an addon
--- Show/Hide/SetAlpha on them is silently dropped in combat (tested: alpha 0 out of combat never came
--- back). The driver's manager shows and hides from untainted code instead.
--- Groups and elements are driven separately, so an element shows only when both allow it. The
--- manager re-applies its state every 0.2s and does not show a frame it lets go of, so a driven frame
--- is never shown or hidden by hand. Only called out of combat.
-local driven = {}   -- frame -> its driver's conditions
+-- Combat-only visibility uses Blizzard's secure state driver. The shield's group and element frames
+-- are ancestors of Blizzard's protected aura button, so an addon Show/Hide/SetAlpha on them is
+-- dropped in combat. The manager re-applies its state every 0.2 s and won't show a frame it lets go
+-- of, so a driven frame is never shown or hidden by hand. Out of combat only. Groups and elements
+-- are driven separately: an element shows only when both allow it.
+local driven = {}
 local function setDriven(frame, when)
 	when = when or nil
 	if when == driven[frame] then return end
@@ -543,7 +456,6 @@ local function setDriven(frame, when)
 	end
 end
 
--- Shows a frame, or hands it to the driver with the conditions it shows under.
 local function showFrame(frame, when)
 	setDriven(frame, when)
 	if not when then frame:Show() end
@@ -554,8 +466,6 @@ local function hideFrame(frame)
 	frame:Hide()
 end
 
--- The conditions a group's frame shows under (nil: shown), and those of a member set to show only in
--- combat. While the group stays after combat (ns.AfterCombat) both are a plain "show".
 local function groupWhen(g, gf)
 	if not acct.locked then return nil end
 	local when = SHOW_WHEN[g.show]
@@ -568,7 +478,6 @@ local function memberWhen(g, gf, key)
 	return SHOW_WHEN.combat
 end
 
--- A laid-out group's drivers and its members' again: it started or stopped staying after combat.
 local function driveGroup(id)
 	local g, gf = groupById(id), groupFrames[id]
 	if not (g and gf and gf.laidOut) or InCombatLockdown() then return end
@@ -578,7 +487,6 @@ local function driveGroup(id)
 	showFrame(gf, groupWhen(g, gf))
 end
 
--- A group's Stay after combat (ns.AfterCombat), made with its frame.
 local function afterCombat(gf)
 	local function group() return (groupById(gf.groupId)) end
 	return ns.AfterCombat.new({
@@ -587,14 +495,12 @@ local function afterCombat(gf)
 			return g and gf.laidOut and acct.locked and SHOW_WHEN[g.show] and g.fadeAfter or 0
 		end,
 		apply = function() driveGroup(gf.groupId) end,
-		-- Whether its own driver would show it now: unlocked, Always, or its conditions hold.
 		shows = function()
 			local g = group()
 			if not g then return false end
 			local when = acct.locked and SHOW_WHEN[g.show]
 			return not when or SecureCmdOptionParse(when) == "show"
 		end,
-		-- The group, and its members' effects layers, which ignore its alpha.
 		frames = function()
 			local list, g = { gf }, group()
 			for _, key in ipairs(g and g.members or {}) do
@@ -606,17 +512,12 @@ local function afterCombat(gf)
 	})
 end
 
--- Sizes and anchors a group's members in one pass, centred on the cross axis; the group frame
--- shrinks to fit so dragging feels right. Every member anchors to the group frame, never to another
--- member: a frame a protected frame anchors to may turn protected too, and the shield is protected
--- (Blizzard's aura button), so a chain could stop the members before it changing in combat.
--- A member's Size is its box, border included: its frame (the icon's picture) sits inside it by the
--- border's reach (ns.Looks.fit), so Spacing is the gap between borders.
+-- Every member anchors to the group frame, never to another: a frame a protected frame anchors to
+-- may turn protected too (the shield's button), so a chain could stop members changing in combat.
+-- A member's Size is its box, border included.
 local function layoutGroup(g)
 	local gf = groupFrame(g.id)
 	gf.afterCombat = gf.afterCombat or afterCombat(gf)
-	-- Scale first: sizes, gaps, borders and the position are rounded to whole screen pixels at it
-	-- (ns.placeOnPixels says why).
 	gf:SetScale(g.scale)
 	local px = ns.pixel(gf)
 	local gap = ns.roundPx(g.spacing, px)   -- negative: members overlap
@@ -624,7 +525,7 @@ local function layoutGroup(g)
 	local horizontal = g.orientation == "horizontal"
 	local forward = g.growth ~= "backward"
 	local n, along, across = 0, 0, 0
-	local placed = {}   -- the members drawn: { frame, offset from the leading edge, w, h, inset }
+	local placed = {}
 	for _, key in ipairs(g.members) do
 		local e = ELEMENTS[key]
 		local f = e.frame
@@ -643,16 +544,13 @@ local function layoutGroup(g)
 			n = n + 1
 		end
 	end
-	-- The group's extent along its axis: with overlap (negative spacing) a member shorter than the
-	-- overlap can start before the first one or end before the last, so the box spans them all.
-	-- Boxes (a member's Size, its border inside it) are what's spanned.
+	-- Negative spacing: a member shorter than the overlap can start before the first or end after the
+	-- last, so the box spans them all
 	local lo, hi = 0, 0
 	for _, m in ipairs(placed) do
 		lo = math.min(lo, m[2])
 		hi = math.max(hi, m[2] + (horizontal and m[3] or m[4]))
 	end
-	-- Each member centred on the cross axis, to the nearest whole pixel; its frame set in from its
-	-- box by its border's reach.
 	for _, m in ipairs(placed) do
 		local f, o = m[1], m[5]
 		local offset = m[2] - lo + o
@@ -670,7 +568,7 @@ local function layoutGroup(g)
 	across = math.max(across, px)
 	if horizontal then gf:SetSize(along, across) else gf:SetSize(across, along) end
 	gf:SetAlpha(g.alpha)
-	for _, key in ipairs(g.members) do   -- effects layers ignore their icon's alpha, so they take the group's
+	for _, key in ipairs(g.members) do
 		local fx = ELEMENTS[key].frame.effects
 		if fx then fx:SetAlpha(g.alpha) end
 	end
@@ -680,15 +578,13 @@ local function layoutGroup(g)
 	if n > 0 then showFrame(gf, groupWhen(g, gf)) else hideFrame(gf) end
 end
 
--- Deferred in combat: the shield's group is an ancestor of Blizzard's protected aura button, so
--- showing, hiding, moving or reparenting it in combat is silently dropped.
+-- Deferred in combat: the shield's group is an ancestor of Blizzard's protected button
 local function layoutElements()
 	if ns.deferInCombat("layout", layoutElements) then return end
 	for key, e in pairs(ELEMENTS) do
 		if not isEnabled(key) then hideFrame(e.frame) end
 	end
-	-- A group holding Blizzard's aura button (ns.makeAuraSlot) waits while auras are secret out of
-	-- combat too: its icons' size can change with the border, and the button can't follow until then.
+	-- A group holding Blizzard's aura button also waits while auras are secret out of combat
 	local secret = ns.aurasSecret()
 	local live = {}
 	for _, g in ipairs(db.groups) do
@@ -710,12 +606,8 @@ local function layoutElements()
 	ns.Options.refresh()
 end
 
-------------------------------------------------------------------------
 -- Spell resolution and layout
-------------------------------------------------------------------------
--- Looks up every tracked spell: display names in the client's language, the highest rank known.
--- Returns a signature of what the modules found, so callers can skip a relayout when nothing
--- changed (SPELLS_CHANGED fires often).
+-- Returns a signature so callers can skip a relayout when nothing changed (SPELLS_CHANGED fires often)
 local function resolveSpells()
 	Spells.scan()
 	local sig = {}
@@ -725,7 +617,6 @@ local function resolveSpells()
 	return table.concat(sig, ";")
 end
 
--- Every timer takes its current style (the global one or its own).
 local function applyTimers()
 	each("applyTimers")
 	ns.TotemBar.applyTimers()
@@ -737,8 +628,7 @@ local function applyLayout()
 	each("applyLayout")
 end
 
--- Every lock and unlock goes through here: in combat, locking takes the combat path and unlocking
--- is refused. Returns whether the state changed as asked. Only shamans have anything to position.
+-- Every lock and unlock goes through here: in combat unlocking is refused, locking takes the combat path
 function ns.setLocked(locked)
 	if not isShaman then say("positioning is for shamans only") return false end
 	if InCombatLockdown() then
@@ -751,15 +641,15 @@ function ns.setLocked(locked)
 	return true
 end
 
-local readAt   -- GetTime() of the last refreshAll that ran with auras readable
+local readAt
 local function refreshAll()
 	if not InCombatLockdown() and not ns.aurasSecret() then readAt = GetTime() end
 	each("refresh")
 end
 
--- A cast, a cooldown update and a totem update come in the same frame (three or more events per
--- cast). SPELL_UPDATE_COOLDOWN refreshes at once (isOnGCD is only vouched for inside it); the others
--- wait for the next frame, by then with the cast's totem owner, and are skipped if that event came.
+-- A cast, a cooldown update and a totem update come in the same frame: SPELL_UPDATE_COOLDOWN
+-- refreshes at once (isOnGCD is only vouched for inside it), the others wait a frame, by then with
+-- the cast's totem owner
 local cooldownsDirty = false
 local function flushCooldowns(inEvent)
 	cooldownsDirty = false
@@ -772,8 +662,7 @@ local function refreshCooldownsSoon()
 	C_Timer.After(0, flushIfDirty)
 end
 
--- Layout edits used by the options window. Each leaves db.groups consistent and relays out; in
--- combat it is refused. Returns true when done, then what the edit returned (a new group's id).
+-- Layout edits for the options: each leaves db.groups consistent and relays out; refused in combat
 local function edit(fn)
 	return function(...)
 		if InCombatLockdown() then say("layout changes wait until combat ends"); return false end
@@ -783,7 +672,6 @@ local function edit(fn)
 	end
 end
 
--- Screen centre, stepping down past any group already parked there.
 local function parkAtCenter(g)
 	g.point, g.x, g.y = "CENTER", 0, 0
 	local taken = true
@@ -796,8 +684,6 @@ local function parkAtCenter(g)
 	end
 end
 
--- Puts key into target (a group id, or "new" for a group of its own, returning its id). index is its
--- position among the target's other members; nil appends. Its Show stays as it was.
 local placeElement = edit(function(key, target, index)
 	local src = groupOf(key)
 	if target == "new" then
@@ -819,8 +705,7 @@ local placeElement = edit(function(key, target, index)
 	end
 end)
 
--- Renames a group; a name another group has gets a number added, and an empty one changes nothing.
--- Allowed in combat: only positioning's labels show it on screen, and their layout waits.
+-- Allowed in combat: only positioning's labels show it on screen, and their layout waits
 local function renameGroup(id, name)
 	local g = groupById(id)
 	name = g and uniqueName(name, g)
@@ -829,15 +714,12 @@ local function renameGroup(id, name)
 	layoutElements()
 end
 
--- A new empty group at the end of the list, at the screen centre. Returns its id.
 local addGroup = edit(function()
 	local g = newGroup()
 	parkAtCenter(g)
 	return g.id
 end)
 
--- Deletes a group. Its elements are left in no group: not drawn, their settings kept, until they
--- are placed in a group again.
 local deleteGroup = edit(function(id)
 	local _, i = groupById(id)
 	if i then table.remove(db.groups, i) end
@@ -847,7 +729,6 @@ local setShow = edit(function(key, mode)
 	elementOpts(key).show = mode ~= (elementDefault(key, "show") or "always") and mode or nil
 end)
 
--- Hides every element in the group; the group keeps them, so showing one brings it back in place.
 local hideGroup = edit(function(id)
 	local g = groupById(id)
 	for _, key in ipairs(g and g.members or {}) do elementOpts(key).show = "never" end
@@ -857,16 +738,13 @@ local centerGroup = edit(function(id)
 	if g then g.point, g.x, g.y = "CENTER", 0, 0 end
 end)
 
-------------------------------------------------------------------------
--- The active profile (the rest of profiles: ShamanForever_Profiles.lua)
-------------------------------------------------------------------------
+-- The active profile
 local function fillDefaults(t, defaults)
 	for k, v in pairs(defaults) do
 		if t[k] == nil then t[k] = type(v) == "table" and CopyTable(v) or v end
 	end
 end
 
--- Makes name the active profile (created from defaults if new) and remembers it for this character.
 local function selectProfile(name)
 	if type(acct.profiles[name]) ~= "table" then acct.profiles[name] = {} end
 	profileName, db = name, acct.profiles[name]
@@ -876,7 +754,6 @@ local function selectProfile(name)
 	ns.Profiles.remember(name)
 end
 
--- Everything drawn again from the active profile.
 local function redraw()
 	resolveSpells(); ns.Effects.applyStyle(); applyLayout(); refreshAll()
 	ns.Options.refresh()
@@ -887,42 +764,32 @@ local function useProfile(name)
 	redraw()
 end
 
-------------------------------------------------------------------------
 -- Shared with the other files
-------------------------------------------------------------------------
--- Settings: the active profile, the account, and defaults.
 ns.getDB = function() return db end
 ns.getAccount = function() return acct end
 ns.profileName = function() return profileName end
 ns.useProfile, ns.selectProfile, ns.fillDefaults = useProfile, selectProfile, fillDefaults
 ns.DEFAULTS, ns.GROUP_DEFAULTS = DEFAULTS, GROUP_DEFAULTS
--- Elements: the registry, where each one sits, and its own settings.
 ns.ELEMENTS, ns.ELEMENT_KEYS = ELEMENTS, ELEMENT_KEYS
-ns.isActive = function() return isShaman end   -- a shaman is logged in: the HUD runs
+ns.isActive = function() return isShaman end
 ns.isEnabled, ns.showMode = isEnabled, showMode
 ns.isLearned = isLearned
 ns.elementOpts, ns.elementSetting, ns.elementDefault, ns.idleAlpha = elementOpts, elementSetting, elementDefault, idleAlpha
--- Groups and layout.
 ns.groupOf, ns.groupById = groupOf, groupById
 ns.groupFrames, ns.groupSize, ns.sizeOf = groupFrames, groupSize, sizeOf
 ns.setGroupCenter, ns.screenCenter = setGroupCenter, screenCenter
 ns.layoutElements, ns.applyLayout, ns.applyTimers = layoutElements, applyLayout, applyTimers
--- Layout edits (the options window): each leaves the groups consistent and lays out again.
 ns.placeElement, ns.addGroup, ns.renameGroup, ns.deleteGroup = placeElement, addGroup, renameGroup, deleteGroup
 ns.hideGroup, ns.centerGroup = hideGroup, centerGroup
 ns.setShow = setShow
--- Spells and refreshes.
 ns.resolveSpells, ns.refreshAll = resolveSpells, refreshAll
--- The border an element wears: its group's.
 function ns.borderFor(key)
 	return ns.Style.get((groupOf(key)), "border")
 end
 
-------------------------------------------------------------------------
 -- Events
-------------------------------------------------------------------------
 local ev = CreateFrame("Frame")
-local lastSpells   -- resolveSpells' last signature
+local lastSpells
 local function reg(event, unit) ns.registerEvent(ev, event, unit) end
 
 reg("ADDON_LOADED")
@@ -932,34 +799,30 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 	if event == "ADDON_LOADED" then
 		if arg1 ~= ADDON then return end
 		acct = ns.Profiles.load()
-		selectProfile(ns.Profiles.saved())   -- a guess on a cold start (no name yet): checked at PLAYER_LOGIN
+		selectProfile(ns.Profiles.saved())
 		ns.Options.build()
 	elseif event == "PLAYER_LOGIN" then
-		-- The name is known now: switch to this character's own profile if loading couldn't tell.
 		local want = ns.Profiles.saved()
 		if want ~= profileName then selectProfile(want) end
-		ns.IssueReporter.apply()   -- any class
+		ns.IssueReporter.apply()
 		local _, class = UnitClass("player")
 		if class ~= "SHAMAN" then root:Hide(); return end
 		isShaman = true
-		ns.try("spell self-check", Spells.selfCheck)   -- unknown seed IDs go to the error log (/sf debug)
+		ns.try("spell self-check", Spells.selfCheck)
 		ns.applyMinimapButton()
 		reg("UNIT_SPELLCAST_SUCCEEDED", "player")
 		reg("SPELL_UPDATE_COOLDOWN")
 		reg("PLAYER_TOTEM_UPDATE")
 		reg("SPELLS_CHANGED")
 		reg("PLAYER_REGEN_ENABLED")
-		-- A restriction ended (a PvP match, an encounter, the forced-restrictions CVar back to 0):
-		-- auras may be readable again with no combat end to say so. Core calls this on the next
-		-- frame, after the work that waited for it. Skipped when a refresh since the end (combat's
-		-- PLAYER_REGEN_ENABLED) already read everything.
+		-- A restriction ended (a match, an encounter): auras may be readable with no combat end to say so;
+		-- skipped when a refresh since already read everything
 		ns.onRestrictionEnd(function(endedAt)
 			if InCombatLockdown() or ns.aurasSecret() or (readAt and readAt >= endedAt) then return end
 			refreshAll()
 		end)
 		each("start")
-		-- Each module's tick on its own: one that errors can't stop the others, and an error at login
-		-- can't leave the HUD without its ticker.
+		-- Each module's tick on its own: an error can't stop the others
 		C_Timer.NewTicker(1, function()
 			for _, m in ipairs(MODULES) do
 				if m.tick then ns.try((m.name or "module") .. " tick", m.tick) end
@@ -971,7 +834,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		refreshAll()
 		root:Show()
 	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
-		local spellID = arg3   -- args: unit, castGUID, spellID
+		local spellID = arg3
 		if not isSecret(spellID) then each("onCast", spellID) end
 		refreshCooldownsSoon()
 	elseif event == "SPELL_UPDATE_COOLDOWN" then
@@ -979,22 +842,18 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 	elseif event == "PLAYER_TOTEM_UPDATE" then
 		refreshCooldownsSoon()
 	elseif event == "SPELLS_CHANGED" then
-		-- Fires often (shapeshifts, zoning, ...): a relayout only when a tracked spell changed.
+		-- Fires often (shapeshifts, zoning): relayout only when a tracked spell changed
 		local found = resolveSpells()
 		if found ~= lastSpells then lastSpells = found; applyLayout() end
 		refreshAll()
 	elseif event == "PLAYER_REGEN_ENABLED" then
-		-- Anything held back in combat has run already (ns.deferInCombat).
 		refreshAll()
 	end
 end)
 
-------------------------------------------------------------------------
--- /sf debug (ShamanForever_Slash.lua): what the addon sees right now
-------------------------------------------------------------------------
+-- /sf debug
 function ns.debugReport()
 	say("in combat %s", tostring(InCombatLockdown()))
-	-- Every tracked spell: the client's name and the rank known (by spell ID, not name).
 	local known, otherRace = {}, {}
 	for _, e in pairs(ELEMENTS) do
 		if e.spell and Spells.otherRace(e.race) then otherRace[e.spell] = true end

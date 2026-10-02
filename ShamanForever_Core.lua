@@ -1,5 +1,4 @@
--- Shared by every file (loaded first): small helpers, the error log, the curves, and the spells the
--- addon tracks. Shared visuals are in ShamanForever_Widgets.lua.
+-- Shared helpers (loaded first)
 
 local _, ns = ...
 
@@ -11,8 +10,7 @@ function ns.safe(fn, ...) if not fn then return false end return pcall(fn, ...) 
 function ns.describeArg(v) if ns.isSecret(v) then return "<secret>" end return tostring(v) end
 local isSecret, safe = ns.isSecret, ns.safe
 
--- RegisterEvent throws for an event name the client doesn't know (the engine's rule: Blizzard's
--- EventUtil checks C_EventUtils.IsEventValid first): say so and carry on.
+-- RegisterEvent throws for an event name the client doesn't know: say so and carry on
 function ns.registerEvent(frame, event, unit)
 	local ok = pcall(function()
 		if unit then frame:RegisterUnitEvent(event, unit) else frame:RegisterEvent(event) end
@@ -20,23 +18,18 @@ function ns.registerEvent(frame, event, unit)
 	if not ok then ns.say("event %s not available on this client", event) end
 end
 
--- For settings read from shared text or old saves, which can hold anything.
--- { r, g, b } or { r, g, b, a }: numbers only.
 function ns.isColor(v)
 	return type(v) == "table" and type(v[1]) == "number" and type(v[2]) == "number" and type(v[3]) == "number"
 		and (v[4] == nil or type(v[4]) == "number")
 end
--- The anchor points a saved position may use.
 ns.POINTS = { CENTER = true, TOP = true, BOTTOM = true, LEFT = true, RIGHT = true,
 	TOPLEFT = true, TOPRIGHT = true, BOTTOMLEFT = true, BOTTOMRIGHT = true }
 
--- A group id's upper bound: comfortably above any real number of groups, and well short of where
--- float precision starts merging ids (nextId's max + 1 stops advancing at 2^53).
+-- Upper bound for a group id: above any real count, below where float ids stop advancing (2^53)
 ns.MAX_GROUP_ID = 100000
 
--- A group name's limit: the Name box's SetMaxLetters, which counts UTF-8 characters, not bytes.
+-- Name limit: SetMaxLetters counts UTF-8 characters, not bytes
 ns.MAX_GROUP_NAME = 32
--- Cuts s to at most n UTF-8 characters, on a character boundary so a multi-byte one is never split.
 function ns.utf8Cut(s, n)
 	local i, chars = 1, 0
 	while i <= #s do
@@ -49,10 +42,7 @@ function ns.utf8Cut(s, n)
 	return s
 end
 
-------------------------------------------------------------------------
--- Errors caught by a pcall around a proven call: the first one per place is kept for /sf debug, so a
--- change on a new client build doesn't just make a feature vanish.
-------------------------------------------------------------------------
+-- Errors caught by a pcall around a proven call: the first per place is kept for /sf debug
 local errors, errorOrder = {}, {}
 function ns.noteError(site, err)
 	local e = errors[site]
@@ -68,30 +58,19 @@ function ns.errorLines()
 	end
 	return out
 end
--- pcall(fn, ...) that notes a failure under site; returns pcall's results. No table per call, so it
--- can sit in code that runs ten times a second.
+-- pcall that notes a failure under site; allocates nothing, so it can run ten times a second
 local function checked(site, ok, ...)
 	if not ok then ns.noteError(site, ...) end
 	return ok, ...
 end
 function ns.try(site, fn, ...) return checked(site, pcall(fn, ...)) end
 
-------------------------------------------------------------------------
--- Work that must wait for combat to end: protected frames (the shield's group, the totem bar's
--- secure buttons) and Blizzard's aura container refuse addon changes in combat. A function starts
--- with `if ns.deferInCombat(key, fn) then return end`: in combat fn is queued (once per key) and
--- runs when combat ends; out of combat it runs now, so any queued copy is dropped. ns.retryAfterCombat
--- queues a call that failed. Queued work runs in the order it was first queued, at
--- PLAYER_REGEN_ENABLED, which comes after the combat restrictions lift (probed 2026-09-26). This
--- file loads first, so its handler runs before any other file's.
--- Blizzard's aura containers (the shield, the totem range strip) also refuse addon calls while
--- auras are secret, which can happen out of combat (PvP, encounters, addonCombatRestrictionsForced):
--- their work uses ns.deferWhileAurasSecret, and the queue also runs whenever an addon restriction
--- ends (ADDON_RESTRICTION_STATE_CHANGED, Inactive). Anything still blocked then queues itself again.
--- So there are three states: in combat (lockdown; auras, cooldowns and totem slots secret); out of
--- combat but restricted (a PvP match, an encounter: the same secrets, no lockdown); and readable.
--- A PvP match's secrets are as Blizzard's API documentation says; not yet seen in a battleground.
-------------------------------------------------------------------------
+-- Work that waits for combat to end: protected frames and Blizzard's aura container refuse changes
+-- in combat. `if ns.deferInCombat(key, fn) then return end`: queued once per key in combat and run
+-- at PLAYER_REGEN_ENABLED; out of combat it runs now.
+-- Aura containers also refuse calls while auras are secret out of combat (PvP, encounters):
+-- ns.deferWhileAurasSecret; the queue also runs when an addon restriction ends.
+-- States: combat (lockdown), restricted (a match or encounter: same secrets, no lockdown), readable.
 local queued, queueOrder, listed = {}, {}, {}
 function ns.retryAfterCombat(key, fn)
 	if not listed[key] then listed[key] = true; table.insert(queueOrder, key) end
@@ -112,8 +91,7 @@ function ns.deferWhileAurasSecret(key, fn)
 	return false
 end
 local INACTIVE = Enum and Enum.AddOnRestrictionState and Enum.AddOnRestrictionState.Inactive or 0
--- fn(endedAt) runs on the frame after a restriction ends, once however many end in one frame, after
--- the queue has run again: endedAt is GetTime() when the first of them ended.
+-- fn(endedAt) runs the frame after a restriction ends, once, after the queue
 local afterEnd, endedAt = {}, nil
 function ns.onRestrictionEnd(fn) table.insert(afterEnd, fn) end
 local combatEnd = CreateFrame("Frame")
@@ -139,38 +117,32 @@ end
 combatEnd:SetScript("OnEvent", function(_, event, _, state)
 	if event == "ADDON_RESTRICTION_STATE_CHANGED" then
 		if isSecret(state) or state ~= INACTIVE or InCombatLockdown() then return end
-		-- Auras may still read as secret while this is dispatched: again on the next frame.
+		-- Auras may still read secret while this is dispatched: next frame
 		if not endedAt then
 			endedAt = GetTime()
 			C_Timer.After(0, afterRestriction)
 		end
 	else
-		-- Before the queue, so a layout waiting in it already finds them staying (ns.AfterCombat).
 		ns.AfterCombat.ended()
 	end
 	runQueue()
 end)
 
-------------------------------------------------------------------------
--- Whether the player can act on a warning. Dead, a ghost or on a flight path, nothing can be cast,
--- so a warning that asks for a cast (a shield, an imbue, a totem, a spell that's ready) stays quiet.
--- None of these reads is secret for the player; one that fails or comes back secret counts as able.
-------------------------------------------------------------------------
+-- Can the player act on a warning: dead, a ghost or on a flight path, nothing can be cast. A failed
+-- or secret read counts as able.
 local function plainYes(fn, ...)
 	local ok, v = safe(fn, ...)
 	return ok and not isSecret(v) and v == true
 end
-ns.plainYes = plainYes   -- fn(...) returned a plain true (a failed or secret read counts as no)
+ns.plainYes = plainYes
 function ns.cantAct()
 	return plainYes(UnitIsDeadOrGhost, "player") or plainYes(UnitOnTaxi, "player")
 end
--- fn(event) whenever that may have changed: death, release, resurrection (always passed on), and a
--- flight path's start and end (the control events, which also come with every fear or stun: passed
--- on only when ns.cantAct() changed). UnitOnTaxi may not have changed yet when they come
--- (untested), so they are checked again a second later.
+-- fn(event) when that may have changed (death, release, resurrection, flight path start and end).
+-- The control events come with every fear or stun and UnitOnTaxi may lag: checked again a second later.
 local actListeners = {}
 local lastCantAct = false
-function ns.onCanActChange(fn)   -- at a module's start (a /reload on a flight path is already on it)
+function ns.onCanActChange(fn)
 	table.insert(actListeners, fn)
 	lastCantAct = ns.cantAct()
 end
@@ -191,11 +163,7 @@ actEvents:SetScript("OnEvent", function(_, event)
 	if control then C_Timer.After(1, function() tellAct(event) end) end
 end)
 
-------------------------------------------------------------------------
--- Curves: a duration's remaining (or total) time -> a value for SetAlpha. The way to show or hide
--- something on a time that may be secret.
-------------------------------------------------------------------------
--- points: { x1, y1, x2, y2, ... }; nil on a client without curves.
+-- Curves: a duration's remaining time -> a value for SetAlpha, for a time that may be secret
 function ns.curve(points)
 	if not (C_CurveUtil and C_CurveUtil.CreateCurve) then return nil end
 	local c = C_CurveUtil.CreateCurve()
@@ -203,9 +171,8 @@ function ns.curve(points)
 	for i = 1, #points, 2 do c:AddPoint(points[i], points[i + 1]) end
 	return c
 end
-ns.CURVE_LIVE = ns.curve({ 0, 0, 0.05, 1 })   -- 1 while time is left, 0 once run out (an expired duration can linger)
-ns.CURVE_OVER = ns.curve({ 0, 1, 0.05, 0 })   -- the opposite: 1 at no time left
--- 1 inside the last `secs` seconds (but not once run out), else 0. One curve per value.
+ns.CURVE_LIVE = ns.curve({ 0, 0, 0.05, 1 })
+ns.CURVE_OVER = ns.curve({ 0, 1, 0.05, 0 })
 local lastCurves = {}
 function ns.lastSeconds(secs)
 	if not secs or secs <= 0 then return nil end
@@ -217,27 +184,19 @@ function ns.lastSeconds(secs)
 	return c or nil
 end
 
-------------------------------------------------------------------------
--- After combat: a group or the totem bar shown only in combat (or with an enemy target) can stay a
--- few seconds once combat ends, then fade out. Its visibility stays with its state driver the
--- whole time (an addon Show, Hide or SetAlpha on a frame holding a protected one is dropped in
--- combat): at PLAYER_REGEN_DISABLED, which comes before lockdown, its driver becomes a plain
--- "show" (held), so the end of combat can't hide it; out of combat it fades, and then its own
--- driver comes back. The fade is an Alpha animation that keeps no end value: the frame's own alpha
--- never changes, and combat starting mid-fade stops the animation, leaving the frame as it was.
--- Nothing runs for owners that don't stay (no timer, no animation).
-------------------------------------------------------------------------
+-- After combat: a combat-only group or bar can stay a few seconds once combat ends, then fade. Its
+-- visibility stays with its state driver (an addon Show, Hide or SetAlpha on a frame holding a
+-- protected one is dropped in combat): at PLAYER_REGEN_DISABLED the driver becomes a plain "show",
+-- out of combat it fades, then its own driver returns. The fade is an Alpha animation with no end
+-- value: the frame's alpha never changes.
 local AfterCombat = {}
 ns.AfterCombat = AfterCombat
 local FADE_SECS = 0.4
 local owners = {}
-local fades = setmetatable({}, { __mode = "k" })   -- frame -> its fade animation, made on first use
+local fades = setmetatable({}, { __mode = "k" })
 
--- spec:
---   secs()    seconds it stays once combat ends; 0 when it doesn't (always shown, unlocked, ...)
---   apply()   set its drivers again, now that it is held or not (AfterCombat.held); out of combat
---   shows()   whether its own driver would show it now anyway (an enemy target): no fade then
---   frames()  the frames to fade: its own, and any that ignore its alpha
+-- spec: secs() (0: doesn't stay), apply() (set drivers; out of combat), shows() (its driver would
+-- show it anyway: no fade), frames()
 function AfterCombat.new(spec)
 	local o = { spec = spec, held = false, playing = {} }
 	table.insert(owners, o)
@@ -246,7 +205,7 @@ end
 function AfterCombat.held(o) return o ~= nil and o.held end
 
 local function stopFade(o)
-	o.token = nil   -- a wait or fade under way ends here
+	o.token = nil
 	for i, ag in ipairs(o.playing) do ag:Stop(); o.playing[i] = nil end
 end
 
@@ -256,10 +215,8 @@ local function hold(o, on)
 	ns.try("after combat", o.spec.apply)
 end
 
--- Its own driver back (hiding it, unless it shows now anyway), then the animation off: the frame is
--- hidden by then, so its alpha coming back isn't seen.
 local function release(o)
-	if InCombatLockdown() then return end   -- held for this fight; the next combat end starts again
+	if InCombatLockdown() then return end
 	hold(o, false)
 	stopFade(o)
 end
@@ -273,7 +230,7 @@ local function fadeOf(frame)
 		ag.out:SetOrder(1)
 		ag.out:SetToAlpha(0)
 		ag.out:SetDuration(FADE_SECS)
-		-- Then hold at nothing until released, so it can't flash back before its driver hides it.
+		-- Hold at nothing until released, so it can't flash back before its driver hides it
 		local rest = ag:CreateAnimation("Alpha")
 		rest:SetOrder(2)
 		rest:SetFromAlpha(0)
@@ -286,7 +243,6 @@ end
 
 local function fadeOut(o)
 	if InCombatLockdown() then return end
-	-- It may have stopped staying meanwhile (unlocked, Show set to Always, Stay set to 0): no fade.
 	local okSecs, secs = pcall(o.spec.secs)
 	if not (okSecs and type(secs) == "number" and secs > 0) then release(o) return end
 	local ok, shows = pcall(o.spec.shows)
@@ -306,8 +262,6 @@ local function fadeOut(o)
 	C_Timer.After(FADE_SECS, function() if o.token == token then release(o) end end)
 end
 
--- Combat ended (PLAYER_REGEN_ENABLED, before the deferred work runs): each owner that stays is
--- held (if combat's start didn't already) and fades after its seconds.
 function AfterCombat.ended()
 	for _, o in ipairs(owners) do
 		stopFade(o)
@@ -319,7 +273,7 @@ function AfterCombat.ended()
 			o.token = token
 			C_Timer.After(secs, function() if o.token == token then fadeOut(o) end end)
 		else
-			hold(o, false)   -- it stopped staying during the fight (its settings changed)
+			hold(o, false)
 		end
 	end
 end
@@ -336,13 +290,8 @@ combatStart:SetScript("OnEvent", function()
 	end
 end)
 
-------------------------------------------------------------------------
--- Spells, by ID. Each tracked spell has seed IDs (any rank; the first is the one its name comes
--- from) and an English name used only when no seed exists on the client. Everything else is looked
--- up: the name in the client's own language, the ranks the player knows (spellbook), and which spell
--- an ID from an event belongs to. Ranks of one spell share its name, so an ID never seen before
--- (a new rank, a Forever-only ID) is matched by the client's name for it.
-------------------------------------------------------------------------
+-- Spells, by ID: seed IDs (any rank; the first names it) and an English name used only when no seed
+-- exists on the client. A new rank or Forever-only ID is matched by the client's name.
 local Spells = {}
 ns.Spells = Spells
 
@@ -350,23 +299,21 @@ local DEFS = {
 	lightningShield = { ids = { 324, 325, 905, 945, 8134, 10431, 10432 }, en = "Lightning Shield" },
 	waterShield     = { ids = { 408510 }, en = "Water Shield" },
 	earthShock      = { ids = { 8042 }, en = "Earth Shock" },
-	-- Every rank: an aura filter matches IDs, not names (the DoT's aura ID is the cast's).
+	-- Every rank: an aura filter matches IDs, not names
 	flameShock      = { ids = { 8050, 8052, 8053, 10447, 10448, 29228 }, en = "Flame Shock" },
 	frostShock      = { ids = { 8056 }, en = "Frost Shock" },
 	purge           = { ids = { 370, 8012, 27626 }, en = "Purge" },   -- 8012 and 27626: both rank 2
 	earthbind       = { ids = { 2484 }, en = "Earthbind Totem" },
 	stoneclaw       = { ids = { 5730 }, en = "Stoneclaw Totem" },
-	fireNova        = { ids = { 408341 }, en = "Fire Nova" },   -- Forever's own (Classic's 1535 isn't on the client)
+	fireNova        = { ids = { 408341 }, en = "Fire Nova" },   -- Forever's own
 	rockbiter       = { ids = { 8017 }, en = "Rockbiter Weapon" },
 	flametongue     = { ids = { 8024 }, en = "Flametongue Weapon" },
 	frostbrand      = { ids = { 8033 }, en = "Frostbrand Weapon" },
 	windfury        = { ids = { 8232 }, en = "Windfury Weapon" },
 	call            = { ids = { 66842 }, en = "Call of the Elements" },
 	recall          = { ids = { 36936 }, en = "Totemic Recall" },
-	tremor          = { ids = { 8143 }, en = "Tremor Totem" },   -- level 18; the ID foreverdiff.com lists
-	-- Talents or above the level-20 cap: seeds from foreverdiff.com, each found on the client with
-	-- the right name and text (spell harvest, 2026-09-27), not yet seen on a character. The client's
-	-- name for the spell finds any rank the spellbook has.
+	tremor          = { ids = { 8143 }, en = "Tremor Totem" },   -- level 18
+	-- Talents or above the level-20 cap: seeds from foreverdiff.com, found on the client with the right name
 	naturesSwiftness = { ids = { 16188 }, en = "Nature's Swiftness" },   -- the buff has the same ID
 	manaTide        = { ids = { 16190 }, en = "Mana Tide Totem" },
 	grounding       = { ids = { 8177 }, en = "Grounding Totem" },
@@ -376,42 +323,39 @@ local DEFS = {
 	lavaBurst       = { ids = { 408490, 1238299, 1238300 }, en = "Lava Burst" },   -- Forever's own, ranks 1 to 3
 	totemicProjection = { ids = { 437009 }, en = "Totemic Projection" },
 	reincarnation   = { ids = { 20608 }, en = "Reincarnation" },
-	-- Racials (build 70124's spell tables; none seen on a character yet). Other spells share their
-	-- names (War Stomp has 16 IDs, Berserking 4), so each is matched by ID.
-	bloodFury       = { ids = { 20572 }, byID = true, en = "Blood Fury" },                -- Orc
-	shatterCurse    = { ids = { 1299026 }, byID = true, en = "Shatter Curse" },           -- Orc
-	berserking      = { ids = { 20554 }, byID = true, en = "Berserking" },                -- Troll
-	rapidRegeneration = { ids = { 1260270 }, byID = true, en = "Rapid Regeneration" },    -- Troll
-	warStomp        = { ids = { 20549 }, byID = true, en = "War Stomp" },                 -- Tauren
-	stoneform       = { ids = { 20594 }, byID = true, en = "Stoneform" },                 -- Dwarf
-	-- Windshaper Skyborne. Which of the two IDs the spellbook shows is unconfirmed; tried in order.
+	-- Racials: other spells share their names (War Stomp has 16 IDs), so each is matched by ID
+	bloodFury       = { ids = { 20572 }, byID = true, en = "Blood Fury" },   -- Orc
+	shatterCurse    = { ids = { 1299026 }, byID = true, en = "Shatter Curse" },   -- Orc
+	berserking      = { ids = { 20554 }, byID = true, en = "Berserking" },   -- Troll
+	rapidRegeneration = { ids = { 1260270 }, byID = true, en = "Rapid Regeneration" },   -- Troll
+	warStomp        = { ids = { 20549 }, byID = true, en = "War Stomp" },   -- Tauren
+	stoneform       = { ids = { 20594 }, byID = true, en = "Stoneform" },   -- Dwarf
+	-- Windshaper Skyborne: which of the two IDs the spellbook shows is unconfirmed; tried in order
 	walkOnAir       = { ids = { 1259416, 1308663 }, byID = true, en = "Walk on Air" },
-	skysight        = { ids = { 1259686 }, byID = true, en = "Skysight" },                -- Windshaper Skyborne
+	skysight        = { ids = { 1259686 }, byID = true, en = "Skysight" },   -- Windshaper Skyborne
 	waterWalking    = { ids = { 546 }, en = "Water Walking" },   -- the buffs have the same IDs
 	waterBreathing  = { ids = { 131 }, en = "Water Breathing" },
 	elementalFocus  = { ids = { 16164 }, en = "Elemental Focus" },   -- a passive talent
-	clearcasting    = { ids = { 16246 }, en = "Clearcasting" },      -- its buff
-	-- Maelstrom Weapon, the talent. Its buff (the stacks) has the same client name, so it stays out
-	-- of this map: two keys sharing a name would leave the name lookup to file a new same-named ID
-	-- (409946, the rune spell that grants the talent) under either one at random. ShamanForever_
-	-- Maelstrom.lua tracks the buff's ID directly and registers its own self-check.
+	clearcasting    = { ids = { 16246 }, en = "Clearcasting" },   -- its buff
+	-- Maelstrom Weapon's buff has the talent's name, so it stays out of this map (two keys with one
+	-- name make the name lookup file a new ID under either); Maelstrom.lua tracks it by ID
 	maelstromWeapon = { ids = { 408498 }, en = "Maelstrom Weapon" },
-	-- Spells that spend a primed effect (Nature's Swiftness's buff, Stormstrike's debuff).
+	-- Spells that spend a primed effect
 	healingWave     = { ids = { 331 }, en = "Healing Wave" },
 	lesserHealingWave = { ids = { 8004 }, en = "Lesser Healing Wave" },
 	chainHeal       = { ids = { 1064 }, en = "Chain Heal" },
 	lightningBolt   = { ids = { 403 }, en = "Lightning Bolt" },
-	chainLightning  = { ids = { 421, 930, 2860, 10605 }, en = "Chain Lightning" },   -- ranks 1 to 4 (build 70009)
-	ghostWolf       = { ids = { 2645, 1238640 }, en = "Ghost Wolf" },   -- 1238640: the spellbook's, seen 2026-09-27
+	chainLightning  = { ids = { 421, 930, 2860, 10605 }, en = "Chain Lightning" },   -- ranks 1 to 4
+	ghostWolf       = { ids = { 2645, 1238640 }, en = "Ghost Wolf" },   -- 1238640: the spellbook's
 	farSight        = { ids = { 6196 }, en = "Far Sight" },
 	attack          = { ids = { 6603 }, en = "Attack" },   -- auto attack: the swing timer's icon
 }
 Spells.DEFS = DEFS
 
-local keyByID = {}     -- spell ID -> key, for every ID seen (seeds, spellbook, events)
-local keyByName = {}   -- the client's name -> key
-local names = {}       -- key -> the client's name (or the English fallback)
-local book = {}        -- key -> { id, icon, rank }: the highest rank in the spellbook
+local keyByID = {}
+local keyByName = {}
+local names = {}
+local book = {}
 
 local function nameOf(id)
 	local ok, n = safe(C_Spell.GetSpellName, id)
@@ -419,7 +363,6 @@ local function nameOf(id)
 end
 Spells.nameOf = nameOf
 
--- Names can come late on a cold start; resolved again at every spellbook scan.
 local function resolveNames()
 	wipe(keyByName)
 	for key, d in pairs(DEFS) do
@@ -436,7 +379,6 @@ resolveNames()
 
 function Spells.name(key) return names[key] or (DEFS[key] and DEFS[key].en) end
 
--- The tracked spell an ID belongs to, or nil. Safe with a secret ID (nil).
 function Spells.keyOf(id)
 	if type(id) ~= "number" or isSecret(id) then return nil end
 	local key = keyByID[id]
@@ -447,7 +389,6 @@ function Spells.keyOf(id)
 	return key
 end
 
--- Whether two spell IDs are the same spell at any rank.
 function Spells.same(a, b)
 	if a == nil or b == nil or isSecret(a) or isSecret(b) then return false end
 	if a == b then return true end
@@ -455,7 +396,6 @@ function Spells.same(a, b)
 	return na ~= nil and na == nameOf(b)
 end
 
--- A rank number from a spell's subtext ("Rank 2"); 0 when it has none.
 function Spells.rank(id, subName)
 	local sub = subName
 	if (not sub or sub == "") and C_Spell.GetSpellSubtext then
@@ -465,7 +405,6 @@ function Spells.rank(id, subName)
 	return tonumber((type(sub) == "string" and sub or ""):match("(%d+)")) or 0
 end
 
--- Rebuilds the spellbook view: the highest rank known of every tracked spell.
 function Spells.scan()
 	resolveNames()
 	wipe(book)
@@ -492,8 +431,6 @@ function Spells.scan()
 	end
 end
 
--- Whether the player knows a spell ID, by the spellbook's two checks (true when neither gives a
--- plain answer, unless strict: then only a plain yes counts).
 local function inSpellBook(id)
 	return C_SpellBook.IsSpellInSpellBook(id, Enum.SpellBookSpellBank.Player, false)
 end
@@ -511,22 +448,19 @@ local function playerKnows(id, strict)
 	return known ~= false
 end
 
--- The highest known rank's ID and icon, or nil when the player doesn't know the spell.
 function Spells.known(key)
 	local e = book[key]
 	if e then return e.id, e.icon end
-	-- Not in the spellbook view (a talent, or the scan ran early): ask the client by name, and
-	-- whether the player knows what it names. Not for a spell matched by ID alone (byID): its name
-	-- is shared with other spells.
+	-- Not in the spellbook view (a talent, or the scan ran early): ask the client by name; not for byID
+	-- spells (their name is shared)
 	local ok, info
 	if not (DEFS[key] and DEFS[key].byID) then ok, info = safe(C_Spell.GetSpellInfo, Spells.name(key)) end
 	if ok and type(info) == "table" and info.spellID and not isSecret(info.spellID) and playerKnows(info.spellID) then
 		keyByID[info.spellID] = key
 		return info.spellID, info.iconID
 	end
-	-- The name can resolve to another spell of the same name (a passive's active part, another
-	-- series of ranks): any ID on record for the spell that the player knows.
-	-- The listed seed IDs are tried in their order, then any others learned since.
+	-- The name can resolve to another spell of the same name: any ID on record that the player knows,
+	-- seeds first
 	local tried = {}
 	local function try(id)
 		if tried[id] then return end
@@ -546,12 +480,10 @@ function Spells.known(key)
 	end
 end
 
--- Whether a list of race IDs (UnitRace's third value) leaves the player out; no list, no limit.
 function Spells.otherRace(races)
 	return races ~= nil and not tContains(races, (select(3, UnitRace("player"))))
 end
 
--- A spell's icon from its seed IDs, known or not (the options show every element).
 function Spells.icon(key)
 	local d = DEFS[key]
 	for _, id in ipairs(d and d.ids or {}) do
@@ -561,21 +493,18 @@ function Spells.icon(key)
 end
 function Spells.bookEntry(key) return book[key] end
 
--- Every ID seen for a spell (seeds, spellbook, and any the addon learned since).
 function Spells.ids(key)
 	local out = {}
 	for id, k in pairs(keyByID) do if k == key then out[id] = true end end
 	return out
 end
--- Whether the ID is already on record for the spell (no lookup by name).
 function Spells.has(key, id) return keyByID[id] == key end
 function Spells.learn(key, id)
 	if type(id) == "number" and not isSecret(id) and DEFS[key] then keyByID[id] = key end
 end
 
--- Self-check, once at login: seed IDs the client doesn't have go to the error log (/sf debug), so a
--- Forever patch that changes spell IDs shows at once instead of an element quietly going blank.
--- Other files add their own lists (the totem bar's buff IDs).
+-- Self-check at login: seed IDs the client doesn't have go to the error log (/sf debug), so a patch
+-- shows at once
 local checks = {}
 Spells.CHECKS = checks   -- every seed list, labelled (also read by external tools)
 function Spells.addCheck(label, ids) table.insert(checks, { label = label, ids = ids }) end
