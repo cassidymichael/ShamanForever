@@ -180,7 +180,7 @@ ns.registerPart("window", {
 		end,
 	},
 })
--- Primed by our cast until spent: { spends, charges, duration, buffKey, text }; primedLooks false:
+-- Primed by our cast until spent: { spends, duration, buffKey, text }; primedLooks false:
 -- no pop or glow of its own
 ns.registerPart("primed", {
 	defaults = function(def)
@@ -712,12 +712,11 @@ function CD.onCast(spellID)
 				startActive(def, now, def.window)
 			elseif def.primed then
 				if key == def.spellKey then
-					def.charges = def.primed.charges or 1
 					def.castAt = now
 					startActive(def, now, def.primed.duration, def.activeUntil ~= nil)
 				elseif def.activeUntil and def.spends[key] then
-					def.charges = (def.charges or 1) - 1
-					if def.charges <= 0 then def.spentAt = now; endActive(def) end
+					def.spentAt = now
+					endActive(def)
 				end
 			end
 		end
