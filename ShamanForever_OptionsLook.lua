@@ -237,7 +237,7 @@ function L.idles(key, st)
 		return when == "charges" and (st == "up3" or st == "up2")
 	end
 	if e.kind ~= "cooldown" then return false end
-	if when == "oncd" then
+	if when == "oncd" or when == "oncdany" then
 		local lowIdle = ns.elementSetting(key, "reagentShow") == false
 		return st == "cd" or ((st == "low" or st == "out") and lowIdle)
 	end
