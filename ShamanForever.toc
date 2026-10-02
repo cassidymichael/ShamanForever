@@ -44,6 +44,7 @@ ShamanForever_Tremor.lua
 ShamanForever_TremorList.lua
 ShamanForever_Positioning.lua
 ShamanForever_Slash.lua
+ShamanForever_TotemSets.lua
 ShamanForever_TotemBar.lua
 ShamanForever_TotemRange.lua
 ShamanForever_TotemSkins.lua

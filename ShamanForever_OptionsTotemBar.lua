@@ -232,12 +232,12 @@ local function build(p)
 		.. "picks, Call button and keys.")
 	p:text(function()
 		return string.format("Shows on the bar once you know %s.", ns.Spells.name("callAncestors"))
-	end, function() return select(2, TB.sets()) < 2 end)
+	end, function() return ns.TotemSets.count() < 2 end)
 	p:dropdown("Switch sets", "How the Call button changes the set.",
 		{ { "popout", "Picker on the Call button" }, { "cycle", "Right-click the Call button" } },
 		tget("setSwitch"), tset("setSwitch"), nil, 240)
 	p:checkbox("Show set number", "On the Call button.", tget("setNumber"), tset("setNumber"))
-	p:text(TB.SWITCH_IN_COMBAT and "Key: Next totem set."
+	p:text(ns.TotemSets.switchInCombat() and "Key: Next totem set."
 		or "Sets switch out of combat only. Key: Next totem set.")
 
 	p.gate = TB.barOn

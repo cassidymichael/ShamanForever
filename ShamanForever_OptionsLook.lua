@@ -704,7 +704,7 @@ L.PREVIEW.totembar = {
 				ic.tex:SetDesaturated(not learned)
 				ic.tex:SetAlpha(learned and 1 or 0.6)
 				if ic.num then
-					local set, count = TB.sets()
+					local set, count = ns.TotemSets.active(), ns.TotemSets.count()
 					ns.Media.setFont(ic.num, "totembar", ns.keyTextSize(it.size, c.keySize))
 					ic.num:ClearAllPoints()
 					ic.num:SetPoint("BOTTOMRIGHT", -1, 2)

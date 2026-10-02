@@ -205,21 +205,14 @@ function TB.setSizeFollow(follow)
 	c.sizeFollow = follow
 end
 
--- Totem sets: each Call drops its own four picks, a page of the multi-cast bar. The bar uses one
--- set at a time (sets.active, the picker header's sf-set); the character's choice is saved.
-local SET_CALL = {}
-for i, key in ipairs({ "call", "callAncestors", "callSpirits" }) do
-	SET_CALL[i] = ns.Spells.DEFS[key].ids[1]
-end
--- false: the set can't switch in combat; true: it can, through the picker header's snippet
-local SWITCH_IN_COMBAT = false
-TB.SWITCH_IN_COMBAT = SWITCH_IN_COMBAT
-local sets = { active = 1, count = 1, known = { true, false, false } }
+-- Totem sets (ns.TotemSets): the bar uses one at a time
+local TS = ns.TotemSets
+local SET_CALL = TS.CALLS
 
 local function multiAction(slot, set)
 	local ok, bar = ns.try("totem bar: multi-cast page", C_ActionBar.GetMultiCastBarIndex)
 	if not ok or type(bar) ~= "number" or isSecret(bar) then bar = 12 end
-	return (bar - 1) * 12 + ((set or sets.active) - 1) * 4 + slot
+	return (bar - 1) * 12 + ((set or TS.active()) - 1) * 4 + slot
 end
 
 -- Geometry, shared with the options' preview of the bar
@@ -378,33 +371,7 @@ picker:SetAttribute("sf-open", [[
 	end
 ]])
 picker:SetAttribute("sf-close", [[ self:GetFrameRef("pop" .. (...)):Hide() ]])
--- Switch to a set (0: the next known one): every button that follows the set takes that set's
--- action or spell, kept on it as sf-action<set> and sf-spell<set>; sf-set is written last
-picker:SetAttribute("sf-switch", [[
-	local want = ...
-	local fighting = SecureCmdOptionParse("[combat] 1; 0") == "1"
-	if fighting and not self:GetAttribute("sf-incombat") then return end
-	local set = self:GetAttribute("sf-set") or 1
-	if want == 0 then
-		want = set
-		for _ = 1, 2 do
-			want = want % 3 + 1
-			if self:GetAttribute("sf-known" .. want) then break end
-		end
-	end
-	if want == set or not self:GetAttribute("sf-known" .. want) then return end
-	for i = 1, self:GetAttribute("sf-follows") or 0 do
-		local b = self:GetFrameRef("follow" .. i)
-		local v = b:GetAttribute("sf-action" .. want)
-		if v then b:SetAttribute("action", v) end
-		v = b:GetAttribute("sf-spell" .. want)
-		if v then b:SetAttribute("spell", v) end
-	end
-	self:SetAttribute("sf-set", want)
-]])
-picker:SetAttribute("sf-set", 1)
-picker:SetAttribute("sf-known1", true)
-picker:SetAttribute("sf-incombat", SWITCH_IN_COMBAT)
+TS.prime(picker)
 -- Snippets run round each click (SecureHandlerWrapScript): returning false skips the button's action
 local ARROW_CLICK = [[
 	local i = self:GetAttribute("sf-pick")
@@ -666,7 +633,7 @@ follow(callKey)
 -- Asked to switch sets while they can't switch
 local cueAt = 0
 local function lockedCue()
-	if SWITCH_IN_COMBAT or sets.count < 2 or not ns.inCombat() or GetTime() - cueAt < 1 then return end
+	if TS.switchInCombat() or TS.count() < 2 or not ns.inCombat() or GetTime() - cueAt < 1 then return end
 	cueAt = GetTime()
 	local errors = _G.UIErrorsFrame
 	if errors then errors:AddMessage("Totem sets can't switch in combat", 1, 0.1, 0.1)
@@ -788,11 +755,9 @@ local function extraSides()
 end
 TB.extraSides = extraSides
 function TB.extraTexture(key)
-	return C_Spell.GetSpellTexture(key == "Call" and SET_CALL[sets.active] or RECALL)
+	return C_Spell.GetSpellTexture(key == "Call" and SET_CALL[TS.active()] or RECALL)
 end
 function TB.extraLearned(key) return knows(key == "Call" and CALL or RECALL) end
--- The active set and how many are known
-function TB.sets() return sets.active, sets.count end
 
 local function hover(s, arrows)
 	if arrows == nil then arrows = feat("arrows") end
@@ -925,11 +890,11 @@ end
 local applying = false
 -- The Call's icon and number; in combat while sets can't switch, the other sets greyed in its picker
 local function paintSets()
-	local set = sets.active
-	local locked = not SWITCH_IN_COMBAT and ns.inCombat()
+	local set = TS.active()
+	local locked = not TS.switchInCombat() and ns.inCombat()
 	call.vis.icon:SetTexture(C_Spell.GetSpellTexture(SET_CALL[set]))
 	call.num:SetText(set)
-	call.num:SetShown(cfg().setNumber and sets.count > 1)
+	call.num:SetShown(cfg().setNumber and TS.count() > 1)
 	for i, p in ipairs(setSlot.popout.buttons) do
 		local off = locked and i ~= set
 		p.on:SetShown(i == set)
@@ -938,13 +903,8 @@ local function paintSets()
 	end
 end
 local function setActive(set, chosen)
-	sets.active = set
+	TS.setActive(set, chosen)
 	call.spell = SET_CALL[set]
-	if chosen then
-		sets.wanted = set
-		local t = ns.Profiles.char()
-		if t then t.totemSet = set end
-	end
 	paintSets()
 	refreshSlots()
 	refreshGCD()
@@ -963,24 +923,6 @@ local function writeSet(set)
 	end
 	picker:SetAttribute("sf-set", set)
 	applying = false
-end
--- The sets known, and the one to use: the character's choice once its Call is known
-local function knownSets()
-	local count = 1
-	for set = 2, #SET_CALL do
-		sets.known[set] = knows(SET_CALL[set])
-		if sets.known[set] then count = count + 1 end
-		picker:SetAttribute("sf-known" .. set, sets.known[set])
-	end
-	sets.count = count
-	if not sets.wanted then
-		local t = ns.Profiles.char()
-		local v = t and t.totemSet
-		if v == 1 or v == 2 or v == 3 then sets.wanted = v
-		elseif t then sets.wanted = 1 end
-	end
-	local set = sets.wanted or 1
-	return sets.known[set] and set or 1
 end
 
 local layout
@@ -1150,8 +1092,8 @@ local function layoutSetPicker(size)
 	local pop, n = setSlot.popout, 0
 	local psz = TB.popButtonSize(size)
 	for set, p in ipairs(pop.buttons) do
-		p:SetShown(sets.known[set])
-		if sets.known[set] then
+		p:SetShown(TS.known(set))
+		if TS.known(set) then
 			n = n + 1
 			TB.placePopButton(p, pop, n, psz)
 			p.icon:SetTexture(C_Spell.GetSpellTexture(SET_CALL[set]))
@@ -1191,7 +1133,7 @@ function layout()
 	-- Any open picker closes first: it would come back open later
 	closePopouts()
 	local c = cfg()
-	local set = knownSets()
+	local set = TS.update(picker, knows)
 	for _, el in ipairs(ELEMENTS) do
 		followSlot(slots[el].button, SLOT[el])
 		followSlot(castKeys[el], SLOT[el])
@@ -1263,7 +1205,7 @@ function layout()
 		end
 	end
 	-- The set switch: with more than one set known
-	local switch = on.Call ~= nil and sets.count > 1
+	local switch = on.Call ~= nil and TS.count() > 1
 	local pickSet = switch and c.setSwitch == "popout"
 	call.button:SetAttribute("sf-pick", pickSet and SET_PICK or nil)
 	call.button:SetAttribute("sf-altpick", pickSet)
@@ -1610,8 +1552,8 @@ for _, e in pairs(extras) do
 		if e.key == "Recall" then
 			if not knows(e.spell) then GameTooltip:AddLine("Not learned yet", 0.6, 0.6, 0.6) end
 			GameTooltip:AddLine("Right-click: dismiss all totems (no GCD, but no mana returned)", 1, 0.82, 0, true)
-		elseif sets.count > 1 then
-			if not SWITCH_IN_COMBAT and ns.inCombat() then
+		elseif TS.count() > 1 then
+			if not TS.switchInCombat() and ns.inCombat() then
 				GameTooltip:AddLine("Totem sets switch out of combat", 0.6, 0.6, 0.6)
 			elseif c.setSwitch == "cycle" then
 				GameTooltip:AddLine("Right-click: next totem set", 1, 0.82, 0, true)
@@ -1858,7 +1800,7 @@ function TB.debug()
 	local g = not gok and "error" or type(ginfo) ~= "table" and "none"
 		or isSecret(ginfo.isOnGCD) and "secret" or tostring(ginfo.isOnGCD)
 	ns.say("totem bar mode %s, show %s, driver %s, shown %s, totems known %s, set %d of %d, earth isOnGCD %s; TotemFrame parent %s alpha %s; Totem Action Bar parent %s",
-		c.mode, c.show, tostring(lastDriver), tostring(bar:IsShown()), tostring(hasTotems), sets.active, sets.count, g,
+		c.mode, c.show, tostring(lastDriver), tostring(bar:IsShown()), tostring(hasTotems), TS.active(), TS.count(), g,
 		TotemFrame and TotemFrame:GetParent() and (TotemFrame:GetParent():GetName() or "?") or "none",
 		TotemFrame and string.format("%.2f", TotemFrame:GetAlpha()) or "-",
 		mc and (mc:GetParent() == hiddenParent and "hidden" or (mc:GetParent() and mc:GetParent():GetName() or "?")) or "none")
