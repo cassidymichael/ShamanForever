@@ -148,7 +148,7 @@ local WHITE = "Interface\\Buttons\\WHITE8x8"
 local RED = { 1, 0.2, 0.2, 1 }
 local REMAINING = Enum and Enum.DurationTextBindingProperty and Enum.DurationTextBindingProperty.RemainingDuration or 0
 
-function T.makeExpireBar(button)
+local function makeExpireBar(button)
 	local x = {}
 	x.clip = CreateFrame("Frame", nil, button)
 	x.clip:SetClipsChildren(true)
@@ -302,8 +302,8 @@ for _, def in ipairs(TARGET) do
 		candidates = def.candidates and function() return def.candidates(def) end,
 		ownIcon = def.ownIcon and function() return def.icon end, noTimer = def.noTimer,
 		extras = def.engineExpire and {
-			{ key = "expire", init = function(_, b) def.redBar = T.makeExpireBar(b) end },
-			{ key = "cover", init = function(_, b) def.coverBar = T.makeExpireBar(b) end },
+			{ key = "expire", init = function(_, b) def.redBar = makeExpireBar(b) end },
+			{ key = "cover", init = function(_, b) def.coverBar = makeExpireBar(b) end },
 		} or nil,
 		sites = { container = "target container " .. def.key, style = "target style " .. def.key,
 			filter = "target filter " .. def.key },
