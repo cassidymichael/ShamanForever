@@ -296,13 +296,15 @@ local function tell(fns, site) for _, fn in ipairs(fns) do ns.try(site, fn) end 
 
 local function combatStarts()
 	fighting = true
-	for _, o in ipairs(owners) do
-		stopFade(o)
-		if not InCombatLockdown() then
-			local ok, secs = pcall(o.spec.secs)
-			if ok and type(secs) == "number" and secs > 0 then hold(o, true) end
+	ns.try("combat start", function()
+		for _, o in ipairs(owners) do
+			stopFade(o)
+			if not InCombatLockdown() then
+				local ok, secs = pcall(o.spec.secs)
+				if ok and type(secs) == "number" and secs > 0 then hold(o, true) end
+			end
 		end
-	end
+	end)
 	tell(startFns, "combat start")
 end
 
@@ -317,11 +319,13 @@ end
 local function restrictionChanged(state)
 	if not (isSecret(state) or state ~= INACTIVE or InCombatLockdown()) then
 		-- Auras may still read secret while this is dispatched: next frame
-		if not endedAt then
-			endedAt = GetTime()
-			C_Timer.After(0, afterRestriction)
-		end
-		runQueue()
+		ns.try("restriction change", function()
+			if not endedAt then
+				endedAt = GetTime()
+				C_Timer.After(0, afterRestriction)
+			end
+			runQueue()
+		end)
 	end
 	tell(changeFns, "restriction change")
 end
