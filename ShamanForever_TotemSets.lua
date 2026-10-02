@@ -17,22 +17,23 @@ TS.CALLS = CALLS
 local SWITCH_IN_COMBAT = false
 function TS.switchInCombat() return SWITCH_IN_COMBAT end
 
-local state = { active = 1, count = 1, known = { true, false, false } }
+local state = { active = 1, count = 1, known = { true } }
+for set = 2, #CALLS do state.known[set] = false end
 function TS.active() return state.active end
 function TS.count() return state.count end
 function TS.known(set) return state.known[set] == true end
 
 -- Switch to a set (0: the next known one): every button that follows the set takes that set's
 -- action or spell, kept on it as sf-action<set> and sf-spell<set>; sf-set is written last
-local SWITCH = [[
+local SWITCH = string.format([[
 	local want = ...
 	local fighting = SecureCmdOptionParse("[combat] 1; 0") == "1"
 	if fighting and not self:GetAttribute("sf-incombat") then return end
 	local set = self:GetAttribute("sf-set") or 1
 	if want == 0 then
 		want = set
-		for _ = 1, 2 do
-			want = want % 3 + 1
+		for _ = 1, %d do
+			want = want %% %d + 1
 			if self:GetAttribute("sf-known" .. want) then break end
 		end
 	end
@@ -45,7 +46,7 @@ local SWITCH = [[
 		if v then b:SetAttribute("spell", v) end
 	end
 	self:SetAttribute("sf-set", want)
-]]
+]], #CALLS - 1, #CALLS)
 
 -- The switch's snippet and attributes on a secure header, at load
 function TS.prime(header)
@@ -77,7 +78,7 @@ function TS.update(header, knows)
 	if not state.wanted then
 		local t = ns.Profiles.char()
 		local v = t and t.totemSet
-		if v == 1 or v == 2 or v == 3 then state.wanted = v
+		if type(v) == "number" and CALLS[v] then state.wanted = v
 		elseif t then state.wanted = 1 end
 	end
 	local set = state.wanted or 1
