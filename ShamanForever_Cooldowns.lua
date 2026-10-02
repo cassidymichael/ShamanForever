@@ -53,8 +53,8 @@ ns.registerPart("cooldown", {
 		pop = function(ic, st, def)
 			if st == "ready" and setting(def.key, "ready", "pop") then ic:Pop("ready") end
 		end,
-		idles = function(st, _, when)
-			if when == "oncd" or when == "oncdany" then return st == "cd" end
+		idles = function(st, def, when)
+			if KD.idleMode(def, when) == "oncd" then return st == "cd" end
 			return st == "ready"
 		end,
 	},
@@ -293,7 +293,7 @@ local function applyIdle(def, held, inEvent)
 	local when = setting(def.key, "idleWhen")
 	local running, certain = ownCooldownRunning(def, inEvent)
 	local busy
-	if when == "oncd" or when == "oncdany" then busy = not (running and certain) else busy = running end
+	if KD.idleMode(def, when) == "oncd" then busy = not (running and certain) else busy = running end
 	busy = busy or held or when == "never" or not ns.getAccount().locked
 	if busy then def.idleAt = nil
 	elseif def.idle == false then

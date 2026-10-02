@@ -148,8 +148,8 @@ ns.registerPart("reagent", {
 		end,
 		idles = function(st, def, when)
 			if st ~= "low" and st ~= "out" then return nil end
-			local oncd = when == "oncd" or when == "oncdany"
-			return oncd and setting(def.key, "reagent", "lowKeepsShown") == false
+			return ns.Kinds.idleMode(def, when) == "oncd"
+				and setting(def.key, "reagent", "lowKeepsShown") == false
 		end,
 	},
 })

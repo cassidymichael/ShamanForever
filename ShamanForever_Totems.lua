@@ -274,11 +274,11 @@ ns.registerPart("totemSlot", {
 local FIRE_NOVA_CHOICES = {
 	{ "never", "Never", "It always shows in full" },
 	{ "nototem", "No fire totem", "Idle while it's ready and no fire totem is out",
-		"Idle only while it can't be cast." },
+		"Idle only while it can't be cast.", counts = "offcd" },
 	{ "offcd", "Ready", "Idle while it's ready, with or without a fire totem out",
 		"With or without a fire totem out." },
 	{ "oncdany", "Cooling down", "Idle while it's cooling down, with or without a fire totem out",
-		"With or without a fire totem out." },
+		"With or without a fire totem out.", counts = "oncd" },
 	{ "oncd", "Cooling down, no fire totem", "Idle while it's cooling down and no fire totem is out",
 		"Shown in full only while it's ready." },
 }

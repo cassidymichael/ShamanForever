@@ -112,8 +112,9 @@ function KD.get(kind) return KINDS[kind] end
 --   defaults, ranges  its settings' defaults and { min, max, step } (the shapes: _Profiles)
 --   glow, pop         whether it adds a pulsing glow or a pop (its page then offers their style
 --                     blocks)
---   idle              words for the Idle block: choices, held (what keeps it shown, for its
---                     kind's own choices), also, text, extra
+--   idle              words for the Idle block: choices ({ value, label, text, tip, counts };
+--                     counts: the kind's own choice it counts as in the engine), held (what
+--                     keeps it shown, for its kind's own choices), also, text, extra
 --   page              by slot: a title (timers), the slot's block options, or for own a block
 --                     ("reagent", { "toggle", ... }) or a list of them
 --   preview           states ({ id, label, order }), uptime, cooldown, typical, warning, labels
@@ -174,6 +175,14 @@ local function fillIdle(def, list)
 	if def.idleText == nil then def.idleText = value(word("text"), def) end
 	if def.idleExtra == nil then def.idleExtra = value(word("extra"), def) end
 	if def.idleChoices == nil then def.idleChoices = value(word("choices"), def) end
+end
+
+-- The engine's Idle choice for def's choice when: what its row counts as, else when
+function KD.idleMode(def, when)
+	for _, c in ipairs(def.idleChoices or NONE) do
+		if c[1] == when then return c.counts or when end
+	end
+	return when
 end
 
 -- A kind's names that lead nowhere, noted once: a part with no spec, a slot or own block with no
