@@ -1133,7 +1133,9 @@ function layout()
 	-- Any open picker closes first: it would come back open later
 	closePopouts()
 	local c = cfg()
+	local hadSets = TS.count()
 	local set = TS.update(picker, knows)
+	if TS.count() ~= hadSets then ns.Options.refresh() end
 	for _, el in ipairs(ELEMENTS) do
 		followSlot(slots[el].button, SLOT[el])
 		followSlot(castKeys[el], SLOT[el])

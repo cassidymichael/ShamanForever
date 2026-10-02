@@ -270,7 +270,7 @@ local function buildAbout(p)
 		if e.experimental then p:experimental(e.experimental, "Elements > " .. e.label) end
 	end
 	p:experimental("Art frames", "Frame and Group frame styles")
-	p:experimental("Totem sets", "Totem bar > Totem sets")
+	p:experimental("Totem sets", "Totem bar > Totem sets, once you know a second Call")
 	for _, l in ipairs(ns.Style.fields()) do
 		for _, e in ipairs(l.order) do
 			if e.experimental and not e.hidden then p:experimental(e.name, l.where .. " > " .. l.name) end
