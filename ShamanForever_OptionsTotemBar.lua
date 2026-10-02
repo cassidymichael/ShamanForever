@@ -207,17 +207,6 @@ local function build(p)
 	tslider("Scale", "Grows everything on the bar, borders too.", times, "scale")
 	tslider("Opacity", nil, pct, "alpha")
 
-	p:header("Border style")
-	p:text("Set by the theme.", owned("border"))
-	K.borderRows(p, "totembar", changed, nil, free("border"))
-	if K.barFramed("totembar") then
-		p:header("Frame style")
-		K.frameRows(p, "totembar", "groupframe", changed, { spacing = {
-			get = tget("spacing"), set = function(v) c().spacing = v; changed() end,
-			min = TB.RANGES.spacing[1], max = TB.RANGES.spacing[2],
-			size = function() return (TB.look()) end, enabled = free("spacing") } })
-	end
-
 	p.gate = full
 	p:header("Buttons")
 	p:checkbox("Left-click casts your pick", "Left-click a slot to drop that element's picked totem.", tget("cast"), tset("cast"))
@@ -350,6 +339,16 @@ local function build(p)
 
 	K.glowBlock(p, "totembar", 136098)
 	K.popBlock(p, "totembar", 136098, "expired")
+	p:header("Border style")
+	p:text("Set by the theme.", owned("border"))
+	K.borderRows(p, "totembar", changed, nil, free("border"))
+	if K.barFramed("totembar") then
+		p:header("Frame style")
+		K.frameRows(p, "totembar", "groupframe", changed, { spacing = {
+			get = tget("spacing"), set = function(v) c().spacing = v; changed() end,
+			min = TB.RANGES.spacing[1], max = TB.RANGES.spacing[2],
+			size = function() return (TB.look()) end, enabled = free("spacing") } })
+	end
 	p.gate = nil
 end
 
