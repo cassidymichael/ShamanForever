@@ -120,11 +120,6 @@ end
 
 function SK.fixedSlots() return SK.current().fixedSlots == true end
 
-function SK.anyExperimental()
-	for _, e in ipairs(SK.LIST) do if e.experimental then return true end end
-	return false
-end
-
 -- Settings a look owns: border, spacing, extrasGap, dir, pop, range, rangeHeight, barPlace,
 -- extras, extrasScale (the layout reads them through TB.eff())
 local function ownsNow()
