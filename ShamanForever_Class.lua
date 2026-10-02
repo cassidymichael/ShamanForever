@@ -87,10 +87,6 @@ ns.THEME = {
 	},
 	burstTip = "Each element its own effect: earth slams, fire flares, water ripples, air spins, spirit gathers.",
 }
-ns.THEME.barColor = {}
-for school, c in pairs(ns.THEME.color) do
-	ns.THEME.barColor[school] = { math.min(1, c[1] * 1.15), math.min(1, c[2] * 1.15), math.min(1, c[3] * 1.15) }
-end
 
 -- Seed IDs and English names, as _Core's DEFS
 
