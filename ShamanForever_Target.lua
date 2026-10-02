@@ -386,9 +386,8 @@ end
 
 -- Flame Shock: the Not on target look
 local FLAME = TARGET[1]
-local fighting = false
 
-local function readable() return not fighting and not InCombatLockdown() and not ns.aurasSecret() end
+local function readable() return not ns.inCombat() and not ns.aurasSecret() end
 
 -- nil when it can't be told (read fails or secret). Any rank counts, by ID or the client's name
 local function flameShockOnTarget()
@@ -454,7 +453,7 @@ local function styleUp()
 end
 
 local function checkMissing()
-	if fighting or InCombatLockdown() then return end
+	if ns.inCombat() then return end
 	if readWanted() then flameShockOnTarget() end
 	stateLook()
 end
@@ -474,7 +473,6 @@ end
 
 -- Combat starts: icon to its idle alpha at once (a fade would stop part way)
 local function combatStarts()
-	fighting = true
 	styleLook()
 	styleUp()
 	applyIdle(FLAME)
@@ -582,17 +580,8 @@ function T.start()
 	ns.registerEvent(ev, "PLAYER_TARGET_CHANGED")
 	ns.registerEvent(ev, "UNIT_FACTION", "target")
 	ns.registerEvent(ev, "UNIT_AURA", "target")
-	ns.registerEvent(ev, "PLAYER_REGEN_DISABLED")
-	ns.registerEvent(ev, "PLAYER_REGEN_ENABLED")
 	ev:SetScript("OnEvent", function(_, event)
-		if event == "PLAYER_REGEN_DISABLED" then combatStarts()
-		elseif event == "PLAYER_REGEN_ENABLED" then
-			fighting = false
-			styleLook()
-			styleUp()
-			checkMissing()
-			refreshAura(FLAME)
-		elseif event == "UNIT_AURA" then
+		if event == "UNIT_AURA" then
 			if not readWanted() then return end
 			checkMissing()
 			refreshAura(FLAME)
@@ -601,6 +590,13 @@ function T.start()
 			checkMissing()
 			refreshAura(FLAME)
 		end
+	end)
+	ns.onCombatStart(combatStarts)
+	ns.onCombatEnd(function()
+		styleLook()
+		styleUp()
+		checkMissing()
+		refreshAura(FLAME)
 	end)
 	ns.onCanActChange(function() checkMissing(); refreshAura(FLAME) end)
 end
