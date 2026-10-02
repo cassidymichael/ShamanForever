@@ -280,7 +280,7 @@ function M.menuFont(path)
 	local obj = menuFonts[path]
 	if not obj then
 		menuCount = menuCount + 1
-		obj = CreateFont("ShamanForeverMenuFont" .. menuCount)
+		obj = CreateFont(ns.NAME .. "MenuFont" .. menuCount)
 		obj:CopyFontObject(GameFontHighlight)
 		local _, size = GameFontHighlight:GetFont()
 		obj:SetFont(path, size or 12, "")

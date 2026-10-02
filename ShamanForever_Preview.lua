@@ -306,7 +306,7 @@ local optionsButton
 do
 	local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	title:SetPoint("TOPLEFT", 10, -13)
-	title:SetText("ShamanForever: preview")
+	title:SetText(ns.NAME .. ": preview")
 	local mode = choice(panel, "mode", {
 		{ "preview", "Preview", "An ordinary moment in a fight." },
 		{ "warnings", "Warnings", "Warnings focused." },

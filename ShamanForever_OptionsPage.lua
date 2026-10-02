@@ -42,9 +42,9 @@ end
 
 -- Pages
 function Page.new(win, key, title, indent)
-	local ok, scroll = pcall(CreateFrame, "ScrollFrame", "ShamanForeverOptionsScroll_" .. key, win, "ScrollFrameTemplate")
+	local ok, scroll = pcall(CreateFrame, "ScrollFrame", ns.NAME .. "OptionsScroll_" .. key, win, "ScrollFrameTemplate")
 	if not (ok and scroll and scroll.ScrollBar) then
-		scroll = CreateFrame("ScrollFrame", "ShamanForeverOptionsScroll_" .. key .. "Old", win, "UIPanelScrollFrameTemplate")
+		scroll = CreateFrame("ScrollFrame", ns.NAME .. "OptionsScroll_" .. key .. "Old", win, "UIPanelScrollFrameTemplate")
 	else
 		if scroll.ScrollBar.SetHideIfUnscrollable then scroll.ScrollBar:SetHideIfUnscrollable(true) end
 		scroll.ScrollBar:ClearAllPoints()
@@ -546,7 +546,7 @@ local function anyChanged(list)
 	return false
 end
 
-local function askReset(name, run) StaticPopup_Show("SHAMANFOREVER_RESET_SETTINGS", name, nil, run) end
+local function askReset(name, run) StaticPopup_Show(ns.POPUP .. "RESET_SETTINGS", name, nil, run) end
 
 Page.refKind("elem", {
 	id = function(r) return r.elem .. "." .. r.name .. (r.field and "." .. r.field or "") end,

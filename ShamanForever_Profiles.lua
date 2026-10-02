@@ -212,7 +212,7 @@ function P.decode(text)
 	local E = C_EncodingUtil
 	if not E then return nil, "sharing needs a newer game client" end
 	text = (text or ""):gsub("%s", "")
-	if text:sub(1, #SHARE_PREFIX) ~= SHARE_PREFIX then return nil, "that isn't a ShamanForever profile" end
+	if text:sub(1, #SHARE_PREFIX) ~= SHARE_PREFIX then return nil, "that isn't a " .. ns.NAME .. " profile" end
 	local ok, data = pcall(function()
 		local method = Enum.CompressionMethod and Enum.CompressionMethod.Deflate
 		return E.DeserializeCBOR(E.DecompressString(E.DecodeBase64(text:sub(#SHARE_PREFIX + 1)), method))
@@ -221,7 +221,7 @@ function P.decode(text)
 		return nil, "that profile text is damaged or incomplete"
 	end
 	if type(data.v) == "number" and data.v > SETTINGS_VERSION then
-		return nil, "that profile needs a newer version of ShamanForever"
+		return nil, "that profile needs a newer version of " .. ns.NAME
 	end
 	return cleanProfile(data.profile)
 end

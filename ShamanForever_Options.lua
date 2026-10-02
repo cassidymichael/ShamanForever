@@ -547,7 +547,7 @@ local function buildGlobal(p)
 	ns.Sounds.generalBlock(p)
 	local hasReporter = ns.IssueReporter.has
 	p:header("Beta", hasReporter)
-	p:checkbox("Hide the Issue Reporter button", "Blizzard's beta Issue Reporter button. ShamanForever also remembers where you drag it.",
+	p:checkbox("Hide the Issue Reporter button", "Blizzard's beta Issue Reporter button. " .. ns.NAME .. " also remembers where you drag it.",
 		function() return acct().hideIssueReporter end, function(v) acct().hideIssueReporter = v; ns.IssueReporter.apply() end, hasReporter)
 
 	p:section("Global styles")
@@ -582,7 +582,7 @@ end
 local nameAction
 local function askName(prompt, initial, action)
 	nameAction = { prompt = prompt, initial = initial or "", run = action }
-	StaticPopup_Show("SHAMANFOREVER_PROFILE_NAME", prompt)
+	StaticPopup_Show(ns.POPUP .. "PROFILE_NAME", prompt)
 end
 
 local function buildProfiles(p)
@@ -601,9 +601,9 @@ local function buildProfiles(p)
 			"A new profile with this one's settings.", 90 },
 		{ "Rename", function() askName("New name:", ns.profileName(), ns.Profiles.rename) end,
 			"Default can't be renamed.", 90, notDefault },
-		{ "Delete", function() StaticPopup_Show("SHAMANFOREVER_DELETE_PROFILE", ns.profileName()) end,
+		{ "Delete", function() StaticPopup_Show(ns.POPUP .. "DELETE_PROFILE", ns.profileName()) end,
 			"Characters using it go back to Default. Default can't be deleted.", 90, notDefault },
-		{ "Reset", function() StaticPopup_Show("SHAMANFOREVER_RESET", ns.profileName()) end,
+		{ "Reset", function() StaticPopup_Show(ns.POPUP .. "RESET", ns.profileName()) end,
 			"Every setting in this profile back to defaults, including the layout.", 90 },
 	})
 
@@ -638,7 +638,7 @@ local function aboutCard(p)
 	f.logo:SetTexture(ART .. "Logo-Icon")
 	f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
 	f.title:SetPoint("TOPLEFT", f.logo, "TOPRIGHT", 14, -8)
-	f.title:SetText("ShamanForever")
+	f.title:SetText(ns.NAME)
 	f.sub = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	f.sub:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -6)
 	f.sub:SetTextColor(0.80, 0.74, 0.66)
@@ -712,13 +712,13 @@ local function buildTotemBar(p)
 		{ "active", "Active totems", "Interface\\Icons\\Spell_Nature_TimeStop" },
 		{ "everything", "Everything", "Interface\\Icons\\Spell_Shaman_DropAll_01", tag = "RECOMMENDED" },
 	}, tget("mode"), function(v) TB.setMode(v); changed() end)
-	local KEYS = "Keys: Options > Keybindings > ShamanForever."
-	local BAR_KEYS = "Keys: Options > Keybindings > ShamanForever, or hover the bar in Quick Keybind Mode."
-	p:text("ShamanForever's totem bar is off. Blizzard's totem bar and active totems display are on.\n"
+	local KEYS = "Keys: Options > Keybindings > " .. ns.NAME .. "."
+	local BAR_KEYS = "Keys: Options > Keybindings > " .. ns.NAME .. ", or hover the bar in Quick Keybind Mode."
+	p:text(ns.NAME .. "'s totem bar is off. Blizzard's totem bar and active totems display are on.\n"
 		.. "The totem key bindings still work. " .. KEYS, function() return c().mode == "blizzard" end)
 	p:text("Keeps Blizzard's totem bar, but replaces Blizzard's active totems display usually shown under the player frame.\n"
 		.. "Right-click a totem to dismiss it. " .. BAR_KEYS, function() return c().mode == "active" end)
-	p:text("Both of Blizzard's totem frames are replaced by ShamanForever.\n"
+	p:text("Both of Blizzard's totem frames are replaced by " .. ns.NAME .. ".\n"
 		.. "Right-click a totem to dismiss it. Alt+click a slot to pick its totem. " .. BAR_KEYS, full)
 
 	p.gate = TB.barOn
@@ -1256,10 +1256,10 @@ local function addStyleUsers()
 end
 
 local function buildWindow()
-	win = CreateFrame("Frame", "ShamanForeverOptionsFrame", UIParent, "ButtonFrameTemplate")
+	win = CreateFrame("Frame", ns.NAME .. "OptionsFrame", UIParent, "ButtonFrameTemplate")
 	if ButtonFrameTemplate_HideButtonBar then pcall(ButtonFrameTemplate_HideButtonBar, win) end
 	if win.Inset then win.Inset:Hide() end
-	if win.SetTitle then win:SetTitle("ShamanForever") end
+	if win.SetTitle then win:SetTitle(ns.NAME) end
 	local title = win.TitleContainer and win.TitleContainer.TitleText or win.TitleText
 	if title then
 		local font, size, flags = title:GetFont()
@@ -1271,7 +1271,7 @@ local function buildWindow()
 	logo:SetSize(LOGO_SIZE, LOGO_SIZE)
 	logo:SetPoint("TOPLEFT", win, "TOPLEFT", LOGO_X, LOGO_Y)
 	logo:SetFrameLevel(600)
-	local LOGO = "Interface\\AddOns\\ShamanForever\\Art\\Logo-Icon"
+	local LOGO = ART .. "Logo-Icon"
 	logo.shadow = logo:CreateTexture(nil, "BACKGROUND")
 	logo.shadow:SetTexture(LOGO)
 	logo.shadow:SetVertexColor(0, 0, 0, 0.7)
@@ -1382,10 +1382,10 @@ local function buildWindow()
 	win:Hide()
 end
 
-confirm("SHAMANFOREVER_RESET", "Reset profile %s to defaults?\nIts layout and every setting are lost.", "Reset",
+confirm(ns.POPUP .. "RESET", "Reset profile %s to defaults?\nIts layout and every setting are lost.", "Reset",
 	function() ns.Profiles.reset(); ns.say("profile reset to defaults") end)
-confirm("SHAMANFOREVER_RESET_SETTINGS", "Reset %s to defaults?", "Reset", function(run) run() end)
-confirm("SHAMANFOREVER_DELETE_PROFILE", "Delete profile %s?\nCharacters using it go back to Default.", "Delete",
+confirm(ns.POPUP .. "RESET_SETTINGS", "Reset %s to defaults?", "Reset", function(run) run() end)
+confirm(ns.POPUP .. "DELETE_PROFILE", "Delete profile %s?\nCharacters using it go back to Default.", "Delete",
 	function() ns.Profiles.delete() end)
 
 -- editBox is dialog.EditBox on newer clients.
@@ -1401,11 +1401,11 @@ local function submitName(text)
 		local prompt = action.retryOf or action.prompt
 		C_Timer.After(0, function()
 			nameAction = { prompt = prompt, retryOf = prompt, initial = text, run = action.run }
-			StaticPopup_Show("SHAMANFOREVER_PROFILE_NAME", "|cffff6060" .. err:gsub("^%l", string.upper) .. ".|r\n" .. prompt)
+			StaticPopup_Show(ns.POPUP .. "PROFILE_NAME", "|cffff6060" .. err:gsub("^%l", string.upper) .. ".|r\n" .. prompt)
 		end)
 	end
 end
-StaticPopupDialogs["SHAMANFOREVER_PROFILE_NAME"] = {
+StaticPopupDialogs[ns.POPUP .. "PROFILE_NAME"] = {
 	text = "%s", button1 = ACCEPT, button2 = CANCEL,
 	hasEditBox = true, maxLetters = 32,
 	OnShow = function(self)
@@ -1423,7 +1423,7 @@ StaticPopupDialogs["SHAMANFOREVER_PROFILE_NAME"] = {
 
 local share
 local function buildShare()
-	local f = CreateFrame("Frame", "ShamanForeverShareFrame", UIParent, "BackdropTemplate")
+	local f = CreateFrame("Frame", ns.NAME .. "ShareFrame", UIParent, "BackdropTemplate")
 	f:SetSize(460, 250)
 	f:SetPoint("CENTER")
 	f:SetFrameStrata("FULLSCREEN_DIALOG")
@@ -1608,15 +1608,15 @@ function OP.build()
 	local panel = CreateFrame("Frame")
 	local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	title:SetPoint("TOPLEFT", 16, -16)
-	title:SetText("ShamanForever")
+	title:SetText(ns.NAME)
 	local text = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	text:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -10)
-	text:SetText("ShamanForever has its own options window. You can also open it by typing /sf.")
+	text:SetText(ns.NAME .. " has its own options window. You can also open it by typing /sf.")
 	local button = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
 	button:SetSize(180, 26)
 	button:SetPoint("TOPLEFT", text, "BOTTOMLEFT", 0, -14)
 	button:SetText("Open options")
 	button:SetScript("OnClick", function() OP.open() end)
-	category = Settings.RegisterCanvasLayoutCategory(panel, "ShamanForever")
+	category = Settings.RegisterCanvasLayoutCategory(panel, ns.NAME)
 	Settings.RegisterAddOnCategory(category)
 end

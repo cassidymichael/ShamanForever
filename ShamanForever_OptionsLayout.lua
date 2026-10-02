@@ -33,11 +33,11 @@ end
 local function askAbout(which, g)
 	if g then StaticPopup_Show(which, g.name, nil, g.id) end
 end
-K.confirm("SHAMANFOREVER_CENTER", "Move %s to the middle of the screen?\nIts current position is lost.", "Centre",
+K.confirm(ns.POPUP .. "CENTER", "Move %s to the middle of the screen?\nIts current position is lost.", "Centre",
 	function(id) ns.centerGroup(id) end)
-K.confirm("SHAMANFOREVER_HIDEALL", "Hide every element in %s?\nEach one's Show setting becomes Hidden.", "Hide all",
+K.confirm(ns.POPUP .. "HIDEALL", "Hide every element in %s?\nEach one's Show setting becomes Hidden.", "Hide all",
 	function(id) ns.hideGroup(id) end)
-K.confirm("SHAMANFOREVER_DELETE_GROUP", "Delete the group %s?\n%s", "Delete", function(id)
+K.confirm(ns.POPUP .. "DELETE_GROUP", "Delete the group %s?\n%s", "Delete", function(id)
 	local _, i = ns.groupById(id)
 	if not (i and ns.deleteGroup(id)) then return end
 	local groups = db().groups
@@ -50,7 +50,7 @@ local function askDelete(g)
 	local n = #g.members
 	local what = n == 0 and "It has no elements." or n == 1 and "Its element moves to Ungrouped."
 		or string.format("Its %d elements move to Ungrouped.", n)
-	StaticPopup_Show("SHAMANFOREVER_DELETE_GROUP", g.name, what, g.id)
+	StaticPopup_Show(ns.POPUP .. "DELETE_GROUP", g.name, what, g.id)
 end
 
 -- Element chips
@@ -574,8 +574,8 @@ local function buildSettings(p)
 	p:slider("Opacity", "Transparency of the group.", 0.1, 1, 0.05, pct, get("alpha"), set("alpha"))
 	K.borderRows(p, G, relayout, "Border same as Global")
 	p:buttons({
-		{ "Centre on screen", function() askAbout("SHAMANFOREVER_CENTER", G()) end, "Moves the group to the middle of the screen.", 130 },
-		{ "Hide all", function() askAbout("SHAMANFOREVER_HIDEALL", G()) end, "Sets every element in the group to Hidden. They keep their places; set one back to Always to bring it back.", 90 },
+		{ "Centre on screen", function() askAbout(ns.POPUP .. "CENTER", G()) end, "Moves the group to the middle of the screen.", 130 },
+		{ "Hide all", function() askAbout(ns.POPUP .. "HIDEALL", G()) end, "Sets every element in the group to Hidden. They keep their places; set one back to Always to bring it back.", 90 },
 	})
 	p:buttons({
 		{ "Delete group", function() askDelete(G()) end, "Its elements move to Ungrouped: off screen, their settings kept.", 110,
@@ -594,7 +594,7 @@ function rowMenu(r)
 			ns.Options.openGroup(g.id)
 			startRename()
 		end)
-		root:CreateButton("Hide all", function() askAbout("SHAMANFOREVER_HIDEALL", g) end)
+		root:CreateButton("Hide all", function() askAbout(ns.POPUP .. "HIDEALL", g) end)
 		root:CreateButton("Delete group", function() askDelete(g) end)
 	end)
 end

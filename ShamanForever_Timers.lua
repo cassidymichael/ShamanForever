@@ -180,7 +180,7 @@ function T.new(parent, key, kind, opts)
 	cd:SetSwipeTexture(WHITE)
 	t.cd = cd
 	fonts = fonts + 1
-	t.fontName = "ShamanForeverTimerFont" .. fonts
+	t.fontName = ns.NAME .. "TimerFont" .. fonts
 	t.font = CreateFont(t.fontName)
 	t.font:SetFont(STANDARD_TEXT_FONT, 12, "OUTLINE")
 	cd:SetCountdownFont(t.fontName)

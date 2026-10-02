@@ -1,6 +1,6 @@
 -- Slash command, minimap button, addon drawer
 
-local _, ns = ...
+local ADDON, ns = ...
 local say = ns.say
 
 SLASH_SHAMANFOREVER1 = "/sf"
@@ -29,24 +29,24 @@ function ns.applyMinimapButton()
 	if not (ldb and icon and acct) then return end
 	if type(acct.minimap) ~= "table" then acct.minimap = {} end
 	if not minimapIcon then
-		local obj = ldb:NewDataObject("ShamanForever", {
-			type = "launcher", text = "ShamanForever", icon = "Interface\\AddOns\\ShamanForever\\Art\\Logo-Icon",
+		local obj = ldb:NewDataObject(ns.NAME, {
+			type = "launcher", text = ns.NAME, icon = "Interface\\AddOns\\" .. ADDON .. "\\Art\\Logo-Icon",
 			OnClick = function(_, button) onLauncherClick(button) end,
 			OnTooltipShow = function(tt)
-				tt:AddLine("ShamanForever")
+				tt:AddLine(ns.NAME)
 				launcherTip(tt)
 			end,
 		})
-		icon:Register("ShamanForever", obj, acct.minimap)
+		icon:Register(ns.NAME, obj, acct.minimap)
 		minimapIcon = icon
 	end
-	if acct.minimap.hide then minimapIcon:Hide("ShamanForever") else minimapIcon:Show("ShamanForever") end
+	if acct.minimap.hide then minimapIcon:Hide(ns.NAME) else minimapIcon:Show(ns.NAME) end
 end
 
 _G.ShamanForever_OnAddonCompartmentClick = function(_, button) onLauncherClick(button) end
 _G.ShamanForever_OnAddonCompartmentEnter = function(_, button)
 	GameTooltip:SetOwner(button, "ANCHOR_LEFT")
-	GameTooltip:SetText("ShamanForever")
+	GameTooltip:SetText(ns.NAME)
 	launcherTip(GameTooltip)
 	GameTooltip:Show()
 end

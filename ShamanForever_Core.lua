@@ -2,7 +2,10 @@
 
 local _, ns = ...
 
-local PREFIX = "|cff3399ffShamanForever|r: "
+-- The addon's name in text, frame names and popup keys
+ns.NAME = "ShamanForever"
+ns.POPUP = "SHAMANFOREVER_"
+local PREFIX = "|cff3399ff" .. ns.NAME .. "|r: "
 function ns.say(fmt, ...) print(PREFIX .. string.format(fmt, ...)) end
 
 function ns.isSecret(v) return issecretvalue and issecretvalue(v) or false end

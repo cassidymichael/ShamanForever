@@ -123,7 +123,7 @@ local isShaman = false
 -- root spans the screen and takes no input: the parent of every group, hidden for other classes.
 -- Not named ShamanForeverFrame: older versions dragged a frame of that name and the layout cache
 -- would re-anchor it.
-local root = CreateFrame("Frame", "ShamanForeverRoot", UIParent)
+local root = CreateFrame("Frame", ns.NAME .. "Root", UIParent)
 root:SetAllPoints(UIParent)
 
 -- Every element, in the order they register (TOC order)
