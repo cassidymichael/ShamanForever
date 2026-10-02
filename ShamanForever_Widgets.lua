@@ -644,12 +644,13 @@ function ClipLook:follow(unit)
 	return ok
 end
 
-function ClipLook:setLevel(lv)
+-- up: the glow's level over the look (2 over a look whose edge carries an art frame)
+function ClipLook:setLevel(lv, up)
 	for _, f in ipairs({ self.hold, self.clip, self.look, self.art }) do
 		f:SetFrameLevel(lv)
 	end
-	self.glow:SetFrameLevel(lv + 1)
-	self.glow.inner:SetFrameLevel(lv + 1)
+	self.glow:SetFrameLevel(lv + (up or 1))
+	self.glow.inner:SetFrameLevel(lv + (up or 1))
 end
 
 function ClipLook:describe()
@@ -685,7 +686,9 @@ function ns.makeIcon(parent, size, owner)
 			self.tex:SetVertexColor(r == 1 and 1 or k, g == 1 and 1 or k, b == 1 and 1 or k)
 		end
 	end
+	-- Levels over the icon: its art frame (ns.Frames.LEVEL.over), glow, swipe, text
 	f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
+	f.cd:SetFrameLevel(f:GetFrameLevel() + 3)
 	f.cd:SetAllPoints()
 	f.cd:SetDrawEdge(false)
 	-- Text above the cooldown so the swipe never dims it.
@@ -710,6 +713,7 @@ function ns.makeIcon(parent, size, owner)
 	end
 	f.fx = ns.Effects.host(f, owner)
 	f.glowF = f.fx.glowF
+	f.glowF:SetFrameLevel(f:GetFrameLevel() + 2)
 	f.SetGlowShown = function(self, shown, r, g, b) self.fx:glow(shown, r, g, b) end
 	f.Pop = function(self, kind) self.fx:pop(kind) end
 	return f

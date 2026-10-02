@@ -82,6 +82,7 @@ local function makeStandIn(key, gf)
 	h:SetAllPoints(ns.ELEMENTS[key].frame)
 	local ic = L.makePreviewIcon(h, key, L.PREVIEW[key])
 	ic:SetAllPoints(h)
+	if ic.upT then ic.upT:restack(2) end
 	if key == "tremor" then
 		ic.word = ic.textFrame:CreateFontString(nil, "OVERLAY")
 		ns.Media.setFont(ic.word, nil, 16)

@@ -344,7 +344,7 @@ function Timer:setExpire(e, icon)
 	if not x then
 		x = CreateFrame("Frame", nil, self.parent)
 		x:SetAllPoints(self.anchor)
-		x:SetFrameLevel(self.anchor:GetFrameLevel() + 1)
+		x:SetFrameLevel(self.anchor:GetFrameLevel() + (self.over or 1))
 		x:SetAlpha(0)
 		x.grey = x:CreateTexture(nil, "ARTWORK")
 		x.grey:SetAllPoints()
@@ -385,10 +385,12 @@ function Timer:setExpireIcon(icon)
 	if self.exp then ns.try("timer expiring icon", self.exp.grey.SetTexture, self.exp.grey, icon) end
 end
 
-function Timer:restack()
+-- over: the expiring warning's level over its anchor (an element icon's: over its art frame)
+function Timer:restack(over)
+	if over then self.over = over end
 	local x = self.exp
 	if x then
-		x:SetFrameLevel(self.anchor:GetFrameLevel() + 1)
+		x:SetFrameLevel(self.anchor:GetFrameLevel() + (self.over or 1))
 		x.glow:SetFrameLevel(x:GetFrameLevel() + 1)
 	end
 	if self.bar then self.bar:SetFrameLevel(self.cd:GetFrameLevel() + 1) end

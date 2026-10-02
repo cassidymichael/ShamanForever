@@ -151,8 +151,8 @@ function ns.registerElement(key, e)
 end
 -- An element's icon: opts.effects gives it an effects layer that ignores the icon's alpha (glows and
 -- flashes stay full when it idles) and takes its group's opacity instead (layoutGroup). f.stack()
--- restates frame levels, bottom up: icon, effects and glow, swipe, cooldown timer bar, text, time
--- left; layoutGroup calls it after regrouping.
+-- restates frame levels, bottom up: icon, its art frame (ns.Frames.LEVEL.over), effects and glow,
+-- swipe, cooldown timer bar, text, time left; layoutGroup calls it after regrouping.
 function ns.newElementIcon(key, opts)
 	local f = ns.makeIcon(root, DEFAULTS.iconSize, key)
 	f.count:Hide()
@@ -161,16 +161,16 @@ function ns.newElementIcon(key, opts)
 		f.effects:SetAllPoints()
 		f.effects:SetIgnoreParentAlpha(true)
 		f.glowF:SetParent(f.effects)
-		function f.stack()
-			local base = f:GetFrameLevel()
-			f.effects:SetFrameLevel(base)
-			f.glowF:SetFrameLevel(base + 1)
-			if f.warn then f.warn:SetFrameLevel(base + 1) end
-			f.cd:SetFrameLevel(base + 2)
-			if f.cdTimer and f.cdTimer.bar then f.cdTimer.bar:SetFrameLevel(base + 3) end
-			f.textFrame:SetFrameLevel(base + 4)
-			if f.upTimer then f.upTimer:restack() end
-		end
+	end
+	function f.stack()
+		local base = f:GetFrameLevel()
+		if f.effects then f.effects:SetFrameLevel(base) end
+		f.glowF:SetFrameLevel(base + 2)
+		if f.warn then f.warn:SetFrameLevel(base + 2) end
+		f.cd:SetFrameLevel(base + 3)
+		if f.cdTimer and f.cdTimer.bar then f.cdTimer.bar:SetFrameLevel(base + 4) end
+		f.textFrame:SetFrameLevel(base + 5)
+		if f.upTimer then f.upTimer:restack(2) end
 	end
 	return f
 end
@@ -538,10 +538,12 @@ local function layoutGroup(g)
 	local forward = g.growth ~= "backward"
 	local n, along, across = 0, 0, 0
 	local placed = {}
+	local level = gf:GetFrameLevel() + ns.Frames.LEVEL.member
 	for _, key in ipairs(g.members) do
 		local e = ELEMENTS[key]
 		local f = e.frame
 		if f:GetParent() ~= gf then f:SetParent(gf) end
+		f:SetFrameLevel(level)
 		if e.stack then e.stack() end
 		if showMode(key) == "never" or not onHUD(key) then
 			hideFrame(f)

@@ -11,8 +11,8 @@ local S = ns.Style
 local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Art\\Frames\\"
 local floor, max, min, abs = math.floor, math.max, math.min, math.abs
 
--- Frame levels, from the carrier's (element) or the group frame's own
-FR.LEVEL = { under = -2, over = 1, top = 13, group = 0, groupTop = 16 }
+-- Frame levels, from the carrier's (element) or the group frame's own; members sit at member
+FR.LEVEL = { under = -2, over = 1, top = 13, group = 0, groupTop = 16, member = 3 }
 
 local SECTIONS = { { "blizzard", "Blizzard's" }, { "painted", "Painted" }, { "minimal", "Minimal" } }
 S.addField("frame", "look", { name = "Frame look", where = "Global settings > Frame style",
