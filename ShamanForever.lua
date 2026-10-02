@@ -75,8 +75,6 @@ local DEFAULTS = {
 	},
 	known = {},
 	elementOpts = {},
-	totemBar = {},
-	swingBar = {},
 	timers = { cooldown = CopyTable(ns.Timer.DEFAULTS.cooldown), uptime = CopyTable(ns.Timer.DEFAULTS.uptime) },
 }
 local RETIRED_KEYS = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "popMotion", "popSize", "popSpeed",
@@ -826,6 +824,10 @@ local function selectProfile(name)
 	for _, k in ipairs(RETIRED_KEYS) do db[k] = nil end
 	ns.Profiles.migrate(db)   -- renamed settings: drop after launch
 	fillDefaults(db, DEFAULTS)
+	for _, key in ipairs(ns.Style.bars()) do
+		local saved = ns.Style.bar(key).saved
+		if db[saved] == nil then db[saved] = {} end
+	end
 	sanitize()
 	ns.Profiles.remember(name)
 end

@@ -353,6 +353,10 @@ local function cleanProfile(t)
 	for k, default in pairs(DEFAULTS) do
 		if type(t[k]) == type(default) then out[k] = t[k] end
 	end
+	for _, key in ipairs(ns.Style.bars()) do
+		local saved = ns.Style.bar(key).saved
+		if type(t[saved]) == "table" then out[saved] = t[saved] end
+	end
 	clampNumbers(out, RANGES, DEFAULTS)
 	for _, kind in ipairs({ "frame", "groupframe" }) do
 		local spec = ns.Style.KINDS[kind]
