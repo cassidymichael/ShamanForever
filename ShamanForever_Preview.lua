@@ -186,7 +186,6 @@ end
 
 local ticker = CreateFrame("Frame")
 ticker:Hide()
-ticker.t = 0
 local function advance(key, r)
 	r.i = r.i % #r.steps + 1
 	startStep(key, r, #r.steps > 1)
@@ -195,10 +194,7 @@ local function advanceBar(el, r)
 	r.i = r.i % #r.steps + 1
 	startBarStep(el, r, #r.steps > 1)
 end
-ticker:SetScript("OnUpdate", function(self, elapsed)
-	self.t = self.t + elapsed
-	if self.t < 0.1 then return end
-	self.t = 0
+ticker:SetScript("OnUpdate", ns.throttled(0.1, function()
 	local now = GetTime()
 	for key, r in pairs(runs) do
 		if r.live and r.nextAt then
@@ -212,7 +208,7 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 	for el, r in pairs(barRuns) do
 		if r.nextAt and now >= r.nextAt then ns.try("preview totem bar", advanceBar, el, r) end
 	end
-end)
+end))
 
 local function restart()
 	wipe(runs)

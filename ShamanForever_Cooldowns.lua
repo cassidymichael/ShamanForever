@@ -661,13 +661,7 @@ CD.readyAlpha = readyAlpha
 function CD.readyTicker(update)
 	local ticker = CreateFrame("Frame")
 	ticker:Hide()
-	ticker.t = 0
-	ticker:SetScript("OnUpdate", function(self, elapsed)
-		self.t = self.t + elapsed
-		if self.t < 0.1 then return end
-		self.t = 0
-		update()
-	end)
+	ticker:SetScript("OnUpdate", ns.throttled(0.1, update))
 	return ticker
 end
 local function refreshReadyGlow(def, cantAct)

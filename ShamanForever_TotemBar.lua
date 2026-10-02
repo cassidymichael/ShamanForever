@@ -778,11 +778,7 @@ end
 
 local ticker = CreateFrame("Frame")
 ticker:Hide()
-ticker.t = 0
-ticker:SetScript("OnUpdate", function(self, elapsed)
-	self.t = self.t + elapsed
-	if self.t < 0.1 then return end
-	self.t = 0
+ticker:SetScript("OnUpdate", ns.throttled(0.1, function()
 	if not bar:IsShown() then return end
 	local arrows = feat("arrows")
 	for _, el in ipairs(ELEMENTS) do
@@ -790,7 +786,7 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 		hover(s, arrows)
 		if s.down and not preview then TB.drawTimeLeft(s) end
 	end
-end)
+end))
 
 -- Blizzard's totem frames
 -- The totems under the player frame: made invisible and click-through rather than hidden, since
