@@ -559,8 +559,13 @@ local function timerSettings(p, title, key, kind, after, note, first, barPlaced)
 	if not key then ownLine(p, kind) end
 end
 
-local function gcdBlock(p, key)
-	local function after() ns.refreshAll(); ns.TotemBar.refreshGCD(); OP.refresh() end
+-- after: else elements read again; Global's reaches the bars through their layout
+local function gcdBlock(p, key, after)
+	after = after or function()
+		if not key then ns.applyLayout() end
+		ns.refreshAll()
+		OP.refresh()
+	end
 	p:header("Global cooldown")
 	local r = styleRows(p, key, "gcd", after)
 	if key then followRow(p, key, "gcd", after)

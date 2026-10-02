@@ -521,7 +521,7 @@ local function build(p)
 	K.textBlock(p, "totembar", changed)
 
 	p.gate = full
-	K.gcdBlock(p, "totembar")
+	K.gcdBlock(p, "totembar", changed)
 	p:header("Totem not down")
 	local look = p:dropdown("Look", "How a slot looks while its totem isn't down.",
 		{ { "pick", "Your pick" }, { "frame", "Element colour" }, { "blank", "Blank" } }, tget("empty"), tset("empty"), nil, 180)
