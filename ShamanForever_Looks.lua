@@ -182,11 +182,10 @@ local function drawSlice(f, art)
 	local k = px / art.margin
 	if k <= 0 then h:Hide(); return 0 end   -- SetScale refuses 0
 	h:SetScale(k)
-	local w, hh = f:GetWidth(), f:GetHeight()
-	if ns.isSecret(w) or ns.isSecret(hh) then return px end   -- secret under a secure button: next layout
-	h:SetSize((w + 2 * px) / k, (hh + 2 * px) / k)
+	-- Anchored, not sized (f's size can be secret); offsets are in h's scale
 	h:ClearAllPoints()
-	h:SetPoint("CENTER", f, "CENTER", 0, 0)
+	h:SetPoint("TOPLEFT", f, "TOPLEFT", -art.margin, art.margin)
+	h:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", art.margin, -art.margin)
 	h:SetFrameLevel(f:GetFrameLevel())
 	h.tex:SetTexture(art.file)
 	h.tex:SetTextureSliceMargins(art.margin, art.margin, art.margin, art.margin)
