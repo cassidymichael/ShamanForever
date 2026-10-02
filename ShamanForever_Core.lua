@@ -548,3 +548,13 @@ function Spells.add(rows)
 	end
 	resolveNames()
 end
+
+-- IDs checked like the seeds but kept out of the lookups (a spell's second copy)
+local extra = {}
+function Spells.addExtra(rows)
+	for key, ids in pairs(rows) do
+		extra[key] = ids
+		Spells.addCheck(key, ids)
+	end
+end
+function Spells.extra(key) return extra[key] or {} end
