@@ -421,6 +421,9 @@ local function buildShield(p, def)
 	warningBlock(p, "No shield", opt, { "emptyGrey", "emptyRing", "emptyPulse" })
 	p:checkbox("Red tint", "Tint the icon red.", opt("emptyTint"))
 	p:checkbox("Pulsing glow", "A glow that pulses, in the Pulsing glow style.", opt("emptyGlow"))
+	local soundGet, soundSet = eopt(p, "shield", "removedSound")
+	ns.Sounds.row(p, "Sound", "When the shield goes: charges spent, cancelled or run out.", soundGet,
+		function(v) soundSet(v); ns.Shield.applyRemovedSound() end, nil, ns.Sounds.fileChoices)
 
 	timerSettings(p, "Time left", "shield", "uptime")
 	gcdBlock(p, "shield")

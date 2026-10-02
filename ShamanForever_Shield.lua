@@ -39,7 +39,7 @@ local IDLE_CHOICES = {
 ns.Profiles.addRanges({ countSize = { 8, 64 }, chargeBarHeight = { 1, 20 } })
 ns.registerElement("shield", { frame = shield, label = "Shields", paint = function(t) t:SetTexture(SH.icon()) end,
 	learned = function() return SH.learned() end,
-	defaults = { idleWhen = "never", idleAlpha = 0.3 },
+	defaults = { idleWhen = "never", idleAlpha = 0.3, removedSound = "none" },
 	styles = { glow = { look = "soft" },
 		uptime = { text = false, swipe = false, swipeAlpha = 0.5, swipeReverse = false, bar = false, barEdge = "top" } },
 	def = { key = "shield", idleChoices = IDLE_CHOICES },
@@ -318,6 +318,17 @@ local function learnShieldID(key, id)
 	else applyShieldFilter() end
 end
 
+-- Charges spent, cancelled or run out; a recast over a live shield stays silent
+local WATER_COPY = 408511
+function SH.applyRemovedSound()
+	local ids = {}
+	if ns.isEnabled("shield") then
+		for id in pairs(shieldIDMap()) do ids[id] = true end
+		if tracksShield("water") then ids[WATER_COPY] = true end
+	end
+	ns.Sounds.setAuraSound("shield", ns.elementSetting("shield", "removedSound"), ids)
+end
+
 function SH.resolve()
 	local sig = {}
 	wipe(notCast)
@@ -331,6 +342,7 @@ function SH.resolve()
 	end
 	applyShieldFilter()
 	SH.applyEmptyLook()
+	SH.applyRemovedSound()
 	return table.concat(sig, ",")
 end
 
@@ -688,6 +700,7 @@ function SH.refresh()
 	checkIDs()
 	refreshAura()
 	refreshGCD(false)
+	SH.applyRemovedSound()
 end
 SH.onCooldowns = refreshGCD
 function SH.start()

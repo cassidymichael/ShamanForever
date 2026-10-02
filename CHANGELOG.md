@@ -6,6 +6,7 @@
   group's own border carries over to its elements.
 - Frames: decorative art round an element or a whole group, set on each page and shown in the
   Styles explorer.
+- Shields: an optional sound when your shield goes.
 
 ## 0.12.1 (2026-10-02)
 
