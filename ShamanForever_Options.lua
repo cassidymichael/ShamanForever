@@ -15,36 +15,51 @@ local LOGO_SIZE, LOGO_X, LOGO_Y = 112, -19, 24   -- the logo badge over the wind
 local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
 
 local win
-local pages, pageOrder, currentPage = {}, {}, nil
+-- Every page's key, title and builder (stubs, pageOrder); pages: those built, on first show.
+local pages, pageOrder, stubs, currentPage = {}, {}, {}, nil
 
 local function db() return ns.getDB() end
 local function acct() return ns.getAccount() end
--- Settings are written at once; the HUD's layout and the page's repaint follow once per frame, so a
--- slider drag or a colour-picker move lays out once a frame, not once per step. The repaint also
--- covers combat, where the layout itself waits for combat to end.
-local relayoutQueued = false
-local function relayout()
-	if relayoutQueued then return end
-	relayoutQueued = true
-	C_Timer.After(0, function()
-		relayoutQueued = false
-		ns.applyLayout()
-		OP.refresh()
-	end)
+-- Settings are written at once; what follows them (the HUD's layout or restyle, the page's repaint)
+-- runs once per frame, so a slider drag or a colour-picker move restyles once a frame, not once per
+-- step. The repaint also covers combat, where the layout itself waits for combat to end.
+local function perFrame(fn)
+	local queued = false
+	return function()
+		if queued then return end
+		queued = true
+		C_Timer.After(0, function()
+			queued = false
+			fn()
+		end)
+	end
 end
+local relayout = perFrame(function() ns.applyLayout(); OP.refresh() end)
 -- Timer rows: only the timers take the new look, not the whole layout.
-local function retime()
-	ns.applyTimers()
-	OP.refresh()
-end
+local retime = perFrame(function() ns.applyTimers(); OP.refresh() end)
+-- Glow rows: the glows restyle; ns.Effects.applyStyle only restyles the listed glows, and a glow
+-- under Blizzard's aura button (Maelstrom's at five) takes a style change through its module's
+-- applyTimers hook.
+local reglow = perFrame(function() ns.Effects.applyStyle(); ns.applyTimers(); OP.refresh() end)
 -- A spell choice (the shield or shock tracked, the Mana check): the spells looked up again, and a
 -- layout, since the shield's Track decides whether Shields counts as learned.
 local function respell() ns.resolveSpells(); ns.applyLayout(); ns.refreshAll(); OP.refresh() end
 
-local function newPage(key, title, indent)
-	local p = Page.new(win, key, title, indent)
+local function newPage(key, title, indent, build)
+	local stub = { key = key, title = title, indent = indent, build = build }
+	stubs[key] = stub
+	table.insert(pageOrder, stub)
+end
+
+-- A page, built now if it hasn't been. Kept before its builder runs: a builder that fails raises
+-- its error once, not a new page on every try.
+local function pageOf(key)
+	local p = pages[key]
+	if p or not stubs[key] then return p end
+	local stub = stubs[key]
+	p = Page.new(win, key, stub.title, stub.indent)
 	pages[key] = p
-	table.insert(pageOrder, p)
+	stub.build(p)
 	return p
 end
 
@@ -82,7 +97,6 @@ end
 -- "Same as Global" for a style: on, the rows under it hide; off the first time, the owner keeps
 -- the look it has as its own, and later its own values come back.
 local function followRow(p, owner, kind, after, label, shown)
-	if type(owner) == "string" then ns.Style.addUser(kind, owner) end
 	ownStyle(p, owner, kind, after)
 	return globalRow(p, label or "Same as Global", "Use the global style.",
 		function() local o = resolve(owner); return o ~= nil and ns.Style.follows(o, kind) end,
@@ -100,13 +114,12 @@ local function styleRows(p, owner, kind, after)
 	local St = ns.Style
 	ownStyle(p, owner, kind, after)
 	local r = {}
-	function r.style()
-		local o = resolve(owner)
-		if o == nil then return St.global(kind) end
-		return St.get(o, kind)
-	end
+	function r.style() return St.read(resolve(owner), kind) end
 	function r.own() local o = resolve(owner); return o == nil or not St.follows(o, kind) end
-	function r.get(field) return function() return r.style()[field] end end
+	function r.get(field)
+		if type(St.KINDS[kind].defaults[field]) == "table" then return function() return r.style()[field] end end
+		return function() return St.value(resolve(owner), kind, field) end
+	end
 	function r.set(field) return function(v)
 		local o = resolve(owner)
 		if o == nil and owner ~= nil then return end   -- no group selected
@@ -137,8 +150,7 @@ local function choiceRows(p, r, kind, field, label, tip, shown)
 		for _, e in ipairs(St.offered(kind, field, key())) do table.insert(out, { e.key, e.name }) end
 		return out
 	end
-	local dd = p:dropdown(label, tip, list, key, set, shown, 190).dropdown
-	dd:SetupMenu(function(_, root)
+	p:dropdown(label, tip, list, key, set, shown, 190, function(_, root)
 		root:SetScrollMode(400)
 		for i, sec in ipairs(St.sections(kind, field, key())) do
 			if sec.name then
@@ -175,7 +187,7 @@ local function previewBorder(owner)
 	local o = resolve(owner)
 	if o == "totembar" then local _, b = ns.TotemBar.look(); return b end
 	if isElement(o) then return ns.borderFor(o) end
-	return o == nil and ns.Style.global("border") or ns.Style.get(o, "border")
+	return ns.Style.read(o, "border")
 end
 
 -- A style block's preview: tiles from the pool (ns.Look.tilePool) wearing the owner's styles, in
@@ -255,12 +267,11 @@ local function popSchoolRow(p, key, shown)
 		local v = ns.elementSetting(key, "popSchool")
 		return ns.SCHOOL_COLOR[v] and v or "own"
 	end
-	local function after() ns.Effects.applyStyle(); ns.applyTimers(); OP.refresh() end
 	local function set(v)
 		ns.elementOpts(key).popSchool = v ~= "own" and v or nil
-		after()
+		reglow()
 	end
-	p:owns({ elem = key, name = "popSchool", after = after })
+	p:owns({ elem = key, name = "popSchool", after = reglow })
 	p:dropdown("Element", "The element its pop and School material glow take.", function()
 		local own = ns.Looks.elementSchool(key, true)
 		local out = { { "own", "Its own" } }
@@ -275,10 +286,7 @@ end
 -- Standard block: the pulsing glow's style, with an icon glowing all the time that follows every
 -- change at once (one per school for a look that differs by school).
 local function glowBlock(p, owner, icon)
-	-- ns.Effects.applyStyle only restyles the listed glows; a glow under Blizzard's aura button
-	-- (Maelstrom's at five) isn't on that list and only picks up a style change through its
-	-- module's applyTimers hook.
-	local function after() ns.Effects.applyStyle(); ns.applyTimers(); OP.refresh() end
+	local after = reglow
 	p:header("Pulsing glow style")
 	local r = styleRows(p, owner, "glow", after)
 	if owner == nil then
@@ -333,11 +341,11 @@ local function popBlock(p, owner, icon, kind)
 	end
 	-- ns.applyTimers: the pops Blizzard's aura buttons play (Elemental Focus, Purge) take a style
 	-- change through their module's hook, once out of combat.
-	local function after()
+	local after = perFrame(function()
 		ns.applyTimers()
 		OP.refresh()
 		if f and f:IsVisible() then playPop() end
-	end
+	end)
 	p:header("Pop style")
 	local r = styleRows(p, owner, "pop", after)
 	-- Colour is for Ready and Ran out (ns.Looks.POP_EVENTS): a page whose pop is for a warning (the
@@ -783,7 +791,7 @@ local MAX_WARN_ROWS = 32
 local function buildTotemBar(p)
 	local TB = ns.TotemBar
 	local function c() return TB.cfg() end
-	local function changed() TB.applySettings(); OP.refresh() end
+	local changed = perFrame(function() TB.applySettings(); OP.refresh() end)
 	local function tget(key) return function() return c()[key] end end
 	-- The block being built owns a bar setting; ref: the rest of its ref (a reset of its own).
 	local function own(key, ref)
@@ -1104,10 +1112,7 @@ local function buildTotemBar(p)
 		setTip(x, "Remove", "Use the time above for this totem.")
 	end
 	-- Adding is an action, not a choice kept: plain entries under a prompt, not radio buttons.
-	local add = p:dropdown("Add a totem", "Give a totem its own warning time.", {}, function() return nil end, function() end, nil, 220)
-	local dd = add.dropdown
-	pcall(dd.SetDefaultText, dd, "Choose a totem")
-	dd:SetupMenu(function(_, root)
+	local add = p:dropdown("Add a totem", "Give a totem its own warning time.", {}, function() return nil end, function() end, nil, 220, function(_, root)
 		local names, seen = {}, {}
 		for slot = 1, 4 do
 			for _, id in ipairs(ns.Totems.knownTotems(slot)) do
@@ -1124,6 +1129,7 @@ local function buildTotemBar(p)
 		end
 		if #names == 0 then root:CreateTitle("Every totem you know has its own time") end
 	end)
+	pcall(add.dropdown.SetDefaultText, add.dropdown, "Choose a totem")
 
 	killedBlock(p, tget, tset, "slot", "Flash when a totem dies early")
 
@@ -1135,7 +1141,7 @@ end
 -- The helpers and standard blocks the Groups & Layout page and the element pages share
 -- (ShamanForever_OptionsLayout.lua, ShamanForever_OptionsElements.lua).
 OP.kit = {
-	relayout = relayout, respell = respell, get = get, set = set, gopt = gopt, confirm = confirm,
+	relayout = relayout, perFrame = perFrame, respell = respell, get = get, set = set, gopt = gopt, confirm = confirm,
 	SHOW_CHOICES = SHOW_CHOICES,
 	COMBAT_SHOW = COMBAT_SHOW, STAY_TIP = STAY_TIP, staySecs = staySecs,
 	globalRow = globalRow, borderRows = borderRows,
@@ -1168,17 +1174,19 @@ local function refreshNav()
 end
 
 local function showPage(key)
+	if not stubs[key] then key = "home" end
+	local page = pageOf(key)
 	currentPage = key
 	acct().optionsPage = key   -- reopened next time, across reloads (account-wide, like the window's size)
-	for _, p in ipairs(pageOrder) do
-		p.scroll:SetShown(p.key == key)
-		if p.fixed then p.fixed:SetShown(p.key == key) end
+	for _, p in pairs(pages) do
+		p.scroll:SetShown(p == page)
+		if p.fixed then p.fixed:SetShown(p == page) end
 	end
 	refreshNav()
 	for _, b in ipairs(navButtons) do
 		if b.page == key and b.sub and navList then navList.reveal(b) end
 	end
-	pages[key]:refresh()
+	page:refresh()
 end
 
 -- The nav: main pages, then every element's page (indented) in a list of its own that scrolls when
@@ -1374,6 +1382,25 @@ local function buildNav()
 	navList = list
 end
 
+-- What can have its own style of each kind, known before any page that sets one is built: the
+-- global "Currently using their own" lines and the Elements overview read it.
+local USER_KINDS = {
+	totembar = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
+	swing = { "border", "text", "bar" },
+	element = { "cooldown", "uptime", "gcd", "glow", "pop" },
+}
+local function addStyleUsers()
+	local St = ns.Style
+	for _, owner in ipairs({ "totembar", "swing" }) do
+		for _, kind in ipairs(USER_KINDS[owner]) do St.addUser(kind, owner) end
+	end
+	for _, key in ipairs(ns.ElementPages.ordered()) do
+		if ns.ElementPages.pageOf(key) then
+			for _, kind in ipairs(USER_KINDS.element) do St.addUser(kind, key) end
+		end
+	end
+end
+
 local function buildWindow()
 	-- Blizzard's portrait window: gold frame, round portrait, title and close button.
 	win = CreateFrame("Frame", "ShamanForeverOptionsFrame", UIParent, "ButtonFrameTemplate")
@@ -1495,17 +1522,18 @@ local function buildWindow()
 	win:HookScript("OnShow", function() shownNow(true) end)
 	win:HookScript("OnHide", function() shownNow(false) end)
 
-	buildHome(newPage("home", "Home"))
+	newPage("home", "Home", nil, buildHome)
 	-- Its key stays "general": saved as the page last open and in its folded blocks' keys.
-	buildGlobal(newPage("general", "Global settings"))
-	ns.StylesPage.build(newPage("styles", "Styles explorer"))
-	ns.LayoutPage.build(newPage("layout", "Groups & Layout"))
-	buildTotemBar(newPage("totembar", "Totem bar"))
-	ns.SwingPage.build(newPage("swing", "Swing timer"))
-	ns.ElementPages.buildOverview(newPage("elements", "Elements"))
-	ns.ElementPages.build(newPage)
-	buildProfiles(newPage("profiles", "Profiles"))
-	buildAbout(newPage("about", "About"))
+	newPage("general", "Global settings", nil, buildGlobal)
+	newPage("styles", "Styles explorer", nil, ns.StylesPage.build)
+	newPage("layout", "Groups & Layout", nil, ns.LayoutPage.build)
+	newPage("totembar", "Totem bar", nil, buildTotemBar)
+	newPage("swing", "Swing timer", nil, ns.SwingPage.build)
+	newPage("elements", "Elements", nil, ns.ElementPages.buildOverview)
+	ns.ElementPages.register(newPage)
+	newPage("profiles", "Profiles", nil, buildProfiles)
+	newPage("about", "About", nil, buildAbout)
+	addStyleUsers()
 	buildNav()
 	win:Hide()
 end
@@ -1685,7 +1713,7 @@ function OP.open(page, groupId)
 	if groupId then ns.LayoutPage.choose(groupId) end
 	win:Show()
 	local last = acct().optionsPage
-	showPage(page or currentPage or (last and pages[last] and last) or "home")
+	showPage(page or currentPage or (last and stubs[last] and last) or "home")
 end
 
 -- An element's own page, or the Elements overview for one without a page.
@@ -1715,16 +1743,17 @@ function OP.openGlobal(anchor)
 	if f then scrollTo(p, f, function() p:flash(f) end) end
 end
 
--- About, scrolled to one of its headings, which flashes.
-local function showAboutSection(section)
+-- About, scrolled to one of its headings (read once the page is built), which flashes.
+local function showAboutSection(which)
 	OP.open("about")
+	local section = which()
 	if not section then return end
 	scrollTo(section.page, section.header, function() section.page:flash(section.header) end)
 end
 -- From an EXPERIMENTAL badge: About's Experimental section.
-function OP.showExperimental() showAboutSection(aboutExp) end
+function OP.showExperimental() showAboutSection(function() return aboutExp end) end
 -- From Home's Give feedback button: About's Feedback section.
-function OP.showFeedback() showAboutSection(aboutFeedback) end
+function OP.showFeedback() showAboutSection(function() return aboutFeedback end) end
 
 
 -- Groups & Layout showing the group with this id, whose header flashes.

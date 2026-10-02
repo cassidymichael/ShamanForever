@@ -32,16 +32,15 @@ local function eread(key, name) return function() return ns.elementSetting(key, 
 -- learned, then the ones it hasn't, then other races' racials; each band by name, A to Z, in the
 -- client's language. Read when asked, so a spell learned since moves up.
 local function byName()
-	local keys, name = {}, ns.Look.elementName
-	local band = {}
+	local keys, band, lower = {}, {}, {}
 	for i, key in ipairs(ns.ELEMENT_KEYS) do
 		keys[i] = key
 		band[key] = ns.isLearned(key) and 0 or ns.Spells.otherRace(ns.ELEMENTS[key].race) and 2 or 1
+		lower[key] = ns.Look.elementName(key):lower()
 	end
 	table.sort(keys, function(a, b)
 		if band[a] ~= band[b] then return band[a] < band[b] end
-		local na, nb = name(a):lower(), name(b):lower()
-		if na ~= nb then return na < nb end
+		if lower[a] ~= lower[b] then return lower[a] < lower[b] end
 		return a < b
 	end)
 	return keys
@@ -50,16 +49,15 @@ EP.ordered = byName
 
 -- The Group choices: every group by name, then New group; an ungrouped element's reads Ungrouped.
 -- Choosing one moves the element there (to its end) and leaves its Show as it is.
-local function groupMenu(dd, key)
-	pcall(dd.SetDefaultText, dd, "Ungrouped")
-	dd:SetupMenu(function(_, root)
+local function groupMenu(key)
+	return function(_, root)
 		for _, g in ipairs(db().groups) do
 			root:CreateRadio(g.name, function() return ns.groupOf(key) == g end, function()
 				if ns.groupOf(key) ~= g then ns.placeElement(key, g.id) end
 			end)
 		end
 		root:CreateButton("New group", function() ns.placeElement(key, "new") end)
-	end)
+	end
 end
 
 -- On an element's page, where "Hidden keeps its place" is shown as text under the control.
@@ -69,8 +67,6 @@ local SHOW_TIP = "When the element is drawn. Hidden keeps its place in its group
 ------------------------------------------------------------------------
 -- Elements: an overview of every element, and one page per real element under it in the nav.
 ------------------------------------------------------------------------
-local ELEMENT_PAGES = {}   -- key -> page key, filled as element pages are built
-
 -- The overview's controls, light enough for a table: a flat cell with a thin border and small text
 -- that lights up under the mouse. A menu cell shows its value and a small arrow, and opens its menu
 -- (gen, a menu generator) at the cursor.
@@ -123,7 +119,9 @@ function EP.buildOverview(p)
 		{ key = "styles", label = "Own styles", min = 120, grow = 0.4 },
 	}
 	local GAP = 6
+	local placed, placedW   -- the columns at the page's width last worked out
 	local function place(width)
+		if width == placedW then return placed end
 		local least = GAP * (#COLS - 1)
 		for _, c in ipairs(COLS) do least = least + c.min end
 		local extra = math.max(width - least, 0)
@@ -137,6 +135,7 @@ function EP.buildOverview(p)
 		-- Width left by the capped columns goes to the last.
 		local last = COLS[#COLS].key
 		out[last].w = math.max(out[last].w, width - out[last].x)
+		placed, placedW = out, width
 		return out
 	end
 	local heads = {}
@@ -215,7 +214,7 @@ function EP.buildOverview(p)
 			GameTooltip:Show()
 		end)
 		show:HookScript("OnLeave", function() GameTooltip:Hide() end)
-		local function openPage() if ELEMENT_PAGES[key] then ns.Options.open(ELEMENT_PAGES[key]) end end
+		local function openPage() if EP.pageOf(key) then ns.Options.open(EP.pageOf(key)) end end
 		-- Its own page: its icon and name are the link, lit gold under the mouse.
 		local open = CreateFrame("Button", nil, f)
 		open:SetPoint("TOPLEFT", 0, 0)
@@ -269,6 +268,7 @@ function EP.buildOverview(p)
 		styles:SetScript("OnLeave", function() GameTooltip:Hide() end)
 		local SHORT = { ["Cooldown timer"] = "cooldown", ["Time left timer"] = "time left",
 			["Pulsing glow"] = "glow", ["Pop"] = "pop" }
+		local cells = { { group, "group" }, { show, "show" }, { groupOpen, "link" }, { styles, "styles" } }
 		p:add(f, 34, nil, function()
 			e.paint(icon)
 			local learned = ns.isLearned(key)
@@ -283,8 +283,7 @@ function EP.buildOverview(p)
 			group.text:SetText(g and g.name or "Ungrouped")
 			local mode = ns.showMode(key)
 			for _, c in ipairs(SHOW_CHOICES) do if c[1] == mode then show.text:SetText(c[2]) end end
-			for _, cell in ipairs({ { group, "group" }, { show, "show" }, { groupOpen, "link" },
-				{ styles, "styles" } }) do
+			for _, cell in ipairs(cells) do
 				cell[1]:ClearAllPoints()
 				cell[1]:SetPoint("LEFT", pos[cell[2]].x, 0)
 				cell[1]:SetWidth(pos[cell[2]].w)
@@ -298,7 +297,7 @@ function EP.buildOverview(p)
 				styles.text:SetText("Own: " .. table.concat(short, ", "))
 				styles.text:SetTextColor(1, 1, 1)
 			end
-			open:SetEnabled(ELEMENT_PAGES[key] ~= nil)
+			open:SetEnabled(EP.pageOf(key) ~= nil)
 			groupOpen:SetShown(g ~= nil)
 		end)
 	end
@@ -315,7 +314,6 @@ end
 -- left), the event blocks (Ready, Expiring, Killed early), then Pulsing glow style and Pop style,
 -- each only where the element has something it applies to.
 local function elementDisplay(p, key)
-	ELEMENT_PAGES[key] = p.key
 	p.resetAll = {
 		text = function() return "Reset " .. ns.Look.elementName(key) end,
 		ask = function() EP.askReset(key) end,
@@ -337,8 +335,9 @@ local function elementDisplay(p, key)
 	p:text("Hidden keeps its place in its group.")
 	-- Its menu is groupMenu's; the get only tells the row when to show another name.
 	local groupRow = p:dropdown("Group", "Which group it sits in. Groups are arranged on the Groups & Layout page; ungrouped elements aren't on screen.",
-		{}, function() local g = ns.groupOf(key); return g and g.id .. ":" .. g.name or "" end, function() end, nil, 140)
-	groupMenu(groupRow.dropdown, key)
+		{}, function() local g = ns.groupOf(key); return g and g.id .. ":" .. g.name or "" end, function() end, nil, 140,
+		groupMenu(key))
+	pcall(groupRow.dropdown.SetDefaultText, groupRow.dropdown, "Ungrouped")
 	local edit = CreateFrame("Button", nil, groupRow, "UIPanelButtonTemplate")
 	edit:SetSize(110, 22)
 	edit:SetPoint("LEFT", groupRow.dropdown, "RIGHT", 8, 0)
@@ -948,22 +947,26 @@ local function buildMaelstrom(p, def)
 end
 PAGE.maelstrom = buildMaelstrom
 
--- Every element's page, in the order the options list them.
-local pageObjects = {}   -- key -> its page
-function EP.build(newPage)
+-- Every element's page, in the order the options list them, each built when it first shows.
+local pageObjects = {}   -- key -> its page, once built
+function EP.register(newPage)
 	for _, key in ipairs(byName()) do
 		local e = ns.ELEMENTS[key]
 		local build = e.kind and PAGE[e.kind]
 		if build then
-			local p = newPage(key, e.label, true)
-			pageObjects[key] = p
-			build(p, e.def)
+			newPage(key, e.label, true, function(p)
+				pageObjects[key] = p
+				build(p, e.def)
+			end)
 		end
 	end
 end
 
--- The page key of an element's own page, nil for one without.
-function EP.pageOf(key) return ELEMENT_PAGES[key] end
+-- The page key of an element's own page (its own key), nil for one without.
+function EP.pageOf(key)
+	local e = ns.ELEMENTS[key]
+	return e and e.kind and PAGE[e.kind] and key or nil
+end
 
 -- Every setting on an element's page back to its default, after a confirm.
 function EP.askReset(key)

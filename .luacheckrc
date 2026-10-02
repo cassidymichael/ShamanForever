@@ -10,6 +10,7 @@ ignore = {
 read_globals = {
     "ACCEPT",
     "AddToAutoHide",
+    "Background",
     "ButtonFrameTemplate_HideButtonBar",
     "ButtonFrameTemplate_HidePortrait",
     "CANCEL",
@@ -35,6 +36,7 @@ read_globals = {
     "C_TooltipInfo",
     "C_UIFileAsset",
     "C_UnitAuras",
+    "CharacterFrame",
     "ChatFontSmall",
     "ClearFocus",
     "ColorPickerFrame",
@@ -151,10 +153,12 @@ read_globals = {
     "ceil",
     "class",
     "date",
+    "deg",
     "error",
     "exp",
     "floor",
     "format",
+    "geterrorhandler",
     "gmatch",
     "gsub",
     "hooksecurefunc",
@@ -182,5 +186,6 @@ read_globals = {
     "type",
     "unpack",
     "wipe",
+    "xpcall",
 }
 globals = { "SlashCmdList", "StaticPopupDialogs", "UISpecialFrames", "ShamanForeverDB", "SLASH_SHAMANFOREVER1", "SLASH_SHAMANFOREVER2", "Blizzard_PTRIssueReporter_Saved" }
