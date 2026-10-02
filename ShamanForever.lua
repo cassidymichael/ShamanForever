@@ -128,7 +128,7 @@ end
 -- Bars: a frame with settings of its own that isn't an element, in the order they register. A
 -- module and its options file each give their half; a later value wins.
 -- Module: label; noun (how a sentence names it; "the " .. its lower-case label by default); the
--- style side (ns.Style): cfg(), saved (the profile key holding its table), defaults, ranges (its
+-- style side (ns.Style): cfg(), saved (required: the profile key holding its table), defaults, ranges (its
 -- numbers' { min, max, step }, shaped as defaults), on() (it is in use: its styles are offered),
 -- kinds (style kinds it can have its own of), ownLabel(kind) (its name when it draws that style
 -- itself); movable = { frame, nudge(dx, dy), lock() } (positioning); hud = { show(opts), slots,
@@ -141,6 +141,8 @@ end
 function ns.registerBar(key, spec)
 	local bar = ns.Style.bar(key)
 	if not bar then
+		-- The module's half comes first: without it the file failed to load and there is no bar
+		if not spec.saved then return end
 		bar = {}
 		ns.Style.registerBar(key, bar)
 	end
