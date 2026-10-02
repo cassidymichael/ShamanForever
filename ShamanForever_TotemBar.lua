@@ -76,14 +76,18 @@ TB.DEFAULTS = {
 
 local isSecret = ns.isSecret
 
-local RANGES = {
-	scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { -10, 20 }, size = { 24, 96 },
-	arrowSize = { 8, 32 }, extrasScale = { 0.5, 1.5 }, idleAlpha = { 0.1, 1 },
-	badgeSize = { 0.25, 0.8 }, badgeAlpha = { 0.1, 1 }, badgeSat = { 0, 1 }, rangeHeight = { 1, 12 },
-	fadeAfter = { 0, 10 }, badgeX = { -30, 30 }, badgeY = { -30, 30 }, keySize = { 6, 30 }, keyX = { -20, 20 }, keyY = { -20, 20 }, pixelEdge = { 1, 4 }, stoneExtrasScale = { 0.5, 1.5 },
-}
+-- { min, max, step }: clamped as the settings load, and the page's sliders
 local EXPIRE_SECS = { 0, 30, 1 }
-TB.RANGES = { expire = { secs = EXPIRE_SECS } }
+local RANGES = {
+	scale = { 0.5, 3, 0.05 }, alpha = { 0.1, 1, 0.05 }, spacing = { -10, 20, 1 }, size = { 24, 96, 1 },
+	arrowSize = { 8, 32, 1 }, extrasScale = { 0.5, 1.5, 0.05 }, stoneExtrasScale = { 0.5, 1.5, 0.05 },
+	idleAlpha = { 0.1, 1, 0.05 }, badgeSize = { 0.25, 0.8, 0.05 }, badgeAlpha = { 0.1, 1, 0.05 },
+	badgeSat = { 0, 1, 0.05 }, badgeX = { -30, 30, 1 }, badgeY = { -30, 30, 1 }, rangeHeight = { 1, 12, 1 },
+	fadeAfter = { 0, 10, 1 }, keySize = { 6, 30, 1 }, keyX = { -20, 20, 1 }, keyY = { -20, 20, 1 },
+	pixelEdge = { 1, 4, 1 },
+	expire = { secs = EXPIRE_SECS },
+}
+TB.RANGES = RANGES
 local EVENTS = { "expire", "ended", "killed" }
 local function finite(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end

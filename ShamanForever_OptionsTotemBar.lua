@@ -23,6 +23,11 @@ local function build(p)
 		own(key)
 		return function(v) c()[key] = v; changed() end
 	end
+	-- A slider over the setting's range (TB.RANGES)
+	local function tslider(label, tip, fmt, key, shown)
+		local r = TB.RANGES[key]
+		return p:slider(label, tip, r[1], r[2], r[3], fmt, tget(key), tset(key), shown)
+	end
 
 	p:hero("totembar")
 	p:callout("Not learned yet. It shows on screen once your character knows a totem.",
@@ -53,15 +58,15 @@ local function build(p)
 			{ "target", "In combat or with an enemy target" } },
 		tget("show"), tset("show"), nil, 250)
 	p:sub(show, function() return c().show ~= "always" end, function()
-		p:slider("Stay after combat", K.STAY_TIP, 0, 10, 1, K.staySecs, tget("fadeAfter"), tset("fadeAfter"))
+		tslider("Stay after combat", K.STAY_TIP, K.staySecs, "fadeAfter")
 	end)
 	p:dropdown("Tooltips", nil, { { "always", "Always" }, { "ooc", "Out of combat" }, { "never", "Never" } },
 		tget("tips"), tset("tips"), nil, 160)
 	local keys = p:checkbox("Show keybinding text", "Each button's key, in its corner.", tget("keys"), tset("keys"))
 	p:sub(keys, tget("keys"), function()
-		p:slider("Text size", "At the default icon size. It grows with the icon.", 6, 30, 1, int, tget("keySize"), tset("keySize"))
-		p:slider("X offset", "From the top-right corner.", -20, 20, 1, px, tget("keyX"), tset("keyX"))
-		p:slider("Y offset", "From the top-right corner.", -20, 20, 1, px, tget("keyY"), tset("keyY"))
+		tslider("Text size", "At the default icon size. It grows with the icon.", int, "keySize")
+		tslider("X offset", "From the top-right corner.", px, "keyX")
+		tslider("Y offset", "From the top-right corner.", px, "keyY")
 		p:color("Text colour", nil, tget("keyColor"), tset("keyColor"))
 	end)
 
@@ -76,8 +81,7 @@ local function build(p)
 	local function theme(key) return function() return TB.skin.current().key == key end end
 	p:checkbox("Tray", "A dark tray edged in gold behind the slots.", tget("pixelTray"), tset("pixelTray"),
 		theme("pixel"))
-	p:slider("Edge thickness", "The element-coloured edge round each slot, in pixels.", 1, 4, 1, px,
-		tget("pixelEdge"), tset("pixelEdge"), theme("pixel"))
+	tslider("Edge thickness", "The element-coloured edge round each slot, in pixels.", px, "pixelEdge", theme("pixel"))
 	p:dropdown("Plinth", nil, TB.skin.PLINTHS, tget("stonePlinth"), tset("stonePlinth"), theme("stone"), 140)
 
 	p:header("Layout")
@@ -171,8 +175,7 @@ local function build(p)
 		return { { "right", "Right" }, { "left", "Left" } }
 	end, function() return TB.eff().pop end, tset("pop"),
 		function() return full() and not TB.skin.owns("pop") end, 140)
-	p:slider("Spacing", "Gap between the slots. Below 0 they overlap.", -10, 20, 1, px, tget("spacing"), tset("spacing"),
-		free("spacing"))
+	tslider("Spacing", "Gap between the slots. Below 0 they overlap.", px, "spacing", free("spacing"))
 	p:text(function()
 		local names = {}
 		for _, it in ipairs({ { "dir", "Direction" }, { "pop", "Pickers open" }, { "spacing", "Spacing" },
@@ -188,22 +191,21 @@ local function build(p)
 		tget("sizeFollow"), function(v) TB.setSizeFollow(v); changed() end, "size")
 	own("size", { default = tget("size"), reset = function() c().size = nil end })
 	p:sub(sizeFollow, function() return not c().sizeFollow end, function()
-		p:slider("Icon size", nil, 24, 96, 1, px,
-			tget("size"), function(v) c().size = v; changed() end)
+		local r = TB.RANGES.size
+		p:slider("Icon size", nil, r[1], r[2], r[3], px, tget("size"), function(v) c().size = v; changed() end)
 	end)
 	p:dropdown("Call and Recall", "Where they sit on the bar.", { { "ends", "Both ends" }, { "before", "Before the slots" }, { "after", "After the slots" } },
 		tget("extras"), tset("extras"),
 		showWhen(function() return (c().call or c().recall) and not TB.skin.owns("extras") end, full), 180)
 	own("extrasScale")
 	own("stoneExtrasScale")
-	p:slider("Call and Recall size", "As a share of the slots' size.", 0.5, 1.5, 0.05,
+	local extras = TB.RANGES.extrasScale
+	p:slider("Call and Recall size", "As a share of the slots' size.", extras[1], extras[2], extras[3],
 		pct, function() return TB.eff().extrasScale end,
 		function(v) c()[TB.skin.extrasScaleKey()] = v; changed() end,
 		showWhen(function() return c().call or c().recall end, full))
-	p:slider("Scale", "Grows everything on the bar, borders too.", 0.5, 3, 0.05,
-		times, tget("scale"), tset("scale"))
-	p:slider("Opacity", nil, 0.1, 1, 0.05,
-		pct, tget("alpha"), tset("alpha"))
+	tslider("Scale", "Grows everything on the bar, borders too.", times, "scale")
+	tslider("Opacity", nil, pct, "alpha")
 
 	p:header("Border style")
 	p:text("Set by the theme.", owned("border"))
@@ -211,7 +213,8 @@ local function build(p)
 	if K.barFramed("totembar") then
 		p:header("Frame style")
 		K.frameRows(p, "totembar", "groupframe", changed, { spacing = {
-			get = tget("spacing"), set = function(v) c().spacing = v; changed() end, min = -10, max = 20,
+			get = tget("spacing"), set = function(v) c().spacing = v; changed() end,
+			min = TB.RANGES.spacing[1], max = TB.RANGES.spacing[2],
 			size = function() return (TB.look()) end, enabled = free("spacing") } })
 	end
 
@@ -221,7 +224,7 @@ local function build(p)
 	local arrows = p:checkbox("Arrow opens a totem picker", "A tab on each slot opens its totems. Works in combat.",
 		tget("arrows"), tset("arrows"))
 	p:sub(arrows, tget("arrows"), function()
-		p:slider("Arrow size", "How deep the tab is.", 8, 32, 1, px, tget("arrowSize"), tset("arrowSize"))
+		tslider("Arrow size", "How deep the tab is.", px, "arrowSize")
 	end)
 	p:checkbox("Open pickers on hover", "Hovering a slot opens its totems. Works in combat.",
 		tget("pickHover"), tset("pickHover"))
@@ -248,7 +251,7 @@ local function build(p)
 		{ { "pick", "Your pick" }, { "frame", "Element colour" }, { "blank", "Blank" } }, tget("empty"), tset("empty"), nil, 180)
 	p:sub(look, function() return c().empty == "pick" end, function()
 		p:checkbox("Greyed", "Off: the pick in colour.", tget("idleGrey"), tset("idleGrey"))
-		p:slider("Opacity", nil, 0.1, 1, 0.05, pct, tget("idleAlpha"), tset("idleAlpha"))
+		tslider("Opacity", nil, pct, "idleAlpha")
 		p:text("With No totem picked, the slot shows its element colour.")
 	end)
 
@@ -257,11 +260,11 @@ local function build(p)
 	local offPick = p:checkbox("Show your pick", "On the side away from the picker.",
 		tget("offPick"), tset("offPick"))
 	p:sub(offPick, tget("offPick"), function()
-		p:slider("Size", nil, 0.25, 0.8, 0.05, pct, tget("badgeSize"), tset("badgeSize"))
-		p:slider("Opacity", nil, 0.1, 1, 0.05, pct, tget("badgeAlpha"), tset("badgeAlpha"))
-		p:slider("Colour", "0% is grey, 100% full colour.", 0, 1, 0.05, pct, tget("badgeSat"), tset("badgeSat"))
-		p:slider("X offset", "From its place beside the slot.", -30, 30, 1, px, tget("badgeX"), tset("badgeX"))
-		p:slider("Y offset", "From its place beside the slot.", -30, 30, 1, px, tget("badgeY"), tset("badgeY"))
+		tslider("Size", nil, pct, "badgeSize")
+		tslider("Opacity", nil, pct, "badgeAlpha")
+		tslider("Colour", "0% is grey, 100% full colour.", pct, "badgeSat")
+		tslider("X offset", "From its place beside the slot.", px, "badgeX")
+		tslider("Y offset", "From its place beside the slot.", px, "badgeY")
 	end)
 
 	p.gate = TB.barOn
@@ -271,7 +274,7 @@ local function build(p)
 	p:text(function() return TB.skin.rangeText() or "" end, owned("range"))
 	local range = p:checkbox("Show", nil, tget("range"), tset("range"))
 	p:sub(range, tget("range"), function()
-		p:slider("Height", "In pixels.", 1, 12, 1, px, tget("rangeHeight"), tset("rangeHeight"), free("rangeHeight"))
+		tslider("Height", "In pixels.", px, "rangeHeight", free("rangeHeight"))
 		p:color("In range", "Colour and opacity.", tget("rangeIn"), tset("rangeIn"), free("range"))
 		p:color("Out of range", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"), free("range"))
 		p:text("A buff lingers a few seconds after you leave its range. Another shaman's totem of the same type can replace your buff, so yours shows as out of range.")
