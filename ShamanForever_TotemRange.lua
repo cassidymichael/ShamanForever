@@ -277,8 +277,7 @@ local function showStrip(s, on)
 	h:SetAlpha(1)
 	if on then
 		if s.rangeDriven then
-			ns.setVisibilityDriver(h, nil, "totem range: holder")
-			s.rangeDriven = false
+			if ns.setVisibilityDriver(h, nil, "totem range: holder") then s.rangeDriven = false end
 		end
 		h:Show()
 	elseif not s.rangeDriven then
