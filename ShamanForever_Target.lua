@@ -373,14 +373,10 @@ local HOSTILE = "[@target,harm,nodead] show; hide"
 local function driveGate(def)
 	if def.driven or not def.aura.container or InCombatLockdown() then return end
 	def.driven = true
-	local ok, err = pcall(RegisterStateDriver, def.gate, "visibility", HOSTILE)
-	if not ok then ns.noteError("target gate " .. def.key, err) end
+	ns.setVisibilityDriver(def.gate, HOSTILE, "target gate " .. def.key)
 	if def.holder then
-		ok, err = pcall(RegisterStateDriver, def.holder, "visibility",
-			"[@player,dead] hide; " .. HOSTILE)
-		if not ok then ns.noteError("target warning " .. def.key, err) end
-		ok, err = pcall(RegisterStateDriver, def.idleEdge, "visibility", "[@target,harm,nodead] hide; show")
-		if not ok then ns.noteError("target border " .. def.key, err) end
+		ns.setVisibilityDriver(def.holder, "[@player,dead] hide; " .. HOSTILE, "target warning " .. def.key)
+		ns.setVisibilityDriver(def.idleEdge, "[@target,harm,nodead] hide; show", "target border " .. def.key)
 	end
 end
 

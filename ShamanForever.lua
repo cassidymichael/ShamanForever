@@ -464,11 +464,10 @@ local function setDriven(frame, when)
 	when = when or nil
 	if when == driven[frame] then return end
 	if when then
-		local ok, err = pcall(RegisterStateDriver, frame, "visibility", when)
-		if not ok then say("state driver failed: %s", tostring(err)); return end
+		if not ns.setVisibilityDriver(frame, when, "state driver") then return end
 		driven[frame] = when
 	else
-		pcall(UnregisterStateDriver, frame, "visibility")
+		ns.setVisibilityDriver(frame, nil, "state driver")
 		driven[frame] = nil
 	end
 end

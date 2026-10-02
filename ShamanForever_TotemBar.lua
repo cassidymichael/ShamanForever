@@ -950,9 +950,8 @@ end
 local lastDriver
 local function drive()
 	local driver = visibilityDriver()
-	if driver ~= lastDriver then
+	if driver ~= lastDriver and ns.setVisibilityDriver(bar, driver, "totem bar driver") then
 		lastDriver = driver
-		RegisterStateDriver(bar, "visibility", driver)
 	end
 end
 

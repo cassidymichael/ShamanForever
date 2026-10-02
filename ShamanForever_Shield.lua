@@ -148,8 +148,7 @@ local driven = false
 local function driveHolder()
 	if driven or InCombatLockdown() then return end
 	driven = true
-	local ok, err = pcall(RegisterStateDriver, holder, "visibility", "[@player,dead] hide; show")
-	if not ok then ns.noteError("shield warning holder", err) end
+	ns.setVisibilityDriver(holder, "[@player,dead] hide; show", "shield warning holder")
 end
 local look
 local lookOn, lookState, watching = false, nil, false

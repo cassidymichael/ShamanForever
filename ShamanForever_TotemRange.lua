@@ -277,13 +277,12 @@ local function showStrip(s, on)
 	h:SetAlpha(1)
 	if on then
 		if s.rangeDriven then
-			UnregisterStateDriver(h, "visibility")
+			ns.setVisibilityDriver(h, nil, "totem range: holder")
 			s.rangeDriven = false
 		end
 		h:Show()
 	elseif not s.rangeDriven then
-		local ok, err = pcall(RegisterStateDriver, h, "visibility", EMPTY)
-		if ok then s.rangeDriven = true else ns.noteError("totem range: holder", err) end
+		s.rangeDriven = ns.setVisibilityDriver(h, EMPTY, "totem range: holder")
 	end
 end
 

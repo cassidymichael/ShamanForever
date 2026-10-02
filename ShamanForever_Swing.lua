@@ -243,9 +243,8 @@ end
 local lastDriver
 local function drive()
 	local driver = visibilityDriver()
-	if driver ~= lastDriver then
+	if driver ~= lastDriver and ns.setVisibilityDriver(f, driver, "swing timer driver") then
 		lastDriver = driver
-		RegisterStateDriver(f, "visibility", driver)
 	end
 end
 
