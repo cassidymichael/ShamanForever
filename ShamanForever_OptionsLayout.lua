@@ -572,7 +572,7 @@ local function buildSettings(p)
 	p:slider("Scale", "Grows everything in the group, borders and rings too.", 0.5, 3, 0.05, times,
 		get("scale"), setScale)
 	p:slider("Opacity", "Transparency of the group.", 0.1, 1, 0.05, pct, get("alpha"), set("alpha"))
-	K.borderRows(p, G, relayout, "Border same as Global")
+	p:text("Each element's border is on its own page.")
 	p:buttons({
 		{ "Centre on screen", function() askAbout(ns.POPUP .. "CENTER", G()) end, "Moves the group to the middle of the screen.", 130 },
 		{ "Hide all", function() askAbout(ns.POPUP .. "HIDEALL", G()) end, "Sets every element in the group to Hidden. They keep their places; set one back to Always to bring it back.", 90 },

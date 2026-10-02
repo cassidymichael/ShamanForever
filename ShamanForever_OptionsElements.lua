@@ -140,7 +140,7 @@ function EP.buildOverview(p)
 		end)
 	end
 	local STYLE_NAMES = { { "cooldown", "Cooldown timer" }, { "uptime", "Time left timer" },
-		{ "glow", "Pulsing glow" }, { "pop", "Pop" } }
+		{ "glow", "Pulsing glow" }, { "pop", "Pop" }, { "border", "Border" } }
 	local function ownStyles(key)
 		local S, out = ns.Style, {}
 		for _, k in ipairs(STYLE_NAMES) do
@@ -229,7 +229,7 @@ function EP.buildOverview(p)
 			GameTooltip:SetText("Own styles")
 			local own = ownStyles(key)
 			if #own == 0 then
-				GameTooltip:AddLine("Follows Global styles for its timers, glow and pop.", 1, 1, 1, true)
+				GameTooltip:AddLine("Follows Global styles for its timers, glow, pop and border.", 1, 1, 1, true)
 			else
 				GameTooltip:AddLine(table.concat(own, ", "), 1, 1, 1, true)
 				GameTooltip:AddLine("The rest follow Global styles.", 0.7, 0.7, 0.7, true)
@@ -238,7 +238,7 @@ function EP.buildOverview(p)
 		end)
 		styles:SetScript("OnLeave", function() GameTooltip:Hide() end)
 		local SHORT = { ["Cooldown timer"] = "cooldown", ["Time left timer"] = "time left",
-			["Pulsing glow"] = "glow", ["Pop"] = "pop" }
+			["Pulsing glow"] = "glow", ["Pop"] = "pop", ["Border"] = "border" }
 		local cells = { { group, "group" }, { show, "show" }, { groupOpen, "link" }, { styles, "styles" } }
 		p:add(f, 34, nil, function()
 			e.paint(icon)
@@ -363,10 +363,12 @@ local function idleBlock(p, def)
 		choices and showWhen(function() return not never() end) or nil)
 end
 
-local function effectBlocks(p, key)
+local function lookBlocks(p, key)
 	local e = ns.ELEMENTS[key]
 	if #e.effects.glow > 0 then glowBlock(p, key, e.icon) end
 	if #e.effects.pop > 0 then popBlock(p, key, e.icon, e.effects.popKind or "ready") end
+	p:header("Border style")
+	K.borderRows(p, key, relayout)
 end
 
 local function warningBlock(p, title, opt, names, first)
@@ -420,7 +422,7 @@ local function buildShield(p, def)
 
 	timerSettings(p, "Time left", "shield", "uptime")
 	gcdBlock(p, "shield")
-	effectBlocks(p, "shield")
+	lookBlocks(p, "shield")
 end
 
 local function buildShock(p, def)
@@ -457,7 +459,7 @@ local function buildShock(p, def)
 	timerSettings(p, "Cooldown", "shock", "cooldown")
 	gcdBlock(p, "shock")
 	readyBlock(p, "shock", "While it's off cooldown.")
-	effectBlocks(p, "shock")
+	lookBlocks(p, "shock")
 end
 
 local function buildImbue(p, def)
@@ -480,7 +482,7 @@ local function buildImbue(p, def)
 			function(v) return v == 0 and "Never" or string.format("%d min", v) end, opt("imbueWarnMins"))
 		p:text("Time left shows once it's below this. 0 never shows it.")
 	end)
-	effectBlocks(p, "imbue")
+	lookBlocks(p, "imbue")
 end
 
 local function primedBlock(p, def)
@@ -598,7 +600,7 @@ local function buildCooldown(p, def)
 		killedBlock(p, function(n) return eread(key, n) end, function(n) local _, s = opt(n); return s end, "icon",
 			"Flash when it dies early")
 	end
-	effectBlocks(p, key)
+	lookBlocks(p, key)
 end
 
 local function buildBuff(p, def)
@@ -656,7 +658,7 @@ local function buildBuff(p, def)
 	end
 	if def.proc and not def.noGlow then procBlock()
 	elseif not def.proc then expiringBlock(p, key, 120, 5) end
-	effectBlocks(p, key)
+	lookBlocks(p, key)
 end
 
 -- Tremor watchlist: a ScrollBox recycles its rows, so hundreds of mobs take a dozen frames.
@@ -840,7 +842,7 @@ local function buildTremor(p)
 	local yGet, ySet = opt("wordY")
 	p:slider("Text Y offset", nil, -100, 100, 1, px, yGet, ySet, text)
 	ns.Sounds.row(p, "Sound", "The moment it starts warning.", opt("alertSound"))
-	effectBlocks(p, key)
+	lookBlocks(p, key)
 end
 
 local PAGE = { shield = buildShield, shock = buildShock, imbue = buildImbue, cooldown = buildCooldown, buff = buildBuff,
@@ -873,7 +875,7 @@ local function buildMaelstrom(p, def)
 	p:header("Five stacks")
 	p:checkbox("Pop", "The moment it reaches five.", opt("fullPop"))
 	p:checkbox("Pulsing glow", "While at five.", opt("fullGlow"))
-	effectBlocks(p, key)
+	lookBlocks(p, key)
 end
 PAGE.maelstrom = buildMaelstrom
 

@@ -200,8 +200,7 @@ local function borderRows(p, owner, after, label, shown)
 		local function icon()
 			local o = resolve(owner)
 			if o == "totembar" then return 136098 end
-			local first = type(o) == "table" and o.members and ns.ELEMENTS[o.members[1]]
-			return first and first.icon or 136026
+			return isElement(o) and ns.ELEMENTS[o].icon or 136026
 		end
 		local sync = previewTiles(f, owner, icon, LABEL_W + 24, function() return look().bySchool end)
 		p:add(f, 52, showWhen(r.own, shown), sync)
@@ -573,6 +572,7 @@ local function buildGlobal(p)
 	barBlock(p)
 	p:header("Border style")
 	p:anchor("border")
+	p:text("Every border. Elements, the totem bar and the swing timer can have their own.")
 	borderRows(p, nil)
 	ownLine(p, "border")
 	glowBlock(p, nil, 136026)
@@ -1238,7 +1238,7 @@ local function buildNav()
 	navList = list
 end
 
-local ELEMENT_KINDS = { "cooldown", "uptime", "gcd", "glow", "pop" }
+local ELEMENT_KINDS = { "cooldown", "uptime", "gcd", "glow", "pop", "border" }
 local function addStyleUsers()
 	local St = ns.Style
 	for _, owner in ipairs(St.bars()) do
