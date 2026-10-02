@@ -1683,7 +1683,9 @@ function TB.hasTotems() return hasTotems end
 
 -- Preview mode: slots drawn in the requested states on plain frames; showing slots and the bar
 -- happens in layout()
-TB.PREVIEW_STATES = { "down", "expiring", "killed", "ranout", "empty" }
+local PREVIEW_STATES = { "down", "expiring", "killed", "ranout", "empty" }
+local PREVIEW_WARNING = { earth = { "empty" }, fire = { "empty" }, water = { "down", range = true },
+	air = { "down", range = true } }
 -- Each slot's totem in a preview: seconds left of its length
 TB.PREVIEW_LEFT = { earth = { 250, 300 }, fire = { 38, 55 }, water = { 83, 300 }, air = { 165, 300 } }
 
@@ -1759,9 +1761,10 @@ function paintPreview()
 	end
 end
 
-function TB.preview(p)
-	if p then
-		preview = { all = p.all, states = preview and preview.states or {} }
+-- opts: the preview's (unlearned: show every slot); nil as it ends
+local function showPreview(opts)
+	if opts then
+		preview = { all = opts.unlearned, states = preview and preview.states or {} }
 		TB.range.preview(true)
 	elseif preview then
 		preview = nil
@@ -1782,7 +1785,16 @@ function TB.preview(p)
 	end
 end
 
-function TB.previewSlot(el, st, at, range, moment)
+local function previewSteps(el, mode)
+	if mode == "busy" then
+		local steps = {}
+		for _, st in ipairs(PREVIEW_STATES) do table.insert(steps, { st }) end
+		return steps
+	end
+	return { mode == "warnings" and PREVIEW_WARNING[el] or { "down" } }
+end
+
+local function previewSlot(el, st, at, range, moment)
 	if not preview then return end
 	local rec = { st = st, at = at, range = range }
 	preview.states[el] = rec
@@ -1821,5 +1833,6 @@ ns.registerBar("totembar", { label = "Totem bar", cfg = cfg, saved = "totemBar",
 	ownLabel = function(kind)
 		if kind == "border" and TB.skin.owns("border") then return "Totem bar (its theme)" end
 	end,
-	movable = movable })
+	movable = movable,
+	hud = { show = showPreview, slots = ELEMENTS, steps = previewSteps, step = previewSlot } })
 ns.registerModule(TB)

@@ -31,14 +31,12 @@ local function stepsFor(key)
 	return { { opts.mode == "warnings" and valid[def.warning] and def.warning or typical } }
 end
 
-local BAR_WARNING = { earth = { "empty" }, fire = { "empty" }, water = { "down", range = true }, air = { "down", range = true } }
-local function barSteps(el)
-	if opts.mode == "busy" then
-		local steps = {}
-		for _, st in ipairs(ns.TotemBar.PREVIEW_STATES) do table.insert(steps, { st }) end
-		return steps
+-- Bars draw their own (ns.registerBar's hud)
+local function eachHud(fn)
+	for _, key in ipairs(ns.Style.bars()) do
+		local hud = ns.Style.bar(key).hud
+		if hud then fn(hud, key) end
 	end
-	return { opts.mode == "warnings" and BAR_WARNING[el] or { "down" } }
 end
 
 local idles = L.idles
@@ -84,7 +82,7 @@ end
 
 -- Painting
 local runs = {}
-local barRuns = {}
+local barRuns = {}   -- a bar's slots, each looping through its steps like an element
 
 local function setAlpha(f, a)
 	f:SetAlpha(a)
@@ -117,10 +115,10 @@ local function startStep(key, r, moment)
 	r.nextAt = nextAt(r, paintElement(key, r, moment))
 end
 
-local function startBarStep(el, r, moment)
+local function startBarStep(r, moment)
 	r.at = GetTime()
 	local step = r.steps[r.i]
-	r.nextAt = nextAt(r, ns.TotemBar.previewSlot(el, step[1], r.at, step.range, moment))
+	r.nextAt = nextAt(r, r.hud.step(r.slot, step[1], r.at, step.range, moment))
 end
 
 local function place(key, r)
@@ -177,8 +175,8 @@ local function repaint()
 		local r = runs[key]
 		if r then ns.try("preview " .. key, place, key, r) end
 	end
-	for el, r in pairs(barRuns) do
-		if not r.nextAt then ns.try("preview totem bar", startBarStep, el, r, false) end
+	for _, r in ipairs(barRuns) do
+		if not r.nextAt then ns.try("preview " .. r.key, startBarStep, r, false) end
 	end
 end
 
@@ -188,9 +186,9 @@ local function advance(key, r)
 	r.i = r.i % #r.steps + 1
 	startStep(key, r, #r.steps > 1)
 end
-local function advanceBar(el, r)
+local function advanceBar(r)
 	r.i = r.i % #r.steps + 1
-	startBarStep(el, r, #r.steps > 1)
+	startBarStep(r, #r.steps > 1)
 end
 ticker:SetScript("OnUpdate", ns.throttled(0.1, function()
 	local now = GetTime()
@@ -203,8 +201,8 @@ ticker:SetScript("OnUpdate", ns.throttled(0.1, function()
 			end
 		end
 	end
-	for el, r in pairs(barRuns) do
-		if r.nextAt and now >= r.nextAt then ns.try("preview totem bar", advanceBar, el, r) end
+	for _, r in ipairs(barRuns) do
+		if r.nextAt and now >= r.nextAt then ns.try("preview " .. r.key, advanceBar, r) end
 	end
 end))
 
@@ -214,7 +212,11 @@ local function restart()
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
 		if L.PREVIEW[key] then runs[key] = { steps = stepsFor(key), i = 1 } end
 	end
-	for _, el in ipairs(ns.TotemBar.ELEMENTS) do barRuns[el] = { steps = barSteps(el), i = 1 } end
+	eachHud(function(hud, key)
+		for _, slot in ipairs(hud.slots or {}) do
+			table.insert(barRuns, { hud = hud, key = key, slot = slot, steps = hud.steps(slot, opts.mode), i = 1 })
+		end
+	end)
 	local n = 0
 	local function stagger(r)
 		n = n + 1
@@ -223,9 +225,9 @@ local function restart()
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
 		if runs[key] then stagger(runs[key]) end
 	end
-	for _, el in ipairs(ns.TotemBar.ELEMENTS) do stagger(barRuns[el]) end
+	for _, r in ipairs(barRuns) do stagger(r) end
 	ticker:SetShown(on)
-	ns.Swing.preview(on and opts.mode or nil)
+	eachHud(function(hud) hud.show(on and opts or nil) end)
 end
 
 -- The panel
@@ -258,7 +260,6 @@ end
 
 local function changed()
 	restart()
-	ns.TotemBar.preview({ all = opts.unlearned })
 	ns.layoutElements()
 	panel.refresh()
 end
@@ -371,7 +372,6 @@ function PV.open()
 	optionsAside = not ns.getAccount().keepOptionsOpen and ns.Options.hide() or false
 	restart()
 	ns.eachModule("onPreview", true)
-	ns.TotemBar.preview({ all = opts.unlearned })
 	ns.applyLayout()
 	panel:Show()
 	panel.refresh()
@@ -392,13 +392,12 @@ function PV.close(forCombat)
 	wipe(runs)
 	wipe(barRuns)
 	unparkAll()
-	ns.Swing.preview(nil)
+	eachHud(function(hud) hud.show(nil) end)
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
 		local pv = L.PREVIEW[key]
 		if pv and pv.hold then pv.hold(nil) end
 	end
 	ns.eachModule("onPreview", false)
-	ns.TotemBar.preview(nil)
 	ns.applyLayout()
 	ns.refreshAll()
 	if optionsAside and not forCombat then ns.Options.open() end

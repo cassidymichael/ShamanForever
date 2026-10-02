@@ -307,7 +307,9 @@ pvFrame:SetScript("OnUpdate", function()
 	end
 end)
 
-function SW.preview(mode)
+-- opts: the preview's (its mode); nil as it ends
+local function showPreview(opts)
+	local mode = opts and opts.mode
 	if mode and not PREVIEW_SWINGS[mode] then mode = nil end
 	local was = pv.mode
 	pv.mode, pv.action, pv.count, pv.nextAt = mode, "swing", 0, 0
@@ -417,5 +419,6 @@ function SW.debug()
 end
 
 ns.registerBar("swing", { label = "Swing timer", cfg = cfg, saved = "swingBar", defaults = SW.DEFAULTS,
-	ranges = RANGES, on = SW.isOn, kinds = { "border", "text", "bar" }, movable = movable })
+	ranges = RANGES, on = SW.isOn, kinds = { "border", "text", "bar" }, movable = movable,
+	hud = { show = showPreview } })
 ns.registerModule(SW)
