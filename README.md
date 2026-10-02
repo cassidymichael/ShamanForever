@@ -66,7 +66,6 @@ Ideas, requests or problems are welcome, any of these ways:
 ShamanForever is created and maintained with the help of AI tools.
 
 - [CHANGELOG.md](CHANGELOG.md): what changed in each version.
-- [docs/releasing.md](docs/releasing.md): how work reaches main, and how a release is cut.
 
 ## Art
 
