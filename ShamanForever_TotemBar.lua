@@ -852,7 +852,6 @@ end
 -- Layout (out of combat only)
 local mover
 local saidWait = false
-local classDone = false
 local hasTotems = false
 local paintPreview
 
@@ -953,7 +952,6 @@ end
 
 function layout()
 	if ns.deferInCombat("totem bar layout", layout) then return end
-	if classDone then return end
 	-- Any open picker closes first: it would come back open later
 	closePopouts()
 	local c = cfg()
@@ -1059,7 +1057,6 @@ function layout()
 	applyActionBar()
 	mover.update()
 	if preview then paintPreview() end
-	if ns.otherClass() then classDone = true end
 end
 TB.layout = layout
 TB.afterGroups = layout
