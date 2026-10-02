@@ -624,8 +624,8 @@ local function build(p)
 	K.killedBlock(p, "totembar", { after = changed, noun = "slot", flash = { "Flash when a totem dies early",
 		"The dead totem flashes red over its slot. Not when you dismiss it or it runs out." } })
 
-	K.glowBlock(p, "totembar", 136098)
-	K.popBlock(p, "totembar", 136098, "expired")
+	K.glowBlock(p, "totembar", TB.TOTEM_ICON.earth)
+	K.popBlock(p, "totembar", TB.TOTEM_ICON.earth, "expired")
 	p:header("Border style")
 	p:text("Set by the theme.", owned("border"))
 	K.borderRows(p, "totembar", changed, nil, free("border"))
@@ -649,4 +649,6 @@ ns.registerBar("totembar", { icon = "Interface\\Icons\\Spell_Shaman_DropAll_01",
 		return string.format("%s  ·  %s%s", TB.modeName(), shows[c.show] or "",
 			TB.hasTotems() and "" or "  ·  Not learned")
 	end,
-	preview = PREVIEW, page = { order = 50, build = build } })
+	preview = PREVIEW, page = { order = 50, build = build },
+	previewIcon = ns.TotemBar.TOTEM_ICON.earth, schools = ns.TotemBar.ELEMENTS,
+	previewBorder = function() return select(2, ns.TotemBar.look()) end })

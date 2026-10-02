@@ -99,10 +99,12 @@ local function reloadLine(p, keys, verb, shown)
 end
 
 local function isElement(owner) return type(owner) == "string" and ns.ELEMENTS[owner] ~= nil end
+local function barOf(owner) return type(owner) == "string" and ns.Style.bar(owner) or nil end
 
 local function previewBorder(owner)
 	local o = resolve(owner)
-	if o == "totembar" then local _, b = ns.TotemBar.look(); return b end
+	local bar = barOf(o)
+	if bar and bar.previewBorder then return bar.previewBorder() end
 	if isElement(o) then return ns.borderFor(o) end
 	return ns.Style.read(o, "border")
 end
@@ -119,8 +121,9 @@ local function previewTiles(f, owner, icon, x, bySchool, framed)
 		local o = resolve(owner)
 		local schools = {}
 		if not isElement(o) and bySchool() then
+			local only = barOf(o) and barOf(o).schools
 			for _, sc in ipairs(ns.Look.SCHOOLS) do
-				if o ~= "totembar" or sc.key ~= ns.THEME.fallback then table.insert(schools, sc) end
+				if not only or tContains(only, sc.key) then table.insert(schools, sc) end
 			end
 		end
 		local n = math.max(#schools, 1)
@@ -147,12 +150,13 @@ local function borderRows(p, owner, after, label, shown)
 	if owner ~= nil then followRow(p, owner, "border", after, label, shown) end
 	local bordered = function() return r.own() and r.style().show end
 	local look
-	if owner ~= "swing" then
+	local bar = barOf(owner)
+	if not bar or bar.previewIcon then
 		local f = p:row(52)
 		p:label(f, "Preview")
 		local function icon()
+			if bar then return bar.previewIcon end
 			local o = resolve(owner)
-			if o == "totembar" then return 136098 end
 			return isElement(o) and ns.ELEMENTS[o].icon or 136026
 		end
 		local sync = previewTiles(f, owner, icon, LABEL_W + 24, function() return look().bySchool end)
