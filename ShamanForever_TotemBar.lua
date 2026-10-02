@@ -777,6 +777,7 @@ local function refresh()
 end
 
 local ticker = CreateFrame("Frame")
+ticker:Hide()
 ticker.t = 0
 ticker:SetScript("OnUpdate", function(self, elapsed)
 	self.t = self.t + elapsed
@@ -1303,14 +1304,10 @@ local function hookQuickKeybind()
 	if f:IsShown() then setKeybindMode(true) end
 end
 local kbEvents = CreateFrame("Frame")
-for _, e in ipairs({ "PLAYER_LOGIN", "ADDON_LOADED", "PLAYER_REGEN_DISABLED" }) do ns.registerEvent(kbEvents, e) end
-kbEvents:SetScript("OnEvent", function(self, event, name)
-	if event == "PLAYER_REGEN_DISABLED" then
-		kbLeave()   -- never left over the bar in combat, taking the keyboard
-	elseif event == "PLAYER_LOGIN" or name == "Blizzard_QuickKeybind" then
-		hookQuickKeybind()
-		if kbHooked then self:UnregisterEvent("PLAYER_LOGIN"); self:UnregisterEvent("ADDON_LOADED") end
-	end
+kbEvents:SetScript("OnEvent", function(self, _, name)
+	if name ~= "Blizzard_QuickKeybind" then return end
+	hookQuickKeybind()
+	if kbHooked then self:UnregisterEvent("ADDON_LOADED") end
 end)
 
 -- Tooltips and hover on the slot buttons
@@ -1381,12 +1378,6 @@ ns.Totems.subscribe(function(event, slot, was)
 end)
 
 -- Events
-local ev = CreateFrame("Frame")
-for _, e in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_TOTEM_UPDATE", "PLAYER_REGEN_ENABLED",
-		"SPELLS_CHANGED", "ACTIONBAR_SLOT_CHANGED", "UPDATE_MULTI_CAST_ACTIONBAR", "UPDATE_BINDINGS", "SPELL_UPDATE_COOLDOWN" }) do
-	ns.registerEvent(ev, e)
-end
-ns.registerEvent(ev, "UNIT_SPELLCAST_SUCCEEDED", "player")
 -- After one of our casts: refresh once ns.Totems has recorded the slot (its handler may run after ours)
 local casts, refreshQueued = {}, false
 local function refreshAfterCast(spell)
@@ -1405,16 +1396,7 @@ local function refreshAfterCast(spell)
 	end)
 end
 
-ev:SetScript("OnEvent", function(_, event, arg1, ...)
-	if not ns.getDB() then return end
-	if ns.otherClass() then
-		layout()
-		if classDone then
-			ev:UnregisterAllEvents()
-			ticker:SetScript("OnUpdate", nil)
-		end
-		return
-	end
+local function onEvent(_, event, arg1, ...)
 	if event == "PLAYER_TOTEM_UPDATE" then
 		refresh()
 	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
@@ -1428,15 +1410,34 @@ ev:SetScript("OnEvent", function(_, event, arg1, ...)
 		refreshKeys()
 	elseif event == "SPELL_UPDATE_COOLDOWN" then
 		refreshGCD()
-	elseif event == "PLAYER_REGEN_ENABLED" then
-		saidWait = false
-		closePopouts()
-		if mover then mover.update() end
 	else
-		if event == "PLAYER_LOGIN" or event == "SPELLS_CHANGED" then nameBindings() end
+		if event == "SPELLS_CHANGED" then nameBindings() end
 		layout()
 	end
-end)
+end
+
+-- The class's only: its first layout comes with the HUD's
+function TB.start()
+	local ev = CreateFrame("Frame")
+	for _, e in ipairs({ "PLAYER_ENTERING_WORLD", "PLAYER_TOTEM_UPDATE", "SPELLS_CHANGED", "ACTIONBAR_SLOT_CHANGED",
+			"UPDATE_MULTI_CAST_ACTIONBAR", "UPDATE_BINDINGS", "SPELL_UPDATE_COOLDOWN" }) do
+		ns.registerEvent(ev, e)
+	end
+	ns.registerEvent(ev, "UNIT_SPELLCAST_SUCCEEDED", "player")
+	ev:SetScript("OnEvent", onEvent)
+	-- Never left over the bar in combat, taking the keyboard
+	ns.onCombatStart(kbLeave)
+	ns.onCombatEnd(function()
+		saidWait = false
+		closePopouts()
+		mover.update()
+	end)
+	hookQuickKeybind()
+	if not kbHooked then ns.registerEvent(kbEvents, "ADDON_LOADED") end
+	nameBindings()
+	ticker:Show()
+	TB.range.start()
+end
 
 TB.MODES = { { "blizzard", "Blizzard's" }, { "active", "Active totems" }, { "everything", "Everything" } }
 function TB.setMode(mode)

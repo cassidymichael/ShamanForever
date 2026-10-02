@@ -311,18 +311,17 @@ function R.drawTimeLeft(s)
 	else m:SetAlpha(0) end
 end
 
-local ev = CreateFrame("Frame")
-ns.registerEvent(ev, "UNIT_AURA", "player")
-ns.registerEvent(ev, "PLAYER_REGEN_ENABLED")
-ns.registerEvent(ev, "PLAYER_REGEN_DISABLED")
-ev:SetScript("OnEvent", function(_, event)
-	if event == "PLAYER_REGEN_ENABLED" then
+-- Called by the totem bar's start
+function R.start()
+	local ev = CreateFrame("Frame")
+	ns.registerEvent(ev, "UNIT_AURA", "player")
+	ev:SetScript("OnEvent", learn)
+	ns.onCombatEnd(function()
 		for _, el in ipairs(TB.ELEMENTS) do R.refresh(TB.slots[el]) end
-		return
-	end
-	if event == "PLAYER_REGEN_DISABLED" then
-		-- Before the lockdown: drop any holder whose slot has no buff totem of ours down (a lingering buff
-		-- from a totem that went out of combat would show at the pull)
+	end)
+	-- Before the lockdown: drop any holder whose slot has no buff totem of ours down (a lingering buff
+	-- from a totem that went out of combat would show at the pull)
+	ns.onCombatStart(function()
 		for _, el in ipairs(TB.ELEMENTS) do
 			local s = TB.slots[el]
 			local h = s.rangeHold
@@ -330,7 +329,5 @@ ev:SetScript("OnEvent", function(_, event)
 				ns.try("totem range: holder alpha", h.SetAlpha, h, 0)
 			end
 		end
-		return
-	end
-	learn()
-end)
+	end)
+end
