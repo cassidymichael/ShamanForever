@@ -44,6 +44,8 @@ TB.DEFAULTS = {
 	keyColor = { 0.85, 0.85, 0.85, 1 },
 	call = true,
 	recall = true,
+	setSwitch = "popout",   -- popout | cycle: how the Call button switches totem sets
+	setNumber = true,
 	extras = "after",   -- ends | before | after the slots
 	extrasScale = 0.8,
 	sizeFollow = true,
@@ -129,6 +131,7 @@ local function cfg()
 		if t.mode ~= "blizzard" and t.mode ~= "active" and t.mode ~= "everything" then t.mode = nil end
 		if t.show ~= "always" and t.show ~= "active" and t.show ~= "combat" and t.show ~= "target" then t.show = nil end
 		if t.barPlace ~= "in" and t.barPlace ~= "out" then t.barPlace = nil end
+		if t.setSwitch ~= "popout" and t.setSwitch ~= "cycle" then t.setSwitch = nil end
 		if t.stonePlinth ~= "slim" and t.stonePlinth ~= "normal" and t.stonePlinth ~= "grand" then t.stonePlinth = nil end
 		if type(t.expire) ~= "table" then t.expire = {} end
 		if type(t.expire.over) ~= "table" then t.expire.over = TB.overDefaults() end
@@ -357,7 +360,7 @@ bar:Hide()
 local picker = CreateFrame("Frame", nil, UIParent, "SecureHandlerBaseTemplate")
 picker:SetAttribute("sf-open", [[
 	local open = ...
-	for i = 1, 4 do
+	for i = 1, 5 do
 		local pop = self:GetFrameRef("pop" .. i)
 		if i == open then pop:Show() else pop:Hide() end
 	end
@@ -585,12 +588,6 @@ for index, el in ipairs(ELEMENTS) do
 	makePicker(s, NAME[el])
 end
 
--- Close every picker (out of combat): one hidden through the bar would come back open
-local function closePopouts()
-	if InCombatLockdown() then return end
-	for _, el in ipairs(ELEMENTS) do slots[el].popout:Hide() end
-end
-
 -- Key bindings: each a CLICK binding to its own invisible secure button, so keys work with the bar
 -- off. "Dismiss all" runs a macro that /clicks four dismiss helpers (a click sends a release, so
 -- those act on release): no spell, so no global cooldown and no mana back.
@@ -671,6 +668,63 @@ local function lockedCue()
 	local errors = _G.UIErrorsFrame
 	if errors then errors:AddMessage("Totem sets can't switch in combat", 1, 0.1, 0.1)
 	else ns.say("totem sets can't switch in combat") end
+end
+
+-- The Call button switches sets: Alt+click, its arrow or hover open a picker of the known sets
+-- (picker 5), or right-click goes to the next
+local SET_PICK = 5
+local setSlot = { index = SET_PICK, button = call.button }
+makePicker(setSlot, "Sets")
+local SET_CLICK = [[
+	if button == "LeftButton" then owner:RunAttribute("sf-switch", self:GetAttribute("sf-set")) end
+	owner:RunAttribute("sf-close", self:GetAttribute("sf-pick"))
+	return false
+]]
+for set, id in ipairs(SET_CALL) do
+	local p = CreateFrame("Button", nil, setSlot.popout, "SecureActionButtonTemplate")
+	p:RegisterForClicks("AnyUp")
+	p:SetAttribute("sf-pick", SET_PICK)
+	p:SetAttribute("sf-set", set)
+	wrapClick(p, SET_CLICK)
+	p:SetFrameLevel(setSlot.popout:GetFrameLevel() + 5)
+	p.icon = p:CreateTexture(nil, "ARTWORK")
+	p.icon:SetAllPoints()
+	ns.cropIcon(p.icon)
+	p.on = p:CreateTexture(nil, "OVERLAY")
+	p.on:SetAllPoints()
+	p.on:SetTexture("Interface\\Buttons\\CheckButtonHilight")
+	p.on:SetBlendMode("ADD")
+	p:SetScript("OnEnter", function(self)
+		local c = cfg()
+		if c.tips == "never" or (c.tips == "ooc" and InCombatLockdown()) then return end
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		if not ns.try("totem bar: tooltip", GameTooltip.SetSpellByID, GameTooltip, id) then
+			GameTooltip:SetText(C_Spell.GetSpellName(id) or "")
+		end
+		GameTooltip:Show()
+	end)
+	p:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	p:SetScript("PostClick", function(_, button) if button == "LeftButton" then lockedCue() end end)
+	wrapHover(p)   -- after its scripts: setting a script later would drop the wrap
+	setSlot.popout.buttons[set] = p
+end
+wrapClick(call.button, SLOT_CLICK .. [[
+	if button == "RightButton" and self:GetAttribute("sf-cycle") then
+		if not down then owner:RunAttribute("sf-switch", 0) end
+		return false
+	end
+]])
+call.button:SetScript("PostClick", function(_, button, down)
+	if button == "RightButton" and not down and cfg().setSwitch == "cycle" then lockedCue() end
+end)
+call.num = ns.makeKeyText(call.keys)
+call.num:SetTextColor(1, 1, 1)
+
+-- Close every picker (out of combat): one hidden through the bar would come back open
+local function closePopouts()
+	if InCombatLockdown() then return end
+	for _, el in ipairs(ELEMENTS) do slots[el].popout:Hide() end
+	setSlot.popout:Hide()
 end
 
 -- Next totem set: a key only
@@ -862,8 +916,19 @@ end
 -- The active set: the picker header's sf-set, written by the switch snippet or by writeSet (out of
 -- combat); a hook keeps the plain side in step, in combat too
 local applying = false
+-- The Call's icon and number; in combat while sets can't switch, the other sets greyed in its picker
 local function paintSets()
-	call.vis.icon:SetTexture(C_Spell.GetSpellTexture(SET_CALL[sets.active]))
+	local set = sets.active
+	local locked = not SWITCH_IN_COMBAT and ns.inCombat()
+	call.vis.icon:SetTexture(C_Spell.GetSpellTexture(SET_CALL[set]))
+	call.num:SetText(set)
+	call.num:SetShown(cfg().setNumber and sets.count > 1)
+	for i, p in ipairs(setSlot.popout.buttons) do
+		local off = locked and i ~= set
+		p.on:SetShown(i == set)
+		p.icon:SetDesaturated(off)
+		p.icon:SetAlpha(off and 0.5 or 1)
+	end
 end
 local function setActive(set, chosen)
 	sets.active = set
@@ -928,6 +993,7 @@ ticker:SetScript("OnUpdate", ns.throttled(0.1, function()
 		hover(s, arrows)
 		if s.down and not preview then TB.drawTimeLeft(s) end
 	end
+	if setSlot.on then hover(setSlot, arrows) end
 end))
 
 -- Blizzard's totem frames
@@ -1062,13 +1128,29 @@ local function layoutPopout(s, size, known)
 	placePicker(pop, s.button, #ids, size, psz)
 end
 
-local function layoutArrow(s)
+local function layoutArrow(s, shown)
+	if shown == nil then shown = feat("arrows") end
 	local ar = s.arrow
 	TB.placeArrow(ar, s.button, s.arrowVis.glyph)
 	TB.skin.styleArrow(s.arrowVis)
-	ar:SetShown(feat("arrows"))
+	ar:SetShown(shown)
 	ar:SetFrameLevel(s.popout.catch:GetFrameLevel() + 2)
-	s.arrowVis:SetShown(feat("arrows"))
+	s.arrowVis:SetShown(shown)
+end
+
+-- The known sets' Calls, at the slots' picker size
+local function layoutSetPicker(size)
+	local pop, n = setSlot.popout, 0
+	local psz = TB.popButtonSize(size)
+	for set, p in ipairs(pop.buttons) do
+		p:SetShown(sets.known[set])
+		if sets.known[set] then
+			n = n + 1
+			TB.placePopButton(p, pop, n, psz)
+			p.icon:SetTexture(C_Spell.GetSpellTexture(SET_CALL[set]))
+		end
+	end
+	placePicker(pop, call.button, n, size, psz)
 end
 
 local function ownDriver()
@@ -1171,11 +1253,25 @@ function layout()
 			TB.fitLook(e.vis, e.button, extrasBorder, on[key])
 		end
 	end
+	-- The set switch: with more than one set known
+	local switch = on.Call ~= nil and sets.count > 1
+	local pickSet = switch and c.setSwitch == "popout"
+	call.button:SetAttribute("sf-pick", pickSet and SET_PICK or nil)
+	call.button:SetAttribute("sf-altpick", pickSet)
+	call.button:SetAttribute("sf-cycle", switch and c.setSwitch == "cycle")
+	setSlot.on = pickSet
+	if pickSet then layoutSetPicker(size) end
+	layoutArrow(setSlot, pickSet and feat("arrows"))
+	if on.Call then
+		ns.Media.setFont(call.num, "totembar", ns.keyTextSize(on.Call, c.keySize))
+		call.num:ClearAllPoints()
+		call.num:SetPoint("BOTTOMRIGHT", -1, 2)
+	end
 	local hoverMode = feat("pickHover") and not kbOpen
 	picker:SetAttribute("sf-hovermode", hoverMode)
-	for _, el in ipairs(ELEMENTS) do
-		slots[el].popout.catch:SetShown(not hoverMode)
-		slots[el].popout.strip:SetShown(hoverMode)
+	for _, s in ipairs({ slots.earth, slots.fire, slots.water, slots.air, setSlot }) do
+		s.popout.catch:SetShown(not hoverMode)
+		s.popout.strip:SetShown(hoverMode)
 	end
 	for _, s in ipairs(shown) do
 		local b = s.button
@@ -1493,6 +1589,7 @@ SecureHandlerWrapScript(onShow, "OnShow", picker, [[
 
 for _, e in pairs(extras) do
 	e.button:SetScript("OnEnter", function(self)
+		if e == call then hover(setSlot) end
 		if kbEnter(self, e.command, e.keys) then return end
 		local c = cfg()
 		if c.tips == "never" or (c.tips == "ooc" and InCombatLockdown()) then return end
@@ -1503,11 +1600,28 @@ for _, e in pairs(extras) do
 		if e.key == "Recall" then
 			if not knows(e.spell) then GameTooltip:AddLine("Not learned yet", 0.6, 0.6, 0.6) end
 			GameTooltip:AddLine("Right-click: dismiss all totems (no GCD, but no mana returned)", 1, 0.82, 0, true)
+		elseif sets.count > 1 then
+			if not SWITCH_IN_COMBAT and ns.inCombat() then
+				GameTooltip:AddLine("Totem sets switch out of combat", 0.6, 0.6, 0.6)
+			elseif c.setSwitch == "cycle" then
+				GameTooltip:AddLine("Right-click: next totem set", 1, 0.82, 0, true)
+			else
+				GameTooltip:AddLine("Alt+click: choose a totem set", 1, 0.82, 0, true)
+			end
 		end
 		GameTooltip:Show()
 	end)
-	e.button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	e.button:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+		if e == call then hover(setSlot) end
+	end)
 end
+setSlot.arrow:SetScript("OnEnter", function() hover(setSlot) end)
+setSlot.arrow:SetScript("OnLeave", function() hover(setSlot) end)
+-- After the scripts above, as the slots'
+wrapHover(call.button, HOVER_ENTER)
+wrapHover(setSlot.arrow, HOVER_ENTER)
+wrapHover(setSlot.popout.strip)
 
 -- Killed early: a slot's last duration object says how much time the totem had left; endFlash
 -- turns that into a curve, so a totem that ran out shows no flash. Our own dismissals and an
@@ -1574,10 +1688,12 @@ function TB.start()
 	ev:SetScript("OnEvent", onEvent)
 	-- Never left over the bar in combat, taking the keyboard
 	ns.onCombatStart(kbLeave)
+	ns.onCombatStart(paintSets)
 	ns.onCombatEnd(function()
 		saidWait = false
 		closePopouts()
 		mover.update()
+		paintSets()
 	end)
 	ticker:Show()
 	TB.range.start()
