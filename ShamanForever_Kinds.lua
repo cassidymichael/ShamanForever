@@ -100,7 +100,8 @@ function KD.get(kind) return KINDS[kind] end
 --   kind, after/order a kind it joins: after a part in its list, or at a place in it (else at
 --                     the end); kinds = { [kind] = { after, order } } for several
 --   addSlot           { slot, after, order }: a page slot it brings to the kinds it joins
---   has(def)          whether def has it; default: def[name] is set
+--   has(def)          whether def has it; without it the part's name doubles as the row flag:
+--                     def[name] set (not nil or false) means it has it
 --   defaults, ranges  its settings' defaults and { min, max, step } (the shapes: _Profiles)
 --   glow, pop         the effect states it adds; popKind: the pop it plays
 --   idle              words for the Idle block: choices, held (what keeps it shown, for its
@@ -168,33 +169,63 @@ local function fillIdle(def, list)
 	if def.idleChoices == nil then def.idleChoices = value(word("choices"), def) end
 end
 
--- Every element of a kind with parts takes its parts' defaults, ranges, effects and idle words
+-- A kind's names that lead nowhere, noted once: a part with no spec, a slot or own block with no
+-- builder in the options kit
+local checked = {}
+local function site(kind, name) return "kinds: " .. kind .. ": " .. tostring(name) end
+local function check(kind, def, list)
+	local K = ns.Options and ns.Options.kit
+	if not checked[kind] then
+		checked[kind] = true
+		for _, name in ipairs(listOf(kind, "parts")) do
+			if not PARTS[name] then ns.noteError(site(kind, name), "no part") end
+		end
+		for _, slot in ipairs(listOf(kind, "slots")) do
+			if K and not K.slotBuilder(slot) then ns.noteError(site(kind, slot), "no slot") end
+		end
+	end
+	for _, p in ipairs(list) do
+		local own = p.page and value(p.page.own, def)
+		if type(own) ~= "table" or type(own[1]) ~= "table" then own = { own } end
+		for _, b in ipairs(own) do
+			local name = K and b and K.ownName(b)
+			if name and not K.ownBuilder(name) then ns.noteError(site(kind, name), "no own block") end
+		end
+	end
+end
+
+-- An element of a kind with parts takes its parts' defaults, ranges, effects and idle words
+local function finishOne(e)
+	local def = e.def
+	def.finished = true
+	local k = KINDS[e.kind]
+	if k.prepare then k.prepare(def) end
+	local list = partsOf(e.kind, def)
+	check(e.kind, def, list)
+	e.defaults = e.defaults or def.defaults or {}
+	def.defaults = e.defaults
+	def.ranges = e.ranges
+	for _, p in ipairs(list) do
+		local d = value(p.defaults, def)
+		if d then ns.fillParts(e.defaults, d) end
+		local r = value(p.ranges, def)
+		if r then ns.fillParts(e.ranges, r) end
+	end
+	local glow, pop = {}, {}
+	for _, p in ipairs(list) do
+		for _, st in ipairs(value(p.glow, def) or NONE) do table.insert(glow, st) end
+		for _, st in ipairs(value(p.pop, def) or NONE) do table.insert(pop, st) end
+	end
+	local popKind = firstOf(list, function(p) return p.popKind end)
+	e.effects = { glow = glow, pop = pop, popKind = popKind }
+	fillIdle(def, list)
+end
+-- Each element on its own: one that fails is noted and the rest go on
 function KD.finish()
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
 		local e = ns.ELEMENTS[key]
-		local k = e.kind and KINDS[e.kind]
-		local def = e.def
-		if k and #listOf(e.kind, "parts") > 0 and def and not def.finished then
-			def.finished = true
-			if k.prepare then k.prepare(def) end
-			local list = partsOf(e.kind, def)
-			e.defaults = e.defaults or def.defaults or {}
-			def.defaults = e.defaults
-			def.ranges = e.ranges
-			for _, p in ipairs(list) do
-				local d = value(p.defaults, def)
-				if d then ns.fillParts(e.defaults, d) end
-				local r = value(p.ranges, def)
-				if r then ns.fillParts(e.ranges, r) end
-			end
-			local glow, pop = {}, {}
-			for _, p in ipairs(list) do
-				for _, s in ipairs(value(p.glow, def) or NONE) do table.insert(glow, s) end
-				for _, s in ipairs(value(p.pop, def) or NONE) do table.insert(pop, s) end
-			end
-			local popKind = firstOf(list, function(p) return p.popKind end)
-			e.effects = { glow = glow, pop = pop, popKind = popKind }
-			fillIdle(def, list)
+		if e.kind and KINDS[e.kind] and #listOf(e.kind, "parts") > 0 and e.def and not e.def.finished then
+			ns.try("kinds: " .. key, finishOne, e)
 		end
 	end
 end
@@ -277,11 +308,14 @@ function KD.preview(kind, def)
 	return pv
 end
 
--- An element's preview, from its kind
+-- An element's preview, from its kind; none from parts that give no state
 function KD.previewOf(key)
 	local e = ns.ELEMENTS[key]
 	local k = e and e.kind and KINDS[e.kind]
 	if not k then return nil end
 	if k.preview then return k.preview(e.def, key) end
-	if #listOf(e.kind, "parts") > 0 then return KD.preview(e.kind, e.def) end
+	if #listOf(e.kind, "parts") > 0 then
+		local pv = KD.preview(e.kind, e.def)
+		return #pv.states > 0 and pv or nil
+	end
 end
