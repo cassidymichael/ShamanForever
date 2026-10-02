@@ -835,6 +835,7 @@ L.PREVIEW.totembar = {
 
 -- Element page header
 L.HERO_H = 160
+local WING_MAX = 48
 local heroes = {}
 
 function L.paintChoice(b, chosen)
@@ -935,6 +936,14 @@ function L.buildHero(parent, key)
 	else
 		h.previewIcon = makePreviewIcon(p, key, def)
 		h.previewIcon:SetPoint("LEFT", 16, -6)
+		-- The element's frame, clipped to the panel left of the state buttons; it fades with the icon
+		local clip = CreateFrame("Frame", nil, p)
+		clip:SetPoint("TOPLEFT", 1, -1)
+		clip:SetPoint("BOTTOMRIGHT", -(BTN_W + 10), 1)
+		clip:SetClipsChildren(true)
+		h.frameHost = CreateFrame("Frame", nil, clip)
+		h.frameHost:SetAllPoints(h.previewIcon)
+		hooksecurefunc(h.previewIcon, "SetAlpha", function(_, a) h.frameHost:SetAlpha(a) end)
 	end
 	h.stateButtons = {}
 	previewState[key] = previewState[key] or def.states[1][1]
@@ -971,7 +980,18 @@ function L.buildHero(parent, key)
 		local w = self:GetWidth()
 		if not w or w <= 0 then w = parent:GetWidth() end
 		self.banner:SetTexCoord(coverCoords(w - 2, heroH - 16))
-		self.blurb:SetWidth(def.stage and 300 or math.max(w - 40 - 60 - 14 - 40 - PANEL_W - 12, 120))
+		local el = ns.ELEMENTS[key]
+		local bw, bh = PREVIEW_SIZE, PREVIEW_SIZE
+		if def.size then bw, bh = def.size() end
+		-- The panel widens for a frame's wings, up to a point
+		local padL, padR = 0, 0
+		local framed = not def.stage and el and bw == bh
+		if framed then
+			local r = ns.Frames.reach(key)
+			padL, padR = math.min(math.ceil(r.left * bw), WING_MAX), math.min(math.ceil(r.right * bw), WING_MAX)
+			p:SetWidth(PANEL_W + padL + padR)
+		end
+		self.blurb:SetWidth(def.stage and 300 or math.max(w - 40 - 60 - 14 - 40 - PANEL_W - padL - padR - 12, 120))
 		self.banner:SetShown(not minimal)
 		self.shade:SetShown(not minimal)
 		for _, c in ipairs(self.corners) do c:SetShown(not minimal) end
@@ -1006,10 +1026,8 @@ function L.buildHero(parent, key)
 		end
 		for _, b in ipairs(self.stateButtons) do L.paintChoice(b, b.state == previewState[key]) end
 		if not def.stage then
-			local ic, el = self.previewIcon, ns.ELEMENTS[key]
-			local bw, bh = PREVIEW_SIZE, PREVIEW_SIZE
-			if def.size then bw, bh = def.size() end
-			local x = 16 + ns.Looks.fit(ic, ns.borderFor(key), bw, bh, { shape = el and el.shape })
+			local ic = self.previewIcon
+			local x = 16 + padL + ns.Looks.fit(ic, ns.borderFor(key), bw, bh, { shape = el and el.shape })
 			ic:ClearAllPoints()
 			ic:SetPoint("LEFT", p, "LEFT", x, -6)
 			local l, t = ic:GetLeft(), ic:GetTop()
@@ -1017,6 +1035,8 @@ function L.buildHero(parent, key)
 				local px = ns.pixel(ic)
 				ic:SetPoint("LEFT", p, "LEFT", x + ns.roundPx(l, px) - l, -6 + ns.roundPx(t, px) - t)
 			end
+			self.frameHost:SetFrameLevel(ic:GetFrameLevel())
+			if framed then ns.Frames.mount(self.frameHost, key, bw) else ns.Frames.draw(self.frameHost) end
 		end
 		local st = previewState[key]
 		if def.stage then def.render(self, st) else
@@ -1086,7 +1106,7 @@ L.SCHOOLS = {
 for _, s in ipairs(L.SCHOOLS) do s.color = ns.SCHOOL_COLOR[s.key] end
 
 do
-	local KINDS = { "border", "glow", "pop" }
+	local KINDS = { "border", "glow", "pop", "frame" }
 	local Tile = {}
 	Tile.__index = Tile
 
@@ -1132,6 +1152,7 @@ do
 		ns.Looks.fit(self.ic, self.owner.border, size)
 		self.ic:ClearAllPoints()
 		self.ic:SetPoint("CENTER", self.box, "CENTER", 0, 0)
+		ns.Frames.mount(self.ic, self.owner, size)
 		if self.glowing then self.ic.fx:fit(self.ic:GetWidth()) end
 	end
 

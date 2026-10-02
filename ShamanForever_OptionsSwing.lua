@@ -114,4 +114,8 @@ function SP.build(p)
 
 	p:header("Border style")
 	K.borderRows(p, "swing", changed)
+	if K.barFramed("swing") then
+		p:header("Frame style")
+		K.frameRows(p, "swing", "groupframe", changed)
+	end
 end

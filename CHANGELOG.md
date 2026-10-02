@@ -4,6 +4,8 @@
 
 - Borders are set per element, last on each element's page; groups no longer have their own. A
   group's own border carries over to its elements.
+- Frames: decorative art round an element or a whole group, set on each page and shown in the
+  Styles explorer.
 
 ## 0.12.1 (2026-10-02)
 

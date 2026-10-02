@@ -1,10 +1,10 @@
--- Styles explorer: border looks, glows and pops on sample icons, never the player's settings
+-- Styles explorer: border looks, frames, glows and pops on sample icons, never the player's settings
 local _, ns = ...
 
 local SP = {}
 ns.StylesPage = SP
 
-local Page, K, L, S = ns.Page, ns.Options.kit, ns.Look, ns.Style
+local Page, K, L, S, FR = ns.Page, ns.Options.kit, ns.Look, ns.Style, ns.Frames
 local pool = L.tilePool
 
 local SIZES = { small = 40, large = 64 }
@@ -21,9 +21,9 @@ local PLAYERS = 6
 local HOLD = 1.2
 
 local view = { school = "all", backdrop = "dark", size = "small", scale = 1.2, colorBy = "school",
-	flash = S.KINDS.pop.defaults.flash }
+	flash = S.KINDS.pop.defaults.flash, frameBorder = true, groupDir = "row" }
 local stamp = 0
-local preview = { border = {}, glow = {}, pop = {} }
+local preview = { border = {}, glow = {}, pop = {}, frame = {} }
 
 local function size() return SIZES[view.size] end
 local function schoolOf(key)
@@ -32,7 +32,8 @@ local function schoolOf(key)
 end
 
 local NEUTRAL = {}
-for _, kind in ipairs({ "border", "glow", "pop" }) do
+local NEUTRAL_GROUP = S.clean(nil, S.KINDS.groupframe.defaults)
+for _, kind in ipairs({ "border", "glow", "pop", "frame" }) do
 	local spec = S.KINDS[kind]
 	local t = S.clean(nil, spec.defaults, spec.ranges)
 	t.follow = false
@@ -40,9 +41,11 @@ for _, kind in ipairs({ "border", "glow", "pop" }) do
 end
 
 -- Using a look as a global style
-local KIND_NAMES = { border = "border look", glow = "pulsing glow", pop = "pop" }
+local KIND_NAMES = { border = "border look", glow = "pulsing glow", pop = "pop", frame = "frame",
+	groupframe = "group frame" }
+local USE = { frame = "Use as Global frame", groupframe = "Use as Global group frame" }
 local AFTER = {
-	border = K.relayout,
+	border = K.relayout, frame = K.relayout, groupframe = K.relayout,
 	glow = function() ns.Effects.applyStyle(); ns.applyTimers(); ns.Options.refresh() end,
 	pop = function() ns.applyTimers(); ns.Options.refresh() end,
 }
@@ -63,7 +66,7 @@ local function menu(c)
 	if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
 	MenuUtil.CreateContextMenu(c.frame, function(_, root)
 		root:CreateTitle(c.name())
-		root:CreateButton("Use as Global style", function() askUse(c) end)
+		root:CreateButton(USE[c.kind] or "Use as Global style", function() askUse(c) end)
 	end)
 end
 
@@ -107,7 +110,9 @@ local function dress(c)
 	local own = {}
 	for k, v in pairs(preview[c.kind]) do own[k] = v end
 	for k, v in pairs(c.fields()) do own[k] = v end
-	c.tile:dress(c.kind == "border" and NEUTRAL or worn(), { [c.kind] = own }, sc.key, sc.icon, size())
+	local over = { [c.kind] = own }
+	if c.kind == "frame" and not view.frameBorder then over.border = { show = false } end
+	c.tile:dress(c.kind == "border" and NEUTRAL or worn(), over, sc.key, sc.icon, size())
 	c.tile:glow(c.kind == "glow")
 	c.dressed = stamp
 end
@@ -325,7 +330,7 @@ local function newSection(p, place, grid)
 			paintCell(c)
 			local on = c.frame:IsShown()
 			if c.tile and c.dressed ~= stamp then dress(c) end
-			if not grid and visible and on and not c.tile then takeTile(c) end
+			if not (grid or sec.stills) and visible and on and not c.tile then takeTile(c) end
 			if c.tile then placeTile(c) end
 			if c.still then paintStill(c) end
 		end
@@ -352,13 +357,19 @@ local function restyleSoon()
 	C_Timer.After(0.3, function() if changes == this then restyleAll() end end)
 end
 
-local function flowSection(p, kind, field)
+-- opts: keep(e) (offer only these), stage(e, s) (a cell's width and stage height)
+local function flowSection(p, kind, field, opts)
+	opts = opts or {}
 	local list = S.field(kind, field)
-	local parts = S.sections(kind, field)
+	local parts = {}
+	for _, part in ipairs(S.sections(kind, field)) do
+		local kept = {}
+		for _, e in ipairs(part.list) do if not opts.keep or opts.keep(e) then table.insert(kept, e) end end
+		if #kept > 0 then table.insert(parts, { name = part.name, list = kept }) end
+	end
 	local groups = {}
 	local sec = newSection(p, function(sec, w)
 		local s = size()
-		local cw, stageH = s + 44, math.floor(s * 1.5 + 0.5)
 		local y = 0
 		for _, g in ipairs(groups) do
 			if g.title then
@@ -366,13 +377,16 @@ local function flowSection(p, kind, field)
 				g.title:SetPoint("TOPLEFT", sec.box, "TOPLEFT", 2, -y)
 				y = y + 16
 			end
-			local ch = stageH + 30 + (g.badged and 18 or 0)
-			local x = 0
+			local x, rowH = 0, 0
 			for _, c in ipairs(g.cells) do
 				local on = cellShown(c)
 				c.frame:SetShown(on)
 				if on then
-					if x > 0 and x + cw > w then x, y = 0, y + ch + GAP end
+					local cw, stageH = s + 44, math.floor(s * 1.5 + 0.5)
+					if opts.stage then cw, stageH = opts.stage(c.entry, s) end
+					local ch = stageH + 30 + (g.badged and 18 or 0)
+					if x > 0 and x + cw > w then x, y, rowH = 0, y + rowH + GAP, 0 end
+					rowH = math.max(rowH, ch)
 					c.stageH = stageH
 					c.frame:ClearAllPoints()
 					c.frame:SetPoint("TOPLEFT", sec.box, "TOPLEFT", x, -y)
@@ -383,7 +397,7 @@ local function flowSection(p, kind, field)
 					x = x + cw + GAP
 				end
 			end
-			y = y + ch + GAP * 2
+			y = y + rowH + GAP * 2
 		end
 		return math.max(y - GAP * 2, 1)
 	end)
@@ -400,6 +414,7 @@ local function flowSection(p, kind, field)
 			if e.bySchool then for _, sc in ipairs(L.SCHOOLS) do table.insert(schools, sc) end end
 			for _, sc in ipairs(schools) do
 				local c = newCell(sec.box, kind, fields, function() return e.name end)
+				c.entry = e
 				if e.bySchool then c.perSchool, c.school = sc and true or false, sc and sc.key or nil end
 				c.text = c.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 				c.text:SetMaxLines(2)
@@ -415,6 +430,90 @@ local function flowSection(p, kind, field)
 			end
 		end
 		table.insert(groups, g)
+	end
+	return sec
+end
+
+-- Element frames: a cell as wide and tall as the look reaches
+local function frameStage(e, s)
+	local r = e.reach
+	local across, up = math.max(r.left, r.right), math.max(r.top, r.bottom)
+	return math.max(s + 44, math.ceil(s * (1 + 2 * across)) + 8), math.max(math.floor(s * 1.5 + 0.5), math.ceil(s * (1 + 2 * up)) + 8)
+end
+local function usableFrame(e) return not e.none and FR.usable(e) end
+
+-- Group frames: each look round four still icons, drawn as a group's
+local GROUP_N, GROUP_PAD, GROUP_GAP = 4, 10, 4
+local function groupSection(p)
+	local s0 = size()
+	local sec
+	sec = newSection(p, function(_, w)
+		local s = size()
+		local vertical = view.groupDir == "column"
+		local x, y, rowH = 0, 0, 0
+		for _, c in ipairs(sec.cells) do
+			local look = c.entry
+			local key = table.concat({ s, tostring(vertical), tostring(borderSig), c.frame:GetEffectiveScale() }, "|")
+			if c.drawnAt ~= key then
+				local lay = { size = s, n = GROUP_N, gap = FR.fitSpacing(look, s) or GROUP_GAP, vertical = vertical }
+				local o = FR.groupLayout(look, lay, ns.pixel(c.frame)).outer
+				local artW = o[3] - o[1] + 2 * GROUP_PAD
+				c.cw, c.stageH = math.max(artW, 120), o[4] - o[2] + 2 * GROUP_PAD
+				lay.x, lay.y = GROUP_PAD - o[1] + (c.cw - artW) / 2, GROUP_PAD - o[2]
+				c.lay = lay
+			end
+			local cw, stageH, lay = c.cw, c.stageH, c.lay
+			local ch = stageH + 30
+			if x > 0 and x + cw > w then x, y, rowH = 0, y + rowH + GAP, 0 end
+			rowH = math.max(rowH, ch)
+			c.frame:ClearAllPoints()
+			c.frame:SetPoint("TOPLEFT", sec.box, "TOPLEFT", x, -y)
+			c.frame:SetSize(cw, ch)
+			c.text:SetWidth(cw - 6)
+			c.text:ClearAllPoints()
+			c.text:SetPoint("TOP", c.frame, "TOP", 0, -(stageH + 2))
+			x = x + cw + GAP
+			if c.drawnAt ~= key then
+				c.drawnAt = key
+				local border = worn()[S.KINDS.border.path[1]]
+				FR.drawGroup(c.host, look, lay, NEUTRAL_GROUP)
+				for i, st in ipairs(c.stills) do
+					local at = (i - 1) * (s + lay.gap)
+					st:ClearAllPoints()
+					st:SetPoint("TOPLEFT", c.host, "TOPLEFT", lay.x + (vertical and 0 or at), -(lay.y + (vertical and at or 0)))
+					st:SetSize(s, s)
+					st.ic.tex:SetTexture(L.SCHOOLS[i].icon)
+					ns.Looks.fit(st.ic, border, s)
+					st.ic:ClearAllPoints()
+					st.ic:SetPoint("CENTER", st, "CENTER", 0, 0)
+				end
+			end
+		end
+		return math.max(y + rowH, 1)
+	end)
+	sec.stills = true
+	for _, look in ipairs(FR.available("groupframe", nil, true)) do
+		if not look.none then
+			local c = newCell(sec.box, "groupframe", function() return { look = look.key } end, function() return look.name end)
+			c.entry = look
+			c.host = CreateFrame("Frame", nil, c.frame)
+			c.host:SetAllPoints()
+			c.stills = {}
+			for i = 1, GROUP_N do
+				local box = CreateFrame("Frame", nil, c.host)
+				box:SetSize(s0, s0)
+				box:SetFrameLevel(c.host:GetFrameLevel() + 3)
+				box.ic = CreateFrame("Frame", nil, box)
+				box.ic.tex = box.ic:CreateTexture(nil, "ARTWORK")
+				box.ic.tex:SetAllPoints()
+				ns.cropIconExact(box.ic.tex)
+				c.stills[i] = box
+			end
+			c.text = c.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+			c.text:SetMaxLines(2)
+			c.text:SetText(look.name)
+			table.insert(sec.cells, c)
+		end
 	end
 	return sec
 end
@@ -616,7 +715,17 @@ end
 -- K 24 25 26 27 28 36
 local GLOBAL = "Global settings"
 local BLOCKS = { border = { "border", "Border style" }, glow = { "glow", "Pulsing glow style" },
-	pop = { "pop", "Pop style" } }
+	pop = { "pop", "Pop style" }, frame = { "frame", "Frame style" }, groupframe = { "groupframe", "Group frame style" } }
+
+-- A row of chips and the Global settings link for a block without preview sliders
+local function chipRow(p, label, items, key, kind)
+	local f = p:row(26)
+	local paint = chips(f, label, items, key, 4, -13)
+	local block = BLOCKS[kind]
+	local go = link(f, GLOBAL .. " > " .. block[2], function() ns.Options.openGlobal(block[1]) end)
+	go:SetPoint("RIGHT", f, "RIGHT", -4, 0)
+	p:add(f, 26, nil, paint)
+end
 
 local function previewRows(p, kind, rows)
 	local shipped = NEUTRAL[S.KINDS[kind].path[1]]
@@ -657,6 +766,12 @@ function SP.build(p)
 	p:header("Border look")
 	previewRows(p, "border", { { "Border size", "size", 1, 8, 1, px } })
 	flowSection(p, "border", "look")
+	p:header("Element frame")
+	chipRow(p, "Border", { { true, "On" }, { false, "Off" } }, "frameBorder", "frame")
+	flowSection(p, "frame", "look", { keep = usableFrame, stage = frameStage })
+	p:header("Group frame")
+	chipRow(p, "Direction", { { "row", "Row" }, { "column", "Column" } }, "groupDir", "groupframe")
+	groupSection(p)
 	p:header("Pulsing glow")
 	previewRows(p, "glow", {
 		{ "Pulse length", "speed", 0.2, 2, 0.1, secs },
