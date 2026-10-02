@@ -162,6 +162,8 @@ function IM.refresh()
 	local acct = ns.getAccount()
 	local now = GetTime()
 	local r = readMainHand()
+	-- An enchant read empty around a loading screen: the last state stays
+	if r == false and imbueState.on and ns.Sounds.zoning() then return end
 	local had = imbueState.on
 	imbueState.unreadable = r == nil
 	imbueState.on = r and true or r
@@ -192,7 +194,7 @@ function IM.refresh()
 	drawImbue(now, quiet)
 	if had and r == false and not quiet then
 		if warn("pop") then imbue:Pop("lost") end
-		if imbue:IsVisible() then ns.Sounds.element("imbue", "warn", true) end
+		if imbue:IsVisible() then ns.Sounds.element("imbue", "warn") end
 	end
 end
 

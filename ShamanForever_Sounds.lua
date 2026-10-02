@@ -77,11 +77,14 @@ end
 local quietUntil = 0
 local lastByAlert, lastBySound = {}, {}
 
--- zoning: an end a loading screen can cause (totem gone, imbue read empty) waits until after it
+-- From a loading screen until QUIET seconds after it: slot or enchant may read empty
+function S.zoning() return GetTime() < quietUntil end
+
+-- zoning: an end a loading screen can cause (a totem gone) waits until after it
 function S.play(value, alert, gap, zoning)
 	if not resolve(value) or not ns.isActive() then return end
+	if (zoning and S.zoning()) or ns.cantAct() then return end
 	local now = GetTime()
-	if (zoning and now < quietUntil) or ns.cantAct() then return end
 	alert = alert or value
 	if lastByAlert[alert] and now - lastByAlert[alert] < (gap or GAP) then return end
 	lastByAlert[alert] = now
@@ -159,7 +162,6 @@ ev:SetScript("OnEvent", function(_, event)
 		for _, a in pairs(auraSounds) do dropAura(a) end
 		return
 	end
-	-- Slot or enchant may read empty around a loading screen
 	quietUntil = event == "PLAYER_LEAVING_WORLD" and math.huge or GetTime() + QUIET
 end)
 
