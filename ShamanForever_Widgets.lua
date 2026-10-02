@@ -208,6 +208,13 @@ end
 local AuraSlot = {}
 AuraSlot.__index = AuraSlot
 
+-- Clicks and hover pass through a button of Blizzard's (each call may be refused)
+function ns.noMouse(b)
+	pcall(b.EnableMouse, b, false)
+	pcall(b.SetMouseClickEnabled, b, false)
+	pcall(b.SetMouseMotionEnabled, b, false)
+end
+
 function ns.makeAuraSlot(frame, opts)
 	return setmetatable({ frame = frame, opts = opts }, AuraSlot)
 end
@@ -218,9 +225,7 @@ local function initAuraButton(slot, button)
 	button:SetSize(size, size)
 	slot.size = size
 	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
-	pcall(button.EnableMouse, button, false)
-	pcall(button.SetMouseClickEnabled, button, false)
-	pcall(button.SetMouseMotionEnabled, button, false)
+	ns.noMouse(button)
 	local host = o.host and o.host(slot, button) or button
 	slot.host = host
 	local tex = host:CreateTexture(nil, "ARTWORK")
@@ -257,9 +262,7 @@ local function initExtraButton(slot, x, button)
 	local size = ns.sizeOf(slot.opts.key)
 	button:SetSize(size, size)
 	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
-	pcall(button.EnableMouse, button, false)
-	pcall(button.SetMouseClickEnabled, button, false)
-	pcall(button.SetMouseMotionEnabled, button, false)
+	ns.noMouse(button)
 	slot.extras = slot.extras or {}
 	slot.extras[x.key] = button
 	x.init(slot, button)
@@ -579,9 +582,7 @@ function ClipLook:setup()
 			layout = { elementWidth = w + CLIP_SLACK, elementHeight = w },
 			initializeFrame = function(b)
 				b:SetSize(1, 1)
-				pcall(b.EnableMouse, b, false)
-				pcall(b.SetMouseClickEnabled, b, false)
-				pcall(b.SetMouseMotionEnabled, b, false)
+				ns.noMouse(b)
 			end,
 		})
 		clipTo(self, c)
