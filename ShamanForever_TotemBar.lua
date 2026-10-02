@@ -208,7 +208,9 @@ end
 -- Totem sets: each Call drops its own four picks, a page of the multi-cast bar. The bar uses one
 -- set at a time (sets.active, the picker header's sf-set); the character's choice is saved.
 local SET_CALL = {}
-for i, key in ipairs({ "call", "callAncestors", "callSpirits" }) do SET_CALL[i] = ns.Spells.DEFS[key].ids[1] end
+for i, key in ipairs({ "call", "callAncestors", "callSpirits" }) do
+	SET_CALL[i] = ns.Spells.DEFS[key].ids[1]
+end
 -- false: the set can't switch in combat; true: it can, through the picker header's snippet
 local SWITCH_IN_COMBAT = false
 TB.SWITCH_IN_COMBAT = SWITCH_IN_COMBAT
@@ -380,7 +382,8 @@ picker:SetAttribute("sf-close", [[ self:GetFrameRef("pop" .. (...)):Hide() ]])
 -- action or spell, kept on it as sf-action<set> and sf-spell<set>; sf-set is written last
 picker:SetAttribute("sf-switch", [[
 	local want = ...
-	if not self:GetAttribute("sf-incombat") and SecureCmdOptionParse("[combat] 1; 0") == "1" then return end
+	local fighting = SecureCmdOptionParse("[combat] 1; 0") == "1"
+	if fighting and not self:GetAttribute("sf-incombat") then return end
 	local set = self:GetAttribute("sf-set") or 1
 	if want == 0 then
 		want = set
@@ -600,8 +603,8 @@ _G.BINDING_HEADER_SHAMANFOREVER_TOTEMS = "Totems"
 _G["BINDING_NAME_CLICK ShamanForeverKeyDismissAll:LeftButton"] = "Dismiss all totems"
 _G["BINDING_NAME_CLICK ShamanForeverKeyNextSet:LeftButton"] = "Next totem set"
 local function nameBindings()
-	_G["BINDING_NAME_CLICK ShamanForeverKeyCall:LeftButton"] = knows(SET_CALL[2]) and "Call the active totem set"
-		or ns.Spells.name("call")
+	local callName = knows(SET_CALL[2]) and "Call the active totem set" or ns.Spells.name("call")
+	_G["BINDING_NAME_CLICK ShamanForeverKeyCall:LeftButton"] = callName
 	_G["BINDING_NAME_CLICK ShamanForeverKeyRecall:LeftButton"] = ns.Spells.name("recall")
 end
 nameBindings()
@@ -784,7 +787,9 @@ local function extraSides()
 	return before, after
 end
 TB.extraSides = extraSides
-function TB.extraTexture(key) return C_Spell.GetSpellTexture(key == "Call" and SET_CALL[sets.active] or RECALL) end
+function TB.extraTexture(key)
+	return C_Spell.GetSpellTexture(key == "Call" and SET_CALL[sets.active] or RECALL)
+end
 function TB.extraLearned(key) return knows(key == "Call" and CALL or RECALL) end
 -- The active set and how many are known
 function TB.sets() return sets.active, sets.count end
