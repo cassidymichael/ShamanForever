@@ -38,6 +38,17 @@ S.register("border", {
 	ranges = { size = { 0, 8 }, capSize = { 1, 8 } },
 	path = { "border" },
 })
+-- Art frames: round each element, and round a group or bar
+S.register("frame", {
+	defaults = { look = "none", color = { 1, 1, 1, 1 }, alpha = 1 },
+	ranges = { alpha = { 0.1, 1 } },
+	path = { "frameStyle" },
+})
+S.register("groupframe", {
+	defaults = { look = "none", color = { 1, 1, 1, 1 }, alpha = 1 },
+	ranges = { alpha = { 0.1, 1 } },
+	path = { "groupFrameStyle" },
+})
 
 -- Bars: owners with a settings table of their own, not an element's, in the order they register.
 -- spec: cfg(), DEFAULTS, label, on() (its styles are offered now), kinds (style kinds it can have
