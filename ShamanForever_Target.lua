@@ -308,17 +308,6 @@ for _, def in ipairs(TARGET) do
 		experimental = def.experimental, styles = def.styles })
 end
 
-local listed = false
-for _, g in ipairs(ns.DEFAULTS.groups) do
-	for _, key in ipairs(g.members or {}) do
-		if key == "flameshock" or key == "purge" then listed = true end
-	end
-end
-if not listed then
-	table.insert(ns.DEFAULTS.groups, { name = "Target", point = "CENTER", x = 122, y = 11, scale = 0.9,
-		alpha = 0.75, orientation = "horizontal", growth = "forward", spacing = 6, members = { "flameshock", "purge" } })
-end
-
 -- 0 while the container may show the last target's aura (stale)
 function gateAlpha(def)
 	ns.try("target gate alpha", def.gate.SetAlpha, def.gate, def.stale and 0 or 1)
