@@ -12,7 +12,7 @@
 
 local _, ns = ...
 
-local TB = {}
+local TB = { name = "totem bar" }
 ns.TotemBar = TB
 
 local ELEMENTS = { "earth", "fire", "water", "air" }
@@ -1066,6 +1066,7 @@ function layout()
 	if playerClass and not isShaman() then classDone = true end
 end
 TB.layout = layout
+TB.afterGroups = layout
 
 afterCombat = ns.AfterCombat.new({
 	secs = function()
@@ -1582,9 +1583,11 @@ function TB.debug()
 	local gok, ginfo = pcall(C_ActionBar.GetActionCooldown, multiAction(SLOT.earth))
 	local g = not gok and "error" or type(ginfo) ~= "table" and "none"
 		or isSecret(ginfo.isOnGCD) and "secret" or tostring(ginfo.isOnGCD)
-	return string.format("totem bar mode %s, show %s, driver %s, shown %s, totems known %s, earth isOnGCD %s; TotemFrame parent %s alpha %s; Totem Action Bar parent %s",
+	ns.say("totem bar mode %s, show %s, driver %s, shown %s, totems known %s, earth isOnGCD %s; TotemFrame parent %s alpha %s; Totem Action Bar parent %s",
 		c.mode, c.show, tostring(lastDriver), tostring(bar:IsShown()), tostring(hasTotems), g,
 		TotemFrame and TotemFrame:GetParent() and (TotemFrame:GetParent():GetName() or "?") or "none",
 		TotemFrame and string.format("%.2f", TotemFrame:GetAlpha()) or "-",
 		mc and (mc:GetParent() == hiddenParent and "hidden" or (mc:GetParent() and mc:GetParent():GetName() or "?")) or "none")
 end
+
+ns.registerModule(TB)

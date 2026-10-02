@@ -602,7 +602,6 @@ local function layoutElements()
 	each("afterGroups")
 	ns.refitRings()
 	ns.Positioning.update()
-	ns.TotemBar.layout()
 	ns.Options.refresh()
 end
 
@@ -619,7 +618,6 @@ end
 
 local function applyTimers()
 	each("applyTimers")
-	ns.TotemBar.applyTimers()
 end
 
 local function applyLayout()
@@ -868,7 +866,6 @@ function ns.debugReport()
 	say("spells: %s", table.concat(known, ", "))
 	each("debug")
 	say("profile %s", tostring(profileName))
-	say("%s", ns.TotemBar.debug())
 	local function listed(key)
 		local mode = isLearned(key) and showMode(key) or ns.notLearnedText(key):lower()
 		return mode == "always" and key or (key .. " (" .. mode .. ")")
