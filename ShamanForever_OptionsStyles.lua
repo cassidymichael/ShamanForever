@@ -792,3 +792,6 @@ function SP.build(p)
 	})
 	popGrid(p)
 end
+
+ns.Options.registerPage("styles", { title = "Styles explorer", icon = "Interface\\Icons\\INV_Misc_Gem_Variety_01",
+	order = 30, build = SP.build })

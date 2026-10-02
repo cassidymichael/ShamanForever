@@ -722,3 +722,6 @@ function EP.askReset(key)
 	local p = pageObjects[key]
 	if p then p:askReset("every " .. ns.Look.elementName(key) .. " setting") end
 end
+
+ns.Options.registerPage("elements", { title = "Elements", icon = ns.Options.ART .. "Elements.tga", order = 70,
+	build = EP.buildOverview })

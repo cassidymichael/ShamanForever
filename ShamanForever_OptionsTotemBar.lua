@@ -343,3 +343,6 @@ function TBP.build(p)
 	K.popBlock(p, "totembar", 136098, "expired")
 	p.gate = nil
 end
+
+ns.Options.registerPage("totembar", { title = "Totem bar", icon = "Interface\\Icons\\Spell_Shaman_DropAll_01",
+	order = 50, build = TBP.build })

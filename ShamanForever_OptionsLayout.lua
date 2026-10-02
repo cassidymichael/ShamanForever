@@ -635,3 +635,6 @@ function LP.build(p)
 	p.win:HookScript("OnHide", left)
 	p.scroll:HookScript("OnHide", left)
 end
+
+ns.Options.registerPage("layout", { title = "Groups & Layout", icon = "Interface\\Icons\\Spell_Nature_Invisibilty",
+	order = 40, build = LP.build })

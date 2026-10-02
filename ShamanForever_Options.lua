@@ -12,6 +12,7 @@ local HEIGHT, MIN_H, MAX_H = 700, 560, 1300
 local MAX_W = 1600
 local LOGO_SIZE, LOGO_X, LOGO_Y = 112, -19, 24
 local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
+OP.ART = ART
 
 local win
 local pages, pageOrder, stubs, currentPage = {}, {}, {}, nil
@@ -40,6 +41,14 @@ local function respell() ns.resolveSpells(); ns.applyLayout(); ns.refreshAll(); 
 local K = {}
 OP.kit = K
 K.perFrame, K.relayout, K.retime, K.reglow, K.respell = perFrame, relayout, retime, reglow, respell
+
+-- Pages register at load: title, icon, build, order (top of the nav, and the order they build in),
+-- bottom (height above the window's foot, for the nav's lower pages).
+local registered = {}
+function OP.registerPage(key, spec)
+	spec.key = key
+	table.insert(registered, spec)
+end
 
 local function newPage(key, title, indent, build)
 	local stub = { key = key, title = title, indent = indent, build = build }
@@ -277,6 +286,15 @@ local function buildAbout(p)
 	if #ai > 0 then p:text("Frames made with the same model: " .. table.concat(ai, ", ") .. ".") end
 end
 
+-- Key stays "general": it is saved as the last page and in folded blocks' keys.
+OP.registerPage("home", { title = "Home", icon = "Interface\\Icons\\ClassIcon_Shaman", order = 10, build = buildHome })
+OP.registerPage("general", { title = "Global settings", icon = "Interface\\Icons\\INV_Misc_Gear_01", order = 20,
+	build = buildGlobal })
+OP.registerPage("profiles", { title = "Profiles", icon = "Interface\\Icons\\INV_Misc_Note_01", order = 80,
+	bottom = 100, build = buildProfiles })
+OP.registerPage("about", { title = "About", icon = "Interface\\Icons\\INV_Misc_Book_09", order = 90, bottom = 70,
+	build = buildAbout })
+
 -- Show choices
 local SHOW_CHOICES = { { "always", "Always" }, { "combat", "In combat" }, { "never", "Hidden" } }
 local COMBAT_SHOW = { { "always", "Always" }, { "combat", "In combat" }, { "target", "In combat or with an enemy target" } }
@@ -361,13 +379,9 @@ local function buildNav()
 		b:SetPoint("TOPLEFT", win, "TOPLEFT", 12, y)
 		y = y - 30
 	end
-	top("home", "Home", "Interface\\Icons\\ClassIcon_Shaman")
-	top("general", "Global settings", "Interface\\Icons\\INV_Misc_Gear_01")
-	top("styles", "Styles explorer", "Interface\\Icons\\INV_Misc_Gem_Variety_01")
-	top("layout", "Groups & Layout", "Interface\\Icons\\Spell_Nature_Invisibilty")
-	top("totembar", "Totem bar", "Interface\\Icons\\Spell_Shaman_DropAll_01")
-	top("swing", "Swing timer", ns.Swing.ICON)
-	top("elements", "Elements", ART .. "Elements.tga")
+	for _, spec in ipairs(registered) do
+		if not spec.bottom then top(spec.key, spec.title, spec.icon) end
+	end
 	navPreview = CreateFrame("Button", nil, win, "UIPanelButtonTemplate")
 	navPreview:SetSize(NAV_W - 32, 22)
 	navPreview:SetPoint("BOTTOMLEFT", 16, 38)
@@ -382,8 +396,11 @@ local function buildNav()
 	setTip(navLock, "Positioning", "Unlocked, drag groups, the totem bar and the swing timer on screen. /sf lock does the same.")
 	function navLock.refresh() navLock:SetText(acct().locked and "Unlock positioning" or "Lock positioning") end
 	navLock.refresh()
-	add("about", "About", "Interface\\Icons\\INV_Misc_Book_09"):SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 12, 70)
-	add("profiles", "Profiles", "Interface\\Icons\\INV_Misc_Note_01"):SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 12, 100)
+	for _, spec in ipairs(registered) do
+		if spec.bottom then
+			add(spec.key, spec.title, spec.icon):SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 12, spec.bottom)
+		end
+	end
 	navDivider = ns.Look.divider(win)
 	navDivider:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 20, 136)
 	navDivider:SetWidth(NAV_W - 36)
@@ -625,17 +642,9 @@ local function buildWindow()
 	win:HookScript("OnShow", function() shownNow(true) end)
 	win:HookScript("OnHide", function() shownNow(false) end)
 
-	newPage("home", "Home", nil, buildHome)
-	-- Key stays "general": it is saved as the last page and in folded blocks' keys.
-	newPage("general", "Global settings", nil, buildGlobal)
-	newPage("styles", "Styles explorer", nil, ns.StylesPage.build)
-	newPage("layout", "Groups & Layout", nil, ns.LayoutPage.build)
-	newPage("totembar", "Totem bar", nil, ns.TotemBarPage.build)
-	newPage("swing", "Swing timer", nil, ns.SwingPage.build)
-	newPage("elements", "Elements", nil, ns.ElementPages.buildOverview)
+	table.sort(registered, function(x, y) return x.order < y.order end)
+	for _, spec in ipairs(registered) do newPage(spec.key, spec.title, nil, spec.build) end
 	ns.ElementPages.register(newPage)
-	newPage("profiles", "Profiles", nil, buildProfiles)
-	newPage("about", "About", nil, buildAbout)
 	addStyleUsers()
 	buildNav()
 	win:Hide()

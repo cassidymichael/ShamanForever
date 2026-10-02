@@ -119,3 +119,5 @@ function SP.build(p)
 		K.frameRows(p, "swing", "groupframe", changed)
 	end
 end
+
+ns.Options.registerPage("swing", { title = "Swing timer", icon = ns.Swing.ICON, order = 60, build = SP.build })
