@@ -316,7 +316,7 @@ function AuraSlot:setup()
 		if self.container then self.container:Hide() end
 		o.onError(self.err)
 	else
-		self.applied = filterSig(filters)
+		self.filtered, self.applied = filters.includeSpellIDs, filterSig(filters)
 		self:style()   -- a layout queued before it (a /reload in combat) found no button to style
 	end
 end

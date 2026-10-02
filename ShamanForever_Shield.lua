@@ -694,8 +694,6 @@ function SH.applyLayout()
 	native:setup()
 	look:setup()
 	if idleWhen() == "charges" and ns.isEnabled("shield") then copy:setup() end
-	if native.container and not native.filtered then native:refilter() end
-	if copy.container and not copy.filtered then copy:refilter() end
 	SH.style()
 	SH.applyEmptyLook()
 end
@@ -705,8 +703,6 @@ function SH.afterGroups()
 	SH.applyEmptyLook()
 end
 function SH.refresh()
-	if native.container and not native.filtered then native:refilter() end
-	if copy.container and not copy.filtered then copy:refilter() end
 	checkIDs()
 	refreshAura()
 	refreshGCD(false)
