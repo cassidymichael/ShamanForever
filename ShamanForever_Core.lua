@@ -508,7 +508,6 @@ function Spells.ids(key)
 	for id, k in pairs(keyByID) do if k == key then out[id] = true end end
 	return out
 end
-function Spells.has(key, id) return keyByID[id] == key end
 function Spells.learn(key, id)
 	if type(id) == "number" and not isSecret(id) and DEFS[key] then keyByID[id] = key end
 end
@@ -540,11 +539,6 @@ local function classOf()
 	return playerClass
 end
 function ns.isClass() return classOf() == ns.CLASS.token end
--- Another class; false while the client doesn't know the player's yet
-function ns.otherClass()
-	local c = classOf()
-	return c ~= nil and c ~= ns.CLASS.token
-end
 
 -- More rows, as DEFS'
 function Spells.add(rows)
