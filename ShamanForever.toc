@@ -55,6 +55,7 @@ ShamanForever_Options.lua
 ShamanForever_OptionsBlocks.lua
 ShamanForever_OptionsLayout.lua
 ShamanForever_OptionsElements.lua
+ShamanForever_OptionsTotemBar.lua
 ShamanForever_OptionsSwing.lua
 ShamanForever_OptionsStyles.lua
 ShamanForever_IssueReporter.lua
