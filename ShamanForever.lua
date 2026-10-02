@@ -100,15 +100,18 @@ local ELEMENT_KEYS = {}
 -- getSize: width and height for the group's icon size (elements need not be square); borderHost:
 -- the part its border is drawn on; shape "bar": a bar, not an icon (takes only the border
 -- parts that fit a bar); paint: what stands in for it in the options and while dragging;
--- standInBorder: preview's stand-in draws its border; learned(): none means always; kind: picks its
--- options page and preview; defaults: its settings' defaults, which also declare the fields of each
+-- standInBorder: preview's stand-in draws its border; learned(): none means always; kind: its options
+-- page and preview (ns.registerKind); a kind made of parts fills defaults, ranges and effects from
+-- def's parts (_Kinds); defaults: its settings' defaults, which also declare the fields of each
 -- state and event it has (_Profiles has the vocabulary); ranges: its numbers' { min, max, step },
--- shaped as its defaults; effects = { glow = { states }, pop = { states }, popKind };
+-- shaped as its defaults; effects = { glow, pop, popKind }: whether it has a pulsing glow and a pop
+-- (its page then offers their styles), and the pop it plays;
 -- ownSchool(): the school its pop and glow take now, where that follows its state; styles: its own
--- shipped look, { kind = fields }; timerCant: timer parts it can't have, and why
+-- shipped look, { kind = fields }; timerCant: timer parts it can't have, and why; barColor = { label,
+-- text, color() }: a colour a bar can follow
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
-local NO_EFFECTS = { glow = {}, pop = {} }
+local NO_EFFECTS = { glow = false, pop = false }
 local BASE_RANGES = { idleAlpha = { 0, 1, 0.05 } }
 function ns.registerElement(key, e)
 	e.getSize = e.getSize or iconSize
@@ -161,6 +164,7 @@ end
 --   tick()                 once a second
 --   onCast(spellID)        our own successful cast
 --   debug()                its part of /sf debug
+--   onPreview(on)          /sf preview started or ended
 local MODULES = {}
 function ns.registerModule(m) table.insert(MODULES, m) end
 -- One module's error is reported but doesn't stop the modules after it
@@ -169,6 +173,7 @@ local function each(hook, ...)
 		if m[hook] then securecallfunction(m[hook], ...) end
 	end
 end
+ns.eachModule = each
 
 -- Groups
 -- Whether the character knows the element's spell. The HUD leaves unlearned ones out, except while
@@ -842,6 +847,7 @@ reg("PLAYER_LOGIN")
 ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 	if event == "ADDON_LOADED" then
 		if arg1 ~= ADDON then return end
+		ns.try("kinds", ns.Kinds.finish)
 		acct = ns.Profiles.load()
 		selectProfile(ns.Profiles.saved())
 		ns.Options.build()

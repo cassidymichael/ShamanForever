@@ -15,7 +15,9 @@ local IDLE_CHOICES = {
 		"Idle while an imbue is on and its time left isn't low" },
 	{ "on", "On", "Idle while an imbue is on", "Idle whatever its time left is." },
 }
-ns.registerElement("imbue", { frame = imbue, label = "Weapon Imbue", paint = function(t) t:SetTexture(IM.icon()) end,
+local imbueIcon
+ns.registerElement("imbue", { frame = imbue, label = "Weapon Imbue",
+	paint = function(t) t:SetTexture(imbueIcon) end,
 	learned = function() return anyKnown end,
 	defaults = { idleWhen = "notlow", idleAlpha = 0,
 		icon = "last",   -- the icon while none is on: last | rockbiter | flametongue | frostbrand | windfury
@@ -25,15 +27,18 @@ ns.registerElement("imbue", { frame = imbue, label = "Weapon Imbue", paint = fun
 	styles = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false,
 		bar = false } },
 	def = { key = "imbue", idleChoices = IDLE_CHOICES },
-	effects = { glow = { "missing" }, pop = { "lost" }, popKind = "imbue" },
+	effects = { glow = true, pop = true, popKind = "lost" },
+	-- A bar can take its colour (the swing timer's Colour)
+	barColor = { label = "Imbue colour", text = "Your main hand's imbue, grey with none.",
+		color = function() return IM.barColor() end },
 	kind = "imbue", icon = 136086, school = "spirit", blurb = "Warns when your main hand has no imbue." })
 
--- ids are enchant IDs (item data), not spell IDs
+-- ids are enchant IDs (item data), not spell IDs; school: its colour on a bar
 local IMBUES = {
-	rockbiter   = { icon = 136086, ids = { 29, 6, 1, 503, 1663, 683, 1664 } },
-	flametongue = { icon = 135814, ids = { 5, 4, 3, 523, 1665, 1666 } },
-	frostbrand  = { icon = 135847, ids = { 2, 12, 524, 1667, 1668 } },
-	windfury    = { icon = 136018, ids = { 283, 284, 525, 1669 } },
+	rockbiter   = { icon = 136086, school = "earth", ids = { 29, 6, 1, 503, 1663, 683, 1664 } },
+	flametongue = { icon = 135814, school = "fire", ids = { 5, 4, 3, 523, 1665, 1666 } },
+	frostbrand  = { icon = 135847, school = "water", ids = { 2, 12, 524, 1667, 1668 } },
+	windfury    = { icon = 136018, school = "air", ids = { 283, 284, 525, 1669 } },
 }
 for key, m in pairs(IMBUES) do m.name = Spells.name(key) end
 local IMBUE_ORDER = { "rockbiter", "flametongue", "frostbrand", "windfury" }
@@ -91,18 +96,18 @@ local function imbueKeyFor(w)
 	end
 end
 
-function IM.mainHand()
+local NO_IMBUE = { 0.7, 0.7, 0.7 }
+function IM.barColor()
 	local r = readMainHand()
-	return r and imbueKeyFor(r) or nil
+	local m = r and IMBUES[imbueKeyFor(r) or ""]
+	return m and ns.THEME.barColor[m.school] or NO_IMBUE
 end
 
-local imbueIcon = imbueIconFor("rockbiter")
+imbueIcon = imbueIconFor("rockbiter")
 local function preferredImbueIcon()
 	local icon = ns.elementSetting("imbue", "icon")
 	return imbueIconFor(icon == "last" and (ns.getAccount().imbueLast or "rockbiter") or icon)
 end
-IM.preferredIcon = preferredImbueIcon
-function IM.icon() return imbueIcon end
 
 -- quiet: nothing can be cast now, so a missing imbue shows grey without the warning
 local function warn(field) return ns.elementSetting("imbue", "warn", field) end
@@ -117,10 +122,10 @@ local function drawImbue(now, quiet)
 	-- Missing look only when the read says none: unrecognised shows in colour, unreadable as "?"
 	local missing = on == false
 	imbueIcon = key and imbueIconFor(key) or preferredImbueIcon()
-	imbue.tex:SetDesaturated(missing and warn("grey") or false)
-	imbue:SetRingShown(missing and warn("ring") and not quiet)
-	imbue:SetPulsing(missing and warn("fade") and not quiet)
-	imbue:SetGlowShown(missing and warn("glow") and not quiet)
+	local grey, tint, ring, fade, glow = ns.warnParts("imbue", "warn")
+	local warns = missing and not quiet
+	imbue:SetWarnParts(missing and grey, warns and tint, warns and ring, warns and fade,
+		warns and glow)
 	imbue.tex:SetTexture(imbueIcon)
 	if unreadable then
 		imbue.timer:SetText("?")
@@ -142,10 +147,7 @@ end
 local function drawNotLearned()
 	imbueIcon = preferredImbueIcon()
 	imbue.tex:SetTexture(imbueIcon)
-	imbue.tex:SetDesaturated(true)
-	imbue:SetRingShown(false)
-	imbue:SetPulsing(false)
-	imbue:SetGlowShown(false)
+	imbue:SetWarnParts(true, false, false, false, false)
 	imbue.timer:Hide()
 	imbue.upTimer:clear()
 	ns.fadeTo(imbue, 1)
@@ -189,7 +191,7 @@ function IM.refresh()
 	local quiet = ns.cantAct()
 	drawImbue(now, quiet)
 	if had and r == false and not quiet then
-		if warn("pop") then imbue:Pop("imbue") end
+		if warn("pop") then imbue:Pop("lost") end
 		if imbue:IsVisible() then ns.Sounds.element("imbue", "warn", true) end
 	end
 end
@@ -238,5 +240,25 @@ function IM.debug()
 		or r == false and "none" or string.format("enchant %d, icon %d, %.0fs left", r.enchantID, r.enchantIconID, r.timeLeft / 1000),
 		imbueState.read, tostring(hasWeapon()))
 end
+
+-- Preview (ns.registerKind)
+local PREVIEW = {
+	uptime = true,
+	typical = "fine", warning = "missing",
+	states = { { "missing", "No imbue" }, { "low", "Running low" }, { "fine", "Plenty left" } },
+	pop = function(ic, st) if st == "missing" and warn("pop") then ic:Pop("lost") end end,
+	render = function(ic, st, P)
+		if st == "missing" then
+			P.reset(ic, preferredImbueIcon())
+			ic:SetWarnParts(ns.warnParts("imbue", "warn"))
+		else
+			P.reset(ic, imbueIcon)
+			local shows = ns.elementSetting("imbue", "showUnderMins") > 0
+			if st == "low" and shows then P.frozen(ic.upT, 0.95, 3600) end
+		end
+	end,
+	idles = function(st, when) return st == "fine" or (st == "low" and when == "on") end,
+}
+ns.registerKind("imbue", { preview = function() return PREVIEW end })
 
 ns.registerModule(IM)

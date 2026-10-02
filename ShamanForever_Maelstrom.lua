@@ -73,7 +73,7 @@ f.stack()
 
 ns.registerElement(KEY, { frame = f, label = Spells.name("maelstromWeapon"), defaults = M.DEFAULTS, ranges = M.RANGES,
 	learned = function() return src.learned() end, paint = function(t) t:SetTexture(M.icon) end,
-	effects = { glow = { "full" }, pop = { "full" } },
+	effects = { glow = true, pop = true },
 	standInBorder = true,
 	styles = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
 	timerCant = { bar = "Its timer is Blizzard's own; a time bar can't follow it." },
@@ -505,9 +505,7 @@ function M.follow(s)
 	ns.applyLayout()
 	ns.refreshAll()
 end
-function M.maxStacks() return src.max end
-
--- The options' preview: the same parts, drawn by us for n stacks
+-- The preview (ns.registerKind): the same parts, drawn by us for n stacks
 local function previewParts(ic)
 	if ic.mw then return ic.mw end
 	local p = CreateFrame("Frame", nil, ic.textFrame)
@@ -519,7 +517,7 @@ local function previewParts(ic)
 	return p
 end
 
-function M.drawPreview(ic, n)
+local function drawPreview(ic, n)
 	local p = previewParts(ic)
 	local max = src.max
 	local w, h = ic:GetWidth(), number("barHeight")
@@ -552,6 +550,21 @@ function M.drawPreview(ic, n)
 	end
 	ic:SetGlowShown(n >= max and setting("active", "glow"))
 end
+local PREVIEW = {
+	uptime = true,
+	states = { { "s1", "1 stack" }, { "s4", "4 stacks" }, { "s5", "5 stacks" },
+		{ "idle", "Not up" } },
+	pop = function(ic, st) if st == "s5" and setting("active", "pop") then ic:Pop("ready") end end,
+	render = function(ic, st, P)
+		P.reset(ic, M.icon)
+		local n = ({ s1 = 1, s4 = src.max - 1, s5 = src.max })[st] or 0
+		drawPreview(ic, n)
+		if n > 0 then P.frozen(ic.upT, 0.3, 30) end
+		local when = setting("idleWhen")
+		if (n == 0 and when ~= "never") or (when == "five" and n < src.max) then P.idle(ic, KEY) end
+	end,
+}
+ns.registerKind("maelstrom", { preview = function() return PREVIEW end })
 
 function M.resolve()
 	ns.ELEMENTS[KEY].label = Spells.name("maelstromWeapon")

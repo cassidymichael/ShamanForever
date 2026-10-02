@@ -17,8 +17,9 @@ ns.Target = T
 local setting = ns.elementSetting
 local gateAlpha, holderAlpha, retarget
 
--- Fields: filter, candidates(def), noPop, noGlow, ownIcon, buttonBorder, noTimer, missing,
--- engineExpire, defaults; page texts idleText, procHeader, popTip, glowTip, upLabel, idleLabel
+-- Fields: filter, candidates(def), noPop, noGlow, ownIcon, buttonBorder, noTimer, defaults; parts
+-- missing, engineExpire, skipLong (below); page texts idleText, procHeader, popTip, glowTip, upLabel,
+-- idleLabel. Rows are of the buff kind (_Buffs).
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
 		icon = 135813, school = "fire", blurb = "Shows while your Flame Shock is on your target.",
@@ -43,14 +44,49 @@ local TARGET = {
 		-- no end)
 		candidates = function(def) return { includeDispelTypes = { Magic = true }, maxDuration = T.longest(def) } end,
 		idleText = "Idle while your target has nothing to purge", procHeader = "Something to purge",
-		ownIcon = true, noTimer = true, buttonBorder = true,
+		ownIcon = true, noTimer = true, buttonBorder = true, skipLong = true,
 		popTip = "Each time a new buff lands on your target, or you target one that has one.",
 		glowTip = "While your target has one.",
 		upLabel = "Magic buff", idleLabel = "Nothing to purge",
-		defaults = { idleAlpha = 0, active = { pop = false, glow = true }, skipLong = false, skipLongMins = 2 },
-		ranges = { skipLongMins = { 1, 60, 1 } } },
+		defaults = { idleAlpha = 0, active = { pop = false, glow = true } } },
 }
 T.ELEMENTS = TARGET
+
+-- Parts (ns.registerPart)
+-- missing: warns while your hostile target doesn't have it
+ns.registerPart("missing", {
+	kind = "buff", after = "reagent",
+	glow = true,
+	page = { warn = { title = "Not on target", text = "While your hostile target doesn't have it.",
+		tips = { glow = "A glow that pulses, in the Pulsing glow style." } } },
+	preview = {
+		warning = "missing",
+		states = { { "missing", "Not on target", 30 } },
+		render = function(ic, st, def)
+			if st == "missing" then ic:SetWarnParts(ns.warnParts(def.key, "warn")) end
+		end,
+	},
+})
+-- engineExpire: Expiring drawn by the engine, on its time bar and countdown
+ns.registerPart("engineExpire", {
+	kind = "buff", after = "missing",
+	preview = {
+		states = { { "expiring", "Expiring", 20 } },
+		render = function(ic, st, def, P)
+			if st == "expiring" then P.engineExpire(ic, def.key) end
+		end,
+	},
+})
+-- skipLong: leaves out buffs longer than a choice (the aura container's maxDuration)
+ns.registerPart("skipLong", {
+	kind = "buff", after = "breath",
+	defaults = { skipLong = false, skipLongMins = 2 },
+	ranges = { skipLongMins = { 1, 60, 1 } },
+	page = { own = { "toggle", title = "Track", name = "skipLong", label = "Skip long buffs",
+		tip = "Leaves out buffs that last longer than Longest buff, and buffs with no end.",
+		sub = { name = "skipLongMins", label = "Longest buff", tip = "Buffs up to this long count.",
+			unit = "min" } } },
+})
 
 function T.longest(def)
 	if not def.ranges.skipLongMins or not setting(def.key, "skipLong") then return nil end
@@ -221,7 +257,7 @@ function styleExpireText(def, slot, st, secs)
 end
 
 for _, def in ipairs(TARGET) do
-	def.buff, def.proc = true, true
+	def.proc = true
 	def.spell = Spells.name(def.spellKey)
 	def.icon = Spells.icon(def.spellKey) or def.icon
 	-- Idle fades only the icon under the button
@@ -302,7 +338,6 @@ for _, def in ipairs(TARGET) do
 	ns.registerElement(def.key, { frame = f, label = def.spell, defaults = def.defaults, ranges = def.ranges,
 		borderHost = def.idleEdge,
 		standInBorder = true,
-		effects = { glow = { def.missing and "missing" or "up" }, pop = def.noPop and {} or { "up" } },
 		learned = function() return def.spellID ~= nil end,
 		paint = function(t) t:SetTexture(def.icon) end,
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
@@ -423,8 +458,7 @@ local function styleLook()
 	def.lookEdge:SetFrameLevel(lv + 1)
 	ns.Frames.dress(def.lookEdge, def.key, lv + 1)
 	if def.lookEdge.frameOverlay then def.lookEdge.frameOverlay:Hide() end
-	look:setParts(setting(def.key, "warn", "grey"), false, setting(def.key, "warn", "ring"),
-		setting(def.key, "warn", "fade"), setting(def.key, "warn", "glow"))
+	look:setParts(ns.warnParts(def.key, "warn"))
 	look:reshape()
 	look:style()
 	stateLook()

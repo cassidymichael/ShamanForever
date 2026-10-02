@@ -309,6 +309,22 @@ ticker:SetScript("OnUpdate", ns.throttled(0.1, function()
 	end
 end))
 
+-- The expire part (ns.registerPart): Expiring's settings for a kind that sets def.expires,
+-- def.expireLooks (the looks it offers; default all) and def.expireRange (Warn in the last)
+local EXPIRE = { secs = 5, grey = false, ring = false, fade = true, glow = false }
+local EXPIRE_LOOKS = { "grey", "ring", "fade", "glow" }
+ns.registerPart("expire", {
+	kinds = { cooldown = {}, buff = {} },
+	has = function(def) return def.expires end,
+	defaults = function(def)
+		local e = { secs = EXPIRE.secs }
+		for _, look in ipairs(def.expireLooks or EXPIRE_LOOKS) do e[look] = EXPIRE[look] end
+		return { expire = e }
+	end,
+	ranges = function(def) return { expire = { secs = def.expireRange or { 0, 30, 1 } } } end,
+	glow = function(def) return def.defaults.expire.glow ~= nil end,
+})
+
 -- e: { secs, grey, ring, fade, glow } (secs 0: off), an element's or the totem bar's expire
 function Timer:setExpire(e, icon)
 	if not e or (e.secs or 0) <= 0 or not ns.lastSeconds(e.secs) then

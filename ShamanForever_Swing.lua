@@ -13,8 +13,14 @@ local REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerD
 local IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
 SW.ICON = Spells.icon("attack") or 135274
 
-local IMBUE_SCHOOL = { rockbiter = "earth", flametongue = "fire", frostbrand = "water", windfury = "air" }
-local NO_IMBUE = { 0.7, 0.7, 0.7 }
+-- Colour: custom, or an element's that offers one to a bar (its barColor), the first by default:
+-- only elements whose files load before this one (TOC order)
+local COLOR_BY = {}
+for _, key in ipairs(ns.ELEMENT_KEYS) do
+	if ns.ELEMENTS[key].barColor then table.insert(COLOR_BY, key) end
+end
+table.insert(COLOR_BY, "custom")
+SW.COLOR_BY = COLOR_BY
 
 -- Settings
 SW.DEFAULTS = {
@@ -23,7 +29,7 @@ SW.DEFAULTS = {
 	width = 220, height = 7,
 	scale = 1,
 	alpha = 0.75,
-	colorBy = "imbue", color = { 1, 0.8, 0.25, 1 },
+	colorBy = COLOR_BY[1], color = { 1, 0.8, 0.25, 1 },
 	fillFrom = "left",
 	deplete = false,
 	countdown = false, countdownSize = 12, countdownColor = { 1, 1, 1, 1 },
@@ -32,7 +38,7 @@ SW.DEFAULTS = {
 local RANGES = { width = { 40, 400 }, height = { 4, 40 }, scale = { 0.5, 3 }, alpha = { 0.1, 1 },
 	countdownSize = { 8, 40 } }
 SW.RANGES = RANGES
-local CHOICES = { show = { "combat", "always", "never" }, colorBy = { "imbue", "custom" },
+local CHOICES = { show = { "combat", "always", "never" }, colorBy = COLOR_BY,
 	fillFrom = { "left", "right" }, countdownPos = { "center", "left", "right" } }
 local function finite(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
@@ -142,9 +148,8 @@ local pv = { mode = nil, action = "swing", count = 0, nextAt = 0 }
 
 local function fillColor()
 	local c = cfg()
-	if c.colorBy == "custom" then return c.color end
-	local school = IMBUE_SCHOOL[ns.Imbue.mainHand() or ""]
-	return school and ns.THEME.barColor[school] or NO_IMBUE
+	local e = ns.ELEMENTS[c.colorBy]
+	return e and e.barColor and e.barColor.color() or c.color
 end
 SW.fillColor = fillColor
 local function paintFill()

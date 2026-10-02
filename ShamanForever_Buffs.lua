@@ -27,14 +27,87 @@ local BUFFS = {
 	},
 }
 
--- Settings' defaults by part (the shapes: _Profiles); a buff that isn't a proc has Expiring
-local PARTS = {
-	reagent = ns.Reagents.DEFAULTS,
-	breath = { warn = { on = true, ring = true, fade = true } },
-	proc = { active = { pop = true, glow = true } },
-}
-local EXPIRE = { expire = { secs = 5, grey = false, ring = false, fade = true, glow = false } }
-local EXPIRE_RANGES = { expire = { secs = { 0, 120, 5 } } }
+-- The kind and its parts (ns.registerPart); a row's flags name its parts. Target's rows are of this
+-- kind too; parts from other files join it: Target's own, the reagent's (_Reagents), Expiring's
+-- (_Timers).
+local function procName(def) return def.buffKey and Spells.name(def.buffKey) end
+ns.registerPart("buff", {
+	idle = { text = function(def)
+		local name = def.proc and procName(def)
+		return name and ("Idle while " .. name .. " isn't up") or "Idle while it isn't up"
+	end },
+	page = {
+		uptime = function(def) return not def.noTimer and "Time left" or nil end,
+		expire = {},
+		active = function(def)
+			local tips = { pop = def.popTip or "The moment it procs.",
+				glow = def.glowTip or "While it's up." }
+			return { title = def.procHeader or procName(def), tips = tips }
+		end,
+	},
+	preview = {
+		uptime = true,
+		labels = { low = "Not up, few left", out = "Not up, none left" },
+		states = function(def)
+			local states = { { "up", def.proc and (def.upLabel or procName(def)) or "Up", 10 } }
+			if not def.proc then table.insert(states, { "expiring", "Expiring", 20 }) end
+			table.insert(states, { "idle", def.idleLabel or "Not up", 40 })
+			return states
+		end,
+		render = function(ic, st, def, P)
+			local key = def.key
+			P.reset(ic, def.icon)
+			if st == "up" then
+				if def.proc then
+					if not def.noTimer then P.frozen(ic.upT, 0.3, 15) end
+					ic:SetGlowShown(setting(key, "active", "glow"))
+				else P.frozen(ic.upT, 0.3, 600) end
+			elseif st == "expiring" and not def.engineExpire then P.expiring(ic, key, 600)
+			elseif st == "idle" then
+				if setting(key, "idleWhen") ~= "never" then P.idle(ic, key) end
+			end
+			local shown = st == "up" or st == "expiring"
+			if shown and setting(key, "idleWhen") == "target" then P.idle(ic, key) end
+		end,
+		rest = function(ic, def, P, keep) if not keep then P.idle(ic, def.key) end end,
+	},
+})
+-- breath: warns under water without it
+ns.registerPart("breath", {
+	defaults = { warn = { on = true, ring = true, fade = true } },
+	page = { warn = { title = "Under water",
+		on = { "Warn without it", "While your breath bar drains and it isn't up." } } },
+	preview = {
+		warning = "underwater",
+		states = { { "underwater", "Under water", 80 } },
+		render = function(ic, st, def, P)
+			if st ~= "underwater" then return end
+			if setting(def.key, "warn", "on") then ic:SetWarnParts(ns.warnParts(def.key, "warn"))
+			else P.idle(ic, def.key) end
+		end,
+	},
+})
+-- proc: shown by Blizzard's aura container while the aura is up (noPop, noGlow: without its own)
+ns.registerPart("proc", {
+	has = function(def) return def.proc and not (def.noPop and def.noGlow) end,
+	defaults = { active = { pop = true, glow = true } },
+	glow = function(def) return not def.noGlow end,
+	pop = function(def) return not def.noPop end,
+	preview = {
+		pop = function(ic, st, def)
+			if st == "up" and setting(def.key, "active", "pop") then ic:Pop("ready") end
+		end,
+	},
+})
+local EXPIRE_RANGE = { 0, 120, 5 }
+ns.registerKind("buff", {
+	parts = { "buff", "breath", "proc" },
+	slots = { "own", "warn", "uptime", "expire", "active" },
+	prepare = function(def)
+		def.expires = not def.proc
+		def.expireRange = EXPIRE_RANGE
+	end,
+})
 
 local function makeBuffIcon(def)
 	local f = ns.newElementIcon(def.key, { effects = true })
@@ -47,29 +120,14 @@ local function makeBuffIcon(def)
 end
 
 for _, def in ipairs(BUFFS) do
-	def.buff = true
-	def.idleText = def.proc and ("Idle while " .. Spells.name("clearcasting") .. " isn't up")
-		or "Idle while it isn't up"
-	if def.reagent then def.idleExtra = ns.Reagents.IDLE_EXTRA end
 	def.spell = Spells.name(def.spellKey)
 	def.icon = Spells.icon(def.buffKey or def.spellKey) or def.icon
-	def.defaults = def.defaults or {}
-	def.ranges = def.ranges or {}
-	for part, defaults in pairs(PARTS) do
-		if def[part] then ns.fillParts(def.defaults, defaults) end
-	end
-	if def.reagent then ns.fillParts(def.ranges, ns.Reagents.RANGES) end
-	if not def.proc then
-		ns.fillParts(def.defaults, EXPIRE)
-		ns.fillParts(def.ranges, EXPIRE_RANGES)
-	end
 	def.frame = makeBuffIcon(def)
 	def.frame.aboveProtected = def.proc   -- Blizzard's aura button sits under it
 	ns.registerElement(def.key, { frame = def.frame, label = def.spell,
-		defaults = def.defaults, learned = function() return def.spellID ~= nil end,
+		defaults = def.defaults or {}, learned = function() return def.spellID ~= nil end,
 		paint = function(t) t:SetTexture(def.icon) end,
 		standInBorder = def.proc,
-		effects = def.proc and { glow = { "up" }, pop = { "up" } } or { glow = { "expiring" }, pop = {} },
 		ranges = def.ranges,
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
 		experimental = def.experimental, styles = def.styles })
@@ -315,7 +373,7 @@ function B.start()
 	end)
 end
 
-function B.preview(shown)
+function B.onPreview(shown)
 	previewing = shown
 	refreshAll()
 end
