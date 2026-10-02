@@ -143,7 +143,8 @@ local function buildGlobal(p)
 	p:anchor("size")
 	local sized = ns.Style.barNouns(function(bar) return bar.ownSize ~= nil end, "group")
 	for i, noun in ipairs(sized) do sized[i] = noun .. "'s" end
-	p:slider("Icon size", "Every " .. ns.Look.wordList(sized) .. ", unless it has its own.", 24, 96, 1, int,
+	local size = ns.Profiles.RANGES.iconSize
+	p:slider("Icon size", "Every " .. ns.Look.wordList(sized) .. ", unless it has its own.", size[1], size[2], 1, int,
 		gopt(p, "iconSize"))
 	local function ownSizes()
 		local out = {}

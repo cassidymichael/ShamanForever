@@ -284,6 +284,7 @@ end
 local RANGES = { iconSize = { 24, 96 } }
 local GROUP_RANGES = { scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { -20, 40 }, size = { 24, 96 },
 	x = { -10000, 10000 }, y = { -10000, 10000 }, fadeAfter = { 0, 10 } }
+P.RANGES, P.GROUP_RANGES = RANGES, GROUP_RANGES
 local function clampNumbers(t, ranges, defaults)
 	for k, r in pairs(ranges) do
 		local v = t[k]
