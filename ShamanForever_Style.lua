@@ -184,10 +184,10 @@ end
 
 local function holder(owner)
 	if type(owner) == "table" then return owner end
-	local db = ns.getDB and ns.getDB()
+	local db = ns.getDB()
 	if not db or owner == nil then return db end
 	if BARS[owner] then return BARS[owner].cfg() end
-	return ns.elementOpts and ns.elementOpts(owner)
+	return ns.elementOpts(owner)
 end
 
 local function at(h, path, create)
@@ -335,8 +335,7 @@ end
 function S.ownerName(owner)
 	if type(owner) == "table" then return owner.name or "A group" end
 	if BARS[owner] then return BARS[owner].label end
-	if ns.Look and ns.Look.elementName then return ns.Look.elementName(owner) end
-	return owner
+	return ns.Look.elementName(owner)
 end
 
 function S.ownStyles(kind)

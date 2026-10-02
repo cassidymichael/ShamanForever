@@ -1057,7 +1057,7 @@ function layout()
 	drive()
 	applyTotemFrame()
 	applyActionBar()
-	if mover then mover.update() end
+	mover.update()
 	if preview then paintPreview() end
 	if ns.otherClass() then classDone = true end
 end
@@ -1134,7 +1134,7 @@ end)
 mover:SetScript("OnMouseUp", function(_, button)
 	if InCombatLockdown() then return end
 	if button == "LeftButton" then ns.Positioning.selectMovable(movable)
-	elseif button == "RightButton" and ns.Options.open then ns.Options.open("totembar") end
+	elseif button == "RightButton" then ns.Options.open("totembar") end
 end)
 mover:SetScript("OnMouseWheel", function(self, delta)
 	if InCombatLockdown() then return end
