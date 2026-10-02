@@ -11,7 +11,6 @@ local ACCOUNT_DEFAULTS = {
 	grid = true,
 	gridSize = 32,
 	hideIssueReporter = false,
-	minimalArt = false,
 	keepOptionsOpen = false,
 	foldedBlocks = {},
 	profiles = {},
