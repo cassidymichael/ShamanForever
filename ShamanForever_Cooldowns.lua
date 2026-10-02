@@ -1,13 +1,11 @@
--- Cooldown elements
--- No secret is read: durations go to widgets, Fire Nova's warning is a curve into SetAlpha.
--- A totem timer shows only when the slot's totem is ours; in combat the slot is secret, so an
--- unknown one stays hidden.
--- Buff windows and primed states are inferred from our own casts (Nature's Swiftness is corrected
--- from its aura when readable).
+-- Cooldown elements: the cooldown kind, its parts and its engine
+-- No secret is read: durations go to widgets, alphas from curves to SetAlpha.
+-- Buff windows and primed states are inferred from our own casts (a primed buff is corrected from
+-- its aura when readable).
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
-local Spells, Reagents = ns.Spells, ns.Reagents
+local Spells, Reagents, KD = ns.Spells, ns.Reagents, ns.Kinds
 
 local CD = { name = "cooldowns" }
 ns.Cooldowns = CD
@@ -22,23 +20,20 @@ local setting = ns.elementSetting
 local COOLDOWNS = ns.CLASS.cooldowns or {}
 
 -- The kind and its parts (ns.registerPart); a row's flags name its parts. Other files' parts join
--- it: the totems' (_Totems), the reagent's (_Reagents), Expiring's (_Timers).
+-- it: the reagent's (_Reagents), Expiring's (_Timers), a class's own.
 local IDLE_NEVER = { "never", "Never", "It always shows in full" }
 local IDLE_OFFCD = { "offcd", "Ready", "Idle while it's ready%s" }
 local IDLE_ONCD = { "oncd", "Cooling down", "Idle while it's cooling down%s",
 	"Shown in full only while it's ready." }
 CD.IDLE_CHOICES = { IDLE_NEVER, IDLE_OFFCD, IDLE_ONCD }
--- held: what keeps it shown ("no totem out")
+-- held: what keeps it shown ("not active")
 local function heldChoices(held)
 	return { IDLE_NEVER, { IDLE_OFFCD[1], "Ready, " .. held, IDLE_OFFCD[3] },
 		{ IDLE_ONCD[1], "Cooling down, " .. held, IDLE_ONCD[3], IDLE_ONCD[4] } }
 end
 
--- Expiring: a totem's, or a window's or primed state's with a length, unless expireLooks is false
-local function expires(def)
-	local timed = def.window or (def.primed and def.primed.duration)
-	return (def.needsTotem or def.totemSlot or timed) and def.expireLooks ~= false and true or false
-end
+-- Time left: its page has a Time left block (a window, a primed state with a length, a part's)
+local function hasUptime(def) return KD.words("cooldown", def, "uptime") ~= nil end
 
 ns.registerPart("cooldown", {
 	defaults = { idleAlpha = 0.3, idleWhen = "never" },
@@ -112,30 +107,47 @@ ns.registerPart("primed", {
 		end,
 	},
 })
+-- A part's runtime hooks (each optional; parts from other files bring their own):
+--   refresh(def, inEvent, held)  draws its state on def.frame; returns held, or true where its
+--                                state keeps the element shown (its Idle choices applied)
+--   gate(def)                    the Ready pop and sound: "ready", "blocked" (the greyed pop, if
+--                                chosen) or nil (neither)
+--   readyGate(def)               the Ready glow's alpha (may be secret); nil: it can't show
+--   debug(def)                   its words in /sf debug
+-- The icon (def.frame) has upTimer in activeHolder when its page has a Time left block, warn when
+-- it has a Warning block, and readyGlow in readyGate with the readyGlow part or a readyGate hook.
+-- Icons are made as this file loads, so a part with hooks registers before it.
 ns.registerKind("cooldown", {
 	parts = { "cooldown", "ready", "readyGlow", "window", "primed" },
 	slots = { "own", "warn", "cooldown", "gcd", "uptime", "ready", "active", "expire", "killed" },
-	prepare = function(def) def.expires = expires(def) end,
+	prepare = function(def) def.expires = hasUptime(def) and def.expireLooks ~= false end,
 })
+
+-- The first of def's parts with that runtime hook
+local function hookOf(def, name)
+	for _, p in ipairs(KD.partsOf("cooldown", def)) do
+		local h = p.runtime and p.runtime[name]
+		if h then return h end
+	end
+end
 
 local function makeCooldownIcon(def)
 	-- The effects layer ignores the icon's alpha, so an idle icon doesn't fade them
 	local f = ns.newElementIcon(def.key, { effects = true })
 	f.tex:SetTexture(def.icon)
-	if def.totemSlot or def.needsTotem or def.window or (def.primed and def.primed.duration) then
+	if hasUptime(def) then
 		f.activeHolder = CreateFrame("Frame", nil, f.textFrame)
 		f.activeHolder:SetAllPoints()
 		f.upTimer = ns.Timer.new(f.activeHolder, def.key, "uptime", { anchor = f, dual = true, school = def.school })
 	end
 	f.cdTimer = ns.Timer.new(f, def.key, "cooldown", { cd = f.cd, school = def.school })
-	if def.needsTotem or def.readyGlow then
-		-- Ready glow alpha: off cooldown; Fire Nova's gate: a fire totem is down; the two multiply
+	if def.readyGlow or hookOf(def, "readyGate") then
+		-- Ready glow alpha: off cooldown; the gate's alpha multiplies it
 		f.readyGate = CreateFrame("Frame", nil, f.effects)
 		f.readyGate:SetAllPoints()
 		f.readyGlow = ns.Effects.glow(f.readyGate, f, def.key)
 	end
-	-- Fire Nova's warning: its alpha from a possibly-secret boolean
-	if def.needsTotem then f.warn = ns.makeWarnOverlay(f) end
+	if KD.words("cooldown", def, "warn") then f.warn = ns.makeWarnOverlay(f) end
 	-- Layers, bottom up: icon, warning, swipe, timer bar, text
 	f.stack()
 	return f
@@ -237,22 +249,17 @@ local function cooldownFor(f, key, spellID, inEvent)
 end
 CD.cooldownFor = cooldownFor
 
--- Pop when ready. totemSlot: needs a totem in that slot (Fire Nova): a greyed pop, or none
-local function popWhenReady(f, key, totemSlot)
+-- Pop when ready. gate(): "ready", "blocked" (a greyed pop, if chosen) or nil (none); no gate: ready
+local function popWhenReady(f, key, gate)
 	watchEnds(f)
 	f.ownCd:HookScript("OnCooldownDone", function()
 		if not CD.readyNow(f) then return end
 		if not (ns.isEnabled(key) and setting(key, "ready", "pop")) then return end
 		if ns.cantAct() then return end
-		if totemSlot then
-			local ok, d = safe(GetTotemDuration, totemSlot)
-			if not ok then return end
-			if not d then
-				if setting(key, "ready", "blocked") == "grey" then f:Pop("blocked") end
-				return
-			end
-		end
-		f:Pop()
+		local g = "ready"
+		if gate then g = gate() end
+		if g == "ready" then f:Pop()
+		elseif g == "blocked" and setting(key, "ready", "blocked") == "grey" then f:Pop("blocked") end
 	end)
 end
 CD.popWhenReady = popWhenReady
@@ -278,15 +285,14 @@ local function ownCooldownRunning(def, inEvent)
 end
 local function fadeTo(def, alpha) ns.fadeTo(def.frame, alpha) end
 
--- def needs key, frame, spellID and refresh (the shock passes such a table too)
-local function applyIdle(def, totemBusy, inEvent)
+-- def needs key, frame, spellID and refresh (the shock passes such a table too); held: something of
+-- its own keeps it shown (a window or primed buff, low reagents, a part's state)
+local function applyIdle(def, held, inEvent)
 	local when = setting(def.key, "idleWhen")
 	local running, certain = ownCooldownRunning(def, inEvent)
 	local busy
 	if when == "oncd" or when == "oncdany" then busy = not (running and certain) else busy = running end
-	busy = busy or when == "never" or not ns.getAccount().locked
-	-- A held state (totem down, primed buff, low reagents) is never idle
-	if not busy and totemBusy then busy = not (def.needsTotem and (when == "offcd" or when == "oncdany")) end
+	busy = busy or held or when == "never" or not ns.getAccount().locked
 	if busy then def.idleAt = nil
 	elseif def.idle == false then
 		def.idleAt = GetTime() + IDLE_DELAY
@@ -301,62 +307,6 @@ CD.applyIdle = applyIdle
 -- Refresh
 -- Remaining seconds -> alpha
 local noTimeLeftCurve = ns.CURVE_OVER
-
--- Fire Nova: the slot's duration object drives everything, secret or not
-local function refreshFireNova(def, inEvent)
-	local f = def.frame
-	local tok, tdur = safe(GetTotemDuration, def.needsTotem)
-	applyIdle(def, tok and tdur ~= nil, inEvent)
-	f.activeHolder:SetAlpha(1)
-	if tok and tdur == nil then
-		f.warn:SetAlpha(1)
-		def.read = "no fire totem (no duration)"
-	else
-		local aok, alpha = false, nil
-		if tok and tdur and noTimeLeftCurve then
-			aok, alpha = ns.try("fire nova warning", tdur.EvaluateRemainingDuration, tdur, noTimeLeftCurve)
-		end
-		if aok and alpha ~= nil then
-			f.warn:SetAlpha(alpha)
-			def.read = alpha
-		else
-			f.warn:SetAlpha(0)
-			def.read = tok and "fire slot duration unreadable" or "fire slot duration error"
-		end
-	end
-	f.upTimer:set(tok and tdur or nil)
-	-- Only ever turned off here (cooldownFor sets it each pass)
-	if not (tok and tdur) then f.cd:SetDrawBling(false) end
-end
-
--- Whether the slot's totem is def's own (1) or not (0); unknown: hidden
-local function slotMatch(def, slot)
-	local key, how, icon = ns.Totems.identify(slot)
-	if key then return key == def.spellKey and 1 or 0, how end
-	if icon then
-		local mine = icon == def.iconID or icon == def.icon
-		if mine then ns.Totems.setOwner(slot, def.spellKey) end
-		return mine and 1 or 0, how
-	end
-	return 0, how
-end
-
-local function refreshTotem(def, inEvent, held)
-	local f = def.frame
-	local tok, tdur = safe(GetTotemDuration, def.totemSlot)
-	if tok and tdur then
-		local match, how = slotMatch(def, def.totemSlot)
-		f.activeHolder:SetAlpha(match)
-		f.upTimer:set(tdur)
-		def.read, def.readHow = match, how
-		applyIdle(def, match == 1 or held, inEvent)
-	else
-		f.activeHolder:SetAlpha(0)
-		f.upTimer:clear()
-		def.read, def.readHow = "no totem in its slot", nil
-		applyIdle(def, held, inEvent)
-	end
-end
 
 -- Buff windows and primed buffs
 local function showPrimed(def, on, pop)
@@ -463,9 +413,11 @@ function refreshCooldown(def, inEvent)
 		f:SetRingShown(ring)
 		f:SetPulsing(pulse)
 	end
-	if def.needsTotem then refreshFireNova(def, inEvent)
-	elseif def.totemSlot then refreshTotem(def, inEvent, held)
-	else applyIdle(def, held, inEvent) end
+	for _, p in ipairs(KD.partsOf("cooldown", def)) do
+		local r = p.runtime and p.runtime.refresh
+		if r then held = r(def, inEvent, held) end
+	end
+	applyIdle(def, held, inEvent)
 end
 
 local function refreshCooldowns(inEvent)
@@ -473,16 +425,13 @@ local function refreshCooldowns(inEvent)
 end
 
 -- Ready sound: at the pop's moment, only while the icon is on screen and not just after it comes
--- into view
-local function soundWhenReady(f, key, totemSlot)
+-- into view; gate as popWhenReady's
+local function soundWhenReady(f, key, gate)
 	f:HookScript("OnShow", function() f.shownAt = GetTime() end)
 	f.ownCd:HookScript("OnCooldownDone", function()
 		if not f:IsVisible() or GetTime() - (f.shownAt or 0) < JUST_SHOWN then return end
 		if not CD.readyNow(f) then return end
-		if totemSlot then
-			local ok, d = safe(GetTotemDuration, totemSlot)
-			if not (ok and d) then return end
-		end
+		if gate and gate() ~= "ready" then return end
 		ns.Sounds.element(key, "ready")
 	end)
 end
@@ -494,8 +443,13 @@ for _, def in ipairs(COOLDOWNS) do
 		def.spends = {}
 		for _, k in ipairs(def.primed.spends) do def.spends[k] = true end
 	end
-	popWhenReady(def.frame, def.key, def.needsTotem)
-	if not def.noReady then soundWhenReady(def.frame, def.key, def.needsTotem) end
+	local function gate()
+		local g = hookOf(def, "gate")
+		if g then return g(def) end
+		return "ready"
+	end
+	popWhenReady(def.frame, def.key, gate)
+	if not def.noReady then soundWhenReady(def.frame, def.key, gate) end
 	def.frame.cd:HookScript("OnCooldownDone", function() C_Timer.After(0, function() refreshCooldown(def) end) end)
 end
 
@@ -537,11 +491,11 @@ local function refreshReadyGlow(def, cantAct)
 	f.readyGlow:SetShown(on and true or false)
 	if not on then return end
 	f.readyGlow:fit(f:GetWidth())
-	if def.needsTotem then
-		local tok, tdur = safe(GetTotemDuration, def.needsTotem)
-		if not (tok and tdur) then f.readyGate:SetAlpha(0) return end
-		local gok, g = ns.try("ready gate", tdur.EvaluateRemainingDuration, tdur, hasTimeLeftCurve)
-		if gok then f.readyGate:SetAlpha(g) else f.readyGate:SetAlpha(0) end
+	local gate = hookOf(def, "readyGate")
+	if gate then
+		local a = gate(def)
+		if not a then f.readyGate:SetAlpha(0) return end
+		f.readyGate:SetAlpha(a)
 	end
 	f.readyGlow:SetAlpha(readyAlpha(def.spellID, cantAct))
 end
@@ -668,28 +622,22 @@ end
 -- /sf debug
 function CD.debug()
 	for _, def in ipairs(COOLDOWNS) do
-		local secret = "?"
-		if def.spellID and C_Secrets and C_Secrets.ShouldTotemSpellBeSecret then
-			local ok, v = pcall(C_Secrets.ShouldTotemSpellBeSecret, def.spellID)
-			secret = ok and describeArg(v) or "error"
+		local words = ""
+		for _, p in ipairs(KD.partsOf("cooldown", def)) do
+			local d = p.runtime and p.runtime.debug
+			if d then words = words .. d(def) .. ", " end
 		end
-		local read = def.read == nil and "not checked" or describeArg(def.read)
-		if def.readHow then read = string.format("slot %d timer, by %s, match %s", def.totemSlot, def.readHow, read)
-		elseif def.needsTotem and type(def.read) ~= "string" and def.read ~= nil then read = "warning alpha " .. read end
 		local extra = ""
 		if def.window or def.primed then
 			extra = def.activeUntil and string.format(", %s for %s", def.primed and "primed" or "window",
-				def.activeUntil == math.huge and "until spent" or string.format("%.1f s", def.activeUntil - GetTime())) or ", not active"
+				def.activeUntil == math.huge and "until spent"
+					or string.format("%.1f s", def.activeUntil - GetTime())) or ", not active"
 		end
 		if def.reagent then
-			extra = string.format("%s, reagent %s (takes it: %s, Reagent Economy %s)", extra, describeArg(def.reagentRead),
-				tostring(def.takesReagent), tostring(Reagents.perkKnown()))
+			extra = string.format("%s, reagent %s (takes it: %s, Reagent Economy %s)", extra,
+				describeArg(def.reagentRead), tostring(def.takesReagent), tostring(Reagents.perkKnown()))
 		end
-		if def.totemSlot or def.needsTotem then
-			say("%s: spell %s, totem spell secret=%s, %s, idle %s%s", def.spell, tostring(def.spellID), secret, read, tostring(def.idle), extra)
-		else
-			say("%s: spell %s, idle %s%s", def.spell, tostring(def.spellID), tostring(def.idle), extra)
-		end
+		say("%s: spell %s, %sidle %s%s", def.spell, tostring(def.spellID), words, tostring(def.idle), extra)
 	end
 end
 
