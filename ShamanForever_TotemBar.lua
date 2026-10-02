@@ -202,10 +202,19 @@ function TB.setSizeFollow(follow)
 	c.sizeFollow = follow
 end
 
-local function multiAction(slot)
+-- Totem sets: each Call drops its own four picks, a page of the multi-cast bar. The bar uses one
+-- set at a time (sets.active, the picker header's sf-set); the character's choice is saved.
+local SET_CALL = {}
+for i, key in ipairs({ "call", "callAncestors", "callSpirits" }) do SET_CALL[i] = ns.Spells.DEFS[key].ids[1] end
+-- false: the set can't switch in combat; true: it can, through the picker header's snippet
+local SWITCH_IN_COMBAT = false
+TB.SWITCH_IN_COMBAT = SWITCH_IN_COMBAT
+local sets = { active = 1, count = 1, known = { true, false, false } }
+
+local function multiAction(slot, set)
 	local ok, bar = ns.try("totem bar: multi-cast page", C_ActionBar.GetMultiCastBarIndex)
 	if not ok or type(bar) ~= "number" or isSecret(bar) then bar = 12 end
-	return (bar - 1) * 12 + slot
+	return (bar - 1) * 12 + ((set or sets.active) - 1) * 4 + slot
 end
 
 -- Geometry, shared with the options' preview of the bar
@@ -364,6 +373,32 @@ picker:SetAttribute("sf-open", [[
 	end
 ]])
 picker:SetAttribute("sf-close", [[ self:GetFrameRef("pop" .. (...)):Hide() ]])
+-- Switch to a set (0: the next known one): every button that follows the set takes that set's
+-- action or spell, kept on it as sf-action<set> and sf-spell<set>; sf-set is written last
+picker:SetAttribute("sf-switch", [[
+	local want = ...
+	if not self:GetAttribute("sf-incombat") and SecureCmdOptionParse("[combat] 1; 0") == "1" then return end
+	local set = self:GetAttribute("sf-set") or 1
+	if want == 0 then
+		want = set
+		for _ = 1, 2 do
+			want = want % 3 + 1
+			if self:GetAttribute("sf-known" .. want) then break end
+		end
+	end
+	if want == set or not self:GetAttribute("sf-known" .. want) then return end
+	for i = 1, self:GetAttribute("sf-follows") or 0 do
+		local b = self:GetFrameRef("follow" .. i)
+		local v = b:GetAttribute("sf-action" .. want)
+		if v then b:SetAttribute("action", v) end
+		v = b:GetAttribute("sf-spell" .. want)
+		if v then b:SetAttribute("spell", v) end
+	end
+	self:SetAttribute("sf-set", want)
+]])
+picker:SetAttribute("sf-set", 1)
+picker:SetAttribute("sf-known1", true)
+picker:SetAttribute("sf-incombat", SWITCH_IN_COMBAT)
 -- Snippets run round each click (SecureHandlerWrapScript): returning false skips the button's action
 local ARROW_CLICK = [[
 	local i = self:GetAttribute("sf-pick")
@@ -385,13 +420,14 @@ local SLOT_CLICK = [[
 ]]
 local PICK_CLICK, PICK_AFTER = [[ return nil, self:GetAttribute("sf-pick") ]], [[ owner:RunAttribute("sf-close", message) ]]
 local HOVER_ENTER = [[
-	if owner:GetAttribute("sf-hovermode") then owner:RunAttribute("sf-open", self:GetAttribute("sf-pick")) end
+	local i = self:GetAttribute("sf-pick")
+	if i and owner:GetAttribute("sf-hovermode") then owner:RunAttribute("sf-open", i) end
 ]]
 -- Hover leave closes the picker unless still over the slot or strip. A leave runs only on a frame
 -- whose enter is wrapped too
 local HOVER_LEAVE = [[
 	local i = self:GetAttribute("sf-pick")
-	if not owner:GetAttribute("sf-hovermode") then return end
+	if not i or not owner:GetAttribute("sf-hovermode") then return end
 	local pop = owner:GetFrameRef("pop" .. i)
 	if pop:IsShown() and not owner:GetFrameRef("slot" .. i):IsUnderMouse()
 			and not owner:GetFrameRef("strip" .. i):IsUnderMouse() then
@@ -405,6 +441,16 @@ local function wrapHover(b, enter)
 end
 local function wrapClick(b, pre, post) SecureHandlerWrapScript(b, "OnClick", picker, pre, post) end
 
+-- The buttons that follow the set (out of combat: frame references)
+local follows = {}
+local function follow(b)
+	table.insert(follows, b)
+	SecureHandlerSetFrameRef(picker, "follow" .. #follows, b)
+	picker:SetAttribute("sf-follows", #follows)
+end
+local function followSlot(b, slot)
+	for set = 1, #SET_CALL do b:SetAttribute("sf-action" .. set, multiAction(slot, set)) end
+end
 
 local slots = {}
 local bySlot = {}
@@ -500,6 +546,7 @@ for index, el in ipairs(ELEMENTS) do
 	b:SetAttribute("totem-slot", slot)
 	b:SetAttribute("sf-pick", index)
 	wrapClick(b, SLOT_CLICK)
+	follow(b)
 	s.button = b
 
 	local v = CreateFrame("Frame", nil, bar)
@@ -547,11 +594,17 @@ end
 -- Key bindings: each a CLICK binding to its own invisible secure button, so keys work with the bar
 -- off. "Dismiss all" runs a macro that /clicks four dismiss helpers (a click sends a release, so
 -- those act on release): no spell, so no global cooldown and no mana back.
-local CALL, RECALL = ns.Spells.DEFS.call.ids[1], ns.Spells.DEFS.recall.ids[1]
+local CALL, RECALL = SET_CALL[1], ns.Spells.DEFS.recall.ids[1]
+local function knows(spell)
+	local ok, v = ns.try("totem bar: spell known", C_SpellBook.IsSpellKnown, spell)
+	return ok and v == true
+end
 _G.BINDING_HEADER_SHAMANFOREVER_TOTEMS = "Totems"
 _G["BINDING_NAME_CLICK ShamanForeverKeyDismissAll:LeftButton"] = "Dismiss all totems"
+_G["BINDING_NAME_CLICK ShamanForeverKeyNextSet:LeftButton"] = "Next totem set"
 local function nameBindings()
-	_G["BINDING_NAME_CLICK ShamanForeverKeyCall:LeftButton"] = ns.Spells.name("call")
+	_G["BINDING_NAME_CLICK ShamanForeverKeyCall:LeftButton"] = knows(SET_CALL[2]) and "Call the active totem set"
+		or ns.Spells.name("call")
 	_G["BINDING_NAME_CLICK ShamanForeverKeyRecall:LeftButton"] = ns.Spells.name("recall")
 end
 nameBindings()
@@ -568,6 +621,7 @@ for _, el in ipairs(ELEMENTS) do
 	local slot = SLOT[el]
 	castKeys[el] = keyButton("ShamanForeverKeyCast" .. NAME[el], "action")
 	castKeys[el]:SetAttribute("action", multiAction(slot))
+	follow(castKeys[el])
 	_G["BINDING_NAME_CLICK ShamanForeverKeyCast" .. NAME[el] .. ":LeftButton"] = "Cast " .. NAME[el] .. " totem"
 	keyButton("ShamanForeverKeyDismiss" .. NAME[el], "destroytotem"):SetAttribute("totem-slot", slot)
 	_G["BINDING_NAME_CLICK ShamanForeverKeyDismiss" .. NAME[el] .. ":LeftButton"] = "Dismiss " .. NAME[el] .. " totem"
@@ -576,16 +630,14 @@ for _, el in ipairs(ELEMENTS) do
 	h:SetAttribute("totem-slot", slot)
 	table.insert(dismissAll, "/click ShamanForeverKeyDismissAll" .. slot)
 end
-keyButton("ShamanForeverKeyCall", "spell"):SetAttribute("spell", CALL)
+local callKey = keyButton("ShamanForeverKeyCall", "spell")
+callKey:SetAttribute("spell", CALL)
 keyButton("ShamanForeverKeyRecall", "spell"):SetAttribute("spell", RECALL)
 local DISMISS_ALL = table.concat(dismissAll, "\n")
 keyButton("ShamanForeverKeyDismissAll", "macro"):SetAttribute("macrotext", DISMISS_ALL)
 
--- Call of the Elements and Totemic Recall: Recall always shows, greyed until learned
-local function knows(spell)
-	local ok, v = ns.try("totem bar: spell known", C_SpellBook.IsSpellKnown, spell)
-	return ok and v == true
-end
+-- Call of the Elements (the active set's Call) and Totemic Recall: Recall always shows, greyed
+-- until learned
 local extras = {}
 for _, e in ipairs({ { "Call", CALL }, { "Recall", RECALL } }) do
 	local key, spell = e[1], e[2]
@@ -603,6 +655,29 @@ for _, e in ipairs({ { "Call", CALL }, { "Recall", RECALL } }) do
 end
 extras.Recall.button:SetAttribute("*type2", "macro")
 extras.Recall.button:SetAttribute("macrotext", DISMISS_ALL)
+local call = extras.Call
+for set, id in ipairs(SET_CALL) do
+	call.button:SetAttribute("sf-spell" .. set, id)
+	callKey:SetAttribute("sf-spell" .. set, id)
+end
+follow(call.button)
+follow(callKey)
+
+-- Asked to switch sets while they can't switch
+local cueAt = 0
+local function lockedCue()
+	if SWITCH_IN_COMBAT or sets.count < 2 or not ns.inCombat() or GetTime() - cueAt < 1 then return end
+	cueAt = GetTime()
+	local errors = _G.UIErrorsFrame
+	if errors then errors:AddMessage("Totem sets can't switch in combat", 1, 0.1, 0.1)
+	else ns.say("totem sets can't switch in combat") end
+end
+
+-- Next totem set: a key only
+local nextSet = CreateFrame("Button", "ShamanForeverKeyNextSet", UIParent, "SecureActionButtonTemplate")
+nextSet:RegisterForClicks("AnyDown", "AnyUp")
+wrapClick(nextSet, [[ if not down then owner:RunAttribute("sf-switch", 0) end return false ]])
+nextSet:SetScript("PostClick", function(_, _, down) if not down then lockedCue() end end)
 
 local function refreshKeys()
 	local on = cfg().keys
@@ -655,7 +730,7 @@ local function extraSides()
 	return before, after
 end
 TB.extraSides = extraSides
-function TB.extraTexture(key) return C_Spell.GetSpellTexture(key == "Call" and CALL or RECALL) end
+function TB.extraTexture(key) return C_Spell.GetSpellTexture(key == "Call" and SET_CALL[sets.active] or RECALL) end
 function TB.extraLearned(key) return knows(key == "Call" and CALL or RECALL) end
 
 local function hover(s, arrows)
@@ -784,6 +859,58 @@ local function refreshSlots()
 	anyDown = down
 end
 
+-- The active set: the picker header's sf-set, written by the switch snippet or by writeSet (out of
+-- combat); a hook keeps the plain side in step, in combat too
+local applying = false
+local function paintSets()
+	call.vis.icon:SetTexture(C_Spell.GetSpellTexture(SET_CALL[sets.active]))
+end
+local function setActive(set, chosen)
+	sets.active = set
+	call.spell = SET_CALL[set]
+	if chosen then
+		sets.wanted = set
+		local t = ns.Profiles.char()
+		if t then t.totemSet = set end
+	end
+	paintSets()
+	refreshSlots()
+	refreshGCD()
+	if chosen and not InCombatLockdown() then ns.Options.refresh() end
+end
+picker:HookScript("OnAttributeChanged", function(_, name, value)
+	if name ~= "sf-set" or isSecret(value) or type(value) ~= "number" then return end
+	setActive(value, not applying)
+end)
+local function writeSet(set)
+	applying = true
+	for _, b in ipairs(follows) do
+		local action, spell = b:GetAttribute("sf-action" .. set), b:GetAttribute("sf-spell" .. set)
+		if action then b:SetAttribute("action", action) end
+		if spell then b:SetAttribute("spell", spell) end
+	end
+	picker:SetAttribute("sf-set", set)
+	applying = false
+end
+-- The sets known, and the one to use: the character's choice once its Call is known
+local function knownSets()
+	local count = 1
+	for set = 2, #SET_CALL do
+		sets.known[set] = knows(SET_CALL[set])
+		if sets.known[set] then count = count + 1 end
+		picker:SetAttribute("sf-known" .. set, sets.known[set])
+	end
+	sets.count = count
+	if not sets.wanted then
+		local t = ns.Profiles.char()
+		local v = t and t.totemSet
+		if v == 1 or v == 2 or v == 3 then sets.wanted = v
+		elseif t then sets.wanted = 1 end
+	end
+	local set = sets.wanted or 1
+	return sets.known[set] and set or 1
+end
+
 local layout
 local function refresh()
 	local wasDown = anyDown
@@ -889,7 +1016,6 @@ local function layoutPopout(s, size, known)
 	local ids = { 0 }
 	for _, id in ipairs(known) do table.insert(ids, id) end
 	local psz = TB.popButtonSize(size)
-	local action = multiAction(slot)
 	for i, id in ipairs(ids) do
 		local p = pop.buttons[i]
 		if not p then
@@ -916,10 +1042,11 @@ local function layoutPopout(s, size, known)
 			end)
 			p:SetScript("OnLeave", function() GameTooltip:Hide() end)
 			wrapHover(p)   -- after its scripts: setting a script later would drop the wrap
+			follow(p)
 			pop.buttons[i] = p
 		end
 		p.spellID = id
-		p:SetAttribute("action", action)
+		followSlot(p, slot)
 		p:SetAttribute("spell", id)
 		TB.placePopButton(p, pop, i, psz)
 		if id ~= 0 then
@@ -975,6 +1102,11 @@ function layout()
 	-- Any open picker closes first: it would come back open later
 	closePopouts()
 	local c = cfg()
+	local set = knownSets()
+	for _, el in ipairs(ELEMENTS) do
+		followSlot(slots[el].button, SLOT[el])
+		followSlot(castKeys[el], SLOT[el])
+	end
 	local size, border, extrasBorder = look()
 	-- Scale and opacity first: sizes, gaps and position are whole screen pixels at it
 	bar:SetScale(c.scale)
@@ -1049,8 +1181,6 @@ function layout()
 		local b = s.button
 		b:SetAttribute("*type1", feat("cast") and "action" or nil)
 		b:SetAttribute("sf-altpick", barOn() and cfg().mode == "everything")
-		b:SetAttribute("action", multiAction(s.slot))
-		castKeys[s.el]:SetAttribute("action", multiAction(s.slot))
 		s.inset = TB.fitLook(s.vis, b, border, size)
 		s.killed.fitSize, s.expired.fitSize = size - 2 * s.inset, size - 2 * s.inset
 		s.timer:apply()
@@ -1068,6 +1198,7 @@ function layout()
 	TB.skin.layoutBar(bar, boxes, size, row, sealed)
 	ns.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
 	TB.range.layout(size)
+	writeSet(set)
 	refreshSlots()
 	refreshKeys()
 	refreshGCD()
@@ -1419,7 +1550,7 @@ local function onEvent(_, event, arg1, ...)
 		if isSecret(spell) or type(spell) ~= "number" then return end
 		refreshAfterCast(spell)
 	elseif event == "ACTIONBAR_SLOT_CHANGED" then
-		local base = multiAction(1) - 1
+		local base = multiAction(1, 1) - 1
 		if not isSecret(arg1) and type(arg1) == "number" and (arg1 == 0 or (arg1 > base and arg1 <= base + 12)) then refresh() end
 	elseif event == "UPDATE_BINDINGS" then
 		refreshKeys()
@@ -1600,8 +1731,8 @@ function TB.debug()
 	local gok, ginfo = pcall(C_ActionBar.GetActionCooldown, multiAction(SLOT.earth))
 	local g = not gok and "error" or type(ginfo) ~= "table" and "none"
 		or isSecret(ginfo.isOnGCD) and "secret" or tostring(ginfo.isOnGCD)
-	ns.say("totem bar mode %s, show %s, driver %s, shown %s, totems known %s, earth isOnGCD %s; TotemFrame parent %s alpha %s; Totem Action Bar parent %s",
-		c.mode, c.show, tostring(lastDriver), tostring(bar:IsShown()), tostring(hasTotems), g,
+	ns.say("totem bar mode %s, show %s, driver %s, shown %s, totems known %s, set %d of %d, earth isOnGCD %s; TotemFrame parent %s alpha %s; Totem Action Bar parent %s",
+		c.mode, c.show, tostring(lastDriver), tostring(bar:IsShown()), tostring(hasTotems), sets.active, sets.count, g,
 		TotemFrame and TotemFrame:GetParent() and (TotemFrame:GetParent():GetName() or "?") or "none",
 		TotemFrame and string.format("%.2f", TotemFrame:GetAlpha()) or "-",
 		mc and (mc:GetParent() == hiddenParent and "hidden" or (mc:GetParent() and mc:GetParent():GetName() or "?")) or "none")

@@ -5,6 +5,7 @@
 	<Binding name="CLICK ShamanForeverKeyCastWater:LeftButton" category="ShamanForever"/>
 	<Binding name="CLICK ShamanForeverKeyCastAir:LeftButton" category="ShamanForever"/>
 	<Binding name="CLICK ShamanForeverKeyCall:LeftButton" category="ShamanForever"/>
+	<Binding name="CLICK ShamanForeverKeyNextSet:LeftButton" category="ShamanForever"/>
 	<Binding name="CLICK ShamanForeverKeyDismissEarth:LeftButton" category="ShamanForever"/>
 	<Binding name="CLICK ShamanForeverKeyDismissFire:LeftButton" category="ShamanForever"/>
 	<Binding name="CLICK ShamanForeverKeyDismissWater:LeftButton" category="ShamanForever"/>
