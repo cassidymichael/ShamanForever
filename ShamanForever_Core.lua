@@ -485,6 +485,19 @@ function Spells.selfCheck()
 	end
 end
 
+-- The class gate (ns.CLASS, from _Class)
+local playerClass
+local function classOf()
+	if not playerClass then playerClass = select(2, UnitClass("player")) end
+	return playerClass
+end
+function ns.isClass() return classOf() == ns.CLASS.token end
+-- Another class; false while the client doesn't know the player's yet
+function ns.otherClass()
+	local c = classOf()
+	return c ~= nil and c ~= ns.CLASS.token
+end
+
 -- More rows, as DEFS'
 function Spells.add(rows)
 	for key, d in pairs(rows) do

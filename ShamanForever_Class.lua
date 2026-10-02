@@ -1,6 +1,10 @@
--- The class's spells: seed IDs and English names, as _Core's DEFS
+-- The class this addon is for, and its spells
 
 local _, ns = ...
+
+ns.CLASS = { token = "SHAMAN", plural = "shamans" }
+
+-- Seed IDs and English names, as _Core's DEFS
 
 ns.Spells.add({
 	lightningShield = { ids = { 324, 325, 905, 945, 8134, 10431, 10432 }, en = "Lightning Shield" },

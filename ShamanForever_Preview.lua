@@ -351,7 +351,7 @@ function PV.showsUnlearned() return on and opts.unlearned end
 
 function PV.open()
 	if on then return end
-	if not ns.isActive() then say("the preview is for shamans only") return end
+	if not ns.isActive() then say("the preview is for %s only", ns.CLASS.plural) return end
 	if InCombatLockdown() then say("the preview can't start in combat") return end
 	on = true
 	optionsAside = not ns.getAccount().keepOptionsOpen and ns.Options.hide() or false

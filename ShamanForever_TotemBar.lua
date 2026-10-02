@@ -163,14 +163,8 @@ local function cfg()
 end
 TB.cfg = cfg
 
--- Only shamans get the bar: other classes leave Blizzard's frames alone
-local playerClass
-local function isShaman()
-	if not playerClass then playerClass = select(2, UnitClass("player")) end
-	return playerClass == "SHAMAN"
-end
-local function barOn() return isShaman() and cfg().mode ~= "blizzard" end
-TB.isShaman = isShaman
+-- Only the class gets the bar: other classes leave Blizzard's frames alone
+local function barOn() return ns.isClass() and cfg().mode ~= "blizzard" end
 local function feat(key) local c = cfg(); return barOn() and c.mode == "everything" and c[key] or false end
 TB.barOn, TB.feat = barOn, feat
 ns.Style.registerBar("totembar", { cfg = cfg, DEFAULTS = TB.DEFAULTS, label = "Totem bar", on = barOn,
@@ -1069,7 +1063,7 @@ function layout()
 	applyActionBar()
 	if mover then mover.update() end
 	if preview then paintPreview() end
-	if playerClass and not isShaman() then classDone = true end
+	if ns.otherClass() then classDone = true end
 end
 TB.layout = layout
 TB.afterGroups = layout
@@ -1413,7 +1407,7 @@ end
 
 ev:SetScript("OnEvent", function(_, event, arg1, ...)
 	if not ns.getDB() then return end
-	if not isShaman() and playerClass then
+	if ns.otherClass() then
 		layout()
 		if classDone then
 			ev:UnregisterAllEvents()

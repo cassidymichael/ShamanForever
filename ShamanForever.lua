@@ -117,7 +117,7 @@ local RETIRED_KEYS = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "popMot
 local acct
 local db
 local profileName
-local isShaman = false
+local isActive = false
 
 -- Elements and their modules
 -- root spans the screen and takes no input: the parent of every group, hidden for other classes.
@@ -176,7 +176,7 @@ function ns.newElementIcon(key, opts)
 end
 
 -- Module hooks (all optional; a module also has a name for the error log):
---   start()                a shaman logged in
+--   start()                the class's player logged in
 --   resolve()              after a spellbook scan; returns a signature
 --   sanitize(db, acct)     a profile loaded
 --   applyTimers()          every timer takes its current style
@@ -631,7 +631,7 @@ end
 
 -- Every lock and unlock goes through here: in combat unlocking is refused, locking takes the combat path
 function ns.setLocked(locked)
-	if not isShaman then say("positioning is for shamans only") return false end
+	if not isActive then say("positioning is for %s only", ns.CLASS.plural) return false end
 	if InCombatLockdown() then
 		if not locked then say("positioning can't be unlocked in combat") return false end
 		if not acct.locked then ns.Positioning.lockInCombat() end
@@ -772,7 +772,7 @@ ns.profileName = function() return profileName end
 ns.useProfile, ns.selectProfile, ns.fillDefaults = useProfile, selectProfile, fillDefaults
 ns.DEFAULTS, ns.GROUP_DEFAULTS = DEFAULTS, GROUP_DEFAULTS
 ns.ELEMENTS, ns.ELEMENT_KEYS = ELEMENTS, ELEMENT_KEYS
-ns.isActive = function() return isShaman end
+ns.isActive = function() return isActive end
 ns.isEnabled, ns.showMode = isEnabled, showMode
 ns.isLearned = isLearned
 ns.elementOpts, ns.elementSetting, ns.elementDefault, ns.idleAlpha = elementOpts, elementSetting, elementDefault, idleAlpha
@@ -806,9 +806,8 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		local want = ns.Profiles.saved()
 		if want ~= profileName then selectProfile(want) end
 		ns.IssueReporter.apply()
-		local _, class = UnitClass("player")
-		if class ~= "SHAMAN" then root:Hide(); return end
-		isShaman = true
+		if not ns.isClass() then root:Hide(); return end
+		isActive = true
 		ns.try("spell self-check", Spells.selfCheck)
 		ns.applyMinimapButton()
 		reg("UNIT_SPELLCAST_SUCCEEDED", "player")
