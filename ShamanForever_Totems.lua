@@ -127,6 +127,22 @@ function T.forget(slot)
 	owner[slot], spells[slot] = nil, nil
 end
 
+-- A totem's end as the end flash plays it: s holds the event's settings (which: "ended", it ran
+-- out; "killed", it ended early), def is the element's row (none for the totem bar); nil: nothing
+-- plays
+function T.endOptions(s, which, def)
+	if which == "killed" then
+		if not s.flash then return nil end
+		if def and def.grounded then return { grounded = true, pop = s.pop, glow = s.glow } end
+		return { pop = s.pop, glow = s.glow, mark = s.mark }
+	end
+	if def and def.ranOut then
+		if not s.flash then return nil end
+		return { expired = true, ranOut = ns.THEME.color[def.school], pop = s.pop, glow = s.glow }
+	end
+	return s.pop and { expired = true, pop = true } or nil
+end
+
 -- Cooldown parts (ns.registerPart)
 local setting = ns.elementSetting
 
@@ -137,12 +153,14 @@ local function ended(def)
 	if def.ranOut then e.flash, e.glow = true, false end
 	return e
 end
-local function endFlash(ic, def, P, st, opts, secs)
+-- The preview's end flash; secs: when the cooldown its end started shows (none: it doesn't)
+local function previewEnd(ic, def, P, st, opts, secs)
 	if opts then
 		if not ic.endFlash then ic.endFlash = ns.Effects.endFlash(ic, ic, def.key) end
 		ic.endFlash:setIcon(def.iconID or def.icon)
 		ic.endFlash:play(nil, opts)
 	end
+	if not secs then return end
 	local token = {}
 	ic.momentToken, ic.momentDone = token, false
 	C_Timer.After(opts and secs or 0, function()
@@ -198,19 +216,11 @@ ns.registerPart("totemSlot", {
 			end
 		end,
 		pop = function(ic, st, def, P)
-			local key = def.key
-			local function on(name, field) return setting(key, name, field) end
-			if st == "ranout" and def.ranOut then
-				endFlash(ic, def, P, st, on("ended", "flash") and { expired = true,
-					ranOut = ns.THEME.color[def.school], pop = on("ended", "pop"),
-					glow = on("ended", "glow") }, 1.4)
-			elseif st == "ranout" and on("ended", "pop") then ic:Pop("expired")
-			elseif st == "killed" and def.grounded then
-				endFlash(ic, def, P, st, on("killed", "flash") and { grounded = true,
-					pop = on("killed", "pop"), glow = on("killed", "glow") }, 2.1)
+			if st == "ranout" then
+				local opts = T.endOptions(ns.elementEvent(def.key, "ended"), "ended", def)
+				previewEnd(ic, def, P, st, opts, def.ranOut and 1.4 or nil)
 			elseif st == "killed" then
-				endFlash(ic, def, P, st, on("killed", "flash") and { pop = on("killed", "pop"),
-					glow = on("killed", "glow"), mark = on("killed", "mark") }, 2.1)
+				previewEnd(ic, def, P, st, T.endOptions(ns.elementEvent(def.key, "killed"), "killed", def), 2.1)
 			end
 		end,
 	},
@@ -264,38 +274,21 @@ ns.registerPart("needsTotem", {
 	},
 })
 
--- Totem ends on the elements with a totem of their own: killed early (Grounded for Grounding) or
--- ran out, gated on the time left
+-- Totem ends on the elements with a totem of their own, gated on the time left
+local function playEnd(f, field, def, dur, opts)
+	if not opts then return end
+	if not f[field] then f[field] = ns.Effects.endFlash(f.effects, f, def.key) end
+	f[field]:setIcon(def.iconID or def.icon)
+	f[field]:play(dur, opts)
+end
 local function endOnElement(def, event, arg)
 	local f, key = def.frame, def.key
 	if event == "cast" and arg == def.spellKey and f.killed then
 		f.killed.mark:Hide()
 	elseif event == "gone" and T.ownerOf(def.totemSlot) == def.spellKey and ns.isEnabled(key) then
-		local dur = arg
 		if f:IsVisible() then ns.Sounds.element(key, "ended", true) end
-		if def.ranOut then
-			if setting(key, "ended", "flash") then
-				if not f.expired then f.expired = ns.Effects.endFlash(f.effects, f, key) end
-				f.expired:setIcon(def.iconID or def.icon)
-				f.expired:play(dur, { expired = true, ranOut = ns.THEME.color[def.school],
-					pop = setting(key, "ended", "pop"), glow = setting(key, "ended", "glow") })
-			end
-		elseif setting(key, "ended", "pop") then
-			if not f.expired then f.expired = ns.Effects.endFlash(f.effects, f, key) end
-			f.expired:setIcon(def.iconID or def.icon)
-			f.expired:play(dur, { expired = true, pop = true })
-		end
-		if setting(key, "killed", "flash") then
-			if not f.killed then f.killed = ns.Effects.endFlash(f.effects, f, key) end
-			f.killed:setIcon(def.iconID or def.icon)
-			if def.grounded then
-				f.killed:play(dur, { grounded = true, pop = setting(key, "killed", "pop"),
-					glow = setting(key, "killed", "glow") })
-			else
-				f.killed:play(dur, { pop = setting(key, "killed", "pop"), glow = setting(key, "killed", "glow"),
-					mark = setting(key, "killed", "mark") })
-			end
-		end
+		playEnd(f, "expired", def, arg, T.endOptions(ns.elementEvent(key, "ended"), "ended", def))
+		playEnd(f, "killed", def, arg, T.endOptions(ns.elementEvent(key, "killed"), "killed", def))
 	end
 end
 T.subscribe(function(event, slot, arg)
