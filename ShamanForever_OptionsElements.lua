@@ -140,7 +140,7 @@ function EP.buildOverview(p)
 		end)
 	end
 	local STYLE_NAMES = { { "cooldown", "Cooldown timer" }, { "uptime", "Time left timer" },
-		{ "glow", "Pulsing glow" }, { "pop", "Pop" }, { "border", "Border" } }
+		{ "glow", "Pulsing glow" }, { "pop", "Pop" }, { "border", "Border" }, { "frame", "Frame" } }
 	local function ownStyles(key)
 		local S, out = ns.Style, {}
 		for _, k in ipairs(STYLE_NAMES) do
@@ -229,7 +229,7 @@ function EP.buildOverview(p)
 			GameTooltip:SetText("Own styles")
 			local own = ownStyles(key)
 			if #own == 0 then
-				GameTooltip:AddLine("Follows Global styles for its timers, glow, pop and border.", 1, 1, 1, true)
+				GameTooltip:AddLine("Follows Global styles for its timers, glow, pop, border and frame.", 1, 1, 1, true)
 			else
 				GameTooltip:AddLine(table.concat(own, ", "), 1, 1, 1, true)
 				GameTooltip:AddLine("The rest follow Global styles.", 0.7, 0.7, 0.7, true)
@@ -238,7 +238,7 @@ function EP.buildOverview(p)
 		end)
 		styles:SetScript("OnLeave", function() GameTooltip:Hide() end)
 		local SHORT = { ["Cooldown timer"] = "cooldown", ["Time left timer"] = "time left",
-			["Pulsing glow"] = "glow", ["Pop"] = "pop", ["Border"] = "border" }
+			["Pulsing glow"] = "glow", ["Pop"] = "pop", ["Border"] = "border", ["Frame"] = "frame" }
 		local cells = { { group, "group" }, { show, "show" }, { groupOpen, "link" }, { styles, "styles" } }
 		p:add(f, 34, nil, function()
 			e.paint(icon)
@@ -369,6 +369,8 @@ local function lookBlocks(p, key)
 	if #e.effects.pop > 0 then popBlock(p, key, e.icon, e.effects.popKind or "ready") end
 	p:header("Border style")
 	K.borderRows(p, key, relayout)
+	p:header("Frame style")
+	K.frameRows(p, key, "frame", relayout)
 end
 
 local function warningBlock(p, title, opt, names, first)
