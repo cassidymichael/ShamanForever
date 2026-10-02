@@ -655,6 +655,7 @@ for set, id in ipairs(SET_CALL) do
 	p:RegisterForClicks("AnyUp")
 	p:SetAttribute("sf-pick", SET_PICK)
 	p:SetAttribute("sf-set", set)
+	p:Hide()   -- until its Call is known
 	wrapClick(p, SET_CLICK)
 	p:SetFrameLevel(setSlot.popout:GetFrameLevel() + 5)
 	p.icon = p:CreateTexture(nil, "ARTWORK")
