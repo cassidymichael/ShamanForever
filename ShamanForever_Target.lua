@@ -115,13 +115,8 @@ end
 local function buildButton(def, slot, button)
 	if def.fx then def.fx:bind(button, slot.icon) end
 	if def.buttonBorder or def.missing then
-		if def.fx then
-			def.edge = def.fx:makeEdge(button)
-		else
-			def.edge = CreateFrame("Frame", nil, button)
-			def.edge:SetAllPoints(button)
-			def.edge.owner = def.key
-		end
+		def.edge = def.fx and def.fx:makeEdge(button)
+			or ns.Frames.edge(button, button, def.key, { overlay = false })
 	end
 	if def.engineExpire then
 		-- Font set before it's handed over (Blizzard writes at once)
@@ -141,7 +136,6 @@ local function styleButton(def, size, slot)
 	end
 	if def.edge then
 		ns.try("target border " .. def.key, ns.Frames.dress, def.edge, def.key)
-		if def.edge.frameOverlay then def.edge.frameOverlay:Hide() end
 	end
 	if def.fx then ns.try("target pop " .. def.key, def.fx.stylePop, def.fx, size) end
 end
@@ -154,7 +148,7 @@ local WHITE = "Interface\\Buttons\\WHITE8x8"
 local RED = { 1, 0.2, 0.2, 1 }
 local REMAINING = Enum and Enum.DurationTextBindingProperty and Enum.DurationTextBindingProperty.RemainingDuration or 0
 
-function T.makeExpireBar(button)
+local function makeExpireBar(button)
 	local x = {}
 	x.clip = CreateFrame("Frame", nil, button)
 	x.clip:SetClipsChildren(true)
@@ -236,12 +230,8 @@ function styleExpireText(def, slot, st, secs)
 	local textOn = secs > 0 and setting(key, "expire", "text") and st.text and fs ~= nil and textCurve(secs, st.textColor)
 	if textOn then
 		def.textHolder:SetFrameLevel(def.frame.textFrame:GetFrameLevel() + 15)
-		fs:SetFont(STANDARD_TEXT_FONT, st.textSize, "OUTLINE")
-		fs:ClearAllPoints()
-		if st.textPos == "topleft" then
-			fs:SetPoint("TOPLEFT", b, "TOPLEFT", 1, (t and t.barOn and st.barEdge == "top") and -(st.barHeight + 1) or -1)
-		elseif st.textPos == "bottom" then fs:SetPoint("BOTTOM", b, "BOTTOM", 0, (t and t.barOn and st.barEdge == "bottom") and st.barHeight + 1 or 1)
-		else fs:SetPoint("CENTER", b, "CENTER", 0, 0) end
+		ns.Media.setFont(fs, key, st.textSize)
+		ns.Timer.placeText(fs, b, st, t and t.barOn, t and t.dual)
 		if ns.try("flame shock countdown", b.SetDurationText, b, fs, { textColor = { curve = textOn, property = REMAINING } }) then
 			def.textHanded = true
 			fs:Show()
@@ -274,9 +264,7 @@ for _, def in ipairs(TARGET) do
 		def.idle:SetAllPoints(f)
 		-- One border at any time (Blizzard's button is see-through at partial opacity): idleEdge with no
 		-- hostile target, the button's while Flame Shock is up, the look's while it's gone
-		def.idleEdge = CreateFrame("Frame", nil, f)
-		def.idleEdge:SetAllPoints(f)
-		def.idleEdge.owner = def.key
+		def.idleEdge = ns.Frames.edge(f, f, def.key)
 		local h = CreateFrame("Frame", nil, def.gate)
 		h:SetAllPoints(f)
 		h:Hide()
@@ -306,9 +294,7 @@ for _, def in ipairs(TARGET) do
 			},
 		})
 		def.missLook.tex:SetTexture(def.icon)
-		def.lookEdge = CreateFrame("Frame", nil, def.missLook.art)
-		def.lookEdge:SetAllPoints(f)
-		def.lookEdge.owner = def.key
+		def.lookEdge = ns.Frames.edge(def.missLook.art, f, def.key, { overlay = false })
 	end
 	def.aura = ns.makeAuraSlot(f, {
 		key = def.key, slot = def.key, unit = "none", filter = def.filter, parent = def.idle or def.gate,
@@ -316,8 +302,8 @@ for _, def in ipairs(TARGET) do
 		candidates = def.candidates and function() return def.candidates(def) end,
 		ownIcon = def.ownIcon and function() return def.icon end, noTimer = def.noTimer,
 		extras = def.engineExpire and {
-			{ key = "expire", init = function(_, b) def.redBar = T.makeExpireBar(b) end },
-			{ key = "cover", init = function(_, b) def.coverBar = T.makeExpireBar(b) end },
+			{ key = "expire", init = function(_, b) def.redBar = makeExpireBar(b) end },
+			{ key = "cover", init = function(_, b) def.coverBar = makeExpireBar(b) end },
 		} or nil,
 		sites = { container = "target container " .. def.key, style = "target style " .. def.key,
 			filter = "target filter " .. def.key },
@@ -457,7 +443,6 @@ local function styleLook()
 	look:setLevel(lv + 1, 2)
 	def.lookEdge:SetFrameLevel(lv + 1)
 	ns.Frames.dress(def.lookEdge, def.key, lv + 1)
-	if def.lookEdge.frameOverlay then def.lookEdge.frameOverlay:Hide() end
 	look:setParts(ns.warnParts(def.key, "warn"))
 	look:reshape()
 	look:style()
@@ -614,11 +599,10 @@ function T.start()
 		end
 	end)
 	ns.onCombatStart(combatStarts)
+	-- The reads come with every module's refresh, before this
 	ns.onCombatEnd(function()
 		styleLook()
 		styleUp()
-		checkMissing()
-		refreshAura(FLAME)
 	end)
 	ns.onCanActChange(function() checkMissing(); refreshAura(FLAME) end)
 end

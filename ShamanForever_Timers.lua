@@ -220,21 +220,25 @@ function Timer:apply()
 		elseif not self.barOn then bar:Hide() end
 	end
 	if self.last then self:set(self.last) end
-	local fs = self.fs
-	if fs then
-		local pos = s.textPos
-		if pos == "auto" then pos = (self.dual and self.kind == "uptime") and "topleft" or "center" end
-		local a = self.anchor
-		fs:ClearAllPoints()
-		if pos == "topleft" then
-			local y = (self.barOn and s.barEdge == "top") and -(s.barHeight + 1) or -1
-			fs:SetPoint("TOPLEFT", a, "TOPLEFT", 1, y); fs:SetJustifyH("LEFT")
-		elseif pos == "bottom" then
-			local y = (self.barOn and s.barEdge == "bottom") and (s.barHeight + 1) or 1
-			fs:SetPoint("BOTTOM", a, "BOTTOM", 0, y); fs:SetJustifyH("CENTER")
-		else
-			fs:SetPoint("CENTER", a, "CENTER", 0, 0); fs:SetJustifyH("CENTER")
-		end
+	if self.fs then
+		T.placeText(self.fs, self.anchor, s, self.barOn, self.dual and self.kind == "uptime")
+	end
+end
+
+-- The countdown's place on anchor for timer style s, clear of a bar; dual: an uptime sharing its
+-- icon with a cooldown
+function T.placeText(fs, anchor, s, barOn, dual)
+	local pos = s.textPos
+	if pos == "auto" then pos = dual and "topleft" or "center" end
+	fs:ClearAllPoints()
+	if pos == "topleft" then
+		local y = (barOn and s.barEdge == "top") and -(s.barHeight + 1) or -1
+		fs:SetPoint("TOPLEFT", anchor, "TOPLEFT", 1, y); fs:SetJustifyH("LEFT")
+	elseif pos == "bottom" then
+		local y = (barOn and s.barEdge == "bottom") and (s.barHeight + 1) or 1
+		fs:SetPoint("BOTTOM", anchor, "BOTTOM", 0, y); fs:SetJustifyH("CENTER")
+	else
+		fs:SetPoint("CENTER", anchor, "CENTER", 0, 0); fs:SetJustifyH("CENTER")
 	end
 end
 

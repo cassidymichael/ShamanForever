@@ -7,7 +7,7 @@ ns.Effects = E
 
 -- The pulsing glow
 -- Under Blizzard's aura button (underButton) the button plays the animations: g:bindButton hands
--- -- them over.
+-- them over.
 local glows = {}
 local auraGlows = {}
 function E.glow(parent, over, owner, opts)
@@ -173,10 +173,7 @@ end
 
 -- The pop
 -- No Scale, Rotation or Translation under the frame the motion moves: bursts sit on frames beside
--- -- the icon, flashes (fade and flip only) stay on it.
-local POP_TINT = { ready = { 1, 0.82, 0.25 }, lost = { 0.35, 0.65, 1 },
-	expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 }, grounded = { 0.56, 0.76, 0.92 },
-	blocked = { 0.6, 0.6, 0.6 } }
+-- the icon, flashes (fade and flip only) stay on it.
 local BLACK = { 0, 0, 0 }
 local RING = { name = "ring", atlas = "ArtifactsFX-YellowRing", file = "Interface\\Buttons\\UI-ActionButton-Border",
 	layer = "OVERLAY", add = true, desat = true, from = 0.9, to = 2.2, dur = 0.45, a = 1 }
@@ -307,7 +304,7 @@ local function newRig(f, icon, level)
 	for _, e in ipairs(r.edge or {}) do table.insert(r.all, e.group) end
 	for _, p in pairs(r.parts) do table.insert(r.all, p.group) end
 	-- A hide ends a pop cut short (a hidden frame would finish it on its next show). Not under an aura
-	-- -- button: no scripts run there.
+	-- button: no scripts run there.
 	if not icon then fx:SetScript("OnHide", function() r:stop() end) end
 	return r
 end
@@ -456,16 +453,17 @@ function Rig:play()
 	end
 end
 
--- blocked: ready but can't be cast; grey and a dimmer flash.
--- Nothing on a hidden frame: it would play on its next show.
 local function popColor(st, kind, school)
-	if st.colorBy == "school" and ns.Looks.POP_EVENTS[kind] then
+	local k = ns.Looks.POP_KINDS[kind] or ns.Looks.POP_KINDS.ready
+	if st.colorBy == "school" and k.byStyle then
 		local theme = ns.THEME
 		return theme.color[school] or theme.color[theme.fallback]
 	end
-	return POP_TINT[kind] or POP_TINT.ready
+	return k.color
 end
 
+-- kind: a Looks.POP_KINDS key ("blocked": a dimmer flash). Nothing on a hidden frame: it would play
+-- on its next show.
 function E.pop(f, kind, owner)
 	if not f:IsVisible() then return end
 	kind = kind or "ready"
@@ -487,8 +485,18 @@ function E.pop(f, kind, owner)
 	end
 end
 
--- The end of a totem: Killed early, Ran out, Grounded, Ran out softly. Nothing here reads a secret:
--- -- the gone totem's last duration object goes to a curve, then SetAlpha.
+-- In over inDur, held for hold, out over outDur
+local function fadeGroup(body, inDur, hold, outDur, onFinished)
+	local g = body:CreateAnimationGroup()
+	local fadeIn, fadeOut = anim(g, "Alpha", 1), anim(g, "Alpha", 2)
+	fadeIn:SetFromAlpha(0); fadeIn:SetToAlpha(1); fadeIn:SetDuration(inDur)
+	fadeOut:SetFromAlpha(1); fadeOut:SetToAlpha(0)
+	fadeOut:SetDuration(outDur); fadeOut:SetStartDelay(hold)
+	g:SetScript("OnFinished", onFinished)
+	return g
+end
+
+-- The end of a totem: killed early, ran out, ran out softly, grounded
 local killedCurve = ns.curve({ 0, 0, 1.2, 0, 1.25, 1, 36000, 1 })
 local expiredCurve = ns.curve({ 0, 1, 1.2, 1, 1.25, 0, 36000, 0 })
 function E.endFlash(parent, anchor, owner, over)
@@ -512,24 +520,10 @@ function E.endFlash(parent, anchor, owner, over)
 	kf.red = kf.body:CreateTexture(nil, "OVERLAY")
 	kf.red:SetAllPoints()
 	kf.red:SetColorTexture(0.95, 0.12, 0.08, 0.7)
-	kf.flash = kf.body:CreateAnimationGroup()
-	local inA = kf.flash:CreateAnimation("Alpha")
-	inA:SetFromAlpha(0); inA:SetToAlpha(1); inA:SetDuration(0.12); inA:SetOrder(1)
-	local outA = kf.flash:CreateAnimation("Alpha")
-	outA:SetFromAlpha(1); outA:SetToAlpha(0); outA:SetDuration(1.4); outA:SetStartDelay(0.5); outA:SetOrder(2)
-	kf.flash:SetScript("OnFinished", function() kf.body:SetAlpha(0); kf.glow:Hide() end)
-	kf.quick = kf.body:CreateAnimationGroup()
-	local qIn = kf.quick:CreateAnimation("Alpha")
-	qIn:SetFromAlpha(0); qIn:SetToAlpha(1); qIn:SetDuration(0.05); qIn:SetOrder(1)
-	local qOut = kf.quick:CreateAnimation("Alpha")
-	qOut:SetFromAlpha(1); qOut:SetToAlpha(0); qOut:SetDuration(0.5); qOut:SetStartDelay(0.2); qOut:SetOrder(2)
-	kf.quick:SetScript("OnFinished", function() kf.body:SetAlpha(0); kf.glow:Hide() end)
-	kf.soft = kf.body:CreateAnimationGroup()
-	local sIn = kf.soft:CreateAnimation("Alpha")
-	sIn:SetFromAlpha(0); sIn:SetToAlpha(1); sIn:SetDuration(0.1); sIn:SetOrder(1)
-	local sOut = kf.soft:CreateAnimation("Alpha")
-	sOut:SetFromAlpha(1); sOut:SetToAlpha(0); sOut:SetDuration(0.9); sOut:SetStartDelay(0.3); sOut:SetOrder(2)
-	kf.soft:SetScript("OnFinished", function() kf.body:SetAlpha(0); kf.glow:Hide() end)
+	local function finished() kf.body:SetAlpha(0); kf.glow:Hide() end
+	kf.flash = fadeGroup(kf.body, 0.12, 0.5, 1.4, finished)
+	kf.quick = fadeGroup(kf.body, 0.05, 0.2, 0.5, finished)
+	kf.soft = fadeGroup(kf.body, 0.1, 0.3, 0.9, finished)
 	kf.hourglass = kf.body:CreateTexture(nil, "OVERLAY", nil, 2)
 	kf.hourglass:SetTexture("Interface\\Common\\mini-hourglass")
 	kf.hourglass:SetPoint("CENTER")
@@ -575,7 +569,7 @@ function E.endFlash(parent, anchor, owner, over)
 			local c = opts.ranOut
 			self.glow:color(c[1], c[2], c[3]); self.red:SetColorTexture(c[1], c[2], c[3], 0.45)
 		elseif opts.grounded then
-			local c = POP_TINT.grounded
+			local c = ns.Looks.POP_KINDS.grounded.color
 			self.glow:color(c[1], c[2], c[3]); self.red:SetColorTexture(c[1], c[2], c[3], 0.7)
 		else
 			self.glow:color(1, 0.12, 0.08); self.red:SetColorTexture(0.95, 0.12, 0.08, 0.7)
@@ -609,8 +603,8 @@ function E.endFlash(parent, anchor, owner, over)
 end
 
 -- The effect host
--- -- Frame route: our own icon. Aura route: Blizzard's aura button, whose pop plays on each new
--- -- aura and whose glow is a clip look lit while the aura is up.
+-- Frame route: our own icon. Aura route: Blizzard's aura button, whose pop plays on each new
+-- aura and whose glow is a clip look lit while the aura is up.
 local Host = {}
 Host.__index = Host
 
@@ -656,9 +650,6 @@ function Host:pop(kind)
 	E.pop(self.f, kind or "ready", self.key)
 end
 
-function Host:restyle()
-	if self.up then self.up:reshape() elseif self.glowF then self.glowF:restyle() end
-end
 function Host:fit(size)
 	if self.glowF then self.glowF:fit(size) end
 end
@@ -670,11 +661,9 @@ function Host:levelGlow()
 	if self.up then self.up:setLevel(self.f.textFrame:GetFrameLevel() + GLOW_LEVEL) end
 end
 
+-- The button draws the border's overlay art itself
 function Host:makeEdge(button)
-	local edge = CreateFrame("Frame", nil, self.body or button)
-	edge:SetAllPoints(button)
-	edge.owner = self.key
-	return edge
+	return ns.Frames.edge(self.body or button, button, self.key, { overlay = false })
 end
 
 function Host:bind(button, icon)
@@ -706,7 +695,7 @@ function Host:stylePop(size)
 	ns.try("aura pop style " .. self.key, function()
 		local st = pops and ns.Style.get(self.key, "pop") or NO_POP
 		local school = ns.Looks.effectSchool(self.f)
-		rig:style(st, size, popColor(st, self.aura.popKind or "ready", school), school)
+		rig:style(st, size, popColor(st, "ready", school), school)
 	end)
 	-- Whatever styling did or didn't finish, the parts shown are exactly those marked to play.
 	rig:showParts()
@@ -724,8 +713,6 @@ function Host:motionLength() return self.rig and self.rig.motionLength or 0 end
 
 function Host:setup() if self.up then self.up:setup() end end
 function Host:refilter() if self.up then self.up:refilter() end end
-function Host:follow(unit) return not self.up or self.up:follow(unit) end
-function Host:setLevel(lv) if self.up then self.up:setLevel(lv) end end
 function Host:style()
 	if not self.up then return end
 	self.up:reshape()

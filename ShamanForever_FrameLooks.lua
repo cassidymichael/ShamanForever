@@ -56,4 +56,4 @@ FR.addGroupLook("stonelinks", { name = "Stone link band", group = "painted", wei
 		unit = { path = LINKS, coords = { 163 / 512, 325 / 512, 0, 168 / 256 }, size = { 162, 168 } },
 		last = { path = LINKS, coords = { 325 / 512, 509 / 512, 0, 168 / 256 }, size = { 184, 168 } },
 		hole = { 38, 40, 88, 88 },
-	}, tiling = { pitch = "unit" } })
+	} })

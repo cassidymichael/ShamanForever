@@ -1,5 +1,5 @@
 -- Looks
--- -- Our own media by path, never file ID; Blizzard's art by atlas, checked before use.
+-- Our own media by path, never file ID; Blizzard's art by atlas, checked before use.
 
 local ADDON, ns = ...
 
@@ -141,6 +141,10 @@ local function drawCaps(f, caps, out, b)
 	return o - out
 end
 
+local function setArt(t, art)
+	if art.atlas then t:SetAtlas(art.atlas) else t:SetTexture(art.file) end
+end
+
 local function placeArt(t, art, over, w)
 	local i = art.inset
 	t:ClearAllPoints()
@@ -151,7 +155,7 @@ end
 -- On f itself: over the picture, under its swipe, timers and text.
 local function drawOverlay(f, art)
 	local t = f.frameOverlay
-	if not art or art.margin or (art.atlas and not Looks.hasAtlas(art.atlas)) then
+	if not art or art.margin or f.noOverlay or (art.atlas and not Looks.hasAtlas(art.atlas)) then
 		if t then t:Hide() end
 		return
 	end
@@ -162,7 +166,7 @@ local function drawOverlay(f, art)
 	local w = f:GetWidth()
 	if ns.isSecret(w) then return end   -- secret under a secure button: next layout
 	placeArt(t, art, f, w)
-	if art.atlas then t:SetAtlas(art.atlas) else t:SetTexture(art.file) end
+	setArt(t, art)
 	t:Show()
 end
 
@@ -408,7 +412,7 @@ end
 function Looks.outerEdge(f) return f and f.frameOuter or 0 end
 
 -- Blizzard's aura button takes a mask only when made as it is built, so each gets one there;
--- -- Looks.auraStyle restyles it out of combat.
+-- Looks.auraStyle restyles it out of combat.
 local PLAIN_MASK = { file = WHITE, wrap = "CLAMP" }
 local auraMade = setmetatable({}, { __mode = "k" })
 function Looks.auraMask(host, tex, key)
@@ -418,7 +422,7 @@ function Looks.auraMask(host, tex, key)
 	auraMade[tex] = made
 	if art then
 		local t = host:CreateTexture(nil, "OVERLAY", nil, 7)
-		if art.atlas then t:SetAtlas(art.atlas) else t:SetTexture(art.file) end
+		setArt(t, art)
 		placeArt(t, art, host, size)
 		made.artTex = t
 	end
@@ -438,7 +442,7 @@ function Looks.auraStyle(slot, size)
 		if art and not made.artTex then made.artTex = host:CreateTexture(nil, "OVERLAY", nil, 7) end
 		local t = made.artTex
 		if art then
-			if art.atlas then t:SetAtlas(art.atlas) else t:SetTexture(art.file) end
+			setArt(t, art)
 			t:Show()
 		elseif t then t:Hide() end
 		made.art = art
@@ -562,14 +566,33 @@ local soft = {
 	fit = function(g, parts, size) fitSoft(g, parts.soft, size, g.width) end,
 }
 
-local halo = {
+-- A look made of Blizzard's atlases, drawn as the soft look on a client that lacks one
+local function orSoft(look, ...)
+	local atlases, build, style, fit = { ... }, look.build, look.style, look.fit
+	function look.build(g)
+		for _, a in ipairs(atlases) do
+			if not Looks.hasAtlas(a) then
+				local parts = soft.build(g)
+				parts.fallback = true
+				return parts
+			end
+		end
+		return build(g)
+	end
+	function look.style(g, parts, st, c)
+		if parts.fallback then return soft.style(g, parts, st, c) end
+		return style(g, parts, st, c)
+	end
+	function look.fit(g, parts, size, out)
+		if parts.fallback then return soft.fit(g, parts, size) end
+		return fit(g, parts, size, out)
+	end
+	return look
+end
+
+local halo = orSoft({
 	uses = { color = true, speed = true, low = true },
 	build = function(g)
-		if not Looks.hasAtlas(ACTIVE_GLOW) then
-			local parts = soft.build(g)
-			parts.fallback = true
-			return parts
-		end
 		local r = root(g.inner)
 		local t = r:CreateTexture(nil, "OVERLAY")
 		t:SetAtlas(ACTIVE_GLOW)
@@ -580,28 +603,21 @@ local halo = {
 		return { roots = { r }, halo = t, grow = grow, scale = s, anims = { grow }, aura = { grow }, moving = { r } }
 	end,
 	style = function(g, parts, st, c)
-		if parts.fallback then return soft.style(g, parts, st, c) end
 		parts.halo:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
 		parts.scale:SetDuration(st.speed)
 	end,
 	fit = function(g, parts, size, out)
-		if parts.fallback then return soft.fit(g, parts, size) end
 		local d = out + size * 0.24
 		parts.halo:ClearAllPoints()
 		parts.halo:SetPoint("TOPLEFT", g, "TOPLEFT", -d, d)
 		parts.halo:SetPoint("BOTTOMRIGHT", g, "BOTTOMRIGHT", d, -d)
 	end,
-}
+}, ACTIVE_GLOW)
 
 -- Blizzard's proc glow; under the aura button only its ring (the burst needs a script).
-local proc = {
+local proc = orSoft({
 	uses = { color = true }, steady = true,
 	build = function(g)
-		if not (Looks.hasAtlas(PROC_START) and Looks.hasAtlas(PROC_LOOP)) then
-			local parts = soft.build(g)
-			parts.fallback = true
-			return parts
-		end
 		local r = root(g.inner)
 		local loop = r:CreateTexture(nil, "OVERLAY")
 		loop:SetAtlas(PROC_LOOP)
@@ -617,7 +633,6 @@ local proc = {
 			stop = { loopG } }
 	end,
 	style = function(g, parts, st, c)
-		if parts.fallback then return soft.style(g, parts, st, c) end
 		local own = not g.fixed and c[1] == GOLD_GLOW[1] and c[2] == GOLD_GLOW[2] and c[3] == GOLD_GLOW[3]
 		for _, t in ipairs(parts.texs) do
 			t:SetDesaturated(not own)
@@ -625,7 +640,6 @@ local proc = {
 		end
 	end,
 	fit = function(g, parts, size, out)
-		if parts.fallback then return soft.fit(g, parts, size) end
 		local s = size + 2 * out
 		if parts.start then
 			parts.start:SetSize(s * 150 / 45, s * 150 / 45)
@@ -634,7 +648,7 @@ local proc = {
 		parts.loop:SetSize(s * 1.4, s * 1.4)
 		parts.loop:SetPoint("CENTER", g, "CENTER", 0, 0)
 	end,
-}
+}, PROC_START, PROC_LOOP)
 
 local SPARK_PATH = { { 1, 0 }, { 0, -1 }, { -1, 0 }, { 0, 1 } }
 local spark = {
@@ -803,7 +817,7 @@ addGlow("material", "School material", material)
 addGlow("heartbeat", "Heartbeat", heartbeat)
 
 -- Pop looks
--- -- A drawn burst is a list of parts: from/to and rise in icon heights, dur/delay in seconds.
+-- A drawn burst is a list of parts: from/to and rise in icon heights, dur/delay in seconds.
 local GCD_FLASH = "UI-HUD-ActionBar-GCD-Flipbook"
 local HALO_SCALE, HALO_ALPHA = 1.08, 0.6
 
@@ -906,10 +920,20 @@ function Looks.popParts(key, school)
 	return popParts[id]
 end
 
--- Events whose pop takes the style's Colour; warnings keep their own.
-Looks.POP_EVENTS = { ready = true, expired = true }
+-- What a pop marks, and its colour; byStyle: the Pop style's Colour applies (not to warnings)
+Looks.POP_KINDS = {
+	ready = { color = { 1, 0.82, 0.25 }, byStyle = true },
+	expired = { color = { 0.95, 0.95, 0.95 }, byStyle = true },
+	lost = { color = { 0.35, 0.65, 1 } },
+	killed = { color = { 1, 0.15, 0.1 } },
+	grounded = { color = { 0.56, 0.76, 0.92 } },
+	blocked = { color = { 0.6, 0.6, 0.6 } },   -- ready but can't be cast
+}
+-- The byStyle kinds as a set, for the options' Pop style block
+Looks.POP_EVENTS = {}
+for kind, k in pairs(Looks.POP_KINDS) do Looks.POP_EVENTS[kind] = k.byStyle or nil end
 
-Looks.schoolOf, Looks.effectSchool = schoolOf, effectSchool
+Looks.effectSchool = effectSchool
 
 -- Blizzard's cooldown-done flash, doubled to be seen; nil without the art.
 function Looks.popEdge(parent)

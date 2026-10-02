@@ -10,7 +10,7 @@ local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Art\\Frames\\"
 local floor, max, min, abs = math.floor, math.max, math.min, math.abs
 
 -- Frame levels, from the carrier's (element) or the group frame's own; members sit at member
-FR.LEVEL = { under = -2, over = 1, top = 13, group = 0, groupTop = 16, member = 3 }
+FR.LEVEL = { under = -2, over = 1, group = 0, member = 3 }
 
 local SECTIONS = { { "blizzard", "Blizzard's" }, { "painted", "Painted" }, { "minimal", "Minimal" } }
 S.addField("frame", "look", { name = "Frame look", where = "Global settings > Frame style",
@@ -18,9 +18,7 @@ S.addField("frame", "look", { name = "Frame look", where = "Global settings > Fr
 S.addField("groupframe", "look", { name = "Group frame look", where = "Global settings > Group frame style",
 	preview = { play = "still" }, groups = SECTIONS })
 
-------------------------------------------------------------------------
 -- Validation
-------------------------------------------------------------------------
 local ROTATE = { [0] = true, [90] = true, [180] = true, [270] = true }
 local BLEND = { BLEND = true, ADD = true }
 local WEIGHT = { solid = true, wispy = true }
@@ -69,7 +67,6 @@ local function commonError(e)
 	if type(e.name) ~= "string" or e.name == "" then return "no name" end
 	if e.weight ~= nil and not WEIGHT[e.weight] then return "weight is solid or wispy" end
 	if e.variants ~= nil and type(e.variants) ~= "table" then return "variants is a table" end
-	if e.tiling ~= nil and type(e.tiling) ~= "table" then return "tiling is a table" end
 	return listError(e.madeFor, "madeFor") or listError(e.classes, "classes")
 end
 
@@ -132,9 +129,7 @@ function FR.validate(e, kind)
 	return commonError(e) or (kind == "groupframe" and groupError or elementError)(e)
 end
 
-------------------------------------------------------------------------
 -- Geometry: units from the box's top-left, y down, rounded to whole pixels
-------------------------------------------------------------------------
 local function round(v, px) return floor(v / px + 0.5) * px end
 local function atLeast(v, px) return max(px, round(v, px)) end
 
@@ -408,9 +403,7 @@ function FR.fitSpacing(look, size, px)
 	end
 end
 
-------------------------------------------------------------------------
 -- Registry
-------------------------------------------------------------------------
 local function register(kind, key, entry)
 	local err = FR.validate(entry, kind)
 	if type(entry) ~= "table" then entry = {} end
@@ -434,28 +427,6 @@ FR.addGroupLook("none", { name = "None", none = true })
 
 function FR.look(kind, key) return S.look(kind, key) end
 
--- A backdrop edge file as pieces: square cells in a row (left, right, top, bottom, then the four
--- corners); top and bottom are stored upright. band = { from, to }: the edges' texels across a cell.
-function FR.strip(art, band)
-	local W, cell = art.size[1], art.size[2]
-	local n = floor(W / cell + 0.5)
-	local out = {}
-	for i, name in ipairs({ "l", "r", "t", "b", "tl", "tr", "bl", "br" }) do
-		local p = CopyTable(art)
-		local l, r = (i - 1) / n, i / n
-		local w = cell
-		local edge = i <= 4
-		if band and edge then
-			l, r = ((i - 1) * cell + band[1]) / W, ((i - 1) * cell + band[2]) / W
-			w = band[2] - band[1]
-		end
-		p.coords, p.size = { l, r, 0, 1 }, { w, cell }
-		if name == "t" or name == "b" then p.rotate = 90 end
-		out[name] = p
-	end
-	return out
-end
-
 -- One image cut as nine pieces round margin texels
 function FR.cut(art, margin)
 	local W, H = art.size[1], art.size[2]
@@ -471,9 +442,7 @@ function FR.cut(art, margin)
 		bl = piece(0, mx, 1 - my, 1), b = piece(mx, 1 - mx, 1 - my, 1), br = piece(1 - mx, 1, 1 - my, 1) }
 end
 
-------------------------------------------------------------------------
 -- Art on this client
-------------------------------------------------------------------------
 local function eachArt(look, fn)
 	if look.art then fn(look.art) end
 	if look.slice then fn(look.slice) end
@@ -523,8 +492,9 @@ local function artKnown(a, cropped)
 	return fileKnown(a.file or MEDIA .. a.path)
 end
 
-local known, missing, unchecked = {}, {}, {}
--- Whether the client has all of a look's art (checked once per look); art it can't check is drawn
+local known = {}
+-- Whether the client has all of a look's art (checked once per look); art it can't check is drawn,
+-- the look marked artUnchecked
 function FR.hasArt(look)
 	if not look or look.none then return true end
 	local v = known[look]
@@ -539,17 +509,13 @@ function FR.hasArt(look)
 		end)
 		known[look] = v
 		if not v then
-			table.insert(missing, look.key)
 			ns.noteError("frame look " .. tostring(look.key), "art missing on this client")
 		elseif unsure then
-			table.insert(unchecked, look.key)
+			look.artUnchecked = true
 		end
 	end
 	return v
 end
--- Looks whose art this client lacks, and those it couldn't check, as found so far
-function FR.missingArt() return missing end
-function FR.uncheckedArt() return unchecked end
 
 -- Registered well, for this class, its art on the client
 function FR.usable(look)
@@ -592,9 +558,7 @@ function FR.reach(owner, kind)
 	return look and FR.usable(look) and look.reach or ZERO
 end
 
-------------------------------------------------------------------------
 -- Drawing
-------------------------------------------------------------------------
 local function paint(tex, a, u0, u1, v0, v1)
 	local plain = not needsRegion(a) and (u0 or 0) == 0 and (u1 or 1) == 1 and (v0 or 0) == 0 and (v1 or 1) == 1
 	if a.atlas then
@@ -618,8 +582,7 @@ local function tint(tex, look, style)
 end
 
 local function levelOf(look, base)
-	local d = look.onTop and FR.LEVEL.top or look.layer == "under" and FR.LEVEL.under or FR.LEVEL.over
-	return max(0, base + d)
+	return max(0, base + (look.layer == "under" and FR.LEVEL.under or FR.LEVEL.over))
 end
 
 -- An element look round carrier, whose box is box units square; style: { color, alpha }; level: the
@@ -667,6 +630,16 @@ function FR.mountOwn(carrier, key, box, level)
 	local ok = FR.mount(carrier, key, box, level)
 	if ok and veiled[key] then carrier.frameMount:SetAlpha(0) end
 	return ok
+end
+
+-- One of those frames, over anchor; overlay = false: the border's overlay art is drawn by what it
+-- sits on
+function FR.edge(parent, anchor, key, opts)
+	local edge = CreateFrame("Frame", nil, parent)
+	edge:SetAllPoints(anchor)
+	edge.owner = key
+	edge.noOverlay = opts and opts.overlay == false or nil
+	return edge
 end
 
 -- Its border and frame together, on one of those frames (bare: the border only)
@@ -724,7 +697,7 @@ function FR.drawGroup(host, look, lay, style)
 	m:ClearAllPoints()
 	m:SetPoint("TOPLEFT", host, "TOPLEFT", lay.x or 0, -(lay.y or 0))
 	m:SetSize(geo.w, geo.h)
-	m:SetFrameLevel(max(0, host:GetFrameLevel() + (look.onTop and FR.LEVEL.groupTop or FR.LEVEL.group)))
+	m:SetFrameLevel(max(0, host:GetFrameLevel() + FR.LEVEL.group))
 	local n, sliced = 0, false
 	for _, p in ipairs(geo.parts) do
 		if p.slice then

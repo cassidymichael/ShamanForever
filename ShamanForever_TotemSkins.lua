@@ -18,7 +18,6 @@ local GOLD = ns.Looks.GOLD
 local RED = { 0.9, 0.12, 0.08, 1 }
 local TRAY = { 0.047, 0.035, 0.024 }
 
-
 -- Our art for Stone and bronze, by path
 local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Art\\Looks\\"
 local PLINTH = MEDIA .. "Plinth"
@@ -171,7 +170,7 @@ function SK.barPlace()
 	return TB.cfg().barPlace
 end
 
-local function outGap(size) return math.max(math.floor(size * 3 / 44 + 0.5), 2) end
+local function outGap(size) return math.max(math.floor(size * 3 / ns.BASE_ICON_SIZE + 0.5), 2) end
 local function outReach(size)
 	if SK.barPlace() ~= "out" or not ns.Style.value("totembar", "uptime", "bar") then return 0 end
 	return outGap(size) + ns.Style.value("totembar", "uptime", "barHeight")
