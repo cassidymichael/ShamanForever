@@ -387,7 +387,7 @@ end
 -- Flame Shock: the Not on target look
 local FLAME = TARGET[1]
 
-local function readable() return not ns.inCombat() and not ns.aurasSecret() end
+local function readable() return not ns.inCombat() and ns.aurasReadable() end
 
 -- nil when it can't be told (read fails or secret). Any rank counts, by ID or the client's name
 local function flameShockOnTarget()

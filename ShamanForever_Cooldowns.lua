@@ -492,7 +492,7 @@ end
 local CAST_GRACE = 1.5
 local function readPrimedBuff(def, fromAura)
 	local buffKey = def.primed and def.primed.buffKey
-	if not buffKey or InCombatLockdown() or ns.aurasSecret() or not C_UnitAuras then return end
+	if not buffKey or not ns.aurasReadable() or not C_UnitAuras then return end
 	local found
 	local function usable(ok, a)
 		return ok and type(a) == "table" and not isSecret(a.expirationTime) and not isSecret(a.duration)

@@ -208,7 +208,7 @@ end
 
 local function applyFilter(s)
 	local c = s.rangeContainer
-	if not c or InCombatLockdown() or ns.aurasSecret() then return end
+	if not c or not ns.aurasReadable() then return end
 	for _, part in ipairs(PARTS) do
 		if s.rangeSlots[part.key] then
 			ns.try("totem range: filter", c.SetAuraSlotCandidateFilters, c, part.key, { includeSpellIDs = CopyTable(buffIDs[s.el]) })
@@ -219,8 +219,7 @@ end
 -- Ranks not listed: a buff whose name is the client's name for a listed buff is another rank of it
 local names = {}
 local function learn()
-	if InCombatLockdown() or not ns.isClass() or not enabled() then return end
-	if ns.aurasSecret() then return end
+	if not ns.aurasReadable() or not ns.isClass() or not enabled() then return end
 	if next(names) == nil then
 		for el, list in pairs(BUFF_TOTEMS) do
 			for _, e in ipairs(list) do

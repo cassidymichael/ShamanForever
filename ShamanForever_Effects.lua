@@ -83,7 +83,7 @@ function E.glow(parent, over, owner, opts)
 		local look = drawn(ns.Style.look("glow", st.look))
 		-- Under the button: a new look only out of combat with auras readable.
 		if underButton and self.look and look ~= self.look then
-			local ok = self.button ~= nil and not InCombatLockdown() and not ns.aurasSecret()
+			local ok = self.button ~= nil and ns.aurasReadable()
 			local p = ok and parts(look)
 			for _, a in ipairs(p and p.aura or {}) do ok = ok and self:hand(a) end
 			if not ok then look = self.look end

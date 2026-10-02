@@ -159,7 +159,7 @@ local lookOn, lookState, watching = false, nil, false
 local CAST_HOLD, LOAD_HOLD = 0.3, 1
 local holdUntil = 0
 
-local function aurasUnread() return ns.inCombat() or ns.aurasSecret() end
+local function aurasUnread() return ns.inCombat() or not ns.aurasReadable() end
 
 local function blocked()
 	return ns.cantAct() or ns.plainYes(UnitInVehicle, "player")
@@ -627,10 +627,8 @@ function copy:refilter()
 end
 
 -- Auras can be secret out of combat too: keep the last read
-local function aurasReadable() return not InCombatLockdown() and not ns.aurasSecret() end
-
 local function refreshAura()
-	if not aurasReadable() then return end
+	if not ns.aurasReadable() then return end
 	local upKey
 	for _, key in ipairs(SHIELD_ORDER) do
 		local s = SHIELDS[key]

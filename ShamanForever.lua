@@ -670,7 +670,7 @@ end
 
 local readAt
 local function refreshAll()
-	if not InCombatLockdown() and not ns.aurasSecret() then readAt = GetTime() end
+	if ns.aurasReadable() then readAt = GetTime() end
 	each("refresh")
 end
 
@@ -843,7 +843,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		-- A restriction ended (a match, an encounter): auras may be readable with no combat end to say so;
 		-- skipped when a refresh since already read everything
 		ns.onRestrictionEnd(function(endedAt)
-			if InCombatLockdown() or ns.aurasSecret() or (readAt and readAt >= endedAt) then return end
+			if not ns.aurasReadable() or (readAt and readAt >= endedAt) then return end
 			refreshAll()
 		end)
 		each("start")

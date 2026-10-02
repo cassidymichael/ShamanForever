@@ -336,7 +336,7 @@ local gateSlot
 local QUIET = 2
 local quietToken
 local function restylePop()
-	if pop.button and not InCombatLockdown() and not ns.aurasSecret() then
+	if pop.button and ns.aurasReadable() then
 		ns.try("maelstrom pop quiet", stylePop, pop, ns.sizeOf(KEY))
 	end
 	pop:style()
