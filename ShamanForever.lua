@@ -310,7 +310,6 @@ local function newGroup(template)
 	for k, v in pairs(GROUP_DEFAULTS) do
 		if template and template[k] ~= nil then g[k] = template[k] else g[k] = v end
 	end
-	if template and template.border then g.border = CopyTable(template.border) end
 	g.members = {}
 	g.id = nextId()
 	g.name = freeName()
@@ -390,7 +389,6 @@ local function sanitize()
 		g.combatOnly = nil
 		for k, v in pairs(GROUP_DEFAULTS) do if g[k] == nil then g[k] = v end end
 		if g.show ~= "combat" and g.show ~= "target" then g.show = "always" end
-		if type(g.border) == "table" and g.border.follow == nil then g.border.follow = false end
 		local kept = {}
 		for _, key in ipairs(type(g.members) == "table" and g.members or {}) do
 			if ELEMENTS[key] and not seen[key] then
@@ -399,6 +397,18 @@ local function sanitize()
 			end
 		end
 		g.members = kept
+		-- A group's own border (old profiles, imports) goes to its members that have none
+		local b = g.border
+		if type(b) == "table" and b.follow ~= true then
+			for _, key in ipairs(kept) do
+				local o = elementOpts(key)
+				if o.border == nil then
+					o.border = CopyTable(b)
+					o.border.follow = false
+				end
+			end
+		end
+		g.border = nil
 	end
 	fixIds()
 	fixNames()
