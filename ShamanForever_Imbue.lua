@@ -16,7 +16,8 @@ local IDLE_CHOICES = {
 	{ "on", "On", "Idle while an imbue is on", "Idle whatever its time left is." },
 }
 local imbueIcon
-ns.registerElement("imbue", { frame = imbue, label = "Weapon Imbue", paint = function(t) t:SetTexture(imbueIcon) end,
+ns.registerElement("imbue", { frame = imbue, label = "Weapon Imbue",
+	paint = function(t) t:SetTexture(imbueIcon) end,
 	learned = function() return anyKnown end,
 	defaults = { idleWhen = "notlow", idleAlpha = 0,
 		icon = "last",   -- the icon while none is on: last | rockbiter | flametongue | frostbrand | windfury
@@ -251,7 +252,8 @@ local PREVIEW = {
 			ic:SetWarnParts(ns.warnParts("imbue", "warn"))
 		else
 			P.reset(ic, imbueIcon)
-			if st == "low" and ns.elementSetting("imbue", "showUnderMins") > 0 then P.frozen(ic.upT, 0.95, 3600) end
+			local shows = ns.elementSetting("imbue", "showUnderMins") > 0
+			if st == "low" and shows then P.frozen(ic.upT, 0.95, 3600) end
 		end
 	end,
 	idles = function(st, when) return st == "fine" or (st == "low" and when == "on") end,

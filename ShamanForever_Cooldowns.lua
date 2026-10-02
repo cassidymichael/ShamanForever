@@ -24,10 +24,12 @@ local setting = ns.elementSetting
 local ONE_SWIPE = { uptime = { swipe = "The cooldown has the swipe; time left shows as text or a bar." } }
 local function barTimer() return { uptime = { text = false, bar = true } } end
 local COOLDOWNS = {
-	{ key = "earthbind", spellKey = "earthbind", icon = 136102, totemSlot = 2, duration = 45, cd = 15, school = "earth",
+	{ key = "earthbind", spellKey = "earthbind", icon = 136102, totemSlot = 2, duration = 45, cd = 15,
+		school = "earth",
 		blurb = "Cooldown, and time left while it's down.",
 		styles = barTimer(), timerCant = ONE_SWIPE, defaults = {} },
-	{ key = "stoneclaw", spellKey = "stoneclaw", icon = 136097, totemSlot = 2, duration = 15, cd = 15, school = "earth",
+	{ key = "stoneclaw", spellKey = "stoneclaw", icon = 136097, totemSlot = 2, duration = 15, cd = 15,
+		school = "earth",
 		blurb = "Cooldown, and time left while it's down.",
 		styles = barTimer(), timerCant = ONE_SWIPE, defaults = {} },
 	{ key = "firenova",  spellKey = "fireNova",  icon = 135824, needsTotem = 1, school = "fire",
@@ -129,15 +131,17 @@ local function heldChoices(held)
 		{ IDLE_ONCD[1], "Cooling down, " .. held, IDLE_ONCD[3], IDLE_ONCD[4] } }
 end
 
-local function cooldownTimes(def)
+-- Expiring: a totem's, or a window's or primed state's with a length, unless expireLooks is false
+local function expires(def)
 	local timed = def.window or (def.primed and def.primed.duration)
-	local expires = (def.needsTotem or def.totemSlot or timed) and def.expireLooks ~= false
-	return timed, expires and true or false
+	return (def.needsTotem or def.totemSlot or timed) and def.expireLooks ~= false and true or false
 end
 
 ns.registerPart("cooldown", {
 	defaults = { idleAlpha = 0.3, idleWhen = "offcd" },
-	idle = { choices = function(def) return def.idleHeld and heldChoices(def.idleHeld) or CD.IDLE_CHOICES end },
+	idle = { choices = function(def)
+		return def.idleHeld and heldChoices(def.idleHeld) or CD.IDLE_CHOICES
+	end },
 	page = { cooldown = "Cooldown", gcd = true, ready = {}, expire = {} },
 	preview = {
 		cooldown = true, typical = "cd",
@@ -179,7 +183,9 @@ ns.registerPart("window", {
 -- Primed by our cast until spent: { spends, charges, duration, buffKey, text }; primedLooks false:
 -- no pop or glow of its own
 ns.registerPart("primed", {
-	defaults = function(def) return def.primedLooks ~= false and { active = { pop = true, glow = true } } or nil end,
+	defaults = function(def)
+		return def.primedLooks ~= false and { active = { pop = true, glow = true } } or nil
+	end,
 	glow = function(def) return def.primedLooks ~= false and { "active" } or nil end,
 	pop = function(def) return def.primedLooks ~= false and { "active" } or nil end,
 	idle = { held = "not primed", also = " and it isn't primed" },
@@ -204,12 +210,10 @@ ns.registerPart("primed", {
 	},
 })
 ns.registerKind("cooldown", {
-	parts = { "cooldown", "ready", "readyGlow", "needsTotem", "totemSlot", "window", "primed", "reagent", "expire" },
+	parts = { "cooldown", "ready", "readyGlow", "needsTotem", "totemSlot", "window", "primed", "reagent",
+		"expire" },
 	slots = { "own", "warn", "cooldown", "gcd", "uptime", "ready", "active", "expire", "killed" },
-	prepare = function(def)
-		local _, expires = cooldownTimes(def)
-		def.expires = expires
-	end,
+	prepare = function(def) def.expires = expires(def) end,
 })
 
 local function makeCooldownIcon(def)

@@ -62,12 +62,7 @@ ns.registerPart("missing", {
 		warning = "missing",
 		states = { { "missing", "Not on target", 30 } },
 		render = function(ic, st, def)
-			if st ~= "missing" then return end
-			local key = def.key
-			ic.tex:SetDesaturated(setting(key, "warn", "grey"))
-			ic:SetRingShown(setting(key, "warn", "ring"))
-			ic:SetPulsing(setting(key, "warn", "fade"))
-			ic:SetGlowShown(setting(key, "warn", "glow"))
+			if st == "missing" then ic:SetWarnParts(ns.warnParts(def.key, "warn")) end
 		end,
 	},
 })

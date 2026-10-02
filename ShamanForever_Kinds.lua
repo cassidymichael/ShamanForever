@@ -114,7 +114,8 @@ function KD.finish()
 				for _, s in ipairs(value(p.glow, def) or NONE) do table.insert(glow, s) end
 				for _, s in ipairs(value(p.pop, def) or NONE) do table.insert(pop, s) end
 			end
-			e.effects = { glow = glow, pop = pop, popKind = firstOf(list, function(p) return p.popKind end) }
+			local popKind = firstOf(list, function(p) return p.popKind end)
+			e.effects = { glow = glow, pop = pop, popKind = popKind }
 			fillIdle(def, list)
 		end
 	end
@@ -169,7 +170,9 @@ function KD.preview(kind, def)
 	end)
 	pv.states = {}
 	for i, s in ipairs(states) do pv.states[i] = { s[1], labels[s[1]] or s[2] } end
-	local function field(f) return firstOf(list, function(p) return p.preview and p.preview[f] end) end
+	local function field(f)
+		return firstOf(list, function(p) return p.preview and p.preview[f] end)
+	end
 	pv.typical, pv.warning = field("typical"), field("warning")
 	local own = list[1] and list[1].preview
 	function pv.render(ic, st, P)

@@ -791,7 +791,8 @@ local function readyBlock(p, owner, opts)
 	check(p, s, "ready", "pop", "Pop", "The moment the cooldown ends.")
 	if opts.blocked and s.has("ready", "blocked") then
 		local get, set = s.opt("ready", "blocked")
-		p:dropdown(opts.blocked[1], opts.blocked[2], BLOCKED, get, set, showWhen(s.get("ready", "pop")), 150)
+		local popOn = showWhen(s.get("ready", "pop"))
+		p:dropdown(opts.blocked[1], opts.blocked[2], BLOCKED, get, set, popOn, 150)
 	end
 	check(p, s, "ready", "glow", "Pulsing glow", opts.glowTip or "While it's off cooldown.")
 	soundRow(p, s, "ready", "Sound", "The moment the cooldown ends.")
@@ -893,7 +894,8 @@ local function toggleBlock(p, key, b)
 	local sub = b.sub
 	if not sub then return end
 	p:sub(on, eread(key, b.name), function()
-		eslider(p, key, sub.label, sub.tip, function(v) return string.format("%d %s", v, sub.unit) end, nil, sub.name)
+		local function fmt(v) return string.format("%d %s", v, sub.unit) end
+		eslider(p, key, sub.label, sub.tip, fmt, nil, sub.name)
 	end)
 end
 

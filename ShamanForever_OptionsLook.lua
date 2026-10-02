@@ -16,8 +16,8 @@ L.KOFI = "https://ko-fi.com/cassidycloud"
 L.SCHOOLS, L.SCHOOL = {}, {}
 for i, key in ipairs(ns.THEME.order) do
 	local c = ns.THEME.color[key]
-	local sc = { c[1], c[2], c[3], key = key, name = ns.THEME.name[key], icon = ns.THEME.icon[key], color = c,
-		banner = ns.THEME.banner[key] }
+	local sc = { c[1], c[2], c[3], key = key, name = ns.THEME.name[key], icon = ns.THEME.icon[key],
+		color = c, banner = ns.THEME.banner[key] }
 	L.SCHOOLS[i], L.SCHOOL[key] = sc, sc
 end
 -- Banners are 1400x260 art in the top-left of a 2048x512 file: cropped to the header, never stretched.
@@ -246,8 +246,8 @@ setmetatable(L.PREVIEW, { __index = function(t, key)
 end })
 
 -- What a preview draws with: render(ic, st, P), pop(ic, st, P)
-L.kit = { reset = reset, frozen = frozen, expiring = expiringLook, engineExpire = engineExpireLook, idle = idleLook,
-	setBar = setBar, current = function(key) return previewState[key] end }
+L.kit = { reset = reset, frozen = frozen, expiring = expiringLook, engineExpire = engineExpireLook,
+	idle = idleLook, setBar = setBar, current = function(key) return previewState[key] end }
 
 function L.paint(ic, key, st, at)
 	stage = { start = at }

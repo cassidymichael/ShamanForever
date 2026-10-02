@@ -32,14 +32,15 @@ local BUFFS = {
 local function procName(def) return def.buffKey and Spells.name(def.buffKey) end
 ns.registerPart("buff", {
 	idle = { text = function(def)
-		return def.proc and procName(def) and ("Idle while " .. procName(def) .. " isn't up") or "Idle while it isn't up"
+		local name = def.proc and procName(def)
+		return name and ("Idle while " .. name .. " isn't up") or "Idle while it isn't up"
 	end },
 	page = {
 		uptime = function(def) return not def.noTimer and "Time left" or nil end,
 		expire = {},
 		active = function(def)
-			return { title = def.procHeader or procName(def),
-				tips = { pop = def.popTip or "The moment it procs.", glow = def.glowTip or "While it's up." } }
+			return { title = def.procHeader or procName(def), tips = { pop = def.popTip or "The moment it procs.",
+				glow = def.glowTip or "While it's up." } }
 		end,
 	},
 	preview = {
@@ -63,7 +64,8 @@ ns.registerPart("buff", {
 			elseif st == "idle" then
 				if setting(key, "idleWhen") ~= "never" then P.idle(ic, key) end
 			end
-			if (st == "up" or st == "expiring") and setting(key, "idleWhen") == "target" then P.idle(ic, key) end
+			local shown = st == "up" or st == "expiring"
+			if shown and setting(key, "idleWhen") == "target" then P.idle(ic, key) end
 		end,
 		rest = function(ic, def, P, keep) if not keep then P.idle(ic, def.key) end end,
 	},
@@ -71,15 +73,14 @@ ns.registerPart("buff", {
 -- breath: warns under water without it
 ns.registerPart("breath", {
 	defaults = { warn = { on = true, ring = true, fade = true } },
-	page = { warn = { title = "Under water", on = { "Warn without it", "While your breath bar drains and it isn't up." } } },
+	page = { warn = { title = "Under water",
+		on = { "Warn without it", "While your breath bar drains and it isn't up." } } },
 	preview = {
 		warning = "underwater",
 		states = { { "underwater", "Under water", 80 } },
 		render = function(ic, st, def, P)
 			if st ~= "underwater" then return end
-			if setting(def.key, "warn", "on") then
-				ic:SetRingShown(setting(def.key, "warn", "ring"))
-				ic:SetPulsing(setting(def.key, "warn", "fade"))
+			if setting(def.key, "warn", "on") then ic:SetWarnParts(ns.warnParts(def.key, "warn"))
 			else P.idle(ic, def.key) end
 		end,
 	},
@@ -98,7 +99,8 @@ ns.registerPart("proc", {
 })
 local EXPIRE_RANGE = { 0, 120, 5 }
 ns.registerKind("buff", {
-	parts = { "buff", "breath", "skipLong", "reagent", "missing", "engineExpire", "proc", "expire" },
+	parts = { "buff", "breath", "skipLong", "reagent", "missing", "engineExpire", "proc",
+		"expire" },
 	slots = { "own", "warn", "uptime", "expire", "active" },
 	prepare = function(def)
 		def.expires = not def.proc

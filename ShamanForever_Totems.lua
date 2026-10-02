@@ -241,10 +241,7 @@ ns.registerPart("needsTotem", {
 			local life = def.duration or 45
 			if st == "ready" then ic:SetGlowShown(false)
 			elseif st == "expiring" then P.expiring(ic, key, life)
-			elseif st == "nototem" then
-				ic.tex:SetDesaturated(setting(key, "warn", "grey"))
-				ic:SetRingShown(setting(key, "warn", "ring"))
-				ic:SetPulsing(setting(key, "warn", "fade"))
+			elseif st == "nototem" then ic:SetWarnParts(ns.warnParts(key, "warn"))
 			elseif st == "out" then
 				P.frozen(ic.upT, 0.2, life)
 				ic:SetGlowShown(setting(key, "ready", "glow"))
