@@ -1,5 +1,5 @@
 -- Looks
--- -- Our own media by path, never file ID; Blizzard's art by atlas, checked before use.
+-- Our own media by path, never file ID; Blizzard's art by atlas, checked before use.
 
 local ADDON, ns = ...
 
@@ -412,7 +412,7 @@ end
 function Looks.outerEdge(f) return f and f.frameOuter or 0 end
 
 -- Blizzard's aura button takes a mask only when made as it is built, so each gets one there;
--- -- Looks.auraStyle restyles it out of combat.
+-- Looks.auraStyle restyles it out of combat.
 local PLAIN_MASK = { file = WHITE, wrap = "CLAMP" }
 local auraMade = setmetatable({}, { __mode = "k" })
 function Looks.auraMask(host, tex, key)
@@ -817,7 +817,7 @@ addGlow("material", "School material", material)
 addGlow("heartbeat", "Heartbeat", heartbeat)
 
 -- Pop looks
--- -- A drawn burst is a list of parts: from/to and rise in icon heights, dur/delay in seconds.
+-- A drawn burst is a list of parts: from/to and rise in icon heights, dur/delay in seconds.
 local GCD_FLASH = "UI-HUD-ActionBar-GCD-Flipbook"
 local HALO_SCALE, HALO_ALPHA = 1.08, 0.6
 

@@ -18,7 +18,6 @@ local GOLD = ns.Looks.GOLD
 local RED = { 0.9, 0.12, 0.08, 1 }
 local TRAY = { 0.047, 0.035, 0.024 }
 
-
 -- Our art for Stone and bronze, by path
 local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Art\\Looks\\"
 local PLINTH = MEDIA .. "Plinth"

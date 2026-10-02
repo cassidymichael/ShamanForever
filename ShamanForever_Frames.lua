@@ -18,9 +18,7 @@ S.addField("frame", "look", { name = "Frame look", where = "Global settings > Fr
 S.addField("groupframe", "look", { name = "Group frame look", where = "Global settings > Group frame style",
 	preview = { play = "still" }, groups = SECTIONS })
 
-------------------------------------------------------------------------
 -- Validation
-------------------------------------------------------------------------
 local ROTATE = { [0] = true, [90] = true, [180] = true, [270] = true }
 local BLEND = { BLEND = true, ADD = true }
 local WEIGHT = { solid = true, wispy = true }
@@ -131,9 +129,7 @@ function FR.validate(e, kind)
 	return commonError(e) or (kind == "groupframe" and groupError or elementError)(e)
 end
 
-------------------------------------------------------------------------
 -- Geometry: units from the box's top-left, y down, rounded to whole pixels
-------------------------------------------------------------------------
 local function round(v, px) return floor(v / px + 0.5) * px end
 local function atLeast(v, px) return max(px, round(v, px)) end
 
@@ -407,9 +403,7 @@ function FR.fitSpacing(look, size, px)
 	end
 end
 
-------------------------------------------------------------------------
 -- Registry
-------------------------------------------------------------------------
 local function register(kind, key, entry)
 	local err = FR.validate(entry, kind)
 	if type(entry) ~= "table" then entry = {} end
@@ -448,9 +442,7 @@ function FR.cut(art, margin)
 		bl = piece(0, mx, 1 - my, 1), b = piece(mx, 1 - mx, 1 - my, 1), br = piece(1 - mx, 1, 1 - my, 1) }
 end
 
-------------------------------------------------------------------------
 -- Art on this client
-------------------------------------------------------------------------
 local function eachArt(look, fn)
 	if look.art then fn(look.art) end
 	if look.slice then fn(look.slice) end
@@ -566,9 +558,7 @@ function FR.reach(owner, kind)
 	return look and FR.usable(look) and look.reach or ZERO
 end
 
-------------------------------------------------------------------------
 -- Drawing
-------------------------------------------------------------------------
 local function paint(tex, a, u0, u1, v0, v1)
 	local plain = not needsRegion(a) and (u0 or 0) == 0 and (u1 or 1) == 1 and (v0 or 0) == 0 and (v1 or 1) == 1
 	if a.atlas then

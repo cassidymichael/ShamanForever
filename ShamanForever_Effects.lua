@@ -7,7 +7,7 @@ ns.Effects = E
 
 -- The pulsing glow
 -- Under Blizzard's aura button (underButton) the button plays the animations: g:bindButton hands
--- -- them over.
+-- them over.
 local glows = {}
 local auraGlows = {}
 function E.glow(parent, over, owner, opts)
@@ -173,7 +173,7 @@ end
 
 -- The pop
 -- No Scale, Rotation or Translation under the frame the motion moves: bursts sit on frames beside
--- -- the icon, flashes (fade and flip only) stay on it.
+-- the icon, flashes (fade and flip only) stay on it.
 local BLACK = { 0, 0, 0 }
 local RING = { name = "ring", atlas = "ArtifactsFX-YellowRing", file = "Interface\\Buttons\\UI-ActionButton-Border",
 	layer = "OVERLAY", add = true, desat = true, from = 0.9, to = 2.2, dur = 0.45, a = 1 }
@@ -304,7 +304,7 @@ local function newRig(f, icon, level)
 	for _, e in ipairs(r.edge or {}) do table.insert(r.all, e.group) end
 	for _, p in pairs(r.parts) do table.insert(r.all, p.group) end
 	-- A hide ends a pop cut short (a hidden frame would finish it on its next show). Not under an aura
-	-- -- button: no scripts run there.
+	-- button: no scripts run there.
 	if not icon then fx:SetScript("OnHide", function() r:stop() end) end
 	return r
 end
@@ -486,7 +486,7 @@ function E.pop(f, kind, owner)
 end
 
 -- The end of a totem: Killed early, Ran out, Grounded, Ran out softly. Nothing here reads a secret:
--- -- the gone totem's last duration object goes to a curve, then SetAlpha.
+-- the gone totem's last duration object goes to a curve, then SetAlpha.
 -- In over inDur, held for hold, out over outDur
 local function fadeGroup(body, inDur, hold, outDur, onFinished)
 	local g = body:CreateAnimationGroup()
@@ -603,8 +603,8 @@ function E.endFlash(parent, anchor, owner, over)
 end
 
 -- The effect host
--- -- Frame route: our own icon. Aura route: Blizzard's aura button, whose pop plays on each new
--- -- aura and whose glow is a clip look lit while the aura is up.
+-- Frame route: our own icon. Aura route: Blizzard's aura button, whose pop plays on each new
+-- aura and whose glow is a clip look lit while the aura is up.
 local Host = {}
 Host.__index = Host
 
