@@ -190,6 +190,15 @@ function P.saved()
 	return name and a.profiles[name] and name or DEFAULT_PROFILE
 end
 
+-- This character's own saved table, outside profiles; nil until the game knows the character
+function P.char()
+	local key = charKey()
+	if not key then return nil end
+	local a = acct()
+	a.chars[key] = a.chars[key] or {}
+	return a.chars[key]
+end
+
 function P.remember(name)
 	local key = charKey()
 	if not key then return end
