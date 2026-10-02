@@ -498,6 +498,7 @@ local function atlasSource(name)
 	return s
 end
 
+-- true or false as the client says; nil when it can't tell
 local tester
 local function fileKnown(src)
 	if not tester then
@@ -511,7 +512,7 @@ local function fileKnown(src)
 		local ok2, yes = pcall(C_UIFileAsset.IsKnownFile, src)
 		if ok2 and type(yes) == "boolean" then return yes end
 	end
-	return ok
+	if not ok then return false end
 end
 
 local function needsRegion(a) return a.coords or (a.rotate or 0) ~= 0 or a.flipX or a.flipY end
@@ -524,25 +525,33 @@ local function artKnown(a, cropped)
 	return fileKnown(a.file or MEDIA .. a.path)
 end
 
-local known, missing = {}, {}
--- Whether the client has all of a look's art (checked once per look)
+local known, missing, unchecked = {}, {}, {}
+-- Whether the client has all of a look's art (checked once per look); art it can't check is drawn
 function FR.hasArt(look)
 	if not look or look.none then return true end
 	local v = known[look]
 	if v == nil then
 		v = true
+		local unsure = false
 		local cropped = look.pieces ~= nil or look.cells ~= nil
-		eachArt(look, function(a) if v and not artKnown(a, cropped) then v = false end end)
+		eachArt(look, function(a)
+			if not v then return end
+			local k = artKnown(a, cropped)
+			if k == false then v = false elseif k == nil then unsure = true end
+		end)
 		known[look] = v
 		if not v then
 			table.insert(missing, look.key)
 			ns.noteError("frame look " .. tostring(look.key), "art missing on this client")
+		elseif unsure then
+			table.insert(unchecked, look.key)
 		end
 	end
 	return v
 end
--- Looks whose art this client lacks, as found so far
+-- Looks whose art this client lacks, and those it couldn't check, as found so far
 function FR.missingArt() return missing end
+function FR.uncheckedArt() return unchecked end
 
 -- Registered well, for this class, its art on the client
 function FR.usable(look)
