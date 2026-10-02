@@ -25,6 +25,8 @@ ShamanForever_Media.lua
 ShamanForever_Widgets.lua
 ShamanForever_Looks.lua
 ShamanForever_Effects.lua
+ShamanForever_Frames.lua
+ShamanForever_FrameLooks.lua
 ShamanForever_Timers.lua
 ShamanForever_Profiles.lua
 ShamanForever.lua
