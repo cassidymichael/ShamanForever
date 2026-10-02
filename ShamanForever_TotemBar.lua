@@ -747,7 +747,7 @@ local function refreshSlot(s)
 		v.icon:SetAlpha(c.idleAlpha)
 		v.bg:SetColorTexture(0, 0, 0, 0.6 * c.idleAlpha)
 	elseif c.empty ~= "blank" then
-		local col = ns.SCHOOL_COLOR[s.el]
+		local col = ns.THEME.color[s.el]
 		v.icon:SetTexture(nil)
 		v.bg:SetColorTexture(col[1] * 0.35, col[2] * 0.35, col[3] * 0.35, 0.8)
 	else
@@ -1516,7 +1516,7 @@ local function paintSlot(s, rec)
 		v.icon:SetAlpha(c.idleAlpha)
 		v.bg:SetColorTexture(0, 0, 0, 0.6 * c.idleAlpha)
 	elseif c.empty ~= "blank" then
-		local col = ns.SCHOOL_COLOR[s.el]
+		local col = ns.THEME.color[s.el]
 		v.icon:SetTexture(nil)
 		v.bg:SetColorTexture(col[1] * 0.35, col[2] * 0.35, col[3] * 0.35, 0.8)
 	else

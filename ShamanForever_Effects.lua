@@ -459,7 +459,8 @@ end
 -- Nothing on a hidden frame: it would play on its next show.
 local function popColor(st, kind, school)
 	if st.colorBy == "school" and ns.Looks.POP_EVENTS[kind] then
-		return ns.SCHOOL_COLOR[school] or ns.SCHOOL_COLOR.spirit
+		local theme = ns.THEME
+		return theme.color[school] or theme.color[theme.fallback]
 	end
 	return POP_TINT[kind] or POP_TINT.ready
 end

@@ -324,7 +324,7 @@ local function barFramed(bar) return tContains(ns.Style.bar(bar).kinds, "groupfr
 local function popSchoolRow(p, key, shown)
 	local function get()
 		local v = ns.elementSetting(key, "popSchool")
-		return ns.SCHOOL_COLOR[v] and v or "own"
+		return ns.THEME.color[v] and v or "own"
 	end
 	local function set(v)
 		ns.elementOpts(key).popSchool = v ~= "own" and v or nil
@@ -497,7 +497,7 @@ local function barRows(p, owner, after)
 	local r = styleRows(p, owner, "bar", after)
 	if owner then followRow(p, owner, "bar", after, "Texture same as Global") end
 	local own = showWhen(r.own)
-	local c = ns.SCHOOL_COLOR.water
+	local c = ns.THEME.color.water
 	p:dropdown("Texture", nil, function()
 		local out = {}
 		for _, b in ipairs(ns.Media.bars(owner)) do

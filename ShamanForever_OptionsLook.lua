@@ -12,8 +12,8 @@ L.DISCORD = "https://discord.gg/VaXH8CQZFG"
 L.KOFI = "https://ko-fi.com/cassidycloud"
 
 L.SCHOOL = {}
-for school, c in pairs(ns.SCHOOL_COLOR) do
-	L.SCHOOL[school] = { c[1], c[2], c[3], banner = "Banner-" .. school:gsub("^%l", string.upper) .. ".jpg" }
+for school, c in pairs(ns.THEME.color) do
+	L.SCHOOL[school] = { c[1], c[2], c[3], banner = ns.THEME.banner[school] }
 end
 -- Banners are 1400x260 art in the top-left of a 2048x512 file: cropped to the header, never stretched.
 local ART_W, ART_H, FILE_W, FILE_H = 1400, 260, 2048, 512
@@ -275,7 +275,7 @@ local function totemPreview(def)
 			if st == "ready" then
 				if opt(key, "readyPop") then ic:Pop("ready") end
 			elseif st == "ranout" and def.ranOut then
-				flash(opt(key, "ranOutFlash") and { expired = true, ranOut = ns.SCHOOL_COLOR[def.school],
+				flash(opt(key, "ranOutFlash") and { expired = true, ranOut = ns.THEME.color[def.school],
 					pop = opt(key, "ranOutPop"), glow = opt(key, "ranOutGlow") }, 1.4)
 			elseif st == "ranout" and opt(key, "expiredPop") then ic:Pop("expired")
 			elseif st == "killed" and g then
@@ -1054,7 +1054,7 @@ function L.buildIntro(parent, version)
 	h:SetBackdropColor(L.PANEL[1], L.PANEL[2], L.PANEL[3], 1)
 	h:SetBackdropBorderColor(0.36, 0.28, 0.17, 1)
 	h.banner = h:CreateTexture(nil, "BACKGROUND", nil, 1)
-	h.banner:SetTexture(ART .. L.SCHOOL.spirit.banner)
+	h.banner:SetTexture(ART .. L.SCHOOL[ns.THEME.fallback].banner)
 	h.banner:SetPoint("TOPLEFT", 1, -1)
 	h.banner:SetPoint("BOTTOMRIGHT", -1, 1)
 	h.shade = h:CreateTexture(nil, "BACKGROUND", nil, 2)
@@ -1082,12 +1082,10 @@ function L.buildIntro(parent, version)
 end
 
 -- Look tiles: an icon wearing a look that isn't saved anywhere, drawn by the HUD's own code.
-L.SCHOOLS = {
-	{ key = "earth", name = "Earth", icon = 136023 }, { key = "fire", name = "Fire", icon = 135825 },
-	{ key = "water", name = "Water", icon = 135127 }, { key = "air", name = "Air", icon = 136114 },
-	{ key = "spirit", name = "Spirit", icon = "Interface\\Icons\\Spell_Nature_SpiritWolf" },
-}
-for _, s in ipairs(L.SCHOOLS) do s.color = ns.SCHOOL_COLOR[s.key] end
+L.SCHOOLS = {}
+for i, key in ipairs(ns.THEME.order) do
+	L.SCHOOLS[i] = { key = key, name = ns.THEME.name[key], icon = ns.THEME.icon[key], color = ns.THEME.color[key] }
+end
 
 do
 	local KINDS = { "border", "glow", "pop", "frame" }

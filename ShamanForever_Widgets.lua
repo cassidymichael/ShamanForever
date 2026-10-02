@@ -2,16 +2,10 @@
 
 local _, ns = ...
 
-ns.SCHOOL_COLOR = {
-	earth  = { 0.75, 0.54, 0.24 },
-	fire   = { 0.89, 0.38, 0.18 },
-	water  = { 0.25, 0.69, 0.77 },
-	air    = { 0.56, 0.76, 0.92 },
-	spirit = { 0.73, 0.64, 0.90 },
-}
-ns.SCHOOL_BAR_COLOR = {}
-for school, c in pairs(ns.SCHOOL_COLOR) do
-	ns.SCHOOL_BAR_COLOR[school] = { math.min(1, c[1] * 1.15), math.min(1, c[2] * 1.15), math.min(1, c[3] * 1.15) }
+ns.THEME.barColor = {}
+for school, c in pairs(ns.THEME.color) do
+	ns.THEME.barColor[school] = { math.min(1, c[1] * 1.15), math.min(1, c[2] * 1.15),
+		math.min(1, c[3] * 1.15) }
 end
 
 ns.BACKDROP = { bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 }
