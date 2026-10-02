@@ -346,10 +346,11 @@ function Timer:setExpire(e, icon)
 		ns.Looks.followMask(self.anchor, x.grey, x.dim)
 	end
 	x.glow:fit(self.anchor:GetWidth())
-	x.glow:SetShown(e.glow)
+	-- A look the owner doesn't declare is nil: off
+	x.glow:SetShown(e.glow and true or false)
 	if icon then x.grey:SetTexture(icon) end
-	x.grey:SetShown(e.grey)
-	x.ring:show(e.ring)
+	x.grey:SetShown(e.grey and true or false)
+	x.ring:show(e.ring and true or false)
 	x.pulseOn = e.fade and true or false
 	-- Callers repeat this: a running pulse isn't restarted
 	if not e.fade then x.pulse:Stop(); x.dim:SetAlpha(0)
