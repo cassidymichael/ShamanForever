@@ -311,7 +311,7 @@ do
 	title:SetPoint("TOPLEFT", 10, -10)
 	title:SetText(ns.NAME .. ": positioning unlocked")
 	local HELP = {
-		{ "Drag", "Move a group or the totem bar" },
+		{ "Drag" },   -- what it moves: PO.update, once the bars have registered
 		{ "Click, then arrow keys", "Nudge a group (Shift: 10x)" },
 		{ "Mouse wheel", "Icon size: borders not scaled with it" },
 		{ "Shift + wheel", "Scale: everything grows, borders too" },
@@ -330,6 +330,7 @@ do
 		local what = tray.hint:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		what:SetPoint("TOPLEFT", KEY_W, -(i - 1) * LINE_H)
 		what:SetText(h[2])
+		if i == 1 then tray.drag = what end
 	end
 	local row = CreateFrame("Frame", nil, tray)
 	row:SetPoint("TOPLEFT", tray.hint, "BOTTOMLEFT", 0, -10)
@@ -428,6 +429,7 @@ function PO.update()
 	if selectedGroup and not ns.groupById(selectedGroup) then selectedGroup = nil end
 	syncNudger()
 	tray:SetShown(unlocked)
+	if unlocked then tray.drag:SetText("Move " .. ns.Look.movingWords("a group", "or")) end
 	tray:SetHeight(30 + tray.hint:GetHeight() + 10 + 26 + 8)
 	tray.snap:SetChecked(a.snap)
 	PO.optionsShown(ns.Options.isShown())

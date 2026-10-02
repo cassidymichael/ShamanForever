@@ -651,5 +651,6 @@ ns.registerBar("totembar", { icon = "Interface\\Icons\\Spell_Shaman_DropAll_01",
 	end,
 	preview = PREVIEW, page = { order = 50, build = build },
 	ownSize = function() return not ns.TotemBar.cfg().sizeFollow end,
+	experiments = { { "Totem sets", "Totem sets, once you know a second Call" } },
 	previewIcon = ns.TotemBar.TOTEM_ICON.earth, schools = ns.TotemBar.ELEMENTS,
 	previewBorder = function() return select(2, ns.TotemBar.look()) end })

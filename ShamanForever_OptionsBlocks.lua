@@ -57,6 +57,12 @@ local function styleRows(p, owner, kind, after)
 	return r
 end
 
+-- Who can have their own style of kind: lead (Elements, Groups or nil), then the bars that can
+local function ownersText(lead, kind)
+	local names = ns.Style.barNouns(function(bar) return tContains(bar.kinds, kind) end, lead)
+	return (ns.Look.wordList(names):gsub("^%l", string.upper)) .. " can have their own."
+end
+
 local function ownLine(p, kind)
 	p:text(function() return "Currently using their own: " .. table.concat(ns.Style.ownStyles(kind), ", ") end,
 		function() return #ns.Style.ownStyles(kind) > 0 end)
@@ -352,7 +358,7 @@ local function glowBlock(p, owner, icon)
 	local r = styleRows(p, owner, "glow", after)
 	if owner == nil then
 		p:anchor("glow")
-		p:text("Every pulsing glow. Elements and the totem bar can have their own.")
+		p:text("Every pulsing glow. " .. ownersText("Elements", "glow"))
 	else followRow(p, owner, "glow", after) end
 	local own = showWhen(r.own)
 	local f = p:row(64)
@@ -410,7 +416,8 @@ local function popBlock(p, owner, icon, kind)
 	end
 	if owner == nil then
 		p:anchor("pop")
-		p:text("The burst when something happens: a cooldown ready, an imbue dropping, a totem ending. Elements and the totem bar can have their own.")
+		p:text("The burst when something happens: a cooldown ready, an imbue dropping, a totem ending. "
+			.. ownersText("Elements", "pop"))
 	else followRow(p, owner, "pop", after) end
 	local own = showWhen(r.own)
 	f = p:row(56)
@@ -462,7 +469,7 @@ local function textBlock(p, owner, after)
 	local r = styleRows(p, owner, "text", after)
 	if owner == nil then
 		p:anchor("text")
-		p:text("Timers, counts and keys. The totem bar and the swing timer can have their own.")
+		p:text("Timers, counts and keys. " .. ownersText(nil, "text"))
 	else followRow(p, owner, "text", after) end
 	local own = showWhen(r.own)
 	local function problem() return ns.Media.fontProblem(r.style().font) end
@@ -499,7 +506,7 @@ end
 local function barBlock(p)
 	p:header("Bar texture")
 	p:anchor("bar")
-	p:text("Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer. The totem bar's time bars and the swing timer can have their own.")
+	p:text("Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer. " .. ownersText(nil, "bar"))
 	barRows(p, nil)
 	ownLine(p, "bar")
 end
@@ -571,13 +578,14 @@ local function gcdBlock(p, key, after)
 	if key then followRow(p, key, "gcd", after)
 	else
 		p:anchor("gcd")
-		p:text("Elements and the totem bar can have their own.")
+		p:text(ownersText("Elements", "gcd"))
 	end
 	p:checkbox("Show global cooldown", "The sweep after every cast, as on action bars.", r.get("show"), r.set("show"), showWhen(r.own))
 	if not key then ownLine(p, "gcd") end
 end
 
-K.globalRow, K.ownLine, K.borderRows, K.frameRows, K.barFramed = globalRow, ownLine, borderRows, frameRows, barFramed
+K.globalRow, K.ownersText, K.ownLine, K.borderRows = globalRow, ownersText, ownLine, borderRows
+K.frameRows, K.barFramed = frameRows, barFramed
 K.timerSettings, K.gcdBlock, K.glowBlock, K.popBlock = timerSettings, gcdBlock, glowBlock, popBlock
 K.textBlock, K.barRows, K.barBlock = textBlock, barRows, barBlock
 

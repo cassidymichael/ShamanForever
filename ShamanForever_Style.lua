@@ -60,6 +60,14 @@ function S.registerBar(key, spec)
 end
 function S.bar(key) return BARS[key] end
 function S.bars() return BAR_ORDER end
+-- How sentences name the bars that test(bar) picks ("the totem bar"), in register order, after lead
+function S.barNouns(test, lead)
+	local out = { lead }
+	for _, key in ipairs(BAR_ORDER) do
+		if not test or test(BARS[key]) then table.insert(out, BARS[key].noun) end
+	end
+	return out
+end
 
 -- An owner's own shipped look, { kind = fields }: it starts not following Global
 function S.setOwnerDefaults(owner, byKind)

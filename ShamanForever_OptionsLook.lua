@@ -44,6 +44,16 @@ function L.elementName(key)
 	return e.spell and ns.Spells.name(e.spell) or e.label or key
 end
 
+-- Words in a sentence: "a", "a and b", "a, b and c" (or another last joining word)
+function L.wordList(words, last)
+	if #words <= 1 then return words[1] or "" end
+	return table.concat(words, ", ", 1, #words - 1) .. " " .. (last or "and") .. " " .. words[#words]
+end
+-- What positioning moves: lead ("groups"), then the bars that move
+function L.movingWords(lead, last)
+	return L.wordList(ns.Style.barNouns(function(bar) return bar.movable ~= nil end, lead), last)
+end
+
 
 -- Ornaments
 function L.addCorners(frame, size, inset)

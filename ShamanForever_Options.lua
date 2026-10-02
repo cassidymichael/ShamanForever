@@ -92,7 +92,7 @@ end
 -- Pages
 local function lockText() return acct().locked and "Unlock positioning" or "Lock positioning" end
 local function toggleLock() ns.setLocked(not acct().locked); OP.refresh() end
-local function lockSub() return acct().locked and "Move groups and the totem bar on screen" or "Done moving? Lock them" end
+local function lockSub() return acct().locked and "Move the HUD on screen" or "Done moving? Lock them" end
 
 local aboutExp, aboutFeedback
 
@@ -141,7 +141,9 @@ local function buildGlobal(p)
 	p:text("These apply to all components within the addon, which can be overridden within each component's settings.")
 	p:header("Icon size")
 	p:anchor("size")
-	p:slider("Icon size", "Every group's and the totem bar's, unless it has its own.", 24, 96, 1, int,
+	local sized = ns.Style.barNouns(function(bar) return bar.ownSize ~= nil end, "group")
+	for i, noun in ipairs(sized) do sized[i] = noun .. "'s" end
+	p:slider("Icon size", "Every " .. ns.Look.wordList(sized) .. ", unless it has its own.", 24, 96, 1, int,
 		gopt(p, "iconSize"))
 	local function ownSizes()
 		local out = {}
@@ -163,24 +165,17 @@ local function buildGlobal(p)
 	K.barBlock(p)
 	p:header("Border style")
 	p:anchor("border")
-	p:text("Every border. Elements, the totem bar and the swing timer can have their own.")
+	p:text("Every border. " .. K.ownersText("Elements", "border"))
 	K.borderRows(p, nil)
 	K.ownLine(p, "border")
 	p:header("Frame style")
 	p:anchor("frame")
-	p:text("Art round each icon. Elements can have their own.")
+	p:text("Art round each icon. " .. K.ownersText("Elements", "frame"))
 	K.frameRows(p, nil, "frame")
 	K.ownLine(p, "frame")
 	p:header("Group frame style")
 	p:anchor("groupframe")
-	p:text(function()
-		local names = { "Groups" }
-		for _, bar in ipairs(ns.Style.bars()) do
-			if K.barFramed(bar) then table.insert(names, "the " .. ns.Style.bar(bar).label:lower()) end
-		end
-		local who = #names == 1 and names[1] or table.concat(names, ", ", 1, #names - 1) .. " and " .. names[#names]
-		return "Art round a whole group. " .. who .. " can have their own."
-	end)
+	p:text("Art round a whole group. " .. K.ownersText("Groups", "groupframe"))
 	K.frameRows(p, nil, "groupframe")
 	K.ownLine(p, "groupframe")
 	K.glowBlock(p, nil, 136026)
@@ -273,7 +268,10 @@ local function buildAbout(p)
 		if e.experimental then p:experimental(e.experimental, "Elements > " .. e.label) end
 	end
 	p:experimental("Art frames", "Frame and Group frame styles")
-	p:experimental("Totem sets", "Totem bar > Totem sets, once you know a second Call")
+	for _, key in ipairs(ns.Style.bars()) do
+		local bar = ns.Style.bar(key)
+		for _, x in ipairs(bar.experiments or {}) do p:experimental(x[1], bar.label .. " > " .. x[2]) end
+	end
 	for _, l in ipairs(ns.Style.fields()) do
 		for _, e in ipairs(l.order) do
 			if e.experimental and not e.hidden then p:experimental(e.name, l.where .. " > " .. l.name) end
@@ -401,7 +399,7 @@ local function buildNav()
 	navLock:SetSize(NAV_W - 32, 22)
 	navLock:SetPoint("BOTTOMLEFT", 16, 12)
 	navLock:SetScript("OnClick", function() ns.setLocked(not acct().locked) end)
-	setTip(navLock, "Positioning", "Unlocked, drag groups, the totem bar and the swing timer on screen. /sf lock does the same.")
+	setTip(navLock, "Positioning", "Unlocked, drag " .. ns.Look.movingWords("groups") .. " on screen. /sf lock does the same.")
 	function navLock.refresh() navLock:SetText(acct().locked and "Unlock positioning" or "Lock positioning") end
 	navLock.refresh()
 	for _, spec in ipairs(registered) do
