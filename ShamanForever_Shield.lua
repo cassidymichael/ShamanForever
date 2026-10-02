@@ -13,7 +13,7 @@ local FR = ns.Frames
 local SH = { name = "shield" }
 ns.Shield = SH
 
--- Only one shield can be on at a time; Water Shield is a talent here (408510: its cast and buff)
+-- Only one shield can be on at a time; Water Shield is a talent here
 local SHIELDS = {
 	lightning = { spell = "lightningShield", icon = 136051, school = "air" },
 	water     = { spell = "waterShield",     icon = 132315, school = "water" },
@@ -280,12 +280,16 @@ local function setUpShield(key)
 	SH.applyEmptyLook()
 end
 
+-- Water Shield's buff may be the client's second copy of the spell: both count
 local function shieldIDMap()
 	local map = {}
 	for key, s in pairs(SHIELDS) do
 		if tracksShield(key) then
 			for id in pairs(Spells.ids(s.spell)) do map[id] = true end
 		end
+	end
+	if tracksShield("water") then
+		for _, id in ipairs(Spells.extra("waterShieldCopy")) do map[id] = true end
 	end
 	return map
 end
@@ -329,13 +333,7 @@ end
 
 -- Charges spent, cancelled or run out; a recast over a live shield stays silent
 function SH.applyRemovedSound()
-	local ids = {}
-	if ns.isEnabled("shield") then
-		for id in pairs(shieldIDMap()) do ids[id] = true end
-		if tracksShield("water") then
-			for _, id in ipairs(Spells.extra("waterShieldCopy")) do ids[id] = true end
-		end
-	end
+	local ids = ns.isEnabled("shield") and shieldIDMap() or nil
 	ns.Sounds.setAuraSound("shield", setting("shield", "warn", "sound"), ids)
 end
 
