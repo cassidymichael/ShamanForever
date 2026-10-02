@@ -25,7 +25,8 @@ local SHARE_VERSION = 7
 -- every element; an element's defaults declare the fields it has, and pages offer those.
 --   warn    = { on, grey, ring, fade, tint, glow, pop, sound }   something is missing (No shield)
 --   active  = { pop, glow, text, sound }   something to use or act on (primed, a proc, five stacks)
---   ready   = { pop, glow, sound, noTotem }   the cooldown ends; glow while it's ready
+--   ready   = { pop, glow, sound, blocked }   the cooldown ends; glow while it's ready; blocked: the
+--             pop when it ends but can't be used now (grey | none)
 --   expire  = { secs, grey, ring, fade, glow, bar, barColor, text, over }   the last seconds
 --   ended   = { flash, pop, glow, sound }   it ran out
 --   killed  = { flash, pop, glow, mark }   it ended early
@@ -60,7 +61,7 @@ local RENAMED = {
 	},
 	element = {
 		{ "readyPop", "ready", "pop" }, { "readyGlow", "ready", "glow" }, { "readySound", "ready", "sound" },
-		{ "readyNoTotem", "ready", "noTotem" },
+		{ "readyNoTotem", "ready", "blocked" },
 		{ "primedPop", "active", "pop" }, { "primedGlow", "active", "glow" },
 		{ "fullPop", "active", "pop" }, { "fullGlow", "active", "glow" },
 		{ "alertPop", "active", "pop" }, { "alertGlow", "active", "glow" }, { "alertText", "active", "text" },

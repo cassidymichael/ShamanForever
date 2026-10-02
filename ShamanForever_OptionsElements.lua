@@ -386,7 +386,7 @@ local function buildCooldown(p, def)
 	readyBlock(p, key, def.needsTotem and {
 		glowTip = "While it's off cooldown and a fire totem is down.",
 		afterPop = function(s)
-			local get, set = s.opt("ready", "noTotem")
+			local get, set = s.opt("ready", "blocked")
 			p:dropdown("Without a fire totem", "The pop when the cooldown ends with no fire totem down.",
 				{ { "grey", "Greyed pop" }, { "none", "Nothing" } }, get, set, showWhen(s.get("ready", "pop")), 150)
 		end,

@@ -121,7 +121,7 @@ local PARTS = {
 	idle = { idleAlpha = 0.3, idleWhen = "offcd" },
 	ready = { ready = { pop = true, sound = "none" } },
 	readyGlow = { ready = { glow = false } },
-	needsTotem = { warn = { grey = true, ring = false, fade = false }, ready = { noTotem = "grey" } },
+	needsTotem = { warn = { grey = true, ring = false, fade = false }, ready = { blocked = "grey" } },
 	-- ranOut before ended: its pop wins
 	ranOut = { ended = { flash = true, pop = false, glow = false } },
 	ended = { ended = { pop = true, sound = "none" } },
@@ -357,7 +357,7 @@ local function popWhenReady(f, key, totemSlot)
 			local ok, d = safe(GetTotemDuration, totemSlot)
 			if not ok then return end
 			if not d then
-				if setting(key, "ready", "noTotem") == "grey" then f:Pop("blocked") end
+				if setting(key, "ready", "blocked") == "grey" then f:Pop("blocked") end
 				return
 			end
 		end
