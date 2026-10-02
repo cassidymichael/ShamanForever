@@ -160,5 +160,5 @@ ns.Spells.add({
 })
 
 ns.Spells.addExtra({
-	waterShieldCopy = { 408511 },   -- the client's second Water Shield: its Removed sound
+	waterShieldCopy = { 408511 },   -- the client's second Water Shield: counts as the shield
 })
