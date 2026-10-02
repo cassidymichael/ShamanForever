@@ -1283,7 +1283,8 @@ function TB.applyTimers()
 		s.timer:apply()
 		TB.skin.styleTimer(s.timer, s.vis, size)
 	end
-	refreshGCD()
+	-- Off clears the sweep; on, the next cast shows it (a refresh here could cut one short)
+	if not ns.Style.value("totembar", "gcd", "show") then refreshGCD() end
 end
 
 function TB.applySettings()
