@@ -1429,11 +1429,11 @@ function TB.start()
 		closePopouts()
 		mover.update()
 	end)
+	ticker:Show()
+	TB.range.start()
 	hookQuickKeybind()
 	if not kbHooked then ns.registerEvent(kbEvents, "ADDON_LOADED") end
 	nameBindings()
-	ticker:Show()
-	TB.range.start()
 end
 
 TB.MODES = { { "blizzard", "Blizzard's" }, { "active", "Active totems" }, { "everything", "Everything" } }
