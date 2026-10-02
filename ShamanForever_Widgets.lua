@@ -77,7 +77,7 @@ function ns.keyLabel(key)
 end
 
 -- A frame above Blizzard's protected aura button takes no alpha change in combat: its fade is
--- -- restated after combat.
+-- restated after combat.
 local FADE_OUT, FADE_IN = 0.8, 0.15
 local fading = {}
 local fader = CreateFrame("Frame")
@@ -203,8 +203,8 @@ function ns.makeGCDSweep(parent)
 end
 
 -- Aura slot: Blizzard's aura container on an element icon, the one way to show an aura in combat.
--- -- Calls it refuses in combat or while auras are secret wait (ns.deferWhileAurasSecret).
--- -- Scripts under its button never run: it only plays animations handed to it.
+-- Calls it refuses in combat or while auras are secret wait (ns.deferWhileAurasSecret).
+-- Scripts under its button never run: it only plays animations handed to it.
 local AuraSlot = {}
 AuraSlot.__index = AuraSlot
 
@@ -325,7 +325,7 @@ function AuraSlot:setup()
 end
 
 -- Out of combat, auras readable; a refused call is tried again after combat. Once a frame at most:
--- -- one layout asks several times, and a dragged slider restyles every frame.
+-- one layout asks several times, and a dragged slider restyles every frame.
 function AuraSlot:style()
 	if not self.button or self.styleSoon then return end
 	self.styleSoon = true
@@ -371,7 +371,7 @@ function AuraSlot:refilter()
 	self.applied = nil
 	local ok = ns.try(o.sites.filter, self.container.SetAuraSlotCandidateFilters, self.container, o.slot, filters)
 	-- Last to first: a part covering another comes after it, so a refilter stopping part way leaves
-	-- -- nothing uncovered.
+	-- nothing uncovered.
 	local extras = o.extras or {}
 	for i = #extras, 1, -1 do
 		if ok then
@@ -422,14 +422,14 @@ function ns.makeWarnOverlay(f)
 end
 
 -- Clip look: shown exactly while an aura is gone (inverted: while it is up), in combat too, nothing
--- -- read. A sensor container sizes to its aura button; a clip frame of ours shows the look only
--- -- within that. A change waiting for combat's end is a miss, never a false warning.
+-- read. A sensor container sizes to its aura button; a clip frame of ours shows the look only
+-- within that. A change waiting for combat's end is a miss, never a false warning.
 local ClipLook = {}
 ClipLook.__index = ClipLook
 -- The sensor's button is this much wider than the cell: the clip empty, not 1 px.
 local CLIP_SLACK = 2
 -- The look's reach in icon widths: 1.7 covers the widest (the Proc glow's burst, 150/45); a wider
--- -- look needs it raised.
+-- look needs it raised.
 local CLIP_REACH = 1.7
 
 local function shapeTextures(frame, f, over)
@@ -496,7 +496,7 @@ local function cellWidth(size, frame, o)
 end
 
 -- Hold at 0 now, back on its second OnUpdate: Blizzard's container updates on its next OnUpdate
--- -- after a change.
+-- after a change.
 function ClipLook:wait()
 	self.waiting = 2
 	self.hold:SetAlpha(0)
@@ -608,7 +608,7 @@ function ClipLook:took(size, filters)
 end
 
 -- Every ID of ids() must be in it: a sensor missing one would stay empty over that aura, a false
--- -- warning.
+-- warning.
 function ClipLook:checkIDs()
 	local o, ok = self.opts, false
 	if o.candidates then ok = self.applied ~= nil and self.applied == filterSig(o.candidates())
