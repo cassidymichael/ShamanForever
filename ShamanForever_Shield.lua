@@ -36,10 +36,14 @@ local IDLE_CHOICES = {
 			.. "It shows in full at 1 charge and as No shield at 0",
 		"Shown in full at 1 charge and as No shield." },
 }
-ns.Profiles.addRanges({ countSize = { 8, 64 }, chargeBarHeight = { 1, 20 } })
 ns.registerElement("shield", { frame = shield, label = "Shields", paint = function(t) t:SetTexture(SH.icon()) end,
 	learned = function() return SH.learned() end,
-	defaults = { idleWhen = "never", idleAlpha = 0.3, removedSound = "none" },
+	defaults = { idleWhen = "never", idleAlpha = 0.3,
+		track = "lightning",   -- lightning | water | either
+		count = { bar = true, barHeight = 8, barColor = { 0.42, 0.84, 1, 1 }, number = false, pos = "CENTER",
+			size = 20, mark = false, markColor = { 1, 0.25, 0.2, 1 } },
+		warn = { grey = true, ring = true, fade = false, tint = false, glow = true, sound = "none" } },
+	ranges = { count = { size = { 8, 64, 1 }, barHeight = { 1, 20, 1 } } },
 	styles = { glow = { look = "soft" },
 		uptime = { text = false, swipe = false, swipeAlpha = 0.5, swipeReverse = false, bar = false, barEdge = "top" } },
 	def = { key = "shield", idleChoices = IDLE_CHOICES },
@@ -59,8 +63,11 @@ local upShield
 local native
 local copy   -- one-charge copy's aura slot
 
+local setting = ns.elementSetting
+local function count(field) return setting("shield", "count", field) end
+
 local function tracksShield(key)
-	local track = ns.getDB().shieldTrack
+	local track = setting("shield", "track")
 	return track == "either" or track == key
 end
 local function believedUp()
@@ -70,26 +77,30 @@ end
 
 local COUNT_NUDGE = { CENTER = { 0, 0 }, TOPLEFT = { -2, 2 }, TOPRIGHT = { 2, 2 }, BOTTOMLEFT = { -2, -2 },
 	BOTTOMRIGHT = { 2, -2 } }
-local COUNT_POS_SAVED = { center = "CENTER", corner = "BOTTOMRIGHT" }
 
 function SH.placeCount(fs, icon)
-	local pos = ns.getDB().countPos
+	local pos = count("pos")
 	local nudge = COUNT_NUDGE[pos]
 	fs:ClearAllPoints()
 	fs:SetPoint(pos, icon, pos, nudge[1], nudge[2])
 	fs:SetJustifyH(ns.COUNT_JUSTIFY[pos])
 end
 
-function SH.sanitize(db, acct)
-	if db.shieldTrack ~= "either" and not SHIELDS[db.shieldTrack] then db.shieldTrack = "lightning" end
-	db.countPos = COUNT_POS_SAVED[db.countPos] or db.countPos
-	if not ns.COUNT_JUSTIFY[db.countPos] then db.countPos = "CENTER" end
+function SH.sanitize(_, acct)
+	local o = ns.elementOpts("shield")
+	if o.track ~= nil and o.track ~= "either" and not SHIELDS[o.track] then o.track = nil end
+	local c = o.count
+	if type(c) == "table" then
+		if c.pos ~= nil and not ns.COUNT_JUSTIFY[c.pos] then c.pos = nil end
+		for _, k in ipairs({ "barColor", "markColor" }) do
+			if c[k] ~= nil and not ns.isColor(c[k]) then c[k] = nil end
+		end
+	end
 	if not SHIELDS[acct.lastShield] then acct.lastShield = "lightning" end
-	if not ns.isColor(db.countLastColor) then db.countLastColor = CopyTable(ns.DEFAULTS.countLastColor) end
 end
 
 local function shownShield()
-	local track, last = ns.getDB().shieldTrack, ns.getAccount().lastShield
+	local track, last = setting("shield", "track"), ns.getAccount().lastShield
 	if SHIELDS[track] then return track end
 	if SHIELDS[last] and SHIELDS[last].known then return last end
 	for _, key in ipairs(SHIELD_ORDER) do if SHIELDS[key].known then return key end end
@@ -169,7 +180,7 @@ local function stateNow()
 	if aurasUnread() then
 		if GetTime() < holdUntil then return nil end
 	elseif believedUp() ~= false then return nil end
-	if blocked() then return ns.getDB().emptyGrey and "grey" or nil end
+	if blocked() then return setting("shield", "warn", "grey") and "grey" or nil end
 	return "warn"
 end
 
@@ -177,9 +188,10 @@ end
 local function setLook(st)
 	if st ~= nil and lookState == nil then look:wait() end
 	lookState = st
-	local db, warn = ns.getDB(), st == "warn"
-	look:setParts(db.emptyGrey, warn and db.emptyTint, warn and db.emptyRing,
-		warn and db.emptyPulse, warn and db.emptyGlow)
+	local w = st == "warn"
+	look:setParts(setting("shield", "warn", "grey"), w and setting("shield", "warn", "tint"),
+		w and setting("shield", "warn", "ring"), w and setting("shield", "warn", "fade"),
+		w and setting("shield", "warn", "glow"))
 	look:want(st ~= nil)
 end
 
@@ -325,7 +337,7 @@ function SH.applyRemovedSound()
 			for _, id in ipairs(Spells.extra("waterShieldCopy")) do ids[id] = true end
 		end
 	end
-	ns.Sounds.setAuraSound("shield", ns.elementSetting("shield", "removedSound"), ids)
+	ns.Sounds.setAuraSound("shield", setting("shield", "warn", "sound"), ids)
 end
 
 function SH.resolve()
@@ -355,8 +367,13 @@ function SH.applyTimers()
 	look:reshape()
 end
 
+local function barColor()
+	local c = count("barColor")
+	if not ns.isColor(c) then c = ns.elementDefault("shield", "count", "barColor") end
+	return c[1], c[2], c[3], c[4] or 1
+end
+
 local function buildNative(slot, button, cd)
-	local db = ns.getDB()
 	local size = ns.sizeOf("shield")
 	slot.edge = CreateFrame("Frame", nil, button)
 	slot.edge:SetAllPoints(button)
@@ -368,7 +385,7 @@ local function buildNative(slot, button, cd)
 
 	-- Blizzard writes the count on registration: font first
 	local fs = overlay:CreateFontString(nil, "OVERLAY", nil, 7)
-	ns.Media.setFont(fs, nil, db.countSize)
+	ns.Media.setFont(fs, nil, count("size"))
 	SH.placeCount(fs, button)
 	button:SetApplicationCount(fs)
 	slot.fs = fs
@@ -377,9 +394,9 @@ local function buildNative(slot, button, cd)
 	local bar = CreateFrame("StatusBar", nil, overlay)
 	bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 0, 0)
 	bar:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 0)
-	bar:SetHeight(db.chargeBarHeight)
+	bar:SetHeight(count("barHeight"))
 	bar:SetStatusBarTexture(ns.Media.barTexture())
-	bar:SetStatusBarColor(db.chargeBarColor[1], db.chargeBarColor[2], db.chargeBarColor[3], db.chargeBarColor[4] or 1)
+	bar:SetStatusBarColor(barColor())
 	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
 	bar.bg:SetAllPoints()
 	bar.bg:SetColorTexture(0, 0, 0, 0.6)
@@ -400,9 +417,9 @@ local function buildNative(slot, button, cd)
 	end
 	slot.ticks = ticks
 
-	bar:SetAlpha(db.showBar and 1 or 0)
-	ticks:SetAlpha(db.showBar and 1 or 0)
-	fs:SetAlpha(db.showCount and 1 or 0)
+	bar:SetAlpha(count("bar") and 1 or 0)
+	ticks:SetAlpha(count("bar") and 1 or 0)
+	fs:SetAlpha(count("number") and 1 or 0)
 end
 
 -- Without a formatter Blizzard prints a count only from 2: a numeric rule formatter is used, tried
@@ -410,11 +427,11 @@ end
 local lastFormatters, made = {}, 0
 local function byte(v) return math.floor(math.min(math.max(v, 0), 1) * 255 + 0.5) end
 local function countOptions()
-	local db = ns.getDB()
-	if not (db.showCount and C_StringUtil and C_StringUtil.CreateNumericRuleFormatter) then return nil end
+	if not (count("number") and C_StringUtil and C_StringUtil.CreateNumericRuleFormatter) then return nil end
 	local code = ""
-	if db.countOne then
-		local c = db.countLastColor
+	if count("mark") then
+		local c = count("markColor")
+		if not ns.isColor(c) then c = ns.elementDefault("shield", "count", "markColor") end
 		code = string.format("|cff%02x%02x%02x", byte(c[1]), byte(c[2]), byte(c[3]))
 	end
 	local fm = lastFormatters[code]
@@ -448,7 +465,6 @@ local function applyCountFormat(slot)
 end
 
 local function styleNative(slot, size)
-	local db = ns.getDB()
 	ns.try("shield border", FR.dress, slot.edge, "shield")
 	if slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
 	applyCountFormat(slot)
@@ -457,21 +473,20 @@ local function styleNative(slot, size)
 		t:SetPoint("TOP", slot.ticks, "TOPLEFT", size * i / slot.maxCharges, 0)
 		t:SetPoint("BOTTOM", slot.ticks, "BOTTOMLEFT", size * i / slot.maxCharges, 0)
 	end
-	slot.bar:SetHeight(db.chargeBarHeight)
+	slot.bar:SetHeight(count("barHeight"))
 	slot.bar:SetStatusBarTexture(ns.Media.barTexture())
-	slot.bar:SetStatusBarColor(db.chargeBarColor[1], db.chargeBarColor[2], db.chargeBarColor[3], db.chargeBarColor[4] or 1)
-	slot.bar:SetAlpha(db.showBar and 1 or 0)
-	slot.ticks:SetAlpha(db.showBar and 1 or 0)
-	slot.fs:SetAlpha(db.showCount and 1 or 0)
-	ns.Media.setFont(slot.fs, nil, db.countSize)
+	slot.bar:SetStatusBarColor(barColor())
+	slot.bar:SetAlpha(count("bar") and 1 or 0)
+	slot.ticks:SetAlpha(count("bar") and 1 or 0)
+	slot.fs:SetAlpha(count("number") and 1 or 0)
+	ns.Media.setFont(slot.fs, nil, count("size"))
 	SH.placeCount(slot.fs, slot.button)
 	SH.applyEmptyLook()
 end
 
 -- The time bar sits on the charge bar, which is drawn over it
 function SH.timeBarInset()
-	local db = ns.getDB()
-	return db.showBar and db.chargeBarHeight or 0
+	return count("bar") and count("barHeight") or 0
 end
 
 native = ns.makeAuraSlot(shield, {
@@ -532,26 +547,24 @@ local function copyHost(slot, button)
 end
 
 local function styleCopy(slot, size)
-	local db = ns.getDB()
 	placeClip(slot, slot.button, size)
 	ns.try("shield copy border", FR.dress, slot.edge, "shield")
 	if slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
 	local bar = slot.bar
-	bar:SetHeight(db.chargeBarHeight)
+	bar:SetHeight(count("barHeight"))
 	bar:SetStatusBarTexture(ns.Media.barTexture())
-	local c = db.chargeBarColor
-	bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
-	bar:SetAlpha(db.showBar and 1 or 0)
+	bar:SetStatusBarColor(barColor())
+	bar:SetAlpha(count("bar") and 1 or 0)
 	for i, t in ipairs(slot.tickTextures) do
 		t:ClearAllPoints()
 		t:SetPoint("TOP", bar, "TOPLEFT", size * i / 3, 0)
 		t:SetPoint("BOTTOM", bar, "BOTTOMLEFT", size * i / 3, 0)
-		t:SetAlpha(db.showBar and 1 or 0)
+		t:SetAlpha(count("bar") and 1 or 0)
 	end
 	applyCountFormat(slot)
-	ns.Media.setFont(slot.fs, nil, db.countSize)
+	ns.Media.setFont(slot.fs, nil, count("size"))
 	SH.placeCount(slot.fs, slot.host)
-	slot.fs:SetAlpha(db.showCount and 1 or 0)
+	slot.fs:SetAlpha(count("number") and 1 or 0)
 end
 
 local function buildCopy(slot, button)
@@ -565,10 +578,9 @@ local function buildCopy(slot, button)
 	-- Levels under the button may read secret: a failed read leaves the default
 	ns.try("shield copy level", function() parts:SetFrameLevel(slot.cd:GetFrameLevel() + 2) end)
 	slot.parts = parts
-	local db = ns.getDB()
 	-- Font first: Blizzard writes the count as it takes the font string
 	local fs = parts:CreateFontString(nil, "OVERLAY", nil, 7)
-	ns.Media.setFont(fs, nil, db.countSize)
+	ns.Media.setFont(fs, nil, count("size"))
 	SH.placeCount(fs, host)
 	button:SetApplicationCount(fs)
 	slot.fs = fs
@@ -679,6 +691,7 @@ local function refreshGCD(inCooldownEvent)
 end
 
 function SH.applyLayout()
+	SH.applyRemovedSound()
 	native:setup()
 	look:setup()
 	if idleWhen() == "charges" and ns.isEnabled("shield") then copy:setup() end
@@ -736,7 +749,7 @@ end
 -- /sf debug
 function SH.debug()
 	local up = believedUp()
-	say("shield tracking %s (last %s), up at the last read %s (shield up %s)", ns.getDB().shieldTrack,
+	say("shield tracking %s (last %s), up at the last read %s (shield up %s)", setting("shield", "track"),
 		ns.getAccount().lastShield, up == nil and "unknown" or tostring(up), tostring(upShield))
 	say("no-shield look: %s, %s, state %s; button %s, cast hold %s", lookOn and "on" or "off",
 		aurasUnread() and "sensor decides" or "read decides too", tostring(lookState),

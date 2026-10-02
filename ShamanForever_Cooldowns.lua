@@ -18,8 +18,9 @@ local setting = ns.elementSetting
 -- Slots: 1 fire, 2 earth, 3 water, 4 air.
 -- Parts: grounded, window (seconds from our cast), primed ({ spends, charges, duration, buffKey,
 -- text }), reagent (item ID), readyGlow, noReady, ranOut (end shown as a flash, not the pop),
--- expireLooks, primedLooks, race (race IDs; others see "Not your race"), cd (preview only),
--- defaults, styles and timerCant (see ns.registerElement).
+-- expireLooks (which looks Expiring offers; false: none), primedLooks (false: none), race (race IDs;
+-- others see "Not your race"), cd (preview only), defaults (over the parts'), styles and timerCant
+-- (see ns.registerElement).
 -- With a cooldown and time left: the cooldown has the swipe; time left as a bar
 local ONE_SWIPE = { uptime = { swipe = "The cooldown has the swipe; time left shows as text or a bar." } }
 local function barTimer() return { uptime = { text = false, bar = true } } end
@@ -44,7 +45,7 @@ local COOLDOWNS = {
 		blurb = "Cooldown, and time left while it's down.",
 		styles = barTimer(), timerCant = ONE_SWIPE,
 		ranOut = true, cd = 300,
-		defaults = { idleWhen = "never", expire = { secs = 3, glow = true, pulse = false } }, experimental = "Mana Tide Totem" },
+		defaults = { idleWhen = "never", expire = { secs = 3, glow = true, fade = false } }, experimental = "Mana Tide Totem" },
 	{ key = "grounding", spellKey = "grounding", icon = 136039, totemSlot = 4, duration = 45, school = "air",
 		blurb = "Cooldown, time left, and a flash when it takes a spell.",
 		styles = barTimer(), timerCant = ONE_SWIPE,
@@ -58,42 +59,42 @@ local COOLDOWNS = {
 			text = "From your cast for 12 s, or until your next Lightning Bolt, Chain Lightning or Earth Shock. " ..
 				"Other Nature damage on the target can also use it up, which can't be seen." },
 		primedLooks = false, expireLooks = false, readyGlow = true, cd = 8,
-		defaults = { idleWhen = "never", primedPop = false, primedGlow = false, expire = { secs = 0 } }, experimental = "Stormstrike" },
+		defaults = { idleWhen = "never" }, experimental = "Stormstrike" },
 	{ key = "riptide", spellKey = "riptide", icon = 252995, school = "water", blurb = "Cooldown.",
 		readyGlow = true, cd = 6, defaults = { idleWhen = "never" }, experimental = "Riptide" },
 	-- Short cooldowns: no Ready pop by default
 	{ key = "lavaburst", spellKey = "lavaBurst", icon = 237582, school = "fire", blurb = "Cooldown.",
-		readyGlow = true, cd = 10, defaults = { idleWhen = "never", readyPop = false }, experimental = "Lava Burst" },
+		readyGlow = true, cd = 10, defaults = { idleWhen = "never", ready = { pop = false } }, experimental = "Lava Burst" },
 	{ key = "chainlightning", spellKey = "chainLightning", icon = 136015, school = "air", blurb = "Cooldown.",
-		readyGlow = true, cd = 6, defaults = { idleWhen = "never", readyPop = false }, experimental = "Chain Lightning" },
+		readyGlow = true, cd = 6, defaults = { idleWhen = "never", ready = { pop = false } }, experimental = "Chain Lightning" },
 	{ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, window = 25, school = "air",
 		blurb = "Cooldown, and time left while it's on.",
 		timerCant = ONE_SWIPE,
-		readyGlow = true, expireLooks = { "grey", "pulse" }, cd = 180,
-		defaults = { idleWhen = "never", expire = { secs = 0, pulse = true } }, experimental = "Rage of the Farseer" },
+		readyGlow = true, expireLooks = { "grey", "fade" }, cd = 180,
+		defaults = { idleWhen = "never", expire = { secs = 0, fade = true } }, experimental = "Rage of the Farseer" },
 	{ key = "projection", spellKey = "totemicProjection", icon = 136099, school = "spirit", blurb = "Cooldown.",
 		cd = 60, experimental = "Totemic Projection" },
 	{ key = "reincarnation", spellKey = "reincarnation", icon = 136080, school = "spirit",
 		blurb = "Cooldown, and your Ankhs when they run low.",
 		styles = { gcd = { show = false } },   -- never needs the sweep
 		reagent = 17030, noReady = true, cd = 3600,
-		defaults = { idleAlpha = 0, readyPop = false }, experimental = "Reincarnation" },
+		defaults = { idleAlpha = 0 }, experimental = "Reincarnation" },
 	-- Racials (race IDs: Orc 2, Dwarf 3, Tauren 6, Troll 8, Windshaper Skyborne 96)
 	{ key = "bloodfury", spellKey = "bloodFury", icon = 135726, race = { 2 }, window = 15,
 		school = "fire",
 		blurb = "Cooldown, and time left while it's on.", readyGlow = true, timerCant = ONE_SWIPE,
-		expireLooks = { "grey", "pulse" }, cd = 120,
-		defaults = { idleWhen = "never", expire = { secs = 0, pulse = true } }, experimental = "Blood Fury" },
+		expireLooks = { "grey", "fade" }, cd = 120,
+		defaults = { idleWhen = "never", expire = { secs = 0, fade = true } }, experimental = "Blood Fury" },
 	{ key = "shattercurse", spellKey = "shatterCurse", icon = 136082, race = { 2 }, window = 8,
 		school = "spirit",
 		blurb = "Cooldown, and time left while it's on.", readyGlow = true, timerCant = ONE_SWIPE,
-		expireLooks = { "grey", "pulse" }, cd = 180,
-		defaults = { idleWhen = "never", expire = { secs = 0, pulse = true } }, experimental = "Shatter Curse" },
+		expireLooks = { "grey", "fade" }, cd = 180,
+		defaults = { idleWhen = "never", expire = { secs = 0, fade = true } }, experimental = "Shatter Curse" },
 	{ key = "berserking", spellKey = "berserking", icon = 135727, race = { 8 }, window = 10,
 		school = "fire",
 		blurb = "Cooldown, and time left while it's on.", readyGlow = true, timerCant = ONE_SWIPE,
-		expireLooks = { "grey", "pulse" }, cd = 180,
-		defaults = { idleWhen = "never", expire = { secs = 0, pulse = true } }, experimental = "Berserking" },
+		expireLooks = { "grey", "fade" }, cd = 180,
+		defaults = { idleWhen = "never", expire = { secs = 0, fade = true } }, experimental = "Berserking" },
 	{ key = "rapidregeneration", spellKey = "rapidRegeneration", icon = 1850550, race = { 8 },
 		school = "water",
 		blurb = "Cooldown.", readyGlow = true, cd = 180,
@@ -104,8 +105,8 @@ local COOLDOWNS = {
 	{ key = "stoneform", spellKey = "stoneform", icon = 136225, race = { 3 }, window = 8,
 		school = "earth",
 		blurb = "Cooldown, and time left while it's on.", readyGlow = true, timerCant = ONE_SWIPE,
-		expireLooks = { "grey", "pulse" }, cd = 180,
-		defaults = { idleWhen = "never", expire = { secs = 0, pulse = true } }, experimental = "Stoneform" },
+		expireLooks = { "grey", "fade" }, cd = 180,
+		defaults = { idleWhen = "never", expire = { secs = 0, fade = true } }, experimental = "Stoneform" },
 	-- Walk on Air: cooldown only, its real length is unseen
 	{ key = "walkonair", spellKey = "walkOnAir", icon = 132845, race = { 96 }, school = "air",
 		blurb = "Cooldown.", readyGlow = true, cd = 120,
@@ -115,18 +116,26 @@ local COOLDOWNS = {
 		defaults = { idleWhen = "never" }, experimental = "Skysight" },
 }
 
--- Option defaults by part
+-- Settings' defaults by part (the shapes: _Profiles)
 local PARTS = {
-	ready = { readyPop = true, readyGlow = false },
 	idle = { idleAlpha = 0.3, idleWhen = "offcd" },
-	needsTotem = { blockedGrey = true, blockedRing = false, blockedPulse = false, readyNoTotem = "grey" },
-	totemSlot = { expiredPop = true, killed = true, killedPop = true, killedGlow = true, killedMark = true },
-	ranOut = { ranOutFlash = true, ranOutPop = false, ranOutGlow = false },
-	grounded = { grounded = true, groundedPop = true, groundedGlow = true },
-	primed = { primedPop = true, primedGlow = true },
+	ready = { ready = { pop = true, sound = "none" } },
+	readyGlow = { ready = { glow = false } },
+	needsTotem = { warn = { grey = true, ring = false, fade = false }, ready = { blocked = "grey" } },
+	killed = { killed = { flash = true, pop = true, glow = true, mark = true } },
+	grounded = { killed = { flash = true, pop = true, glow = true } },
+	primed = { active = { pop = true, glow = true } },
 	reagent = Reagents.DEFAULTS,
 }
-CD.READY_DEFAULTS = PARTS.ready
+-- A totem's end: with ranOut a flash (its pop off), else a pop
+local function endedPart(def)
+	local e = { pop = not def.ranOut, sound = "none" }
+	if def.ranOut then e.flash, e.glow = true, false end
+	return { ended = e }
+end
+local EXPIRE = { secs = 5, grey = false, ring = false, fade = true, glow = false }
+local EXPIRE_LOOKS = { "grey", "ring", "fade", "glow" }
+local EXPIRE_RANGES = { expire = { secs = { 0, 30, 1 } } }
 local IDLE_NEVER = { "never", "Never", "It always shows in full" }
 local IDLE_OFFCD = { "offcd", "Ready", "Idle while it's ready%s" }
 local IDLE_ONCD = { "oncd", "Cooling down", "Idle while it's cooling down%s",
@@ -155,11 +164,25 @@ local function withParts(def)
 		or def.window and extraChoices("not active") or CD.IDLE_CHOICES
 	if def.reagent then def.idleExtra = Reagents.IDLE_EXTRA end
 	def.defaults = def.defaults or {}
-	local fill = ns.fillDefaults
-	fill(def.defaults, PARTS.ready)
-	fill(def.defaults, PARTS.idle)
-	for _, part in ipairs({ "needsTotem", "totemSlot", "ranOut", "grounded", "primed", "reagent" }) do
-		if def[part] then fill(def.defaults, PARTS[part]) end
+	def.ranges = def.ranges or {}
+	local d, fill = def.defaults, ns.fillParts
+	fill(d, PARTS.idle)
+	if not def.noReady then fill(d, PARTS.ready) end
+	if def.readyGlow or def.needsTotem then fill(d, PARTS.readyGlow) end
+	if def.needsTotem then fill(d, PARTS.needsTotem) end
+	if def.totemSlot then fill(d, endedPart(def)) end
+	if def.grounded then fill(d, PARTS.grounded) elseif def.totemSlot then fill(d, PARTS.killed) end
+	if def.primed and def.primedLooks ~= false then fill(d, PARTS.primed) end
+	if def.reagent then
+		fill(d, PARTS.reagent)
+		fill(def.ranges, Reagents.RANGES)
+	end
+	local _, expires = ns.cooldownTimes(def)
+	if expires then
+		local e = { secs = EXPIRE.secs }
+		for _, look in ipairs(def.expireLooks or EXPIRE_LOOKS) do e[look] = EXPIRE[look] end
+		fill(d, { expire = e })
+		fill(def.ranges, EXPIRE_RANGES)
 	end
 end
 
@@ -171,17 +194,14 @@ end
 
 local function effectsOf(def)
 	local glow, pop = {}, {}
-	local _, expires = ns.cooldownTimes(def)
-	local looks = def.expireLooks
+	local expire = def.defaults.expire
 	if def.readyGlow or def.needsTotem then table.insert(glow, "ready") end
 	if not def.noReady then table.insert(pop, "ready") end
 	if def.primed and def.primedLooks ~= false then
 		table.insert(glow, "primed")
 		table.insert(pop, "primed")
 	end
-	if expires and (looks == nil or tContains(looks, "glow")) then
-		table.insert(glow, "expiring")
-	end
+	if expire and expire.glow ~= nil then table.insert(glow, "expiring") end
 	if def.grounded then
 		table.insert(glow, "grounded")
 		table.insert(pop, "grounded")
@@ -238,7 +258,7 @@ for _, def in ipairs(COOLDOWNS) do
 	def.frame = makeCooldownIcon(def)
 	ns.registerElement(def.key, { frame = def.frame, label = def.spell,
 		defaults = def.defaults, learned = function() return def.spellID ~= nil end,
-		paint = function(t) t:SetTexture(def.iconID or def.icon) end, effects = effectsOf(def),
+		paint = function(t) t:SetTexture(def.iconID or def.icon) end, effects = effectsOf(def), ranges = def.ranges,
 		kind = "cooldown", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
 		experimental = def.experimental, race = def.race, styles = def.styles, timerCant = def.timerCant })
 end
@@ -333,13 +353,13 @@ local function popWhenReady(f, key, totemSlot)
 	watchEnds(f)
 	f.ownCd:HookScript("OnCooldownDone", function()
 		if not CD.readyNow(f) then return end
-		if not (ns.isEnabled(key) and setting(key, "readyPop")) then return end
+		if not (ns.isEnabled(key) and setting(key, "ready", "pop")) then return end
 		if ns.cantAct() then return end
 		if totemSlot then
 			local ok, d = safe(GetTotemDuration, totemSlot)
 			if not ok then return end
 			if not d then
-				if setting(key, "readyNoTotem") == "grey" then f:Pop("blocked") end
+				if setting(key, "ready", "blocked") == "grey" then f:Pop("blocked") end
 				return
 			end
 		end
@@ -453,8 +473,8 @@ end
 -- Buff windows and primed buffs
 local function showPrimed(def, on, pop)
 	local f, key = def.frame, def.key
-	f:SetGlowShown(on and setting(key, "primedGlow"))
-	if on and pop and setting(key, "primedPop") then f:Pop("ready") end
+	f:SetGlowShown(on and setting(key, "active", "glow"))
+	if on and pop and setting(key, "active", "pop") then f:Pop("ready") end
 end
 
 local function endActive(def)
@@ -527,7 +547,9 @@ function refreshCooldown(def, inEvent)
 		return
 	end
 	local f = def.frame
-	if f.killed and not (setting(def.key, "killed") and setting(def.key, "killedMark")) then f.killed.mark:Hide() end
+	if f.killed and not (setting(def.key, "killed", "flash") and setting(def.key, "killed", "mark")) then
+		f.killed.mark:Hide()
+	end
 	if not def.spellID then
 		CD.resetReady(f)
 		fadeTo(def, 1)
@@ -573,7 +595,7 @@ local function soundWhenReady(f, key, totemSlot)
 			local ok, d = safe(GetTotemDuration, totemSlot)
 			if not (ok and d) then return end
 		end
-		ns.Sounds.element(key, "readySound")
+		ns.Sounds.element(key, "ready")
 	end)
 end
 CD.soundWhenReady = soundWhenReady
@@ -595,9 +617,9 @@ local function styleCooldown(def)
 	local w = f.warn
 	if not w then return end
 	w.grey:SetTexture(def.iconID or def.icon)
-	w.grey:SetShown(setting(def.key, "blockedGrey"))
-	w.ring:show(setting(def.key, "blockedRing"))
-	w.pulseOn = setting(def.key, "blockedPulse")
+	w.grey:SetShown(setting(def.key, "warn", "grey"))
+	w.ring:show(setting(def.key, "warn", "ring"))
+	w.pulseOn = setting(def.key, "warn", "fade")
 	if w.pulseOn then
 		if not w.pulse:IsPlaying() then w.pulse:Play() end
 	else w.pulse:Stop() end
@@ -612,30 +634,29 @@ Totems.subscribe(function(event, slot, arg)
 				f.killed.mark:Hide()
 			elseif event == "gone" and Totems.ownerOf(slot) == def.spellKey and ns.isEnabled(key) then
 				local dur = arg
-				if f:IsVisible() then ns.Sounds.element(key, "goneSound", true) end
+				if f:IsVisible() then ns.Sounds.element(key, "ended", true) end
 				if def.ranOut then
-					if setting(key, "ranOutFlash") then
+					if setting(key, "ended", "flash") then
 						if not f.expired then f.expired = ns.Effects.endFlash(f.effects, f, key) end
 						f.expired:setIcon(def.iconID or def.icon)
 						f.expired:play(dur, { expired = true, ranOut = ns.THEME.color[def.school],
-							pop = setting(key, "ranOutPop"), glow = setting(key, "ranOutGlow") })
+							pop = setting(key, "ended", "pop"), glow = setting(key, "ended", "glow") })
 					end
-				elseif setting(key, "expiredPop") then
+				elseif setting(key, "ended", "pop") then
 					if not f.expired then f.expired = ns.Effects.endFlash(f.effects, f, key) end
 					f.expired:setIcon(def.iconID or def.icon)
 					f.expired:play(dur, { expired = true, pop = true })
 				end
-				if def.grounded then
-					if setting(key, "grounded") then
-						if not f.killed then f.killed = ns.Effects.endFlash(f.effects, f, key) end
-						f.killed:setIcon(def.iconID or def.icon)
-						f.killed:play(dur, { grounded = true, pop = setting(key, "groundedPop"), glow = setting(key, "groundedGlow") })
-					end
-				elseif setting(key, "killed") then
+				if setting(key, "killed", "flash") then
 					if not f.killed then f.killed = ns.Effects.endFlash(f.effects, f, key) end
 					f.killed:setIcon(def.iconID or def.icon)
-					f.killed:play(dur, { pop = setting(key, "killedPop"), glow = setting(key, "killedGlow"),
-						mark = setting(key, "killedMark") })
+					if def.grounded then
+						f.killed:play(dur, { grounded = true, pop = setting(key, "killed", "pop"),
+							glow = setting(key, "killed", "glow") })
+					else
+						f.killed:play(dur, { pop = setting(key, "killed", "pop"), glow = setting(key, "killed", "glow"),
+							mark = setting(key, "killed", "mark") })
+					end
 				end
 			end
 		end
@@ -666,7 +687,8 @@ function CD.readyTicker(update)
 end
 local function refreshReadyGlow(def, cantAct)
 	local f = def.frame
-	local on = def.spellID and ns.isEnabled(def.key) and setting(def.key, "readyGlow") and hasTimeLeftCurve and noTimeLeftCurve
+	local on = def.spellID and ns.isEnabled(def.key) and setting(def.key, "ready", "glow") and hasTimeLeftCurve
+		and noTimeLeftCurve
 	f.readyGlow:SetShown(on and true or false)
 	if not on then return end
 	f.readyGlow:fit(f:GetWidth())
@@ -689,7 +711,7 @@ local function syncReadyTicker()
 	local want = false
 	if ns.isActive() then
 		for _, def in ipairs(COOLDOWNS) do
-			if def.frame.readyGate and ns.isEnabled(def.key) and setting(def.key, "readyGlow") then want = true end
+			if def.frame.readyGate and ns.isEnabled(def.key) and setting(def.key, "ready", "glow") then want = true end
 		end
 	end
 	readyTicker:SetShown(want and true or false)
@@ -719,7 +741,7 @@ function CD.applyTimers()
 		f.cdTimer:apply()
 		if f.upTimer then
 			f.upTimer:apply()
-			f.upTimer:setExpire(ns.Timer.expireOpts(def.key), def.iconID or def.icon)
+			f.upTimer:setExpire(ns.elementEvent(def.key, "expire"), def.iconID or def.icon)
 		end
 	end
 end

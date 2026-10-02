@@ -9,17 +9,17 @@ local Spells = ns.Spells
 local B = { name = "buffs" }
 ns.Buffs = B
 
-local function setting(key, name) return ns.elementSetting(key, name) end
+local setting = ns.elementSetting
 
 local TEXT_TIMER = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center",
 	swipe = false, bar = true } }
 local BUFFS = {
 	{ key = "waterwalking", spellKey = "waterWalking", icon = 135863, school = "water", reagent = 17058, duration = 600,
 		blurb = "Time left while it's up.", styles = TEXT_TIMER,
-		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, pulse = false } }, experimental = "Water Walking" },
+		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, fade = false } }, experimental = "Water Walking" },
 	{ key = "waterbreathing", spellKey = "waterBreathing", icon = 136148, school = "water", reagent = 17057, duration = 600,
 		breath = true, blurb = "Time left while it's up. Warns under water without it.", styles = TEXT_TIMER,
-		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, pulse = false } }, experimental = "Water Breathing" },
+		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, fade = false } }, experimental = "Water Breathing" },
 	{ key = "elementalfocus", spellKey = "elementalFocus", buffKey = "clearcasting", icon = 136170, school = "spirit",
 		blurb = "Shows while " .. Spells.name("clearcasting") .. " is up.",
 		proc = true, defaults = { idleAlpha = 0 },
@@ -27,11 +27,14 @@ local BUFFS = {
 	},
 }
 
+-- Settings' defaults by part (the shapes: _Profiles); a buff that isn't a proc has Expiring
 local PARTS = {
 	reagent = ns.Reagents.DEFAULTS,
-	breath = { breathWarn = true, breathRing = true, breathPulse = true },
-	proc = { primedPop = true, primedGlow = true },
+	breath = { warn = { on = true, ring = true, fade = true } },
+	proc = { active = { pop = true, glow = true } },
 }
+local EXPIRE = { expire = { secs = 5, grey = false, ring = false, fade = true, glow = false } }
+local EXPIRE_RANGES = { expire = { secs = { 0, 120, 5 } } }
 
 local function makeBuffIcon(def)
 	local f = ns.newElementIcon(def.key, { effects = true })
@@ -51,8 +54,14 @@ for _, def in ipairs(BUFFS) do
 	def.spell = Spells.name(def.spellKey)
 	def.icon = Spells.icon(def.buffKey or def.spellKey) or def.icon
 	def.defaults = def.defaults or {}
+	def.ranges = def.ranges or {}
 	for part, defaults in pairs(PARTS) do
-		if def[part] then ns.fillDefaults(def.defaults, defaults) end
+		if def[part] then ns.fillParts(def.defaults, defaults) end
+	end
+	if def.reagent then ns.fillParts(def.ranges, ns.Reagents.RANGES) end
+	if not def.proc then
+		ns.fillParts(def.defaults, EXPIRE)
+		ns.fillParts(def.ranges, EXPIRE_RANGES)
 	end
 	def.frame = makeBuffIcon(def)
 	def.frame.aboveProtected = def.proc   -- Blizzard's aura button sits under it
@@ -61,6 +70,7 @@ for _, def in ipairs(BUFFS) do
 		paint = function(t) t:SetTexture(def.icon) end,
 		standInBorder = def.proc,
 		effects = def.proc and { glow = { "up" }, pop = { "up" } } or { glow = { "expiring" }, pop = {} },
+		ranges = def.ranges,
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
 		experimental = def.experimental, styles = def.styles })
 end
@@ -98,8 +108,8 @@ end
 
 -- Under water without Water Breathing
 local breathing = false
-local function breathWarn(def)
-	return def.breath and breathing and not def.upUntil and setting(def.key, "breathWarn") and not ns.cantAct()
+local function underWaterWarns(def)
+	return def.breath and breathing and not def.upUntil and setting(def.key, "warn", "on") and not ns.cantAct()
 end
 
 -- Elemental Focus
@@ -139,7 +149,7 @@ local function makeProcSlot(def)
 	})
 	def.fx = ns.Effects.host(def.frame, def.key, { aura = {
 		slot = def.aura, parent = def.frame.effects, ids = ids,
-		popOn = function() return setting(def.key, "primedPop") end,
+		popOn = function() return setting(def.key, "active", "pop") end,
 		sites = { container = "proc glow sensor " .. def.key, style = "proc glow style " .. def.key,
 			filter = "proc glow filter " .. def.key },
 	} })
@@ -169,7 +179,7 @@ local function refreshBuff(def)
 	f.tex:SetDesaturated(false)
 	if def.proc then
 		-- Frame is an ancestor of Blizzard's button: its alpha changes out of combat only
-		def.fx:glow(setting(key, "primedGlow") and not previewing)
+		def.fx:glow(setting(key, "active", "glow") and not previewing)
 		ns.fadeTo(f, ns.getAccount().locked and ns.idleAlpha(key) or 1)
 		return
 	end
@@ -177,8 +187,8 @@ local function refreshBuff(def)
 	-- Set each look once: re-setting a pulse restarts it
 	local held, ring, pulse = false, false, false
 	if def.reagent then held, ring, pulse = ns.Reagents.refresh(def) end
-	if breathWarn(def) then
-		ring, pulse, held = setting(key, "breathRing"), setting(key, "breathPulse"), true
+	if underWaterWarns(def) then
+		ring, pulse, held = setting(key, "warn", "ring"), setting(key, "warn", "fade"), true
 	end
 	f:SetRingShown(ring)
 	f:SetPulsing(pulse)
@@ -222,7 +232,7 @@ function B.applyTimers()
 		local t = def.frame.upTimer
 		if t then
 			t:apply()
-			t:setExpire(ns.Timer.expireOpts(def.key), def.iconID or def.icon)
+			t:setExpire(ns.elementEvent(def.key, "expire"), def.iconID or def.icon)
 		end
 	end
 	for _, def in ipairs(BUFFS) do

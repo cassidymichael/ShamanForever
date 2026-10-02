@@ -7,10 +7,6 @@ local Spells, CD = ns.Spells, ns.Cooldowns
 local SK = { name = "shock" }
 ns.Shock = SK
 
-ns.Profiles.addRanges({ manaRing = { 0.1, 1 }, manaIntensity = { 0.1, 1 }, manaTint = { 0.1, 1 },
-	rangeIntensity = { 0.1, 1 }, rangeTint = { 0.1, 1 } })
-
-local function db() return ns.getDB() end
 local setting = ns.elementSetting
 
 local SHOCK_SPELL = { earth = "earthShock", flame = "flameShock", frost = "frostShock" }
@@ -25,11 +21,17 @@ shock.stack()
 local shockIcon = 136026
 local shockIDs = {}
 local usedShock, shockSpellID, manaSpellID
-local defaults = CopyTable(CD.READY_DEFAULTS)
-defaults.idleWhen, defaults.idleAlpha = "never", 0.3
+-- No mana and Out of range: look is overlay | tint | both
+local PAINT = { 0.1, 1, 0.05 }
 ns.registerElement("shock", { frame = shock, label = "Shocks", paint = function(t) t:SetTexture(shockIcon) end,
 	learned = function() return next(shockIDs) ~= nil end,
-	defaults = defaults,
+	defaults = { idleWhen = "never", idleAlpha = 0.3,
+		track = "earth",
+		manaSpell = "tracked",   -- tracked | earth | flame | frost
+		mana = { look = "both", overlay = 0.25, tint = 0.8, ring = 0.6 },
+		range = { look = "tint", overlay = 0.45, tint = 0.7 },
+		ready = { pop = true, glow = false, sound = "none" } },
+	ranges = { mana = { overlay = PAINT, tint = PAINT, ring = PAINT }, range = { overlay = PAINT, tint = PAINT } },
 	def = { key = "shock", idleChoices = CD.IDLE_CHOICES },
 	effects = { glow = { "ready" }, pop = { "ready" } },
 	kind = "shock", icon = 136026, school = "spirit", blurb = "Cooldown, range and mana." })
@@ -45,15 +47,16 @@ local function drawTint()
 	local now = (shockState.outOfRange and "r" or "") .. (shockState.noMana and "m" or "")
 	if now == drawn then return end
 	drawn = now
-	local d = db()
 	shock.manaOverlay:Hide()
 	shock.tex:SetVertexColor(1, 1, 1)
 	if shockState.outOfRange then
-		shock:SetBodyPaint(d.rangeStyle, 1, 0.25, 0.25, d.rangeIntensity, d.rangeTint)
+		shock:SetBodyPaint(setting("shock", "range", "look"), 1, 0.25, 0.25, setting("shock", "range", "overlay"),
+			setting("shock", "range", "tint"))
 	elseif shockState.noMana then
-		shock:SetBodyPaint(d.manaStyle, 0.2, 0.45, 1, d.manaIntensity, d.manaTint)
+		shock:SetBodyPaint(setting("shock", "mana", "look"), 0.2, 0.45, 1, setting("shock", "mana", "overlay"),
+			setting("shock", "mana", "tint"))
 	end
-	shock:SetRingShown(shockState.noMana, 0.2, 0.45, 1, d.manaRing)
+	shock:SetRingShown(shockState.noMana, 0.2, 0.45, 1, setting("shock", "mana", "ring"))
 end
 
 local function refreshCooldown(inEvent)
@@ -99,7 +102,7 @@ CD.soundWhenReady(shock, "shock")
 
 -- Ready glow
 local function refreshGlow()
-	local on = shockSpellID and ns.isEnabled("shock") and setting("shock", "readyGlow") and ns.CURVE_OVER
+	local on = shockSpellID and ns.isEnabled("shock") and setting("shock", "ready", "glow") and ns.CURVE_OVER
 	shock.glowF:SetShown(on and true or false)
 	if not on then return end
 	shock.glowF:fit(shock:GetWidth())
@@ -107,13 +110,12 @@ local function refreshGlow()
 end
 local glowTicker = CD.readyTicker(refreshGlow)
 local function syncGlowTicker()
-	local want = ns.isActive() and ns.isEnabled("shock") and setting("shock", "readyGlow")
+	local want = ns.isActive() and ns.isEnabled("shock") and setting("shock", "ready", "glow")
 	glowTicker:SetShown(want and true or false)
 	if not want then refreshGlow() end
 end
 
 function SK.resolve()
-	local d = db()
 	shockIDs = {}
 	local icons = {}
 	for key, spell in pairs(SHOCK_SPELL) do
@@ -121,7 +123,8 @@ function SK.resolve()
 		local id, ic = Spells.known(spell)
 		if id then shockIDs[key], icons[key] = id, ic end
 	end
-	usedShock = SHOCK_SPELL[d.shock] and d.shock or "earth"
+	local track = setting("shock", "track")
+	usedShock = SHOCK_SPELL[track] and track or "earth"
 	if not shockIDs[usedShock] then
 		for _, key in ipairs(SHOCK_ORDER) do
 			if shockIDs[key] then usedShock = key break end
@@ -132,7 +135,8 @@ function SK.resolve()
 	shockIcon = icons[usedShock] or Spells.icon(SHOCK_SPELL[usedShock]) or 136026
 	shock.tex:SetTexture(shockIcon)
 	shock.tex:SetDesaturated(next(shockIDs) == nil)
-	manaSpellID = (d.manaSpell ~= "tracked" and shockIDs[d.manaSpell]) or shockSpellID
+	local mana = setting("shock", "manaSpell")
+	manaSpellID = (mana ~= "tracked" and shockIDs[mana]) or shockSpellID
 	if rangeCheckID ~= shockSpellID and C_Spell.EnableSpellRangeCheck then
 		if rangeCheckID then safe(C_Spell.EnableSpellRangeCheck, rangeCheckID, false) end
 		if shockSpellID then safe(C_Spell.EnableSpellRangeCheck, shockSpellID, true) end
@@ -189,7 +193,7 @@ end
 
 -- /sf debug
 function SK.debug()
-	local chosen = db().shock
+	local chosen = setting("shock", "track")
 	say("shock spell %s (%s%s), mana spell %s", tostring(shockSpellID), tostring(usedShock),
 		usedShock ~= chosen and (", chosen " .. tostring(chosen) .. " not learned") or "", tostring(manaSpellID))
 	for key, id in pairs(shockIDs) do

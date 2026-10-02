@@ -10,7 +10,6 @@ local TR = { name = "tremor" }
 ns.Tremor = TR
 
 local KEY = "tremor"
-ns.Profiles.addRanges(nil, { wordSize = { 8, 40 }, wordX = { -100, 100 }, wordY = { -100, 100 } })
 local EARTH = 2
 local HOLD = 10   -- seconds
 local SOUND_GAP = 10   -- seconds
@@ -19,7 +18,7 @@ TR.WORD = "Tremor!"
 local TREMOR_TYPES = { FEAR = true, FEAR_MECHANIC = true, CHARM = true, POSSESS = true, SLEEP = true }
 local tremorSpells = {}
 
-local function setting(name) return ns.elementSetting(KEY, name) end
+local function setting(name, field) return ns.elementSetting(KEY, name, field) end
 local function plain(ok, v)
 	if ok and not isSecret(v) then return v end
 end
@@ -41,8 +40,9 @@ end
 
 local def = { key = KEY, spellKey = "tremor", icon = 136108, school = "earth", duration = 300,
 	defaults = { idleAlpha = 0, idleWhen = "nowarning", tremorTarget = true, tremorPlates = true, tremorFeared = false,
-		alertPop = true, alertGlow = true, alertText = true, alertSound = "none",
-		wordSize = 16, wordColor = CopyTable(WORD_COLOR), wordPos = "below", wordX = 0, wordY = 0 } }
+		active = { pop = true, glow = true, text = true, sound = "none" },
+		wordSize = 16, wordColor = CopyTable(WORD_COLOR), wordPos = "below", wordX = 0, wordY = 0 },
+	ranges = { wordSize = { 8, 40, 1 }, wordX = { -100, 100, 1 }, wordY = { -100, 100, 1 } } }
 TR.def = def
 def.spell = Spells.name(def.spellKey)
 def.icon = Spells.icon(def.spellKey) or def.icon
@@ -57,7 +57,7 @@ f.word:Hide()
 f.stack()
 def.frame = f
 
-ns.registerElement(KEY, { frame = f, label = def.spell, defaults = def.defaults,
+ns.registerElement(KEY, { frame = f, label = def.spell, defaults = def.defaults, ranges = def.ranges,
 	learned = function() return def.spellID ~= nil end,
 	paint = function(t) t:SetTexture(def.iconID or def.icon) end,
 	effects = { glow = { "warning" }, pop = { "warning" } },
@@ -253,11 +253,11 @@ local alerting = false
 local why
 
 local function setAlert(on)
-	f:SetGlowShown(on and setting("alertGlow"))
-	f.word:SetShown(on and setting("alertText") and true or false)
+	f:SetGlowShown(on and setting("active", "glow"))
+	f.word:SetShown(on and setting("active", "text") and true or false)
 	if on and not alerting then
-		if setting("alertPop") then f:Pop("ready") end
-		ns.Sounds.play(setting("alertSound"), KEY, SOUND_GAP)
+		if setting("active", "pop") then f:Pop("ready") end
+		ns.Sounds.play(setting("active", "sound"), KEY, SOUND_GAP)
 	end
 	alerting = on
 end

@@ -477,7 +477,8 @@ function Page:label(f, text, tip)
 end
 
 -- What a block owns: refs to its settings, to tell whether it differs and to reset it.
--- Ref kinds: elem, general, bar, group, style; optional after, default, changed, reset, label.
+-- Ref kinds: elem, general, bar, group, style; optional field (elem and bar: one field of a state
+-- or event table), after, default, changed, reset, label.
 local REF = {}
 
 function Page.refKind(kind, spec) REF[kind] = spec end
@@ -556,7 +557,7 @@ Page.refKind("elem", {
 		return type(o[r.name]) == "table" and o[r.name] or nil
 	end,
 	slot = function(r) return r.field or r.name end,
-	default = function(r) return ns.elementDefault(r.elem, r.name) end,
+	default = function(r) return ns.elementDefault(r.elem, r.name, r.field) end,
 	unset = true,
 })
 Page.refKind("general", {
@@ -566,10 +567,19 @@ Page.refKind("general", {
 	default = function(r) return ns.DEFAULTS[r.general] end,
 })
 Page.refKind("bar", {
-	id = function(r) return r.bar .. "." .. r.name end,
-	holder = function(r) return ns.Style.bar(r.bar).cfg() end,
-	slot = function(r) return r.name end,
-	default = function(r) return ns.Style.bar(r.bar).DEFAULTS[r.name] end,
+	id = function(r) return r.bar .. "." .. r.name .. (r.field and "." .. r.field or "") end,
+	holder = function(r)
+		local c = ns.Style.bar(r.bar).cfg()
+		if not r.field then return c end
+		return type(c[r.name]) == "table" and c[r.name] or nil
+	end,
+	slot = function(r) return r.field or r.name end,
+	default = function(r)
+		local d = ns.Style.bar(r.bar).defaults[r.name]
+		if not r.field then return d end
+		if type(d) ~= "table" then return nil end
+		return d[r.field]
+	end,
 })
 local function groupOf(r) if type(r.group) == "function" then return r.group() end return r.group end
 Page.refKind("group", {

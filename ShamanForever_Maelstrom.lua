@@ -29,26 +29,27 @@ local WHITE = "Interface\\Buttons\\WHITE8x8"
 local SI = Enum and Enum.StatusBarInterpolation
 local IMMEDIATE = SI and SI.Immediate or 0
 
+-- count: the stack bar and number (pos: BOTTOMRIGHT | CENTER; mark: the number in markColor at
+-- five); active: five stacks
 M.DEFAULTS = {
 	idleWhen = "notup", idleAlpha = 0,
-	stackBar = true, stackBarHeight = 6, stackBarColor = { 0.52, 0.69, 1, 1 },
-	stackCount = true, countPos = "center", countSize = 18,
-	fullCount = true, fullCountColor = { 1, 0.82, 0.25, 1 },
-	fullPop = true,
-	fullGlow = true,
+	count = { bar = true, barHeight = 6, barColor = { 0.52, 0.69, 1, 1 }, number = true, pos = "CENTER", size = 18,
+		mark = true, markColor = { 1, 0.82, 0.25, 1 } },
+	active = { pop = true, glow = true },
 }
-M.RANGES = { stackBarHeight = { 1, 20 }, countSize = { 8, 40 } }
-local CHOICES = { countPos = { corner = true, center = true },
-	idleWhen = { never = true, notup = true, five = true } }
+M.RANGES = { count = { barHeight = { 1, 20, 1 }, size = { 8, 40, 1 } } }
+local CHOICES = { idleWhen = { never = true, notup = true, five = true } }
+local POS = { BOTTOMRIGHT = true, CENTER = true }
 
-local function setting(name) return ns.elementSetting(KEY, name) end
-local function color(name)
-	local c = setting(name)
-	return ns.isColor(c) and c or M.DEFAULTS[name]
+local function setting(name, field) return ns.elementSetting(KEY, name, field) end
+local function count(field) return setting("count", field) end
+local function color(field)
+	local c = count(field)
+	return ns.isColor(c) and c or M.DEFAULTS.count[field]
 end
-local function number(name)
-	local v, r = setting(name), M.RANGES[name]
-	if type(v) ~= "number" or v ~= v then v = M.DEFAULTS[name] end
+local function number(field)
+	local v, r = count(field), M.RANGES.count[field]
+	if type(v) ~= "number" or v ~= v then v = M.DEFAULTS.count[field] end
 	return math.min(math.max(v, r[1]), r[2])
 end
 
@@ -70,7 +71,7 @@ f.tex:SetTexture(M.icon)
 f.aboveProtected = true   -- Blizzard's buttons sit on it: alpha only changes out of combat
 f.stack()
 
-ns.registerElement(KEY, { frame = f, label = Spells.name("maelstromWeapon"), defaults = M.DEFAULTS,
+ns.registerElement(KEY, { frame = f, label = Spells.name("maelstromWeapon"), defaults = M.DEFAULTS, ranges = M.RANGES,
 	learned = function() return src.learned() end, paint = function(t) t:SetTexture(M.icon) end,
 	effects = { glow = { "full" }, pop = { "full" } },
 	standInBorder = true,
@@ -102,8 +103,8 @@ local function byte(v) return math.floor(math.min(math.max(v, 0), 1) * 255 + 0.5
 local function countOptions()
 	if not (C_StringUtil and C_StringUtil.CreateNumericRuleFormatter) then return nil end
 	local code = ""
-	if setting("fullCount") then
-		local c = color("fullCountColor")
+	if count("mark") then
+		local c = color("markColor")
 		code = string.format("|cff%02x%02x%02x", byte(c[1]), byte(c[2]), byte(c[3]))
 	end
 	local id = code .. ":" .. src.max
@@ -140,10 +141,10 @@ local function applyCountFormat(slot)
 end
 
 local function placeCount(fs, button)
-	ns.Media.setFont(fs, nil, number("countSize"))
+	ns.Media.setFont(fs, nil, number("size"))
 	fs:ClearAllPoints()
-	if setting("countPos") == "corner" then
-		local y = -2 + (setting("stackBar") and (number("stackBarHeight") + 1) or 0)
+	if count("pos") == "BOTTOMRIGHT" then
+		local y = -2 + (count("bar") and (number("barHeight") + 1) or 0)
 		fs:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 2, y); fs:SetJustifyH("RIGHT")
 	else
 		fs:SetPoint("CENTER", button, "CENTER", 0, 0); fs:SetJustifyH("CENTER")
@@ -153,7 +154,7 @@ end
 -- 1. The stacks
 -- slot.copy: the copy at five, its parts slot.levelUp higher, its bar always full
 local function styleStacks(slot, size)
-	local on = setting("stackBar")
+	local on = count("bar")
 	local base = baseLevel() + (slot.levelUp or 0)
 	slot.overlay:SetFrameLevel(base + 4)
 	slot.bar:SetFrameLevel(base + 5)
@@ -163,8 +164,8 @@ local function styleStacks(slot, size)
 	-- The copy at five frames itself only over idled stacks: else the stacks' frame shows
 	ns.try("maelstrom border", ns.Frames.dress, slot.edge, KEY, base + 8, slot.copy and idleWhen() ~= "five")
 	if slot.copy and slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
-	local c = color("stackBarColor")
-	slot.bar:SetHeight(number("stackBarHeight"))
+	local c = color("barColor")
+	slot.bar:SetHeight(number("barHeight"))
 	slot.bar:SetStatusBarTexture(ns.Media.barTexture())   -- before the colour
 	slot.bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
 	if slot.copy then
@@ -190,7 +191,7 @@ local function styleStacks(slot, size)
 	for i = src.max, #slot.ticks do slot.ticks[i]:Hide() end
 	slot.bar:SetAlpha(on and 1 or 0)
 	slot.tickFrame:SetAlpha(on and 1 or 0)
-	slot.fs:SetAlpha(setting("stackCount") and 1 or 0)
+	slot.fs:SetAlpha(count("number") and 1 or 0)
 	placeCount(slot.fs, slot.button)
 	applyCountFormat(slot)
 end
@@ -246,7 +247,7 @@ local POP_LEVEL, GLOW_LEVEL, LIGHT_LEVEL = 19, 22, 24
 local SHORTEST = 0.01
 
 local fx = ns.Effects.host(f, KEY, { aura = { popOnly = true, popLevel = 5 + LIGHT_LEVEL,
-	popOn = function() return setting("fullPop") end } })
+	popOn = function() return setting("active", "pop") end } })
 
 local quiet = false
 local function stylePop(slot, size)
@@ -357,7 +358,7 @@ end
 -- Made from the layout or restyle, never as Blizzard makes a button (frames made there can't run
 -- scripts); out of combat with auras readable
 local function setupPop()
-	if pop.container or pop.err or not (gateSlot.gated and setting("fullPop")) then return end
+	if pop.container or pop.err or not (gateSlot.gated and setting("active", "pop")) then return end
 	pop.opts.parent = gateSlot.gateBar
 	quietPop()   -- before the container exists: its first assignment plays nothing
 	pop:setup()
@@ -428,7 +429,7 @@ local function styleFive(slot, size)
 	g:restyle()
 	g:fit(size)
 	-- Shown only when its sensor works: a bar the button refused would leave the clip empty
-	g:SetShown((setting("fullGlow") and slot.sensed) and true or false)
+	g:SetShown((setting("active", "glow") and slot.sensed) and true or false)
 end
 
 local applyIdle
@@ -521,14 +522,14 @@ end
 function M.drawPreview(ic, n)
 	local p = previewParts(ic)
 	local max = src.max
-	local w, h = ic:GetWidth(), number("stackBarHeight")
-	local barOn = n > 0 and setting("stackBar")
+	local w, h = ic:GetWidth(), number("barHeight")
+	local barOn = n > 0 and count("bar")
 	p.bg:ClearAllPoints()
 	p.bg:SetPoint("BOTTOMLEFT", ic, "BOTTOMLEFT", 0, 0)
 	p.bg:SetSize(w, h)
 	p.bg:SetColorTexture(0, 0, 0, 0.6)
 	p.bg:SetShown(barOn)
-	local c = color("stackBarColor")
+	local c = color("barColor")
 	local path, atlas = ns.Media.barOf(ns.Style.value(nil, "bar", "texture"))
 	local segW = (w - (max - 1)) / max
 	for i = 1, math.max(max, #p.segs) do
@@ -541,15 +542,15 @@ function M.drawPreview(ic, n)
 		t:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
 		t:SetShown(barOn and i <= n)
 	end
-	if n > 0 and setting("stackCount") then
-		local fc = color("fullCountColor")
+	if n > 0 and count("number") then
+		local fc = color("markColor")
 		placeCount(ic.count, ic)
 		ic.count:SetText(n)
-		if n == max and setting("fullCount") then ic.count:SetTextColor(fc[1], fc[2], fc[3], 1)
+		if n == max and count("mark") then ic.count:SetTextColor(fc[1], fc[2], fc[3], 1)
 		else ic.count:SetTextColor(1, 1, 1, 1) end
 		ic.count:Show()
 	end
-	ic:SetGlowShown(n >= max and setting("fullGlow"))
+	ic:SetGlowShown(n >= max and setting("active", "glow"))
 end
 
 function M.resolve()
@@ -558,16 +559,19 @@ function M.resolve()
 	return tostring(M.spellID)
 end
 
+-- Numbers are clamped as profiles load (their ranges); colours and choices here
 function M.sanitize(db)
 	local o = type(db.elementOpts) == "table" and db.elementOpts[KEY]
 	if type(o) ~= "table" then return end
-	for name, r in pairs(M.RANGES) do
-		local v = o[name]
-		if v ~= nil and (type(v) ~= "number" or v ~= v) then o[name] = nil
-		elseif v ~= nil then o[name] = math.min(math.max(v, r[1]), r[2]) end
-	end
-	for _, name in ipairs({ "stackBarColor", "fullCountColor" }) do
-		if o[name] ~= nil and not ns.isColor(o[name]) then o[name] = nil end
+	local c = o.count
+	if type(c) == "table" then
+		for _, field in ipairs({ "barHeight", "size" }) do
+			if c[field] ~= nil and type(c[field]) ~= "number" then c[field] = nil end
+		end
+		for _, field in ipairs({ "barColor", "markColor" }) do
+			if c[field] ~= nil and not ns.isColor(c[field]) then c[field] = nil end
+		end
+		if c.pos ~= nil and not POS[c.pos] then c.pos = nil end
 	end
 	for name, ok in pairs(CHOICES) do
 		if o[name] ~= nil and not ok[o[name]] then o[name] = nil end
@@ -589,16 +593,16 @@ M.applyTimers = styleAll
 -- every player UNIT_AURA
 local popWasOn = false
 function M.applyLayout()
-	local popOn = src.learned() and ns.isEnabled(KEY) and setting("fullPop") and true or false
+	local popOn = src.learned() and ns.isEnabled(KEY) and setting("active", "pop") and true or false
 	if popOn and not popWasOn and pop.container then quietPop() end
 	popWasOn = popOn
 	if src.learned() and ns.isEnabled(KEY) then
 		stacks:setup()
-		if setting("fullPop") then
+		if setting("active", "pop") then
 			gateSlot:setup()
 			setupPop()
 		end
-		if setting("fullGlow") or idleWhen() == "five" then five:setup() end
+		if setting("active", "glow") or idleWhen() == "five" then five:setup() end
 	end
 	styleAll()
 	refresh()

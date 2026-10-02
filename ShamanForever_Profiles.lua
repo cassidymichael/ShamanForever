@@ -19,7 +19,140 @@ local ACCOUNT_DEFAULTS = {
 local DEFAULT_PROFILE = "Default"
 ns.DEFAULT_PROFILE = DEFAULT_PROFILE
 -- Share strings carry it: one from a newer version is refused
-local SHARE_VERSION = 6
+local SHARE_VERSION = 7
+
+-- Element settings (db.elementOpts[key]). A state or event is a table of fields, named the same on
+-- every element; an element's defaults declare the fields it has, and pages offer those.
+--   warn    = { on, grey, ring, fade, tint, glow, pop, sound }   something is missing (No shield)
+--   active  = { pop, glow, text, sound }   something to use or act on (primed, a proc, five stacks)
+--   ready   = { pop, glow, sound, blocked }   the cooldown ends; glow while it's ready; blocked: the
+--             pop when it ends but can't be used now (grey | none)
+--   expire  = { secs, grey, ring, fade, glow, bar, barColor, text, over }   the last seconds
+--   ended   = { flash, pop, glow, sound }   it ran out
+--   killed  = { flash, pop, glow, mark }   it ended early
+--   count   = { bar, barHeight, barColor, number, pos, size, mark, markColor }   charges or stacks
+--   reagent = { when, low, lowKeepsShown, color, lowColor, size, pos, x, y, ring, fade }
+-- grey, ring, fade, tint and glow are the looks a state shows; pop and sound play once, as it
+-- starts: warn.pop and warn.sound as the warning begins (an imbue lost, a shield gone). The totem
+-- bar's own settings use the same tables (expire, ended, killed). The effect and pop kind names
+-- (warning, ranout, expired, grounded, killed, primed, ready) are a separate runtime set.
+
+-- Renamed settings, moved as a profile loads or is imported. Drop after launch.
+-- root: a profile key -> element, name, field; element: within any element's settings, name (or
+-- "name.field") -> name, field; totemBar: the same within the totem bar's. In order: a later one wins
+-- where two land in one place.
+local RENAMED = {
+	root = {
+		{ "shieldTrack", "shield", "track" },
+		{ "countPos", "shield", "count", "pos" }, { "countSize", "shield", "count", "size" },
+		{ "showBar", "shield", "count", "bar" }, { "chargeBarHeight", "shield", "count", "barHeight" },
+		{ "chargeBarColor", "shield", "count", "barColor" }, { "showCount", "shield", "count", "number" },
+		{ "countOne", "shield", "count", "mark" }, { "countLastColor", "shield", "count", "markColor" },
+		{ "emptyGrey", "shield", "warn", "grey" }, { "emptyRing", "shield", "warn", "ring" },
+		{ "emptyPulse", "shield", "warn", "fade" }, { "emptyTint", "shield", "warn", "tint" },
+		{ "emptyGlow", "shield", "warn", "glow" },
+		{ "shock", "shock", "track" }, { "manaSpell", "shock", "manaSpell" },
+		{ "manaStyle", "shock", "mana", "look" }, { "manaIntensity", "shock", "mana", "overlay" },
+		{ "manaTint", "shock", "mana", "tint" }, { "manaRing", "shock", "mana", "ring" },
+		{ "rangeStyle", "shock", "range", "look" }, { "rangeIntensity", "shock", "range", "overlay" },
+		{ "rangeTint", "shock", "range", "tint" },
+		{ "imbuePreferred", "imbue", "icon" }, { "imbueWarnMins", "imbue", "showUnderMins" },
+		{ "imbueMissingGrey", "imbue", "warn", "grey" }, { "imbueMissingRing", "imbue", "warn", "ring" },
+		{ "imbuePulse", "imbue", "warn", "fade" }, { "imbueGlow", "imbue", "warn", "glow" },
+		{ "imbuePop", "imbue", "warn", "pop" },
+	},
+	element = {
+		{ "readyPop", "ready", "pop" }, { "readyGlow", "ready", "glow" }, { "readySound", "ready", "sound" },
+		{ "readyNoTotem", "ready", "blocked" },
+		{ "primedPop", "active", "pop" }, { "primedGlow", "active", "glow" },
+		{ "fullPop", "active", "pop" }, { "fullGlow", "active", "glow" },
+		{ "alertPop", "active", "pop" }, { "alertGlow", "active", "glow" }, { "alertText", "active", "text" },
+		{ "alertSound", "active", "sound" },
+		{ "blockedGrey", "warn", "grey" }, { "blockedRing", "warn", "ring" }, { "blockedPulse", "warn", "fade" },
+		{ "missGrey", "warn", "grey" }, { "missRing", "warn", "ring" }, { "missPulse", "warn", "fade" },
+		{ "missGlow", "warn", "glow" },
+		{ "breathWarn", "warn", "on" }, { "breathRing", "warn", "ring" }, { "breathPulse", "warn", "fade" },
+		{ "removedSound", "warn", "sound" }, { "lostSound", "warn", "sound" },
+		{ "expire.pulse", "expire", "fade" },
+		{ "expireSecs", "expire", "secs" }, { "expireBar", "expire", "bar" },
+		{ "expireBarColor", "expire", "barColor" }, { "expireText", "expire", "text" },
+		{ "expiredPop", "ended", "pop" }, { "goneSound", "ended", "sound" },
+		{ "ranOutFlash", "ended", "flash" }, { "ranOutPop", "ended", "pop" }, { "ranOutGlow", "ended", "glow" },
+		-- killed was a switch: it becomes killed.flash before the rest join it
+		{ "killed", "killed", "flash" }, { "killedPop", "killed", "pop" }, { "killedGlow", "killed", "glow" },
+		{ "killedMark", "killed", "mark" },
+		{ "grounded", "killed", "flash" }, { "groundedPop", "killed", "pop" }, { "groundedGlow", "killed", "glow" },
+		{ "stackBar", "count", "bar" }, { "stackBarHeight", "count", "barHeight" },
+		{ "stackBarColor", "count", "barColor" }, { "stackCount", "count", "number" },
+		{ "countPos", "count", "pos" }, { "countSize", "count", "size" },
+		{ "fullCount", "count", "mark" }, { "fullCountColor", "count", "markColor" },
+		{ "reagentCount", "reagent", "when" }, { "reagentLow", "reagent", "low" },
+		{ "reagentShow", "reagent", "lowKeepsShown" }, { "reagentColor", "reagent", "color" },
+		{ "reagentLowColor", "reagent", "lowColor" }, { "reagentSize", "reagent", "size" },
+		{ "reagentPos", "reagent", "pos" }, { "reagentX", "reagent", "x" }, { "reagentY", "reagent", "y" },
+		{ "reagentRing", "reagent", "ring" }, { "reagentPulse", "reagent", "fade" },
+	},
+	-- Old values, within any element's settings: name -> field -> old -> new
+	values = { count = { pos = { center = "CENTER", corner = "BOTTOMRIGHT" } } },
+	totemBar = {
+		{ "warn", "expire", "secs" }, { "warnGrey", "expire", "grey" }, { "warnRing", "expire", "ring" },
+		{ "warnPulse", "expire", "fade" }, { "warnGlow", "expire", "glow" }, { "warnOver", "expire", "over" },
+		{ "expiredPop", "ended", "pop" }, { "goneSound", "ended", "sound" },
+		{ "killed", "killed", "flash" }, { "killedPop", "killed", "pop" }, { "killedGlow", "killed", "glow" },
+		{ "killedMark", "killed", "mark" },
+	},
+}
+
+local function put(t, name, field, v)
+	if field == nil then t[name] = v return end
+	local into = t[name]
+	if type(into) ~= "table" then into = {}; t[name] = into end
+	into[field] = v
+end
+local function rename(t, list)
+	for _, r in ipairs(list) do
+		local from, old = t, r[1]
+		local outer, inner = old:match("^(%w+)%.(%w+)$")
+		if outer then from, old = type(t[outer]) == "table" and t[outer] or {}, inner end
+		local v = from[old]
+		-- A table under a name the new shape shares (killed) has moved already
+		if v ~= nil and not (from == t and old == r[2] and type(v) == "table") then
+			from[old] = nil
+			put(t, r[2], r[3], v)
+		end
+	end
+end
+
+-- The renames, on a profile as saved or as imported
+function P.migrate(profile)
+	if type(profile) ~= "table" then return end
+	if type(profile.elementOpts) ~= "table" then profile.elementOpts = {} end
+	local opts = profile.elementOpts
+	for _, r in ipairs(RENAMED.root) do
+		local v = profile[r[1]]
+		if v ~= nil then
+			profile[r[1]] = nil
+			if type(opts[r[2]]) ~= "table" then opts[r[2]] = {} end
+			local o = opts[r[2]]
+			-- An element's own setting wins over the old profile one
+			if r[4] == nil then
+				if o[r[3]] == nil then o[r[3]] = v end
+			elseif type(o[r[3]]) ~= "table" or o[r[3]][r[4]] == nil then put(o, r[3], r[4], v) end
+		end
+	end
+	for _, o in pairs(opts) do
+		if type(o) == "table" then
+			rename(o, RENAMED.element)
+			for name, fields in pairs(RENAMED.values) do
+				local t = o[name]
+				for field, map in pairs(fields) do
+					if type(t) == "table" and map[t[field]] then t[field] = map[t[field]] end
+				end
+			end
+		end
+	end
+	if type(profile.totemBar) == "table" then rename(profile.totemBar, RENAMED.totemBar) end
+end
 
 local function acct() return ns.getAccount() end
 
@@ -138,17 +271,10 @@ function P.export()
 	return text
 end
 
--- Clamped; NaN falls back to the default. Modules add their settings' ranges (P.addRanges).
+-- Clamped; NaN falls back to the default. Elements' numbers clamp to their registered ranges.
 local RANGES = { iconSize = { 24, 96 } }
 local GROUP_RANGES = { scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { -20, 40 }, size = { 24, 96 },
 	x = { -10000, 10000 }, y = { -10000, 10000 }, fadeAfter = { 0, 10 } }
-local ELEMENT_RANGES = { idleAlpha = { 0, 1 } }
-local EXPIRE_RANGES = { secs = { 0, 120 } }
--- profile: the profile's own settings; element: elements' options
-function P.addRanges(profile, element)
-	for k, r in pairs(profile or {}) do RANGES[k] = r end
-	for k, r in pairs(element or {}) do ELEMENT_RANGES[k] = r end
-end
 local function clampNumbers(t, ranges, defaults)
 	for k, r in pairs(ranges) do
 		local v = t[k]
@@ -158,8 +284,62 @@ local function clampNumbers(t, ranges, defaults)
 	end
 end
 
+-- An element's numbers, its states' and events' too, within its ranges; NaN is unset
+local function clampElement(o, ranges)
+	for k, r in pairs(ranges) do
+		local v = o[k]
+		if r[1] == nil then
+			if type(v) == "table" then clampElement(v, r) end
+		elseif type(v) == "number" then
+			if v ~= v then o[k] = nil else o[k] = math.min(math.max(v, r[1]), r[2]) end
+		end
+	end
+end
+
+-- A saved value of another type than its default is dropped. A list or colour takes values of its
+-- default's first one's type; a state or event table, its fields the same way; an empty default's
+-- contents are left to its owner.
+local function dropMistyped(t, defaults)
+	for k, d in pairs(defaults) do
+		local v = t[k]
+		if v ~= nil then
+			if type(v) ~= type(d) then t[k] = nil
+			elseif type(d) == "table" then
+				if d[1] ~= nil then
+					local want = type(d[1])
+					for _, x in pairs(v) do
+						if type(x) ~= want then t[k] = nil break end
+					end
+				elseif next(d) ~= nil then dropMistyped(v, d) end
+			end
+		end
+	end
+end
+
+-- Elements' settings and the bars' own, as a profile loads or is imported (share strings are
+-- untrusted)
+function P.cleanSettings(profile)
+	local opts = profile.elementOpts
+	if type(opts) == "table" then
+		for key, o in pairs(opts) do
+			local e = ns.ELEMENTS[key]
+			if type(key) ~= "string" or type(o) ~= "table" then opts[key] = nil
+			elseif e then
+				dropMistyped(o, e.defaults or {})
+				clampElement(o, e.ranges)
+			end
+		end
+	end
+	for _, name in ipairs(ns.Style.bars()) do
+		local bar = ns.Style.bar(name)
+		local t = bar.saved and profile[bar.saved]
+		if type(t) == "table" then dropMistyped(t, bar.defaults) end
+	end
+end
+
 local function cleanProfile(t)
 	local DEFAULTS, GROUP_DEFAULTS = ns.DEFAULTS, ns.GROUP_DEFAULTS
+	P.migrate(t)   -- renamed settings: drop after launch
 	local out = {}
 	for k, default in pairs(DEFAULTS) do
 		if type(t[k]) == type(default) then out[k] = t[k] end
@@ -173,15 +353,7 @@ local function cleanProfile(t)
 	for k, default in pairs(DEFAULTS) do
 		if ns.isColor(default) and out[k] and not ns.isColor(out[k]) then out[k] = nil end
 	end
-	if out.elementOpts then
-		for key, o in pairs(out.elementOpts) do
-			if type(key) ~= "string" or type(o) ~= "table" then out.elementOpts[key] = nil
-			else
-				clampNumbers(o, ELEMENT_RANGES)
-				if type(o.expire) == "table" then clampNumbers(o.expire, EXPIRE_RANGES) end
-			end
-		end
-	end
+	P.cleanSettings(out)
 	if out.groups then
 		local groups = {}
 		for _, g in ipairs(out.groups) do

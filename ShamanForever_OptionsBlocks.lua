@@ -438,29 +438,6 @@ local function popBlock(p, owner, icon, kind)
 	if owner == nil then ownLine(p, "pop") end
 end
 
-local function expiringLooks(p, get, set, noun, shown, only)
-	local offer = {}
-	for _, k in ipairs(only or { "grey", "ring", "pulse", "glow" }) do offer[k] = true end
-	if offer.grey then p:checkbox("Grey icon", "Desaturate the icon.", get("grey"), set("grey"), shown) end
-	if offer.ring then p:checkbox("Red ring", "A red ring inside the icon edge.", get("ring"), set("ring"), shown) end
-	if offer.pulse then p:checkbox("Fade in and out", nil, get("pulse"), set("pulse"), shown) end
-	if offer.glow then
-		p:checkbox("Pulsing glow", "A glow inside the " .. noun .. " that pulses.", get("glow"), set("glow"), shown)
-	end
-end
-
-local function killedBlock(p, get, set, noun, label)
-	p:header("Killed early")
-	local killed = p:checkbox(label, "The dead totem flashes red over its " .. noun .. ". Not when you dismiss it or it runs out.",
-		get("killed"), set("killed"))
-	p:sub(killed, get("killed"), function()
-		p:checkbox("Pop", "The " .. noun .. " bursts for a moment.", get("killedPop"), set("killedPop"))
-		p:checkbox("Pulsing glow", "In red.", get("killedGlow"), set("killedGlow"))
-		p:checkbox("Cross until recast", "A red cross stays over the " .. noun .. " until you recast it, up to 5 s.",
-			get("killedMark"), set("killedMark"))
-	end)
-end
-
 local function fontChoices(current)
 	local out = {}
 	for _, f in ipairs(ns.Media.fonts(current)) do
@@ -594,18 +571,25 @@ end
 K.globalRow, K.ownLine, K.borderRows, K.frameRows, K.barFramed = globalRow, ownLine, borderRows, frameRows, barFramed
 K.timerSettings, K.gcdBlock, K.glowBlock, K.popBlock = timerSettings, gcdBlock, glowBlock, popBlock
 K.textBlock, K.barRows, K.barBlock = textBlock, barRows, barBlock
-K.expiringLooks, K.killedBlock = expiringLooks, killedBlock
 
 -- Element blocks
 local SHOW_CHOICES = K.SHOW_CHOICES
 local function db() return ns.getDB() end
-function K.eopt(p, key, name)
-	p:owns({ elem = key, name = name, after = relayout })
-	return function() return ns.elementSetting(key, name) end,
-		function(v) ns.elementOpts(key)[name] = v; relayout() end
+-- An element's setting: name, or a field of its state or event table name (_Profiles)
+function K.eopt(p, key, name, field, after)
+	after = after or relayout
+	p:owns({ elem = key, name = name, field = field, after = after })
+	return function() return ns.elementSetting(key, name, field) end,
+		function(v) ns.setElementSetting(key, name, field, v); after() end
 end
 local eopt = K.eopt
-local function eread(key, name) return function() return ns.elementSetting(key, name) end end
+local function eread(key, name, field) return function() return ns.elementSetting(key, name, field) end end
+-- A slider over the setting's registered range
+local function eslider(p, key, label, tip, fmt, shown, name, field)
+	local r = ns.elementRange(key, name, field)
+	local get, set = eopt(p, key, name, field)
+	return p:slider(label, tip, r[1], r[2], r[3] or 1, fmt, get, set, shown)
+end
 
 local function groupMenu(key)
 	return function(_, root)
@@ -658,14 +642,6 @@ local function elementDisplay(p, key)
 	end
 end
 
-local function readyBlock(p, key, glowTip, afterPop)
-	p:header("Ready")
-	p:checkbox("Pop", "The moment the cooldown ends.", eopt(p, key, "readyPop"))
-	if afterPop then afterPop() end
-	if glowTip then p:checkbox("Pulsing glow", glowTip, eopt(p, key, "readyGlow")) end
-	ns.Sounds.row(p, "Sound", "The moment the cooldown ends.", eopt(p, key, "readySound"))
-end
-
 -- Idle block, from the element's def (idleChoices, idleText, idleExtra).
 local function idleBlock(p, def)
 	local key, choices = def.key, def.idleChoices
@@ -695,13 +671,12 @@ local function idleBlock(p, def)
 	end
 	local extra = def.idleExtra
 	if extra then
-		local extraGet, extraSet = eopt(p, key, extra.key)
+		local extraGet, extraSet = eopt(p, key, extra.name, extra.field)
 		p:dropdown(extra.label, extra.tip, extra.choices, extraGet, extraSet,
 			choices and showWhen(function() return not never() end) or nil, 230)
 	end
-	local alphaGet, alphaSet = eopt(p, key, "idleAlpha")
-	p:slider("Idle opacity", "The icon's opacity while idle.", 0, 1, 0.05, pct, alphaGet, alphaSet,
-		choices and showWhen(function() return not never() end) or nil)
+	eslider(p, key, "Idle opacity", "The icon's opacity while idle.", pct,
+		choices and showWhen(function() return not never() end) or nil, "idleAlpha")
 end
 
 local function lookBlocks(p, key)
@@ -714,95 +689,199 @@ local function lookBlocks(p, key)
 	K.frameRows(p, key, "frame", relayout)
 end
 
-local function warningBlock(p, title, opt, names, first)
-	p:header(title)
-	if first then first() end
-	p:checkbox("Grey icon", "Desaturate the icon.", opt(names[1]))
-	p:checkbox("Red ring", "A red ring inside the icon edge.", opt(names[2]))
-	p:checkbox("Fade in and out", nil, opt(names[3]))
+
+-- States and events (the shapes: _Profiles). A block's owner is an element (its key) or a bar (its
+-- name); it offers the fields the owner's defaults declare, and is left out when there are none.
+-- opts.tips: a row's tip by field, over the standard one.
+local function store(p, owner, after)
+	local s = {}
+	if ns.ELEMENTS[owner] then
+		function s.get(name, field) return eread(owner, name, field) end
+		function s.opt(name, field) return eopt(p, owner, name, field, after) end
+		function s.default(name) return ns.elementDefault(owner, name) end
+		function s.range(name, field) return ns.elementRange(owner, name, field) end
+	else
+		local bar = ns.Style.bar(owner)
+		after = after or relayout
+		function s.get(name, field)
+			return function()
+				local v = bar.cfg()[name]
+				if field then return v[field] end
+				return v
+			end
+		end
+		function s.opt(name, field)
+			p:owns({ bar = owner, name = name, field = field, after = after })
+			return s.get(name, field), function(v)
+				local c = bar.cfg()
+				if field then c[name][field] = v else c[name] = v end
+				after()
+			end
+		end
+		function s.default(name) return bar.defaults[name] end
+		function s.range(name, field)
+			local r = bar.ranges and bar.ranges[name]
+			if field then r = r and r[field] end
+			return r
+		end
+	end
+	function s.has(name, field)
+		local d = s.default(name)
+		if field == nil then return d ~= nil end
+		return type(d) == "table" and d[field] ~= nil
+	end
+	return s
+end
+
+local function tipOf(opts, field, standard)
+	return opts.tips and opts.tips[field] or standard
+end
+local function check(p, s, name, field, label, tip, shown)
+	if not s.has(name, field) then return end
+	local get, set = s.opt(name, field)
+	return p:checkbox(label, tip, get, set, shown)
+end
+local function soundRow(p, s, name, label, tip, shown, choices)
+	if not s.has(name, "sound") then return end
+	local get, set = s.opt(name, "sound")
+	return ns.Sounds.row(p, label, tip, get, set, shown, choices)
+end
+
+-- The looks a state shows, in this order; %s in a tip: opts.noun ("icon" or "slot")
+local LOOKS = {
+	{ "grey", "Grey icon", "Desaturate the icon." },
+	{ "ring", "Red ring", "A red ring inside the icon edge." },
+	{ "fade", "Fade in and out" },
+	{ "tint", "Red tint", "Tint the icon red." },
+	{ "glow", "Pulsing glow", "A glow inside the %s that pulses." },
+}
+local function lookRows(p, s, name, opts, shown)
+	for _, l in ipairs(LOOKS) do
+		local tip = tipOf(opts, l[1], l[3])
+		check(p, s, name, l[1], l[2], tip and tip:format(opts.noun or "icon"), shown)
+	end
+end
+
+-- warn: opts.title, first() (rows above its looks), on = { label, tip } (its switch, when it has
+-- one), noun, sounds (the sound choices), after
+local function warnBlock(p, owner, opts)
+	local s = store(p, owner, opts.after)
+	if not s.has("warn") then return end
+	p:header(opts.title)
+	if opts.first then opts.first() end
+	local function rows()
+		lookRows(p, s, "warn", opts)
+		check(p, s, "warn", "pop", "Pop", tipOf(opts, "pop"))
+		soundRow(p, s, "warn", "Sound", tipOf(opts, "sound"), nil, opts.sounds)
+	end
+	if s.has("warn", "on") then
+		local get, set = s.opt("warn", "on")
+		local on = p:checkbox(opts.on[1], opts.on[2], get, set)
+		p:sub(on, get, rows)
+	else rows() end
+end
+
+-- ready: opts.glowTip, afterPop(s) (rows under its pop)
+local function readyBlock(p, owner, opts)
+	opts = opts or {}
+	local s = store(p, owner, opts.after)
+	if not s.has("ready") then return end
+	p:header("Ready")
+	check(p, s, "ready", "pop", "Pop", "The moment the cooldown ends.")
+	if opts.afterPop then opts.afterPop(s) end
+	check(p, s, "ready", "glow", "Pulsing glow", opts.glowTip or "While it's off cooldown.")
+	soundRow(p, s, "ready", "Sound", "The moment the cooldown ends.")
+end
+
+-- active: opts.title, text, extra(s) (rows under its glow); shown with a text even with no fields
+local function activeBlock(p, owner, opts)
+	local s = store(p, owner, opts.after)
+	if not (s.has("active") or opts.text) then return end
+	p:header(opts.title)
+	if opts.text then p:text(opts.text) end
+	check(p, s, "active", "pop", "Pop", tipOf(opts, "pop"))
+	check(p, s, "active", "glow", "Pulsing glow", tipOf(opts, "glow"))
+	if opts.extra then opts.extra(s) end
+	soundRow(p, s, "active", "Sound", tipOf(opts, "sound"))
+end
+
+-- expire, then ended (it ran out): opts.afterSecs(s) (rows under Warn in the last), warns() (whether
+-- its looks can show; default: Warn in the last isn't off), noun, after
+local function expiringBlock(p, owner, opts)
+	opts = opts or {}
+	local s = store(p, owner, opts.after)
+	if not s.has("expire") then return end
+	p:header("Expiring")
+	local r = s.range("expire", "secs")
+	local secs, setSecs = s.opt("expire", "secs")
+	p:slider("Warn in the last", "Seconds before it runs out. Zero turns the warning off.", r[1], r[2], r[3] or 1,
+		function(v) return v == 0 and "Off" or string.format("%d s", v) end, secs, setSecs)
+	if opts.afterSecs then opts.afterSecs(s) end
+	local warns = showWhen(opts.warns or function() return (secs() or 0) > 0 end)
+	lookRows(p, s, "expire", opts, warns)
+	local bar = check(p, s, "expire", "bar", "Bar colour", "The time bar takes this colour in the last seconds.", warns)
+	if bar and s.has("expire", "barColor") then
+		local get, set = s.opt("expire", "barColor")
+		p:color("Colour", nil, get, set, showWhen(s.get("expire", "bar"), warns))
+	end
+	check(p, s, "expire", "text", "Red countdown", "The countdown turns red in the last seconds.", warns)
+	if s.has("ended", "flash") then
+		local get, set = s.opt("ended", "flash")
+		local flash = p:checkbox("Flash when it runs out", "Its icon, greyed under its colour, with an hourglass.", get, set)
+		p:sub(flash, get, function()
+			check(p, s, "ended", "pop", "Pop", "The icon bursts for a moment.")
+			check(p, s, "ended", "glow", "Pulsing glow", "In its colour.")
+		end)
+	else
+		check(p, s, "ended", "pop", "Pop when it runs out", tipOf(opts, "endPop", "It pops and fades the moment it runs out."))
+	end
+	soundRow(p, s, "ended", "Sound when it ends", tipOf(opts, "endSound"))
+end
+
+-- killed: opts.title, flash = { label, tip }, noun, after
+local function killedBlock(p, owner, opts)
+	local s = store(p, owner, opts.after)
+	if not s.has("killed") then return end
+	local noun = opts.noun or "icon"
+	p:header(opts.title or "Killed early")
+	local get, set = s.opt("killed", "flash")
+	local flash = p:checkbox(opts.flash[1], opts.flash[2], get, set)
+	p:sub(flash, get, function()
+		check(p, s, "killed", "pop", "Pop", ("The %s bursts for a moment."):format(noun))
+		check(p, s, "killed", "glow", "Pulsing glow", tipOf(opts, "glow", "In red."))
+		check(p, s, "killed", "mark", "Cross until recast",
+			("A red cross stays over the %s until you recast it, up to 5 s."):format(noun))
+	end)
 end
 
 local COUNT_POINTS = { { "BOTTOMRIGHT", "Bottom right" }, { "BOTTOMLEFT", "Bottom left" }, { "TOPRIGHT", "Top right" },
 	{ "TOPLEFT", "Top left" }, { "CENTER", "Centre" } }
 
 local COUNT_WHEN = { { "always", "Always" }, { "low", "When low or none" }, { "never", "Never" } }
+-- The reagent part: its count, then its None left look
 local function reagentBlocks(p, def)
 	local key = def.key
 	p:header("Reagent")
 	p:text("Only counted if the spell still needs one.")
-	local countGet, countSet = eopt(p, key, "reagentCount")
+	local countGet, countSet = eopt(p, key, "reagent", "when")
 	p:dropdown("Show count", "How many you carry, on the icon.", COUNT_WHEN, countGet, countSet, nil, 170)
-	local counted = showWhen(function() return ns.elementSetting(key, "reagentCount") ~= "never" end)
-	p:slider("Low at", "At this many or fewer, the count takes the low colour, and Idle can count it as running low.", 0, 10, 1, int, eopt(p, key, "reagentLow"))
-	local colorGet, colorSet = eopt(p, key, "reagentColor")
+	local counted = showWhen(function() return countGet() ~= "never" end)
+	eslider(p, key, "Low at", "At this many or fewer, the count takes the low colour, and Idle can count it as running low.",
+		int, nil, "reagent", "low")
+	local colorGet, colorSet = eopt(p, key, "reagent", "color")
 	p:color("Count colour", "While you have enough.", colorGet, colorSet, counted)
-	local lowGet, lowSet = eopt(p, key, "reagentLowColor")
+	local lowGet, lowSet = eopt(p, key, "reagent", "lowColor")
 	p:color("Low colour", "At the Low mark or below, and at none.", lowGet, lowSet, counted)
-	local sizeGet, sizeSet = eopt(p, key, "reagentSize")
-	p:slider("Text size", "At the default icon size; it grows with the icon.", 8, 40, 1, int, sizeGet, sizeSet, counted)
-	local posGet, posSet = eopt(p, key, "reagentPos")
+	eslider(p, key, "Text size", "At the default icon size; it grows with the icon.", int, counted, "reagent", "size")
+	local posGet, posSet = eopt(p, key, "reagent", "pos")
 	p:dropdown("Position", nil, COUNT_POINTS, posGet, posSet, counted, 150)
-	local xGet, xSet = eopt(p, key, "reagentX")
-	p:slider("Text X offset", nil, -50, 50, 1, px, xGet, xSet, counted)
-	local yGet, ySet = eopt(p, key, "reagentY")
-	p:slider("Text Y offset", nil, -50, 50, 1, px, yGet, ySet, counted)
+	eslider(p, key, "Text X offset", nil, px, counted, "reagent", "x")
+	eslider(p, key, "Text Y offset", nil, px, counted, "reagent", "y")
 	p:header("None left")
-	p:checkbox("Red ring", "A red ring inside the icon edge.", eopt(p, key, "reagentRing"))
-	p:checkbox("Fade in and out", nil, eopt(p, key, "reagentPulse"))
+	lookRows(p, store(p, key), "reagent", {})
 end
 
-
-local function primedBlock(p, def)
-	local key = def.key
-	p:header("Primed")
-	if def.primed.text then p:text(def.primed.text) end
-	if def.primedLooks == false then return end
-	p:checkbox("Pop", "The moment it's primed.", eopt(p, key, "primedPop"))
-	p:checkbox("Pulsing glow", "While it's primed.", eopt(p, key, "primedGlow"))
-end
-
-local function groundedBlock(p, key)
-	p:header("Grounded")
-	p:checkbox("Flash when it takes a spell", "The totem flashes blue over its icon when it ends early: it took a spell, or was destroyed.",
-		eopt(p, key, "grounded"))
-	local on = showWhen(eread(key, "grounded"))
-	local popGet, popSet = eopt(p, key, "groundedPop")
-	p:checkbox("Pop", "The icon bursts for a moment.", popGet, popSet, on)
-	local glowGet, glowSet = eopt(p, key, "groundedGlow")
-	p:checkbox("Pulsing glow", "In blue.", glowGet, glowSet, on)
-end
-
-local function expiringBlock(p, key, maxSecs, step, only)
-	local function xget(k) return function() return ns.Timer.expireOpts(key)[k] end end
-	local function xdefault(k) return function()
-		local v, own = ns.Timer.EXPIRE_DEFAULTS[k], ns.elementDefault(key, "expire")
-		if type(own) == "table" and type(own[k]) == type(v) then v = own[k] end
-		return v
-	end end
-	local function xset(k)
-		p:owns({ elem = key, name = "expire", field = k, default = xdefault(k), after = relayout })
-		return function(v)
-			local o = ns.elementOpts(key)
-			if type(o.expire) ~= "table" then o.expire = {} end
-			o.expire[k] = v
-			relayout()
-		end
-	end
-	p:header("Expiring")
-	p:slider("Warn in the last", "Seconds before it runs out. Zero turns the warning off.", 0, maxSecs, step,
-		function(v) return v == 0 and "Off" or string.format("%d s", v) end, xget("secs"), xset("secs"))
-	expiringLooks(p, xget, xset, "icon", showWhen(function() return ns.Timer.expireOpts(key).secs > 0 end), only)
-end
-
-local function procBlock(p, def, opt)
-	p:header(def.procHeader or ns.Spells.name("clearcasting"))
-	if not def.noPop then
-		p:checkbox("Pop", def.popTip or "The moment it procs.", opt("primedPop"))
-	end
-	p:checkbox("Pulsing glow", def.glowTip or "While it's up.", opt("primedGlow"))
-end
-
-K.eopt, K.eread, K.COUNT_POINTS = eopt, eread, COUNT_POINTS
-K.elementDisplay, K.readyBlock, K.idleBlock, K.lookBlocks = elementDisplay, readyBlock, idleBlock, lookBlocks
-K.warningBlock, K.primedBlock, K.reagentBlocks, K.groundedBlock = warningBlock, primedBlock, reagentBlocks, groundedBlock
-K.expiringBlock, K.procBlock = expiringBlock, procBlock
+K.eopt, K.eread, K.eslider, K.COUNT_POINTS = eopt, eread, eslider, COUNT_POINTS
+K.elementDisplay, K.idleBlock, K.lookBlocks, K.reagentBlocks = elementDisplay, idleBlock, lookBlocks, reagentBlocks
+K.warnBlock, K.readyBlock, K.activeBlock, K.expiringBlock, K.killedBlock = warnBlock, readyBlock, activeBlock,
+	expiringBlock, killedBlock

@@ -75,39 +75,6 @@ local DEFAULTS = {
 	},
 	known = {},
 	elementOpts = {},
-	-- shield
-	shieldTrack = "lightning",   -- lightning | water | either
-	countPos = "CENTER",
-	countSize = 20,
-	showBar = true,
-	chargeBarHeight = 8,
-	chargeBarColor = { 0.42, 0.84, 1, 1 },
-	showCount = false,
-	countOne = false,
-	countLastColor = { 1, 0.25, 0.2, 1 },
-	emptyRing = true,
-	emptyGrey = true,
-	emptyTint = false,
-	emptyPulse = false,
-	emptyGlow = true,
-	-- shock
-	shock = "earth",
-	manaSpell = "tracked",   -- tracked | earth | flame | frost
-	manaRing = 0.6,
-	manaStyle = "both",   -- overlay | tint | both
-	manaIntensity = 0.25,
-	manaTint = 0.8,
-	rangeStyle = "tint",   -- overlay | tint | both
-	rangeIntensity = 0.45,
-	rangeTint = 0.7,
-	-- weapon imbue
-	imbuePreferred = "last",   -- last | rockbiter | flametongue | frostbrand | windfury
-	imbueMissingRing = true,
-	imbueMissingGrey = true,
-	imbuePulse = true,
-	imbueGlow = true,
-	imbuePop = true,
-	imbueWarnMins = 5,   -- minutes (0: never)
 	totemBar = {},
 	swingBar = {},
 	timers = { cooldown = CopyTable(ns.Timer.DEFAULTS.cooldown), uptime = CopyTable(ns.Timer.DEFAULTS.uptime) },
@@ -134,15 +101,22 @@ local ELEMENT_KEYS = {}
 -- the part its border is drawn on; shape "bar": a bar, not an icon (takes only the border
 -- parts that fit a bar); paint: what stands in for it in the options and while dragging;
 -- standInBorder: preview's stand-in draws its border; learned(): none means always; kind: picks its
--- options page and preview; effects = { glow = { states }, pop = { states }, popKind };
+-- options page and preview; defaults: its settings' defaults, which also declare the fields of each
+-- state and event it has (_Profiles has the vocabulary); ranges: its numbers' { min, max, step },
+-- shaped as its defaults; effects = { glow = { states }, pop = { states }, popKind };
 -- ownSchool(): the school its pop and glow take now, where that follows its state; styles: its own
 -- shipped look, { kind = fields }; timerCant: timer parts it can't have, and why
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
 local NO_EFFECTS = { glow = {}, pop = {} }
+local BASE_RANGES = { idleAlpha = { 0, 1, 0.05 } }
 function ns.registerElement(key, e)
 	e.getSize = e.getSize or iconSize
 	e.effects = e.effects or NO_EFFECTS
+	e.ranges = e.ranges or {}
+	for name, r in pairs(BASE_RANGES) do
+		if e.ranges[name] == nil then e.ranges[name] = r end
+	end
 	e.stack = e.stack or e.frame.stack
 	if e.styles then ns.Style.setOwnerDefaults(key, e.styles) end
 	if e.timerCant then ns.Timer.CANT[key] = e.timerCant end
@@ -231,16 +205,47 @@ local function elementOpts(key)
 	return o
 end
 
--- An element's option with its default (the registry entry's defaults); every element starts with
--- its pops on and its "use me" glows off
-local function elementDefault(key, name)
+-- An element's settings: one value (show, idleWhen), or a state or event table read by field
+-- (warn, grey). Unset falls back to the element's defaults.
+local function elementDefault(key, name, field)
 	local own = ELEMENTS[key] and ELEMENTS[key].defaults
-	if own then return own[name] end
+	local v = own and own[name]
+	if field == nil then return v end
+	if type(v) ~= "table" then return nil end
+	return v[field]
 end
-local function elementSetting(key, name)
+local function elementSetting(key, name, field)
 	local v = elementOpts(key)[name]
-	if v == nil then return elementDefault(key, name) end
+	if field ~= nil then
+		if type(v) == "table" then v = v[field] else v = nil end
+	end
+	if v == nil then return elementDefault(key, name, field) end
 	return v
+end
+local function setElementSetting(key, name, field, v)
+	local o = elementOpts(key)
+	if field == nil then o[name] = v return end
+	local t = o[name]
+	if type(t) ~= "table" then t = {}; o[name] = t end
+	t[field] = v
+end
+-- A state or event with its defaults filled in, as a new table (not for every frame)
+local function elementEvent(key, name)
+	local d, o = elementDefault(key, name), elementOpts(key)[name]
+	if type(d) ~= "table" then return nil end
+	local out = {}
+	for k, v in pairs(d) do
+		local mine
+		if type(o) == "table" then mine = o[k] end
+		if mine ~= nil and type(mine) == type(v) then out[k] = mine else out[k] = v end
+	end
+	return out
+end
+-- A number's { min, max, step }
+local function elementRange(key, name, field)
+	local r = ELEMENTS[key] and ELEMENTS[key].ranges[name]
+	if field ~= nil then r = type(r) == "table" and r[field] or nil end
+	return r
 end
 local function idleAlpha(key)
 	local v = elementSetting(key, "idleAlpha")
@@ -384,6 +389,7 @@ end
 -- Makes db.groups consistent: fills fields, ids and names, drops unknown and duplicate members,
 -- places elements never seen before
 local function sanitize()
+	ns.Profiles.cleanSettings(db)
 	each("sanitize", db, acct)
 	if type(db.groups) ~= "table" then db.groups = {} end
 	if type(db.known) ~= "table" then db.known = {} end
@@ -771,11 +777,21 @@ local function fillDefaults(t, defaults)
 		if t[k] == nil then t[k] = type(v) == "table" and CopyTable(v) or v end
 	end
 end
+-- As fillDefaults, one level deeper: a state or event table already in t gets its missing fields
+-- (lists, colours and ranges are taken whole)
+local function fillParts(t, defaults)
+	for k, v in pairs(defaults) do
+		local have = t[k]
+		if have == nil then t[k] = type(v) == "table" and CopyTable(v) or v
+		elseif type(have) == "table" and type(v) == "table" and v[1] == nil then fillDefaults(have, v) end
+	end
+end
 
 local function selectProfile(name)
 	if type(acct.profiles[name]) ~= "table" then acct.profiles[name] = {} end
 	profileName, db = name, acct.profiles[name]
 	for _, k in ipairs(RETIRED_KEYS) do db[k] = nil end
+	ns.Profiles.migrate(db)   -- renamed settings: drop after launch
 	fillDefaults(db, DEFAULTS)
 	sanitize()
 	ns.Profiles.remember(name)
@@ -795,13 +811,14 @@ end
 ns.getDB = function() return db end
 ns.getAccount = function() return acct end
 ns.profileName = function() return profileName end
-ns.useProfile, ns.selectProfile, ns.fillDefaults = useProfile, selectProfile, fillDefaults
+ns.useProfile, ns.selectProfile, ns.fillDefaults, ns.fillParts = useProfile, selectProfile, fillDefaults, fillParts
 ns.DEFAULTS, ns.GROUP_DEFAULTS = DEFAULTS, GROUP_DEFAULTS
 ns.ELEMENTS, ns.ELEMENT_KEYS = ELEMENTS, ELEMENT_KEYS
 ns.isActive = function() return isActive end
 ns.isEnabled, ns.showMode = isEnabled, showMode
 ns.isLearned = isLearned
 ns.elementOpts, ns.elementSetting, ns.elementDefault, ns.idleAlpha = elementOpts, elementSetting, elementDefault, idleAlpha
+ns.setElementSetting, ns.elementEvent, ns.elementRange = setElementSetting, elementEvent, elementRange
 ns.groupOf, ns.groupById = groupOf, groupById
 ns.groupFrames, ns.groupSize, ns.sizeOf, ns.boxOf = groupFrames, groupSize, sizeOf, boxOf
 ns.setGroupCenter, ns.screenCenter = setGroupCenter, screenCenter
