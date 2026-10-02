@@ -156,8 +156,7 @@ local function previewBorder(owner)
 	return ns.Style.read(o, "border")
 end
 
--- A style block's preview: tiles from a pool wearing the owner's styles; the element frame only
--- -- when framed.
+-- A style block's preview: pooled tiles in the owner's styles; framed adds its element frame.
 local PREVIEW_SIZE, SCHOOL_GAP = 40, 72
 local NO_FRAME = { look = "none" }
 local function previewTiles(f, owner, icon, x, bySchool, framed)
