@@ -13,10 +13,7 @@ local ACCOUNT_DEFAULTS = {
 	hideIssueReporter = false,
 	minimalArt = false,
 	keepOptionsOpen = false,
-	lastShield = "lightning",
-	imbueIDs = {},
 	foldedBlocks = {},
-	fearCasters = {},
 	profiles = {},
 	chars = {},
 }
@@ -144,17 +141,17 @@ function P.export()
 	return text
 end
 
--- Clamped; NaN falls back to the default
-local RANGES = {
-	iconSize = { 24, 96 }, countSize = { 8, 64 }, chargeBarHeight = { 1, 20 },
-	manaRing = { 0.1, 1 }, manaIntensity = { 0.1, 1 },
-	manaTint = { 0.1, 1 }, rangeIntensity = { 0.1, 1 }, rangeTint = { 0.1, 1 }, imbueWarnMins = { 0, 30 },
-}
+-- Clamped; NaN falls back to the default. Modules add their settings' ranges (P.addRanges).
+local RANGES = { iconSize = { 24, 96 } }
 local GROUP_RANGES = { scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { -20, 40 }, size = { 24, 96 },
 	x = { -10000, 10000 }, y = { -10000, 10000 }, fadeAfter = { 0, 10 } }
-local ELEMENT_RANGES = { idleAlpha = { 0, 1 }, reagentLow = { 0, 10 }, reagentSize = { 8, 40 },
-	reagentX = { -50, 50 }, reagentY = { -50, 50 }, wordSize = { 8, 40 }, wordX = { -100, 100 }, wordY = { -100, 100 } }
+local ELEMENT_RANGES = { idleAlpha = { 0, 1 } }
 local EXPIRE_RANGES = { secs = { 0, 120 } }
+-- profile: the profile's own settings; element: elements' options
+function P.addRanges(profile, element)
+	for k, r in pairs(profile or {}) do RANGES[k] = r end
+	for k, r in pairs(element or {}) do ELEMENT_RANGES[k] = r end
+end
 local function clampNumbers(t, ranges, defaults)
 	for k, r in pairs(ranges) do
 		local v = t[k]
@@ -171,7 +168,9 @@ local function cleanProfile(t)
 		if type(t[k]) == type(default) then out[k] = t[k] end
 	end
 	clampNumbers(out, RANGES, DEFAULTS)
-	if out.chargeBarColor and not ns.isColor(out.chargeBarColor) then out.chargeBarColor = nil end
+	for k, default in pairs(DEFAULTS) do
+		if ns.isColor(default) and out[k] and not ns.isColor(out[k]) then out[k] = nil end
+	end
 	if out.elementOpts then
 		for key, o in pairs(out.elementOpts) do
 			if type(key) ~= "string" or type(o) ~= "table" then out.elementOpts[key] = nil

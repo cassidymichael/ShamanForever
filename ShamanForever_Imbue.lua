@@ -7,6 +7,7 @@ local Spells = ns.Spells
 local IM = { name = "imbue" }
 ns.Imbue = IM
 
+ns.Profiles.addRanges({ imbueWarnMins = { 0, 30 } })
 local imbue = ns.newElementIcon("imbue")
 local anyKnown = false
 local IDLE_CHOICES = {
@@ -193,6 +194,10 @@ function IM.onCast(spellID)
 	if not IMBUES[key] then return end
 	imbueState.castKey, imbueState.castAt = key, GetTime()
 	IM.refresh()
+end
+
+function IM.sanitize(_, acct)
+	if type(acct.imbueIDs) ~= "table" then acct.imbueIDs = {} end
 end
 
 function IM.resolve()

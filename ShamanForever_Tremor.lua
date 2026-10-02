@@ -10,6 +10,7 @@ local TR = { name = "tremor" }
 ns.Tremor = TR
 
 local KEY = "tremor"
+ns.Profiles.addRanges(nil, { wordSize = { 8, 40 }, wordX = { -100, 100 }, wordY = { -100, 100 } })
 local EARTH = 2
 local HOLD = 10   -- seconds
 local SOUND_GAP = 10   -- seconds

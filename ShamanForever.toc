@@ -25,6 +25,7 @@ ShamanForever_Widgets.lua
 ShamanForever_Looks.lua
 ShamanForever_Effects.lua
 ShamanForever_Timers.lua
+ShamanForever_Profiles.lua
 ShamanForever.lua
 ShamanForever_Shield.lua
 ShamanForever_Imbue.lua
@@ -39,7 +40,6 @@ ShamanForever_Buffs.lua
 ShamanForever_Tremor.lua
 ShamanForever_TremorList.lua
 ShamanForever_Positioning.lua
-ShamanForever_Profiles.lua
 ShamanForever_Slash.lua
 ShamanForever_TotemBar.lua
 ShamanForever_TotemRange.lua

@@ -35,6 +35,7 @@ local IDLE_CHOICES = {
 			.. "It shows in full at 1 charge and as No shield at 0",
 		"Shown in full at 1 charge and as No shield." },
 }
+ns.Profiles.addRanges({ countSize = { 8, 64 }, chargeBarHeight = { 1, 20 } })
 ns.registerElement("shield", { frame = shield, label = "Shields", paint = function(t) t:SetTexture(SH.icon()) end,
 	learned = function() return SH.learned() end,
 	defaults = { idleWhen = "never", idleAlpha = 0.3 },

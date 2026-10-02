@@ -7,6 +7,9 @@ local Spells, CD = ns.Spells, ns.Cooldowns
 local SK = { name = "shock" }
 ns.Shock = SK
 
+ns.Profiles.addRanges({ manaRing = { 0.1, 1 }, manaIntensity = { 0.1, 1 }, manaTint = { 0.1, 1 },
+	rangeIntensity = { 0.1, 1 }, rangeTint = { 0.1, 1 } })
+
 local function db() return ns.getDB() end
 local setting = ns.elementSetting
 
