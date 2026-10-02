@@ -25,7 +25,7 @@ S.register("pop", {
 	defaults = { colorBy = "event", flash = "plain", burst = "star", motion = "shakeV", size = 1.4, speed = 1,
 		reach = 1 },
 	ranges = { reach = { 0.6, 1.3 } },
-	path = { "popStyle" },   -- not "pop": the totem bar's pop is where its pickers open
+	path = { "popStyle" },   -- not "pop": a bar may have its own setting of that name
 })
 -- Global cooldown sweep
 S.register("gcd", {
@@ -60,7 +60,7 @@ function S.registerBar(key, spec)
 end
 function S.bar(key) return BARS[key] end
 function S.bars() return BAR_ORDER end
--- How sentences name the bars that test(bar) picks ("the totem bar"), in register order, after lead
+-- How sentences name the bars test(bar) picks ("the swing timer"), in register order, after lead
 function S.barNouns(test, lead)
 	local out = { lead }
 	for _, key in ipairs(BAR_ORDER) do

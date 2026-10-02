@@ -247,7 +247,7 @@ function PO.select(id)
 	ns.layoutElements()
 end
 
--- A frame that moves on its own (the totem bar, the swing timer). m: frame, nudge(dx, dy), lock()
+-- A frame that moves on its own (a bar). m: frame, nudge(dx, dy), lock()
 -- (combat started while unlocked)
 function PO.addMovable(m) table.insert(movables, m) end
 function PO.selectMovable(m)
@@ -442,7 +442,7 @@ function PO.update()
 end
 
 -- Combat locks positioning. Showing, moving and mouse changes on group frames are dropped in combat
--- (the shield's group holds Blizzard's protected button), so only the looks change; the full
+-- (a group can hold Blizzard's protected aura button), so only the looks change; the full
 -- layout runs when combat ends. Groups stop taking the mouse, or they would eat clicks, camera
 -- drags and wheel zoom for the whole fight.
 function PO.lockInCombat()

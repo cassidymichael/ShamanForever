@@ -125,8 +125,8 @@ function ns.registerElement(key, e)
 	if not tContains(ELEMENT_KEYS, key) then table.insert(ELEMENT_KEYS, key) end
 end
 
--- Bars: a frame with settings of its own that isn't an element (the totem bar, the swing timer), in
--- the order they register. A module and its options file each give their half; a later value wins.
+-- Bars: a frame with settings of its own that isn't an element, in the order they register. A
+-- module and its options file each give their half; a later value wins.
 -- Module: label; noun (how a sentence names it; "the " .. its lower-case label by default); the
 -- style side (ns.Style): cfg(), saved (the profile key holding its table), defaults, ranges (its
 -- numbers' { min, max, step }, shaped as defaults), on() (it is in use: its styles are offered),
@@ -186,7 +186,7 @@ end
 --   applyLayout()          after a layout
 --   afterGroups()          the groups were just laid out
 --   refresh()              read everything again
---   onCooldowns(inEvent)   a cast, cooldown or totem changed
+--   onCooldowns(inEvent)   a cast, a cooldown or a module's own state changed
 --   tick()                 once a second
 --   onCast(spellID)        our own successful cast
 --   debug()                its part of /sf debug
@@ -491,9 +491,9 @@ local function groupFrame(id)
 	return f
 end
 
--- Combat-only visibility uses Blizzard's secure state driver. The shield's group and element frames
--- are ancestors of Blizzard's protected aura button, so an addon Show/Hide/SetAlpha on them is
--- dropped in combat. The manager re-applies its state every 0.2 s and won't show a frame it lets go
+-- Combat-only visibility uses Blizzard's secure state driver. A group and element holding Blizzard's
+-- protected aura button are its ancestors, so an addon Show/Hide/SetAlpha on them is dropped in
+-- combat. The manager re-applies its state every 0.2 s and won't show a frame it lets go
 -- of, so a driven frame is never shown or hidden by hand. Out of combat only. Groups and elements
 -- are driven separately: an element shows only when both allow it.
 local driven = {}
@@ -567,7 +567,7 @@ local function afterCombat(gf)
 end
 
 -- Every member anchors to the group frame, never to another: a frame a protected frame anchors to
--- may turn protected too (the shield's button), so a chain could stop members changing in combat.
+-- may turn protected too (Blizzard's aura button), so a chain could stop members changing in combat.
 -- A member's Size is its box, border included; its art frame hangs where its border is drawn.
 local function layoutGroup(g)
 	local gf = groupFrame(g.id)
@@ -644,7 +644,7 @@ local function layoutGroup(g)
 	if n > 0 then showFrame(gf, groupWhen(g, gf)) else hideFrame(gf) end
 end
 
--- Deferred in combat: the shield's group is an ancestor of Blizzard's protected button
+-- Deferred in combat: a group can be an ancestor of Blizzard's protected aura button
 local function layoutElements()
 	if ns.deferInCombat("layout", layoutElements) then return end
 	for key, e in pairs(ELEMENTS) do
@@ -711,9 +711,9 @@ local function refreshAll()
 	each("refresh")
 end
 
--- A cast, a cooldown update and a totem update come in the same frame: SPELL_UPDATE_COOLDOWN
+-- A cast, a cooldown update and a module's own update come in the same frame: SPELL_UPDATE_COOLDOWN
 -- refreshes at once (isOnGCD is only vouched for inside it), the others wait a frame, by then with
--- the cast's totem owner
+-- what the cast changed
 local cooldownsDirty = false
 local function flushCooldowns(inEvent)
 	cooldownsDirty = false
