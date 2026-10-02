@@ -575,11 +575,13 @@ function M.sanitize(db)
 end
 
 -- A loading screen sends a full aura update: the buff is assigned to the pop again
-local worldEv = CreateFrame("Frame")
-ns.registerEvent(worldEv, "PLAYER_ENTERING_WORLD")
-worldEv:SetScript("OnEvent", function()
-	if pop.container then quietPop() end
-end)
+function M.start()
+	local ev = CreateFrame("Frame")
+	ns.registerEvent(ev, "PLAYER_ENTERING_WORLD")
+	ev:SetScript("OnEvent", function()
+		if pop.container then quietPop() end
+	end)
+end
 
 M.applyTimers = styleAll
 -- Containers made once (only for a character with the buff); the gate and pop container only
