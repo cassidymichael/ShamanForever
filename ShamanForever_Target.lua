@@ -115,13 +115,8 @@ end
 local function buildButton(def, slot, button)
 	if def.fx then def.fx:bind(button, slot.icon) end
 	if def.buttonBorder or def.missing then
-		if def.fx then
-			def.edge = def.fx:makeEdge(button)
-		else
-			def.edge = CreateFrame("Frame", nil, button)
-			def.edge:SetAllPoints(button)
-			def.edge.owner = def.key
-		end
+		def.edge = def.fx and def.fx:makeEdge(button)
+			or ns.Frames.edge(button, button, def.key, { overlay = false })
 	end
 	if def.engineExpire then
 		-- Font set before it's handed over (Blizzard writes at once)
@@ -141,7 +136,6 @@ local function styleButton(def, size, slot)
 	end
 	if def.edge then
 		ns.try("target border " .. def.key, ns.Frames.dress, def.edge, def.key)
-		if def.edge.frameOverlay then def.edge.frameOverlay:Hide() end
 	end
 	if def.fx then ns.try("target pop " .. def.key, def.fx.stylePop, def.fx, size) end
 end
@@ -274,9 +268,7 @@ for _, def in ipairs(TARGET) do
 		def.idle:SetAllPoints(f)
 		-- One border at any time (Blizzard's button is see-through at partial opacity): idleEdge with no
 		-- hostile target, the button's while Flame Shock is up, the look's while it's gone
-		def.idleEdge = CreateFrame("Frame", nil, f)
-		def.idleEdge:SetAllPoints(f)
-		def.idleEdge.owner = def.key
+		def.idleEdge = ns.Frames.edge(f, f, def.key)
 		local h = CreateFrame("Frame", nil, def.gate)
 		h:SetAllPoints(f)
 		h:Hide()
@@ -306,9 +298,7 @@ for _, def in ipairs(TARGET) do
 			},
 		})
 		def.missLook.tex:SetTexture(def.icon)
-		def.lookEdge = CreateFrame("Frame", nil, def.missLook.art)
-		def.lookEdge:SetAllPoints(f)
-		def.lookEdge.owner = def.key
+		def.lookEdge = ns.Frames.edge(def.missLook.art, f, def.key, { overlay = false })
 	end
 	def.aura = ns.makeAuraSlot(f, {
 		key = def.key, slot = def.key, unit = "none", filter = def.filter, parent = def.idle or def.gate,
@@ -457,7 +447,6 @@ local function styleLook()
 	look:setLevel(lv + 1, 2)
 	def.lookEdge:SetFrameLevel(lv + 1)
 	ns.Frames.dress(def.lookEdge, def.key, lv + 1)
-	if def.lookEdge.frameOverlay then def.lookEdge.frameOverlay:Hide() end
 	look:setParts(ns.warnParts(def.key, "warn"))
 	look:reshape()
 	look:style()
