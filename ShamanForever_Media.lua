@@ -85,8 +85,7 @@ local function try(path)
 	return ok and res ~= false and tester:GetFont() ~= nil
 end
 
-local retry
-function retry()
+local function retry()
 	waiting = false
 	local used = false
 	for path, st in pairs(state) do
