@@ -3,6 +3,7 @@
 ## Unreleased
 
 - The options window opens faster and uses far less memory.
+- Works on the latest WoW Forever beta build (1.60.1.70170).
 
 ## 0.12.0 (2026-10-01)
 
