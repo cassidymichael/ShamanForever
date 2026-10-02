@@ -102,7 +102,6 @@ function L.expBadge(parent, feature)
 	b.text:SetText("EXPERIMENTAL")
 	b.text:SetTextColor(0.95, 0.77, 0.42)
 	b:SetSize(b.text:GetStringWidth() + 12, 16)
-	b.feature = feature
 	b:SetScript("OnClick", function() ns.Options.showExperimental() end)
 	b:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
