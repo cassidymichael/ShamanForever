@@ -68,6 +68,17 @@ local function checked(site, ok, ...)
 end
 function ns.try(site, fn, ...) return checked(site, pcall(fn, ...)) end
 
+-- An OnUpdate script that calls fn(frame) at most every interval seconds
+function ns.throttled(interval, fn)
+	local wait = 0
+	return function(self, elapsed)
+		wait = wait + elapsed
+		if wait < interval then return end
+		wait = 0
+		fn(self)
+	end
+end
+
 -- Work that waits for combat to end: protected frames and Blizzard's aura container refuse changes
 -- in combat. `if ns.deferInCombat(key, fn) then return end`: queued once per key in combat and run
 -- at PLAYER_REGEN_ENABLED; out of combat it runs now.
