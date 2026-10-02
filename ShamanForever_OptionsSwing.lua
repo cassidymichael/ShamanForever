@@ -127,4 +127,4 @@ function SP.build(p)
 	end
 end
 
-ns.Options.registerPage("swing", { title = "Swing timer", icon = ns.Swing.ICON, order = 60, build = SP.build })
+ns.registerBar("swing", { icon = ns.Swing.ICON, page = { order = 60, build = SP.build } })

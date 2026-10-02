@@ -126,6 +126,34 @@ function ns.registerElement(key, e)
 	ELEMENTS[key] = e
 	if not tContains(ELEMENT_KEYS, key) then table.insert(ELEMENT_KEYS, key) end
 end
+
+-- Bars: a frame with settings of its own that isn't an element (the totem bar, the swing timer), in
+-- the order they register. A module and its options file each give their half; a later value wins.
+-- Module: label; noun (how a sentence names it; "the " .. its lower-case label by default); the
+-- style side (ns.Style): cfg(), saved (the profile key holding its table), defaults, ranges (its
+-- numbers' { min, max, step }, shaped as defaults), on() (it is in use: its styles are offered),
+-- kinds (style kinds it can have its own of), ownLabel(kind) (its name when it draws that style
+-- itself); movable = { frame, nudge(dx, dy), lock() } (positioning); hud = { show(opts), slots,
+-- steps(slot, mode), step(slot, state, at, range, moment) }: /sf preview on the bar itself, show(nil)
+-- as it ends, each slot looping through its steps like an element, step returning when it ends.
+-- Options: icon, school, blurb, tags() and preview (its page header: a stage, as _Kinds says); page
+-- = { order, build } (titled and iconned as the bar); experiments = { { name, where } } (About's
+-- list); ownSize() (its icon size isn't Global's); previewIcon, schools, previewBorder() (its style
+-- blocks' tiles: their icon, the schools they show (else all), their border; no previewIcon: none)
+function ns.registerBar(key, spec)
+	local bar = ns.Style.bar(key)
+	if not bar then
+		bar = {}
+		ns.Style.registerBar(key, bar)
+	end
+	for k, v in pairs(spec) do bar[k] = v end
+	if not spec.noun and spec.label then bar.noun = "the " .. spec.label:lower() end
+	if spec.movable then ns.Positioning.addMovable(spec.movable) end
+	if spec.page then
+		ns.Options.registerPage(key, { title = bar.label, icon = bar.icon, order = spec.page.order,
+			build = spec.page.build })
+	end
+end
 -- An element's icon: opts.effects gives it an effects layer that ignores the icon's alpha (glows and
 -- flashes stay full when it idles) and takes its group's opacity instead (layoutGroup). f.stack()
 -- restates frame levels, bottom up: icon, its art frame (ns.Frames.LEVEL.over), effects and glow,

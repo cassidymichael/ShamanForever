@@ -367,5 +367,4 @@ local function build(p)
 	p.gate = nil
 end
 
-ns.Options.registerPage("totembar", { title = "Totem bar", icon = "Interface\\Icons\\Spell_Shaman_DropAll_01",
-	order = 50, build = build })
+ns.registerBar("totembar", { icon = "Interface\\Icons\\Spell_Shaman_DropAll_01", page = { order = 50, build = build } })

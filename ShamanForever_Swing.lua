@@ -71,9 +71,6 @@ end
 SW.cfg = cfg
 
 function SW.isOn() return ns.isActive() and cfg().show ~= "never" end
-ns.Style.registerBar("swing", { cfg = cfg, saved = "swingBar", defaults = SW.DEFAULTS, label = "Swing timer",
-	on = SW.isOn, kinds = { "border", "text", "bar" } })
-
 
 SW.BACKGROUND = { 0, 0, 0, 0.6 }
 function SW.makeBar(parent)
@@ -343,7 +340,6 @@ function movable.lock()
 	ns.Positioning.endSnap()
 	drawFace()
 end
-ns.Positioning.addMovable(movable)
 
 local function dragUpdate(self)
 	if InCombatLockdown() then movable.lock() return end
@@ -420,4 +416,6 @@ function SW.debug()
 		left and (left > 0 and string.format("next in %.1f s", left) or "due") or "no swing under way")
 end
 
+ns.registerBar("swing", { label = "Swing timer", cfg = cfg, saved = "swingBar", defaults = SW.DEFAULTS,
+	ranges = RANGES, on = SW.isOn, kinds = { "border", "text", "bar" }, movable = movable })
 ns.registerModule(SW)

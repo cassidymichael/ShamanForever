@@ -178,13 +178,6 @@ TB.cfg = cfg
 local function barOn() return ns.isClass() and cfg().mode ~= "blizzard" end
 local function feat(key) local c = cfg(); return barOn() and c.mode == "everything" and c[key] or false end
 TB.barOn, TB.feat = barOn, feat
-ns.Style.registerBar("totembar", { cfg = cfg, saved = "totemBar", defaults = TB.DEFAULTS, ranges = TB.RANGES,
-	label = "Totem bar", on = barOn,
-	kinds = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
-	-- Its theme can draw its own border
-	ownLabel = function(kind)
-		if kind == "border" and TB.skin.owns("border") then return "Totem bar (its theme)" end
-	end })
 
 -- The player's settings, or the theme's where it owns one
 local effective = setmetatable({}, { __index = function(_, k)
@@ -1379,7 +1372,6 @@ function movable.lock()
 	mover:Hide()
 	ns.retryAfterCombat("totem bar layout", layout)
 end
-ns.Positioning.addMovable(movable)
 
 -- Quick Keybind Mode (Blizzard's): the bar shows, empty slots included. Keys are caught on our own
 -- plain frame and bound with SetBinding: calling Blizzard's QuickKeybindButtonTemplateMixin from
@@ -1818,4 +1810,11 @@ function TB.debug()
 		mc and (mc:GetParent() == hiddenParent and "hidden" or (mc:GetParent() and mc:GetParent():GetName() or "?")) or "none")
 end
 
+ns.registerBar("totembar", { label = "Totem bar", cfg = cfg, saved = "totemBar", defaults = TB.DEFAULTS,
+	ranges = TB.RANGES, on = barOn, kinds = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
+	-- Its theme can draw its own border
+	ownLabel = function(kind)
+		if kind == "border" and TB.skin.owns("border") then return "Totem bar (its theme)" end
+	end,
+	movable = movable })
 ns.registerModule(TB)
