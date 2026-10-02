@@ -118,7 +118,6 @@ function SW.border() return ns.borderFor("swing") end
 local f = CreateFrame("Frame", nil, UIParent)
 f:SetSize(SW.DEFAULTS.width, SW.DEFAULTS.height)
 f:Hide()
-SW.frame = f
 local face = CreateFrame("Frame", nil, f)
 face:SetAllPoints()
 face:Hide()

@@ -7,7 +7,6 @@ local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
 L.GOLD = { 0.85, 0.71, 0.42 }
 L.REPO = "https://github.com/cassidymichael/ShamanForever"
 L.CURSEFORGE = "https://www.curseforge.com/wow/addons/shamanforever"
-L.WAGO = "https://addons.wago.io/addons/shamanforever"
 L.DISCORD = "https://discord.gg/VaXH8CQZFG"
 L.KOFI = "https://ko-fi.com/cassidycloud"
 

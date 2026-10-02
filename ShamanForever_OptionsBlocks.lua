@@ -916,7 +916,7 @@ local function toggleBlock(p, key, b)
 	end)
 end
 
-K.eopt, K.eread, K.eslider, K.COUNT_POINTS = eopt, eread, eslider, COUNT_POINTS
+K.eread, K.eslider, K.COUNT_POINTS = eread, eslider, COUNT_POINTS
 K.toggleBlock = toggleBlock
 K.elementDisplay, K.idleBlock, K.lookBlocks, K.reagentBlocks = elementDisplay, idleBlock, lookBlocks, reagentBlocks
 K.warnBlock, K.readyBlock, K.activeBlock, K.expiringBlock, K.killedBlock = warnBlock, readyBlock, activeBlock,

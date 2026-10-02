@@ -2,9 +2,6 @@
 
 local _, ns = ...
 
-local SP = {}
-ns.SwingPage = SP
-
 local Page = ns.Page
 local showWhen, times, pct, int, px = Page.showWhen, Page.times, Page.pct, Page.int, Page.px
 
@@ -66,7 +63,7 @@ local PREVIEW = {
 	end,
 }
 
-function SP.build(p)
+local function build(p)
 	local SW, K = ns.Swing, ns.Options.kit
 	local R = SW.RANGES
 	local function c() return SW.cfg() end
@@ -126,4 +123,4 @@ end
 
 ns.registerBar("swing", { icon = ns.Swing.ICON, school = ns.THEME.fallback, blurb = "Time to your next melee swing.",
 	tags = function() return SHOW_NAME[ns.Swing.cfg().show] or "" end,
-	preview = PREVIEW, page = { order = 60, build = SP.build } })
+	preview = PREVIEW, page = { order = 60, build = build } })

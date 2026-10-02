@@ -308,7 +308,7 @@ local COMBAT_SHOW = { { "always", "Always" }, { "combat", "In combat" }, { "targ
 local STAY_TIP = "Seconds it stays once combat ends, then it fades out."
 local function staySecs(v) return v == 0 and "None" or string.format("%d s", v) end
 
-K.get, K.set, K.gopt, K.confirm = get, set, gopt, confirm
+K.confirm = confirm
 K.SHOW_CHOICES, K.COMBAT_SHOW, K.STAY_TIP, K.staySecs = SHOW_CHOICES, COMBAT_SHOW, STAY_TIP, staySecs
 
 -- Window
