@@ -34,8 +34,8 @@ local SHARE_VERSION = 7
 --   reagent = { when, low, lowKeepsShown, color, lowColor, size, pos, x, y, ring, fade }
 -- grey, ring, fade, tint and glow are the looks a state shows; pop and sound play once, as it
 -- starts: warn.pop and warn.sound as the warning begins (a buff lost). A bar's own settings use the
--- same tables (expire, ended, killed). The effect and pop kind names
--- (warning, ranout, expired, grounded, killed, primed, ready) are a separate runtime set.
+-- same tables (expire, ended, killed). The effect and pop kind names (warning, ranout, expired,
+-- grounded, killed, primed, ready) are a separate runtime set.
 
 -- Renamed settings, moved as a profile loads or is imported. Drop after launch.
 -- root: a profile key -> element, name, field; element: within any element's settings, name (or

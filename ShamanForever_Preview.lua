@@ -214,7 +214,8 @@ local function restart()
 	end
 	eachHud(function(hud, key)
 		for _, slot in ipairs(hud.slots or {}) do
-			table.insert(barRuns, { hud = hud, key = key, slot = slot, steps = hud.steps(slot, opts.mode), i = 1 })
+			table.insert(barRuns, { hud = hud, key = key, slot = slot, steps = hud.steps(slot, opts.mode),
+				i = 1 })
 		end
 	end)
 	local n = 0
@@ -349,7 +350,9 @@ do
 		panel.refresh()
 	end)
 	lock:SetPoint("RIGHT", optionsButton, "LEFT", -6, 0)
-	setTip(lock, "Positioning", function() return "Drag " .. L.movingWords("groups") .. " while the preview shows." end)
+	setTip(lock, "Positioning", function()
+		return "Drag " .. L.movingWords("groups") .. " while the preview shows."
+	end)
 	function panel.refresh()
 		mode.refresh()
 		unlearned:SetChecked(opts.unlearned)

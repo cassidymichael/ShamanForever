@@ -92,7 +92,9 @@ end
 -- Pages
 local function lockText() return acct().locked and "Unlock positioning" or "Lock positioning" end
 local function toggleLock() ns.setLocked(not acct().locked); OP.refresh() end
-local function lockSub() return acct().locked and "Move the HUD on screen" or "Done moving? Lock them" end
+local function lockSub()
+	return acct().locked and "Move the HUD on screen" or "Done moving? Lock them"
+end
 
 local aboutExp, aboutFeedback
 
@@ -144,8 +146,8 @@ local function buildGlobal(p)
 	local sized = ns.Style.barNouns(function(bar) return bar.ownSize ~= nil end, "group")
 	for i, noun in ipairs(sized) do sized[i] = noun .. "'s" end
 	local size = ns.Profiles.RANGES.iconSize
-	p:slider("Icon size", "Every " .. ns.Look.wordList(sized) .. ", unless it has its own.", size[1], size[2], 1, int,
-		gopt(p, "iconSize"))
+	p:slider("Icon size", "Every " .. ns.Look.wordList(sized) .. ", unless it has its own.", size[1], size[2], 1,
+		int, gopt(p, "iconSize"))
 	local function ownSizes()
 		local out = {}
 		for _, g in ipairs(db().groups) do
@@ -271,7 +273,9 @@ local function buildAbout(p)
 	p:experimental("Art frames", "Frame and Group frame styles")
 	for _, key in ipairs(ns.Style.bars()) do
 		local bar = ns.Style.bar(key)
-		for _, x in ipairs(bar.experiments or {}) do p:experimental(x[1], bar.label .. " > " .. x[2]) end
+		for _, x in ipairs(bar.experiments or {}) do
+			p:experimental(x[1], bar.label .. " > " .. x[2])
+		end
 	end
 	for _, l in ipairs(ns.Style.fields()) do
 		for _, e in ipairs(l.order) do
@@ -400,7 +404,8 @@ local function buildNav()
 	navLock:SetSize(NAV_W - 32, 22)
 	navLock:SetPoint("BOTTOMLEFT", 16, 12)
 	navLock:SetScript("OnClick", function() ns.setLocked(not acct().locked) end)
-	setTip(navLock, "Positioning", "Unlocked, drag " .. ns.Look.movingWords("groups") .. " on screen. /sf lock does the same.")
+	setTip(navLock, "Positioning", "Unlocked, drag " .. ns.Look.movingWords("groups")
+		.. " on screen. /sf lock does the same.")
 	function navLock.refresh() navLock:SetText(acct().locked and "Unlock positioning" or "Lock positioning") end
 	navLock.refresh()
 	for _, spec in ipairs(registered) do

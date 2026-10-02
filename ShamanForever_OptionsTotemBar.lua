@@ -639,7 +639,8 @@ local function build(p)
 	p.gate = nil
 end
 
-ns.registerBar("totembar", { icon = "Interface\\Icons\\Spell_Shaman_DropAll_01", school = ns.THEME.fallback,
+ns.registerBar("totembar", { icon = "Interface\\Icons\\Spell_Shaman_DropAll_01",
+	school = ns.THEME.fallback,
 	blurb = "Your totems, their timers, and a pick for each element.",
 	tags = function()
 		local TB = ns.TotemBar

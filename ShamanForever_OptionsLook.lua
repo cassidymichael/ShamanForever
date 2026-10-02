@@ -448,7 +448,8 @@ function L.buildHero(parent, key)
 		for _, b in ipairs(self.stateButtons) do L.paintChoice(b, b.state == previewState[key]) end
 		if not def.stage then
 			local ic = self.previewIcon
-			local x = 16 + padL + ns.Looks.fit(ic, ns.borderFor(key), PREVIEW_SIZE, PREVIEW_SIZE, { shape = el and el.shape })
+			local x = 16 + padL
+				+ ns.Looks.fit(ic, ns.borderFor(key), PREVIEW_SIZE, PREVIEW_SIZE, { shape = el and el.shape })
 			ic:ClearAllPoints()
 			ic:SetPoint("LEFT", p, "LEFT", x, -6)
 			local l, t = ic:GetLeft(), ic:GetTop()
@@ -457,7 +458,8 @@ function L.buildHero(parent, key)
 				ic:SetPoint("LEFT", p, "LEFT", x + ns.roundPx(l, px) - l, -6 + ns.roundPx(t, px) - t)
 			end
 			self.frameHost:SetFrameLevel(ic:GetFrameLevel())
-			if framed then ns.Frames.mount(self.frameHost, key, PREVIEW_SIZE) else ns.Frames.draw(self.frameHost) end
+			if framed then ns.Frames.mount(self.frameHost, key, PREVIEW_SIZE)
+			else ns.Frames.draw(self.frameHost) end
 		end
 		local st = previewState[key]
 		if def.stage then def.render(self, st, L.kit) else

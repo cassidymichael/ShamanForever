@@ -121,6 +121,7 @@ local function build(p)
 	end
 end
 
-ns.registerBar("swing", { icon = ns.Swing.ICON, school = ns.THEME.fallback, blurb = "Time to your next melee swing.",
+ns.registerBar("swing", { icon = ns.Swing.ICON, school = ns.THEME.fallback,
+	blurb = "Time to your next melee swing.",
 	tags = function() return SHOW_NAME[ns.Swing.cfg().show] or "" end,
 	preview = PREVIEW, page = { order = 60, build = build } })

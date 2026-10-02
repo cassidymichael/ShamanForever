@@ -506,7 +506,8 @@ end
 local function barBlock(p)
 	p:header("Bar texture")
 	p:anchor("bar")
-	p:text("Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer. " .. ownersText(nil, "bar"))
+	p:text("Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer. "
+		.. ownersText(nil, "bar"))
 	barRows(p, nil)
 	ownLine(p, "bar")
 end

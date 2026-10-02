@@ -152,6 +152,7 @@ function ns.registerBar(key, spec)
 			build = spec.page.build })
 	end
 end
+
 -- An element's icon: opts.effects gives it an effects layer that ignores the icon's alpha (glows and
 -- flashes stay full when it idles) and takes its group's opacity instead (layoutGroup). f.stack()
 -- restates frame levels, bottom up: icon, its art frame (ns.Frames.LEVEL.over), effects and glow,
@@ -491,11 +492,11 @@ local function groupFrame(id)
 	return f
 end
 
--- Combat-only visibility uses Blizzard's secure state driver. A group and element holding Blizzard's
--- protected aura button are its ancestors, so an addon Show/Hide/SetAlpha on them is dropped in
--- combat. The manager re-applies its state every 0.2 s and won't show a frame it lets go
--- of, so a driven frame is never shown or hidden by hand. Out of combat only. Groups and elements
--- are driven separately: an element shows only when both allow it.
+-- Combat-only visibility uses Blizzard's secure state driver. A group and element holding
+-- Blizzard's protected aura button are its ancestors, so an addon Show/Hide/SetAlpha on them is
+-- dropped in combat. The manager re-applies its state every 0.2 s and won't show a frame it lets
+-- go of, so a driven frame is never shown or hidden by hand. Out of combat only. Groups and
+-- elements are driven separately: an element shows only when both allow it.
 local driven = {}
 local function setDriven(frame, when)
 	when = when or nil
@@ -711,9 +712,9 @@ local function refreshAll()
 	each("refresh")
 end
 
--- A cast, a cooldown update and a module's own update come in the same frame: SPELL_UPDATE_COOLDOWN
--- refreshes at once (isOnGCD is only vouched for inside it), the others wait a frame, by then with
--- what the cast changed
+-- A cast, a cooldown update and a module's own update come in the same frame:
+-- SPELL_UPDATE_COOLDOWN refreshes at once (isOnGCD is only vouched for inside it), the others wait
+-- a frame, by then with what the cast changed
 local cooldownsDirty = false
 local function flushCooldowns(inEvent)
 	cooldownsDirty = false
