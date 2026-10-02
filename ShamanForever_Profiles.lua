@@ -33,7 +33,9 @@ local SHARE_VERSION = 7
 --   count   = { bar, barHeight, barColor, number, pos, size, mark, markColor }   charges or stacks
 --   reagent = { when, low, lowKeepsShown, color, lowColor, size, pos, x, y, ring, fade }
 -- grey, ring, fade, tint and glow are the looks a state shows; pop and sound play once, as it
--- starts. The totem bar's own settings use the same tables (expire, ended, killed).
+-- starts: warn.pop and warn.sound as the warning begins (an imbue lost, a shield gone). The totem
+-- bar's own settings use the same tables (expire, ended, killed). The effect and pop kind names
+-- (warning, ranout, expired, grounded, killed, primed, ready) are a separate runtime set.
 
 -- Renamed settings, moved as a profile loads or is imported. Drop after launch.
 -- root: a profile key -> element, name, field; element: within any element's settings, name (or
@@ -337,7 +339,7 @@ end
 
 local function cleanProfile(t)
 	local DEFAULTS, GROUP_DEFAULTS = ns.DEFAULTS, ns.GROUP_DEFAULTS
-	P.migrate(t)
+	P.migrate(t)   -- renamed settings: drop after launch
 	local out = {}
 	for k, default in pairs(DEFAULTS) do
 		if type(t[k]) == type(default) then out[k] = t[k] end

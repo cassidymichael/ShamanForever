@@ -791,7 +791,7 @@ local function selectProfile(name)
 	if type(acct.profiles[name]) ~= "table" then acct.profiles[name] = {} end
 	profileName, db = name, acct.profiles[name]
 	for _, k in ipairs(RETIRED_KEYS) do db[k] = nil end
-	ns.Profiles.migrate(db)
+	ns.Profiles.migrate(db)   -- renamed settings: drop after launch
 	fillDefaults(db, DEFAULTS)
 	sanitize()
 	ns.Profiles.remember(name)
