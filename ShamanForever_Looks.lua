@@ -828,7 +828,7 @@ end
 local function shapeOf(school) return THEME.shape[school] or THEME.shape[THEME.fallback] end
 local function sheen(out, school, dur, delay)
 	table.insert(out, { name = "sheen", file = MEDIA .. "Sheen", layer = "OVERLAY", add = true, dur = dur,
-		delay = delay, a = 0.9, shift = shapeOf(school).sheen })
+		delay = delay, a = 0.9, shift = shapeOf(school).sheenDir })
 end
 local function shapeFile(school) return MEDIA .. shapeOf(school).file end
 

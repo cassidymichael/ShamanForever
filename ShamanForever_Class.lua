@@ -34,11 +34,11 @@ ns.THEME = {
 	},
 	-- The pop's emblem art, its spin and the direction of its sheen
 	shape = {
-		earth = { file = "Shape-Earth", emblem = "Burst-Earth", spin = -0.35, sheen = { -0.7, 0.7 } },
-		fire = { file = "Shape-Fire", emblem = "Burst-Fire", spin = 0.25, sheen = { -0.7, 0.7 } },
-		water = { file = "Shape-Water", emblem = "Burst-Water", spin = -0.35, sheen = { 0.7, -0.7 } },
-		air = { file = "Shape-Air", emblem = "Burst-Air", spin = -1.2, sheen = { -0.7, 0.7 } },
-		spirit = { file = "Shape-Spirit", emblem = "Burst-Spirit", spin = -0.35, sheen = { -0.7, 0.7 } },
+		earth = { file = "Shape-Earth", emblem = "Burst-Earth", spin = -0.35, sheenDir = { -0.7, 0.7 } },
+		fire = { file = "Shape-Fire", emblem = "Burst-Fire", spin = 0.25, sheenDir = { -0.7, 0.7 } },
+		water = { file = "Shape-Water", emblem = "Burst-Water", spin = -0.35, sheenDir = { 0.7, -0.7 } },
+		air = { file = "Shape-Air", emblem = "Burst-Air", spin = -1.2, sheenDir = { -0.7, 0.7 } },
+		spirit = { file = "Shape-Spirit", emblem = "Burst-Spirit", spin = -0.35, sheenDir = { -0.7, 0.7 } },
 	},
 	-- Each school's own pop: drawn parts (art "shape" is the school's shape) and an optional sheen
 	burst = {
