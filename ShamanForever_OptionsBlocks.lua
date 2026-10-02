@@ -718,9 +718,9 @@ local function store(p, owner, after)
 				after()
 			end
 		end
-		function s.default(name) return bar.DEFAULTS[name] end
+		function s.default(name) return bar.defaults[name] end
 		function s.range(name, field)
-			local r = bar.RANGES and bar.RANGES[name]
+			local r = bar.ranges and bar.ranges[name]
 			if field then r = r and r[field] end
 			return r
 		end

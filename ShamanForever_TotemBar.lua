@@ -175,7 +175,7 @@ TB.cfg = cfg
 local function barOn() return ns.isClass() and cfg().mode ~= "blizzard" end
 local function feat(key) local c = cfg(); return barOn() and c.mode == "everything" and c[key] or false end
 TB.barOn, TB.feat = barOn, feat
-ns.Style.registerBar("totembar", { cfg = cfg, DEFAULTS = TB.DEFAULTS, RANGES = TB.RANGES, label = "Totem bar", on = barOn,
+ns.Style.registerBar("totembar", { cfg = cfg, defaults = TB.DEFAULTS, ranges = TB.RANGES, label = "Totem bar", on = barOn,
 	kinds = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
 	-- Its theme can draw its own border
 	ownLabel = function(kind)

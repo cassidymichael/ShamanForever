@@ -575,7 +575,7 @@ Page.refKind("bar", {
 	end,
 	slot = function(r) return r.field or r.name end,
 	default = function(r)
-		local d = ns.Style.bar(r.bar).DEFAULTS[r.name]
+		local d = ns.Style.bar(r.bar).defaults[r.name]
 		if not r.field then return d end
 		if type(d) ~= "table" then return nil end
 		return d[r.field]

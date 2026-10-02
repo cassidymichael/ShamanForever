@@ -65,7 +65,7 @@ end
 SW.cfg = cfg
 
 function SW.isOn() return ns.isActive() and cfg().show ~= "never" end
-ns.Style.registerBar("swing", { cfg = cfg, DEFAULTS = SW.DEFAULTS, label = "Swing timer", on = SW.isOn,
+ns.Style.registerBar("swing", { cfg = cfg, defaults = SW.DEFAULTS, label = "Swing timer", on = SW.isOn,
 	kinds = { "border", "text", "bar" } })
 
 
