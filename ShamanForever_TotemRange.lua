@@ -219,7 +219,7 @@ end
 -- Ranks not listed: a buff whose name is the client's name for a listed buff is another rank of it
 local names = {}
 local function learn()
-	if InCombatLockdown() or not TB.isShaman() or not enabled() then return end
+	if InCombatLockdown() or not ns.isClass() or not enabled() then return end
 	if ns.aurasSecret() then return end
 	if next(names) == nil then
 		for el, list in pairs(BUFF_TOTEMS) do
@@ -247,7 +247,7 @@ function R.layout(size)
 	-- Blizzard's containers refuse addon calls while auras are secret: their part waits, the layout
 	-- reruns after
 	local blocked = ns.deferWhileAurasSecret("totem range layout", function() R.layout(size) end)
-	local want = enabled() and TB.isShaman()
+	local want = enabled() and ns.isClass()
 	for _, el in ipairs(TB.ELEMENTS) do
 		local s = TB.slots[el]
 		local on = want and s.button:IsShown()

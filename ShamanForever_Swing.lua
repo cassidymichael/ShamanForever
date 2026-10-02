@@ -65,6 +65,8 @@ end
 SW.cfg = cfg
 
 function SW.isOn() return ns.isActive() and cfg().show ~= "never" end
+ns.Style.registerBar("swing", { cfg = cfg, DEFAULTS = SW.DEFAULTS, label = "Swing timer", on = SW.isOn,
+	kinds = { "border", "text", "bar" } })
 
 
 SW.BACKGROUND = { 0, 0, 0, 0.6 }
@@ -91,7 +93,7 @@ function SW.styleBar(b)
 	b.spark:SetWidth(ns.linePx(b, 2))
 end
 
-local font = CreateFont("ShamanForeverSwingFont")
+local font = CreateFont(ns.NAME .. "SwingFont")
 font:SetFont(STANDARD_TEXT_FONT, SW.DEFAULTS.countdownSize, "OUTLINE")
 SW.font = font
 local TEXT_SIDE = { left = "LEFT", center = "CENTER", right = "RIGHT" }
@@ -129,7 +131,7 @@ cd:SetFrameLevel(face:GetFrameLevel() + 2)
 cd:SetDrawSwipe(false)
 cd:SetDrawEdge(false)
 cd:SetDrawBling(false)
-cd:SetCountdownFont("ShamanForeverSwingFont")
+cd:SetCountdownFont(ns.NAME .. "SwingFont")
 pcall(cd.SetCountdownMillisecondsThreshold, cd, 60)
 local okText, cdFont = pcall(cd.GetCountdownFontString, cd)
 local cdText = okText and cdFont or nil
@@ -261,7 +263,7 @@ local function layout()
 	SW.styleBar(bar)
 	paintFill()
 	SW.styleCountdown()
-	cd:SetCountdownFont("ShamanForeverSwingFont")
+	cd:SetCountdownFont(ns.NAME .. "SwingFont")
 	cd:SetHideCountdownNumbers(not c.countdown)
 	if cdText then SW.placeCountdown(cdText, face) end
 	if state.endsAt then drawSwing() else drawFace() end

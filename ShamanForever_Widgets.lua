@@ -445,8 +445,14 @@ function ns.makeClipLook(frame, opts)
 	return h
 end
 
-local function cellWidth(size, frame)
-	return math.ceil(2 * CLIP_REACH * (size + 2 * ns.Looks.outerEdge(frame)))
+-- Wide enough for the art frame on a look that carries the border
+local function cellWidth(size, frame, o)
+	local half = CLIP_REACH * (size + 2 * ns.Looks.outerEdge(frame))
+	if not o.glowOnly then
+		local r, box = ns.Frames.reach(o.key), ns.boxOf(o.key)
+		half = math.max(half, box * (0.5 + math.max(r.left, r.right, r.top, r.bottom)) + 1)
+	end
+	return math.ceil(2 * half)
 end
 
 -- Hold at 0 now, back on its second OnUpdate: Blizzard's container updates on its next OnUpdate
@@ -518,7 +524,7 @@ function ClipLook:setup()
 	local o = self.opts
 	if ns.deferWhileAurasSecret(o.sites.container, function() self:setup() end) then return end
 	local size = ns.sizeOf(o.key)
-	local w = cellWidth(size, self.frame)
+	local w = cellWidth(size, self.frame, o)
 	local filters = sensorFilters(o)
 	local unit = type(o.unit) == "function" and o.unit() or o.unit or "player"
 	local ok, err = pcall(function()
@@ -596,7 +602,7 @@ end
 function ClipLook:styleNow()
 	local o = self.opts
 	local size = ns.sizeOf(o.key)
-	local w = cellWidth(size, self.frame)
+	local w = cellWidth(size, self.frame, o)
 	if w == self.width then
 		self:took(size)
 		return
@@ -644,12 +650,13 @@ function ClipLook:follow(unit)
 	return ok
 end
 
-function ClipLook:setLevel(lv)
+-- up: the glow's level over the look (2 over a look whose edge carries an art frame)
+function ClipLook:setLevel(lv, up)
 	for _, f in ipairs({ self.hold, self.clip, self.look, self.art }) do
 		f:SetFrameLevel(lv)
 	end
-	self.glow:SetFrameLevel(lv + 1)
-	self.glow.inner:SetFrameLevel(lv + 1)
+	self.glow:SetFrameLevel(lv + (up or 1))
+	self.glow.inner:SetFrameLevel(lv + (up or 1))
 end
 
 function ClipLook:describe()
@@ -685,7 +692,9 @@ function ns.makeIcon(parent, size, owner)
 			self.tex:SetVertexColor(r == 1 and 1 or k, g == 1 and 1 or k, b == 1 and 1 or k)
 		end
 	end
+	-- Levels over the icon: its art frame (ns.Frames.LEVEL.over), glow, swipe, text
 	f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
+	f.cd:SetFrameLevel(f:GetFrameLevel() + 3)
 	f.cd:SetAllPoints()
 	f.cd:SetDrawEdge(false)
 	-- Text above the cooldown so the swipe never dims it.
@@ -710,6 +719,7 @@ function ns.makeIcon(parent, size, owner)
 	end
 	f.fx = ns.Effects.host(f, owner)
 	f.glowF = f.fx.glowF
+	f.glowF:SetFrameLevel(f:GetFrameLevel() + 2)
 	f.SetGlowShown = function(self, shown, r, g, b) self.fx:glow(shown, r, g, b) end
 	f.Pop = function(self, kind) self.fx:pop(kind) end
 	return f

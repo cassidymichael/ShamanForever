@@ -117,25 +117,26 @@ local RETIRED_KEYS = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "popMot
 local acct
 local db
 local profileName
-local isShaman = false
+local isActive = false
 
 -- Elements and their modules
 -- root spans the screen and takes no input: the parent of every group, hidden for other classes.
 -- Not named ShamanForeverFrame: older versions dragged a frame of that name and the layout cache
 -- would re-anchor it.
-local root = CreateFrame("Frame", "ShamanForeverRoot", UIParent)
+local root = CreateFrame("Frame", ns.NAME .. "Root", UIParent)
 root:SetAllPoints(UIParent)
 
--- Every element, in the order the options list them
-local ELEMENT_KEYS = { "shield", "shock", "imbue" }
+-- Every element, in the order they register (TOC order)
+local ELEMENT_KEYS = {}
 -- key -> { frame, label, paint(texture), getSize(size), stack(), learned(), borderHost, shape,
 -- standInBorder, defaults, effects, ownSchool(), spell, icon, school, blurb, experimental, kind, def }
 -- getSize: width and height for the group's icon size (elements need not be square); borderHost:
--- the part the group's border is drawn on; shape "bar": a bar, not an icon (takes only the border
+-- the part its border is drawn on; shape "bar": a bar, not an icon (takes only the border
 -- parts that fit a bar); paint: what stands in for it in the options and while dragging;
 -- standInBorder: preview's stand-in draws its border; learned(): none means always; kind: picks its
 -- options page and preview; effects = { glow = { states }, pop = { states }, popKind };
--- ownSchool(): the school its pop and glow take now, where that follows its state
+-- ownSchool(): the school its pop and glow take now, where that follows its state; styles: its own
+-- shipped look, { kind = fields }; timerCant: timer parts it can't have, and why
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
 local NO_EFFECTS = { glow = {}, pop = {} }
@@ -143,13 +144,15 @@ function ns.registerElement(key, e)
 	e.getSize = e.getSize or iconSize
 	e.effects = e.effects or NO_EFFECTS
 	e.stack = e.stack or e.frame.stack
+	if e.styles then ns.Style.setOwnerDefaults(key, e.styles) end
+	if e.timerCant then ns.Timer.CANT[key] = e.timerCant end
 	ELEMENTS[key] = e
 	if not tContains(ELEMENT_KEYS, key) then table.insert(ELEMENT_KEYS, key) end
 end
 -- An element's icon: opts.effects gives it an effects layer that ignores the icon's alpha (glows and
 -- flashes stay full when it idles) and takes its group's opacity instead (layoutGroup). f.stack()
--- restates frame levels, bottom up: icon, effects and glow, swipe, cooldown timer bar, text, time
--- left; layoutGroup calls it after regrouping.
+-- restates frame levels, bottom up: icon, its art frame (ns.Frames.LEVEL.over), effects and glow,
+-- swipe, cooldown timer bar, text, time left; layoutGroup calls it after regrouping.
 function ns.newElementIcon(key, opts)
 	local f = ns.makeIcon(root, DEFAULTS.iconSize, key)
 	f.count:Hide()
@@ -158,22 +161,22 @@ function ns.newElementIcon(key, opts)
 		f.effects:SetAllPoints()
 		f.effects:SetIgnoreParentAlpha(true)
 		f.glowF:SetParent(f.effects)
-		function f.stack()
-			local base = f:GetFrameLevel()
-			f.effects:SetFrameLevel(base)
-			f.glowF:SetFrameLevel(base + 1)
-			if f.warn then f.warn:SetFrameLevel(base + 1) end
-			f.cd:SetFrameLevel(base + 2)
-			if f.cdTimer and f.cdTimer.bar then f.cdTimer.bar:SetFrameLevel(base + 3) end
-			f.textFrame:SetFrameLevel(base + 4)
-			if f.upTimer then f.upTimer:restack() end
-		end
+	end
+	function f.stack()
+		local base = f:GetFrameLevel()
+		if f.effects then f.effects:SetFrameLevel(base) end
+		f.glowF:SetFrameLevel(base + 2)
+		if f.warn then f.warn:SetFrameLevel(base + 2) end
+		f.cd:SetFrameLevel(base + 3)
+		if f.cdTimer and f.cdTimer.bar then f.cdTimer.bar:SetFrameLevel(base + 4) end
+		f.textFrame:SetFrameLevel(base + 5)
+		if f.upTimer then f.upTimer:restack(2) end
 	end
 	return f
 end
 
 -- Module hooks (all optional; a module also has a name for the error log):
---   start()                a shaman logged in
+--   start()                the class's player logged in
 --   resolve()              after a spellbook scan; returns a signature
 --   sanitize(db, acct)     a profile loaded
 --   applyTimers()          every timer takes its current style
@@ -248,9 +251,13 @@ end
 local function showMode(key) return elementOpts(key).show or "always" end
 
 local function groupSize(g) return (g and not g.sizeFollow and g.size) or db.iconSize end
+-- An element's box (its Size, border included) and its picture's size, in whole pixels
+local function boxOf(key)
+	return ns.roundPx(groupSize((groupOf(key))), ns.pixel(ELEMENTS[key].frame))
+end
 local function sizeOf(key)
 	local e = ELEMENTS[key]
-	local box = ns.roundPx(groupSize((groupOf(key))), ns.pixel(e.frame))
+	local box = boxOf(key)
 	return box - 2 * ns.Looks.inset(e.borderHost or e.frame, ns.borderFor(key), box, e.shape)
 end
 
@@ -307,7 +314,6 @@ local function newGroup(template)
 	for k, v in pairs(GROUP_DEFAULTS) do
 		if template and template[k] ~= nil then g[k] = template[k] else g[k] = v end
 	end
-	if template and template.border then g.border = CopyTable(template.border) end
 	g.members = {}
 	g.id = nextId()
 	g.name = freeName()
@@ -387,7 +393,6 @@ local function sanitize()
 		g.combatOnly = nil
 		for k, v in pairs(GROUP_DEFAULTS) do if g[k] == nil then g[k] = v end end
 		if g.show ~= "combat" and g.show ~= "target" then g.show = "always" end
-		if type(g.border) == "table" and g.border.follow == nil then g.border.follow = false end
 		local kept = {}
 		for _, key in ipairs(type(g.members) == "table" and g.members or {}) do
 			if ELEMENTS[key] and not seen[key] then
@@ -396,6 +401,18 @@ local function sanitize()
 			end
 		end
 		g.members = kept
+		-- A group's own border (old profiles, imports) goes to its members that have none
+		local b = g.border
+		if type(b) == "table" and b.follow ~= true then
+			for _, key in ipairs(kept) do
+				local o = elementOpts(key)
+				if o.border == nil then
+					o.border = CopyTable(b)
+					o.border.follow = false
+				end
+			end
+		end
+		g.border = nil
 	end
 	fixIds()
 	fixNames()
@@ -514,29 +531,33 @@ end
 
 -- Every member anchors to the group frame, never to another: a frame a protected frame anchors to
 -- may turn protected too (the shield's button), so a chain could stop members changing in combat.
--- A member's Size is its box, border included.
+-- A member's Size is its box, border included; its art frame hangs where its border is drawn.
 local function layoutGroup(g)
 	local gf = groupFrame(g.id)
 	gf.afterCombat = gf.afterCombat or afterCombat(gf)
 	gf:SetScale(g.scale)
 	local px = ns.pixel(gf)
 	local gap = ns.roundPx(g.spacing, px)   -- negative: members overlap
-	local border = ns.Style.get(g, "border")
 	local horizontal = g.orientation == "horizontal"
 	local forward = g.growth ~= "backward"
 	local n, along, across = 0, 0, 0
 	local placed = {}
+	local level = gf:GetFrameLevel() + ns.Frames.LEVEL.member
 	for _, key in ipairs(g.members) do
 		local e = ELEMENTS[key]
 		local f = e.frame
 		if f:GetParent() ~= gf then f:SetParent(gf) end
+		f:SetFrameLevel(level)
 		if e.stack then e.stack() end
 		if showMode(key) == "never" or not onHUD(key) then
 			hideFrame(f)
 		else
 			local w, h = e.getSize(groupSize(g))
 			w, h = ns.roundPx(w, px), ns.roundPx(h, px)
-			local inset = ns.Looks.fit(f, border, w, h, e)
+			local inset = ns.Looks.fit(f, ns.borderFor(key), w, h, e)
+			-- An element over Blizzard's button frames the button's border instead
+			local own = e.borderHost or not f.aboveProtected
+			ns.Frames.mountOwn(e.borderHost or f, key, own and w == h and w or nil)
 			table.insert(placed, { f, along + n * gap, w, h, inset })
 			if horizontal then along, across = along + w, math.max(across, h)
 			else along, across = along + h, math.max(across, w) end
@@ -551,22 +572,30 @@ local function layoutGroup(g)
 		lo = math.min(lo, m[2])
 		hi = math.max(hi, m[2] + (horizontal and m[3] or m[4]))
 	end
+	-- cells: each member's box from the group box's top-left, for the group's art frame
+	local cells = {}
+	local span = hi - lo
 	for _, m in ipairs(placed) do
 		local f, o = m[1], m[5]
-		local offset = m[2] - lo + o
-		local side = ns.roundPx((across - (horizontal and m[4] or m[3])) / 2, px) + o
+		local at = m[2] - lo
+		local offset = at + o
+		local side = ns.roundPx((across - (horizontal and m[4] or m[3])) / 2, px)
 		f:ClearAllPoints()
 		if horizontal then
-			if forward then f:SetPoint("TOPLEFT", gf, "TOPLEFT", offset, -side)
-			else f:SetPoint("TOPRIGHT", gf, "TOPRIGHT", -offset, -side) end
+			if forward then f:SetPoint("TOPLEFT", gf, "TOPLEFT", offset, -side - o)
+			else f:SetPoint("TOPRIGHT", gf, "TOPRIGHT", -offset, -side - o) end
+			table.insert(cells, { x = forward and at or span - at - m[3], y = side })
 		else
-			if forward then f:SetPoint("TOPLEFT", gf, "TOPLEFT", side, -offset)
-			else f:SetPoint("BOTTOMLEFT", gf, "BOTTOMLEFT", side, offset) end
+			if forward then f:SetPoint("TOPLEFT", gf, "TOPLEFT", side + o, -offset)
+			else f:SetPoint("BOTTOMLEFT", gf, "BOTTOMLEFT", side + o, offset) end
+			table.insert(cells, { x = side, y = forward and at or span - at - m[4] })
 		end
 	end
 	along = math.max(hi - lo, px)
 	across = math.max(across, px)
 	if horizontal then gf:SetSize(along, across) else gf:SetSize(across, along) end
+	gf.frameLayout = { size = ns.roundPx(groupSize(g), px), cells = cells, vertical = not horizontal }
+	ns.Frames.mountGroup(gf, g, gf.frameLayout)
 	gf:SetAlpha(g.alpha)
 	for _, key in ipairs(g.members) do
 		local fx = ELEMENTS[key].frame.effects
@@ -602,7 +631,6 @@ local function layoutElements()
 	each("afterGroups")
 	ns.refitRings()
 	ns.Positioning.update()
-	ns.TotemBar.layout()
 	ns.Options.refresh()
 end
 
@@ -619,7 +647,6 @@ end
 
 local function applyTimers()
 	each("applyTimers")
-	ns.TotemBar.applyTimers()
 end
 
 local function applyLayout()
@@ -630,7 +657,7 @@ end
 
 -- Every lock and unlock goes through here: in combat unlocking is refused, locking takes the combat path
 function ns.setLocked(locked)
-	if not isShaman then say("positioning is for shamans only") return false end
+	if not isActive then say("positioning is for %s only", ns.CLASS.plural) return false end
 	if InCombatLockdown() then
 		if not locked then say("positioning can't be unlocked in combat") return false end
 		if not acct.locked then ns.Positioning.lockInCombat() end
@@ -771,20 +798,20 @@ ns.profileName = function() return profileName end
 ns.useProfile, ns.selectProfile, ns.fillDefaults = useProfile, selectProfile, fillDefaults
 ns.DEFAULTS, ns.GROUP_DEFAULTS = DEFAULTS, GROUP_DEFAULTS
 ns.ELEMENTS, ns.ELEMENT_KEYS = ELEMENTS, ELEMENT_KEYS
-ns.isActive = function() return isShaman end
+ns.isActive = function() return isActive end
 ns.isEnabled, ns.showMode = isEnabled, showMode
 ns.isLearned = isLearned
 ns.elementOpts, ns.elementSetting, ns.elementDefault, ns.idleAlpha = elementOpts, elementSetting, elementDefault, idleAlpha
 ns.groupOf, ns.groupById = groupOf, groupById
-ns.groupFrames, ns.groupSize, ns.sizeOf = groupFrames, groupSize, sizeOf
+ns.groupFrames, ns.groupSize, ns.sizeOf, ns.boxOf = groupFrames, groupSize, sizeOf, boxOf
 ns.setGroupCenter, ns.screenCenter = setGroupCenter, screenCenter
 ns.layoutElements, ns.applyLayout, ns.applyTimers = layoutElements, applyLayout, applyTimers
 ns.placeElement, ns.addGroup, ns.renameGroup, ns.deleteGroup = placeElement, addGroup, renameGroup, deleteGroup
 ns.hideGroup, ns.centerGroup = hideGroup, centerGroup
 ns.setShow = setShow
-ns.resolveSpells, ns.refreshAll = resolveSpells, refreshAll
+ns.resolveSpells, ns.refreshAll, ns.refreshCooldownsSoon = resolveSpells, refreshAll, refreshCooldownsSoon
 function ns.borderFor(key)
-	return ns.Style.get((groupOf(key)), "border")
+	return ns.Style.get(key, "border")
 end
 
 -- Events
@@ -805,14 +832,12 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		local want = ns.Profiles.saved()
 		if want ~= profileName then selectProfile(want) end
 		ns.IssueReporter.apply()
-		local _, class = UnitClass("player")
-		if class ~= "SHAMAN" then root:Hide(); return end
-		isShaman = true
+		if not ns.isClass() then root:Hide(); return end
+		isActive = true
 		ns.try("spell self-check", Spells.selfCheck)
 		ns.applyMinimapButton()
 		reg("UNIT_SPELLCAST_SUCCEEDED", "player")
 		reg("SPELL_UPDATE_COOLDOWN")
-		reg("PLAYER_TOTEM_UPDATE")
 		reg("SPELLS_CHANGED")
 		reg("PLAYER_REGEN_ENABLED")
 		-- A restriction ended (a match, an encounter): auras may be readable with no combat end to say so;
@@ -839,8 +864,6 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		refreshCooldownsSoon()
 	elseif event == "SPELL_UPDATE_COOLDOWN" then
 		ns.try("cooldown refresh", flushCooldowns, true)
-	elseif event == "PLAYER_TOTEM_UPDATE" then
-		refreshCooldownsSoon()
 	elseif event == "SPELLS_CHANGED" then
 		-- Fires often (shapeshifts, zoning): relayout only when a tracked spell changed
 		local found = resolveSpells()
@@ -868,7 +891,6 @@ function ns.debugReport()
 	say("spells: %s", table.concat(known, ", "))
 	each("debug")
 	say("profile %s", tostring(profileName))
-	say("%s", ns.TotemBar.debug())
 	local function listed(key)
 		local mode = isLearned(key) and showMode(key) or ns.notLearnedText(key):lower()
 		return mode == "always" and key or (key .. " (" .. mode .. ")")

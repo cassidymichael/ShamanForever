@@ -7,6 +7,7 @@ local Spells = ns.Spells
 local IM = { name = "imbue" }
 ns.Imbue = IM
 
+ns.Profiles.addRanges({ imbueWarnMins = { 0, 30 } })
 local imbue = ns.newElementIcon("imbue")
 local anyKnown = false
 local IDLE_CHOICES = {
@@ -18,6 +19,8 @@ local IDLE_CHOICES = {
 ns.registerElement("imbue", { frame = imbue, label = "Weapon Imbue", paint = function(t) t:SetTexture(IM.icon()) end,
 	learned = function() return anyKnown end,
 	defaults = { idleWhen = "notlow", idleAlpha = 0 },
+	styles = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false,
+		bar = false } },
 	def = { key = "imbue", idleChoices = IDLE_CHOICES },
 	effects = { glow = { "missing" }, pop = { "lost" }, popKind = "imbue" },
 	kind = "imbue", icon = 136086, school = "spirit", blurb = "Warns when your main hand has no imbue." })
@@ -191,6 +194,10 @@ function IM.onCast(spellID)
 	if not IMBUES[key] then return end
 	imbueState.castKey, imbueState.castAt = key, GetTime()
 	IM.refresh()
+end
+
+function IM.sanitize(_, acct)
+	if type(acct.imbueIDs) ~= "table" then acct.imbueIDs = {} end
 end
 
 function IM.resolve()

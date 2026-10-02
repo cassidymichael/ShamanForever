@@ -12,7 +12,7 @@
 
 local _, ns = ...
 
-local TB = {}
+local TB = { name = "totem bar" }
 ns.TotemBar = TB
 
 local ELEMENTS = { "earth", "fire", "water", "air" }
@@ -163,16 +163,16 @@ local function cfg()
 end
 TB.cfg = cfg
 
--- Only shamans get the bar: other classes leave Blizzard's frames alone
-local playerClass
-local function isShaman()
-	if not playerClass then playerClass = select(2, UnitClass("player")) end
-	return playerClass == "SHAMAN"
-end
-local function barOn() return isShaman() and cfg().mode ~= "blizzard" end
-TB.isShaman = isShaman
+-- Only the class gets the bar: other classes leave Blizzard's frames alone
+local function barOn() return ns.isClass() and cfg().mode ~= "blizzard" end
 local function feat(key) local c = cfg(); return barOn() and c.mode == "everything" and c[key] or false end
 TB.barOn, TB.feat = barOn, feat
+ns.Style.registerBar("totembar", { cfg = cfg, DEFAULTS = TB.DEFAULTS, label = "Totem bar", on = barOn,
+	kinds = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
+	-- Its theme can draw its own border
+	ownLabel = function(kind)
+		if kind == "border" and TB.skin.owns("border") then return "Totem bar (its theme)" end
+	end })
 
 -- The player's settings, or the theme's where it owns one
 local effective = setmetatable({}, { __index = function(_, k)
@@ -1063,9 +1063,10 @@ function layout()
 	applyActionBar()
 	if mover then mover.update() end
 	if preview then paintPreview() end
-	if playerClass and not isShaman() then classDone = true end
+	if ns.otherClass() then classDone = true end
 end
 TB.layout = layout
+TB.afterGroups = layout
 
 afterCombat = ns.AfterCombat.new({
 	secs = function()
@@ -1406,7 +1407,7 @@ end
 
 ev:SetScript("OnEvent", function(_, event, arg1, ...)
 	if not ns.getDB() then return end
-	if not isShaman() and playerClass then
+	if ns.otherClass() then
 		layout()
 		if classDone then
 			ev:UnregisterAllEvents()
@@ -1582,9 +1583,11 @@ function TB.debug()
 	local gok, ginfo = pcall(C_ActionBar.GetActionCooldown, multiAction(SLOT.earth))
 	local g = not gok and "error" or type(ginfo) ~= "table" and "none"
 		or isSecret(ginfo.isOnGCD) and "secret" or tostring(ginfo.isOnGCD)
-	return string.format("totem bar mode %s, show %s, driver %s, shown %s, totems known %s, earth isOnGCD %s; TotemFrame parent %s alpha %s; Totem Action Bar parent %s",
+	ns.say("totem bar mode %s, show %s, driver %s, shown %s, totems known %s, earth isOnGCD %s; TotemFrame parent %s alpha %s; Totem Action Bar parent %s",
 		c.mode, c.show, tostring(lastDriver), tostring(bar:IsShown()), tostring(hasTotems), g,
 		TotemFrame and TotemFrame:GetParent() and (TotemFrame:GetParent():GetName() or "?") or "none",
 		TotemFrame and string.format("%.2f", TotemFrame:GetAlpha()) or "-",
 		mc and (mc:GetParent() == hiddenParent and "hidden" or (mc:GetParent() and mc:GetParent():GetName() or "?")) or "none")
 end
+
+ns.registerModule(TB)

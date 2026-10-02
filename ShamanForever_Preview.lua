@@ -1,18 +1,11 @@
--- Preview mode (/sf preview): the HUD in a made-up moment
--- Elements show the states of their options preview on a stand-in icon over them, reading only
--- settings; nothing is saved. It ends when combat starts, and a layout puts the real HUD back.
--- Modes: Preview (an ordinary moment of a fight), Warnings (everything warning at once), Busy
--- (every state in turn, faster than a fight and out of step).
--- Elements are parked under a hidden frame of their group while a stand-in shows. The shield and
--- Elemental Focus hold Blizzard's protected button, which takes no change in combat, so they are
--- never parked: the stand-in sits over the button. The totem bar draws on its own slots; the swing
--- timer swings made-up swings.
--- Stand-ins hang from frames of their own that take their group's scale and opacity, so combat-only
--- groups show too.
+-- Preview mode (/sf preview): the HUD in a made-up moment, drawn on stand-ins; nothing is saved and
+-- it ends when combat starts. Elements holding Blizzard's protected button stay under their
+-- stand-in rather than parked (no change to it in combat).
 
 local _, ns = ...
 local say = ns.say
 local L = ns.Look
+local FR = ns.Frames
 
 local PV = { name = "preview" }
 ns.Preview = PV
@@ -82,6 +75,7 @@ local function makeStandIn(key, gf)
 	h:SetAllPoints(ns.ELEMENTS[key].frame)
 	local ic = L.makePreviewIcon(h, key, L.PREVIEW[key])
 	ic:SetAllPoints(h)
+	if ic.upT then ic.upT:restack(2) end
 	if key == "tremor" then
 		ic.word = ic.textFrame:CreateFontString(nil, "OVERLAY")
 		ns.Media.setFont(ic.word, nil, 16)
@@ -150,11 +144,37 @@ local function place(key, r)
 	-- An element above Blizzard's button keeps its own border under its stand-in unless that border is
 	-- on parts that show only with a hostile target or their aura (standInBorder): the stand-in draws theirs
 	local own = f.aboveProtected and f:IsVisible() and not ns.ELEMENTS[key].standInBorder
-	ns.applyBorder(standIns[key], not own and ns.borderFor(key) or nil)
+	local ic, st = standIns[key], ns.Style.read(key, "frame")
+	ns.applyBorder(ic, not own and ns.borderFor(key) or nil)
+	FR.draw(ic, not own and ns.Style.look("frame", st.look) or nil, ns.boxOf(key), st)
+	if f.aboveProtected then FR.veil(key, not own) end
 	if r.nextAt then paintElement(key, r, false) else startStep(key, r, false) end
 end
 
+-- A group hidden out of combat: its art frame on a frame of its own
+local groupHolders = {}
+local function placeGroup(g)
+	local gf = ns.groupFrames[g.id]
+	local h = gf and groupHolders[gf]
+	if not (gf and gf.laidOut and gf.frameLayout and not gf:IsVisible())
+		or ns.Style.read(g, "groupframe").look == "none" then
+		if h then h:Hide() end
+		return
+	end
+	if not h then
+		h = CreateFrame("Frame", nil, gf:GetParent())
+		groupHolders[gf] = h
+	end
+	h:SetFrameLevel(gf:GetFrameLevel())
+	h:SetAllPoints(gf)
+	h:SetScale(gf:GetScale())
+	h:SetAlpha(gf:GetAlpha())
+	h:Show()
+	FR.mountGroup(h, g, gf.frameLayout)
+end
+
 local function repaint()
+	for _, g in ipairs(ns.getDB().groups) do ns.try("preview group frame", placeGroup, g) end
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
 		local r = runs[key]
 		if r then ns.try("preview " .. key, place, key, r) end
@@ -306,7 +326,7 @@ local optionsButton
 do
 	local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	title:SetPoint("TOPLEFT", 10, -13)
-	title:SetText("ShamanForever: preview")
+	title:SetText(ns.NAME .. ": preview")
 	local mode = choice(panel, "mode", {
 		{ "preview", "Preview", "An ordinary moment in a fight." },
 		{ "warnings", "Warnings", "Warnings focused." },
@@ -351,7 +371,7 @@ function PV.showsUnlearned() return on and opts.unlearned end
 
 function PV.open()
 	if on then return end
-	if not ns.isActive() then say("the preview is for shamans only") return end
+	if not ns.isActive() then say("the preview is for %s only", ns.CLASS.plural) return end
 	if InCombatLockdown() then say("the preview can't start in combat") return end
 	on = true
 	optionsAside = not ns.getAccount().keepOptionsOpen and ns.Options.hide() or false
@@ -372,7 +392,9 @@ function PV.close(forCombat)
 	for key, h in pairs(holders) do
 		h:Hide()
 		standIns[key]:SetPulsing(false)
+		FR.veil(key, false)
 	end
+	for _, h in pairs(groupHolders) do h:Hide() end
 	wipe(runs)
 	wipe(barRuns)
 	unparkAll()

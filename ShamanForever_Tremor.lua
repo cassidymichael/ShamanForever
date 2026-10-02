@@ -10,6 +10,7 @@ local TR = { name = "tremor" }
 ns.Tremor = TR
 
 local KEY = "tremor"
+ns.Profiles.addRanges(nil, { wordSize = { 8, 40 }, wordX = { -100, 100 }, wordY = { -100, 100 } })
 local EARTH = 2
 local HOLD = 10   -- seconds
 local SOUND_GAP = 10   -- seconds
@@ -60,6 +61,8 @@ ns.registerElement(KEY, { frame = f, label = def.spell, defaults = def.defaults,
 	learned = function() return def.spellID ~= nil end,
 	paint = function(t) t:SetTexture(def.iconID or def.icon) end,
 	effects = { glow = { "warning" }, pop = { "warning" } },
+	styles = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false,
+		bar = true } },
 	kind = "tremor", def = def, spell = def.spellKey, icon = def.icon, school = def.school,
 	blurb = "Warns near mobs that fear, charm or sleep." })
 

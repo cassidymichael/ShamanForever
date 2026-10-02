@@ -19,14 +19,19 @@ local setting = ns.elementSetting
 -- Parts: grounded, window (seconds from our cast), primed ({ spends, charges, duration, buffKey,
 -- text }), reagent (item ID), readyGlow, noReady, ranOut (end shown as a flash, not the pop),
 -- expireLooks, primedLooks, race (race IDs; others see "Not your race"), cd (preview only),
--- defaults.
+-- defaults, styles and timerCant (see ns.registerElement).
+-- With a cooldown and time left: the cooldown has the swipe; time left as a bar
+local ONE_SWIPE = { uptime = { swipe = "The cooldown has the swipe; time left shows as text or a bar." } }
+local function barTimer() return { uptime = { text = false, bar = true } } end
 local COOLDOWNS = {
 	{ key = "earthbind", spellKey = "earthbind", icon = 136102, totemSlot = 2, duration = 45, school = "earth",
-		blurb = "Cooldown, and time left while it's down.", defaults = {} },
+		blurb = "Cooldown, and time left while it's down.",
+		styles = barTimer(), timerCant = ONE_SWIPE, defaults = {} },
 	{ key = "stoneclaw", spellKey = "stoneclaw", icon = 136097, totemSlot = 2, duration = 15, school = "earth",
-		blurb = "Cooldown, and time left while it's down.", defaults = {} },
+		blurb = "Cooldown, and time left while it's down.",
+		styles = barTimer(), timerCant = ONE_SWIPE, defaults = {} },
 	{ key = "firenova",  spellKey = "fireNova",  icon = 135824, needsTotem = 1, school = "fire",
-		blurb = "Cooldown. Needs a fire totem.", defaults = { idleWhen = "never" } },
+		blurb = "Cooldown. Needs a fire totem.", timerCant = ONE_SWIPE, defaults = { idleWhen = "never" } },
 	-- Emergency cooldowns
 	{ key = "naturesswiftness", spellKey = "naturesSwiftness", icon = 136076, school = "water",
 		blurb = "Cooldown, and a glow while your next Nature spell is instant.",
@@ -37,15 +42,18 @@ local COOLDOWNS = {
 		cd = 180, defaults = { idleWhen = "never" }, experimental = "Nature's Swiftness" },
 	{ key = "manatide", spellKey = "manaTide", icon = 135861, totemSlot = 3, duration = 12, school = "water",
 		blurb = "Cooldown, and time left while it's down.",
+		styles = barTimer(), timerCant = ONE_SWIPE,
 		ranOut = true, cd = 300,
 		defaults = { idleWhen = "never", expire = { secs = 3, glow = true, pulse = false } }, experimental = "Mana Tide Totem" },
 	{ key = "grounding", spellKey = "grounding", icon = 136039, totemSlot = 4, duration = 45, school = "air",
 		blurb = "Cooldown, time left, and a flash when it takes a spell.",
+		styles = barTimer(), timerCant = ONE_SWIPE,
 		grounded = true, ranOut = true, cd = 15, defaults = {}, experimental = "Grounding Totem" },
 	-- Rotation
 	-- Stormstrike: timed from the cast, spent by our own casts only (auras are secret in combat).
 	{ key = "stormstrike", spellKey = "stormstrike", icon = 135963, school = "air",
 		blurb = "Cooldown, and a bar while your target takes more Nature damage.",
+		styles = barTimer(), timerCant = ONE_SWIPE,
 		primed = { spends = { "lightningBolt", "chainLightning", "earthShock" }, duration = 12,
 			text = "From your cast for 12 s, or until your next Lightning Bolt, Chain Lightning or Earth Shock. " ..
 				"Other Nature damage on the target can also use it up, which can't be seen." },
@@ -60,12 +68,14 @@ local COOLDOWNS = {
 		readyGlow = true, cd = 6, defaults = { idleWhen = "never", readyPop = false }, experimental = "Chain Lightning" },
 	{ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, window = 25, school = "air",
 		blurb = "Cooldown, and time left while it's on.",
+		timerCant = ONE_SWIPE,
 		readyGlow = true, expireLooks = { "grey", "pulse" }, cd = 180,
 		defaults = { idleWhen = "never", expire = { secs = 0, pulse = true } }, experimental = "Rage of the Farseer" },
 	{ key = "projection", spellKey = "totemicProjection", icon = 136099, school = "spirit", blurb = "Cooldown.",
 		cd = 60, experimental = "Totemic Projection" },
 	{ key = "reincarnation", spellKey = "reincarnation", icon = 136080, school = "spirit",
 		blurb = "Cooldown, and your Ankhs when they run low.",
+		styles = { gcd = { show = false } },   -- never needs the sweep
 		reagent = 17030, noReady = true, cd = 3600,
 		defaults = { idleAlpha = 0, readyPop = false }, experimental = "Reincarnation" },
 	-- Racials (race IDs: Orc 2, Dwarf 3, Tauren 6, Troll 8, Windshaper Skyborne 96)
@@ -228,7 +238,7 @@ for _, def in ipairs(COOLDOWNS) do
 		defaults = def.defaults, learned = function() return def.spellID ~= nil end,
 		paint = function(t) t:SetTexture(def.iconID or def.icon) end, effects = effectsOf(def),
 		kind = "cooldown", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
-		experimental = def.experimental, race = def.race })
+		experimental = def.experimental, race = def.race, styles = def.styles, timerCant = def.timerCant })
 end
 
 -- GCD and own cooldown

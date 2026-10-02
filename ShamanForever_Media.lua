@@ -135,15 +135,20 @@ function M.fontPath(name)
 	return path
 end
 
-local OWNERS = { totembar = true, swing = true }
-local function owner(o) return OWNERS[o] and o or nil end
+local function owner(o) return S.bar(o) and o or nil end
+
+-- Global's, or any bar's
+local function anyOwner(test)
+	if test(nil) then return true end
+	for _, o in ipairs(S.bars()) do if test(o) then return true end end
+	return false
+end
 
 function M.fontInUse(name, path)
-	for _, o in ipairs({ false, "totembar", "swing" }) do
-		local n = S.value(o or nil, "text", "font")
-		if n ~= "" and (n == name or (path and pathOf(n) == path)) then return true end
-	end
-	return false
+	return anyOwner(function(o)
+		local n = S.value(o, "text", "font")
+		return n ~= "" and (n == name or (path and pathOf(n) == path))
+	end)
 end
 
 function M.text(o)
@@ -280,7 +285,7 @@ function M.menuFont(path)
 	local obj = menuFonts[path]
 	if not obj then
 		menuCount = menuCount + 1
-		obj = CreateFont("ShamanForeverMenuFont" .. menuCount)
+		obj = CreateFont(ns.NAME .. "MenuFont" .. menuCount)
 		obj:CopyFontObject(GameFontHighlight)
 		local _, size = GameFontHighlight:GetFont()
 		obj:SetFont(path, size or 12, "")
@@ -312,12 +317,11 @@ local function bar(name)
 end
 M.barOf = bar
 
-local function barOwner(o) return (o == "swing" or o == "totembar") and o or nil end
-local function barName(o) return S.value(barOwner(o), "bar", "texture") end
+local function barName(o) return S.value(owner(o), "bar", "texture") end
 
 function M.barTexture(o) return (bar(barName(o))) end
 
-function M.barInUse(name) return barName(nil) == name or barName("totembar") == name or barName("swing") == name end
+function M.barInUse(name) return anyOwner(function(o) return barName(o) == name end) end
 
 function M.barProblem(o)
 	local name = barName(o)

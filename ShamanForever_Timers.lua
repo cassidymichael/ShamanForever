@@ -29,34 +29,8 @@ T.DEFAULTS = {
 for _, kind in ipairs(T.KINDS) do
 	for k, v in pairs(timeColors()) do T.DEFAULTS[kind][k] = v end
 end
--- Elements that look different from the global style until the player says otherwise
-T.ELEMENT_DEFAULTS = {
-	shield = { uptime = { text = false, swipe = false, swipeAlpha = 0.5, swipeReverse = false, bar = false, barEdge = "top" } },
-	imbue = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = false } },
-	flameshock = { uptime = { text = true, bar = true, barEdge = "bottom" } },
-	earthbind = { uptime = { text = false, bar = true } },
-	stoneclaw = { uptime = { text = false, bar = true } },
-	manatide = { uptime = { text = false, bar = true } },
-	grounding = { uptime = { text = false, bar = true } },
-	stormstrike = { uptime = { text = false, bar = true } },
-	waterwalking = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
-	waterbreathing = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
-	elementalfocus = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
-	maelstrom = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
-	tremor = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false, bar = true } },
-}
--- Parts an element's timer can't have, and why (shown on its page)
-local ONE_SWIPE = "The cooldown has the swipe; time left shows as text or a bar."
-T.CANT = {
-	earthbind = { uptime = { swipe = ONE_SWIPE } },
-	stoneclaw = { uptime = { swipe = ONE_SWIPE } },
-	firenova = { uptime = { swipe = ONE_SWIPE } },
-	manatide = { uptime = { swipe = ONE_SWIPE } },
-	grounding = { uptime = { swipe = ONE_SWIPE } },
-	maelstrom = { bar = "Its timer is Blizzard's own; a time bar can't follow it." },
-	farseer = { uptime = { swipe = ONE_SWIPE } },
-	stormstrike = { uptime = { swipe = ONE_SWIPE } },
-}
+-- Parts an element's timer can't have, and why (shown on its page); filled as elements register
+T.CANT = {}
 function T.cant(key, kind)
 	local c, out = key and T.CANT[key], {}
 	if not c then return out end
@@ -72,11 +46,7 @@ T.AURA_BAR = { interpolation = TIMER_IMMEDIATE, direction = TIMER_REMAINING }
 
 local S = ns.Style
 for _, kind in ipairs(T.KINDS) do
-	local own = {}
-	for key, d in pairs(T.ELEMENT_DEFAULTS) do own[key] = d[kind] end
-	S.register(kind, {
-		defaults = T.DEFAULTS[kind], path = { "timers", kind }, ownerDefaults = own,
-	})
+	S.register(kind, { defaults = T.DEFAULTS[kind], path = { "timers", kind } })
 end
 
 -- The countdown's formatter
@@ -180,7 +150,7 @@ function T.new(parent, key, kind, opts)
 	cd:SetSwipeTexture(WHITE)
 	t.cd = cd
 	fonts = fonts + 1
-	t.fontName = "ShamanForeverTimerFont" .. fonts
+	t.fontName = ns.NAME .. "TimerFont" .. fonts
 	t.font = CreateFont(t.fontName)
 	t.font:SetFont(STANDARD_TEXT_FONT, 12, "OUTLINE")
 	cd:SetCountdownFont(t.fontName)
@@ -374,7 +344,7 @@ function Timer:setExpire(e, icon)
 	if not x then
 		x = CreateFrame("Frame", nil, self.parent)
 		x:SetAllPoints(self.anchor)
-		x:SetFrameLevel(self.anchor:GetFrameLevel() + 1)
+		x:SetFrameLevel(self.anchor:GetFrameLevel() + (self.over or 1))
 		x:SetAlpha(0)
 		x.grey = x:CreateTexture(nil, "ARTWORK")
 		x.grey:SetAllPoints()
@@ -415,10 +385,12 @@ function Timer:setExpireIcon(icon)
 	if self.exp then ns.try("timer expiring icon", self.exp.grey.SetTexture, self.exp.grey, icon) end
 end
 
-function Timer:restack()
+-- over: the expiring warning's level over its anchor (an element icon's: over its art frame)
+function Timer:restack(over)
+	if over then self.over = over end
 	local x = self.exp
 	if x then
-		x:SetFrameLevel(self.anchor:GetFrameLevel() + 1)
+		x:SetFrameLevel(self.anchor:GetFrameLevel() + (self.over or 1))
 		x.glow:SetFrameLevel(x:GetFrameLevel() + 1)
 	end
 	if self.bar then self.bar:SetFrameLevel(self.cd:GetFrameLevel() + 1) end

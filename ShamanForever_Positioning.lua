@@ -211,7 +211,7 @@ end
 -- fight: only the arrows and Escape are kept, for the key press itself, and the frame hides itself
 -- at combat start (always allowed for our own frame).
 local NUDGE_KEYS = { UP = { 0, 1 }, DOWN = { 0, -1 }, LEFT = { -1, 0 }, RIGHT = { 1, 0 } }
-local nudger = CreateFrame("Frame", "ShamanForeverNudge", UIParent)
+local nudger = CreateFrame("Frame", ns.NAME .. "Nudge", UIParent)
 nudger:Hide()
 
 local function nudge(key)
@@ -292,7 +292,7 @@ ns.registerEvent(nudger, "PLAYER_REGEN_ENABLED")
 
 -- The bar while unlocked
 local wasUnlocked, optionsSteppedAside = false, false
-local tray = CreateFrame("Frame", "ShamanForeverTray", UIParent, "BackdropTemplate")
+local tray = CreateFrame("Frame", ns.NAME .. "Tray", UIParent, "BackdropTemplate")
 tray:SetSize(560, 120)
 tray:SetFrameStrata("DIALOG")
 tray:SetPoint("TOP", UIParent, "TOP", 0, -120)
@@ -309,7 +309,7 @@ tray:Hide()
 do
 	local title = tray:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	title:SetPoint("TOPLEFT", 10, -10)
-	title:SetText("ShamanForever: positioning unlocked")
+	title:SetText(ns.NAME .. ": positioning unlocked")
 	local HELP = {
 		{ "Drag", "Move a group or the totem bar" },
 		{ "Click, then arrow keys", "Nudge a group (Shift: 10x)" },

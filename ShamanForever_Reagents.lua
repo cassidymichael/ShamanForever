@@ -14,6 +14,8 @@ R.DEFAULTS = {
 	reagentSize = 14, reagentPos = "BOTTOMRIGHT", reagentX = 0, reagentY = 0,
 	reagentRing = true, reagentPulse = true,
 }
+ns.Profiles.addRanges(nil, { reagentLow = { 0, 10 }, reagentSize = { 8, 40 }, reagentX = { -50, 50 },
+	reagentY = { -50, 50 } })
 
 R.IDLE_EXTRA = { key = "reagentShow", label = "Running low",
 	tip = "Running low or out counts as something going on, even at 0%.",

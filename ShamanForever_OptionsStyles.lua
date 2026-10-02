@@ -46,7 +46,7 @@ local AFTER = {
 	glow = function() ns.Effects.applyStyle(); ns.applyTimers(); ns.Options.refresh() end,
 	pop = function() ns.applyTimers(); ns.Options.refresh() end,
 }
-K.confirm("SHAMANFOREVER_USE_STYLE", "Use %s for the global %s?", "Use", function(run) run() end)
+K.confirm(ns.POPUP .. "USE_STYLE", "Use %s for the global %s?", "Use", function(run) run() end)
 
 local function use(kind, fields)
 	for k, v in pairs(fields) do S.set(nil, kind, k, v) end
@@ -55,7 +55,7 @@ end
 
 local function askUse(c)
 	local fields = c.fields()
-	StaticPopup_Show("SHAMANFOREVER_USE_STYLE", c.name(), KIND_NAMES[c.kind],
+	StaticPopup_Show(ns.POPUP .. "USE_STYLE", c.name(), KIND_NAMES[c.kind],
 		function() use(c.kind, fields) end)
 end
 

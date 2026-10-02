@@ -22,6 +22,7 @@ local gateAlpha, holderAlpha, retarget
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
 		icon = 135813, school = "fire", blurb = "Shows while your Flame Shock is on your target.",
+		styles = { glow = { look = "soft" }, uptime = { text = true, bar = true, barEdge = "bottom" } },
 		idleChoices = {
 			{ "never", "Never", "It always shows in full" },
 			{ "notarget", "No hostile target", "Idle while you have no hostile target" },
@@ -35,6 +36,7 @@ local TARGET = {
 			missGrey = true, missRing = false, missPulse = false, missGlow = true,
 			expireSecs = 3, expireBar = true, expireBarColor = { 1, 0.2, 0.8, 1 }, expireText = false } },
 	{ key = "purge", spellKey = "purge", filter = "HELPFUL", icon = 136075, school = "spirit",
+		styles = { glow = { look = "proc" } },
 		blurb = "Shows while your target has a Magic buff to purge.",
 		-- Skip long buffs: only those lasting at most Longest buff (maxDuration also leaves out buffs with
 		-- no end)
@@ -101,7 +103,7 @@ local function styleButton(def, size, slot)
 		ns.try("flame shock expiring", styleExpire, def, size, slot)
 	end
 	if def.edge then
-		ns.try("target border " .. def.key, ns.applyBorder, def.edge, ns.borderFor(def.key))
+		ns.try("target border " .. def.key, ns.Frames.dress, def.edge, def.key)
 		if def.edge.frameOverlay then def.edge.frameOverlay:Hide() end
 	end
 	if def.fx then ns.try("target pop " .. def.key, def.fx.stylePop, def.fx, size) end
@@ -303,7 +305,7 @@ for _, def in ipairs(TARGET) do
 		learned = function() return def.spellID ~= nil end,
 		paint = function(t) t:SetTexture(def.icon) end,
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
-		experimental = def.experimental })
+		experimental = def.experimental, styles = def.styles })
 end
 
 local listed = false
@@ -428,10 +430,11 @@ end
 local function styleLook()
 	local def, f, h, look = FLAME, FLAME.frame, FLAME.holder, FLAME.missLook
 	if InCombatLockdown() then return end
-	h:SetFrameLevel(f.textFrame:GetFrameLevel() + 1)   -- over the icon, under the container
-	look:setLevel(h:GetFrameLevel() + 1)
-	def.lookEdge:SetFrameLevel(h:GetFrameLevel() + 1)
-	ns.applyBorder(def.lookEdge, ns.borderFor(def.key))
+	local lv = f.textFrame:GetFrameLevel() + 1   -- over the icon, under the container
+	h:SetFrameLevel(lv)
+	look:setLevel(lv + 1, 2)
+	def.lookEdge:SetFrameLevel(lv + 1)
+	ns.Frames.dress(def.lookEdge, def.key, lv + 1)
 	if def.lookEdge.frameOverlay then def.lookEdge.frameOverlay:Hide() end
 	look:setParts(setting(def.key, "missGrey"), false, setting(def.key, "missRing"),
 		setting(def.key, "missPulse"), setting(def.key, "missGlow"))

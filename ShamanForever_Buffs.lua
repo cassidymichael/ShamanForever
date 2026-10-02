@@ -11,16 +11,20 @@ ns.Buffs = B
 
 local function setting(key, name) return ns.elementSetting(key, name) end
 
+local TEXT_TIMER = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 }, textPos = "center",
+	swipe = false, bar = true } }
 local BUFFS = {
 	{ key = "waterwalking", spellKey = "waterWalking", icon = 135863, school = "water", reagent = 17058, duration = 600,
-		blurb = "Time left while it's up.",
+		blurb = "Time left while it's up.", styles = TEXT_TIMER,
 		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, pulse = false } }, experimental = "Water Walking" },
 	{ key = "waterbreathing", spellKey = "waterBreathing", icon = 136148, school = "water", reagent = 17057, duration = 600,
-		breath = true, blurb = "Time left while it's up. Warns under water without it.",
+		breath = true, blurb = "Time left while it's up. Warns under water without it.", styles = TEXT_TIMER,
 		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, pulse = false } }, experimental = "Water Breathing" },
 	{ key = "elementalfocus", spellKey = "elementalFocus", buffKey = "clearcasting", icon = 136170, school = "spirit",
 		blurb = "Shows while " .. Spells.name("clearcasting") .. " is up.",
-		proc = true, defaults = { idleAlpha = 0 } },
+		proc = true, defaults = { idleAlpha = 0 },
+		styles = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
+	},
 }
 
 local PARTS = {
@@ -58,7 +62,7 @@ for _, def in ipairs(BUFFS) do
 		standInBorder = def.proc,
 		effects = def.proc and { glow = { "up" }, pop = { "up" } } or { glow = { "expiring" }, pop = {} },
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
-		experimental = def.experimental })
+		experimental = def.experimental, styles = def.styles })
 end
 
 -- Water buff time
@@ -113,7 +117,7 @@ local function buildProc(def, slot, button)
 end
 
 local function styleProc(def, size)
-	ns.try("proc border " .. def.key, ns.applyBorder, def.edge, ns.borderFor(def.key))
+	ns.try("proc border " .. def.key, ns.Frames.dress, def.edge, def.key)
 	ns.try("proc pop " .. def.key, def.fx.stylePop, def.fx, size)
 end
 

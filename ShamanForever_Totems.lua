@@ -125,6 +125,12 @@ function T.forget(slot)
 	owner[slot], spells[slot] = nil, nil
 end
 
+function T.start()
+	local ev = CreateFrame("Frame")
+	ns.registerEvent(ev, "PLAYER_TOTEM_UPDATE")
+	ev:SetScript("OnEvent", function() ns.refreshCooldownsSoon() end)
+end
+
 -- /sf debug
 function T.debug()
 	for slot = 1, 4 do

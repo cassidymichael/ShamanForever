@@ -74,6 +74,8 @@ ns.registerElement(KEY, { frame = f, label = Spells.name("maelstromWeapon"), def
 	learned = function() return src.learned() end, paint = function(t) t:SetTexture(M.icon) end,
 	effects = { glow = { "full" }, pop = { "full" } },
 	standInBorder = true,
+	styles = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
+	timerCant = { bar = "Its timer is Blizzard's own; a time bar can't follow it." },
 	kind = "maelstrom", def = M, spell = "maelstromWeapon", icon = M.icon, school = "air",
 	blurb = "Its stacks, with a pop and a glow at five.", experimental = "Maelstrom Weapon" })
 M.key = KEY
@@ -158,7 +160,8 @@ local function styleStacks(slot, size)
 	slot.tickFrame:SetFrameLevel(base + 6)
 	slot.numFrame:SetFrameLevel(base + 7)
 	slot.edge:SetFrameLevel(base + 8)
-	ns.try("maelstrom border", ns.applyBorder, slot.edge, ns.borderFor(KEY))
+	-- The copy at five frames itself only over idled stacks: else the stacks' frame shows
+	ns.try("maelstrom border", ns.Frames.dress, slot.edge, KEY, base + 8, slot.copy and idleWhen() ~= "five")
 	if slot.copy and slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
 	local c = color("stackBarColor")
 	slot.bar:SetHeight(number("stackBarHeight"))
@@ -247,7 +250,7 @@ local fx = ns.Effects.host(f, KEY, { aura = { popOnly = true, popLevel = 5 + LIG
 
 local quiet = false
 local function stylePop(slot, size)
-	ns.try("maelstrom pop border", ns.applyBorder, slot.edge, ns.borderFor(KEY))
+	ns.try("maelstrom pop border", ns.Frames.dress, slot.edge, KEY)
 	if slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
 	fx:setQuiet(quiet)
 	fx:stylePop(size)
