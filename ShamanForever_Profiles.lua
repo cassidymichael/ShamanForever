@@ -282,10 +282,45 @@ local function clampElement(o, ranges)
 		end
 	end
 end
-function P.cleanElements(opts)
-	for key, o in pairs(opts) do
-		if type(key) ~= "string" or type(o) ~= "table" then opts[key] = nil
-		elseif ns.ELEMENTS[key] then clampElement(o, ns.ELEMENTS[key].ranges) end
+
+-- A saved value of another type than its default is dropped. A list or colour takes values of its
+-- default's first one's type; a state or event table, its fields the same way; an empty default's
+-- contents are left to its owner.
+local function dropMistyped(t, defaults)
+	for k, d in pairs(defaults) do
+		local v = t[k]
+		if v ~= nil then
+			if type(v) ~= type(d) then t[k] = nil
+			elseif type(d) == "table" then
+				if d[1] ~= nil then
+					local want = type(d[1])
+					for _, x in pairs(v) do
+						if type(x) ~= want then t[k] = nil break end
+					end
+				elseif next(d) ~= nil then dropMistyped(v, d) end
+			end
+		end
+	end
+end
+
+-- Elements' settings and the bars' own, as a profile loads or is imported (share strings are
+-- untrusted)
+function P.cleanSettings(profile)
+	local opts = profile.elementOpts
+	if type(opts) == "table" then
+		for key, o in pairs(opts) do
+			local e = ns.ELEMENTS[key]
+			if type(key) ~= "string" or type(o) ~= "table" then opts[key] = nil
+			elseif e then
+				dropMistyped(o, e.defaults or {})
+				clampElement(o, e.ranges)
+			end
+		end
+	end
+	for _, name in ipairs(ns.Style.bars()) do
+		local bar = ns.Style.bar(name)
+		local t = bar.saved and profile[bar.saved]
+		if type(t) == "table" then dropMistyped(t, bar.defaults) end
 	end
 end
 
@@ -305,7 +340,7 @@ local function cleanProfile(t)
 	for k, default in pairs(DEFAULTS) do
 		if ns.isColor(default) and out[k] and not ns.isColor(out[k]) then out[k] = nil end
 	end
-	if out.elementOpts then P.cleanElements(out.elementOpts) end
+	P.cleanSettings(out)
 	if out.groups then
 		local groups = {}
 		for _, g in ipairs(out.groups) do

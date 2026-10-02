@@ -389,7 +389,7 @@ end
 -- Makes db.groups consistent: fills fields, ids and names, drops unknown and duplicate members,
 -- places elements never seen before
 local function sanitize()
-	ns.Profiles.cleanElements(db.elementOpts)
+	ns.Profiles.cleanSettings(db)
 	each("sanitize", db, acct)
 	if type(db.groups) ~= "table" then db.groups = {} end
 	if type(db.known) ~= "table" then db.known = {} end

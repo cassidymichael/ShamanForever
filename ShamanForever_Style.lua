@@ -52,9 +52,9 @@ S.register("groupframe", {
 })
 
 -- Bars: owners with a settings table of their own, not an element's, in the order they register.
--- spec: cfg(), defaults, ranges (optional: its numbers' { min, max, step }, shaped as defaults),
--- label, on() (its styles are offered now), kinds (style kinds it can have its own of),
--- ownLabel(kind) (optional: its name when it draws that style itself)
+-- spec: cfg(), saved (the profile key holding its table), defaults, ranges (optional: its numbers'
+-- { min, max, step }, shaped as defaults), label, on() (its styles are offered now), kinds (style
+-- kinds it can have its own of), ownLabel(kind) (optional: its name when it draws that style itself)
 local BARS, BAR_ORDER = {}, {}
 function S.registerBar(key, spec)
 	BARS[key] = spec
