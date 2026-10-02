@@ -126,8 +126,8 @@ local isShaman = false
 local root = CreateFrame("Frame", "ShamanForeverRoot", UIParent)
 root:SetAllPoints(UIParent)
 
--- Every element, in the order the options list them
-local ELEMENT_KEYS = { "shield", "shock", "imbue" }
+-- Every element, in the order they register (TOC order)
+local ELEMENT_KEYS = {}
 -- key -> { frame, label, paint(texture), getSize(size), stack(), learned(), borderHost, shape,
 -- standInBorder, defaults, effects, ownSchool(), spell, icon, school, blurb, experimental, kind, def }
 -- getSize: width and height for the group's icon size (elements need not be square); borderHost:
