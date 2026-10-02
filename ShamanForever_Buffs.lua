@@ -14,9 +14,8 @@ local setting = ns.elementSetting
 -- Elements: the class's rows (ns.CLASS.buffs)
 local BUFFS = ns.CLASS.buffs or {}
 
--- The kind and its parts (ns.registerPart); a row's flags name its parts. Target's rows are of this
--- kind too; parts from other files join it: Target's own, the reagent's (_Reagents), Expiring's
--- (_Timers).
+-- The kind and its parts (ns.registerPart); a row's flags name its parts. Other files' rows and
+-- parts join it: the reagent's (_Reagents), Expiring's (_Timers), a class's own.
 local function procName(def) return def.buffKey and Spells.name(def.buffKey) end
 ns.registerPart("buff", {
 	idle = { text = function(def)

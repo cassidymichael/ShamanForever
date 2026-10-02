@@ -285,8 +285,8 @@ local function ownCooldownRunning(def, inEvent)
 end
 local function fadeTo(def, alpha) ns.fadeTo(def.frame, alpha) end
 
--- def needs key, frame, spellID and refresh (the shock passes such a table too); held: something of
--- its own keeps it shown (a window or primed buff, low reagents, a part's state)
+-- def needs key, frame, spellID and refresh (other engines pass such a table too); held: something
+-- of its own keeps it shown (a window or primed buff, low reagents, a part's state)
 local function applyIdle(def, held, inEvent)
 	local when = setting(def.key, "idleWhen")
 	local running, certain = ownCooldownRunning(def, inEvent)
