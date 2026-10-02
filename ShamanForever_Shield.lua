@@ -317,12 +317,13 @@ local function learnShieldID(key, id)
 end
 
 -- Charges spent, cancelled or run out; a recast over a live shield stays silent
-local WATER_COPY = 408511
 function SH.applyRemovedSound()
 	local ids = {}
 	if ns.isEnabled("shield") then
 		for id in pairs(shieldIDMap()) do ids[id] = true end
-		if tracksShield("water") then ids[WATER_COPY] = true end
+		if tracksShield("water") then
+			for _, id in ipairs(Spells.extra("waterShieldCopy")) do ids[id] = true end
+		end
 	end
 	ns.Sounds.setAuraSound("shield", ns.elementSetting("shield", "removedSound"), ids)
 end
