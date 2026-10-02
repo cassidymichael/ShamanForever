@@ -322,7 +322,7 @@ function TB.fitLook(v, b, border, size)
 	v:ClearAllPoints()
 	v:SetPoint("TOPLEFT", b, "TOPLEFT", o, -o)
 	v:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -o, o)
-	ns.applyBorder(v, border)
+	ns.Looks.applyBorder(v, border)
 	return o
 end
 

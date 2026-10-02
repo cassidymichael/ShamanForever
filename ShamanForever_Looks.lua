@@ -364,7 +364,7 @@ function Looks.fit(f, b, w, h, opts)
 	local host, shape = opts and opts.borderHost or f, opts and opts.shape
 	local o = Looks.inset(host, b, math.min(w, h or w), shape)
 	f:SetSize(w - 2 * o, (h or w) - 2 * o)
-	ns.applyBorder(host, b, shape)
+	Looks.applyBorder(host, b, shape)
 	if host ~= f then
 		-- The mask and swipe belong to the picture, not to the border's part.
 		local look = drawnLook(b, shape)
@@ -381,7 +381,7 @@ function Looks.overlay(f, b, shape)
 	drawOverlay(f, look and look.art)
 end
 
-function ns.applyBorder(f, b, shape)
+function Looks.applyBorder(f, b, shape)
 	local look = drawnLook(b, shape)
 	if not look then
 		drawRings(f, nil, b)

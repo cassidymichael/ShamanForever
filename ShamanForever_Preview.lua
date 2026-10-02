@@ -145,7 +145,7 @@ local function place(key, r)
 	-- on parts that show only with a hostile target or their aura (standInBorder): the stand-in draws theirs
 	local own = f.aboveProtected and f:IsVisible() and not ns.ELEMENTS[key].standInBorder
 	local ic, st = standIns[key], ns.Style.read(key, "frame")
-	ns.applyBorder(ic, not own and ns.borderFor(key) or nil)
+	ns.Looks.applyBorder(ic, not own and ns.borderFor(key) or nil)
 	FR.draw(ic, not own and ns.Style.look("frame", st.look) or nil, ns.boxOf(key), st)
 	if f.aboveProtected then FR.veil(key, not own) end
 	if r.nextAt then paintElement(key, r, false) else startStep(key, r, false) end
