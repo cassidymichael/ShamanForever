@@ -230,12 +230,8 @@ function styleExpireText(def, slot, st, secs)
 	local textOn = secs > 0 and setting(key, "expire", "text") and st.text and fs ~= nil and textCurve(secs, st.textColor)
 	if textOn then
 		def.textHolder:SetFrameLevel(def.frame.textFrame:GetFrameLevel() + 15)
-		fs:SetFont(STANDARD_TEXT_FONT, st.textSize, "OUTLINE")
-		fs:ClearAllPoints()
-		if st.textPos == "topleft" then
-			fs:SetPoint("TOPLEFT", b, "TOPLEFT", 1, (t and t.barOn and st.barEdge == "top") and -(st.barHeight + 1) or -1)
-		elseif st.textPos == "bottom" then fs:SetPoint("BOTTOM", b, "BOTTOM", 0, (t and t.barOn and st.barEdge == "bottom") and st.barHeight + 1 or 1)
-		else fs:SetPoint("CENTER", b, "CENTER", 0, 0) end
+		ns.Media.setFont(fs, key, st.textSize)
+		ns.Timer.placeText(fs, b, st, t and t.barOn, t and t.dual)
 		if ns.try("flame shock countdown", b.SetDurationText, b, fs, { textColor = { curve = textOn, property = REMAINING } }) then
 			def.textHanded = true
 			fs:Show()
