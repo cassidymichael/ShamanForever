@@ -30,7 +30,7 @@ local SHARE_VERSION = 7
 --   ended   = { flash, pop, glow, sound }   it ran out
 --   killed  = { flash, pop, glow, mark }   it ended early
 --   count   = { bar, barHeight, barColor, number, pos, size, mark, markColor }   charges or stacks
---   reagent = { show, low, lowShows, color, lowColor, size, pos, x, y, ring, fade }
+--   reagent = { when, low, lowKeepsShown, color, lowColor, size, pos, x, y, ring, fade }
 -- grey, ring, fade, tint and glow are the looks a state shows; pop and sound play once, as it
 -- starts. The totem bar's own settings use the same tables (expire, ended, killed).
 
@@ -83,8 +83,8 @@ local RENAMED = {
 		{ "stackBarColor", "count", "barColor" }, { "stackCount", "count", "number" },
 		{ "countPos", "count", "pos" }, { "countSize", "count", "size" },
 		{ "fullCount", "count", "mark" }, { "fullCountColor", "count", "markColor" },
-		{ "reagentCount", "reagent", "show" }, { "reagentLow", "reagent", "low" },
-		{ "reagentShow", "reagent", "lowShows" }, { "reagentColor", "reagent", "color" },
+		{ "reagentCount", "reagent", "when" }, { "reagentLow", "reagent", "low" },
+		{ "reagentShow", "reagent", "lowKeepsShown" }, { "reagentColor", "reagent", "color" },
 		{ "reagentLowColor", "reagent", "lowColor" }, { "reagentSize", "reagent", "size" },
 		{ "reagentPos", "reagent", "pos" }, { "reagentX", "reagent", "x" }, { "reagentY", "reagent", "y" },
 		{ "reagentRing", "reagent", "ring" }, { "reagentPulse", "reagent", "fade" },

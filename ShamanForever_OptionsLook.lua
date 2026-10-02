@@ -229,7 +229,7 @@ function L.idles(key, st)
 	end
 	if e.kind ~= "cooldown" then return false end
 	if when == "oncd" or when == "oncdany" then
-		local lowIdle = ns.elementSetting(key, "reagent", "lowShows") == false
+		local lowIdle = ns.elementSetting(key, "reagent", "lowKeepsShown") == false
 		return st == "cd" or ((st == "low" or st == "out") and lowIdle)
 	end
 	if e.def.needsTotem then
@@ -498,7 +498,7 @@ local function buffPreview(def)
 			elseif st == "idle" then
 				if opt(key, "idleWhen") ~= "never" then idleLook(ic, key) end
 			elseif st == "low" or st == "out" then
-				if not opt(key, "reagent", "lowShows") then idleLook(ic, key) end
+				if not opt(key, "reagent", "lowKeepsShown") then idleLook(ic, key) end
 				L.reagentLook(ic, key, st == "out" and 0 or fewLeft(key))
 			elseif st == "underwater" then
 				if opt(key, "warn", "on") then

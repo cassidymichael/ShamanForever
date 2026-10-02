@@ -863,7 +863,7 @@ local function reagentBlocks(p, def)
 	local key = def.key
 	p:header("Reagent")
 	p:text("Only counted if the spell still needs one.")
-	local countGet, countSet = eopt(p, key, "reagent", "show")
+	local countGet, countSet = eopt(p, key, "reagent", "when")
 	p:dropdown("Show count", "How many you carry, on the icon.", COUNT_WHEN, countGet, countSet, nil, 170)
 	local counted = showWhen(function() return countGet() ~= "never" end)
 	eslider(p, key, "Low at", "At this many or fewer, the count takes the low colour, and Idle can count it as running low.",
