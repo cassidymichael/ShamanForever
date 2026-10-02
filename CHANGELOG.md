@@ -7,6 +7,8 @@
 - Frames: decorative art round an element or a whole group, set on each page and shown in the
   Styles explorer.
 - Shields: an optional sound when your shield goes.
+- Fire Nova: a new Idle choice, Cooling down, whether or not a fire totem is out.
+- Fixed: Carved stone, Aged bronze and Carved wood borders didn't show on Shields.
 
 ## 0.12.1 (2026-10-02)
 
