@@ -122,14 +122,17 @@ local PARTS = {
 	ready = { ready = { pop = true, sound = "none" } },
 	readyGlow = { ready = { glow = false } },
 	needsTotem = { warn = { grey = true, ring = false, fade = false }, ready = { blocked = "grey" } },
-	-- ranOut before ended: its pop wins
-	ranOut = { ended = { flash = true, pop = false, glow = false } },
-	ended = { ended = { pop = true, sound = "none" } },
 	killed = { killed = { flash = true, pop = true, glow = true, mark = true } },
 	grounded = { killed = { flash = true, pop = true, glow = true } },
 	primed = { active = { pop = true, glow = true } },
 	reagent = Reagents.DEFAULTS,
 }
+-- A totem's end: with ranOut a flash (its pop off), else a pop
+local function endedPart(def)
+	local e = { pop = not def.ranOut, sound = "none" }
+	if def.ranOut then e.flash, e.glow = true, false end
+	return { ended = e }
+end
 local EXPIRE = { secs = 5, grey = false, ring = false, fade = true, glow = false }
 local EXPIRE_LOOKS = { "grey", "ring", "fade", "glow" }
 local EXPIRE_RANGES = { expire = { secs = { 0, 30, 1 } } }
@@ -167,8 +170,7 @@ local function withParts(def)
 	if not def.noReady then fill(d, PARTS.ready) end
 	if def.readyGlow or def.needsTotem then fill(d, PARTS.readyGlow) end
 	if def.needsTotem then fill(d, PARTS.needsTotem) end
-	if def.ranOut then fill(d, PARTS.ranOut) end
-	if def.totemSlot then fill(d, PARTS.ended) end
+	if def.totemSlot then fill(d, endedPart(def)) end
 	if def.grounded then fill(d, PARTS.grounded) elseif def.totemSlot then fill(d, PARTS.killed) end
 	if def.primed and def.primedLooks ~= false then fill(d, PARTS.primed) end
 	if def.reagent then
