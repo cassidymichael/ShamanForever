@@ -21,6 +21,7 @@ Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 ShamanForever_Core.lua
 ShamanForever_Kinds.lua
 ShamanForever_Class.lua
+ShamanForever_ClassElements.lua
 ShamanForever_Style.lua
 ShamanForever_Media.lua
 ShamanForever_Widgets.lua
