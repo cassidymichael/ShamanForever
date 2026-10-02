@@ -114,6 +114,8 @@ ns.registerPart("primed", {
 --                                chosen) or nil (neither)
 --   readyGate(def)               the Ready glow's alpha (may be secret); nil: it can't show
 --   debug(def)                   its words in /sf debug
+-- refresh and debug run for every part, in parts order; gate and readyGate come from the first
+-- part that gives one.
 -- The icon (def.frame) has upTimer in activeHolder when its page has a Time left block, warn when
 -- it has a Warning block, and readyGlow in readyGate with the readyGlow part or a readyGate hook.
 -- Icons are made as this file loads, so a part with hooks registers before it.
