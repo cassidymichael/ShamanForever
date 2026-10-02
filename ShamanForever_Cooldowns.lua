@@ -81,17 +81,17 @@ local COOLDOWNS = {
 	-- Racials (race IDs: Orc 2, Dwarf 3, Tauren 6, Troll 8, Windshaper Skyborne 96)
 	{ key = "bloodfury", spellKey = "bloodFury", icon = 135726, race = { 2 }, window = 15,
 		school = "fire",
-		blurb = "Cooldown, and time left while it's on.", readyGlow = true,
+		blurb = "Cooldown, and time left while it's on.", readyGlow = true, timerCant = ONE_SWIPE,
 		expireLooks = { "grey", "pulse" }, cd = 120,
 		defaults = { idleWhen = "never", expire = { secs = 0, pulse = true } }, experimental = "Blood Fury" },
 	{ key = "shattercurse", spellKey = "shatterCurse", icon = 136082, race = { 2 }, window = 8,
 		school = "spirit",
-		blurb = "Cooldown, and time left while it's on.", readyGlow = true,
+		blurb = "Cooldown, and time left while it's on.", readyGlow = true, timerCant = ONE_SWIPE,
 		expireLooks = { "grey", "pulse" }, cd = 180,
 		defaults = { idleWhen = "never", expire = { secs = 0, pulse = true } }, experimental = "Shatter Curse" },
 	{ key = "berserking", spellKey = "berserking", icon = 135727, race = { 8 }, window = 10,
 		school = "fire",
-		blurb = "Cooldown, and time left while it's on.", readyGlow = true,
+		blurb = "Cooldown, and time left while it's on.", readyGlow = true, timerCant = ONE_SWIPE,
 		expireLooks = { "grey", "pulse" }, cd = 180,
 		defaults = { idleWhen = "never", expire = { secs = 0, pulse = true } }, experimental = "Berserking" },
 	{ key = "rapidregeneration", spellKey = "rapidRegeneration", icon = 1850550, race = { 8 },
@@ -103,7 +103,7 @@ local COOLDOWNS = {
 		defaults = { idleWhen = "never" }, experimental = "War Stomp" },
 	{ key = "stoneform", spellKey = "stoneform", icon = 136225, race = { 3 }, window = 8,
 		school = "earth",
-		blurb = "Cooldown, and time left while it's on.", readyGlow = true,
+		blurb = "Cooldown, and time left while it's on.", readyGlow = true, timerCant = ONE_SWIPE,
 		expireLooks = { "grey", "pulse" }, cd = 180,
 		defaults = { idleWhen = "never", expire = { secs = 0, pulse = true } }, experimental = "Stoneform" },
 	-- Walk on Air: cooldown only, its real length is unseen
@@ -492,7 +492,7 @@ end
 local CAST_GRACE = 1.5
 local function readPrimedBuff(def, fromAura)
 	local buffKey = def.primed and def.primed.buffKey
-	if not buffKey or InCombatLockdown() or ns.aurasSecret() or not C_UnitAuras then return end
+	if not buffKey or not ns.aurasReadable() or not C_UnitAuras then return end
 	local found
 	local function usable(ok, a)
 		return ok and type(a) == "table" and not isSecret(a.expirationTime) and not isSecret(a.duration)
@@ -661,13 +661,7 @@ CD.readyAlpha = readyAlpha
 function CD.readyTicker(update)
 	local ticker = CreateFrame("Frame")
 	ticker:Hide()
-	ticker.t = 0
-	ticker:SetScript("OnUpdate", function(self, elapsed)
-		self.t = self.t + elapsed
-		if self.t < 0.1 then return end
-		self.t = 0
-		update()
-	end)
+	ticker:SetScript("OnUpdate", ns.throttled(0.1, update))
 	return ticker
 end
 local function refreshReadyGlow(def, cantAct)

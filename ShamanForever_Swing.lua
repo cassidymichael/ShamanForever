@@ -110,7 +110,7 @@ function SW.placeCountdown(fs, anchor)
 	fs:SetJustifyH(side)
 end
 
-function SW.border() return ns.Style.get("swing", "border") end
+function SW.border() return ns.borderFor("swing") end
 
 local f = CreateFrame("Frame", nil, UIParent)
 f:SetSize(SW.DEFAULTS.width, SW.DEFAULTS.height)
@@ -243,9 +243,8 @@ end
 local lastDriver
 local function drive()
 	local driver = visibilityDriver()
-	if driver ~= lastDriver then
+	if driver ~= lastDriver and ns.setVisibilityDriver(f, driver, "swing timer driver") then
 		lastDriver = driver
-		RegisterStateDriver(f, "visibility", driver)
 	end
 end
 
@@ -259,7 +258,7 @@ local function layout()
 	local px = ns.pixel(f)
 	f:SetSize(math.max(ns.roundPx(c.width, px), px), math.max(ns.roundPx(c.height, px), px))
 	ns.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
-	ns.applyBorder(face, SW.border(), "bar")
+	ns.Looks.applyBorder(face, SW.border(), "bar")
 	SW.styleBar(bar)
 	paintFill()
 	SW.styleCountdown()

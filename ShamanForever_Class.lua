@@ -50,3 +50,7 @@ ns.Spells.add({
 	ghostWolf       = { ids = { 2645, 1238640 }, en = "Ghost Wolf" },   -- 1238640: the spellbook's
 	farSight        = { ids = { 6196 }, en = "Far Sight" },
 })
+
+ns.Spells.addExtra({
+	waterShieldCopy = { 408511 },   -- the client's second Water Shield: its Removed sound
+})

@@ -76,7 +76,7 @@ local function setDown(def)
 end
 
 local function readAura(def)
-	if InCombatLockdown() or ns.aurasSecret() or not C_UnitAuras then return end
+	if not ns.aurasReadable() or not C_UnitAuras then return end
 	local ok, a = safe(C_UnitAuras.GetAuraDataBySpellName, "player", def.spell, "HELPFUL")
 	if not ok then return end
 	if type(a) ~= "table" then setDown(def) return end
@@ -277,7 +277,7 @@ B.tick = refreshAll
 
 function B.onCast(spellID)
 	local key = Spells.keyOf(spellID)
-	if not key or not (InCombatLockdown() or ns.aurasSecret()) then return end
+	if not key or ns.aurasReadable() then return end
 	for _, def in ipairs(BUFFS) do
 		if not def.proc and key == def.spellKey and def.spellID and castOnSelf() then
 			setUp(def, GetTime(), def.duration)

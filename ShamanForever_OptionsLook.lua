@@ -50,8 +50,6 @@ function L.elementName(key)
 end
 
 local function db() return ns.getDB() end
-local function acct() return ns.getAccount() end
-function L.minimal() return acct().minimalArt end
 
 -- Ornaments
 function L.addCorners(frame, size, inset)
@@ -72,14 +70,9 @@ end
 function L.divider(parent)
 	local t = parent:CreateTexture(nil, "ARTWORK")
 	t.refresh = function()
-		if L.minimal() then
-			t:SetColorTexture(0.23, 0.17, 0.10, 1)
-			t:SetHeight(1)
-		else
-			t:SetTexture(ART .. "Divider.tga")
-			t:SetVertexColor(L.GOLD[1], L.GOLD[2], L.GOLD[3], 0.45)
-			t:SetHeight(10)
-		end
+		t:SetTexture(ART .. "Divider.tga")
+		t:SetVertexColor(L.GOLD[1], L.GOLD[2], L.GOLD[3], 0.45)
+		t:SetHeight(10)
 	end
 	t.refresh()
 	return t
@@ -109,7 +102,6 @@ function L.expBadge(parent, feature)
 	b.text:SetText("EXPERIMENTAL")
 	b.text:SetTextColor(0.95, 0.77, 0.42)
 	b:SetSize(b.text:GetStringWidth() + 12, 16)
-	b.feature = feature
 	b:SetScript("OnClick", function() ns.Options.showExperimental() end)
 	b:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -876,7 +868,7 @@ function L.buildHero(parent, key)
 	h.shade:SetWidth(420)
 	h.shade:SetColorTexture(1, 1, 1, 1)
 	pcall(h.shade.SetGradient, h.shade, "HORIZONTAL", CreateColor(0, 0, 0, 0.55), CreateColor(0, 0, 0, 0))
-	h.corners = L.addCorners(h)
+	L.addCorners(h)
 
 	h.icon = h:CreateTexture(nil, "ARTWORK")
 	h.icon:SetSize(60, 60)
@@ -976,7 +968,6 @@ function L.buildHero(parent, key)
 	heroes[key] = h
 
 	function h:refresh()
-		local minimal = L.minimal()
 		local w = self:GetWidth()
 		if not w or w <= 0 then w = parent:GetWidth() end
 		self.banner:SetTexCoord(coverCoords(w - 2, heroH - 16))
@@ -992,9 +983,6 @@ function L.buildHero(parent, key)
 			p:SetWidth(PANEL_W + padL + padR)
 		end
 		self.blurb:SetWidth(def.stage and 300 or math.max(w - 40 - 60 - 14 - 40 - PANEL_W - padL - padR - 12, 120))
-		self.banner:SetShown(not minimal)
-		self.shade:SetShown(not minimal)
-		for _, c in ipairs(self.corners) do c:SetShown(not minimal) end
 		if e.tags then self.tags:SetText(e.tags()) else
 			local g = ns.groupOf(key)
 			local shows = { always = "Always", combat = "In combat", never = "Hidden" }
@@ -1075,7 +1063,7 @@ function L.buildIntro(parent, version)
 	h.shade:SetWidth(420)
 	h.shade:SetColorTexture(1, 1, 1, 1)
 	pcall(h.shade.SetGradient, h.shade, "HORIZONTAL", CreateColor(0, 0, 0, 0.55), CreateColor(0, 0, 0, 0))
-	h.corners = L.addCorners(h)
+	L.addCorners(h)
 	h.title = h:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
 	h.title:SetPoint("LEFT", 40, 8)
 	h.title:SetText(ns.NAME)
@@ -1086,13 +1074,9 @@ function L.buildIntro(parent, version)
 	h.version:SetText("Version " .. (version or "?"))
 	h.version:SetShadowOffset(1, -1)
 	function h:refresh()
-		local minimal = L.minimal()
 		local w = self:GetWidth()
 		if not w or w <= 0 then w = parent:GetWidth() end
 		self.banner:SetTexCoord(coverCoords(w - 2, L.HERO_H - 16))
-		self.banner:SetShown(not minimal)
-		self.shade:SetShown(not minimal)
-		for _, c in ipairs(self.corners) do c:SetShown(not minimal) end
 	end
 	return h
 end

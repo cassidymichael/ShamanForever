@@ -297,12 +297,8 @@ end
 -- a curve, evaluated ten times a second, so it works in combat.
 local warning = {}
 local ticker = CreateFrame("Frame")
-ticker.t = 0
 ticker:Hide()
-ticker:SetScript("OnUpdate", function(self, elapsed)
-	self.t = self.t + elapsed
-	if self.t < 0.1 then return end
-	self.t = 0
+ticker:SetScript("OnUpdate", ns.throttled(0.1, function()
 	for t in pairs(warning) do
 		local d = t.last
 		if d then
@@ -311,7 +307,7 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 			if ok then t.exp:SetAlpha(a) else t.exp:SetAlpha(0); ns.noteError("timer expiring", a) end
 		else t.exp:SetAlpha(0) end
 	end
-end)
+end))
 
 T.EXPIRE_DEFAULTS = { secs = 5, grey = false, ring = false, pulse = true, glow = false }
 

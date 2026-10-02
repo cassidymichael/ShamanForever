@@ -70,8 +70,8 @@ end
 
 local function emit(value)
 	local how, what = resolve(value)
-	if how == "kit" then pcall(PlaySound, what, S.channel())
-	elseif how == "file" then pcall(PlaySoundFile, what, S.channel()) end
+	if how == "kit" then ns.try("sound", PlaySound, what, S.channel())
+	elseif how == "file" then ns.try("sound", PlaySoundFile, what, S.channel()) end
 end
 
 local quietUntil = 0
@@ -102,7 +102,9 @@ local auraSounds = {}   -- owner -> { value, ids, trigger, sig, handles }
 
 local function dropAura(a)
 	if not (C_UnitAuras and C_UnitAuras.RemoveAuraSound) then return end
-	for _, h in ipairs(a.handles) do pcall(C_UnitAuras.RemoveAuraSound, h) end
+	for _, h in ipairs(a.handles) do
+		ns.try("aura sound: remove", C_UnitAuras.RemoveAuraSound, h)
+	end
 	wipe(a.handles)
 end
 
@@ -125,8 +127,8 @@ local function applyAura(owner)
 	local trigger = enum and enum[a.trigger] or (a.trigger == "Removed" and REMOVED or nil)
 	if not trigger then return end
 	for _, id in ipairs(list) do
-		local ok, h = pcall(add, trigger, { unitToken = "player", spellID = id, soundFileID = file,
-			outputChannel = S.channel(), throttleSeconds = 1 })
+		local ok, h = ns.try("aura sound: add", add, trigger, { unitToken = "player", spellID = id,
+			soundFileID = file, outputChannel = S.channel(), throttleSeconds = 1 })
 		if ok and type(h) == "number" and not ns.isSecret(h) then table.insert(a.handles, h) end
 	end
 end

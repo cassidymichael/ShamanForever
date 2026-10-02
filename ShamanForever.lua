@@ -463,12 +463,12 @@ local driven = {}
 local function setDriven(frame, when)
 	when = when or nil
 	if when == driven[frame] then return end
+	local site = "state driver " .. (frame:GetName() or tostring(frame))
 	if when then
-		local ok, err = pcall(RegisterStateDriver, frame, "visibility", when)
-		if not ok then say("state driver failed: %s", tostring(err)); return end
+		if not ns.setVisibilityDriver(frame, when, site) then return end
 		driven[frame] = when
 	else
-		pcall(UnregisterStateDriver, frame, "visibility")
+		ns.setVisibilityDriver(frame, nil, site)
 		driven[frame] = nil
 	end
 end
@@ -670,7 +670,7 @@ end
 
 local readAt
 local function refreshAll()
-	if not InCombatLockdown() and not ns.aurasSecret() then readAt = GetTime() end
+	if ns.aurasReadable() then readAt = GetTime() end
 	each("refresh")
 end
 
@@ -839,11 +839,11 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		reg("UNIT_SPELLCAST_SUCCEEDED", "player")
 		reg("SPELL_UPDATE_COOLDOWN")
 		reg("SPELLS_CHANGED")
-		reg("PLAYER_REGEN_ENABLED")
+		ns.onCombatEnd(refreshAll)
 		-- A restriction ended (a match, an encounter): auras may be readable with no combat end to say so;
 		-- skipped when a refresh since already read everything
 		ns.onRestrictionEnd(function(endedAt)
-			if InCombatLockdown() or ns.aurasSecret() or (readAt and readAt >= endedAt) then return end
+			if not ns.aurasReadable() or (readAt and readAt >= endedAt) then return end
 			refreshAll()
 		end)
 		each("start")
@@ -868,8 +868,6 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		-- Fires often (shapeshifts, zoning): relayout only when a tracked spell changed
 		local found = resolveSpells()
 		if found ~= lastSpells then lastSpells = found; applyLayout() end
-		refreshAll()
-	elseif event == "PLAYER_REGEN_ENABLED" then
 		refreshAll()
 	end
 end)

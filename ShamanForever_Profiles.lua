@@ -11,7 +11,6 @@ local ACCOUNT_DEFAULTS = {
 	grid = true,
 	gridSize = 32,
 	hideIssueReporter = false,
-	minimalArt = false,
 	keepOptionsOpen = false,
 	foldedBlocks = {},
 	profiles = {},
@@ -19,8 +18,8 @@ local ACCOUNT_DEFAULTS = {
 }
 local DEFAULT_PROFILE = "Default"
 ns.DEFAULT_PROFILE = DEFAULT_PROFILE
--- Bump and add a step in P.load when a stored value must change
-local SETTINGS_VERSION = 6
+-- Share strings carry it: one from a newer version is refused
+local SHARE_VERSION = 6
 
 local function acct() return ns.getAccount() end
 
@@ -71,9 +70,7 @@ function P.load()
 	ShamanForeverDB = ShamanForeverDB or {}
 	local a = ShamanForeverDB
 	if type(a.profiles) ~= "table" then wipe(a) end
-	a.settingsVersion = SETTINGS_VERSION
 	ns.fillDefaults(a, ACCOUNT_DEFAULTS)
-	a.testMode = nil
 	mergeCharKeys(a)
 	return a
 end
@@ -134,7 +131,7 @@ function P.export()
 	if not E then return nil, "sharing needs a newer game client" end
 	local ok, text = pcall(function()
 		local method = Enum.CompressionMethod and Enum.CompressionMethod.Deflate
-		local packed = E.CompressString(E.SerializeCBOR({ v = SETTINGS_VERSION, profile = ns.getDB() }), method)
+		local packed = E.CompressString(E.SerializeCBOR({ v = SHARE_VERSION, profile = ns.getDB() }), method)
 		return SHARE_PREFIX .. E.EncodeBase64(packed)
 	end)
 	if not ok then return nil, "export failed: " .. tostring(text) end
@@ -225,7 +222,7 @@ function P.decode(text)
 	if not ok or type(data) ~= "table" or type(data.profile) ~= "table" then
 		return nil, "that profile text is damaged or incomplete"
 	end
-	if type(data.v) == "number" and data.v > SETTINGS_VERSION then
+	if type(data.v) == "number" and data.v > SHARE_VERSION then
 		return nil, "that profile needs a newer version of " .. ns.NAME
 	end
 	return cleanProfile(data.profile)

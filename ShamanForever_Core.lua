@@ -68,9 +68,20 @@ local function checked(site, ok, ...)
 end
 function ns.try(site, fn, ...) return checked(site, pcall(fn, ...)) end
 
+-- An OnUpdate script that calls fn(frame) at most every interval seconds
+function ns.throttled(interval, fn)
+	local wait = 0
+	return function(self, elapsed)
+		wait = wait + elapsed
+		if wait < interval then return end
+		wait = 0
+		fn(self)
+	end
+end
+
 -- Work that waits for combat to end: protected frames and Blizzard's aura container refuse changes
 -- in combat. `if ns.deferInCombat(key, fn) then return end`: queued once per key in combat and run
--- at PLAYER_REGEN_ENABLED; out of combat it runs now.
+-- when combat ends; out of combat it runs now.
 -- Aura containers also refuse calls while auras are secret out of combat (PvP, encounters):
 -- ns.deferWhileAurasSecret; the queue also runs when an addon restriction ends.
 -- States: combat (lockdown), restricted (a match or encounter: same secrets, no lockdown), readable.
@@ -88,18 +99,22 @@ function ns.aurasSecret()
 	local ok, v = safe(C_Secrets and C_Secrets.ShouldAurasBeSecret)
 	return ok and (isSecret(v) or v == true) or false
 end
+-- Aura reads and aura container calls
+function ns.aurasReadable() return not InCombatLockdown() and not ns.aurasSecret() end
 function ns.deferWhileAurasSecret(key, fn)
-	if InCombatLockdown() or ns.aurasSecret() then ns.retryAfterCombat(key, fn) return true end
+	if not ns.aurasReadable() then ns.retryAfterCombat(key, fn) return true end
 	queued[key] = nil
 	return false
 end
+-- A visibility state driver (expr nil: none); a failure is noted under site. True when it took
+function ns.setVisibilityDriver(frame, expr, site)
+	if expr then return (ns.try(site, RegisterStateDriver, frame, "visibility", expr)) end
+	return (ns.try(site, UnregisterStateDriver, frame, "visibility"))
+end
 local INACTIVE = Enum and Enum.AddOnRestrictionState and Enum.AddOnRestrictionState.Inactive or 0
--- fn(endedAt) runs the frame after a restriction ends, once, after the queue
+-- fn(endedAt) runs the frame after a restriction ends, once, after the queue (not on starts)
 local afterEnd, endedAt = {}, nil
 function ns.onRestrictionEnd(fn) table.insert(afterEnd, fn) end
-local combatEnd = CreateFrame("Frame")
-ns.registerEvent(combatEnd, "PLAYER_REGEN_ENABLED")
-ns.registerEvent(combatEnd, "ADDON_RESTRICTION_STATE_CHANGED")
 local function runQueue()
 	local order = queueOrder
 	queueOrder, listed = {}, {}
@@ -117,19 +132,6 @@ local function afterRestriction()
 	runQueue()
 	for _, fn in ipairs(afterEnd) do ns.try("restriction end", fn, at) end
 end
-combatEnd:SetScript("OnEvent", function(_, event, _, state)
-	if event == "ADDON_RESTRICTION_STATE_CHANGED" then
-		if isSecret(state) or state ~= INACTIVE or InCombatLockdown() then return end
-		-- Auras may still read secret while this is dispatched: next frame
-		if not endedAt then
-			endedAt = GetTime()
-			C_Timer.After(0, afterRestriction)
-		end
-	else
-		ns.AfterCombat.ended()
-	end
-	runQueue()
-end)
 
 -- Can the player act on a warning: dead, a ghost or on a flight path, nothing can be cast. A failed
 -- or secret read counts as able.
@@ -189,7 +191,7 @@ end
 
 -- After combat: a combat-only group or bar can stay a few seconds once combat ends, then fade. Its
 -- visibility stays with its state driver (an addon Show, Hide or SetAlpha on a frame holding a
--- protected one is dropped in combat): at PLAYER_REGEN_DISABLED the driver becomes a plain "show",
+-- protected one is dropped in combat): when combat starts the driver becomes a plain "show",
 -- out of combat it fades, then its own driver returns. The fade is an Alpha animation with no end
 -- value: the frame's alpha never changes.
 local AfterCombat = {}
@@ -281,16 +283,62 @@ function AfterCombat.ended()
 	end
 end
 
-local combatStart = CreateFrame("Frame")
-ns.registerEvent(combatStart, "PLAYER_REGEN_DISABLED")
-combatStart:SetScript("OnEvent", function()
-	for _, o in ipairs(owners) do
-		stopFade(o)
-		if not InCombatLockdown() then
-			local ok, secs = pcall(o.spec.secs)
-			if ok and type(secs) == "number" and secs > 0 then hold(o, true) end
+-- Combat and restrictions: one frame; listeners run in the order they were added, each on its own.
+local fighting = false
+local startFns, endFns, changeFns = {}, {}, {}
+-- The fighting flag, set when combat starts, before lockdown; InCombatLockdown() is for protected calls
+function ns.inCombat() return fighting or InCombatLockdown() end
+function ns.onCombatStart(fn) table.insert(startFns, fn) end
+function ns.onCombatEnd(fn) table.insert(endFns, fn) end
+-- Any restriction change, at once, before the queue: a match or an encounter starting or ending
+function ns.onRestrictionChange(fn) table.insert(changeFns, fn) end
+local function tell(fns, site) for _, fn in ipairs(fns) do ns.try(site, fn) end end
+
+local function combatStarts()
+	fighting = true
+	ns.try("combat start", function()
+		for _, o in ipairs(owners) do
+			stopFade(o)
+			if not InCombatLockdown() then
+				local ok, secs = pcall(o.spec.secs)
+				if ok and type(secs) == "number" and secs > 0 then hold(o, true) end
+			end
 		end
+	end)
+	tell(startFns, "combat start")
+end
+
+-- Queued work runs first, still counted as combat
+local function combatEnds()
+	ns.try("after combat", AfterCombat.ended)
+	runQueue()
+	fighting = false
+	tell(endFns, "combat end")
+end
+
+local function restrictionChanged(state)
+	if not (isSecret(state) or state ~= INACTIVE or InCombatLockdown()) then
+		-- Auras may still read secret while this is dispatched: next frame
+		ns.try("restriction change", function()
+			if not endedAt then
+				endedAt = GetTime()
+				C_Timer.After(0, afterRestriction)
+			end
+			runQueue()
+		end)
 	end
+	tell(changeFns, "restriction change")
+end
+
+local combat = CreateFrame("Frame")
+local EVENTS = { "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "ADDON_RESTRICTION_STATE_CHANGED" }
+for _, event in ipairs(EVENTS) do
+	ns.registerEvent(combat, event)
+end
+combat:SetScript("OnEvent", function(_, event, _, state)
+	if event == "PLAYER_REGEN_DISABLED" then combatStarts()
+	elseif event == "PLAYER_REGEN_ENABLED" then combatEnds()
+	else restrictionChanged(state) end
 end)
 
 -- Spells, by ID: seed IDs (any rank; the first names it) and an English name used only when no seed
@@ -506,3 +554,13 @@ function Spells.add(rows)
 	end
 	resolveNames()
 end
+
+-- IDs checked like the seeds but kept out of the lookups (a spell's second copy)
+local extra = {}
+function Spells.addExtra(rows)
+	for key, ids in pairs(rows) do
+		extra[key] = ids
+		Spells.addCheck(key, ids)
+	end
+end
+function Spells.extra(key) return extra[key] or {} end

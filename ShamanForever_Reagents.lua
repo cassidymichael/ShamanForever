@@ -36,12 +36,12 @@ function R.readPerk()
 	if perk then return end
 	local ok, v = safe(C_SpellBook.IsSpellKnown, PERK)
 	if ok and not isSecret(v) and v == true then perk, perkReadAt = true, GetTime() return end
-	if InCombatLockdown() or ns.aurasSecret() or not C_UnitAuras then return end
+	if not ns.aurasReadable() or not C_UnitAuras then return end
 	local aok, a = safe(C_UnitAuras.GetPlayerAuraBySpellID, PERK_AURA)
 	perk, perkReadAt = aok and type(a) == "table", GetTime()
 end
 local function perkKnown()
-	if not perk and GetTime() - perkReadAt >= RECHECK and not InCombatLockdown() and not ns.aurasSecret() then
+	if not perk and GetTime() - perkReadAt >= RECHECK and ns.aurasReadable() then
 		R.readPerk()
 	end
 	return perk
@@ -56,7 +56,7 @@ function R.takes(def)
 	if perkKnown() then def.takesReagent = nil return false end
 	if def.takesReagent ~= nil and GetTime() - (def.reagentReadAt or 0) < RECHECK then return def.takesReagent end
 	-- Auras secret: only an answer from a readable moment stands
-	if InCombatLockdown() or ns.aurasSecret() then return def.takesReagent end
+	if not ns.aurasReadable() then return def.takesReagent end
 	def.reagentReadAt = GetTime()
 	if not (def.spellID and C_TooltipInfo and C_TooltipInfo.GetSpellByID and C_Item and C_Item.GetItemNameByID) then return nil end
 	local ok, item = safe(C_Item.GetItemNameByID, def.reagent)

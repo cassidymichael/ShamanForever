@@ -145,7 +145,7 @@ local function place(key, r)
 	-- on parts that show only with a hostile target or their aura (standInBorder): the stand-in draws theirs
 	local own = f.aboveProtected and f:IsVisible() and not ns.ELEMENTS[key].standInBorder
 	local ic, st = standIns[key], ns.Style.read(key, "frame")
-	ns.applyBorder(ic, not own and ns.borderFor(key) or nil)
+	ns.Looks.applyBorder(ic, not own and ns.borderFor(key) or nil)
 	FR.draw(ic, not own and ns.Style.look("frame", st.look) or nil, ns.boxOf(key), st)
 	if f.aboveProtected then FR.veil(key, not own) end
 	if r.nextAt then paintElement(key, r, false) else startStep(key, r, false) end
@@ -186,7 +186,6 @@ end
 
 local ticker = CreateFrame("Frame")
 ticker:Hide()
-ticker.t = 0
 local function advance(key, r)
 	r.i = r.i % #r.steps + 1
 	startStep(key, r, #r.steps > 1)
@@ -195,10 +194,7 @@ local function advanceBar(el, r)
 	r.i = r.i % #r.steps + 1
 	startBarStep(el, r, #r.steps > 1)
 end
-ticker:SetScript("OnUpdate", function(self, elapsed)
-	self.t = self.t + elapsed
-	if self.t < 0.1 then return end
-	self.t = 0
+ticker:SetScript("OnUpdate", ns.throttled(0.1, function()
 	local now = GetTime()
 	for key, r in pairs(runs) do
 		if r.live and r.nextAt then
@@ -212,7 +208,7 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 	for el, r in pairs(barRuns) do
 		if r.nextAt and now >= r.nextAt then ns.try("preview totem bar", advanceBar, el, r) end
 	end
-end)
+end))
 
 local function restart()
 	wipe(runs)
@@ -419,12 +415,9 @@ function PV.afterGroups()
 	panel.refresh()
 end
 
--- Ends when combat starts: PLAYER_REGEN_DISABLED comes before lockdown, so the layout that restores
--- the real HUD runs at once
+-- Ends when combat starts, so the layout that restores the real HUD runs at once
 function PV.start()
-	local ev = CreateFrame("Frame")
-	ns.registerEvent(ev, "PLAYER_REGEN_DISABLED")
-	ev:SetScript("OnEvent", function()
+	ns.onCombatStart(function()
 		if not on then return end
 		PV.close(true)
 		say("preview off for combat")

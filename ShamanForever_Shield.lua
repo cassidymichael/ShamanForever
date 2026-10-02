@@ -148,8 +148,7 @@ local driven = false
 local function driveHolder()
 	if driven or InCombatLockdown() then return end
 	driven = true
-	local ok, err = pcall(RegisterStateDriver, holder, "visibility", "[@player,dead] hide; show")
-	if not ok then ns.noteError("shield warning holder", err) end
+	ns.setVisibilityDriver(holder, "[@player,dead] hide; show", "shield warning holder")
 end
 local look
 local lookOn, lookState, watching = false, nil, false
@@ -158,9 +157,8 @@ local lookOn, lookState, watching = false, nil, false
 -- LOAD_HOLD: after a loading screen, until the client lists the auras again
 local CAST_HOLD, LOAD_HOLD = 0.3, 1
 local holdUntil = 0
-local fighting = false
 
-local function aurasUnread() return fighting or InCombatLockdown() or ns.aurasSecret() end
+local function aurasUnread() return ns.inCombat() or not ns.aurasReadable() end
 
 local function blocked()
 	return ns.cantAct() or ns.plainYes(UnitInVehicle, "player")
@@ -319,12 +317,13 @@ local function learnShieldID(key, id)
 end
 
 -- Charges spent, cancelled or run out; a recast over a live shield stays silent
-local WATER_COPY = 408511
 function SH.applyRemovedSound()
 	local ids = {}
 	if ns.isEnabled("shield") then
 		for id in pairs(shieldIDMap()) do ids[id] = true end
-		if tracksShield("water") then ids[WATER_COPY] = true end
+		if tracksShield("water") then
+			for _, id in ipairs(Spells.extra("waterShieldCopy")) do ids[id] = true end
+		end
 	end
 	ns.Sounds.setAuraSound("shield", ns.elementSetting("shield", "removedSound"), ids)
 end
@@ -476,7 +475,8 @@ function SH.timeBarInset()
 end
 
 native = ns.makeAuraSlot(shield, {
-	key = "shield", slot = "shield", ids = shieldIDMap, name = "ShamanForeverAuraContainer", parent = gate,
+	key = "shield", slot = "shield", ids = shieldIDMap, parent = gate,
+	name = ns.NAME .. "AuraContainer",
 	sites = { container = "shield container", style = "shield style", filter = "shield filter" },
 	barInset = SH.timeBarInset,
 	onButton = buildNative, onStyle = styleNative,
@@ -628,10 +628,8 @@ function copy:refilter()
 end
 
 -- Auras can be secret out of combat too: keep the last read
-local function aurasReadable() return not InCombatLockdown() and not ns.aurasSecret() end
-
 local function refreshAura()
-	if not aurasReadable() then return end
+	if not ns.aurasReadable() then return end
 	local upKey
 	for _, key in ipairs(SHIELD_ORDER) do
 		local s = SHIELDS[key]
@@ -706,33 +704,30 @@ SH.onCooldowns = refreshGCD
 function SH.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "UNIT_AURA", "player")
-	ns.registerEvent(ev, "PLAYER_REGEN_DISABLED")
-	ns.registerEvent(ev, "PLAYER_REGEN_ENABLED")
 	ns.registerEvent(ev, "PLAYER_ENTERING_WORLD")
 	ns.registerEvent(ev, "UNIT_ENTERED_VEHICLE", "player")
 	ns.registerEvent(ev, "UNIT_EXITED_VEHICLE", "player")
-	-- Auras may turn secret out of combat: the button becomes the switch
-	ns.registerEvent(ev, "ADDON_RESTRICTION_STATE_CHANGED")
 	ev:SetScript("OnEvent", function(_, event)
 		if event == "PLAYER_ENTERING_WORLD" then
 			holdUntil = math.max(holdUntil, GetTime() + LOAD_HOLD)
 			watch()
 			return
-		elseif event == "ADDON_RESTRICTION_STATE_CHANGED" then
-			watch()
-			return
-		elseif event == "PLAYER_REGEN_DISABLED" then
-			fighting = true
-			checkIDs()
-		elseif event == "PLAYER_REGEN_ENABLED" then
-			fighting = false
-			refreshAura()
 		elseif event == "UNIT_ENTERED_VEHICLE" or event == "UNIT_EXITED_VEHICLE" then
 			watch()
 		else
 			refreshAura()
 			return
 		end
+		SH.applyEmptyLook()
+	end)
+	-- Auras may turn secret out of combat: the button becomes the switch
+	ns.onRestrictionChange(function() watch() end)
+	ns.onCombatStart(function()
+		checkIDs()
+		SH.applyEmptyLook()
+	end)
+	ns.onCombatEnd(function()
+		refreshAura()
 		SH.applyEmptyLook()
 	end)
 	ns.onCanActChange(SH.applyEmptyLook)

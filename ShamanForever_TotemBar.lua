@@ -184,7 +184,7 @@ function TB.eff() return effective end
 
 local function look()
 	local c, db = cfg(), ns.getDB()
-	local border = TB.skin.border() or ns.Style.get("totembar", "border")
+	local border = TB.skin.border() or ns.borderFor("totembar")
 	return (not c.sizeFollow and c.size) or db.iconSize, border, TB.skin.extrasBorder() or border
 end
 function TB.setSizeFollow(follow)
@@ -322,7 +322,7 @@ function TB.fitLook(v, b, border, size)
 	v:ClearAllPoints()
 	v:SetPoint("TOPLEFT", b, "TOPLEFT", o, -o)
 	v:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -o, o)
-	ns.applyBorder(v, border)
+	ns.Looks.applyBorder(v, border)
 	return o
 end
 
@@ -571,7 +571,7 @@ keyButton("ShamanForeverKeyDismissAll", "macro"):SetAttribute("macrotext", DISMI
 
 -- Call of the Elements and Totemic Recall: Recall always shows, greyed until learned
 local function knows(spell)
-	local ok, v = pcall(C_SpellBook.IsSpellKnown, spell)
+	local ok, v = ns.try("totem bar: spell known", C_SpellBook.IsSpellKnown, spell)
 	return ok and v == true
 end
 local extras = {}
@@ -605,7 +605,7 @@ end
 -- The GCD on each casting button when the bar's Global cooldown style is on; only while the
 -- button's own cooldown is the GCD (isOnGCD, vouched for inside SPELL_UPDATE_COOLDOWN)
 local function gcdOf(getInfo, getDuration, id)
-	local ok, info = pcall(getInfo, id)
+	local ok, info = ns.try("totem bar: cooldown", getInfo, id)
 	if not ok or type(info) ~= "table" or isSecret(info.isOnGCD) or info.isOnGCD ~= true then return nil end
 	local dok, d = ns.try("totem bar: GCD", getDuration, id)
 	return dok and d or nil
@@ -685,7 +685,7 @@ function TB.drawTimeLeft(s)
 		local ok, a = ns.try("totem bar: time bar", d.EvaluateRemainingDuration, d, ns.CURVE_LIVE)
 		if ok then tbar:SetAlpha(a) end
 	end
-	if TB.range then TB.range.drawTimeLeft(s) end
+	TB.range.drawTimeLeft(s)
 end
 
 -- The slot's expiring warning over the range strip, once: see the frame levels above
@@ -764,7 +764,7 @@ local function refreshSlots()
 		local s = slots[el]
 		s.down = refreshSlot(s)
 		if s.down then down = true end
-		if TB.range then TB.range.refresh(s) end
+		TB.range.refresh(s)
 	end
 	anyDown = down
 end
@@ -777,11 +777,8 @@ local function refresh()
 end
 
 local ticker = CreateFrame("Frame")
-ticker.t = 0
-ticker:SetScript("OnUpdate", function(self, elapsed)
-	self.t = self.t + elapsed
-	if self.t < 0.1 then return end
-	self.t = 0
+ticker:Hide()
+ticker:SetScript("OnUpdate", ns.throttled(0.1, function()
 	if not bar:IsShown() then return end
 	local arrows = feat("arrows")
 	for _, el in ipairs(ELEMENTS) do
@@ -789,7 +786,7 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 		hover(s, arrows)
 		if s.down and not preview then TB.drawTimeLeft(s) end
 	end
-end)
+end))
 
 -- Blizzard's totem frames
 -- The totems under the player frame: made invisible and click-through rather than hidden, since
@@ -855,7 +852,6 @@ end
 -- Layout (out of combat only)
 local mover
 local saidWait = false
-local classDone = false
 local hasTotems = false
 local paintPreview
 
@@ -949,15 +945,13 @@ end
 local lastDriver
 local function drive()
 	local driver = visibilityDriver()
-	if driver ~= lastDriver then
+	if driver ~= lastDriver and ns.setVisibilityDriver(bar, driver, "totem bar driver") then
 		lastDriver = driver
-		RegisterStateDriver(bar, "visibility", driver)
 	end
 end
 
 function layout()
 	if ns.deferInCombat("totem bar layout", layout) then return end
-	if classDone then return end
 	-- Any open picker closes first: it would come back open later
 	closePopouts()
 	local c = cfg()
@@ -1053,7 +1047,7 @@ function layout()
 	end
 	TB.skin.layoutBar(bar, boxes, size, row, sealed)
 	ns.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
-	if TB.range then TB.range.layout(size) end
+	TB.range.layout(size)
 	refreshSlots()
 	refreshKeys()
 	refreshGCD()
@@ -1061,9 +1055,8 @@ function layout()
 	drive()
 	applyTotemFrame()
 	applyActionBar()
-	if mover then mover.update() end
+	mover.update()
 	if preview then paintPreview() end
-	if ns.otherClass() then classDone = true end
 end
 TB.layout = layout
 TB.afterGroups = layout
@@ -1138,7 +1131,7 @@ end)
 mover:SetScript("OnMouseUp", function(_, button)
 	if InCombatLockdown() then return end
 	if button == "LeftButton" then ns.Positioning.selectMovable(movable)
-	elseif button == "RightButton" and ns.Options.open then ns.Options.open("totembar") end
+	elseif button == "RightButton" then ns.Options.open("totembar") end
 end)
 mover:SetScript("OnMouseWheel", function(self, delta)
 	if InCombatLockdown() then return end
@@ -1303,14 +1296,10 @@ local function hookQuickKeybind()
 	if f:IsShown() then setKeybindMode(true) end
 end
 local kbEvents = CreateFrame("Frame")
-for _, e in ipairs({ "PLAYER_LOGIN", "ADDON_LOADED", "PLAYER_REGEN_DISABLED" }) do ns.registerEvent(kbEvents, e) end
-kbEvents:SetScript("OnEvent", function(self, event, name)
-	if event == "PLAYER_REGEN_DISABLED" then
-		kbLeave()   -- never left over the bar in combat, taking the keyboard
-	elseif event == "PLAYER_LOGIN" or name == "Blizzard_QuickKeybind" then
-		hookQuickKeybind()
-		if kbHooked then self:UnregisterEvent("PLAYER_LOGIN"); self:UnregisterEvent("ADDON_LOADED") end
-	end
+kbEvents:SetScript("OnEvent", function(self, _, name)
+	if name ~= "Blizzard_QuickKeybind" then return end
+	hookQuickKeybind()
+	if kbHooked then self:UnregisterEvent("ADDON_LOADED") end
 end)
 
 -- Tooltips and hover on the slot buttons
@@ -1321,15 +1310,15 @@ for _, el in ipairs(ELEMENTS) do
 		if kbEnter(self, s.command, s.keys) then return end
 		local c = cfg()
 		if c.tips == "never" or (c.tips == "ooc" and InCombatLockdown()) then return end
-		local ok, d = pcall(GetTotemDuration, s.slot)
+		local ok, d = ns.try("totem bar: tooltip", GetTotemDuration, s.slot)
 		if not (ok and d) and c.mode ~= "everything" then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 		if ok and d then
-			pcall(GameTooltip.SetTotem, GameTooltip, s.slot)
+			ns.try("totem bar: tooltip", GameTooltip.SetTotem, GameTooltip, s.slot)
 		else
 			local action = multiAction(s.slot)
-			if C_ActionBar.HasAction(action) then pcall(GameTooltip.SetAction, GameTooltip, action)
-			else GameTooltip:SetText(NAME[el] .. ": no totem picked") end
+			if not C_ActionBar.HasAction(action) then GameTooltip:SetText(NAME[el] .. ": no totem picked")
+			else ns.try("totem bar: tooltip", GameTooltip.SetAction, GameTooltip, action) end
 		end
 		GameTooltip:Show()
 	end)
@@ -1357,7 +1346,9 @@ for _, e in pairs(extras) do
 		local c = cfg()
 		if c.tips == "never" or (c.tips == "ooc" and InCombatLockdown()) then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		if not pcall(GameTooltip.SetSpellByID, GameTooltip, e.spell) then GameTooltip:SetText(C_Spell.GetSpellName(e.spell) or e.key) end
+		if not ns.try("totem bar: tooltip", GameTooltip.SetSpellByID, GameTooltip, e.spell) then
+			GameTooltip:SetText(C_Spell.GetSpellName(e.spell) or e.key)
+		end
 		if e.key == "Recall" then
 			if not knows(e.spell) then GameTooltip:AddLine("Not learned yet", 0.6, 0.6, 0.6) end
 			GameTooltip:AddLine("Right-click: dismiss all totems (no GCD, but no mana returned)", 1, 0.82, 0, true)
@@ -1381,12 +1372,6 @@ ns.Totems.subscribe(function(event, slot, was)
 end)
 
 -- Events
-local ev = CreateFrame("Frame")
-for _, e in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_TOTEM_UPDATE", "PLAYER_REGEN_ENABLED",
-		"SPELLS_CHANGED", "ACTIONBAR_SLOT_CHANGED", "UPDATE_MULTI_CAST_ACTIONBAR", "UPDATE_BINDINGS", "SPELL_UPDATE_COOLDOWN" }) do
-	ns.registerEvent(ev, e)
-end
-ns.registerEvent(ev, "UNIT_SPELLCAST_SUCCEEDED", "player")
 -- After one of our casts: refresh once ns.Totems has recorded the slot (its handler may run after ours)
 local casts, refreshQueued = {}, false
 local function refreshAfterCast(spell)
@@ -1405,16 +1390,7 @@ local function refreshAfterCast(spell)
 	end)
 end
 
-ev:SetScript("OnEvent", function(_, event, arg1, ...)
-	if not ns.getDB() then return end
-	if ns.otherClass() then
-		layout()
-		if classDone then
-			ev:UnregisterAllEvents()
-			ticker:SetScript("OnUpdate", nil)
-		end
-		return
-	end
+local function onEvent(_, event, arg1, ...)
 	if event == "PLAYER_TOTEM_UPDATE" then
 		refresh()
 	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
@@ -1428,15 +1404,35 @@ ev:SetScript("OnEvent", function(_, event, arg1, ...)
 		refreshKeys()
 	elseif event == "SPELL_UPDATE_COOLDOWN" then
 		refreshGCD()
-	elseif event == "PLAYER_REGEN_ENABLED" then
-		saidWait = false
-		closePopouts()
-		if mover then mover.update() end
 	else
-		if event == "PLAYER_LOGIN" or event == "SPELLS_CHANGED" then nameBindings() end
+		if event == "SPELLS_CHANGED" then nameBindings() end
 		layout()
 	end
-end)
+end
+
+-- Only for the class; its first layout comes with the HUD's
+function TB.start()
+	local ev = CreateFrame("Frame")
+	for _, e in ipairs({ "PLAYER_ENTERING_WORLD", "PLAYER_TOTEM_UPDATE", "SPELLS_CHANGED",
+			"ACTIONBAR_SLOT_CHANGED", "UPDATE_MULTI_CAST_ACTIONBAR", "UPDATE_BINDINGS",
+			"SPELL_UPDATE_COOLDOWN" }) do
+		ns.registerEvent(ev, e)
+	end
+	ns.registerEvent(ev, "UNIT_SPELLCAST_SUCCEEDED", "player")
+	ev:SetScript("OnEvent", onEvent)
+	-- Never left over the bar in combat, taking the keyboard
+	ns.onCombatStart(kbLeave)
+	ns.onCombatEnd(function()
+		saidWait = false
+		closePopouts()
+		mover.update()
+	end)
+	ticker:Show()
+	TB.range.start()
+	hookQuickKeybind()
+	if not kbHooked then ns.registerEvent(kbEvents, "ADDON_LOADED") end
+	nameBindings()
+end
 
 TB.MODES = { { "blizzard", "Blizzard's" }, { "active", "Active totems" }, { "everything", "Everything" } }
 function TB.setMode(mode)
@@ -1539,10 +1535,10 @@ end
 function TB.preview(p)
 	if p then
 		preview = { all = p.all, states = preview and preview.states or {} }
-		if TB.range then TB.range.preview(true) end
+		TB.range.preview(true)
 	elseif preview then
 		preview = nil
-		if TB.range then TB.range.preview(false) end
+		TB.range.preview(false)
 		for _, el in ipairs(ELEMENTS) do
 			local s = slots[el]
 			s.killed:stop()

@@ -3,8 +3,9 @@
 local ADDON, ns = ...
 local say = ns.say
 
-SLASH_SHAMANFOREVER1 = "/sf"
-SLASH_SHAMANFOREVER2 = "/shf"
+local SLASH = ns.NAME:upper()
+_G["SLASH_" .. SLASH .. "1"] = "/sf"
+_G["SLASH_" .. SLASH .. "2"] = "/shf"
 local function toggleLock()
 	local acct = ns.getAccount()
 	if ns.setLocked(not acct.locked) then
@@ -52,7 +53,7 @@ _G.ShamanForever_OnAddonCompartmentEnter = function(_, button)
 end
 _G.ShamanForever_OnAddonCompartmentLeave = function() GameTooltip:Hide() end
 
-SlashCmdList.SHAMANFOREVER = function(msg)
+SlashCmdList[SLASH] = function(msg)
 	local cmd = (msg:match("^(%S*)") or ""):lower()
 	if cmd == "" or cmd == "options" or cmd == "config" then
 		ns.Options.toggle()

@@ -671,7 +671,7 @@ end
 
 -- Its border and frame together, on one of those frames (bare: the border only)
 function FR.dress(edge, key, level, bare)
-	ns.applyBorder(edge, ns.borderFor(key))
+	ns.Looks.applyBorder(edge, ns.borderFor(key))
 	return FR.mountOwn(edge, key, not bare and ns.boxOf(key) or nil, level)
 end
 

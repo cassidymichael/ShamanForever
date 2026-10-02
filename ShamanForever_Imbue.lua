@@ -62,7 +62,7 @@ end
 -- false when none is on, nil when it can't be read
 local function readMainHand()
 	if not (C_Item and C_Item.GetWeaponEnchantInfo) then return nil end
-	local ok, list = pcall(C_Item.GetWeaponEnchantInfo, MAIN_HAND)
+	local ok, list = ns.try("imbue: read", C_Item.GetWeaponEnchantInfo, MAIN_HAND)
 	if not ok or isSecret(list) or type(list) ~= "table" then return nil end
 	for _, w in ipairs(list) do
 		if isSecret(w.hasEnchant) or isSecret(w.enchantType) then return nil end

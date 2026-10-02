@@ -308,17 +308,6 @@ for _, def in ipairs(TARGET) do
 		experimental = def.experimental, styles = def.styles })
 end
 
-local listed = false
-for _, g in ipairs(ns.DEFAULTS.groups) do
-	for _, key in ipairs(g.members or {}) do
-		if key == "flameshock" or key == "purge" then listed = true end
-	end
-end
-if not listed then
-	table.insert(ns.DEFAULTS.groups, { name = "Target", point = "CENTER", x = 122, y = 11, scale = 0.9,
-		alpha = 0.75, orientation = "horizontal", growth = "forward", spacing = 6, members = { "flameshock", "purge" } })
-end
-
 -- 0 while the container may show the last target's aura (stale)
 function gateAlpha(def)
 	ns.try("target gate alpha", def.gate.SetAlpha, def.gate, def.stale and 0 or 1)
@@ -373,22 +362,19 @@ local HOSTILE = "[@target,harm,nodead] show; hide"
 local function driveGate(def)
 	if def.driven or not def.aura.container or InCombatLockdown() then return end
 	def.driven = true
-	local ok, err = pcall(RegisterStateDriver, def.gate, "visibility", HOSTILE)
-	if not ok then ns.noteError("target gate " .. def.key, err) end
+	ns.setVisibilityDriver(def.gate, HOSTILE, "target gate " .. def.key)
 	if def.holder then
-		ok, err = pcall(RegisterStateDriver, def.holder, "visibility",
-			"[@player,dead] hide; " .. HOSTILE)
-		if not ok then ns.noteError("target warning " .. def.key, err) end
-		ok, err = pcall(RegisterStateDriver, def.idleEdge, "visibility", "[@target,harm,nodead] hide; show")
-		if not ok then ns.noteError("target border " .. def.key, err) end
+		ns.setVisibilityDriver(def.holder, "[@player,dead] hide; " .. HOSTILE,
+			"target warning " .. def.key)
+		ns.setVisibilityDriver(def.idleEdge, "[@target,harm,nodead] hide; show",
+			"target border " .. def.key)
 	end
 end
 
 -- Flame Shock: the Not on target look
 local FLAME = TARGET[1]
-local fighting = false
 
-local function readable() return not fighting and not InCombatLockdown() and not ns.aurasSecret() end
+local function readable() return not ns.inCombat() and ns.aurasReadable() end
 
 -- nil when it can't be told (read fails or secret). Any rank counts, by ID or the client's name
 local function flameShockOnTarget()
@@ -454,7 +440,7 @@ local function styleUp()
 end
 
 local function checkMissing()
-	if fighting or InCombatLockdown() then return end
+	if ns.inCombat() then return end
 	if readWanted() then flameShockOnTarget() end
 	stateLook()
 end
@@ -474,7 +460,6 @@ end
 
 -- Combat starts: icon to its idle alpha at once (a fade would stop part way)
 local function combatStarts()
-	fighting = true
 	styleLook()
 	styleUp()
 	applyIdle(FLAME)
@@ -582,17 +567,8 @@ function T.start()
 	ns.registerEvent(ev, "PLAYER_TARGET_CHANGED")
 	ns.registerEvent(ev, "UNIT_FACTION", "target")
 	ns.registerEvent(ev, "UNIT_AURA", "target")
-	ns.registerEvent(ev, "PLAYER_REGEN_DISABLED")
-	ns.registerEvent(ev, "PLAYER_REGEN_ENABLED")
 	ev:SetScript("OnEvent", function(_, event)
-		if event == "PLAYER_REGEN_DISABLED" then combatStarts()
-		elseif event == "PLAYER_REGEN_ENABLED" then
-			fighting = false
-			styleLook()
-			styleUp()
-			checkMissing()
-			refreshAura(FLAME)
-		elseif event == "UNIT_AURA" then
+		if event == "UNIT_AURA" then
 			if not readWanted() then return end
 			checkMissing()
 			refreshAura(FLAME)
@@ -601,6 +577,13 @@ function T.start()
 			checkMissing()
 			refreshAura(FLAME)
 		end
+	end)
+	ns.onCombatStart(combatStarts)
+	ns.onCombatEnd(function()
+		styleLook()
+		styleUp()
+		checkMissing()
+		refreshAura(FLAME)
 	end)
 	ns.onCanActChange(function() checkMissing(); refreshAura(FLAME) end)
 end
