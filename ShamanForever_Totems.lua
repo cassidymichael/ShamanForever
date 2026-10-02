@@ -264,6 +264,47 @@ ns.registerPart("needsTotem", {
 	},
 })
 
+-- Totem ends on the elements with a totem of their own: killed early (Grounded for Grounding) or
+-- ran out, gated on the time left
+local function endOnElement(def, event, arg)
+	local f, key = def.frame, def.key
+	if event == "cast" and arg == def.spellKey and f.killed then
+		f.killed.mark:Hide()
+	elseif event == "gone" and T.ownerOf(def.totemSlot) == def.spellKey and ns.isEnabled(key) then
+		local dur = arg
+		if f:IsVisible() then ns.Sounds.element(key, "ended", true) end
+		if def.ranOut then
+			if setting(key, "ended", "flash") then
+				if not f.expired then f.expired = ns.Effects.endFlash(f.effects, f, key) end
+				f.expired:setIcon(def.iconID or def.icon)
+				f.expired:play(dur, { expired = true, ranOut = ns.THEME.color[def.school],
+					pop = setting(key, "ended", "pop"), glow = setting(key, "ended", "glow") })
+			end
+		elseif setting(key, "ended", "pop") then
+			if not f.expired then f.expired = ns.Effects.endFlash(f.effects, f, key) end
+			f.expired:setIcon(def.iconID or def.icon)
+			f.expired:play(dur, { expired = true, pop = true })
+		end
+		if setting(key, "killed", "flash") then
+			if not f.killed then f.killed = ns.Effects.endFlash(f.effects, f, key) end
+			f.killed:setIcon(def.iconID or def.icon)
+			if def.grounded then
+				f.killed:play(dur, { grounded = true, pop = setting(key, "killed", "pop"),
+					glow = setting(key, "killed", "glow") })
+			else
+				f.killed:play(dur, { pop = setting(key, "killed", "pop"), glow = setting(key, "killed", "glow"),
+					mark = setting(key, "killed", "mark") })
+			end
+		end
+	end
+end
+T.subscribe(function(event, slot, arg)
+	for _, key in ipairs(ns.ELEMENT_KEYS) do
+		local def = ns.ELEMENTS[key].def
+		if type(def) == "table" and def.totemSlot == slot then endOnElement(def, event, arg) end
+	end
+end)
+
 function T.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "PLAYER_TOTEM_UPDATE")

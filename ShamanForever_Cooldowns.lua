@@ -7,7 +7,7 @@
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
-local Spells, Totems, Reagents = ns.Spells, ns.Totems, ns.Reagents
+local Spells, Reagents = ns.Spells, ns.Reagents
 
 local CD = { name = "cooldowns" }
 ns.Cooldowns = CD
@@ -428,11 +428,11 @@ end
 
 -- Whether the slot's totem is def's own (1) or not (0); unknown: hidden
 local function slotMatch(def, slot)
-	local key, how, icon = Totems.identify(slot)
+	local key, how, icon = ns.Totems.identify(slot)
 	if key then return key == def.spellKey and 1 or 0, how end
 	if icon then
 		local mine = icon == def.iconID or icon == def.icon
-		if mine then Totems.setOwner(slot, def.spellKey) end
+		if mine then ns.Totems.setOwner(slot, def.spellKey) end
 		return mine and 1 or 0, how
 	end
 	return 0, how
@@ -604,44 +604,6 @@ local function styleCooldown(def)
 	w:setIcon(def.iconID or def.icon)
 	w:setParts(ns.warnParts(def.key, "warn"))
 end
-
--- Totem ends: killed early (Grounded for Grounding) or ran out, gated on the time left
-Totems.subscribe(function(event, slot, arg)
-	for _, def in ipairs(COOLDOWNS) do
-		if def.totemSlot == slot then
-			local f, key = def.frame, def.key
-			if event == "cast" and arg == def.spellKey and f.killed then
-				f.killed.mark:Hide()
-			elseif event == "gone" and Totems.ownerOf(slot) == def.spellKey and ns.isEnabled(key) then
-				local dur = arg
-				if f:IsVisible() then ns.Sounds.element(key, "ended", true) end
-				if def.ranOut then
-					if setting(key, "ended", "flash") then
-						if not f.expired then f.expired = ns.Effects.endFlash(f.effects, f, key) end
-						f.expired:setIcon(def.iconID or def.icon)
-						f.expired:play(dur, { expired = true, ranOut = ns.THEME.color[def.school],
-							pop = setting(key, "ended", "pop"), glow = setting(key, "ended", "glow") })
-					end
-				elseif setting(key, "ended", "pop") then
-					if not f.expired then f.expired = ns.Effects.endFlash(f.effects, f, key) end
-					f.expired:setIcon(def.iconID or def.icon)
-					f.expired:play(dur, { expired = true, pop = true })
-				end
-				if setting(key, "killed", "flash") then
-					if not f.killed then f.killed = ns.Effects.endFlash(f.effects, f, key) end
-					f.killed:setIcon(def.iconID or def.icon)
-					if def.grounded then
-						f.killed:play(dur, { grounded = true, pop = setting(key, "killed", "pop"),
-							glow = setting(key, "killed", "glow") })
-					else
-						f.killed:play(dur, { pop = setting(key, "killed", "pop"), glow = setting(key, "killed", "glow"),
-							mark = setting(key, "killed", "mark") })
-					end
-				end
-			end
-		end
-	end
-end)
 
 -- Ready glows ("use me"), all off by default; re-read ten times a second while on
 local hasTimeLeftCurve = ns.CURVE_LIVE
