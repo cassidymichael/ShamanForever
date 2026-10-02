@@ -1238,19 +1238,15 @@ local function buildNav()
 	navList = list
 end
 
-local USER_KINDS = {
-	totembar = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
-	swing = { "border", "text", "bar" },
-	element = { "cooldown", "uptime", "gcd", "glow", "pop" },
-}
+local ELEMENT_KINDS = { "cooldown", "uptime", "gcd", "glow", "pop" }
 local function addStyleUsers()
 	local St = ns.Style
-	for _, owner in ipairs({ "totembar", "swing" }) do
-		for _, kind in ipairs(USER_KINDS[owner]) do St.addUser(kind, owner) end
+	for _, owner in ipairs(St.bars()) do
+		for _, kind in ipairs(St.bar(owner).kinds) do St.addUser(kind, owner) end
 	end
 	for _, key in ipairs(ns.ElementPages.ordered()) do
 		if ns.ElementPages.pageOf(key) then
-			for _, kind in ipairs(USER_KINDS.element) do St.addUser(kind, key) end
+			for _, kind in ipairs(ELEMENT_KINDS) do St.addUser(kind, key) end
 		end
 	end
 end

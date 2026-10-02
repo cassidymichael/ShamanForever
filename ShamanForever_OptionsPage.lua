@@ -565,12 +565,11 @@ Page.refKind("general", {
 	slot = function(r) return r.general end,
 	default = function(r) return ns.DEFAULTS[r.general] end,
 })
-local BARS = { totembar = "TotemBar", swing = "Swing" }
 Page.refKind("bar", {
 	id = function(r) return r.bar .. "." .. r.name end,
-	holder = function(r) return ns[BARS[r.bar]].cfg() end,
+	holder = function(r) return ns.Style.bar(r.bar).cfg() end,
 	slot = function(r) return r.name end,
-	default = function(r) return ns[BARS[r.bar]].DEFAULTS[r.name] end,
+	default = function(r) return ns.Style.bar(r.bar).DEFAULTS[r.name] end,
 })
 local function groupOf(r) if type(r.group) == "function" then return r.group() end return r.group end
 Page.refKind("group", {

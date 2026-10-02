@@ -173,6 +173,12 @@ local function barOn() return isShaman() and cfg().mode ~= "blizzard" end
 TB.isShaman = isShaman
 local function feat(key) local c = cfg(); return barOn() and c.mode == "everything" and c[key] or false end
 TB.barOn, TB.feat = barOn, feat
+ns.Style.registerBar("totembar", { cfg = cfg, DEFAULTS = TB.DEFAULTS, label = "Totem bar", on = barOn,
+	kinds = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
+	-- Its theme can draw its own border
+	ownLabel = function(kind)
+		if kind == "border" and TB.skin.owns("border") then return "Totem bar (its theme)" end
+	end })
 
 -- The player's settings, or the theme's where it owns one
 local effective = setmetatable({}, { __index = function(_, k)

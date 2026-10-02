@@ -39,6 +39,17 @@ S.register("border", {
 	path = { "border" },
 })
 
+-- Bars: owners with a settings table of their own, not an element's, in the order they register.
+-- spec: cfg(), DEFAULTS, label, on() (its styles are offered now), kinds (style kinds it can have
+-- its own of), ownLabel(kind) (optional: its name when it draws that style itself)
+local BARS, BAR_ORDER = {}, {}
+function S.registerBar(key, spec)
+	BARS[key] = spec
+	table.insert(BAR_ORDER, key)
+end
+function S.bar(key) return BARS[key] end
+function S.bars() return BAR_ORDER end
+
 -- An owner's own shipped look, { kind = fields }: it starts not following Global
 function S.setOwnerDefaults(owner, byKind)
 	for kind, d in pairs(byKind) do
@@ -163,8 +174,7 @@ local function holder(owner)
 	if type(owner) == "table" then return owner end
 	local db = ns.getDB and ns.getDB()
 	if not db or owner == nil then return db end
-	if owner == "totembar" then return ns.TotemBar and ns.TotemBar.cfg() end
-	if owner == "swing" then return ns.Swing and ns.Swing.cfg() end
+	if BARS[owner] then return BARS[owner].cfg() end
 	return ns.elementOpts and ns.elementOpts(owner)
 end
 
@@ -312,7 +322,7 @@ end
 
 function S.ownerName(owner)
 	if type(owner) == "table" then return owner.name or "A group" end
-	if owner == "totembar" then return "Totem bar" end
+	if BARS[owner] then return BARS[owner].label end
 	if ns.Look and ns.Look.elementName then return ns.Look.elementName(owner) end
 	return owner
 end
@@ -326,11 +336,10 @@ function S.ownStyles(kind)
 		end
 	end
 	for _, key in ipairs(S.KINDS[kind].users) do
-		local offered = key ~= "totembar" or ns.TotemBar.barOn()
-		if key == "swing" then offered = ns.Swing and ns.Swing.isOn() end
-		-- The totem bar's theme can draw its own border.
-		if offered and key == "totembar" and kind == "border" and ns.TotemBar.skin.owns("border") then
-			table.insert(out, "Totem bar (its theme)")
+		local b = BARS[key]
+		local offered = not b or b.on()
+		local own = offered and b and b.ownLabel and b.ownLabel(kind)
+		if own then table.insert(out, own)
 		elseif offered and not S.follows(key, kind) then table.insert(out, S.ownerName(key)) end
 	end
 	return out
