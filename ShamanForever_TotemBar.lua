@@ -214,7 +214,6 @@ end
 -- Geometry, shared with the options' preview of the bar
 local POP_STEP = 3
 TB.POP_FILL = { 0, 0, 0, 0.72 }
-TB.BADGE_GAP = 0
 local EXTRA_GAP = 6
 
 function TB.along(n, size, px)
@@ -321,7 +320,7 @@ function TB.layoutBadge(bd, anchor, size, border)
 	bd:SetAlpha(c.badgeAlpha)
 	TB.saturate(bd.icon, c.badgeSat)
 	bd:ClearAllPoints()
-	local gap = TB.BADGE_GAP + inset + TB.skin.badgeGap(size)
+	local gap = inset + TB.skin.badgeGap(size)
 	local x, y = c.badgeX, c.badgeY
 	if c.pop == "up" then bd:SetPoint("TOP", anchor, "BOTTOM", x, y - gap)
 	elseif c.pop == "down" then bd:SetPoint("BOTTOM", anchor, "TOP", x, y + gap)

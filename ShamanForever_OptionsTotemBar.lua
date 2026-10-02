@@ -104,7 +104,7 @@ PREVIEW = {
 		local popLen = TB.popLength(items, psz)
 		local seq, along, line = TB.along(math.max(#places, 1), size)
 		local badge = st == "offpick" and c.offPick
-			and TB.badgeSize(size) + TB.BADGE_GAP + TB.skin.badgeGap(size) or 0
+			and TB.badgeSize(size) + TB.skin.badgeGap(size) or 0
 		local across = line + (picking and (c.arrowSize + 4 + popLen) or 0) + badge
 		local w = h:GetWidth()
 		if not w or w <= 0 then w = 600 end

@@ -346,7 +346,7 @@ function L.buildHero(parent, key)
 		h.exp:SetFrameLevel(h:GetFrameLevel() + 6)
 	end
 
-	local PANEL_W, PANEL_H = def.stage and 0 or (def.panelW or (88 + BTN_W)), heroH - 14 - 24
+	local PANEL_W, PANEL_H = def.stage and 0 or 88 + BTN_W, heroH - 14 - 24
 	local p = CreateFrame("Frame", nil, h, "BackdropTemplate")
 	p:SetSize(PANEL_W, PANEL_H)
 	p:SetPoint("RIGHT", -40, 0)
@@ -406,14 +406,13 @@ function L.buildHero(parent, key)
 		if not w or w <= 0 then w = parent:GetWidth() end
 		self.banner:SetTexCoord(coverCoords(w - 2, heroH - 16))
 		local el = ns.ELEMENTS[key]
-		local bw, bh = PREVIEW_SIZE, PREVIEW_SIZE
-		if def.size then bw, bh = def.size() end
 		-- The panel widens for a frame's wings, up to a point
 		local padL, padR = 0, 0
-		local framed = not def.stage and el and bw == bh
+		local framed = not def.stage and el
 		if framed then
 			local r = ns.Frames.reach(key)
-			padL, padR = math.min(math.ceil(r.left * bw), WING_MAX), math.min(math.ceil(r.right * bw), WING_MAX)
+			padL = math.min(math.ceil(r.left * PREVIEW_SIZE), WING_MAX)
+			padR = math.min(math.ceil(r.right * PREVIEW_SIZE), WING_MAX)
 			p:SetWidth(PANEL_W + padL + padR)
 		end
 		self.blurb:SetWidth(def.stage and 300 or math.max(w - 40 - 60 - 14 - 40 - PANEL_W - padL - padR - 12, 120))
@@ -449,7 +448,7 @@ function L.buildHero(parent, key)
 		for _, b in ipairs(self.stateButtons) do L.paintChoice(b, b.state == previewState[key]) end
 		if not def.stage then
 			local ic = self.previewIcon
-			local x = 16 + padL + ns.Looks.fit(ic, ns.borderFor(key), bw, bh, { shape = el and el.shape })
+			local x = 16 + padL + ns.Looks.fit(ic, ns.borderFor(key), PREVIEW_SIZE, PREVIEW_SIZE, { shape = el and el.shape })
 			ic:ClearAllPoints()
 			ic:SetPoint("LEFT", p, "LEFT", x, -6)
 			local l, t = ic:GetLeft(), ic:GetTop()
@@ -458,7 +457,7 @@ function L.buildHero(parent, key)
 				ic:SetPoint("LEFT", p, "LEFT", x + ns.roundPx(l, px) - l, -6 + ns.roundPx(t, px) - t)
 			end
 			self.frameHost:SetFrameLevel(ic:GetFrameLevel())
-			if framed then ns.Frames.mount(self.frameHost, key, bw) else ns.Frames.draw(self.frameHost) end
+			if framed then ns.Frames.mount(self.frameHost, key, PREVIEW_SIZE) else ns.Frames.draw(self.frameHost) end
 		end
 		local st = previewState[key]
 		if def.stage then def.render(self, st, L.kit) else
