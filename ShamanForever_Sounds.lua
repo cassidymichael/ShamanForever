@@ -96,11 +96,67 @@ end
 
 function S.test(value) emit(value) end
 
--- Slot or enchant may read empty around a loading screen
+-- Aura sounds: the engine plays them, so they work in combat. Set out of combat only.
+local REMOVED = 2   -- Enum.UnitAuraSoundTrigger.Removed
+local auraSounds = {}   -- owner -> { value, ids, trigger, sig, handles }
+
+local function dropAura(a)
+	if not (C_UnitAuras and C_UnitAuras.RemoveAuraSound) then return end
+	for _, h in ipairs(a.handles) do pcall(C_UnitAuras.RemoveAuraSound, h) end
+	wipe(a.handles)
+end
+
+local function applyAura(owner)
+	local a = auraSounds[owner]
+	local file = S.fileID(a.value)
+	local list = {}
+	if file then
+		for id in pairs(a.ids) do table.insert(list, id) end
+		table.sort(list)
+	end
+	local sig = #list > 0 and (file .. ":" .. S.channel() .. ":" .. a.trigger .. ":" .. table.concat(list, ",")) or ""
+	if sig == a.sig then return end
+	if ns.deferInCombat("aura sound " .. owner, function() applyAura(owner) end) then return end
+	a.sig = sig
+	dropAura(a)
+	local add = C_UnitAuras and C_UnitAuras.AddAuraSound
+	if sig == "" or not add then return end
+	local enum = Enum and Enum.UnitAuraSoundTrigger
+	local trigger = enum and enum[a.trigger] or (a.trigger == "Removed" and REMOVED or nil)
+	if not trigger then return end
+	for _, id in ipairs(list) do
+		local ok, h = pcall(add, trigger, { unitToken = "player", spellID = id, soundFileID = file,
+			outputChannel = S.channel(), throttleSeconds = 1 })
+		if ok and type(h) == "number" and not ns.isSecret(h) then table.insert(a.handles, h) end
+	end
+end
+
+-- owner: a key of the caller's; ids: a set of the player's aura spell IDs (empty or nil for none);
+-- trigger: an Enum.UnitAuraSoundTrigger name, "Removed" by default
+function S.setAuraSound(owner, value, ids, trigger)
+	local a = auraSounds[owner]
+	if not a then
+		a = { sig = "", handles = {} }
+		auraSounds[owner] = a
+	end
+	a.value, a.ids, a.trigger = value, ids or {}, trigger or "Removed"
+	applyAura(owner)
+end
+
+local function applyAllAuras()
+	for owner in pairs(auraSounds) do applyAura(owner) end
+end
+
 local ev = CreateFrame("Frame")
 ns.registerEvent(ev, "PLAYER_LEAVING_WORLD")
 ns.registerEvent(ev, "PLAYER_ENTERING_WORLD")
+ns.registerEvent(ev, "PLAYER_LOGOUT")
 ev:SetScript("OnEvent", function(_, event)
+	if event == "PLAYER_LOGOUT" then
+		for _, a in pairs(auraSounds) do dropAura(a) end
+		return
+	end
+	-- Slot or enchant may read empty around a loading screen
 	quietUntil = event == "PLAYER_LEAVING_WORLD" and math.huge or GetTime() + QUIET
 end)
 
@@ -159,7 +215,7 @@ function S.generalBlock(p)
 	p:text("Elements and the totem bar pick their own sounds, on their pages. All start at None.")
 	p:dropdown("Channel", "Master plays even with sound effects off.", S.CHANNELS, S.channel, function(v)
 		ns.getAccount().soundChannel = v
-		ns.Shield.applyRemovedSound()
+		applyAllAuras()
 		ns.Options.refresh()
 	end, nil, 160)
 end

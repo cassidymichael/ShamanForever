@@ -313,38 +313,15 @@ local function learnShieldID(key, id)
 	else applyShieldFilter() end
 end
 
--- The sound when a tracked shield goes (charges spent, cancelled, ran out): the engine plays it,
--- so it works in combat. Registered out of combat only; a recast over a live shield stays silent.
+-- Charges spent, cancelled or run out; a recast over a live shield stays silent
 local WATER_COPY = 408511
-local soundIDs, soundSig = {}, nil
-local function dropRemovedSound()
-	if not (C_UnitAuras and C_UnitAuras.RemoveAuraSound) then return end
-	for _, sid in ipairs(soundIDs) do pcall(C_UnitAuras.RemoveAuraSound, sid) end
-	wipe(soundIDs)
-end
 function SH.applyRemovedSound()
-	local file = ns.Sounds.fileID(ns.elementSetting("shield", "removedSound"))
 	local ids = {}
-	if file then
+	if ns.isEnabled("shield") then
 		for id in pairs(shieldIDMap()) do ids[id] = true end
 		if tracksShield("water") then ids[WATER_COPY] = true end
 	end
-	local list = {}
-	for id in pairs(ids) do table.insert(list, id) end
-	table.sort(list)
-	local sig = file and (file .. ":" .. ns.Sounds.channel() .. ":" .. table.concat(list, ",")) or ""
-	if sig == (soundSig or "") then return end
-	if ns.deferInCombat("shield removed sound", SH.applyRemovedSound) then return end
-	soundSig = sig
-	dropRemovedSound()
-	local add = C_UnitAuras and C_UnitAuras.AddAuraSound
-	if not (file and add) then return end
-	local trigger = Enum and Enum.UnitAuraSoundTrigger and Enum.UnitAuraSoundTrigger.Removed or 2
-	for _, id in ipairs(list) do
-		local ok, sid = pcall(add, trigger, { unitToken = "player", spellID = id, soundFileID = file,
-			outputChannel = ns.Sounds.channel(), throttleSeconds = 1 })
-		if ok and type(sid) == "number" and not isSecret(sid) then table.insert(soundIDs, sid) end
-	end
+	ns.Sounds.setAuraSound("shield", ns.elementSetting("shield", "removedSound"), ids)
 end
 
 function SH.resolve()
@@ -727,16 +704,12 @@ function SH.start()
 	ns.registerEvent(ev, "PLAYER_REGEN_DISABLED")
 	ns.registerEvent(ev, "PLAYER_REGEN_ENABLED")
 	ns.registerEvent(ev, "PLAYER_ENTERING_WORLD")
-	ns.registerEvent(ev, "PLAYER_LOGOUT")
 	ns.registerEvent(ev, "UNIT_ENTERED_VEHICLE", "player")
 	ns.registerEvent(ev, "UNIT_EXITED_VEHICLE", "player")
 	-- Auras may turn secret out of combat: the button becomes the switch
 	ns.registerEvent(ev, "ADDON_RESTRICTION_STATE_CHANGED")
 	ev:SetScript("OnEvent", function(_, event)
-		if event == "PLAYER_LOGOUT" then
-			dropRemovedSound()
-			return
-		elseif event == "PLAYER_ENTERING_WORLD" then
+		if event == "PLAYER_ENTERING_WORLD" then
 			holdUntil = math.max(holdUntil, GetTime() + LOAD_HOLD)
 			watch()
 			return
