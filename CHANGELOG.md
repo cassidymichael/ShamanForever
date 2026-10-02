@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Shields: an optional sound when your shield goes.
+
 ## 0.12.1 (2026-10-02)
 
 - The options window opens faster and uses far less memory.

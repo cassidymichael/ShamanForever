@@ -10,8 +10,8 @@ local SAME = 0.5   -- seconds
 local QUIET = 3   -- seconds after a loading screen
 
 local GAME = {
-	{ "raid", "Raid warning", "RAID_WARNING" },
-	{ "ready", "Ready check", "READY_CHECK" },
+	{ "raid", "Raid warning", "RAID_WARNING", 567397 },
+	{ "ready", "Ready check", "READY_CHECK", 567409 },
 	{ "alarm", "Alarm clock", "ALARM_CLOCK_WARNING_3" },
 	{ "emote", "Boss emote", "RAID_BOSS_EMOTE_WARNING" },
 	{ "queue", "Queue pop", "PVP_THROUGH_QUEUE" },
@@ -40,6 +40,14 @@ local function lsmSound(name)
 	if name == "None" then return nil end
 	local l = lsm()
 	return l and l:Fetch("sound", name, true) or nil
+end
+
+-- A sound file ID, for engine-played sounds (aura sounds); nil when the value has none
+function S.fileID(value)
+	local g = gameByName[value]
+	if g then return kit(g) and g[4] or nil end
+	local f = lsmSound(value)
+	return type(f) == "number" and f or nil
 end
 
 -- Playing
@@ -119,8 +127,18 @@ function S.choices(current)
 	return out
 end
 
-function S.row(p, label, tip, get, set, shown)
-	local row = p:dropdown(label, tip, function() return S.choices(get()) end, function() return get() or "none" end,
+-- Only the sounds the engine can play from a file ID
+function S.fileChoices(current)
+	local out = {}
+	for _, c in ipairs(S.choices(current)) do
+		if c[1] == "none" or S.fileID(c[1]) then table.insert(out, c) end
+	end
+	return out
+end
+
+function S.row(p, label, tip, get, set, shown, choices)
+	choices = choices or S.choices
+	local row = p:dropdown(label, tip, function() return choices(get()) end, function() return get() or "none" end,
 		function(v) set(v); S.test(v) end, shown, 200)
 	local play = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
 	play:SetSize(60, 22)
@@ -141,6 +159,7 @@ function S.generalBlock(p)
 	p:text("Elements and the totem bar pick their own sounds, on their pages. All start at None.")
 	p:dropdown("Channel", "Master plays even with sound effects off.", S.CHANNELS, S.channel, function(v)
 		ns.getAccount().soundChannel = v
+		ns.Shield.applyRemovedSound()
 		ns.Options.refresh()
 	end, nil, 160)
 end
