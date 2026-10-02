@@ -99,7 +99,7 @@ function E.glow(parent, over, owner, opts)
 			if self.held then for _, r in ipairs(p and p.moving or {}) do r:Hide() end end
 			if running then play(self, true) end
 			if underButton and self.button then
-				for _, a in ipairs(p and p.aura or {}) do pcall(a.Play, a) end
+				for _, a in ipairs(p and p.aura or {}) do ns.try("glow: aura parts", a.Play, a) end
 			end
 		end
 		self.width = st.width   -- fit runs ten times a second for ready glows
@@ -550,8 +550,8 @@ function E.endFlash(parent, anchor, owner, over)
 	ns.Looks.followMask(over, kf.icon, kf.red, kf.mark.icon)
 	-- SetTexture takes a secret
 	function kf:setIcon(icon)
-		pcall(self.icon.SetTexture, self.icon, icon)
-		pcall(self.mark.icon.SetTexture, self.mark.icon, icon)
+		ns.try("killed flash: icon", self.icon.SetTexture, self.icon, icon)
+		ns.try("killed flash: icon", self.mark.icon.SetTexture, self.mark.icon, icon)
 	end
 	-- dur nil: play regardless (previews).
 	function kf:play(dur, opts)

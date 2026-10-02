@@ -571,7 +571,7 @@ keyButton("ShamanForeverKeyDismissAll", "macro"):SetAttribute("macrotext", DISMI
 
 -- Call of the Elements and Totemic Recall: Recall always shows, greyed until learned
 local function knows(spell)
-	local ok, v = pcall(C_SpellBook.IsSpellKnown, spell)
+	local ok, v = ns.try("totem bar: spell known", C_SpellBook.IsSpellKnown, spell)
 	return ok and v == true
 end
 local extras = {}
@@ -605,7 +605,7 @@ end
 -- The GCD on each casting button when the bar's Global cooldown style is on; only while the
 -- button's own cooldown is the GCD (isOnGCD, vouched for inside SPELL_UPDATE_COOLDOWN)
 local function gcdOf(getInfo, getDuration, id)
-	local ok, info = pcall(getInfo, id)
+	local ok, info = ns.try("totem bar: cooldown", getInfo, id)
 	if not ok or type(info) ~= "table" or isSecret(info.isOnGCD) or info.isOnGCD ~= true then return nil end
 	local dok, d = ns.try("totem bar: GCD", getDuration, id)
 	return dok and d or nil
@@ -1313,15 +1313,15 @@ for _, el in ipairs(ELEMENTS) do
 		if kbEnter(self, s.command, s.keys) then return end
 		local c = cfg()
 		if c.tips == "never" or (c.tips == "ooc" and InCombatLockdown()) then return end
-		local ok, d = pcall(GetTotemDuration, s.slot)
+		local ok, d = ns.try("totem bar: tooltip", GetTotemDuration, s.slot)
 		if not (ok and d) and c.mode ~= "everything" then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 		if ok and d then
-			pcall(GameTooltip.SetTotem, GameTooltip, s.slot)
+			ns.try("totem bar: tooltip", GameTooltip.SetTotem, GameTooltip, s.slot)
 		else
 			local action = multiAction(s.slot)
-			if C_ActionBar.HasAction(action) then pcall(GameTooltip.SetAction, GameTooltip, action)
-			else GameTooltip:SetText(NAME[el] .. ": no totem picked") end
+			if not C_ActionBar.HasAction(action) then GameTooltip:SetText(NAME[el] .. ": no totem picked")
+			else ns.try("totem bar: tooltip", GameTooltip.SetAction, GameTooltip, action) end
 		end
 		GameTooltip:Show()
 	end)
@@ -1349,7 +1349,9 @@ for _, e in pairs(extras) do
 		local c = cfg()
 		if c.tips == "never" or (c.tips == "ooc" and InCombatLockdown()) then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		if not pcall(GameTooltip.SetSpellByID, GameTooltip, e.spell) then GameTooltip:SetText(C_Spell.GetSpellName(e.spell) or e.key) end
+		if not ns.try("totem bar: tooltip", GameTooltip.SetSpellByID, GameTooltip, e.spell) then
+			GameTooltip:SetText(C_Spell.GetSpellName(e.spell) or e.key)
+		end
 		if e.key == "Recall" then
 			if not knows(e.spell) then GameTooltip:AddLine("Not learned yet", 0.6, 0.6, 0.6) end
 			GameTooltip:AddLine("Right-click: dismiss all totems (no GCD, but no mana returned)", 1, 0.82, 0, true)

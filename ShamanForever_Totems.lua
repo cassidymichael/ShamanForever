@@ -24,7 +24,7 @@ if DestroyTotem then hooksecurefunc("DestroyTotem", function(slot) dismissedAt[s
 -- A totem is out only when it has a name (an empty slot can report haveTotem)
 function T.read(slot)
 	if not GetTotemInfo then return nil end
-	local ok, have, name, _, _, icon, _, spellID = pcall(GetTotemInfo, slot)
+	local ok, have, name, _, _, icon, _, spellID = ns.try("totems: info", GetTotemInfo, slot)
 	if not ok or isSecret(have) or isSecret(name) then return nil end
 	if not have or type(name) ~= "string" or name == "" then return false end
 	if isSecret(spellID) or type(spellID) ~= "number" then spellID = nil end
@@ -32,9 +32,11 @@ function T.read(slot)
 	return true, spellID, icon
 end
 
+local function multiCast(slot) return { GetMultiCastTotemSpells(slot) } end
+
 function T.knownTotems(slot)
 	if not GetMultiCastTotemSpells then return {} end
-	local ok, ids = pcall(function() return { GetMultiCastTotemSpells(slot) } end)
+	local ok, ids = ns.try("totems: known", multiCast, slot)
 	if not ok then return {} end
 	local out, at = {}, {}
 	for _, id in ipairs(ids) do
@@ -80,7 +82,7 @@ function T.resolve()
 	if not GetMultiCastTotemSpells then return end
 	local byID, byName = {}, {}
 	for slot = 1, 4 do
-		local ok, ids = pcall(function() return { GetMultiCastTotemSpells(slot) } end)
+		local ok, ids = ns.try("totems: known", multiCast, slot)
 		if not ok then return end
 		for _, id in ipairs(ids) do
 			if type(id) == "number" and not isSecret(id) then
