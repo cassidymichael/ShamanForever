@@ -1283,6 +1283,7 @@ function TB.applyTimers()
 		s.timer:apply()
 		TB.skin.styleTimer(s.timer, s.vis, size)
 	end
+	refreshGCD()
 end
 
 function TB.applySettings()
