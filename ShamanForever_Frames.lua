@@ -651,14 +651,30 @@ function FR.mount(carrier, owner, box, level)
 end
 
 -- An element's frame on a frame of the element's own that draws its border
+local mounted = setmetatable({}, { __mode = "k" })
+local veiled = {}
 function FR.mountOwn(carrier, key, box, level)
-	return FR.mount(carrier, key, box, level)
+	mounted[carrier] = key
+	local ok = FR.mount(carrier, key, box, level)
+	if ok and veiled[key] then carrier.frameMount:SetAlpha(0) end
+	return ok
 end
 
 -- Its border and frame together, on one of those frames
 function FR.dress(edge, key, level)
 	ns.applyBorder(edge, ns.borderFor(key))
 	return FR.mountOwn(edge, key, ns.boxOf(key), level)
+end
+
+-- Hides (or brings back) an element's frames on its own carriers, while a stand-in draws it.
+-- Out of combat: some carriers sit under Blizzard's aura button.
+function FR.veil(key, on)
+	veiled[key] = on or nil
+	local a = S.read(key, "frame").alpha
+	for carrier, owner in pairs(mounted) do
+		local m = carrier.frameMount
+		if owner == key and m then pcall(m.SetAlpha, m, on and 0 or a) end
+	end
 end
 
 local function slicePart(m, p, look, style)
