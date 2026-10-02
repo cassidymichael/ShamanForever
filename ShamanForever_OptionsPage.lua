@@ -569,13 +569,13 @@ Page.refKind("general", {
 Page.refKind("bar", {
 	id = function(r) return r.bar .. "." .. r.name .. (r.field and "." .. r.field or "") end,
 	holder = function(r)
-		local c = ns.Style.bar(r.bar).cfg()
+		local c = ns.Bars.get(r.bar).cfg()
 		if not r.field then return c end
 		return type(c[r.name]) == "table" and c[r.name] or nil
 	end,
 	slot = function(r) return r.field or r.name end,
 	default = function(r)
-		local d = ns.Style.bar(r.bar).defaults[r.name]
+		local d = ns.Bars.get(r.bar).defaults[r.name]
 		if not r.field then return d end
 		if type(d) ~= "table" then return nil end
 		return d[r.field]

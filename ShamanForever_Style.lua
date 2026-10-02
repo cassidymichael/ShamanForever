@@ -51,23 +51,9 @@ S.register("groupframe", {
 	groups = true,   -- groups can have their own
 })
 
--- Bars: owners with a settings table of their own, not an element's, in the order they register.
--- ns.registerBar (main) registers them and lists the spec's fields.
-local BARS, BAR_ORDER = {}, {}
-function S.registerBar(key, spec)
-	BARS[key] = spec
-	table.insert(BAR_ORDER, key)
-end
-function S.bar(key) return BARS[key] end
-function S.bars() return BAR_ORDER end
--- How sentences name the bars test(bar) picks ("the swing timer"), in register order, after lead
-function S.barNouns(test, lead)
-	local out = { lead }
-	for _, key in ipairs(BAR_ORDER) do
-		if not test or test(BARS[key]) then table.insert(out, BARS[key].noun) end
-	end
-	return out
-end
+-- _Media's names for the bars (ns.Bars, main)
+function S.bar(key) return ns.Bars.get(key) end
+function S.bars() return ns.Bars.list() end
 
 -- An owner's own shipped look, { kind = fields }: it starts not following Global
 function S.setOwnerDefaults(owner, byKind)
@@ -193,7 +179,8 @@ local function holder(owner)
 	if type(owner) == "table" then return owner end
 	local db = ns.getDB()
 	if not db or owner == nil then return db end
-	if BARS[owner] then return BARS[owner].cfg() end
+	local bar = ns.Bars.get(owner)
+	if bar then return bar.cfg() end
 	return ns.elementOpts(owner)
 end
 
@@ -341,7 +328,8 @@ end
 
 function S.ownerName(owner)
 	if type(owner) == "table" then return owner.name or "A group" end
-	if BARS[owner] then return BARS[owner].label end
+	local bar = ns.Bars.get(owner)
+	if bar then return bar.label end
 	return ns.Look.elementName(owner)
 end
 
@@ -354,7 +342,7 @@ function S.ownStyles(kind)
 		end
 	end
 	for _, key in ipairs(S.KINDS[kind].users) do
-		local b = BARS[key]
+		local b = ns.Bars.get(key)
 		local offered = not b or b.on()
 		local own = offered and b and b.ownLabel and b.ownLabel(kind)
 		if own then table.insert(out, own)

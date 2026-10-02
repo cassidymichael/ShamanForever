@@ -59,7 +59,7 @@ end
 
 -- Who can have their own style of kind: lead (Elements, Groups or nil), then the bars that can
 local function ownersText(lead, kind)
-	local names = ns.Style.barNouns(function(bar) return tContains(bar.kinds, kind) end, lead)
+	local names = ns.Bars.nouns(function(bar) return tContains(bar.kinds, kind) end, lead)
 	return (ns.Look.wordList(names):gsub("^%l", string.upper)) .. " can have their own."
 end
 
@@ -105,7 +105,7 @@ local function reloadLine(p, keys, verb, shown)
 end
 
 local function isElement(owner) return type(owner) == "string" and ns.ELEMENTS[owner] ~= nil end
-local function barOf(owner) return type(owner) == "string" and ns.Style.bar(owner) or nil end
+local function barOf(owner) return type(owner) == "string" and ns.Bars.get(owner) or nil end
 
 local function previewBorder(owner)
 	local o = resolve(owner)
@@ -327,7 +327,7 @@ local function frameRows(p, owner, kind, after, opts)
 end
 
 -- Whether a bar draws a group frame of its own
-local function barFramed(bar) return tContains(ns.Style.bar(bar).kinds, "groupframe") end
+local function barFramed(bar) return tContains(ns.Bars.get(bar).kinds, "groupframe") end
 
 -- popSchool is its own setting, not a style field, so it stays whether or not the element
 -- -- follows Global.
@@ -715,7 +715,7 @@ local function store(p, owner, after)
 		function s.default(name) return ns.elementDefault(owner, name) end
 		function s.range(name, field) return ns.elementRange(owner, name, field) end
 	else
-		local bar = ns.Style.bar(owner)
+		local bar = ns.Bars.get(owner)
 		after = after or relayout
 		function s.get(name, field)
 			return function()

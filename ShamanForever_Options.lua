@@ -143,7 +143,7 @@ local function buildGlobal(p)
 	p:text("These apply to all components within the addon, which can be overridden within each component's settings.")
 	p:header("Icon size")
 	p:anchor("size")
-	local sized = ns.Style.barNouns(function(bar) return bar.ownSize ~= nil end, "group")
+	local sized = ns.Bars.nouns(function(bar) return bar.ownSize ~= nil end, "group")
 	for i, noun in ipairs(sized) do sized[i] = noun .. "'s" end
 	local size = ns.Profiles.RANGES.iconSize
 	p:slider("Icon size", "Every " .. ns.Look.wordList(sized) .. ", unless it has its own.", size[1], size[2], 1,
@@ -153,8 +153,8 @@ local function buildGlobal(p)
 		for _, g in ipairs(db().groups) do
 			if #g.members > 0 and not g.sizeFollow then table.insert(out, g.name) end
 		end
-		for _, key in ipairs(ns.Style.bars()) do
-			local bar = ns.Style.bar(key)
+		for _, key in ipairs(ns.Bars.list()) do
+			local bar = ns.Bars.get(key)
 			if bar.ownSize and bar.on() and bar.ownSize() then table.insert(out, bar.label) end
 		end
 		return out
@@ -271,8 +271,8 @@ local function buildAbout(p)
 		if e.experimental then p:experimental(e.experimental, "Elements > " .. e.label) end
 	end
 	p:experimental("Art frames", "Frame and Group frame styles")
-	for _, key in ipairs(ns.Style.bars()) do
-		local bar = ns.Style.bar(key)
+	for _, key in ipairs(ns.Bars.list()) do
+		local bar = ns.Bars.get(key)
 		for _, x in ipairs(bar.experiments or {}) do
 			p:experimental(x[1], bar.label .. " > " .. x[2])
 		end

@@ -125,26 +125,41 @@ function ns.registerElement(key, e)
 	if not tContains(ELEMENT_KEYS, key) then table.insert(ELEMENT_KEYS, key) end
 end
 
--- Bars: a frame with settings of its own that isn't an element, in the order they register. A
--- module and its options file each give their half; a later value wins.
--- Module: label; noun (how a sentence names it; "the " .. its lower-case label by default); the
--- style side (ns.Style): cfg(), saved (required: the profile key holding its table), defaults, ranges (its
--- numbers' { min, max, step }, shaped as defaults), on() (it is in use: its styles are offered),
--- kinds (style kinds it can have its own of), ownLabel(kind) (its name when it draws that style
--- itself); movable = { frame, nudge(dx, dy), lock() } (positioning); hud = { show(opts), slots,
--- steps(slot, mode), step(slot, state, at, range, moment) }: /sf preview on the bar itself, show(nil)
--- as it ends, each slot looping through its steps like an element, step returning when it ends.
+-- Bars: a frame with settings of its own that isn't an element, in the order they register
+-- (ns.Bars.get, list). A module and its options file each give their half; a later value wins.
+-- Module (its half comes first): label; noun (how a sentence names it; "the " .. its lower-case
+-- label by default); the style side (ns.Style): cfg(), saved (required: the profile key holding its
+-- table), defaults, ranges (its numbers' { min, max, step }, shaped as defaults), on() (it is in use:
+-- its styles are offered), kinds (style kinds it can have its own of), ownLabel(kind) (its name when
+-- it draws that style itself); movable = { frame, nudge(dx, dy), lock() } (positioning); hud = {
+-- show(opts), slots, steps(slot, mode), step(slot, state, at, range, moment) }: /sf preview on the
+-- bar itself, show(nil) as it ends, each slot looping through its steps like an element, step
+-- returning when it ends.
 -- Options: icon, school, blurb, tags() and preview (its page header: a stage, as _Kinds says); page
 -- = { order, build } (titled and iconned as the bar); experiments = { { name, where } } (About's
 -- list); ownSize() (its icon size isn't Global's); previewIcon, schools, previewBorder() (its style
 -- blocks' tiles: their icon, the schools they show (else all), their border; no previewIcon: none)
+local BARS, BAR_ORDER = {}, {}
+local Bars = {}
+ns.Bars = Bars
+function Bars.get(key) return BARS[key] end
+function Bars.list() return BAR_ORDER end
+-- How sentences name the bars test(bar) picks ("the swing timer"), in register order, after lead
+function Bars.nouns(test, lead)
+	local out = { lead }
+	for _, key in ipairs(BAR_ORDER) do
+		if not test or test(BARS[key]) then table.insert(out, BARS[key].noun) end
+	end
+	return out
+end
 function ns.registerBar(key, spec)
-	local bar = ns.Style.bar(key)
+	local bar = BARS[key]
 	if not bar then
-		-- The module's half comes first: without it the file failed to load and there is no bar
+		-- Without the module's half its file failed to load: there is no bar
 		if not spec.saved then return end
 		bar = {}
-		ns.Style.registerBar(key, bar)
+		BARS[key] = bar
+		table.insert(BAR_ORDER, key)
 	end
 	for k, v in pairs(spec) do bar[k] = v end
 	if not spec.noun and spec.label then bar.noun = "the " .. spec.label:lower() end
@@ -827,8 +842,8 @@ local function selectProfile(name)
 	for _, k in ipairs(RETIRED_KEYS) do db[k] = nil end
 	ns.Profiles.migrate(db)   -- renamed settings: drop after launch
 	fillDefaults(db, DEFAULTS)
-	for _, key in ipairs(ns.Style.bars()) do
-		local saved = ns.Style.bar(key).saved
+	for _, key in ipairs(BAR_ORDER) do
+		local saved = BARS[key].saved
 		if db[saved] == nil then db[saved] = {} end
 	end
 	sanitize()

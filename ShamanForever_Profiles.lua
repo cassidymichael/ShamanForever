@@ -340,9 +340,9 @@ function P.cleanSettings(profile)
 			end
 		end
 	end
-	for _, name in ipairs(ns.Style.bars()) do
-		local bar = ns.Style.bar(name)
-		local t = bar.saved and profile[bar.saved]
+	for _, name in ipairs(ns.Bars.list()) do
+		local bar = ns.Bars.get(name)
+		local t = profile[bar.saved]
 		if type(t) == "table" then dropMistyped(t, bar.defaults) end
 	end
 end
@@ -354,8 +354,8 @@ local function cleanProfile(t)
 	for k, default in pairs(DEFAULTS) do
 		if type(t[k]) == type(default) then out[k] = t[k] end
 	end
-	for _, key in ipairs(ns.Style.bars()) do
-		local saved = ns.Style.bar(key).saved
+	for _, key in ipairs(ns.Bars.list()) do
+		local saved = ns.Bars.get(key).saved
 		if type(t[saved]) == "table" then out[saved] = t[saved] end
 	end
 	clampNumbers(out, RANGES, DEFAULTS)

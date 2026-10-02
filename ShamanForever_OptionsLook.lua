@@ -35,7 +35,7 @@ end
 L.PANEL = { 29 / 255, 24 / 255, 19 / 255 }
 
 -- An element's, or a bar's (ns.registerBar)
-local function identity(key) return ns.ELEMENTS[key] or ns.Style.bar(key) end
+local function identity(key) return ns.ELEMENTS[key] or ns.Bars.get(key) end
 
 function L.elementName(key)
 	local e = identity(key)
@@ -50,7 +50,7 @@ function L.wordList(words, last)
 end
 -- What positioning moves: lead ("groups"), then the bars that move
 function L.movingWords(lead, last)
-	return L.wordList(ns.Style.barNouns(function(bar) return bar.movable ~= nil end, lead), last)
+	return L.wordList(ns.Bars.nouns(function(bar) return bar.movable ~= nil end, lead), last)
 end
 
 
@@ -240,7 +240,7 @@ L.PREVIEW = {}
 
 -- An element's preview, from its kind, made when first asked for; or a bar's (ns.registerBar)
 setmetatable(L.PREVIEW, { __index = function(t, key)
-	local bar = ns.Style.bar(key)
+	local bar = ns.Bars.get(key)
 	local pv = bar and bar.preview or ns.Kinds.previewOf(key)
 	if pv then rawset(t, key, pv) end
 	return pv

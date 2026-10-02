@@ -33,8 +33,8 @@ end
 
 -- Bars draw their own (ns.registerBar's hud)
 local function eachHud(fn)
-	for _, key in ipairs(ns.Style.bars()) do
-		local hud = ns.Style.bar(key).hud
+	for _, key in ipairs(ns.Bars.list()) do
+		local hud = ns.Bars.get(key).hud
 		if hud then fn(hud, key) end
 	end
 end
