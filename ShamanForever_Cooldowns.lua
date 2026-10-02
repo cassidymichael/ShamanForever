@@ -137,6 +137,8 @@ local FIRE_NOVA_CHOICES = {
 		"Idle only while it can't be cast." },
 	{ "offcd", "Ready", "Idle while it's ready, with or without a fire totem out",
 		"With or without a fire totem out." },
+	{ "oncdany", "Cooling down", "Idle while it's cooling down, with or without a fire totem out",
+		"With or without a fire totem out." },
 	{ "oncd", "Cooling down, no fire totem", "Idle while it's cooling down and no fire totem is out",
 		IDLE_ONCD[4] },
 }
@@ -373,10 +375,10 @@ local function applyIdle(def, totemBusy, inEvent)
 	local when = setting(def.key, "idleWhen")
 	local running, certain = ownCooldownRunning(def, inEvent)
 	local busy
-	if when == "oncd" then busy = not (running and certain) else busy = running end
+	if when == "oncd" or when == "oncdany" then busy = not (running and certain) else busy = running end
 	busy = busy or when == "never" or not ns.getAccount().locked
 	-- A held state (totem down, primed buff, low reagents) is never idle
-	if not busy and totemBusy then busy = not (def.needsTotem and when == "offcd") end
+	if not busy and totemBusy then busy = not (def.needsTotem and (when == "offcd" or when == "oncdany")) end
 	if busy then def.idleAt = nil
 	elseif def.idle == false then
 		def.idleAt = GetTime() + IDLE_DELAY
