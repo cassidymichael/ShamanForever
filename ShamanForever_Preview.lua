@@ -165,7 +165,8 @@ local groupHolders = {}
 local function placeGroup(g)
 	local gf = ns.groupFrames[g.id]
 	local h = gf and groupHolders[gf]
-	if not (gf and gf.laidOut and gf.frameLayout and not gf:IsVisible()) then
+	if not (gf and gf.laidOut and gf.frameLayout and not gf:IsVisible())
+		or ns.Style.read(g, "groupframe").look == "none" then
 		if h then h:Hide() end
 		return
 	end
