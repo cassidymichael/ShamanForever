@@ -463,11 +463,12 @@ local driven = {}
 local function setDriven(frame, when)
 	when = when or nil
 	if when == driven[frame] then return end
+	local site = "state driver " .. (frame:GetName() or tostring(frame))
 	if when then
-		if not ns.setVisibilityDriver(frame, when, "state driver") then return end
+		if not ns.setVisibilityDriver(frame, when, site) then return end
 		driven[frame] = when
 	else
-		ns.setVisibilityDriver(frame, nil, "state driver")
+		ns.setVisibilityDriver(frame, nil, site)
 		driven[frame] = nil
 	end
 end
