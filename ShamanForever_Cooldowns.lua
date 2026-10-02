@@ -118,8 +118,8 @@ local COOLDOWNS = {
 		defaults = { idleWhen = "never" }, experimental = "Skysight" },
 }
 
--- The kind and its parts (ns.registerPart); a row's flags name its parts. Totems' parts are
--- _Totems', the reagent's _Reagents', Expiring's _Timers'.
+-- The kind and its parts (ns.registerPart); a row's flags name its parts. Other files' parts join
+-- it: the totems' (_Totems), the reagent's (_Reagents), Expiring's (_Timers).
 local IDLE_NEVER = { "never", "Never", "It always shows in full" }
 local IDLE_OFFCD = { "offcd", "Ready", "Idle while it's ready%s" }
 local IDLE_ONCD = { "oncd", "Cooling down", "Idle while it's cooling down%s",
@@ -210,8 +210,7 @@ ns.registerPart("primed", {
 	},
 })
 ns.registerKind("cooldown", {
-	parts = { "cooldown", "ready", "readyGlow", "needsTotem", "totemSlot", "window", "primed", "reagent",
-		"expire" },
+	parts = { "cooldown", "ready", "readyGlow", "window", "primed" },
 	slots = { "own", "warn", "cooldown", "gcd", "uptime", "ready", "active", "expire", "killed" },
 	prepare = function(def) def.expires = expires(def) end,
 })

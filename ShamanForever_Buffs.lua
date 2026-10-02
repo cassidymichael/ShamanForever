@@ -28,7 +28,8 @@ local BUFFS = {
 }
 
 -- The kind and its parts (ns.registerPart); a row's flags name its parts. Target's rows are of this
--- kind too, with parts of their own (_Target); the reagent's is _Reagents', Expiring's _Timers'.
+-- kind too; parts from other files join it: Target's own, the reagent's (_Reagents), Expiring's
+-- (_Timers).
 local function procName(def) return def.buffKey and Spells.name(def.buffKey) end
 ns.registerPart("buff", {
 	idle = { text = function(def)
@@ -99,8 +100,7 @@ ns.registerPart("proc", {
 })
 local EXPIRE_RANGE = { 0, 120, 5 }
 ns.registerKind("buff", {
-	parts = { "buff", "breath", "skipLong", "reagent", "missing", "engineExpire", "proc",
-		"expire" },
+	parts = { "buff", "breath", "proc" },
 	slots = { "own", "warn", "uptime", "expire", "active" },
 	prepare = function(def)
 		def.expires = not def.proc

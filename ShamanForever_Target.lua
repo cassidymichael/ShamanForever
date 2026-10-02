@@ -55,6 +55,7 @@ T.ELEMENTS = TARGET
 -- Parts (ns.registerPart)
 -- missing: warns while your hostile target doesn't have it
 ns.registerPart("missing", {
+	kind = "buff", after = "reagent",
 	glow = { "warn" },
 	page = { warn = { title = "Not on target", text = "While your hostile target doesn't have it.",
 		tips = { glow = "A glow that pulses, in the Pulsing glow style." } } },
@@ -68,6 +69,7 @@ ns.registerPart("missing", {
 })
 -- engineExpire: Expiring drawn by the engine, on its time bar and countdown
 ns.registerPart("engineExpire", {
+	kind = "buff", after = "missing",
 	preview = {
 		states = { { "expiring", "Expiring", 20 } },
 		render = function(ic, st, def, P) if st == "expiring" then P.engineExpire(ic, def.key) end end,
@@ -75,6 +77,7 @@ ns.registerPart("engineExpire", {
 })
 -- skipLong: leaves out buffs longer than a choice (the aura container's maxDuration)
 ns.registerPart("skipLong", {
+	kind = "buff", after = "breath",
 	defaults = { skipLong = false, skipLongMins = 2 },
 	ranges = { skipLongMins = { 1, 60, 1 } },
 	page = { own = { "toggle", title = "Track", name = "skipLong", label = "Skip long buffs",

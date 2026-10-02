@@ -152,6 +152,7 @@ local function endFlash(ic, def, P, st, opts, secs)
 	end)
 end
 ns.registerPart("totemSlot", {
+	kind = "cooldown", after = "needsTotem",
 	defaults = function(def)
 		local killed = def.grounded and { flash = true, pop = true, glow = true }
 			or { flash = true, pop = true, glow = true, mark = true }
@@ -224,6 +225,7 @@ local FIRE_NOVA_CHOICES = {
 		"Shown in full only while it's ready." },
 }
 ns.registerPart("needsTotem", {
+	kind = "cooldown", after = "readyGlow",
 	defaults = { warn = { grey = true, ring = false, fade = false }, ready = { glow = false, blocked = "grey" } },
 	glow = { "ready" },
 	idle = { choices = FIRE_NOVA_CHOICES },

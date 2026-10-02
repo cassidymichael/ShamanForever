@@ -286,7 +286,7 @@ local function partsPage(p, def)
 	local kind = ns.ELEMENTS[key].kind
 	elementDisplay(p, key)
 	idleBlock(p, def)
-	for _, slot in ipairs(ns.Kinds.get(kind).slots) do
+	for _, slot in ipairs(ns.Kinds.slots(kind)) do
 		local words = ns.Kinds.slot(kind, def, slot)
 		if words ~= nil then SLOT[slot](p, def, words) end
 	end
@@ -297,7 +297,7 @@ end
 local function builder(key)
 	local e = ns.ELEMENTS[key]
 	local k = e and e.kind and ns.Kinds.get(e.kind)
-	return k and (k.page or (k.parts and partsPage)) or nil
+	return k and (k.page or (#ns.Kinds.parts(e.kind) > 0 and partsPage)) or nil
 end
 
 local pageObjects = {}

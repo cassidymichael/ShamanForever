@@ -1,8 +1,11 @@
 -- Kinds and parts
 -- A kind is a family of elements offered the same way: its options page and its preview. A part is
 -- one thing an element of a kind can have (a totem in a slot, a reagent, a primed state), declared
--- once: its settings, effects, page words and preview. Kinds and parts register in any file order;
--- elements take their parts when the addon has loaded (KD.finish).
+-- once: its settings, effects, page words and preview. Kinds and parts register in any file order
+-- and every call adds to the earlier ones: a kind's parts and slots lists grow (a name already in
+-- one stays where it is), any other field given again replaces the earlier value. A part joins a
+-- kind's parts by naming the kind (kind, kinds), so the kind needn't list it. Elements take their
+-- parts when the addon has loaded (KD.finish).
 
 local _, ns = ...
 
@@ -16,18 +19,87 @@ local function merge(into, spec)
 	for k, v in pairs(spec) do into[k] = v end
 	return into
 end
+local function indexOf(list, x)
+	for i, v in ipairs(list) do if v == x then return i end end
+end
+
+local function kindOf(kind)
+	local k = KINDS[kind]
+	if not k then
+		k = { parts = {}, slots = {}, joins = { parts = {}, slots = {} } }
+		KINDS[kind] = k
+	end
+	return k
+end
+-- A name joining a kind's list: after (a name in it) or order (its place), else at the end
+local function join(kind, list, name, at)
+	local k = kindOf(kind)
+	table.insert(k.joins[list], { name = name, after = at.after, order = at.order })
+	k.resolved = nil
+end
+-- A kind's list with the names that joined it: anchored ones after their anchor (anchors can be
+-- joined names themselves), then those with an order, then the rest in the order they joined
+local function resolve(base, joins)
+	local list, pending = {}, {}
+	for _, n in ipairs(base) do table.insert(list, n) end
+	for _, j in ipairs(joins) do
+		if not indexOf(list, j.name) then table.insert(pending, j) end
+	end
+	local tail, placed = {}, true
+	while placed do
+		placed = false
+		for i, j in ipairs(pending) do
+			local at = j and j.after and indexOf(list, tail[j.after] or j.after)
+			if at then
+				table.insert(list, at + 1, j.name)
+				tail[j.after], pending[i], placed = j.name, false, true
+			end
+		end
+	end
+	local ordered = {}
+	for _, j in ipairs(pending) do if j and j.order then table.insert(ordered, j) end end
+	table.sort(ordered, function(a, b) return a.order < b.order end)
+	for _, j in ipairs(ordered) do table.insert(list, math.min(j.order, #list + 1), j.name) end
+	for _, j in ipairs(pending) do
+		if j and not j.order and not indexOf(list, j.name) then table.insert(list, j.name) end
+	end
+	return list
+end
+-- A kind's parts and its page's slots, with every name that joined them
+local function listOf(kind, name)
+	local k = KINDS[kind]
+	if not k then return NONE end
+	if not k.resolved then
+		k.resolved = { parts = resolve(k.parts, k.joins.parts), slots = resolve(k.slots, k.joins.slots) }
+	end
+	return k.resolved[name]
+end
+function KD.parts(kind) return listOf(kind, "parts") end
+function KD.slots(kind) return listOf(kind, "slots") end
 
 -- spec: parts (part names in page and preview order; the first is the kind's own, which every
 -- element of the kind has), slots (its page's standard blocks in order: own, warn, cooldown, gcd,
 -- uptime, ready, active, expire, killed), prepare(def) (before its parts are read), page(p, def)
--- (else the parts page), preview(def) (else one made from its parts). A later call adds to an
--- earlier one, so a module and its options file each give their half.
+-- (else the parts page), preview(def) (else one made from its parts). parts and slots add to the
+-- lists; the rest replace, so a module and its options file can each give their half.
+local LISTS = { parts = true, slots = true }
 function ns.registerKind(kind, spec)
-	KINDS[kind] = merge(KINDS[kind] or {}, spec)
+	local k = kindOf(kind)
+	for f, v in pairs(spec) do
+		if LISTS[f] then
+			for _, name in ipairs(v) do
+				if not indexOf(k[f], name) then table.insert(k[f], name) end
+			end
+		else k[f] = v end
+	end
+	k.resolved = nil
 end
 function KD.get(kind) return KINDS[kind] end
 
 -- spec (each field optional; a value may be a function of def):
+--   kind, after/order a kind it joins: after a part in its list, or at a place in it (else at
+--                     the end); kinds = { [kind] = { after, order } } for several
+--   addSlot           { slot, after, order }: a page slot it brings to the kinds it joins
 --   has(def)          whether def has it; default: def[name] is set
 --   defaults, ranges  its settings' defaults and { min, max, step } (the shapes: _Profiles)
 --   glow, pop         the effect states it adds; popKind: the pop it plays
@@ -42,6 +114,13 @@ function KD.get(kind) return KINDS[kind] end
 function ns.registerPart(name, spec)
 	PARTS[name] = merge(PARTS[name] or {}, spec)
 	PARTS[name].name = name
+	local kinds = spec.kinds or {}
+	if spec.kind then kinds[spec.kind] = { after = spec.after, order = spec.order } end
+	for kind, at in pairs(kinds) do
+		join(kind, "parts", name, at)
+		local slot = spec.addSlot
+		if slot then join(kind, "slots", slot[1], slot) end
+	end
 end
 
 local function value(v, def)
@@ -55,8 +134,7 @@ local function partsOf(kind, def)
 	local list = had[def]
 	if list then return list end
 	list = {}
-	local k = KINDS[kind]
-	for i, name in ipairs(k and k.parts or NONE) do
+	for i, name in ipairs(listOf(kind, "parts")) do
 		local p = PARTS[name]
 		if p then
 			local has
@@ -96,7 +174,7 @@ function KD.finish()
 		local e = ns.ELEMENTS[key]
 		local k = e.kind and KINDS[e.kind]
 		local def = e.def
-		if k and k.parts and def and not def.finished then
+		if k and #listOf(e.kind, "parts") > 0 and def and not def.finished then
 			def.finished = true
 			if k.prepare then k.prepare(def) end
 			local list = partsOf(e.kind, def)
@@ -205,5 +283,5 @@ function KD.previewOf(key)
 	local k = e and e.kind and KINDS[e.kind]
 	if not k then return nil end
 	if k.preview then return k.preview(e.def, key) end
-	if k.parts then return KD.preview(e.kind, e.def) end
+	if #listOf(e.kind, "parts") > 0 then return KD.preview(e.kind, e.def) end
 end

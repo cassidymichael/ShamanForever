@@ -130,6 +130,7 @@ local function look(ic, key, n)
 	ic:SetPulsing(pulse)
 end
 ns.registerPart("reagent", {
+	kinds = { cooldown = { after = "primed" }, buff = { after = "skipLong" } },
 	defaults = DEFAULTS,
 	ranges = RANGES,
 	idle = { extra = IDLE_EXTRA },

@@ -314,6 +314,7 @@ end))
 local EXPIRE = { secs = 5, grey = false, ring = false, fade = true, glow = false }
 local EXPIRE_LOOKS = { "grey", "ring", "fade", "glow" }
 ns.registerPart("expire", {
+	kinds = { cooldown = {}, buff = {} },
 	has = function(def) return def.expires end,
 	defaults = function(def)
 		local e = { secs = EXPIRE.secs }
