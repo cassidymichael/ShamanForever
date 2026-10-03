@@ -292,6 +292,8 @@ function PO.mover(spec)
 	local f = spec.frame
 	local m = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
 	m:SetFrameStrata("DIALOG")
+	-- Stays on screen when its bar isn't, so a drag from it can bring the bar back
+	m:SetClampedToScreen(true)
 	m:SetBackdrop(ns.BACKDROP)
 	m:SetBackdropColor(0, 0, 0, 0.4)
 	m:EnableMouse(true)
