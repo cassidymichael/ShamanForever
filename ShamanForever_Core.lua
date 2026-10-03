@@ -29,6 +29,9 @@ end
 ns.POINTS = { CENTER = true, TOP = true, BOTTOM = true, LEFT = true, RIGHT = true,
 	TOPLEFT = true, TOPRIGHT = true, BOTTOMLEFT = true, BOTTOMRIGHT = true }
 
+-- Going idle waits this long, so a pop plays at full first
+ns.IDLE_DELAY = 1.5
+
 -- Upper bound for a group id: above any real count, below where float ids stop advancing (2^53)
 ns.MAX_GROUP_ID = 100000
 
