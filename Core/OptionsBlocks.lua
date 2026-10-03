@@ -827,7 +827,7 @@ end
 -- name); it offers the fields the owner's defaults declare, and is left out when there are none.
 -- opts.tips: a row's tip by field, over the standard one.
 local function store(p, owner, after)
-	local s = {}
+	local s = { owner = owner }
 	if E.ALL[owner] then
 		function s.get(name, field) return eread(owner, name, field) end
 		function s.opt(name, field) return eopt(p, owner, name, field, after) end
@@ -892,10 +892,9 @@ local function check(p, s, name, field, label, tip, shown)
 	if LINKED[field] then styleLink(p, row, LINKED[field], get) end
 	return row
 end
--- A sound menu with Play beside it; choices(current): its list (every sound by default)
+-- A sound menu with Play beside it; choices(current): its list
 local function soundPicker(p, label, tip, get, set, shown, choices)
 	local SN = ns.Sounds
-	choices = choices or SN.choices
 	local row = p:dropdown(label, tip, function() return choices(get()) end, function() return get() or "none" end,
 		function(v) set(v); SN.test(v) end, shown, 200)
 	local play = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
@@ -911,10 +910,11 @@ local function soundPicker(p, label, tip, get, set, shown, choices)
 	end
 	return row
 end
-local function soundRow(p, s, name, label, tip, shown, choices)
+-- A state's or event's sound, when its owner declares one; its menu from ns.Sounds
+local function soundRow(p, s, name, label, tip, shown)
 	if not s.has(name, "sound") then return end
 	local get, set = s.opt(name, "sound")
-	return soundPicker(p, label, tip, get, set, shown, choices)
+	return soundPicker(p, label, tip, get, set, shown, ns.Sounds.choicesFor(s.owner, name))
 end
 
 -- Global's Sounds: who picks their own (elements, then the bars with a sound setting) and the channel
@@ -958,7 +958,7 @@ function K.lookRows(p, owner, name, opts, shown)
 end
 
 -- warn: opts.title, text (a line above its looks), on = { label, tip } (its switch, when it has
--- one), noun, sounds (the sound choices), after
+-- one), noun, after
 local function warnBlock(p, owner, opts)
 	local s = store(p, owner, opts.after)
 	if not s.has("warn") then return end
@@ -967,7 +967,7 @@ local function warnBlock(p, owner, opts)
 	local function rows()
 		lookRows(p, s, "warn", opts)
 		check(p, s, "warn", "pop", "Pop", tipOf(opts, "pop"))
-		soundRow(p, s, "warn", "Sound", tipOf(opts, "sound"), nil, opts.sounds)
+		soundRow(p, s, "warn", "Sound", tipOf(opts, "sound"))
 	end
 	if s.has("warn", "on") then
 		local get, set = s.opt("warn", "on")

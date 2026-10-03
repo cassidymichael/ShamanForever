@@ -148,6 +148,14 @@ function SN.setAuraSound(owner, value, ids, trigger)
 	applyAura(owner)
 end
 
+-- An element's state or event whose sound the engine plays: its sound field, while it's on the HUD
+local byEngine = {}
+function SN.elementAura(key, event, ids, trigger)
+	local owner = key .. ":" .. event
+	byEngine[owner] = true
+	SN.setAuraSound(owner, E.setting(key, event, "sound"), E.isEnabled(key) and ids or nil, trigger)
+end
+
 -- The engine's aura sounds are set again on the new channel
 function SN.setChannel(channel)
 	P.getAccount().soundChannel = channel
@@ -184,4 +192,9 @@ function SN.fileChoices(current)
 		if c[1] == "none" or SN.fileID(c[1]) then table.insert(out, c) end
 	end
 	return out
+end
+
+-- A sound setting's menu (owner: an element's key or a bar's name; event: its state or event)
+function SN.choicesFor(owner, event)
+	return byEngine[owner .. ":" .. event] and SN.fileChoices or SN.choices
 end
