@@ -88,7 +88,7 @@ ns.CLASS.layout = {
 --   sample           the key whose colour tints neutral samples (bar textures in a menu)
 --   name, icon       display name; sample icon (file ID or path)
 --   color            { r, g, b }
---   barColor         { r, g, b } a bar takes (below: each colour a little brighter)
+--   barColor         { r, g, b } a bar takes (optional; default: each colour a little brighter)
 --   banner           element header art, a file in Art/
 --   material         glow material: file in Art/Looks, move = { x, y, seconds } of the drift
 --   shape            pop art: file, emblem (files), spin, sheenDir = { x, y }
@@ -191,10 +191,6 @@ ns.THEME = {
 	burstTip = "Each element its own effect: earth slams, fire flares, water ripples, "
 		.. "air spins, spirit gathers.",
 }
-ns.THEME.barColor = {}
-for key, c in pairs(ns.THEME.color) do
-	ns.THEME.barColor[key] = { math.min(1, c[1] * 1.15), math.min(1, c[2] * 1.15), math.min(1, c[3] * 1.15) }
-end
 
 -- Seed IDs and English names, as _Core's DEFS
 
