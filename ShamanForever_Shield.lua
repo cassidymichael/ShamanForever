@@ -230,8 +230,18 @@ local function applyIdle()
 	full:SetAlpha((on and when == "charges") and 1 or 0)
 end
 
+-- Another shield shown (Water Shield costs nothing): its cost is read again
+local costShown
+local function noteShown()
+	local now = shownShield()
+	if now == costShown then return end
+	costShown = now
+	CS.reread("shield")
+end
+
 function SH.applyEmptyLook()
 	driveHolder()
+	noteShown()
 	local icon = SH.icon()
 	local known = anyTrackedShieldKnown()
 	local covered = native.button ~= nil and not native.err
@@ -547,6 +557,7 @@ local function refreshAura()
 		end
 	end
 	if upKey then P.getAccount().lastShield = upKey end
+	noteShown()
 	setUpShield(upKey or "none")
 end
 
