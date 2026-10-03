@@ -290,7 +290,7 @@ local function newRig(f, icon, level)
 		local b = CreateFrame("Frame", nil, f:GetParent())
 		b:SetAllPoints(f)
 		b:EnableMouse(false)
-		if f.effects then b:SetIgnoreParentAlpha(true) end
+		if f.effects then ns.ignoreParentAlpha(b, true) end
 		r[name] = b
 	end
 	r.clip = CreateFrame("Frame", nil, r.front)

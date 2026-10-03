@@ -396,6 +396,26 @@ combat:SetScript("OnEvent", function(_, event, _, state)
 	else restrictionChanged(state) end
 end)
 
+-- Off (/sf disable): nothing the addon draws or plays shows until /sf enable, and no setting changes.
+-- Main switches it and saves it for the character; fn(off) runs at each change.
+local off, offFns = false, {}
+function ns.isOff() return off end
+function ns.onOffChange(fn) table.insert(offFns, fn) end
+-- A frame that ignores its parent's alpha follows it while off, so the HUD's alpha reaches it too.
+-- Plain frames only: a protected frame's alpha is set by its owner
+local ignoring = setmetatable({}, { __mode = "k" })
+function ns.ignoreParentAlpha(frame, on)
+	ignoring[frame] = on and true or false
+	frame:SetIgnoreParentAlpha(on and not off)
+end
+function ns.setOff(v)
+	v = v and true or false
+	if v == off then return end
+	off = v
+	for frame, on in pairs(ignoring) do ns.try("off: parent alpha", frame.SetIgnoreParentAlpha, frame, on and not off) end
+	for _, fn in ipairs(offFns) do ns.try("off", fn, off) end
+end
+
 -- From a loading screen until QUIET seconds after it: slots and enchants may read empty
 local QUIET = 3   -- seconds
 local quietUntil = 0
