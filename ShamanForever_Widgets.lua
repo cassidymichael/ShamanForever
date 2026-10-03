@@ -383,6 +383,121 @@ function AuraSlot:refilter()
 	else ns.retryAfterCombat(o.sites.filter, function() self:refilter() end) end
 end
 
+-- Counts on an aura button: Blizzard writes the number and fills the bar; nothing here reads them
+local Count = {}
+ns.Count = Count
+
+local COUNT_NUDGE = { CENTER = { 0, 0 }, TOPLEFT = { -2, 2 }, TOPRIGHT = { 2, 2 }, BOTTOMLEFT = { -2, -2 },
+	BOTTOMRIGHT = { 2, -2 } }
+
+-- lift: how far a number at a bottom point sits up (over a bar)
+function Count.place(fs, anchor, pos, lift)
+	local nudge = COUNT_NUDGE[pos]
+	local y = nudge[2] + ((lift and pos:find("BOTTOM")) and lift or 0)
+	fs:ClearAllPoints()
+	fs:SetPoint(pos, anchor, pos, nudge[1], y)
+	fs:SetJustifyH(ns.COUNT_JUSTIFY[pos])
+end
+
+-- The number's font string on parent, handed to the button; place(fs) sets its font first, since
+-- Blizzard writes the count at once
+function Count.text(slot, button, parent, place, site)
+	local fs = parent:CreateFontString(nil, "OVERLAY", nil, 7)
+	place(fs)
+	slot.fs, slot.countFormatter = fs, false
+	ns.try(site, button.SetApplicationCount, button, fs)
+	return fs
+end
+
+local formatters, made = {}, 0
+local function byte(v) return math.floor(math.min(math.max(v, 0), 1) * 255 + 0.5) end
+-- Prints every count from 0 (without one Blizzard prints from 2), markAt in markColor (nil: none).
+-- Tried on 0 to max first: an error would stop Blizzard's aura update. nil if the client can't.
+function Count.formatter(markColor, markAt, max)
+	if not (C_StringUtil and C_StringUtil.CreateNumericRuleFormatter) then return nil end
+	local code = markColor and string.format("|cff%02x%02x%02x", byte(markColor[1]), byte(markColor[2]),
+		byte(markColor[3])) or ""
+	local id = code .. ":" .. tostring(markAt) .. ":" .. max
+	local fm = formatters[id]
+	if fm == nil then
+		if made >= 8 then wipe(formatters); made = 0 end
+		made = made + 1
+		local ok, new = ns.try("count formatter", function()
+			local x = C_StringUtil.CreateNumericRuleFormatter()
+			local rules = { { threshold = 0, format = "%d" } }
+			if code ~= "" then
+				table.insert(rules, { threshold = markAt, format = code .. "%d|r" })
+				if markAt < max then table.insert(rules, { threshold = markAt + 1, format = "%d" }) end
+			end
+			x:SetBreakpoints(rules)
+			for n = 0, max do
+				local text = x:FormatNumber(n)
+				local coloured = code ~= "" and n == markAt
+				if type(text) ~= "string" or ns.isSecret(text) or (coloured and not text:lower():find(code, 1, true)) then
+					error(string.format("formatted %d as %s", n, tostring(text)))
+				end
+			end
+			return x
+		end)
+		fm = ok and new or false
+		formatters[id] = fm
+	end
+	return fm or nil
+end
+
+-- Hands the button a formatter (nil: Blizzard's own count), once per change
+function Count.setFormat(slot, fm, site)
+	fm = fm or false
+	if fm == slot.countFormatter then return end
+	if ns.try(site, slot.button.SetApplicationCount, slot.button, slot.fs, fm and { formatter = fm } or nil) then
+		slot.countFormatter = fm
+	end
+end
+
+-- A bar along anchor's bottom, on a dark back, with a tick between segments (Count.styleBar);
+-- level: the bar's, its ticks one over (else the caller sets both)
+function Count.bar(slot, parent, anchor, level)
+	local bar = CreateFrame("StatusBar", nil, parent)
+	bar:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", 0, 0)
+	bar:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", 0, 0)
+	bar:SetStatusBarTexture(ns.Media.barTexture())
+	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
+	bar.bg:SetAllPoints()
+	bar.bg:SetColorTexture(0, 0, 0, 0.6)
+	local ticks = CreateFrame("Frame", nil, parent)
+	ticks:SetAllPoints(bar)
+	if level then
+		bar:SetFrameLevel(level)
+		ticks:SetFrameLevel(level + 1)
+	end
+	slot.bar, slot.tickFrame, slot.ticks = bar, ticks, {}
+	return bar
+end
+
+-- max segments on an icon size wide; shown: the bar and ticks at alpha 1, else 0
+function Count.styleBar(slot, size, max, height, color, shown)
+	local bar, ticks = slot.bar, slot.ticks
+	bar:SetHeight(height)
+	bar:SetStatusBarTexture(ns.Media.barTexture())   -- before the colour
+	bar:SetStatusBarColor(color[1], color[2], color[3], color[4] or 1)
+	for i = 1, max - 1 do
+		local t = ticks[i]
+		if not t then
+			t = slot.tickFrame:CreateTexture(nil, "OVERLAY")
+			t:SetColorTexture(0, 0, 0, 0.9)
+			t:SetWidth(1)
+			ticks[i] = t
+		end
+		t:ClearAllPoints()
+		t:SetPoint("TOP", slot.tickFrame, "TOPLEFT", size * i / max, 0)
+		t:SetPoint("BOTTOM", slot.tickFrame, "BOTTOMLEFT", size * i / max, 0)
+		t:Show()
+	end
+	for i = max, #ticks do ticks[i]:Hide() end
+	bar:SetAlpha(shown and 1 or 0)
+	slot.tickFrame:SetAlpha(shown and 1 or 0)
+end
+
 -- The warning look: grey, tint, ring, fade, glow. The same five go to the icon itself
 -- (f:SetWarnParts), to a warn overlay and to a clip look (setParts). ns.warnParts reads them from an
 -- element's state table (warn, expire): a look it doesn't declare is off.

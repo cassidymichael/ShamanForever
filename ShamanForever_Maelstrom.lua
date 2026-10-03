@@ -8,7 +8,7 @@
 
 local _, ns = ...
 local say, isSecret, safe = ns.say, ns.isSecret, ns.safe
-local Spells = ns.Spells
+local Spells, Count = ns.Spells, ns.Count
 
 -- The buff's seed ID, kept out of Spells.DEFS: it shares its name with the talent, and two keys with
 -- one name would make the name lookup file a new ID under either at random
@@ -53,7 +53,7 @@ local function number(field)
 	return math.min(math.max(v, r[1]), r[2])
 end
 
--- M.follow can point the same parts at another stacking aura (to try the looks without the talent)
+-- What the parts follow: the buff, or the stacking aura M.follow gives
 local BUFF = {
 	ids = function()
 		local t = {}
@@ -95,60 +95,16 @@ end
 -- Containers sit at the text level + 5; parts are set from that, never read back
 local function baseLevel() return f.textFrame:GetFrameLevel() + 5 end
 
--- The stack number
--- A rule formatter: one rule per count, the most in its colour. Tried on every count first: an
--- error would stop Blizzard's aura update.
-local formatters, made = {}, 0
-local function byte(v) return math.floor(math.min(math.max(v, 0), 1) * 255 + 0.5) end
-local function countOptions()
-	if not (C_StringUtil and C_StringUtil.CreateNumericRuleFormatter) then return nil end
-	local code = ""
-	if count("mark") then
-		local c = color("markColor")
-		code = string.format("|cff%02x%02x%02x", byte(c[1]), byte(c[2]), byte(c[3]))
-	end
-	local id = code .. ":" .. src.max
-	local fm = formatters[id]
-	if fm == nil then
-		if made >= 8 then wipe(formatters); made = 0 end
-		made = made + 1
-		local ok, new = ns.try("maelstrom count formatter", function()
-			local x = C_StringUtil.CreateNumericRuleFormatter()
-			local rules = { { threshold = 0, format = "%d" } }
-			if code ~= "" then table.insert(rules, { threshold = src.max, format = code .. "%d|r" }) end
-			x:SetBreakpoints(rules)
-			for n = 0, src.max do
-				local text = x:FormatNumber(n)
-				local coloured = code ~= "" and n == src.max
-				if type(text) ~= "string" or isSecret(text) or (coloured and not text:lower():find(code, 1, true)) then
-					error(string.format("formatted %d as %s", n, tostring(text)))
-				end
-			end
-			return x
-		end)
-		fm = ok and new or false
-		formatters[id] = fm
-	end
-	return fm and { formatter = fm } or nil
-end
+-- The stack number, the most in its colour
 local function applyCountFormat(slot)
-	local opts = countOptions()
-	local fm = opts and opts.formatter or false
-	if fm == slot.countFormatter then return end
-	if ns.try("maelstrom count", slot.button.SetApplicationCount, slot.button, slot.fs, opts) then
-		slot.countFormatter = fm
-	end
+	local fm = Count.formatter(count("mark") and color("markColor") or nil, src.max, src.max)
+	Count.setFormat(slot, fm, "maelstrom count")
 end
 
 local function placeCount(fs, button)
 	ns.Media.setFont(fs, nil, number("size"))
-	fs:ClearAllPoints()
-	if count("pos") == "BOTTOMRIGHT" then
-		local y = -2 + (count("bar") and (number("barHeight") + 1) or 0)
-		fs:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 2, y); fs:SetJustifyH("RIGHT")
-	else
-		fs:SetPoint("CENTER", button, "CENTER", 0, 0); fs:SetJustifyH("CENTER")
-	end
+	local pos = count("pos") == "BOTTOMRIGHT" and "BOTTOMRIGHT" or "CENTER"
+	Count.place(fs, button, pos, count("bar") and (number("barHeight") + 1) or 0)
 end
 
 -- 1. The stacks
@@ -164,10 +120,7 @@ local function styleStacks(slot, size)
 	-- The copy at five frames itself only over idled stacks: else the stacks' frame shows
 	ns.try("maelstrom border", ns.Frames.dress, slot.edge, KEY, base + 8, slot.copy and idleWhen() ~= "five")
 	if slot.copy and slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
-	local c = color("barColor")
-	slot.bar:SetHeight(number("barHeight"))
-	slot.bar:SetStatusBarTexture(ns.Media.barTexture())   -- before the colour
-	slot.bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
+	Count.styleBar(slot, size, src.max, number("barHeight"), color("barColor"), on)
 	if slot.copy then
 		slot.bar:SetMinMaxValues(0, src.max)
 		slot.bar:SetValue(src.max)
@@ -175,22 +128,6 @@ local function styleStacks(slot, size)
 		ns.try("maelstrom stack bar", slot.button.SetApplicationBar, slot.button, slot.bar,
 			{ minApplications = 0, maxApplications = src.max })
 	end
-	for i = 1, src.max - 1 do
-		local t = slot.ticks[i]
-		if not t then
-			t = slot.tickFrame:CreateTexture(nil, "OVERLAY")
-			t:SetColorTexture(0, 0, 0, 0.9)
-			t:SetWidth(1)
-			slot.ticks[i] = t
-		end
-		t:ClearAllPoints()
-		t:SetPoint("TOP", slot.tickFrame, "TOPLEFT", size * i / src.max, 0)
-		t:SetPoint("BOTTOM", slot.tickFrame, "BOTTOMLEFT", size * i / src.max, 0)
-		t:Show()
-	end
-	for i = src.max, #slot.ticks do slot.ticks[i]:Hide() end
-	slot.bar:SetAlpha(on and 1 or 0)
-	slot.tickFrame:SetAlpha(on and 1 or 0)
 	slot.fs:SetAlpha(count("number") and 1 or 0)
 	placeCount(slot.fs, slot.button)
 	applyCountFormat(slot)
@@ -209,23 +146,8 @@ local function buildStacks(slot, button, into)
 	local numFrame = CreateFrame("Frame", nil, into)
 	numFrame:SetAllPoints(button)
 	slot.numFrame = numFrame
-	-- Font first: Blizzard writes the count at once
-	local fs = numFrame:CreateFontString(nil, "OVERLAY", nil, 7)
-	placeCount(fs, button)
-	slot.fs = fs
-	ns.try("maelstrom count", button.SetApplicationCount, button, fs)
-	slot.countFormatter = false
-	local bar = CreateFrame("StatusBar", nil, overlay)
-	bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 0, 0)
-	bar:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 0)
-	bar:SetStatusBarTexture(ns.Media.barTexture())
-	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
-	bar.bg:SetAllPoints()
-	bar.bg:SetColorTexture(0, 0, 0, 0.6)
-	slot.bar = bar
-	slot.tickFrame = CreateFrame("Frame", nil, overlay)
-	slot.tickFrame:SetAllPoints(bar)
-	slot.ticks = {}
+	Count.text(slot, button, numFrame, function(fs) placeCount(fs, button) end, "maelstrom count")
+	Count.bar(slot, overlay, button)
 	ns.try("maelstrom stacks build", styleStacks, slot, ns.sizeOf(KEY))
 end
 
@@ -499,7 +421,6 @@ local function styleAll() for _, s in ipairs(SLOTS) do s:style() end end
 
 function M.follow(s)
 	src = s or BUFF
-	wipe(formatters); made = 0
 	quietPop()
 	for _, slot in ipairs(SLOTS) do slot:refilter() end
 	ns.applyLayout()

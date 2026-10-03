@@ -8,7 +8,7 @@
 local _, ns = ...
 local say, isSecret, safe = ns.say, ns.isSecret, ns.safe
 local Spells = ns.Spells
-local FR = ns.Frames
+local FR, Count = ns.Frames, ns.Count
 
 local SH = { name = "shield" }
 ns.Shield = SH
@@ -75,16 +75,8 @@ local function believedUp()
 	return upShield ~= "none" and tracksShield(upShield)
 end
 
-local COUNT_NUDGE = { CENTER = { 0, 0 }, TOPLEFT = { -2, 2 }, TOPRIGHT = { 2, 2 }, BOTTOMLEFT = { -2, -2 },
-	BOTTOMRIGHT = { 2, -2 } }
-
-local function placeCount(fs, icon)
-	local pos = count("pos")
-	local nudge = COUNT_NUDGE[pos]
-	fs:ClearAllPoints()
-	fs:SetPoint(pos, icon, pos, nudge[1], nudge[2])
-	fs:SetJustifyH(ns.COUNT_JUSTIFY[pos])
-end
+local CHARGES = 3
+local function placeCount(fs, icon) Count.place(fs, icon, count("pos")) end
 
 function SH.sanitize(_, acct)
 	local o = ns.elementOpts("shield")
@@ -366,118 +358,48 @@ end
 
 local function barColor()
 	local c = count("barColor")
-	if not ns.isColor(c) then c = ns.elementDefault("shield", "count", "barColor") end
-	return c[1], c[2], c[3], c[4] or 1
+	return ns.isColor(c) and c or ns.elementDefault("shield", "count", "barColor")
+end
+local function markColor()
+	local c = count("markColor")
+	return ns.isColor(c) and c or ns.elementDefault("shield", "count", "markColor")
+end
+
+local function countFont(fs, icon)
+	ns.Media.setFont(fs, nil, count("size"))
+	placeCount(fs, icon)
 end
 
 local function buildNative(slot, button, cd)
-	local size = ns.sizeOf("shield")
 	slot.edge = CreateFrame("Frame", nil, button)
 	slot.edge:SetAllPoints(button)
 	slot.edge.owner = "shield"
 	local overlay = CreateFrame("Frame", nil, button)
 	overlay:SetAllPoints()
-	overlay:SetFrameLevel(cd:GetFrameLevel() + 2)
+	local lv = cd:GetFrameLevel() + 2
+	overlay:SetFrameLevel(lv)
 	slot.overlay = overlay
-
-	-- Blizzard writes the count on registration: font first
-	local fs = overlay:CreateFontString(nil, "OVERLAY", nil, 7)
-	ns.Media.setFont(fs, nil, count("size"))
-	placeCount(fs, button)
-	button:SetApplicationCount(fs)
-	slot.fs = fs
-
+	Count.text(slot, button, overlay, function(fs) countFont(fs, button) end, "shield count")
 	-- min 0: one charge is one third, not empty
-	local bar = CreateFrame("StatusBar", nil, overlay)
-	bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 0, 0)
-	bar:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 0)
-	bar:SetHeight(count("barHeight"))
-	bar:SetStatusBarTexture(ns.Media.barTexture())
-	bar:SetStatusBarColor(barColor())
-	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
-	bar.bg:SetAllPoints()
-	bar.bg:SetColorTexture(0, 0, 0, 0.6)
-	local maxCharges = 3
-	button:SetApplicationBar(bar, { minApplications = 0, maxApplications = maxCharges })
-	slot.bar = bar
-	local ticks = CreateFrame("Frame", nil, overlay)
-	ticks:SetAllPoints(bar)
-	ticks:SetFrameLevel(bar:GetFrameLevel() + 1)
-	slot.tickTextures, slot.maxCharges = {}, maxCharges
-	for i = 1, maxCharges - 1 do
-		local t = ticks:CreateTexture(nil, "OVERLAY")
-		t:SetColorTexture(0, 0, 0, 0.9)
-		t:SetWidth(1)
-		t:SetPoint("TOP", ticks, "TOPLEFT", size * i / maxCharges, 0)
-		t:SetPoint("BOTTOM", ticks, "BOTTOMLEFT", size * i / maxCharges, 0)
-		table.insert(slot.tickTextures, t)
-	end
-	slot.ticks = ticks
-
-	bar:SetAlpha(count("bar") and 1 or 0)
-	ticks:SetAlpha(count("bar") and 1 or 0)
-	fs:SetAlpha(count("number") and 1 or 0)
+	local bar = Count.bar(slot, overlay, button, lv + 1)
+	button:SetApplicationBar(bar, { minApplications = 0, maxApplications = CHARGES })
+	Count.styleBar(slot, ns.sizeOf("shield"), CHARGES, count("barHeight"), barColor(), count("bar"))
+	slot.fs:SetAlpha(count("number") and 1 or 0)
 end
 
--- Without a formatter Blizzard prints a count only from 2: a numeric rule formatter is used, tried
--- on counts 0 to 3 first (an error would stop Blizzard's aura update); nil falls back to its count
-local lastFormatters, made = {}, 0
-local function byte(v) return math.floor(math.min(math.max(v, 0), 1) * 255 + 0.5) end
-local function countOptions()
-	if not (count("number") and C_StringUtil and C_StringUtil.CreateNumericRuleFormatter) then return nil end
-	local code = ""
-	if count("mark") then
-		local c = count("markColor")
-		if not ns.isColor(c) then c = ns.elementDefault("shield", "count", "markColor") end
-		code = string.format("|cff%02x%02x%02x", byte(c[1]), byte(c[2]), byte(c[3]))
-	end
-	local fm = lastFormatters[code]
-	if fm == nil then
-		if made >= 8 then wipe(lastFormatters); made = 0 end
-		made = made + 1
-		local ok, f = ns.try("shield count formatter", function()
-			local new = C_StringUtil.CreateNumericRuleFormatter()
-			local lastFormat = code ~= "" and (code .. "%d|r") or "%d"
-			new:SetBreakpoints({ { threshold = 0, format = "%d" }, { threshold = 1, format = lastFormat },
-				{ threshold = 2, format = "%d" } })
-			for n = 0, 3 do
-				local text = new:FormatNumber(n)
-				if type(text) ~= "string" or isSecret(text)
-					or (n == 1 and code ~= "" and not text:lower():find(code, 1, true)) then
-					error(string.format("formatted %d as %s", n, tostring(text)))
-				end
-			end
-			return new
-		end)
-		fm = ok and f or false
-		lastFormatters[code] = fm
-	end
-	return fm and { formatter = fm } or nil
-end
+-- The last charge in its colour; off, Blizzard prints a count only from 2
 local function applyCountFormat(slot)
-	local opts = countOptions()
-	local fm = opts and opts.formatter or nil
-	if fm == slot.countFormatter then return end
-	if ns.try("shield count", slot.button.SetApplicationCount, slot.button, slot.fs, opts) then slot.countFormatter = fm end
+	local fm = count("number") and Count.formatter(count("mark") and markColor() or nil, 1, CHARGES)
+	Count.setFormat(slot, fm, "shield count")
 end
 
 local function styleNative(slot, size)
 	ns.try("shield border", FR.dress, slot.edge, "shield")
 	if slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
 	applyCountFormat(slot)
-	for i, t in ipairs(slot.tickTextures or {}) do
-		t:ClearAllPoints()
-		t:SetPoint("TOP", slot.ticks, "TOPLEFT", size * i / slot.maxCharges, 0)
-		t:SetPoint("BOTTOM", slot.ticks, "BOTTOMLEFT", size * i / slot.maxCharges, 0)
-	end
-	slot.bar:SetHeight(count("barHeight"))
-	slot.bar:SetStatusBarTexture(ns.Media.barTexture())
-	slot.bar:SetStatusBarColor(barColor())
-	slot.bar:SetAlpha(count("bar") and 1 or 0)
-	slot.ticks:SetAlpha(count("bar") and 1 or 0)
+	Count.styleBar(slot, size, CHARGES, count("barHeight"), barColor(), count("bar"))
 	slot.fs:SetAlpha(count("number") and 1 or 0)
-	ns.Media.setFont(slot.fs, nil, count("size"))
-	placeCount(slot.fs, slot.button)
+	countFont(slot.fs, slot.button)
 	SH.applyEmptyLook()
 end
 
@@ -519,7 +441,7 @@ local function placeClip(slot, button, size)
 	local bar, clip = slot.sensor, slot.clip
 	bar:ClearAllPoints()
 	bar:SetPoint("TOPLEFT", button, "TOPLEFT", -reach, reach)
-	bar:SetSize(3 * step, 2)
+	bar:SetSize(CHARGES * step, 2)
 	clip:ClearAllPoints()
 	clip:SetPoint("TOPLEFT", bar:GetStatusBarTexture(), "TOPRIGHT", -step, 0)
 	clip:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", reach, -reach)
@@ -529,7 +451,7 @@ local function copyHost(slot, button)
 	local bar = CreateFrame("StatusBar", nil, button)
 	bar:SetStatusBarTexture(WHITE)
 	bar:SetStatusBarColor(0, 0, 0, 0)
-	bar:SetMinMaxValues(0, 3)
+	bar:SetMinMaxValues(0, CHARGES)
 	bar:SetValue(0)
 	slot.sensor = bar
 	local clip = CreateFrame("Frame", nil, button, "DisableUntrustedLayoutScriptsTemplate")
@@ -537,7 +459,7 @@ local function copyHost(slot, button)
 	slot.clip = clip
 	placeClip(slot, button, ns.sizeOf("shield"))
 	slot.sensed = ns.try("shield copy sensor", button.SetApplicationBar, button, bar,
-		{ minApplications = 0, maxApplications = 3, interpolation = IMMEDIATE })
+		{ minApplications = 0, maxApplications = CHARGES, interpolation = IMMEDIATE })
 	local host = CreateFrame("Frame", nil, clip)
 	host:SetAllPoints(button)
 	return host
@@ -547,20 +469,9 @@ local function styleCopy(slot, size)
 	placeClip(slot, slot.button, size)
 	ns.try("shield copy border", FR.dress, slot.edge, "shield")
 	if slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
-	local bar = slot.bar
-	bar:SetHeight(count("barHeight"))
-	bar:SetStatusBarTexture(ns.Media.barTexture())
-	bar:SetStatusBarColor(barColor())
-	bar:SetAlpha(count("bar") and 1 or 0)
-	for i, t in ipairs(slot.tickTextures) do
-		t:ClearAllPoints()
-		t:SetPoint("TOP", bar, "TOPLEFT", size * i / 3, 0)
-		t:SetPoint("BOTTOM", bar, "BOTTOMLEFT", size * i / 3, 0)
-		t:SetAlpha(count("bar") and 1 or 0)
-	end
+	Count.styleBar(slot, size, CHARGES, count("barHeight"), barColor(), count("bar"))
 	applyCountFormat(slot)
-	ns.Media.setFont(slot.fs, nil, count("size"))
-	placeCount(slot.fs, slot.host)
+	countFont(slot.fs, slot.host)
 	slot.fs:SetAlpha(count("number") and 1 or 0)
 end
 
@@ -573,30 +484,17 @@ local function buildCopy(slot, button)
 	local parts = CreateFrame("Frame", nil, host)
 	parts:SetAllPoints(host)
 	-- Levels under the button may read secret: a failed read leaves the default
-	ns.try("shield copy level", function() parts:SetFrameLevel(slot.cd:GetFrameLevel() + 2) end)
+	local lv
+	ns.try("shield copy level", function()
+		local v = slot.cd:GetFrameLevel() + 2
+		parts:SetFrameLevel(v)
+		if not isSecret(v) then lv = v end
+	end)
 	slot.parts = parts
-	-- Font first: Blizzard writes the count as it takes the font string
-	local fs = parts:CreateFontString(nil, "OVERLAY", nil, 7)
-	ns.Media.setFont(fs, nil, count("size"))
-	placeCount(fs, host)
-	button:SetApplicationCount(fs)
-	slot.fs = fs
-	local bar = CreateFrame("StatusBar", nil, parts)
-	bar:SetPoint("BOTTOMLEFT", host, "BOTTOMLEFT", 0, 0)
-	bar:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", 0, 0)
-	bar:SetMinMaxValues(0, 3)
+	Count.text(slot, button, parts, function(fs) countFont(fs, host) end, "shield count")
+	local bar = Count.bar(slot, parts, host, lv and lv + 1)
+	bar:SetMinMaxValues(0, CHARGES)
 	bar:SetValue(1)
-	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
-	bar.bg:SetAllPoints()
-	bar.bg:SetColorTexture(0, 0, 0, 0.6)
-	slot.bar = bar
-	slot.tickTextures = {}
-	for i = 1, 2 do
-		local t = parts:CreateTexture(nil, "OVERLAY")
-		t:SetColorTexture(0, 0, 0, 0.9)
-		t:SetWidth(1)
-		slot.tickTextures[i] = t
-	end
 	slot.built = ns.try("shield copy style", styleCopy, slot, ns.sizeOf("shield"))
 	C_Timer.After(0, SH.applyEmptyLook)
 end
@@ -778,7 +676,7 @@ local PREVIEW = {
 		if count("bar") then
 			local c = count("barColor")
 			ic.bar:SetHeight(count("barHeight"))
-			P.setBar(ic, 3, n, c[1], c[2], c[3])
+			P.setBar(ic, CHARGES, n, c[1], c[2], c[3])
 		end
 		if count("number") then
 			ns.Media.setFont(ic.count, nil, count("size"))
