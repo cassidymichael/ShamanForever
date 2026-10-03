@@ -529,6 +529,7 @@ end
 
 local function buildSettings(p)
 	local G = selected
+	local R, slider = ns.Profiles.GROUP_RANGES, K.rangeSlider
 	local function get(key) return function() local g = G(); return g and g[key] end end
 	local function owns(key, reset) p:owns({ group = G, name = key, after = relayout, reset = reset }) end
 	local function set(key)
@@ -538,14 +539,15 @@ local function buildSettings(p)
 	local show = p:dropdown("Show", "When the group is on screen. Everything visible shows while positioning is unlocked.",
 		K.COMBAT_SHOW, get("show"), set("show"), nil, 240)
 	p:sub(show, function() local g = G(); return g ~= nil and g.show ~= "always" end, function()
-		p:slider("Stay after combat", K.STAY_TIP, 0, 10, 1, K.staySecs, get("fadeAfter"), set("fadeAfter"))
+		slider(p, R.fadeAfter, "Stay after combat", K.STAY_TIP, K.staySecs, get("fadeAfter"), set("fadeAfter"))
 	end)
 	p:text("Elements have their own Show setting too. An element shows only when both allow it.")
 	p:dropdown("Direction", "Lay the group out as a row or a column.",
 		{ { "horizontal", "Row" }, { "vertical", "Column" } }, get("orientation"), set("orientation"))
 	p:dropdown("Growth", "Which way the row or column extends from its first element.",
 		{ { "forward", "Right / down" }, { "backward", "Left / up" } }, get("growth"), set("growth"))
-	p:slider("Spacing", "Gap between the group's elements. Below 0 they overlap.", -20, 40, 1, int, get("spacing"), set("spacing"))
+	slider(p, R.spacing, "Spacing", "Gap between the group's elements. Below 0 they overlap.", int, get("spacing"),
+		set("spacing"))
 	owns("sizeFollow")
 	local follow = K.globalRow(p, "Icon size same as Global", "Use the global icon size.",
 		get("sizeFollow"),
@@ -557,7 +559,7 @@ local function buildSettings(p)
 			relayout()
 		end, "size")
 	p:sub(follow, function() local g = G(); return g ~= nil and not g.sizeFollow end, function()
-		p:slider("Icon size", nil, 24, 96, 1, int, get("size"), set("size"))
+		slider(p, R.size, "Icon size", nil, int, get("size"), set("size"))
 	end)
 	p:text("Icon size keeps borders and rings crisp. Scale grows everything, borders and rings included.")
 	local function setScale(v)
@@ -569,14 +571,13 @@ local function buildSettings(p)
 		relayout()
 	end
 	owns("scale", function(r) setScale(Page.refDefault(r)) end)
-	p:slider("Scale", "Grows everything in the group, borders and rings too.", 0.5, 3, 0.05, times,
-		get("scale"), setScale)
-	p:slider("Opacity", "Transparency of the group.", 0.1, 1, 0.05, pct, get("alpha"), set("alpha"))
+	slider(p, R.scale, "Scale", "Grows everything in the group, borders and rings too.", times, get("scale"), setScale)
+	slider(p, R.alpha, "Opacity", "Transparency of the group.", pct, get("alpha"), set("alpha"))
 	p:header("Group frame")
 	K.frameRows(p, G, "groupframe", relayout, {
 		note = "Doesn't fade with each element's Idle.",
 		spacing = { get = get("spacing"), set = function(v) local g = G(); if g then g.spacing = v; relayout() end end,
-			min = -20, max = 40, size = function() return ns.groupSize(G()) end } })
+			min = R.spacing[1], max = R.spacing[2], size = function() return ns.groupSize(G()) end } })
 	p:text("Each element's border and frame are on its own page.")
 	p:buttons({
 		{ "Centre on screen", function() askAbout(ns.POPUP .. "CENTER", G()) end, "Moves the group to the middle of the screen.", 130 },
@@ -612,10 +613,6 @@ end
 function LP.build(p)
 	page = p
 	p.panels = false
-	local folded = ns.getAccount().foldedBlocks
-	for key in pairs(folded) do
-		if key:find("^layout:") then folded[key] = nil end
-	end
 	buildList()
 	drag.ghost = Page.dragGhost(updateDragFeedback)
 	p:text("No groups. New group makes one.", function() return #db().groups == 0 end)

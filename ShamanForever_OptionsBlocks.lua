@@ -63,6 +63,14 @@ local function ownersText(lead, kind)
 	return (ns.Look.wordList(names):gsub("^%l", string.upper)) .. " can have their own."
 end
 
+-- A slider over a registered { min, max, step }; styleSlider: a style field's
+local function rangeSlider(p, r, label, tip, fmt, get, set, shown)
+	return p:slider(label, tip, r[1], r[2], r[3] or 1, fmt, get, set, shown)
+end
+local function styleSlider(p, kind, field, label, tip, fmt, get, set, shown)
+	return rangeSlider(p, ns.Style.KINDS[kind].ranges[field], label, tip, fmt, get, set, shown)
+end
+
 local function ownLine(p, kind)
 	p:text(function() return "Currently using their own: " .. table.concat(ns.Style.ownStyles(kind), ", ") end,
 		function() return #ns.Style.ownStyles(kind) > 0 end)
@@ -177,9 +185,11 @@ local function borderRows(p, owner, after, label, shown)
 	p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"), showWhen(r.own, shown))
 	look = choiceRows(p, r, "border", "look", "Border look", nil, showWhen(bordered, shown))
 	local function uses(part) return function() return bordered() and ns.Looks.uses(look(), part) end end
-	p:slider("Border size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("size"), r.set("size"), showWhen(uses("size"), shown))
+	styleSlider(p, "border", "size", "Border size", "Thickness in screen pixels.", px, r.get("size"), r.set("size"),
+		showWhen(uses("size"), shown))
 	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), showWhen(uses("color"), shown))
-	p:slider("Cap size", "Thickness in screen pixels.", 1, 8, 1, px, r.get("capSize"), r.set("capSize"), showWhen(uses("capSize"), shown))
+	styleSlider(p, "border", "capSize", "Cap size", "Thickness in screen pixels.", px, r.get("capSize"),
+		r.set("capSize"), showWhen(uses("capSize"), shown))
 	p:color("Cap colour", "Colour and opacity.", r.get("capColor"), r.set("capColor"), showWhen(uses("capColor"), shown))
 end
 
@@ -282,7 +292,7 @@ local function frameRows(p, owner, kind, after, opts)
 		showWhen(function() return #offered(true) > #offered(false) end, own))
 	local tints = showWhen(function() return framed() and look().uses.color end, own)
 	p:color("Frame colour", "Tints the art. White keeps its own colours.", r.get("color"), r.set("color"), tints, true)
-	p:slider("Frame opacity", nil, 0.1, 1, 0.05, pct, r.get("alpha"), r.set("alpha"), showWhen(framed, own))
+	styleSlider(p, kind, "alpha", "Frame opacity", nil, pct, r.get("alpha"), r.set("alpha"), showWhen(framed, own))
 	if kind == "frame" and owner ~= nil then
 		-- What a solid look's wings need from its group's spacing
 		local function room()
@@ -378,23 +388,29 @@ local function glowBlock(p, owner)
 		return showWhen(function() local l = look(); return l.uses[field] and not (l.fields and l.fields[field]) end, own)
 	end
 	p:color("Colour", "Colour and opacity. Killed early, Grounded and Ran out keep their own colours.", r.get("color"), r.set("color"), uses("color"))
-	p:slider("Pulse length", "One pulse, in seconds.", 0.2, 2, 0.1, function(v) return string.format("%.1f s", v) end,
-		r.get("speed"), r.set("speed"), uses("speed"))
+	local function secs(v) return string.format("%.1f s", v) end
+	styleSlider(p, "glow", "speed", "Pulse length", "One pulse, in seconds.", secs, r.get("speed"), r.set("speed"),
+		uses("speed"))
 	for _, e in ipairs(ns.Style.choices("glow", "look")) do
 		local names = {}
 		for field in pairs(e.fields or {}) do table.insert(names, field) end
 		table.sort(names)
 		for _, field in ipairs(names) do
 			local fd = e.fields[field]
-			p:slider(fd.name, fd.tip, fd.range[1], fd.range[2], fd.step, function(v) return type(fd.format) == "function" and fd.format(v) or string.format(fd.format, v) end,
-				r.get(field), r.set(field), showWhen(function() return look() == e end, own))
+			local fmt = type(fd.format) == "function" and fd.format
+				or function(v) return string.format(fd.format, v) end
+			styleSlider(p, "glow", field, fd.name, fd.tip, fmt, r.get(field), r.set(field),
+				showWhen(function() return look() == e end, own))
 		end
 	end
 	local setLow = r.set("low")
-	p:slider("Pulse depth", "How much it fades between pulses. 0% is steady.", 0, 1, 0.05, pct,
+	-- Shows 1 - low: right only while low ranges 0 to 1
+	styleSlider(p, "glow", "low", "Pulse depth", "How much it fades between pulses. 0% is steady.", pct,
 		function() return 1 - r.style().low end, function(v) setLow(1 - v) end, uses("low"))
-	p:slider("Thickness", "How far in from the edges it reaches.", 0.1, 0.5, 0.05, pct, r.get("width"), r.set("width"), uses("width"))
-	p:slider("Intensity", "How bright it is. Above 100% it adds light.", 0.2, 2.5, 0.1, pct, r.get("strength"), r.set("strength"), uses("strength"))
+	styleSlider(p, "glow", "width", "Thickness", "How far in from the edges it reaches.", pct, r.get("width"),
+		r.set("width"), uses("width"))
+	styleSlider(p, "glow", "strength", "Intensity", "How bright it is. Above 100% it adds light.", pct,
+		r.get("strength"), r.set("strength"), uses("strength"))
 	if owner == nil then ownLine(p, "glow") end
 end
 
@@ -411,7 +427,7 @@ local function popBlock(p, owner, kind)
 	p:header("Pop style")
 	local r = styleRows(p, owner, "pop", after)
 	-- Colour is for Ready and Ran out only; a warning's pop keeps its own.
-	local colored = ns.Looks.POP_EVENTS[kind]
+	local colored = ns.Looks.POP_KINDS[kind].byStyle
 	local function burst() return ns.Style.choice("pop", "burst", r.style().burst) end
 	local function bySchool()
 		return (colored and r.style().colorBy == "school") or burst().bySchool or false
@@ -441,13 +457,13 @@ local function popBlock(p, owner, kind)
 	end
 	choiceRows(p, r, "pop", "flash", "Flash", "Over the icon.", own)
 	choiceRows(p, r, "pop", "burst", "Burst", "Around the icon. Element effect: each element its own.", own)
-	local reach = ns.Style.KINDS.pop.ranges.reach
-	p:slider("Reach", "How far the burst spreads.", reach[1], reach[2], 0.05, pct, r.get("reach"), r.set("reach"),
+	styleSlider(p, "pop", "reach", "Reach", "How far the burst spreads.", pct, r.get("reach"), r.set("reach"),
 		showWhen(function() return burst().uses.reach end, own))
 	local motion = choiceRows(p, r, "pop", "motion", "Motion", "How the icon moves.", own)
 	local moves = showWhen(function() return motion().uses.size end, own)
-	p:slider("Motion distance", "How far it grows, hops or shakes.", 1.1, 1.8, 0.05, pct, r.get("size"), r.set("size"), moves)
-	p:slider("Speed", nil, 0.5, 2, 0.1, pct, r.get("speed"), r.set("speed"), own)
+	styleSlider(p, "pop", "size", "Motion distance", "How far it grows, hops or shakes.", pct, r.get("size"),
+		r.set("size"), moves)
+	styleSlider(p, "pop", "speed", "Speed", nil, pct, r.get("speed"), r.set("speed"), own)
 	if owner == nil then ownLine(p, "pop") end
 end
 
@@ -530,7 +546,7 @@ local function timerSettings(p, title, key, kind, after, note, first, barPlaced)
 	for _, why in pairs(cant) do p:text(why, own) end
 	local text = p:checkbox("Countdown text", "Numbers counting down.", tg("text"), ts("text"), part("text"))
 	p:sub(text, on("text"), function()
-		p:slider("Text size", nil, 6, 48, 1, int, tg("textSize"), ts("textSize"))
+		styleSlider(p, kind, "textSize", "Text size", nil, int, tg("textSize"), ts("textSize"))
 		p:color("Text colour", nil, tg("textColor"), ts("textColor"))
 		p:dropdown("Text position", "Auto: centred, or top-left on an icon that also shows a cooldown.", TEXT_POS,
 			tg("textPos"), ts("textPos"), nil, 140)
@@ -542,22 +558,24 @@ local function timerSettings(p, title, key, kind, after, note, first, barPlaced)
 			ts("timeColors"))
 		local function seconds(v) return string.format("%d s", v) end
 		p:sub(colored, on("timeColors"), function()
-			p:slider("Soon", "Seconds left when the first colour starts.", 1, 60, 1, seconds, tg("soon"), ts("soon"))
+			styleSlider(p, kind, "soon", "Soon", "Seconds left when the first colour starts.", seconds, tg("soon"),
+				ts("soon"))
 			p:color("Soon colour", nil, tg("soonColor"), ts("soonColor"), nil, true)
-			p:slider("Now", "Seconds left when the second colour starts.", 1, 60, 1, seconds, tg("now"), ts("now"))
+			styleSlider(p, kind, "now", "Now", "Seconds left when the second colour starts.", seconds, tg("now"),
+				ts("now"))
 			p:color("Now colour", nil, tg("nowColor"), ts("nowColor"), nil, true)
 		end)
-		p:slider("Tenths below", "Tenths of a second under this many seconds.", 0, 10, 1,
+		styleSlider(p, kind, "tenths", "Tenths below", "Tenths of a second under this many seconds.",
 			function(v) return v == 0 and "Off" or seconds(v) end, tg("tenths"), ts("tenths"))
 	end)
 	local swipe = p:checkbox("Swipe", "A shade that sweeps round the icon.", tg("swipe"), ts("swipe"), part("swipe"))
 	p:sub(swipe, on("swipe"), function()
-		p:slider("Swipe darkness", nil, 0.1, 1, 0.05, pct, tg("swipeAlpha"), ts("swipeAlpha"))
+		styleSlider(p, kind, "swipeAlpha", "Swipe darkness", nil, pct, tg("swipeAlpha"), ts("swipeAlpha"))
 		p:checkbox("Swipe darkens as time runs out", "Off: it lightens, like most cooldowns.", tg("swipeReverse"), ts("swipeReverse"))
 	end)
 	local bar = p:checkbox("Time bar", "A bar along an edge that drains.", tg("bar"), ts("bar"), part("bar"))
 	p:sub(bar, on("bar"), function()
-		p:slider("Bar height", nil, 1, 20, 1, px, tg("barHeight"), ts("barHeight"))
+		styleSlider(p, kind, "barHeight", "Bar height", nil, px, tg("barHeight"), ts("barHeight"))
 		p:dropdown("Bar edge", nil, { { "bottom", "Bottom" }, { "top", "Top" } }, tg("barEdge"), ts("barEdge"),
 			function() return not (barPlaced and barPlaced()) end, 140)
 		local colour = p:dropdown("Bar colour", nil, { { true, "Element colour" }, { false, "Custom" } }, tg("barElement"),
@@ -584,6 +602,7 @@ local function gcdBlock(p, key)
 end
 
 K.globalRow, K.ownersText, K.ownLine, K.borderRows = globalRow, ownersText, ownLine, borderRows
+K.rangeSlider, K.styleSlider = rangeSlider, styleSlider
 K.frameRows, K.barFramed = frameRows, barFramed
 K.timerSettings, K.gcdBlock, K.glowBlock, K.popBlock = timerSettings, gcdBlock, glowBlock, popBlock
 K.textBlock, K.barRows, K.barBlock = textBlock, barRows, barBlock
@@ -602,9 +621,8 @@ local eopt = K.eopt
 local function eread(key, name, field) return function() return ns.elementSetting(key, name, field) end end
 -- A slider over the setting's registered range
 local function eslider(p, key, label, tip, fmt, shown, name, field)
-	local r = ns.elementRange(key, name, field)
 	local get, set = eopt(p, key, name, field)
-	return p:slider(label, tip, r[1], r[2], r[3] or 1, fmt, get, set, shown)
+	return rangeSlider(p, ns.elementRange(key, name, field), label, tip, fmt, get, set, shown)
 end
 
 local function groupMenu(key)
@@ -664,6 +682,7 @@ local function idleBlock(p, def)
 	local function when() return ns.elementSetting(key, "idleWhen") end
 	local function never() return choices ~= nil and when() == "never" end
 	p:header("Idle")
+	local hidden = ". At 0% it's hidden and keeps its place in the group."
 	if choices then
 		local options, tips = {}, {}
 		for _, c in ipairs(choices) do
@@ -673,8 +692,7 @@ local function idleBlock(p, def)
 		p:text(function()
 			for _, c in ipairs(choices) do
 				if c[1] == when() then
-					return c[3]:format(def.idleAlso or "") .. (c[1] == "never" and "."
-						or ". At 0% it's hidden and keeps its place in the group.")
+					return c[3]:format(def.idleAlso or "") .. (c[1] == "never" and "." or hidden)
 				end
 			end
 			return ""
@@ -682,8 +700,7 @@ local function idleBlock(p, def)
 		local whenGet, whenSet = eopt(p, key, "idleWhen")
 		p:dropdown("Idle when", table.concat(tips, " "), options, whenGet, whenSet, nil, 230)
 	else
-		p:text((def.idleText or "Idle while it isn't up")
-			.. ". At 0% it's hidden and keeps its place in the group.")
+		p:text((def.idleText or "Idle while it isn't up") .. hidden)
 	end
 	local extra = def.idleExtra
 	if extra then
@@ -835,7 +852,7 @@ local function expiringBlock(p, owner, opts)
 	p:header("Expiring")
 	local r = s.range("expire", "secs")
 	local secs, setSecs = s.opt("expire", "secs")
-	p:slider("Warn in the last", "Seconds before it runs out. Zero turns the warning off.", r[1], r[2], r[3] or 1,
+	rangeSlider(p, r, "Warn in the last", "Seconds before it runs out. Zero turns the warning off.",
 		function(v) return v == 0 and "Off" or string.format("%d s", v) end, secs, setSecs)
 	if opts.afterSecs then opts.afterSecs(s) end
 	local warns = showWhen(opts.warns or function() return (secs() or 0) > 0 end)

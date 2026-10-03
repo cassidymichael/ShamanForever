@@ -77,8 +77,6 @@ local DEFAULTS = {
 	elementOpts = {},
 	timers = { cooldown = CopyTable(ns.Timer.DEFAULTS.cooldown), uptime = CopyTable(ns.Timer.DEFAULTS.uptime) },
 }
-local RETIRED_KEYS = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "popMotion", "popSize", "popSpeed",
-	"popFlash", "popRing", "popStar", "popTint" }
 local acct
 local db
 local profileName
@@ -102,7 +100,8 @@ local ELEMENT_KEYS = {}
 -- page and preview (ns.registerKind); a kind made of parts fills defaults, ranges and effects from
 -- def's parts (_Kinds); defaults: its settings' defaults, which also declare the fields of each
 -- state and event it has (_Profiles has the vocabulary); ranges: its numbers' { min, max, step },
--- shaped as its defaults; effects = { glow, pop, popKind }: whether it has a pulsing glow and a pop
+-- shaped as its defaults; choices: the values a named setting may take, a list, shaped as its
+-- defaults; effects = { glow, pop, popKind }: whether it has a pulsing glow and a pop
 -- (its page then offers their styles), and the pop it plays;
 -- ownSchool(): the school its pop and glow take now, where that follows its state; styles: its own
 -- shipped look, { kind = fields }; timerCant: timer parts it can't have, and why; barColor = { label,
@@ -129,7 +128,8 @@ end
 -- (ns.Bars.get, list). A module and its options file each give their half; a later value wins.
 -- Module (its half comes first): label; noun (how a sentence names it; "the " .. its lower-case
 -- label by default); the style side (ns.Style): cfg(), saved (required: the profile key holding its
--- table), defaults, ranges (its numbers' { min, max, step }, shaped as defaults), on() (it is in use:
+-- table), defaults, ranges (its numbers' { min, max, step }, shaped as defaults), choices (as an
+-- element's: profiles drop a saved value it doesn't list), on() (it is in use:
 -- its styles are offered), kinds (style kinds it can have its own of), ownLabel(kind) (its name when
 -- it draws that style itself); movable = { frame, nudge(dx, dy), lock() } (positioning); hud = {
 -- show(opts), slots, steps(slot, mode), step(slot, state, at, range, moment) }: /sf preview on the
@@ -444,8 +444,6 @@ local function sanitize()
 	if type(db.known) ~= "table" then db.known = {} end
 	local seen = {}
 	for _, g in ipairs(db.groups) do
-		if g.combatOnly then g.show = "combat" end
-		g.combatOnly = nil
 		for k, v in pairs(GROUP_DEFAULTS) do if g[k] == nil then g[k] = v end end
 		if g.show ~= "combat" and g.show ~= "target" then g.show = "always" end
 		local kept = {}
@@ -456,18 +454,6 @@ local function sanitize()
 			end
 		end
 		g.members = kept
-		-- A group's own border (old profiles, imports) goes to its members that have none
-		local b = g.border
-		if type(b) == "table" and b.follow ~= true then
-			for _, key in ipairs(kept) do
-				local o = elementOpts(key)
-				if o.border == nil then
-					o.border = CopyTable(b)
-					o.border.follow = false
-				end
-			end
-		end
-		g.border = nil
 	end
 	fixIds()
 	fixNames()
@@ -839,8 +825,7 @@ end
 local function selectProfile(name)
 	if type(acct.profiles[name]) ~= "table" then acct.profiles[name] = {} end
 	profileName, db = name, acct.profiles[name]
-	for _, k in ipairs(RETIRED_KEYS) do db[k] = nil end
-	ns.Profiles.migrate(db)   -- renamed settings: drop after launch
+	ns.Profiles.migrate(db)   -- renamed and retired settings: drop after launch
 	fillDefaults(db, DEFAULTS)
 	for _, key in ipairs(BAR_ORDER) do
 		local saved = BARS[key].saved

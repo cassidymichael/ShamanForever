@@ -103,6 +103,16 @@ local RENAMED = {
 	},
 }
 
+-- Retired settings, dropped or converted as a profile loads or is imported (folds: as the account
+-- loads). Drop after launch, with RENAMED and retireGroups.
+local RETIRED = {
+	-- Profile keys from before styles
+	root = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "glowSize", "popMotion", "popSize", "popSpeed",
+		"popFlash", "popRing", "popStar", "popTint" },
+	-- Fold keys of pages that no longer fold
+	folds = "^layout:",
+}
+
 local function put(t, name, field, v)
 	if field == nil then t[name] = v return end
 	local into = t[name]
@@ -123,11 +133,36 @@ local function rename(t, list)
 	end
 end
 
--- The renames, on a profile as saved or as imported
+-- A group's combatOnly becomes its Show; its own border goes to its members that have none
+local function retireGroups(profile)
+	local opts = profile.elementOpts
+	for _, g in ipairs(type(profile.groups) == "table" and profile.groups or {}) do
+		if type(g) == "table" then
+			if g.combatOnly then g.show = "combat" end
+			g.combatOnly = nil
+			local b = g.border
+			if type(b) == "table" and b.follow ~= true and type(g.members) == "table" then
+				for _, key in ipairs(g.members) do
+					if type(key) == "string" and ns.ELEMENTS[key] then
+						if type(opts[key]) ~= "table" then opts[key] = {} end
+						if opts[key].border == nil then
+							opts[key].border = CopyTable(b)
+							opts[key].border.follow = false
+						end
+					end
+				end
+			end
+			g.border = nil
+		end
+	end
+end
+
+-- The renames and retired settings, on a profile as saved or as imported
 function P.migrate(profile)
 	if type(profile) ~= "table" then return end
 	if type(profile.elementOpts) ~= "table" then profile.elementOpts = {} end
 	local opts = profile.elementOpts
+	for _, k in ipairs(RETIRED.root) do profile[k] = nil end
 	for _, r in ipairs(RENAMED.root) do
 		local v = profile[r[1]]
 		if v ~= nil then
@@ -152,6 +187,7 @@ function P.migrate(profile)
 		end
 	end
 	if type(profile.totemBar) == "table" then rename(profile.totemBar, RENAMED.totemBar) end
+	retireGroups(profile)
 end
 
 local function acct() return ns.getAccount() end
@@ -213,6 +249,10 @@ function P.load()
 	local a = ShamanForeverDB
 	if type(a.profiles) ~= "table" then wipe(a) end
 	ns.fillDefaults(a, ACCOUNT_DEFAULTS)
+	if type(a.foldedBlocks) ~= "table" then a.foldedBlocks = {} end
+	for key in pairs(a.foldedBlocks) do
+		if type(key) == "string" and key:find(RETIRED.folds) then a.foldedBlocks[key] = nil end
+	end
 	mergeCharKeys(a)
 	return a
 end
@@ -280,10 +320,10 @@ function P.export()
 	return text
 end
 
--- Clamped; NaN falls back to the default. Elements' numbers clamp to their registered ranges.
-local RANGES = { iconSize = { 24, 96 } }
-local GROUP_RANGES = { scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { -20, 40 }, size = { 24, 96 },
-	x = { -10000, 10000 }, y = { -10000, 10000 }, fadeAfter = { 0, 10 } }
+-- { min, max, step }: clamped; NaN takes the default. Elements' numbers use their registered ranges.
+local RANGES = { iconSize = { 24, 96, 1 } }
+local GROUP_RANGES = { scale = { 0.5, 3, 0.05 }, alpha = { 0.1, 1, 0.05 }, spacing = { -20, 40, 1 },
+	size = { 24, 96, 1 }, x = { -10000, 10000, 1 }, y = { -10000, 10000, 1 }, fadeAfter = { 0, 10, 1 } }
 P.RANGES, P.GROUP_RANGES = RANGES, GROUP_RANGES
 local function clampNumbers(t, ranges, defaults)
 	for k, r in pairs(ranges) do
@@ -294,7 +334,7 @@ local function clampNumbers(t, ranges, defaults)
 	end
 end
 
--- An element's numbers, its states' and events' too, within its ranges; NaN is unset
+-- An element's or a bar's numbers, its states' and events' too, within its ranges; NaN is unset
 local function clampElement(o, ranges)
 	for k, r in pairs(ranges) do
 		local v = o[k]
@@ -306,16 +346,25 @@ local function clampElement(o, ranges)
 	end
 end
 
--- A saved value of another type than its default is dropped. A list or colour takes values of its
--- default's first one's type; a state or event table, its fields the same way; an empty default's
--- contents are left to its owner.
+local function finite(v) return v == v and v ~= math.huge and v ~= -math.huge end
+local function goodColor(v)
+	return ns.isColor(v) and finite(v[1]) and finite(v[2]) and finite(v[3]) and (v[4] == nil or finite(v[4]))
+end
+
+-- A saved value of another type than its default is dropped, as is a number that isn't finite or a
+-- colour that isn't one. A list takes values of its default's first one's type; a state or event
+-- table, its fields the same way; an empty default's contents are left to its owner.
 local function dropMistyped(t, defaults)
 	for k, d in pairs(defaults) do
 		local v = t[k]
 		if v ~= nil then
 			if type(v) ~= type(d) then t[k] = nil
+			elseif type(v) == "number" then
+				if not finite(v) then t[k] = nil end
 			elseif type(d) == "table" then
-				if d[1] ~= nil then
+				if ns.isColor(d) then
+					if not goodColor(v) then t[k] = nil end
+				elseif d[1] ~= nil then
 					local want = type(d[1])
 					for _, x in pairs(v) do
 						if type(x) ~= want then t[k] = nil break end
@@ -326,6 +375,23 @@ local function dropMistyped(t, defaults)
 	end
 end
 
+-- A saved value its owner's choices (shaped as its defaults) don't list is dropped
+local function dropUnchosen(t, choices)
+	for k, c in pairs(choices) do
+		local v = t[k]
+		if c[1] ~= nil then
+			if v ~= nil and not tContains(c, v) then t[k] = nil end
+		elseif type(v) == "table" then dropUnchosen(v, c) end
+	end
+end
+
+-- An element's or a bar's settings: types, choices, then ranges
+local function cleanOwner(t, owner)
+	dropMistyped(t, owner.defaults or {})
+	if owner.choices then dropUnchosen(t, owner.choices) end
+	if owner.ranges then clampElement(t, owner.ranges) end
+end
+
 -- Elements' settings and the bars' own, as a profile loads or is imported (share strings are
 -- untrusted)
 function P.cleanSettings(profile)
@@ -334,22 +400,19 @@ function P.cleanSettings(profile)
 		for key, o in pairs(opts) do
 			local e = ns.ELEMENTS[key]
 			if type(key) ~= "string" or type(o) ~= "table" then opts[key] = nil
-			elseif e then
-				dropMistyped(o, e.defaults or {})
-				clampElement(o, e.ranges)
-			end
+			elseif e then cleanOwner(o, e) end
 		end
 	end
 	for _, name in ipairs(ns.Bars.list()) do
 		local bar = ns.Bars.get(name)
 		local t = profile[bar.saved]
-		if type(t) == "table" then dropMistyped(t, bar.defaults) end
+		if type(t) == "table" then cleanOwner(t, bar) end
 	end
 end
 
 local function cleanProfile(t)
 	local DEFAULTS, GROUP_DEFAULTS = ns.DEFAULTS, ns.GROUP_DEFAULTS
-	P.migrate(t)   -- renamed settings: drop after launch
+	P.migrate(t)   -- renamed and retired settings: drop after launch
 	local out = {}
 	for k, default in pairs(DEFAULTS) do
 		if type(t[k]) == type(default) then out[k] = t[k] end
@@ -376,14 +439,12 @@ local function cleanProfile(t)
 				for k, default in pairs(GROUP_DEFAULTS) do
 					if type(g[k]) == type(default) then clean[k] = g[k] end
 				end
-				if g.combatOnly == true and clean.show == nil then clean.show = "combat" end
 				clampNumbers(clean, GROUP_RANGES, GROUP_DEFAULTS)
 				if clean.point and not ns.POINTS[clean.point] then clean.point = nil end
 				if type(g.id) == "number" and g.id >= 1 and g.id <= ns.MAX_GROUP_ID and g.id % 1 == 0 then
 					clean.id = g.id
 				end
 				if type(g.name) == "string" then clean.name = ns.utf8Cut(g.name, ns.MAX_GROUP_NAME) end
-				clean.border = ns.Style.cleanOwn(g.border, "border")
 				clean.groupFrameStyle = ns.Style.cleanOwn(g.groupFrameStyle, "groupframe")
 				for _, key in ipairs(type(g.members) == "table" and g.members or {}) do
 					if type(key) == "string" then table.insert(clean.members, key) end

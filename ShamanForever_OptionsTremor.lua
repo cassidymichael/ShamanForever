@@ -3,7 +3,7 @@ local _, ns = ...
 
 local Page, K = ns.Page, ns.Options.kit
 local showWhen, setTip, panelBackdrop = Page.showWhen, Page.setTip, Page.panelBackdrop
-local pct, int, px = Page.pct, Page.int, Page.px
+local int, px = Page.int, Page.px
 local elementDisplay, lookBlocks, activeBlock = K.elementDisplay, K.lookBlocks, K.activeBlock
 local timerSettings, eopt, eread, eslider = K.timerSettings, K.eopt, K.eread, K.eslider
 
@@ -150,19 +150,11 @@ end
 
 local WORD_POS = { { "below", "Below the icon" }, { "above", "Above the icon" },
 	{ "center", "On the icon" } }
-local TREMOR_IDLE_WHEN = { { "nowarning", "No warning" },
-	{ "notdown", "Totem not down and no warning" } }
 local function buildTremor(p)
 	local key = "tremor"
 	local function opt(name) return eopt(p, key, name) end
 	elementDisplay(p, key)
-	p:header("Idle")
-	p:text("Idle while nothing warns. At 0% it's hidden and keeps its place in the group.")
-	local whenGet, whenSet = opt("idleWhen")
-	p:dropdown("Idle when", "No warning: also while your Tremor Totem is down. Totem not down and no "
-		.. "warning: its time left shows while it's down.",
-		TREMOR_IDLE_WHEN, whenGet, whenSet, nil, 250)
-	eslider(p, key, "Idle opacity", "The icon's opacity while idle.", pct, nil, "idleAlpha")
+	K.idleBlock(p, ns.ELEMENTS[key].def)
 	p:header("Warn when")
 	p:checkbox("Your target is on the list", nil, opt("tremorTarget"))
 	p:checkbox("A mob on the list is near", "Its nameplate is on screen.", opt("tremorPlates"))
