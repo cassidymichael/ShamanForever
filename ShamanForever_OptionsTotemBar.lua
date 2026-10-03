@@ -15,7 +15,7 @@ local POP_ITEMS = 3
 local PREVIEW
 PREVIEW = {
 	stage = true, heroH = 210, uptime = true,
-	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" },
+	states = { { "idle", "Totem not down" }, { "down", "Totems down" }, { "expiring", "Expiring" },
 		{ "killed", "Killed early" }, { "range", "Out of range" }, { "offpick", "Different totem down" },
 		{ "picking", "Picking" } },
 	stateShown = function(st)

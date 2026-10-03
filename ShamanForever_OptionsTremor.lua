@@ -165,14 +165,14 @@ local function buildTremor(p)
 	p:text("The game hides party members' crowd control, so this covers only you.")
 	p:text("None of these while your Tremor Totem is down, or while you're dead, on a flight path or "
 		.. "in a vehicle.")
-	p:header("Tremor warning watchlist")
+	p:header("Watchlist")
 	p:callout("In dungeons and raids the game hides mob names from addons, so the watchlist can't "
 		.. "work there. Only \"You're feared, charmed or asleep\" can, when it's on.")
 	p:text("Mobs that cast fear, charm or sleep.")
 	mobList(p)
 	linkLine(p, "Suggest a mob for the default list", "Opens Feedback, on the About page.",
 		function() ns.Options.showFeedback() end)
-	activeBlock(p, key, { title = "When it warns", tips = { pop = "The moment it starts warning.",
+	activeBlock(p, key, { title = "Warning", tips = { pop = "The moment it starts warning.",
 		glow = "While it warns.", sound = "The moment it starts warning." }, extra = function(s)
 		local textGet, textSet = s.opt("active", "text")
 		p:checkbox("Text", "Shows \"" .. ns.Tremor.WORD .. "\" by the icon.", textGet, textSet)
