@@ -291,7 +291,6 @@ local function initAuraButton(slot, button)
 	local tex = host:CreateTexture(nil, "ARTWORK")
 	tex:SetAllPoints()
 	ns.cropIconExact(tex)
-	if o.iconAlpha then tex:SetAlpha(o.iconAlpha()) end
 	if o.ownIcon then tex:SetTexture(o.ownIcon()) else button:SetIcon(tex) end
 	slot.icon = tex
 	ns.try(o.sites.style, ns.Looks.auraMask, host, tex, o.key)
