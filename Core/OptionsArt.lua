@@ -111,14 +111,21 @@ end
 
 -- Preview icons
 local PREVIEW_SIZE = 56
-local function makePreviewIcon(parent, key, preview)
+-- box: the icon's own size, border included (else it stands in for the element at its size)
+local function makePreviewIcon(parent, key, preview, box)
 	local ic = W.makeIcon(parent, PREVIEW_SIZE, key)
 	local e = identity(key)
 	local school = e and e.school
-	if preview.cooldown then ic.cdT = ns.Timer.new(ic, key, "cooldown", { cd = ic.cd, school = school }) end
+	local outset = box and function()
+		local el = E.ALL[key]
+		return ns.Timer.outset(ns.StyleArt.inset(ic, E.borderFor(key), box, el and el.shape), box, W.pixel(ic))
+	end or nil
+	if preview.cooldown then
+		ic.cdT = ns.Timer.new(ic, key, "cooldown", { cd = ic.cd, school = school, outset = outset })
+	end
 	if preview.uptime then
 		ic.upT = ns.Timer.new(ic.textFrame, key, "uptime", { anchor = ic, dual = preview.cooldown,
-			cd = not preview.cooldown and ic.cd or nil, school = school, barInset = preview.barInset })
+			cd = not preview.cooldown and ic.cd or nil, school = school, barInset = preview.barInset, outset = outset })
 	end
 	ic.bar = CreateFrame("Frame", nil, ic.textFrame)
 	ic.bar:SetPoint("BOTTOMLEFT", ic, "BOTTOMLEFT", 0, 0)
@@ -294,6 +301,20 @@ function OA.choiceRow(parent, items, get, set, tipAnchor)
 	return row
 end
 
+-- How far a time bar beside the icon (a column's) reaches out on its left and right
+local function besideReach(ic)
+	local l, r = 0, 0
+	for _, t in ipairs({ ic.cdT or false, ic.upT or false }) do
+		local s = t and ns.Style.get(t.key, t.part)
+		if s and s.bar and not ns.Timer.cant(t.key, t.part).bar then
+			local side = ns.Timer.barSide(t.key, s)
+			local reach = math.ceil(t:outset() + s.barHeight)
+			if side == "left" then l = math.max(l, reach) elseif side == "right" then r = math.max(r, reach) end
+		end
+	end
+	return l, r
+end
+
 function OA.buildHero(parent, key)
 	local e = identity(key)
 	local school = OA.SCHOOL[e.school]
@@ -384,7 +405,7 @@ function OA.buildHero(parent, key)
 		p:Hide()
 		def.build(h)
 	else
-		h.previewIcon = makePreviewIcon(p, key, def)
+		h.previewIcon = makePreviewIcon(p, key, def, PREVIEW_SIZE)
 		h.previewIcon:SetPoint("LEFT", 16, -6)
 		-- The element's frame, clipped to the panel left of the state buttons; it fades with the icon
 		local clip = CreateFrame("Frame", nil, p)
@@ -435,8 +456,9 @@ function OA.buildHero(parent, key)
 		local framed = not def.stage and el
 		if framed then
 			local r = ns.Frames.reach(key)
-			padL = math.min(math.ceil(r.left * PREVIEW_SIZE), WING_MAX)
-			padR = math.min(math.ceil(r.right * PREVIEW_SIZE), WING_MAX)
+			local barL, barR = besideReach(self.previewIcon)
+			padL = math.max(math.min(math.ceil(r.left * PREVIEW_SIZE), WING_MAX), barL)
+			padR = math.max(math.min(math.ceil(r.right * PREVIEW_SIZE), WING_MAX), barR)
 			p:SetWidth(PANEL_W + padL + padR)
 		end
 		self.blurb:SetWidth(def.stage and 300 or math.max(w - 40 - 60 - 14 - 40 - PANEL_W - padL - padR - 12, 120))
