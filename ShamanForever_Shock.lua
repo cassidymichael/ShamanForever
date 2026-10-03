@@ -420,8 +420,8 @@ local PREVIEW = {
 	heroH = 190,   -- room for the marks above or below
 	standIn = function(ic) ic.marksOnHUD = true end,
 	reach = function(ic) return previewReach(ic) end,
-	states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" },
-		{ "range", "Out of range" }, { "both", "Both" } },
+	states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", CS.STATES.power.name },
+		{ "range", CS.STATES.range.name }, { "both", "Both" } },
 	pop = function(ic, st)
 		if st == "ready" and own("ready", "pop") then ic:Pop() end
 	end,

@@ -1075,8 +1075,9 @@ local function noneLeftBlock(p, def)
 	lookRows(p, store(p, def.key), "reagent", {})
 end
 
--- Cast states: each the element has, its switch with a link to its style (_CastStates)
-local function castBlocks(p, key)
+-- Cast states: each the element has, its switch with a link to its style (_CastStates); extras[state](on):
+-- rows of its own under the switch, shown while on() is
+local function castBlocks(p, key, extras)
 	local CS = ns.CastStates
 	for _, state in ipairs(CS.ORDER) do
 		if CS.has(key, state) then
@@ -1085,6 +1086,7 @@ local function castBlocks(p, key)
 			local get, set = eopt(p, key, st.saved, "on")
 			styleLink(p, p:checkbox(st.on, st.tip, get, set), st.part, get)
 			if CS.covered(key) then p:text(CS.COVER_NOTE) end
+			if extras and extras[state] then extras[state](get) end
 		end
 	end
 end

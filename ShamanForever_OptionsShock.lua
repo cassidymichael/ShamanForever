@@ -26,10 +26,6 @@ local function buildShock(p, def)
 		table.insert(cards, { shock, SK.SHOCKS[shock], SK.ICONS[shock] })
 	end
 	p:cards("Track", "Its cooldown and range.", cards, eopt(p, key, "track", nil, respell))
-	local manaChoices = { { "tracked", "Tracked shock" } }
-	for _, shock in ipairs(SK.ORDER) do table.insert(manaChoices, { shock, SK.SHOCKS[shock] }) end
-	p:dropdown("Mana check", nil, manaChoices, eopt(p, key, "manaSpell", nil, respell))
-	p:text("The spell whose cost turns the icon blue when you're short of mana.")
 
 	p:header("On target")
 	p:text("A small icon while your shock is on your hostile target, with its time left.")
@@ -48,7 +44,13 @@ local function buildShock(p, def)
 	p:dropdown("Side", nil, sideChoices, sideGet, sideSet, marksShown, 140)
 	eslider(p, key, "Size", "Of the icon's size.", pct, marksShown, "marks", "size")
 
-	K.castBlocks(p, key)
+	K.castBlocks(p, key, { power = function(on)
+		local manaChoices = { { "tracked", "Tracked shock" } }
+		for _, shock in ipairs(SK.ORDER) do table.insert(manaChoices, { shock, SK.SHOCKS[shock] }) end
+		local get, set = eopt(p, key, "manaSpell", nil, respell)
+		p:dropdown("Mana check", nil, manaChoices, get, set, showWhen(on), 180)
+		p:text("The spell whose cost turns the icon blue when you're short of mana.", showWhen(on))
+	end })
 	readyBlock(p, key)
 	styleBlocks(p, key, function()
 		timerSettings(p, "Cooldown", key, "cooldown")
