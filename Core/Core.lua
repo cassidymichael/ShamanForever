@@ -238,8 +238,8 @@ function ns.lastSeconds(secs)
 end
 
 -- After combat: a combat-only group or bar can stay a few seconds once combat ends, then fade. Its
--- visibility stays with its state driver (an addon Show, Hide or SetAlpha on a frame holding a
--- protected one is dropped in combat): when combat starts the driver becomes a plain "show",
+-- visibility stays with its state driver (an addon can't show or hide a frame holding a protected
+-- one in combat): when combat starts the driver becomes a plain "show",
 -- out of combat it fades, then its own driver returns. The fade is an Alpha animation with no end
 -- value: the frame's alpha never changes.
 local AfterCombat = {}

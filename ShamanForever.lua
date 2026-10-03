@@ -457,11 +457,11 @@ local function groupFrame(id)
 	return f
 end
 
--- Combat-only visibility uses Blizzard's secure state driver. A group and element holding
--- Blizzard's protected aura button are its ancestors, so an addon Show/Hide/SetAlpha on them is
--- dropped in combat. The manager re-applies its state every 0.2 s and won't show a frame it lets
--- go of, so a driven frame is never shown or hidden by hand. Out of combat only. Groups and
--- elements are driven separately: an element shows only when both allow it.
+-- Combat-only visibility uses Blizzard's secure state driver: a frame holding a protected one can't
+-- be shown or hidden by an addon in combat (its alpha can be set). The manager re-applies its state
+-- every 0.2 s and won't show a frame it lets go of, so a driven frame is never shown or hidden by
+-- hand. Out of combat only. Groups and elements are driven separately: an element shows only when
+-- both allow it.
 local function setDriven(frame, when)
 	ns.setVisibilityDriver(frame, when or nil, "state driver " .. (frame:GetName() or tostring(frame)))
 end
