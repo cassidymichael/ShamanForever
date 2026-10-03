@@ -1,5 +1,6 @@
 -- Options art: school art, element headers with live previews, the experimental badge
 local ADDON, ns = ...
+local E, G, Bars = ns.Elements, ns.Groups, ns.Bars
 local OA = {}
 ns.OptionsArt = OA
 
@@ -30,8 +31,8 @@ local function coverCoords(w, h)
 end
 OA.PANEL = { 29 / 255, 24 / 255, 19 / 255 }
 
--- An element's, or a bar's (ns.registerBar)
-local function identity(key) return ns.ELEMENTS[key] or ns.Bars.get(key) end
+-- An element's, or a bar's (Bars.register)
+local function identity(key) return E.ALL[key] or Bars.get(key) end
 
 function OA.elementName(key)
 	local e = identity(key)
@@ -46,7 +47,7 @@ function OA.wordList(words, last)
 end
 -- What positioning moves: lead ("groups"), then the bars that move
 function OA.movingWords(lead, last)
-	return OA.wordList(ns.Bars.nouns(function(bar) return bar.movable ~= nil end, lead), last)
+	return OA.wordList(Bars.nouns(function(bar) return bar.movable ~= nil end, lead), last)
 end
 
 -- Ornaments
@@ -185,7 +186,7 @@ local function frozen(t, frac, length)
 	t:setTime(stage.start - frac * length, length)
 end
 
-local function opt(key, name, field) return ns.elementSetting(key, name, field) end
+local function opt(key, name, field) return E.setting(key, name, field) end
 local function expiringLook(ic, key, length)
 	local secs = opt(key, "expire", "secs") or 0
 	frozen(ic.upT, 1 - math.min(secs > 0 and secs or 5, length) / length, length)
@@ -209,11 +210,11 @@ end
 local previewState = {}
 
 local FAINT = 0.12
-function OA.idleAlpha(key) return math.max(ns.idleAlpha(key), FAINT) end
+function OA.idleAlpha(key) return math.max(E.idleAlpha(key), FAINT) end
 local function idleLook(ic, key) ic:SetAlpha(OA.idleAlpha(key)) end
 -- Whether a state goes idle once its moment has played (the preview's own rule)
 function OA.idles(key, st)
-	local when = ns.ELEMENTS[key] and ns.elementSetting(key, "idleWhen")
+	local when = E.ALL[key] and E.setting(key, "idleWhen")
 	if not when or when == "never" then return false end
 	local pv = OA.PREVIEW[key]
 	return pv and pv.idles and pv.idles(st, when) and true or false
@@ -230,9 +231,9 @@ end
 
 OA.PREVIEW = {}
 
--- An element's preview, from its kind, made when first asked for; or a bar's (ns.registerBar)
+-- An element's preview, from its kind, made when first asked for; or a bar's (Bars.register)
 setmetatable(OA.PREVIEW, { __index = function(t, key)
-	local bar = ns.Bars.get(key)
+	local bar = Bars.get(key)
 	local pv = bar and bar.preview or ns.Kinds.previewOf(key)
 	if pv then rawset(t, key, pv) end
 	return pv
@@ -426,7 +427,7 @@ function OA.buildHero(parent, key)
 		local w = self:GetWidth()
 		if not w or w <= 0 then w = parent:GetWidth() end
 		self.banner:SetTexCoord(coverCoords(w - 2, heroH - 16))
-		local el = ns.ELEMENTS[key]
+		local el = E.ALL[key]
 		-- The panel widens for a frame's wings, up to a point
 		local padL, padR = 0, 0
 		local framed = not def.stage and el
@@ -438,10 +439,10 @@ function OA.buildHero(parent, key)
 		end
 		self.blurb:SetWidth(def.stage and 300 or math.max(w - 40 - 60 - 14 - 40 - PANEL_W - padL - padR - 12, 120))
 		if e.tags then self.tags:SetText(e.tags()) else
-			local g = ns.groupOf(key)
+			local g = G.of(key)
 			local shows = { always = "Always", combat = "In combat", never = "Hidden" }
-			self.tags:SetText(string.format("%s  ·  %s%s", g and g.name or "Ungrouped", shows[ns.showMode(key)] or "",
-				ns.isLearned(key) and "" or "  ·  " .. ns.notLearnedText(key)))
+			self.tags:SetText(string.format("%s  ·  %s%s", g and g.name or "Ungrouped", shows[E.showMode(key)] or "",
+				E.isLearned(key) and "" or "  ·  " .. E.notLearnedText(key)))
 		end
 		if def.stage and def.stateShown then
 			local count = 0
@@ -470,7 +471,7 @@ function OA.buildHero(parent, key)
 		if not def.stage then
 			local ic = self.previewIcon
 			local x = 16 + padL
-				+ ns.StyleArt.fit(ic, ns.borderFor(key), PREVIEW_SIZE, PREVIEW_SIZE, { shape = el and el.shape })
+				+ ns.StyleArt.fit(ic, E.borderFor(key), PREVIEW_SIZE, PREVIEW_SIZE, { shape = el and el.shape })
 			ic:ClearAllPoints()
 			ic:SetPoint("LEFT", p, "LEFT", x, -6)
 			local l, t = ic:GetLeft(), ic:GetTop()

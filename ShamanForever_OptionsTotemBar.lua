@@ -1,5 +1,6 @@
 -- Totem bar options page
 local _, ns = ...
+local Bars = ns.Bars
 
 local K, Page, OA = ns.Options.kit, ns.Page, ns.OptionsArt
 local showWhen, setTip = Page.showWhen, Page.setTip
@@ -622,7 +623,7 @@ local function build(p)
 	p.gate = nil
 end
 
-ns.registerBar("totembar", { icon = "Interface\\Icons\\Spell_Shaman_DropAll_01",
+Bars.register("totembar", { icon = "Interface\\Icons\\Spell_Shaman_DropAll_01",
 	school = ns.THEME.fallback,
 	blurb = "Your totems, their timers, and a pick for each element.",
 	tags = function()

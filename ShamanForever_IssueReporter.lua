@@ -1,12 +1,13 @@
 -- Issue Reporter (beta)
 local _, ns = ...
+local P = ns.Profiles
 
 local IR = {}
 ns.IssueReporter = IR
 
 local hooked = false
 
-local function acct() return ns.getAccount() end
+local function acct() return P.getAccount() end
 
 -- Its OnShow re-places it from its own save, so set that too
 function IR.apply()

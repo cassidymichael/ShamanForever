@@ -1,5 +1,6 @@
 -- Options kit: the standard blocks
 local _, ns = ...
+local E, G, Bars, P = ns.Elements, ns.Groups, ns.Bars, ns.Profiles
 
 local OP, Page = ns.Options, ns.Page
 local K = OP.kit
@@ -59,7 +60,7 @@ end
 
 -- Who can have their own style of part: lead (Elements, Groups or nil), then the bars that can
 local function ownersText(lead, part)
-	local names = ns.Bars.nouns(function(bar) return tContains(bar.parts, part) end, lead)
+	local names = Bars.nouns(function(bar) return tContains(bar.parts, part) end, lead)
 	return (ns.OptionsArt.wordList(names):gsub("^%l", string.upper)) .. " can have their own."
 end
 
@@ -112,8 +113,8 @@ local function reloadLine(p, keys, verb, shown)
 	end, showWhen(function() return #keys() > 0 end, shown))
 end
 
-local function isElement(owner) return type(owner) == "string" and ns.ELEMENTS[owner] ~= nil end
-local function barOf(owner) return type(owner) == "string" and ns.Bars.get(owner) or nil end
+local function isElement(owner) return type(owner) == "string" and E.ALL[owner] ~= nil end
+local function barOf(owner) return type(owner) == "string" and Bars.get(owner) or nil end
 
 -- Style block tiles: a bar's from its registration, an element's icon, else Global's
 local function tilesOf(owner)
@@ -124,13 +125,13 @@ local function tileIcon(owner)
 	local o = resolve(owner)
 	local tiles = tilesOf(o)
 	if tiles then return tiles.icon end
-	return isElement(o) and ns.ELEMENTS[o].icon or 136026
+	return isElement(o) and E.ALL[o].icon or 136026
 end
 local function tileBorder(owner)
 	local o = resolve(owner)
 	local tiles = tilesOf(o)
 	if tiles and tiles.border then return tiles.border() end
-	if isElement(o) then return ns.borderFor(o) end
+	if isElement(o) then return E.borderFor(o) end
 	return ns.Style.read(o, "border")
 end
 
@@ -298,9 +299,9 @@ local function frameRows(p, owner, part, after, opts)
 		local function room()
 			local o, l = resolve(owner), look()
 			if l.weight ~= "solid" or not FR.usable(l) then return nil end
-			local g = ns.groupOf(o)
+			local g = G.of(o)
 			if not (g and #g.members > 1) then return nil end
-			local rc, size = l.reach, ns.groupSize(g)
+			local rc, size = l.reach, G.size(g)
 			local n = g.orientation == "vertical" and rc.top + rc.bottom or rc.left + rc.right
 			n = math.ceil(n * size)
 			return n > 0 and n or nil
@@ -339,17 +340,17 @@ local function frameRows(p, owner, part, after, opts)
 end
 
 -- Whether a bar draws a group frame of its own
-local function barFramed(bar) return tContains(ns.Bars.get(bar).parts, "groupframe") end
+local function barFramed(bar) return tContains(Bars.get(bar).parts, "groupframe") end
 
 -- popSchool is its own setting, not a style field, so it stays whether or not the element
 -- follows Global.
 local function popSchoolRow(p, key, shown)
 	local function get()
-		local v = ns.elementSetting(key, "popSchool")
+		local v = E.setting(key, "popSchool")
 		return ns.THEME.color[v] and v or "own"
 	end
 	local function set(v)
-		ns.elementOpts(key).popSchool = v ~= "own" and v or nil
+		E.opts(key).popSchool = v ~= "own" and v or nil
 		reglow()
 	end
 	p:owns({ elem = key, name = "popSchool", after = reglow })
@@ -421,7 +422,7 @@ local function popBlock(p, owner, kind)
 		for _, t in ipairs(sync()) do t:pop(kind) end
 	end
 	local after = perFrame(function()
-		ns.applyTimers()
+		E.applyTimers()
 		OP.refresh()
 		if f and f:IsVisible() then playPop() end
 	end)
@@ -592,7 +593,7 @@ end
 
 -- Bars take it with their timers' style
 local function gcdBlock(p, key)
-	local function after() ns.applyTimers(); ns.refreshAll(); OP.refresh() end
+	local function after() E.applyTimers(); E.refreshAll(); OP.refresh() end
 	p:header("Global cooldown")
 	local r = styleRows(p, key, "gcd", after)
 	if key then followRow(p, key, "gcd", after)
@@ -612,33 +613,33 @@ K.textBlock, K.barRows, K.barBlock = textBlock, barRows, barBlock
 
 -- Element blocks
 local SHOW_CHOICES = K.SHOW_CHOICES
-local function db() return ns.getDB() end
+local function db() return P.getDB() end
 -- An element's setting: name, or a field of its state or event table name (_Profiles)
 function K.eopt(p, key, name, field, after)
 	after = after or relayout
 	p:owns({ elem = key, name = name, field = field, after = after })
-	return function() return ns.elementSetting(key, name, field) end,
-		function(v) ns.setElementSetting(key, name, field, v); after() end
+	return function() return E.setting(key, name, field) end,
+		function(v) E.setSetting(key, name, field, v); after() end
 end
 local eopt = K.eopt
-local function eread(key, name, field) return function() return ns.elementSetting(key, name, field) end end
+local function eread(key, name, field) return function() return E.setting(key, name, field) end end
 -- A slider over the setting's registered range
 local function eslider(p, key, label, tip, fmt, shown, name, field)
 	local get, set = eopt(p, key, name, field)
-	return rangeSlider(p, ns.elementRange(key, name, field), label, tip, fmt, get, set, shown)
+	return rangeSlider(p, E.range(key, name, field), label, tip, fmt, get, set, shown)
 end
 
 -- An element's group menu: its groups, or New group; after() follows a choice
 local function groupMenu(key, after)
 	return function(_, root)
 		for _, g in ipairs(db().groups) do
-			root:CreateRadio(g.name, function() return ns.groupOf(key) == g end, function()
-				if ns.groupOf(key) ~= g then ns.placeElement(key, g.id) end
+			root:CreateRadio(g.name, function() return G.of(key) == g end, function()
+				if G.of(key) ~= g then G.placeElement(key, g.id) end
 				if after then after() end
 			end)
 		end
 		root:CreateButton("New group", function()
-			ns.placeElement(key, "new")
+			G.placeElement(key, "new")
 			if after then after() end
 		end)
 	end
@@ -654,40 +655,40 @@ local function elementDisplay(p, key)
 	}
 	p:hero(key)
 	p:callout("Not learned yet. It shows on screen once your character knows the spell.",
-		function() return not ns.isLearned(key) and not ns.Spells.otherRace(ns.ELEMENTS[key].race) end)
+		function() return not E.isLearned(key) and not ns.Spells.otherRace(E.ALL[key].race) end)
 	p:callout("Not your race. It shows on screen only for the races that have this spell.",
-		function() return not ns.isLearned(key) and ns.Spells.otherRace(ns.ELEMENTS[key].race) end)
+		function() return not E.isLearned(key) and ns.Spells.otherRace(E.ALL[key].race) end)
 	p:header("Display", nil, nil, nil, { open = true })
-	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return ns.showMode(key) end,
-		function(v) ns.setShow(key, v) end, nil, 140)
-	local function showDefault() return ns.elementDefault(key, "show") or "always" end
+	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return E.showMode(key) end,
+		function(v) E.setShow(key, v) end, nil, 140)
+	local function showDefault() return E.default(key, "show") or "always" end
 	p:owns({ elem = key, name = "show", label = "Show", default = showDefault, reset = function()
 		if InCombatLockdown() then return false end
-		ns.setShow(key, showDefault())
+		E.setShow(key, showDefault())
 	end })
 	p:text("Hidden keeps its place in its group.")
 	local groupRow = p:dropdown("Group", "Which group it sits in. Groups are arranged on the Groups & Layout page; ungrouped elements aren't on screen.",
-		{}, function() local g = ns.groupOf(key); return g and g.id .. ":" .. g.name or "" end, function() end, nil, 140,
+		{}, function() local g = G.of(key); return g and g.id .. ":" .. g.name or "" end, function() end, nil, 140,
 		groupMenu(key))
 	pcall(groupRow.dropdown.SetDefaultText, groupRow.dropdown, "Ungrouped")
 	local edit = CreateFrame("Button", nil, groupRow, "UIPanelButtonTemplate")
 	edit:SetSize(110, 22)
 	edit:SetPoint("LEFT", groupRow.dropdown, "RIGHT", 8, 0)
 	edit:SetText("Group settings")
-	edit:SetScript("OnClick", function() local g = ns.groupOf(key); if g then ns.Options.openGroup(g.id) end end)
+	edit:SetScript("OnClick", function() local g = G.of(key); if g then ns.Options.openGroup(g.id) end end)
 	setTip(edit, "Group settings", "This group's settings on the Groups & Layout page.")
 	local item = p.items[#p.items]
 	local refresh = item.refresh
 	item.refresh = function()
 		refresh()
-		edit:SetShown(ns.groupOf(key) ~= nil)
+		edit:SetShown(G.of(key) ~= nil)
 	end
 end
 
 -- Idle block, from the element's def (idleChoices, idleText, idleExtra).
 local function idleBlock(p, def)
 	local key, choices = def.key, def.idleChoices
-	local function when() return ns.elementSetting(key, "idleWhen") end
+	local function when() return E.setting(key, "idleWhen") end
 	local function never() return choices ~= nil and when() == "never" end
 	p:header("Idle")
 	local hidden = ". At 0% it's hidden and keeps its place in the group."
@@ -721,7 +722,7 @@ local function idleBlock(p, def)
 end
 
 local function styleBlocks(p, key)
-	local e = ns.ELEMENTS[key]
+	local e = E.ALL[key]
 	if e.effects.glow then glowBlock(p, key) end
 	if e.effects.pop then popBlock(p, key, e.effects.popKind or "ready") end
 	p:header("Border style")
@@ -735,13 +736,13 @@ end
 -- opts.tips: a row's tip by field, over the standard one.
 local function store(p, owner, after)
 	local s = {}
-	if ns.ELEMENTS[owner] then
+	if E.ALL[owner] then
 		function s.get(name, field) return eread(owner, name, field) end
 		function s.opt(name, field) return eopt(p, owner, name, field, after) end
-		function s.default(name) return ns.elementDefault(owner, name) end
-		function s.range(name, field) return ns.elementRange(owner, name, field) end
+		function s.default(name) return E.default(owner, name) end
+		function s.range(name, field) return E.range(owner, name, field) end
 	else
-		local bar = ns.Bars.get(owner)
+		local bar = Bars.get(owner)
 		after = after or relayout
 		function s.get(name, field)
 			return function()
@@ -815,7 +816,7 @@ local function hasSound(t)
 end
 local function soundsBlock(p)
 	local SN = ns.Sounds
-	local owners = ns.Bars.nouns(function(bar) return hasSound(bar.defaults or {}) end, "Elements")
+	local owners = Bars.nouns(function(bar) return hasSound(bar.defaults or {}) end, "Elements")
 	p:header("Sounds")
 	p:text(ns.OptionsArt.wordList(owners) .. " pick their own sounds, on their pages. All start at None.")
 	p:dropdown("Channel", "Master plays even with sound effects off.", SN.CHANNELS, SN.channel, function(v)

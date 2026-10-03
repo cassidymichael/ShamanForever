@@ -281,7 +281,7 @@ end
 
 local function initAuraButton(slot, button)
 	local o = slot.opts
-	local size = ns.sizeOf(o.key)
+	local size = ns.Elements.sizeOf(o.key)
 	button:SetSize(size, size)
 	slot.size = size
 	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
@@ -304,7 +304,7 @@ local function initAuraButton(slot, button)
 		return
 	end
 	-- A client that refuses the time bar gets none rather than a still one.
-	local e = ns.ELEMENTS[o.key]
+	local e = ns.Elements.ALL[o.key]
 	slot.timer = ns.Timer.new(host, o.key, "uptime", { cd = cd, anchor = host, aura = true,
 		school = e and e.school, barInset = o.barInset })
 	if not ns.try("aura time bar", button.SetDurationBar, button, slot.timer.bar, ns.Timer.AURA_BAR) then
@@ -318,7 +318,7 @@ local function initAuraButton(slot, button)
 end
 
 local function initExtraButton(slot, x, button)
-	local size = ns.sizeOf(slot.opts.key)
+	local size = ns.Elements.sizeOf(slot.opts.key)
 	button:SetSize(size, size)
 	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
 	ns.noMouse(button)
@@ -352,7 +352,7 @@ function AuraSlot:setup()
 	if ns.deferWhileAurasSecret(o.sites.container, function() self:setup() end) then return end
 	local filters = candidates(o)
 	local ok, err = pcall(function()
-		local size = ns.sizeOf(o.key)
+		local size = ns.Elements.sizeOf(o.key)
 		local c = CreateFrame("AuraContainer", o.name, o.parent or f, "CustomAuraContainerTemplate")
 		c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
 		c:SetSize(size, size)
@@ -398,7 +398,7 @@ function AuraSlot:styleNow()
 	local o = self.opts
 	if ns.deferWhileAurasSecret(o.sites.style, function() self:styleNow() end) then return end
 	local ok = ns.try(o.sites.style, function()
-		local size, f, c = ns.sizeOf(o.key), self.frame, self.container
+		local size, f, c = ns.Elements.sizeOf(o.key), self.frame, self.container
 		c:SetSize(size, size)
 		c:SetFrameStrata(f:GetFrameStrata())
 		c:SetFrameLevel(f.textFrame:GetFrameLevel() + 5 + (o.level or 0))
@@ -550,8 +550,8 @@ end
 -- element's state table (warn, expire): a look it doesn't declare is off.
 function ns.warnParts(key, name)
 	local function part(field)
-		if ns.elementDefault(key, name, field) == nil then return false end
-		return ns.elementSetting(key, name, field) and true or false
+		if ns.Elements.default(key, name, field) == nil then return false end
+		return ns.Elements.setting(key, name, field) and true or false
 	end
 	return part("grey"), part("tint"), part("ring"), part("fade"), part("glow")
 end
@@ -651,7 +651,7 @@ end
 local function cellWidth(size, frame, o)
 	local half = CLIP_REACH * (size + 2 * ns.StyleArt.outerEdge(frame))
 	if not o.glowOnly then
-		local r, box = ns.Frames.reach(o.key), ns.boxOf(o.key)
+		local r, box = ns.Frames.reach(o.key), ns.Elements.boxOf(o.key)
 		half = math.max(half, box * (0.5 + math.max(r.left, r.right, r.top, r.bottom)) + 1)
 	end
 	return math.ceil(2 * half)
@@ -668,7 +668,7 @@ end
 function ClipLook:ready()
 	local o = self.opts
 	return self.container ~= nil and not self.err and self.idsOK == true and not self.waiting
-		and self.size == ns.sizeOf(o.key) and (o.needUnit == nil or self.unit == o.needUnit)
+		and self.size == ns.Elements.sizeOf(o.key) and (o.needUnit == nil or self.unit == o.needUnit)
 		and (o.agrees == nil or o.agrees() == true)
 end
 
@@ -699,7 +699,7 @@ end
 function ClipLook:reshape()
 	if self.opts.glowOnly then self.glow:restyle() return end
 	local f = self.frame
-	ns.StyleArt.overlay(self.art, ns.borderFor(self.opts.key))
+	ns.StyleArt.overlay(self.art, ns.Elements.borderFor(self.opts.key))
 	ns.StyleArt.maskOver(f, self.tex)
 	for _, e in ipairs(self.ring.edges) do ns.StyleArt.maskOver(f, e, self.tex) end
 	self.glow:restyle()
@@ -720,7 +720,7 @@ function ClipLook:setup()
 	if self.container or self.err then return end
 	local o = self.opts
 	if ns.deferWhileAurasSecret(o.sites.container, function() self:setup() end) then return end
-	local size = ns.sizeOf(o.key)
+	local size = ns.Elements.sizeOf(o.key)
 	local w = cellWidth(size, self.frame, o)
 	local filters = candidates(o)
 	local unit = type(o.unit) == "function" and o.unit() or o.unit or "player"
@@ -796,7 +796,7 @@ function ClipLook:style()
 end
 function ClipLook:styleNow()
 	local o = self.opts
-	local size = ns.sizeOf(o.key)
+	local size = ns.Elements.sizeOf(o.key)
 	local w = cellWidth(size, self.frame, o)
 	if w == self.width then
 		self:took(size)
@@ -861,7 +861,7 @@ function ClipLook:describe()
 		"%ssensor %s%s, size %s (icon %s), filters %s, unit %s, wanted %s, waiting %s, drawn %s",
 		self.opts.invert and "while up: " or "",
 		self.container and "made" or "not made", self.err and (" (error: " .. self.err .. ")") or "",
-		tostring(self.size), tostring(ns.sizeOf(self.opts.key)),
+		tostring(self.size), tostring(ns.Elements.sizeOf(self.opts.key)),
 		not self.idsOK and "behind" or (self.opts.agrees and not self.opts.agrees()) and "not the slot's"
 			or "matched",
 		tostring(self.unit), tostring(self.wanted), tostring(self.waiting ~= nil),

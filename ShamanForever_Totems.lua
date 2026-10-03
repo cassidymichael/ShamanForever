@@ -1,6 +1,7 @@
 -- Totems
 
 local _, ns = ...
+local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
 local Spells = ns.Spells
 
@@ -152,7 +153,7 @@ function TO.endOptions(s, which, def)
 end
 
 -- Cooldown parts (ns.registerPart), with their runtime hooks (_Cooldowns)
-local setting = ns.elementSetting
+local setting = E.setting
 
 -- In combat the slot is secret: a totem timer shows only when the slot's totem is known to be ours
 local function slotMatch(def, slot)
@@ -245,10 +246,10 @@ ns.registerPart("totemSlot", {
 		end,
 		pop = function(ic, st, def, P)
 			if st == "ranout" then
-				local opts = TO.endOptions(ns.elementEvent(def.key, "ended"), "ended", def)
+				local opts = TO.endOptions(E.event(def.key, "ended"), "ended", def)
 				previewEnd(ic, def, P, st, opts, def.ranOut and 1.4 or nil)
 			elseif st == "killed" then
-				previewEnd(ic, def, P, st, TO.endOptions(ns.elementEvent(def.key, "killed"), "killed", def), 2.1)
+				previewEnd(ic, def, P, st, TO.endOptions(E.event(def.key, "killed"), "killed", def), 2.1)
 			end
 		end,
 	},
@@ -384,15 +385,15 @@ local function endOnElement(def, event, arg)
 	local f, key = def.frame, def.key
 	if event == "cast" and arg == def.spellKey and f.killed then
 		f.killed.mark:Hide()
-	elseif event == "gone" and TO.ownerOf(def.totemSlot) == def.spellKey and ns.isEnabled(key) then
+	elseif event == "gone" and TO.ownerOf(def.totemSlot) == def.spellKey and E.isEnabled(key) then
 		if f:IsVisible() then ns.Sounds.element(key, "ended", true) end
-		playEnd(f, "expired", def, arg, TO.endOptions(ns.elementEvent(key, "ended"), "ended", def))
-		playEnd(f, "killed", def, arg, TO.endOptions(ns.elementEvent(key, "killed"), "killed", def))
+		playEnd(f, "expired", def, arg, TO.endOptions(E.event(key, "ended"), "ended", def))
+		playEnd(f, "killed", def, arg, TO.endOptions(E.event(key, "killed"), "killed", def))
 	end
 end
 TO.subscribe(function(event, slot, arg)
-	for _, key in ipairs(ns.ELEMENT_KEYS) do
-		local def = ns.ELEMENTS[key].def
+	for _, key in ipairs(E.KEYS) do
+		local def = E.ALL[key].def
 		if type(def) == "table" and def.totemSlot == slot then endOnElement(def, event, arg) end
 	end
 end)
@@ -400,7 +401,7 @@ end)
 function TO.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "PLAYER_TOTEM_UPDATE")
-	ev:SetScript("OnEvent", function() ns.refreshCooldownsSoon() end)
+	ev:SetScript("OnEvent", function() E.refreshCooldownsSoon() end)
 end
 
 -- /sf debug
@@ -427,4 +428,4 @@ function TO.debug()
 	end
 end
 
-ns.registerModule(TO)
+MOD.register(TO)

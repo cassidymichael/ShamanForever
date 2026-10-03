@@ -1,5 +1,6 @@
 -- Tremor options page
 local _, ns = ...
+local E = ns.Elements
 
 local Page, K = ns.Page, ns.Options.kit
 local showWhen, setTip, panelBackdrop = Page.showWhen, Page.setTip, Page.panelBackdrop
@@ -154,7 +155,7 @@ local function buildTremor(p)
 	local key = "tremor"
 	local function opt(name) return eopt(p, key, name) end
 	elementDisplay(p, key)
-	K.idleBlock(p, ns.ELEMENTS[key].def)
+	K.idleBlock(p, E.ALL[key].def)
 	p:header("Warn when")
 	p:checkbox("Your target is on the list", nil, opt("tremorTarget"))
 	p:checkbox("A mob on the list is near", "Its nameplate is on screen.", opt("tremorPlates"))

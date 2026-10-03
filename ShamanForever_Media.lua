@@ -353,6 +353,6 @@ end
 
 function M.changed()
 	fontGen = fontGen + 1
-	if ns.isActive() then ns.applyLayout() end
+	if ns.Elements.isActive() then ns.Groups.applyLayout() end
 	ns.changed()
 end

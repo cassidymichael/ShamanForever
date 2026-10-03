@@ -3,13 +3,14 @@
 -- A proc: only Blizzard's aura container can show one in combat, on the player or another unit.
 
 local _, ns = ...
+local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
 local Spells, KD = ns.Spells, ns.Kinds
 
 local B = { name = "buffs" }
 ns.Buffs = B
 
-local setting = ns.elementSetting
+local setting = E.setting
 
 -- Elements: the class's rows (ns.CLASS.buffs), all built here; BUFFS are those this file runs. Rows
 -- from other files join the list before this file loads.
@@ -114,7 +115,7 @@ ns.registerKind("buff", {
 local NONE = {}
 
 local function makeBuffIcon(def)
-	local f = ns.newElementIcon(def.key, { effects = true })
+	local f = E.newIcon(def.key, { effects = true })
 	f.tex:SetTexture(def.icon)
 	if not def.proc then
 		f.upTimer = ns.Timer.new(f, def.key, "uptime", { cd = f.cd, school = def.school })
@@ -191,7 +192,7 @@ for _, def in ipairs(ROWS) do
 	def.frame = makeBuffIcon(def)
 	def.frame.aboveProtected = def.proc   -- Blizzard's aura button sits under it
 	if def.proc then buildAura(def) end
-	ns.registerElement(def.key, { frame = def.frame, label = def.spell,
+	E.register(def.key, { frame = def.frame, label = def.spell,
 		defaults = def.defaults or {}, learned = function() return def.spellID ~= nil end,
 		paint = function(t) t:SetTexture(def.icon) end,
 		standInBorder = def.proc, borderHost = def.borderHost,
@@ -274,7 +275,7 @@ local previewing = false
 local function refreshBuff(def)
 	local f, key = def.frame, def.key
 	if def.proc then f.tex:SetAlpha(previewing and 0 or 1) end
-	if not ns.isEnabled(key) then
+	if not E.isEnabled(key) then
 		if def.fx then def.fx:glow(false) end
 		return
 	end
@@ -291,7 +292,7 @@ local function refreshBuff(def)
 	if def.proc then
 		-- Frame is an ancestor of Blizzard's button: its alpha changes out of combat only
 		if def.fx then def.fx:glow(setting(key, "active", "glow") and not previewing) end
-		ns.fadeTo(f, ns.getAccount().locked and ns.idleAlpha(key) or 1)
+		ns.fadeTo(f, ns.Profiles.getAccount().locked and E.idleAlpha(key) or 1)
 		return
 	end
 	if def.upUntil and GetTime() >= def.upUntil then setDown(def) end
@@ -303,8 +304,8 @@ local function refreshBuff(def)
 	end
 	f:SetRingShown(ring)
 	f:SetPulsing(pulse)
-	local busy = not ns.getAccount().locked or def.upUntil ~= nil or held
-	ns.fadeTo(f, busy and 1 or ns.idleAlpha(key))
+	local busy = not ns.Profiles.getAccount().locked or def.upUntil ~= nil or held
+	ns.fadeTo(f, busy and 1 or E.idleAlpha(key))
 end
 
 local function refreshAll()
@@ -316,7 +317,7 @@ function B.resolve()
 	local sig = {}
 	for _, def in ipairs(BUFFS) do
 		def.spell = Spells.name(def.spellKey)
-		ns.ELEMENTS[def.key].label = def.spell
+		E.ALL[def.key].label = def.spell
 		local known, icon = Spells.known(def.spellKey)
 		if known ~= def.spellID then def.takesReagent = nil end
 		def.spellID = known
@@ -332,7 +333,7 @@ function B.applyTimers()
 		local t = def.frame.upTimer
 		if t then
 			t:apply()
-			t:setExpire(ns.elementEvent(def.key, "expire"), def.iconID or def.icon)
+			t:setExpire(E.event(def.key, "expire"), def.iconID or def.icon)
 		end
 	end
 	for _, def in ipairs(BUFFS) do
@@ -345,7 +346,7 @@ end
 
 function B.applyLayout()
 	for _, def in ipairs(BUFFS) do
-		if def.proc and def.spellID and ns.isEnabled(def.key) then B.setupAura(def) end
+		if def.proc and def.spellID and E.isEnabled(def.key) then B.setupAura(def) end
 		if def.proc then
 			def.aura:style()
 			styleGlow(def)
@@ -435,4 +436,4 @@ function B.debug()
 	end
 end
 
-ns.registerModule(B)
+MOD.register(B)

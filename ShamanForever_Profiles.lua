@@ -19,7 +19,7 @@ local ACCOUNT_DEFAULTS = {
 -- The TOC's SavedVariables
 local SAVED = ns.NAME .. "DB"
 local DEFAULT_PROFILE = "Default"
-ns.DEFAULT_PROFILE = DEFAULT_PROFILE
+P.DEFAULT_NAME = DEFAULT_PROFILE
 -- Share strings carry it: one from a newer version is refused
 local SHARE_VERSION = 7
 
@@ -149,7 +149,7 @@ local function retireGroups(profile)
 			local b = g.border
 			if type(b) == "table" and b.follow ~= true and type(g.members) == "table" then
 				for _, key in ipairs(g.members) do
-					if type(key) == "string" and ns.ELEMENTS[key] then
+					if type(key) == "string" and ns.Elements.ALL[key] then
 						if type(opts[key]) ~= "table" then opts[key] = {} end
 						if opts[key].border == nil then
 							opts[key].border = CopyTable(b)
@@ -229,7 +229,7 @@ function P.migrate(profile)
 	retireStyles(profile)
 end
 
-local function acct() return ns.getAccount() end
+local function acct() return P.getAccount() end
 
 -- Characters
 -- GetNormalizedRealmName isn't ready at load: built from GetRealmName. nil until the game knows
@@ -287,7 +287,7 @@ function P.load()
 	local a = _G[SAVED] or {}
 	_G[SAVED] = a
 	if type(a.profiles) ~= "table" then wipe(a) end
-	ns.fillDefaults(a, ACCOUNT_DEFAULTS)
+	P.fillDefaults(a, ACCOUNT_DEFAULTS)
 	if type(a.foldedBlocks) ~= "table" then a.foldedBlocks = {} end
 	for key in pairs(a.foldedBlocks) do
 		if type(key) == "string" and key:find(RETIRED.folds) then a.foldedBlocks[key] = nil end
@@ -314,11 +314,11 @@ function P.new(name, source)
 	local err = checkNewName(name)
 	if err then return err end
 	acct().profiles[name] = source and CopyTable(source) or {}
-	ns.useProfile(name)
+	P.use(name)
 end
 
 function P.rename(name)
-	local old = ns.profileName()
+	local old = P.currentName()
 	if old == DEFAULT_PROFILE then return end
 	name = strtrim(name or "")
 	local err = checkNewName(name)
@@ -326,22 +326,22 @@ function P.rename(name)
 	local a = acct()
 	a.profiles[name], a.profiles[old] = a.profiles[old], nil
 	for _, c in pairs(a.chars) do if c.profile == old then c.profile = name end end
-	ns.selectProfile(name)
+	P.select(name)
 	ns.changed()
 end
 
 function P.delete()
-	local name = ns.profileName()
+	local name = P.currentName()
 	if name == DEFAULT_PROFILE then return end
 	local a = acct()
 	a.profiles[name] = nil
 	for _, c in pairs(a.chars) do if c.profile == name then c.profile = nil end end
-	ns.useProfile(DEFAULT_PROFILE)
+	P.use(DEFAULT_PROFILE)
 end
 
 function P.reset()
-	wipe(ns.getDB())
-	ns.useProfile(ns.profileName())
+	wipe(P.getDB())
+	P.use(P.currentName())
 end
 
 -- Sharing
@@ -352,7 +352,7 @@ function P.export()
 	if not E then return nil, "sharing needs a newer game client" end
 	local ok, text = pcall(function()
 		local method = Enum.CompressionMethod and Enum.CompressionMethod.Deflate
-		local packed = E.CompressString(E.SerializeCBOR({ v = SHARE_VERSION, profile = ns.getDB() }), method)
+		local packed = E.CompressString(E.SerializeCBOR({ v = SHARE_VERSION, profile = P.getDB() }), method)
 		return SHARE_PREFIX .. E.EncodeBase64(packed)
 	end)
 	if not ok then return nil, "export failed: " .. tostring(text) end
@@ -437,7 +437,7 @@ function P.cleanSettings(profile)
 	local opts = profile.elementOpts
 	if type(opts) == "table" then
 		for key, o in pairs(opts) do
-			local e = ns.ELEMENTS[key]
+			local e = ns.Elements.ALL[key]
 			if type(key) ~= "string" or type(o) ~= "table" then opts[key] = nil
 			elseif e then cleanOwner(o, e) end
 		end
@@ -450,7 +450,7 @@ function P.cleanSettings(profile)
 end
 
 local function cleanProfile(t)
-	local DEFAULTS, GROUP_DEFAULTS = ns.DEFAULTS, ns.GROUP_DEFAULTS
+	local DEFAULTS, GROUP_DEFAULTS = P.DEFAULTS, ns.Groups.DEFAULTS
 	P.migrate(t)   -- renamed and retired settings: drop after launch
 	local out = {}
 	for k, default in pairs(DEFAULTS) do

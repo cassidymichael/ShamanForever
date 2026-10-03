@@ -197,11 +197,11 @@ end
 
 local function holder(owner)
 	if type(owner) == "table" then return owner end
-	local db = ns.getDB()
+	local db = ns.Profiles.getDB()
 	if not db or owner == nil then return db end
 	local bar = ns.Bars.get(owner)
 	if bar then return bar.cfg() end
-	return ns.elementOpts(owner)
+	return ns.Elements.opts(owner)
 end
 
 local function at(h, path, create)
@@ -356,7 +356,7 @@ end
 function S.ownStyles(part)
 	local out = {}
 	if S.PARTS[part].groups then
-		local db = ns.getDB()
+		local db = ns.Profiles.getDB()
 		for _, g in ipairs(db and db.groups or {}) do
 			if #g.members > 0 and not S.follows(g, part) then table.insert(out, S.ownerName(g)) end
 		end

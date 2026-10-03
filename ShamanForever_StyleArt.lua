@@ -25,15 +25,15 @@ local THEME = ns.THEME
 local function schoolOf(f)
 	if f.over then f = f.over end
 	if f.school then return f.school end
-	local e = type(f.owner) == "string" and ns.ELEMENTS[f.owner]
+	local e = type(f.owner) == "string" and ns.Elements.ALL[f.owner]
 	return e and e.school or THEME.fallback
 end
 
 function SA.elementSchool(key, own)
-	local e = ns.ELEMENTS[key]
+	local e = ns.Elements.ALL[key]
 	if not e then return THEME.fallback end
-	if not own and ns.getDB and ns.getDB() then
-		local pick = ns.elementSetting(key, "popSchool")
+	if not own and ns.Profiles.getDB and ns.Profiles.getDB() then
+		local pick = ns.Elements.setting(key, "popSchool")
 		if THEME.color[pick] then return pick end
 	end
 	return e.ownSchool and e.ownSchool() or e.school or THEME.fallback
@@ -416,8 +416,8 @@ function SA.outerEdge(f) return f and f.frameOuter or 0 end
 local PLAIN_MASK = { file = WHITE, wrap = "CLAMP" }
 local auraMade = setmetatable({}, { __mode = "k" })
 function SA.auraMask(host, tex, key)
-	local b = ns.borderFor(key)
-	local spec, art, size = maskFor(b), artFor(b), ns.sizeOf(key)
+	local b = ns.Elements.borderFor(key)
+	local spec, art, size = maskFor(b), artFor(b), ns.Elements.sizeOf(key)
 	local made = { key = key, spec = spec, look = spec and lookFor(b), art = art }
 	auraMade[tex] = made
 	if art then
@@ -436,7 +436,7 @@ function SA.auraStyle(slot, size)
 	local made = slot.icon and auraMade[slot.icon]
 	if not made then return end
 	local host = slot.host
-	local b = ns.borderFor(made.key)
+	local b = ns.Elements.borderFor(made.key)
 	local art, spec = artFor(b), maskFor(b)
 	if art ~= made.art then
 		if art and not made.artTex then made.artTex = host:CreateTexture(nil, "OVERLAY", nil, 7) end

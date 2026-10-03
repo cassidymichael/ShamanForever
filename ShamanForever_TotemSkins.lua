@@ -7,6 +7,7 @@
 -- Blizzard's aura button.
 
 local ADDON, ns = ...
+local P = ns.Profiles
 local TB = ns.TotemBar
 
 local TH = {}
@@ -33,7 +34,7 @@ local PLINTHS = {
 local PLUG = { 391, 1, 48, 48 }
 TH.PLINTHS = { { "slim", "Slim" }, { "normal", "Normal" }, { "grand", "Grand" } }
 local function plinthNow()
-	return PLINTHS[ns.getDB() and TB.cfg().stonePlinth] or PLINTHS.normal
+	return PLINTHS[P.getDB() and TB.cfg().stonePlinth] or PLINTHS.normal
 end
 local function shares(pl)
 	return (pl.slotX[2] - pl.slotX[1] - PL_SLOT) / PL_SLOT, pl.slotX[1] / PL_SLOT
@@ -89,7 +90,7 @@ add("stone", {
 
 local DEFAULT = TH.byKey.default
 function TH.current()
-	if not ns.getDB() then return DEFAULT end
+	if not P.getDB() then return DEFAULT end
 	return TH.byKey[TB.cfg().skin] or DEFAULT
 end
 
@@ -166,7 +167,7 @@ function TH.spacing(size)
 end
 
 function TH.barPlace()
-	if TH.owns("barPlace") or not ns.getDB() then return "in" end
+	if TH.owns("barPlace") or not P.getDB() then return "in" end
 	return TB.cfg().barPlace
 end
 

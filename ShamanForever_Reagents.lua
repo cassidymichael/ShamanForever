@@ -1,12 +1,13 @@
 -- Reagents
 
 local _, ns = ...
+local E = ns.Elements
 local isSecret, safe = ns.isSecret, ns.safe
 
 local R = {}
 ns.Reagents = R
 
-local setting = ns.elementSetting
+local setting = E.setting
 
 -- when: the count shows always | low | never; lowKeepsShown: running low isn't idle; ring and fade:
 -- the None left look
@@ -78,7 +79,7 @@ end
 
 local function num(key, field)
 	local v = setting(key, "reagent", field)
-	if type(v) ~= "number" or v ~= v then v = ns.elementDefault(key, "reagent", field) end
+	if type(v) ~= "number" or v ~= v then v = E.default(key, "reagent", field) end
 	return v
 end
 
@@ -94,7 +95,7 @@ function R.draw(f, key, n)
 		fs:SetJustifyH(COUNT_JUSTIFY[pos])
 		local field = low and "lowColor" or "color"
 		local c = setting(key, "reagent", field)
-		if not ns.isColor(c) then c = ns.elementDefault(key, "reagent", field) end
+		if not ns.isColor(c) then c = E.default(key, "reagent", field) end
 		local shown = string.format("%d%.3f%.3f%.3f%.3f", n, c[1], c[2], c[3], c[4] or 1)
 		if fs.shown ~= shown then
 			fs.shown = shown

@@ -239,9 +239,9 @@ local function finishOne(e)
 	def.ranges = e.ranges
 	for _, p in ipairs(list) do
 		local d = value(p.defaults, def)
-		if d then ns.fillParts(e.defaults, d) end
+		if d then ns.Profiles.fillParts(e.defaults, d) end
 		local r = value(p.ranges, def)
-		if r then ns.fillParts(e.ranges, r) end
+		if r then ns.Profiles.fillParts(e.ranges, r) end
 	end
 	local glow, pop = false, false
 	for _, p in ipairs(list) do
@@ -253,8 +253,8 @@ local function finishOne(e)
 end
 -- Each element on its own: one that fails is noted and the rest go on
 function KD.finish()
-	for _, key in ipairs(ns.ELEMENT_KEYS) do
-		local e = ns.ELEMENTS[key]
+	for _, key in ipairs(ns.Elements.KEYS) do
+		local e = ns.Elements.ALL[key]
 		local parts = e.kind and KINDS[e.kind] and #listOf(e.kind, "parts") > 0
 		if parts and e.def and not e.def.finished then
 			ns.try("kinds: " .. key, finishOne, e)
@@ -342,7 +342,7 @@ end
 
 -- An element's preview, from its kind; none from parts that give no state
 function KD.previewOf(key)
-	local e = ns.ELEMENTS[key]
+	local e = ns.Elements.ALL[key]
 	local k = e and e.kind and KINDS[e.kind]
 	if not k then return nil end
 	if k.preview then return k.preview(e.def, key) end

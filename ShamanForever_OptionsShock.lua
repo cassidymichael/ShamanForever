@@ -1,5 +1,6 @@
 -- Shocks options page
 local _, ns = ...
+local E = ns.Elements
 
 local Page, K = ns.Page, ns.Options.kit
 local showWhen, pct = Page.showWhen, Page.pct
@@ -10,7 +11,7 @@ local eslider, respell = K.eslider, K.respell
 -- A shock state's look uses overlay or tint
 local function lookUses(state, part)
 	return function()
-		local v = ns.elementSetting("shock", state, "look")
+		local v = E.setting("shock", state, "look")
 		return v == part or v == "both"
 	end
 end

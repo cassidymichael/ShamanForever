@@ -1,6 +1,7 @@
 -- Page kit: scrolling pages of rows grouped into foldable blocks
 
 local _, ns = ...
+local E, G, Bars, P = ns.Elements, ns.Groups, ns.Bars, ns.Profiles
 
 local Page = {}
 Page.__index = Page
@@ -16,7 +17,7 @@ local TEXT_MAX_W = 600
 local PANEL_PAD, PANEL_PAD_B, BLOCK_GAP = 10, 6, 10
 -- Fold state is saved per page and header text; an untouched block starts folded unless it is
 -- the page's first, under an open section, or its page or header says open.
-local function folded() return ns.getAccount().foldedBlocks end
+local function folded() return P.getAccount().foldedBlocks end
 local function isFolded(b)
 	local v = folded()[b.key]
 	if v == nil then return b.startFolded end
@@ -538,30 +539,30 @@ local function askReset(name, run) StaticPopup_Show(ns.POPUP .. "RESET_SETTINGS"
 Page.refKind("elem", {
 	id = function(r) return r.elem .. "." .. r.name .. (r.field and "." .. r.field or "") end,
 	holder = function(r)
-		local o = ns.elementOpts(r.elem)
+		local o = E.opts(r.elem)
 		if not r.field then return o end
 		return type(o[r.name]) == "table" and o[r.name] or nil
 	end,
 	slot = function(r) return r.field or r.name end,
-	default = function(r) return ns.elementDefault(r.elem, r.name, r.field) end,
+	default = function(r) return E.default(r.elem, r.name, r.field) end,
 	unset = true,
 })
 Page.refKind("general", {
 	id = function(r) return r.general end,
-	holder = function() return ns.getDB() end,
+	holder = function() return P.getDB() end,
 	slot = function(r) return r.general end,
-	default = function(r) return ns.DEFAULTS[r.general] end,
+	default = function(r) return P.DEFAULTS[r.general] end,
 })
 Page.refKind("bar", {
 	id = function(r) return r.bar .. "." .. r.name .. (r.field and "." .. r.field or "") end,
 	holder = function(r)
-		local c = ns.Bars.get(r.bar).cfg()
+		local c = Bars.get(r.bar).cfg()
 		if not r.field then return c end
 		return type(c[r.name]) == "table" and c[r.name] or nil
 	end,
 	slot = function(r) return r.field or r.name end,
 	default = function(r)
-		local d = ns.Bars.get(r.bar).defaults[r.name]
+		local d = Bars.get(r.bar).defaults[r.name]
 		if not r.field then return d end
 		if type(d) ~= "table" then return nil end
 		return d[r.field]
@@ -579,7 +580,7 @@ Page.refKind("group", {
 				return shipped[r.name]
 			end
 		end
-		return ns.GROUP_DEFAULTS[r.name]
+		return G.DEFAULTS[r.name]
 	end,
 })
 

@@ -677,7 +677,7 @@ function Host:bind(button, icon)
 	local ok = ns.try("aura pop " .. self.key, function()
 		self.rig = newRig(body, icon, level)
 		self.rig.guard = true
-		self:stylePop(ns.sizeOf(self.key))
+		self:stylePop(ns.Elements.sizeOf(self.key))
 	end)
 	if not ok or not button.AddAuraAssignedAnimation then return body end
 	for _, g in ipairs(self.rig:groups()) do

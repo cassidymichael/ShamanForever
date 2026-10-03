@@ -1,5 +1,6 @@
 -- Maelstrom Weapon options page
 local _, ns = ...
+local E = ns.Elements
 
 local Page, K = ns.Page, ns.Options.kit
 local showWhen, int, px = Page.showWhen, Page.int, Page.px
@@ -28,7 +29,7 @@ local function buildMaelstrom(p, def)
 		numberOn)
 	local markColorGet, markColorSet = eopt(p, key, "count", "markColor")
 	p:color("Five colour", nil, markColorGet, markColorSet, showWhen(function()
-		return ns.elementSetting(key, "count", "number") and ns.elementSetting(key, "count", "mark")
+		return E.setting(key, "count", "number") and E.setting(key, "count", "mark")
 	end))
 	timerSettings(p, "Time left", key, "uptime")
 	activeBlock(p, key, { title = "Five stacks",

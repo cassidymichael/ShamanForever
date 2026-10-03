@@ -6,6 +6,9 @@
 local ADDON, ns = ...
 local say, isSecret = ns.say, ns.isSecret
 local Spells = ns.Spells
+local E, G, MOD = {}, {}, {}
+ns.Elements, ns.Groups, ns.Modules = E, G, MOD
+local P = ns.Profiles
 
 -- Groups have an id (stable while the group exists) and a unique name. An ungrouped element isn't
 -- drawn; its settings are kept.
@@ -71,7 +74,7 @@ local ELEMENTS = {}
 local function iconSize(size) return size, size end
 local NO_EFFECTS = { glow = false, pop = false }
 local BASE_RANGES = { idleAlpha = { 0, 1, 0.05 } }
-function ns.registerElement(key, e)
+function E.register(key, e)
 	e.getSize = e.getSize or iconSize
 	e.effects = e.effects or NO_EFFECTS
 	e.ranges = e.ranges or {}
@@ -86,7 +89,7 @@ function ns.registerElement(key, e)
 end
 
 -- Bars: a frame with settings of its own that isn't an element, in the order they register
--- (ns.Bars.get, list). A module and its options file each give their half; a later value wins.
+-- (Bars.get, list). A module and its options file each give their half; a later value wins.
 -- Module (its half comes first): label; noun (how a sentence names it; "the " .. its lower-case
 -- label by default); the style side (ns.Style): cfg(), saved (required: the profile key holding its
 -- table), defaults, ranges (its numbers' { min, max, step }, shaped as defaults), choices (as an
@@ -115,7 +118,7 @@ function Bars.nouns(test, lead)
 	end
 	return out
 end
-function ns.registerBar(key, spec)
+function Bars.register(key, spec)
 	local bar = BARS[key]
 	if not bar then
 		-- Without the module's half its file failed to load: there is no bar
@@ -137,7 +140,7 @@ end
 -- flashes stay full when it idles) and takes its group's opacity instead (layoutGroup). f.stack()
 -- restates frame levels, bottom up: icon, its art frame (ns.Frames.LEVEL.over), effects and glow,
 -- swipe, cooldown timer bar, text, time left; layoutGroup calls it after regrouping.
-function ns.newElementIcon(key, opts)
+function E.newIcon(key, opts)
 	local f = ns.makeIcon(root, DEFAULTS.iconSize, key)
 	f.count:Hide()
 	if opts and opts.effects then
@@ -173,14 +176,14 @@ end
 --   debug()                its part of /sf debug
 --   onPreview(on)          /sf preview started or ended
 local MODULES = {}
-function ns.registerModule(m) table.insert(MODULES, m) end
+function MOD.register(m) table.insert(MODULES, m) end
 -- One module's error is reported but doesn't stop the modules after it
 local function each(hook, ...)
 	for _, m in ipairs(MODULES) do
 		if m[hook] then securecallfunction(m[hook], ...) end
 	end
 end
-ns.eachModule = each
+MOD.each = each
 
 -- Groups
 -- Whether the character knows the element's spell. The HUD leaves unlearned ones out, except while
@@ -189,7 +192,7 @@ local function isLearned(key)
 	local e = ELEMENTS[key]
 	return e == nil or not e.learned or e.learned() and true or false
 end
-function ns.notLearnedText(key)
+function E.notLearnedText(key)
 	local e = ELEMENTS[key]
 	if e and Spells.otherRace(e.race) then return "Not your race" end
 	return "Not learned"
@@ -275,7 +278,7 @@ end
 local function sizeOf(key)
 	local e = ELEMENTS[key]
 	local box = boxOf(key)
-	return box - 2 * ns.StyleArt.inset(e.borderHost or e.frame, ns.borderFor(key), box, e.shape)
+	return box - 2 * ns.StyleArt.inset(e.borderHost or e.frame, E.borderFor(key), box, e.shape)
 end
 
 local function isEnabled(key) return groupOf(key) ~= nil and showMode(key) ~= "never" and onHUD(key) end
@@ -401,7 +404,7 @@ end
 -- Makes db.groups consistent: fills fields, ids and names, drops unknown and duplicate members,
 -- places elements never seen before
 local function sanitize()
-	ns.Profiles.cleanSettings(db)
+	P.cleanSettings(db)
 	each("sanitize", db, acct)
 	if type(db.groups) ~= "table" then db.groups = {} end
 	if type(db.known) ~= "table" then db.known = {} end
@@ -548,7 +551,7 @@ local function layoutGroup(g)
 		else
 			local w, h = e.getSize(groupSize(g))
 			w, h = ns.roundPx(w, px), ns.roundPx(h, px)
-			local inset = ns.StyleArt.fit(f, ns.borderFor(key), w, h, e)
+			local inset = ns.StyleArt.fit(f, E.borderFor(key), w, h, e)
 			-- An element over Blizzard's button frames the button's border instead
 			local own = e.borderHost or not f.aboveProtected
 			ns.Frames.mountOwn(e.borderHost or f, key, own and w == h and w or nil)
@@ -650,7 +653,7 @@ local function applyLayout()
 end
 
 -- Every lock and unlock goes through here: in combat unlocking is refused, locking takes the combat path
-function ns.setLocked(locked)
+function G.setLocked(locked)
 	if not isActive then say("positioning is for %s only", ns.CLASS.plural) return false end
 	if InCombatLockdown() then
 		if not locked then say("positioning can't be unlocked in combat") return false end
@@ -778,14 +781,14 @@ end
 local function selectProfile(name)
 	if type(acct.profiles[name]) ~= "table" then acct.profiles[name] = {} end
 	profileName, db = name, acct.profiles[name]
-	ns.Profiles.migrate(db)   -- renamed and retired settings: drop after launch
+	P.migrate(db)   -- renamed and retired settings: drop after launch
 	fillDefaults(db, DEFAULTS)
 	for _, key in ipairs(BAR_ORDER) do
 		local saved = BARS[key].saved
 		if type(db[saved]) ~= "table" then db[saved] = {} end
 	end
 	sanitize()
-	ns.Profiles.remember(name)
+	P.remember(name)
 end
 
 local function redraw()
@@ -798,27 +801,25 @@ local function useProfile(name)
 	redraw()
 end
 
--- Shared with the other files
-ns.getDB = function() return db end
-ns.getAccount = function() return acct end
-ns.profileName = function() return profileName end
-ns.useProfile, ns.selectProfile, ns.fillDefaults, ns.fillParts = useProfile, selectProfile, fillDefaults, fillParts
-ns.DEFAULTS, ns.GROUP_DEFAULTS = DEFAULTS, GROUP_DEFAULTS
-ns.ELEMENTS, ns.ELEMENT_KEYS = ELEMENTS, ELEMENT_KEYS
-ns.isActive = function() return isActive end
-ns.isEnabled, ns.showMode = isEnabled, showMode
-ns.isLearned = isLearned
-ns.elementOpts, ns.elementSetting, ns.elementDefault, ns.idleAlpha = elementOpts, elementSetting, elementDefault, idleAlpha
-ns.setElementSetting, ns.elementEvent, ns.elementRange = setElementSetting, elementEvent, elementRange
-ns.groupOf, ns.groupById = groupOf, groupById
-ns.groupFrames, ns.groupSize, ns.sizeOf, ns.boxOf = groupFrames, groupSize, sizeOf, boxOf
-ns.setGroupCenter, ns.screenCenter = setGroupCenter, screenCenter
-ns.layoutElements, ns.applyLayout, ns.applyTimers = layoutElements, applyLayout, applyTimers
-ns.placeElement, ns.addGroup, ns.renameGroup, ns.deleteGroup = placeElement, addGroup, renameGroup, deleteGroup
-ns.hideGroup, ns.centerGroup = hideGroup, centerGroup
-ns.setShow = setShow
-ns.resolveSpells, ns.refreshAll, ns.refreshCooldownsSoon = resolveSpells, refreshAll, refreshCooldownsSoon
-function ns.borderFor(key)
+-- Shared with the other files; the live profile is kept here, so main gives P its accessors
+function P.getDB() return db end
+function P.getAccount() return acct end
+function P.currentName() return profileName end
+P.use, P.select, P.fillDefaults, P.fillParts = useProfile, selectProfile, fillDefaults, fillParts
+P.DEFAULTS, G.DEFAULTS = DEFAULTS, GROUP_DEFAULTS
+E.ALL, E.KEYS = ELEMENTS, ELEMENT_KEYS
+function E.isActive() return isActive end
+E.isEnabled, E.showMode, E.isLearned, E.setShow = isEnabled, showMode, isLearned, setShow
+E.opts, E.setting, E.default, E.idleAlpha = elementOpts, elementSetting, elementDefault, idleAlpha
+E.setSetting, E.event, E.range = setElementSetting, elementEvent, elementRange
+E.sizeOf, E.boxOf = sizeOf, boxOf
+E.applyTimers, E.resolveSpells, E.refreshAll, E.refreshCooldownsSoon = applyTimers, resolveSpells, refreshAll,
+	refreshCooldownsSoon
+G.of, G.byId, G.frames, G.size = groupOf, groupById, groupFrames, groupSize
+G.setCenter, G.screenCenter = setGroupCenter, screenCenter
+G.layoutElements, G.applyLayout, G.placeElement = layoutElements, applyLayout, placeElement
+G.add, G.rename, G.delete, G.hide, G.center = addGroup, renameGroup, deleteGroup, hideGroup, centerGroup
+function E.borderFor(key)
 	return ns.Style.get(key, "border")
 end
 
@@ -834,11 +835,11 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 	if event == "ADDON_LOADED" then
 		if arg1 ~= ADDON then return end
 		ns.try("kinds", ns.Kinds.finish)
-		acct = ns.Profiles.load()
-		selectProfile(ns.Profiles.saved())
+		acct = P.load()
+		selectProfile(P.saved())
 		ns.Options.build()
 	elseif event == "PLAYER_LOGIN" then
-		local want = ns.Profiles.saved()
+		local want = P.saved()
 		if want ~= profileName then selectProfile(want) end
 		ns.IssueReporter.apply()
 		if not ns.isClass() then root:Hide(); return end
@@ -882,7 +883,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 end)
 
 -- /sf debug
-function ns.debugReport()
+function E.debugReport()
 	say("in combat %s", tostring(InCombatLockdown()))
 	local known, otherRace = {}, {}
 	for _, e in pairs(ELEMENTS) do
@@ -899,7 +900,7 @@ function ns.debugReport()
 	each("debug")
 	say("profile %s", tostring(profileName))
 	local function listed(key)
-		local mode = isLearned(key) and showMode(key) or ns.notLearnedText(key):lower()
+		local mode = isLearned(key) and showMode(key) or E.notLearnedText(key):lower()
 		return mode == "always" and key or (key .. " (" .. mode .. ")")
 	end
 	for _, g in ipairs(db.groups) do

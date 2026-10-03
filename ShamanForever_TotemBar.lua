@@ -11,6 +11,7 @@
 -- casts (ns.Totems), by spell ID.
 
 local _, ns = ...
+local E, MOD, Bars, P = ns.Elements, ns.Modules, ns.Bars, ns.Profiles
 
 local TB = { name = "totem bar" }
 ns.TotemBar = TB
@@ -122,11 +123,11 @@ end
 -- What the profile's cleaning can't declare, once per saved table
 local cfgTable
 local function cfg()
-	local t = ns.getDB().totemBar
+	local t = P.getDB().totemBar
 	if t ~= cfgTable then
 		if type(t.expire) ~= "table" then t.expire = {} end
 		if type(t.expire.over) ~= "table" then t.expire.over = TB.overDefaults() end
-		ns.fillParts(t, TB.DEFAULTS)
+		P.fillParts(t, TB.DEFAULTS)
 		if not ns.POINTS[t.point] then t.point, t.x, t.y = TB.DEFAULTS.point, TB.DEFAULTS.x, TB.DEFAULTS.y end
 		local seen, order = {}, {}
 		for _, el in ipairs(t.order) do
@@ -160,13 +161,13 @@ end })
 function TB.eff() return effective end
 
 local function look()
-	local c, db = cfg(), ns.getDB()
-	local border = TB.skin.border() or ns.borderFor("totembar")
+	local c, db = cfg(), P.getDB()
+	local border = TB.skin.border() or E.borderFor("totembar")
 	return (not c.sizeFollow and c.size) or db.iconSize, border, TB.skin.extrasBorder() or border
 end
 function TB.setSizeFollow(follow)
 	local c = cfg()
-	if not follow and not c.size then c.size = ns.getDB().iconSize end
+	if not follow and not c.size then c.size = P.getDB().iconSize end
 	c.sizeFollow = follow
 end
 
@@ -939,7 +940,7 @@ end)
 -- hiding it would re-lay out PlayerFrame and PetFrame from addon code. Blizzard's layout sets its
 -- alpha back to 1 when it shows its frames, so a hidden TotemFrame hides again whenever alpha is set.
 local function totemFrameOurs()
-	if not ns.getDB() or not TotemFrame then return false end
+	if not P.getDB() or not TotemFrame then return false end
 	local roots = { PlayerFrame or false, _G.PlayerBottomManagedFrameContainer or false }
 	local p = TotemFrame:GetParent()
 	while p do
@@ -1097,13 +1098,13 @@ local function ownDriver()
 	local c = cfg()
 	if preview then return barOn() and (hasTotems or preview.all) and "show" or "hide" end
 	if not barOn() or not hasTotems then return "hide" end
-	if kbOpen or not ns.getAccount().locked then return "show" end
+	if kbOpen or not P.getAccount().locked then return "show" end
 	if c.show == "active" then return "[combat] show; " .. (anyDown and "show" or "hide") end
-	return ns.Bars.SHOW_WHEN[c.show] or "show"
+	return Bars.SHOW_WHEN[c.show] or "show"
 end
 local afterCombat
 local function visibilityDriver()
-	if ns.AfterCombat.held(afterCombat) and barOn() and ns.getAccount().locked and not kbOpen
+	if ns.AfterCombat.held(afterCombat) and barOn() and P.getAccount().locked and not kbOpen
 		and cfg().show ~= "always" then
 		return "show"
 	end
@@ -1247,7 +1248,7 @@ TB.afterGroups = layout
 
 afterCombat = ns.AfterCombat.new({
 	secs = function()
-		if not ns.getDB() or not barOn() or kbOpen or not ns.getAccount().locked then return 0 end
+		if not P.getDB() or not barOn() or kbOpen or not P.getAccount().locked then return 0 end
 		local c = cfg()
 		return c.show ~= "always" and c.fadeAfter or 0
 	end,
@@ -1740,7 +1741,7 @@ function TB.debug()
 		mc and (mc:GetParent() == hiddenParent and "hidden" or (mc:GetParent() and mc:GetParent():GetName() or "?")) or "none")
 end
 
-ns.registerBar("totembar", { label = "Totem bar", cfg = cfg, saved = "totemBar", defaults = TB.DEFAULTS,
+Bars.register("totembar", { label = "Totem bar", cfg = cfg, saved = "totemBar", defaults = TB.DEFAULTS,
 	ranges = TB.RANGES, choices = CHOICES, on = barOn,
 	parts = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
 	-- Its theme can draw its own border
@@ -1749,4 +1750,4 @@ ns.registerBar("totembar", { label = "Totem bar", cfg = cfg, saved = "totemBar",
 	end,
 	movable = movable,
 	hud = { show = showPreview, slots = ELEMENTS, steps = previewSteps, step = previewSlot } })
-ns.registerModule(TB)
+MOD.register(TB)

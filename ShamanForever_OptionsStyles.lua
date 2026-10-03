@@ -1,5 +1,6 @@
 -- Styles explorer: border styles, frames, glows and pops on sample icons, never the player's settings
 local _, ns = ...
+local E = ns.Elements
 
 local SP = {}
 ns.StylesPage = SP
@@ -46,8 +47,8 @@ local PART_NAMES = { border = "border style", glow = "pulsing glow", pop = "pop"
 local USE = { frame = "Use as Global frame", groupframe = "Use as Global group frame" }
 local AFTER = {
 	border = K.relayout, frame = K.relayout, groupframe = K.relayout,
-	glow = function() ns.Effects.applyStyle(); ns.applyTimers(); ns.Options.refresh() end,
-	pop = function() ns.applyTimers(); ns.Options.refresh() end,
+	glow = function() ns.Effects.applyStyle(); E.applyTimers(); ns.Options.refresh() end,
+	pop = function() E.applyTimers(); ns.Options.refresh() end,
 }
 K.confirm(ns.POPUP .. "USE_STYLE", "Use %s for the global %s?", "Use", function(run) run() end)
 

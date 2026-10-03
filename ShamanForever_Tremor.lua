@@ -3,6 +3,7 @@
 -- Earth slot unknown after a login or /reload in combat: nothing warns until it can be read.
 
 local _, ns = ...
+local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
 local Spells, TO = ns.Spells, ns.Totems
 
@@ -18,7 +19,7 @@ TR.WORD = "Tremor!"
 local TREMOR_TYPES = { FEAR = true, FEAR_MECHANIC = true, CHARM = true, POSSESS = true, SLEEP = true }
 local tremorSpells = {}
 
-local function setting(name, field) return ns.elementSetting(KEY, name, field) end
+local function setting(name, field) return E.setting(KEY, name, field) end
 local plain = ns.plain
 
 local WORD_POINTS = { below = { "TOP", "BOTTOM", -4 }, above = { "BOTTOM", "TOP", 4 }, center = { "CENTER", "CENTER", 0 } }
@@ -53,7 +54,7 @@ for _, c in ipairs(def.idleChoices) do table.insert(def.choices.idleWhen, c[1]) 
 def.spell = Spells.name(def.spellKey)
 def.icon = Spells.icon(def.spellKey) or def.icon
 
-local f = ns.newElementIcon(KEY, { effects = true })
+local f = E.newIcon(KEY, { effects = true })
 f.tex:SetTexture(def.icon)
 f.upTimer = ns.Timer.new(f, KEY, "uptime", { cd = f.cd, school = def.school })
 f.word = f.textFrame:CreateFontString(nil, "OVERLAY")
@@ -63,7 +64,7 @@ f.word:Hide()
 f.stack()
 def.frame = f
 
-ns.registerElement(KEY, { frame = f, label = def.spell, defaults = def.defaults, ranges = def.ranges,
+E.register(KEY, { frame = f, label = def.spell, defaults = def.defaults, ranges = def.ranges,
 	choices = def.choices,
 	learned = function() return def.spellID ~= nil end,
 	paint = function(t) t:SetTexture(def.iconID or def.icon) end,
@@ -77,7 +78,7 @@ ns.registerElement(KEY, { frame = f, label = def.spell, defaults = def.defaults,
 local listIDs, listNames = {}, {}
 local rows = {}
 local counts = { mobs = 0, added = 0, removed = 0 }
-local function edits() return ns.getAccount().fearCasters end
+local function edits() return ns.Profiles.getAccount().fearCasters end
 
 local zoneNames = {}
 local function zoneName(areaID)
@@ -270,7 +271,7 @@ local function setAlert(on)
 end
 
 local function refresh()
-	if not ns.isEnabled(KEY) then
+	if not E.isEnabled(KEY) then
 		if alerting then setAlert(false) end
 		return
 	end
@@ -292,8 +293,8 @@ local function refresh()
 		why = targetListed and "target" or next(plates) and "nameplate" or feared and "on you" or "just after"
 	end
 	setAlert(want)
-	local busy = want or not ns.getAccount().locked or (out and setting("idleWhen") == "notdown")
-	ns.fadeTo(f, busy and 1 or ns.idleAlpha(KEY))
+	local busy = want or not ns.Profiles.getAccount().locked or (out and setting("idleWhen") == "notdown")
+	ns.fadeTo(f, busy and 1 or E.idleAlpha(KEY))
 end
 TR.refresh = refresh
 
@@ -390,7 +391,7 @@ end
 
 function TR.resolve()
 	def.spell = Spells.name(def.spellKey)
-	ns.ELEMENTS[KEY].label = def.spell
+	E.ALL[KEY].label = def.spell
 	def.spellID, def.iconID = Spells.known(def.spellKey)
 	return tostring(def.spellID)
 end
@@ -512,4 +513,4 @@ local PREVIEW = {
 }
 ns.registerKind("tremor", { preview = function() return PREVIEW end })
 
-ns.registerModule(TR)
+MOD.register(TR)

@@ -1,5 +1,6 @@
 -- Shields options page
 local _, ns = ...
+local E = ns.Elements
 
 local Page, K = ns.Page, ns.Options.kit
 local int, px = Page.int, Page.px
@@ -21,7 +22,7 @@ local function buildShield(p, def)
 	-- Lightning, the default, reads a Water Shield that is up as no shield.
 	p:callout(("You know %s: choose Either to count it."):format(ns.Spells.name("waterShield")),
 		function()
-			return ns.elementSetting(key, "track") == "lightning" and ns.Shield.knows("water")
+			return E.setting(key, "track") == "lightning" and ns.Shield.knows("water")
 		end)
 	p:header("Charges")
 	local bar = p:checkbox("Charge bar", "One segment per charge.", eopt(p, key, "count", "bar"))

@@ -644,8 +644,8 @@ end
 
 -- Its border and frame together, on one of those frames (bare: the border only)
 function FR.dress(edge, key, level, bare)
-	ns.StyleArt.applyBorder(edge, ns.borderFor(key))
-	return FR.mountOwn(edge, key, not bare and ns.boxOf(key) or nil, level)
+	ns.StyleArt.applyBorder(edge, ns.Elements.borderFor(key))
+	return FR.mountOwn(edge, key, not bare and ns.Elements.boxOf(key) or nil, level)
 end
 
 -- Hides an element's own frames while a stand-in draws it (out of combat)

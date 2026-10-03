@@ -10,6 +10,7 @@
 -- Totems without a buff get no mark. Another shaman's same buff makes yours read out of range.
 
 local _, ns = ...
+local MOD, P = ns.Modules, ns.Profiles
 local TB = ns.TotemBar
 local RG = {}
 TB.range = RG
@@ -49,7 +50,7 @@ for el, list in pairs(BUFF_TOTEMS) do
 	ns.Spells.addCheck(el .. " totems and buffs", all)
 end
 
-local function enabled() return ns.getDB() ~= nil and TB.cfg().range end
+local function enabled() return P.getDB() ~= nil and TB.cfg().range end
 
 local function isBuffTotem(el, id)
 	if type(id) ~= "number" or isSecret(id) then return false end
@@ -208,7 +209,7 @@ local function sanitize(_, acct)
 		else saved[el] = nil end
 	end
 end
-ns.registerModule({ name = "totem range", sanitize = sanitize })
+MOD.register({ name = "totem range", sanitize = sanitize })
 
 -- Ranks not listed: a buff whose name is the client's name for a listed buff is another rank of it.
 -- Kept for the account: one read out of combat serves later sessions.
@@ -232,7 +233,7 @@ local function learn()
 		local id = a.spellId
 		if el and not isSecret(id) and type(id) == "number" and not buffIDs[el][id] then
 			buffIDs[el][id] = true
-			local saved = ns.getAccount().rangeBuffIDs
+			local saved = P.getAccount().rangeBuffIDs
 			saved[el] = saved[el] or {}
 			saved[el][id] = true
 			applyFilter(TB.slots[el])

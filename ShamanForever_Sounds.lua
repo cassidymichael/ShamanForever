@@ -1,6 +1,7 @@
 -- Sounds
 
 local _, ns = ...
+local E, P = ns.Elements, ns.Profiles
 
 local SN = {}
 ns.Sounds = SN
@@ -56,7 +57,7 @@ local function resolve(value)
 end
 
 function SN.channel()
-	local c = ns.getAccount().soundChannel
+	local c = P.getAccount().soundChannel
 	return CHANNEL_OK[c] and c or "Master"
 end
 
@@ -70,7 +71,7 @@ local lastByAlert, lastBySound = {}, {}
 
 -- zoning: an end a loading screen can cause waits until after it
 function SN.play(value, alert, gap, zoning)
-	if not resolve(value) or not ns.isActive() then return end
+	if not resolve(value) or not E.isActive() then return end
 	if (zoning and ns.zoning()) or ns.cantAct() then return end
 	local now = GetTime()
 	alert = alert or value
@@ -83,7 +84,7 @@ end
 
 -- An element's sound for a state or event (its sound field)
 function SN.element(key, event, zoning)
-	if ns.isEnabled(key) then SN.play(ns.elementSetting(key, event, "sound"), key .. ":" .. event, nil, zoning) end
+	if E.isEnabled(key) then SN.play(E.setting(key, event, "sound"), key .. ":" .. event, nil, zoning) end
 end
 
 function SN.test(value) emit(value) end
@@ -140,7 +141,7 @@ end
 
 -- The engine's aura sounds are set again on the new channel
 function SN.setChannel(channel)
-	ns.getAccount().soundChannel = channel
+	P.getAccount().soundChannel = channel
 	for owner in pairs(auraSounds) do applyAura(owner) end
 end
 

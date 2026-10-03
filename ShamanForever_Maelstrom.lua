@@ -7,6 +7,7 @@
 -- handler or reads back.
 
 local _, ns = ...
+local E, G, MOD = ns.Elements, ns.Groups, ns.Modules
 local say, isSecret, safe = ns.say, ns.isSecret, ns.safe
 local Spells, Count = ns.Spells, ns.Count
 
@@ -46,7 +47,7 @@ local DEF = { key = KEY, idleChoices = {
 		"Below five stacks: shown in full only at five." },
 } }
 
-local function setting(name, field) return ns.elementSetting(KEY, name, field) end
+local function setting(name, field) return E.setting(KEY, name, field) end
 local function count(field) return setting("count", field) end
 local function color(field)
 	local c = count(field)
@@ -71,12 +72,12 @@ local BUFF = {
 local src = BUFF
 
 MW.icon = buffIcon() or 237584
-local f = ns.newElementIcon(KEY, { effects = true })
+local f = E.newIcon(KEY, { effects = true })
 f.tex:SetTexture(MW.icon)
 f.aboveProtected = true   -- Blizzard's buttons sit on it: alpha only changes out of combat
 f.stack()
 
-ns.registerElement(KEY, { frame = f, label = Spells.name("maelstromWeapon"), defaults = MW.DEFAULTS, ranges = MW.RANGES,
+E.register(KEY, { frame = f, label = Spells.name("maelstromWeapon"), defaults = MW.DEFAULTS, ranges = MW.RANGES,
 	choices = CHOICES,
 	learned = function() return src.learned() end, paint = function(t) t:SetTexture(MW.icon) end,
 	effects = { glow = true, pop = true },
@@ -144,7 +145,7 @@ local function buildStacks(slot, button, into)
 	slot.numFrame = numFrame
 	Count.text(slot, button, numFrame, function(fs) placeCount(fs, button) end, "maelstrom count")
 	Count.bar(slot, overlay, button)
-	ns.try("maelstrom stacks build", styleStacks, slot, ns.sizeOf(KEY))
+	ns.try("maelstrom stacks build", styleStacks, slot, E.sizeOf(KEY))
 end
 
 -- The stacks' button hangs from this gate (Idle opacity); out of combat only
@@ -198,7 +199,7 @@ local function buildPop(slot, button)
 		table.insert(slot.holds, g)
 		ns.try("maelstrom pop hand-off", button.AddAuraAssignedAnimation, button, g)
 	end
-	ns.try("maelstrom pop build", stylePop, slot, ns.sizeOf(KEY))
+	ns.try("maelstrom pop build", stylePop, slot, E.sizeOf(KEY))
 end
 
 local function unseenHost(_, button)
@@ -255,7 +256,7 @@ local QUIET = 2
 local quietToken
 local function restylePop()
 	if pop.button and ns.aurasReadable() then
-		ns.try("maelstrom pop quiet", stylePop, pop, ns.sizeOf(KEY))
+		ns.try("maelstrom pop quiet", stylePop, pop, E.sizeOf(KEY))
 	end
 	pop:style()
 end
@@ -323,7 +324,7 @@ local function fiveHost(slot, button)
 	clip:SetClipsChildren(true)
 	clip:SetFrameLevel(baseLevel() + HOST_LEVEL)
 	slot.clip = clip
-	placeFive(slot, button, ns.sizeOf(KEY))
+	placeFive(slot, button, E.sizeOf(KEY))
 	slot.sensed = ns.try("maelstrom five sensor", button.SetApplicationBar, button, bar,
 		{ minApplications = 0, maxApplications = src.max, interpolation = IMMEDIATE })
 	local host = CreateFrame("Frame", nil, clip)
@@ -358,7 +359,7 @@ local function buildFive(slot, button)
 	slot.glow = g
 	slot.copy, slot.levelUp = true, COPY_UP
 	buildStacks(slot, button, slot.host)
-	slot.built = ns.try("maelstrom five build", styleFive, slot, ns.sizeOf(KEY))
+	slot.built = ns.try("maelstrom five build", styleFive, slot, E.sizeOf(KEY))
 	C_Timer.After(0, function() applyIdle() end)
 end
 
@@ -380,7 +381,7 @@ local five = ns.makeAuraSlot(f, {
 local readyLast = false
 local function copyReady()
 	local ok = five.built and five.sensed and five.applied ~= nil and five.applied == stacks.applied
-	local ready = ok and five.size == ns.sizeOf(KEY)
+	local ready = ok and five.size == E.sizeOf(KEY)
 	if ok and not ready and five.styleSoon then ready = readyLast end
 	readyLast = ready and true or false
 	return readyLast
@@ -389,9 +390,9 @@ end
 function applyIdle()
 	-- Refused in combat and while auras are secret: run again when readable
 	if ns.deferWhileAurasSecret("maelstrom idle", applyIdle) then return end
-	local on = idleWhen() == "five" and src.learned() and ns.isEnabled(KEY) and ns.getAccount().locked
+	local on = idleWhen() == "five" and src.learned() and E.isEnabled(KEY) and ns.Profiles.getAccount().locked
 		and copyReady()
-	gate:SetAlpha(on and ns.idleAlpha(KEY) or 1)
+	gate:SetAlpha(on and E.idleAlpha(KEY) or 1)
 	if five.host then five.host:SetAlpha(on and 1 or 0) end
 end
 
@@ -400,7 +401,7 @@ local SLOTS = { stacks, gateSlot, pop, five }
 -- The icon under Blizzard's buttons: the look while the buff isn't up
 local function refresh()
 	applyIdle()
-	if not ns.isEnabled(KEY) then return end
+	if not E.isEnabled(KEY) then return end
 	f.tex:SetTexture(MW.icon)
 	if not src.learned() then
 		f.tex:SetDesaturated(true)
@@ -409,7 +410,7 @@ local function refresh()
 	end
 	f.tex:SetDesaturated(false)
 	-- The buttons say when it's up, on the effects layer, which ignores this icon's alpha
-	ns.fadeTo(f, (ns.getAccount().locked and idleWhen() ~= "never") and ns.idleAlpha(KEY) or 1)
+	ns.fadeTo(f, (ns.Profiles.getAccount().locked and idleWhen() ~= "never") and E.idleAlpha(KEY) or 1)
 end
 
 local function styleAll() for _, s in ipairs(SLOTS) do s:style() end end
@@ -418,8 +419,8 @@ function MW.follow(s)
 	src = s or BUFF
 	quietPop()
 	for _, slot in ipairs(SLOTS) do slot:refilter() end
-	ns.applyLayout()
-	ns.refreshAll()
+	G.applyLayout()
+	E.refreshAll()
 end
 -- The preview (ns.registerKind): the same parts, drawn by us for n stacks
 local function drawPreview(ic, n, P)
@@ -456,7 +457,7 @@ local PREVIEW = {
 ns.registerKind("maelstrom", { preview = function() return PREVIEW end })
 
 function MW.resolve()
-	ns.ELEMENTS[KEY].label = Spells.name("maelstromWeapon")
+	E.ALL[KEY].label = Spells.name("maelstromWeapon")
 	DEF.spellID = Spells.known("maelstromWeapon")
 	return tostring(DEF.spellID)
 end
@@ -476,10 +477,10 @@ MW.applyTimers = styleAll
 -- every player UNIT_AURA
 local popWasOn = false
 function MW.applyLayout()
-	local popOn = src.learned() and ns.isEnabled(KEY) and setting("active", "pop") and true or false
+	local popOn = src.learned() and E.isEnabled(KEY) and setting("active", "pop") and true or false
 	if popOn and not popWasOn and pop.container then quietPop() end
 	popWasOn = popOn
-	if src.learned() and ns.isEnabled(KEY) then
+	if src.learned() and E.isEnabled(KEY) then
 		stacks:setup()
 		if setting("active", "pop") then
 			gateSlot:setup()
@@ -511,4 +512,4 @@ function MW.debug()
 		idleWhen(), tostring(copyReady()))
 end
 
-ns.registerModule(MW)
+MOD.register(MW)

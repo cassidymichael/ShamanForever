@@ -1,5 +1,6 @@
 -- Options window
 local ADDON, ns = ...
+local E, G, Bars, P = ns.Elements, ns.Groups, ns.Bars, ns.Profiles
 
 local OP = {}
 ns.Options = OP
@@ -17,8 +18,8 @@ OP.ART = ART
 local win
 local pages, pageOrder, stubs, currentPage = {}, {}, {}, nil
 
-local function db() return ns.getDB() end
-local function acct() return ns.getAccount() end
+local function db() return P.getDB() end
+local function acct() return P.getAccount() end
 -- Settings write at once; what follows (layout or restyle, repaint) runs once a frame.
 local function perFrame(fn)
 	local queued = false
@@ -31,12 +32,12 @@ local function perFrame(fn)
 		end)
 	end
 end
-local relayout = perFrame(function() ns.applyLayout(); OP.refresh() end)
-local retime = perFrame(function() ns.applyTimers(); OP.refresh() end)
+local relayout = perFrame(function() G.applyLayout(); OP.refresh() end)
+local retime = perFrame(function() E.applyTimers(); OP.refresh() end)
 -- ns.Effects.applyStyle restyles only the listed glows; one under the aura button goes through
 -- its module's applyTimers.
-local reglow = perFrame(function() ns.Effects.applyStyle(); ns.applyTimers(); OP.refresh() end)
-local function respell() ns.resolveSpells(); ns.applyLayout(); ns.refreshAll(); OP.refresh() end
+local reglow = perFrame(function() ns.Effects.applyStyle(); E.applyTimers(); OP.refresh() end)
+local function respell() E.resolveSpells(); G.applyLayout(); E.refreshAll(); OP.refresh() end
 
 local K = {}
 OP.kit = K
@@ -91,7 +92,7 @@ end
 
 -- Pages
 local function lockText() return acct().locked and "Unlock positioning" or "Lock positioning" end
-local function toggleLock() ns.setLocked(not acct().locked); OP.refresh() end
+local function toggleLock() G.setLocked(not acct().locked); OP.refresh() end
 local function lockSub()
 	return acct().locked and "Move the HUD on screen" or "Done moving? Lock them"
 end
@@ -143,17 +144,17 @@ local function buildGlobal(p)
 	p:text("These apply to all components within the addon, which can be overridden within each component's settings.")
 	p:header("Icon size")
 	p:anchor("size")
-	local sized = ns.Bars.nouns(function(bar) return bar.ownSize ~= nil end, "group")
+	local sized = Bars.nouns(function(bar) return bar.ownSize ~= nil end, "group")
 	for i, noun in ipairs(sized) do sized[i] = noun .. "'s" end
 	local tip = "Every " .. ns.OptionsArt.wordList(sized) .. ", unless it has its own."
-	K.rangeSlider(p, ns.Profiles.RANGES.iconSize, "Icon size", tip, int, gopt(p, "iconSize"))
+	K.rangeSlider(p, P.RANGES.iconSize, "Icon size", tip, int, gopt(p, "iconSize"))
 	local function ownSizes()
 		local out = {}
 		for _, g in ipairs(db().groups) do
 			if #g.members > 0 and not g.sizeFollow then table.insert(out, g.name) end
 		end
-		for _, key in ipairs(ns.Bars.list()) do
-			local bar = ns.Bars.get(key)
+		for _, key in ipairs(Bars.list()) do
+			local bar = Bars.get(key)
 			if bar.ownSize and bar.on() and bar.ownSize() then table.insert(out, bar.label) end
 		end
 		return out
@@ -191,24 +192,24 @@ local function askName(prompt, initial, action)
 end
 
 local function buildProfiles(p)
-	local function notDefault() return ns.profileName() ~= ns.DEFAULT_PROFILE end
+	local function notDefault() return P.currentName() ~= P.DEFAULT_NAME end
 	p:header("Profile")
 	p:text("Each character uses one profile. New characters start on Default.")
 	p:dropdown("This character", nil, function()
 		local t = {}
-		for _, name in ipairs(ns.Profiles.names()) do table.insert(t, { name, name }) end
+		for _, name in ipairs(P.names()) do table.insert(t, { name, name }) end
 		return t
-	end, ns.profileName, ns.useProfile)
+	end, P.currentName, P.use)
 	p:buttons({
-		{ "New", function() askName("Name for the new profile:", nil, function(n) return ns.Profiles.new(n) end) end,
+		{ "New", function() askName("Name for the new profile:", nil, function(n) return P.new(n) end) end,
 			"A new profile with default settings.", 90 },
-		{ "Copy", function() askName("Name for the copy:", ns.profileName() .. " copy", function(n) return ns.Profiles.new(n, ns.getDB()) end) end,
+		{ "Copy", function() askName("Name for the copy:", P.currentName() .. " copy", function(n) return P.new(n, P.getDB()) end) end,
 			"A new profile with this one's settings.", 90 },
-		{ "Rename", function() askName("New name:", ns.profileName(), ns.Profiles.rename) end,
+		{ "Rename", function() askName("New name:", P.currentName(), P.rename) end,
 			"Default can't be renamed.", 90, notDefault },
-		{ "Delete", function() StaticPopup_Show(ns.POPUP .. "DELETE_PROFILE", ns.profileName()) end,
+		{ "Delete", function() StaticPopup_Show(ns.POPUP .. "DELETE_PROFILE", P.currentName()) end,
 			"Characters using it go back to Default. Default can't be deleted.", 90, notDefault },
-		{ "Reset", function() StaticPopup_Show(ns.POPUP .. "RESET", ns.profileName()) end,
+		{ "Reset", function() StaticPopup_Show(ns.POPUP .. "RESET", P.currentName()) end,
 			"Every setting in this profile back to defaults, including the layout.", 90 },
 	})
 
@@ -266,13 +267,13 @@ local function buildAbout(p)
 	aboutExp = flashingHeader(p, "Experimental", "Interface\\Icons\\INV_Gizmo_02")
 	p:text("These features aren't fully tested and may not work properly. Please use the feedback options above"
 		.. " to help me out and improve the addon.")
-	for _, key in ipairs(ns.ELEMENT_KEYS) do
-		local e = ns.ELEMENTS[key]
+	for _, key in ipairs(E.KEYS) do
+		local e = E.ALL[key]
 		if e.experimental then p:experimental(e.experimental, "Elements > " .. e.label) end
 	end
 	p:experimental("Art frames", "Frame and Group frame styles")
-	for _, key in ipairs(ns.Bars.list()) do
-		local bar = ns.Bars.get(key)
+	for _, key in ipairs(Bars.list()) do
+		local bar = Bars.get(key)
 		for _, x in ipairs(bar.experiments or {}) do
 			p:experimental(x[1], bar.label .. " > " .. x[2])
 		end
@@ -323,10 +324,10 @@ local function refreshNav()
 		local on = b.page == currentPage
 		b.sel:SetShown(on)
 		b.accent:SetShown(on)
-		if on or not b.sub or ns.isLearned(b.page) then
+		if on or not b.sub or E.isLearned(b.page) then
 			b.label:SetTextColor(on and 1 or (b.sub and 0.9 or 1), on and 0.84 or (b.sub and 0.88 or 0.82), on and 0.5 or (b.sub and 0.84 or 0))
 		else b.label:SetTextColor(0.55, 0.53, 0.5) end
-		b.icon:SetDesaturated(b.sub and not ns.isLearned(b.page) or false)
+		b.icon:SetDesaturated(b.sub and not E.isLearned(b.page) or false)
 	end
 	if navDivider then navDivider.refresh() end
 	if navLock then navLock.refresh() end
@@ -402,7 +403,7 @@ local function buildNav()
 	navLock = CreateFrame("Button", nil, win, "UIPanelButtonTemplate")
 	navLock:SetSize(NAV_W - 32, 22)
 	navLock:SetPoint("BOTTOMLEFT", 16, 12)
-	navLock:SetScript("OnClick", function() ns.setLocked(not acct().locked) end)
+	navLock:SetScript("OnClick", function() G.setLocked(not acct().locked) end)
 	setTip(navLock, "Positioning", "Unlocked, drag " .. ns.OptionsArt.movingWords("groups")
 		.. " on screen. " .. ns.CLASS.slash[1] .. " lock does the same.")
 	function navLock.refresh() navLock:SetText(acct().locked and "Unlock positioning" or "Lock positioning") end
@@ -424,7 +425,7 @@ local function buildNav()
 	list:SetScrollChild(child)
 	local byKey, n = {}, 0
 	for _, p in ipairs(pageOrder) do
-		local e = ns.ELEMENTS[p.key]
+		local e = E.ALL[p.key]
 		if e and e.kind then
 			local b = add(p.key, ns.OptionsArt.elementName(p.key), e.icon, true, child)
 			b:SetWidth(NAV_W - 42)
@@ -531,8 +532,8 @@ end
 
 local function addStyleUsers()
 	local S = ns.Style
-	for _, owner in ipairs(ns.Bars.list()) do
-		for _, part in ipairs(ns.Bars.get(owner).parts) do S.addUser(part, owner) end
+	for _, owner in ipairs(Bars.list()) do
+		for _, part in ipairs(Bars.get(owner).parts) do S.addUser(part, owner) end
 	end
 	for _, key in ipairs(ns.ElementPages.ordered()) do
 		if ns.ElementPages.pageOf(key) then
@@ -663,10 +664,10 @@ local function buildWindow()
 end
 
 confirm(ns.POPUP .. "RESET", "Reset profile %s to defaults?\nIts layout and every setting are lost.", "Reset",
-	function() ns.Profiles.reset(); ns.say("profile reset to defaults") end)
+	function() P.reset(); ns.say("profile reset to defaults") end)
 confirm(ns.POPUP .. "RESET_SETTINGS", "Reset %s to defaults?", "Reset", function(run) run() end)
 confirm(ns.POPUP .. "DELETE_PROFILE", "Delete profile %s?\nCharacters using it go back to Default.", "Delete",
-	function() ns.Profiles.delete() end)
+	function() P.delete() end)
 
 -- editBox is dialog.EditBox on newer clients.
 local function popupEditBox(dialog)
@@ -759,14 +760,14 @@ local function buildShare()
 	end)
 	f.primary:SetScript("OnClick", function()
 		if f.mode == "export" then f:Hide(); return end
-		local settings, err = ns.Profiles.decode(e:GetText())
+		local settings, err = P.decode(e:GetText())
 		if not settings then
 			f.note:SetText(err:gsub("^%l", string.upper) .. ".")
 			f.note:SetTextColor(1, 0.38, 0.38)
 			return
 		end
 		f:Hide()
-		askName("Name for the imported profile:", "Imported", function(n) return ns.Profiles.new(n, settings) end)
+		askName("Name for the imported profile:", "Imported", function(n) return P.new(n, settings) end)
 	end)
 	return f
 end
@@ -777,10 +778,10 @@ function OP.showShare(mode)
 	local e = share.edit
 	share.note:SetTextColor(0.78, 0.74, 0.68)
 	if mode == "export" then
-		local text, err = ns.Profiles.export()
+		local text, err = P.export()
 		if not text then ns.say(err); return end
 		share.exported = text
-		share.title:SetText("Export " .. ns.profileName())
+		share.title:SetText("Export " .. P.currentName())
 		share.note:SetText("Ctrl+C to copy.")
 		share.primary:SetText(CLOSE)
 		share.primary:SetEnabled(true)
@@ -815,7 +816,7 @@ end
 ns.onChanged(OP.refresh)
 
 function OP.open(page, groupId)
-	if not ns.getDB() then return end
+	if not P.getDB() then return end
 	if not win then buildWindow() end
 	-- In combat HideUIPanel is blocked; Settings stays open under the window.
 	if SettingsPanel and SettingsPanel:IsShown() and not InCombatLockdown() then HideUIPanel(SettingsPanel) end

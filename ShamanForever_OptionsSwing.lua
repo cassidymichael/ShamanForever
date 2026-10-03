@@ -1,6 +1,7 @@
 -- Swing timer options page
 
 local _, ns = ...
+local E, Bars = ns.Elements, ns.Bars
 
 local Page = ns.Page
 local showWhen, times, pct, int, px = Page.showWhen, Page.times, Page.pct, Page.int, Page.px
@@ -95,12 +96,12 @@ local function build(p)
 	p:checkbox("Empty as it goes", "Starts full and empties, instead of filling.", get("deplete"), set("deplete"))
 	local colors = {}
 	for _, key in ipairs(SW.COLOR_BY) do
-		local e = ns.ELEMENTS[key]
+		local e = E.ALL[key]
 		table.insert(colors, { key, e and e.barColor.label or "Custom" })
 	end
 	p:dropdown("Colour", nil, colors, get("colorBy"), set("colorBy"), nil, 160)
 	p:text(function()
-		local e = ns.ELEMENTS[c().colorBy]
+		local e = E.ALL[c().colorBy]
 		return e and e.barColor.text or ""
 	end, showWhen(function() return not custom() end))
 	p:color("Custom colour", nil, get("color"), set("color"), showWhen(custom))
@@ -121,7 +122,7 @@ local function build(p)
 	end
 end
 
-ns.registerBar("swing", { icon = ns.Swing.ICON, school = ns.THEME.fallback,
+Bars.register("swing", { icon = ns.Swing.ICON, school = ns.THEME.fallback,
 	blurb = "Time to your next melee swing.",
 	tags = function() return SHOW_NAME[ns.Swing.cfg().show] or "" end,
 	preview = PREVIEW, page = { order = 60, build = build } })

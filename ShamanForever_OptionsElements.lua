@@ -1,5 +1,6 @@
 -- Element pages
 local _, ns = ...
+local E, G = ns.Elements, ns.Groups
 
 local EP = {}
 ns.ElementPages = EP
@@ -11,9 +12,9 @@ local elementDisplay, idleBlock, styleBlocks = K.elementDisplay, K.idleBlock, K.
 -- Learned first, then not learned, then other races' racials; each by name.
 local function byName()
 	local keys, band, lower = {}, {}, {}
-	for i, key in ipairs(ns.ELEMENT_KEYS) do
+	for i, key in ipairs(E.KEYS) do
 		keys[i] = key
-		band[key] = ns.isLearned(key) and 0 or ns.Spells.otherRace(ns.ELEMENTS[key].race) and 2 or 1
+		band[key] = E.isLearned(key) and 0 or ns.Spells.otherRace(E.ALL[key].race) and 2 or 1
 		lower[key] = ns.OptionsArt.elementName(key):lower()
 	end
 	table.sort(keys, function(a, b)
@@ -126,7 +127,7 @@ function EP.buildOverview(p)
 	end
 	local rowKeys = byName()
 	for _, key in ipairs(rowKeys) do
-		local e = ns.ELEMENTS[key]
+		local e = E.ALL[key]
 		local f = p:row(34)
 		local icon = f:CreateTexture(nil, "ARTWORK")
 		icon:SetSize(22, 22)
@@ -138,12 +139,12 @@ function EP.buildOverview(p)
 		name:SetWordWrap(false)
 		local unknown = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 		unknown:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -1)
-		unknown:SetText(ns.notLearnedText(key))
+		unknown:SetText(E.notLearnedText(key))
 		local group = menuCell(f, 120, K.groupMenu(key, function() ns.Options.refresh() end))
 		local show = menuCell(f, 86, function(_, root)
 			for _, c in ipairs(SHOW_CHOICES) do
-				root:CreateRadio(c[2], function() return ns.showMode(key) == c[1] end, function()
-					ns.setShow(key, c[1])
+				root:CreateRadio(c[2], function() return E.showMode(key) == c[1] end, function()
+					E.setShow(key, c[1])
 					ns.Options.refresh()
 				end)
 			end
@@ -169,7 +170,7 @@ function EP.buildOverview(p)
 		groupOpen.text:SetText("Open group >")
 		groupOpen.text:SetTextColor(0.6, 0.6, 0.6)
 		groupOpen:SetScript("OnClick", function()
-			local g = ns.groupOf(key)
+			local g = G.of(key)
 			if g then ns.Options.openGroup(g.id) end
 		end)
 		groupOpen:SetScript("OnEnter", function(self)
@@ -207,7 +208,7 @@ function EP.buildOverview(p)
 		local cells = { { group, "group" }, { show, "show" }, { groupOpen, "link" }, { styles, "styles" } }
 		p:add(f, 34, nil, function()
 			e.paint(icon)
-			local learned = ns.isLearned(key)
+			local learned = E.isLearned(key)
 			local pos = place(p:width())
 			name:SetWidth(pos.name.w - 36)
 			name:SetText(e.label)
@@ -215,9 +216,9 @@ function EP.buildOverview(p)
 			name:SetPoint("LEFT", 32, learned and 0 or 6)
 			unknown:SetShown(not learned)
 			icon:SetDesaturated(not learned)
-			local g = ns.groupOf(key)
+			local g = G.of(key)
 			group.text:SetText(g and g.name or "Ungrouped")
-			local mode = ns.showMode(key)
+			local mode = E.showMode(key)
 			for _, c in ipairs(SHOW_CHOICES) do if c[1] == mode then show.text:SetText(c[2]) end end
 			for _, cell in ipairs(cells) do
 				cell[1]:ClearAllPoints()
@@ -247,7 +248,7 @@ end
 -- then the style blocks
 local function partsPage(p, def)
 	local key = def.key
-	local kind = ns.ELEMENTS[key].kind
+	local kind = E.ALL[key].kind
 	elementDisplay(p, key)
 	idleBlock(p, def)
 	for _, slot in ipairs(ns.Kinds.slots(kind)) do
@@ -259,7 +260,7 @@ end
 
 -- An element's page builder: its kind's own, else the parts page for a kind made of parts
 local function builder(key)
-	local e = ns.ELEMENTS[key]
+	local e = E.ALL[key]
 	local k = e and e.kind and ns.Kinds.get(e.kind)
 	return k and (k.page or (#ns.Kinds.parts(e.kind) > 0 and partsPage)) or nil
 end
@@ -267,7 +268,7 @@ end
 local pageObjects = {}
 function EP.register(newPage)
 	for _, key in ipairs(byName()) do
-		local e, build = ns.ELEMENTS[key], builder(key)
+		local e, build = E.ALL[key], builder(key)
 		if build then
 			newPage(key, e.label, true, function(p)
 				pageObjects[key] = p
