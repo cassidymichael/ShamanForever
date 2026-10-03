@@ -268,6 +268,21 @@ function W.makeGCDSweep(parent)
 	return cd
 end
 
+-- Attachments: an element names two sides of its icon, above and below; the direction its group was
+-- last laid out in maps them (a change in combat waits for the icons), a column's to right and left
+local ACROSS = { above = { row = "above", column = "right" }, below = { row = "below", column = "left" } }
+function W.laidInColumn(key)
+	local g = ns.Profiles.getDB() and ns.Groups.of(key)
+	local laid = g and ns.Groups.frames[g.id]
+	laid = laid and laid.frameLayout
+	if laid then return laid.vertical and true or false end
+	return g ~= nil and g.orientation == "vertical"
+end
+-- above, below, right or left of key's icon, for its side "above" or "below"
+function W.attachSide(key, side)
+	return ACROSS[side == "below" and "below" or "above"][W.laidInColumn(key) and "column" or "row"]
+end
+
 -- Aura slot: Blizzard's aura container on an element icon, the one way to show an aura in combat.
 -- Calls it refuses in combat or while auras are secret wait (ns.deferWhileAurasSecret).
 -- Scripts under its button never run: it only plays animations handed to it.

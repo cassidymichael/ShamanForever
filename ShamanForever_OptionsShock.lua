@@ -1,6 +1,6 @@
 -- Shocks options page
 local _, ns = ...
-local E, G = ns.Elements, ns.Groups
+local E, W = ns.Elements, ns.Widgets
 
 local Page, K = ns.Page, ns.Options.kit
 local showWhen, pct = Page.showWhen, Page.pct
@@ -17,10 +17,10 @@ local function lookUses(state, part)
 end
 
 -- The marks' sides as the Shocks' group lays them out
+local SIDE_LABEL = { above = "Above", below = "Below", right = "Right", left = "Left" }
 local function sideChoices()
-	local g = G.of("shock")
-	if g and g.orientation == "vertical" then return { { "above", "Right" }, { "below", "Left" } } end
-	return { { "above", "Above" }, { "below", "Below" } }
+	return { { "above", SIDE_LABEL[W.attachSide("shock", "above")] },
+		{ "below", SIDE_LABEL[W.attachSide("shock", "below")] } }
 end
 
 local function buildShock(p, def)

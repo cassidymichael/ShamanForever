@@ -50,18 +50,12 @@ function T.canPlaceOut(key)
 	return key ~= nil and not IN_ICON[key] and not ns.Bars.get(key) and ns.Elements.ALL[key] ~= nil
 end
 
--- Out of the icon, a column turns a row's above and below to right and left
-local ACROSS = { top = { row = "above", column = "right" }, bottom = { row = "below", column = "left" } }
--- Where key's time bar in style s sits: top or bottom (in the icon), or above, below, left or right
+-- Where key's time bar in style s sits: top or bottom (in the icon), or out of it on the side its
+-- edge names (W.attachSide)
 function T.barSide(key, s)
 	local edge = s.barEdge == "top" and "top" or "bottom"
 	if s.barPlace ~= "out" or not T.canPlaceOut(key) then return edge end
-	-- The direction it was last laid out in: a change in combat waits for the icons
-	local g = ns.Profiles.getDB() and ns.Groups.of(key)
-	local laid = g and ns.Groups.frames[g.id]
-	laid = laid and laid.frameLayout
-	local column = laid and laid.vertical or (not laid and g and g.orientation == "vertical")
-	return ACROSS[edge][column and "column" or "row"]
+	return W.attachSide(key, edge == "top" and "above" or "below")
 end
 
 local WHITE = ns.WHITE

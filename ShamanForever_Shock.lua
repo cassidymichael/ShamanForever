@@ -154,11 +154,6 @@ for _, m in ipairs(MARKS) do
 	m.wanted = function() return markOn(m) and marksWanted() end
 end
 
-local function flowsInRow()
-	local g = G.of("shock")
-	return not g or g.orientation ~= "vertical"
-end
-
 -- Size and gap in whole pixels, for an icon w wide with o of border round it
 local function markGeometry(w, o, px)
 	local size = own("marks", "size")
@@ -169,22 +164,19 @@ local function markGeometry(w, o, px)
 	return math.max(W.roundPx(box * size, px), px), math.max(W.roundPx(box * MARK_GAP, px), px)
 end
 
--- Side "above" is above the icon in a row and right of it in a column; "below" is below or left.
--- Frost Shock comes first along the flow.
-local function anchorMark(f, i, to, row, side, gap, o)
-	local first, out = i == 1, o + gap
+-- f on side where of to (above, below, right, left), out from its edge; Frost Shock first along the
+-- flow, each lined up with the box (o of border outside to)
+local MARK_POINTS = {
+	above = { { "BOTTOMLEFT", "TOPLEFT", -1, 1 }, { "BOTTOMRIGHT", "TOPRIGHT", 1, 1 } },
+	below = { { "TOPLEFT", "BOTTOMLEFT", -1, -1 }, { "TOPRIGHT", "BOTTOMRIGHT", 1, -1 } },
+	right = { { "TOPLEFT", "TOPRIGHT", 1, 1 }, { "BOTTOMLEFT", "BOTTOMRIGHT", 1, -1 } },
+	left = { { "TOPRIGHT", "TOPLEFT", -1, 1 }, { "BOTTOMRIGHT", "BOTTOMLEFT", -1, -1 } },
+}
+local function anchorMark(f, i, to, where, out, o)
+	local pt = MARK_POINTS[where][i]
+	local across = where == "above" or where == "below"
 	f:ClearAllPoints()
-	if row then
-		local up = side ~= "below"
-		local h = first and "LEFT" or "RIGHT"
-		f:SetPoint((up and "BOTTOM" or "TOP") .. h, to, (up and "TOP" or "BOTTOM") .. h, first and -o or o,
-			up and out or -out)
-	else
-		local right = side ~= "below"
-		local v = first and "TOP" or "BOTTOM"
-		f:SetPoint(v .. (right and "LEFT" or "RIGHT"), to, v .. (right and "RIGHT" or "LEFT"),
-			right and out or -out, first and o or -o)
-	end
+	f:SetPoint(pt[1], to, pt[2], across and pt[3] * o or pt[3] * out, across and pt[4] * out or pt[4] * o)
 end
 
 -- A mark's picture on f: the icon in a one-pixel dark edge, with a swipe over the time gone
@@ -297,14 +289,14 @@ function placeMarks()
 	local px = W.pixel(marksHost)
 	local o = math.max(W.roundPx((E.boxOf("shock") - w) / 2, px), 0)
 	local size, gap = markGeometry(w, o, px)
-	local row, side = flowsInRow(), own("marks", "side")
+	local where, out = W.attachSide("shock", own("marks", "side")), o + gap
 	for i, m in ipairs(MARKS) do
 		local c = m.container
 		if c and not m.err then
 			local placed = ns.try("shock mark place " .. m.key, function()
 				c:SetFrameStrata(marksHost:GetFrameStrata())
 				c:SetFrameLevel(marksHost:GetFrameLevel() + 2)
-				anchorMark(c, i, marksHost, row, side, gap, o)
+				anchorMark(c, i, marksHost, where, out, o)
 				c:SetSize(size, size)
 				c:SetShown(markOn(m))
 				m.size = size
@@ -320,8 +312,7 @@ function placeMarks()
 	ns.Target.refollow()
 end
 
--- The preview's marks: on ic's parent, so they don't fade with it; on the HUD's stand-in they follow
--- the group, in the page's header they sit as in a row
+-- The preview's marks: on ic's parent, so they don't fade with it; placed as on the HUD
 local PREVIEW_MARK = { frost = { 8, 0.6 }, flame = { 12, 0.75 } }   -- length, share left
 local function previewMarks(ic)
 	local list = ic.shockMarks
@@ -338,7 +329,7 @@ local function previewMarks(ic)
 	local o = ic.marksOnHUD and (E.boxOf("shock") - w) / 2 or ns.StyleArt.inset(ic, E.borderFor("shock"), w)
 	o = math.max(W.roundPx(o, px), 0)
 	local size, gap = markGeometry(w, o, px)
-	local row, side = not ic.marksOnHUD or flowsInRow(), own("marks", "side")
+	local where, out = W.attachSide("shock", own("marks", "side")), o + gap
 	for i, m in ipairs(MARKS) do
 		local x, f = list[i], list[i].frame
 		-- On the HUD only what it can show, unless the preview shows what isn't learned
@@ -347,7 +338,7 @@ local function previewMarks(ic)
 		f:SetShown(on)
 		if on then
 			f:SetFrameLevel(ic:GetFrameLevel() + 6)
-			anchorMark(f, i, ic, row, side, gap, o)
+			anchorMark(f, i, ic, where, out, o)
 			fitMark(x, f, size)
 			x.tex:SetTexture(SHOCK_ICON[m.key])
 			local length, left = PREVIEW_MARK[m.key][1], PREVIEW_MARK[m.key][2]
