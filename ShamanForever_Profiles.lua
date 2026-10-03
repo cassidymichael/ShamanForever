@@ -323,8 +323,8 @@ end
 -- { min, max, step }: clamped; NaN falls back to the default. Elements' numbers clamp to their registered
 -- ranges.
 local RANGES = { iconSize = { 24, 96, 1 } }
-local GROUP_RANGES = { scale = { 0.5, 3, 0.05 }, alpha = { 0.1, 1, 0.05 }, spacing = { -20, 40, 1 }, size = { 24, 96, 1 },
-	x = { -10000, 10000, 1 }, y = { -10000, 10000, 1 }, fadeAfter = { 0, 10, 1 } }
+local GROUP_RANGES = { scale = { 0.5, 3, 0.05 }, alpha = { 0.1, 1, 0.05 }, spacing = { -20, 40, 1 },
+	size = { 24, 96, 1 }, x = { -10000, 10000, 1 }, y = { -10000, 10000, 1 }, fadeAfter = { 0, 10, 1 } }
 P.RANGES, P.GROUP_RANGES = RANGES, GROUP_RANGES
 local function clampNumbers(t, ranges, defaults)
 	for k, r in pairs(ranges) do
@@ -335,7 +335,7 @@ local function clampNumbers(t, ranges, defaults)
 	end
 end
 
--- An element's numbers, its states' and events' too, within its ranges; NaN is unset
+-- An element's or a bar's numbers, its states' and events' too, within its ranges; NaN is unset
 local function clampElement(o, ranges)
 	for k, r in pairs(ranges) do
 		local v = o[k]
@@ -347,16 +347,25 @@ local function clampElement(o, ranges)
 	end
 end
 
--- A saved value of another type than its default is dropped. A list or colour takes values of its
--- default's first one's type; a state or event table, its fields the same way; an empty default's
--- contents are left to its owner.
+local function finite(v) return v == v and v ~= math.huge and v ~= -math.huge end
+local function goodColor(v)
+	return ns.isColor(v) and finite(v[1]) and finite(v[2]) and finite(v[3]) and (v[4] == nil or finite(v[4]))
+end
+
+-- A saved value of another type than its default is dropped, as is a number that isn't finite or a
+-- colour that isn't one. A list takes values of its default's first one's type; a state or event
+-- table, its fields the same way; an empty default's contents are left to its owner.
 local function dropMistyped(t, defaults)
 	for k, d in pairs(defaults) do
 		local v = t[k]
 		if v ~= nil then
 			if type(v) ~= type(d) then t[k] = nil
+			elseif type(v) == "number" then
+				if not finite(v) then t[k] = nil end
 			elseif type(d) == "table" then
-				if d[1] ~= nil then
+				if ns.isColor(d) then
+					if not goodColor(v) then t[k] = nil end
+				elseif d[1] ~= nil then
 					local want = type(d[1])
 					for _, x in pairs(v) do
 						if type(x) ~= want then t[k] = nil break end
@@ -367,6 +376,23 @@ local function dropMistyped(t, defaults)
 	end
 end
 
+-- A saved value its owner's choices (shaped as its defaults) don't list is dropped
+local function dropUnchosen(t, choices)
+	for k, c in pairs(choices) do
+		local v = t[k]
+		if c[1] ~= nil then
+			if v ~= nil and not tContains(c, v) then t[k] = nil end
+		elseif type(v) == "table" then dropUnchosen(v, c) end
+	end
+end
+
+-- An element's or a bar's settings: types, choices, then ranges
+local function cleanOwner(t, owner)
+	dropMistyped(t, owner.defaults or {})
+	if owner.choices then dropUnchosen(t, owner.choices) end
+	if owner.ranges then clampElement(t, owner.ranges) end
+end
+
 -- Elements' settings and the bars' own, as a profile loads or is imported (share strings are
 -- untrusted)
 function P.cleanSettings(profile)
@@ -375,16 +401,13 @@ function P.cleanSettings(profile)
 		for key, o in pairs(opts) do
 			local e = ns.ELEMENTS[key]
 			if type(key) ~= "string" or type(o) ~= "table" then opts[key] = nil
-			elseif e then
-				dropMistyped(o, e.defaults or {})
-				clampElement(o, e.ranges)
-			end
+			elseif e then cleanOwner(o, e) end
 		end
 	end
 	for _, name in ipairs(ns.Bars.list()) do
 		local bar = ns.Bars.get(name)
 		local t = profile[bar.saved]
-		if type(t) == "table" then dropMistyped(t, bar.defaults) end
+		if type(t) == "table" then cleanOwner(t, bar) end
 	end
 end
 

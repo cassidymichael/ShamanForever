@@ -42,7 +42,9 @@ local def = { key = KEY, spellKey = "tremor", icon = 136108, school = "earth", d
 	defaults = { idleAlpha = 0, idleWhen = "nowarning", tremorTarget = true, tremorPlates = true, tremorFeared = false,
 		active = { pop = true, glow = true, text = true, sound = "none" },
 		wordSize = 16, wordColor = CopyTable(WORD_COLOR), wordPos = "below", wordX = 0, wordY = 0 },
-	ranges = { wordSize = { 8, 40, 1 }, wordX = { -100, 100, 1 }, wordY = { -100, 100, 1 } } }
+	ranges = { wordSize = { 8, 40, 1 }, wordX = { -100, 100, 1 }, wordY = { -100, 100, 1 } },
+	choices = { wordPos = {} } }
+for pos in pairs(WORD_POINTS) do table.insert(def.choices.wordPos, pos) end
 def.spell = Spells.name(def.spellKey)
 def.icon = Spells.icon(def.spellKey) or def.icon
 
@@ -57,6 +59,7 @@ f.stack()
 def.frame = f
 
 ns.registerElement(KEY, { frame = f, label = def.spell, defaults = def.defaults, ranges = def.ranges,
+	choices = def.choices,
 	learned = function() return def.spellID ~= nil end,
 	paint = function(t) t:SetTexture(def.iconID or def.icon) end,
 	effects = { glow = true, pop = true },
