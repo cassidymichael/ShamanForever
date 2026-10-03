@@ -106,7 +106,10 @@ function CS.paint(f, key, out, low, overlay)
 		host:SetFrameLevel(f:GetFrameLevel() + W.LEVELS.paintRing)
 		f.paintRing = W.makeRing(host, f.tex)
 		f.paintRing.host = host
+		-- The picture's shape, inside its border's frame
+		for _, e in ipairs(f.paintRing.edges) do ns.StyleArt.maskOver(f, e, f.tex) end
 	end
+	f.paintRing:inset(ns.StyleArt.pictureInset(f))
 	local c = STATES.power.color
 	if low then f.paintRing:color(c[1], c[2], c[3], S.value(key, "power", "ring")) end
 	f.paintRing:show(low)
@@ -166,6 +169,7 @@ local function styleCover(w)
 	w.up:setLevel(lv)
 	w.coverFrame:SetFrameLevel(lv + 1)
 	-- Placed now, so showing it in combat moves nothing
+	w.coverFrame.ring:inset(ns.StyleArt.pictureInset(w.frame))
 	w.coverFrame.ring:fit()
 	w.up:setup()
 	w.up:style()

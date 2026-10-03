@@ -219,19 +219,27 @@ function Ring:color(red, g, b, a)
 	local k = RING_COLOR
 	for _, t in ipairs(self.edges) do t:SetColorTexture(red or k[1], g or k[2], b or k[3], a or k[4]) end
 end
+-- d: in from the anchor's edge (a picture drawn smaller than its icon)
+function Ring:inset(d)
+	d = d or 0
+	if d == (self.d or 0) then return end
+	self.d, self.width = d, nil
+	if self.edges[1]:IsShown() then self:fit() end
+end
 function Ring:fit()
 	local w = W.linePx(self.anchor, RING_PX)
 	if w == self.width then return end
 	self.width = w
-	local a, top, bottom, left, right = self.anchor, self.edges[1], self.edges[2], self.edges[3], self.edges[4]
+	local a, d = self.anchor, self.d or 0
+	local top, bottom, left, right = self.edges[1], self.edges[2], self.edges[3], self.edges[4]
 	for _, t in ipairs(self.edges) do t:ClearAllPoints() end
-	top:SetPoint("TOPLEFT", a, "TOPLEFT", 0, 0); top:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, 0)
+	top:SetPoint("TOPLEFT", a, "TOPLEFT", d, -d); top:SetPoint("TOPRIGHT", a, "TOPRIGHT", -d, -d)
 	top:SetHeight(w)
-	bottom:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, 0); bottom:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, 0)
+	bottom:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", d, d); bottom:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", -d, d)
 	bottom:SetHeight(w)
-	left:SetPoint("TOPLEFT", a, "TOPLEFT", 0, -w); left:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, w)
+	left:SetPoint("TOPLEFT", a, "TOPLEFT", d, -d - w); left:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", d, d + w)
 	left:SetWidth(w)
-	right:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, -w); right:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, w)
+	right:SetPoint("TOPRIGHT", a, "TOPRIGHT", -d, -d - w); right:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", -d, d + w)
 	right:SetWidth(w)
 end
 function Ring:show(on)
