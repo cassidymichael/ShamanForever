@@ -70,6 +70,7 @@ TB.DEFAULTS = {
 	expire = { secs = 10, grey = false, ring = false, fade = true, glow = false, over = {} },
 	ended = { pop = true, sound = "none" },
 	killed = { flash = true, pop = true, glow = true, mark = true },
+	mana = { on = false },   -- a slot's pick it can't pay for, in Global's style for it
 	range = true,
 	rangeHeight = 5,
 	rangeIn = { 0.2, 0.8, 0.25, 0 },
@@ -525,6 +526,10 @@ for index, el in ipairs(ELEMENTS) do
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
 	W.cropIconExact(v.icon)
+	s.lowOver = v:CreateTexture(nil, "ARTWORK", nil, 2)
+	s.lowOver:SetAllPoints(v.icon)
+	s.lowOver:Hide()
+	s.lowRing = W.makeRing(v, v.icon)
 	s.timer = ns.Timer.new(v, "totembar", "uptime", { anchor = v, school = el })
 	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 1)
 	s.timer.bar:SetFrameLevel(b:GetFrameLevel() + TIME_BAR_LEVEL)
@@ -783,6 +788,26 @@ local function expireOpts(c, id)
 end
 TB.expireOpts = expireOpts
 function TB.pickSpell(el) return pickSpell(SLOT[el]) end
+
+-- No mana: the pick a click casts, in Global's style (the tint on the slot's own icon)
+function TB.paintLow(v, over, ring, low)
+	local st, k = ns.Style.global("power"), ns.CastStates.STATES.power.color
+	local m = 1 - st.tint
+	if low and (st.look == "tint" or st.look == "both") then v.icon:SetVertexColor(m, m, 1)
+	else v.icon:SetVertexColor(1, 1, 1) end
+	over:SetColorTexture(k[1], k[2], k[3], st.overlay)
+	over:SetShown(low and (st.look == "overlay" or st.look == "both"))
+	if low then ring:color(k[1], k[2], k[3], st.ring) end
+	ring:show(low)
+end
+for _, el in ipairs(ELEMENTS) do
+	local s = slots[el]
+	ns.CastStates.follow({ label = "totem bar " .. el, power = true,
+		spells = function() return pickSpell(s.slot) end,
+		isOn = function() return cfg().mana.on end,
+		enabled = function() return feat("cast") and true or false end,
+		draw = function(_, low) TB.paintLow(s.vis, s.lowOver, s.lowRing, low) end })
+end
 
 local anyDown = false
 local kbOpen = false

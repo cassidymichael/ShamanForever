@@ -17,12 +17,13 @@ PREVIEW = {
 	stage = true, heroH = 210, uptime = true,
 	states = { { "idle", "Totem not down" }, { "down", "Totems down" }, { "expiring", "Expiring" },
 		{ "killed", "Killed early" }, { "range", "Out of range" }, { "offpick", "Different totem down" },
-		{ "picking", "Picking" } },
+		{ "picking", "Picking" }, { "mana", ns.CLASS.power.name } },
 	stateShown = function(st)
 		local c = ns.TotemBar.cfg()
 		local mode = c.mode
 		if mode == "blizzard" then return false end
 		if st == "range" then return c.range end
+		if st == "mana" then return mode == "everything" and c.cast and c.mana.on end
 		return mode == "everything" or (st ~= "offpick" and st ~= "picking")
 	end,
 	fallback = "down",
@@ -58,6 +59,9 @@ PREVIEW = {
 			ic.bg = ic:CreateTexture(nil, "BACKGROUND")
 			ic.bg:SetAllPoints()
 			ic.killed = ns.Effects.endFlash(bar, ic, "totembar", ic)
+			ic.lowOver = ic:CreateTexture(nil, "ARTWORK", nil, 2)
+			ic.lowOver:SetAllPoints(ic.tex)
+			ic.lowRing = W.makeRing(ic.textFrame, ic.tex)
 			h.slots[i] = ic
 		end
 		h.extras = {}
@@ -199,6 +203,7 @@ PREVIEW = {
 						f:Show()
 					end
 				end
+				TB.paintLow(ic, ic.lowOver, ic.lowRing, st == "mana" and i == 1)
 				if st == "offpick" and i == 1 then
 					local other
 					for _, id in ipairs(TB.known(el)) do
@@ -531,6 +536,13 @@ local function build(p)
 		p:text("A buff lingers a few seconds after you leave its range. Another shaman's totem of the same type can "
 			.. "replace your buff, so yours shows as out of range.")
 	end)
+
+	p.gate = full
+	p:header(ns.CLASS.power.name)
+	p:owns({ bar = "totembar", name = "mana", field = "on", after = changed })
+	K.globalRow(p, ns.CLASS.power.on, "While you can't pay for a slot's pick. In Global's style.",
+		function() return c().mana.on end, function(v) c().mana.on = v; changed() end, "power")
+	p.gate = TB.barOn
 
 	-- Defaults use spell names that may not have loaded yet: TB.overChanged accepts either.
 	local function over() return c().expire.over end

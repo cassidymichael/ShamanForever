@@ -37,6 +37,13 @@ function CS.watchRow(def, cover)
 	return CS.watch(def.key, { power = def.power, range = def.range, frame = def.frame, cover = cover,
 		spells = function() return def.spellID, def.spellID end })
 end
+-- Something other than an element (a bar's slot): w = { spells(), isOn(state), enabled(), draw(out,
+-- low), unit, label (/sf debug) }, with power and range as for a watch
+function CS.follow(w)
+	w.unit = w.unit or "target"
+	table.insert(WATCHES, w)
+	return w
+end
 function CS.has(key, state) return HAS[key] ~= nil and HAS[key][state] or false end
 -- Drawn over Blizzard's aura button
 function CS.covered(key) return HAS[key] ~= nil and HAS[key].cover end
@@ -114,17 +121,27 @@ local function draw(w)
 	local now = (w.out and "r" or "") .. (w.low and "m" or "")
 	if now == w.drawn then return end
 	w.drawn = now
-	if w.cover then drawCover(w, w.out, w.low)
+	if w.draw then w.draw(w.out, w.low)
+	elseif w.cover then drawCover(w, w.out, w.low)
 	else CS.paint(w.frame, w.key, w.out, w.low) end
 end
 
+local function isOn(w, state)
+	if not w[state] then return false end
+	if w.isOn then return w.isOn(state) and true or false end
+	return CS.on(w.key, state)
+end
+local function enabled(w)
+	if w.enabled then return w.enabled() end
+	return E.isEnabled(w.key)
+end
 local function readPower(w)
-	local id = w.power and CS.on(w.key, "power") and E.isEnabled(w.key) and w.spells()
+	local id = isOn(w, "power") and enabled(w) and w.spells()
 	w.low = id and short(id) or false
 end
 local function readRange(w)
 	local _, id = w.spells()
-	id = w.range and CS.on(w.key, "range") and E.isEnabled(w.key) and id
+	id = isOn(w, "range") and enabled(w) and id
 	w.out = id and outOfRange(id, w.unit) or false
 end
 
@@ -143,7 +160,7 @@ local function syncChecks()
 	local want = {}
 	for _, w in ipairs(WATCHES) do
 		local _, id = w.spells()
-		if id and w.range and CS.on(w.key, "range") then want[id] = true end
+		if id and isOn(w, "range") then want[id] = true end
 	end
 	for id in pairs(checked) do
 		if not want[id] then safe(C_Spell.EnableSpellRangeCheck, id, false) checked[id] = nil end
@@ -159,7 +176,7 @@ local function syncTicker()
 	local want = false
 	if E.isActive() then
 		for _, w in ipairs(WATCHES) do
-			if w.range and CS.on(w.key, "range") and E.isEnabled(w.key) then want = true end
+			if isOn(w, "range") and enabled(w) then want = true end
 		end
 	end
 	rangeTicker:SetShown(want)
@@ -211,7 +228,7 @@ function CS.debug()
 		local powerID, rangeID = w.spells()
 		local on = {}
 		for _, state in ipairs(CS.ORDER) do
-			if w[state] then table.insert(on, state .. (CS.on(w.key, state) and " on" or " off")) end
+			if w[state] then table.insert(on, state .. (isOn(w, state) and " on" or " off")) end
 		end
 		local usable, noPower, inRange = "-", "-", "-"
 		if powerID then
@@ -222,7 +239,7 @@ function CS.debug()
 			local _, r = safe(C_Spell.IsSpellInRange, rangeID, w.unit)
 			inRange = describeArg(r)
 		end
-		say("%s cast states (%s): spell %s/%s usable=%s noPower=%s inRange=%s, showing %s", w.key,
+		say("%s cast states (%s): spell %s/%s usable=%s noPower=%s inRange=%s, showing %s", w.key or w.label,
 			table.concat(on, ", "), tostring(powerID), tostring(rangeID), usable, noPower, inRange,
 			w.drawn == "" and "nothing" or tostring(w.drawn))
 	end
