@@ -13,6 +13,8 @@ local _, ns = ...
 --                    into "The burst when something happens: <pop>." (Pop style). Whole
 --                    sentences: uptime (Time left's note), popColour (the pop's Colour tip), bars
 --                    (Bar texture's first), glowColour (after "Colour and opacity." in the glow's)
+--   power            the state while a spell's cost can't be paid (_CastStates): name, its block's
+--                    title and preview state; on, its switch
 --   layout           the default groups; an element new to a profile joins its group from here
 --   cooldowns, buffs rows for the cooldown and buff engines, from _ClassElements (optional)
 ns.CLASS = {
@@ -42,6 +44,7 @@ ns.CLASS = {
 		bars = "Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer.",
 		glowColour = "Killed early, Grounded and Ran out keep their own colours.",
 	},
+	power = { name = "No mana", on = "Show when short of mana" },
 }
 
 -- The default layout: an example more than a plan (players make their own groups). Offsets are in

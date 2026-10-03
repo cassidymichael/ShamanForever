@@ -1,20 +1,12 @@
 -- Shocks options page
 local _, ns = ...
-local E, W = ns.Elements, ns.Widgets
+local W = ns.Widgets
 
 local Page, K = ns.Page, ns.Options.kit
 local showWhen, pct = Page.showWhen, Page.pct
 local elementDisplay, idleBlock, styleBlocks = K.elementDisplay, K.idleBlock, K.styleBlocks
 local readyBlock, timerSettings, gcdBlock, eopt = K.readyBlock, K.timerSettings, K.gcdBlock, K.eopt
 local eslider, respell = K.eslider, K.respell
-
--- A shock state's look uses overlay or tint
-local function lookUses(state, part)
-	return function()
-		local v = E.setting("shock", state, "look")
-		return v == part or v == "both"
-	end
-end
 
 -- The marks' sides as the Shocks' group lays them out
 local SIDE_LABEL = { above = "Above", below = "Below", right = "Right", left = "Left" }
@@ -56,17 +48,7 @@ local function buildShock(p, def)
 	p:dropdown("Side", nil, sideChoices, sideGet, sideSet, marksShown, 140)
 	eslider(p, key, "Size", "Of the icon's size.", pct, marksShown, "marks", "size")
 
-	local looks = { { "tint", "Tint" }, { "overlay", "Overlay" }, { "both", "Both" } }
-	p:header("No mana")
-	p:dropdown("Show as", "Out of range wins over this.", looks, eopt(p, key, "mana", "look"))
-	eslider(p, key, "Overlay", nil, pct, showWhen(lookUses("mana", "overlay")), "mana", "overlay")
-	eslider(p, key, "Tint", nil, pct, showWhen(lookUses("mana", "tint")), "mana", "tint")
-	eslider(p, key, "Ring", "The blue ring, shown even when out of range.", pct, nil, "mana", "ring")
-
-	p:header("Out of range")
-	p:dropdown("Show as", nil, looks, eopt(p, key, "range", "look"))
-	eslider(p, key, "Overlay", nil, pct, showWhen(lookUses("range", "overlay")), "range", "overlay")
-	eslider(p, key, "Tint", nil, pct, showWhen(lookUses("range", "tint")), "range", "tint")
+	K.castBlocks(p, key)
 	readyBlock(p, key)
 	styleBlocks(p, key, function()
 		timerSettings(p, "Cooldown", key, "cooldown")

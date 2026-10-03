@@ -5,7 +5,7 @@ local W = ns.Widgets
 local E, G, MOD = ns.Elements, ns.Groups, ns.Modules
 local P = ns.Profiles
 local say, safe, describeArg = ns.say, ns.safe, ns.describeArg
-local Spells, CD = ns.Spells, ns.Cooldowns
+local Spells, CD, CS = ns.Spells, ns.Cooldowns, ns.CastStates
 
 local SK = { name = "shock" }
 ns.Shock = SK
@@ -25,20 +25,16 @@ shock.stack()
 local shockIcon = 136026
 local shockIDs = {}
 local usedShock, shockSpellID, manaSpellID
--- No mana and Out of range: look is overlay | tint | both
-local PAINT = { 0.1, 1, 0.05 }
 E.register("shock", { frame = shock, label = "Shocks", paint = function(t) t:SetTexture(shockIcon) end,
 	learned = function() return next(shockIDs) ~= nil end,
 	defaults = { idleWhen = "never", idleAlpha = 0.3,
 		track = "earth",
 		manaSpell = "tracked",   -- tracked | earth | flame | frost
-		mana = { look = "both", overlay = 0.25, tint = 0.8, ring = 0.6 },
-		range = { look = "tint", overlay = 0.45, tint = 0.7 },
+		mana = { on = true }, range = { on = true },
 		-- side: above or below in a row group, right or left in a column; size: of the icon's
 		marks = { frost = true, flame = true, side = "above", size = 0.44 },
 		ready = { pop = true, glow = false, sound = "none" } },
-	ranges = { mana = { overlay = PAINT, tint = PAINT, ring = PAINT }, range = { overlay = PAINT, tint = PAINT },
-		marks = { size = { 0.3, 0.5, 0.02 } } },
+	ranges = { marks = { size = { 0.3, 0.5, 0.02 } } },
 	choices = { marks = { side = { "above", "below" } } },
 	def = { key = "shock", idleChoices = CD.IDLE_CHOICES },
 	effects = { glow = true, pop = true },
@@ -46,29 +42,8 @@ E.register("shock", { frame = shock, label = "Shocks", paint = function(t) t:Set
 
 local idleDef = { key = "shock", frame = shock }
 
-local shockState = { outOfRange = false, noMana = false }
-local rangeCheckID
-
--- Out of range: red body; no mana: blue body and ring; both: red body, blue ring
-local function paint(f, outOfRange, noMana)
-	f.bodyOverlay:Hide()
-	f.tex:SetVertexColor(1, 1, 1)
-	if outOfRange then
-		f:SetBodyPaint(own("range", "look"), 1, 0.25, 0.25,
-			own("range", "overlay"), own("range", "tint"))
-	elseif noMana then
-		f:SetBodyPaint(own("mana", "look"), 0.2, 0.45, 1,
-			own("mana", "overlay"), own("mana", "tint"))
-	end
-	f:SetRingShown(noMana, 0.2, 0.45, 1, own("mana", "ring"))
-end
-local drawn
-local function drawTint()
-	local now = (shockState.outOfRange and "r" or "") .. (shockState.noMana and "m" or "")
-	if now == drawn then return end
-	drawn = now
-	paint(shock, shockState.outOfRange, shockState.noMana)
-end
+CS.watch("shock", { frame = shock, power = true, range = true,
+	spells = function() return manaSpellID, shockSpellID end })
 
 local function refreshCooldown(inEvent)
 	if not shockSpellID or not E.isEnabled("shock") then
@@ -84,28 +59,6 @@ end
 idleDef.refresh = function() refreshCooldown() end
 -- A cooldown's end fires no event
 shock.cd:HookScript("OnCooldownDone", function() C_Timer.After(0, refreshCooldown) end)
-
-local function refreshRange()
-	if not shockSpellID or not E.isEnabled("shock") then
-		shockState.outOfRange = false
-		drawTint()
-		return
-	end
-	-- Fires for other spells' checks too: the ticker covers ours
-	shockState.outOfRange = ns.plain(safe(C_Spell.IsSpellInRange, shockSpellID, "target")) == false
-	drawTint()
-end
-
-local function refreshMana()
-	if not manaSpellID or not E.isEnabled("shock") then
-		shockState.noMana = false
-		drawTint()
-		return
-	end
-	local ok, _, noPower = safe(C_Spell.IsSpellUsable, manaSpellID)
-	shockState.noMana = ns.plain(ok, noPower) == true
-	drawTint()
-end
 
 CD.popWhenReady(shock, "shock")
 CD.soundWhenReady(shock, "shock")
@@ -398,11 +351,6 @@ function SK.resolve()
 	shock.tex:SetDesaturated(next(shockIDs) == nil)
 	local mana = own("manaSpell")
 	manaSpellID = (mana ~= "tracked" and shockIDs[mana]) or shockSpellID
-	if rangeCheckID ~= shockSpellID and C_Spell.EnableSpellRangeCheck then
-		if rangeCheckID then safe(C_Spell.EnableSpellRangeCheck, rangeCheckID, false) end
-		if shockSpellID then safe(C_Spell.EnableSpellRangeCheck, shockSpellID, true) end
-		rangeCheckID = shockSpellID
-	end
 	for _, m in ipairs(MARKS) do
 		m.spellID = shockIDs[m.key]
 		refilterMark(m)
@@ -419,17 +367,9 @@ function SK.applyTimers()
 	placeMarks()
 end
 
--- Full mana out of combat fires no event
-function SK.afterGroups()
-	refreshMana()
-	refreshRange()
-	placeMarks()
-end
+function SK.afterGroups() placeMarks() end
 
 function SK.applyLayout()
-	drawn = nil
-	drawTint()
-	refreshMana()
 	syncGlowTicker()
 	for _, m in ipairs(MARKS) do makeMark(m) end
 	placeMarks()
@@ -440,11 +380,7 @@ function SK.onPreview(on)
 	hostAlpha()
 end
 
-function SK.refresh()
-	refreshCooldown()
-	refreshRange()
-	refreshMana()
-end
+function SK.refresh() refreshCooldown() end
 
 SK.onCooldowns = refreshCooldown
 
@@ -455,19 +391,6 @@ function SK.onCast(spellID)
 end
 
 function SK.tick() ns.try("shock refresh", refreshCooldown) end
-
-function SK.start()
-	local ev = CreateFrame("Frame")
-	ns.registerEvent(ev, "SPELL_UPDATE_USABLE")
-	ns.registerEvent(ev, "UNIT_POWER_UPDATE", "player")
-	ns.registerEvent(ev, "PLAYER_TARGET_CHANGED")
-	ns.registerEvent(ev, "SPELL_RANGE_CHECK_UPDATE")
-	ev:SetScript("OnEvent", function(_, event)
-		if event == "SPELL_UPDATE_USABLE" or event == "UNIT_POWER_UPDATE" then refreshMana()
-		else refreshRange() end
-	end)
-	C_Timer.NewTicker(0.25, function() ns.try("range refresh", refreshRange) end)
-end
 
 -- /sf debug
 function SK.debug()
@@ -506,7 +429,8 @@ local PREVIEW = {
 		kit.reset(ic, SHOCK_ICON[own("track")] or SHOCK_ICON.earth)
 		if st == "ready" then ic:SetGlowShown(own("ready", "glow")) end
 		if st == "cd" then kit.frozen(ic.cdT, 0.4, 6) end
-		paint(ic, st == "range" or st == "both", st == "mana" or st == "both")
+		CS.paint(ic, "shock", (st == "range" or st == "both") and CS.on("shock", "range"),
+			(st == "mana" or st == "both") and CS.on("shock", "power"))
 		previewMarks(ic)
 	end,
 	idles = function(st, when) return (st == "cd") == (when == "oncd") end,

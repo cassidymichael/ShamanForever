@@ -176,6 +176,8 @@ local function buildGlobal(p)
 	K.ownLine(p, "border")
 	K.glowBlock(p, nil)
 	K.popBlock(p, nil, "ready")
+	K.castStyleBlock(p, nil, "power")
+	K.castStyleBlock(p, nil, "range")
 	p:header("Art frame style")
 	p:anchor("frame")
 	p:text("Art round each icon. " .. K.ownersText("Elements", "frame"))
@@ -545,7 +547,8 @@ local function addStyleUsers()
 	for _, key in ipairs(ns.ElementPages.ordered()) do
 		if ns.ElementPages.pageOf(key) then
 			for _, part in ipairs(S.ORDER) do
-				if S.PARTS[part].elements then S.addUser(part, key) end
+				local spec = S.PARTS[part]
+				if spec.elements and (not spec.has or spec.has(key)) then S.addUser(part, key) end
 			end
 		end
 	end
