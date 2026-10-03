@@ -475,7 +475,7 @@ GD.add({ title = "Early days", order = 1000,
 		GD.text(card, "GameFontNormalHuge", ns.NAME, 104, 20)
 		GD.text(card, "GameFontHighlight", ns.CLASS.blurb, 104, 50, nil, GD.GREY)
 		GD.text(f, "GameFontHighlight", "Ideas, requests or problems? Post in #feedback on Discord or comment on "
-			.. "CurseForge. Click a link, then Ctrl+C to copy.", 2, 214, 596)
+			.. "CurseForge.", 2, 214, 596)
 		for i, l in ipairs(LINKS) do
 			local y = 262 + (i - 1) * 38
 			local t = f:CreateTexture(nil, "ARTWORK")
