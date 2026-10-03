@@ -168,6 +168,7 @@ function T.new(parent, key, part, opts)
 	if not cd then
 		cd = CreateFrame("Cooldown", nil, parent, "CooldownFrameTemplate")
 		cd:SetAllPoints(t.anchor)
+		t.ownSwipe = true
 	end
 	cd:SetDrawEdge(false)
 	cd:SetDrawBling(part == "cooldown")
@@ -453,13 +454,15 @@ function Timer:setExpire(e, icon)
 	if not x then
 		x = CreateFrame("Frame", nil, self.parent)
 		x:SetAllPoints(self.anchor)
-		x:SetFrameLevel(self.anchor:GetFrameLevel() + (self.over or 1))
 		x:SetAlpha(0)
 		x.grey = x:CreateTexture(nil, "ARTWORK")
 		x.grey:SetAllPoints()
 		W.cropIconExact(x.grey)
 		x.grey:SetDesaturated(true)
-		x.ring = W.makeRing(x, x)
+		-- Its ring sits higher than its grey and dim (W.LEVELS)
+		x.ringHost = CreateFrame("Frame", nil, x)
+		x.ringHost:SetAllPoints()
+		x.ring = W.makeRing(x.ringHost, x)
 		x.dim = x:CreateTexture(nil, "OVERLAY")
 		x.dim:SetAllPoints()
 		x.dim:SetColorTexture(0, 0, 0, 1)
@@ -469,6 +472,7 @@ function Timer:setExpire(e, icon)
 		x:SetScript("OnShow", function(s) if s.pulseOn then s.pulse:Play() end end)
 		x.glow = ns.Effects.glow(x, self.anchor, self.key)
 		self.exp = x
+		self:levelExpire()
 		ns.StyleArt.followMask(self.anchor, x.grey, x.dim)
 	end
 	x.glow:fit(self.anchor:GetWidth())
@@ -503,13 +507,18 @@ function Timer:setExpireIcon(icon)
 	if self.exp then ns.try("timer expiring icon", self.exp.grey.SetTexture, self.exp.grey, icon) end
 end
 
--- over: the expiring warning's level over its anchor (an element icon's: over its art frame)
-function Timer:restack(over)
-	if over then self.over = over end
+-- The expiring warning's layers over its anchor (W.LEVELS)
+function Timer:levelExpire()
 	local x = self.exp
-	if x then
-		x:SetFrameLevel(self.anchor:GetFrameLevel() + (self.over or 1))
-		x.glow:SetFrameLevel(x:GetFrameLevel() + 1)
-	end
+	if not x then return end
+	local base, L = self.anchor:GetFrameLevel(), W.LEVELS
+	x:SetFrameLevel(base + L.expire)
+	x.glow:SetFrameLevel(base + L.expireGlow)
+	x.ringHost:SetFrameLevel(base + L.warnRing)
+end
+-- On an icon (W.stackIcon): its expiring warning, a swipe of its own (a second timer's) and its bar
+function Timer:restack()
+	self:levelExpire()
+	if self.ownSwipe then self.cd:SetFrameLevel(self.anchor:GetFrameLevel() + W.LEVELS.upSwipe) end
 	if self.bar then self.bar:SetFrameLevel(self.cd:GetFrameLevel() + 1) end
 end

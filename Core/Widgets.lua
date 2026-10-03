@@ -591,7 +591,10 @@ function W.makeWarnOverlay(f)
 	w.grey:SetAllPoints(f.tex)
 	W.cropIconExact(w.grey)
 	w.grey:SetDesaturated(true)
-	w.ring = W.makeRing(w, f.tex)
+	-- Its ring sits higher than its grey (W.LEVELS)
+	w.ringHost = CreateFrame("Frame", nil, w)
+	w.ringHost:SetAllPoints()
+	w.ring = W.makeRing(w.ringHost, f.tex)
 	w.pulse = W.makePulse(w.grey, "fade")
 	w:SetAlpha(0)
 	-- Hiding a frame stops its animations
@@ -899,6 +902,28 @@ function ClipLook:describe()
 		self.glow and self.glow.look and self.glow.look.key or "none")
 end
 
+-- An icon's layers over its own level, bottom up: its picture and a cast state's body paint (0), its
+-- art frame (ns.Frames.LEVEL.over), its ready glow and a warning's body (warn), Expiring's body and glow,
+-- the swipe and its numbers, its timer bar, a cast state's ring, the warnings' rings, a second timer's
+-- own swipe and numbers, and its bar (upSwipe + 1), text. W.stackIcon sets them; the HUD's icons and
+-- every preview take them from it.
+W.LEVELS = { glow = 2, warn = 2, expire = 3, expireGlow = 4, swipe = 5, bar = 6, paintRing = 7, warnRing = 8,
+	upSwipe = 9, text = 11 }
+function W.stackIcon(f)
+	local base, L = f:GetFrameLevel(), W.LEVELS
+	f.glowF:SetFrameLevel(base + L.glow)
+	if f.warn then
+		f.warn:SetFrameLevel(base + L.warn)
+		f.warn.ringHost:SetFrameLevel(base + L.warnRing)
+	end
+	f.cd:SetFrameLevel(base + L.swipe)
+	if f.paintRing then f.paintRing.host:SetFrameLevel(base + L.paintRing) end
+	f.textFrame:SetFrameLevel(base + L.text)
+	for _, t in ipairs({ f.cdTimer or f.cdT or false, f.upTimer or f.upT or false }) do
+		if t then t:restack() end
+	end
+end
+
 function W.makeIcon(parent, size, owner)
 	local f = CreateFrame("Frame", nil, parent)
 	f.owner = owner
@@ -920,15 +945,12 @@ function W.makeIcon(parent, size, owner)
 			self.tex:SetVertexColor(r == 1 and 1 or k, g == 1 and 1 or k, b == 1 and 1 or k)
 		end
 	end
-	-- Levels over the icon: its art frame (ns.Frames.LEVEL.over), glow, swipe, text
 	f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
-	f.cd:SetFrameLevel(f:GetFrameLevel() + 3)
 	f.cd:SetAllPoints()
 	f.cd:SetDrawEdge(false)
 	-- Text above the cooldown so the swipe never dims it.
 	f.textFrame = CreateFrame("Frame", nil, f)
 	f.textFrame:SetAllPoints()
-	f.textFrame:SetFrameLevel(f.cd:GetFrameLevel() + 2)
 	f.count = f.textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
 	ns.Media.setFont(f.count, owner, math.floor(size * 0.45))
 	f.count:SetPoint("BOTTOMRIGHT", 2, -2)
@@ -947,7 +969,6 @@ function W.makeIcon(parent, size, owner)
 	end
 	f.fx = ns.Effects.host(f, owner)
 	f.glowF = f.fx.glowF
-	f.glowF:SetFrameLevel(f:GetFrameLevel() + 2)
 	f.SetGlowShown = function(self, shown, r, g, b) self.fx:glow(shown, r, g, b) end
 	f.SetWarnParts = function(self, grey, tint, ring, fade, glow)
 		self.tex:SetDesaturated(grey and true or false)
@@ -965,5 +986,6 @@ function W.makeIcon(parent, size, owner)
 		self:SetGlowShown(glow)
 	end
 	f.Pop = function(self, kind) self.fx:pop(kind) end
+	W.stackIcon(f)
 	return f
 end

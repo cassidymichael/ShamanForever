@@ -160,7 +160,6 @@ local function makeCooldownIcon(def)
 		f.readyGlow = ns.Effects.glow(f.readyGate, f, def.key)
 	end
 	if KD.words("cooldown", def, "warn") then f.warn = W.makeWarnOverlay(f) end
-	-- Layers, bottom up: icon, warning, swipe, timer bar, text
 	f.stack()
 	return f
 end

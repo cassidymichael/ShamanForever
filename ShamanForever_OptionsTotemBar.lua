@@ -42,7 +42,6 @@ PREVIEW = {
 		h.slots = {}
 		for i = 1, 4 do
 			local ic = OA.makePreviewIcon(bar, "totembar", PREVIEW)
-			ic.upT:restack(2)
 			ic.box = CreateFrame("Frame", nil, bar)
 			ic.badge = CreateFrame("Frame", nil, bar)
 			ic.badge:SetFrameLevel(ic:GetFrameLevel() + 6)

@@ -142,6 +142,7 @@ local function makePreviewIcon(parent, key, preview, box)
 		t:SetPoint("BOTTOM")
 		ic.bar.segs[i] = t
 	end
+	W.stackIcon(ic)
 	return ic
 end
 OA.makePreviewIcon = makePreviewIcon

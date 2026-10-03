@@ -103,7 +103,7 @@ function CS.paint(f, key, out, low, overlay)
 	if not f.paintRing then
 		local host = CreateFrame("Frame", nil, f)
 		host:SetAllPoints(f)
-		host:SetFrameLevel(f.cd:GetFrameLevel() + 1)
+		host:SetFrameLevel(f:GetFrameLevel() + W.LEVELS.paintRing)
 		f.paintRing = W.makeRing(host, f.tex)
 		f.paintRing.host = host
 	end

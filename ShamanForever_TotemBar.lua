@@ -835,6 +835,7 @@ local function liftWarning(s)
 	if not x or x.sfLifted then return end
 	local lv = s.button:GetFrameLevel() + WARN_LEVEL
 	x:SetFrameLevel(lv)
+	x.ringHost:SetFrameLevel(lv)
 	local g = x.glow
 	g:SetFrameLevel(lv + 1)
 	if g.inner then g.inner:SetFrameLevel(lv + 2) end

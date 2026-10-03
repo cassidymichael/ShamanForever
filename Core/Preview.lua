@@ -76,7 +76,6 @@ local function makeStandIn(key, gf)
 	local pv = OA.PREVIEW[key]
 	local ic = OA.makePreviewIcon(h, key, pv)
 	ic:SetAllPoints(h)
-	if ic.upT then ic.upT:restack(2) end
 	if pv.standIn then pv.standIn(ic) end
 	holders[key], standIns[key] = h, ic
 	return ic, h
