@@ -358,6 +358,7 @@ end
 
 local function build(p)
 	holder = CreateFrame("Frame", nil, p.content)
+	holder:SetHeight(BOARD_H)
 	board = CreateFrame("Frame", nil, holder)
 	board:SetSize(BOARD_W, BOARD_H)
 	board:SetPoint("TOP", holder, "TOP", 0, 0)
