@@ -90,9 +90,8 @@ function KD.slots(kind) return listOf(kind, "slots") end
 --   idles(st, when)    whether st goes idle once its moment has played, at Idle when = when
 --   standIn(ic)        /sf preview made ic, its stand-in: add what render expects on it
 --   hold(ic)           /sf preview paints ic over the element (nil: it ended)
---   heroH              its page header's height, for parts drawn outside the icon
---   reach(ic)          how far those parts reach out of ic on its left and right, in pixels: the
---                      header's preview widens for them as for an art frame's wings
+--   reach(ic)          how far parts drawn outside the icon reach out of ic on its left, right, top
+--                      and bottom, in pixels: the header's preview grows for them
 -- A bar's preview, drawn on its page's header instead: stage, heroH, build(h), render(h, st, kit),
 -- stateShown(st), fallback (the state while the shown one is hidden).
 local LISTS = { parts = true, slots = true }

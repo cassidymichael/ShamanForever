@@ -346,14 +346,15 @@ local function previewPlace(ic)
 	local where, size, out = marksPlace(w, o, px, ic.cdT)
 	return where, size, out, o
 end
--- How far the marks reach out of ic on its left and right: the page's header makes room
+-- How far the marks reach out of ic on its left, right, top and bottom: the page's header makes room
 local function previewReach(ic)
 	local any = false
 	for _, m in ipairs(MARKS) do any = any or previewOn(ic, m) end
-	if not any then return 0, 0 end
+	if not any then return 0, 0, 0, 0 end
 	local where, size, out = previewPlace(ic)
 	local reach = math.ceil(out + size)
-	return where == "left" and reach or 0, where == "right" and reach or 0
+	local function on(side) return where == side and reach or 0 end
+	return on("left"), on("right"), on("above"), on("below")
 end
 
 local function previewMarks(ic)
@@ -503,7 +504,6 @@ end
 local PREVIEW = {
 	warning = "both",
 	cooldown = true,
-	heroH = 190,   -- room for the marks above or below
 	standIn = function(ic) ic.marksOnHUD = true end,
 	reach = function(ic) return previewReach(ic) end,
 	states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" },
