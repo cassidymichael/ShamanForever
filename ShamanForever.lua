@@ -925,7 +925,6 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		if char and char.off == true then
 			ns.setOff(true)
 			applyOff()
-			say("off: nothing shows or plays until %s enable", ns.CLASS.slash[1])
 		end
 		ns.try("spell self-check", Spells.selfCheck)
 		ns.applyMinimapButton()
@@ -951,6 +950,8 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		applyLayout()
 		refreshAll()
 		root:Show()
+		-- Said once laid out: a login in combat leaves a shown secure bar taking clicks until it ends
+		if ns.isOff() then sayOff(true, barsWaiting(true)) end
 	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
 		local spellID = arg3
 		if not isSecret(spellID) then each("onCast", spellID) end
