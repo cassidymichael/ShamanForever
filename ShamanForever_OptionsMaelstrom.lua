@@ -3,7 +3,7 @@ local _, ns = ...
 
 local Page, K = ns.Page, ns.Options.kit
 local showWhen, int, px = Page.showWhen, Page.int, Page.px
-local elementDisplay, idleBlock, lookBlocks = K.elementDisplay, K.idleBlock, K.lookBlocks
+local elementDisplay, idleBlock, styleBlocks = K.elementDisplay, K.idleBlock, K.styleBlocks
 local activeBlock, timerSettings, eopt, eread = K.activeBlock, K.timerSettings, K.eopt, K.eread
 local eslider = K.eslider
 
@@ -33,7 +33,7 @@ local function buildMaelstrom(p, def)
 	timerSettings(p, "Time left", key, "uptime")
 	activeBlock(p, key, { title = "Five stacks",
 		tips = { pop = "The moment it reaches five.", glow = "While at five." } })
-	lookBlocks(p, key)
+	styleBlocks(p, key)
 end
 
 ns.registerKind("maelstrom", { page = buildMaelstrom })

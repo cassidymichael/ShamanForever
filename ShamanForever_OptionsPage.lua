@@ -993,12 +993,12 @@ function Page:pin(h)
 	h:SetPoint("TOPRIGHT", win, "TOPRIGHT", -22, PAGE_TOP)
 	h:Hide()
 	self.fixed = h
-	self.scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, PAGE_TOP - (h.heroH or ns.Look.HERO_H))
+	self.scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, PAGE_TOP - (h.heroH or ns.OptionsArt.HERO_H))
 	return h
 end
 
 function Page:hero(key)
-	return self:pin(ns.Look.buildHero(self.win, key))
+	return self:pin(ns.OptionsArt.buildHero(self.win, key))
 end
 
 function Page.panelBackdrop(f, r, g, b)
@@ -1026,7 +1026,7 @@ function Page:cards(label, tip, choices, get, set, shown)
 		b.text:SetPoint("TOP", b.icon, "BOTTOM", 0, -5)
 		b.text:SetWidth(CARD_W - 6)
 		b.text:SetText(c[2])
-		local badge = c[4] and ns.Look.expBadge(b, c[4]) or c.tag and ns.Look.tagBadge(b, c.tag)
+		local badge = c[4] and ns.OptionsArt.expBadge(b, c[4]) or c.tag and ns.OptionsArt.tagBadge(b, c.tag)
 		if badge then
 			badge:SetScale(0.8)
 			badge:SetPoint("BOTTOM", 0, 5)

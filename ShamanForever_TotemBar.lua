@@ -282,9 +282,9 @@ end
 function TB.badgeSize(size) return math.max(math.floor(size * cfg().badgeSize + 0.5), 8) end
 function TB.layoutBadge(bd, anchor, size, border)
 	local c = TB.eff()
-	local usesColor = border and border.show and ns.Looks.uses(ns.Style.look("border", border.look), "color")
+	local usesColor = border and border.show and ns.StyleArt.uses(ns.Style.look("border", border.look), "color")
 	local color = usesColor and border.color or { 0, 0, 0, 1 }
-	local inset = ns.Looks.fit(bd, border and border.show and { show = true, size = 1, color = color } or border,
+	local inset = ns.StyleArt.fit(bd, border and border.show and { show = true, size = 1, color = color } or border,
 		TB.badgeSize(size))
 	bd:SetAlpha(c.badgeAlpha)
 	TB.saturate(bd.icon, c.badgeSat)
@@ -298,11 +298,11 @@ function TB.layoutBadge(bd, anchor, size, border)
 end
 
 function TB.fitLook(v, b, border, size)
-	local o = ns.Looks.inset(v, border, size)
+	local o = ns.StyleArt.inset(v, border, size)
 	v:ClearAllPoints()
 	v:SetPoint("TOPLEFT", b, "TOPLEFT", o, -o)
 	v:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -o, o)
-	ns.Looks.applyBorder(v, border)
+	ns.StyleArt.applyBorder(v, border)
 	return o
 end
 
@@ -412,7 +412,7 @@ local function keyLayer(v)
 	f.text = ns.makeKeyText(f)
 	f.glow = f:CreateTexture(nil, "OVERLAY")
 	f.glow:SetAllPoints()
-	if ns.Looks.hasAtlas(KEY_HIGHLIGHT) then f.glow:SetAtlas(KEY_HIGHLIGHT)
+	if ns.StyleArt.hasAtlas(KEY_HIGHLIGHT) then f.glow:SetAtlas(KEY_HIGHLIGHT)
 	else f.glow:SetColorTexture(1, 0.82, 0, 0.3) end
 	f.glow:Hide()
 	return f
@@ -796,7 +796,7 @@ local function liftWarning(s)
 	g:SetFrameLevel(lv + 1)
 	if g.inner then g.inner:SetFrameLevel(lv + 2) end
 	for _, parts in pairs(g.parts or {}) do
-		if parts then ns.Looks.levelParts(parts) end
+		if parts then ns.StyleArt.levelParts(parts) end
 	end
 	x.sfLifted = true
 end
@@ -1742,10 +1742,10 @@ end
 
 ns.registerBar("totembar", { label = "Totem bar", cfg = cfg, saved = "totemBar", defaults = TB.DEFAULTS,
 	ranges = TB.RANGES, choices = CHOICES, on = barOn,
-	kinds = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
+	parts = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
 	-- Its theme can draw its own border
-	ownLabel = function(kind)
-		if kind == "border" and TB.skin.owns("border") then return "Totem bar (its theme)" end
+	ownLabel = function(part)
+		if part == "border" and TB.skin.owns("border") then return "Totem bar (its theme)" end
 	end,
 	movable = movable,
 	hud = { show = showPreview, slots = ELEMENTS, steps = previewSteps, step = previewSlot } })

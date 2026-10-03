@@ -1,7 +1,7 @@
 -- Totem bar options page
 local _, ns = ...
 
-local K, Page, L = ns.Options.kit, ns.Page, ns.Look
+local K, Page, L = ns.Options.kit, ns.Page, ns.OptionsArt
 local showWhen, setTip = Page.showWhen, Page.setTip
 local LABEL_W = Page.LABEL_W
 local pct, times, int, px = Page.pct, Page.times, Page.int, Page.px
@@ -49,7 +49,7 @@ PREVIEW = {
 			ic.rangeF:SetFrameLevel(ic:GetFrameLevel() + 7)
 			ic.rangeF.bg = ic.rangeF:CreateTexture(nil, "ARTWORK")
 			ic.rangeF.bg:SetAllPoints()
-			ns.Looks.followMask(ic, ic.rangeF.bg)
+			ns.StyleArt.followMask(ic, ic.rangeF.bg)
 			-- As the bar's slot look: TB.paintDown and TB.paintEmpty draw both
 			ic.icon = ic.tex
 			ic.bg = ic:CreateTexture(nil, "BACKGROUND")
@@ -140,7 +140,7 @@ PREVIEW = {
 		for _, it in ipairs(seq) do
 			if it.extra then
 				local ic = h.extras[it.key]
-				local o = ns.Looks.fit(ic, extrasBorder, it.size)
+				local o = ns.StyleArt.fit(ic, extrasBorder, it.size)
 				ic:ClearAllPoints()
 				place(ic, it.offset + o, (line - it.size) / 2 + o)
 				local learned = TB.extraLearned(it.key)
@@ -169,7 +169,7 @@ PREVIEW = {
 				ic.box:ClearAllPoints()
 				place(ic.box, slotAt[placeIdx[el]], (line - size) / 2)
 				ic.school = el
-				local o = ns.Looks.fit(ic, border, size)
+				local o = ns.StyleArt.fit(ic, border, size)
 				ic:ClearAllPoints()
 				place(ic, slotAt[placeIdx[el]] + o, (line - size) / 2 + o)
 				local pick = TB.pickTexture(el)
@@ -333,7 +333,7 @@ local function build(p)
 	p:dropdown("Theme", "How the whole bar is drawn.", skins, function() return TB.skin.current().key end,
 		tset("skin"), nil, 190)
 	local expRow = p:row(22)
-	ns.Look.expBadge(expRow, "Totem themes"):SetPoint("LEFT", expRow, "LEFT", LABEL_W, 0)
+	ns.OptionsArt.expBadge(expRow, "Totem themes"):SetPoint("LEFT", expRow, "LEFT", LABEL_W, 0)
 	p:add(expRow, 22, function() return TB.skin.current().experimental or false end)
 	local function theme(key) return function() return TB.skin.current().key == key end end
 	p:checkbox("Tray", "A dark tray edged in gold behind the slots.", tget("pixelTray"), tset("pixelTray"),
@@ -483,7 +483,7 @@ local function build(p)
 	p.gate = function() return full() and ns.TotemSets.count() > 1 end
 	p:header("Totem sets")
 	local setsRow = p:row(22)
-	ns.Look.expBadge(setsRow, "Totem sets"):SetPoint("LEFT", setsRow, "LEFT", LABEL_W, 0)
+	ns.OptionsArt.expBadge(setsRow, "Totem sets"):SetPoint("LEFT", setsRow, "LEFT", LABEL_W, 0)
 	p:add(setsRow, 22)
 	p:text("Each Call drops its own set of four totems. The bar uses one set at a time: its slots, "
 		.. "picks, Call button and keys.")

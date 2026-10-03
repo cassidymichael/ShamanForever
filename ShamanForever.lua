@@ -27,12 +27,12 @@ local SHOW_WHEN = {
 
 local DEFAULTS = {
 	iconSize = ns.BASE_ICON_SIZE,
-	border = CopyTable(ns.Style.KINDS.border.defaults),
-	glowStyle = CopyTable(ns.Style.KINDS.glow.defaults),
-	popStyle = CopyTable(ns.Style.KINDS.pop.defaults),
-	gcdStyle = CopyTable(ns.Style.KINDS.gcd.defaults),
-	textStyle = CopyTable(ns.Style.KINDS.text.defaults),
-	barStyle = CopyTable(ns.Style.KINDS.bar.defaults),
+	border = CopyTable(ns.Style.PARTS.border.defaults),
+	glowStyle = CopyTable(ns.Style.PARTS.glow.defaults),
+	popStyle = CopyTable(ns.Style.PARTS.pop.defaults),
+	gcdStyle = CopyTable(ns.Style.PARTS.gcd.defaults),
+	textStyle = CopyTable(ns.Style.PARTS.text.defaults),
+	barStyle = CopyTable(ns.Style.PARTS.bar.defaults),
 	groups = ns.CLASS.layout,
 	known = {},
 	elementOpts = {},
@@ -65,7 +65,7 @@ local ELEMENT_KEYS = {}
 -- defaults; effects = { glow, pop, popKind }: whether it has a pulsing glow and a pop
 -- (its page then offers their styles), and the pop it plays;
 -- ownSchool(): the school its pop and glow take now, where that follows its state; styles: its own
--- shipped look, { kind = fields }; timerCant: timer parts it can't have, and why; barColor = { label,
+-- shipped styles, { part = fields }; timerCant: timer parts it can't have, and why; barColor = { label,
 -- text, color() }: a colour a bar can follow
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
@@ -91,7 +91,7 @@ end
 -- label by default); the style side (ns.Style): cfg(), saved (required: the profile key holding its
 -- table), defaults, ranges (its numbers' { min, max, step }, shaped as defaults), choices (as an
 -- element's: profiles drop a saved value it doesn't list), on() (it is in use:
--- its styles are offered), kinds (style kinds it can have its own of), ownLabel(kind) (its name when
+-- its styles are offered), parts (style parts it can have its own of), ownLabel(part) (its name when
 -- it draws that style itself); movable (from ns.Positioning.mover: frame, nudge(dx, dy), lock(),
 -- update(); a right-click on it opens the bar's page); hud = { show(opts), slots, steps(slot, mode),
 -- step(slot, state, at, range, moment) }: /sf preview on the bar itself, show(nil) as it ends, each
@@ -275,7 +275,7 @@ end
 local function sizeOf(key)
 	local e = ELEMENTS[key]
 	local box = boxOf(key)
-	return box - 2 * ns.Looks.inset(e.borderHost or e.frame, ns.borderFor(key), box, e.shape)
+	return box - 2 * ns.StyleArt.inset(e.borderHost or e.frame, ns.borderFor(key), box, e.shape)
 end
 
 local function isEnabled(key) return groupOf(key) ~= nil and showMode(key) ~= "never" and onHUD(key) end
@@ -548,7 +548,7 @@ local function layoutGroup(g)
 		else
 			local w, h = e.getSize(groupSize(g))
 			w, h = ns.roundPx(w, px), ns.roundPx(h, px)
-			local inset = ns.Looks.fit(f, ns.borderFor(key), w, h, e)
+			local inset = ns.StyleArt.fit(f, ns.borderFor(key), w, h, e)
 			-- An element over Blizzard's button frames the button's border instead
 			local own = e.borderHost or not f.aboveProtected
 			ns.Frames.mountOwn(e.borderHost or f, key, own and w == h and w or nil)

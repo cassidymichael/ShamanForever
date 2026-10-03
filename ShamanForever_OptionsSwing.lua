@@ -49,7 +49,7 @@ local PREVIEW = {
 		box:ClearAllPoints()
 		box:SetPoint("CENTER", h.area, "CENTER", 0, 0)
 		h.fitNote:SetText(fit < 0.999 and string.format("Shown at %d%% to fit", math.floor(fit * 100 + 0.5)) or "")
-		ns.Looks.applyBorder(box, SW.border(), "bar")
+		ns.StyleArt.applyBorder(box, SW.border(), "bar")
 		SW.styleBar(box.bar)
 		SW.styleCountdown()
 		SW.placeCountdown(box.text, box)

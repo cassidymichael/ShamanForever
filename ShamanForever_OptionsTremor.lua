@@ -4,7 +4,7 @@ local _, ns = ...
 local Page, K = ns.Page, ns.Options.kit
 local showWhen, setTip, panelBackdrop = Page.showWhen, Page.setTip, Page.panelBackdrop
 local int, px = Page.int, Page.px
-local elementDisplay, lookBlocks, activeBlock = K.elementDisplay, K.lookBlocks, K.activeBlock
+local elementDisplay, styleBlocks, activeBlock = K.elementDisplay, K.styleBlocks, K.activeBlock
 local timerSettings, eopt, eread, eslider = K.timerSettings, K.eopt, K.eread, K.eslider
 
 -- Tremor watchlist: a ScrollBox recycles its rows, so hundreds of mobs take a dozen frames.
@@ -187,7 +187,7 @@ local function buildTremor(p)
 		eslider(p, key, "Text X offset", nil, px, text, "wordX")
 		eslider(p, key, "Text Y offset", nil, px, text, "wordY")
 	end })
-	lookBlocks(p, key)
+	styleBlocks(p, key)
 end
 
 ns.registerKind("tremor", { page = buildTremor })

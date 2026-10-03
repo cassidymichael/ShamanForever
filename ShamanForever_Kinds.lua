@@ -83,7 +83,7 @@ function KD.slots(kind) return listOf(kind, "slots") end
 --   states             { { id, label }, ... }; the first is shown first
 --   typical, warning   the state /sf preview shows in Preview and in Warnings (else the first)
 --   cooldown, uptime   the timers its icon carries; barInset() lifts the time bar (a bar under it)
---   render(ic, st, P)  draws state st on icon ic from scratch, with the preview kit P (ns.Look.kit)
+--   render(ic, st, P)  draws state st on icon ic from scratch, with the preview kit P (ns.OptionsArt.kit)
 --   pop(ic, st, P)     the state's moment: its pop or flash
 --   idles(st, when)    whether st goes idle once its moment has played, at Idle when = when
 --   standIn(ic)        /sf preview made ic, its stand-in: add what render expects on it

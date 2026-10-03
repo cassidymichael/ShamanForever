@@ -14,7 +14,7 @@ TB.skin = SK
 
 local S = ns.Style
 local BLACK = { 0, 0, 0, 1 }
-local GOLD = ns.Looks.GOLD
+local GOLD = ns.StyleArt.GOLD
 local RED = { 0.9, 0.12, 0.08, 1 }
 local TRAY = { 0.047, 0.035, 0.024 }
 
@@ -40,7 +40,7 @@ local function shares(pl)
 end
 
 local function borderStyle(look, size)
-	local k = S.KINDS.border
+	local k = S.PARTS.border
 	return S.clean({ show = true, look = look, size = size }, k.defaults, k.ranges)
 end
 
@@ -320,7 +320,7 @@ local function outsideBar(t, anchor, size, on)
 	end
 	bar.sfOutside = true
 	local _, border = TB.look()
-	local d = ns.Looks.inset(anchor, border, size) + outGap(size)
+	local d = ns.StyleArt.inset(anchor, border, size) + outGap(size)
 	local thick = ns.Style.value("totembar", "uptime", "barHeight")
 	local side = AWAY[TB.eff().pop]
 	bar:ClearAllPoints()
@@ -471,7 +471,7 @@ local function markParts(m, icon)
 	if p then return p end
 	p = { shade = m:CreateTexture(nil, "ARTWORK", nil, 1) }
 	p.shade:SetAllPoints()
-	if icon then ns.Looks.followMask(icon, p.shade) end
+	if icon then ns.StyleArt.followMask(icon, p.shade) end
 	m.skinParts = p
 	return p
 end

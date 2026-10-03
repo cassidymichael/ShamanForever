@@ -80,7 +80,7 @@ local function makeMark(s)
 	m:SetAlpha(0)
 	m.bg = m:CreateTexture(nil, "ARTWORK")
 	m.bg:SetAllPoints()
-	ns.Looks.followMask(s.vis, m.bg)
+	ns.StyleArt.followMask(s.vis, m.bg)
 	s.rangeGate, s.rangeMark = gate, m
 end
 

@@ -235,7 +235,7 @@ local function layout()
 	local px = ns.pixel(f)
 	f:SetSize(math.max(ns.roundPx(c.width, px), px), math.max(ns.roundPx(c.height, px), px))
 	ns.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
-	ns.Looks.applyBorder(face, SW.border(), "bar")
+	ns.StyleArt.applyBorder(face, SW.border(), "bar")
 	SW.styleBar(bar)
 	paintFill()
 	SW.styleCountdown()
@@ -319,6 +319,6 @@ function SW.debug()
 end
 
 ns.registerBar("swing", { label = "Swing timer", cfg = cfg, saved = "swingBar", defaults = SW.DEFAULTS,
-	ranges = RANGES, choices = CHOICES, on = SW.isOn, kinds = { "border", "text", "bar" }, movable = movable,
+	ranges = RANGES, choices = CHOICES, on = SW.isOn, parts = { "border", "text", "bar" }, movable = movable,
 	hud = { show = showPreview } })
 ns.registerModule(SW)

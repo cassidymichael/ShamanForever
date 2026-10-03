@@ -1,10 +1,10 @@
--- Looks
+-- Style art: each part's styles and the art they draw
 -- Our own media by path, never file ID; Blizzard's art by atlas, checked before use.
 
 local ADDON, ns = ...
 
-local Looks = {}
-ns.Looks = Looks
+local SA = {}
+ns.StyleArt = SA
 
 local S = ns.Style
 local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Art\\Looks\\"
@@ -13,7 +13,7 @@ local CLAMP = "CLAMPTOBLACKADDITIVE"   -- a mask's wrap mode, as Blizzard's own 
 local STRETCHED = Enum.UITextureSliceMode and Enum.UITextureSliceMode.Stretched or 0
 
 local atlasKnown = {}
-function Looks.hasAtlas(name)
+function SA.hasAtlas(name)
 	if atlasKnown[name] == nil then
 		atlasKnown[name] = (C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(name)) ~= nil
 	end
@@ -29,7 +29,7 @@ local function schoolOf(f)
 	return e and e.school or THEME.fallback
 end
 
-function Looks.elementSchool(key, own)
+function SA.elementSchool(key, own)
 	local e = ns.ELEMENTS[key]
 	if not e then return THEME.fallback end
 	if not own and ns.getDB and ns.getDB() then
@@ -41,7 +41,7 @@ end
 local function effectSchool(f)
 	if f.over then f = f.over end
 	if f.school then return f.school end
-	return type(f.owner) == "string" and Looks.elementSchool(f.owner) or THEME.fallback
+	return type(f.owner) == "string" and SA.elementSchool(f.owner) or THEME.fallback
 end
 
 -- Frames
@@ -69,7 +69,7 @@ local function pxOf(px, b)
 	return px or 1
 end
 
-function Looks.uses(look, field) return look.uses ~= nil and look.uses[field] == true end
+function SA.uses(look, field) return look.uses ~= nil and look.uses[field] == true end
 
 -- Each ring is four textures; returns how far the rings reach.
 local function drawRings(f, rings, b)
@@ -155,7 +155,7 @@ end
 -- On f itself: over the picture, under its swipe, timers and text.
 local function drawOverlay(f, art)
 	local t = f.frameOverlay
-	if not art or art.margin or f.noOverlay or (art.atlas and not Looks.hasAtlas(art.atlas)) then
+	if not art or art.margin or f.noOverlay or (art.atlas and not SA.hasAtlas(art.atlas)) then
 		if t then t:Hide() end
 		return
 	end
@@ -203,12 +203,12 @@ end
 local NO_ART = { rings = { { color = BLACK } } }
 local function artMissing(look)
 	local a, m = look.art and look.art.atlas, look.mask and look.mask.atlas
-	return (a and not Looks.hasAtlas(a)) or (m and not Looks.hasAtlas(m)) or false
+	return (a and not SA.hasAtlas(a)) or (m and not SA.hasAtlas(m)) or false
 end
 
 local function maskOf(look)
 	local m = look.mask
-	if m and m.atlas and not Looks.hasAtlas(m.atlas) then return nil end
+	if m and m.atlas and not SA.hasAtlas(m.atlas) then return nil end
 	return m
 end
 local function lookFor(b)
@@ -276,14 +276,14 @@ local function drawMask(f, spec)
 	for t, o in pairs(ownShape[f] or {}) do maskOne(f, t, spec, o) end
 end
 
-function Looks.maskOver(f, tex, over)
+function SA.maskOver(f, tex, over)
 	local map = ownShape[f] or {}
 	ownShape[f] = map
 	map[tex] = over or tex
 	if maskSpecs[f] then maskOne(f, tex, maskSpecs[f], map[tex]) end
 end
 
-function Looks.followMask(f, ...)
+function SA.followMask(f, ...)
 	local list = followers[f] or {}
 	followers[f] = list
 	for i = 1, select("#", ...) do
@@ -321,14 +321,14 @@ local function drawSwipe(f, look)
 	for _, cd in ipairs(swipers[f] or {}) do swipeOne(f, cd, look) end
 end
 
-function Looks.followSwipe(f, cd)
+function SA.followSwipe(f, cd)
 	local list = swipers[f] or {}
 	swipers[f] = list
 	table.insert(list, cd)
 	if swipeLooks[f] then swipeOne(f, cd, swipeLooks[f]) end
 end
 
--- Parts that fit a bar; a look with neither draws a plain line there.
+-- Parts that fit a bar; a style with neither draws a plain line there.
 local barLooks = {}
 local function barParts(look)
 	local v = barLooks[look]
@@ -343,12 +343,12 @@ end
 local function drawnLook(b, shape)
 	local look = S.look("border", b and b.look)
 	if artMissing(look) then look = NO_ART end
-	local on = b and b.show and (not Looks.uses(look, "size") or (b.size and b.size > 0))
+	local on = b and b.show and (not SA.uses(look, "size") or (b.size and b.size > 0))
 	if not on then return nil end
 	return shape == "bar" and barParts(look) or look
 end
 
-function Looks.inset(f, b, w, shape)
+function SA.inset(f, b, w, shape)
 	local look = drawnLook(b, shape)
 	if not look then return 0 end
 	local out = 0
@@ -366,11 +366,11 @@ function Looks.inset(f, b, w, shape)
 	return math.min(out, math.max((w - 4) / 2, 0))
 end
 
-function Looks.fit(f, b, w, h, opts)
+function SA.fit(f, b, w, h, opts)
 	local host, shape = opts and opts.borderHost or f, opts and opts.shape
-	local o = Looks.inset(host, b, math.min(w, h or w), shape)
+	local o = SA.inset(host, b, math.min(w, h or w), shape)
 	f:SetSize(w - 2 * o, (h or w) - 2 * o)
-	Looks.applyBorder(host, b, shape)
+	SA.applyBorder(host, b, shape)
 	if host ~= f then
 		-- The mask and swipe belong to the picture, not to the border's part.
 		local look = drawnLook(b, shape)
@@ -382,12 +382,12 @@ function Looks.fit(f, b, w, h, opts)
 	return o
 end
 
-function Looks.overlay(f, b, shape)
+function SA.overlay(f, b, shape)
 	local look = drawnLook(b, shape)
 	drawOverlay(f, look and look.art)
 end
 
-function Looks.applyBorder(f, b, shape)
+function SA.applyBorder(f, b, shape)
 	local look = drawnLook(b, shape)
 	if not look then
 		drawRings(f, nil, b)
@@ -409,13 +409,13 @@ function Looks.applyBorder(f, b, shape)
 	f.frameOuter = out
 end
 
-function Looks.outerEdge(f) return f and f.frameOuter or 0 end
+function SA.outerEdge(f) return f and f.frameOuter or 0 end
 
 -- Blizzard's aura button takes a mask only when made as it is built, so each gets one there;
--- Looks.auraStyle restyles it out of combat.
+-- SA.auraStyle restyles it out of combat.
 local PLAIN_MASK = { file = WHITE, wrap = "CLAMP" }
 local auraMade = setmetatable({}, { __mode = "k" })
-function Looks.auraMask(host, tex, key)
+function SA.auraMask(host, tex, key)
 	local b = ns.borderFor(key)
 	local spec, art, size = maskFor(b), artFor(b), ns.sizeOf(key)
 	local made = { key = key, spec = spec, look = spec and lookFor(b), art = art }
@@ -432,7 +432,7 @@ function Looks.auraMask(host, tex, key)
 	made.mask = m
 end
 
-function Looks.auraStyle(slot, size)
+function SA.auraStyle(slot, size)
 	local made = slot.icon and auraMade[slot.icon]
 	if not made then return end
 	local host = slot.host
@@ -454,15 +454,15 @@ function Looks.auraStyle(slot, size)
 	swipeOne(host, slot.cd, made.look, size)
 end
 
--- Frame looks
+-- Frame styles
 local GOLD = { 0.71, 0.55, 0.29, 1 }
-Looks.GOLD = GOLD
+SA.GOLD = GOLD
 local BRONZE_HI, BRONZE_LO, BRONZE_DARK = { 0.85, 0.68, 0.39, 1 }, { 0.43, 0.29, 0.13, 1 }, { 0.10, 0.07, 0.03, 1 }
 local CDM_MASK, CDM_OVERLAY = "UI-HUD-CoolDownManager-Mask", "UI-HUD-CoolDownManager-IconOverlay"
 local CDM_SWIPE = "Interface\\HUD\\UI-HUD-CoolDownManager-Icon-Swipe"
 local AB_MASK, AB_FRAME = "UI-HUD-ActionBar-IconFrame-Mask", "UI-HUD-ActionBar-IconFrame"
 
-S.addField("border", "look", { name = "Border look", where = "Global settings > Border style", preview = { play = "still" },
+S.addField("border", "look", { name = "Border style", where = "Global settings > Border style", preview = { play = "still" },
 	groups = { { "lines", "Lines" }, { "blizzard", "Blizzard's" }, { "painted", "Painted" } } })
 S.addLook("border", "line", { name = "Line", group = "lines", uses = { size = true, color = true },
 	rings = { { px = "size", color = "color" } } })
@@ -491,7 +491,7 @@ local ROUND = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 S.addLook("border", "medallion", { name = "Medallion", group = "painted", hidden = true, credit = "ai",
 	mask = { file = ROUND }, swipe = ROUND, art = { file = MEDIA .. "Medallion", inset = { 0.35, 0.35, 0.35, 0.35 } } })
 
--- Glow looks
+-- Glow styles
 local GOLD_GLOW = { 1, 0.8, 0.25 }
 local ACTIVE_GLOW = "UI-CooldownManager-ActiveGlow"
 local PROC_START, PROC_LOOP = "UI-HUD-ActionBar-Proc-Start-Flipbook", "UI-HUD-ActionBar-Proc-Loop-Flipbook"
@@ -502,8 +502,8 @@ local function root(parent)
 	r:EnableMouse(false)
 	return r
 end
--- Re-levels the look on each show: levels move as an icon regroups.
-function Looks.levelParts(parts)
+-- Re-levels the style on each show: levels move as an icon regroups.
+function SA.levelParts(parts)
 	for _, r in ipairs(parts.roots or {}) do
 		local lv = r:GetParent():GetFrameLevel()
 		r:SetFrameLevel(lv)
@@ -566,12 +566,12 @@ local soft = {
 	fit = function(g, parts, size) fitSoft(g, parts.soft, size, g.width) end,
 }
 
--- A look made of Blizzard's atlases, drawn as the soft look on a client that lacks one
+-- A style made of Blizzard's atlases, drawn as the soft style on a client that lacks one
 local function orSoft(look, ...)
 	local atlases, build, style, fit = { ... }, look.build, look.style, look.fit
 	function look.build(g)
 		for _, a in ipairs(atlases) do
-			if not Looks.hasAtlas(a) then
+			if not SA.hasAtlas(a) then
 				local parts = soft.build(g)
 				parts.fallback = true
 				return parts
@@ -801,7 +801,7 @@ local heartbeat = {
 	end,
 }
 
-S.addField("glow", "look", { name = "Glow look", where = "Global settings > Pulsing glow style", preview = { play = "loop" } })
+S.addField("glow", "look", { name = "Glow style", where = "Global settings > Pulsing glow style", preview = { play = "loop" } })
 local function addGlow(key, name, entry)
 	entry.name = name
 	S.addLook("glow", key, entry)
@@ -813,12 +813,12 @@ addGlow("spark", "Travelling spark", spark)
 addGlow("material", "School material", material)
 addGlow("heartbeat", "Heartbeat", heartbeat)
 
--- Pop looks
+-- Pop styles
 -- A drawn burst is a list of parts: from/to and rise in icon heights, dur/delay in seconds.
 local GCD_FLASH = "UI-HUD-ActionBar-GCD-Flipbook"
 local HALO_SCALE, HALO_ALPHA = 1.08, 0.6
 
-Looks.POP_PARTS = { disc = "back", shape1 = "back", shape1Dark = "back", shape2 = "back", ring1 = "back",
+SA.POP_PARTS = { disc = "back", shape1 = "back", shape1Dark = "back", shape2 = "back", ring1 = "back",
 	ring2 = "back", spark = "front", sheen = "clip" }
 
 local function burst(out, name, file, from, to, t, front, dark)
@@ -904,7 +904,7 @@ for _, m in ipairs({ { "pop", "Grow" }, { "bounce", "Bounce" }, { "hop", "Hop" }
 end
 
 local popParts = {}
-function Looks.popParts(key, school)
+function SA.popParts(key, school)
 	local draw = S.choice("pop", "burst", key).draw
 	if not draw then return nil end
 	local id = key .. ":" .. tostring(school)
@@ -917,7 +917,7 @@ end
 
 -- What a pop marks, and its colour; byStyle: the Pop style's Colour applies (not to warnings); tick:
 -- an end flash of this kind (an early end of its own) shows a tick
-Looks.POP_KINDS = {
+SA.POP_KINDS = {
 	ready = { color = { 1, 0.82, 0.25 }, byStyle = true },
 	expired = { color = { 0.95, 0.95, 0.95 }, byStyle = true },
 	lost = { color = { 0.35, 0.65, 1 } },
@@ -925,13 +925,13 @@ Looks.POP_KINDS = {
 	blocked = { color = { 0.6, 0.6, 0.6 } },   -- ready but can't be cast
 }
 -- A class's own pop kind
-function Looks.addPopKind(key, spec) Looks.POP_KINDS[key] = spec end
+function SA.addPopKind(key, spec) SA.POP_KINDS[key] = spec end
 
-Looks.effectSchool = effectSchool
+SA.effectSchool = effectSchool
 
 -- Blizzard's cooldown-done flash, doubled to be seen; nil without the art.
-function Looks.popEdge(parent)
-	if not Looks.hasAtlas(GCD_FLASH) then return nil end
+function SA.popEdge(parent)
+	if not SA.hasAtlas(GCD_FLASH) then return nil end
 	local out = {}
 	for i, grow in ipairs({ 1, 1.15 }) do
 		local t = parent:CreateTexture(nil, "OVERLAY", nil, 2)

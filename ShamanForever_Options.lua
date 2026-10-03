@@ -104,7 +104,7 @@ local function addonVersion()
 end
 
 local function buildHome(p)
-	p:pin(ns.Look.buildIntro(win, addonVersion()))
+	p:pin(ns.OptionsArt.buildIntro(win, addonVersion()))
 	p:bigButtons({
 		{ "Interface\\Icons\\INV_Misc_Key_03", lockText, lockSub, toggleLock },
 		{ "Interface\\Icons\\Spell_Nature_Invisibilty", function() return "Groups & Layout" end,
@@ -145,7 +145,7 @@ local function buildGlobal(p)
 	p:anchor("size")
 	local sized = ns.Bars.nouns(function(bar) return bar.ownSize ~= nil end, "group")
 	for i, noun in ipairs(sized) do sized[i] = noun .. "'s" end
-	local tip = "Every " .. ns.Look.wordList(sized) .. ", unless it has its own."
+	local tip = "Every " .. ns.OptionsArt.wordList(sized) .. ", unless it has its own."
 	K.rangeSlider(p, ns.Profiles.RANGES.iconSize, "Icon size", tip, int, gopt(p, "iconSize"))
 	local function ownSizes()
 		local out = {}
@@ -287,8 +287,8 @@ local function buildAbout(p)
 		.. "Link icons: Simple Icons, CC0. The Carved stone, Aged bronze and Carved wood borders: made with an AI image "
 		.. "model (Google Gemini).")
 	local ai = {}
-	for _, kind in ipairs({ "frame", "groupframe" }) do
-		for _, e in ipairs(ns.Style.choices(kind, "look")) do
+	for _, part in ipairs({ "frame", "groupframe" }) do
+		for _, e in ipairs(ns.Style.choices(part, "look")) do
 			if e.credit == "ai" and not e.hidden then table.insert(ai, e.name) end
 		end
 	end
@@ -403,7 +403,7 @@ local function buildNav()
 	navLock:SetSize(NAV_W - 32, 22)
 	navLock:SetPoint("BOTTOMLEFT", 16, 12)
 	navLock:SetScript("OnClick", function() ns.setLocked(not acct().locked) end)
-	setTip(navLock, "Positioning", "Unlocked, drag " .. ns.Look.movingWords("groups")
+	setTip(navLock, "Positioning", "Unlocked, drag " .. ns.OptionsArt.movingWords("groups")
 		.. " on screen. " .. ns.CLASS.slash[1] .. " lock does the same.")
 	function navLock.refresh() navLock:SetText(acct().locked and "Unlock positioning" or "Lock positioning") end
 	navLock.refresh()
@@ -412,7 +412,7 @@ local function buildNav()
 			add(spec.key, spec.title, spec.icon):SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 12, spec.bottom)
 		end
 	end
-	navDivider = ns.Look.divider(win)
+	navDivider = ns.OptionsArt.divider(win)
 	navDivider:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 20, 136)
 	navDivider:SetWidth(NAV_W - 36)
 	local list = CreateFrame("ScrollFrame", nil, win)
@@ -426,7 +426,7 @@ local function buildNav()
 	for _, p in ipairs(pageOrder) do
 		local e = ns.ELEMENTS[p.key]
 		if e and e.kind then
-			local b = add(p.key, ns.Look.elementName(p.key), e.icon, true, child)
+			local b = add(p.key, ns.OptionsArt.elementName(p.key), e.icon, true, child)
 			b:SetWidth(NAV_W - 42)
 			byKey[p.key] = b
 			n = n + 1
@@ -532,12 +532,12 @@ end
 local function addStyleUsers()
 	local St = ns.Style
 	for _, owner in ipairs(ns.Bars.list()) do
-		for _, kind in ipairs(ns.Bars.get(owner).kinds) do St.addUser(kind, owner) end
+		for _, part in ipairs(ns.Bars.get(owner).parts) do St.addUser(part, owner) end
 	end
 	for _, key in ipairs(ns.ElementPages.ordered()) do
 		if ns.ElementPages.pageOf(key) then
-			for _, kind in ipairs(St.ORDER) do
-				if St.KINDS[kind].elements then St.addUser(kind, key) end
+			for _, part in ipairs(St.ORDER) do
+				if St.PARTS[part].elements then St.addUser(part, key) end
 			end
 		end
 	end

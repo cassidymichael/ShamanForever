@@ -59,7 +59,7 @@ local drag = {}
 local page, list, rows, loose, newButton
 local view = {}
 
-local function elementName(key) return ns.Look.elementName(key) end
+local function elementName(key) return ns.OptionsArt.elementName(key) end
 
 local function chipText(key)
 	local tags = {}

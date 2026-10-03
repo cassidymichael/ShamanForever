@@ -115,7 +115,7 @@ local RETIRED = {
 	folds = "^layout:",
 	-- The totem bar's switches from before its mode, and follow from before sizeFollow
 	totemBar = { "enabled", "hideTotemFrame", "hideActionBar", "killedPulse", "follow" },
-	-- Style choices that went, to their nearest: kind -> field -> old -> new
+	-- Style choices that went, to their nearest: part -> field -> old -> new
 	styles = { pop = { burst = { shapes = "painted" } } },
 }
 
@@ -178,10 +178,10 @@ local function retireStyles(profile)
 	for _, o in pairs(profile.elementOpts) do table.insert(holders, o) end
 	for _, key in ipairs(ns.Bars.list()) do table.insert(holders, profile[ns.Bars.get(key).saved]) end
 	for _, g in ipairs(type(profile.groups) == "table" and profile.groups or {}) do table.insert(holders, g) end
-	for kind, fields in pairs(RETIRED.styles) do
+	for part, fields in pairs(RETIRED.styles) do
 		for _, h in ipairs(holders) do
 			local t = h
-			for _, k in ipairs(ns.Style.KINDS[kind].path) do t = type(t) == "table" and t[k] or nil end
+			for _, k in ipairs(ns.Style.PARTS[part].path) do t = type(t) == "table" and t[k] or nil end
 			if type(t) == "table" then
 				for field, map in pairs(fields) do
 					local new = t[field] ~= nil and map[t[field]]
@@ -461,8 +461,8 @@ local function cleanProfile(t)
 		if type(t[saved]) == "table" then out[saved] = t[saved] end
 	end
 	clampNumbers(out, RANGES, DEFAULTS)
-	for _, kind in ipairs({ "frame", "groupframe" }) do
-		local spec = ns.Style.KINDS[kind]
+	for _, part in ipairs({ "frame", "groupframe" }) do
+		local spec = ns.Style.PARTS[part]
 		local name = spec.path[1]
 		if type(t[name]) == "table" then out[name] = ns.Style.clean(t[name], spec.defaults, spec.ranges) end
 	end

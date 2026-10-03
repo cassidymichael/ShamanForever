@@ -8,7 +8,7 @@ local T = { name = "totems" }
 ns.Totems = T
 
 -- Grounding Totem's end when it takes a spell
-ns.Looks.addPopKind("grounded", { color = { 0.56, 0.76, 0.92 }, tick = true })
+ns.StyleArt.addPopKind("grounded", { color = { 0.56, 0.76, 0.92 }, tick = true })
 
 -- Slots: 1 fire, 2 earth, 3 water, 4 air
 local owner = {}   -- slot -> spell key, or "other"

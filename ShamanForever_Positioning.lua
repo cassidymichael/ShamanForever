@@ -498,7 +498,7 @@ function PO.update()
 	if selectedGroup and not ns.groupById(selectedGroup) then selectedGroup = nil end
 	syncNudger()
 	tray:SetShown(unlocked)
-	if unlocked then tray.drag:SetText("Move " .. ns.Look.movingWords("a group", "or")) end
+	if unlocked then tray.drag:SetText("Move " .. ns.OptionsArt.movingWords("a group", "or")) end
 	tray:SetHeight(30 + tray.hint:GetHeight() + 10 + 26 + 8)
 	tray.snap:SetChecked(a.snap)
 	PO.optionsShown(ns.Options.isShown())

@@ -420,7 +420,7 @@ full:SetAllPoints(shield)
 full:SetAlpha(0)
 
 local function placeClip(slot, button, size)
-	local reach = math.ceil(ns.Looks.outerEdge(shield)) + 2
+	local reach = math.ceil(ns.StyleArt.outerEdge(shield)) + 2
 	local step = size + 2 * reach + 2
 	local bar, clip = slot.sensor, slot.clip
 	bar:ClearAllPoints()

@@ -2,7 +2,7 @@
 local _, ns = ...
 
 local K = ns.Options.kit
-local elementDisplay, idleBlock, lookBlocks = K.elementDisplay, K.idleBlock, K.lookBlocks
+local elementDisplay, idleBlock, styleBlocks = K.elementDisplay, K.idleBlock, K.styleBlocks
 local warnBlock, timerSettings, eopt, eslider = K.warnBlock, K.timerSettings, K.eopt, K.eslider
 
 local function buildImbue(p, def)
@@ -26,7 +26,7 @@ local function buildImbue(p, def)
 		eslider(p, key, "Show under", nil, mins, nil, "showUnderMins")
 		p:text("Time left shows once it's below this. 0 never shows it.")
 	end)
-	lookBlocks(p, key)
+	styleBlocks(p, key)
 end
 
 ns.registerKind("imbue", { page = buildImbue })

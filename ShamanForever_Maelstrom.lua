@@ -300,7 +300,7 @@ local FIVE_LEVEL, HOST_LEVEL, COPY_UP = 9, 12, 10
 
 -- Sensor bar src.max steps long; the clip covers the icon and its reach only at the most stacks
 local function placeFive(slot, button, size)
-	local reach = math.ceil(REACH * (size + 2 * ns.Looks.outerEdge(f)) - size / 2)
+	local reach = math.ceil(REACH * (size + 2 * ns.StyleArt.outerEdge(f)) - size / 2)
 	local step = size + 2 * reach + 2
 	local bar, clip = slot.sensor, slot.clip
 	bar:ClearAllPoints()

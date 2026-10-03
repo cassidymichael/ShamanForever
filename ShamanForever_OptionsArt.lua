@@ -1,7 +1,7 @@
--- Options look: school art, element headers with live previews, the experimental badge
+-- Options art: school art, element headers with live previews, the experimental badge
 local ADDON, ns = ...
 local L = {}
-ns.Look = L
+ns.OptionsArt = L
 
 local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
 L.GOLD = { 0.85, 0.71, 0.42 }
@@ -470,7 +470,7 @@ function L.buildHero(parent, key)
 		if not def.stage then
 			local ic = self.previewIcon
 			local x = 16 + padL
-				+ ns.Looks.fit(ic, ns.borderFor(key), PREVIEW_SIZE, PREVIEW_SIZE, { shape = el and el.shape })
+				+ ns.StyleArt.fit(ic, ns.borderFor(key), PREVIEW_SIZE, PREVIEW_SIZE, { shape = el and el.shape })
 			ic:ClearAllPoints()
 			ic:SetPoint("LEFT", p, "LEFT", x, -6)
 			local l, t = ic:GetLeft(), ic:GetTop()
@@ -537,27 +537,27 @@ function L.buildIntro(parent, version)
 	return h
 end
 
--- Look tiles: an icon wearing a look that isn't saved anywhere, drawn by the HUD's own code.
+-- Style tiles: an icon wearing a style that isn't saved anywhere, drawn by the HUD's own code.
 
 do
-	local KINDS = { "border", "glow", "pop", "frame" }
+	local PARTS = { "border", "glow", "pop", "frame" }
 	local Tile = {}
 	Tile.__index = Tile
 
 	local function copy(v) return type(v) == "table" and CopyTable(v) or v end
 
-	local function setStyle(owner, kind, st)
-		local spec = ns.Style.KINDS[kind]
+	local function setStyle(owner, part, st)
+		local spec = ns.Style.PARTS[part]
 		local t = ns.Style.clean(st, spec.defaults, spec.ranges)
 		t.follow = false
 		owner[spec.path[1]] = t
 	end
 
 	function Tile:wear(base, over)
-		for _, kind in ipairs(KINDS) do
-			local st = ns.Style.get(base, kind)
-			for k, v in pairs(over and over[kind] or {}) do st[k] = copy(v) end
-			setStyle(self.owner, kind, st)
+		for _, part in ipairs(PARTS) do
+			local st = ns.Style.get(base, part)
+			for k, v in pairs(over and over[part] or {}) do st[k] = copy(v) end
+			setStyle(self.owner, part, st)
 		end
 		self.ic.glowF:restyle()
 		self:fit()
@@ -583,7 +583,7 @@ do
 
 	function Tile:fit()
 		local size = self.size
-		ns.Looks.fit(self.ic, self.owner.border, size)
+		ns.StyleArt.fit(self.ic, self.owner.border, size)
 		self.ic:ClearAllPoints()
 		self.ic:SetPoint("CENTER", self.box, "CENTER", 0, 0)
 		ns.Frames.mount(self.ic, self.owner, size)
@@ -625,7 +625,7 @@ do
 
 	local function make(parent, size)
 		local t = setmetatable({ size = size, owner = {} }, Tile)
-		for _, kind in ipairs(KINDS) do setStyle(t.owner, kind) end
+		for _, part in ipairs(PARTS) do setStyle(t.owner, part) end
 		t.box = CreateFrame("Frame", nil, parent)
 		t.box:SetSize(size, size)
 		t.ic = ns.makeIcon(t.box, size, t.owner)

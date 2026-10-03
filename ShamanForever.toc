@@ -26,10 +26,10 @@ ShamanForever_ClassElements.lua
 ShamanForever_Style.lua
 ShamanForever_Media.lua
 ShamanForever_Widgets.lua
-ShamanForever_Looks.lua
+ShamanForever_StyleArt.lua
 ShamanForever_Effects.lua
 ShamanForever_Frames.lua
-ShamanForever_FrameLooks.lua
+ShamanForever_FrameStyles.lua
 ShamanForever_Timers.lua
 ShamanForever_Profiles.lua
 ShamanForever.lua
@@ -52,7 +52,7 @@ ShamanForever_TotemBar.lua
 ShamanForever_TotemRange.lua
 ShamanForever_TotemSkins.lua
 ShamanForever_Swing.lua
-ShamanForever_OptionsLook.lua
+ShamanForever_OptionsArt.lua
 ShamanForever_Preview.lua
 ShamanForever_OptionsPage.lua
 ShamanForever_Options.lua

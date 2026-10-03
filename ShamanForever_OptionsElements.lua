@@ -6,7 +6,7 @@ ns.ElementPages = EP
 
 local K = ns.Options.kit
 local SHOW_CHOICES = K.SHOW_CHOICES
-local elementDisplay, idleBlock, lookBlocks = K.elementDisplay, K.idleBlock, K.lookBlocks
+local elementDisplay, idleBlock, styleBlocks = K.elementDisplay, K.idleBlock, K.styleBlocks
 
 -- Learned first, then not learned, then other races' racials; each by name.
 local function byName()
@@ -14,7 +14,7 @@ local function byName()
 	for i, key in ipairs(ns.ELEMENT_KEYS) do
 		keys[i] = key
 		band[key] = ns.isLearned(key) and 0 or ns.Spells.otherRace(ns.ELEMENTS[key].race) and 2 or 1
-		lower[key] = ns.Look.elementName(key):lower()
+		lower[key] = ns.OptionsArt.elementName(key):lower()
 	end
 	table.sort(keys, function(a, b)
 		if band[a] ~= band[b] then return band[a] < band[b] end
@@ -116,9 +116,9 @@ function EP.buildOverview(p)
 	-- The styles it has its own of, each by its label or short name (name)
 	local function ownStyles(key, name)
 		local S, out = ns.Style, {}
-		for _, kind in ipairs(S.ORDER) do
-			local spec = S.KINDS[kind]
-			if spec.label and tContains(spec.users, key) and not S.follows(key, kind) then
+		for _, part in ipairs(S.ORDER) do
+			local spec = S.PARTS[part]
+			if spec.label and tContains(spec.users, key) and not S.follows(key, part) then
 				table.insert(out, spec[name])
 			end
 		end
@@ -244,7 +244,7 @@ function EP.buildOverview(p)
 end
 
 -- A kind made of parts: Display and Idle, its slots' blocks (K.registerSlot) with its parts' words,
--- then the look blocks
+-- then the style blocks
 local function partsPage(p, def)
 	local key = def.key
 	local kind = ns.ELEMENTS[key].kind
@@ -254,7 +254,7 @@ local function partsPage(p, def)
 		local words, build = ns.Kinds.words(kind, def, slot), K.slotBuilder(slot)
 		if words ~= nil and build then build(p, def, words) end
 	end
-	lookBlocks(p, key)
+	styleBlocks(p, key)
 end
 
 -- An element's page builder: its kind's own, else the parts page for a kind made of parts
@@ -281,7 +281,7 @@ function EP.pageOf(key) return builder(key) and key or nil end
 
 function EP.askReset(key)
 	local p = pageObjects[key]
-	if p then p:askReset("every " .. ns.Look.elementName(key) .. " setting") end
+	if p then p:askReset("every " .. ns.OptionsArt.elementName(key) .. " setting") end
 end
 
 ns.Options.registerPage("elements", { title = "Elements", icon = ns.Options.ART .. "Elements.tga", order = 70,

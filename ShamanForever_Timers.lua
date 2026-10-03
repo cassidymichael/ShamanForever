@@ -6,7 +6,7 @@ local _, ns = ...
 local T = {}
 ns.Timer = T
 
-T.KINDS = { "cooldown", "uptime" }
+T.PARTS = { "cooldown", "uptime" }
 -- Tenths: seconds below which the countdown shows tenths (0: never)
 local function timeColors()
 	return {
@@ -26,16 +26,16 @@ T.DEFAULTS = {
 		bar = true, barHeight = 8, barElement = true, barColor = { 0.46, 1, 0.35, 1 }, barEdge = "bottom",
 	},
 }
-for _, kind in ipairs(T.KINDS) do
-	for k, v in pairs(timeColors()) do T.DEFAULTS[kind][k] = v end
+for _, part in ipairs(T.PARTS) do
+	for k, v in pairs(timeColors()) do T.DEFAULTS[part][k] = v end
 end
 -- Parts an element's timer can't have, and why (shown on its page); filled as elements register
 T.CANT = {}
-function T.cant(key, kind)
+function T.cant(key, part)
 	local c, out = key and T.CANT[key], {}
 	if not c then return out end
 	for k, v in pairs(c) do if type(v) == "string" then out[k] = v end end
-	if type(c[kind]) == "table" then for k, v in pairs(c[kind]) do out[k] = v end end
+	if type(c[part]) == "table" then for k, v in pairs(c[part]) do out[k] = v end end
 	return out
 end
 
@@ -49,9 +49,9 @@ local RANGES = { textSize = { 6, 48, 1 }, abbrev = { 0, 3600, 60 }, swipeAlpha =
 	barHeight = { 1, 20, 1 }, soon = { 1, 60, 1 }, now = { 1, 60, 1 }, tenths = { 0, 10, 1 } }
 local NAMES = { cooldown = { "Cooldown timer", "cooldown", 1 }, uptime = { "Time left timer", "time left", 2 } }
 local S = ns.Style
-for _, kind in ipairs(T.KINDS) do
-	S.register(kind, { defaults = T.DEFAULTS[kind], ranges = RANGES, path = { "timers", kind }, elements = true,
-		label = NAMES[kind][1], short = NAMES[kind][2], order = NAMES[kind][3] })
+for _, part in ipairs(T.PARTS) do
+	S.register(part, { defaults = T.DEFAULTS[part], ranges = RANGES, path = { "timers", part }, elements = true,
+		label = NAMES[part][1], short = NAMES[part][2], order = NAMES[part][3] })
 end
 
 -- The countdown's formatter
@@ -109,7 +109,7 @@ local function breakpoints(s, abbrev, tenths)
 	return out
 end
 
--- One formatter per look; a timer keeps its own, so dropping the cache never frees one in use
+-- One formatter per style; a timer keeps its own, so dropping the cache never frees one in use
 local formatters = ns.cache(32, function(s, abbrev, tenths)
 	local ok, made = ns.try("timer formatter", function()
 		local fm = C_StringUtil.CreateNumericRuleFormatter()
@@ -134,9 +134,9 @@ local fonts = 0
 
 -- opts: anchor, cd (an existing Cooldown), dual, school, aura (on Blizzard's aura button: it
 -- drives the bar, so it is never fed a duration here), barInset
-function T.new(parent, key, kind, opts)
+function T.new(parent, key, part, opts)
 	opts = opts or {}
-	local t = setmetatable({ key = key, kind = kind, parent = parent, anchor = opts.anchor or parent, dual = opts.dual,
+	local t = setmetatable({ key = key, part = part, parent = parent, anchor = opts.anchor or parent, dual = opts.dual,
 		school = opts.school, aura = opts.aura, barInset = opts.barInset }, Timer)
 	local cd = opts.cd
 	if not cd then
@@ -144,7 +144,7 @@ function T.new(parent, key, kind, opts)
 		cd:SetAllPoints(t.anchor)
 	end
 	cd:SetDrawEdge(false)
-	cd:SetDrawBling(kind == "cooldown")
+	cd:SetDrawBling(part == "cooldown")
 	cd:SetSwipeTexture(WHITE)
 	t.cd = cd
 	fonts = fonts + 1
@@ -176,8 +176,8 @@ end
 
 -- Safe any time for our own frames; one on Blizzard's aura button is restyled by its caller, out of combat
 function Timer:apply()
-	local s = S.get(self.key, self.kind)
-	local cant = T.cant(self.key, self.kind)
+	local s = S.get(self.key, self.part)
+	local cant = T.cant(self.key, self.part)
 	local cd = self.cd
 	cd:SetDrawSwipe(s.swipe and not cant.swipe)
 	cd:SetSwipeColor(0, 0, 0, s.swipeAlpha)
@@ -219,7 +219,7 @@ function Timer:apply()
 	end
 	if self.last then self:set(self.last) end
 	if self.fs then
-		T.placeText(self.fs, self.anchor, s, self.barOn, self.dual and self.kind == "uptime")
+		T.placeText(self.fs, self.anchor, s, self.barOn, self.dual and self.part == "uptime")
 	end
 end
 
@@ -241,7 +241,7 @@ function T.placeText(fs, anchor, s, barOn, dual)
 end
 
 function Timer:barRGB()
-	local s = S.get(self.key, self.kind)
+	local s = S.get(self.key, self.part)
 	return s.barElement and schoolColor(self) or s.barColor
 end
 
@@ -361,7 +361,7 @@ function Timer:setExpire(e, icon)
 		x:SetScript("OnShow", function(s) if s.pulseOn then s.pulse:Play() end end)
 		x.glow = ns.Effects.glow(x, self.anchor, self.key)
 		self.exp = x
-		ns.Looks.followMask(self.anchor, x.grey, x.dim)
+		ns.StyleArt.followMask(self.anchor, x.grey, x.dim)
 	end
 	x.glow:fit(self.anchor:GetWidth())
 	-- A look the owner doesn't declare is nil: off

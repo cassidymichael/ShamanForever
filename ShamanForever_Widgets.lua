@@ -2,7 +2,7 @@
 
 local ADDON, ns = ...
 
--- What shared code reads from the class (_Class) with no default; the first reader is _Looks
+-- What shared code reads from the class (_Class) with no default; the first reader is _StyleArt
 do
 	local function has(path)
 		local t = ns
@@ -258,7 +258,7 @@ function ns.makeGCDSweep(parent)
 	cd:SetHideCountdownNumbers(true)
 	cd:SetSwipeTexture(ns.WHITE)
 	cd:SetSwipeColor(0, 0, 0, 0.6)
-	ns.Looks.followSwipe(parent, cd)
+	ns.StyleArt.followSwipe(parent, cd)
 	return cd
 end
 
@@ -293,7 +293,7 @@ local function initAuraButton(slot, button)
 	ns.cropIconExact(tex)
 	if o.ownIcon then tex:SetTexture(o.ownIcon()) else button:SetIcon(tex) end
 	slot.icon = tex
-	ns.try(o.sites.style, ns.Looks.auraMask, host, tex, o.key)
+	ns.try(o.sites.style, ns.StyleArt.auraMask, host, tex, o.key)
 	local cd = CreateFrame("Cooldown", nil, host, "CooldownFrameTemplate")
 	cd:SetAllPoints()
 	slot.cd = cd
@@ -411,8 +411,8 @@ function AuraSlot:styleNow()
 				b:SetFrameLevel(f.textFrame:GetFrameLevel() + 5 + 2 * i + 2)
 			end
 		end
-		-- Own try: a look the button refuses mustn't stop the timer and the caller's parts.
-		ns.try(o.sites.style .. ": look", ns.Looks.auraStyle, self, size)
+		-- Own try: a style the button refuses mustn't stop the timer and the caller's parts.
+		ns.try(o.sites.style .. ": style", ns.StyleArt.auraStyle, self, size)
 		if self.timer then self.timer:apply() end
 		if o.onStyle then o.onStyle(self, size) end
 	end)
@@ -597,7 +597,7 @@ local CLIP_REACH = 1.7
 local function shapeTextures(frame, f, over)
 	for _, r in ipairs({ frame:GetRegions() }) do
 		if r:IsObjectType("Texture") and not r:IsObjectType("MaskTexture") then
-			ns.Looks.maskOver(f, r, over)
+			ns.StyleArt.maskOver(f, r, over)
 		end
 	end
 	for _, c in ipairs({ frame:GetChildren() }) do shapeTextures(c, f, over) end
@@ -649,7 +649,7 @@ end
 
 -- Wide enough for the art frame on a look that carries the border
 local function cellWidth(size, frame, o)
-	local half = CLIP_REACH * (size + 2 * ns.Looks.outerEdge(frame))
+	local half = CLIP_REACH * (size + 2 * ns.StyleArt.outerEdge(frame))
 	if not o.glowOnly then
 		local r, box = ns.Frames.reach(o.key), ns.boxOf(o.key)
 		half = math.max(half, box * (0.5 + math.max(r.left, r.right, r.top, r.bottom)) + 1)
@@ -699,9 +699,9 @@ end
 function ClipLook:reshape()
 	if self.opts.glowOnly then self.glow:restyle() return end
 	local f = self.frame
-	ns.Looks.overlay(self.art, ns.borderFor(self.opts.key))
-	ns.Looks.maskOver(f, self.tex)
-	for _, e in ipairs(self.ring.edges) do ns.Looks.maskOver(f, e, self.tex) end
+	ns.StyleArt.overlay(self.art, ns.borderFor(self.opts.key))
+	ns.StyleArt.maskOver(f, self.tex)
+	for _, e in ipairs(self.ring.edges) do ns.StyleArt.maskOver(f, e, self.tex) end
 	self.glow:restyle()
 end
 

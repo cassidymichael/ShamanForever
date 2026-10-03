@@ -3,7 +3,7 @@ local _, ns = ...
 
 local Page, K = ns.Page, ns.Options.kit
 local showWhen, pct = Page.showWhen, Page.pct
-local elementDisplay, idleBlock, lookBlocks = K.elementDisplay, K.idleBlock, K.lookBlocks
+local elementDisplay, idleBlock, styleBlocks = K.elementDisplay, K.idleBlock, K.styleBlocks
 local readyBlock, timerSettings, gcdBlock, eopt = K.readyBlock, K.timerSettings, K.gcdBlock, K.eopt
 local eslider, respell = K.eslider, K.respell
 
@@ -45,7 +45,7 @@ local function buildShock(p, def)
 	timerSettings(p, "Cooldown", key, "cooldown")
 	gcdBlock(p, key)
 	readyBlock(p, key)
-	lookBlocks(p, key)
+	styleBlocks(p, key)
 end
 
 ns.registerKind("shock", { page = buildShock })
