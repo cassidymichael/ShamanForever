@@ -168,7 +168,7 @@ local function previewTiles(f, owner, x, bySchool, framed)
 end
 
 -- The HUD lays out only out of combat, so a change made in combat reaches it when combat ends;
--- -- previews here take it at once.
+-- previews here take it at once.
 local function borderRows(p, owner, after, label, shown)
 	after = after or relayout
 	local r = styleRows(p, owner, "border", after)
@@ -342,7 +342,7 @@ end
 local function barFramed(bar) return tContains(ns.Bars.get(bar).kinds, "groupframe") end
 
 -- popSchool is its own setting, not a style field, so it stays whether or not the element
--- -- follows Global.
+-- follows Global.
 local function popSchoolRow(p, key, shown)
 	local function get()
 		local v = ns.elementSetting(key, "popSchool")
@@ -724,7 +724,6 @@ local function lookBlocks(p, key)
 	p:header("Frame style")
 	K.frameRows(p, key, "frame", relayout)
 end
-
 
 -- States and events (the shapes: _Profiles). A block's owner is an element (its key) or a bar (its
 -- name); it offers the fields the owner's defaults declare, and is left out when there are none.

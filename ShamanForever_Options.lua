@@ -34,7 +34,7 @@ end
 local relayout = perFrame(function() ns.applyLayout(); OP.refresh() end)
 local retime = perFrame(function() ns.applyTimers(); OP.refresh() end)
 -- ns.Effects.applyStyle restyles only the listed glows; one under the aura button goes through
--- -- its module's applyTimers.
+-- its module's applyTimers.
 local reglow = perFrame(function() ns.Effects.applyStyle(); ns.applyTimers(); OP.refresh() end)
 local function respell() ns.resolveSpells(); ns.applyLayout(); ns.refreshAll(); OP.refresh() end
 

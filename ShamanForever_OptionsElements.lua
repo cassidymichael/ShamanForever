@@ -27,7 +27,6 @@ local function byName()
 end
 EP.ordered = byName
 
-
 local SHOW_TIP = "When the element is drawn. Hidden keeps its place in its group, so choosing Always or In combat again puts it back where it was. Groups have their own Show on the Groups & Layout page; an element shows only when both it and its group allow it."
 
 -- Elements overview

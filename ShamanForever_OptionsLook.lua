@@ -49,7 +49,6 @@ function L.movingWords(lead, last)
 	return L.wordList(ns.Bars.nouns(function(bar) return bar.movable ~= nil end, lead), last)
 end
 
-
 -- Ornaments
 function L.addCorners(frame, size, inset)
 	size, inset = size or 26, inset or 4
@@ -641,7 +640,6 @@ do
 	end
 
 	-- Tiles are made once and reused: each icon's glow joins a restyle list that only grows.
-	-- K 146 642 649 819
 	local free, made = {}, {}
 	local Pool = {}
 	L.tilePool = Pool

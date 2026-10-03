@@ -696,7 +696,6 @@ local function header(p)
 end
 
 -- The page
--- K 24 25 26 27 28 36
 local GLOBAL = "Global settings"
 local BLOCKS = { border = { "border", "Border style" }, glow = { "glow", "Pulsing glow style" },
 	pop = { "pop", "Pop style" }, frame = { "frame", "Frame style" }, groupframe = { "groupframe", "Group frame style" } }

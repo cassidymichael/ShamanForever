@@ -91,7 +91,6 @@ local function idleWhen()
 	return tContains(CHOICES.idleWhen, w) and w or "notup"
 end
 
-
 -- Containers sit at the text level + 5; parts are set from that, never read back
 local function baseLevel() return f.textFrame:GetFrameLevel() + 5 end
 
