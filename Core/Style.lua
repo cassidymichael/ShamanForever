@@ -65,7 +65,7 @@ S.register("frame", {
 	defaults = { look = "none", color = { 1, 1, 1, 1 }, alpha = 1 },
 	ranges = { alpha = { 0.1, 1, 0.05 } },
 	path = { "frameStyle" },
-	elements = true, label = "Frame", short = "frame", order = 6,
+	elements = true, label = "Art frame", short = "art frame", order = 6,
 })
 S.register("groupframe", {
 	defaults = { look = "none", color = { 1, 1, 1, 1 }, alpha = 1 },
