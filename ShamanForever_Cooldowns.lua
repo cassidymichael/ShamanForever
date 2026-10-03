@@ -121,19 +121,11 @@ ns.registerPart("primed", {
 -- Icons are made as this file loads, so a part that needs one of these registers before it;
 -- prepare notes one that didn't.
 
--- The first of def's parts with that runtime hook
-local function hookOf(def, name)
-	for _, p in ipairs(KD.partsOf("cooldown", def)) do
-		local h = p.runtime and p.runtime[name]
-		if h then return h end
-	end
-end
-
 local function checkFrames(def)
 	local f, missing = def.frame, nil
 	if hasUptime(def) and not f.upTimer then missing = "upTimer"
 	elseif KD.words("cooldown", def, "warn") and not f.warn then missing = "warn"
-	elseif hookOf(def, "readyGate") and not f.readyGate then missing = "readyGate" end
+	elseif KD.hook("cooldown", def, "readyGate") and not f.readyGate then missing = "readyGate" end
 	if missing then
 		ns.noteError("cooldowns: " .. def.key, "no " .. missing .. ": a part joined after its icon was made")
 	end
@@ -158,7 +150,7 @@ local function makeCooldownIcon(def)
 		f.upTimer = ns.Timer.new(f.activeHolder, def.key, "uptime", { anchor = f, dual = true, school = def.school })
 	end
 	f.cdTimer = ns.Timer.new(f, def.key, "cooldown", { cd = f.cd, school = def.school })
-	if def.readyGlow or hookOf(def, "readyGate") then
+	if def.readyGlow or KD.hook("cooldown", def, "readyGate") then
 		-- Ready glow alpha: off cooldown; the gate's alpha multiplies it
 		f.readyGate = CreateFrame("Frame", nil, f.effects)
 		f.readyGate:SetAllPoints()
@@ -461,7 +453,7 @@ for _, def in ipairs(COOLDOWNS) do
 		for _, k in ipairs(def.primed.spends) do def.spends[k] = true end
 	end
 	local function gate()
-		local g = hookOf(def, "gate")
+		local g = KD.hook("cooldown", def, "gate")
 		if g then return g(def) end
 		return "ready"
 	end
@@ -501,7 +493,7 @@ local function refreshReadyGlow(def, cantAct)
 	f.readyGlow:SetShown(on and true or false)
 	if not on then return end
 	f.readyGlow:fit(f:GetWidth())
-	local gate = hookOf(def, "readyGate")
+	local gate = KD.hook("cooldown", def, "readyGate")
 	if gate then
 		local a = gate(def)
 		if not a then f.readyGate:SetAlpha(0) return end

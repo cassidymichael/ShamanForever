@@ -112,20 +112,6 @@ ns.registerKind("buff", {
 })
 
 local NONE = {}
--- The first of def's parts with that runtime hook
-local function hookOf(def, name)
-	for _, p in ipairs(KD.partsOf("buff", def)) do
-		local h = p.runtime and p.runtime[name]
-		if h then return h end
-	end
-end
--- Every part's runtime hook of that name, in parts order
-local function eachHook(def, name, ...)
-	for _, p in ipairs(KD.partsOf("buff", def)) do
-		local h = p.runtime and p.runtime[name]
-		if h then h(def, ...) end
-	end
-end
 
 local function makeBuffIcon(def)
 	local f = ns.newElementIcon(def.key, { effects = true })
@@ -153,11 +139,11 @@ local function buildButton(def, slot, button)
 	if def.fx then def.fx:bind(button, slot.icon) end
 	def.edge = def.fx and def.fx:makeEdge(button)
 		or ns.Frames.edge(button, button, def.key, { overlay = false })
-	eachHook(def, "button", slot, button)
+	KD.eachHook("buff", def, "button", slot, button)
 end
 
 local function styleButton(def, size, slot, site)
-	eachHook(def, "style", size, slot)
+	KD.eachHook("buff", def, "style", size, slot)
 	if def.edge then ns.try(site .. " border " .. def.key, ns.Frames.dress, def.edge, def.key) end
 	if def.fx then ns.try(site .. " pop " .. def.key, def.fx.stylePop, def.fx, size) end
 end
@@ -171,7 +157,7 @@ local function buildAura(def)
 		for _, look in ipairs(made.looks or NONE) do table.insert(def.looks, look) end
 		for _, x in ipairs(made.extras or NONE) do table.insert(def.extras, x) end
 	end
-	local where = hookOf(def, "aura")
+	local where = KD.hook("buff", def, "aura")
 	where = where and where(def) or { slot = "proc", parent = f.effects, site = "proc",
 		glow = { parent = f.effects } }
 	local site = where.site
@@ -212,7 +198,7 @@ for _, def in ipairs(ROWS) do
 		ranges = def.ranges,
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
 		experimental = def.experimental, styles = def.styles })
-	if not hookOf(def, "engine") then table.insert(BUFFS, def) end
+	if not KD.hook("buff", def, "engine") then table.insert(BUFFS, def) end
 end
 
 -- An aura element's steps, for whichever module runs it
