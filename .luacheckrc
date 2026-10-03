@@ -20,12 +20,10 @@ read_globals = {
     "C_CurveUtil",
     "C_DurationUtil",
     "C_EncodingUtil",
-    "C_EventUtils",
     "C_Item",
     "C_KeyBindings",
     "C_LossOfControl",
     "C_Map",
-    "C_PaperDollInfo",
     "C_RestrictedActions",
     "C_Secrets",
     "C_Spell",
@@ -118,6 +116,7 @@ read_globals = {
     "RaidFrame",
     "RegisterAutoHide",
     "RegisterStateDriver",
+    "Round",
     "SOUNDKIT",
     "STANDARD_TEXT_FONT",
     "SaveBindings",
@@ -152,7 +151,6 @@ read_globals = {
     "assert",
     "ceil",
     "class",
-    "date",
     "deg",
     "error",
     "exp",
@@ -188,4 +186,4 @@ read_globals = {
     "wipe",
     "xpcall",
 }
-globals = { "SlashCmdList", "StaticPopupDialogs", "UISpecialFrames", "ShamanForeverDB", "SLASH_SHAMANFOREVER1", "SLASH_SHAMANFOREVER2", "Blizzard_PTRIssueReporter_Saved" }
+globals = { "SlashCmdList", "StaticPopupDialogs", "UISpecialFrames", "Blizzard_PTRIssueReporter_Saved" }
