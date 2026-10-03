@@ -423,39 +423,12 @@ function M.follow(s)
 	ns.refreshAll()
 end
 -- The preview (ns.registerKind): the same parts, drawn by us for n stacks
-local function previewParts(ic)
-	if ic.mw then return ic.mw end
-	local p = CreateFrame("Frame", nil, ic.textFrame)
-	p:SetAllPoints(ic)
-	p:SetFrameLevel(ic.textFrame:GetFrameLevel() + 1)
-	p.bg = p:CreateTexture(nil, "BACKGROUND")
-	p.segs = {}
-	ic.mw = p
-	return p
-end
-
-local function drawPreview(ic, n)
-	local p = previewParts(ic)
+local function drawPreview(ic, n, P)
 	local max = src.max
-	local w, h = ic:GetWidth(), number("barHeight")
-	local barOn = n > 0 and count("bar")
-	p.bg:ClearAllPoints()
-	p.bg:SetPoint("BOTTOMLEFT", ic, "BOTTOMLEFT", 0, 0)
-	p.bg:SetSize(w, h)
-	p.bg:SetColorTexture(0, 0, 0, 0.6)
-	p.bg:SetShown(barOn)
-	local c = color("barColor")
-	local path, atlas = ns.Media.barOf(ns.Style.value(nil, "bar", "texture"))
-	local segW = (w - (max - 1)) / max
-	for i = 1, math.max(max, #p.segs) do
-		local t = p.segs[i]
-		if not t then t = p:CreateTexture(nil, "ARTWORK"); p.segs[i] = t end
-		t:ClearAllPoints()
-		t:SetPoint("BOTTOMLEFT", ic, "BOTTOMLEFT", (i - 1) * (segW + 1), 0)
-		t:SetSize(segW, h)
-		if atlas then t:SetAtlas(path) else t:SetTexture(path) end
-		t:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
-		t:SetShown(barOn and i <= n)
+	if n > 0 and count("bar") then
+		local c = color("barColor")
+		ic.bar:SetHeight(number("barHeight"))
+		P.setBar(ic, max, n, c[1], c[2], c[3], c[4])
 	end
 	if n > 0 and count("number") then
 		local fc = color("markColor")
@@ -475,7 +448,7 @@ local PREVIEW = {
 	render = function(ic, st, P)
 		P.reset(ic, M.icon)
 		local n = ({ s1 = 1, s4 = src.max - 1, s5 = src.max })[st] or 0
-		drawPreview(ic, n)
+		drawPreview(ic, n, P)
 		if n > 0 then P.frozen(ic.upT, 0.3, 30) end
 		local when = setting("idleWhen")
 		if (n == 0 and when ~= "never") or (when == "five" and n < src.max) then P.idle(ic, KEY) end
