@@ -72,43 +72,65 @@ end
 
 function SA.uses(look, field) return look.uses ~= nil and look.uses[field] == true end
 
--- Each ring is four textures; returns how far the rings reach.
+-- Line files: a white band LINE_MARGIN texels wide round a clear centre; top and bottom own the corners
+local LINE_MARGIN = 4
+local LINE_RING = MEDIA .. "Line-Ring"
+local LINE_SIDE = { top = MEDIA .. "Line-Top", bottom = MEDIA .. "Line-Bottom", left = MEDIA .. "Line-Left",
+	right = MEDIA .. "Line-Right" }
+local WHOLE = { false }
+
+local function lineHolder(f, n)
+	local h = f.border[n]
+	if not h then
+		h = CreateFrame("Frame", nil, f)
+		h:EnableMouse(false)
+		h.tex = {}
+		f.border[n] = h
+	end
+	return h
+end
+
+-- A ring is one sliced texture round f (one a side where sides differ), so a pop's Scale carries it with
+-- the picture; returns how far the rings reach.
 local function drawRings(f, rings, b)
 	f.border = f.border or {}
-	local tex, n, d = f.border, 0, 0
+	local n, d = 0, 0
 	for i = #(rings or {}), 1, -1 do
 		local ring = rings[i]
 		local w = W.linePx(f, pxOf(ring.px, b))
-		local o = d + w
-		for _, side in ipairs(SIDES) do
+		if w > 0 then
+			local o = d + w
 			n = n + 1
-			local t = tex[n] or f:CreateTexture(nil, "BACKGROUND", nil, -8)
-			tex[n] = t
-			local c = colorOf(ring[side] or ring.color, b, f)
-			t:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
-			t:ClearAllPoints()
-			t:Show()
-			if side == "top" then
-				t:SetPoint("BOTTOMLEFT", f, "TOPLEFT", -o, d)
-				t:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", o, d)
-				t:SetHeight(w)
-			elseif side == "bottom" then
-				t:SetPoint("TOPLEFT", f, "BOTTOMLEFT", -o, -d)
-				t:SetPoint("TOPRIGHT", f, "BOTTOMRIGHT", o, -d)
-				t:SetHeight(w)
-			elseif side == "left" then
-				t:SetPoint("TOPRIGHT", f, "TOPLEFT", -d, d)
-				t:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", -d, -d)
-				t:SetWidth(w)
-			else
-				t:SetPoint("TOPLEFT", f, "TOPRIGHT", d, d)
-				t:SetPoint("BOTTOMLEFT", f, "BOTTOMRIGHT", d, -d)
-				t:SetWidth(w)
+			local h = lineHolder(f, n)
+			local k = w / LINE_MARGIN
+			h:SetScale(k)
+			-- Anchored, not sized (f's size can be secret); offsets are in h's scale
+			h:ClearAllPoints()
+			h:SetPoint("TOPLEFT", f, "TOPLEFT", -o / k, o / k)
+			h:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", o / k, -o / k)
+			h:SetFrameLevel(f:GetFrameLevel())
+			local sides = ring.top or ring.bottom or ring.left or ring.right
+			local list = sides and SIDES or WHOLE
+			for j, side in ipairs(list) do
+				local t = h.tex[j]
+				if not t then
+					t = h:CreateTexture(nil, "BACKGROUND", nil, -8)
+					t:SetAllPoints()
+					h.tex[j] = t
+				end
+				t:SetTexture(side and LINE_SIDE[side] or LINE_RING, "CLAMP", "CLAMP", "NEAREST")
+				t:SetTextureSliceMargins(LINE_MARGIN, LINE_MARGIN, LINE_MARGIN, LINE_MARGIN)
+				t:SetTextureSliceMode(STRETCHED)
+				local c = colorOf(side and ring[side] or ring.color, b, f)
+				t:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
+				t:Show()
 			end
+			for j = #list + 1, #h.tex do h.tex[j]:Hide() end
+			h:Show()
+			d = o
 		end
-		d = o
 	end
-	for i = n + 1, #tex do tex[i]:Hide() end
+	for i = n + 1, #f.border do f.border[i]:Hide() end
 	return d
 end
 
