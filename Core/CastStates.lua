@@ -26,15 +26,16 @@ CS.COVER_NOTE = "Blizzard's own button draws this icon, so this shows only over 
 local makeCover
 -- Watches: { key, power, range (it has the state), spells() (the IDs whose cost and range are read;
 -- nil: not learned), frame (its icon), cover (where Blizzard's aura button draws it), unit (range to;
--- "target") }. cover: the sensor of a clip look shown while the aura is up, which carries the paint:
--- { parent (the look's, faded with the button), sensorParent, unit, needUnit, filter, ids,
--- candidates, slot (the button's aura slot, whose filters the sensor's must match) }. The element
--- sets up, refilters and points the look (w.up) with its own sensors.
+-- "target") }. cover: the sensor of a clip look shown while the aura is up, which carries the paint,
+-- made once a state is on: { parent (the look's, faded with the button), sensorParent, unit (else
+-- the player), needUnit, filter, ids, candidates, slot (the button's aura slot, whose filters the
+-- sensor's must match), attach(look) and detach(look) (the element refilters and points it with its
+-- own sensors while attached), note (the page's line on when it shows), tips (its switches' tips) }.
 local WATCHES, HAS = {}, {}
 function CS.watch(key, w)
 	w.key, w.unit = key, w.unit or "target"
-	HAS[key] = { power = w.power and true or false, range = w.range and true or false, cover = w.cover ~= nil }
-	if w.cover then makeCover(w) end
+	w.drawn = ""
+	HAS[key] = { power = w.power and true or false, range = w.range and true or false, cover = w.cover }
 	table.insert(WATCHES, w)
 	return w
 end
@@ -46,13 +47,13 @@ end
 -- Something other than an element (a bar's slot): w = { spells(), isOn(state), enabled(), draw(out,
 -- low), unit, label (/sf debug) }, with power and range as for a watch
 function CS.follow(w)
-	w.unit = w.unit or "target"
+	w.unit, w.drawn = w.unit or "target", ""
 	table.insert(WATCHES, w)
 	return w
 end
 function CS.has(key, state) return HAS[key] ~= nil and HAS[key][state] or false end
--- Drawn over Blizzard's aura button
-function CS.covered(key) return HAS[key] ~= nil and HAS[key].cover end
+-- Drawn over Blizzard's aura button: its cover options (note, tips), else nil
+function CS.covered(key) return HAS[key] ~= nil and HAS[key].cover or nil end
 function CS.on(key, state)
 	return CS.has(key, state) and E.setting(key, STATES[state].saved, "on") == true
 end
@@ -65,6 +66,16 @@ end
 -- No target, or one the spell can't be cast on, is nil: no verdict
 local function outOfRange(id, unit)
 	return ns.plain(safe(C_Spell.IsSpellInRange, id, unit)) == false
+end
+
+local function isOn(w, state)
+	if not w[state] then return false end
+	if w.isOn then return w.isOn(state) and true or false end
+	return CS.on(w.key, state)
+end
+local function enabled(w)
+	if w.enabled then return w.enabled() end
+	return E.isEnabled(w.key)
 end
 
 -- The paint on an icon of ours, the preview's too; overlay: only the overlay
@@ -85,9 +96,9 @@ function CS.paint(f, key, out, low, overlay)
 	local c, a = STATES.power.color, S.value(key, "power", "ring")
 	-- Under the icon's own warning layers, where it has any, so their rings win
 	if f.warn or f.upTimer then
-		if not f.lowRing then f.lowRing = W.makeRing(f, f.tex) end
+		if low and not f.lowRing then f.lowRing = W.makeRing(f, f.tex) end
 		if low then f.lowRing:color(c[1], c[2], c[3], a) end
-		f.lowRing:show(low)
+		if f.lowRing then f.lowRing:show(low) end
 	else f:SetPaintRing(low, c[1], c[2], c[3], a) end
 end
 
@@ -98,13 +109,12 @@ function makeCover(w)
 	local up
 	local function agrees() return o.slot.applied ~= nil and o.slot.applied == up.applied end
 	up = W.makeClipLook(f, {
-		key = w.key, owner = w.key, invert = true, glowOnly = true,
+		key = w.key, owner = w.key, invert = true, glowOnly = true, noGlow = true,
 		parent = o.parent, sensorParent = o.sensorParent or o.parent, unit = o.unit, needUnit = o.needUnit,
 		filter = o.filter, ids = o.ids, candidates = o.candidates, agrees = o.slot and agrees or nil,
 		sites = { container = "cast state sensor " .. w.key, style = "cast state style " .. w.key,
 			filter = "cast state filter " .. w.key },
 	})
-	up:setParts(false, false, false, false, false)
 	local c = CreateFrame("Frame", nil, up.look)
 	c:SetAllPoints(f)
 	c.over = c:CreateTexture(nil, "ARTWORK")
@@ -113,17 +123,42 @@ function makeCover(w)
 	ns.StyleArt.followMask(f, c.over)
 	w.up, w.coverFrame = up, c
 end
--- Out of combat: the look's frames follow Blizzard's sensor
+local function anyOn(w)
+	for _, state in ipairs(CS.ORDER) do
+		if isOn(w, state) then return true end
+	end
+	return false
+end
+-- Out of combat: made, attached and pointed while a state is on and the element is on the HUD, else
+-- detached and pointed at no unit; the look's frames follow Blizzard's sensor
 local function styleCover(w)
-	if not w.up or ns.inCombat() then return end
+	if not w.cover or ns.inCombat() then return end
+	local o = w.cover
+	local on = anyOn(w) and E.isEnabled(w.key)
+	if not on then
+		if w.up and w.attached then
+			w.attached = false
+			o.detach(w.up)
+			w.up:want(false)
+			w.up:follow("none")
+		end
+		return
+	end
+	if not w.up then makeCover(w) end
+	if not w.attached then
+		w.attached, w.drawn = true, nil
+		o.attach(w.up)
+		w.up:follow(type(o.unit) == "function" and o.unit() or o.unit or "player")
+	end
 	local lv = w.frame.textFrame:GetFrameLevel() + 10   -- over the button, under its glow
 	w.up:setLevel(lv)
 	w.coverFrame:SetFrameLevel(lv + 1)
-	if E.isEnabled(w.key) then w.up:setup() end
+	w.up:setup()
 	w.up:style()
 end
 local function drawCover(w, out, low)
 	local c = w.coverFrame
+	if not c then return end
 	local state = out and "range" or low and "power" or nil
 	if state then
 		local k = STATES[state].color
@@ -147,15 +182,6 @@ local function draw(w)
 	else CS.paint(w.frame, w.key, w.out, w.low) end
 end
 
-local function isOn(w, state)
-	if not w[state] then return false end
-	if w.isOn then return w.isOn(state) and true or false end
-	return CS.on(w.key, state)
-end
-local function enabled(w)
-	if w.enabled then return w.enabled() end
-	return E.isEnabled(w.key)
-end
 local function readPower(w)
 	local id = isOn(w, "power") and enabled(w) and w.spells()
 	w.low = id and short(id) or false
@@ -205,12 +231,13 @@ local function syncTicker()
 	rangeTicker:SetShown(want)
 end
 
+-- A style may have changed: repainted, unless nothing is or was painted
 function CS.applyLayout()
 	syncChecks()
 	syncTicker()
 	for _, w in ipairs(WATCHES) do
-		w.drawn = nil
 		styleCover(w)
+		if w.drawn ~= "" or anyOn(w) then w.drawn = nil end
 	end
 	refresh()
 end
@@ -231,7 +258,9 @@ end
 -- The preview's stand-in takes the element's place
 function CS.onPreview(on)
 	previewing = on
-	for _, w in ipairs(WATCHES) do w.drawn = nil end
+	for _, w in ipairs(WATCHES) do
+		if w.cover and w.drawn ~= "" then w.drawn = nil end
+	end
 	refresh()
 end
 

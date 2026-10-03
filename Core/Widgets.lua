@@ -660,6 +660,7 @@ function W.makeClipLook(frame, opts)
 	h.ring = W.makeRing(h.art, h.tex)
 	h.pulse = W.makePulse(h.tex, "fade")
 	if opts.glowOnly then h.art:Hide() end
+	if opts.noGlow then return h end
 	h.glow = ns.Effects.glow(h.look, frame, opts.owner)
 	h.glow.onLayout = function(_, parts, look)
 		if not look.inside then return end
@@ -714,14 +715,17 @@ function ClipLook:setParts(grey, tint, ring, fade, glow)
 	if not self.fadeOn then self.pulse:Stop()
 	elseif not self.pulse:IsPlaying() then self.pulse:Play() end
 	glow = glow and true or false
-	if glow ~= self.glowOn then
+	if self.glow and glow ~= self.glowOn then
 		self.glowOn = glow
 		self.glow:SetShown(glow)
 	end
 end
 
 function ClipLook:reshape()
-	if self.opts.glowOnly then self.glow:restyle() return end
+	if self.opts.glowOnly then
+		if self.glow then self.glow:restyle() end
+		return
+	end
 	local f = self.frame
 	ns.StyleArt.overlay(self.art, ns.Elements.borderFor(self.opts.key))
 	ns.StyleArt.maskOver(f, self.tex)
@@ -783,7 +787,7 @@ end
 function ClipLook:took(size, filters)
 	if size then
 		self.size = size
-		self.glow:fit(size)
+		if self.glow then self.glow:fit(size) end
 	end
 	if filters then
 		self.applied = filterSig(filters)
@@ -876,6 +880,7 @@ function ClipLook:setLevel(lv, up)
 	for _, f in ipairs({ self.hold, self.clip, self.look, self.art }) do
 		f:SetFrameLevel(lv)
 	end
+	if not self.glow then return end
 	self.glow:SetFrameLevel(lv + (up or 1))
 	self.glow.inner:SetFrameLevel(lv + (up or 1))
 end
@@ -889,7 +894,7 @@ function ClipLook:describe()
 		not self.idsOK and "behind" or (self.opts.agrees and not self.opts.agrees()) and "not the slot's"
 			or "matched",
 		tostring(self.unit), tostring(self.wanted), tostring(self.waiting ~= nil),
-		self.glow.look and self.glow.look.key or "none")
+		self.glow and self.glow.look and self.glow.look.key or "none")
 end
 
 function W.makeIcon(parent, size, owner)

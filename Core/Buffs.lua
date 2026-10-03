@@ -197,7 +197,12 @@ local function auraCover(def)
 	local g = where and where(def).glow or { parent = def.frame.effects }
 	return { parent = def.idle or g.parent, sensorParent = g.parent, unit = g.unit, needUnit = g.needUnit,
 		filter = def.filter, ids = function() return auraIDs(def) end,
-		candidates = def.candidates and function() return def.candidates(def) end, slot = def.aura }
+		candidates = def.candidates and function() return def.candidates(def) end, slot = def.aura,
+		-- Refiltered and pointed with the row's own looks while attached
+		attach = function(look) table.insert(def.looks, look) end,
+		detach = function(look)
+			for i = #def.looks, 1, -1 do if def.looks[i] == look then table.remove(def.looks, i) end end
+		end }
 end
 
 for _, def in ipairs(ROWS) do
@@ -214,11 +219,7 @@ for _, def in ipairs(ROWS) do
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
 		experimental = def.experimental, styles = def.styles })
 	if not KD.hook("buff", def, "engine") then table.insert(BUFFS, def) end
-	if def.power or def.range then
-		local w = CS.watchRow(def, def.proc and auraCover(def) or nil)
-		-- Its sensor is set up, refiltered and pointed with the row's own
-		if w.up then table.insert(def.looks, w.up) end
-	end
+	if def.power or def.range then CS.watchRow(def, def.proc and auraCover(def) or nil) end
 end
 
 -- An aura element's steps, for whichever module runs it

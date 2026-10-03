@@ -59,10 +59,6 @@ PREVIEW = {
 			ic.bg = ic:CreateTexture(nil, "BACKGROUND")
 			ic.bg:SetAllPoints()
 			ic.killed = ns.Effects.endFlash(bar, ic, "totembar", ic)
-			ic.lowOver = ic:CreateTexture(nil, "ARTWORK", nil, 2)
-			ic.lowOver:SetAllPoints(ic.tex)
-			ns.StyleArt.followMask(ic, ic.lowOver)
-			ic.lowRing = W.makeRing(ic.textFrame, ic.tex)
 			h.slots[i] = ic
 		end
 		h.extras = {}
@@ -204,7 +200,7 @@ PREVIEW = {
 						f:Show()
 					end
 				end
-				TB.paintLow(ic, ic.lowOver, ic.lowRing, st == "mana" and i == 1)
+				TB.paintLow(ic, st == "mana" and i == 1)
 				if st == "offpick" and i == 1 then
 					local other
 					for _, id in ipairs(TB.known(el)) do

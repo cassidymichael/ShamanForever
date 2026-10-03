@@ -526,11 +526,6 @@ for index, el in ipairs(ELEMENTS) do
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
 	W.cropIconExact(v.icon)
-	s.lowOver = v:CreateTexture(nil, "ARTWORK", nil, 2)
-	s.lowOver:SetAllPoints(v.icon)
-	s.lowOver:Hide()
-	ns.StyleArt.followMask(v, s.lowOver)
-	s.lowRing = W.makeRing(v, v.icon)
 	s.timer = ns.Timer.new(v, "totembar", "uptime", { anchor = v, school = el })
 	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 1)
 	s.timer.bar:SetFrameLevel(b:GetFrameLevel() + TIME_BAR_LEVEL)
@@ -790,16 +785,24 @@ end
 TB.expireOpts = expireOpts
 function TB.pickSpell(el) return pickSpell(SLOT[el]) end
 
--- No mana: the pick a click casts, in Global's style (the tint on the slot's own icon)
-function TB.paintLow(v, over, ring, low)
+-- No mana on v (a slot's look, or the page's header icon): the pick a click casts, in Global's style
+-- (the tint on its own icon); its overlay and ring made the first time
+function TB.paintLow(v, low)
+	if not (low or v.lowOver) then return end
+	if not v.lowOver then
+		v.lowOver = v:CreateTexture(nil, "ARTWORK", nil, 2)
+		v.lowOver:SetAllPoints(v.icon)
+		ns.StyleArt.followMask(v, v.lowOver)
+		v.lowRing = W.makeRing(v.textFrame or v, v.icon)
+	end
 	local st, k = ns.Style.global("power"), ns.CastStates.STATES.power.color
 	local m = 1 - st.tint
 	if low and (st.look == "tint" or st.look == "both") then v.icon:SetVertexColor(m, m, 1)
 	else v.icon:SetVertexColor(1, 1, 1) end
-	over:SetColorTexture(k[1], k[2], k[3], st.overlay)
-	over:SetShown(low and (st.look == "overlay" or st.look == "both"))
-	if low then ring:color(k[1], k[2], k[3], st.ring) end
-	ring:show(low)
+	v.lowOver:SetColorTexture(k[1], k[2], k[3], st.overlay)
+	v.lowOver:SetShown(low and (st.look == "overlay" or st.look == "both"))
+	if low then v.lowRing:color(k[1], k[2], k[3], st.ring) end
+	v.lowRing:show(low)
 end
 for _, el in ipairs(ELEMENTS) do
 	local s = slots[el]
@@ -807,7 +810,7 @@ for _, el in ipairs(ELEMENTS) do
 		spells = function() return pickSpell(s.slot) end,
 		isOn = function() return cfg().mana.on end,
 		enabled = function() return feat("cast") and true or false end,
-		draw = function(_, low) TB.paintLow(s.vis, s.lowOver, s.lowRing, low) end })
+		draw = function(_, low) TB.paintLow(s.vis, low) end })
 end
 
 local anyDown = false

@@ -290,9 +290,12 @@ look = W.makeClipLook(shield, {
 	},
 })
 lookEdge = FR.edge(look.art, shield, "shield", { overlay = false })
--- Its cost over Blizzard's button while the shield is up, faded with it by Idle: the shield it shows
-local paint = CS.watch("shield", { frame = shield, power = true,
-	cover = { parent = gate, sensorParent = shield, ids = shieldIDMap },
+-- Its cost over Blizzard's button while the shield is up, faded with it by Idle: the shield it shows.
+-- Its sensor, once a state is on, refilters with the others while attached.
+local cover
+CS.watch("shield", { frame = shield, power = true,
+	cover = { parent = gate, sensorParent = shield, ids = shieldIDMap,
+		attach = function(up) cover = up end, detach = function() cover = nil end },
 	spells = function()
 		local s = SHIELDS[shownShield()]
 		return s.known and s.spellID or nil
@@ -301,14 +304,14 @@ local paint = CS.watch("shield", { frame = shield, power = true,
 -- A sensor missing a tracked ID would stay empty over that shield, so the look waits
 local function checkIDs()
 	look:checkIDs()
-	paint.up:checkIDs()
+	if cover then cover:checkIDs() end
 end
 
 -- Filters only change while auras are readable
 local function applyShieldFilter()
 	native:refilter()
 	look:refilter()
-	paint.up:refilter()
+	if cover then cover:refilter() end
 	copy:refilter()
 	checkIDs()
 end
@@ -323,7 +326,7 @@ local function learnShieldID(key, id)
 	local function matches(c)
 		return c.container == nil or c.err ~= nil or (c.filtered and c.filtered[id])
 	end
-	if matches(native) and matches(look) and matches(paint.up) and matches(copy) then checkIDs()
+	if matches(native) and matches(look) and (not cover or matches(cover)) and matches(copy) then checkIDs()
 	else applyShieldFilter() end
 end
 
@@ -583,7 +586,6 @@ function SH.applyLayout()
 	SH.applyRemovedSound()
 	native:setup()
 	look:setup()
-	paint.up:setup()
 	if idleWhen() == "charges" and E.isEnabled("shield") then copy:setup() end
 	SH.style()
 	SH.applyEmptyLook()
