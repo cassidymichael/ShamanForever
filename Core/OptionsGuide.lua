@@ -9,6 +9,7 @@ ns.Guide = GD
 
 local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
 local BOARD_W = 600
+local TOP_GAP = 10
 -- One spacing scale: a box's padding, the gap between blocks, a title's gap to its text
 local PAD, GAP, UNDER = 12, 12, 6
 local BLURB_Y, UNDER_BLURB = 50, 30   -- the blurb's top, and the room under it before the slide
@@ -419,7 +420,7 @@ local function build(p)
 	holder = CreateFrame("Frame", nil, p.content)
 	board = CreateFrame("Frame", nil, holder)
 	board:SetWidth(BOARD_W)
-	board:SetPoint("TOP", holder, "TOP", 0, 0)
+	board:SetPoint("TOP", holder, "TOP", 0, -TOP_GAP)
 	local word = GD.text(board, "Guide", 2, 2, nil, "GameFontNormalHuge")
 	local sep = board:CreateTexture(nil, "ARTWORK")
 	sep:SetColorTexture(0.54, 0.42, 0.23, 1)
@@ -441,7 +442,7 @@ local function build(p)
 	show(cur)
 	page = p
 	p:add(holder, function()
-		local h = boardHeight()
+		local h = boardHeight() + TOP_GAP
 		holder:SetHeight(h)
 		return h
 	end, nil, function()
