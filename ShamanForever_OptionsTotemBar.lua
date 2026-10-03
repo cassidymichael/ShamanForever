@@ -15,8 +15,8 @@ local POP_ITEMS = 3
 local PREVIEW
 PREVIEW = {
 	stage = true, heroH = 210, uptime = true,
-	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" }, { "killed", "Killed early" },
-		{ "range", "Out of range" }, { "offpick", "Not your pick" }, { "picking", "Picking" } },
+	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" },
+		{ "killed", "Killed early" }, { "range", "Out of range" }, { "offpick", "Not your pick" }, { "picking", "Picking" } },
 	stateShown = function(st)
 		local c = ns.TotemBar.cfg()
 		local mode = c.mode
@@ -303,7 +303,8 @@ local function build(p)
 	local BAR_KEYS = "Keys: Options > Keybindings > " .. ns.NAME .. ", or hover the bar in Quick Keybind Mode."
 	p:text(ns.NAME .. "'s totem bar is off. Blizzard's totem bar and active totems display are on.\n"
 		.. "The totem key bindings still work. " .. KEYS, function() return c().mode == "blizzard" end)
-	p:text("Keeps Blizzard's totem bar, but replaces Blizzard's active totems display usually shown under the player frame.\n"
+	p:text("Keeps Blizzard's totem bar, but replaces Blizzard's active totems display usually shown under the player "
+		.. "frame.\n"
 		.. "Right-click a totem to dismiss it. " .. BAR_KEYS, function() return c().mode == "active" end)
 	p:text("Both of Blizzard's totem frames are replaced by " .. ns.NAME .. ".\n"
 		.. "Right-click a totem to dismiss it. Alt+click a slot to pick its totem. " .. BAR_KEYS, full)
@@ -452,7 +453,8 @@ local function build(p)
 	p:sub(sizeFollow, function() return not c().sizeFollow end, function()
 		K.rangeSlider(p, TB.RANGES.size, "Icon size", nil, px, tget("size"), function(v) c().size = v; changed() end)
 	end)
-	p:dropdown("Call and Recall", "Where they sit on the bar.", { { "ends", "Both ends" }, { "before", "Before the slots" }, { "after", "After the slots" } },
+	p:dropdown("Call and Recall", "Where they sit on the bar.",
+		{ { "ends", "Both ends" }, { "before", "Before the slots" }, { "after", "After the slots" } },
 		tget("extras"), tset("extras"),
 		showWhen(function() return (c().call or c().recall) and not TB.skin.owns("extras") end, full), 180)
 	own("extrasScale")
@@ -466,7 +468,8 @@ local function build(p)
 
 	p.gate = full
 	p:header("Buttons")
-	p:checkbox("Left-click casts your pick", "Left-click a slot to drop that element's picked totem.", tget("cast"), tset("cast"))
+	p:checkbox("Left-click casts your pick", "Left-click a slot to drop that element's picked totem.", tget("cast"),
+		tset("cast"))
 	local arrows = p:checkbox("Arrow opens a totem picker", "A tab on each slot opens its totems. Works in combat.",
 		tget("arrows"), tset("arrows"))
 	p:sub(arrows, tget("arrows"), function()
@@ -509,7 +512,8 @@ local function build(p)
 	K.gcdBlock(p, "totembar")
 	p:header("Totem not down")
 	local look = p:dropdown("Look", "How a slot looks while its totem isn't down.",
-		{ { "pick", "Your pick" }, { "frame", "Element colour" }, { "blank", "Blank" } }, tget("empty"), tset("empty"), nil, 180)
+		{ { "pick", "Your pick" }, { "frame", "Element colour" }, { "blank", "Blank" } }, tget("empty"), tset("empty"), nil,
+		180)
 	p:sub(look, function() return c().empty == "pick" end, function()
 		p:checkbox("Greyed", "Off: the pick in colour.", tget("idleGrey"), tset("idleGrey"))
 		tslider("Opacity", nil, pct, "idleAlpha")
@@ -530,7 +534,8 @@ local function build(p)
 
 	p.gate = TB.barOn
 	p:header("Out of range")
-	p:text("A strip along the top of a slot shows whether you're getting your own totem's buff, for totems that buff you. In range shows nothing at 0% opacity, the default.",
+	p:text("A strip along the top of a slot shows whether you're getting your own totem's buff, for totems that buff "
+		.. "you. In range shows nothing at 0% opacity, the default.",
 		free("range"))
 	p:text(function() return TB.skin.rangeText() or "" end, owned("range"))
 	local range = p:checkbox("Show", nil, tget("range"), tset("range"))
@@ -538,7 +543,8 @@ local function build(p)
 		tslider("Height", "In pixels.", px, "rangeHeight", free("rangeHeight"))
 		p:color("In range", "Colour and opacity.", tget("rangeIn"), tset("rangeIn"), free("range"))
 		p:color("Out of range", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"), free("range"))
-		p:text("A buff lingers a few seconds after you leave its range. Another shaman's totem of the same type can replace your buff, so yours shows as out of range.")
+		p:text("A buff lingers a few seconds after you leave its range. Another shaman's totem of the same type can "
+			.. "replace your buff, so yours shows as out of range.")
 	end)
 
 	-- Defaults use spell names that may not have loaded yet: TB.overChanged accepts either.
@@ -578,7 +584,8 @@ local function build(p)
 			end)
 			setTip(x, "Remove", "Use the time above for this totem.")
 		end
-		local add = p:dropdown("Add a totem", "Give a totem its own warning time.", {}, function() return nil end, function() end, nil, 220, function(_, root)
+		local add = p:dropdown("Add a totem", "Give a totem its own warning time.", {}, function() return nil end,
+			function() end, nil, 220, function(_, root)
 			local names, seen = {}, {}
 			for slot = 1, 4 do
 				for _, id in ipairs(ns.Totems.knownTotems(slot)) do

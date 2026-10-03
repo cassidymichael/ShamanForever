@@ -410,13 +410,15 @@ function TO.debug()
 	for slot = 1, 4 do
 		local ok, have, name, start, duration, icon, _, spellID = pcall(GetTotemInfo, slot)
 		say("totem slot %d: %s", slot, ok and string.format("have=%s name=%s start=%s duration=%s icon=%s spellID=%s",
-			describeArg(have), describeArg(name), describeArg(start), describeArg(duration), describeArg(icon), describeArg(spellID))
+			describeArg(have), describeArg(name), describeArg(start), describeArg(duration), describeArg(icon),
+			describeArg(spellID))
 			or ("error " .. tostring(have)))
 		local dok, d = pcall(GetTotemDuration, slot)
 		if dok and d then
 			local rok, rem = pcall(d.GetRemainingDuration, d)
 			local tok, total = pcall(d.GetTotalDuration, d)
-			say("  duration object: remaining=%s total=%s", rok and describeArg(rem) or "error", tok and describeArg(total) or "error")
+			say("  duration object: remaining=%s total=%s", rok and describeArg(rem) or "error",
+				tok and describeArg(total) or "error")
 		end
 	end
 	if C_Secrets and C_Secrets.ShouldTotemSlotBeSecret then

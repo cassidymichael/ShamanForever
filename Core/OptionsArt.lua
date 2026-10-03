@@ -55,7 +55,8 @@ end
 function OA.addCorners(frame, size, inset)
 	size, inset = size or 26, inset or 4
 	local list = {}
-	for _, c in ipairs({ { "TOPLEFT", 0, 1, 0, 1 }, { "TOPRIGHT", 1, 0, 0, 1 }, { "BOTTOMLEFT", 0, 1, 1, 0 }, { "BOTTOMRIGHT", 1, 0, 1, 0 } }) do
+	for _, c in ipairs({ { "TOPLEFT", 0, 1, 0, 1 }, { "TOPRIGHT", 1, 0, 0, 1 }, { "BOTTOMLEFT", 0, 1, 1, 0 },
+		{ "BOTTOMRIGHT", 1, 0, 1, 0 } }) do
 		local t = frame:CreateTexture(nil, "OVERLAY")
 		t:SetTexture(ART .. "Corner.tga")
 		t:SetSize(size, size)

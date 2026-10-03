@@ -138,8 +138,10 @@ local function buildGlobal(p)
 	K.soundsBlock(p)
 	local hasReporter = ns.IssueReporter.has
 	p:header("Beta", hasReporter)
-	p:checkbox("Hide the Issue Reporter button", "Blizzard's beta Issue Reporter button. " .. ns.NAME .. " also remembers where you drag it.",
-		function() return acct().hideIssueReporter end, function(v) acct().hideIssueReporter = v; ns.IssueReporter.apply() end, hasReporter)
+	p:checkbox("Hide the Issue Reporter button",
+		"Blizzard's beta Issue Reporter button. " .. ns.NAME .. " also remembers where you drag it.",
+		function() return acct().hideIssueReporter end,
+		function(v) acct().hideIssueReporter = v; ns.IssueReporter.apply() end, hasReporter)
 
 	p:section("Global styles")
 	p:text("These apply to all components within the addon, which can be overridden within each component's settings.")
@@ -204,7 +206,8 @@ local function buildProfiles(p)
 	p:buttons({
 		{ "New", function() askName("Name for the new profile:", nil, function(n) return P.new(n) end) end,
 			"A new profile with default settings.", 90 },
-		{ "Copy", function() askName("Name for the copy:", P.currentName() .. " copy", function(n) return P.new(n, P.getDB()) end) end,
+		{ "Copy",
+			function() askName("Name for the copy:", P.currentName() .. " copy", function(n) return P.new(n, P.getDB()) end) end,
 			"A new profile with this one's settings.", 90 },
 		{ "Rename", function() askName("New name:", P.currentName(), P.rename) end,
 			"Default can't be renamed.", 90, notDefault },
@@ -256,7 +259,8 @@ local function buildAbout(p)
 	p:add(p:row(6), 6)
 	aboutCard(p)
 	aboutFeedback = flashingHeader(p, "Feedback", "Interface\\Icons\\INV_Letter_15")
-	p:text("Ideas, requests or problems? Post in #feedback on Discord, comment on CurseForge, or open an issue on GitHub. Click a link, then Ctrl+C to copy.")
+	p:text("Ideas, requests or problems? Post in #feedback on Discord, comment on CurseForge, or open an issue on "
+		.. "GitHub. Click a link, then Ctrl+C to copy.")
 	local links = ns.CLASS.links
 	link(p, "Discord", links.discord, "discord")
 	link(p, "CurseForge", links.curseforge .. "/comments", "curseforge")
@@ -308,7 +312,8 @@ OP.registerPage("about", { title = "About", icon = "Interface\\Icons\\INV_Misc_B
 
 -- Show choices
 local SHOW_CHOICES = { { "always", "Always" }, { "combat", "In combat" }, { "never", "Hidden" } }
-local COMBAT_SHOW = { { "always", "Always" }, { "combat", "In combat" }, { "target", "In combat or with an enemy target" } }
+local COMBAT_SHOW = { { "always", "Always" }, { "combat", "In combat" },
+	{ "target", "In combat or with an enemy target" } }
 local STAY_TIP = "Seconds it stays once combat ends, then it fades out."
 local function staySecs(v) return v == 0 and "None" or string.format("%d s", v) end
 
@@ -326,7 +331,8 @@ local function refreshNav()
 		b.sel:SetShown(on)
 		b.accent:SetShown(on)
 		if on or not b.sub or E.isLearned(b.page) then
-			b.label:SetTextColor(on and 1 or (b.sub and 0.9 or 1), on and 0.84 or (b.sub and 0.88 or 0.82), on and 0.5 or (b.sub and 0.84 or 0))
+			b.label:SetTextColor(on and 1 or (b.sub and 0.9 or 1), on and 0.84 or (b.sub and 0.88 or 0.82),
+				on and 0.5 or (b.sub and 0.84 or 0))
 		else b.label:SetTextColor(0.55, 0.53, 0.5) end
 		b.icon:SetDesaturated(b.sub and not E.isLearned(b.page) or false)
 	end
@@ -837,7 +843,9 @@ local function scrollTo(p, frame, after)
 	C_Timer.After(0, function()
 		if not frame:IsVisible() then return end
 		local top, y = p.content:GetTop(), frame:GetTop()
-		if top and y then p.scroll:SetVerticalScroll(math.max(0, math.min(top - y - 8, p.scroll:GetVerticalScrollRange()))) end
+		if top and y then
+			p.scroll:SetVerticalScroll(math.max(0, math.min(top - y - 8, p.scroll:GetVerticalScrollRange())))
+		end
 		if after then after() end
 	end)
 end

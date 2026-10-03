@@ -147,7 +147,8 @@ end
 
 local function makeContainer(s)
 	local ok, err = ns.try("totem range: container", function()
-		local c = CreateFrame("AuraContainer", "ShamanForeverRange" .. TB.NAME[s.el], s.rangeHold, "CustomAuraContainerTemplate")
+		local c = CreateFrame("AuraContainer", "ShamanForeverRange" .. TB.NAME[s.el], s.rangeHold,
+			"CustomAuraContainerTemplate")
 		c:SetFrameLevel(s.button:GetFrameLevel() + TB.RANGE_LEVEL + 1)
 		c:SetUnit("player")
 		pcall(c.EnableMouse, c, false)

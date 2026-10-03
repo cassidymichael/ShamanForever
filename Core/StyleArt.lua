@@ -463,7 +463,8 @@ local CDM_MASK, CDM_OVERLAY = "UI-HUD-CoolDownManager-Mask", "UI-HUD-CoolDownMan
 local CDM_SWIPE = "Interface\\HUD\\UI-HUD-CoolDownManager-Icon-Swipe"
 local AB_MASK, AB_FRAME = "UI-HUD-ActionBar-IconFrame-Mask", "UI-HUD-ActionBar-IconFrame"
 
-S.addField("border", "look", { name = "Border style", where = "Global settings > Border style", preview = { play = "still" },
+S.addField("border", "look", { name = "Border style", where = "Global settings > Border style",
+	preview = { play = "still" },
 	groups = { { "lines", "Lines" }, { "blizzard", "Blizzard's" }, { "painted", "Painted" } } })
 S.addLook("border", "line", { name = "Line", group = "lines", uses = { size = true, color = true },
 	rings = { { px = "size", color = "color" } } })
@@ -802,7 +803,8 @@ local heartbeat = {
 	end,
 }
 
-S.addField("glow", "look", { name = "Glow style", where = "Global settings > Pulsing glow style", preview = { play = "loop" } })
+S.addField("glow", "look", { name = "Glow style", where = "Global settings > Pulsing glow style",
+	preview = { play = "loop" } })
 local function addGlow(key, name, entry)
 	entry.name = name
 	S.addLook("glow", key, entry)

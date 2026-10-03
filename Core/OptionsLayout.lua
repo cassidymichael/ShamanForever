@@ -583,11 +583,15 @@ local function buildSettings(p)
 			min = R.spacing[1], max = R.spacing[2], size = function() return G.size(sel()) end } })
 	p:text("Each element's border and art frame are on its own page.")
 	p:buttons({
-		{ "Centre on screen", function() askAbout(ns.POPUP .. "CENTER", sel()) end, "Moves the group to the middle of the screen.", 130 },
-		{ "Hide all", function() askAbout(ns.POPUP .. "HIDEALL", sel()) end, "Sets every element in the group to Hidden. They keep their places; set one back to Always to bring it back.", 90 },
+		{ "Centre on screen", function() askAbout(ns.POPUP .. "CENTER", sel()) end,
+			"Moves the group to the middle of the screen.", 130 },
+		{ "Hide all", function() askAbout(ns.POPUP .. "HIDEALL", sel()) end,
+			"Sets every element in the group to Hidden. They keep their places; set one back to Always to bring it back.",
+			90 },
 	})
 	p:buttons({
-		{ "Delete group", function() askDelete(sel()) end, "Its elements move to Ungrouped: off screen, their settings kept.", 110,
+		{ "Delete group", function() askDelete(sel()) end,
+			"Its elements move to Ungrouped: off screen, their settings kept.", 110,
 			function() return renaming == nil end },
 	})
 	p:add(p:row(10), 10)

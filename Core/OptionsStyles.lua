@@ -440,7 +440,8 @@ end
 local function frameStage(e, s)
 	local r = e.reach
 	local across, up = math.max(r.left, r.right), math.max(r.top, r.bottom)
-	return math.max(s + 44, math.ceil(s * (1 + 2 * across)) + 8), math.max(math.floor(s * 1.5 + 0.5), math.ceil(s * (1 + 2 * up)) + 8)
+	return math.max(s + 44, math.ceil(s * (1 + 2 * across)) + 8),
+		math.max(math.floor(s * 1.5 + 0.5), math.ceil(s * (1 + 2 * up)) + 8)
 end
 local function usableFrame(e) return not e.none and FR.usable(e) end
 
@@ -702,7 +703,8 @@ end
 -- The page
 local GLOBAL = "Global settings"
 local BLOCKS = { border = { "border", "Border style" }, glow = { "glow", "Pulsing glow style" },
-	pop = { "pop", "Pop style" }, frame = { "frame", "Art frame style" }, groupframe = { "groupframe", "Group art frame style" } }
+	pop = { "pop", "Pop style" }, frame = { "frame", "Art frame style" },
+	groupframe = { "groupframe", "Group art frame style" } }
 
 -- A row of chips and the Global settings link for a block without preview sliders
 local function chipRow(p, label, items, key, part)

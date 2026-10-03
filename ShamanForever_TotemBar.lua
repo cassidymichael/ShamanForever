@@ -269,10 +269,19 @@ function TB.placeArrow(tab, anchor, glyph)
 	local c = TB.eff()
 	local deep = c.arrowSize
 	tab:ClearAllPoints()
-	if c.pop == "up" then tab:SetPoint("BOTTOMLEFT", anchor, "TOPLEFT", 1, 1); tab:SetPoint("BOTTOMRIGHT", anchor, "TOPRIGHT", -1, 1); tab:SetHeight(deep)
-	elseif c.pop == "down" then tab:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 1, -1); tab:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", -1, -1); tab:SetHeight(deep)
-	elseif c.pop == "right" then tab:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 1, -1); tab:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 1, 1); tab:SetWidth(deep)
-	else tab:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -1, -1); tab:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMLEFT", -1, 1); tab:SetWidth(deep) end
+	if c.pop == "up" then
+		tab:SetPoint("BOTTOMLEFT", anchor, "TOPLEFT", 1, 1); tab:SetPoint("BOTTOMRIGHT", anchor, "TOPRIGHT", -1, 1)
+		tab:SetHeight(deep)
+	elseif c.pop == "down" then
+		tab:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 1, -1); tab:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", -1, -1)
+		tab:SetHeight(deep)
+	elseif c.pop == "right" then
+		tab:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 1, -1); tab:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 1, 1)
+		tab:SetWidth(deep)
+	else
+		tab:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -1, -1); tab:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMLEFT", -1, 1)
+		tab:SetWidth(deep)
+	end
 	glyph:SetSize(math.max(deep * 1.1, 10), math.max(deep * 0.6, 6))
 	glyph:SetRotation(GLYPH_TURN[c.pop])
 end
@@ -357,7 +366,8 @@ local SLOT_CLICK = [[
 		return false
 	end
 ]]
-local PICK_CLICK, PICK_AFTER = [[ return nil, self:GetAttribute("sf-pick") ]], [[ owner:RunAttribute("sf-close", message) ]]
+local PICK_CLICK = [[ return nil, self:GetAttribute("sf-pick") ]]
+local PICK_AFTER = [[ owner:RunAttribute("sf-close", message) ]]
 local HOVER_ENTER = [[
 	local i = self:GetAttribute("sf-pick")
 	if i and owner:GetAttribute("sf-hovermode") then owner:RunAttribute("sf-open", i) end
@@ -1144,7 +1154,8 @@ function layout()
 	if hasTotems ~= had then ns.changed() end
 	for _, el in ipairs(c.order) do
 		local s = slots[el]
-		local on = barOn() and not c.hidden[el] and (#known[el] > 0 or not GetMultiCastTotemSpells or (preview and preview.all))
+		local on = barOn() and not c.hidden[el]
+			and (#known[el] > 0 or not GetMultiCastTotemSpells or (preview and preview.all))
 		s.button:SetShown(on)
 		s.vis:SetShown(on)
 		if not on then s.killed.mark:Hide() end
@@ -1176,7 +1187,8 @@ function layout()
 		end
 		b:ClearAllPoints()
 		local side = W.roundPx((across - sz) / 2, px)
-		if row then b:SetPoint("TOPLEFT", bar, "TOPLEFT", it.offset, -side) else b:SetPoint("TOPLEFT", bar, "TOPLEFT", side, -it.offset) end
+		if row then b:SetPoint("TOPLEFT", bar, "TOPLEFT", it.offset, -side)
+		else b:SetPoint("TOPLEFT", bar, "TOPLEFT", side, -it.offset) end
 	end
 	for key, e in pairs(extras) do
 		local show = on[key] ~= nil
@@ -1355,7 +1367,8 @@ end
 local function kbBind(input)
 	local command = catcher.command
 	if not command or InCombatLockdown() then return end
-	local ctx = C_KeyBindings and C_KeyBindings.GetBindingContextForAction and C_KeyBindings.GetBindingContextForAction(command)
+	local ctx = C_KeyBindings and C_KeyBindings.GetBindingContextForAction
+		and C_KeyBindings.GetBindingContextForAction(command)
 	local key1, key2 = GetBindingKey(command, nil, ctx)
 	if input == "ESCAPE" then
 		if not key1 then return end
@@ -1553,7 +1566,9 @@ local function onEvent(_, event, arg1, ...)
 		refreshAfterCast(spell)
 	elseif event == "ACTIONBAR_SLOT_CHANGED" then
 		local base = multiAction(1, 1) - 1
-		if not isSecret(arg1) and type(arg1) == "number" and (arg1 == 0 or (arg1 > base and arg1 <= base + 12)) then refresh() end
+		if not isSecret(arg1) and type(arg1) == "number" and (arg1 == 0 or (arg1 > base and arg1 <= base + 12)) then
+			refresh()
+		end
 	elseif event == "UPDATE_BINDINGS" then
 		refreshKeys()
 	elseif event == "SPELL_UPDATE_COOLDOWN" then
@@ -1739,7 +1754,8 @@ function TB.debug()
 		TS.active(), TS.count(), g,
 		TotemFrame and TotemFrame:GetParent() and (TotemFrame:GetParent():GetName() or "?") or "none",
 		TotemFrame and string.format("%.2f", TotemFrame:GetAlpha()) or "-",
-		mc and (mc:GetParent() == hiddenParent and "hidden" or (mc:GetParent() and mc:GetParent():GetName() or "?")) or "none")
+		mc and (mc:GetParent() == hiddenParent and "hidden" or (mc:GetParent() and mc:GetParent():GetName() or "?"))
+			or "none")
 end
 
 Bars.register("totembar", { label = "Totem bar", cfg = cfg, saved = "totemBar", defaults = TB.DEFAULTS,

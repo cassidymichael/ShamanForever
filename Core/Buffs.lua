@@ -251,7 +251,9 @@ local function readAura(def)
 	if not ok then return end
 	if type(a) ~= "table" then setDown(def) return end
 	local exp, dur = a.expirationTime, a.duration
-	if isSecret(exp) or isSecret(dur) or type(exp) ~= "number" or type(dur) ~= "number" or exp <= 0 or dur <= 0 then return end
+	if isSecret(exp) or isSecret(dur) or type(exp) ~= "number" or type(dur) ~= "number" or exp <= 0 or dur <= 0 then
+		return
+	end
 	def.duration = dur
 	if not def.upUntil or math.abs(def.upUntil - exp) > 0.2 then setUp(def, exp - dur, dur) end
 end
@@ -368,7 +370,8 @@ local function readBreath()
 	breathing = false
 	for i = 1, 3 do
 		local ok, name, _, _, scale = safe(GetMirrorTimerInfo, i)
-		if ok and not isSecret(name) and name == "BREATH" and type(scale) == "number" and not isSecret(scale) and scale < 0 then
+		if ok and not isSecret(name) and name == "BREATH" and type(scale) == "number" and not isSecret(scale)
+			and scale < 0 then
 			breathing = true
 		end
 	end

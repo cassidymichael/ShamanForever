@@ -86,7 +86,8 @@ local function build(p)
 	slider(p, R.width, "Width", "Mouse wheel over the bar while positioning is unlocked does the same.",
 		px, get("width"), set("width"))
 	slider(p, R.height, "Height", nil, px, get("height"), set("height"))
-	slider(p, R.scale, "Scale", "Grows everything on the bar, borders too. Shift + mouse wheel over the bar while positioning is unlocked does the same.",
+	slider(p, R.scale, "Scale", "Grows everything on the bar, borders too. Shift + mouse wheel over the bar while "
+		.. "positioning is unlocked does the same.",
 		times, get("scale"), set("scale"))
 	slider(p, R.alpha, "Opacity", "Ctrl + mouse wheel over the bar while positioning is unlocked does the same.",
 		pct, get("alpha"), set("alpha"))

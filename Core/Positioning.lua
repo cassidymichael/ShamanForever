@@ -444,9 +444,11 @@ do
 		W.setTip(cb, label, tip, "ANCHOR_BOTTOM")
 		return cb
 	end
-	tray.snap = check("Snapping", "snap", "While dragging, groups snap to other groups' edges and centres, the screen centre, and the grid when it is shown.")
+	tray.snap = check("Snapping", "snap",
+		"While dragging, groups snap to other groups' edges and centres, the screen centre, and the grid when it is shown.")
 	tray.snap:SetPoint("LEFT", -4, 0)
-	tray.grid = check("Show grid", "grid", "A grid over the whole screen while unlocked. With snapping on, groups snap to it.")
+	tray.grid = check("Show grid", "grid",
+		"A grid over the whole screen while unlocked. With snapping on, groups snap to it.")
 	tray.grid:SetPoint("LEFT", tray.snap.Text, "RIGHT", 16, 0)
 	local function stepper(text, delta)
 		local b = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")

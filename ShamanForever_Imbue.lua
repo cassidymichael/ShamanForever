@@ -241,8 +241,10 @@ end
 -- /sf debug
 function IM.debug()
 	local r = readMainHand()
-	say("main hand imbue now: %s; last ticker read: %s; weapon %s", r == nil and "unreadable" .. (InCombatLockdown() and " (in combat)" or "")
-		or r == false and "none" or string.format("enchant %d, icon %d, %.0fs left", r.enchantID, r.enchantIconID, r.timeLeft / 1000),
+	say("main hand imbue now: %s; last ticker read: %s; weapon %s",
+		r == nil and "unreadable" .. (InCombatLockdown() and " (in combat)" or "")
+		or r == false and "none"
+		or string.format("enchant %d, icon %d, %.0fs left", r.enchantID, r.enchantIconID, r.timeLeft / 1000),
 		imbueState.read, tostring(hasWeapon()))
 end
 

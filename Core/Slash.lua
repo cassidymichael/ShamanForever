@@ -68,7 +68,8 @@ SlashCmdList[SLASH] = function(msg)
 	elseif cmd == "debug" then
 		E.debugReport()
 	else
-		say("%s opens the options. Also: %s lock (lock or unlock positioning), %s preview (the whole HUD in a typical moment), %s debug",
+		say("%s opens the options. Also: %s lock (lock or unlock positioning), %s preview (the whole HUD in a typical "
+			.. "moment), %s debug",
 			CMD, CMD, CMD, CMD)
 	end
 end

@@ -33,9 +33,13 @@ local function artError(a, what)
 	if type(a) ~= "table" then return what .. ": no art" end
 	local n = (a.file ~= nil and 1 or 0) + (a.atlas ~= nil and 1 or 0) + (a.path ~= nil and 1 or 0)
 	if n ~= 1 then return what .. ": needs one of file, atlas or path" end
-	if a.file ~= nil and not (positive(a.file) and a.file == floor(a.file)) then return what .. ": file is not a file ID" end
+	if a.file ~= nil and not (positive(a.file) and a.file == floor(a.file)) then
+		return what .. ": file is not a file ID"
+	end
 	if a.atlas ~= nil and (type(a.atlas) ~= "string" or a.atlas == "") then return what .. ": bad atlas" end
-	if a.path ~= nil and (type(a.path) ~= "string" or a.path == "" or a.path:find("%.%.")) then return what .. ": bad path" end
+	if a.path ~= nil and (type(a.path) ~= "string" or a.path == "" or a.path:find("%.%.")) then
+		return what .. ": bad path"
+	end
 	local s = a.size
 	if type(s) ~= "table" or not positive(s[1]) or not positive(s[2]) then return what .. ": size needs { w, h }" end
 	local c = a.coords
@@ -288,7 +292,8 @@ local function cellParts(look, cells, size, px, vertical, parts)
 			local across = round((thick - hole[2] - hole[4]) * k, px)
 			parts[#parts + 1] = { art = turned(a), x = cell.x - across, y = cell.y - from, w = T, h = L, v0 = s0, v1 = s1 }
 		else
-			parts[#parts + 1] = { art = a, x = cell.x - from, y = cell.y - round(hole[2] * k, px), w = L, h = T, u0 = s0, u1 = s1 }
+			parts[#parts + 1] = { art = a, x = cell.x - from, y = cell.y - round(hole[2] * k, px), w = L, h = T,
+				u0 = s0, u1 = s1 }
 		end
 	end
 	local n = #cells
@@ -303,9 +308,11 @@ local function cellParts(look, cells, size, px, vertical, parts)
 		local seam = round(size / 2, px)
 		if vertical then
 			local across = round((a.size[2] - hole[2] - hole[4]) * k, px)
-			parts[#parts + 1] = { art = turned(a), x = cells[1].x - across, y = cells[1].y + seam, w = T, h = L, v0 = s0, v1 = 1 }
+			parts[#parts + 1] = { art = turned(a), x = cells[1].x - across, y = cells[1].y + seam, w = T, h = L,
+				v0 = s0, v1 = 1 }
 		else
-			parts[#parts + 1] = { art = a, x = cells[1].x + seam, y = cells[1].y - round(hole[2] * k, px), w = L, h = T, u0 = s0, u1 = 1 }
+			parts[#parts + 1] = { art = a, x = cells[1].x + seam, y = cells[1].y - round(hole[2] * k, px), w = L, h = T,
+				u0 = s0, u1 = 1 }
 		end
 		-- the first half ends at the same seam
 		local first = parts[#parts - 1]

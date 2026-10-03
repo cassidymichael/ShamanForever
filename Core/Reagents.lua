@@ -61,7 +61,9 @@ function R.takes(def)
 	-- Auras secret: only an answer from a readable moment stands
 	if not ns.aurasReadable() then return def.takesReagent end
 	def.reagentReadAt = GetTime()
-	if not (def.spellID and C_TooltipInfo and C_TooltipInfo.GetSpellByID and C_Item and C_Item.GetItemNameByID) then return nil end
+	if not (def.spellID and C_TooltipInfo and C_TooltipInfo.GetSpellByID and C_Item and C_Item.GetItemNameByID) then
+		return nil
+	end
 	local ok, item = safe(C_Item.GetItemNameByID, def.reagent)
 	if not ok or type(item) ~= "string" or isSecret(item) then
 		safe(C_Item.RequestLoadItemDataByID, def.reagent)

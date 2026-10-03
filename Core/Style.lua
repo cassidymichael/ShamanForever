@@ -180,7 +180,8 @@ local function clean(t, def, ranges)
 	for k, v in pairs(def) do
 		local x   -- not `type(t) == "table" and t[k]`: a false would beat a true default
 		if type(t) == "table" then x = t[k] end
-		if type(v) == "table" then out[k] = isColor(x) and { x[1], x[2], x[3], type(x[4]) == "number" and x[4] or 1 } or CopyTable(v)
+		if type(v) == "table" then
+			out[k] = isColor(x) and { x[1], x[2], x[3], type(x[4]) == "number" and x[4] or 1 } or CopyTable(v)
 		elseif type(x) == type(v) then out[k] = type(x) == "number" and inRange(ranges, k, x, v) or x
 		else out[k] = v end
 	end

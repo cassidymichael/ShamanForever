@@ -23,7 +23,8 @@ local tremorSpells = {}
 local setting = E.settingsOf(KEY)
 local plain = ns.plain
 
-local WORD_POINTS = { below = { "TOP", "BOTTOM", -4 }, above = { "BOTTOM", "TOP", 4 }, center = { "CENTER", "CENTER", 0 } }
+local WORD_POINTS = { below = { "TOP", "BOTTOM", -4 }, above = { "BOTTOM", "TOP", 4 },
+	center = { "CENTER", "CENTER", 0 } }
 local WORD_COLOR = { 1, 0.82, 0, 1 }
 local function num(name, fallback)
 	local v = setting(name)

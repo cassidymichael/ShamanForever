@@ -306,7 +306,9 @@ local function frameRows(p, owner, part, after, opts)
 			n = math.ceil(n * size)
 			return n > 0 and n or nil
 		end
-		p:text(function() return string.format("Needs about %d spacing in its group to clear its neighbours.", room() or 0) end,
+		p:text(function()
+			return string.format("Needs about %d spacing in its group to clear its neighbours.", room() or 0)
+		end,
 			showWhen(function() return room() ~= nil end, own))
 	end
 	local sp = opts.spacing
@@ -455,7 +457,8 @@ local function popBlock(p, owner, kind)
 	if isElement(owner) then popSchoolRow(p, owner, showWhen(bySchool)) end
 	if colored then
 		local color = choiceRows(p, r, "pop", "colorBy", "Colour", ns.CLASS.help.popColour, own)
-		p:text("By school suits this burst.", showWhen(function() return color().key == "event" and burst().bySchool end, own))
+		p:text("By school suits this burst.",
+			showWhen(function() return color().key == "event" and burst().bySchool end, own))
 	end
 	choiceRows(p, r, "pop", "flash", "Flash", "Over the icon.", own)
 	local axis = ns.THEME.axis
@@ -575,7 +578,8 @@ local function timerSettings(p, title, key, part, after, note, first, barPlaced)
 	local swipe = p:checkbox("Swipe", "A shade that sweeps round the icon.", tg("swipe"), ts("swipe"), canHave("swipe"))
 	p:sub(swipe, on("swipe"), function()
 		styleSlider(p, part, "swipeAlpha", "Swipe darkness", nil, pct, tg("swipeAlpha"), ts("swipeAlpha"))
-		p:checkbox("Swipe darkens as time runs out", "Off: it lightens, like most cooldowns.", tg("swipeReverse"), ts("swipeReverse"))
+		p:checkbox("Swipe darkens as time runs out", "Off: it lightens, like most cooldowns.", tg("swipeReverse"),
+			ts("swipeReverse"))
 	end)
 	local bar = p:checkbox("Time bar", "A bar along an edge that drains.", tg("bar"), ts("bar"), canHave("bar"))
 	p:sub(bar, on("bar"), function()
@@ -601,7 +605,8 @@ local function gcdBlock(p, key)
 		p:anchor("gcd")
 		p:text(ownersText("Elements", "gcd"))
 	end
-	p:checkbox("Show global cooldown", "The sweep after every cast, as on action bars.", r.get("show"), r.set("show"), showWhen(r.own))
+	p:checkbox("Show global cooldown", "The sweep after every cast, as on action bars.", r.get("show"), r.set("show"),
+		showWhen(r.own))
 	if not key then ownLine(p, "gcd") end
 end
 
@@ -645,7 +650,9 @@ local function groupMenu(key, after)
 	end
 end
 
-local SHOW_TIP_PAGE = "Choosing Always or In combat again puts it back where it was. Groups have their own Show on the Groups & Layout page; an element shows only when both allow it. Everything visible shows while positioning is unlocked."
+local SHOW_TIP_PAGE = "Choosing Always or In combat again puts it back where it was. Groups have their own Show on "
+	.. "the Groups & Layout page; an element shows only when both allow it. Everything visible shows while "
+	.. "positioning is unlocked."
 
 -- Every element page in one order: header, Display, Idle, own settings, standard blocks.
 local function elementDisplay(p, key)
@@ -667,7 +674,8 @@ local function elementDisplay(p, key)
 		E.setShow(key, showDefault())
 	end })
 	p:text("Hidden keeps its place in its group.")
-	local groupRow = p:dropdown("Group", "Which group it sits in. Groups are arranged on the Groups & Layout page; ungrouped elements aren't on screen.",
+	local groupRow = p:dropdown("Group",
+		"Which group it sits in. Groups are arranged on the Groups & Layout page; ungrouped elements aren't on screen.",
 		{}, function() local g = G.of(key); return g and g.id .. ":" .. g.name or "" end, function() end, nil, 140,
 		groupMenu(key))
 	pcall(groupRow.dropdown.SetDefaultText, groupRow.dropdown, "Ungrouped")
@@ -916,7 +924,8 @@ local function expiringBlock(p, owner, opts)
 			check(p, s, "ended", "glow", "Pulsing glow", "In its colour.")
 		end)
 	else
-		check(p, s, "ended", "pop", "Pop when it runs out", tipOf(opts, "endPop", "It pops and fades the moment it runs out."))
+		check(p, s, "ended", "pop", "Pop when it runs out",
+			tipOf(opts, "endPop", "It pops and fades the moment it runs out."))
 	end
 	soundRow(p, s, "ended", "Sound when it ends", tipOf(opts, "endSound"))
 end
@@ -949,7 +958,8 @@ local function reagentBlocks(p, def)
 	local countGet, countSet = eopt(p, key, "reagent", "when")
 	p:dropdown("Show count", "How many you carry, on the icon.", COUNT_WHEN, countGet, countSet, nil, 170)
 	local counted = showWhen(function() return countGet() ~= "never" end)
-	eslider(p, key, "Low at", "At this many or fewer, the count takes the low colour, and Idle can count it as running low.",
+	eslider(p, key, "Low at",
+		"At this many or fewer, the count takes the low colour, and Idle can count it as running low.",
 		int, nil, "reagent", "low")
 	local colorGet, colorSet = eopt(p, key, "reagent", "color")
 	p:color("Count colour", "While you have enough.", colorGet, colorSet, counted)

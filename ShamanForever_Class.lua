@@ -27,16 +27,18 @@ ns.CLASS = {
 		discord = "https://discord.gg/VaXH8CQZFG",
 		kofi = "https://ko-fi.com/cassidycloud",
 	},
-	credits = "Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
-		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
-		"Francisque Millet, Mountain Landscape with Lightning (air). " ..
-		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood texture CC0, ambientCG. " ..
-		"The Emblem pop burst and the plinth and medallions of the Stone and bronze totem theme: made with an AI image model (Google Gemini).",
+	credits = "Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of " ..
+		"Derby, Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora " ..
+		"Borealis (spirit); Francisque Millet, Mountain Landscape with Lightning (air). " ..
+		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood " ..
+		"texture CC0, ambientCG. The Emblem pop burst and the plinth and medallions of the Stone and bronze totem " ..
+		"theme: made with an AI image model (Google Gemini).",
 	sharePrefix = "!SF1!",
 	help = {
 		uptime = "A totem, shield or imbue running.",
 		pop = "a cooldown ready, an imbue dropping, a totem ending",
-		popColour = "For Ready and Ran out. By event: gold when ready, white when a totem runs out. Killed early, Grounded and the imbue dropping keep their own colours.",
+		popColour = "For Ready and Ran out. By event: gold when ready, white when a totem runs out. Killed early, " ..
+			"Grounded and the imbue dropping keep their own colours.",
 		bars = "Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer.",
 		glowColour = "Killed early, Grounded and Ran out keep their own colours.",
 	},
