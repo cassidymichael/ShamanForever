@@ -940,6 +940,13 @@ local function lookRows(p, s, name, opts, shown)
 	end
 end
 
+-- A state's looks in a block of the page's own (the fields owner's defaults declare under name); opts
+-- as lookRows'
+function K.lookRows(p, owner, name, opts, shown)
+	opts = opts or {}
+	lookRows(p, store(p, owner, opts.after), name, opts, shown)
+end
+
 -- warn: opts.title, text (a line above its looks), on = { label, tip } (its switch, when it has
 -- one), noun, sounds (the sound choices), after
 local function warnBlock(p, owner, opts)
