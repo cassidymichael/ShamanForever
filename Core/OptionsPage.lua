@@ -126,8 +126,9 @@ function Page:holdHere(shift)
 	return hold
 end
 
--- Held over the next frames as the range settles
+-- Held over the next frames as the range settles; a jump waiting to land wins over it
 function Page:keepHeld(hold)
+	if self.jump then return end
 	self.hold = hold
 	C_Timer.After(0, function()
 		self:keepScroll()
@@ -937,8 +938,12 @@ end
 
 -- Unfolds frame's block and scrolls it to the top once laid out, then after()
 function Page:scrollTo(frame, after)
+	local jump = {}
+	self.jump, self.hold = jump, nil
 	self:reveal(frame)
 	C_Timer.After(0, function()
+		if self.jump == jump then self.jump = nil end
+		self.hold = nil
 		if not frame:IsVisible() then return end
 		local top, y = self.content:GetTop(), frame:GetTop()
 		if top and y then
