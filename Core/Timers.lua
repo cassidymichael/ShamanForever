@@ -20,13 +20,19 @@ T.DEFAULTS = {
 		text = true, textSize = 18, textColor = { 1, 1, 1, 1 }, textPos = "center", abbrev = 0,
 		swipe = true, swipeAlpha = 0.65, swipeReverse = false,
 		bar = false, barHeight = 8, barElement = true, barColor = { 1, 0.9, 0.35, 1 }, barEdge = "top",
+		barPlace = "in",
 	},
 	uptime = {
 		text = true, textSize = 12, textColor = { 0.5, 1, 0.4, 1 }, textPos = "auto", abbrev = 0,
 		swipe = false, swipeAlpha = 0.6, swipeReverse = true,
 		bar = true, barHeight = 8, barElement = true, barColor = { 0.46, 1, 0.35, 1 }, barEdge = "bottom",
+		barPlace = "in",
 	},
 }
+-- The time bar: barEdge "top" or "bottom" (anything else reads as bottom), barPlace "in" the icon or
+-- "out" of it on that side. Out of it the group's flow turns the sides: a row's above and below are
+-- a column's right and left.
+local ACROSS = { top = { row = "above", column = "right" }, bottom = { row = "below", column = "left" } }
 for _, part in ipairs(T.PARTS) do
 	for k, v in pairs(timeColors()) do T.DEFAULTS[part][k] = v end
 end
@@ -38,6 +44,24 @@ function T.cant(key, part)
 	for k, v in pairs(c) do if type(v) == "string" then out[k] = v end end
 	if type(c[part]) == "table" then for k, v in pairs(c[part]) do out[k] = v end end
 	return out
+end
+
+-- Elements whose time bar stays in the icon: their own frames there would cut or miss one outside
+local IN_ICON = {}
+function T.keepIn(key) IN_ICON[key] = true end
+-- Bars place their own; Expiring's colour on the bar (expire.bar) is drawn in the icon
+function T.canPlaceOut(key)
+	local E = ns.Elements
+	if key == nil or IN_ICON[key] or ns.Bars.get(key) or not E.ALL[key] then return false end
+	return E.default(key, "expire", "bar") == nil
+end
+
+-- Where key's time bar in style s sits: top or bottom (in the icon), or above, below, left or right
+function T.barSide(key, s)
+	local edge = s.barEdge == "top" and "top" or "bottom"
+	if s.barPlace ~= "out" or not T.canPlaceOut(key) then return edge end
+	local g = ns.Profiles.getDB() and ns.Groups.of(key)
+	return ACROSS[edge][(g and g.orientation == "vertical") and "column" or "row"]
 end
 
 local WHITE = ns.WHITE
@@ -134,11 +158,12 @@ Timer.__index = Timer
 local fonts = 0
 
 -- opts: anchor, cd (an existing Cooldown), dual, school, aura (on Blizzard's aura button: it
--- drives the bar, so it is never fed a duration here), barInset
+-- drives the bar, so it is never fed a duration here), barInset, outset() (how far out of the
+-- anchor a bar out of the icon sits; else the element's on the HUD)
 function T.new(parent, key, part, opts)
 	opts = opts or {}
 	local t = setmetatable({ key = key, part = part, parent = parent, anchor = opts.anchor or parent, dual = opts.dual,
-		school = opts.school, aura = opts.aura, barInset = opts.barInset }, Timer)
+		school = opts.school, aura = opts.aura, barInset = opts.barInset, outsetFn = opts.outset }, Timer)
 	local cd = opts.cd
 	if not cd then
 		cd = CreateFrame("Cooldown", nil, parent, "CooldownFrameTemplate")
@@ -175,6 +200,46 @@ local function schoolColor(t)
 	return c or { 0.46, 1, 0.35 }
 end
 
+-- Out of the icon: past its border (inset), then a gap that grows with the box
+function T.outset(inset, box, px)
+	return W.roundPx(inset + math.max(math.floor(box * 3 / W.BASE_ICON_SIZE + 0.5), 2), px)
+end
+function Timer:outset()
+	if self.outsetFn then return self.outsetFn() end
+	local E = ns.Elements
+	local box = E.boxOf(self.key)
+	return T.outset((box - E.sizeOf(self.key)) / 2, box, W.pixel(E.ALL[self.key].frame))
+end
+
+local OUT_POINTS = {
+	above = { "BOTTOMLEFT", "TOPLEFT", "BOTTOMRIGHT", "TOPRIGHT", 0, 1 },
+	below = { "TOPLEFT", "BOTTOMLEFT", "TOPRIGHT", "BOTTOMRIGHT", 0, -1 },
+	right = { "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT", 1, 0 },
+	left = { "TOPRIGHT", "TOPLEFT", "BOTTOMRIGHT", "BOTTOMLEFT", -1, 0 },
+}
+local function placeBar(t, s, side)
+	local bar, a = t.bar, t.anchor
+	bar:ClearAllPoints()
+	if side == "top" then
+		bar:SetPoint("TOPLEFT", a, "TOPLEFT", 0, 0); bar:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, 0)
+	elseif side == "bottom" then
+		local y = t.barInset and t.barInset() or 0
+		bar:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, y); bar:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, y)
+	else
+		local out, d = OUT_POINTS[side], t:outset()
+		bar:SetPoint(out[1], a, out[2], out[5] * d, out[6] * d)
+		bar:SetPoint(out[3], a, out[4], out[5] * d, out[6] * d)
+	end
+	-- Beside a column's icon it stands upright and drains downward
+	local upright = side == "left" or side == "right"
+	if upright then bar:SetWidth(s.barHeight) else bar:SetHeight(s.barHeight) end
+	if upright ~= (t.upright or false) then
+		t.upright = upright
+		bar:SetOrientation(upright and "VERTICAL" or "HORIZONTAL")
+		bar:SetRotatesTexture(upright)
+	end
+end
+
 -- Safe any time for our own frames; one on Blizzard's aura button is restyled by its caller, out of combat
 function Timer:apply()
 	local s = S.get(self.key, self.part)
@@ -201,18 +266,11 @@ function Timer:apply()
 	self.font:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 	cd:SetCountdownFont(self.fontName)
 	self.barOn = self.bar ~= nil and s.bar and not cant.bar
+	local side = T.barSide(self.key, s)
 	local bar = self.bar
 	if bar then
-		local a = self.anchor
-		bar:ClearAllPoints()
-		bar:SetHeight(s.barHeight)
 		bar:SetStatusBarTexture(ns.Media.barTexture(self.key))
-		if s.barEdge == "top" then
-			bar:SetPoint("TOPLEFT", a, "TOPLEFT", 0, 0); bar:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, 0)
-		else
-			local y = self.barInset and self.barInset() or 0
-			bar:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, y); bar:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, y)
-		end
+		placeBar(self, s, side)
 		local col = s.barElement and schoolColor(self) or s.barColor
 		bar:SetStatusBarColor(col[1], col[2], col[3], col[4] or 1)
 		if self.aura then bar:SetShown(self.barOn)
@@ -220,21 +278,22 @@ function Timer:apply()
 	end
 	if self.last then self:set(self.last) end
 	if self.fs then
-		T.placeText(self.fs, self.anchor, s, self.barOn, self.dual and self.part == "uptime")
+		local barIn = self.barOn and (side == "top" or side == "bottom")
+		T.placeText(self.fs, self.anchor, s, barIn, self.dual and self.part == "uptime")
 	end
 end
 
--- The countdown's place on anchor for timer style s, clear of a bar; dual: an uptime sharing its
--- icon with a cooldown
-function T.placeText(fs, anchor, s, barOn, dual)
+-- The countdown's place on anchor for timer style s, clear of a bar in the icon (barIn) on
+-- s.barEdge; dual: an uptime sharing its icon with a cooldown
+function T.placeText(fs, anchor, s, barIn, dual)
 	local pos = s.textPos
 	if pos == "auto" then pos = dual and "topleft" or "center" end
 	fs:ClearAllPoints()
 	if pos == "topleft" then
-		local y = (barOn and s.barEdge == "top") and -(s.barHeight + 1) or -1
+		local y = (barIn and s.barEdge == "top") and -(s.barHeight + 1) or -1
 		fs:SetPoint("TOPLEFT", anchor, "TOPLEFT", 1, y); fs:SetJustifyH("LEFT")
 	elseif pos == "bottom" then
-		local y = (barOn and s.barEdge == "bottom") and (s.barHeight + 1) or 1
+		local y = (barIn and s.barEdge ~= "top") and (s.barHeight + 1) or 1
 		fs:SetPoint("BOTTOM", anchor, "BOTTOM", 0, y); fs:SetJustifyH("CENTER")
 	else
 		fs:SetPoint("CENTER", anchor, "CENTER", 0, 0); fs:SetJustifyH("CENTER")

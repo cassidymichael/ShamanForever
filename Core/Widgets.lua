@@ -282,6 +282,8 @@ function W.noMouse(b)
 end
 
 function W.makeAuraSlot(frame, opts)
+	-- A host of the caller's may clip the button's parts to the icon
+	if opts.host and not opts.noTimer then ns.Timer.keepIn(opts.key) end
 	return setmetatable({ frame = frame, opts = opts }, AuraSlot)
 end
 
