@@ -214,14 +214,16 @@ function CS.applyLayout()
 	refresh()
 end
 
--- Full mana out of combat fires no event
+-- Full mana out of combat fires no event; an element shown or grouped may want the ticker
 function CS.afterGroups()
+	syncTicker()
 	for _, w in ipairs(WATCHES) do styleCover(w) end
 	refresh()
 end
 
 function CS.refresh()
 	syncChecks()
+	syncTicker()
 	refresh()
 end
 
