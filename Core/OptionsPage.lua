@@ -381,6 +381,29 @@ local function textLink(parent, text, onClick, pad)
 end
 Page.textLink = textLink
 
+-- A yellow link that goes somewhere else in the options; tip: a tooltip line
+function Page.goLink(parent, text, onClick, tip)
+	local b = CreateFrame("Button", nil, parent)
+	b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	b.text:SetPoint("LEFT")
+	b.text:SetText(text)
+	b:SetSize(b.text:GetStringWidth() + 4, 16)
+	b:SetScript("OnClick", onClick)
+	b:SetScript("OnEnter", function()
+		b.text:SetTextColor(1, 0.93, 0.6)
+		if not tip then return end
+		GameTooltip:SetOwner(b, "ANCHOR_RIGHT")
+		GameTooltip:SetText(text)
+		GameTooltip:AddLine(tip, 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	b:SetScript("OnLeave", function()
+		b.text:SetTextColor(1, 0.82, 0)
+		if tip then GameTooltip:Hide() end
+	end)
+	return b
+end
+
 local function placeResets(header, foldRow)
 	if header then header.reset:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", 0, 5) end
 	if foldRow then foldRow.resetAll:SetPoint("LEFT", foldRow, "LEFT", 4, 0) end
@@ -781,6 +804,25 @@ end
 function Page:anchor(name)
 	self.anchors = self.anchors or {}
 	self.anchors[name] = self.items[#self.items].frame
+end
+
+-- Unfolds frame's block and scrolls it to the top once laid out, then after()
+function Page:scrollTo(frame, after)
+	self:reveal(frame)
+	C_Timer.After(0, function()
+		if not frame:IsVisible() then return end
+		local top, y = self.content:GetTop(), frame:GetTop()
+		if top and y then
+			self.scroll:SetVerticalScroll(math.max(0, math.min(top - y - 8, self.scroll:GetVerticalScrollRange())))
+		end
+		if after then after() end
+	end)
+end
+
+-- To an anchor on this page, flashing it
+function Page:goTo(name)
+	local f = self.anchors and self.anchors[name]
+	if f then self:scrollTo(f, function() self:flash(f) end) end
 end
 
 local HELP_GREY = 0.72

@@ -523,17 +523,7 @@ local function groupSection(p)
 end
 
 -- The pop grid
-local function link(parent, text, onClick)
-	local b = CreateFrame("Button", nil, parent)
-	b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-	b.text:SetPoint("LEFT")
-	b.text:SetText(text)
-	b:SetSize(b.text:GetStringWidth() + 4, 16)
-	b:SetScript("OnClick", onClick)
-	b:SetScript("OnEnter", function() b.text:SetTextColor(1, 0.93, 0.6) end)
-	b:SetScript("OnLeave", function() b.text:SetTextColor(1, 0.82, 0) end)
-	return b
-end
+local link = Page.goLink
 
 local function popGrid(p)
 	local bursts, motions = S.offered("pop", "burst"), S.offered("pop", "motion")

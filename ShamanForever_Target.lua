@@ -49,7 +49,7 @@ local TARGET = {
 		-- Skip long buffs: only those lasting at most Longest buff (maxDuration also leaves out buffs with
 		-- no end)
 		candidates = function(def) return { includeDispelTypes = { Magic = true }, maxDuration = TG.longest(def) } end,
-		idleText = "Idle while your target has nothing to purge", procHeader = "Something to purge",
+		idleText = "Idle while your target has nothing to purge", procHeader = "Magic buff",
 		ownIcon = true, noTimer = true, skipLong = true,
 		popTip = "Each time a new buff lands on your target, or you target one that has one.",
 		glowTip = "While your target has one.",
@@ -310,7 +310,7 @@ ns.registerPart("skipLong", {
 	kind = "buff", after = "breath",
 	defaults = { skipLong = false, skipLongMins = 2 },
 	ranges = { skipLongMins = { 1, 60, 1 } },
-	page = { own = { "toggle", title = "Track", name = "skipLong", label = "Skip long buffs",
+	page = { own = { "toggle", title = "Tracking", name = "skipLong", label = "Skip long buffs",
 		tip = "Leaves out buffs that last longer than Longest buff, and buffs with no end.",
 		sub = { name = "skipLongMins", label = "Longest buff", tip = "Buffs up to this long count.",
 			unit = "min" } } },

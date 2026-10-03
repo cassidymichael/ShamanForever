@@ -136,7 +136,7 @@ end
 
 ns.registerKind("cooldown", {
 	parts = { "cooldown", "ready", "readyGlow", "window", "primed" },
-	slots = { "own", "warn", "cooldown", "gcd", "uptime", "ready", "active", "expire", "killed" },
+	slots = { "own", "warn", "ready", "active", "expire", "killed", "cooldown", "gcd", "uptime" },
 	prepare = function(def)
 		def.expires = hasUptime(def) and def.expireLooks ~= false
 		checkFrames(def)

@@ -31,10 +31,9 @@ local function buildMaelstrom(p, def)
 	p:color("Five colour", nil, markColorGet, markColorSet, showWhen(function()
 		return E.setting(key, "count", "number") and E.setting(key, "count", "mark")
 	end))
-	timerSettings(p, "Time left", key, "uptime")
-	activeBlock(p, key, { title = "Five stacks",
+	activeBlock(p, key, { title = "5 stacks",
 		tips = { pop = "The moment it reaches five.", glow = "While at five." } })
-	styleBlocks(p, key)
+	styleBlocks(p, key, function() timerSettings(p, "Time left", key, "uptime") end)
 end
 
 ns.registerKind("maelstrom", { page = buildMaelstrom })

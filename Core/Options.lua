@@ -174,6 +174,8 @@ local function buildGlobal(p)
 	p:text("Every border. " .. K.ownersText("Elements", "border"))
 	K.borderRows(p, nil)
 	K.ownLine(p, "border")
+	K.glowBlock(p, nil)
+	K.popBlock(p, nil, "ready")
 	p:header("Art frame style")
 	p:anchor("frame")
 	p:text("Art round each icon. " .. K.ownersText("Elements", "frame"))
@@ -184,8 +186,6 @@ local function buildGlobal(p)
 	p:text("Art round a whole group. " .. K.ownersText("Groups", "groupframe"))
 	K.frameRows(p, nil, "groupframe")
 	K.ownLine(p, "groupframe")
-	K.glowBlock(p, nil)
-	K.popBlock(p, nil, "ready")
 end
 
 local nameAction
@@ -838,30 +838,17 @@ function OP.openElement(key)
 	OP.open(ns.ElementPages.pageOf(key) or "elements")
 end
 
-local function scrollTo(p, frame, after)
-	p:reveal(frame)
-	C_Timer.After(0, function()
-		if not frame:IsVisible() then return end
-		local top, y = p.content:GetTop(), frame:GetTop()
-		if top and y then
-			p.scroll:SetVerticalScroll(math.max(0, math.min(top - y - 8, p.scroll:GetVerticalScrollRange())))
-		end
-		if after then after() end
-	end)
-end
-
 function OP.openGlobal(anchor)
 	OP.open("general")
 	local p = pages.general
-	local f = p and p.anchors and p.anchors[anchor]
-	if f then scrollTo(p, f, function() p:flash(f) end) end
+	if p then p:goTo(anchor) end
 end
 
 local function showAboutSection(which)
 	OP.open("about")
 	local section = which()
 	if not section then return end
-	scrollTo(section.page, section.header, function() section.page:flash(section.header) end)
+	section.page:scrollTo(section.header, function() section.page:flash(section.header) end)
 end
 function OP.showExperimental() showAboutSection(function() return aboutExp end) end
 function OP.showFeedback() showAboutSection(function() return aboutFeedback end) end
@@ -870,7 +857,7 @@ function OP.openGroup(id)
 	OP.open("layout", id)
 	local p = pages.layout
 	local f = ns.LayoutPage.headerOf(id)
-	if f then scrollTo(p, f, function() p:flash(f) end) end
+	if f then p:scrollTo(f, function() p:flash(f) end) end
 end
 
 function OP.isShown() return win ~= nil and win:IsShown() end

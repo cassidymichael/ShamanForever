@@ -38,14 +38,14 @@ S.register("glow", {
 	ranges = { speed = { 0.2, 2, 0.1 }, low = { 0, 1, 0.05 }, width = { 0.1, 0.5, 0.05 }, strength = { 0.2, 2.5, 0.1 },
 		lap = { 0.6, 4, 0.1 }, scale = { 0.5, 2, 0.1 }, drift = { 0.25, 3, 0.05 } },
 	path = { "glowStyle" },
-	elements = true, label = "Pulsing glow", short = "glow", order = 3,
+	elements = true, label = "Pulsing glow", short = "glow", order = 4,
 })
 S.register("pop", {
 	defaults = { colorBy = "event", flash = "plain", burst = "star", motion = "shakeV", size = 1.4, speed = 1,
 		reach = 1 },
 	ranges = { size = { 1.1, 1.8, 0.05 }, speed = { 0.5, 2, 0.1 }, reach = { 0.6, 1.3, 0.05 } },
 	path = { "popStyle" },   -- not "pop": a bar may have its own setting of that name
-	elements = true, label = "Pop", short = "pop", order = 4,
+	elements = true, label = "Pop", short = "pop", order = 5,
 })
 -- Global cooldown sweep
 S.register("gcd", {
@@ -58,7 +58,7 @@ S.register("border", {
 		capColor = { 0.85, 0.68, 0.39, 1 } },
 	ranges = { size = { 1, 8, 1 }, capSize = { 1, 8, 1 } },
 	path = { "border" },
-	elements = true, label = "Border", short = "border", order = 5,
+	elements = true, label = "Border", short = "border", order = 3,
 })
 -- Art frames: round each element, and round a group or bar
 S.register("frame", {

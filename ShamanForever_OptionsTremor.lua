@@ -138,14 +138,7 @@ end
 
 local function linkLine(p, text, tip, onClick)
 	local f = p:row(22)
-	local b = CreateFrame("Button", nil, f)
-	b:SetPoint("LEFT", 4, 0)
-	b:SetNormalFontObject("GameFontNormalSmall")
-	b:SetHighlightFontObject("GameFontHighlightSmall")
-	b:SetText(text)
-	b:SetSize(b:GetFontString():GetStringWidth() + 4, 18)
-	b:SetScript("OnClick", onClick)
-	setTip(b, text, tip)
+	Page.goLink(f, text, onClick, tip):SetPoint("LEFT", 4, 0)
 	return p:add(f, 22)
 end
 
@@ -165,30 +158,32 @@ local function buildTremor(p)
 	p:text("The game hides party members' crowd control, so this covers only you.")
 	p:text("None of these while your Tremor Totem is down, or while you're dead, on a flight path or "
 		.. "in a vehicle.")
-	p:header("Tremor warning watchlist")
+	p:header("Watchlist")
 	p:callout("In dungeons and raids the game hides mob names from addons, so the watchlist can't "
 		.. "work there. Only \"You're feared, charmed or asleep\" can, when it's on.")
 	p:text("Mobs that cast fear, charm or sleep.")
 	mobList(p)
 	linkLine(p, "Suggest a mob for the default list", "Opens Feedback, on the About page.",
 		function() ns.Options.showFeedback() end)
-	timerSettings(p, "Time left", key, "uptime", nil,
-		"Its time left while it's down. With the default Idle (\"No warning\", 0%) it isn't seen.")
-	activeBlock(p, key, { title = "When it warns", tips = { pop = "The moment it starts warning.",
+	activeBlock(p, key, { title = "Warning", tips = { pop = "The moment it starts warning.",
 		glow = "While it warns.", sound = "The moment it starts warning." }, extra = function(s)
 		local textGet, textSet = s.opt("active", "text")
-		p:checkbox("Text", "Shows \"" .. ns.Tremor.WORD .. "\" by the icon.", textGet, textSet)
-		local text = showWhen(textGet)
-		eslider(p, key, "Text size", "At the default icon size; it grows with the icon.", int, text,
-			"wordSize")
-		local colorGet, colorSet = opt("wordColor")
-		p:color("Text colour", nil, colorGet, colorSet, text)
-		local posGet, posSet = opt("wordPos")
-		p:dropdown("Position", nil, WORD_POS, posGet, posSet, text, 160)
-		eslider(p, key, "Text X offset", nil, px, text, "wordX")
-		eslider(p, key, "Text Y offset", nil, px, text, "wordY")
+		local text = p:checkbox("Text", "Shows \"" .. ns.Tremor.WORD .. "\" by the icon.", textGet, textSet)
+		p:sub(text, textGet, function()
+			local posGet, posSet = opt("wordPos")
+			p:dropdown("Position", nil, WORD_POS, posGet, posSet, nil, 160)
+			eslider(p, key, "Text size", "At the default icon size; it grows with the icon.", int, nil,
+				"wordSize")
+			local colorGet, colorSet = opt("wordColor")
+			p:color("Text colour", nil, colorGet, colorSet)
+			eslider(p, key, "Text X offset", nil, px, nil, "wordX")
+			eslider(p, key, "Text Y offset", nil, px, nil, "wordY")
+		end)
 	end })
-	styleBlocks(p, key)
+	styleBlocks(p, key, function()
+		timerSettings(p, "Time left", key, "uptime", nil,
+			"Its time left while it's down. With the default Idle (\"No warning\", 0%) it isn't seen.")
+	end)
 end
 
 ns.registerKind("tremor", { page = buildTremor })

@@ -15,7 +15,7 @@ local POP_ITEMS = 3
 local PREVIEW
 PREVIEW = {
 	stage = true, heroH = 210, uptime = true,
-	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" },
+	states = { { "idle", "Totem not down" }, { "down", "Totems down" }, { "expiring", "Expiring" },
 		{ "killed", "Killed early" }, { "range", "Out of range" }, { "offpick", "Different totem down" },
 		{ "picking", "Picking" } },
 	stateShown = function(st)
@@ -293,7 +293,7 @@ local function build(p)
 	p:callout("Not learned yet. It shows on screen once your character knows a totem.",
 		function() return TB.barOn() and not TB.hasTotems() end)
 	local full = function() return c().mode == "everything" end
-	p:section("Totem settings")
+	K.behaviourSection(p)
 	p:header("Totem mode", nil, nil, nil, { open = true })
 	own("mode", { reset = function() TB.setMode(TB.DEFAULTS.mode) end })
 	p:cards("Use", nil, {
@@ -327,9 +327,9 @@ local function build(p)
 	local keys = p:checkbox("Show keybinding text", "Each button's key, in its corner.", tget("keys"), tset("keys"))
 	p:sub(keys, tget("keys"), function()
 		tslider("Text size", "At the default icon size. It grows with the icon.", int, "keySize")
+		p:color("Text colour", nil, tget("keyColor"), tset("keyColor"))
 		tslider("X offset", "From the top-right corner.", px, "keyX")
 		tslider("Y offset", "From the top-right corner.", px, "keyY")
-		p:color("Text colour", nil, tget("keyColor"), tset("keyColor"))
 	end)
 
 	p:header("Layout")
@@ -479,6 +479,22 @@ local function build(p)
 			ns.Spells.name("call"), ns.Spells.name("recall"))
 	end)
 
+	-- Only once a second Call is known
+	p.gate = function() return full() and ns.TotemSets.count() > 1 end
+	p:header("Totem sets")
+	local setsRow = p:row(22)
+	ns.OptionsArt.expBadge(setsRow, "Totem sets"):SetPoint("LEFT", setsRow, "LEFT", LABEL_W, 0)
+	p:add(setsRow, 22)
+	p:text("Each Call drops its own set of four totems. The bar uses one set at a time: its slots, "
+		.. "picks, Call button and keys.")
+	p:dropdown("Switch sets", "How the Call button changes the set.",
+		{ { "popout", "Picker on the Call button" }, { "cycle", "Right-click the Call button" } },
+		tget("setSwitch"), tset("setSwitch"), nil, 240)
+	p:checkbox("Show set number", "On the Call button.", tget("setNumber"), tset("setNumber"))
+	p:text(ns.TotemSets.switchInCombat() and "Key: Next totem set."
+		or "Sets switch out of combat only. Key: Next totem set.")
+
+	p.gate = full
 	p:header("Totem not down")
 	local look = p:dropdown("Show as", "How a slot shows while its totem isn't down.",
 		{ { "pick", "Your pick" }, { "frame", "Element colour" }, { "blank", "Blank" } }, tget("empty"), tset("empty"), nil,
@@ -585,23 +601,8 @@ local function build(p)
 	K.killedBlock(p, "totembar", { after = changed, noun = "slot", flash = { "Flash when a totem dies early",
 		"The dead totem flashes red over its slot. Not when you dismiss it or it runs out." } })
 
-	-- Only once a second Call is known
-	p.gate = function() return full() and ns.TotemSets.count() > 1 end
-	p:header("Totem sets")
-	local setsRow = p:row(22)
-	ns.OptionsArt.expBadge(setsRow, "Totem sets"):SetPoint("LEFT", setsRow, "LEFT", LABEL_W, 0)
-	p:add(setsRow, 22)
-	p:text("Each Call drops its own set of four totems. The bar uses one set at a time: its slots, "
-		.. "picks, Call button and keys.")
-	p:dropdown("Switch sets", "How the Call button changes the set.",
-		{ { "popout", "Picker on the Call button" }, { "cycle", "Right-click the Call button" } },
-		tget("setSwitch"), tset("setSwitch"), nil, 240)
-	p:checkbox("Show set number", "On the Call button.", tget("setNumber"), tset("setNumber"))
-	p:text(ns.TotemSets.switchInCombat() and "Key: Next totem set."
-		or "Sets switch out of combat only. Key: Next totem set.")
-
 	p.gate = TB.barOn
-	p:section("Styles")
+	K.styleSection(p)
 	p:header("Totem theme")
 	local skins = {}
 	for _, e in ipairs(TB.skin.LIST) do table.insert(skins, { e.key, e.name }) end
@@ -616,22 +617,22 @@ local function build(p)
 	tslider("Edge thickness", "The element-coloured edge round each slot, in pixels.", px, "pixelEdge", theme("pixel"))
 	p:dropdown("Plinth", nil, TB.skin.PLINTHS, tget("stonePlinth"), tset("stonePlinth"), theme("stone"), 140)
 
+	p.gate = full
+	K.gcdBlock(p, "totembar")
+	p.gate = TB.barOn
 	local function beside() return TB.skin.barPlace() == "out" end
 	K.timerSettings(p, "Time left", "totembar", "uptime", changed, nil, nil, beside)
 	p:dropdown("Time bar position", "Beside the icon: on the side away from the pickers.",
 		{ { "in", "In the icon" }, { "out", "Beside the icon" } }, tget("barPlace"), tset("barPlace"),
 		function() return ns.Style.value("totembar", "uptime", "bar") and not TB.skin.owns("barPlace") end, 190)
-	K.barRows(p, "totembar", changed)
 	K.textBlock(p, "totembar", changed)
-
-	p.gate = full
-	K.gcdBlock(p, "totembar")
-	p.gate = TB.barOn
-	K.glowBlock(p, "totembar")
-	K.popBlock(p, "totembar", "expired")
+	p:header("Bar texture")
+	K.barRows(p, "totembar", changed)
 	p:header("Border style")
 	p:text("Set by the theme.", owned("border"))
 	K.borderRows(p, "totembar", changed, nil, free("border"))
+	K.glowBlock(p, "totembar")
+	K.popBlock(p, "totembar", "expired")
 	if K.barFramed("totembar") then
 		p:header("Art frame style")
 		K.frameRows(p, "totembar", "groupframe", changed, { spacing = {

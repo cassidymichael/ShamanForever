@@ -308,7 +308,7 @@ ns.registerPart("needsTotem", {
 	preview = {
 		uptime = true, typical = "out", warning = "nototem",
 		states = { { "nototem", "No fire totem", 20 }, { "out", "Fire totem out", 21 },
-			{ "expiring", "Totem expiring", 22 } },
+			{ "expiring", "Expiring", 22 } },
 		render = function(ic, st, def, kit)
 			local key = def.key
 			local life = def.duration or 45
