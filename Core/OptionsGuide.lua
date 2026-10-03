@@ -8,20 +8,24 @@ local GD = {}
 ns.Guide = GD
 
 local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
-local BOARD_W, BOARD_H = 600, 650
-local HOLD = 7      -- seconds a slide without steps holds while playing
+local BOARD_W = 600
 local FADE = 0.35
+-- One spacing scale: a box's padding, the gap between blocks, a title's gap to its text
+local PAD, GAP, UNDER = 12, 12, 6
+local TOP = 84   -- the slides start under the title and a two-line blurb
+GD.W, GD.PAD, GD.GAP = BOARD_W, PAD, GAP
 
 -- Colours: Global, Group, Element, Bars
-GD.GOLD = { 0.75, 0.54, 0.24 }
-GD.TEAL = { 0.25, 0.69, 0.77 }
-GD.ORANGE = { 0.89, 0.38, 0.18 }
+GD.GOLD = { 0.85, 0.66, 0.30 }
+GD.TEAL = { 0.30, 0.72, 0.80 }
+GD.ORANGE = { 0.92, 0.45, 0.22 }
 GD.LAVENDER = { 0.73, 0.64, 0.90 }
-GD.GREY = { 0.73, 0.69, 0.64 }
+GD.EMPH = "|cffffd100"
 
 -- Slides
--- spec: title, blurb, order, build(f) (once, f the slide's frame, BOARD_W wide), steps ({ seconds, ... }:
--- each step's hold, looping), step(f, x), tick(f, now) (while it shows), refresh(f) (as the page repaints)
+-- spec: title, blurb, order, build(f) (once, f the slide's frame, BOARD_W wide; it sets f.height, the
+-- height it fills), steps ({ seconds, ... }: each step's hold, looping), step(f, x), tick(f, now)
+-- (while it shows), refresh(f) (as the page repaints)
 local slides = {}
 function GD.add(spec)
 	assert(spec.title and spec.build, "a guide slide needs a title and build")
@@ -35,26 +39,44 @@ function GD.add(spec)
 end
 
 -- Drawing helpers
-function GD.text(parent, font, str, x, y, width, color)
-	local fs = parent:CreateFontString(nil, "OVERLAY", font)
+-- Body text is white at one size; titles take a colour and the next size up
+function GD.text(parent, str, x, y, width, font)
+	local fs = parent:CreateFontString(nil, "OVERLAY", font or "GameFontHighlight")
 	fs:SetPoint("TOPLEFT", parent, "TOPLEFT", x, -y)
 	fs:SetJustifyH("LEFT")
 	fs:SetJustifyV("TOP")
+	fs:SetSpacing(3)
 	if width then fs:SetWidth(width) end
-	if color then fs:SetTextColor(color[1], color[2], color[3]) end
 	fs:SetText(str)
 	return fs
 end
+function GD.title(parent, str, x, y, color)
+	local fs = GD.text(parent, str, x, y, nil, "GameFontHighlightMedium")
+	if color then fs:SetTextColor(color[1], color[2], color[3]) end
+	return fs
+end
+-- Its height as drawn (a line's when it has no width yet)
+function GD.height(fs) return math.max(math.ceil(fs:GetStringHeight()), 14) end
 
--- A box with a one-pixel edge in color (a faint fill of it, or the panel's)
-function GD.box(parent, x, y, w, h, color, fill)
+-- A box filled faintly in color with one thin line of it; active: the slide's subject, brighter
+function GD.box(parent, x, y, w, h, color, active)
 	local b = CreateFrame("Frame", nil, parent, "BackdropTemplate")
 	b:SetPoint("TOPLEFT", parent, "TOPLEFT", x, -y)
 	b:SetSize(w, h)
 	b:SetBackdrop(W.BACKDROP)
-	if fill then b:SetBackdropColor(color[1], color[2], color[3], fill)
-	else b:SetBackdropColor(0.10, 0.08, 0.07, 1) end
-	b:SetBackdropBorderColor(color[1], color[2], color[3], 0.75)
+	b:SetBackdropColor(color[1], color[2], color[3], active and 0.10 or 0.045)
+	b:SetBackdropBorderColor(color[1], color[2], color[3], active and 0.9 or 0.4)
+	return b
+end
+
+-- A plain dark panel (a tile, a card)
+function GD.panel(parent, x, y, w, h)
+	local b = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+	b:SetPoint("TOPLEFT", parent, "TOPLEFT", x, -y)
+	b:SetSize(w, h)
+	b:SetBackdrop(W.BACKDROP)
+	b:SetBackdropColor(0.07, 0.06, 0.05, 1)
+	b:SetBackdropBorderColor(0.30, 0.23, 0.15, 1)
 	return b
 end
 
@@ -66,14 +88,14 @@ function GD.rect(parent, x, y, w, h, r, g, b, a)
 	return t
 end
 
--- The dark stage examples sit on
+-- The dark band examples sit on
 function GD.stage(parent, x, y, w, h)
 	local f = CreateFrame("Frame", nil, parent, "BackdropTemplate")
 	f:SetPoint("TOPLEFT", parent, "TOPLEFT", x, -y)
 	f:SetSize(w, h)
 	f:SetBackdrop(W.BACKDROP)
-	f:SetBackdropColor(0.05, 0.04, 0.035, 1)
-	f:SetBackdropBorderColor(0.17, 0.13, 0.10, 1)
+	f:SetBackdropColor(0, 0, 0, 0.35)
+	f:SetBackdropBorderColor(0, 0, 0, 0)
 	return f
 end
 
@@ -96,37 +118,70 @@ function GD.bigButton(parent, text, width, onClick)
 	return b
 end
 
--- Texts over everything a slide draws
-function GD.over(f)
-	if not f.over then
-		f.over = CreateFrame("Frame", nil, f)
-		f.over:SetAllPoints()
-		f.over:SetFrameLevel(f:GetFrameLevel() + 30)
+-- A row of small squares, one lit: n of them; click(i) makes them buttons
+function GD.dots(parent, n, click)
+	local row = CreateFrame("Frame", nil, parent)
+	row:SetSize(n * 14, 14)
+	row.dots = {}
+	for i = 1, n do
+		local d = CreateFrame(click and "Button" or "Frame", nil, row)
+		d:SetSize(14, 14)
+		d:SetPoint("LEFT", row, "LEFT", (i - 1) * 14, 0)
+		d.tex = d:CreateTexture(nil, "ARTWORK")
+		d.tex:SetSize(click and 7 or 5, click and 7 or 5)
+		d.tex:SetPoint("CENTER")
+		if click then d:SetScript("OnClick", function() click(i) end) end
+		row.dots[i] = d
 	end
-	return f.over
+	function row.light(on)
+		for i, d in ipairs(row.dots) do
+			if i == on then d.tex:SetColorTexture(1, 0.82, 0) else d.tex:SetColorTexture(0.36, 0.29, 0.18) end
+		end
+	end
+	return row
 end
 
--- The shape slides share: Global settings round a group (its stage and its element) and bars beside
--- the group. o: global, group, element and bars texts (no bars: a wider group). Positions are f's.
+-- The shape slides share: Global settings round a group (its stage, then its element) and bars beside
+-- the group, each a titled box sized to its text. o: global, group, element and bars texts (global and
+-- group may be nil), stageH, active (the subject: "global", "group", "element" or "bars"). Positions are
+-- f's; s.height is the whole.
+local BARS_W = 168
 function GD.shape(f, o)
 	local s = {}
-	local w = o.bars and 380 or 552
-	s.global = GD.box(f, 0, 90, 600, 422, GD.GOLD)
-	GD.text(s.global, "GameFontNormalLarge", "Global settings", 12, 7, nil, GD.GOLD)
-	s.globalText = GD.text(s.global, "GameFontHighlight", o.global, 12, 28, 576)
-	s.group = GD.box(s.global, 12, 70, w + 24, 340, GD.TEAL, 0.035)
-	GD.text(s.group, "GameFontHighlightMedium", "Group", 12, 7, nil, GD.TEAL)
-	s.groupText = GD.text(s.group, "GameFontHighlight", o.group, 12, 27, w)
-	s.stage = GD.stage(s.group, 12, 66, w, 140)
-	s.element = GD.box(s.group, 12, 220, w, 108, GD.ORANGE, 0.045)
-	GD.text(s.element, "GameFontHighlightMedium", "Element", 12, 7, nil, GD.ORANGE)
-	s.elementText = GD.text(s.element, "GameFontHighlight", o.element, 12, 27, w - 22)
-	if o.bars then
-		s.bars = GD.box(s.global, 428, 70, 160, 340, GD.LAVENDER, 0.035)
-		GD.text(s.bars, "GameFontHighlightMedium", "Bars", 12, 7, nil, GD.LAVENDER)
-		GD.text(s.bars, "GameFontHighlightSmall", o.bars, 12, 28, 140)
+	local w = BOARD_W - 2 * PAD - (o.bars and BARS_W + GAP or 0)
+	s.global = GD.box(f, 0, 0, BOARD_W, 1, GD.GOLD, o.active == "global")
+	GD.title(s.global, "Global settings", PAD, PAD, GD.GOLD)
+	local y = PAD + 16 + UNDER
+	if o.global then
+		s.globalText = GD.text(s.global, o.global, PAD, y, BOARD_W - 2 * PAD)
+		y = y + GD.height(s.globalText) + GAP
+	else y = y + GAP - UNDER end
+	local top = y
+	s.group = GD.box(s.global, PAD, top, w, 1, GD.TEAL, o.active == "group")
+	GD.title(s.group, "Group", PAD, PAD, GD.TEAL)
+	local gy = PAD + 16 + UNDER
+	if o.group then
+		local t = GD.text(s.group, o.group, PAD, gy, w - 2 * PAD)
+		gy = gy + GD.height(t) + GAP
 	end
-	s.stageW = w
+	s.stageY, s.stageW, s.stageH = gy, w - 2 * PAD, o.stageH
+	s.stage = GD.stage(s.group, PAD, gy, s.stageW, o.stageH)
+	gy = gy + o.stageH + GAP
+	s.elementY = gy
+	s.element = GD.box(s.group, PAD, gy, w - 2 * PAD, 1, GD.ORANGE, o.active == "element")
+	GD.title(s.element, "Element", PAD, PAD, GD.ORANGE)
+	s.elementText = GD.text(s.element, o.element, PAD, PAD + 16 + UNDER, w - 4 * PAD)
+	local eh = PAD + 16 + UNDER + GD.height(s.elementText) + PAD
+	s.element:SetHeight(eh)
+	local gh = gy + eh + PAD
+	s.group:SetHeight(gh)
+	if o.bars then
+		s.bars = GD.box(s.global, PAD + w + GAP, top, BARS_W, gh, GD.LAVENDER, o.active == "bars")
+		GD.title(s.bars, "Bars", PAD, PAD, GD.LAVENDER)
+		s.barsText = GD.text(s.bars, o.bars, PAD, PAD + 16 + UNDER, BARS_W - 2 * PAD)
+	end
+	s.height = top + gh + PAD
+	s.global:SetHeight(s.height)
 	return s
 end
 
@@ -135,10 +190,10 @@ function GD.lead(s, x, y)
 	local f = CreateFrame("Frame", nil, s.group)
 	f:SetFrameLevel(s.stage:GetFrameLevel() + 5)
 	f:SetPoint("TOPLEFT", s.stage, "TOPLEFT", x - 1, -y)
-	f:SetSize(2, 154 - y)
+	f:SetSize(2, s.elementY - s.stageY - y)
 	local t = f:CreateTexture(nil, "ARTWORK")
 	t:SetAllPoints()
-	t:SetColorTexture(GD.ORANGE[1], GD.ORANGE[2], GD.ORANGE[3], 1)
+	t:SetColorTexture(GD.ORANGE[1], GD.ORANGE[2], GD.ORANGE[3], 0.9)
 	return f
 end
 
@@ -229,9 +284,9 @@ local function reagentCount(ic, r)
 end
 
 -- look: icon, cd and up ({ share gone, length }: frozen timers), cast ({ out, low }: out of range and
--- the cost unpaid, as the cast states draw them), warn ({ grey, tint, ring, fade, glow }), glow, alpha,
--- bar ({ n, filled, color, height }), count ({ text, color, size, pos }), reagent ({ el, n, color }),
--- font ({ name, outline })
+-- the cost unpaid, as the cast states draw them), warn ({ grey, tint, ring, fade, glow }), glow, alpha
+-- (the whole example's), bar ({ n, filled, color, height }), count ({ text, color, size, pos }),
+-- reagent ({ el, n, color }), font ({ name, outline })
 local function draw(ex, look)
 	local ic, kit = ex.ic, OA.kit
 	kit.reset(ic, look.icon)
@@ -258,7 +313,7 @@ local function draw(ex, look)
 	end
 	if look.reagent then reagentCount(ic, look.reagent) end
 	if look.font then setFont(ex, look.font) end
-	ic:SetAlpha(look.alpha or 1)
+	ex.box:SetAlpha(look.alpha or 1)
 end
 
 -- Draws look as in a row (or a column: self.column), whatever the player's own groups
@@ -273,6 +328,7 @@ end
 function Ex:showAs(key, state)
 	self.look = nil
 	self.ic.column = self.column or false
+	self.box:SetAlpha(1)
 	ns.try("guide example " .. key, OA.PREVIEW[key].render, self.ic, state, OA.kit)
 	return self
 end
@@ -280,10 +336,10 @@ end
 function Ex:pop(kind) self.ic:Pop(kind or "ready") end
 
 -- The page
-local board, holder
-local frames, dots = {}, {}
-local cur, stepX, stepAt, playing = 1, 0, 0, false
-local title, blurb, prevB, nextB, playB
+local board, holder, page
+local frames = {}
+local cur, stepX, stepAt = 1, 0, 0
+local title, blurb, prevB, nextB, dots
 
 local function stepTo(x)
 	stepX, stepAt = x, GetTime()
@@ -293,8 +349,8 @@ end
 
 local function makeSlide(i)
 	local f = CreateFrame("Frame", nil, board)
-	f:SetPoint("TOPLEFT")
-	f:SetSize(BOARD_W, BOARD_H - 30)
+	f:SetPoint("TOPLEFT", board, "TOPLEFT", 0, -TOP)
+	f:SetSize(BOARD_W, 1)
 	local fade = f:CreateAnimationGroup()
 	local a = fade:CreateAnimation("Alpha")
 	a:SetFromAlpha(0)
@@ -303,12 +359,12 @@ local function makeSlide(i)
 	f.fadeIn = fade
 	frames[i] = f
 	ns.try("guide slide " .. slides[i].title, slides[i].build, f)
+	f:SetHeight(f.height or 400)
 	return f
 end
 
-local function paintPlay()
-	playB.icon:SetTexture(playing and "Interface\\TimeManager\\PauseButton" or "Interface\\OptionsFrame\\VoiceChat-Play")
-end
+-- The board's height: the slide, then its dots
+local function boardHeight() return TOP + (frames[cur] and frames[cur].height or 400) + GAP + 14 end
 
 local function show(n)
 	n = (n - 1) % #slides + 1
@@ -320,13 +376,15 @@ local function show(n)
 	blurb:SetText(sp.blurb or "")
 	prevB:SetShown(n > 1)
 	nextB:SetText(n == #slides and "Start over" or ("Next" .. GD.ON))
-	for i, d in ipairs(dots) do
-		if i == n then d.tex:SetColorTexture(1, 0.82, 0) else d.tex:SetColorTexture(0.29, 0.23, 0.14) end
-	end
+	dots.light(n)
+	dots:ClearAllPoints()
+	dots:SetPoint("TOP", f, "BOTTOM", 0, -GAP)
+	board:SetHeight(boardHeight())
 	f:Show()
 	f.fadeIn:Stop()
 	f.fadeIn:Play()
 	stepTo(0)
+	if page then ns.Options.refresh() end
 end
 GD.show, GD.stepTo = show, stepTo
 function GD.current() return cur, stepX end
@@ -337,92 +395,40 @@ local ticker = ns.ticker(0.1, function()
 	local now = GetTime()
 	if sp.tick then ns.try("guide tick", sp.tick, f, now) end
 	local steps = sp.steps
-	local hold = steps and steps[stepX + 1] or HOLD
-	if now - stepAt < hold then return end
-	if steps and stepX + 1 < #steps then stepTo(stepX + 1)
-	elseif playing and not board:IsMouseOver() then show(cur + 1)
-	elseif steps and #steps > 1 then stepTo(0)
-	else stepAt = now end
+	if not steps or now - stepAt < steps[stepX + 1] then return end
+	stepTo((stepX + 1) % #steps)
 end)
-
--- Small square buttons under the slides
-local function smallButton(parent, texture, onClick)
-	local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
-	b:SetSize(18, 18)
-	b:SetBackdrop(W.BACKDROP)
-	b:SetBackdropColor(0.10, 0.08, 0.07, 1)
-	b:SetBackdropBorderColor(0.35, 0.27, 0.19, 1)
-	b.icon = b:CreateTexture(nil, "ARTWORK")
-	b.icon:SetPoint("TOPLEFT", 1, -1)
-	b.icon:SetPoint("BOTTOMRIGHT", -1, 1)
-	b.icon:SetTexture(texture)
-	local hl = b:CreateTexture(nil, "HIGHLIGHT")
-	hl:SetAllPoints()
-	hl:SetColorTexture(1, 1, 1, 0.1)
-	b:SetScript("OnClick", onClick)
-	return b
-end
 
 local function build(p)
 	holder = CreateFrame("Frame", nil, p.content)
-	holder:SetHeight(BOARD_H)
 	board = CreateFrame("Frame", nil, holder)
-	board:SetSize(BOARD_W, BOARD_H)
+	board:SetWidth(BOARD_W)
 	board:SetPoint("TOP", holder, "TOP", 0, 0)
-	local word = GD.text(board, "GameFontNormalHuge", "Guide", 2, 2)
+	local word = GD.text(board, "Guide", 2, 2, nil, "GameFontNormalHuge")
 	local sep = board:CreateTexture(nil, "ARTWORK")
 	sep:SetColorTexture(0.54, 0.42, 0.23, 1)
 	sep:SetSize(1, 20)
 	sep:SetPoint("LEFT", word, "RIGHT", 9, -1)
 	title = board:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
 	title:SetPoint("LEFT", sep, "RIGHT", 9, 1)
-	blurb = GD.text(board, "GameFontHighlight", "", 2, 36, 596)
-	blurb:SetSpacing(2)
+	blurb = GD.text(board, "", 2, 40, BOARD_W - 4)
 	nextB = GD.bigButton(board, "Next" .. GD.ON, 112, function() show(cur + 1) end)
 	nextB:SetPoint("TOPRIGHT", board, "TOPRIGHT", 0, 0)
 	prevB = GD.bigButton(board, GD.BACK .. "Previous", 120, function() show(cur - 1) end)
 	prevB:SetPoint("RIGHT", nextB, "LEFT", -8, 0)
-	local ctl = CreateFrame("Frame", nil, board)
-	ctl:SetSize(BOARD_W, 18)
-	ctl:SetPoint("BOTTOM", board, "BOTTOM", 0, 6)
-	local n = #slides
-	local span = 18 * 3 + n * 13 + 30
-	local x = (BOARD_W - span) / 2
-	smallButton(ctl, "Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Up", function() show(cur - 1) end)
-		:SetPoint("LEFT", ctl, "LEFT", x, 0)
-	x = x + 28
-	for i = 1, n do
-		local d = CreateFrame("Button", nil, ctl)
-		d:SetSize(13, 13)
-		d:SetPoint("LEFT", ctl, "LEFT", x + (i - 1) * 13, 0)
-		d.tex = d:CreateTexture(nil, "ARTWORK")
-		d.tex:SetSize(6, 6)
-		d.tex:SetPoint("CENTER")
-		d:SetScript("OnClick", function() show(i) end)
-		dots[i] = d
-	end
-	x = x + n * 13 + 2
-	playB = smallButton(ctl, nil, function()
-		playing = not playing
-		stepAt = GetTime()
-		paintPlay()
-	end)
-	playB:SetPoint("LEFT", ctl, "LEFT", x, 0)
-	W.setTip(playB, function() return playing and "Pause" or "Play" end, "Steps through the slides on its own.")
-	paintPlay()
-	smallButton(ctl, "Interface\\Buttons\\UI-SpellbookIcon-NextPage-Up", function() show(cur + 1) end)
-		:SetPoint("LEFT", playB, "RIGHT", 10, 0)
+	dots = GD.dots(board, #slides, function(i) show(i) end)
 	board:SetScript("OnShow", function()
 		ticker:Show()
 		stepAt = GetTime()
 	end)
-	board:SetScript("OnHide", function()
-		ticker:Hide()
-		playing = false
-		paintPlay()
-	end)
+	board:SetScript("OnHide", function() ticker:Hide() end)
 	show(cur)
-	p:add(holder, BOARD_H, nil, function()
+	page = p
+	p:add(holder, function()
+		local h = boardHeight()
+		holder:SetHeight(h)
+		return h
+	end, nil, function()
 		local sp, f = slides[cur], frames[cur]
 		if f and sp.refresh then ns.try("guide refresh", sp.refresh, f) end
 	end)
@@ -464,27 +470,30 @@ MOD.register({ name = "guide",
 local LINKS = { { "Discord", "discord" }, { "CurseForge", "curseforge", "/comments" } }
 
 GD.add({ title = "Early days", order = 1000,
-	blurb = ns.NAME .. " is brand new, made for WoW Forever, and it's still early days. Feedback is |cffffd100very|r"
-		.. " appreciated!",
+	blurb = ns.NAME .. " is brand new, made for WoW Forever, and it's still early days. Feedback is "
+		.. GD.EMPH .. "very|r appreciated!",
 	build = function(f)
-		local card = GD.box(f, 0, 96, 600, 96, { 0.56, 0.43, 0.22 })
+		local card = GD.box(f, 0, 0, BOARD_W, 100, GD.GOLD, true)
 		local logo = card:CreateTexture(nil, "ARTWORK")
 		logo:SetSize(76, 76)
-		logo:SetPoint("LEFT", 14, 0)
+		logo:SetPoint("LEFT", PAD, 0)
 		logo:SetTexture(ART .. "Logo-Icon")
-		GD.text(card, "GameFontNormalHuge", ns.NAME, 104, 20)
-		GD.text(card, "GameFontHighlight", ns.CLASS.blurb, 104, 50, nil, GD.GREY)
-		GD.text(f, "GameFontHighlight", "Ideas, requests or problems? Post in #feedback on Discord or comment on "
-			.. "CurseForge.", 2, 214, 596)
-		for i, l in ipairs(LINKS) do
-			local y = 262 + (i - 1) * 38
+		GD.text(card, ns.NAME, 76 + 2 * PAD, 26, nil, "GameFontNormalHuge")
+		GD.text(card, ns.CLASS.blurb, 76 + 2 * PAD, 56)
+		local y = 100 + 2 * GAP
+		local ask = GD.text(f, "Ideas, requests or problems? Post in #feedback on Discord or comment on CurseForge.",
+			0, y, BOARD_W)
+		y = y + GD.height(ask) + 2 * GAP
+		for _, l in ipairs(LINKS) do
 			local t = f:CreateTexture(nil, "ARTWORK")
 			t:SetSize(20, 20)
-			t:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -y)
+			t:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -y)
 			local art = ns.Options.LINKS[l[2]]
 			t:SetTexture(art[1])
 			t:SetVertexColor(art[2][1], art[2][2], art[2][3])
-			GD.text(f, "GameFontHighlightMedium", l[1], 34, y + 2)
-			ns.Page.copyBox(f, ns.CLASS.links[l[2]] .. (l[3] or ""), 434):SetPoint("TOPLEFT", f, "TOPLEFT", 156, -y)
+			GD.title(f, l[1], 30, y + 2)
+			ns.Page.copyBox(f, ns.CLASS.links[l[2]] .. (l[3] or ""), 440):SetPoint("TOPLEFT", f, "TOPLEFT", 156, -y)
+			y = y + 20 + 2 * GAP
 		end
+		f.height = y - GAP
 	end })
