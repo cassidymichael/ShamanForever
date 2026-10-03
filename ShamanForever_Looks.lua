@@ -653,8 +653,7 @@ local proc = orSoft({
 local SPARK_PATH = { { 1, 0 }, { 0, -1 }, { -1, 0 }, { 0, 1 } }
 local spark = {
 	uses = { color = true, lap = true, width = true }, steady = true,
-	fields = { lap = { name = "Lap time", tip = "One lap round the icon.", range = S.KINDS.glow.ranges.lap, step = 0.1,
-		format = "%.1f s" } },
+	fields = { lap = { name = "Lap time", tip = "One lap round the icon.", format = "%.1f s" } },
 	build = function(g)
 		local r = root(g.inner)
 		local parts = { roots = { r }, soft = softPart(r, 0.45), sparks = {}, anims = {}, moving = { r } }
@@ -719,11 +718,9 @@ end
 local material = {
 	uses = { color = true, strength = true, width = true }, bySchool = true, inside = true, steady = true,
 	fields = {
-		scale = { name = "Pattern size", tip = "How big the pattern is.", range = S.KINDS.glow.ranges.scale, step = 0.1,
-			format = "%.1fx" },
-		drift = { name = "Drift speed", tip = "How fast the pattern moves.", range = S.KINDS.glow.ranges.drift, step = 0.05,
-			format = "%.2fx" },
-		width = { name = "Rim", tip = "How far in the edge glow reaches.", range = { 0.1, 0.5 }, step = 0.05,
+		scale = { name = "Pattern size", tip = "How big the pattern is.", format = "%.1fx" },
+		drift = { name = "Drift speed", tip = "How fast the pattern moves.", format = "%.2fx" },
+		width = { name = "Rim", tip = "How far in the edge glow reaches.",
 			format = function(v) return string.format("%d%%", v * 100 + 0.5) end },
 	},
 	build = function(g)

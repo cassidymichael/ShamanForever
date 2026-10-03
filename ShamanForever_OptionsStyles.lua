@@ -727,10 +727,11 @@ local function chipRow(p, label, items, key, kind)
 	p:add(f, 26, nil, paint)
 end
 
+-- rows: { label, field, format, flip (shows 1 - the value) }
 local function previewRows(p, kind, rows)
 	local shipped = NEUTRAL[S.KINDS[kind].path[1]]
 	for _, r in ipairs(rows) do
-		local field, flip = r[2], r[7]
+		local field, flip = r[2], r[4]
 		local function get()
 			local v = preview[kind][field] or shipped[field]
 			return flip and 1 - v or v
@@ -739,7 +740,7 @@ local function previewRows(p, kind, rows)
 			preview[kind][field] = flip and 1 - v or v
 			restyleSoon()
 		end
-		p:slider(r[1], nil, r[3], r[4], r[5], r[6], get, set)
+		K.styleSlider(p, kind, field, r[1], nil, r[3], get, set)
 	end
 	local f = p:row(22)
 	local text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -764,7 +765,7 @@ function SP.build(p)
 	header(p)
 	p.allOpen = true
 	p:header("Border look")
-	previewRows(p, "border", { { "Border size", "size", 1, 8, 1, px } })
+	previewRows(p, "border", { { "Border size", "size", px } })
 	flowSection(p, "border", "look")
 	p:header("Element frame")
 	chipRow(p, "Border", { { true, "On" }, { false, "Off" } }, "frameBorder", "frame")
@@ -774,21 +775,20 @@ function SP.build(p)
 	groupSection(p)
 	p:header("Pulsing glow")
 	previewRows(p, "glow", {
-		{ "Pulse length", "speed", 0.2, 2, 0.1, secs },
-		{ "Pulse depth", "low", 0, 1, 0.05, pct, true },
-		{ "Thickness", "width", 0.1, 0.5, 0.05, pct },
-		{ "Intensity", "strength", 0.2, 2.5, 0.1, pct },
+		{ "Pulse length", "speed", secs },
+		{ "Pulse depth", "low", pct, true },
+		{ "Thickness", "width", pct },
+		{ "Intensity", "strength", pct },
 	})
 	flowSection(p, "glow", "look")
 	p:header("Pop")
 	local f = p:row(26)
 	local paint = chips(f, S.field("pop", "flash").name, choiceItems("pop", "flash"), "flash", 4, -13)
 	p:add(f, 26, nil, paint)
-	local reach = S.KINDS.pop.ranges.reach
 	previewRows(p, "pop", {
-		{ "Motion distance", "size", 1.1, 1.8, 0.05, pct },
-		{ "Speed", "speed", 0.5, 2, 0.1, pct },
-		{ "Reach", "reach", reach[1], reach[2], 0.05, pct },
+		{ "Motion distance", "size", pct },
+		{ "Speed", "speed", pct },
+		{ "Reach", "reach", pct },
 	})
 	popGrid(p)
 end
