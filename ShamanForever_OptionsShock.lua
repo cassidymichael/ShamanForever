@@ -1,20 +1,12 @@
 -- Shocks options page
 local _, ns = ...
-local E, W = ns.Elements, ns.Widgets
+local W = ns.Widgets
 
 local Page, K = ns.Page, ns.Options.kit
 local showWhen, pct = Page.showWhen, Page.pct
 local elementDisplay, idleBlock, styleBlocks = K.elementDisplay, K.idleBlock, K.styleBlocks
 local readyBlock, timerSettings, gcdBlock, eopt = K.readyBlock, K.timerSettings, K.gcdBlock, K.eopt
 local eslider, respell = K.eslider, K.respell
-
--- A shock state's look uses overlay or tint
-local function lookUses(state, part)
-	return function()
-		local v = E.setting("shock", state, "look")
-		return v == part or v == "both"
-	end
-end
 
 -- The marks' sides as the Shocks' group lays them out
 local SIDE_LABEL = { above = "Above", below = "Below", right = "Right", left = "Left" }
@@ -34,10 +26,6 @@ local function buildShock(p, def)
 		table.insert(cards, { shock, SK.SHOCKS[shock], SK.ICONS[shock] })
 	end
 	p:cards("Track", "Its cooldown and range.", cards, eopt(p, key, "track", nil, respell))
-	local manaChoices = { { "tracked", "Tracked shock" } }
-	for _, shock in ipairs(SK.ORDER) do table.insert(manaChoices, { shock, SK.SHOCKS[shock] }) end
-	p:dropdown("Mana check", nil, manaChoices, eopt(p, key, "manaSpell", nil, respell))
-	p:text("The spell whose cost turns the icon blue when you're short of mana.")
 
 	p:header("On target")
 	p:text("A small icon while your shock is on your hostile target, with its time left.")
@@ -58,17 +46,13 @@ local function buildShock(p, def)
 	eslider(p, key, "Gap", "From the icon, at the default icon size; it grows with the icon.", Page.px, marksShown,
 		"marks", "gap")
 
-	local looks = { { "tint", "Tint" }, { "overlay", "Overlay" }, { "both", "Both" } }
-	p:header("No mana")
-	p:dropdown("Show as", "Out of range wins over this.", looks, eopt(p, key, "mana", "look"))
-	eslider(p, key, "Overlay", nil, pct, showWhen(lookUses("mana", "overlay")), "mana", "overlay")
-	eslider(p, key, "Tint", nil, pct, showWhen(lookUses("mana", "tint")), "mana", "tint")
-	eslider(p, key, "Ring", "The blue ring, shown even when out of range.", pct, nil, "mana", "ring")
-
-	p:header("Out of range")
-	p:dropdown("Show as", nil, looks, eopt(p, key, "range", "look"))
-	eslider(p, key, "Overlay", nil, pct, showWhen(lookUses("range", "overlay")), "range", "overlay")
-	eslider(p, key, "Tint", nil, pct, showWhen(lookUses("range", "tint")), "range", "tint")
+	K.castBlocks(p, key, { power = function(on)
+		local manaChoices = { { "tracked", "Tracked shock" } }
+		for _, shock in ipairs(SK.ORDER) do table.insert(manaChoices, { shock, SK.SHOCKS[shock] }) end
+		local get, set = eopt(p, key, "manaSpell", nil, respell)
+		p:dropdown("Mana check", nil, manaChoices, get, set, showWhen(on), 180)
+		p:text("The spell whose cost turns the icon blue when you're short of mana.", showWhen(on))
+	end })
 	readyBlock(p, key)
 	styleBlocks(p, key, function()
 		timerSettings(p, "Cooldown", key, "cooldown")

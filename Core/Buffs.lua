@@ -7,7 +7,7 @@ local P = ns.Profiles
 local W = ns.Widgets
 local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
-local Spells, KD = ns.Spells, ns.Kinds
+local Spells, KD, CS = ns.Spells, ns.Kinds, ns.CastStates
 
 local B = { name = "buffs" }
 ns.Buffs = B
@@ -107,7 +107,7 @@ ns.registerPart("proc", {
 local EXPIRE_RANGE = { 0, 120, 5 }
 ns.registerKind("buff", {
 	parts = { "buff", "breath", "proc" },
-	slots = { "own", "warn", "active", "expire", "uptime" },
+	slots = { "own", "warn", "cast", "active", "expire", "uptime" },
 	prepare = function(def)
 		def.expires = not def.proc
 		def.expireRange = EXPIRE_RANGE
@@ -190,6 +190,22 @@ local function buildAura(def)
 	} })
 end
 
+-- A cast state's paint over the button, while the aura is up: sensed as its glow is, faded with the
+-- button
+local function auraCover(def)
+	local where = KD.hook("buff", def, "aura")
+	local g = where and where(def).glow or { parent = def.frame.effects }
+	return { parent = def.idle or g.parent, sensorParent = g.parent, unit = g.unit, needUnit = g.needUnit,
+		filter = def.filter, ids = function() return auraIDs(def) end,
+		candidates = def.candidates and function() return def.candidates(def) end, slot = def.aura,
+		note = def.castNote, tips = def.castTips,
+		-- Refiltered and pointed with the row's own looks while attached
+		attach = function(look) table.insert(def.looks, look) end,
+		detach = function(look)
+			for i = #def.looks, 1, -1 do if def.looks[i] == look then table.remove(def.looks, i) end end
+		end }
+end
+
 for _, def in ipairs(ROWS) do
 	def.spell = Spells.name(def.spellKey)
 	def.icon = Spells.icon(def.buffKey or def.spellKey) or def.icon
@@ -204,6 +220,7 @@ for _, def in ipairs(ROWS) do
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
 		experimental = def.experimental, styles = def.styles })
 	if not KD.hook("buff", def, "engine") then table.insert(BUFFS, def) end
+	if def.power or def.range then CS.watchRow(def, def.proc and auraCover(def) or nil) end
 end
 
 -- An aura element's steps, for whichever module runs it

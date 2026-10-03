@@ -14,8 +14,10 @@ local function before(a, b)
 	return registered[a] < registered[b]
 end
 -- Part spec: defaults; ranges (its numbers' { min, max, step }: S.clean holds them there); path (where
--- it is saved); groups, elements (groups or elements can have their own); label and short: its name
--- in an element's list of own styles, none to leave it out; order: its place there, as on the pages
+-- it is saved); inState (an element keeps it in a state's table, beside the state's own fields);
+-- groups, elements (groups or elements can have their own); has(key) (only those elements can);
+-- label and short: its name in an element's list of own styles, none to leave it out; order: its
+-- place there, as on the pages
 function S.register(part, spec)
 	if not S.PARTS[part] then
 		table.insert(S.ORDER, part)
@@ -58,6 +60,25 @@ S.register("border", {
 	ranges = { size = { 1, 8, 1 } },
 	path = { "border" },
 	elements = true, label = "Border", short = "border", order = 3,
+})
+-- Cast states (_CastStates): its paint while the spell's cost can't be paid, and while its target is
+-- out of range. look: tint | overlay | both. Saved in the state's table on an element.
+local PAINT = { 0.1, 1, 0.05 }
+S.register("power", {
+	defaults = { look = "both", overlay = 0.25, tint = 0.8, ring = 0.6 },
+	ranges = { overlay = PAINT, tint = PAINT, ring = PAINT },
+	path = { "mana" },   -- the state table's saved name
+	inState = true,
+	elements = true, has = function(key) return ns.CastStates.has(key, "power") end,
+	label = ns.CLASS.power.name, short = ns.CLASS.power.name:lower(), order = 5.1,
+})
+S.register("range", {
+	defaults = { look = "tint", overlay = 0.45, tint = 0.7 },
+	ranges = { overlay = PAINT, tint = PAINT },
+	path = { "range" },
+	inState = true,
+	elements = true, has = function(key) return ns.CastStates.has(key, "range") end,
+	label = "Out of range", short = "range", order = 5.2,
 })
 -- Art frames: round each element, and round a group or bar
 S.register("frame", {
@@ -348,6 +369,13 @@ function S.reset(owner, part)
 		parent = parent[path[i]]
 	end
 	if type(parent) ~= "table" then return end
+	local t = parent[path[last]]
+	if owner ~= nil and spec.inState then
+		if type(t) ~= "table" then return end
+		for k in pairs(spec.defaults) do t[k] = nil end
+		t.follow = nil
+		return
+	end
 	parent[path[last]] = owner == nil and clean(nil, spec.defaults, spec.ranges) or nil
 end
 

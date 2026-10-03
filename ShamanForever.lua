@@ -35,6 +35,8 @@ local DEFAULTS = {
 	glowStyle = CopyTable(ns.Style.PARTS.glow.defaults),
 	popStyle = CopyTable(ns.Style.PARTS.pop.defaults),
 	gcdStyle = CopyTable(ns.Style.PARTS.gcd.defaults),
+	mana = CopyTable(ns.Style.PARTS.power.defaults),
+	range = CopyTable(ns.Style.PARTS.range.defaults),
 	textStyle = CopyTable(ns.Style.PARTS.text.defaults),
 	barStyle = CopyTable(ns.Style.PARTS.bar.defaults),
 	groups = ns.CLASS.layout,
@@ -140,7 +142,8 @@ end
 -- An element's icon: opts.effects gives it an effects layer that ignores the icon's alpha (glows and
 -- flashes stay full when it idles) and takes its group's opacity instead (layoutGroup). f.stack()
 -- restates frame levels, bottom up: icon, its art frame (ns.Frames.LEVEL.over), effects and glow,
--- swipe, cooldown timer bar, text, time left; layoutGroup calls it after regrouping.
+-- swipe, cooldown timer bar and a cast state's ring, warnings, text, time left; layoutGroup calls it
+-- after regrouping.
 function E.newIcon(key, opts)
 	local f = W.makeIcon(root, DEFAULTS.iconSize, key)
 	f.count:Hide()
@@ -154,11 +157,12 @@ function E.newIcon(key, opts)
 		local base = f:GetFrameLevel()
 		if f.effects then f.effects:SetFrameLevel(base) end
 		f.glowF:SetFrameLevel(base + 2)
-		if f.warn then f.warn:SetFrameLevel(base + 2) end
 		f.cd:SetFrameLevel(base + 3)
 		if f.cdTimer and f.cdTimer.bar then f.cdTimer.bar:SetFrameLevel(base + 4) end
-		f.textFrame:SetFrameLevel(base + 5)
-		if f.upTimer then f.upTimer:restack(2) end
+		if f.paintRing then f.paintRing.host:SetFrameLevel(base + 4) end
+		if f.warn then f.warn:SetFrameLevel(base + 5) end
+		f.textFrame:SetFrameLevel(base + 6)
+		if f.upTimer then f.upTimer:restack(5) end
 	end
 	return f
 end

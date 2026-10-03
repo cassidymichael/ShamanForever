@@ -12,6 +12,7 @@ local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe = ns.say, ns.isSecret, ns.safe
 local Spells = ns.Spells
 local FR, Count = ns.Frames, W.Count
+local CS = ns.CastStates
 
 local SH = { name = "shield" }
 ns.Shield = SH
@@ -46,7 +47,8 @@ E.register("shield", { frame = shield, label = "Shields", paint = function(t) t:
 		track = "lightning",   -- lightning | water | either
 		count = { bar = true, barHeight = 8, barColor = { 0.42, 0.84, 1, 1 }, number = false, pos = "CENTER",
 			size = 20, mark = false, markColor = { 1, 0.25, 0.2, 1 } },
-		warn = { grey = true, ring = true, fade = false, tint = false, glow = true, sound = "none" } },
+		warn = { grey = true, ring = true, fade = false, tint = false, glow = true, sound = "none" },
+		mana = { on = false } },
 	ranges = { count = { size = { 8, 64, 1 }, barHeight = { 1, 20, 1 } } },
 	choices = { track = TRACK, count = { pos = COUNT_POS } },
 	styles = { glow = { look = "soft" },
@@ -228,8 +230,18 @@ local function applyIdle()
 	full:SetAlpha((on and when == "charges") and 1 or 0)
 end
 
+-- Another shield shown (Water Shield costs nothing): its cost is read again
+local costShown
+local function noteShown()
+	local now = shownShield()
+	if now == costShown then return end
+	costShown = now
+	CS.reread("shield")
+end
+
 function SH.applyEmptyLook()
 	driveHolder()
+	noteShown()
 	local icon = SH.icon()
 	local known = anyTrackedShieldKnown()
 	local covered = native.button ~= nil and not native.err
@@ -288,14 +300,32 @@ look = W.makeClipLook(shield, {
 	},
 })
 lookEdge = FR.edge(look.art, shield, "shield", { overlay = false })
+-- The one-charge copy: levels above the shield's button and its parts
+local IDLE_LEVEL = 8
+-- Its cost over Blizzard's button while the shield is up, faded with it by Idle: the shield it shows.
+-- Its sensor, once a state is on, refilters with the others while attached; it sits over the copy
+-- (its container at text + 5 + IDLE_LEVEL, its button's parts up to 4 more).
+local cover
+CS.watch("shield", { frame = shield, power = true,
+	cover = { parent = gate, sensorParent = shield, ids = shieldIDMap, level = 5 + IDLE_LEVEL + 5,
+		attach = function(up) cover = up end, detach = function() cover = nil end,
+		note = "Only while your shield is up, as an overlay: Blizzard's own button draws this icon." },
+	spells = function()
+		local s = SHIELDS[shownShield()]
+		return s.known and s.spellID or nil
+	end })
 
 -- A sensor missing a tracked ID would stay empty over that shield, so the look waits
-local function checkIDs() look:checkIDs() end
+local function checkIDs()
+	look:checkIDs()
+	if cover then cover:checkIDs() end
+end
 
 -- Filters only change while auras are readable
 local function applyShieldFilter()
 	native:refilter()
 	look:refilter()
+	if cover then cover:refilter() end
 	copy:refilter()
 	checkIDs()
 end
@@ -310,7 +340,7 @@ local function learnShieldID(key, id)
 	local function matches(c)
 		return c.container == nil or c.err ~= nil or (c.filtered and c.filtered[id])
 	end
-	if matches(native) and matches(look) and matches(copy) then look:checkIDs()
+	if matches(native) and matches(look) and (not cover or matches(cover)) and matches(copy) then checkIDs()
 	else applyShieldFilter() end
 end
 
@@ -416,7 +446,6 @@ native = W.makeAuraSlot(shield, {
 -- from our own values.
 -- It counts (copyReady) only once made, sized and matching every tracked shield; until then the gate
 -- stays full.
-local IDLE_LEVEL = 8   -- levels above the shield's button and its parts
 local WHITE = ns.WHITE
 local IMMEDIATE = ns.Timer.AURA_BAR.interpolation
 
@@ -531,6 +560,7 @@ local function refreshAura()
 		end
 	end
 	if upKey then P.getAccount().lastShield = upKey end
+	noteShown()
 	setUpShield(upKey or "none")
 end
 
@@ -645,9 +675,10 @@ local PREVIEW = {
 	uptime = true, barInset = timeBarInset,
 	warning = "down",
 	states = { { "up3", "3 charges" }, { "up2", "2 charges" }, { "up1", "1 charge" },
-		{ "down", "No shield" } },
+		{ "down", "No shield" }, { "power", CS.STATES.power.name } },
 	render = function(ic, st, kit)
 		kit.reset(ic, SHIELDS[own("track") == "water" and "water" or "lightning"].icon)
+		if st == "power" then return CS.paint(ic, "shield", false, CS.on("shield", "power"), true) end
 		if st == "down" then
 			ic:SetWarnParts(W.warnParts("shield", "warn"))
 			return

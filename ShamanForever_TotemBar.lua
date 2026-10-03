@@ -70,6 +70,7 @@ TB.DEFAULTS = {
 	expire = { secs = 10, grey = false, ring = false, fade = true, glow = false, over = {} },
 	ended = { pop = true, sound = "none" },
 	killed = { flash = true, pop = true, glow = true, mark = true },
+	mana = { on = false },   -- a slot's pick it can't pay for, in Global's style for it
 	range = true,
 	rangeHeight = 5,
 	rangeIn = { 0.2, 0.8, 0.25, 0 },
@@ -784,6 +785,34 @@ end
 TB.expireOpts = expireOpts
 function TB.pickSpell(el) return pickSpell(SLOT[el]) end
 
+-- No mana on v (a slot's look, or the page's header icon): the pick a click casts, in Global's style
+-- (the tint on its own icon); its overlay and ring made the first time
+function TB.paintLow(v, low)
+	if not (low or v.lowOver) then return end
+	if not v.lowOver then
+		v.lowOver = v:CreateTexture(nil, "ARTWORK", nil, 2)
+		v.lowOver:SetAllPoints(v.icon)
+		ns.StyleArt.followMask(v, v.lowOver)
+		v.lowRing = W.makeRing(v.textFrame or v, v.icon)
+	end
+	local st, k = ns.Style.global("power"), ns.CastStates.STATES.power.color
+	local m = 1 - st.tint
+	if low and (st.look == "tint" or st.look == "both") then v.icon:SetVertexColor(m, m, 1)
+	else v.icon:SetVertexColor(1, 1, 1) end
+	v.lowOver:SetColorTexture(k[1], k[2], k[3], st.overlay)
+	v.lowOver:SetShown(low and (st.look == "overlay" or st.look == "both"))
+	if low then v.lowRing:color(k[1], k[2], k[3], st.ring) end
+	v.lowRing:show(low)
+end
+for _, el in ipairs(ELEMENTS) do
+	local s = slots[el]
+	ns.CastStates.follow({ label = "totem bar " .. el, owner = "totembar", power = true,
+		spells = function() return pickSpell(s.slot) end,
+		isOn = function() return cfg().mana.on end,
+		enabled = function() return feat("cast") and true or false end,
+		draw = function(_, low) TB.paintLow(s.vis, low) end })
+end
+
 local anyDown = false
 local kbOpen = false
 local preview
@@ -887,6 +916,8 @@ local function refreshSlots()
 		TB.range.refresh(s)
 	end
 	anyDown = down
+	-- A pick or set may have changed: its cost is read again
+	ns.CastStates.reread("totembar")
 end
 
 -- The active set: the picker header's sf-set, written by the switch snippet or by writeSet (out of

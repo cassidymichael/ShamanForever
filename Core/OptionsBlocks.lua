@@ -471,6 +471,40 @@ local function popBlock(p, owner, kind)
 	if owner == nil then ownLine(p, "pop") end
 end
 
+-- Cast states' paint (_CastStates): part power or range; cover: over Blizzard's aura button, an overlay only
+local CAST_LOOKS = { { "tint", "Tint" }, { "overlay", "Overlay" }, { "both", "Both" } }
+local function castStyleBlock(p, owner, state, cover)
+	local CS = ns.CastStates
+	local st = CS.STATES[state]
+	local part = st.part
+	p:header(st.name .. " style")
+	p:anchor(part)
+	local r = styleRows(p, owner, part, relayout)
+	if owner == nil then
+		p:text(st.global .. " " .. ownersText("Elements", part))
+	else followRow(p, owner, part, relayout) end
+	if cover and cover.note then p:text(cover.note) end
+	local ranged = owner == nil or CS.has(owner, "range")
+	local own = showWhen(r.own)
+	local function uses(field)
+		return showWhen(function()
+			local v = r.style().look
+			return cover or v == field or v == "both"
+		end, own)
+	end
+	if not cover then
+		p:dropdown("Show as", state == "power" and ranged and "Out of range wins over this." or nil, CAST_LOOKS,
+			r.get("look"), r.set("look"), own, 140)
+	end
+	styleSlider(p, part, "overlay", "Overlay", nil, pct, r.get("overlay"), r.set("overlay"), uses("overlay"))
+	if not cover then styleSlider(p, part, "tint", "Tint", nil, pct, r.get("tint"), r.set("tint"), uses("tint")) end
+	if state == "power" then
+		styleSlider(p, part, "ring", "Ring", ranged and "The blue ring, shown even when out of range." or "The blue ring.",
+			pct, r.get("ring"), r.set("ring"), own)
+	end
+	if owner == nil then ownLine(p, part) end
+end
+
 local function fontChoices(current)
 	local out = {}
 	for _, f in ipairs(ns.Media.fonts(current)) do
@@ -641,6 +675,7 @@ K.globalRow, K.ownersText, K.ownLine, K.borderRows = globalRow, ownersText, ownL
 K.rangeSlider, K.styleSlider = rangeSlider, styleSlider
 K.frameRows, K.barFramed = frameRows, barFramed
 K.timerSettings, K.gcdBlock, K.glowBlock, K.popBlock = timerSettings, gcdBlock, glowBlock, popBlock
+K.castStyleBlock = castStyleBlock
 K.textBlock, K.barRows, K.barBlock = textBlock, barRows, barBlock
 
 -- Element blocks
@@ -770,6 +805,10 @@ local function styleBlocks(p, key, timers)
 	K.borderRows(p, key, relayout)
 	if e.effects.glow then glowBlock(p, key) end
 	if e.effects.pop then popBlock(p, key, e.effects.popKind or "ready") end
+	local CS = ns.CastStates
+	for _, state in ipairs(CS.ORDER) do
+		if CS.has(key, state) then castStyleBlock(p, key, state, CS.covered(key)) end
+	end
 	p:header("Art frame style")
 	K.frameRows(p, key, "frame", relayout)
 end
@@ -1037,6 +1076,24 @@ local function noneLeftBlock(p, def)
 	lookRows(p, store(p, def.key), "reagent", {})
 end
 
+-- Cast states: each the element has, its switch with a link to its style (_CastStates); extras[state](on):
+-- rows of its own under the switch, shown while on() is
+local function castBlocks(p, key, extras)
+	local CS = ns.CastStates
+	for _, state in ipairs(CS.ORDER) do
+		if CS.has(key, state) then
+			local st = CS.STATES[state]
+			p:header(st.name)
+			local get, set = eopt(p, key, st.saved, "on")
+			local cover = CS.covered(key)
+			local tip = cover and cover.tips and cover.tips[state] or st.tip
+			styleLink(p, p:checkbox(st.on, tip, get, set), st.part, get)
+			if cover and cover.note then p:text(cover.note) end
+			if extras and extras[state] then extras[state](get) end
+		end
+	end
+end
+
 -- A setting switched on, with a number under it: b = { title, name, label, tip, sub = { name, label,
 -- tip, unit } }
 local function toggleBlock(p, key, b)
@@ -1051,7 +1108,7 @@ local function toggleBlock(p, key, b)
 end
 
 K.eread, K.eslider, K.COUNT_POINTS = eread, eslider, COUNT_POINTS
-K.toggleBlock = toggleBlock
+K.toggleBlock, K.castBlocks = toggleBlock, castBlocks
 K.elementDisplay, K.idleBlock, K.styleBlocks = elementDisplay, idleBlock, styleBlocks
 K.reagentBlock, K.noneLeftBlock = reagentBlock, noneLeftBlock
 K.soundsBlock, K.groupMenu = soundsBlock, groupMenu
@@ -1093,6 +1150,7 @@ K.registerSlot("own", function(p, def, list)
 	end
 end)
 K.registerSlot("warn", function(p, def, o) K.warnBlock(p, def.key, o) end)
+K.registerSlot("cast", function(p, def) K.castBlocks(p, def.key) end)
 K.registerSlot("ready", function(p, def, o) K.readyBlock(p, def.key, o) end)
 K.registerSlot("active", function(p, def, o) K.activeBlock(p, def.key, o) end)
 K.registerSlot("expire", function(p, def, o) K.expiringBlock(p, def.key, o) end)

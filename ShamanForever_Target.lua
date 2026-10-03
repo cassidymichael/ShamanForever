@@ -22,11 +22,15 @@ local setting = E.setting
 -- Rows: the class's target elements
 -- Rows of the buff kind (_Buffs lists the aura fields its builder reads). Here: unit = "target",
 -- which needs proc = true; parts missing (needs auraKey), engineExpire (needs missing and duration,
--- the aura's full length), skipLong (below); page texts idleText, procHeader, popTip, glowTip,
--- upLabel, idleLabel.
+-- the aura's full length), skipLong (below), power and range (_CastStates); page texts idleText,
+-- procHeader, popTip, glowTip, upLabel, idleLabel, castNote and castTips (its cast states').
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
-		unit = "target", proc = true, duration = 12,
+		power = true, range = true, unit = "target",
+		castNote = "Only while your " .. Spells.name("flameShock") .. " is on your target, as an overlay: Blizzard's "
+			.. "own button draws this icon.",
+		castTips = { range = "While your " .. Spells.name("flameShock") .. " is on your target and it's out of "
+			.. "range." }, proc = true, duration = 12,
 		icon = 135813, school = "fire", blurb = "Shows while your Flame Shock is on your target.",
 		styles = { glow = { look = "soft" }, uptime = { text = true, bar = true, barEdge = "bottom" } },
 		idleChoices = {

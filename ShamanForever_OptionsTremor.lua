@@ -180,6 +180,7 @@ local function buildTremor(p)
 			eslider(p, key, "Text Y offset", nil, px, nil, "wordY")
 		end)
 	end })
+	K.castBlocks(p, key)
 	styleBlocks(p, key, function()
 		timerSettings(p, "Time left", key, "uptime", nil,
 			"Its time left while it's down. With the default Idle (\"No warning\", 0%) it isn't seen.")

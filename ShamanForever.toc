@@ -33,6 +33,7 @@ Core\FrameStyles.lua
 Core\Timers.lua
 Core\Profiles.lua
 ShamanForever.lua
+Core\CastStates.lua
 ShamanForever_Shield.lua
 ShamanForever_Imbue.lua
 Core\Sounds.lua

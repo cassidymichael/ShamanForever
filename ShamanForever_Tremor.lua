@@ -7,7 +7,7 @@ local P = ns.Profiles
 local W = ns.Widgets
 local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
-local Spells, TO = ns.Spells, ns.Totems
+local Spells, TO, CS = ns.Spells, ns.Totems, ns.CastStates
 
 local TR = { name = "tremor" }
 ns.Tremor = TR
@@ -43,7 +43,8 @@ end
 local def = { key = KEY, spellKey = "tremor", icon = 136108, school = "earth", duration = 300,
 	defaults = { idleAlpha = 0, idleWhen = "nowarning", tremorTarget = true, tremorPlates = true, tremorFeared = false,
 		active = { pop = true, glow = true, text = true, sound = "none" },
-		wordSize = 16, wordColor = CopyTable(WORD_COLOR), wordPos = "below", wordX = 0, wordY = 0 },
+		wordSize = 16, wordColor = CopyTable(WORD_COLOR), wordPos = "below", wordX = 0, wordY = 0,
+		mana = { on = false } },
 	ranges = { wordSize = { 8, 40, 1 }, wordX = { -100, 100, 1 }, wordY = { -100, 100, 1 } },
 	-- Its page's Idle: value, name, sentence, tip
 	idleChoices = {
@@ -66,6 +67,7 @@ f.word:SetText(TR.WORD)
 f.word:Hide()
 f.stack()
 def.frame = f
+CS.watch(KEY, { frame = f, power = true, spells = function() return def.spellID end })
 
 E.register(KEY, { frame = f, label = def.spell, defaults = def.defaults, ranges = def.ranges,
 	choices = def.choices,
@@ -482,7 +484,8 @@ end
 local PREVIEW = {
 	uptime = true,
 	typical = "idle", warning = "warn",
-	states = { { "warn", "Warning" }, { "down", "Tremor down" }, { "idle", "Not down, no warning" } },
+	states = { { "warn", "Warning" }, { "down", "Tremor down" }, { "idle", "Not down, no warning" },
+		{ "power", CS.STATES.power.name } },
 	pop = function(ic, st) if st == "warn" and own("active", "pop") then ic:Pop("ready") end end,
 	render = function(ic, st, kit)
 		kit.reset(ic, def.iconID or def.icon)
@@ -497,6 +500,7 @@ local PREVIEW = {
 		end
 		styleWord(ic.word, ic)
 		ic.word:Hide()
+		if st == "power" then return CS.paint(ic, KEY, false, CS.on(KEY, "power")) end
 		if st == "warn" then
 			ic:SetGlowShown(own("active", "glow"))
 			ic.word:SetShown(own("active", "text") and true or false)

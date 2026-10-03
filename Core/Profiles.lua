@@ -34,9 +34,11 @@ local SHARE_VERSION = 7
 --   killed  = { flash, pop, glow, mark }   it ended early
 --   count   = { bar, barHeight, barColor, number, pos, size, mark, markColor }   charges or stacks
 --   reagent = { when, low, lowKeepsShown, color, lowColor, size, pos, x, y, ring, fade }
+--   mana    = { on }   its spell's cost can't be paid (_CastStates); its style (part power) is kept beside
+--   range   = { on }   its target is out of its spell's range; its style (part range) is kept beside
 -- grey, ring, fade, tint and glow are the looks a state shows; pop and sound play once, as it
 -- starts: warn.pop and warn.sound as the warning begins (a buff lost). A bar's own settings use the
--- same tables (expire, ended, killed). The effect and pop kind names (warning, ranout, expired,
+-- same tables (expire, ended, killed, mana). The effect and pop kind names (warning, ranout, expired,
 -- killed, primed, ready and a class's own) are a separate runtime set.
 
 -- Renamed settings, moved as a profile loads or is imported. Drop after launch.
@@ -106,7 +108,7 @@ local RENAMED = {
 }
 
 -- Retired settings, dropped or converted as a profile loads or is imported (folds: as the account
--- loads). Drop after launch, with RENAMED, retireGroups, retireTotemBar and retireStyles.
+-- loads). Drop after launch, with RENAMED, retireGroups, retireTotemBar, retireStyles and retireOwnLooks.
 local RETIRED = {
 	-- Profile keys from before styles
 	root = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "glowSize", "popMotion", "popSize", "popSpeed",
@@ -120,6 +122,9 @@ local RETIRED = {
 	totemBar = { "enabled", "hideTotemFrame", "hideActionBar", "killedPulse", "follow" },
 	-- Style choices that went, to their nearest: part -> field -> old -> new
 	styles = { pop = { burst = { shapes = "painted" } }, border = { look = { caps = "line" } } },
+	-- Looks an element kept as its own before Global had a style for them (element -> state name ->
+	-- style part): it keeps them, the rest at the part's defaults (what it showed)
+	ownLooks = { shock = { mana = "power", range = "range" } },
 }
 
 local function put(t, name, field, v)
@@ -195,6 +200,22 @@ local function retireStyles(profile)
 	end
 end
 
+local function retireOwnLooks(opts)
+	for key, names in pairs(RETIRED.ownLooks) do
+		local o = opts[key]
+		for name, part in pairs(type(o) == "table" and names or {}) do
+			local t = o[name]
+			if type(t) == "table" and t.follow == nil
+				and (t.look ~= nil or t.overlay ~= nil or t.tint ~= nil or t.ring ~= nil) then
+				t.follow = false
+				for k, v in pairs(ns.Style.PARTS[part].defaults) do
+					if t[k] == nil then t[k] = v end
+				end
+			end
+		end
+	end
+end
+
 -- The renames and retired settings, on a profile as saved or as imported
 function P.migrate(profile)
 	if type(profile) ~= "table" then return end
@@ -228,6 +249,7 @@ function P.migrate(profile)
 		rename(profile.totemBar, RENAMED.totemBar)
 		retireTotemBar(profile.totemBar)
 	end
+	retireOwnLooks(opts)
 	retireGroups(profile)
 	retireStyles(profile)
 end
