@@ -895,8 +895,6 @@ addBurst("rune", { name = "Rune circle", group = "other",
 		burst(out, "shape1", MEDIA .. "Rune-Ring", 1.05, 2.6, { dur = 0.62, spin = 0.55 }, false, true)
 		burst(out, "spark", MEDIA .. "Spark", 1.2, 2.2, { dur = 0.35, a = 0.8, color = { 1, 1, 1 } }, true)
 	end })
--- Kept for a saved value.
-addBurst("shapes", { name = "Shapes", group = "element", hidden = true, bySchool = true, draw = shapes(shapeFile, 3.0) })
 
 S.addField("pop", "motion", { name = "Motion", where = POP, preview = { play = "hover" } })
 S.addChoice("pop", "motion", "none", { name = "None" })
