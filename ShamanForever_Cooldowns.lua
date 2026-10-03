@@ -494,13 +494,6 @@ local function readyAlpha(spellID, cantAct)
 	return 0
 end
 CD.readyAlpha = readyAlpha
--- Calls update ten times a second while shown
-function CD.readyTicker(update)
-	local ticker = CreateFrame("Frame")
-	ticker:Hide()
-	ticker:SetScript("OnUpdate", ns.throttled(0.1, update))
-	return ticker
-end
 local function refreshReadyGlow(def, cantAct)
 	local f = def.frame
 	local on = def.spellID and ns.isEnabled(def.key) and setting(def.key, "ready", "glow") and hasTimeLeftCurve
@@ -522,7 +515,7 @@ local function refreshReadyGlows()
 		if def.frame.readyGate then refreshReadyGlow(def, cantAct) end
 	end
 end
-local readyTicker = CD.readyTicker(refreshReadyGlows)
+local readyTicker = ns.ticker(0.1, refreshReadyGlows)
 local function syncReadyTicker()
 	local want = false
 	if ns.isActive() then

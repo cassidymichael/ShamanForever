@@ -70,7 +70,7 @@ end
 function ns.try(site, fn, ...) return checked(site, pcall(fn, ...)) end
 
 -- An OnUpdate script that calls fn(frame) at most every interval seconds
-function ns.throttled(interval, fn)
+local function throttled(interval, fn)
 	local wait = 0
 	return function(self, elapsed)
 		wait = wait + elapsed
@@ -78,6 +78,13 @@ function ns.throttled(interval, fn)
 		wait = 0
 		fn(self)
 	end
+end
+-- A hidden frame that calls fn(frame) at most every interval seconds while shown
+function ns.ticker(interval, fn)
+	local f = CreateFrame("Frame")
+	f:Hide()
+	f:SetScript("OnUpdate", throttled(interval, fn))
+	return f
 end
 
 -- Work that waits for combat to end: protected frames and Blizzard's aura container refuse changes

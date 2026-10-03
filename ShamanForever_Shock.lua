@@ -112,7 +112,7 @@ local function refreshGlow()
 	shock.glowF:fit(shock:GetWidth())
 	shock.glowF:SetAlpha(CD.readyAlpha(shockSpellID, ns.cantAct()))
 end
-local glowTicker = CD.readyTicker(refreshGlow)
+local glowTicker = ns.ticker(0.1, refreshGlow)
 local function syncGlowTicker()
 	local want = ns.isActive() and ns.isEnabled("shock") and setting("shock", "ready", "glow")
 	glowTicker:SetShown(want and true or false)

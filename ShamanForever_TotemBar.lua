@@ -954,9 +954,7 @@ local function refresh()
 	if anyDown ~= wasDown and cfg().show == "active" then layout() end
 end
 
-local ticker = CreateFrame("Frame")
-ticker:Hide()
-ticker:SetScript("OnUpdate", ns.throttled(0.1, function()
+local ticker = ns.ticker(0.1, function()
 	if not bar:IsShown() then return end
 	local arrows = feat("arrows")
 	for _, el in ipairs(ELEMENTS) do
@@ -965,7 +963,7 @@ ticker:SetScript("OnUpdate", ns.throttled(0.1, function()
 		if s.down and not preview then TB.drawTimeLeft(s) end
 	end
 	if setSlot.on then hover(setSlot, arrows) end
-end))
+end)
 
 -- Blizzard's totem frames
 -- The totems under the player frame: made invisible and click-through rather than hidden, since

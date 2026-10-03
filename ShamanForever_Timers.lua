@@ -309,18 +309,15 @@ end
 -- Expiring: a warning over the icon in a timer's last seconds. Its alpha is the time left through
 -- a curve, evaluated ten times a second, so it works in combat.
 local warning = {}
-local ticker = CreateFrame("Frame")
-ticker:Hide()
-ticker:SetScript("OnUpdate", ns.throttled(0.1, function()
+local ticker = ns.ticker(0.1, function()
 	for t in pairs(warning) do
 		local d = t.last
 		if d then
-			-- pcall, not ns.try: ten times a second, must not allocate
-			local ok, a = pcall(d.EvaluateRemainingDuration, d, t.expCurve)
-			if ok then t.exp:SetAlpha(a) else t.exp:SetAlpha(0); ns.noteError("timer expiring", a) end
+			local ok, a = ns.try("timer expiring", d.EvaluateRemainingDuration, d, t.expCurve)
+			if ok then t.exp:SetAlpha(a) else t.exp:SetAlpha(0) end
 		else t.exp:SetAlpha(0) end
 	end
-end))
+end)
 
 -- The expire part (ns.registerPart): Expiring's settings for a kind that sets def.expires,
 -- def.expireLooks (the looks it offers; default all) and def.expireRange (Warn in the last)
