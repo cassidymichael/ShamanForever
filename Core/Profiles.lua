@@ -122,9 +122,9 @@ local RETIRED = {
 	totemBar = { "enabled", "hideTotemFrame", "hideActionBar", "killedPulse", "follow" },
 	-- Style choices that went, to their nearest: part -> field -> old -> new
 	styles = { pop = { burst = { shapes = "painted" } }, border = { look = { caps = "line" } } },
-	-- Looks an element kept as its own before Global had a style for them (element -> state names):
-	-- it keeps them
-	ownLooks = { shock = { "mana", "range" } },
+	-- Looks an element kept as its own before Global had a style for them (element -> state name ->
+	-- style part): it keeps them, the rest at the part's defaults (what it showed)
+	ownLooks = { shock = { mana = "power", range = "range" } },
 }
 
 local function put(t, name, field, v)
@@ -203,11 +203,14 @@ end
 local function retireOwnLooks(opts)
 	for key, names in pairs(RETIRED.ownLooks) do
 		local o = opts[key]
-		for _, name in ipairs(type(o) == "table" and names or {}) do
+		for name, part in pairs(type(o) == "table" and names or {}) do
 			local t = o[name]
 			if type(t) == "table" and t.follow == nil
 				and (t.look ~= nil or t.overlay ~= nil or t.tint ~= nil or t.ring ~= nil) then
 				t.follow = false
+				for k, v in pairs(ns.Style.PARTS[part].defaults) do
+					if t[k] == nil then t[k] = v end
+				end
 			end
 		end
 	end
