@@ -173,7 +173,6 @@ function GD.icon(parent, size)
 	box:SetSize(size, size)
 	local ic = OA.makePreviewIcon(box, owner, { cooldown = true, uptime = true }, size)
 	if ic.tex.SetSnapToPixelGrid then ic.tex:SetSnapToPixelGrid(true) end
-	if ic.upT then ic.upT:restack(2) end
 	return setmetatable({ box = box, ic = ic, owner = owner, size = size }, Ex)
 end
 
