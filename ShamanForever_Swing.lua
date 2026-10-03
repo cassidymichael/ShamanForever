@@ -9,8 +9,7 @@ ns.Swing = SW
 
 local MAIN_HAND = Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.MainHand or 0
 local ELAPSED = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.ElapsedTime or 0
-local REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime or 1
-local IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
+local REMAINING, IMMEDIATE = ns.Timer.AURA_BAR.direction, ns.Timer.AURA_BAR.interpolation
 SW.ICON = Spells.icon("attack") or 135274
 
 -- Colour: custom, or an element's that offers one to a bar (its barColor), the first by default:

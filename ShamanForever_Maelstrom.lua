@@ -26,8 +26,7 @@ ns.Maelstrom = M
 
 local KEY = "maelstrom"
 local WHITE = ns.WHITE
-local SI = Enum and Enum.StatusBarInterpolation
-local IMMEDIATE = SI and SI.Immediate or 0
+local IMMEDIATE = ns.Timer.AURA_BAR.interpolation
 
 -- count: the stack bar and number (pos: BOTTOMRIGHT | CENTER; mark: the number in markColor at
 -- five); active: five stacks

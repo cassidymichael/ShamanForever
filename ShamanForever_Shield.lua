@@ -413,8 +413,7 @@ native = ns.makeAuraSlot(shield, {
 -- stays full.
 local IDLE_LEVEL = 8   -- levels above the shield's button and its parts
 local WHITE = ns.WHITE
-local SI = Enum and Enum.StatusBarInterpolation
-local IMMEDIATE = SI and SI.Immediate or 0
+local IMMEDIATE = ns.Timer.AURA_BAR.interpolation
 
 full = CreateFrame("Frame", nil, shield)
 full:SetAllPoints(shield)
