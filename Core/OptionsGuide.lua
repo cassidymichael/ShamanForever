@@ -269,6 +269,14 @@ function Ex:show(look)
 	return self
 end
 
+-- Draws an element's own preview state (its page's drawing) on this sandbox, as in a row or a column
+function Ex:showAs(key, state)
+	self.look = nil
+	self.ic.column = self.column or false
+	ns.try("guide example " .. key, OA.PREVIEW[key].render, self.ic, state, OA.kit)
+	return self
+end
+
 function Ex:pop(kind) self.ic:Pop(kind or "ready") end
 
 -- The page

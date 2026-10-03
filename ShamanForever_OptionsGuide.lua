@@ -30,44 +30,17 @@ local MAEL = { el = "maelstrom", school = "air" }
 local FLAME = { el = "flameshock", school = "fire" }
 local EARTH = { el = "shock", school = "earth" }
 
--- An element as its own page draws it, in one of its preview states (show(state))
-local Own = {}
-Own.__index = Own
-local function ownIcon(parent, key)
-	local box = CreateFrame("Frame", nil, parent)
-	box:SetSize(SIZE, SIZE)
-	return setmetatable({ box = box, key = key, ic = OA.makePreviewIcon(box, key, OA.PREVIEW[key], SIZE) }, Own)
-end
-function Own:point(...)
-	self.box:ClearAllPoints()
-	self.box:SetPoint(...)
-	return self
-end
-function Own:wear() return self end
-function Own:pop() end
-local function drawOwn(x, state)
-	local ic = x.ic
-	ns.StyleArt.fit(ic, E.borderFor(x.key), SIZE)
-	ic:ClearAllPoints()
-	ic:SetPoint("CENTER", x.box, "CENTER", 0, 0)
-	FR.mount(ic, x.key, SIZE)
-	OA.PREVIEW[x.key].render(ic, state, OA.kit)
-end
-function Own:show(state)
-	self.ic.column = self.column or false
-	ns.try("guide example " .. self.key, drawOwn, self, state)
-	return self
-end
-
--- The Shocks element, its on-target marks both on and above (beside in a column)
+-- The Shocks element drawn by its page's preview on a sandbox, its on-target marks both on and above
+-- (beside in a column)
 local function shockIcon(parent)
-	local x = ownIcon(parent, "shock")
-	x.ic.marks = { frost = true, flame = true, side = "above", size = default("shock", "marks", "size") }
+	local x = GD.icon(parent, SIZE):wear(EARTH)
+	x.ic.marks = { frost = true, flame = true, side = "above", size = default("shock", "marks", "size"),
+		gap = default("shock", "marks", "gap") }
 	return x
 end
 local function drawShock(sh, column)
 	sh.column = column
-	sh:show("ready")
+	sh:showAs("shock", "ready")
 end
 
 local function place(x, parent, cx, cy) x.box:ClearAllPoints(); x.box:SetPoint("CENTER", parent, "TOPLEFT", cx, -cy) end
@@ -328,7 +301,7 @@ local EXAMPLES = {
 	{ "Buff missing", SHIELD, missing("shield") },
 	{ "Procs", MAEL, function() return mwLook(0) end, procs = true },
 	{ "Expiring soon", IMBUE, imbueLow },
-	{ "Required totem present", "firenova", function() return "out" end, own = true },
+	{ "Required totem present", { el = "firenova", school = "fire" }, state = "out" },
 	{ "Reagent warning", BREATH, function() return reagent(2) end },
 	{ "Idle; all elements have options to specify what 'idle' means for that element.", BREATH, function()
 		return reagent(12, { alpha = 0.3 })
@@ -367,7 +340,7 @@ GD.add({ title = "States and warnings", order = 40,
 		local c, r = 0, 0
 		for _, ex in ipairs(EXAMPLES) do
 			local x, y = c * 120, 92 + r * 124
-			local e = ex.own and ownIcon(f, ex[2]) or GD.icon(f, SIZE)
+			local e = GD.icon(f, SIZE)
 			if ex.last then
 				y = 92 + 3 * 124
 				tile(f, 2, y, 596, 60)
@@ -391,7 +364,7 @@ GD.add({ title = "States and warnings", order = 40,
 	step = function(f)
 		local now = GetTime()
 		for _, e in ipairs(f.examples) do
-			e:show(e.example[3]())
+			if e.example.state then e:showAs(e.example[2].el, e.example.state) else e:show(e.example[3]()) end
 			e.popAt, e.procFrom, e.stacks = now, now, nil
 			if e.example.procs then procStep(e, now) end
 		end

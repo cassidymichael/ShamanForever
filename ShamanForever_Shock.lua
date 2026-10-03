@@ -133,8 +133,8 @@ end
 local function marksPlace(w, o, px, t, ic)
 	local size, gap = markGeometry(w, o, px, ic)
 	local where, out = W.attachSide("shock", markOpt(ic, "side"), ic and ic.column), o + gap
-	local s = ns.Style.get("shock", "cooldown")
-	if t and s.bar and not ns.Timer.cant("shock", "cooldown").bar and t:barSide(s) == where then
+	local s = t and ns.Style.get(t.key, t.part)
+	if s and s.bar and not ns.Timer.cant(t.key, t.part).bar and t:barSide(s) == where then
 		out = math.max(out, W.roundPx(t:reach(), px) + gap)
 	end
 	return where, size, out
@@ -300,7 +300,7 @@ local function previewOn(ic, m)
 end
 local function previewPlace(ic)
 	local w, px = ic.marksOnHUD and shock:GetWidth() or ic:GetWidth(), W.pixel(ic)
-	local o = ic.marksOnHUD and (E.boxOf("shock") - w) / 2 or ns.StyleArt.inset(ic, E.borderFor("shock"), w)
+	local o = ic.marksOnHUD and (E.boxOf("shock") - w) / 2 or ns.StyleArt.inset(ic, E.borderFor(ic.owner), w)
 	o = math.max(W.roundPx(o, px), 0)
 	local where, size, out = marksPlace(w, o, px, ic.cdT, ic)
 	return where, size, out, o
