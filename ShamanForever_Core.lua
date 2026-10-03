@@ -304,6 +304,8 @@ local fighting = false
 local startFns, endFns, changeFns = {}, {}, {}
 -- The fighting flag, set when combat starts, before lockdown; InCombatLockdown() is for protected calls
 function ns.inCombat() return fighting or InCombatLockdown() end
+-- Auras read now: out of combat (the flag too) and not secret
+function ns.aurasReadNow() return not ns.inCombat() and ns.aurasReadable() end
 function ns.onCombatStart(fn) table.insert(startFns, fn) end
 function ns.onCombatEnd(fn) table.insert(endFns, fn) end
 -- Any restriction change, at once, before the queue: a match or an encounter starting or ending

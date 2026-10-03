@@ -159,15 +159,13 @@ local lookOn, lookState, watching = false, nil, false
 local CAST_HOLD, LOAD_HOLD = 0.3, 1
 local holdUntil = 0
 
-local function aurasUnread() return ns.inCombat() or not ns.aurasReadable() end
-
 local function blocked()
 	return ns.cantAct() or ns.plainYes(UnitInVehicle, "player")
 end
 
 local function stateNow()
 	if not lookOn or standIn then return nil end
-	if aurasUnread() then
+	if not ns.aurasReadNow() then
 		if GetTime() < holdUntil then return nil end
 	elseif believedUp() ~= false then return nil end
 	if blocked() then return setting("shield", "warn", "grey") and "grey" or nil end
@@ -190,7 +188,7 @@ local watch
 local function guard(self)
 	local st = stateNow()
 	if st ~= lookState then setLook(st) end
-	if not (aurasUnread() or GetTime() < holdUntil) then
+	if ns.aurasReadNow() and GetTime() >= holdUntil then
 		self:SetScript("OnUpdate", nil)
 		watching = false
 	end
@@ -624,7 +622,7 @@ function SH.debug()
 	say("shield tracking %s (last %s), up at the last read %s (shield up %s)", setting("shield", "track"),
 		ns.getAccount().lastShield, up == nil and "unknown" or tostring(up), tostring(upShield))
 	say("no-shield look: %s, %s, state %s; button %s, cast hold %s", lookOn and "on" or "off",
-		aurasUnread() and "sensor decides" or "read decides too", tostring(lookState),
+		ns.aurasReadNow() and "read decides too" or "sensor decides", tostring(lookState),
 		native.button and "made" or "not made", GetTime() < holdUntil and "on" or "off")
 	for _, key in ipairs(SHIELD_ORDER) do
 		local s = SHIELDS[key]

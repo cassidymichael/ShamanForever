@@ -389,7 +389,6 @@ local function driveGate(def)
 end
 
 -- Not on target (rows with missing)
-local function readable() return not ns.inCombat() and ns.aurasReadable() end
 
 -- nil when it can't be told (read fails or secret). Any rank counts: by ID, by key or by the
 -- client's name for it
@@ -418,7 +417,7 @@ local function auraOnTarget(def)
 end
 
 local function readWanted(def)
-	return def.spellID and ns.isEnabled(def.key) and readable() and hostileTarget()
+	return def.spellID and ns.isEnabled(def.key) and ns.aurasReadNow() and hostileTarget()
 end
 
 local function stateLook(def)
