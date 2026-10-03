@@ -102,6 +102,21 @@ function ns.ticker(interval, fn)
 	return f
 end
 
+-- get(key, ...): the object make(...) gave for key (false too), up to limit of them, emptied when full
+function ns.cache(limit, make)
+	local store, n = {}, 0
+	return function(key, ...)
+		local v = store[key]
+		if v == nil then
+			if n >= limit then wipe(store); n = 0 end
+			n = n + 1
+			v = make(...)
+			store[key] = v
+		end
+		return v
+	end
+end
+
 -- Work that waits for combat to end: protected frames and Blizzard's aura container refuse changes
 -- in combat. `if ns.deferInCombat(key, fn) then return end`: queued once per key in combat and run
 -- when combat ends; out of combat it runs now.

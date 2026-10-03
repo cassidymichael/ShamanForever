@@ -110,26 +110,21 @@ local function breakpoints(s, abbrev, tenths)
 end
 
 -- One formatter per look; a timer keeps its own, so dropping the cache never frees one in use
-local formatters, cached = {}, 0
+local formatters = ns.cache(32, function(s, abbrev, tenths)
+	local ok, made = ns.try("timer formatter", function()
+		local fm = C_StringUtil.CreateNumericRuleFormatter()
+		fm:SetBreakpoints(breakpoints(s, abbrev, tenths))
+		return fm
+	end)
+	return ok and made or false
+end)
 local function formatterFor(s)
 	if not s.timeColors then return nil end
 	local tenths = math.floor(secsIn(s.tenths, "tenths"))
 	local abbrev = secsIn(s.abbrev, "abbrev")
 	local key = string.format("%s|%d|%d|%s|%s|%s|%s", tostring(s.timeColors), abbrev, tenths,
 		tostring(s.soon), tostring(s.now), colorCode(s.soonColor), colorCode(s.nowColor))
-	local f = formatters[key]
-	if f == nil then
-		local ok, made = pcall(function()
-			local fm = C_StringUtil.CreateNumericRuleFormatter()
-			fm:SetBreakpoints(breakpoints(s, abbrev, tenths))
-			return fm
-		end)
-		if not ok then ns.noteError("timer formatter", made) end
-		if cached >= 32 then wipe(formatters); cached = 0 end
-		f = ok and made or false
-		formatters[key], cached = f, cached + 1
-	end
-	return f or nil
+	return formatters(key, s, abbrev, tenths) or nil
 end
 
 -- The widget

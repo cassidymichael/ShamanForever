@@ -468,38 +468,32 @@ function Count.text(slot, button, parent, place, site)
 	return fs
 end
 
-local formatters, made = {}, 0
+local formatters = ns.cache(8, function(code, markAt, max, site)
+	local ok, new = ns.try(site, function()
+		local x = C_StringUtil.CreateNumericRuleFormatter()
+		local rules = { { threshold = 0, format = "%d" } }
+		if code ~= "" then
+			table.insert(rules, { threshold = markAt, format = code .. "%d|r" })
+			if markAt < max then table.insert(rules, { threshold = markAt + 1, format = "%d" }) end
+		end
+		x:SetBreakpoints(rules)
+		for n = 0, max do
+			local text = x:FormatNumber(n)
+			local coloured = code ~= "" and n == markAt
+			if type(text) ~= "string" or ns.isSecret(text) or (coloured and not text:lower():find(code, 1, true)) then
+				error(string.format("formatted %d as %s", n, tostring(text)))
+			end
+		end
+		return x
+	end)
+	return ok and new or false
+end)
 -- Prints every count from 0 (without one Blizzard prints from 2), markAt in markColor (nil: none).
 -- Tried on 0 to max first: an error would stop Blizzard's aura update. nil if the client can't.
 function Count.formatter(markColor, markAt, max, site)
 	if not (C_StringUtil and C_StringUtil.CreateNumericRuleFormatter) then return nil end
 	local code = markColor and ns.colorCode(markColor) or ""
-	local id = code .. ":" .. tostring(markAt) .. ":" .. max
-	local fm = formatters[id]
-	if fm == nil then
-		if made >= 8 then wipe(formatters); made = 0 end
-		made = made + 1
-		local ok, new = ns.try(site, function()
-			local x = C_StringUtil.CreateNumericRuleFormatter()
-			local rules = { { threshold = 0, format = "%d" } }
-			if code ~= "" then
-				table.insert(rules, { threshold = markAt, format = code .. "%d|r" })
-				if markAt < max then table.insert(rules, { threshold = markAt + 1, format = "%d" }) end
-			end
-			x:SetBreakpoints(rules)
-			for n = 0, max do
-				local text = x:FormatNumber(n)
-				local coloured = code ~= "" and n == markAt
-				if type(text) ~= "string" or ns.isSecret(text) or (coloured and not text:lower():find(code, 1, true)) then
-					error(string.format("formatted %d as %s", n, tostring(text)))
-				end
-			end
-			return x
-		end)
-		fm = ok and new or false
-		formatters[id] = fm
-	end
-	return fm or nil
+	return formatters(code .. ":" .. tostring(markAt) .. ":" .. max, code, markAt, max, site) or nil
 end
 
 -- Hands the button a formatter (nil: Blizzard's own count), once per change
