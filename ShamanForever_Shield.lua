@@ -363,6 +363,8 @@ end
 
 local function buildNative(slot, button, cd)
 	slot.edge = FR.edge(button, button, "shield", { overlay = false })
+	-- Dressed now too: its styling may wait for the fight to end
+	ns.try("shield border", FR.dress, slot.edge, "shield")
 	local overlay = CreateFrame("Frame", nil, button)
 	overlay:SetAllPoints()
 	overlay:SetFrameLevel(cd:GetFrameLevel() + 2)

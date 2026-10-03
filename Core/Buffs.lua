@@ -138,10 +138,12 @@ end
 B.auraIDs = auraIDs
 
 -- An aura element's button: its pop, its border (the button draws the border's art), then parts'
-local function buildButton(def, slot, button)
+local function buildButton(def, slot, button, site)
 	if def.fx then def.fx:bind(button, slot.icon) end
 	def.edge = def.fx and def.fx:makeEdge(button)
 		or ns.Frames.edge(button, button, def.key, { overlay = false })
+	-- Dressed now too: its styling may wait for the fight to end
+	ns.try(site .. " border " .. def.key, ns.Frames.dress, def.edge, def.key)
 	KD.eachHook("buff", def, "button", slot, button)
 end
 
@@ -173,7 +175,7 @@ local function buildAura(def)
 		extras = #def.extras > 0 and def.extras or nil,
 		sites = { container = site .. " container " .. key, style = site .. " style " .. key,
 			filter = site .. " filter " .. key },
-		onButton = function(slot, button) buildButton(def, slot, button) end,
+		onButton = function(slot, button) buildButton(def, slot, button, site) end,
 		onStyle = function(slot, size) styleButton(def, size, slot, site) end,
 		onError = function(err) ns.noteError(site .. " container " .. key, err) end,
 	})
