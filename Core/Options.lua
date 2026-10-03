@@ -45,7 +45,8 @@ OP.kit = K
 K.perFrame, K.relayout, K.retime, K.reglow, K.respell = perFrame, relayout, retime, reglow, respell
 
 -- Pages register at load: title, icon, build, order (the order they build in, and their place in
--- the top nav), bottom (height above the window's foot: a lower nav page, placed by it, not order).
+-- the top nav), bottom (height above the window's foot: a lower nav page, placed by it, not order),
+-- nav(button, current) (called as the nav repaints, to mark its entry).
 local registered, registeredKeys = {}, {}
 function OP.registerPage(key, spec)
 	assert(not registeredKeys[key], "page registered twice: " .. tostring(key))
@@ -174,6 +175,10 @@ local function buildGlobal(p)
 	p:text("Every border. " .. K.ownersText("Elements", "border"))
 	K.borderRows(p, nil)
 	K.ownLine(p, "border")
+	K.glowBlock(p, nil)
+	K.popBlock(p, nil, "ready")
+	K.castStyleBlock(p, nil, "power")
+	K.castStyleBlock(p, nil, "range")
 	p:header("Art frame style")
 	p:anchor("frame")
 	p:text("Art round each icon. " .. K.ownersText("Elements", "frame"))
@@ -184,8 +189,6 @@ local function buildGlobal(p)
 	p:text("Art round a whole group. " .. K.ownersText("Groups", "groupframe"))
 	K.frameRows(p, nil, "groupframe")
 	K.ownLine(p, "groupframe")
-	K.glowBlock(p, nil)
-	K.popBlock(p, nil, "ready")
 end
 
 local nameAction
@@ -222,6 +225,12 @@ local function buildProfiles(p)
 		{ "Export", function() OP.showShare("export") end, "This profile as text, to share.", 90 },
 		{ "Import", function() OP.showShare("import") end, "Profile text from someone else. It becomes a new profile.", 90 },
 	})
+	p:text("Have you made an amazing HUD you think might make for a good future preset in " .. ns.NAME
+		.. "? Export and share it with me! Thanks!")
+	local send = p:row(22)
+	Page.goLink(send, "Where to send it", function() OP.showFeedback() end, "Opens Feedback, on the About page.")
+		:SetPoint("LEFT", 4, 0)
+	p:add(send, 22)
 
 end
 
@@ -236,6 +245,7 @@ local LINKS = {
 	github = { ART .. "Link-GitHub.png", { 0.92, 0.92, 0.92 } },
 	kofi = { ART .. "Link-Kofi.png", { 1, 0.37, 0.36 } },
 }
+OP.LINKS = LINKS
 local function link(p, label, url, site) p:copyField(label, url, LINKS[site][1], LINKS[site][2]) end
 
 local function aboutCard(p)
@@ -335,6 +345,7 @@ local function refreshNav()
 				on and 0.5 or (b.sub and 0.84 or 0))
 		else b.label:SetTextColor(0.55, 0.53, 0.5) end
 		b.icon:SetDesaturated(b.sub and not E.isLearned(b.page) or false)
+		if b.nav then b.nav(b, on) end
 	end
 	if navDivider then navDivider.refresh() end
 	if navLock then navLock.refresh() end
@@ -390,14 +401,16 @@ local function buildNav()
 		table.insert(navButtons, b)
 		return b
 	end
-	local y = LOGO_Y - LOGO_SIZE - 1
+	-- The crest's drawn part ends 100 of its 112 down, its shadow 4 lower: the list starts a few clear of it
+	local y = LOGO_Y - LOGO_SIZE + 3
 	local function top(...)
 		local b = add(...)
 		b:SetPoint("TOPLEFT", win, "TOPLEFT", 12, y)
 		y = y - 30
+		return b
 	end
 	for _, spec in ipairs(registered) do
-		if not spec.bottom then top(spec.key, spec.title, spec.icon) end
+		if not spec.bottom then top(spec.key, spec.title, spec.icon).nav = spec.nav end
 	end
 	navPreview = CreateFrame("Button", nil, win, "UIPanelButtonTemplate")
 	navPreview:SetSize(NAV_W - 32, 22)
@@ -415,17 +428,20 @@ local function buildNav()
 		.. " on screen. " .. ns.CLASS.slash[1] .. " lock does the same.")
 	function navLock.refresh() navLock:SetText(acct().locked and "Unlock positioning" or "Lock positioning") end
 	navLock.refresh()
+	local topBottom = 0
 	for _, spec in ipairs(registered) do
 		if spec.bottom then
-			add(spec.key, spec.title, spec.icon):SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 12, spec.bottom)
+			local b = add(spec.key, spec.title, spec.icon)
+			b:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 12, spec.bottom)
+			b.nav, topBottom = spec.nav, math.max(topBottom, spec.bottom)
 		end
 	end
 	navDivider = ns.OptionsArt.divider(win)
-	navDivider:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 20, 136)
+	navDivider:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 20, topBottom + 36)
 	navDivider:SetWidth(NAV_W - 36)
 	local list = CreateFrame("ScrollFrame", nil, win)
 	list:SetPoint("TOPLEFT", win, "TOPLEFT", 4, y)
-	list:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 4, 148)
+	list:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 4, topBottom + 48)
 	list:SetWidth(NAV_W - 8)
 	local child = CreateFrame("Frame", nil, list)
 	child:SetWidth(NAV_W - 8)
@@ -545,7 +561,8 @@ local function addStyleUsers()
 	for _, key in ipairs(ns.ElementPages.ordered()) do
 		if ns.ElementPages.pageOf(key) then
 			for _, part in ipairs(S.ORDER) do
-				if S.PARTS[part].elements then S.addUser(part, key) end
+				local spec = S.PARTS[part]
+				if spec.elements and (not spec.has or spec.has(key)) then S.addUser(part, key) end
 			end
 		end
 	end
@@ -838,30 +855,17 @@ function OP.openElement(key)
 	OP.open(ns.ElementPages.pageOf(key) or "elements")
 end
 
-local function scrollTo(p, frame, after)
-	p:reveal(frame)
-	C_Timer.After(0, function()
-		if not frame:IsVisible() then return end
-		local top, y = p.content:GetTop(), frame:GetTop()
-		if top and y then
-			p.scroll:SetVerticalScroll(math.max(0, math.min(top - y - 8, p.scroll:GetVerticalScrollRange())))
-		end
-		if after then after() end
-	end)
-end
-
 function OP.openGlobal(anchor)
 	OP.open("general")
 	local p = pages.general
-	local f = p and p.anchors and p.anchors[anchor]
-	if f then scrollTo(p, f, function() p:flash(f) end) end
+	if p then p:goTo(anchor) end
 end
 
 local function showAboutSection(which)
 	OP.open("about")
 	local section = which()
 	if not section then return end
-	scrollTo(section.page, section.header, function() section.page:flash(section.header) end)
+	section.page:scrollTo(section.header, function() section.page:flash(section.header) end)
 end
 function OP.showExperimental() showAboutSection(function() return aboutExp end) end
 function OP.showFeedback() showAboutSection(function() return aboutFeedback end) end
@@ -870,7 +874,7 @@ function OP.openGroup(id)
 	OP.open("layout", id)
 	local p = pages.layout
 	local f = ns.LayoutPage.headerOf(id)
-	if f then scrollTo(p, f, function() p:flash(f) end) end
+	if f then p:scrollTo(f, function() p:flash(f) end) end
 end
 
 function OP.isShown() return win ~= nil and win:IsShown() end

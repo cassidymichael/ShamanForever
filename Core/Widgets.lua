@@ -219,19 +219,27 @@ function Ring:color(red, g, b, a)
 	local k = RING_COLOR
 	for _, t in ipairs(self.edges) do t:SetColorTexture(red or k[1], g or k[2], b or k[3], a or k[4]) end
 end
+-- d: in from the anchor's edge (a picture drawn smaller than its icon)
+function Ring:inset(d)
+	d = d or 0
+	if d == (self.d or 0) then return end
+	self.d, self.width = d, nil
+	if self.edges[1]:IsShown() then self:fit() end
+end
 function Ring:fit()
 	local w = W.linePx(self.anchor, RING_PX)
 	if w == self.width then return end
 	self.width = w
-	local a, top, bottom, left, right = self.anchor, self.edges[1], self.edges[2], self.edges[3], self.edges[4]
+	local a, d = self.anchor, self.d or 0
+	local top, bottom, left, right = self.edges[1], self.edges[2], self.edges[3], self.edges[4]
 	for _, t in ipairs(self.edges) do t:ClearAllPoints() end
-	top:SetPoint("TOPLEFT", a, "TOPLEFT", 0, 0); top:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, 0)
+	top:SetPoint("TOPLEFT", a, "TOPLEFT", d, -d); top:SetPoint("TOPRIGHT", a, "TOPRIGHT", -d, -d)
 	top:SetHeight(w)
-	bottom:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, 0); bottom:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, 0)
+	bottom:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", d, d); bottom:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", -d, d)
 	bottom:SetHeight(w)
-	left:SetPoint("TOPLEFT", a, "TOPLEFT", 0, -w); left:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, w)
+	left:SetPoint("TOPLEFT", a, "TOPLEFT", d, -d - w); left:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", d, d + w)
 	left:SetWidth(w)
-	right:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, -w); right:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, w)
+	right:SetPoint("TOPRIGHT", a, "TOPRIGHT", -d, -d - w); right:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", -d, d + w)
 	right:SetWidth(w)
 end
 function Ring:show(on)
@@ -268,6 +276,23 @@ function W.makeGCDSweep(parent)
 	return cd
 end
 
+-- Attachments: an element names two sides of its icon, above and below; the direction its group was
+-- last laid out in maps them (a change in combat waits for the icons), a column's to right and left
+local ACROSS = { above = { row = "above", column = "right" }, below = { row = "below", column = "left" } }
+function W.laidInColumn(key)
+	local g = ns.Profiles.getDB() and ns.Groups.of(key)
+	local laid = g and ns.Groups.frames[g.id]
+	laid = laid and laid.frameLayout
+	if laid then return laid.vertical and true or false end
+	return g ~= nil and g.orientation == "vertical"
+end
+-- above, below, right or left of key's icon, for its side "above" or "below"; column: as in a column
+-- (true) or a row (false) whatever its group's direction (a preview's own; nil: its group's)
+function W.attachSide(key, side, column)
+	if column == nil then column = W.laidInColumn(key) end
+	return ACROSS[side == "below" and "below" or "above"][column and "column" or "row"]
+end
+
 -- Aura slot: Blizzard's aura container on an element icon, the one way to show an aura in combat.
 -- Calls it refuses in combat or while auras are secret wait (ns.deferWhileAurasSecret).
 -- Scripts under its button never run: it only plays animations handed to it.
@@ -282,6 +307,9 @@ function W.noMouse(b)
 end
 
 function W.makeAuraSlot(frame, opts)
+	-- A host of the caller's may clip the button's parts to the icon, and extra buttons carry the
+	-- caller's own parts over it
+	if (opts.host or opts.extras) and not opts.noTimer then ns.Timer.keepIn(opts.key) end
 	return setmetatable({ frame = frame, opts = opts }, AuraSlot)
 end
 
@@ -571,7 +599,10 @@ function W.makeWarnOverlay(f)
 	w.grey:SetAllPoints(f.tex)
 	W.cropIconExact(w.grey)
 	w.grey:SetDesaturated(true)
-	w.ring = W.makeRing(w, f.tex)
+	-- Its ring sits higher than its grey (W.LEVELS)
+	w.ringHost = CreateFrame("Frame", nil, w)
+	w.ringHost:SetAllPoints()
+	w.ring = W.makeRing(w.ringHost, f.tex)
 	w.pulse = W.makePulse(w.grey, "fade")
 	w:SetAlpha(0)
 	-- Hiding a frame stops its animations
@@ -642,6 +673,7 @@ function W.makeClipLook(frame, opts)
 	h.ring = W.makeRing(h.art, h.tex)
 	h.pulse = W.makePulse(h.tex, "fade")
 	if opts.glowOnly then h.art:Hide() end
+	if opts.noGlow then return h end
 	h.glow = ns.Effects.glow(h.look, frame, opts.owner)
 	h.glow.onLayout = function(_, parts, look)
 		if not look.inside then return end
@@ -696,14 +728,17 @@ function ClipLook:setParts(grey, tint, ring, fade, glow)
 	if not self.fadeOn then self.pulse:Stop()
 	elseif not self.pulse:IsPlaying() then self.pulse:Play() end
 	glow = glow and true or false
-	if glow ~= self.glowOn then
+	if self.glow and glow ~= self.glowOn then
 		self.glowOn = glow
 		self.glow:SetShown(glow)
 	end
 end
 
 function ClipLook:reshape()
-	if self.opts.glowOnly then self.glow:restyle() return end
+	if self.opts.glowOnly then
+		if self.glow then self.glow:restyle() end
+		return
+	end
 	local f = self.frame
 	ns.StyleArt.overlay(self.art, ns.Elements.borderFor(self.opts.key))
 	ns.StyleArt.maskOver(f, self.tex)
@@ -765,7 +800,7 @@ end
 function ClipLook:took(size, filters)
 	if size then
 		self.size = size
-		self.glow:fit(size)
+		if self.glow then self.glow:fit(size) end
 	end
 	if filters then
 		self.applied = filterSig(filters)
@@ -858,20 +893,44 @@ function ClipLook:setLevel(lv, up)
 	for _, f in ipairs({ self.hold, self.clip, self.look, self.art }) do
 		f:SetFrameLevel(lv)
 	end
+	if not self.glow then return end
 	self.glow:SetFrameLevel(lv + (up or 1))
 	self.glow.inner:SetFrameLevel(lv + (up or 1))
 end
 
+-- drawn: the glow's style (a look without a glow says nothing of it)
 function ClipLook:describe()
 	return string.format(
-		"%ssensor %s%s, size %s (icon %s), filters %s, unit %s, wanted %s, waiting %s, drawn %s",
+		"%ssensor %s%s, size %s (icon %s), filters %s, unit %s, wanted %s, waiting %s%s",
 		self.opts.invert and "while up: " or "",
 		self.container and "made" or "not made", self.err and (" (error: " .. self.err .. ")") or "",
 		tostring(self.size), tostring(ns.Elements.sizeOf(self.opts.key)),
 		not self.idsOK and "behind" or (self.opts.agrees and not self.opts.agrees()) and "not the slot's"
 			or "matched",
 		tostring(self.unit), tostring(self.wanted), tostring(self.waiting ~= nil),
-		self.glow.look and self.glow.look.key or "none")
+		self.glow and (", drawn " .. (self.glow.look and self.glow.look.key or "none")) or "")
+end
+
+-- An icon's layers over its own level, bottom up: its picture and a cast state's body paint (0), its
+-- art frame (ns.Frames.LEVEL.over), its ready glow and a warning's body (warn), Expiring's body and glow,
+-- the swipe and its numbers, its timer bar, a cast state's ring, the warnings' rings, a second timer's
+-- own swipe and numbers, and its bar (upSwipe + 1), text. W.stackIcon sets them; the HUD's icons and
+-- every preview take them from it.
+W.LEVELS = { glow = 2, warn = 2, expire = 3, expireGlow = 4, swipe = 5, bar = 6, paintRing = 7, warnRing = 8,
+	upSwipe = 9, text = 11 }
+function W.stackIcon(f)
+	local base, L = f:GetFrameLevel(), W.LEVELS
+	f.glowF:SetFrameLevel(base + L.glow)
+	if f.warn then
+		f.warn:SetFrameLevel(base + L.warn)
+		f.warn.ringHost:SetFrameLevel(base + L.warnRing)
+	end
+	f.cd:SetFrameLevel(base + L.swipe)
+	if f.paintRing then f.paintRing.host:SetFrameLevel(base + L.paintRing) end
+	f.textFrame:SetFrameLevel(base + L.text)
+	for _, t in ipairs({ f.cdTimer or f.cdT or false, f.upTimer or f.upT or false }) do
+		if t then t:restack() end
+	end
 end
 
 function W.makeIcon(parent, size, owner)
@@ -895,15 +954,12 @@ function W.makeIcon(parent, size, owner)
 			self.tex:SetVertexColor(r == 1 and 1 or k, g == 1 and 1 or k, b == 1 and 1 or k)
 		end
 	end
-	-- Levels over the icon: its art frame (ns.Frames.LEVEL.over), glow, swipe, text
 	f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
-	f.cd:SetFrameLevel(f:GetFrameLevel() + 3)
 	f.cd:SetAllPoints()
 	f.cd:SetDrawEdge(false)
 	-- Text above the cooldown so the swipe never dims it.
 	f.textFrame = CreateFrame("Frame", nil, f)
 	f.textFrame:SetAllPoints()
-	f.textFrame:SetFrameLevel(f.cd:GetFrameLevel() + 2)
 	f.count = f.textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
 	ns.Media.setFont(f.count, owner, math.floor(size * 0.45))
 	f.count:SetPoint("BOTTOMRIGHT", 2, -2)
@@ -922,7 +978,6 @@ function W.makeIcon(parent, size, owner)
 	end
 	f.fx = ns.Effects.host(f, owner)
 	f.glowF = f.fx.glowF
-	f.glowF:SetFrameLevel(f:GetFrameLevel() + 2)
 	f.SetGlowShown = function(self, shown, r, g, b) self.fx:glow(shown, r, g, b) end
 	f.SetWarnParts = function(self, grey, tint, ring, fade, glow)
 		self.tex:SetDesaturated(grey and true or false)
@@ -933,11 +988,13 @@ function W.makeIcon(parent, size, owner)
 			self.warnTint = tint
 			if tint then self.tex:SetVertexColor(1, 0.35, 0.35)
 			else self.tex:SetVertexColor(1, 1, 1) end
+			if self.onWarnTint then self.onWarnTint() end
 		end
 		self:SetRingShown(ring)
 		self:SetPulsing(fade)
 		self:SetGlowShown(glow)
 	end
 	f.Pop = function(self, kind) self.fx:pop(kind) end
+	W.stackIcon(f)
 	return f
 end

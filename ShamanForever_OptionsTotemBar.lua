@@ -15,13 +15,15 @@ local POP_ITEMS = 3
 local PREVIEW
 PREVIEW = {
 	stage = true, heroH = 210, uptime = true,
-	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" },
-		{ "killed", "Killed early" }, { "range", "Out of range" }, { "offpick", "Not your pick" }, { "picking", "Picking" } },
+	states = { { "idle", "Totem not down" }, { "down", "Totems down" }, { "expiring", "Expiring" },
+		{ "killed", "Killed early" }, { "range", "Out of range" }, { "offpick", "Different totem down" },
+		{ "picking", "Picking" }, { "mana", ns.CLASS.power.name } },
 	stateShown = function(st)
 		local c = ns.TotemBar.cfg()
 		local mode = c.mode
 		if mode == "blizzard" then return false end
 		if st == "range" then return c.range end
+		if st == "mana" then return mode == "everything" and c.cast and c.mana.on end
 		return mode == "everything" or (st ~= "offpick" and st ~= "picking")
 	end,
 	fallback = "down",
@@ -40,7 +42,6 @@ PREVIEW = {
 		h.slots = {}
 		for i = 1, 4 do
 			local ic = OA.makePreviewIcon(bar, "totembar", PREVIEW)
-			ic.upT:restack(2)
 			ic.box = CreateFrame("Frame", nil, bar)
 			ic.badge = CreateFrame("Frame", nil, bar)
 			ic.badge:SetFrameLevel(ic:GetFrameLevel() + 6)
@@ -198,6 +199,7 @@ PREVIEW = {
 						f:Show()
 					end
 				end
+				TB.paintLow(ic, st == "mana" and i == 1)
 				if st == "offpick" and i == 1 then
 					local other
 					for _, id in ipairs(TB.known(el)) do
@@ -292,7 +294,8 @@ local function build(p)
 	p:callout("Not learned yet. It shows on screen once your character knows a totem.",
 		function() return TB.barOn() and not TB.hasTotems() end)
 	local full = function() return c().mode == "everything" end
-	p:header("Totems", nil, nil, nil, { open = true })
+	K.behaviourSection(p)
+	p:header("Totem mode", nil, nil, nil, { open = true })
 	own("mode", { reset = function() TB.setMode(TB.DEFAULTS.mode) end })
 	p:cards("Use", nil, {
 		{ "blizzard", "Blizzard's", "Interface\\Icons\\INV_Misc_Gear_01" },
@@ -325,24 +328,10 @@ local function build(p)
 	local keys = p:checkbox("Show keybinding text", "Each button's key, in its corner.", tget("keys"), tset("keys"))
 	p:sub(keys, tget("keys"), function()
 		tslider("Text size", "At the default icon size. It grows with the icon.", int, "keySize")
+		p:color("Text colour", nil, tget("keyColor"), tset("keyColor"))
 		tslider("X offset", "From the top-right corner.", px, "keyX")
 		tslider("Y offset", "From the top-right corner.", px, "keyY")
-		p:color("Text colour", nil, tget("keyColor"), tset("keyColor"))
 	end)
-
-	p:header("Totem theme")
-	local skins = {}
-	for _, e in ipairs(TB.skin.LIST) do table.insert(skins, { e.key, e.name }) end
-	p:dropdown("Theme", "How the whole bar is drawn.", skins, function() return TB.skin.current().key end,
-		tset("skin"), nil, 190)
-	local expRow = p:row(22)
-	ns.OptionsArt.expBadge(expRow, "Totem themes"):SetPoint("LEFT", expRow, "LEFT", LABEL_W, 0)
-	p:add(expRow, 22, function() return TB.skin.current().experimental or false end)
-	local function theme(key) return function() return TB.skin.current().key == key end end
-	p:checkbox("Tray", "A dark tray edged in gold behind the slots.", tget("pixelTray"), tset("pixelTray"),
-		theme("pixel"))
-	tslider("Edge thickness", "The element-coloured edge round each slot, in pixels.", px, "pixelEdge", theme("pixel"))
-	p:dropdown("Plinth", nil, TB.skin.PLINTHS, tget("stonePlinth"), tset("stonePlinth"), theme("stone"), 140)
 
 	p:header("Layout")
 	local ORDER_H, ORDER_W = 28, 260
@@ -463,6 +452,13 @@ local function build(p)
 		pct, function() return TB.eff().extrasScale end,
 		function(v) c()[TB.skin.extrasScaleKey()] = v; changed() end,
 		showWhen(function() return c().call or c().recall end, full))
+	tslider("Call and Recall gap", "From the slots. Below 0 they overlap.", px, "extrasGap",
+		showWhen(function() return (c().call or c().recall) and not TB.skin.owns("spacing") end, full))
+	tslider("Gap between them", "Between Call and Recall when both sit on one side.", px, "extrasSpacing",
+		showWhen(function()
+			local before, after = TB.extraSides()
+			return (#before > 1 or #after > 1) and not TB.skin.owns("spacing")
+		end, full))
 	tslider("Scale", "Grows everything on the bar, borders too.", times, "scale")
 	tslider("Opacity", nil, pct, "alpha")
 
@@ -499,17 +495,7 @@ local function build(p)
 	p:text(ns.TotemSets.switchInCombat() and "Key: Next totem set."
 		or "Sets switch out of combat only. Key: Next totem set.")
 
-	p.gate = TB.barOn
-	local function beside() return TB.skin.barPlace() == "out" end
-	K.timerSettings(p, "Time left", "totembar", "uptime", changed, nil, nil, beside)
-	p:dropdown("Time bar position", "Beside the icon: on the side away from the pickers.",
-		{ { "in", "In the icon" }, { "out", "Beside the icon" } }, tget("barPlace"), tset("barPlace"),
-		function() return ns.Style.value("totembar", "uptime", "bar") and not TB.skin.owns("barPlace") end, 190)
-	K.barRows(p, "totembar", changed)
-	K.textBlock(p, "totembar", changed)
-
 	p.gate = full
-	K.gcdBlock(p, "totembar")
 	p:header("Totem not down")
 	local look = p:dropdown("Show as", "How a slot shows while its totem isn't down.",
 		{ { "pick", "Your pick" }, { "frame", "Element colour" }, { "blank", "Blank" } }, tget("empty"), tset("empty"), nil,
@@ -520,8 +506,8 @@ local function build(p)
 		p:text("With No totem picked, the slot shows its element colour.")
 	end)
 
-	p:header("Not your pick")
-	p:text("When a different totem is down, your pick shows small beside the slot.")
+	p:header("Different totem down")
+	p:text("When a totem other than that slot's default is down.")
 	local offPick = p:checkbox("Show your pick", "On the side away from the picker.",
 		tget("offPick"), tset("offPick"))
 	p:sub(offPick, tget("offPick"), function()
@@ -546,6 +532,13 @@ local function build(p)
 		p:text("A buff lingers a few seconds after you leave its range. Another shaman's totem of the same type can "
 			.. "replace your buff, so yours shows as out of range.")
 	end)
+
+	p.gate = full
+	p:header(ns.CLASS.power.name)
+	p:owns({ bar = "totembar", name = "mana", field = "on", after = changed })
+	K.globalRow(p, ns.CLASS.power.on, "While you can't pay for a slot's pick. In Global's style.",
+		function() return c().mana.on end, function(v) c().mana.on = v; changed() end, "power")
+	p.gate = TB.barOn
 
 	-- Defaults use spell names that may not have loaded yet: TB.overChanged accepts either.
 	local function over() return c().expire.over end
@@ -616,11 +609,38 @@ local function build(p)
 	K.killedBlock(p, "totembar", { after = changed, noun = "slot", flash = { "Flash when a totem dies early",
 		"The dead totem flashes red over its slot. Not when you dismiss it or it runs out." } })
 
-	K.glowBlock(p, "totembar")
-	K.popBlock(p, "totembar", "expired")
+	p.gate = TB.barOn
+	K.styleSection(p)
+	p:header("Totem theme")
+	local skins = {}
+	for _, e in ipairs(TB.skin.LIST) do table.insert(skins, { e.key, e.name }) end
+	p:dropdown("Theme", "How the whole bar is drawn.", skins, function() return TB.skin.current().key end,
+		tset("skin"), nil, 190)
+	local expRow = p:row(22)
+	ns.OptionsArt.expBadge(expRow, "Totem themes"):SetPoint("LEFT", expRow, "LEFT", LABEL_W, 0)
+	p:add(expRow, 22, function() return TB.skin.current().experimental or false end)
+	local function theme(key) return function() return TB.skin.current().key == key end end
+	p:checkbox("Tray", "A dark tray edged in gold behind the slots.", tget("pixelTray"), tset("pixelTray"),
+		theme("pixel"))
+	tslider("Edge thickness", "The element-coloured edge round each slot, in pixels.", px, "pixelEdge", theme("pixel"))
+	p:dropdown("Plinth", nil, TB.skin.PLINTHS, tget("stonePlinth"), tset("stonePlinth"), theme("stone"), 140)
+
+	p.gate = full
+	K.gcdBlock(p, "totembar")
+	p.gate = TB.barOn
+	local function beside() return TB.skin.barPlace() == "out" end
+	K.timerSettings(p, "Time left", "totembar", "uptime", changed, nil, nil, beside)
+	p:dropdown("Time bar position", "Beside the icon: on the side away from the pickers.",
+		{ { "in", "In the icon" }, { "out", "Beside the icon" } }, tget("barPlace"), tset("barPlace"),
+		function() return ns.Style.value("totembar", "uptime", "bar") and not TB.skin.owns("barPlace") end, 190)
+	K.textBlock(p, "totembar", changed)
+	p:header("Bar texture")
+	K.barRows(p, "totembar", changed)
 	p:header("Border style")
 	p:text("Set by the theme.", owned("border"))
 	K.borderRows(p, "totembar", changed, nil, free("border"))
+	K.glowBlock(p, "totembar")
+	K.popBlock(p, "totembar", "expired")
 	if K.barFramed("totembar") then
 		p:header("Art frame style")
 		K.frameRows(p, "totembar", "groupframe", changed, { spacing = {

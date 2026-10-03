@@ -80,7 +80,7 @@ add("stone", {
 	name = "Stone and bronze",
 	owns = function()
 		local gap, cap = shares(plinthNow())
-		return { border = true, spacing = gap, extrasGap = cap + 0.12, dir = "row", pop = "up",
+		return { border = true, spacing = gap, extrasGapShare = cap + 0.12, dir = "row", pop = "up",
 			barPlace = true, extras = "ends", extrasScale = TB.cfg().stoneExtrasScale }
 	end,
 	border = borderStyle("line", 1), extrasBorder = borderStyle("medallion"),
@@ -121,8 +121,9 @@ end
 
 function TH.fixedSlots() return TH.current().fixedSlots == true end
 
--- Settings a look owns: border, spacing, extrasGap, dir, pop, range, rangeHeight, barPlace,
--- extras, extrasScale (the layout reads them through TB.eff())
+-- Settings a look owns: border, spacing, extrasGapShare, dir, pop, range, rangeHeight, barPlace, extras,
+-- extrasScale. Dir, pop, extras and extrasScale reach the layout through TB.eff(); spacing and
+-- extrasGapShare are shares of the icon size, read through TH.spacing
 local function ownsNow()
 	local o = TH.current().owns
 	if type(o) == "function" then return o() end
@@ -164,7 +165,7 @@ function TH.spacing(size)
 	local o = ownsNow()
 	local share = o and o.spacing
 	if not share then return nil end
-	return size * share, size * (o.extrasGap or share)
+	return size * share, size * (o.extrasGapShare or share)
 end
 
 function TH.barPlace()

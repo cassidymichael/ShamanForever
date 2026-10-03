@@ -200,7 +200,7 @@ function EP.buildOverview(p)
 			GameTooltip:SetText("Own styles")
 			local own = ownStyles(key, "label")
 			if #own == 0 then
-				GameTooltip:AddLine("Follows Global styles for its timers, glow, pop, border and art frame.", 1, 1, 1, true)
+				GameTooltip:AddLine("Follows Global styles for its timers, border, glow, pop and art frame.", 1, 1, 1, true)
 			else
 				GameTooltip:AddLine(table.concat(own, ", "), 1, 1, 1, true)
 				GameTooltip:AddLine("The rest follow Global styles.", 0.7, 0.7, 0.7, true)
@@ -247,18 +247,26 @@ function EP.buildOverview(p)
 	end
 end
 
--- A kind made of parts: Display and Idle, its slots' blocks (K.registerSlot) with its parts' words,
--- then the style blocks
+-- A kind made of parts: Display and Idle, its slots' blocks (K.registerSlot) with its parts' words
+-- (own blocks' warnings after the warn slot), then the Style section: its style slots' blocks, then
+-- the style blocks
 local function partsPage(p, def)
 	local key = def.key
 	local kind = E.ALL[key].kind
+	local function build(slot)
+		local words, fn = ns.Kinds.words(kind, def, slot), K.slotBuilder(slot)
+		if words ~= nil and fn then fn(p, def, words) end
+	end
 	elementDisplay(p, key)
 	idleBlock(p, def)
+	local styled = {}
 	for _, slot in ipairs(ns.Kinds.slots(kind)) do
-		local words, build = ns.Kinds.words(kind, def, slot), K.slotBuilder(slot)
-		if words ~= nil and build then build(p, def, words) end
+		if K.styleSlot(slot) then table.insert(styled, slot) else build(slot) end
+		if slot == "warn" then K.ownWarnings(p, def, ns.Kinds.words(kind, def, "own")) end
 	end
-	styleBlocks(p, key)
+	styleBlocks(p, key, function()
+		for _, slot in ipairs(styled) do build(slot) end
+	end)
 end
 
 -- An element's page builder: its kind's own, else the parts page for a kind made of parts

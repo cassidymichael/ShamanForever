@@ -189,9 +189,6 @@ local function borderRows(p, owner, after, label, shown)
 	styleSlider(p, "border", "size", "Border size", "Thickness in screen pixels.", px, r.get("size"), r.set("size"),
 		showWhen(uses("size"), shown))
 	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), showWhen(uses("color"), shown))
-	styleSlider(p, "border", "capSize", "Cap size", "Thickness in screen pixels.", px, r.get("capSize"),
-		r.set("capSize"), showWhen(uses("capSize"), shown))
-	p:color("Cap colour", "Colour and opacity.", r.get("capColor"), r.set("capColor"), showWhen(uses("capColor"), shown))
 end
 
 -- Art frames: part "frame" round each icon, "groupframe" round a group or bar.
@@ -371,9 +368,9 @@ end
 local function glowBlock(p, owner)
 	local after = reglow
 	p:header("Pulsing glow style")
+	p:anchor("glow")
 	local r = styleRows(p, owner, "glow", after)
 	if owner == nil then
-		p:anchor("glow")
 		p:text("Every pulsing glow. " .. ownersText("Elements", "glow"))
 	else followRow(p, owner, "glow", after) end
 	local own = showWhen(r.own)
@@ -429,6 +426,7 @@ local function popBlock(p, owner, kind)
 		if f and f:IsVisible() then playPop() end
 	end)
 	p:header("Pop style")
+	p:anchor("pop")
 	local r = styleRows(p, owner, "pop", after)
 	-- Colour is for Ready and Ran out only; a warning's pop keeps its own.
 	local colored = ns.StyleArt.POP_KINDS[kind].byStyle
@@ -437,7 +435,6 @@ local function popBlock(p, owner, kind)
 		return (colored and r.style().colorBy == "school") or burst().bySchool or false
 	end
 	if owner == nil then
-		p:anchor("pop")
 		p:text("The burst when something happens: " .. ns.CLASS.help.pop .. ". "
 			.. ownersText("Elements", "pop"))
 	else followRow(p, owner, "pop", after) end
@@ -474,6 +471,40 @@ local function popBlock(p, owner, kind)
 	if owner == nil then ownLine(p, "pop") end
 end
 
+-- Cast states' paint (_CastStates): part power or range; cover: over Blizzard's aura button, an overlay only
+local CAST_LOOKS = { { "tint", "Tint" }, { "overlay", "Overlay" }, { "both", "Both" } }
+local function castStyleBlock(p, owner, state, cover)
+	local CS = ns.CastStates
+	local st = CS.STATES[state]
+	local part = st.part
+	p:header(st.name .. " style")
+	p:anchor(part)
+	local r = styleRows(p, owner, part, relayout)
+	if owner == nil then
+		p:text(st.global .. " " .. ownersText("Elements", part))
+	else followRow(p, owner, part, relayout) end
+	if cover and cover.note then p:text(cover.note) end
+	local ranged = owner == nil or CS.has(owner, "range")
+	local own = showWhen(r.own)
+	local function uses(field)
+		return showWhen(function()
+			local v = r.style().look
+			return cover or v == field or v == "both"
+		end, own)
+	end
+	if not cover then
+		p:dropdown("Show as", state == "power" and ranged and "Out of range wins over this." or nil, CAST_LOOKS,
+			r.get("look"), r.set("look"), own, 140)
+	end
+	styleSlider(p, part, "overlay", "Overlay", nil, pct, r.get("overlay"), r.set("overlay"), uses("overlay"))
+	if not cover then styleSlider(p, part, "tint", "Tint", nil, pct, r.get("tint"), r.set("tint"), uses("tint")) end
+	if state == "power" then
+		styleSlider(p, part, "ring", "Ring", ranged and "The blue ring, shown even when out of range." or "The blue ring.",
+			pct, r.get("ring"), r.set("ring"), own)
+	end
+	if owner == nil then ownLine(p, part) end
+end
+
 local function fontChoices(current)
 	local out = {}
 	for _, f in ipairs(ns.Media.fonts(current)) do
@@ -508,7 +539,7 @@ end
 local function barRows(p, owner, after)
 	after = after or relayout
 	local r = styleRows(p, owner, "bar", after)
-	if owner then followRow(p, owner, "bar", after, "Texture same as Global") end
+	if owner then followRow(p, owner, "bar", after) end
 	local own = showWhen(r.own)
 	local c = ns.THEME.color[ns.THEME.sample]
 	p:dropdown("Texture", nil, function()
@@ -538,6 +569,25 @@ local function barBlock(p)
 end
 
 local TEXT_POS = { { "auto", "Auto" }, { "center", "Centre" }, { "topleft", "Top left" }, { "bottom", "Bottom" } }
+-- In the icon on an edge, or out of it on a side across the group's flow (_Timers): one menu, two fields
+local function barPosition(p, key, tg, ts)
+	local function choices()
+		local col = key ~= nil and ns.Widgets.laidInColumn(key)
+		return { { "in bottom", "In the icon, bottom" }, { "in top", "In the icon, top" },
+			{ "out bottom", col and "Left of the icon" or "Below the icon" },
+			{ "out top", col and "Right of the icon" or "Above the icon" } }
+	end
+	local place, edge, setPlace, setEdge = tg("barPlace"), tg("barEdge"), ts("barPlace"), ts("barEdge")
+	p:dropdown("Bar position", nil, choices,
+		function() return (place() == "out" and "out" or "in") .. " " .. (edge() == "top" and "top" or "bottom") end,
+		function(v)
+			local where, side = v:match("^(%a+) (%a+)$")
+			setPlace(where)
+			setEdge(side)
+		end, nil, 180)
+	if key == nil then p:text("In a column group: left of the icon for below, right for above.") end
+end
+
 local function timerSettings(p, title, key, part, after, note, first, barPlaced)
 	after = after or retime
 	local cant = ns.Timer.cant(key, part)
@@ -584,14 +634,25 @@ local function timerSettings(p, title, key, part, after, note, first, barPlaced)
 	local bar = p:checkbox("Time bar", "A bar along an edge that drains.", tg("bar"), ts("bar"), canHave("bar"))
 	p:sub(bar, on("bar"), function()
 		styleSlider(p, part, "barHeight", "Bar height", nil, px, tg("barHeight"), ts("barHeight"))
-		p:dropdown("Bar edge", nil, { { "bottom", "Bottom" }, { "top", "Top" } }, tg("barEdge"), ts("barEdge"),
-			function() return not (barPlaced and barPlaced()) end, 140)
+		if key == nil or ns.Timer.canPlaceOut(key) then
+			barPosition(p, key, tg, ts)
+			styleSlider(p, part, "barGap", "Bar gap", "From the icon, at the default icon size; it grows with the icon.",
+				px, tg("barGap"), ts("barGap"), showWhen(function() return style().barPlace == "out" end))
+		else
+			p:dropdown("Bar edge", nil, { { "bottom", "Bottom" }, { "top", "Top" } }, tg("barEdge"), ts("barEdge"),
+				function() return not (barPlaced and barPlaced()) end, 140)
+		end
 		local colour = p:dropdown("Bar colour", nil, { { true, ns.THEME.axis.name .. " colour" }, { false, "Custom" } },
 			tg("barElement"), ts("barElement"), nil, 160)
 		p:sub(colour, function() return not style().barElement end, function()
 			p:color("Custom bar colour", nil, tg("barColor"), ts("barColor"))
 		end)
 	end)
+	if key and not Bars.get(key) and not cant.bar and not ns.Timer.canPlaceOut(key) then
+		p:text("Its time bar stays in the icon.", function()
+			return style().bar and style().barPlace == "out"
+		end)
+	end
 	if not key then ownLine(p, part) end
 end
 
@@ -614,6 +675,7 @@ K.globalRow, K.ownersText, K.ownLine, K.borderRows = globalRow, ownersText, ownL
 K.rangeSlider, K.styleSlider = rangeSlider, styleSlider
 K.frameRows, K.barFramed = frameRows, barFramed
 K.timerSettings, K.gcdBlock, K.glowBlock, K.popBlock = timerSettings, gcdBlock, glowBlock, popBlock
+K.castStyleBlock = castStyleBlock
 K.textBlock, K.barRows, K.barBlock = textBlock, barRows, barBlock
 
 -- Element blocks
@@ -654,7 +716,11 @@ local SHOW_TIP_PAGE = "Choosing Always or In combat again puts it back where it 
 	.. "the Groups & Layout page; an element shows only when both allow it. Everything visible shows while "
 	.. "positioning is unlocked."
 
--- Every element page in one order: header, Display, Idle, own settings, standard blocks.
+-- Every element and bar page's two sections: what it does, then how it looks
+function K.behaviourSection(p) p:section("Functionality and behaviour") end
+function K.styleSection(p) p:section("Style") end
+
+-- Every element page in one order: header, Display, Idle, its own settings and states, then Style.
 local function elementDisplay(p, key)
 	p.resetAll = {
 		text = function() return "Reset " .. ns.OptionsArt.elementName(key) end,
@@ -665,6 +731,7 @@ local function elementDisplay(p, key)
 		function() return not E.isLearned(key) and not ns.Spells.otherRace(E.ALL[key].race) end)
 	p:callout("Not your race. It shows on screen only for the races that have this spell.",
 		function() return not E.isLearned(key) and ns.Spells.otherRace(E.ALL[key].race) end)
+	K.behaviourSection(p)
 	p:header("Display", nil, nil, nil, { open = true })
 	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return E.showMode(key) end,
 		function(v) E.setShow(key, v) end, nil, 140)
@@ -729,12 +796,19 @@ local function idleBlock(p, def)
 		choices and showWhen(function() return not never() end) or nil, "idleAlpha")
 end
 
-local function styleBlocks(p, key)
+-- The Style section: timers() (its timer blocks), then the style blocks
+local function styleBlocks(p, key, timers)
 	local e = E.ALL[key]
-	if e.effects.glow then glowBlock(p, key) end
-	if e.effects.pop then popBlock(p, key, e.effects.popKind or "ready") end
+	K.styleSection(p)
+	if timers then timers() end
 	p:header("Border style")
 	K.borderRows(p, key, relayout)
+	if e.effects.glow then glowBlock(p, key) end
+	if e.effects.pop then popBlock(p, key, e.effects.popKind or "ready") end
+	local CS = ns.CastStates
+	for _, state in ipairs(CS.ORDER) do
+		if CS.has(key, state) then castStyleBlock(p, key, state, CS.covered(key)) end
+	end
 	p:header("Art frame style")
 	K.frameRows(p, key, "frame", relayout)
 end
@@ -785,10 +859,28 @@ end
 local function tipOf(opts, field, standard)
 	return opts.tips and opts.tips[field] or standard
 end
+-- A Style link beside the switch row just added, while it's on: to this page's block of part
+local function styleLink(p, row, part, on)
+	local go = Page.goLink(row, "Style", function() p:goTo(part) end)
+	go:SetPoint("LEFT", row.check.Text, "RIGHT", 10, 0)
+	row.styleLink = go
+	local item = p.items[#p.items]
+	local refresh = item.refresh
+	item.refresh = function()
+		refresh()
+		go:SetShown(on() and p.anchors ~= nil and p.anchors[part] ~= nil)
+	end
+end
+K.styleLink = styleLink
+
+-- Its pop and pulsing glow switches link to their style
+local LINKED = { pop = "pop", glow = "glow" }
 local function check(p, s, name, field, label, tip, shown)
 	if not s.has(name, field) then return end
 	local get, set = s.opt(name, field)
-	return p:checkbox(label, tip, get, set, shown)
+	local row = p:checkbox(label, tip, get, set, shown)
+	if LINKED[field] then styleLink(p, row, LINKED[field], get) end
+	return row
 end
 -- A sound menu with Play beside it; choices(current): its list (every sound by default)
 local function soundPicker(p, label, tip, get, set, shown, choices)
@@ -848,6 +940,13 @@ local function lookRows(p, s, name, opts, shown)
 	end
 end
 
+-- A state's looks in a block of the page's own (the fields owner's defaults declare under name); opts
+-- as lookRows'
+function K.lookRows(p, owner, name, opts, shown)
+	opts = opts or {}
+	lookRows(p, store(p, owner, opts.after), name, opts, shown)
+end
+
 -- warn: opts.title, text (a line above its looks), on = { label, tip } (its switch, when it has
 -- one), noun, sounds (the sound choices), after
 local function warnBlock(p, owner, opts)
@@ -884,7 +983,7 @@ local function readyBlock(p, owner, opts)
 	soundRow(p, s, "ready", "Sound", "The moment the cooldown ends.")
 end
 
--- active: opts.title, text, extra(s) (rows under its glow); shown with a text even with no fields
+-- active: opts.title, text, extra(s, p) (rows under its glow); shown with a text even with no fields
 local function activeBlock(p, owner, opts)
 	local s = store(p, owner, opts.after)
 	if not (s.has("active") or opts.text) then return end
@@ -892,12 +991,31 @@ local function activeBlock(p, owner, opts)
 	if opts.text then p:text(opts.text) end
 	check(p, s, "active", "pop", "Pop", tipOf(opts, "pop"))
 	check(p, s, "active", "glow", "Pulsing glow", tipOf(opts, "glow"))
-	if opts.extra then opts.extra(s) end
+	if opts.extra then opts.extra(s, p) end
 	soundRow(p, s, "active", "Sound", tipOf(opts, "sound"))
 end
 
--- expire, then ended (it ran out): opts.afterSecs(s) (rows under Warn in the last), warns() (whether
--- its looks can show; default: Warn in the last isn't off), noun, after
+-- ended (it ran out); its sound plays for either end
+local function ranOutBlock(p, owner, opts)
+	local s = store(p, owner, opts.after)
+	if not s.has("ended") then return end
+	p:header("Ran out")
+	if s.has("ended", "flash") then
+		local get, set = s.opt("ended", "flash")
+		local flash = p:checkbox("Flash when it runs out", "Its icon, greyed under its colour, with an hourglass.", get, set)
+		p:sub(flash, get, function()
+			check(p, s, "ended", "pop", "Pop", "The icon bursts for a moment.")
+			check(p, s, "ended", "glow", "Pulsing glow", "In its colour.")
+		end)
+	else
+		check(p, s, "ended", "pop", "Pop when it runs out",
+			tipOf(opts, "endPop", "It pops and fades the moment it runs out."))
+	end
+	soundRow(p, s, "ended", "Sound when it ends", tipOf(opts, "endSound"))
+end
+
+-- expire, then Ran out: opts.afterSecs(s) (rows under Warn in the last), warns() (whether its looks
+-- can show; default: Warn in the last isn't off), noun, after
 local function expiringBlock(p, owner, opts)
 	opts = opts or {}
 	local s = store(p, owner, opts.after)
@@ -916,18 +1034,7 @@ local function expiringBlock(p, owner, opts)
 		p:color("Colour", nil, get, set, showWhen(s.get("expire", "bar"), warns))
 	end
 	check(p, s, "expire", "text", "Red countdown", "The countdown turns red in the last seconds.", warns)
-	if s.has("ended", "flash") then
-		local get, set = s.opt("ended", "flash")
-		local flash = p:checkbox("Flash when it runs out", "Its icon, greyed under its colour, with an hourglass.", get, set)
-		p:sub(flash, get, function()
-			check(p, s, "ended", "pop", "Pop", "The icon bursts for a moment.")
-			check(p, s, "ended", "glow", "Pulsing glow", "In its colour.")
-		end)
-	else
-		check(p, s, "ended", "pop", "Pop when it runs out",
-			tipOf(opts, "endPop", "It pops and fades the moment it runs out."))
-	end
-	soundRow(p, s, "ended", "Sound when it ends", tipOf(opts, "endSound"))
+	ranOutBlock(p, owner, opts)
 end
 
 -- killed: opts.title, flash = { label, tip }, noun, after
@@ -950,8 +1057,8 @@ local COUNT_POINTS = { { "BOTTOMRIGHT", "Bottom right" }, { "BOTTOMLEFT", "Botto
 	{ "TOPLEFT", "Top left" }, { "CENTER", "Centre" } }
 
 local COUNT_WHEN = { { "always", "Always" }, { "low", "When low or none" }, { "never", "Never" } }
--- The reagent part: its count, then its None left look
-local function reagentBlocks(p, def)
+-- The reagent part: its count, and its None left look (drawn with the warnings)
+local function reagentBlock(p, def)
 	local key = def.key
 	p:header("Reagent")
 	p:text("Only counted if the spell still needs one.")
@@ -961,17 +1068,46 @@ local function reagentBlocks(p, def)
 	eslider(p, key, "Low at",
 		"At this many or fewer, the count takes the low colour, and Idle can count it as running low.",
 		int, nil, "reagent", "low")
+	local posGet, posSet = eopt(p, key, "reagent", "pos")
+	p:dropdown("Position", nil, COUNT_POINTS, posGet, posSet, counted, 150)
+	eslider(p, key, "Text size", "At the default icon size; it grows with the icon.", int, counted, "reagent", "size")
 	local colorGet, colorSet = eopt(p, key, "reagent", "color")
 	p:color("Count colour", "While you have enough.", colorGet, colorSet, counted)
 	local lowGet, lowSet = eopt(p, key, "reagent", "lowColor")
 	p:color("Low colour", "At the Low mark or below, and at none.", lowGet, lowSet, counted)
-	eslider(p, key, "Text size", "At the default icon size; it grows with the icon.", int, counted, "reagent", "size")
-	local posGet, posSet = eopt(p, key, "reagent", "pos")
-	p:dropdown("Position", nil, COUNT_POINTS, posGet, posSet, counted, 150)
 	eslider(p, key, "Text X offset", nil, px, counted, "reagent", "x")
 	eslider(p, key, "Text Y offset", nil, px, counted, "reagent", "y")
+end
+local function noneLeftBlock(p, def)
 	p:header("None left")
-	lookRows(p, store(p, key), "reagent", {})
+	lookRows(p, store(p, def.key), "reagent", {})
+end
+
+-- Cast states: each the element has, its switch with a link to its style (_CastStates); extras[state](on):
+-- rows of its own under the switch, shown while on() is
+local function castBlocks(p, key, extras)
+	local CS = ns.CastStates
+	for _, state in ipairs(CS.ORDER) do
+		if CS.has(key, state) then
+			local st = CS.STATES[state]
+			p:header(st.name)
+			local get, set = eopt(p, key, st.saved, "on")
+			local cover = CS.covered(key)
+			local tip = cover and cover.tips and cover.tips[state] or st.tip
+			if cover then
+				-- Its paint over Blizzard's button is made out of combat
+				local turn = set
+				set = function(v)
+					turn(v)
+					if v and ns.inCombat() then ns.say("%s waits until combat ends", st.name) end
+				end
+			end
+			styleLink(p, p:checkbox(st.on, tip, get, set), st.part, get)
+			if cover and cover.note then p:text(cover.note) end
+			if cover then p:text("Turned on in combat, it waits until combat ends.", ns.inCombat) end
+			if extras and extras[state] then extras[state](get) end
+		end
+	end
 end
 
 -- A setting switched on, with a number under it: b = { title, name, label, tip, sub = { name, label,
@@ -988,23 +1124,40 @@ local function toggleBlock(p, key, b)
 end
 
 K.eread, K.eslider, K.COUNT_POINTS = eread, eslider, COUNT_POINTS
-K.toggleBlock = toggleBlock
-K.elementDisplay, K.idleBlock, K.styleBlocks, K.reagentBlocks = elementDisplay, idleBlock, styleBlocks, reagentBlocks
+K.toggleBlock, K.castBlocks = toggleBlock, castBlocks
+K.elementDisplay, K.idleBlock, K.styleBlocks = elementDisplay, idleBlock, styleBlocks
+K.reagentBlock, K.noneLeftBlock = reagentBlock, noneLeftBlock
 K.soundsBlock, K.groupMenu = soundsBlock, groupMenu
 K.warnBlock, K.readyBlock, K.activeBlock, K.expiringBlock, K.killedBlock = warnBlock, readyBlock, activeBlock,
 	expiringBlock, killedBlock
+K.ranOutBlock = ranOutBlock
 
--- A parts page's builders: a slot's block, fn(p, def, words), and a block a part asks for in the own
--- slot, fn(p, def, spec); the standard ones are below, calling the kit's blocks as they stand
-local SLOTS, OWNS = {}, {}
-function K.registerSlot(name, fn) SLOTS[name] = fn end
-function K.registerOwn(name, fn) OWNS[name] = fn end
+-- A parts page's builders: a slot's block, fn(p, def, words) (style: it goes in the Style section),
+-- and a block a part asks for in the own slot, fn(p, def, spec), with its warning, warning(p, def,
+-- spec), drawn after the warn slot; the standard ones are below, calling the kit's blocks as they stand
+local SLOTS, OWNS, STYLED, OWN_WARNS = {}, {}, {}, {}
+function K.registerSlot(name, fn, style)
+	SLOTS[name] = fn
+	STYLED[name] = style or nil
+end
+function K.registerOwn(name, fn, warning)
+	OWNS[name] = fn
+	OWN_WARNS[name] = warning
+end
 function K.slotBuilder(name) return SLOTS[name] end
+function K.styleSlot(name) return STYLED[name] == true end
 function K.ownBuilder(name) return OWNS[name] end
 -- An own block's name: the spec itself, or its first field
 function K.ownName(b) return type(b) == "table" and b[1] or b end
+-- The own blocks' warnings, for the own slot's words list
+function K.ownWarnings(p, def, list)
+	for _, b in ipairs(list or {}) do
+		local build = OWN_WARNS[K.ownName(b)]
+		if build then build(p, def, b) end
+	end
+end
 
-K.registerOwn("reagent", function(p, def) K.reagentBlocks(p, def) end)
+K.registerOwn("reagent", function(p, def) K.reagentBlock(p, def) end, function(p, def) K.noneLeftBlock(p, def) end)
 K.registerOwn("toggle", function(p, def, b) K.toggleBlock(p, def.key, b) end)
 K.registerSlot("own", function(p, def, list)
 	for _, b in ipairs(list) do
@@ -1013,10 +1166,11 @@ K.registerSlot("own", function(p, def, list)
 	end
 end)
 K.registerSlot("warn", function(p, def, o) K.warnBlock(p, def.key, o) end)
-K.registerSlot("cooldown", function(p, def, title) K.timerSettings(p, title, def.key, "cooldown") end)
-K.registerSlot("gcd", function(p, def) K.gcdBlock(p, def.key) end)
-K.registerSlot("uptime", function(p, def, title) K.timerSettings(p, title, def.key, "uptime") end)
+K.registerSlot("cast", function(p, def) K.castBlocks(p, def.key) end)
 K.registerSlot("ready", function(p, def, o) K.readyBlock(p, def.key, o) end)
 K.registerSlot("active", function(p, def, o) K.activeBlock(p, def.key, o) end)
 K.registerSlot("expire", function(p, def, o) K.expiringBlock(p, def.key, o) end)
 K.registerSlot("killed", function(p, def, o) K.killedBlock(p, def.key, o) end)
+K.registerSlot("cooldown", function(p, def, title) K.timerSettings(p, title, def.key, "cooldown") end, true)
+K.registerSlot("gcd", function(p, def) K.gcdBlock(p, def.key) end, true)
+K.registerSlot("uptime", function(p, def, title) K.timerSettings(p, title, def.key, "uptime") end, true)

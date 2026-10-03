@@ -53,6 +53,8 @@ TB.DEFAULTS = {
 	setNumber = true,
 	extras = "after",   -- ends | before | after the slots
 	extrasScale = 0.8,
+	extrasGap = 8,   -- pixels from the slots to Call and Recall
+	extrasSpacing = 2,   -- between Call and Recall on one side
 	sizeFollow = true,
 	empty = "pick",   -- pick | frame | blank
 	idleGrey = false,
@@ -68,6 +70,7 @@ TB.DEFAULTS = {
 	expire = { secs = 10, grey = false, ring = false, fade = true, glow = false, over = {} },
 	ended = { pop = true, sound = "none" },
 	killed = { flash = true, pop = true, glow = true, mark = true },
+	mana = { on = false },   -- a slot's pick it can't pay for, in Global's style for it
 	range = true,
 	rangeHeight = 5,
 	rangeIn = { 0.2, 0.8, 0.25, 0 },
@@ -88,6 +91,7 @@ local EXPIRE_SECS = { 0, 30, 1 }
 local RANGES = {
 	scale = { 0.5, 3, 0.05 }, alpha = { 0.1, 1, 0.05 }, spacing = { -10, 20, 1 }, size = { 24, 96, 1 },
 	arrowSize = { 8, 32, 1 }, extrasScale = { 0.5, 1.5, 0.05 }, stoneExtrasScale = { 0.5, 1.5, 0.05 },
+	extrasGap = { -10, 30, 1 }, extrasSpacing = { -10, 20, 1 },
 	idleAlpha = { 0.1, 1, 0.05 }, badgeSize = { 0.25, 0.8, 0.05 }, badgeAlpha = { 0.1, 1, 0.05 },
 	badgeSat = { 0, 1, 0.05 }, badgeX = { -30, 30, 1 }, badgeY = { -30, 30, 1 }, rangeHeight = { 1, 12, 1 },
 	fadeAfter = { 0, 10, 1 }, keySize = { 6, 30, 1 }, keyX = { -20, 20, 1 }, keyY = { -20, 20, 1 },
@@ -185,25 +189,24 @@ end
 -- Geometry, shared with the options' preview of the bar
 local POP_STEP = 3
 TB.POP_FILL = { 0, 0, 0, 0.72 }
-local EXTRA_GAP = 6
 
 function TB.along(n, size, px)
 	local c = TB.eff()
 	local before, after = TB.extraSides()
 	local function round(v) return px and W.roundPx(v, px) or math.floor(v + 0.5) end
-	local esz, gap, extraGap = round(size * c.extrasScale), c.spacing, c.spacing + EXTRA_GAP
+	local esz, gap, extraGap, pair = round(size * c.extrasScale), c.spacing, c.extrasGap, c.extrasSpacing
 	local own, ownExtra = TB.skin.spacing(size)
-	if own then gap, extraGap = own, ownExtra end
-	if px then gap, extraGap = round(gap), round(extraGap) end
+	if own then gap, extraGap, pair = own, ownExtra, own end
+	if px then gap, extraGap, pair = round(gap), round(extraGap), round(pair) end
 	local list, long = {}, 0
 	local function put(key, space, sz, extra)
 		if #list > 0 then long = long + space end
 		table.insert(list, { key = key, offset = long, size = sz, extra = extra })
 		long = long + sz
 	end
-	for _, k in ipairs(before) do put(k, gap, esz, true) end
+	for _, k in ipairs(before) do put(k, pair, esz, true) end
 	for i = 1, n do put(i, i == 1 and extraGap or gap, size) end
-	for i, k in ipairs(after) do put(k, i == 1 and extraGap or gap, esz, true) end
+	for i, k in ipairs(after) do put(k, i == 1 and extraGap or pair, esz, true) end
 	-- Negative spacing overlaps buttons: the bar spans them all
 	local lo, hi = 0, 0
 	for _, it in ipairs(list) do
@@ -782,6 +785,37 @@ end
 TB.expireOpts = expireOpts
 function TB.pickSpell(el) return pickSpell(SLOT[el]) end
 
+-- No mana on v (a slot's look, or the page's header icon): the pick a click casts, in Global's style
+-- (the tint on its own icon); its overlay and ring made the first time
+function TB.paintLow(v, low)
+	if not (low or v.lowOver) then return end
+	if not v.lowOver then
+		v.lowOver = v:CreateTexture(nil, "ARTWORK", nil, 2)
+		v.lowOver:SetAllPoints(v.icon)
+		ns.StyleArt.followMask(v, v.lowOver)
+		v.lowRing = W.makeRing(v.textFrame or v, v.icon)
+		-- The picture's shape, inside its border's frame
+		for _, e in ipairs(v.lowRing.edges) do ns.StyleArt.maskOver(v, e, v.icon) end
+	end
+	v.lowRing:inset(ns.StyleArt.pictureInset(v))
+	local st, k = ns.Style.global("power"), ns.CastStates.STATES.power.color
+	local m = 1 - st.tint
+	if low and (st.look == "tint" or st.look == "both") then v.icon:SetVertexColor(m, m, 1)
+	else v.icon:SetVertexColor(1, 1, 1) end
+	v.lowOver:SetColorTexture(k[1], k[2], k[3], st.overlay)
+	v.lowOver:SetShown(low and (st.look == "overlay" or st.look == "both"))
+	if low then v.lowRing:color(k[1], k[2], k[3], st.ring) end
+	v.lowRing:show(low)
+end
+for _, el in ipairs(ELEMENTS) do
+	local s = slots[el]
+	ns.CastStates.follow({ label = "totem bar " .. el, owner = "totembar", power = true,
+		spells = function() return pickSpell(s.slot) end,
+		isOn = function() return cfg().mana.on end,
+		enabled = function() return feat("cast") and true or false end,
+		draw = function(_, low) TB.paintLow(s.vis, low) end })
+end
+
 local anyDown = false
 local kbOpen = false
 local preview
@@ -804,6 +838,7 @@ local function liftWarning(s)
 	if not x or x.sfLifted then return end
 	local lv = s.button:GetFrameLevel() + WARN_LEVEL
 	x:SetFrameLevel(lv)
+	x.ringHost:SetFrameLevel(lv)
 	local g = x.glow
 	g:SetFrameLevel(lv + 1)
 	if g.inner then g.inner:SetFrameLevel(lv + 2) end
@@ -885,6 +920,8 @@ local function refreshSlots()
 		TB.range.refresh(s)
 	end
 	anyDown = down
+	-- A pick or set may have changed: its cost is read again
+	ns.CastStates.reread("totembar")
 end
 
 -- The active set: the picker header's sf-set, written by the switch snippet or by writeSet (out of
@@ -1634,8 +1671,8 @@ function TB.hasTotems() return hasTotems end
 local PREVIEW_STATES = { "down", "expiring", "killed", "ranout", "empty" }
 local PREVIEW_WARNING = { earth = { "empty" }, fire = { "empty" }, water = { "down", range = true },
 	air = { "down", range = true } }
--- Each slot's totem in a preview: seconds left of its length
-TB.PREVIEW_LEFT = { earth = { 250, 300 }, fire = { 38, 55 }, water = { 83, 300 }, air = { 165, 300 } }
+-- Each slot's totem in a preview: seconds left of its length (fire's under Magma Totem's 20 s, the shortest)
+TB.PREVIEW_LEFT = { earth = { 250, 300 }, fire = { 12, 30 }, water = { 83, 300 }, air = { 165, 300 } }
 
 local function paintSlot(s, rec)
 	local c, v, st = cfg(), s.vis, rec.st

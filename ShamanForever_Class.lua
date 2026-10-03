@@ -13,6 +13,8 @@ local _, ns = ...
 --                    into "The burst when something happens: <pop>." (Pop style). Whole
 --                    sentences: uptime (Time left's note), popColour (the pop's Colour tip), bars
 --                    (Bar texture's first), glowColour (after "Colour and opacity." in the glow's)
+--   power            the state while a spell's cost can't be paid (_CastStates): name, its block's
+--                    title and preview state; on, its switch
 --   layout           the default groups; an element new to a profile joins its group from here
 --   cooldowns, buffs rows for the cooldown and buff engines, from _ClassElements (optional)
 ns.CLASS = {
@@ -42,6 +44,7 @@ ns.CLASS = {
 		bars = "Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer.",
 		glowColour = "Killed early, Grounded and Ran out keep their own colours.",
 	},
+	power = { name = "No mana", on = "Show when short of mana" },
 }
 
 -- The default layout: an example more than a plan (players make their own groups). Offsets are in
@@ -56,7 +59,7 @@ ns.CLASS.layout = {
 		sizeFollow = false, size = 38,
 		orientation = "horizontal", growth = "forward", spacing = 2,
 		members = { "earthbind", "stoneclaw", "grounding" } },
-	{ id = 4, name = "Procs", point = "CENTER", x = 0, y = -154, scale = 1, alpha = 0.9,
+	{ id = 4, name = "Procs", point = "CENTER", x = 0, y = -142, scale = 1, alpha = 0.9,
 		sizeFollow = false, size = 50,
 		orientation = "horizontal", growth = "forward", spacing = 2,
 		members = { "elementalfocus", "maelstrom" } },
@@ -205,7 +208,7 @@ ns.Spells.add({
 	earthShock      = { ids = { 8042 }, en = "Earth Shock" },
 	-- Every rank: an aura filter matches IDs, not names
 	flameShock      = { ids = { 8050, 8052, 8053, 10447, 10448, 29228 }, en = "Flame Shock" },
-	frostShock      = { ids = { 8056 }, en = "Frost Shock" },
+	frostShock      = { ids = { 8056, 8058, 10472, 10473 }, en = "Frost Shock" },
 	purge           = { ids = { 370, 8012, 27626 }, en = "Purge" },   -- 8012 and 27626: both rank 2
 	earthbind       = { ids = { 2484 }, en = "Earthbind Totem" },
 	stoneclaw       = { ids = { 5730 }, en = "Stoneclaw Totem" },

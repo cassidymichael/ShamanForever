@@ -33,6 +33,7 @@ Core\FrameStyles.lua
 Core\Timers.lua
 Core\Profiles.lua
 ShamanForever.lua
+Core\CastStates.lua
 ShamanForever_Shield.lua
 ShamanForever_Imbue.lua
 Core\Sounds.lua
@@ -67,4 +68,6 @@ ShamanForever_OptionsTremor.lua
 ShamanForever_OptionsTotemBar.lua
 Core\OptionsSwing.lua
 Core\OptionsStyles.lua
+Core\OptionsGuide.lua
+ShamanForever_OptionsGuide.lua
 Core\IssueReporter.lua

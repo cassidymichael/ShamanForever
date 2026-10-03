@@ -7,7 +7,7 @@ local P = ns.Profiles
 local W = ns.Widgets
 local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
-local Spells, KD = ns.Spells, ns.Kinds
+local Spells, KD, CS = ns.Spells, ns.Kinds, ns.CastStates
 
 local B = { name = "buffs" }
 ns.Buffs = B
@@ -63,7 +63,7 @@ ns.registerPart("buff", {
 })
 -- breath: warns under water without it
 ns.registerPart("breath", {
-	defaults = { warn = { on = true, ring = true, fade = true } },
+	defaults = { warn = { on = true, ring = true, fade = true, glow = false } },
 	page = { warn = { title = "Under water",
 		on = { "Warn without it", "While your breath bar drains and it isn't up." } } },
 	preview = {
@@ -107,7 +107,7 @@ ns.registerPart("proc", {
 local EXPIRE_RANGE = { 0, 120, 5 }
 ns.registerKind("buff", {
 	parts = { "buff", "breath", "proc" },
-	slots = { "own", "warn", "uptime", "expire", "active" },
+	slots = { "own", "warn", "cast", "active", "expire", "uptime" },
 	prepare = function(def)
 		def.expires = not def.proc
 		def.expireRange = EXPIRE_RANGE
@@ -138,10 +138,12 @@ end
 B.auraIDs = auraIDs
 
 -- An aura element's button: its pop, its border (the button draws the border's art), then parts'
-local function buildButton(def, slot, button)
+local function buildButton(def, slot, button, site)
 	if def.fx then def.fx:bind(button, slot.icon) end
 	def.edge = def.fx and def.fx:makeEdge(button)
 		or ns.Frames.edge(button, button, def.key, { overlay = false })
+	-- Dressed now too: its styling may wait for the fight to end
+	ns.try(site .. " border " .. def.key, ns.Frames.dress, def.edge, def.key)
 	KD.eachHook("buff", def, "button", slot, button)
 end
 
@@ -173,7 +175,7 @@ local function buildAura(def)
 		extras = #def.extras > 0 and def.extras or nil,
 		sites = { container = site .. " container " .. key, style = site .. " style " .. key,
 			filter = site .. " filter " .. key },
-		onButton = function(slot, button) buildButton(def, slot, button) end,
+		onButton = function(slot, button) buildButton(def, slot, button, site) end,
 		onStyle = function(slot, size) styleButton(def, size, slot, site) end,
 		onError = function(err) ns.noteError(site .. " container " .. key, err) end,
 	})
@@ -186,6 +188,22 @@ local function buildAura(def)
 		sites = { container = site .. " glow sensor " .. key, style = site .. " glow style " .. key,
 			filter = site .. " glow filter " .. key },
 	} })
+end
+
+-- A cast state's paint over the button, while the aura is up: sensed as its glow is, faded with the
+-- button
+local function auraCover(def)
+	local where = KD.hook("buff", def, "aura")
+	local g = where and where(def).glow or { parent = def.frame.effects }
+	return { parent = def.idle or g.parent, sensorParent = g.parent, unit = g.unit, needUnit = g.needUnit,
+		filter = def.filter, ids = function() return auraIDs(def) end,
+		candidates = def.candidates and function() return def.candidates(def) end, slot = def.aura,
+		note = def.castNote, tips = def.castTips,
+		-- Refiltered and pointed with the row's own looks while attached
+		attach = function(look) table.insert(def.looks, look) end,
+		detach = function(look)
+			for i = #def.looks, 1, -1 do if def.looks[i] == look then table.remove(def.looks, i) end end
+		end }
 end
 
 for _, def in ipairs(ROWS) do
@@ -202,6 +220,7 @@ for _, def in ipairs(ROWS) do
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
 		experimental = def.experimental, styles = def.styles })
 	if not KD.hook("buff", def, "engine") then table.insert(BUFFS, def) end
+	if def.power or def.range then CS.watchRow(def, def.proc and auraCover(def) or nil) end
 end
 
 -- An aura element's steps, for whichever module runs it
@@ -288,6 +307,7 @@ local function refreshBuff(def)
 		f.tex:SetDesaturated(true)
 		f:SetRingShown(false)
 		f:SetPulsing(false)
+		if def.glowing then f:SetGlowShown(false); def.glowing = false end
 		f.count:Hide()
 		W.fadeTo(f, 1)
 		return
@@ -301,13 +321,18 @@ local function refreshBuff(def)
 	end
 	if def.upUntil and GetTime() >= def.upUntil then setDown(def) end
 	-- Set each look once: re-setting a pulse restarts it
-	local held, ring, pulse = false, false, false
+	local held, ring, pulse, glow = false, false, false, false
 	if def.reagent then held, ring, pulse = ns.Reagents.refresh(def) end
 	if underWaterWarns(def) then
 		ring, pulse, held = setting(key, "warn", "ring"), setting(key, "warn", "fade"), true
+		glow = setting(key, "warn", "glow")
 	end
 	f:SetRingShown(ring)
 	f:SetPulsing(pulse)
+	if def.breath and glow ~= (def.glowing or false) then
+		def.glowing = glow and true or false
+		f:SetGlowShown(def.glowing)
+	end
 	local busy = not P.getAccount().locked or def.upUntil ~= nil or held
 	W.fadeTo(f, busy and 1 or E.idleAlpha(key))
 end

@@ -47,7 +47,6 @@ end
 
 -- Frames
 local SIDES = { "top", "bottom", "left", "right" }
-local CORNERS = { { "TOPLEFT", -1, 1 }, { "TOPRIGHT", 1, 1 }, { "BOTTOMLEFT", -1, -1 }, { "BOTTOMRIGHT", 1, -1 } }
 local BLACK = { 0, 0, 0, 1 }
 
 local schoolColors = {}
@@ -72,74 +71,73 @@ end
 
 function SA.uses(look, field) return look.uses ~= nil and look.uses[field] == true end
 
--- Each ring is four textures; returns how far the rings reach.
+-- Line files: a white band LINE_MARGIN texels wide round a clear centre; top and bottom own the corners
+local LINE_MARGIN = 4
+local LINE_RING = MEDIA .. "Line-Ring"
+local LINE_SIDE = { top = MEDIA .. "Line-Top", bottom = MEDIA .. "Line-Bottom", left = MEDIA .. "Line-Left",
+	right = MEDIA .. "Line-Right" }
+local WHOLE = { false }
+
+-- A holder round f for sliced textures, at SetScale(w / m) so a margin of m texels draws w wide, its
+-- outer edge reach out. Anchored, not sized (f's size can be secret); offsets are in h's scale.
+local function sliceHolder(f, h, w, m, reach)
+	if not h then
+		h = CreateFrame("Frame", nil, f)
+		h:EnableMouse(false)
+		h.tex = {}
+	end
+	local k = w / m
+	h:SetScale(k)
+	h:ClearAllPoints()
+	h:SetPoint("TOPLEFT", f, "TOPLEFT", -reach / k, reach / k)
+	h:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", reach / k, -reach / k)
+	h:SetFrameLevel(f:GetFrameLevel())
+	h:Show()
+	return h
+end
+
+-- Its texture j, filling it: file sliced at margin m
+local function sliceTex(h, j, layer, sub, m, file, ...)
+	local t = h.tex[j]
+	if not t then
+		t = h:CreateTexture(nil, layer, nil, sub)
+		t:SetAllPoints()
+		h.tex[j] = t
+	end
+	t:SetTexture(file, ...)
+	t:SetTextureSliceMargins(m, m, m, m)
+	t:SetTextureSliceMode(STRETCHED)
+	t:Show()
+	return t
+end
+
+-- A ring is one sliced texture round f (one a side where sides differ), so a pop's Scale carries it with
+-- the picture; returns how far the rings reach.
 local function drawRings(f, rings, b)
 	f.border = f.border or {}
-	local tex, n, d = f.border, 0, 0
+	local n, d = 0, 0
 	for i = #(rings or {}), 1, -1 do
 		local ring = rings[i]
 		local w = W.linePx(f, pxOf(ring.px, b))
-		local o = d + w
-		for _, side in ipairs(SIDES) do
+		if w > 0 then
+			local o = d + w
 			n = n + 1
-			local t = tex[n] or f:CreateTexture(nil, "BACKGROUND", nil, -8)
-			tex[n] = t
-			local c = colorOf(ring[side] or ring.color, b, f)
-			t:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
-			t:ClearAllPoints()
-			t:Show()
-			if side == "top" then
-				t:SetPoint("BOTTOMLEFT", f, "TOPLEFT", -o, d)
-				t:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", o, d)
-				t:SetHeight(w)
-			elseif side == "bottom" then
-				t:SetPoint("TOPLEFT", f, "BOTTOMLEFT", -o, -d)
-				t:SetPoint("TOPRIGHT", f, "BOTTOMRIGHT", o, -d)
-				t:SetHeight(w)
-			elseif side == "left" then
-				t:SetPoint("TOPRIGHT", f, "TOPLEFT", -d, d)
-				t:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", -d, -d)
-				t:SetWidth(w)
-			else
-				t:SetPoint("TOPLEFT", f, "TOPRIGHT", d, d)
-				t:SetPoint("BOTTOMLEFT", f, "BOTTOMRIGHT", d, -d)
-				t:SetWidth(w)
+			local h = sliceHolder(f, f.border[n], w, LINE_MARGIN, o)
+			f.border[n] = h
+			local sides = ring.top or ring.bottom or ring.left or ring.right
+			local list = sides and SIDES or WHOLE
+			for j, side in ipairs(list) do
+				local t = sliceTex(h, j, "BACKGROUND", -8, LINE_MARGIN, side and LINE_SIDE[side] or LINE_RING,
+					"CLAMP", "CLAMP", "NEAREST")
+				local c = colorOf(side and ring[side] or ring.color, b, f)
+				t:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
 			end
+			for j = #list + 1, #h.tex do h.tex[j]:Hide() end
+			d = o
 		end
-		d = o
 	end
-	for i = n + 1, #tex do tex[i]:Hide() end
+	for i = n + 1, #f.border do f.border[i]:Hide() end
 	return d
-end
-
-local function drawCaps(f, caps, out, b)
-	local t = f.frameCaps
-	if not caps then
-		if t then for _, x in ipairs(t) do x:Hide() end end
-		return 0
-	end
-	if not t then
-		t = {}
-		for i = 1, 8 do t[i] = f:CreateTexture(nil, "BACKGROUND", nil, -7) end
-		f.frameCaps = t
-	end
-	local px = W.linePx(f, pxOf(caps.px, b))
-	local o = math.max(out, px)
-	local len = o + W.linePx(f, caps.len or 6)
-	local c = colorOf(caps.color, b, f)
-	for i, corner in ipairs(CORNERS) do
-		local point, x, y = corner[1], corner[2] * o, corner[3] * o
-		local along, down = t[2 * i - 1], t[2 * i]
-		along:SetSize(len, px)
-		down:SetSize(px, len)
-		for _, a in ipairs({ along, down }) do
-			a:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
-			a:ClearAllPoints()
-			a:SetPoint(point, f, point, x, y)
-			a:Show()
-		end
-	end
-	return o - out
 end
 
 local function setArt(t, art)
@@ -173,31 +171,13 @@ end
 
 -- A 9-slice frame round the icon, outside its edge; returns how far it reaches.
 local function drawSlice(f, art)
-	local h = f.frameArt
-	if not (art and art.margin) then
-		if h then h:Hide() end
+	local px = art and art.margin and W.linePx(f, art.px) or 0
+	if px <= 0 then   -- SetScale refuses 0
+		if f.frameArt then f.frameArt:Hide() end
 		return 0
 	end
-	if not h then
-		h = CreateFrame("Frame", nil, f)
-		h:EnableMouse(false)
-		h.tex = h:CreateTexture(nil, "ARTWORK")
-		h.tex:SetAllPoints()
-		f.frameArt = h
-	end
-	local px = W.linePx(f, art.px)
-	local k = px / art.margin
-	if k <= 0 then h:Hide(); return 0 end   -- SetScale refuses 0
-	h:SetScale(k)
-	-- Anchored, not sized (f's size can be secret); offsets are in h's scale
-	h:ClearAllPoints()
-	h:SetPoint("TOPLEFT", f, "TOPLEFT", -art.margin, art.margin)
-	h:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", art.margin, -art.margin)
-	h:SetFrameLevel(f:GetFrameLevel())
-	h.tex:SetTexture(art.file)
-	h.tex:SetTextureSliceMargins(art.margin, art.margin, art.margin, art.margin)
-	h.tex:SetTextureSliceMode(STRETCHED)
-	h:Show()
+	f.frameArt = sliceHolder(f, f.frameArt, px, art.margin, px)
+	sliceTex(f.frameArt, 1, "ARTWORK", 0, art.margin, art.file)
 	return px
 end
 
@@ -322,6 +302,16 @@ local function drawSwipe(f, look)
 	for _, cd in ipairs(swipers[f] or {}) do swipeOne(f, cd, look) end
 end
 
+-- How far in from f's edge its picture shows under its border's art (a part drawn in the icon keeps
+-- inside it: a time bar, the countdown)
+function SA.pictureInset(f)
+	local look = swipeLooks[f]
+	if not (look and look.swipeInset) then return 0 end
+	local w = f:GetWidth()
+	if ns.isSecret(w) then return 0 end
+	return look.swipeInset * w
+end
+
 function SA.followSwipe(f, cd)
 	local list = swipers[f] or {}
 	swipers[f] = list
@@ -354,7 +344,6 @@ function SA.inset(f, b, w, shape)
 	if not look then return 0 end
 	local out = 0
 	for _, ring in ipairs(look.rings or {}) do out = out + W.linePx(f, pxOf(ring.px, b)) end
-	if look.caps then out = math.max(out, W.linePx(f, pxOf(look.caps.px, b))) end
 	local art = look.art
 	if art and art.margin then out = math.max(out, W.linePx(f, art.px))
 	elseif art and art.inset then
@@ -392,7 +381,6 @@ function SA.applyBorder(f, b, shape)
 	local look = drawnLook(b, shape)
 	if not look then
 		drawRings(f, nil, b)
-		drawCaps(f, nil)
 		drawOverlay(f, nil)
 		drawSlice(f, nil)
 		drawMask(f, nil)
@@ -401,7 +389,6 @@ function SA.applyBorder(f, b, shape)
 		return
 	end
 	local out = drawRings(f, look.rings, b)
-	out = out + drawCaps(f, look.caps, out, b)
 	drawOverlay(f, look.art)
 	out = math.max(out, drawSlice(f, look.art))
 	local mask = maskOf(look)
@@ -473,9 +460,6 @@ S.addLook("border", "hairline", { name = "Gold hairline", group = "lines",
 S.addLook("border", "bevel", { name = "Bronze bevel", group = "lines", uses = { size = true },
 	rings = { { color = BLACK }, { px = "size", top = BRONZE_HI, left = BRONZE_HI, bottom = BRONZE_LO, right = BRONZE_LO },
 		{ color = BRONZE_DARK } } })
-S.addLook("border", "caps", { name = "Corner caps", group = "lines",
-	uses = { size = true, color = true, capSize = true, capColor = true },
-	rings = { { px = "size", color = "color" } }, caps = { px = "capSize", len = 6, color = "capColor" } })
 S.addLook("border", "cdm", { name = "Cooldown Manager", group = "blizzard",
 	mask = { atlas = CDM_MASK }, swipe = CDM_SWIPE, art = { atlas = CDM_OVERLAY, inset = { 0.18, 0.18, 0.16, 0.16 } } })
 S.addLook("border", "button", { name = "Forever action button", group = "blizzard",

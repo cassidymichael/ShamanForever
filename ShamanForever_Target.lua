@@ -22,11 +22,15 @@ local setting = E.setting
 -- Rows: the class's target elements
 -- Rows of the buff kind (_Buffs lists the aura fields its builder reads). Here: unit = "target",
 -- which needs proc = true; parts missing (needs auraKey), engineExpire (needs missing and duration,
--- the aura's full length), skipLong (below); page texts idleText, procHeader, popTip, glowTip,
--- upLabel, idleLabel.
+-- the aura's full length), skipLong (below), power and range (_CastStates); page texts idleText,
+-- procHeader, popTip, glowTip, upLabel, idleLabel, castNote and castTips (its cast states').
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
-		unit = "target", proc = true, duration = 12,
+		power = true, range = true, unit = "target",
+		castNote = "Only while your " .. Spells.name("flameShock") .. " is on your target, as an overlay: Blizzard's "
+			.. "own button draws this icon.",
+		castTips = { range = "While your " .. Spells.name("flameShock") .. " is on your target and it's out of "
+			.. "range." }, proc = true, duration = 12,
 		icon = 135813, school = "fire", blurb = "Shows while your Flame Shock is on your target.",
 		styles = { glow = { look = "soft" }, uptime = { text = true, bar = true, barEdge = "bottom" } },
 		idleChoices = {
@@ -49,7 +53,7 @@ local TARGET = {
 		-- Skip long buffs: only those lasting at most Longest buff (maxDuration also leaves out buffs with
 		-- no end)
 		candidates = function(def) return { includeDispelTypes = { Magic = true }, maxDuration = TG.longest(def) } end,
-		idleText = "Idle while your target has nothing to purge", procHeader = "Something to purge",
+		idleText = "Idle while your target has nothing to purge", procHeader = "Magic buff on target",
 		ownIcon = true, noTimer = true, skipLong = true,
 		popTip = "Each time a new buff lands on your target, or you target one that has one.",
 		glowTip = "While your target has one.",
@@ -169,7 +173,7 @@ function styleExpireText(def, slot, st, secs)
 	if textOn then
 		def.textHolder:SetFrameLevel(def.frame.textFrame:GetFrameLevel() + 15)
 		ns.Media.setFont(fs, key, st.textSize)
-		ns.Timer.placeText(fs, b, st, t and t.barOn, t and t.dual)
+		ns.Timer.placeText(fs, b, st, t and t.barIn, t and t.dual)
 		if ns.try("target countdown " .. key, b.SetDurationText, b, fs,
 			{ textColor = { curve = textOn, property = REMAINING } }) then
 			def.textHanded = true
@@ -310,10 +314,17 @@ ns.registerPart("skipLong", {
 	kind = "buff", after = "breath",
 	defaults = { skipLong = false, skipLongMins = 2 },
 	ranges = { skipLongMins = { 1, 60, 1 } },
-	page = { own = { "toggle", title = "Track", name = "skipLong", label = "Skip long buffs",
-		tip = "Leaves out buffs that last longer than Longest buff, and buffs with no end.",
-		sub = { name = "skipLongMins", label = "Longest buff", tip = "Buffs up to this long count.",
-			unit = "min" } } },
+	-- Rows in the state's block, under its glow
+	page = { active = { extra = function(s, p)
+		local get, set = s.opt("skipLong")
+		local on = p:checkbox("Skip long buffs", "Leaves out buffs that last longer than Longest buff, and buffs "
+			.. "with no end.", get, set)
+		p:sub(on, get, function()
+			local minsGet, minsSet = s.opt("skipLongMins")
+			ns.Options.kit.rangeSlider(p, s.range("skipLongMins"), "Longest buff", "Buffs up to this long count.",
+				function(v) return string.format("%d min", v) end, minsGet, minsSet)
+		end)
+	end } },
 })
 
 -- 0 while the container may show the last target's aura (stale)
@@ -338,32 +349,40 @@ local function sensors(def)
 	return list
 end
 
+-- Other modules' containers on the target (Shocks' marks): x = { container, restyle(x), wanted() },
+-- followed with the rows while wanted (else at no unit); restyle runs when x.stale changes. The
+-- container may come later.
+local FOLLOWERS = {}
+local function unitFor(x, unit) return (not x.wanted or x.wanted()) and unit or "none" end
+
 -- Slots follow the target: pointed at it while attackable, refreshed on a change between targets,
--- at no unit otherwise. A failed call leaves def.pointedAt nil, so the next refresh retries.
+-- at no unit otherwise. A failed call leaves x.pointedAt nil, so the next refresh retries.
+local function pointAt(x, c, unit, restyle)
+	local ok = true
+	if x.pointedAt ~= unit then
+		ok = ns.try("target aura unit", c.SetUnit, c, unit)
+	elseif unit == "target" then
+		ok = ns.try("target aura refresh", c.UpdateAllAuras, c)
+	end
+	if ok then
+		x.pointedAt = unit
+		if x.stale then
+			x.stale = false
+			restyle(x)
+		end
+	else
+		x.pointedAt, x.stale = nil, true
+		x.failed = (x.failed or 0) + 1
+		restyle(x)
+		ns.retryAfterCombat("target retarget", function() retarget() end)
+	end
+end
+
 function retarget(only)
 	local unit = wantedUnit()
 	for _, def in ipairs(ROWS) do
 		local c = (only == nil or only == def) and def.aura.container
-		if c then
-			local ok = true
-			if def.pointedAt ~= unit then
-				ok = ns.try("target aura unit", c.SetUnit, c, unit)
-			elseif unit == "target" then
-				ok = ns.try("target aura refresh", c.UpdateAllAuras, c)
-			end
-			if ok then
-				def.pointedAt = unit
-				if def.stale then
-					def.stale = false
-					gateAlpha(def)
-				end
-			else
-				def.pointedAt, def.stale = nil, true
-				def.failed = (def.failed or 0) + 1
-				gateAlpha(def)
-				ns.retryAfterCombat("target retarget", function() retarget() end)
-			end
-		end
+		if c then pointAt(def, c, unit, gateAlpha) end
 		if only == nil or only == def then
 			for _, look in ipairs(sensors(def)) do
 				if not look:follow(unit) then
@@ -372,9 +391,28 @@ function retarget(only)
 			end
 		end
 	end
+	if only ~= nil then return end
+	for _, x in ipairs(FOLLOWERS) do
+		if x.container then pointAt(x, x.container, unitFor(x, unit), x.restyle) end
+	end
+end
+
+-- Followers not on the unit they want yet (a new one, a call that failed, a change of wanted())
+local function followAll()
+	local unit = wantedUnit()
+	for _, x in ipairs(FOLLOWERS) do
+		local want = unitFor(x, unit)
+		if x.container and x.pointedAt ~= want then pointAt(x, x.container, want, x.restyle) end
+	end
+end
+TG.refollow = followAll
+function TG.follow(x)
+	table.insert(FOLLOWERS, x)
+	followAll()
 end
 
 local HOSTILE = "[@target,harm,nodead] show; hide"
+TG.HOSTILE = HOSTILE
 local function driveGate(def)
 	if def.driven or not def.aura.container or InCombatLockdown() then return end
 	def.driven = true
@@ -572,6 +610,7 @@ end
 function TG.refresh()
 	checkAll()
 	for _, def in ipairs(ROWS) do refreshAura(def) end
+	followAll()
 end
 TG.tick = TG.refresh
 

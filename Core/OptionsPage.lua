@@ -381,6 +381,29 @@ local function textLink(parent, text, onClick, pad)
 end
 Page.textLink = textLink
 
+-- A yellow link that goes somewhere else in the options; tip: a tooltip line
+function Page.goLink(parent, text, onClick, tip)
+	local b = CreateFrame("Button", nil, parent)
+	b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	b.text:SetPoint("LEFT")
+	b.text:SetText(text)
+	b:SetSize(b.text:GetStringWidth() + 4, 16)
+	b:SetScript("OnClick", onClick)
+	b:SetScript("OnEnter", function()
+		b.text:SetTextColor(1, 0.93, 0.6)
+		if not tip then return end
+		GameTooltip:SetOwner(b, "ANCHOR_RIGHT")
+		GameTooltip:SetText(text)
+		GameTooltip:AddLine(tip, 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	b:SetScript("OnLeave", function()
+		b.text:SetTextColor(1, 0.82, 0)
+		if tip then GameTooltip:Hide() end
+	end)
+	return b
+end
+
 local function placeResets(header, foldRow)
 	if header then header.reset:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", 0, 5) end
 	if foldRow then foldRow.resetAll:SetPoint("LEFT", foldRow, "LEFT", 4, 0) end
@@ -783,6 +806,25 @@ function Page:anchor(name)
 	self.anchors[name] = self.items[#self.items].frame
 end
 
+-- Unfolds frame's block and scrolls it to the top once laid out, then after()
+function Page:scrollTo(frame, after)
+	self:reveal(frame)
+	C_Timer.After(0, function()
+		if not frame:IsVisible() then return end
+		local top, y = self.content:GetTop(), frame:GetTop()
+		if top and y then
+			self.scroll:SetVerticalScroll(math.max(0, math.min(top - y - 8, self.scroll:GetVerticalScrollRange())))
+		end
+		if after then after() end
+	end)
+end
+
+-- To an anchor on this page, flashing it
+function Page:goTo(name)
+	local f = self.anchors and self.anchors[name]
+	if f then self:scrollTo(f, function() self:flash(f) end) end
+end
+
 local HELP_GREY = 0.72
 function Page:text(str, shown)
 	local f = self:row(20)
@@ -995,8 +1037,38 @@ function Page:pin(h)
 	h:SetPoint("TOPRIGHT", win, "TOPRIGHT", -22, PAGE_TOP)
 	h:Hide()
 	self.fixed = h
-	self.scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, PAGE_TOP - (h.heroH or ns.OptionsArt.HERO_H))
+	local top
+	local function place()
+		local was = top
+		top = PAGE_TOP - (h.heroH or ns.OptionsArt.HERO_H)
+		if was and was ~= top then self:holdScroll(was - top) end
+		self.scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, top)
+	end
+	h.onHeight = place
+	place()
 	return h
+end
+
+-- The view's top moves down by shift (a taller header): what the player is looking at stays where it
+-- is on screen, held over the next frames as the range settles
+function Page:holdScroll(shift)
+	local offset = self.scroll:GetVerticalScroll() + shift
+	local hold = { offset = offset }
+	for _, it in ipairs(self.items) do
+		if it.visible and it.y and it.y + it.h > offset then
+			hold.row, hold.dy = it, offset - it.y
+			break
+		end
+	end
+	self.hold = hold
+	C_Timer.After(0, function()
+		self:keepScroll()
+		C_Timer.After(0, function()
+			if self.hold ~= hold then return end
+			self:keepScroll()
+			self.hold = nil
+		end)
+	end)
 end
 
 function Page:hero(key)
@@ -1115,16 +1187,21 @@ function Page:copyField(label, value, icon, color)
 		fs:SetPoint("LEFT", 30, 0)
 		fs:SetWidth(LABEL_W - 34)
 	end
-	local e = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
-	e:SetSize(380, 20)
-	e:SetPoint("LEFT", f, "LEFT", LABEL_W + 6, 0)
+	Page.copyBox(f, value, 380):SetPoint("LEFT", f, "LEFT", LABEL_W + 6, 0)
+	return self:add(f, 30)
+end
+
+-- A box holding value to copy: a click selects it all, typing changes nothing
+function Page.copyBox(parent, value, width)
+	local e = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
+	e:SetSize(width, 20)
 	e:SetAutoFocus(false)
 	e:SetText(value)
 	e:SetCursorPosition(0)
 	e:SetScript("OnTextChanged", function(box, user) if user then box:SetText(value); box:HighlightText() end end)
 	e:SetScript("OnEditFocusGained", function(box) box:HighlightText() end)
 	e:SetScript("OnEscapePressed", e.ClearFocus)
-	return self:add(f, 30)
+	return e
 end
 
 function Page:experimental(name, where)

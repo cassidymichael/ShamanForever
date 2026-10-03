@@ -74,11 +74,13 @@ function KD.parts(kind) return listOf(kind, "parts") end
 function KD.slots(kind) return listOf(kind, "slots") end
 
 -- spec: parts (part names in page and preview order; the first is the kind's own, which every
--- element of the kind has), slots (its page's standard blocks in order: own, warn, cooldown, gcd,
--- uptime, ready, active, expire, killed), prepare(def) (before its parts are kept; it may read
--- part words, but not from a part whose has() reads what prepare sets), page(p, def) (else the
--- parts page), preview(def, key) (else one made from its parts). parts and slots add to the lists;
--- the rest replace, so a module and its options file can each give their half.
+-- element of the kind has), slots (its page's standard blocks in list order; those registered as
+-- style slots (K.registerSlot) go in its Style section, still in list order; own blocks' warnings
+-- are drawn after warn, so a kind whose own blocks have one lists warn), prepare(def) (before its
+-- parts are kept; it may read part words, but not from a part whose has() reads what prepare
+-- sets), page(p, def) (else the parts page), preview(def, key) (else one made from its parts).
+-- parts and slots add to the lists; the rest replace, so a module and its options file can each
+-- give their half.
 -- A preview, whether made by hand or from parts:
 --   states             { { id, label }, ... }; the first is shown first
 --   typical, warning   the state /sf preview shows in Preview and in Warnings (else the first)
@@ -88,6 +90,8 @@ function KD.slots(kind) return listOf(kind, "slots") end
 --   idles(st, when)    whether st goes idle once its moment has played, at Idle when = when
 --   standIn(ic)        /sf preview made ic, its stand-in: add what render expects on it
 --   hold(ic)           /sf preview paints ic over the element (nil: it ended)
+--   reach(ic)          how far parts drawn outside the icon reach out of ic on its left, right, top
+--                      and bottom, in pixels: the header's preview grows for them
 -- A bar's preview, drawn on its page's header instead: stage, heroH, build(h), render(h, st, kit),
 -- stateShown(st), fallback (the state while the shown one is hidden).
 local LISTS = { parts = true, slots = true }

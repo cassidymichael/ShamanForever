@@ -8,7 +8,7 @@ local P = ns.Profiles
 local W = ns.Widgets
 local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
-local Spells, R, KD = ns.Spells, ns.Reagents, ns.Kinds
+local Spells, R, KD, CS = ns.Spells, ns.Reagents, ns.Kinds, ns.CastStates
 
 local CD = { name = "cooldowns" }
 ns.Cooldowns = CD
@@ -136,7 +136,7 @@ end
 
 ns.registerKind("cooldown", {
 	parts = { "cooldown", "ready", "readyGlow", "window", "primed" },
-	slots = { "own", "warn", "cooldown", "gcd", "uptime", "ready", "active", "expire", "killed" },
+	slots = { "own", "warn", "cast", "ready", "active", "expire", "killed", "cooldown", "gcd", "uptime" },
 	prepare = function(def)
 		def.expires = hasUptime(def) and def.expireLooks ~= false
 		checkFrames(def)
@@ -160,7 +160,6 @@ local function makeCooldownIcon(def)
 		f.readyGlow = ns.Effects.glow(f.readyGate, f, def.key)
 	end
 	if KD.words("cooldown", def, "warn") then f.warn = W.makeWarnOverlay(f) end
-	-- Layers, bottom up: icon, warning, swipe, timer bar, text
 	f.stack()
 	return f
 end
@@ -174,6 +173,7 @@ for _, def in ipairs(COOLDOWNS) do
 		paint = function(t) t:SetTexture(def.iconID or def.icon) end, ranges = def.ranges,
 		kind = "cooldown", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
 		experimental = def.experimental, race = def.race, styles = def.styles, timerCant = def.timerCant })
+	if def.power or def.range then CS.watchRow(def) end
 end
 
 -- GCD and own cooldown
@@ -239,8 +239,9 @@ function CD.resetReady(f)
 	f.ownCd:Clear()
 end
 function CD.readyNow(f) return f.ready ~= nil and f.ready.at == GetTime() end
--- Timer duration by the Global cooldown style; nil when unreadable. Duration objects only go to
--- widgets (secret in combat).
+-- Timer duration by the Global cooldown style, then the time bar's: the spell's own cooldown only,
+-- never the GCD (false: none); nil when unreadable. Duration objects only go to widgets (secret in
+-- combat).
 local function cooldownFor(f, key, spellID, inEvent)
 	watchEnds(f)
 	local st = plainCooldown(spellID)
@@ -253,7 +254,7 @@ local function cooldownFor(f, key, spellID, inEvent)
 		local gok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID)
 		if not (gok and dur) then return nil end
 		f.cd:SetDrawBling(st ~= "gcd")
-		return dur
+		return dur, ok and own or false
 	end
 	f.cd:SetDrawBling(true)
 	if ok and not own then f.cdTimer:clear() end
@@ -414,8 +415,8 @@ function refreshCooldown(def, inEvent)
 		if f.warn then f.warn:SetAlpha(0) end
 		return
 	end
-	local dur = cooldownFor(f, def.key, def.spellID, inEvent)
-	if dur then f.cdTimer:set(dur) end
+	local dur, bar = cooldownFor(f, def.key, def.spellID, inEvent)
+	if dur then f.cdTimer:set(dur, bar) end
 	f.tex:SetDesaturated(false)
 	local held = isActive(def)
 	if def.primed then showPrimed(def, held) end
@@ -462,7 +463,10 @@ for _, def in ipairs(COOLDOWNS) do
 	end
 	popWhenReady(def.frame, def.key, gate)
 	if not def.noReady then soundWhenReady(def.frame, def.key, gate) end
-	def.frame.cd:HookScript("OnCooldownDone", function() C_Timer.After(0, function() refreshCooldown(def) end) end)
+	-- The swipe's end, and the spell's own (the time bar's), which can end inside a GCD
+	for _, cd in ipairs({ def.frame.cd, def.frame.ownCd }) do
+		cd:HookScript("OnCooldownDone", function() C_Timer.After(0, function() refreshCooldown(def) end) end)
+	end
 end
 
 local function styleCooldown(def)

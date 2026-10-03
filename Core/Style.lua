@@ -14,8 +14,10 @@ local function before(a, b)
 	return registered[a] < registered[b]
 end
 -- Part spec: defaults; ranges (its numbers' { min, max, step }: S.clean holds them there); path (where
--- it is saved); groups, elements (groups or elements can have their own); label and short: its name
--- in an element's list of own styles, none to leave it out; order: its place there, as on the pages
+-- it is saved); inState (an element keeps it in a state's table, beside the state's own fields);
+-- groups, elements (groups or elements can have their own); has(key) (only those elements can);
+-- label and short: its name in an element's list of own styles, none to leave it out; order: its
+-- place there, as on the pages
 function S.register(part, spec)
 	if not S.PARTS[part] then
 		table.insert(S.ORDER, part)
@@ -38,14 +40,14 @@ S.register("glow", {
 	ranges = { speed = { 0.2, 2, 0.1 }, low = { 0, 1, 0.05 }, width = { 0.1, 0.5, 0.05 }, strength = { 0.2, 2.5, 0.1 },
 		lap = { 0.6, 4, 0.1 }, scale = { 0.5, 2, 0.1 }, drift = { 0.25, 3, 0.05 } },
 	path = { "glowStyle" },
-	elements = true, label = "Pulsing glow", short = "glow", order = 3,
+	elements = true, label = "Pulsing glow", short = "glow", order = 4,
 })
 S.register("pop", {
 	defaults = { colorBy = "event", flash = "plain", burst = "star", motion = "shakeV", size = 1.4, speed = 1,
 		reach = 1 },
 	ranges = { size = { 1.1, 1.8, 0.05 }, speed = { 0.5, 2, 0.1 }, reach = { 0.6, 1.3, 0.05 } },
 	path = { "popStyle" },   -- not "pop": a bar may have its own setting of that name
-	elements = true, label = "Pop", short = "pop", order = 4,
+	elements = true, label = "Pop", short = "pop", order = 5,
 })
 -- Global cooldown sweep
 S.register("gcd", {
@@ -54,11 +56,29 @@ S.register("gcd", {
 	elements = true,
 })
 S.register("border", {
-	defaults = { show = true, look = "line", size = 2, color = { 0, 0, 0, 1 }, capSize = 3,
-		capColor = { 0.85, 0.68, 0.39, 1 } },
-	ranges = { size = { 1, 8, 1 }, capSize = { 1, 8, 1 } },
+	defaults = { show = true, look = "line", size = 2, color = { 0, 0, 0, 1 } },
+	ranges = { size = { 1, 8, 1 } },
 	path = { "border" },
-	elements = true, label = "Border", short = "border", order = 5,
+	elements = true, label = "Border", short = "border", order = 3,
+})
+-- Cast states (_CastStates): its paint while the spell's cost can't be paid, and while its target is
+-- out of range. look: tint | overlay | both. Saved in the state's table on an element.
+local PAINT = { 0.1, 1, 0.05 }
+S.register("power", {
+	defaults = { look = "both", overlay = 0.25, tint = 0.8, ring = 0.6 },
+	ranges = { overlay = PAINT, tint = PAINT, ring = PAINT },
+	path = { "mana" },   -- the state table's saved name
+	inState = true,
+	elements = true, has = function(key) return ns.CastStates.has(key, "power") end,
+	label = ns.CLASS.power.name, short = ns.CLASS.power.name:lower(), order = 5.1,
+})
+S.register("range", {
+	defaults = { look = "tint", overlay = 0.45, tint = 0.7 },
+	ranges = { overlay = PAINT, tint = PAINT },
+	path = { "range" },
+	inState = true,
+	elements = true, has = function(key) return ns.CastStates.has(key, "range") end,
+	label = "Out of range", short = "range", order = 5.2,
 })
 -- Art frames: round each element, and round a group or bar
 S.register("frame", {
@@ -280,6 +300,11 @@ function S.endReads()
 	if readDepth <= 0 then reads, readDepth = nil, 0 end
 end
 local function forget() if reads then reads = {} end end
+-- An owner whose styles were written straight into it (a sample tile's sandbox)
+function S.forget(owner)
+	if not reads then return end
+	for _, t in pairs(reads) do t[owner == nil and GLOBAL or owner] = nil end
+end
 
 local function memo(name, fn, owner, part)
 	if not reads then return fn(owner, part) end
@@ -344,6 +369,13 @@ function S.reset(owner, part)
 		parent = parent[path[i]]
 	end
 	if type(parent) ~= "table" then return end
+	local t = parent[path[last]]
+	if owner ~= nil and spec.inState then
+		if type(t) ~= "table" then return end
+		for k in pairs(spec.defaults) do t[k] = nil end
+		t.follow = nil
+		return
+	end
 	parent[path[last]] = owner == nil and clean(nil, spec.defaults, spec.ranges) or nil
 end
 
