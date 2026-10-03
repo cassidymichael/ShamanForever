@@ -678,6 +678,7 @@ local function idleBlock(p, def)
 	local function when() return ns.elementSetting(key, "idleWhen") end
 	local function never() return choices ~= nil and when() == "never" end
 	p:header("Idle")
+	local hidden = ". At 0% it's hidden and keeps its place in the group."
 	if choices then
 		local options, tips = {}, {}
 		for _, c in ipairs(choices) do
@@ -687,8 +688,7 @@ local function idleBlock(p, def)
 		p:text(function()
 			for _, c in ipairs(choices) do
 				if c[1] == when() then
-					return c[3]:format(def.idleAlso or "") .. (c[1] == "never" and "."
-						or ". At 0% it's hidden and keeps its place in the group.")
+					return c[3]:format(def.idleAlso or "") .. (c[1] == "never" and "." or hidden)
 				end
 			end
 			return ""
@@ -696,8 +696,7 @@ local function idleBlock(p, def)
 		local whenGet, whenSet = eopt(p, key, "idleWhen")
 		p:dropdown("Idle when", table.concat(tips, " "), options, whenGet, whenSet, nil, 230)
 	else
-		p:text((def.idleText or "Idle while it isn't up")
-			.. ". At 0% it's hidden and keeps its place in the group.")
+		p:text((def.idleText or "Idle while it isn't up") .. hidden)
 	end
 	local extra = def.idleExtra
 	if extra then
