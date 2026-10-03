@@ -104,7 +104,8 @@ end
 -- slot looping through its steps like an element, step returning when it ends; secure: its frames are
 -- protected (its top frame's parent is Bars.parent(true)); whileOff = { frame, noun() }: a protected
 -- frame shown while off and hidden while on (by the on-off toggle in combat too, else out of combat),
--- and how a sentence names what it brings back (nil when it brings nothing back now).
+-- and how a sentence names what it brings back (nil when it brings nothing back now); stays():
+-- what stays on screen while on until combat ends (nil when nothing does).
 -- Options: icon, school, blurb, tags() and preview (its page header: a stage, as _Kinds says); page
 -- = { order, build } (titled and iconned as the bar); experiments = { { name, where } } (About's
 -- list); ownSize() (its icon size isn't Global's); tiles = { icon, schools, border() } (its style
@@ -855,6 +856,17 @@ local function backAfterCombat()
 	if #list == 0 then return nil end
 	return table.concat(list, " and ")
 end
+-- What stays on screen, on again in combat, until combat ends
+local function staysAfterCombat()
+	if not InCombatLockdown() then return nil end
+	local list = {}
+	for _, w in ipairs(whileOffs) do
+		local noun = w.stays and w.stays()
+		if noun then table.insert(list, noun) end
+	end
+	if #list == 0 then return nil end
+	return table.concat(list, " and ")
+end
 -- The toggle's key, or how to click it from a macro
 local function toggleKey()
 	local key = GetBindingKey(TOGGLE_BINDING)
@@ -862,7 +874,7 @@ local function toggleKey()
 	return "/click " .. ns.NAME .. "Toggle"
 end
 -- What it says: the slash commands, the toggle, Turn on and a login while off say the same
-local function sayOff(off, waiting, back)
+local function sayOff(off, waiting, back, stays)
 	local cmd = ns.CLASS.slash[1]
 	if off and (waiting or back) then
 		local parts = {}
@@ -872,6 +884,7 @@ local function sayOff(off, waiting, back)
 			toggleKey())
 	elseif off then say("off: nothing shows or plays until %s enable", cmd)
 	elseif waiting then say("on, but %s comes back when combat ends. %s brings it back now", waiting, toggleKey())
+	elseif stays then say("on, but %s stays until combat ends", stays)
 	else say("on") end
 end
 -- Saved for the character, and said in chat; returns whether it changed. how: "toggle" after the
@@ -881,7 +894,7 @@ local function setOff(want, how)
 	if want == ns.isOff() then
 		if how == "toggle" then
 			ns.offApplied()
-			sayOff(want, nil)
+			sayOff(want, nil, nil, not want and staysAfterCombat() or nil)
 		elseif want then say("already off: %s enable turns it back on", ns.CLASS.slash[1])
 		else say("already on") end
 		return false
@@ -900,7 +913,7 @@ local function setOff(want, how)
 	layoutElements()
 	if not want then refreshAll() end
 	ns.changed()
-	sayOff(want, waiting, back)
+	sayOff(want, waiting, back, not want and staysAfterCombat() or nil)
 	return true
 end
 toggle:SetScript("PostClick", function(_, _, down)

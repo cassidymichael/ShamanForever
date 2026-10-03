@@ -1819,6 +1819,10 @@ Bars.register("totembar", { label = "Totem bar", cfg = cfg, saved = "totemBar", 
 	whileOff = { frame = hiddenParent, noun = function()
 		local f = MultiCastActionBarFrame
 		return f and f:GetParent() == hiddenParent and "Blizzard's Totem Action Bar" or nil
+	end, stays = function()
+		local f = MultiCastActionBarFrame
+		return f and replacesBlizzard() and cfg().mode == "everything" and f:GetParent() ~= hiddenParent
+			and "Blizzard's Totem Action Bar" or nil
 	end },
 	parts = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
 	-- Its theme can draw its own border
