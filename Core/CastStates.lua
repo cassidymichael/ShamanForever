@@ -303,6 +303,11 @@ function CS.start()
 		if event == "SPELL_UPDATE_USABLE" or event == "UNIT_POWER_UPDATE" then refresh("power")
 		else refresh("range") end
 	end)
+	-- A cover switched on in combat is made now
+	ns.onCombatEnd(function()
+		for _, w in ipairs(WATCHES) do styleCover(w) end
+		refresh()
+	end)
 end
 
 -- What the cover shows now: its paint, and whether its hold lets it through (while the aura is up)
