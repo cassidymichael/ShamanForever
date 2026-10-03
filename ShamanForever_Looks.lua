@@ -926,7 +926,7 @@ Looks.POP_KINDS = {
 	grounded = { color = { 0.56, 0.76, 0.92 } },
 	blocked = { color = { 0.6, 0.6, 0.6 } },   -- ready but can't be cast
 }
--- The byStyle kinds as a set, for the options' Pop style block
+-- The byStyle kinds as a set
 Looks.POP_EVENTS = {}
 for kind, k in pairs(Looks.POP_KINDS) do Looks.POP_EVENTS[kind] = k.byStyle or nil end
 

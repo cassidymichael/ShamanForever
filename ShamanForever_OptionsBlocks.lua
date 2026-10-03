@@ -425,7 +425,7 @@ local function popBlock(p, owner, kind)
 	p:header("Pop style")
 	local r = styleRows(p, owner, "pop", after)
 	-- Colour is for Ready and Ran out only; a warning's pop keeps its own.
-	local colored = ns.Looks.POP_EVENTS[kind]
+	local colored = ns.Looks.POP_KINDS[kind].byStyle
 	local function burst() return ns.Style.choice("pop", "burst", r.style().burst) end
 	local function bySchool()
 		return (colored and r.style().colorBy == "school") or burst().bySchool or false
