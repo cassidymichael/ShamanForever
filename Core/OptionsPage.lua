@@ -2,7 +2,7 @@
 
 local _, ns = ...
 local W = ns.Widgets
-local E, G, Bars, P = ns.Elements, ns.Groups, ns.Bars, ns.Profiles
+local E, G, Bars, P, MOD = ns.Elements, ns.Groups, ns.Bars, ns.Profiles, ns.Modules
 
 local Page = {}
 Page.__index = Page
@@ -24,6 +24,20 @@ local SUB_INDENT, SUB_MAX, RULE_X = 24, 2, 12
 
 Page.setTip = W.setTip
 
+-- Page size: one scale on a page's blocks (the window, nav and header keep theirs), saved per account
+Page.SCALES = { { 1, "100%" }, { 0.9, "90%" }, { 0.8, "80%" } }
+local function scaleOK(v)
+	for _, c in ipairs(Page.SCALES) do if c[1] == v then return true end end
+	return false
+end
+MOD.register({ name = "page size", sanitize = function(_, acct)
+	if not scaleOK(acct.pageScale) then acct.pageScale = 1 end
+end })
+local function savedScale()
+	local a = P.getAccount()
+	return a and scaleOK(a.pageScale) and a.pageScale or 1
+end
+
 -- Pages
 function Page.new(win, key, title, indent)
 	local ok, scroll = pcall(CreateFrame, "ScrollFrame", ns.NAME .. "OptionsScroll_" .. key, win, "ScrollFrameTemplate")
@@ -38,18 +52,25 @@ function Page.new(win, key, title, indent)
 	end
 	scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, PAGE_TOP)
 	scroll:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -40, 12)
-	local content = CreateFrame("Frame", nil, scroll)
+	-- The rows sit in content, which takes the page size; the scroll frame scrolls an unscaled holder
+	-- of content's size on screen, so its range and offsets stay in its own units.
+	local holder = CreateFrame("Frame", nil, scroll)
+	holder:SetSize(ROW_W, 1)
+	local content = CreateFrame("Frame", nil, holder)
+	content:SetPoint("TOPLEFT")
 	content:SetSize(ROW_W, 1)
-	scroll:SetScrollChild(content)
+	holder.content = content
+	scroll:SetScrollChild(holder)
 	local page = setmetatable({ win = win, key = key, title = title, indent = indent, scroll = scroll,
-		content = content, items = {}, blockList = {}, subs = {}, pageOwns = {}, ownIds = {} }, Page)
+		holder = holder, content = content, scaled = 1, lines = {}, items = {}, blockList = {}, subs = {}, pageOwns = {},
+		ownIds = {} }, Page)
 	scroll:SetScript("OnSizeChanged", function(self, w)
-		if not Page.resizing then content:SetWidth(w) end
+		if not Page.resizing then page:fitWidth(w) end
 		self:UpdateScrollChildRect()
 		page:keepScroll()
 		if not Page.resizing then ns.Options.refresh() end
 	end)
-	content:SetScript("OnSizeChanged", function() scroll:UpdateScrollChildRect() end)
+	holder:SetScript("OnSizeChanged", function() scroll:UpdateScrollChildRect() end)
 	-- Blizzard's handler re-sets the position from its scroll bar's fraction: the held place is put
 	-- back after it.
 	scroll:HookScript("OnScrollRangeChanged", function() if page.hold then page:keepScroll() end end)
@@ -66,15 +87,7 @@ local resized
 function Page.startResize(page)
 	if not page then return end
 	Page.resizing, resized = true, page
-	local offset = page.scroll:GetVerticalScroll()
-	local hold = { offset = offset }
-	for _, it in ipairs(page.items) do
-		if it.visible and it.y and it.y + it.h > offset then
-			hold.row, hold.dy = it, offset - it.y
-			break
-		end
-	end
-	page.hold = hold
+	page.hold = page:holdHere()
 end
 
 function Page.endResize()
@@ -82,9 +95,8 @@ function Page.endResize()
 	Page.resizing, resized = nil, nil
 	if not page then return end
 	for _, p in ipairs(allPages) do
-		local w = p.scroll:GetWidth()
-		if math.abs(p.content:GetWidth() - w) > 0.5 then
-			p.content:SetWidth(w)
+		if math.abs(p.holder:GetWidth() - p.scroll:GetWidth()) > 0.5 then
+			p:fitWidth(p.scroll:GetWidth())
 			p.scroll:UpdateScrollChildRect()
 		end
 	end
@@ -101,7 +113,33 @@ function Page.endResize()
 	end)
 end
 
--- At a range of 0 it waits for the next range change.
+-- What the view shows: the first row reaching below the view's top, shift lower (content's units)
+function Page:holdHere(shift)
+	local offset = (self.scroll:GetVerticalScroll() + (shift or 0)) / self.scaled
+	local hold = { offset = offset }
+	for _, it in ipairs(self.items) do
+		if it.visible and it.y and it.y + it.h > offset then
+			hold.row, hold.dy = it, offset - it.y
+			break
+		end
+	end
+	return hold
+end
+
+-- Held over the next frames as the range settles
+function Page:keepHeld(hold)
+	self.hold = hold
+	C_Timer.After(0, function()
+		self:keepScroll()
+		C_Timer.After(0, function()
+			if self.hold ~= hold then return end
+			self:keepScroll()
+			self.hold = nil
+		end)
+	end)
+end
+
+-- At a range of 0 it waits for the next range change. A hold is in content's units.
 function Page:keepScroll()
 	local hold, s = self.hold, self.scroll
 	if not hold or hold.busy then return end
@@ -109,7 +147,7 @@ function Page:keepScroll()
 	if range <= 0 then return end
 	local want, row = hold.offset, hold.row
 	if row and row.visible and row.y then want = row.y + hold.dy end
-	want = math.max(0, math.min(want, range))
+	want = math.max(0, math.min(want * self.scaled, range))
 	if math.abs(s:GetVerticalScroll() - want) > 0.5 then
 		hold.busy = true
 		s:SetVerticalScroll(want)
@@ -150,11 +188,54 @@ end
 
 function Page:width() return self.rowW or self.content:GetWidth() end
 
+-- One-unit lines on a page: as shipped at 100%, whole screen pixels at a smaller size
+function Page:pixels(n) return self.scaled == 1 and n or W.linePx(self.content, n) end
+function Page:pxLine(t, wide)
+	if wide then t:SetWidth(self:pixels(1)) else t:SetHeight(self:pixels(1)) end
+end
+function Page:line(t, wide)
+	table.insert(self.lines, { t, wide })
+	self:pxLine(t, wide)
+end
+-- The client's backdrop pieces, for a one-unit backdrop edge in the same way
+local CORNERS = { "TopLeftCorner", "TopRightCorner", "BottomLeftCorner", "BottomRightCorner" }
+local function pixelEdges(page, f)
+	if f.backdropInfo == W.BACKDROP then
+		local px = page:pixels(1)
+		for _, k in ipairs(CORNERS) do if f[k] then f[k]:SetSize(px, px) end end
+		if f.TopEdge then f.TopEdge:SetHeight(px) end
+		if f.BottomEdge then f.BottomEdge:SetHeight(px) end
+		if f.LeftEdge then f.LeftEdge:SetWidth(px) end
+		if f.RightEdge then f.RightEdge:SetWidth(px) end
+	end
+	for _, kid in ipairs({ f:GetChildren() }) do pixelEdges(page, kid) end
+end
+
+-- Whether this page takes the page size: pages of blocks, unless the page keeps its real size
+function Page:scales() return not self.fullSize and self.panels ~= false and #self.blockList > 0 end
+function Page:fitWidth(w)
+	self.holder:SetWidth(w)
+	self.content:SetWidth(w / self.scaled)
+end
+-- Takes a new page size, keeping the row at the top of the view where it is
+function Page:applyScale()
+	local want = self:scales() and savedScale() or 1
+	if want == self.scaled then return end
+	local hold = self:holdHere()
+	self.scaled = want
+	self.content:SetScale(want)
+	self:fitWidth(self.scroll:GetWidth())
+	for _, l in ipairs(self.lines) do self:pxLine(l[1], l[2]) end
+	pixelEdges(self, self.content)
+	self:keepHeld(hold)
+end
+
 function Page.showWhen(active, shown)
 	return function() return (not shown or shown()) and active() and true or false end
 end
 
-local function placePanel(content, b, top, bottom)
+local function placePanel(page, b, top, bottom)
+	local content = page.content
 	if not b.panel then
 		local fill = content:CreateTexture(nil, "BACKGROUND")
 		fill:SetColorTexture(1, 0.93, 0.78, 0.035)
@@ -170,10 +251,11 @@ local function placePanel(content, b, top, bottom)
 	fill:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -top)
 	fill:SetPoint("BOTTOMRIGHT", content, "TOPRIGHT", 0, -bottom)
 	for i = 1, 4 do e[i]:ClearAllPoints() end
-	e[1]:SetPoint("TOPLEFT", fill); e[1]:SetPoint("TOPRIGHT", fill); e[1]:SetHeight(1)
-	e[2]:SetPoint("BOTTOMLEFT", fill); e[2]:SetPoint("BOTTOMRIGHT", fill); e[2]:SetHeight(1)
-	e[3]:SetPoint("TOPLEFT", fill); e[3]:SetPoint("BOTTOMLEFT", fill); e[3]:SetWidth(1)
-	e[4]:SetPoint("TOPRIGHT", fill); e[4]:SetPoint("BOTTOMRIGHT", fill); e[4]:SetWidth(1)
+	local px = page:pixels(1)
+	e[1]:SetPoint("TOPLEFT", fill); e[1]:SetPoint("TOPRIGHT", fill); e[1]:SetHeight(px)
+	e[2]:SetPoint("BOTTOMLEFT", fill); e[2]:SetPoint("BOTTOMRIGHT", fill); e[2]:SetHeight(px)
+	e[3]:SetPoint("TOPLEFT", fill); e[3]:SetPoint("BOTTOMLEFT", fill); e[3]:SetWidth(px)
+	e[4]:SetPoint("TOPRIGHT", fill); e[4]:SetPoint("BOTTOMRIGHT", fill); e[4]:SetWidth(px)
 	fill:Show()
 	for i = 1, 4 do e[i]:Show() end
 end
@@ -192,6 +274,7 @@ function Page:refresh()
 end
 
 function Page:paint()
+	self:applyScale()
 	if self.beforeRefresh then self.beforeRefresh() end
 	if self.fixed then
 		local ok, err = pcall(self.fixed.refresh, self.fixed)
@@ -205,13 +288,13 @@ function Page:paint()
 		if not b.head.shown or b.head.shown() then heads = heads + 1 end
 	end
 	self.heads = heads
-	local y, bottom = self:placeFoldRow(heads >= 2), 0
+	local y, bottom = self:placeFoldRow(heads >= 2, self:scales()), 0
 	local width = self.content:GetWidth()
 	local open, gap = nil, false
 	local function close()
 		if not open then return end
 		y = math.max(y, open.low) + PANEL_PAD_B
-		placePanel(self.content, open, open.top, y)
+		placePanel(self, open, open.top, y)
 		open.drawn = true
 		open, gap = nil, true
 	end
@@ -257,7 +340,9 @@ function Page:paint()
 	for _, b in ipairs(self.blockList) do b.painted = nil end
 	for _, run in ipairs(self.subs) do self:placeRule(run) end
 	self.rowW = nil
-	self.content:SetHeight(math.max(y, bottom, 1))
+	local h = math.max(y, bottom, 1)
+	self.content:SetHeight(h)
+	self.holder:SetHeight(h * self.scaled)
 	if self.hold then
 		self.scroll:UpdateScrollChildRect()
 		self:keepScroll()
@@ -280,8 +365,8 @@ function Page:placeRule(run)
 	if not run.rule then
 		run.rule = self.content:CreateTexture(nil, "ARTWORK")
 		run.rule:SetColorTexture(0.85, 0.71, 0.42, 0.55)
-		run.rule:SetWidth(1)
 	end
+	self:pxLine(run.rule, true)
 	local x = parent.x + RULE_X
 	run.rule:ClearAllPoints()
 	run.rule:SetPoint("TOPLEFT", self.content, "TOPLEFT", x, -top)
@@ -421,9 +506,51 @@ function Page:paintHeader(b)
 	end
 end
 
-function Page:placeFoldRow(on)
+-- Page size: the current one white, the others links
+local SIZE_GAP = 8
+local function paintSizes(row)
+	local now = savedScale()
+	for _, b in ipairs(row.sizes) do
+		local on = b.value == now
+		b:SetEnabled(not on)
+		local v = on and 1 or LINK_GREY
+		b.text:SetTextColor(v, v, v)
+	end
+end
+function Page:setSize(v)
+	if not scaleOK(v) then return end
+	P.getAccount().pageScale = v
+	ns.Options.refresh()
+end
+local function makeSizes(page, row)
+	row.sizes = {}
+	for i, c in ipairs(Page.SCALES) do
+		local b = textLink(row, c[2], function() page:setSize(c[1]) end)
+		b:SetScript("OnEnter", function() if b:IsEnabled() then b.text:SetTextColor(1, 0.82, 0) end end)
+		b:SetScript("OnLeave", function() paintSizes(row) end)
+		b.value = c[1]
+		row.sizes[i] = b
+	end
+	row.sizeLabel = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	row.sizeLabel:SetText("Size")
+end
+-- The sizes sit left of the fold links, or at the right without them
+local function placeSizes(row, folds)
+	local n = #row.sizes
+	row.sizes[n]:ClearAllPoints()
+	if folds then
+		row.sizes[n]:SetPoint("RIGHT", row.expand, "LEFT", -2 * LINK_GAP, 0)
+	else
+		row.sizes[n]:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+	end
+	for i = n - 1, 1, -1 do row.sizes[i]:SetPoint("RIGHT", row.sizes[i + 1], "LEFT", -SIZE_GAP, 0) end
+	row.sizeLabel:SetPoint("RIGHT", row.sizes[1], "LEFT", -SIZE_GAP, 0)
+end
+
+-- folds: Collapse all and Expand all; sizes: the page size
+function Page:placeFoldRow(folds, sizes)
 	local row = self.foldRow
-	if not on then
+	if not (folds or sizes) then
 		if row then row:Hide() end
 		return 0
 	end
@@ -434,12 +561,18 @@ function Page:placeFoldRow(on)
 		row.collapse:SetPoint("RIGHT", row, "RIGHT", 0, 0)
 		row.expand = textLink(row, "Expand all", function() self:foldAll(false) end)
 		row.expand:SetPoint("RIGHT", row.collapse, "LEFT", -LINK_GAP, 0)
+		makeSizes(self, row)
 		if self.resetAll then
 			row.resetAll = textLink(row, "", self.resetAll.ask, true)
 			placeResets(nil, row)
 		end
 		self.foldRow = row
 	end
+	row.collapse:SetShown(folds)
+	row.expand:SetShown(folds)
+	for _, b in ipairs(row.sizes) do b:SetShown(sizes) end
+	row.sizeLabel:SetShown(sizes)
+	if sizes then placeSizes(row, folds) end
 	row:ClearAllPoints()
 	row:SetPoint("TOPLEFT", self.content, "TOPLEFT", 0, 0)
 	row:SetPoint("TOPRIGHT", self.content, "TOPRIGHT", 0, 0)
@@ -460,6 +593,7 @@ function Page:paintFoldRow()
 		pair[1]:SetEnabled(pair[2])
 		pair[1]:SetAlpha(pair[2] and 1 or 0.45)
 	end
+	paintSizes(row)
 	if row.resetAll then
 		row.resetAll.say(self.resetAll.text())
 		row.resetAll:SetShown(self:changed())
@@ -710,7 +844,7 @@ function Page:header(text, shown, note, icon)
 	end
 	local line = f:CreateTexture(nil, "ARTWORK")
 	line:SetColorTexture(1, 1, 1, 1)
-	line:SetHeight(1)
+	self:line(line)
 	pcall(line.SetGradient, line, "HORIZONTAL", CreateColor(0.85, 0.71, 0.42, 0.45), CreateColor(0.85, 0.71, 0.42, 0))
 	line:SetPoint("BOTTOMLEFT", 0, 3)
 	line:SetPoint("BOTTOMRIGHT", 0, 3)
@@ -725,7 +859,9 @@ function Page:header(text, shown, note, icon)
 			if (self.heads or 0) < 2 then return end
 			GameTooltip:SetOwner(f, "ANCHOR_NONE")
 			GameTooltip:ClearAllPoints()
-			GameTooltip:SetPoint("BOTTOMLEFT", f, "TOPLEFT", f.textX, -4)
+			-- The offset in the tooltip's own units: the page may have a size of its own
+			local k = f:GetEffectiveScale() / GameTooltip:GetEffectiveScale()
+			GameTooltip:SetPoint("BOTTOMLEFT", f, "TOPLEFT", f.textX * k, -4 * k)
 			GameTooltip:SetText(text)
 			GameTooltip:AddLine("Shift-click to expand or collapse every block.", 1, 1, 1, true)
 			GameTooltip:Show()
@@ -766,7 +902,7 @@ function Page:section(text)
 	f.text:SetText(text)
 	local line = f:CreateTexture(nil, "ARTWORK")
 	line:SetColorTexture(0.85, 0.71, 0.42, 0.6)
-	line:SetHeight(1)
+	self:line(line)
 	line:SetPoint("BOTTOMLEFT", 0, 3)
 	line:SetPoint("BOTTOMRIGHT", 0, 3)
 	self:add(f, SECTION_H)
@@ -806,7 +942,8 @@ function Page:scrollTo(frame, after)
 		if not frame:IsVisible() then return end
 		local top, y = self.content:GetTop(), frame:GetTop()
 		if top and y then
-			self.scroll:SetVerticalScroll(math.max(0, math.min(top - y - 8, self.scroll:GetVerticalScrollRange())))
+			local at = (top - y - 8) * self.scaled
+			self.scroll:SetVerticalScroll(math.max(0, math.min(at, self.scroll:GetVerticalScrollRange())))
 		end
 		if after then after() end
 	end)
@@ -1059,23 +1196,7 @@ end
 -- The view's top moves down by shift (a taller header): what the player is looking at stays where it
 -- is on screen, held over the next frames as the range settles
 function Page:holdScroll(shift)
-	local offset = self.scroll:GetVerticalScroll() + shift
-	local hold = { offset = offset }
-	for _, it in ipairs(self.items) do
-		if it.visible and it.y and it.y + it.h > offset then
-			hold.row, hold.dy = it, offset - it.y
-			break
-		end
-	end
-	self.hold = hold
-	C_Timer.After(0, function()
-		self:keepScroll()
-		C_Timer.After(0, function()
-			if self.hold ~= hold then return end
-			self:keepScroll()
-			self.hold = nil
-		end)
-	end)
+	self:keepHeld(self:holdHere(shift))
 end
 
 function Page:hero(key)
