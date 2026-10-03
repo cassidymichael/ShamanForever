@@ -966,16 +966,6 @@ function Page:color(label, tip, get, set, shown, opaque)
 	end)
 end
 
-function Page:button(textFn, onClick, tip, width, shown)
-	local f = self:row(32)
-	local btn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-	btn:SetSize(width or 160, 22)
-	btn:SetPoint("LEFT", 0, 0)
-	btn:SetScript("OnClick", onClick)
-	Page.setTip(btn, textFn, tip)
-	return self:add(f, 32, shown, function() btn:SetText(textFn()) end)
-end
-
 function Page:buttons(list, shown)
 	local f = self:row(32)
 	local x = 0
