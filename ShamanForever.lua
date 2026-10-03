@@ -92,10 +92,10 @@ end
 -- table), defaults, ranges (its numbers' { min, max, step }, shaped as defaults), choices (as an
 -- element's: profiles drop a saved value it doesn't list), on() (it is in use:
 -- its styles are offered), kinds (style kinds it can have its own of), ownLabel(kind) (its name when
--- it draws that style itself); movable = { frame, nudge(dx, dy), lock() } (positioning); hud = {
--- show(opts), slots, steps(slot, mode), step(slot, state, at, range, moment) }: /sf preview on the
--- bar itself, show(nil) as it ends, each slot looping through its steps like an element, step
--- returning when it ends.
+-- it draws that style itself); movable (from ns.Positioning.mover: frame, nudge(dx, dy), lock(),
+-- update(); a right-click on it opens the bar's page); hud = { show(opts), slots, steps(slot, mode),
+-- step(slot, state, at, range, moment) }: /sf preview on the bar itself, show(nil) as it ends, each
+-- slot looping through its steps like an element, step returning when it ends.
 -- Options: icon, school, blurb, tags() and preview (its page header: a stage, as _Kinds says); page
 -- = { order, build } (titled and iconned as the bar); experiments = { { name, where } } (About's
 -- list); ownSize() (its icon size isn't Global's); tiles = { icon, schools, border() } (its style
@@ -126,7 +126,7 @@ function ns.registerBar(key, spec)
 	end
 	for k, v in pairs(spec) do bar[k] = v end
 	if not spec.noun and spec.label then bar.noun = "the " .. spec.label:lower() end
-	if spec.movable then ns.Positioning.addMovable(spec.movable) end
+	if spec.movable then ns.Positioning.addMovable(spec.movable, key) end
 	if spec.page then
 		ns.Options.registerPage(key, { title = bar.label, icon = bar.icon, order = spec.page.order,
 			build = spec.page.build })

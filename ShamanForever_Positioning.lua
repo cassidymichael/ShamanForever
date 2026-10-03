@@ -275,7 +275,11 @@ end
 
 -- A frame that moves on its own (a bar). m: frame, nudge(dx, dy), lock()
 -- (combat started while unlocked)
-function PO.addMovable(m) table.insert(movables, m) end
+-- bar: the key it registered under
+function PO.addMovable(m, bar)
+	m.bar = bar
+	table.insert(movables, m)
+end
 local function selectMovable(m)
 	if selectedMovable == m then return end
 	selectedGroup, selectedMovable = nil, m
@@ -285,8 +289,8 @@ end
 
 -- A bar's mover: a box over it while unlocked that drags (snapping), wheels, nudges and locks it.
 -- spec: frame (the bar), label, cfg() (point, x, y, scale, alpha), ranges, size (the plain wheel,
--- as wheel() takes it), shown() (it can be placed now), place() (lay it out again), open() (its
--- settings), describe() (the label after a wheel step), lock() (combat started).
+-- as wheel() takes it), shown() (it can be placed now), place() (lay it out again), describe() (the
+-- label after a wheel step), lock() (combat started). A right-click opens the bar's page.
 -- Returns the movable for ns.registerBar, with update() for the bar's layout.
 function PO.mover(spec)
 	local f = spec.frame
@@ -346,7 +350,7 @@ function PO.mover(spec)
 	m:SetScript("OnMouseUp", function(_, button)
 		if InCombatLockdown() then return end
 		if button == "LeftButton" then selectMovable(movable)
-		elseif button == "RightButton" then spec.open() end
+		elseif button == "RightButton" then ns.Options.open(movable.bar) end
 	end)
 	m:SetScript("OnMouseWheel", function(self, delta)
 		if InCombatLockdown() then return end

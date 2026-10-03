@@ -296,7 +296,7 @@ end
 -- Positioning
 movable = ns.Positioning.mover({ frame = f, label = "Swing timer", cfg = cfg, ranges = RANGES,
 	size = { key = "width", step = 4 }, shown = SW.isOn, place = layout,
-	open = function() ns.Options.open("swing") end, lock = drawFace,
+	lock = drawFace,
 	describe = function()
 		local c = cfg()
 		return string.format("Swing timer: %d x %d, scale %.2f, opacity %.0f%%", c.width, c.height, c.scale,

@@ -1291,7 +1291,7 @@ movable = ns.Positioning.mover({ frame = bar, label = "Totem bar", cfg = cfg, ra
 		return from
 	end },
 	shown = function() return barOn() and (hasTotems or (preview and preview.all)) end,
-	place = layout, open = function() ns.Options.open("totembar") end,
+	place = layout,
 	lock = function() ns.retryAfterCombat("totem bar layout", layout) end,
 	describe = function()
 		local c = cfg()
