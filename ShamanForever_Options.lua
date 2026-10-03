@@ -283,7 +283,9 @@ local function buildAbout(p)
 		end
 	end
 	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
-	p:text(ns.CLASS.credits)
+	p:text(ns.CLASS.credits .. " Corner and divider ornaments: public domain / CC0, Wikimedia Commons. "
+		.. "Link icons: Simple Icons, CC0. The Carved stone, Aged bronze and Carved wood borders: made with an AI image "
+		.. "model (Google Gemini).")
 	local ai = {}
 	for _, kind in ipairs({ "frame", "groupframe" }) do
 		for _, e in ipairs(ns.Style.choices(kind, "look")) do

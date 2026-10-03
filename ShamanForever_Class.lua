@@ -7,7 +7,7 @@ local _, ns = ...
 --   slash            the slash commands; the first is the one help text names
 --   icon, blurb      the Home page's nav icon; About's line under the name
 --   links            repo, curseforge, discord, kofi: About's links
---   credits          About's art credits
+--   credits          About's art credits for the class's own art (the shared art's follow)
 --   sharePrefix      starts a share string; another prefix is refused
 --   help             text naming the class's things. pop: a lower-case clause, no full stop, built
 --                    into "The burst when something happens: <pop>." (Pop style). Whole
@@ -29,9 +29,9 @@ ns.CLASS = {
 	},
 	credits = "Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
 		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
-		"Francisque Millet, Mountain Landscape with Lightning (air). Corner and divider ornaments: public domain / CC0, Wikimedia Commons. " ..
-		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood texture CC0, ambientCG. Link icons: Simple Icons, CC0. " ..
-		"The Carved stone, Aged bronze and Carved wood borders and the Emblem pop burst: made with an AI image model (Google Gemini), as were the plinth and medallions of the Stone and bronze totem theme.",
+		"Francisque Millet, Mountain Landscape with Lightning (air). " ..
+		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood texture CC0, ambientCG. " ..
+		"The Emblem pop burst and the plinth and medallions of the Stone and bronze totem theme: made with an AI image model (Google Gemini).",
 	sharePrefix = "!SF1!",
 	help = {
 		uptime = "A totem, shield or imbue running.",
