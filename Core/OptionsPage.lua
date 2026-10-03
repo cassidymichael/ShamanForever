@@ -198,7 +198,8 @@ function Page:line(t, wide)
 	table.insert(self.lines, { t, wide })
 	self:pxLine(t, wide)
 end
--- The client's backdrop pieces, for a one-unit backdrop edge in the same way
+-- The client's backdrop pieces, for a one-unit backdrop edge in the same way. The fill hangs from
+-- the corners by the edge's size, so it moves with them to stay inside the frame.
 local CORNERS = { "TopLeftCorner", "TopRightCorner", "BottomLeftCorner", "BottomRightCorner" }
 local function pixelEdges(page, f)
 	if f.backdropInfo == W.BACKDROP then
@@ -208,6 +209,12 @@ local function pixelEdges(page, f)
 		if f.BottomEdge then f.BottomEdge:SetHeight(px) end
 		if f.LeftEdge then f.LeftEdge:SetWidth(px) end
 		if f.RightEdge then f.RightEdge:SetWidth(px) end
+		local c, tl, br = f.Center, f.TopLeftCorner, f.BottomRightCorner
+		if c and tl and br then
+			c:ClearAllPoints()
+			c:SetPoint("TOPLEFT", tl, "BOTTOMRIGHT", -px, px)
+			c:SetPoint("BOTTOMRIGHT", br, "TOPLEFT", px, -px)
+		end
 	end
 	for _, kid in ipairs({ f:GetChildren() }) do pixelEdges(page, kid) end
 end
