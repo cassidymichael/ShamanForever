@@ -116,9 +116,13 @@ ns.registerPart("primed", {
 --   gate(def)                    the Ready pop and sound: "ready", "blocked" (the greyed pop, if
 --                                chosen) or nil (neither)
 --   readyGate(def)               the Ready glow's alpha (may be secret); nil: it can't show
+--   make(def, f)                 adds what it draws to the icon f as it's made
+--   ticks(def)                   whether tick is wanted now
+--   tick(def, cantAct)           ten times a second while any part ticks: redraws a look with no
+--                                event to follow (cantAct: the player can't act)
 --   debug(def)                   its words in /sf debug
--- refresh and debug run for every part, in parts order; gate and readyGate come from the first
--- part that gives one.
+-- refresh, make, tick and debug run for every part, in parts order; gate and readyGate come from
+-- the first part that gives one.
 -- The icon (def.frame) has upTimer in activeHolder when its page has a Time left block, warn when
 -- it has a Warning block, and readyGlow in readyGate with the readyGlow part or a readyGate hook.
 -- Icons are made as this file loads, so a part that needs one of these registers before it;
@@ -160,6 +164,7 @@ local function makeCooldownIcon(def)
 		f.readyGlow = ns.Effects.glow(f.readyGate, f, def.key)
 	end
 	if KD.words("cooldown", def, "warn") then f.warn = W.makeWarnOverlay(f) end
+	KD.eachHook("cooldown", def, "make", f)
 	f.stack()
 	return f
 end
@@ -478,7 +483,8 @@ local function styleCooldown(def)
 	w:setParts(W.warnParts(def.key, "warn"))
 end
 
--- Ready glows ("use me"), all off by default; re-read ten times a second while on
+-- Ready glows ("use me"), all off by default; re-read ten times a second while on, with the parts'
+-- ticks
 local hasTimeLeftCurve = ns.CURVE_LIVE
 -- 1 while off cooldown (maybe secret: only given to SetAlpha); 0 while the player can't act. Not
 -- IsSpellUsable: mana would remove it.
@@ -512,7 +518,15 @@ local function refreshReadyGlows()
 	local cantAct = ns.cantAct()
 	for _, def in ipairs(COOLDOWNS) do
 		if def.frame.readyGate then refreshReadyGlow(def, cantAct) end
+		KD.eachHook("cooldown", def, "tick", cantAct)
 	end
+end
+local function partTicks(def)
+	for _, p in ipairs(KD.partsOf("cooldown", def)) do
+		local t = p.runtime and p.runtime.ticks
+		if t and t(def) then return true end
+	end
+	return false
 end
 local readyTicker = ns.ticker(0.1, refreshReadyGlows)
 local function syncReadyTicker()
@@ -520,6 +534,7 @@ local function syncReadyTicker()
 	if E.isActive() then
 		for _, def in ipairs(COOLDOWNS) do
 			if def.frame.readyGate and E.isEnabled(def.key) and setting(def.key, "ready", "glow") then want = true end
+			if partTicks(def) then want = true end
 		end
 	end
 	readyTicker:SetShown(want and true or false)
