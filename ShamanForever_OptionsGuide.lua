@@ -302,9 +302,7 @@ local function warnOf(key, name)
 	for _, look in ipairs({ "grey", "tint", "ring", "fade", "glow" }) do w[look] = default(key, name, look) == true end
 	return w
 end
-local function shockPaint(name, r, g, b)
-	return { default("shock", name, "look"), r, g, b, default("shock", name, "overlay"), default("shock", name, "tint") }
-end
+local function cast(out, low) return function() local l = esLook(); l.cast = { out = out, low = low } return l end end
 local BREATH = { el = "waterbreathing", school = "water" }
 local SHIELD, PURGE = { el = "shield", school = "air" }, { el = "purge", school = "spirit" }
 local function missing(key) return function() return { icon = icon(key), warn = warnOf(key, "warn") } end end
@@ -318,13 +316,8 @@ local function imbueLow() return { icon = icon("imbue"), up = { 0.9, 1800 }, war
 local EXAMPLES = {
 	{ "Ability ready", EARTH, function() return esLook() end, pops = 2.4 },
 	{ "On cooldown", EARTH, function() local l = esLook(); l.cd = { 1 / 3, 6 } return l end },
-	{ "Out of range", EARTH, function() local l = esLook(); l.paint = shockPaint("range", 1, 0.25, 0.25) return l end },
-	{ "Not enough mana", EARTH, function()
-		local l = esLook()
-		l.paint = shockPaint("mana", 0.2, 0.45, 1)
-		l.ring = { 0.2, 0.45, 1, default("shock", "mana", "ring") }
-		return l
-	end },
+	{ "Out of range", EARTH, cast(true, false) },
+	{ "Not enough mana", EARTH, cast(false, true) },
 	{ "Debuff on target", FLAME, function() return fsLook(14) end },
 	{ "Debuff missing from target", FLAME, missing("flameshock") },
 	{ "Purgable buff on target", PURGE, function() return { icon = icon("purge"), glow = true } end },
@@ -658,12 +651,7 @@ local HUD = {
 	{ MAEL, 238, function() return withCount(mwLook(3), 3) end,
 		function() local l = withCount(mwLook(5), 5); l.glow = true return l end },
 	{ FLAME, 278, function() return fsLook(14) end, missing("flameshock"), warns = true },
-	{ EARTH, 318, esLook, function()
-		local l = esLook()
-		l.paint = shockPaint("range", 1, 0.25, 0.25)
-		l.ring = { 0.2, 0.45, 1, default("shock", "mana", "ring") }
-		return l
-	end, warns = true },
+	{ EARTH, 318, esLook, cast(true, true), warns = true },
 	{ IMBUE, 448, function() return { icon = icon("imbue"), up = { 0.95, 3600 } } end, missing("imbue") },
 }
 local BUSY = 1.25

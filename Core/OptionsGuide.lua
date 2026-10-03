@@ -229,8 +229,8 @@ local function reagentCount(ic, r)
 	if r.color then ic.count:SetTextColor(r.color[1], r.color[2], r.color[3], 1) end
 end
 
--- look: icon, cd and up ({ share gone, length }: frozen timers), warn ({ grey, tint, ring, fade,
--- glow }), paint ({ look, r, g, b, overlay, tint }), ring ({ r, g, b, a }), glow, alpha,
+-- look: icon, cd and up ({ share gone, length }: frozen timers), cast ({ out, low }: out of range and
+-- the cost unpaid, as the cast states draw them), warn ({ grey, tint, ring, fade, glow }), glow, alpha,
 -- bar ({ n, filled, color, height }), count ({ text, color, size, pos }), reagent ({ el, n, color }),
 -- font ({ name, outline })
 local function draw(ex, look)
@@ -238,11 +238,10 @@ local function draw(ex, look)
 	kit.reset(ic, look.icon)
 	if look.cd then kit.frozen(ic.cdT, look.cd[1], look.cd[2]) end
 	if look.up then kit.frozen(ic.upT, look.up[1], look.up[2]) end
+	local cast = look.cast
+	if cast or ic.paintRing then ns.CastStates.paint(ic, ex.owner, cast and cast.out, cast and cast.low) end
 	local wn = look.warn
 	if wn then ic:SetWarnParts(wn.grey, wn.tint, wn.ring, wn.fade, wn.glow) end
-	local pt = look.paint
-	if pt then ic:SetBodyPaint(pt[1], pt[2], pt[3], pt[4], pt[5], pt[6]) end
-	if look.ring then ic:SetRingShown(true, look.ring[1], look.ring[2], look.ring[3], look.ring[4]) end
 	if look.glow then ic:SetGlowShown(true) end
 	local b = look.bar
 	if b then
