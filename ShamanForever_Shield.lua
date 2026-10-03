@@ -104,8 +104,8 @@ function SH.school()
 	local s = SHIELDS[shownShield()]
 	return s.known and s.school or nil
 end
--- Its cost over Blizzard's button and the No shield look: the shield it shows
-CS.watch("shield", { frame = shield, cover = shield, power = true, spells = function()
+-- Its cost over Blizzard's button, faded with it by Idle: the shield it shows
+CS.watch("shield", { frame = shield, cover = gate, power = true, spells = function()
 	local s = SHIELDS[shownShield()]
 	return s.known and s.spellID or nil
 end })
