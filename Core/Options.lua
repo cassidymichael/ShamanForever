@@ -13,6 +13,7 @@ local WIDTH, NAV_W = Page.WIDTH, Page.NAV_W
 local HEIGHT, MIN_H, MAX_H = 700, 560, 1300
 local MAX_W = 1600
 local LOGO_SIZE, LOGO_X, LOGO_Y = 112, -19, 24
+local OFF_BANNER_H = 56
 local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
 OP.ART = ART
 
@@ -578,21 +579,31 @@ local function buildWindow()
 		local font, size, flags = title:GetFont()
 		if font and size then title:SetFont(font, size + 2, flags) end
 	end
-	-- Off (/sf disable): said in the title bar, with the way back
-	local offNote = CreateFrame("Frame", nil, win)
-	offNote:SetSize(1, 18)
-	offNote:SetPoint("TOPRIGHT", win, "TOPRIGHT", -28, -2)
-	offNote:SetFrameLevel(win:GetFrameLevel() + 20)
-	local turnOn = CreateFrame("Button", nil, offNote, "UIPanelButtonTemplate")
-	turnOn:SetSize(76, 18)
-	turnOn:SetPoint("RIGHT")
+	-- Off (/sf disable): a banner across the foot of the page area, pages kept clear above it
+	local banner = CreateFrame("Frame", nil, win, "BackdropTemplate")
+	banner:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", NAV_W + 10, 10)
+	banner:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -24, 10)
+	banner:SetHeight(OFF_BANNER_H)
+	banner:SetFrameLevel(win:GetFrameLevel() + 20)
+	banner:SetBackdrop(W.BACKDROP)
+	banner:SetBackdropColor(0.32, 0.04, 0.03, 0.95)
+	banner:SetBackdropBorderColor(0.9, 0.25, 0.15, 1)
+	local turnOn = CreateFrame("Button", nil, banner, "UIPanelButtonTemplate")
+	turnOn:SetSize(110, 26)
+	turnOn:SetPoint("RIGHT", -14, 0)
 	turnOn:SetText("Turn on")
 	turnOn:SetScript("OnClick", function() E.setOff(false) end)
 	setTip(turnOn, "Turn on", ns.CLASS.slash[1] .. " enable does the same.")
-	local offText = offNote:CreateFontString(nil, "OVERLAY", "GameFontRedSmall")
-	offText:SetPoint("RIGHT", turnOn, "LEFT", -6, 0)
-	offText:SetText("Off: nothing shows or plays")
-	local function showOff() offNote:SetShown(ns.isOff()) end
+	local offText = banner:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+	offText:SetPoint("LEFT", 16, 0)
+	offText:SetPoint("RIGHT", turnOn, "LEFT", -12, 0)
+	offText:SetJustifyH("LEFT")
+	offText:SetText(ns.NAME .. " is off. Nothing shows or plays.")
+	local function showOff()
+		local off = ns.isOff()
+		banner:SetShown(off)
+		Page.setBottomInset(off and OFF_BANNER_H + 8 or 0)
+	end
 	ns.onChanged(showOff)
 	showOff()
 	-- The crest is a badge over the corner: the portrait ring can't grow.

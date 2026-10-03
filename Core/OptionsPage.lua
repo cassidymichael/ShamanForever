@@ -25,6 +25,13 @@ local function isFolded(b)
 	return v
 end
 local allPages = {}
+-- Room kept under every page, above the window's foot (the off banner's), and each page's bottom point
+local bottomInset = 0
+function Page.bottomY() return 12 + bottomInset end
+function Page.setBottomInset(h)
+	bottomInset = h
+	for _, p in ipairs(allPages) do p.scroll:SetPoint(p.bottom[1], p.win, p.bottom[1], p.bottom[2], Page.bottomY()) end
+end
 local SUB_INDENT, SUB_MAX, RULE_X = 24, 2, 12
 
 Page.setTip = W.setTip
@@ -42,11 +49,12 @@ function Page.new(win, key, title, indent)
 		if scroll.SetPanExtent then scroll:SetPanExtent(64) end
 	end
 	scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, PAGE_TOP)
-	scroll:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -40, 12)
+	scroll:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -40, Page.bottomY())
 	local content = CreateFrame("Frame", nil, scroll)
 	content:SetSize(ROW_W, 1)
 	scroll:SetScrollChild(content)
 	local page = setmetatable({ win = win, key = key, title = title, indent = indent, scroll = scroll,
+		bottom = { "BOTTOMRIGHT", -40 },
 		content = content, items = {}, blockList = {}, subs = {}, pageOwns = {}, ownIds = {} }, Page)
 	scroll:SetScript("OnSizeChanged", function(self, w)
 		if not Page.resizing then content:SetWidth(w) end
