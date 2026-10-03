@@ -202,10 +202,11 @@ local function expiringLook(ic, key, length)
 	ic:SetWarnParts(ns.warnParts(key, "expire"))
 end
 
-local function engineExpireLook(ic, key)
+local function engineExpireLook(ic, key, length)
+	length = length or 12
 	local secs = opt(key, "expire", "secs") or 0
 	local left = secs > 0 and math.min(2, secs) or 2
-	frozen(ic.upT, 1 - left / 12, 12)
+	frozen(ic.upT, 1 - left / length, length)
 	if secs <= 0 or not ic.upT then return end
 	if opt(key, "expire", "bar") and ic.upT.bar then
 		local c = opt(key, "expire", "barColor")

@@ -284,7 +284,7 @@ ns.registerPart("engineExpire", {
 	preview = {
 		states = { { "expiring", "Expiring", 20 } },
 		render = function(ic, st, def, P)
-			if st == "expiring" then P.engineExpire(ic, def.key) end
+			if st == "expiring" then P.engineExpire(ic, def.key, def.duration) end
 		end,
 	},
 	runtime = {
