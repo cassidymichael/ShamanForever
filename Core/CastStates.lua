@@ -127,6 +127,7 @@ function makeCover(w)
 	c.over:SetAllPoints(f.tex)
 	c.ring = W.makeRing(c, f.tex)
 	ns.StyleArt.followMask(f, c.over)
+	for _, e in ipairs(c.ring.edges) do ns.StyleArt.maskOver(f, e, f.tex) end
 	w.up, w.coverFrame = up, c
 end
 local function anyOn(w)
