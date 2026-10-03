@@ -8,7 +8,7 @@ local P = ns.Profiles
 local W = ns.Widgets
 local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
-local Spells, R, KD = ns.Spells, ns.Reagents, ns.Kinds
+local Spells, R, KD, CS = ns.Spells, ns.Reagents, ns.Kinds, ns.CastStates
 
 local CD = { name = "cooldowns" }
 ns.Cooldowns = CD
@@ -136,7 +136,7 @@ end
 
 ns.registerKind("cooldown", {
 	parts = { "cooldown", "ready", "readyGlow", "window", "primed" },
-	slots = { "own", "warn", "ready", "active", "expire", "killed", "cooldown", "gcd", "uptime" },
+	slots = { "own", "warn", "cast", "ready", "active", "expire", "killed", "cooldown", "gcd", "uptime" },
 	prepare = function(def)
 		def.expires = hasUptime(def) and def.expireLooks ~= false
 		checkFrames(def)
@@ -174,6 +174,7 @@ for _, def in ipairs(COOLDOWNS) do
 		paint = function(t) t:SetTexture(def.iconID or def.icon) end, ranges = def.ranges,
 		kind = "cooldown", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
 		experimental = def.experimental, race = def.race, styles = def.styles, timerCant = def.timerCant })
+	if def.power or def.range then CS.watchRow(def) end
 end
 
 -- GCD and own cooldown

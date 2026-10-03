@@ -4,7 +4,7 @@
 local _, ns = ...
 
 -- Cooldowns
--- Totem slots: 1 fire, 2 earth, 3 water, 4 air.
+-- Totem slots: 1 fire, 2 earth, 3 water, 4 air. power, range: its cast states (_CastStates)
 -- With a cooldown and time left: the cooldown has the swipe; time left as a bar
 local ONE_SWIPE = { uptime = {
 	swipe = "The cooldown has the swipe; time left shows as text or a bar." } }
@@ -18,15 +18,15 @@ local function windowBuff(row)
 	return row
 end
 ns.CLASS.cooldowns = {
-	{ key = "earthbind", spellKey = "earthbind", icon = 136102, totemSlot = 2, duration = 45, cd = 15,
+	{ key = "earthbind", power = true, spellKey = "earthbind", icon = 136102, totemSlot = 2, duration = 45, cd = 15,
 		school = "earth",
 		blurb = "Cooldown, and time left while it's down.",
 		styles = barTimer(), timerCant = ONE_SWIPE, defaults = { idleWhen = "offcd" } },
-	{ key = "stoneclaw", spellKey = "stoneclaw", icon = 136097, totemSlot = 2, duration = 15, cd = 15,
+	{ key = "stoneclaw", power = true, spellKey = "stoneclaw", icon = 136097, totemSlot = 2, duration = 15, cd = 15,
 		school = "earth",
 		blurb = "Cooldown, and time left while it's down.",
 		styles = barTimer(), timerCant = ONE_SWIPE, defaults = { idleWhen = "offcd" } },
-	{ key = "firenova",  spellKey = "fireNova",  icon = 135824, needsTotem = 1, school = "fire",
+	{ key = "firenova", power = true,  spellKey = "fireNova",  icon = 135824, needsTotem = 1, school = "fire",
 		blurb = "Cooldown. Needs a fire totem.", timerCant = ONE_SWIPE, cd = 6, duration = 55 },
 	-- Emergency cooldowns
 	{ key = "naturesswiftness", spellKey = "naturesSwiftness", icon = 136076, school = "water",
@@ -36,19 +36,19 @@ ns.CLASS.cooldowns = {
 			buffKey = "naturesSwiftness",
 			text = "From your cast until your next Nature spell with a cast time." },
 		cd = 180, experimental = "Nature's Swiftness" },
-	{ key = "manatide", spellKey = "manaTide", icon = 135861, totemSlot = 3, duration = 12, school = "water",
+	{ key = "manatide", power = true, spellKey = "manaTide", icon = 135861, totemSlot = 3, duration = 12, school = "water",
 		blurb = "Cooldown, and time left while it's down.",
 		styles = barTimer(), timerCant = ONE_SWIPE,
 		ranOut = true, cd = 300,
 		defaults = { expire = { secs = 3, glow = true, fade = false } }, experimental = "Mana Tide Totem" },
-	{ key = "grounding", spellKey = "grounding", icon = 136039, totemSlot = 4, duration = 45, school = "air",
+	{ key = "grounding", power = true, spellKey = "grounding", icon = 136039, totemSlot = 4, duration = 45, school = "air",
 		blurb = "Cooldown, time left, and a flash when it takes a spell.",
 		styles = barTimer(), timerCant = ONE_SWIPE,
 		grounded = true, ranOut = true, cd = 15, defaults = { idleWhen = "offcd" },
 		experimental = "Grounding Totem" },
 	-- Rotation
 	-- Stormstrike: timed from the cast, spent by our own casts only (auras are secret in combat).
-	{ key = "stormstrike", spellKey = "stormstrike", icon = 135963, school = "air",
+	{ key = "stormstrike", power = true, range = true, spellKey = "stormstrike", icon = 135963, school = "air",
 		blurb = "Cooldown, and a bar while your target takes more Nature damage.",
 		styles = barTimer(), timerCant = ONE_SWIPE,
 		primed = { spends = { "lightningBolt", "chainLightning", "earthShock" }, duration = 12,
@@ -56,17 +56,18 @@ ns.CLASS.cooldowns = {
 				"Other Nature damage on the target can also use it up, which can't be seen." },
 		primedLooks = false, expireLooks = false, readyGlow = true, cd = 8,
 		experimental = "Stormstrike" },
-	{ key = "riptide", spellKey = "riptide", icon = 252995, school = "water", blurb = "Cooldown.",
+	{ key = "riptide", power = true, spellKey = "riptide", icon = 252995, school = "water", blurb = "Cooldown.",
 		readyGlow = true, cd = 6, experimental = "Riptide" },
 	-- Short cooldowns: no Ready pop by default
-	{ key = "lavaburst", spellKey = "lavaBurst", icon = 237582, school = "fire", blurb = "Cooldown.",
-		readyGlow = true, cd = 10, defaults = { ready = { pop = false } }, experimental = "Lava Burst" },
-	{ key = "chainlightning", spellKey = "chainLightning", icon = 136015, school = "air", blurb = "Cooldown.",
-		readyGlow = true, cd = 6, defaults = { ready = { pop = false } }, experimental = "Chain Lightning" },
+	{ key = "lavaburst", power = true, range = true, spellKey = "lavaBurst", icon = 237582, school = "fire",
+		blurb = "Cooldown.", readyGlow = true, cd = 10, defaults = { ready = { pop = false } }, experimental = "Lava Burst" },
+	{ key = "chainlightning", power = true, range = true, spellKey = "chainLightning", icon = 136015, school = "air",
+		blurb = "Cooldown.", readyGlow = true, cd = 6, defaults = { ready = { pop = false } },
+		experimental = "Chain Lightning" },
 	windowBuff({ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, window = 25, school = "air",
 		cd = 180, experimental = "Rage of the Farseer" }),
-	{ key = "projection", spellKey = "totemicProjection", icon = 136099, school = "spirit", blurb = "Cooldown.",
-		cd = 60, defaults = { idleWhen = "offcd" }, experimental = "Totemic Projection" },
+	{ key = "projection", power = true, spellKey = "totemicProjection", icon = 136099, school = "spirit",
+		blurb = "Cooldown.", cd = 60, defaults = { idleWhen = "offcd" }, experimental = "Totemic Projection" },
 	{ key = "reincarnation", spellKey = "reincarnation", icon = 136080, school = "spirit",
 		blurb = "Cooldown, and your Ankhs when they run low.",
 		styles = { gcd = { show = false } },   -- never needs the sweep
@@ -97,11 +98,11 @@ ns.CLASS.cooldowns = {
 local TEXT_TIMER = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 },
 	textPos = "center", swipe = false, bar = true } }
 ns.CLASS.buffs = {
-	{ key = "waterwalking", spellKey = "waterWalking", icon = 135863, school = "water", reagent = 17058,
+	{ key = "waterwalking", power = true, spellKey = "waterWalking", icon = 135863, school = "water", reagent = 17058,
 		duration = 600, blurb = "Time left while it's up.", styles = TEXT_TIMER,
 		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, fade = false } },
 		experimental = "Water Walking" },
-	{ key = "waterbreathing", spellKey = "waterBreathing", icon = 136148, school = "water", reagent = 17057,
+	{ key = "waterbreathing", power = true, spellKey = "waterBreathing", icon = 136148, school = "water", reagent = 17057,
 		duration = 600, breath = true, blurb = "Time left while it's up. Warns under water without it.",
 		styles = TEXT_TIMER,
 		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, fade = false } },

@@ -5,7 +5,7 @@ local P = ns.Profiles
 local W = ns.Widgets
 local E, MOD = ns.Elements, ns.Modules
 local say, isSecret = ns.say, ns.isSecret
-local Spells = ns.Spells
+local Spells, CS = ns.Spells, ns.CastStates
 local own = E.settingsOf("imbue")
 
 local IM = { name = "imbue" }
@@ -26,7 +26,8 @@ E.register("imbue", { frame = imbue, label = "Weapon Imbue",
 	defaults = { idleWhen = "notlow", idleAlpha = 0,
 		icon = "last",   -- the icon while none is on: last | rockbiter | flametongue | frostbrand | windfury
 		showUnderMins = 5,   -- time left shows under this (0: never)
-		warn = { grey = true, ring = true, fade = true, glow = true, pop = true, sound = "none" } },
+		warn = { grey = true, ring = true, fade = true, glow = true, pop = true, sound = "none" },
+		mana = { on = false } },
 	ranges = { showUnderMins = { 0, 30, 1 } },
 	styles = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false,
 		bar = false } },
@@ -108,10 +109,16 @@ function IM.barColor()
 end
 
 imbueIcon = imbueIconFor("rockbiter")
-local function preferredImbueIcon()
+local function preferredKey()
 	local icon = own("icon")
-	return imbueIconFor(icon == "last" and (P.getAccount().imbueLast or "rockbiter") or icon)
+	return icon == "last" and (P.getAccount().imbueLast or "rockbiter") or icon
 end
+local function preferredImbueIcon() return imbueIconFor(preferredKey()) end
+-- Its cost: the imbue it shows
+CS.watch("imbue", { frame = imbue, power = true, spells = function()
+	local key = imbueState.key or preferredKey()
+	return IMBUES[key] and Spells.known(key) or nil
+end })
 
 -- quiet: nothing can be cast now, so a missing imbue shows grey without the warning
 local function warn(field) return own("warn", field) end
@@ -253,12 +260,16 @@ end
 local PREVIEW = {
 	uptime = true,
 	typical = "fine", warning = "missing",
-	states = { { "missing", "No imbue" }, { "low", "Running low" }, { "fine", "Plenty left" } },
+	states = { { "missing", "No imbue" }, { "low", "Running low" }, { "fine", "Plenty left" },
+		{ "power", CS.STATES.power.name } },
 	pop = function(ic, st) if st == "missing" and warn("pop") then ic:Pop("lost") end end,
 	render = function(ic, st, kit)
 		if st == "missing" then
 			kit.reset(ic, preferredImbueIcon())
 			ic:SetWarnParts(W.warnParts("imbue", "warn"))
+		elseif st == "power" then
+			kit.reset(ic, imbueIcon)
+			CS.paint(ic, "imbue", false, CS.on("imbue", "power"))
 		else
 			kit.reset(ic, imbueIcon)
 			local shows = own("showUnderMins") > 0

@@ -54,18 +54,20 @@ local function outOfRange(id, unit)
 	return ns.plain(safe(C_Spell.IsSpellInRange, id, unit)) == false
 end
 
--- The paint on an icon of ours (W.makeIcon); the preview's too
-local function bodyLook(f, look)
+-- The paint on an icon of ours (W.makeIcon); the preview's too. overlay: only the overlay, as over
+-- Blizzard's aura button
+local function bodyLook(f, look, overlay)
+	if overlay then return "overlay" end
 	if f.warnTint then return look == "both" and "overlay" or look ~= "tint" and look or nil end
 	return look
 end
-function CS.paint(f, key, out, low)
+function CS.paint(f, key, out, low, overlay)
 	f.bodyOverlay:Hide()
 	if not f.warnTint then f.tex:SetVertexColor(1, 1, 1) end
 	local state = out and "range" or low and "power" or nil
 	if state then
 		local s, c = S.get(key, STATES[state].part), STATES[state].color
-		local look = bodyLook(f, s.look)
+		local look = bodyLook(f, s.look, overlay)
 		if look then f:SetBodyPaint(look, c[1], c[2], c[3], s.overlay, s.tint) end
 	end
 	local c = STATES.power.color
@@ -75,6 +77,7 @@ end
 -- Over Blizzard's aura button: a frame of ours above it, anchored to our icon, never to the button.
 -- Only an overlay: a tint can't reach the button's picture, and a MOD texture would show under a
 -- parent at no opacity.
+local previewing = false
 local function makeCover(w)
 	local f = w.frame
 	local c = CreateFrame("Frame", nil, w.cover)
@@ -87,8 +90,8 @@ local function makeCover(w)
 	return c
 end
 local function levelCover(w)
-	local c = w.coverFrame
-	if not c or InCombatLockdown() then return end
+	if not w.cover or InCombatLockdown() then return end
+	local c = w.coverFrame or makeCover(w)
 	c:SetFrameLevel(w.frame.textFrame:GetFrameLevel() + 10)   -- over the button, under its glow
 end
 local function drawCover(w, out, low)
@@ -104,7 +107,7 @@ local function drawCover(w, out, low)
 		c.ring:color(k[1], k[2], k[3], S.value(w.key, "power", "ring"))
 	end
 	c.ring:show(low)
-	c:SetShown(state ~= nil)
+	c:SetShown(state ~= nil and not previewing)
 end
 
 local function draw(w)
@@ -183,6 +186,13 @@ function CS.refresh()
 	refresh()
 end
 
+-- The preview's stand-in takes the element's place
+function CS.onPreview(on)
+	previewing = on
+	for _, w in ipairs(WATCHES) do w.drawn = nil end
+	refresh()
+end
+
 function CS.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "SPELL_UPDATE_USABLE")
@@ -230,7 +240,7 @@ local function part(state, order)
 			render = function(ic, s, def)
 				if s ~= state then return end
 				CS.paint(ic, def.key, state == "range" and CS.on(def.key, "range"),
-					state == "power" and CS.on(def.key, "power"))
+					state == "power" and CS.on(def.key, "power"), CS.covered(def.key))
 			end,
 		},
 	}

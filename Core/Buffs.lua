@@ -7,7 +7,7 @@ local P = ns.Profiles
 local W = ns.Widgets
 local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
-local Spells, KD = ns.Spells, ns.Kinds
+local Spells, KD, CS = ns.Spells, ns.Kinds, ns.CastStates
 
 local B = { name = "buffs" }
 ns.Buffs = B
@@ -107,7 +107,7 @@ ns.registerPart("proc", {
 local EXPIRE_RANGE = { 0, 120, 5 }
 ns.registerKind("buff", {
 	parts = { "buff", "breath", "proc" },
-	slots = { "own", "warn", "active", "expire", "uptime" },
+	slots = { "own", "warn", "cast", "active", "expire", "uptime" },
 	prepare = function(def)
 		def.expires = not def.proc
 		def.expireRange = EXPIRE_RANGE
@@ -204,6 +204,8 @@ for _, def in ipairs(ROWS) do
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
 		experimental = def.experimental, styles = def.styles })
 	if not KD.hook("buff", def, "engine") then table.insert(BUFFS, def) end
+	-- An aura button's paint goes over it, with the frame that holds it
+	if def.power or def.range then CS.watchRow(def, def.proc and (def.idle or def.gate or def.frame.effects) or nil) end
 end
 
 -- An aura element's steps, for whichever module runs it

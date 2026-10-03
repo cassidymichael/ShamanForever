@@ -24,6 +24,7 @@ local function buildImbue(p, def)
 	p:text("Its time left shows once it's below this, and Idle counts it as running low. 0 never shows it.")
 	local lost = "The moment your imbue runs out or is lost."
 	warnBlock(p, key, { title = "No imbue", tips = { pop = lost, sound = lost } })
+	K.castBlocks(p, key)
 	styleBlocks(p, key, function() timerSettings(p, "Time left", key, "uptime") end)
 end
 

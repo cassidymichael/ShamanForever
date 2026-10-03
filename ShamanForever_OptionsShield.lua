@@ -46,6 +46,7 @@ local function buildShield(p, def)
 	warnBlock(p, key, { title = "No shield", sounds = ns.Sounds.fileChoices,
 		tips = { glow = "A glow that pulses, in the Pulsing glow style.",
 			sound = "When the shield goes: charges spent, cancelled or run out." } })
+	K.castBlocks(p, key)
 	styleBlocks(p, key, function()
 		gcdBlock(p, key)
 		timerSettings(p, "Time left", key, "uptime")

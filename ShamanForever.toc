@@ -33,12 +33,12 @@ Core\FrameStyles.lua
 Core\Timers.lua
 Core\Profiles.lua
 ShamanForever.lua
+Core\CastStates.lua
 ShamanForever_Shield.lua
 ShamanForever_Imbue.lua
 Core\Sounds.lua
 ShamanForever_Totems.lua
 Core\Reagents.lua
-Core\CastStates.lua
 Core\Cooldowns.lua
 ShamanForever_Maelstrom.lua
 ShamanForever_Shock.lua

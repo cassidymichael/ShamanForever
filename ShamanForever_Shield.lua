@@ -12,6 +12,7 @@ local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe = ns.say, ns.isSecret, ns.safe
 local Spells = ns.Spells
 local FR, Count = ns.Frames, W.Count
+local CS = ns.CastStates
 
 local SH = { name = "shield" }
 ns.Shield = SH
@@ -46,7 +47,8 @@ E.register("shield", { frame = shield, label = "Shields", paint = function(t) t:
 		track = "lightning",   -- lightning | water | either
 		count = { bar = true, barHeight = 8, barColor = { 0.42, 0.84, 1, 1 }, number = false, pos = "CENTER",
 			size = 20, mark = false, markColor = { 1, 0.25, 0.2, 1 } },
-		warn = { grey = true, ring = true, fade = false, tint = false, glow = true, sound = "none" } },
+		warn = { grey = true, ring = true, fade = false, tint = false, glow = true, sound = "none" },
+		mana = { on = false } },
 	ranges = { count = { size = { 8, 64, 1 }, barHeight = { 1, 20, 1 } } },
 	choices = { track = TRACK, count = { pos = COUNT_POS } },
 	styles = { glow = { look = "soft" },
@@ -102,6 +104,11 @@ function SH.school()
 	local s = SHIELDS[shownShield()]
 	return s.known and s.school or nil
 end
+-- Its cost over Blizzard's button and the No shield look: the shield it shows
+CS.watch("shield", { frame = shield, cover = shield, power = true, spells = function()
+	local s = SHIELDS[shownShield()]
+	return s.known and s.spellID or nil
+end })
 
 -- Match by spell ID, never by name alone: spells sharing a shield's name (the bolts Lightning Shield
 -- fires) aren't casts of it. An unknown ID counts only when the client says plainly the player knows it.
@@ -645,9 +652,10 @@ local PREVIEW = {
 	uptime = true, barInset = timeBarInset,
 	warning = "down",
 	states = { { "up3", "3 charges" }, { "up2", "2 charges" }, { "up1", "1 charge" },
-		{ "down", "No shield" } },
+		{ "down", "No shield" }, { "power", CS.STATES.power.name } },
 	render = function(ic, st, kit)
 		kit.reset(ic, SHIELDS[own("track") == "water" and "water" or "lightning"].icon)
+		if st == "power" then return CS.paint(ic, "shield", false, CS.on("shield", "power"), true) end
 		if st == "down" then
 			ic:SetWarnParts(W.warnParts("shield", "warn"))
 			return
