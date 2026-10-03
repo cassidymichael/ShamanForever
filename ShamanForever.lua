@@ -1,4 +1,4 @@
--- ShamanForever: a shaman HUD for WoW: Forever
+-- The HUD: elements, groups, bars, modules and the active profile
 -- Rule: never do Lua math or comparisons on a possibly-secret value. In combat, show state through
 -- Blizzard's own widgets (the aura container, duration objects, curves into SetAlpha); what can't
 -- be read is inferred from our own casts.
@@ -45,8 +45,8 @@ local isActive = false
 
 -- Elements and their modules
 -- root spans the screen and takes no input: the parent of every group, hidden for other classes.
--- Not named ShamanForeverFrame: older versions dragged a frame of that name and the layout cache
--- would re-anchor it.
+-- Not named <addon>Frame: older versions dragged a frame of that name and the layout cache would
+-- re-anchor it.
 local root = CreateFrame("Frame", ns.NAME .. "Root", UIParent)
 root:SetAllPoints(UIParent)
 
