@@ -774,6 +774,7 @@ function SP.build(p)
 	header(p)
 	p.allOpen = true
 	p:header("Border style")
+	settingsNote(p, "Its settings are on each element's page and in", "border")
 	flowSection(p, "border", "look")
 	p:header("Pulsing glow")
 	settingsNote(p, "Its settings are on each element's page and in", "glow")
