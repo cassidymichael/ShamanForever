@@ -85,10 +85,7 @@ local function formatRules(abbrev, tenths)
 	return rules
 end
 
-local function colorCode(c)
-	local function byte(v) return math.floor(math.min(math.max(v, 0), 1) * 255 + 0.5) end
-	return string.format("|cff%02x%02x%02x", byte(c[1]), byte(c[2]), byte(c[3]))
-end
+local colorCode = ns.colorCode
 
 local function breakpoints(s, abbrev, tenths)
 	local rules = formatRules(abbrev, tenths)

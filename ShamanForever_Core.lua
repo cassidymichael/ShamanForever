@@ -30,6 +30,10 @@ function ns.registerEvent(frame, event, unit)
 	if not ok then ns.say("event %s not available on this client", event) end
 end
 
+-- A colour's text escape, "|cffrrggbb"
+local function byte(v) return math.floor(math.min(math.max(v, 0), 1) * 255 + 0.5) end
+function ns.colorCode(c) return string.format("|cff%02x%02x%02x", byte(c[1]), byte(c[2]), byte(c[3])) end
+
 function ns.isColor(v)
 	return type(v) == "table" and type(v[1]) == "number" and type(v[2]) == "number" and type(v[3]) == "number"
 		and (v[4] == nil or type(v[4]) == "number")

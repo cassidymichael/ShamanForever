@@ -469,13 +469,11 @@ function Count.text(slot, button, parent, place, site)
 end
 
 local formatters, made = {}, 0
-local function byte(v) return math.floor(math.min(math.max(v, 0), 1) * 255 + 0.5) end
 -- Prints every count from 0 (without one Blizzard prints from 2), markAt in markColor (nil: none).
 -- Tried on 0 to max first: an error would stop Blizzard's aura update. nil if the client can't.
 function Count.formatter(markColor, markAt, max, site)
 	if not (C_StringUtil and C_StringUtil.CreateNumericRuleFormatter) then return nil end
-	local code = markColor and string.format("|cff%02x%02x%02x", byte(markColor[1]), byte(markColor[2]),
-		byte(markColor[3])) or ""
+	local code = markColor and ns.colorCode(markColor) or ""
 	local id = code .. ":" .. tostring(markAt) .. ":" .. max
 	local fm = formatters[id]
 	if fm == nil then
