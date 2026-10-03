@@ -162,8 +162,8 @@ local function readPower(w)
 	w.low = id and short(id) or false
 end
 local function readRange(w)
+	if not (isOn(w, "range") and enabled(w)) then w.out = false return end
 	local _, id = w.spells()
-	id = isOn(w, "range") and enabled(w) and id
 	w.out = id and outOfRange(id, w.unit) or false
 end
 
@@ -181,8 +181,10 @@ local function syncChecks()
 	if not C_Spell.EnableSpellRangeCheck then return end
 	local want = {}
 	for _, w in ipairs(WATCHES) do
-		local _, id = w.spells()
-		if id and isOn(w, "range") then want[id] = true end
+		if isOn(w, "range") then
+			local _, id = w.spells()
+			if id then want[id] = true end
+		end
 	end
 	for id in pairs(checked) do
 		if not want[id] then safe(C_Spell.EnableSpellRangeCheck, id, false) checked[id] = nil end
