@@ -1037,12 +1037,38 @@ function Page:pin(h)
 	h:SetPoint("TOPRIGHT", win, "TOPRIGHT", -22, PAGE_TOP)
 	h:Hide()
 	self.fixed = h
+	local top
 	local function place()
-		self.scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, PAGE_TOP - (h.heroH or ns.OptionsArt.HERO_H))
+		local was = top
+		top = PAGE_TOP - (h.heroH or ns.OptionsArt.HERO_H)
+		if was and was ~= top then self:holdScroll(was - top) end
+		self.scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, top)
 	end
 	h.onHeight = place
 	place()
 	return h
+end
+
+-- The view's top moves down by shift (a taller header): what the player is looking at stays where it
+-- is on screen, held over the next frames as the range settles
+function Page:holdScroll(shift)
+	local offset = self.scroll:GetVerticalScroll() + shift
+	local hold = { offset = offset }
+	for _, it in ipairs(self.items) do
+		if it.visible and it.y and it.y + it.h > offset then
+			hold.row, hold.dy = it, offset - it.y
+			break
+		end
+	end
+	self.hold = hold
+	C_Timer.After(0, function()
+		self:keepScroll()
+		C_Timer.After(0, function()
+			if self.hold ~= hold then return end
+			self:keepScroll()
+			self.hold = nil
+		end)
+	end)
 end
 
 function Page:hero(key)

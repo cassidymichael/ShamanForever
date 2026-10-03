@@ -457,6 +457,16 @@ function OA.buildHero(parent, key)
 	-- Taller for what sits above or below the preview's icon; the page moves its content with it
 	local function setHeight(self, want)
 		if def.stage or want == self.heroH then return end
+		-- Not while a slider is dragged: the header settles once the button is let go
+		if self.heroH and IsMouseButtonDown("LeftButton") then
+			self.settle = self.settle or ns.ticker(0.1, function(t)
+				if IsMouseButtonDown("LeftButton") then return end
+				t:Hide()
+				self:refresh()
+			end)
+			self.settle:Show()
+			return
+		end
 		heroH, PANEL_H = want, want - 14 - 24
 		self.heroH = want
 		self:SetHeight(want - 14)
