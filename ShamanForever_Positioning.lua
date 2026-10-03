@@ -447,13 +447,7 @@ do
 			acct()[key] = on
 			ns.layoutElements()
 		end)
-		cb:SetScript("OnEnter", function(self)
-			GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-			GameTooltip:SetText(label)
-			GameTooltip:AddLine(tip, 1, 1, 1, true)
-			GameTooltip:Show()
-		end)
-		cb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+		ns.setTip(cb, label, tip, "ANCHOR_BOTTOM")
 		return cb
 	end
 	tray.snap = check("Snapping", "snap", "While dragging, groups snap to other groups' edges and centres, the screen centre, and the grid when it is shown.")
@@ -497,13 +491,8 @@ do
 			ns.Options.open("layout")
 		end
 	end)
-	tray.options:SetScript("OnEnter", function(self)
-		GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-		GameTooltip:SetText(self:GetText())
-		GameTooltip:AddLine("The options stay shown or hidden the next time you unlock.", 1, 1, 1, true)
-		GameTooltip:Show()
-	end)
-	tray.options:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	ns.setTip(tray.options, function() return tray.options:GetText() end,
+		"The options stay shown or hidden the next time you unlock.", "ANCHOR_BOTTOM")
 end
 
 function PO.optionsShown(shown)

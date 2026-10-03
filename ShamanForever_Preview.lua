@@ -249,17 +249,6 @@ panel:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
 panel:SetBackdropBorderColor(0.85, 0.71, 0.42, 0.9)
 panel:Hide()
 
--- text: a string, or a function giving one
-local function setTip(frame, title, text)
-	frame:SetScript("OnEnter", function(self)
-		GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-		GameTooltip:SetText(title)
-		GameTooltip:AddLine(type(text) == "function" and text() or text, 1, 1, 1, true)
-		GameTooltip:Show()
-	end)
-	frame:SetScript("OnLeave", function() GameTooltip:Hide() end)
-end
-
 local function changed()
 	restart()
 	ns.layoutElements()
@@ -286,7 +275,7 @@ local function choice(parent, key, items)
 			opts[key] = self.value
 			changed()
 		end)
-		setTip(b, it[2], it[3])
+		ns.setTip(b, it[2], it[3], "ANCHOR_BOTTOM")
 		table.insert(row.buttons, b)
 	end
 	row:SetSize(x - 2, 20)
@@ -305,7 +294,7 @@ local function check(parent, key, label, tip)
 		opts[key] = self:GetChecked() and true or false
 		changed()
 	end)
-	setTip(cb, label, tip)
+	ns.setTip(cb, label, tip, "ANCHOR_BOTTOM")
 	return cb
 end
 
@@ -344,15 +333,15 @@ do
 		end
 	end)
 	optionsButton:SetPoint("RIGHT", stop, "LEFT", -6, 0)
-	setTip(optionsButton, "Options", "The options stay shown or hidden the next time.")
+	ns.setTip(optionsButton, "Options", "The options stay shown or hidden the next time.", "ANCHOR_BOTTOM")
 	local lock = button(panel, "Unlock positioning", 140, function()
 		ns.setLocked(not ns.getAccount().locked)
 		panel.refresh()
 	end)
 	lock:SetPoint("RIGHT", optionsButton, "LEFT", -6, 0)
-	setTip(lock, "Positioning", function()
+	ns.setTip(lock, "Positioning", function()
 		return "Drag " .. L.movingWords("groups") .. " while the preview shows."
-	end)
+	end, "ANCHOR_BOTTOM")
 	function panel.refresh()
 		mode.refresh()
 		unlearned:SetChecked(opts.unlearned)
