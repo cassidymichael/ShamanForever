@@ -243,8 +243,12 @@ local function makeMark(m)
 	if ns.deferWhileAurasSecret(site, function() makeMark(m) end) then return end
 	local ids = Spells.ids(m.spell)
 	local ok, err = pcall(function()
+		-- The container sizes itself to its layout (nothing, for a slot): only its top left places the
+		-- button, so it hangs from a frame of the mark's own place and size
+		m.place = m.place or CreateFrame("Frame", nil, marksHost)
 		local c = CreateFrame("AuraContainer", nil, marksHost, "CustomAuraContainerTemplate")
 		m.container = c
+		c:SetPoint("TOPLEFT", m.place, "TOPLEFT", 0, 0)
 		c:SetFrameStrata(marksHost:GetFrameStrata())
 		c:SetFrameLevel(marksHost:GetFrameLevel() + 2)
 		c:SetUnit("none")
@@ -307,8 +311,8 @@ function placeMarks()
 			local placed = ns.try("shock mark place " .. m.key, function()
 				c:SetFrameStrata(marksHost:GetFrameStrata())
 				c:SetFrameLevel(marksHost:GetFrameLevel() + 2)
-				anchorMark(c, i, marksHost, where, out, o)
-				c:SetSize(size, size)
+				anchorMark(m.place, i, marksHost, where, out, o)
+				m.place:SetSize(size, size)
 				c:SetShown(markOn(m))
 				m.size = size
 				if m.button then fitMark(m, m.button, size) end
