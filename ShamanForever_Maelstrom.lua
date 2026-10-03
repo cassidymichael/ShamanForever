@@ -103,11 +103,11 @@ local function applyCountFormat(slot)
 	Count.setFormat(slot, fm, "maelstrom count")
 end
 
--- pic: how far in the bar sits (its border's picture)
+-- pic: how far in its border's picture starts
 local function placeCount(fs, button, pic)
 	ns.Media.setFont(fs, nil, number("size"))
 	local pos = count("pos") == "BOTTOMRIGHT" and "BOTTOMRIGHT" or "CENTER"
-	Count.place(fs, button, pos, count("bar") and (number("barHeight") + 1 + pic) or 0)
+	Count.place(fs, button, pos, count("bar") and (number("barHeight") + 1) or 0, pic)
 end
 
 -- 1. The stacks

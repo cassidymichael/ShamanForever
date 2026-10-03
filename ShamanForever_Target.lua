@@ -177,7 +177,7 @@ function styleExpireText(def, slot, st, secs)
 	if textOn then
 		def.textHolder:SetFrameLevel(def.frame.textFrame:GetFrameLevel() + 15)
 		ns.Media.setFont(fs, key, st.textSize)
-		ns.Timer.placeText(fs, b, st, t and t.barIn, t and t.dual)
+		ns.Timer.placeText(fs, b, st, t and t.barIn, t and t.dual, ns.StyleArt.pictureInset(slot.host))
 		if ns.try("target countdown " .. key, b.SetDurationText, b, fs,
 			{ textColor = { curve = textOn, property = REMAINING } }) then
 			def.textHanded = true

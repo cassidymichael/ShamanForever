@@ -476,12 +476,14 @@ W.Count = Count
 local COUNT_NUDGE = { CENTER = { 0, 0 }, TOPLEFT = { -2, 2 }, TOPRIGHT = { 2, 2 }, BOTTOMLEFT = { -2, -2 },
 	BOTTOMRIGHT = { 2, -2 } }
 
--- lift: how far a number at a bottom point sits up (over a bar)
-function Count.place(fs, anchor, pos, lift)
-	local nudge = COUNT_NUDGE[pos]
-	local y = nudge[2] + ((lift and pos:find("BOTTOM")) and lift or 0)
+-- lift: how far a number at a bottom point sits up (over a bar); inset: how far in the border's
+-- picture starts, which a corner keeps inside
+function Count.place(fs, anchor, pos, lift, inset)
+	local nudge, d = COUNT_NUDGE[pos], pos ~= "CENTER" and inset or 0
+	local x = nudge[1] + (pos:find("LEFT") and d or -d)
+	local y = nudge[2] + ((lift and pos:find("BOTTOM")) and lift or 0) + (pos:find("BOTTOM") and d or -d)
 	fs:ClearAllPoints()
-	fs:SetPoint(pos, anchor, pos, nudge[1], y)
+	fs:SetPoint(pos, anchor, pos, x, y)
 	fs:SetJustifyH(W.COUNT_JUSTIFY[pos])
 end
 

@@ -83,7 +83,7 @@ local function believedUp()
 end
 
 local CHARGES = 3
-local function placeCount(fs, icon) Count.place(fs, icon, count("pos")) end
+local function placeCount(fs, icon) Count.place(fs, icon, count("pos"), nil, ns.StyleArt.pictureInset(icon)) end
 
 function SH.sanitize(_, acct)
 	if not SHIELDS[acct.lastShield] then acct.lastShield = "lightning" end
