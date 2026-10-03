@@ -106,13 +106,15 @@ local RENAMED = {
 }
 
 -- Retired settings, dropped or converted as a profile loads or is imported (folds: as the account
--- loads). Drop after launch, with RENAMED and retireGroups.
+-- loads). Drop after launch, with RENAMED, retireGroups and retireTotemBar.
 local RETIRED = {
 	-- Profile keys from before styles
 	root = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "glowSize", "popMotion", "popSize", "popSpeed",
 		"popFlash", "popRing", "popStar", "popTint" },
 	-- Fold keys of pages that no longer fold
 	folds = "^layout:",
+	-- The totem bar's switches from before its mode, and follow from before sizeFollow
+	totemBar = { "enabled", "hideTotemFrame", "hideActionBar", "killedPulse", "follow" },
 }
 
 local function put(t, name, field, v)
@@ -159,6 +161,15 @@ local function retireGroups(profile)
 	end
 end
 
+local function retireTotemBar(t)
+	if type(t.mode) ~= "string" and (t.enabled == false or t.show == "never") then t.mode = "blizzard" end
+	if t.follow == false then
+		t.sizeFollow = false
+		if type(t.border) == "table" then t.border.follow = false end
+	elseif t.follow == true then t.size, t.border = nil, nil end
+	for _, k in ipairs(RETIRED.totemBar) do t[k] = nil end
+end
+
 -- The renames and retired settings, on a profile as saved or as imported
 function P.migrate(profile)
 	if type(profile) ~= "table" then return end
@@ -188,7 +199,10 @@ function P.migrate(profile)
 			end
 		end
 	end
-	if type(profile.totemBar) == "table" then rename(profile.totemBar, RENAMED.totemBar) end
+	if type(profile.totemBar) == "table" then
+		rename(profile.totemBar, RENAMED.totemBar)
+		retireTotemBar(profile.totemBar)
+	end
 	retireGroups(profile)
 end
 

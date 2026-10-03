@@ -125,12 +125,6 @@ local function cfg()
 	if type(db.totemBar) ~= "table" then db.totemBar = {} end
 	local t = db.totemBar
 	if t ~= cfgTable then
-		if t.mode == nil and (t.enabled == false or t.show == "never") then t.mode = "blizzard" end
-		if t.follow == false then
-			t.sizeFollow = false
-			if type(t.border) == "table" then t.border.follow = false end
-		elseif t.follow == true then t.size, t.border = nil, nil end
-		t.enabled, t.hideTotemFrame, t.hideActionBar, t.killedPulse, t.follow = nil, nil, nil, nil, nil
 		if t.mode ~= "blizzard" and t.mode ~= "active" and t.mode ~= "everything" then t.mode = nil end
 		if t.show ~= "always" and t.show ~= "active" and t.show ~= "combat" and t.show ~= "target" then t.show = nil end
 		if t.barPlace ~= "in" and t.barPlace ~= "out" then t.barPlace = nil end
