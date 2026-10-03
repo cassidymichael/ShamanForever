@@ -148,7 +148,11 @@ end
 OA.makePreviewIcon = makePreviewIcon
 
 local function setBar(ic, n, filled, r, g, b, a)
-	local w = ic:GetWidth()
+	local d = ns.StyleArt.pictureInset(ic)
+	ic.bar:ClearAllPoints()
+	ic.bar:SetPoint("BOTTOMLEFT", ic, "BOTTOMLEFT", d, d)
+	ic.bar:SetPoint("BOTTOMRIGHT", ic, "BOTTOMRIGHT", d > 0 and -d or 0, d)
+	local w = ic:GetWidth() - 2 * d
 	local path, atlas = ns.Media.barOf(ns.Style.value(nil, "bar", "texture"))
 	for i = #ic.bar.segs + 1, n do ic.bar.segs[i] = ic.bar:CreateTexture(nil, "ARTWORK") end
 	for i, t in ipairs(ic.bar.segs) do
