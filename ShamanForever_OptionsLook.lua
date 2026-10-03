@@ -76,30 +76,25 @@ function L.divider(parent)
 	return t
 end
 
--- Experimental badge
-function L.tagBadge(parent, text)
-	local b = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+-- Badges: a word in a faintly filled frame of its colour
+local TAG, TAG_TEXT, EXP = { 0.55, 0.82, 0.5 }, { 0.62, 0.86, 0.56 }, { 0.95, 0.77, 0.42 }
+local function makeBadge(frameType, parent, text, edge, color)
+	local b = CreateFrame(frameType, nil, parent, "BackdropTemplate")
 	b:SetBackdrop(ns.BACKDROP)
-	b:SetBackdropColor(0.55, 0.82, 0.5, 0.08)
-	b:SetBackdropBorderColor(0.55, 0.82, 0.5, 0.5)
+	b:SetBackdropColor(edge[1], edge[2], edge[3], 0.08)
+	b:SetBackdropBorderColor(edge[1], edge[2], edge[3], 0.5)
 	b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	b.text:SetPoint("CENTER", 0, 0)
 	b.text:SetText(text)
-	b.text:SetTextColor(0.62, 0.86, 0.56)
+	b.text:SetTextColor(color[1], color[2], color[3])
 	b:SetSize(b.text:GetStringWidth() + 12, 16)
 	return b
 end
+function L.tagBadge(parent, text) return makeBadge("Frame", parent, text, TAG, TAG_TEXT) end
 
+-- Experimental badge
 function L.expBadge(parent, feature)
-	local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
-	b:SetBackdrop(ns.BACKDROP)
-	b:SetBackdropColor(0.95, 0.77, 0.42, 0.08)
-	b:SetBackdropBorderColor(0.95, 0.77, 0.42, 0.5)
-	b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-	b.text:SetPoint("CENTER", 0, 0)
-	b.text:SetText("EXPERIMENTAL")
-	b.text:SetTextColor(0.95, 0.77, 0.42)
-	b:SetSize(b.text:GetStringWidth() + 12, 16)
+	local b = makeBadge("Button", parent, "EXPERIMENTAL", EXP, EXP)
 	b:SetScript("OnClick", function() ns.Options.showExperimental() end)
 	b:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
