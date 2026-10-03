@@ -81,6 +81,7 @@ TB.DEFAULTS = {
 	pixelEdge = 1,
 	stonePlinth = "normal",   -- slim | normal | grand
 	stoneExtrasScale = 1,
+	bossExtrasScale = 1.6,
 	barPlace = "in",   -- in | out
 }
 
@@ -95,7 +96,7 @@ local RANGES = {
 	idleAlpha = { 0.1, 1, 0.05 }, badgeSize = { 0.25, 0.8, 0.05 }, badgeAlpha = { 0.1, 1, 0.05 },
 	badgeSat = { 0, 1, 0.05 }, badgeX = { -30, 30, 1 }, badgeY = { -30, 30, 1 }, rangeHeight = { 1, 12, 1 },
 	fadeAfter = { 0, 10, 1 }, keySize = { 6, 30, 1 }, keyX = { -20, 20, 1 }, keyY = { -20, 20, 1 },
-	pixelEdge = { 1, 4, 1 },
+	pixelEdge = { 1, 4, 1 }, bossExtrasScale = { 1, 2, 0.05 },
 	expire = { secs = EXPIRE_SECS },
 }
 TB.RANGES = RANGES
@@ -1254,7 +1255,7 @@ function layout()
 			e.vis.icon:SetTexture(C_Spell.GetSpellTexture(e.spell))
 			e.vis.icon:SetDesaturated(not learned)
 			e.vis.icon:SetAlpha(learned and 1 or 0.6)
-			TB.fitLook(e.vis, e.button, extrasBorder, on[key])
+			TB.skin.dressSlot(e.vis, nil, on[key] - 2 * TB.fitLook(e.vis, e.button, extrasBorder, on[key]))
 		end
 	end
 	-- The set switch: with more than one set known
@@ -1282,6 +1283,7 @@ function layout()
 		b:SetAttribute("*type1", feat("cast") and "action" or nil)
 		b:SetAttribute("sf-altpick", barOn() and cfg().mode == "everything")
 		s.inset = TB.fitLook(s.vis, b, border, size)
+		TB.skin.dressSlot(s.vis, s.el, size - 2 * s.inset)
 		s.killed.fitSize, s.expired.fitSize = size - 2 * s.inset, size - 2 * s.inset
 		s.timer:apply()
 		TB.skin.styleTimer(s.timer, s.vis, size)

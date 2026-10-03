@@ -144,6 +144,7 @@ PREVIEW = {
 			if it.extra then
 				local ic = h.extras[it.key]
 				local o = ns.StyleArt.fit(ic, extrasBorder, it.size)
+				TB.skin.dressSlot(ic, nil, it.size - 2 * o)
 				ic:ClearAllPoints()
 				place(ic, it.offset + o, (line - it.size) / 2 + o)
 				local learned = TB.extraLearned(it.key)
@@ -173,6 +174,7 @@ PREVIEW = {
 				place(ic.box, slotAt[placeIdx[el]], (line - size) / 2)
 				ic.school = el
 				local o = ns.StyleArt.fit(ic, border, size)
+				TB.skin.dressSlot(ic, el, size - 2 * o)
 				ic:ClearAllPoints()
 				place(ic, slotAt[placeIdx[el]] + o, (line - size) / 2 + o)
 				local pick = TB.pickTexture(el)
@@ -254,10 +256,10 @@ PREVIEW = {
 		if picking then
 			local first = h.slots[1]
 			TB.placeArrow(h.tab, first.box, h.tab.glyph)
-			TB.skin.styleArrow(h.tab)
+			TB.skin.styleArrow(h.tab, els[1])
 			local p = h.pop
 			TB.placePopout(p, first.box, items, psz)
-			TB.skin.stylePopout(p, items, psz)
+			TB.skin.stylePopout(p, items, psz, els[1])
 			for i, it in ipairs(p.items) do
 				it:SetShown(i <= items)
 				TB.placePopButton(it, p, i, psz)
@@ -448,10 +450,14 @@ local function build(p)
 		showWhen(function() return (c().call or c().recall) and not TB.skin.owns("extras") end, full), 180)
 	own("extrasScale")
 	own("stoneExtrasScale")
+	local function bosses() return TB.skin.extrasScaleKey() == "bossExtrasScale" end
 	K.rangeSlider(p, TB.RANGES.extrasScale, "Call and Recall size", "As a share of the slots' size.",
 		pct, function() return TB.eff().extrasScale end,
 		function(v) c()[TB.skin.extrasScaleKey()] = v; changed() end,
-		showWhen(function() return c().call or c().recall end, full))
+		showWhen(function() return (c().call or c().recall) and not bosses() end, full))
+	K.rangeSlider(p, TB.RANGES.bossExtrasScale, "Boss size", "The round bosses that hold Call and Recall, as a share "
+		.. "of the slots' size.", pct, tget("bossExtrasScale"), tset("bossExtrasScale"),
+		showWhen(function() return (c().call or c().recall) and bosses() end, full))
 	tslider("Call and Recall gap", "From the slots. Below 0 they overlap.", px, "extrasGap",
 		showWhen(function() return (c().call or c().recall) and not TB.skin.owns("spacing") end, full))
 	tslider("Gap between them", "Between Call and Recall when both sit on one side.", px, "extrasSpacing",
