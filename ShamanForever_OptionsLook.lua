@@ -145,9 +145,10 @@ local function makePreviewIcon(parent, key, preview)
 end
 L.makePreviewIcon = makePreviewIcon
 
-local function setBar(ic, n, filled, r, g, b)
+local function setBar(ic, n, filled, r, g, b, a)
 	local w = ic:GetWidth()
 	local path, atlas = ns.Media.barOf(ns.Style.value(nil, "bar", "texture"))
+	for i = #ic.bar.segs + 1, n do ic.bar.segs[i] = ic.bar:CreateTexture(nil, "ARTWORK") end
 	for i, t in ipairs(ic.bar.segs) do
 		if i > n then t:Hide() else
 			local segW = (n == 1) and w * filled or (w - (n - 1)) / n
@@ -157,7 +158,7 @@ local function setBar(ic, n, filled, r, g, b)
 			t:SetPoint("LEFT", ic.bar, "LEFT", (i - 1) * ((w - (n - 1)) / n + 1), 0)
 			t:SetWidth(math.max(segW, 0.01))
 			if atlas then t:SetAtlas(path) else t:SetTexture(path) end
-			t:SetVertexColor(r, g, b, 1)
+			t:SetVertexColor(r, g, b, a or 1)
 			t:SetShown(n == 1 or i <= filled)
 		end
 	end
