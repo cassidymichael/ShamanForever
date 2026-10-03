@@ -64,8 +64,11 @@ ns.registerPart("missing", {
 	preview = {
 		warning = "missing",
 		states = { { "missing", "Not on target", 30 } },
-		render = function(ic, st, def)
+		render = function(ic, st, def, P)
 			if st == "missing" then ic:SetWarnParts(ns.warnParts(def.key, "warn")) end
+			if (st == "up" or st == "expiring") and setting(def.key, "idleWhen") == "target" then
+				P.idle(ic, def.key)
+			end
 		end,
 	},
 })

@@ -52,8 +52,6 @@ ns.registerPart("buff", {
 			elseif st == "idle" then
 				if setting(key, "idleWhen") ~= "never" then P.idle(ic, key) end
 			end
-			local shown = st == "up" or st == "expiring"
-			if shown and setting(key, "idleWhen") == "target" then P.idle(ic, key) end
 		end,
 		rest = function(ic, def, P, keep) if not keep then P.idle(ic, def.key) end end,
 	},
