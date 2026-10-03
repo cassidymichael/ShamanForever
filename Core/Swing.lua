@@ -100,7 +100,7 @@ end
 
 function SW.border() return E.borderFor("swing") end
 
-local f = CreateFrame("Frame", nil, UIParent)
+local f = CreateFrame("Frame", nil, Bars.parent())
 f:SetSize(SW.DEFAULTS.width, SW.DEFAULTS.height)
 f:Hide()
 local face = CreateFrame("Frame", nil, f)

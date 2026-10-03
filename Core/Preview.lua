@@ -321,6 +321,7 @@ function PV.showsUnlearned() return on and opts.unlearned end
 function PV.open()
 	if on then return end
 	if not E.isActive() then say("the preview is for %s only", ns.CLASS.plural) return end
+	if ns.isOff() then say("off: %s enable turns it back on", ns.CLASS.slash[1]) return end
 	if InCombatLockdown() then say("the preview can't start in combat") return end
 	on = true
 	ns.Options.stepAside("preview")
