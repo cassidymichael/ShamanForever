@@ -233,7 +233,8 @@ GD.add({ title = "Styles", order = 20, blurb = "A taste of what things can look 
 			f.icons[i].box:SetFrameLevel(s.stage:GetFrameLevel() + 10)
 		end
 		f.label = GD.text(s.stage, "", PAD, PAD, s.stageW - 2 * PAD - #STEPS * 14)
-		f.progress = GD.dots(s.stage, #STEPS)
+		-- A click shows that part and holds it for its full time
+		f.progress = GD.dots(s.stage, #STEPS, function(i) GD.stepTo(i - 1) end)
 		f.progress:SetPoint("TOPRIGHT", s.stage, "TOPRIGHT", -PAD + 4, -PAD + 2)
 		f.cy = STYLE_STAGE / 2 + 12
 		GD.lead(s, s.stageW / 2, f.cy + SIZE / 2 + 4)
