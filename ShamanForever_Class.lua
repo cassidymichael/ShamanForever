@@ -56,7 +56,7 @@ ns.CLASS.layout = {
 		sizeFollow = false, size = 38,
 		orientation = "horizontal", growth = "forward", spacing = 2,
 		members = { "earthbind", "stoneclaw", "grounding" } },
-	{ id = 4, name = "Procs", point = "CENTER", x = 0, y = -154, scale = 1, alpha = 0.9,
+	{ id = 4, name = "Procs", point = "CENTER", x = 0, y = -142, scale = 1, alpha = 0.9,
 		sizeFollow = false, size = 50,
 		orientation = "horizontal", growth = "forward", spacing = 2,
 		members = { "elementalfocus", "maelstrom" } },
@@ -205,7 +205,7 @@ ns.Spells.add({
 	earthShock      = { ids = { 8042 }, en = "Earth Shock" },
 	-- Every rank: an aura filter matches IDs, not names
 	flameShock      = { ids = { 8050, 8052, 8053, 10447, 10448, 29228 }, en = "Flame Shock" },
-	frostShock      = { ids = { 8056 }, en = "Frost Shock" },
+	frostShock      = { ids = { 8056, 8058, 10472, 10473 }, en = "Frost Shock" },
 	purge           = { ids = { 370, 8012, 27626 }, en = "Purge" },   -- 8012 and 27626: both rank 2
 	earthbind       = { ids = { 2484 }, en = "Earthbind Totem" },
 	stoneclaw       = { ids = { 5730 }, en = "Stoneclaw Totem" },
