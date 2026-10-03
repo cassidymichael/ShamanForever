@@ -11,7 +11,7 @@ local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
 local BOARD_W = 600
 -- One spacing scale: a box's padding, the gap between blocks, a title's gap to its text
 local PAD, GAP, UNDER = 12, 12, 6
-local BLURB_Y, UNDER_BLURB = 40, 20   -- the blurb's top, and the room under it before the slide
+local BLURB_Y, UNDER_BLURB = 50, 30   -- the blurb's top, and the room under it before the slide
 GD.W, GD.PAD, GD.GAP = BOARD_W, PAD, GAP
 
 -- Colours: Global, Group, Element, Bars

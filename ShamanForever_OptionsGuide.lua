@@ -377,7 +377,7 @@ local EXAMPLES = {
 		return look
 	end, span = 5 },
 }
-local COLS, TILE_GAP, TILE_H, STATE_SIZE = 5, 10, 124, 60
+local COLS, TILE_GAP, TILE_H, STATE_SIZE = 5, 10, 118, 60
 local TILE_W = (BOARD_W - (COLS - 1) * TILE_GAP) / COLS
 
 -- Maelstrom's stacks, one a second to five, the proc, and back to none
