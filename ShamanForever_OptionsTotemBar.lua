@@ -625,8 +625,9 @@ local function build(p)
 	p:dropdown("Time bar position", "Beside the icon: on the side away from the pickers.",
 		{ { "in", "In the icon" }, { "out", "Beside the icon" } }, tget("barPlace"), tset("barPlace"),
 		function() return ns.Style.value("totembar", "uptime", "bar") and not TB.skin.owns("barPlace") end, 190)
-	K.barRows(p, "totembar", changed)
 	K.textBlock(p, "totembar", changed)
+	p:header("Bar texture")
+	K.barRows(p, "totembar", changed)
 	p:header("Border style")
 	p:text("Set by the theme.", owned("border"))
 	K.borderRows(p, "totembar", changed, nil, free("border"))
