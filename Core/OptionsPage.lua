@@ -219,6 +219,28 @@ local function pixelEdges(page, f)
 	for _, kid in ipairs({ f:GetChildren() }) do pixelEdges(page, kid) end
 end
 
+local function repixel(page)
+	for _, l in ipairs(page.lines) do page:pxLine(l[1], l[2]) end
+	pixelEdges(page, page.content)
+end
+-- A UI scale or resolution change moves the screen pixel: lines and edges below 100% follow, once
+-- the client has set its new scale
+do
+	local watch = CreateFrame("Frame")
+	watch:SetScript("OnEvent", function()
+		C_Timer.After(0, function()
+			for _, page in ipairs(allPages) do
+				if page.scaled ~= 1 then
+					repixel(page)
+					if page.scroll:IsVisible() then page:refresh() end
+				end
+			end
+		end)
+	end)
+	ns.registerEvent(watch, "UI_SCALE_CHANGED")
+	ns.registerEvent(watch, "DISPLAY_SIZE_CHANGED")
+end
+
 -- Whether this page takes the page size: pages of blocks, unless the page keeps its real size
 function Page:scales() return not self.fullSize and self.panels ~= false and #self.blockList > 0 end
 function Page:fitWidth(w)
@@ -233,8 +255,7 @@ function Page:applyScale()
 	self.scaled = want
 	self.content:SetScale(want)
 	self:fitWidth(self.scroll:GetWidth())
-	for _, l in ipairs(self.lines) do self:pxLine(l[1], l[2]) end
-	pixelEdges(self, self.content)
+	repixel(self)
 	self:keepHeld(hold)
 end
 
