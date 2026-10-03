@@ -82,9 +82,9 @@ function SN.play(value, alert, gap, zoning)
 	emit(value)
 end
 
--- An element's sound for a state or event (its sound field)
-function SN.element(key, event, zoning)
-	if E.isEnabled(key) then SN.play(E.setting(key, event, "sound"), key .. ":" .. event, nil, zoning) end
+-- An element's sound for a state or event (its sound field); gap: seconds between its plays
+function SN.element(key, event, zoning, gap)
+	if E.isEnabled(key) then SN.play(E.setting(key, event, "sound"), key .. ":" .. event, gap, zoning) end
 end
 
 function SN.test(value) emit(value) end
