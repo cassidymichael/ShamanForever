@@ -292,8 +292,8 @@ local function frameRows(p, owner, part, after, opts)
 		function(v) showAll = v; OP.refresh() end,
 		showWhen(function() return #offered(true) > #offered(false) end, own))
 	local tints = showWhen(function() return framed() and look().uses.color end, own)
-	p:color("Frame colour", "Tints the art. White keeps its own colours.", r.get("color"), r.set("color"), tints, true)
-	styleSlider(p, part, "alpha", "Frame opacity", nil, pct, r.get("alpha"), r.set("alpha"), showWhen(framed, own))
+	p:color("Art frame colour", "Tints the art. White keeps its own colours.", r.get("color"), r.set("color"), tints, true)
+	styleSlider(p, part, "alpha", "Art frame opacity", nil, pct, r.get("alpha"), r.set("alpha"), showWhen(framed, own))
 	if part == "frame" and owner ~= nil then
 		-- What a solid style's wings need from its group's spacing
 		local function room()
@@ -727,7 +727,7 @@ local function styleBlocks(p, key)
 	if e.effects.pop then popBlock(p, key, e.effects.popKind or "ready") end
 	p:header("Border style")
 	K.borderRows(p, key, relayout)
-	p:header("Frame style")
+	p:header("Art frame style")
 	K.frameRows(p, key, "frame", relayout)
 end
 

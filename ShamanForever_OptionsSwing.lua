@@ -117,7 +117,7 @@ local function build(p)
 	p:header("Border style")
 	K.borderRows(p, "swing", changed)
 	if K.barFramed("swing") then
-		p:header("Frame style")
+		p:header("Art frame style")
 		K.frameRows(p, "swing", "groupframe", changed)
 	end
 end

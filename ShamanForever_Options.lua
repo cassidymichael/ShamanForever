@@ -172,12 +172,12 @@ local function buildGlobal(p)
 	p:text("Every border. " .. K.ownersText("Elements", "border"))
 	K.borderRows(p, nil)
 	K.ownLine(p, "border")
-	p:header("Frame style")
+	p:header("Art frame style")
 	p:anchor("frame")
 	p:text("Art round each icon. " .. K.ownersText("Elements", "frame"))
 	K.frameRows(p, nil, "frame")
 	K.ownLine(p, "frame")
-	p:header("Group frame style")
+	p:header("Group art frame style")
 	p:anchor("groupframe")
 	p:text("Art round a whole group. " .. K.ownersText("Groups", "groupframe"))
 	K.frameRows(p, nil, "groupframe")
@@ -272,7 +272,7 @@ local function buildAbout(p)
 		local e = E.ALL[key]
 		if e.experimental then p:experimental(e.experimental, "Elements > " .. e.label) end
 	end
-	p:experimental("Art frames", "Frame and Group frame styles")
+	p:experimental("Art frames", "Art frame and Group art frame styles")
 	for _, key in ipairs(Bars.list()) do
 		local bar = Bars.get(key)
 		for _, x in ipairs(bar.experiments or {}) do
@@ -294,7 +294,7 @@ local function buildAbout(p)
 			if e.credit == "ai" and not e.hidden then table.insert(ai, e.name) end
 		end
 	end
-	if #ai > 0 then p:text("Frames made with the same model: " .. table.concat(ai, ", ") .. ".") end
+	if #ai > 0 then p:text("Art frames made with the same model: " .. table.concat(ai, ", ") .. ".") end
 end
 
 -- Key stays "general": it is saved as the last page and in folded blocks' keys.

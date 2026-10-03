@@ -576,12 +576,12 @@ local function buildSettings(p)
 	owns("scale", function(r) setScale(Page.refDefault(r)) end)
 	slider(p, R.scale, "Scale", "Grows everything in the group, borders and rings too.", times, get("scale"), setScale)
 	slider(p, R.alpha, "Opacity", "Transparency of the group.", pct, get("alpha"), set("alpha"))
-	p:header("Group frame")
+	p:header("Group art frame")
 	K.frameRows(p, sel, "groupframe", relayout, {
 		note = "Doesn't fade with each element's Idle.",
 		spacing = { get = get("spacing"), set = function(v) local g = sel(); if g then g.spacing = v; relayout() end end,
 			min = R.spacing[1], max = R.spacing[2], size = function() return G.size(sel()) end } })
-	p:text("Each element's border and frame are on its own page.")
+	p:text("Each element's border and art frame are on its own page.")
 	p:buttons({
 		{ "Centre on screen", function() askAbout(ns.POPUP .. "CENTER", sel()) end, "Moves the group to the middle of the screen.", 130 },
 		{ "Hide all", function() askAbout(ns.POPUP .. "HIDEALL", sel()) end, "Sets every element in the group to Hidden. They keep their places; set one back to Always to bring it back.", 90 },

@@ -198,7 +198,7 @@ function EP.buildOverview(p)
 			GameTooltip:SetText("Own styles")
 			local own = ownStyles(key, "label")
 			if #own == 0 then
-				GameTooltip:AddLine("Follows Global styles for its timers, glow, pop, border and frame.", 1, 1, 1, true)
+				GameTooltip:AddLine("Follows Global styles for its timers, glow, pop, border and art frame.", 1, 1, 1, true)
 			else
 				GameTooltip:AddLine(table.concat(own, ", "), 1, 1, 1, true)
 				GameTooltip:AddLine("The rest follow Global styles.", 0.7, 0.7, 0.7, true)

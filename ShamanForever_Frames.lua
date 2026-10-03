@@ -13,9 +13,9 @@ local floor, max, min, abs = math.floor, math.max, math.min, math.abs
 FR.LEVEL = { under = -2, over = 1, group = 0, member = 3 }
 
 local SECTIONS = { { "blizzard", "Blizzard's" }, { "painted", "Painted" }, { "minimal", "Minimal" } }
-S.addField("frame", "look", { name = "Frame style", where = "Global settings > Frame style",
+S.addField("frame", "look", { name = "Art frame style", where = "Global settings > Art frame style",
 	preview = { play = "still" }, groups = SECTIONS })
-S.addField("groupframe", "look", { name = "Group frame style", where = "Global settings > Group frame style",
+S.addField("groupframe", "look", { name = "Group art frame style", where = "Global settings > Group art frame style",
 	preview = { play = "still" }, groups = SECTIONS })
 
 -- Validation
@@ -74,7 +74,7 @@ local function elementError(e)
 	local a = e.art
 	local err = artError(a, "art")
 	if err then return err end
-	if a.rotate == 90 or a.rotate == 270 then return "art: an element frame turns only 0 or 180" end
+	if a.rotate == 90 or a.rotate == 270 then return "art: an element art frame turns only 0 or 180" end
 	if e.layer ~= nil and not LAYER[e.layer] then return "layer is over or under" end
 	return holeError(e.hole, a.size[1], a.size[2], "art")
 end

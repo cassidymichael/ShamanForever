@@ -615,7 +615,7 @@ local function build(p)
 	p:text("Set by the theme.", owned("border"))
 	K.borderRows(p, "totembar", changed, nil, free("border"))
 	if K.barFramed("totembar") then
-		p:header("Frame style")
+		p:header("Art frame style")
 		K.frameRows(p, "totembar", "groupframe", changed, { spacing = {
 			get = tget("spacing"), set = function(v) c().spacing = v; changed() end,
 			min = TB.RANGES.spacing[1], max = TB.RANGES.spacing[2],

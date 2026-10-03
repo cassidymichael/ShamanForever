@@ -43,9 +43,9 @@ for _, part in ipairs({ "border", "glow", "pop", "frame" }) do
 end
 
 -- Using a style as the global one
-local PART_NAMES = { border = "border style", glow = "pulsing glow", pop = "pop", frame = "frame",
-	groupframe = "group frame" }
-local USE = { frame = "Use as Global frame", groupframe = "Use as Global group frame" }
+local PART_NAMES = { border = "border style", glow = "pulsing glow", pop = "pop", frame = "art frame",
+	groupframe = "group art frame" }
+local USE = { frame = "Use as Global art frame", groupframe = "Use as Global group art frame" }
 local AFTER = {
 	border = K.relayout, frame = K.relayout, groupframe = K.relayout,
 	glow = function() ns.Effects.applyStyle(); E.applyTimers(); ns.Options.refresh() end,
@@ -702,7 +702,7 @@ end
 -- The page
 local GLOBAL = "Global settings"
 local BLOCKS = { border = { "border", "Border style" }, glow = { "glow", "Pulsing glow style" },
-	pop = { "pop", "Pop style" }, frame = { "frame", "Frame style" }, groupframe = { "groupframe", "Group frame style" } }
+	pop = { "pop", "Pop style" }, frame = { "frame", "Art frame style" }, groupframe = { "groupframe", "Group art frame style" } }
 
 -- A row of chips and the Global settings link for a block without preview sliders
 local function chipRow(p, label, items, key, part)
@@ -754,10 +754,10 @@ function SP.build(p)
 	p:header("Border style")
 	previewRows(p, "border", { { "Border size", "size", px } })
 	flowSection(p, "border", "look")
-	p:header("Element frame")
+	p:header("Element art frame")
 	chipRow(p, "Border", { { true, "On" }, { false, "Off" } }, "frameBorder", "frame")
 	flowSection(p, "frame", "look", { keep = usableFrame, stage = frameStage })
-	p:header("Group frame")
+	p:header("Group art frame")
 	chipRow(p, "Direction", { { "row", "Row" }, { "column", "Column" } }, "groupDir", "groupframe")
 	groupSection(p)
 	p:header("Pulsing glow")
