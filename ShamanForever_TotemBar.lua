@@ -1739,7 +1739,8 @@ function TB.debug()
 end
 
 ns.registerBar("totembar", { label = "Totem bar", cfg = cfg, saved = "totemBar", defaults = TB.DEFAULTS,
-	ranges = TB.RANGES, choices = CHOICES, on = barOn, kinds = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
+	ranges = TB.RANGES, choices = CHOICES, on = barOn,
+	kinds = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
 	-- Its theme can draw its own border
 	ownLabel = function(kind)
 		if kind == "border" and TB.skin.owns("border") then return "Totem bar (its theme)" end
