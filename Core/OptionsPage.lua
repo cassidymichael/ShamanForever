@@ -1037,7 +1037,11 @@ function Page:pin(h)
 	h:SetPoint("TOPRIGHT", win, "TOPRIGHT", -22, PAGE_TOP)
 	h:Hide()
 	self.fixed = h
-	self.scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, PAGE_TOP - (h.heroH or ns.OptionsArt.HERO_H))
+	local function place()
+		self.scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, PAGE_TOP - (h.heroH or ns.OptionsArt.HERO_H))
+	end
+	h.onHeight = place
+	place()
 	return h
 end
 
