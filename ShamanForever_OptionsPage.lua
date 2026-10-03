@@ -481,7 +481,6 @@ local function same(a, b)
 	for k in pairs(b) do if a[k] == nil then return false end end
 	return true
 end
-Page.same = same
 
 local function defaultOf(r)
 	if r.default then return r.default() end
