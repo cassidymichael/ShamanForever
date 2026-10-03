@@ -164,7 +164,7 @@ local function reset(ic, icon)
 	ic.warnTint = nil
 	ic.tex:SetAlpha(1)
 	ic:SetAlpha(1)
-	ic.manaOverlay:Hide()
+	ic.bodyOverlay:Hide()
 	ic:SetRingShown(false)
 	ic:SetPulsing(false)
 	ic:SetGlowShown(false)

@@ -877,14 +877,14 @@ function W.makeIcon(parent, size, owner)
 	f.tex = f:CreateTexture(nil, "ARTWORK")
 	f.tex:SetAllPoints()
 	W.cropIconExact(f.tex)
-	f.manaOverlay = f:CreateTexture(nil, "ARTWORK", nil, 2)
-	f.manaOverlay:SetAllPoints(f.tex)
-	f.manaOverlay:SetColorTexture(0.2, 0.45, 1, 0.55)
-	f.manaOverlay:Hide()
+	f.bodyOverlay = f:CreateTexture(nil, "ARTWORK", nil, 2)
+	f.bodyOverlay:SetAllPoints(f.tex)
+	f.bodyOverlay:SetColorTexture(0.2, 0.45, 1, 0.55)
+	f.bodyOverlay:Hide()
 	f.SetBodyPaint = function(self, style, r, g, b, overlayAlpha, tintStrength)
 		if style == "overlay" or style == "both" then
-			self.manaOverlay:SetColorTexture(r, g, b, overlayAlpha)
-			self.manaOverlay:Show()
+			self.bodyOverlay:SetColorTexture(r, g, b, overlayAlpha)
+			self.bodyOverlay:Show()
 		end
 		if style == "tint" or style == "both" then
 			local k = 1 - tintStrength

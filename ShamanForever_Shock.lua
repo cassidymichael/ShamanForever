@@ -46,7 +46,7 @@ local rangeCheckID
 
 -- Out of range: red body; no mana: blue body and ring; both: red body, blue ring
 local function paint(f, outOfRange, noMana)
-	f.manaOverlay:Hide()
+	f.bodyOverlay:Hide()
 	f.tex:SetVertexColor(1, 1, 1)
 	if outOfRange then
 		f:SetBodyPaint(setting("shock", "range", "look"), 1, 0.25, 0.25,

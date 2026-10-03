@@ -271,7 +271,7 @@ local function drawMask(f, spec)
 	maskSpecs[f] = spec
 	maskOne(f, over, spec, over)
 	maskOne(f, f.bg, spec, over)
-	maskOne(f, f.manaOverlay, spec, over)
+	maskOne(f, f.bodyOverlay, spec, over)
 	maskOne(f, f.warn and f.warn.grey, spec, over)
 	for _, t in ipairs(followers[f] or {}) do maskOne(f, t, spec, over) end
 	for t, o in pairs(ownShape[f] or {}) do maskOne(f, t, spec, o) end
