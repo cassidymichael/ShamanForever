@@ -898,16 +898,17 @@ function ClipLook:setLevel(lv, up)
 	self.glow.inner:SetFrameLevel(lv + (up or 1))
 end
 
+-- drawn: the glow's style (a look without a glow says nothing of it)
 function ClipLook:describe()
 	return string.format(
-		"%ssensor %s%s, size %s (icon %s), filters %s, unit %s, wanted %s, waiting %s, drawn %s",
+		"%ssensor %s%s, size %s (icon %s), filters %s, unit %s, wanted %s, waiting %s%s",
 		self.opts.invert and "while up: " or "",
 		self.container and "made" or "not made", self.err and (" (error: " .. self.err .. ")") or "",
 		tostring(self.size), tostring(ns.Elements.sizeOf(self.opts.key)),
 		not self.idsOK and "behind" or (self.opts.agrees and not self.opts.agrees()) and "not the slot's"
 			or "matched",
 		tostring(self.unit), tostring(self.wanted), tostring(self.waiting ~= nil),
-		self.glow and self.glow.look and self.glow.look.key or "none")
+		self.glow and (", drawn " .. (self.glow.look and self.glow.look.key or "none")) or "")
 end
 
 -- An icon's layers over its own level, bottom up: its picture and a cast state's body paint (0), its

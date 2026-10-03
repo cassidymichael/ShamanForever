@@ -305,6 +305,19 @@ function CS.start()
 	end)
 end
 
+-- What the cover shows now: its paint, and whether its hold lets it through (while the aura is up)
+function CS.describeCover(w)
+	local c = w.coverFrame
+	local over = c.over:IsShown()
+	local k = w.out and "red" or "blue"
+	local ring = c.ring.edges[1]:IsShown()
+	local paint = over and (k .. " overlay" .. (ring and " and blue ring" or "")) or (ring and "blue ring")
+		or "nothing"
+	local through = w.up.hold:GetAlpha() > 0 and "shown while the aura is up" or "held at 0 (not wanted, or the "
+		.. "sensor isn't ready)"
+	return paint .. ", " .. through
+end
+
 -- /sf debug
 function CS.debug()
 	for _, w in ipairs(WATCHES) do
@@ -326,8 +339,9 @@ function CS.debug()
 			table.concat(on, ", "), tostring(powerID), tostring(rangeID), usable, noPower, inRange,
 			w.drawn == "" and "nothing" or tostring(w.drawn))
 		if w.cover then
-			say("%s cast states over the button: %s", w.key, not w.up and "not made (both off)"
-				or ((w.attached and "" or "detached, ") .. w.up:describe()))
+			say("%s cast states over the button: %s", w.key, not w.up and "not made (both off, or switched on in "
+				.. "combat: made when it ends)" or ((w.attached and "" or "detached, ") .. w.up:describe()))
+			if w.up then say("%s paint over the button: %s", w.key, CS.describeCover(w)) end
 		end
 	end
 end
