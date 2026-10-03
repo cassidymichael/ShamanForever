@@ -20,13 +20,13 @@ T.DEFAULTS = {
 		text = true, textSize = 18, textColor = { 1, 1, 1, 1 }, textPos = "center", abbrev = 0,
 		swipe = true, swipeAlpha = 0.65, swipeReverse = false,
 		bar = false, barHeight = 8, barElement = true, barColor = { 1, 0.9, 0.35, 1 }, barEdge = "top",
-		barPlace = "in",
+		barPlace = "in", barGap = 3,
 	},
 	uptime = {
 		text = true, textSize = 12, textColor = { 0.5, 1, 0.4, 1 }, textPos = "auto", abbrev = 0,
 		swipe = false, swipeAlpha = 0.6, swipeReverse = true,
 		bar = true, barHeight = 8, barElement = true, barColor = { 0.46, 1, 0.35, 1 }, barEdge = "bottom",
-		barPlace = "in",
+		barPlace = "in", barGap = 3,
 	},
 }
 for _, part in ipairs(T.PARTS) do
@@ -63,9 +63,11 @@ local TIMER_REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBar
 local TIMER_IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
 T.AURA_BAR = { interpolation = TIMER_IMMEDIATE, direction = TIMER_REMAINING }
 
--- abbrev: seconds under which minutes read 1:31 (0: never)
+-- abbrev: seconds under which minutes read 1:31 (0: never); barGap: out of the icon, at the default
+-- icon size
 local RANGES = { textSize = { 6, 48, 1 }, abbrev = { 0, 3600, 60 }, swipeAlpha = { 0.1, 1, 0.05 },
-	barHeight = { 1, 20, 1 }, soon = { 1, 60, 1 }, now = { 1, 60, 1 }, tenths = { 0, 10, 1 } }
+	barHeight = { 1, 20, 1 }, barGap = { 0, 20, 1 }, soon = { 1, 60, 1 }, now = { 1, 60, 1 },
+	tenths = { 0, 10, 1 } }
 local NAMES = { cooldown = { "Cooldown timer", "cooldown", 1 }, uptime = { "Time left timer", "time left", 2 } }
 local S = ns.Style
 for _, part in ipairs(T.PARTS) do
@@ -153,12 +155,12 @@ local fonts = 0
 local live = setmetatable({}, { __mode = "k" })
 
 -- opts: anchor, cd (an existing Cooldown), dual, school, aura (on Blizzard's aura button: it
--- drives the bar, so it is never fed a duration here), barInset, outset() (how far out of the
--- anchor a bar out of the icon sits; else the element's on the HUD)
+-- drives the bar, so it is never fed a duration here), barInset, box (the anchor's icon size,
+-- border included, for a preview's icon; else the element's on the HUD)
 function T.new(parent, key, part, opts)
 	opts = opts or {}
 	local t = setmetatable({ key = key, part = part, parent = parent, anchor = opts.anchor or parent, dual = opts.dual,
-		school = opts.school, aura = opts.aura, barInset = opts.barInset, outsetFn = opts.outset }, Timer)
+		school = opts.school, aura = opts.aura, barInset = opts.barInset, box = opts.box }, Timer)
 	local cd = opts.cd
 	if not cd then
 		cd = CreateFrame("Cooldown", nil, parent, "CooldownFrameTemplate")
@@ -196,25 +198,46 @@ local function schoolColor(t)
 	return c or { 0.46, 1, 0.35 }
 end
 
--- Out of the icon: past its border (inset), then a gap that grows with the box
-function T.outset(inset, box, px)
-	return W.roundPx(inset + math.max(math.floor(box * 3 / W.BASE_ICON_SIZE + 0.5), 2), px)
-end
-function Timer:outset()
-	if self.outsetFn then return self.outsetFn() end
+-- The anchor's box (border included) and the border's width round it
+function Timer:boxInset()
 	local E = ns.Elements
+	if self.box then
+		local el = E.ALL[self.key]
+		return self.box, ns.StyleArt.inset(self.anchor, E.borderFor(self.key), self.box, el and el.shape)
+	end
 	local box = E.boxOf(self.key)
-	return T.outset((box - E.sizeOf(self.key)) / 2, box, W.pixel(E.ALL[self.key].frame))
+	return box, (box - E.sizeOf(self.key)) / 2
 end
-
+-- Out of the icon: past its border, then the style's gap, which grows with the box
+function Timer:outset()
+	local box, inset = self:boxInset()
+	local gap = S.get(self.key, self.part).barGap
+	return W.roundPx(inset + gap * box / W.BASE_ICON_SIZE, W.pixel(self.anchor))
+end
 local OUT_POINTS = {
 	above = { "BOTTOMLEFT", "TOPLEFT", "BOTTOMRIGHT", "TOPRIGHT", 0, 1 },
 	below = { "TOPLEFT", "BOTTOMLEFT", "TOPRIGHT", "BOTTOMRIGHT", 0, -1 },
 	right = { "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT", 1, 0 },
 	left = { "TOPRIGHT", "TOPLEFT", "BOTTOMRIGHT", "BOTTOMLEFT", -1, 0 },
 }
+-- Out of the icon a bar has a one-pixel dark edge, drawn as a bar's border (the swing timer's route)
+local OUT_EDGE = { show = true, look = "line", size = 1, color = { 0, 0, 0, 1 } }
+-- Its width, from the side its style places it on (not its last drawing)
+function Timer:edge()
+	local side = self.bar and T.barSide(self.key, S.get(self.key, self.part))
+	return OUT_POINTS[side] and W.linePx(self.bar, OUT_EDGE.size) or 0
+end
+-- How far a bar out of the icon reaches from it, its edge included
+function Timer:reach()
+	return self:outset() + 2 * self:edge() + S.get(self.key, self.part).barHeight
+end
 local function placeBar(t, s, side)
 	local bar, a = t.bar, t.anchor
+	local out = OUT_POINTS[side]
+	if out or t.edged then
+		ns.StyleArt.applyBorder(bar, out and OUT_EDGE or nil, "bar")
+		t.edged = out ~= nil
+	end
 	bar:ClearAllPoints()
 	if side == "top" then
 		bar:SetPoint("TOPLEFT", a, "TOPLEFT", 0, 0); bar:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, 0)
@@ -222,9 +245,14 @@ local function placeBar(t, s, side)
 		local y = t.barInset and t.barInset() or 0
 		bar:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, y); bar:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, y)
 	else
-		local out, d = OUT_POINTS[side], t:outset()
-		bar:SetPoint(out[1], a, out[2], out[5] * d, out[6] * d)
-		bar:SetPoint(out[3], a, out[4], out[5] * d, out[6] * d)
+		-- As long as the icon's box, border included, its edge too
+		local e = t:edge()
+		local d = t:outset() + e
+		local _, inset = t:boxInset()
+		local span = W.roundPx(inset, W.pixel(a)) - e
+		local sx, sy = (side == "above" or side == "below") and -span or 0, (side == "left" or side == "right") and span or 0
+		bar:SetPoint(out[1], a, out[2], out[5] * d + sx, out[6] * d + sy)
+		bar:SetPoint(out[3], a, out[4], out[5] * d - sx, out[6] * d - sy)
 	end
 	-- Beside a column's icon it stands upright and drains downward
 	local upright = side == "left" or side == "right"
@@ -273,7 +301,7 @@ function Timer:apply()
 		if self.aura then bar:SetShown(self.barOn)
 		elseif not self.barOn then bar:Hide() end
 	end
-	if self.last then self:set(self.last) end
+	if self.last then self:set(self.last, self.lastBar) end
 	self.barIn = self.barOn and (side == "top" or side == "bottom")
 	if self.fs then
 		T.placeText(self.fs, self.anchor, s, self.barIn, self.dual and self.part == "uptime")
@@ -314,12 +342,14 @@ function Timer:barRGB()
 	return s.barElement and schoolColor(self) or s.barColor
 end
 
-function Timer:set(d)
+-- barD: the bar's own duration where it differs (a cooldown's without the GCD; false: no bar)
+function Timer:set(d, barD)
 	if not d then return self:clear() end
-	self.last, self.held = d, nil
+	self.last, self.lastBar, self.held = d, barD, nil
 	ns.try("timer cooldown", self.cd.SetCooldownFromDurationObject, self.cd, d, true)
 	local bar = self.bar
-	if bar and self.barOn then
+	if barD ~= nil then d = barD end
+	if bar and self.barOn and d then
 		ns.try("timer bar", bar.SetTimerDuration, bar, d, TIMER_IMMEDIATE, TIMER_REMAINING)
 		-- 0 once run out: an expired duration object can linger on the bar
 		if ns.CURVE_LIVE then
@@ -347,7 +377,7 @@ function Timer:setTime(start, length)
 end
 
 function Timer:clear()
-	self.last, self.held = nil, nil
+	self.last, self.lastBar, self.held = nil, nil, nil
 	if self.exp then self.exp:SetAlpha(0) end
 	self.cd:Clear()
 	if self.bar then self.bar:Hide() end

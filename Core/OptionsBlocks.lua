@@ -602,6 +602,8 @@ local function timerSettings(p, title, key, part, after, note, first, barPlaced)
 		styleSlider(p, part, "barHeight", "Bar height", nil, px, tg("barHeight"), ts("barHeight"))
 		if key == nil or ns.Timer.canPlaceOut(key) then
 			barPosition(p, key, tg, ts)
+			styleSlider(p, part, "barGap", "Bar gap", "From the icon, at the default icon size; it grows with the icon.",
+				px, tg("barGap"), ts("barGap"), showWhen(function() return style().barPlace == "out" end))
 		else
 			p:dropdown("Bar edge", nil, { { "bottom", "Bottom" }, { "top", "Top" } }, tg("barEdge"), ts("barEdge"),
 				function() return not (barPlaced and barPlaced()) end, 140)

@@ -116,16 +116,12 @@ local function makePreviewIcon(parent, key, preview, box)
 	local ic = W.makeIcon(parent, PREVIEW_SIZE, key)
 	local e = identity(key)
 	local school = e and e.school
-	local outset = box and function()
-		local el = E.ALL[key]
-		return ns.Timer.outset(ns.StyleArt.inset(ic, E.borderFor(key), box, el and el.shape), box, W.pixel(ic))
-	end or nil
 	if preview.cooldown then
-		ic.cdT = ns.Timer.new(ic, key, "cooldown", { cd = ic.cd, school = school, outset = outset })
+		ic.cdT = ns.Timer.new(ic, key, "cooldown", { cd = ic.cd, school = school, box = box })
 	end
 	if preview.uptime then
 		ic.upT = ns.Timer.new(ic.textFrame, key, "uptime", { anchor = ic, dual = preview.cooldown,
-			cd = not preview.cooldown and ic.cd or nil, school = school, barInset = preview.barInset, outset = outset })
+			cd = not preview.cooldown and ic.cd or nil, school = school, barInset = preview.barInset, box = box })
 	end
 	ic.bar = CreateFrame("Frame", nil, ic.textFrame)
 	ic.bar:SetPoint("BOTTOMLEFT", ic, "BOTTOMLEFT", 0, 0)
@@ -308,7 +304,7 @@ local function besideReach(ic)
 		local s = t and ns.Style.get(t.key, t.part)
 		if s and s.bar and not ns.Timer.cant(t.key, t.part).bar then
 			local side = ns.Timer.barSide(t.key, s)
-			local reach = math.ceil(t:outset() + s.barHeight)
+			local reach = math.ceil(t:reach())
 			if side == "left" then l = math.max(l, reach) elseif side == "right" then r = math.max(r, reach) end
 		end
 	end
@@ -588,6 +584,8 @@ do
 			for k, v in pairs(over and over[part] or {}) do st[k] = copy(v) end
 			setStyle(self.owner, part, st)
 		end
+		-- A repaint's reads of the old styles would draw them
+		ns.Style.forget(self.owner)
 		self.ic.glowF:restyle()
 		self:fit()
 	end
