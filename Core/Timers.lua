@@ -273,9 +273,9 @@ function Timer:apply()
 		elseif not self.barOn then bar:Hide() end
 	end
 	if self.last then self:set(self.last) end
+	self.barIn = self.barOn and (side == "top" or side == "bottom")
 	if self.fs then
-		local barIn = self.barOn and (side == "top" or side == "bottom")
-		T.placeText(self.fs, self.anchor, s, barIn, self.dual and self.part == "uptime")
+		T.placeText(self.fs, self.anchor, s, self.barIn, self.dual and self.part == "uptime")
 	end
 end
 
