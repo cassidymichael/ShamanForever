@@ -29,8 +29,9 @@ local makeCover
 -- "target") }. cover: the sensor of a clip look shown while the aura is up, which carries the paint,
 -- made once a state is on: { parent (the look's, faded with the button), sensorParent, unit (else
 -- the player), needUnit, filter, ids, candidates, slot (the button's aura slot, whose filters the
--- sensor's must match), attach(look) and detach(look) (the element refilters and points it with its
--- own sensors while attached), note (the page's line on when it shows), tips (its switches' tips) }.
+-- sensor's must match), level (over the icon's text, else 10), attach(look) and detach(look) (the
+-- element refilters and points it with its own sensors while attached), note (the page's line on
+-- when it shows), tips (its switches' tips) }.
 local WATCHES, HAS = {}, {}
 function CS.watch(key, w)
 	w.key, w.unit = key, w.unit or "target"
@@ -155,7 +156,8 @@ local function styleCover(w)
 		o.attach(w.up)
 		w.up:follow(type(o.unit) == "function" and o.unit() or o.unit or "player")
 	end
-	local lv = w.frame.textFrame:GetFrameLevel() + 10   -- over the button, under its glow
+	-- Over the button, under its glow
+	local lv = w.frame.textFrame:GetFrameLevel() + (o.level or 10)
 	w.up:setLevel(lv)
 	w.coverFrame:SetFrameLevel(lv + 1)
 	w.up:setup()

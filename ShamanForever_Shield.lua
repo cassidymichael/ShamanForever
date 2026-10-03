@@ -300,11 +300,14 @@ look = W.makeClipLook(shield, {
 	},
 })
 lookEdge = FR.edge(look.art, shield, "shield", { overlay = false })
+-- The one-charge copy: levels above the shield's button and its parts
+local IDLE_LEVEL = 8
 -- Its cost over Blizzard's button while the shield is up, faded with it by Idle: the shield it shows.
--- Its sensor, once a state is on, refilters with the others while attached.
+-- Its sensor, once a state is on, refilters with the others while attached; it sits over the copy
+-- (its container at text + 5 + IDLE_LEVEL, its button's parts up to 4 more).
 local cover
 CS.watch("shield", { frame = shield, power = true,
-	cover = { parent = gate, sensorParent = shield, ids = shieldIDMap,
+	cover = { parent = gate, sensorParent = shield, ids = shieldIDMap, level = 5 + IDLE_LEVEL + 5,
 		attach = function(up) cover = up end, detach = function() cover = nil end },
 	spells = function()
 		local s = SHIELDS[shownShield()]
@@ -442,7 +445,6 @@ native = W.makeAuraSlot(shield, {
 -- from our own values.
 -- It counts (copyReady) only once made, sized and matching every tracked shield; until then the gate
 -- stays full.
-local IDLE_LEVEL = 8   -- levels above the shield's button and its parts
 local WHITE = ns.WHITE
 local IMMEDIATE = ns.Timer.AURA_BAR.interpolation
 
