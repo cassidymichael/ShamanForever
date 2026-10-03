@@ -54,7 +54,6 @@ local function buildShock(p, def)
 	end)
 	local sideGet, sideSet = eopt(p, key, "marks", "side")
 	p:dropdown("Side", nil, sideChoices, sideGet, sideSet, marksShown, 140)
-	p:text("Above or below in a row, right or left in a column.", marksShown)
 	eslider(p, key, "Size", "Of the icon's size.", pct, marksShown, "marks", "size")
 
 	local looks = { { "tint", "Tint" }, { "overlay", "Overlay" }, { "both", "Both" } }

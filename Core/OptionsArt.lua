@@ -457,6 +457,10 @@ function OA.buildHero(parent, key)
 		if framed then
 			local r = ns.Frames.reach(key)
 			local barL, barR = besideReach(self.previewIcon)
+			if def.reach then
+				local l, rr = def.reach(self.previewIcon)
+				barL, barR = math.max(barL, l), math.max(barR, rr)
+			end
 			padL = math.max(math.min(math.ceil(r.left * PREVIEW_SIZE), WING_MAX), barL)
 			padR = math.max(math.min(math.ceil(r.right * PREVIEW_SIZE), WING_MAX), barR)
 			p:SetWidth(PANEL_W + padL + padR)

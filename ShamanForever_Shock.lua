@@ -325,6 +325,28 @@ end
 
 -- The preview's marks: on ic's parent, so they don't fade with it; placed as on the HUD
 local PREVIEW_MARK = { frost = { 8, 0.6 }, flame = { 12, 0.75 } }   -- length, share left
+-- On the HUD only what it can show, unless the preview shows what isn't learned
+local function previewOn(ic, m)
+	local learned = not ic.marksOnHUD or m.spellID ~= nil or ns.Preview.showsUnlearned()
+	return own("marks", m.key) and learned and true or false
+end
+local function previewPlace(ic)
+	local w, px = ic.marksOnHUD and shock:GetWidth() or ic:GetWidth(), W.pixel(ic)
+	local o = ic.marksOnHUD and (E.boxOf("shock") - w) / 2 or ns.StyleArt.inset(ic, E.borderFor("shock"), w)
+	o = math.max(W.roundPx(o, px), 0)
+	local where, size, out = marksPlace(w, o, px, ic.cdT)
+	return where, size, out, o
+end
+-- How far the marks reach out of ic on its left and right: the page's header makes room
+local function previewReach(ic)
+	local any = false
+	for _, m in ipairs(MARKS) do any = any or previewOn(ic, m) end
+	if not any then return 0, 0 end
+	local where, size, out = previewPlace(ic)
+	local reach = math.ceil(out + size)
+	return where == "left" and reach or 0, where == "right" and reach or 0
+end
+
 local function previewMarks(ic)
 	local list = ic.shockMarks
 	if not list then
@@ -336,15 +358,10 @@ local function previewMarks(ic)
 		end
 		ic.shockMarks = list
 	end
-	local w, px = ic.marksOnHUD and shock:GetWidth() or ic:GetWidth(), W.pixel(ic)
-	local o = ic.marksOnHUD and (E.boxOf("shock") - w) / 2 or ns.StyleArt.inset(ic, E.borderFor("shock"), w)
-	o = math.max(W.roundPx(o, px), 0)
-	local where, size, out = marksPlace(w, o, px, ic.cdT)
+	local where, size, out, o = previewPlace(ic)
 	for i, m in ipairs(MARKS) do
 		local x, f = list[i], list[i].frame
-		-- On the HUD only what it can show, unless the preview shows what isn't learned
-		local learned = not ic.marksOnHUD or m.spellID ~= nil or ns.Preview.showsUnlearned()
-		local on = own("marks", m.key) and learned and true or false
+		local on = previewOn(ic, m)
 		f:SetShown(on)
 		if on then
 			f:SetFrameLevel(ic:GetFrameLevel() + 6)
@@ -479,6 +496,7 @@ local PREVIEW = {
 	cooldown = true,
 	heroH = 190,   -- room for the marks above or below
 	standIn = function(ic) ic.marksOnHUD = true end,
+	reach = function(ic) return previewReach(ic) end,
 	states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" },
 		{ "range", "Out of range" }, { "both", "Both" } },
 	pop = function(ic, st)
