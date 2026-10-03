@@ -396,7 +396,7 @@ local function auraOnTarget(def)
 	local ids, key = ns.Buffs.auraIDs(def), def.auraKey
 	local want = key and Spells.name(key)
 	for i = 1, 40 do
-		local ok, a = pcall(C_UnitAuras.GetAuraDataByIndex, "target", i, def.filter)
+		local ok, a = ns.safe(C_UnitAuras.GetAuraDataByIndex, "target", i, def.filter)
 		if not ok or isSecret(a) then return nil end
 		if a == nil then return false end
 		local id, name, dur = a.spellId, a.name, a.duration
