@@ -78,6 +78,7 @@ function T.identify(slot)
 	return nil, "unknown"
 end
 
+-- Returns the known totems' IDs, sorted: a new totem or rank changes it
 function T.resolve()
 	if not GetMultiCastTotemSpells then return end
 	local byID, byName = {}, {}
@@ -93,6 +94,10 @@ function T.resolve()
 		end
 	end
 	slotByID, slotByName = byID, byName
+	local ids = {}
+	for id in pairs(byID) do table.insert(ids, id) end
+	table.sort(ids)
+	return table.concat(ids, ",")
 end
 
 function T.onCast(spellID)

@@ -23,7 +23,10 @@ PREVIEW = {
 		return mode == "everything" or (st ~= "offpick" and st ~= "picking")
 	end,
 	fallback = "down",
-	pop = function(h, st) if st == "killed" and h.popIcon then h.popIcon:Pop("killed") end end,
+	pop = function(h, st)
+		local o = st == "killed" and h.endIcon and ns.Totems.endOptions(ns.TotemBar.cfg().killed, "killed")
+		if o then h.endIcon.killed:play(nil, o) end
+	end,
 	build = function(h)
 		h.area = CreateFrame("Frame", nil, h)
 		h.area:SetPoint("TOPLEFT", h, "TOPLEFT", 40, -58)
@@ -46,6 +49,11 @@ PREVIEW = {
 			ic.rangeF.bg = ic.rangeF:CreateTexture(nil, "ARTWORK")
 			ic.rangeF.bg:SetAllPoints()
 			ns.Looks.followMask(ic, ic.rangeF.bg)
+			-- As the bar's slot look: TB.paintDown and TB.paintEmpty draw both
+			ic.icon = ic.tex
+			ic.bg = ic:CreateTexture(nil, "BACKGROUND")
+			ic.bg:SetAllPoints()
+			ic.killed = ns.Effects.endFlash(bar, ic, "totembar", ic)
 			h.slots[i] = ic
 		end
 		h.extras = {}
@@ -54,11 +62,6 @@ PREVIEW = {
 		end
 		h.extras.Call.num = ns.makeKeyText(h.extras.Call)
 		h.extras.Call.num:SetTextColor(1, 1, 1)
-		h.kMark = CreateFrame("Frame", nil, bar)
-		h.kMark:SetFrameLevel(bar:GetFrameLevel() + 20)
-		h.kMark.x = h.kMark:CreateTexture(nil, "OVERLAY")
-		h.kMark.x:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
-		h.kMark.x:SetPoint("CENTER")
 		h.tab = ns.TotemBar.makeArrowLook(bar)
 		h.pop = CreateFrame("Frame", nil, bar)
 		h.pop.bg = h.pop:CreateTexture(nil, "BACKGROUND")
@@ -155,8 +158,7 @@ PREVIEW = {
 			else slotAt[it.key] = it.offset end
 		end
 		local expEl = tContains(els, "fire") and "fire" or els[1]
-		h.popIcon = nil
-		h.kMark:Hide()
+		h.endIcon = nil
 		for i, ic in ipairs(h.slots) do
 			local el = els[i]
 			ic:SetShown(el ~= nil)
@@ -172,6 +174,9 @@ PREVIEW = {
 				local pick = TB.pickTexture(el)
 				if ns.isSecret(pick) then pick = nil end
 				P.reset(ic, pick or TB.TOTEM_ICON[el])
+				TB.paintDown(ic)
+				ic.killed:setIcon(pick or TB.TOTEM_ICON[el])
+				if st ~= "killed" or el ~= expEl then ic.killed:stop() end
 				ic.badge:Hide()
 				if st == "range" then
 					local f = ic.rangeF
@@ -203,30 +208,16 @@ PREVIEW = {
 						ic.badge:Show()
 					end
 				end
-				local col = L.SCHOOL[el]
 				ic.upT.school = el
 				if st == "idle" and not full then
 					ic:Hide()
 				elseif st == "killed" and el == expEl then
-					local k = c.killed
-					h.popIcon = k.flash and k.pop and ic or nil
-					if k.flash then
-						ic.tex:SetDesaturated(true)
-						ic.manaOverlay:SetColorTexture(0.95, 0.12, 0.08, 0.7)
-						ic.manaOverlay:Show()
-						if k.glow then ic:SetGlowShown(true, 1, 0.12, 0.08) end
-						if k.mark then
-							h.kMark:ClearAllPoints(); h.kMark:SetAllPoints(ic)
-							h.kMark.x:SetSize((size - 2 * o) * 0.7, (size - 2 * o) * 0.7); h.kMark:Show()
-						end
-					elseif full then
-						ic.tex:SetDesaturated(c.idleGrey); ic.tex:SetAlpha(c.idleAlpha)
-					else ic:Hide() end
+					-- Its totem is gone: the end flash plays over the empty slot as the state is chosen
+					h.endIcon = ic
+					TB.paintEmpty(ic, c, el, pick)
+					if not full then ic:SetAlpha(0) end
 				elseif st == "idle" or (picking and i == 1) then
-					if c.empty == "pick" and pick then
-						ic.tex:SetDesaturated(c.idleGrey); ic.tex:SetAlpha(c.idleAlpha)
-					elseif c.empty == "blank" then ic.tex:SetAlpha(0)
-					else ic.tex:SetColorTexture(col[1] * 0.35, col[2] * 0.35, col[3] * 0.35, 0.8) end
+					TB.paintEmpty(ic, c, el, pick)
 				else
 					local expiring = st == "expiring" and el == expEl
 					local left, life = TB.PREVIEW_LEFT[el][1], TB.PREVIEW_LEFT[el][2]

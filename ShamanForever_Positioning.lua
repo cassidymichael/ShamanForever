@@ -102,7 +102,7 @@ local function snapAxis(pos, half, targets, origin, gs)
 end
 
 -- Dragging, the wheel and clicks
-function PO.snap(frame, x, y)
+local function snap(frame, x, y)
 	local a = acct()
 	local gx, gy
 	if a.snap then
@@ -128,19 +128,44 @@ function PO.snap(frame, x, y)
 	showGuides(gx, gy)
 	return x, y
 end
-function PO.endSnap() showGuides() end
 
--- Dragged by hand rather than with StartMoving so they can snap while moving
+-- Dragged by hand rather than with StartMoving so they can snap while moving: moveTo(x, y) takes
+-- the moved frame's new centre in UI units
 local function dragUpdate(self)
 	if InCombatLockdown() then self:SetScript("OnUpdate", nil); showGuides(); return end
 	local ui = uiScale()
 	local cx, cy = GetCursorPosition()
-	local x, y = PO.snap(self, cx / ui + self.dragDX, cy / ui + self.dragDY)
-	local g = ns.groupById(self.groupId)
-	if not g then return end
-	ns.setGroupCenter(g, x * ui, y * ui)
-	ns.placeOnPixels(self, "CENTER", g.x, g.y)
+	self.moveTo(snap(self.moved, cx / ui + self.dragDX, cy / ui + self.dragDY))
 end
+local function startDrag(handle, moved, moveTo)
+	local ui = uiScale()
+	local s = moved:GetEffectiveScale() / ui
+	local fx, fy = moved:GetCenter()
+	local cx, cy = GetCursorPosition()
+	handle.moved, handle.moveTo = moved, moveTo
+	handle.dragDX, handle.dragDY = fx * s - cx / ui, fy * s - cy / ui
+	handle:SetScript("OnUpdate", dragUpdate)
+end
+local function stopDrag(handle)
+	handle:SetScript("OnUpdate", nil)
+	showGuides()
+end
+
+-- The wheel: opacity (Ctrl), scale (Shift) or the size (size = { key, step, from(c): the value it
+-- starts from, if not c[key] }), each kept in its range
+local function wheel(c, delta, ranges, size)
+	local function step(key, by, from)
+		local r = ranges[key]
+		c[key] = clamp(round2((from or c[key]) + delta * by), r[1], r[2])
+	end
+	if IsControlKeyDown() then step("alpha", 0.05)
+	elseif IsShiftKeyDown() then step("scale", 0.05)
+	else step(size.key, size.step, size.from and size.from(c)) end
+end
+
+local GROUP_SIZE = { key = "size", step = 2, from = function(g)
+	if g.sizeFollow then g.sizeFollow = false; return db().iconSize end
+end }
 
 function PO.attach(f)
 	f:SetMovable(true)
@@ -149,31 +174,27 @@ function PO.attach(f)
 	f:SetBackdrop(ns.BACKDROP)
 	f.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	f.label:SetPoint("BOTTOMLEFT", f, "TOPLEFT", 0, 2)
+	local function moveTo(x, y)
+		local g = ns.groupById(f.groupId)
+		if not g then return end
+		local ui = uiScale()
+		ns.setGroupCenter(g, x * ui, y * ui)
+		ns.placeOnPixels(f, "CENTER", g.x, g.y)
+	end
 	f:SetScript("OnDragStart", function(self)
 		if acct().locked or InCombatLockdown() then return end
 		PO.select(self.groupId)
-		local ui = uiScale()
-		local s = self:GetEffectiveScale() / ui
-		local fx, fy = self:GetCenter()
-		local cx, cy = GetCursorPosition()
-		self.dragDX, self.dragDY = fx * s - cx / ui, fy * s - cy / ui
-		self:SetScript("OnUpdate", dragUpdate)
+		startDrag(self, self, moveTo)
 	end)
 	f:SetScript("OnDragStop", function(self)
-		self:SetScript("OnUpdate", nil)
-		showGuides()
+		stopDrag(self)
 		if not InCombatLockdown() then ns.layoutElements() end
 	end)
 	f:SetScript("OnMouseWheel", function(self, delta)
 		local g = ns.groupById(self.groupId)
 		if acct().locked or InCombatLockdown() or not g then return end
 		local sx, sy = ns.screenCenter(self)
-		if IsControlKeyDown() then g.alpha = clamp(round2(g.alpha + delta * 0.05), 0.1, 1)
-		elseif IsShiftKeyDown() then g.scale = clamp(round2(g.scale + delta * 0.05), 0.5, 3)
-		else
-			if g.sizeFollow then g.sizeFollow, g.size = false, db().iconSize end
-			g.size = clamp(g.size + delta * 2, 24, 96)
-		end
+		wheel(g, delta, ns.Profiles.GROUP_RANGES, GROUP_SIZE)
 		if sx then ns.setGroupCenter(g, sx, sy) end
 		ns.layoutElements()
 		self.label:SetText(string.format("%s: size %d, scale %.2f, opacity %.0f%%", g.name,
@@ -194,14 +215,19 @@ function PO.attach(f)
 	end)
 end
 
+-- The border of a mover: gold when selected, blue otherwise
+local function paintBorder(f, chosen, unlocked)
+	if chosen then f:SetBackdropBorderColor(1, 0.82, 0, 1)
+	else f:SetBackdropBorderColor(0.2, 0.6, 1, unlocked and 0.9 or 0) end
+end
+
 function PO.decorate(gf, g)
 	local unlocked = not acct().locked
 	local chosen = unlocked and selectedGroup == g.id
 	gf:EnableMouse(unlocked)
 	gf:EnableMouseWheel(unlocked)
 	gf:SetBackdropColor(0, 0, 0, unlocked and 0.4 or 0)
-	if chosen then gf:SetBackdropBorderColor(1, 0.82, 0, 1)
-	else gf:SetBackdropBorderColor(0.2, 0.6, 1, unlocked and 0.9 or 0) end
+	paintBorder(gf, chosen, unlocked)
 	gf.label:SetText(g.name)
 	gf.label:SetShown(unlocked)
 end
@@ -250,13 +276,87 @@ end
 -- A frame that moves on its own (a bar). m: frame, nudge(dx, dy), lock()
 -- (combat started while unlocked)
 function PO.addMovable(m) table.insert(movables, m) end
-function PO.selectMovable(m)
+local function selectMovable(m)
 	if selectedMovable == m then return end
 	selectedGroup, selectedMovable = nil, m
 	syncNudger()
 	ns.layoutElements()
 end
-function PO.isSelected(m) return selectedMovable == m end
+
+-- A bar's mover: a box over it while unlocked that drags (snapping), wheels, nudges and locks it.
+-- spec: frame (the bar), label, cfg() (point, x, y, scale, alpha), ranges, size (the plain wheel,
+-- as wheel() takes it), shown() (it can be placed now), place() (lay it out again), open() (its
+-- settings), describe() (the label after a wheel step), lock() (combat started).
+-- Returns the movable for ns.registerBar, with update() for the bar's layout.
+function PO.mover(spec)
+	local f = spec.frame
+	local m = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+	m:SetFrameStrata("DIALOG")
+	-- Stays on screen when its bar isn't, so a drag from it can bring the bar back
+	m:SetClampedToScreen(true)
+	m:SetBackdrop(ns.BACKDROP)
+	m:SetBackdropColor(0, 0, 0, 0.4)
+	m:EnableMouse(true)
+	m:EnableMouseWheel(true)
+	m:RegisterForDrag("LeftButton")
+	m:Hide()
+	m.label = m:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	m.label:SetPoint("BOTTOMLEFT", m, "TOPLEFT", 0, 2)
+	local movable = { frame = f }
+	local function place()
+		local c = spec.cfg()
+		ns.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
+	end
+	local function moveTo(x, y)
+		local c = spec.cfg()
+		local ux, uy = UIParent:GetCenter()
+		c.point, c.x, c.y = "CENTER", x - ux, y - uy
+		place()
+	end
+	function movable.nudge(dx, dy)
+		local c = spec.cfg()
+		c.x, c.y = c.x + dx, c.y + dy
+		place()
+	end
+	function movable.lock()
+		stopDrag(m)
+		m:Hide()
+		spec.lock()
+	end
+	function movable.update()
+		local on = spec.shown() and not acct().locked and not InCombatLockdown()
+		if on then
+			m:ClearAllPoints()
+			m:SetPoint("TOPLEFT", f, "TOPLEFT", -2, 2)
+			m:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 2, -2)
+			paintBorder(m, selectedMovable == movable, true)
+			m.label:SetText(spec.label)
+		end
+		m:SetShown(on)
+	end
+	m:SetScript("OnDragStart", function(self)
+		if InCombatLockdown() then return end
+		selectMovable(movable)
+		startDrag(self, f, moveTo)
+	end)
+	m:SetScript("OnDragStop", function(self)
+		stopDrag(self)
+		if not InCombatLockdown() then spec.place() end
+	end)
+	m:SetScript("OnMouseUp", function(_, button)
+		if InCombatLockdown() then return end
+		if button == "LeftButton" then selectMovable(movable)
+		elseif button == "RightButton" then spec.open() end
+	end)
+	m:SetScript("OnMouseWheel", function(self, delta)
+		if InCombatLockdown() then return end
+		wheel(spec.cfg(), delta, spec.ranges, spec.size)
+		spec.place()
+		self.label:SetText(spec.describe())
+		ns.Options.refresh()
+	end)
+	return movable
+end
 
 nudger:SetScript("OnKeyDown", function(self, key)
 	if InCombatLockdown() then self:Hide() return end

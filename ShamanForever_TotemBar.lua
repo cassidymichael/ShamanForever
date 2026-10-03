@@ -758,6 +758,13 @@ function TB.extraTexture(key)
 	return C_Spell.GetSpellTexture(key == "Call" and SET_CALL[TS.active()] or RECALL)
 end
 function TB.extraLearned(key) return knows(key == "Call" and CALL or RECALL) end
+-- Which Calls and Recall are known: with the known totems (ns.Totems), the spells the layout reads
+function TB.resolve()
+	local sig = {}
+	for _, id in ipairs(SET_CALL) do table.insert(sig, knows(id) and "1" or "0") end
+	table.insert(sig, knows(RECALL) and "1" or "0")
+	return table.concat(sig)
+end
 
 local function hover(s, arrows)
 	if arrows == nil then arrows = feat("arrows") end
@@ -818,6 +825,30 @@ local function liftWarning(s)
 	x.sfLifted = true
 end
 
+-- A slot's look with its totem down, and empty (pick: its pick's icon, may be secret); v: the slot's
+-- look, or the options header's icon (icon, bg)
+function TB.paintDown(v)
+	v:SetAlpha(1)
+	v.icon:SetDesaturated(false)
+	v.icon:SetAlpha(1)
+	v.bg:SetColorTexture(0, 0, 0, 1)
+end
+function TB.paintEmpty(v, c, el, pick)
+	if c.empty == "pick" and (isSecret(pick) or pick) then
+		ns.try("totem bar: pick icon", v.icon.SetTexture, v.icon, pick)
+		v.icon:SetDesaturated(c.idleGrey)
+		v.icon:SetAlpha(c.idleAlpha)
+		v.bg:SetColorTexture(0, 0, 0, 0.6 * c.idleAlpha)
+	elseif c.empty ~= "blank" then
+		local col = ns.THEME.color[el]
+		v.icon:SetTexture(nil)
+		v.bg:SetColorTexture(col[1] * 0.35, col[2] * 0.35, col[3] * 0.35, 0.8)
+	else
+		v.icon:SetTexture(nil)
+		v.bg:SetColorTexture(0, 0, 0, 0)
+	end
+end
+
 local function refreshSlot(s)
 	local c, v = cfg(), s.vis
 	local was = s.dur
@@ -830,10 +861,7 @@ local function refreshSlot(s)
 			s.expired:setIcon(icon)
 		end
 		s.killed.mark:Hide()
-		v:SetAlpha(1)
-		v.icon:SetDesaturated(false)
-		v.icon:SetAlpha(1)
-		v.bg:SetColorTexture(0, 0, 0, 1)
+		TB.paintDown(v)
 		s.timer:set(d)
 		local down = ns.Totems.downSpell(s.slot)
 		local pick = down and c.offPick and c.mode == "everything" and pickSpell(s.slot)
@@ -856,20 +884,7 @@ local function refreshSlot(s)
 	-- Active totems: the slot keeps its place (secure buttons can't move in combat); a plain frame's
 	-- alpha, so it works in combat
 	v:SetAlpha((c.mode == "everything" or kbOpen) and 1 or 0)
-	local tex = c.empty == "pick" and C_ActionBar.GetActionTexture(multiAction(s.slot))
-	if isSecret(tex) or tex then
-		ns.try("totem bar: pick icon", v.icon.SetTexture, v.icon, tex)
-		v.icon:SetDesaturated(c.idleGrey)
-		v.icon:SetAlpha(c.idleAlpha)
-		v.bg:SetColorTexture(0, 0, 0, 0.6 * c.idleAlpha)
-	elseif c.empty ~= "blank" then
-		local col = ns.THEME.color[s.el]
-		v.icon:SetTexture(nil)
-		v.bg:SetColorTexture(col[1] * 0.35, col[2] * 0.35, col[3] * 0.35, 0.8)
-	else
-		v.icon:SetTexture(nil)
-		v.bg:SetColorTexture(0, 0, 0, 0)
-	end
+	TB.paintEmpty(v, c, s.el, c.empty == "pick" and C_ActionBar.GetActionTexture(multiAction(s.slot)))
 	return false
 end
 
@@ -1008,7 +1023,7 @@ local function applyActionBar()
 end
 
 -- Layout (out of combat only)
-local mover
+local movable
 local saidWait = false
 local hasTotems = false
 local paintPreview
@@ -1259,7 +1274,7 @@ function layout()
 	drive()
 	applyTotemFrame()
 	applyActionBar()
-	mover.update()
+	movable.update()
 	if preview then paintPreview() end
 end
 TB.layout = layout
@@ -1304,78 +1319,19 @@ function TB.applySettings()
 end
 
 -- Positioning
-mover = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-mover:SetFrameStrata("DIALOG")
-mover:SetBackdrop(ns.BACKDROP)
-mover:SetBackdropColor(0, 0, 0, 0.4)
-mover:SetBackdropBorderColor(0.2, 0.6, 1, 0.9)
-mover:EnableMouse(true)
-mover:EnableMouseWheel(true)
-mover:RegisterForDrag("LeftButton")
-mover:SetMovable(true)
-mover:SetClampedToScreen(true)
-mover:Hide()
-mover.label = mover:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-mover.label:SetPoint("BOTTOMLEFT", mover, "TOPLEFT", 0, 2)
-mover.label:SetText("Totem bar")
-local movable = { frame = bar }
-mover:SetScript("OnDragStart", function(self)
-	if InCombatLockdown() then return end
-	ns.Positioning.selectMovable(movable)
-	self:StartMoving()
-end)
-mover:SetScript("OnDragStop", function(self)
-	self:StopMovingOrSizing()
-	if InCombatLockdown() then return end
-	local c = cfg()
-	local x, y = self:GetCenter()
-	local ux, uy = UIParent:GetCenter()
-	local scale = self:GetEffectiveScale() / UIParent:GetEffectiveScale()
-	c.point, c.x, c.y = "CENTER", x * scale - ux, y * scale - uy
-	layout()
-end)
-mover:SetScript("OnMouseUp", function(_, button)
-	if InCombatLockdown() then return end
-	if button == "LeftButton" then ns.Positioning.selectMovable(movable)
-	elseif button == "RightButton" then ns.Options.open("totembar") end
-end)
-mover:SetScript("OnMouseWheel", function(self, delta)
-	if InCombatLockdown() then return end
-	local c = cfg()
-	local function step(key) c[key] = clamp(math.floor((c[key] + delta * 0.05) * 100 + 0.5) / 100, RANGES[key]) end
-	if IsControlKeyDown() then step("alpha")
-	elseif IsShiftKeyDown() then step("scale")
-	else
+movable = ns.Positioning.mover({ frame = bar, label = "Totem bar", cfg = cfg, ranges = RANGES,
+	size = { key = "size", step = 2, from = function(c)
 		local from = look()
 		c.sizeFollow = false
-		c.size = clamp(from + delta * 2, RANGES.size)
-	end
-	layout()
-	self.label:SetText(string.format("Totem bar: size %d, scale %.2f, opacity %.0f%%", (look()), c.scale, c.alpha * 100))
-	ns.Options.refresh()
-end)
-function mover.update()
-	local on = barOn() and (hasTotems or (preview and preview.all)) and not ns.getAccount().locked and not InCombatLockdown()
-	if on then
-		mover:ClearAllPoints()
-		mover:SetPoint("TOPLEFT", bar, "TOPLEFT", -2, 2)
-		mover:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 2, -2)
-		if ns.Positioning.isSelected(movable) then mover:SetBackdropBorderColor(1, 0.82, 0, 1)
-		else mover:SetBackdropBorderColor(0.2, 0.6, 1, 0.9) end
-		mover.label:SetText("Totem bar")
-	end
-	mover:SetShown(on)
-end
-
-function movable.nudge(dx, dy)
-	local c = cfg()
-	c.x, c.y = c.x + dx, c.y + dy
-	ns.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
-end
-function movable.lock()
-	mover:Hide()
-	ns.retryAfterCombat("totem bar layout", layout)
-end
+		return from
+	end },
+	shown = function() return barOn() and (hasTotems or (preview and preview.all)) end,
+	place = layout, open = function() ns.Options.open("totembar") end,
+	lock = function() ns.retryAfterCombat("totem bar layout", layout) end,
+	describe = function()
+		local c = cfg()
+		return string.format("Totem bar: size %d, scale %.2f, opacity %.0f%%", (look()), c.scale, c.alpha * 100)
+	end })
 
 -- Quick Keybind Mode (Blizzard's): the bar shows, empty slots included. Keys are caught on our own
 -- plain frame and bound with SetBinding: calling Blizzard's QuickKeybindButtonTemplateMixin from
@@ -1581,18 +1537,25 @@ wrapHover(call.button, HOVER_ENTER)
 wrapHover(setSlot.arrow, HOVER_ENTER)
 wrapHover(setSlot.popout.strip)
 
+-- A slot's end flashes as ns.Totems.endOptions says (dur: the totem's last duration object; nil in
+-- previews)
+local function playEnds(s, dur, ended, killed)
+	local c = cfg()
+	local o = ended and ns.Totems.endOptions(c.ended, "ended")
+	if o then s.expired:play(dur, o) end
+	o = killed and ns.Totems.endOptions(c.killed, "killed")
+	if o then s.killed:play(dur, o) end
+end
+
 -- Killed early: a slot's last duration object says how much time the totem had left; endFlash
 -- turns that into a curve, so a totem that ran out shows no flash. Our own dismissals and an
 -- immediate recast don't flash.
 ns.Totems.subscribe(function(event, slot, was)
 	if event ~= "gone" or preview then return end
 	local s = bySlot[slot]
-	local c = cfg()
 	if not s.button:IsShown() then return end
-	local k = c.killed
-	if s.button:IsVisible() then ns.Sounds.play(c.ended.sound, "totembar", nil, true) end
-	if c.ended.pop then s.expired:play(was, { expired = true, pop = true }) end
-	if k.flash then s.killed:play(was, { pop = k.pop, glow = k.glow, mark = k.mark }) end
+	if s.button:IsVisible() then ns.Sounds.play(cfg().ended.sound, "totembar", nil, true) end
+	playEnds(s, was, true, true)
 end)
 
 -- Events
@@ -1628,8 +1591,10 @@ local function onEvent(_, event, arg1, ...)
 		refreshKeys()
 	elseif event == "SPELL_UPDATE_COOLDOWN" then
 		refreshGCD()
+	elseif event == "SPELLS_CHANGED" then
+		-- A newly known totem, Call or Recall changes the resolve signatures: main lays out again
+		nameBindings()
 	else
-		if event == "SPELLS_CHANGED" then nameBindings() end
 		layout()
 	end
 end
@@ -1650,7 +1615,7 @@ function TB.start()
 	ns.onCombatEnd(function()
 		saidWait = false
 		closePopouts()
-		mover.update()
+		movable.update()
 		paintSets()
 	end)
 	ticker:Show()
@@ -1728,10 +1693,7 @@ local function paintSlot(s, rec)
 	v.icon:SetTexture(icon)
 	if st == "down" or st == "expiring" then
 		s.killed.mark:Hide()
-		v:SetAlpha(1)
-		v.icon:SetDesaturated(false)
-		v.icon:SetAlpha(1)
-		v.bg:SetColorTexture(0, 0, 0, 1)
+		TB.paintDown(v)
 		local left, life = TB.PREVIEW_LEFT[s.el][1], TB.PREVIEW_LEFT[s.el][2]
 		if st == "expiring" then left = 5 end
 		s.timer:setExpire(c.expire, icon)
@@ -1741,18 +1703,7 @@ local function paintSlot(s, rec)
 	end
 	s.timer:clear()
 	v:SetAlpha(c.mode == "everything" and 1 or 0)
-	if c.empty == "pick" and pick then
-		v.icon:SetDesaturated(c.idleGrey)
-		v.icon:SetAlpha(c.idleAlpha)
-		v.bg:SetColorTexture(0, 0, 0, 0.6 * c.idleAlpha)
-	elseif c.empty ~= "blank" then
-		local col = ns.THEME.color[s.el]
-		v.icon:SetTexture(nil)
-		v.bg:SetColorTexture(col[1] * 0.35, col[2] * 0.35, col[3] * 0.35, 0.8)
-	else
-		v.icon:SetTexture(nil)
-		v.bg:SetColorTexture(0, 0, 0, 0)
-	end
+	TB.paintEmpty(v, c, s.el, pick)
 end
 
 function paintPreview()
@@ -1799,16 +1750,11 @@ local function previewSlot(el, st, at, range, moment)
 	if not preview then return end
 	local rec = { st = st, at = at, range = range }
 	preview.states[el] = rec
-	local s, c = slots[el], cfg()
+	local s = slots[el]
 	if st ~= "killed" then s.killed:stop() end
 	if st ~= "ranout" then s.expired:stop() end
 	local ends = paintSlot(s, rec)
-	moment = moment and s.button:IsShown()
-	if moment and st == "killed" and c.killed.flash then
-		s.killed:play(nil, { pop = c.killed.pop, glow = c.killed.glow, mark = c.killed.mark })
-	elseif moment and st == "ranout" and c.ended.pop then
-		s.expired:play(nil, { expired = true, pop = true })
-	end
+	if moment and s.button:IsShown() then playEnds(s, nil, st == "ranout", st == "killed") end
 	return ends
 end
 
