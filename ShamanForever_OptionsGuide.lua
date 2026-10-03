@@ -486,8 +486,8 @@ local function lockText() return ns.Profiles.getAccount().locked and "Unlock pos
 
 -- What a click does while positioning is unlocked (Positioning's own gestures)
 local GESTURES = {
-	{ "Right-click", "a group: its settings, on Groups & Layout. A bar: its page." },
-	{ "Shift + right-click", "an icon in a group: its element's settings." },
+	EMPH .. "Right-click|r a group to open its settings. " .. EMPH .. "Right-click|r a bar to open its page.",
+	EMPH .. "Shift + right-click|r an icon to open that element's settings.",
 }
 
 GD.add({ title = "Layout", order = 50, blurb = "Unlock positioning to drag groups and bars into place.",
@@ -530,9 +530,8 @@ GD.add({ title = "Layout", order = 50, blurb = "Unlock positioning to drag group
 		local boxes, h = {}, 0
 		for i, g in ipairs(GESTURES) do
 			local box = GD.box(f, (i - 1) * (w + GAP), y, w, 1, GD.TEAL)
-			GD.title(box, g[1], PAD, PAD, GD.TEAL)
-			local t = GD.text(box, g[2], PAD, PAD + 16 + 6, w - 2 * PAD)
-			h = math.max(h, PAD + 16 + 6 + GD.height(t) + PAD)
+			local t = GD.text(box, g, PAD + 2, PAD + 2, w - 2 * PAD - 4)
+			h = math.max(h, 2 * (PAD + 2) + GD.height(t))
 			boxes[i] = box
 		end
 		for _, box in ipairs(boxes) do box:SetHeight(h) end
