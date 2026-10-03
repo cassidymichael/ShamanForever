@@ -1,6 +1,7 @@
 -- Weapon imbue
 
 local _, ns = ...
+local W = ns.Widgets
 local E, MOD = ns.Elements, ns.Modules
 local say, isSecret = ns.say, ns.isSecret
 local Spells = ns.Spells
@@ -124,7 +125,7 @@ local function drawImbue(now, quiet)
 	-- Missing look only when the read says none: unrecognised shows in colour, unreadable as "?"
 	local missing = on == false
 	imbueIcon = key and imbueIconFor(key) or preferredImbueIcon()
-	local grey, tint, ring, fade, glow = ns.warnParts("imbue", "warn")
+	local grey, tint, ring, fade, glow = W.warnParts("imbue", "warn")
 	local warns = missing and not quiet
 	imbue:SetWarnParts(missing and grey, warns and tint, warns and ring, warns and fade,
 		warns and glow)
@@ -143,7 +144,7 @@ local function drawImbue(now, quiet)
 	-- Idle fades by alpha, not Hide (keeps its place)
 	local when = setting("idleWhen")
 	local idle = ns.Profiles.getAccount().locked and on and (when == "on" or (when == "notlow" and not showTime))
-	ns.fadeTo(imbue, idle and E.idleAlpha("imbue") or 1)
+	W.fadeTo(imbue, idle and E.idleAlpha("imbue") or 1)
 end
 
 local function drawNotLearned()
@@ -152,7 +153,7 @@ local function drawNotLearned()
 	imbue:SetWarnParts(true, false, false, false, false)
 	imbue.timer:Hide()
 	imbue.upTimer:clear()
-	ns.fadeTo(imbue, 1)
+	W.fadeTo(imbue, 1)
 end
 
 function IM.refresh()
@@ -254,7 +255,7 @@ local PREVIEW = {
 	render = function(ic, st, P)
 		if st == "missing" then
 			P.reset(ic, preferredImbueIcon())
-			ic:SetWarnParts(ns.warnParts("imbue", "warn"))
+			ic:SetWarnParts(W.warnParts("imbue", "warn"))
 		else
 			P.reset(ic, imbueIcon)
 			local shows = setting("showUnderMins") > 0

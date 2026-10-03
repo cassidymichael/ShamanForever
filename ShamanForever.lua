@@ -4,6 +4,7 @@
 -- be read is inferred from our own casts.
 
 local ADDON, ns = ...
+local W = ns.Widgets
 local say, isSecret = ns.say, ns.isSecret
 local Spells = ns.Spells
 local E, G, MOD = {}, {}, {}
@@ -29,7 +30,7 @@ local SHOW_WHEN = {
 }
 
 local DEFAULTS = {
-	iconSize = ns.BASE_ICON_SIZE,
+	iconSize = W.BASE_ICON_SIZE,
 	border = CopyTable(ns.Style.PARTS.border.defaults),
 	glowStyle = CopyTable(ns.Style.PARTS.glow.defaults),
 	popStyle = CopyTable(ns.Style.PARTS.pop.defaults),
@@ -141,7 +142,7 @@ end
 -- restates frame levels, bottom up: icon, its art frame (ns.Frames.LEVEL.over), effects and glow,
 -- swipe, cooldown timer bar, text, time left; layoutGroup calls it after regrouping.
 function E.newIcon(key, opts)
-	local f = ns.makeIcon(root, DEFAULTS.iconSize, key)
+	local f = W.makeIcon(root, DEFAULTS.iconSize, key)
 	f.count:Hide()
 	if opts and opts.effects then
 		f.effects = CreateFrame("Frame", nil, f)
@@ -273,7 +274,7 @@ local function showMode(key) return elementOpts(key).show or "always" end
 local function groupSize(g) return (g and not g.sizeFollow and g.size) or db.iconSize end
 -- An element's box (its Size, border included) and its picture's size, in whole pixels
 local function boxOf(key)
-	return ns.roundPx(groupSize((groupOf(key))), ns.pixel(ELEMENTS[key].frame))
+	return W.roundPx(groupSize((groupOf(key))), W.pixel(ELEMENTS[key].frame))
 end
 local function sizeOf(key)
 	local e = ELEMENTS[key]
@@ -533,8 +534,8 @@ local function layoutGroup(g)
 	local gf = groupFrame(g.id)
 	gf.afterCombat = gf.afterCombat or afterCombat(gf)
 	gf:SetScale(g.scale)
-	local px = ns.pixel(gf)
-	local gap = ns.roundPx(g.spacing, px)   -- negative: members overlap
+	local px = W.pixel(gf)
+	local gap = W.roundPx(g.spacing, px)   -- negative: members overlap
 	local horizontal = g.orientation == "horizontal"
 	local forward = g.growth ~= "backward"
 	local n, along, across = 0, 0, 0
@@ -550,7 +551,7 @@ local function layoutGroup(g)
 			hideFrame(f)
 		else
 			local w, h = e.getSize(groupSize(g))
-			w, h = ns.roundPx(w, px), ns.roundPx(h, px)
+			w, h = W.roundPx(w, px), W.roundPx(h, px)
 			local inset = ns.StyleArt.fit(f, E.borderFor(key), w, h, e)
 			-- An element over Blizzard's button frames the button's border instead
 			local own = e.borderHost or not f.aboveProtected
@@ -576,7 +577,7 @@ local function layoutGroup(g)
 		local f, o = m[1], m[5]
 		local at = m[2] - lo
 		local offset = at + o
-		local side = ns.roundPx((across - (horizontal and m[4] or m[3])) / 2, px)
+		local side = W.roundPx((across - (horizontal and m[4] or m[3])) / 2, px)
 		f:ClearAllPoints()
 		if horizontal then
 			if forward then f:SetPoint("TOPLEFT", gf, "TOPLEFT", offset, -side - o)
@@ -591,14 +592,14 @@ local function layoutGroup(g)
 	along = math.max(hi - lo, px)
 	across = math.max(across, px)
 	if horizontal then gf:SetSize(along, across) else gf:SetSize(across, along) end
-	gf.frameLayout = { size = ns.roundPx(groupSize(g), px), cells = cells, vertical = not horizontal }
+	gf.frameLayout = { size = W.roundPx(groupSize(g), px), cells = cells, vertical = not horizontal }
 	ns.Frames.mountGroup(gf, g, gf.frameLayout)
 	gf:SetAlpha(g.alpha)
 	for _, key in ipairs(g.members) do
 		local fx = ELEMENTS[key].frame.effects
 		if fx then fx:SetAlpha(g.alpha) end
 	end
-	ns.placeOnPixels(gf, g.point, g.x, g.y)
+	W.placeOnPixels(gf, g.point, g.x, g.y)
 	ns.Positioning.decorate(gf, g)
 	gf.laidOut = n > 0
 	if n > 0 then showFrame(gf, groupWhen(g, gf)) else hideFrame(gf) end
@@ -626,7 +627,7 @@ local function layoutElements()
 		end
 	end
 	each("afterGroups")
-	ns.refitRings()
+	W.refitRings()
 	ns.Positioning.update()
 	ns.changed()
 end

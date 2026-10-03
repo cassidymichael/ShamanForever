@@ -3,6 +3,7 @@
 -- Earth slot unknown after a login or /reload in combat: nothing warns until it can be read.
 
 local _, ns = ...
+local W = ns.Widgets
 local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
 local Spells, TO = ns.Spells, ns.Totems
@@ -31,7 +32,7 @@ local function num(name, fallback)
 end
 local function styleWord(fs, icon)
 	local pt = WORD_POINTS[setting("wordPos")] or WORD_POINTS.below
-	ns.placeScaledText(fs, icon, num("wordSize", 16), pt[1], num("wordX", 0), pt[3] + num("wordY", 0), pt[2])
+	W.placeScaledText(fs, icon, num("wordSize", 16), pt[1], num("wordX", 0), pt[3] + num("wordY", 0), pt[2])
 	local c = setting("wordColor")
 	if not ns.isColor(c) then c = WORD_COLOR end
 	fs:SetTextColor(c[1], c[2], c[3], c[4] or 1)
@@ -280,7 +281,7 @@ local function refresh()
 		f.tex:SetDesaturated(true)
 		f.upTimer:clear()
 		setAlert(false)
-		ns.fadeTo(f, 1)
+		W.fadeTo(f, 1)
 		return
 	end
 	f.tex:SetDesaturated(false)
@@ -294,7 +295,7 @@ local function refresh()
 	end
 	setAlert(want)
 	local busy = want or not ns.Profiles.getAccount().locked or (out and setting("idleWhen") == "notdown")
-	ns.fadeTo(f, busy and 1 or E.idleAlpha(KEY))
+	W.fadeTo(f, busy and 1 or E.idleAlpha(KEY))
 end
 TR.refresh = refresh
 

@@ -1,5 +1,6 @@
 -- Options window
 local ADDON, ns = ...
+local W = ns.Widgets
 local E, G, Bars, P = ns.Elements, ns.Groups, ns.Bars, ns.Profiles
 
 local OP = {}
@@ -371,7 +372,7 @@ local function buildNav()
 		b.icon:SetSize(sub and 18 or 20, sub and 18 or 20)
 		b.icon:SetPoint("LEFT", 6, 0)
 		b.icon:SetTexture(icon)
-		ns.cropIcon(b.icon)
+		W.cropIcon(b.icon)
 		b.label = b:CreateFontString(nil, "OVERLAY", sub and "GameFontHighlight" or "GameFontNormal")
 		b.label:SetPoint("LEFT", b.icon, "RIGHT", 8, 0)
 		b.label:SetPoint("RIGHT", -4, 0)
@@ -704,7 +705,7 @@ StaticPopupDialogs[ns.POPUP .. "PROFILE_NAME"] = {
 
 local share
 local function buildShare()
-	local f = ns.floatingPanel(ns.NAME .. "ShareFrame", 460, 250)
+	local f = W.floatingPanel(ns.NAME .. "ShareFrame", 460, 250)
 	f:SetPoint("CENTER")
 	f:SetFrameStrata("FULLSCREEN_DIALOG")
 	f:SetToplevel(true)

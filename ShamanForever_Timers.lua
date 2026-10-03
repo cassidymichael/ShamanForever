@@ -2,6 +2,7 @@
 -- Fed duration objects, so nothing here reads a time: secret values go straight to widgets and curves.
 
 local _, ns = ...
+local W = ns.Widgets
 
 local T = {}
 ns.Timer = T
@@ -349,14 +350,14 @@ function Timer:setExpire(e, icon)
 		x:SetAlpha(0)
 		x.grey = x:CreateTexture(nil, "ARTWORK")
 		x.grey:SetAllPoints()
-		ns.cropIconExact(x.grey)
+		W.cropIconExact(x.grey)
 		x.grey:SetDesaturated(true)
-		x.ring = ns.makeRing(x, x)
+		x.ring = W.makeRing(x, x)
 		x.dim = x:CreateTexture(nil, "OVERLAY")
 		x.dim:SetAllPoints()
 		x.dim:SetColorTexture(0, 0, 0, 1)
 		x.dim:SetAlpha(0)
-		x.pulse = ns.makePulse(x.dim, "dim")
+		x.pulse = W.makePulse(x.dim, "dim")
 		-- A hidden ancestor stops the pulse: start it again on show
 		x:SetScript("OnShow", function(s) if s.pulseOn then s.pulse:Play() end end)
 		x.glow = ns.Effects.glow(x, self.anchor, self.key)

@@ -10,6 +10,7 @@
 -- Totems without a buff get no mark. Another shaman's same buff makes yours read out of range.
 
 local _, ns = ...
+local W = ns.Widgets
 local MOD, P = ns.Modules, ns.Profiles
 local TB = ns.TotemBar
 local RG = {}
@@ -114,7 +115,7 @@ end
 local function initButton(s, button)
 	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
 	button:SetFrameLevel(s.rangeContainer:GetFrameLevel() + 1)
-	ns.noMouse(button)
+	W.noMouse(button)
 	local icon = button:CreateTexture(nil, "ARTWORK")
 	icon:SetAllPoints()
 	button:SetIcon(icon)
@@ -171,7 +172,7 @@ local function place(s, size, ownOnly)
 	local c, b, gate, o = TB.cfg(), s.button, s.rangeGate, s.inset or 0
 	gate:ClearAllPoints()
 	local x, y, w, h = TB.skin.markRect(gate, size, o)
-	if not x then x, y, w, h = o, -o, size - 2 * o, ns.linePx(gate, c.rangeHeight) end
+	if not x then x, y, w, h = o, -o, size - 2 * o, W.linePx(gate, c.rangeHeight) end
 	gate:SetPoint("TOPLEFT", b, "TOPLEFT", x, y)
 	gate:SetSize(w, h)
 	if not TB.skin.paintMark(s.rangeMark, w, h, s.vis) then

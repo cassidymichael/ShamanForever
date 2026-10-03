@@ -1,6 +1,7 @@
 -- Shocks
 
 local _, ns = ...
+local W = ns.Widgets
 local E, MOD = ns.Elements, ns.Modules
 local say, safe, describeArg = ns.say, ns.safe, ns.describeArg
 local Spells, CD = ns.Spells, ns.Cooldowns
@@ -67,7 +68,7 @@ end
 local function refreshCooldown(inEvent)
 	if not shockSpellID or not E.isEnabled("shock") then
 		idleDef.cdRunning, idleDef.idle, idleDef.idleAt = nil, nil, nil
-		ns.fadeTo(shock, 1)
+		W.fadeTo(shock, 1)
 		return CD.resetReady(shock)
 	end
 	local dur = CD.cooldownFor(shock, "shock", shockSpellID, inEvent)

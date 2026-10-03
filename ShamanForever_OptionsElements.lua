@@ -1,5 +1,6 @@
 -- Element pages
 local _, ns = ...
+local W = ns.Widgets
 local E, G = ns.Elements, ns.Groups
 
 local EP = {}
@@ -32,7 +33,7 @@ local SHOW_TIP = "When the element is drawn. Hidden keeps its place in its group
 local function tableCell(parent, width, font)
 	local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
 	b:SetSize(width, 20)
-	b:SetBackdrop(ns.BACKDROP)
+	b:SetBackdrop(W.BACKDROP)
 	b:SetBackdropColor(1, 1, 1, 0.03)
 	b:SetBackdropBorderColor(0.36, 0.29, 0.19, 0.7)
 	local hl = b:CreateTexture(nil, "HIGHLIGHT")
@@ -132,7 +133,7 @@ function EP.buildOverview(p)
 		local icon = f:CreateTexture(nil, "ARTWORK")
 		icon:SetSize(22, 22)
 		icon:SetPoint("LEFT", 4, 0)
-		ns.cropIcon(icon)
+		W.cropIcon(icon)
 		local name = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 		name:SetPoint("LEFT", 32, 0)
 		name:SetJustifyH("LEFT")

@@ -1,5 +1,6 @@
 -- Styles explorer: border styles, frames, glows and pops on sample icons, never the player's settings
 local _, ns = ...
+local W = ns.Widgets
 local E = ns.Elements
 
 local SP = {}
@@ -266,7 +267,7 @@ local function newCell(parent, part, fields, name, pop)
 		local ic = CreateFrame("Frame", nil, box)
 		ic.tex = ic:CreateTexture(nil, "ARTWORK")
 		ic.tex:SetAllPoints()
-		ns.cropIconExact(ic.tex)
+		W.cropIconExact(ic.tex)
 		if ic.tex.SetSnapToPixelGrid then ic.tex:SetSnapToPixelGrid(true) end
 		c.still = { box = box, ic = ic }
 	end
@@ -457,7 +458,7 @@ local function groupSection(p)
 			local key = table.concat({ s, tostring(vertical), tostring(borderSig), c.frame:GetEffectiveScale() }, "|")
 			if c.drawnAt ~= key then
 				local lay = { size = s, n = GROUP_N, gap = FR.fitSpacing(look, s) or GROUP_GAP, vertical = vertical }
-				local o = FR.groupLayout(look, lay, ns.pixel(c.frame)).outer
+				local o = FR.groupLayout(look, lay, W.pixel(c.frame)).outer
 				local artW = o[3] - o[1] + 2 * GROUP_PAD
 				c.cw, c.stageH = math.max(artW, 120), o[4] - o[2] + 2 * GROUP_PAD
 				lay.x, lay.y = GROUP_PAD - o[1] + (c.cw - artW) / 2, GROUP_PAD - o[2]
@@ -507,7 +508,7 @@ local function groupSection(p)
 				box.ic = CreateFrame("Frame", nil, box)
 				box.ic.tex = box.ic:CreateTexture(nil, "ARTWORK")
 				box.ic.tex:SetAllPoints()
-				ns.cropIconExact(box.ic.tex)
+				W.cropIconExact(box.ic.tex)
 				c.stills[i] = box
 			end
 			c.text = c.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")

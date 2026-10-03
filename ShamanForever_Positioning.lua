@@ -1,6 +1,7 @@
 -- Positioning (unlock mode)
 
 local _, ns = ...
+local W = ns.Widgets
 local E, G, P = ns.Elements, ns.Groups, ns.Profiles
 local say = ns.say
 
@@ -172,7 +173,7 @@ function PO.attach(f)
 	f:SetMovable(true)
 	f:SetClampedToScreen(true)
 	f:RegisterForDrag("LeftButton")
-	f:SetBackdrop(ns.BACKDROP)
+	f:SetBackdrop(W.BACKDROP)
 	f.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	f.label:SetPoint("BOTTOMLEFT", f, "TOPLEFT", 0, 2)
 	local function moveTo(x, y)
@@ -180,7 +181,7 @@ function PO.attach(f)
 		if not g then return end
 		local ui = uiScale()
 		G.setCenter(g, x * ui, y * ui)
-		ns.placeOnPixels(f, "CENTER", g.x, g.y)
+		W.placeOnPixels(f, "CENTER", g.x, g.y)
 	end
 	f:SetScript("OnDragStart", function(self)
 		if acct().locked or InCombatLockdown() then return end
@@ -253,7 +254,7 @@ local function nudge(key)
 	if not (g and d and f) then return end
 	g.x = g.x + d[1] * step / g.scale
 	g.y = g.y + d[2] * step / g.scale
-	ns.placeOnPixels(f, g.point, g.x, g.y)
+	W.placeOnPixels(f, g.point, g.x, g.y)
 end
 
 local function syncNudger()
@@ -299,7 +300,7 @@ function PO.mover(spec)
 	m:SetFrameStrata("DIALOG")
 	-- Stays on screen when its bar isn't, so a drag from it can bring the bar back
 	m:SetClampedToScreen(true)
-	m:SetBackdrop(ns.BACKDROP)
+	m:SetBackdrop(W.BACKDROP)
 	m:SetBackdropColor(0, 0, 0, 0.4)
 	m:EnableMouse(true)
 	m:EnableMouseWheel(true)
@@ -310,7 +311,7 @@ function PO.mover(spec)
 	local movable = { frame = f }
 	local function place()
 		local c = spec.cfg()
-		ns.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
+		W.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
 	end
 	local function moveTo(x, y)
 		local c = spec.cfg()
@@ -397,7 +398,7 @@ ns.onCombatEnd(syncNudger)
 
 -- The bar while unlocked
 local wasUnlocked = false
-local tray = ns.floatingPanel(ns.NAME .. "Tray", 560, 120, { 0.2, 0.6, 1, 0.9 })
+local tray = W.floatingPanel(ns.NAME .. "Tray", 560, 120, { 0.2, 0.6, 1, 0.9 })
 tray:SetPoint("TOP", UIParent, "TOP", 0, -120)
 do
 	local title = tray:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -440,7 +441,7 @@ do
 			acct()[key] = on
 			G.layoutElements()
 		end)
-		ns.setTip(cb, label, tip, "ANCHOR_BOTTOM")
+		W.setTip(cb, label, tip, "ANCHOR_BOTTOM")
 		return cb
 	end
 	tray.snap = check("Snapping", "snap", "While dragging, groups snap to other groups' edges and centres, the screen centre, and the grid when it is shown.")
@@ -477,7 +478,7 @@ do
 	tray.options:SetSize(110, 22)
 	tray.options:SetPoint("RIGHT", lock, "LEFT", -6, 0)
 	tray.options:SetScript("OnClick", function() ns.Options.toggleAside("layout") end)
-	ns.setTip(tray.options, function() return tray.options:GetText() end,
+	W.setTip(tray.options, function() return tray.options:GetText() end,
 		"The options stay shown or hidden the next time you unlock.", "ANCHOR_BOTTOM")
 end
 

@@ -1,6 +1,7 @@
 -- Totems
 
 local _, ns = ...
+local W = ns.Widgets
 local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
 local Spells = ns.Spells
@@ -313,7 +314,7 @@ ns.registerPart("needsTotem", {
 			local life = def.duration or 45
 			if st == "ready" then ic:SetGlowShown(false)
 			elseif st == "expiring" then P.expiring(ic, key, life)
-			elseif st == "nototem" then ic:SetWarnParts(ns.warnParts(key, "warn"))
+			elseif st == "nototem" then ic:SetWarnParts(W.warnParts(key, "warn"))
 			elseif st == "out" then
 				P.frozen(ic.upT, 0.2, life)
 				ic:SetGlowShown(setting(key, "ready", "glow"))

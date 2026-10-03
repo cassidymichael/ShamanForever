@@ -1,5 +1,6 @@
 -- Options art: school art, element headers with live previews, the experimental badge
 local ADDON, ns = ...
+local W = ns.Widgets
 local E, G, Bars = ns.Elements, ns.Groups, ns.Bars
 local OA = {}
 ns.OptionsArt = OA
@@ -81,7 +82,7 @@ end
 local TAG, TAG_TEXT, EXP = { 0.55, 0.82, 0.5 }, { 0.62, 0.86, 0.56 }, { 0.95, 0.77, 0.42 }
 local function makeBadge(frameType, parent, text, edge, color)
 	local b = CreateFrame(frameType, nil, parent, "BackdropTemplate")
-	b:SetBackdrop(ns.BACKDROP)
+	b:SetBackdrop(W.BACKDROP)
 	b:SetBackdropColor(edge[1], edge[2], edge[3], 0.08)
 	b:SetBackdropBorderColor(edge[1], edge[2], edge[3], 0.5)
 	b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -110,7 +111,7 @@ end
 -- Preview icons
 local PREVIEW_SIZE = 56
 local function makePreviewIcon(parent, key, preview)
-	local ic = ns.makeIcon(parent, PREVIEW_SIZE, key)
+	local ic = W.makeIcon(parent, PREVIEW_SIZE, key)
 	local e = identity(key)
 	local school = e and e.school
 	if preview.cooldown then ic.cdT = ns.Timer.new(ic, key, "cooldown", { cd = ic.cd, school = school }) end
@@ -191,7 +192,7 @@ local function expiringLook(ic, key, length)
 	local secs = opt(key, "expire", "secs") or 0
 	frozen(ic.upT, 1 - math.min(secs > 0 and secs or 5, length) / length, length)
 	if secs <= 0 then return end
-	ic:SetWarnParts(ns.warnParts(key, "expire"))
+	ic:SetWarnParts(W.warnParts(key, "expire"))
 end
 
 local function engineExpireLook(ic, key, length)
@@ -270,7 +271,7 @@ function OA.choiceRow(parent, items, get, set, tipAnchor)
 	local x = 0
 	for _, it in ipairs(items) do
 		local b = CreateFrame("Button", nil, row, "BackdropTemplate")
-		b:SetBackdrop(ns.BACKDROP)
+		b:SetBackdrop(W.BACKDROP)
 		b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		b.text:SetPoint("CENTER")
 		b.text:SetText(it[2])
@@ -282,7 +283,7 @@ function OA.choiceRow(parent, items, get, set, tipAnchor)
 		b:SetScript("OnClick", function(self)
 			if get() ~= self.value then set(self.value) end
 		end)
-		ns.setTip(b, it[2], it[3], tipAnchor)
+		W.setTip(b, it[2], it[3], tipAnchor)
 		table.insert(row.buttons, b)
 	end
 	row:SetSize(x - 2, 20)
@@ -310,7 +311,7 @@ function OA.buildHero(parent, key)
 	local h = CreateFrame("Frame", nil, parent, "BackdropTemplate")
 	h:SetHeight(heroH - 14)
 	h.heroH = heroH
-	h:SetBackdrop(ns.BACKDROP)
+	h:SetBackdrop(W.BACKDROP)
 	h:SetBackdropColor(OA.PANEL[1], OA.PANEL[2], OA.PANEL[3], 1)
 	h:SetBackdropBorderColor(0.36, 0.28, 0.17, 1)
 
@@ -330,7 +331,7 @@ function OA.buildHero(parent, key)
 	h.icon:SetSize(60, 60)
 	if def.stage then h.icon:SetPoint("TOPLEFT", 40, -24) else h.icon:SetPoint("LEFT", 40, 0) end
 	h.icon:SetTexture(e.icon)
-	ns.cropIcon(h.icon)
+	W.cropIcon(h.icon)
 	h.iconEdge = h:CreateTexture(nil, "BORDER")
 	h.iconEdge:SetPoint("TOPLEFT", h.icon, -2, 2)
 	h.iconEdge:SetPoint("BOTTOMRIGHT", h.icon, 2, -2)
@@ -372,7 +373,7 @@ function OA.buildHero(parent, key)
 	local p = CreateFrame("Frame", nil, h, "BackdropTemplate")
 	p:SetSize(PANEL_W, PANEL_H)
 	p:SetPoint("RIGHT", -40, 0)
-	p:SetBackdrop(ns.BACKDROP)
+	p:SetBackdrop(W.BACKDROP)
 	p:SetBackdropColor(0, 0, 0, 0.5)
 	p:SetBackdropBorderColor(0.23, 0.17, 0.10, 1)
 	local cap = p:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
@@ -404,7 +405,7 @@ function OA.buildHero(parent, key)
 			b:SetSize(BTN_W, BTN_H)
 			b:SetPoint("TOPRIGHT", -8, -(PANEL_H - listH) / 2 - (i - 1) * (BTN_H + 3))
 		end
-		b:SetBackdrop(ns.BACKDROP)
+		b:SetBackdrop(W.BACKDROP)
 		b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		b.text:SetPoint("LEFT", 7, 0)
 		b.text:SetText(st[2])
@@ -476,8 +477,8 @@ function OA.buildHero(parent, key)
 			ic:SetPoint("LEFT", p, "LEFT", x, -6)
 			local l, t = ic:GetLeft(), ic:GetTop()
 			if l and t then
-				local px = ns.pixel(ic)
-				ic:SetPoint("LEFT", p, "LEFT", x + ns.roundPx(l, px) - l, -6 + ns.roundPx(t, px) - t)
+				local px = W.pixel(ic)
+				ic:SetPoint("LEFT", p, "LEFT", x + W.roundPx(l, px) - l, -6 + W.roundPx(t, px) - t)
 			end
 			self.frameHost:SetFrameLevel(ic:GetFrameLevel())
 			if framed then ns.Frames.mount(self.frameHost, key, PREVIEW_SIZE)
@@ -507,7 +508,7 @@ end
 function OA.buildIntro(parent, version)
 	local h = CreateFrame("Frame", nil, parent, "BackdropTemplate")
 	h:SetHeight(OA.HERO_H - 14)
-	h:SetBackdrop(ns.BACKDROP)
+	h:SetBackdrop(W.BACKDROP)
 	h:SetBackdropColor(OA.PANEL[1], OA.PANEL[2], OA.PANEL[3], 1)
 	h:SetBackdropBorderColor(0.36, 0.28, 0.17, 1)
 	h.banner = h:CreateTexture(nil, "BACKGROUND", nil, 1)
@@ -629,7 +630,7 @@ do
 		for _, part in ipairs(PARTS) do setStyle(t.owner, part) end
 		t.box = CreateFrame("Frame", nil, parent)
 		t.box:SetSize(size, size)
-		t.ic = ns.makeIcon(t.box, size, t.owner)
+		t.ic = W.makeIcon(t.box, size, t.owner)
 		-- Sits on whole pixels so its picture snaps with the art, or a sliver shows past flush art.
 		if t.ic.tex.SetSnapToPixelGrid then t.ic.tex:SetSnapToPixelGrid(true) end
 		return t

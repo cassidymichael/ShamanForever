@@ -4,6 +4,7 @@
 -- its aura when readable).
 
 local _, ns = ...
+local W = ns.Widgets
 local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
 local Spells, R, KD = ns.Spells, ns.Reagents, ns.Kinds
@@ -157,7 +158,7 @@ local function makeCooldownIcon(def)
 		f.readyGate:SetAllPoints()
 		f.readyGlow = ns.Effects.glow(f.readyGate, f, def.key)
 	end
-	if KD.words("cooldown", def, "warn") then f.warn = ns.makeWarnOverlay(f) end
+	if KD.words("cooldown", def, "warn") then f.warn = W.makeWarnOverlay(f) end
 	-- Layers, bottom up: icon, warning, swipe, timer bar, text
 	f.stack()
 	return f
@@ -293,7 +294,7 @@ local function ownCooldownRunning(def, inEvent)
 	end
 	return def.cdRunning, true
 end
-local function fadeTo(def, alpha) ns.fadeTo(def.frame, alpha) end
+local function fadeTo(def, alpha) W.fadeTo(def.frame, alpha) end
 
 -- def needs key, frame, spellID and refresh (other engines pass such a table too); held: something
 -- of its own keeps it shown (a window or primed buff, low reagents, a part's state)
@@ -469,7 +470,7 @@ local function styleCooldown(def)
 	local w = f.warn
 	if not w then return end
 	w:setIcon(def.iconID or def.icon)
-	w:setParts(ns.warnParts(def.key, "warn"))
+	w:setParts(W.warnParts(def.key, "warn"))
 end
 
 -- Ready glows ("use me"), all off by default; re-read ten times a second while on

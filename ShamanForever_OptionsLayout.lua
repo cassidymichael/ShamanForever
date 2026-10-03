@@ -1,5 +1,6 @@
 -- Groups & Layout page: the group list and the chosen group
 local _, ns = ...
+local W = ns.Widgets
 local G = ns.Groups
 local E, P = ns.Elements, ns.Profiles
 
@@ -197,7 +198,7 @@ local function newChip(parent)
 	chip.icon = chip:CreateTexture(nil, "ARTWORK")
 	chip.icon:SetSize(20, 20)
 	chip.icon:SetPoint("LEFT", 2, 0)
-	ns.cropIcon(chip.icon)
+	W.cropIcon(chip.icon)
 	chip.text = chip:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	chip.text:SetPoint("LEFT", chip.icon, "RIGHT", 6, 0)
 	chip.text:SetPoint("RIGHT", -4, 0)
@@ -242,7 +243,7 @@ local rowMenu
 
 local function newRow(parent)
 	local r = CreateFrame("Button", nil, parent, "BackdropTemplate")
-	r:SetBackdrop(ns.BACKDROP)
+	r:SetBackdrop(W.BACKDROP)
 	r:SetBackdropColor(0.09, 0.075, 0.06, 1)
 	r:SetHeight(ROW_H)
 	r.wash = r:CreateTexture(nil, "BACKGROUND", nil, 1)
@@ -283,7 +284,7 @@ local function fillRow(r, g, w)
 			t = r:CreateTexture(nil, "ARTWORK")
 			t:SetSize(16, 16)
 			t:SetPoint("TOPLEFT", 6 + (i - 1) * ICON_STEP, -22)
-			ns.cropIcon(t)
+			W.cropIcon(t)
 			r.icons[i] = t
 		end
 		local key = g.members[i]

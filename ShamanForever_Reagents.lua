@@ -1,6 +1,7 @@
 -- Reagents
 
 local _, ns = ...
+local W = ns.Widgets
 local E = ns.Elements
 local isSecret, safe = ns.isSecret, ns.safe
 
@@ -83,7 +84,7 @@ local function num(key, field)
 	return v
 end
 
-local COUNT_JUSTIFY = ns.COUNT_JUSTIFY
+local COUNT_JUSTIFY = W.COUNT_JUSTIFY
 function R.draw(f, key, n)
 	local low = n <= num(key, "low")
 	local show = setting(key, "reagent", "when")
@@ -91,7 +92,7 @@ function R.draw(f, key, n)
 	if show == "always" or (show == "low" and low) then
 		local pos = setting(key, "reagent", "pos")
 		if not COUNT_JUSTIFY[pos] then pos = "BOTTOMRIGHT" end
-		ns.placeScaledText(fs, f, num(key, "size"), pos, num(key, "x"), num(key, "y"))
+		W.placeScaledText(fs, f, num(key, "size"), pos, num(key, "x"), num(key, "y"))
 		fs:SetJustifyH(COUNT_JUSTIFY[pos])
 		local field = low and "lowColor" or "color"
 		local c = setting(key, "reagent", field)

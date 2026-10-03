@@ -3,6 +3,7 @@
 -- stand-in rather than parked (no change to it in combat).
 
 local _, ns = ...
+local W = ns.Widgets
 local E, G, MOD, Bars, P = ns.Elements, ns.Groups, ns.Modules, ns.Bars, ns.Profiles
 local say = ns.say
 local OA = ns.OptionsArt
@@ -87,7 +88,7 @@ local barRuns = {}   -- a bar's slots, each looping through its steps like an el
 
 local function setAlpha(f, a)
 	f:SetAlpha(a)
-	ns.fadeTo(f, a)
+	W.fadeTo(f, a)
 end
 
 local function paintElement(key, r, moment)
@@ -196,7 +197,7 @@ local ticker = ns.ticker(0.1, function()
 			if now >= r.nextAt then ns.try("preview step", advance, key, r)
 			elseif r.idleAt and now >= r.idleAt then
 				r.idleAt = nil
-				ns.fadeTo(standIns[key], OA.idleAlpha(key))
+				W.fadeTo(standIns[key], OA.idleAlpha(key))
 			end
 		end
 	end
@@ -232,7 +233,7 @@ end
 
 -- The panel
 -- Not named, so the client keeps no position for it: it starts at the top each time
-local panel = ns.floatingPanel(nil, 560, 66, { 0.85, 0.71, 0.42, 0.9 })
+local panel = W.floatingPanel(nil, 560, 66, { 0.85, 0.71, 0.42, 0.9 })
 panel:SetPoint("TOP", UIParent, "TOP", 0, -12)
 
 local function changed()
@@ -257,7 +258,7 @@ local function check(parent, key, label, tip)
 		opts[key] = self:GetChecked() and true or false
 		changed()
 	end)
-	ns.setTip(cb, label, tip, "ANCHOR_BOTTOM")
+	W.setTip(cb, label, tip, "ANCHOR_BOTTOM")
 	return cb
 end
 
@@ -288,13 +289,13 @@ do
 	stop:SetPoint("TOPRIGHT", -10, -8)
 	optionsButton = button(panel, "Show options", 110, function() ns.Options.toggleAside() end)
 	optionsButton:SetPoint("RIGHT", stop, "LEFT", -6, 0)
-	ns.setTip(optionsButton, "Options", "The options stay shown or hidden the next time.", "ANCHOR_BOTTOM")
+	W.setTip(optionsButton, "Options", "The options stay shown or hidden the next time.", "ANCHOR_BOTTOM")
 	local lock = button(panel, "Unlock positioning", 140, function()
 		G.setLocked(not P.getAccount().locked)
 		panel.refresh()
 	end)
 	lock:SetPoint("RIGHT", optionsButton, "LEFT", -6, 0)
-	ns.setTip(lock, "Positioning", function()
+	W.setTip(lock, "Positioning", function()
 		return "Drag " .. OA.movingWords("groups") .. " while the preview shows."
 	end, "ANCHOR_BOTTOM")
 	function panel.refresh()

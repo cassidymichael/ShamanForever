@@ -3,6 +3,7 @@
 -- A proc: only Blizzard's aura container can show one in combat, on the player or another unit.
 
 local _, ns = ...
+local W = ns.Widgets
 local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
 local Spells, KD = ns.Spells, ns.Kinds
@@ -69,7 +70,7 @@ ns.registerPart("breath", {
 		states = { { "underwater", "Under water", 80 } },
 		render = function(ic, st, def, P)
 			if st ~= "underwater" then return end
-			if setting(def.key, "warn", "on") then ic:SetWarnParts(ns.warnParts(def.key, "warn"))
+			if setting(def.key, "warn", "on") then ic:SetWarnParts(W.warnParts(def.key, "warn"))
 			else P.idle(ic, def.key) end
 		end,
 	},
@@ -164,7 +165,7 @@ local function buildAura(def)
 	local site = where.site
 	local ids = function() return auraIDs(def) end
 	local candidates = def.candidates and function() return def.candidates(def) end
-	def.aura = ns.makeAuraSlot(f, {
+	def.aura = W.makeAuraSlot(f, {
 		key = key, slot = where.slot, unit = where.unit, filter = def.filter, parent = where.parent,
 		ids = ids, candidates = candidates,
 		ownIcon = def.ownIcon and function() return def.icon end, noTimer = def.noTimer,
@@ -285,14 +286,14 @@ local function refreshBuff(def)
 		f:SetRingShown(false)
 		f:SetPulsing(false)
 		f.count:Hide()
-		ns.fadeTo(f, 1)
+		W.fadeTo(f, 1)
 		return
 	end
 	f.tex:SetDesaturated(false)
 	if def.proc then
 		-- Frame is an ancestor of Blizzard's button: its alpha changes out of combat only
 		if def.fx then def.fx:glow(setting(key, "active", "glow") and not previewing) end
-		ns.fadeTo(f, ns.Profiles.getAccount().locked and E.idleAlpha(key) or 1)
+		W.fadeTo(f, ns.Profiles.getAccount().locked and E.idleAlpha(key) or 1)
 		return
 	end
 	if def.upUntil and GetTime() >= def.upUntil then setDown(def) end
@@ -305,7 +306,7 @@ local function refreshBuff(def)
 	f:SetRingShown(ring)
 	f:SetPulsing(pulse)
 	local busy = not ns.Profiles.getAccount().locked or def.upUntil ~= nil or held
-	ns.fadeTo(f, busy and 1 or E.idleAlpha(key))
+	W.fadeTo(f, busy and 1 or E.idleAlpha(key))
 end
 
 local function refreshAll()

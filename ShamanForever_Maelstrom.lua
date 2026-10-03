@@ -7,9 +7,10 @@
 -- handler or reads back.
 
 local _, ns = ...
+local W = ns.Widgets
 local E, G, MOD = ns.Elements, ns.Groups, ns.Modules
 local say, isSecret, safe = ns.say, ns.isSecret, ns.safe
-local Spells, Count = ns.Spells, ns.Count
+local Spells, Count = ns.Spells, W.Count
 
 -- The buff's seed ID, kept out of Spells.DEFS: it shares its name with the talent, and two keys with
 -- one name would make the name lookup file a new ID under either at random
@@ -152,7 +153,7 @@ end
 local gate = CreateFrame("Frame", nil, f.effects)
 gate:SetAllPoints(f)
 
-local stacks = ns.makeAuraSlot(f, {
+local stacks = W.makeAuraSlot(f, {
 	key = KEY, slot = "stacks", ids = function() return src.ids() end, parent = gate,
 	sites = { container = "maelstrom container", style = "maelstrom style", filter = "maelstrom filter" },
 	onButton = function(slot, button) buildStacks(slot, button) end,
@@ -213,7 +214,7 @@ end
 -- first stack and pop there
 local nowhere = CreateFrame("Frame")
 nowhere:Hide()
-local pop = ns.makeAuraSlot(f, {
+local pop = W.makeAuraSlot(f, {
 	key = KEY, slot = "pop", ids = function() return src.ids() end, parent = nowhere, level = POP_LEVEL,
 	noTimer = true, ownIcon = function() return MW.icon end, host = unseenHost,
 	sites = { container = "maelstrom pop container", style = "maelstrom pop style",
@@ -282,7 +283,7 @@ local function setupPop()
 	pop:setup()
 end
 
-gateSlot = ns.makeAuraSlot(f, {
+gateSlot = W.makeAuraSlot(f, {
 	key = KEY, slot = "gate", ids = function() return src.ids() end, parent = f.effects,
 	noTimer = true, host = unseenHost,
 	sites = { container = "maelstrom pop gate container", style = "maelstrom pop gate style",
@@ -363,7 +364,7 @@ local function buildFive(slot, button)
 	C_Timer.After(0, function() applyIdle() end)
 end
 
-local five = ns.makeAuraSlot(f, {
+local five = W.makeAuraSlot(f, {
 	key = KEY, slot = "five", ids = function() return src.ids() end, parent = f.effects, level = FIVE_LEVEL,
 	host = fiveHost,
 	sites = { container = "maelstrom five container", style = "maelstrom five style",
@@ -405,12 +406,12 @@ local function refresh()
 	f.tex:SetTexture(MW.icon)
 	if not src.learned() then
 		f.tex:SetDesaturated(true)
-		ns.fadeTo(f, 1)
+		W.fadeTo(f, 1)
 		return
 	end
 	f.tex:SetDesaturated(false)
 	-- The buttons say when it's up, on the effects layer, which ignores this icon's alpha
-	ns.fadeTo(f, (ns.Profiles.getAccount().locked and idleWhen() ~= "never") and E.idleAlpha(KEY) or 1)
+	W.fadeTo(f, (ns.Profiles.getAccount().locked and idleWhen() ~= "never") and E.idleAlpha(KEY) or 1)
 end
 
 local function styleAll() for _, s in ipairs(SLOTS) do s:style() end end

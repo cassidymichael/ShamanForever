@@ -130,7 +130,7 @@ function FR.validate(e, part)
 end
 
 -- Geometry: units from the box's top-left, y down, rounded to whole pixels
-local round, ICON = ns.roundPx, ns.BASE_ICON_SIZE
+local round, ICON = ns.Widgets.roundPx, ns.Widgets.BASE_ICON_SIZE
 local function atLeast(v, px) return max(px, round(v, px)) end
 
 local function drawnSize(a)
@@ -599,7 +599,7 @@ function FR.draw(carrier, look, box, style, level)
 		m.tex = m:CreateTexture(nil, "ARTWORK")
 		carrier.frameMount = m
 	end
-	local g = FR.fit(look, box, ns.pixel(carrier))
+	local g = FR.fit(look, box, ns.Widgets.pixel(carrier))
 	m:ClearAllPoints()
 	m:SetPoint("CENTER", carrier, "CENTER", 0, 0)
 	m:SetSize(box, box)
@@ -693,7 +693,7 @@ function FR.drawGroup(host, look, lay, style)
 		m.texs = {}
 		host.groupFrameMount = m
 	end
-	local geo = FR.groupLayout(look, lay, ns.pixel(host))
+	local geo = FR.groupLayout(look, lay, ns.Widgets.pixel(host))
 	m:ClearAllPoints()
 	m:SetPoint("TOPLEFT", host, "TOPLEFT", lay.x or 0, -(lay.y or 0))
 	m:SetSize(geo.w, geo.h)

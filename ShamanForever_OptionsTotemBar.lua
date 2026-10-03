@@ -1,5 +1,6 @@
 -- Totem bar options page
 local _, ns = ...
+local W = ns.Widgets
 local Bars = ns.Bars
 
 local K, Page, OA = ns.Options.kit, ns.Page, ns.OptionsArt
@@ -45,7 +46,7 @@ PREVIEW = {
 			ic.badge:SetFrameLevel(ic:GetFrameLevel() + 6)
 			ic.badge.icon = ic.badge:CreateTexture(nil, "ARTWORK")
 			ic.badge.icon:SetAllPoints()
-			ns.cropIcon(ic.badge.icon)
+			W.cropIcon(ic.badge.icon)
 			ic.rangeF = CreateFrame("Frame", nil, bar)
 			ic.rangeF:SetFrameLevel(ic:GetFrameLevel() + 7)
 			ic.rangeF.bg = ic.rangeF:CreateTexture(nil, "ARTWORK")
@@ -60,9 +61,9 @@ PREVIEW = {
 		end
 		h.extras = {}
 		for _, key in ipairs({ "Call", "Recall" }) do
-			h.extras[key] = ns.makeIcon(bar, 56)
+			h.extras[key] = W.makeIcon(bar, 56)
 		end
-		h.extras.Call.num = ns.makeKeyText(h.extras.Call)
+		h.extras.Call.num = W.makeKeyText(h.extras.Call)
 		h.extras.Call.num:SetTextColor(1, 1, 1)
 		h.tab = ns.TotemBar.makeArrowLook(bar)
 		h.pop = CreateFrame("Frame", nil, bar)
@@ -75,7 +76,7 @@ PREVIEW = {
 			local it = CreateFrame("Frame", nil, h.pop)
 			it.tex = it:CreateTexture(nil, "ARTWORK")
 			it.tex:SetAllPoints()
-			ns.cropIcon(it.tex)
+			W.cropIcon(it.tex)
 			it.x = it:CreateFontString(nil, "OVERLAY", "GameFontDisable")
 			it.x:SetPoint("CENTER")
 			it.x:SetText("X")
@@ -150,7 +151,7 @@ PREVIEW = {
 				ic.tex:SetAlpha(learned and 1 or 0.6)
 				if ic.num then
 					local set, count = ns.TotemSets.active(), ns.TotemSets.count()
-					ns.Media.setFont(ic.num, "totembar", ns.keyTextSize(it.size, c.keySize))
+					ns.Media.setFont(ic.num, "totembar", W.keyTextSize(it.size, c.keySize))
 					ic.num:ClearAllPoints()
 					ic.num:SetPoint("BOTTOMRIGHT", -1, 2)
 					ic.num:SetText(set)
@@ -191,7 +192,7 @@ PREVIEW = {
 					else
 						local k = i == 1 and c.rangeOut or c.rangeIn
 						f:SetPoint("TOPLEFT", ic, "TOPLEFT", 0, 0)
-						f:SetSize(size - 2 * o, ns.linePx(ic, c.rangeHeight))
+						f:SetSize(size - 2 * o, W.linePx(ic, c.rangeHeight))
 						TB.skin.paintMark(f)
 						f.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
 						f:Show()
@@ -396,7 +397,7 @@ local function build(p)
 		r.icon = r:CreateTexture(nil, "ARTWORK")
 		r.icon:SetSize(20, 20)
 		r.icon:SetPoint("LEFT", cb, "RIGHT", 4, 0)
-		ns.cropIcon(r.icon)
+		W.cropIcon(r.icon)
 		r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 		r.text:SetPoint("LEFT", r.icon, "RIGHT", 6, 0)
 		r:RegisterForDrag("LeftButton")

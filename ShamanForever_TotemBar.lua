@@ -11,6 +11,7 @@
 -- casts (ns.Totems), by spell ID.
 
 local _, ns = ...
+local W = ns.Widgets
 local E, MOD, Bars, P = ns.Elements, ns.Modules, ns.Bars, ns.Profiles
 
 local TB = { name = "totem bar" }
@@ -189,7 +190,7 @@ local EXTRA_GAP = 6
 function TB.along(n, size, px)
 	local c = TB.eff()
 	local before, after = TB.extraSides()
-	local function round(v) return px and ns.roundPx(v, px) or math.floor(v + 0.5) end
+	local function round(v) return px and W.roundPx(v, px) or math.floor(v + 0.5) end
 	local esz, gap, extraGap = round(size * c.extrasScale), c.spacing, c.spacing + EXTRA_GAP
 	local own, ownExtra = TB.skin.spacing(size)
 	if own then gap, extraGap = own, ownExtra end
@@ -248,7 +249,7 @@ end
 
 function TB.makeArrowLook(parent)
 	local t = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-	t:SetBackdrop(ns.BACKDROP)
+	t:SetBackdrop(W.BACKDROP)
 	t.glyph = t:CreateTexture(nil, "OVERLAY")
 	t.glyph:SetPoint("CENTER")
 	TB.plainArrow(t)
@@ -410,7 +411,7 @@ local function keyLayer(v)
 	local f = CreateFrame("Frame", nil, v)
 	f:SetAllPoints()
 	f:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 3)
-	f.text = ns.makeKeyText(f)
+	f.text = W.makeKeyText(f)
 	f.glow = f:CreateTexture(nil, "OVERLAY")
 	f.glow:SetAllPoints()
 	if ns.StyleArt.hasAtlas(KEY_HIGHLIGHT) then f.glow:SetAtlas(KEY_HIGHLIGHT)
@@ -420,7 +421,7 @@ local function keyLayer(v)
 end
 
 local function gcdSweep(v)
-	local cd = ns.makeGCDSweep(v)
+	local cd = W.makeGCDSweep(v)
 	cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE)
 	return cd
 end
@@ -497,7 +498,7 @@ for index, el in ipairs(ELEMENTS) do
 	badge:SetFrameLevel(b:GetFrameLevel() + 6)
 	badge.icon = badge:CreateTexture(nil, "ARTWORK")
 	badge.icon:SetAllPoints()
-	ns.cropIcon(badge.icon)
+	W.cropIcon(badge.icon)
 	badge:Hide()
 	s.badge = badge
 	-- End flashes on their own frames (the slot's look can be invisible); each has its own secret gate
@@ -511,7 +512,7 @@ for index, el in ipairs(ELEMENTS) do
 	v.bg:SetAllPoints()
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
-	ns.cropIconExact(v.icon)
+	W.cropIconExact(v.icon)
 	s.timer = ns.Timer.new(v, "totembar", "uptime", { anchor = v, school = el })
 	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 1)
 	s.timer.bar:SetFrameLevel(b:GetFrameLevel() + TIME_BAR_LEVEL)
@@ -581,7 +582,7 @@ for _, e in ipairs({ { "Call", CALL }, { "Recall", RECALL } }) do
 	v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL)
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
-	ns.cropIconExact(v.icon)
+	W.cropIconExact(v.icon)
 	extras[key] = { key = key, spell = spell, button = b, vis = v, keys = keyLayer(v), gcd = gcdSweep(v),
 		command = "CLICK ShamanForeverKey" .. key .. ":LeftButton" }
 end
@@ -626,7 +627,7 @@ for set, id in ipairs(SET_CALL) do
 	p:SetFrameLevel(setSlot.popout:GetFrameLevel() + 5)
 	p.icon = p:CreateTexture(nil, "ARTWORK")
 	p.icon:SetAllPoints()
-	ns.cropIcon(p.icon)
+	W.cropIcon(p.icon)
 	p.on = p:CreateTexture(nil, "OVERLAY")
 	p.on:SetAllPoints()
 	p.on:SetTexture("Interface\\Buttons\\CheckButtonHilight")
@@ -656,7 +657,7 @@ wrapClick(call.button, SLOT_CLICK .. [[
 call.button:SetScript("PostClick", function(_, button, down)
 	if button == "RightButton" and not down and cfg().setSwitch == "cycle" then lockedCue() end
 end)
-call.num = ns.makeKeyText(call.keys)
+call.num = W.makeKeyText(call.keys)
 call.num:SetTextColor(1, 1, 1)
 
 -- Close every picker (out of combat): one hidden through the bar would come back open
@@ -677,7 +678,7 @@ local function refreshKeys()
 	local on = cfg().keys
 	local function draw(layer, command)
 		local key = on and GetBindingKey(command)
-		layer.text:SetText(ns.keyLabel(key))
+		layer.text:SetText(W.keyLabel(key))
 	end
 	for _, el in ipairs(ELEMENTS) do draw(slots[el].keys, slots[el].command) end
 	for _, e in pairs(extras) do draw(e.keys, e.command) end
@@ -1036,7 +1037,7 @@ local function layoutPopout(s, size, known)
 			p:SetFrameLevel(pop:GetFrameLevel() + 5)
 			p.icon = p:CreateTexture(nil, "ARTWORK")
 			p.icon:SetAllPoints()
-			ns.cropIcon(p.icon)
+			W.cropIcon(p.icon)
 			p.none = p:CreateFontString(nil, "OVERLAY", "GameFontDisable")
 			p.none:SetPoint("CENTER")
 			p.none:SetText("X")
@@ -1130,8 +1131,8 @@ function layout()
 	-- Scale and opacity first: sizes, gaps and position are whole screen pixels at it
 	bar:SetScale(c.scale)
 	bar:SetAlpha(c.alpha)
-	local px = ns.pixel(bar)
-	size = ns.roundPx(size, px)
+	local px = W.pixel(bar)
+	size = W.roundPx(size, px)
 	-- With no totem known the bar hides (Call and Recall too, in positioning mode as well)
 	local shown, known = {}, {}
 	local had = hasTotems
@@ -1168,13 +1169,13 @@ function layout()
 		local kt = keyTexts[b]
 		if kt then
 			local k = c.keyColor
-			ns.Media.setFont(kt, "totembar", ns.keyTextSize(sz, c.keySize))
+			ns.Media.setFont(kt, "totembar", W.keyTextSize(sz, c.keySize))
 			kt:ClearAllPoints()
 			kt:SetPoint("TOPRIGHT", c.keyX, c.keyY)
 			kt:SetTextColor(k[1], k[2], k[3], k[4] or 1)
 		end
 		b:ClearAllPoints()
-		local side = ns.roundPx((across - sz) / 2, px)
+		local side = W.roundPx((across - sz) / 2, px)
 		if row then b:SetPoint("TOPLEFT", bar, "TOPLEFT", it.offset, -side) else b:SetPoint("TOPLEFT", bar, "TOPLEFT", side, -it.offset) end
 	end
 	for key, e in pairs(extras) do
@@ -1200,7 +1201,7 @@ function layout()
 	if pickSet then layoutSetPicker(size) end
 	layoutArrow(setSlot, pickSet and feat("arrows"))
 	if on.Call then
-		ns.Media.setFont(call.num, "totembar", ns.keyTextSize(on.Call, c.keySize))
+		ns.Media.setFont(call.num, "totembar", W.keyTextSize(on.Call, c.keySize))
 		call.num:ClearAllPoints()
 		call.num:SetPoint("BOTTOMRIGHT", -1, 2)
 	end
@@ -1229,14 +1230,14 @@ function layout()
 		if not s.button:IsShown() then sealed[s.button] = true end
 	end
 	TB.skin.layoutBar(bar, boxes, size, row, sealed)
-	ns.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
+	W.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
 	TB.range.layout(size)
 	writeSet(set)
 	paintSets()
 	refreshSlots()
 	refreshKeys()
 	refreshGCD()
-	ns.refitRings()
+	W.refitRings()
 	drive()
 	applyTotemFrame()
 	applyActionBar()
@@ -1648,7 +1649,7 @@ local function paintSlot(s, rec)
 			strip:SetSize(w, h)
 		else
 			strip:SetPoint("TOPLEFT", s.button, "TOPLEFT", 0, 0)
-			strip:SetSize(size, ns.linePx(strip, c.rangeHeight))
+			strip:SetSize(size, W.linePx(strip, c.rangeHeight))
 		end
 		if not TB.skin.paintMark(strip, w, h, s.vis) then
 			local k = c.rangeOut

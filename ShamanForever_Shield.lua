@@ -6,10 +6,11 @@
 -- never a false warning.
 
 local _, ns = ...
+local W = ns.Widgets
 local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe = ns.say, ns.isSecret, ns.safe
 local Spells = ns.Spells
-local FR, Count = ns.Frames, ns.Count
+local FR, Count = ns.Frames, W.Count
 
 local SH = { name = "shield" }
 ns.Shield = SH
@@ -36,7 +37,7 @@ local IDLE_CHOICES = {
 		"Shown in full at 1 charge and as No shield." },
 }
 local COUNT_POS, TRACK = {}, { "either" }
-for pos in pairs(ns.COUNT_JUSTIFY) do table.insert(COUNT_POS, pos) end
+for pos in pairs(W.COUNT_JUSTIFY) do table.insert(COUNT_POS, pos) end
 for _, key in ipairs(SHIELD_ORDER) do table.insert(TRACK, key) end
 E.register("shield", { frame = shield, label = "Shields", paint = function(t) t:SetTexture(SH.icon()) end,
 	learned = function() return SH.learned() end,
@@ -173,7 +174,7 @@ local function setLook(st)
 	if st ~= nil and lookState == nil then look:wait() end
 	lookState = st
 	local w = st == "warn"
-	local grey, tint, ring, fade, glow = ns.warnParts("shield", "warn")
+	local grey, tint, ring, fade, glow = W.warnParts("shield", "warn")
 	look:setParts(grey, w and tint, w and ring, w and fade, w and glow)
 	look:want(st ~= nil)
 end
@@ -278,7 +279,7 @@ local function shieldIDMap()
 end
 
 -- The sensor hangs from the element's frame, not the gate (which is 0 at Idle 0%)
-look = ns.makeClipLook(shield, {
+look = W.makeClipLook(shield, {
 	key = "shield", parent = holder, sensorParent = shield, ids = shieldIDMap, owner = "shield",
 	sites = {
 		container = "shield warning sensor", style = "shield warning style",
@@ -394,7 +395,7 @@ local function timeBarInset()
 	return count("bar") and count("barHeight") or 0
 end
 
-native = ns.makeAuraSlot(shield, {
+native = W.makeAuraSlot(shield, {
 	key = "shield", slot = "shield", ids = shieldIDMap, parent = gate,
 	name = ns.NAME .. "AuraContainer",
 	sites = { container = "shield container", style = "shield style", filter = "shield filter" },
@@ -476,7 +477,7 @@ local function buildCopy(slot, button)
 	C_Timer.After(0, SH.applyEmptyLook)
 end
 
-copy = ns.makeAuraSlot(shield, {
+copy = W.makeAuraSlot(shield, {
 	key = "shield", slot = "shieldcopy", ids = shieldIDMap, parent = full, level = IDLE_LEVEL,
 	host = copyHost, barInset = timeBarInset,
 	sites = { container = "shield copy container", style = "shield copy style",
@@ -543,7 +544,7 @@ function SH.onCast(spellID)
 end
 
 -- The GCD gets its own sweep above the button (Blizzard's button owns the shield's time left)
-local shieldGCD = ns.makeGCDSweep(shield)
+local shieldGCD = W.makeGCDSweep(shield)
 shieldGCD:SetParent(gate)
 -- inCooldownEvent: from SPELL_UPDATE_COOLDOWN
 local function refreshGCD(inCooldownEvent)
@@ -645,7 +646,7 @@ local PREVIEW = {
 	render = function(ic, st, P)
 		P.reset(ic, SHIELDS[setting("track") == "water" and "water" or "lightning"].icon)
 		if st == "down" then
-			ic:SetWarnParts(ns.warnParts("shield", "warn"))
+			ic:SetWarnParts(W.warnParts("shield", "warn"))
 			return
 		end
 		local n = st == "up3" and 3 or st == "up2" and 2 or 1

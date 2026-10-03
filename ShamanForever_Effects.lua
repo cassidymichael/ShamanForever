@@ -1,6 +1,7 @@
 -- Effects
 
 local _, ns = ...
+local W = ns.Widgets
 
 local FX = {}
 ns.Effects = FX
@@ -515,7 +516,7 @@ function FX.endFlash(parent, anchor, owner, over)
 	kf.glow:color(1, 0.12, 0.08)
 	kf.icon = kf.body:CreateTexture(nil, "ARTWORK")
 	kf.icon:SetAllPoints()
-	ns.cropIconExact(kf.icon)
+	W.cropIconExact(kf.icon)
 	kf.icon:SetDesaturated(true)
 	kf.red = kf.body:CreateTexture(nil, "OVERLAY")
 	kf.red:SetAllPoints()
@@ -537,7 +538,7 @@ function FX.endFlash(parent, anchor, owner, over)
 	kf.mark:Hide()
 	kf.mark.icon = kf.mark:CreateTexture(nil, "ARTWORK")
 	kf.mark.icon:SetAllPoints()
-	ns.cropIconExact(kf.mark.icon)
+	W.cropIconExact(kf.mark.icon)
 	kf.mark.icon:SetDesaturated(true)
 	kf.mark.icon:SetAlpha(0.6)
 	kf.mark.x = kf.mark:CreateTexture(nil, "OVERLAY")
@@ -620,7 +621,7 @@ function FX.host(f, key, opts)
 	end
 	h.aura = a
 	if a.popOnly then return h end
-	h.up = ns.makeClipLook(f, {
+	h.up = W.makeClipLook(f, {
 		key = key, owner = key, invert = true, glowOnly = true,
 		parent = a.parent, sensorParent = a.sensorParent or a.parent,
 		unit = a.unit, needUnit = a.needUnit, filter = a.filter, ids = a.ids, candidates = a.candidates,

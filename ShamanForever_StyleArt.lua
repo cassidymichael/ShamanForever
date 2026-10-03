@@ -2,6 +2,7 @@
 -- Our own media by path, never file ID; Blizzard's art by atlas, checked before use.
 
 local ADDON, ns = ...
+local W = ns.Widgets
 
 local SA = {}
 ns.StyleArt = SA
@@ -77,7 +78,7 @@ local function drawRings(f, rings, b)
 	local tex, n, d = f.border, 0, 0
 	for i = #(rings or {}), 1, -1 do
 		local ring = rings[i]
-		local w = ns.linePx(f, pxOf(ring.px, b))
+		local w = W.linePx(f, pxOf(ring.px, b))
 		local o = d + w
 		for _, side in ipairs(SIDES) do
 			n = n + 1
@@ -122,9 +123,9 @@ local function drawCaps(f, caps, out, b)
 		for i = 1, 8 do t[i] = f:CreateTexture(nil, "BACKGROUND", nil, -7) end
 		f.frameCaps = t
 	end
-	local px = ns.linePx(f, pxOf(caps.px, b))
+	local px = W.linePx(f, pxOf(caps.px, b))
 	local o = math.max(out, px)
-	local len = o + ns.linePx(f, caps.len or 6)
+	local len = o + W.linePx(f, caps.len or 6)
 	local c = colorOf(caps.color, b, f)
 	for i, corner in ipairs(CORNERS) do
 		local point, x, y = corner[1], corner[2] * o, corner[3] * o
@@ -184,7 +185,7 @@ local function drawSlice(f, art)
 		h.tex:SetAllPoints()
 		f.frameArt = h
 	end
-	local px = ns.linePx(f, art.px)
+	local px = W.linePx(f, art.px)
 	local k = px / art.margin
 	if k <= 0 then h:Hide(); return 0 end   -- SetScale refuses 0
 	h:SetScale(k)
@@ -352,14 +353,14 @@ function SA.inset(f, b, w, shape)
 	local look = drawnLook(b, shape)
 	if not look then return 0 end
 	local out = 0
-	for _, ring in ipairs(look.rings or {}) do out = out + ns.linePx(f, pxOf(ring.px, b)) end
-	if look.caps then out = math.max(out, ns.linePx(f, pxOf(look.caps.px, b))) end
+	for _, ring in ipairs(look.rings or {}) do out = out + W.linePx(f, pxOf(ring.px, b)) end
+	if look.caps then out = math.max(out, W.linePx(f, pxOf(look.caps.px, b))) end
 	local art = look.art
-	if art and art.margin then out = math.max(out, ns.linePx(f, art.px))
+	if art and art.margin then out = math.max(out, W.linePx(f, art.px))
 	elseif art and art.inset then
 		local share = math.max(art.inset[1], art.inset[2], art.inset[3], art.inset[4])
 		if share > 0 then
-			local one = ns.pixel(f)
+			local one = W.pixel(f)
 			out = math.max(out, math.ceil(share * w / (1 + 2 * share) / one - 0.01) * one)
 		end
 	end

@@ -9,6 +9,7 @@
 -- row's duration, with a cover bar; all set out of combat only.
 
 local _, ns = ...
+local W = ns.Widgets
 local E, MOD = ns.Elements, ns.Modules
 local say, Spells, isSecret = ns.say, ns.Spells, ns.isSecret
 
@@ -223,7 +224,7 @@ ns.registerPart("missing", {
 		warning = "missing",
 		states = { { "missing", "Not on target", 30 } },
 		render = function(ic, st, def, P)
-			if st == "missing" then ic:SetWarnParts(ns.warnParts(def.key, "warn")) end
+			if st == "missing" then ic:SetWarnParts(W.warnParts(def.key, "warn")) end
 			if (st == "up" or st == "expiring") and setting(def.key, "idleWhen") == "target" then
 				P.idle(ic, def.key)
 			end
@@ -256,7 +257,7 @@ ns.registerPart("missing", {
 				holderAlpha(def)
 			end)
 			def.holder = h
-			def.missLook = ns.makeClipLook(f, {
+			def.missLook = W.makeClipLook(f, {
 				key = def.key, parent = h, sensorParent = def.gate, unit = wantedUnit,
 				needUnit = "target", owner = def.key,
 				filter = def.filter, ids = function() return ns.Buffs.auraIDs(def) end,
@@ -433,7 +434,7 @@ local function styleLook(def)
 	look:setLevel(lv + 1, 2)
 	def.lookEdge:SetFrameLevel(lv + 1)
 	ns.Frames.dress(def.lookEdge, def.key, lv + 1)
-	look:setParts(ns.warnParts(def.key, "warn"))
+	look:setParts(W.warnParts(def.key, "warn"))
 	look:reshape()
 	look:style()
 	stateLook(def)
@@ -481,7 +482,7 @@ local function combatStarts()
 			applyIdle(def)
 			local f, a = def.frame, frameAlpha(def)
 			f:SetAlpha(a)
-			ns.fadeTo(f, a)
+			W.fadeTo(f, a)
 		end
 	end
 end
@@ -504,7 +505,7 @@ local function refreshAura(def)
 	end
 	f.tex:SetTexture(def.icon)
 	f.tex:SetDesaturated(not def.spellID)
-	ns.fadeTo(f, frameAlpha(def))
+	W.fadeTo(f, frameAlpha(def))
 	applyIdle(def)
 end
 

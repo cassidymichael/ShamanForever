@@ -1,6 +1,7 @@
 -- Swing timer
 
 local _, ns = ...
+local W = ns.Widgets
 local E, MOD, Bars, P = ns.Elements, ns.Modules, ns.Bars, ns.Profiles
 local say, isSecret = ns.say, ns.isSecret
 local Spells = ns.Spells
@@ -77,7 +78,7 @@ function SW.styleBar(b)
 	b.spark:ClearAllPoints()
 	b.spark:SetPoint("TOP" .. side, fill, "TOP" .. side, 0, 0)
 	b.spark:SetPoint("BOTTOM" .. side, fill, "BOTTOM" .. side, 0, 0)
-	b.spark:SetWidth(ns.linePx(b, 2))
+	b.spark:SetWidth(W.linePx(b, 2))
 end
 
 local font = CreateFont(ns.NAME .. "SwingFont")
@@ -233,9 +234,9 @@ local function layout()
 	listen(SW.isOn())
 	f:SetScale(c.scale)
 	f:SetAlpha(c.alpha)
-	local px = ns.pixel(f)
-	f:SetSize(math.max(ns.roundPx(c.width, px), px), math.max(ns.roundPx(c.height, px), px))
-	ns.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
+	local px = W.pixel(f)
+	f:SetSize(math.max(W.roundPx(c.width, px), px), math.max(W.roundPx(c.height, px), px))
+	W.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
 	ns.StyleArt.applyBorder(face, SW.border(), "bar")
 	SW.styleBar(bar)
 	paintFill()

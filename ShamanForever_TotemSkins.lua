@@ -7,6 +7,7 @@
 -- Blizzard's aura button.
 
 local ADDON, ns = ...
+local W = ns.Widgets
 local P = ns.Profiles
 local TB = ns.TotemBar
 
@@ -171,7 +172,7 @@ function TH.barPlace()
 	return TB.cfg().barPlace
 end
 
-local function outGap(size) return math.max(math.floor(size * 3 / ns.BASE_ICON_SIZE + 0.5), 2) end
+local function outGap(size) return math.max(math.floor(size * 3 / W.BASE_ICON_SIZE + 0.5), 2) end
 local function outReach(size)
 	if TH.barPlace() ~= "out" or not ns.Style.value("totembar", "uptime", "bar") then return 0 end
 	return outGap(size) + ns.Style.value("totembar", "uptime", "barHeight")
@@ -186,7 +187,7 @@ end
 local function insetRings(f, list, rings)
 	local n, d = 0, 0
 	for _, r in ipairs(rings) do
-		local w, c = ns.linePx(f, r[1]), r[2]
+		local w, c = W.linePx(f, r[1]), r[2]
 		for side = 1, 4 do
 			n = n + 1
 			local t = list[n] or f:CreateTexture(nil, "BORDER")
@@ -220,7 +221,7 @@ local function tray(host, boxes, size, on)
 		trays[host] = t
 	end
 	t:SetFrameLevel(host:GetFrameLevel())
-	local pad = ns.roundPx(size * 0.12, ns.pixel(host))
+	local pad = W.roundPx(size * 0.12, W.pixel(host))
 	t:ClearAllPoints()
 	t:SetPoint("TOPLEFT", boxes[1], "TOPLEFT", -pad, pad)
 	t:SetPoint("BOTTOMRIGHT", boxes[#boxes], "BOTTOMRIGHT", pad, -pad)
@@ -304,7 +305,7 @@ local function tip(t, on)
 	x:ClearAllPoints()
 	x:SetPoint("TOP", fill, "TOPRIGHT", 0, 0)
 	x:SetPoint("BOTTOM", fill, "BOTTOMRIGHT", 0, 0)
-	x:SetWidth(ns.linePx(bar, 1))
+	x:SetWidth(W.linePx(bar, 1))
 	x:Show()
 end
 
@@ -464,7 +465,7 @@ end
 function TH.markRect(frame, size, inset)
 	local kind = TH.mark()
 	if not kind then return nil end
-	return inset, -inset, size - 2 * inset, ns.linePx(frame, TB.cfg().rangeHeight)
+	return inset, -inset, size - 2 * inset, W.linePx(frame, TB.cfg().rangeHeight)
 end
 
 local function markParts(m, icon)

@@ -1,6 +1,7 @@
 -- Page kit: scrolling pages of rows grouped into foldable blocks
 
 local _, ns = ...
+local W = ns.Widgets
 local E, G, Bars, P = ns.Elements, ns.Groups, ns.Bars, ns.Profiles
 
 local Page = {}
@@ -26,7 +27,7 @@ end
 local allPages = {}
 local SUB_INDENT, SUB_MAX, RULE_X = 24, 2, 12
 
-Page.setTip = ns.setTip
+Page.setTip = W.setTip
 
 -- Pages
 function Page.new(win, key, title, indent)
@@ -682,7 +683,7 @@ function Page:header(text, shown, note, icon, opts)
 		f.icon:SetSize(20, 20)
 		f.icon:SetPoint("BOTTOMLEFT", x, 5)
 		f.icon:SetTexture(icon)
-		ns.cropIcon(f.icon)
+		W.cropIcon(f.icon)
 	end
 	f.text:SetText(text)
 	if note then
@@ -940,7 +941,7 @@ function Page:color(label, tip, get, set, shown, opaque)
 	local b = CreateFrame("Button", nil, f, "BackdropTemplate")
 	b:SetSize(22, 22)
 	b:SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
-	b:SetBackdrop(ns.BACKDROP)
+	b:SetBackdrop(W.BACKDROP)
 	b:SetBackdropColor(0.5, 0.5, 0.5, 1)
 	b:SetBackdropBorderColor(1, 1, 1, 0.6)
 	b.swatch = b:CreateTexture(nil, "ARTWORK")
@@ -1003,7 +1004,7 @@ function Page:hero(key)
 end
 
 function Page.panelBackdrop(f, r, g, b)
-	f:SetBackdrop(ns.BACKDROP)
+	f:SetBackdrop(W.BACKDROP)
 	f:SetBackdropColor(0.09, 0.075, 0.06, 1)
 	f:SetBackdropBorderColor(r or 0.23, g or 0.17, b or 0.10, 1)
 end
@@ -1022,7 +1023,7 @@ function Page:cards(label, tip, choices, get, set, shown)
 		b.icon:SetSize(34, 34)
 		b.icon:SetPoint("TOP", 0, -8)
 		b.icon:SetTexture(c[3])
-		ns.cropIcon(b.icon)
+		W.cropIcon(b.icon)
 		b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		b.text:SetPoint("TOP", b.icon, "BOTTOM", 0, -5)
 		b.text:SetWidth(CARD_W - 6)
@@ -1059,7 +1060,7 @@ function Page:bigButtons(list)
 		b.icon:SetSize(36, 36)
 		b.icon:SetPoint("LEFT", 12, 0)
 		b.icon:SetTexture(t[1])
-		ns.cropIcon(b.icon)
+		W.cropIcon(b.icon)
 		b.title = b:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 		b.title:SetPoint("TOPLEFT", b.icon, "TOPRIGHT", 10, -1)
 		b.sub = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -1144,7 +1145,7 @@ function Page.dragGhost(onMove)
 	ghost.icon = ghost:CreateTexture(nil, "ARTWORK")
 	ghost.icon:SetSize(20, 20)
 	ghost.icon:SetPoint("LEFT", 2, 0)
-	ns.cropIcon(ghost.icon)
+	W.cropIcon(ghost.icon)
 	ghost.text = ghost:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	ghost.text:SetPoint("LEFT", ghost.icon, "RIGHT", 6, 0)
 	ghost:Hide()
