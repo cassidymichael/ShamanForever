@@ -161,6 +161,8 @@ local function styleCover(w)
 	local lv = w.frame.textFrame:GetFrameLevel() + (o.level or 10)
 	w.up:setLevel(lv)
 	w.coverFrame:SetFrameLevel(lv + 1)
+	-- Placed now, so showing it in combat moves nothing
+	w.coverFrame.ring:fit()
 	w.up:setup()
 	w.up:style()
 end
