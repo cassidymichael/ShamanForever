@@ -2,7 +2,8 @@
 
 local _, ns = ...
 local W = ns.Widgets
-local E, MOD = ns.Elements, ns.Modules
+local E, G, MOD = ns.Elements, ns.Groups, ns.Modules
+local P = ns.Profiles
 local say, safe, describeArg = ns.say, ns.safe, ns.describeArg
 local Spells, CD = ns.Spells, ns.Cooldowns
 
@@ -33,8 +34,12 @@ E.register("shock", { frame = shock, label = "Shocks", paint = function(t) t:Set
 		manaSpell = "tracked",   -- tracked | earth | flame | frost
 		mana = { look = "both", overlay = 0.25, tint = 0.8, ring = 0.6 },
 		range = { look = "tint", overlay = 0.45, tint = 0.7 },
+		-- side: above or below in a row group, right or left in a column; size: of the icon's
+		marks = { frost = true, flame = true, side = "above", size = 0.44 },
 		ready = { pop = true, glow = false, sound = "none" } },
-	ranges = { mana = { overlay = PAINT, tint = PAINT, ring = PAINT }, range = { overlay = PAINT, tint = PAINT } },
+	ranges = { mana = { overlay = PAINT, tint = PAINT, ring = PAINT }, range = { overlay = PAINT, tint = PAINT },
+		marks = { size = { 0.3, 0.5, 0.02 } } },
+	choices = { marks = { side = { "above", "below" } } },
 	def = { key = "shock", idleChoices = CD.IDLE_CHOICES },
 	effects = { glow = true, pop = true },
 	kind = "shock", icon = 136026, school = "spirit", blurb = "Cooldown, range and mana." })
@@ -120,6 +125,229 @@ local function syncGlowTicker()
 	if not want then refreshGlow() end
 end
 
+-- On-target marks: Frost Shock and Flame Shock, each on an aura container of its own on your hostile
+-- target (_Target points it). They hang from the group frame, never from the icon: an ancestor of
+-- Blizzard's button can't change its alpha in combat, and the icon idles.
+local MARKS = { { key = "frost", spell = "frostShock" }, { key = "flame", spell = "flameShock" } }
+SK.MARKS = MARKS
+local MARK_GAP = 0.08   -- of the icon's size
+local marksHost = CreateFrame("Frame", nil, shock:GetParent())
+marksHost:Hide()
+local previewing = false
+
+local function markOn(m) return m.spellID ~= nil and own("marks", m.key) and true or false end
+local function marksWanted()
+	if not E.isEnabled("shock") then return false end
+	for _, m in ipairs(MARKS) do if markOn(m) then return true end end
+	return false
+end
+
+-- 0 while a container may show the last target's aura, and under the preview's stand-in
+local function hostAlpha()
+	local hide = previewing
+	for _, m in ipairs(MARKS) do hide = hide or m.stale end
+	if not ns.try("shock marks alpha", marksHost.SetAlpha, marksHost, hide and 0 or 1) then
+		ns.retryAfterCombat("shock marks alpha", hostAlpha)
+	end
+end
+for _, m in ipairs(MARKS) do m.restyle = hostAlpha end
+
+local function flowsInRow()
+	local g = G.of("shock")
+	return not g or g.orientation ~= "vertical"
+end
+
+-- Size and gap in whole pixels, for an icon w wide with o of border round it
+local function markGeometry(w, o, px)
+	local size = own("marks", "size")
+	if type(size) ~= "number" or size ~= size then size = E.default("shock", "marks", "size") end
+	local r = E.range("shock", "marks", "size")
+	local box = w + 2 * o
+	size = math.min(math.max(size, r[1]), r[2])
+	return math.max(W.roundPx(box * size, px), px), math.max(W.roundPx(box * MARK_GAP, px), px)
+end
+
+-- Side "above" is above the icon in a row and right of it in a column; "below" is below or left.
+-- Frost Shock comes first along the flow.
+local function anchorMark(f, i, to, row, side, gap, o)
+	local first, out = i == 1, o + gap
+	f:ClearAllPoints()
+	if row then
+		local up = side ~= "below"
+		local h = first and "LEFT" or "RIGHT"
+		f:SetPoint((up and "BOTTOM" or "TOP") .. h, to, (up and "TOP" or "BOTTOM") .. h, first and -o or o,
+			up and out or -out)
+	else
+		local right = side ~= "below"
+		local v = first and "TOP" or "BOTTOM"
+		f:SetPoint(v .. (right and "LEFT" or "RIGHT"), to, v .. (right and "RIGHT" or "LEFT"),
+			right and out or -out, first and o or -o)
+	end
+end
+
+-- A mark's picture on f: the icon in a one-pixel dark edge, with a swipe over the time gone
+local function dressMark(x, f)
+	local bg = f:CreateTexture(nil, "BACKGROUND")
+	bg:SetAllPoints()
+	bg:SetColorTexture(0, 0, 0, 1)
+	x.tex = f:CreateTexture(nil, "ARTWORK")
+	W.cropIcon(x.tex)
+	local cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
+	cd:SetDrawEdge(false)
+	cd:SetDrawBling(false)
+	cd:SetHideCountdownNumbers(true)
+	cd:SetReverse(true)
+	cd:SetSwipeTexture(ns.WHITE)
+	cd:SetSwipeColor(0, 0, 0, 0.6)
+	x.swipe = cd
+end
+local function fitMark(x, f, size)
+	f:SetSize(size, size)
+	local t = W.linePx(f, 1)
+	for _, r in ipairs({ x.tex, x.swipe }) do
+		r:ClearAllPoints()
+		r:SetPoint("TOPLEFT", f, "TOPLEFT", t, -t)
+		r:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -t, t)
+	end
+end
+
+local function initMark(m, button)
+	W.noMouse(button)
+	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
+	dressMark(m, button)
+	button:SetIcon(m.tex)
+	button:SetDurationCooldown(m.swipe)
+	m.button = button
+	if m.size then fitMark(m, button, m.size) end
+end
+
+local function idsSig(ids)
+	local list = {}
+	for id in pairs(ids) do table.insert(list, id) end
+	table.sort(list)
+	return table.concat(list, ",")
+end
+
+local placeMarks
+
+-- Out of combat, auras readable; made once, while the mark is on and its shock learned
+local function makeMark(m)
+	if m.container or m.err or not markOn(m) or not E.isEnabled("shock") then return end
+	local site = "shock mark " .. m.key
+	if ns.deferWhileAurasSecret(site, function() makeMark(m) end) then return end
+	local ids = Spells.ids(m.spell)
+	local ok, err = pcall(function()
+		local c = CreateFrame("AuraContainer", nil, marksHost, "CustomAuraContainerTemplate")
+		m.container = c
+		c:SetFrameStrata(marksHost:GetFrameStrata())
+		c:SetFrameLevel(marksHost:GetFrameLevel() + 2)
+		c:SetUnit("none")
+		pcall(c.EnableMouse, c, false)
+		c:AddAuraSlot(m.key, "HARMFUL|PLAYER", { candidateFilters = { includeSpellIDs = ids },
+			initializeFrame = function(button) ns.try(site .. " button", initMark, m, button) end })
+	end)
+	if not ok then
+		m.err = tostring(err)
+		if m.container then m.container:Hide() end
+		ns.noteError(site, m.err)
+		return
+	end
+	m.filtered = idsSig(ids)
+	shock.auraButton = true   -- its group's layout waits while auras are secret
+	ns.Target.follow(m)
+	placeMarks()
+end
+
+-- A new rank's ID after a spellbook scan
+local function refilterMark(m)
+	if not m.container or m.err then return end
+	local site = "shock mark filter " .. m.key
+	if ns.deferWhileAurasSecret(site, function() refilterMark(m) end) then return end
+	local ids = Spells.ids(m.spell)
+	local sig = idsSig(ids)
+	if sig == m.filtered then return end
+	if ns.try(site, m.container.SetAuraSlotCandidateFilters, m.container, m.key, { includeSpellIDs = ids }) then
+		m.filtered = sig
+	end
+end
+
+-- Where the icon is, across its group's flow; shown with your hostile target
+function placeMarks()
+	if ns.deferWhileAurasSecret("shock marks", placeMarks) then return end
+	local g = G.of("shock")
+	local gf = g and G.frames[g.id]
+	if not (gf and marksWanted()) then
+		ns.setVisibilityDriver(marksHost, nil, "shock marks driver")
+		marksHost:Hide()
+		return
+	end
+	if marksHost:GetParent() ~= gf then marksHost:SetParent(gf) end
+	marksHost:SetFrameLevel(shock:GetFrameLevel())
+	marksHost:ClearAllPoints()
+	local point, rel, relPoint, x, y = shock:GetPoint(1)
+	if point then marksHost:SetPoint(point, rel, relPoint, x, y) end
+	local w = shock:GetWidth()
+	marksHost:SetSize(w, shock:GetHeight())
+	local px = W.pixel(marksHost)
+	local o = math.max(W.roundPx((E.boxOf("shock") - w) / 2, px), 0)
+	local size, gap = markGeometry(w, o, px)
+	local row, side = flowsInRow(), own("marks", "side")
+	for i, m in ipairs(MARKS) do
+		local c = m.container
+		if c and not m.err then
+			ns.try("shock mark place " .. m.key, function()
+				c:SetFrameStrata(marksHost:GetFrameStrata())
+				c:SetFrameLevel(marksHost:GetFrameLevel() + 2)
+				anchorMark(c, i, marksHost, row, side, gap, o)
+				c:SetSize(size, size)
+				c:SetShown(markOn(m))
+				m.size = size
+				if m.button then fitMark(m, m.button, size) end
+			end)
+		end
+	end
+	local combatOnly = P.getAccount().locked and E.showMode("shock") == "combat"
+	ns.setVisibilityDriver(marksHost, (combatOnly and "[nocombat] hide; " or "") .. ns.Target.HOSTILE,
+		"shock marks driver")
+	hostAlpha()
+end
+
+-- The preview's marks: on ic's parent, so they don't fade with it; on the HUD's stand-in they follow
+-- the group, in the page's header they sit as in a row
+local PREVIEW_MARK = { frost = { 8, 0.6 }, flame = { 12, 0.75 } }   -- length, share left
+local function previewMarks(ic)
+	local list = ic.shockMarks
+	if not list then
+		list = {}
+		for i in ipairs(MARKS) do
+			local x = { frame = CreateFrame("Frame", nil, ic:GetParent()) }
+			dressMark(x, x.frame)
+			list[i] = x
+		end
+		ic.shockMarks = list
+	end
+	local w, px = ic.marksOnHUD and shock:GetWidth() or ic:GetWidth(), W.pixel(ic)
+	local o = ic.marksOnHUD and (E.boxOf("shock") - w) / 2 or ns.StyleArt.inset(ic, E.borderFor("shock"), w)
+	o = math.max(W.roundPx(o, px), 0)
+	local size, gap = markGeometry(w, o, px)
+	local row, side = not ic.marksOnHUD or flowsInRow(), own("marks", "side")
+	for i, m in ipairs(MARKS) do
+		local x, f = list[i], list[i].frame
+		local on = own("marks", m.key) and true or false
+		f:SetShown(on)
+		if on then
+			f:SetFrameLevel(ic:GetFrameLevel() + 6)
+			anchorMark(f, i, ic, row, side, gap, o)
+			fitMark(x, f, size)
+			x.tex:SetTexture(SHOCK_ICON[m.key])
+			local length, left = PREVIEW_MARK[m.key][1], PREVIEW_MARK[m.key][2]
+			pcall(x.swipe.Resume, x.swipe)
+			x.swipe:SetCooldown(GetTime() - (1 - left) * length, length)
+			pcall(x.swipe.Pause, x.swipe)
+		end
+	end
+end
+
 function SK.resolve()
 	shockIDs = {}
 	local icons = {}
@@ -147,10 +375,15 @@ function SK.resolve()
 		if shockSpellID then safe(C_Spell.EnableSpellRangeCheck, shockSpellID, true) end
 		rangeCheckID = shockSpellID
 	end
+	for _, m in ipairs(MARKS) do
+		m.spellID = shockIDs[m.key]
+		refilterMark(m)
+	end
 	local sig = { tostring(shockSpellID), tostring(manaSpellID) }
 	for _, key in ipairs(SHOCK_ORDER) do table.insert(sig, tostring(shockIDs[key])) end
 	return table.concat(sig, ",")
 end
+function SK.knows(key) return shockIDs[key] ~= nil end
 
 function SK.applyTimers() shock.cdTimer:apply() end
 
@@ -158,6 +391,7 @@ function SK.applyTimers() shock.cdTimer:apply() end
 function SK.afterGroups()
 	refreshMana()
 	refreshRange()
+	placeMarks()
 end
 
 function SK.applyLayout()
@@ -165,6 +399,13 @@ function SK.applyLayout()
 	drawTint()
 	refreshMana()
 	syncGlowTicker()
+	for _, m in ipairs(MARKS) do makeMark(m) end
+	placeMarks()
+end
+
+function SK.onPreview(on)
+	previewing = on
+	hostAlpha()
 end
 
 function SK.refresh()
@@ -208,12 +449,21 @@ function SK.debug()
 		say("%s id %s rank %s usable=%s noPower=%s inRange=%s", SHOCKS[key], tostring(id),
 			e and e.rank or "?", describeArg(usable), describeArg(noPower), describeArg(inRange))
 	end
+	for _, m in ipairs(MARKS) do
+		say("%s mark %s: spell %s, container %s%s, unit %s, failed unit calls %d%s", SHOCKS[m.key],
+			own("marks", m.key) and "on" or "off", tostring(m.spellID), m.container and "made" or "not made",
+			m.err and (", error: " .. m.err) or "", tostring(m.pointedAt), m.failed or 0,
+			m.stale and " (hidden until one works)" or "")
+	end
+	say("shock marks driver %s", tostring(ns.visibilityDriverOf(marksHost)))
 end
 
 -- Preview (ns.registerKind)
 local PREVIEW = {
 	warning = "both",
 	cooldown = true,
+	heroH = 190,   -- room for the marks above or below
+	standIn = function(ic) ic.marksOnHUD = true end,
 	states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" },
 		{ "range", "Out of range" }, { "both", "Both" } },
 	pop = function(ic, st)
@@ -224,6 +474,7 @@ local PREVIEW = {
 		if st == "ready" then ic:SetGlowShown(own("ready", "glow")) end
 		if st == "cd" then kit.frozen(ic.cdT, 0.4, 6) end
 		paint(ic, st == "range" or st == "both", st == "mana" or st == "both")
+		previewMarks(ic)
 	end,
 	idles = function(st, when) return (st == "cd") == (when == "oncd") end,
 }
