@@ -1094,8 +1094,17 @@ local function castBlocks(p, key, extras)
 			local get, set = eopt(p, key, st.saved, "on")
 			local cover = CS.covered(key)
 			local tip = cover and cover.tips and cover.tips[state] or st.tip
+			if cover then
+				-- Its paint over Blizzard's button is made out of combat
+				local turn = set
+				set = function(v)
+					turn(v)
+					if v and ns.inCombat() then ns.say("%s waits until combat ends", st.name) end
+				end
+			end
 			styleLink(p, p:checkbox(st.on, tip, get, set), st.part, get)
 			if cover and cover.note then p:text(cover.note) end
+			if cover then p:text("Turned on in combat, it waits until combat ends.", ns.inCombat) end
 			if extras and extras[state] then extras[state](get) end
 		end
 	end

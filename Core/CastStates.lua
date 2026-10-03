@@ -106,7 +106,10 @@ function CS.paint(f, key, out, low, overlay)
 		host:SetFrameLevel(f:GetFrameLevel() + W.LEVELS.paintRing)
 		f.paintRing = W.makeRing(host, f.tex)
 		f.paintRing.host = host
+		-- The picture's shape, inside its border's frame
+		for _, e in ipairs(f.paintRing.edges) do ns.StyleArt.maskOver(f, e, f.tex) end
 	end
+	f.paintRing:inset(ns.StyleArt.pictureInset(f))
 	local c = STATES.power.color
 	if low then f.paintRing:color(c[1], c[2], c[3], S.value(key, "power", "ring")) end
 	f.paintRing:show(low)
@@ -166,6 +169,7 @@ local function styleCover(w)
 	w.up:setLevel(lv)
 	w.coverFrame:SetFrameLevel(lv + 1)
 	-- Placed now, so showing it in combat moves nothing
+	w.coverFrame.ring:inset(ns.StyleArt.pictureInset(w.frame))
 	w.coverFrame.ring:fit()
 	w.up:setup()
 	w.up:style()
@@ -299,6 +303,24 @@ function CS.start()
 		if event == "SPELL_UPDATE_USABLE" or event == "UNIT_POWER_UPDATE" then refresh("power")
 		else refresh("range") end
 	end)
+	-- A cover switched on in combat is made now
+	ns.onCombatEnd(function()
+		for _, w in ipairs(WATCHES) do styleCover(w) end
+		refresh()
+	end)
+end
+
+-- What the cover shows now: its paint, and whether its hold lets it through (while the aura is up)
+function CS.describeCover(w)
+	local c = w.coverFrame
+	local over = c.over:IsShown()
+	local k = w.out and "red" or "blue"
+	local ring = c.ring.edges[1]:IsShown()
+	local paint = over and (k .. " overlay" .. (ring and " and blue ring" or "")) or (ring and "blue ring")
+		or "nothing"
+	local through = w.up.hold:GetAlpha() > 0 and "shown while the aura is up" or "held at 0 (not wanted, or the "
+		.. "sensor isn't ready)"
+	return paint .. ", " .. through
 end
 
 -- /sf debug
@@ -322,8 +344,9 @@ function CS.debug()
 			table.concat(on, ", "), tostring(powerID), tostring(rangeID), usable, noPower, inRange,
 			w.drawn == "" and "nothing" or tostring(w.drawn))
 		if w.cover then
-			say("%s cast states over the button: %s", w.key, not w.up and "not made (both off)"
-				or ((w.attached and "" or "detached, ") .. w.up:describe()))
+			say("%s cast states over the button: %s", w.key, not w.up and "not made (both off, or switched on in "
+				.. "combat: made when it ends)" or ((w.attached and "" or "detached, ") .. w.up:describe()))
+			if w.up then say("%s paint over the button: %s", w.key, CS.describeCover(w)) end
 		end
 	end
 end

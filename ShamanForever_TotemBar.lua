@@ -794,7 +794,10 @@ function TB.paintLow(v, low)
 		v.lowOver:SetAllPoints(v.icon)
 		ns.StyleArt.followMask(v, v.lowOver)
 		v.lowRing = W.makeRing(v.textFrame or v, v.icon)
+		-- The picture's shape, inside its border's frame
+		for _, e in ipairs(v.lowRing.edges) do ns.StyleArt.maskOver(v, e, v.icon) end
 	end
+	v.lowRing:inset(ns.StyleArt.pictureInset(v))
 	local st, k = ns.Style.global("power"), ns.CastStates.STATES.power.color
 	local m = 1 - st.tint
 	if low and (st.look == "tint" or st.look == "both") then v.icon:SetVertexColor(m, m, 1)
