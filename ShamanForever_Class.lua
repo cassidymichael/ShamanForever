@@ -9,9 +9,10 @@ local _, ns = ...
 --   links            repo, curseforge, discord, kofi: About's links
 --   credits          About's art credits
 --   sharePrefix      starts a share string; another prefix is refused
---   help             text naming the class's things: uptime (Time left), pop (what pops),
---                    popColour (the pop's Colour tip), bars (Bar texture), glowColour (the glow's
---                    Colour tip)
+--   help             text naming the class's things. pop: a lower-case clause, no full stop, built
+--                    into "The burst when something happens: <pop>." (Pop style). Whole
+--                    sentences: uptime (Time left's note), popColour (the pop's Colour tip), bars
+--                    (Bar texture's first), glowColour (after "Colour and opacity." in the glow's)
 --   layout           the default groups; an element new to a profile joins its group from here
 --   cooldowns, buffs rows for the cooldown and buff engines, from _ClassElements (optional)
 ns.CLASS = {
