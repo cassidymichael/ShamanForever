@@ -758,6 +758,13 @@ function TB.extraTexture(key)
 	return C_Spell.GetSpellTexture(key == "Call" and SET_CALL[TS.active()] or RECALL)
 end
 function TB.extraLearned(key) return knows(key == "Call" and CALL or RECALL) end
+-- Which Calls and Recall are known: with the known totems (ns.Totems), the spells the layout reads
+function TB.resolve()
+	local sig = {}
+	for _, id in ipairs(SET_CALL) do table.insert(sig, knows(id) and "1" or "0") end
+	table.insert(sig, knows(RECALL) and "1" or "0")
+	return table.concat(sig)
+end
 
 local function hover(s, arrows)
 	if arrows == nil then arrows = feat("arrows") end
@@ -1569,8 +1576,10 @@ local function onEvent(_, event, arg1, ...)
 		refreshKeys()
 	elseif event == "SPELL_UPDATE_COOLDOWN" then
 		refreshGCD()
+	elseif event == "SPELLS_CHANGED" then
+		-- A newly known totem, Call or Recall changes the resolve signatures: main lays out again
+		nameBindings()
 	else
-		if event == "SPELLS_CHANGED" then nameBindings() end
 		layout()
 	end
 end
