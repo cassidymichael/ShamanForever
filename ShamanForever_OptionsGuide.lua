@@ -527,6 +527,7 @@ GD.add({ title = "Layout", order = 50,
 		end)
 		f.lock:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -436)
 	end,
+	refresh = function(f) f.lock:SetText(lockText()) end,
 	step = function(f, x)
 		local stage, cur = f.stage, f.cursor
 		stop(f.imbue)
@@ -630,6 +631,7 @@ GD.add({ title = "Preview mode", order = 60,
 		go:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -436)
 		f.go = go
 	end,
+	refresh = function(f) f.go:SetText(ns.Preview.isOn() and "Stop preview" or "Preview") end,
 	step = function(f, x)
 		local mode = x + 1
 		f.mode, f.flipAt, f.flip = mode, GetTime(), false

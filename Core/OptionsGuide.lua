@@ -21,7 +21,7 @@ GD.GREY = { 0.73, 0.69, 0.64 }
 
 -- Slides
 -- spec: title, blurb, order, build(f) (once, f the slide's frame, BOARD_W wide), steps ({ seconds, ... }:
--- each step's hold, looping), step(f, x), tick(f, now) (while it shows)
+-- each step's hold, looping), step(f, x), tick(f, now) (while it shows), refresh(f) (as the page repaints)
 local slides = {}
 function GD.add(spec)
 	assert(spec.title and spec.build, "a guide slide needs a title and build")
@@ -415,7 +415,10 @@ local function build(p)
 	end)
 	board:SetScript("OnHide", function() ticker:Hide() end)
 	show(cur)
-	p:add(holder, BOARD_H)
+	p:add(holder, BOARD_H, nil, function()
+		local sp, f = slides[cur], frames[cur]
+		if f and sp.refresh then ns.try("guide refresh", sp.refresh, f) end
+	end)
 end
 
 -- Redrawn after a layout or a restyle: a time bar out of an icon goes back in after either
