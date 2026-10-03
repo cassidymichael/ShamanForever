@@ -912,6 +912,8 @@ local function refreshSlots()
 		TB.range.refresh(s)
 	end
 	anyDown = down
+	-- A pick or set may have changed: its cost is read again
+	ns.CastStates.refresh()
 end
 
 -- The active set: the picker header's sf-set, written by the switch snippet or by writeSet (out of

@@ -114,6 +114,7 @@ local function preferredKey()
 	return icon == "last" and (P.getAccount().imbueLast or "rockbiter") or icon
 end
 local function preferredImbueIcon() return imbueIconFor(preferredKey()) end
+local drawnIcon
 -- Its cost: the imbue it shows
 CS.watch("imbue", { frame = imbue, power = true, spells = function()
 	local key = imbueState.key or preferredKey()
@@ -133,6 +134,11 @@ local function drawImbue(now, quiet)
 	-- Missing look only when the read says none: unrecognised shows in colour, unreadable as "?"
 	local missing = on == false
 	imbueIcon = key and imbueIconFor(key) or preferredImbueIcon()
+	-- Another imbue shown: its cost is read again
+	if imbueIcon ~= drawnIcon then
+		drawnIcon = imbueIcon
+		CS.refresh()
+	end
 	local grey, tint, ring, fade, glow = W.warnParts("imbue", "warn")
 	local warns = missing and not quiet
 	imbue:SetWarnParts(missing and grey, warns and tint, warns and ring, warns and fade,
