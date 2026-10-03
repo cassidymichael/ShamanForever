@@ -387,8 +387,8 @@ function Timer:setExpire(e, icon)
 	self.expCurve = ns.lastSeconds(e.secs)
 	if self.held and not self.last then
 		-- Frozen: lit once here, never ticked
-		-- As the curve: lit from just above 0 to just past secs
-		x:SetAlpha((self.held > 0 and self.held < e.secs + 0.05) and 1 or 0)
+		local ok, a = pcall(self.expCurve.Evaluate, self.expCurve, self.held)
+		x:SetAlpha(ok and a or 0)
 		warning[self] = nil
 		if next(warning) == nil then ticker:Hide() end
 		return
