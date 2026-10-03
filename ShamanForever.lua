@@ -627,6 +627,7 @@ local function layoutElements()
 		end
 	end
 	each("afterGroups")
+	ns.Timer.placeAll()
 	W.refitRings()
 	ns.Positioning.update()
 	ns.changed()
