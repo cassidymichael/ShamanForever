@@ -338,32 +338,38 @@ local function sensors(def)
 	return list
 end
 
+-- Other modules' containers on the target (Shocks' marks): x = { container, restyle(x) }, followed
+-- with the rows; restyle runs when x.stale changes. The container may come later.
+local FOLLOWERS = {}
+
 -- Slots follow the target: pointed at it while attackable, refreshed on a change between targets,
--- at no unit otherwise. A failed call leaves def.pointedAt nil, so the next refresh retries.
+-- at no unit otherwise. A failed call leaves x.pointedAt nil, so the next refresh retries.
+local function pointAt(x, c, unit, restyle)
+	local ok = true
+	if x.pointedAt ~= unit then
+		ok = ns.try("target aura unit", c.SetUnit, c, unit)
+	elseif unit == "target" then
+		ok = ns.try("target aura refresh", c.UpdateAllAuras, c)
+	end
+	if ok then
+		x.pointedAt = unit
+		if x.stale then
+			x.stale = false
+			restyle(x)
+		end
+	else
+		x.pointedAt, x.stale = nil, true
+		x.failed = (x.failed or 0) + 1
+		restyle(x)
+		ns.retryAfterCombat("target retarget", function() retarget() end)
+	end
+end
+
 function retarget(only)
 	local unit = wantedUnit()
 	for _, def in ipairs(ROWS) do
 		local c = (only == nil or only == def) and def.aura.container
-		if c then
-			local ok = true
-			if def.pointedAt ~= unit then
-				ok = ns.try("target aura unit", c.SetUnit, c, unit)
-			elseif unit == "target" then
-				ok = ns.try("target aura refresh", c.UpdateAllAuras, c)
-			end
-			if ok then
-				def.pointedAt = unit
-				if def.stale then
-					def.stale = false
-					gateAlpha(def)
-				end
-			else
-				def.pointedAt, def.stale = nil, true
-				def.failed = (def.failed or 0) + 1
-				gateAlpha(def)
-				ns.retryAfterCombat("target retarget", function() retarget() end)
-			end
-		end
+		if c then pointAt(def, c, unit, gateAlpha) end
 		if only == nil or only == def then
 			for _, look in ipairs(sensors(def)) do
 				if not look:follow(unit) then
@@ -372,9 +378,26 @@ function retarget(only)
 			end
 		end
 	end
+	if only ~= nil then return end
+	for _, x in ipairs(FOLLOWERS) do
+		if x.container then pointAt(x, x.container, unit, x.restyle) end
+	end
+end
+
+-- Followers not on the wanted unit yet (a new one, or a call that failed)
+local function followAll()
+	local unit = wantedUnit()
+	for _, x in ipairs(FOLLOWERS) do
+		if x.container and x.pointedAt ~= unit then pointAt(x, x.container, unit, x.restyle) end
+	end
+end
+function TG.follow(x)
+	table.insert(FOLLOWERS, x)
+	followAll()
 end
 
 local HOSTILE = "[@target,harm,nodead] show; hide"
+TG.HOSTILE = HOSTILE
 local function driveGate(def)
 	if def.driven or not def.aura.container or InCombatLockdown() then return end
 	def.driven = true
@@ -572,6 +595,7 @@ end
 function TG.refresh()
 	checkAll()
 	for _, def in ipairs(ROWS) do refreshAura(def) end
+	followAll()
 end
 TG.tick = TG.refresh
 
