@@ -333,7 +333,7 @@ local function onList(b)
 	return table.concat(on, ", ")
 end
 
--- A client without the trainer's atlases gets the totem bar's arrow.
+-- A client without the trainer's atlases gets Blizzard's older arrow.
 local ARROW_BOX = 14
 local arrowAtlas = {}
 local function paintArrow(t, shut)

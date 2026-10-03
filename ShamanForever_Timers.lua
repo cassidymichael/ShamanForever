@@ -182,7 +182,7 @@ local function schoolColor(t)
 	return c or { 0.46, 1, 0.35 }
 end
 
--- Safe any time for our own frames; the shield's Cooldown is restyled out of combat only by its caller
+-- Safe any time for our own frames; one on Blizzard's aura button is restyled by its caller, out of combat
 function Timer:apply()
 	local s = S.get(self.key, self.kind)
 	local cant = T.cant(self.key, self.kind)
@@ -335,7 +335,7 @@ ns.registerPart("expire", {
 	glow = function(def) return def.defaults.expire.glow ~= nil end,
 })
 
--- e: { secs, grey, ring, fade, glow } (secs 0: off), an element's or the totem bar's expire
+-- e: { secs, grey, ring, fade, glow } (secs 0: off), an element's or a bar's expire
 function Timer:setExpire(e, icon)
 	if not e or (e.secs or 0) <= 0 or not ns.lastSeconds(e.secs) then
 		warning[self] = nil
