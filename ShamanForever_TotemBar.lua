@@ -973,7 +973,8 @@ local function refresh()
 end
 
 local ticker = ns.ticker(0.1, function()
-	if not bar:IsShown() then return end
+	-- Visible, not shown: the bar's holder hides it while off
+	if not bar:IsVisible() then return end
 	local arrows = feat("arrows")
 	for _, el in ipairs(ELEMENTS) do
 		local s = slots[el]
