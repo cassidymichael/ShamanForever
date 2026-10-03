@@ -76,8 +76,8 @@ local function refreshCooldown(inEvent)
 		W.fadeTo(shock, 1)
 		return CD.resetReady(shock)
 	end
-	local dur = CD.cooldownFor(shock, "shock", shockSpellID, inEvent)
-	if dur then shock.cdTimer:set(dur) end
+	local dur, bar = CD.cooldownFor(shock, "shock", shockSpellID, inEvent)
+	if dur then shock.cdTimer:set(dur, bar) end
 	idleDef.spellID = shockSpellID
 	CD.applyIdle(idleDef, false, inEvent)
 end

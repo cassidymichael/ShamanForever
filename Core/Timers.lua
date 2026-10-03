@@ -273,7 +273,7 @@ function Timer:apply()
 		if self.aura then bar:SetShown(self.barOn)
 		elseif not self.barOn then bar:Hide() end
 	end
-	if self.last then self:set(self.last) end
+	if self.last then self:set(self.last, self.lastBar) end
 	self.barIn = self.barOn and (side == "top" or side == "bottom")
 	if self.fs then
 		T.placeText(self.fs, self.anchor, s, self.barIn, self.dual and self.part == "uptime")
@@ -314,12 +314,14 @@ function Timer:barRGB()
 	return s.barElement and schoolColor(self) or s.barColor
 end
 
-function Timer:set(d)
+-- barD: the bar's own duration where it differs (a cooldown's without the GCD; false: no bar)
+function Timer:set(d, barD)
 	if not d then return self:clear() end
-	self.last, self.held = d, nil
+	self.last, self.lastBar, self.held = d, barD, nil
 	ns.try("timer cooldown", self.cd.SetCooldownFromDurationObject, self.cd, d, true)
 	local bar = self.bar
-	if bar and self.barOn then
+	if barD ~= nil then d = barD end
+	if bar and self.barOn and d then
 		ns.try("timer bar", bar.SetTimerDuration, bar, d, TIMER_IMMEDIATE, TIMER_REMAINING)
 		-- 0 once run out: an expired duration object can linger on the bar
 		if ns.CURVE_LIVE then
@@ -347,7 +349,7 @@ function Timer:setTime(start, length)
 end
 
 function Timer:clear()
-	self.last, self.held = nil, nil
+	self.last, self.lastBar, self.held = nil, nil, nil
 	if self.exp then self.exp:SetAlpha(0) end
 	self.cd:Clear()
 	if self.bar then self.bar:Hide() end
