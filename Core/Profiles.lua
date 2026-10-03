@@ -38,7 +38,7 @@ local SHARE_VERSION = 7
 --   range   = { on }   its target is out of its spell's range; its style (part range) is kept beside
 -- grey, ring, fade, tint and glow are the looks a state shows; pop and sound play once, as it
 -- starts: warn.pop and warn.sound as the warning begins (a buff lost). A bar's own settings use the
--- same tables (expire, ended, killed). The effect and pop kind names (warning, ranout, expired,
+-- same tables (expire, ended, killed, mana). The effect and pop kind names (warning, ranout, expired,
 -- killed, primed, ready and a class's own) are a separate runtime set.
 
 -- Renamed settings, moved as a profile loads or is imported. Drop after launch.
