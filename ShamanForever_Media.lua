@@ -28,7 +28,7 @@ local FONTS = {
 }
 -- 2002 Bold is not offered: same as Friz Quadrata
 local NOT_OFFERED = { ["fonts\\2002b.ttf"] = true }
-local FLAT = "Interface\\Buttons\\WHITE8x8"
+local FLAT = ns.WHITE
 local BARS = {
 	{ "Blizzard", "Interface\\TargetingFrame\\UI-TargetingFrame-BarFill" },
 	{ "Blizzard Raid Bar", "Interface\\RaidFrame\\Raid-Bar-Hp-Fill" },

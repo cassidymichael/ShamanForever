@@ -81,7 +81,7 @@ local function wantedUnit() return hostileTarget() and "target" or "none" end
 -- Expiring, drawn by the engine
 -- A plain read of another length turns the bar cue off (auraOnTarget)
 local FAST = 240   -- the cover crosses its clip in a 240th of the aura's length
-local WHITE = "Interface\\Buttons\\WHITE8x8"
+local WHITE = ns.WHITE
 local RED = { 1, 0.2, 0.2, 1 }
 local REMAINING = Enum and Enum.DurationTextBindingProperty and Enum.DurationTextBindingProperty.RemainingDuration or 0
 

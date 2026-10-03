@@ -412,7 +412,7 @@ native = ns.makeAuraSlot(shield, {
 -- It counts (copyReady) only once made, sized and matching every tracked shield; until then the gate
 -- stays full.
 local IDLE_LEVEL = 8   -- levels above the shield's button and its parts
-local WHITE = "Interface\\Buttons\\WHITE8x8"
+local WHITE = ns.WHITE
 local SI = Enum and Enum.StatusBarInterpolation
 local IMMEDIATE = SI and SI.Immediate or 0
 

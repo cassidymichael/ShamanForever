@@ -8,7 +8,7 @@ ns.Looks = Looks
 
 local S = ns.Style
 local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Art\\Looks\\"
-local WHITE = "Interface\\Buttons\\WHITE8x8"
+local WHITE = ns.WHITE
 local CLAMP = "CLAMPTOBLACKADDITIVE"   -- a mask's wrap mode, as Blizzard's own masks use
 local STRETCHED = Enum.UITextureSliceMode and Enum.UITextureSliceMode.Stretched or 0
 

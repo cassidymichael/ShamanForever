@@ -25,7 +25,7 @@ local M = { name = "maelstrom" }
 ns.Maelstrom = M
 
 local KEY = "maelstrom"
-local WHITE = "Interface\\Buttons\\WHITE8x8"
+local WHITE = ns.WHITE
 local SI = Enum and Enum.StatusBarInterpolation
 local IMMEDIATE = SI and SI.Immediate or 0
 

@@ -41,6 +41,9 @@ end
 ns.POINTS = { CENTER = true, TOP = true, BOTTOM = true, LEFT = true, RIGHT = true,
 	TOPLEFT = true, TOPRIGHT = true, BOTTOMLEFT = true, BOTTOMRIGHT = true }
 
+-- A plain white texture: solid colours, swipes and backdrops
+ns.WHITE = "Interface\\Buttons\\WHITE8x8"
+
 -- Going idle waits this long, so a pop plays at full first
 ns.IDLE_DELAY = 1.5
 

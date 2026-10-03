@@ -33,7 +33,7 @@ if not ns.THEME.barColor then
 	end
 end
 
-ns.BACKDROP = { bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 }
+ns.BACKDROP = { bgFile = ns.WHITE, edgeFile = ns.WHITE, edgeSize = 1 }
 
 -- A tooltip: title, then text in white (either may be a function); anchor: a GameTooltip one, or "above"
 function ns.setTip(frame, title, text, anchor)
@@ -256,7 +256,7 @@ function ns.makeGCDSweep(parent)
 	cd:SetDrawEdge(false)
 	cd:SetDrawBling(false)
 	cd:SetHideCountdownNumbers(true)
-	cd:SetSwipeTexture("Interface\\Buttons\\WHITE8x8")
+	cd:SetSwipeTexture(ns.WHITE)
 	cd:SetSwipeColor(0, 0, 0, 0.6)
 	ns.Looks.followSwipe(parent, cd)
 	return cd

@@ -39,7 +39,7 @@ function T.cant(key, kind)
 	return out
 end
 
-local WHITE = "Interface\\Buttons\\WHITE8x8"
+local WHITE = ns.WHITE
 local TIMER_REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime or 1
 local TIMER_IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
 T.AURA_BAR = { interpolation = TIMER_IMMEDIATE, direction = TIMER_REMAINING }

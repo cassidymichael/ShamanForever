@@ -275,7 +275,7 @@ local function newRig(f, icon, level)
 	r.fx = fx
 	r.flash = fx:CreateTexture(nil, "OVERLAY")
 	r.flash:SetAllPoints()
-	r.flash:SetTexture("Interface\\Buttons\\WHITE8x8")
+	r.flash:SetTexture(ns.WHITE)
 	r.flash:SetBlendMode("ADD")
 	r.flash:SetAlpha(0)
 	r.flashAnim = r.flash:CreateAnimationGroup()
