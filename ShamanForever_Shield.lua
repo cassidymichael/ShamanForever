@@ -25,9 +25,7 @@ local shield = ns.newElementIcon("shield")
 local gate = CreateFrame("Frame", nil, shield)
 gate:SetAllPoints(shield)
 -- The element's border while Blizzard's button isn't made
-local edge = CreateFrame("Frame", nil, gate)
-edge:SetAllPoints(shield)
-edge.owner = "shield"
+local edge = FR.edge(gate, shield, "shield")
 local IDLE_CHOICES = {
 	{ "never", "Never", "It always shows in full" },
 	{ "up", "Shield up", "Idle while your shield is up", "Shown in full only as No shield." },
@@ -212,7 +210,6 @@ local function placeLook()
 	look:style()
 	lookEdge:SetFrameLevel(lv)
 	FR.dress(lookEdge, "shield", lv)
-	if lookEdge.frameOverlay then lookEdge.frameOverlay:Hide() end
 end
 
 -- Idle
@@ -294,9 +291,7 @@ look = ns.makeClipLook(shield, {
 		filter = "shield warning filter",
 	},
 })
-lookEdge = CreateFrame("Frame", nil, look.art)
-lookEdge:SetAllPoints(shield)
-lookEdge.owner = "shield"
+lookEdge = FR.edge(look.art, shield, "shield", { overlay = false })
 
 -- A sensor missing a tracked ID would stay empty over that shield, so the look waits
 local function checkIDs() look:checkIDs() end
@@ -371,9 +366,7 @@ local function countFont(fs, icon)
 end
 
 local function buildNative(slot, button, cd)
-	slot.edge = CreateFrame("Frame", nil, button)
-	slot.edge:SetAllPoints(button)
-	slot.edge.owner = "shield"
+	slot.edge = FR.edge(button, button, "shield", { overlay = false })
 	local overlay = CreateFrame("Frame", nil, button)
 	overlay:SetAllPoints()
 	local lv = cd:GetFrameLevel() + 2
@@ -395,7 +388,6 @@ end
 
 local function styleNative(slot, size)
 	ns.try("shield border", FR.dress, slot.edge, "shield")
-	if slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
 	applyCountFormat(slot)
 	Count.styleBar(slot, size, CHARGES, count("barHeight"), barColor(), count("bar"))
 	slot.fs:SetAlpha(count("number") and 1 or 0)
@@ -468,7 +460,6 @@ end
 local function styleCopy(slot, size)
 	placeClip(slot, slot.button, size)
 	ns.try("shield copy border", FR.dress, slot.edge, "shield")
-	if slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
 	Count.styleBar(slot, size, CHARGES, count("barHeight"), barColor(), count("bar"))
 	applyCountFormat(slot)
 	countFont(slot.fs, slot.host)
@@ -478,9 +469,7 @@ end
 local function buildCopy(slot, button)
 	slot.button = button
 	local host = slot.host
-	slot.edge = CreateFrame("Frame", nil, host)
-	slot.edge:SetAllPoints(host)
-	slot.edge.owner = "shield"
+	slot.edge = FR.edge(host, host, "shield", { overlay = false })
 	local parts = CreateFrame("Frame", nil, host)
 	parts:SetAllPoints(host)
 	-- Levels under the button may read secret: a failed read leaves the default

@@ -119,7 +119,6 @@ local function styleStacks(slot, size)
 	slot.edge:SetFrameLevel(base + 8)
 	-- The copy at five frames itself only over idled stacks: else the stacks' frame shows
 	ns.try("maelstrom border", ns.Frames.dress, slot.edge, KEY, base + 8, slot.copy and idleWhen() ~= "five")
-	if slot.copy and slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
 	Count.styleBar(slot, size, src.max, number("barHeight"), color("barColor"), on)
 	if slot.copy then
 		slot.bar:SetMinMaxValues(0, src.max)
@@ -137,9 +136,7 @@ end
 local function buildStacks(slot, button, into)
 	slot.button = button
 	into = into or button
-	slot.edge = CreateFrame("Frame", nil, into)
-	slot.edge:SetAllPoints(button)
-	slot.edge.owner = KEY
+	slot.edge = ns.Frames.edge(into, button, KEY, { overlay = false })
 	local overlay = CreateFrame("Frame", nil, into)
 	overlay:SetAllPoints(button)
 	slot.overlay = overlay
@@ -174,7 +171,6 @@ local fx = ns.Effects.host(f, KEY, { aura = { popOnly = true, popLevel = 5 + LIG
 local quiet = false
 local function stylePop(slot, size)
 	ns.try("maelstrom pop border", ns.Frames.dress, slot.edge, KEY)
-	if slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
 	fx:setQuiet(quiet)
 	fx:stylePop(size)
 	local len = fx:motionLength()
