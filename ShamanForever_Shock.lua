@@ -164,6 +164,18 @@ local function markGeometry(w, o, px)
 	return math.max(W.roundPx(box * size, px), px), math.max(W.roundPx(box * MARK_GAP, px), px)
 end
 
+-- Side, size and distance out for the marks on an icon w wide with o of border, t its cooldown timer:
+-- past a time bar outside the icon on that side
+local function marksPlace(w, o, px, t)
+	local size, gap = markGeometry(w, o, px)
+	local where, out = W.attachSide("shock", own("marks", "side")), o + gap
+	local s = ns.Style.get("shock", "cooldown")
+	if t and s.bar and not ns.Timer.cant("shock", "cooldown").bar and ns.Timer.barSide("shock", s) == where then
+		out = math.max(out, W.roundPx(t:outset() + s.barHeight, px) + gap)
+	end
+	return where, size, out
+end
+
 -- f on side where of to (above, below, right, left), out from its edge; Frost Shock first along the
 -- flow, each lined up with the box (o of border outside to)
 local MARK_POINTS = {
@@ -288,8 +300,7 @@ function placeMarks()
 	marksHost:SetSize(w, shock:GetHeight())
 	local px = W.pixel(marksHost)
 	local o = math.max(W.roundPx((E.boxOf("shock") - w) / 2, px), 0)
-	local size, gap = markGeometry(w, o, px)
-	local where, out = W.attachSide("shock", own("marks", "side")), o + gap
+	local where, size, out = marksPlace(w, o, px, shock.cdTimer)
 	for i, m in ipairs(MARKS) do
 		local c = m.container
 		if c and not m.err then
@@ -328,8 +339,7 @@ local function previewMarks(ic)
 	local w, px = ic.marksOnHUD and shock:GetWidth() or ic:GetWidth(), W.pixel(ic)
 	local o = ic.marksOnHUD and (E.boxOf("shock") - w) / 2 or ns.StyleArt.inset(ic, E.borderFor("shock"), w)
 	o = math.max(W.roundPx(o, px), 0)
-	local size, gap = markGeometry(w, o, px)
-	local where, out = W.attachSide("shock", own("marks", "side")), o + gap
+	local where, size, out = marksPlace(w, o, px, ic.cdT)
 	for i, m in ipairs(MARKS) do
 		local x, f = list[i], list[i].frame
 		-- On the HUD only what it can show, unless the preview shows what isn't learned
@@ -386,7 +396,11 @@ function SK.resolve()
 end
 function SK.knows(key) return shockIDs[key] ~= nil end
 
-function SK.applyTimers() shock.cdTimer:apply() end
+-- The marks keep clear of a cooldown bar outside the icon
+function SK.applyTimers()
+	shock.cdTimer:apply()
+	placeMarks()
+end
 
 -- Full mana out of combat fires no event
 function SK.afterGroups()
