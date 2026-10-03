@@ -156,6 +156,11 @@ TB.cfg = cfg
 local function barOn() return ns.isClass() and cfg().mode ~= "blizzard" end
 local function feat(key) local c = cfg(); return barOn() and c.mode == "everything" and c[key] or false end
 TB.barOn, TB.feat = barOn, feat
+-- No tooltips by the player's choice, and none while off (the bar may be there, invisible, in combat)
+local function noTips()
+	local c = cfg()
+	return ns.isOff() or c.tips == "never" or (c.tips == "ooc" and InCombatLockdown())
+end
 
 -- The player's settings, or the theme's where it owns one
 local effective = setmetatable({}, { __index = function(_, k)
@@ -333,6 +338,8 @@ bar:Hide()
 local picker = CreateFrame("Frame", nil, UIParent, "SecureHandlerBaseTemplate")
 picker:SetAttribute("sf-open", [[
 	local open = ...
+	-- Off (/sf disable, set out of combat): every picker stays closed
+	if self:GetAttribute("sf-off") then open = 0 end
 	for i = 1, 5 do
 		local pop = self:GetFrameRef("pop" .. i)
 		if i == open then pop:Show() else pop:Hide() end
@@ -646,8 +653,7 @@ for set, id in ipairs(SET_CALL) do
 	p.on:SetTexture("Interface\\Buttons\\CheckButtonHilight")
 	p.on:SetBlendMode("ADD")
 	p:SetScript("OnEnter", function(self)
-		local c = cfg()
-		if c.tips == "never" or (c.tips == "ooc" and InCombatLockdown()) then return end
+		if noTips() then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 		if not ns.try("totem bar: tooltip", GameTooltip.SetSpellByID, GameTooltip, id) then
 			GameTooltip:SetText(C_Spell.GetSpellName(id) or "")
@@ -1101,7 +1107,7 @@ local function layoutPopout(s, size, known)
 			p.none:SetPoint("CENTER")
 			p.none:SetText("X")
 			p:SetScript("OnEnter", function(self)
-				if cfg().tips == "never" or (cfg().tips == "ooc" and InCombatLockdown()) then return end
+				if noTips() then return end
 				GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 				if self.spellID and self.spellID > 0 then GameTooltip:SetSpellByID(self.spellID)
 				else GameTooltip:SetText("No totem") end
@@ -1268,6 +1274,7 @@ function layout()
 	end
 	local hoverMode = feat("pickHover") and not kbOpen
 	picker:SetAttribute("sf-hovermode", hoverMode)
+	picker:SetAttribute("sf-off", ns.isOff())
 	for _, s in ipairs({ slots.earth, slots.fire, slots.water, slots.air, setSlot }) do
 		s.popout.catch:SetShown(not hoverMode)
 		s.popout.strip:SetShown(hoverMode)
@@ -1498,8 +1505,8 @@ for _, el in ipairs(ELEMENTS) do
 	s.button:SetScript("OnEnter", function(self)
 		hover(s)
 		if kbEnter(self, s.command, s.keys) then return end
+		if noTips() then return end
 		local c = cfg()
-		if c.tips == "never" or (c.tips == "ooc" and InCombatLockdown()) then return end
 		local ok, d = ns.try("totem bar: tooltip", GetTotemDuration, s.slot)
 		if not (ok and d) and c.mode ~= "everything" then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -1534,8 +1541,8 @@ for _, e in pairs(extras) do
 	e.button:SetScript("OnEnter", function(self)
 		if e == call then hover(setSlot) end
 		if kbEnter(self, e.command, e.keys) then return end
+		if noTips() then return end
 		local c = cfg()
-		if c.tips == "never" or (c.tips == "ooc" and InCombatLockdown()) then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 		if not ns.try("totem bar: tooltip", GameTooltip.SetSpellByID, GameTooltip, e.spell) then
 			GameTooltip:SetText(C_Spell.GetSpellName(e.spell) or e.key)
