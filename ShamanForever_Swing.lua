@@ -233,7 +233,7 @@ local function listen(on)
 end
 
 -- Visibility
-local mover
+local movable
 local function visibilityDriver()
 	if not SW.isOn() then return "hide" end
 	if pv.mode then return "show" end
@@ -268,7 +268,7 @@ local function layout()
 	if cdText then SW.placeCountdown(cdText, face) end
 	if state.endsAt then drawSwing() else drawFace() end
 	drive()
-	mover.update()
+	movable.update()
 end
 
 function SW.apply()
@@ -318,89 +318,14 @@ local function showPreview(opts)
 end
 
 -- Positioning
-mover = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-mover:SetFrameStrata("DIALOG")
-mover:SetBackdrop(ns.BACKDROP)
-mover:SetBackdropColor(0, 0, 0, 0.4)
-mover:EnableMouse(true)
-mover:EnableMouseWheel(true)
-mover:RegisterForDrag("LeftButton")
-mover:Hide()
-mover.label = mover:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-mover.label:SetPoint("BOTTOMLEFT", mover, "TOPLEFT", 0, 2)
-
-local movable = { frame = f }
-function movable.nudge(dx, dy)
-	local c = cfg()
-	c.x, c.y = c.x + dx, c.y + dy
-	ns.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
-end
-function movable.lock()
-	mover:SetScript("OnUpdate", nil)
-	mover:Hide()
-	ns.Positioning.endSnap()
-	drawFace()
-end
-
-local function dragUpdate(self)
-	if InCombatLockdown() then movable.lock() return end
-	local ui = UIParent:GetEffectiveScale()
-	local cx, cy = GetCursorPosition()
-	local x, y = ns.Positioning.snap(f, cx / ui + self.dragDX, cy / ui + self.dragDY)
-	local c = cfg()
-	local ux, uy = UIParent:GetCenter()
-	c.point, c.x, c.y = "CENTER", x - ux, y - uy
-	ns.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
-end
-mover:SetScript("OnDragStart", function(self)
-	if InCombatLockdown() then return end
-	ns.Positioning.selectMovable(movable)
-	local ui = UIParent:GetEffectiveScale()
-	local s = f:GetEffectiveScale() / ui
-	local fx, fy = f:GetCenter()
-	local cx, cy = GetCursorPosition()
-	self.dragDX, self.dragDY = fx * s - cx / ui, fy * s - cy / ui
-	self:SetScript("OnUpdate", dragUpdate)
-end)
-mover:SetScript("OnDragStop", function(self)
-	self:SetScript("OnUpdate", nil)
-	ns.Positioning.endSnap()
-	if not InCombatLockdown() then layout() end
-end)
-mover:SetScript("OnMouseUp", function(_, button)
-	if InCombatLockdown() then return end
-	if button == "LeftButton" then ns.Positioning.selectMovable(movable)
-	elseif button == "RightButton" then ns.Options.open("swing") end
-end)
-local function describe()
-	local c = cfg()
-	return string.format("Swing timer: %d x %d, scale %.2f, opacity %.0f%%", c.width, c.height, c.scale, c.alpha * 100)
-end
-mover:SetScript("OnMouseWheel", function(self, delta)
-	if InCombatLockdown() then return end
-	local c = cfg()
-	local function step(key) c[key] = clamp(math.floor((c[key] + delta * 0.05) * 100 + 0.5) / 100, RANGES[key]) end
-	if IsControlKeyDown() then step("alpha")
-	elseif IsShiftKeyDown() then step("scale")
-	else c.width = clamp(c.width + delta * 4, RANGES.width)
-	end
-	layout()
-	self.label:SetText(describe())
-	ns.Options.refresh()
-end)
-function mover.update()
-	local on = SW.isOn() and not ns.getAccount().locked and not InCombatLockdown()
-	if on then
-		mover:ClearAllPoints()
-		mover:SetPoint("TOPLEFT", f, "TOPLEFT", -2, 2)
-		mover:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 2, -2)
-		local chosen = ns.Positioning.isSelected(movable)
-		if chosen then mover:SetBackdropBorderColor(1, 0.82, 0, 1)
-		else mover:SetBackdropBorderColor(0.2, 0.6, 1, 0.9) end
-		mover.label:SetText("Swing timer")
-	end
-	mover:SetShown(on)
-end
+movable = ns.Positioning.mover({ frame = f, label = "Swing timer", cfg = cfg, ranges = RANGES,
+	size = { key = "width", step = 4 }, shown = SW.isOn, place = layout,
+	open = function() ns.Options.open("swing") end, lock = drawFace,
+	describe = function()
+		local c = cfg()
+		return string.format("Swing timer: %d x %d, scale %.2f, opacity %.0f%%", c.width, c.height, c.scale,
+			c.alpha * 100)
+	end })
 
 SW.afterGroups = layout
 
