@@ -153,8 +153,9 @@ local drivers = setmetatable({}, { __mode = "k" })
 function ns.setVisibilityDriver(frame, expr, site)
 	if expr == drivers[frame] then return true end
 	if not expr then
+		if not ns.try(site, UnregisterStateDriver, frame, "visibility") then return false end
 		drivers[frame] = nil
-		return (ns.try(site, UnregisterStateDriver, frame, "visibility"))
+		return true
 	end
 	if not ns.try(site, RegisterStateDriver, frame, "visibility", expr) then return false end
 	drivers[frame] = expr
