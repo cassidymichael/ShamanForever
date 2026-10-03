@@ -338,9 +338,11 @@ local function sensors(def)
 	return list
 end
 
--- Other modules' containers on the target (Shocks' marks): x = { container, restyle(x) }, followed
--- with the rows; restyle runs when x.stale changes. The container may come later.
+-- Other modules' containers on the target (Shocks' marks): x = { container, restyle(x), wanted() },
+-- followed with the rows while wanted (else at no unit); restyle runs when x.stale changes. The
+-- container may come later.
 local FOLLOWERS = {}
+local function unitFor(x, unit) return (not x.wanted or x.wanted()) and unit or "none" end
 
 -- Slots follow the target: pointed at it while attackable, refreshed on a change between targets,
 -- at no unit otherwise. A failed call leaves x.pointedAt nil, so the next refresh retries.
@@ -380,17 +382,19 @@ function retarget(only)
 	end
 	if only ~= nil then return end
 	for _, x in ipairs(FOLLOWERS) do
-		if x.container then pointAt(x, x.container, unit, x.restyle) end
+		if x.container then pointAt(x, x.container, unitFor(x, unit), x.restyle) end
 	end
 end
 
--- Followers not on the wanted unit yet (a new one, or a call that failed)
+-- Followers not on the unit they want yet (a new one, a call that failed, a change of wanted())
 local function followAll()
 	local unit = wantedUnit()
 	for _, x in ipairs(FOLLOWERS) do
-		if x.container and x.pointedAt ~= unit then pointAt(x, x.container, unit, x.restyle) end
+		local want = unitFor(x, unit)
+		if x.container and x.pointedAt ~= want then pointAt(x, x.container, want, x.restyle) end
 	end
 end
+TG.refollow = followAll
 function TG.follow(x)
 	table.insert(FOLLOWERS, x)
 	followAll()

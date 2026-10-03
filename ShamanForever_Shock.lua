@@ -150,7 +150,10 @@ local function hostAlpha()
 		ns.retryAfterCombat("shock marks alpha", hostAlpha)
 	end
 end
-for _, m in ipairs(MARKS) do m.restyle = hostAlpha end
+for _, m in ipairs(MARKS) do
+	m.restyle = hostAlpha
+	m.wanted = function() return markOn(m) and marksWanted() end
+end
 
 local function flowsInRow()
 	local g = G.of("shock")
@@ -279,6 +282,7 @@ function placeMarks()
 	if not (gf and marksWanted()) then
 		ns.setVisibilityDriver(marksHost, nil, "shock marks driver")
 		marksHost:Hide()
+		ns.Target.refollow()
 		return
 	end
 	if marksHost:GetParent() ~= gf then marksHost:SetParent(gf) end
@@ -310,6 +314,7 @@ function placeMarks()
 	ns.setVisibilityDriver(marksHost, (combatOnly and "[nocombat] hide; " or "") .. ns.Target.HOSTILE,
 		"shock marks driver")
 	hostAlpha()
+	ns.Target.refollow()
 end
 
 -- The preview's marks: on ic's parent, so they don't fade with it; on the HUD's stand-in they follow
