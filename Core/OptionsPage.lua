@@ -950,21 +950,35 @@ function Page:dropdown(label, tip, choices, get, set, shown, width, menu)
 		end
 	end
 	f.dropdown = dd
-	-- Never while the list is open: Blizzard rebuilds it in place and a scrolling one keeps old rows
-	-- (blank gaps); a change waits for it to close.
-	local was
+	-- What the menu was made from: the value, then each choice's value and label in turn. Compared
+	-- in place, as a repaint runs this every frame while a slider drags.
+	local was, wasN, now = nil, 0, {}
 	local function update()
-		local now = tostring(get())
+		local n = 1
+		now[1] = get()
 		if type(choices) == "function" then
-			for _, c in ipairs(choices()) do now = now .. "\1" .. tostring(c[1]) .. "=" .. tostring(c[2]) end
+			for _, c in ipairs(choices()) do
+				now[n + 1], now[n + 2] = c[1], c[2]
+				n = n + 2
+			end
 		end
+		local unchanged = was ~= nil and wasN == n
+		if unchanged then
+			for i = 1, n do
+				if was[i] ~= now[i] then unchanged = false break end
+			end
+		end
+		if unchanged then return end
 		if was == nil then
-			was = now
 			dd:SetupMenu(menu)
-		elseif now ~= was and not dd:IsMenuOpen() then
-			was = now
+		elseif dd:IsMenuOpen() then
+			-- Never while the list is open: Blizzard rebuilds it in place and a scrolling one keeps
+			-- old rows (blank gaps); a change waits for it to close.
+			return
+		else
 			dd:GenerateMenu()
 		end
+		was, wasN, now = now, n, was or {}
 	end
 	dd:RegisterCallback("OnMenuClose", function() C_Timer.After(0, update) end, f)
 	return self:add(f, 34, shown, update)
