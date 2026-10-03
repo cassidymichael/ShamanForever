@@ -381,16 +381,26 @@ local function textLink(parent, text, onClick, pad)
 end
 Page.textLink = textLink
 
--- A yellow link that goes somewhere else in the options
-function Page.goLink(parent, text, onClick)
+-- A yellow link that goes somewhere else in the options; tip: a tooltip line
+function Page.goLink(parent, text, onClick, tip)
 	local b = CreateFrame("Button", nil, parent)
 	b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	b.text:SetPoint("LEFT")
 	b.text:SetText(text)
 	b:SetSize(b.text:GetStringWidth() + 4, 16)
 	b:SetScript("OnClick", onClick)
-	b:SetScript("OnEnter", function() b.text:SetTextColor(1, 0.93, 0.6) end)
-	b:SetScript("OnLeave", function() b.text:SetTextColor(1, 0.82, 0) end)
+	b:SetScript("OnEnter", function()
+		b.text:SetTextColor(1, 0.93, 0.6)
+		if not tip then return end
+		GameTooltip:SetOwner(b, "ANCHOR_RIGHT")
+		GameTooltip:SetText(text)
+		GameTooltip:AddLine(tip, 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	b:SetScript("OnLeave", function()
+		b.text:SetTextColor(1, 0.82, 0)
+		if tip then GameTooltip:Hide() end
+	end)
 	return b
 end
 

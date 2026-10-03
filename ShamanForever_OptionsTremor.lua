@@ -138,14 +138,7 @@ end
 
 local function linkLine(p, text, tip, onClick)
 	local f = p:row(22)
-	local b = CreateFrame("Button", nil, f)
-	b:SetPoint("LEFT", 4, 0)
-	b:SetNormalFontObject("GameFontNormalSmall")
-	b:SetHighlightFontObject("GameFontHighlightSmall")
-	b:SetText(text)
-	b:SetSize(b:GetFontString():GetStringWidth() + 4, 18)
-	b:SetScript("OnClick", onClick)
-	setTip(b, text, tip)
+	Page.goLink(f, text, onClick, tip):SetPoint("LEFT", 4, 0)
 	return p:add(f, 22)
 end
 
