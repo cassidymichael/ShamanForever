@@ -34,6 +34,8 @@ local IDLE_CHOICES = {
 			.. "It shows in full at 1 charge and as No shield at 0",
 		"Shown in full at 1 charge and as No shield." },
 }
+local COUNT_POS = {}
+for pos in pairs(ns.COUNT_JUSTIFY) do table.insert(COUNT_POS, pos) end
 ns.registerElement("shield", { frame = shield, label = "Shields", paint = function(t) t:SetTexture(SH.icon()) end,
 	learned = function() return SH.learned() end,
 	defaults = { idleWhen = "never", idleAlpha = 0.3,
@@ -42,6 +44,7 @@ ns.registerElement("shield", { frame = shield, label = "Shields", paint = functi
 			size = 20, mark = false, markColor = { 1, 0.25, 0.2, 1 } },
 		warn = { grey = true, ring = true, fade = false, tint = false, glow = true, sound = "none" } },
 	ranges = { count = { size = { 8, 64, 1 }, barHeight = { 1, 20, 1 } } },
+	choices = { track = { "lightning", "water", "either" }, count = { pos = COUNT_POS } },
 	styles = { glow = { look = "soft" },
 		uptime = { text = false, swipe = false, swipeAlpha = 0.5, swipeReverse = false, bar = false, barEdge = "top" } },
 	def = { key = "shield", idleChoices = IDLE_CHOICES },
@@ -77,15 +80,6 @@ local CHARGES = 3
 local function placeCount(fs, icon) Count.place(fs, icon, count("pos")) end
 
 function SH.sanitize(_, acct)
-	local o = ns.elementOpts("shield")
-	if o.track ~= nil and o.track ~= "either" and not SHIELDS[o.track] then o.track = nil end
-	local c = o.count
-	if type(c) == "table" then
-		if c.pos ~= nil and not ns.COUNT_JUSTIFY[c.pos] then c.pos = nil end
-		for _, k in ipairs({ "barColor", "markColor" }) do
-			if c[k] ~= nil and not ns.isColor(c[k]) then c[k] = nil end
-		end
-	end
 	if not SHIELDS[acct.lastShield] then acct.lastShield = "lightning" end
 end
 
