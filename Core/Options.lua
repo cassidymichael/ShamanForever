@@ -578,6 +578,23 @@ local function buildWindow()
 		local font, size, flags = title:GetFont()
 		if font and size then title:SetFont(font, size + 2, flags) end
 	end
+	-- Off (/sf disable): said in the title bar, with the way back
+	local offNote = CreateFrame("Frame", nil, win)
+	offNote:SetSize(1, 18)
+	offNote:SetPoint("TOPRIGHT", win, "TOPRIGHT", -28, -2)
+	offNote:SetFrameLevel(win:GetFrameLevel() + 20)
+	local turnOn = CreateFrame("Button", nil, offNote, "UIPanelButtonTemplate")
+	turnOn:SetSize(76, 18)
+	turnOn:SetPoint("RIGHT")
+	turnOn:SetText("Turn on")
+	turnOn:SetScript("OnClick", function() E.setOff(false) end)
+	setTip(turnOn, "Turn on", ns.CLASS.slash[1] .. " enable does the same.")
+	local offText = offNote:CreateFontString(nil, "OVERLAY", "GameFontRedSmall")
+	offText:SetPoint("RIGHT", turnOn, "LEFT", -6, 0)
+	offText:SetText("Off: nothing shows or plays")
+	local function showOff() offNote:SetShown(ns.isOff()) end
+	ns.onChanged(showOff)
+	showOff()
 	-- The crest is a badge over the corner: the portrait ring can't grow.
 	if ButtonFrameTemplate_HidePortrait then pcall(ButtonFrameTemplate_HidePortrait, win) end
 	local logo = CreateFrame("Frame", nil, win)
