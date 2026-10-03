@@ -8,8 +8,6 @@ local K = ns.Options.kit
 local SHOW_CHOICES = K.SHOW_CHOICES
 local elementDisplay, idleBlock, lookBlocks = K.elementDisplay, K.idleBlock, K.lookBlocks
 
-local function db() return ns.getDB() end
-
 -- Learned first, then not learned, then other races' racials; each by name.
 local function byName()
 	local keys, band, lower = {}, {}, {}
@@ -141,15 +139,7 @@ function EP.buildOverview(p)
 		local unknown = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 		unknown:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -1)
 		unknown:SetText(ns.notLearnedText(key))
-		local group = menuCell(f, 120, function(_, root)
-			for _, g in ipairs(db().groups) do
-				root:CreateRadio(g.name, function() return ns.groupOf(key) == g end, function()
-					if ns.groupOf(key) ~= g then ns.placeElement(key, g.id) end
-					ns.Options.refresh()
-				end)
-			end
-			root:CreateButton("New group", function() ns.placeElement(key, "new"); ns.Options.refresh() end)
-		end)
+		local group = menuCell(f, 120, K.groupMenu(key, function() ns.Options.refresh() end))
 		local show = menuCell(f, 86, function(_, root)
 			for _, c in ipairs(SHOW_CHOICES) do
 				root:CreateRadio(c[2], function() return ns.showMode(key) == c[1] end, function()

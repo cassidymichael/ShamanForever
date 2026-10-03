@@ -628,14 +628,19 @@ local function eslider(p, key, label, tip, fmt, shown, name, field)
 	return rangeSlider(p, ns.elementRange(key, name, field), label, tip, fmt, get, set, shown)
 end
 
-local function groupMenu(key)
+-- An element's group menu: its groups, or New group; after() follows a choice
+local function groupMenu(key, after)
 	return function(_, root)
 		for _, g in ipairs(db().groups) do
 			root:CreateRadio(g.name, function() return ns.groupOf(key) == g end, function()
 				if ns.groupOf(key) ~= g then ns.placeElement(key, g.id) end
+				if after then after() end
 			end)
 		end
-		root:CreateButton("New group", function() ns.placeElement(key, "new") end)
+		root:CreateButton("New group", function()
+			ns.placeElement(key, "new")
+			if after then after() end
+		end)
 	end
 end
 
@@ -974,7 +979,7 @@ end
 K.eread, K.eslider, K.COUNT_POINTS = eread, eslider, COUNT_POINTS
 K.toggleBlock = toggleBlock
 K.elementDisplay, K.idleBlock, K.lookBlocks, K.reagentBlocks = elementDisplay, idleBlock, lookBlocks, reagentBlocks
-K.soundsBlock = soundsBlock
+K.soundsBlock, K.groupMenu = soundsBlock, groupMenu
 K.warnBlock, K.readyBlock, K.activeBlock, K.expiringBlock, K.killedBlock = warnBlock, readyBlock, activeBlock,
 	expiringBlock, killedBlock
 
