@@ -825,7 +825,6 @@ end
 local function styleLink(p, row, part, on)
 	local go = Page.goLink(row, "Style", function() p:goTo(part) end)
 	go:SetPoint("LEFT", row.check.Text, "RIGHT", 10, 0)
-	setTip(go, "Style", "Its look, further down this page.")
 	row.styleLink = go
 	local item = p.items[#p.items]
 	local refresh = item.refresh
