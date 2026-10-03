@@ -930,7 +930,7 @@ local function setActive(set, chosen)
 	paintSets()
 	refreshSlots()
 	refreshGCD()
-	if chosen and not InCombatLockdown() then ns.Options.refresh() end
+	if chosen and not InCombatLockdown() then ns.changed() end
 end
 picker:HookScript("OnAttributeChanged", function(_, name, value)
 	if name ~= "sf-set" or isSecret(value) or type(value) ~= "number" then return end
@@ -1159,7 +1159,7 @@ function layout()
 	local c = cfg()
 	local hadSets = TS.count()
 	local set = TS.update(picker, knows)
-	if TS.count() ~= hadSets then ns.Options.refresh() end
+	if TS.count() ~= hadSets then ns.changed() end
 	for _, el in ipairs(ELEMENTS) do
 		followSlot(slots[el].button, SLOT[el])
 		followSlot(castKeys[el], SLOT[el])
@@ -1180,7 +1180,7 @@ function layout()
 		known[el] = ns.Totems.knownTotems(SLOT[el])
 		if #known[el] > 0 then hasTotems = true end
 	end
-	if hasTotems ~= had then ns.Options.refresh() end
+	if hasTotems ~= had then ns.changed() end
 	for _, el in ipairs(c.order) do
 		local s = slots[el]
 		local on = barOn() and not c.hidden[el] and (#known[el] > 0 or not GetMultiCastTotemSpells or (preview and preview.all))

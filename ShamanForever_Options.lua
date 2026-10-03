@@ -820,6 +820,7 @@ function OP.refresh()
 		refreshNav()
 	end)
 end
+ns.onChanged(OP.refresh)
 
 function OP.open(page, groupId)
 	if not ns.getDB() then return end

@@ -295,6 +295,11 @@ function ns.onCombatEnd(fn) table.insert(endFns, fn) end
 function ns.onRestrictionChange(fn) table.insert(changeFns, fn) end
 local function tell(fns, site) for _, fn in ipairs(fns) do ns.try(site, fn) end end
 
+-- What the options window shows may have changed: it listens with ns.onChanged, runtime calls ns.changed()
+local changedFns = {}
+function ns.onChanged(fn) table.insert(changedFns, fn) end
+function ns.changed() tell(changedFns, "changed") end
+
 local function combatStarts()
 	fighting = true
 	ns.try("combat start", function()

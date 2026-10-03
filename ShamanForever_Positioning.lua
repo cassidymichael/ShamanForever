@@ -353,7 +353,7 @@ function PO.mover(spec)
 		wheel(spec.cfg(), delta, spec.ranges, spec.size)
 		spec.place()
 		self.label:SetText(spec.describe())
-		ns.Options.refresh()
+		ns.changed()
 	end)
 	return movable
 end
@@ -561,5 +561,5 @@ function PO.lockInCombat()
 	PO.update()
 	ns.retryAfterCombat("layout", ns.layoutElements)
 	for _, m in ipairs(movables) do m.lock() end
-	ns.Options.refresh()
+	ns.changed()
 end

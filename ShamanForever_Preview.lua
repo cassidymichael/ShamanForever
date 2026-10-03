@@ -379,7 +379,7 @@ function PV.open()
 	ns.applyLayout()
 	panel:Show()
 	panel.refresh()
-	ns.Options.refresh()
+	ns.changed()
 end
 
 function PV.close(forCombat)
@@ -406,7 +406,7 @@ function PV.close(forCombat)
 	ns.refreshAll()
 	if optionsAside and not forCombat then ns.Options.open() end
 	optionsAside = false
-	ns.Options.refresh()
+	ns.changed()
 end
 
 function PV.toggle()
