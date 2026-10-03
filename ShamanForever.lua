@@ -140,16 +140,36 @@ function Bars.register(key, spec)
 	end
 end
 -- A bar's top frame goes in a holder under root, hidden while off: Bars.parent(true) for protected
--- frames (that holder waits for combat to end), Bars.parent() for the rest
+-- frames (that holder is protected itself, so the on-off toggle can hide it in combat; anything
+-- else waits for combat to end), Bars.parent() for the rest
 local barHolders = {}
 for _, kind in ipairs({ "plain", "secure" }) do
-	local h = CreateFrame("Frame", nil, root)
+	local h = CreateFrame("Frame", nil, root, kind == "secure" and "SecureFrameTemplate" or nil)
 	h:SetAllPoints()
 	-- The level a bar had as UIParent's child: groups stay above it
 	h:SetFrameLevel(UIParent:GetFrameLevel())
 	barHolders[kind] = h
 end
 function Bars.parent(secure) return secure and barHolders.secure or barHolders.plain end
+
+-- The on-off toggle: a secure button for a key binding or /click. Its click flips the header's
+-- sf-off and hides or shows the secure holder, in combat too; its PostClick then sets the rest
+local toggleHead = CreateFrame("Frame", nil, UIParent, "SecureHandlerBaseTemplate")
+SecureHandlerSetFrameRef(toggleHead, "holder", barHolders.secure)
+toggleHead:SetAttribute("sf-off", false)
+local toggle = CreateFrame("Button", ns.NAME .. "Toggle", UIParent, "SecureActionButtonTemplate")
+toggle:RegisterForClicks("AnyDown", "AnyUp")
+SecureHandlerWrapScript(toggle, "OnClick", toggleHead, [[
+	if down then return false end
+	local off = not owner:GetAttribute("sf-off")
+	owner:SetAttribute("sf-off", off)
+	local holder = owner:GetFrameRef("holder")
+	if off then holder:Hide() else holder:Show() end
+	return false
+]])
+local TOGGLE_BINDING = "CLICK " .. ns.NAME .. "Toggle:LeftButton"
+_G["BINDING_NAME_" .. TOGGLE_BINDING] = "Turn " .. ns.NAME .. " on or off"
+_G["BINDING_HEADER_" .. ns.NAME:upper() .. "_GENERAL"] = "General"
 
 -- An element's icon: opts.effects gives it an effects layer that ignores the icon's alpha (glows and
 -- flashes stay full when it idles) and takes its group's opacity instead (layoutGroup). f.stack()
@@ -776,7 +796,11 @@ end)
 -- effects layers ignore it and take their own. Bars' holders hide, the secure one out of combat.
 local function holdSecureBars()
 	if ns.deferInCombat("off: bars", holdSecureBars) then return end
-	barHolders.secure:SetShown(not ns.isOff())
+	local off = ns.isOff()
+	toggleHead:SetAttribute("sf-off", off)
+	local changed = barHolders.secure:IsShown() == off
+	barHolders.secure:SetShown(not off)
+	if changed then ns.offApplied() end
 end
 local function applyOff()
 	local off = ns.isOff()
@@ -802,19 +826,32 @@ local function barsWaiting(shown)
 	if #list == 0 then return nil end
 	return table.concat(list, " and ")
 end
--- What it says: the slash command, Turn on and a login while off say the same
+-- The toggle's key, or how to click it from a macro
+local function toggleKey()
+	local key = GetBindingKey(TOGGLE_BINDING)
+	if key then return "Your on-off key (" .. key .. ")" end
+	return "/click " .. ns.NAME .. "Toggle"
+end
+-- What it says: the slash commands, the toggle, Turn on and a login while off say the same
 local function sayOff(off, waiting)
 	local cmd = ns.CLASS.slash[1]
-	if off and waiting then say("off until %s enable; %s still takes clicks until combat ends", cmd, waiting)
+	if off and waiting then
+		say("off until %s enable, but %s still takes clicks until combat ends. %s hides it now", cmd, waiting,
+			toggleKey())
 	elseif off then say("off: nothing shows or plays until %s enable", cmd)
-	elseif waiting then say("on; %s comes back when combat ends", waiting)
+	elseif waiting then say("on, but %s comes back when combat ends. %s brings it back now", waiting, toggleKey())
 	else say("on") end
 end
--- Saved for the character, and said in chat; returns whether it changed
-local function setOff(want)
+-- Saved for the character, and said in chat; returns whether it changed. how: "toggle" after the
+-- toggle's click, which may have hidden or shown the holder with the flag already set
+local function setOff(want, how)
 	want = want and true or false
 	if want == ns.isOff() then
-		if want then say("already off: %s enable turns it back on", ns.CLASS.slash[1]) else say("already on") end
+		if how == "toggle" then
+			ns.offApplied()
+			sayOff(want, nil)
+		elseif want then say("already off: %s enable turns it back on", ns.CLASS.slash[1])
+		else say("already on") end
 		return false
 	end
 	local char = P.char()
@@ -833,6 +870,9 @@ local function setOff(want)
 	sayOff(want, waiting)
 	return true
 end
+toggle:SetScript("PostClick", function(_, _, down)
+	if not down then setOff(toggleHead:GetAttribute("sf-off") == true, "toggle") end
+end)
 
 -- The active profile
 local function fillDefaults(t, defaults)

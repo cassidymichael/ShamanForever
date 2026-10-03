@@ -397,7 +397,8 @@ combat:SetScript("OnEvent", function(_, event, _, state)
 end)
 
 -- Off (/sf disable): nothing the addon draws or plays shows until /sf enable, and no setting changes.
--- Main switches it and saves it for the character; fn(off) runs at each change.
+-- Main switches it and saves it for the character; fn(off) runs at each change, and again when what
+-- off hides changed later (a holder that waited for combat to end: ns.offApplied).
 local off, offFns = false, {}
 function ns.isOff() return off end
 function ns.onOffChange(fn) table.insert(offFns, fn) end
@@ -408,12 +409,14 @@ function ns.ignoreParentAlpha(frame, on)
 	ignoring[frame] = on and true or false
 	frame:SetIgnoreParentAlpha(on and not off)
 end
+local function tellOff() for _, fn in ipairs(offFns) do ns.try("off", fn, off) end end
+ns.offApplied = tellOff
 function ns.setOff(v)
 	v = v and true or false
 	if v == off then return end
 	off = v
 	for frame, on in pairs(ignoring) do ns.try("off: parent alpha", frame.SetIgnoreParentAlpha, frame, on and not off) end
-	for _, fn in ipairs(offFns) do ns.try("off", fn, off) end
+	tellOff()
 end
 
 -- From a loading screen until QUIET seconds after it: slots and enchants may read empty
