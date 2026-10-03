@@ -119,7 +119,7 @@ local RETIRED = {
 	-- The totem bar's switches from before its mode, and follow from before sizeFollow
 	totemBar = { "enabled", "hideTotemFrame", "hideActionBar", "killedPulse", "follow" },
 	-- Style choices that went, to their nearest: part -> field -> old -> new
-	styles = { pop = { burst = { shapes = "painted" } } },
+	styles = { pop = { burst = { shapes = "painted" } }, border = { look = { caps = "line" } } },
 }
 
 local function put(t, name, field, v)
