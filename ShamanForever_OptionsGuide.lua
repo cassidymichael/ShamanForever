@@ -30,23 +30,42 @@ local MAEL = { el = "maelstrom", school = "air" }
 local FLAME = { el = "flameshock", school = "fire" }
 local EARTH = { el = "shock", school = "earth" }
 
--- The Shocks element as its own page draws it, its on-target marks both on and above (beside in a column)
-local function shockIcon(parent)
+-- An element as its own page draws it, in one of its preview states (show(state))
+local Own = {}
+Own.__index = Own
+local function ownIcon(parent, key)
 	local box = CreateFrame("Frame", nil, parent)
 	box:SetSize(SIZE, SIZE)
-	local ic = OA.makePreviewIcon(box, "shock", OA.PREVIEW.shock, SIZE)
-	ic.marks = { frost = true, flame = true, side = "above", size = default("shock", "marks", "size") }
-	return { box = box, ic = ic }
+	return setmetatable({ box = box, key = key, ic = OA.makePreviewIcon(box, key, OA.PREVIEW[key], SIZE) }, Own)
+end
+function Own:point(...)
+	self.box:ClearAllPoints()
+	self.box:SetPoint(...)
+	return self
+end
+function Own:wear() return self end
+function Own:pop() end
+function Own:show(state)
+	GD.laidOut(self.column, function()
+		local ic = self.ic
+		ns.StyleArt.fit(ic, E.borderFor(self.key), SIZE)
+		ic:ClearAllPoints()
+		ic:SetPoint("CENTER", self.box, "CENTER", 0, 0)
+		FR.mount(ic, self.key, SIZE)
+		OA.PREVIEW[self.key].render(ic, state, OA.kit)
+	end)
+	return self
+end
+
+-- The Shocks element, its on-target marks both on and above (beside in a column)
+local function shockIcon(parent)
+	local x = ownIcon(parent, "shock")
+	x.ic.marks = { frost = true, flame = true, side = "above", size = default("shock", "marks", "size") }
+	return x
 end
 local function drawShock(sh, column)
-	GD.laidOut(column, function()
-		local ic = sh.ic
-		ns.StyleArt.fit(ic, E.borderFor("shock"), SIZE)
-		ic:ClearAllPoints()
-		ic:SetPoint("CENTER", sh.box, "CENTER", 0, 0)
-		FR.mount(ic, "shock", SIZE)
-		OA.PREVIEW.shock.render(ic, "ready", OA.kit)
-	end)
+	sh.column = column
+	sh:show("ready")
 end
 
 local function place(x, parent, cx, cy) x.box:ClearAllPoints(); x.box:SetPoint("CENTER", parent, "TOPLEFT", cx, -cy) end
@@ -314,7 +333,7 @@ local EXAMPLES = {
 	{ "Buff missing", SHIELD, missing("shield") },
 	{ "Procs", MAEL, function() return mwLook(0) end, procs = true },
 	{ "Expiring soon", IMBUE, imbueLow },
-	{ "Required totem present", FLAME, function() return { icon = icon("flameshock"), up = { 0.3, 30 } } end },
+	{ "Required totem present", "firenova", function() return "out" end, own = true },
 	{ "Reagent warning", BREATH, function() return reagent(2) end },
 	{ "Idle; all elements have options to specify what 'idle' means for that element.", BREATH, function()
 		return reagent(12, { alpha = 0.3 })
@@ -353,7 +372,7 @@ GD.add({ title = "States and warnings", order = 40,
 		local c, r = 0, 0
 		for _, ex in ipairs(EXAMPLES) do
 			local x, y = c * 120, 92 + r * 124
-			local e = GD.icon(f, SIZE)
+			local e = ex.own and ownIcon(f, ex[2]) or GD.icon(f, SIZE)
 			if ex.last then
 				y = 92 + 3 * 124
 				tile(f, 2, y, 596, 60)
