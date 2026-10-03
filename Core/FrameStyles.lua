@@ -18,7 +18,7 @@ FR.addStyle("marblegold", { name = "Marble and gold", group = "blizzard", weight
 	art = { file = 3853104, size = { 256, 128 } }, hole = { 106, 41, 43, 43 } })
 FR.addStyle("achgold", { name = "Achievement gold", group = "blizzard", weight = "solid", tint = true,
 	art = { file = 130656, coords = { 0, 0.5625, 0, 0.5625 }, size = { 72, 72 } }, hole = { 16, 16, 40, 40 } })
-FR.addStyle("brackets", { name = "Corner brackets", group = "minimal", weight = "wispy", tint = true,
+FR.addStyle("brackets", { name = "Corner brackets", group = "blizzard", weight = "wispy", tint = true,
 	art = { atlas = "ConduitIconFrame-Corners", size = { 64, 64 } }, hole = { 7, 7, 50, 50 } })
 FR.addStyle("runewood", { name = "Runed wood", group = "painted", weight = "solid", credit = "ai",
 	art = { path = "Runewood", size = { 256, 256 } }, hole = { 64, 64, 128, 128 } })

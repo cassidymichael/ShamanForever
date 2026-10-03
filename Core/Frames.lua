@@ -13,7 +13,7 @@ local floor, max, min, abs = math.floor, math.max, math.min, math.abs
 -- Frame levels, from the carrier's (element) or the group frame's own; members sit at member
 FR.LEVEL = { under = -2, over = 1, group = 0, member = 3 }
 
-local SECTIONS = { { "blizzard", "Blizzard's" }, { "painted", "Painted" }, { "minimal", "Minimal" } }
+local SECTIONS = { { "blizzard", "Blizzard's" }, { "painted", "Painted" } }
 S.addField("frame", "look", { name = "Art frame style", where = "Global settings > Art frame style",
 	preview = { play = "still" }, groups = SECTIONS })
 S.addField("groupframe", "look", { name = "Group art frame style", where = "Global settings > Group art frame style",
