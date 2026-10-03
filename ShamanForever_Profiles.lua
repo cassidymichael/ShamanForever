@@ -16,6 +16,8 @@ local ACCOUNT_DEFAULTS = {
 	profiles = {},
 	chars = {},
 }
+-- The TOC's SavedVariables
+local SAVED = ns.NAME .. "DB"
 local DEFAULT_PROFILE = "Default"
 ns.DEFAULT_PROFILE = DEFAULT_PROFILE
 -- Share strings carry it: one from a newer version is refused
@@ -245,8 +247,8 @@ end
 
 -- Loading
 function P.load()
-	ShamanForeverDB = ShamanForeverDB or {}
-	local a = ShamanForeverDB
+	local a = _G[SAVED] or {}
+	_G[SAVED] = a
 	if type(a.profiles) ~= "table" then wipe(a) end
 	ns.fillDefaults(a, ACCOUNT_DEFAULTS)
 	if type(a.foldedBlocks) ~= "table" then a.foldedBlocks = {} end
@@ -306,7 +308,7 @@ function P.reset()
 end
 
 -- Sharing
-local SHARE_PREFIX = "!SF1!"
+local SHARE_PREFIX = ns.CLASS.sharePrefix
 
 function P.export()
 	local E = C_EncodingUtil

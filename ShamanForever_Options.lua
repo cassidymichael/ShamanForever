@@ -162,7 +162,7 @@ local function buildGlobal(p)
 		function() return #ownSizes() > 0 end)
 	K.timerSettings(p, "Cooldowns", nil, "cooldown", nil, "A spell you can't cast yet.")
 	K.gcdBlock(p, nil)
-	K.timerSettings(p, "Time left", nil, "uptime", nil, "A totem, shield or imbue running.")
+	K.timerSettings(p, "Time left", nil, "uptime", nil, ns.CLASS.help.uptime)
 	K.textBlock(p, nil)
 	K.barBlock(p)
 	p:header("Border style")
@@ -247,7 +247,7 @@ local function aboutCard(p)
 	f.sub = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	f.sub:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -6)
 	f.sub:SetTextColor(0.80, 0.74, 0.66)
-	return p:add(f, 84, nil, function() f.sub:SetText("Version " .. addonVersion() .. ". A shaman HUD for WoW Forever.") end)
+	return p:add(f, 84, nil, function() f.sub:SetText("Version " .. addonVersion() .. ". " .. ns.CLASS.blurb) end)
 end
 
 local function buildAbout(p)
@@ -255,13 +255,14 @@ local function buildAbout(p)
 	aboutCard(p)
 	aboutFeedback = flashingHeader(p, "Feedback", "Interface\\Icons\\INV_Letter_15")
 	p:text("Ideas, requests or problems? Post in #feedback on Discord, comment on CurseForge, or open an issue on GitHub. Click a link, then Ctrl+C to copy.")
-	link(p, "Discord", ns.Look.DISCORD, "discord")
-	link(p, "CurseForge", ns.Look.CURSEFORGE .. "/comments", "curseforge")
-	link(p, "GitHub", ns.Look.REPO .. "/issues", "github")
+	local links = ns.CLASS.links
+	link(p, "Discord", links.discord, "discord")
+	link(p, "CurseForge", links.curseforge .. "/comments", "curseforge")
+	link(p, "GitHub", links.repo .. "/issues", "github")
 	p:header("Support", nil, nil, "Interface\\Icons\\INV_Misc_Coin_01", { open = true })
 	p:text("If you'd like to support this addon, please feel free to buy me a coffee. I have spent many hours "
 		.. "working on this project (and many millions of AI tokens). Thank you!")
-	link(p, "Ko-fi", ns.Look.KOFI, "kofi")
+	link(p, "Ko-fi", links.kofi, "kofi")
 	aboutExp = flashingHeader(p, "Experimental", "Interface\\Icons\\INV_Gizmo_02")
 	p:text("These features aren't fully tested and may not work properly. Please use the feedback options above"
 		.. " to help me out and improve the addon.")
@@ -282,11 +283,9 @@ local function buildAbout(p)
 		end
 	end
 	p:header("Art", nil, nil, "Interface\\Icons\\INV_Scroll_03")
-	p:text("Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
-		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
-		"Francisque Millet, Mountain Landscape with Lightning (air). Corner and divider ornaments: public domain / CC0, Wikimedia Commons. " ..
-		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood texture CC0, ambientCG. Link icons: Simple Icons, CC0. " ..
-		"The Carved stone, Aged bronze and Carved wood borders and the Emblem pop burst: made with an AI image model (Google Gemini), as were the plinth and medallions of the Stone and bronze totem theme.")
+	p:text(ns.CLASS.credits .. " Corner and divider ornaments: public domain / CC0, Wikimedia Commons. "
+		.. "Link icons: Simple Icons, CC0. The Carved stone, Aged bronze and Carved wood borders: made with an AI image "
+		.. "model (Google Gemini).")
 	local ai = {}
 	for _, kind in ipairs({ "frame", "groupframe" }) do
 		for _, e in ipairs(ns.Style.choices(kind, "look")) do
@@ -297,7 +296,7 @@ local function buildAbout(p)
 end
 
 -- Key stays "general": it is saved as the last page and in folded blocks' keys.
-OP.registerPage("home", { title = "Home", icon = "Interface\\Icons\\ClassIcon_Shaman", order = 10, build = buildHome })
+OP.registerPage("home", { title = "Home", icon = ns.CLASS.icon, order = 10, build = buildHome })
 OP.registerPage("general", { title = "Global settings", icon = "Interface\\Icons\\INV_Misc_Gear_01", order = 20,
 	build = buildGlobal })
 OP.registerPage("profiles", { title = "Profiles", icon = "Interface\\Icons\\INV_Misc_Note_01", order = 80,
@@ -396,7 +395,8 @@ local function buildNav()
 	navPreview:SetSize(NAV_W - 32, 22)
 	navPreview:SetPoint("BOTTOMLEFT", 16, 38)
 	navPreview:SetScript("OnClick", function() ns.Preview.toggle() end)
-	setTip(navPreview, "Preview", "The whole HUD in a typical moment, to arrange it out of combat. /sf preview does the same.")
+	setTip(navPreview, "Preview", "The whole HUD in a typical moment, to arrange it out of combat. " .. ns.CLASS.slash[1]
+		.. " preview does the same.")
 	function navPreview.refresh() navPreview:SetText(ns.Preview.isOn() and "Stop preview" or "Preview") end
 	navPreview.refresh()
 	navLock = CreateFrame("Button", nil, win, "UIPanelButtonTemplate")
@@ -404,7 +404,7 @@ local function buildNav()
 	navLock:SetPoint("BOTTOMLEFT", 16, 12)
 	navLock:SetScript("OnClick", function() ns.setLocked(not acct().locked) end)
 	setTip(navLock, "Positioning", "Unlocked, drag " .. ns.Look.movingWords("groups")
-		.. " on screen. /sf lock does the same.")
+		.. " on screen. " .. ns.CLASS.slash[1] .. " lock does the same.")
 	function navLock.refresh() navLock:SetText(acct().locked and "Unlock positioning" or "Lock positioning") end
 	navLock.refresh()
 	for _, spec in ipairs(registered) do
@@ -891,7 +891,7 @@ function OP.build()
 	title:SetText(ns.NAME)
 	local text = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	text:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -10)
-	text:SetText(ns.NAME .. " has its own options window. You can also open it by typing /sf.")
+	text:SetText(ns.NAME .. " has its own options window. You can also open it by typing " .. ns.CLASS.slash[1] .. ".")
 	local button = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
 	button:SetSize(180, 26)
 	button:SetPoint("TOPLEFT", text, "BOTTOMLEFT", 0, -14)

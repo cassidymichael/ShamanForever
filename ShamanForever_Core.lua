@@ -1,10 +1,11 @@
 -- Shared helpers (loaded first)
 
-local _, ns = ...
+local ADDON, ns = ...
 
--- The addon's name in text, frame names and popup keys
-ns.NAME = "ShamanForever"
-ns.POPUP = "SHAMANFOREVER_"
+-- The addon's name in text, frame names, popup keys and saved globals: the TOC's Title, which a
+-- folder renamed in another case doesn't change
+ns.NAME = C_AddOns.GetAddOnMetadata(ADDON, "Title") or ADDON
+ns.POPUP = ns.NAME:upper() .. "_"
 local PREFIX = "|cff3399ff" .. ns.NAME .. "|r: "
 function ns.say(fmt, ...) print(PREFIX .. string.format(fmt, ...)) end
 

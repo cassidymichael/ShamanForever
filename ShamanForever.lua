@@ -1,4 +1,4 @@
--- ShamanForever: a shaman HUD for WoW: Forever
+-- The HUD: elements, groups, bars, modules and the active profile
 -- Rule: never do Lua math or comparisons on a possibly-secret value. In combat, show state through
 -- Blizzard's own widgets (the aura container, duration objects, curves into SetAlpha); what can't
 -- be read is inferred from our own casts.
@@ -33,46 +33,7 @@ local DEFAULTS = {
 	gcdStyle = CopyTable(ns.Style.KINDS.gcd.defaults),
 	textStyle = CopyTable(ns.Style.KINDS.text.defaults),
 	barStyle = CopyTable(ns.Style.KINDS.bar.defaults),
-	-- Default layout: an example more than a plan (players make their own groups). Offsets are in each
-	-- group's scaled units. Elements not learned yet take no room.
-	groups = {
-		{ id = 1, name = "Main", point = "CENTER", x = 0, y = -216, scale = 1, alpha = 0.8,
-			orientation = "horizontal", growth = "forward", spacing = 2,
-			members = { "shield", "shock", "firenova", "stormstrike", "lavaburst", "chainlightning", "riptide" } },
-		{ id = 2, name = "Imbue", point = "CENTER", x = 0, y = 58 / 1.25, scale = 1.25, alpha = 0.9,
-			orientation = "horizontal", growth = "forward", spacing = 2, members = { "imbue" } },
-		{ id = 3, name = "Totems", point = "CENTER", x = -144, y = -153, scale = 1, alpha = 0.8,
-			sizeFollow = false, size = 38,
-			orientation = "horizontal", growth = "forward", spacing = 2,
-			members = { "earthbind", "stoneclaw", "grounding" } },
-		{ id = 4, name = "Procs", point = "CENTER", x = 0, y = -154, scale = 1, alpha = 0.9,
-			sizeFollow = false, size = 50,
-			orientation = "horizontal", growth = "forward", spacing = 2,
-			members = { "elementalfocus", "maelstrom" } },
-		{ id = 5, name = "Tremor", point = "CENTER", x = -252 / 1.25, y = 58 / 1.25, scale = 1.25, alpha = 0.9,
-			orientation = "horizontal", growth = "forward", spacing = 2, members = { "tremor" } },
-		{ id = 6, name = "Cooldowns", point = "CENTER", x = -526, y = -60, scale = 1, alpha = 0.8,
-			orientation = "vertical", growth = "forward", spacing = 2,
-			members = { "naturesswiftness", "manatide", "farseer" } },
-		{ id = 7, name = "Target", point = "CENTER", x = 148, y = -153, scale = 1, alpha = 0.8,
-			sizeFollow = false, size = 38,
-			orientation = "horizontal", growth = "forward", spacing = 2, members = { "flameshock", "purge" } },
-		{ id = 8, name = "Utility", point = "CENTER", x = -610, y = -180, scale = 1, alpha = 0.6,
-			sizeFollow = false, size = 40,
-			orientation = "horizontal", growth = "forward", spacing = 2,
-			members = { "waterbreathing", "waterwalking" } },
-		{ id = 9, name = "Reincarnation", point = "CENTER", x = -590, y = -260, scale = 1, alpha = 0.6,
-			orientation = "horizontal", growth = "forward", spacing = 2, members = { "reincarnation" } },
-		{ id = 10, name = "Totemic Projection", point = "CENTER", x = -526, y = -180, scale = 1, alpha = 0.6,
-			sizeFollow = false, size = 40,
-			orientation = "horizontal", growth = "forward", spacing = 2, members = { "projection" } },
-		-- Racials: only the player's race shows
-		{ id = 11, name = "Racials", point = "CENTER", x = -578, y = -60, scale = 1, alpha = 0.8,
-			sizeFollow = false, size = 40,
-			orientation = "vertical", growth = "forward", spacing = 2,
-			members = { "bloodfury", "shattercurse", "berserking", "rapidregeneration", "warstomp",
-				"stoneform", "walkonair", "skysight" } },
-	},
+	groups = ns.CLASS.layout,
 	known = {},
 	elementOpts = {},
 	timers = { cooldown = CopyTable(ns.Timer.DEFAULTS.cooldown), uptime = CopyTable(ns.Timer.DEFAULTS.uptime) },
@@ -84,8 +45,8 @@ local isActive = false
 
 -- Elements and their modules
 -- root spans the screen and takes no input: the parent of every group, hidden for other classes.
--- Not named ShamanForeverFrame: older versions dragged a frame of that name and the layout cache
--- would re-anchor it.
+-- Not named <addon>Frame: older versions dragged a frame of that name and the layout cache would
+-- re-anchor it.
 local root = CreateFrame("Frame", ns.NAME .. "Root", UIParent)
 root:SetAllPoints(UIParent)
 
@@ -378,7 +339,7 @@ end
 -- Where an element new to a profile goes: with the elements it sits beside in the default layout,
 -- else a group made like that default (once per pass), else the first group
 local function placeNew(key, made)
-	for _, dg in ipairs(DEFAULTS.groups) do
+	for _, dg in ipairs(ns.CLASS.layout) do
 		for _, k in ipairs(dg.members) do
 			if k == key then
 				for _, other in ipairs(dg.members) do
@@ -416,7 +377,7 @@ end
 
 local function defaultName(g)
 	if #g.members == 0 then return nil end
-	for _, dg in ipairs(DEFAULTS.groups) do
+	for _, dg in ipairs(ns.CLASS.layout) do
 		local all = true
 		for _, key in ipairs(g.members) do
 			if not tContains(dg.members, key) then all = false break end

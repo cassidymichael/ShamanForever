@@ -700,7 +700,7 @@ local function header(p)
 	for _, sc in ipairs(L.SCHOOLS) do table.insert(schools, { sc.key, sc.name }) end
 	table.insert(schools, { ALL, "All" })
 	local paints = {
-		chips(h, "Element", schools, "school", 14, -74),
+		chips(h, ns.THEME.axis.name, schools, "school", 14, -74),
 		chips(h, "Background", { { "dark", "Dark" }, { "snow", "Snow" }, { "grass", "Grass" } }, "backdrop",
 			14, -100),
 		chips(h, "Size", { { "small", "Small" }, { "large", "Large" } }, "size", HEAD_COL2, -100),

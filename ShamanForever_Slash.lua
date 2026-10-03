@@ -4,12 +4,12 @@ local ADDON, ns = ...
 local say = ns.say
 
 local SLASH = ns.NAME:upper()
-_G["SLASH_" .. SLASH .. "1"] = "/sf"
-_G["SLASH_" .. SLASH .. "2"] = "/shf"
+local CMD = ns.CLASS.slash[1]
+for i, word in ipairs(ns.CLASS.slash) do _G["SLASH_" .. SLASH .. i] = word end
 local function toggleLock()
 	local acct = ns.getAccount()
 	if ns.setLocked(not acct.locked) then
-		say(acct.locked and "positioning locked" or "positioning unlocked: drag groups to move them, /sf lock when done")
+		say(acct.locked and "positioning locked" or "positioning unlocked: drag groups to move them, %s lock when done", CMD)
 	end
 end
 local function onLauncherClick(button)
@@ -44,14 +44,15 @@ function ns.applyMinimapButton()
 	if acct.minimap.hide then minimapIcon:Hide(ns.NAME) else minimapIcon:Show(ns.NAME) end
 end
 
-_G.ShamanForever_OnAddonCompartmentClick = function(_, button) onLauncherClick(button) end
-_G.ShamanForever_OnAddonCompartmentEnter = function(_, button)
+-- The TOC's AddonCompartmentFunc names
+_G[ns.NAME .. "_OnAddonCompartmentClick"] = function(_, button) onLauncherClick(button) end
+_G[ns.NAME .. "_OnAddonCompartmentEnter"] = function(_, button)
 	GameTooltip:SetOwner(button, "ANCHOR_LEFT")
 	GameTooltip:SetText(ns.NAME)
 	launcherTip(GameTooltip)
 	GameTooltip:Show()
 end
-_G.ShamanForever_OnAddonCompartmentLeave = function() GameTooltip:Hide() end
+_G[ns.NAME .. "_OnAddonCompartmentLeave"] = function() GameTooltip:Hide() end
 
 SlashCmdList[SLASH] = function(msg)
 	local cmd = (msg:match("^(%S*)") or ""):lower()
@@ -60,12 +61,13 @@ SlashCmdList[SLASH] = function(msg)
 	elseif cmd == "lock" then
 		toggleLock()
 	elseif cmd == "unlock" then
-		if ns.setLocked(false) then say("positioning unlocked: drag groups to move them, /sf lock when done") end
+		if ns.setLocked(false) then say("positioning unlocked: drag groups to move them, %s lock when done", CMD) end
 	elseif cmd == "preview" then
 		ns.Preview.toggle()
 	elseif cmd == "debug" then
 		ns.debugReport()
 	else
-		say("/sf opens the options. Also: /sf lock (lock or unlock positioning), /sf preview (the whole HUD in a typical moment), /sf debug")
+		say("%s opens the options. Also: %s lock (lock or unlock positioning), %s preview (the whole HUD in a typical moment), %s debug",
+			CMD, CMD, CMD, CMD)
 	end
 end

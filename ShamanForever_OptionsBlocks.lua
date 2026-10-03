@@ -353,7 +353,8 @@ local function popSchoolRow(p, key, shown)
 		reglow()
 	end
 	p:owns({ elem = key, name = "popSchool", after = reglow })
-	p:dropdown("Element", "The element its pop and School material glow take.", function()
+	local axis = ns.THEME.axis
+	p:dropdown(axis.name, "The " .. axis.lower .. " its pop and School material glow take.", function()
 		local own = ns.Looks.elementSchool(key, true)
 		local out = { { "own", "Its own" } }
 		for _, sc in ipairs(ns.Look.SCHOOLS) do
@@ -387,7 +388,7 @@ local function glowBlock(p, owner)
 	local function uses(field)
 		return showWhen(function() local l = look(); return l.uses[field] and not (l.fields and l.fields[field]) end, own)
 	end
-	p:color("Colour", "Colour and opacity. Killed early, Grounded and Ran out keep their own colours.", r.get("color"), r.set("color"), uses("color"))
+	p:color("Colour", "Colour and opacity. " .. ns.CLASS.help.glowColour, r.get("color"), r.set("color"), uses("color"))
 	local function secs(v) return string.format("%.1f s", v) end
 	styleSlider(p, "glow", "speed", "Pulse length", "One pulse, in seconds.", secs, r.get("speed"), r.set("speed"),
 		uses("speed"))
@@ -434,7 +435,7 @@ local function popBlock(p, owner, kind)
 	end
 	if owner == nil then
 		p:anchor("pop")
-		p:text("The burst when something happens: a cooldown ready, an imbue dropping, a totem ending. "
+		p:text("The burst when something happens: " .. ns.CLASS.help.pop .. ". "
 			.. ownersText("Elements", "pop"))
 	else followRow(p, owner, "pop", after) end
 	local own = showWhen(r.own)
@@ -452,11 +453,13 @@ local function popBlock(p, owner, kind)
 	end)
 	if isElement(owner) then popSchoolRow(p, owner, showWhen(bySchool)) end
 	if colored then
-		local color = choiceRows(p, r, "pop", "colorBy", "Colour", "For Ready and Ran out. By event: gold when ready, white when a totem runs out. Killed early, Grounded and the imbue dropping keep their own colours.", own)
+		local color = choiceRows(p, r, "pop", "colorBy", "Colour", ns.CLASS.help.popColour, own)
 		p:text("By school suits this burst.", showWhen(function() return color().key == "event" and burst().bySchool end, own))
 	end
 	choiceRows(p, r, "pop", "flash", "Flash", "Over the icon.", own)
-	choiceRows(p, r, "pop", "burst", "Burst", "Around the icon. Element effect: each element its own.", own)
+	local axis = ns.THEME.axis
+	choiceRows(p, r, "pop", "burst", "Burst", "Around the icon. " .. axis.name .. " effect: each " .. axis.lower
+		.. " its own.", own)
 	styleSlider(p, "pop", "reach", "Reach", "How far the burst spreads.", pct, r.get("reach"), r.set("reach"),
 		showWhen(function() return burst().uses.reach end, own))
 	local motion = choiceRows(p, r, "pop", "motion", "Motion", "How the icon moves.", own)
@@ -503,7 +506,7 @@ local function barRows(p, owner, after)
 	local r = styleRows(p, owner, "bar", after)
 	if owner then followRow(p, owner, "bar", after, "Texture same as Global") end
 	local own = showWhen(r.own)
-	local c = ns.THEME.color.water
+	local c = ns.THEME.color[ns.THEME.sample]
 	p:dropdown("Texture", nil, function()
 		local out = {}
 		for _, b in ipairs(ns.Media.bars(owner)) do
@@ -524,7 +527,7 @@ end
 local function barBlock(p)
 	p:header("Bar texture")
 	p:anchor("bar")
-	p:text("Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer. "
+	p:text(ns.CLASS.help.bars .. " "
 		.. ownersText(nil, "bar"))
 	barRows(p, nil)
 	ownLine(p, "bar")
@@ -578,8 +581,8 @@ local function timerSettings(p, title, key, kind, after, note, first, barPlaced)
 		styleSlider(p, kind, "barHeight", "Bar height", nil, px, tg("barHeight"), ts("barHeight"))
 		p:dropdown("Bar edge", nil, { { "bottom", "Bottom" }, { "top", "Top" } }, tg("barEdge"), ts("barEdge"),
 			function() return not (barPlaced and barPlaced()) end, 140)
-		local colour = p:dropdown("Bar colour", nil, { { true, "Element colour" }, { false, "Custom" } }, tg("barElement"),
-			ts("barElement"), nil, 160)
+		local colour = p:dropdown("Bar colour", nil, { { true, ns.THEME.axis.name .. " colour" }, { false, "Custom" } },
+			tg("barElement"), ts("barElement"), nil, 160)
 		p:sub(colour, function() return not style().barElement end, function()
 			p:color("Custom bar colour", nil, tg("barColor"), ts("barColor"))
 		end)
