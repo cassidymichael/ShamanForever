@@ -388,7 +388,7 @@ local function glowBlock(p, owner)
 	local function uses(field)
 		return showWhen(function() local l = look(); return l.uses[field] and not (l.fields and l.fields[field]) end, own)
 	end
-	p:color("Colour", "Colour and opacity. Killed early, Grounded and Ran out keep their own colours.", r.get("color"), r.set("color"), uses("color"))
+	p:color("Colour", "Colour and opacity. " .. ns.CLASS.help.glowColour, r.get("color"), r.set("color"), uses("color"))
 	local function secs(v) return string.format("%.1f s", v) end
 	styleSlider(p, "glow", "speed", "Pulse length", "One pulse, in seconds.", secs, r.get("speed"), r.set("speed"),
 		uses("speed"))

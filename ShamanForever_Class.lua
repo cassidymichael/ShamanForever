@@ -10,7 +10,8 @@ local _, ns = ...
 --   credits          About's art credits
 --   sharePrefix      starts a share string; another prefix is refused
 --   help             text naming the class's things: uptime (Time left), pop (what pops),
---                    popColour (the pop's Colour tip), bars (Bar texture)
+--                    popColour (the pop's Colour tip), bars (Bar texture), glowColour (the glow's
+--                    Colour tip)
 --   layout           the default groups; an element new to a profile joins its group from here
 --   cooldowns, buffs rows for the cooldown and buff engines, from _ClassElements (optional)
 ns.CLASS = {
@@ -36,6 +37,7 @@ ns.CLASS = {
 		pop = "a cooldown ready, an imbue dropping, a totem ending",
 		popColour = "For Ready and Ran out. By event: gold when ready, white when a totem runs out. Killed early, Grounded and the imbue dropping keep their own colours.",
 		bars = "Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer.",
+		glowColour = "Killed early, Grounded and Ran out keep their own colours.",
 	},
 }
 
