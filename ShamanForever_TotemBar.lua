@@ -825,6 +825,30 @@ local function liftWarning(s)
 	x.sfLifted = true
 end
 
+-- A slot's look with its totem down, and empty (pick: its pick's icon, may be secret); v: the slot's
+-- look, or the options header's icon (icon, bg)
+function TB.paintDown(v)
+	v:SetAlpha(1)
+	v.icon:SetDesaturated(false)
+	v.icon:SetAlpha(1)
+	v.bg:SetColorTexture(0, 0, 0, 1)
+end
+function TB.paintEmpty(v, c, el, pick)
+	if c.empty == "pick" and (isSecret(pick) or pick) then
+		ns.try("totem bar: pick icon", v.icon.SetTexture, v.icon, pick)
+		v.icon:SetDesaturated(c.idleGrey)
+		v.icon:SetAlpha(c.idleAlpha)
+		v.bg:SetColorTexture(0, 0, 0, 0.6 * c.idleAlpha)
+	elseif c.empty ~= "blank" then
+		local col = ns.THEME.color[el]
+		v.icon:SetTexture(nil)
+		v.bg:SetColorTexture(col[1] * 0.35, col[2] * 0.35, col[3] * 0.35, 0.8)
+	else
+		v.icon:SetTexture(nil)
+		v.bg:SetColorTexture(0, 0, 0, 0)
+	end
+end
+
 local function refreshSlot(s)
 	local c, v = cfg(), s.vis
 	local was = s.dur
@@ -837,10 +861,7 @@ local function refreshSlot(s)
 			s.expired:setIcon(icon)
 		end
 		s.killed.mark:Hide()
-		v:SetAlpha(1)
-		v.icon:SetDesaturated(false)
-		v.icon:SetAlpha(1)
-		v.bg:SetColorTexture(0, 0, 0, 1)
+		TB.paintDown(v)
 		s.timer:set(d)
 		local down = ns.Totems.downSpell(s.slot)
 		local pick = down and c.offPick and c.mode == "everything" and pickSpell(s.slot)
@@ -863,20 +884,7 @@ local function refreshSlot(s)
 	-- Active totems: the slot keeps its place (secure buttons can't move in combat); a plain frame's
 	-- alpha, so it works in combat
 	v:SetAlpha((c.mode == "everything" or kbOpen) and 1 or 0)
-	local tex = c.empty == "pick" and C_ActionBar.GetActionTexture(multiAction(s.slot))
-	if isSecret(tex) or tex then
-		ns.try("totem bar: pick icon", v.icon.SetTexture, v.icon, tex)
-		v.icon:SetDesaturated(c.idleGrey)
-		v.icon:SetAlpha(c.idleAlpha)
-		v.bg:SetColorTexture(0, 0, 0, 0.6 * c.idleAlpha)
-	elseif c.empty ~= "blank" then
-		local col = ns.THEME.color[s.el]
-		v.icon:SetTexture(nil)
-		v.bg:SetColorTexture(col[1] * 0.35, col[2] * 0.35, col[3] * 0.35, 0.8)
-	else
-		v.icon:SetTexture(nil)
-		v.bg:SetColorTexture(0, 0, 0, 0)
-	end
+	TB.paintEmpty(v, c, s.el, c.empty == "pick" and C_ActionBar.GetActionTexture(multiAction(s.slot)))
 	return false
 end
 
@@ -1678,10 +1686,7 @@ local function paintSlot(s, rec)
 	v.icon:SetTexture(icon)
 	if st == "down" or st == "expiring" then
 		s.killed.mark:Hide()
-		v:SetAlpha(1)
-		v.icon:SetDesaturated(false)
-		v.icon:SetAlpha(1)
-		v.bg:SetColorTexture(0, 0, 0, 1)
+		TB.paintDown(v)
 		local left, life = TB.PREVIEW_LEFT[s.el][1], TB.PREVIEW_LEFT[s.el][2]
 		if st == "expiring" then left = 5 end
 		s.timer:setExpire(c.expire, icon)
@@ -1691,18 +1696,7 @@ local function paintSlot(s, rec)
 	end
 	s.timer:clear()
 	v:SetAlpha(c.mode == "everything" and 1 or 0)
-	if c.empty == "pick" and pick then
-		v.icon:SetDesaturated(c.idleGrey)
-		v.icon:SetAlpha(c.idleAlpha)
-		v.bg:SetColorTexture(0, 0, 0, 0.6 * c.idleAlpha)
-	elseif c.empty ~= "blank" then
-		local col = ns.THEME.color[s.el]
-		v.icon:SetTexture(nil)
-		v.bg:SetColorTexture(col[1] * 0.35, col[2] * 0.35, col[3] * 0.35, 0.8)
-	else
-		v.icon:SetTexture(nil)
-		v.bg:SetColorTexture(0, 0, 0, 0)
-	end
+	TB.paintEmpty(v, c, s.el, pick)
 end
 
 function paintPreview()
