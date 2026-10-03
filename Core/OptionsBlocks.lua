@@ -540,12 +540,8 @@ end
 local TEXT_POS = { { "auto", "Auto" }, { "center", "Centre" }, { "topleft", "Top left" }, { "bottom", "Bottom" } }
 -- In the icon on an edge, or out of it on a side across the group's flow (_Timers): one menu, two fields
 local function barPosition(p, key, tg, ts)
-	local function column()
-		local g = key and P.getDB() and G.of(key)
-		return g ~= nil and g.orientation == "vertical"
-	end
 	local function choices()
-		local col = column()
+		local col = key ~= nil and ns.Widgets.laidInColumn(key)
 		return { { "in bottom", "In the icon, bottom" }, { "in top", "In the icon, top" },
 			{ "out bottom", col and "Left of the icon" or "Below the icon" },
 			{ "out top", col and "Right of the icon" or "Above the icon" } }
