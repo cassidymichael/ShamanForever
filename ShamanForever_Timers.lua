@@ -318,7 +318,7 @@ ticker:SetScript("OnUpdate", ns.throttled(0.1, function()
 			-- pcall, not ns.try: ten times a second, must not allocate
 			local ok, a = pcall(d.EvaluateRemainingDuration, d, t.expCurve)
 			if ok then t.exp:SetAlpha(a) else t.exp:SetAlpha(0); ns.noteError("timer expiring", a) end
-		elseif not t.held then t.exp:SetAlpha(0) end
+		else t.exp:SetAlpha(0) end
 	end
 end))
 
@@ -385,15 +385,20 @@ function Timer:setExpire(e, icon)
 	if not e.fade then x.pulse:Stop(); x.dim:SetAlpha(0)
 	elseif not x.pulse:IsPlaying() then x.pulse:Play() end
 	self.expCurve = ns.lastSeconds(e.secs)
+	if self.held and not self.last then
+		-- Frozen: lit once here, never ticked
+		-- As the curve: lit from just above 0 to just past secs
+		x:SetAlpha((self.held > 0 and self.held < e.secs + 0.05) and 1 or 0)
+		warning[self] = nil
+		if next(warning) == nil then ticker:Hide() end
+		return
+	end
 	warning[self] = true
 	ticker:Show()
 	local d = self.last
 	if d then
 		local ok, a = pcall(d.EvaluateRemainingDuration, d, self.expCurve)
 		if ok then x:SetAlpha(a) else x:SetAlpha(0) end   -- a may be secret: never compared
-	elseif self.held then
-		-- As the curve: lit from just above 0 to just past secs
-		x:SetAlpha((self.held > 0 and self.held < e.secs + 0.05) and 1 or 0)
 	end
 end
 
