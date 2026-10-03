@@ -1023,7 +1023,8 @@ local function applyTotemFrame()
 		if totemFrameHidden then setTotemFrameHidden(false) end
 		return
 	end
-	local hide = barOn()
+	-- Off (/sf disable): Blizzard's frames are back while nothing of ours shows
+	local hide = barOn() and not ns.isOff()
 	if not hide and not totemFrameHidden then return end
 	setTotemFrameHidden(hide)
 end
@@ -1035,7 +1036,7 @@ local actionBarParent
 local function applyActionBar()
 	local f = MultiCastActionBarFrame
 	if not f or InCombatLockdown() then return end
-	local hide = barOn() and cfg().mode == "everything"
+	local hide = barOn() and cfg().mode == "everything" and not ns.isOff()
 	if hide and f:GetParent() ~= hiddenParent then
 		actionBarParent = f:GetParent()
 		f:SetParent(hiddenParent)

@@ -604,7 +604,7 @@ local function layoutGroup(g)
 	gf:SetAlpha(g.alpha)
 	for _, key in ipairs(g.members) do
 		local fx = ELEMENTS[key].frame.effects
-		if fx then fx:SetAlpha(g.alpha) end
+		if fx then fx:SetAlpha(ns.isOff() and 0 or g.alpha) end
 	end
 	W.placeOnPixels(gf, g.point, g.x, g.y)
 	ns.Positioning.decorate(gf, g)
@@ -664,6 +664,7 @@ end
 -- Every lock and unlock goes through here: in combat unlocking is refused, locking takes the combat path
 function G.setLocked(locked)
 	if not isActive then say("positioning is for %s only", ns.CLASS.plural) return false end
+	if not locked and ns.isOff() then say("off: %s enable turns it back on", ns.CLASS.slash[1]) return false end
 	if InCombatLockdown() then
 		if not locked then say("positioning can't be unlocked in combat") return false end
 		if not acct.locked then ns.Positioning.lockInCombat() end
@@ -771,6 +772,52 @@ local centerGroup = edit(function(id)
 	if g then g.point, g.x, g.y = "CENTER", 0, 0 end
 end)
 
+-- Off (/sf disable): root's alpha, which takes on protected frames in combat, hides the HUD; the
+-- effects layers ignore it and take their own. Bars' holders hide, the secure one out of combat.
+local function holdSecureBars()
+	if ns.deferInCombat("off: bars", holdSecureBars) then return end
+	barHolders.secure:SetShown(not ns.isOff())
+end
+local function applyOff()
+	local off = ns.isOff()
+	root:SetAlpha(off and 0 or 1)
+	for _, g in ipairs(db.groups) do
+		for _, key in ipairs(g.members) do
+			local fx = ELEMENTS[key].frame.effects
+			if fx then fx:SetAlpha(off and 0 or g.alpha) end
+		end
+	end
+	barHolders.plain:SetShown(not off)
+	holdSecureBars()
+end
+-- The nouns of the secure bars in use that wait for combat's end: still shown while going off,
+-- hidden while coming back
+local function barsWaiting(shown)
+	if not InCombatLockdown() or barHolders.secure:IsShown() ~= shown then return nil end
+	local list = Bars.nouns(function(bar) return bar.secure and (not bar.on or bar.on()) end)
+	if #list == 0 then return nil end
+	return table.concat(list, " and ")
+end
+-- Saved for the character; returns whether it changed, and the bars that wait for combat's end
+local function setOff(want)
+	want = want and true or false
+	if want == ns.isOff() then return false end
+	local char = P.char()
+	if char then char.off = want or nil end
+	if want then
+		ns.Preview.close()
+		if not acct.locked and not InCombatLockdown() then G.setLocked(true) end
+	end
+	local waiting = barsWaiting(want)
+	ns.setOff(want)
+	applyOff()
+	-- Modules restate what they take from Blizzard's own frames
+	layoutElements()
+	if not want then refreshAll() end
+	ns.changed()
+	return true, waiting
+end
+
 -- The active profile
 local function fillDefaults(t, defaults)
 	for k, v in pairs(defaults) do
@@ -821,7 +868,7 @@ function E.isActive() return isActive end
 E.isEnabled, E.showMode, E.isLearned, E.setShow = isEnabled, showMode, isLearned, setShow
 E.opts, E.setting, E.default, E.idleAlpha = elementOpts, elementSetting, elementDefault, idleAlpha
 E.setSetting, E.event, E.range = setElementSetting, elementEvent, elementRange
-E.sizeOf, E.boxOf = sizeOf, boxOf
+E.sizeOf, E.boxOf, E.setOff = sizeOf, boxOf, setOff
 E.applyTimers, E.resolveSpells, E.refreshAll, E.refreshCooldownsSoon = applyTimers, resolveSpells, refreshAll,
 	refreshCooldownsSoon
 G.of, G.byId, G.frames, G.size = groupOf, groupById, groupFrames, groupSize
@@ -857,6 +904,13 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		ns.IssueReporter.apply()
 		if not ns.isClass() then root:Hide(); return end
 		isActive = true
+		-- Off from before a reload or relog: set before anything starts, so nothing shows or plays
+		local char = P.char()
+		if char and char.off == true then
+			ns.setOff(true)
+			applyOff()
+			say("off: nothing shows or plays until %s enable", ns.CLASS.slash[1])
+		end
 		ns.try("spell self-check", Spells.selfCheck)
 		ns.applyMinimapButton()
 		reg("UNIT_SPELLCAST_SUCCEEDED", "player")
@@ -898,6 +952,7 @@ end)
 -- /sf debug
 function E.debugReport()
 	say("in combat %s", tostring(InCombatLockdown()))
+	if ns.isOff() then say("off (%s disable)", ns.CLASS.slash[1]) end
 	local known, otherRace = {}, {}
 	for _, e in pairs(ELEMENTS) do
 		if e.spell and Spells.otherRace(e.race) then otherRace[e.spell] = true end

@@ -71,7 +71,7 @@ local lastByAlert, lastBySound = {}, {}
 
 -- zoning: an end a loading screen can cause waits until after it
 function SN.play(value, alert, gap, zoning)
-	if not resolve(value) or not E.isActive() then return end
+	if not resolve(value) or not E.isActive() or ns.isOff() then return end
 	if (zoning and ns.zoning()) or ns.cantAct() then return end
 	local now = GetTime()
 	alert = alert or value
@@ -102,9 +102,10 @@ local function dropAura(a)
 	wipe(a.handles)
 end
 
-local function applyAura(owner)
+-- now: in combat too (going off and on)
+local function applyAura(owner, now)
 	local a = auraSounds[owner]
-	local file = SN.fileID(a.value)
+	local file = not ns.isOff() and SN.fileID(a.value) or nil
 	local list = {}
 	if file then
 		for id in pairs(a.ids) do table.insert(list, id) end
@@ -112,7 +113,7 @@ local function applyAura(owner)
 	end
 	local sig = #list > 0 and (file .. ":" .. SN.channel() .. ":" .. a.trigger .. ":" .. table.concat(list, ",")) or ""
 	if sig == a.sig then return end
-	if ns.deferInCombat("aura sound " .. owner, function() applyAura(owner) end) then return end
+	if not now and ns.deferInCombat("aura sound " .. owner, function() applyAura(owner) end) then return end
 	a.sig = sig
 	dropAura(a)
 	local add = C_UnitAuras and C_UnitAuras.AddAuraSound
@@ -144,6 +145,11 @@ function SN.setChannel(channel)
 	P.getAccount().soundChannel = channel
 	for owner in pairs(auraSounds) do applyAura(owner) end
 end
+
+-- Off and on: at once, so none plays while off
+ns.onOffChange(function()
+	for owner in pairs(auraSounds) do applyAura(owner, true) end
+end)
 
 local ev = CreateFrame("Frame")
 ns.registerEvent(ev, "PLAYER_LOGOUT")

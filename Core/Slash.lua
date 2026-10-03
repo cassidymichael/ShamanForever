@@ -67,9 +67,19 @@ SlashCmdList[SLASH] = function(msg)
 		ns.Preview.toggle()
 	elseif cmd == "debug" then
 		E.debugReport()
+	elseif cmd == "disable" then
+		local changed, waiting = E.setOff(true)
+		if not changed then say("already off: %s enable turns it back on", CMD)
+		elseif waiting then say("off until %s enable; %s still takes clicks until combat ends", CMD, waiting)
+		else say("off: nothing shows or plays until %s enable", CMD) end
+	elseif cmd == "enable" then
+		local changed, waiting = E.setOff(false)
+		if not changed then say("already on")
+		elseif waiting then say("on; %s comes back when combat ends", waiting)
+		else say("on") end
 	else
 		say("%s opens the options. Also: %s lock (lock or unlock positioning), %s preview (the whole HUD in a typical "
-			.. "moment), %s debug",
-			CMD, CMD, CMD, CMD)
+			.. "moment), %s disable (nothing shows or plays until %s enable), %s debug",
+			CMD, CMD, CMD, CMD, CMD, CMD)
 	end
 end
