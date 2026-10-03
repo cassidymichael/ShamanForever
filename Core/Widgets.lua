@@ -551,13 +551,18 @@ function Count.bar(slot, parent, anchor)
 	bar.bg:SetColorTexture(0, 0, 0, 0.6)
 	local ticks = CreateFrame("Frame", nil, bar)
 	ticks:SetAllPoints(bar)
-	slot.bar, slot.tickFrame, slot.ticks = bar, ticks, {}
+	slot.bar, slot.barAnchor, slot.tickFrame, slot.ticks = bar, anchor, ticks, {}
 	return bar
 end
 
--- max segments on an icon size wide; shown: the bar and ticks at alpha 1, else 0
+-- max segments across the icon's picture (inside its border's art); shown: bar and ticks at alpha 1, else 0
 function Count.styleBar(slot, size, max, height, color, shown)
 	local bar, ticks = slot.bar, slot.ticks
+	local d = ns.StyleArt.pictureInset(slot.host)
+	bar:ClearAllPoints()
+	bar:SetPoint("BOTTOMLEFT", slot.barAnchor, "BOTTOMLEFT", d, d)
+	bar:SetPoint("BOTTOMRIGHT", slot.barAnchor, "BOTTOMRIGHT", d > 0 and -d or 0, d)
+	size = size - 2 * d
 	bar:SetHeight(height)
 	bar:SetStatusBarTexture(ns.Media.barTexture())   -- before the colour
 	bar:SetStatusBarColor(color[1], color[2], color[3], color[4] or 1)
