@@ -140,28 +140,21 @@ function W.keyLabel(key)
 	return label
 end
 
--- A frame above Blizzard's protected aura button takes no alpha change in combat: its fade is
--- restated after combat.
 local FADE_OUT, FADE_IN = 0.8, 0.15
 local fading = {}
 local fader = CreateFrame("Frame")
 fader:Hide()
 fader:SetScript("OnUpdate", function(self, elapsed)
-	local combat = InCombatLockdown()
 	for f, target in pairs(fading) do
-		if combat and f.aboveProtected then fading[f] = nil
-		else
-			local a = f:GetAlpha()
-			if target < a then a = math.max(target, a - elapsed / FADE_OUT)
-			else a = math.min(target, a + elapsed / FADE_IN) end
-			f:SetAlpha(a)
-			if a == target then fading[f] = nil end
-		end
+		local a = f:GetAlpha()
+		if target < a then a = math.max(target, a - elapsed / FADE_OUT)
+		else a = math.min(target, a + elapsed / FADE_IN) end
+		f:SetAlpha(a)
+		if a == target then fading[f] = nil end
 	end
 	if next(fading) == nil then self:Hide() end
 end)
 function W.fadeTo(f, alpha)
-	if f.aboveProtected and InCombatLockdown() then return end
 	if math.abs(f:GetAlpha() - alpha) < 0.005 then
 		fading[f] = nil
 		f:SetAlpha(alpha)
@@ -294,7 +287,7 @@ function W.attachSide(key, side, column)
 end
 
 -- Aura slot: Blizzard's aura container on an element icon, the one way to show an aura in combat.
--- Calls it refuses in combat or while auras are secret wait (ns.deferWhileAurasSecret).
+-- Its setup and restyles wait for combat's end and for readable auras (ns.deferWhileAurasSecret).
 -- Scripts under its button never run: it only plays animations handed to it.
 local AuraSlot = {}
 AuraSlot.__index = AuraSlot
@@ -483,12 +476,14 @@ W.Count = Count
 local COUNT_NUDGE = { CENTER = { 0, 0 }, TOPLEFT = { -2, 2 }, TOPRIGHT = { 2, 2 }, BOTTOMLEFT = { -2, -2 },
 	BOTTOMRIGHT = { 2, -2 } }
 
--- lift: how far a number at a bottom point sits up (over a bar)
-function Count.place(fs, anchor, pos, lift)
-	local nudge = COUNT_NUDGE[pos]
-	local y = nudge[2] + ((lift and pos:find("BOTTOM")) and lift or 0)
+-- lift: how far a number at a bottom point sits up (over a bar); inset: how far in the border's
+-- picture starts, which a corner keeps inside
+function Count.place(fs, anchor, pos, lift, inset)
+	local nudge, d = COUNT_NUDGE[pos], pos ~= "CENTER" and inset or 0
+	local x = nudge[1] + (pos:find("LEFT") and d or -d)
+	local y = nudge[2] + ((lift and pos:find("BOTTOM")) and lift or 0) + (pos:find("BOTTOM") and d or -d)
 	fs:ClearAllPoints()
-	fs:SetPoint(pos, anchor, pos, nudge[1], y)
+	fs:SetPoint(pos, anchor, pos, x, y)
 	fs:SetJustifyH(W.COUNT_JUSTIFY[pos])
 end
 
@@ -551,13 +546,18 @@ function Count.bar(slot, parent, anchor)
 	bar.bg:SetColorTexture(0, 0, 0, 0.6)
 	local ticks = CreateFrame("Frame", nil, bar)
 	ticks:SetAllPoints(bar)
-	slot.bar, slot.tickFrame, slot.ticks = bar, ticks, {}
+	slot.bar, slot.barAnchor, slot.tickFrame, slot.ticks = bar, anchor, ticks, {}
 	return bar
 end
 
--- max segments on an icon size wide; shown: the bar and ticks at alpha 1, else 0
+-- max segments across the icon's picture (inside its border's art); shown: bar and ticks at alpha 1, else 0
 function Count.styleBar(slot, size, max, height, color, shown)
 	local bar, ticks = slot.bar, slot.ticks
+	local d = ns.StyleArt.pictureInset(slot.host)
+	bar:ClearAllPoints()
+	bar:SetPoint("BOTTOMLEFT", slot.barAnchor, "BOTTOMLEFT", d, d)
+	bar:SetPoint("BOTTOMRIGHT", slot.barAnchor, "BOTTOMRIGHT", d > 0 and -d or 0, d)
+	size = size - 2 * d
 	bar:SetHeight(height)
 	bar:SetStatusBarTexture(ns.Media.barTexture())   -- before the colour
 	bar:SetStatusBarColor(color[1], color[2], color[3], color[4] or 1)

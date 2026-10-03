@@ -276,6 +276,8 @@ end
 
 local swipers = setmetatable({}, { __mode = "k" })
 local swipeLooks = setmetatable({}, { __mode = "k" })
+-- An aura button's host: its look and our size for it (the button's own reads back secret)
+local auraHosts = setmetatable({}, { __mode = "k" })
 
 -- w: the width when known (secret on Blizzard's aura button), else read.
 local function swipeOne(f, cd, look, w)
@@ -305,9 +307,11 @@ end
 -- How far in from f's edge its picture shows under its border's art (a part drawn in the icon keeps
 -- inside it: a time bar, the countdown)
 function SA.pictureInset(f)
-	local look = swipeLooks[f]
+	local aura = auraHosts[f]
+	local look, w
+	if aura then look, w = aura.look, aura.size else look = swipeLooks[f] end
 	if not (look and look.swipeInset) then return 0 end
-	local w = f:GetWidth()
+	w = w or f:GetWidth()
 	if ns.isSecret(w) then return 0 end
 	return look.swipeInset * w
 end
@@ -406,8 +410,9 @@ local auraMade = setmetatable({}, { __mode = "k" })
 function SA.auraMask(host, tex, key)
 	local b = ns.Elements.borderFor(key)
 	local spec, art, size = maskFor(b), artFor(b), ns.Elements.sizeOf(key)
-	local made = { key = key, spec = spec, look = spec and lookFor(b), art = art }
+	local made = { key = key, spec = spec, look = spec and lookFor(b), art = art, size = size }
 	auraMade[tex] = made
+	auraHosts[host] = made
 	if art then
 		local t = host:CreateTexture(nil, "OVERLAY", nil, 7)
 		setArt(t, art)
@@ -439,6 +444,7 @@ function SA.auraStyle(slot, size)
 	if made.mask then placeMask(made.mask, spec or PLAIN_MASK, slot.icon, size) end
 	made.spec = made.mask and spec or nil
 	made.look = made.spec and lookFor(b) or nil
+	made.size = size
 	swipeOne(host, slot.cd, made.look, size)
 end
 

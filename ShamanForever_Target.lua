@@ -3,7 +3,7 @@
 -- filter the client refuses shows nothing, never the wrong aura.
 -- The container doesn't follow a target change: it is pointed at the target (no unit when not
 -- attackable), and a state driver ([@target,harm,nodead]) hides it for friendly targets.
--- A failed call (refused in combat) sets the gate to alpha 0: nothing shows rather than the last
+-- A failed call sets the gate to alpha 0: nothing shows rather than the last
 -- target's aura.
 -- Expiring drawn by the engine is a clip-framed bar over the time bar's first N seconds of the
 -- row's duration, with a cover bar; all set out of combat only.
@@ -136,15 +136,19 @@ local function styleExpire(def, size, slot)
 	local c = setting(key, "expire", "barColor")
 	if not ns.isColor(c) then c = def.defaults.expire.barColor end
 	local placed = ns.try("target expiring place " .. key, function()
-		local h, edge = st.barHeight, st.barEdge == "top" and "TOPLEFT" or "BOTTOMLEFT"
-		local w = size * secs / length
+		local h, top = st.barHeight, st.barEdge == "top"
+		local edge = top and "TOPLEFT" or "BOTTOMLEFT"
+		-- On the time bar, inside the border's picture
+		local pic = ns.StyleArt.pictureInset(slot.host)
+		local inner, y = size - 2 * pic, pic > 0 and (top and -pic or pic) or 0
+		local w = inner * secs / length
 		-- Levels: Expiring colour under the cover; glow and countdown above both
 		local base = def.frame.textFrame:GetFrameLevel()
 		red.clip:SetFrameLevel(base + 10); red.bar:SetFrameLevel(base + 11)
 		cover.clip:SetFrameLevel(base + 12); cover.bar:SetFrameLevel(base + 13)
 		for _, x in ipairs({ cover, red }) do
 			x.clip:ClearAllPoints()
-			x.clip:SetPoint(edge, slot.button, edge, 0, 0)
+			x.clip:SetPoint(edge, slot.button, edge, pic, y)
 			x.clip:SetSize(w, h)
 			x.bar:ClearAllPoints()
 		end
@@ -155,7 +159,7 @@ local function styleExpire(def, size, slot)
 		cover.bar:SetSize(long, h)
 		cover.bar:SetPoint("TOPLEFT", cover.clip, "TOPLEFT", w - long * secs / length, 0)
 		cover.bar:SetStatusBarColor(k[1], k[2], k[3], 1)
-		red.bar:SetSize(size, h)
+		red.bar:SetSize(inner, h)
 		red.bar:SetPoint("TOPLEFT", red.clip, "TOPLEFT", 0, 0)
 		red.bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
 	end)
@@ -173,7 +177,7 @@ function styleExpireText(def, slot, st, secs)
 	if textOn then
 		def.textHolder:SetFrameLevel(def.frame.textFrame:GetFrameLevel() + 15)
 		ns.Media.setFont(fs, key, st.textSize)
-		ns.Timer.placeText(fs, b, st, t and t.barIn, t and t.dual)
+		ns.Timer.placeText(fs, b, st, t and t.barIn, t and t.dual, ns.StyleArt.pictureInset(slot.host))
 		if ns.try("target countdown " .. key, b.SetDurationText, b, fs,
 			{ textColor = { curve = textOn, property = REMAINING } }) then
 			def.textHanded = true
@@ -504,15 +508,14 @@ local function frameAlpha(def)
 	return idles and E.idleAlpha(def.key) or 1
 end
 
--- Out of combat only (an ancestor of the button)
 local function applyIdle(def)
-	if not def.idle or InCombatLockdown() then return end
+	if not def.idle then return end
 	local on = def.spellID and E.isEnabled(def.key) and P.getAccount().locked
 		and setting(def.key, "idleWhen") == "target"
 	def.idle:SetAlpha(on and E.idleAlpha(def.key) or 1)
 end
 
--- Combat starts: icon to its idle alpha at once (a fade would stop part way)
+-- Combat starts: icon to its idle alpha at once
 local function combatStarts()
 	styleLooks()
 	styleUp()

@@ -25,7 +25,7 @@ local SHIELDS = {
 local SHIELD_ORDER = { "lightning", "water" }
 
 local shield = E.newIcon("shield")
--- Blizzard's container hangs from this: its alpha changes only out of combat (an ancestor of the button)
+-- Blizzard's container hangs from this: Idle sets its alpha
 local gate = CreateFrame("Frame", nil, shield)
 gate:SetAllPoints(shield)
 -- The element's border while Blizzard's button isn't made
@@ -83,7 +83,7 @@ local function believedUp()
 end
 
 local CHARGES = 3
-local function placeCount(fs, icon) Count.place(fs, icon, count("pos")) end
+local function placeCount(fs, icon) Count.place(fs, icon, count("pos"), nil, ns.StyleArt.pictureInset(icon)) end
 
 function SH.sanitize(_, acct)
 	if not SHIELDS[acct.lastShield] then acct.lastShield = "lightning" end
@@ -211,8 +211,8 @@ local function placeLook()
 end
 
 -- Idle
--- Idle puts the gate, and with it Blizzard's button, at the Idle opacity: set out of combat, held
--- through a fight. The No shield look doesn't hang from the gate and shows in full.
+-- Idle puts the gate, and with it Blizzard's button, at the Idle opacity. The No shield look doesn't
+-- hang from the gate and shows in full.
 local function idleWhen()
 	local w = own("idleWhen")
 	return (w == "up" or w == "charges") and w or "never"
@@ -221,7 +221,6 @@ local copyReady, full
 local gateNow = 1
 
 local function applyIdle()
-	if InCombatLockdown() then return end
 	local when = idleWhen()
 	local on = when ~= "never" and lookOn and P.getAccount().locked
 		and (when ~= "charges" or copyReady())
@@ -670,7 +669,7 @@ end
 
 -- Preview (ns.registerKind): Blizzard's button can't be shown or hidden by addon code, so a stand-in
 -- draws over it (hold)
-shield.aboveProtected = true
+shield.holdsAuraButton = true
 local PREVIEW = {
 	uptime = true, barInset = timeBarInset,
 	warning = "down",

@@ -1677,7 +1677,7 @@ TB.PREVIEW_LEFT = { earth = { 250, 300 }, fire = { 12, 30 }, water = { 83, 300 }
 local function paintSlot(s, rec)
 	local c, v, st = cfg(), s.vis, rec.st
 	local shown = s.button:IsShown()
-	local pick = GetActionTexture and GetActionTexture(multiAction(s.slot))
+	local pick = C_ActionBar.GetActionTexture(multiAction(s.slot))
 	if isSecret(pick) then pick = nil end
 	local icon = pick or TOTEM_ICON[s.el]
 	s.badge:Hide()

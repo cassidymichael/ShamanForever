@@ -210,7 +210,7 @@ for _, def in ipairs(ROWS) do
 	def.spell = Spells.name(def.spellKey)
 	def.icon = Spells.icon(def.buffKey or def.spellKey) or def.icon
 	def.frame = makeBuffIcon(def)
-	def.frame.aboveProtected = def.proc   -- Blizzard's aura button sits under it
+	def.frame.holdsAuraButton = def.proc
 	if def.proc then buildAura(def) end
 	E.register(def.key, { frame = def.frame, label = def.spell,
 		defaults = def.defaults or {}, learned = function() return def.spellID ~= nil end,
@@ -314,7 +314,6 @@ local function refreshBuff(def)
 	end
 	f.tex:SetDesaturated(false)
 	if def.proc then
-		-- Frame is an ancestor of Blizzard's button: its alpha changes out of combat only
 		if def.fx then def.fx:glow(setting(key, "active", "glow") and not previewing) end
 		W.fadeTo(f, P.getAccount().locked and E.idleAlpha(key) or 1)
 		return
