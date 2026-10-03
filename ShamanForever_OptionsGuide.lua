@@ -242,3 +242,149 @@ GD.add({ title = "Styles", order = 20, blurb = "A taste of what each part can lo
 		for _, ex in ipairs(f.icons) do ex:pop() end
 	end })
 
+-- Marks beside an icon
+GD.add({ title = "Marks beside an icon", order = 30, blurb = "Some elements carry small indicators outside their icon.",
+	steps = { 3.2, 3.2 },
+	build = function(f)
+		local s = GD.shape(f, { global = "The default settings for everything.",
+			group = "In a row, marks sit above or below. In a column, beside.",
+			element = "Its marks move with it, so the group keeps its spacing." })
+		f.shape, f.stage = s, s.stage
+		f.mw = GD.icon(s.stage, SIZE):wear(MW)
+		f.fs = GD.icon(s.stage, SIZE)
+		f.es = shockIcon(s.stage)
+		f.label = GD.text(s.stage, "GameFontNormalSmall", "", 8, 6)
+		f.lead = GD.lead(s, s.stageW / 2, 92)
+	end,
+	step = function(f, x)
+		local column, cx = x == 1, f.shape.stageW / 2
+		local out = { bar = true, barPlace = "out", barEdge = "top", text = true }
+		f.fs:wear({ el = FS.el, school = FS.school, uptime = out })
+		f.fs.column, f.mw.column = column, column
+		local at = column and { { cx, 24 }, { cx, 70 }, { cx, 116 } } or { { cx - 46, 70 }, { cx, 70 }, { cx + 46, 70 } }
+		f.mw:at(f.stage, at[1][1], at[1][2]):show(withCount(mwLook(3), 3))
+		f.fs:at(f.stage, at[2][1], at[2][2]):show(fsLook(14))
+		place(f.es, f.stage, at[3][1], at[3][2])
+		drawShock(f.es, column)
+		f.lead:SetShown(not column)
+		f.label:SetText(column and "In a column: beside" or "In a row: above")
+	end })
+
+-- States and warnings: one row per example, the drowning one last across the whole width
+local function warnOf(key, name)
+	local w = {}
+	for _, look in ipairs({ "grey", "tint", "ring", "fade", "glow" }) do w[look] = default(key, name, look) == true end
+	return w
+end
+local function shockPaint(name, r, g, b)
+	return { default("shock", name, "look"), r, g, b, default("shock", name, "overlay"), default("shock", name, "tint") }
+end
+local WB = { el = "waterbreathing", school = "water" }
+local SHIELD, PURGE = { el = "shield", school = "air" }, { el = "purge", school = "spirit" }
+local function missing(key) return function() return { icon = icon(key), warn = warnOf(key, "warn") } end end
+local function reagent(n, more)
+	local look = more or {}
+	look.icon, look.reagent = icon("waterbreathing"), { el = "waterbreathing", n = n }
+	return look
+end
+local EXAMPLES = {
+	{ "Ability ready", ES, function() return esLook() end, pops = 2.4 },
+	{ "On cooldown", ES, function() local l = esLook(); l.cd = { 1 / 3, 6 } return l end },
+	{ "Out of range", ES, function() local l = esLook(); l.paint = shockPaint("range", 1, 0.25, 0.25) return l end },
+	{ "Not enough mana", ES, function()
+		local l = esLook()
+		l.paint = shockPaint("mana", 0.2, 0.45, 1)
+		l.ring = { 0.2, 0.45, 1, default("shock", "mana", "ring") }
+		return l
+	end },
+	{ "Debuff on target", FS, function() return fsLook(14) end },
+	{ "Debuff missing from target", FS, missing("flameshock") },
+	{ "Purgable buff on target", PURGE, function() return { icon = icon("purge"), glow = true } end },
+	{ "Charges", SHIELD, function()
+		return { icon = icon("shield"), up = { 0.38, 600 }, bar = { n = 3, filled = 3,
+			color = default("shield", "count", "barColor"), height = default("shield", "count", "barHeight") } }
+	end },
+	{ "Buff missing", SHIELD, missing("shield") },
+	{ "Procs", MW, function() return mwLook(0) end, procs = true },
+	{ "Expiring soon", { el = "imbue", school = "earth" }, function()
+		return { icon = icon("imbue"), up = { 0.9, 1800 }, warn = { glow = true } }
+	end },
+	{ "Required totem present", FS, function() return { icon = icon("flameshock"), up = { 0.3, 30 } } end },
+	{ "Reagent warning", WB, function() return reagent(2) end },
+	{ "Idle; all elements have options to specify what 'idle' means for that element.", WB, function()
+		return reagent(12, { alpha = 0.3 })
+	end, wide = true },
+	{ "You're going to drown (breath bar active), and you have no more Shiny Fish Scales... uh oh!", WB, function()
+		local look = reagent(0, { warn = { ring = true, glow = true } })
+		look.reagent.color = { 1, 0.19, 0.19 }
+		return look
+	end, last = true },
+}
+
+local function tile(f, x, y, w, h)
+	local t = GD.box(f, x, y, w, h, { 0.23, 0.17, 0.10 })
+	t:SetBackdropColor(0.08, 0.067, 0.055, 1)
+	return t
+end
+
+-- Maelstrom's stacks, one a second to five, the proc, and back to none
+local function procStep(ex, now)
+	local t = math.floor((now - ex.procFrom) * 4) % 30
+	local n = math.min(5, math.floor(t / 4))
+	if n ~= ex.stacks then
+		ex.stacks = n
+		local look = mwLook(n)
+		look.glow = n == 5
+		ex:show(look)
+		if n == 5 then ex:pop() end
+	end
+end
+
+GD.add({ title = "States and warnings", order = 40,
+	blurb = "Elements are aware of states and events. This allows for powerful combinations of styles and "
+		.. "animations to support you. Some examples are shown below.",
+	build = function(f)
+		f.examples = {}
+		local c, r = 0, 0
+		for _, ex in ipairs(EXAMPLES) do
+			local x, y = c * 120, 92 + r * 124
+			local e = GD.icon(f, SIZE)
+			if ex.last then
+				y = 92 + 3 * 124
+				tile(f, 2, y, 596, 60)
+				e:point("TOPLEFT", f, "TOPLEFT", 26, -(y + 10))
+				GD.text(GD.over(f), "GameFontHighlight", ex[1], 86, y + 13, 500)
+			else
+				local w = ex.wide and 236 or 116
+				tile(f, x + 2, y, w, 120)
+				e:point("TOPLEFT", f, "TOPLEFT", x + 2 + (w - SIZE) / 2, -(y + 8))
+				local fs = GD.text(GD.over(f), "GameFontHighlightSmall", ex[1], x + 8, y + 54, w - 12, GD.GREY)
+				fs:SetJustifyH("CENTER")
+				c = c + (ex.wide and 2 or 1)
+				if c >= 5 then c, r = 0, r + 1 end
+			end
+			e.box:SetFrameLevel(f:GetFrameLevel() + 10)
+			e.example = ex
+			e:wear(ex[2])
+			table.insert(f.examples, e)
+		end
+	end,
+	step = function(f)
+		local now = GetTime()
+		for _, e in ipairs(f.examples) do
+			e:show(e.example[3]())
+			e.popAt, e.procFrom, e.stacks = now, now, nil
+			if e.example.procs then procStep(e, now) end
+		end
+	end,
+	tick = function(f, now)
+		for _, e in ipairs(f.examples) do
+			local ex = e.example
+			if ex.pops and now - e.popAt >= ex.pops then
+				e.popAt = now
+				e:pop()
+			end
+			if ex.procs then procStep(e, now) end
+		end
+	end })
+
