@@ -253,6 +253,13 @@ function Ex:at(parent, x, y)
 	return self:point("CENTER", parent, "TOPLEFT", x, -y)
 end
 
+-- Its size (box, border included); the next wear fits it
+function Ex:resize(size)
+	self.size = size
+	self.box:SetSize(size, size)
+	return self
+end
+
 -- spec: el (whose shipped styles it starts from), school, and per part (border, glow, pop, frame,
 -- cooldown, uptime) the fields that replace the start's
 function Ex:wear(spec)
