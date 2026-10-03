@@ -19,7 +19,7 @@ TR.WORD = "Tremor!"
 local TREMOR_TYPES = { FEAR = true, FEAR_MECHANIC = true, CHARM = true, POSSESS = true, SLEEP = true }
 local tremorSpells = {}
 
-local function setting(name, field) return E.setting(KEY, name, field) end
+local setting = E.settingsOf(KEY)
 local plain = ns.plain
 
 local WORD_POINTS = { below = { "TOP", "BOTTOM", -4 }, above = { "BOTTOM", "TOP", 4 }, center = { "CENTER", "CENTER", 0 } }

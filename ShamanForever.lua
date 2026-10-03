@@ -822,6 +822,10 @@ G.add, G.rename, G.delete, G.hide, G.center = addGroup, renameGroup, deleteGroup
 function E.borderFor(key)
 	return ns.Style.get(key, "border")
 end
+-- A module's own reader of its element's settings: setting(name, field)
+function E.settingsOf(key)
+	return function(name, field) return elementSetting(key, name, field) end
+end
 
 -- Events
 local ev = CreateFrame("Frame")

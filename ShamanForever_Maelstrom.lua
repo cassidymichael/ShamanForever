@@ -47,7 +47,7 @@ local DEF = { key = KEY, idleChoices = {
 		"Below five stacks: shown in full only at five." },
 } }
 
-local function setting(name, field) return E.setting(KEY, name, field) end
+local setting = E.settingsOf(KEY)
 local function count(field) return setting("count", field) end
 local function color(field)
 	local c = count(field)
