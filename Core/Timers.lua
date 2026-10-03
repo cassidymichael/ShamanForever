@@ -29,10 +29,6 @@ T.DEFAULTS = {
 		barPlace = "in",
 	},
 }
--- The time bar: barEdge "top" or "bottom" (anything else reads as bottom), barPlace "in" the icon or
--- "out" of it on that side. Out of it the group's flow turns the sides: a row's above and below are
--- a column's right and left.
-local ACROSS = { top = { row = "above", column = "right" }, bottom = { row = "below", column = "left" } }
 for _, part in ipairs(T.PARTS) do
 	for k, v in pairs(timeColors()) do T.DEFAULTS[part][k] = v end
 end
@@ -56,6 +52,8 @@ function T.canPlaceOut(key)
 	return E.default(key, "expire", "bar") == nil
 end
 
+-- Out of the icon, a column turns a row's above and below to right and left
+local ACROSS = { top = { row = "above", column = "right" }, bottom = { row = "below", column = "left" } }
 -- Where key's time bar in style s sits: top or bottom (in the icon), or above, below, left or right
 function T.barSide(key, s)
 	local edge = s.barEdge == "top" and "top" or "bottom"
