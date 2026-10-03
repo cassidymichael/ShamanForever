@@ -104,11 +104,6 @@ function SH.school()
 	local s = SHIELDS[shownShield()]
 	return s.known and s.school or nil
 end
--- Its cost over Blizzard's button, faded with it by Idle: the shield it shows
-CS.watch("shield", { frame = shield, cover = gate, power = true, spells = function()
-	local s = SHIELDS[shownShield()]
-	return s.known and s.spellID or nil
-end })
 
 -- Match by spell ID, never by name alone: spells sharing a shield's name (the bolts Lightning Shield
 -- fires) aren't casts of it. An unknown ID counts only when the client says plainly the player knows it.
@@ -295,14 +290,25 @@ look = W.makeClipLook(shield, {
 	},
 })
 lookEdge = FR.edge(look.art, shield, "shield", { overlay = false })
+-- Its cost over Blizzard's button while the shield is up, faded with it by Idle: the shield it shows
+local paint = CS.watch("shield", { frame = shield, power = true,
+	cover = { parent = gate, sensorParent = shield, ids = shieldIDMap },
+	spells = function()
+		local s = SHIELDS[shownShield()]
+		return s.known and s.spellID or nil
+	end })
 
 -- A sensor missing a tracked ID would stay empty over that shield, so the look waits
-local function checkIDs() look:checkIDs() end
+local function checkIDs()
+	look:checkIDs()
+	paint.up:checkIDs()
+end
 
 -- Filters only change while auras are readable
 local function applyShieldFilter()
 	native:refilter()
 	look:refilter()
+	paint.up:refilter()
 	copy:refilter()
 	checkIDs()
 end
@@ -317,7 +323,7 @@ local function learnShieldID(key, id)
 	local function matches(c)
 		return c.container == nil or c.err ~= nil or (c.filtered and c.filtered[id])
 	end
-	if matches(native) and matches(look) and matches(copy) then look:checkIDs()
+	if matches(native) and matches(look) and matches(paint.up) and matches(copy) then checkIDs()
 	else applyShieldFilter() end
 end
 
@@ -577,6 +583,7 @@ function SH.applyLayout()
 	SH.applyRemovedSound()
 	native:setup()
 	look:setup()
+	paint.up:setup()
 	if idleWhen() == "charges" and E.isEnabled("shield") then copy:setup() end
 	SH.style()
 	SH.applyEmptyLook()

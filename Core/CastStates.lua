@@ -22,13 +22,18 @@ local STATES = {
 }
 CS.STATES, CS.ORDER = STATES, { "power", "range" }
 
+local makeCover
 -- Watches: { key, power, range (it has the state), spells() (the IDs whose cost and range are read;
--- nil: not learned), frame (its icon), cover (where Blizzard's aura button draws it: the frame the
--- paint hangs from, over the button), unit (range to; "target") }
+-- nil: not learned), frame (its icon), cover (where Blizzard's aura button draws it), unit (range to;
+-- "target") }. cover: the sensor of a clip look shown while the aura is up, which carries the paint:
+-- { parent (the look's, faded with the button), sensorParent, unit, needUnit, filter, ids,
+-- candidates, slot (the button's aura slot, whose filters the sensor's must match) }. The element
+-- sets up, refilters and points the look (w.up) with its own sensors.
 local WATCHES, HAS = {}, {}
 function CS.watch(key, w)
 	w.key, w.unit = key, w.unit or "target"
 	HAS[key] = { power = w.power and true or false, range = w.range and true or false, cover = w.cover ~= nil }
+	if w.cover then makeCover(w) end
 	table.insert(WATCHES, w)
 	return w
 end
@@ -77,32 +82,49 @@ function CS.paint(f, key, out, low, overlay)
 		local look = bodyLook(f, s.look, overlay)
 		if look then f:SetBodyPaint(look, c[1], c[2], c[3], s.overlay, s.tint) end
 	end
-	local c = STATES.power.color
-	f:SetPaintRing(low, c[1], c[2], c[3], S.value(key, "power", "ring"))
+	local c, a = STATES.power.color, S.value(key, "power", "ring")
+	-- Under the icon's own warning layers, where it has any, so their rings win
+	if f.warn or f.upTimer then
+		if not f.lowRing then f.lowRing = W.makeRing(f, f.tex) end
+		if low then f.lowRing:color(c[1], c[2], c[3], a) end
+		f.lowRing:show(low)
+	else f:SetPaintRing(low, c[1], c[2], c[3], a) end
 end
 
--- Over Blizzard's aura button: a frame of ours above it, anchored to our icon, never to the button.
--- Only an overlay: a tint can't reach the button's picture, and a MOD texture would show under a
--- parent at no opacity.
+-- Over Blizzard's aura button: an overlay only, shown while the aura is up (the element's own
+-- look shows while it's gone)
 local previewing = false
-local function makeCover(w)
-	local f = w.frame
-	local c = CreateFrame("Frame", nil, w.cover)
+function makeCover(w)
+	local f, o = w.frame, w.cover
+	local up
+	local function agrees() return o.slot.applied ~= nil and o.slot.applied == up.applied end
+	up = W.makeClipLook(f, {
+		key = w.key, owner = w.key, invert = true, glowOnly = true,
+		parent = o.parent, sensorParent = o.sensorParent or o.parent, unit = o.unit, needUnit = o.needUnit,
+		filter = o.filter, ids = o.ids, candidates = o.candidates, agrees = o.slot and agrees or nil,
+		sites = { container = "cast state sensor " .. w.key, style = "cast state style " .. w.key,
+			filter = "cast state filter " .. w.key },
+	})
+	up:setParts(false, false, false, false, false)
+	local c = CreateFrame("Frame", nil, up.look)
 	c:SetAllPoints(f)
-	c:Hide()
 	c.over = c:CreateTexture(nil, "ARTWORK")
 	c.over:SetAllPoints(f.tex)
 	c.ring = W.makeRing(c, f.tex)
-	w.coverFrame = c
-	return c
+	ns.StyleArt.followMask(f, c.over)
+	w.up, w.coverFrame = up, c
 end
-local function levelCover(w)
-	if not w.cover or InCombatLockdown() then return end
-	local c = w.coverFrame or makeCover(w)
-	c:SetFrameLevel(w.frame.textFrame:GetFrameLevel() + 10)   -- over the button, under its glow
+-- Out of combat: the look's frames follow Blizzard's sensor
+local function styleCover(w)
+	if not w.up or ns.inCombat() then return end
+	local lv = w.frame.textFrame:GetFrameLevel() + 10   -- over the button, under its glow
+	w.up:setLevel(lv)
+	w.coverFrame:SetFrameLevel(lv + 1)
+	if E.isEnabled(w.key) then w.up:setup() end
+	w.up:style()
 end
 local function drawCover(w, out, low)
-	local c = w.coverFrame or makeCover(w)
+	local c = w.coverFrame
 	local state = out and "range" or low and "power" or nil
 	if state then
 		local k = STATES[state].color
@@ -114,7 +136,7 @@ local function drawCover(w, out, low)
 		c.ring:color(k[1], k[2], k[3], S.value(w.key, "power", "ring"))
 	end
 	c.ring:show(low)
-	c:SetShown(state ~= nil and not previewing)
+	w.up:want(state ~= nil and not previewing)
 end
 
 local function draw(w)
@@ -187,14 +209,14 @@ function CS.applyLayout()
 	syncTicker()
 	for _, w in ipairs(WATCHES) do
 		w.drawn = nil
-		levelCover(w)
+		styleCover(w)
 	end
 	refresh()
 end
 
 -- Full mana out of combat fires no event
 function CS.afterGroups()
-	for _, w in ipairs(WATCHES) do levelCover(w) end
+	for _, w in ipairs(WATCHES) do styleCover(w) end
 	refresh()
 end
 
