@@ -111,8 +111,9 @@ local RETIRED = {
 	-- Profile keys from before styles
 	root = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "glowSize", "popMotion", "popSize", "popSpeed",
 		"popFlash", "popRing", "popStar", "popTint" },
-	-- Fold keys of pages that no longer fold
-	folds = "^layout:",
+	-- Fold keys of pages that no longer fold, and of blocks that were renamed (a page's key, then its title)
+	folds = { "^layout:", ":Frame style$", ":Group frame style$", "^styles:Border look$", "^styles:Element frame$",
+		"^styles:Group frame$" },
 	-- The totem bar's switches from before its mode, and follow from before sizeFollow
 	totemBar = { "enabled", "hideTotemFrame", "hideActionBar", "killedPulse", "follow" },
 	-- Style choices that went, to their nearest: part -> field -> old -> new
@@ -290,7 +291,9 @@ function P.load()
 	P.fillDefaults(a, ACCOUNT_DEFAULTS)
 	if type(a.foldedBlocks) ~= "table" then a.foldedBlocks = {} end
 	for key in pairs(a.foldedBlocks) do
-		if type(key) == "string" and key:find(RETIRED.folds) then a.foldedBlocks[key] = nil end
+		for _, gone in ipairs(RETIRED.folds) do
+			if type(key) == "string" and key:find(gone) then a.foldedBlocks[key] = nil end
+		end
 	end
 	mergeCharKeys(a)
 	return a
