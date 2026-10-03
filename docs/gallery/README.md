@@ -21,7 +21,7 @@ window's list.
 
 ![The Stone and bronze totem bar theme, with a totem picker open](totem-theme-experimental.png)
 
-![Styles explorer: border looks](styles-explorer-borders.png)
+![Styles explorer: border styles](styles-explorer-borders.png)
 
 ![Styles explorer: pulsing glows](styles-explorer-pulsing-glows.png)
 
