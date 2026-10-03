@@ -790,11 +790,15 @@ local function applyOff()
 	barHolders.plain:SetShown(not off)
 	holdSecureBars()
 end
--- The nouns of the secure bars in use that wait for combat's end: still shown while going off,
--- hidden while coming back
+-- The nouns of the secure bars that wait for combat's end: on screen while going off (so they still
+-- take clicks), in use while coming back
 local function barsWaiting(shown)
 	if not InCombatLockdown() or barHolders.secure:IsShown() ~= shown then return nil end
-	local list = Bars.nouns(function(bar) return bar.secure and (not bar.on or bar.on()) end)
+	local list = Bars.nouns(function(bar)
+		if not bar.secure then return false end
+		if shown then return bar.movable ~= nil and bar.movable.frame:IsVisible() end
+		return not bar.on or bar.on()
+	end)
 	if #list == 0 then return nil end
 	return table.concat(list, " and ")
 end
