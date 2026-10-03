@@ -41,12 +41,15 @@ for _, b in ipairs(BARS) do barByName[b[1]] = b end
 
 -- LibSharedMedia (optional)
 local LSM
+local sharedGen = 0   -- moves on whenever LibSharedMedia gains a medium
 local function lsm()
 	local LibStub = _G.LibStub
 	if LSM == nil and LibStub then
 		LSM = LibStub("LibSharedMedia-3.0", true)
 		if LSM then
+			sharedGen = sharedGen + 1
 			LSM.RegisterCallback(M, "LibSharedMedia_Registered", function(_, mediaType, name)
+				sharedGen = sharedGen + 1
 				if (mediaType == "font" and M.fontInUse(name)) or (mediaType == "statusbar" and M.barInUse(name)) then
 					M.changed()
 				end
@@ -57,18 +60,28 @@ local function lsm()
 end
 M.lsm = lsm
 
+-- LibSharedMedia's mediaType as row(name, path) gives each, sorted by name; kept until a medium
+-- registers, for the same row function
+local sharedRows = {}
+local function shared(l, mediaType, row)
+	local c = sharedRows[mediaType]
+	if c and c.gen == sharedGen and c.row == row then return c.rows end
+	local rows = {}
+	for name, path in pairs(l:HashTable(mediaType)) do
+		local r = type(name) == "string" and row(name, path)
+		if r then table.insert(rows, r) end
+	end
+	table.sort(rows, function(a, b) return a[1] < b[1] end)
+	sharedRows[mediaType] = { gen = sharedGen, row = row, rows = rows }
+	return rows
+end
+
 -- Adds to a choice list LibSharedMedia's mediaType by name, each as row(name, path) gives it (nil:
 -- not offered); then current, if given and not listed
 function M.withShared(out, mediaType, row, current)
 	local l = lsm()
 	if l then
-		local more = {}
-		for name, path in pairs(l:HashTable(mediaType)) do
-			local r = type(name) == "string" and row(name, path)
-			if r then table.insert(more, r) end
-		end
-		table.sort(more, function(a, b) return a[1] < b[1] end)
-		for _, r in ipairs(more) do table.insert(out, r) end
+		for _, r in ipairs(shared(l, mediaType, row)) do table.insert(out, r) end
 	end
 	if current == nil then return out end
 	for _, r in ipairs(out) do if r[1] == current then return out end end
@@ -268,22 +281,29 @@ do
 	ns.registerEvent(ev, "PLAYER_LOGIN")
 end
 
+local function sharedFont(name, path)
+	if not fontByName[name] and type(path) == "string" and not NOT_OFFERED[path:lower()] then
+		return { name, name, path }
+	end
+end
+-- The list is kept while nothing it is made from changes: callers never change it.
+local fontList = {}
 function M.fonts(current)
+	lsm()
+	local c = fontList
+	if c.list and c.current == current and c.gen == fontGen and c.shared == sharedGen then return c.list end
 	local out = { { "", "Default" } }
 	for _, f in ipairs(FONTS) do table.insert(out, { f[1], f[1], f[2] }) end
-	M.withShared(out, "font", function(name, path)
-		if not fontByName[name] and type(path) == "string" and not NOT_OFFERED[path:lower()] then
-			return { name, name, path }
-		end
-	end)
+	M.withShared(out, "font", sharedFont)
 	local list, unsettled = {}, false
 	for _, f in ipairs(out) do
 		local st = f[3] and state[f[3]]
 		if f[3] and st == nil then unsettled = true end
 		if f[1] == current or not f[3] or st == "ok" then table.insert(list, f) end
 	end
-	if unsettled then M.settle() end
 	if current ~= "" and not pathOf(current) then table.insert(list, { current, current }) end
+	c.list, c.current, c.gen, c.shared = list, current, fontGen, sharedGen
+	if unsettled then M.settle() end
 	return list
 end
 
@@ -336,19 +356,28 @@ function M.barProblem(o)
 	if select(3, bar(name)) == false then return "Not found: " .. name .. ". Using Flat." end
 end
 
+local function sharedBar(name, path)
+	-- Not an addon's "not found" stand-in (it draws nothing)
+	local file = type(path) == "string" and path:lower() or ""
+	local skip = file == FLAT:lower() or file:match("[\\/]blank%.%w+$")
+	if not barByName[name] and not skip then return { name, name } end
+end
+-- Kept per owner while its choice stays and no medium registers: callers never change it.
+local barLists = {}
 function M.bars(o)
+	lsm()
+	local current, key = barName(o), owner(o) or ""
+	local c = barLists[key]
+	if c and c.current == current and c.shared == sharedGen then return c.list end
 	local out = { { "", "Flat" } }
 	for _, b in ipairs(BARS) do
 		if not b.atlas or ns.StyleArt.hasAtlas(b[2]) then
 			table.insert(out, { b[1], b[1] })
 		end
 	end
-	return M.withShared(out, "statusbar", function(name, path)
-		-- Not an addon's "not found" stand-in (it draws nothing)
-		local file = type(path) == "string" and path:lower() or ""
-		local skip = file == FLAT:lower() or file:match("[\\/]blank%.%w+$")
-		if not barByName[name] and not skip then return { name, name } end
-	end, barName(o))
+	local list = M.withShared(out, "statusbar", sharedBar, current)
+	barLists[key] = { list = list, current = current, shared = sharedGen }
+	return list
 end
 
 function M.changed()

@@ -505,9 +505,9 @@ local function castStyleBlock(p, owner, state, cover)
 	if owner == nil then ownLine(p, part) end
 end
 
-local function fontChoices(current)
+local function fontChoices(fonts)
 	local out = {}
-	for _, f in ipairs(ns.Media.fonts(current)) do
+	for _, f in ipairs(fonts) do
 		local path = f[3]
 		table.insert(out, { f[1], f[2], init = path and function(button)
 			local obj = ns.Media.menuFont(path)
@@ -529,7 +529,13 @@ local function textBlock(p, owner, after)
 	else followRow(p, owner, "text", after) end
 	local own = showWhen(r.own)
 	local function problem() return ns.Media.fontProblem(r.style().font) end
-	p:dropdown("Font", nil, function() return fontChoices(r.style().font) end, r.get("font"), r.set("font"), own, 200)
+	-- Remade only when the font list is new: a repaint asks for it every time
+	local fonts, choices
+	p:dropdown("Font", nil, function()
+		local now = ns.Media.fonts(r.style().font)
+		if now ~= fonts then fonts, choices = now, fontChoices(now) end
+		return choices
+	end, r.get("font"), r.set("font"), own, 200)
 	p:text(function() return problem() or "" end, showWhen(function() return r.own() and problem() ~= nil end))
 	p:dropdown("Outline", nil, ns.Media.OUTLINES, r.get("outline"), r.set("outline"), own, 160)
 	p:checkbox("Shadow", "A dark shadow under the text.", r.get("shadow"), r.set("shadow"), own)
@@ -542,9 +548,12 @@ local function barRows(p, owner, after)
 	if owner then followRow(p, owner, "bar", after) end
 	local own = showWhen(r.own)
 	local c = ns.THEME.color[ns.THEME.sample]
+	local bars, choices
 	p:dropdown("Texture", nil, function()
+		local now = ns.Media.bars(owner)
+		if now == bars then return choices end
 		local out = {}
-		for _, b in ipairs(ns.Media.bars(owner)) do
+		for _, b in ipairs(now) do
 			table.insert(out, { b[1], b[2], init = function(button)
 				local tex = button:AttachTexture()
 				tex:SetSize(64, 10)
@@ -554,6 +563,7 @@ local function barRows(p, owner, after)
 				tex:SetVertexColor(c[1], c[2], c[3])
 			end })
 		end
+		bars, choices = now, out
 		return out
 	end, r.get("texture"), r.set("texture"), own, 200)
 	local function problem() return ns.Media.barProblem(owner) end
@@ -732,7 +742,7 @@ local function elementDisplay(p, key)
 	p:callout("Not your race. It shows on screen only for the races that have this spell.",
 		function() return not E.isLearned(key) and ns.Spells.otherRace(E.ALL[key].race) end)
 	K.behaviourSection(p)
-	p:header("Display", nil, nil, nil, { open = true })
+	p:header("Display")
 	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return E.showMode(key) end,
 		function(v) E.setShow(key, v) end, nil, 140)
 	local function showDefault() return E.default(key, "show") or "always" end

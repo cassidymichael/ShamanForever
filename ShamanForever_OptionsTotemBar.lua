@@ -295,7 +295,7 @@ local function build(p)
 		function() return TB.barOn() and not TB.hasTotems() end)
 	local full = function() return c().mode == "everything" end
 	K.behaviourSection(p)
-	p:header("Totem mode", nil, nil, nil, { open = true })
+	p:header("Totem mode")
 	own("mode", { reset = function() TB.setMode(TB.DEFAULTS.mode) end })
 	p:cards("Use", nil, {
 		{ "blizzard", "Blizzard's", "Interface\\Icons\\INV_Misc_Gear_01" },
@@ -313,7 +313,7 @@ local function build(p)
 		.. "Right-click a totem to dismiss it. Alt+click a slot to pick its totem. " .. BAR_KEYS, full)
 
 	p.gate = TB.barOn
-	p:header("Display", nil, nil, nil, { open = true })
+	p:header("Display")
 	local function free(field) return function() return not TB.skin.owns(field) end end
 	local function owned(field) return function() return TB.skin.owns(field) end end
 	local show = p:dropdown("Show", "When the bar is on screen. It always shows while positioning is unlocked.",
