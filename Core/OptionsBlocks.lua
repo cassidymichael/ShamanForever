@@ -471,6 +471,40 @@ local function popBlock(p, owner, kind)
 	if owner == nil then ownLine(p, "pop") end
 end
 
+-- Cast states' paint (_CastStates): a part power or range; cover: the element draws it over Blizzard's
+-- aura button, where it is only ever an overlay
+local CAST_LOOKS = { { "tint", "Tint" }, { "overlay", "Overlay" }, { "both", "Both" } }
+local function castStyleBlock(p, owner, state, cover)
+	local CS = ns.CastStates
+	local st = CS.STATES[state]
+	local part = st.part
+	p:header(st.name .. " style")
+	p:anchor(part)
+	local r = styleRows(p, owner, part, relayout)
+	if owner == nil then
+		p:text("Its paint on an element whose spell you can't cast. " .. ownersText("Elements", part))
+	else followRow(p, owner, part, relayout) end
+	local own = showWhen(r.own)
+	local function uses(field)
+		return showWhen(function()
+			local v = r.style().look
+			return cover or v == field or v == "both"
+		end, own)
+	end
+	if cover then p:text("Shown as an overlay here.", own)
+	else
+		p:dropdown("Show as", state == "power" and "Out of range wins over this." or nil, CAST_LOOKS, r.get("look"),
+			r.set("look"), own, 140)
+	end
+	styleSlider(p, part, "overlay", "Overlay", nil, pct, r.get("overlay"), r.set("overlay"), uses("overlay"))
+	if not cover then styleSlider(p, part, "tint", "Tint", nil, pct, r.get("tint"), r.set("tint"), uses("tint")) end
+	if state == "power" then
+		styleSlider(p, part, "ring", "Ring", "The blue ring, shown even when out of range.", pct, r.get("ring"),
+			r.set("ring"), own)
+	end
+	if owner == nil then ownLine(p, part) end
+end
+
 local function fontChoices(current)
 	local out = {}
 	for _, f in ipairs(ns.Media.fonts(current)) do
@@ -638,40 +672,6 @@ end
 K.globalRow, K.ownersText, K.ownLine, K.borderRows = globalRow, ownersText, ownLine, borderRows
 K.rangeSlider, K.styleSlider = rangeSlider, styleSlider
 K.frameRows, K.barFramed = frameRows, barFramed
--- Cast states' paint (_CastStates): a part power or range; cover: the element draws it over Blizzard's
--- aura button, where it is only ever an overlay
-local CAST_LOOKS = { { "tint", "Tint" }, { "overlay", "Overlay" }, { "both", "Both" } }
-local function castStyleBlock(p, owner, state, cover)
-	local CS = ns.CastStates
-	local st = CS.STATES[state]
-	local part = st.part
-	p:header(st.name .. " style")
-	p:anchor(part)
-	local r = styleRows(p, owner, part, relayout)
-	if owner == nil then
-		p:text("Its paint on an element whose spell you can't cast. " .. ownersText("Elements", part))
-	else followRow(p, owner, part, relayout) end
-	local own = showWhen(r.own)
-	local function uses(field)
-		return showWhen(function()
-			local v = r.style().look
-			return cover or v == field or v == "both"
-		end, own)
-	end
-	if cover then p:text("Shown as an overlay here.", own)
-	else
-		p:dropdown("Show as", state == "power" and "Out of range wins over this." or nil, CAST_LOOKS, r.get("look"),
-			r.set("look"), own, 140)
-	end
-	styleSlider(p, part, "overlay", "Overlay", nil, pct, r.get("overlay"), r.set("overlay"), uses("overlay"))
-	if not cover then styleSlider(p, part, "tint", "Tint", nil, pct, r.get("tint"), r.set("tint"), uses("tint")) end
-	if state == "power" then
-		styleSlider(p, part, "ring", "Ring", "The blue ring, shown even when out of range.", pct, r.get("ring"),
-			r.set("ring"), own)
-	end
-	if owner == nil then ownLine(p, part) end
-end
-
 K.timerSettings, K.gcdBlock, K.glowBlock, K.popBlock = timerSettings, gcdBlock, glowBlock, popBlock
 K.castStyleBlock = castStyleBlock
 K.textBlock, K.barRows, K.barBlock = textBlock, barRows, barBlock
@@ -1074,8 +1074,6 @@ local function noneLeftBlock(p, def)
 	lookRows(p, store(p, def.key), "reagent", {})
 end
 
--- A setting switched on, with a number under it: b = { title, name, label, tip, sub = { name, label,
--- tip, unit } }
 -- Cast states: each the element has, its switch with a link to its style (_CastStates)
 local function castBlocks(p, key)
 	local CS = ns.CastStates
@@ -1089,6 +1087,8 @@ local function castBlocks(p, key)
 	end
 end
 
+-- A setting switched on, with a number under it: b = { title, name, label, tip, sub = { name, label,
+-- tip, unit } }
 local function toggleBlock(p, key, b)
 	p:header(b.title)
 	local on = p:checkbox(b.label, b.tip, eopt(p, key, b.name))
