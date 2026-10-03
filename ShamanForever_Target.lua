@@ -19,9 +19,9 @@ local setting = ns.elementSetting
 -- Rows: the class's target elements
 -- Fields: unit = "target", which needs proc = true (the aura container shows it), filter, auraKey
 -- (the aura's spell, matched by any rank), duration (the aura's full length, for engineExpire),
--- candidates(def), noPop, noGlow, ownIcon, noTimer, defaults; parts missing, engineExpire, skipLong
--- (below); page texts idleText, procHeader, popTip, glowTip, upLabel, idleLabel. Rows are of the
--- buff kind (_Buffs).
+-- candidates(def), noPop, noGlow, ownIcon, noTimer, defaults; parts missing (needs auraKey),
+-- engineExpire (needs missing and duration), skipLong (below); page texts idleText, procHeader,
+-- popTip, glowTip, upLabel, idleLabel. Rows are of the buff kind (_Buffs).
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
 		unit = "target", proc = true, duration = 12,
@@ -189,10 +189,18 @@ end
 
 -- Parts (ns.registerPart), with their runtime hooks (_Buffs). onTarget comes first: its gate holds
 -- the other parts' frames.
+-- A part a row lacks the fields for is left out: never a look on a guess
+local function onTarget(def) return def.unit == "target" and def.proc and true or false end
+local function readsAura(def)
+	return onTarget(def) and def.missing and (def.auraKey or def.buffKey) ~= nil or false
+end
+local function expiresHere(def)
+	return def.engineExpire and readsAura(def) and type(def.duration) == "number" or false
+end
 -- onTarget: its aura is read on your hostile target; this engine runs it
 ns.registerPart("onTarget", {
 	kind = "buff", after = "breath",
-	has = function(def) return def.unit == "target" and def.proc end,
+	has = onTarget,
 	runtime = {
 		engine = true,
 		-- On the effects layer: idle fades only the icon under the button
@@ -208,9 +216,10 @@ ns.registerPart("onTarget", {
 		end,
 	},
 })
--- missing: warns while your hostile target doesn't have it
+-- missing: warns while your hostile target doesn't have it (its sensor matches the aura's IDs)
 ns.registerPart("missing", {
 	kind = "buff", after = "reagent",
+	has = readsAura,
 	glow = true,
 	page = { warn = { title = "Not on target", text = "While your hostile target doesn't have it.",
 		tips = { glow = "A glow that pulses, in the Pulsing glow style." } } },
@@ -267,9 +276,11 @@ ns.registerPart("missing", {
 		end,
 	},
 })
--- engineExpire: Expiring drawn by the engine, on its time bar and countdown
+-- engineExpire: Expiring drawn by the engine, on its time bar and countdown; missing's read checks
+-- the aura's length
 ns.registerPart("engineExpire", {
 	kind = "buff", after = "missing",
+	has = expiresHere,
 	preview = {
 		states = { { "expiring", "Expiring", 20 } },
 		render = function(ic, st, def, P)
@@ -426,7 +437,7 @@ local function styleLook(def)
 end
 local function styleLooks()
 	for _, def in ipairs(ROWS) do
-		if def.missing then styleLook(def) end
+		if readsAura(def) then styleLook(def) end
 	end
 end
 
@@ -441,7 +452,7 @@ local function checkMissing(def)
 end
 local function checkAll()
 	for _, def in ipairs(ROWS) do
-		if def.missing then checkMissing(def) end
+		if readsAura(def) then checkMissing(def) end
 	end
 end
 
@@ -463,7 +474,7 @@ local function combatStarts()
 	styleLooks()
 	styleUp()
 	for _, def in ipairs(ROWS) do
-		if def.missing then
+		if readsAura(def) then
 			applyIdle(def)
 			local f, a = def.frame, frameAlpha(def)
 			f:SetAlpha(a)
@@ -496,7 +507,7 @@ end
 -- A target event: rows with missing read and redraw (the rest follow through retarget)
 local function missingRows(readsOnly)
 	for _, def in ipairs(ROWS) do
-		if def.missing and (not readsOnly or readWanted(def)) then
+		if readsAura(def) and (not readsOnly or readWanted(def)) then
 			checkMissing(def)
 			refreshAura(def)
 		end
@@ -588,13 +599,13 @@ function T.debug()
 	end
 	say("target attackable %s", tostring(hostileTarget()))
 	for _, def in ipairs(ROWS) do
-		if def.missing then
+		if readsAura(def) then
 			local on = readWanted(def) and auraOnTarget(def)
 			say("%s on target: %s", def.spell, readWanted(def) and tostring(on)
 				or "not read (combat, secret auras or no target)")
 			say("%s Not on target: sensor %s", def.spell, def.missLook:describe())
 		end
-		if def.engineExpire then say("%s red countdown handed %s", def.spell, tostring(def.textHanded)) end
+		if expiresHere(def) then say("%s red countdown handed %s", def.spell, tostring(def.textHanded)) end
 	end
 	for _, def in ipairs(ROWS) do
 		if def.fx then say("%s: %s", def.spell, def.fx:describe()) end
