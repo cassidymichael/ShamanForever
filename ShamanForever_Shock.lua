@@ -125,9 +125,8 @@ local function syncGlowTicker()
 	if not want then refreshGlow() end
 end
 
--- On-target marks: Frost Shock and Flame Shock, each on an aura container of its own on your hostile
--- target (_Target points it). They hang from the group frame, never from the icon: an ancestor of
--- Blizzard's button can't change its alpha in combat, and the icon idles.
+-- On-target marks: Frost Shock and Flame Shock, each an aura container on your hostile target
+-- On the group frame, not the icon, so they don't idle with it
 local MARKS = { { key = "frost", spell = "frostShock" }, { key = "flame", spell = "flameShock" } }
 SK.MARKS = MARKS
 local MARK_GAP = 0.08   -- of the icon's size
