@@ -108,34 +108,45 @@ GD.add({ title = "How things fit together", order = 10,
 		drawShock(f.es, false)
 	end })
 
--- Styles: a taste of each part, one list of styles per part (add or remove keys here)
+-- Styles: a taste of each part, one list of styles per part (add or remove keys here), shown three at a
+-- time on the three icons (fonts and group art frames one at a time, on all three)
 local STYLES = {
-	border = { "bevel", "cdm", "button" },
+	border = { "bevel", "cdm", "button", "hairline", "stone", "wood" },
 	glow = { "halo", "proc", "spark" },
 	pop = { { burst = "both", motion = "pop" }, { burst = "painted", motion = "bounce" },
-		{ burst = "none", motion = "shake", flash = "plain" } },
+		{ burst = "none", motion = "shake", flash = "plain" }, { burst = "rune", motion = "hop" },
+		{ burst = "school", motion = "shakeV" }, { burst = "star", motion = "pop", flash = "edge" } },
 	timers = { false, "below", "swipe" },
 	text = { { name = "Morpheus" }, { name = "Skurri", outline = "THICKOUTLINE" } },
-	frame = { "achgold", "runewood" },
-	groupframe = { "stonelinks" },
+	frame = { "achgold", "runewood", "tide", "flamewings", "marblegold", "brackets" },
+	groupframe = { "stonelinks", "dragonstone" },
 }
 -- The timers' looks, by name
 local TIMERS = {
 	below = { label = "a bar below", uptime = { bar = true, barPlace = "out", barEdge = "bottom", text = true } },
 	swipe = { label = "a swipe with countdown", cooldown = { swipe = true, text = true } },
 }
-local HOLD = 4.4   -- seconds each part shows
-local PITCH = SIZE + 12
--- Steps in order, art frames last: the part and its word in the Global line
-local STEPS = {
+local PITCH = SIZE + 20
+-- The parts in order, art frames last: its word in the Global line, seconds a step holds, styles a step
+local PARTS = {
 	{ part = "border", word = "borders", name = "Borders" },
 	{ part = "glow", word = "glows", name = "Glows" },
-	{ part = "pop", word = "pops", name = "Pops" },
+	{ part = "pop", word = "pops", name = "Pops", hold = 3 },
 	{ part = "timers", word = "timers", name = "Timers" },
+	{ part = "text", word = "text", name = "Text", hold = 2.4, per = 1 },
+	{ part = "frame", word = "art frames", name = "Art frames" },
+	{ part = "groupframe", word = "art frames", name = "Group art frame", per = 1 },
 }
-for _, font in ipairs(STYLES.text) do table.insert(STEPS, { part = "text", word = "text", font = font }) end
-table.insert(STEPS, { part = "frame", word = "art frames", name = "Art frames" })
-table.insert(STEPS, { part = "groupframe", word = "art frames", name = "Group art frame" })
+local STEPS = {}
+for _, p in ipairs(PARTS) do
+	local list, per = STYLES[p.part], p.per or 3
+	for first = 1, #list, per do
+		local keys = {}
+		for i = first, math.min(first + per - 1, #list) do table.insert(keys, list[i]) end
+		table.insert(STEPS, { part = p.part, word = p.word, name = p.name, hold = p.hold or 4.4, keys = keys,
+			font = p.part == "text" and keys[1] or nil })
+	end
+end
 local WORDS = { "borders", "glows", "pops", "timers", "text", "art frames" }
 
 local function styleName(part, key)
@@ -157,8 +168,8 @@ local function stepLabel(st)
 		return EMPH .. "Text:|r " .. table.concat(words, ", ")
 	end
 	local names = {}
-	for _, key in ipairs(STYLES[st.part]) do
-		local n = styleName(st.part, key)
+	for i = 1, 3 do
+		local n = st.keys[i] and styleName(st.part, st.keys[i])
 		if n then table.insert(names, n) end
 	end
 	return EMPH .. st.name .. ":|r " .. table.concat(names, ", ")
@@ -170,11 +181,11 @@ local function globalLine(word)
 	return "A style for each part: " .. table.concat(out, ", ", 1, #out - 1) .. " and " .. out[#out] .. "."
 end
 
--- The three icons' own styles for step st: icon i takes the part's i-th style
+-- The three icons' own styles for step st: icon i takes the step's i-th style
 local function dressFor(st, i)
 	local base = ({ MAEL, FLAME, EARTH })[i]
 	local spec = { el = base.el, school = base.school }
-	local key = STYLES[st.part] and STYLES[st.part][i]
+	local key = st.keys[i]
 	if st.part == "border" and key then spec.border = { look = key, show = true }
 	elseif st.part == "frame" and key then spec.frame = { look = key }
 	elseif st.part == "glow" and key then spec.glow = { look = key }
@@ -188,39 +199,44 @@ end
 local function lookFor(st, i)
 	local look = ({ mwLook(3), fsLook(14), esLook() })[i]
 	if i == 1 then withCount(look, 3) end
-	if st.part == "timers" and STYLES.timers[i] == "swipe" then look.cd = { 1 / 3, 6 } end
+	if st.part == "timers" and st.keys[i] == "swipe" then look.cd = { 1 / 3, 6 } end
 	if st.part == "text" and i == 3 then look.cd = { 1 / 3, 6 } end
-	if st.part == "glow" and STYLES.glow[i] then look.glow = true end
+	if st.part == "glow" and st.keys[i] then look.glow = true end
 	if st.font then look.font = st.font end
 	return look
 end
 
--- The icons' pitch for step st: the same for every part but art frames, which need room
+-- The icons' pitch for step st (the same for every part but art frames, which need room), and how
+-- far below the icons' centre the art reaches (where the line to the Element box starts)
 local function pitchFor(f, st, cx, cy)
+	local below = SIZE / 2
 	if st.part == "frame" then
 		local reach = 0
-		for _, key in ipairs(STYLES.frame) do
+		for _, key in ipairs(st.keys) do
 			local r = FR.look("frame", key).reach
 			reach = math.max(reach, r.left + r.right)
 		end
+		local middle = st.keys[2] and FR.look("frame", st.keys[2]).reach
+		if middle then below = below + math.ceil(middle.bottom * SIZE) end
 		FR.drawGroup(f.stage, nil)
-		return SIZE + math.ceil(reach * SIZE) + 8
+		return SIZE + math.ceil(reach * SIZE) + 8, below
 	end
-	local look = st.part == "groupframe" and FR.look("groupframe", STYLES.groupframe[1])
+	local look = st.part == "groupframe" and FR.look("groupframe", st.keys[1])
 	if not look then
 		FR.drawGroup(f.stage, nil)
-		return PITCH
+		return PITCH, below
 	end
 	local gap = FR.fitSpacing(look, SIZE, W.pixel(f.stage)) or 6
 	local lay = { size = SIZE, n = 3, gap = gap, vertical = false }
 	lay.x, lay.y = cx - (3 * SIZE + 2 * gap) / 2, cy - SIZE / 2
 	FR.drawGroup(f.stage, look, lay, S.clean(nil, S.PARTS.groupframe.defaults))
-	return SIZE + gap
+	local outer = FR.groupLayout(look, lay, W.pixel(f.stage)).outer
+	return SIZE + gap, math.max(below, lay.y + outer[4] - cy)
 end
 
-local STYLE_STAGE = 172
+local STYLE_STAGE = 204
 local stylesSteps = {}
-for i = 1, #STEPS do stylesSteps[i] = HOLD end
+for i, st in ipairs(STEPS) do stylesSteps[i] = st.hold end
 
 GD.add({ title = "Styles", order = 20, blurb = "A taste of what things can look like.", steps = stylesSteps,
 	build = function(f)
@@ -232,11 +248,12 @@ GD.add({ title = "Styles", order = 20, blurb = "A taste of what things can look 
 			f.icons[i] = GD.icon(s.stage, SIZE)
 			f.icons[i].box:SetFrameLevel(s.stage:GetFrameLevel() + 10)
 		end
-		f.label = GD.text(s.stage, "", PAD, PAD, s.stageW - 2 * PAD - #STEPS * 14)
-		f.progress = GD.dots(s.stage, #STEPS)
-		f.progress:SetPoint("TOPRIGHT", s.stage, "TOPRIGHT", -PAD + 4, -PAD + 2)
-		f.cy = STYLE_STAGE / 2 + 12
-		GD.lead(s, s.stageW / 2, f.cy + SIZE / 2 + 4)
+		f.label = GD.text(s.stage, "", PAD, PAD, s.stageW - 2 * PAD)
+		-- A click shows that part and holds it for its full time
+		f.progress = GD.dots(s.stage, #STEPS, function(i) GD.stepTo(i - 1) end)
+		f.progress:SetPoint("BOTTOMRIGHT", s.stage, "BOTTOMRIGHT", -PAD + 4, PAD - 4)
+		f.cy = STYLE_STAGE / 2 + 4
+		f.lead = GD.lead(s, s.stageW / 2, f.cy + SIZE / 2 + 4)
 		local y = s.height + GAP + 4
 		local more = GD.text(f, "To see all styles, view the settings pages or browse the Styles explorer.",
 			0, y, BOARD_W - 240)
@@ -250,7 +267,9 @@ GD.add({ title = "Styles", order = 20, blurb = "A taste of what things can look 
 		f.label:SetText(stepLabel(st))
 		f.progress.light(x + 1)
 		local cx = f.shape.stageW / 2
-		local at = rowAt(3, pitchFor(f, st, cx, f.cy), cx, f.cy)
+		local pitch, below = pitchFor(f, st, cx, f.cy)
+		f.lead.from(f.cy + below + 4)
+		local at = rowAt(3, pitch, cx, f.cy)
 		for i, ex in ipairs(f.icons) do
 			ex:at(f.stage, at[i][1], at[i][2])
 			ex:wear(dressFor(st, i)):show(lookFor(st, i))
@@ -258,7 +277,7 @@ GD.add({ title = "Styles", order = 20, blurb = "A taste of what things can look 
 		f.popAt = st.part == "pop" and 0 or nil
 	end,
 	tick = function(f, now)
-		if not f.popAt or now - f.popAt < 2 then return end
+		if not f.popAt or now - f.popAt < 1.5 then return end
 		f.popAt = now
 		for _, ex in ipairs(f.icons) do ex:pop() end
 	end })
@@ -478,8 +497,8 @@ local function lockText() return ns.Profiles.getAccount().locked and "Unlock pos
 
 -- What a click does while positioning is unlocked (Positioning's own gestures)
 local GESTURES = {
-	{ "Right-click", "a group: its settings, on Groups & Layout. A bar: its page." },
-	{ "Shift + right-click", "an icon in a group: its element's settings." },
+	EMPH .. "Right-click|r a group to open its settings. " .. EMPH .. "Right-click|r a bar to open its page.",
+	EMPH .. "Shift + right-click|r an icon to open that element's settings.",
 }
 
 GD.add({ title = "Layout", order = 50, blurb = "Unlock positioning to drag groups and bars into place.",
@@ -522,9 +541,8 @@ GD.add({ title = "Layout", order = 50, blurb = "Unlock positioning to drag group
 		local boxes, h = {}, 0
 		for i, g in ipairs(GESTURES) do
 			local box = GD.box(f, (i - 1) * (w + GAP), y, w, 1, GD.TEAL)
-			GD.title(box, g[1], PAD, PAD, GD.TEAL)
-			local t = GD.text(box, g[2], PAD, PAD + 16 + 6, w - 2 * PAD)
-			h = math.max(h, PAD + 16 + 6 + GD.height(t) + PAD)
+			local t = GD.text(box, g, PAD + 2, PAD + 2, w - 2 * PAD - 4)
+			h = math.max(h, 2 * (PAD + 2) + GD.height(t))
 			boxes[i] = box
 		end
 		for _, box in ipairs(boxes) do box:SetHeight(h) end

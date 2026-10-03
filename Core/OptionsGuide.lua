@@ -9,10 +9,9 @@ ns.Guide = GD
 
 local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
 local BOARD_W = 600
-local FADE = 0.35
 -- One spacing scale: a box's padding, the gap between blocks, a title's gap to its text
 local PAD, GAP, UNDER = 12, 12, 6
-local TOP = 84   -- the slides start under the title and a two-line blurb
+local BLURB_Y, UNDER_BLURB = 40, 20   -- the blurb's top, and the room under it before the slide
 GD.W, GD.PAD, GD.GAP = BOARD_W, PAD, GAP
 
 -- Colours: Global, Group, Element, Bars
@@ -108,7 +107,7 @@ function GD.button(parent, text, width, onClick)
 end
 
 -- The arrows Friz Quadrata has, for the bigger buttons that move on: Next, Previous, Styles explorer
-GD.BACK, GD.ON = "\226\128\185 ", " \226\128\186"
+GD.BACK, GD.ON = "\226\128\185  ", " \226\128\186"
 function GD.bigButton(parent, text, width, onClick)
 	local b = GD.button(parent, text, width, onClick)
 	b:SetHeight(28)
@@ -119,23 +118,30 @@ function GD.bigButton(parent, text, width, onClick)
 end
 
 -- A row of small squares, one lit: n of them; click(i) makes them buttons
+local DOT = 18
 function GD.dots(parent, n, click)
 	local row = CreateFrame("Frame", nil, parent)
-	row:SetSize(n * 14, 14)
+	row:SetSize(n * DOT, DOT)
 	row.dots = {}
 	for i = 1, n do
 		local d = CreateFrame(click and "Button" or "Frame", nil, row)
-		d:SetSize(14, 14)
-		d:SetPoint("LEFT", row, "LEFT", (i - 1) * 14, 0)
+		d:SetSize(DOT, DOT)
+		d:SetPoint("LEFT", row, "LEFT", (i - 1) * DOT, 0)
 		d.tex = d:CreateTexture(nil, "ARTWORK")
-		d.tex:SetSize(click and 7 or 5, click and 7 or 5)
+		d.tex:SetSize(click and 9 or 6, click and 9 or 6)
 		d.tex:SetPoint("CENTER")
-		if click then d:SetScript("OnClick", function() click(i) end) end
+		if click then
+			d:SetScript("OnClick", function() click(i) end)
+			local hl = d:CreateTexture(nil, "HIGHLIGHT")
+			hl:SetSize(11, 11)
+			hl:SetPoint("CENTER")
+			hl:SetColorTexture(1, 0.82, 0, 0.35)
+		end
 		row.dots[i] = d
 	end
 	function row.light(on)
 		for i, d in ipairs(row.dots) do
-			if i == on then d.tex:SetColorTexture(1, 0.82, 0) else d.tex:SetColorTexture(0.36, 0.29, 0.18) end
+			if i == on then d.tex:SetColorTexture(1, 0.82, 0) else d.tex:SetColorTexture(0.58, 0.47, 0.29) end
 		end
 	end
 	return row
@@ -185,12 +191,17 @@ function GD.shape(f, o)
 	return s
 end
 
--- A line from x, y on the stage down to the Element box
+-- A line from x, y on the stage down to the Element box; f.from(y) starts it elsewhere
 function GD.lead(s, x, y)
 	local f = CreateFrame("Frame", nil, s.group)
 	f:SetFrameLevel(s.stage:GetFrameLevel() + 5)
-	f:SetPoint("TOPLEFT", s.stage, "TOPLEFT", x - 1, -y)
-	f:SetSize(2, s.elementY - s.stageY - y)
+	f:SetWidth(2)
+	function f.from(top)
+		f:ClearAllPoints()
+		f:SetPoint("TOPLEFT", s.stage, "TOPLEFT", x - 1, -top)
+		f:SetHeight(math.max(s.elementY - s.stageY - top, 1))
+	end
+	f.from(y)
 	local t = f:CreateTexture(nil, "ARTWORK")
 	t:SetAllPoints()
 	t:SetColorTexture(GD.ORANGE[1], GD.ORANGE[2], GD.ORANGE[3], 0.9)
@@ -285,8 +296,8 @@ end
 
 -- look: icon, cd and up ({ share gone, length }: frozen timers), cast ({ out, low }: out of range and
 -- the cost unpaid, as the cast states draw them), warn ({ grey, tint, ring, fade, glow }), glow, alpha
--- (the whole example's), bar ({ n, filled, color, height }), count ({ text, color, size, pos }),
--- reagent ({ el, n, color }), font ({ name, outline })
+-- (the icon's, as the preview kit's idle sets it), bar ({ n, filled, color, height }), count ({ text,
+-- color, size, pos }), reagent ({ el, n, color }), font ({ name, outline })
 local function draw(ex, look)
 	local ic, kit = ex.ic, OA.kit
 	kit.reset(ic, look.icon)
@@ -313,7 +324,7 @@ local function draw(ex, look)
 	end
 	if look.reagent then reagentCount(ic, look.reagent) end
 	if look.font then setFont(ex, look.font) end
-	ex.box:SetAlpha(look.alpha or 1)
+	ic:SetAlpha(look.alpha or 1)
 end
 
 -- Draws look as in a row (or a column: self.column), whatever the player's own groups
@@ -328,7 +339,6 @@ end
 function Ex:showAs(key, state)
 	self.look = nil
 	self.ic.column = self.column or false
-	self.box:SetAlpha(1)
 	ns.try("guide example " .. key, OA.PREVIEW[key].render, self.ic, state, OA.kit)
 	return self
 end
@@ -347,24 +357,20 @@ local function stepTo(x)
 	if sp.step then ns.try("guide step", sp.step, frames[cur], x) end
 end
 
+-- No alpha animation on a slide: one on an ancestor of the examples overrides their own alpha (the
+-- Idle example showed in full)
 local function makeSlide(i)
 	local f = CreateFrame("Frame", nil, board)
-	f:SetPoint("TOPLEFT", board, "TOPLEFT", 0, -TOP)
 	f:SetSize(BOARD_W, 1)
-	local fade = f:CreateAnimationGroup()
-	local a = fade:CreateAnimation("Alpha")
-	a:SetFromAlpha(0)
-	a:SetToAlpha(1)
-	a:SetDuration(FADE)
-	f.fadeIn = fade
 	frames[i] = f
 	ns.try("guide slide " .. slides[i].title, slides[i].build, f)
 	f:SetHeight(f.height or 400)
 	return f
 end
 
--- The board's height: the slide, then its dots
-local function boardHeight() return TOP + (frames[cur] and frames[cur].height or 400) + GAP + 14 end
+-- Where the slide starts: the same room under every blurb; the board's height: the slide, then its dots
+local function slideTop() return BLURB_Y + GD.height(blurb) + UNDER_BLURB end
+local function boardHeight() return slideTop() + (frames[cur] and frames[cur].height or 400) + GAP + DOT end
 
 local function show(n)
 	n = (n - 1) % #slides + 1
@@ -374,6 +380,8 @@ local function show(n)
 	local f = frames[n] or makeSlide(n)
 	title:SetText(sp.title)
 	blurb:SetText(sp.blurb or "")
+	f:ClearAllPoints()
+	f:SetPoint("TOPLEFT", board, "TOPLEFT", 0, -slideTop())
 	prevB:SetShown(n > 1)
 	nextB:SetText(n == #slides and "Start over" or ("Next" .. GD.ON))
 	dots.light(n)
@@ -381,8 +389,6 @@ local function show(n)
 	dots:SetPoint("TOP", f, "BOTTOM", 0, -GAP)
 	board:SetHeight(boardHeight())
 	f:Show()
-	f.fadeIn:Stop()
-	f.fadeIn:Play()
 	stepTo(0)
 	if page then ns.Options.refresh() end
 end
@@ -411,10 +417,10 @@ local function build(p)
 	sep:SetPoint("LEFT", word, "RIGHT", 9, -1)
 	title = board:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
 	title:SetPoint("LEFT", sep, "RIGHT", 9, 1)
-	blurb = GD.text(board, "", 2, 40, BOARD_W - 4)
+	blurb = GD.text(board, "", 2, BLURB_Y, BOARD_W - 4)
 	nextB = GD.bigButton(board, "Next" .. GD.ON, 112, function() show(cur + 1) end)
 	nextB:SetPoint("TOPRIGHT", board, "TOPRIGHT", 0, 0)
-	prevB = GD.bigButton(board, GD.BACK .. "Previous", 120, function() show(cur - 1) end)
+	prevB = GD.bigButton(board, GD.BACK .. "Previous", 128, function() show(cur - 1) end)
 	prevB:SetPoint("RIGHT", nextB, "LEFT", -8, 0)
 	dots = GD.dots(board, #slides, function(i) show(i) end)
 	board:SetScript("OnShow", function()
