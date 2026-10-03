@@ -255,7 +255,7 @@ end
 
 function Timer:set(d)
 	if not d then return self:clear() end
-	self.last = d
+	self.last, self.held = d, nil
 	ns.try("timer cooldown", self.cd.SetCooldownFromDurationObject, self.cd, d, true)
 	local bar = self.bar
 	if bar and self.barOn then
@@ -270,6 +270,7 @@ function Timer:set(d)
 end
 
 function Timer:setTime(start, length)
+	self.held = nil
 	if C_DurationUtil and C_DurationUtil.CreateDuration then
 		self.own = self.own or C_DurationUtil.CreateDuration()
 		local ok = ns.try("timer time", self.own.SetTimeFromStart, self.own, start, length)
@@ -285,14 +286,16 @@ function Timer:setTime(start, length)
 end
 
 function Timer:clear()
-	self.last = nil
+	self.last, self.held = nil, nil
 	if self.exp then self.exp:SetAlpha(0) end
 	self.cd:Clear()
 	if self.bar then self.bar:Hide() end
 end
 
+-- Frozen frac of the way through; a setExpire after it lights the warning if the time held is in it
 function Timer:static(frac, length)
 	length = length or 30
+	self.last, self.held = nil, (1 - frac) * length
 	self.cd:SetCooldown(GetTime() - frac * length, length)
 	pcall(self.cd.Pause, self.cd)
 	if self.bar then
@@ -382,6 +385,14 @@ function Timer:setExpire(e, icon)
 	if not e.fade then x.pulse:Stop(); x.dim:SetAlpha(0)
 	elseif not x.pulse:IsPlaying() then x.pulse:Play() end
 	self.expCurve = ns.lastSeconds(e.secs)
+	if self.held and not self.last then
+		-- Frozen: lit once here, never ticked
+		local ok, a = pcall(self.expCurve.Evaluate, self.expCurve, self.held)
+		x:SetAlpha(ok and a or 0)
+		warning[self] = nil
+		if next(warning) == nil then ticker:Hide() end
+		return
+	end
 	warning[self] = true
 	ticker:Show()
 	local d = self.last

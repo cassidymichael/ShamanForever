@@ -793,6 +793,13 @@ local function warnSecs(c, id)
 	end
 	return v or x.secs
 end
+-- Expiring's options for a slot holding id (nil: the bar's own time), as the bar shows them
+local function expireOpts(c, id)
+	local x = c.expire
+	return { secs = warnSecs(c, id), grey = x.grey, ring = x.ring, fade = x.fade, glow = x.glow }
+end
+TB.expireOpts = expireOpts
+function TB.pickSpell(el) return pickSpell(SLOT[el]) end
 
 local anyDown = false
 local kbOpen = false
@@ -870,8 +877,7 @@ local function refreshSlot(s)
 			s.badge:Show()
 		else s.badge:Hide() end
 		s.dur = d
-		local x = c.expire
-		s.timer:setExpire({ secs = warnSecs(c, down), grey = x.grey, ring = x.ring, fade = x.fade, glow = x.glow })
+		s.timer:setExpire(expireOpts(c, down))
 		liftWarning(s)
 		if iok and (isSecret(icon) or icon) then s.timer:setExpireIcon(icon) end
 		TB.drawTimeLeft(s)
@@ -1696,7 +1702,7 @@ local function paintSlot(s, rec)
 		TB.paintDown(v)
 		local left, life = TB.PREVIEW_LEFT[s.el][1], TB.PREVIEW_LEFT[s.el][2]
 		if st == "expiring" then left = 5 end
-		s.timer:setExpire(c.expire, icon)
+		s.timer:setExpire(expireOpts(c, pickSpell(s.slot)), icon)
 		liftWarning(s)
 		s.timer:setTime(rec.at - (life - left), life)
 		return rec.at + left

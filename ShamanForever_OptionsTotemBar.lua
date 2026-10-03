@@ -38,6 +38,7 @@ PREVIEW = {
 		h.slots = {}
 		for i = 1, 4 do
 			local ic = L.makePreviewIcon(bar, "totembar", PREVIEW)
+			ic.upT:restack(2)
 			ic.box = CreateFrame("Frame", nil, bar)
 			ic.badge = CreateFrame("Frame", nil, bar)
 			ic.badge:SetFrameLevel(ic:GetFrameLevel() + 6)
@@ -209,6 +210,7 @@ PREVIEW = {
 					end
 				end
 				ic.upT.school = el
+				local expiring = st == "expiring" and el == expEl and TB.expireOpts(c, TB.pickSpell(el))
 				if st == "idle" and not full then
 					ic:Hide()
 				elseif st == "killed" and el == expEl then
@@ -219,18 +221,11 @@ PREVIEW = {
 				elseif st == "idle" or (picking and i == 1) then
 					TB.paintEmpty(ic, c, el, pick)
 				else
-					local expiring = st == "expiring" and el == expEl
 					local left, life = TB.PREVIEW_LEFT[el][1], TB.PREVIEW_LEFT[el][2]
-					if expiring then left = 5 end
+					if expiring then left = expiring.secs > 0 and math.min(5, expiring.secs) or 5 end
 					P.frozen(ic.upT, 1 - left / life, life)
-					if expiring then
-						local x = c.expire
-						if x.grey then ic.tex:SetDesaturated(true) end
-						ic:SetRingShown(x.ring)
-						ic:SetPulsing(x.fade)
-						ic:SetGlowShown(x.glow)
-					end
 				end
+				ic.upT:setExpire(expiring or nil, pick or TB.TOTEM_ICON[el])
 			end
 		end
 		local boxes, sealed, spare = {}, {}, #els
@@ -288,8 +283,7 @@ local function build(p)
 	end
 	-- A slider over the setting's range (TB.RANGES)
 	local function tslider(label, tip, fmt, key, shown)
-		local r = TB.RANGES[key]
-		return p:slider(label, tip, r[1], r[2], r[3], fmt, tget(key), tset(key), shown)
+		return K.rangeSlider(p, TB.RANGES[key], label, tip, fmt, tget(key), tset(key), shown)
 	end
 
 	p:hero("totembar")
@@ -454,16 +448,14 @@ local function build(p)
 		tget("sizeFollow"), function(v) TB.setSizeFollow(v); changed() end, "size")
 	own("size", { default = tget("size"), reset = function() c().size = nil end })
 	p:sub(sizeFollow, function() return not c().sizeFollow end, function()
-		local r = TB.RANGES.size
-		p:slider("Icon size", nil, r[1], r[2], r[3], px, tget("size"), function(v) c().size = v; changed() end)
+		K.rangeSlider(p, TB.RANGES.size, "Icon size", nil, px, tget("size"), function(v) c().size = v; changed() end)
 	end)
 	p:dropdown("Call and Recall", "Where they sit on the bar.", { { "ends", "Both ends" }, { "before", "Before the slots" }, { "after", "After the slots" } },
 		tget("extras"), tset("extras"),
 		showWhen(function() return (c().call or c().recall) and not TB.skin.owns("extras") end, full), 180)
 	own("extrasScale")
 	own("stoneExtrasScale")
-	local extras = TB.RANGES.extrasScale
-	p:slider("Call and Recall size", "As a share of the slots' size.", extras[1], extras[2], extras[3],
+	K.rangeSlider(p, TB.RANGES.extrasScale, "Call and Recall size", "As a share of the slots' size.",
 		pct, function() return TB.eff().extrasScale end,
 		function(v) c()[TB.skin.extrasScaleKey()] = v; changed() end,
 		showWhen(function() return c().call or c().recall end, full))
@@ -564,7 +556,7 @@ local function build(p)
 		local secs = function(v) return v == 0 and "Off" or string.format("%d s", v) end
 		local r = TB.RANGES.expire.secs
 		for i = 1, MAX_WARN_ROWS do
-			local row = p:slider("", nil, r[1], r[2], r[3], secs,
+			local row = K.rangeSlider(p, r, "", nil, secs,
 				function() local name = overName(i); return name and over()[name] or c().expire.secs end,
 				function(v) local name = overName(i); if name then over()[name] = v; changed() end end,
 				function() return overName(i) ~= nil end)
