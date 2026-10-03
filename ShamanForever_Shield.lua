@@ -375,7 +375,7 @@ local function buildNative(slot, button, cd)
 	Count.text(slot, button, overlay, function(fs) countFont(fs, button) end, "shield count")
 	-- min 0: one charge is one third, not empty
 	local bar = Count.bar(slot, overlay, button, lv + 1)
-	button:SetApplicationBar(bar, { minApplications = 0, maxApplications = CHARGES })
+	ns.try("shield count bar", button.SetApplicationBar, button, bar, { minApplications = 0, maxApplications = CHARGES })
 	Count.styleBar(slot, ns.sizeOf("shield"), CHARGES, count("barHeight"), barColor(), count("bar"))
 	slot.fs:SetAlpha(count("number") and 1 or 0)
 end
