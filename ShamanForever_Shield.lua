@@ -659,9 +659,9 @@ local PREVIEW = {
 		local n = st == "up3" and 3 or st == "up2" and 2 or 1
 		P.frozen(ic.upT, 0.38, 600)
 		if count("bar") then
-			local c = count("barColor")
+			local c = barColor()
 			ic.bar:SetHeight(count("barHeight"))
-			P.setBar(ic, CHARGES, n, c[1], c[2], c[3])
+			P.setBar(ic, CHARGES, n, c[1], c[2], c[3], c[4])
 		end
 		if count("number") then
 			ns.Media.setFont(ic.count, nil, count("size"))
