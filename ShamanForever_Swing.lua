@@ -40,29 +40,13 @@ local RANGES = { width = { 40, 400, 4 }, height = { 4, 40, 1 }, scale = { 0.5, 3
 SW.RANGES = RANGES
 local CHOICES = { show = { "combat", "always", "never" }, colorBy = COLOR_BY,
 	fillFrom = { "left", "right" }, countdownPos = { "center", "left", "right" } }
-local function finite(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
-local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
 
+-- What the profile's cleaning can't declare, once per saved table
 local cfgTable
 local function cfg()
-	local db = ns.getDB()
-	if type(db.swingBar) ~= "table" then db.swingBar = {} end
-	local t = db.swingBar
+	local t = ns.getDB().swingBar
 	if t ~= cfgTable then
-		for k, v in pairs(SW.DEFAULTS) do
-			if type(t[k]) ~= type(v) then t[k] = type(v) == "table" and CopyTable(v) or v end
-		end
-		for k, r in pairs(RANGES) do
-			if t[k] ~= t[k] then t[k] = SW.DEFAULTS[k] else t[k] = clamp(t[k], r) end
-		end
-		for k, list in pairs(CHOICES) do
-			if not tContains(list, t[k]) then t[k] = list[1] end
-		end
-		for _, k in ipairs({ "color", "countdownColor" }) do
-			if not ns.isColor(t[k]) then t[k] = CopyTable(SW.DEFAULTS[k]) end
-		end
-		if not finite(t.x) then t.x = SW.DEFAULTS.x end
-		if not finite(t.y) then t.y = SW.DEFAULTS.y end
+		ns.fillDefaults(t, SW.DEFAULTS)
 		if not ns.POINTS[t.point] then t.point, t.x, t.y = SW.DEFAULTS.point, SW.DEFAULTS.x, SW.DEFAULTS.y end
 		cfgTable = t
 	end
@@ -337,6 +321,6 @@ function SW.debug()
 end
 
 ns.registerBar("swing", { label = "Swing timer", cfg = cfg, saved = "swingBar", defaults = SW.DEFAULTS,
-	ranges = RANGES, on = SW.isOn, kinds = { "border", "text", "bar" }, movable = movable,
+	ranges = RANGES, choices = CHOICES, on = SW.isOn, kinds = { "border", "text", "bar" }, movable = movable,
 	hud = { show = showPreview } })
 ns.registerModule(SW)

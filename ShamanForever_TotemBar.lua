@@ -93,8 +93,8 @@ local RANGES = {
 	expire = { secs = EXPIRE_SECS },
 }
 TB.RANGES = RANGES
-local EVENTS = { "expire", "ended", "killed" }
-local function finite(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
+local CHOICES = { mode = { "blizzard", "active", "everything" }, show = { "always", "active", "combat", "target" },
+	barPlace = { "in", "out" }, setSwitch = { "popout", "cycle" }, stonePlinth = { "slim", "normal", "grand" } }
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
 
 local EXPIRE_OVER = { earthbind = 5, stoneclaw = 5, manaTide = 3 }
@@ -119,35 +119,14 @@ function TB.overChanged(over)
 	return false
 end
 
+-- What the profile's cleaning can't declare, once per saved table
 local cfgTable
 local function cfg()
-	local db = ns.getDB()
-	if type(db.totemBar) ~= "table" then db.totemBar = {} end
-	local t = db.totemBar
+	local t = ns.getDB().totemBar
 	if t ~= cfgTable then
-		if t.mode ~= "blizzard" and t.mode ~= "active" and t.mode ~= "everything" then t.mode = nil end
-		if t.show ~= "always" and t.show ~= "active" and t.show ~= "combat" and t.show ~= "target" then t.show = nil end
-		if t.barPlace ~= "in" and t.barPlace ~= "out" then t.barPlace = nil end
-		if t.setSwitch ~= "popout" and t.setSwitch ~= "cycle" then t.setSwitch = nil end
-		if t.stonePlinth ~= "slim" and t.stonePlinth ~= "normal" and t.stonePlinth ~= "grand" then t.stonePlinth = nil end
 		if type(t.expire) ~= "table" then t.expire = {} end
 		if type(t.expire.over) ~= "table" then t.expire.over = TB.overDefaults() end
-		for k, v in pairs(TB.DEFAULTS) do
-			if type(t[k]) ~= type(v) then t[k] = type(v) == "table" and CopyTable(v) or v end
-		end
-		for _, name in ipairs(EVENTS) do
-			local e = t[name]
-			for k, v in pairs(TB.DEFAULTS[name]) do
-				if type(e[k]) ~= type(v) then e[k] = type(v) == "table" and CopyTable(v) or v end
-			end
-		end
-		for k, r in pairs(RANGES) do
-			if type(t[k]) == "number" then
-				if t[k] ~= t[k] then t[k] = TB.DEFAULTS[k] else t[k] = clamp(t[k], r) end
-			end
-		end
-		if not finite(t.x) then t.x = TB.DEFAULTS.x end
-		if not finite(t.y) then t.y = TB.DEFAULTS.y end
+		ns.fillParts(t, TB.DEFAULTS)
 		if not ns.POINTS[t.point] then t.point, t.x, t.y = TB.DEFAULTS.point, TB.DEFAULTS.x, TB.DEFAULTS.y end
 		local seen, order = {}, {}
 		for _, el in ipairs(t.order) do
@@ -155,16 +134,12 @@ local function cfg()
 		end
 		for _, el in ipairs(ELEMENTS) do if not seen[el] then table.insert(order, el) end end
 		t.order = order
-		local x = t.expire
-		x.secs = x.secs == x.secs and clamp(x.secs, EXPIRE_SECS) or TB.DEFAULTS.expire.secs
-		for name, v in pairs(x.over) do
-			if type(name) ~= "string" or type(v) ~= "number" or v ~= v then x.over[name] = nil
-			else x.over[name] = clamp(v, EXPIRE_SECS) end
+		local over = t.expire.over
+		for name, v in pairs(over) do
+			if type(name) ~= "string" or type(v) ~= "number" or v ~= v then over[name] = nil
+			else over[name] = clamp(v, EXPIRE_SECS) end
 		end
 		if type(t.size) ~= "number" then t.size = nil end
-		for _, k in ipairs({ "rangeIn", "rangeOut", "keyColor" }) do
-			if not ns.isColor(t[k]) then t[k] = CopyTable(TB.DEFAULTS[k]) end
-		end
 		cfgTable = t
 	end
 	return t
@@ -1766,7 +1741,7 @@ function TB.debug()
 end
 
 ns.registerBar("totembar", { label = "Totem bar", cfg = cfg, saved = "totemBar", defaults = TB.DEFAULTS,
-	ranges = TB.RANGES, on = barOn, kinds = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
+	ranges = TB.RANGES, choices = CHOICES, on = barOn, kinds = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
 	-- Its theme can draw its own border
 	ownLabel = function(kind)
 		if kind == "border" and TB.skin.owns("border") then return "Totem bar (its theme)" end

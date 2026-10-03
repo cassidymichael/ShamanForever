@@ -780,7 +780,7 @@ local function selectProfile(name)
 	fillDefaults(db, DEFAULTS)
 	for _, key in ipairs(BAR_ORDER) do
 		local saved = BARS[key].saved
-		if db[saved] == nil then db[saved] = {} end
+		if type(db[saved]) ~= "table" then db[saved] = {} end
 	end
 	sanitize()
 	ns.Profiles.remember(name)
