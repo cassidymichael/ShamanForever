@@ -47,7 +47,6 @@ end
 
 -- Frames
 local SIDES = { "top", "bottom", "left", "right" }
-local CORNERS = { { "TOPLEFT", -1, 1 }, { "TOPRIGHT", 1, 1 }, { "BOTTOMLEFT", -1, -1 }, { "BOTTOMRIGHT", 1, -1 } }
 local BLACK = { 0, 0, 0, 1 }
 
 local schoolColors = {}
@@ -132,36 +131,6 @@ local function drawRings(f, rings, b)
 	end
 	for i = n + 1, #f.border do f.border[i]:Hide() end
 	return d
-end
-
-local function drawCaps(f, caps, out, b)
-	local t = f.frameCaps
-	if not caps then
-		if t then for _, x in ipairs(t) do x:Hide() end end
-		return 0
-	end
-	if not t then
-		t = {}
-		for i = 1, 8 do t[i] = f:CreateTexture(nil, "BACKGROUND", nil, -7) end
-		f.frameCaps = t
-	end
-	local px = W.linePx(f, pxOf(caps.px, b))
-	local o = math.max(out, px)
-	local len = o + W.linePx(f, caps.len or 6)
-	local c = colorOf(caps.color, b, f)
-	for i, corner in ipairs(CORNERS) do
-		local point, x, y = corner[1], corner[2] * o, corner[3] * o
-		local along, down = t[2 * i - 1], t[2 * i]
-		along:SetSize(len, px)
-		down:SetSize(px, len)
-		for _, a in ipairs({ along, down }) do
-			a:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
-			a:ClearAllPoints()
-			a:SetPoint(point, f, point, x, y)
-			a:Show()
-		end
-	end
-	return o - out
 end
 
 local function setArt(t, art)
@@ -376,7 +345,6 @@ function SA.inset(f, b, w, shape)
 	if not look then return 0 end
 	local out = 0
 	for _, ring in ipairs(look.rings or {}) do out = out + W.linePx(f, pxOf(ring.px, b)) end
-	if look.caps then out = math.max(out, W.linePx(f, pxOf(look.caps.px, b))) end
 	local art = look.art
 	if art and art.margin then out = math.max(out, W.linePx(f, art.px))
 	elseif art and art.inset then
@@ -414,7 +382,6 @@ function SA.applyBorder(f, b, shape)
 	local look = drawnLook(b, shape)
 	if not look then
 		drawRings(f, nil, b)
-		drawCaps(f, nil)
 		drawOverlay(f, nil)
 		drawSlice(f, nil)
 		drawMask(f, nil)
@@ -423,7 +390,6 @@ function SA.applyBorder(f, b, shape)
 		return
 	end
 	local out = drawRings(f, look.rings, b)
-	out = out + drawCaps(f, look.caps, out, b)
 	drawOverlay(f, look.art)
 	out = math.max(out, drawSlice(f, look.art))
 	local mask = maskOf(look)
@@ -495,9 +461,6 @@ S.addLook("border", "hairline", { name = "Gold hairline", group = "lines",
 S.addLook("border", "bevel", { name = "Bronze bevel", group = "lines", uses = { size = true },
 	rings = { { color = BLACK }, { px = "size", top = BRONZE_HI, left = BRONZE_HI, bottom = BRONZE_LO, right = BRONZE_LO },
 		{ color = BRONZE_DARK } } })
-S.addLook("border", "caps", { name = "Corner caps", group = "lines",
-	uses = { size = true, color = true, capSize = true, capColor = true },
-	rings = { { px = "size", color = "color" } }, caps = { px = "capSize", len = 6, color = "capColor" } })
 S.addLook("border", "cdm", { name = "Cooldown Manager", group = "blizzard",
 	mask = { atlas = CDM_MASK }, swipe = CDM_SWIPE, art = { atlas = CDM_OVERLAY, inset = { 0.18, 0.18, 0.16, 0.16 } } })
 S.addLook("border", "button", { name = "Forever action button", group = "blizzard",
