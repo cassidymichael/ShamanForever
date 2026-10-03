@@ -230,9 +230,13 @@ local function placeBar(t, s, side)
 		local y = t.barInset and t.barInset() or 0
 		bar:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, y); bar:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, y)
 	else
+		-- As long as the icon's box, border included
 		local out, d = OUT_POINTS[side], t:outset()
-		bar:SetPoint(out[1], a, out[2], out[5] * d, out[6] * d)
-		bar:SetPoint(out[3], a, out[4], out[5] * d, out[6] * d)
+		local _, inset = t:boxInset()
+		local span = W.roundPx(inset, W.pixel(a))
+		local sx, sy = (side == "above" or side == "below") and -span or 0, (side == "left" or side == "right") and span or 0
+		bar:SetPoint(out[1], a, out[2], out[5] * d + sx, out[6] * d + sy)
+		bar:SetPoint(out[3], a, out[4], out[5] * d - sx, out[6] * d - sy)
 	end
 	-- Beside a column's icon it stands upright and drains downward
 	local upright = side == "left" or side == "right"
