@@ -191,12 +191,13 @@ function GD.shape(f, o)
 	return s
 end
 
--- A line from x, y on the stage down to the Element box; f.from(y) starts it elsewhere
+-- A line from x, y on the stage down to the Element box; f.from(y, x) starts it elsewhere
 function GD.lead(s, x, y)
 	local f = CreateFrame("Frame", nil, s.group)
 	f:SetFrameLevel(s.stage:GetFrameLevel() + 5)
 	f:SetWidth(2)
-	function f.from(top)
+	function f.from(top, left)
+		x = left or x
 		f:ClearAllPoints()
 		f:SetPoint("TOPLEFT", s.stage, "TOPLEFT", x - 1, -top)
 		f:SetHeight(math.max(s.elementY - s.stageY - top, 1))
