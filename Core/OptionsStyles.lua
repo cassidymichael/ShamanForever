@@ -25,7 +25,8 @@ local HOLD = 1.2
 local view = { school = "all", backdrop = "dark", size = "small", scale = 1.2, colorBy = "school",
 	flash = S.PARTS.pop.defaults.flash, frameBorder = true, groupDir = "row" }
 local stamp = 0
-local preview = { border = {}, glow = {}, pop = {}, frame = {} }
+local preview = { pop = {} }
+local NONE = {}
 
 local function size() return SIZES[view.size] end
 local function schoolOf(key)
@@ -110,7 +111,7 @@ end
 local function dress(c)
 	local sc = cellSchool(c)
 	local own = {}
-	for k, v in pairs(preview[c.part]) do own[k] = v end
+	for k, v in pairs(preview[c.part] or NONE) do own[k] = v end
 	for k, v in pairs(c.fields()) do own[k] = v end
 	local over = { [c.part] = own }
 	if c.part == "frame" and not view.frameBorder then over.border = { show = false } end
@@ -716,6 +717,19 @@ local function chipRow(p, label, items, key, part)
 	p:add(f, 26, nil, paint)
 end
 
+-- A grey note, then the link to the part's block in Global settings (the caller adds the row)
+local function noteRow(p, text, part)
+	local f = p:row(22)
+	local fs = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	fs:SetPoint("LEFT", f, "LEFT", 4, 0)
+	fs:SetTextColor(0.72, 0.72, 0.72)
+	fs:SetText(text)
+	local block = BLOCKS[part]
+	local go = link(f, GLOBAL .. " > " .. block[2], function() ns.Options.openGlobal(block[1]) end)
+	go:SetPoint("LEFT", fs, "RIGHT", 6, 0)
+	return f
+end
+
 -- rows: { label, field, format, flip (shows 1 - the value) }
 local function previewRows(p, part, rows)
 	local shipped = NEUTRAL[S.PARTS[part].path[1]]
@@ -731,14 +745,7 @@ local function previewRows(p, part, rows)
 		end
 		K.styleSlider(p, part, field, r[1], nil, r[3], get, set)
 	end
-	local f = p:row(22)
-	local text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	text:SetPoint("LEFT", f, "LEFT", 4, 0)
-	text:SetTextColor(0.72, 0.72, 0.72)
-	text:SetText("Preview only. Not all settings affect all styles. All settings:")
-	local block = BLOCKS[part]
-	local go = link(f, GLOBAL .. " > " .. block[2], function() ns.Options.openGlobal(block[1]) end)
-	go:SetPoint("LEFT", text, "RIGHT", 6, 0)
+	local f = noteRow(p, "Preview only. Not all settings affect all styles. All settings:", part)
 	local reset = Page.textLink(f, "Reset", function()
 		wipe(preview[part])
 		restyleAll()
@@ -747,29 +754,30 @@ local function previewRows(p, part, rows)
 	p:add(f, 22, nil, function() reset:SetShown(next(preview[part]) ~= nil) end)
 end
 
-local pct, px = Page.pct, Page.px
-local function secs(v) return string.format("%.1f s", v) end
+local pct = Page.pct
+
+-- Where a part's settings are, for a block without preview sliders
+local function settingsNote(p, text, part)
+	p:add(noteRow(p, text, part), 22)
+end
+
+local function artHeader(p, text)
+	local f = p:header(text)
+	OA.expBadge(f, "Art frames"):SetPoint("LEFT", f.text, "RIGHT", 10, 0)
+end
+
+-- Glows that differ by school are left out for now
+local function notSchooled(e) return not e.bySchool end
 
 function SP.build(p)
 	header(p)
 	p.allOpen = true
 	p:header("Border style")
-	previewRows(p, "border", { { "Border size", "size", px } })
+	settingsNote(p, "Its settings are on each element's page and in", "border")
 	flowSection(p, "border", "look")
-	p:header("Element art frame")
-	chipRow(p, "Border", { { true, "On" }, { false, "Off" } }, "frameBorder", "frame")
-	flowSection(p, "frame", "look", { keep = usableFrame, stage = frameStage })
-	p:header("Group art frame")
-	chipRow(p, "Direction", { { "row", "Row" }, { "column", "Column" } }, "groupDir", "groupframe")
-	groupSection(p)
 	p:header("Pulsing glow")
-	previewRows(p, "glow", {
-		{ "Pulse length", "speed", secs },
-		{ "Pulse depth", "low", pct, true },
-		{ "Thickness", "width", pct },
-		{ "Intensity", "strength", pct },
-	})
-	flowSection(p, "glow", "look")
+	settingsNote(p, "Its settings are on each element's page and in", "glow")
+	flowSection(p, "glow", "look", { keep = notSchooled })
 	p:header("Pop")
 	local f = p:row(26)
 	local paint = chips(f, S.field("pop", "flash").name, choiceItems("pop", "flash"), "flash", 4, -13)
@@ -780,6 +788,12 @@ function SP.build(p)
 		{ "Reach", "reach", pct },
 	})
 	popGrid(p)
+	artHeader(p, "Element art frame")
+	chipRow(p, "Border", { { true, "On" }, { false, "Off" } }, "frameBorder", "frame")
+	flowSection(p, "frame", "look", { keep = usableFrame, stage = frameStage })
+	artHeader(p, "Group art frame")
+	chipRow(p, "Direction", { { "row", "Row" }, { "column", "Column" } }, "groupDir", "groupframe")
+	groupSection(p)
 end
 
 ns.Options.registerPage("styles", { title = "Styles explorer", icon = "Interface\\Icons\\INV_Misc_Gem_Variety_01",

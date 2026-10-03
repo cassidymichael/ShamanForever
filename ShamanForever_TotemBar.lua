@@ -53,6 +53,8 @@ TB.DEFAULTS = {
 	setNumber = true,
 	extras = "after",   -- ends | before | after the slots
 	extrasScale = 0.8,
+	extrasGap = 8,   -- pixels from the slots to Call and Recall
+	extrasSpacing = 2,   -- between Call and Recall on one side
 	sizeFollow = true,
 	empty = "pick",   -- pick | frame | blank
 	idleGrey = false,
@@ -88,6 +90,7 @@ local EXPIRE_SECS = { 0, 30, 1 }
 local RANGES = {
 	scale = { 0.5, 3, 0.05 }, alpha = { 0.1, 1, 0.05 }, spacing = { -10, 20, 1 }, size = { 24, 96, 1 },
 	arrowSize = { 8, 32, 1 }, extrasScale = { 0.5, 1.5, 0.05 }, stoneExtrasScale = { 0.5, 1.5, 0.05 },
+	extrasGap = { -10, 30, 1 }, extrasSpacing = { -10, 20, 1 },
 	idleAlpha = { 0.1, 1, 0.05 }, badgeSize = { 0.25, 0.8, 0.05 }, badgeAlpha = { 0.1, 1, 0.05 },
 	badgeSat = { 0, 1, 0.05 }, badgeX = { -30, 30, 1 }, badgeY = { -30, 30, 1 }, rangeHeight = { 1, 12, 1 },
 	fadeAfter = { 0, 10, 1 }, keySize = { 6, 30, 1 }, keyX = { -20, 20, 1 }, keyY = { -20, 20, 1 },
@@ -185,25 +188,24 @@ end
 -- Geometry, shared with the options' preview of the bar
 local POP_STEP = 3
 TB.POP_FILL = { 0, 0, 0, 0.72 }
-local EXTRA_GAP = 6
 
 function TB.along(n, size, px)
 	local c = TB.eff()
 	local before, after = TB.extraSides()
 	local function round(v) return px and W.roundPx(v, px) or math.floor(v + 0.5) end
-	local esz, gap, extraGap = round(size * c.extrasScale), c.spacing, c.spacing + EXTRA_GAP
+	local esz, gap, extraGap, pair = round(size * c.extrasScale), c.spacing, c.extrasGap, c.extrasSpacing
 	local own, ownExtra = TB.skin.spacing(size)
-	if own then gap, extraGap = own, ownExtra end
-	if px then gap, extraGap = round(gap), round(extraGap) end
+	if own then gap, extraGap, pair = own, ownExtra, own end
+	if px then gap, extraGap, pair = round(gap), round(extraGap), round(pair) end
 	local list, long = {}, 0
 	local function put(key, space, sz, extra)
 		if #list > 0 then long = long + space end
 		table.insert(list, { key = key, offset = long, size = sz, extra = extra })
 		long = long + sz
 	end
-	for _, k in ipairs(before) do put(k, gap, esz, true) end
+	for _, k in ipairs(before) do put(k, pair, esz, true) end
 	for i = 1, n do put(i, i == 1 and extraGap or gap, size) end
-	for i, k in ipairs(after) do put(k, i == 1 and extraGap or gap, esz, true) end
+	for i, k in ipairs(after) do put(k, i == 1 and extraGap or pair, esz, true) end
 	-- Negative spacing overlaps buttons: the bar spans them all
 	local lo, hi = 0, 0
 	for _, it in ipairs(list) do
