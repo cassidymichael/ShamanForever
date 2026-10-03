@@ -78,15 +78,37 @@ local LINE_SIDE = { top = MEDIA .. "Line-Top", bottom = MEDIA .. "Line-Bottom", 
 	right = MEDIA .. "Line-Right" }
 local WHOLE = { false }
 
-local function lineHolder(f, n)
-	local h = f.border[n]
+-- A holder round f for sliced textures, at SetScale(w / m) so a margin of m texels draws w wide, its
+-- outer edge reach out. Anchored, not sized (f's size can be secret); offsets are in h's scale.
+local function sliceHolder(f, h, w, m, reach)
 	if not h then
 		h = CreateFrame("Frame", nil, f)
 		h:EnableMouse(false)
 		h.tex = {}
-		f.border[n] = h
 	end
+	local k = w / m
+	h:SetScale(k)
+	h:ClearAllPoints()
+	h:SetPoint("TOPLEFT", f, "TOPLEFT", -reach / k, reach / k)
+	h:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", reach / k, -reach / k)
+	h:SetFrameLevel(f:GetFrameLevel())
+	h:Show()
 	return h
+end
+
+-- Its texture j, filling it: file sliced at margin m
+local function sliceTex(h, j, layer, sub, m, file, ...)
+	local t = h.tex[j]
+	if not t then
+		t = h:CreateTexture(nil, layer, nil, sub)
+		t:SetAllPoints()
+		h.tex[j] = t
+	end
+	t:SetTexture(file, ...)
+	t:SetTextureSliceMargins(m, m, m, m)
+	t:SetTextureSliceMode(STRETCHED)
+	t:Show()
+	return t
 end
 
 -- A ring is one sliced texture round f (one a side where sides differ), so a pop's Scale carries it with
@@ -100,32 +122,17 @@ local function drawRings(f, rings, b)
 		if w > 0 then
 			local o = d + w
 			n = n + 1
-			local h = lineHolder(f, n)
-			local k = w / LINE_MARGIN
-			h:SetScale(k)
-			-- Anchored, not sized (f's size can be secret); offsets are in h's scale
-			h:ClearAllPoints()
-			h:SetPoint("TOPLEFT", f, "TOPLEFT", -o / k, o / k)
-			h:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", o / k, -o / k)
-			h:SetFrameLevel(f:GetFrameLevel())
+			local h = sliceHolder(f, f.border[n], w, LINE_MARGIN, o)
+			f.border[n] = h
 			local sides = ring.top or ring.bottom or ring.left or ring.right
 			local list = sides and SIDES or WHOLE
 			for j, side in ipairs(list) do
-				local t = h.tex[j]
-				if not t then
-					t = h:CreateTexture(nil, "BACKGROUND", nil, -8)
-					t:SetAllPoints()
-					h.tex[j] = t
-				end
-				t:SetTexture(side and LINE_SIDE[side] or LINE_RING, "CLAMP", "CLAMP", "NEAREST")
-				t:SetTextureSliceMargins(LINE_MARGIN, LINE_MARGIN, LINE_MARGIN, LINE_MARGIN)
-				t:SetTextureSliceMode(STRETCHED)
+				local t = sliceTex(h, j, "BACKGROUND", -8, LINE_MARGIN, side and LINE_SIDE[side] or LINE_RING,
+					"CLAMP", "CLAMP", "NEAREST")
 				local c = colorOf(side and ring[side] or ring.color, b, f)
 				t:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
-				t:Show()
 			end
 			for j = #list + 1, #h.tex do h.tex[j]:Hide() end
-			h:Show()
 			d = o
 		end
 	end
@@ -164,31 +171,13 @@ end
 
 -- A 9-slice frame round the icon, outside its edge; returns how far it reaches.
 local function drawSlice(f, art)
-	local h = f.frameArt
-	if not (art and art.margin) then
-		if h then h:Hide() end
+	local px = art and art.margin and W.linePx(f, art.px) or 0
+	if px <= 0 then   -- SetScale refuses 0
+		if f.frameArt then f.frameArt:Hide() end
 		return 0
 	end
-	if not h then
-		h = CreateFrame("Frame", nil, f)
-		h:EnableMouse(false)
-		h.tex = h:CreateTexture(nil, "ARTWORK")
-		h.tex:SetAllPoints()
-		f.frameArt = h
-	end
-	local px = W.linePx(f, art.px)
-	local k = px / art.margin
-	if k <= 0 then h:Hide(); return 0 end   -- SetScale refuses 0
-	h:SetScale(k)
-	-- Anchored, not sized (f's size can be secret); offsets are in h's scale
-	h:ClearAllPoints()
-	h:SetPoint("TOPLEFT", f, "TOPLEFT", -art.margin, art.margin)
-	h:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", art.margin, -art.margin)
-	h:SetFrameLevel(f:GetFrameLevel())
-	h.tex:SetTexture(art.file)
-	h.tex:SetTextureSliceMargins(art.margin, art.margin, art.margin, art.margin)
-	h.tex:SetTextureSliceMode(STRETCHED)
-	h:Show()
+	f.frameArt = sliceHolder(f, f.frameArt, px, art.margin, px)
+	sliceTex(f.frameArt, 1, "ARTWORK", 0, art.margin, art.file)
 	return px
 end
 
