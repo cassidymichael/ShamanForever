@@ -302,6 +302,16 @@ local function drawSwipe(f, look)
 	for _, cd in ipairs(swipers[f] or {}) do swipeOne(f, cd, look) end
 end
 
+-- How far in from f's edge its picture shows under its border's art (a part drawn in the icon keeps
+-- inside it: a time bar, the countdown)
+function SA.pictureInset(f)
+	local look = swipeLooks[f]
+	if not (look and look.swipeInset) then return 0 end
+	local w = f:GetWidth()
+	if ns.isSecret(w) then return 0 end
+	return look.swipeInset * w
+end
+
 function SA.followSwipe(f, cd)
 	local list = swipers[f] or {}
 	swipers[f] = list

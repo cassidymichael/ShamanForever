@@ -249,11 +249,14 @@ local function placeBar(t, s, side)
 		t.edged = out ~= nil
 	end
 	bar:ClearAllPoints()
+	-- In the icon it keeps inside the picture
+	local pic = ns.StyleArt.pictureInset(a)
+	local back = pic > 0 and -pic or 0
 	if side == "top" then
-		bar:SetPoint("TOPLEFT", a, "TOPLEFT", 0, 0); bar:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, 0)
+		bar:SetPoint("TOPLEFT", a, "TOPLEFT", pic, back); bar:SetPoint("TOPRIGHT", a, "TOPRIGHT", back, back)
 	elseif side == "bottom" then
-		local y = t.barInset and t.barInset() or 0
-		bar:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, y); bar:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, y)
+		local y = (t.barInset and t.barInset() or 0) + pic
+		bar:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", pic, y); bar:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", back, y)
 	else
 		-- As long as the icon's box, border included, its edge too
 		local e = t:edge()
@@ -314,7 +317,8 @@ function Timer:apply()
 	if self.last then self:set(self.last, self.lastBar) end
 	self.barIn = self.barOn and (side == "top" or side == "bottom")
 	if self.fs then
-		T.placeText(self.fs, self.anchor, s, self.barIn, self.dual and self.part == "uptime")
+		T.placeText(self.fs, self.anchor, s, self.barIn, self.dual and self.part == "uptime",
+			ns.StyleArt.pictureInset(self.anchor))
 	end
 end
 
@@ -331,17 +335,18 @@ function T.placeAll()
 end
 
 -- The countdown's place on anchor for timer style s, clear of a bar in the icon (barIn) on
--- s.barEdge; dual: an uptime sharing its icon with a cooldown
-function T.placeText(fs, anchor, s, barIn, dual)
+-- s.barEdge; dual: an uptime sharing its icon with a cooldown; inset: how far in its picture starts
+function T.placeText(fs, anchor, s, barIn, dual, inset)
 	local pos = s.textPos
 	if pos == "auto" then pos = dual and "topleft" or "center" end
+	local d = inset or 0
 	fs:ClearAllPoints()
 	if pos == "topleft" then
 		local y = (barIn and s.barEdge == "top") and -(s.barHeight + 1) or -1
-		fs:SetPoint("TOPLEFT", anchor, "TOPLEFT", 1, y); fs:SetJustifyH("LEFT")
+		fs:SetPoint("TOPLEFT", anchor, "TOPLEFT", 1 + d, y - d); fs:SetJustifyH("LEFT")
 	elseif pos == "bottom" then
 		local y = (barIn and s.barEdge ~= "top") and (s.barHeight + 1) or 1
-		fs:SetPoint("BOTTOM", anchor, "BOTTOM", 0, y); fs:SetJustifyH("CENTER")
+		fs:SetPoint("BOTTOM", anchor, "BOTTOM", 0, y + d); fs:SetJustifyH("CENTER")
 	else
 		fs:SetPoint("CENTER", anchor, "CENTER", 0, 0); fs:SetJustifyH("CENTER")
 	end
