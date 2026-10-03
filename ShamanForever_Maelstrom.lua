@@ -40,6 +40,13 @@ M.DEFAULTS = {
 M.RANGES = { count = { barHeight = { 1, 20, 1 }, size = { 8, 40, 1 } } }
 local CHOICES = { idleWhen = { never = true, notup = true, five = true } }
 local POS = { BOTTOMRIGHT = true, CENTER = true }
+-- spellID: the talent's, once known
+local DEF = { key = KEY, idleChoices = {
+	{ "never", "Never", "It always shows in full" },
+	{ "notup", "Not up", "Idle while it isn't up" },
+	{ "five", "Below five stacks", "Idle while it's below five stacks or not up",
+		"Below five stacks: shown in full only at five." },
+} }
 
 local function setting(name, field) return ns.elementSetting(KEY, name, field) end
 local function count(field) return setting("count", field) end
@@ -61,7 +68,7 @@ local BUFF = {
 		return t
 	end,
 	max = 5,
-	learned = function() return M.spellID ~= nil end,
+	learned = function() return DEF.spellID ~= nil end,
 }
 local src = BUFF
 
@@ -77,15 +84,8 @@ ns.registerElement(KEY, { frame = f, label = Spells.name("maelstromWeapon"), def
 	standInBorder = true,
 	styles = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
 	timerCant = { bar = "Its timer is Blizzard's own; a time bar can't follow it." },
-	kind = "maelstrom", def = M, spell = "maelstromWeapon", icon = M.icon, school = "air",
+	kind = "maelstrom", def = DEF, spell = "maelstromWeapon", icon = M.icon, school = "air",
 	blurb = "Its stacks, with a pop and a glow at five.", experimental = "Maelstrom Weapon" })
-M.key = KEY
-M.idleChoices = {
-	{ "never", "Never", "It always shows in full" },
-	{ "notup", "Not up", "Idle while it isn't up" },
-	{ "five", "Below five stacks", "Idle while it's below five stacks or not up",
-		"Below five stacks: shown in full only at five." },
-}
 local function idleWhen()
 	local w = setting("idleWhen")
 	return CHOICES.idleWhen[w] and w or "notup"
@@ -458,8 +458,8 @@ ns.registerKind("maelstrom", { preview = function() return PREVIEW end })
 
 function M.resolve()
 	ns.ELEMENTS[KEY].label = Spells.name("maelstromWeapon")
-	M.spellID = Spells.known("maelstromWeapon")
-	return tostring(M.spellID)
+	DEF.spellID = Spells.known("maelstromWeapon")
+	return tostring(DEF.spellID)
 end
 
 -- Numbers are clamped as profiles load (their ranges); colours and choices here
@@ -525,7 +525,7 @@ function M.debug()
 	say("maelstrom: spell %s, following %s (%d stacks), stacks container %s, pop gate container %s "
 		.. "(gated %s), pop container %s (%s), container at five %s (sensor %s, glow %s); idle %s, "
 		.. "copy counts %s",
-		tostring(M.spellID), table.concat(ids, ","), src.max, state(stacks), state(gateSlot),
+		tostring(DEF.spellID), table.concat(ids, ","), src.max, state(stacks), state(gateSlot),
 		tostring(gateSlot.gated), state(pop), fx:describe(), state(five),
 		tostring(five.sensed), five.glow and five.glow.look and five.glow.look.key or "none",
 		idleWhen(), tostring(copyReady()))
