@@ -156,6 +156,7 @@ end
 local Timer = {}
 Timer.__index = Timer
 local fonts = 0
+local live = setmetatable({}, { __mode = "k" })
 
 -- opts: anchor, cd (an existing Cooldown), dual, school, aura (on Blizzard's aura button: it
 -- drives the bar, so it is never fed a duration here), barInset, outset() (how far out of the
@@ -191,6 +192,7 @@ function T.new(parent, key, part, opts)
 	bar.bg:SetColorTexture(0, 0, 0, 0.6)
 	bar:Hide()
 	t.bar = bar
+	live[t] = true
 	return t
 end
 
@@ -267,6 +269,7 @@ function Timer:apply()
 	cd:SetCountdownFont(self.fontName)
 	self.barOn = self.bar ~= nil and s.bar and not cant.bar
 	local side = T.barSide(self.key, s)
+	self.side = side
 	local bar = self.bar
 	if bar then
 		bar:SetStatusBarTexture(ns.Media.barTexture(self.key))
@@ -280,6 +283,18 @@ function Timer:apply()
 	self.barIn = self.barOn and (side == "top" or side == "bottom")
 	if self.fs then
 		T.placeText(self.fs, self.anchor, s, self.barIn, self.dual and self.part == "uptime")
+	end
+end
+
+-- After a layout, bars out of the icon follow their group's direction and size; a bar on an aura
+-- button follows when its slot restyles
+function T.placeAll()
+	for t in pairs(live) do
+		if t.bar and not t.aura and OUT_POINTS[t.side] then
+			local s = S.get(t.key, t.part)
+			t.side = T.barSide(t.key, s)
+			placeBar(t, s, t.side)
+		end
 	end
 end
 
