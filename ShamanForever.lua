@@ -802,10 +802,21 @@ local function barsWaiting(shown)
 	if #list == 0 then return nil end
 	return table.concat(list, " and ")
 end
--- Saved for the character; returns whether it changed, and the bars that wait for combat's end
+-- What it says: the slash command, Turn on and a login while off say the same
+local function sayOff(off, waiting)
+	local cmd = ns.CLASS.slash[1]
+	if off and waiting then say("off until %s enable; %s still takes clicks until combat ends", cmd, waiting)
+	elseif off then say("off: nothing shows or plays until %s enable", cmd)
+	elseif waiting then say("on; %s comes back when combat ends", waiting)
+	else say("on") end
+end
+-- Saved for the character, and said in chat; returns whether it changed
 local function setOff(want)
 	want = want and true or false
-	if want == ns.isOff() then return false end
+	if want == ns.isOff() then
+		if want then say("already off: %s enable turns it back on", ns.CLASS.slash[1]) else say("already on") end
+		return false
+	end
 	local char = P.char()
 	if char then char.off = want or nil end
 	if want then
@@ -819,7 +830,8 @@ local function setOff(want)
 	layoutElements()
 	if not want then refreshAll() end
 	ns.changed()
-	return true, waiting
+	sayOff(want, waiting)
+	return true
 end
 
 -- The active profile
