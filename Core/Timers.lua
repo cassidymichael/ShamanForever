@@ -56,8 +56,12 @@ local ACROSS = { top = { row = "above", column = "right" }, bottom = { row = "be
 function T.barSide(key, s)
 	local edge = s.barEdge == "top" and "top" or "bottom"
 	if s.barPlace ~= "out" or not T.canPlaceOut(key) then return edge end
+	-- The direction it was last laid out in: a change in combat waits for the icons
 	local g = ns.Profiles.getDB() and ns.Groups.of(key)
-	return ACROSS[edge][(g and g.orientation == "vertical") and "column" or "row"]
+	local laid = g and ns.Groups.frames[g.id]
+	laid = laid and laid.frameLayout
+	local column = laid and laid.vertical or (not laid and g and g.orientation == "vertical")
+	return ACROSS[edge][column and "column" or "row"]
 end
 
 local WHITE = ns.WHITE
