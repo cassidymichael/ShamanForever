@@ -26,9 +26,9 @@ end
 local function fsLook(secs) return { icon = icon("flameshock"), up = { 1 - secs / 24, 24 } } end
 local function esLook() return { icon = ns.Shock.ICONS.earth } end
 
-local MW = { el = "maelstrom", school = "air" }
-local FS = { el = "flameshock", school = "fire" }
-local ES = { el = "shock", school = "earth" }
+local MAEL = { el = "maelstrom", school = "air" }
+local FLAME = { el = "flameshock", school = "fire" }
+local EARTH = { el = "shock", school = "earth" }
 
 -- The Shocks element as its own page draws it, its on-target marks both on and above (beside in a column)
 local function shockIcon(parent)
@@ -96,8 +96,8 @@ GD.add({ title = "How things fit together", order = 10,
 				.. "they don't live within a group.",
 		})
 		local cx = s.stageW / 2
-		f.mw = GD.icon(s.stage, SIZE):at(s.stage, cx - 46, 70):wear(MW)
-		f.fs = GD.icon(s.stage, SIZE):at(s.stage, cx, 70):wear(FS)
+		f.mw = GD.icon(s.stage, SIZE):at(s.stage, cx - 46, 70):wear(MAEL)
+		f.fs = GD.icon(s.stage, SIZE):at(s.stage, cx, 70):wear(FLAME)
 		f.es = shockIcon(s.stage)
 		place(f.es, s.stage, cx + 46, 70)
 		GD.lead(s, cx, 92)
@@ -171,7 +171,7 @@ end
 
 -- The three icons' own styles for step st: icon i takes the part's i-th style
 local function dressFor(st, i)
-	local base = ({ MW, FS, ES })[i]
+	local base = ({ MAEL, FLAME, EARTH })[i]
 	local spec = { el = base.el, school = base.school }
 	local key = STYLES[st.part] and STYLES[st.part][i]
 	if st.part == "border" and key then spec.border = { look = key, show = true }
@@ -255,7 +255,7 @@ GD.add({ title = "Marks beside an icon", order = 30, blurb = "Some elements carr
 			group = "In a row, marks sit above or below. In a column, beside.",
 			element = "Its marks move with it, so the group keeps its spacing." })
 		f.shape, f.stage = s, s.stage
-		f.mw = GD.icon(s.stage, SIZE):wear(MW)
+		f.mw = GD.icon(s.stage, SIZE):wear(MAEL)
 		f.fs = GD.icon(s.stage, SIZE)
 		f.es = shockIcon(s.stage)
 		f.label = GD.text(s.stage, "GameFontNormalSmall", "", 8, 6)
@@ -264,7 +264,7 @@ GD.add({ title = "Marks beside an icon", order = 30, blurb = "Some elements carr
 	step = function(f, x)
 		local column, cx = x == 1, f.shape.stageW / 2
 		local out = { bar = true, barPlace = "out", barEdge = "top", text = true }
-		f.fs:wear({ el = FS.el, school = FS.school, uptime = out })
+		f.fs:wear({ el = FLAME.el, school = FLAME.school, uptime = out })
 		f.fs.column, f.mw.column = column, column
 		local at = column and { { cx, 24 }, { cx, 70 }, { cx, 116 } } or { { cx - 46, 70 }, { cx, 70 }, { cx + 46, 70 } }
 		f.mw:at(f.stage, at[1][1], at[1][2]):show(withCount(mwLook(3), 3))
@@ -284,7 +284,7 @@ end
 local function shockPaint(name, r, g, b)
 	return { default("shock", name, "look"), r, g, b, default("shock", name, "overlay"), default("shock", name, "tint") }
 end
-local WB = { el = "waterbreathing", school = "water" }
+local BREATH = { el = "waterbreathing", school = "water" }
 local SHIELD, PURGE = { el = "shield", school = "air" }, { el = "purge", school = "spirit" }
 local function missing(key) return function() return { icon = icon(key), warn = warnOf(key, "warn") } end end
 local function reagent(n, more)
@@ -295,31 +295,31 @@ end
 local IMBUE = { el = "imbue", school = "earth" }
 local function imbueLow() return { icon = icon("imbue"), up = { 0.9, 1800 }, warn = { glow = true } } end
 local EXAMPLES = {
-	{ "Ability ready", ES, function() return esLook() end, pops = 2.4 },
-	{ "On cooldown", ES, function() local l = esLook(); l.cd = { 1 / 3, 6 } return l end },
-	{ "Out of range", ES, function() local l = esLook(); l.paint = shockPaint("range", 1, 0.25, 0.25) return l end },
-	{ "Not enough mana", ES, function()
+	{ "Ability ready", EARTH, function() return esLook() end, pops = 2.4 },
+	{ "On cooldown", EARTH, function() local l = esLook(); l.cd = { 1 / 3, 6 } return l end },
+	{ "Out of range", EARTH, function() local l = esLook(); l.paint = shockPaint("range", 1, 0.25, 0.25) return l end },
+	{ "Not enough mana", EARTH, function()
 		local l = esLook()
 		l.paint = shockPaint("mana", 0.2, 0.45, 1)
 		l.ring = { 0.2, 0.45, 1, default("shock", "mana", "ring") }
 		return l
 	end },
-	{ "Debuff on target", FS, function() return fsLook(14) end },
-	{ "Debuff missing from target", FS, missing("flameshock") },
+	{ "Debuff on target", FLAME, function() return fsLook(14) end },
+	{ "Debuff missing from target", FLAME, missing("flameshock") },
 	{ "Purgable buff on target", PURGE, function() return { icon = icon("purge"), glow = true } end },
 	{ "Charges", SHIELD, function()
 		return { icon = icon("shield"), up = { 0.38, 600 }, bar = { n = 3, filled = 3,
 			color = default("shield", "count", "barColor"), height = default("shield", "count", "barHeight") } }
 	end },
 	{ "Buff missing", SHIELD, missing("shield") },
-	{ "Procs", MW, function() return mwLook(0) end, procs = true },
+	{ "Procs", MAEL, function() return mwLook(0) end, procs = true },
 	{ "Expiring soon", IMBUE, imbueLow },
-	{ "Required totem present", FS, function() return { icon = icon("flameshock"), up = { 0.3, 30 } } end },
-	{ "Reagent warning", WB, function() return reagent(2) end },
-	{ "Idle; all elements have options to specify what 'idle' means for that element.", WB, function()
+	{ "Required totem present", FLAME, function() return { icon = icon("flameshock"), up = { 0.3, 30 } } end },
+	{ "Reagent warning", BREATH, function() return reagent(2) end },
+	{ "Idle; all elements have options to specify what 'idle' means for that element.", BREATH, function()
 		return reagent(12, { alpha = 0.3 })
 	end, wide = true },
-	{ "You're going to drown (breath bar active), and you have no more Shiny Fish Scales... uh oh!", WB, function()
+	{ "You're going to drown (breath bar active), and you have no more Shiny Fish Scales... uh oh!", BREATH, function()
 		local look = reagent(0, { warn = { ring = true, glow = true } })
 		look.reagent.color = { 1, 0.19, 0.19 }
 		return look
@@ -642,10 +642,10 @@ local HUD = {
 	{ SHIELD, 120, function() return { icon = icon("shield"), up = { 0.38, 600 }, bar = { n = 3, filled = 3,
 		color = default("shield", "count", "barColor"), height = default("shield", "count", "barHeight") } } end,
 		missing("shield") },
-	{ MW, 238, function() return withCount(mwLook(3), 3) end,
+	{ MAEL, 238, function() return withCount(mwLook(3), 3) end,
 		function() local l = withCount(mwLook(5), 5); l.glow = true return l end },
-	{ FS, 278, function() return fsLook(14) end, missing("flameshock"), warns = true },
-	{ ES, 318, esLook, function()
+	{ FLAME, 278, function() return fsLook(14) end, missing("flameshock"), warns = true },
+	{ EARTH, 318, esLook, function()
 		local l = esLook()
 		l.paint = shockPaint("range", 1, 0.25, 0.25)
 		l.ring = { 0.2, 0.45, 1, default("shock", "mana", "ring") }
