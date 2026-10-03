@@ -451,6 +451,13 @@ local function build(p)
 		pct, function() return TB.eff().extrasScale end,
 		function(v) c()[TB.skin.extrasScaleKey()] = v; changed() end,
 		showWhen(function() return c().call or c().recall end, full))
+	tslider("Call and Recall gap", "From the slots. Below 0 they overlap.", px, "extrasGap",
+		showWhen(function() return (c().call or c().recall) and not TB.skin.owns("spacing") end, full))
+	tslider("Gap between them", "Between Call and Recall when both sit on one side.", px, "extrasSpacing",
+		showWhen(function()
+			local before, after = TB.extraSides()
+			return (#before > 1 or #after > 1) and not TB.skin.owns("spacing")
+		end, full))
 	tslider("Scale", "Grows everything on the bar, borders too.", times, "scale")
 	tslider("Opacity", nil, pct, "alpha")
 
