@@ -511,7 +511,7 @@ local function build(p)
 	p.gate = full
 	K.gcdBlock(p, "totembar")
 	p:header("Totem not down")
-	local look = p:dropdown("Look", "How a slot looks while its totem isn't down.",
+	local look = p:dropdown("Show as", "How a slot shows while its totem isn't down.",
 		{ { "pick", "Your pick" }, { "frame", "Element colour" }, { "blank", "Blank" } }, tget("empty"), tset("empty"), nil,
 		180)
 	p:sub(look, function() return c().empty == "pick" end, function()

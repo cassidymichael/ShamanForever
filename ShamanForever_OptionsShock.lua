@@ -34,13 +34,13 @@ local function buildShock(p, def)
 
 	local looks = { { "tint", "Tint" }, { "overlay", "Overlay" }, { "both", "Both" } }
 	p:header("No mana")
-	p:dropdown("Look", "Out of range wins over this look.", looks, eopt(p, key, "mana", "look"))
+	p:dropdown("Show as", "Out of range wins over this.", looks, eopt(p, key, "mana", "look"))
 	eslider(p, key, "Overlay", nil, pct, showWhen(lookUses("mana", "overlay")), "mana", "overlay")
 	eslider(p, key, "Tint", nil, pct, showWhen(lookUses("mana", "tint")), "mana", "tint")
 	eslider(p, key, "Ring", "The blue ring, shown even when out of range.", pct, nil, "mana", "ring")
 
 	p:header("Out of range")
-	p:dropdown("Look", nil, looks, eopt(p, key, "range", "look"))
+	p:dropdown("Show as", nil, looks, eopt(p, key, "range", "look"))
 	eslider(p, key, "Overlay", nil, pct, showWhen(lookUses("range", "overlay")), "range", "overlay")
 	eslider(p, key, "Tint", nil, pct, showWhen(lookUses("range", "tint")), "range", "tint")
 	timerSettings(p, "Cooldown", key, "cooldown")
