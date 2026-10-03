@@ -243,33 +243,10 @@ local function changed()
 end
 
 local function choice(parent, key, items)
-	local row = CreateFrame("Frame", nil, parent)
-	row.buttons = {}
-	local x = 0
-	for _, it in ipairs(items) do
-		local b = CreateFrame("Button", nil, row, "BackdropTemplate")
-		b:SetBackdrop(ns.BACKDROP)
-		b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-		b.text:SetPoint("CENTER")
-		b.text:SetText(it[2])
-		local w = math.ceil(b.text:GetStringWidth()) + 20
-		b:SetSize(w, 20)
-		b:SetPoint("LEFT", row, "LEFT", x, 0)
-		x = x + w + 2
-		b.value = it[1]
-		b:SetScript("OnClick", function(self)
-			if opts[key] == self.value then return end
-			opts[key] = self.value
-			changed()
-		end)
-		ns.setTip(b, it[2], it[3], "ANCHOR_BOTTOM")
-		table.insert(row.buttons, b)
-	end
-	row:SetSize(x - 2, 20)
-	function row.refresh()
-		for _, b in ipairs(row.buttons) do L.paintChoice(b, opts[key] == b.value) end
-	end
-	return row
+	return L.choiceRow(parent, items, function() return opts[key] end, function(v)
+		opts[key] = v
+		changed()
+	end, "ANCHOR_BOTTOM")
 end
 
 local function check(parent, key, label, tip)

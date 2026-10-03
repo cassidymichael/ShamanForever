@@ -625,28 +625,12 @@ local function chips(parent, label, items, key, x, y)
 	local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	fs:SetPoint("LEFT", parent, "TOPLEFT", x, y)
 	fs:SetText(label)
-	local buttons, bx = {}, x + HEAD_LABEL_W
-	for _, it in ipairs(items) do
-		local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
-		b:SetBackdrop(ns.BACKDROP)
-		b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-		b.text:SetPoint("CENTER")
-		b.text:SetText(it[2])
-		local w = math.ceil(b.text:GetStringWidth()) + 20
-		b:SetSize(w, 20)
-		b:SetPoint("LEFT", parent, "TOPLEFT", bx, y)
-		bx = bx + w + 2
-		b:SetScript("OnClick", function()
-			if view[key] == it[1] then return end
-			view[key] = it[1]
-			restyleAll()
-		end)
-		b.value = it[1]
-		table.insert(buttons, b)
-	end
-	return function()
-		for _, b in ipairs(buttons) do L.paintChoice(b, view[key] == b.value) end
-	end
+	local row = L.choiceRow(parent, items, function() return view[key] end, function(v)
+		view[key] = v
+		restyleAll()
+	end)
+	row:SetPoint("LEFT", parent, "TOPLEFT", x + HEAD_LABEL_W, y)
+	return row.refresh
 end
 
 local function scaleSlider(parent, x, y)
