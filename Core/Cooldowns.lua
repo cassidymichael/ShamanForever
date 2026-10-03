@@ -70,6 +70,7 @@ ns.registerPart("ready", {
 ns.registerPart("readyGlow", { defaults = { ready = { glow = false } }, glow = true })
 -- A buff window from our own cast (window: its seconds)
 ns.registerPart("window", {
+	defaults = function(def) return def.expires and { expire = { sound = "none" } } or nil end,
 	idle = { held = "not active", also = " and it isn't active" },
 	page = { uptime = "Time left" },
 	preview = {
@@ -350,6 +351,13 @@ local function startActive(def, start, length, quiet)
 	if length then
 		C_Timer.After(math.max(start + length - GetTime(), 0) + 0.05, function()
 			if def.activeToken == token then endActive(def); refreshCooldown(def) end
+		end)
+	end
+	-- A window's Expiring sound, at the moment its warning starts
+	local secs = def.window and length and setting(def.key, "expire", "secs") or 0
+	if secs > 0 and start + length - secs > GetTime() then
+		C_Timer.After(start + length - secs - GetTime(), function()
+			if def.activeToken == token and f:IsVisible() then ns.Sounds.element(def.key, "expire") end
 		end)
 	end
 end
