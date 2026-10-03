@@ -321,6 +321,10 @@ function CS.debug()
 		say("%s cast states (%s): spell %s/%s usable=%s noPower=%s inRange=%s, showing %s", w.key or w.label,
 			table.concat(on, ", "), tostring(powerID), tostring(rangeID), usable, noPower, inRange,
 			w.drawn == "" and "nothing" or tostring(w.drawn))
+		if w.cover then
+			say("%s cast states over the button: %s", w.key, not w.up and "not made (both off)"
+				or ((w.attached and "" or "detached, ") .. w.up:describe()))
+		end
 	end
 end
 
