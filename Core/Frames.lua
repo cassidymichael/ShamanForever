@@ -81,6 +81,11 @@ local function elementError(e)
 	if err then return err end
 	if a.rotate == 90 or a.rotate == 270 then return "art: an element art frame turns only 0 or 180" end
 	if e.layer ~= nil and not LAYER[e.layer] then return "layer is over or under" end
+	local sh = e.shown
+	if sh ~= nil and (type(sh) ~= "table" or not (num(sh[1]) and num(sh[2]) and num(sh[3]) and num(sh[4]))
+		or sh[1] < 0 or sh[2] < 0 or sh[3] > a.size[1] or sh[4] > a.size[2] or sh[1] >= sh[3] or sh[2] >= sh[4]) then
+		return "shown needs { x0, y0, x1, y1 } inside the art"
+	end
 	return holeError(e.hole, a.size[1], a.size[2], "art")
 end
 
@@ -399,6 +404,23 @@ local function reachOf(look, part)
 	return { left = o, right = o, top = o, bottom = o }
 end
 
+-- How far an element style's drawn part (shown: its opaque texels, x0, y0, x1, y1) reaches past the
+-- icon, in icon widths: what the eye sees, where reach is the whole texture's rectangle
+local function drawnOf(look, reach)
+	local sh = look.shown
+	if not sh then return reach end
+	local x, y, hw, hh = holeOf(look)
+	local a = look.art
+	local x0, x1, y0, y1 = sh[1], sh[3], sh[2], sh[4]
+	local fx, fy = a.flipX, a.flipY
+	if a.rotate == 180 then fx, fy = not fx, not fy end
+	if fx then x0, x1 = a.size[1] - sh[3], a.size[1] - sh[1] end
+	if fy then y0, y1 = a.size[2] - sh[4], a.size[2] - sh[2] end
+	local function side(v) return max(0, v / hw - 0.5) end
+	return { left = side(x + hw / 2 - x0), right = side(x1 - x - hw / 2), top = side(y + hh / 2 - y0),
+		bottom = side(y1 - y - hh / 2) }
+end
+
 -- The spacing a repeating style's art was drawn for, at icon size (nil: any spacing)
 function FR.fitSpacing(look, size, px)
 	px = px or 1
@@ -422,6 +444,7 @@ local function register(part, key, entry)
 		ns.noteError("frame style " .. key, err)
 	else
 		entry.reach = reachOf(entry, part)
+		entry.drawn = part == "frame" and not entry.none and drawnOf(entry, entry.reach) or entry.reach
 	end
 	entry.uses = { color = entry.tint == true, alpha = not entry.none }
 	S.addLook(part, key, entry)
