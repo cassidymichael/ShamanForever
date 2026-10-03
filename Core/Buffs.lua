@@ -198,6 +198,7 @@ local function auraCover(def)
 	return { parent = def.idle or g.parent, sensorParent = g.parent, unit = g.unit, needUnit = g.needUnit,
 		filter = def.filter, ids = function() return auraIDs(def) end,
 		candidates = def.candidates and function() return def.candidates(def) end, slot = def.aura,
+		note = def.castNote, tips = def.castTips,
 		-- Refiltered and pointed with the row's own looks while attached
 		attach = function(look) table.insert(def.looks, look) end,
 		detach = function(look)

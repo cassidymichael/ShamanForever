@@ -308,7 +308,8 @@ local IDLE_LEVEL = 8
 local cover
 CS.watch("shield", { frame = shield, power = true,
 	cover = { parent = gate, sensorParent = shield, ids = shieldIDMap, level = 5 + IDLE_LEVEL + 5,
-		attach = function(up) cover = up end, detach = function() cover = nil end },
+		attach = function(up) cover = up end, detach = function() cover = nil end,
+		note = "Only while your shield is up, as an overlay: Blizzard's own button draws this icon." },
 	spells = function()
 		local s = SHIELDS[shownShield()]
 		return s.known and s.spellID or nil

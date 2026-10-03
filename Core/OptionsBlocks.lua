@@ -483,7 +483,7 @@ local function castStyleBlock(p, owner, state, cover)
 	if owner == nil then
 		p:text(st.global .. " " .. ownersText("Elements", part))
 	else followRow(p, owner, part, relayout) end
-	if cover then p:text(CS.COVER_NOTE) end
+	if cover and cover.note then p:text(cover.note) end
 	local ranged = owner == nil or CS.has(owner, "range")
 	local own = showWhen(r.own)
 	local function uses(field)
@@ -1085,8 +1085,10 @@ local function castBlocks(p, key, extras)
 			local st = CS.STATES[state]
 			p:header(st.name)
 			local get, set = eopt(p, key, st.saved, "on")
-			styleLink(p, p:checkbox(st.on, st.tip, get, set), st.part, get)
-			if CS.covered(key) then p:text(CS.COVER_NOTE) end
+			local cover = CS.covered(key)
+			local tip = cover and cover.tips and cover.tips[state] or st.tip
+			styleLink(p, p:checkbox(st.on, tip, get, set), st.part, get)
+			if cover and cover.note then p:text(cover.note) end
 			if extras and extras[state] then extras[state](get) end
 		end
 	end
