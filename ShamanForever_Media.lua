@@ -164,15 +164,11 @@ local function shade(r, shadow)
 		r.sfShadow = shadow
 	end
 end
+-- A font string's or a font object's font
 function M.setFont(fs, o, size)
 	local path, flags, shadow = M.text(o)
 	fs:SetFont(path, size, flags)
 	shade(fs, shadow)
-end
-function M.setFontObject(obj, o, size)
-	local path, flags, shadow = M.text(o)
-	obj:SetFont(path, size, flags)
-	shade(obj, shadow)
 end
 
 local function textKeyOf(o)

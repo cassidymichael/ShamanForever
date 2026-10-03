@@ -196,7 +196,7 @@ function Timer:apply()
 		pcall(cd.SetCountdownMillisecondsThreshold, cd, ms)
 	end
 	local c = s.textColor
-	ns.Media.setFontObject(self.font, self.key, s.textSize)
+	ns.Media.setFont(self.font, self.key, s.textSize)
 	self.font:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 	cd:SetCountdownFont(self.fontName)
 	self.barOn = self.bar ~= nil and s.bar and not cant.bar

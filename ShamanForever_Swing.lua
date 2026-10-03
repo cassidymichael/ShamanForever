@@ -87,7 +87,7 @@ local TEXT_SIDE = { left = "LEFT", center = "CENTER", right = "RIGHT" }
 function SW.styleCountdown()
 	local c = cfg()
 	local k = c.countdownColor
-	ns.Media.setFontObject(font, "swing", c.countdownSize)
+	ns.Media.setFont(font, "swing", c.countdownSize)
 	font:SetTextColor(k[1], k[2], k[3], k[4] or 1)
 end
 function SW.placeCountdown(fs, anchor)
