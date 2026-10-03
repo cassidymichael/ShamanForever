@@ -1,14 +1,30 @@
 # Changelog
 
-## Unreleased
+## 0.13.0 (2026-10-03)
 
-- Borders are set per element, last on each element's page; groups no longer have their own. A
-  group's own border carries over to its elements.
-- Frames: decorative art round an element or a whole group, set on each page and shown in the
-  Styles explorer.
-- Shields: an optional sound when your shield goes.
-- Fire Nova: a new Idle choice, Cooling down, whether or not a fire totem is out.
-- Fixed: Carved stone, Aged bronze and Carved wood borders didn't show on Shields.
+- Groundwork for other classes: the addon's code and structure is being transitioned to work
+  for any class, not just shamans. In future releases this addon might become much wider in
+  scope. Requests for classes to prioritise first are welcome. This also lays the groundwork for
+  user-defined custom elements.
+- A Guide page in the options: how groups, elements, bars and styles fit together, with live
+  examples.
+- Shocks: small Frost Shock and Flame Shock icons beside the Shocks icon show your debuffs on
+  the target and their time left.
+- No mana and Out of range looks on more abilities and on the totem bar's slots (off by
+  default; on for Shocks as before).
+- Time bars can sit outside the icon. Fixed: a cooldown's time bar no longer fills on every
+  global cooldown.
+- Totem bar: totem sets (experimental), snapping with guides while positioning, and gaps for
+  Call and Recall.
+- Art frames (experimental): decorative art round an element or a whole group.
+- Borders are set per element; groups no longer have their own.
+- Shields: an optional sound when your shield goes (more foundational sound alert capabilities
+  coming in a future release, this is just an early version).
+- ShamanForever is now licensed under GPL-3.0, which means it is free and open source! Use it,
+  learn from it, change it, share it, as long as anything you share that's built on it stays
+  free and open under the same license, and a credit to the original source tucked away in your
+  addon somewhere. Thanks, and happy building!
+- Many other minor fixes and improvements.
 
 ## 0.12.1 (2026-10-02)
 
