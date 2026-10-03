@@ -412,7 +412,7 @@ local function keyLayer(v)
 	f.text = ns.makeKeyText(f)
 	f.glow = f:CreateTexture(nil, "OVERLAY")
 	f.glow:SetAllPoints()
-	if C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(KEY_HIGHLIGHT) then f.glow:SetAtlas(KEY_HIGHLIGHT)
+	if ns.Looks.hasAtlas(KEY_HIGHLIGHT) then f.glow:SetAtlas(KEY_HIGHLIGHT)
 	else f.glow:SetColorTexture(1, 0.82, 0, 0.3) end
 	f.glow:Hide()
 	return f

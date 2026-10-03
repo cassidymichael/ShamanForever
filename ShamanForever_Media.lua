@@ -306,7 +306,7 @@ local function bar(name)
 	local b = barByName[name]
 	if b then
 		if not b.atlas then return b[2], false end
-		if C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(b[2]) then return b[2], true end
+		if ns.Looks.hasAtlas(b[2]) then return b[2], true end
 		return FLAT, false, false
 	end
 	local l = lsm()
@@ -330,7 +330,7 @@ end
 function M.bars(o)
 	local out = { { "", "Flat" } }
 	for _, b in ipairs(BARS) do
-		if not b.atlas or (C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(b[2])) then
+		if not b.atlas or ns.Looks.hasAtlas(b[2]) then
 			table.insert(out, { b[1], b[1] })
 		end
 	end
