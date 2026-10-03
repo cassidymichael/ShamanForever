@@ -30,11 +30,12 @@ local MW = { el = "maelstrom", school = "air" }
 local FS = { el = "flameshock", school = "fire" }
 local ES = { el = "shock", school = "earth" }
 
--- The Shocks element as its own page draws it: its on-target marks with it
+-- The Shocks element as its own page draws it, its on-target marks both on and above (beside in a column)
 local function shockIcon(parent)
 	local box = CreateFrame("Frame", nil, parent)
 	box:SetSize(SIZE, SIZE)
 	local ic = OA.makePreviewIcon(box, "shock", OA.PREVIEW.shock, SIZE)
+	ic.marks = { frost = true, flame = true, side = "above", size = default("shock", "marks", "size") }
 	return { box = box, ic = ic }
 end
 local function drawShock(sh, column)
@@ -288,6 +289,8 @@ local function reagent(n, more)
 	look.icon, look.reagent = icon("waterbreathing"), { el = "waterbreathing", n = n }
 	return look
 end
+local IMBUE = { el = "imbue", school = "earth" }
+local function imbueLow() return { icon = icon("imbue"), up = { 0.9, 1800 }, warn = { glow = true } } end
 local EXAMPLES = {
 	{ "Ability ready", ES, function() return esLook() end, pops = 2.4 },
 	{ "On cooldown", ES, function() local l = esLook(); l.cd = { 1 / 3, 6 } return l end },
@@ -307,9 +310,7 @@ local EXAMPLES = {
 	end },
 	{ "Buff missing", SHIELD, missing("shield") },
 	{ "Procs", MW, function() return mwLook(0) end, procs = true },
-	{ "Expiring soon", { el = "imbue", school = "earth" }, function()
-		return { icon = icon("imbue"), up = { 0.9, 1800 }, warn = { glow = true } }
-	end },
+	{ "Expiring soon", IMBUE, imbueLow },
 	{ "Required totem present", FS, function() return { icon = icon("flameshock"), up = { 0.3, 30 } } end },
 	{ "Reagent warning", WB, function() return reagent(2) end },
 	{ "Idle; all elements have options to specify what 'idle' means for that element.", WB, function()
@@ -586,8 +587,7 @@ local HUD = {
 		l.ring = { 0.2, 0.45, 1, default("shock", "mana", "ring") }
 		return l
 	end, warns = true },
-	{ { el = "imbue", school = "earth" }, 448, function() return { icon = icon("imbue"), up = { 0.95, 3600 } } end,
-		function() return { icon = icon("imbue"), up = { 0.9, 1800 }, warn = { glow = true } } end },
+	{ IMBUE, 448, function() return { icon = icon("imbue"), up = { 0.95, 3600 } } end, missing("imbue") },
 }
 local BUSY = 1.25
 

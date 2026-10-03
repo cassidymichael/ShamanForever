@@ -1,7 +1,7 @@
 -- Guide page: slides on how the HUD fits together, stepped with Next and Previous
 local ADDON, ns = ...
 local W = ns.Widgets
-local P, MOD = ns.Profiles, ns.Modules
+local E, P, MOD = ns.Elements, ns.Profiles, ns.Modules
 local OA, S, FR, T = ns.OptionsArt, ns.Style, ns.Frames, ns.Timer
 
 local GD = {}
@@ -227,6 +227,18 @@ local function setFont(ex, font)
 	end
 end
 
+-- A reagent count as the reagent part draws it, on its shipped settings: n, and color in place of its own
+local function reagentCount(ic, r)
+	local function shipped(field) return E.default(r.el, "reagent", field) end
+	local pos = shipped("pos")
+	W.placeScaledText(ic.count, ic, shipped("size"), pos, shipped("x"), shipped("y"))
+	ic.count:SetJustifyH(W.COUNT_JUSTIFY[pos] or "RIGHT")
+	local c = r.color or (r.n <= shipped("low") and shipped("lowColor") or shipped("color"))
+	ic.count:SetText(r.n)
+	ic.count:SetTextColor(c[1], c[2], c[3], c[4] or 1)
+	ic.count:Show()
+end
+
 -- look: icon, cd and up ({ share gone, length }: frozen timers), warn ({ grey, tint, ring, fade,
 -- glow }), paint ({ look, r, g, b, overlay, tint }), ring ({ r, g, b, a }), glow, alpha,
 -- bar ({ n, filled, color, height }), count ({ text, color, size, pos }), reagent ({ el, n, color }),
@@ -256,13 +268,7 @@ local function draw(ex, look)
 		ic.count:SetTextColor(col[1], col[2], col[3], 1)
 		ic.count:Show()
 	end
-	local r = look.reagent
-	if r then
-		local _, ring, pulse = ns.Reagents.draw(ic, r.el, r.n)
-		ic:SetRingShown(ring)
-		ic:SetPulsing(pulse)
-		if r.color then ic.count:SetTextColor(r.color[1], r.color[2], r.color[3], 1) end
-	end
+	if look.reagent then reagentCount(ic, look.reagent) end
 	if look.font then setFont(ex, look.font) end
 	ic:SetAlpha(look.alpha or 1)
 end
