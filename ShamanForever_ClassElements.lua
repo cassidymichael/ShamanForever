@@ -36,7 +36,7 @@ ns.CLASS.cooldowns = {
 			buffKey = "naturesSwiftness",
 			text = "From your cast until your next Nature spell with a cast time." },
 		cd = 180, experimental = "Nature's Swiftness" },
-	{ key = "manatide", power = true, spellKey = "manaTide", icon = 135861, totemSlot = 3, duration = 12, school = "water",
+	{ key = "manatide", power = true, spellKey = "manaTide", icon = 135861, totemSlot = 3, duration = 13, school = "water",
 		blurb = "Cooldown, and time left while it's down.",
 		styles = barTimer(), timerCant = ONE_SWIPE,
 		ranOut = true, cd = 300,
