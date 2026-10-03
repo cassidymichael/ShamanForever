@@ -137,7 +137,7 @@ local function drawImbue(now, quiet)
 	-- Another imbue shown: its cost is read again
 	if imbueIcon ~= drawnIcon then
 		drawnIcon = imbueIcon
-		CS.refresh()
+		CS.reread("imbue")
 	end
 	local grey, tint, ring, fade, glow = W.warnParts("imbue", "warn")
 	local warns = missing and not quiet

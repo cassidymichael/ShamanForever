@@ -806,7 +806,7 @@ function TB.paintLow(v, low)
 end
 for _, el in ipairs(ELEMENTS) do
 	local s = slots[el]
-	ns.CastStates.follow({ label = "totem bar " .. el, power = true,
+	ns.CastStates.follow({ label = "totem bar " .. el, owner = "totembar", power = true,
 		spells = function() return pickSpell(s.slot) end,
 		isOn = function() return cfg().mana.on end,
 		enabled = function() return feat("cast") and true or false end,
@@ -917,7 +917,7 @@ local function refreshSlots()
 	end
 	anyDown = down
 	-- A pick or set may have changed: its cost is read again
-	ns.CastStates.refresh()
+	ns.CastStates.reread("totembar")
 end
 
 -- The active set: the picker header's sf-set, written by the switch snippet or by writeSet (out of

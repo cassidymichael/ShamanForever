@@ -45,7 +45,7 @@ function CS.watchRow(def, cover)
 		spells = function() return def.spellID, def.spellID end })
 end
 -- Something other than an element (a bar's slot): w = { spells(), isOn(state), enabled(), draw(out,
--- low), unit, label (/sf debug) }, with power and range as for a watch
+-- low), unit, label (/sf debug), owner (CS.reread's name for it) }, with power and range as for a watch
 function CS.follow(w)
 	w.unit, w.drawn = w.unit or "target", ""
 	table.insert(WATCHES, w)
@@ -202,6 +202,17 @@ local function refresh(which)
 		if which ~= "range" then readPower(w) end
 		if which ~= "power" then readRange(w) end
 		draw(w)
+	end
+end
+
+-- Its spell changed: owner's watches only (an element's key, a follow's owner)
+function CS.reread(owner)
+	for _, w in ipairs(WATCHES) do
+		if w.key == owner or w.owner == owner then
+			readPower(w)
+			readRange(w)
+			draw(w)
+		end
 	end
 end
 
