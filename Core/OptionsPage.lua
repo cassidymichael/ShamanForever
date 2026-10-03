@@ -1161,16 +1161,21 @@ function Page:copyField(label, value, icon, color)
 		fs:SetPoint("LEFT", 30, 0)
 		fs:SetWidth(LABEL_W - 34)
 	end
-	local e = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
-	e:SetSize(380, 20)
-	e:SetPoint("LEFT", f, "LEFT", LABEL_W + 6, 0)
+	Page.copyBox(f, value, 380):SetPoint("LEFT", f, "LEFT", LABEL_W + 6, 0)
+	return self:add(f, 30)
+end
+
+-- A box holding value to copy: a click selects it all, typing changes nothing
+function Page.copyBox(parent, value, width)
+	local e = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
+	e:SetSize(width, 20)
 	e:SetAutoFocus(false)
 	e:SetText(value)
 	e:SetCursorPosition(0)
 	e:SetScript("OnTextChanged", function(box, user) if user then box:SetText(value); box:HighlightText() end end)
 	e:SetScript("OnEditFocusGained", function(box) box:HighlightText() end)
 	e:SetScript("OnEscapePressed", e.ClearFocus)
-	return self:add(f, 30)
+	return e
 end
 
 function Page:experimental(name, where)

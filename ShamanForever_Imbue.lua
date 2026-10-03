@@ -27,6 +27,7 @@ E.register("imbue", { frame = imbue, label = "Weapon Imbue",
 		icon = "last",   -- the icon while none is on: last | rockbiter | flametongue | frostbrand | windfury
 		showUnderMins = 5,   -- time left shows under this (0: never)
 		warn = { grey = true, ring = true, fade = true, glow = true, pop = true, sound = "none" },
+		expire = { glow = false },   -- while running low (under showUnderMins)
 		mana = { on = false } },
 	ranges = { showUnderMins = { 0, 30, 1 } },
 	styles = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false,
@@ -141,8 +142,9 @@ local function drawImbue(now, quiet)
 	end
 	local grey, tint, ring, fade, glow = W.warnParts("imbue", "warn")
 	local warns = missing and not quiet
+	local lowGlow = showTime and not unreadable and not quiet and own("expire", "glow")
 	imbue:SetWarnParts(missing and grey, warns and tint, warns and ring, warns and fade,
-		warns and glow)
+		(warns and glow) or lowGlow)
 	imbue.tex:SetTexture(imbueIcon)
 	if unreadable then
 		imbue.timer:SetText("?")
@@ -279,7 +281,10 @@ local PREVIEW = {
 		else
 			kit.reset(ic, imbueIcon)
 			local shows = own("showUnderMins") > 0
-			if st == "low" and shows then kit.frozen(ic.upT, 0.95, 3600) end
+			if st == "low" and shows then
+				kit.frozen(ic.upT, 0.95, 3600)
+				ic:SetGlowShown(own("expire", "glow"))
+			end
 		end
 	end,
 	idles = function(st, when) return st == "fine" or (st == "low" and when == "on") end,

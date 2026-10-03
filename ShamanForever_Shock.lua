@@ -108,27 +108,33 @@ for _, m in ipairs(MARKS) do
 	m.wanted = function() return markOn(m) and marksWanted() end
 end
 
-local function marksNumber(field)
-	local v = own("marks", field)
+-- A marks setting: a preview icon's own (ic.marks, the Guide's), else the player's
+local function markOpt(ic, field)
+	local mine = ic and ic.marks
+	if mine and mine[field] ~= nil then return mine[field] end
+	return own("marks", field)
+end
+local function marksNumber(field, ic)
+	local v = markOpt(ic, field)
 	if type(v) ~= "number" or v ~= v then v = E.default("shock", "marks", field) end
 	local r = E.range("shock", "marks", field)
 	return math.min(math.max(v, r[1]), r[2])
 end
 -- Size and gap in whole pixels, for an icon w wide with o of border round it; the gap is set at the
 -- default icon size and grows with the icon
-local function markGeometry(w, o, px)
+local function markGeometry(w, o, px, ic)
 	local box = w + 2 * o
-	return math.max(W.roundPx(box * marksNumber("size"), px), px),
-		W.roundPx(marksNumber("gap") * box / W.BASE_ICON_SIZE, px)
+	return math.max(W.roundPx(box * marksNumber("size", ic), px), px),
+		W.roundPx(marksNumber("gap", ic) * box / W.BASE_ICON_SIZE, px)
 end
 
 -- Side, size and distance out for the marks on an icon w wide with o of border, t its cooldown timer:
--- past a time bar outside the icon on that side
-local function marksPlace(w, o, px, t)
-	local size, gap = markGeometry(w, o, px)
-	local where, out = W.attachSide("shock", own("marks", "side")), o + gap
+-- past a time bar outside the icon on that side (ic: a preview icon)
+local function marksPlace(w, o, px, t, ic)
+	local size, gap = markGeometry(w, o, px, ic)
+	local where, out = W.attachSide("shock", markOpt(ic, "side"), ic and ic.column), o + gap
 	local s = ns.Style.get("shock", "cooldown")
-	if t and s.bar and not ns.Timer.cant("shock", "cooldown").bar and ns.Timer.barSide("shock", s) == where then
+	if t and s.bar and not ns.Timer.cant("shock", "cooldown").bar and t:barSide(s) == where then
 		out = math.max(out, W.roundPx(t:reach(), px) + gap)
 	end
 	return where, size, out
@@ -290,13 +296,13 @@ local PREVIEW_MARK = { frost = { 8, 0.6 }, flame = { 12, 0.75 } }   -- length, s
 -- On the HUD only what it can show, unless the preview shows what isn't learned
 local function previewOn(ic, m)
 	local learned = not ic.marksOnHUD or m.spellID ~= nil or ns.Preview.showsUnlearned()
-	return own("marks", m.key) and learned and true or false
+	return markOpt(ic, m.key) and learned and true or false
 end
 local function previewPlace(ic)
 	local w, px = ic.marksOnHUD and shock:GetWidth() or ic:GetWidth(), W.pixel(ic)
 	local o = ic.marksOnHUD and (E.boxOf("shock") - w) / 2 or ns.StyleArt.inset(ic, E.borderFor("shock"), w)
 	o = math.max(W.roundPx(o, px), 0)
-	local where, size, out = marksPlace(w, o, px, ic.cdT)
+	local where, size, out = marksPlace(w, o, px, ic.cdT, ic)
 	return where, size, out, o
 end
 -- How far the marks reach out of ic on its left, right, top and bottom: the page's header makes room

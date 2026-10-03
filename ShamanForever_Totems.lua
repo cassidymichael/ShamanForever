@@ -292,6 +292,8 @@ local FIRE_NOVA_CHOICES = {
 	{ "oncd", "Cooling down, no fire totem", "Idle while it's cooling down and no fire totem is out",
 		"Shown in full only while it's ready." },
 }
+-- The preview's fire totem time left: under the shortest fire totem's (Magma Totem, 20 s)
+local FIRE_LEFT = 12
 ns.registerPart("needsTotem", {
 	kind = "cooldown", after = "readyGlow",
 	defaults = { warn = { grey = true, ring = false, fade = false },
@@ -316,7 +318,7 @@ ns.registerPart("needsTotem", {
 			elseif st == "expiring" then kit.expiring(ic, key, life)
 			elseif st == "nototem" then ic:SetWarnParts(W.warnParts(key, "warn"))
 			elseif st == "out" then
-				kit.frozen(ic.upT, 0.2, life)
+				kit.frozen(ic.upT, 1 - math.min(FIRE_LEFT, life) / life, life)
 				ic:SetGlowShown(setting(key, "ready", "glow"))
 			end
 		end,

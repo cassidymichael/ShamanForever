@@ -111,17 +111,22 @@ end
 
 -- Preview icons
 local PREVIEW_SIZE = 56
--- box: the icon's own size, border included (else it stands in for the element at its size)
+-- box: the icon's own size, border included (else it stands in for the element at its size); key
+-- may be a sandbox owner (a table); ic.column, when set, lays it out as in a column (true) or a row
 local function makePreviewIcon(parent, key, preview, box)
 	local ic = W.makeIcon(parent, PREVIEW_SIZE, key)
 	local e = identity(key)
 	local school = e and e.school
+	local function column() return ic.column end
+	local out = type(key) == "table" or nil
 	if preview.cooldown then
-		ic.cdT = ns.Timer.new(ic, key, "cooldown", { cd = ic.cd, school = school, box = box })
+		ic.cdT = ns.Timer.new(ic, key, "cooldown", { cd = ic.cd, school = school, box = box, column = column,
+			placeOut = out })
 	end
 	if preview.uptime then
 		ic.upT = ns.Timer.new(ic.textFrame, key, "uptime", { anchor = ic, dual = preview.cooldown,
-			cd = not preview.cooldown and ic.cd or nil, school = school, barInset = preview.barInset, box = box })
+			cd = not preview.cooldown and ic.cd or nil, school = school, barInset = preview.barInset, box = box,
+			column = column, placeOut = out })
 	end
 	ic.bar = CreateFrame("Frame", nil, ic.textFrame)
 	ic.bar:SetPoint("BOTTOMLEFT", ic, "BOTTOMLEFT", 0, 0)
@@ -304,7 +309,7 @@ local function barReach(ic)
 	local out = { 0, 0, 0, 0 }
 	for _, t in ipairs({ ic.cdT or false, ic.upT or false }) do
 		local s = t and ns.Style.get(t.key, t.part)
-		local at = s and s.bar and not ns.Timer.cant(t.key, t.part).bar and REACH_AT[ns.Timer.barSide(t.key, s)]
+		local at = s and s.bar and not ns.Timer.cant(t.key, t.part).bar and REACH_AT[t:barSide(s)]
 		if at then out[at] = math.max(out[at], math.ceil(t:reach())) end
 	end
 	return out

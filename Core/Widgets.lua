@@ -278,9 +278,11 @@ function W.laidInColumn(key)
 	if laid then return laid.vertical and true or false end
 	return g ~= nil and g.orientation == "vertical"
 end
--- above, below, right or left of key's icon, for its side "above" or "below"
-function W.attachSide(key, side)
-	return ACROSS[side == "below" and "below" or "above"][W.laidInColumn(key) and "column" or "row"]
+-- above, below, right or left of key's icon, for its side "above" or "below"; column: as in a column
+-- (true) or a row (false) whatever its group's direction (a preview's own; nil: its group's)
+function W.attachSide(key, side, column)
+	if column == nil then column = W.laidInColumn(key) end
+	return ACROSS[side == "below" and "below" or "above"][column and "column" or "row"]
 end
 
 -- Aura slot: Blizzard's aura container on an element icon, the one way to show an aura in combat.

@@ -63,7 +63,7 @@ ns.registerPart("buff", {
 })
 -- breath: warns under water without it
 ns.registerPart("breath", {
-	defaults = { warn = { on = true, ring = true, fade = true } },
+	defaults = { warn = { on = true, ring = true, fade = true, glow = false } },
 	page = { warn = { title = "Under water",
 		on = { "Warn without it", "While your breath bar drains and it isn't up." } } },
 	preview = {
@@ -307,6 +307,7 @@ local function refreshBuff(def)
 		f.tex:SetDesaturated(true)
 		f:SetRingShown(false)
 		f:SetPulsing(false)
+		if def.glowing then f:SetGlowShown(false); def.glowing = false end
 		f.count:Hide()
 		W.fadeTo(f, 1)
 		return
@@ -320,13 +321,18 @@ local function refreshBuff(def)
 	end
 	if def.upUntil and GetTime() >= def.upUntil then setDown(def) end
 	-- Set each look once: re-setting a pulse restarts it
-	local held, ring, pulse = false, false, false
+	local held, ring, pulse, glow = false, false, false, false
 	if def.reagent then held, ring, pulse = ns.Reagents.refresh(def) end
 	if underWaterWarns(def) then
 		ring, pulse, held = setting(key, "warn", "ring"), setting(key, "warn", "fade"), true
+		glow = setting(key, "warn", "glow")
 	end
 	f:SetRingShown(ring)
 	f:SetPulsing(pulse)
+	if def.breath and glow ~= (def.glowing or false) then
+		def.glowing = glow and true or false
+		f:SetGlowShown(def.glowing)
+	end
 	local busy = not P.getAccount().locked or def.upUntil ~= nil or held
 	W.fadeTo(f, busy and 1 or E.idleAlpha(key))
 end
