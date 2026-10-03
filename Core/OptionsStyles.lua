@@ -787,4 +787,4 @@ function SP.build(p)
 end
 
 ns.Options.registerPage("styles", { title = "Styles explorer", icon = "Interface\\Icons\\INV_Misc_Gem_Variety_01",
-	order = 30, build = SP.build })
+	order = 76, bottom = 130, build = SP.build })

@@ -477,7 +477,7 @@ local function nav(b, current)
 end
 
 ns.Options.registerPage("guide", { title = "Guide", icon = "Interface\\Icons\\INV_Misc_Map_01", order = 75,
-	bottom = 130, build = build, nav = nav })
+	bottom = 160, build = build, nav = nav })
 
 MOD.register({ name = "guide",
 	sanitize = function(_, acct) if type(acct.guideSeen) ~= "boolean" then acct.guideSeen = false end end })
