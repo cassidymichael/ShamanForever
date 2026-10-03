@@ -35,6 +35,43 @@ end
 
 ns.BACKDROP = { bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 }
 
+-- A tooltip: title, then text in white (either may be a function); anchor: a GameTooltip one, or "above"
+function ns.setTip(frame, title, text, anchor)
+	if not text then return end
+	frame:SetScript("OnEnter", function(self)
+		if anchor == "above" then
+			GameTooltip:SetOwner(self, "ANCHOR_NONE")
+			GameTooltip:ClearAllPoints()
+			GameTooltip:SetPoint("BOTTOMLEFT", self, "TOPLEFT", 0, 2)
+		else GameTooltip:SetOwner(self, anchor or "ANCHOR_RIGHT") end
+		GameTooltip:SetText(type(title) == "function" and title() or title)
+		GameTooltip:AddLine(type(text) == "function" and text() or text, 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	frame:SetScript("OnLeave", function() GameTooltip:Hide() end)
+end
+
+-- A panel the player drags, kept on screen, hidden; border: its edge colour over a dark fill (none: no backdrop)
+function ns.floatingPanel(name, width, height, border)
+	local f = CreateFrame("Frame", name, UIParent, "BackdropTemplate")
+	f:SetSize(width, height)
+	f:SetFrameStrata("DIALOG")
+	f:SetMovable(true)
+	f:SetClampedToScreen(true)
+	f:EnableMouse(true)
+	f:RegisterForDrag("LeftButton")
+	f:SetScript("OnDragStart", f.StartMoving)
+	f:SetScript("OnDragStop", f.StopMovingOrSizing)
+	f:SetScript("OnHide", f.StopMovingOrSizing)   -- hidden mid-drag (combat), the drag ends
+	if border then
+		f:SetBackdrop(ns.BACKDROP)
+		f:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
+		f:SetBackdropBorderColor(unpack(border))
+	end
+	f:Hide()
+	return f
+end
+
 function ns.cropIcon(tex) tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
 -- Drawn at the frame's exact rect: a snapped texture would show a sliver past a cooldown swipe.
 function ns.cropIconExact(tex)

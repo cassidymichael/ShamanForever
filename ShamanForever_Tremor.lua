@@ -305,7 +305,7 @@ local function changed()
 	checkTarget()
 	checkAllPlates()
 	refresh()
-	ns.Options.refresh()
+	ns.changed()
 end
 
 local function isSeed(lower)

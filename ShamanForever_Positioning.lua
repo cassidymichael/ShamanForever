@@ -353,7 +353,7 @@ function PO.mover(spec)
 		wheel(spec.cfg(), delta, spec.ranges, spec.size)
 		spec.place()
 		self.label:SetText(spec.describe())
-		ns.Options.refresh()
+		ns.changed()
 	end)
 	return movable
 end
@@ -391,21 +391,9 @@ end)
 ns.onCombatEnd(syncNudger)
 
 -- The bar while unlocked
-local wasUnlocked, optionsSteppedAside = false, false
-local tray = CreateFrame("Frame", ns.NAME .. "Tray", UIParent, "BackdropTemplate")
-tray:SetSize(560, 120)
-tray:SetFrameStrata("DIALOG")
+local wasUnlocked = false
+local tray = ns.floatingPanel(ns.NAME .. "Tray", 560, 120, { 0.2, 0.6, 1, 0.9 })
 tray:SetPoint("TOP", UIParent, "TOP", 0, -120)
-tray:SetMovable(true)
-tray:SetClampedToScreen(true)
-tray:EnableMouse(true)
-tray:RegisterForDrag("LeftButton")
-tray:SetScript("OnDragStart", tray.StartMoving)
-tray:SetScript("OnDragStop", tray.StopMovingOrSizing)
-tray:SetBackdrop(ns.BACKDROP)
-tray:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
-tray:SetBackdropBorderColor(0.2, 0.6, 1, 0.9)
-tray:Hide()
 do
 	local title = tray:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	title:SetPoint("TOPLEFT", 10, -10)
@@ -447,13 +435,7 @@ do
 			acct()[key] = on
 			ns.layoutElements()
 		end)
-		cb:SetScript("OnEnter", function(self)
-			GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-			GameTooltip:SetText(label)
-			GameTooltip:AddLine(tip, 1, 1, 1, true)
-			GameTooltip:Show()
-		end)
-		cb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+		ns.setTip(cb, label, tip, "ANCHOR_BOTTOM")
 		return cb
 	end
 	tray.snap = check("Snapping", "snap", "While dragging, groups snap to other groups' edges and centres, the screen centre, and the grid when it is shown.")
@@ -489,21 +471,9 @@ do
 	tray.options = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
 	tray.options:SetSize(110, 22)
 	tray.options:SetPoint("RIGHT", lock, "LEFT", -6, 0)
-	tray.options:SetScript("OnClick", function()
-		if ns.Options.hide() then
-			optionsSteppedAside, acct().keepOptionsOpen = true, false
-		else
-			optionsSteppedAside, acct().keepOptionsOpen = false, true
-			ns.Options.open("layout")
-		end
-	end)
-	tray.options:SetScript("OnEnter", function(self)
-		GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-		GameTooltip:SetText(self:GetText())
-		GameTooltip:AddLine("The options stay shown or hidden the next time you unlock.", 1, 1, 1, true)
-		GameTooltip:Show()
-	end)
-	tray.options:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	tray.options:SetScript("OnClick", function() ns.Options.toggleAside("layout") end)
+	ns.setTip(tray.options, function() return tray.options:GetText() end,
+		"The options stay shown or hidden the next time you unlock.", "ANCHOR_BOTTOM")
 end
 
 function PO.optionsShown(shown)
@@ -514,12 +484,7 @@ PO.optionsShown(false)
 local function stepOptionsAside(unlocked)
 	if unlocked == wasUnlocked then return end
 	wasUnlocked = unlocked
-	if unlocked then
-		optionsSteppedAside = not acct().keepOptionsOpen and ns.Options.hide() or false
-	elseif optionsSteppedAside then
-		optionsSteppedAside = false
-		ns.Options.open()
-	end
+	if unlocked then ns.Options.stepAside("positioning") else ns.Options.comeBack("positioning") end
 end
 
 function PO.update()
@@ -547,7 +512,7 @@ end
 -- drags and wheel zoom for the whole fight.
 function PO.lockInCombat()
 	acct().locked = true
-	optionsSteppedAside = false
+	ns.Options.comeBack("positioning", true)
 	selectedGroup, selectedMovable = nil, nil
 	local free = not InCombatLockdown()
 	for _, gf in pairs(ns.groupFrames) do
@@ -561,5 +526,5 @@ function PO.lockInCombat()
 	PO.update()
 	ns.retryAfterCombat("layout", ns.layoutElements)
 	for _, m in ipairs(movables) do m.lock() end
-	ns.Options.refresh()
+	ns.changed()
 end

@@ -25,20 +25,7 @@ end
 local allPages = {}
 local SUB_INDENT, SUB_MAX, RULE_X = 24, 2, 12
 
-function Page.setTip(frame, title, text, above)
-	if not text then return end
-	frame:SetScript("OnEnter", function(self)
-		if above then
-			GameTooltip:SetOwner(self, "ANCHOR_NONE")
-			GameTooltip:ClearAllPoints()
-			GameTooltip:SetPoint("BOTTOMLEFT", self, "TOPLEFT", 0, 2)
-		else GameTooltip:SetOwner(self, "ANCHOR_RIGHT") end
-		GameTooltip:SetText(title)
-		GameTooltip:AddLine(text, 1, 1, 1, true)
-		GameTooltip:Show()
-	end)
-	frame:SetScript("OnLeave", function() GameTooltip:Hide() end)
-end
+Page.setTip = ns.setTip
 
 -- Pages
 function Page.new(win, key, title, indent)
@@ -467,7 +454,7 @@ end
 
 function Page:label(f, text, tip)
 	f:EnableMouse(true)
-	Page.setTip(f, text, tip, true)
+	Page.setTip(f, text, tip, "above")
 	local fs = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	fs:SetPoint("LEFT", 4, 0)
 	fs:SetWidth(LABEL_W - 8)
@@ -977,22 +964,6 @@ function Page:color(label, tip, get, set, shown, opaque)
 		local c = get() or { 0.5, 0.5, 0.5, 1 }
 		b.swatch:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
 	end)
-end
-
-function Page:button(textFn, onClick, tip, width, shown)
-	local f = self:row(32)
-	local btn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-	btn:SetSize(width or 160, 22)
-	btn:SetPoint("LEFT", 0, 0)
-	btn:SetScript("OnClick", onClick)
-	btn:SetScript("OnEnter", function(button)
-		GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
-		GameTooltip:SetText(textFn())
-		GameTooltip:AddLine(tip, 1, 1, 1, true)
-		GameTooltip:Show()
-	end)
-	btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
-	return self:add(f, 32, shown, function() btn:SetText(textFn()) end)
 end
 
 function Page:buttons(list, shown)

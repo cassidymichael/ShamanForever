@@ -99,7 +99,7 @@ local function retry()
 		end
 	end
 	if waiting then C_Timer.After(RETRY_SECS, retry) end
-	if used then M.changed() else ns.Options.refresh() end
+	if used then M.changed() else ns.changed() end
 end
 
 local function check(path)
@@ -356,5 +356,5 @@ end
 function M.changed()
 	fontGen = fontGen + 1
 	if ns.isActive() then ns.applyLayout() end
-	ns.Options.refresh()
+	ns.changed()
 end

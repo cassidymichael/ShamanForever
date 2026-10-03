@@ -216,7 +216,7 @@ local function onEvent(_, event, a1, a2)
 	elseif event == "UNIT_SPELLCAST_START" then onCastStart()
 	elseif event == "UNIT_INVENTORY_CHANGED" then
 		paintFill()
-		ns.Options.refresh()
+		ns.changed()
 	elseif event == "PLAYER_LEAVE_COMBAT" or event == "PLAYER_DEAD" then clearSwing()
 	end
 end

@@ -633,7 +633,7 @@ local function layoutElements()
 	each("afterGroups")
 	ns.refitRings()
 	ns.Positioning.update()
-	ns.Options.refresh()
+	ns.changed()
 end
 
 -- Spell resolution and layout
@@ -798,7 +798,7 @@ end
 
 local function redraw()
 	resolveSpells(); ns.Effects.applyStyle(); applyLayout(); refreshAll()
-	ns.Options.refresh()
+	ns.changed()
 end
 
 local function useProfile(name)

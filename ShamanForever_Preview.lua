@@ -233,32 +233,8 @@ end
 
 -- The panel
 -- Not named, so the client keeps no position for it: it starts at the top each time
-local panel = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-panel:SetSize(560, 66)
-panel:SetFrameStrata("DIALOG")
+local panel = ns.floatingPanel(nil, 560, 66, { 0.85, 0.71, 0.42, 0.9 })
 panel:SetPoint("TOP", UIParent, "TOP", 0, -12)
-panel:SetMovable(true)
-panel:SetClampedToScreen(true)
-panel:EnableMouse(true)
-panel:RegisterForDrag("LeftButton")
-panel:SetScript("OnDragStart", panel.StartMoving)
-panel:SetScript("OnDragStop", panel.StopMovingOrSizing)
-panel:SetScript("OnHide", panel.StopMovingOrSizing)   -- combat can end it mid-drag
-panel:SetBackdrop(ns.BACKDROP)
-panel:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
-panel:SetBackdropBorderColor(0.85, 0.71, 0.42, 0.9)
-panel:Hide()
-
--- text: a string, or a function giving one
-local function setTip(frame, title, text)
-	frame:SetScript("OnEnter", function(self)
-		GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-		GameTooltip:SetText(title)
-		GameTooltip:AddLine(type(text) == "function" and text() or text, 1, 1, 1, true)
-		GameTooltip:Show()
-	end)
-	frame:SetScript("OnLeave", function() GameTooltip:Hide() end)
-end
 
 local function changed()
 	restart()
@@ -267,33 +243,10 @@ local function changed()
 end
 
 local function choice(parent, key, items)
-	local row = CreateFrame("Frame", nil, parent)
-	row.buttons = {}
-	local x = 0
-	for _, it in ipairs(items) do
-		local b = CreateFrame("Button", nil, row, "BackdropTemplate")
-		b:SetBackdrop(ns.BACKDROP)
-		b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-		b.text:SetPoint("CENTER")
-		b.text:SetText(it[2])
-		local w = math.ceil(b.text:GetStringWidth()) + 20
-		b:SetSize(w, 20)
-		b:SetPoint("LEFT", row, "LEFT", x, 0)
-		x = x + w + 2
-		b.value = it[1]
-		b:SetScript("OnClick", function(self)
-			if opts[key] == self.value then return end
-			opts[key] = self.value
-			changed()
-		end)
-		setTip(b, it[2], it[3])
-		table.insert(row.buttons, b)
-	end
-	row:SetSize(x - 2, 20)
-	function row.refresh()
-		for _, b in ipairs(row.buttons) do L.paintChoice(b, opts[key] == b.value) end
-	end
-	return row
+	return L.choiceRow(parent, items, function() return opts[key] end, function(v)
+		opts[key] = v
+		changed()
+	end, "ANCHOR_BOTTOM")
 end
 
 local function check(parent, key, label, tip)
@@ -305,7 +258,7 @@ local function check(parent, key, label, tip)
 		opts[key] = self:GetChecked() and true or false
 		changed()
 	end)
-	setTip(cb, label, tip)
+	ns.setTip(cb, label, tip, "ANCHOR_BOTTOM")
 	return cb
 end
 
@@ -317,7 +270,6 @@ local function button(parent, text, width, onClick)
 	return b
 end
 
-local optionsAside = false
 local optionsButton
 
 do
@@ -335,24 +287,17 @@ do
 	unlearned:SetPoint("LEFT", mode, "RIGHT", 10, 0)
 	local stop = button(panel, "Stop preview", 110, function() PV.close() end)
 	stop:SetPoint("TOPRIGHT", -10, -8)
-	optionsButton = button(panel, "Show options", 110, function()
-		if ns.Options.hide() then
-			optionsAside, ns.getAccount().keepOptionsOpen = true, false
-		else
-			optionsAside, ns.getAccount().keepOptionsOpen = false, true
-			ns.Options.open()
-		end
-	end)
+	optionsButton = button(panel, "Show options", 110, function() ns.Options.toggleAside() end)
 	optionsButton:SetPoint("RIGHT", stop, "LEFT", -6, 0)
-	setTip(optionsButton, "Options", "The options stay shown or hidden the next time.")
+	ns.setTip(optionsButton, "Options", "The options stay shown or hidden the next time.", "ANCHOR_BOTTOM")
 	local lock = button(panel, "Unlock positioning", 140, function()
 		ns.setLocked(not ns.getAccount().locked)
 		panel.refresh()
 	end)
 	lock:SetPoint("RIGHT", optionsButton, "LEFT", -6, 0)
-	setTip(lock, "Positioning", function()
+	ns.setTip(lock, "Positioning", function()
 		return "Drag " .. L.movingWords("groups") .. " while the preview shows."
-	end)
+	end, "ANCHOR_BOTTOM")
 	function panel.refresh()
 		mode.refresh()
 		unlearned:SetChecked(opts.unlearned)
@@ -373,13 +318,13 @@ function PV.open()
 	if not ns.isActive() then say("the preview is for %s only", ns.CLASS.plural) return end
 	if InCombatLockdown() then say("the preview can't start in combat") return end
 	on = true
-	optionsAside = not ns.getAccount().keepOptionsOpen and ns.Options.hide() or false
+	ns.Options.stepAside("preview")
 	restart()
 	ns.eachModule("onPreview", true)
 	ns.applyLayout()
 	panel:Show()
 	panel.refresh()
-	ns.Options.refresh()
+	ns.changed()
 end
 
 function PV.close(forCombat)
@@ -404,9 +349,8 @@ function PV.close(forCombat)
 	ns.eachModule("onPreview", false)
 	ns.applyLayout()
 	ns.refreshAll()
-	if optionsAside and not forCombat then ns.Options.open() end
-	optionsAside = false
-	ns.Options.refresh()
+	ns.Options.comeBack("preview", forCombat)
+	ns.changed()
 end
 
 function PV.toggle()

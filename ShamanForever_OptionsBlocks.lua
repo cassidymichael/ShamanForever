@@ -777,10 +777,47 @@ local function check(p, s, name, field, label, tip, shown)
 	local get, set = s.opt(name, field)
 	return p:checkbox(label, tip, get, set, shown)
 end
+-- A sound menu with Play beside it; choices(current): its list (every sound by default)
+local function soundPicker(p, label, tip, get, set, shown, choices)
+	local Sounds = ns.Sounds
+	choices = choices or Sounds.choices
+	local row = p:dropdown(label, tip, function() return choices(get()) end, function() return get() or "none" end,
+		function(v) set(v); Sounds.test(v) end, shown, 200)
+	local play = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+	play:SetSize(60, 22)
+	play:SetPoint("LEFT", row.dropdown, "RIGHT", 8, 0)
+	play:SetText("Play")
+	play:SetScript("OnClick", function() Sounds.test(get()) end)
+	local item = p.items[#p.items]
+	local refresh = item.refresh
+	item.refresh = function()
+		refresh()
+		play:SetEnabled(Sounds.playable(get()))
+	end
+	return row
+end
 local function soundRow(p, s, name, label, tip, shown, choices)
 	if not s.has(name, "sound") then return end
 	local get, set = s.opt(name, "sound")
-	return ns.Sounds.row(p, label, tip, get, set, shown, choices)
+	return soundPicker(p, label, tip, get, set, shown, choices)
+end
+
+-- Global's Sounds: who picks their own (elements, then the bars with a sound setting) and the channel
+local function hasSound(t)
+	for k, v in pairs(t) do
+		if k == "sound" or (type(v) == "table" and hasSound(v)) then return true end
+	end
+	return false
+end
+local function soundsBlock(p)
+	local Sounds = ns.Sounds
+	local owners = ns.Bars.nouns(function(bar) return hasSound(bar.defaults or {}) end, "Elements")
+	p:header("Sounds")
+	p:text(ns.Look.wordList(owners) .. " pick their own sounds, on their pages. All start at None.")
+	p:dropdown("Channel", "Master plays even with sound effects off.", Sounds.CHANNELS, Sounds.channel, function(v)
+		Sounds.setChannel(v)
+		OP.refresh()
+	end, nil, 160)
 end
 
 -- The looks a state shows, in this order; %s in a tip: opts.noun ("icon" or "slot")
@@ -938,6 +975,7 @@ end
 K.eread, K.eslider, K.COUNT_POINTS = eread, eslider, COUNT_POINTS
 K.toggleBlock = toggleBlock
 K.elementDisplay, K.idleBlock, K.lookBlocks, K.reagentBlocks = elementDisplay, idleBlock, lookBlocks, reagentBlocks
+K.soundsBlock = soundsBlock
 K.warnBlock, K.readyBlock, K.activeBlock, K.expiringBlock, K.killedBlock = warnBlock, readyBlock, activeBlock,
 	expiringBlock, killedBlock
 

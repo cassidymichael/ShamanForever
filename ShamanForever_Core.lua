@@ -295,6 +295,11 @@ function ns.onCombatEnd(fn) table.insert(endFns, fn) end
 function ns.onRestrictionChange(fn) table.insert(changeFns, fn) end
 local function tell(fns, site) for _, fn in ipairs(fns) do ns.try(site, fn) end end
 
+-- What the options window shows may have changed: it listens with ns.onChanged, runtime calls ns.changed()
+local changedFns = {}
+function ns.onChanged(fn) table.insert(changedFns, fn) end
+function ns.changed() tell(changedFns, "changed") end
+
 local function combatStarts()
 	fighting = true
 	ns.try("combat start", function()
@@ -340,6 +345,17 @@ combat:SetScript("OnEvent", function(_, event, _, state)
 	if event == "PLAYER_REGEN_DISABLED" then combatStarts()
 	elseif event == "PLAYER_REGEN_ENABLED" then combatEnds()
 	else restrictionChanged(state) end
+end)
+
+-- From a loading screen until QUIET seconds after it: slots and enchants may read empty
+local QUIET = 3   -- seconds
+local quietUntil = 0
+function ns.zoning() return GetTime() < quietUntil end
+local zone = CreateFrame("Frame")
+ns.registerEvent(zone, "PLAYER_LEAVING_WORLD")
+ns.registerEvent(zone, "PLAYER_ENTERING_WORLD")
+zone:SetScript("OnEvent", function(_, event)
+	quietUntil = event == "PLAYER_LEAVING_WORLD" and math.huge or GetTime() + QUIET
 end)
 
 -- Spells, by ID: seed IDs (any rank; the first names it) and an English name used only when no seed

@@ -133,7 +133,7 @@ local function buildGlobal(p)
 			acct().minimap.hide = not v
 			ns.applyMinimapButton()
 		end)
-	ns.Sounds.generalBlock(p)
+	K.soundsBlock(p)
 	local hasReporter = ns.IssueReporter.has
 	p:header("Beta", hasReporter)
 	p:checkbox("Hide the Issue Reporter button", "Blizzard's beta Issue Reporter button. " .. ns.NAME .. " also remembers where you drag it.",
@@ -703,17 +703,10 @@ StaticPopupDialogs[ns.POPUP .. "PROFILE_NAME"] = {
 
 local share
 local function buildShare()
-	local f = CreateFrame("Frame", ns.NAME .. "ShareFrame", UIParent, "BackdropTemplate")
-	f:SetSize(460, 250)
+	local f = ns.floatingPanel(ns.NAME .. "ShareFrame", 460, 250)
 	f:SetPoint("CENTER")
 	f:SetFrameStrata("FULLSCREEN_DIALOG")
 	f:SetToplevel(true)
-	f:SetClampedToScreen(true)
-	f:SetMovable(true)
-	f:EnableMouse(true)
-	f:RegisterForDrag("LeftButton")
-	f:SetScript("OnDragStart", f.StartMoving)
-	f:SetScript("OnDragStop", f.StopMovingOrSizing)
 	panelBackdrop(f, 0.55, 0.42, 0.22)
 	table.insert(UISpecialFrames, f:GetName())
 
@@ -775,7 +768,6 @@ local function buildShare()
 		f:Hide()
 		askName("Name for the imported profile:", "Imported", function(n) return ns.Profiles.new(n, settings) end)
 	end)
-	f:Hide()
 	return f
 end
 
@@ -820,6 +812,7 @@ function OP.refresh()
 		refreshNav()
 	end)
 end
+ns.onChanged(OP.refresh)
 
 function OP.open(page, groupId)
 	if not ns.getDB() then return end
@@ -880,6 +873,31 @@ end
 
 function OP.toggle()
 	if win and win:IsShown() then win:Hide() else OP.open() end
+end
+
+-- The preview and positioning step the window aside unless it is kept open; it returns once neither runs
+local running, steppedAside = {}, false
+function OP.stepAside(who)
+	running[who] = true
+	if not acct().keepOptionsOpen and OP.hide() then steppedAside = true end
+end
+-- stay: who ended for combat, and the window stays away
+function OP.comeBack(who, stay)
+	if not running[who] then return end
+	running[who] = nil
+	if stay then steppedAside = false end
+	if next(running) or not steppedAside then return end
+	steppedAside = false
+	OP.open()
+end
+-- Their Show or Hide options button: the choice is kept for next time
+function OP.toggleAside(page)
+	if OP.hide() then
+		steppedAside, acct().keepOptionsOpen = true, false
+	else
+		steppedAside, acct().keepOptionsOpen = false, true
+		OP.open(page)
+	end
 end
 
 local category

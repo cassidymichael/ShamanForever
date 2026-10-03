@@ -290,7 +290,7 @@ function P.rename(name)
 	a.profiles[name], a.profiles[old] = a.profiles[old], nil
 	for _, c in pairs(a.chars) do if c.profile == old then c.profile = name end end
 	ns.selectProfile(name)
-	ns.Options.refresh()
+	ns.changed()
 end
 
 function P.delete()

@@ -268,6 +268,35 @@ function L.paintChoice(b, chosen)
 	b.text:SetTextColor(chosen and 1 or 0.78, chosen and 0.84 or 0.74, chosen and 0.5 or 0.68)
 end
 
+-- A row of chips, items { value, label, tip }: set(value) when another is clicked; row.refresh paints get()'s
+function L.choiceRow(parent, items, get, set, tipAnchor)
+	local row = CreateFrame("Frame", nil, parent)
+	row.buttons = {}
+	local x = 0
+	for _, it in ipairs(items) do
+		local b = CreateFrame("Button", nil, row, "BackdropTemplate")
+		b:SetBackdrop(ns.BACKDROP)
+		b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		b.text:SetPoint("CENTER")
+		b.text:SetText(it[2])
+		local w = math.ceil(b.text:GetStringWidth()) + 20
+		b:SetSize(w, 20)
+		b:SetPoint("LEFT", row, "LEFT", x, 0)
+		x = x + w + 2
+		b.value = it[1]
+		b:SetScript("OnClick", function(self)
+			if get() ~= self.value then set(self.value) end
+		end)
+		ns.setTip(b, it[2], it[3], tipAnchor)
+		table.insert(row.buttons, b)
+	end
+	row:SetSize(x - 2, 20)
+	function row.refresh()
+		for _, b in ipairs(row.buttons) do L.paintChoice(b, get() == b.value) end
+	end
+	return row
+end
+
 function L.buildHero(parent, key)
 	local e = identity(key)
 	local school = L.SCHOOL[e.school]
