@@ -333,7 +333,9 @@ local function previewMarks(ic)
 	local row, side = not ic.marksOnHUD or flowsInRow(), own("marks", "side")
 	for i, m in ipairs(MARKS) do
 		local x, f = list[i], list[i].frame
-		local on = own("marks", m.key) and true or false
+		-- On the HUD only what it can show, unless the preview shows what isn't learned
+		local learned = not ic.marksOnHUD or m.spellID ~= nil or ns.Preview.showsUnlearned()
+		local on = own("marks", m.key) and learned and true or false
 		f:SetShown(on)
 		if on then
 			f:SetFrameLevel(ic:GetFrameLevel() + 6)
