@@ -401,7 +401,8 @@ local function buildNav()
 		table.insert(navButtons, b)
 		return b
 	end
-	local y = LOGO_Y - LOGO_SIZE - 1
+	-- The crest's drawn part ends 100 of its 112 down, its shadow 4 lower: the list starts a few clear of it
+	local y = LOGO_Y - LOGO_SIZE + 3
 	local function top(...)
 		local b = add(...)
 		b:SetPoint("TOPLEFT", win, "TOPLEFT", 12, y)

@@ -207,41 +207,57 @@ local function lookFor(st, i)
 end
 
 -- Where the three icons sit on step st and at what size, and how far below the icons' centre the
--- art reaches (where the line to the Element box starts). Element art frames are placed by each
--- style's real reach, the icons made smaller where the art would leave the stage; every other part
--- keeps one size and spacing.
-local ART_GAP, STYLE_STAGE = 8, 204
+-- art reaches (where the line to the Element box starts); cy: the middle of the stage's free area
+-- (between the step's name and its dots). Element art frames are spaced by the part of their art
+-- that is drawn: equal gaps between the drawn edges, the row centred, at one size for every such step
+-- (as large as fits); every other part keeps one size and spacing.
+local ART_GAP, STYLE_STAGE = 24, 204
+local NO_REACH = { left = 0, right = 0, top = 0, bottom = 0 }
+local function drawn(st, i)
+	return st.keys[i] and FR.look("frame", st.keys[i]).drawn or NO_REACH
+end
+local function artSize(width, height)
+	local size = SIZE
+	for _, st in ipairs(STEPS) do
+		if st.part == "frame" then
+			local across, top, bottom = 0, 0, 0
+			for i = 1, 3 do
+				local r = drawn(st, i)
+				across, top, bottom = across + 1 + r.left + r.right, math.max(top, r.top), math.max(bottom, r.bottom)
+			end
+			size = math.min(size, (width - 2 * ART_GAP) / across, height / (1 + top + bottom))
+		end
+	end
+	return math.floor(size)
+end
 local function layoutFor(f, st, cx, cy)
 	if st.part == "frame" then
 		FR.drawGroup(f.stage, nil)
-		local reach, across, high = {}, 0, 0
+		local size, across, top, bottom = f.artSize, 0, 0, 0
 		for i = 1, 3 do
-			local r = st.keys[i] and FR.look("frame", st.keys[i]).reach or { left = 0, right = 0, top = 0, bottom = 0 }
-			reach[i] = r
-			across = across + 1 + r.left + r.right
-			high = math.max(high, 1 + 2 * math.max(r.top, r.bottom))
+			local r = drawn(st, i)
+			across, top, bottom = across + 1 + r.left + r.right, math.max(top, r.top), math.max(bottom, r.bottom)
 		end
-		local size = math.floor(math.min(SIZE, (f.shape.stageW - 2 * PAD - 2 * ART_GAP) / across,
-			(STYLE_STAGE - 2 * (PAD + 18)) / high))
+		local y = cy - (bottom - top) * size / 2
 		local at, x = {}, cx - (across * size + 2 * ART_GAP) / 2
 		for i = 1, 3 do
-			x = x + reach[i].left * size
-			at[i] = { x + size / 2, cy }
-			x = x + size + reach[i].right * size + ART_GAP
+			local r = drawn(st, i)
+			at[i] = { x + (r.left + 0.5) * size, y }
+			x = x + (1 + r.left + r.right) * size + ART_GAP
 		end
-		return at, size, size / 2 + math.ceil(reach[2].bottom * size)
+		return at, size, y + size / 2 + drawn(st, 2).bottom * size
 	end
 	local look = st.part == "groupframe" and FR.look("groupframe", st.keys[1])
 	if not look then
 		FR.drawGroup(f.stage, nil)
-		return rowAt(3, PITCH, cx, cy), SIZE, SIZE / 2
+		return rowAt(3, PITCH, cx, cy), SIZE, cy + SIZE / 2
 	end
 	local gap = FR.fitSpacing(look, SIZE, W.pixel(f.stage)) or 6
 	local lay = { size = SIZE, n = 3, gap = gap, vertical = false }
 	lay.x, lay.y = cx - (3 * SIZE + 2 * gap) / 2, cy - SIZE / 2
 	FR.drawGroup(f.stage, look, lay, S.clean(nil, S.PARTS.groupframe.defaults))
 	local outer = FR.groupLayout(look, lay, W.pixel(f.stage)).outer
-	return rowAt(3, SIZE + gap, cx, cy), SIZE, math.max(SIZE / 2, lay.y + outer[4] - cy)
+	return rowAt(3, SIZE + gap, cx, cy), SIZE, math.max(cy + SIZE / 2, lay.y + outer[4])
 end
 
 local stylesSteps = {}
@@ -263,7 +279,10 @@ GD.add({ title = "Styles", order = 20, blurb = "A taste of what things can look 
 		-- A click shows that part and holds it for its full time
 		f.progress = GD.dots(s.stage, #STEPS, function(i) GD.stepTo(i - 1) end)
 		f.progress:SetPoint("BOTTOMRIGHT", s.stage, "BOTTOMRIGHT", -PAD + 4, PAD - 4)
-		f.cy = STYLE_STAGE / 2 + 4
+		-- The free area: under the step's name, above the dots
+		local freeTop, freeBottom = PAD + 16 + 8, STYLE_STAGE - (PAD - 4) - 18 - 8
+		f.cy = (freeTop + freeBottom) / 2
+		f.artSize = artSize(s.stageW - 2 * PAD, freeBottom - freeTop)
 		f.lead = GD.lead(s, s.stageW / 2, f.cy + SIZE / 2 + 4)
 		local y = s.height + GAP + 4
 		local more = GD.text(f, "To see all styles, view the settings pages or browse the Styles explorer.",
@@ -285,8 +304,8 @@ GD.add({ title = "Styles", order = 20, blurb = "A taste of what things can look 
 		end
 		f.progress.light(x + 1)
 		local cx = f.shape.stageW / 2
-		local at, size, below = layoutFor(f, st, cx, f.cy)
-		f.lead.from(f.cy + below + 4)
+		local at, size, low = layoutFor(f, st, cx, f.cy)
+		f.lead.from(low + 4, at[2][1])
 		for i, ex in ipairs(f.icons) do
 			ex:resize(size):at(f.stage, at[i][1], at[i][2])
 			ex:wear(dressFor(st, i)):show(lookFor(st, i))

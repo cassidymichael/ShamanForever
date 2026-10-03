@@ -1,5 +1,5 @@
 -- Frame styles: data only. Client art by file ID or atlas, ours by path in Art\Frames\.
--- Sizes and holes are in texels of the piece as drawn (after coords).
+-- Sizes and holes are in texels of the piece as drawn (after coords); shown: the art's opaque part.
 
 local _, ns = ...
 
@@ -7,19 +7,20 @@ local FR = ns.Frames
 
 -- Round one icon
 FR.addStyle("stormwings", { name = "Storm-grey wings", group = "blizzard", weight = "wispy", tint = true,
-	art = { file = 629199, size = { 256, 128 } }, hole = { 106, 43, 44, 44 } })
+	art = { file = 629199, size = { 256, 128 } }, hole = { 106, 43, 44, 44 }, shown = { 8, 17, 245, 107 } })
 FR.addStyle("gale", { name = "Gale", group = "blizzard", weight = "wispy",
-	art = { file = 4880072, size = { 256, 128 } }, hole = { 110, 45, 41, 41 } })
+	art = { file = 4880072, size = { 256, 128 } }, hole = { 110, 45, 41, 41 }, shown = { 53, 12, 205, 114 } })
 FR.addStyle("flamewings", { name = "Flame wings", group = "blizzard", weight = "wispy",
-	art = { file = 4880073, size = { 256, 128 } }, hole = { 110, 45, 41, 41 } })
+	art = { file = 4880073, size = { 256, 128 } }, hole = { 110, 45, 41, 41 }, shown = { 34, 15, 227, 110 } })
 FR.addStyle("tide", { name = "Tide", group = "blizzard", weight = "solid",
-	art = { file = 4880074, size = { 256, 128 } }, hole = { 110, 45, 41, 41 } })
+	art = { file = 4880074, size = { 256, 128 } }, hole = { 110, 45, 41, 41 }, shown = { 70, 16, 194, 104 } })
 FR.addStyle("marblegold", { name = "Marble and gold", group = "blizzard", weight = "solid",
-	art = { file = 3853104, size = { 256, 128 } }, hole = { 106, 41, 43, 43 } })
+	art = { file = 3853104, size = { 256, 128 } }, hole = { 106, 41, 43, 43 }, shown = { 87, 19, 167, 106 } })
 FR.addStyle("achgold", { name = "Achievement gold", group = "blizzard", weight = "solid", tint = true,
-	art = { file = 130656, coords = { 0, 0.5625, 0, 0.5625 }, size = { 72, 72 } }, hole = { 16, 16, 40, 40 } })
+	art = { file = 130656, coords = { 0, 0.5625, 0, 0.5625 }, size = { 72, 72 } }, hole = { 16, 16, 40, 40 },
+	shown = { 1, 1, 71, 71 } })
 FR.addStyle("brackets", { name = "Corner brackets", group = "blizzard", weight = "wispy", tint = true,
-	art = { atlas = "ConduitIconFrame-Corners", size = { 64, 64 } }, hole = { 7, 7, 50, 50 } })
+	art = { atlas = "ConduitIconFrame-Corners", size = { 64, 64 } }, hole = { 7, 7, 50, 50 }, shown = { 1, 1, 63, 63 } })
 FR.addStyle("runewood", { name = "Runed wood", group = "painted", weight = "solid", credit = "ai",
 	art = { path = "Runewood", size = { 256, 256 } }, hole = { 64, 64, 128, 128 } })
 

@@ -191,12 +191,13 @@ function GD.shape(f, o)
 	return s
 end
 
--- A line from x, y on the stage down to the Element box; f.from(y) starts it elsewhere
+-- A line from x, y on the stage down to the Element box; f.from(y, x) starts it elsewhere
 function GD.lead(s, x, y)
 	local f = CreateFrame("Frame", nil, s.group)
 	f:SetFrameLevel(s.stage:GetFrameLevel() + 5)
 	f:SetWidth(2)
-	function f.from(top)
+	function f.from(top, left)
+		x = left or x
 		f:ClearAllPoints()
 		f:SetPoint("TOPLEFT", s.stage, "TOPLEFT", x - 1, -top)
 		f:SetHeight(math.max(s.elementY - s.stageY - top, 1))
@@ -476,7 +477,7 @@ local function nav(b, current)
 end
 
 ns.Options.registerPage("guide", { title = "Guide", icon = "Interface\\Icons\\INV_Misc_Map_01", order = 75,
-	bottom = 130, build = build, nav = nav })
+	bottom = 160, build = build, nav = nav })
 
 MOD.register({ name = "guide",
 	sanitize = function(_, acct) if type(acct.guideSeen) ~= "boolean" then acct.guideSeen = false end end })
