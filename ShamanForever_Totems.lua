@@ -7,6 +7,9 @@ local Spells = ns.Spells
 local T = { name = "totems" }
 ns.Totems = T
 
+-- Grounding Totem's end when it takes a spell
+ns.Looks.addPopKind("grounded", { color = { 0.56, 0.76, 0.92 }, tick = true })
+
 -- Slots: 1 fire, 2 earth, 3 water, 4 air
 local owner = {}   -- slot -> spell key, or "other"
 local spells = {}
@@ -138,7 +141,7 @@ end
 function T.endOptions(s, which, def)
 	if which == "killed" then
 		if not s.flash then return nil end
-		if def and def.grounded then return { grounded = true, pop = s.pop, glow = s.glow } end
+		if def and def.grounded then return { kind = "grounded", pop = s.pop, glow = s.glow } end
 		return { pop = s.pop, glow = s.glow, mark = s.mark }
 	end
 	if def and def.ranOut then

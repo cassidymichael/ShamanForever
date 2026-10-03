@@ -917,15 +917,17 @@ function Looks.popParts(key, school)
 	return popParts[id]
 end
 
--- What a pop marks, and its colour; byStyle: the Pop style's Colour applies (not to warnings)
+-- What a pop marks, and its colour; byStyle: the Pop style's Colour applies (not to warnings); tick:
+-- an end flash of this kind (an early end of its own) shows a tick
 Looks.POP_KINDS = {
 	ready = { color = { 1, 0.82, 0.25 }, byStyle = true },
 	expired = { color = { 0.95, 0.95, 0.95 }, byStyle = true },
 	lost = { color = { 0.35, 0.65, 1 } },
 	killed = { color = { 1, 0.15, 0.1 } },
-	grounded = { color = { 0.56, 0.76, 0.92 } },
 	blocked = { color = { 0.6, 0.6, 0.6 } },   -- ready but can't be cast
 }
+-- A class's own pop kind
+function Looks.addPopKind(key, spec) Looks.POP_KINDS[key] = spec end
 
 Looks.effectSchool = effectSchool
 
