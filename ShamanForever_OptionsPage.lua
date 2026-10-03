@@ -588,7 +588,7 @@ Page.refKind("group", {
 	slot = function(r) return r.name end,
 	default = function(r)
 		local g = groupOf(r)
-		for _, shipped in ipairs(g and ns.DEFAULTS.groups or {}) do
+		for _, shipped in ipairs(g and ns.CLASS.layout or {}) do
 			if shipped.id == g.id and shipped.name == g.name and shipped[r.name] ~= nil then
 				return shipped[r.name]
 			end
