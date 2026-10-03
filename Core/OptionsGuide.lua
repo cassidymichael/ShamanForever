@@ -261,12 +261,14 @@ function Ex:resize(size)
 end
 
 -- spec: el (whose shipped styles it starts from), school, and per part (border, glow, pop, frame,
--- cooldown, uptime) the fields that replace the start's
+-- cooldown, uptime) the fields that replace the start's; no art frame unless spec.frame names one
 function Ex:wear(spec)
 	spec = spec or {}
 	self.spec = spec
 	for _, part in ipairs(OWN_PARTS) do
 		local st = baseOf(spec.el, part)
+		-- An art frame only where a slide names one: they're experimental, badged where shown
+		if part == "frame" then st.look = "none" end
 		for k, v in pairs(spec[part] or {}) do st[k] = type(v) == "table" and CopyTable(v) or v end
 		setOwn(self.owner, part, st)
 	end

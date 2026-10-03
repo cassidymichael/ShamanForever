@@ -258,6 +258,8 @@ GD.add({ title = "Styles", order = 20, blurb = "A taste of what things can look 
 			f.icons[i].box:SetFrameLevel(s.stage:GetFrameLevel() + 10)
 		end
 		f.label = GD.text(s.stage, "", PAD, PAD, s.stageW - 2 * PAD)
+		-- Art frames are experimental: badged beside the step's name and the Global line's word
+		f.artBadges = { ns.OptionsArt.expBadge(s.stage, "Art frames"), ns.OptionsArt.expBadge(s.global, "Art frames") }
 		-- A click shows that part and holds it for its full time
 		f.progress = GD.dots(s.stage, #STEPS, function(i) GD.stepTo(i - 1) end)
 		f.progress:SetPoint("BOTTOMRIGHT", s.stage, "BOTTOMRIGHT", -PAD + 4, PAD - 4)
@@ -274,6 +276,13 @@ GD.add({ title = "Styles", order = 20, blurb = "A taste of what things can look 
 		local st = STEPS[x + 1]
 		f.shape.globalText:SetText(globalLine(st.word))
 		f.label:SetText(stepLabel(st))
+		local art = st.part == "frame" or st.part == "groupframe"
+		for i, badge in ipairs(f.artBadges) do
+			local fs = i == 1 and f.label or f.shape.globalText
+			badge:ClearAllPoints()
+			badge:SetPoint("TOPLEFT", fs, "TOPLEFT", math.ceil(fs:GetStringWidth()) + 10, 1)
+			badge:SetShown(art)
+		end
 		f.progress.light(x + 1)
 		local cx = f.shape.stageW / 2
 		local at, size, below = layoutFor(f, st, cx, f.cy)
