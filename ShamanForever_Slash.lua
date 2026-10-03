@@ -4,12 +4,12 @@ local ADDON, ns = ...
 local say = ns.say
 
 local SLASH = ns.NAME:upper()
-_G["SLASH_" .. SLASH .. "1"] = "/sf"
-_G["SLASH_" .. SLASH .. "2"] = "/shf"
+local CMD = ns.CLASS.slash[1]
+for i, word in ipairs(ns.CLASS.slash) do _G["SLASH_" .. SLASH .. i] = word end
 local function toggleLock()
 	local acct = ns.getAccount()
 	if ns.setLocked(not acct.locked) then
-		say(acct.locked and "positioning locked" or "positioning unlocked: drag groups to move them, /sf lock when done")
+		say(acct.locked and "positioning locked" or "positioning unlocked: drag groups to move them, %s lock when done", CMD)
 	end
 end
 local function onLauncherClick(button)
@@ -61,12 +61,13 @@ SlashCmdList[SLASH] = function(msg)
 	elseif cmd == "lock" then
 		toggleLock()
 	elseif cmd == "unlock" then
-		if ns.setLocked(false) then say("positioning unlocked: drag groups to move them, /sf lock when done") end
+		if ns.setLocked(false) then say("positioning unlocked: drag groups to move them, %s lock when done", CMD) end
 	elseif cmd == "preview" then
 		ns.Preview.toggle()
 	elseif cmd == "debug" then
 		ns.debugReport()
 	else
-		say("/sf opens the options. Also: /sf lock (lock or unlock positioning), /sf preview (the whole HUD in a typical moment), /sf debug")
+		say("%s opens the options. Also: %s lock (lock or unlock positioning), %s preview (the whole HUD in a typical moment), %s debug",
+			CMD, CMD, CMD, CMD)
 	end
 end

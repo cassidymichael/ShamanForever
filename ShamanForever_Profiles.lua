@@ -308,7 +308,7 @@ function P.reset()
 end
 
 -- Sharing
-local SHARE_PREFIX = "!SF1!"
+local SHARE_PREFIX = ns.CLASS.sharePrefix
 
 function P.export()
 	local E = C_EncodingUtil

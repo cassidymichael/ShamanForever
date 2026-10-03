@@ -2,9 +2,41 @@
 
 local _, ns = ...
 
--- What a class supplies: token (its class file token), plural (in messages); cooldowns and buffs
--- (rows for the cooldown and buff engines, from _ClassElements; optional)
-ns.CLASS = { token = "SHAMAN", plural = "shamans" }
+-- What a class supplies:
+--   token, plural    its class file token; the class in messages
+--   slash            the slash commands; the first is the one help text names
+--   icon, blurb      the Home page's nav icon; About's line under the name
+--   links            repo, curseforge, discord, kofi: About's links
+--   credits          About's art credits
+--   sharePrefix      starts a share string; another prefix is refused
+--   help             text naming the class's things: uptime (Time left), pop (what pops),
+--                    popColour (the pop's Colour tip), bars (Bar texture)
+--   cooldowns, buffs rows for the cooldown and buff engines, from _ClassElements (optional)
+ns.CLASS = {
+	token = "SHAMAN",
+	plural = "shamans",
+	slash = { "/sf", "/shf" },
+	icon = "Interface\\Icons\\ClassIcon_Shaman",
+	blurb = "A shaman HUD for WoW Forever.",
+	links = {
+		repo = "https://github.com/cassidymichael/ShamanForever",
+		curseforge = "https://www.curseforge.com/wow/addons/shamanforever",
+		discord = "https://discord.gg/VaXH8CQZFG",
+		kofi = "https://ko-fi.com/cassidycloud",
+	},
+	credits = "Banners from public-domain paintings: Thomas Moran, The Chasm of the Colorado (earth); Joseph Wright of Derby, " ..
+		"Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora Borealis (spirit); " ..
+		"Francisque Millet, Mountain Landscape with Lightning (air). Corner and divider ornaments: public domain / CC0, Wikimedia Commons. " ..
+		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood texture CC0, ambientCG. Link icons: Simple Icons, CC0. " ..
+		"The Carved stone, Aged bronze and Carved wood borders and the Emblem pop burst: made with an AI image model (Google Gemini), as were the plinth and medallions of the Stone and bronze totem theme.",
+	sharePrefix = "!SF1!",
+	help = {
+		uptime = "A totem, shield or imbue running.",
+		pop = "a cooldown ready, an imbue dropping, a totem ending",
+		popColour = "For Ready and Ran out. By event: gold when ready, white when a totem runs out. Killed early, Grounded and the imbue dropping keep their own colours.",
+		bars = "Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer.",
+	},
+}
 
 -- The art theme: what a class supplies for its icons' colour, art and effects. Every table is
 -- keyed by a school key from `order`:

@@ -66,7 +66,7 @@ end
 
 function EP.buildOverview(p)
 	p:pageTitle("Elements")
-	p:text("Most of ShamanForever's HUD indicators are \"elements\", usually icon-shaped things which"
+	p:text("Most of " .. ns.NAME .. "'s HUD indicators are \"elements\", usually icon-shaped things which"
 		.. " always fit inside one \"group\", and \"groups\" get moved around the screen in the unlocked"
 		.. " mode.")
 	local COLS = {

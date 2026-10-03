@@ -434,7 +434,7 @@ local function popBlock(p, owner, kind)
 	end
 	if owner == nil then
 		p:anchor("pop")
-		p:text("The burst when something happens: a cooldown ready, an imbue dropping, a totem ending. "
+		p:text("The burst when something happens: " .. ns.CLASS.help.pop .. ". "
 			.. ownersText("Elements", "pop"))
 	else followRow(p, owner, "pop", after) end
 	local own = showWhen(r.own)
@@ -452,7 +452,7 @@ local function popBlock(p, owner, kind)
 	end)
 	if isElement(owner) then popSchoolRow(p, owner, showWhen(bySchool)) end
 	if colored then
-		local color = choiceRows(p, r, "pop", "colorBy", "Colour", "For Ready and Ran out. By event: gold when ready, white when a totem runs out. Killed early, Grounded and the imbue dropping keep their own colours.", own)
+		local color = choiceRows(p, r, "pop", "colorBy", "Colour", ns.CLASS.help.popColour, own)
 		p:text("By school suits this burst.", showWhen(function() return color().key == "event" and burst().bySchool end, own))
 	end
 	choiceRows(p, r, "pop", "flash", "Flash", "Over the icon.", own)
@@ -524,7 +524,7 @@ end
 local function barBlock(p)
 	p:header("Bar texture")
 	p:anchor("bar")
-	p:text("Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer. "
+	p:text(ns.CLASS.help.bars .. " "
 		.. ownersText(nil, "bar"))
 	barRows(p, nil)
 	ownLine(p, "bar")
