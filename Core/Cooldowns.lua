@@ -17,7 +17,7 @@ local setting = E.setting
 
 -- Elements: the class's rows (ns.CLASS.cooldowns). A row's fields: key, spellKey, icon, school,
 -- blurb, experimental; its parts' flags (this file's parts: window (seconds from our cast), primed,
--- readyGlow, noReady; others' below); expireLooks (which looks Expiring offers; false: none), race
+-- readyGlow, lowMana, noReady; others' below); expireLooks (which looks Expiring offers; false: none), race
 -- (race IDs; others see "Not your race"), cd and duration (preview only), defaults (over the
 -- parts'), styles and timerCant (see E.register).
 local COOLDOWNS = ns.CLASS.cooldowns or {}
@@ -68,6 +68,69 @@ ns.registerPart("ready", {
 	pop = true,
 })
 ns.registerPart("readyGlow", { defaults = { ready = { glow = false } }, glow = true })
+-- Low mana: a pulsing glow while it's ready and your mana is under a percentage. Mana is secret even
+-- out of combat: its percent goes through a curve straight into an alpha, and nothing else reads it
+local MANA = Enum.PowerType and Enum.PowerType.Mana or 0
+local STEP = Enum.LuaCurveType and Enum.LuaCurveType.Step or 1
+local lowCurves = {}
+-- 1 under the percentage, 0 from it up (a Step curve takes a point's value at the point)
+local function lowCurve(under)
+	local c = lowCurves[under]
+	if c == nil then
+		c = false
+		if C_CurveUtil and C_CurveUtil.CreateCurve then
+			c = C_CurveUtil.CreateCurve()
+			c:SetType(STEP)
+			c:AddPoint(0, 1)
+			c:AddPoint(under / 100, 0)
+		end
+		lowCurves[under] = c
+	end
+	return c or nil
+end
+local function lowManaOn(def)
+	return def.spellID ~= nil and E.isEnabled(def.key) and setting(def.key, "lowMana", "glow") == true
+end
+ns.registerPart("lowMana", {
+	defaults = { lowMana = { glow = false, under = 30 } },
+	ranges = { lowMana = { under = { 5, 90, 5 } } },
+	glow = true,
+	page = { lowMana = {} },
+	preview = {
+		states = { { "lowMana", "Low mana", 15 } },
+		render = function(ic, st, def)
+			if st == "lowMana" then ic:SetGlowShown(setting(def.key, "lowMana", "glow")) end
+		end,
+		idles = function(st, def, when)
+			if st == "lowMana" then return KD.idleMode(def, when) == "offcd" end
+		end,
+	},
+	runtime = {
+		make = function(def, f)
+			f.lowManaGate = CreateFrame("Frame", nil, f.effects)
+			f.lowManaGate:SetAllPoints()
+			f.lowManaGlow = ns.Effects.glow(f.lowManaGate, f, def.key)
+			f.lowManaGlow:Hide()
+		end,
+		ticks = lowManaOn,
+		-- The gate's alpha follows mana, the glow's the cooldown; they multiply, and neither is read
+		tick = function(def, cantAct)
+			local f = def.frame
+			local curve = lowCurve(setting(def.key, "lowMana", "under"))
+			local on = lowManaOn(def) and curve ~= nil
+			f.lowManaGlow:SetShown(on)
+			if not on then f.lowManaGate:SetAlpha(0) return end
+			f.lowManaGlow:fit(f:GetWidth())
+			local ok, a = ns.try("low mana", UnitPowerPercent, "player", MANA, false, curve)
+			if ok then f.lowManaGate:SetAlpha(a) else f.lowManaGate:SetAlpha(0) end
+			f.lowManaGlow:SetAlpha(CD.readyAlpha(def.spellID, cantAct))
+		end,
+		debug = function(def)
+			if not lowManaOn(def) then return "low mana glow off" end
+			return string.format("low mana glow under %d%%", setting(def.key, "lowMana", "under"))
+		end,
+	},
+})
 -- A buff window from our own cast (window: its seconds)
 ns.registerPart("window", {
 	idle = { held = "not active", also = " and it isn't active" },
@@ -139,8 +202,8 @@ local function checkFrames(def)
 end
 
 ns.registerKind("cooldown", {
-	parts = { "cooldown", "ready", "readyGlow", "window", "primed" },
-	slots = { "own", "warn", "cast", "ready", "active", "expire", "killed", "cooldown", "gcd", "uptime" },
+	parts = { "cooldown", "ready", "readyGlow", "lowMana", "window", "primed" },
+	slots = { "own", "warn", "cast", "ready", "lowMana", "active", "expire", "killed", "cooldown", "gcd", "uptime" },
 	prepare = function(def)
 		def.expires = hasUptime(def) and def.expireLooks ~= false
 		checkFrames(def)

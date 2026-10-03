@@ -39,7 +39,7 @@ ns.CLASS.cooldowns = {
 	{ key = "manatide", power = true, spellKey = "manaTide", icon = 135861, totemSlot = 3, duration = 13, school = "water",
 		blurb = "Cooldown, and time left while it's down.",
 		styles = barTimer(), timerCant = ONE_SWIPE,
-		ranOut = true, cd = 300,
+		ranOut = true, lowMana = true, cd = 300,
 		defaults = { expire = { secs = 3, glow = true, fade = false } }, experimental = "Mana Tide Totem" },
 	{ key = "grounding", power = true, spellKey = "grounding", icon = 136039, totemSlot = 4, duration = 45, school = "air",
 		blurb = "Cooldown, time left, and a flash when it takes a spell.",

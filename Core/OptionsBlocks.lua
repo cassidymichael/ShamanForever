@@ -1184,3 +1184,21 @@ K.registerSlot("killed", function(p, def, o) K.killedBlock(p, def.key, o) end)
 K.registerSlot("cooldown", function(p, def, title) K.timerSettings(p, title, def.key, "cooldown") end, true)
 K.registerSlot("gcd", function(p, def) K.gcdBlock(p, def.key) end, true)
 K.registerSlot("uptime", function(p, def, title) K.timerSettings(p, title, def.key, "uptime") end, true)
+
+-- lowMana: a pulsing glow while it's ready and your mana is under a percentage
+local function lowManaBlock(p, owner, opts)
+	local s = store(p, owner, opts.after)
+	if not s.has("lowMana") then return end
+	p:header("Low mana")
+	local glow = check(p, s, "lowMana", "glow", "Pulsing glow",
+		tipOf(opts, "glow", "While it's ready and your mana is low."))
+	if not (glow and s.has("lowMana", "under")) then return end
+	local get = s.get("lowMana", "glow")
+	p:sub(glow, get, function()
+		local under, setUnder = s.opt("lowMana", "under")
+		rangeSlider(p, s.range("lowMana", "under"), "Mana under", "Of your maximum mana.",
+			function(v) return string.format("%d%%", v) end, under, setUnder)
+	end)
+end
+K.lowManaBlock = lowManaBlock
+K.registerSlot("lowMana", function(p, def, o) K.lowManaBlock(p, def.key, o) end)
