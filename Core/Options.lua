@@ -224,6 +224,12 @@ local function buildProfiles(p)
 		{ "Export", function() OP.showShare("export") end, "This profile as text, to share.", 90 },
 		{ "Import", function() OP.showShare("import") end, "Profile text from someone else. It becomes a new profile.", 90 },
 	})
+	p:text("Have you made an amazing HUD you think might make for a good future preset in " .. ns.NAME
+		.. "? Export and share it with me! Thanks")
+	local send = p:row(22)
+	Page.goLink(send, "Where to send it", function() OP.showFeedback() end, "Opens Feedback, on the About page.")
+		:SetPoint("LEFT", 4, 0)
+	p:add(send, 22)
 
 end
 

@@ -32,9 +32,9 @@ E.register("shock", { frame = shock, label = "Shocks", paint = function(t) t:Set
 		manaSpell = "tracked",   -- tracked | earth | flame | frost
 		mana = { on = true }, range = { on = true },
 		-- side: above or below in a row group, right or left in a column; size: of the icon's
-		marks = { frost = true, flame = true, side = "above", size = 0.44 },
+		marks = { frost = true, flame = true, side = "above", size = 0.44, gap = 2 },
 		ready = { pop = true, glow = false, sound = "none" } },
-	ranges = { marks = { size = { 0.3, 0.5, 0.02 } } },
+	ranges = { marks = { size = { 0.3, 0.5, 0.02 }, gap = { 0, 20, 1 } } },
 	choices = { marks = { side = { "above", "below" } } },
 	def = { key = "shock", idleChoices = CD.IDLE_CHOICES },
 	effects = { glow = true, pop = true },
@@ -84,7 +84,6 @@ end
 -- On the group frame, not the icon, so they don't idle with it
 local MARKS = { { key = "frost", spell = "frostShock" }, { key = "flame", spell = "flameShock" } }
 SK.MARKS = MARKS
-local MARK_GAP = 0.08   -- of the icon's size
 local marksHost = CreateFrame("Frame", nil, shock:GetParent())
 marksHost:Hide()
 local previewing = false
@@ -109,14 +108,18 @@ for _, m in ipairs(MARKS) do
 	m.wanted = function() return markOn(m) and marksWanted() end
 end
 
--- Size and gap in whole pixels, for an icon w wide with o of border round it
+local function marksNumber(field)
+	local v = own("marks", field)
+	if type(v) ~= "number" or v ~= v then v = E.default("shock", "marks", field) end
+	local r = E.range("shock", "marks", field)
+	return math.min(math.max(v, r[1]), r[2])
+end
+-- Size and gap in whole pixels, for an icon w wide with o of border round it; the gap is set at the
+-- default icon size and grows with the icon
 local function markGeometry(w, o, px)
-	local size = own("marks", "size")
-	if type(size) ~= "number" or size ~= size then size = E.default("shock", "marks", "size") end
-	local r = E.range("shock", "marks", "size")
 	local box = w + 2 * o
-	size = math.min(math.max(size, r[1]), r[2])
-	return math.max(W.roundPx(box * size, px), px), math.max(W.roundPx(box * MARK_GAP, px), px)
+	return math.max(W.roundPx(box * marksNumber("size"), px), px),
+		W.roundPx(marksNumber("gap") * box / W.BASE_ICON_SIZE, px)
 end
 
 -- Side, size and distance out for the marks on an icon w wide with o of border, t its cooldown timer:
@@ -296,14 +299,15 @@ local function previewPlace(ic)
 	local where, size, out = marksPlace(w, o, px, ic.cdT)
 	return where, size, out, o
 end
--- How far the marks reach out of ic on its left and right: the page's header makes room
+-- How far the marks reach out of ic on its left, right, top and bottom: the page's header makes room
 local function previewReach(ic)
 	local any = false
 	for _, m in ipairs(MARKS) do any = any or previewOn(ic, m) end
-	if not any then return 0, 0 end
+	if not any then return 0, 0, 0, 0 end
 	local where, size, out = previewPlace(ic)
 	local reach = math.ceil(out + size)
-	return where == "left" and reach or 0, where == "right" and reach or 0
+	local function on(side) return where == side and reach or 0 end
+	return on("left"), on("right"), on("above"), on("below")
 end
 
 local function previewMarks(ic)
@@ -423,7 +427,6 @@ end
 local PREVIEW = {
 	warning = "both",
 	cooldown = true,
-	heroH = 190,   -- room for the marks above or below
 	standIn = function(ic) ic.marksOnHUD = true end,
 	reach = function(ic) return previewReach(ic) end,
 	states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", CS.STATES.power.name },

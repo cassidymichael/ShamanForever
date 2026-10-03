@@ -298,18 +298,23 @@ function OA.choiceRow(parent, items, get, set, tipAnchor)
 	return row
 end
 
--- How far a time bar beside the icon (a column's) reaches out on its left and right
-local function besideReach(ic)
-	local l, r = 0, 0
+-- How far a time bar out of the icon reaches out on its left, right, top and bottom
+local REACH_AT = { left = 1, right = 2, above = 3, below = 4 }
+local function barReach(ic)
+	local out = { 0, 0, 0, 0 }
 	for _, t in ipairs({ ic.cdT or false, ic.upT or false }) do
 		local s = t and ns.Style.get(t.key, t.part)
-		if s and s.bar and not ns.Timer.cant(t.key, t.part).bar then
-			local side = ns.Timer.barSide(t.key, s)
-			local reach = math.ceil(t:reach())
-			if side == "left" then l = math.max(l, reach) elseif side == "right" then r = math.max(r, reach) end
-		end
+		local at = s and s.bar and not ns.Timer.cant(t.key, t.part).bar and REACH_AT[ns.Timer.barSide(t.key, s)]
+		if at then out[at] = math.max(out[at], math.ceil(t:reach())) end
 	end
-	return l, r
+	return out
+end
+-- The preview panel's height for what sits above and below its icon: the icon stays where it is on
+-- every page (centred, 6 down), clear of the caption (CAP_ROOM) and the panel's foot (FOOT_ROOM)
+local CAP_ROOM, FOOT_ROOM = 22, 6
+local function panelFor(base, top, bottom)
+	local half = PREVIEW_SIZE / 2
+	return math.max(base, 2 * (top + half - 6 + CAP_ROOM), 2 * (bottom + half + 6 + FOOT_ROOM))
 end
 
 function OA.buildHero(parent, key)
@@ -326,7 +331,8 @@ function OA.buildHero(parent, key)
 		probe:Hide()
 	end
 	local listH = #def.states * (BTN_H + 3) - 3
-	local heroH = def.heroH or math.max(OA.HERO_H, listH + 14 + 24 + 4)
+	local baseH = def.heroH or math.max(OA.HERO_H, listH + 14 + 24 + 4)
+	local heroH = baseH
 	local h = CreateFrame("Frame", nil, parent, "BackdropTemplate")
 	h:SetHeight(heroH - 14)
 	h.heroH = heroH
@@ -415,14 +421,13 @@ function OA.buildHero(parent, key)
 	end
 	h.stateButtons = {}
 	previewState[key] = previewState[key] or def.states[1][1]
-	for i, st in ipairs(def.states) do
+	for _, st in ipairs(def.states) do
 		local b = CreateFrame("Button", nil, def.stage and h or p, "BackdropTemplate")
 		if def.stage then
 			b:SetSize(BTN_W, BTN_H)
 			b:SetFrameLevel(h:GetFrameLevel() + 6)
 		else
 			b:SetSize(BTN_W, BTN_H)
-			b:SetPoint("TOPRIGHT", -8, -(PANEL_H - listH) / 2 - (i - 1) * (BTN_H + 3))
 		end
 		b:SetBackdrop(W.BACKDROP)
 		b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -443,6 +448,24 @@ function OA.buildHero(parent, key)
 	h.preview = p
 	heroes[key] = h
 
+	-- Taller for what sits above or below the preview's icon; the page moves its content with it
+	local function setHeight(self, want)
+		if def.stage or want == self.heroH then return end
+		heroH, PANEL_H = want, want - 14 - 24
+		self.heroH = want
+		self:SetHeight(want - 14)
+		p:SetHeight(PANEL_H)
+		for i, b in ipairs(self.stateButtons) do
+			b:ClearAllPoints()
+			b:SetPoint("TOPRIGHT", -8, -(PANEL_H - listH) / 2 - (i - 1) * (BTN_H + 3))
+		end
+		if self.onHeight then self.onHeight() end
+	end
+	if not def.stage then
+		h.heroH = nil
+		setHeight(h, heroH)
+	end
+
 	function h:refresh()
 		local w = self:GetWidth()
 		if not w or w <= 0 then w = parent:GetWidth() end
@@ -453,14 +476,15 @@ function OA.buildHero(parent, key)
 		local framed = not def.stage and el
 		if framed then
 			local r = ns.Frames.reach(key)
-			local barL, barR = besideReach(self.previewIcon)
+			local out = barReach(self.previewIcon)
 			if def.reach then
-				local l, rr = def.reach(self.previewIcon)
-				barL, barR = math.max(barL, l), math.max(barR, rr)
+				local more = { def.reach(self.previewIcon) }
+				for i = 1, 4 do out[i] = math.max(out[i], more[i] or 0) end
 			end
-			padL = math.max(math.min(math.ceil(r.left * PREVIEW_SIZE), WING_MAX), barL)
-			padR = math.max(math.min(math.ceil(r.right * PREVIEW_SIZE), WING_MAX), barR)
+			padL = math.max(math.min(math.ceil(r.left * PREVIEW_SIZE), WING_MAX), out[1])
+			padR = math.max(math.min(math.ceil(r.right * PREVIEW_SIZE), WING_MAX), out[2])
 			p:SetWidth(PANEL_W + padL + padR)
+			setHeight(self, panelFor(baseH - 14 - 24, out[3], out[4]) + 14 + 24)
 		end
 		self.blurb:SetWidth(def.stage and 300 or math.max(w - 40 - 60 - 14 - 40 - PANEL_W - padL - padR - 12, 120))
 		if e.tags then self.tags:SetText(e.tags()) else

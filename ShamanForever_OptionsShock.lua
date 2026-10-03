@@ -43,6 +43,8 @@ local function buildShock(p, def)
 	local sideGet, sideSet = eopt(p, key, "marks", "side")
 	p:dropdown("Side", nil, sideChoices, sideGet, sideSet, marksShown, 140)
 	eslider(p, key, "Size", "Of the icon's size.", pct, marksShown, "marks", "size")
+	eslider(p, key, "Gap", "From the icon, at the default icon size; it grows with the icon.", Page.px, marksShown,
+		"marks", "gap")
 
 	K.castBlocks(p, key, { power = function(on)
 		local manaChoices = { { "tracked", "Tracked shock" } }

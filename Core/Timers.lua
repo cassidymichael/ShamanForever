@@ -20,13 +20,13 @@ T.DEFAULTS = {
 		text = true, textSize = 18, textColor = { 1, 1, 1, 1 }, textPos = "center", abbrev = 0,
 		swipe = true, swipeAlpha = 0.65, swipeReverse = false,
 		bar = false, barHeight = 8, barElement = true, barColor = { 1, 0.9, 0.35, 1 }, barEdge = "top",
-		barPlace = "in", barGap = 3,
+		barPlace = "in", barGap = 0,
 	},
 	uptime = {
 		text = true, textSize = 12, textColor = { 0.5, 1, 0.4, 1 }, textPos = "auto", abbrev = 0,
 		swipe = false, swipeAlpha = 0.6, swipeReverse = true,
 		bar = true, barHeight = 8, barElement = true, barColor = { 0.46, 1, 0.35, 1 }, barEdge = "bottom",
-		barPlace = "in", barGap = 3,
+		barPlace = "in", barGap = 0,
 	},
 }
 for _, part in ipairs(T.PARTS) do
