@@ -11,6 +11,7 @@ local _, ns = ...
 --   sharePrefix      starts a share string; another prefix is refused
 --   help             text naming the class's things: uptime (Time left), pop (what pops),
 --                    popColour (the pop's Colour tip), bars (Bar texture)
+--   layout           the default groups; an element new to a profile joins its group from here
 --   cooldowns, buffs rows for the cooldown and buff engines, from _ClassElements (optional)
 ns.CLASS = {
 	token = "SHAMAN",
@@ -36,6 +37,47 @@ ns.CLASS = {
 		popColour = "For Ready and Ran out. By event: gold when ready, white when a totem runs out. Killed early, Grounded and the imbue dropping keep their own colours.",
 		bars = "Time bars, the shield's charge bar, Maelstrom's stack bar and the swing timer.",
 	},
+}
+
+-- The default layout: an example more than a plan (players make their own groups). Offsets are in
+-- each group's scaled units. Elements not learned yet take no room.
+ns.CLASS.layout = {
+	{ id = 1, name = "Main", point = "CENTER", x = 0, y = -216, scale = 1, alpha = 0.8,
+		orientation = "horizontal", growth = "forward", spacing = 2,
+		members = { "shield", "shock", "firenova", "stormstrike", "lavaburst", "chainlightning", "riptide" } },
+	{ id = 2, name = "Imbue", point = "CENTER", x = 0, y = 58 / 1.25, scale = 1.25, alpha = 0.9,
+		orientation = "horizontal", growth = "forward", spacing = 2, members = { "imbue" } },
+	{ id = 3, name = "Totems", point = "CENTER", x = -144, y = -153, scale = 1, alpha = 0.8,
+		sizeFollow = false, size = 38,
+		orientation = "horizontal", growth = "forward", spacing = 2,
+		members = { "earthbind", "stoneclaw", "grounding" } },
+	{ id = 4, name = "Procs", point = "CENTER", x = 0, y = -154, scale = 1, alpha = 0.9,
+		sizeFollow = false, size = 50,
+		orientation = "horizontal", growth = "forward", spacing = 2,
+		members = { "elementalfocus", "maelstrom" } },
+	{ id = 5, name = "Tremor", point = "CENTER", x = -252 / 1.25, y = 58 / 1.25, scale = 1.25, alpha = 0.9,
+		orientation = "horizontal", growth = "forward", spacing = 2, members = { "tremor" } },
+	{ id = 6, name = "Cooldowns", point = "CENTER", x = -526, y = -60, scale = 1, alpha = 0.8,
+		orientation = "vertical", growth = "forward", spacing = 2,
+		members = { "naturesswiftness", "manatide", "farseer" } },
+	{ id = 7, name = "Target", point = "CENTER", x = 148, y = -153, scale = 1, alpha = 0.8,
+		sizeFollow = false, size = 38,
+		orientation = "horizontal", growth = "forward", spacing = 2, members = { "flameshock", "purge" } },
+	{ id = 8, name = "Utility", point = "CENTER", x = -610, y = -180, scale = 1, alpha = 0.6,
+		sizeFollow = false, size = 40,
+		orientation = "horizontal", growth = "forward", spacing = 2,
+		members = { "waterbreathing", "waterwalking" } },
+	{ id = 9, name = "Reincarnation", point = "CENTER", x = -590, y = -260, scale = 1, alpha = 0.6,
+		orientation = "horizontal", growth = "forward", spacing = 2, members = { "reincarnation" } },
+	{ id = 10, name = "Totemic Projection", point = "CENTER", x = -526, y = -180, scale = 1, alpha = 0.6,
+		sizeFollow = false, size = 40,
+		orientation = "horizontal", growth = "forward", spacing = 2, members = { "projection" } },
+	-- Racials: only the player's race shows
+	{ id = 11, name = "Racials", point = "CENTER", x = -578, y = -60, scale = 1, alpha = 0.8,
+		sizeFollow = false, size = 40,
+		orientation = "vertical", growth = "forward", spacing = 2,
+		members = { "bloodfury", "shattercurse", "berserking", "rapidregeneration", "warstomp",
+			"stoneform", "walkonair", "skysight" } },
 }
 
 -- The art theme: what a class supplies for its icons' colour, art and effects. Every table is
