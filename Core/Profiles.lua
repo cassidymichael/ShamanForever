@@ -348,12 +348,12 @@ end
 local SHARE_PREFIX = ns.CLASS.sharePrefix
 
 function P.export()
-	local E = C_EncodingUtil
-	if not E then return nil, "sharing needs a newer game client" end
+	local codec = C_EncodingUtil
+	if not codec then return nil, "sharing needs a newer game client" end
 	local ok, text = pcall(function()
 		local method = Enum.CompressionMethod and Enum.CompressionMethod.Deflate
-		local packed = E.CompressString(E.SerializeCBOR({ v = SHARE_VERSION, profile = P.getDB() }), method)
-		return SHARE_PREFIX .. E.EncodeBase64(packed)
+		local packed = codec.CompressString(codec.SerializeCBOR({ v = SHARE_VERSION, profile = P.getDB() }), method)
+		return SHARE_PREFIX .. codec.EncodeBase64(packed)
 	end)
 	if not ok then return nil, "export failed: " .. tostring(text) end
 	return text
@@ -497,13 +497,13 @@ local function cleanProfile(t)
 end
 
 function P.decode(text)
-	local E = C_EncodingUtil
-	if not E then return nil, "sharing needs a newer game client" end
+	local codec = C_EncodingUtil
+	if not codec then return nil, "sharing needs a newer game client" end
 	text = (text or ""):gsub("%s", "")
 	if text:sub(1, #SHARE_PREFIX) ~= SHARE_PREFIX then return nil, "that isn't a " .. ns.NAME .. " profile" end
 	local ok, data = pcall(function()
 		local method = Enum.CompressionMethod and Enum.CompressionMethod.Deflate
-		return E.DeserializeCBOR(E.DecompressString(E.DecodeBase64(text:sub(#SHARE_PREFIX + 1)), method))
+		return codec.DeserializeCBOR(codec.DecompressString(codec.DecodeBase64(text:sub(#SHARE_PREFIX + 1)), method))
 	end)
 	if not ok or type(data) ~= "table" or type(data.profile) ~= "table" then
 		return nil, "that profile text is damaged or incomplete"

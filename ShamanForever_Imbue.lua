@@ -1,6 +1,7 @@
 -- Weapon imbue
 
 local _, ns = ...
+local P = ns.Profiles
 local W = ns.Widgets
 local E, MOD = ns.Elements, ns.Modules
 local say, isSecret = ns.say, ns.isSecret
@@ -92,7 +93,7 @@ local function hasWeapon()
 end
 
 local function imbueKeyFor(w)
-	local key = ns.Profiles.getAccount().imbueIDs[w.enchantID] or imbueByID[w.enchantID]
+	local key = P.getAccount().imbueIDs[w.enchantID] or imbueByID[w.enchantID]
 	if key then return key end
 	for k, m in pairs(IMBUES) do
 		if w.enchantIconID == m.icon or w.enchantIconID == imbueIconFor(k) then return k end
@@ -109,7 +110,7 @@ end
 imbueIcon = imbueIconFor("rockbiter")
 local function preferredImbueIcon()
 	local icon = own("icon")
-	return imbueIconFor(icon == "last" and (ns.Profiles.getAccount().imbueLast or "rockbiter") or icon)
+	return imbueIconFor(icon == "last" and (P.getAccount().imbueLast or "rockbiter") or icon)
 end
 
 -- quiet: nothing can be cast now, so a missing imbue shows grey without the warning
@@ -143,7 +144,7 @@ local function drawImbue(now, quiet)
 	end
 	-- Idle fades by alpha, not Hide (keeps its place)
 	local when = own("idleWhen")
-	local idle = ns.Profiles.getAccount().locked and on and (when == "on" or (when == "notlow" and not showTime))
+	local idle = P.getAccount().locked and on and (when == "on" or (when == "notlow" and not showTime))
 	W.fadeTo(imbue, idle and E.idleAlpha("imbue") or 1)
 end
 
@@ -162,7 +163,7 @@ function IM.refresh()
 		return
 	end
 	if not anyKnown then drawNotLearned() return end
-	local acct = ns.Profiles.getAccount()
+	local acct = P.getAccount()
 	local now = GetTime()
 	local r = readMainHand()
 	-- An enchant read empty around a loading screen: the last state stays
@@ -254,14 +255,14 @@ local PREVIEW = {
 	typical = "fine", warning = "missing",
 	states = { { "missing", "No imbue" }, { "low", "Running low" }, { "fine", "Plenty left" } },
 	pop = function(ic, st) if st == "missing" and warn("pop") then ic:Pop("lost") end end,
-	render = function(ic, st, P)
+	render = function(ic, st, kit)
 		if st == "missing" then
-			P.reset(ic, preferredImbueIcon())
+			kit.reset(ic, preferredImbueIcon())
 			ic:SetWarnParts(W.warnParts("imbue", "warn"))
 		else
-			P.reset(ic, imbueIcon)
+			kit.reset(ic, imbueIcon)
 			local shows = own("showUnderMins") > 0
-			if st == "low" and shows then P.frozen(ic.upT, 0.95, 3600) end
+			if st == "low" and shows then kit.frozen(ic.upT, 0.95, 3600) end
 		end
 	end,
 	idles = function(st, when) return st == "fine" or (st == "low" and when == "on") end,

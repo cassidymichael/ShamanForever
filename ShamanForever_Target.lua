@@ -9,6 +9,7 @@
 -- row's duration, with a cover bar; all set out of combat only.
 
 local _, ns = ...
+local P = ns.Profiles
 local W = ns.Widgets
 local E, MOD = ns.Elements, ns.Modules
 local say, Spells, isSecret = ns.say, ns.Spells, ns.isSecret
@@ -223,10 +224,10 @@ ns.registerPart("missing", {
 	preview = {
 		warning = "missing",
 		states = { { "missing", "Not on target", 30 } },
-		render = function(ic, st, def, P)
+		render = function(ic, st, def, kit)
 			if st == "missing" then ic:SetWarnParts(W.warnParts(def.key, "warn")) end
 			if (st == "up" or st == "expiring") and setting(def.key, "idleWhen") == "target" then
-				P.idle(ic, def.key)
+				kit.idle(ic, def.key)
 			end
 		end,
 	},
@@ -280,8 +281,8 @@ ns.registerPart("engineExpire", {
 	has = expiresHere,
 	preview = {
 		states = { { "expiring", "Expiring", 20 } },
-		render = function(ic, st, def, P)
-			if st == "expiring" then P.engineExpire(ic, def.key, def.duration) end
+		render = function(ic, st, def, kit)
+			if st == "expiring" then kit.engineExpire(ic, def.key, def.duration) end
 		end,
 	},
 	runtime = {
@@ -461,14 +462,14 @@ local function checkAll()
 end
 
 local function frameAlpha(def)
-	local idles = def.spellID and ns.Profiles.getAccount().locked and setting(def.key, "idleWhen") ~= "never"
+	local idles = def.spellID and P.getAccount().locked and setting(def.key, "idleWhen") ~= "never"
 	return idles and E.idleAlpha(def.key) or 1
 end
 
 -- Out of combat only (an ancestor of the button)
 local function applyIdle(def)
 	if not def.idle or InCombatLockdown() then return end
-	local on = def.spellID and E.isEnabled(def.key) and ns.Profiles.getAccount().locked
+	local on = def.spellID and E.isEnabled(def.key) and P.getAccount().locked
 		and setting(def.key, "idleWhen") == "target"
 	def.idle:SetAlpha(on and E.idleAlpha(def.key) or 1)
 end

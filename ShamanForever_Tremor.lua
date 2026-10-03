@@ -3,6 +3,7 @@
 -- Earth slot unknown after a login or /reload in combat: nothing warns until it can be read.
 
 local _, ns = ...
+local P = ns.Profiles
 local W = ns.Widgets
 local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
@@ -80,7 +81,7 @@ E.register(KEY, { frame = f, label = def.spell, defaults = def.defaults, ranges 
 local listIDs, listNames = {}, {}
 local rows = {}
 local counts = { mobs = 0, added = 0, removed = 0 }
-local function edits() return ns.Profiles.getAccount().fearCasters end
+local function edits() return P.getAccount().fearCasters end
 
 local zoneNames = {}
 local function zoneName(areaID)
@@ -295,7 +296,7 @@ local function refresh()
 		why = targetListed and "target" or next(plates) and "nameplate" or feared and "on you" or "just after"
 	end
 	setAlert(want)
-	local busy = want or not ns.Profiles.getAccount().locked or (out and own("idleWhen") == "notdown")
+	local busy = want or not P.getAccount().locked or (out and own("idleWhen") == "notdown")
 	W.fadeTo(f, busy and 1 or E.idleAlpha(KEY))
 end
 TR.refresh = refresh
@@ -483,8 +484,8 @@ local PREVIEW = {
 	typical = "idle", warning = "warn",
 	states = { { "warn", "Warning" }, { "down", "Tremor down" }, { "idle", "Not down, no warning" } },
 	pop = function(ic, st) if st == "warn" and own("active", "pop") then ic:Pop("ready") end end,
-	render = function(ic, st, P)
-		P.reset(ic, def.iconID or def.icon)
+	render = function(ic, st, kit)
+		kit.reset(ic, def.iconID or def.icon)
 		if not ic.word then
 			local clip = CreateFrame("Frame", nil, ic:GetParent())
 			clip:SetAllPoints(ic:GetParent())
@@ -502,10 +503,10 @@ local PREVIEW = {
 			return
 		end
 		if st == "down" then
-			P.frozen(ic.upT, 0.3, 300)
+			kit.frozen(ic.upT, 0.3, 300)
 			if own("idleWhen") == "notdown" then return end
 		end
-		P.idle(ic, KEY)
+		kit.idle(ic, KEY)
 	end,
 	standIn = function(ic)
 		ic.word = ic.textFrame:CreateFontString(nil, "OVERLAY")

@@ -7,6 +7,7 @@
 -- handler or reads back.
 
 local _, ns = ...
+local P = ns.Profiles
 local W = ns.Widgets
 local E, G, MOD = ns.Elements, ns.Groups, ns.Modules
 local say, isSecret, safe = ns.say, ns.isSecret, ns.safe
@@ -391,7 +392,7 @@ end
 function applyIdle()
 	-- Refused in combat and while auras are secret: run again when readable
 	if ns.deferWhileAurasSecret("maelstrom idle", applyIdle) then return end
-	local on = idleWhen() == "five" and src.learned() and E.isEnabled(KEY) and ns.Profiles.getAccount().locked
+	local on = idleWhen() == "five" and src.learned() and E.isEnabled(KEY) and P.getAccount().locked
 		and copyReady()
 	gate:SetAlpha(on and E.idleAlpha(KEY) or 1)
 	if five.host then five.host:SetAlpha(on and 1 or 0) end
@@ -411,7 +412,7 @@ local function refresh()
 	end
 	f.tex:SetDesaturated(false)
 	-- The buttons say when it's up, on the effects layer, which ignores this icon's alpha
-	W.fadeTo(f, (ns.Profiles.getAccount().locked and idleWhen() ~= "never") and E.idleAlpha(KEY) or 1)
+	W.fadeTo(f, (P.getAccount().locked and idleWhen() ~= "never") and E.idleAlpha(KEY) or 1)
 end
 
 local function styleAll() for _, s in ipairs(SLOTS) do s:style() end end
@@ -424,12 +425,12 @@ function MW.follow(s)
 	E.refreshAll()
 end
 -- The preview (ns.registerKind): the same parts, drawn by us for n stacks
-local function drawPreview(ic, n, P)
+local function drawPreview(ic, n, kit)
 	local max = src.max
 	if n > 0 and count("bar") then
 		local c = color("barColor")
 		ic.bar:SetHeight(number("barHeight"))
-		P.setBar(ic, max, n, c[1], c[2], c[3], c[4])
+		kit.setBar(ic, max, n, c[1], c[2], c[3], c[4])
 	end
 	if n > 0 and count("number") then
 		local fc = color("markColor")
@@ -446,13 +447,13 @@ local PREVIEW = {
 	states = { { "s1", "1 stack" }, { "s4", "4 stacks" }, { "s5", "5 stacks" },
 		{ "idle", "Not up" } },
 	pop = function(ic, st) if st == "s5" and own("active", "pop") then ic:Pop("ready") end end,
-	render = function(ic, st, P)
-		P.reset(ic, MW.icon)
+	render = function(ic, st, kit)
+		kit.reset(ic, MW.icon)
 		local n = ({ s1 = 1, s4 = src.max - 1, s5 = src.max })[st] or 0
-		drawPreview(ic, n, P)
-		if n > 0 then P.frozen(ic.upT, 0.3, 30) end
+		drawPreview(ic, n, kit)
+		if n > 0 then kit.frozen(ic.upT, 0.3, 30) end
 		local when = own("idleWhen")
-		if (n == 0 and when ~= "never") or (when == "five" and n < src.max) then P.idle(ic, KEY) end
+		if (n == 0 and when ~= "never") or (when == "five" and n < src.max) then kit.idle(ic, KEY) end
 	end,
 }
 ns.registerKind("maelstrom", { preview = function() return PREVIEW end })

@@ -142,10 +142,10 @@ ns.registerPart("reagent", {
 	preview = {
 		warning = "out",
 		states = { { "low", "Few left", 70 }, { "out", "None left", 71 } },
-		render = function(ic, st, def, P, pv)
+		render = function(ic, st, def, kit, pv)
 			local key = def.key
 			if st == "low" or st == "out" then
-				pv.rest(ic, P, setting(key, "reagent", "lowKeepsShown"))
+				pv.rest(ic, kit, setting(key, "reagent", "lowKeepsShown"))
 			end
 			look(ic, key, st == "out" and 0 or st == "low" and fewLeft(key) or PLENTY)
 		end,

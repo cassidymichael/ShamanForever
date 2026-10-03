@@ -3,6 +3,7 @@
 -- A proc: only Blizzard's aura container can show one in combat, on the player or another unit.
 
 local _, ns = ...
+local P = ns.Profiles
 local W = ns.Widgets
 local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
@@ -44,20 +45,20 @@ ns.registerPart("buff", {
 			table.insert(states, { "idle", def.idleLabel or "Not up", 40 })
 			return states
 		end,
-		render = function(ic, st, def, P)
+		render = function(ic, st, def, kit)
 			local key = def.key
-			P.reset(ic, def.icon)
+			kit.reset(ic, def.icon)
 			if st == "up" then
 				if def.proc then
-					if not def.noTimer then P.frozen(ic.upT, 0.3, 15) end
+					if not def.noTimer then kit.frozen(ic.upT, 0.3, 15) end
 					ic:SetGlowShown(setting(key, "active", "glow"))
-				else P.frozen(ic.upT, 0.3, 600) end
-			elseif st == "expiring" and not def.engineExpire then P.expiring(ic, key, 600)
+				else kit.frozen(ic.upT, 0.3, 600) end
+			elseif st == "expiring" and not def.engineExpire then kit.expiring(ic, key, 600)
 			elseif st == "idle" then
-				if setting(key, "idleWhen") ~= "never" then P.idle(ic, key) end
+				if setting(key, "idleWhen") ~= "never" then kit.idle(ic, key) end
 			end
 		end,
-		rest = function(ic, def, P, keep) if not keep then P.idle(ic, def.key) end end,
+		rest = function(ic, def, kit, keep) if not keep then kit.idle(ic, def.key) end end,
 	},
 })
 -- breath: warns under water without it
@@ -68,10 +69,10 @@ ns.registerPart("breath", {
 	preview = {
 		warning = "underwater",
 		states = { { "underwater", "Under water", 80 } },
-		render = function(ic, st, def, P)
+		render = function(ic, st, def, kit)
 			if st ~= "underwater" then return end
 			if setting(def.key, "warn", "on") then ic:SetWarnParts(W.warnParts(def.key, "warn"))
-			else P.idle(ic, def.key) end
+			else kit.idle(ic, def.key) end
 		end,
 	},
 })
@@ -295,7 +296,7 @@ local function refreshBuff(def)
 	if def.proc then
 		-- Frame is an ancestor of Blizzard's button: its alpha changes out of combat only
 		if def.fx then def.fx:glow(setting(key, "active", "glow") and not previewing) end
-		W.fadeTo(f, ns.Profiles.getAccount().locked and E.idleAlpha(key) or 1)
+		W.fadeTo(f, P.getAccount().locked and E.idleAlpha(key) or 1)
 		return
 	end
 	if def.upUntil and GetTime() >= def.upUntil then setDown(def) end
@@ -307,7 +308,7 @@ local function refreshBuff(def)
 	end
 	f:SetRingShown(ring)
 	f:SetPulsing(pulse)
-	local busy = not ns.Profiles.getAccount().locked or def.upUntil ~= nil or held
+	local busy = not P.getAccount().locked or def.upUntil ~= nil or held
 	W.fadeTo(f, busy and 1 or E.idleAlpha(key))
 end
 

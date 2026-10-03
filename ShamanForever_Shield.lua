@@ -6,6 +6,7 @@
 -- never a false warning.
 
 local _, ns = ...
+local P = ns.Profiles
 local W = ns.Widgets
 local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe = ns.say, ns.isSecret, ns.safe
@@ -87,7 +88,7 @@ function SH.sanitize(_, acct)
 end
 
 local function shownShield()
-	local track, last = own("track"), ns.Profiles.getAccount().lastShield
+	local track, last = own("track"), P.getAccount().lastShield
 	if SHIELDS[track] then return track end
 	if SHIELDS[last] and SHIELDS[last].known then return last end
 	for _, key in ipairs(SHIELD_ORDER) do if SHIELDS[key].known then return key end end
@@ -220,7 +221,7 @@ local gateNow = 1
 local function applyIdle()
 	if InCombatLockdown() then return end
 	local when = idleWhen()
-	local on = when ~= "never" and lookOn and ns.Profiles.getAccount().locked
+	local on = when ~= "never" and lookOn and P.getAccount().locked
 		and (when ~= "charges" or copyReady())
 	gateNow = on and E.idleAlpha("shield") or 1
 	gate:SetAlpha(gateNow)
@@ -527,14 +528,14 @@ local function refreshAura()
 			end
 		end
 	end
-	if upKey then ns.Profiles.getAccount().lastShield = upKey end
+	if upKey then P.getAccount().lastShield = upKey end
 	setUpShield(upKey or "none")
 end
 
 function SH.onCast(spellID)
 	local cast = castOf(spellID)
 	if not cast then return end
-	ns.Profiles.getAccount().lastShield = cast
+	P.getAccount().lastShield = cast
 	if tracksShield(cast) then
 		holdUntil = GetTime() + CAST_HOLD
 		watch()
@@ -615,7 +616,7 @@ end
 function SH.debug()
 	local up = believedUp()
 	say("shield tracking %s (last %s), up at the last read %s (shield up %s)", own("track"),
-		ns.Profiles.getAccount().lastShield, up == nil and "unknown" or tostring(up), tostring(upShield))
+		P.getAccount().lastShield, up == nil and "unknown" or tostring(up), tostring(upShield))
 	say("no-shield look: %s, %s, state %s; button %s, cast hold %s", lookOn and "on" or "off",
 		ns.aurasReadNow() and "read decides too" or "sensor decides", tostring(lookState),
 		native.button and "made" or "not made", GetTime() < holdUntil and "on" or "off")
@@ -643,18 +644,18 @@ local PREVIEW = {
 	warning = "down",
 	states = { { "up3", "3 charges" }, { "up2", "2 charges" }, { "up1", "1 charge" },
 		{ "down", "No shield" } },
-	render = function(ic, st, P)
-		P.reset(ic, SHIELDS[own("track") == "water" and "water" or "lightning"].icon)
+	render = function(ic, st, kit)
+		kit.reset(ic, SHIELDS[own("track") == "water" and "water" or "lightning"].icon)
 		if st == "down" then
 			ic:SetWarnParts(W.warnParts("shield", "warn"))
 			return
 		end
 		local n = st == "up3" and 3 or st == "up2" and 2 or 1
-		P.frozen(ic.upT, 0.38, 600)
+		kit.frozen(ic.upT, 0.38, 600)
 		if count("bar") then
 			local c = barColor()
 			ic.bar:SetHeight(count("barHeight"))
-			P.setBar(ic, CHARGES, n, c[1], c[2], c[3], c[4])
+			kit.setBar(ic, CHARGES, n, c[1], c[2], c[3], c[4])
 		end
 		if count("number") then
 			ns.Media.setFont(ic.count, nil, count("size"))

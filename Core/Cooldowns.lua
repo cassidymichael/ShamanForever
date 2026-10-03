@@ -4,6 +4,7 @@
 -- its aura when readable).
 
 local _, ns = ...
+local P = ns.Profiles
 local W = ns.Widgets
 local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
@@ -46,12 +47,12 @@ ns.registerPart("cooldown", {
 	preview = {
 		cooldown = true, typical = "cd",
 		states = { { "ready", "Ready", 10 }, { "cd", "Cooldown", 50 } },
-		render = function(ic, st, def, P)
-			P.reset(ic, def.iconID or def.icon)
+		render = function(ic, st, def, kit)
+			kit.reset(ic, def.iconID or def.icon)
 			if st == "ready" then ic:SetGlowShown(setting(def.key, "ready", "glow"))
-			elseif st == "cd" then P.frozen(ic.cdT, 0.4, def.cd or 60) end
+			elseif st == "cd" then kit.frozen(ic.cdT, 0.4, def.cd or 60) end
 		end,
-		rest = function(ic, def, P) P.frozen(ic.cdT, 0.4, def.cd or 60) end,
+		rest = function(ic, def, kit) kit.frozen(ic.cdT, 0.4, def.cd or 60) end,
 		pop = function(ic, st, def)
 			if st == "ready" and setting(def.key, "ready", "pop") then ic:Pop("ready") end
 		end,
@@ -74,9 +75,9 @@ ns.registerPart("window", {
 	preview = {
 		uptime = true,
 		states = { { "active", "Active", 61 }, { "expiring", "Expiring", 62 } },
-		render = function(ic, st, def, P)
-			if st == "active" then P.frozen(ic.upT, 0.3, def.window)
-			elseif st == "expiring" then P.expiring(ic, def.key, def.window) end
+		render = function(ic, st, def, kit)
+			if st == "active" then kit.frozen(ic.upT, 0.3, def.window)
+			elseif st == "expiring" then kit.expiring(ic, def.key, def.window) end
 		end,
 	},
 })
@@ -99,10 +100,10 @@ ns.registerPart("primed", {
 	preview = {
 		uptime = function(def) return def.primed.duration ~= nil end,
 		states = { { "primed", "Primed", 60 } },
-		render = function(ic, st, def, P)
+		render = function(ic, st, def, kit)
 			if st ~= "primed" then return end
 			ic:SetGlowShown(setting(def.key, "active", "glow"))
-			if def.primed.duration then P.frozen(ic.upT, 0.3, def.primed.duration) end
+			if def.primed.duration then kit.frozen(ic.upT, 0.3, def.primed.duration) end
 		end,
 		pop = function(ic, st, def)
 			if st == "primed" and setting(def.key, "active", "pop") then ic:Pop("ready") end
@@ -303,7 +304,7 @@ local function applyIdle(def, held, inEvent)
 	local running, certain = ownCooldownRunning(def, inEvent)
 	local busy
 	if KD.idleMode(def, when) == "oncd" then busy = not (running and certain) else busy = running end
-	busy = busy or held or when == "never" or not ns.Profiles.getAccount().locked
+	busy = busy or held or when == "never" or not P.getAccount().locked
 	if busy then def.idleAt = nil
 	elseif def.idle == false then
 		def.idleAt = GetTime() + IDLE_DELAY

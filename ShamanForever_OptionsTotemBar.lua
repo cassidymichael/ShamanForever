@@ -85,7 +85,7 @@ PREVIEW = {
 		h.fitNote = h:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 		h.fitNote:SetPoint("TOPRIGHT", h.area, "TOPRIGHT", 0, 0)
 	end,
-	render = function(h, st, P)
+	render = function(h, st, kit)
 		local TB = ns.TotemBar
 		local c = TB.cfg()
 		local size, border, extrasBorder = TB.look()
@@ -176,7 +176,7 @@ PREVIEW = {
 				place(ic, slotAt[placeIdx[el]] + o, (line - size) / 2 + o)
 				local pick = TB.pickTexture(el)
 				if ns.isSecret(pick) then pick = nil end
-				P.reset(ic, pick or TB.TOTEM_ICON[el])
+				kit.reset(ic, pick or TB.TOTEM_ICON[el])
 				TB.paintDown(ic)
 				ic.killed:setIcon(pick or TB.TOTEM_ICON[el])
 				if st ~= "killed" or el ~= expEl then ic.killed:stop() end
@@ -225,7 +225,7 @@ PREVIEW = {
 				else
 					local left, life = TB.PREVIEW_LEFT[el][1], TB.PREVIEW_LEFT[el][2]
 					if expiring then left = expiring.secs > 0 and math.min(5, expiring.secs) or 5 end
-					P.frozen(ic.upT, 1 - left / life, life)
+					kit.frozen(ic.upT, 1 - left / life, life)
 				end
 				ic.upT:setExpire(expiring or nil, pick or TB.TOTEM_ICON[el])
 			end

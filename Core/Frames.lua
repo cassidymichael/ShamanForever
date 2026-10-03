@@ -1,6 +1,7 @@
 -- Art frames round an element ("frame") or a group or bar ("groupframe"); styles are data (_FrameStyles)
 
 local ADDON, ns = ...
+local W = ns.Widgets
 
 local FR = {}
 ns.Frames = FR
@@ -134,7 +135,7 @@ function FR.validate(e, part)
 end
 
 -- Geometry: units from the box's top-left, y down, rounded to whole pixels
-local round, ICON = ns.Widgets.roundPx, ns.Widgets.BASE_ICON_SIZE
+local round, ICON = W.roundPx, W.BASE_ICON_SIZE
 local function atLeast(v, px) return max(px, round(v, px)) end
 
 local function drawnSize(a)
@@ -183,11 +184,11 @@ end
 local function holeOf(look)
 	local a, h = look.art, look.hole
 	local x, y = h[1], h[2]
-	local W, H = a.size[1], a.size[2]
+	local fullW, fullH = a.size[1], a.size[2]
 	local fx, fy = a.flipX, a.flipY
 	if a.rotate == 180 then fx, fy = not fx, not fy end
-	if fx then x = W - x - h[3] end
-	if fy then y = H - y - h[4] end
+	if fx then x = fullW - x - h[3] end
+	if fy then y = fullH - y - h[4] end
 	return x, y, h[3], h[4]
 end
 
@@ -195,8 +196,8 @@ end
 function FR.fit(look, box, px)
 	local x, y, hw, hh = holeOf(look)
 	local k = box / hw
-	local W, H = look.art.size[1], look.art.size[2]
-	local w, h = atLeast(W * k, px), atLeast(H * k, px)
+	local fullW, fullH = look.art.size[1], look.art.size[2]
+	local w, h = atLeast(fullW * k, px), atLeast(fullH * k, px)
 	local left = round(box / 2 - (x + hw / 2) * k, px)
 	local top = round(box / 2 - (y + hh / 2) * k, px)
 	return { w = w, h = h, left = left, top = top, x = left + w / 2 - box / 2, y = box / 2 - top - h / 2 }
@@ -231,10 +232,10 @@ local function edgeParts(parts, a, x0, y0, len, thick, along, tile, k, px)
 	end
 end
 
-local function frameParts(look, W, H, size, px, parts)
+local function frameParts(look, fullW, fullH, size, px, parts)
 	local k = look.scale * size / ICON
 	local o = round(look.rim * k + (look.gap or 0) * size / ICON, px)
-	local X0, Y0, X1, Y1 = -o, -o, W + o, H + o
+	local X0, Y0, X1, Y1 = -o, -o, fullW + o, fullH + o
 	local OW, OH = X1 - X0, Y1 - Y0
 	if look.slice then
 		parts[#parts + 1] = { art = look.slice, x = X0, y = Y0, w = OW, h = OH, slice = look.slice.margin, k = k }
@@ -353,16 +354,16 @@ function FR.groupLayout(look, lay, px)
 	local sorted = {}
 	for i, c in ipairs(cells) do sorted[i] = c end
 	table.sort(sorted, function(a, b) return a[key] < b[key] end)
-	local W, H = 0, 0
-	for _, c in ipairs(sorted) do W, H = max(W, c.x + size), max(H, c.y + size) end
+	local fullW, fullH = 0, 0
+	for _, c in ipairs(sorted) do fullW, fullH = max(fullW, c.x + size), max(fullH, c.y + size) end
 	local parts = {}
 	local k
 	if look.cells then
 		k = cellParts(look, sorted, size, px, lay.vertical, parts)
 	else
-		k = frameParts(look, W, H, size, px, parts)
+		k = frameParts(look, fullW, fullH, size, px, parts)
 	end
-	local x0, y0, x1, y1 = 0, 0, W, H
+	local x0, y0, x1, y1 = 0, 0, fullW, fullH
 	for _, p in ipairs(parts) do
 		x0, y0, x1, y1 = min(x0, p.x), min(y0, p.y), max(x1, p.x + p.w), max(y1, p.y + p.h)
 	end
@@ -373,7 +374,7 @@ function FR.groupLayout(look, lay, px)
 			betweenParts(look, sorted, size, k, y0, y1, px, false, parts)
 		end
 	end
-	return { w = W, h = H, parts = parts, outer = { x0, y0, x1, y1 }, k = k }
+	return { w = fullW, h = fullH, parts = parts, outer = { x0, y0, x1, y1 }, k = k }
 end
 
 -- How far a style reaches past the box on each side, in icon widths
@@ -382,10 +383,10 @@ local function reachOf(look, part)
 	if look.none then return ZERO end
 	if part == "frame" then
 		local x, y, hw, hh = holeOf(look)
-		local W, H = look.art.size[1], look.art.size[2]
+		local fullW, fullH = look.art.size[1], look.art.size[2]
 		local function side(v) return max(0, v / hw - 0.5) end
-		return { left = side(x + hw / 2), right = side(W - x - hw / 2), top = side(y + hh / 2),
-			bottom = side(H - y - hh / 2) }
+		return { left = side(x + hw / 2), right = side(fullW - x - hw / 2), top = side(y + hh / 2),
+			bottom = side(fullH - y - hh / 2) }
 	end
 	if look.cells then
 		local c = look.cells
@@ -436,12 +437,12 @@ function FR.look(part, key) return S.look(part, key) end
 
 -- One image cut as nine pieces round margin texels
 function FR.cut(art, margin)
-	local W, H = art.size[1], art.size[2]
-	local mx, my = margin / W, margin / H
+	local fullW, fullH = art.size[1], art.size[2]
+	local mx, my = margin / fullW, margin / fullH
 	local function piece(l, r, t, b)
 		local p = CopyTable(art)
 		p.coords = { l, r, t, b }
-		p.size = { (r - l) * W, (b - t) * H }
+		p.size = { (r - l) * fullW, (b - t) * fullH }
 		return p
 	end
 	return { tl = piece(0, mx, 0, my), t = piece(mx, 1 - mx, 0, my), tr = piece(1 - mx, 1, 0, my),
@@ -606,7 +607,7 @@ function FR.draw(carrier, look, box, style, level)
 		m.tex = m:CreateTexture(nil, "ARTWORK")
 		carrier.frameMount = m
 	end
-	local g = FR.fit(look, box, ns.Widgets.pixel(carrier))
+	local g = FR.fit(look, box, W.pixel(carrier))
 	m:ClearAllPoints()
 	m:SetPoint("CENTER", carrier, "CENTER", 0, 0)
 	m:SetSize(box, box)
@@ -700,7 +701,7 @@ function FR.drawGroup(host, look, lay, style)
 		m.texs = {}
 		host.groupFrameMount = m
 	end
-	local geo = FR.groupLayout(look, lay, ns.Widgets.pixel(host))
+	local geo = FR.groupLayout(look, lay, W.pixel(host))
 	m:ClearAllPoints()
 	m:SetPoint("TOPLEFT", host, "TOPLEFT", lay.x or 0, -(lay.y or 0))
 	m:SetSize(geo.w, geo.h)

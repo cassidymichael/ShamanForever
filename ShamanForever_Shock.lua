@@ -219,10 +219,10 @@ local PREVIEW = {
 	pop = function(ic, st)
 		if st == "ready" and own("ready", "pop") then ic:Pop() end
 	end,
-	render = function(ic, st, P)
-		P.reset(ic, SHOCK_ICON[own("track")] or SHOCK_ICON.earth)
+	render = function(ic, st, kit)
+		kit.reset(ic, SHOCK_ICON[own("track")] or SHOCK_ICON.earth)
 		if st == "ready" then ic:SetGlowShown(own("ready", "glow")) end
-		if st == "cd" then P.frozen(ic.cdT, 0.4, 6) end
+		if st == "cd" then kit.frozen(ic.cdT, 0.4, 6) end
 		paint(ic, st == "range" or st == "both", st == "mana" or st == "both")
 	end,
 	idles = function(st, when) return (st == "cd") == (when == "oncd") end,

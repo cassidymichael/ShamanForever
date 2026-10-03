@@ -241,7 +241,7 @@ setmetatable(OA.PREVIEW, { __index = function(t, key)
 	return pv
 end })
 
--- What a preview draws with: render(ic, st, P), pop(ic, st, P)
+-- What a preview draws with: render(ic, st, kit), pop(ic, st, kit)
 OA.kit = { reset = reset, frozen = frozen, expiring = expiringLook, engineExpire = engineExpireLook,
 	idle = idleLook, setBar = setBar, current = function(key) return previewState[key] end }
 

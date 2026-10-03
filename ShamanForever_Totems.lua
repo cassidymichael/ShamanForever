@@ -184,7 +184,7 @@ local function ended(def)
 	return e
 end
 -- The preview's end flash; secs: when the cooldown its end started shows (none: it doesn't)
-local function previewEnd(ic, def, P, st, opts, secs)
+local function previewEnd(ic, def, kit, st, opts, secs)
 	if opts then
 		if not ic.endFlash then ic.endFlash = ns.Effects.endFlash(ic, ic, def.key) end
 		ic.endFlash:setIcon(def.iconID or def.icon)
@@ -194,9 +194,9 @@ local function previewEnd(ic, def, P, st, opts, secs)
 	local token = {}
 	ic.momentToken, ic.momentDone = token, false
 	C_Timer.After(opts and secs or 0, function()
-		if ic.momentToken ~= token or P.current(def.key) ~= st then return end
+		if ic.momentToken ~= token or kit.current(def.key) ~= st then return end
 		ic.momentDone = true
-		P.frozen(ic.cdT, 0.05, def.cd or 15)
+		kit.frozen(ic.cdT, 0.05, def.cd or 15)
 	end)
 end
 ns.registerPart("totemSlot", {
@@ -231,7 +231,7 @@ ns.registerPart("totemSlot", {
 				{ "ranout", "Ran out", 23 },
 				{ "killed", def.grounded and "Grounded" or "Killed early", 60 } }
 		end,
-		render = function(ic, st, def, P)
+		render = function(ic, st, def, kit)
 			local e = ic.endFlash
 			if e and st ~= ic.flashState then
 				e:stop()
@@ -239,18 +239,18 @@ ns.registerPart("totemSlot", {
 			end
 			ic.flashState = st
 			local life = def.duration or 45
-			if st == "expiring" then P.expiring(ic, def.key, life)
-			elseif st == "active" then P.frozen(ic.upT, 0.45, life)
+			if st == "expiring" then kit.expiring(ic, def.key, life)
+			elseif st == "active" then kit.frozen(ic.upT, 0.45, life)
 			elseif (st == "ranout" and def.ranOut) or st == "killed" then
-				if ic.momentDone then P.frozen(ic.cdT, 0.05, def.cd or 15) end
+				if ic.momentDone then kit.frozen(ic.cdT, 0.05, def.cd or 15) end
 			end
 		end,
-		pop = function(ic, st, def, P)
+		pop = function(ic, st, def, kit)
 			if st == "ranout" then
 				local opts = TO.endOptions(E.event(def.key, "ended"), "ended", def)
-				previewEnd(ic, def, P, st, opts, def.ranOut and 1.4 or nil)
+				previewEnd(ic, def, kit, st, opts, def.ranOut and 1.4 or nil)
 			elseif st == "killed" then
-				previewEnd(ic, def, P, st, TO.endOptions(E.event(def.key, "killed"), "killed", def), 2.1)
+				previewEnd(ic, def, kit, st, TO.endOptions(E.event(def.key, "killed"), "killed", def), 2.1)
 			end
 		end,
 	},
@@ -309,14 +309,14 @@ ns.registerPart("needsTotem", {
 		uptime = true, typical = "out", warning = "nototem",
 		states = { { "nototem", "No fire totem", 20 }, { "out", "Fire totem out", 21 },
 			{ "expiring", "Totem expiring", 22 } },
-		render = function(ic, st, def, P)
+		render = function(ic, st, def, kit)
 			local key = def.key
 			local life = def.duration or 45
 			if st == "ready" then ic:SetGlowShown(false)
-			elseif st == "expiring" then P.expiring(ic, key, life)
+			elseif st == "expiring" then kit.expiring(ic, key, life)
 			elseif st == "nototem" then ic:SetWarnParts(W.warnParts(key, "warn"))
 			elseif st == "out" then
-				P.frozen(ic.upT, 0.2, life)
+				kit.frozen(ic.upT, 0.2, life)
 				ic:SetGlowShown(setting(key, "ready", "glow"))
 			end
 		end,

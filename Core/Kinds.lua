@@ -83,12 +83,12 @@ function KD.slots(kind) return listOf(kind, "slots") end
 --   states             { { id, label }, ... }; the first is shown first
 --   typical, warning   the state /sf preview shows in Preview and in Warnings (else the first)
 --   cooldown, uptime   the timers its icon carries; barInset() lifts the time bar (a bar under it)
---   render(ic, st, P)  draws state st on icon ic from scratch, with the preview kit P (ns.OptionsArt.kit)
---   pop(ic, st, P)     the state's moment: its pop or flash
+--   render(ic, st, kit) draws state st on icon ic from scratch, with the preview kit (ns.OptionsArt.kit)
+--   pop(ic, st, kit)   the state's moment: its pop or flash
 --   idles(st, when)    whether st goes idle once its moment has played, at Idle when = when
 --   standIn(ic)        /sf preview made ic, its stand-in: add what render expects on it
 --   hold(ic)           /sf preview paints ic over the element (nil: it ended)
--- A bar's preview, drawn on its page's header instead: stage, heroH, build(h), render(h, st, P),
+-- A bar's preview, drawn on its page's header instead: stage, heroH, build(h), render(h, st, kit),
 -- stateShown(st), fallback (the state while the shown one is hidden).
 local LISTS = { parts = true, slots = true }
 function ns.registerKind(kind, spec)
@@ -118,8 +118,8 @@ function KD.get(kind) return KINDS[kind] end
 --   page              by slot: a title (timers), the slot's block options, or for own a block
 --                     ("reagent", { "toggle", ... }) or a list of them
 --   preview           states ({ id, label, order }), uptime, cooldown, typical, warning, labels
---                     (state labels over other parts'), render(ic, st, def, P, pv) (every state),
---                     pop(ic, st, def, P), idles(st, def, when) (nil: no say), rest(ic, def, P,
+--                     (state labels over other parts'), render(ic, st, def, kit, pv) (every state),
+--                     pop(ic, st, def, kit), idles(st, def, when) (nil: no say), rest(ic, def, kit,
 --                     keep) (the kind's look while nothing of its own is going on)
 --   runtime           hooks its kind's engine calls on the HUD (listed where the kind registers)
 function ns.registerPart(name, spec)
@@ -316,16 +316,16 @@ local function preview(kind, def)
 	end
 	pv.typical, pv.warning = field("typical"), field("warning")
 	local own = list[1] and list[1].preview
-	function pv.render(ic, st, P)
+	function pv.render(ic, st, kit)
 		for _, p in ipairs(list) do
 			local r = p.preview and p.preview.render
-			if r then r(ic, st, def, P, pv) end
+			if r then r(ic, st, def, kit, pv) end
 		end
 	end
-	function pv.pop(ic, st, P)
+	function pv.pop(ic, st, kit)
 		for _, p in ipairs(list) do
 			local f = p.preview and p.preview.pop
-			if f then f(ic, st, def, P) end
+			if f then f(ic, st, def, kit) end
 		end
 	end
 	function pv.idles(st, when)
@@ -334,8 +334,8 @@ local function preview(kind, def)
 			if f then return f(st, def, when) end
 		end) or false
 	end
-	function pv.rest(ic, P, keep)
-		if own and own.rest then own.rest(ic, def, P, keep) end
+	function pv.rest(ic, kit, keep)
+		if own and own.rest then own.rest(ic, def, kit, keep) end
 	end
 	return pv
 end
