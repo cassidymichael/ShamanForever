@@ -382,7 +382,8 @@ end
 
 -- The last charge in its colour; off, Blizzard prints a count only from 2
 local function applyCountFormat(slot)
-	local fm = count("number") and Count.formatter(count("mark") and markColor() or nil, 1, CHARGES)
+	local fm = count("number") and Count.formatter(count("mark") and markColor() or nil, 1, CHARGES,
+		"shield count formatter")
 	Count.setFormat(slot, fm, "shield count")
 end
 

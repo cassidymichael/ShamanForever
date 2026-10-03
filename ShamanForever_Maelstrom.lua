@@ -97,7 +97,8 @@ local function baseLevel() return f.textFrame:GetFrameLevel() + 5 end
 
 -- The stack number, the most in its colour
 local function applyCountFormat(slot)
-	local fm = Count.formatter(count("mark") and color("markColor") or nil, src.max, src.max)
+	local fm = Count.formatter(count("mark") and color("markColor") or nil, src.max, src.max,
+		"maelstrom count formatter")
 	Count.setFormat(slot, fm, "maelstrom count")
 end
 

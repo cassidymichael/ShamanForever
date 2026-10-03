@@ -413,7 +413,7 @@ local formatters, made = {}, 0
 local function byte(v) return math.floor(math.min(math.max(v, 0), 1) * 255 + 0.5) end
 -- Prints every count from 0 (without one Blizzard prints from 2), markAt in markColor (nil: none).
 -- Tried on 0 to max first: an error would stop Blizzard's aura update. nil if the client can't.
-function Count.formatter(markColor, markAt, max)
+function Count.formatter(markColor, markAt, max, site)
 	if not (C_StringUtil and C_StringUtil.CreateNumericRuleFormatter) then return nil end
 	local code = markColor and string.format("|cff%02x%02x%02x", byte(markColor[1]), byte(markColor[2]),
 		byte(markColor[3])) or ""
@@ -422,7 +422,7 @@ function Count.formatter(markColor, markAt, max)
 	if fm == nil then
 		if made >= 8 then wipe(formatters); made = 0 end
 		made = made + 1
-		local ok, new = ns.try("count formatter", function()
+		local ok, new = ns.try(site, function()
 			local x = C_StringUtil.CreateNumericRuleFormatter()
 			local rules = { { threshold = 0, format = "%d" } }
 			if code ~= "" then
