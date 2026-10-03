@@ -1,6 +1,6 @@
 -- Guide slides: the class's examples on every slide but the last
 local ADDON, ns = ...
-local E, GD, OA, S, FR = ns.Elements, ns.Guide, ns.OptionsArt, ns.Style, ns.Frames
+local E, GD, S, FR = ns.Elements, ns.Guide, ns.Style, ns.Frames
 local W = ns.Widgets
 
 local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
@@ -611,79 +611,4 @@ GD.add({ title = "Layout", order = 50,
 			f.click.play(MAIN_AT[1] + 4, MAIN_AT[2] - 4, 1.1)
 			appear(f.tips[3], 1.3)
 		end
-	end })
-
--- Preview mode: its panel's modes on the HUD in miniature
-local MODES = ns.Preview.MODES
-local PV_SIZE = 36
--- Each icon's look: typical, its warning (or the typical one), and where it sits on the stage
-local HUD = {
-	{ SHIELD, 120, function() return { icon = icon("shield"), up = { 0.38, 600 }, bar = { n = 3, filled = 3,
-		color = default("shield", "count", "barColor"), height = default("shield", "count", "barHeight") } } end,
-		missing("shield") },
-	{ MAEL, 238, function() return withCount(mwLook(3), 3) end,
-		function() local l = withCount(mwLook(5), 5); l.glow = true return l end },
-	{ FLAME, 278, function() return fsLook(14) end, missing("flameshock"), warns = true },
-	{ EARTH, 318, esLook, cast(true, true), warns = true },
-	{ IMBUE, 448, function() return { icon = icon("imbue"), up = { 0.95, 3600 } } end, missing("imbue") },
-}
-local BUSY = 1.25
-
-local function pvLook(row, mode, flip)
-	if mode == 2 and row.warns then return row[4]() end
-	if mode == 3 and flip then return row[4]() end
-	return row[3]()
-end
-
-GD.add({ title = "Preview mode", order = 60,
-	blurb = "The whole HUD in a made-up moment, to arrange and style it out of combat.",
-	steps = { 3.2, 3.2, 5 },
-	build = function(f)
-		local stage = GD.stage(f, 0, 92, STAGE_W, STAGE_H)
-		local banner = stage:CreateTexture(nil, "BACKGROUND", nil, 1)
-		banner:SetPoint("TOPLEFT", 1, -1)
-		banner:SetPoint("BOTTOMRIGHT", -1, 1)
-		banner:SetTexture(ART .. OA.SCHOOL[ns.THEME.fallback].banner)
-		banner:SetTexCoord(0, 1400 / 2048, 0, 260 / 512)
-		banner:SetVertexColor(0.45, 0.42, 0.40)
-		f.stage = stage
-		local panel = GD.box(stage, 12, 10, 576, 70, { 0.85, 0.71, 0.42 })
-		panel:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
-		GD.text(panel, "GameFontNormal", ns.NAME .. ": preview", 10, 9)
-		f.modes = OA.choiceRow(panel, MODES, function() return MODES[select(2, GD.current()) + 1][1] end,
-			function(v) for i, m in ipairs(MODES) do if m[1] == v then GD.stepTo(i - 1) end end end)
-		f.modes:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -28)
-		f.modeText = GD.text(panel, "GameFontHighlightSmall", "", 10, 52, 556, GD.GREY)
-		f.icons = {}
-		for i, row in ipairs(HUD) do
-			local ex = GD.icon(stage, PV_SIZE):at(stage, row[2], 160):wear(row[1])
-			ex.box:SetFrameLevel(stage:GetFrameLevel() + 5)
-			f.icons[i] = ex
-		end
-		f.slots = miniBars(stage, 250, 206)
-		f.note = GD.text(stage, "GameFontHighlightSmall", "", 12, 300, 576, GD.GREY)
-		local go = GD.button(f, ns.Preview.isOn() and "Stop preview" or "Preview", 160, function(b)
-			ns.Preview.toggle()
-			b:SetText(ns.Preview.isOn() and "Stop preview" or "Preview")
-		end)
-		go:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -436)
-		f.go = go
-	end,
-	refresh = function(f) f.go:SetText(ns.Preview.isOn() and "Stop preview" or "Preview") end,
-	step = function(f, x)
-		local mode = x + 1
-		f.mode, f.flipAt, f.flip = mode, GetTime(), false
-		f.modes.refresh()
-		f.modeText:SetText(MODES[mode][3])
-		f.note:SetText(mode == 2 and (E.ALL.shock.label .. " out of range and out of mana; "
-			.. ns.Spells.name("flameShock") .. " not on your target.") or "")
-		f.go:SetText(ns.Preview.isOn() and "Stop preview" or "Preview")
-		for i, row in ipairs(HUD) do f.icons[i]:show(pvLook(row, mode, false)) end
-		f.slots[3]:SetAlpha(1)
-	end,
-	tick = function(f, now)
-		if f.mode ~= 3 or now - f.flipAt < BUSY then return end
-		f.flipAt, f.flip = now, not f.flip
-		for i, row in ipairs(HUD) do f.icons[i]:show(pvLook(row, 3, (i % 2 == 0) == f.flip)) end
-		f.slots[3]:SetAlpha(f.flip and 0.35 or 1)
 	end })
