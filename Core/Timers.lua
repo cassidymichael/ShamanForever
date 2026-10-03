@@ -45,11 +45,9 @@ end
 -- Elements whose time bar stays in the icon: their own frames there would cut or miss one outside
 local IN_ICON = {}
 function T.keepIn(key) IN_ICON[key] = true end
--- Bars place their own; Expiring's colour on the bar (expire.bar) is drawn in the icon
+-- Bars place their own
 function T.canPlaceOut(key)
-	local E = ns.Elements
-	if key == nil or IN_ICON[key] or ns.Bars.get(key) or not E.ALL[key] then return false end
-	return E.default(key, "expire", "bar") == nil
+	return key ~= nil and not IN_ICON[key] and not ns.Bars.get(key) and ns.Elements.ALL[key] ~= nil
 end
 
 -- Out of the icon, a column turns a row's above and below to right and left
