@@ -332,6 +332,14 @@ function holderAlpha(def)
 	h:SetAlpha((trusted and not ns.Preview.isOn()) and 1 or 0)
 end
 
+-- The row's aura looks and its glow's sensor: each follows the target with the slot
+local function sensors(def)
+	local list = {}
+	for _, look in ipairs(def.looks) do table.insert(list, look) end
+	if def.fx and def.fx.up then table.insert(list, def.fx.up) end
+	return list
+end
+
 -- Slots follow the target: pointed at it while attackable, refreshed on a change between targets,
 -- at no unit otherwise. A failed call leaves def.pointedAt nil, so the next refresh retries.
 function retarget(only)
@@ -359,8 +367,8 @@ function retarget(only)
 			end
 		end
 		if only == nil or only == def then
-			for _, look in ipairs({ def.missLook or false, def.fx and def.fx.up or false }) do
-				if look and not look:follow(unit) then
+			for _, look in ipairs(sensors(def)) do
+				if not look:follow(unit) then
 					ns.retryAfterCombat("target retarget", function() retarget() end)
 				end
 			end
@@ -492,11 +500,12 @@ local function refreshAura(def)
 	if not ns.isEnabled(key) then return end
 	if def.aura.container then
 		driveGate(def)
-		local p, u = def.missLook, def.fx and def.fx.up
-		if def.pointedAt ~= wantedUnit() or (p and p.container and p.unit ~= wantedUnit())
-			or (u and u.container and u.unit ~= wantedUnit()) then
-			retarget(def)
+		local unit = wantedUnit()
+		local off = def.pointedAt ~= unit
+		for _, look in ipairs(sensors(def)) do
+			off = off or look.container ~= nil and look.unit ~= unit
 		end
+		if off then retarget(def) end
 	end
 	f.tex:SetTexture(def.icon)
 	f.tex:SetDesaturated(not def.spellID)
