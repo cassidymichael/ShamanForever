@@ -45,7 +45,8 @@ OP.kit = K
 K.perFrame, K.relayout, K.retime, K.reglow, K.respell = perFrame, relayout, retime, reglow, respell
 
 -- Pages register at load: title, icon, build, order (the order they build in, and their place in
--- the top nav), bottom (height above the window's foot: a lower nav page, placed by it, not order).
+-- the top nav), bottom (height above the window's foot: a lower nav page, placed by it, not order),
+-- nav(button, current) (called as the nav repaints, to mark its entry).
 local registered, registeredKeys = {}, {}
 function OP.registerPage(key, spec)
 	assert(not registeredKeys[key], "page registered twice: " .. tostring(key))
@@ -343,6 +344,7 @@ local function refreshNav()
 				on and 0.5 or (b.sub and 0.84 or 0))
 		else b.label:SetTextColor(0.55, 0.53, 0.5) end
 		b.icon:SetDesaturated(b.sub and not E.isLearned(b.page) or false)
+		if b.nav then b.nav(b, on) end
 	end
 	if navDivider then navDivider.refresh() end
 	if navLock then navLock.refresh() end
@@ -403,9 +405,10 @@ local function buildNav()
 		local b = add(...)
 		b:SetPoint("TOPLEFT", win, "TOPLEFT", 12, y)
 		y = y - 30
+		return b
 	end
 	for _, spec in ipairs(registered) do
-		if not spec.bottom then top(spec.key, spec.title, spec.icon) end
+		if not spec.bottom then top(spec.key, spec.title, spec.icon).nav = spec.nav end
 	end
 	navPreview = CreateFrame("Button", nil, win, "UIPanelButtonTemplate")
 	navPreview:SetSize(NAV_W - 32, 22)
@@ -423,17 +426,20 @@ local function buildNav()
 		.. " on screen. " .. ns.CLASS.slash[1] .. " lock does the same.")
 	function navLock.refresh() navLock:SetText(acct().locked and "Unlock positioning" or "Lock positioning") end
 	navLock.refresh()
+	local lowest = 100
 	for _, spec in ipairs(registered) do
 		if spec.bottom then
-			add(spec.key, spec.title, spec.icon):SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 12, spec.bottom)
+			local b = add(spec.key, spec.title, spec.icon)
+			b:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 12, spec.bottom)
+			b.nav, lowest = spec.nav, math.max(lowest, spec.bottom)
 		end
 	end
 	navDivider = ns.OptionsArt.divider(win)
-	navDivider:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 20, 136)
+	navDivider:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 20, lowest + 36)
 	navDivider:SetWidth(NAV_W - 36)
 	local list = CreateFrame("ScrollFrame", nil, win)
 	list:SetPoint("TOPLEFT", win, "TOPLEFT", 4, y)
-	list:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 4, 148)
+	list:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 4, lowest + 48)
 	list:SetWidth(NAV_W - 8)
 	local child = CreateFrame("Frame", nil, list)
 	child:SetWidth(NAV_W - 8)
