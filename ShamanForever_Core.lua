@@ -1,7 +1,7 @@
 -- Shared helpers (loaded first)
--- Failures: ns.try(site, ...) for a call whose failure is worth knowing (noted for /sf debug, site
--- "<module>: <what>"); ns.safe for feature detection and reads that may fail on a secret many times
--- a second; module hooks run under securecallfunction, so their errors reach the error handler.
+-- Failures: ns.try(site, ...) where a failure is worth knowing (noted for /sf debug; the site names
+-- its module first); a raw pcall or ns.safe where failure is the answer (feature detection, reads
+-- that may fail on a secret); module hooks run under securecallfunction, so errors reach the handler.
 
 local ADDON, ns = ...
 
