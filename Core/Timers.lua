@@ -214,12 +214,6 @@ function Timer:outset()
 	local gap = S.get(self.key, self.part).barGap
 	return W.roundPx(inset + gap * box / W.BASE_ICON_SIZE, W.pixel(self.anchor))
 end
--- How far a bar out of the icon reaches from it, its edge included
-function Timer:reach()
-	local e = self.bar and ns.StyleArt.outerEdge(self.bar) or 0
-	return self:outset() + 2 * e + S.get(self.key, self.part).barHeight
-end
-
 local OUT_POINTS = {
 	above = { "BOTTOMLEFT", "TOPLEFT", "BOTTOMRIGHT", "TOPRIGHT", 0, 1 },
 	below = { "TOPLEFT", "BOTTOMLEFT", "TOPRIGHT", "BOTTOMRIGHT", 0, -1 },
@@ -228,6 +222,15 @@ local OUT_POINTS = {
 }
 -- Out of the icon a bar has a one-pixel dark edge, drawn as a bar's border (the swing timer's route)
 local OUT_EDGE = { show = true, look = "line", size = 1, color = { 0, 0, 0, 1 } }
+-- Its width, from the side its style places it on (not its last drawing)
+function Timer:edge()
+	local side = self.bar and T.barSide(self.key, S.get(self.key, self.part))
+	return OUT_POINTS[side] and W.linePx(self.bar, OUT_EDGE.size) or 0
+end
+-- How far a bar out of the icon reaches from it, its edge included
+function Timer:reach()
+	return self:outset() + 2 * self:edge() + S.get(self.key, self.part).barHeight
+end
 local function placeBar(t, s, side)
 	local bar, a = t.bar, t.anchor
 	local out = OUT_POINTS[side]
@@ -243,7 +246,7 @@ local function placeBar(t, s, side)
 		bar:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, y); bar:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, y)
 	else
 		-- As long as the icon's box, border included, its edge too
-		local e = ns.StyleArt.outerEdge(bar)
+		local e = t:edge()
 		local d = t:outset() + e
 		local _, inset = t:boxInset()
 		local span = W.roundPx(inset, W.pixel(a)) - e
