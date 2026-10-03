@@ -107,10 +107,18 @@ function ns.deferWhileAurasSecret(key, fn)
 	queued[key] = nil
 	return false
 end
--- A visibility state driver (expr nil: none); a failure is noted under site. True when it took
+-- A visibility state driver (expr nil: none), set only when it changed; a failure is noted under
+-- site. True when it took or was already set
+local drivers = setmetatable({}, { __mode = "k" })
 function ns.setVisibilityDriver(frame, expr, site)
-	if expr then return (ns.try(site, RegisterStateDriver, frame, "visibility", expr)) end
-	return (ns.try(site, UnregisterStateDriver, frame, "visibility"))
+	if expr == drivers[frame] then return true end
+	if not expr then
+		drivers[frame] = nil
+		return (ns.try(site, UnregisterStateDriver, frame, "visibility"))
+	end
+	if not ns.try(site, RegisterStateDriver, frame, "visibility", expr) then return false end
+	drivers[frame] = expr
+	return true
 end
 local INACTIVE = Enum and Enum.AddOnRestrictionState and Enum.AddOnRestrictionState.Inactive or 0
 -- fn(endedAt) runs the frame after a restriction ends, once, after the queue (not on starts)

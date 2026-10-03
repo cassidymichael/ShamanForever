@@ -1144,13 +1144,7 @@ local function visibilityDriver()
 	end
 	return ownDriver()
 end
-local lastDriver
-local function drive()
-	local driver = visibilityDriver()
-	if driver ~= lastDriver and ns.setVisibilityDriver(bar, driver, "totem bar driver") then
-		lastDriver = driver
-	end
-end
+local function drive() ns.setVisibilityDriver(bar, visibilityDriver(), "totem bar driver") end
 
 function layout()
 	if ns.deferInCombat("totem bar layout", layout) then return end
@@ -1739,7 +1733,6 @@ local function showPreview(opts)
 			end
 			s.dur = nil
 		end
-		lastDriver = nil
 	end
 end
 
@@ -1773,7 +1766,7 @@ function TB.debug()
 		or isSecret(ginfo.isOnGCD) and "secret" or tostring(ginfo.isOnGCD)
 	ns.say("totem bar mode %s, show %s, driver %s, shown %s, totems known %s, set %d of %d, "
 		.. "earth isOnGCD %s; TotemFrame parent %s alpha %s; Totem Action Bar parent %s",
-		c.mode, c.show, tostring(lastDriver), tostring(bar:IsShown()), tostring(hasTotems),
+		c.mode, c.show, tostring(visibilityDriver()), tostring(bar:IsShown()), tostring(hasTotems),
 		TS.active(), TS.count(), g,
 		TotemFrame and TotemFrame:GetParent() and (TotemFrame:GetParent():GetName() or "?") or "none",
 		TotemFrame and string.format("%.2f", TotemFrame:GetAlpha()) or "-",

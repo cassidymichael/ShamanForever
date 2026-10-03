@@ -241,13 +241,7 @@ local function visibilityDriver()
 	if cfg().show == "combat" then return "[petbattle] hide; [combat] show; hide" end
 	return "[petbattle] hide; show"
 end
-local lastDriver
-local function drive()
-	local driver = visibilityDriver()
-	if driver ~= lastDriver and ns.setVisibilityDriver(f, driver, "swing timer driver") then
-		lastDriver = driver
-	end
-end
+local function drive() ns.setVisibilityDriver(f, visibilityDriver(), "swing timer driver") end
 
 -- Layout (out of combat)
 local function layout()

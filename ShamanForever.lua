@@ -461,18 +461,8 @@ end
 -- dropped in combat. The manager re-applies its state every 0.2 s and won't show a frame it lets
 -- go of, so a driven frame is never shown or hidden by hand. Out of combat only. Groups and
 -- elements are driven separately: an element shows only when both allow it.
-local driven = {}
 local function setDriven(frame, when)
-	when = when or nil
-	if when == driven[frame] then return end
-	local site = "state driver " .. (frame:GetName() or tostring(frame))
-	if when then
-		if not ns.setVisibilityDriver(frame, when, site) then return end
-		driven[frame] = when
-	else
-		ns.setVisibilityDriver(frame, nil, site)
-		driven[frame] = nil
-	end
+	ns.setVisibilityDriver(frame, when or nil, "state driver " .. (frame:GetName() or tostring(frame)))
 end
 
 local function showFrame(frame, when)
