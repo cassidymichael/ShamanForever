@@ -16,14 +16,9 @@ local ROW_W = WIDTH - NAV_W - 64
 local SLIDER_SPAN_W = 400
 local TEXT_MAX_W = 600
 local PANEL_PAD, PANEL_PAD_B, BLOCK_GAP = 10, 6, 10
--- Fold state is saved per page and header text; an untouched block starts folded unless it is
--- the page's first, under an open section, or its page or header says open.
+-- Blocks start open; a folded one is saved by its page and header text.
 local function folded() return P.getAccount().foldedBlocks end
-local function isFolded(b)
-	local v = folded()[b.key]
-	if v == nil then return b.startFolded end
-	return v
-end
+local function isFolded(b) return folded()[b.key] == true end
 local allPages = {}
 local SUB_INDENT, SUB_MAX, RULE_X = 24, 2, 12
 
@@ -303,13 +298,13 @@ function Page:relaid()
 end
 
 function Page:setFolded(b, fold)
-	folded()[b.key] = fold and true or false
+	folded()[b.key] = fold and true or nil
 	self:relaid()
 end
 
 function Page:foldAll(fold)
 	for _, b in ipairs(self.blockList) do
-		if b.head.visible then folded()[b.key] = fold and true or false end
+		if b.head.visible then folded()[b.key] = fold and true or nil end
 	end
 	self:relaid()
 end
@@ -673,7 +668,7 @@ end
 function Page:reset() resetRefs(self:refs()) end
 function Page:askReset(name) askReset(name, function() self:reset() end) end
 
-function Page:header(text, shown, note, icon, opts)
+function Page:header(text, shown, note, icon)
 	local f = self:row(36)
 	local block, x = nil, 0
 	if self.panels ~= false then
@@ -682,9 +677,8 @@ function Page:header(text, shown, note, icon, opts)
 		local key = self.key .. ":" .. text
 		if self.blockKeys[key] then key = key .. "#" .. #self.blockList end
 		self.blockKeys[key] = true
-		local first = #self.blockList == 0 and not self.firstFolded
 		block = setmetatable({ index = #self.blockList + 1, key = key, name = text, items = {}, owns = {},
-			ownIds = {}, startFolded = not (first or self.allOpen or self.openRun or (opts and opts.open)) }, Block)
+			ownIds = {} }, Block)
 		table.insert(self.blockList, block)
 		self.block = block
 		f.arrow = f:CreateTexture(nil, "ARTWORK")
@@ -761,9 +755,8 @@ function Page:pageTitle(text)
 end
 
 local SECTION_H, SECTION_SIZE = 46, 18
-function Page:section(text, open)
+function Page:section(text)
 	self.block = nil
-	self.openRun = open or nil
 	local f = self:row(SECTION_H)
 	f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	local file, _, flags = GameFontNormalLarge:GetFont()

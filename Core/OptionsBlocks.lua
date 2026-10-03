@@ -732,7 +732,7 @@ local function elementDisplay(p, key)
 	p:callout("Not your race. It shows on screen only for the races that have this spell.",
 		function() return not E.isLearned(key) and ns.Spells.otherRace(E.ALL[key].race) end)
 	K.behaviourSection(p)
-	p:header("Display", nil, nil, nil, { open = true })
+	p:header("Display")
 	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return E.showMode(key) end,
 		function(v) E.setShow(key, v) end, nil, 140)
 	local function showDefault() return E.default(key, "show") or "always" end

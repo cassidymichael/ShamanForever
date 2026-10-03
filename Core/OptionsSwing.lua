@@ -79,7 +79,7 @@ local function build(p)
 
 	p:hero("swing")
 	K.behaviourSection(p)
-	p:header("Display", nil, nil, nil, { open = true })
+	p:header("Display")
 	p:dropdown("Show", "It shows from your first swing. While positioning is unlocked it always shows, unless Hidden.",
 		SHOWS, get("show"), set("show"), nil, 160)
 
