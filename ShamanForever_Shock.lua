@@ -51,8 +51,8 @@ local function refreshCooldown(inEvent)
 		W.fadeTo(shock, 1)
 		return CD.resetReady(shock)
 	end
-	local dur = CD.cooldownFor(shock, "shock", shockSpellID, inEvent)
-	if dur then shock.cdTimer:set(dur) end
+	local dur, bar = CD.cooldownFor(shock, "shock", shockSpellID, inEvent)
+	if dur then shock.cdTimer:set(dur, bar) end
 	idleDef.spellID = shockSpellID
 	CD.applyIdle(idleDef, false, inEvent)
 end
@@ -62,6 +62,8 @@ shock.cd:HookScript("OnCooldownDone", function() C_Timer.After(0, refreshCooldow
 
 CD.popWhenReady(shock, "shock")
 CD.soundWhenReady(shock, "shock")
+-- The time bar runs the shock's own cooldown, which can end inside a GCD
+shock.ownCd:HookScript("OnCooldownDone", function() C_Timer.After(0, refreshCooldown) end)
 
 -- Ready glow
 local function refreshGlow()
@@ -124,7 +126,7 @@ local function marksPlace(w, o, px, t)
 	local where, out = W.attachSide("shock", own("marks", "side")), o + gap
 	local s = ns.Style.get("shock", "cooldown")
 	if t and s.bar and not ns.Timer.cant("shock", "cooldown").bar and ns.Timer.barSide("shock", s) == where then
-		out = math.max(out, W.roundPx(t:outset() + s.barHeight, px) + gap)
+		out = math.max(out, W.roundPx(t:reach(), px) + gap)
 	end
 	return where, size, out
 end
@@ -196,8 +198,12 @@ local function makeMark(m)
 	if ns.deferWhileAurasSecret(site, function() makeMark(m) end) then return end
 	local ids = Spells.ids(m.spell)
 	local ok, err = pcall(function()
+		-- The container sizes itself to its layout (nothing, for a slot): only its top left places the
+		-- button, so it hangs from a frame of the mark's own place and size
+		m.place = m.place or CreateFrame("Frame", nil, marksHost)
 		local c = CreateFrame("AuraContainer", nil, marksHost, "CustomAuraContainerTemplate")
 		m.container = c
+		c:SetPoint("TOPLEFT", m.place, "TOPLEFT", 0, 0)
 		c:SetFrameStrata(marksHost:GetFrameStrata())
 		c:SetFrameLevel(marksHost:GetFrameLevel() + 2)
 		c:SetUnit("none")
@@ -260,8 +266,8 @@ function placeMarks()
 			local placed = ns.try("shock mark place " .. m.key, function()
 				c:SetFrameStrata(marksHost:GetFrameStrata())
 				c:SetFrameLevel(marksHost:GetFrameLevel() + 2)
-				anchorMark(c, i, marksHost, where, out, o)
-				c:SetSize(size, size)
+				anchorMark(m.place, i, marksHost, where, out, o)
+				m.place:SetSize(size, size)
 				c:SetShown(markOn(m))
 				m.size = size
 				if m.button then fitMark(m, m.button, size) end

@@ -300,6 +300,11 @@ function S.endReads()
 	if readDepth <= 0 then reads, readDepth = nil, 0 end
 end
 local function forget() if reads then reads = {} end end
+-- An owner whose styles were written straight into it (a sample tile's sandbox)
+function S.forget(owner)
+	if not reads then return end
+	for _, t in pairs(reads) do t[owner == nil and GLOBAL or owner] = nil end
+end
 
 local function memo(name, fn, owner, part)
 	if not reads then return fn(owner, part) end
