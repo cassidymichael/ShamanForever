@@ -1039,7 +1039,10 @@ local function applyTotemFrame()
 end
 if TotemFrame and TotemFrame.Update then hooksecurefunc(TotemFrame, "Update", applyTotemFrame) end
 
-local hiddenParent = CreateFrame("Frame")
+-- Where the Totem Action Bar waits while ours replaces it: protected and the size of UIParent, so the
+-- on-off toggle can show it in place in combat (the bar's whileOff)
+local hiddenParent = CreateFrame("Frame", nil, UIParent, "SecureFrameTemplate")
+hiddenParent:SetAllPoints()
 hiddenParent:Hide()
 local actionBarParent
 local function applyActionBar()
@@ -1816,6 +1819,10 @@ end
 
 Bars.register("totembar", { label = "Totem bar", cfg = cfg, saved = "totemBar", defaults = TB.DEFAULTS,
 	ranges = TB.RANGES, choices = CHOICES, on = barOn, secure = true,
+	whileOff = { frame = hiddenParent, noun = function()
+		local f = MultiCastActionBarFrame
+		return f and f:GetParent() == hiddenParent and "Blizzard's Totem Action Bar" or nil
+	end },
 	parts = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
 	-- Its theme can draw its own border
 	ownLabel = function(part)

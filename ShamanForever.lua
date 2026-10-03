@@ -102,12 +102,17 @@ end
 -- update(); a right-click on it opens the bar's page); hud = { show(opts), slots, steps(slot, mode),
 -- step(slot, state, at, range, moment) }: /sf preview on the bar itself, show(nil) as it ends, each
 -- slot looping through its steps like an element, step returning when it ends; secure: its frames are
--- protected (its top frame's parent is Bars.parent(true)).
+-- protected (its top frame's parent is Bars.parent(true)); whileOff = { frame, noun() }: a protected
+-- frame shown while off and hidden while on (by the on-off toggle in combat too, else out of combat),
+-- and how a sentence names what it brings back (nil when it brings nothing back now).
 -- Options: icon, school, blurb, tags() and preview (its page header: a stage, as _Kinds says); page
 -- = { order, build } (titled and iconned as the bar); experiments = { { name, where } } (About's
 -- list); ownSize() (its icon size isn't Global's); tiles = { icon, schools, border() } (its style
 -- blocks' sample tiles: their icon, the schools they show (else all), their border; none: no tiles)
 local BARS, BAR_ORDER = {}, {}
+-- The on-off toggle's header and the bars' whileOff entries (below)
+local toggleHead
+local whileOffs = {}
 local Bars = {}
 ns.Bars = Bars
 -- A bar's Show conditions are a group's
@@ -134,6 +139,11 @@ function Bars.register(key, spec)
 	for k, v in pairs(spec) do bar[k] = v end
 	if not spec.noun and spec.label then bar.noun = "the " .. spec.label:lower() end
 	if spec.movable then ns.Positioning.addMovable(spec.movable, key) end
+	if spec.whileOff then
+		table.insert(whileOffs, spec.whileOff)
+		SecureHandlerSetFrameRef(toggleHead, "show" .. #whileOffs, spec.whileOff.frame)
+		toggleHead:SetAttribute("sf-shows", #whileOffs)
+	end
 	if spec.page then
 		ns.Options.registerPage(key, { title = bar.label, icon = bar.icon, order = spec.page.order,
 			build = spec.page.build })
@@ -153,10 +163,12 @@ end
 function Bars.parent(secure) return secure and barHolders.secure or barHolders.plain end
 
 -- The on-off toggle: a secure button for a key binding or /click. Its click flips the header's
--- sf-off and hides or shows the secure holder, in combat too; its PostClick then sets the rest
-local toggleHead = CreateFrame("Frame", nil, UIParent, "SecureHandlerBaseTemplate")
+-- sf-off, hides or shows the secure holder and shows or hides the bars' whileOff frames, in combat
+-- too; its PostClick then sets the rest
+toggleHead = CreateFrame("Frame", nil, UIParent, "SecureHandlerBaseTemplate")
 SecureHandlerSetFrameRef(toggleHead, "holder", barHolders.secure)
 toggleHead:SetAttribute("sf-off", false)
+toggleHead:SetAttribute("sf-shows", 0)
 local toggle = CreateFrame("Button", ns.NAME .. "Toggle", UIParent, "SecureActionButtonTemplate")
 toggle:RegisterForClicks("AnyDown", "AnyUp")
 SecureHandlerWrapScript(toggle, "OnClick", toggleHead, [[
@@ -165,6 +177,10 @@ SecureHandlerWrapScript(toggle, "OnClick", toggleHead, [[
 	owner:SetAttribute("sf-off", off)
 	local holder = owner:GetFrameRef("holder")
 	if off then holder:Hide() else holder:Show() end
+	for i = 1, owner:GetAttribute("sf-shows") do
+		local f = owner:GetFrameRef("show" .. i)
+		if off then f:Show() else f:Hide() end
+	end
 	return false
 ]])
 local TOGGLE_BINDING = "CLICK " .. ns.NAME .. "Toggle:LeftButton"
@@ -798,6 +814,7 @@ local function holdSecureBars()
 	if ns.deferInCombat("off: bars", holdSecureBars) then return end
 	local off = ns.isOff()
 	toggleHead:SetAttribute("sf-off", off)
+	for _, w in ipairs(whileOffs) do w.frame:SetShown(off) end
 	local changed = barHolders.secure:IsShown() == off
 	barHolders.secure:SetShown(not off)
 	if changed then ns.offApplied() end
@@ -826,6 +843,18 @@ local function barsWaiting(shown)
 	if #list == 0 then return nil end
 	return table.concat(list, " and ")
 end
+-- What the bars' whileOff frames would bring back now but can't until combat ends (going off in
+-- combat without the toggle)
+local function backAfterCombat()
+	if not InCombatLockdown() then return nil end
+	local list = {}
+	for _, w in ipairs(whileOffs) do
+		local noun = w.noun and w.noun()
+		if noun and not w.frame:IsShown() then table.insert(list, noun) end
+	end
+	if #list == 0 then return nil end
+	return table.concat(list, " and ")
+end
 -- The toggle's key, or how to click it from a macro
 local function toggleKey()
 	local key = GetBindingKey(TOGGLE_BINDING)
@@ -833,10 +862,13 @@ local function toggleKey()
 	return "/click " .. ns.NAME .. "Toggle"
 end
 -- What it says: the slash commands, the toggle, Turn on and a login while off say the same
-local function sayOff(off, waiting)
+local function sayOff(off, waiting, back)
 	local cmd = ns.CLASS.slash[1]
-	if off and waiting then
-		say("off until %s enable, but %s still takes clicks until combat ends. %s hides it now", cmd, waiting,
+	if off and (waiting or back) then
+		local parts = {}
+		if waiting then table.insert(parts, waiting .. " still takes clicks") end
+		if back then table.insert(parts, back .. " stays hidden") end
+		say("off until %s enable, but until combat ends %s. %s does it all now", cmd, table.concat(parts, " and "),
 			toggleKey())
 	elseif off then say("off: nothing shows or plays until %s enable", cmd)
 	elseif waiting then say("on, but %s comes back when combat ends. %s brings it back now", waiting, toggleKey())
@@ -861,13 +893,14 @@ local function setOff(want, how)
 		if not acct.locked and not InCombatLockdown() then G.setLocked(true) end
 	end
 	local waiting = barsWaiting(want)
+	local back = want and backAfterCombat() or nil
 	ns.setOff(want)
 	applyOff()
 	-- Modules restate what they take from Blizzard's own frames
 	layoutElements()
 	if not want then refreshAll() end
 	ns.changed()
-	sayOff(want, waiting)
+	sayOff(want, waiting, back)
 	return true
 end
 toggle:SetScript("PostClick", function(_, _, down)
@@ -991,7 +1024,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		refreshAll()
 		root:Show()
 		-- Said once laid out: a login in combat leaves a shown secure bar taking clicks until it ends
-		if ns.isOff() then sayOff(true, barsWaiting(true)) end
+		if ns.isOff() then sayOff(true, barsWaiting(true), backAfterCombat()) end
 	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
 		local spellID = arg3
 		if not isSecret(spellID) then each("onCast", spellID) end
