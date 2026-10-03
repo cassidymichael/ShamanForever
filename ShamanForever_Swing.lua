@@ -35,8 +35,8 @@ SW.DEFAULTS = {
 	countdown = false, countdownSize = 12, countdownColor = { 1, 1, 1, 1 },
 	countdownPos = "center",
 }
-local RANGES = { width = { 40, 400 }, height = { 4, 40 }, scale = { 0.5, 3 }, alpha = { 0.1, 1 },
-	countdownSize = { 8, 40 } }
+local RANGES = { width = { 40, 400, 4 }, height = { 4, 40, 1 }, scale = { 0.5, 3, 0.05 }, alpha = { 0.1, 1, 0.05 },
+	countdownSize = { 8, 40, 1 } }
 SW.RANGES = RANGES
 local CHOICES = { show = { "combat", "always", "never" }, colorBy = COLOR_BY,
 	fillFrom = { "left", "right" }, countdownPos = { "center", "left", "right" } }
