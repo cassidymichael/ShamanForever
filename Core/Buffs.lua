@@ -23,13 +23,15 @@ local BUFFS = {}
 -- parts join it: the reagent's (_Reagents), Expiring's (_Timers), a class's own.
 local function procName(def) return def.buffKey and Spells.name(def.buffKey) end
 ns.registerPart("buff", {
+	-- A buff of the player's own: a sound as it goes, played by the engine
+	defaults = function(def) return not def.proc and { ended = { sound = "none" } } or nil end,
 	idle = { text = function(def)
 		local name = def.proc and procName(def)
 		return name and ("Idle while " .. name .. " isn't up") or "Idle while it isn't up"
 	end },
 	page = {
 		uptime = function(def) return not def.noTimer and "Time left" or nil end,
-		expire = {},
+		expire = { tips = { endSound = "When it goes: it runs out, or is cancelled or dispelled." } },
 		active = function(def)
 			local tips = { pop = def.popTip or "The moment it procs.",
 				glow = def.glowTip or "While it's up." }
@@ -341,6 +343,12 @@ local function refreshAll()
 	for _, def in ipairs(BUFFS) do refreshBuff(def) end
 end
 
+-- Its sound as it goes, by any rank's ID
+local function applyGoneSound(def)
+	if def.proc then return end
+	ns.Sounds.elementAura(def.key, "ended", def.spellID and Spells.ids(def.buffKey or def.spellKey) or nil)
+end
+
 function B.resolve()
 	ns.Reagents.readPerk()
 	local sig = {}
@@ -352,6 +360,7 @@ function B.resolve()
 		def.spellID = known
 		if def.proc then B.resolveAura(def) end
 		if not def.proc then def.iconID = icon end
+		applyGoneSound(def)
 		table.insert(sig, tostring(known))
 	end
 	return table.concat(sig, ",")
@@ -375,6 +384,7 @@ end
 
 function B.applyLayout()
 	for _, def in ipairs(BUFFS) do
+		applyGoneSound(def)
 		if def.proc and def.spellID and E.isEnabled(def.key) then B.setupAura(def) end
 		if def.proc then
 			def.aura:style()
