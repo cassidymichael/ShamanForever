@@ -255,7 +255,7 @@ end
 
 function Timer:set(d)
 	if not d then return self:clear() end
-	self.last = d
+	self.last, self.held = d, nil
 	ns.try("timer cooldown", self.cd.SetCooldownFromDurationObject, self.cd, d, true)
 	local bar = self.bar
 	if bar and self.barOn then
@@ -270,6 +270,7 @@ function Timer:set(d)
 end
 
 function Timer:setTime(start, length)
+	self.held = nil
 	if C_DurationUtil and C_DurationUtil.CreateDuration then
 		self.own = self.own or C_DurationUtil.CreateDuration()
 		local ok = ns.try("timer time", self.own.SetTimeFromStart, self.own, start, length)
@@ -285,14 +286,16 @@ function Timer:setTime(start, length)
 end
 
 function Timer:clear()
-	self.last = nil
+	self.last, self.held = nil, nil
 	if self.exp then self.exp:SetAlpha(0) end
 	self.cd:Clear()
 	if self.bar then self.bar:Hide() end
 end
 
+-- Frozen frac of the way through; a setExpire after it lights the warning if the time held is in it
 function Timer:static(frac, length)
 	length = length or 30
+	self.held = (1 - frac) * length
 	self.cd:SetCooldown(GetTime() - frac * length, length)
 	pcall(self.cd.Pause, self.cd)
 	if self.bar then
@@ -315,7 +318,7 @@ ticker:SetScript("OnUpdate", ns.throttled(0.1, function()
 			-- pcall, not ns.try: ten times a second, must not allocate
 			local ok, a = pcall(d.EvaluateRemainingDuration, d, t.expCurve)
 			if ok then t.exp:SetAlpha(a) else t.exp:SetAlpha(0); ns.noteError("timer expiring", a) end
-		else t.exp:SetAlpha(0) end
+		elseif not t.held then t.exp:SetAlpha(0) end
 	end
 end))
 
@@ -388,6 +391,9 @@ function Timer:setExpire(e, icon)
 	if d then
 		local ok, a = pcall(d.EvaluateRemainingDuration, d, self.expCurve)
 		if ok then x:SetAlpha(a) else x:SetAlpha(0) end   -- a may be secret: never compared
+	elseif self.held then
+		-- As the curve: lit from just above 0 to just past secs
+		x:SetAlpha((self.held > 0 and self.held < e.secs + 0.05) and 1 or 0)
 	end
 end
 
