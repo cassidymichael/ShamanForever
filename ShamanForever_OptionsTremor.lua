@@ -172,8 +172,6 @@ local function buildTremor(p)
 	mobList(p)
 	linkLine(p, "Suggest a mob for the default list", "Opens Feedback, on the About page.",
 		function() ns.Options.showFeedback() end)
-	timerSettings(p, "Time left", key, "uptime", nil,
-		"Its time left while it's down. With the default Idle (\"No warning\", 0%) it isn't seen.")
 	activeBlock(p, key, { title = "When it warns", tips = { pop = "The moment it starts warning.",
 		glow = "While it warns.", sound = "The moment it starts warning." }, extra = function(s)
 		local textGet, textSet = s.opt("active", "text")
@@ -188,7 +186,10 @@ local function buildTremor(p)
 		eslider(p, key, "Text X offset", nil, px, text, "wordX")
 		eslider(p, key, "Text Y offset", nil, px, text, "wordY")
 	end })
-	styleBlocks(p, key)
+	styleBlocks(p, key, function()
+		timerSettings(p, "Time left", key, "uptime", nil,
+			"Its time left while it's down. With the default Idle (\"No warning\", 0%) it isn't seen.")
+	end)
 end
 
 ns.registerKind("tremor", { page = buildTremor })

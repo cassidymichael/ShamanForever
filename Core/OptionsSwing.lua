@@ -6,7 +6,7 @@ local E, Bars = ns.Elements, ns.Bars
 local Page = ns.Page
 local showWhen, times, pct, int, px = Page.showWhen, Page.times, Page.pct, Page.int, Page.px
 
-local SHOWS = { { "combat", "In combat" }, { "always", "Always" }, { "never", "Hidden" } }
+local SHOWS = { { "always", "Always" }, { "combat", "In combat" }, { "never", "Hidden" } }
 local SHOW_NAME = { combat = "In combat", always = "Always", never = "Hidden" }
 local FROM = { { "left", "Left to right" }, { "right", "Right to left" } }
 local TEXT_POS = { { "left", "Left" }, { "center", "Middle" }, { "right", "Right" } }
@@ -78,6 +78,7 @@ local function build(p)
 	local text = showWhen(get("countdown"))
 
 	p:hero("swing")
+	K.behaviourSection(p)
 	p:header("Display", nil, nil, nil, { open = true })
 	p:dropdown("Show", "It shows from your first swing. While positioning is unlocked it always shows, unless Hidden.",
 		SHOWS, get("show"), set("show"), nil, 160)
@@ -106,15 +107,17 @@ local function build(p)
 		return e and e.barColor.text or ""
 	end, showWhen(function() return not custom() end))
 	p:color("Custom colour", nil, get("color"), set("color"), showWhen(custom))
-	K.barRows(p, "swing", changed)
 
 	p:header("Countdown")
 	p:checkbox("Countdown text", "The time to the next swing, on the bar.", get("countdown"), set("countdown"))
 	p:dropdown("Position", nil, TEXT_POS, get("countdownPos"), set("countdownPos"), text, 160)
 	slider(p, R.countdownSize, "Text size", nil, int, get("countdownSize"), set("countdownSize"), text)
 	p:color("Text colour", nil, get("countdownColor"), set("countdownColor"), text)
-	K.textBlock(p, "swing", changed)
 
+	K.styleSection(p)
+	K.textBlock(p, "swing", changed)
+	p:header("Bar texture")
+	K.barRows(p, "swing", changed)
 	p:header("Border style")
 	K.borderRows(p, "swing", changed)
 	if K.barFramed("swing") then

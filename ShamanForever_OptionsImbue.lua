@@ -20,13 +20,13 @@ local function buildImbue(p, def)
 	p:text("The icon shown while no imbue is on.")
 	local lost = "The moment your imbue runs out or is lost."
 	warnBlock(p, key, { title = "No imbue", tips = { pop = lost, sound = lost } })
-
-	timerSettings(p, "Time left", key, "uptime", nil, nil, function()
-		local function mins(v) return v == 0 and "Never" or string.format("%d min", v) end
-		eslider(p, key, "Show under", nil, mins, nil, "showUnderMins")
-		p:text("Time left shows once it's below this. 0 never shows it.")
+	styleBlocks(p, key, function()
+		timerSettings(p, "Time left", key, "uptime", nil, nil, function()
+			local function mins(v) return v == 0 and "Never" or string.format("%d min", v) end
+			eslider(p, key, "Show under", nil, mins, nil, "showUnderMins")
+			p:text("Time left shows once it's below this. 0 never shows it.")
+		end)
 	end)
-	styleBlocks(p, key)
 end
 
 ns.registerKind("imbue", { page = buildImbue })
