@@ -295,7 +295,7 @@ end
 -- Frozen frac of the way through; a setExpire after it lights the warning if the time held is in it
 function Timer:static(frac, length)
 	length = length or 30
-	self.held = (1 - frac) * length
+	self.last, self.held = nil, (1 - frac) * length
 	self.cd:SetCooldown(GetTime() - frac * length, length)
 	pcall(self.cd.Pause, self.cd)
 	if self.bar then
