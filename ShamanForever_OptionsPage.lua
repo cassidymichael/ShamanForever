@@ -593,16 +593,16 @@ end
 Page.refKind("style", {
 	id = function(r) return r.style .. "." .. tostring(r.owner) end,
 	changed = function(r)
-		local St = ns.Style
+		local S = ns.Style
 		local o, chosen = styleOwner(r)
 		if not chosen then return false end
-		local follows, shipped = St.readShipped(o, r.style)
+		local follows, shipped = S.readShipped(o, r.style)
 		if o ~= nil then
-			local now = St.follows(o, r.style)
+			local now = S.follows(o, r.style)
 			if now ~= follows then return true end
 			if now then return false end
 		end
-		return not same(St.read(o, r.style), shipped)
+		return not same(S.read(o, r.style), shipped)
 	end,
 	reset = function(r)
 		local o, chosen = styleOwner(r)

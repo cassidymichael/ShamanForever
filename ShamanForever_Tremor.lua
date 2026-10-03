@@ -4,7 +4,7 @@
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
-local Spells, Totems = ns.Spells, ns.Totems
+local Spells, TO = ns.Spells, ns.Totems
 
 local TR = { name = "tremor" }
 ns.Tremor = TR
@@ -246,9 +246,9 @@ end
 local function tremorOut()
 	local dur = plain(safe(GetTotemDuration, EARTH))
 	if dur == nil then return false end
-	local key, how, icon = Totems.identify(EARTH)
+	local key, how, icon = TO.identify(EARTH)
 	if key == nil and how == "slot icon" and (icon == def.iconID or icon == def.icon) then
-		Totems.setOwner(EARTH, "tremor")
+		TO.setOwner(EARTH, "tremor")
 		key = "tremor"
 	end
 	if key == nil and how == "unknown" then return nil, dur end
@@ -453,7 +453,7 @@ function TR.debug()
 	for _ in pairs(plates) do plateCount = plateCount + 1 end
 	say("%s: spell %s, warning %s%s, Tremor out %s (slot owner %s, duration %s)", def.spell, tostring(def.spellID),
 		tostring(alerting), alerting and (" (" .. tostring(why) .. ")") or "",
-		out == nil and "unknown" or tostring(out), tostring(Totems.ownerOf(EARTH)), dur and "yes" or "none")
+		out == nil and "unknown" or tostring(out), tostring(TO.ownerOf(EARTH)), dur and "yes" or "none")
 	say("  list: %d mobs (%d added, %d removed); listed target %s, listed nameplates %d; hidden identities seen %d",
 		counts.mobs, counts.added, counts.removed, tostring(targetListed), plateCount, hiddenSeen)
 	if plain(safe(UnitExists, "target")) then

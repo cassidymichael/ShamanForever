@@ -4,8 +4,8 @@ local _, ns = ...
 local SP = {}
 ns.StylesPage = SP
 
-local Page, K, L, S, FR = ns.Page, ns.Options.kit, ns.OptionsArt, ns.Style, ns.Frames
-local pool = L.tilePool
+local Page, K, OA, S, FR = ns.Page, ns.Options.kit, ns.OptionsArt, ns.Style, ns.Frames
+local pool = OA.tilePool
 
 local SIZES = { small = 40, large = 64 }
 local BACKDROPS = {
@@ -27,8 +27,8 @@ local preview = { border = {}, glow = {}, pop = {}, frame = {} }
 
 local function size() return SIZES[view.size] end
 local function schoolOf(key)
-	for _, sc in ipairs(L.SCHOOLS) do if sc.key == key then return sc end end
-	return L.SCHOOLS[1]
+	for _, sc in ipairs(OA.SCHOOLS) do if sc.key == key then return sc end end
+	return OA.SCHOOLS[1]
 end
 
 local NEUTRAL = {}
@@ -411,7 +411,7 @@ local function flowSection(p, part, field, opts)
 			local fields = part == "border" and function() return { look = e.key, show = true } end
 				or function() return { [field] = e.key } end
 			local schools = { false }
-			if e.bySchool then for _, sc in ipairs(L.SCHOOLS) do table.insert(schools, sc) end end
+			if e.bySchool then for _, sc in ipairs(OA.SCHOOLS) do table.insert(schools, sc) end end
 			for _, sc in ipairs(schools) do
 				local c = newCell(sec.box, part, fields, function() return e.name end)
 				c.entry = e
@@ -421,7 +421,7 @@ local function flowSection(p, part, field, opts)
 				c.text:SetText(e.name)
 				if sc then c.label = function(light) return e.name .. ": " .. schoolText(sc, light) end end
 				if e.experimental then
-					c.badge = L.expBadge(c.frame, list.name)
+					c.badge = OA.expBadge(c.frame, list.name)
 					c.badge:SetPoint("TOP", c.text, "BOTTOM", 0, -2)
 					g.badged = true
 				end
@@ -482,7 +482,7 @@ local function groupSection(p)
 					st:ClearAllPoints()
 					st:SetPoint("TOPLEFT", c.host, "TOPLEFT", lay.x + (vertical and 0 or at), -(lay.y + (vertical and at or 0)))
 					st:SetSize(s, s)
-					st.ic.tex:SetTexture(L.SCHOOLS[i].icon)
+					st.ic.tex:SetTexture(OA.SCHOOLS[i].icon)
 					ns.StyleArt.fit(st.ic, border, s)
 					st.ic:ClearAllPoints()
 					st.ic:SetPoint("CENTER", st, "CENTER", 0, 0)
@@ -577,7 +577,7 @@ local function popGrid(p)
 		local col = { text = sec.box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall") }
 		col.text:SetMaxLines(2)
 		col.text:SetText(m.name)
-		if m.experimental then col.badge = L.expBadge(sec.box, motionList.name) end
+		if m.experimental then col.badge = OA.expBadge(sec.box, motionList.name) end
 		table.insert(cols, col)
 	end
 	local function flashName() return S.choice("pop", "flash", view.flash).name end
@@ -591,7 +591,7 @@ local function popGrid(p)
 		local sub = sc and schoolText(sc) or group and ("|cff9a9aa0" .. group .. "|r")
 		row.text:SetText(b.name .. (sub and ("\n" .. sub) or ""))
 		if b.experimental then
-			row.badge = L.expBadge(sec.box, burstList.name)
+			row.badge = OA.expBadge(sec.box, burstList.name)
 			row.badge:SetPoint("TOPLEFT", row.text, "BOTTOMLEFT", 0, -2)
 		end
 		for _, m in ipairs(motions) do
@@ -613,7 +613,7 @@ local function popGrid(p)
 	end
 	for _, b in ipairs(bursts) do
 		addRow(b)
-		if b.bySchool then for _, sc in ipairs(L.SCHOOLS) do addRow(b, sc) end end
+		if b.bySchool then for _, sc in ipairs(OA.SCHOOLS) do addRow(b, sc) end end
 	end
 	return sec
 end
@@ -625,7 +625,7 @@ local function chips(parent, label, items, key, x, y)
 	local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	fs:SetPoint("LEFT", parent, "TOPLEFT", x, y)
 	fs:SetText(label)
-	local row = L.choiceRow(parent, items, function() return view[key] end, function(v)
+	local row = OA.choiceRow(parent, items, function() return view[key] end, function(v)
 		view[key] = v
 		restyleAll()
 	end)
@@ -683,7 +683,7 @@ local function header(p)
 	intro:SetTextColor(0.72, 0.72, 0.72)
 	intro:SetText("Right-click a style to use it as the global one. Hover or click a pop to play it.")
 	local schools = {}
-	for _, sc in ipairs(L.SCHOOLS) do table.insert(schools, { sc.key, sc.name }) end
+	for _, sc in ipairs(OA.SCHOOLS) do table.insert(schools, { sc.key, sc.name }) end
 	table.insert(schools, { ALL, "All" })
 	local paints = {
 		chips(h, ns.THEME.axis.name, schools, "school", 14, -74),

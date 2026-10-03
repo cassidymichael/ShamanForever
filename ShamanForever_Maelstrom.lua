@@ -21,8 +21,8 @@ local function buffIcon()
 	end
 end
 
-local M = { name = "maelstrom" }
-ns.Maelstrom = M
+local MW = { name = "maelstrom" }
+ns.Maelstrom = MW
 
 local KEY = "maelstrom"
 local WHITE = ns.WHITE
@@ -30,13 +30,13 @@ local IMMEDIATE = ns.Timer.AURA_BAR.interpolation
 
 -- count: the stack bar and number (pos: BOTTOMRIGHT | CENTER; mark: the number in markColor at
 -- five); active: five stacks
-M.DEFAULTS = {
+MW.DEFAULTS = {
 	idleWhen = "notup", idleAlpha = 0,
 	count = { bar = true, barHeight = 6, barColor = { 0.52, 0.69, 1, 1 }, number = true, pos = "CENTER", size = 18,
 		mark = true, markColor = { 1, 0.82, 0.25, 1 } },
 	active = { pop = true, glow = true },
 }
-M.RANGES = { count = { barHeight = { 1, 20, 1 }, size = { 8, 40, 1 } } }
+MW.RANGES = { count = { barHeight = { 1, 20, 1 }, size = { 8, 40, 1 } } }
 local CHOICES = { idleWhen = { "never", "notup", "five" }, count = { pos = { "BOTTOMRIGHT", "CENTER" } } }
 -- spellID: the talent's, once known
 local DEF = { key = KEY, idleChoices = {
@@ -50,15 +50,15 @@ local function setting(name, field) return ns.elementSetting(KEY, name, field) e
 local function count(field) return setting("count", field) end
 local function color(field)
 	local c = count(field)
-	return ns.isColor(c) and c or M.DEFAULTS.count[field]
+	return ns.isColor(c) and c or MW.DEFAULTS.count[field]
 end
 local function number(field)
-	local v, r = count(field), M.RANGES.count[field]
-	if type(v) ~= "number" or v ~= v then v = M.DEFAULTS.count[field] end
+	local v, r = count(field), MW.RANGES.count[field]
+	if type(v) ~= "number" or v ~= v then v = MW.DEFAULTS.count[field] end
 	return math.min(math.max(v, r[1]), r[2])
 end
 
--- What the parts follow: the buff, or the stacking aura M.follow gives
+-- What the parts follow: the buff, or the stacking aura MW.follow gives
 local BUFF = {
 	ids = function()
 		local t = {}
@@ -70,20 +70,20 @@ local BUFF = {
 }
 local src = BUFF
 
-M.icon = buffIcon() or 237584
+MW.icon = buffIcon() or 237584
 local f = ns.newElementIcon(KEY, { effects = true })
-f.tex:SetTexture(M.icon)
+f.tex:SetTexture(MW.icon)
 f.aboveProtected = true   -- Blizzard's buttons sit on it: alpha only changes out of combat
 f.stack()
 
-ns.registerElement(KEY, { frame = f, label = Spells.name("maelstromWeapon"), defaults = M.DEFAULTS, ranges = M.RANGES,
+ns.registerElement(KEY, { frame = f, label = Spells.name("maelstromWeapon"), defaults = MW.DEFAULTS, ranges = MW.RANGES,
 	choices = CHOICES,
-	learned = function() return src.learned() end, paint = function(t) t:SetTexture(M.icon) end,
+	learned = function() return src.learned() end, paint = function(t) t:SetTexture(MW.icon) end,
 	effects = { glow = true, pop = true },
 	standInBorder = true,
 	styles = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
 	timerCant = { bar = "Its timer is Blizzard's own; a time bar can't follow it." },
-	kind = "maelstrom", def = DEF, spell = "maelstromWeapon", icon = M.icon, school = "air",
+	kind = "maelstrom", def = DEF, spell = "maelstromWeapon", icon = MW.icon, school = "air",
 	blurb = "Its stacks, with a pop and a glow at five.", experimental = "Maelstrom Weapon" })
 local function idleWhen()
 	local w = setting("idleWhen")
@@ -214,7 +214,7 @@ local nowhere = CreateFrame("Frame")
 nowhere:Hide()
 local pop = ns.makeAuraSlot(f, {
 	key = KEY, slot = "pop", ids = function() return src.ids() end, parent = nowhere, level = POP_LEVEL,
-	noTimer = true, ownIcon = function() return M.icon end, host = unseenHost,
+	noTimer = true, ownIcon = function() return MW.icon end, host = unseenHost,
 	sites = { container = "maelstrom pop container", style = "maelstrom pop style",
 		filter = "maelstrom pop filter" },
 	onButton = function(slot, button) buildPop(slot, button) end,
@@ -401,7 +401,7 @@ local SLOTS = { stacks, gateSlot, pop, five }
 local function refresh()
 	applyIdle()
 	if not ns.isEnabled(KEY) then return end
-	f.tex:SetTexture(M.icon)
+	f.tex:SetTexture(MW.icon)
 	if not src.learned() then
 		f.tex:SetDesaturated(true)
 		ns.fadeTo(f, 1)
@@ -414,7 +414,7 @@ end
 
 local function styleAll() for _, s in ipairs(SLOTS) do s:style() end end
 
-function M.follow(s)
+function MW.follow(s)
 	src = s or BUFF
 	quietPop()
 	for _, slot in ipairs(SLOTS) do slot:refilter() end
@@ -445,7 +445,7 @@ local PREVIEW = {
 		{ "idle", "Not up" } },
 	pop = function(ic, st) if st == "s5" and setting("active", "pop") then ic:Pop("ready") end end,
 	render = function(ic, st, P)
-		P.reset(ic, M.icon)
+		P.reset(ic, MW.icon)
 		local n = ({ s1 = 1, s4 = src.max - 1, s5 = src.max })[st] or 0
 		drawPreview(ic, n, P)
 		if n > 0 then P.frozen(ic.upT, 0.3, 30) end
@@ -455,14 +455,14 @@ local PREVIEW = {
 }
 ns.registerKind("maelstrom", { preview = function() return PREVIEW end })
 
-function M.resolve()
+function MW.resolve()
 	ns.ELEMENTS[KEY].label = Spells.name("maelstromWeapon")
 	DEF.spellID = Spells.known("maelstromWeapon")
 	return tostring(DEF.spellID)
 end
 
 -- A loading screen sends a full aura update: the buff is assigned to the pop again
-function M.start()
+function MW.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "PLAYER_ENTERING_WORLD")
 	ev:SetScript("OnEvent", function()
@@ -470,12 +470,12 @@ function M.start()
 	end)
 end
 
-M.applyTimers = styleAll
+MW.applyTimers = styleAll
 -- Containers made once (only for a character with the buff); the gate and pop container only
 -- while Pop is on, the one at five only for its glow or Idle: Blizzard registers an unused one for
 -- every player UNIT_AURA
 local popWasOn = false
-function M.applyLayout()
+function MW.applyLayout()
 	local popOn = src.learned() and ns.isEnabled(KEY) and setting("active", "pop") and true or false
 	if popOn and not popWasOn and pop.container then quietPop() end
 	popWasOn = popOn
@@ -490,11 +490,11 @@ function M.applyLayout()
 	styleAll()
 	refresh()
 end
-M.afterGroups = styleAll
-M.refresh = refresh
+MW.afterGroups = styleAll
+MW.refresh = refresh
 
 -- /sf debug
-function M.debug()
+function MW.debug()
 	local ids = {}
 	for id in pairs(src.ids()) do table.insert(ids, tostring(id)) end
 	table.sort(ids)
@@ -511,4 +511,4 @@ function M.debug()
 		idleWhen(), tostring(copyReady()))
 end
 
-ns.registerModule(M)
+ns.registerModule(MW)

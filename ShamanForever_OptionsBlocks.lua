@@ -39,19 +39,19 @@ local function followRow(p, owner, part, after, label, shown)
 end
 
 local function styleRows(p, owner, part, after)
-	local St = ns.Style
+	local S = ns.Style
 	ownStyle(p, owner, part, after)
 	local r = {}
-	function r.style() return St.read(resolve(owner), part) end
-	function r.own() local o = resolve(owner); return o == nil or not St.follows(o, part) end
+	function r.style() return S.read(resolve(owner), part) end
+	function r.own() local o = resolve(owner); return o == nil or not S.follows(o, part) end
 	function r.get(field)
-		if type(St.PARTS[part].defaults[field]) == "table" then return function() return r.style()[field] end end
-		return function() return St.value(resolve(owner), part, field) end
+		if type(S.PARTS[part].defaults[field]) == "table" then return function() return r.style()[field] end end
+		return function() return S.value(resolve(owner), part, field) end
 	end
 	function r.set(field) return function(v)
 		local o = resolve(owner)
 		if o == nil and owner ~= nil then return end
-		St.set(o, part, field, v)
+		S.set(o, part, field, v)
 		after()
 	end end
 	return r
@@ -77,18 +77,18 @@ local function ownLine(p, part)
 end
 
 local function choiceRows(p, r, part, field, label, tip, shown)
-	local St = ns.Style
-	local function now() return St.choice(part, field, r.style()[field]) end
+	local S = ns.Style
+	local function now() return S.choice(part, field, r.style()[field]) end
 	local function key() return now().key end
 	local set = r.set(field)
 	local function list()
 		local out = {}
-		for _, e in ipairs(St.offered(part, field, key())) do table.insert(out, { e.key, e.name }) end
+		for _, e in ipairs(S.offered(part, field, key())) do table.insert(out, { e.key, e.name }) end
 		return out
 	end
 	p:dropdown(label, tip, list, key, set, shown, 190, function(_, root)
 		root:SetScrollMode(400)
-		for i, sec in ipairs(St.sections(part, field, key())) do
+		for i, sec in ipairs(S.sections(part, field, key())) do
 			if sec.name then
 				if i > 1 then root:CreateDivider() end
 				root:CreateTitle(sec.name)
@@ -99,7 +99,7 @@ local function choiceRows(p, r, part, field, label, tip, shown)
 		end
 	end)
 	local f = p:row(22)
-	ns.OptionsArt.expBadge(f, St.field(part, field).name):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
+	ns.OptionsArt.expBadge(f, S.field(part, field).name):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
 	p:add(f, 22, showWhen(function() return now().experimental end, shown))
 	return now
 end
@@ -199,7 +199,7 @@ local NO_REACH = { left = 0, right = 0, top = 0, bottom = 0 }
 local function frameRows(p, owner, part, after, opts)
 	after = after or relayout
 	opts = opts or {}
-	local St, FR = ns.Style, ns.Frames
+	local S, FR = ns.Style, ns.Frames
 	local shown = opts.shown
 	local wip = p:row(22)
 	ns.OptionsArt.expBadge(wip, "Art frames"):SetPoint("LEFT", wip, "LEFT", LABEL_W, 0)
@@ -208,7 +208,7 @@ local function frameRows(p, owner, part, after, opts)
 	if owner ~= nil then followRow(p, owner, part, after, nil, shown) end
 	local own = showWhen(r.own, shown)
 	local function key() local o = resolve(owner); return type(o) == "string" and o or nil end
-	local function look() return St.look(part, r.style().look) end
+	local function look() return S.look(part, r.style().look) end
 	local function framed() return not look().none end
 	local showAll = false
 	local function offered(all)
@@ -236,7 +236,7 @@ local function frameRows(p, owner, part, after, opts)
 		end)
 	end
 	local set = r.set("look")
-	local fields = St.field(part, "look")
+	local fields = S.field(part, "look")
 	local function menu(_, root)
 		root:SetScrollMode(400)
 		local k = key()
@@ -783,20 +783,20 @@ local function check(p, s, name, field, label, tip, shown)
 end
 -- A sound menu with Play beside it; choices(current): its list (every sound by default)
 local function soundPicker(p, label, tip, get, set, shown, choices)
-	local Sounds = ns.Sounds
-	choices = choices or Sounds.choices
+	local SN = ns.Sounds
+	choices = choices or SN.choices
 	local row = p:dropdown(label, tip, function() return choices(get()) end, function() return get() or "none" end,
-		function(v) set(v); Sounds.test(v) end, shown, 200)
+		function(v) set(v); SN.test(v) end, shown, 200)
 	local play = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
 	play:SetSize(60, 22)
 	play:SetPoint("LEFT", row.dropdown, "RIGHT", 8, 0)
 	play:SetText("Play")
-	play:SetScript("OnClick", function() Sounds.test(get()) end)
+	play:SetScript("OnClick", function() SN.test(get()) end)
 	local item = p.items[#p.items]
 	local refresh = item.refresh
 	item.refresh = function()
 		refresh()
-		play:SetEnabled(Sounds.playable(get()))
+		play:SetEnabled(SN.playable(get()))
 	end
 	return row
 end
@@ -814,12 +814,12 @@ local function hasSound(t)
 	return false
 end
 local function soundsBlock(p)
-	local Sounds = ns.Sounds
+	local SN = ns.Sounds
 	local owners = ns.Bars.nouns(function(bar) return hasSound(bar.defaults or {}) end, "Elements")
 	p:header("Sounds")
 	p:text(ns.OptionsArt.wordList(owners) .. " pick their own sounds, on their pages. All start at None.")
-	p:dropdown("Channel", "Master plays even with sound effects off.", Sounds.CHANNELS, Sounds.channel, function(v)
-		Sounds.setChannel(v)
+	p:dropdown("Channel", "Master plays even with sound effects off.", SN.CHANNELS, SN.channel, function(v)
+		SN.setChannel(v)
 		OP.refresh()
 	end, nil, 160)
 end

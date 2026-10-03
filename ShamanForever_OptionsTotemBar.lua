@@ -1,7 +1,7 @@
 -- Totem bar options page
 local _, ns = ...
 
-local K, Page, L = ns.Options.kit, ns.Page, ns.OptionsArt
+local K, Page, OA = ns.Options.kit, ns.Page, ns.OptionsArt
 local showWhen, setTip = Page.showWhen, Page.setTip
 local LABEL_W = Page.LABEL_W
 local pct, times, int, px = Page.pct, Page.times, Page.int, Page.px
@@ -37,7 +37,7 @@ PREVIEW = {
 		h.barFrame = bar
 		h.slots = {}
 		for i = 1, 4 do
-			local ic = L.makePreviewIcon(bar, "totembar", PREVIEW)
+			local ic = OA.makePreviewIcon(bar, "totembar", PREVIEW)
 			ic.upT:restack(2)
 			ic.box = CreateFrame("Frame", nil, bar)
 			ic.badge = CreateFrame("Frame", nil, bar)

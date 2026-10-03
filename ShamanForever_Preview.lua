@@ -4,7 +4,7 @@
 
 local _, ns = ...
 local say = ns.say
-local L = ns.OptionsArt
+local OA = ns.OptionsArt
 local FR = ns.Frames
 
 local PV = { name = "preview" }
@@ -20,7 +20,7 @@ local BUSY_HOLD = 2.5
 local IDLE_DELAY = ns.IDLE_DELAY
 
 local function stepsFor(key)
-	local def = L.PREVIEW[key]
+	local def = OA.PREVIEW[key]
 	local steps, valid = {}, {}
 	for _, st in ipairs(def.states) do
 		table.insert(steps, { st[1] })
@@ -39,7 +39,7 @@ local function eachHud(fn)
 	end
 end
 
-local idles = L.idles
+local idles = OA.idles
 
 -- Stand-ins, and parking the real elements
 local parked = {}
@@ -71,8 +71,8 @@ local function makeStandIn(key, gf)
 	local h = CreateFrame("Frame", nil, gf:GetParent())
 	h:SetFrameLevel(gf:GetFrameLevel() + 30)   -- over everything in a group, Blizzard's buttons too
 	h:SetAllPoints(ns.ELEMENTS[key].frame)
-	local pv = L.PREVIEW[key]
-	local ic = L.makePreviewIcon(h, key, pv)
+	local pv = OA.PREVIEW[key]
+	local ic = OA.makePreviewIcon(h, key, pv)
 	ic:SetAllPoints(h)
 	if ic.upT then ic.upT:restack(2) end
 	if pv.standIn then pv.standIn(ic) end
@@ -92,13 +92,13 @@ end
 local function paintElement(key, r, moment)
 	local ic, st = standIns[key], r.steps[r.i][1]
 	ic.momentToken, ic.idleToken = nil, nil
-	local ends = L.paint(ic, key, st, r.at)
-	local pv = L.PREVIEW[key]
+	local ends = OA.paint(ic, key, st, r.at)
+	local pv = OA.PREVIEW[key]
 	if pv.hold then pv.hold(ic) end
-	if idles(key, st) and not (r.idleAt and GetTime() < r.idleAt) then setAlpha(ic, L.idleAlpha(key))
+	if idles(key, st) and not (r.idleAt and GetTime() < r.idleAt) then setAlpha(ic, OA.idleAlpha(key))
 	else setAlpha(ic, ic:GetAlpha()) end
 	local pop = pv.pop
-	if moment and pop then ns.try("preview pop " .. key, pop, ic, st, L.kit) end
+	if moment and pop then ns.try("preview pop " .. key, pop, ic, st, OA.kit) end
 	return ends
 end
 
@@ -195,7 +195,7 @@ local ticker = ns.ticker(0.1, function()
 			if now >= r.nextAt then ns.try("preview step", advance, key, r)
 			elseif r.idleAt and now >= r.idleAt then
 				r.idleAt = nil
-				ns.fadeTo(standIns[key], L.idleAlpha(key))
+				ns.fadeTo(standIns[key], OA.idleAlpha(key))
 			end
 		end
 	end
@@ -208,7 +208,7 @@ local function restart()
 	wipe(runs)
 	wipe(barRuns)
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
-		if L.PREVIEW[key] then runs[key] = { steps = stepsFor(key), i = 1 } end
+		if OA.PREVIEW[key] then runs[key] = { steps = stepsFor(key), i = 1 } end
 	end
 	eachHud(function(hud, key)
 		for _, slot in ipairs(hud.slots or {}) do
@@ -241,7 +241,7 @@ local function changed()
 end
 
 local function choice(parent, key, items)
-	return L.choiceRow(parent, items, function() return opts[key] end, function(v)
+	return OA.choiceRow(parent, items, function() return opts[key] end, function(v)
 		opts[key] = v
 		changed()
 	end, "ANCHOR_BOTTOM")
@@ -294,7 +294,7 @@ do
 	end)
 	lock:SetPoint("RIGHT", optionsButton, "LEFT", -6, 0)
 	ns.setTip(lock, "Positioning", function()
-		return "Drag " .. L.movingWords("groups") .. " while the preview shows."
+		return "Drag " .. OA.movingWords("groups") .. " while the preview shows."
 	end, "ANCHOR_BOTTOM")
 	function panel.refresh()
 		mode.refresh()
@@ -341,7 +341,7 @@ function PV.close(forCombat)
 	unparkAll()
 	eachHud(function(hud) hud.show(nil) end)
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
-		local pv = L.PREVIEW[key]
+		local pv = OA.PREVIEW[key]
 		if pv and pv.hold then pv.hold(nil) end
 	end
 	ns.eachModule("onPreview", false)

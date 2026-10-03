@@ -4,8 +4,8 @@ local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
 local Spells = ns.Spells
 
-local T = { name = "totems" }
-ns.Totems = T
+local TO = { name = "totems" }
+ns.Totems = TO
 
 -- Grounding Totem's end when it takes a spell
 ns.StyleArt.addPopKind("grounded", { color = { 0.56, 0.76, 0.92 }, tick = true })
@@ -17,7 +17,7 @@ local slotByID, slotByName = {}, {}
 local listeners = {}
 
 -- fn(event, slot, ...): "cast" (slot, spell key), "gone" (slot, last duration object)
-function T.subscribe(fn) table.insert(listeners, fn) end
+function TO.subscribe(fn) table.insert(listeners, fn) end
 local function notify(...) for _, fn in ipairs(listeners) do fn(...) end end
 
 -- Dismissals all go through DestroyTotem
@@ -25,7 +25,7 @@ local dismissedAt = {}
 if DestroyTotem then hooksecurefunc("DestroyTotem", function(slot) dismissedAt[slot] = GetTime() end) end
 
 -- A totem is out only when it has a name (an empty slot can report haveTotem)
-function T.read(slot)
+function TO.read(slot)
 	if not GetTotemInfo then return nil end
 	local ok, have, name, _, _, icon, _, spellID = ns.try("totems: info", GetTotemInfo, slot)
 	if not ok or isSecret(have) or isSecret(name) then return nil end
@@ -37,7 +37,7 @@ end
 
 local function multiCast(slot) return { GetMultiCastTotemSpells(slot) } end
 
-function T.knownTotems(slot)
+function TO.knownTotems(slot)
 	if not GetMultiCastTotemSpells then return {} end
 	local ok, ids = ns.try("totems: known", multiCast, slot)
 	if not ok then return {} end
@@ -53,15 +53,15 @@ function T.knownTotems(slot)
 	return out
 end
 
-function T.ownerOf(slot) return owner[slot] end
-function T.spellInSlot(slot) return spells[slot] end
-function T.setOwner(slot, spellKey, spellID)
+function TO.ownerOf(slot) return owner[slot] end
+function TO.spellInSlot(slot) return spells[slot] end
+function TO.setOwner(slot, spellKey, spellID)
 	owner[slot] = spellKey
 	if spellID then spells[slot] = spellID end
 end
 
 -- Never the slot's name: right after a cast it can still be the previous totem's
-function T.downSpell(slot)
+function TO.downSpell(slot)
 	local id = spells[slot]
 	if id then return id end
 	if InCombatLockdown() then return nil end
@@ -70,19 +70,19 @@ function T.downSpell(slot)
 end
 
 -- Returns the spell key ("other" if untracked) and how it was told: "cast", "slot spell", or nil, "slot icon", icon
-function T.identify(slot)
+function TO.identify(slot)
 	if owner[slot] then return owner[slot], "cast" end
-	local have, spellID, icon = T.read(slot)
+	local have, spellID, icon = TO.read(slot)
 	if have and spellID then
 		local key = Spells.keyOf(spellID) or "other"
-		T.setOwner(slot, key, spellID)
+		TO.setOwner(slot, key, spellID)
 		return key, "slot spell"
 	elseif have and icon then return nil, "slot icon", icon end
 	return nil, "unknown"
 end
 
 -- Returns the known totems' IDs, sorted: a new totem or rank changes it
-function T.resolve()
+function TO.resolve()
 	if not GetMultiCastTotemSpells then return end
 	local byID, byName = {}, {}
 	for slot = 1, 4 do
@@ -103,7 +103,7 @@ function T.resolve()
 	return table.concat(ids, ",")
 end
 
-function T.onCast(spellID)
+function TO.onCast(spellID)
 	if Spells.keyOf(spellID) == "recall" then
 		for s = 1, 4 do dismissedAt[s] = GetTime() end
 	end
@@ -120,7 +120,7 @@ function T.onCast(spellID)
 end
 
 -- dur: the gone totem's last duration object (killed early vs ran out)
-function T.slotEmptied(slot, dur)
+function TO.slotEmptied(slot, dur)
 	C_Timer.After(0.1, function()
 		local mine = dismissedAt[slot] and GetTime() - dismissedAt[slot] < 1.5
 		local ok, d = ns.try("totems: duration", GetTotemDuration, slot)
@@ -131,14 +131,14 @@ function T.slotEmptied(slot, dur)
 	end)
 end
 
-function T.forget(slot)
+function TO.forget(slot)
 	owner[slot], spells[slot] = nil, nil
 end
 
 -- A totem's end as the end flash plays it: s holds the event's settings (which: "ended", it ran
 -- out; "killed", it ended early), def is the element's row (none for the totem bar); nil: nothing
 -- plays
-function T.endOptions(s, which, def)
+function TO.endOptions(s, which, def)
 	if which == "killed" then
 		if not s.flash then return nil end
 		if def and def.grounded then return { kind = "grounded", pop = s.pop, glow = s.glow } end
@@ -156,11 +156,11 @@ local setting = ns.elementSetting
 
 -- In combat the slot is secret: a totem timer shows only when the slot's totem is known to be ours
 local function slotMatch(def, slot)
-	local key, how, icon = T.identify(slot)
+	local key, how, icon = TO.identify(slot)
 	if key then return key == def.spellKey and 1 or 0, how end
 	if icon then
 		local mine = icon == def.iconID or icon == def.icon
-		if mine then T.setOwner(slot, def.spellKey) end
+		if mine then TO.setOwner(slot, def.spellKey) end
 		return mine and 1 or 0, how
 	end
 	return 0, how
@@ -245,10 +245,10 @@ ns.registerPart("totemSlot", {
 		end,
 		pop = function(ic, st, def, P)
 			if st == "ranout" then
-				local opts = T.endOptions(ns.elementEvent(def.key, "ended"), "ended", def)
+				local opts = TO.endOptions(ns.elementEvent(def.key, "ended"), "ended", def)
 				previewEnd(ic, def, P, st, opts, def.ranOut and 1.4 or nil)
 			elseif st == "killed" then
-				previewEnd(ic, def, P, st, T.endOptions(ns.elementEvent(def.key, "killed"), "killed", def), 2.1)
+				previewEnd(ic, def, P, st, TO.endOptions(ns.elementEvent(def.key, "killed"), "killed", def), 2.1)
 			end
 		end,
 	},
@@ -384,27 +384,27 @@ local function endOnElement(def, event, arg)
 	local f, key = def.frame, def.key
 	if event == "cast" and arg == def.spellKey and f.killed then
 		f.killed.mark:Hide()
-	elseif event == "gone" and T.ownerOf(def.totemSlot) == def.spellKey and ns.isEnabled(key) then
+	elseif event == "gone" and TO.ownerOf(def.totemSlot) == def.spellKey and ns.isEnabled(key) then
 		if f:IsVisible() then ns.Sounds.element(key, "ended", true) end
-		playEnd(f, "expired", def, arg, T.endOptions(ns.elementEvent(key, "ended"), "ended", def))
-		playEnd(f, "killed", def, arg, T.endOptions(ns.elementEvent(key, "killed"), "killed", def))
+		playEnd(f, "expired", def, arg, TO.endOptions(ns.elementEvent(key, "ended"), "ended", def))
+		playEnd(f, "killed", def, arg, TO.endOptions(ns.elementEvent(key, "killed"), "killed", def))
 	end
 end
-T.subscribe(function(event, slot, arg)
+TO.subscribe(function(event, slot, arg)
 	for _, key in ipairs(ns.ELEMENT_KEYS) do
 		local def = ns.ELEMENTS[key].def
 		if type(def) == "table" and def.totemSlot == slot then endOnElement(def, event, arg) end
 	end
 end)
 
-function T.start()
+function TO.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "PLAYER_TOTEM_UPDATE")
 	ev:SetScript("OnEvent", function() ns.refreshCooldownsSoon() end)
 end
 
 -- /sf debug
-function T.debug()
+function TO.debug()
 	for slot = 1, 4 do
 		local ok, have, name, start, duration, icon, _, spellID = pcall(GetTotemInfo, slot)
 		say("totem slot %d: %s", slot, ok and string.format("have=%s name=%s start=%s duration=%s icon=%s spellID=%s",
@@ -427,4 +427,4 @@ function T.debug()
 	end
 end
 
-ns.registerModule(T)
+ns.registerModule(TO)

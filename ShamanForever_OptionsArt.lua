@@ -1,19 +1,19 @@
 -- Options art: school art, element headers with live previews, the experimental badge
 local ADDON, ns = ...
-local L = {}
-ns.OptionsArt = L
+local OA = {}
+ns.OptionsArt = OA
 
 local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
-L.GOLD = { 0.85, 0.71, 0.42 }
+OA.GOLD = { 0.85, 0.71, 0.42 }
 
--- The schools, from the class theme: in order (L.SCHOOLS) and by key (L.SCHOOL), one entry each; an
+-- The schools, from the class theme: in order (OA.SCHOOLS) and by key (OA.SCHOOL), one entry each; an
 -- entry's [1] to [3] are its colour
-L.SCHOOLS, L.SCHOOL = {}, {}
+OA.SCHOOLS, OA.SCHOOL = {}, {}
 for i, key in ipairs(ns.THEME.order) do
 	local c = ns.THEME.color[key]
 	local sc = { c[1], c[2], c[3], key = key, name = ns.THEME.name[key], icon = ns.THEME.icon[key],
 		color = c, banner = ns.THEME.banner[key] }
-	L.SCHOOLS[i], L.SCHOOL[key] = sc, sc
+	OA.SCHOOLS[i], OA.SCHOOL[key] = sc, sc
 end
 -- Banners are 1400x260 art in the top-left of a 2048x512 file: cropped to the header, never stretched.
 local ART_W, ART_H, FILE_W, FILE_H = 1400, 260, 2048, 512
@@ -28,29 +28,29 @@ local function coverCoords(w, h)
 	local top = (ART_H - sh) / 2
 	return 0, ART_W / FILE_W, top / FILE_H, (top + sh) / FILE_H
 end
-L.PANEL = { 29 / 255, 24 / 255, 19 / 255 }
+OA.PANEL = { 29 / 255, 24 / 255, 19 / 255 }
 
 -- An element's, or a bar's (ns.registerBar)
 local function identity(key) return ns.ELEMENTS[key] or ns.Bars.get(key) end
 
-function L.elementName(key)
+function OA.elementName(key)
 	local e = identity(key)
 	if not e then return key end
 	return e.spell and ns.Spells.name(e.spell) or e.label or key
 end
 
 -- Words in a sentence: "a", "a and b", "a, b and c" (or another last joining word)
-function L.wordList(words, last)
+function OA.wordList(words, last)
 	if #words <= 1 then return words[1] or "" end
 	return table.concat(words, ", ", 1, #words - 1) .. " " .. (last or "and") .. " " .. words[#words]
 end
 -- What positioning moves: lead ("groups"), then the bars that move
-function L.movingWords(lead, last)
-	return L.wordList(ns.Bars.nouns(function(bar) return bar.movable ~= nil end, lead), last)
+function OA.movingWords(lead, last)
+	return OA.wordList(ns.Bars.nouns(function(bar) return bar.movable ~= nil end, lead), last)
 end
 
 -- Ornaments
-function L.addCorners(frame, size, inset)
+function OA.addCorners(frame, size, inset)
 	size, inset = size or 26, inset or 4
 	local list = {}
 	for _, c in ipairs({ { "TOPLEFT", 0, 1, 0, 1 }, { "TOPRIGHT", 1, 0, 0, 1 }, { "BOTTOMLEFT", 0, 1, 1, 0 }, { "BOTTOMRIGHT", 1, 0, 1, 0 } }) do
@@ -59,17 +59,17 @@ function L.addCorners(frame, size, inset)
 		t:SetSize(size, size)
 		t:SetPoint(c[1], (c[1]:find("LEFT") and 1 or -1) * inset, (c[1]:find("TOP") and -1 or 1) * inset)
 		t:SetTexCoord(c[2], c[3], c[4], c[5])
-		t:SetVertexColor(L.GOLD[1], L.GOLD[2], L.GOLD[3], 0.55)
+		t:SetVertexColor(OA.GOLD[1], OA.GOLD[2], OA.GOLD[3], 0.55)
 		table.insert(list, t)
 	end
 	return list
 end
 
-function L.divider(parent)
+function OA.divider(parent)
 	local t = parent:CreateTexture(nil, "ARTWORK")
 	t.refresh = function()
 		t:SetTexture(ART .. "Divider.tga")
-		t:SetVertexColor(L.GOLD[1], L.GOLD[2], L.GOLD[3], 0.45)
+		t:SetVertexColor(OA.GOLD[1], OA.GOLD[2], OA.GOLD[3], 0.45)
 		t:SetHeight(10)
 	end
 	t.refresh()
@@ -90,10 +90,10 @@ local function makeBadge(frameType, parent, text, edge, color)
 	b:SetSize(b.text:GetStringWidth() + 12, 16)
 	return b
 end
-function L.tagBadge(parent, text) return makeBadge("Frame", parent, text, TAG, TAG_TEXT) end
+function OA.tagBadge(parent, text) return makeBadge("Frame", parent, text, TAG, TAG_TEXT) end
 
 -- Experimental badge
-function L.expBadge(parent, feature)
+function OA.expBadge(parent, feature)
 	local b = makeBadge("Button", parent, "EXPERIMENTAL", EXP, EXP)
 	b:SetScript("OnClick", function() ns.Options.showExperimental() end)
 	b:SetScript("OnEnter", function(self)
@@ -133,7 +133,7 @@ local function makePreviewIcon(parent, key, preview)
 	end
 	return ic
 end
-L.makePreviewIcon = makePreviewIcon
+OA.makePreviewIcon = makePreviewIcon
 
 local function setBar(ic, n, filled, r, g, b, a)
 	local w = ic:GetWidth()
@@ -173,7 +173,7 @@ local function reset(ic, icon)
 	ic.bar:Hide()
 end
 
--- A frozen timer; under L.paint it runs from the state's moment.
+-- A frozen timer; under OA.paint it runs from the state's moment.
 local stage
 local function frozen(t, frac, length)
 	if not t then return end
@@ -209,13 +209,13 @@ end
 local previewState = {}
 
 local FAINT = 0.12
-function L.idleAlpha(key) return math.max(ns.idleAlpha(key), FAINT) end
-local function idleLook(ic, key) ic:SetAlpha(L.idleAlpha(key)) end
+function OA.idleAlpha(key) return math.max(ns.idleAlpha(key), FAINT) end
+local function idleLook(ic, key) ic:SetAlpha(OA.idleAlpha(key)) end
 -- Whether a state goes idle once its moment has played (the preview's own rule)
-function L.idles(key, st)
+function OA.idles(key, st)
 	local when = ns.ELEMENTS[key] and ns.elementSetting(key, "idleWhen")
 	if not when or when == "never" then return false end
-	local pv = L.PREVIEW[key]
+	local pv = OA.PREVIEW[key]
 	return pv and pv.idles and pv.idles(st, when) and true or false
 end
 
@@ -228,10 +228,10 @@ local function idleSoon(ic, key, st)
 	end)
 end
 
-L.PREVIEW = {}
+OA.PREVIEW = {}
 
 -- An element's preview, from its kind, made when first asked for; or a bar's (ns.registerBar)
-setmetatable(L.PREVIEW, { __index = function(t, key)
+setmetatable(OA.PREVIEW, { __index = function(t, key)
 	local bar = ns.Bars.get(key)
 	local pv = bar and bar.preview or ns.Kinds.previewOf(key)
 	if pv then rawset(t, key, pv) end
@@ -239,12 +239,12 @@ setmetatable(L.PREVIEW, { __index = function(t, key)
 end })
 
 -- What a preview draws with: render(ic, st, P), pop(ic, st, P)
-L.kit = { reset = reset, frozen = frozen, expiring = expiringLook, engineExpire = engineExpireLook,
+OA.kit = { reset = reset, frozen = frozen, expiring = expiringLook, engineExpire = engineExpireLook,
 	idle = idleLook, setBar = setBar, current = function(key) return previewState[key] end }
 
-function L.paint(ic, key, st, at)
+function OA.paint(ic, key, st, at)
 	stage = { start = at }
-	local ok, err = pcall(L.PREVIEW[key].render, ic, st, L.kit)
+	local ok, err = pcall(OA.PREVIEW[key].render, ic, st, OA.kit)
 	local ends = stage.ends
 	stage = nil
 	if not ok then ns.noteError("preview " .. key, err) end
@@ -252,18 +252,18 @@ function L.paint(ic, key, st, at)
 end
 
 -- Element page header
-L.HERO_H = 160
+OA.HERO_H = 160
 local WING_MAX = 48
 local heroes = {}
 
-function L.paintChoice(b, chosen)
+function OA.paintChoice(b, chosen)
 	b:SetBackdropColor(chosen and 0.88 or 0.09, chosen and 0.66 or 0.075, chosen and 0.29 or 0.06, chosen and 0.16 or 1)
 	b:SetBackdropBorderColor(chosen and 0.88 or 0.23, chosen and 0.66 or 0.17, chosen and 0.29 or 0.10, 1)
 	b.text:SetTextColor(chosen and 1 or 0.78, chosen and 0.84 or 0.74, chosen and 0.5 or 0.68)
 end
 
 -- A row of chips, items { value, label, tip }: set(value) when another is clicked; row.refresh paints get()'s
-function L.choiceRow(parent, items, get, set, tipAnchor)
+function OA.choiceRow(parent, items, get, set, tipAnchor)
 	local row = CreateFrame("Frame", nil, parent)
 	row.buttons = {}
 	local x = 0
@@ -286,15 +286,15 @@ function L.choiceRow(parent, items, get, set, tipAnchor)
 	end
 	row:SetSize(x - 2, 20)
 	function row.refresh()
-		for _, b in ipairs(row.buttons) do L.paintChoice(b, get() == b.value) end
+		for _, b in ipairs(row.buttons) do OA.paintChoice(b, get() == b.value) end
 	end
 	return row
 end
 
-function L.buildHero(parent, key)
+function OA.buildHero(parent, key)
 	local e = identity(key)
-	local school = L.SCHOOL[e.school]
-	local def = L.PREVIEW[key]
+	local school = OA.SCHOOL[e.school]
+	local def = OA.PREVIEW[key]
 	local BTN_H, BTN_W = 17, 108
 	do
 		local probe = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -305,12 +305,12 @@ function L.buildHero(parent, key)
 		probe:Hide()
 	end
 	local listH = #def.states * (BTN_H + 3) - 3
-	local heroH = def.heroH or math.max(L.HERO_H, listH + 14 + 24 + 4)
+	local heroH = def.heroH or math.max(OA.HERO_H, listH + 14 + 24 + 4)
 	local h = CreateFrame("Frame", nil, parent, "BackdropTemplate")
 	h:SetHeight(heroH - 14)
 	h.heroH = heroH
 	h:SetBackdrop(ns.BACKDROP)
-	h:SetBackdropColor(L.PANEL[1], L.PANEL[2], L.PANEL[3], 1)
+	h:SetBackdropColor(OA.PANEL[1], OA.PANEL[2], OA.PANEL[3], 1)
 	h:SetBackdropBorderColor(0.36, 0.28, 0.17, 1)
 
 	h.banner = h:CreateTexture(nil, "BACKGROUND", nil, 1)
@@ -323,7 +323,7 @@ function L.buildHero(parent, key)
 	h.shade:SetWidth(420)
 	h.shade:SetColorTexture(1, 1, 1, 1)
 	pcall(h.shade.SetGradient, h.shade, "HORIZONTAL", CreateColor(0, 0, 0, 0.55), CreateColor(0, 0, 0, 0))
-	L.addCorners(h)
+	OA.addCorners(h)
 
 	h.icon = h:CreateTexture(nil, "ARTWORK")
 	h.icon:SetSize(60, 60)
@@ -337,7 +337,7 @@ function L.buildHero(parent, key)
 
 	h.title = h:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
 	h.title:SetPoint("TOPLEFT", h.icon, "TOPRIGHT", 14, -4)
-	h.title:SetText(L.elementName(key))
+	h.title:SetText(OA.elementName(key))
 	h.title:SetShadowOffset(1, -1)
 	h.blurb = h:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	h.blurb:SetPoint("TOPLEFT", h.title, "BOTTOMLEFT", 0, -5)
@@ -361,7 +361,7 @@ function L.buildHero(parent, key)
 		pcall(h.rule.SetGradient, h.rule, "HORIZONTAL", CreateColor(0.85, 0.71, 0.42, 0.45), CreateColor(0.85, 0.71, 0.42, 0))
 	end
 	if e.experimental then
-		h.exp = L.expBadge(h, e.experimental)
+		h.exp = OA.expBadge(h, e.experimental)
 		if def.stage then h.exp:SetPoint("LEFT", h.tags, "RIGHT", 12, 0)
 		else h.exp:SetPoint("BOTTOMLEFT", h.icon, "TOPLEFT", -2, 6) end
 		h.exp:SetFrameLevel(h:GetFrameLevel() + 6)
@@ -414,8 +414,8 @@ function L.buildHero(parent, key)
 		b:SetScript("OnClick", function(self)
 			previewState[key] = self.state
 			h:refresh()
-			if def.pop then def.pop(def.stage and h or h.previewIcon, self.state, L.kit) end
-			if not def.stage and L.idles(key, self.state) then idleSoon(h.previewIcon, key, self.state) end
+			if def.pop then def.pop(def.stage and h or h.previewIcon, self.state, OA.kit) end
+			if not def.stage and OA.idles(key, self.state) then idleSoon(h.previewIcon, key, self.state) end
 		end)
 		table.insert(h.stateButtons, b)
 	end
@@ -466,7 +466,7 @@ function L.buildHero(parent, key)
 				previewState[key] = (def.fallback and def.stateShown(def.fallback)) and def.fallback or first
 			end
 		end
-		for _, b in ipairs(self.stateButtons) do L.paintChoice(b, b.state == previewState[key]) end
+		for _, b in ipairs(self.stateButtons) do OA.paintChoice(b, b.state == previewState[key]) end
 		if not def.stage then
 			local ic = self.previewIcon
 			local x = 16 + padL
@@ -483,10 +483,10 @@ function L.buildHero(parent, key)
 			else ns.Frames.draw(self.frameHost) end
 		end
 		local st = previewState[key]
-		if def.stage then def.render(self, st, L.kit) else
-			def.render(self.previewIcon, st, L.kit)
+		if def.stage then def.render(self, st, OA.kit) else
+			def.render(self.previewIcon, st, OA.kit)
 			if self.shownState == nil or self.shownState == st then
-				if L.idles(key, st) then idleLook(self.previewIcon, key) end
+				if OA.idles(key, st) then idleLook(self.previewIcon, key) end
 			end
 			self.shownState = st
 		end
@@ -494,7 +494,7 @@ function L.buildHero(parent, key)
 	return h
 end
 
-function L.setPreview(key, state)
+function OA.setPreview(key, state)
 	local h = heroes[key]
 	if not h then return false end
 	for _, b in ipairs(h.stateButtons) do
@@ -503,14 +503,14 @@ function L.setPreview(key, state)
 	return false
 end
 
-function L.buildIntro(parent, version)
+function OA.buildIntro(parent, version)
 	local h = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-	h:SetHeight(L.HERO_H - 14)
+	h:SetHeight(OA.HERO_H - 14)
 	h:SetBackdrop(ns.BACKDROP)
-	h:SetBackdropColor(L.PANEL[1], L.PANEL[2], L.PANEL[3], 1)
+	h:SetBackdropColor(OA.PANEL[1], OA.PANEL[2], OA.PANEL[3], 1)
 	h:SetBackdropBorderColor(0.36, 0.28, 0.17, 1)
 	h.banner = h:CreateTexture(nil, "BACKGROUND", nil, 1)
-	h.banner:SetTexture(ART .. L.SCHOOL[ns.THEME.fallback].banner)
+	h.banner:SetTexture(ART .. OA.SCHOOL[ns.THEME.fallback].banner)
 	h.banner:SetPoint("TOPLEFT", 1, -1)
 	h.banner:SetPoint("BOTTOMRIGHT", -1, 1)
 	h.shade = h:CreateTexture(nil, "BACKGROUND", nil, 2)
@@ -519,7 +519,7 @@ function L.buildIntro(parent, version)
 	h.shade:SetWidth(420)
 	h.shade:SetColorTexture(1, 1, 1, 1)
 	pcall(h.shade.SetGradient, h.shade, "HORIZONTAL", CreateColor(0, 0, 0, 0.55), CreateColor(0, 0, 0, 0))
-	L.addCorners(h)
+	OA.addCorners(h)
 	h.title = h:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
 	h.title:SetPoint("LEFT", 40, 8)
 	h.title:SetText(ns.NAME)
@@ -532,7 +532,7 @@ function L.buildIntro(parent, version)
 	function h:refresh()
 		local w = self:GetWidth()
 		if not w or w <= 0 then w = parent:GetWidth() end
-		self.banner:SetTexCoord(coverCoords(w - 2, L.HERO_H - 16))
+		self.banner:SetTexCoord(coverCoords(w - 2, OA.HERO_H - 16))
 	end
 	return h
 end
@@ -608,10 +608,10 @@ do
 		if not (text and badge) then return end
 		local b
 		if badge == true then
-			self.exp = self.exp or L.expBadge(self.box)
+			self.exp = self.exp or OA.expBadge(self.box)
 			b = self.exp
 		else
-			self.tag = self.tag or L.tagBadge(self.box, badge)
+			self.tag = self.tag or OA.tagBadge(self.box, badge)
 			self.tag.text:SetText(badge)
 			self.tag:SetWidth(self.tag.text:GetStringWidth() + 12)
 			b = self.tag
@@ -637,7 +637,7 @@ do
 	-- Tiles are made once and reused: each icon's glow joins a restyle list that only grows.
 	local free, made = {}, {}
 	local Pool = {}
-	L.tilePool = Pool
+	OA.tilePool = Pool
 
 	function Pool.acquire(parent, size, want, strict)
 		local t
@@ -658,7 +658,7 @@ do
 		t.box:SetParent(parent)
 		t.box:SetSize(size, size)
 		t.ic.school = nil
-		t:icon(L.SCHOOLS[1].icon)
+		t:icon(OA.SCHOOLS[1].icon)
 		t:glow(false)
 		t:label(nil)
 		t:wear(nil)

@@ -5,7 +5,7 @@
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
-local Spells, Reagents, KD = ns.Spells, ns.Reagents, ns.Kinds
+local Spells, R, KD = ns.Spells, ns.Reagents, ns.Kinds
 
 local CD = { name = "cooldowns" }
 ns.Cooldowns = CD
@@ -417,7 +417,7 @@ function refreshCooldown(def, inEvent)
 	local held = isActive(def)
 	if def.primed then showPrimed(def, held) end
 	if def.reagent then
-		local hold, ring, pulse = Reagents.refresh(def)
+		local hold, ring, pulse = R.refresh(def)
 		if hold then held = true end
 		f:SetRingShown(ring)
 		f:SetPulsing(pulse)
@@ -520,7 +520,7 @@ local function syncReadyTicker()
 end
 
 function CD.resolve()
-	Reagents.readPerk()
+	R.readPerk()
 	local sig = {}
 	for _, def in ipairs(COOLDOWNS) do
 		def.spell = Spells.name(def.spellKey)
@@ -601,7 +601,7 @@ function CD.start()
 			for _, def in ipairs(COOLDOWNS) do if def.reagent then refreshCooldown(def) end end
 		elseif event == "UNIT_AURA" then
 			if InCombatLockdown() then return end   -- secret in combat
-			local perkUnknown = Reagents.auraChanged()
+			local perkUnknown = R.auraChanged()
 			for _, def in ipairs(COOLDOWNS) do
 				if def.spellID and def.primed and def.primed.buffKey and ns.isEnabled(def.key) then
 					readPrimedBuff(def, true); refreshCooldown(def)
@@ -637,7 +637,7 @@ function CD.debug()
 		end
 		if def.reagent then
 			extra = string.format("%s, reagent %s (takes it: %s, Reagent Economy %s)", extra,
-				describeArg(def.reagentRead), tostring(def.takesReagent), tostring(Reagents.perkKnown()))
+				describeArg(def.reagentRead), tostring(def.takesReagent), tostring(R.perkKnown()))
 		end
 		say("%s: spell %s, %sidle %s%s", def.spell, tostring(def.spellID), words, tostring(def.idle), extra)
 	end

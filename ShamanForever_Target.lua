@@ -11,8 +11,8 @@
 local _, ns = ...
 local say, Spells, isSecret = ns.say, ns.Spells, ns.isSecret
 
-local T = { name = "target" }
-ns.Target = T
+local TG = { name = "target" }
+ns.Target = TG
 
 local setting = ns.elementSetting
 
@@ -45,7 +45,7 @@ local TARGET = {
 		blurb = "Shows while your target has a Magic buff to purge.",
 		-- Skip long buffs: only those lasting at most Longest buff (maxDuration also leaves out buffs with
 		-- no end)
-		candidates = function(def) return { includeDispelTypes = { Magic = true }, maxDuration = T.longest(def) } end,
+		candidates = function(def) return { includeDispelTypes = { Magic = true }, maxDuration = TG.longest(def) } end,
 		idleText = "Idle while your target has nothing to purge", procHeader = "Something to purge",
 		ownIcon = true, noTimer = true, skipLong = true,
 		popTip = "Each time a new buff lands on your target, or you target one that has one.",
@@ -59,11 +59,11 @@ for i, def in ipairs(TARGET) do table.insert(ns.CLASS.buffs, i, def) end
 -- The engine
 -- Every row on the target, in the order _Buffs builds them
 local ROWS = {}
-T.ELEMENTS = ROWS
+TG.ELEMENTS = ROWS
 
 local gateAlpha, holderAlpha, retarget
 
-function T.longest(def)
+function TG.longest(def)
 	if not def.ranges.skipLongMins or not setting(def.key, "skipLong") then return nil end
 	local r = def.ranges.skipLongMins
 	local m = setting(def.key, "skipLongMins")
@@ -517,7 +517,7 @@ local function missingRows(readsOnly)
 	end
 end
 
-function T.resolve()
+function TG.resolve()
 	local sig = {}
 	for _, def in ipairs(ROWS) do
 		def.spell = Spells.name(def.spellKey)
@@ -529,19 +529,19 @@ function T.resolve()
 	return table.concat(sig, ",")
 end
 
-function T.applyTimers()
+function TG.applyTimers()
 	for _, def in ipairs(ROWS) do def.aura:style() end
 	styleLooks()
 	styleUp()
 end
 
-function T.applyLayout()
+function TG.applyLayout()
 	for _, def in ipairs(ROWS) do
 		if def.spellID and ns.isEnabled(def.key) then ns.Buffs.setupAura(def) end
 		-- SetAuraSlotCandidateFilters changes a made slot's filters in place; the call waits for combat
 		-- and secret auras
 		if def.candidates and def.aura.container then
-			local longest = T.longest(def) or false
+			local longest = TG.longest(def) or false
 			if def.longestApplied ~= nil and def.longestApplied ~= longest then
 				def.aura:refilter()
 				if def.fx then def.fx:refilter() end
@@ -556,7 +556,7 @@ function T.applyLayout()
 	checkAll()
 end
 
-function T.afterGroups()
+function TG.afterGroups()
 	for _, def in ipairs(ROWS) do
 		def.aura:style()
 		if def.holder then holderAlpha(def) end
@@ -566,13 +566,13 @@ function T.afterGroups()
 	for _, def in ipairs(ROWS) do refreshAura(def) end
 end
 
-function T.refresh()
+function TG.refresh()
 	checkAll()
 	for _, def in ipairs(ROWS) do refreshAura(def) end
 end
-T.tick = T.refresh
+TG.tick = TG.refresh
 
-function T.start()
+function TG.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "PLAYER_TARGET_CHANGED")
 	ns.registerEvent(ev, "UNIT_FACTION", "target")
@@ -592,7 +592,7 @@ function T.start()
 end
 
 -- /sf debug
-function T.debug()
+function TG.debug()
 	for _, def in ipairs(ROWS) do
 		local a = def.aura
 		say("%s: spell %s, container %s%s, unit %s, gate driver %s, failed unit calls %d%s", def.spell,
@@ -615,4 +615,4 @@ function T.debug()
 	end
 end
 
-ns.registerModule(T)
+ns.registerModule(TG)

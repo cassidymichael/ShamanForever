@@ -530,14 +530,14 @@ local function buildNav()
 end
 
 local function addStyleUsers()
-	local St = ns.Style
+	local S = ns.Style
 	for _, owner in ipairs(ns.Bars.list()) do
-		for _, part in ipairs(ns.Bars.get(owner).parts) do St.addUser(part, owner) end
+		for _, part in ipairs(ns.Bars.get(owner).parts) do S.addUser(part, owner) end
 	end
 	for _, key in ipairs(ns.ElementPages.ordered()) do
 		if ns.ElementPages.pageOf(key) then
-			for _, part in ipairs(St.ORDER) do
-				if St.PARTS[part].elements then St.addUser(part, key) end
+			for _, part in ipairs(S.ORDER) do
+				if S.PARTS[part].elements then S.addUser(part, key) end
 			end
 		end
 	end

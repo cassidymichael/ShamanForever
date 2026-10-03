@@ -2,15 +2,15 @@
 
 local _, ns = ...
 
-local E = {}
-ns.Effects = E
+local FX = {}
+ns.Effects = FX
 
 -- The pulsing glow
 -- Under Blizzard's aura button (underButton) the button plays the animations: g:bindButton hands
 -- them over.
 local glows = {}
 local auraGlows = {}
-function E.glow(parent, over, owner, opts)
+function FX.glow(parent, over, owner, opts)
 	local underButton = opts and opts.underButton or false
 	local g = CreateFrame("Frame", nil, parent)
 	g.owner, g.underButton = owner, underButton
@@ -156,10 +156,10 @@ function E.glow(parent, over, owner, opts)
 	return g
 end
 -- Not those under an aura button; a parked glow restyles when taken again.
-function E.applyStyle() for _, g in ipairs(glows) do if not g.parked then g:restyle() end end end
+function FX.applyStyle() for _, g in ipairs(glows) do if not g.parked then g:restyle() end end end
 
 -- Owners whose glow under the button differs from their style (changes after a /reload).
-function E.auraGlowStale(owner)
+function FX.auraGlowStale(owner)
 	local out = {}
 	for _, g in ipairs(auraGlows) do
 		local reaches = owner == g.owner or (owner == nil and ns.Style.follows(g.owner, "glow"))
@@ -464,7 +464,7 @@ end
 
 -- kind: a StyleArt.POP_KINDS key ("blocked": a dimmer flash). Nothing on a hidden frame: it would play
 -- on its next show.
-function E.pop(f, kind, owner)
+function FX.pop(f, kind, owner)
 	if not f:IsVisible() then return end
 	kind = kind or "ready"
 	local st = ns.Style.get(owner, "pop")
@@ -499,7 +499,7 @@ end
 -- An end: killed early, ran out, ran out softly, or an early end of its own (opts.kind, a pop kind)
 local killedCurve = ns.curve({ 0, 0, 1.2, 0, 1.25, 1, 36000, 1 })
 local expiredCurve = ns.curve({ 0, 1, 1.2, 1, 1.25, 0, 36000, 0 })
-function E.endFlash(parent, anchor, owner, over)
+function FX.endFlash(parent, anchor, owner, over)
 	over = over or anchor
 	local kf = CreateFrame("Frame", nil, parent)
 	kf:SetAllPoints(anchor)
@@ -511,7 +511,7 @@ function E.endFlash(parent, anchor, owner, over)
 	kf.body = CreateFrame("Frame", nil, kf.pop)
 	kf.body:SetAllPoints()
 	kf.body:SetAlpha(0)
-	kf.glow = E.glow(kf.body, over, owner)
+	kf.glow = FX.glow(kf.body, over, owner)
 	kf.glow:color(1, 0.12, 0.08)
 	kf.icon = kf.body:CreateTexture(nil, "ARTWORK")
 	kf.icon:SetAllPoints()
@@ -586,7 +586,7 @@ function E.endFlash(parent, anchor, owner, over)
 		self.mark.x:SetSize(size * 0.7, size * 0.7)
 		self.flash:Stop(); self.quick:Stop(); self.soft:Stop()
 		if soft then self.soft:Play() elseif opts.expired then self.quick:Play() else self.flash:Play() end
-		if opts.pop then E.pop(self.pop, opts.expired and "expired" or kind and opts.kind or "killed", owner) end
+		if opts.pop then FX.pop(self.pop, opts.expired and "expired" or kind and opts.kind or "killed", owner) end
 		if opts.mark then
 			self.mark:Show()
 			local token = {}
@@ -611,11 +611,11 @@ Host.__index = Host
 
 local NO_POP = { colorBy = "event", flash = "none", burst = "none", motion = "none", size = 1, speed = 1 }
 
-function E.host(f, key, opts)
+function FX.host(f, key, opts)
 	local h = setmetatable({ f = f, key = key }, Host)
 	local a = opts and opts.aura
 	if not a then
-		h.glowF = E.glow(f, f, key)
+		h.glowF = FX.glow(f, f, key)
 		return h
 	end
 	h.aura = a
@@ -648,7 +648,7 @@ end
 
 function Host:pop(kind)
 	if self.aura then return end
-	E.pop(self.f, kind or "ready", self.key)
+	FX.pop(self.f, kind or "ready", self.key)
 end
 
 function Host:fit(size)

@@ -11,8 +11,8 @@
 
 local _, ns = ...
 local TB = ns.TotemBar
-local R = {}
-TB.range = R
+local RG = {}
+TB.range = RG
 local isSecret = ns.isSecret
 
 -- Totems that buff the player: the totem spell and its buff, every rank. IDs are Classic's; a rank
@@ -128,7 +128,7 @@ local function initButton(s, button)
 end
 
 -- Preview: hide our parts on Blizzard's button (never the container), back at once when it ends
-function R.preview(on)
+function RG.preview(on)
 	previewOn = on
 	for _, el in ipairs(TB.ELEMENTS) do
 		local p = TB.slots[el].rangePart
@@ -240,10 +240,10 @@ local function learn()
 	end
 end
 
-function R.layout(size)
+function RG.layout(size)
 	-- Blizzard's containers refuse addon calls while auras are secret: their part waits, the layout
 	-- reruns after
-	local blocked = ns.deferWhileAurasSecret("totem range layout", function() R.layout(size) end)
+	local blocked = ns.deferWhileAurasSecret("totem range layout", function() RG.layout(size) end)
 	local want = enabled() and ns.isClass()
 	for _, el in ipairs(TB.ELEMENTS) do
 		local s = TB.slots[el]
@@ -256,7 +256,7 @@ function R.layout(size)
 			place(s, size, blocked)
 			if not blocked then applyFilter(s) end
 		end
-		R.refresh(s)
+		RG.refresh(s)
 	end
 	if not blocked then learn() end
 end
@@ -282,15 +282,15 @@ local function buffTotemDown(s)
 end
 
 -- The mark's gate: only over Blizzard's part (red alone would always say out of range)
-function R.refresh(s)
+function RG.refresh(s)
 	if not s.rangeGate then return end
 	local on = enabled() and partLive(s) and buffTotemDown(s)
 	s.rangeGate:SetAlpha(on and 1 or 0)
 	showStrip(s, on)
-	R.drawTimeLeft(s)
+	RG.drawTimeLeft(s)
 end
 
-function R.drawTimeLeft(s)
+function RG.drawTimeLeft(s)
 	local m = s.rangeMark
 	if not m then return end
 	local d = s.dur
@@ -301,12 +301,12 @@ function R.drawTimeLeft(s)
 end
 
 -- Called by the totem bar's start
-function R.start()
+function RG.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "UNIT_AURA", "player")
 	ev:SetScript("OnEvent", learn)
 	ns.onCombatEnd(function()
-		for _, el in ipairs(TB.ELEMENTS) do R.refresh(TB.slots[el]) end
+		for _, el in ipairs(TB.ELEMENTS) do RG.refresh(TB.slots[el]) end
 	end)
 	-- Drop any holder whose slot has no buff totem of ours down (a lingering buff from a totem
 	-- that went out of combat would show at the pull)

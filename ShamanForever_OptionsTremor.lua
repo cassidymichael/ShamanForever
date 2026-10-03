@@ -10,7 +10,7 @@ local timerSettings, eopt, eread, eslider = K.timerSettings, K.eopt, K.eread, K.
 -- Tremor watchlist: a ScrollBox recycles its rows, so hundreds of mobs take a dozen frames.
 local MOB_ROW_H, MOB_ROWS, MOB_LIST_W = 22, 9, 640
 local function mobList(p)
-	local T = ns.Tremor
+	local TR = ns.Tremor
 	local listH = MOB_ROW_H * MOB_ROWS + 8
 	local H = 32 + listH + 32
 	local f = p:row(H)
@@ -65,7 +65,7 @@ local function mobList(p)
 			row.x:SetNormalFontObject("GameFontNormal")
 			row.x:SetHighlightFontObject("GameFontHighlight")
 			row.x:SetText("X")
-			row.x:SetScript("OnClick", function(self) T.remove(self.lower) end)
+			row.x:SetScript("OnClick", function(self) TR.remove(self.lower) end)
 			setTip(row.x, "Remove", "Takes this mob off the list.")
 			row.name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 			row.name:SetPoint("LEFT", 6, 0)
@@ -96,7 +96,7 @@ local function mobList(p)
 	restore:SetText("Restore removed defaults")
 	setTip(restore, "Restore removed defaults",
 		"Puts back the mobs you removed from the default list. Mobs you added stay as they are.")
-	restore:SetScript("OnClick", function() T.restore() end)
+	restore:SetScript("OnClick", function() TR.restore() end)
 
 	local shown = 0
 	local listW
@@ -104,11 +104,11 @@ local function mobList(p)
 		panel:SetWidth(math.min(listW or p:width(), MOB_LIST_W))
 		local text = box:GetText()
 		box.hint:SetShown(text == "" and not box:HasFocus())
-		local list = T.rows(text, ownOnly:GetChecked())
+		local list = TR.rows(text, ownOnly:GetChecked())
 		shown = #list
 		sb:SetDataProvider(CreateDataProvider(list), ScrollBoxConstants.RetainScrollPosition)
 		empty:SetShown(shown == 0)
-		local c = T.counts()
+		local c = TR.counts()
 		local parts = { string.format("%d mobs", c.mobs) }
 		if c.added > 0 then table.insert(parts, string.format("%d added", c.added)) end
 		if c.removed > 0 then
@@ -118,7 +118,7 @@ local function mobList(p)
 		restore:SetEnabled(c.removed > 0)
 	end
 	local function addTyped()
-		T.add(box:GetText())
+		TR.add(box:GetText())
 		box:SetText("")
 	end
 	ownOnly:SetScript("OnClick", fill)
@@ -131,7 +131,7 @@ local function mobList(p)
 	end)
 	box:SetScript("OnEscapePressed", function(self) self:SetText(""); self:ClearFocus() end)
 	add:SetScript("OnClick", addTyped)
-	addTarget:SetScript("OnClick", function() T.addTarget() end)
+	addTarget:SetScript("OnClick", function() TR.addTarget() end)
 	return p:add(f, H, nil, function() listW = p:width(); fill() end)
 end
 
