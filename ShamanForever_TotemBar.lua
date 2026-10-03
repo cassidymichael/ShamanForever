@@ -1008,7 +1008,7 @@ local function applyActionBar()
 end
 
 -- Layout (out of combat only)
-local mover
+local movable
 local saidWait = false
 local hasTotems = false
 local paintPreview
@@ -1259,7 +1259,7 @@ function layout()
 	drive()
 	applyTotemFrame()
 	applyActionBar()
-	mover.update()
+	movable.update()
 	if preview then paintPreview() end
 end
 TB.layout = layout
@@ -1304,78 +1304,19 @@ function TB.applySettings()
 end
 
 -- Positioning
-mover = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-mover:SetFrameStrata("DIALOG")
-mover:SetBackdrop(ns.BACKDROP)
-mover:SetBackdropColor(0, 0, 0, 0.4)
-mover:SetBackdropBorderColor(0.2, 0.6, 1, 0.9)
-mover:EnableMouse(true)
-mover:EnableMouseWheel(true)
-mover:RegisterForDrag("LeftButton")
-mover:SetMovable(true)
-mover:SetClampedToScreen(true)
-mover:Hide()
-mover.label = mover:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-mover.label:SetPoint("BOTTOMLEFT", mover, "TOPLEFT", 0, 2)
-mover.label:SetText("Totem bar")
-local movable = { frame = bar }
-mover:SetScript("OnDragStart", function(self)
-	if InCombatLockdown() then return end
-	ns.Positioning.selectMovable(movable)
-	self:StartMoving()
-end)
-mover:SetScript("OnDragStop", function(self)
-	self:StopMovingOrSizing()
-	if InCombatLockdown() then return end
-	local c = cfg()
-	local x, y = self:GetCenter()
-	local ux, uy = UIParent:GetCenter()
-	local scale = self:GetEffectiveScale() / UIParent:GetEffectiveScale()
-	c.point, c.x, c.y = "CENTER", x * scale - ux, y * scale - uy
-	layout()
-end)
-mover:SetScript("OnMouseUp", function(_, button)
-	if InCombatLockdown() then return end
-	if button == "LeftButton" then ns.Positioning.selectMovable(movable)
-	elseif button == "RightButton" then ns.Options.open("totembar") end
-end)
-mover:SetScript("OnMouseWheel", function(self, delta)
-	if InCombatLockdown() then return end
-	local c = cfg()
-	local function step(key) c[key] = clamp(math.floor((c[key] + delta * 0.05) * 100 + 0.5) / 100, RANGES[key]) end
-	if IsControlKeyDown() then step("alpha")
-	elseif IsShiftKeyDown() then step("scale")
-	else
+movable = ns.Positioning.mover({ frame = bar, label = "Totem bar", cfg = cfg, ranges = RANGES,
+	size = { key = "size", step = 2, from = function(c)
 		local from = look()
 		c.sizeFollow = false
-		c.size = clamp(from + delta * 2, RANGES.size)
-	end
-	layout()
-	self.label:SetText(string.format("Totem bar: size %d, scale %.2f, opacity %.0f%%", (look()), c.scale, c.alpha * 100))
-	ns.Options.refresh()
-end)
-function mover.update()
-	local on = barOn() and (hasTotems or (preview and preview.all)) and not ns.getAccount().locked and not InCombatLockdown()
-	if on then
-		mover:ClearAllPoints()
-		mover:SetPoint("TOPLEFT", bar, "TOPLEFT", -2, 2)
-		mover:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 2, -2)
-		if ns.Positioning.isSelected(movable) then mover:SetBackdropBorderColor(1, 0.82, 0, 1)
-		else mover:SetBackdropBorderColor(0.2, 0.6, 1, 0.9) end
-		mover.label:SetText("Totem bar")
-	end
-	mover:SetShown(on)
-end
-
-function movable.nudge(dx, dy)
-	local c = cfg()
-	c.x, c.y = c.x + dx, c.y + dy
-	ns.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
-end
-function movable.lock()
-	mover:Hide()
-	ns.retryAfterCombat("totem bar layout", layout)
-end
+		return from
+	end },
+	shown = function() return barOn() and (hasTotems or (preview and preview.all)) end,
+	place = layout, open = function() ns.Options.open("totembar") end,
+	lock = function() ns.retryAfterCombat("totem bar layout", layout) end,
+	describe = function()
+		local c = cfg()
+		return string.format("Totem bar: size %d, scale %.2f, opacity %.0f%%", (look()), c.scale, c.alpha * 100)
+	end })
 
 -- Quick Keybind Mode (Blizzard's): the bar shows, empty slots included. Keys are caught on our own
 -- plain frame and bound with SetBinding: calling Blizzard's QuickKeybindButtonTemplateMixin from
@@ -1650,7 +1591,7 @@ function TB.start()
 	ns.onCombatEnd(function()
 		saidWait = false
 		closePopouts()
-		mover.update()
+		movable.update()
 		paintSets()
 	end)
 	ticker:Show()

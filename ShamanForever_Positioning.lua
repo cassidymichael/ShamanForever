@@ -282,9 +282,6 @@ local function selectMovable(m)
 	syncNudger()
 	ns.layoutElements()
 end
-PO.selectMovable, PO.snap = selectMovable, snap
-function PO.isSelected(m) return selectedMovable == m end
-function PO.endSnap() showGuides() end
 
 -- A bar's mover: a box over it while unlocked that drags (snapping), wheels, nudges and locks it.
 -- spec: frame (the bar), label, cfg() (point, x, y, scale, alpha), ranges, size (the plain wheel,
