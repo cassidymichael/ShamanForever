@@ -1,20 +1,22 @@
 -- Element pages
 local _, ns = ...
+local W = ns.Widgets
+local E, G = ns.Elements, ns.Groups
 
 local EP = {}
 ns.ElementPages = EP
 
 local K = ns.Options.kit
 local SHOW_CHOICES = K.SHOW_CHOICES
-local elementDisplay, idleBlock, lookBlocks = K.elementDisplay, K.idleBlock, K.lookBlocks
+local elementDisplay, idleBlock, styleBlocks = K.elementDisplay, K.idleBlock, K.styleBlocks
 
 -- Learned first, then not learned, then other races' racials; each by name.
 local function byName()
 	local keys, band, lower = {}, {}, {}
-	for i, key in ipairs(ns.ELEMENT_KEYS) do
+	for i, key in ipairs(E.KEYS) do
 		keys[i] = key
-		band[key] = ns.isLearned(key) and 0 or ns.Spells.otherRace(ns.ELEMENTS[key].race) and 2 or 1
-		lower[key] = ns.Look.elementName(key):lower()
+		band[key] = E.isLearned(key) and 0 or ns.Spells.otherRace(E.ALL[key].race) and 2 or 1
+		lower[key] = ns.OptionsArt.elementName(key):lower()
 	end
 	table.sort(keys, function(a, b)
 		if band[a] ~= band[b] then return band[a] < band[b] end
@@ -25,13 +27,15 @@ local function byName()
 end
 EP.ordered = byName
 
-local SHOW_TIP = "When the element is drawn. Hidden keeps its place in its group, so choosing Always or In combat again puts it back where it was. Groups have their own Show on the Groups & Layout page; an element shows only when both it and its group allow it."
+local SHOW_TIP = "When the element is drawn. Hidden keeps its place in its group, so choosing Always or In combat "
+	.. "again puts it back where it was. Groups have their own Show on the Groups & Layout page; an element shows "
+	.. "only when both it and its group allow it."
 
 -- Elements overview
 local function tableCell(parent, width, font)
 	local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
 	b:SetSize(width, 20)
-	b:SetBackdrop(ns.BACKDROP)
+	b:SetBackdrop(W.BACKDROP)
 	b:SetBackdropColor(1, 1, 1, 0.03)
 	b:SetBackdropBorderColor(0.36, 0.29, 0.19, 0.7)
 	local hl = b:CreateTexture(nil, "HIGHLIGHT")
@@ -116,9 +120,9 @@ function EP.buildOverview(p)
 	-- The styles it has its own of, each by its label or short name (name)
 	local function ownStyles(key, name)
 		local S, out = ns.Style, {}
-		for _, kind in ipairs(S.ORDER) do
-			local spec = S.KINDS[kind]
-			if spec.label and tContains(spec.users, key) and not S.follows(key, kind) then
+		for _, part in ipairs(S.ORDER) do
+			local spec = S.PARTS[part]
+			if spec.label and tContains(spec.users, key) and not S.follows(key, part) then
 				table.insert(out, spec[name])
 			end
 		end
@@ -126,24 +130,24 @@ function EP.buildOverview(p)
 	end
 	local rowKeys = byName()
 	for _, key in ipairs(rowKeys) do
-		local e = ns.ELEMENTS[key]
+		local e = E.ALL[key]
 		local f = p:row(34)
 		local icon = f:CreateTexture(nil, "ARTWORK")
 		icon:SetSize(22, 22)
 		icon:SetPoint("LEFT", 4, 0)
-		ns.cropIcon(icon)
+		W.cropIcon(icon)
 		local name = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 		name:SetPoint("LEFT", 32, 0)
 		name:SetJustifyH("LEFT")
 		name:SetWordWrap(false)
 		local unknown = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 		unknown:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -1)
-		unknown:SetText(ns.notLearnedText(key))
+		unknown:SetText(E.notLearnedText(key))
 		local group = menuCell(f, 120, K.groupMenu(key, function() ns.Options.refresh() end))
 		local show = menuCell(f, 86, function(_, root)
 			for _, c in ipairs(SHOW_CHOICES) do
-				root:CreateRadio(c[2], function() return ns.showMode(key) == c[1] end, function()
-					ns.setShow(key, c[1])
+				root:CreateRadio(c[2], function() return E.showMode(key) == c[1] end, function()
+					E.setShow(key, c[1])
 					ns.Options.refresh()
 				end)
 			end
@@ -169,7 +173,7 @@ function EP.buildOverview(p)
 		groupOpen.text:SetText("Open group >")
 		groupOpen.text:SetTextColor(0.6, 0.6, 0.6)
 		groupOpen:SetScript("OnClick", function()
-			local g = ns.groupOf(key)
+			local g = G.of(key)
 			if g then ns.Options.openGroup(g.id) end
 		end)
 		groupOpen:SetScript("OnEnter", function(self)
@@ -196,7 +200,7 @@ function EP.buildOverview(p)
 			GameTooltip:SetText("Own styles")
 			local own = ownStyles(key, "label")
 			if #own == 0 then
-				GameTooltip:AddLine("Follows Global styles for its timers, glow, pop, border and frame.", 1, 1, 1, true)
+				GameTooltip:AddLine("Follows Global styles for its timers, glow, pop, border and art frame.", 1, 1, 1, true)
 			else
 				GameTooltip:AddLine(table.concat(own, ", "), 1, 1, 1, true)
 				GameTooltip:AddLine("The rest follow Global styles.", 0.7, 0.7, 0.7, true)
@@ -207,7 +211,7 @@ function EP.buildOverview(p)
 		local cells = { { group, "group" }, { show, "show" }, { groupOpen, "link" }, { styles, "styles" } }
 		p:add(f, 34, nil, function()
 			e.paint(icon)
-			local learned = ns.isLearned(key)
+			local learned = E.isLearned(key)
 			local pos = place(p:width())
 			name:SetWidth(pos.name.w - 36)
 			name:SetText(e.label)
@@ -215,9 +219,9 @@ function EP.buildOverview(p)
 			name:SetPoint("LEFT", 32, learned and 0 or 6)
 			unknown:SetShown(not learned)
 			icon:SetDesaturated(not learned)
-			local g = ns.groupOf(key)
+			local g = G.of(key)
 			group.text:SetText(g and g.name or "Ungrouped")
-			local mode = ns.showMode(key)
+			local mode = E.showMode(key)
 			for _, c in ipairs(SHOW_CHOICES) do if c[1] == mode then show.text:SetText(c[2]) end end
 			for _, cell in ipairs(cells) do
 				cell[1]:ClearAllPoints()
@@ -244,22 +248,22 @@ function EP.buildOverview(p)
 end
 
 -- A kind made of parts: Display and Idle, its slots' blocks (K.registerSlot) with its parts' words,
--- then the look blocks
+-- then the style blocks
 local function partsPage(p, def)
 	local key = def.key
-	local kind = ns.ELEMENTS[key].kind
+	local kind = E.ALL[key].kind
 	elementDisplay(p, key)
 	idleBlock(p, def)
 	for _, slot in ipairs(ns.Kinds.slots(kind)) do
 		local words, build = ns.Kinds.words(kind, def, slot), K.slotBuilder(slot)
 		if words ~= nil and build then build(p, def, words) end
 	end
-	lookBlocks(p, key)
+	styleBlocks(p, key)
 end
 
 -- An element's page builder: its kind's own, else the parts page for a kind made of parts
 local function builder(key)
-	local e = ns.ELEMENTS[key]
+	local e = E.ALL[key]
 	local k = e and e.kind and ns.Kinds.get(e.kind)
 	return k and (k.page or (#ns.Kinds.parts(e.kind) > 0 and partsPage)) or nil
 end
@@ -267,7 +271,7 @@ end
 local pageObjects = {}
 function EP.register(newPage)
 	for _, key in ipairs(byName()) do
-		local e, build = ns.ELEMENTS[key], builder(key)
+		local e, build = E.ALL[key], builder(key)
 		if build then
 			newPage(key, e.label, true, function(p)
 				pageObjects[key] = p
@@ -281,7 +285,7 @@ function EP.pageOf(key) return builder(key) and key or nil end
 
 function EP.askReset(key)
 	local p = pageObjects[key]
-	if p then p:askReset("every " .. ns.Look.elementName(key) .. " setting") end
+	if p then p:askReset("every " .. ns.OptionsArt.elementName(key) .. " setting") end
 end
 
 ns.Options.registerPage("elements", { title = "Elements", icon = ns.Options.ART .. "Elements.tga", order = 70,

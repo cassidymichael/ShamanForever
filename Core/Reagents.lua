@@ -1,12 +1,14 @@
 -- Reagents
 
 local _, ns = ...
+local W = ns.Widgets
+local E = ns.Elements
 local isSecret, safe = ns.isSecret, ns.safe
 
 local R = {}
 ns.Reagents = R
 
-local setting = ns.elementSetting
+local setting = E.setting
 
 -- when: the count shows always | low | never; lowKeepsShown: running low isn't idle; ring and fade:
 -- the None left look
@@ -59,7 +61,9 @@ function R.takes(def)
 	-- Auras secret: only an answer from a readable moment stands
 	if not ns.aurasReadable() then return def.takesReagent end
 	def.reagentReadAt = GetTime()
-	if not (def.spellID and C_TooltipInfo and C_TooltipInfo.GetSpellByID and C_Item and C_Item.GetItemNameByID) then return nil end
+	if not (def.spellID and C_TooltipInfo and C_TooltipInfo.GetSpellByID and C_Item and C_Item.GetItemNameByID) then
+		return nil
+	end
 	local ok, item = safe(C_Item.GetItemNameByID, def.reagent)
 	if not ok or type(item) ~= "string" or isSecret(item) then
 		safe(C_Item.RequestLoadItemDataByID, def.reagent)
@@ -78,11 +82,11 @@ end
 
 local function num(key, field)
 	local v = setting(key, "reagent", field)
-	if type(v) ~= "number" or v ~= v then v = ns.elementDefault(key, "reagent", field) end
+	if type(v) ~= "number" or v ~= v then v = E.default(key, "reagent", field) end
 	return v
 end
 
-local COUNT_JUSTIFY = ns.COUNT_JUSTIFY
+local COUNT_JUSTIFY = W.COUNT_JUSTIFY
 function R.draw(f, key, n)
 	local low = n <= num(key, "low")
 	local show = setting(key, "reagent", "when")
@@ -90,11 +94,11 @@ function R.draw(f, key, n)
 	if show == "always" or (show == "low" and low) then
 		local pos = setting(key, "reagent", "pos")
 		if not COUNT_JUSTIFY[pos] then pos = "BOTTOMRIGHT" end
-		ns.placeScaledText(fs, f, num(key, "size"), pos, num(key, "x"), num(key, "y"))
+		W.placeScaledText(fs, f, num(key, "size"), pos, num(key, "x"), num(key, "y"))
 		fs:SetJustifyH(COUNT_JUSTIFY[pos])
 		local field = low and "lowColor" or "color"
 		local c = setting(key, "reagent", field)
-		if not ns.isColor(c) then c = ns.elementDefault(key, "reagent", field) end
+		if not ns.isColor(c) then c = E.default(key, "reagent", field) end
 		local shown = string.format("%d%.3f%.3f%.3f%.3f", n, c[1], c[2], c[3], c[4] or 1)
 		if fs.shown ~= shown then
 			fs.shown = shown
@@ -138,10 +142,10 @@ ns.registerPart("reagent", {
 	preview = {
 		warning = "out",
 		states = { { "low", "Few left", 70 }, { "out", "None left", 71 } },
-		render = function(ic, st, def, P, pv)
+		render = function(ic, st, def, kit, pv)
 			local key = def.key
 			if st == "low" or st == "out" then
-				pv.rest(ic, P, setting(key, "reagent", "lowKeepsShown"))
+				pv.rest(ic, kit, setting(key, "reagent", "lowKeepsShown"))
 			end
 			look(ic, key, st == "out" and 0 or st == "low" and fewLeft(key) or PLENTY)
 		end,

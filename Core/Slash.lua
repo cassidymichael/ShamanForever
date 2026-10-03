@@ -1,14 +1,15 @@
 -- Slash command, minimap button, addon drawer
 
 local ADDON, ns = ...
+local E, G, P = ns.Elements, ns.Groups, ns.Profiles
 local say = ns.say
 
 local SLASH = ns.NAME:upper()
 local CMD = ns.CLASS.slash[1]
 for i, word in ipairs(ns.CLASS.slash) do _G["SLASH_" .. SLASH .. i] = word end
 local function toggleLock()
-	local acct = ns.getAccount()
-	if ns.setLocked(not acct.locked) then
+	local acct = P.getAccount()
+	if G.setLocked(not acct.locked) then
 		say(acct.locked and "positioning locked" or "positioning unlocked: drag groups to move them, %s lock when done", CMD)
 	end
 end
@@ -18,12 +19,12 @@ local function onLauncherClick(button)
 end
 local function launcherTip(tt)
 	tt:AddLine("Click: options", 1, 0.82, 0)
-	tt:AddLine(ns.getAccount().locked and "Right-click: unlock positioning" or "Right-click: lock positioning", 1, 0.82, 0)
+	tt:AddLine(P.getAccount().locked and "Right-click: unlock positioning" or "Right-click: lock positioning", 1, 0.82, 0)
 end
 
 local minimapIcon
 function ns.applyMinimapButton()
-	local acct = ns.getAccount()
+	local acct = P.getAccount()
 	local LibStub = _G.LibStub
 	local ldb = LibStub and LibStub("LibDataBroker-1.1", true)
 	local icon = LibStub and LibStub("LibDBIcon-1.0", true)
@@ -61,13 +62,14 @@ SlashCmdList[SLASH] = function(msg)
 	elseif cmd == "lock" then
 		toggleLock()
 	elseif cmd == "unlock" then
-		if ns.setLocked(false) then say("positioning unlocked: drag groups to move them, %s lock when done", CMD) end
+		if G.setLocked(false) then say("positioning unlocked: drag groups to move them, %s lock when done", CMD) end
 	elseif cmd == "preview" then
 		ns.Preview.toggle()
 	elseif cmd == "debug" then
-		ns.debugReport()
+		E.debugReport()
 	else
-		say("%s opens the options. Also: %s lock (lock or unlock positioning), %s preview (the whole HUD in a typical moment), %s debug",
+		say("%s opens the options. Also: %s lock (lock or unlock positioning), %s preview (the whole HUD in a typical "
+			.. "moment), %s debug",
 			CMD, CMD, CMD, CMD)
 	end
 end

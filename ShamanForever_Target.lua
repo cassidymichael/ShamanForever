@@ -9,12 +9,15 @@
 -- row's duration, with a cover bar; all set out of combat only.
 
 local _, ns = ...
+local P = ns.Profiles
+local W = ns.Widgets
+local E, MOD = ns.Elements, ns.Modules
 local say, Spells, isSecret = ns.say, ns.Spells, ns.isSecret
 
-local T = { name = "target" }
-ns.Target = T
+local TG = { name = "target" }
+ns.Target = TG
 
-local setting = ns.elementSetting
+local setting = E.setting
 
 -- Rows: the class's target elements
 -- Rows of the buff kind (_Buffs lists the aura fields its builder reads). Here: unit = "target",
@@ -45,7 +48,7 @@ local TARGET = {
 		blurb = "Shows while your target has a Magic buff to purge.",
 		-- Skip long buffs: only those lasting at most Longest buff (maxDuration also leaves out buffs with
 		-- no end)
-		candidates = function(def) return { includeDispelTypes = { Magic = true }, maxDuration = T.longest(def) } end,
+		candidates = function(def) return { includeDispelTypes = { Magic = true }, maxDuration = TG.longest(def) } end,
 		idleText = "Idle while your target has nothing to purge", procHeader = "Something to purge",
 		ownIcon = true, noTimer = true, skipLong = true,
 		popTip = "Each time a new buff lands on your target, or you target one that has one.",
@@ -59,11 +62,11 @@ for i, def in ipairs(TARGET) do table.insert(ns.CLASS.buffs, i, def) end
 -- The engine
 -- Every row on the target, in the order _Buffs builds them
 local ROWS = {}
-T.ELEMENTS = ROWS
+TG.ELEMENTS = ROWS
 
 local gateAlpha, holderAlpha, retarget
 
-function T.longest(def)
+function TG.longest(def)
 	if not def.ranges.skipLongMins or not setting(def.key, "skipLong") then return nil end
 	local r = def.ranges.skipLongMins
 	local m = setting(def.key, "skipLongMins")
@@ -221,10 +224,10 @@ ns.registerPart("missing", {
 	preview = {
 		warning = "missing",
 		states = { { "missing", "Not on target", 30 } },
-		render = function(ic, st, def, P)
-			if st == "missing" then ic:SetWarnParts(ns.warnParts(def.key, "warn")) end
+		render = function(ic, st, def, kit)
+			if st == "missing" then ic:SetWarnParts(W.warnParts(def.key, "warn")) end
 			if (st == "up" or st == "expiring") and setting(def.key, "idleWhen") == "target" then
-				P.idle(ic, def.key)
+				kit.idle(ic, def.key)
 			end
 		end,
 	},
@@ -255,7 +258,7 @@ ns.registerPart("missing", {
 				holderAlpha(def)
 			end)
 			def.holder = h
-			def.missLook = ns.makeClipLook(f, {
+			def.missLook = W.makeClipLook(f, {
 				key = def.key, parent = h, sensorParent = def.gate, unit = wantedUnit,
 				needUnit = "target", owner = def.key,
 				filter = def.filter, ids = function() return ns.Buffs.auraIDs(def) end,
@@ -278,8 +281,8 @@ ns.registerPart("engineExpire", {
 	has = expiresHere,
 	preview = {
 		states = { { "expiring", "Expiring", 20 } },
-		render = function(ic, st, def, P)
-			if st == "expiring" then P.engineExpire(ic, def.key, def.duration) end
+		render = function(ic, st, def, kit)
+			if st == "expiring" then kit.engineExpire(ic, def.key, def.duration) end
 		end,
 	},
 	runtime = {
@@ -413,12 +416,12 @@ local function auraOnTarget(def)
 end
 
 local function readWanted(def)
-	return def.spellID and ns.isEnabled(def.key) and ns.aurasReadNow() and hostileTarget()
+	return def.spellID and E.isEnabled(def.key) and ns.aurasReadNow() and hostileTarget()
 end
 
 local function stateLook(def)
 	local a = def.aura
-	local on = a.container and not a.err and def.spellID and ns.isEnabled(def.key)
+	local on = a.container and not a.err and def.spellID and E.isEnabled(def.key)
 	def.holder.on = on and true or false
 	def.missLook:want(def.holder.on)
 	holderAlpha(def)
@@ -432,7 +435,7 @@ local function styleLook(def)
 	look:setLevel(lv + 1, 2)
 	def.lookEdge:SetFrameLevel(lv + 1)
 	ns.Frames.dress(def.lookEdge, def.key, lv + 1)
-	look:setParts(ns.warnParts(def.key, "warn"))
+	look:setParts(W.warnParts(def.key, "warn"))
 	look:reshape()
 	look:style()
 	stateLook(def)
@@ -459,16 +462,16 @@ local function checkAll()
 end
 
 local function frameAlpha(def)
-	local idles = def.spellID and ns.getAccount().locked and setting(def.key, "idleWhen") ~= "never"
-	return idles and ns.idleAlpha(def.key) or 1
+	local idles = def.spellID and P.getAccount().locked and setting(def.key, "idleWhen") ~= "never"
+	return idles and E.idleAlpha(def.key) or 1
 end
 
 -- Out of combat only (an ancestor of the button)
 local function applyIdle(def)
 	if not def.idle or InCombatLockdown() then return end
-	local on = def.spellID and ns.isEnabled(def.key) and ns.getAccount().locked
+	local on = def.spellID and E.isEnabled(def.key) and P.getAccount().locked
 		and setting(def.key, "idleWhen") == "target"
-	def.idle:SetAlpha(on and ns.idleAlpha(def.key) or 1)
+	def.idle:SetAlpha(on and E.idleAlpha(def.key) or 1)
 end
 
 -- Combat starts: icon to its idle alpha at once (a fade would stop part way)
@@ -480,7 +483,7 @@ local function combatStarts()
 			applyIdle(def)
 			local f, a = def.frame, frameAlpha(def)
 			f:SetAlpha(a)
-			ns.fadeTo(f, a)
+			W.fadeTo(f, a)
 		end
 	end
 end
@@ -488,10 +491,10 @@ end
 local function refreshAura(def)
 	local f, key = def.frame, def.key
 	if def.fx then
-		def.fx:glow(not def.noGlow and def.spellID ~= nil and ns.isEnabled(key) and setting(key, "active", "glow")
+		def.fx:glow(not def.noGlow and def.spellID ~= nil and E.isEnabled(key) and setting(key, "active", "glow")
 			and not ns.Preview.isOn())
 	end
-	if not ns.isEnabled(key) then return end
+	if not E.isEnabled(key) then return end
 	if def.aura.container then
 		driveGate(def)
 		local unit = wantedUnit()
@@ -503,7 +506,7 @@ local function refreshAura(def)
 	end
 	f.tex:SetTexture(def.icon)
 	f.tex:SetDesaturated(not def.spellID)
-	ns.fadeTo(f, frameAlpha(def))
+	W.fadeTo(f, frameAlpha(def))
 	applyIdle(def)
 end
 
@@ -517,11 +520,11 @@ local function missingRows(readsOnly)
 	end
 end
 
-function T.resolve()
+function TG.resolve()
 	local sig = {}
 	for _, def in ipairs(ROWS) do
 		def.spell = Spells.name(def.spellKey)
-		ns.ELEMENTS[def.key].label = def.spell
+		E.ALL[def.key].label = def.spell
 		def.spellID = Spells.known(def.spellKey)
 		ns.Buffs.resolveAura(def)
 		table.insert(sig, tostring(def.spellID))
@@ -529,19 +532,19 @@ function T.resolve()
 	return table.concat(sig, ",")
 end
 
-function T.applyTimers()
+function TG.applyTimers()
 	for _, def in ipairs(ROWS) do def.aura:style() end
 	styleLooks()
 	styleUp()
 end
 
-function T.applyLayout()
+function TG.applyLayout()
 	for _, def in ipairs(ROWS) do
-		if def.spellID and ns.isEnabled(def.key) then ns.Buffs.setupAura(def) end
+		if def.spellID and E.isEnabled(def.key) then ns.Buffs.setupAura(def) end
 		-- SetAuraSlotCandidateFilters changes a made slot's filters in place; the call waits for combat
 		-- and secret auras
 		if def.candidates and def.aura.container then
-			local longest = T.longest(def) or false
+			local longest = TG.longest(def) or false
 			if def.longestApplied ~= nil and def.longestApplied ~= longest then
 				def.aura:refilter()
 				if def.fx then def.fx:refilter() end
@@ -556,7 +559,7 @@ function T.applyLayout()
 	checkAll()
 end
 
-function T.afterGroups()
+function TG.afterGroups()
 	for _, def in ipairs(ROWS) do
 		def.aura:style()
 		if def.holder then holderAlpha(def) end
@@ -566,13 +569,13 @@ function T.afterGroups()
 	for _, def in ipairs(ROWS) do refreshAura(def) end
 end
 
-function T.refresh()
+function TG.refresh()
 	checkAll()
 	for _, def in ipairs(ROWS) do refreshAura(def) end
 end
-T.tick = T.refresh
+TG.tick = TG.refresh
 
-function T.start()
+function TG.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "PLAYER_TARGET_CHANGED")
 	ns.registerEvent(ev, "UNIT_FACTION", "target")
@@ -592,7 +595,7 @@ function T.start()
 end
 
 -- /sf debug
-function T.debug()
+function TG.debug()
 	for _, def in ipairs(ROWS) do
 		local a = def.aura
 		say("%s: spell %s, container %s%s, unit %s, gate driver %s, failed unit calls %d%s", def.spell,
@@ -615,4 +618,4 @@ function T.debug()
 	end
 end
 
-ns.registerModule(T)
+MOD.register(TG)

@@ -1,6 +1,8 @@
 -- Page kit: scrolling pages of rows grouped into foldable blocks
 
 local _, ns = ...
+local W = ns.Widgets
+local E, G, Bars, P = ns.Elements, ns.Groups, ns.Bars, ns.Profiles
 
 local Page = {}
 Page.__index = Page
@@ -16,7 +18,7 @@ local TEXT_MAX_W = 600
 local PANEL_PAD, PANEL_PAD_B, BLOCK_GAP = 10, 6, 10
 -- Fold state is saved per page and header text; an untouched block starts folded unless it is
 -- the page's first, under an open section, or its page or header says open.
-local function folded() return ns.getAccount().foldedBlocks end
+local function folded() return P.getAccount().foldedBlocks end
 local function isFolded(b)
 	local v = folded()[b.key]
 	if v == nil then return b.startFolded end
@@ -25,7 +27,7 @@ end
 local allPages = {}
 local SUB_INDENT, SUB_MAX, RULE_X = 24, 2, 12
 
-Page.setTip = ns.setTip
+Page.setTip = W.setTip
 
 -- Pages
 function Page.new(win, key, title, indent)
@@ -538,30 +540,30 @@ local function askReset(name, run) StaticPopup_Show(ns.POPUP .. "RESET_SETTINGS"
 Page.refKind("elem", {
 	id = function(r) return r.elem .. "." .. r.name .. (r.field and "." .. r.field or "") end,
 	holder = function(r)
-		local o = ns.elementOpts(r.elem)
+		local o = E.opts(r.elem)
 		if not r.field then return o end
 		return type(o[r.name]) == "table" and o[r.name] or nil
 	end,
 	slot = function(r) return r.field or r.name end,
-	default = function(r) return ns.elementDefault(r.elem, r.name, r.field) end,
+	default = function(r) return E.default(r.elem, r.name, r.field) end,
 	unset = true,
 })
 Page.refKind("general", {
 	id = function(r) return r.general end,
-	holder = function() return ns.getDB() end,
+	holder = function() return P.getDB() end,
 	slot = function(r) return r.general end,
-	default = function(r) return ns.DEFAULTS[r.general] end,
+	default = function(r) return P.DEFAULTS[r.general] end,
 })
 Page.refKind("bar", {
 	id = function(r) return r.bar .. "." .. r.name .. (r.field and "." .. r.field or "") end,
 	holder = function(r)
-		local c = ns.Bars.get(r.bar).cfg()
+		local c = Bars.get(r.bar).cfg()
 		if not r.field then return c end
 		return type(c[r.name]) == "table" and c[r.name] or nil
 	end,
 	slot = function(r) return r.field or r.name end,
 	default = function(r)
-		local d = ns.Bars.get(r.bar).defaults[r.name]
+		local d = Bars.get(r.bar).defaults[r.name]
 		if not r.field then return d end
 		if type(d) ~= "table" then return nil end
 		return d[r.field]
@@ -579,7 +581,7 @@ Page.refKind("group", {
 				return shipped[r.name]
 			end
 		end
-		return ns.GROUP_DEFAULTS[r.name]
+		return G.DEFAULTS[r.name]
 	end,
 })
 
@@ -593,16 +595,16 @@ end
 Page.refKind("style", {
 	id = function(r) return r.style .. "." .. tostring(r.owner) end,
 	changed = function(r)
-		local St = ns.Style
+		local S = ns.Style
 		local o, chosen = styleOwner(r)
 		if not chosen then return false end
-		local follows, shipped = St.readShipped(o, r.style)
+		local follows, shipped = S.readShipped(o, r.style)
 		if o ~= nil then
-			local now = St.follows(o, r.style)
+			local now = S.follows(o, r.style)
 			if now ~= follows then return true end
 			if now then return false end
 		end
-		return not same(St.read(o, r.style), shipped)
+		return not same(S.read(o, r.style), shipped)
 	end,
 	reset = function(r)
 		local o, chosen = styleOwner(r)
@@ -681,7 +683,7 @@ function Page:header(text, shown, note, icon, opts)
 		f.icon:SetSize(20, 20)
 		f.icon:SetPoint("BOTTOMLEFT", x, 5)
 		f.icon:SetTexture(icon)
-		ns.cropIcon(f.icon)
+		W.cropIcon(f.icon)
 	end
 	f.text:SetText(text)
 	if note then
@@ -939,7 +941,7 @@ function Page:color(label, tip, get, set, shown, opaque)
 	local b = CreateFrame("Button", nil, f, "BackdropTemplate")
 	b:SetSize(22, 22)
 	b:SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
-	b:SetBackdrop(ns.BACKDROP)
+	b:SetBackdrop(W.BACKDROP)
 	b:SetBackdropColor(0.5, 0.5, 0.5, 1)
 	b:SetBackdropBorderColor(1, 1, 1, 0.6)
 	b.swatch = b:CreateTexture(nil, "ARTWORK")
@@ -993,16 +995,16 @@ function Page:pin(h)
 	h:SetPoint("TOPRIGHT", win, "TOPRIGHT", -22, PAGE_TOP)
 	h:Hide()
 	self.fixed = h
-	self.scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, PAGE_TOP - (h.heroH or ns.Look.HERO_H))
+	self.scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, PAGE_TOP - (h.heroH or ns.OptionsArt.HERO_H))
 	return h
 end
 
 function Page:hero(key)
-	return self:pin(ns.Look.buildHero(self.win, key))
+	return self:pin(ns.OptionsArt.buildHero(self.win, key))
 end
 
 function Page.panelBackdrop(f, r, g, b)
-	f:SetBackdrop(ns.BACKDROP)
+	f:SetBackdrop(W.BACKDROP)
 	f:SetBackdropColor(0.09, 0.075, 0.06, 1)
 	f:SetBackdropBorderColor(r or 0.23, g or 0.17, b or 0.10, 1)
 end
@@ -1021,12 +1023,12 @@ function Page:cards(label, tip, choices, get, set, shown)
 		b.icon:SetSize(34, 34)
 		b.icon:SetPoint("TOP", 0, -8)
 		b.icon:SetTexture(c[3])
-		ns.cropIcon(b.icon)
+		W.cropIcon(b.icon)
 		b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		b.text:SetPoint("TOP", b.icon, "BOTTOM", 0, -5)
 		b.text:SetWidth(CARD_W - 6)
 		b.text:SetText(c[2])
-		local badge = c[4] and ns.Look.expBadge(b, c[4]) or c.tag and ns.Look.tagBadge(b, c.tag)
+		local badge = c[4] and ns.OptionsArt.expBadge(b, c[4]) or c.tag and ns.OptionsArt.tagBadge(b, c.tag)
 		if badge then
 			badge:SetScale(0.8)
 			badge:SetPoint("BOTTOM", 0, 5)
@@ -1058,7 +1060,7 @@ function Page:bigButtons(list)
 		b.icon:SetSize(36, 36)
 		b.icon:SetPoint("LEFT", 12, 0)
 		b.icon:SetTexture(t[1])
-		ns.cropIcon(b.icon)
+		W.cropIcon(b.icon)
 		b.title = b:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 		b.title:SetPoint("TOPLEFT", b.icon, "TOPRIGHT", 10, -1)
 		b.sub = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -1143,7 +1145,7 @@ function Page.dragGhost(onMove)
 	ghost.icon = ghost:CreateTexture(nil, "ARTWORK")
 	ghost.icon:SetSize(20, 20)
 	ghost.icon:SetPoint("LEFT", 2, 0)
-	ns.cropIcon(ghost.icon)
+	W.cropIcon(ghost.icon)
 	ghost.text = ghost:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	ghost.text:SetPoint("LEFT", ghost.icon, "RIGHT", 6, 0)
 	ghost:Hide()

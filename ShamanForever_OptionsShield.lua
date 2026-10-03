@@ -1,9 +1,10 @@
 -- Shields options page
 local _, ns = ...
+local E = ns.Elements
 
 local Page, K = ns.Page, ns.Options.kit
 local int, px = Page.int, Page.px
-local elementDisplay, idleBlock, lookBlocks = K.elementDisplay, K.idleBlock, K.lookBlocks
+local elementDisplay, idleBlock, styleBlocks = K.elementDisplay, K.idleBlock, K.styleBlocks
 local warnBlock, timerSettings, gcdBlock, eopt = K.warnBlock, K.timerSettings, K.gcdBlock, K.eopt
 local eread, eslider, COUNT_POINTS, respell = K.eread, K.eslider, K.COUNT_POINTS, K.respell
 
@@ -21,7 +22,7 @@ local function buildShield(p, def)
 	-- Lightning, the default, reads a Water Shield that is up as no shield.
 	p:callout(("You know %s: choose Either to count it."):format(ns.Spells.name("waterShield")),
 		function()
-			return ns.elementSetting(key, "track") == "lightning" and ns.Shield.knows("water")
+			return E.setting(key, "track") == "lightning" and ns.Shield.knows("water")
 		end)
 	p:header("Charges")
 	local bar = p:checkbox("Charge bar", "One segment per charge.", eopt(p, key, "count", "bar"))
@@ -47,7 +48,7 @@ local function buildShield(p, def)
 			sound = "When the shield goes: charges spent, cancelled or run out." } })
 	timerSettings(p, "Time left", key, "uptime")
 	gcdBlock(p, key)
-	lookBlocks(p, key)
+	styleBlocks(p, key)
 end
 
 ns.registerKind("shield", { page = buildShield })

@@ -1,16 +1,17 @@
 -- Effects
 
 local _, ns = ...
+local W = ns.Widgets
 
-local E = {}
-ns.Effects = E
+local FX = {}
+ns.Effects = FX
 
 -- The pulsing glow
 -- Under Blizzard's aura button (underButton) the button plays the animations: g:bindButton hands
 -- them over.
 local glows = {}
 local auraGlows = {}
-function E.glow(parent, over, owner, opts)
+function FX.glow(parent, over, owner, opts)
 	local underButton = opts and opts.underButton or false
 	local g = CreateFrame("Frame", nil, parent)
 	g.owner, g.underButton = owner, underButton
@@ -29,9 +30,9 @@ function E.glow(parent, over, owner, opts)
 	local function parts(look)
 		local p = g.parts[look.key]
 		if p == nil then
-			local ok, made = ns.try("glow look " .. look.key, look.build, g)
+			local ok, made = ns.try("glow style " .. look.key, look.build, g)
 			p = ok and made or false
-			if p then ns.Looks.levelParts(p) end
+			if p then ns.StyleArt.levelParts(p) end
 			for _, r in ipairs(p and p.roots or {}) do r:Hide() end
 			g.parts[look.key] = p
 			if p and g.onLayout then ns.try("glow layout", g.onLayout, g, p, look) end
@@ -40,13 +41,13 @@ function E.glow(parent, over, owner, opts)
 	end
 	local function drawn(look)
 		if parts(look) then return look end
-		return ns.Style.look("glow", ns.Style.KINDS.glow.defaults.look)
+		return ns.Style.look("glow", ns.Style.PARTS.glow.defaults.look)
 	end
 	if underButton then table.insert(auraGlows, g) end
 	local function play(self, on)
 		local p = self.look and self.parts[self.look.key]
 		if on then
-			if p then ns.Looks.levelParts(p) end
+			if p then ns.StyleArt.levelParts(p) end
 			self.anim:Play()
 			for _, a in ipairs(p and p.anims or {}) do a:Play() end
 		else
@@ -81,7 +82,7 @@ function E.glow(parent, over, owner, opts)
 	function g:restyle()
 		local st = ns.Style.get(self.owner, "glow")
 		local look = drawn(ns.Style.look("glow", st.look))
-		-- Under the button: a new look only out of combat with auras readable.
+		-- Under the button: a new style only out of combat with auras readable.
 		if underButton and self.look and look ~= self.look then
 			local ok = self.button ~= nil and ns.aurasReadable()
 			local p = ok and parts(look)
@@ -121,7 +122,7 @@ function E.glow(parent, over, owner, opts)
 		end
 	end
 	function g:fit(size)
-		local out = ns.Looks.outerEdge(self.over)
+		local out = ns.StyleArt.outerEdge(self.over)
 		if size == self.iconSize and self.width == self.fitWidth and out == self.fitOut then return end
 		self.iconSize, self.fitWidth, self.fitOut = size, self.width, out
 		local p = parts(self.look)
@@ -156,10 +157,10 @@ function E.glow(parent, over, owner, opts)
 	return g
 end
 -- Not those under an aura button; a parked glow restyles when taken again.
-function E.applyStyle() for _, g in ipairs(glows) do if not g.parked then g:restyle() end end end
+function FX.applyStyle() for _, g in ipairs(glows) do if not g.parked then g:restyle() end end end
 
 -- Owners whose glow under the button differs from their style (changes after a /reload).
-function E.auraGlowStale(owner)
+function FX.auraGlowStale(owner)
 	local out = {}
 	for _, g in ipairs(auraGlows) do
 		local reaches = owner == g.owner or (owner == nil and ns.Style.follows(g.owner, "glow"))
@@ -195,7 +196,7 @@ end
 local function newPart(parent, spec)
 	local t = parent:CreateTexture(nil, "OVERLAY")
 	if spec and spec.atlas then
-		if ns.Looks.hasAtlas(spec.atlas) then t:SetAtlas(spec.atlas) else t:SetTexture(spec.file) end
+		if ns.StyleArt.hasAtlas(spec.atlas) then t:SetAtlas(spec.atlas) else t:SetTexture(spec.file) end
 	end
 	t:SetAlpha(0)
 	t:Hide()
@@ -284,7 +285,7 @@ local function newRig(f, icon, level)
 	r.flashIn:SetFromAlpha(0)
 	r.flashOut:SetToAlpha(0)
 	r.flashOut:SetSmoothing("OUT")
-	r.edge = ns.Looks.popEdge(fx)
+	r.edge = ns.StyleArt.popEdge(fx)
 	for _, name in ipairs({ "front", "back" }) do
 		local b = CreateFrame("Frame", nil, f:GetParent())
 		b:SetAllPoints(f)
@@ -298,7 +299,7 @@ local function newRig(f, icon, level)
 	r.clip:EnableMouse(false)
 	r.parts.ring, r.parts.star = newPart(r.front, RING), newPart(r.front, STAR)
 	local where = { back = r.back, front = r.front, clip = r.clip }
-	for name, at in pairs(ns.Looks.POP_PARTS) do r.parts[name] = newPart(where[at]) end
+	for name, at in pairs(ns.StyleArt.POP_PARTS) do r.parts[name] = newPart(where[at]) end
 	r.all = { r.motionScale, r.motionMove, r.flashAnim }
 	if r.iconMotion then table.insert(r.all, r.iconMotion) end
 	for _, e in ipairs(r.edge or {}) do table.insert(r.all, e.group) end
@@ -410,11 +411,11 @@ function Rig:style(st, size, c, school, muted)
 			on[self.parts[name].group] = true
 		end)
 	end
-	local drawn = ns.Looks.popParts(burst.key, school)
+	local drawn = ns.StyleArt.popParts(burst.key, school)
 	if drawn then
 		local over = self.f.over or self.f
 		self.back:SetFrameLevel(math.max(over:GetFrameLevel() - 1, 0))
-		local h = size + 2 * ns.Looks.outerEdge(over)
+		local h = size + 2 * ns.StyleArt.outerEdge(over)
 		for _, spec in ipairs(drawn) do
 			part(spec.name, function()
 				local p = self.parts[spec.name]
@@ -454,7 +455,7 @@ function Rig:play()
 end
 
 local function popColor(st, kind, school)
-	local k = ns.Looks.POP_KINDS[kind] or ns.Looks.POP_KINDS.ready
+	local k = ns.StyleArt.POP_KINDS[kind] or ns.StyleArt.POP_KINDS.ready
 	if st.colorBy == "school" and k.byStyle then
 		local theme = ns.THEME
 		return theme.color[school] or theme.color[theme.fallback]
@@ -462,13 +463,13 @@ local function popColor(st, kind, school)
 	return k.color
 end
 
--- kind: a Looks.POP_KINDS key ("blocked": a dimmer flash). Nothing on a hidden frame: it would play
+-- kind: a StyleArt.POP_KINDS key ("blocked": a dimmer flash). Nothing on a hidden frame: it would play
 -- on its next show.
-function E.pop(f, kind, owner)
+function FX.pop(f, kind, owner)
 	if not f:IsVisible() then return end
 	kind = kind or "ready"
 	local st = ns.Style.get(owner, "pop")
-	local school = ns.Looks.effectSchool(f)
+	local school = ns.StyleArt.effectSchool(f)
 	local c = popColor(st, kind, school)
 	f.popRig = f.popRig or newRig(f)
 	f.popRig:stop()
@@ -499,7 +500,7 @@ end
 -- An end: killed early, ran out, ran out softly, or an early end of its own (opts.kind, a pop kind)
 local killedCurve = ns.curve({ 0, 0, 1.2, 0, 1.25, 1, 36000, 1 })
 local expiredCurve = ns.curve({ 0, 1, 1.2, 1, 1.25, 0, 36000, 0 })
-function E.endFlash(parent, anchor, owner, over)
+function FX.endFlash(parent, anchor, owner, over)
 	over = over or anchor
 	local kf = CreateFrame("Frame", nil, parent)
 	kf:SetAllPoints(anchor)
@@ -511,11 +512,11 @@ function E.endFlash(parent, anchor, owner, over)
 	kf.body = CreateFrame("Frame", nil, kf.pop)
 	kf.body:SetAllPoints()
 	kf.body:SetAlpha(0)
-	kf.glow = E.glow(kf.body, over, owner)
+	kf.glow = FX.glow(kf.body, over, owner)
 	kf.glow:color(1, 0.12, 0.08)
 	kf.icon = kf.body:CreateTexture(nil, "ARTWORK")
 	kf.icon:SetAllPoints()
-	ns.cropIconExact(kf.icon)
+	W.cropIconExact(kf.icon)
 	kf.icon:SetDesaturated(true)
 	kf.red = kf.body:CreateTexture(nil, "OVERLAY")
 	kf.red:SetAllPoints()
@@ -537,13 +538,13 @@ function E.endFlash(parent, anchor, owner, over)
 	kf.mark:Hide()
 	kf.mark.icon = kf.mark:CreateTexture(nil, "ARTWORK")
 	kf.mark.icon:SetAllPoints()
-	ns.cropIconExact(kf.mark.icon)
+	W.cropIconExact(kf.mark.icon)
 	kf.mark.icon:SetDesaturated(true)
 	kf.mark.icon:SetAlpha(0.6)
 	kf.mark.x = kf.mark:CreateTexture(nil, "OVERLAY")
 	kf.mark.x:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
 	kf.mark.x:SetPoint("CENTER")
-	ns.Looks.followMask(over, kf.icon, kf.red, kf.mark.icon)
+	ns.StyleArt.followMask(over, kf.icon, kf.red, kf.mark.icon)
 	-- SetTexture takes a secret
 	function kf:setIcon(icon)
 		ns.try("killed flash: icon", self.icon.SetTexture, self.icon, icon)
@@ -565,7 +566,7 @@ function E.endFlash(parent, anchor, owner, over)
 		local size = self.fitSize or anchor:GetWidth()
 		self.pop.popSize = size
 		local soft = opts.expired and opts.ranOut
-		local kind = opts.kind and ns.Looks.POP_KINDS[opts.kind]
+		local kind = opts.kind and ns.StyleArt.POP_KINDS[opts.kind]
 		if soft then
 			local c = opts.ranOut
 			self.glow:color(c[1], c[2], c[3]); self.red:SetColorTexture(c[1], c[2], c[3], 0.45)
@@ -586,7 +587,7 @@ function E.endFlash(parent, anchor, owner, over)
 		self.mark.x:SetSize(size * 0.7, size * 0.7)
 		self.flash:Stop(); self.quick:Stop(); self.soft:Stop()
 		if soft then self.soft:Play() elseif opts.expired then self.quick:Play() else self.flash:Play() end
-		if opts.pop then E.pop(self.pop, opts.expired and "expired" or kind and opts.kind or "killed", owner) end
+		if opts.pop then FX.pop(self.pop, opts.expired and "expired" or kind and opts.kind or "killed", owner) end
 		if opts.mark then
 			self.mark:Show()
 			local token = {}
@@ -611,16 +612,16 @@ Host.__index = Host
 
 local NO_POP = { colorBy = "event", flash = "none", burst = "none", motion = "none", size = 1, speed = 1 }
 
-function E.host(f, key, opts)
+function FX.host(f, key, opts)
 	local h = setmetatable({ f = f, key = key }, Host)
 	local a = opts and opts.aura
 	if not a then
-		h.glowF = E.glow(f, f, key)
+		h.glowF = FX.glow(f, f, key)
 		return h
 	end
 	h.aura = a
 	if a.popOnly then return h end
-	h.up = ns.makeClipLook(f, {
+	h.up = W.makeClipLook(f, {
 		key = key, owner = key, invert = true, glowOnly = true,
 		parent = a.parent, sensorParent = a.sensorParent or a.parent,
 		unit = a.unit, needUnit = a.needUnit, filter = a.filter, ids = a.ids, candidates = a.candidates,
@@ -648,7 +649,7 @@ end
 
 function Host:pop(kind)
 	if self.aura then return end
-	E.pop(self.f, kind or "ready", self.key)
+	FX.pop(self.f, kind or "ready", self.key)
 end
 
 function Host:fit(size)
@@ -677,7 +678,7 @@ function Host:bind(button, icon)
 	local ok = ns.try("aura pop " .. self.key, function()
 		self.rig = newRig(body, icon, level)
 		self.rig.guard = true
-		self:stylePop(ns.sizeOf(self.key))
+		self:stylePop(ns.Elements.sizeOf(self.key))
 	end)
 	if not ok or not button.AddAuraAssignedAnimation then return body end
 	for _, g in ipairs(self.rig:groups()) do
@@ -695,7 +696,7 @@ function Host:stylePop(size)
 	if not pops then rig:hideAll() end   -- Pop off wins even if a setter below is refused
 	ns.try("aura pop style " .. self.key, function()
 		local st = pops and ns.Style.get(self.key, "pop") or NO_POP
-		local school = ns.Looks.effectSchool(self.f)
+		local school = ns.StyleArt.effectSchool(self.f)
 		rig:style(st, size, popColor(st, "ready", school), school)
 	end)
 	-- Whatever styling did or didn't finish, the parts shown are exactly those marked to play.

@@ -3,13 +3,16 @@
 -- A proc: only Blizzard's aura container can show one in combat, on the player or another unit.
 
 local _, ns = ...
+local P = ns.Profiles
+local W = ns.Widgets
+local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
 local Spells, KD = ns.Spells, ns.Kinds
 
 local B = { name = "buffs" }
 ns.Buffs = B
 
-local setting = ns.elementSetting
+local setting = E.setting
 
 -- Elements: the class's rows (ns.CLASS.buffs), all built here; BUFFS are those this file runs. Rows
 -- from other files join the list before this file loads.
@@ -42,20 +45,20 @@ ns.registerPart("buff", {
 			table.insert(states, { "idle", def.idleLabel or "Not up", 40 })
 			return states
 		end,
-		render = function(ic, st, def, P)
+		render = function(ic, st, def, kit)
 			local key = def.key
-			P.reset(ic, def.icon)
+			kit.reset(ic, def.icon)
 			if st == "up" then
 				if def.proc then
-					if not def.noTimer then P.frozen(ic.upT, 0.3, 15) end
+					if not def.noTimer then kit.frozen(ic.upT, 0.3, 15) end
 					ic:SetGlowShown(setting(key, "active", "glow"))
-				else P.frozen(ic.upT, 0.3, 600) end
-			elseif st == "expiring" and not def.engineExpire then P.expiring(ic, key, 600)
+				else kit.frozen(ic.upT, 0.3, 600) end
+			elseif st == "expiring" and not def.engineExpire then kit.expiring(ic, key, 600)
 			elseif st == "idle" then
-				if setting(key, "idleWhen") ~= "never" then P.idle(ic, key) end
+				if setting(key, "idleWhen") ~= "never" then kit.idle(ic, key) end
 			end
 		end,
-		rest = function(ic, def, P, keep) if not keep then P.idle(ic, def.key) end end,
+		rest = function(ic, def, kit, keep) if not keep then kit.idle(ic, def.key) end end,
 	},
 })
 -- breath: warns under water without it
@@ -66,10 +69,10 @@ ns.registerPart("breath", {
 	preview = {
 		warning = "underwater",
 		states = { { "underwater", "Under water", 80 } },
-		render = function(ic, st, def, P)
+		render = function(ic, st, def, kit)
 			if st ~= "underwater" then return end
-			if setting(def.key, "warn", "on") then ic:SetWarnParts(ns.warnParts(def.key, "warn"))
-			else P.idle(ic, def.key) end
+			if setting(def.key, "warn", "on") then ic:SetWarnParts(W.warnParts(def.key, "warn"))
+			else kit.idle(ic, def.key) end
 		end,
 	},
 })
@@ -114,7 +117,7 @@ ns.registerKind("buff", {
 local NONE = {}
 
 local function makeBuffIcon(def)
-	local f = ns.newElementIcon(def.key, { effects = true })
+	local f = E.newIcon(def.key, { effects = true })
 	f.tex:SetTexture(def.icon)
 	if not def.proc then
 		f.upTimer = ns.Timer.new(f, def.key, "uptime", { cd = f.cd, school = def.school })
@@ -163,7 +166,7 @@ local function buildAura(def)
 	local site = where.site
 	local ids = function() return auraIDs(def) end
 	local candidates = def.candidates and function() return def.candidates(def) end
-	def.aura = ns.makeAuraSlot(f, {
+	def.aura = W.makeAuraSlot(f, {
 		key = key, slot = where.slot, unit = where.unit, filter = def.filter, parent = where.parent,
 		ids = ids, candidates = candidates,
 		ownIcon = def.ownIcon and function() return def.icon end, noTimer = def.noTimer,
@@ -191,7 +194,7 @@ for _, def in ipairs(ROWS) do
 	def.frame = makeBuffIcon(def)
 	def.frame.aboveProtected = def.proc   -- Blizzard's aura button sits under it
 	if def.proc then buildAura(def) end
-	ns.registerElement(def.key, { frame = def.frame, label = def.spell,
+	E.register(def.key, { frame = def.frame, label = def.spell,
 		defaults = def.defaults or {}, learned = function() return def.spellID ~= nil end,
 		paint = function(t) t:SetTexture(def.icon) end,
 		standInBorder = def.proc, borderHost = def.borderHost,
@@ -249,7 +252,9 @@ local function readAura(def)
 	if not ok then return end
 	if type(a) ~= "table" then setDown(def) return end
 	local exp, dur = a.expirationTime, a.duration
-	if isSecret(exp) or isSecret(dur) or type(exp) ~= "number" or type(dur) ~= "number" or exp <= 0 or dur <= 0 then return end
+	if isSecret(exp) or isSecret(dur) or type(exp) ~= "number" or type(dur) ~= "number" or exp <= 0 or dur <= 0 then
+		return
+	end
 	def.duration = dur
 	if not def.upUntil or math.abs(def.upUntil - exp) > 0.2 then setUp(def, exp - dur, dur) end
 end
@@ -274,7 +279,7 @@ local previewing = false
 local function refreshBuff(def)
 	local f, key = def.frame, def.key
 	if def.proc then f.tex:SetAlpha(previewing and 0 or 1) end
-	if not ns.isEnabled(key) then
+	if not E.isEnabled(key) then
 		if def.fx then def.fx:glow(false) end
 		return
 	end
@@ -284,14 +289,14 @@ local function refreshBuff(def)
 		f:SetRingShown(false)
 		f:SetPulsing(false)
 		f.count:Hide()
-		ns.fadeTo(f, 1)
+		W.fadeTo(f, 1)
 		return
 	end
 	f.tex:SetDesaturated(false)
 	if def.proc then
 		-- Frame is an ancestor of Blizzard's button: its alpha changes out of combat only
 		if def.fx then def.fx:glow(setting(key, "active", "glow") and not previewing) end
-		ns.fadeTo(f, ns.getAccount().locked and ns.idleAlpha(key) or 1)
+		W.fadeTo(f, P.getAccount().locked and E.idleAlpha(key) or 1)
 		return
 	end
 	if def.upUntil and GetTime() >= def.upUntil then setDown(def) end
@@ -303,8 +308,8 @@ local function refreshBuff(def)
 	end
 	f:SetRingShown(ring)
 	f:SetPulsing(pulse)
-	local busy = not ns.getAccount().locked or def.upUntil ~= nil or held
-	ns.fadeTo(f, busy and 1 or ns.idleAlpha(key))
+	local busy = not P.getAccount().locked or def.upUntil ~= nil or held
+	W.fadeTo(f, busy and 1 or E.idleAlpha(key))
 end
 
 local function refreshAll()
@@ -316,7 +321,7 @@ function B.resolve()
 	local sig = {}
 	for _, def in ipairs(BUFFS) do
 		def.spell = Spells.name(def.spellKey)
-		ns.ELEMENTS[def.key].label = def.spell
+		E.ALL[def.key].label = def.spell
 		local known, icon = Spells.known(def.spellKey)
 		if known ~= def.spellID then def.takesReagent = nil end
 		def.spellID = known
@@ -332,7 +337,7 @@ function B.applyTimers()
 		local t = def.frame.upTimer
 		if t then
 			t:apply()
-			t:setExpire(ns.elementEvent(def.key, "expire"), def.iconID or def.icon)
+			t:setExpire(E.event(def.key, "expire"), def.iconID or def.icon)
 		end
 	end
 	for _, def in ipairs(BUFFS) do
@@ -345,7 +350,7 @@ end
 
 function B.applyLayout()
 	for _, def in ipairs(BUFFS) do
-		if def.proc and def.spellID and ns.isEnabled(def.key) then B.setupAura(def) end
+		if def.proc and def.spellID and E.isEnabled(def.key) then B.setupAura(def) end
 		if def.proc then
 			def.aura:style()
 			styleGlow(def)
@@ -366,7 +371,8 @@ local function readBreath()
 	breathing = false
 	for i = 1, 3 do
 		local ok, name, _, _, scale = safe(GetMirrorTimerInfo, i)
-		if ok and not isSecret(name) and name == "BREATH" and type(scale) == "number" and not isSecret(scale) and scale < 0 then
+		if ok and not isSecret(name) and name == "BREATH" and type(scale) == "number" and not isSecret(scale)
+			and scale < 0 then
 			breathing = true
 		end
 	end
@@ -435,4 +441,4 @@ function B.debug()
 	end
 end
 
-ns.registerModule(B)
+MOD.register(B)

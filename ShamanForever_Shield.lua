@@ -6,9 +6,12 @@
 -- never a false warning.
 
 local _, ns = ...
+local P = ns.Profiles
+local W = ns.Widgets
+local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe = ns.say, ns.isSecret, ns.safe
 local Spells = ns.Spells
-local FR, Count = ns.Frames, ns.Count
+local FR, Count = ns.Frames, W.Count
 
 local SH = { name = "shield" }
 ns.Shield = SH
@@ -20,7 +23,7 @@ local SHIELDS = {
 }
 local SHIELD_ORDER = { "lightning", "water" }
 
-local shield = ns.newElementIcon("shield")
+local shield = E.newIcon("shield")
 -- Blizzard's container hangs from this: its alpha changes only out of combat (an ancestor of the button)
 local gate = CreateFrame("Frame", nil, shield)
 gate:SetAllPoints(shield)
@@ -35,9 +38,9 @@ local IDLE_CHOICES = {
 		"Shown in full at 1 charge and as No shield." },
 }
 local COUNT_POS, TRACK = {}, { "either" }
-for pos in pairs(ns.COUNT_JUSTIFY) do table.insert(COUNT_POS, pos) end
+for pos in pairs(W.COUNT_JUSTIFY) do table.insert(COUNT_POS, pos) end
 for _, key in ipairs(SHIELD_ORDER) do table.insert(TRACK, key) end
-ns.registerElement("shield", { frame = shield, label = "Shields", paint = function(t) t:SetTexture(SH.icon()) end,
+E.register("shield", { frame = shield, label = "Shields", paint = function(t) t:SetTexture(SH.icon()) end,
 	learned = function() return SH.learned() end,
 	defaults = { idleWhen = "never", idleAlpha = 0.3,
 		track = "lightning",   -- lightning | water | either
@@ -65,11 +68,11 @@ local upShield
 local native
 local copy   -- one-charge copy's aura slot
 
-local setting = ns.elementSetting
-local function count(field) return setting("shield", "count", field) end
+local own = E.settingsOf("shield")
+local function count(field) return own("count", field) end
 
 local function tracksShield(key)
-	local track = setting("shield", "track")
+	local track = own("track")
 	return track == "either" or track == key
 end
 local function believedUp()
@@ -85,7 +88,7 @@ function SH.sanitize(_, acct)
 end
 
 local function shownShield()
-	local track, last = setting("shield", "track"), ns.getAccount().lastShield
+	local track, last = own("track"), P.getAccount().lastShield
 	if SHIELDS[track] then return track end
 	if SHIELDS[last] and SHIELDS[last].known then return last end
 	for _, key in ipairs(SHIELD_ORDER) do if SHIELDS[key].known then return key end end
@@ -163,7 +166,7 @@ local function stateNow()
 	if not ns.aurasReadNow() then
 		if GetTime() < holdUntil then return nil end
 	elseif believedUp() ~= false then return nil end
-	if blocked() then return setting("shield", "warn", "grey") and "grey" or nil end
+	if blocked() then return own("warn", "grey") and "grey" or nil end
 	return "warn"
 end
 
@@ -172,7 +175,7 @@ local function setLook(st)
 	if st ~= nil and lookState == nil then look:wait() end
 	lookState = st
 	local w = st == "warn"
-	local grey, tint, ring, fade, glow = ns.warnParts("shield", "warn")
+	local grey, tint, ring, fade, glow = W.warnParts("shield", "warn")
 	look:setParts(grey, w and tint, w and ring, w and fade, w and glow)
 	look:want(st ~= nil)
 end
@@ -209,7 +212,7 @@ end
 -- Idle puts the gate, and with it Blizzard's button, at the Idle opacity: set out of combat, held
 -- through a fight. The No shield look doesn't hang from the gate and shows in full.
 local function idleWhen()
-	local w = ns.elementSetting("shield", "idleWhen")
+	local w = own("idleWhen")
 	return (w == "up" or w == "charges") and w or "never"
 end
 local copyReady, full
@@ -218,9 +221,9 @@ local gateNow = 1
 local function applyIdle()
 	if InCombatLockdown() then return end
 	local when = idleWhen()
-	local on = when ~= "never" and lookOn and ns.getAccount().locked
+	local on = when ~= "never" and lookOn and P.getAccount().locked
 		and (when ~= "charges" or copyReady())
-	gateNow = on and ns.idleAlpha("shield") or 1
+	gateNow = on and E.idleAlpha("shield") or 1
 	gate:SetAlpha(gateNow)
 	full:SetAlpha((on and when == "charges") and 1 or 0)
 end
@@ -246,7 +249,7 @@ function SH.applyEmptyLook()
 		glowSchool = school
 		look.glow:restyle()
 	end
-	lookOn = (known and covered and ns.isEnabled("shield")) and true or false
+	lookOn = (known and covered and E.isEnabled("shield")) and true or false
 	if standIn then
 		-- The stand-in draws the state shown over everything, at full opacity while the real shield may be
 		-- up under it
@@ -277,7 +280,7 @@ local function shieldIDMap()
 end
 
 -- The sensor hangs from the element's frame, not the gate (which is 0 at Idle 0%)
-look = ns.makeClipLook(shield, {
+look = W.makeClipLook(shield, {
 	key = "shield", parent = holder, sensorParent = shield, ids = shieldIDMap, owner = "shield",
 	sites = {
 		container = "shield warning sensor", style = "shield warning style",
@@ -313,8 +316,8 @@ end
 
 -- Charges spent, cancelled or run out; a recast over a live shield stays silent
 function SH.applyRemovedSound()
-	local ids = ns.isEnabled("shield") and shieldIDMap() or nil
-	ns.Sounds.setAuraSound("shield", setting("shield", "warn", "sound"), ids)
+	local ids = E.isEnabled("shield") and shieldIDMap() or nil
+	ns.Sounds.setAuraSound("shield", own("warn", "sound"), ids)
 end
 
 function SH.resolve()
@@ -346,11 +349,11 @@ end
 
 local function barColor()
 	local c = count("barColor")
-	return ns.isColor(c) and c or ns.elementDefault("shield", "count", "barColor")
+	return ns.isColor(c) and c or E.default("shield", "count", "barColor")
 end
 local function markColor()
 	local c = count("markColor")
-	return ns.isColor(c) and c or ns.elementDefault("shield", "count", "markColor")
+	return ns.isColor(c) and c or E.default("shield", "count", "markColor")
 end
 
 local function countFont(fs, icon)
@@ -368,7 +371,7 @@ local function buildNative(slot, button, cd)
 	-- min 0: one charge is one third, not empty
 	local bar = Count.bar(slot, overlay, button)
 	ns.try("shield count bar", button.SetApplicationBar, button, bar, { minApplications = 0, maxApplications = CHARGES })
-	Count.styleBar(slot, ns.sizeOf("shield"), CHARGES, count("barHeight"), barColor(), count("bar"))
+	Count.styleBar(slot, E.sizeOf("shield"), CHARGES, count("barHeight"), barColor(), count("bar"))
 	slot.fs:SetAlpha(count("number") and 1 or 0)
 end
 
@@ -393,7 +396,7 @@ local function timeBarInset()
 	return count("bar") and count("barHeight") or 0
 end
 
-native = ns.makeAuraSlot(shield, {
+native = W.makeAuraSlot(shield, {
 	key = "shield", slot = "shield", ids = shieldIDMap, parent = gate,
 	name = ns.NAME .. "AuraContainer",
 	sites = { container = "shield container", style = "shield style", filter = "shield filter" },
@@ -420,7 +423,7 @@ full:SetAllPoints(shield)
 full:SetAlpha(0)
 
 local function placeClip(slot, button, size)
-	local reach = math.ceil(ns.Looks.outerEdge(shield)) + 2
+	local reach = math.ceil(ns.StyleArt.outerEdge(shield)) + 2
 	local step = size + 2 * reach + 2
 	local bar, clip = slot.sensor, slot.clip
 	bar:ClearAllPoints()
@@ -441,7 +444,7 @@ local function copyHost(slot, button)
 	local clip = CreateFrame("Frame", nil, button, "DisableUntrustedLayoutScriptsTemplate")
 	clip:SetClipsChildren(true)
 	slot.clip = clip
-	placeClip(slot, button, ns.sizeOf("shield"))
+	placeClip(slot, button, E.sizeOf("shield"))
 	slot.sensed = ns.try("shield copy sensor", button.SetApplicationBar, button, bar,
 		{ minApplications = 0, maxApplications = CHARGES, interpolation = IMMEDIATE })
 	local host = CreateFrame("Frame", nil, clip)
@@ -471,11 +474,11 @@ local function buildCopy(slot, button)
 	local bar = Count.bar(slot, parts, host)
 	bar:SetMinMaxValues(0, CHARGES)
 	bar:SetValue(1)
-	slot.built = ns.try("shield copy style", styleCopy, slot, ns.sizeOf("shield"))
+	slot.built = ns.try("shield copy style", styleCopy, slot, E.sizeOf("shield"))
 	C_Timer.After(0, SH.applyEmptyLook)
 end
 
-copy = ns.makeAuraSlot(shield, {
+copy = W.makeAuraSlot(shield, {
 	key = "shield", slot = "shieldcopy", ids = shieldIDMap, parent = full, level = IDLE_LEVEL,
 	host = copyHost, barInset = timeBarInset,
 	sites = { container = "shield copy container", style = "shield copy style",
@@ -491,7 +494,7 @@ copy = ns.makeAuraSlot(shield, {
 -- While a restyle for a new Size is queued the answer stays: a dragged Size slider mustn't flicker the gate
 local readyLast = false
 copyReady = function()
-	local ready = copy.built and copy.sensed and copy.size == ns.sizeOf("shield") and copy.filtered ~= nil
+	local ready = copy.built and copy.sensed and copy.size == E.sizeOf("shield") and copy.filtered ~= nil
 	if not ready and copy.built and copy.sensed and copy.size and copy.filtered and copy.styleSoon then
 		ready = readyLast
 	end
@@ -525,14 +528,14 @@ local function refreshAura()
 			end
 		end
 	end
-	if upKey then ns.getAccount().lastShield = upKey end
+	if upKey then P.getAccount().lastShield = upKey end
 	setUpShield(upKey or "none")
 end
 
 function SH.onCast(spellID)
 	local cast = castOf(spellID)
 	if not cast then return end
-	ns.getAccount().lastShield = cast
+	P.getAccount().lastShield = cast
 	if tracksShield(cast) then
 		holdUntil = GetTime() + CAST_HOLD
 		watch()
@@ -542,11 +545,11 @@ function SH.onCast(spellID)
 end
 
 -- The GCD gets its own sweep above the button (Blizzard's button owns the shield's time left)
-local shieldGCD = ns.makeGCDSweep(shield)
+local shieldGCD = W.makeGCDSweep(shield)
 shieldGCD:SetParent(gate)
 -- inCooldownEvent: from SPELL_UPDATE_COOLDOWN
 local function refreshGCD(inCooldownEvent)
-	local id = ns.isEnabled("shield") and ns.Style.value("shield", "gcd", "show")
+	local id = E.isEnabled("shield") and ns.Style.value("shield", "gcd", "show")
 		and SHIELDS[shownShield()].spellID
 	local d
 	if id and ns.Cooldowns.onGCD(id) then
@@ -565,7 +568,7 @@ function SH.applyLayout()
 	SH.applyRemovedSound()
 	native:setup()
 	look:setup()
-	if idleWhen() == "charges" and ns.isEnabled("shield") then copy:setup() end
+	if idleWhen() == "charges" and E.isEnabled("shield") then copy:setup() end
 	SH.style()
 	SH.applyEmptyLook()
 end
@@ -612,8 +615,8 @@ end
 -- /sf debug
 function SH.debug()
 	local up = believedUp()
-	say("shield tracking %s (last %s), up at the last read %s (shield up %s)", setting("shield", "track"),
-		ns.getAccount().lastShield, up == nil and "unknown" or tostring(up), tostring(upShield))
+	say("shield tracking %s (last %s), up at the last read %s (shield up %s)", own("track"),
+		P.getAccount().lastShield, up == nil and "unknown" or tostring(up), tostring(upShield))
 	say("no-shield look: %s, %s, state %s; button %s, cast hold %s", lookOn and "on" or "off",
 		ns.aurasReadNow() and "read decides too" or "sensor decides", tostring(lookState),
 		native.button and "made" or "not made", GetTime() < holdUntil and "on" or "off")
@@ -626,7 +629,7 @@ function SH.debug()
 		native.err and (", error: " .. native.err) or "")
 	say("no-shield sensor: %s", look:describe())
 	say("idle %s at %.2f, gate %.2f; one-charge copy %s%s, button %s, sensor %s, counts %s",
-		idleWhen(), ns.idleAlpha("shield"), gateNow, copy.container and "made" or "not made",
+		idleWhen(), E.idleAlpha("shield"), gateNow, copy.container and "made" or "not made",
 		copy.err and (" (error: " .. copy.err .. ")") or "", copy.built and "built" or "not made",
 		tostring(copy.sensed), tostring(copyReady()))
 	local t = {} for id in pairs(shieldIDMap()) do table.insert(t, tostring(id)) end table.sort(t)
@@ -641,18 +644,18 @@ local PREVIEW = {
 	warning = "down",
 	states = { { "up3", "3 charges" }, { "up2", "2 charges" }, { "up1", "1 charge" },
 		{ "down", "No shield" } },
-	render = function(ic, st, P)
-		P.reset(ic, SHIELDS[setting("shield", "track") == "water" and "water" or "lightning"].icon)
+	render = function(ic, st, kit)
+		kit.reset(ic, SHIELDS[own("track") == "water" and "water" or "lightning"].icon)
 		if st == "down" then
-			ic:SetWarnParts(ns.warnParts("shield", "warn"))
+			ic:SetWarnParts(W.warnParts("shield", "warn"))
 			return
 		end
 		local n = st == "up3" and 3 or st == "up2" and 2 or 1
-		P.frozen(ic.upT, 0.38, 600)
+		kit.frozen(ic.upT, 0.38, 600)
 		if count("bar") then
 			local c = barColor()
 			ic.bar:SetHeight(count("barHeight"))
-			P.setBar(ic, CHARGES, n, c[1], c[2], c[3], c[4])
+			kit.setBar(ic, CHARGES, n, c[1], c[2], c[3], c[4])
 		end
 		if count("number") then
 			ns.Media.setFont(ic.count, nil, count("size"))
@@ -674,4 +677,4 @@ local PREVIEW = {
 }
 ns.registerKind("shield", { preview = function() return PREVIEW end })
 
-ns.registerModule(SH)
+MOD.register(SH)

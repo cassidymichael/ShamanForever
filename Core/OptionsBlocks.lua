@@ -1,5 +1,6 @@
 -- Options kit: the standard blocks
 local _, ns = ...
+local E, G, Bars, P = ns.Elements, ns.Groups, ns.Bars, ns.Profiles
 
 local OP, Page = ns.Options, ns.Page
 local K = OP.kit
@@ -22,73 +23,73 @@ local function globalRow(p, label, tip, get, set, anchor, shown)
 	return row
 end
 
-local function ownStyle(p, owner, kind, after)
-	p:owns({ style = kind, owner = owner, after = after })
+local function ownStyle(p, owner, part, after)
+	p:owns({ style = part, owner = owner, after = after })
 end
 
-local function followRow(p, owner, kind, after, label, shown)
-	ownStyle(p, owner, kind, after)
+local function followRow(p, owner, part, after, label, shown)
+	ownStyle(p, owner, part, after)
 	return globalRow(p, label or "Same as Global", "Use the global style.",
-		function() local o = resolve(owner); return o ~= nil and ns.Style.follows(o, kind) end,
+		function() local o = resolve(owner); return o ~= nil and ns.Style.follows(o, part) end,
 		function(v)
 			local o = resolve(owner)
 			if o == nil then return end
-			ns.Style.setFollow(o, kind, v)
+			ns.Style.setFollow(o, part, v)
 			after()
-		end, kind, shown)
+		end, part, shown)
 end
 
-local function styleRows(p, owner, kind, after)
-	local St = ns.Style
-	ownStyle(p, owner, kind, after)
+local function styleRows(p, owner, part, after)
+	local S = ns.Style
+	ownStyle(p, owner, part, after)
 	local r = {}
-	function r.style() return St.read(resolve(owner), kind) end
-	function r.own() local o = resolve(owner); return o == nil or not St.follows(o, kind) end
+	function r.style() return S.read(resolve(owner), part) end
+	function r.own() local o = resolve(owner); return o == nil or not S.follows(o, part) end
 	function r.get(field)
-		if type(St.KINDS[kind].defaults[field]) == "table" then return function() return r.style()[field] end end
-		return function() return St.value(resolve(owner), kind, field) end
+		if type(S.PARTS[part].defaults[field]) == "table" then return function() return r.style()[field] end end
+		return function() return S.value(resolve(owner), part, field) end
 	end
 	function r.set(field) return function(v)
 		local o = resolve(owner)
 		if o == nil and owner ~= nil then return end
-		St.set(o, kind, field, v)
+		S.set(o, part, field, v)
 		after()
 	end end
 	return r
 end
 
--- Who can have their own style of kind: lead (Elements, Groups or nil), then the bars that can
-local function ownersText(lead, kind)
-	local names = ns.Bars.nouns(function(bar) return tContains(bar.kinds, kind) end, lead)
-	return (ns.Look.wordList(names):gsub("^%l", string.upper)) .. " can have their own."
+-- Who can have their own style of part: lead (Elements, Groups or nil), then the bars that can
+local function ownersText(lead, part)
+	local names = Bars.nouns(function(bar) return tContains(bar.parts, part) end, lead)
+	return (ns.OptionsArt.wordList(names):gsub("^%l", string.upper)) .. " can have their own."
 end
 
 -- A slider over a registered { min, max, step }; styleSlider: a style field's
 local function rangeSlider(p, r, label, tip, fmt, get, set, shown)
 	return p:slider(label, tip, r[1], r[2], r[3] or 1, fmt, get, set, shown)
 end
-local function styleSlider(p, kind, field, label, tip, fmt, get, set, shown)
-	return rangeSlider(p, ns.Style.KINDS[kind].ranges[field], label, tip, fmt, get, set, shown)
+local function styleSlider(p, part, field, label, tip, fmt, get, set, shown)
+	return rangeSlider(p, ns.Style.PARTS[part].ranges[field], label, tip, fmt, get, set, shown)
 end
 
-local function ownLine(p, kind)
-	p:text(function() return "Currently using their own: " .. table.concat(ns.Style.ownStyles(kind), ", ") end,
-		function() return #ns.Style.ownStyles(kind) > 0 end)
+local function ownLine(p, part)
+	p:text(function() return "Currently using their own: " .. table.concat(ns.Style.ownStyles(part), ", ") end,
+		function() return #ns.Style.ownStyles(part) > 0 end)
 end
 
-local function choiceRows(p, r, kind, field, label, tip, shown)
-	local St = ns.Style
-	local function now() return St.choice(kind, field, r.style()[field]) end
+local function choiceRows(p, r, part, field, label, tip, shown)
+	local S = ns.Style
+	local function now() return S.choice(part, field, r.style()[field]) end
 	local function key() return now().key end
 	local set = r.set(field)
 	local function list()
 		local out = {}
-		for _, e in ipairs(St.offered(kind, field, key())) do table.insert(out, { e.key, e.name }) end
+		for _, e in ipairs(S.offered(part, field, key())) do table.insert(out, { e.key, e.name }) end
 		return out
 	end
 	p:dropdown(label, tip, list, key, set, shown, 190, function(_, root)
 		root:SetScrollMode(400)
-		for i, sec in ipairs(St.sections(kind, field, key())) do
+		for i, sec in ipairs(S.sections(part, field, key())) do
 			if sec.name then
 				if i > 1 then root:CreateDivider() end
 				root:CreateTitle(sec.name)
@@ -99,7 +100,7 @@ local function choiceRows(p, r, kind, field, label, tip, shown)
 		end
 	end)
 	local f = p:row(22)
-	ns.Look.expBadge(f, St.field(kind, field).name):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
+	ns.OptionsArt.expBadge(f, S.field(part, field).name):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
 	p:add(f, 22, showWhen(function() return now().experimental end, shown))
 	return now
 end
@@ -107,13 +108,13 @@ end
 local function reloadLine(p, keys, verb, shown)
 	p:text(function()
 		local names = {}
-		for _, key in ipairs(keys()) do table.insert(names, ns.Look.elementName(key)) end
+		for _, key in ipairs(keys()) do table.insert(names, ns.OptionsArt.elementName(key)) end
 		return table.concat(names, " and ") .. " " .. verb(#names) .. " after a /reload."
 	end, showWhen(function() return #keys() > 0 end, shown))
 end
 
-local function isElement(owner) return type(owner) == "string" and ns.ELEMENTS[owner] ~= nil end
-local function barOf(owner) return type(owner) == "string" and ns.Bars.get(owner) or nil end
+local function isElement(owner) return type(owner) == "string" and E.ALL[owner] ~= nil end
+local function barOf(owner) return type(owner) == "string" and Bars.get(owner) or nil end
 
 -- Style block tiles: a bar's from its registration, an element's icon, else Global's
 local function tilesOf(owner)
@@ -124,13 +125,13 @@ local function tileIcon(owner)
 	local o = resolve(owner)
 	local tiles = tilesOf(o)
 	if tiles then return tiles.icon end
-	return isElement(o) and ns.ELEMENTS[o].icon or 136026
+	return isElement(o) and E.ALL[o].icon or 136026
 end
 local function tileBorder(owner)
 	local o = resolve(owner)
 	local tiles = tilesOf(o)
 	if tiles and tiles.border then return tiles.border() end
-	if isElement(o) then return ns.borderFor(o) end
+	if isElement(o) then return E.borderFor(o) end
 	return ns.Style.read(o, "border")
 end
 
@@ -138,7 +139,7 @@ end
 local PREVIEW_SIZE, SCHOOL_GAP = 40, 72
 local NO_FRAME = { look = "none" }
 local function previewTiles(f, owner, x, bySchool, framed)
-	local pool, held = ns.Look.tilePool, {}
+	local pool, held = ns.OptionsArt.tilePool, {}
 	f:HookScript("OnHide", function()
 		while #held > 0 do pool.release(table.remove(held)) end
 	end)
@@ -147,7 +148,7 @@ local function previewTiles(f, owner, x, bySchool, framed)
 		local schools = {}
 		if not isElement(o) and bySchool() then
 			local only = tilesOf(o) and tilesOf(o).schools
-			for _, sc in ipairs(ns.Look.SCHOOLS) do
+			for _, sc in ipairs(ns.OptionsArt.SCHOOLS) do
 				if not only or tContains(only, sc.key) then table.insert(schools, sc) end
 			end
 		end
@@ -160,7 +161,7 @@ local function previewTiles(f, owner, x, bySchool, framed)
 			local sc = schools[i]
 			t:wear(o, { border = border, frame = not framed and NO_FRAME or nil })
 			t:icon(sc and sc.icon or tileIcon(o))
-			t:school(sc and sc.key or isElement(o) and ns.Looks.elementSchool(o) or nil)
+			t:school(sc and sc.key or isElement(o) and ns.StyleArt.elementSchool(o) or nil)
 			t:point("LEFT", f, "LEFT", x0 + (i - 1) * SCHOOL_GAP, 0)
 		end
 		return held
@@ -183,8 +184,8 @@ local function borderRows(p, owner, after, label, shown)
 		p:add(f, 52, showWhen(r.own, shown), sync)
 	end
 	p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"), showWhen(r.own, shown))
-	look = choiceRows(p, r, "border", "look", "Border look", nil, showWhen(bordered, shown))
-	local function uses(part) return function() return bordered() and ns.Looks.uses(look(), part) end end
+	look = choiceRows(p, r, "border", "look", "Border style", nil, showWhen(bordered, shown))
+	local function uses(field) return function() return bordered() and ns.StyleArt.uses(look(), field) end end
 	styleSlider(p, "border", "size", "Border size", "Thickness in screen pixels.", px, r.get("size"), r.set("size"),
 		showWhen(uses("size"), shown))
 	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), showWhen(uses("color"), shown))
@@ -193,34 +194,34 @@ local function borderRows(p, owner, after, label, shown)
 	p:color("Cap colour", "Colour and opacity.", r.get("capColor"), r.set("capColor"), showWhen(uses("capColor"), shown))
 end
 
--- Art frames: kind "frame" round each icon, "groupframe" round a group or bar.
--- opts: shown; spacing = { get, set, min, max, size, enabled } offers a repeating look's spacing.
+-- Art frames: part "frame" round each icon, "groupframe" round a group or bar.
+-- opts: shown; spacing = { get, set, min, max, size, enabled } offers a repeating style's spacing.
 local NO_REACH = { left = 0, right = 0, top = 0, bottom = 0 }
-local function frameRows(p, owner, kind, after, opts)
+local function frameRows(p, owner, part, after, opts)
 	after = after or relayout
 	opts = opts or {}
-	local St, FR = ns.Style, ns.Frames
+	local S, FR = ns.Style, ns.Frames
 	local shown = opts.shown
 	local wip = p:row(22)
-	ns.Look.expBadge(wip, "Art frames"):SetPoint("LEFT", wip, "LEFT", LABEL_W, 0)
+	ns.OptionsArt.expBadge(wip, "Art frames"):SetPoint("LEFT", wip, "LEFT", LABEL_W, 0)
 	p:add(wip, 22, shown)
-	local r = styleRows(p, owner, kind, after)
-	if owner ~= nil then followRow(p, owner, kind, after, nil, shown) end
+	local r = styleRows(p, owner, part, after)
+	if owner ~= nil then followRow(p, owner, part, after, nil, shown) end
 	local own = showWhen(r.own, shown)
 	local function key() local o = resolve(owner); return type(o) == "string" and o or nil end
-	local function look() return St.look(kind, r.style().look) end
+	local function look() return S.look(part, r.style().look) end
 	local function framed() return not look().none end
 	local showAll = false
 	local function offered(all)
 		local out, cur, has = {}, look(), false
-		for _, e in ipairs(FR.available(kind, key(), all)) do
+		for _, e in ipairs(FR.available(part, key(), all)) do
 			table.insert(out, e)
 			if e == cur then has = true end
 		end
 		if not has then table.insert(out, cur) end
 		return out
 	end
-	if kind == "frame" then
+	if part == "frame" then
 		local f = p:row(52)
 		p:label(f, "Preview")
 		local function reach() return FR.usable(look()) and look().reach or NO_REACH end
@@ -236,7 +237,7 @@ local function frameRows(p, owner, kind, after, opts)
 		end)
 	end
 	local set = r.set("look")
-	local fields = St.field(kind, "look")
+	local fields = S.field(part, "look")
 	local function menu(_, root)
 		root:SetScrollMode(400)
 		local k = key()
@@ -249,7 +250,7 @@ local function frameRows(p, owner, kind, after, opts)
 			return at[id]
 		end
 		section("lead")
-		if k then section("mine", "Made for " .. ns.Look.elementName(k)) end
+		if k then section("mine", "Made for " .. ns.OptionsArt.elementName(k)) end
 		for _, g in ipairs(fields.groups) do section(g[1], g[2]) end
 		for _, e in ipairs(offered(showAll)) do
 			local m = FR.madeFor(e, k)
@@ -285,27 +286,29 @@ local function frameRows(p, owner, kind, after, opts)
 		return out
 	end, function() return look().key end, set, own, 190, menu)
 	local exp = p:row(22)
-	ns.Look.expBadge(exp, fields.name):SetPoint("LEFT", exp, "LEFT", LABEL_W, 0)
+	ns.OptionsArt.expBadge(exp, fields.name):SetPoint("LEFT", exp, "LEFT", LABEL_W, 0)
 	p:add(exp, 22, showWhen(function() return look().experimental end, own))
-	p:checkbox("Show all looks", "Also looks made for something else.", function() return showAll end,
+	p:checkbox("Show all styles", "Also styles made for something else.", function() return showAll end,
 		function(v) showAll = v; OP.refresh() end,
 		showWhen(function() return #offered(true) > #offered(false) end, own))
 	local tints = showWhen(function() return framed() and look().uses.color end, own)
-	p:color("Frame colour", "Tints the art. White keeps its own colours.", r.get("color"), r.set("color"), tints, true)
-	styleSlider(p, kind, "alpha", "Frame opacity", nil, pct, r.get("alpha"), r.set("alpha"), showWhen(framed, own))
-	if kind == "frame" and owner ~= nil then
-		-- What a solid look's wings need from its group's spacing
+	p:color("Art frame colour", "Tints the art. White keeps its own colours.", r.get("color"), r.set("color"), tints, true)
+	styleSlider(p, part, "alpha", "Art frame opacity", nil, pct, r.get("alpha"), r.set("alpha"), showWhen(framed, own))
+	if part == "frame" and owner ~= nil then
+		-- What a solid style's wings need from its group's spacing
 		local function room()
 			local o, l = resolve(owner), look()
 			if l.weight ~= "solid" or not FR.usable(l) then return nil end
-			local g = ns.groupOf(o)
+			local g = G.of(o)
 			if not (g and #g.members > 1) then return nil end
-			local rc, size = l.reach, ns.groupSize(g)
+			local rc, size = l.reach, G.size(g)
 			local n = g.orientation == "vertical" and rc.top + rc.bottom or rc.left + rc.right
 			n = math.ceil(n * size)
 			return n > 0 and n or nil
 		end
-		p:text(function() return string.format("Needs about %d spacing in its group to clear its neighbours.", room() or 0) end,
+		p:text(function()
+			return string.format("Needs about %d spacing in its group to clear its neighbours.", room() or 0)
+		end,
 			showWhen(function() return room() ~= nil end, own))
 	end
 	local sp = opts.spacing
@@ -339,25 +342,25 @@ local function frameRows(p, owner, kind, after, opts)
 end
 
 -- Whether a bar draws a group frame of its own
-local function barFramed(bar) return tContains(ns.Bars.get(bar).kinds, "groupframe") end
+local function barFramed(bar) return tContains(Bars.get(bar).parts, "groupframe") end
 
 -- popSchool is its own setting, not a style field, so it stays whether or not the element
 -- follows Global.
 local function popSchoolRow(p, key, shown)
 	local function get()
-		local v = ns.elementSetting(key, "popSchool")
+		local v = E.setting(key, "popSchool")
 		return ns.THEME.color[v] and v or "own"
 	end
 	local function set(v)
-		ns.elementOpts(key).popSchool = v ~= "own" and v or nil
+		E.opts(key).popSchool = v ~= "own" and v or nil
 		reglow()
 	end
 	p:owns({ elem = key, name = "popSchool", after = reglow })
 	local axis = ns.THEME.axis
 	p:dropdown(axis.name, "The " .. axis.lower .. " its pop and School material glow take.", function()
-		local own = ns.Looks.elementSchool(key, true)
+		local own = ns.StyleArt.elementSchool(key, true)
 		local out = { { "own", "Its own" } }
-		for _, sc in ipairs(ns.Look.SCHOOLS) do
+		for _, sc in ipairs(ns.OptionsArt.SCHOOLS) do
 			table.insert(out, { sc.key, sc.name })
 			if sc.key == own then out[1][2] = "Its own (" .. sc.name .. ")" end
 		end
@@ -381,7 +384,7 @@ local function glowBlock(p, owner)
 	p:add(f, 64, own, function()
 		for _, t in ipairs(sync()) do t:glow(true) end
 	end)
-	look = choiceRows(p, r, "glow", "look", "Look", nil, own)
+	look = choiceRows(p, r, "glow", "look", "Style", nil, own)
 	if isElement(owner) then popSchoolRow(p, owner, showWhen(function() return look().bySchool end)) end
 	reloadLine(p, function() return ns.Effects.auraGlowStale(owner) end,
 		function(n) return n == 1 and "changes glow" or "change glow" end, own)
@@ -421,14 +424,14 @@ local function popBlock(p, owner, kind)
 		for _, t in ipairs(sync()) do t:pop(kind) end
 	end
 	local after = perFrame(function()
-		ns.applyTimers()
+		E.applyTimers()
 		OP.refresh()
 		if f and f:IsVisible() then playPop() end
 	end)
 	p:header("Pop style")
 	local r = styleRows(p, owner, "pop", after)
 	-- Colour is for Ready and Ran out only; a warning's pop keeps its own.
-	local colored = ns.Looks.POP_KINDS[kind].byStyle
+	local colored = ns.StyleArt.POP_KINDS[kind].byStyle
 	local function burst() return ns.Style.choice("pop", "burst", r.style().burst) end
 	local function bySchool()
 		return (colored and r.style().colorBy == "school") or burst().bySchool or false
@@ -454,7 +457,8 @@ local function popBlock(p, owner, kind)
 	if isElement(owner) then popSchoolRow(p, owner, showWhen(bySchool)) end
 	if colored then
 		local color = choiceRows(p, r, "pop", "colorBy", "Colour", ns.CLASS.help.popColour, own)
-		p:text("By school suits this burst.", showWhen(function() return color().key == "event" and burst().bySchool end, own))
+		p:text("By school suits this burst.",
+			showWhen(function() return color().key == "event" and burst().bySchool end, own))
 	end
 	choiceRows(p, r, "pop", "flash", "Flash", "Over the icon.", own)
 	local axis = ns.THEME.axis
@@ -534,22 +538,22 @@ local function barBlock(p)
 end
 
 local TEXT_POS = { { "auto", "Auto" }, { "center", "Centre" }, { "topleft", "Top left" }, { "bottom", "Bottom" } }
-local function timerSettings(p, title, key, kind, after, note, first, barPlaced)
+local function timerSettings(p, title, key, part, after, note, first, barPlaced)
 	after = after or retime
-	local cant = ns.Timer.cant(key, kind)
+	local cant = ns.Timer.cant(key, part)
 	p:header(title)
-	local r = styleRows(p, key, kind, after)
+	local r = styleRows(p, key, part, after)
 	local style, tg, ts, own = r.style, r.get, r.set, r.own
-	local function part(name) return showWhen(function() return not cant[name] and own() end) end
+	local function canHave(name) return showWhen(function() return not cant[name] and own() end) end
 	local function on(field) return function() return style()[field] end end
-	if not key then p:anchor(kind) end
+	if not key then p:anchor(part) end
 	if first then first() end
 	if note then p:text(note) end
-	if key then followRow(p, key, kind, after) end
+	if key then followRow(p, key, part, after) end
 	for _, why in pairs(cant) do p:text(why, own) end
-	local text = p:checkbox("Countdown text", "Numbers counting down.", tg("text"), ts("text"), part("text"))
+	local text = p:checkbox("Countdown text", "Numbers counting down.", tg("text"), ts("text"), canHave("text"))
 	p:sub(text, on("text"), function()
-		styleSlider(p, kind, "textSize", "Text size", nil, int, tg("textSize"), ts("textSize"))
+		styleSlider(p, part, "textSize", "Text size", nil, int, tg("textSize"), ts("textSize"))
 		p:color("Text colour", nil, tg("textColor"), ts("textColor"))
 		p:dropdown("Text position", "Auto: centred, or top-left on an icon that also shows a cooldown.", TEXT_POS,
 			tg("textPos"), ts("textPos"), nil, 140)
@@ -561,24 +565,25 @@ local function timerSettings(p, title, key, kind, after, note, first, barPlaced)
 			ts("timeColors"))
 		local function seconds(v) return string.format("%d s", v) end
 		p:sub(colored, on("timeColors"), function()
-			styleSlider(p, kind, "soon", "Soon", "Seconds left when the first colour starts.", seconds, tg("soon"),
+			styleSlider(p, part, "soon", "Soon", "Seconds left when the first colour starts.", seconds, tg("soon"),
 				ts("soon"))
 			p:color("Soon colour", nil, tg("soonColor"), ts("soonColor"), nil, true)
-			styleSlider(p, kind, "now", "Now", "Seconds left when the second colour starts.", seconds, tg("now"),
+			styleSlider(p, part, "now", "Now", "Seconds left when the second colour starts.", seconds, tg("now"),
 				ts("now"))
 			p:color("Now colour", nil, tg("nowColor"), ts("nowColor"), nil, true)
 		end)
-		styleSlider(p, kind, "tenths", "Tenths below", "Tenths of a second under this many seconds.",
+		styleSlider(p, part, "tenths", "Tenths below", "Tenths of a second under this many seconds.",
 			function(v) return v == 0 and "Off" or seconds(v) end, tg("tenths"), ts("tenths"))
 	end)
-	local swipe = p:checkbox("Swipe", "A shade that sweeps round the icon.", tg("swipe"), ts("swipe"), part("swipe"))
+	local swipe = p:checkbox("Swipe", "A shade that sweeps round the icon.", tg("swipe"), ts("swipe"), canHave("swipe"))
 	p:sub(swipe, on("swipe"), function()
-		styleSlider(p, kind, "swipeAlpha", "Swipe darkness", nil, pct, tg("swipeAlpha"), ts("swipeAlpha"))
-		p:checkbox("Swipe darkens as time runs out", "Off: it lightens, like most cooldowns.", tg("swipeReverse"), ts("swipeReverse"))
+		styleSlider(p, part, "swipeAlpha", "Swipe darkness", nil, pct, tg("swipeAlpha"), ts("swipeAlpha"))
+		p:checkbox("Swipe darkens as time runs out", "Off: it lightens, like most cooldowns.", tg("swipeReverse"),
+			ts("swipeReverse"))
 	end)
-	local bar = p:checkbox("Time bar", "A bar along an edge that drains.", tg("bar"), ts("bar"), part("bar"))
+	local bar = p:checkbox("Time bar", "A bar along an edge that drains.", tg("bar"), ts("bar"), canHave("bar"))
 	p:sub(bar, on("bar"), function()
-		styleSlider(p, kind, "barHeight", "Bar height", nil, px, tg("barHeight"), ts("barHeight"))
+		styleSlider(p, part, "barHeight", "Bar height", nil, px, tg("barHeight"), ts("barHeight"))
 		p:dropdown("Bar edge", nil, { { "bottom", "Bottom" }, { "top", "Top" } }, tg("barEdge"), ts("barEdge"),
 			function() return not (barPlaced and barPlaced()) end, 140)
 		local colour = p:dropdown("Bar colour", nil, { { true, ns.THEME.axis.name .. " colour" }, { false, "Custom" } },
@@ -587,12 +592,12 @@ local function timerSettings(p, title, key, kind, after, note, first, barPlaced)
 			p:color("Custom bar colour", nil, tg("barColor"), ts("barColor"))
 		end)
 	end)
-	if not key then ownLine(p, kind) end
+	if not key then ownLine(p, part) end
 end
 
 -- Bars take it with their timers' style
 local function gcdBlock(p, key)
-	local function after() ns.applyTimers(); ns.refreshAll(); OP.refresh() end
+	local function after() E.applyTimers(); E.refreshAll(); OP.refresh() end
 	p:header("Global cooldown")
 	local r = styleRows(p, key, "gcd", after)
 	if key then followRow(p, key, "gcd", after)
@@ -600,7 +605,8 @@ local function gcdBlock(p, key)
 		p:anchor("gcd")
 		p:text(ownersText("Elements", "gcd"))
 	end
-	p:checkbox("Show global cooldown", "The sweep after every cast, as on action bars.", r.get("show"), r.set("show"), showWhen(r.own))
+	p:checkbox("Show global cooldown", "The sweep after every cast, as on action bars.", r.get("show"), r.set("show"),
+		showWhen(r.own))
 	if not key then ownLine(p, "gcd") end
 end
 
@@ -612,82 +618,85 @@ K.textBlock, K.barRows, K.barBlock = textBlock, barRows, barBlock
 
 -- Element blocks
 local SHOW_CHOICES = K.SHOW_CHOICES
-local function db() return ns.getDB() end
+local function db() return P.getDB() end
 -- An element's setting: name, or a field of its state or event table name (_Profiles)
 function K.eopt(p, key, name, field, after)
 	after = after or relayout
 	p:owns({ elem = key, name = name, field = field, after = after })
-	return function() return ns.elementSetting(key, name, field) end,
-		function(v) ns.setElementSetting(key, name, field, v); after() end
+	return function() return E.setting(key, name, field) end,
+		function(v) E.setSetting(key, name, field, v); after() end
 end
 local eopt = K.eopt
-local function eread(key, name, field) return function() return ns.elementSetting(key, name, field) end end
+local function eread(key, name, field) return function() return E.setting(key, name, field) end end
 -- A slider over the setting's registered range
 local function eslider(p, key, label, tip, fmt, shown, name, field)
 	local get, set = eopt(p, key, name, field)
-	return rangeSlider(p, ns.elementRange(key, name, field), label, tip, fmt, get, set, shown)
+	return rangeSlider(p, E.range(key, name, field), label, tip, fmt, get, set, shown)
 end
 
 -- An element's group menu: its groups, or New group; after() follows a choice
 local function groupMenu(key, after)
 	return function(_, root)
 		for _, g in ipairs(db().groups) do
-			root:CreateRadio(g.name, function() return ns.groupOf(key) == g end, function()
-				if ns.groupOf(key) ~= g then ns.placeElement(key, g.id) end
+			root:CreateRadio(g.name, function() return G.of(key) == g end, function()
+				if G.of(key) ~= g then G.placeElement(key, g.id) end
 				if after then after() end
 			end)
 		end
 		root:CreateButton("New group", function()
-			ns.placeElement(key, "new")
+			G.placeElement(key, "new")
 			if after then after() end
 		end)
 	end
 end
 
-local SHOW_TIP_PAGE = "Choosing Always or In combat again puts it back where it was. Groups have their own Show on the Groups & Layout page; an element shows only when both allow it. Everything visible shows while positioning is unlocked."
+local SHOW_TIP_PAGE = "Choosing Always or In combat again puts it back where it was. Groups have their own Show on "
+	.. "the Groups & Layout page; an element shows only when both allow it. Everything visible shows while "
+	.. "positioning is unlocked."
 
 -- Every element page in one order: header, Display, Idle, own settings, standard blocks.
 local function elementDisplay(p, key)
 	p.resetAll = {
-		text = function() return "Reset " .. ns.Look.elementName(key) end,
+		text = function() return "Reset " .. ns.OptionsArt.elementName(key) end,
 		ask = function() ns.ElementPages.askReset(key) end,
 	}
 	p:hero(key)
 	p:callout("Not learned yet. It shows on screen once your character knows the spell.",
-		function() return not ns.isLearned(key) and not ns.Spells.otherRace(ns.ELEMENTS[key].race) end)
+		function() return not E.isLearned(key) and not ns.Spells.otherRace(E.ALL[key].race) end)
 	p:callout("Not your race. It shows on screen only for the races that have this spell.",
-		function() return not ns.isLearned(key) and ns.Spells.otherRace(ns.ELEMENTS[key].race) end)
+		function() return not E.isLearned(key) and ns.Spells.otherRace(E.ALL[key].race) end)
 	p:header("Display", nil, nil, nil, { open = true })
-	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return ns.showMode(key) end,
-		function(v) ns.setShow(key, v) end, nil, 140)
-	local function showDefault() return ns.elementDefault(key, "show") or "always" end
+	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return E.showMode(key) end,
+		function(v) E.setShow(key, v) end, nil, 140)
+	local function showDefault() return E.default(key, "show") or "always" end
 	p:owns({ elem = key, name = "show", label = "Show", default = showDefault, reset = function()
 		if InCombatLockdown() then return false end
-		ns.setShow(key, showDefault())
+		E.setShow(key, showDefault())
 	end })
 	p:text("Hidden keeps its place in its group.")
-	local groupRow = p:dropdown("Group", "Which group it sits in. Groups are arranged on the Groups & Layout page; ungrouped elements aren't on screen.",
-		{}, function() local g = ns.groupOf(key); return g and g.id .. ":" .. g.name or "" end, function() end, nil, 140,
+	local groupRow = p:dropdown("Group",
+		"Which group it sits in. Groups are arranged on the Groups & Layout page; ungrouped elements aren't on screen.",
+		{}, function() local g = G.of(key); return g and g.id .. ":" .. g.name or "" end, function() end, nil, 140,
 		groupMenu(key))
 	pcall(groupRow.dropdown.SetDefaultText, groupRow.dropdown, "Ungrouped")
 	local edit = CreateFrame("Button", nil, groupRow, "UIPanelButtonTemplate")
 	edit:SetSize(110, 22)
 	edit:SetPoint("LEFT", groupRow.dropdown, "RIGHT", 8, 0)
 	edit:SetText("Group settings")
-	edit:SetScript("OnClick", function() local g = ns.groupOf(key); if g then ns.Options.openGroup(g.id) end end)
+	edit:SetScript("OnClick", function() local g = G.of(key); if g then ns.Options.openGroup(g.id) end end)
 	setTip(edit, "Group settings", "This group's settings on the Groups & Layout page.")
 	local item = p.items[#p.items]
 	local refresh = item.refresh
 	item.refresh = function()
 		refresh()
-		edit:SetShown(ns.groupOf(key) ~= nil)
+		edit:SetShown(G.of(key) ~= nil)
 	end
 end
 
 -- Idle block, from the element's def (idleChoices, idleText, idleExtra).
 local function idleBlock(p, def)
 	local key, choices = def.key, def.idleChoices
-	local function when() return ns.elementSetting(key, "idleWhen") end
+	local function when() return E.setting(key, "idleWhen") end
 	local function never() return choices ~= nil and when() == "never" end
 	p:header("Idle")
 	local hidden = ". At 0% it's hidden and keeps its place in the group."
@@ -720,13 +729,13 @@ local function idleBlock(p, def)
 		choices and showWhen(function() return not never() end) or nil, "idleAlpha")
 end
 
-local function lookBlocks(p, key)
-	local e = ns.ELEMENTS[key]
+local function styleBlocks(p, key)
+	local e = E.ALL[key]
 	if e.effects.glow then glowBlock(p, key) end
 	if e.effects.pop then popBlock(p, key, e.effects.popKind or "ready") end
 	p:header("Border style")
 	K.borderRows(p, key, relayout)
-	p:header("Frame style")
+	p:header("Art frame style")
 	K.frameRows(p, key, "frame", relayout)
 end
 
@@ -735,13 +744,13 @@ end
 -- opts.tips: a row's tip by field, over the standard one.
 local function store(p, owner, after)
 	local s = {}
-	if ns.ELEMENTS[owner] then
+	if E.ALL[owner] then
 		function s.get(name, field) return eread(owner, name, field) end
 		function s.opt(name, field) return eopt(p, owner, name, field, after) end
-		function s.default(name) return ns.elementDefault(owner, name) end
-		function s.range(name, field) return ns.elementRange(owner, name, field) end
+		function s.default(name) return E.default(owner, name) end
+		function s.range(name, field) return E.range(owner, name, field) end
 	else
-		local bar = ns.Bars.get(owner)
+		local bar = Bars.get(owner)
 		after = after or relayout
 		function s.get(name, field)
 			return function()
@@ -783,20 +792,20 @@ local function check(p, s, name, field, label, tip, shown)
 end
 -- A sound menu with Play beside it; choices(current): its list (every sound by default)
 local function soundPicker(p, label, tip, get, set, shown, choices)
-	local Sounds = ns.Sounds
-	choices = choices or Sounds.choices
+	local SN = ns.Sounds
+	choices = choices or SN.choices
 	local row = p:dropdown(label, tip, function() return choices(get()) end, function() return get() or "none" end,
-		function(v) set(v); Sounds.test(v) end, shown, 200)
+		function(v) set(v); SN.test(v) end, shown, 200)
 	local play = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
 	play:SetSize(60, 22)
 	play:SetPoint("LEFT", row.dropdown, "RIGHT", 8, 0)
 	play:SetText("Play")
-	play:SetScript("OnClick", function() Sounds.test(get()) end)
+	play:SetScript("OnClick", function() SN.test(get()) end)
 	local item = p.items[#p.items]
 	local refresh = item.refresh
 	item.refresh = function()
 		refresh()
-		play:SetEnabled(Sounds.playable(get()))
+		play:SetEnabled(SN.playable(get()))
 	end
 	return row
 end
@@ -814,12 +823,12 @@ local function hasSound(t)
 	return false
 end
 local function soundsBlock(p)
-	local Sounds = ns.Sounds
-	local owners = ns.Bars.nouns(function(bar) return hasSound(bar.defaults or {}) end, "Elements")
+	local SN = ns.Sounds
+	local owners = Bars.nouns(function(bar) return hasSound(bar.defaults or {}) end, "Elements")
 	p:header("Sounds")
-	p:text(ns.Look.wordList(owners) .. " pick their own sounds, on their pages. All start at None.")
-	p:dropdown("Channel", "Master plays even with sound effects off.", Sounds.CHANNELS, Sounds.channel, function(v)
-		Sounds.setChannel(v)
+	p:text(ns.OptionsArt.wordList(owners) .. " pick their own sounds, on their pages. All start at None.")
+	p:dropdown("Channel", "Master plays even with sound effects off.", SN.CHANNELS, SN.channel, function(v)
+		SN.setChannel(v)
 		OP.refresh()
 	end, nil, 160)
 end
@@ -915,7 +924,8 @@ local function expiringBlock(p, owner, opts)
 			check(p, s, "ended", "glow", "Pulsing glow", "In its colour.")
 		end)
 	else
-		check(p, s, "ended", "pop", "Pop when it runs out", tipOf(opts, "endPop", "It pops and fades the moment it runs out."))
+		check(p, s, "ended", "pop", "Pop when it runs out",
+			tipOf(opts, "endPop", "It pops and fades the moment it runs out."))
 	end
 	soundRow(p, s, "ended", "Sound when it ends", tipOf(opts, "endSound"))
 end
@@ -948,7 +958,8 @@ local function reagentBlocks(p, def)
 	local countGet, countSet = eopt(p, key, "reagent", "when")
 	p:dropdown("Show count", "How many you carry, on the icon.", COUNT_WHEN, countGet, countSet, nil, 170)
 	local counted = showWhen(function() return countGet() ~= "never" end)
-	eslider(p, key, "Low at", "At this many or fewer, the count takes the low colour, and Idle can count it as running low.",
+	eslider(p, key, "Low at",
+		"At this many or fewer, the count takes the low colour, and Idle can count it as running low.",
 		int, nil, "reagent", "low")
 	local colorGet, colorSet = eopt(p, key, "reagent", "color")
 	p:color("Count colour", "While you have enough.", colorGet, colorSet, counted)
@@ -978,7 +989,7 @@ end
 
 K.eread, K.eslider, K.COUNT_POINTS = eread, eslider, COUNT_POINTS
 K.toggleBlock = toggleBlock
-K.elementDisplay, K.idleBlock, K.lookBlocks, K.reagentBlocks = elementDisplay, idleBlock, lookBlocks, reagentBlocks
+K.elementDisplay, K.idleBlock, K.styleBlocks, K.reagentBlocks = elementDisplay, idleBlock, styleBlocks, reagentBlocks
 K.soundsBlock, K.groupMenu = soundsBlock, groupMenu
 K.warnBlock, K.readyBlock, K.activeBlock, K.expiringBlock, K.killedBlock = warnBlock, readyBlock, activeBlock,
 	expiringBlock, killedBlock

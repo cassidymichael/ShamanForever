@@ -3,8 +3,11 @@
 -- Earth slot unknown after a login or /reload in combat: nothing warns until it can be read.
 
 local _, ns = ...
+local P = ns.Profiles
+local W = ns.Widgets
+local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
-local Spells, Totems = ns.Spells, ns.Totems
+local Spells, TO = ns.Spells, ns.Totems
 
 local TR = { name = "tremor" }
 ns.Tremor = TR
@@ -18,20 +21,21 @@ TR.WORD = "Tremor!"
 local TREMOR_TYPES = { FEAR = true, FEAR_MECHANIC = true, CHARM = true, POSSESS = true, SLEEP = true }
 local tremorSpells = {}
 
-local function setting(name, field) return ns.elementSetting(KEY, name, field) end
+local own = E.settingsOf(KEY)
 local plain = ns.plain
 
-local WORD_POINTS = { below = { "TOP", "BOTTOM", -4 }, above = { "BOTTOM", "TOP", 4 }, center = { "CENTER", "CENTER", 0 } }
+local WORD_POINTS = { below = { "TOP", "BOTTOM", -4 }, above = { "BOTTOM", "TOP", 4 },
+	center = { "CENTER", "CENTER", 0 } }
 local WORD_COLOR = { 1, 0.82, 0, 1 }
 local function num(name, fallback)
-	local v = setting(name)
+	local v = own(name)
 	if type(v) ~= "number" or v ~= v then return fallback end
 	return v
 end
 local function styleWord(fs, icon)
-	local pt = WORD_POINTS[setting("wordPos")] or WORD_POINTS.below
-	ns.placeScaledText(fs, icon, num("wordSize", 16), pt[1], num("wordX", 0), pt[3] + num("wordY", 0), pt[2])
-	local c = setting("wordColor")
+	local pt = WORD_POINTS[own("wordPos")] or WORD_POINTS.below
+	W.placeScaledText(fs, icon, num("wordSize", 16), pt[1], num("wordX", 0), pt[3] + num("wordY", 0), pt[2])
+	local c = own("wordColor")
 	if not ns.isColor(c) then c = WORD_COLOR end
 	fs:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 end
@@ -53,7 +57,7 @@ for _, c in ipairs(def.idleChoices) do table.insert(def.choices.idleWhen, c[1]) 
 def.spell = Spells.name(def.spellKey)
 def.icon = Spells.icon(def.spellKey) or def.icon
 
-local f = ns.newElementIcon(KEY, { effects = true })
+local f = E.newIcon(KEY, { effects = true })
 f.tex:SetTexture(def.icon)
 f.upTimer = ns.Timer.new(f, KEY, "uptime", { cd = f.cd, school = def.school })
 f.word = f.textFrame:CreateFontString(nil, "OVERLAY")
@@ -63,7 +67,7 @@ f.word:Hide()
 f.stack()
 def.frame = f
 
-ns.registerElement(KEY, { frame = f, label = def.spell, defaults = def.defaults, ranges = def.ranges,
+E.register(KEY, { frame = f, label = def.spell, defaults = def.defaults, ranges = def.ranges,
 	choices = def.choices,
 	learned = function() return def.spellID ~= nil end,
 	paint = function(t) t:SetTexture(def.iconID or def.icon) end,
@@ -77,7 +81,7 @@ ns.registerElement(KEY, { frame = f, label = def.spell, defaults = def.defaults,
 local listIDs, listNames = {}, {}
 local rows = {}
 local counts = { mobs = 0, added = 0, removed = 0 }
-local function edits() return ns.getAccount().fearCasters end
+local function edits() return P.getAccount().fearCasters end
 
 local zoneNames = {}
 local function zoneName(areaID)
@@ -199,15 +203,15 @@ local holdUntil = 0
 local controlSeen = {}
 
 local function checkTarget()
-	targetListed = setting("tremorTarget") and listed("target") == true or false
+	targetListed = own("tremorTarget") and listed("target") == true or false
 end
 
 local function checkPlate(unit)
-	plates[unit] = setting("tremorPlates") and listed(unit) == true or nil
+	plates[unit] = own("tremorPlates") and listed(unit) == true or nil
 end
 local function checkAllPlates()
 	wipe(plates)
-	if not setting("tremorPlates") then return end
+	if not own("tremorPlates") then return end
 	for i = 1, 40 do checkPlate("nameplate" .. i) end
 end
 
@@ -237,7 +241,7 @@ local function readControl()
 		if type(d) == "table" then
 			local bySpell, byType = controlMatch(d)
 			noteControl(d, bySpell, byType)
-			if setting("tremorFeared") and bySpell then feared = true end
+			if own("tremorFeared") and bySpell then feared = true end
 		end
 	end
 	if was and not feared then holdUntil = GetTime() + HOLD end
@@ -246,9 +250,9 @@ end
 local function tremorOut()
 	local dur = plain(safe(GetTotemDuration, EARTH))
 	if dur == nil then return false end
-	local key, how, icon = Totems.identify(EARTH)
+	local key, how, icon = TO.identify(EARTH)
 	if key == nil and how == "slot icon" and (icon == def.iconID or icon == def.icon) then
-		Totems.setOwner(EARTH, "tremor")
+		TO.setOwner(EARTH, "tremor")
 		key = "tremor"
 	end
 	if key == nil and how == "unknown" then return nil, dur end
@@ -260,17 +264,17 @@ local alerting = false
 local why
 
 local function setAlert(on)
-	f:SetGlowShown(on and setting("active", "glow"))
-	f.word:SetShown(on and setting("active", "text") and true or false)
+	f:SetGlowShown(on and own("active", "glow"))
+	f.word:SetShown(on and own("active", "text") and true or false)
 	if on and not alerting then
-		if setting("active", "pop") then f:Pop("ready") end
-		ns.Sounds.play(setting("active", "sound"), KEY, SOUND_GAP)
+		if own("active", "pop") then f:Pop("ready") end
+		ns.Sounds.play(own("active", "sound"), KEY, SOUND_GAP)
 	end
 	alerting = on
 end
 
 local function refresh()
-	if not ns.isEnabled(KEY) then
+	if not E.isEnabled(KEY) then
 		if alerting then setAlert(false) end
 		return
 	end
@@ -279,7 +283,7 @@ local function refresh()
 		f.tex:SetDesaturated(true)
 		f.upTimer:clear()
 		setAlert(false)
-		ns.fadeTo(f, 1)
+		W.fadeTo(f, 1)
 		return
 	end
 	f.tex:SetDesaturated(false)
@@ -292,8 +296,8 @@ local function refresh()
 		why = targetListed and "target" or next(plates) and "nameplate" or feared and "on you" or "just after"
 	end
 	setAlert(want)
-	local busy = want or not ns.getAccount().locked or (out and setting("idleWhen") == "notdown")
-	ns.fadeTo(f, busy and 1 or ns.idleAlpha(KEY))
+	local busy = want or not P.getAccount().locked or (out and own("idleWhen") == "notdown")
+	W.fadeTo(f, busy and 1 or E.idleAlpha(KEY))
 end
 TR.refresh = refresh
 
@@ -390,7 +394,7 @@ end
 
 function TR.resolve()
 	def.spell = Spells.name(def.spellKey)
-	ns.ELEMENTS[KEY].label = def.spell
+	E.ALL[KEY].label = def.spell
 	def.spellID, def.iconID = Spells.known(def.spellKey)
 	return tostring(def.spellID)
 end
@@ -453,7 +457,7 @@ function TR.debug()
 	for _ in pairs(plates) do plateCount = plateCount + 1 end
 	say("%s: spell %s, warning %s%s, Tremor out %s (slot owner %s, duration %s)", def.spell, tostring(def.spellID),
 		tostring(alerting), alerting and (" (" .. tostring(why) .. ")") or "",
-		out == nil and "unknown" or tostring(out), tostring(Totems.ownerOf(EARTH)), dur and "yes" or "none")
+		out == nil and "unknown" or tostring(out), tostring(TO.ownerOf(EARTH)), dur and "yes" or "none")
 	say("  list: %d mobs (%d added, %d removed); listed target %s, listed nameplates %d; hidden identities seen %d",
 		counts.mobs, counts.added, counts.removed, tostring(targetListed), plateCount, hiddenSeen)
 	if plain(safe(UnitExists, "target")) then
@@ -479,9 +483,9 @@ local PREVIEW = {
 	uptime = true,
 	typical = "idle", warning = "warn",
 	states = { { "warn", "Warning" }, { "down", "Tremor down" }, { "idle", "Not down, no warning" } },
-	pop = function(ic, st) if st == "warn" and setting("active", "pop") then ic:Pop("ready") end end,
-	render = function(ic, st, P)
-		P.reset(ic, def.iconID or def.icon)
+	pop = function(ic, st) if st == "warn" and own("active", "pop") then ic:Pop("ready") end end,
+	render = function(ic, st, kit)
+		kit.reset(ic, def.iconID or def.icon)
 		if not ic.word then
 			local clip = CreateFrame("Frame", nil, ic:GetParent())
 			clip:SetAllPoints(ic:GetParent())
@@ -494,15 +498,15 @@ local PREVIEW = {
 		styleWord(ic.word, ic)
 		ic.word:Hide()
 		if st == "warn" then
-			ic:SetGlowShown(setting("active", "glow"))
-			ic.word:SetShown(setting("active", "text") and true or false)
+			ic:SetGlowShown(own("active", "glow"))
+			ic.word:SetShown(own("active", "text") and true or false)
 			return
 		end
 		if st == "down" then
-			P.frozen(ic.upT, 0.3, 300)
-			if setting("idleWhen") == "notdown" then return end
+			kit.frozen(ic.upT, 0.3, 300)
+			if own("idleWhen") == "notdown" then return end
 		end
-		P.idle(ic, KEY)
+		kit.idle(ic, KEY)
 	end,
 	standIn = function(ic)
 		ic.word = ic.textFrame:CreateFontString(nil, "OVERLAY")
@@ -512,4 +516,4 @@ local PREVIEW = {
 }
 ns.registerKind("tremor", { preview = function() return PREVIEW end })
 
-ns.registerModule(TR)
+MOD.register(TR)

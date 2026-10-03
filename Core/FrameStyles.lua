@@ -1,4 +1,4 @@
--- Frame looks: data only. Client art by file ID or atlas, ours by path in Art\Frames\.
+-- Frame styles: data only. Client art by file ID or atlas, ours by path in Art\Frames\.
 -- Sizes and holes are in texels of the piece as drawn (after coords).
 
 local _, ns = ...
@@ -6,28 +6,28 @@ local _, ns = ...
 local FR = ns.Frames
 
 -- Round one icon
-FR.addLook("stormwings", { name = "Storm-grey wings", group = "blizzard", weight = "wispy", tint = true,
+FR.addStyle("stormwings", { name = "Storm-grey wings", group = "blizzard", weight = "wispy", tint = true,
 	art = { file = 629199, size = { 256, 128 } }, hole = { 106, 43, 44, 44 } })
-FR.addLook("gale", { name = "Gale", group = "blizzard", weight = "wispy",
+FR.addStyle("gale", { name = "Gale", group = "blizzard", weight = "wispy",
 	art = { file = 4880072, size = { 256, 128 } }, hole = { 110, 45, 41, 41 } })
-FR.addLook("flamewings", { name = "Flame wings", group = "blizzard", weight = "wispy",
+FR.addStyle("flamewings", { name = "Flame wings", group = "blizzard", weight = "wispy",
 	art = { file = 4880073, size = { 256, 128 } }, hole = { 110, 45, 41, 41 } })
-FR.addLook("tide", { name = "Tide", group = "blizzard", weight = "solid",
+FR.addStyle("tide", { name = "Tide", group = "blizzard", weight = "solid",
 	art = { file = 4880074, size = { 256, 128 } }, hole = { 110, 45, 41, 41 } })
-FR.addLook("marblegold", { name = "Marble and gold", group = "blizzard", weight = "solid",
+FR.addStyle("marblegold", { name = "Marble and gold", group = "blizzard", weight = "solid",
 	art = { file = 3853104, size = { 256, 128 } }, hole = { 106, 41, 43, 43 } })
-FR.addLook("achgold", { name = "Achievement gold", group = "blizzard", weight = "solid", tint = true,
+FR.addStyle("achgold", { name = "Achievement gold", group = "blizzard", weight = "solid", tint = true,
 	art = { file = 130656, coords = { 0, 0.5625, 0, 0.5625 }, size = { 72, 72 } }, hole = { 16, 16, 40, 40 } })
-FR.addLook("brackets", { name = "Corner brackets", group = "minimal", weight = "wispy", tint = true,
+FR.addStyle("brackets", { name = "Corner brackets", group = "minimal", weight = "wispy", tint = true,
 	art = { atlas = "ConduitIconFrame-Corners", size = { 64, 64 } }, hole = { 7, 7, 50, 50 } })
-FR.addLook("runewood", { name = "Runed wood", group = "painted", weight = "solid", credit = "ai",
+FR.addStyle("runewood", { name = "Runed wood", group = "painted", weight = "solid", credit = "ai",
 	art = { path = "Runewood", size = { 256, 256 } }, hole = { 64, 64, 128, 128 } })
 
 -- Round a group
-FR.addGroupLook("midnight", { name = "Midnight", group = "blizzard", weight = "solid", tint = true,
+FR.addGroupStyle("midnight", { name = "Midnight", group = "blizzard", weight = "solid", tint = true,
 	pieces = FR.cut({ atlas = "ui-frame-midnight-border", size = { 588, 588 } }, 110), edges = "stretch",
 	rim = 30, scale = 0.30, gap = 4 })
-FR.addGroupLook("dragonstone", { name = "Dragon stone", group = "blizzard", weight = "solid", tint = true,
+FR.addGroupStyle("dragonstone", { name = "Dragon stone", group = "blizzard", weight = "solid", tint = true,
 	pieces = {
 		tl = { atlas = "Dragonflight-NineSlice-CornerTopLeft", size = { 166, 166 } },
 		tr = { atlas = "Dragonflight-NineSlice-CornerTopRight", size = { 166, 166 } },
@@ -42,7 +42,7 @@ FR.addGroupLook("dragonstone", { name = "Dragon stone", group = "blizzard", weig
 local RAIL_H = { file = 130659, coords = { 0, 454 / 512, 0, 10 / 16 }, size = { 454, 10 } }
 local RAIL_V = { file = 130658, coords = { 0, 10 / 16, 0, 454 / 512 }, size = { 10, 454 } }
 local JOINT = { file = 130657, coords = { 0, 26 / 32, 0, 26 / 32 }, size = { 26, 26 } }   -- the bottom-right bend
-FR.addGroupLook("lattice", { name = "Steel lattice", group = "blizzard", weight = "solid", tint = true,
+FR.addGroupStyle("lattice", { name = "Steel lattice", group = "blizzard", weight = "solid", tint = true,
 	pieces = { t = RAIL_H, b = RAIL_H, l = RAIL_V, r = RAIL_V, br = JOINT,
 		tl = { file = JOINT.file, coords = JOINT.coords, size = JOINT.size, rotate = 180 },
 		tr = { file = JOINT.file, coords = JOINT.coords, size = JOINT.size, flipY = true },
@@ -50,7 +50,7 @@ FR.addGroupLook("lattice", { name = "Steel lattice", group = "blizzard", weight 
 	edges = "stretch", rim = 10, scale = 0.4, gap = -1, between = { art = RAIL_V, along = "gap" } })
 
 local LINKS = "StoneLinks"
-FR.addGroupLook("stonelinks", { name = "Stone link band", group = "painted", weight = "solid", credit = "ai",
+FR.addGroupStyle("stonelinks", { name = "Stone link band", group = "painted", weight = "solid", credit = "ai",
 	cells = {
 		first = { path = LINKS, coords = { 0, 163 / 512, 0, 168 / 256 }, size = { 163, 168 } },
 		unit = { path = LINKS, coords = { 163 / 512, 325 / 512, 0, 168 / 256 }, size = { 162, 168 } },

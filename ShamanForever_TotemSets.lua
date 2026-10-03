@@ -2,6 +2,7 @@
 -- one set at a time (its switch header's sf-set); the character's choice is saved.
 
 local _, ns = ...
+local P = ns.Profiles
 
 local TS = {}
 ns.TotemSets = TS
@@ -61,7 +62,7 @@ function TS.setActive(set, chosen)
 	state.active = set
 	if not chosen then return end
 	state.wanted = set
-	local t = ns.Profiles.char()
+	local t = P.char()
 	if t then t.totemSet = set end
 end
 
@@ -76,7 +77,7 @@ function TS.update(header, knows)
 	end
 	state.count = count
 	if not state.wanted then
-		local t = ns.Profiles.char()
+		local t = P.char()
 		local v = t and t.totemSet
 		if type(v) == "number" and CALLS[v] then state.wanted = v
 		elseif t then state.wanted = 1 end

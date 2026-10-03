@@ -1,16 +1,17 @@
 -- Shocks options page
 local _, ns = ...
+local E = ns.Elements
 
 local Page, K = ns.Page, ns.Options.kit
 local showWhen, pct = Page.showWhen, Page.pct
-local elementDisplay, idleBlock, lookBlocks = K.elementDisplay, K.idleBlock, K.lookBlocks
+local elementDisplay, idleBlock, styleBlocks = K.elementDisplay, K.idleBlock, K.styleBlocks
 local readyBlock, timerSettings, gcdBlock, eopt = K.readyBlock, K.timerSettings, K.gcdBlock, K.eopt
 local eslider, respell = K.eslider, K.respell
 
 -- A shock state's look uses overlay or tint
 local function lookUses(state, part)
 	return function()
-		local v = ns.elementSetting("shock", state, "look")
+		local v = E.setting("shock", state, "look")
 		return v == part or v == "both"
 	end
 end
@@ -33,19 +34,19 @@ local function buildShock(p, def)
 
 	local looks = { { "tint", "Tint" }, { "overlay", "Overlay" }, { "both", "Both" } }
 	p:header("No mana")
-	p:dropdown("Look", "Out of range wins over this look.", looks, eopt(p, key, "mana", "look"))
+	p:dropdown("Show as", "Out of range wins over this.", looks, eopt(p, key, "mana", "look"))
 	eslider(p, key, "Overlay", nil, pct, showWhen(lookUses("mana", "overlay")), "mana", "overlay")
 	eslider(p, key, "Tint", nil, pct, showWhen(lookUses("mana", "tint")), "mana", "tint")
 	eslider(p, key, "Ring", "The blue ring, shown even when out of range.", pct, nil, "mana", "ring")
 
 	p:header("Out of range")
-	p:dropdown("Look", nil, looks, eopt(p, key, "range", "look"))
+	p:dropdown("Show as", nil, looks, eopt(p, key, "range", "look"))
 	eslider(p, key, "Overlay", nil, pct, showWhen(lookUses("range", "overlay")), "range", "overlay")
 	eslider(p, key, "Tint", nil, pct, showWhen(lookUses("range", "tint")), "range", "tint")
 	timerSettings(p, "Cooldown", key, "cooldown")
 	gcdBlock(p, key)
 	readyBlock(p, key)
-	lookBlocks(p, key)
+	styleBlocks(p, key)
 end
 
 ns.registerKind("shock", { page = buildShock })

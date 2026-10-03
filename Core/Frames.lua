@@ -1,6 +1,7 @@
--- Art frames round an element ("frame") or a group or bar ("groupframe"); looks are data (_FrameLooks)
+-- Art frames round an element ("frame") or a group or bar ("groupframe"); styles are data (_FrameStyles)
 
 local ADDON, ns = ...
+local W = ns.Widgets
 
 local FR = {}
 ns.Frames = FR
@@ -13,9 +14,9 @@ local floor, max, min, abs = math.floor, math.max, math.min, math.abs
 FR.LEVEL = { under = -2, over = 1, group = 0, member = 3 }
 
 local SECTIONS = { { "blizzard", "Blizzard's" }, { "painted", "Painted" }, { "minimal", "Minimal" } }
-S.addField("frame", "look", { name = "Frame look", where = "Global settings > Frame style",
+S.addField("frame", "look", { name = "Art frame style", where = "Global settings > Art frame style",
 	preview = { play = "still" }, groups = SECTIONS })
-S.addField("groupframe", "look", { name = "Group frame look", where = "Global settings > Group frame style",
+S.addField("groupframe", "look", { name = "Group art frame style", where = "Global settings > Group art frame style",
 	preview = { play = "still" }, groups = SECTIONS })
 
 -- Validation
@@ -33,9 +34,13 @@ local function artError(a, what)
 	if type(a) ~= "table" then return what .. ": no art" end
 	local n = (a.file ~= nil and 1 or 0) + (a.atlas ~= nil and 1 or 0) + (a.path ~= nil and 1 or 0)
 	if n ~= 1 then return what .. ": needs one of file, atlas or path" end
-	if a.file ~= nil and not (positive(a.file) and a.file == floor(a.file)) then return what .. ": file is not a file ID" end
+	if a.file ~= nil and not (positive(a.file) and a.file == floor(a.file)) then
+		return what .. ": file is not a file ID"
+	end
 	if a.atlas ~= nil and (type(a.atlas) ~= "string" or a.atlas == "") then return what .. ": bad atlas" end
-	if a.path ~= nil and (type(a.path) ~= "string" or a.path == "" or a.path:find("%.%.")) then return what .. ": bad path" end
+	if a.path ~= nil and (type(a.path) ~= "string" or a.path == "" or a.path:find("%.%.")) then
+		return what .. ": bad path"
+	end
 	local s = a.size
 	if type(s) ~= "table" or not positive(s[1]) or not positive(s[2]) then return what .. ": size needs { w, h }" end
 	local c = a.coords
@@ -74,7 +79,7 @@ local function elementError(e)
 	local a = e.art
 	local err = artError(a, "art")
 	if err then return err end
-	if a.rotate == 90 or a.rotate == 270 then return "art: an element frame turns only 0 or 180" end
+	if a.rotate == 90 or a.rotate == 270 then return "art: an element art frame turns only 0 or 180" end
 	if e.layer ~= nil and not LAYER[e.layer] then return "layer is over or under" end
 	return holeError(e.hole, a.size[1], a.size[2], "art")
 end
@@ -122,15 +127,15 @@ local function groupError(e)
 	end
 end
 
--- An error message for a look's data, or nil
-function FR.validate(e, kind)
+-- An error message for a style's data, or nil
+function FR.validate(e, part)
 	if type(e) ~= "table" then return "not a table" end
 	if e.none then return commonError(e) end
-	return commonError(e) or (kind == "groupframe" and groupError or elementError)(e)
+	return commonError(e) or (part == "groupframe" and groupError or elementError)(e)
 end
 
 -- Geometry: units from the box's top-left, y down, rounded to whole pixels
-local round, ICON = ns.roundPx, ns.BASE_ICON_SIZE
+local round, ICON = W.roundPx, W.BASE_ICON_SIZE
 local function atLeast(v, px) return max(px, round(v, px)) end
 
 local function drawnSize(a)
@@ -179,20 +184,20 @@ end
 local function holeOf(look)
 	local a, h = look.art, look.hole
 	local x, y = h[1], h[2]
-	local W, H = a.size[1], a.size[2]
+	local fullW, fullH = a.size[1], a.size[2]
 	local fx, fy = a.flipX, a.flipY
 	if a.rotate == 180 then fx, fy = not fx, not fy end
-	if fx then x = W - x - h[3] end
-	if fy then y = H - y - h[4] end
+	if fx then x = fullW - x - h[3] end
+	if fy then y = fullH - y - h[4] end
 	return x, y, h[3], h[4]
 end
 
--- An element look round a box of size box: the art's size and its centre's offset from the box's
+-- An element style round a box of size box: the art's size and its centre's offset from the box's
 function FR.fit(look, box, px)
 	local x, y, hw, hh = holeOf(look)
 	local k = box / hw
-	local W, H = look.art.size[1], look.art.size[2]
-	local w, h = atLeast(W * k, px), atLeast(H * k, px)
+	local fullW, fullH = look.art.size[1], look.art.size[2]
+	local w, h = atLeast(fullW * k, px), atLeast(fullH * k, px)
 	local left = round(box / 2 - (x + hw / 2) * k, px)
 	local top = round(box / 2 - (y + hh / 2) * k, px)
 	return { w = w, h = h, left = left, top = top, x = left + w / 2 - box / 2, y = box / 2 - top - h / 2 }
@@ -227,10 +232,10 @@ local function edgeParts(parts, a, x0, y0, len, thick, along, tile, k, px)
 	end
 end
 
-local function frameParts(look, W, H, size, px, parts)
+local function frameParts(look, fullW, fullH, size, px, parts)
 	local k = look.scale * size / ICON
 	local o = round(look.rim * k + (look.gap or 0) * size / ICON, px)
-	local X0, Y0, X1, Y1 = -o, -o, W + o, H + o
+	local X0, Y0, X1, Y1 = -o, -o, fullW + o, fullH + o
 	local OW, OH = X1 - X0, Y1 - Y0
 	if look.slice then
 		parts[#parts + 1] = { art = look.slice, x = X0, y = Y0, w = OW, h = OH, slice = look.slice.margin, k = k }
@@ -288,7 +293,8 @@ local function cellParts(look, cells, size, px, vertical, parts)
 			local across = round((thick - hole[2] - hole[4]) * k, px)
 			parts[#parts + 1] = { art = turned(a), x = cell.x - across, y = cell.y - from, w = T, h = L, v0 = s0, v1 = s1 }
 		else
-			parts[#parts + 1] = { art = a, x = cell.x - from, y = cell.y - round(hole[2] * k, px), w = L, h = T, u0 = s0, u1 = s1 }
+			parts[#parts + 1] = { art = a, x = cell.x - from, y = cell.y - round(hole[2] * k, px), w = L, h = T,
+				u0 = s0, u1 = s1 }
 		end
 	end
 	local n = #cells
@@ -303,9 +309,11 @@ local function cellParts(look, cells, size, px, vertical, parts)
 		local seam = round(size / 2, px)
 		if vertical then
 			local across = round((a.size[2] - hole[2] - hole[4]) * k, px)
-			parts[#parts + 1] = { art = turned(a), x = cells[1].x - across, y = cells[1].y + seam, w = T, h = L, v0 = s0, v1 = 1 }
+			parts[#parts + 1] = { art = turned(a), x = cells[1].x - across, y = cells[1].y + seam, w = T, h = L,
+				v0 = s0, v1 = 1 }
 		else
-			parts[#parts + 1] = { art = a, x = cells[1].x + seam, y = cells[1].y - round(hole[2] * k, px), w = L, h = T, u0 = s0, u1 = 1 }
+			parts[#parts + 1] = { art = a, x = cells[1].x + seam, y = cells[1].y - round(hole[2] * k, px), w = L, h = T,
+				u0 = s0, u1 = 1 }
 		end
 		-- the first half ends at the same seam
 		local first = parts[#parts - 1]
@@ -337,7 +345,7 @@ local function betweenParts(look, cells, size, k, Y0, Y1, px, vertical, parts)
 	end
 end
 
--- A group look round members laid out by lay: { size, n, gap, vertical } or { size, cells = {{ x, y }, ...} }
+-- A group style round members laid out by lay: { size, n, gap, vertical } or { size, cells = {{ x, y }, ...} }
 -- (each member's box from the group box's top-left). Returns { w, h, parts, outer = { x0, y0, x1, y1 } }.
 function FR.groupLayout(look, lay, px)
 	local size = lay.size
@@ -346,16 +354,16 @@ function FR.groupLayout(look, lay, px)
 	local sorted = {}
 	for i, c in ipairs(cells) do sorted[i] = c end
 	table.sort(sorted, function(a, b) return a[key] < b[key] end)
-	local W, H = 0, 0
-	for _, c in ipairs(sorted) do W, H = max(W, c.x + size), max(H, c.y + size) end
+	local fullW, fullH = 0, 0
+	for _, c in ipairs(sorted) do fullW, fullH = max(fullW, c.x + size), max(fullH, c.y + size) end
 	local parts = {}
 	local k
 	if look.cells then
 		k = cellParts(look, sorted, size, px, lay.vertical, parts)
 	else
-		k = frameParts(look, W, H, size, px, parts)
+		k = frameParts(look, fullW, fullH, size, px, parts)
 	end
-	local x0, y0, x1, y1 = 0, 0, W, H
+	local x0, y0, x1, y1 = 0, 0, fullW, fullH
 	for _, p in ipairs(parts) do
 		x0, y0, x1, y1 = min(x0, p.x), min(y0, p.y), max(x1, p.x + p.w), max(y1, p.y + p.h)
 	end
@@ -366,19 +374,19 @@ function FR.groupLayout(look, lay, px)
 			betweenParts(look, sorted, size, k, y0, y1, px, false, parts)
 		end
 	end
-	return { w = W, h = H, parts = parts, outer = { x0, y0, x1, y1 }, k = k }
+	return { w = fullW, h = fullH, parts = parts, outer = { x0, y0, x1, y1 }, k = k }
 end
 
--- How far a look reaches past the box on each side, in icon widths
+-- How far a style reaches past the box on each side, in icon widths
 local ZERO = { left = 0, right = 0, top = 0, bottom = 0 }
-local function reachOf(look, kind)
+local function reachOf(look, part)
 	if look.none then return ZERO end
-	if kind == "frame" then
+	if part == "frame" then
 		local x, y, hw, hh = holeOf(look)
-		local W, H = look.art.size[1], look.art.size[2]
+		local fullW, fullH = look.art.size[1], look.art.size[2]
 		local function side(v) return max(0, v / hw - 0.5) end
-		return { left = side(x + hw / 2), right = side(W - x - hw / 2), top = side(y + hh / 2),
-			bottom = side(H - y - hh / 2) }
+		return { left = side(x + hw / 2), right = side(fullW - x - hw / 2), top = side(y + hh / 2),
+			bottom = side(fullH - y - hh / 2) }
 	end
 	if look.cells then
 		local c = look.cells
@@ -391,7 +399,7 @@ local function reachOf(look, kind)
 	return { left = o, right = o, top = o, bottom = o }
 end
 
--- The spacing a repeating look's art was drawn for, at icon size (nil: any spacing)
+-- The spacing a repeating style's art was drawn for, at icon size (nil: any spacing)
 function FR.fitSpacing(look, size, px)
 	px = px or 1
 	if look.cells then
@@ -404,37 +412,37 @@ function FR.fitSpacing(look, size, px)
 end
 
 -- Registry
-local function register(kind, key, entry)
-	local err = FR.validate(entry, kind)
+local function register(part, key, entry)
+	local err = FR.validate(entry, part)
 	if type(entry) ~= "table" then entry = {} end
 	if err then
 		entry.name = type(entry.name) == "string" and entry.name or key
 		entry.hidden, entry.bad = true, err
 		entry.reach = ZERO
-		ns.noteError("frame look " .. key, err)
+		ns.noteError("frame style " .. key, err)
 	else
-		entry.reach = reachOf(entry, kind)
+		entry.reach = reachOf(entry, part)
 	end
 	entry.uses = { color = entry.tint == true, alpha = not entry.none }
-	S.addLook(kind, key, entry)
+	S.addLook(part, key, entry)
 	return entry
 end
-function FR.addLook(key, entry) return register("frame", key, entry) end
-function FR.addGroupLook(key, entry) return register("groupframe", key, entry) end
+function FR.addStyle(key, entry) return register("frame", key, entry) end
+function FR.addGroupStyle(key, entry) return register("groupframe", key, entry) end
 
-FR.addLook("none", { name = "None", none = true })
-FR.addGroupLook("none", { name = "None", none = true })
+FR.addStyle("none", { name = "None", none = true })
+FR.addGroupStyle("none", { name = "None", none = true })
 
-function FR.look(kind, key) return S.look(kind, key) end
+function FR.look(part, key) return S.look(part, key) end
 
 -- One image cut as nine pieces round margin texels
 function FR.cut(art, margin)
-	local W, H = art.size[1], art.size[2]
-	local mx, my = margin / W, margin / H
+	local fullW, fullH = art.size[1], art.size[2]
+	local mx, my = margin / fullW, margin / fullH
 	local function piece(l, r, t, b)
 		local p = CopyTable(art)
 		p.coords = { l, r, t, b }
-		p.size = { (r - l) * W, (b - t) * H }
+		p.size = { (r - l) * fullW, (b - t) * fullH }
 		return p
 	end
 	return { tl = piece(0, mx, 0, my), t = piece(mx, 1 - mx, 0, my), tr = piece(1 - mx, 1, 0, my),
@@ -486,15 +494,15 @@ local function needsRegion(a) return a.coords or (a.rotate or 0) ~= 0 or a.flipX
 
 local function artKnown(a, cropped)
 	if a.atlas then
-		if not ns.Looks.hasAtlas(a.atlas) then return false end
+		if not ns.StyleArt.hasAtlas(a.atlas) then return false end
 		return not (cropped or needsRegion(a)) or atlasSource(a.atlas) ~= false
 	end
 	return fileKnown(a.file or MEDIA .. a.path)
 end
 
 local known = {}
--- Whether the client has all of a look's art (checked once per look); art it can't check is drawn,
--- the look marked artUnchecked
+-- Whether the client has all of a style's art (checked once per style); art it can't check is drawn,
+-- the style marked artUnchecked
 function FR.hasArt(look)
 	if not look or look.none then return true end
 	local v = known[look]
@@ -509,7 +517,7 @@ function FR.hasArt(look)
 		end)
 		known[look] = v
 		if not v then
-			ns.noteError("frame look " .. tostring(look.key), "art missing on this client")
+			ns.noteError("frame style " .. tostring(look.key), "art missing on this client")
 		elseif unsure then
 			look.artUnchecked = true
 		end
@@ -525,7 +533,7 @@ function FR.usable(look)
 	return FR.hasArt(look)
 end
 
--- Whether a look was made for owner key: nil when made for none
+-- Whether a style was made for owner key: nil when made for none
 local function madeFor(look, key)
 	local m = look.madeFor
 	if m == nil then return nil end
@@ -534,11 +542,11 @@ local function madeFor(look, key)
 end
 FR.madeFor = madeFor
 
--- The looks a picker offers for owner key (nil: Global or a group): None, those made for it, the
--- rest; looks made for other owners only with showAll
-function FR.available(kind, key, showAll)
+-- The styles a picker offers for owner key (nil: Global or a group): None, those made for it, the
+-- rest; styles made for other owners only with showAll
+function FR.available(part, key, showAll)
 	local lead, mine, rest, others = {}, {}, {}, {}
-	for _, look in ipairs(S.choices(kind, "look")) do
+	for _, look in ipairs(S.choices(part, "look")) do
 		if look.none then table.insert(lead, look)
 		elseif not look.hidden and FR.usable(look) then
 			local m = madeFor(look, key)
@@ -551,10 +559,10 @@ function FR.available(kind, key, showAll)
 	return lead
 end
 
--- A look's reach past the box per side (icon widths); the owner's current look by default
-function FR.reach(owner, kind)
-	kind = kind or "frame"
-	local look = S.look(kind, S.read(owner, kind).look)
+-- A style's reach past the box per side (icon widths); the owner's current style by default
+function FR.reach(owner, part)
+	part = part or "frame"
+	local look = S.look(part, S.read(owner, part).look)
 	return look and FR.usable(look) and look.reach or ZERO
 end
 
@@ -585,9 +593,9 @@ local function levelOf(look, base)
 	return max(0, base + (look.layer == "under" and FR.LEVEL.under or FR.LEVEL.over))
 end
 
--- An element look round carrier, whose box is box units square; style: { color, alpha }; level: the
+-- An element style round carrier, whose box is box units square; style: { color, alpha }; level: the
 -- carrier's, when the caller knows it (a secret read leaves the holder's own). False (and nothing
--- shown) for None, a bad look or missing art.
+-- shown) for None, a bad style or missing art.
 function FR.draw(carrier, look, box, style, level)
 	local m = carrier.frameMount
 	if not (look and look.art and FR.usable(look) and type(box) == "number" and box > 0) then
@@ -599,7 +607,7 @@ function FR.draw(carrier, look, box, style, level)
 		m.tex = m:CreateTexture(nil, "ARTWORK")
 		carrier.frameMount = m
 	end
-	local g = FR.fit(look, box, ns.pixel(carrier))
+	local g = FR.fit(look, box, W.pixel(carrier))
 	m:ClearAllPoints()
 	m:SetPoint("CENTER", carrier, "CENTER", 0, 0)
 	m:SetSize(box, box)
@@ -644,8 +652,8 @@ end
 
 -- Its border and frame together, on one of those frames (bare: the border only)
 function FR.dress(edge, key, level, bare)
-	ns.Looks.applyBorder(edge, ns.borderFor(key))
-	return FR.mountOwn(edge, key, not bare and ns.boxOf(key) or nil, level)
+	ns.StyleArt.applyBorder(edge, ns.Elements.borderFor(key))
+	return FR.mountOwn(edge, key, not bare and ns.Elements.boxOf(key) or nil, level)
 end
 
 -- Hides an element's own frames while a stand-in draws it (out of combat)
@@ -679,8 +687,8 @@ local function slicePart(m, p, look, style)
 	f:Show()
 end
 
--- A group look on host round the box lay describes (see FR.groupLayout; lay.x, lay.y: the box's
--- top-left from host's). False (and nothing shown) for None, a bad look or missing art.
+-- A group style on host round the box lay describes (see FR.groupLayout; lay.x, lay.y: the box's
+-- top-left from host's). False (and nothing shown) for None, a bad style or missing art.
 function FR.drawGroup(host, look, lay, style)
 	local m = host.groupFrameMount
 	if not (look and not look.none and FR.usable(look) and lay and type(lay.size) == "number" and lay.size > 0
@@ -693,7 +701,7 @@ function FR.drawGroup(host, look, lay, style)
 		m.texs = {}
 		host.groupFrameMount = m
 	end
-	local geo = FR.groupLayout(look, lay, ns.pixel(host))
+	local geo = FR.groupLayout(look, lay, W.pixel(host))
 	m:ClearAllPoints()
 	m:SetPoint("TOPLEFT", host, "TOPLEFT", lay.x or 0, -(lay.y or 0))
 	m:SetSize(geo.w, geo.h)

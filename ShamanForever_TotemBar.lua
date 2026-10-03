@@ -11,6 +11,8 @@
 -- casts (ns.Totems), by spell ID.
 
 local _, ns = ...
+local W = ns.Widgets
+local E, MOD, Bars, P = ns.Elements, ns.Modules, ns.Bars, ns.Profiles
 
 local TB = { name = "totem bar" }
 ns.TotemBar = TB
@@ -122,11 +124,11 @@ end
 -- What the profile's cleaning can't declare, once per saved table
 local cfgTable
 local function cfg()
-	local t = ns.getDB().totemBar
+	local t = P.getDB().totemBar
 	if t ~= cfgTable then
 		if type(t.expire) ~= "table" then t.expire = {} end
 		if type(t.expire.over) ~= "table" then t.expire.over = TB.overDefaults() end
-		ns.fillParts(t, TB.DEFAULTS)
+		P.fillParts(t, TB.DEFAULTS)
 		if not ns.POINTS[t.point] then t.point, t.x, t.y = TB.DEFAULTS.point, TB.DEFAULTS.x, TB.DEFAULTS.y end
 		local seen, order = {}, {}
 		for _, el in ipairs(t.order) do
@@ -160,13 +162,13 @@ end })
 function TB.eff() return effective end
 
 local function look()
-	local c, db = cfg(), ns.getDB()
-	local border = TB.skin.border() or ns.borderFor("totembar")
+	local c, db = cfg(), P.getDB()
+	local border = TB.skin.border() or E.borderFor("totembar")
 	return (not c.sizeFollow and c.size) or db.iconSize, border, TB.skin.extrasBorder() or border
 end
 function TB.setSizeFollow(follow)
 	local c = cfg()
-	if not follow and not c.size then c.size = ns.getDB().iconSize end
+	if not follow and not c.size then c.size = P.getDB().iconSize end
 	c.sizeFollow = follow
 end
 
@@ -188,7 +190,7 @@ local EXTRA_GAP = 6
 function TB.along(n, size, px)
 	local c = TB.eff()
 	local before, after = TB.extraSides()
-	local function round(v) return px and ns.roundPx(v, px) or math.floor(v + 0.5) end
+	local function round(v) return px and W.roundPx(v, px) or math.floor(v + 0.5) end
 	local esz, gap, extraGap = round(size * c.extrasScale), c.spacing, c.spacing + EXTRA_GAP
 	local own, ownExtra = TB.skin.spacing(size)
 	if own then gap, extraGap = own, ownExtra end
@@ -247,7 +249,7 @@ end
 
 function TB.makeArrowLook(parent)
 	local t = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-	t:SetBackdrop(ns.BACKDROP)
+	t:SetBackdrop(W.BACKDROP)
 	t.glyph = t:CreateTexture(nil, "OVERLAY")
 	t.glyph:SetPoint("CENTER")
 	TB.plainArrow(t)
@@ -267,10 +269,19 @@ function TB.placeArrow(tab, anchor, glyph)
 	local c = TB.eff()
 	local deep = c.arrowSize
 	tab:ClearAllPoints()
-	if c.pop == "up" then tab:SetPoint("BOTTOMLEFT", anchor, "TOPLEFT", 1, 1); tab:SetPoint("BOTTOMRIGHT", anchor, "TOPRIGHT", -1, 1); tab:SetHeight(deep)
-	elseif c.pop == "down" then tab:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 1, -1); tab:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", -1, -1); tab:SetHeight(deep)
-	elseif c.pop == "right" then tab:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 1, -1); tab:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 1, 1); tab:SetWidth(deep)
-	else tab:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -1, -1); tab:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMLEFT", -1, 1); tab:SetWidth(deep) end
+	if c.pop == "up" then
+		tab:SetPoint("BOTTOMLEFT", anchor, "TOPLEFT", 1, 1); tab:SetPoint("BOTTOMRIGHT", anchor, "TOPRIGHT", -1, 1)
+		tab:SetHeight(deep)
+	elseif c.pop == "down" then
+		tab:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 1, -1); tab:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", -1, -1)
+		tab:SetHeight(deep)
+	elseif c.pop == "right" then
+		tab:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 1, -1); tab:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 1, 1)
+		tab:SetWidth(deep)
+	else
+		tab:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -1, -1); tab:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMLEFT", -1, 1)
+		tab:SetWidth(deep)
+	end
 	glyph:SetSize(math.max(deep * 1.1, 10), math.max(deep * 0.6, 6))
 	glyph:SetRotation(GLYPH_TURN[c.pop])
 end
@@ -282,9 +293,9 @@ end
 function TB.badgeSize(size) return math.max(math.floor(size * cfg().badgeSize + 0.5), 8) end
 function TB.layoutBadge(bd, anchor, size, border)
 	local c = TB.eff()
-	local usesColor = border and border.show and ns.Looks.uses(ns.Style.look("border", border.look), "color")
+	local usesColor = border and border.show and ns.StyleArt.uses(ns.Style.look("border", border.look), "color")
 	local color = usesColor and border.color or { 0, 0, 0, 1 }
-	local inset = ns.Looks.fit(bd, border and border.show and { show = true, size = 1, color = color } or border,
+	local inset = ns.StyleArt.fit(bd, border and border.show and { show = true, size = 1, color = color } or border,
 		TB.badgeSize(size))
 	bd:SetAlpha(c.badgeAlpha)
 	TB.saturate(bd.icon, c.badgeSat)
@@ -298,11 +309,11 @@ function TB.layoutBadge(bd, anchor, size, border)
 end
 
 function TB.fitLook(v, b, border, size)
-	local o = ns.Looks.inset(v, border, size)
+	local o = ns.StyleArt.inset(v, border, size)
 	v:ClearAllPoints()
 	v:SetPoint("TOPLEFT", b, "TOPLEFT", o, -o)
 	v:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -o, o)
-	ns.Looks.applyBorder(v, border)
+	ns.StyleArt.applyBorder(v, border)
 	return o
 end
 
@@ -355,7 +366,8 @@ local SLOT_CLICK = [[
 		return false
 	end
 ]]
-local PICK_CLICK, PICK_AFTER = [[ return nil, self:GetAttribute("sf-pick") ]], [[ owner:RunAttribute("sf-close", message) ]]
+local PICK_CLICK = [[ return nil, self:GetAttribute("sf-pick") ]]
+local PICK_AFTER = [[ owner:RunAttribute("sf-close", message) ]]
 local HOVER_ENTER = [[
 	local i = self:GetAttribute("sf-pick")
 	if i and owner:GetAttribute("sf-hovermode") then owner:RunAttribute("sf-open", i) end
@@ -409,17 +421,17 @@ local function keyLayer(v)
 	local f = CreateFrame("Frame", nil, v)
 	f:SetAllPoints()
 	f:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 3)
-	f.text = ns.makeKeyText(f)
+	f.text = W.makeKeyText(f)
 	f.glow = f:CreateTexture(nil, "OVERLAY")
 	f.glow:SetAllPoints()
-	if ns.Looks.hasAtlas(KEY_HIGHLIGHT) then f.glow:SetAtlas(KEY_HIGHLIGHT)
+	if ns.StyleArt.hasAtlas(KEY_HIGHLIGHT) then f.glow:SetAtlas(KEY_HIGHLIGHT)
 	else f.glow:SetColorTexture(1, 0.82, 0, 0.3) end
 	f.glow:Hide()
 	return f
 end
 
 local function gcdSweep(v)
-	local cd = ns.makeGCDSweep(v)
+	local cd = W.makeGCDSweep(v)
 	cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE)
 	return cd
 end
@@ -496,7 +508,7 @@ for index, el in ipairs(ELEMENTS) do
 	badge:SetFrameLevel(b:GetFrameLevel() + 6)
 	badge.icon = badge:CreateTexture(nil, "ARTWORK")
 	badge.icon:SetAllPoints()
-	ns.cropIcon(badge.icon)
+	W.cropIcon(badge.icon)
 	badge:Hide()
 	s.badge = badge
 	-- End flashes on their own frames (the slot's look can be invisible); each has its own secret gate
@@ -510,7 +522,7 @@ for index, el in ipairs(ELEMENTS) do
 	v.bg:SetAllPoints()
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
-	ns.cropIconExact(v.icon)
+	W.cropIconExact(v.icon)
 	s.timer = ns.Timer.new(v, "totembar", "uptime", { anchor = v, school = el })
 	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 1)
 	s.timer.bar:SetFrameLevel(b:GetFrameLevel() + TIME_BAR_LEVEL)
@@ -580,7 +592,7 @@ for _, e in ipairs({ { "Call", CALL }, { "Recall", RECALL } }) do
 	v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL)
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
-	ns.cropIconExact(v.icon)
+	W.cropIconExact(v.icon)
 	extras[key] = { key = key, spell = spell, button = b, vis = v, keys = keyLayer(v), gcd = gcdSweep(v),
 		command = "CLICK ShamanForeverKey" .. key .. ":LeftButton" }
 end
@@ -625,7 +637,7 @@ for set, id in ipairs(SET_CALL) do
 	p:SetFrameLevel(setSlot.popout:GetFrameLevel() + 5)
 	p.icon = p:CreateTexture(nil, "ARTWORK")
 	p.icon:SetAllPoints()
-	ns.cropIcon(p.icon)
+	W.cropIcon(p.icon)
 	p.on = p:CreateTexture(nil, "OVERLAY")
 	p.on:SetAllPoints()
 	p.on:SetTexture("Interface\\Buttons\\CheckButtonHilight")
@@ -655,7 +667,7 @@ wrapClick(call.button, SLOT_CLICK .. [[
 call.button:SetScript("PostClick", function(_, button, down)
 	if button == "RightButton" and not down and cfg().setSwitch == "cycle" then lockedCue() end
 end)
-call.num = ns.makeKeyText(call.keys)
+call.num = W.makeKeyText(call.keys)
 call.num:SetTextColor(1, 1, 1)
 
 -- Close every picker (out of combat): one hidden through the bar would come back open
@@ -676,7 +688,7 @@ local function refreshKeys()
 	local on = cfg().keys
 	local function draw(layer, command)
 		local key = on and GetBindingKey(command)
-		layer.text:SetText(ns.keyLabel(key))
+		layer.text:SetText(W.keyLabel(key))
 	end
 	for _, el in ipairs(ELEMENTS) do draw(slots[el].keys, slots[el].command) end
 	for _, e in pairs(extras) do draw(e.keys, e.command) end
@@ -796,7 +808,7 @@ local function liftWarning(s)
 	g:SetFrameLevel(lv + 1)
 	if g.inner then g.inner:SetFrameLevel(lv + 2) end
 	for _, parts in pairs(g.parts or {}) do
-		if parts then ns.Looks.levelParts(parts) end
+		if parts then ns.StyleArt.levelParts(parts) end
 	end
 	x.sfLifted = true
 end
@@ -939,7 +951,7 @@ end)
 -- hiding it would re-lay out PlayerFrame and PetFrame from addon code. Blizzard's layout sets its
 -- alpha back to 1 when it shows its frames, so a hidden TotemFrame hides again whenever alpha is set.
 local function totemFrameOurs()
-	if not ns.getDB() or not TotemFrame then return false end
+	if not P.getDB() or not TotemFrame then return false end
 	local roots = { PlayerFrame or false, _G.PlayerBottomManagedFrameContainer or false }
 	local p = TotemFrame:GetParent()
 	while p do
@@ -1035,7 +1047,7 @@ local function layoutPopout(s, size, known)
 			p:SetFrameLevel(pop:GetFrameLevel() + 5)
 			p.icon = p:CreateTexture(nil, "ARTWORK")
 			p.icon:SetAllPoints()
-			ns.cropIcon(p.icon)
+			W.cropIcon(p.icon)
 			p.none = p:CreateFontString(nil, "OVERLAY", "GameFontDisable")
 			p.none:SetPoint("CENTER")
 			p.none:SetText("X")
@@ -1097,13 +1109,13 @@ local function ownDriver()
 	local c = cfg()
 	if preview then return barOn() and (hasTotems or preview.all) and "show" or "hide" end
 	if not barOn() or not hasTotems then return "hide" end
-	if kbOpen or not ns.getAccount().locked then return "show" end
+	if kbOpen or not P.getAccount().locked then return "show" end
 	if c.show == "active" then return "[combat] show; " .. (anyDown and "show" or "hide") end
-	return ns.Bars.SHOW_WHEN[c.show] or "show"
+	return Bars.SHOW_WHEN[c.show] or "show"
 end
 local afterCombat
 local function visibilityDriver()
-	if ns.AfterCombat.held(afterCombat) and barOn() and ns.getAccount().locked and not kbOpen
+	if ns.AfterCombat.held(afterCombat) and barOn() and P.getAccount().locked and not kbOpen
 		and cfg().show ~= "always" then
 		return "show"
 	end
@@ -1129,8 +1141,8 @@ function layout()
 	-- Scale and opacity first: sizes, gaps and position are whole screen pixels at it
 	bar:SetScale(c.scale)
 	bar:SetAlpha(c.alpha)
-	local px = ns.pixel(bar)
-	size = ns.roundPx(size, px)
+	local px = W.pixel(bar)
+	size = W.roundPx(size, px)
 	-- With no totem known the bar hides (Call and Recall too, in positioning mode as well)
 	local shown, known = {}, {}
 	local had = hasTotems
@@ -1142,7 +1154,8 @@ function layout()
 	if hasTotems ~= had then ns.changed() end
 	for _, el in ipairs(c.order) do
 		local s = slots[el]
-		local on = barOn() and not c.hidden[el] and (#known[el] > 0 or not GetMultiCastTotemSpells or (preview and preview.all))
+		local on = barOn() and not c.hidden[el]
+			and (#known[el] > 0 or not GetMultiCastTotemSpells or (preview and preview.all))
 		s.button:SetShown(on)
 		s.vis:SetShown(on)
 		if not on then s.killed.mark:Hide() end
@@ -1167,14 +1180,15 @@ function layout()
 		local kt = keyTexts[b]
 		if kt then
 			local k = c.keyColor
-			ns.Media.setFont(kt, "totembar", ns.keyTextSize(sz, c.keySize))
+			ns.Media.setFont(kt, "totembar", W.keyTextSize(sz, c.keySize))
 			kt:ClearAllPoints()
 			kt:SetPoint("TOPRIGHT", c.keyX, c.keyY)
 			kt:SetTextColor(k[1], k[2], k[3], k[4] or 1)
 		end
 		b:ClearAllPoints()
-		local side = ns.roundPx((across - sz) / 2, px)
-		if row then b:SetPoint("TOPLEFT", bar, "TOPLEFT", it.offset, -side) else b:SetPoint("TOPLEFT", bar, "TOPLEFT", side, -it.offset) end
+		local side = W.roundPx((across - sz) / 2, px)
+		if row then b:SetPoint("TOPLEFT", bar, "TOPLEFT", it.offset, -side)
+		else b:SetPoint("TOPLEFT", bar, "TOPLEFT", side, -it.offset) end
 	end
 	for key, e in pairs(extras) do
 		local show = on[key] ~= nil
@@ -1199,7 +1213,7 @@ function layout()
 	if pickSet then layoutSetPicker(size) end
 	layoutArrow(setSlot, pickSet and feat("arrows"))
 	if on.Call then
-		ns.Media.setFont(call.num, "totembar", ns.keyTextSize(on.Call, c.keySize))
+		ns.Media.setFont(call.num, "totembar", W.keyTextSize(on.Call, c.keySize))
 		call.num:ClearAllPoints()
 		call.num:SetPoint("BOTTOMRIGHT", -1, 2)
 	end
@@ -1228,14 +1242,14 @@ function layout()
 		if not s.button:IsShown() then sealed[s.button] = true end
 	end
 	TB.skin.layoutBar(bar, boxes, size, row, sealed)
-	ns.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
+	W.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
 	TB.range.layout(size)
 	writeSet(set)
 	paintSets()
 	refreshSlots()
 	refreshKeys()
 	refreshGCD()
-	ns.refitRings()
+	W.refitRings()
 	drive()
 	applyTotemFrame()
 	applyActionBar()
@@ -1247,7 +1261,7 @@ TB.afterGroups = layout
 
 afterCombat = ns.AfterCombat.new({
 	secs = function()
-		if not ns.getDB() or not barOn() or kbOpen or not ns.getAccount().locked then return 0 end
+		if not P.getDB() or not barOn() or kbOpen or not P.getAccount().locked then return 0 end
 		local c = cfg()
 		return c.show ~= "always" and c.fadeAfter or 0
 	end,
@@ -1353,7 +1367,8 @@ end
 local function kbBind(input)
 	local command = catcher.command
 	if not command or InCombatLockdown() then return end
-	local ctx = C_KeyBindings and C_KeyBindings.GetBindingContextForAction and C_KeyBindings.GetBindingContextForAction(command)
+	local ctx = C_KeyBindings and C_KeyBindings.GetBindingContextForAction
+		and C_KeyBindings.GetBindingContextForAction(command)
 	local key1, key2 = GetBindingKey(command, nil, ctx)
 	if input == "ESCAPE" then
 		if not key1 then return end
@@ -1551,7 +1566,9 @@ local function onEvent(_, event, arg1, ...)
 		refreshAfterCast(spell)
 	elseif event == "ACTIONBAR_SLOT_CHANGED" then
 		local base = multiAction(1, 1) - 1
-		if not isSecret(arg1) and type(arg1) == "number" and (arg1 == 0 or (arg1 > base and arg1 <= base + 12)) then refresh() end
+		if not isSecret(arg1) and type(arg1) == "number" and (arg1 == 0 or (arg1 > base and arg1 <= base + 12)) then
+			refresh()
+		end
 	elseif event == "UPDATE_BINDINGS" then
 		refreshKeys()
 	elseif event == "SPELL_UPDATE_COOLDOWN" then
@@ -1647,7 +1664,7 @@ local function paintSlot(s, rec)
 			strip:SetSize(w, h)
 		else
 			strip:SetPoint("TOPLEFT", s.button, "TOPLEFT", 0, 0)
-			strip:SetSize(size, ns.linePx(strip, c.rangeHeight))
+			strip:SetSize(size, W.linePx(strip, c.rangeHeight))
 		end
 		if not TB.skin.paintMark(strip, w, h, s.vis) then
 			local k = c.rangeOut
@@ -1737,16 +1754,17 @@ function TB.debug()
 		TS.active(), TS.count(), g,
 		TotemFrame and TotemFrame:GetParent() and (TotemFrame:GetParent():GetName() or "?") or "none",
 		TotemFrame and string.format("%.2f", TotemFrame:GetAlpha()) or "-",
-		mc and (mc:GetParent() == hiddenParent and "hidden" or (mc:GetParent() and mc:GetParent():GetName() or "?")) or "none")
+		mc and (mc:GetParent() == hiddenParent and "hidden" or (mc:GetParent() and mc:GetParent():GetName() or "?"))
+			or "none")
 end
 
-ns.registerBar("totembar", { label = "Totem bar", cfg = cfg, saved = "totemBar", defaults = TB.DEFAULTS,
+Bars.register("totembar", { label = "Totem bar", cfg = cfg, saved = "totemBar", defaults = TB.DEFAULTS,
 	ranges = TB.RANGES, choices = CHOICES, on = barOn,
-	kinds = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
+	parts = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
 	-- Its theme can draw its own border
-	ownLabel = function(kind)
-		if kind == "border" and TB.skin.owns("border") then return "Totem bar (its theme)" end
+	ownLabel = function(part)
+		if part == "border" and TB.skin.owns("border") then return "Totem bar (its theme)" end
 	end,
 	movable = movable,
 	hud = { show = showPreview, slots = ELEMENTS, steps = previewSteps, step = previewSlot } })
-ns.registerModule(TB)
+MOD.register(TB)

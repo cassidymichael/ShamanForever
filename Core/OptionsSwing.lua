@@ -1,6 +1,7 @@
 -- Swing timer options page
 
 local _, ns = ...
+local E, Bars = ns.Elements, ns.Bars
 
 local Page = ns.Page
 local showWhen, times, pct, int, px = Page.showWhen, Page.times, Page.pct, Page.int, Page.px
@@ -49,7 +50,7 @@ local PREVIEW = {
 		box:ClearAllPoints()
 		box:SetPoint("CENTER", h.area, "CENTER", 0, 0)
 		h.fitNote:SetText(fit < 0.999 and string.format("Shown at %d%% to fit", math.floor(fit * 100 + 0.5)) or "")
-		ns.Looks.applyBorder(box, SW.border(), "bar")
+		ns.StyleArt.applyBorder(box, SW.border(), "bar")
 		SW.styleBar(box.bar)
 		SW.styleCountdown()
 		SW.placeCountdown(box.text, box)
@@ -85,7 +86,8 @@ local function build(p)
 	slider(p, R.width, "Width", "Mouse wheel over the bar while positioning is unlocked does the same.",
 		px, get("width"), set("width"))
 	slider(p, R.height, "Height", nil, px, get("height"), set("height"))
-	slider(p, R.scale, "Scale", "Grows everything on the bar, borders too. Shift + mouse wheel over the bar while positioning is unlocked does the same.",
+	slider(p, R.scale, "Scale", "Grows everything on the bar, borders too. Shift + mouse wheel over the bar while "
+		.. "positioning is unlocked does the same.",
 		times, get("scale"), set("scale"))
 	slider(p, R.alpha, "Opacity", "Ctrl + mouse wheel over the bar while positioning is unlocked does the same.",
 		pct, get("alpha"), set("alpha"))
@@ -95,12 +97,12 @@ local function build(p)
 	p:checkbox("Empty as it goes", "Starts full and empties, instead of filling.", get("deplete"), set("deplete"))
 	local colors = {}
 	for _, key in ipairs(SW.COLOR_BY) do
-		local e = ns.ELEMENTS[key]
+		local e = E.ALL[key]
 		table.insert(colors, { key, e and e.barColor.label or "Custom" })
 	end
 	p:dropdown("Colour", nil, colors, get("colorBy"), set("colorBy"), nil, 160)
 	p:text(function()
-		local e = ns.ELEMENTS[c().colorBy]
+		local e = E.ALL[c().colorBy]
 		return e and e.barColor.text or ""
 	end, showWhen(function() return not custom() end))
 	p:color("Custom colour", nil, get("color"), set("color"), showWhen(custom))
@@ -116,12 +118,12 @@ local function build(p)
 	p:header("Border style")
 	K.borderRows(p, "swing", changed)
 	if K.barFramed("swing") then
-		p:header("Frame style")
+		p:header("Art frame style")
 		K.frameRows(p, "swing", "groupframe", changed)
 	end
 end
 
-ns.registerBar("swing", { icon = ns.Swing.ICON, school = ns.THEME.fallback,
+Bars.register("swing", { icon = ns.Swing.ICON, school = ns.THEME.fallback,
 	blurb = "Time to your next melee swing.",
 	tags = function() return SHOW_NAME[ns.Swing.cfg().show] or "" end,
 	preview = PREVIEW, page = { order = 60, build = build } })

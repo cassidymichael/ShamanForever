@@ -10,9 +10,11 @@
 -- Totems without a buff get no mark. Another shaman's same buff makes yours read out of range.
 
 local _, ns = ...
+local W = ns.Widgets
+local MOD, P = ns.Modules, ns.Profiles
 local TB = ns.TotemBar
-local R = {}
-TB.range = R
+local RG = {}
+TB.range = RG
 local isSecret = ns.isSecret
 
 -- Totems that buff the player: the totem spell and its buff, every rank. IDs are Classic's; a rank
@@ -49,7 +51,7 @@ for el, list in pairs(BUFF_TOTEMS) do
 	ns.Spells.addCheck(el .. " totems and buffs", all)
 end
 
-local function enabled() return ns.getDB() ~= nil and TB.cfg().range end
+local function enabled() return P.getDB() ~= nil and TB.cfg().range end
 
 local function isBuffTotem(el, id)
 	if type(id) ~= "number" or isSecret(id) then return false end
@@ -80,7 +82,7 @@ local function makeMark(s)
 	m:SetAlpha(0)
 	m.bg = m:CreateTexture(nil, "ARTWORK")
 	m.bg:SetAllPoints()
-	ns.Looks.followMask(s.vis, m.bg)
+	ns.StyleArt.followMask(s.vis, m.bg)
 	s.rangeGate, s.rangeMark = gate, m
 end
 
@@ -113,7 +115,7 @@ end
 local function initButton(s, button)
 	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
 	button:SetFrameLevel(s.rangeContainer:GetFrameLevel() + 1)
-	ns.noMouse(button)
+	W.noMouse(button)
 	local icon = button:CreateTexture(nil, "ARTWORK")
 	icon:SetAllPoints()
 	button:SetIcon(icon)
@@ -128,7 +130,7 @@ local function initButton(s, button)
 end
 
 -- Preview: hide our parts on Blizzard's button (never the container), back at once when it ends
-function R.preview(on)
+function RG.preview(on)
 	previewOn = on
 	for _, el in ipairs(TB.ELEMENTS) do
 		local p = TB.slots[el].rangePart
@@ -145,7 +147,8 @@ end
 
 local function makeContainer(s)
 	local ok, err = ns.try("totem range: container", function()
-		local c = CreateFrame("AuraContainer", "ShamanForeverRange" .. TB.NAME[s.el], s.rangeHold, "CustomAuraContainerTemplate")
+		local c = CreateFrame("AuraContainer", "ShamanForeverRange" .. TB.NAME[s.el], s.rangeHold,
+			"CustomAuraContainerTemplate")
 		c:SetFrameLevel(s.button:GetFrameLevel() + TB.RANGE_LEVEL + 1)
 		c:SetUnit("player")
 		pcall(c.EnableMouse, c, false)
@@ -170,7 +173,7 @@ local function place(s, size, ownOnly)
 	local c, b, gate, o = TB.cfg(), s.button, s.rangeGate, s.inset or 0
 	gate:ClearAllPoints()
 	local x, y, w, h = TB.skin.markRect(gate, size, o)
-	if not x then x, y, w, h = o, -o, size - 2 * o, ns.linePx(gate, c.rangeHeight) end
+	if not x then x, y, w, h = o, -o, size - 2 * o, W.linePx(gate, c.rangeHeight) end
 	gate:SetPoint("TOPLEFT", b, "TOPLEFT", x, y)
 	gate:SetSize(w, h)
 	if not TB.skin.paintMark(s.rangeMark, w, h, s.vis) then
@@ -208,7 +211,7 @@ local function sanitize(_, acct)
 		else saved[el] = nil end
 	end
 end
-ns.registerModule({ name = "totem range", sanitize = sanitize })
+MOD.register({ name = "totem range", sanitize = sanitize })
 
 -- Ranks not listed: a buff whose name is the client's name for a listed buff is another rank of it.
 -- Kept for the account: one read out of combat serves later sessions.
@@ -232,7 +235,7 @@ local function learn()
 		local id = a.spellId
 		if el and not isSecret(id) and type(id) == "number" and not buffIDs[el][id] then
 			buffIDs[el][id] = true
-			local saved = ns.getAccount().rangeBuffIDs
+			local saved = P.getAccount().rangeBuffIDs
 			saved[el] = saved[el] or {}
 			saved[el][id] = true
 			applyFilter(TB.slots[el])
@@ -240,10 +243,10 @@ local function learn()
 	end
 end
 
-function R.layout(size)
+function RG.layout(size)
 	-- Blizzard's containers refuse addon calls while auras are secret: their part waits, the layout
 	-- reruns after
-	local blocked = ns.deferWhileAurasSecret("totem range layout", function() R.layout(size) end)
+	local blocked = ns.deferWhileAurasSecret("totem range layout", function() RG.layout(size) end)
 	local want = enabled() and ns.isClass()
 	for _, el in ipairs(TB.ELEMENTS) do
 		local s = TB.slots[el]
@@ -256,7 +259,7 @@ function R.layout(size)
 			place(s, size, blocked)
 			if not blocked then applyFilter(s) end
 		end
-		R.refresh(s)
+		RG.refresh(s)
 	end
 	if not blocked then learn() end
 end
@@ -282,15 +285,15 @@ local function buffTotemDown(s)
 end
 
 -- The mark's gate: only over Blizzard's part (red alone would always say out of range)
-function R.refresh(s)
+function RG.refresh(s)
 	if not s.rangeGate then return end
 	local on = enabled() and partLive(s) and buffTotemDown(s)
 	s.rangeGate:SetAlpha(on and 1 or 0)
 	showStrip(s, on)
-	R.drawTimeLeft(s)
+	RG.drawTimeLeft(s)
 end
 
-function R.drawTimeLeft(s)
+function RG.drawTimeLeft(s)
 	local m = s.rangeMark
 	if not m then return end
 	local d = s.dur
@@ -301,12 +304,12 @@ function R.drawTimeLeft(s)
 end
 
 -- Called by the totem bar's start
-function R.start()
+function RG.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "UNIT_AURA", "player")
 	ev:SetScript("OnEvent", learn)
 	ns.onCombatEnd(function()
-		for _, el in ipairs(TB.ELEMENTS) do R.refresh(TB.slots[el]) end
+		for _, el in ipairs(TB.ELEMENTS) do RG.refresh(TB.slots[el]) end
 	end)
 	-- Drop any holder whose slot has no buff totem of ours down (a lingering buff from a totem
 	-- that went out of combat would show at the pull)

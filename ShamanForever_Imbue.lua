@@ -1,13 +1,17 @@
 -- Weapon imbue
 
 local _, ns = ...
+local P = ns.Profiles
+local W = ns.Widgets
+local E, MOD = ns.Elements, ns.Modules
 local say, isSecret = ns.say, ns.isSecret
 local Spells = ns.Spells
+local own = E.settingsOf("imbue")
 
 local IM = { name = "imbue" }
 ns.Imbue = IM
 
-local imbue = ns.newElementIcon("imbue")
+local imbue = E.newIcon("imbue")
 local anyKnown = false
 local IDLE_CHOICES = {
 	{ "never", "Never", "It always shows in full" },
@@ -16,7 +20,7 @@ local IDLE_CHOICES = {
 	{ "on", "On", "Idle while an imbue is on", "Idle whatever its time left is." },
 }
 local imbueIcon
-ns.registerElement("imbue", { frame = imbue, label = "Weapon Imbue",
+E.register("imbue", { frame = imbue, label = "Weapon Imbue",
 	paint = function(t) t:SetTexture(imbueIcon) end,
 	learned = function() return anyKnown end,
 	defaults = { idleWhen = "notlow", idleAlpha = 0,
@@ -89,7 +93,7 @@ local function hasWeapon()
 end
 
 local function imbueKeyFor(w)
-	local key = ns.getAccount().imbueIDs[w.enchantID] or imbueByID[w.enchantID]
+	local key = P.getAccount().imbueIDs[w.enchantID] or imbueByID[w.enchantID]
 	if key then return key end
 	for k, m in pairs(IMBUES) do
 		if w.enchantIconID == m.icon or w.enchantIconID == imbueIconFor(k) then return k end
@@ -105,24 +109,24 @@ end
 
 imbueIcon = imbueIconFor("rockbiter")
 local function preferredImbueIcon()
-	local icon = ns.elementSetting("imbue", "icon")
-	return imbueIconFor(icon == "last" and (ns.getAccount().imbueLast or "rockbiter") or icon)
+	local icon = own("icon")
+	return imbueIconFor(icon == "last" and (P.getAccount().imbueLast or "rockbiter") or icon)
 end
 
 -- quiet: nothing can be cast now, so a missing imbue shows grey without the warning
-local function warn(field) return ns.elementSetting("imbue", "warn", field) end
+local function warn(field) return own("warn", field) end
 
 local function drawImbue(now, quiet)
 	local on, key = imbueState.on, imbueState.key
 	local unreadable = imbueState.unreadable
 	local left = imbueState.expiresAt and imbueState.expiresAt - now
-	local mins = ns.elementSetting("imbue", "showUnderMins")
+	local mins = own("showUnderMins")
 	local warnAt = (type(mins) == "number" and mins or 0) * 60
 	local showTime = left ~= nil and warnAt > 0 and left <= warnAt
 	-- Missing look only when the read says none: unrecognised shows in colour, unreadable as "?"
 	local missing = on == false
 	imbueIcon = key and imbueIconFor(key) or preferredImbueIcon()
-	local grey, tint, ring, fade, glow = ns.warnParts("imbue", "warn")
+	local grey, tint, ring, fade, glow = W.warnParts("imbue", "warn")
 	local warns = missing and not quiet
 	imbue:SetWarnParts(missing and grey, warns and tint, warns and ring, warns and fade,
 		warns and glow)
@@ -139,9 +143,9 @@ local function drawImbue(now, quiet)
 		imbue.upTimer:clear()
 	end
 	-- Idle fades by alpha, not Hide (keeps its place)
-	local when = ns.elementSetting("imbue", "idleWhen")
-	local idle = ns.getAccount().locked and on and (when == "on" or (when == "notlow" and not showTime))
-	ns.fadeTo(imbue, idle and ns.idleAlpha("imbue") or 1)
+	local when = own("idleWhen")
+	local idle = P.getAccount().locked and on and (when == "on" or (when == "notlow" and not showTime))
+	W.fadeTo(imbue, idle and E.idleAlpha("imbue") or 1)
 end
 
 local function drawNotLearned()
@@ -150,16 +154,16 @@ local function drawNotLearned()
 	imbue:SetWarnParts(true, false, false, false, false)
 	imbue.timer:Hide()
 	imbue.upTimer:clear()
-	ns.fadeTo(imbue, 1)
+	W.fadeTo(imbue, 1)
 end
 
 function IM.refresh()
-	if not ns.isEnabled("imbue") then
+	if not E.isEnabled("imbue") then
 		imbueState.on, imbueState.key, imbueState.lastID, imbueState.lastLeft = nil, nil, nil, nil
 		return
 	end
 	if not anyKnown then drawNotLearned() return end
-	local acct = ns.getAccount()
+	local acct = P.getAccount()
 	local now = GetTime()
 	local r = readMainHand()
 	-- An enchant read empty around a loading screen: the last state stays
@@ -238,8 +242,10 @@ end
 -- /sf debug
 function IM.debug()
 	local r = readMainHand()
-	say("main hand imbue now: %s; last ticker read: %s; weapon %s", r == nil and "unreadable" .. (InCombatLockdown() and " (in combat)" or "")
-		or r == false and "none" or string.format("enchant %d, icon %d, %.0fs left", r.enchantID, r.enchantIconID, r.timeLeft / 1000),
+	say("main hand imbue now: %s; last ticker read: %s; weapon %s",
+		r == nil and "unreadable" .. (InCombatLockdown() and " (in combat)" or "")
+		or r == false and "none"
+		or string.format("enchant %d, icon %d, %.0fs left", r.enchantID, r.enchantIconID, r.timeLeft / 1000),
 		imbueState.read, tostring(hasWeapon()))
 end
 
@@ -249,18 +255,18 @@ local PREVIEW = {
 	typical = "fine", warning = "missing",
 	states = { { "missing", "No imbue" }, { "low", "Running low" }, { "fine", "Plenty left" } },
 	pop = function(ic, st) if st == "missing" and warn("pop") then ic:Pop("lost") end end,
-	render = function(ic, st, P)
+	render = function(ic, st, kit)
 		if st == "missing" then
-			P.reset(ic, preferredImbueIcon())
-			ic:SetWarnParts(ns.warnParts("imbue", "warn"))
+			kit.reset(ic, preferredImbueIcon())
+			ic:SetWarnParts(W.warnParts("imbue", "warn"))
 		else
-			P.reset(ic, imbueIcon)
-			local shows = ns.elementSetting("imbue", "showUnderMins") > 0
-			if st == "low" and shows then P.frozen(ic.upT, 0.95, 3600) end
+			kit.reset(ic, imbueIcon)
+			local shows = own("showUnderMins") > 0
+			if st == "low" and shows then kit.frozen(ic.upT, 0.95, 3600) end
 		end
 	end,
 	idles = function(st, when) return st == "fine" or (st == "low" and when == "on") end,
 }
 ns.registerKind("imbue", { preview = function() return PREVIEW end })
 
-ns.registerModule(IM)
+MOD.register(IM)

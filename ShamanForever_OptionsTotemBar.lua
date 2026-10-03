@@ -1,7 +1,9 @@
 -- Totem bar options page
 local _, ns = ...
+local W = ns.Widgets
+local Bars = ns.Bars
 
-local K, Page, L = ns.Options.kit, ns.Page, ns.Look
+local K, Page, OA = ns.Options.kit, ns.Page, ns.OptionsArt
 local showWhen, setTip = Page.showWhen, Page.setTip
 local LABEL_W = Page.LABEL_W
 local pct, times, int, px = Page.pct, Page.times, Page.int, Page.px
@@ -13,8 +15,8 @@ local POP_ITEMS = 3
 local PREVIEW
 PREVIEW = {
 	stage = true, heroH = 210, uptime = true,
-	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" }, { "killed", "Killed early" },
-		{ "range", "Out of range" }, { "offpick", "Not your pick" }, { "picking", "Picking" } },
+	states = { { "idle", "Nothing down" }, { "down", "Totems down" }, { "expiring", "Expiring" },
+		{ "killed", "Killed early" }, { "range", "Out of range" }, { "offpick", "Not your pick" }, { "picking", "Picking" } },
 	stateShown = function(st)
 		local c = ns.TotemBar.cfg()
 		local mode = c.mode
@@ -37,19 +39,19 @@ PREVIEW = {
 		h.barFrame = bar
 		h.slots = {}
 		for i = 1, 4 do
-			local ic = L.makePreviewIcon(bar, "totembar", PREVIEW)
+			local ic = OA.makePreviewIcon(bar, "totembar", PREVIEW)
 			ic.upT:restack(2)
 			ic.box = CreateFrame("Frame", nil, bar)
 			ic.badge = CreateFrame("Frame", nil, bar)
 			ic.badge:SetFrameLevel(ic:GetFrameLevel() + 6)
 			ic.badge.icon = ic.badge:CreateTexture(nil, "ARTWORK")
 			ic.badge.icon:SetAllPoints()
-			ns.cropIcon(ic.badge.icon)
+			W.cropIcon(ic.badge.icon)
 			ic.rangeF = CreateFrame("Frame", nil, bar)
 			ic.rangeF:SetFrameLevel(ic:GetFrameLevel() + 7)
 			ic.rangeF.bg = ic.rangeF:CreateTexture(nil, "ARTWORK")
 			ic.rangeF.bg:SetAllPoints()
-			ns.Looks.followMask(ic, ic.rangeF.bg)
+			ns.StyleArt.followMask(ic, ic.rangeF.bg)
 			-- As the bar's slot look: TB.paintDown and TB.paintEmpty draw both
 			ic.icon = ic.tex
 			ic.bg = ic:CreateTexture(nil, "BACKGROUND")
@@ -59,9 +61,9 @@ PREVIEW = {
 		end
 		h.extras = {}
 		for _, key in ipairs({ "Call", "Recall" }) do
-			h.extras[key] = ns.makeIcon(bar, 56)
+			h.extras[key] = W.makeIcon(bar, 56)
 		end
-		h.extras.Call.num = ns.makeKeyText(h.extras.Call)
+		h.extras.Call.num = W.makeKeyText(h.extras.Call)
 		h.extras.Call.num:SetTextColor(1, 1, 1)
 		h.tab = ns.TotemBar.makeArrowLook(bar)
 		h.pop = CreateFrame("Frame", nil, bar)
@@ -74,7 +76,7 @@ PREVIEW = {
 			local it = CreateFrame("Frame", nil, h.pop)
 			it.tex = it:CreateTexture(nil, "ARTWORK")
 			it.tex:SetAllPoints()
-			ns.cropIcon(it.tex)
+			W.cropIcon(it.tex)
 			it.x = it:CreateFontString(nil, "OVERLAY", "GameFontDisable")
 			it.x:SetPoint("CENTER")
 			it.x:SetText("X")
@@ -83,7 +85,7 @@ PREVIEW = {
 		h.fitNote = h:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 		h.fitNote:SetPoint("TOPRIGHT", h.area, "TOPRIGHT", 0, 0)
 	end,
-	render = function(h, st, P)
+	render = function(h, st, kit)
 		local TB = ns.TotemBar
 		local c = TB.cfg()
 		local size, border, extrasBorder = TB.look()
@@ -140,7 +142,7 @@ PREVIEW = {
 		for _, it in ipairs(seq) do
 			if it.extra then
 				local ic = h.extras[it.key]
-				local o = ns.Looks.fit(ic, extrasBorder, it.size)
+				local o = ns.StyleArt.fit(ic, extrasBorder, it.size)
 				ic:ClearAllPoints()
 				place(ic, it.offset + o, (line - it.size) / 2 + o)
 				local learned = TB.extraLearned(it.key)
@@ -149,7 +151,7 @@ PREVIEW = {
 				ic.tex:SetAlpha(learned and 1 or 0.6)
 				if ic.num then
 					local set, count = ns.TotemSets.active(), ns.TotemSets.count()
-					ns.Media.setFont(ic.num, "totembar", ns.keyTextSize(it.size, c.keySize))
+					ns.Media.setFont(ic.num, "totembar", W.keyTextSize(it.size, c.keySize))
 					ic.num:ClearAllPoints()
 					ic.num:SetPoint("BOTTOMRIGHT", -1, 2)
 					ic.num:SetText(set)
@@ -169,12 +171,12 @@ PREVIEW = {
 				ic.box:ClearAllPoints()
 				place(ic.box, slotAt[placeIdx[el]], (line - size) / 2)
 				ic.school = el
-				local o = ns.Looks.fit(ic, border, size)
+				local o = ns.StyleArt.fit(ic, border, size)
 				ic:ClearAllPoints()
 				place(ic, slotAt[placeIdx[el]] + o, (line - size) / 2 + o)
 				local pick = TB.pickTexture(el)
 				if ns.isSecret(pick) then pick = nil end
-				P.reset(ic, pick or TB.TOTEM_ICON[el])
+				kit.reset(ic, pick or TB.TOTEM_ICON[el])
 				TB.paintDown(ic)
 				ic.killed:setIcon(pick or TB.TOTEM_ICON[el])
 				if st ~= "killed" or el ~= expEl then ic.killed:stop() end
@@ -190,7 +192,7 @@ PREVIEW = {
 					else
 						local k = i == 1 and c.rangeOut or c.rangeIn
 						f:SetPoint("TOPLEFT", ic, "TOPLEFT", 0, 0)
-						f:SetSize(size - 2 * o, ns.linePx(ic, c.rangeHeight))
+						f:SetSize(size - 2 * o, W.linePx(ic, c.rangeHeight))
 						TB.skin.paintMark(f)
 						f.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
 						f:Show()
@@ -223,7 +225,7 @@ PREVIEW = {
 				else
 					local left, life = TB.PREVIEW_LEFT[el][1], TB.PREVIEW_LEFT[el][2]
 					if expiring then left = expiring.secs > 0 and math.min(5, expiring.secs) or 5 end
-					P.frozen(ic.upT, 1 - left / life, life)
+					kit.frozen(ic.upT, 1 - left / life, life)
 				end
 				ic.upT:setExpire(expiring or nil, pick or TB.TOTEM_ICON[el])
 			end
@@ -301,7 +303,8 @@ local function build(p)
 	local BAR_KEYS = "Keys: Options > Keybindings > " .. ns.NAME .. ", or hover the bar in Quick Keybind Mode."
 	p:text(ns.NAME .. "'s totem bar is off. Blizzard's totem bar and active totems display are on.\n"
 		.. "The totem key bindings still work. " .. KEYS, function() return c().mode == "blizzard" end)
-	p:text("Keeps Blizzard's totem bar, but replaces Blizzard's active totems display usually shown under the player frame.\n"
+	p:text("Keeps Blizzard's totem bar, but replaces Blizzard's active totems display usually shown under the player "
+		.. "frame.\n"
 		.. "Right-click a totem to dismiss it. " .. BAR_KEYS, function() return c().mode == "active" end)
 	p:text("Both of Blizzard's totem frames are replaced by " .. ns.NAME .. ".\n"
 		.. "Right-click a totem to dismiss it. Alt+click a slot to pick its totem. " .. BAR_KEYS, full)
@@ -333,7 +336,7 @@ local function build(p)
 	p:dropdown("Theme", "How the whole bar is drawn.", skins, function() return TB.skin.current().key end,
 		tset("skin"), nil, 190)
 	local expRow = p:row(22)
-	ns.Look.expBadge(expRow, "Totem themes"):SetPoint("LEFT", expRow, "LEFT", LABEL_W, 0)
+	ns.OptionsArt.expBadge(expRow, "Totem themes"):SetPoint("LEFT", expRow, "LEFT", LABEL_W, 0)
 	p:add(expRow, 22, function() return TB.skin.current().experimental or false end)
 	local function theme(key) return function() return TB.skin.current().key == key end end
 	p:checkbox("Tray", "A dark tray edged in gold behind the slots.", tget("pixelTray"), tset("pixelTray"),
@@ -395,7 +398,7 @@ local function build(p)
 		r.icon = r:CreateTexture(nil, "ARTWORK")
 		r.icon:SetSize(20, 20)
 		r.icon:SetPoint("LEFT", cb, "RIGHT", 4, 0)
-		ns.cropIcon(r.icon)
+		W.cropIcon(r.icon)
 		r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 		r.text:SetPoint("LEFT", r.icon, "RIGHT", 6, 0)
 		r:RegisterForDrag("LeftButton")
@@ -450,7 +453,8 @@ local function build(p)
 	p:sub(sizeFollow, function() return not c().sizeFollow end, function()
 		K.rangeSlider(p, TB.RANGES.size, "Icon size", nil, px, tget("size"), function(v) c().size = v; changed() end)
 	end)
-	p:dropdown("Call and Recall", "Where they sit on the bar.", { { "ends", "Both ends" }, { "before", "Before the slots" }, { "after", "After the slots" } },
+	p:dropdown("Call and Recall", "Where they sit on the bar.",
+		{ { "ends", "Both ends" }, { "before", "Before the slots" }, { "after", "After the slots" } },
 		tget("extras"), tset("extras"),
 		showWhen(function() return (c().call or c().recall) and not TB.skin.owns("extras") end, full), 180)
 	own("extrasScale")
@@ -464,7 +468,8 @@ local function build(p)
 
 	p.gate = full
 	p:header("Buttons")
-	p:checkbox("Left-click casts your pick", "Left-click a slot to drop that element's picked totem.", tget("cast"), tset("cast"))
+	p:checkbox("Left-click casts your pick", "Left-click a slot to drop that element's picked totem.", tget("cast"),
+		tset("cast"))
 	local arrows = p:checkbox("Arrow opens a totem picker", "A tab on each slot opens its totems. Works in combat.",
 		tget("arrows"), tset("arrows"))
 	p:sub(arrows, tget("arrows"), function()
@@ -483,7 +488,7 @@ local function build(p)
 	p.gate = function() return full() and ns.TotemSets.count() > 1 end
 	p:header("Totem sets")
 	local setsRow = p:row(22)
-	ns.Look.expBadge(setsRow, "Totem sets"):SetPoint("LEFT", setsRow, "LEFT", LABEL_W, 0)
+	ns.OptionsArt.expBadge(setsRow, "Totem sets"):SetPoint("LEFT", setsRow, "LEFT", LABEL_W, 0)
 	p:add(setsRow, 22)
 	p:text("Each Call drops its own set of four totems. The bar uses one set at a time: its slots, "
 		.. "picks, Call button and keys.")
@@ -506,8 +511,9 @@ local function build(p)
 	p.gate = full
 	K.gcdBlock(p, "totembar")
 	p:header("Totem not down")
-	local look = p:dropdown("Look", "How a slot looks while its totem isn't down.",
-		{ { "pick", "Your pick" }, { "frame", "Element colour" }, { "blank", "Blank" } }, tget("empty"), tset("empty"), nil, 180)
+	local look = p:dropdown("Show as", "How a slot shows while its totem isn't down.",
+		{ { "pick", "Your pick" }, { "frame", "Element colour" }, { "blank", "Blank" } }, tget("empty"), tset("empty"), nil,
+		180)
 	p:sub(look, function() return c().empty == "pick" end, function()
 		p:checkbox("Greyed", "Off: the pick in colour.", tget("idleGrey"), tset("idleGrey"))
 		tslider("Opacity", nil, pct, "idleAlpha")
@@ -528,7 +534,8 @@ local function build(p)
 
 	p.gate = TB.barOn
 	p:header("Out of range")
-	p:text("A strip along the top of a slot shows whether you're getting your own totem's buff, for totems that buff you. In range shows nothing at 0% opacity, the default.",
+	p:text("A strip along the top of a slot shows whether you're getting your own totem's buff, for totems that buff "
+		.. "you. In range shows nothing at 0% opacity, the default.",
 		free("range"))
 	p:text(function() return TB.skin.rangeText() or "" end, owned("range"))
 	local range = p:checkbox("Show", nil, tget("range"), tset("range"))
@@ -536,7 +543,8 @@ local function build(p)
 		tslider("Height", "In pixels.", px, "rangeHeight", free("rangeHeight"))
 		p:color("In range", "Colour and opacity.", tget("rangeIn"), tset("rangeIn"), free("range"))
 		p:color("Out of range", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"), free("range"))
-		p:text("A buff lingers a few seconds after you leave its range. Another shaman's totem of the same type can replace your buff, so yours shows as out of range.")
+		p:text("A buff lingers a few seconds after you leave its range. Another shaman's totem of the same type can "
+			.. "replace your buff, so yours shows as out of range.")
 	end)
 
 	-- Defaults use spell names that may not have loaded yet: TB.overChanged accepts either.
@@ -576,7 +584,8 @@ local function build(p)
 			end)
 			setTip(x, "Remove", "Use the time above for this totem.")
 		end
-		local add = p:dropdown("Add a totem", "Give a totem its own warning time.", {}, function() return nil end, function() end, nil, 220, function(_, root)
+		local add = p:dropdown("Add a totem", "Give a totem its own warning time.", {}, function() return nil end,
+			function() end, nil, 220, function(_, root)
 			local names, seen = {}, {}
 			for slot = 1, 4 do
 				for _, id in ipairs(ns.Totems.knownTotems(slot)) do
@@ -613,7 +622,7 @@ local function build(p)
 	p:text("Set by the theme.", owned("border"))
 	K.borderRows(p, "totembar", changed, nil, free("border"))
 	if K.barFramed("totembar") then
-		p:header("Frame style")
+		p:header("Art frame style")
 		K.frameRows(p, "totembar", "groupframe", changed, { spacing = {
 			get = tget("spacing"), set = function(v) c().spacing = v; changed() end,
 			min = TB.RANGES.spacing[1], max = TB.RANGES.spacing[2],
@@ -622,7 +631,7 @@ local function build(p)
 	p.gate = nil
 end
 
-ns.registerBar("totembar", { icon = "Interface\\Icons\\Spell_Shaman_DropAll_01",
+Bars.register("totembar", { icon = "Interface\\Icons\\Spell_Shaman_DropAll_01",
 	school = ns.THEME.fallback,
 	blurb = "Your totems, their timers, and a pick for each element.",
 	tags = function()

@@ -7,14 +7,16 @@
 -- Blizzard's aura button.
 
 local ADDON, ns = ...
+local W = ns.Widgets
+local P = ns.Profiles
 local TB = ns.TotemBar
 
-local SK = {}
-TB.skin = SK
+local TH = {}
+TB.skin = TH
 
 local S = ns.Style
 local BLACK = { 0, 0, 0, 1 }
-local GOLD = ns.Looks.GOLD
+local GOLD = ns.StyleArt.GOLD
 local RED = { 0.9, 0.12, 0.08, 1 }
 local TRAY = { 0.047, 0.035, 0.024 }
 
@@ -31,27 +33,27 @@ local PLINTHS = {
 	grand = { rect = { 1, 1, 322, 97 }, slotX = { 27.6, 100.8, 173.6, 246.4 }, slotY = 25.2 },
 }
 local PLUG = { 391, 1, 48, 48 }
-SK.PLINTHS = { { "slim", "Slim" }, { "normal", "Normal" }, { "grand", "Grand" } }
+TH.PLINTHS = { { "slim", "Slim" }, { "normal", "Normal" }, { "grand", "Grand" } }
 local function plinthNow()
-	return PLINTHS[ns.getDB() and TB.cfg().stonePlinth] or PLINTHS.normal
+	return PLINTHS[P.getDB() and TB.cfg().stonePlinth] or PLINTHS.normal
 end
 local function shares(pl)
 	return (pl.slotX[2] - pl.slotX[1] - PL_SLOT) / PL_SLOT, pl.slotX[1] / PL_SLOT
 end
 
 local function borderStyle(look, size)
-	local k = S.KINDS.border
+	local k = S.PARTS.border
 	return S.clean({ show = true, look = look, size = size }, k.defaults, k.ranges)
 end
 
 -- The looks, in the order the options offer them. Entry fields: name, experimental, owns, border,
 -- extrasBorder, behind, extrasScaleKey, fixedSlots (every element keeps a place; unshown ones are
 -- sealed sockets), timeBar, mark, picker, arrow, badgeGap(size), rangeText
-SK.LIST, SK.byKey = {}, {}
+TH.LIST, TH.byKey = {}, {}
 local function add(key, entry)
 	entry.key = key
-	table.insert(SK.LIST, entry)
-	SK.byKey[key] = entry
+	table.insert(TH.LIST, entry)
+	TH.byKey[key] = entry
 end
 
 add("default", { name = "Default" })
@@ -87,29 +89,29 @@ add("stone", {
 	badgeGap = function(size) return select(2, plinthReach(size)) end,
 })
 
-local DEFAULT = SK.byKey.default
-function SK.current()
-	if not ns.getDB() then return DEFAULT end
-	return SK.byKey[TB.cfg().skin] or DEFAULT
+local DEFAULT = TH.byKey.default
+function TH.current()
+	if not P.getDB() then return DEFAULT end
+	return TH.byKey[TB.cfg().skin] or DEFAULT
 end
 
-function SK.mark()
-	local m = SK.current().mark
+function TH.mark()
+	local m = TH.current().mark
 	if type(m) == "function" then return m() end
 	return m
 end
-function SK.rangeText()
-	local t = SK.current().rangeText
+function TH.rangeText()
+	local t = TH.current().rangeText
 	if type(t) == "function" then return t() end
 	return t
 end
 
-function SK.extrasScaleKey() return SK.current().extrasScaleKey or "extrasScale" end
+function TH.extrasScaleKey() return TH.current().extrasScaleKey or "extrasScale" end
 
 -- A stone picker is a small plinth stood on end: the picked plinth's pieces turned a quarter, an
 -- opening per button. Returns the measures (TB.popLength); nil for a plain picker
-function SK.popMetrics(psz)
-	if SK.current().picker ~= "stone" then return nil end
+function TH.popMetrics(psz)
+	if TH.current().picker ~= "stone" then return nil end
 	local pl = plinthNow()
 	local u = psz / PL_SLOT
 	local r = pl.rect
@@ -117,24 +119,24 @@ function SK.popMetrics(psz)
 	return (r[3] - pl.slotX[4] - PL_SLOT) * u, pl.slotX[1] * u, gap, r[4] * u
 end
 
-function SK.fixedSlots() return SK.current().fixedSlots == true end
+function TH.fixedSlots() return TH.current().fixedSlots == true end
 
 -- Settings a look owns: border, spacing, extrasGap, dir, pop, range, rangeHeight, barPlace,
 -- extras, extrasScale (the layout reads them through TB.eff())
 local function ownsNow()
-	local o = SK.current().owns
+	local o = TH.current().owns
 	if type(o) == "function" then return o() end
 	return o
 end
 
-function SK.owns(field)
+function TH.owns(field)
 	local o = ownsNow()
 	return o ~= nil and o[field] ~= nil
 end
 
 local POPS = { row = { up = true, down = true }, column = { right = true, left = true } }
 -- A look that sets the direction keeps the player's picker side when it fits
-function SK.owned(field)
+function TH.owned(field)
 	local o = ownsNow()
 	if not o then return nil end
 	if field == "dir" or field == "extras" or field == "extrasScale" then return o[field] end
@@ -148,36 +150,36 @@ function SK.owned(field)
 end
 
 local borders = {}
-function SK.border()
-	local b = SK.current().border
+function TH.border()
+	local b = TH.current().border
 	if type(b) ~= "function" then return b end
 	local made = b()
 	local key = made.look .. made.size
 	borders[key] = borders[key] or made
 	return borders[key]
 end
-function SK.extrasBorder() return SK.current().extrasBorder end
+function TH.extrasBorder() return TH.current().extrasBorder end
 
-function SK.spacing(size)
+function TH.spacing(size)
 	local o = ownsNow()
 	local share = o and o.spacing
 	if not share then return nil end
 	return size * share, size * (o.extrasGap or share)
 end
 
-function SK.barPlace()
-	if SK.owns("barPlace") or not ns.getDB() then return "in" end
+function TH.barPlace()
+	if TH.owns("barPlace") or not P.getDB() then return "in" end
 	return TB.cfg().barPlace
 end
 
-local function outGap(size) return math.max(math.floor(size * 3 / ns.BASE_ICON_SIZE + 0.5), 2) end
+local function outGap(size) return math.max(math.floor(size * 3 / W.BASE_ICON_SIZE + 0.5), 2) end
 local function outReach(size)
-	if SK.barPlace() ~= "out" or not ns.Style.value("totembar", "uptime", "bar") then return 0 end
+	if TH.barPlace() ~= "out" or not ns.Style.value("totembar", "uptime", "bar") then return 0 end
 	return outGap(size) + ns.Style.value("totembar", "uptime", "barHeight")
 end
 
-function SK.badgeGap(size)
-	local f = SK.current().badgeGap
+function TH.badgeGap(size)
+	local f = TH.current().badgeGap
 	return (f and f(size) or 0) + outReach(size)
 end
 
@@ -185,7 +187,7 @@ end
 local function insetRings(f, list, rings)
 	local n, d = 0, 0
 	for _, r in ipairs(rings) do
-		local w, c = ns.linePx(f, r[1]), r[2]
+		local w, c = W.linePx(f, r[1]), r[2]
 		for side = 1, 4 do
 			n = n + 1
 			local t = list[n] or f:CreateTexture(nil, "BORDER")
@@ -219,7 +221,7 @@ local function tray(host, boxes, size, on)
 		trays[host] = t
 	end
 	t:SetFrameLevel(host:GetFrameLevel())
-	local pad = ns.roundPx(size * 0.12, ns.pixel(host))
+	local pad = W.roundPx(size * 0.12, W.pixel(host))
 	t:ClearAllPoints()
 	t:SetPoint("TOPLEFT", boxes[1], "TOPLEFT", -pad, pad)
 	t:SetPoint("BOTTOMRIGHT", boxes[#boxes], "BOTTOMRIGHT", pad, -pad)
@@ -278,8 +280,8 @@ local function plinth(host, boxes, size, on, sealed)
 	f:Show()
 end
 
-function SK.layoutBar(host, boxes, size, row, sealed)
-	local look = SK.current()
+function TH.layoutBar(host, boxes, size, row, sealed)
+	local look = TH.current()
 	tray(host, boxes, size, look.behind == "tray" and TB.cfg().pixelTray and #boxes > 0)
 	plinth(host, boxes, size, look.behind == "plinth" and row and #boxes == 4, sealed)
 end
@@ -303,7 +305,7 @@ local function tip(t, on)
 	x:ClearAllPoints()
 	x:SetPoint("TOP", fill, "TOPRIGHT", 0, 0)
 	x:SetPoint("BOTTOM", fill, "BOTTOMRIGHT", 0, 0)
-	x:SetWidth(ns.linePx(bar, 1))
+	x:SetWidth(W.linePx(bar, 1))
 	x:Show()
 end
 
@@ -320,7 +322,7 @@ local function outsideBar(t, anchor, size, on)
 	end
 	bar.sfOutside = true
 	local _, border = TB.look()
-	local d = ns.Looks.inset(anchor, border, size) + outGap(size)
+	local d = ns.StyleArt.inset(anchor, border, size) + outGap(size)
 	local thick = ns.Style.value("totembar", "uptime", "barHeight")
 	local side = AWAY[TB.eff().pop]
 	bar:ClearAllPoints()
@@ -343,11 +345,11 @@ local function outsideBar(t, anchor, size, on)
 	end
 end
 
-function SK.styleTimer(t, anchor, size)
+function TH.styleTimer(t, anchor, size)
 	if not (t and t.bar) then return end
-	local out = SK.barPlace() == "out"
+	local out = TH.barPlace() == "out"
 	outsideBar(t, anchor, size, out)
-	tip(t, not out and SK.current().timeBar == "tip")
+	tip(t, not out and TH.current().timeBar == "tip")
 end
 
 -- Plain stone from the plinth's tall strip without stretching; a size that reads secret or empty
@@ -361,8 +363,8 @@ local function turnedPiece(t, c0, c1)
 end
 
 local ARROW_BRONZE = { 0.9, 0.72, 0.42 }
-function SK.styleArrow(t)
-	local kind = SK.current().arrow
+function TH.styleArrow(t)
+	local kind = TH.current().arrow
 	if t.skinned then
 		TB.plainArrow(t)
 		if t.skinBg then t.skinBg:Hide() end
@@ -387,7 +389,7 @@ end
 
 local function stonePicker(pop, p, n, psz)
 	local pl = plinthNow()
-	local first, last, gap = SK.popMetrics(psz)
+	local first, last, gap = TH.popMetrics(psz)
 	local f = p.stone
 	if not f then
 		f = { head = pop:CreateTexture(nil, "BACKGROUND", nil, 1),
@@ -425,8 +427,8 @@ local function stonePicker(pop, p, n, psz)
 	place(f.head, y, last)
 end
 
-function SK.stylePopout(pop, n, psz)
-	local kind = SK.current().picker
+function TH.stylePopout(pop, n, psz)
+	local kind = TH.current().picker
 	local p = pop.skin
 	if p then
 		for _, t in ipairs(p.lines) do t:Hide() end
@@ -460,10 +462,10 @@ end
 -- buff's icon, which can be another totem's. No whole-picture mark: in combat our texture under
 -- Blizzard's part refuses SetTexture and SetAlpha, and a MOD tint under a parent at alpha 0 still
 -- tints.
-function SK.markRect(frame, size, inset)
-	local kind = SK.mark()
+function TH.markRect(frame, size, inset)
+	local kind = TH.mark()
 	if not kind then return nil end
-	return inset, -inset, size - 2 * inset, ns.linePx(frame, TB.cfg().rangeHeight)
+	return inset, -inset, size - 2 * inset, W.linePx(frame, TB.cfg().rangeHeight)
 end
 
 local function markParts(m, icon)
@@ -471,13 +473,13 @@ local function markParts(m, icon)
 	if p then return p end
 	p = { shade = m:CreateTexture(nil, "ARTWORK", nil, 1) }
 	p.shade:SetAllPoints()
-	if icon then ns.Looks.followMask(icon, p.shade) end
+	if icon then ns.StyleArt.followMask(icon, p.shade) end
 	m.skinParts = p
 	return p
 end
 
-function SK.paintMark(m, w, h, icon)
-	local kind = w and SK.mark()
+function TH.paintMark(m, w, h, icon)
+	local kind = w and TH.mark()
 	local p = m.skinParts
 	if not kind then
 		if p then
@@ -493,8 +495,8 @@ function SK.paintMark(m, w, h, icon)
 	return true
 end
 
-function SK.styleRangeButton(p, s)
-	if not SK.mark() then return false end
+function TH.styleRangeButton(p, s)
+	if not TH.mark() then return false end
 	p.over.bg:SetColorTexture(0, 0, 0, 0)
 	return true
 end

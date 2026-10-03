@@ -4,19 +4,22 @@
 -- its aura when readable).
 
 local _, ns = ...
+local P = ns.Profiles
+local W = ns.Widgets
+local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
-local Spells, Reagents, KD = ns.Spells, ns.Reagents, ns.Kinds
+local Spells, R, KD = ns.Spells, ns.Reagents, ns.Kinds
 
 local CD = { name = "cooldowns" }
 ns.Cooldowns = CD
 
-local setting = ns.elementSetting
+local setting = E.setting
 
 -- Elements: the class's rows (ns.CLASS.cooldowns). A row's fields: key, spellKey, icon, school,
 -- blurb, experimental; its parts' flags (this file's parts: window (seconds from our cast), primed,
 -- readyGlow, noReady; others' below); expireLooks (which looks Expiring offers; false: none), race
 -- (race IDs; others see "Not your race"), cd and duration (preview only), defaults (over the
--- parts'), styles and timerCant (see ns.registerElement).
+-- parts'), styles and timerCant (see E.register).
 local COOLDOWNS = ns.CLASS.cooldowns or {}
 
 -- The kind and its parts (ns.registerPart); a row's flags name its parts. Other files' parts join
@@ -44,12 +47,12 @@ ns.registerPart("cooldown", {
 	preview = {
 		cooldown = true, typical = "cd",
 		states = { { "ready", "Ready", 10 }, { "cd", "Cooldown", 50 } },
-		render = function(ic, st, def, P)
-			P.reset(ic, def.iconID or def.icon)
+		render = function(ic, st, def, kit)
+			kit.reset(ic, def.iconID or def.icon)
 			if st == "ready" then ic:SetGlowShown(setting(def.key, "ready", "glow"))
-			elseif st == "cd" then P.frozen(ic.cdT, 0.4, def.cd or 60) end
+			elseif st == "cd" then kit.frozen(ic.cdT, 0.4, def.cd or 60) end
 		end,
-		rest = function(ic, def, P) P.frozen(ic.cdT, 0.4, def.cd or 60) end,
+		rest = function(ic, def, kit) kit.frozen(ic.cdT, 0.4, def.cd or 60) end,
 		pop = function(ic, st, def)
 			if st == "ready" and setting(def.key, "ready", "pop") then ic:Pop("ready") end
 		end,
@@ -72,9 +75,9 @@ ns.registerPart("window", {
 	preview = {
 		uptime = true,
 		states = { { "active", "Active", 61 }, { "expiring", "Expiring", 62 } },
-		render = function(ic, st, def, P)
-			if st == "active" then P.frozen(ic.upT, 0.3, def.window)
-			elseif st == "expiring" then P.expiring(ic, def.key, def.window) end
+		render = function(ic, st, def, kit)
+			if st == "active" then kit.frozen(ic.upT, 0.3, def.window)
+			elseif st == "expiring" then kit.expiring(ic, def.key, def.window) end
 		end,
 	},
 })
@@ -97,10 +100,10 @@ ns.registerPart("primed", {
 	preview = {
 		uptime = function(def) return def.primed.duration ~= nil end,
 		states = { { "primed", "Primed", 60 } },
-		render = function(ic, st, def, P)
+		render = function(ic, st, def, kit)
 			if st ~= "primed" then return end
 			ic:SetGlowShown(setting(def.key, "active", "glow"))
-			if def.primed.duration then P.frozen(ic.upT, 0.3, def.primed.duration) end
+			if def.primed.duration then kit.frozen(ic.upT, 0.3, def.primed.duration) end
 		end,
 		pop = function(ic, st, def)
 			if st == "primed" and setting(def.key, "active", "pop") then ic:Pop("ready") end
@@ -142,7 +145,7 @@ ns.registerKind("cooldown", {
 
 local function makeCooldownIcon(def)
 	-- The effects layer ignores the icon's alpha, so an idle icon doesn't fade them
-	local f = ns.newElementIcon(def.key, { effects = true })
+	local f = E.newIcon(def.key, { effects = true })
 	f.tex:SetTexture(def.icon)
 	if hasUptime(def) then
 		f.activeHolder = CreateFrame("Frame", nil, f.textFrame)
@@ -156,7 +159,7 @@ local function makeCooldownIcon(def)
 		f.readyGate:SetAllPoints()
 		f.readyGlow = ns.Effects.glow(f.readyGate, f, def.key)
 	end
-	if KD.words("cooldown", def, "warn") then f.warn = ns.makeWarnOverlay(f) end
+	if KD.words("cooldown", def, "warn") then f.warn = W.makeWarnOverlay(f) end
 	-- Layers, bottom up: icon, warning, swipe, timer bar, text
 	f.stack()
 	return f
@@ -166,7 +169,7 @@ for _, def in ipairs(COOLDOWNS) do
 	def.spell = Spells.name(def.spellKey)
 	def.icon = Spells.icon(def.spellKey) or def.icon
 	def.frame = makeCooldownIcon(def)
-	ns.registerElement(def.key, { frame = def.frame, label = def.spell,
+	E.register(def.key, { frame = def.frame, label = def.spell,
 		defaults = def.defaults or {}, learned = function() return def.spellID ~= nil end,
 		paint = function(t) t:SetTexture(def.iconID or def.icon) end, ranges = def.ranges,
 		kind = "cooldown", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
@@ -263,7 +266,7 @@ local function popWhenReady(f, key, gate)
 	watchEnds(f)
 	f.ownCd:HookScript("OnCooldownDone", function()
 		if not CD.readyNow(f) then return end
-		if not (ns.isEnabled(key) and setting(key, "ready", "pop")) then return end
+		if not (E.isEnabled(key) and setting(key, "ready", "pop")) then return end
 		if ns.cantAct() then return end
 		local g = "ready"
 		if gate then g = gate() end
@@ -292,7 +295,7 @@ local function ownCooldownRunning(def, inEvent)
 	end
 	return def.cdRunning, true
 end
-local function fadeTo(def, alpha) ns.fadeTo(def.frame, alpha) end
+local function fadeTo(def, alpha) W.fadeTo(def.frame, alpha) end
 
 -- def needs key, frame, spellID and refresh (other engines pass such a table too); held: something
 -- of its own keeps it shown (a window or primed buff, low reagents, a part's state)
@@ -301,14 +304,14 @@ local function applyIdle(def, held, inEvent)
 	local running, certain = ownCooldownRunning(def, inEvent)
 	local busy
 	if KD.idleMode(def, when) == "oncd" then busy = not (running and certain) else busy = running end
-	busy = busy or held or when == "never" or not ns.getAccount().locked
+	busy = busy or held or when == "never" or not P.getAccount().locked
 	if busy then def.idleAt = nil
 	elseif def.idle == false then
 		def.idleAt = GetTime() + IDLE_DELAY
 		C_Timer.After(IDLE_DELAY + 0.05, function() def.refresh(def) end)
 	end
 	local waiting = def.idleAt and GetTime() < def.idleAt
-	fadeTo(def, (busy or waiting) and 1 or ns.idleAlpha(def.key))
+	fadeTo(def, (busy or waiting) and 1 or E.idleAlpha(def.key))
 	def.idle = not busy
 end
 CD.applyIdle = applyIdle
@@ -386,7 +389,7 @@ local function readPrimedBuff(def, fromAura)
 end
 
 function refreshCooldown(def, inEvent)
-	if not ns.isEnabled(def.key) then
+	if not E.isEnabled(def.key) then
 		-- Casts aren't followed while off: a window could be spent unseen, so it ends here
 		def.cdRunning = nil
 		endActive(def)
@@ -417,7 +420,7 @@ function refreshCooldown(def, inEvent)
 	local held = isActive(def)
 	if def.primed then showPrimed(def, held) end
 	if def.reagent then
-		local hold, ring, pulse = Reagents.refresh(def)
+		local hold, ring, pulse = R.refresh(def)
 		if hold then held = true end
 		f:SetRingShown(ring)
 		f:SetPulsing(pulse)
@@ -468,7 +471,7 @@ local function styleCooldown(def)
 	local w = f.warn
 	if not w then return end
 	w:setIcon(def.iconID or def.icon)
-	w:setParts(ns.warnParts(def.key, "warn"))
+	w:setParts(W.warnParts(def.key, "warn"))
 end
 
 -- Ready glows ("use me"), all off by default; re-read ten times a second while on
@@ -488,7 +491,7 @@ end
 CD.readyAlpha = readyAlpha
 local function refreshReadyGlow(def, cantAct)
 	local f = def.frame
-	local on = def.spellID and ns.isEnabled(def.key) and setting(def.key, "ready", "glow") and hasTimeLeftCurve
+	local on = def.spellID and E.isEnabled(def.key) and setting(def.key, "ready", "glow") and hasTimeLeftCurve
 		and noTimeLeftCurve
 	f.readyGlow:SetShown(on and true or false)
 	if not on then return end
@@ -510,9 +513,9 @@ end
 local readyTicker = ns.ticker(0.1, refreshReadyGlows)
 local function syncReadyTicker()
 	local want = false
-	if ns.isActive() then
+	if E.isActive() then
 		for _, def in ipairs(COOLDOWNS) do
-			if def.frame.readyGate and ns.isEnabled(def.key) and setting(def.key, "ready", "glow") then want = true end
+			if def.frame.readyGate and E.isEnabled(def.key) and setting(def.key, "ready", "glow") then want = true end
 		end
 	end
 	readyTicker:SetShown(want and true or false)
@@ -520,11 +523,11 @@ local function syncReadyTicker()
 end
 
 function CD.resolve()
-	Reagents.readPerk()
+	R.readPerk()
 	local sig = {}
 	for _, def in ipairs(COOLDOWNS) do
 		def.spell = Spells.name(def.spellKey)
-		ns.ELEMENTS[def.key].label = def.spell
+		E.ALL[def.key].label = def.spell
 		local known, knownIcon
 		if not Spells.otherRace(def.race) then
 			known, knownIcon = Spells.known(def.spellKey)
@@ -542,7 +545,7 @@ function CD.applyTimers()
 		f.cdTimer:apply()
 		if f.upTimer then
 			f.upTimer:apply()
-			f.upTimer:setExpire(ns.elementEvent(def.key, "expire"), def.iconID or def.icon)
+			f.upTimer:setExpire(E.event(def.key, "expire"), def.iconID or def.icon)
 		end
 	end
 end
@@ -565,7 +568,7 @@ function CD.onCast(spellID)
 	if not key then return end
 	local now = GetTime()
 	for _, def in ipairs(COOLDOWNS) do
-		if def.spellID and ns.isEnabled(def.key) then
+		if def.spellID and E.isEnabled(def.key) then
 			if key == def.spellKey then CD.noteCast(def.frame, def.spellID) end
 			if def.window and key == def.spellKey then
 				startActive(def, now, def.window)
@@ -601,9 +604,9 @@ function CD.start()
 			for _, def in ipairs(COOLDOWNS) do if def.reagent then refreshCooldown(def) end end
 		elseif event == "UNIT_AURA" then
 			if InCombatLockdown() then return end   -- secret in combat
-			local perkUnknown = Reagents.auraChanged()
+			local perkUnknown = R.auraChanged()
 			for _, def in ipairs(COOLDOWNS) do
-				if def.spellID and def.primed and def.primed.buffKey and ns.isEnabled(def.key) then
+				if def.spellID and def.primed and def.primed.buffKey and E.isEnabled(def.key) then
 					readPrimedBuff(def, true); refreshCooldown(def)
 				elseif def.reagent and perkUnknown then refreshCooldown(def) end
 			end
@@ -637,10 +640,10 @@ function CD.debug()
 		end
 		if def.reagent then
 			extra = string.format("%s, reagent %s (takes it: %s, Reagent Economy %s)", extra,
-				describeArg(def.reagentRead), tostring(def.takesReagent), tostring(Reagents.perkKnown()))
+				describeArg(def.reagentRead), tostring(def.takesReagent), tostring(R.perkKnown()))
 		end
 		say("%s: spell %s, %sidle %s%s", def.spell, tostring(def.spellID), words, tostring(def.idle), extra)
 	end
 end
 
-ns.registerModule(CD)
+MOD.register(CD)

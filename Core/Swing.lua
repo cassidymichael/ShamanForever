@@ -1,6 +1,8 @@
 -- Swing timer
 
 local _, ns = ...
+local W = ns.Widgets
+local E, MOD, Bars, P = ns.Elements, ns.Modules, ns.Bars, ns.Profiles
 local say, isSecret = ns.say, ns.isSecret
 local Spells = ns.Spells
 
@@ -15,8 +17,8 @@ SW.ICON = Spells.icon("attack") or 135274
 -- Colour: custom, or an element's that offers one to a bar (its barColor), the first by default:
 -- only elements whose files load before this one (TOC order)
 local COLOR_BY = {}
-for _, key in ipairs(ns.ELEMENT_KEYS) do
-	if ns.ELEMENTS[key].barColor then table.insert(COLOR_BY, key) end
+for _, key in ipairs(E.KEYS) do
+	if E.ALL[key].barColor then table.insert(COLOR_BY, key) end
 end
 table.insert(COLOR_BY, "custom")
 SW.COLOR_BY = COLOR_BY
@@ -43,9 +45,9 @@ local CHOICES = { show = { "combat", "always", "never" }, colorBy = COLOR_BY,
 -- What the profile's cleaning can't declare, once per saved table
 local cfgTable
 local function cfg()
-	local t = ns.getDB().swingBar
+	local t = P.getDB().swingBar
 	if t ~= cfgTable then
-		ns.fillDefaults(t, SW.DEFAULTS)
+		P.fillDefaults(t, SW.DEFAULTS)
 		if not ns.POINTS[t.point] then t.point, t.x, t.y = SW.DEFAULTS.point, SW.DEFAULTS.x, SW.DEFAULTS.y end
 		cfgTable = t
 	end
@@ -53,7 +55,7 @@ local function cfg()
 end
 SW.cfg = cfg
 
-function SW.isOn() return ns.isActive() and cfg().show ~= "never" end
+function SW.isOn() return E.isActive() and cfg().show ~= "never" end
 
 SW.BACKGROUND = { 0, 0, 0, 0.6 }
 function SW.makeBar(parent)
@@ -76,7 +78,7 @@ function SW.styleBar(b)
 	b.spark:ClearAllPoints()
 	b.spark:SetPoint("TOP" .. side, fill, "TOP" .. side, 0, 0)
 	b.spark:SetPoint("BOTTOM" .. side, fill, "BOTTOM" .. side, 0, 0)
-	b.spark:SetWidth(ns.linePx(b, 2))
+	b.spark:SetWidth(W.linePx(b, 2))
 end
 
 local font = CreateFont(ns.NAME .. "SwingFont")
@@ -96,7 +98,7 @@ function SW.placeCountdown(fs, anchor)
 	fs:SetJustifyH(side)
 end
 
-function SW.border() return ns.borderFor("swing") end
+function SW.border() return E.borderFor("swing") end
 
 local f = CreateFrame("Frame", nil, UIParent)
 f:SetSize(SW.DEFAULTS.width, SW.DEFAULTS.height)
@@ -127,7 +129,7 @@ local pv = { mode = nil, action = "swing", count = 0, nextAt = 0 }
 
 local function fillColor()
 	local c = cfg()
-	local e = ns.ELEMENTS[c.colorBy]
+	local e = E.ALL[c.colorBy]
 	return e and e.barColor and e.barColor.color() or c.color
 end
 SW.fillColor = fillColor
@@ -136,7 +138,7 @@ local function paintFill()
 	bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
 end
 
-local function drawFace() face:SetShown(bar:IsShown() or not ns.getAccount().locked) end
+local function drawFace() face:SetShown(bar:IsShown() or not P.getAccount().locked) end
 
 local function clearSwing()
 	state.endsAt = nil
@@ -220,8 +222,8 @@ local movable
 local function visibilityDriver()
 	if not SW.isOn() then return "hide" end
 	if pv.mode then return "show" end
-	if not ns.getAccount().locked then return "show" end
-	return ns.Bars.SHOW_WHEN[cfg().show] or "show"
+	if not P.getAccount().locked then return "show" end
+	return Bars.SHOW_WHEN[cfg().show] or "show"
 end
 local function drive() ns.setVisibilityDriver(f, visibilityDriver(), "swing timer driver") end
 
@@ -232,10 +234,10 @@ local function layout()
 	listen(SW.isOn())
 	f:SetScale(c.scale)
 	f:SetAlpha(c.alpha)
-	local px = ns.pixel(f)
-	f:SetSize(math.max(ns.roundPx(c.width, px), px), math.max(ns.roundPx(c.height, px), px))
-	ns.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
-	ns.Looks.applyBorder(face, SW.border(), "bar")
+	local px = W.pixel(f)
+	f:SetSize(math.max(W.roundPx(c.width, px), px), math.max(W.roundPx(c.height, px), px))
+	W.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
+	ns.StyleArt.applyBorder(face, SW.border(), "bar")
 	SW.styleBar(bar)
 	paintFill()
 	SW.styleCountdown()
@@ -318,7 +320,7 @@ function SW.debug()
 		left and (left > 0 and string.format("next in %.1f s", left) or "due") or "no swing under way")
 end
 
-ns.registerBar("swing", { label = "Swing timer", cfg = cfg, saved = "swingBar", defaults = SW.DEFAULTS,
-	ranges = RANGES, choices = CHOICES, on = SW.isOn, kinds = { "border", "text", "bar" }, movable = movable,
+Bars.register("swing", { label = "Swing timer", cfg = cfg, saved = "swingBar", defaults = SW.DEFAULTS,
+	ranges = RANGES, choices = CHOICES, on = SW.isOn, parts = { "border", "text", "bar" }, movable = movable,
 	hud = { show = showPreview } })
-ns.registerModule(SW)
+MOD.register(SW)
