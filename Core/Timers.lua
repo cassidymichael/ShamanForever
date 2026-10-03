@@ -214,6 +214,11 @@ function Timer:outset()
 	local gap = S.get(self.key, self.part).barGap
 	return W.roundPx(inset + gap * box / W.BASE_ICON_SIZE, W.pixel(self.anchor))
 end
+-- How far a bar out of the icon reaches from it, its edge included
+function Timer:reach()
+	local e = self.bar and ns.StyleArt.outerEdge(self.bar) or 0
+	return self:outset() + 2 * e + S.get(self.key, self.part).barHeight
+end
 
 local OUT_POINTS = {
 	above = { "BOTTOMLEFT", "TOPLEFT", "BOTTOMRIGHT", "TOPRIGHT", 0, 1 },
@@ -221,8 +226,15 @@ local OUT_POINTS = {
 	right = { "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT", 1, 0 },
 	left = { "TOPRIGHT", "TOPLEFT", "BOTTOMRIGHT", "BOTTOMLEFT", -1, 0 },
 }
+-- Out of the icon a bar has a one-pixel dark edge, drawn as a bar's border (the swing timer's route)
+local OUT_EDGE = { show = true, look = "line", size = 1, color = { 0, 0, 0, 1 } }
 local function placeBar(t, s, side)
 	local bar, a = t.bar, t.anchor
+	local out = OUT_POINTS[side]
+	if out or t.edged then
+		ns.StyleArt.applyBorder(bar, out and OUT_EDGE or nil, "bar")
+		t.edged = out ~= nil
+	end
 	bar:ClearAllPoints()
 	if side == "top" then
 		bar:SetPoint("TOPLEFT", a, "TOPLEFT", 0, 0); bar:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, 0)
@@ -230,10 +242,11 @@ local function placeBar(t, s, side)
 		local y = t.barInset and t.barInset() or 0
 		bar:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, y); bar:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, y)
 	else
-		-- As long as the icon's box, border included
-		local out, d = OUT_POINTS[side], t:outset()
+		-- As long as the icon's box, border included, its edge too
+		local e = ns.StyleArt.outerEdge(bar)
+		local d = t:outset() + e
 		local _, inset = t:boxInset()
-		local span = W.roundPx(inset, W.pixel(a))
+		local span = W.roundPx(inset, W.pixel(a)) - e
 		local sx, sy = (side == "above" or side == "below") and -span or 0, (side == "left" or side == "right") and span or 0
 		bar:SetPoint(out[1], a, out[2], out[5] * d + sx, out[6] * d + sy)
 		bar:SetPoint(out[3], a, out[4], out[5] * d - sx, out[6] * d - sy)

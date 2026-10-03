@@ -304,7 +304,7 @@ local function besideReach(ic)
 		local s = t and ns.Style.get(t.key, t.part)
 		if s and s.bar and not ns.Timer.cant(t.key, t.part).bar then
 			local side = ns.Timer.barSide(t.key, s)
-			local reach = math.ceil(t:outset() + s.barHeight)
+			local reach = math.ceil(t:reach())
 			if side == "left" then l = math.max(l, reach) elseif side == "right" then r = math.max(r, reach) end
 		end
 	end

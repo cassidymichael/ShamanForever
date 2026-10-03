@@ -171,7 +171,7 @@ local function marksPlace(w, o, px, t)
 	local where, out = W.attachSide("shock", own("marks", "side")), o + gap
 	local s = ns.Style.get("shock", "cooldown")
 	if t and s.bar and not ns.Timer.cant("shock", "cooldown").bar and ns.Timer.barSide("shock", s) == where then
-		out = math.max(out, W.roundPx(t:outset() + s.barHeight, px) + gap)
+		out = math.max(out, W.roundPx(t:reach(), px) + gap)
 	end
 	return where, size, out
 end
