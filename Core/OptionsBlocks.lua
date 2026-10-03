@@ -538,6 +538,29 @@ local function barBlock(p)
 end
 
 local TEXT_POS = { { "auto", "Auto" }, { "center", "Centre" }, { "topleft", "Top left" }, { "bottom", "Bottom" } }
+-- In the icon on an edge, or out of it on a side across the group's flow (_Timers): one menu, two fields
+local function barPosition(p, key, tg, ts)
+	local function column()
+		local g = key and P.getDB() and G.of(key)
+		return g ~= nil and g.orientation == "vertical"
+	end
+	local function choices()
+		local col = column()
+		return { { "in bottom", "In the icon, bottom" }, { "in top", "In the icon, top" },
+			{ "out bottom", col and "Left of the icon" or "Below the icon" },
+			{ "out top", col and "Right of the icon" or "Above the icon" } }
+	end
+	local place, edge, setPlace, setEdge = tg("barPlace"), tg("barEdge"), ts("barPlace"), ts("barEdge")
+	p:dropdown("Bar position", nil, choices,
+		function() return (place() == "out" and "out" or "in") .. " " .. (edge() == "top" and "top" or "bottom") end,
+		function(v)
+			local where, side = v:match("^(%a+) (%a+)$")
+			setPlace(where)
+			setEdge(side)
+		end, nil, 180)
+	if key == nil then p:text("In a column group: left of the icon for below, right for above.") end
+end
+
 local function timerSettings(p, title, key, part, after, note, first, barPlaced)
 	after = after or retime
 	local cant = ns.Timer.cant(key, part)
@@ -584,14 +607,23 @@ local function timerSettings(p, title, key, part, after, note, first, barPlaced)
 	local bar = p:checkbox("Time bar", "A bar along an edge that drains.", tg("bar"), ts("bar"), canHave("bar"))
 	p:sub(bar, on("bar"), function()
 		styleSlider(p, part, "barHeight", "Bar height", nil, px, tg("barHeight"), ts("barHeight"))
-		p:dropdown("Bar edge", nil, { { "bottom", "Bottom" }, { "top", "Top" } }, tg("barEdge"), ts("barEdge"),
-			function() return not (barPlaced and barPlaced()) end, 140)
+		if key == nil or ns.Timer.canPlaceOut(key) then
+			barPosition(p, key, tg, ts)
+		else
+			p:dropdown("Bar edge", nil, { { "bottom", "Bottom" }, { "top", "Top" } }, tg("barEdge"), ts("barEdge"),
+				function() return not (barPlaced and barPlaced()) end, 140)
+		end
 		local colour = p:dropdown("Bar colour", nil, { { true, ns.THEME.axis.name .. " colour" }, { false, "Custom" } },
 			tg("barElement"), ts("barElement"), nil, 160)
 		p:sub(colour, function() return not style().barElement end, function()
 			p:color("Custom bar colour", nil, tg("barColor"), ts("barColor"))
 		end)
 	end)
+	if key and not Bars.get(key) and not cant.bar and not ns.Timer.canPlaceOut(key) then
+		p:text("Its time bar stays in the icon.", function()
+			return style().bar and style().barPlace == "out"
+		end)
+	end
 	if not key then ownLine(p, part) end
 end
 
