@@ -5,8 +5,8 @@
 -- attackable), and a state driver ([@target,harm,nodead]) hides it for friendly targets.
 -- A failed call (refused in combat) sets the gate to alpha 0: nothing shows rather than the last
 -- target's aura.
--- Flame Shock's Expiring colour is a clip-framed bar over the time bar's first N/12 (the DoT is 12 s
--- at every rank), with a cover bar; all set out of combat only.
+-- Expiring drawn by the engine is a clip-framed bar over the time bar's first N seconds of the
+-- row's duration, with a cover bar; all set out of combat only.
 
 local _, ns = ...
 local say, Spells, isSecret = ns.say, ns.Spells, ns.isSecret
@@ -17,11 +17,13 @@ ns.Target = T
 local setting = ns.elementSetting
 local gateAlpha, holderAlpha, retarget
 
--- Fields: filter, candidates(def), noPop, noGlow, ownIcon, buttonBorder, noTimer, defaults; parts
+-- Fields: filter, auraKey (the aura's spell, matched by any rank), duration (the aura's full length,
+-- for engineExpire), candidates(def), noPop, noGlow, ownIcon, buttonBorder, noTimer, defaults; parts
 -- missing, engineExpire, skipLong (below); page texts idleText, procHeader, popTip, glowTip, upLabel,
 -- idleLabel. Rows are of the buff kind (_Buffs).
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
+		duration = 12,
 		icon = 135813, school = "fire", blurb = "Shows while your Flame Shock is on your target.",
 		styles = { glow = { look = "soft" }, uptime = { text = true, bar = true, barEdge = "bottom" } },
 		idleChoices = {
@@ -132,7 +134,7 @@ local styleExpire, styleExpireText
 
 local function styleButton(def, size, slot)
 	if def.engineExpire then
-		ns.try("flame shock expiring", styleExpire, def, size, slot)
+		ns.try("target expiring " .. def.key, styleExpire, def, size, slot)
 	end
 	if def.edge then
 		ns.try("target border " .. def.key, ns.Frames.dress, def.edge, def.key)
@@ -140,22 +142,21 @@ local function styleButton(def, size, slot)
 	if def.fx then ns.try("target pop " .. def.key, def.fx.stylePop, def.fx, size) end
 end
 
--- Flame Shock's Expiring, drawn by the engine
--- A plain read of another DoT length turns the bar cue off (flameShockOnTarget)
-local FS_SECS = 12
-local FAST = 240   -- 12 s / 240 = 0.05 s to cross
+-- Expiring, drawn by the engine
+-- A plain read of another length turns the bar cue off (auraOnTarget)
+local FAST = 240   -- the cover crosses its clip in a 240th of the aura's length
 local WHITE = "Interface\\Buttons\\WHITE8x8"
 local RED = { 1, 0.2, 0.2, 1 }
 local REMAINING = Enum and Enum.DurationTextBindingProperty and Enum.DurationTextBindingProperty.RemainingDuration or 0
 
-local function makeExpireBar(button)
+local function makeExpireBar(button, key)
 	local x = {}
 	x.clip = CreateFrame("Frame", nil, button)
 	x.clip:SetClipsChildren(true)
 	x.clip:Hide()
 	x.bar = CreateFrame("StatusBar", nil, x.clip)
 	x.bar:SetStatusBarTexture(WHITE)
-	x.ok = ns.try("flame shock expiring bar", button.SetDurationBar, button, x.bar, ns.Timer.AURA_BAR)
+	x.ok = ns.try("target expiring bar " .. key, button.SetDurationBar, button, x.bar, ns.Timer.AURA_BAR)
 	return x
 end
 
@@ -177,7 +178,7 @@ local function textCurve(secs, c)
 end
 
 function styleExpire(def, size, slot)
-	local key, t = def.key, slot.timer
+	local key, t, length = def.key, slot.timer, def.duration
 	local st = ns.Style.get(key, "uptime")
 	local secs, r = setting(key, "expire", "secs"), def.ranges.expire.secs
 	if type(secs) ~= "number" or secs ~= secs then secs = def.defaults.expire.secs end
@@ -186,16 +187,16 @@ function styleExpire(def, size, slot)
 	-- The cover must hide the Expiring colour completely: no see-through colour
 	local k = t and t:barRGB()
 	local barOn = secs > 0 and setting(key, "expire", "bar") and t and t.barOn and red and cover and red.ok and cover.ok
-		and ns.isColor(k) and (k[4] or 1) >= 1 and not def.lengthOff
+		and ns.isColor(k) and (k[4] or 1) >= 1 and not def.lengthOff and type(length) == "number" and length > 0
 	-- Both hidden first, shown together last: an Expiring colour without its cover would warn for the
-	-- whole DoT
+	-- whole aura
 	for _, x in ipairs({ red, cover }) do if x then x.clip:Hide() end end
 	if not barOn then return styleExpireText(def, slot, st, secs) end
 	local c = setting(key, "expire", "barColor")
 	if not ns.isColor(c) then c = def.defaults.expire.barColor end
-	local placed = ns.try("flame shock expiring place", function()
+	local placed = ns.try("target expiring place " .. key, function()
 		local h, edge = st.barHeight, st.barEdge == "top" and "TOPLEFT" or "BOTTOMLEFT"
-		local w = size * secs / FS_SECS
+		local w = size * secs / length
 		-- Levels: Expiring colour under the cover; glow and countdown above both
 		local base = def.frame.textFrame:GetFrameLevel()
 		red.clip:SetFrameLevel(base + 10); red.bar:SetFrameLevel(base + 11)
@@ -211,7 +212,7 @@ function styleExpire(def, size, slot)
 		red.bar:SetStatusBarTexture(tex)
 		local long = w * FAST
 		cover.bar:SetSize(long, h)
-		cover.bar:SetPoint("TOPLEFT", cover.clip, "TOPLEFT", w - long * secs / FS_SECS, 0)
+		cover.bar:SetPoint("TOPLEFT", cover.clip, "TOPLEFT", w - long * secs / length, 0)
 		cover.bar:SetStatusBarColor(k[1], k[2], k[3], 1)
 		red.bar:SetSize(size, h)
 		red.bar:SetPoint("TOPLEFT", red.clip, "TOPLEFT", 0, 0)
@@ -232,7 +233,8 @@ function styleExpireText(def, slot, st, secs)
 		def.textHolder:SetFrameLevel(def.frame.textFrame:GetFrameLevel() + 15)
 		ns.Media.setFont(fs, key, st.textSize)
 		ns.Timer.placeText(fs, b, st, t and t.barOn, t and t.dual)
-		if ns.try("flame shock countdown", b.SetDurationText, b, fs, { textColor = { curve = textOn, property = REMAINING } }) then
+		if ns.try("target countdown " .. key, b.SetDurationText, b, fs,
+			{ textColor = { curve = textOn, property = REMAINING } }) then
 			def.textHanded = true
 			fs:Show()
 			if t then t.cd:SetHideCountdownNumbers(true) end
@@ -240,7 +242,7 @@ function styleExpireText(def, slot, st, secs)
 		end
 	end
 	if fs then
-		ns.try("flame shock countdown", b.ClearDurationText, b)
+		ns.try("target countdown " .. key, b.ClearDurationText, b)
 		fs:Hide()
 	end
 	def.textHanded = false
@@ -302,8 +304,8 @@ for _, def in ipairs(TARGET) do
 		candidates = def.candidates and function() return def.candidates(def) end,
 		ownIcon = def.ownIcon and function() return def.icon end, noTimer = def.noTimer,
 		extras = def.engineExpire and {
-			{ key = "expire", init = function(_, b) def.redBar = makeExpireBar(b) end },
-			{ key = "cover", init = function(_, b) def.coverBar = makeExpireBar(b) end },
+			{ key = "expire", init = function(_, b) def.redBar = makeExpireBar(b, def.key) end },
+			{ key = "cover", init = function(_, b) def.coverBar = makeExpireBar(b, def.key) end },
 		} or nil,
 		sites = { container = "target container " .. def.key, style = "target style " .. def.key,
 			filter = "target filter " .. def.key },
@@ -393,27 +395,27 @@ local function driveGate(def)
 	end
 end
 
--- Flame Shock: the Not on target look
-local FLAME = TARGET[1]
-
+-- Not on target (rows with missing)
 local function readable() return not ns.inCombat() and ns.aurasReadable() end
 
--- nil when it can't be told (read fails or secret). Any rank counts, by ID or the client's name
-local function flameShockOnTarget()
-	local ids = idMap(FLAME)
+-- nil when it can't be told (read fails or secret). Any rank counts: by ID, by key or by the
+-- client's name for it
+local function auraOnTarget(def)
+	local ids, key = idMap(def), def.auraKey
+	local want = key and Spells.name(key)
 	for i = 1, 40 do
-		local ok, a = pcall(C_UnitAuras.GetAuraDataByIndex, "target", i, "HARMFUL|PLAYER")
+		local ok, a = pcall(C_UnitAuras.GetAuraDataByIndex, "target", i, def.filter)
 		if not ok or isSecret(a) then return nil end
 		if a == nil then return false end
 		local id, name, dur = a.spellId, a.name, a.duration
 		if isSecret(id) or isSecret(name) then return nil end
-		if ids[id] or Spells.keyOf(id) == "flameShock" or name == FLAME.spell then
-			-- Another length turns the Expiring bar off until a read gives FS_SECS again
-			if not isSecret(dur) and type(dur) == "number" and dur > 0 then
-				local off = math.abs(dur - FS_SECS) > 0.05
-				if off ~= (FLAME.lengthOff or false) then
-					FLAME.lengthOff = off
-					FLAME.aura:style()
+		if ids[id] or (key and Spells.keyOf(id) == key) or (want and name == want) then
+			-- Another length turns the Expiring bar off until a read gives the row's again
+			if def.duration and not isSecret(dur) and type(dur) == "number" and dur > 0 then
+				local off = math.abs(dur - def.duration) > 0.05
+				if off ~= (def.lengthOff or false) then
+					def.lengthOff = off
+					def.aura:style()
 				end
 			end
 			return true
@@ -422,12 +424,11 @@ local function flameShockOnTarget()
 	return nil
 end
 
-local function readWanted()
-	return FLAME.spellID and ns.isEnabled(FLAME.key) and readable() and hostileTarget()
+local function readWanted(def)
+	return def.spellID and ns.isEnabled(def.key) and readable() and hostileTarget()
 end
 
-local function stateLook()
-	local def = FLAME
+local function stateLook(def)
 	local a = def.aura
 	local on = a.container and not a.err and def.spellID and ns.isEnabled(def.key)
 	def.holder.on = on and true or false
@@ -435,8 +436,8 @@ local function stateLook()
 	holderAlpha(def)
 end
 
-local function styleLook()
-	local def, f, h, look = FLAME, FLAME.frame, FLAME.holder, FLAME.missLook
+local function styleLook(def)
+	local f, h, look = def.frame, def.holder, def.missLook
 	if InCombatLockdown() then return end
 	local lv = f.textFrame:GetFrameLevel() + 1   -- over the icon, under the container
 	h:SetFrameLevel(lv)
@@ -446,7 +447,12 @@ local function styleLook()
 	look:setParts(ns.warnParts(def.key, "warn"))
 	look:reshape()
 	look:style()
-	stateLook()
+	stateLook(def)
+end
+local function styleLooks()
+	for _, def in ipairs(TARGET) do
+		if def.missing then styleLook(def) end
+	end
 end
 
 local function styleUp()
@@ -459,10 +465,15 @@ local function styleUp()
 	end
 end
 
-local function checkMissing()
+local function checkMissing(def)
 	if ns.inCombat() then return end
-	if readWanted() then flameShockOnTarget() end
-	stateLook()
+	if readWanted(def) then auraOnTarget(def) end
+	stateLook(def)
+end
+local function checkAll()
+	for _, def in ipairs(TARGET) do
+		if def.missing then checkMissing(def) end
+	end
 end
 
 local function frameAlpha(def)
@@ -480,13 +491,16 @@ end
 
 -- Combat starts: icon to its idle alpha at once (a fade would stop part way)
 local function combatStarts()
-	styleLook()
+	styleLooks()
 	styleUp()
-	applyIdle(FLAME)
-	local f = FLAME.frame
-	local a = frameAlpha(FLAME)
-	f:SetAlpha(a)
-	ns.fadeTo(f, a)
+	for _, def in ipairs(TARGET) do
+		if def.missing then
+			applyIdle(def)
+			local f, a = def.frame, frameAlpha(def)
+			f:SetAlpha(a)
+			ns.fadeTo(f, a)
+		end
+	end
 end
 
 local function refreshAura(def)
@@ -508,6 +522,16 @@ local function refreshAura(def)
 	f.tex:SetDesaturated(not def.spellID)
 	ns.fadeTo(f, frameAlpha(def))
 	applyIdle(def)
+end
+
+-- A target event: rows with missing read and redraw (the rest follow through retarget)
+local function missingRows(readsOnly)
+	for _, def in ipairs(TARGET) do
+		if def.missing and (not readsOnly or readWanted(def)) then
+			checkMissing(def)
+			refreshAura(def)
+		end
+	end
 end
 
 function T.resolve()
@@ -537,7 +561,7 @@ end
 
 function T.applyTimers()
 	for _, def in ipairs(TARGET) do def.aura:style() end
-	styleLook()
+	styleLooks()
 	styleUp()
 end
 
@@ -561,9 +585,9 @@ function T.applyLayout()
 		def.aura:style()
 		refreshAura(def)
 	end
-	styleLook()
+	styleLooks()
 	styleUp()
-	checkMissing()
+	checkAll()
 end
 
 function T.afterGroups()
@@ -571,13 +595,13 @@ function T.afterGroups()
 		def.aura:style()
 		if def.holder then holderAlpha(def) end
 	end
-	styleLook()
+	styleLooks()
 	styleUp()
 	for _, def in ipairs(TARGET) do refreshAura(def) end
 end
 
 function T.refresh()
-	checkMissing()
+	checkAll()
 	for _, def in ipairs(TARGET) do refreshAura(def) end
 end
 T.tick = T.refresh
@@ -588,23 +612,17 @@ function T.start()
 	ns.registerEvent(ev, "UNIT_FACTION", "target")
 	ns.registerEvent(ev, "UNIT_AURA", "target")
 	ev:SetScript("OnEvent", function(_, event)
-		if event == "UNIT_AURA" then
-			if not readWanted() then return end
-			checkMissing()
-			refreshAura(FLAME)
-		else
-			retarget()
-			checkMissing()
-			refreshAura(FLAME)
-		end
+		if event == "UNIT_AURA" then return missingRows(true) end
+		retarget()
+		missingRows()
 	end)
 	ns.onCombatStart(combatStarts)
 	-- The reads come with every module's refresh, before this
 	ns.onCombatEnd(function()
-		styleLook()
+		styleLooks()
 		styleUp()
 	end)
-	ns.onCanActChange(function() checkMissing(); refreshAura(FLAME) end)
+	ns.onCanActChange(function() missingRows() end)
 end
 
 -- /sf debug
@@ -613,13 +631,19 @@ function T.debug()
 		local a = def.aura
 		say("%s: spell %s, container %s%s, unit %s, gate driver %s, failed unit calls %d%s", def.spell,
 			tostring(def.spellID), a.container and "made" or "not made", a.err and (", error: " .. a.err) or "",
-			tostring(def.unit), tostring(def.driven), def.failed or 0, def.stale and " (hidden until one works)" or "")
+			tostring(def.unit), tostring(def.driven), def.failed or 0,
+			def.stale and " (hidden until one works)" or "")
 	end
 	say("target attackable %s", tostring(hostileTarget()))
-	local on = readWanted() and flameShockOnTarget()
-	say("%s on target: %s", FLAME.spell, readWanted() and tostring(on) or "not read (combat, secret auras or no target)")
-	say("%s Not on target: sensor %s", FLAME.spell, FLAME.missLook:describe())
-	say("%s red countdown handed %s", FLAME.spell, tostring(FLAME.textHanded))
+	for _, def in ipairs(TARGET) do
+		if def.missing then
+			local on = readWanted(def) and auraOnTarget(def)
+			say("%s on target: %s", def.spell, readWanted(def) and tostring(on)
+				or "not read (combat, secret auras or no target)")
+			say("%s Not on target: sensor %s", def.spell, def.missLook:describe())
+		end
+		if def.engineExpire then say("%s red countdown handed %s", def.spell, tostring(def.textHanded)) end
+	end
 	for _, def in ipairs(TARGET) do
 		if def.fx then say("%s: %s", def.spell, def.fx:describe()) end
 	end
