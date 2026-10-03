@@ -56,7 +56,7 @@ ns.CLASS.layout = {
 		sizeFollow = false, size = 38,
 		orientation = "horizontal", growth = "forward", spacing = 2,
 		members = { "earthbind", "stoneclaw", "grounding" } },
-	{ id = 4, name = "Procs", point = "CENTER", x = 0, y = -154, scale = 1, alpha = 0.9,
+	{ id = 4, name = "Procs", point = "CENTER", x = 0, y = -142, scale = 1, alpha = 0.9,
 		sizeFollow = false, size = 50,
 		orientation = "horizontal", growth = "forward", spacing = 2,
 		members = { "elementalfocus", "maelstrom" } },
