@@ -1,8 +1,5 @@
 -- Cast states: a spell's cost you can't pay, and its target out of range
--- Both are plain in combat (IsSpellUsable's second return, IsSpellInRange). Each shows only while
--- its element's switch is on. An element watches its spell (CS.watch); its paint is the style parts
--- "power" and "range" (_Style). Out of range wins the icon's body; the cost's ring shows with either.
--- An element's own looks win where they share a place (its ring, its tint).
+-- Out of range wins the icon's body, the cost's ring shows with either, the element's own looks win
 
 local _, ns = ...
 local W = ns.Widgets
@@ -70,8 +67,7 @@ local function outOfRange(id, unit)
 	return ns.plain(safe(C_Spell.IsSpellInRange, id, unit)) == false
 end
 
--- The paint on an icon of ours (W.makeIcon); the preview's too. overlay: only the overlay, as over
--- Blizzard's aura button
+-- The paint on an icon of ours, the preview's too; overlay: only the overlay
 local function bodyLook(f, look, overlay)
 	if overlay then return "overlay" end
 	if f.warnTint then return look == "both" and "overlay" or look ~= "tint" and look or nil end
@@ -95,8 +91,7 @@ function CS.paint(f, key, out, low, overlay)
 	else f:SetPaintRing(low, c[1], c[2], c[3], a) end
 end
 
--- Over Blizzard's aura button: an overlay only, shown while the aura is up (the element's own
--- look shows while it's gone)
+-- Over Blizzard's aura button: an overlay only, while the aura is up
 local previewing = false
 function makeCover(w)
 	local f, o = w.frame, w.cover

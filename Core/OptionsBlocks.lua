@@ -471,8 +471,7 @@ local function popBlock(p, owner, kind)
 	if owner == nil then ownLine(p, "pop") end
 end
 
--- Cast states' paint (_CastStates): a part power or range; cover: the element draws it over Blizzard's
--- aura button, where it is only ever an overlay
+-- Cast states' paint (_CastStates): part power or range; cover: over Blizzard's aura button, an overlay only
 local CAST_LOOKS = { { "tint", "Tint" }, { "overlay", "Overlay" }, { "both", "Both" } }
 local function castStyleBlock(p, owner, state, cover)
 	local CS = ns.CastStates

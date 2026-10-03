@@ -67,7 +67,7 @@ local PAINT = { 0.1, 1, 0.05 }
 S.register("power", {
 	defaults = { look = "both", overlay = 0.25, tint = 0.8, ring = 0.6 },
 	ranges = { overlay = PAINT, tint = PAINT, ring = PAINT },
-	path = { "mana" },   -- the Shocks' saved name
+	path = { "mana" },   -- the state table's saved name
 	inState = true,
 	elements = true, has = function(key) return ns.CastStates.has(key, "power") end,
 	label = ns.CLASS.power.name, short = ns.CLASS.power.name:lower(), order = 5.1,
