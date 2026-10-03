@@ -9,7 +9,7 @@ local Spells, CD = ns.Spells, ns.Cooldowns
 local SK = { name = "shock" }
 ns.Shock = SK
 
-local setting = E.setting
+local own = E.settingsOf("shock")
 
 local SHOCK_SPELL = { earth = "earthShock", flame = "flameShock", frost = "frostShock" }
 local SHOCKS = {}
@@ -49,13 +49,13 @@ local function paint(f, outOfRange, noMana)
 	f.bodyOverlay:Hide()
 	f.tex:SetVertexColor(1, 1, 1)
 	if outOfRange then
-		f:SetBodyPaint(setting("shock", "range", "look"), 1, 0.25, 0.25,
-			setting("shock", "range", "overlay"), setting("shock", "range", "tint"))
+		f:SetBodyPaint(own("range", "look"), 1, 0.25, 0.25,
+			own("range", "overlay"), own("range", "tint"))
 	elseif noMana then
-		f:SetBodyPaint(setting("shock", "mana", "look"), 0.2, 0.45, 1,
-			setting("shock", "mana", "overlay"), setting("shock", "mana", "tint"))
+		f:SetBodyPaint(own("mana", "look"), 0.2, 0.45, 1,
+			own("mana", "overlay"), own("mana", "tint"))
 	end
-	f:SetRingShown(noMana, 0.2, 0.45, 1, setting("shock", "mana", "ring"))
+	f:SetRingShown(noMana, 0.2, 0.45, 1, own("mana", "ring"))
 end
 local drawn
 local function drawTint()
@@ -107,7 +107,7 @@ CD.soundWhenReady(shock, "shock")
 
 -- Ready glow
 local function refreshGlow()
-	local on = shockSpellID and E.isEnabled("shock") and setting("shock", "ready", "glow") and ns.CURVE_OVER
+	local on = shockSpellID and E.isEnabled("shock") and own("ready", "glow") and ns.CURVE_OVER
 	shock.glowF:SetShown(on and true or false)
 	if not on then return end
 	shock.glowF:fit(shock:GetWidth())
@@ -115,7 +115,7 @@ local function refreshGlow()
 end
 local glowTicker = ns.ticker(0.1, refreshGlow)
 local function syncGlowTicker()
-	local want = E.isActive() and E.isEnabled("shock") and setting("shock", "ready", "glow")
+	local want = E.isActive() and E.isEnabled("shock") and own("ready", "glow")
 	glowTicker:SetShown(want and true or false)
 	if not want then refreshGlow() end
 end
@@ -128,7 +128,7 @@ function SK.resolve()
 		local id, ic = Spells.known(spell)
 		if id then shockIDs[key], icons[key] = id, ic end
 	end
-	local track = setting("shock", "track")
+	local track = own("track")
 	usedShock = SHOCK_SPELL[track] and track or "earth"
 	if not shockIDs[usedShock] then
 		for _, key in ipairs(SHOCK_ORDER) do
@@ -140,7 +140,7 @@ function SK.resolve()
 	shockIcon = icons[usedShock] or Spells.icon(SHOCK_SPELL[usedShock]) or 136026
 	shock.tex:SetTexture(shockIcon)
 	shock.tex:SetDesaturated(next(shockIDs) == nil)
-	local mana = setting("shock", "manaSpell")
+	local mana = own("manaSpell")
 	manaSpellID = (mana ~= "tracked" and shockIDs[mana]) or shockSpellID
 	if rangeCheckID ~= shockSpellID and C_Spell.EnableSpellRangeCheck then
 		if rangeCheckID then safe(C_Spell.EnableSpellRangeCheck, rangeCheckID, false) end
@@ -198,7 +198,7 @@ end
 
 -- /sf debug
 function SK.debug()
-	local chosen = setting("shock", "track")
+	local chosen = own("track")
 	say("shock spell %s (%s%s), mana spell %s", tostring(shockSpellID), tostring(usedShock),
 		usedShock ~= chosen and (", chosen " .. tostring(chosen) .. " not learned") or "", tostring(manaSpellID))
 	for key, id in pairs(shockIDs) do
@@ -217,11 +217,11 @@ local PREVIEW = {
 	states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", "No mana" },
 		{ "range", "Out of range" }, { "both", "Both" } },
 	pop = function(ic, st)
-		if st == "ready" and setting("shock", "ready", "pop") then ic:Pop() end
+		if st == "ready" and own("ready", "pop") then ic:Pop() end
 	end,
 	render = function(ic, st, P)
-		P.reset(ic, SHOCK_ICON[setting("shock", "track")] or SHOCK_ICON.earth)
-		if st == "ready" then ic:SetGlowShown(setting("shock", "ready", "glow")) end
+		P.reset(ic, SHOCK_ICON[own("track")] or SHOCK_ICON.earth)
+		if st == "ready" then ic:SetGlowShown(own("ready", "glow")) end
 		if st == "cd" then P.frozen(ic.cdT, 0.4, 6) end
 		paint(ic, st == "range" or st == "both", st == "mana" or st == "both")
 	end,

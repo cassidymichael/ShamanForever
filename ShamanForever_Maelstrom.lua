@@ -48,8 +48,8 @@ local DEF = { key = KEY, idleChoices = {
 		"Below five stacks: shown in full only at five." },
 } }
 
-local setting = E.settingsOf(KEY)
-local function count(field) return setting("count", field) end
+local own = E.settingsOf(KEY)
+local function count(field) return own("count", field) end
 local function color(field)
 	local c = count(field)
 	return ns.isColor(c) and c or MW.DEFAULTS.count[field]
@@ -88,7 +88,7 @@ E.register(KEY, { frame = f, label = Spells.name("maelstromWeapon"), defaults = 
 	kind = "maelstrom", def = DEF, spell = "maelstromWeapon", icon = MW.icon, school = "air",
 	blurb = "Its stacks, with a pop and a glow at five.", experimental = "Maelstrom Weapon" })
 local function idleWhen()
-	local w = setting("idleWhen")
+	local w = own("idleWhen")
 	return tContains(CHOICES.idleWhen, w) and w or "notup"
 end
 
@@ -167,7 +167,7 @@ local POP_LEVEL, GLOW_LEVEL, LIGHT_LEVEL = 19, 22, 24
 local SHORTEST = 0.01
 
 local fx = ns.Effects.host(f, KEY, { aura = { popOnly = true, popLevel = 5 + LIGHT_LEVEL,
-	popOn = function() return setting("active", "pop") end } })
+	popOn = function() return own("active", "pop") end } })
 
 local quiet = false
 local function stylePop(slot, size)
@@ -277,7 +277,7 @@ end
 -- Made from the layout or restyle, never as Blizzard makes a button (frames made there can't run
 -- scripts); out of combat with auras readable
 local function setupPop()
-	if pop.container or pop.err or not (gateSlot.gated and setting("active", "pop")) then return end
+	if pop.container or pop.err or not (gateSlot.gated and own("active", "pop")) then return end
 	pop.opts.parent = gateSlot.gateBar
 	quietPop()   -- before the container exists: its first assignment plays nothing
 	pop:setup()
@@ -348,7 +348,7 @@ local function styleFive(slot, size)
 	g:restyle()
 	g:fit(size)
 	-- Shown only when its sensor works: a bar the button refused would leave the clip empty
-	g:SetShown((setting("active", "glow") and slot.sensed) and true or false)
+	g:SetShown((own("active", "glow") and slot.sensed) and true or false)
 end
 
 local applyIdle
@@ -439,19 +439,19 @@ local function drawPreview(ic, n, P)
 		else ic.count:SetTextColor(1, 1, 1, 1) end
 		ic.count:Show()
 	end
-	ic:SetGlowShown(n >= max and setting("active", "glow"))
+	ic:SetGlowShown(n >= max and own("active", "glow"))
 end
 local PREVIEW = {
 	uptime = true,
 	states = { { "s1", "1 stack" }, { "s4", "4 stacks" }, { "s5", "5 stacks" },
 		{ "idle", "Not up" } },
-	pop = function(ic, st) if st == "s5" and setting("active", "pop") then ic:Pop("ready") end end,
+	pop = function(ic, st) if st == "s5" and own("active", "pop") then ic:Pop("ready") end end,
 	render = function(ic, st, P)
 		P.reset(ic, MW.icon)
 		local n = ({ s1 = 1, s4 = src.max - 1, s5 = src.max })[st] or 0
 		drawPreview(ic, n, P)
 		if n > 0 then P.frozen(ic.upT, 0.3, 30) end
-		local when = setting("idleWhen")
+		local when = own("idleWhen")
 		if (n == 0 and when ~= "never") or (when == "five" and n < src.max) then P.idle(ic, KEY) end
 	end,
 }
@@ -478,16 +478,16 @@ MW.applyTimers = styleAll
 -- every player UNIT_AURA
 local popWasOn = false
 function MW.applyLayout()
-	local popOn = src.learned() and E.isEnabled(KEY) and setting("active", "pop") and true or false
+	local popOn = src.learned() and E.isEnabled(KEY) and own("active", "pop") and true or false
 	if popOn and not popWasOn and pop.container then quietPop() end
 	popWasOn = popOn
 	if src.learned() and E.isEnabled(KEY) then
 		stacks:setup()
-		if setting("active", "pop") then
+		if own("active", "pop") then
 			gateSlot:setup()
 			setupPop()
 		end
-		if setting("active", "glow") or idleWhen() == "five" then five:setup() end
+		if own("active", "glow") or idleWhen() == "five" then five:setup() end
 	end
 	styleAll()
 	refresh()

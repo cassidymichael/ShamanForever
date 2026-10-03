@@ -67,11 +67,11 @@ local upShield
 local native
 local copy   -- one-charge copy's aura slot
 
-local setting = E.settingsOf("shield")
-local function count(field) return setting("count", field) end
+local own = E.settingsOf("shield")
+local function count(field) return own("count", field) end
 
 local function tracksShield(key)
-	local track = setting("track")
+	local track = own("track")
 	return track == "either" or track == key
 end
 local function believedUp()
@@ -87,7 +87,7 @@ function SH.sanitize(_, acct)
 end
 
 local function shownShield()
-	local track, last = setting("track"), ns.Profiles.getAccount().lastShield
+	local track, last = own("track"), ns.Profiles.getAccount().lastShield
 	if SHIELDS[track] then return track end
 	if SHIELDS[last] and SHIELDS[last].known then return last end
 	for _, key in ipairs(SHIELD_ORDER) do if SHIELDS[key].known then return key end end
@@ -165,7 +165,7 @@ local function stateNow()
 	if not ns.aurasReadNow() then
 		if GetTime() < holdUntil then return nil end
 	elseif believedUp() ~= false then return nil end
-	if blocked() then return setting("warn", "grey") and "grey" or nil end
+	if blocked() then return own("warn", "grey") and "grey" or nil end
 	return "warn"
 end
 
@@ -211,7 +211,7 @@ end
 -- Idle puts the gate, and with it Blizzard's button, at the Idle opacity: set out of combat, held
 -- through a fight. The No shield look doesn't hang from the gate and shows in full.
 local function idleWhen()
-	local w = setting("idleWhen")
+	local w = own("idleWhen")
 	return (w == "up" or w == "charges") and w or "never"
 end
 local copyReady, full
@@ -316,7 +316,7 @@ end
 -- Charges spent, cancelled or run out; a recast over a live shield stays silent
 function SH.applyRemovedSound()
 	local ids = E.isEnabled("shield") and shieldIDMap() or nil
-	ns.Sounds.setAuraSound("shield", setting("warn", "sound"), ids)
+	ns.Sounds.setAuraSound("shield", own("warn", "sound"), ids)
 end
 
 function SH.resolve()
@@ -614,7 +614,7 @@ end
 -- /sf debug
 function SH.debug()
 	local up = believedUp()
-	say("shield tracking %s (last %s), up at the last read %s (shield up %s)", setting("track"),
+	say("shield tracking %s (last %s), up at the last read %s (shield up %s)", own("track"),
 		ns.Profiles.getAccount().lastShield, up == nil and "unknown" or tostring(up), tostring(upShield))
 	say("no-shield look: %s, %s, state %s; button %s, cast hold %s", lookOn and "on" or "off",
 		ns.aurasReadNow() and "read decides too" or "sensor decides", tostring(lookState),
@@ -644,7 +644,7 @@ local PREVIEW = {
 	states = { { "up3", "3 charges" }, { "up2", "2 charges" }, { "up1", "1 charge" },
 		{ "down", "No shield" } },
 	render = function(ic, st, P)
-		P.reset(ic, SHIELDS[setting("track") == "water" and "water" or "lightning"].icon)
+		P.reset(ic, SHIELDS[own("track") == "water" and "water" or "lightning"].icon)
 		if st == "down" then
 			ic:SetWarnParts(W.warnParts("shield", "warn"))
 			return

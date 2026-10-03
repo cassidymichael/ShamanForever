@@ -20,21 +20,21 @@ TR.WORD = "Tremor!"
 local TREMOR_TYPES = { FEAR = true, FEAR_MECHANIC = true, CHARM = true, POSSESS = true, SLEEP = true }
 local tremorSpells = {}
 
-local setting = E.settingsOf(KEY)
+local own = E.settingsOf(KEY)
 local plain = ns.plain
 
 local WORD_POINTS = { below = { "TOP", "BOTTOM", -4 }, above = { "BOTTOM", "TOP", 4 },
 	center = { "CENTER", "CENTER", 0 } }
 local WORD_COLOR = { 1, 0.82, 0, 1 }
 local function num(name, fallback)
-	local v = setting(name)
+	local v = own(name)
 	if type(v) ~= "number" or v ~= v then return fallback end
 	return v
 end
 local function styleWord(fs, icon)
-	local pt = WORD_POINTS[setting("wordPos")] or WORD_POINTS.below
+	local pt = WORD_POINTS[own("wordPos")] or WORD_POINTS.below
 	W.placeScaledText(fs, icon, num("wordSize", 16), pt[1], num("wordX", 0), pt[3] + num("wordY", 0), pt[2])
-	local c = setting("wordColor")
+	local c = own("wordColor")
 	if not ns.isColor(c) then c = WORD_COLOR end
 	fs:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 end
@@ -202,15 +202,15 @@ local holdUntil = 0
 local controlSeen = {}
 
 local function checkTarget()
-	targetListed = setting("tremorTarget") and listed("target") == true or false
+	targetListed = own("tremorTarget") and listed("target") == true or false
 end
 
 local function checkPlate(unit)
-	plates[unit] = setting("tremorPlates") and listed(unit) == true or nil
+	plates[unit] = own("tremorPlates") and listed(unit) == true or nil
 end
 local function checkAllPlates()
 	wipe(plates)
-	if not setting("tremorPlates") then return end
+	if not own("tremorPlates") then return end
 	for i = 1, 40 do checkPlate("nameplate" .. i) end
 end
 
@@ -240,7 +240,7 @@ local function readControl()
 		if type(d) == "table" then
 			local bySpell, byType = controlMatch(d)
 			noteControl(d, bySpell, byType)
-			if setting("tremorFeared") and bySpell then feared = true end
+			if own("tremorFeared") and bySpell then feared = true end
 		end
 	end
 	if was and not feared then holdUntil = GetTime() + HOLD end
@@ -263,11 +263,11 @@ local alerting = false
 local why
 
 local function setAlert(on)
-	f:SetGlowShown(on and setting("active", "glow"))
-	f.word:SetShown(on and setting("active", "text") and true or false)
+	f:SetGlowShown(on and own("active", "glow"))
+	f.word:SetShown(on and own("active", "text") and true or false)
 	if on and not alerting then
-		if setting("active", "pop") then f:Pop("ready") end
-		ns.Sounds.play(setting("active", "sound"), KEY, SOUND_GAP)
+		if own("active", "pop") then f:Pop("ready") end
+		ns.Sounds.play(own("active", "sound"), KEY, SOUND_GAP)
 	end
 	alerting = on
 end
@@ -295,7 +295,7 @@ local function refresh()
 		why = targetListed and "target" or next(plates) and "nameplate" or feared and "on you" or "just after"
 	end
 	setAlert(want)
-	local busy = want or not ns.Profiles.getAccount().locked or (out and setting("idleWhen") == "notdown")
+	local busy = want or not ns.Profiles.getAccount().locked or (out and own("idleWhen") == "notdown")
 	W.fadeTo(f, busy and 1 or E.idleAlpha(KEY))
 end
 TR.refresh = refresh
@@ -482,7 +482,7 @@ local PREVIEW = {
 	uptime = true,
 	typical = "idle", warning = "warn",
 	states = { { "warn", "Warning" }, { "down", "Tremor down" }, { "idle", "Not down, no warning" } },
-	pop = function(ic, st) if st == "warn" and setting("active", "pop") then ic:Pop("ready") end end,
+	pop = function(ic, st) if st == "warn" and own("active", "pop") then ic:Pop("ready") end end,
 	render = function(ic, st, P)
 		P.reset(ic, def.iconID or def.icon)
 		if not ic.word then
@@ -497,13 +497,13 @@ local PREVIEW = {
 		styleWord(ic.word, ic)
 		ic.word:Hide()
 		if st == "warn" then
-			ic:SetGlowShown(setting("active", "glow"))
-			ic.word:SetShown(setting("active", "text") and true or false)
+			ic:SetGlowShown(own("active", "glow"))
+			ic.word:SetShown(own("active", "text") and true or false)
 			return
 		end
 		if st == "down" then
 			P.frozen(ic.upT, 0.3, 300)
-			if setting("idleWhen") == "notdown" then return end
+			if own("idleWhen") == "notdown" then return end
 		end
 		P.idle(ic, KEY)
 	end,

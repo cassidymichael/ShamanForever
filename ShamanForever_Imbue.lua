@@ -5,7 +5,7 @@ local W = ns.Widgets
 local E, MOD = ns.Elements, ns.Modules
 local say, isSecret = ns.say, ns.isSecret
 local Spells = ns.Spells
-local setting = E.settingsOf("imbue")
+local own = E.settingsOf("imbue")
 
 local IM = { name = "imbue" }
 ns.Imbue = IM
@@ -108,18 +108,18 @@ end
 
 imbueIcon = imbueIconFor("rockbiter")
 local function preferredImbueIcon()
-	local icon = setting("icon")
+	local icon = own("icon")
 	return imbueIconFor(icon == "last" and (ns.Profiles.getAccount().imbueLast or "rockbiter") or icon)
 end
 
 -- quiet: nothing can be cast now, so a missing imbue shows grey without the warning
-local function warn(field) return setting("warn", field) end
+local function warn(field) return own("warn", field) end
 
 local function drawImbue(now, quiet)
 	local on, key = imbueState.on, imbueState.key
 	local unreadable = imbueState.unreadable
 	local left = imbueState.expiresAt and imbueState.expiresAt - now
-	local mins = setting("showUnderMins")
+	local mins = own("showUnderMins")
 	local warnAt = (type(mins) == "number" and mins or 0) * 60
 	local showTime = left ~= nil and warnAt > 0 and left <= warnAt
 	-- Missing look only when the read says none: unrecognised shows in colour, unreadable as "?"
@@ -142,7 +142,7 @@ local function drawImbue(now, quiet)
 		imbue.upTimer:clear()
 	end
 	-- Idle fades by alpha, not Hide (keeps its place)
-	local when = setting("idleWhen")
+	local when = own("idleWhen")
 	local idle = ns.Profiles.getAccount().locked and on and (when == "on" or (when == "notlow" and not showTime))
 	W.fadeTo(imbue, idle and E.idleAlpha("imbue") or 1)
 end
@@ -260,7 +260,7 @@ local PREVIEW = {
 			ic:SetWarnParts(W.warnParts("imbue", "warn"))
 		else
 			P.reset(ic, imbueIcon)
-			local shows = setting("showUnderMins") > 0
+			local shows = own("showUnderMins") > 0
 			if st == "low" and shows then P.frozen(ic.upT, 0.95, 3600) end
 		end
 	end,
