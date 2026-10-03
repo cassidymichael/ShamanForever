@@ -44,9 +44,12 @@ local TIMER_REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBar
 local TIMER_IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
 T.AURA_BAR = { interpolation = TIMER_IMMEDIATE, direction = TIMER_REMAINING }
 
+-- abbrev: seconds under which minutes read 1:31 (0: never)
+local RANGES = { textSize = { 6, 48, 1 }, abbrev = { 0, 3600, 60 }, swipeAlpha = { 0.1, 1, 0.05 }, barHeight = { 1, 20, 1 },
+	soon = { 1, 60, 1 }, now = { 1, 60, 1 }, tenths = { 0, 10, 1 } }
 local S = ns.Style
 for _, kind in ipairs(T.KINDS) do
-	S.register(kind, { defaults = T.DEFAULTS[kind], path = { "timers", kind } })
+	S.register(kind, { defaults = T.DEFAULTS[kind], ranges = RANGES, path = { "timers", kind } })
 end
 
 -- The countdown's formatter
@@ -55,9 +58,10 @@ end
 -- format. Everything rounds up.
 local ROUND_UP = Enum and Enum.NumericRuleFormatRounding and Enum.NumericRuleFormatRounding.Up or 1
 
-local function secsIn(v, lo, hi)
-	if type(v) ~= "number" or v ~= v then return lo end
-	return math.min(math.max(v, lo), hi)
+local function secsIn(v, field)
+	local r = RANGES[field]
+	if type(v) ~= "number" or v ~= v then return r[1] end
+	return math.min(math.max(v, r[1]), r[2])
 end
 
 local function formatRules(abbrev, tenths)
@@ -86,7 +90,7 @@ end
 
 local function breakpoints(s, abbrev, tenths)
 	local rules = formatRules(abbrev, tenths)
-	local soon, now = secsIn(s.soon, 0, 3600), secsIn(s.now, 0, 3600)
+	local soon, now = secsIn(s.soon, "soon"), secsIn(s.now, "now")
 	local soonCode, nowCode = colorCode(s.soonColor), colorCode(s.nowColor)
 	local cuts, list = {}, {}
 	for _, r in ipairs(rules) do cuts[r.threshold] = true end
@@ -110,8 +114,8 @@ end
 local formatters, cached = {}, 0
 local function formatterFor(s)
 	if not s.timeColors then return nil end
-	local tenths = math.floor(secsIn(s.tenths, 0, 10))
-	local abbrev = secsIn(s.abbrev, 0, 3600)
+	local tenths = math.floor(secsIn(s.tenths, "tenths"))
+	local abbrev = secsIn(s.abbrev, "abbrev")
 	local key = string.format("%s|%d|%d|%s|%s|%s|%s", tostring(s.timeColors), abbrev, tenths,
 		tostring(s.soon), tostring(s.now), colorCode(s.soonColor), colorCode(s.nowColor))
 	local f = formatters[key]
@@ -192,7 +196,7 @@ function Timer:apply()
 		self.formatter = fm
 		ns.try("timer formatter", cd.SetCountdownFormatter, cd, fm)
 	end
-	local ms = (text and not fm) and math.floor(secsIn(s.tenths, 0, 10)) or 0
+	local ms = (text and not fm) and math.floor(secsIn(s.tenths, "tenths")) or 0
 	if ms ~= (self.ms or 0) then
 		self.ms = ms
 		pcall(cd.SetCountdownMillisecondsThreshold, cd, ms)
