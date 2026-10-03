@@ -338,8 +338,6 @@ bar:Hide()
 local picker = CreateFrame("Frame", nil, UIParent, "SecureHandlerBaseTemplate")
 picker:SetAttribute("sf-open", [[
 	local open = ...
-	-- Off (/sf disable, set out of combat): every picker stays closed
-	if self:GetAttribute("sf-off") then open = 0 end
 	for i = 1, 5 do
 		local pop = self:GetFrameRef("pop" .. i)
 		if i == open then pop:Show() else pop:Hide() end
@@ -1056,14 +1054,12 @@ local function applyActionBar()
 		f:SetParent(actionBarParent or UIParent)
 	end
 end
--- Off and on, and the holder showing or hiding: at once (the Totem Action Bar out of combat)
-local function applyBlizzard()
+-- Off and on, and the holder shown or hidden later (ns.offApplied): at once (the Totem Action Bar
+-- out of combat). No script hooks on the holder: the toggle's secure click hides it
+ns.onOffChange(function()
 	applyTotemFrame()
 	applyActionBar()
-end
-ns.onOffChange(applyBlizzard)
-bar:GetParent():HookScript("OnShow", applyBlizzard)
-bar:GetParent():HookScript("OnHide", applyBlizzard)
+end)
 
 -- Layout (out of combat only)
 local movable
@@ -1277,7 +1273,6 @@ function layout()
 	end
 	local hoverMode = feat("pickHover") and not kbOpen
 	picker:SetAttribute("sf-hovermode", hoverMode)
-	picker:SetAttribute("sf-off", ns.isOff())
 	for _, s in ipairs({ slots.earth, slots.fire, slots.water, slots.air, setSlot }) do
 		s.popout.catch:SetShown(not hoverMode)
 		s.popout.strip:SetShown(hoverMode)
@@ -1539,6 +1534,8 @@ local onShow = CreateFrame("Frame", nil, bar, "SecureFrameTemplate")
 SecureHandlerWrapScript(onShow, "OnShow", picker, [[
 	if owner:GetAttribute("sf-hovermode") then owner:RunAttribute("sf-open", 0) end
 ]])
+-- The holder hidden (off, the on-off toggle in combat too): every picker closes, so none comes back open
+SecureHandlerWrapScript(bar:GetParent(), "OnHide", picker, [[ owner:RunAttribute("sf-open", 0) ]])
 
 for _, e in pairs(extras) do
 	e.button:SetScript("OnEnter", function(self)
