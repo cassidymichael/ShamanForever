@@ -69,4 +69,5 @@ ShamanForever_OptionsTotemBar.lua
 Core\OptionsSwing.lua
 Core\OptionsStyles.lua
 Core\OptionsGuide.lua
+ShamanForever_OptionsGuide.lua
 Core\IssueReporter.lua

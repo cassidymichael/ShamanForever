@@ -2,6 +2,7 @@
 local ADDON, ns = ...
 local W = ns.Widgets
 local P, MOD = ns.Profiles, ns.Modules
+local OA, S, FR, T = ns.OptionsArt, ns.Style, ns.Frames, ns.Timer
 
 local GD = {}
 ns.Guide = GD
@@ -129,6 +130,151 @@ function GD.lead(s, x, y)
 	t:SetColorTexture(GD.ORANGE[1], GD.ORANGE[2], GD.ORANGE[3], 1)
 	return f
 end
+
+-- Example icons: the HUD's own icon, timers and parts on a sandbox owner, never the player's settings.
+-- A style an example names replaces the player's Global one (or the element's shipped one, el).
+local OWN_PARTS = { "border", "glow", "pop", "frame", "cooldown", "uptime" }
+
+local function setOwn(owner, part, st)
+	local spec = S.PARTS[part]
+	local t = S.clean(st, spec.defaults, spec.ranges)
+	t.follow = false
+	local h, path = owner, spec.path
+	for i = 1, #path - 1 do
+		h[path[i]] = h[path[i]] or {}
+		h = h[path[i]]
+	end
+	h[path[#path]] = t
+end
+
+local function baseOf(el, part)
+	if el then return select(2, S.shipped(el, part)) end
+	return S.get(nil, part)
+end
+
+-- Draws fn as in a row or a column of a group, whatever the player's own layout, letting a sandbox
+-- owner's time bar sit out of its icon as an element's can
+local laying = false
+function GD.laidOut(column, fn, ...)
+	if laying then return fn(...) end
+	local laid, out = W.laidInColumn, T.canPlaceOut
+	W.laidInColumn = function() return column and true or false end
+	T.canPlaceOut = function(key) return type(key) == "table" or out(key) end
+	laying = true
+	local ok, err = pcall(fn, ...)
+	laying = false
+	W.laidInColumn, T.canPlaceOut = laid, out
+	if not ok then ns.noteError("guide", err) end
+end
+
+local Ex = {}
+Ex.__index = Ex
+
+function GD.icon(parent, size)
+	local owner = {}
+	for _, part in ipairs(OWN_PARTS) do setOwn(owner, part) end
+	local box = CreateFrame("Frame", nil, parent)
+	box:SetSize(size, size)
+	local ic = OA.makePreviewIcon(box, owner, { cooldown = true, uptime = true }, size)
+	if ic.tex.SetSnapToPixelGrid then ic.tex:SetSnapToPixelGrid(true) end
+	if ic.upT then ic.upT:restack(2) end
+	return setmetatable({ box = box, ic = ic, owner = owner, size = size }, Ex)
+end
+
+function Ex:point(...)
+	self.box:ClearAllPoints()
+	self.box:SetPoint(...)
+	return self
+end
+
+-- Puts the box's centre at x, y from parent's top-left
+function Ex:at(parent, x, y)
+	return self:point("CENTER", parent, "TOPLEFT", x, -y)
+end
+
+-- spec: el (whose shipped styles it starts from), school, and per part (border, glow, pop, frame,
+-- cooldown, uptime) the fields that replace the start's
+function Ex:wear(spec)
+	spec = spec or {}
+	self.spec = spec
+	for _, part in ipairs(OWN_PARTS) do
+		local st = baseOf(spec.el, part)
+		for k, v in pairs(spec[part] or {}) do st[k] = type(v) == "table" and CopyTable(v) or v end
+		setOwn(self.owner, part, st)
+	end
+	local ic = self.ic
+	ic.school = spec.school
+	for _, t in ipairs({ ic.cdT, ic.upT }) do t.school = spec.school end
+	ic.glowF:restyle()
+	ns.StyleArt.fit(ic, self.owner.border, self.size)
+	ic:ClearAllPoints()
+	ic:SetPoint("CENTER", self.box, "CENTER", 0, 0)
+	FR.mount(ic, self.owner, self.size)
+	return self
+end
+
+local function setFont(ex, font)
+	local path = ns.Media.fontPath(font.name or "")
+	local outline = font.outline or "OUTLINE"
+	local ic = ex.ic
+	local _, size = ic.count:GetFont()
+	ic.count:SetFont(path, size or 14, outline)
+	ic.count.placed = nil
+	for _, t in ipairs({ ic.cdT, ic.upT }) do
+		local _, ts = t.font:GetFont()
+		t.font:SetFont(path, ts or 12, outline)
+		t.cd:SetCountdownFont(t.fontName)
+	end
+end
+
+-- look: icon, cd and up ({ share gone, length }: frozen timers), warn ({ grey, tint, ring, fade,
+-- glow }), paint ({ look, r, g, b, overlay, tint }), ring ({ r, g, b, a }), glow, alpha,
+-- bar ({ n, filled, color, height }), count ({ text, color, size, pos }), reagent ({ el, n, color }),
+-- font ({ name, outline })
+local function draw(ex, look)
+	local ic, kit = ex.ic, OA.kit
+	kit.reset(ic, look.icon)
+	if look.cd then kit.frozen(ic.cdT, look.cd[1], look.cd[2]) end
+	if look.up then kit.frozen(ic.upT, look.up[1], look.up[2]) end
+	local wn = look.warn
+	if wn then ic:SetWarnParts(wn.grey, wn.tint, wn.ring, wn.fade, wn.glow) end
+	local pt = look.paint
+	if pt then ic:SetBodyPaint(pt[1], pt[2], pt[3], pt[4], pt[5], pt[6]) end
+	if look.ring then ic:SetRingShown(true, look.ring[1], look.ring[2], look.ring[3], look.ring[4]) end
+	if look.glow then ic:SetGlowShown(true) end
+	local b = look.bar
+	if b then
+		ic.bar:SetHeight(b.height or 6)
+		local c = b.color
+		kit.setBar(ic, b.n, b.filled, c[1], c[2], c[3], c[4])
+	end
+	local c = look.count
+	if c then
+		W.placeScaledText(ic.count, ic, c.size or 18, c.pos or "CENTER", 0, 0)
+		ic.count:SetText(c.text)
+		local col = c.color or { 1, 1, 1 }
+		ic.count:SetTextColor(col[1], col[2], col[3], 1)
+		ic.count:Show()
+	end
+	local r = look.reagent
+	if r then
+		local _, ring, pulse = ns.Reagents.draw(ic, r.el, r.n)
+		ic:SetRingShown(ring)
+		ic:SetPulsing(pulse)
+		if r.color then ic.count:SetTextColor(r.color[1], r.color[2], r.color[3], 1) end
+	end
+	if look.font then setFont(ex, look.font) end
+	ic:SetAlpha(look.alpha or 1)
+end
+
+-- Draws look as in a row (or a column: self.column)
+function Ex:show(look)
+	self.look = look
+	GD.laidOut(self.column, draw, self, look)
+	return self
+end
+
+function Ex:pop(kind) self.ic:Pop(kind or "ready") end
 
 -- The page
 local board, holder
