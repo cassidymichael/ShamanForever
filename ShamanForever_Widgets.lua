@@ -455,7 +455,7 @@ function Count.setFormat(slot, fm, site)
 end
 
 -- A bar along anchor's bottom, on a dark back, with a tick between segments (Count.styleBar);
--- level: the bar's, its ticks one over (else the caller sets both)
+-- level: the bar's, if given. The ticks are the bar's child, so they sit over it.
 function Count.bar(slot, parent, anchor, level)
 	local bar = CreateFrame("StatusBar", nil, parent)
 	bar:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", 0, 0)
@@ -464,12 +464,9 @@ function Count.bar(slot, parent, anchor, level)
 	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
 	bar.bg:SetAllPoints()
 	bar.bg:SetColorTexture(0, 0, 0, 0.6)
-	local ticks = CreateFrame("Frame", nil, parent)
+	if level then bar:SetFrameLevel(level) end
+	local ticks = CreateFrame("Frame", nil, bar)
 	ticks:SetAllPoints(bar)
-	if level then
-		bar:SetFrameLevel(level)
-		ticks:SetFrameLevel(level + 1)
-	end
 	slot.bar, slot.tickFrame, slot.ticks = bar, ticks, {}
 	return bar
 end

@@ -474,15 +474,10 @@ local function buildCopy(slot, button)
 	local parts = CreateFrame("Frame", nil, host)
 	parts:SetAllPoints(host)
 	-- Levels under the button may read secret: a failed read leaves the default
-	local lv
-	ns.try("shield copy level", function()
-		local v = slot.cd:GetFrameLevel() + 2
-		parts:SetFrameLevel(v)
-		if not isSecret(v) then lv = v end
-	end)
+	ns.try("shield copy level", function() parts:SetFrameLevel(slot.cd:GetFrameLevel() + 2) end)
 	slot.parts = parts
 	Count.text(slot, button, parts, function(fs) countFont(fs, host) end, "shield count")
-	local bar = Count.bar(slot, parts, host, lv and lv + 1)
+	local bar = Count.bar(slot, parts, host)
 	bar:SetMinMaxValues(0, CHARGES)
 	bar:SetValue(1)
 	slot.built = ns.try("shield copy style", styleCopy, slot, ns.sizeOf("shield"))
