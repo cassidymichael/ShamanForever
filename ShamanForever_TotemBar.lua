@@ -997,6 +997,9 @@ local function totemFrameOurs()
 	end
 	return false
 end
+-- Blizzard's totem frames are hidden only while ours can show: on, and its holder shown (that waits
+-- for combat to end after /sf enable)
+local function replacesBlizzard() return barOn() and not ns.isOff() and bar:GetParent():IsShown() end
 local totemFrameHidden, settingAlpha = false, false
 local function setTotemFrameHidden(hide)
 	totemFrameHidden = hide
@@ -1023,8 +1026,7 @@ local function applyTotemFrame()
 		if totemFrameHidden then setTotemFrameHidden(false) end
 		return
 	end
-	-- Off (/sf disable): Blizzard's frames are back while nothing of ours shows
-	local hide = barOn() and not ns.isOff()
+	local hide = replacesBlizzard()
 	if not hide and not totemFrameHidden then return end
 	setTotemFrameHidden(hide)
 end
@@ -1036,7 +1038,7 @@ local actionBarParent
 local function applyActionBar()
 	local f = MultiCastActionBarFrame
 	if not f or InCombatLockdown() then return end
-	local hide = barOn() and cfg().mode == "everything" and not ns.isOff()
+	local hide = replacesBlizzard() and cfg().mode == "everything"
 	if hide and f:GetParent() ~= hiddenParent then
 		actionBarParent = f:GetParent()
 		f:SetParent(hiddenParent)
@@ -1044,6 +1046,14 @@ local function applyActionBar()
 		f:SetParent(actionBarParent or UIParent)
 	end
 end
+-- Off and on, and the holder showing or hiding: at once (the Totem Action Bar out of combat)
+local function applyBlizzard()
+	applyTotemFrame()
+	applyActionBar()
+end
+ns.onOffChange(applyBlizzard)
+bar:GetParent():HookScript("OnShow", applyBlizzard)
+bar:GetParent():HookScript("OnHide", applyBlizzard)
 
 -- Layout (out of combat only)
 local movable
