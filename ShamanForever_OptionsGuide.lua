@@ -1,8 +1,9 @@
 -- Guide slides: the class's examples on every slide but the last
-local _, ns = ...
+local ADDON, ns = ...
 local E, GD, OA, S, FR = ns.Elements, ns.Guide, ns.OptionsArt, ns.Style, ns.Frames
 local W = ns.Widgets
 
+local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
 local SIZE = 40
 local GOLD_CODE = "|cffffd100"
 
@@ -388,3 +389,259 @@ GD.add({ title = "States and warnings", order = 40,
 		end
 	end })
 
+-- Layout: the HUD's groups and bars as positioning shows them
+local LAY_ICON, STAGE_W, STAGE_H = 26, 600, 330
+local MOVER, CHOSEN = { 0.2, 0.6, 1, 0.9 }, { 1, 0.82, 0, 1 }
+local function put(f, parent, x, y)
+	f:ClearAllPoints()
+	f:SetPoint("TOPLEFT", parent, "TOPLEFT", x, -y)
+end
+
+local function mover(parent, name, textures)
+	local m = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+	m:SetBackdrop(W.BACKDROP)
+	m:SetBackdropColor(0, 0, 0, 0.4)
+	m:SetBackdropBorderColor(MOVER[1], MOVER[2], MOVER[3], MOVER[4])
+	m.label = m:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	m.label:SetPoint("BOTTOMLEFT", m, "TOPLEFT", 0, 3)
+	m.label:SetText(name)
+	m.icons = {}
+	for i, tex in ipairs(textures) do
+		local t = m:CreateTexture(nil, "ARTWORK")
+		t:SetSize(LAY_ICON, LAY_ICON)
+		t:SetTexture(tex)
+		W.cropIcon(t)
+		m.icons[i] = t
+	end
+	return m
+end
+
+local function chosen(m, on)
+	local c = on and CHOSEN or MOVER
+	m:SetBackdropBorderColor(c[1], c[2], c[3], c[4])
+end
+
+-- m's icons as a row or a column, centred on x, y
+local function lay(m, parent, x, y, column)
+	local long = 2 + #m.icons * (LAY_ICON + 2)
+	local w, h = column and LAY_ICON + 4 or long, column and long or LAY_ICON + 4
+	m:SetSize(w, h)
+	for i, t in ipairs(m.icons) do
+		local at = 2 + (i - 1) * (LAY_ICON + 2)
+		put(t, m, column and 2 or at, column and at or 2)
+	end
+	put(m, parent, x - w / 2, y - h / 2)
+end
+
+local function grid(stage)
+	for x = 0, STAGE_W, 30 do
+		local mid = x == STAGE_W / 2
+		local t = GD.rect(stage, x, 0, 1, STAGE_H, mid and 0.2 or 1, mid and 0.6 or 1, 1, mid and 0.5 or 0.06)
+		t:SetDrawLayer("BACKGROUND", 2)
+	end
+	for y = 15, STAGE_H, 30 do
+		local mid = y == 165
+		local t = GD.rect(stage, 0, y, STAGE_W, 1, mid and 0.2 or 1, mid and 0.6 or 1, 1, mid and 0.5 or 0.06)
+		t:SetDrawLayer("BACKGROUND", 2)
+	end
+end
+
+local function tip(parent, key, text)
+	local f = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+	f:SetBackdrop(W.BACKDROP)
+	f:SetBackdropColor(0.05, 0.04, 0.035, 0.95)
+	f:SetBackdropBorderColor(0.55, 0.42, 0.22, 1)
+	f:SetFrameLevel(parent:GetFrameLevel() + 15)
+	local fs = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	fs:SetPoint("LEFT", 8, 0)
+	fs:SetText(GOLD_CODE .. key .. "|r" .. (text ~= "" and ("  " .. text) or ""))
+	f:SetSize(fs:GetStringWidth() + 16, 20)
+	f:Hide()
+	return f
+end
+
+-- f moves dx, dy over secs (down is positive); after places it where it ended
+local function glide(f, dx, dy, secs, after)
+	local g = f.glide
+	if not g then
+		g = f:CreateAnimationGroup()
+		g.move = g:CreateAnimation("Translation")
+		g.move:SetSmoothing("IN_OUT")
+		f.glide = g
+	end
+	g:Stop()
+	g.move:SetOffset(dx, -dy)
+	g.move:SetDuration(secs)
+	g:SetScript("OnFinished", after)
+	g:Play()
+end
+local function stop(f) if f.glide then f.glide:Stop() end end
+
+-- Main sits on the stage's centre; Imbue is dragged level with it and snaps there
+local MAIN_AT, IMBUE_FROM, IMBUE_TO, REST = { 300, 165 }, { 500, 70 }, { 372, 165 }, { 440, 262 }
+
+local function lockText() return ns.Profiles.getAccount().locked and "Unlock positioning" or "Lock positioning" end
+
+GD.add({ title = "Layout", order = 50,
+	blurb = "Unlock positioning to drag groups and bars into place; they snap to each other. Right-click for "
+		.. "settings.",
+	steps = { 1.8, 3.8, 3, 3, 3.2 },
+	build = function(f)
+		local stage = GD.stage(f, 0, 92, STAGE_W, STAGE_H)
+		stage:SetClipsChildren(true)
+		grid(stage)
+		f.stage = stage
+		f.snap = GD.rect(stage, 0, MAIN_AT[2], STAGE_W, 1, 1, 0.82, 0, 0.8)
+		lay(mover(stage, "Totems", { icon("earthbind"), icon("stoneclaw") }), stage, 92, 75)
+		lay(mover(stage, "Utility", { icon("waterbreathing") }), stage, 100, 228)
+		f.main = mover(stage, "Main", { ns.Maelstrom.icon, icon("flameshock"), ns.Shock.ICONS.earth })
+		f.imbue = mover(stage, "Imbue", { icon("imbue") })
+		local slots = {}
+		for _, school in ipairs({ "fire", "earth", "water", "air" }) do table.insert(slots, ns.THEME.icon[school]) end
+		local bar = mover(stage, "Totem bar", slots)
+		bar.icons[4]:SetDesaturated(true)
+		lay(bar, stage, 300, 230)
+		local swing = mover(stage, "Swing timer", {})
+		swing:SetSize(122, 9)
+		put(swing, stage, 239, 270)
+		local fill = swing:CreateTexture(nil, "ARTWORK")
+		fill:SetPoint("TOPLEFT", 1, -1)
+		fill:SetSize(72, 7)
+		fill:SetTexture(ns.Media.barTexture(nil))
+		fill:SetVertexColor(0.94, 0.75, 0.31)
+		f.tips = { tip(stage, "Groups & Layout", "Direction: Column"),
+			tip(stage, "Right-click", "Main's settings, on Groups & Layout"),
+			tip(stage, "Shift + right-click", ns.Spells.name("flameShock") .. "'s page") }
+		for _, t in ipairs(f.tips) do t:SetPoint("TOP", stage, "TOP", 0, -10) end
+		f.shift = tip(stage, "Shift", "")
+		local cur = CreateFrame("Frame", nil, stage)
+		cur:SetSize(22, 22)
+		cur:SetFrameLevel(stage:GetFrameLevel() + 20)
+		local tex = cur:CreateTexture(nil, "OVERLAY")
+		tex:SetAllPoints()
+		tex:SetTexture("Interface\\Cursor\\Point")
+		f.cursor = cur
+		f.lock = GD.button(f, lockText(), 160, function(b)
+			ns.Groups.setLocked(not ns.Profiles.getAccount().locked)
+			b:SetText(lockText())
+		end)
+		f.lock:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -436)
+	end,
+	step = function(f, x)
+		local stage, cur = f.stage, f.cursor
+		stop(f.imbue)
+		stop(cur)
+		f.lock:SetText(lockText())
+		lay(f.main, stage, MAIN_AT[1], MAIN_AT[2], x >= 2)
+		local at = x >= 1 and IMBUE_TO or IMBUE_FROM
+		lay(f.imbue, stage, at[1], at[2])
+		for i, t in ipairs(f.tips) do t:SetShown(i == x - 1) end
+		chosen(f.main, x >= 3)
+		chosen(f.imbue, false)
+		f.snap:Hide()
+		f.shift:Hide()
+		put(cur, stage, REST[1], REST[2])
+		if x == 1 then
+			-- To Imbue, then drag it level with Main
+			lay(f.imbue, stage, IMBUE_FROM[1], IMBUE_FROM[2])
+			local dx, dy = IMBUE_TO[1] - IMBUE_FROM[1], IMBUE_TO[2] - IMBUE_FROM[2]
+			glide(cur, IMBUE_FROM[1] - REST[1], IMBUE_FROM[2] - REST[2], 0.6, function()
+				put(cur, stage, IMBUE_FROM[1], IMBUE_FROM[2])
+				chosen(f.imbue, true)
+				f.snap:Show()
+				glide(cur, dx, dy, 2, function() put(cur, stage, IMBUE_TO[1], IMBUE_TO[2]) end)
+				glide(f.imbue, dx, dy, 2, function()
+					lay(f.imbue, stage, IMBUE_TO[1], IMBUE_TO[2])
+					chosen(f.imbue, false)
+				end)
+			end)
+		elseif x == 3 then
+			put(cur, stage, MAIN_AT[1] + 4, MAIN_AT[2] - 34)
+		elseif x == 4 then
+			put(cur, stage, MAIN_AT[1] + 4, MAIN_AT[2] - 4)
+			put(f.shift, stage, MAIN_AT[1] - 64, MAIN_AT[2] - 10)
+			f.shift:Show()
+		end
+	end })
+
+-- Preview mode: its panel's modes on the HUD in miniature
+local MODES = {
+	{ "preview", "Preview", "An ordinary moment in a fight." },
+	{ "warnings", "Warnings", "Warnings focused." },
+	{ "busy", "Busy", "Everything everywhere all at once." },
+}
+local PV_SIZE = 36
+-- Each icon's look: typical, its warning (or the typical one), and where it sits on the stage
+local HUD = {
+	{ SHIELD, 120, function() return { icon = icon("shield"), up = { 0.38, 600 }, bar = { n = 3, filled = 3,
+		color = default("shield", "count", "barColor"), height = default("shield", "count", "barHeight") } } end,
+		missing("shield") },
+	{ MW, 238, function() return withCount(mwLook(3), 3) end,
+		function() local l = withCount(mwLook(5), 5); l.glow = true return l end },
+	{ FS, 278, function() return fsLook(14) end, missing("flameshock"), warns = true },
+	{ ES, 318, esLook, function()
+		local l = esLook()
+		l.paint = shockPaint("range", 1, 0.25, 0.25)
+		l.ring = { 0.2, 0.45, 1, default("shock", "mana", "ring") }
+		return l
+	end, warns = true },
+	{ { el = "imbue", school = "earth" }, 448, function() return { icon = icon("imbue"), up = { 0.95, 3600 } } end,
+		function() return { icon = icon("imbue"), up = { 0.9, 1800 }, warn = { glow = true } } end },
+}
+local BUSY = 1.25
+
+local function pvLook(row, mode, flip)
+	if mode == 2 and row.warns then return row[4]() end
+	if mode == 3 and flip then return row[4]() end
+	return row[3]()
+end
+
+GD.add({ title = "Preview mode", order = 60,
+	blurb = "The whole HUD in a made-up moment, to arrange and style it out of combat.",
+	steps = { 3.2, 3.2, 5 },
+	build = function(f)
+		local stage = GD.stage(f, 0, 92, STAGE_W, STAGE_H)
+		local banner = stage:CreateTexture(nil, "BACKGROUND", nil, 1)
+		banner:SetPoint("TOPLEFT", 1, -1)
+		banner:SetPoint("BOTTOMRIGHT", -1, 1)
+		banner:SetTexture(ART .. OA.SCHOOL[ns.THEME.fallback].banner)
+		banner:SetTexCoord(0, 1400 / 2048, 0, 260 / 512)
+		banner:SetVertexColor(0.45, 0.42, 0.40)
+		f.stage = stage
+		local panel = GD.box(stage, 12, 10, 576, 70, { 0.85, 0.71, 0.42 })
+		panel:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
+		GD.text(panel, "GameFontNormal", ns.NAME .. ": preview", 10, 9)
+		f.modes = OA.choiceRow(panel, MODES, function() return MODES[select(2, GD.current()) + 1][1] end,
+			function(v) for i, m in ipairs(MODES) do if m[1] == v then GD.stepTo(i - 1) end end end)
+		f.modes:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -28)
+		f.modeText = GD.text(panel, "GameFontHighlightSmall", "", 10, 52, 556, GD.GREY)
+		f.icons = {}
+		for i, row in ipairs(HUD) do
+			local ex = GD.icon(stage, PV_SIZE):at(stage, row[2], 160):wear(row[1])
+			ex.box:SetFrameLevel(stage:GetFrameLevel() + 5)
+			f.icons[i] = ex
+		end
+		miniBars(stage, 250, 206)
+		f.note = GD.text(stage, "GameFontHighlightSmall", "", 12, 300, 576, GD.GREY)
+		local go = GD.button(f, ns.Preview.isOn() and "Stop preview" or "Preview", 160, function(b)
+			ns.Preview.toggle()
+			b:SetText(ns.Preview.isOn() and "Stop preview" or "Preview")
+		end)
+		go:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -436)
+		f.go = go
+	end,
+	step = function(f, x)
+		local mode = x + 1
+		f.mode, f.flipAt, f.flip = mode, GetTime(), false
+		f.modes.refresh()
+		f.modeText:SetText(MODES[mode][3])
+		f.note:SetText(mode == 2 and (E.ALL.shock.label .. " out of range and out of mana; "
+			.. ns.Spells.name("flameShock") .. " not on your target.") or "")
+		f.go:SetText(ns.Preview.isOn() and "Stop preview" or "Preview")
+		for i, row in ipairs(HUD) do f.icons[i]:show(pvLook(row, mode, false)) end
+	end,
+	tick = function(f, now)
+		if f.mode ~= 3 or now - f.flipAt < BUSY then return end
+		f.flipAt, f.flip = now, not f.flip
+		for i, row in ipairs(HUD) do f.icons[i]:show(pvLook(row, 3, (i % 2 == 0) == f.flip)) end
+	end })
