@@ -120,10 +120,10 @@ function ns.cache(limit, make)
 	end
 end
 
--- Work that waits for combat to end: protected frames and Blizzard's aura container refuse changes
--- in combat. `if ns.deferInCombat(key, fn) then return end`: queued once per key in combat and run
+-- Work that waits for combat to end (protected frames, restyles of Blizzard's aura buttons).
+-- `if ns.deferInCombat(key, fn) then return end`: queued once per key in combat and run
 -- when combat ends; out of combat it runs now.
--- Aura containers also refuse calls while auras are secret out of combat (PvP, encounters):
+-- Aura container work that also waits while auras are secret out of combat (PvP, encounters):
 -- ns.deferWhileAurasSecret; the queue also runs when an addon restriction ends.
 -- States: combat (lockdown), restricted (a match or encounter: same secrets, no lockdown), readable.
 local queued, queueOrder, listed = {}, {}, {}

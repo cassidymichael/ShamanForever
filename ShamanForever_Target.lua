@@ -3,7 +3,7 @@
 -- filter the client refuses shows nothing, never the wrong aura.
 -- The container doesn't follow a target change: it is pointed at the target (no unit when not
 -- attackable), and a state driver ([@target,harm,nodead]) hides it for friendly targets.
--- A failed call (refused in combat) sets the gate to alpha 0: nothing shows rather than the last
+-- A failed call sets the gate to alpha 0: nothing shows rather than the last
 -- target's aura.
 -- Expiring drawn by the engine is a clip-framed bar over the time bar's first N seconds of the
 -- row's duration, with a cover bar; all set out of combat only.
