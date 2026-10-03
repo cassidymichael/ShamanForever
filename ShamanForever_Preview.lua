@@ -293,7 +293,6 @@ local function button(parent, text, width, onClick)
 	return b
 end
 
-local optionsAside = false
 local optionsButton
 
 do
@@ -311,14 +310,7 @@ do
 	unlearned:SetPoint("LEFT", mode, "RIGHT", 10, 0)
 	local stop = button(panel, "Stop preview", 110, function() PV.close() end)
 	stop:SetPoint("TOPRIGHT", -10, -8)
-	optionsButton = button(panel, "Show options", 110, function()
-		if ns.Options.hide() then
-			optionsAside, ns.getAccount().keepOptionsOpen = true, false
-		else
-			optionsAside, ns.getAccount().keepOptionsOpen = false, true
-			ns.Options.open()
-		end
-	end)
+	optionsButton = button(panel, "Show options", 110, function() ns.Options.toggleAside() end)
 	optionsButton:SetPoint("RIGHT", stop, "LEFT", -6, 0)
 	ns.setTip(optionsButton, "Options", "The options stay shown or hidden the next time.", "ANCHOR_BOTTOM")
 	local lock = button(panel, "Unlock positioning", 140, function()
@@ -349,7 +341,7 @@ function PV.open()
 	if not ns.isActive() then say("the preview is for %s only", ns.CLASS.plural) return end
 	if InCombatLockdown() then say("the preview can't start in combat") return end
 	on = true
-	optionsAside = not ns.getAccount().keepOptionsOpen and ns.Options.hide() or false
+	ns.Options.stepAside("preview")
 	restart()
 	ns.eachModule("onPreview", true)
 	ns.applyLayout()
@@ -380,8 +372,7 @@ function PV.close(forCombat)
 	ns.eachModule("onPreview", false)
 	ns.applyLayout()
 	ns.refreshAll()
-	if optionsAside and not forCombat then ns.Options.open() end
-	optionsAside = false
+	ns.Options.comeBack("preview", forCombat)
 	ns.changed()
 end
 

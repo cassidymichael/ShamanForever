@@ -875,6 +875,31 @@ function OP.toggle()
 	if win and win:IsShown() then win:Hide() else OP.open() end
 end
 
+-- The preview and positioning step the window aside unless it is kept open; it returns once neither runs
+local running, steppedAside = {}, false
+function OP.stepAside(who)
+	running[who] = true
+	if not acct().keepOptionsOpen and OP.hide() then steppedAside = true end
+end
+-- stay: who ended for combat, and the window stays away
+function OP.comeBack(who, stay)
+	if not running[who] then return end
+	running[who] = nil
+	if stay then steppedAside = false end
+	if next(running) or not steppedAside then return end
+	steppedAside = false
+	OP.open()
+end
+-- Their Show or Hide options button: the choice is kept for next time
+function OP.toggleAside(page)
+	if OP.hide() then
+		steppedAside, acct().keepOptionsOpen = true, false
+	else
+		steppedAside, acct().keepOptionsOpen = false, true
+		OP.open(page)
+	end
+end
+
 local category
 function OP.build()
 	if category or not (Settings and Settings.RegisterCanvasLayoutCategory) then return end
