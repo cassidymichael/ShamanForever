@@ -189,9 +189,6 @@ local function borderRows(p, owner, after, label, shown)
 	styleSlider(p, "border", "size", "Border size", "Thickness in screen pixels.", px, r.get("size"), r.set("size"),
 		showWhen(uses("size"), shown))
 	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), showWhen(uses("color"), shown))
-	styleSlider(p, "border", "capSize", "Cap size", "Thickness in screen pixels.", px, r.get("capSize"),
-		r.set("capSize"), showWhen(uses("capSize"), shown))
-	p:color("Cap colour", "Colour and opacity.", r.get("capColor"), r.set("capColor"), showWhen(uses("capColor"), shown))
 end
 
 -- Art frames: part "frame" round each icon, "groupframe" round a group or bar.
