@@ -27,7 +27,7 @@ E.register("imbue", { frame = imbue, label = "Weapon Imbue",
 		icon = "last",   -- the icon while none is on: last | rockbiter | flametongue | frostbrand | windfury
 		showUnderMins = 5,   -- time left shows under this (0: never)
 		warn = { grey = true, ring = true, fade = true, glow = true, pop = true, sound = "none" },
-		expire = { glow = false },   -- while running low (under showUnderMins)
+		expire = { glow = false, sound = "none" },   -- while running low (under showUnderMins)
 		mana = { on = false } },
 	ranges = { showUnderMins = { 0, 30, 1 } },
 	styles = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false,
@@ -184,6 +184,7 @@ function IM.refresh()
 	-- An enchant read empty around a loading screen: the last state stays
 	if r == false and imbueState.on and ns.zoning() then return end
 	local had = imbueState.on
+	local low = false
 	imbueState.unreadable = r == nil
 	imbueState.on = r and true or r
 	imbueState.key, imbueState.expiresAt = nil, nil
@@ -195,7 +196,12 @@ function IM.refresh()
 	else
 		local key = imbueKeyFor(r)
 		local left = r.timeLeft / 1000
-		if r.enchantID ~= imbueState.lastID or left > (imbueState.lastLeft or 0) + 1 then imbueState.changedAt = now end
+		local fresh = r.enchantID ~= imbueState.lastID or left > (imbueState.lastLeft or 0) + 1
+		if fresh then imbueState.changedAt = now end
+		-- Running low: the same imbue's time left drops under Show under
+		local mins = own("showUnderMins")
+		local warnAt = (type(mins) == "number" and mins or 0) * 60
+		low = not fresh and warnAt > 0 and (imbueState.lastLeft or 0) > warnAt and left <= warnAt
 		imbueState.lastID, imbueState.lastLeft = r.enchantID, left
 		-- Unknown enchant changed within 3 s of our cast: that imbue (one that didn't change is the old one)
 		if not key and math.abs(now - imbueState.castAt) < 3 and math.abs(imbueState.changedAt - imbueState.castAt) < 3 then
@@ -215,6 +221,7 @@ function IM.refresh()
 		if warn("pop") then imbue:Pop("lost") end
 		if imbue:IsVisible() then ns.Sounds.element("imbue", "warn") end
 	end
+	if low and not quiet and imbue:IsVisible() then ns.Sounds.element("imbue", "expire") end
 end
 
 function IM.onCast(spellID)
