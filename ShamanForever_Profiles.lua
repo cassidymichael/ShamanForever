@@ -1,6 +1,6 @@
 -- Saved settings and profiles
 
-local ADDON, ns = ...
+local _, ns = ...
 local P = {}
 ns.Profiles = P
 
@@ -17,7 +17,7 @@ local ACCOUNT_DEFAULTS = {
 	chars = {},
 }
 -- The TOC's SavedVariables
-local SAVED = ADDON .. "DB"
+local SAVED = ns.NAME .. "DB"
 local DEFAULT_PROFILE = "Default"
 ns.DEFAULT_PROFILE = DEFAULT_PROFILE
 -- Share strings carry it: one from a newer version is refused

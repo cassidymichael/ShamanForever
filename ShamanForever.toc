@@ -1,4 +1,5 @@
 ## Interface: 16001
+# The Title must equal the folder and saved-variables name exactly: the code derives them from it
 ## Title: ShamanForever
 ## Notes: Shaman HUD for WoW: Forever: shields, shocks, weapon imbues, totem cooldowns and a totem bar. /sf
 ## Author: Michael Cassidy

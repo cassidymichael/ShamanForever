@@ -45,14 +45,14 @@ function ns.applyMinimapButton()
 end
 
 -- The TOC's AddonCompartmentFunc names
-_G[ADDON .. "_OnAddonCompartmentClick"] = function(_, button) onLauncherClick(button) end
-_G[ADDON .. "_OnAddonCompartmentEnter"] = function(_, button)
+_G[ns.NAME .. "_OnAddonCompartmentClick"] = function(_, button) onLauncherClick(button) end
+_G[ns.NAME .. "_OnAddonCompartmentEnter"] = function(_, button)
 	GameTooltip:SetOwner(button, "ANCHOR_LEFT")
 	GameTooltip:SetText(ns.NAME)
 	launcherTip(GameTooltip)
 	GameTooltip:Show()
 end
-_G[ADDON .. "_OnAddonCompartmentLeave"] = function() GameTooltip:Hide() end
+_G[ns.NAME .. "_OnAddonCompartmentLeave"] = function() GameTooltip:Hide() end
 
 SlashCmdList[SLASH] = function(msg)
 	local cmd = (msg:match("^(%S*)") or ""):lower()
