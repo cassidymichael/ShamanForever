@@ -54,9 +54,8 @@ S.register("gcd", {
 	elements = true,
 })
 S.register("border", {
-	defaults = { show = true, look = "line", size = 2, color = { 0, 0, 0, 1 }, capSize = 3,
-		capColor = { 0.85, 0.68, 0.39, 1 } },
-	ranges = { size = { 1, 8, 1 }, capSize = { 1, 8, 1 } },
+	defaults = { show = true, look = "line", size = 2, color = { 0, 0, 0, 1 } },
+	ranges = { size = { 1, 8, 1 } },
 	path = { "border" },
 	elements = true, label = "Border", short = "border", order = 5,
 })
