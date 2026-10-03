@@ -152,7 +152,7 @@ local function stopDrag(handle)
 end
 
 -- The wheel: opacity (Ctrl), scale (Shift) or the size (size = { key, step, from(c): the value it
--- starts from, if not c[key] }), each kept in its range
+-- starts from, if not c[key] }), each kept in its range. Its steps are its own, apart from the sliders'
 local function wheel(c, delta, ranges, size)
 	local function step(key, by, from)
 		local r = ranges[key]
