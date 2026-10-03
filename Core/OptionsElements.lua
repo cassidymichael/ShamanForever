@@ -247,8 +247,9 @@ function EP.buildOverview(p)
 	end
 end
 
--- A kind made of parts: Display and Idle, its slots' blocks (K.registerSlot) with its parts' words,
--- then the Style section: its style slots' blocks, then the style blocks
+-- A kind made of parts: Display and Idle, its slots' blocks (K.registerSlot) with its parts' words
+-- (own blocks' warnings after the warn slot), then the Style section: its style slots' blocks, then
+-- the style blocks
 local function partsPage(p, def)
 	local key = def.key
 	local kind = E.ALL[key].kind
@@ -261,6 +262,7 @@ local function partsPage(p, def)
 	local styled = {}
 	for _, slot in ipairs(ns.Kinds.slots(kind)) do
 		if K.styleSlot(slot) then table.insert(styled, slot) else build(slot) end
+		if slot == "warn" then K.ownWarnings(p, def, ns.Kinds.words(kind, def, "own")) end
 	end
 	styleBlocks(p, key, function()
 		for _, slot in ipairs(styled) do build(slot) end

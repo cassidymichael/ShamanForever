@@ -936,8 +936,27 @@ local function activeBlock(p, owner, opts)
 	soundRow(p, s, "active", "Sound", tipOf(opts, "sound"))
 end
 
--- expire, then ended (it ran out): opts.afterSecs(s) (rows under Warn in the last), warns() (whether
--- its looks can show; default: Warn in the last isn't off), noun, after
+-- ended (it ran out); its sound plays for either end
+local function ranOutBlock(p, owner, opts)
+	local s = store(p, owner, opts.after)
+	if not s.has("ended") then return end
+	p:header("Ran out")
+	if s.has("ended", "flash") then
+		local get, set = s.opt("ended", "flash")
+		local flash = p:checkbox("Flash when it runs out", "Its icon, greyed under its colour, with an hourglass.", get, set)
+		p:sub(flash, get, function()
+			check(p, s, "ended", "pop", "Pop", "The icon bursts for a moment.")
+			check(p, s, "ended", "glow", "Pulsing glow", "In its colour.")
+		end)
+	else
+		check(p, s, "ended", "pop", "Pop when it runs out",
+			tipOf(opts, "endPop", "It pops and fades the moment it runs out."))
+	end
+	soundRow(p, s, "ended", "Sound when it ends", tipOf(opts, "endSound"))
+end
+
+-- expire, then Ran out: opts.afterSecs(s) (rows under Warn in the last), warns() (whether its looks
+-- can show; default: Warn in the last isn't off), noun, after
 local function expiringBlock(p, owner, opts)
 	opts = opts or {}
 	local s = store(p, owner, opts.after)
@@ -956,18 +975,7 @@ local function expiringBlock(p, owner, opts)
 		p:color("Colour", nil, get, set, showWhen(s.get("expire", "bar"), warns))
 	end
 	check(p, s, "expire", "text", "Red countdown", "The countdown turns red in the last seconds.", warns)
-	if s.has("ended", "flash") then
-		local get, set = s.opt("ended", "flash")
-		local flash = p:checkbox("Flash when it runs out", "Its icon, greyed under its colour, with an hourglass.", get, set)
-		p:sub(flash, get, function()
-			check(p, s, "ended", "pop", "Pop", "The icon bursts for a moment.")
-			check(p, s, "ended", "glow", "Pulsing glow", "In its colour.")
-		end)
-	else
-		check(p, s, "ended", "pop", "Pop when it runs out",
-			tipOf(opts, "endPop", "It pops and fades the moment it runs out."))
-	end
-	soundRow(p, s, "ended", "Sound when it ends", tipOf(opts, "endSound"))
+	ranOutBlock(p, owner, opts)
 end
 
 -- killed: opts.title, flash = { label, tip }, noun, after
@@ -990,8 +998,8 @@ local COUNT_POINTS = { { "BOTTOMRIGHT", "Bottom right" }, { "BOTTOMLEFT", "Botto
 	{ "TOPLEFT", "Top left" }, { "CENTER", "Centre" } }
 
 local COUNT_WHEN = { { "always", "Always" }, { "low", "When low or none" }, { "never", "Never" } }
--- The reagent part: its count, then its None left look
-local function reagentBlocks(p, def)
+-- The reagent part: its count, and its None left look (drawn with the warnings)
+local function reagentBlock(p, def)
 	local key = def.key
 	p:header("Reagent")
 	p:text("Only counted if the spell still needs one.")
@@ -1001,17 +1009,19 @@ local function reagentBlocks(p, def)
 	eslider(p, key, "Low at",
 		"At this many or fewer, the count takes the low colour, and Idle can count it as running low.",
 		int, nil, "reagent", "low")
+	local posGet, posSet = eopt(p, key, "reagent", "pos")
+	p:dropdown("Position", nil, COUNT_POINTS, posGet, posSet, counted, 150)
+	eslider(p, key, "Text size", "At the default icon size; it grows with the icon.", int, counted, "reagent", "size")
 	local colorGet, colorSet = eopt(p, key, "reagent", "color")
 	p:color("Count colour", "While you have enough.", colorGet, colorSet, counted)
 	local lowGet, lowSet = eopt(p, key, "reagent", "lowColor")
 	p:color("Low colour", "At the Low mark or below, and at none.", lowGet, lowSet, counted)
-	eslider(p, key, "Text size", "At the default icon size; it grows with the icon.", int, counted, "reagent", "size")
-	local posGet, posSet = eopt(p, key, "reagent", "pos")
-	p:dropdown("Position", nil, COUNT_POINTS, posGet, posSet, counted, 150)
 	eslider(p, key, "Text X offset", nil, px, counted, "reagent", "x")
 	eslider(p, key, "Text Y offset", nil, px, counted, "reagent", "y")
+end
+local function noneLeftBlock(p, def)
 	p:header("None left")
-	lookRows(p, store(p, key), "reagent", {})
+	lookRows(p, store(p, def.key), "reagent", {})
 end
 
 -- A setting switched on, with a number under it: b = { title, name, label, tip, sub = { name, label,
@@ -1029,27 +1039,39 @@ end
 
 K.eread, K.eslider, K.COUNT_POINTS = eread, eslider, COUNT_POINTS
 K.toggleBlock = toggleBlock
-K.elementDisplay, K.idleBlock, K.styleBlocks, K.reagentBlocks = elementDisplay, idleBlock, styleBlocks, reagentBlocks
+K.elementDisplay, K.idleBlock, K.styleBlocks = elementDisplay, idleBlock, styleBlocks
+K.reagentBlock, K.noneLeftBlock = reagentBlock, noneLeftBlock
 K.soundsBlock, K.groupMenu = soundsBlock, groupMenu
 K.warnBlock, K.readyBlock, K.activeBlock, K.expiringBlock, K.killedBlock = warnBlock, readyBlock, activeBlock,
 	expiringBlock, killedBlock
+K.ranOutBlock = ranOutBlock
 
 -- A parts page's builders: a slot's block, fn(p, def, words) (style: it goes in the Style section),
--- and a block a part asks for in the own slot, fn(p, def, spec); the standard ones are below,
--- calling the kit's blocks as they stand
-local SLOTS, OWNS, STYLED = {}, {}, {}
+-- and a block a part asks for in the own slot, fn(p, def, spec), with its warning, warning(p, def,
+-- spec), drawn after the warn slot; the standard ones are below, calling the kit's blocks as they stand
+local SLOTS, OWNS, STYLED, OWN_WARNS = {}, {}, {}, {}
 function K.registerSlot(name, fn, style)
 	SLOTS[name] = fn
 	STYLED[name] = style or nil
 end
-function K.registerOwn(name, fn) OWNS[name] = fn end
+function K.registerOwn(name, fn, warning)
+	OWNS[name] = fn
+	OWN_WARNS[name] = warning
+end
 function K.slotBuilder(name) return SLOTS[name] end
 function K.styleSlot(name) return STYLED[name] == true end
 function K.ownBuilder(name) return OWNS[name] end
 -- An own block's name: the spec itself, or its first field
 function K.ownName(b) return type(b) == "table" and b[1] or b end
+-- The own blocks' warnings, for the own slot's words list
+function K.ownWarnings(p, def, list)
+	for _, b in ipairs(list or {}) do
+		local build = OWN_WARNS[K.ownName(b)]
+		if build then build(p, def, b) end
+	end
+end
 
-K.registerOwn("reagent", function(p, def) K.reagentBlocks(p, def) end)
+K.registerOwn("reagent", function(p, def) K.reagentBlock(p, def) end, function(p, def) K.noneLeftBlock(p, def) end)
 K.registerOwn("toggle", function(p, def, b) K.toggleBlock(p, def.key, b) end)
 K.registerSlot("own", function(p, def, list)
 	for _, b in ipairs(list) do
