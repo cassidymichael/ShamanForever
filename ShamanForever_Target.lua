@@ -17,11 +17,10 @@ ns.Target = T
 local setting = ns.elementSetting
 
 -- Rows: the class's target elements
--- Fields: unit = "target", which needs proc = true (the aura container shows it), filter, auraKey
--- (the aura's spell, matched by any rank), duration (the aura's full length, for engineExpire),
--- candidates(def), noPop, noGlow, ownIcon, noTimer, defaults; parts missing (needs auraKey),
--- engineExpire (needs missing and duration), skipLong (below); page texts idleText, procHeader,
--- popTip, glowTip, upLabel, idleLabel. Rows are of the buff kind (_Buffs).
+-- Rows of the buff kind (_Buffs lists the aura fields its builder reads). Here: unit = "target",
+-- which needs proc = true; parts missing (needs auraKey), engineExpire (needs missing and duration,
+-- the aura's full length), skipLong (below); page texts idleText, procHeader, popTip, glowTip,
+-- upLabel, idleLabel.
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
 		unit = "target", proc = true, duration = 12,

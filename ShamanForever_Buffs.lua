@@ -11,7 +11,8 @@ ns.Buffs = B
 
 local setting = ns.elementSetting
 
--- Elements: the class's rows (ns.CLASS.buffs), all built here; BUFFS are those this file runs
+-- Elements: the class's rows (ns.CLASS.buffs), all built here; BUFFS are those this file runs. Rows
+-- from other files join the list before this file loads.
 local ROWS = ns.CLASS.buffs or {}
 local BUFFS = {}
 
@@ -84,11 +85,15 @@ ns.registerPart("proc", {
 		end,
 	},
 })
--- A part's runtime hooks (each optional; parts from other files bring their own), for rows with
--- proc, which Blizzard's aura container shows:
+-- Rows with proc are shown by Blizzard's aura container. The builder reads their fields: filter
+-- (else "HELPFUL"), candidates(def) (candidate filters, else the aura's IDs), auraKey or buffKey
+-- (the aura's spell, any rank), ownIcon (the row's icon, not the aura's), noTimer (no time left),
+-- noGlow and noPop (without its own glow or pop; with neither, no effect host).
+-- A part's runtime hooks for them (each optional; parts from other files bring their own):
 --   make(def)                  at load, after the icon, before the aura slot: frames of its own;
 --                              returns { looks, extras }: aura looks set up, refiltered and checked
---                              with the slot, and more slots on its container (makeAuraSlot)
+--                              with the slot, and more slots on its container (makeAuraSlot); it
+--                              may set def.borderHost (registerElement's: the frame its border is on)
 --   aura(def)                  where the aura is read, else on the player: { unit, slot, parent,
 --                              site, glow = { unit, needUnit, parent } }
 --   button(def, slot, button)  Blizzard's button was made, after its pop and border
