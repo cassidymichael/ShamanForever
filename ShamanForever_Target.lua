@@ -17,10 +17,11 @@ ns.Target = T
 local setting = ns.elementSetting
 
 -- Rows: the class's target elements
--- Fields: unit = "target", proc, filter, auraKey (the aura's spell, matched by any rank), duration
--- (the aura's full length, for engineExpire), candidates(def), noPop, noGlow, ownIcon, noTimer,
--- defaults; parts missing, engineExpire, skipLong (below); page texts idleText, procHeader, popTip,
--- glowTip, upLabel, idleLabel. Rows are of the buff kind (_Buffs).
+-- Fields: unit = "target", which needs proc = true (the aura container shows it), filter, auraKey
+-- (the aura's spell, matched by any rank), duration (the aura's full length, for engineExpire),
+-- candidates(def), noPop, noGlow, ownIcon, noTimer, defaults; parts missing, engineExpire, skipLong
+-- (below); page texts idleText, procHeader, popTip, glowTip, upLabel, idleLabel. Rows are of the
+-- buff kind (_Buffs).
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
 		unit = "target", proc = true, duration = 12,
@@ -191,7 +192,7 @@ end
 -- onTarget: its aura is read on your hostile target; this engine runs it
 ns.registerPart("onTarget", {
 	kind = "buff", after = "breath",
-	has = function(def) return def.unit == "target" end,
+	has = function(def) return def.unit == "target" and def.proc end,
 	runtime = {
 		engine = true,
 		-- On the effects layer: idle fades only the icon under the button
