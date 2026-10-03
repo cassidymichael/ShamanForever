@@ -540,7 +540,7 @@ local function makeSizes(page, row)
 		row.sizes[i] = b
 	end
 	row.sizeLabel = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-	row.sizeLabel:SetText("Size")
+	row.sizeLabel:SetText("Page size")
 end
 -- The sizes sit left of the fold links, or at the right without them
 local function placeSizes(row, folds)
@@ -555,7 +555,8 @@ local function placeSizes(row, folds)
 	row.sizeLabel:SetPoint("RIGHT", row.sizes[1], "LEFT", -SIZE_GAP, 0)
 end
 
--- folds: Collapse all and Expand all; sizes: the page size
+-- folds: Collapse all and Expand all; sizes: the page size. The row keeps its size above the blocks
+-- (in the holder, not content): its height in content's units comes back.
 function Page:placeFoldRow(folds, sizes)
 	local row = self.foldRow
 	if not (folds or sizes) then
@@ -563,7 +564,8 @@ function Page:placeFoldRow(folds, sizes)
 		return 0
 	end
 	if not row then
-		row = CreateFrame("Frame", nil, self.content)
+		row = CreateFrame("Frame", nil, self.holder)
+		row:SetFrameLevel(self.content:GetFrameLevel() + 10)
 		row:SetHeight(LINK_H)
 		row.collapse = textLink(row, "Collapse all", function() self:foldAll(true) end)
 		row.collapse:SetPoint("RIGHT", row, "RIGHT", 0, 0)
@@ -582,10 +584,10 @@ function Page:placeFoldRow(folds, sizes)
 	row.sizeLabel:SetShown(sizes)
 	if sizes then placeSizes(row, folds) end
 	row:ClearAllPoints()
-	row:SetPoint("TOPLEFT", self.content, "TOPLEFT", 0, 0)
-	row:SetPoint("TOPRIGHT", self.content, "TOPRIGHT", 0, 0)
+	row:SetPoint("TOPLEFT", self.holder, "TOPLEFT", 0, 0)
+	row:SetPoint("TOPRIGHT", self.holder, "TOPRIGHT", 0, 0)
 	row:Show()
-	return LINK_H
+	return LINK_H / self.scaled
 end
 
 function Page:paintFoldRow()
