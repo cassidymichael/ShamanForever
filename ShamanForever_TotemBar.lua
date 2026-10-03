@@ -1667,8 +1667,8 @@ function TB.hasTotems() return hasTotems end
 local PREVIEW_STATES = { "down", "expiring", "killed", "ranout", "empty" }
 local PREVIEW_WARNING = { earth = { "empty" }, fire = { "empty" }, water = { "down", range = true },
 	air = { "down", range = true } }
--- Each slot's totem in a preview: seconds left of its length
-TB.PREVIEW_LEFT = { earth = { 250, 300 }, fire = { 38, 55 }, water = { 83, 300 }, air = { 165, 300 } }
+-- Each slot's totem in a preview: seconds left of its length (fire's under Magma Totem's 20 s, the shortest)
+TB.PREVIEW_LEFT = { earth = { 250, 300 }, fire = { 12, 30 }, water = { 83, 300 }, air = { 165, 300 } }
 
 local function paintSlot(s, rec)
 	local c, v, st = cfg(), s.vis, rec.st
