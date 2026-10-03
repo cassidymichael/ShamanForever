@@ -504,9 +504,8 @@ local function frameAlpha(def)
 	return idles and E.idleAlpha(def.key) or 1
 end
 
--- Out of combat only (an ancestor of the button)
 local function applyIdle(def)
-	if not def.idle or InCombatLockdown() then return end
+	if not def.idle then return end
 	local on = def.spellID and E.isEnabled(def.key) and P.getAccount().locked
 		and setting(def.key, "idleWhen") == "target"
 	def.idle:SetAlpha(on and E.idleAlpha(def.key) or 1)
