@@ -361,12 +361,11 @@ local function buildNative(slot, button, cd)
 	slot.edge = FR.edge(button, button, "shield", { overlay = false })
 	local overlay = CreateFrame("Frame", nil, button)
 	overlay:SetAllPoints()
-	local lv = cd:GetFrameLevel() + 2
-	overlay:SetFrameLevel(lv)
+	overlay:SetFrameLevel(cd:GetFrameLevel() + 2)
 	slot.overlay = overlay
 	Count.text(slot, button, overlay, function(fs) countFont(fs, button) end, "shield count")
 	-- min 0: one charge is one third, not empty
-	local bar = Count.bar(slot, overlay, button, lv + 1)
+	local bar = Count.bar(slot, overlay, button)
 	ns.try("shield count bar", button.SetApplicationBar, button, bar, { minApplications = 0, maxApplications = CHARGES })
 	Count.styleBar(slot, ns.sizeOf("shield"), CHARGES, count("barHeight"), barColor(), count("bar"))
 	slot.fs:SetAlpha(count("number") and 1 or 0)
