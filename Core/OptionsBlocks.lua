@@ -1050,6 +1050,14 @@ local function expiringBlock(p, owner, opts)
 	ranOutBlock(p, owner, opts)
 end
 
+-- An event whose one setting is its sound: opts.title, tip, after
+local function soundBlock(p, owner, name, opts)
+	local s = store(p, owner, opts.after)
+	if not s.has(name, "sound") then return end
+	p:header(opts.title)
+	soundRow(p, s, name, "Sound", opts.tip)
+end
+
 -- killed: opts.title, flash = { label, tip }, noun, after
 local function killedBlock(p, owner, opts)
 	local s = store(p, owner, opts.after)
@@ -1143,7 +1151,7 @@ K.reagentBlock, K.noneLeftBlock = reagentBlock, noneLeftBlock
 K.soundsBlock, K.groupMenu = soundsBlock, groupMenu
 K.warnBlock, K.readyBlock, K.activeBlock, K.expiringBlock, K.killedBlock = warnBlock, readyBlock, activeBlock,
 	expiringBlock, killedBlock
-K.ranOutBlock = ranOutBlock
+K.ranOutBlock, K.soundBlock = ranOutBlock, soundBlock
 
 -- A parts page's builders: a slot's block, fn(p, def, words) (style: it goes in the Style section),
 -- and a block a part asks for in the own slot, fn(p, def, spec), with its warning, warning(p, def,

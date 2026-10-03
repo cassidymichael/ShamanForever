@@ -35,6 +35,7 @@ SW.DEFAULTS = {
 	deplete = false,
 	countdown = false, countdownSize = 12, countdownColor = { 1, 1, 1, 1 },
 	countdownPos = "center",
+	swing = { sound = "none" },
 }
 local RANGES = { width = { 40, 400, 4 }, height = { 4, 40, 1 }, scale = { 0.5, 3, 0.05 }, alpha = { 0.1, 1, 0.05 },
 	countdownSize = { 8, 40, 1 } }
@@ -178,6 +179,7 @@ local function onSwing(swingDuration, swingType)
 		return
 	end
 	startSwing(swingDuration)
+	if f:IsVisible() and not pv.mode then ns.Sounds.play(cfg().swing.sound, "swing", 0) end
 end
 
 -- A cast-time spell restarts the swing: clear the bar
