@@ -113,7 +113,7 @@ local RETIRED = {
 		"popFlash", "popRing", "popStar", "popTint" },
 	-- Fold keys of pages that no longer fold, and of blocks that were renamed (a page's key, then its title)
 	folds = { "^layout:", ":Frame style$", ":Group frame style$", "^styles:Border look$", "^styles:Element frame$",
-		"^styles:Group frame$" },
+		"^styles:Group frame$", "^totembar:Totems$", "^totembar:Not your pick$" },
 	-- The totem bar's switches from before its mode, and follow from before sizeFollow
 	totemBar = { "enabled", "hideTotemFrame", "hideActionBar", "killedPulse", "follow" },
 	-- Style choices that went, to their nearest: part -> field -> old -> new
