@@ -160,6 +160,7 @@ function ns.setVisibilityDriver(frame, expr, site)
 	drivers[frame] = expr
 	return true
 end
+function ns.visibilityDriverOf(frame) return drivers[frame] end
 local INACTIVE = Enum and Enum.AddOnRestrictionState and Enum.AddOnRestrictionState.Inactive or 0
 -- fn(endedAt) runs the frame after a restriction ends, once, after the queue (not on starts)
 local afterEnd, endedAt = {}, nil

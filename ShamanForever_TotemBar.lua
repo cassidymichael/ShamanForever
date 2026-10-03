@@ -1729,9 +1729,11 @@ function TB.debug()
 	local gok, ginfo = pcall(C_ActionBar.GetActionCooldown, multiAction(SLOT.earth))
 	local g = not gok and "error" or type(ginfo) ~= "table" and "none"
 		or isSecret(ginfo.isOnGCD) and "secret" or tostring(ginfo.isOnGCD)
+	local driver, wants = ns.visibilityDriverOf(bar), visibilityDriver()
+	driver = tostring(driver) .. (driver ~= wants and " (wants " .. tostring(wants) .. ")" or "")
 	ns.say("totem bar mode %s, show %s, driver %s, shown %s, totems known %s, set %d of %d, "
 		.. "earth isOnGCD %s; TotemFrame parent %s alpha %s; Totem Action Bar parent %s",
-		c.mode, c.show, tostring(visibilityDriver()), tostring(bar:IsShown()), tostring(hasTotems),
+		c.mode, c.show, driver, tostring(bar:IsShown()), tostring(hasTotems),
 		TS.active(), TS.count(), g,
 		TotemFrame and TotemFrame:GetParent() and (TotemFrame:GetParent():GetName() or "?") or "none",
 		TotemFrame and string.format("%.2f", TotemFrame:GetAlpha()) or "-",
