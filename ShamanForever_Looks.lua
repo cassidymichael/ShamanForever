@@ -871,7 +871,7 @@ S.addChoice("pop", "flash", "plain", { name = "Plain flash", uses = { colorBy = 
 S.addChoice("pop", "flash", "edge", { name = "Blizzard's edge flash", uses = { colorBy = true } })
 
 S.addField("pop", "burst", { name = "Burst", where = POP, preview = { play = "hover" },
-	groups = { { "plain", "Plain" }, { "element", "Element" }, { "other", "Other" } } })
+	groups = { { "plain", "Plain" }, { "element", THEME.axis.name }, { "other", "Other" } } })
 local function addBurst(key, entry)
 	if entry.rigParts or entry.draw then entry.uses = { colorBy = true, reach = true } end
 	S.addChoice("pop", "burst", key, entry)
@@ -881,9 +881,9 @@ addBurst("ring", { name = "Ring", group = "plain", rigParts = { "ring" } })
 addBurst("star", { name = "Star", group = "plain", rigParts = { "star" } })
 addBurst("both", { name = "Ring and star", group = "plain", rigParts = { "ring", "star" } })
 addBurst("painted", { name = "Emblem", group = "element", bySchool = true, credit = "ai",
-	tip = "An element's symbol spreads out behind the icon.",
+	tip = THEME.axis.one:gsub("^%l", string.upper) .. "'s symbol spreads out behind the icon.",
 	draw = shapes(function(school) return MEDIA .. shapeOf(school).emblem end, 3.2) })
-addBurst("school", { name = "Element effect", group = "element", bySchool = true,
+addBurst("school", { name = THEME.axis.name .. " effect", group = "element", bySchool = true,
 	tip = THEME.burstTip,
 	draw = function(out, school)
 		disc(out, 3.0, 0.6)

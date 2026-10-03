@@ -353,7 +353,8 @@ local function popSchoolRow(p, key, shown)
 		reglow()
 	end
 	p:owns({ elem = key, name = "popSchool", after = reglow })
-	p:dropdown("Element", "The element its pop and School material glow take.", function()
+	local axis = ns.THEME.axis
+	p:dropdown(axis.name, "The " .. axis.lower .. " its pop and School material glow take.", function()
 		local own = ns.Looks.elementSchool(key, true)
 		local out = { { "own", "Its own" } }
 		for _, sc in ipairs(ns.Look.SCHOOLS) do
@@ -456,7 +457,9 @@ local function popBlock(p, owner, kind)
 		p:text("By school suits this burst.", showWhen(function() return color().key == "event" and burst().bySchool end, own))
 	end
 	choiceRows(p, r, "pop", "flash", "Flash", "Over the icon.", own)
-	choiceRows(p, r, "pop", "burst", "Burst", "Around the icon. Element effect: each element its own.", own)
+	local axis = ns.THEME.axis
+	choiceRows(p, r, "pop", "burst", "Burst", "Around the icon. " .. axis.name .. " effect: each " .. axis.lower
+		.. " its own.", own)
 	styleSlider(p, "pop", "reach", "Reach", "How far the burst spreads.", pct, r.get("reach"), r.set("reach"),
 		showWhen(function() return burst().uses.reach end, own))
 	local motion = choiceRows(p, r, "pop", "motion", "Motion", "How the icon moves.", own)
@@ -503,7 +506,7 @@ local function barRows(p, owner, after)
 	local r = styleRows(p, owner, "bar", after)
 	if owner then followRow(p, owner, "bar", after, "Texture same as Global") end
 	local own = showWhen(r.own)
-	local c = ns.THEME.color.water
+	local c = ns.THEME.color[ns.THEME.sample]
 	p:dropdown("Texture", nil, function()
 		local out = {}
 		for _, b in ipairs(ns.Media.bars(owner)) do

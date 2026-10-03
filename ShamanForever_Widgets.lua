@@ -2,12 +2,6 @@
 
 local _, ns = ...
 
-ns.THEME.barColor = {}
-for school, c in pairs(ns.THEME.color) do
-	ns.THEME.barColor[school] = { math.min(1, c[1] * 1.15), math.min(1, c[2] * 1.15),
-		math.min(1, c[3] * 1.15) }
-end
-
 ns.BACKDROP = { bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 }
 
 function ns.cropIcon(tex) tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end

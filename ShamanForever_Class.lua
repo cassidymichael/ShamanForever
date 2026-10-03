@@ -82,9 +82,13 @@ ns.CLASS.layout = {
 
 -- The art theme: what a class supplies for its icons' colour, art and effects. Every table is
 -- keyed by a school key from `order`:
---   order, fallback  the keys in display order; the key used for anything unknown
+--   order, fallback  the keys in display order; the key used for anything unknown, and the
+--                    school of what has none (a bar)
+--   axis             what a key is called in the options: name, lower, one (with its article)
+--   sample           the key whose colour tints neutral samples (bar textures in a menu)
 --   name, icon       display name; sample icon (file ID or path)
---   color            { r, g, b }; bar colours are derived from it
+--   color            { r, g, b }
+--   barColor         { r, g, b } a bar takes (below: each colour a little brighter)
 --   banner           element header art, a file in Art/
 --   material         glow material: file in Art/Looks, move = { x, y, seconds } of the drift
 --   shape            pop art: file, emblem (files), spin, sheenDir = { x, y }
@@ -93,9 +97,13 @@ ns.CLASS.layout = {
 --                    a, color, sy, rise, slow, dark, front. art = "shape" is the school's shape
 --                    file; any other art is a file name
 --   burstTip         the tooltip of the Element effect burst
+-- Art each key needs, named by its key: Art/Banner-<Key>.jpg and, in Art/Looks, Mat-<Key>,
+-- Shape-<Key> and Burst-<Key> (.tga). Also a class's own: Art/Logo-Icon.tga, Art/Elements.tga.
 ns.THEME = {
 	order = { "earth", "fire", "water", "air", "spirit" },
 	fallback = "spirit",
+	axis = { name = "Element", lower = "element", one = "an element" },
+	sample = "water",
 	name = { earth = "Earth", fire = "Fire", water = "Water", air = "Air", spirit = "Spirit" },
 	color = {
 		earth  = { 0.75, 0.54, 0.24 },
@@ -183,6 +191,10 @@ ns.THEME = {
 	burstTip = "Each element its own effect: earth slams, fire flares, water ripples, "
 		.. "air spins, spirit gathers.",
 }
+ns.THEME.barColor = {}
+for key, c in pairs(ns.THEME.color) do
+	ns.THEME.barColor[key] = { math.min(1, c[1] * 1.15), math.min(1, c[2] * 1.15), math.min(1, c[3] * 1.15) }
+end
 
 -- Seed IDs and English names, as _Core's DEFS
 
