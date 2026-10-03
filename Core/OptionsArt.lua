@@ -584,6 +584,8 @@ do
 			for k, v in pairs(over and over[part] or {}) do st[k] = copy(v) end
 			setStyle(self.owner, part, st)
 		end
+		-- A repaint's reads of the old styles would draw them
+		ns.Style.forget(self.owner)
 		self.ic.glowF:restyle()
 		self:fit()
 	end
