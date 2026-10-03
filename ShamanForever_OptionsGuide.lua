@@ -52,9 +52,10 @@ end
 local function place(x, parent, cx, cy) x.box:ClearAllPoints(); x.box:SetPoint("CENTER", parent, "TOPLEFT", cx, -cy) end
 
 -- How things fit together
--- The totem bar and the swing timer in miniature, at x, y on parent (labelled: their names under them)
+-- The totem bar and the swing timer in miniature, at x, y on parent (labelled: their names under them);
+-- returns the bar's slot textures
 local function miniBars(parent, x, y, labelled)
-	local frame = GD.box(parent, x, y, 100, 28, { 0.35, 0.27, 0.19 })
+	local frame, slots = GD.box(parent, x, y, 100, 28, { 0.35, 0.27, 0.19 }), {}
 	frame:SetBackdropColor(0.09, 0.07, 0.05, 1)
 	for i, school in ipairs({ "fire", "earth", "water", "air" }) do
 		local t = frame:CreateTexture(nil, "ARTWORK")
@@ -63,6 +64,7 @@ local function miniBars(parent, x, y, labelled)
 		t:SetTexture(ns.THEME.icon[school])
 		W.cropIcon(t)
 		t:SetDesaturated(i == 4)
+		slots[i] = t
 	end
 	local bar = CreateFrame("StatusBar", nil, parent)
 	bar:SetPoint("TOPLEFT", parent, "TOPLEFT", x, -(y + (labelled and 62 or 40)))
@@ -74,9 +76,10 @@ local function miniBars(parent, x, y, labelled)
 	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
 	bar.bg:SetAllPoints()
 	bar.bg:SetColorTexture(0.05, 0.04, 0.035, 1)
-	if not labelled then return end
+	if not labelled then return slots end
 	GD.text(parent, "GameFontHighlightSmall", "Totem bar", x, y + 34, nil, GD.GREY)
 	GD.text(parent, "GameFontHighlightSmall", "Swing timer", x, y + 76, nil, GD.GREY)
+	return slots
 end
 
 GD.add({ title = "How things fit together", order = 10,
@@ -222,7 +225,7 @@ GD.add({ title = "Styles", order = 20, blurb = "A taste of what each part can lo
 		GD.lead(s, s.stageW / 2, 92)
 		GD.text(f, "GameFontHighlight", "To see all styles, view the settings pages or browse the Styles explorer.",
 			2, 522, 370, GD.GREY)
-		GD.button(f, "Styles explorer", 212, function() ns.Options.open("styles") end)
+		GD.bigButton(f, "Styles explorer" .. GD.ON, 212, function() ns.Options.open("styles") end)
 			:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -520)
 	end,
 	step = function(f, x)
@@ -461,6 +464,58 @@ local function tip(parent, key, text)
 	return f
 end
 
+-- f fades in after delay seconds
+local function appear(f, delay)
+	local g = f.appear
+	if not g then
+		g = f:CreateAnimationGroup()
+		g:SetToFinalAlpha(true)
+		g.fade = g:CreateAnimation("Alpha")
+		g.fade:SetFromAlpha(0)
+		g.fade:SetToAlpha(1)
+		g.fade:SetDuration(0.25)
+		f.appear = g
+	end
+	g:Stop()
+	f:SetAlpha(0)
+	g.fade:SetStartDelay(delay)
+	f:Show()
+	g:Play()
+end
+
+-- A click: a ring spreading from the cursor's tip after delay seconds
+local function clickRing(stage)
+	local f = CreateFrame("Frame", nil, stage)
+	f:SetSize(26, 26)
+	f:SetFrameLevel(stage:GetFrameLevel() + 19)
+	f:SetAlpha(0)
+	local t = f:CreateTexture(nil, "OVERLAY")
+	t:SetAllPoints()
+	t:SetTexture(ART .. "Looks\\Ring-Soft")
+	t:SetVertexColor(1, 0.82, 0)
+	local g = f:CreateAnimationGroup()
+	g:SetToFinalAlpha(true)
+	local grow = g:CreateAnimation("Scale")
+	grow:SetScaleFrom(0.4, 0.4)
+	grow:SetScaleTo(1.6, 1.6)
+	grow:SetDuration(0.9)
+	local fade = g:CreateAnimation("Alpha")
+	fade:SetFromAlpha(1)
+	fade:SetToAlpha(0)
+	fade:SetDuration(0.9)
+	function f.play(x, y, delay)
+		g:Stop()
+		f:SetAlpha(0)
+		f:ClearAllPoints()
+		f:SetPoint("CENTER", stage, "TOPLEFT", x, -y)
+		grow:SetStartDelay(delay)
+		fade:SetStartDelay(delay)
+		g:Play()
+	end
+	function f.stop() g:Stop(); f:SetAlpha(0) end
+	return f
+end
+
 -- f moves dx, dy over secs (down is positive); after places it where it ended
 local function glide(f, dx, dy, secs, after)
 	local g = f.glide
@@ -522,6 +577,7 @@ GD.add({ title = "Layout", order = 50,
 		tex:SetAllPoints()
 		tex:SetTexture("Interface\\Cursor\\Point")
 		f.cursor = cur
+		f.click = clickRing(stage)
 		f.lock = GD.button(f, lockText(), 160, function(b)
 			ns.Groups.setLocked(not ns.Profiles.getAccount().locked)
 			b:SetText(lockText())
@@ -537,7 +593,8 @@ GD.add({ title = "Layout", order = 50,
 		lay(f.main, stage, MAIN_AT[1], MAIN_AT[2], x >= 2)
 		local at = x >= 1 and IMBUE_TO or IMBUE_FROM
 		lay(f.imbue, stage, at[1], at[2])
-		for i, t in ipairs(f.tips) do t:SetShown(i == x - 1) end
+		for _, t in ipairs(f.tips) do t:Hide() end
+		f.click.stop()
 		chosen(f.main, x >= 3)
 		chosen(f.imbue, false)
 		f.snap:Hide()
@@ -557,12 +614,19 @@ GD.add({ title = "Layout", order = 50,
 					chosen(f.imbue, false)
 				end)
 			end)
+		elseif x == 2 then
+			appear(f.tips[1], 0.2)
 		elseif x == 3 then
+			-- On Main, a right-click, then what it does
 			put(cur, stage, MAIN_AT[1] + 4, MAIN_AT[2] - 34)
+			f.click.play(MAIN_AT[1] + 4, MAIN_AT[2] - 34, 0.9)
+			appear(f.tips[2], 1.1)
 		elseif x == 4 then
 			put(cur, stage, MAIN_AT[1] + 4, MAIN_AT[2] - 4)
 			put(f.shift, stage, MAIN_AT[1] - 64, MAIN_AT[2] - 10)
-			f.shift:Show()
+			appear(f.shift, 0.8)
+			f.click.play(MAIN_AT[1] + 4, MAIN_AT[2] - 4, 1.1)
+			appear(f.tips[3], 1.3)
 		end
 	end })
 
@@ -622,7 +686,7 @@ GD.add({ title = "Preview mode", order = 60,
 			ex.box:SetFrameLevel(stage:GetFrameLevel() + 5)
 			f.icons[i] = ex
 		end
-		miniBars(stage, 250, 206)
+		f.slots = miniBars(stage, 250, 206)
 		f.note = GD.text(stage, "GameFontHighlightSmall", "", 12, 300, 576, GD.GREY)
 		local go = GD.button(f, ns.Preview.isOn() and "Stop preview" or "Preview", 160, function(b)
 			ns.Preview.toggle()
@@ -641,9 +705,11 @@ GD.add({ title = "Preview mode", order = 60,
 			.. ns.Spells.name("flameShock") .. " not on your target.") or "")
 		f.go:SetText(ns.Preview.isOn() and "Stop preview" or "Preview")
 		for i, row in ipairs(HUD) do f.icons[i]:show(pvLook(row, mode, false)) end
+		f.slots[3]:SetAlpha(1)
 	end,
 	tick = function(f, now)
 		if f.mode ~= 3 or now - f.flipAt < BUSY then return end
 		f.flipAt, f.flip = now, not f.flip
 		for i, row in ipairs(HUD) do f.icons[i]:show(pvLook(row, 3, (i % 2 == 0) == f.flip)) end
+		f.slots[3]:SetAlpha(f.flip and 0.35 or 1)
 	end })

@@ -85,6 +85,17 @@ function GD.button(parent, text, width, onClick)
 	return b
 end
 
+-- The arrows Friz Quadrata has, for the bigger buttons that move on: Next, Previous, Styles explorer
+GD.BACK, GD.ON = "\226\128\185 ", " \226\128\186"
+function GD.bigButton(parent, text, width, onClick)
+	local b = GD.button(parent, text, width, onClick)
+	b:SetHeight(28)
+	b:SetNormalFontObject("GameFontNormalMed3")
+	b:SetHighlightFontObject("GameFontHighlightMedium")
+	b:SetDisabledFontObject("GameFontDisableMed3")
+	return b
+end
+
 -- Texts over everything a slide draws
 function GD.over(f)
 	if not f.over then
@@ -322,7 +333,7 @@ local function show(n)
 	title:SetText(sp.title)
 	blurb:SetText(sp.blurb or "")
 	prevB:SetShown(n > 1)
-	nextB:SetText(n == #slides and "Start over" or "Next")
+	nextB:SetText(n == #slides and "Start over" or ("Next" .. GD.ON))
 	for i, d in ipairs(dots) do
 		if i == n then d.tex:SetColorTexture(1, 0.82, 0) else d.tex:SetColorTexture(0.29, 0.23, 0.14) end
 	end
@@ -380,9 +391,9 @@ local function build(p)
 	title:SetPoint("LEFT", sep, "RIGHT", 9, 1)
 	blurb = GD.text(board, "GameFontHighlight", "", 2, 36, 596)
 	blurb:SetSpacing(2)
-	nextB = GD.button(board, "Next", 112, function() show(cur + 1) end)
+	nextB = GD.bigButton(board, "Next" .. GD.ON, 112, function() show(cur + 1) end)
 	nextB:SetPoint("TOPRIGHT", board, "TOPRIGHT", 0, 0)
-	prevB = GD.button(board, "Previous", 108, function() show(cur - 1) end)
+	prevB = GD.bigButton(board, GD.BACK .. "Previous", 120, function() show(cur - 1) end)
 	prevB:SetPoint("RIGHT", nextB, "LEFT", -8, 0)
 	local ctl = CreateFrame("Frame", nil, board)
 	ctl:SetSize(BOARD_W, 18)
@@ -401,7 +412,6 @@ local function build(p)
 		d.tex:SetSize(6, 6)
 		d.tex:SetPoint("CENTER")
 		d:SetScript("OnClick", function() show(i) end)
-		W.setTip(d, slides[i].title)
 		dots[i] = d
 	end
 	x = x + n * 13 + 2
@@ -490,7 +500,8 @@ local function copyField(parent, value, x, y, w)
 end
 
 GD.add({ title = "Early days", order = 1000,
-	blurb = ns.NAME .. " is brand new, made for WoW Forever, and it's still early days. Feedback is very appreciated!",
+	blurb = ns.NAME .. " is brand new, made for WoW Forever, and it's still early days. Feedback is |cffffd100very|r"
+		.. " appreciated!",
 	build = function(f)
 		local card = GD.box(f, 0, 96, 600, 96, { 0.56, 0.43, 0.22 })
 		local logo = card:CreateTexture(nil, "ARTWORK")
