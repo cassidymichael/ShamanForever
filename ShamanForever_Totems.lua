@@ -62,7 +62,7 @@ function T.downSpell(slot)
 	local id = spells[slot]
 	if id then return id end
 	if InCombatLockdown() then return nil end
-	local ok, _, _, _, _, _, _, sid = ns.try("totem bar: totem info", GetTotemInfo, slot)
+	local ok, _, _, _, _, _, _, sid = ns.try("totems: totem info", GetTotemInfo, slot)
 	if ok and not isSecret(sid) and type(sid) == "number" and sid > 0 then return sid end
 end
 
@@ -120,7 +120,7 @@ end
 function T.slotEmptied(slot, dur)
 	C_Timer.After(0.1, function()
 		local mine = dismissedAt[slot] and GetTime() - dismissedAt[slot] < 1.5
-		local ok, d = ns.try("totem bar: duration", GetTotemDuration, slot)
+		local ok, d = ns.try("totems: duration", GetTotemDuration, slot)
 		local refilled = ok and d ~= nil
 		if refilled then return end
 		if not mine then notify("gone", slot, dur) end
@@ -333,7 +333,7 @@ ns.registerPart("needsTotem", {
 			else
 				local aok, alpha = false, nil
 				if tok and tdur and ns.CURVE_OVER then
-					aok, alpha = ns.try("fire nova warning", tdur.EvaluateRemainingDuration, tdur, ns.CURVE_OVER)
+					aok, alpha = ns.try("totems: fire nova warning", tdur.EvaluateRemainingDuration, tdur, ns.CURVE_OVER)
 				end
 				if aok and alpha ~= nil then
 					f.warn:SetAlpha(alpha)
@@ -358,7 +358,7 @@ ns.registerPart("needsTotem", {
 		readyGate = function(def)
 			local tok, tdur = safe(GetTotemDuration, def.needsTotem)
 			if not (tok and tdur) then return nil end
-			local gok, g = ns.try("ready gate", tdur.EvaluateRemainingDuration, tdur, ns.CURVE_LIVE)
+			local gok, g = ns.try("totems: ready gate", tdur.EvaluateRemainingDuration, tdur, ns.CURVE_LIVE)
 			if gok then return g end
 			return 0
 		end,
