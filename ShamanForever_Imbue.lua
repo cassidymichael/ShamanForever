@@ -163,7 +163,7 @@ function IM.refresh()
 	local now = GetTime()
 	local r = readMainHand()
 	-- An enchant read empty around a loading screen: the last state stays
-	if r == false and imbueState.on and ns.Sounds.zoning() then return end
+	if r == false and imbueState.on and ns.zoning() then return end
 	local had = imbueState.on
 	imbueState.unreadable = r == nil
 	imbueState.on = r and true or r

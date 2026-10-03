@@ -342,6 +342,17 @@ combat:SetScript("OnEvent", function(_, event, _, state)
 	else restrictionChanged(state) end
 end)
 
+-- From a loading screen until QUIET seconds after it: slots and enchants may read empty
+local QUIET = 3   -- seconds
+local quietUntil = 0
+function ns.zoning() return GetTime() < quietUntil end
+local zone = CreateFrame("Frame")
+ns.registerEvent(zone, "PLAYER_LEAVING_WORLD")
+ns.registerEvent(zone, "PLAYER_ENTERING_WORLD")
+zone:SetScript("OnEvent", function(_, event)
+	quietUntil = event == "PLAYER_LEAVING_WORLD" and math.huge or GetTime() + QUIET
+end)
+
 -- Spells, by ID: seed IDs (any rank; the first names it) and an English name used only when no seed
 -- exists on the client. A new rank or Forever-only ID is matched by the client's name.
 -- Here: the spells every class can have; the class's own come from its file (Spells.add).

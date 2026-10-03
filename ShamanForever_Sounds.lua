@@ -7,7 +7,6 @@ ns.Sounds = S
 
 local GAP = 2   -- seconds
 local SAME = 0.5   -- seconds
-local QUIET = 3   -- seconds after a loading screen
 
 local GAME = {
 	{ "raid", "Raid warning", "RAID_WARNING", 567397 },
@@ -74,16 +73,12 @@ local function emit(value)
 	elseif how == "file" then ns.try("sound", PlaySoundFile, what, S.channel()) end
 end
 
-local quietUntil = 0
 local lastByAlert, lastBySound = {}, {}
 
--- From a loading screen until QUIET seconds after it: slot or enchant may read empty
-function S.zoning() return GetTime() < quietUntil end
-
--- zoning: an end a loading screen can cause (a totem gone) waits until after it
+-- zoning: an end a loading screen can cause waits until after it
 function S.play(value, alert, gap, zoning)
 	if not resolve(value) or not ns.isActive() then return end
-	if (zoning and S.zoning()) or ns.cantAct() then return end
+	if (zoning and ns.zoning()) or ns.cantAct() then return end
 	local now = GetTime()
 	alert = alert or value
 	if lastByAlert[alert] and now - lastByAlert[alert] < (gap or GAP) then return end
@@ -154,15 +149,9 @@ local function applyAllAuras()
 end
 
 local ev = CreateFrame("Frame")
-ns.registerEvent(ev, "PLAYER_LEAVING_WORLD")
-ns.registerEvent(ev, "PLAYER_ENTERING_WORLD")
 ns.registerEvent(ev, "PLAYER_LOGOUT")
-ev:SetScript("OnEvent", function(_, event)
-	if event == "PLAYER_LOGOUT" then
-		for _, a in pairs(auraSounds) do dropAura(a) end
-		return
-	end
-	quietUntil = event == "PLAYER_LEAVING_WORLD" and math.huge or GetTime() + QUIET
+ev:SetScript("OnEvent", function()
+	for _, a in pairs(auraSounds) do dropAura(a) end
 end)
 
 -- The options
