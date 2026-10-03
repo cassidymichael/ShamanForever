@@ -529,6 +529,7 @@ for index, el in ipairs(ELEMENTS) do
 	s.lowOver = v:CreateTexture(nil, "ARTWORK", nil, 2)
 	s.lowOver:SetAllPoints(v.icon)
 	s.lowOver:Hide()
+	ns.StyleArt.followMask(v, s.lowOver)
 	s.lowRing = W.makeRing(v, v.icon)
 	s.timer = ns.Timer.new(v, "totembar", "uptime", { anchor = v, school = el })
 	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 1)

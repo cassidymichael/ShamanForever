@@ -61,6 +61,7 @@ PREVIEW = {
 			ic.killed = ns.Effects.endFlash(bar, ic, "totembar", ic)
 			ic.lowOver = ic:CreateTexture(nil, "ARTWORK", nil, 2)
 			ic.lowOver:SetAllPoints(ic.tex)
+			ns.StyleArt.followMask(ic, ic.lowOver)
 			ic.lowRing = W.makeRing(ic.textFrame, ic.tex)
 			h.slots[i] = ic
 		end
