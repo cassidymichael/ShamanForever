@@ -206,35 +206,44 @@ local function lookFor(st, i)
 	return look
 end
 
--- The icons' pitch for step st (the same for every part but art frames, which need room), and how
--- far below the icons' centre the art reaches (where the line to the Element box starts)
-local function pitchFor(f, st, cx, cy)
-	local below = SIZE / 2
+-- Where the three icons sit on step st and at what size, and how far below the icons' centre the
+-- art reaches (where the line to the Element box starts). Element art frames are placed by each
+-- style's real reach, the icons made smaller where the art would leave the stage; every other part
+-- keeps one size and spacing.
+local ART_GAP, STYLE_STAGE = 8, 204
+local function layoutFor(f, st, cx, cy)
 	if st.part == "frame" then
-		local reach = 0
-		for _, key in ipairs(st.keys) do
-			local r = FR.look("frame", key).reach
-			reach = math.max(reach, r.left + r.right)
-		end
-		local middle = st.keys[2] and FR.look("frame", st.keys[2]).reach
-		if middle then below = below + math.ceil(middle.bottom * SIZE) end
 		FR.drawGroup(f.stage, nil)
-		return SIZE + math.ceil(reach * SIZE) + 8, below
+		local reach, across, high = {}, 0, 0
+		for i = 1, 3 do
+			local r = st.keys[i] and FR.look("frame", st.keys[i]).reach or { left = 0, right = 0, top = 0, bottom = 0 }
+			reach[i] = r
+			across = across + 1 + r.left + r.right
+			high = math.max(high, 1 + 2 * math.max(r.top, r.bottom))
+		end
+		local size = math.floor(math.min(SIZE, (f.shape.stageW - 2 * PAD - 2 * ART_GAP) / across,
+			(STYLE_STAGE - 2 * (PAD + 18)) / high))
+		local at, x = {}, cx - (across * size + 2 * ART_GAP) / 2
+		for i = 1, 3 do
+			x = x + reach[i].left * size
+			at[i] = { x + size / 2, cy }
+			x = x + size + reach[i].right * size + ART_GAP
+		end
+		return at, size, size / 2 + math.ceil(reach[2].bottom * size)
 	end
 	local look = st.part == "groupframe" and FR.look("groupframe", st.keys[1])
 	if not look then
 		FR.drawGroup(f.stage, nil)
-		return PITCH, below
+		return rowAt(3, PITCH, cx, cy), SIZE, SIZE / 2
 	end
 	local gap = FR.fitSpacing(look, SIZE, W.pixel(f.stage)) or 6
 	local lay = { size = SIZE, n = 3, gap = gap, vertical = false }
 	lay.x, lay.y = cx - (3 * SIZE + 2 * gap) / 2, cy - SIZE / 2
 	FR.drawGroup(f.stage, look, lay, S.clean(nil, S.PARTS.groupframe.defaults))
 	local outer = FR.groupLayout(look, lay, W.pixel(f.stage)).outer
-	return SIZE + gap, math.max(below, lay.y + outer[4] - cy)
+	return rowAt(3, SIZE + gap, cx, cy), SIZE, math.max(SIZE / 2, lay.y + outer[4] - cy)
 end
 
-local STYLE_STAGE = 204
 local stylesSteps = {}
 for i, st in ipairs(STEPS) do stylesSteps[i] = st.hold end
 
@@ -249,6 +258,8 @@ GD.add({ title = "Styles", order = 20, blurb = "A taste of what things can look 
 			f.icons[i].box:SetFrameLevel(s.stage:GetFrameLevel() + 10)
 		end
 		f.label = GD.text(s.stage, "", PAD, PAD, s.stageW - 2 * PAD)
+		-- Art frames are experimental: badged beside the step's name and the Global line's word
+		f.artBadges = { ns.OptionsArt.expBadge(s.stage, "Art frames"), ns.OptionsArt.expBadge(s.global, "Art frames") }
 		-- A click shows that part and holds it for its full time
 		f.progress = GD.dots(s.stage, #STEPS, function(i) GD.stepTo(i - 1) end)
 		f.progress:SetPoint("BOTTOMRIGHT", s.stage, "BOTTOMRIGHT", -PAD + 4, PAD - 4)
@@ -265,13 +276,19 @@ GD.add({ title = "Styles", order = 20, blurb = "A taste of what things can look 
 		local st = STEPS[x + 1]
 		f.shape.globalText:SetText(globalLine(st.word))
 		f.label:SetText(stepLabel(st))
+		local art = st.part == "frame" or st.part == "groupframe"
+		for i, badge in ipairs(f.artBadges) do
+			local fs = i == 1 and f.label or f.shape.globalText
+			badge:ClearAllPoints()
+			badge:SetPoint("TOPLEFT", fs, "TOPLEFT", math.ceil(fs:GetStringWidth()) + 10, 1)
+			badge:SetShown(art)
+		end
 		f.progress.light(x + 1)
 		local cx = f.shape.stageW / 2
-		local pitch, below = pitchFor(f, st, cx, f.cy)
+		local at, size, below = layoutFor(f, st, cx, f.cy)
 		f.lead.from(f.cy + below + 4)
-		local at = rowAt(3, pitch, cx, f.cy)
 		for i, ex in ipairs(f.icons) do
-			ex:at(f.stage, at[i][1], at[i][2])
+			ex:resize(size):at(f.stage, at[i][1], at[i][2])
 			ex:wear(dressFor(st, i)):show(lookFor(st, i))
 		end
 		f.popAt = st.part == "pop" and 0 or nil
@@ -360,7 +377,7 @@ local EXAMPLES = {
 		return look
 	end, span = 5 },
 }
-local COLS, TILE_GAP, TILE_H, STATE_SIZE = 5, 10, 124, 60
+local COLS, TILE_GAP, TILE_H, STATE_SIZE = 5, 10, 118, 60
 local TILE_W = (BOARD_W - (COLS - 1) * TILE_GAP) / COLS
 
 -- Maelstrom's stacks, one a second to five, the proc, and back to none

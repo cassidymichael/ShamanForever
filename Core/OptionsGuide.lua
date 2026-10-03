@@ -11,7 +11,7 @@ local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
 local BOARD_W = 600
 -- One spacing scale: a box's padding, the gap between blocks, a title's gap to its text
 local PAD, GAP, UNDER = 12, 12, 6
-local BLURB_Y, UNDER_BLURB = 40, 20   -- the blurb's top, and the room under it before the slide
+local BLURB_Y, UNDER_BLURB = 50, 30   -- the blurb's top, and the room under it before the slide
 GD.W, GD.PAD, GD.GAP = BOARD_W, PAD, GAP
 
 -- Colours: Global, Group, Element, Bars
@@ -253,13 +253,22 @@ function Ex:at(parent, x, y)
 	return self:point("CENTER", parent, "TOPLEFT", x, -y)
 end
 
+-- Its size (box, border included); the next wear fits it
+function Ex:resize(size)
+	self.size = size
+	self.box:SetSize(size, size)
+	return self
+end
+
 -- spec: el (whose shipped styles it starts from), school, and per part (border, glow, pop, frame,
--- cooldown, uptime) the fields that replace the start's
+-- cooldown, uptime) the fields that replace the start's; no art frame unless spec.frame names one
 function Ex:wear(spec)
 	spec = spec or {}
 	self.spec = spec
 	for _, part in ipairs(OWN_PARTS) do
 		local st = baseOf(spec.el, part)
+		-- An art frame only where a slide names one: they're experimental, badged where shown
+		if part == "frame" then st.look = "none" end
 		for k, v in pairs(spec[part] or {}) do st[k] = type(v) == "table" and CopyTable(v) or v end
 		setOwn(self.owner, part, st)
 	end
