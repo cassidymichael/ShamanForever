@@ -13,6 +13,11 @@ function ns.isSecret(v) return issecretvalue and issecretvalue(v) or false end
 function ns.safe(fn, ...) if not fn then return false end return pcall(fn, ...) end
 function ns.describeArg(v) if ns.isSecret(v) then return "<secret>" end return tostring(v) end
 local isSecret, safe = ns.isSecret, ns.safe
+-- v from a safe read when it worked and isn't secret: plain(safe(fn, ...))
+local function plain(ok, v)
+	if ok and not isSecret(v) then return v end
+end
+ns.plain = plain
 
 -- RegisterEvent throws for an event name the client doesn't know: say so and carry on
 function ns.registerEvent(frame, event, unit)
@@ -154,10 +159,7 @@ end
 
 -- Can the player act on a warning: dead, a ghost or on a flight path, nothing can be cast. A failed
 -- or secret read counts as able.
-local function plainYes(fn, ...)
-	local ok, v = safe(fn, ...)
-	return ok and not isSecret(v) and v == true
-end
+local function plainYes(fn, ...) return plain(safe(fn, ...)) == true end
 ns.plainYes = plainYes
 function ns.cantAct()
 	return plainYes(UnitIsDeadOrGhost, "player") or plainYes(UnitOnTaxi, "player")
@@ -485,8 +487,8 @@ local function playerKnows(id, strict)
 	local known
 	local checks = { C_SpellBook.IsSpellKnown, inSpellBook }
 	for _, fn in ipairs(checks) do
-		local ok, v = safe(fn, id)
-		if ok and not isSecret(v) and v ~= nil then
+		local v = plain(safe(fn, id))
+		if v ~= nil then
 			if v then return true end
 			known = false
 		end

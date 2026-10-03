@@ -19,9 +19,7 @@ local TREMOR_TYPES = { FEAR = true, FEAR_MECHANIC = true, CHARM = true, POSSESS 
 local tremorSpells = {}
 
 local function setting(name, field) return ns.elementSetting(KEY, name, field) end
-local function plain(ok, v)
-	if ok and not isSecret(v) then return v end
-end
+local plain = ns.plain
 
 local WORD_POINTS = { below = { "TOP", "BOTTOM", -4 }, above = { "BOTTOM", "TOP", 4 }, center = { "CENTER", "CENTER", 0 } }
 local WORD_COLOR = { 1, 0.82, 0, 1 }

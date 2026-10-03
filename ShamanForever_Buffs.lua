@@ -271,8 +271,7 @@ end
 local function castOnSelf()
 	local ok, exists = safe(UnitExists, "target")
 	if not ok or isSecret(exists) or not exists then return true end
-	local sok, me = safe(UnitIsUnit, "target", "player")
-	if sok and not isSecret(me) and me then return true end
+	if ns.plain(safe(UnitIsUnit, "target", "player")) then return true end
 	local fok, friend = safe(UnitIsFriend, "player", "target")
 	if not fok or isSecret(friend) then return true end
 	return not friend
