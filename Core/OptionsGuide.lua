@@ -184,12 +184,17 @@ function GD.shape(f, o)
 	return s
 end
 
--- A line from x, y on the stage down to the Element box
+-- A line from x, y on the stage down to the Element box; f.from(y) starts it elsewhere
 function GD.lead(s, x, y)
 	local f = CreateFrame("Frame", nil, s.group)
 	f:SetFrameLevel(s.stage:GetFrameLevel() + 5)
-	f:SetPoint("TOPLEFT", s.stage, "TOPLEFT", x - 1, -y)
-	f:SetSize(2, s.elementY - s.stageY - y)
+	f:SetWidth(2)
+	function f.from(top)
+		f:ClearAllPoints()
+		f:SetPoint("TOPLEFT", s.stage, "TOPLEFT", x - 1, -top)
+		f:SetHeight(math.max(s.elementY - s.stageY - top, 1))
+	end
+	f.from(y)
 	local t = f:CreateTexture(nil, "ARTWORK")
 	t:SetAllPoints()
 	t:SetColorTexture(GD.ORANGE[1], GD.ORANGE[2], GD.ORANGE[3], 0.9)

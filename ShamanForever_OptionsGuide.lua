@@ -195,27 +195,32 @@ local function lookFor(st, i)
 	return look
 end
 
--- The icons' pitch for step st: the same for every part but art frames, which need room
+-- The icons' pitch for step st (the same for every part but art frames, which need room), and how
+-- far below the icons' centre the art reaches (where the line to the Element box starts)
 local function pitchFor(f, st, cx, cy)
+	local below = SIZE / 2
 	if st.part == "frame" then
 		local reach = 0
 		for _, key in ipairs(STYLES.frame) do
 			local r = FR.look("frame", key).reach
 			reach = math.max(reach, r.left + r.right)
 		end
+		local middle = STYLES.frame[2] and FR.look("frame", STYLES.frame[2]).reach
+		if middle then below = below + math.ceil(middle.bottom * SIZE) end
 		FR.drawGroup(f.stage, nil)
-		return SIZE + math.ceil(reach * SIZE) + 8
+		return SIZE + math.ceil(reach * SIZE) + 8, below
 	end
 	local look = st.part == "groupframe" and FR.look("groupframe", STYLES.groupframe[1])
 	if not look then
 		FR.drawGroup(f.stage, nil)
-		return PITCH
+		return PITCH, below
 	end
 	local gap = FR.fitSpacing(look, SIZE, W.pixel(f.stage)) or 6
 	local lay = { size = SIZE, n = 3, gap = gap, vertical = false }
 	lay.x, lay.y = cx - (3 * SIZE + 2 * gap) / 2, cy - SIZE / 2
 	FR.drawGroup(f.stage, look, lay, S.clean(nil, S.PARTS.groupframe.defaults))
-	return SIZE + gap
+	local outer = FR.groupLayout(look, lay, W.pixel(f.stage)).outer
+	return SIZE + gap, math.max(below, lay.y + outer[4] - cy)
 end
 
 local STYLE_STAGE = 172
@@ -237,7 +242,7 @@ GD.add({ title = "Styles", order = 20, blurb = "A taste of what things can look 
 		f.progress = GD.dots(s.stage, #STEPS, function(i) GD.stepTo(i - 1) end)
 		f.progress:SetPoint("TOPRIGHT", s.stage, "TOPRIGHT", -PAD + 4, -PAD + 2)
 		f.cy = STYLE_STAGE / 2 + 12
-		GD.lead(s, s.stageW / 2, f.cy + SIZE / 2 + 4)
+		f.lead = GD.lead(s, s.stageW / 2, f.cy + SIZE / 2 + 4)
 		local y = s.height + GAP + 4
 		local more = GD.text(f, "To see all styles, view the settings pages or browse the Styles explorer.",
 			0, y, BOARD_W - 240)
@@ -251,7 +256,9 @@ GD.add({ title = "Styles", order = 20, blurb = "A taste of what things can look 
 		f.label:SetText(stepLabel(st))
 		f.progress.light(x + 1)
 		local cx = f.shape.stageW / 2
-		local at = rowAt(3, pitchFor(f, st, cx, f.cy), cx, f.cy)
+		local pitch, below = pitchFor(f, st, cx, f.cy)
+		f.lead.from(f.cy + below + 4)
+		local at = rowAt(3, pitch, cx, f.cy)
 		for i, ex in ipairs(f.icons) do
 			ex:at(f.stage, at[i][1], at[i][2])
 			ex:wear(dressFor(st, i)):show(lookFor(st, i))
