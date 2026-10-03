@@ -121,7 +121,9 @@ function EP.buildOverview(p)
 		local S, out = ns.Style, {}
 		for _, kind in ipairs(S.ORDER) do
 			local spec = S.KINDS[kind]
-			if spec.label and tContains(spec.users, key) and not S.follows(key, kind) then table.insert(out, spec[name]) end
+			if spec.label and tContains(spec.users, key) and not S.follows(key, kind) then
+				table.insert(out, spec[name])
+			end
 		end
 		return out
 	end

@@ -188,8 +188,8 @@ local function borderRows(p, owner, after, label, shown)
 	styleSlider(p, "border", "size", "Border size", "Thickness in screen pixels.", px, r.get("size"), r.set("size"),
 		showWhen(uses("size"), shown))
 	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), showWhen(uses("color"), shown))
-	styleSlider(p, "border", "capSize", "Cap size", "Thickness in screen pixels.", px, r.get("capSize"), r.set("capSize"),
-		showWhen(uses("capSize"), shown))
+	styleSlider(p, "border", "capSize", "Cap size", "Thickness in screen pixels.", px, r.get("capSize"),
+		r.set("capSize"), showWhen(uses("capSize"), shown))
 	p:color("Cap colour", "Colour and opacity.", r.get("capColor"), r.set("capColor"), showWhen(uses("capColor"), shown))
 end
 
@@ -388,15 +388,17 @@ local function glowBlock(p, owner)
 		return showWhen(function() local l = look(); return l.uses[field] and not (l.fields and l.fields[field]) end, own)
 	end
 	p:color("Colour", "Colour and opacity. Killed early, Grounded and Ran out keep their own colours.", r.get("color"), r.set("color"), uses("color"))
-	styleSlider(p, "glow", "speed", "Pulse length", "One pulse, in seconds.", function(v) return string.format("%.1f s", v) end,
-		r.get("speed"), r.set("speed"), uses("speed"))
+	local function secs(v) return string.format("%.1f s", v) end
+	styleSlider(p, "glow", "speed", "Pulse length", "One pulse, in seconds.", secs, r.get("speed"), r.set("speed"),
+		uses("speed"))
 	for _, e in ipairs(ns.Style.choices("glow", "look")) do
 		local names = {}
 		for field in pairs(e.fields or {}) do table.insert(names, field) end
 		table.sort(names)
 		for _, field in ipairs(names) do
 			local fd = e.fields[field]
-			local fmt = type(fd.format) == "function" and fd.format or function(v) return string.format(fd.format, v) end
+			local fmt = type(fd.format) == "function" and fd.format
+				or function(v) return string.format(fd.format, v) end
 			styleSlider(p, "glow", field, fd.name, fd.tip, fmt, r.get(field), r.set(field),
 				showWhen(function() return look() == e end, own))
 		end
@@ -405,10 +407,10 @@ local function glowBlock(p, owner)
 	-- Shows 1 - low: right only while low ranges 0 to 1
 	styleSlider(p, "glow", "low", "Pulse depth", "How much it fades between pulses. 0% is steady.", pct,
 		function() return 1 - r.style().low end, function(v) setLow(1 - v) end, uses("low"))
-	styleSlider(p, "glow", "width", "Thickness", "How far in from the edges it reaches.", pct, r.get("width"), r.set("width"),
-		uses("width"))
-	styleSlider(p, "glow", "strength", "Intensity", "How bright it is. Above 100% it adds light.", pct, r.get("strength"),
-		r.set("strength"), uses("strength"))
+	styleSlider(p, "glow", "width", "Thickness", "How far in from the edges it reaches.", pct, r.get("width"),
+		r.set("width"), uses("width"))
+	styleSlider(p, "glow", "strength", "Intensity", "How bright it is. Above 100% it adds light.", pct,
+		r.get("strength"), r.set("strength"), uses("strength"))
 	if owner == nil then ownLine(p, "glow") end
 end
 
@@ -459,8 +461,8 @@ local function popBlock(p, owner, kind)
 		showWhen(function() return burst().uses.reach end, own))
 	local motion = choiceRows(p, r, "pop", "motion", "Motion", "How the icon moves.", own)
 	local moves = showWhen(function() return motion().uses.size end, own)
-	styleSlider(p, "pop", "size", "Motion distance", "How far it grows, hops or shakes.", pct, r.get("size"), r.set("size"),
-		moves)
+	styleSlider(p, "pop", "size", "Motion distance", "How far it grows, hops or shakes.", pct, r.get("size"),
+		r.set("size"), moves)
 	styleSlider(p, "pop", "speed", "Speed", nil, pct, r.get("speed"), r.set("speed"), own)
 	if owner == nil then ownLine(p, "pop") end
 end
@@ -556,9 +558,11 @@ local function timerSettings(p, title, key, kind, after, note, first, barPlaced)
 			ts("timeColors"))
 		local function seconds(v) return string.format("%d s", v) end
 		p:sub(colored, on("timeColors"), function()
-			styleSlider(p, kind, "soon", "Soon", "Seconds left when the first colour starts.", seconds, tg("soon"), ts("soon"))
+			styleSlider(p, kind, "soon", "Soon", "Seconds left when the first colour starts.", seconds, tg("soon"),
+				ts("soon"))
 			p:color("Soon colour", nil, tg("soonColor"), ts("soonColor"), nil, true)
-			styleSlider(p, kind, "now", "Now", "Seconds left when the second colour starts.", seconds, tg("now"), ts("now"))
+			styleSlider(p, kind, "now", "Now", "Seconds left when the second colour starts.", seconds, tg("now"),
+				ts("now"))
 			p:color("Now colour", nil, tg("nowColor"), ts("nowColor"), nil, true)
 		end)
 		styleSlider(p, kind, "tenths", "Tenths below", "Tenths of a second under this many seconds.",
