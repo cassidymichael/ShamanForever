@@ -270,7 +270,7 @@ local function refilterMark(m)
 	if sig == m.filtered then return end
 	if ns.try(site, m.container.SetAuraSlotCandidateFilters, m.container, m.key, { includeSpellIDs = ids }) then
 		m.filtered = sig
-	end
+	else ns.retryAfterCombat(site, function() refilterMark(m) end) end
 end
 
 -- Where the icon is, across its group's flow; shown with your hostile target
@@ -302,7 +302,7 @@ function placeMarks()
 	for i, m in ipairs(MARKS) do
 		local c = m.container
 		if c and not m.err then
-			ns.try("shock mark place " .. m.key, function()
+			local placed = ns.try("shock mark place " .. m.key, function()
 				c:SetFrameStrata(marksHost:GetFrameStrata())
 				c:SetFrameLevel(marksHost:GetFrameLevel() + 2)
 				anchorMark(c, i, marksHost, row, side, gap, o)
@@ -311,6 +311,7 @@ function placeMarks()
 				m.size = size
 				if m.button then fitMark(m, m.button, size) end
 			end)
+			if not placed then ns.retryAfterCombat("shock marks", placeMarks) end
 		end
 	end
 	local combatOnly = P.getAccount().locked and E.showMode("shock") == "combat"
