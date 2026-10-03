@@ -426,20 +426,20 @@ local function buildNav()
 		.. " on screen. " .. ns.CLASS.slash[1] .. " lock does the same.")
 	function navLock.refresh() navLock:SetText(acct().locked and "Unlock positioning" or "Lock positioning") end
 	navLock.refresh()
-	local lowest = 100
+	local topBottom = 0
 	for _, spec in ipairs(registered) do
 		if spec.bottom then
 			local b = add(spec.key, spec.title, spec.icon)
 			b:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 12, spec.bottom)
-			b.nav, lowest = spec.nav, math.max(lowest, spec.bottom)
+			b.nav, topBottom = spec.nav, math.max(topBottom, spec.bottom)
 		end
 	end
 	navDivider = ns.OptionsArt.divider(win)
-	navDivider:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 20, lowest + 36)
+	navDivider:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 20, topBottom + 36)
 	navDivider:SetWidth(NAV_W - 36)
 	local list = CreateFrame("ScrollFrame", nil, win)
 	list:SetPoint("TOPLEFT", win, "TOPLEFT", 4, y)
-	list:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 4, lowest + 48)
+	list:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 4, topBottom + 48)
 	list:SetWidth(NAV_W - 8)
 	local child = CreateFrame("Frame", nil, list)
 	child:SetWidth(NAV_W - 8)
