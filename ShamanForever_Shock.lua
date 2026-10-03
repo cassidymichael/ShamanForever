@@ -132,9 +132,9 @@ end
 -- past a time bar outside the icon on that side (ic: a preview icon)
 local function marksPlace(w, o, px, t, ic)
 	local size, gap = markGeometry(w, o, px, ic)
-	local where, out = W.attachSide("shock", markOpt(ic, "side")), o + gap
+	local where, out = W.attachSide("shock", markOpt(ic, "side"), ic and ic.column), o + gap
 	local s = ns.Style.get("shock", "cooldown")
-	if t and s.bar and not ns.Timer.cant("shock", "cooldown").bar and ns.Timer.barSide("shock", s) == where then
+	if t and s.bar and not ns.Timer.cant("shock", "cooldown").bar and t:barSide(s) == where then
 		out = math.max(out, W.roundPx(t:reach(), px) + gap)
 	end
 	return where, size, out

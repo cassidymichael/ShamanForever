@@ -51,11 +51,12 @@ function T.canPlaceOut(key)
 end
 
 -- Where key's time bar in style s sits: top or bottom (in the icon), or out of it on the side its
--- edge names (W.attachSide)
-function T.barSide(key, s)
+-- edge names (W.attachSide); column and placeOut: a preview's own direction, and its sandbox owner's
+-- bar allowed out (nil: key's)
+function T.barSide(key, s, column, placeOut)
 	local edge = s.barEdge == "top" and "top" or "bottom"
-	if s.barPlace ~= "out" or not T.canPlaceOut(key) then return edge end
-	return W.attachSide(key, edge == "top" and "above" or "below")
+	if s.barPlace ~= "out" or not (placeOut or T.canPlaceOut(key)) then return edge end
+	return W.attachSide(key, edge == "top" and "above" or "below", column)
 end
 
 local WHITE = ns.WHITE
@@ -156,11 +157,13 @@ local live = setmetatable({}, { __mode = "k" })
 
 -- opts: anchor, cd (an existing Cooldown), dual, school, aura (on Blizzard's aura button: it
 -- drives the bar, so it is never fed a duration here), barInset, box (the anchor's icon size,
--- border included, for a preview's icon; else the element's on the HUD)
+-- border included, for a preview's icon; else the element's on the HUD), column (a preview's: a
+-- function giving its own direction, nil for its group's) and placeOut (a sandbox owner's bar may sit out)
 function T.new(parent, key, part, opts)
 	opts = opts or {}
 	local t = setmetatable({ key = key, part = part, parent = parent, anchor = opts.anchor or parent, dual = opts.dual,
-		school = opts.school, aura = opts.aura, barInset = opts.barInset, box = opts.box }, Timer)
+		school = opts.school, aura = opts.aura, barInset = opts.barInset, box = opts.box, columnFn = opts.column,
+		placeOut = opts.placeOut }, Timer)
 	local cd = opts.cd
 	if not cd then
 		cd = CreateFrame("Cooldown", nil, parent, "CooldownFrameTemplate")
@@ -222,9 +225,15 @@ local OUT_POINTS = {
 }
 -- Out of the icon a bar has a one-pixel dark edge, drawn as a bar's border (the swing timer's route)
 local OUT_EDGE = { show = true, look = "line", size = 1, color = { 0, 0, 0, 1 } }
+-- Its own direction, if a preview gives it one
+function Timer:column()
+	if self.columnFn then return self.columnFn() end
+end
+-- Where its bar sits in style s (T.barSide)
+function Timer:barSide(s) return T.barSide(self.key, s, self:column(), self.placeOut) end
 -- Its width, from the side its style places it on (not its last drawing)
 function Timer:edge()
-	local side = self.bar and T.barSide(self.key, S.get(self.key, self.part))
+	local side = self.bar and self:barSide(S.get(self.key, self.part))
 	return OUT_POINTS[side] and W.linePx(self.bar, OUT_EDGE.size) or 0
 end
 -- How far a bar out of the icon reaches from it, its edge included
@@ -290,7 +299,7 @@ function Timer:apply()
 	self.font:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 	cd:SetCountdownFont(self.fontName)
 	self.barOn = self.bar ~= nil and s.bar and not cant.bar
-	local side = T.barSide(self.key, s)
+	local side = self:barSide(s)
 	self.side = side
 	local bar = self.bar
 	if bar then
@@ -309,12 +318,12 @@ function Timer:apply()
 end
 
 -- After a layout, bars out of the icon follow their group's direction and size; a bar on an aura
--- button follows when its slot restyles
+-- button follows when its slot restyles, and a preview with its own direction keeps it
 function T.placeAll()
 	for t in pairs(live) do
-		if t.bar and not t.aura and OUT_POINTS[t.side] then
+		if t.bar and not t.aura and OUT_POINTS[t.side] and t:column() == nil then
 			local s = S.get(t.key, t.part)
-			t.side = T.barSide(t.key, s)
+			t.side = t:barSide(s)
 			placeBar(t, s, t.side)
 		end
 	end

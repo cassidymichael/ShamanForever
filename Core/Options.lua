@@ -245,6 +245,7 @@ local LINKS = {
 	github = { ART .. "Link-GitHub.png", { 0.92, 0.92, 0.92 } },
 	kofi = { ART .. "Link-Kofi.png", { 1, 0.37, 0.36 } },
 }
+OP.LINKS = LINKS
 local function link(p, label, url, site) p:copyField(label, url, LINKS[site][1], LINKS[site][2]) end
 
 local function aboutCard(p)

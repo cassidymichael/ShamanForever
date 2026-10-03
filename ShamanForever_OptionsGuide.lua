@@ -45,15 +45,17 @@ function Own:point(...)
 end
 function Own:wear() return self end
 function Own:pop() end
+local function drawOwn(x, state)
+	local ic = x.ic
+	ns.StyleArt.fit(ic, E.borderFor(x.key), SIZE)
+	ic:ClearAllPoints()
+	ic:SetPoint("CENTER", x.box, "CENTER", 0, 0)
+	FR.mount(ic, x.key, SIZE)
+	OA.PREVIEW[x.key].render(ic, state, OA.kit)
+end
 function Own:show(state)
-	GD.laidOut(self.column, function()
-		local ic = self.ic
-		ns.StyleArt.fit(ic, E.borderFor(self.key), SIZE)
-		ic:ClearAllPoints()
-		ic:SetPoint("CENTER", self.box, "CENTER", 0, 0)
-		FR.mount(ic, self.key, SIZE)
-		OA.PREVIEW[self.key].render(ic, state, OA.kit)
-	end)
+	self.ic.column = self.column or false
+	ns.try("guide example " .. self.key, drawOwn, self, state)
 	return self
 end
 
@@ -414,7 +416,6 @@ GD.add({ title = "States and warnings", order = 40,
 
 -- Layout: the HUD's groups and bars as positioning shows them
 local LAY_ICON, STAGE_W, STAGE_H = 26, 600, 330
-local MOVER, CHOSEN = { 0.2, 0.6, 1, 0.9 }, { 1, 0.82, 0, 1 }
 local function put(f, parent, x, y)
 	f:ClearAllPoints()
 	f:SetPoint("TOPLEFT", parent, "TOPLEFT", x, -y)
@@ -424,7 +425,7 @@ local function mover(parent, name, textures)
 	local m = CreateFrame("Frame", nil, parent, "BackdropTemplate")
 	m:SetBackdrop(W.BACKDROP)
 	m:SetBackdropColor(0, 0, 0, 0.4)
-	m:SetBackdropBorderColor(MOVER[1], MOVER[2], MOVER[3], MOVER[4])
+	ns.Positioning.paintBorder(m, false, true)
 	m.label = m:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	m.label:SetPoint("BOTTOMLEFT", m, "TOPLEFT", 0, 3)
 	m.label:SetText(name)
@@ -439,10 +440,7 @@ local function mover(parent, name, textures)
 	return m
 end
 
-local function chosen(m, on)
-	local c = on and CHOSEN or MOVER
-	m:SetBackdropBorderColor(c[1], c[2], c[3], c[4])
-end
+local function chosen(m, on) ns.Positioning.paintBorder(m, on, true) end
 
 -- m's icons as a row or a column, centred on x, y
 local function lay(m, parent, x, y, column)
@@ -650,11 +648,7 @@ GD.add({ title = "Layout", order = 50,
 	end })
 
 -- Preview mode: its panel's modes on the HUD in miniature
-local MODES = {
-	{ "preview", "Preview", "An ordinary moment in a fight." },
-	{ "warnings", "Warnings", "Warnings focused." },
-	{ "busy", "Busy", "Everything everywhere all at once." },
-}
+local MODES = ns.Preview.MODES
 local PV_SIZE = 36
 -- Each icon's look: typical, its warning (or the typical one), and where it sits on the stage
 local HUD = {

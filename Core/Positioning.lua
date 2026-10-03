@@ -222,6 +222,7 @@ local function paintBorder(f, chosen, unlocked)
 	if chosen then f:SetBackdropBorderColor(1, 0.82, 0, 1)
 	else f:SetBackdropBorderColor(0.2, 0.6, 1, unlocked and 0.9 or 0) end
 end
+PO.paintBorder = paintBorder
 
 function PO.decorate(gf, g)
 	local unlocked = not acct().locked

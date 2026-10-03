@@ -2,7 +2,7 @@
 local ADDON, ns = ...
 local W = ns.Widgets
 local E, P, MOD = ns.Elements, ns.Profiles, ns.Modules
-local OA, S, FR, T = ns.OptionsArt, ns.Style, ns.Frames, ns.Timer
+local OA, S, FR = ns.OptionsArt, ns.Style, ns.Frames
 
 local GD = {}
 ns.Guide = GD
@@ -163,21 +163,6 @@ local function baseOf(el, part)
 	return S.get(nil, part)
 end
 
--- Draws fn as in a row or a column of a group, whatever the player's own layout, letting a sandbox
--- owner's time bar sit out of its icon as an element's can
-local laying = false
-function GD.laidOut(column, fn, ...)
-	if laying then return fn(...) end
-	local laid, out = W.laidInColumn, T.canPlaceOut
-	W.laidInColumn = function() return column and true or false end
-	T.canPlaceOut = function(key) return type(key) == "table" or out(key) end
-	laying = true
-	local ok, err = pcall(fn, ...)
-	laying = false
-	W.laidInColumn, T.canPlaceOut = laid, out
-	if not ok then ns.noteError("guide", err) end
-end
-
 local Ex = {}
 Ex.__index = Ex
 
@@ -238,16 +223,10 @@ local function setFont(ex, font)
 	end
 end
 
--- A reagent count as the reagent part draws it, on its shipped settings: n, and color in place of its own
+-- A reagent count drawn by the reagent part on its shipped settings: n, and color in place of its own
 local function reagentCount(ic, r)
-	local function shipped(field) return E.default(r.el, "reagent", field) end
-	local pos = shipped("pos")
-	W.placeScaledText(ic.count, ic, shipped("size"), pos, shipped("x"), shipped("y"))
-	ic.count:SetJustifyH(W.COUNT_JUSTIFY[pos] or "RIGHT")
-	local c = r.color or (r.n <= shipped("low") and shipped("lowColor") or shipped("color"))
-	ic.count:SetText(r.n)
-	ic.count:SetTextColor(c[1], c[2], c[3], c[4] or 1)
-	ic.count:Show()
+	ns.Reagents.draw(ic, r.el, r.n, function(field) return E.default(r.el, "reagent", field) end)
+	if r.color then ic.count:SetTextColor(r.color[1], r.color[2], r.color[3], 1) end
 end
 
 -- look: icon, cd and up ({ share gone, length }: frozen timers), warn ({ grey, tint, ring, fade,
@@ -284,10 +263,11 @@ local function draw(ex, look)
 	ic:SetAlpha(look.alpha or 1)
 end
 
--- Draws look as in a row (or a column: self.column)
+-- Draws look as in a row (or a column: self.column), whatever the player's own groups
 function Ex:show(look)
 	self.look = look
-	GD.laidOut(self.column, draw, self, look)
+	self.ic.column = self.column or false
+	ns.try("guide example", draw, self, look)
 	return self
 end
 
@@ -441,12 +421,6 @@ local function build(p)
 	end)
 end
 
--- Redrawn after a layout or a restyle: a time bar out of an icon goes back in after either
-local function redraw()
-	if not (board and board:IsVisible()) then return end
-	C_Timer.After(0, function() if board:IsVisible() then stepTo(stepX) end end)
-end
-
 -- The one-time highlight on the nav entry: the first time the window opens, until it closes
 local function nav(b, current)
 	local a = P.getAccount()
@@ -477,27 +451,10 @@ ns.Options.registerPage("guide", { title = "Guide", icon = "Interface\\Icons\\IN
 	bottom = 130, build = build, nav = nav })
 
 MOD.register({ name = "guide",
-	sanitize = function(_, acct) if type(acct.guideSeen) ~= "boolean" then acct.guideSeen = false end end,
-	afterGroups = redraw, applyTimers = redraw })
+	sanitize = function(_, acct) if type(acct.guideSeen) ~= "boolean" then acct.guideSeen = false end end })
 
 -- Early days
-local LINKS = {
-	{ "Discord", "discord", "Link-Discord.png", { 0.35, 0.40, 0.95 } },
-	{ "CurseForge", "curseforge", "Link-CurseForge.png", { 0.95, 0.39, 0.21 }, "/comments" },
-}
-
-local function copyField(parent, value, x, y, w)
-	local e = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
-	e:SetSize(w, 20)
-	e:SetPoint("TOPLEFT", parent, "TOPLEFT", x, -y)
-	e:SetAutoFocus(false)
-	e:SetText(value)
-	e:SetCursorPosition(0)
-	e:SetScript("OnTextChanged", function(box, user) if user then box:SetText(value); box:HighlightText() end end)
-	e:SetScript("OnEditFocusGained", function(box) box:HighlightText() end)
-	e:SetScript("OnEscapePressed", e.ClearFocus)
-	return e
-end
+local LINKS = { { "Discord", "discord" }, { "CurseForge", "curseforge", "/comments" } }
 
 GD.add({ title = "Early days", order = 1000,
 	blurb = ns.NAME .. " is brand new, made for WoW Forever, and it's still early days. Feedback is |cffffd100very|r"
@@ -517,9 +474,10 @@ GD.add({ title = "Early days", order = 1000,
 			local t = f:CreateTexture(nil, "ARTWORK")
 			t:SetSize(20, 20)
 			t:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -y)
-			t:SetTexture(ART .. l[3])
-			t:SetVertexColor(l[4][1], l[4][2], l[4][3])
+			local art = ns.Options.LINKS[l[2]]
+			t:SetTexture(art[1])
+			t:SetVertexColor(art[2][1], art[2][2], art[2][3])
 			GD.text(f, "GameFontHighlightMedium", l[1], 34, y + 2)
-			copyField(f, ns.CLASS.links[l[2]] .. (l[5] or ""), 156, y, 434)
+			ns.Page.copyBox(f, ns.CLASS.links[l[2]] .. (l[3] or ""), 434):SetPoint("TOPLEFT", f, "TOPLEFT", 156, -y)
 		end
 	end })

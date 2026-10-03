@@ -80,24 +80,29 @@ function R.takes(def)
 	return def.takesReagent
 end
 
-local function num(key, field)
-	local v = setting(key, "reagent", field)
+-- read(field): the reagent settings to draw with, in place of the element's own
+local function get(key, field, read)
+	if read then return read(field) end
+	return setting(key, "reagent", field)
+end
+local function num(key, field, read)
+	local v = get(key, field, read)
 	if type(v) ~= "number" or v ~= v then v = E.default(key, "reagent", field) end
 	return v
 end
 
 local COUNT_JUSTIFY = W.COUNT_JUSTIFY
-function R.draw(f, key, n)
-	local low = n <= num(key, "low")
-	local show = setting(key, "reagent", "when")
+function R.draw(f, key, n, read)
+	local low = n <= num(key, "low", read)
+	local show = get(key, "when", read)
 	local fs = f.count
 	if show == "always" or (show == "low" and low) then
-		local pos = setting(key, "reagent", "pos")
+		local pos = get(key, "pos", read)
 		if not COUNT_JUSTIFY[pos] then pos = "BOTTOMRIGHT" end
-		W.placeScaledText(fs, f, num(key, "size"), pos, num(key, "x"), num(key, "y"))
+		W.placeScaledText(fs, f, num(key, "size", read), pos, num(key, "x", read), num(key, "y", read))
 		fs:SetJustifyH(COUNT_JUSTIFY[pos])
 		local field = low and "lowColor" or "color"
-		local c = setting(key, "reagent", field)
+		local c = get(key, field, read)
 		if not ns.isColor(c) then c = E.default(key, "reagent", field) end
 		local shown = string.format("%d%.3f%.3f%.3f%.3f", n, c[1], c[2], c[3], c[4] or 1)
 		if fs.shown ~= shown then
@@ -108,7 +113,7 @@ function R.draw(f, key, n)
 		fs:Show()
 	else fs:Hide() end
 	local out = n == 0
-	return low, out and setting(key, "reagent", "ring") or false, out and setting(key, "reagent", "fade") or false
+	return low, out and get(key, "ring", read) or false, out and get(key, "fade", read) or false
 end
 
 function R.refresh(def)

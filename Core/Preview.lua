@@ -271,16 +271,18 @@ local function button(parent, text, width, onClick)
 end
 
 local optionsButton
+-- The modes: key, name, what it shows
+PV.MODES = {
+	{ "preview", "Preview", "An ordinary moment in a fight." },
+	{ "warnings", "Warnings", "Warnings focused." },
+	{ "busy", "Busy", "Everything everywhere all at once." },
+}
 
 do
 	local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	title:SetPoint("TOPLEFT", 10, -13)
 	title:SetText(ns.NAME .. ": preview")
-	local mode = choice(panel, "mode", {
-		{ "preview", "Preview", "An ordinary moment in a fight." },
-		{ "warnings", "Warnings", "Warnings focused." },
-		{ "busy", "Busy", "Everything everywhere all at once." },
-	})
+	local mode = choice(panel, "mode", PV.MODES)
 	mode:SetPoint("TOPLEFT", 10, -38)
 	local unlearned = check(panel, "unlearned", "Show not learned",
 		"Also the elements you haven't learned yet, so you can place them now.")
