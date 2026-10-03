@@ -20,7 +20,11 @@ local STATES = {
 		on = "Show when out of range", tip = "While your target is out of its range. Nothing with no target, "
 			.. "or one it can't be cast on." },
 }
+STATES.power.global = "Its look while you can't pay a spell's cost."
+STATES.range.global = "Its look while your target is out of a spell's range."
 CS.STATES, CS.ORDER = STATES, { "power", "range" }
+-- Where Blizzard's aura button draws the element: why its paint differs
+CS.COVER_NOTE = "Blizzard's own button draws this icon, so this shows only over it, as an overlay, not a tint."
 
 local makeCover
 -- Watches: { key, power, range (it has the state), spells() (the IDs whose cost and range are read;
