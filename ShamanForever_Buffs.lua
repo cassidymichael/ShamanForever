@@ -1,18 +1,19 @@
 -- Buff elements
 -- A buff with a timer: auras are secret in combat, so the timer runs on from the last read.
--- A proc: only Blizzard's aura container can show one in combat.
+-- A proc: only Blizzard's aura container can show one in combat, on the player or another unit.
 
 local _, ns = ...
 local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
-local Spells = ns.Spells
+local Spells, KD = ns.Spells, ns.Kinds
 
 local B = { name = "buffs" }
 ns.Buffs = B
 
 local setting = ns.elementSetting
 
--- Elements: the class's rows (ns.CLASS.buffs)
-local BUFFS = ns.CLASS.buffs or {}
+-- Elements: the class's rows (ns.CLASS.buffs), all built here; BUFFS are those this file runs
+local ROWS = ns.CLASS.buffs or {}
+local BUFFS = {}
 
 -- The kind and its parts (ns.registerPart); a row's flags name its parts. Other files' rows and
 -- parts join it: the reagent's (_Reagents), Expiring's (_Timers), a class's own.
@@ -83,6 +84,18 @@ ns.registerPart("proc", {
 		end,
 	},
 })
+-- A part's runtime hooks (each optional; parts from other files bring their own), for rows with
+-- proc, which Blizzard's aura container shows:
+--   make(def)                  at load, after the icon, before the aura slot: frames of its own;
+--                              returns { looks, extras }: aura looks set up, refiltered and checked
+--                              with the slot, and more slots on its container (makeAuraSlot)
+--   aura(def)                  where the aura is read, else on the player: { unit, slot, parent,
+--                              site, glow = { unit, needUnit, parent } }
+--   button(def, slot, button)  Blizzard's button was made, after its pop and border
+--   style(def, size, slot)     the button restyles, before its border and pop
+--   engine                     true: its own module runs the element; this file builds it
+-- make, button and style run for every part, in parts order; the others come from the first part
+-- that gives one.
 local EXPIRE_RANGE = { 0, 120, 5 }
 ns.registerKind("buff", {
 	parts = { "buff", "breath", "proc" },
@@ -92,6 +105,22 @@ ns.registerKind("buff", {
 		def.expireRange = EXPIRE_RANGE
 	end,
 })
+
+local NONE = {}
+-- The first of def's parts with that runtime hook
+local function hookOf(def, name)
+	for _, p in ipairs(KD.partsOf("buff", def)) do
+		local h = p.runtime and p.runtime[name]
+		if h then return h end
+	end
+end
+-- Every part's runtime hook of that name, in parts order
+local function eachHook(def, name, ...)
+	for _, p in ipairs(KD.partsOf("buff", def)) do
+		local h = p.runtime and p.runtime[name]
+		if h then h(def, ...) end
+	end
+end
 
 local function makeBuffIcon(def)
 	local f = ns.newElementIcon(def.key, { effects = true })
@@ -103,19 +132,115 @@ local function makeBuffIcon(def)
 	return f
 end
 
-for _, def in ipairs(BUFFS) do
+-- The aura's IDs: any rank of its spell
+local function auraIDs(def)
+	if not def.ids then
+		def.ids = {}
+		local key = def.auraKey or def.buffKey
+		if key then for id in pairs(Spells.ids(key)) do def.ids[id] = true end end
+	end
+	return def.ids
+end
+B.auraIDs = auraIDs
+
+-- An aura element's button: its pop, its border (the button draws the border's art), then parts'
+local function buildButton(def, slot, button)
+	if def.fx then def.fx:bind(button, slot.icon) end
+	def.edge = def.fx and def.fx:makeEdge(button)
+		or ns.Frames.edge(button, button, def.key, { overlay = false })
+	eachHook(def, "button", slot, button)
+end
+
+local function styleButton(def, size, slot, site)
+	eachHook(def, "style", size, slot)
+	if def.edge then ns.try(site .. " border " .. def.key, ns.Frames.dress, def.edge, def.key) end
+	if def.fx then ns.try(site .. " pop " .. def.key, def.fx.stylePop, def.fx, size) end
+end
+
+-- Its slot and, unless it has neither glow nor pop, its effect host (glow and pop on the button)
+local function buildAura(def)
+	local key, f = def.key, def.frame
+	def.looks, def.extras = {}, {}
+	for _, p in ipairs(KD.partsOf("buff", def)) do
+		local made = p.runtime and p.runtime.make and p.runtime.make(def) or NONE
+		for _, look in ipairs(made.looks or NONE) do table.insert(def.looks, look) end
+		for _, x in ipairs(made.extras or NONE) do table.insert(def.extras, x) end
+	end
+	local where = hookOf(def, "aura")
+	where = where and where(def) or { slot = "proc", parent = f.effects, site = "proc",
+		glow = { parent = f.effects } }
+	local site = where.site
+	local ids = function() return auraIDs(def) end
+	local candidates = def.candidates and function() return def.candidates(def) end
+	def.aura = ns.makeAuraSlot(f, {
+		key = key, slot = where.slot, unit = where.unit, filter = def.filter, parent = where.parent,
+		ids = ids, candidates = candidates,
+		ownIcon = def.ownIcon and function() return def.icon end, noTimer = def.noTimer,
+		extras = #def.extras > 0 and def.extras or nil,
+		sites = { container = site .. " container " .. key, style = site .. " style " .. key,
+			filter = site .. " filter " .. key },
+		onButton = function(slot, button) buildButton(def, slot, button) end,
+		onStyle = function(slot, size) styleButton(def, size, slot, site) end,
+		onError = function(err) ns.noteError(site .. " container " .. key, err) end,
+	})
+	if def.noGlow and def.noPop then return end
+	local g = where.glow
+	def.fx = ns.Effects.host(f, key, { aura = {
+		slot = def.aura, parent = g.parent, unit = g.unit, needUnit = g.needUnit, filter = def.filter,
+		ids = ids, candidates = candidates,
+		popOn = function() return not def.noPop and setting(key, "active", "pop") end,
+		sites = { container = site .. " glow sensor " .. key, style = site .. " glow style " .. key,
+			filter = site .. " glow filter " .. key },
+	} })
+end
+
+for _, def in ipairs(ROWS) do
 	def.spell = Spells.name(def.spellKey)
 	def.icon = Spells.icon(def.buffKey or def.spellKey) or def.icon
 	def.frame = makeBuffIcon(def)
 	def.frame.aboveProtected = def.proc   -- Blizzard's aura button sits under it
+	if def.proc then buildAura(def) end
 	ns.registerElement(def.key, { frame = def.frame, label = def.spell,
 		defaults = def.defaults or {}, learned = function() return def.spellID ~= nil end,
 		paint = function(t) t:SetTexture(def.icon) end,
-		standInBorder = def.proc,
+		standInBorder = def.proc, borderHost = def.borderHost,
 		ranges = def.ranges,
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
 		experimental = def.experimental, styles = def.styles })
+	if not hookOf(def, "engine") then table.insert(BUFFS, def) end
 end
+
+-- An aura element's steps, for whichever module runs it
+-- Its slot, looks and host made (out of combat, auras readable: they wait otherwise)
+function B.setupAura(def)
+	def.aura:setup()
+	for _, look in ipairs(def.looks) do look:setup() end
+	if def.fx then def.fx:setup() end
+end
+-- After a spellbook scan: a new rank's ID refilters each look
+function B.resolveAura(def)
+	local before = def.ids
+	def.ids = nil
+	if before and def.aura.container then
+		for id in pairs(auraIDs(def)) do
+			if not before[id] then
+				def.aura:refilter()
+				for _, look in ipairs(def.looks) do look:refilter() end
+				if def.fx then def.fx:refilter() end
+				break
+			end
+		end
+	end
+	for _, look in ipairs(def.looks) do look:checkIDs() end
+	if def.fx then def.fx:checkIDs() end
+end
+-- Its glow's level and look (out of combat: the host restyles its sensor)
+function B.styleGlow(def)
+	if not def.fx or InCombatLockdown() then return end
+	def.fx:levelGlow()
+	def.fx:style()
+end
+local styleGlow = B.styleGlow
 
 -- A timed buff's time
 local function setUp(def, start, length)
@@ -154,59 +279,13 @@ local function underWaterWarns(def)
 	return def.breath and breathing and not def.upUntil and setting(def.key, "warn", "on") and not ns.cantAct()
 end
 
--- Procs
-local function procIDMap(def)
-	if not def.procIDs then
-		def.procIDs = {}
-		for id in pairs(Spells.ids(def.buffKey)) do def.procIDs[id] = true end
-	end
-	return def.procIDs
-end
-
-local function buildProc(def, slot, button)
-	def.fx:bind(button, slot.icon)
-	def.edge = def.fx:makeEdge(button)
-end
-
-local function styleProc(def, size)
-	ns.try("proc border " .. def.key, ns.Frames.dress, def.edge, def.key)
-	ns.try("proc pop " .. def.key, def.fx.stylePop, def.fx, size)
-end
-
-local function styleGlow(def)
-	if InCombatLockdown() then return end
-	def.fx:levelGlow()
-	def.fx:style()
-end
-
-local function makeProcSlot(def)
-	local ids = function() return procIDMap(def) end
-	def.aura = ns.makeAuraSlot(def.frame, {
-		key = def.key, slot = "proc", ids = ids, parent = def.frame.effects,
-		sites = { container = "proc container " .. def.key, style = "proc style " .. def.key,
-			filter = "proc filter " .. def.key },
-		onButton = function(slot, button) buildProc(def, slot, button) end,
-		onStyle = function(_, size) styleProc(def, size) end,
-		onError = function(err) ns.noteError("proc container " .. def.key, err) end,
-	})
-	def.fx = ns.Effects.host(def.frame, def.key, { aura = {
-		slot = def.aura, parent = def.frame.effects, ids = ids,
-		popOn = function() return setting(def.key, "active", "pop") end,
-		sites = { container = "proc glow sensor " .. def.key, style = "proc glow style " .. def.key,
-			filter = "proc glow filter " .. def.key },
-	} })
-end
-for _, def in ipairs(BUFFS) do
-	if def.proc then makeProcSlot(def) end
-end
-
 local previewing = false
 
 local function refreshBuff(def)
 	local f, key = def.frame, def.key
 	if def.proc then f.tex:SetAlpha(previewing and 0 or 1) end
 	if not ns.isEnabled(key) then
-		if def.proc then def.fx:glow(false) end
+		if def.fx then def.fx:glow(false) end
 		return
 	end
 	f.tex:SetTexture(def.iconID or def.icon)
@@ -221,7 +300,7 @@ local function refreshBuff(def)
 	f.tex:SetDesaturated(false)
 	if def.proc then
 		-- Frame is an ancestor of Blizzard's button: its alpha changes out of combat only
-		def.fx:glow(setting(key, "active", "glow") and not previewing)
+		if def.fx then def.fx:glow(setting(key, "active", "glow") and not previewing) end
 		ns.fadeTo(f, ns.getAccount().locked and ns.idleAlpha(key) or 1)
 		return
 	end
@@ -251,18 +330,7 @@ function B.resolve()
 		local known, icon = Spells.known(def.spellKey)
 		if known ~= def.spellID then def.takesReagent = nil end
 		def.spellID = known
-		local before = def.procIDs
-		def.procIDs = nil
-		if def.proc and before and def.aura.container then
-			for id in pairs(procIDMap(def)) do
-				if not before[id] then
-					def.aura:refilter()
-					def.fx:refilter()
-					break
-				end
-			end
-		end
-		if def.proc then def.fx:checkIDs() end
+		if def.proc then B.resolveAura(def) end
 		if not def.proc then def.iconID = icon end
 		table.insert(sig, tostring(known))
 	end
@@ -287,10 +355,7 @@ end
 
 function B.applyLayout()
 	for _, def in ipairs(BUFFS) do
-		if def.proc and def.spellID and ns.isEnabled(def.key) then
-			def.aura:setup()
-			def.fx:setup()
-		end
+		if def.proc and def.spellID and ns.isEnabled(def.key) then B.setupAura(def) end
 		if def.proc then
 			def.aura:style()
 			styleGlow(def)
@@ -369,7 +434,7 @@ function B.debug()
 		if def.proc then
 			local a = def.aura
 			state = string.format("container %s%s; %s", a.container and "made" or "not made",
-				a.err and (", error: " .. a.err) or "", def.fx:describe())
+				a.err and (", error: " .. a.err) or "", def.fx and def.fx:describe() or "no glow or pop")
 		else
 			state = def.upUntil and string.format("up, %.0f s left", def.upUntil - GetTime()) or "not up"
 			if def.reagent then state = string.format("%s, reagent %s (takes it: %s, Reagent Economy %s)", state,
