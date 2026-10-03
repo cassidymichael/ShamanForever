@@ -825,10 +825,29 @@ end
 local function tipOf(opts, field, standard)
 	return opts.tips and opts.tips[field] or standard
 end
+-- A Style link beside the switch row just added, while it's on: to this page's block of part
+local function styleLink(p, row, part, on)
+	local go = Page.goLink(row, "Style", function() p:goTo(part) end)
+	go:SetPoint("LEFT", row.check.Text, "RIGHT", 10, 0)
+	setTip(go, "Style", "Its look, further down this page.")
+	row.styleLink = go
+	local item = p.items[#p.items]
+	local refresh = item.refresh
+	item.refresh = function()
+		refresh()
+		go:SetShown(on() and p.anchors ~= nil and p.anchors[part] ~= nil)
+	end
+end
+K.styleLink = styleLink
+
+-- Its pop and pulsing glow switches link to their style
+local LINKED = { pop = "pop", glow = "glow" }
 local function check(p, s, name, field, label, tip, shown)
 	if not s.has(name, field) then return end
 	local get, set = s.opt(name, field)
-	return p:checkbox(label, tip, get, set, shown)
+	local row = p:checkbox(label, tip, get, set, shown)
+	if LINKED[field] then styleLink(p, row, LINKED[field], get) end
+	return row
 end
 -- A sound menu with Play beside it; choices(current): its list (every sound by default)
 local function soundPicker(p, label, tip, get, set, shown, choices)
