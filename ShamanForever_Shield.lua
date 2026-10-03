@@ -34,8 +34,9 @@ local IDLE_CHOICES = {
 			.. "It shows in full at 1 charge and as No shield at 0",
 		"Shown in full at 1 charge and as No shield." },
 }
-local COUNT_POS = {}
+local COUNT_POS, TRACK = {}, { "either" }
 for pos in pairs(ns.COUNT_JUSTIFY) do table.insert(COUNT_POS, pos) end
+for _, key in ipairs(SHIELD_ORDER) do table.insert(TRACK, key) end
 ns.registerElement("shield", { frame = shield, label = "Shields", paint = function(t) t:SetTexture(SH.icon()) end,
 	learned = function() return SH.learned() end,
 	defaults = { idleWhen = "never", idleAlpha = 0.3,
@@ -44,7 +45,7 @@ ns.registerElement("shield", { frame = shield, label = "Shields", paint = functi
 			size = 20, mark = false, markColor = { 1, 0.25, 0.2, 1 } },
 		warn = { grey = true, ring = true, fade = false, tint = false, glow = true, sound = "none" } },
 	ranges = { count = { size = { 8, 64, 1 }, barHeight = { 1, 20, 1 } } },
-	choices = { track = { "lightning", "water", "either" }, count = { pos = COUNT_POS } },
+	choices = { track = TRACK, count = { pos = COUNT_POS } },
 	styles = { glow = { look = "soft" },
 		uptime = { text = false, swipe = false, swipeAlpha = 0.5, swipeReverse = false, bar = false, barEdge = "top" } },
 	def = { key = "shield", idleChoices = IDLE_CHOICES },
