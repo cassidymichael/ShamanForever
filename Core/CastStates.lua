@@ -23,7 +23,7 @@ CS.STATES, CS.ORDER = STATES, { "power", "range" }
 -- Where Blizzard's aura button draws the element: why its paint differs
 CS.COVER_NOTE = "Blizzard's own button draws this icon, so this shows only over it, as an overlay, not a tint."
 
-local makeCover
+local makeCover, draw
 -- Watches: { key, power, range (it has the state), spells() (the IDs whose cost and range are read;
 -- nil: not learned), frame (its icon), cover (where Blizzard's aura button draws it), unit (range to;
 -- "target") }. cover: the sensor of a clip look shown while the aura is up, which carries the paint,
@@ -36,6 +36,12 @@ local WATCHES, HAS = {}, {}
 function CS.watch(key, w)
 	w.key, w.unit = key, w.unit or "target"
 	w.drawn = ""
+	-- Its own warning's tint came off: the paint's goes back on
+	if not w.cover and w.frame then
+		w.frame.onWarnTint = function()
+			if w.drawn ~= "" then w.drawn = nil; draw(w) end
+		end
+	end
 	HAS[key] = { power = w.power and true or false, range = w.range and true or false, cover = w.cover }
 	table.insert(WATCHES, w)
 	return w
@@ -183,7 +189,7 @@ local function drawCover(w, out, low)
 	w.up:want(state ~= nil and not previewing)
 end
 
-local function draw(w)
+function draw(w)
 	local now = (w.out and "r" or "") .. (w.low and "m" or "")
 	if now == w.drawn then return end
 	w.drawn = now

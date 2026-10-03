@@ -956,6 +956,7 @@ function W.makeIcon(parent, size, owner)
 			self.warnTint = tint
 			if tint then self.tex:SetVertexColor(1, 0.35, 0.35)
 			else self.tex:SetVertexColor(1, 1, 1) end
+			if self.onWarnTint then self.onWarnTint() end
 		end
 		self:SetRingShown(ring)
 		self:SetPulsing(fade)
