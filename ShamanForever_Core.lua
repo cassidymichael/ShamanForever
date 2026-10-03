@@ -1,10 +1,10 @@
 -- Shared helpers (loaded first)
 
-local _, ns = ...
+local ADDON, ns = ...
 
--- The addon's name in text, frame names and popup keys
-ns.NAME = "ShamanForever"
-ns.POPUP = "SHAMANFOREVER_"
+-- The addon's name (its folder's) in text, frame names and popup keys
+ns.NAME = ADDON
+ns.POPUP = ADDON:upper() .. "_"
 local PREFIX = "|cff3399ff" .. ns.NAME .. "|r: "
 function ns.say(fmt, ...) print(PREFIX .. string.format(fmt, ...)) end
 

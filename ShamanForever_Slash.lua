@@ -44,14 +44,15 @@ function ns.applyMinimapButton()
 	if acct.minimap.hide then minimapIcon:Hide(ns.NAME) else minimapIcon:Show(ns.NAME) end
 end
 
-_G.ShamanForever_OnAddonCompartmentClick = function(_, button) onLauncherClick(button) end
-_G.ShamanForever_OnAddonCompartmentEnter = function(_, button)
+-- The TOC's AddonCompartmentFunc names
+_G[ADDON .. "_OnAddonCompartmentClick"] = function(_, button) onLauncherClick(button) end
+_G[ADDON .. "_OnAddonCompartmentEnter"] = function(_, button)
 	GameTooltip:SetOwner(button, "ANCHOR_LEFT")
 	GameTooltip:SetText(ns.NAME)
 	launcherTip(GameTooltip)
 	GameTooltip:Show()
 end
-_G.ShamanForever_OnAddonCompartmentLeave = function() GameTooltip:Hide() end
+_G[ADDON .. "_OnAddonCompartmentLeave"] = function() GameTooltip:Hide() end
 
 SlashCmdList[SLASH] = function(msg)
 	local cmd = (msg:match("^(%S*)") or ""):lower()
