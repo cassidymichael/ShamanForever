@@ -9,7 +9,6 @@ ns.Guide = GD
 
 local ART = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
 local BOARD_W = 600
-local FADE = 0.35
 -- One spacing scale: a box's padding, the gap between blocks, a title's gap to its text
 local PAD, GAP, UNDER = 12, 12, 6
 local TOP = 84   -- the slides start under the title and a two-line blurb
@@ -285,8 +284,8 @@ end
 
 -- look: icon, cd and up ({ share gone, length }: frozen timers), cast ({ out, low }: out of range and
 -- the cost unpaid, as the cast states draw them), warn ({ grey, tint, ring, fade, glow }), glow, alpha
--- (the whole example's), bar ({ n, filled, color, height }), count ({ text, color, size, pos }),
--- reagent ({ el, n, color }), font ({ name, outline })
+-- (the icon's, as the preview kit's idle sets it), bar ({ n, filled, color, height }), count ({ text,
+-- color, size, pos }), reagent ({ el, n, color }), font ({ name, outline })
 local function draw(ex, look)
 	local ic, kit = ex.ic, OA.kit
 	kit.reset(ic, look.icon)
@@ -313,7 +312,7 @@ local function draw(ex, look)
 	end
 	if look.reagent then reagentCount(ic, look.reagent) end
 	if look.font then setFont(ex, look.font) end
-	ex.box:SetAlpha(look.alpha or 1)
+	ic:SetAlpha(look.alpha or 1)
 end
 
 -- Draws look as in a row (or a column: self.column), whatever the player's own groups
@@ -328,7 +327,6 @@ end
 function Ex:showAs(key, state)
 	self.look = nil
 	self.ic.column = self.column or false
-	self.box:SetAlpha(1)
 	ns.try("guide example " .. key, OA.PREVIEW[key].render, self.ic, state, OA.kit)
 	return self
 end
@@ -347,16 +345,12 @@ local function stepTo(x)
 	if sp.step then ns.try("guide step", sp.step, frames[cur], x) end
 end
 
+-- No alpha animation on a slide: one on an ancestor of the examples overrides their own alpha (the
+-- Idle example showed in full)
 local function makeSlide(i)
 	local f = CreateFrame("Frame", nil, board)
 	f:SetPoint("TOPLEFT", board, "TOPLEFT", 0, -TOP)
 	f:SetSize(BOARD_W, 1)
-	local fade = f:CreateAnimationGroup()
-	local a = fade:CreateAnimation("Alpha")
-	a:SetFromAlpha(0)
-	a:SetToAlpha(1)
-	a:SetDuration(FADE)
-	f.fadeIn = fade
 	frames[i] = f
 	ns.try("guide slide " .. slides[i].title, slides[i].build, f)
 	f:SetHeight(f.height or 400)
@@ -381,8 +375,6 @@ local function show(n)
 	dots:SetPoint("TOP", f, "BOTTOM", 0, -GAP)
 	board:SetHeight(boardHeight())
 	f:Show()
-	f.fadeIn:Stop()
-	f.fadeIn:Play()
 	stepTo(0)
 	if page then ns.Options.refresh() end
 end
