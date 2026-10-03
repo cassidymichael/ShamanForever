@@ -210,7 +210,7 @@ PREVIEW = {
 					end
 				end
 				ic.upT.school = el
-				local expiring = st == "expiring" and el == expEl
+				local expiring = st == "expiring" and el == expEl and TB.expireOpts(c, TB.pickSpell(el))
 				if st == "idle" and not full then
 					ic:Hide()
 				elseif st == "killed" and el == expEl then
@@ -222,10 +222,10 @@ PREVIEW = {
 					TB.paintEmpty(ic, c, el, pick)
 				else
 					local left, life = TB.PREVIEW_LEFT[el][1], TB.PREVIEW_LEFT[el][2]
-					if expiring then left = c.expire.secs > 0 and math.min(5, c.expire.secs) or 5 end
+					if expiring then left = expiring.secs > 0 and math.min(5, expiring.secs) or 5 end
 					P.frozen(ic.upT, 1 - left / life, life)
 				end
-				ic.upT:setExpire(expiring and c.expire or nil, pick or TB.TOTEM_ICON[el])
+				ic.upT:setExpire(expiring or nil, pick or TB.TOTEM_ICON[el])
 			end
 		end
 		local boxes, sealed, spare = {}, {}, #els
