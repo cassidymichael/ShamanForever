@@ -94,6 +94,7 @@ function S.element(key, event, zoning)
 end
 
 function S.test(value) emit(value) end
+function S.playable(value) return resolve(value) ~= nil end
 
 -- Aura sounds: the engine plays them, so they work in combat. Set out of combat only.
 local REMOVED = 2   -- Enum.UnitAuraSoundTrigger.Removed
@@ -144,7 +145,9 @@ function S.setAuraSound(owner, value, ids, trigger)
 	applyAura(owner)
 end
 
-local function applyAllAuras()
+-- The engine's aura sounds are set again on the new channel
+function S.setChannel(channel)
+	ns.getAccount().soundChannel = channel
 	for owner in pairs(auraSounds) do applyAura(owner) end
 end
 
@@ -184,32 +187,4 @@ function S.fileChoices(current)
 		if c[1] == "none" or S.fileID(c[1]) then table.insert(out, c) end
 	end
 	return out
-end
-
-function S.row(p, label, tip, get, set, shown, choices)
-	choices = choices or S.choices
-	local row = p:dropdown(label, tip, function() return choices(get()) end, function() return get() or "none" end,
-		function(v) set(v); S.test(v) end, shown, 200)
-	local play = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-	play:SetSize(60, 22)
-	play:SetPoint("LEFT", row.dropdown, "RIGHT", 8, 0)
-	play:SetText("Play")
-	play:SetScript("OnClick", function() S.test(get()) end)
-	local item = p.items[#p.items]
-	local refresh = item.refresh
-	item.refresh = function()
-		refresh()
-		play:SetEnabled(resolve(get()) ~= nil)
-	end
-	return row
-end
-
-function S.generalBlock(p)
-	p:header("Sounds")
-	p:text("Elements and the totem bar pick their own sounds, on their pages. All start at None.")
-	p:dropdown("Channel", "Master plays even with sound effects off.", S.CHANNELS, S.channel, function(v)
-		ns.getAccount().soundChannel = v
-		applyAllAuras()
-		ns.Options.refresh()
-	end, nil, 160)
 end

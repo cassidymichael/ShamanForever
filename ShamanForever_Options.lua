@@ -133,7 +133,7 @@ local function buildGlobal(p)
 			acct().minimap.hide = not v
 			ns.applyMinimapButton()
 		end)
-	ns.Sounds.generalBlock(p)
+	K.soundsBlock(p)
 	local hasReporter = ns.IssueReporter.has
 	p:header("Beta", hasReporter)
 	p:checkbox("Hide the Issue Reporter button", "Blizzard's beta Issue Reporter button. " .. ns.NAME .. " also remembers where you drag it.",
