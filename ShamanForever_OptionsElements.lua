@@ -116,13 +116,12 @@ function EP.buildOverview(p)
 			end
 		end)
 	end
-	local STYLE_NAMES = { { "cooldown", "Cooldown timer" }, { "uptime", "Time left timer" },
-		{ "glow", "Pulsing glow" }, { "pop", "Pop" }, { "border", "Border" }, { "frame", "Frame" } }
-	local function ownStyles(key)
+	-- The styles it has its own of, each by its label or short name (name)
+	local function ownStyles(key, name)
 		local S, out = ns.Style, {}
-		for _, k in ipairs(STYLE_NAMES) do
-			local spec = S.KINDS[k[1]]
-			if spec and tContains(spec.users, key) and not S.follows(key, k[1]) then table.insert(out, k[2]) end
+		for _, kind in ipairs(S.ORDER) do
+			local spec = S.KINDS[kind]
+			if spec.label and tContains(spec.users, key) and not S.follows(key, kind) then table.insert(out, spec[name]) end
 		end
 		return out
 	end
@@ -204,7 +203,7 @@ function EP.buildOverview(p)
 		styles:SetScript("OnEnter", function(self)
 			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 			GameTooltip:SetText("Own styles")
-			local own = ownStyles(key)
+			local own = ownStyles(key, "label")
 			if #own == 0 then
 				GameTooltip:AddLine("Follows Global styles for its timers, glow, pop, border and frame.", 1, 1, 1, true)
 			else
@@ -214,8 +213,6 @@ function EP.buildOverview(p)
 			GameTooltip:Show()
 		end)
 		styles:SetScript("OnLeave", function() GameTooltip:Hide() end)
-		local SHORT = { ["Cooldown timer"] = "cooldown", ["Time left timer"] = "time left",
-			["Pulsing glow"] = "glow", ["Pop"] = "pop", ["Border"] = "border", ["Frame"] = "frame" }
 		local cells = { { group, "group" }, { show, "show" }, { groupOpen, "link" }, { styles, "styles" } }
 		p:add(f, 34, nil, function()
 			e.paint(icon)
@@ -236,9 +233,8 @@ function EP.buildOverview(p)
 				cell[1]:SetPoint("LEFT", pos[cell[2]].x, 0)
 				cell[1]:SetWidth(pos[cell[2]].w)
 			end
-			local own, short = ownStyles(key), {}
-			for i, n in ipairs(own) do short[i] = SHORT[n] end
-			if #own == 0 then
+			local short = ownStyles(key, "short")
+			if #short == 0 then
 				styles.text:SetText("Global")
 				styles.text:SetTextColor(0.6, 0.6, 0.6)
 			else

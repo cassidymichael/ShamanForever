@@ -45,11 +45,13 @@ local TIMER_IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarI
 T.AURA_BAR = { interpolation = TIMER_IMMEDIATE, direction = TIMER_REMAINING }
 
 -- abbrev: seconds under which minutes read 1:31 (0: never)
-local RANGES = { textSize = { 6, 48, 1 }, abbrev = { 0, 3600, 60 }, swipeAlpha = { 0.1, 1, 0.05 }, barHeight = { 1, 20, 1 },
-	soon = { 1, 60, 1 }, now = { 1, 60, 1 }, tenths = { 0, 10, 1 } }
+local RANGES = { textSize = { 6, 48, 1 }, abbrev = { 0, 3600, 60 }, swipeAlpha = { 0.1, 1, 0.05 },
+	barHeight = { 1, 20, 1 }, soon = { 1, 60, 1 }, now = { 1, 60, 1 }, tenths = { 0, 10, 1 } }
+local NAMES = { cooldown = { "Cooldown timer", "cooldown" }, uptime = { "Time left timer", "time left" } }
 local S = ns.Style
 for _, kind in ipairs(T.KINDS) do
-	S.register(kind, { defaults = T.DEFAULTS[kind], ranges = RANGES, path = { "timers", kind } })
+	S.register(kind, { defaults = T.DEFAULTS[kind], ranges = RANGES, path = { "timers", kind }, elements = true,
+		label = NAMES[kind][1], short = NAMES[kind][2] })
 end
 
 -- The countdown's formatter

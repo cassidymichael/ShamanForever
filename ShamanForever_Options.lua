@@ -145,8 +145,8 @@ local function buildGlobal(p)
 	p:anchor("size")
 	local sized = ns.Bars.nouns(function(bar) return bar.ownSize ~= nil end, "group")
 	for i, noun in ipairs(sized) do sized[i] = noun .. "'s" end
-	K.rangeSlider(p, ns.Profiles.RANGES.iconSize, "Icon size", "Every " .. ns.Look.wordList(sized) .. ", unless it has its own.",
-		int, gopt(p, "iconSize"))
+	local tip = "Every " .. ns.Look.wordList(sized) .. ", unless it has its own."
+	K.rangeSlider(p, ns.Profiles.RANGES.iconSize, "Icon size", tip, int, gopt(p, "iconSize"))
 	local function ownSizes()
 		local out = {}
 		for _, g in ipairs(db().groups) do
@@ -529,7 +529,6 @@ local function buildNav()
 	navList = list
 end
 
-local ELEMENT_KINDS = { "cooldown", "uptime", "gcd", "glow", "pop", "border", "frame" }
 local function addStyleUsers()
 	local St = ns.Style
 	for _, owner in ipairs(ns.Bars.list()) do
@@ -537,7 +536,9 @@ local function addStyleUsers()
 	end
 	for _, key in ipairs(ns.ElementPages.ordered()) do
 		if ns.ElementPages.pageOf(key) then
-			for _, kind in ipairs(ELEMENT_KINDS) do St.addUser(kind, key) end
+			for _, kind in ipairs(St.ORDER) do
+				if St.KINDS[kind].elements then St.addUser(kind, key) end
+			end
 		end
 	end
 end

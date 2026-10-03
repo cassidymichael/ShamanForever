@@ -5,10 +5,16 @@ local _, ns = ...
 local S = {}
 ns.Style = S
 
-S.KINDS = {}
+-- Kinds, and their names in the order they register
+S.KINDS, S.ORDER = {}, {}
 -- Kind spec: defaults; ranges (its numbers' { min, max, step }: S.clean holds them there); path (where
--- it is saved); groups (groups can have their own)
-function S.register(kind, spec) S.KINDS[kind] = spec; spec.users = {} end
+-- it is saved); groups, elements (groups or elements can have their own); label and short: its name
+-- in an element's list of own styles, none to leave it out
+function S.register(kind, spec)
+	if not S.KINDS[kind] then table.insert(S.ORDER, kind) end
+	S.KINDS[kind] = spec
+	spec.users = {}
+end
 
 -- Owners whose page offers their own style of a kind
 function S.addUser(kind, owner)
@@ -22,35 +28,40 @@ S.register("glow", {
 	ranges = { speed = { 0.2, 2, 0.1 }, low = { 0, 1, 0.05 }, width = { 0.1, 0.5, 0.05 }, strength = { 0.2, 2.5, 0.1 },
 		lap = { 0.6, 4, 0.1 }, scale = { 0.5, 2, 0.1 }, drift = { 0.25, 3, 0.05 } },
 	path = { "glowStyle" },
+	elements = true, label = "Pulsing glow", short = "glow",
 })
 S.register("pop", {
 	defaults = { colorBy = "event", flash = "plain", burst = "star", motion = "shakeV", size = 1.4, speed = 1,
 		reach = 1 },
 	ranges = { size = { 1.1, 1.8, 0.05 }, speed = { 0.5, 2, 0.1 }, reach = { 0.6, 1.3, 0.05 } },
 	path = { "popStyle" },   -- not "pop": a bar may have its own setting of that name
+	elements = true, label = "Pop", short = "pop",
 })
 -- Global cooldown sweep
 S.register("gcd", {
 	defaults = { show = true },
 	path = { "gcdStyle" },
+	elements = true,
 })
 S.register("border", {
 	defaults = { show = true, look = "line", size = 2, color = { 0, 0, 0, 1 }, capSize = 3,
 		capColor = { 0.85, 0.68, 0.39, 1 } },
 	ranges = { size = { 1, 8, 1 }, capSize = { 1, 8, 1 } },
 	path = { "border" },
+	elements = true, label = "Border", short = "border",
 })
 -- Art frames: round each element, and round a group or bar
 S.register("frame", {
 	defaults = { look = "none", color = { 1, 1, 1, 1 }, alpha = 1 },
 	ranges = { alpha = { 0.1, 1, 0.05 } },
 	path = { "frameStyle" },
+	elements = true, label = "Frame", short = "frame",
 })
 S.register("groupframe", {
 	defaults = { look = "none", color = { 1, 1, 1, 1 }, alpha = 1 },
 	ranges = { alpha = { 0.1, 1, 0.05 } },
 	path = { "groupFrameStyle" },
-	groups = true,   -- groups can have their own
+	groups = true,
 })
 
 -- An owner's own shipped look, { kind = fields }: it starts not following Global
