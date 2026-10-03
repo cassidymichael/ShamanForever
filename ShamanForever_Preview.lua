@@ -233,21 +233,8 @@ end
 
 -- The panel
 -- Not named, so the client keeps no position for it: it starts at the top each time
-local panel = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-panel:SetSize(560, 66)
-panel:SetFrameStrata("DIALOG")
+local panel = ns.floatingPanel(nil, 560, 66, { 0.85, 0.71, 0.42, 0.9 })
 panel:SetPoint("TOP", UIParent, "TOP", 0, -12)
-panel:SetMovable(true)
-panel:SetClampedToScreen(true)
-panel:EnableMouse(true)
-panel:RegisterForDrag("LeftButton")
-panel:SetScript("OnDragStart", panel.StartMoving)
-panel:SetScript("OnDragStop", panel.StopMovingOrSizing)
-panel:SetScript("OnHide", panel.StopMovingOrSizing)   -- combat can end it mid-drag
-panel:SetBackdrop(ns.BACKDROP)
-panel:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
-panel:SetBackdropBorderColor(0.85, 0.71, 0.42, 0.9)
-panel:Hide()
 
 local function changed()
 	restart()

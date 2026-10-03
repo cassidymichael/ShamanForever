@@ -392,20 +392,8 @@ ns.onCombatEnd(syncNudger)
 
 -- The bar while unlocked
 local wasUnlocked, optionsSteppedAside = false, false
-local tray = CreateFrame("Frame", ns.NAME .. "Tray", UIParent, "BackdropTemplate")
-tray:SetSize(560, 120)
-tray:SetFrameStrata("DIALOG")
+local tray = ns.floatingPanel(ns.NAME .. "Tray", 560, 120, { 0.2, 0.6, 1, 0.9 })
 tray:SetPoint("TOP", UIParent, "TOP", 0, -120)
-tray:SetMovable(true)
-tray:SetClampedToScreen(true)
-tray:EnableMouse(true)
-tray:RegisterForDrag("LeftButton")
-tray:SetScript("OnDragStart", tray.StartMoving)
-tray:SetScript("OnDragStop", tray.StopMovingOrSizing)
-tray:SetBackdrop(ns.BACKDROP)
-tray:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
-tray:SetBackdropBorderColor(0.2, 0.6, 1, 0.9)
-tray:Hide()
 do
 	local title = tray:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	title:SetPoint("TOPLEFT", 10, -10)

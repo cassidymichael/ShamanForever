@@ -703,17 +703,10 @@ StaticPopupDialogs[ns.POPUP .. "PROFILE_NAME"] = {
 
 local share
 local function buildShare()
-	local f = CreateFrame("Frame", ns.NAME .. "ShareFrame", UIParent, "BackdropTemplate")
-	f:SetSize(460, 250)
+	local f = ns.floatingPanel(ns.NAME .. "ShareFrame", 460, 250)
 	f:SetPoint("CENTER")
 	f:SetFrameStrata("FULLSCREEN_DIALOG")
 	f:SetToplevel(true)
-	f:SetClampedToScreen(true)
-	f:SetMovable(true)
-	f:EnableMouse(true)
-	f:RegisterForDrag("LeftButton")
-	f:SetScript("OnDragStart", f.StartMoving)
-	f:SetScript("OnDragStop", f.StopMovingOrSizing)
 	panelBackdrop(f, 0.55, 0.42, 0.22)
 	table.insert(UISpecialFrames, f:GetName())
 
@@ -775,7 +768,6 @@ local function buildShare()
 		f:Hide()
 		askName("Name for the imported profile:", "Imported", function(n) return ns.Profiles.new(n, settings) end)
 	end)
-	f:Hide()
 	return f
 end
 
