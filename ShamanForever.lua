@@ -103,6 +103,8 @@ end
 local BARS, BAR_ORDER = {}, {}
 local Bars = {}
 ns.Bars = Bars
+-- A bar's Show conditions are a group's
+Bars.SHOW_WHEN = SHOW_WHEN
 function Bars.get(key) return BARS[key] end
 function Bars.list() return BAR_ORDER end
 -- How sentences name the bars test(bar) picks ("the swing timer"), in register order, after lead

@@ -221,8 +221,7 @@ local function visibilityDriver()
 	if not SW.isOn() then return "hide" end
 	if pv.mode then return "show" end
 	if not ns.getAccount().locked then return "show" end
-	if cfg().show == "combat" then return "[petbattle] hide; [combat] show; hide" end
-	return "[petbattle] hide; show"
+	return ns.Bars.SHOW_WHEN[cfg().show] or "show"
 end
 local function drive() ns.setVisibilityDriver(f, visibilityDriver(), "swing timer driver") end
 

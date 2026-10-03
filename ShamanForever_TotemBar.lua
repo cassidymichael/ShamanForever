@@ -1098,16 +1098,14 @@ local function ownDriver()
 	if preview then return barOn() and (hasTotems or preview.all) and "show" or "hide" end
 	if not barOn() or not hasTotems then return "hide" end
 	if kbOpen or not ns.getAccount().locked then return "show" end
-	if c.show == "combat" then return "[petbattle] hide; [combat] show; hide" end
-	if c.show == "target" then return "[petbattle] hide; [combat] show; [@target,exists,harm,nodead] show; hide" end
-	if c.show == "active" then return "[petbattle] hide; [combat] show; " .. (anyDown and "show" or "hide") end
-	return "[petbattle] hide; show"
+	if c.show == "active" then return "[combat] show; " .. (anyDown and "show" or "hide") end
+	return ns.Bars.SHOW_WHEN[c.show] or "show"
 end
 local afterCombat
 local function visibilityDriver()
 	if ns.AfterCombat.held(afterCombat) and barOn() and ns.getAccount().locked and not kbOpen
 		and cfg().show ~= "always" then
-		return "[petbattle] hide; show"
+		return "show"
 	end
 	return ownDriver()
 end
