@@ -1,6 +1,29 @@
 -- Widgets
 
-local _, ns = ...
+local ADDON, ns = ...
+
+-- What shared code reads from the class (_Class) with no default; the first reader is _Looks
+do
+	local function has(path)
+		local t = ns
+		for key in path:gmatch("[^.]+") do
+			if type(t) ~= "table" then return false end
+			t = t[tonumber(key) or key]
+		end
+		return t ~= nil
+	end
+	local gaps = {}
+	for _, path in ipairs({ "CLASS.token", "CLASS.plural", "CLASS.slash.1", "CLASS.icon", "CLASS.blurb",
+		"CLASS.links.repo", "CLASS.links.curseforge", "CLASS.links.discord", "CLASS.links.kofi", "CLASS.credits",
+		"CLASS.sharePrefix", "CLASS.help.uptime", "CLASS.help.pop", "CLASS.help.popColour", "CLASS.help.bars",
+		"CLASS.help.glowColour", "CLASS.layout", "THEME.axis.name", "THEME.axis.lower", "THEME.axis.one" }) do
+		if not has(path) then table.insert(gaps, "ns." .. path) end
+	end
+	if not (has("THEME.color") and has("THEME.sample") and ns.THEME.color[ns.THEME.sample]) then
+		table.insert(gaps, "ns.THEME.color[ns.THEME.sample]")
+	end
+	if #gaps > 0 then error(ADDON .. ": the class doesn't supply " .. table.concat(gaps, ", ")) end
+end
 
 -- A class may give its own bar colours; else each colour a little brighter
 if not ns.THEME.barColor then
