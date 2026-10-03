@@ -103,6 +103,16 @@ local RENAMED = {
 	},
 }
 
+-- Retired settings, dropped or converted as a profile loads or is imported (folds: as the account
+-- loads). Drop after launch, with RENAMED and retireGroups.
+local RETIRED = {
+	-- Profile keys from before styles
+	root = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "glowSize", "popMotion", "popSize", "popSpeed",
+		"popFlash", "popRing", "popStar", "popTint" },
+	-- Fold keys of pages that no longer fold
+	folds = "^layout:",
+}
+
 local function put(t, name, field, v)
 	if field == nil then t[name] = v return end
 	local into = t[name]
@@ -123,11 +133,36 @@ local function rename(t, list)
 	end
 end
 
--- The renames, on a profile as saved or as imported
+-- A group's combatOnly becomes its Show; its own border goes to its members that have none
+local function retireGroups(profile)
+	local opts = profile.elementOpts
+	for _, g in ipairs(type(profile.groups) == "table" and profile.groups or {}) do
+		if type(g) == "table" then
+			if g.combatOnly then g.show = "combat" end
+			g.combatOnly = nil
+			local b = g.border
+			if type(b) == "table" and b.follow ~= true and type(g.members) == "table" then
+				for _, key in ipairs(g.members) do
+					if type(key) == "string" and ns.ELEMENTS[key] then
+						if type(opts[key]) ~= "table" then opts[key] = {} end
+						if opts[key].border == nil then
+							opts[key].border = CopyTable(b)
+							opts[key].border.follow = false
+						end
+					end
+				end
+			end
+			g.border = nil
+		end
+	end
+end
+
+-- The renames and retired settings, on a profile as saved or as imported
 function P.migrate(profile)
 	if type(profile) ~= "table" then return end
 	if type(profile.elementOpts) ~= "table" then profile.elementOpts = {} end
 	local opts = profile.elementOpts
+	for _, k in ipairs(RETIRED.root) do profile[k] = nil end
 	for _, r in ipairs(RENAMED.root) do
 		local v = profile[r[1]]
 		if v ~= nil then
@@ -152,6 +187,7 @@ function P.migrate(profile)
 		end
 	end
 	if type(profile.totemBar) == "table" then rename(profile.totemBar, RENAMED.totemBar) end
+	retireGroups(profile)
 end
 
 local function acct() return ns.getAccount() end
@@ -213,6 +249,10 @@ function P.load()
 	local a = ShamanForeverDB
 	if type(a.profiles) ~= "table" then wipe(a) end
 	ns.fillDefaults(a, ACCOUNT_DEFAULTS)
+	if type(a.foldedBlocks) ~= "table" then a.foldedBlocks = {} end
+	for key in pairs(a.foldedBlocks) do
+		if type(key) == "string" and key:find(RETIRED.folds) then a.foldedBlocks[key] = nil end
+	end
 	mergeCharKeys(a)
 	return a
 end
@@ -350,7 +390,7 @@ end
 
 local function cleanProfile(t)
 	local DEFAULTS, GROUP_DEFAULTS = ns.DEFAULTS, ns.GROUP_DEFAULTS
-	P.migrate(t)   -- renamed settings: drop after launch
+	P.migrate(t)   -- renamed and retired settings: drop after launch
 	local out = {}
 	for k, default in pairs(DEFAULTS) do
 		if type(t[k]) == type(default) then out[k] = t[k] end
@@ -377,14 +417,12 @@ local function cleanProfile(t)
 				for k, default in pairs(GROUP_DEFAULTS) do
 					if type(g[k]) == type(default) then clean[k] = g[k] end
 				end
-				if g.combatOnly == true and clean.show == nil then clean.show = "combat" end
 				clampNumbers(clean, GROUP_RANGES, GROUP_DEFAULTS)
 				if clean.point and not ns.POINTS[clean.point] then clean.point = nil end
 				if type(g.id) == "number" and g.id >= 1 and g.id <= ns.MAX_GROUP_ID and g.id % 1 == 0 then
 					clean.id = g.id
 				end
 				if type(g.name) == "string" then clean.name = ns.utf8Cut(g.name, ns.MAX_GROUP_NAME) end
-				clean.border = ns.Style.cleanOwn(g.border, "border")
 				clean.groupFrameStyle = ns.Style.cleanOwn(g.groupFrameStyle, "groupframe")
 				for _, key in ipairs(type(g.members) == "table" and g.members or {}) do
 					if type(key) == "string" then table.insert(clean.members, key) end

@@ -77,8 +77,6 @@ local DEFAULTS = {
 	elementOpts = {},
 	timers = { cooldown = CopyTable(ns.Timer.DEFAULTS.cooldown), uptime = CopyTable(ns.Timer.DEFAULTS.uptime) },
 }
-local RETIRED_KEYS = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "popMotion", "popSize", "popSpeed",
-	"popFlash", "popRing", "popStar", "popTint" }
 local acct
 local db
 local profileName
@@ -444,8 +442,6 @@ local function sanitize()
 	if type(db.known) ~= "table" then db.known = {} end
 	local seen = {}
 	for _, g in ipairs(db.groups) do
-		if g.combatOnly then g.show = "combat" end
-		g.combatOnly = nil
 		for k, v in pairs(GROUP_DEFAULTS) do if g[k] == nil then g[k] = v end end
 		if g.show ~= "combat" and g.show ~= "target" then g.show = "always" end
 		local kept = {}
@@ -456,18 +452,6 @@ local function sanitize()
 			end
 		end
 		g.members = kept
-		-- A group's own border (old profiles, imports) goes to its members that have none
-		local b = g.border
-		if type(b) == "table" and b.follow ~= true then
-			for _, key in ipairs(kept) do
-				local o = elementOpts(key)
-				if o.border == nil then
-					o.border = CopyTable(b)
-					o.border.follow = false
-				end
-			end
-		end
-		g.border = nil
 	end
 	fixIds()
 	fixNames()
@@ -839,8 +823,7 @@ end
 local function selectProfile(name)
 	if type(acct.profiles[name]) ~= "table" then acct.profiles[name] = {} end
 	profileName, db = name, acct.profiles[name]
-	for _, k in ipairs(RETIRED_KEYS) do db[k] = nil end
-	ns.Profiles.migrate(db)   -- renamed settings: drop after launch
+	ns.Profiles.migrate(db)   -- renamed and retired settings: drop after launch
 	fillDefaults(db, DEFAULTS)
 	for _, key in ipairs(BAR_ORDER) do
 		local saved = BARS[key].saved

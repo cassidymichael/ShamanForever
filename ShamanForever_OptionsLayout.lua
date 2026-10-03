@@ -613,10 +613,6 @@ end
 function LP.build(p)
 	page = p
 	p.panels = false
-	local folded = ns.getAccount().foldedBlocks
-	for key in pairs(folded) do
-		if key:find("^layout:") then folded[key] = nil end
-	end
 	buildList()
 	drag.ghost = Page.dragGhost(updateDragFeedback)
 	p:text("No groups. New group makes one.", function() return #db().groups == 0 end)
