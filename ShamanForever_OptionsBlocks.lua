@@ -581,8 +581,8 @@ local function timerSettings(p, title, key, kind, after, note, first, barPlaced)
 		styleSlider(p, kind, "barHeight", "Bar height", nil, px, tg("barHeight"), ts("barHeight"))
 		p:dropdown("Bar edge", nil, { { "bottom", "Bottom" }, { "top", "Top" } }, tg("barEdge"), ts("barEdge"),
 			function() return not (barPlaced and barPlaced()) end, 140)
-		local colour = p:dropdown("Bar colour", nil, { { true, "Element colour" }, { false, "Custom" } }, tg("barElement"),
-			ts("barElement"), nil, 160)
+		local colour = p:dropdown("Bar colour", nil, { { true, ns.THEME.axis.name .. " colour" }, { false, "Custom" } },
+			tg("barElement"), ts("barElement"), nil, 160)
 		p:sub(colour, function() return not style().barElement end, function()
 			p:color("Custom bar colour", nil, tg("barColor"), ts("barColor"))
 		end)
