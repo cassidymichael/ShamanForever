@@ -256,7 +256,6 @@ local function makeMark(m)
 		return
 	end
 	m.filtered = idsSig(ids)
-	shock.auraButton = true   -- its group's layout waits while auras are secret
 	ns.Target.follow(m)
 	placeMarks()
 end
@@ -279,6 +278,10 @@ function placeMarks()
 	if ns.deferWhileAurasSecret("shock marks", placeMarks) then return end
 	local g = G.of("shock")
 	local gf = g and G.frames[g.id]
+	local inUse = false
+	for _, m in ipairs(MARKS) do inUse = inUse or (m.container ~= nil and not m.err and markOn(m)) end
+	-- While one is in use its group's layout waits for readable auras, as for an aura element
+	shock.auraButton = (gf and inUse and marksWanted()) and true or nil
 	if not (gf and marksWanted()) then
 		ns.setVisibilityDriver(marksHost, nil, "shock marks driver")
 		marksHost:Hide()
