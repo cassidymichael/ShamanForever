@@ -508,7 +508,7 @@ end
 local function barRows(p, owner, after)
 	after = after or relayout
 	local r = styleRows(p, owner, "bar", after)
-	if owner then followRow(p, owner, "bar", after, "Texture same as Global") end
+	if owner then followRow(p, owner, "bar", after) end
 	local own = showWhen(r.own)
 	local c = ns.THEME.color[ns.THEME.sample]
 	p:dropdown("Texture", nil, function()
