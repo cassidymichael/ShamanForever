@@ -399,7 +399,7 @@ ns.onCombatEnd(syncNudger)
 
 -- The bar while unlocked
 local wasUnlocked = false
-local tray = W.floatingPanel(ns.NAME .. "Tray", 560, 120, { 0.2, 0.6, 1, 0.9 })
+local tray = W.floatingPanel(ns.NAME .. "Tray", 680, 120, { 0.2, 0.6, 1, 0.9 })
 tray:SetPoint("TOP", UIParent, "TOP", 0, -120)
 do
 	local title = tray:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -483,6 +483,14 @@ do
 	tray.options:SetScript("OnClick", function() ns.Options.toggleAside("layout") end)
 	W.setTip(tray.options, function() return tray.options:GetText() end,
 		"The options stay shown or hidden the next time you unlock.", "ANCHOR_BOTTOM")
+	-- Preview mode without leaving positioning; its label follows the preview however it starts or ends
+	tray.preview = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+	tray.preview:SetSize(110, 22)
+	tray.preview:SetPoint("RIGHT", tray.options, "LEFT", -6, 0)
+	tray.preview:SetText("Show preview")
+	tray.preview:SetScript("OnClick", function() ns.Preview.toggle() end)
+	W.setTip(tray.preview, function() return tray.preview:GetText() end,
+		"Everything shown in a made-up moment, so you can place it.", "ANCHOR_BOTTOM")
 end
 
 function PO.optionsShown(shown)
@@ -507,6 +515,7 @@ function PO.update()
 	tray:SetHeight(30 + tray.hint:GetHeight() + 10 + 26 + 8)
 	tray.snap:SetChecked(a.snap)
 	PO.optionsShown(ns.Options.isShown())
+	tray.preview:SetText(ns.Preview.isOn() and "Hide preview" or "Show preview")
 	stepOptionsAside(unlocked)
 	tray.grid:SetChecked(a.grid)
 	tray.gridValue:SetText(a.gridSize)
