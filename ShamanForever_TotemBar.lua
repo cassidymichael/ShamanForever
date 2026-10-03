@@ -1537,18 +1537,25 @@ wrapHover(call.button, HOVER_ENTER)
 wrapHover(setSlot.arrow, HOVER_ENTER)
 wrapHover(setSlot.popout.strip)
 
+-- A slot's end flashes as ns.Totems.endOptions says (dur: the totem's last duration object; nil in
+-- previews)
+local function playEnds(s, dur, ended, killed)
+	local c = cfg()
+	local o = ended and ns.Totems.endOptions(c.ended, "ended")
+	if o then s.expired:play(dur, o) end
+	o = killed and ns.Totems.endOptions(c.killed, "killed")
+	if o then s.killed:play(dur, o) end
+end
+
 -- Killed early: a slot's last duration object says how much time the totem had left; endFlash
 -- turns that into a curve, so a totem that ran out shows no flash. Our own dismissals and an
 -- immediate recast don't flash.
 ns.Totems.subscribe(function(event, slot, was)
 	if event ~= "gone" or preview then return end
 	local s = bySlot[slot]
-	local c = cfg()
 	if not s.button:IsShown() then return end
-	local k = c.killed
-	if s.button:IsVisible() then ns.Sounds.play(c.ended.sound, "totembar", nil, true) end
-	if c.ended.pop then s.expired:play(was, { expired = true, pop = true }) end
-	if k.flash then s.killed:play(was, { pop = k.pop, glow = k.glow, mark = k.mark }) end
+	if s.button:IsVisible() then ns.Sounds.play(cfg().ended.sound, "totembar", nil, true) end
+	playEnds(s, was, true, true)
 end)
 
 -- Events
@@ -1743,16 +1750,11 @@ local function previewSlot(el, st, at, range, moment)
 	if not preview then return end
 	local rec = { st = st, at = at, range = range }
 	preview.states[el] = rec
-	local s, c = slots[el], cfg()
+	local s = slots[el]
 	if st ~= "killed" then s.killed:stop() end
 	if st ~= "ranout" then s.expired:stop() end
 	local ends = paintSlot(s, rec)
-	moment = moment and s.button:IsShown()
-	if moment and st == "killed" and c.killed.flash then
-		s.killed:play(nil, { pop = c.killed.pop, glow = c.killed.glow, mark = c.killed.mark })
-	elseif moment and st == "ranout" and c.ended.pop then
-		s.expired:play(nil, { expired = true, pop = true })
-	end
+	if moment and s.button:IsShown() then playEnds(s, nil, st == "ranout", st == "killed") end
 	return ends
 end
 
