@@ -37,7 +37,7 @@ local SHARE_VERSION = 7
 -- grey, ring, fade, tint and glow are the looks a state shows; pop and sound play once, as it
 -- starts: warn.pop and warn.sound as the warning begins (a buff lost). A bar's own settings use the
 -- same tables (expire, ended, killed). The effect and pop kind names (warning, ranout, expired,
--- grounded, killed, primed, ready) are a separate runtime set.
+-- killed, primed, ready and a class's own) are a separate runtime set.
 
 -- Renamed settings, moved as a profile loads or is imported. Drop after launch.
 -- root: a profile key -> element, name, field; element: within any element's settings, name (or
@@ -106,13 +106,17 @@ local RENAMED = {
 }
 
 -- Retired settings, dropped or converted as a profile loads or is imported (folds: as the account
--- loads). Drop after launch, with RENAMED and retireGroups.
+-- loads). Drop after launch, with RENAMED, retireGroups, retireTotemBar and retireStyles.
 local RETIRED = {
 	-- Profile keys from before styles
 	root = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "glowSize", "popMotion", "popSize", "popSpeed",
 		"popFlash", "popRing", "popStar", "popTint" },
 	-- Fold keys of pages that no longer fold
 	folds = "^layout:",
+	-- The totem bar's switches from before its mode, and follow from before sizeFollow
+	totemBar = { "enabled", "hideTotemFrame", "hideActionBar", "killedPulse", "follow" },
+	-- Style choices that went, to their nearest: kind -> field -> old -> new
+	styles = { pop = { burst = { shapes = "painted" } } },
 }
 
 local function put(t, name, field, v)
@@ -159,6 +163,35 @@ local function retireGroups(profile)
 	end
 end
 
+local function retireTotemBar(t)
+	if type(t.mode) ~= "string" and (t.enabled == false or t.show == "never") then t.mode = "blizzard" end
+	if t.follow == false then
+		t.sizeFollow = false
+		if type(t.border) == "table" then t.border.follow = false end
+	elseif t.follow == true then t.size, t.border = nil, nil end
+	for _, k in ipairs(RETIRED.totemBar) do t[k] = nil end
+end
+
+-- Wherever a style is kept: the profile (Global), each element's settings, each bar's and group's
+local function retireStyles(profile)
+	local holders = { profile }
+	for _, o in pairs(profile.elementOpts) do table.insert(holders, o) end
+	for _, key in ipairs(ns.Bars.list()) do table.insert(holders, profile[ns.Bars.get(key).saved]) end
+	for _, g in ipairs(type(profile.groups) == "table" and profile.groups or {}) do table.insert(holders, g) end
+	for kind, fields in pairs(RETIRED.styles) do
+		for _, h in ipairs(holders) do
+			local t = h
+			for _, k in ipairs(ns.Style.KINDS[kind].path) do t = type(t) == "table" and t[k] or nil end
+			if type(t) == "table" then
+				for field, map in pairs(fields) do
+					local new = t[field] ~= nil and map[t[field]]
+					if new then t[field] = new end
+				end
+			end
+		end
+	end
+end
+
 -- The renames and retired settings, on a profile as saved or as imported
 function P.migrate(profile)
 	if type(profile) ~= "table" then return end
@@ -188,8 +221,12 @@ function P.migrate(profile)
 			end
 		end
 	end
-	if type(profile.totemBar) == "table" then rename(profile.totemBar, RENAMED.totemBar) end
+	if type(profile.totemBar) == "table" then
+		rename(profile.totemBar, RENAMED.totemBar)
+		retireTotemBar(profile.totemBar)
+	end
 	retireGroups(profile)
+	retireStyles(profile)
 end
 
 local function acct() return ns.getAccount() end

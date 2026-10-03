@@ -168,7 +168,7 @@ local function previewTiles(f, owner, x, bySchool, framed)
 end
 
 -- The HUD lays out only out of combat, so a change made in combat reaches it when combat ends;
--- -- previews here take it at once.
+-- previews here take it at once.
 local function borderRows(p, owner, after, label, shown)
 	after = after or relayout
 	local r = styleRows(p, owner, "border", after)
@@ -342,7 +342,7 @@ end
 local function barFramed(bar) return tContains(ns.Bars.get(bar).kinds, "groupframe") end
 
 -- popSchool is its own setting, not a style field, so it stays whether or not the element
--- -- follows Global.
+-- follows Global.
 local function popSchoolRow(p, key, shown)
 	local function get()
 		local v = ns.elementSetting(key, "popSchool")
@@ -628,14 +628,19 @@ local function eslider(p, key, label, tip, fmt, shown, name, field)
 	return rangeSlider(p, ns.elementRange(key, name, field), label, tip, fmt, get, set, shown)
 end
 
-local function groupMenu(key)
+-- An element's group menu: its groups, or New group; after() follows a choice
+local function groupMenu(key, after)
 	return function(_, root)
 		for _, g in ipairs(db().groups) do
 			root:CreateRadio(g.name, function() return ns.groupOf(key) == g end, function()
 				if ns.groupOf(key) ~= g then ns.placeElement(key, g.id) end
+				if after then after() end
 			end)
 		end
-		root:CreateButton("New group", function() ns.placeElement(key, "new") end)
+		root:CreateButton("New group", function()
+			ns.placeElement(key, "new")
+			if after then after() end
+		end)
 	end
 end
 
@@ -724,7 +729,6 @@ local function lookBlocks(p, key)
 	p:header("Frame style")
 	K.frameRows(p, key, "frame", relayout)
 end
-
 
 -- States and events (the shapes: _Profiles). A block's owner is an element (its key) or a bar (its
 -- name); it offers the fields the owner's defaults declare, and is left out when there are none.
@@ -975,7 +979,7 @@ end
 K.eread, K.eslider, K.COUNT_POINTS = eread, eslider, COUNT_POINTS
 K.toggleBlock = toggleBlock
 K.elementDisplay, K.idleBlock, K.lookBlocks, K.reagentBlocks = elementDisplay, idleBlock, lookBlocks, reagentBlocks
-K.soundsBlock = soundsBlock
+K.soundsBlock, K.groupMenu = soundsBlock, groupMenu
 K.warnBlock, K.readyBlock, K.activeBlock, K.expiringBlock, K.killedBlock = warnBlock, readyBlock, activeBlock,
 	expiringBlock, killedBlock
 

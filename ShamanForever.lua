@@ -92,10 +92,10 @@ end
 -- table), defaults, ranges (its numbers' { min, max, step }, shaped as defaults), choices (as an
 -- element's: profiles drop a saved value it doesn't list), on() (it is in use:
 -- its styles are offered), kinds (style kinds it can have its own of), ownLabel(kind) (its name when
--- it draws that style itself); movable = { frame, nudge(dx, dy), lock() } (positioning); hud = {
--- show(opts), slots, steps(slot, mode), step(slot, state, at, range, moment) }: /sf preview on the
--- bar itself, show(nil) as it ends, each slot looping through its steps like an element, step
--- returning when it ends.
+-- it draws that style itself); movable (from ns.Positioning.mover: frame, nudge(dx, dy), lock(),
+-- update(); a right-click on it opens the bar's page); hud = { show(opts), slots, steps(slot, mode),
+-- step(slot, state, at, range, moment) }: /sf preview on the bar itself, show(nil) as it ends, each
+-- slot looping through its steps like an element, step returning when it ends.
 -- Options: icon, school, blurb, tags() and preview (its page header: a stage, as _Kinds says); page
 -- = { order, build } (titled and iconned as the bar); experiments = { { name, where } } (About's
 -- list); ownSize() (its icon size isn't Global's); tiles = { icon, schools, border() } (its style
@@ -103,6 +103,8 @@ end
 local BARS, BAR_ORDER = {}, {}
 local Bars = {}
 ns.Bars = Bars
+-- A bar's Show conditions are a group's
+Bars.SHOW_WHEN = SHOW_WHEN
 function Bars.get(key) return BARS[key] end
 function Bars.list() return BAR_ORDER end
 -- How sentences name the bars test(bar) picks ("the swing timer"), in register order, after lead
@@ -124,7 +126,7 @@ function ns.registerBar(key, spec)
 	end
 	for k, v in pairs(spec) do bar[k] = v end
 	if not spec.noun and spec.label then bar.noun = "the " .. spec.label:lower() end
-	if spec.movable then ns.Positioning.addMovable(spec.movable) end
+	if spec.movable then ns.Positioning.addMovable(spec.movable, key) end
 	if spec.page then
 		ns.Options.registerPage(key, { title = bar.label, icon = bar.icon, order = spec.page.order,
 			build = spec.page.build })
@@ -461,18 +463,8 @@ end
 -- dropped in combat. The manager re-applies its state every 0.2 s and won't show a frame it lets
 -- go of, so a driven frame is never shown or hidden by hand. Out of combat only. Groups and
 -- elements are driven separately: an element shows only when both allow it.
-local driven = {}
 local function setDriven(frame, when)
-	when = when or nil
-	if when == driven[frame] then return end
-	local site = "state driver " .. (frame:GetName() or tostring(frame))
-	if when then
-		if not ns.setVisibilityDriver(frame, when, site) then return end
-		driven[frame] = when
-	else
-		ns.setVisibilityDriver(frame, nil, site)
-		driven[frame] = nil
-	end
+	ns.setVisibilityDriver(frame, when or nil, "state driver " .. (frame:GetName() or tostring(frame)))
 end
 
 local function showFrame(frame, when)
@@ -790,7 +782,7 @@ local function selectProfile(name)
 	fillDefaults(db, DEFAULTS)
 	for _, key in ipairs(BAR_ORDER) do
 		local saved = BARS[key].saved
-		if db[saved] == nil then db[saved] = {} end
+		if type(db[saved]) ~= "table" then db[saved] = {} end
 	end
 	sanitize()
 	ns.Profiles.remember(name)

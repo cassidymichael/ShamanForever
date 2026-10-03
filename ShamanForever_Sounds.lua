@@ -28,16 +28,9 @@ local CHANNEL_OK = { Master = true, SFX = true, Dialog = true }
 
 local function kit(g) return SOUNDKIT and SOUNDKIT[g[3]] end
 
--- LibSharedMedia, if loaded
-local LSM
-local function lsm()
-	local LibStub = _G.LibStub
-	if LSM == nil and LibStub then LSM = LibStub("LibSharedMedia-3.0", true) end
-	return LSM
-end
 local function lsmSound(name)
 	if name == "None" then return nil end
-	local l = lsm()
+	local l = ns.Media.lsm()
 	return l and l:Fetch("sound", name, true) or nil
 end
 
@@ -163,21 +156,10 @@ function S.choices(current)
 	for _, g in ipairs(GAME) do
 		if kit(g) then table.insert(out, { g[1], g[2] }) end
 	end
-	local l = lsm()
-	if l then
-		local more = {}
-		for name in pairs(l:HashTable("sound")) do
-			if type(name) == "string" and name ~= "None" and not gameByName[name] then table.insert(more, { name, name }) end
-		end
-		table.sort(more, function(a, b) return a[1] < b[1] end)
-		for _, m in ipairs(more) do table.insert(out, m) end
-	end
-	if type(current) == "string" and current ~= "none" and current ~= "" then
-		local listed = false
-		for _, c in ipairs(out) do if c[1] == current then listed = true break end end
-		if not listed then table.insert(out, { current, current }) end
-	end
-	return out
+	local listed = type(current) == "string" and current ~= "none" and current ~= "" and current or nil
+	return ns.Media.withShared(out, "sound", function(name)
+		if name ~= "None" and not gameByName[name] then return { name, name } end
+	end, listed)
 end
 
 -- Only the sounds the engine can play from a file ID

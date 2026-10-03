@@ -633,6 +633,7 @@ local function chips(parent, label, items, key, x, y)
 	return row.refresh
 end
 
+local SCALE = { 1, 2, 0.1 }   -- the header's Scale: { min, max, step }
 local function scaleSlider(parent, x, y)
 	local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	fs:SetPoint("LEFT", parent, "TOPLEFT", x, y)
@@ -643,10 +644,11 @@ local function scaleSlider(parent, x, y)
 	local value = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	value:SetPoint("LEFT", s, "RIGHT", 8, 0)
 	local updating = false
-	s:Init(view.scale, 1, 2, 10)
+	local per = 1 / SCALE[3]
+	s:Init(view.scale, SCALE[1], SCALE[2], (SCALE[2] - SCALE[1]) * per)
 	s:RegisterCallback(MinimalSliderWithSteppersMixin.Event.OnValueChanged, function(_, v)
 		if updating then return end
-		v = math.floor(v * 10 + 0.5) / 10
+		v = math.floor(v * per + 0.5) / per
 		if math.abs(v - view.scale) < 0.001 then return end
 		view.scale = v
 		restyleSoon()
@@ -696,7 +698,6 @@ local function header(p)
 end
 
 -- The page
--- K 24 25 26 27 28 36
 local GLOBAL = "Global settings"
 local BLOCKS = { border = { "border", "Border style" }, glow = { "glow", "Pulsing glow style" },
 	pop = { "pop", "Pop style" }, frame = { "frame", "Frame style" }, groupframe = { "groupframe", "Group frame style" } }

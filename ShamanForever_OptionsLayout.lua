@@ -624,7 +624,6 @@ function LP.build(p)
 	buildSettings(p)
 	p.gate = nil
 	-- Closed mid-drag the release may never come: drop nothing.
-	-- K 595 72 262
 	local function left()
 		if drag.key then endDrag(false) end
 		if renaming then stopRename() end

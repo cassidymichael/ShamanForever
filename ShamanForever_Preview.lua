@@ -180,8 +180,6 @@ local function repaint()
 	end
 end
 
-local ticker = CreateFrame("Frame")
-ticker:Hide()
 local function advance(key, r)
 	r.i = r.i % #r.steps + 1
 	startStep(key, r, #r.steps > 1)
@@ -190,7 +188,7 @@ local function advanceBar(r)
 	r.i = r.i % #r.steps + 1
 	startBarStep(r, #r.steps > 1)
 end
-ticker:SetScript("OnUpdate", ns.throttled(0.1, function()
+local ticker = ns.ticker(0.1, function()
 	local now = GetTime()
 	for key, r in pairs(runs) do
 		if r.live and r.nextAt then
@@ -204,7 +202,7 @@ ticker:SetScript("OnUpdate", ns.throttled(0.1, function()
 	for _, r in ipairs(barRuns) do
 		if r.nextAt and now >= r.nextAt then ns.try("preview " .. r.key, advanceBar, r) end
 	end
-end))
+end)
 
 local function restart()
 	wipe(runs)

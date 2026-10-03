@@ -25,9 +25,8 @@ local M = { name = "maelstrom" }
 ns.Maelstrom = M
 
 local KEY = "maelstrom"
-local WHITE = "Interface\\Buttons\\WHITE8x8"
-local SI = Enum and Enum.StatusBarInterpolation
-local IMMEDIATE = SI and SI.Immediate or 0
+local WHITE = ns.WHITE
+local IMMEDIATE = ns.Timer.AURA_BAR.interpolation
 
 -- count: the stack bar and number (pos: BOTTOMRIGHT | CENTER; mark: the number in markColor at
 -- five); active: five stacks
@@ -38,8 +37,7 @@ M.DEFAULTS = {
 	active = { pop = true, glow = true },
 }
 M.RANGES = { count = { barHeight = { 1, 20, 1 }, size = { 8, 40, 1 } } }
-local CHOICES = { idleWhen = { never = true, notup = true, five = true } }
-local POS = { BOTTOMRIGHT = true, CENTER = true }
+local CHOICES = { idleWhen = { "never", "notup", "five" }, count = { pos = { "BOTTOMRIGHT", "CENTER" } } }
 -- spellID: the talent's, once known
 local DEF = { key = KEY, idleChoices = {
 	{ "never", "Never", "It always shows in full" },
@@ -79,6 +77,7 @@ f.aboveProtected = true   -- Blizzard's buttons sit on it: alpha only changes ou
 f.stack()
 
 ns.registerElement(KEY, { frame = f, label = Spells.name("maelstromWeapon"), defaults = M.DEFAULTS, ranges = M.RANGES,
+	choices = CHOICES,
 	learned = function() return src.learned() end, paint = function(t) t:SetTexture(M.icon) end,
 	effects = { glow = true, pop = true },
 	standInBorder = true,
@@ -88,9 +87,8 @@ ns.registerElement(KEY, { frame = f, label = Spells.name("maelstromWeapon"), def
 	blurb = "Its stacks, with a pop and a glow at five.", experimental = "Maelstrom Weapon" })
 local function idleWhen()
 	local w = setting("idleWhen")
-	return CHOICES.idleWhen[w] and w or "notup"
+	return tContains(CHOICES.idleWhen, w) and w or "notup"
 end
-
 
 -- Containers sit at the text level + 5; parts are set from that, never read back
 local function baseLevel() return f.textFrame:GetFrameLevel() + 5 end
@@ -461,25 +459,6 @@ function M.resolve()
 	ns.ELEMENTS[KEY].label = Spells.name("maelstromWeapon")
 	DEF.spellID = Spells.known("maelstromWeapon")
 	return tostring(DEF.spellID)
-end
-
--- Numbers are clamped as profiles load (their ranges); colours and choices here
-function M.sanitize(db)
-	local o = type(db.elementOpts) == "table" and db.elementOpts[KEY]
-	if type(o) ~= "table" then return end
-	local c = o.count
-	if type(c) == "table" then
-		for _, field in ipairs({ "barHeight", "size" }) do
-			if c[field] ~= nil and type(c[field]) ~= "number" then c[field] = nil end
-		end
-		for _, field in ipairs({ "barColor", "markColor" }) do
-			if c[field] ~= nil and not ns.isColor(c[field]) then c[field] = nil end
-		end
-		if c.pos ~= nil and not POS[c.pos] then c.pos = nil end
-	end
-	for name, ok in pairs(CHOICES) do
-		if o[name] ~= nil and not ok[o[name]] then o[name] = nil end
-	end
 end
 
 -- A loading screen sends a full aura update: the buff is assigned to the pop again

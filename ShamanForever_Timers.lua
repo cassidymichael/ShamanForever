@@ -39,7 +39,7 @@ function T.cant(key, kind)
 	return out
 end
 
-local WHITE = "Interface\\Buttons\\WHITE8x8"
+local WHITE = ns.WHITE
 local TIMER_REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime or 1
 local TIMER_IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
 T.AURA_BAR = { interpolation = TIMER_IMMEDIATE, direction = TIMER_REMAINING }
@@ -85,10 +85,7 @@ local function formatRules(abbrev, tenths)
 	return rules
 end
 
-local function colorCode(c)
-	local function byte(v) return math.floor(math.min(math.max(v, 0), 1) * 255 + 0.5) end
-	return string.format("|cff%02x%02x%02x", byte(c[1]), byte(c[2]), byte(c[3]))
-end
+local colorCode = ns.colorCode
 
 local function breakpoints(s, abbrev, tenths)
 	local rules = formatRules(abbrev, tenths)
@@ -113,26 +110,21 @@ local function breakpoints(s, abbrev, tenths)
 end
 
 -- One formatter per look; a timer keeps its own, so dropping the cache never frees one in use
-local formatters, cached = {}, 0
+local formatters = ns.cache(32, function(s, abbrev, tenths)
+	local ok, made = ns.try("timer formatter", function()
+		local fm = C_StringUtil.CreateNumericRuleFormatter()
+		fm:SetBreakpoints(breakpoints(s, abbrev, tenths))
+		return fm
+	end)
+	return ok and made or false
+end)
 local function formatterFor(s)
 	if not s.timeColors then return nil end
 	local tenths = math.floor(secsIn(s.tenths, "tenths"))
 	local abbrev = secsIn(s.abbrev, "abbrev")
 	local key = string.format("%s|%d|%d|%s|%s|%s|%s", tostring(s.timeColors), abbrev, tenths,
 		tostring(s.soon), tostring(s.now), colorCode(s.soonColor), colorCode(s.nowColor))
-	local f = formatters[key]
-	if f == nil then
-		local ok, made = pcall(function()
-			local fm = C_StringUtil.CreateNumericRuleFormatter()
-			fm:SetBreakpoints(breakpoints(s, abbrev, tenths))
-			return fm
-		end)
-		if not ok then ns.noteError("timer formatter", made) end
-		if cached >= 32 then wipe(formatters); cached = 0 end
-		f = ok and made or false
-		formatters[key], cached = f, cached + 1
-	end
-	return f or nil
+	return formatters(key, s, abbrev, tenths) or nil
 end
 
 -- The widget
@@ -182,7 +174,7 @@ local function schoolColor(t)
 	return c or { 0.46, 1, 0.35 }
 end
 
--- Safe any time for our own frames; the shield's Cooldown is restyled out of combat only by its caller
+-- Safe any time for our own frames; one on Blizzard's aura button is restyled by its caller, out of combat
 function Timer:apply()
 	local s = S.get(self.key, self.kind)
 	local cant = T.cant(self.key, self.kind)
@@ -204,7 +196,7 @@ function Timer:apply()
 		pcall(cd.SetCountdownMillisecondsThreshold, cd, ms)
 	end
 	local c = s.textColor
-	ns.Media.setFontObject(self.font, self.key, s.textSize)
+	ns.Media.setFont(self.font, self.key, s.textSize)
 	self.font:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 	cd:SetCountdownFont(self.fontName)
 	self.barOn = self.bar ~= nil and s.bar and not cant.bar
@@ -309,18 +301,15 @@ end
 -- Expiring: a warning over the icon in a timer's last seconds. Its alpha is the time left through
 -- a curve, evaluated ten times a second, so it works in combat.
 local warning = {}
-local ticker = CreateFrame("Frame")
-ticker:Hide()
-ticker:SetScript("OnUpdate", ns.throttled(0.1, function()
+local ticker = ns.ticker(0.1, function()
 	for t in pairs(warning) do
 		local d = t.last
 		if d then
-			-- pcall, not ns.try: ten times a second, must not allocate
-			local ok, a = pcall(d.EvaluateRemainingDuration, d, t.expCurve)
-			if ok then t.exp:SetAlpha(a) else t.exp:SetAlpha(0); ns.noteError("timer expiring", a) end
+			local ok, a = ns.try("timer expiring", d.EvaluateRemainingDuration, d, t.expCurve)
+			if ok then t.exp:SetAlpha(a) else t.exp:SetAlpha(0) end
 		else t.exp:SetAlpha(0) end
 	end
-end))
+end)
 
 -- The expire part (ns.registerPart): Expiring's settings for a kind that sets def.expires,
 -- def.expireLooks (the looks it offers; default all) and def.expireRange (Warn in the last)
@@ -338,7 +327,7 @@ ns.registerPart("expire", {
 	glow = function(def) return def.defaults.expire.glow ~= nil end,
 })
 
--- e: { secs, grey, ring, fade, glow } (secs 0: off), an element's or the totem bar's expire
+-- e: { secs, grey, ring, fade, glow } (secs 0: off), an element's or a bar's expire
 function Timer:setExpire(e, icon)
 	if not e or (e.secs or 0) <= 0 or not ns.lastSeconds(e.secs) then
 		warning[self] = nil

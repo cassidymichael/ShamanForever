@@ -130,7 +130,7 @@ function FR.validate(e, kind)
 end
 
 -- Geometry: units from the box's top-left, y down, rounded to whole pixels
-local function round(v, px) return floor(v / px + 0.5) * px end
+local round, ICON = ns.roundPx, ns.BASE_ICON_SIZE
 local function atLeast(v, px) return max(px, round(v, px)) end
 
 local function drawnSize(a)
@@ -228,8 +228,8 @@ local function edgeParts(parts, a, x0, y0, len, thick, along, tile, k, px)
 end
 
 local function frameParts(look, W, H, size, px, parts)
-	local k = look.scale * size / 44
-	local o = round(look.rim * k + (look.gap or 0) * size / 44, px)
+	local k = look.scale * size / ICON
+	local o = round(look.rim * k + (look.gap or 0) * size / ICON, px)
 	local X0, Y0, X1, Y1 = -o, -o, W + o, H + o
 	local OW, OH = X1 - X0, Y1 - Y0
 	if look.slice then
@@ -387,7 +387,7 @@ local function reachOf(look, kind)
 		return { left = h[1] / h[3], right = max(0, (c.last.size[1] - hxUnit - h[3]) / h[3]), top = h[2] / h[3],
 			bottom = max(0, (c.first.size[2] - h[2] - h[4]) / h[3]) }
 	end
-	local o = max(0, (look.rim * look.scale + (look.gap or 0)) / 44)
+	local o = max(0, (look.rim * look.scale + (look.gap or 0)) / ICON)
 	return { left = o, right = o, top = o, bottom = o }
 end
 
@@ -399,7 +399,7 @@ function FR.fitSpacing(look, size, px)
 		return round((look.cells.unit.size[1] - h[3]) * size / h[3], px)
 	end
 	if look.between then
-		return atLeast(drawnSize(look.between.art) * look.scale * size / 44, px)
+		return atLeast(drawnSize(look.between.art) * look.scale * size / ICON, px)
 	end
 end
 

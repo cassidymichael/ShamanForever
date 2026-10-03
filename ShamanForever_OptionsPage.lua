@@ -15,7 +15,7 @@ local SLIDER_SPAN_W = 400
 local TEXT_MAX_W = 600
 local PANEL_PAD, PANEL_PAD_B, BLOCK_GAP = 10, 6, 10
 -- Fold state is saved per page and header text; an untouched block starts folded unless it is
--- -- the page's first, under an open section, or its page or header says open.
+-- the page's first, under an open section, or its page or header says open.
 local function folded() return ns.getAccount().foldedBlocks end
 local function isFolded(b)
 	local v = folded()[b.key]
@@ -54,7 +54,7 @@ function Page.new(win, key, title, indent)
 	end)
 	content:SetScript("OnSizeChanged", function() scroll:UpdateScrollChildRect() end)
 	-- Blizzard's handler re-sets the position from its scroll bar's fraction: the held place is put
-	-- -- back after it.
+	-- back after it.
 	scroll:HookScript("OnScrollRangeChanged", function() if page.hold then page:keepScroll() end end)
 	scroll:Hide()
 	table.insert(allPages, page)
@@ -62,8 +62,8 @@ function Page.new(win, key, title, indent)
 end
 
 -- Resizing feeds back on itself (the range follows the frame, the position the range) and can send
--- -- the page to the top: from the grip's press until two frames after its release the page holds
--- -- its place, and it is laid out once at the end.
+-- the page to the top: from the grip's press until two frames after its release the page holds
+-- its place, and it is laid out once at the end.
 local resized
 
 function Page.startResize(page)
@@ -333,7 +333,7 @@ local function onList(b)
 	return table.concat(on, ", ")
 end
 
--- A client without the trainer's atlases gets the totem bar's arrow.
+-- A client without the trainer's atlases gets Blizzard's older arrow.
 local ARROW_BOX = 14
 local arrowAtlas = {}
 local function paintArrow(t, shut)
@@ -481,7 +481,6 @@ local function same(a, b)
 	for k in pairs(b) do if a[k] == nil then return false end end
 	return true
 end
-Page.same = same
 
 local function defaultOf(r)
 	if r.default then return r.default() end
@@ -501,7 +500,7 @@ local function refChanged(r)
 end
 
 -- The same path as a change by hand, so combat rules hold: layout waits, aura buttons restyle
--- -- after combat, and what can't change in combat is left, said once.
+-- after combat, and what can't change in combat is left, said once.
 local function resetRefs(list)
 	local afters, seen, refused = {}, {}, {}
 	for _, r in ipairs(list) do
@@ -915,7 +914,7 @@ function Page:dropdown(label, tip, choices, get, set, shown, width, menu)
 	end
 	f.dropdown = dd
 	-- Never while the list is open: Blizzard rebuilds it in place and a scrolling one keeps old rows
-	-- -- (blank gaps); a change waits for it to close.
+	-- (blank gaps); a change waits for it to close.
 	local was
 	local function update()
 		local now = tostring(get())
@@ -1136,7 +1135,6 @@ function Page:experimental(name, where)
 end
 
 -- Drag and drop in a list
--- K 952 1058
 function Page.dragGhost(onMove)
 	local ghost = CreateFrame("Frame", nil, UIParent)
 	ghost:SetFrameStrata("TOOLTIP")

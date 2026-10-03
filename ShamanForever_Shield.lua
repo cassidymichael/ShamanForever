@@ -34,6 +34,9 @@ local IDLE_CHOICES = {
 			.. "It shows in full at 1 charge and as No shield at 0",
 		"Shown in full at 1 charge and as No shield." },
 }
+local COUNT_POS, TRACK = {}, { "either" }
+for pos in pairs(ns.COUNT_JUSTIFY) do table.insert(COUNT_POS, pos) end
+for _, key in ipairs(SHIELD_ORDER) do table.insert(TRACK, key) end
 ns.registerElement("shield", { frame = shield, label = "Shields", paint = function(t) t:SetTexture(SH.icon()) end,
 	learned = function() return SH.learned() end,
 	defaults = { idleWhen = "never", idleAlpha = 0.3,
@@ -42,6 +45,7 @@ ns.registerElement("shield", { frame = shield, label = "Shields", paint = functi
 			size = 20, mark = false, markColor = { 1, 0.25, 0.2, 1 } },
 		warn = { grey = true, ring = true, fade = false, tint = false, glow = true, sound = "none" } },
 	ranges = { count = { size = { 8, 64, 1 }, barHeight = { 1, 20, 1 } } },
+	choices = { track = TRACK, count = { pos = COUNT_POS } },
 	styles = { glow = { look = "soft" },
 		uptime = { text = false, swipe = false, swipeAlpha = 0.5, swipeReverse = false, bar = false, barEdge = "top" } },
 	def = { key = "shield", idleChoices = IDLE_CHOICES },
@@ -77,15 +81,6 @@ local CHARGES = 3
 local function placeCount(fs, icon) Count.place(fs, icon, count("pos")) end
 
 function SH.sanitize(_, acct)
-	local o = ns.elementOpts("shield")
-	if o.track ~= nil and o.track ~= "either" and not SHIELDS[o.track] then o.track = nil end
-	local c = o.count
-	if type(c) == "table" then
-		if c.pos ~= nil and not ns.COUNT_JUSTIFY[c.pos] then c.pos = nil end
-		for _, k in ipairs({ "barColor", "markColor" }) do
-			if c[k] ~= nil and not ns.isColor(c[k]) then c[k] = nil end
-		end
-	end
 	if not SHIELDS[acct.lastShield] then acct.lastShield = "lightning" end
 end
 
@@ -159,15 +154,13 @@ local lookOn, lookState, watching = false, nil, false
 local CAST_HOLD, LOAD_HOLD = 0.3, 1
 local holdUntil = 0
 
-local function aurasUnread() return ns.inCombat() or not ns.aurasReadable() end
-
 local function blocked()
 	return ns.cantAct() or ns.plainYes(UnitInVehicle, "player")
 end
 
 local function stateNow()
 	if not lookOn or standIn then return nil end
-	if aurasUnread() then
+	if not ns.aurasReadNow() then
 		if GetTime() < holdUntil then return nil end
 	elseif believedUp() ~= false then return nil end
 	if blocked() then return setting("shield", "warn", "grey") and "grey" or nil end
@@ -190,7 +183,7 @@ local watch
 local function guard(self)
 	local st = stateNow()
 	if st ~= lookState then setLook(st) end
-	if not (aurasUnread() or GetTime() < holdUntil) then
+	if ns.aurasReadNow() and GetTime() >= holdUntil then
 		self:SetScript("OnUpdate", nil)
 		watching = false
 	end
@@ -369,12 +362,11 @@ local function buildNative(slot, button, cd)
 	slot.edge = FR.edge(button, button, "shield", { overlay = false })
 	local overlay = CreateFrame("Frame", nil, button)
 	overlay:SetAllPoints()
-	local lv = cd:GetFrameLevel() + 2
-	overlay:SetFrameLevel(lv)
+	overlay:SetFrameLevel(cd:GetFrameLevel() + 2)
 	slot.overlay = overlay
 	Count.text(slot, button, overlay, function(fs) countFont(fs, button) end, "shield count")
 	-- min 0: one charge is one third, not empty
-	local bar = Count.bar(slot, overlay, button, lv + 1)
+	local bar = Count.bar(slot, overlay, button)
 	ns.try("shield count bar", button.SetApplicationBar, button, bar, { minApplications = 0, maxApplications = CHARGES })
 	Count.styleBar(slot, ns.sizeOf("shield"), CHARGES, count("barHeight"), barColor(), count("bar"))
 	slot.fs:SetAlpha(count("number") and 1 or 0)
@@ -420,9 +412,8 @@ native = ns.makeAuraSlot(shield, {
 -- It counts (copyReady) only once made, sized and matching every tracked shield; until then the gate
 -- stays full.
 local IDLE_LEVEL = 8   -- levels above the shield's button and its parts
-local WHITE = "Interface\\Buttons\\WHITE8x8"
-local SI = Enum and Enum.StatusBarInterpolation
-local IMMEDIATE = SI and SI.Immediate or 0
+local WHITE = ns.WHITE
+local IMMEDIATE = ns.Timer.AURA_BAR.interpolation
 
 full = CreateFrame("Frame", nil, shield)
 full:SetAllPoints(shield)
@@ -624,7 +615,7 @@ function SH.debug()
 	say("shield tracking %s (last %s), up at the last read %s (shield up %s)", setting("shield", "track"),
 		ns.getAccount().lastShield, up == nil and "unknown" or tostring(up), tostring(upShield))
 	say("no-shield look: %s, %s, state %s; button %s, cast hold %s", lookOn and "on" or "off",
-		aurasUnread() and "sensor decides" or "read decides too", tostring(lookState),
+		ns.aurasReadNow() and "read decides too" or "sensor decides", tostring(lookState),
 		native.button and "made" or "not made", GetTime() < holdUntil and "on" or "off")
 	for _, key in ipairs(SHIELD_ORDER) do
 		local s = SHIELDS[key]

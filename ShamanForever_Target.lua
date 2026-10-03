@@ -81,7 +81,7 @@ local function wantedUnit() return hostileTarget() and "target" or "none" end
 -- Expiring, drawn by the engine
 -- A plain read of another length turns the bar cue off (auraOnTarget)
 local FAST = 240   -- the cover crosses its clip in a 240th of the aura's length
-local WHITE = "Interface\\Buttons\\WHITE8x8"
+local WHITE = ns.WHITE
 local RED = { 1, 0.2, 0.2, 1 }
 local REMAINING = Enum and Enum.DurationTextBindingProperty and Enum.DurationTextBindingProperty.RemainingDuration or 0
 
@@ -96,21 +96,17 @@ local function makeExpireBar(button, key)
 	return x
 end
 
--- Step colour curve: red under secs, colour c from there (32 kept)
-local curves, cached = {}, 0
+-- Step colour curve: red under secs, colour c from there
+local curves = ns.cache(32, function(secs, c)
+	local curve = C_CurveUtil.CreateColorCurve()
+	if Enum and Enum.LuaCurveType then pcall(curve.SetType, curve, Enum.LuaCurveType.Step) end
+	curve:AddPoint(0, CreateColor(RED[1], RED[2], RED[3], RED[4]))
+	curve:AddPoint(secs, CreateColor(c[1], c[2], c[3], c[4] or 1))
+	return curve
+end)
 local function textCurve(secs, c)
 	if not (C_CurveUtil and C_CurveUtil.CreateColorCurve and CreateColor) then return nil end
-	local id = string.format("%d:%.3f:%.3f:%.3f:%.3f", secs, c[1], c[2], c[3], c[4] or 1)
-	if curves[id] == nil then
-		if cached >= 32 then wipe(curves); cached = 0 end
-		cached = cached + 1
-		local curve = C_CurveUtil.CreateColorCurve()
-		if Enum and Enum.LuaCurveType then pcall(curve.SetType, curve, Enum.LuaCurveType.Step) end
-		curve:AddPoint(0, CreateColor(RED[1], RED[2], RED[3], RED[4]))
-		curve:AddPoint(secs, CreateColor(c[1], c[2], c[3], c[4] or 1))
-		curves[id] = curve
-	end
-	return curves[id]
+	return curves(string.format("%d:%.3f:%.3f:%.3f:%.3f", secs, c[1], c[2], c[3], c[4] or 1), secs, c)
 end
 
 local styleExpireText
@@ -389,7 +385,6 @@ local function driveGate(def)
 end
 
 -- Not on target (rows with missing)
-local function readable() return not ns.inCombat() and ns.aurasReadable() end
 
 -- nil when it can't be told (read fails or secret). Any rank counts: by ID, by key or by the
 -- client's name for it
@@ -397,7 +392,7 @@ local function auraOnTarget(def)
 	local ids, key = ns.Buffs.auraIDs(def), def.auraKey
 	local want = key and Spells.name(key)
 	for i = 1, 40 do
-		local ok, a = pcall(C_UnitAuras.GetAuraDataByIndex, "target", i, def.filter)
+		local ok, a = ns.safe(C_UnitAuras.GetAuraDataByIndex, "target", i, def.filter)
 		if not ok or isSecret(a) then return nil end
 		if a == nil then return false end
 		local id, name, dur = a.spellId, a.name, a.duration
@@ -418,7 +413,7 @@ local function auraOnTarget(def)
 end
 
 local function readWanted(def)
-	return def.spellID and ns.isEnabled(def.key) and readable() and hostileTarget()
+	return def.spellID and ns.isEnabled(def.key) and ns.aurasReadNow() and hostileTarget()
 end
 
 local function stateLook(def)

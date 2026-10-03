@@ -33,7 +33,7 @@ if not ns.THEME.barColor then
 	end
 end
 
-ns.BACKDROP = { bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 }
+ns.BACKDROP = { bgFile = ns.WHITE, edgeFile = ns.WHITE, edgeSize = 1 }
 
 -- A tooltip: title, then text in white (either may be a function); anchor: a GameTooltip one, or "above"
 function ns.setTip(frame, title, text, anchor)
@@ -158,8 +158,6 @@ fader:SetScript("OnUpdate", function(self, elapsed)
 	end
 	if next(fading) == nil then self:Hide() end
 end)
--- Going idle waits this long, so a pop plays at full first
-ns.IDLE_DELAY = 1.5
 function ns.fadeTo(f, alpha)
 	if f.aboveProtected and InCombatLockdown() then return end
 	if math.abs(f:GetAlpha() - alpha) < 0.005 then
@@ -258,7 +256,7 @@ function ns.makeGCDSweep(parent)
 	cd:SetDrawEdge(false)
 	cd:SetDrawBling(false)
 	cd:SetHideCountdownNumbers(true)
-	cd:SetSwipeTexture("Interface\\Buttons\\WHITE8x8")
+	cd:SetSwipeTexture(ns.WHITE)
 	cd:SetSwipeColor(0, 0, 0, 0.6)
 	ns.Looks.followSwipe(parent, cd)
 	return cd
@@ -293,7 +291,6 @@ local function initAuraButton(slot, button)
 	local tex = host:CreateTexture(nil, "ARTWORK")
 	tex:SetAllPoints()
 	ns.cropIconExact(tex)
-	if o.iconAlpha then tex:SetAlpha(o.iconAlpha()) end
 	if o.ownIcon then tex:SetTexture(o.ownIcon()) else button:SetIcon(tex) end
 	slot.icon = tex
 	ns.try(o.sites.style, ns.Looks.auraMask, host, tex, o.key)
@@ -471,40 +468,32 @@ function Count.text(slot, button, parent, place, site)
 	return fs
 end
 
-local formatters, made = {}, 0
-local function byte(v) return math.floor(math.min(math.max(v, 0), 1) * 255 + 0.5) end
+local formatters = ns.cache(8, function(code, markAt, max, site)
+	local ok, new = ns.try(site, function()
+		local x = C_StringUtil.CreateNumericRuleFormatter()
+		local rules = { { threshold = 0, format = "%d" } }
+		if code ~= "" then
+			table.insert(rules, { threshold = markAt, format = code .. "%d|r" })
+			if markAt < max then table.insert(rules, { threshold = markAt + 1, format = "%d" }) end
+		end
+		x:SetBreakpoints(rules)
+		for n = 0, max do
+			local text = x:FormatNumber(n)
+			local coloured = code ~= "" and n == markAt
+			if type(text) ~= "string" or ns.isSecret(text) or (coloured and not text:lower():find(code, 1, true)) then
+				error(string.format("formatted %d as %s", n, tostring(text)))
+			end
+		end
+		return x
+	end)
+	return ok and new or false
+end)
 -- Prints every count from 0 (without one Blizzard prints from 2), markAt in markColor (nil: none).
 -- Tried on 0 to max first: an error would stop Blizzard's aura update. nil if the client can't.
 function Count.formatter(markColor, markAt, max, site)
 	if not (C_StringUtil and C_StringUtil.CreateNumericRuleFormatter) then return nil end
-	local code = markColor and string.format("|cff%02x%02x%02x", byte(markColor[1]), byte(markColor[2]),
-		byte(markColor[3])) or ""
-	local id = code .. ":" .. tostring(markAt) .. ":" .. max
-	local fm = formatters[id]
-	if fm == nil then
-		if made >= 8 then wipe(formatters); made = 0 end
-		made = made + 1
-		local ok, new = ns.try(site, function()
-			local x = C_StringUtil.CreateNumericRuleFormatter()
-			local rules = { { threshold = 0, format = "%d" } }
-			if code ~= "" then
-				table.insert(rules, { threshold = markAt, format = code .. "%d|r" })
-				if markAt < max then table.insert(rules, { threshold = markAt + 1, format = "%d" }) end
-			end
-			x:SetBreakpoints(rules)
-			for n = 0, max do
-				local text = x:FormatNumber(n)
-				local coloured = code ~= "" and n == markAt
-				if type(text) ~= "string" or ns.isSecret(text) or (coloured and not text:lower():find(code, 1, true)) then
-					error(string.format("formatted %d as %s", n, tostring(text)))
-				end
-			end
-			return x
-		end)
-		fm = ok and new or false
-		formatters[id] = fm
-	end
-	return fm or nil
+	local code = markColor and ns.colorCode(markColor) or ""
+	return formatters(code .. ":" .. tostring(markAt) .. ":" .. max, code, markAt, max, site) or nil
 end
 
 -- Hands the button a formatter (nil: Blizzard's own count), once per change
@@ -516,9 +505,9 @@ function Count.setFormat(slot, fm, site)
 	end
 end
 
--- A bar along anchor's bottom, on a dark back, with a tick between segments (Count.styleBar);
--- level: the bar's, if given. The ticks are the bar's child, so they sit over it.
-function Count.bar(slot, parent, anchor, level)
+-- A bar along anchor's bottom, on a dark back, with a tick between segments (Count.styleBar).
+-- The ticks are the bar's child, so they sit over it.
+function Count.bar(slot, parent, anchor)
 	local bar = CreateFrame("StatusBar", nil, parent)
 	bar:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", 0, 0)
 	bar:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", 0, 0)
@@ -526,7 +515,6 @@ function Count.bar(slot, parent, anchor, level)
 	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
 	bar.bg:SetAllPoints()
 	bar.bg:SetColorTexture(0, 0, 0, 0.6)
-	if level then bar:SetFrameLevel(level) end
 	local ticks = CreateFrame("Frame", nil, bar)
 	ticks:SetAllPoints(bar)
 	slot.bar, slot.tickFrame, slot.ticks = bar, ticks, {}

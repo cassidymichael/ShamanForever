@@ -1,7 +1,7 @@
 -- Shocks
 
 local _, ns = ...
-local say, isSecret, safe, describeArg = ns.say, ns.isSecret, ns.safe, ns.describeArg
+local say, safe, describeArg = ns.say, ns.safe, ns.describeArg
 local Spells, CD = ns.Spells, ns.Cooldowns
 
 local SK = { name = "shock" }
@@ -85,8 +85,7 @@ local function refreshRange()
 		return
 	end
 	-- Fires for other spells' checks too: the ticker covers ours
-	local ok, r = safe(C_Spell.IsSpellInRange, shockSpellID, "target")
-	shockState.outOfRange = ok and not isSecret(r) and r == false
+	shockState.outOfRange = ns.plain(safe(C_Spell.IsSpellInRange, shockSpellID, "target")) == false
 	drawTint()
 end
 
@@ -97,7 +96,7 @@ local function refreshMana()
 		return
 	end
 	local ok, _, noPower = safe(C_Spell.IsSpellUsable, manaSpellID)
-	shockState.noMana = ok and not isSecret(noPower) and noPower == true
+	shockState.noMana = ns.plain(ok, noPower) == true
 	drawTint()
 end
 
@@ -112,7 +111,7 @@ local function refreshGlow()
 	shock.glowF:fit(shock:GetWidth())
 	shock.glowF:SetAlpha(CD.readyAlpha(shockSpellID, ns.cantAct()))
 end
-local glowTicker = CD.readyTicker(refreshGlow)
+local glowTicker = ns.ticker(0.1, refreshGlow)
 local function syncGlowTicker()
 	local want = ns.isActive() and ns.isEnabled("shock") and setting("shock", "ready", "glow")
 	glowTicker:SetShown(want and true or false)

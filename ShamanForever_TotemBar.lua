@@ -93,8 +93,8 @@ local RANGES = {
 	expire = { secs = EXPIRE_SECS },
 }
 TB.RANGES = RANGES
-local EVENTS = { "expire", "ended", "killed" }
-local function finite(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
+local CHOICES = { mode = { "blizzard", "active", "everything" }, show = { "always", "active", "combat", "target" },
+	barPlace = { "in", "out" }, setSwitch = { "popout", "cycle" }, stonePlinth = { "slim", "normal", "grand" } }
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
 
 local EXPIRE_OVER = { earthbind = 5, stoneclaw = 5, manaTide = 3 }
@@ -119,41 +119,14 @@ function TB.overChanged(over)
 	return false
 end
 
+-- What the profile's cleaning can't declare, once per saved table
 local cfgTable
 local function cfg()
-	local db = ns.getDB()
-	if type(db.totemBar) ~= "table" then db.totemBar = {} end
-	local t = db.totemBar
+	local t = ns.getDB().totemBar
 	if t ~= cfgTable then
-		if t.mode == nil and (t.enabled == false or t.show == "never") then t.mode = "blizzard" end
-		if t.follow == false then
-			t.sizeFollow = false
-			if type(t.border) == "table" then t.border.follow = false end
-		elseif t.follow == true then t.size, t.border = nil, nil end
-		t.enabled, t.hideTotemFrame, t.hideActionBar, t.killedPulse, t.follow = nil, nil, nil, nil, nil
-		if t.mode ~= "blizzard" and t.mode ~= "active" and t.mode ~= "everything" then t.mode = nil end
-		if t.show ~= "always" and t.show ~= "active" and t.show ~= "combat" and t.show ~= "target" then t.show = nil end
-		if t.barPlace ~= "in" and t.barPlace ~= "out" then t.barPlace = nil end
-		if t.setSwitch ~= "popout" and t.setSwitch ~= "cycle" then t.setSwitch = nil end
-		if t.stonePlinth ~= "slim" and t.stonePlinth ~= "normal" and t.stonePlinth ~= "grand" then t.stonePlinth = nil end
 		if type(t.expire) ~= "table" then t.expire = {} end
 		if type(t.expire.over) ~= "table" then t.expire.over = TB.overDefaults() end
-		for k, v in pairs(TB.DEFAULTS) do
-			if type(t[k]) ~= type(v) then t[k] = type(v) == "table" and CopyTable(v) or v end
-		end
-		for _, name in ipairs(EVENTS) do
-			local e = t[name]
-			for k, v in pairs(TB.DEFAULTS[name]) do
-				if type(e[k]) ~= type(v) then e[k] = type(v) == "table" and CopyTable(v) or v end
-			end
-		end
-		for k, r in pairs(RANGES) do
-			if type(t[k]) == "number" then
-				if t[k] ~= t[k] then t[k] = TB.DEFAULTS[k] else t[k] = clamp(t[k], r) end
-			end
-		end
-		if not finite(t.x) then t.x = TB.DEFAULTS.x end
-		if not finite(t.y) then t.y = TB.DEFAULTS.y end
+		ns.fillParts(t, TB.DEFAULTS)
 		if not ns.POINTS[t.point] then t.point, t.x, t.y = TB.DEFAULTS.point, TB.DEFAULTS.x, TB.DEFAULTS.y end
 		local seen, order = {}, {}
 		for _, el in ipairs(t.order) do
@@ -161,16 +134,12 @@ local function cfg()
 		end
 		for _, el in ipairs(ELEMENTS) do if not seen[el] then table.insert(order, el) end end
 		t.order = order
-		local x = t.expire
-		x.secs = x.secs == x.secs and clamp(x.secs, EXPIRE_SECS) or TB.DEFAULTS.expire.secs
-		for name, v in pairs(x.over) do
-			if type(name) ~= "string" or type(v) ~= "number" or v ~= v then x.over[name] = nil
-			else x.over[name] = clamp(v, EXPIRE_SECS) end
+		local over = t.expire.over
+		for name, v in pairs(over) do
+			if type(name) ~= "string" or type(v) ~= "number" or v ~= v then over[name] = nil
+			else over[name] = clamp(v, EXPIRE_SECS) end
 		end
 		if type(t.size) ~= "number" then t.size = nil end
-		for _, k in ipairs({ "rangeIn", "rangeOut", "keyColor" }) do
-			if not ns.isColor(t[k]) then t[k] = CopyTable(TB.DEFAULTS[k]) end
-		end
 		cfgTable = t
 	end
 	return t
@@ -443,7 +412,7 @@ local function keyLayer(v)
 	f.text = ns.makeKeyText(f)
 	f.glow = f:CreateTexture(nil, "OVERLAY")
 	f.glow:SetAllPoints()
-	if C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(KEY_HIGHLIGHT) then f.glow:SetAtlas(KEY_HIGHLIGHT)
+	if ns.Looks.hasAtlas(KEY_HIGHLIGHT) then f.glow:SetAtlas(KEY_HIGHLIGHT)
 	else f.glow:SetColorTexture(1, 0.82, 0, 0.3) end
 	f.glow:Hide()
 	return f
@@ -954,9 +923,7 @@ local function refresh()
 	if anyDown ~= wasDown and cfg().show == "active" then layout() end
 end
 
-local ticker = CreateFrame("Frame")
-ticker:Hide()
-ticker:SetScript("OnUpdate", ns.throttled(0.1, function()
+local ticker = ns.ticker(0.1, function()
 	if not bar:IsShown() then return end
 	local arrows = feat("arrows")
 	for _, el in ipairs(ELEMENTS) do
@@ -965,7 +932,7 @@ ticker:SetScript("OnUpdate", ns.throttled(0.1, function()
 		if s.down and not preview then TB.drawTimeLeft(s) end
 	end
 	if setSlot.on then hover(setSlot, arrows) end
-end))
+end)
 
 -- Blizzard's totem frames
 -- The totems under the player frame: made invisible and click-through rather than hidden, since
@@ -1131,26 +1098,18 @@ local function ownDriver()
 	if preview then return barOn() and (hasTotems or preview.all) and "show" or "hide" end
 	if not barOn() or not hasTotems then return "hide" end
 	if kbOpen or not ns.getAccount().locked then return "show" end
-	if c.show == "combat" then return "[petbattle] hide; [combat] show; hide" end
-	if c.show == "target" then return "[petbattle] hide; [combat] show; [@target,exists,harm,nodead] show; hide" end
-	if c.show == "active" then return "[petbattle] hide; [combat] show; " .. (anyDown and "show" or "hide") end
-	return "[petbattle] hide; show"
+	if c.show == "active" then return "[combat] show; " .. (anyDown and "show" or "hide") end
+	return ns.Bars.SHOW_WHEN[c.show] or "show"
 end
 local afterCombat
 local function visibilityDriver()
 	if ns.AfterCombat.held(afterCombat) and barOn() and ns.getAccount().locked and not kbOpen
 		and cfg().show ~= "always" then
-		return "[petbattle] hide; show"
+		return "show"
 	end
 	return ownDriver()
 end
-local lastDriver
-local function drive()
-	local driver = visibilityDriver()
-	if driver ~= lastDriver and ns.setVisibilityDriver(bar, driver, "totem bar driver") then
-		lastDriver = driver
-	end
-end
+local function drive() ns.setVisibilityDriver(bar, visibilityDriver(), "totem bar driver") end
 
 function layout()
 	if ns.deferInCombat("totem bar layout", layout) then return end
@@ -1332,7 +1291,7 @@ movable = ns.Positioning.mover({ frame = bar, label = "Totem bar", cfg = cfg, ra
 		return from
 	end },
 	shown = function() return barOn() and (hasTotems or (preview and preview.all)) end,
-	place = layout, open = function() ns.Options.open("totembar") end,
+	place = layout,
 	lock = function() ns.retryAfterCombat("totem bar layout", layout) end,
 	describe = function()
 		local c = cfg()
@@ -1739,7 +1698,6 @@ local function showPreview(opts)
 			end
 			s.dur = nil
 		end
-		lastDriver = nil
 	end
 end
 
@@ -1771,9 +1729,11 @@ function TB.debug()
 	local gok, ginfo = pcall(C_ActionBar.GetActionCooldown, multiAction(SLOT.earth))
 	local g = not gok and "error" or type(ginfo) ~= "table" and "none"
 		or isSecret(ginfo.isOnGCD) and "secret" or tostring(ginfo.isOnGCD)
+	local driver, wants = ns.visibilityDriverOf(bar), visibilityDriver()
+	driver = tostring(driver) .. (driver ~= wants and " (wants " .. tostring(wants) .. ")" or "")
 	ns.say("totem bar mode %s, show %s, driver %s, shown %s, totems known %s, set %d of %d, "
 		.. "earth isOnGCD %s; TotemFrame parent %s alpha %s; Totem Action Bar parent %s",
-		c.mode, c.show, tostring(lastDriver), tostring(bar:IsShown()), tostring(hasTotems),
+		c.mode, c.show, driver, tostring(bar:IsShown()), tostring(hasTotems),
 		TS.active(), TS.count(), g,
 		TotemFrame and TotemFrame:GetParent() and (TotemFrame:GetParent():GetName() or "?") or "none",
 		TotemFrame and string.format("%.2f", TotemFrame:GetAlpha()) or "-",
@@ -1781,7 +1741,8 @@ function TB.debug()
 end
 
 ns.registerBar("totembar", { label = "Totem bar", cfg = cfg, saved = "totemBar", defaults = TB.DEFAULTS,
-	ranges = TB.RANGES, on = barOn, kinds = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
+	ranges = TB.RANGES, choices = CHOICES, on = barOn,
+	kinds = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
 	-- Its theme can draw its own border
 	ownLabel = function(kind)
 		if kind == "border" and TB.skin.owns("border") then return "Totem bar (its theme)" end

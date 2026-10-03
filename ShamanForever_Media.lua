@@ -28,7 +28,7 @@ local FONTS = {
 }
 -- 2002 Bold is not offered: same as Friz Quadrata
 local NOT_OFFERED = { ["fonts\\2002b.ttf"] = true }
-local FLAT = "Interface\\Buttons\\WHITE8x8"
+local FLAT = ns.WHITE
 local BARS = {
 	{ "Blizzard", "Interface\\TargetingFrame\\UI-TargetingFrame-BarFill" },
 	{ "Blizzard Raid Bar", "Interface\\RaidFrame\\Raid-Bar-Hp-Fill" },
@@ -54,6 +54,26 @@ local function lsm()
 		end
 	end
 	return LSM
+end
+M.lsm = lsm
+
+-- Adds to a choice list LibSharedMedia's mediaType by name, each as row(name, path) gives it (nil:
+-- not offered); then current, if given and not listed
+function M.withShared(out, mediaType, row, current)
+	local l = lsm()
+	if l then
+		local more = {}
+		for name, path in pairs(l:HashTable(mediaType)) do
+			local r = type(name) == "string" and row(name, path)
+			if r then table.insert(more, r) end
+		end
+		table.sort(more, function(a, b) return a[1] < b[1] end)
+		for _, r in ipairs(more) do table.insert(out, r) end
+	end
+	if current == nil then return out end
+	for _, r in ipairs(out) do if r[1] == current then return out end end
+	table.insert(out, { current, current })
+	return out
 end
 
 -- Fonts
@@ -164,15 +184,11 @@ local function shade(r, shadow)
 		r.sfShadow = shadow
 	end
 end
+-- A font string's or a font object's font
 function M.setFont(fs, o, size)
 	local path, flags, shadow = M.text(o)
 	fs:SetFont(path, size, flags)
 	shade(fs, shadow)
-end
-function M.setFontObject(obj, o, size)
-	local path, flags, shadow = M.text(o)
-	obj:SetFont(path, size, flags)
-	shade(obj, shadow)
 end
 
 local function textKeyOf(o)
@@ -255,18 +271,11 @@ end
 function M.fonts(current)
 	local out = { { "", "Default" } }
 	for _, f in ipairs(FONTS) do table.insert(out, { f[1], f[1], f[2] }) end
-	local l = lsm()
-	if l then
-		local more = {}
-		for name, path in pairs(l:HashTable("font")) do
-			if not fontByName[name] and type(name) == "string" and type(path) == "string"
-				and not NOT_OFFERED[path:lower()] then
-				table.insert(more, { name, name, path })
-			end
+	M.withShared(out, "font", function(name, path)
+		if not fontByName[name] and type(path) == "string" and not NOT_OFFERED[path:lower()] then
+			return { name, name, path }
 		end
-		table.sort(more, function(a, b) return a[1] < b[1] end)
-		for _, f in ipairs(more) do table.insert(out, f) end
-	end
+	end)
 	local list, unsettled = {}, false
 	for _, f in ipairs(out) do
 		local st = f[3] and state[f[3]]
@@ -306,7 +315,7 @@ local function bar(name)
 	local b = barByName[name]
 	if b then
 		if not b.atlas then return b[2], false end
-		if C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(b[2]) then return b[2], true end
+		if ns.Looks.hasAtlas(b[2]) then return b[2], true end
 		return FLAT, false, false
 	end
 	local l = lsm()
@@ -330,27 +339,16 @@ end
 function M.bars(o)
 	local out = { { "", "Flat" } }
 	for _, b in ipairs(BARS) do
-		if not b.atlas or (C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(b[2])) then
+		if not b.atlas or ns.Looks.hasAtlas(b[2]) then
 			table.insert(out, { b[1], b[1] })
 		end
 	end
-	local l = lsm()
-	if l then
-		local more = {}
-		for name, path in pairs(l:HashTable("statusbar")) do
-			-- Not an addon's "not found" stand-in (it draws nothing)
-			local file = type(path) == "string" and path:lower() or ""
-			local skip = file == FLAT:lower() or file:match("[\\/]blank%.%w+$")
-			if type(name) == "string" and not barByName[name] and not skip then table.insert(more, { name, name }) end
-		end
-		table.sort(more, function(a, b) return a[1] < b[1] end)
-		for _, b in ipairs(more) do table.insert(out, b) end
-	end
-	local current = barName(o)
-	local listed = false
-	for _, b in ipairs(out) do if b[1] == current then listed = true end end
-	if not listed then table.insert(out, { current, current }) end
-	return out
+	return M.withShared(out, "statusbar", function(name, path)
+		-- Not an addon's "not found" stand-in (it draws nothing)
+		local file = type(path) == "string" and path:lower() or ""
+		local skip = file == FLAT:lower() or file:match("[\\/]blank%.%w+$")
+		if not barByName[name] and not skip then return { name, name } end
+	end, barName(o))
 end
 
 function M.changed()

@@ -1,4 +1,7 @@
 -- Shared helpers (loaded first)
+-- Failures: ns.try(site, ...) where a failure is worth knowing (noted for /sf debug; the site names
+-- its module first); a raw pcall or ns.safe where failure is the answer (feature detection, reads
+-- that may fail on a secret); module hooks run under securecallfunction, so errors reach the handler.
 
 local ADDON, ns = ...
 
@@ -13,6 +16,11 @@ function ns.isSecret(v) return issecretvalue and issecretvalue(v) or false end
 function ns.safe(fn, ...) if not fn then return false end return pcall(fn, ...) end
 function ns.describeArg(v) if ns.isSecret(v) then return "<secret>" end return tostring(v) end
 local isSecret, safe = ns.isSecret, ns.safe
+-- v from a safe read when it worked and isn't secret: plain(safe(fn, ...))
+local function plain(ok, v)
+	if ok and not isSecret(v) then return v end
+end
+ns.plain = plain
 
 -- RegisterEvent throws for an event name the client doesn't know: say so and carry on
 function ns.registerEvent(frame, event, unit)
@@ -22,12 +30,22 @@ function ns.registerEvent(frame, event, unit)
 	if not ok then ns.say("event %s not available on this client", event) end
 end
 
+-- A colour's text escape, "|cffrrggbb"
+local function byte(v) return math.floor(math.min(math.max(v, 0), 1) * 255 + 0.5) end
+function ns.colorCode(c) return string.format("|cff%02x%02x%02x", byte(c[1]), byte(c[2]), byte(c[3])) end
+
 function ns.isColor(v)
 	return type(v) == "table" and type(v[1]) == "number" and type(v[2]) == "number" and type(v[3]) == "number"
 		and (v[4] == nil or type(v[4]) == "number")
 end
 ns.POINTS = { CENTER = true, TOP = true, BOTTOM = true, LEFT = true, RIGHT = true,
 	TOPLEFT = true, TOPRIGHT = true, BOTTOMLEFT = true, BOTTOMRIGHT = true }
+
+-- A plain white texture: solid colours, swipes and backdrops
+ns.WHITE = "Interface\\Buttons\\WHITE8x8"
+
+-- Going idle waits this long, so a pop plays at full first
+ns.IDLE_DELAY = 1.5
 
 -- Upper bound for a group id: above any real count, below where float ids stop advancing (2^53)
 ns.MAX_GROUP_ID = 100000
@@ -70,13 +88,35 @@ end
 function ns.try(site, fn, ...) return checked(site, pcall(fn, ...)) end
 
 -- An OnUpdate script that calls fn(frame) at most every interval seconds
-function ns.throttled(interval, fn)
+local function throttled(interval, fn)
 	local wait = 0
 	return function(self, elapsed)
 		wait = wait + elapsed
 		if wait < interval then return end
 		wait = 0
 		fn(self)
+	end
+end
+-- A hidden frame that calls fn(frame) at most every interval seconds while shown
+function ns.ticker(interval, fn)
+	local f = CreateFrame("Frame")
+	f:Hide()
+	f:SetScript("OnUpdate", throttled(interval, fn))
+	return f
+end
+
+-- get(key, ...): the object make(...) gave for key (false too), up to limit of them, emptied when full
+function ns.cache(limit, make)
+	local store, n = {}, 0
+	return function(key, ...)
+		local v = store[key]
+		if v == nil then
+			if n >= limit then wipe(store); n = 0 end
+			n = n + 1
+			v = make(...)
+			store[key] = v
+		end
+		return v
 	end
 end
 
@@ -107,11 +147,21 @@ function ns.deferWhileAurasSecret(key, fn)
 	queued[key] = nil
 	return false
 end
--- A visibility state driver (expr nil: none); a failure is noted under site. True when it took
+-- A visibility state driver (expr nil: none), set only when it changed; a failure is noted under
+-- site. True when it took or was already set
+local drivers = setmetatable({}, { __mode = "k" })
 function ns.setVisibilityDriver(frame, expr, site)
-	if expr then return (ns.try(site, RegisterStateDriver, frame, "visibility", expr)) end
-	return (ns.try(site, UnregisterStateDriver, frame, "visibility"))
+	if expr == drivers[frame] then return true end
+	if not expr then
+		if not ns.try(site, UnregisterStateDriver, frame, "visibility") then return false end
+		drivers[frame] = nil
+		return true
+	end
+	if not ns.try(site, RegisterStateDriver, frame, "visibility", expr) then return false end
+	drivers[frame] = expr
+	return true
 end
+function ns.visibilityDriverOf(frame) return drivers[frame] end
 local INACTIVE = Enum and Enum.AddOnRestrictionState and Enum.AddOnRestrictionState.Inactive or 0
 -- fn(endedAt) runs the frame after a restriction ends, once, after the queue (not on starts)
 local afterEnd, endedAt = {}, nil
@@ -136,10 +186,7 @@ end
 
 -- Can the player act on a warning: dead, a ghost or on a flight path, nothing can be cast. A failed
 -- or secret read counts as able.
-local function plainYes(fn, ...)
-	local ok, v = safe(fn, ...)
-	return ok and not isSecret(v) and v == true
-end
+local function plainYes(fn, ...) return plain(safe(fn, ...)) == true end
 ns.plainYes = plainYes
 function ns.cantAct()
 	return plainYes(UnitIsDeadOrGhost, "player") or plainYes(UnitOnTaxi, "player")
@@ -289,6 +336,8 @@ local fighting = false
 local startFns, endFns, changeFns = {}, {}, {}
 -- The fighting flag, set when combat starts, before lockdown; InCombatLockdown() is for protected calls
 function ns.inCombat() return fighting or InCombatLockdown() end
+-- Auras read now: out of combat (the flag too) and not secret
+function ns.aurasReadNow() return not ns.inCombat() and ns.aurasReadable() end
 function ns.onCombatStart(fn) table.insert(startFns, fn) end
 function ns.onCombatEnd(fn) table.insert(endFns, fn) end
 -- Any restriction change, at once, before the queue: a match or an encounter starting or ending
@@ -465,8 +514,8 @@ local function playerKnows(id, strict)
 	local known
 	local checks = { C_SpellBook.IsSpellKnown, inSpellBook }
 	for _, fn in ipairs(checks) do
-		local ok, v = safe(fn, id)
-		if ok and not isSecret(v) and v ~= nil then
+		local v = plain(safe(fn, id))
+		if v ~= nil then
 			if v then return true end
 			known = false
 		end

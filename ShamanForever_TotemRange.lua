@@ -144,7 +144,7 @@ function R.preview(on)
 end
 
 local function makeContainer(s)
-	local ok, err = pcall(function()
+	local ok, err = ns.try("totem range: container", function()
 		local c = CreateFrame("AuraContainer", "ShamanForeverRange" .. TB.NAME[s.el], s.rangeHold, "CustomAuraContainerTemplate")
 		c:SetFrameLevel(s.button:GetFrameLevel() + TB.RANGE_LEVEL + 1)
 		c:SetUnit("player")
@@ -157,7 +157,6 @@ local function makeContainer(s)
 	end)
 	if not ok then
 		s.rangeError = tostring(err)
-		ns.noteError("totem range: container", err)
 		if s.rangeContainer then s.rangeContainer:Hide() end
 	end
 end
@@ -227,7 +226,7 @@ local function learn()
 		end
 	end
 	for i = 1, 40 do
-		local aok, a = pcall(C_UnitAuras.GetAuraDataByIndex, "player", i, "HELPFUL|PLAYER")
+		local aok, a = ns.safe(C_UnitAuras.GetAuraDataByIndex, "player", i, "HELPFUL|PLAYER")
 		if not aok or not a then break end
 		local el = not isSecret(a.name) and names[a.name]
 		local id = a.spellId
@@ -274,14 +273,8 @@ local function showStrip(s, on)
 		return
 	end
 	h:SetAlpha(1)
-	if on then
-		if s.rangeDriven then
-			if ns.setVisibilityDriver(h, nil, "totem range: holder") then s.rangeDriven = false end
-		end
-		h:Show()
-	elseif not s.rangeDriven then
-		s.rangeDriven = ns.setVisibilityDriver(h, EMPTY, "totem range: holder")
-	end
+	ns.setVisibilityDriver(h, not on and EMPTY or nil, "totem range: holder")
+	if on then h:Show() end
 end
 
 local function buffTotemDown(s)

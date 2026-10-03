@@ -156,6 +156,20 @@ local function partsOf(kind, def)
 	return list
 end
 KD.partsOf = partsOf
+-- The first of def's parts' runtime hooks called name
+function KD.hook(kind, def, name)
+	for _, p in ipairs(partsOf(kind, def)) do
+		local h = p.runtime and p.runtime[name]
+		if h then return h end
+	end
+end
+-- Each of def's parts' runtime hooks called name, in parts order: h(def, ...)
+function KD.eachHook(kind, def, name, ...)
+	for _, p in ipairs(partsOf(kind, def)) do
+		local h = p.runtime and p.runtime[name]
+		if h then h(def, ...) end
+	end
+end
 
 -- Its parts, then its kind's own: the first that gives a field has it
 local function firstOf(list, get)

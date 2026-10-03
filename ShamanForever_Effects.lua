@@ -275,7 +275,7 @@ local function newRig(f, icon, level)
 	r.fx = fx
 	r.flash = fx:CreateTexture(nil, "OVERLAY")
 	r.flash:SetAllPoints()
-	r.flash:SetTexture("Interface\\Buttons\\WHITE8x8")
+	r.flash:SetTexture(ns.WHITE)
 	r.flash:SetBlendMode("ADD")
 	r.flash:SetAlpha(0)
 	r.flashAnim = r.flash:CreateAnimationGroup()
@@ -496,7 +496,7 @@ local function fadeGroup(body, inDur, hold, outDur, onFinished)
 	return g
 end
 
--- The end of a totem: killed early, ran out, ran out softly, grounded
+-- An end: killed early, ran out, ran out softly, or an early end of its own (opts.kind, a pop kind)
 local killedCurve = ns.curve({ 0, 0, 1.2, 0, 1.25, 1, 36000, 1 })
 local expiredCurve = ns.curve({ 0, 1, 1.2, 1, 1.25, 0, 36000, 0 })
 function E.endFlash(parent, anchor, owner, over)
@@ -565,11 +565,12 @@ function E.endFlash(parent, anchor, owner, over)
 		local size = self.fitSize or anchor:GetWidth()
 		self.pop.popSize = size
 		local soft = opts.expired and opts.ranOut
+		local kind = opts.kind and ns.Looks.POP_KINDS[opts.kind]
 		if soft then
 			local c = opts.ranOut
 			self.glow:color(c[1], c[2], c[3]); self.red:SetColorTexture(c[1], c[2], c[3], 0.45)
-		elseif opts.grounded then
-			local c = ns.Looks.POP_KINDS.grounded.color
+		elseif kind then
+			local c = kind.color
 			self.glow:color(c[1], c[2], c[3]); self.red:SetColorTexture(c[1], c[2], c[3], 0.7)
 		else
 			self.glow:color(1, 0.12, 0.08); self.red:SetColorTexture(0.95, 0.12, 0.08, 0.7)
@@ -580,12 +581,12 @@ function E.endFlash(parent, anchor, owner, over)
 		self.icon:SetDesaturated(not opts.expired or soft and true or false)
 		self.hourglass:SetShown(soft and true or false)
 		self.hourglass:SetSize(size * 0.5, size * 0.5)
-		self.tick:SetShown(opts.grounded and not opts.expired and true or false)
+		self.tick:SetShown(kind and kind.tick and not opts.expired and true or false)
 		self.tick:SetSize(size * 0.6, size * 0.6)
 		self.mark.x:SetSize(size * 0.7, size * 0.7)
 		self.flash:Stop(); self.quick:Stop(); self.soft:Stop()
 		if soft then self.soft:Play() elseif opts.expired then self.quick:Play() else self.flash:Play() end
-		if opts.pop then E.pop(self.pop, opts.expired and "expired" or opts.grounded and "grounded" or "killed", owner) end
+		if opts.pop then E.pop(self.pop, opts.expired and "expired" or kind and opts.kind or "killed", owner) end
 		if opts.mark then
 			self.mark:Show()
 			local token = {}
