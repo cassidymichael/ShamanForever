@@ -76,7 +76,7 @@ local src = BUFF
 MW.icon = buffIcon() or 237584
 local f = E.newIcon(KEY, { effects = true })
 f.tex:SetTexture(MW.icon)
-f.aboveProtected = true   -- Blizzard's buttons sit on it: alpha only changes out of combat
+f.holdsAuraButton = true
 f.stack()
 
 E.register(KEY, { frame = f, label = Spells.name("maelstromWeapon"), defaults = MW.DEFAULTS, ranges = MW.RANGES,

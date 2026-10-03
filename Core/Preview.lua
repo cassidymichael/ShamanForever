@@ -137,18 +137,18 @@ local function place(key, r)
 	local gf = f:GetParent()
 	if parked[f] and gf == veils[parked[f]] then gf = parked[f] end
 	if not h then h = select(2, makeStandIn(key, gf)) end
-	if not f.aboveProtected then park(f, gf) end
+	if not f.holdsAuraButton then park(f, gf) end
 	h:SetScale(gf:GetScale())
 	h:SetAlpha(gf:GetAlpha())
 	h:Show()
 	r.live = true
 	-- An element above Blizzard's button keeps its own border under its stand-in unless that border is
 	-- on parts that show only with a hostile target or their aura (standInBorder): the stand-in draws theirs
-	local own = f.aboveProtected and f:IsVisible() and not E.ALL[key].standInBorder
+	local own = f.holdsAuraButton and f:IsVisible() and not E.ALL[key].standInBorder
 	local ic, st = standIns[key], ns.Style.read(key, "frame")
 	ns.StyleArt.applyBorder(ic, not own and E.borderFor(key) or nil)
 	FR.draw(ic, not own and ns.Style.look("frame", st.look) or nil, E.boxOf(key), st)
-	if f.aboveProtected then FR.veil(key, not own) end
+	if f.holdsAuraButton then FR.veil(key, not own) end
 	if r.nextAt then paintElement(key, r, false) else startStep(key, r, false) end
 end
 

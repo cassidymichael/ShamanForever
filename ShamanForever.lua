@@ -549,7 +549,7 @@ local function layoutGroup(g)
 			w, h = W.roundPx(w, px), W.roundPx(h, px)
 			local inset = ns.StyleArt.fit(f, E.borderFor(key), w, h, e)
 			-- An element over Blizzard's button frames the button's border instead
-			local own = e.borderHost or not f.aboveProtected
+			local own = e.borderHost or not f.holdsAuraButton
 			ns.Frames.mountOwn(e.borderHost or f, key, own and w == h and w or nil)
 			table.insert(placed, { f, along + n * gap, w, h, inset })
 			if horizontal then along, across = along + w, math.max(across, h)

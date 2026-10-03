@@ -140,28 +140,21 @@ function W.keyLabel(key)
 	return label
 end
 
--- A frame above Blizzard's protected aura button takes no alpha change in combat: its fade is
--- restated after combat.
 local FADE_OUT, FADE_IN = 0.8, 0.15
 local fading = {}
 local fader = CreateFrame("Frame")
 fader:Hide()
 fader:SetScript("OnUpdate", function(self, elapsed)
-	local combat = InCombatLockdown()
 	for f, target in pairs(fading) do
-		if combat and f.aboveProtected then fading[f] = nil
-		else
-			local a = f:GetAlpha()
-			if target < a then a = math.max(target, a - elapsed / FADE_OUT)
-			else a = math.min(target, a + elapsed / FADE_IN) end
-			f:SetAlpha(a)
-			if a == target then fading[f] = nil end
-		end
+		local a = f:GetAlpha()
+		if target < a then a = math.max(target, a - elapsed / FADE_OUT)
+		else a = math.min(target, a + elapsed / FADE_IN) end
+		f:SetAlpha(a)
+		if a == target then fading[f] = nil end
 	end
 	if next(fading) == nil then self:Hide() end
 end)
 function W.fadeTo(f, alpha)
-	if f.aboveProtected and InCombatLockdown() then return end
 	if math.abs(f:GetAlpha() - alpha) < 0.005 then
 		fading[f] = nil
 		f:SetAlpha(alpha)

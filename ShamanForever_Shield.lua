@@ -670,7 +670,7 @@ end
 
 -- Preview (ns.registerKind): Blizzard's button can't be shown or hidden by addon code, so a stand-in
 -- draws over it (hold)
-shield.aboveProtected = true
+shield.holdsAuraButton = true
 local PREVIEW = {
 	uptime = true, barInset = timeBarInset,
 	warning = "down",

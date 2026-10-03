@@ -512,7 +512,7 @@ local function applyIdle(def)
 	def.idle:SetAlpha(on and E.idleAlpha(def.key) or 1)
 end
 
--- Combat starts: icon to its idle alpha at once (a fade would stop part way)
+-- Combat starts: icon to its idle alpha at once
 local function combatStarts()
 	styleLooks()
 	styleUp()
