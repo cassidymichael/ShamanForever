@@ -69,9 +69,13 @@ local function unparkAll()
 	wipe(parked)
 end
 
+-- Over everything in a group: Blizzard's buttons and the parts laid over them (a cover, a pop) reach
+-- about 50 over the group frame
+local STAND_IN_LEVEL = 60
+
 local function makeStandIn(key, gf)
 	local h = CreateFrame("Frame", nil, gf:GetParent())
-	h:SetFrameLevel(gf:GetFrameLevel() + 30)   -- over everything in a group, Blizzard's buttons too
+	h:SetFrameLevel(gf:GetFrameLevel() + STAND_IN_LEVEL)
 	h:SetAllPoints(E.ALL[key].frame)
 	local pv = OA.PREVIEW[key]
 	local ic = OA.makePreviewIcon(h, key, pv)
