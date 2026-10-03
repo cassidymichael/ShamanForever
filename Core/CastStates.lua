@@ -93,13 +93,18 @@ function CS.paint(f, key, out, low, overlay)
 		local look = bodyLook(f, s.look, overlay)
 		if look then f:SetBodyPaint(look, c[1], c[2], c[3], s.overlay, s.tint) end
 	end
-	local c, a = STATES.power.color, S.value(key, "power", "ring")
-	-- Under the icon's own warning layers, where it has any, so their rings win
-	if f.warn or f.upTimer then
-		if low and not f.lowRing then f.lowRing = W.makeRing(f, f.tex) end
-		if low then f.lowRing:color(c[1], c[2], c[3], a) end
-		if f.lowRing then f.lowRing:show(low) end
-	else f:SetPaintRing(low, c[1], c[2], c[3], a) end
+	if not (low or f.paintRing) then return end
+	-- Over the swipe, under the icon's own warnings and its ring, which win
+	if not f.paintRing then
+		local host = CreateFrame("Frame", nil, f)
+		host:SetAllPoints(f)
+		host:SetFrameLevel(f.cd:GetFrameLevel() + 1)
+		f.paintRing = W.makeRing(host, f.tex)
+		f.paintRing.host = host
+	end
+	local c = STATES.power.color
+	if low then f.paintRing:color(c[1], c[2], c[3], S.value(key, "power", "ring")) end
+	f.paintRing:show(low)
 end
 
 -- Over Blizzard's aura button: an overlay only, while the aura is up

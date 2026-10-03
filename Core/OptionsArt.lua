@@ -169,7 +169,7 @@ local function reset(ic, icon)
 	ic.tex:SetAlpha(1)
 	ic:SetAlpha(1)
 	ic.bodyOverlay:Hide()
-	ic:SetPaintRing(false)
+	if ic.paintRing then ic.paintRing:show(false) end
 	ic:SetRingShown(false)
 	ic:SetPulsing(false)
 	ic:SetGlowShown(false)

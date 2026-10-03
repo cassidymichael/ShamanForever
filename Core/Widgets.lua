@@ -939,18 +939,7 @@ function W.makeIcon(parent, size, owner)
 		if not on then self.pulse:Stop()
 		elseif not self.pulse:IsPlaying() then self.pulse:Play() end
 	end
-	-- One ring, two users: the element's own looks (red unless given a colour) win over a cast
-	-- state's paint (SetPaintRing)
 	f.SetRingShown = function(self, shown, r, g, b, a)
-		self.ownRing = shown and true or false
-		local p = self.paintRing
-		if shown then self.ring:color(r, g, b, a)
-		elseif p then self.ring:color(p[1], p[2], p[3], p[4]) end
-		self.ring:show(shown or p ~= nil)
-	end
-	f.SetPaintRing = function(self, shown, r, g, b, a)
-		self.paintRing = shown and { r, g, b, a } or nil
-		if self.ownRing then return end
 		if shown then self.ring:color(r, g, b, a) end
 		self.ring:show(shown)
 	end
