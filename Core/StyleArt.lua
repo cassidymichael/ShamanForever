@@ -1,45 +1,48 @@
--- Looks
--- -- Our own media by path, never file ID; Blizzard's art by atlas, checked before use.
+-- Style art: each part's styles and the art they draw
+-- Our own media by path, never file ID; Blizzard's art by atlas, checked before use.
 
 local ADDON, ns = ...
+local W = ns.Widgets
 
-local Looks = {}
-ns.Looks = Looks
+local SA = {}
+ns.StyleArt = SA
 
 local S = ns.Style
 local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Art\\Looks\\"
-local WHITE = "Interface\\Buttons\\WHITE8x8"
+local WHITE = ns.WHITE
 local CLAMP = "CLAMPTOBLACKADDITIVE"   -- a mask's wrap mode, as Blizzard's own masks use
 local STRETCHED = Enum.UITextureSliceMode and Enum.UITextureSliceMode.Stretched or 0
 
 local atlasKnown = {}
-function Looks.hasAtlas(name)
+function SA.hasAtlas(name)
 	if atlasKnown[name] == nil then
 		atlasKnown[name] = (C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(name)) ~= nil
 	end
 	return atlasKnown[name]
 end
 
+local THEME = ns.THEME
+
 local function schoolOf(f)
 	if f.over then f = f.over end
 	if f.school then return f.school end
-	local e = type(f.owner) == "string" and ns.ELEMENTS[f.owner]
-	return e and e.school or "spirit"
+	local e = type(f.owner) == "string" and ns.Elements.ALL[f.owner]
+	return e and e.school or THEME.fallback
 end
 
-function Looks.elementSchool(key, own)
-	local e = ns.ELEMENTS[key]
-	if not e then return "spirit" end
-	if not own and ns.getDB and ns.getDB() then
-		local pick = ns.elementSetting(key, "popSchool")
-		if ns.SCHOOL_COLOR[pick] then return pick end
+function SA.elementSchool(key, own)
+	local e = ns.Elements.ALL[key]
+	if not e then return THEME.fallback end
+	if not own and ns.Profiles.getDB and ns.Profiles.getDB() then
+		local pick = ns.Elements.setting(key, "popSchool")
+		if THEME.color[pick] then return pick end
 	end
-	return e.ownSchool and e.ownSchool() or e.school or "spirit"
+	return e.ownSchool and e.ownSchool() or e.school or THEME.fallback
 end
 local function effectSchool(f)
 	if f.over then f = f.over end
 	if f.school then return f.school end
-	return type(f.owner) == "string" and Looks.elementSchool(f.owner) or "spirit"
+	return type(f.owner) == "string" and SA.elementSchool(f.owner) or THEME.fallback
 end
 
 -- Frames
@@ -50,10 +53,10 @@ local BLACK = { 0, 0, 0, 1 }
 local schoolColors = {}
 local function colorOf(c, b, f)
 	if c == "school" then
-		local school = f and schoolOf(f) or "spirit"
+		local school = f and schoolOf(f) or THEME.fallback
 		local k = schoolColors[school]
 		if not k then
-			local sc = ns.SCHOOL_COLOR[school] or ns.SCHOOL_COLOR.spirit
+			local sc = THEME.color[school] or THEME.color[THEME.fallback]
 			k = { sc[1], sc[2], sc[3], 1 }
 			schoolColors[school] = k
 		end
@@ -67,7 +70,7 @@ local function pxOf(px, b)
 	return px or 1
 end
 
-function Looks.uses(look, field) return look.uses ~= nil and look.uses[field] == true end
+function SA.uses(look, field) return look.uses ~= nil and look.uses[field] == true end
 
 -- Each ring is four textures; returns how far the rings reach.
 local function drawRings(f, rings, b)
@@ -75,7 +78,7 @@ local function drawRings(f, rings, b)
 	local tex, n, d = f.border, 0, 0
 	for i = #(rings or {}), 1, -1 do
 		local ring = rings[i]
-		local w = ns.linePx(f, pxOf(ring.px, b))
+		local w = W.linePx(f, pxOf(ring.px, b))
 		local o = d + w
 		for _, side in ipairs(SIDES) do
 			n = n + 1
@@ -120,9 +123,9 @@ local function drawCaps(f, caps, out, b)
 		for i = 1, 8 do t[i] = f:CreateTexture(nil, "BACKGROUND", nil, -7) end
 		f.frameCaps = t
 	end
-	local px = ns.linePx(f, pxOf(caps.px, b))
+	local px = W.linePx(f, pxOf(caps.px, b))
 	local o = math.max(out, px)
-	local len = o + ns.linePx(f, caps.len or 6)
+	local len = o + W.linePx(f, caps.len or 6)
 	local c = colorOf(caps.color, b, f)
 	for i, corner in ipairs(CORNERS) do
 		local point, x, y = corner[1], corner[2] * o, corner[3] * o
@@ -139,6 +142,10 @@ local function drawCaps(f, caps, out, b)
 	return o - out
 end
 
+local function setArt(t, art)
+	if art.atlas then t:SetAtlas(art.atlas) else t:SetTexture(art.file) end
+end
+
 local function placeArt(t, art, over, w)
 	local i = art.inset
 	t:ClearAllPoints()
@@ -149,7 +156,7 @@ end
 -- On f itself: over the picture, under its swipe, timers and text.
 local function drawOverlay(f, art)
 	local t = f.frameOverlay
-	if not art or art.margin or (art.atlas and not Looks.hasAtlas(art.atlas)) then
+	if not art or art.margin or f.noOverlay or (art.atlas and not SA.hasAtlas(art.atlas)) then
 		if t then t:Hide() end
 		return
 	end
@@ -160,7 +167,7 @@ local function drawOverlay(f, art)
 	local w = f:GetWidth()
 	if ns.isSecret(w) then return end   -- secret under a secure button: next layout
 	placeArt(t, art, f, w)
-	if art.atlas then t:SetAtlas(art.atlas) else t:SetTexture(art.file) end
+	setArt(t, art)
 	t:Show()
 end
 
@@ -178,7 +185,7 @@ local function drawSlice(f, art)
 		h.tex:SetAllPoints()
 		f.frameArt = h
 	end
-	local px = ns.linePx(f, art.px)
+	local px = W.linePx(f, art.px)
 	local k = px / art.margin
 	if k <= 0 then h:Hide(); return 0 end   -- SetScale refuses 0
 	h:SetScale(k)
@@ -197,12 +204,12 @@ end
 local NO_ART = { rings = { { color = BLACK } } }
 local function artMissing(look)
 	local a, m = look.art and look.art.atlas, look.mask and look.mask.atlas
-	return (a and not Looks.hasAtlas(a)) or (m and not Looks.hasAtlas(m)) or false
+	return (a and not SA.hasAtlas(a)) or (m and not SA.hasAtlas(m)) or false
 end
 
 local function maskOf(look)
 	local m = look.mask
-	if m and m.atlas and not Looks.hasAtlas(m.atlas) then return nil end
+	if m and m.atlas and not SA.hasAtlas(m.atlas) then return nil end
 	return m
 end
 local function lookFor(b)
@@ -223,7 +230,7 @@ local function placeMask(m, spec, over, w, h)
 	if spec.atlas then m:SetAtlas(spec.atlas, false, nil, nil, CLAMP, CLAMP)
 	else m:SetTexture(spec.file, spec.wrap or CLAMP, spec.wrap or CLAMP) end
 	m:ClearAllPoints()
-	-- A secret size (totem bar, secure button) can't be scaled: the mask fits the picture exactly.
+	-- A secret size (a secure button's) can't be scaled: the mask fits the picture exactly.
 	if (spec.scale or 1) == 1 or ns.isSecret(w) or ns.isSecret(h) then m:SetAllPoints(over)
 	else
 		m:SetPoint("CENTER", over, "CENTER", 0, 0)
@@ -264,20 +271,20 @@ local function drawMask(f, spec)
 	maskSpecs[f] = spec
 	maskOne(f, over, spec, over)
 	maskOne(f, f.bg, spec, over)
-	maskOne(f, f.manaOverlay, spec, over)
+	maskOne(f, f.bodyOverlay, spec, over)
 	maskOne(f, f.warn and f.warn.grey, spec, over)
 	for _, t in ipairs(followers[f] or {}) do maskOne(f, t, spec, over) end
 	for t, o in pairs(ownShape[f] or {}) do maskOne(f, t, spec, o) end
 end
 
-function Looks.maskOver(f, tex, over)
+function SA.maskOver(f, tex, over)
 	local map = ownShape[f] or {}
 	ownShape[f] = map
 	map[tex] = over or tex
 	if maskSpecs[f] then maskOne(f, tex, maskSpecs[f], map[tex]) end
 end
 
-function Looks.followMask(f, ...)
+function SA.followMask(f, ...)
 	local list = followers[f] or {}
 	followers[f] = list
 	for i = 1, select("#", ...) do
@@ -315,14 +322,14 @@ local function drawSwipe(f, look)
 	for _, cd in ipairs(swipers[f] or {}) do swipeOne(f, cd, look) end
 end
 
-function Looks.followSwipe(f, cd)
+function SA.followSwipe(f, cd)
 	local list = swipers[f] or {}
 	swipers[f] = list
 	table.insert(list, cd)
 	if swipeLooks[f] then swipeOne(f, cd, swipeLooks[f]) end
 end
 
--- Parts that fit a bar; a look with neither draws a plain line there.
+-- Parts that fit a bar; a style with neither draws a plain line there.
 local barLooks = {}
 local function barParts(look)
 	local v = barLooks[look]
@@ -337,34 +344,34 @@ end
 local function drawnLook(b, shape)
 	local look = S.look("border", b and b.look)
 	if artMissing(look) then look = NO_ART end
-	local on = b and b.show and (not Looks.uses(look, "size") or (b.size and b.size > 0))
+	local on = b and b.show and (not SA.uses(look, "size") or (b.size and b.size > 0))
 	if not on then return nil end
 	return shape == "bar" and barParts(look) or look
 end
 
-function Looks.inset(f, b, w, shape)
+function SA.inset(f, b, w, shape)
 	local look = drawnLook(b, shape)
 	if not look then return 0 end
 	local out = 0
-	for _, ring in ipairs(look.rings or {}) do out = out + ns.linePx(f, pxOf(ring.px, b)) end
-	if look.caps then out = math.max(out, ns.linePx(f, pxOf(look.caps.px, b))) end
+	for _, ring in ipairs(look.rings or {}) do out = out + W.linePx(f, pxOf(ring.px, b)) end
+	if look.caps then out = math.max(out, W.linePx(f, pxOf(look.caps.px, b))) end
 	local art = look.art
-	if art and art.margin then out = math.max(out, ns.linePx(f, art.px))
+	if art and art.margin then out = math.max(out, W.linePx(f, art.px))
 	elseif art and art.inset then
 		local share = math.max(art.inset[1], art.inset[2], art.inset[3], art.inset[4])
 		if share > 0 then
-			local one = ns.pixel(f)
+			local one = W.pixel(f)
 			out = math.max(out, math.ceil(share * w / (1 + 2 * share) / one - 0.01) * one)
 		end
 	end
 	return math.min(out, math.max((w - 4) / 2, 0))
 end
 
-function Looks.fit(f, b, w, h, opts)
+function SA.fit(f, b, w, h, opts)
 	local host, shape = opts and opts.borderHost or f, opts and opts.shape
-	local o = Looks.inset(host, b, math.min(w, h or w), shape)
+	local o = SA.inset(host, b, math.min(w, h or w), shape)
 	f:SetSize(w - 2 * o, (h or w) - 2 * o)
-	ns.applyBorder(host, b, shape)
+	SA.applyBorder(host, b, shape)
 	if host ~= f then
 		-- The mask and swipe belong to the picture, not to the border's part.
 		local look = drawnLook(b, shape)
@@ -376,12 +383,12 @@ function Looks.fit(f, b, w, h, opts)
 	return o
 end
 
-function Looks.overlay(f, b, shape)
+function SA.overlay(f, b, shape)
 	local look = drawnLook(b, shape)
 	drawOverlay(f, look and look.art)
 end
 
-function ns.applyBorder(f, b, shape)
+function SA.applyBorder(f, b, shape)
 	local look = drawnLook(b, shape)
 	if not look then
 		drawRings(f, nil, b)
@@ -403,20 +410,20 @@ function ns.applyBorder(f, b, shape)
 	f.frameOuter = out
 end
 
-function Looks.outerEdge(f) return f and f.frameOuter or 0 end
+function SA.outerEdge(f) return f and f.frameOuter or 0 end
 
 -- Blizzard's aura button takes a mask only when made as it is built, so each gets one there;
--- -- Looks.auraStyle restyles it out of combat.
+-- SA.auraStyle restyles it out of combat.
 local PLAIN_MASK = { file = WHITE, wrap = "CLAMP" }
 local auraMade = setmetatable({}, { __mode = "k" })
-function Looks.auraMask(host, tex, key)
-	local b = ns.borderFor(key)
-	local spec, art, size = maskFor(b), artFor(b), ns.sizeOf(key)
+function SA.auraMask(host, tex, key)
+	local b = ns.Elements.borderFor(key)
+	local spec, art, size = maskFor(b), artFor(b), ns.Elements.sizeOf(key)
 	local made = { key = key, spec = spec, look = spec and lookFor(b), art = art }
 	auraMade[tex] = made
 	if art then
 		local t = host:CreateTexture(nil, "OVERLAY", nil, 7)
-		if art.atlas then t:SetAtlas(art.atlas) else t:SetTexture(art.file) end
+		setArt(t, art)
 		placeArt(t, art, host, size)
 		made.artTex = t
 	end
@@ -426,17 +433,17 @@ function Looks.auraMask(host, tex, key)
 	made.mask = m
 end
 
-function Looks.auraStyle(slot, size)
+function SA.auraStyle(slot, size)
 	local made = slot.icon and auraMade[slot.icon]
 	if not made then return end
 	local host = slot.host
-	local b = ns.borderFor(made.key)
+	local b = ns.Elements.borderFor(made.key)
 	local art, spec = artFor(b), maskFor(b)
 	if art ~= made.art then
 		if art and not made.artTex then made.artTex = host:CreateTexture(nil, "OVERLAY", nil, 7) end
 		local t = made.artTex
 		if art then
-			if art.atlas then t:SetAtlas(art.atlas) else t:SetTexture(art.file) end
+			setArt(t, art)
 			t:Show()
 		elseif t then t:Hide() end
 		made.art = art
@@ -448,15 +455,16 @@ function Looks.auraStyle(slot, size)
 	swipeOne(host, slot.cd, made.look, size)
 end
 
--- Frame looks
+-- Frame styles
 local GOLD = { 0.71, 0.55, 0.29, 1 }
-Looks.GOLD = GOLD
+SA.GOLD = GOLD
 local BRONZE_HI, BRONZE_LO, BRONZE_DARK = { 0.85, 0.68, 0.39, 1 }, { 0.43, 0.29, 0.13, 1 }, { 0.10, 0.07, 0.03, 1 }
 local CDM_MASK, CDM_OVERLAY = "UI-HUD-CoolDownManager-Mask", "UI-HUD-CoolDownManager-IconOverlay"
 local CDM_SWIPE = "Interface\\HUD\\UI-HUD-CoolDownManager-Icon-Swipe"
 local AB_MASK, AB_FRAME = "UI-HUD-ActionBar-IconFrame-Mask", "UI-HUD-ActionBar-IconFrame"
 
-S.addField("border", "look", { name = "Border look", where = "Global settings > Border style", preview = { play = "still" },
+S.addField("border", "look", { name = "Border style", where = "Global settings > Border style",
+	preview = { play = "still" },
 	groups = { { "lines", "Lines" }, { "blizzard", "Blizzard's" }, { "painted", "Painted" } } })
 S.addLook("border", "line", { name = "Line", group = "lines", uses = { size = true, color = true },
 	rings = { { px = "size", color = "color" } } })
@@ -485,7 +493,7 @@ local ROUND = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 S.addLook("border", "medallion", { name = "Medallion", group = "painted", hidden = true, credit = "ai",
 	mask = { file = ROUND }, swipe = ROUND, art = { file = MEDIA .. "Medallion", inset = { 0.35, 0.35, 0.35, 0.35 } } })
 
--- Glow looks
+-- Glow styles
 local GOLD_GLOW = { 1, 0.8, 0.25 }
 local ACTIVE_GLOW = "UI-CooldownManager-ActiveGlow"
 local PROC_START, PROC_LOOP = "UI-HUD-ActionBar-Proc-Start-Flipbook", "UI-HUD-ActionBar-Proc-Loop-Flipbook"
@@ -496,8 +504,8 @@ local function root(parent)
 	r:EnableMouse(false)
 	return r
 end
--- Re-levels the look on each show: levels move as an icon regroups.
-function Looks.levelParts(parts)
+-- Re-levels the style on each show: levels move as an icon regroups.
+function SA.levelParts(parts)
 	for _, r in ipairs(parts.roots or {}) do
 		local lv = r:GetParent():GetFrameLevel()
 		r:SetFrameLevel(lv)
@@ -560,14 +568,33 @@ local soft = {
 	fit = function(g, parts, size) fitSoft(g, parts.soft, size, g.width) end,
 }
 
-local halo = {
+-- A style made of Blizzard's atlases, drawn as the soft style on a client that lacks one
+local function orSoft(look, ...)
+	local atlases, build, style, fit = { ... }, look.build, look.style, look.fit
+	function look.build(g)
+		for _, a in ipairs(atlases) do
+			if not SA.hasAtlas(a) then
+				local parts = soft.build(g)
+				parts.fallback = true
+				return parts
+			end
+		end
+		return build(g)
+	end
+	function look.style(g, parts, st, c)
+		if parts.fallback then return soft.style(g, parts, st, c) end
+		return style(g, parts, st, c)
+	end
+	function look.fit(g, parts, size, out)
+		if parts.fallback then return soft.fit(g, parts, size) end
+		return fit(g, parts, size, out)
+	end
+	return look
+end
+
+local halo = orSoft({
 	uses = { color = true, speed = true, low = true },
 	build = function(g)
-		if not Looks.hasAtlas(ACTIVE_GLOW) then
-			local parts = soft.build(g)
-			parts.fallback = true
-			return parts
-		end
 		local r = root(g.inner)
 		local t = r:CreateTexture(nil, "OVERLAY")
 		t:SetAtlas(ACTIVE_GLOW)
@@ -578,28 +605,21 @@ local halo = {
 		return { roots = { r }, halo = t, grow = grow, scale = s, anims = { grow }, aura = { grow }, moving = { r } }
 	end,
 	style = function(g, parts, st, c)
-		if parts.fallback then return soft.style(g, parts, st, c) end
 		parts.halo:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
 		parts.scale:SetDuration(st.speed)
 	end,
 	fit = function(g, parts, size, out)
-		if parts.fallback then return soft.fit(g, parts, size) end
 		local d = out + size * 0.24
 		parts.halo:ClearAllPoints()
 		parts.halo:SetPoint("TOPLEFT", g, "TOPLEFT", -d, d)
 		parts.halo:SetPoint("BOTTOMRIGHT", g, "BOTTOMRIGHT", d, -d)
 	end,
-}
+}, ACTIVE_GLOW)
 
 -- Blizzard's proc glow; under the aura button only its ring (the burst needs a script).
-local proc = {
+local proc = orSoft({
 	uses = { color = true }, steady = true,
 	build = function(g)
-		if not (Looks.hasAtlas(PROC_START) and Looks.hasAtlas(PROC_LOOP)) then
-			local parts = soft.build(g)
-			parts.fallback = true
-			return parts
-		end
 		local r = root(g.inner)
 		local loop = r:CreateTexture(nil, "OVERLAY")
 		loop:SetAtlas(PROC_LOOP)
@@ -615,7 +635,6 @@ local proc = {
 			stop = { loopG } }
 	end,
 	style = function(g, parts, st, c)
-		if parts.fallback then return soft.style(g, parts, st, c) end
 		local own = not g.fixed and c[1] == GOLD_GLOW[1] and c[2] == GOLD_GLOW[2] and c[3] == GOLD_GLOW[3]
 		for _, t in ipairs(parts.texs) do
 			t:SetDesaturated(not own)
@@ -623,7 +642,6 @@ local proc = {
 		end
 	end,
 	fit = function(g, parts, size, out)
-		if parts.fallback then return soft.fit(g, parts, size) end
 		local s = size + 2 * out
 		if parts.start then
 			parts.start:SetSize(s * 150 / 45, s * 150 / 45)
@@ -632,13 +650,12 @@ local proc = {
 		parts.loop:SetSize(s * 1.4, s * 1.4)
 		parts.loop:SetPoint("CENTER", g, "CENTER", 0, 0)
 	end,
-}
+}, PROC_START, PROC_LOOP)
 
 local SPARK_PATH = { { 1, 0 }, { 0, -1 }, { -1, 0 }, { 0, 1 } }
 local spark = {
 	uses = { color = true, lap = true, width = true }, steady = true,
-	fields = { lap = { name = "Lap time", tip = "One lap round the icon.", range = S.KINDS.glow.ranges.lap, step = 0.1,
-		format = "%.1f s" } },
+	fields = { lap = { name = "Lap time", tip = "One lap round the icon.", format = "%.1f s" } },
 	build = function(g)
 		local r = root(g.inner)
 		local parts = { roots = { r }, soft = softPart(r, 0.45), sparks = {}, anims = {}, moving = { r } }
@@ -684,13 +701,11 @@ local spark = {
 }
 
 -- The school's texture drifting inside the glow's mask.
-local MATERIAL = {
-	earth = { 0, 0, 0.7 }, fire = { 0, 1, 1.4 }, water = { 1, -1, 3 }, air = { 1, 0, 0.8 }, spirit = { 1, -1, 3 },
-}
+local function materialOf(school) return THEME.material[school] or THEME.material[THEME.fallback] end
 local function materialLayout(g, parts)
 	local size = parts.size
 	if not (size and parts.pattern) then return end
-	local mv = MATERIAL[parts.school or "spirit"] or MATERIAL.spirit
+	local mv = materialOf(parts.school).move
 	local tile = size * parts.pattern
 	local side = size + 2 * tile
 	local cover = side / tile
@@ -705,11 +720,9 @@ end
 local material = {
 	uses = { color = true, strength = true, width = true }, bySchool = true, inside = true, steady = true,
 	fields = {
-		scale = { name = "Pattern size", tip = "How big the pattern is.", range = S.KINDS.glow.ranges.scale, step = 0.1,
-			format = "%.1fx" },
-		drift = { name = "Drift speed", tip = "How fast the pattern moves.", range = S.KINDS.glow.ranges.drift, step = 0.05,
-			format = "%.2fx" },
-		width = { name = "Rim", tip = "How far in the edge glow reaches.", range = { 0.1, 0.5 }, step = 0.05,
+		scale = { name = "Pattern size", tip = "How big the pattern is.", format = "%.1fx" },
+		drift = { name = "Drift speed", tip = "How fast the pattern moves.", format = "%.2fx" },
+		width = { name = "Rim", tip = "How far in the edge glow reaches.",
 			format = function(v) return string.format("%d%%", v * 100 + 0.5) end },
 	},
 	build = function(g)
@@ -735,13 +748,14 @@ local material = {
 		local school = effectSchool(g)
 		parts.school = school
 		parts.pattern = st.scale
-		local file = MEDIA .. "Mat-" .. school:sub(1, 1):upper() .. school:sub(2)
+		local mat = materialOf(school)
+		local file = MEDIA .. mat.file
 		local alpha = { math.min(k, 1), math.min(math.max(k - 1, 0), 1) }
 		for i, t in ipairs(parts.tex) do
 			t:SetTexture(file, "REPEAT", "REPEAT")
 			t:SetVertexColor(c[1], c[2], c[3], (c[4] or 1) * alpha[i])
 			t:SetShown(alpha[i] > 0)
-			parts.moves[i]:SetDuration((MATERIAL[school] or MATERIAL.spirit)[3] / math.max(st.drift or 1, 0.1))
+			parts.moves[i]:SetDuration(mat.move[3] / math.max(st.drift or 1, 0.1))
 		end
 		materialLayout(g, parts)
 	end,
@@ -789,7 +803,8 @@ local heartbeat = {
 	end,
 }
 
-S.addField("glow", "look", { name = "Glow look", where = "Global settings > Pulsing glow style", preview = { play = "loop" } })
+S.addField("glow", "look", { name = "Glow style", where = "Global settings > Pulsing glow style",
+	preview = { play = "loop" } })
 local function addGlow(key, name, entry)
 	entry.name = name
 	S.addLook("glow", key, entry)
@@ -801,15 +816,12 @@ addGlow("spark", "Travelling spark", spark)
 addGlow("material", "School material", material)
 addGlow("heartbeat", "Heartbeat", heartbeat)
 
--- Pop looks
--- -- A drawn burst is a list of parts: from/to and rise in icon heights, dur/delay in seconds.
+-- Pop styles
+-- A drawn burst is a list of parts: from/to and rise in icon heights, dur/delay in seconds.
 local GCD_FLASH = "UI-HUD-ActionBar-GCD-Flipbook"
-local SCHOOLS = { earth = "Earth", fire = "Fire", water = "Water", air = "Air", spirit = "Spirit" }
-local SPIN = { earth = -0.35, fire = 0.25, water = -0.35, air = -1.2, spirit = -0.35 }
-local SHEEN = { earth = { -0.7, 0.7 }, fire = { -0.7, 0.7 }, water = { 0.7, -0.7 }, air = { -0.7, 0.7 }, spirit = { -0.7, 0.7 } }
 local HALO_SCALE, HALO_ALPHA = 1.08, 0.6
 
-Looks.POP_PARTS = { disc = "back", shape1 = "back", shape1Dark = "back", shape2 = "back", ring1 = "back",
+SA.POP_PARTS = { disc = "back", shape1 = "back", shape1Dark = "back", shape2 = "back", ring1 = "back",
 	ring2 = "back", spark = "front", sheen = "clip" }
 
 local function burst(out, name, file, from, to, t, front, dark)
@@ -827,49 +839,29 @@ local function disc(out, to, dur, delay)
 	table.insert(out, { name = "disc", file = MEDIA .. "Disc-Dark", layer = "BACKGROUND", sub = -1, dark = true,
 		from = to * 0.55, to = to * 0.95, dur = dur * 1.1, delay = delay, a = 0.75, slow = true })
 end
+local function shapeOf(school) return THEME.shape[school] or THEME.shape[THEME.fallback] end
 local function sheen(out, school, dur, delay)
 	table.insert(out, { name = "sheen", file = MEDIA .. "Sheen", layer = "OVERLAY", add = true, dur = dur,
-		delay = delay, a = 0.9, shift = SHEEN[school] or SHEEN.spirit })
+		delay = delay, a = 0.9, shift = shapeOf(school).sheenDir })
 end
-local function shapeFile(school) return MEDIA .. "Shape-" .. (SCHOOLS[school] or "Spirit") end
+local function shapeFile(school) return MEDIA .. shapeOf(school).file end
 
 local function shapes(file, to)
 	return function(out, school)
 		disc(out, 3.0, 0.5)
-		burst(out, "shape1", file(school), 1.0, to, { dur = 0.5, spin = SPIN[school] }, false, true)
+		burst(out, "shape1", file(school), 1.0, to, { dur = 0.5, spin = shapeOf(school).spin }, false, true)
 		sheen(out, school, 0.34)
 	end
 end
 
-local EFFECTS = {
-	earth = function(out)
-		burst(out, "shape1", shapeFile("earth"), 0.8, 2.7, { dur = 0.5, spin = 0.25, delay = 0.06 }, false, true)
-		burst(out, "ring1", MEDIA .. "Ring-Soft", 1.0, 2.6, { dur = 0.55, sy = 0.42, rise = -0.32, a = 0.9, delay = 0.06 })
-		sheen(out, "earth", 0.34, 0.05)
-	end,
-	fire = function(out)
-		burst(out, "shape1", shapeFile("fire"), 1.0, 3.1, { dur = 0.55, spin = 0.2 }, false, true)
-		burst(out, "shape2", shapeFile("fire"), 0.8, 1.9, { dur = 0.35, spin = -0.3, a = 0.7,
-			color = { 1, 0.8, 0.45 } })
-		sheen(out, "fire", 0.34)
-	end,
-	water = function(out)
-		burst(out, "ring1", MEDIA .. "Ring-Soft", 0.9, 2.4, { dur = 0.5, a = 0.9 })
-		burst(out, "ring2", MEDIA .. "Ring-Soft", 0.9, 2.4, { dur = 0.5, a = 0.7, delay = 0.16 })
-		burst(out, "shape1", shapeFile("water"), 1.1, 2.8, { dur = 0.6, delay = 0.05 }, false, true)
-		sheen(out, "water", 0.34)
-	end,
-	air = function(out)
-		burst(out, "shape1", shapeFile("air"), 1.0, 3.2, { dur = 0.6, spin = -2.1 }, false, true)
-		burst(out, "shape2", shapeFile("air"), 0.8, 2.0, { dur = 0.45, spin = -1.6, a = 0.5, color = { 1, 1, 1 } })
-		sheen(out, "air", 0.24)
-	end,
-	spirit = function(out)
-		burst(out, "ring1", MEDIA .. "Ring-Soft", 2.8, 1.0, { dur = 0.26, a = 0.9, slow = true })
-		burst(out, "shape1", shapeFile("spirit"), 0.9, 3.2, { dur = 0.5, spin = 0.6, delay = 0.22 }, false, true)
-		burst(out, "spark", MEDIA .. "Spark", 0.4, 1.6, { dur = 0.4, a = 0.9, delay = 0.22 }, true)
-	end,
-}
+local function effect(out, school)
+	local spec = THEME.burst[school] or THEME.burst[THEME.fallback]
+	for _, part in ipairs(spec.parts) do
+		local file = part.art == "shape" and shapeFile(school) or MEDIA .. part.art
+		burst(out, part.name, file, part.from, part.to, part, part.front, part.dark)
+	end
+	if spec.sheen then sheen(out, school, spec.sheen.dur, spec.sheen.delay) end
+end
 
 local POP = "Global settings > Pop style"
 S.addField("pop", "colorBy", { name = "Colour", where = POP, preview = { play = "hover" } })
@@ -882,7 +874,7 @@ S.addChoice("pop", "flash", "plain", { name = "Plain flash", uses = { colorBy = 
 S.addChoice("pop", "flash", "edge", { name = "Blizzard's edge flash", uses = { colorBy = true } })
 
 S.addField("pop", "burst", { name = "Burst", where = POP, preview = { play = "hover" },
-	groups = { { "plain", "Plain" }, { "element", "Element" }, { "other", "Other" } } })
+	groups = { { "plain", "Plain" }, { "element", THEME.axis.name }, { "other", "Other" } } })
 local function addBurst(key, entry)
 	if entry.rigParts or entry.draw then entry.uses = { colorBy = true, reach = true } end
 	S.addChoice("pop", "burst", key, entry)
@@ -892,14 +884,13 @@ addBurst("ring", { name = "Ring", group = "plain", rigParts = { "ring" } })
 addBurst("star", { name = "Star", group = "plain", rigParts = { "star" } })
 addBurst("both", { name = "Ring and star", group = "plain", rigParts = { "ring", "star" } })
 addBurst("painted", { name = "Emblem", group = "element", bySchool = true, credit = "ai",
-	tip = "An element's symbol spreads out behind the icon.",
-	draw = shapes(function(school) return MEDIA .. "Burst-" .. (SCHOOLS[school] or "Spirit") end, 3.2) })
-addBurst("school", { name = "Element effect", group = "element", bySchool = true,
-	tip = "Each element its own effect: earth slams, fire flares, water ripples, air spins, spirit gathers.",
+	tip = THEME.axis.one:gsub("^%l", string.upper) .. "'s symbol spreads out behind the icon.",
+	draw = shapes(function(school) return MEDIA .. shapeOf(school).emblem end, 3.2) })
+addBurst("school", { name = THEME.axis.name .. " effect", group = "element", bySchool = true,
+	tip = THEME.burstTip,
 	draw = function(out, school)
 		disc(out, 3.0, 0.6)
-		local effect = EFFECTS[school] or EFFECTS.spirit
-		effect(out)
+		effect(out, school)
 	end })
 addBurst("rune", { name = "Rune circle", group = "other",
 	draw = function(out)
@@ -907,8 +898,6 @@ addBurst("rune", { name = "Rune circle", group = "other",
 		burst(out, "shape1", MEDIA .. "Rune-Ring", 1.05, 2.6, { dur = 0.62, spin = 0.55 }, false, true)
 		burst(out, "spark", MEDIA .. "Spark", 1.2, 2.2, { dur = 0.35, a = 0.8, color = { 1, 1, 1 } }, true)
 	end })
--- Kept for a saved value.
-addBurst("shapes", { name = "Shapes", group = "element", hidden = true, bySchool = true, draw = shapes(shapeFile, 3.0) })
 
 S.addField("pop", "motion", { name = "Motion", where = POP, preview = { play = "hover" } })
 S.addChoice("pop", "motion", "none", { name = "None" })
@@ -918,7 +907,7 @@ for _, m in ipairs({ { "pop", "Grow" }, { "bounce", "Bounce" }, { "hop", "Hop" }
 end
 
 local popParts = {}
-function Looks.popParts(key, school)
+function SA.popParts(key, school)
 	local draw = S.choice("pop", "burst", key).draw
 	if not draw then return nil end
 	local id = key .. ":" .. tostring(school)
@@ -929,14 +918,23 @@ function Looks.popParts(key, school)
 	return popParts[id]
 end
 
--- Events whose pop takes the style's Colour; warnings keep their own.
-Looks.POP_EVENTS = { ready = true, expired = true }
+-- What a pop marks, and its colour; byStyle: the Pop style's Colour applies (not to warnings); tick:
+-- an end flash of this kind (an early end of its own) shows a tick
+SA.POP_KINDS = {
+	ready = { color = { 1, 0.82, 0.25 }, byStyle = true },
+	expired = { color = { 0.95, 0.95, 0.95 }, byStyle = true },
+	lost = { color = { 0.35, 0.65, 1 } },
+	killed = { color = { 1, 0.15, 0.1 } },
+	blocked = { color = { 0.6, 0.6, 0.6 } },   -- ready but can't be cast
+}
+-- A class's own pop kind
+function SA.addPopKind(key, spec) SA.POP_KINDS[key] = spec end
 
-Looks.schoolOf, Looks.effectSchool = schoolOf, effectSchool
+SA.effectSchool = effectSchool
 
 -- Blizzard's cooldown-done flash, doubled to be seen; nil without the art.
-function Looks.popEdge(parent)
-	if not Looks.hasAtlas(GCD_FLASH) then return nil end
+function SA.popEdge(parent)
+	if not SA.hasAtlas(GCD_FLASH) then return nil end
 	local out = {}
 	for i, grow in ipairs({ 1, 1.15 }) do
 		local t = parent:CreateTexture(nil, "OVERLAY", nil, 2)

@@ -1,25 +1,19 @@
 -- Swing timer options page
 
 local _, ns = ...
+local E, Bars = ns.Elements, ns.Bars
 
-local SP = {}
-ns.SwingPage = SP
-
-local Page, L = ns.Page, ns.Look
+local Page = ns.Page
 local showWhen, times, pct, int, px = Page.showWhen, Page.times, Page.pct, Page.int, Page.px
 
 local SHOWS = { { "combat", "In combat" }, { "always", "Always" }, { "never", "Hidden" } }
 local SHOW_NAME = { combat = "In combat", always = "Always", never = "Hidden" }
-local COLOR = { { "imbue", "Imbue colour" }, { "custom", "Custom" } }
 local FROM = { { "left", "Left to right" }, { "right", "Right to left" } }
 local TEXT_POS = { { "left", "Left" }, { "center", "Middle" }, { "right", "Right" } }
 
-L.IDENTITY.swing = { label = "Swing timer", icon = ns.Swing.ICON, school = "spirit",
-	blurb = "Time to your next melee swing.",
-	tags = function() return SHOW_NAME[ns.Swing.cfg().show] or "" end }
-
+-- Header: the bar is its stage
 local FILL, LENGTH = 0.55, 2.6
-L.PREVIEW.swing = {
+local PREVIEW = {
 	stage = true, heroH = 150,
 	states = { { "swinging", "Swinging" }, { "due", "Swing due" } },
 	stateShown = function() return true end,
@@ -56,7 +50,7 @@ L.PREVIEW.swing = {
 		box:ClearAllPoints()
 		box:SetPoint("CENTER", h.area, "CENTER", 0, 0)
 		h.fitNote:SetText(fit < 0.999 and string.format("Shown at %d%% to fit", math.floor(fit * 100 + 0.5)) or "")
-		ns.applyBorder(box, SW.border(), "bar")
+		ns.StyleArt.applyBorder(box, SW.border(), "bar")
 		SW.styleBar(box.bar)
 		SW.styleCountdown()
 		SW.placeCountdown(box.text, box)
@@ -70,9 +64,9 @@ L.PREVIEW.swing = {
 	end,
 }
 
-function SP.build(p)
+local function build(p)
 	local SW, K = ns.Swing, ns.Options.kit
-	local R = SW.RANGES
+	local R, slider = SW.RANGES, K.rangeSlider
 	local function c() return SW.cfg() end
 	local changed = K.perFrame(function() SW.apply(); ns.Options.refresh() end)
 	local function get(key) return function() return c()[key] end end
@@ -89,33 +83,47 @@ function SP.build(p)
 		SHOWS, get("show"), set("show"), nil, 160)
 
 	p:header("Layout")
-	p:slider("Width", "Mouse wheel over the bar while positioning is unlocked does the same.",
-		R.width[1], R.width[2], 4, px, get("width"), set("width"))
-	p:slider("Height", nil, R.height[1], R.height[2], 1, px, get("height"), set("height"))
-	p:slider("Scale", "Grows everything on the bar, borders too. Shift + mouse wheel over the bar while positioning is unlocked does the same.",
-		R.scale[1], R.scale[2], 0.05, times, get("scale"), set("scale"))
-	p:slider("Opacity", "Ctrl + mouse wheel over the bar while positioning is unlocked does the same.",
-		R.alpha[1], R.alpha[2], 0.05, pct, get("alpha"), set("alpha"))
+	slider(p, R.width, "Width", "Mouse wheel over the bar while positioning is unlocked does the same.",
+		px, get("width"), set("width"))
+	slider(p, R.height, "Height", nil, px, get("height"), set("height"))
+	slider(p, R.scale, "Scale", "Grows everything on the bar, borders too. Shift + mouse wheel over the bar while "
+		.. "positioning is unlocked does the same.",
+		times, get("scale"), set("scale"))
+	slider(p, R.alpha, "Opacity", "Ctrl + mouse wheel over the bar while positioning is unlocked does the same.",
+		pct, get("alpha"), set("alpha"))
 
 	p:header("Bar")
 	p:dropdown("Direction", nil, FROM, get("fillFrom"), set("fillFrom"), nil, 160)
 	p:checkbox("Empty as it goes", "Starts full and empties, instead of filling.", get("deplete"), set("deplete"))
-	p:dropdown("Colour", nil, COLOR, get("colorBy"), set("colorBy"), nil, 160)
-	p:text("Your main hand's imbue, grey with none.", showWhen(function() return not custom() end))
+	local colors = {}
+	for _, key in ipairs(SW.COLOR_BY) do
+		local e = E.ALL[key]
+		table.insert(colors, { key, e and e.barColor.label or "Custom" })
+	end
+	p:dropdown("Colour", nil, colors, get("colorBy"), set("colorBy"), nil, 160)
+	p:text(function()
+		local e = E.ALL[c().colorBy]
+		return e and e.barColor.text or ""
+	end, showWhen(function() return not custom() end))
 	p:color("Custom colour", nil, get("color"), set("color"), showWhen(custom))
 	K.barRows(p, "swing", changed)
 
 	p:header("Countdown")
 	p:checkbox("Countdown text", "The time to the next swing, on the bar.", get("countdown"), set("countdown"))
 	p:dropdown("Position", nil, TEXT_POS, get("countdownPos"), set("countdownPos"), text, 160)
-	p:slider("Text size", nil, R.countdownSize[1], R.countdownSize[2], 1, int, get("countdownSize"), set("countdownSize"), text)
+	slider(p, R.countdownSize, "Text size", nil, int, get("countdownSize"), set("countdownSize"), text)
 	p:color("Text colour", nil, get("countdownColor"), set("countdownColor"), text)
 	K.textBlock(p, "swing", changed)
 
 	p:header("Border style")
 	K.borderRows(p, "swing", changed)
 	if K.barFramed("swing") then
-		p:header("Frame style")
+		p:header("Art frame style")
 		K.frameRows(p, "swing", "groupframe", changed)
 	end
 end
+
+Bars.register("swing", { icon = ns.Swing.ICON, school = ns.THEME.fallback,
+	blurb = "Time to your next melee swing.",
+	tags = function() return SHOW_NAME[ns.Swing.cfg().show] or "" end,
+	preview = PREVIEW, page = { order = 60, build = build } })

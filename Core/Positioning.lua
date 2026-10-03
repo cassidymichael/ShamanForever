@@ -1,6 +1,8 @@
 -- Positioning (unlock mode)
 
 local _, ns = ...
+local W = ns.Widgets
+local E, G, P = ns.Elements, ns.Groups, ns.Profiles
 local say = ns.say
 
 local PO = {}
@@ -13,8 +15,8 @@ local SNAP = 8   -- UI units
 local function round2(v) return math.floor(v * 100 + 0.5) / 100 end
 local function clamp(v, lo, hi) return math.min(math.max(v, lo), hi) end
 local function uiScale() return UIParent:GetEffectiveScale() end
-local function db() return ns.getDB() end
-local function acct() return ns.getAccount() end
+local function db() return P.getDB() end
+local function acct() return P.getAccount() end
 
 -- Grid and snap guides
 local grid = CreateFrame("Frame", nil, UIParent)
@@ -102,7 +104,7 @@ local function snapAxis(pos, half, targets, origin, gs)
 end
 
 -- Dragging, the wheel and clicks
-function PO.snap(frame, x, y)
+local function snap(frame, x, y)
 	local a = acct()
 	local gx, gy
 	if a.snap then
@@ -117,8 +119,8 @@ function PO.snap(frame, x, y)
 			table.insert(tx, l); table.insert(tx, (l + r) / 2); table.insert(tx, r)
 			table.insert(ty, b); table.insert(ty, (b + t) / 2); table.insert(ty, t)
 		end
-		for id, f in pairs(ns.groupFrames) do
-			if ns.groupById(id) then target(f) end
+		for id, f in pairs(G.frames) do
+			if G.byId(id) then target(f) end
 		end
 		for _, m in ipairs(movables) do target(m.frame) end
 		local gs = a.grid and a.gridSize or nil
@@ -128,70 +130,97 @@ function PO.snap(frame, x, y)
 	showGuides(gx, gy)
 	return x, y
 end
-function PO.endSnap() showGuides() end
 
--- Dragged by hand rather than with StartMoving so they can snap while moving
+-- Dragged by hand rather than with StartMoving so they can snap while moving: moveTo(x, y) takes
+-- the moved frame's new centre in UI units
 local function dragUpdate(self)
 	if InCombatLockdown() then self:SetScript("OnUpdate", nil); showGuides(); return end
 	local ui = uiScale()
 	local cx, cy = GetCursorPosition()
-	local x, y = PO.snap(self, cx / ui + self.dragDX, cy / ui + self.dragDY)
-	local g = ns.groupById(self.groupId)
-	if not g then return end
-	ns.setGroupCenter(g, x * ui, y * ui)
-	ns.placeOnPixels(self, "CENTER", g.x, g.y)
+	self.moveTo(snap(self.moved, cx / ui + self.dragDX, cy / ui + self.dragDY))
 end
+local function startDrag(handle, moved, moveTo)
+	local ui = uiScale()
+	local s = moved:GetEffectiveScale() / ui
+	local fx, fy = moved:GetCenter()
+	local cx, cy = GetCursorPosition()
+	handle.moved, handle.moveTo = moved, moveTo
+	handle.dragDX, handle.dragDY = fx * s - cx / ui, fy * s - cy / ui
+	handle:SetScript("OnUpdate", dragUpdate)
+end
+local function stopDrag(handle)
+	handle:SetScript("OnUpdate", nil)
+	showGuides()
+end
+
+-- The wheel: opacity (Ctrl), scale (Shift) or the size (size = { key, step, from(c): the value it
+-- starts from, if not c[key] }), each kept in its range. Its steps are its own, apart from the sliders'
+local function wheel(c, delta, ranges, size)
+	local function step(key, by, from)
+		local r = ranges[key]
+		c[key] = clamp(round2((from or c[key]) + delta * by), r[1], r[2])
+	end
+	if IsControlKeyDown() then step("alpha", 0.05)
+	elseif IsShiftKeyDown() then step("scale", 0.05)
+	else step(size.key, size.step, size.from and size.from(c)) end
+end
+
+local GROUP_SIZE = { key = "size", step = 2, from = function(g)
+	if g.sizeFollow then g.sizeFollow = false; return db().iconSize end
+end }
 
 function PO.attach(f)
 	f:SetMovable(true)
 	f:SetClampedToScreen(true)
 	f:RegisterForDrag("LeftButton")
-	f:SetBackdrop(ns.BACKDROP)
+	f:SetBackdrop(W.BACKDROP)
 	f.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	f.label:SetPoint("BOTTOMLEFT", f, "TOPLEFT", 0, 2)
+	local function moveTo(x, y)
+		local g = G.byId(f.groupId)
+		if not g then return end
+		local ui = uiScale()
+		G.setCenter(g, x * ui, y * ui)
+		W.placeOnPixels(f, "CENTER", g.x, g.y)
+	end
 	f:SetScript("OnDragStart", function(self)
 		if acct().locked or InCombatLockdown() then return end
 		PO.select(self.groupId)
-		local ui = uiScale()
-		local s = self:GetEffectiveScale() / ui
-		local fx, fy = self:GetCenter()
-		local cx, cy = GetCursorPosition()
-		self.dragDX, self.dragDY = fx * s - cx / ui, fy * s - cy / ui
-		self:SetScript("OnUpdate", dragUpdate)
+		startDrag(self, self, moveTo)
 	end)
 	f:SetScript("OnDragStop", function(self)
-		self:SetScript("OnUpdate", nil)
-		showGuides()
-		if not InCombatLockdown() then ns.layoutElements() end
+		stopDrag(self)
+		if not InCombatLockdown() then G.layoutElements() end
 	end)
 	f:SetScript("OnMouseWheel", function(self, delta)
-		local g = ns.groupById(self.groupId)
+		local g = G.byId(self.groupId)
 		if acct().locked or InCombatLockdown() or not g then return end
-		local sx, sy = ns.screenCenter(self)
-		if IsControlKeyDown() then g.alpha = clamp(round2(g.alpha + delta * 0.05), 0.1, 1)
-		elseif IsShiftKeyDown() then g.scale = clamp(round2(g.scale + delta * 0.05), 0.5, 3)
-		else
-			if g.sizeFollow then g.sizeFollow, g.size = false, db().iconSize end
-			g.size = clamp(g.size + delta * 2, 24, 96)
-		end
-		if sx then ns.setGroupCenter(g, sx, sy) end
-		ns.layoutElements()
+		local sx, sy = G.screenCenter(self)
+		wheel(g, delta, P.GROUP_RANGES, GROUP_SIZE)
+		if sx then G.setCenter(g, sx, sy) end
+		G.layoutElements()
 		self.label:SetText(string.format("%s: size %d, scale %.2f, opacity %.0f%%", g.name,
-			ns.groupSize(g), g.scale, g.alpha * 100))
+			G.size(g), g.scale, g.alpha * 100))
 	end)
 	f:SetScript("OnMouseUp", function(self, button)
 		local locked = acct().locked
 		if button == "LeftButton" and not locked and not InCombatLockdown() then PO.select(self.groupId) return end
 		if button ~= "RightButton" or locked then return end
-		local g = ns.groupById(self.groupId)
+		local g = G.byId(self.groupId)
 		if IsShiftKeyDown() and g then
 			for _, key in ipairs(g.members) do
-				local e = ns.ELEMENTS[key].frame
+				local e = E.ALL[key].frame
 				if e:IsShown() and e:IsMouseOver() then ns.Options.openElement(key) return end
 			end
 		end
 		ns.Options.openGroup(self.groupId)
 	end)
+end
+
+-- The border of a mover: gold when selected, blue otherwise
+local function paintBorder(f, chosen, unlocked)
+	if chosen then f:SetBackdropBorderColor(1, 0.82, 0, 1)
+	else f:SetBackdropBorderColor(0.2, 0.6, 1, unlocked and 0.9 or 0) end
 end
 
 function PO.decorate(gf, g)
@@ -200,8 +229,7 @@ function PO.decorate(gf, g)
 	gf:EnableMouse(unlocked)
 	gf:EnableMouseWheel(unlocked)
 	gf:SetBackdropColor(0, 0, 0, unlocked and 0.4 or 0)
-	if chosen then gf:SetBackdropBorderColor(1, 0.82, 0, 1)
-	else gf:SetBackdropBorderColor(0.2, 0.6, 1, unlocked and 0.9 or 0) end
+	paintBorder(gf, chosen, unlocked)
 	gf.label:SetText(g.name)
 	gf.label:SetShown(unlocked)
 end
@@ -221,12 +249,12 @@ local function nudge(key)
 		if d then selectedMovable.nudge(d[1] * step, d[2] * step) end
 		return
 	end
-	local g = ns.groupById(selectedGroup)
-	local f = selectedGroup and ns.groupFrames[selectedGroup]
+	local g = G.byId(selectedGroup)
+	local f = selectedGroup and G.frames[selectedGroup]
 	if not (g and d and f) then return end
 	g.x = g.x + d[1] * step / g.scale
 	g.y = g.y + d[2] * step / g.scale
-	ns.placeOnPixels(f, g.point, g.x, g.y)
+	W.placeOnPixels(f, g.point, g.x, g.y)
 end
 
 local function syncNudger()
@@ -244,19 +272,97 @@ function PO.select(id)
 	if selectedGroup == id and not selectedMovable then return end
 	selectedGroup, selectedMovable = id, nil
 	syncNudger()
-	ns.layoutElements()
+	G.layoutElements()
 end
 
--- A frame that moves on its own (the totem bar, the swing timer). m: frame, nudge(dx, dy), lock()
+-- A frame that moves on its own (a bar). m: frame, nudge(dx, dy), lock()
 -- (combat started while unlocked)
-function PO.addMovable(m) table.insert(movables, m) end
-function PO.selectMovable(m)
+-- bar: the key it registered under
+function PO.addMovable(m, bar)
+	m.bar = bar
+	table.insert(movables, m)
+end
+local function selectMovable(m)
 	if selectedMovable == m then return end
 	selectedGroup, selectedMovable = nil, m
 	syncNudger()
-	ns.layoutElements()
+	G.layoutElements()
 end
-function PO.isSelected(m) return selectedMovable == m end
+
+-- A bar's mover: a box over it while unlocked that drags (snapping), wheels, nudges and locks it.
+-- spec: frame (the bar), label, cfg() (point, x, y, scale, alpha), ranges, size (the plain wheel,
+-- as wheel() takes it), shown() (it can be placed now), place() (lay it out again), describe() (the
+-- label after a wheel step), lock() (combat started). A right-click opens the bar's page.
+-- Returns the movable for ns.Bars.register, with update() for the bar's layout.
+function PO.mover(spec)
+	local f = spec.frame
+	local m = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+	m:SetFrameStrata("DIALOG")
+	-- Stays on screen when its bar isn't, so a drag from it can bring the bar back
+	m:SetClampedToScreen(true)
+	m:SetBackdrop(W.BACKDROP)
+	m:SetBackdropColor(0, 0, 0, 0.4)
+	m:EnableMouse(true)
+	m:EnableMouseWheel(true)
+	m:RegisterForDrag("LeftButton")
+	m:Hide()
+	m.label = m:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	m.label:SetPoint("BOTTOMLEFT", m, "TOPLEFT", 0, 2)
+	local movable = { frame = f }
+	local function place()
+		local c = spec.cfg()
+		W.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
+	end
+	local function moveTo(x, y)
+		local c = spec.cfg()
+		local ux, uy = UIParent:GetCenter()
+		c.point, c.x, c.y = "CENTER", x - ux, y - uy
+		place()
+	end
+	function movable.nudge(dx, dy)
+		local c = spec.cfg()
+		c.x, c.y = c.x + dx, c.y + dy
+		place()
+	end
+	function movable.lock()
+		stopDrag(m)
+		m:Hide()
+		spec.lock()
+	end
+	function movable.update()
+		local on = spec.shown() and not acct().locked and not InCombatLockdown()
+		if on then
+			m:ClearAllPoints()
+			m:SetPoint("TOPLEFT", f, "TOPLEFT", -2, 2)
+			m:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 2, -2)
+			paintBorder(m, selectedMovable == movable, true)
+			m.label:SetText(spec.label)
+		end
+		m:SetShown(on)
+	end
+	m:SetScript("OnDragStart", function(self)
+		if InCombatLockdown() then return end
+		selectMovable(movable)
+		startDrag(self, f, moveTo)
+	end)
+	m:SetScript("OnDragStop", function(self)
+		stopDrag(self)
+		if not InCombatLockdown() then spec.place() end
+	end)
+	m:SetScript("OnMouseUp", function(_, button)
+		if InCombatLockdown() then return end
+		if button == "LeftButton" then selectMovable(movable)
+		elseif button == "RightButton" then ns.Options.open(movable.bar) end
+	end)
+	m:SetScript("OnMouseWheel", function(self, delta)
+		if InCombatLockdown() then return end
+		wheel(spec.cfg(), delta, spec.ranges, spec.size)
+		spec.place()
+		self.label:SetText(spec.describe())
+		ns.changed()
+	end)
+	return movable
+end
 
 nudger:SetScript("OnKeyDown", function(self, key)
 	if InCombatLockdown() then self:Hide() return end
@@ -280,38 +386,26 @@ nudger:SetScript("OnUpdate", function(self, elapsed)
 	end
 end)
 nudger:SetScript("OnHide", function(self) self.held = nil end)
--- Hidden frames still get events: hide at the start of combat, back after
-nudger:SetScript("OnEvent", function(self, event)
-	if event == "PLAYER_REGEN_DISABLED" then
-		self:Hide()
-		if ns.isActive() and not acct().locked then PO.lockInCombat(); say("positioning locked for combat") end
-	else syncNudger() end
+-- Hidden at the start of combat, back after
+ns.onCombatStart(function()
+	nudger:Hide()
+	if E.isActive() and not acct().locked then
+		PO.lockInCombat()
+		say("positioning locked for combat")
+	end
 end)
-ns.registerEvent(nudger, "PLAYER_REGEN_DISABLED")
-ns.registerEvent(nudger, "PLAYER_REGEN_ENABLED")
+ns.onCombatEnd(syncNudger)
 
 -- The bar while unlocked
-local wasUnlocked, optionsSteppedAside = false, false
-local tray = CreateFrame("Frame", ns.NAME .. "Tray", UIParent, "BackdropTemplate")
-tray:SetSize(560, 120)
-tray:SetFrameStrata("DIALOG")
+local wasUnlocked = false
+local tray = W.floatingPanel(ns.NAME .. "Tray", 560, 120, { 0.2, 0.6, 1, 0.9 })
 tray:SetPoint("TOP", UIParent, "TOP", 0, -120)
-tray:SetMovable(true)
-tray:SetClampedToScreen(true)
-tray:EnableMouse(true)
-tray:RegisterForDrag("LeftButton")
-tray:SetScript("OnDragStart", tray.StartMoving)
-tray:SetScript("OnDragStop", tray.StopMovingOrSizing)
-tray:SetBackdrop(ns.BACKDROP)
-tray:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
-tray:SetBackdropBorderColor(0.2, 0.6, 1, 0.9)
-tray:Hide()
 do
 	local title = tray:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	title:SetPoint("TOPLEFT", 10, -10)
 	title:SetText(ns.NAME .. ": positioning unlocked")
 	local HELP = {
-		{ "Drag", "Move a group or the totem bar" },
+		{ "Drag" },   -- what it moves: PO.update, once the bars have registered
 		{ "Click, then arrow keys", "Nudge a group (Shift: 10x)" },
 		{ "Mouse wheel", "Icon size: borders not scaled with it" },
 		{ "Shift + wheel", "Scale: everything grows, borders too" },
@@ -330,6 +424,7 @@ do
 		local what = tray.hint:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		what:SetPoint("TOPLEFT", KEY_W, -(i - 1) * LINE_H)
 		what:SetText(h[2])
+		if i == 1 then tray.drag = what end
 	end
 	local row = CreateFrame("Frame", nil, tray)
 	row:SetPoint("TOPLEFT", tray.hint, "BOTTOMLEFT", 0, -10)
@@ -344,20 +439,16 @@ do
 		cb:SetScript("OnClick", function(self)
 			local on = self:GetChecked() and true or false
 			acct()[key] = on
-			ns.layoutElements()
+			G.layoutElements()
 		end)
-		cb:SetScript("OnEnter", function(self)
-			GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-			GameTooltip:SetText(label)
-			GameTooltip:AddLine(tip, 1, 1, 1, true)
-			GameTooltip:Show()
-		end)
-		cb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+		W.setTip(cb, label, tip, "ANCHOR_BOTTOM")
 		return cb
 	end
-	tray.snap = check("Snapping", "snap", "While dragging, groups snap to other groups' edges and centres, the screen centre, and the grid when it is shown.")
+	tray.snap = check("Snapping", "snap",
+		"While dragging, groups snap to other groups' edges and centres, the screen centre, and the grid when it is shown.")
 	tray.snap:SetPoint("LEFT", -4, 0)
-	tray.grid = check("Show grid", "grid", "A grid over the whole screen while unlocked. With snapping on, groups snap to it.")
+	tray.grid = check("Show grid", "grid",
+		"A grid over the whole screen while unlocked. With snapping on, groups snap to it.")
 	tray.grid:SetPoint("LEFT", tray.snap.Text, "RIGHT", 16, 0)
 	local function stepper(text, delta)
 		local b = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
@@ -366,7 +457,7 @@ do
 		b:SetScript("OnClick", function()
 			local a = acct()
 			a.gridSize = math.min(math.max(a.gridSize + delta, 8), 128)
-			ns.layoutElements()
+			G.layoutElements()
 		end)
 		return b
 	end
@@ -384,25 +475,13 @@ do
 	lock:SetSize(70, 22)
 	lock:SetPoint("RIGHT", 0, 0)
 	lock:SetText("Lock")
-	lock:SetScript("OnClick", function() ns.setLocked(true) end)
+	lock:SetScript("OnClick", function() G.setLocked(true) end)
 	tray.options = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
 	tray.options:SetSize(110, 22)
 	tray.options:SetPoint("RIGHT", lock, "LEFT", -6, 0)
-	tray.options:SetScript("OnClick", function()
-		if ns.Options.hide() then
-			optionsSteppedAside, acct().keepOptionsOpen = true, false
-		else
-			optionsSteppedAside, acct().keepOptionsOpen = false, true
-			ns.Options.open("layout")
-		end
-	end)
-	tray.options:SetScript("OnEnter", function(self)
-		GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-		GameTooltip:SetText(self:GetText())
-		GameTooltip:AddLine("The options stay shown or hidden the next time you unlock.", 1, 1, 1, true)
-		GameTooltip:Show()
-	end)
-	tray.options:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	tray.options:SetScript("OnClick", function() ns.Options.toggleAside("layout") end)
+	W.setTip(tray.options, function() return tray.options:GetText() end,
+		"The options stay shown or hidden the next time you unlock.", "ANCHOR_BOTTOM")
 end
 
 function PO.optionsShown(shown)
@@ -413,21 +492,17 @@ PO.optionsShown(false)
 local function stepOptionsAside(unlocked)
 	if unlocked == wasUnlocked then return end
 	wasUnlocked = unlocked
-	if unlocked then
-		optionsSteppedAside = not acct().keepOptionsOpen and ns.Options.hide() or false
-	elseif optionsSteppedAside then
-		optionsSteppedAside = false
-		ns.Options.open()
-	end
+	if unlocked then ns.Options.stepAside("positioning") else ns.Options.comeBack("positioning") end
 end
 
 function PO.update()
 	local a = acct()
-	local unlocked = ns.isActive() and not a.locked
+	local unlocked = E.isActive() and not a.locked
 	if not unlocked then selectedGroup, selectedMovable = nil, nil end
-	if selectedGroup and not ns.groupById(selectedGroup) then selectedGroup = nil end
+	if selectedGroup and not G.byId(selectedGroup) then selectedGroup = nil end
 	syncNudger()
 	tray:SetShown(unlocked)
+	if unlocked then tray.drag:SetText("Move " .. ns.OptionsArt.movingWords("a group", "or")) end
 	tray:SetHeight(30 + tray.hint:GetHeight() + 10 + 26 + 8)
 	tray.snap:SetChecked(a.snap)
 	PO.optionsShown(ns.Options.isShown())
@@ -440,15 +515,15 @@ function PO.update()
 end
 
 -- Combat locks positioning. Showing, moving and mouse changes on group frames are dropped in combat
--- (the shield's group holds Blizzard's protected button), so only the looks change; the full
--- layout runs when combat ends. Called at PLAYER_REGEN_DISABLED, before lockdown: groups stop
--- taking the mouse, or they would eat clicks, camera drags and wheel zoom for the whole fight.
+-- (a group can hold Blizzard's protected aura button), so only the looks change; the full
+-- layout runs when combat ends. Groups stop taking the mouse, or they would eat clicks, camera
+-- drags and wheel zoom for the whole fight.
 function PO.lockInCombat()
 	acct().locked = true
-	optionsSteppedAside = false
+	ns.Options.comeBack("positioning", true)
 	selectedGroup, selectedMovable = nil, nil
 	local free = not InCombatLockdown()
-	for _, gf in pairs(ns.groupFrames) do
+	for _, gf in pairs(G.frames) do
 		if free then gf:EnableMouse(false); gf:EnableMouseWheel(false) end
 		gf:SetScript("OnUpdate", nil)
 		gf:SetBackdropColor(0, 0, 0, 0)
@@ -457,7 +532,7 @@ function PO.lockInCombat()
 	end
 	showGuides()
 	PO.update()
-	ns.retryAfterCombat("layout", ns.layoutElements)
+	ns.retryAfterCombat("layout", G.layoutElements)
 	for _, m in ipairs(movables) do m.lock() end
-	ns.Options.refresh()
+	ns.changed()
 end

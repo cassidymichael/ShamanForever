@@ -1,14 +1,17 @@
 -- Weapon imbue
 
 local _, ns = ...
+local P = ns.Profiles
+local W = ns.Widgets
+local E, MOD = ns.Elements, ns.Modules
 local say, isSecret = ns.say, ns.isSecret
 local Spells = ns.Spells
+local own = E.settingsOf("imbue")
 
 local IM = { name = "imbue" }
 ns.Imbue = IM
 
-ns.Profiles.addRanges({ imbueWarnMins = { 0, 30 } })
-local imbue = ns.newElementIcon("imbue")
+local imbue = E.newIcon("imbue")
 local anyKnown = false
 local IDLE_CHOICES = {
 	{ "never", "Never", "It always shows in full" },
@@ -16,21 +19,30 @@ local IDLE_CHOICES = {
 		"Idle while an imbue is on and its time left isn't low" },
 	{ "on", "On", "Idle while an imbue is on", "Idle whatever its time left is." },
 }
-ns.registerElement("imbue", { frame = imbue, label = "Weapon Imbue", paint = function(t) t:SetTexture(IM.icon()) end,
+local imbueIcon
+E.register("imbue", { frame = imbue, label = "Weapon Imbue",
+	paint = function(t) t:SetTexture(imbueIcon) end,
 	learned = function() return anyKnown end,
-	defaults = { idleWhen = "notlow", idleAlpha = 0 },
+	defaults = { idleWhen = "notlow", idleAlpha = 0,
+		icon = "last",   -- the icon while none is on: last | rockbiter | flametongue | frostbrand | windfury
+		showUnderMins = 5,   -- time left shows under this (0: never)
+		warn = { grey = true, ring = true, fade = true, glow = true, pop = true, sound = "none" } },
+	ranges = { showUnderMins = { 0, 30, 1 } },
 	styles = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false,
 		bar = false } },
 	def = { key = "imbue", idleChoices = IDLE_CHOICES },
-	effects = { glow = { "missing" }, pop = { "lost" }, popKind = "imbue" },
+	effects = { glow = true, pop = true, popKind = "lost" },
+	-- A bar can take its colour (the swing timer's Colour)
+	barColor = { label = "Imbue colour", text = "Your main hand's imbue, grey with none.",
+		color = function() return IM.barColor() end },
 	kind = "imbue", icon = 136086, school = "spirit", blurb = "Warns when your main hand has no imbue." })
 
--- ids are enchant IDs (item data), not spell IDs
+-- ids are enchant IDs (item data), not spell IDs; school: its colour on a bar
 local IMBUES = {
-	rockbiter   = { icon = 136086, ids = { 29, 6, 1, 503, 1663, 683, 1664 } },
-	flametongue = { icon = 135814, ids = { 5, 4, 3, 523, 1665, 1666 } },
-	frostbrand  = { icon = 135847, ids = { 2, 12, 524, 1667, 1668 } },
-	windfury    = { icon = 136018, ids = { 283, 284, 525, 1669 } },
+	rockbiter   = { icon = 136086, school = "earth", ids = { 29, 6, 1, 503, 1663, 683, 1664 } },
+	flametongue = { icon = 135814, school = "fire", ids = { 5, 4, 3, 523, 1665, 1666 } },
+	frostbrand  = { icon = 135847, school = "water", ids = { 2, 12, 524, 1667, 1668 } },
+	windfury    = { icon = 136018, school = "air", ids = { 283, 284, 525, 1669 } },
 }
 for key, m in pairs(IMBUES) do m.name = Spells.name(key) end
 local IMBUE_ORDER = { "rockbiter", "flametongue", "frostbrand", "windfury" }
@@ -62,7 +74,7 @@ end
 -- false when none is on, nil when it can't be read
 local function readMainHand()
 	if not (C_Item and C_Item.GetWeaponEnchantInfo) then return nil end
-	local ok, list = pcall(C_Item.GetWeaponEnchantInfo, MAIN_HAND)
+	local ok, list = ns.try("imbue: read", C_Item.GetWeaponEnchantInfo, MAIN_HAND)
 	if not ok or isSecret(list) or type(list) ~= "table" then return nil end
 	for _, w in ipairs(list) do
 		if isSecret(w.hasEnchant) or isSecret(w.enchantType) then return nil end
@@ -81,41 +93,43 @@ local function hasWeapon()
 end
 
 local function imbueKeyFor(w)
-	local key = ns.getAccount().imbueIDs[w.enchantID] or imbueByID[w.enchantID]
+	local key = P.getAccount().imbueIDs[w.enchantID] or imbueByID[w.enchantID]
 	if key then return key end
 	for k, m in pairs(IMBUES) do
 		if w.enchantIconID == m.icon or w.enchantIconID == imbueIconFor(k) then return k end
 	end
 end
 
-function IM.mainHand()
+local NO_IMBUE = { 0.7, 0.7, 0.7 }
+function IM.barColor()
 	local r = readMainHand()
-	return r and imbueKeyFor(r) or nil
+	local m = r and IMBUES[imbueKeyFor(r) or ""]
+	return m and ns.THEME.barColor[m.school] or NO_IMBUE
 end
 
-local imbueIcon = imbueIconFor("rockbiter")
+imbueIcon = imbueIconFor("rockbiter")
 local function preferredImbueIcon()
-	local db, acct = ns.getDB(), ns.getAccount()
-	return imbueIconFor(db.imbuePreferred == "last" and (acct.imbueLast or "rockbiter") or db.imbuePreferred)
+	local icon = own("icon")
+	return imbueIconFor(icon == "last" and (P.getAccount().imbueLast or "rockbiter") or icon)
 end
-IM.preferredIcon = preferredImbueIcon
-function IM.icon() return imbueIcon end
 
 -- quiet: nothing can be cast now, so a missing imbue shows grey without the warning
+local function warn(field) return own("warn", field) end
+
 local function drawImbue(now, quiet)
-	local db, acct = ns.getDB(), ns.getAccount()
 	local on, key = imbueState.on, imbueState.key
 	local unreadable = imbueState.unreadable
 	local left = imbueState.expiresAt and imbueState.expiresAt - now
-	local warnAt = db.imbueWarnMins * 60
+	local mins = own("showUnderMins")
+	local warnAt = (type(mins) == "number" and mins or 0) * 60
 	local showTime = left ~= nil and warnAt > 0 and left <= warnAt
 	-- Missing look only when the read says none: unrecognised shows in colour, unreadable as "?"
 	local missing = on == false
 	imbueIcon = key and imbueIconFor(key) or preferredImbueIcon()
-	imbue.tex:SetDesaturated(missing and db.imbueMissingGrey or false)
-	imbue:SetRingShown(missing and db.imbueMissingRing and not quiet)
-	imbue:SetPulsing(missing and db.imbuePulse and not quiet)
-	imbue:SetGlowShown(missing and db.imbueGlow and not quiet)
+	local grey, tint, ring, fade, glow = W.warnParts("imbue", "warn")
+	local warns = missing and not quiet
+	imbue:SetWarnParts(missing and grey, warns and tint, warns and ring, warns and fade,
+		warns and glow)
 	imbue.tex:SetTexture(imbueIcon)
 	if unreadable then
 		imbue.timer:SetText("?")
@@ -129,32 +143,31 @@ local function drawImbue(now, quiet)
 		imbue.upTimer:clear()
 	end
 	-- Idle fades by alpha, not Hide (keeps its place)
-	local when = ns.elementSetting("imbue", "idleWhen")
-	local idle = acct.locked and on and (when == "on" or (when == "notlow" and not showTime))
-	ns.fadeTo(imbue, idle and ns.idleAlpha("imbue") or 1)
+	local when = own("idleWhen")
+	local idle = P.getAccount().locked and on and (when == "on" or (when == "notlow" and not showTime))
+	W.fadeTo(imbue, idle and E.idleAlpha("imbue") or 1)
 end
 
 local function drawNotLearned()
 	imbueIcon = preferredImbueIcon()
 	imbue.tex:SetTexture(imbueIcon)
-	imbue.tex:SetDesaturated(true)
-	imbue:SetRingShown(false)
-	imbue:SetPulsing(false)
-	imbue:SetGlowShown(false)
+	imbue:SetWarnParts(true, false, false, false, false)
 	imbue.timer:Hide()
 	imbue.upTimer:clear()
-	ns.fadeTo(imbue, 1)
+	W.fadeTo(imbue, 1)
 end
 
 function IM.refresh()
-	if not ns.isEnabled("imbue") then
+	if not E.isEnabled("imbue") then
 		imbueState.on, imbueState.key, imbueState.lastID, imbueState.lastLeft = nil, nil, nil, nil
 		return
 	end
 	if not anyKnown then drawNotLearned() return end
-	local db, acct = ns.getDB(), ns.getAccount()
+	local acct = P.getAccount()
 	local now = GetTime()
 	local r = readMainHand()
+	-- An enchant read empty around a loading screen: the last state stays
+	if r == false and imbueState.on and ns.zoning() then return end
 	local had = imbueState.on
 	imbueState.unreadable = r == nil
 	imbueState.on = r and true or r
@@ -184,8 +197,8 @@ function IM.refresh()
 	local quiet = ns.cantAct()
 	drawImbue(now, quiet)
 	if had and r == false and not quiet then
-		if db.imbuePop then imbue:Pop("imbue") end
-		if imbue:IsVisible() then ns.Sounds.element("imbue", "lostSound", true) end
+		if warn("pop") then imbue:Pop("lost") end
+		if imbue:IsVisible() then ns.Sounds.element("imbue", "warn") end
 	end
 end
 
@@ -229,9 +242,31 @@ end
 -- /sf debug
 function IM.debug()
 	local r = readMainHand()
-	say("main hand imbue now: %s; last ticker read: %s; weapon %s", r == nil and "unreadable" .. (InCombatLockdown() and " (in combat)" or "")
-		or r == false and "none" or string.format("enchant %d, icon %d, %.0fs left", r.enchantID, r.enchantIconID, r.timeLeft / 1000),
+	say("main hand imbue now: %s; last ticker read: %s; weapon %s",
+		r == nil and "unreadable" .. (InCombatLockdown() and " (in combat)" or "")
+		or r == false and "none"
+		or string.format("enchant %d, icon %d, %.0fs left", r.enchantID, r.enchantIconID, r.timeLeft / 1000),
 		imbueState.read, tostring(hasWeapon()))
 end
 
-ns.registerModule(IM)
+-- Preview (ns.registerKind)
+local PREVIEW = {
+	uptime = true,
+	typical = "fine", warning = "missing",
+	states = { { "missing", "No imbue" }, { "low", "Running low" }, { "fine", "Plenty left" } },
+	pop = function(ic, st) if st == "missing" and warn("pop") then ic:Pop("lost") end end,
+	render = function(ic, st, kit)
+		if st == "missing" then
+			kit.reset(ic, preferredImbueIcon())
+			ic:SetWarnParts(W.warnParts("imbue", "warn"))
+		else
+			kit.reset(ic, imbueIcon)
+			local shows = own("showUnderMins") > 0
+			if st == "low" and shows then kit.frozen(ic.upT, 0.95, 3600) end
+		end
+	end,
+	idles = function(st, when) return st == "fine" or (st == "low" and when == "on") end,
+}
+ns.registerKind("imbue", { preview = function() return PREVIEW end })
+
+MOD.register(IM)

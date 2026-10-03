@@ -1,16 +1,17 @@
 -- Effects
 
 local _, ns = ...
+local W = ns.Widgets
 
-local E = {}
-ns.Effects = E
+local FX = {}
+ns.Effects = FX
 
 -- The pulsing glow
 -- Under Blizzard's aura button (underButton) the button plays the animations: g:bindButton hands
--- -- them over.
+-- them over.
 local glows = {}
 local auraGlows = {}
-function E.glow(parent, over, owner, opts)
+function FX.glow(parent, over, owner, opts)
 	local underButton = opts and opts.underButton or false
 	local g = CreateFrame("Frame", nil, parent)
 	g.owner, g.underButton = owner, underButton
@@ -29,9 +30,9 @@ function E.glow(parent, over, owner, opts)
 	local function parts(look)
 		local p = g.parts[look.key]
 		if p == nil then
-			local ok, made = ns.try("glow look " .. look.key, look.build, g)
+			local ok, made = ns.try("glow style " .. look.key, look.build, g)
 			p = ok and made or false
-			if p then ns.Looks.levelParts(p) end
+			if p then ns.StyleArt.levelParts(p) end
 			for _, r in ipairs(p and p.roots or {}) do r:Hide() end
 			g.parts[look.key] = p
 			if p and g.onLayout then ns.try("glow layout", g.onLayout, g, p, look) end
@@ -40,13 +41,13 @@ function E.glow(parent, over, owner, opts)
 	end
 	local function drawn(look)
 		if parts(look) then return look end
-		return ns.Style.look("glow", ns.Style.KINDS.glow.defaults.look)
+		return ns.Style.look("glow", ns.Style.PARTS.glow.defaults.look)
 	end
 	if underButton then table.insert(auraGlows, g) end
 	local function play(self, on)
 		local p = self.look and self.parts[self.look.key]
 		if on then
-			if p then ns.Looks.levelParts(p) end
+			if p then ns.StyleArt.levelParts(p) end
 			self.anim:Play()
 			for _, a in ipairs(p and p.anims or {}) do a:Play() end
 		else
@@ -81,9 +82,9 @@ function E.glow(parent, over, owner, opts)
 	function g:restyle()
 		local st = ns.Style.get(self.owner, "glow")
 		local look = drawn(ns.Style.look("glow", st.look))
-		-- Under the button: a new look only out of combat with auras readable.
+		-- Under the button: a new style only out of combat with auras readable.
 		if underButton and self.look and look ~= self.look then
-			local ok = self.button ~= nil and not InCombatLockdown() and not ns.aurasSecret()
+			local ok = self.button ~= nil and ns.aurasReadable()
 			local p = ok and parts(look)
 			for _, a in ipairs(p and p.aura or {}) do ok = ok and self:hand(a) end
 			if not ok then look = self.look end
@@ -99,7 +100,7 @@ function E.glow(parent, over, owner, opts)
 			if self.held then for _, r in ipairs(p and p.moving or {}) do r:Hide() end end
 			if running then play(self, true) end
 			if underButton and self.button then
-				for _, a in ipairs(p and p.aura or {}) do pcall(a.Play, a) end
+				for _, a in ipairs(p and p.aura or {}) do ns.try("glow: aura parts", a.Play, a) end
 			end
 		end
 		self.width = st.width   -- fit runs ten times a second for ready glows
@@ -121,7 +122,7 @@ function E.glow(parent, over, owner, opts)
 		end
 	end
 	function g:fit(size)
-		local out = ns.Looks.outerEdge(self.over)
+		local out = ns.StyleArt.outerEdge(self.over)
 		if size == self.iconSize and self.width == self.fitWidth and out == self.fitOut then return end
 		self.iconSize, self.fitWidth, self.fitOut = size, self.width, out
 		local p = parts(self.look)
@@ -156,10 +157,10 @@ function E.glow(parent, over, owner, opts)
 	return g
 end
 -- Not those under an aura button; a parked glow restyles when taken again.
-function E.applyStyle() for _, g in ipairs(glows) do if not g.parked then g:restyle() end end end
+function FX.applyStyle() for _, g in ipairs(glows) do if not g.parked then g:restyle() end end end
 
 -- Owners whose glow under the button differs from their style (changes after a /reload).
-function E.auraGlowStale(owner)
+function FX.auraGlowStale(owner)
 	local out = {}
 	for _, g in ipairs(auraGlows) do
 		local reaches = owner == g.owner or (owner == nil and ns.Style.follows(g.owner, "glow"))
@@ -173,9 +174,7 @@ end
 
 -- The pop
 -- No Scale, Rotation or Translation under the frame the motion moves: bursts sit on frames beside
--- -- the icon, flashes (fade and flip only) stay on it.
-local POP_TINT = { ready = { 1, 0.82, 0.25 }, imbue = { 0.35, 0.65, 1 }, expired = { 0.95, 0.95, 0.95 }, killed = { 1, 0.15, 0.1 },
-	grounded = { 0.56, 0.76, 0.92 }, blocked = { 0.6, 0.6, 0.6 } }
+-- the icon, flashes (fade and flip only) stay on it.
 local BLACK = { 0, 0, 0 }
 local RING = { name = "ring", atlas = "ArtifactsFX-YellowRing", file = "Interface\\Buttons\\UI-ActionButton-Border",
 	layer = "OVERLAY", add = true, desat = true, from = 0.9, to = 2.2, dur = 0.45, a = 1 }
@@ -197,7 +196,7 @@ end
 local function newPart(parent, spec)
 	local t = parent:CreateTexture(nil, "OVERLAY")
 	if spec and spec.atlas then
-		if ns.Looks.hasAtlas(spec.atlas) then t:SetAtlas(spec.atlas) else t:SetTexture(spec.file) end
+		if ns.StyleArt.hasAtlas(spec.atlas) then t:SetAtlas(spec.atlas) else t:SetTexture(spec.file) end
 	end
 	t:SetAlpha(0)
 	t:Hide()
@@ -277,7 +276,7 @@ local function newRig(f, icon, level)
 	r.fx = fx
 	r.flash = fx:CreateTexture(nil, "OVERLAY")
 	r.flash:SetAllPoints()
-	r.flash:SetTexture("Interface\\Buttons\\WHITE8x8")
+	r.flash:SetTexture(ns.WHITE)
 	r.flash:SetBlendMode("ADD")
 	r.flash:SetAlpha(0)
 	r.flashAnim = r.flash:CreateAnimationGroup()
@@ -286,7 +285,7 @@ local function newRig(f, icon, level)
 	r.flashIn:SetFromAlpha(0)
 	r.flashOut:SetToAlpha(0)
 	r.flashOut:SetSmoothing("OUT")
-	r.edge = ns.Looks.popEdge(fx)
+	r.edge = ns.StyleArt.popEdge(fx)
 	for _, name in ipairs({ "front", "back" }) do
 		local b = CreateFrame("Frame", nil, f:GetParent())
 		b:SetAllPoints(f)
@@ -300,13 +299,13 @@ local function newRig(f, icon, level)
 	r.clip:EnableMouse(false)
 	r.parts.ring, r.parts.star = newPart(r.front, RING), newPart(r.front, STAR)
 	local where = { back = r.back, front = r.front, clip = r.clip }
-	for name, at in pairs(ns.Looks.POP_PARTS) do r.parts[name] = newPart(where[at]) end
+	for name, at in pairs(ns.StyleArt.POP_PARTS) do r.parts[name] = newPart(where[at]) end
 	r.all = { r.motionScale, r.motionMove, r.flashAnim }
 	if r.iconMotion then table.insert(r.all, r.iconMotion) end
 	for _, e in ipairs(r.edge or {}) do table.insert(r.all, e.group) end
 	for _, p in pairs(r.parts) do table.insert(r.all, p.group) end
 	-- A hide ends a pop cut short (a hidden frame would finish it on its next show). Not under an aura
-	-- -- button: no scripts run there.
+	-- button: no scripts run there.
 	if not icon then fx:SetScript("OnHide", function() r:stop() end) end
 	return r
 end
@@ -412,11 +411,11 @@ function Rig:style(st, size, c, school, muted)
 			on[self.parts[name].group] = true
 		end)
 	end
-	local drawn = ns.Looks.popParts(burst.key, school)
+	local drawn = ns.StyleArt.popParts(burst.key, school)
 	if drawn then
 		local over = self.f.over or self.f
 		self.back:SetFrameLevel(math.max(over:GetFrameLevel() - 1, 0))
-		local h = size + 2 * ns.Looks.outerEdge(over)
+		local h = size + 2 * ns.StyleArt.outerEdge(over)
 		for _, spec in ipairs(drawn) do
 			part(spec.name, function()
 				local p = self.parts[spec.name]
@@ -455,20 +454,22 @@ function Rig:play()
 	end
 end
 
--- blocked: ready but can't be cast; grey and a dimmer flash.
--- Nothing on a hidden frame: it would play on its next show.
 local function popColor(st, kind, school)
-	if st.colorBy == "school" and ns.Looks.POP_EVENTS[kind] then
-		return ns.SCHOOL_COLOR[school] or ns.SCHOOL_COLOR.spirit
+	local k = ns.StyleArt.POP_KINDS[kind] or ns.StyleArt.POP_KINDS.ready
+	if st.colorBy == "school" and k.byStyle then
+		local theme = ns.THEME
+		return theme.color[school] or theme.color[theme.fallback]
 	end
-	return POP_TINT[kind] or POP_TINT.ready
+	return k.color
 end
 
-function E.pop(f, kind, owner)
+-- kind: a StyleArt.POP_KINDS key ("blocked": a dimmer flash). Nothing on a hidden frame: it would play
+-- on its next show.
+function FX.pop(f, kind, owner)
 	if not f:IsVisible() then return end
 	kind = kind or "ready"
 	local st = ns.Style.get(owner, "pop")
-	local school = ns.Looks.effectSchool(f)
+	local school = ns.StyleArt.effectSchool(f)
 	local c = popColor(st, kind, school)
 	f.popRig = f.popRig or newRig(f)
 	f.popRig:stop()
@@ -485,11 +486,21 @@ function E.pop(f, kind, owner)
 	end
 end
 
--- The end of a totem: Killed early, Ran out, Grounded, Ran out softly. Nothing here reads a secret:
--- -- the gone totem's last duration object goes to a curve, then SetAlpha.
+-- In over inDur, held for hold, out over outDur
+local function fadeGroup(body, inDur, hold, outDur, onFinished)
+	local g = body:CreateAnimationGroup()
+	local fadeIn, fadeOut = anim(g, "Alpha", 1), anim(g, "Alpha", 2)
+	fadeIn:SetFromAlpha(0); fadeIn:SetToAlpha(1); fadeIn:SetDuration(inDur)
+	fadeOut:SetFromAlpha(1); fadeOut:SetToAlpha(0)
+	fadeOut:SetDuration(outDur); fadeOut:SetStartDelay(hold)
+	g:SetScript("OnFinished", onFinished)
+	return g
+end
+
+-- An end: killed early, ran out, ran out softly, or an early end of its own (opts.kind, a pop kind)
 local killedCurve = ns.curve({ 0, 0, 1.2, 0, 1.25, 1, 36000, 1 })
 local expiredCurve = ns.curve({ 0, 1, 1.2, 1, 1.25, 0, 36000, 0 })
-function E.endFlash(parent, anchor, owner, over)
+function FX.endFlash(parent, anchor, owner, over)
 	over = over or anchor
 	local kf = CreateFrame("Frame", nil, parent)
 	kf:SetAllPoints(anchor)
@@ -501,33 +512,19 @@ function E.endFlash(parent, anchor, owner, over)
 	kf.body = CreateFrame("Frame", nil, kf.pop)
 	kf.body:SetAllPoints()
 	kf.body:SetAlpha(0)
-	kf.glow = E.glow(kf.body, over, owner)
+	kf.glow = FX.glow(kf.body, over, owner)
 	kf.glow:color(1, 0.12, 0.08)
 	kf.icon = kf.body:CreateTexture(nil, "ARTWORK")
 	kf.icon:SetAllPoints()
-	ns.cropIconExact(kf.icon)
+	W.cropIconExact(kf.icon)
 	kf.icon:SetDesaturated(true)
 	kf.red = kf.body:CreateTexture(nil, "OVERLAY")
 	kf.red:SetAllPoints()
 	kf.red:SetColorTexture(0.95, 0.12, 0.08, 0.7)
-	kf.flash = kf.body:CreateAnimationGroup()
-	local inA = kf.flash:CreateAnimation("Alpha")
-	inA:SetFromAlpha(0); inA:SetToAlpha(1); inA:SetDuration(0.12); inA:SetOrder(1)
-	local outA = kf.flash:CreateAnimation("Alpha")
-	outA:SetFromAlpha(1); outA:SetToAlpha(0); outA:SetDuration(1.4); outA:SetStartDelay(0.5); outA:SetOrder(2)
-	kf.flash:SetScript("OnFinished", function() kf.body:SetAlpha(0); kf.glow:Hide() end)
-	kf.quick = kf.body:CreateAnimationGroup()
-	local qIn = kf.quick:CreateAnimation("Alpha")
-	qIn:SetFromAlpha(0); qIn:SetToAlpha(1); qIn:SetDuration(0.05); qIn:SetOrder(1)
-	local qOut = kf.quick:CreateAnimation("Alpha")
-	qOut:SetFromAlpha(1); qOut:SetToAlpha(0); qOut:SetDuration(0.5); qOut:SetStartDelay(0.2); qOut:SetOrder(2)
-	kf.quick:SetScript("OnFinished", function() kf.body:SetAlpha(0); kf.glow:Hide() end)
-	kf.soft = kf.body:CreateAnimationGroup()
-	local sIn = kf.soft:CreateAnimation("Alpha")
-	sIn:SetFromAlpha(0); sIn:SetToAlpha(1); sIn:SetDuration(0.1); sIn:SetOrder(1)
-	local sOut = kf.soft:CreateAnimation("Alpha")
-	sOut:SetFromAlpha(1); sOut:SetToAlpha(0); sOut:SetDuration(0.9); sOut:SetStartDelay(0.3); sOut:SetOrder(2)
-	kf.soft:SetScript("OnFinished", function() kf.body:SetAlpha(0); kf.glow:Hide() end)
+	local function finished() kf.body:SetAlpha(0); kf.glow:Hide() end
+	kf.flash = fadeGroup(kf.body, 0.12, 0.5, 1.4, finished)
+	kf.quick = fadeGroup(kf.body, 0.05, 0.2, 0.5, finished)
+	kf.soft = fadeGroup(kf.body, 0.1, 0.3, 0.9, finished)
 	kf.hourglass = kf.body:CreateTexture(nil, "OVERLAY", nil, 2)
 	kf.hourglass:SetTexture("Interface\\Common\\mini-hourglass")
 	kf.hourglass:SetPoint("CENTER")
@@ -541,17 +538,17 @@ function E.endFlash(parent, anchor, owner, over)
 	kf.mark:Hide()
 	kf.mark.icon = kf.mark:CreateTexture(nil, "ARTWORK")
 	kf.mark.icon:SetAllPoints()
-	ns.cropIconExact(kf.mark.icon)
+	W.cropIconExact(kf.mark.icon)
 	kf.mark.icon:SetDesaturated(true)
 	kf.mark.icon:SetAlpha(0.6)
 	kf.mark.x = kf.mark:CreateTexture(nil, "OVERLAY")
 	kf.mark.x:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
 	kf.mark.x:SetPoint("CENTER")
-	ns.Looks.followMask(over, kf.icon, kf.red, kf.mark.icon)
+	ns.StyleArt.followMask(over, kf.icon, kf.red, kf.mark.icon)
 	-- SetTexture takes a secret
 	function kf:setIcon(icon)
-		pcall(self.icon.SetTexture, self.icon, icon)
-		pcall(self.mark.icon.SetTexture, self.mark.icon, icon)
+		ns.try("killed flash: icon", self.icon.SetTexture, self.icon, icon)
+		ns.try("killed flash: icon", self.mark.icon.SetTexture, self.mark.icon, icon)
 	end
 	-- dur nil: play regardless (previews).
 	function kf:play(dur, opts)
@@ -569,11 +566,12 @@ function E.endFlash(parent, anchor, owner, over)
 		local size = self.fitSize or anchor:GetWidth()
 		self.pop.popSize = size
 		local soft = opts.expired and opts.ranOut
+		local kind = opts.kind and ns.StyleArt.POP_KINDS[opts.kind]
 		if soft then
 			local c = opts.ranOut
 			self.glow:color(c[1], c[2], c[3]); self.red:SetColorTexture(c[1], c[2], c[3], 0.45)
-		elseif opts.grounded then
-			local c = POP_TINT.grounded
+		elseif kind then
+			local c = kind.color
 			self.glow:color(c[1], c[2], c[3]); self.red:SetColorTexture(c[1], c[2], c[3], 0.7)
 		else
 			self.glow:color(1, 0.12, 0.08); self.red:SetColorTexture(0.95, 0.12, 0.08, 0.7)
@@ -584,12 +582,12 @@ function E.endFlash(parent, anchor, owner, over)
 		self.icon:SetDesaturated(not opts.expired or soft and true or false)
 		self.hourglass:SetShown(soft and true or false)
 		self.hourglass:SetSize(size * 0.5, size * 0.5)
-		self.tick:SetShown(opts.grounded and not opts.expired and true or false)
+		self.tick:SetShown(kind and kind.tick and not opts.expired and true or false)
 		self.tick:SetSize(size * 0.6, size * 0.6)
 		self.mark.x:SetSize(size * 0.7, size * 0.7)
 		self.flash:Stop(); self.quick:Stop(); self.soft:Stop()
 		if soft then self.soft:Play() elseif opts.expired then self.quick:Play() else self.flash:Play() end
-		if opts.pop then E.pop(self.pop, opts.expired and "expired" or opts.grounded and "grounded" or "killed", owner) end
+		if opts.pop then FX.pop(self.pop, opts.expired and "expired" or kind and opts.kind or "killed", owner) end
 		if opts.mark then
 			self.mark:Show()
 			local token = {}
@@ -607,23 +605,23 @@ function E.endFlash(parent, anchor, owner, over)
 end
 
 -- The effect host
--- -- Frame route: our own icon. Aura route: Blizzard's aura button, whose pop plays on each new
--- -- aura and whose glow is a clip look lit while the aura is up.
+-- Frame route: our own icon. Aura route: Blizzard's aura button, whose pop plays on each new
+-- aura and whose glow is a clip look lit while the aura is up.
 local Host = {}
 Host.__index = Host
 
 local NO_POP = { colorBy = "event", flash = "none", burst = "none", motion = "none", size = 1, speed = 1 }
 
-function E.host(f, key, opts)
+function FX.host(f, key, opts)
 	local h = setmetatable({ f = f, key = key }, Host)
 	local a = opts and opts.aura
 	if not a then
-		h.glowF = E.glow(f, f, key)
+		h.glowF = FX.glow(f, f, key)
 		return h
 	end
 	h.aura = a
 	if a.popOnly then return h end
-	h.up = ns.makeClipLook(f, {
+	h.up = W.makeClipLook(f, {
 		key = key, owner = key, invert = true, glowOnly = true,
 		parent = a.parent, sensorParent = a.sensorParent or a.parent,
 		unit = a.unit, needUnit = a.needUnit, filter = a.filter, ids = a.ids, candidates = a.candidates,
@@ -651,12 +649,9 @@ end
 
 function Host:pop(kind)
 	if self.aura then return end
-	E.pop(self.f, kind or "ready", self.key)
+	FX.pop(self.f, kind or "ready", self.key)
 end
 
-function Host:restyle()
-	if self.up then self.up:reshape() elseif self.glowF then self.glowF:restyle() end
-end
 function Host:fit(size)
 	if self.glowF then self.glowF:fit(size) end
 end
@@ -668,11 +663,9 @@ function Host:levelGlow()
 	if self.up then self.up:setLevel(self.f.textFrame:GetFrameLevel() + GLOW_LEVEL) end
 end
 
+-- The button draws the border's overlay art itself
 function Host:makeEdge(button)
-	local edge = CreateFrame("Frame", nil, self.body or button)
-	edge:SetAllPoints(button)
-	edge.owner = self.key
-	return edge
+	return ns.Frames.edge(self.body or button, button, self.key, { overlay = false })
 end
 
 function Host:bind(button, icon)
@@ -685,7 +678,7 @@ function Host:bind(button, icon)
 	local ok = ns.try("aura pop " .. self.key, function()
 		self.rig = newRig(body, icon, level)
 		self.rig.guard = true
-		self:stylePop(ns.sizeOf(self.key))
+		self:stylePop(ns.Elements.sizeOf(self.key))
 	end)
 	if not ok or not button.AddAuraAssignedAnimation then return body end
 	for _, g in ipairs(self.rig:groups()) do
@@ -703,8 +696,8 @@ function Host:stylePop(size)
 	if not pops then rig:hideAll() end   -- Pop off wins even if a setter below is refused
 	ns.try("aura pop style " .. self.key, function()
 		local st = pops and ns.Style.get(self.key, "pop") or NO_POP
-		local school = ns.Looks.effectSchool(self.f)
-		rig:style(st, size, popColor(st, self.aura.popKind or "ready", school), school)
+		local school = ns.StyleArt.effectSchool(self.f)
+		rig:style(st, size, popColor(st, "ready", school), school)
 	end)
 	-- Whatever styling did or didn't finish, the parts shown are exactly those marked to play.
 	rig:showParts()
@@ -722,8 +715,6 @@ function Host:motionLength() return self.rig and self.rig.motionLength or 0 end
 
 function Host:setup() if self.up then self.up:setup() end end
 function Host:refilter() if self.up then self.up:refilter() end end
-function Host:follow(unit) return not self.up or self.up:follow(unit) end
-function Host:setLevel(lv) if self.up then self.up:setLevel(lv) end end
 function Host:style()
 	if not self.up then return end
 	self.up:reshape()

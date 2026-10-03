@@ -1,5 +1,8 @@
 -- Groups & Layout page: the group list and the chosen group
 local _, ns = ...
+local W = ns.Widgets
+local G = ns.Groups
+local E, P = ns.Elements, ns.Profiles
 
 local LP = {}
 ns.LayoutPage = LP
@@ -10,14 +13,14 @@ local int, times, pct = Page.int, Page.times, Page.pct
 local NAV_W, PAGE_TOP = Page.NAV_W, Page.PAGE_TOP
 local relayout = K.relayout
 
-local function db() return ns.getDB() end
+local function db() return P.getDB() end
 
 -- Chosen group
 local chosen
 local reveal = false
 
 local function selected()
-	local g = ns.groupById(chosen)
+	local g = G.byId(chosen)
 	if not g then
 		g = db().groups[1]
 		chosen = g and g.id
@@ -34,12 +37,12 @@ local function askAbout(which, g)
 	if g then StaticPopup_Show(which, g.name, nil, g.id) end
 end
 K.confirm(ns.POPUP .. "CENTER", "Move %s to the middle of the screen?\nIts current position is lost.", "Centre",
-	function(id) ns.centerGroup(id) end)
+	function(id) G.center(id) end)
 K.confirm(ns.POPUP .. "HIDEALL", "Hide every element in %s?\nEach one's Show setting becomes Hidden.", "Hide all",
-	function(id) ns.hideGroup(id) end)
+	function(id) G.hide(id) end)
 K.confirm(ns.POPUP .. "DELETE_GROUP", "Delete the group %s?\n%s", "Delete", function(id)
-	local _, i = ns.groupById(id)
-	if not (i and ns.deleteGroup(id)) then return end
+	local _, i = G.byId(id)
+	if not (i and G.delete(id)) then return end
 	local groups = db().groups
 	local after = groups[i] or groups[i - 1]
 	chosen = after and after.id
@@ -59,12 +62,12 @@ local drag = {}
 local page, list, rows, loose, newButton
 local view = {}
 
-local function elementName(key) return ns.Look.elementName(key) end
+local function elementName(key) return ns.OptionsArt.elementName(key) end
 
 local function chipText(key)
 	local tags = {}
-	if not ns.isLearned(key) then table.insert(tags, ns.notLearnedText(key):lower()) end
-	local mode = ns.showMode(key)
+	if not E.isLearned(key) then table.insert(tags, E.notLearnedText(key):lower()) end
+	local mode = E.showMode(key)
 	if mode == "never" then table.insert(tags, "hidden")
 	elseif mode == "combat" then table.insert(tags, "in combat") end
 	if #tags == 0 then return elementName(key) end
@@ -73,11 +76,11 @@ end
 
 local function fillChip(chip, key)
 	chip.key = key
-	ns.ELEMENTS[key].paint(chip.icon)
-	local learned = ns.isLearned(key)
+	E.ALL[key].paint(chip.icon)
+	local learned = E.isLearned(key)
 	chip.icon:SetDesaturated(not learned)
 	chip.text:SetText(chipText(key))
-	chip:SetAlpha((learned and ns.showMode(key) ~= "never") and 1 or 0.6)
+	chip:SetAlpha((learned and E.showMode(key) ~= "never") and 1 or 0.6)
 end
 
 local function dropIndex()
@@ -121,7 +124,7 @@ local function startDrag(chip)
 	if InCombatLockdown() then ns.say("layout changes wait until combat ends"); return end
 	drag.key = chip.key
 	chip:SetAlpha(0.35)
-	ns.ELEMENTS[chip.key].paint(drag.ghost.icon)
+	E.ALL[chip.key].paint(drag.ghost.icon)
 	drag.ghost.text:SetText(elementName(chip.key))
 	drag.ghost:Show()
 end
@@ -138,14 +141,14 @@ local function endDrag(drop)
 	newButton:UnlockHighlight()
 	if not key then return end
 	if kind == "new" then
-		local done, id = ns.placeElement(key, "new")
+		local done, id = G.placeElement(key, "new")
 		if done and id then ns.Options.openGroup(id) end
 	elseif kind == "box" then
 		local to = selected()
-		if to then ns.placeElement(key, to.id, at) end
+		if to then G.placeElement(key, to.id, at) end
 	elseif kind == "row" then
-		local to = ns.groupById(over.id)
-		if to and to ~= ns.groupOf(key) then ns.placeElement(key, to.id) end
+		local to = G.byId(over.id)
+		if to and to ~= G.of(key) then G.placeElement(key, to.id) end
 	end
 	ns.Options.refresh()
 end
@@ -159,26 +162,26 @@ local function chipMenu(chip)
 		root:CreateTitle(elementName(key))
 		root:CreateButton("Element settings", function() ns.Options.openElement(key) end)
 		root:CreateDivider()
-		local g, i = ns.groupOf(key)
-		if g and i > 1 then root:CreateButton("Move earlier", function() ns.placeElement(key, g.id, i - 1) end) end
-		if g and i < #g.members then root:CreateButton("Move later", function() ns.placeElement(key, g.id, i + 1) end) end
+		local g, i = G.of(key)
+		if g and i > 1 then root:CreateButton("Move earlier", function() G.placeElement(key, g.id, i - 1) end) end
+		if g and i < #g.members then root:CreateButton("Move later", function() G.placeElement(key, g.id, i + 1) end) end
 		local to
 		for _, o in ipairs(db().groups) do
 			if o ~= g then
 				to = to or root:CreateButton("Move to")
-				to:CreateButton(o.name, function() ns.placeElement(key, o.id) end)
+				to:CreateButton(o.name, function() G.placeElement(key, o.id) end)
 			end
 		end
 		if not (g and #g.members == 1) then
 			root:CreateButton("Move to a new group", function()
-				local done, id = ns.placeElement(key, "new")
+				local done, id = G.placeElement(key, "new")
 				if done and id then ns.Options.openGroup(id) end
 			end)
 		end
 		root:CreateDivider()
 		root:CreateTitle("Show")
 		for _, c in ipairs(K.SHOW_CHOICES) do
-			root:CreateRadio(c[2], function() return ns.showMode(key) == c[1] end, function() ns.setShow(key, c[1]) end)
+			root:CreateRadio(c[2], function() return E.showMode(key) == c[1] end, function() E.setShow(key, c[1]) end)
 		end
 	end)
 end
@@ -195,7 +198,7 @@ local function newChip(parent)
 	chip.icon = chip:CreateTexture(nil, "ARTWORK")
 	chip.icon:SetSize(20, 20)
 	chip.icon:SetPoint("LEFT", 2, 0)
-	ns.cropIcon(chip.icon)
+	W.cropIcon(chip.icon)
 	chip.text = chip:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	chip.text:SetPoint("LEFT", chip.icon, "RIGHT", 6, 0)
 	chip.text:SetPoint("RIGHT", -4, 0)
@@ -240,7 +243,7 @@ local rowMenu
 
 local function newRow(parent)
 	local r = CreateFrame("Button", nil, parent, "BackdropTemplate")
-	r:SetBackdrop(ns.BACKDROP)
+	r:SetBackdrop(W.BACKDROP)
 	r:SetBackdropColor(0.09, 0.075, 0.06, 1)
 	r:SetHeight(ROW_H)
 	r.wash = r:CreateTexture(nil, "BACKGROUND", nil, 1)
@@ -281,13 +284,13 @@ local function fillRow(r, g, w)
 			t = r:CreateTexture(nil, "ARTWORK")
 			t:SetSize(16, 16)
 			t:SetPoint("TOPLEFT", 6 + (i - 1) * ICON_STEP, -22)
-			ns.cropIcon(t)
+			W.cropIcon(t)
 			r.icons[i] = t
 		end
 		local key = g.members[i]
-		ns.ELEMENTS[key].paint(t)
-		t:SetDesaturated(not ns.isLearned(key))
-		t:SetAlpha(ns.showMode(key) == "never" and 0.45 or 1)
+		E.ALL[key].paint(t)
+		t:SetDesaturated(not E.isLearned(key))
+		t:SetAlpha(E.showMode(key) == "never" and 0.45 or 1)
 		t:Show()
 	end
 	for i = shown + 1, #r.icons do r.icons[i]:Hide() end
@@ -335,8 +338,8 @@ local LOOSE_TOP = 48
 
 local function looseKeys()
 	local keys = {}
-	for _, key in ipairs(ns.ELEMENT_KEYS) do
-		if not ns.groupOf(key) then table.insert(keys, key) end
+	for _, key in ipairs(E.KEYS) do
+		if not G.of(key) then table.insert(keys, key) end
 	end
 	return keys
 end
@@ -398,7 +401,7 @@ local function buildList()
 	newButton:SetPoint("BOTTOMRIGHT", 0, 7)
 	newButton:SetText("New group")
 	newButton:SetScript("OnClick", function()
-		local done, id = ns.addGroup()
+		local done, id = G.add()
 		if done and id then ns.Options.openGroup(id) end
 	end)
 	setTip(newButton, "New group", "An empty group. Drop an element here to give it a group of its own.")
@@ -425,7 +428,7 @@ end
 
 local function acceptRename()
 	if not renaming then return end
-	ns.renameGroup(renaming, view.head.box:GetText())
+	G.rename(renaming, view.head.box:GetText())
 	stopRename()
 end
 
@@ -528,40 +531,42 @@ local function buildBox(p)
 end
 
 local function buildSettings(p)
-	local G = selected
-	local function get(key) return function() local g = G(); return g and g[key] end end
-	local function owns(key, reset) p:owns({ group = G, name = key, after = relayout, reset = reset }) end
+	local sel = selected
+	local R, slider = P.GROUP_RANGES, K.rangeSlider
+	local function get(key) return function() local g = sel(); return g and g[key] end end
+	local function owns(key, reset) p:owns({ group = sel, name = key, after = relayout, reset = reset }) end
 	local function set(key)
 		owns(key)
-		return function(v) local g = G(); if g then g[key] = v; relayout() end end
+		return function(v) local g = sel(); if g then g[key] = v; relayout() end end
 	end
 	local show = p:dropdown("Show", "When the group is on screen. Everything visible shows while positioning is unlocked.",
 		K.COMBAT_SHOW, get("show"), set("show"), nil, 240)
-	p:sub(show, function() local g = G(); return g ~= nil and g.show ~= "always" end, function()
-		p:slider("Stay after combat", K.STAY_TIP, 0, 10, 1, K.staySecs, get("fadeAfter"), set("fadeAfter"))
+	p:sub(show, function() local g = sel(); return g ~= nil and g.show ~= "always" end, function()
+		slider(p, R.fadeAfter, "Stay after combat", K.STAY_TIP, K.staySecs, get("fadeAfter"), set("fadeAfter"))
 	end)
 	p:text("Elements have their own Show setting too. An element shows only when both allow it.")
 	p:dropdown("Direction", "Lay the group out as a row or a column.",
 		{ { "horizontal", "Row" }, { "vertical", "Column" } }, get("orientation"), set("orientation"))
 	p:dropdown("Growth", "Which way the row or column extends from its first element.",
 		{ { "forward", "Right / down" }, { "backward", "Left / up" } }, get("growth"), set("growth"))
-	p:slider("Spacing", "Gap between the group's elements. Below 0 they overlap.", -20, 40, 1, int, get("spacing"), set("spacing"))
+	slider(p, R.spacing, "Spacing", "Gap between the group's elements. Below 0 they overlap.", int, get("spacing"),
+		set("spacing"))
 	owns("sizeFollow")
 	local follow = K.globalRow(p, "Icon size same as Global", "Use the global icon size.",
 		get("sizeFollow"),
 		function(v)
-			local g = G()
+			local g = sel()
 			if not g then return end
 			if not v then g.size = db().iconSize end
 			g.sizeFollow = v
 			relayout()
 		end, "size")
-	p:sub(follow, function() local g = G(); return g ~= nil and not g.sizeFollow end, function()
-		p:slider("Icon size", nil, 24, 96, 1, int, get("size"), set("size"))
+	p:sub(follow, function() local g = sel(); return g ~= nil and not g.sizeFollow end, function()
+		slider(p, R.size, "Icon size", nil, int, get("size"), set("size"))
 	end)
 	p:text("Icon size keeps borders and rings crisp. Scale grows everything, borders and rings included.")
 	local function setScale(v)
-		local g = G()
+		local g = sel()
 		if not g then return end
 		-- Offsets are in the group's units: rescaled so the centre stays put.
 		if g.point == "CENTER" then g.x, g.y = g.x * g.scale / v, g.y * g.scale / v end
@@ -569,21 +574,24 @@ local function buildSettings(p)
 		relayout()
 	end
 	owns("scale", function(r) setScale(Page.refDefault(r)) end)
-	p:slider("Scale", "Grows everything in the group, borders and rings too.", 0.5, 3, 0.05, times,
-		get("scale"), setScale)
-	p:slider("Opacity", "Transparency of the group.", 0.1, 1, 0.05, pct, get("alpha"), set("alpha"))
-	p:header("Group frame")
-	K.frameRows(p, G, "groupframe", relayout, {
+	slider(p, R.scale, "Scale", "Grows everything in the group, borders and rings too.", times, get("scale"), setScale)
+	slider(p, R.alpha, "Opacity", "Transparency of the group.", pct, get("alpha"), set("alpha"))
+	p:header("Group art frame")
+	K.frameRows(p, sel, "groupframe", relayout, {
 		note = "Doesn't fade with each element's Idle.",
-		spacing = { get = get("spacing"), set = function(v) local g = G(); if g then g.spacing = v; relayout() end end,
-			min = -20, max = 40, size = function() return ns.groupSize(G()) end } })
-	p:text("Each element's border and frame are on its own page.")
+		spacing = { get = get("spacing"), set = function(v) local g = sel(); if g then g.spacing = v; relayout() end end,
+			min = R.spacing[1], max = R.spacing[2], size = function() return G.size(sel()) end } })
+	p:text("Each element's border and art frame are on its own page.")
 	p:buttons({
-		{ "Centre on screen", function() askAbout(ns.POPUP .. "CENTER", G()) end, "Moves the group to the middle of the screen.", 130 },
-		{ "Hide all", function() askAbout(ns.POPUP .. "HIDEALL", G()) end, "Sets every element in the group to Hidden. They keep their places; set one back to Always to bring it back.", 90 },
+		{ "Centre on screen", function() askAbout(ns.POPUP .. "CENTER", sel()) end,
+			"Moves the group to the middle of the screen.", 130 },
+		{ "Hide all", function() askAbout(ns.POPUP .. "HIDEALL", sel()) end,
+			"Sets every element in the group to Hidden. They keep their places; set one back to Always to bring it back.",
+			90 },
 	})
 	p:buttons({
-		{ "Delete group", function() askDelete(G()) end, "Its elements move to Ungrouped: off screen, their settings kept.", 110,
+		{ "Delete group", function() askDelete(sel()) end,
+			"Its elements move to Ungrouped: off screen, their settings kept.", 110,
 			function() return renaming == nil end },
 	})
 	p:add(p:row(10), 10)
@@ -591,7 +599,7 @@ end
 
 function rowMenu(r)
 	if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
-	local g = ns.groupById(r.id)
+	local g = G.byId(r.id)
 	if not g then return end
 	MenuUtil.CreateContextMenu(r, function(_, root)
 		root:CreateTitle(g.name)
@@ -612,10 +620,6 @@ end
 function LP.build(p)
 	page = p
 	p.panels = false
-	local folded = ns.getAccount().foldedBlocks
-	for key in pairs(folded) do
-		if key:find("^layout:") then folded[key] = nil end
-	end
 	buildList()
 	drag.ghost = Page.dragGhost(updateDragFeedback)
 	p:text("No groups. New group makes one.", function() return #db().groups == 0 end)
@@ -627,7 +631,6 @@ function LP.build(p)
 	buildSettings(p)
 	p.gate = nil
 	-- Closed mid-drag the release may never come: drop nothing.
-	-- K 595 72 262
 	local function left()
 		if drag.key then endDrag(false) end
 		if renaming then stopRename() end
@@ -635,3 +638,6 @@ function LP.build(p)
 	p.win:HookScript("OnHide", left)
 	p.scroll:HookScript("OnHide", left)
 end
+
+ns.Options.registerPage("layout", { title = "Groups & Layout", icon = "Interface\\Icons\\Spell_Nature_Invisibilty",
+	order = 40, build = LP.build })

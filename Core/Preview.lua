@@ -3,8 +3,10 @@
 -- stand-in rather than parked (no change to it in combat).
 
 local _, ns = ...
+local W = ns.Widgets
+local E, G, MOD, Bars, P = ns.Elements, ns.Groups, ns.Modules, ns.Bars, ns.Profiles
 local say = ns.say
-local L = ns.Look
+local OA = ns.OptionsArt
 local FR = ns.Frames
 
 local PV = { name = "preview" }
@@ -20,7 +22,7 @@ local BUSY_HOLD = 2.5
 local IDLE_DELAY = ns.IDLE_DELAY
 
 local function stepsFor(key)
-	local def = L.PREVIEW[key]
+	local def = OA.PREVIEW[key]
 	local steps, valid = {}, {}
 	for _, st in ipairs(def.states) do
 		table.insert(steps, { st[1] })
@@ -31,17 +33,15 @@ local function stepsFor(key)
 	return { { opts.mode == "warnings" and valid[def.warning] and def.warning or typical } }
 end
 
-local BAR_WARNING = { earth = { "empty" }, fire = { "empty" }, water = { "down", range = true }, air = { "down", range = true } }
-local function barSteps(el)
-	if opts.mode == "busy" then
-		local steps = {}
-		for _, st in ipairs(ns.TotemBar.PREVIEW_STATES) do table.insert(steps, { st }) end
-		return steps
+-- Bars draw their own (Bars.register's hud)
+local function eachHud(fn)
+	for _, key in ipairs(Bars.list()) do
+		local hud = Bars.get(key).hud
+		if hud then fn(hud, key) end
 	end
-	return { opts.mode == "warnings" and BAR_WARNING[el] or { "down" } }
 end
 
-local idles = L.idles
+local idles = OA.idles
 
 -- Stand-ins, and parking the real elements
 local parked = {}
@@ -72,37 +72,35 @@ end
 local function makeStandIn(key, gf)
 	local h = CreateFrame("Frame", nil, gf:GetParent())
 	h:SetFrameLevel(gf:GetFrameLevel() + 30)   -- over everything in a group, Blizzard's buttons too
-	h:SetAllPoints(ns.ELEMENTS[key].frame)
-	local ic = L.makePreviewIcon(h, key, L.PREVIEW[key])
+	h:SetAllPoints(E.ALL[key].frame)
+	local pv = OA.PREVIEW[key]
+	local ic = OA.makePreviewIcon(h, key, pv)
 	ic:SetAllPoints(h)
 	if ic.upT then ic.upT:restack(2) end
-	if key == "tremor" then
-		ic.word = ic.textFrame:CreateFontString(nil, "OVERLAY")
-		ns.Media.setFont(ic.word, nil, 16)
-		ic.word:SetText(ns.Tremor.WORD)
-	end
+	if pv.standIn then pv.standIn(ic) end
 	holders[key], standIns[key] = h, ic
 	return ic, h
 end
 
 -- Painting
 local runs = {}
-local barRuns = {}
+local barRuns = {}   -- a bar's slots, each looping through its steps like an element
 
 local function setAlpha(f, a)
 	f:SetAlpha(a)
-	ns.fadeTo(f, a)
+	W.fadeTo(f, a)
 end
 
 local function paintElement(key, r, moment)
 	local ic, st = standIns[key], r.steps[r.i][1]
 	ic.momentToken, ic.idleToken = nil, nil
-	local ends = L.paint(ic, key, st, r.at)
-	if key == "shield" then ns.Shield.preview(ic) end
-	if idles(key, st) and not (r.idleAt and GetTime() < r.idleAt) then setAlpha(ic, L.idleAlpha(key))
+	local ends = OA.paint(ic, key, st, r.at)
+	local pv = OA.PREVIEW[key]
+	if pv.hold then pv.hold(ic) end
+	if idles(key, st) and not (r.idleAt and GetTime() < r.idleAt) then setAlpha(ic, OA.idleAlpha(key))
 	else setAlpha(ic, ic:GetAlpha()) end
-	local pop = L.PREVIEW[key].pop
-	if moment and pop then ns.try("preview pop " .. key, pop, ic, st) end
+	local pop = pv.pop
+	if moment and pop then ns.try("preview pop " .. key, pop, ic, st, OA.kit) end
 	return ends
 end
 
@@ -119,16 +117,16 @@ local function startStep(key, r, moment)
 	r.nextAt = nextAt(r, paintElement(key, r, moment))
 end
 
-local function startBarStep(el, r, moment)
+local function startBarStep(r, moment)
 	r.at = GetTime()
 	local step = r.steps[r.i]
-	r.nextAt = nextAt(r, ns.TotemBar.previewSlot(el, step[1], r.at, step.range, moment))
+	r.nextAt = nextAt(r, r.hud.step(r.slot, step[1], r.at, step.range, moment))
 end
 
 local function place(key, r)
-	local f = ns.ELEMENTS[key].frame
+	local f = E.ALL[key].frame
 	local h = holders[key]
-	if not ns.isEnabled(key) then
+	if not E.isEnabled(key) then
 		r.live = false
 		if h then h:Hide() end
 		return
@@ -143,10 +141,10 @@ local function place(key, r)
 	r.live = true
 	-- An element above Blizzard's button keeps its own border under its stand-in unless that border is
 	-- on parts that show only with a hostile target or their aura (standInBorder): the stand-in draws theirs
-	local own = f.aboveProtected and f:IsVisible() and not ns.ELEMENTS[key].standInBorder
+	local own = f.aboveProtected and f:IsVisible() and not E.ALL[key].standInBorder
 	local ic, st = standIns[key], ns.Style.read(key, "frame")
-	ns.applyBorder(ic, not own and ns.borderFor(key) or nil)
-	FR.draw(ic, not own and ns.Style.look("frame", st.look) or nil, ns.boxOf(key), st)
+	ns.StyleArt.applyBorder(ic, not own and E.borderFor(key) or nil)
+	FR.draw(ic, not own and ns.Style.look("frame", st.look) or nil, E.boxOf(key), st)
 	if f.aboveProtected then FR.veil(key, not own) end
 	if r.nextAt then paintElement(key, r, false) else startStep(key, r, false) end
 end
@@ -154,7 +152,7 @@ end
 -- A group hidden out of combat: its art frame on a frame of its own
 local groupHolders = {}
 local function placeGroup(g)
-	local gf = ns.groupFrames[g.id]
+	local gf = G.frames[g.id]
 	local h = gf and groupHolders[gf]
 	if not (gf and gf.laidOut and gf.frameLayout and not gf:IsVisible())
 		or ns.Style.read(g, "groupframe").look == "none" then
@@ -174,129 +172,81 @@ local function placeGroup(g)
 end
 
 local function repaint()
-	for _, g in ipairs(ns.getDB().groups) do ns.try("preview group frame", placeGroup, g) end
-	for _, key in ipairs(ns.ELEMENT_KEYS) do
+	for _, g in ipairs(P.getDB().groups) do ns.try("preview group frame", placeGroup, g) end
+	for _, key in ipairs(E.KEYS) do
 		local r = runs[key]
 		if r then ns.try("preview " .. key, place, key, r) end
 	end
-	for el, r in pairs(barRuns) do
-		if not r.nextAt then ns.try("preview totem bar", startBarStep, el, r, false) end
+	for _, r in ipairs(barRuns) do
+		if not r.nextAt then ns.try("preview " .. r.key, startBarStep, r, false) end
 	end
 end
 
-local ticker = CreateFrame("Frame")
-ticker:Hide()
-ticker.t = 0
 local function advance(key, r)
 	r.i = r.i % #r.steps + 1
 	startStep(key, r, #r.steps > 1)
 end
-local function advanceBar(el, r)
+local function advanceBar(r)
 	r.i = r.i % #r.steps + 1
-	startBarStep(el, r, #r.steps > 1)
+	startBarStep(r, #r.steps > 1)
 end
-ticker:SetScript("OnUpdate", function(self, elapsed)
-	self.t = self.t + elapsed
-	if self.t < 0.1 then return end
-	self.t = 0
+local ticker = ns.ticker(0.1, function()
 	local now = GetTime()
 	for key, r in pairs(runs) do
 		if r.live and r.nextAt then
 			if now >= r.nextAt then ns.try("preview step", advance, key, r)
 			elseif r.idleAt and now >= r.idleAt then
 				r.idleAt = nil
-				ns.fadeTo(standIns[key], L.idleAlpha(key))
+				W.fadeTo(standIns[key], OA.idleAlpha(key))
 			end
 		end
 	end
-	for el, r in pairs(barRuns) do
-		if r.nextAt and now >= r.nextAt then ns.try("preview totem bar", advanceBar, el, r) end
+	for _, r in ipairs(barRuns) do
+		if r.nextAt and now >= r.nextAt then ns.try("preview " .. r.key, advanceBar, r) end
 	end
 end)
 
 local function restart()
 	wipe(runs)
 	wipe(barRuns)
-	for _, key in ipairs(ns.ELEMENT_KEYS) do
-		if L.PREVIEW[key] then runs[key] = { steps = stepsFor(key), i = 1 } end
+	for _, key in ipairs(E.KEYS) do
+		if OA.PREVIEW[key] then runs[key] = { steps = stepsFor(key), i = 1 } end
 	end
-	for _, el in ipairs(ns.TotemBar.ELEMENTS) do barRuns[el] = { steps = barSteps(el), i = 1 } end
+	eachHud(function(hud, key)
+		for _, slot in ipairs(hud.slots or {}) do
+			table.insert(barRuns, { hud = hud, key = key, slot = slot, steps = hud.steps(slot, opts.mode),
+				i = 1 })
+		end
+	end)
 	local n = 0
 	local function stagger(r)
 		n = n + 1
 		if #r.steps > 1 then r.i, r.first = (n - 1) % #r.steps + 1, (n * 0.7) % BUSY_HOLD + 0.2 end
 	end
-	for _, key in ipairs(ns.ELEMENT_KEYS) do
+	for _, key in ipairs(E.KEYS) do
 		if runs[key] then stagger(runs[key]) end
 	end
-	for _, el in ipairs(ns.TotemBar.ELEMENTS) do stagger(barRuns[el]) end
+	for _, r in ipairs(barRuns) do stagger(r) end
 	ticker:SetShown(on)
-	ns.Swing.preview(on and opts.mode or nil)
+	eachHud(function(hud) hud.show(on and opts or nil) end)
 end
 
 -- The panel
 -- Not named, so the client keeps no position for it: it starts at the top each time
-local panel = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-panel:SetSize(560, 66)
-panel:SetFrameStrata("DIALOG")
+local panel = W.floatingPanel(nil, 560, 66, { 0.85, 0.71, 0.42, 0.9 })
 panel:SetPoint("TOP", UIParent, "TOP", 0, -12)
-panel:SetMovable(true)
-panel:SetClampedToScreen(true)
-panel:EnableMouse(true)
-panel:RegisterForDrag("LeftButton")
-panel:SetScript("OnDragStart", panel.StartMoving)
-panel:SetScript("OnDragStop", panel.StopMovingOrSizing)
-panel:SetScript("OnHide", panel.StopMovingOrSizing)   -- combat can end it mid-drag
-panel:SetBackdrop(ns.BACKDROP)
-panel:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
-panel:SetBackdropBorderColor(0.85, 0.71, 0.42, 0.9)
-panel:Hide()
-
-local function setTip(frame, title, text)
-	frame:SetScript("OnEnter", function(self)
-		GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-		GameTooltip:SetText(title)
-		GameTooltip:AddLine(text, 1, 1, 1, true)
-		GameTooltip:Show()
-	end)
-	frame:SetScript("OnLeave", function() GameTooltip:Hide() end)
-end
 
 local function changed()
 	restart()
-	ns.TotemBar.preview({ all = opts.unlearned })
-	ns.layoutElements()
+	G.layoutElements()
 	panel.refresh()
 end
 
 local function choice(parent, key, items)
-	local row = CreateFrame("Frame", nil, parent)
-	row.buttons = {}
-	local x = 0
-	for _, it in ipairs(items) do
-		local b = CreateFrame("Button", nil, row, "BackdropTemplate")
-		b:SetBackdrop(ns.BACKDROP)
-		b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-		b.text:SetPoint("CENTER")
-		b.text:SetText(it[2])
-		local w = math.ceil(b.text:GetStringWidth()) + 20
-		b:SetSize(w, 20)
-		b:SetPoint("LEFT", row, "LEFT", x, 0)
-		x = x + w + 2
-		b.value = it[1]
-		b:SetScript("OnClick", function(self)
-			if opts[key] == self.value then return end
-			opts[key] = self.value
-			changed()
-		end)
-		setTip(b, it[2], it[3])
-		table.insert(row.buttons, b)
-	end
-	row:SetSize(x - 2, 20)
-	function row.refresh()
-		for _, b in ipairs(row.buttons) do L.paintChoice(b, opts[key] == b.value) end
-	end
-	return row
+	return OA.choiceRow(parent, items, function() return opts[key] end, function(v)
+		opts[key] = v
+		changed()
+	end, "ANCHOR_BOTTOM")
 end
 
 local function check(parent, key, label, tip)
@@ -308,7 +258,7 @@ local function check(parent, key, label, tip)
 		opts[key] = self:GetChecked() and true or false
 		changed()
 	end)
-	setTip(cb, label, tip)
+	W.setTip(cb, label, tip, "ANCHOR_BOTTOM")
 	return cb
 end
 
@@ -320,7 +270,6 @@ local function button(parent, text, width, onClick)
 	return b
 end
 
-local optionsAside = false
 local optionsButton
 
 do
@@ -338,26 +287,21 @@ do
 	unlearned:SetPoint("LEFT", mode, "RIGHT", 10, 0)
 	local stop = button(panel, "Stop preview", 110, function() PV.close() end)
 	stop:SetPoint("TOPRIGHT", -10, -8)
-	optionsButton = button(panel, "Show options", 110, function()
-		if ns.Options.hide() then
-			optionsAside, ns.getAccount().keepOptionsOpen = true, false
-		else
-			optionsAside, ns.getAccount().keepOptionsOpen = false, true
-			ns.Options.open()
-		end
-	end)
+	optionsButton = button(panel, "Show options", 110, function() ns.Options.toggleAside() end)
 	optionsButton:SetPoint("RIGHT", stop, "LEFT", -6, 0)
-	setTip(optionsButton, "Options", "The options stay shown or hidden the next time.")
+	W.setTip(optionsButton, "Options", "The options stay shown or hidden the next time.", "ANCHOR_BOTTOM")
 	local lock = button(panel, "Unlock positioning", 140, function()
-		ns.setLocked(not ns.getAccount().locked)
+		G.setLocked(not P.getAccount().locked)
 		panel.refresh()
 	end)
 	lock:SetPoint("RIGHT", optionsButton, "LEFT", -6, 0)
-	setTip(lock, "Positioning", "Drag groups and the totem bar while the preview shows.")
+	W.setTip(lock, "Positioning", function()
+		return "Drag " .. OA.movingWords("groups") .. " while the preview shows."
+	end, "ANCHOR_BOTTOM")
 	function panel.refresh()
 		mode.refresh()
 		unlearned:SetChecked(opts.unlearned)
-		lock:SetText(ns.getAccount().locked and "Unlock positioning" or "Lock positioning")
+		lock:SetText(P.getAccount().locked and "Unlock positioning" or "Lock positioning")
 		PV.optionsShown(ns.Options.isShown())
 	end
 end
@@ -371,17 +315,16 @@ function PV.showsUnlearned() return on and opts.unlearned end
 
 function PV.open()
 	if on then return end
-	if not ns.isActive() then say("the preview is for %s only", ns.CLASS.plural) return end
+	if not E.isActive() then say("the preview is for %s only", ns.CLASS.plural) return end
 	if InCombatLockdown() then say("the preview can't start in combat") return end
 	on = true
-	optionsAside = not ns.getAccount().keepOptionsOpen and ns.Options.hide() or false
+	ns.Options.stepAside("preview")
 	restart()
-	ns.Buffs.preview(true)
-	ns.TotemBar.preview({ all = opts.unlearned })
-	ns.applyLayout()
+	MOD.each("onPreview", true)
+	G.applyLayout()
 	panel:Show()
 	panel.refresh()
-	ns.Options.refresh()
+	ns.changed()
 end
 
 function PV.close(forCombat)
@@ -398,15 +341,16 @@ function PV.close(forCombat)
 	wipe(runs)
 	wipe(barRuns)
 	unparkAll()
-	ns.Swing.preview(nil)
-	ns.Shield.preview(nil)
-	ns.Buffs.preview(false)
-	ns.TotemBar.preview(nil)
-	ns.applyLayout()
-	ns.refreshAll()
-	if optionsAside and not forCombat then ns.Options.open() end
-	optionsAside = false
-	ns.Options.refresh()
+	eachHud(function(hud) hud.show(nil) end)
+	for _, key in ipairs(E.KEYS) do
+		local pv = OA.PREVIEW[key]
+		if pv and pv.hold then pv.hold(nil) end
+	end
+	MOD.each("onPreview", false)
+	G.applyLayout()
+	E.refreshAll()
+	ns.Options.comeBack("preview", forCombat)
+	ns.changed()
 end
 
 function PV.toggle()
@@ -419,16 +363,13 @@ function PV.afterGroups()
 	panel.refresh()
 end
 
--- Ends when combat starts: PLAYER_REGEN_DISABLED comes before lockdown, so the layout that restores
--- the real HUD runs at once
+-- Ends when combat starts, so the layout that restores the real HUD runs at once
 function PV.start()
-	local ev = CreateFrame("Frame")
-	ns.registerEvent(ev, "PLAYER_REGEN_DISABLED")
-	ev:SetScript("OnEvent", function()
+	ns.onCombatStart(function()
 		if not on then return end
 		PV.close(true)
 		say("preview off for combat")
 	end)
 end
 
-ns.registerModule(PV)
+MOD.register(PV)

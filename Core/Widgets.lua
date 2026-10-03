@@ -1,37 +1,95 @@
 -- Widgets
 
-local _, ns = ...
+local ADDON, ns = ...
+local W = {}
+ns.Widgets = W
 
-ns.SCHOOL_COLOR = {
-	earth  = { 0.75, 0.54, 0.24 },
-	fire   = { 0.89, 0.38, 0.18 },
-	water  = { 0.25, 0.69, 0.77 },
-	air    = { 0.56, 0.76, 0.92 },
-	spirit = { 0.73, 0.64, 0.90 },
-}
-ns.SCHOOL_BAR_COLOR = {}
-for school, c in pairs(ns.SCHOOL_COLOR) do
-	ns.SCHOOL_BAR_COLOR[school] = { math.min(1, c[1] * 1.15), math.min(1, c[2] * 1.15), math.min(1, c[3] * 1.15) }
+-- What shared code reads from the class (_Class) with no default; the first reader is _StyleArt
+do
+	local function has(path)
+		local t = ns
+		for key in path:gmatch("[^.]+") do
+			if type(t) ~= "table" then return false end
+			t = t[tonumber(key) or key]
+		end
+		return t ~= nil
+	end
+	local gaps = {}
+	for _, path in ipairs({ "CLASS.token", "CLASS.plural", "CLASS.slash.1", "CLASS.icon", "CLASS.blurb",
+		"CLASS.links.repo", "CLASS.links.curseforge", "CLASS.links.discord", "CLASS.links.kofi", "CLASS.credits",
+		"CLASS.sharePrefix", "CLASS.help.uptime", "CLASS.help.pop", "CLASS.help.popColour", "CLASS.help.bars",
+		"CLASS.help.glowColour", "CLASS.layout", "THEME.axis.name", "THEME.axis.lower", "THEME.axis.one" }) do
+		if not has(path) then table.insert(gaps, "ns." .. path) end
+	end
+	if not (has("THEME.color") and has("THEME.sample") and ns.THEME.color[ns.THEME.sample]) then
+		table.insert(gaps, "ns.THEME.color[ns.THEME.sample]")
+	end
+	if #gaps > 0 then error(ADDON .. ": the class doesn't supply " .. table.concat(gaps, ", ")) end
 end
 
-ns.BACKDROP = { bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 }
+-- A class may give its own bar colours; else each colour a little brighter
+if not ns.THEME.barColor then
+	ns.THEME.barColor = {}
+	for school, c in pairs(ns.THEME.color) do
+		ns.THEME.barColor[school] = { math.min(1, c[1] * 1.15), math.min(1, c[2] * 1.15), math.min(1, c[3] * 1.15) }
+	end
+end
 
-function ns.cropIcon(tex) tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
+W.BACKDROP = { bgFile = ns.WHITE, edgeFile = ns.WHITE, edgeSize = 1 }
+
+-- A tooltip: title, then text in white (either may be a function); anchor: a GameTooltip one, or "above"
+function W.setTip(frame, title, text, anchor)
+	if not text then return end
+	frame:SetScript("OnEnter", function(self)
+		if anchor == "above" then
+			GameTooltip:SetOwner(self, "ANCHOR_NONE")
+			GameTooltip:ClearAllPoints()
+			GameTooltip:SetPoint("BOTTOMLEFT", self, "TOPLEFT", 0, 2)
+		else GameTooltip:SetOwner(self, anchor or "ANCHOR_RIGHT") end
+		GameTooltip:SetText(type(title) == "function" and title() or title)
+		GameTooltip:AddLine(type(text) == "function" and text() or text, 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	frame:SetScript("OnLeave", function() GameTooltip:Hide() end)
+end
+
+-- A panel the player drags, kept on screen, hidden; border: its edge colour over a dark fill (none: no backdrop)
+function W.floatingPanel(name, width, height, border)
+	local f = CreateFrame("Frame", name, UIParent, "BackdropTemplate")
+	f:SetSize(width, height)
+	f:SetFrameStrata("DIALOG")
+	f:SetMovable(true)
+	f:SetClampedToScreen(true)
+	f:EnableMouse(true)
+	f:RegisterForDrag("LeftButton")
+	f:SetScript("OnDragStart", f.StartMoving)
+	f:SetScript("OnDragStop", f.StopMovingOrSizing)
+	f:SetScript("OnHide", f.StopMovingOrSizing)   -- hidden mid-drag (combat), the drag ends
+	if border then
+		f:SetBackdrop(W.BACKDROP)
+		f:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
+		f:SetBackdropBorderColor(unpack(border))
+	end
+	f:Hide()
+	return f
+end
+
+function W.cropIcon(tex) tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
 -- Drawn at the frame's exact rect: a snapped texture would show a sliver past a cooldown swipe.
-function ns.cropIconExact(tex)
-	ns.cropIcon(tex)
+function W.cropIconExact(tex)
+	W.cropIcon(tex)
 	if tex.SetSnapToPixelGrid then
 		tex:SetSnapToPixelGrid(false)
 		tex:SetTexelSnappingBias(0)
 	end
 end
 
-ns.COUNT_JUSTIFY = { TOPLEFT = "LEFT", BOTTOMLEFT = "LEFT", TOPRIGHT = "RIGHT", BOTTOMRIGHT = "RIGHT",
+W.COUNT_JUSTIFY = { TOPLEFT = "LEFT", BOTTOMLEFT = "LEFT", TOPRIGHT = "RIGHT", BOTTOMRIGHT = "RIGHT",
 	CENTER = "CENTER" }
 
-ns.BASE_ICON_SIZE = 44
-function ns.placeScaledText(fs, icon, size, point, x, y, relPoint)
-	local px = math.max(math.floor(size * icon:GetWidth() / ns.BASE_ICON_SIZE + 0.5), 6)
+W.BASE_ICON_SIZE = 44
+function W.placeScaledText(fs, icon, size, point, x, y, relPoint)
+	local px = math.max(math.floor(size * icon:GetWidth() / W.BASE_ICON_SIZE + 0.5), 6)
 	local sig = string.format("%d%s%s%s,%s%s", px, point, relPoint or point, x, y, ns.Media.textKey())
 	if fs.placed == sig then return px end
 	fs.placed = sig
@@ -41,14 +99,14 @@ function ns.placeScaledText(fs, icon, size, point, x, y, relPoint)
 	return px
 end
 
-function ns.makeKeyText(parent)
+function W.makeKeyText(parent)
 	local fs = parent:CreateFontString(nil, "OVERLAY")
 	fs:SetFont(STANDARD_TEXT_FONT, 12, "OUTLINE")
 	fs:SetPoint("TOPRIGHT", -2, -2)
 	fs:SetTextColor(0.85, 0.85, 0.85)
 	return fs
 end
-function ns.keyTextSize(size, base) return math.max(6, math.floor(base * size / ns.BASE_ICON_SIZE + 0.5)) end
+function W.keyTextSize(size, base) return math.max(6, math.floor(base * size / W.BASE_ICON_SIZE + 0.5)) end
 -- A binding's key in the short form action bars use ("SWU", "C5").
 local MODIFIERS = { ALT = "A", CTRL = "C", SHIFT = "S", META = "M" }
 local SHORT_KEYS = {
@@ -61,7 +119,7 @@ local SHORT_KEYS = {
 	NUMPADDECIMAL = "N.", NUMPADEQUALS = "N=",
 }
 local keyLabels = {}
-function ns.keyLabel(key)
+function W.keyLabel(key)
 	if not key then return "" end
 	local label = keyLabels[key]
 	if label then return label end
@@ -83,7 +141,7 @@ function ns.keyLabel(key)
 end
 
 -- A frame above Blizzard's protected aura button takes no alpha change in combat: its fade is
--- -- restated after combat.
+-- restated after combat.
 local FADE_OUT, FADE_IN = 0.8, 0.15
 local fading = {}
 local fader = CreateFrame("Frame")
@@ -102,7 +160,7 @@ fader:SetScript("OnUpdate", function(self, elapsed)
 	end
 	if next(fading) == nil then self:Hide() end
 end)
-function ns.fadeTo(f, alpha)
+function W.fadeTo(f, alpha)
 	if f.aboveProtected and InCombatLockdown() then return end
 	if math.abs(f:GetAlpha() - alpha) < 0.005 then
 		fading[f] = nil
@@ -114,21 +172,21 @@ function ns.fadeTo(f, alpha)
 end
 
 -- Screen-pixel lines
-function ns.pixel(frame)
+function W.pixel(frame)
 	local _, physicalHeight = GetPhysicalScreenSize()
 	return 768 / (physicalHeight or 768) / frame:GetEffectiveScale()
 end
-function ns.roundPx(v, px) return math.floor(v / px + 0.5) * px end
+function W.roundPx(v, px) return math.floor(v / px + 0.5) * px end
 
-function ns.linePx(frame, n)
+function W.linePx(frame, n)
 	local count = math.floor(n * frame:GetEffectiveScale() / UIParent:GetEffectiveScale() + 0.5)
 	if n > 0 and count < 1 then count = 1 end
-	return count * ns.pixel(frame)
+	return count * W.pixel(frame)
 end
 
 -- Anchors on a whole screen pixel so texture, border and swipe agree on edges.
-function ns.placeOnPixels(frame, point, x, y)
-	local px = ns.pixel(frame)
+function W.placeOnPixels(frame, point, x, y)
+	local px = W.pixel(frame)
 	local k = UIParent:GetEffectiveScale() / frame:GetEffectiveScale()
 	local pw, ph = UIParent:GetSize()
 	local w, h = frame:GetSize()
@@ -137,7 +195,7 @@ function ns.placeOnPixels(frame, point, x, y)
 	local left = fx * pw * k + x - fx * w
 	local top = fy * ph * k + y + (1 - fy) * h
 	frame:ClearAllPoints()
-	frame:SetPoint(point, UIParent, point, x + ns.roundPx(left, px) - left, y + ns.roundPx(top, px) - top)
+	frame:SetPoint(point, UIParent, point, x + W.roundPx(left, px) - left, y + W.roundPx(top, px) - top)
 end
 
 -- Warning looks
@@ -146,7 +204,7 @@ local RING_COLOR = { 1, 0, 0, 0.9 }
 local Ring = {}
 Ring.__index = Ring
 local rings = setmetatable({}, { __mode = "k" })
-function ns.makeRing(parent, anchor)
+function W.makeRing(parent, anchor)
 	local r = setmetatable({ anchor = anchor, edges = {} }, Ring)
 	rings[r] = true
 	for i = 1, 4 do
@@ -162,28 +220,32 @@ function Ring:color(red, g, b, a)
 	for _, t in ipairs(self.edges) do t:SetColorTexture(red or k[1], g or k[2], b or k[3], a or k[4]) end
 end
 function Ring:fit()
-	local w = ns.linePx(self.anchor, RING_PX)
+	local w = W.linePx(self.anchor, RING_PX)
 	if w == self.width then return end
 	self.width = w
 	local a, top, bottom, left, right = self.anchor, self.edges[1], self.edges[2], self.edges[3], self.edges[4]
 	for _, t in ipairs(self.edges) do t:ClearAllPoints() end
-	top:SetPoint("TOPLEFT", a, "TOPLEFT", 0, 0); top:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, 0); top:SetHeight(w)
-	bottom:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, 0); bottom:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, 0); bottom:SetHeight(w)
-	left:SetPoint("TOPLEFT", a, "TOPLEFT", 0, -w); left:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, w); left:SetWidth(w)
-	right:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, -w); right:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, w); right:SetWidth(w)
+	top:SetPoint("TOPLEFT", a, "TOPLEFT", 0, 0); top:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, 0)
+	top:SetHeight(w)
+	bottom:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, 0); bottom:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, 0)
+	bottom:SetHeight(w)
+	left:SetPoint("TOPLEFT", a, "TOPLEFT", 0, -w); left:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, w)
+	left:SetWidth(w)
+	right:SetPoint("TOPRIGHT", a, "TOPRIGHT", 0, -w); right:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", 0, w)
+	right:SetWidth(w)
 end
 function Ring:show(on)
 	if on then self:fit() end
 	for _, t in ipairs(self.edges) do t:SetShown(on and true or false) end
 end
-function ns.refitRings()
+function W.refitRings()
 	for r in pairs(rings) do
 		if r.edges[1]:IsShown() then r:fit() end
 	end
 end
 
 -- fade: the region breathes (missing); dim: a dark layer (expiring).
-function ns.makePulse(region, kind)
+function W.makePulse(region, kind)
 	local g = region:CreateAnimationGroup()
 	g:SetLooping("BOUNCE")
 	local a = g:CreateAnimation("Alpha")
@@ -194,46 +256,50 @@ function ns.makePulse(region, kind)
 end
 
 -- The global cooldown's sweep
-function ns.makeGCDSweep(parent)
+function W.makeGCDSweep(parent)
 	local cd = CreateFrame("Cooldown", nil, parent, "CooldownFrameTemplate")
 	cd:SetAllPoints()
 	cd:SetDrawEdge(false)
 	cd:SetDrawBling(false)
 	cd:SetHideCountdownNumbers(true)
-	cd:SetSwipeTexture("Interface\\Buttons\\WHITE8x8")
+	cd:SetSwipeTexture(ns.WHITE)
 	cd:SetSwipeColor(0, 0, 0, 0.6)
-	ns.Looks.followSwipe(parent, cd)
+	ns.StyleArt.followSwipe(parent, cd)
 	return cd
 end
 
 -- Aura slot: Blizzard's aura container on an element icon, the one way to show an aura in combat.
--- -- Calls it refuses in combat or while auras are secret wait (ns.deferWhileAurasSecret).
--- -- Scripts under its button never run: it only plays animations handed to it.
+-- Calls it refuses in combat or while auras are secret wait (ns.deferWhileAurasSecret).
+-- Scripts under its button never run: it only plays animations handed to it.
 local AuraSlot = {}
 AuraSlot.__index = AuraSlot
 
-function ns.makeAuraSlot(frame, opts)
+-- Clicks and hover pass through a button of Blizzard's (each call may be refused)
+function W.noMouse(b)
+	pcall(b.EnableMouse, b, false)
+	pcall(b.SetMouseClickEnabled, b, false)
+	pcall(b.SetMouseMotionEnabled, b, false)
+end
+
+function W.makeAuraSlot(frame, opts)
 	return setmetatable({ frame = frame, opts = opts }, AuraSlot)
 end
 
 local function initAuraButton(slot, button)
 	local o = slot.opts
-	local size = ns.sizeOf(o.key)
+	local size = ns.Elements.sizeOf(o.key)
 	button:SetSize(size, size)
 	slot.size = size
 	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
-	pcall(button.EnableMouse, button, false)
-	pcall(button.SetMouseClickEnabled, button, false)
-	pcall(button.SetMouseMotionEnabled, button, false)
+	W.noMouse(button)
 	local host = o.host and o.host(slot, button) or button
 	slot.host = host
 	local tex = host:CreateTexture(nil, "ARTWORK")
 	tex:SetAllPoints()
-	ns.cropIconExact(tex)
-	if o.iconAlpha then tex:SetAlpha(o.iconAlpha()) end
+	W.cropIconExact(tex)
 	if o.ownIcon then tex:SetTexture(o.ownIcon()) else button:SetIcon(tex) end
 	slot.icon = tex
-	ns.try(o.sites.style, ns.Looks.auraMask, host, tex, o.key)
+	ns.try(o.sites.style, ns.StyleArt.auraMask, host, tex, o.key)
 	local cd = CreateFrame("Cooldown", nil, host, "CooldownFrameTemplate")
 	cd:SetAllPoints()
 	slot.cd = cd
@@ -244,7 +310,7 @@ local function initAuraButton(slot, button)
 		return
 	end
 	-- A client that refuses the time bar gets none rather than a still one.
-	local e = ns.ELEMENTS[o.key]
+	local e = ns.Elements.ALL[o.key]
 	slot.timer = ns.Timer.new(host, o.key, "uptime", { cd = cd, anchor = host, aura = true,
 		school = e and e.school, barInset = o.barInset })
 	if not ns.try("aura time bar", button.SetDurationBar, button, slot.timer.bar, ns.Timer.AURA_BAR) then
@@ -258,12 +324,10 @@ local function initAuraButton(slot, button)
 end
 
 local function initExtraButton(slot, x, button)
-	local size = ns.sizeOf(slot.opts.key)
+	local size = ns.Elements.sizeOf(slot.opts.key)
 	button:SetSize(size, size)
 	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
-	pcall(button.EnableMouse, button, false)
-	pcall(button.SetMouseClickEnabled, button, false)
-	pcall(button.SetMouseMotionEnabled, button, false)
+	W.noMouse(button)
 	slot.extras = slot.extras or {}
 	slot.extras[x.key] = button
 	x.init(slot, button)
@@ -294,7 +358,7 @@ function AuraSlot:setup()
 	if ns.deferWhileAurasSecret(o.sites.container, function() self:setup() end) then return end
 	local filters = candidates(o)
 	local ok, err = pcall(function()
-		local size = ns.sizeOf(o.key)
+		local size = ns.Elements.sizeOf(o.key)
 		local c = CreateFrame("AuraContainer", o.name, o.parent or f, "CustomAuraContainerTemplate")
 		c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
 		c:SetSize(size, size)
@@ -320,13 +384,13 @@ function AuraSlot:setup()
 		if self.container then self.container:Hide() end
 		o.onError(self.err)
 	else
-		self.applied = filterSig(filters)
+		self.filtered, self.applied = filters.includeSpellIDs, filterSig(filters)
 		self:style()   -- a layout queued before it (a /reload in combat) found no button to style
 	end
 end
 
 -- Out of combat, auras readable; a refused call is tried again after combat. Once a frame at most:
--- -- one layout asks several times, and a dragged slider restyles every frame.
+-- one layout asks several times, and a dragged slider restyles every frame.
 function AuraSlot:style()
 	if not self.button or self.styleSoon then return end
 	self.styleSoon = true
@@ -340,7 +404,7 @@ function AuraSlot:styleNow()
 	local o = self.opts
 	if ns.deferWhileAurasSecret(o.sites.style, function() self:styleNow() end) then return end
 	local ok = ns.try(o.sites.style, function()
-		local size, f, c = ns.sizeOf(o.key), self.frame, self.container
+		local size, f, c = ns.Elements.sizeOf(o.key), self.frame, self.container
 		c:SetSize(size, size)
 		c:SetFrameStrata(f:GetFrameStrata())
 		c:SetFrameLevel(f.textFrame:GetFrameLevel() + 5 + (o.level or 0))
@@ -353,23 +417,26 @@ function AuraSlot:styleNow()
 				b:SetFrameLevel(f.textFrame:GetFrameLevel() + 5 + 2 * i + 2)
 			end
 		end
-		-- Own try: a look the button refuses mustn't stop the timer and the caller's parts.
-		ns.try(o.sites.style .. ": look", ns.Looks.auraStyle, self, size)
+		-- Own try: a style the button refuses mustn't stop the timer and the caller's parts.
+		ns.try(o.sites.style .. ": style", ns.StyleArt.auraStyle, self, size)
 		if self.timer then self.timer:apply() end
 		if o.onStyle then o.onStyle(self, size) end
 	end)
 	if not ok then ns.retryAfterCombat(o.sites.style, function() self:styleNow() end) end
 end
 
+-- Only when the filters changed (callers ask on every spellbook change)
 function AuraSlot:refilter()
 	if not self.container or self.err then return end
 	local o = self.opts
 	if ns.deferWhileAurasSecret(o.sites.filter, function() self:refilter() end) then return end
 	local filters = candidates(o)
+	local sig = filterSig(filters)
+	if sig == self.applied then return end
 	self.applied = nil
 	local ok = ns.try(o.sites.filter, self.container.SetAuraSlotCandidateFilters, self.container, o.slot, filters)
 	-- Last to first: a part covering another comes after it, so a refilter stopping part way leaves
-	-- -- nothing uncovered.
+	-- nothing uncovered.
 	local extras = o.extras or {}
 	for i = #extras, 1, -1 do
 		if ok then
@@ -377,31 +444,172 @@ function AuraSlot:refilter()
 				o.slot .. "-" .. extras[i].key, filters)
 		end
 	end
-	if ok then self.filtered, self.applied = filters.includeSpellIDs, filterSig(filters)
+	if ok then self.filtered, self.applied = filters.includeSpellIDs, sig
 	else ns.retryAfterCombat(o.sites.filter, function() self:refilter() end) end
 end
 
+-- Counts on an aura button: Blizzard writes the number and fills the bar; nothing here reads them
+local Count = {}
+W.Count = Count
+
+local COUNT_NUDGE = { CENTER = { 0, 0 }, TOPLEFT = { -2, 2 }, TOPRIGHT = { 2, 2 }, BOTTOMLEFT = { -2, -2 },
+	BOTTOMRIGHT = { 2, -2 } }
+
+-- lift: how far a number at a bottom point sits up (over a bar)
+function Count.place(fs, anchor, pos, lift)
+	local nudge = COUNT_NUDGE[pos]
+	local y = nudge[2] + ((lift and pos:find("BOTTOM")) and lift or 0)
+	fs:ClearAllPoints()
+	fs:SetPoint(pos, anchor, pos, nudge[1], y)
+	fs:SetJustifyH(W.COUNT_JUSTIFY[pos])
+end
+
+-- The number's font string on parent, handed to the button; place(fs) sets its font first, since
+-- Blizzard writes the count at once
+function Count.text(slot, button, parent, place, site)
+	local fs = parent:CreateFontString(nil, "OVERLAY", nil, 7)
+	place(fs)
+	slot.fs, slot.countFormatter = fs, false
+	ns.try(site, button.SetApplicationCount, button, fs)
+	return fs
+end
+
+local formatters = ns.cache(8, function(code, markAt, max, site)
+	local ok, new = ns.try(site, function()
+		local x = C_StringUtil.CreateNumericRuleFormatter()
+		local rules = { { threshold = 0, format = "%d" } }
+		if code ~= "" then
+			table.insert(rules, { threshold = markAt, format = code .. "%d|r" })
+			if markAt < max then table.insert(rules, { threshold = markAt + 1, format = "%d" }) end
+		end
+		x:SetBreakpoints(rules)
+		for n = 0, max do
+			local text = x:FormatNumber(n)
+			local coloured = code ~= "" and n == markAt
+			if type(text) ~= "string" or ns.isSecret(text) or (coloured and not text:lower():find(code, 1, true)) then
+				error(string.format("formatted %d as %s", n, tostring(text)))
+			end
+		end
+		return x
+	end)
+	return ok and new or false
+end)
+-- Prints every count from 0 (without one Blizzard prints from 2), markAt in markColor (nil: none).
+-- Tried on 0 to max first: an error would stop Blizzard's aura update. nil if the client can't.
+function Count.formatter(markColor, markAt, max, site)
+	if not (C_StringUtil and C_StringUtil.CreateNumericRuleFormatter) then return nil end
+	local code = markColor and ns.colorCode(markColor) or ""
+	return formatters(code .. ":" .. tostring(markAt) .. ":" .. max, code, markAt, max, site) or nil
+end
+
+-- Hands the button a formatter (nil: Blizzard's own count), once per change
+function Count.setFormat(slot, fm, site)
+	fm = fm or false
+	if fm == slot.countFormatter then return end
+	if ns.try(site, slot.button.SetApplicationCount, slot.button, slot.fs, fm and { formatter = fm } or nil) then
+		slot.countFormatter = fm
+	end
+end
+
+-- A bar along anchor's bottom, on a dark back, with a tick between segments (Count.styleBar).
+-- The ticks are the bar's child, so they sit over it.
+function Count.bar(slot, parent, anchor)
+	local bar = CreateFrame("StatusBar", nil, parent)
+	bar:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", 0, 0)
+	bar:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", 0, 0)
+	bar:SetStatusBarTexture(ns.Media.barTexture())
+	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
+	bar.bg:SetAllPoints()
+	bar.bg:SetColorTexture(0, 0, 0, 0.6)
+	local ticks = CreateFrame("Frame", nil, bar)
+	ticks:SetAllPoints(bar)
+	slot.bar, slot.tickFrame, slot.ticks = bar, ticks, {}
+	return bar
+end
+
+-- max segments on an icon size wide; shown: the bar and ticks at alpha 1, else 0
+function Count.styleBar(slot, size, max, height, color, shown)
+	local bar, ticks = slot.bar, slot.ticks
+	bar:SetHeight(height)
+	bar:SetStatusBarTexture(ns.Media.barTexture())   -- before the colour
+	bar:SetStatusBarColor(color[1], color[2], color[3], color[4] or 1)
+	for i = 1, max - 1 do
+		local t = ticks[i]
+		if not t then
+			t = slot.tickFrame:CreateTexture(nil, "OVERLAY")
+			t:SetColorTexture(0, 0, 0, 0.9)
+			t:SetWidth(1)
+			ticks[i] = t
+		end
+		t:ClearAllPoints()
+		t:SetPoint("TOP", slot.tickFrame, "TOPLEFT", size * i / max, 0)
+		t:SetPoint("BOTTOM", slot.tickFrame, "BOTTOMLEFT", size * i / max, 0)
+		t:Show()
+	end
+	for i = max, #ticks do ticks[i]:Hide() end
+	bar:SetAlpha(shown and 1 or 0)
+	slot.tickFrame:SetAlpha(shown and 1 or 0)
+end
+
+-- The warning look: grey, tint, ring, fade, glow. The same five go to the icon itself
+-- (f:SetWarnParts), to a warn overlay and to a clip look (setParts). W.warnParts reads them from an
+-- element's state table (warn, expire): a look it doesn't declare is off.
+function W.warnParts(key, name)
+	local function part(field)
+		if ns.Elements.default(key, name, field) == nil then return false end
+		return ns.Elements.setting(key, name, field) and true or false
+	end
+	return part("grey"), part("tint"), part("ring"), part("fade"), part("glow")
+end
+
+-- A warning look over an icon, its alpha set by its owner (a curve in combat): grey, ring and fade
+-- only, all an element drawn this way declares
+function W.makeWarnOverlay(f)
+	local w = CreateFrame("Frame", nil, f)
+	w:SetAllPoints()
+	w.grey = w:CreateTexture(nil, "ARTWORK")
+	w.grey:SetAllPoints(f.tex)
+	W.cropIconExact(w.grey)
+	w.grey:SetDesaturated(true)
+	w.ring = W.makeRing(w, f.tex)
+	w.pulse = W.makePulse(w.grey, "fade")
+	w:SetAlpha(0)
+	-- Hiding a frame stops its animations
+	w:SetScript("OnShow", function(self)
+		if self.pulseOn and not self.pulse:IsPlaying() then self.pulse:Play() end
+	end)
+	function w:setIcon(icon) self.grey:SetTexture(icon) end
+	function w:setParts(grey, _, ring, fade)
+		self.grey:SetShown(grey and true or false)
+		self.ring:show(ring)
+		self.pulseOn = fade and true or false
+		if not self.pulseOn then self.pulse:Stop()
+		elseif not self.pulse:IsPlaying() then self.pulse:Play() end
+	end
+	return w
+end
+
 -- Clip look: shown exactly while an aura is gone (inverted: while it is up), in combat too, nothing
--- -- read. A sensor container sizes to its aura button; a clip frame of ours shows the look only
--- -- within that. A change waiting for combat's end is a miss, never a false warning.
+-- read. A sensor container sizes to its aura button; a clip frame of ours shows the look only
+-- within that. A change waiting for combat's end is a miss, never a false warning.
 local ClipLook = {}
 ClipLook.__index = ClipLook
 -- The sensor's button is this much wider than the cell: the clip empty, not 1 px.
 local CLIP_SLACK = 2
 -- The look's reach in icon widths: 1.7 covers the widest (the Proc glow's burst, 150/45); a wider
--- -- look needs it raised.
+-- look needs it raised.
 local CLIP_REACH = 1.7
 
 local function shapeTextures(frame, f, over)
 	for _, r in ipairs({ frame:GetRegions() }) do
 		if r:IsObjectType("Texture") and not r:IsObjectType("MaskTexture") then
-			ns.Looks.maskOver(f, r, over)
+			ns.StyleArt.maskOver(f, r, over)
 		end
 	end
 	for _, c in ipairs({ frame:GetChildren() }) do shapeTextures(c, f, over) end
 end
 
-function ns.makeClipLook(frame, opts)
+function W.makeClipLook(frame, opts)
 	local h = setmetatable({ frame = frame, opts = opts }, ClipLook)
 	h.hold = CreateFrame("Frame", nil, opts.parent)
 	h.hold:SetAllPoints(frame)
@@ -429,10 +637,10 @@ function ns.makeClipLook(frame, opts)
 	h.art = CreateFrame("Frame", nil, h.look)
 	h.art:SetAllPoints(frame)
 	h.tex = h.art:CreateTexture(nil, "ARTWORK")
-	ns.cropIconExact(h.tex)
+	W.cropIconExact(h.tex)
 	h.tex:SetAllPoints(frame.tex)
-	h.ring = ns.makeRing(h.art, h.tex)
-	h.pulse = ns.makePulse(h.tex, "fade")
+	h.ring = W.makeRing(h.art, h.tex)
+	h.pulse = W.makePulse(h.tex, "fade")
 	if opts.glowOnly then h.art:Hide() end
 	h.glow = ns.Effects.glow(h.look, frame, opts.owner)
 	h.glow.onLayout = function(_, parts, look)
@@ -447,16 +655,16 @@ end
 
 -- Wide enough for the art frame on a look that carries the border
 local function cellWidth(size, frame, o)
-	local half = CLIP_REACH * (size + 2 * ns.Looks.outerEdge(frame))
+	local half = CLIP_REACH * (size + 2 * ns.StyleArt.outerEdge(frame))
 	if not o.glowOnly then
-		local r, box = ns.Frames.reach(o.key), ns.boxOf(o.key)
+		local r, box = ns.Frames.reach(o.key), ns.Elements.boxOf(o.key)
 		half = math.max(half, box * (0.5 + math.max(r.left, r.right, r.top, r.bottom)) + 1)
 	end
 	return math.ceil(2 * half)
 end
 
 -- Hold at 0 now, back on its second OnUpdate: Blizzard's container updates on its next OnUpdate
--- -- after a change.
+-- after a change.
 function ClipLook:wait()
 	self.waiting = 2
 	self.hold:SetAlpha(0)
@@ -466,7 +674,7 @@ end
 function ClipLook:ready()
 	local o = self.opts
 	return self.container ~= nil and not self.err and self.idsOK == true and not self.waiting
-		and self.size == ns.sizeOf(o.key) and (o.needUnit == nil or self.unit == o.needUnit)
+		and self.size == ns.Elements.sizeOf(o.key) and (o.needUnit == nil or self.unit == o.needUnit)
 		and (o.agrees == nil or o.agrees() == true)
 end
 
@@ -497,15 +705,10 @@ end
 function ClipLook:reshape()
 	if self.opts.glowOnly then self.glow:restyle() return end
 	local f = self.frame
-	ns.Looks.overlay(self.art, ns.borderFor(self.opts.key))
-	ns.Looks.maskOver(f, self.tex)
-	for _, e in ipairs(self.ring.edges) do ns.Looks.maskOver(f, e, self.tex) end
+	ns.StyleArt.overlay(self.art, ns.Elements.borderFor(self.opts.key))
+	ns.StyleArt.maskOver(f, self.tex)
+	for _, e in ipairs(self.ring.edges) do ns.StyleArt.maskOver(f, e, self.tex) end
 	self.glow:restyle()
-end
-
-local function sensorFilters(o)
-	if o.candidates then return o.candidates() end
-	return { includeSpellIDs = o.ids() }
 end
 
 local function clipTo(self, c)
@@ -523,9 +726,9 @@ function ClipLook:setup()
 	if self.container or self.err then return end
 	local o = self.opts
 	if ns.deferWhileAurasSecret(o.sites.container, function() self:setup() end) then return end
-	local size = ns.sizeOf(o.key)
+	local size = ns.Elements.sizeOf(o.key)
 	local w = cellWidth(size, self.frame, o)
-	local filters = sensorFilters(o)
+	local filters = candidates(o)
 	local unit = type(o.unit) == "function" and o.unit() or o.unit or "player"
 	local ok, err = pcall(function()
 		local c = CreateFrame("AuraContainer", nil, o.sensorParent, "CustomAuraContainerTemplate")
@@ -542,9 +745,7 @@ function ClipLook:setup()
 			layout = { elementWidth = w + CLIP_SLACK, elementHeight = w },
 			initializeFrame = function(b)
 				b:SetSize(1, 1)
-				pcall(b.EnableMouse, b, false)
-				pcall(b.SetMouseClickEnabled, b, false)
-				pcall(b.SetMouseMotionEnabled, b, false)
+				W.noMouse(b)
 			end,
 		})
 		clipTo(self, c)
@@ -575,7 +776,7 @@ function ClipLook:took(size, filters)
 end
 
 -- Every ID of ids() must be in it: a sensor missing one would stay empty over that aura, a false
--- -- warning.
+-- warning.
 function ClipLook:checkIDs()
 	local o, ok = self.opts, false
 	if o.candidates then ok = self.applied ~= nil and self.applied == filterSig(o.candidates())
@@ -601,7 +802,7 @@ function ClipLook:style()
 end
 function ClipLook:styleNow()
 	local o = self.opts
-	local size = ns.sizeOf(o.key)
+	local size = ns.Elements.sizeOf(o.key)
 	local w = cellWidth(size, self.frame, o)
 	if w == self.width then
 		self:took(size)
@@ -623,11 +824,13 @@ function ClipLook:styleNow()
 	end
 end
 
+-- Only when the filters changed: a refilter holds the look off for two frames
 function ClipLook:refilter()
 	if not self.container or self.err then return end
 	local o = self.opts
 	if ns.deferWhileAurasSecret(o.sites.filter, function() self:refilter() end) then return end
-	local filters = sensorFilters(o)
+	local filters = candidates(o)
+	if filterSig(filters) == self.applied then return end
 	self:wait()
 	if ns.try(o.sites.filter, self.container.SetAuraGroupCandidateFilters, self.container, o.key, filters) then
 		self:took(nil, filters)
@@ -664,28 +867,28 @@ function ClipLook:describe()
 		"%ssensor %s%s, size %s (icon %s), filters %s, unit %s, wanted %s, waiting %s, drawn %s",
 		self.opts.invert and "while up: " or "",
 		self.container and "made" or "not made", self.err and (" (error: " .. self.err .. ")") or "",
-		tostring(self.size), tostring(ns.sizeOf(self.opts.key)),
+		tostring(self.size), tostring(ns.Elements.sizeOf(self.opts.key)),
 		not self.idsOK and "behind" or (self.opts.agrees and not self.opts.agrees()) and "not the slot's"
 			or "matched",
 		tostring(self.unit), tostring(self.wanted), tostring(self.waiting ~= nil),
 		self.glow.look and self.glow.look.key or "none")
 end
 
-function ns.makeIcon(parent, size, owner)
+function W.makeIcon(parent, size, owner)
 	local f = CreateFrame("Frame", nil, parent)
 	f.owner = owner
 	f:SetSize(size, size)
 	f.tex = f:CreateTexture(nil, "ARTWORK")
 	f.tex:SetAllPoints()
-	ns.cropIconExact(f.tex)
-	f.manaOverlay = f:CreateTexture(nil, "ARTWORK", nil, 2)
-	f.manaOverlay:SetAllPoints(f.tex)
-	f.manaOverlay:SetColorTexture(0.2, 0.45, 1, 0.55)
-	f.manaOverlay:Hide()
+	W.cropIconExact(f.tex)
+	f.bodyOverlay = f:CreateTexture(nil, "ARTWORK", nil, 2)
+	f.bodyOverlay:SetAllPoints(f.tex)
+	f.bodyOverlay:SetColorTexture(0.2, 0.45, 1, 0.55)
+	f.bodyOverlay:Hide()
 	f.SetBodyPaint = function(self, style, r, g, b, overlayAlpha, tintStrength)
 		if style == "overlay" or style == "both" then
-			self.manaOverlay:SetColorTexture(r, g, b, overlayAlpha)
-			self.manaOverlay:Show()
+			self.bodyOverlay:SetColorTexture(r, g, b, overlayAlpha)
+			self.bodyOverlay:Show()
 		end
 		if style == "tint" or style == "both" then
 			local k = 1 - tintStrength
@@ -707,8 +910,8 @@ function ns.makeIcon(parent, size, owner)
 	f.count:SetJustifyH("RIGHT")
 	local okFS, cdText = pcall(f.cd.GetCountdownFontString, f.cd)
 	if okFS and cdText then pcall(cdText.SetDrawLayer, cdText, "OVERLAY", 7) end
-	f.ring = ns.makeRing(f.textFrame, f.tex)
-	f.pulse = ns.makePulse(f.tex, "fade")
+	f.ring = W.makeRing(f.textFrame, f.tex)
+	f.pulse = W.makePulse(f.tex, "fade")
 	f.SetPulsing = function(self, on)
 		if not on then self.pulse:Stop()
 		elseif not self.pulse:IsPlaying() then self.pulse:Play() end
@@ -721,6 +924,20 @@ function ns.makeIcon(parent, size, owner)
 	f.glowF = f.fx.glowF
 	f.glowF:SetFrameLevel(f:GetFrameLevel() + 2)
 	f.SetGlowShown = function(self, shown, r, g, b) self.fx:glow(shown, r, g, b) end
+	f.SetWarnParts = function(self, grey, tint, ring, fade, glow)
+		self.tex:SetDesaturated(grey and true or false)
+		-- The colour is set only when the tint changes (other looks colour this icon too); whoever
+		-- sets the colour itself clears warnTint
+		tint = tint and true or false
+		if tint ~= (self.warnTint or false) then
+			self.warnTint = tint
+			if tint then self.tex:SetVertexColor(1, 0.35, 0.35)
+			else self.tex:SetVertexColor(1, 1, 1) end
+		end
+		self:SetRingShown(ring)
+		self:SetPulsing(fade)
+		self:SetGlowShown(glow)
+	end
 	f.Pop = function(self, kind) self.fx:pop(kind) end
 	return f
 end

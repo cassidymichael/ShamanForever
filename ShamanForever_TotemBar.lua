@@ -11,6 +11,8 @@
 -- casts (ns.Totems), by spell ID.
 
 local _, ns = ...
+local W = ns.Widgets
+local E, MOD, Bars, P = ns.Elements, ns.Modules, ns.Bars, ns.Profiles
 
 local TB = { name = "totem bar" }
 ns.TotemBar = TB
@@ -19,6 +21,9 @@ local ELEMENTS = { "earth", "fire", "water", "air" }
 local SLOT = { fire = 1, earth = 2, water = 3, air = 4 }
 local NAME = { earth = "Earth", fire = "Fire", water = "Water", air = "Air" }
 TB.ELEMENTS, TB.NAME, TB.SLOT = ELEMENTS, NAME, SLOT
+-- Each slot's icon where the client gives none
+local TOTEM_ICON = { earth = 136098, fire = 135825, water = 135127, air = 136114 }
+TB.TOTEM_ICON = TOTEM_ICON
 
 TB.DEFAULTS = {
 	mode = "everything",   -- blizzard | active | everything
@@ -44,6 +49,8 @@ TB.DEFAULTS = {
 	keyColor = { 0.85, 0.85, 0.85, 1 },
 	call = true,
 	recall = true,
+	setSwitch = "popout",   -- popout | cycle: how the Call button switches totem sets
+	setNumber = true,
 	extras = "after",   -- ends | before | after the slots
 	extrasScale = 0.8,
 	sizeFollow = true,
@@ -55,20 +62,12 @@ TB.DEFAULTS = {
 	badgeAlpha = 0.75,
 	badgeSat = 0.5,
 	badgeX = 0, badgeY = 0,
-	warnGrey = false,
-	warnRing = false,
-	warnPulse = true,
-	warnGlow = false,
-	expiredPop = true,
-	goneSound = "none",
-	warn = 10,   -- seconds before the end (0: off)
-	-- Totem -> seconds, instead of warn; keyed by the client's rank-less spell name. cfg() fills the
-	-- defaults in the client's language
-	warnOver = {},
-	killed = true,
-	killedPop = true,
-	killedGlow = true,
-	killedMark = true,
+	-- The element settings' shapes (_Profiles). expire.secs: before the end (0: off); expire.over:
+	-- totem -> seconds, instead of secs, keyed by the client's rank-less spell name (cfg() fills the
+	-- defaults in the client's language)
+	expire = { secs = 10, grey = false, ring = false, fade = true, glow = false, over = {} },
+	ended = { pop = true, sound = "none" },
+	killed = { flash = true, pop = true, glow = true, mark = true },
 	range = true,
 	rangeHeight = 5,
 	rangeIn = { 0.2, 0.8, 0.25, 0 },
@@ -84,26 +83,33 @@ TB.DEFAULTS = {
 
 local isSecret = ns.isSecret
 
+-- { min, max, step }: clamped as the settings load, and the page's sliders
+local EXPIRE_SECS = { 0, 30, 1 }
 local RANGES = {
-	scale = { 0.5, 3 }, alpha = { 0.1, 1 }, spacing = { -10, 20 }, size = { 24, 96 },
-	arrowSize = { 8, 32 }, extrasScale = { 0.5, 1.5 }, idleAlpha = { 0.1, 1 },
-	badgeSize = { 0.25, 0.8 }, badgeAlpha = { 0.1, 1 }, badgeSat = { 0, 1 }, warn = { 0, 30 }, rangeHeight = { 1, 12 },
-	fadeAfter = { 0, 10 }, badgeX = { -30, 30 }, badgeY = { -30, 30 }, keySize = { 6, 30 }, keyX = { -20, 20 }, keyY = { -20, 20 }, pixelEdge = { 1, 4 }, stoneExtrasScale = { 0.5, 1.5 },
+	scale = { 0.5, 3, 0.05 }, alpha = { 0.1, 1, 0.05 }, spacing = { -10, 20, 1 }, size = { 24, 96, 1 },
+	arrowSize = { 8, 32, 1 }, extrasScale = { 0.5, 1.5, 0.05 }, stoneExtrasScale = { 0.5, 1.5, 0.05 },
+	idleAlpha = { 0.1, 1, 0.05 }, badgeSize = { 0.25, 0.8, 0.05 }, badgeAlpha = { 0.1, 1, 0.05 },
+	badgeSat = { 0, 1, 0.05 }, badgeX = { -30, 30, 1 }, badgeY = { -30, 30, 1 }, rangeHeight = { 1, 12, 1 },
+	fadeAfter = { 0, 10, 1 }, keySize = { 6, 30, 1 }, keyX = { -20, 20, 1 }, keyY = { -20, 20, 1 },
+	pixelEdge = { 1, 4, 1 },
+	expire = { secs = EXPIRE_SECS },
 }
-local function finite(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
+TB.RANGES = RANGES
+local CHOICES = { mode = { "blizzard", "active", "everything" }, show = { "always", "active", "combat", "target" },
+	barPlace = { "in", "out" }, setSwitch = { "popout", "cycle" }, stonePlinth = { "slim", "normal", "grand" } }
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
 
-local WARN_OVER = { earthbind = 5, stoneclaw = 5, manaTide = 3 }
+local EXPIRE_OVER = { earthbind = 5, stoneclaw = 5, manaTide = 3 }
 
-function TB.warnOverDefaults()
+function TB.overDefaults()
 	local out = {}
-	for key, secs in pairs(WARN_OVER) do out[ns.Spells.name(key)] = secs end
+	for key, secs in pairs(EXPIRE_OVER) do out[ns.Spells.name(key)] = secs end
 	return out
 end
 
-function TB.warnOverChanged(over)
+function TB.overChanged(over)
 	local seen = {}
-	for key, secs in pairs(WARN_OVER) do
+	for key, secs in pairs(EXPIRE_OVER) do
 		local name = ns.Spells.name(key)
 		if over[name] == nil then name = ns.Spells.DEFS[key].en end
 		if over[name] ~= secs then return true end
@@ -115,33 +121,14 @@ function TB.warnOverChanged(over)
 	return false
 end
 
+-- What the profile's cleaning can't declare, once per saved table
 local cfgTable
 local function cfg()
-	local db = ns.getDB()
-	if type(db.totemBar) ~= "table" then db.totemBar = {} end
-	local t = db.totemBar
+	local t = P.getDB().totemBar
 	if t ~= cfgTable then
-		if t.mode == nil and (t.enabled == false or t.show == "never") then t.mode = "blizzard" end
-		if t.follow == false then
-			t.sizeFollow = false
-			if type(t.border) == "table" then t.border.follow = false end
-		elseif t.follow == true then t.size, t.border = nil, nil end
-		t.enabled, t.hideTotemFrame, t.hideActionBar, t.killedPulse, t.follow = nil, nil, nil, nil, nil
-		if t.mode ~= "blizzard" and t.mode ~= "active" and t.mode ~= "everything" then t.mode = nil end
-		if t.show ~= "always" and t.show ~= "active" and t.show ~= "combat" and t.show ~= "target" then t.show = nil end
-		if t.barPlace ~= "in" and t.barPlace ~= "out" then t.barPlace = nil end
-		if t.stonePlinth ~= "slim" and t.stonePlinth ~= "normal" and t.stonePlinth ~= "grand" then t.stonePlinth = nil end
-		if type(t.warnOver) ~= "table" then t.warnOver = TB.warnOverDefaults() end
-		for k, v in pairs(TB.DEFAULTS) do
-			if type(t[k]) ~= type(v) then t[k] = type(v) == "table" and CopyTable(v) or v end
-		end
-		for k, r in pairs(RANGES) do
-			if type(t[k]) == "number" then
-				if t[k] ~= t[k] then t[k] = TB.DEFAULTS[k] else t[k] = clamp(t[k], r) end
-			end
-		end
-		if not finite(t.x) then t.x = TB.DEFAULTS.x end
-		if not finite(t.y) then t.y = TB.DEFAULTS.y end
+		if type(t.expire) ~= "table" then t.expire = {} end
+		if type(t.expire.over) ~= "table" then t.expire.over = TB.overDefaults() end
+		P.fillParts(t, TB.DEFAULTS)
 		if not ns.POINTS[t.point] then t.point, t.x, t.y = TB.DEFAULTS.point, TB.DEFAULTS.x, TB.DEFAULTS.y end
 		local seen, order = {}, {}
 		for _, el in ipairs(t.order) do
@@ -149,14 +136,12 @@ local function cfg()
 		end
 		for _, el in ipairs(ELEMENTS) do if not seen[el] then table.insert(order, el) end end
 		t.order = order
-		for name, v in pairs(t.warnOver) do
-			if type(name) ~= "string" or type(v) ~= "number" or v ~= v then t.warnOver[name] = nil
-			else t.warnOver[name] = clamp(v, RANGES.warn) end
+		local over = t.expire.over
+		for name, v in pairs(over) do
+			if type(name) ~= "string" or type(v) ~= "number" or v ~= v then over[name] = nil
+			else over[name] = clamp(v, EXPIRE_SECS) end
 		end
 		if type(t.size) ~= "number" then t.size = nil end
-		for _, k in ipairs({ "rangeIn", "rangeOut", "keyColor" }) do
-			if not ns.isColor(t[k]) then t[k] = CopyTable(TB.DEFAULTS[k]) end
-		end
 		cfgTable = t
 	end
 	return t
@@ -167,12 +152,6 @@ TB.cfg = cfg
 local function barOn() return ns.isClass() and cfg().mode ~= "blizzard" end
 local function feat(key) local c = cfg(); return barOn() and c.mode == "everything" and c[key] or false end
 TB.barOn, TB.feat = barOn, feat
-ns.Style.registerBar("totembar", { cfg = cfg, DEFAULTS = TB.DEFAULTS, label = "Totem bar", on = barOn,
-	kinds = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
-	-- Its theme can draw its own border
-	ownLabel = function(kind)
-		if kind == "border" and TB.skin.owns("border") then return "Totem bar (its theme)" end
-	end })
 
 -- The player's settings, or the theme's where it owns one
 local effective = setmetatable({}, { __index = function(_, k)
@@ -183,32 +162,35 @@ end })
 function TB.eff() return effective end
 
 local function look()
-	local c, db = cfg(), ns.getDB()
-	local border = TB.skin.border() or ns.Style.get("totembar", "border")
+	local c, db = cfg(), P.getDB()
+	local border = TB.skin.border() or E.borderFor("totembar")
 	return (not c.sizeFollow and c.size) or db.iconSize, border, TB.skin.extrasBorder() or border
 end
 function TB.setSizeFollow(follow)
 	local c = cfg()
-	if not follow and not c.size then c.size = ns.getDB().iconSize end
+	if not follow and not c.size then c.size = P.getDB().iconSize end
 	c.sizeFollow = follow
 end
 
-local function multiAction(slot)
+-- Totem sets (ns.TotemSets): the bar uses one at a time
+local TS = ns.TotemSets
+local SET_CALL = TS.CALLS
+
+local function multiAction(slot, set)
 	local ok, bar = ns.try("totem bar: multi-cast page", C_ActionBar.GetMultiCastBarIndex)
 	if not ok or type(bar) ~= "number" or isSecret(bar) then bar = 12 end
-	return (bar - 1) * 12 + slot
+	return (bar - 1) * 12 + ((set or TS.active()) - 1) * 4 + slot
 end
 
 -- Geometry, shared with the options' preview of the bar
 local POP_STEP = 3
 TB.POP_FILL = { 0, 0, 0, 0.72 }
-TB.BADGE_GAP = 0
 local EXTRA_GAP = 6
 
 function TB.along(n, size, px)
 	local c = TB.eff()
 	local before, after = TB.extraSides()
-	local function round(v) return px and ns.roundPx(v, px) or math.floor(v + 0.5) end
+	local function round(v) return px and W.roundPx(v, px) or math.floor(v + 0.5) end
 	local esz, gap, extraGap = round(size * c.extrasScale), c.spacing, c.spacing + EXTRA_GAP
 	local own, ownExtra = TB.skin.spacing(size)
 	if own then gap, extraGap = own, ownExtra end
@@ -267,7 +249,7 @@ end
 
 function TB.makeArrowLook(parent)
 	local t = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-	t:SetBackdrop(ns.BACKDROP)
+	t:SetBackdrop(W.BACKDROP)
 	t.glyph = t:CreateTexture(nil, "OVERLAY")
 	t.glyph:SetPoint("CENTER")
 	TB.plainArrow(t)
@@ -287,10 +269,19 @@ function TB.placeArrow(tab, anchor, glyph)
 	local c = TB.eff()
 	local deep = c.arrowSize
 	tab:ClearAllPoints()
-	if c.pop == "up" then tab:SetPoint("BOTTOMLEFT", anchor, "TOPLEFT", 1, 1); tab:SetPoint("BOTTOMRIGHT", anchor, "TOPRIGHT", -1, 1); tab:SetHeight(deep)
-	elseif c.pop == "down" then tab:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 1, -1); tab:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", -1, -1); tab:SetHeight(deep)
-	elseif c.pop == "right" then tab:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 1, -1); tab:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 1, 1); tab:SetWidth(deep)
-	else tab:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -1, -1); tab:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMLEFT", -1, 1); tab:SetWidth(deep) end
+	if c.pop == "up" then
+		tab:SetPoint("BOTTOMLEFT", anchor, "TOPLEFT", 1, 1); tab:SetPoint("BOTTOMRIGHT", anchor, "TOPRIGHT", -1, 1)
+		tab:SetHeight(deep)
+	elseif c.pop == "down" then
+		tab:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 1, -1); tab:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", -1, -1)
+		tab:SetHeight(deep)
+	elseif c.pop == "right" then
+		tab:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 1, -1); tab:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 1, 1)
+		tab:SetWidth(deep)
+	else
+		tab:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -1, -1); tab:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMLEFT", -1, 1)
+		tab:SetWidth(deep)
+	end
 	glyph:SetSize(math.max(deep * 1.1, 10), math.max(deep * 0.6, 6))
 	glyph:SetRotation(GLYPH_TURN[c.pop])
 end
@@ -302,14 +293,14 @@ end
 function TB.badgeSize(size) return math.max(math.floor(size * cfg().badgeSize + 0.5), 8) end
 function TB.layoutBadge(bd, anchor, size, border)
 	local c = TB.eff()
-	local usesColor = border and border.show and ns.Looks.uses(ns.Style.look("border", border.look), "color")
+	local usesColor = border and border.show and ns.StyleArt.uses(ns.Style.look("border", border.look), "color")
 	local color = usesColor and border.color or { 0, 0, 0, 1 }
-	local inset = ns.Looks.fit(bd, border and border.show and { show = true, size = 1, color = color } or border,
+	local inset = ns.StyleArt.fit(bd, border and border.show and { show = true, size = 1, color = color } or border,
 		TB.badgeSize(size))
 	bd:SetAlpha(c.badgeAlpha)
 	TB.saturate(bd.icon, c.badgeSat)
 	bd:ClearAllPoints()
-	local gap = TB.BADGE_GAP + inset + TB.skin.badgeGap(size)
+	local gap = inset + TB.skin.badgeGap(size)
 	local x, y = c.badgeX, c.badgeY
 	if c.pop == "up" then bd:SetPoint("TOP", anchor, "BOTTOM", x, y - gap)
 	elseif c.pop == "down" then bd:SetPoint("BOTTOM", anchor, "TOP", x, y + gap)
@@ -318,11 +309,11 @@ function TB.layoutBadge(bd, anchor, size, border)
 end
 
 function TB.fitLook(v, b, border, size)
-	local o = ns.Looks.inset(v, border, size)
+	local o = ns.StyleArt.inset(v, border, size)
 	v:ClearAllPoints()
 	v:SetPoint("TOPLEFT", b, "TOPLEFT", o, -o)
 	v:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -o, o)
-	ns.applyBorder(v, border)
+	ns.StyleArt.applyBorder(v, border)
 	return o
 end
 
@@ -339,7 +330,7 @@ bar:Hide()
 local picker = CreateFrame("Frame", nil, UIParent, "SecureHandlerBaseTemplate")
 picker:SetAttribute("sf-open", [[
 	local open = ...
-	for i = 1, 4 do
+	for i = 1, 5 do
 		local pop = self:GetFrameRef("pop" .. i)
 		if i == open then pop:Show() else pop:Hide() end
 	end
@@ -355,6 +346,7 @@ picker:SetAttribute("sf-open", [[
 	end
 ]])
 picker:SetAttribute("sf-close", [[ self:GetFrameRef("pop" .. (...)):Hide() ]])
+TS.prime(picker)
 -- Snippets run round each click (SecureHandlerWrapScript): returning false skips the button's action
 local ARROW_CLICK = [[
 	local i = self:GetAttribute("sf-pick")
@@ -374,15 +366,17 @@ local SLOT_CLICK = [[
 		return false
 	end
 ]]
-local PICK_CLICK, PICK_AFTER = [[ return nil, self:GetAttribute("sf-pick") ]], [[ owner:RunAttribute("sf-close", message) ]]
+local PICK_CLICK = [[ return nil, self:GetAttribute("sf-pick") ]]
+local PICK_AFTER = [[ owner:RunAttribute("sf-close", message) ]]
 local HOVER_ENTER = [[
-	if owner:GetAttribute("sf-hovermode") then owner:RunAttribute("sf-open", self:GetAttribute("sf-pick")) end
+	local i = self:GetAttribute("sf-pick")
+	if i and owner:GetAttribute("sf-hovermode") then owner:RunAttribute("sf-open", i) end
 ]]
 -- Hover leave closes the picker unless still over the slot or strip. A leave runs only on a frame
 -- whose enter is wrapped too
 local HOVER_LEAVE = [[
 	local i = self:GetAttribute("sf-pick")
-	if not owner:GetAttribute("sf-hovermode") then return end
+	if not i or not owner:GetAttribute("sf-hovermode") then return end
 	local pop = owner:GetFrameRef("pop" .. i)
 	if pop:IsShown() and not owner:GetFrameRef("slot" .. i):IsUnderMouse()
 			and not owner:GetFrameRef("strip" .. i):IsUnderMouse() then
@@ -396,6 +390,16 @@ local function wrapHover(b, enter)
 end
 local function wrapClick(b, pre, post) SecureHandlerWrapScript(b, "OnClick", picker, pre, post) end
 
+-- The buttons that follow the set (out of combat: frame references)
+local follows = {}
+local function follow(b)
+	table.insert(follows, b)
+	SecureHandlerSetFrameRef(picker, "follow" .. #follows, b)
+	picker:SetAttribute("sf-follows", #follows)
+end
+local function followSlot(b, slot)
+	for set = 1, #SET_CALL do b:SetAttribute("sf-action" .. set, multiAction(slot, set)) end
+end
 
 local slots = {}
 local bySlot = {}
@@ -417,21 +421,65 @@ local function keyLayer(v)
 	local f = CreateFrame("Frame", nil, v)
 	f:SetAllPoints()
 	f:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 3)
-	f.text = ns.makeKeyText(f)
+	f.text = W.makeKeyText(f)
 	f.glow = f:CreateTexture(nil, "OVERLAY")
 	f.glow:SetAllPoints()
-	if C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(KEY_HIGHLIGHT) then f.glow:SetAtlas(KEY_HIGHLIGHT)
+	if ns.StyleArt.hasAtlas(KEY_HIGHLIGHT) then f.glow:SetAtlas(KEY_HIGHLIGHT)
 	else f.glow:SetColorTexture(1, 0.82, 0, 0.3) end
 	f.glow:Hide()
 	return f
 end
 
 local function gcdSweep(v)
-	local cd = ns.makeGCDSweep(v)
+	local cd = W.makeGCDSweep(v)
 	cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE)
 	return cd
 end
 
+-- A picker's parts for a button (s.button, s.index): its arrow, the popout (protected, so the
+-- snippets can show and hide it in combat), a catch button and a hover strip
+local function makePicker(s, name)
+	local ar = CreateFrame("Button", nil, bar, "SecureActionButtonTemplate")
+	-- Above every open picker's catch button, so another slot's arrow opens in one click
+	ar:SetFrameStrata("HIGH")
+	ar:RegisterForClicks("AnyUp")
+	ar:SetAttribute("sf-pick", s.index)
+	wrapClick(ar, ARROW_CLICK)
+	s.arrow = ar
+	local av = TB.makeArrowLook(bar)
+	av:SetAllPoints(ar)
+	av:SetFrameLevel(ar:GetFrameLevel() + 2)
+	av:EnableMouse(false)
+	av:SetAlpha(0)
+	s.arrowVis = av
+	local pop = CreateFrame("Frame", "ShamanForeverTotemPopout" .. name, bar, "SecureFrameTemplate")
+	pop:Hide()
+	pop:SetSize(1, 1)
+	pop.bg = pop:CreateTexture(nil, "BACKGROUND")
+	pop.bg:SetAllPoints()
+	pop.bg:SetColorTexture(TB.POP_FILL[1], TB.POP_FILL[2], TB.POP_FILL[3], TB.POP_FILL[4])
+	pop:SetFrameStrata("HIGH")
+	pop.buttons = {}
+	s.popout = pop
+	SecureHandlerSetFrameRef(picker, "pop" .. s.index, pop)
+	-- Catch button: screen-wide, under the pickers, closes an open one
+	local catch = CreateFrame("Button", nil, pop, "SecureActionButtonTemplate")
+	catch:SetAllPoints(UIParent)
+	catch:SetFrameLevel(pop:GetFrameLevel() + 1)
+	catch:RegisterForClicks("AnyUp")
+	catch:SetAttribute("sf-pick", s.index)
+	wrapClick(catch, CATCH_CLICK)
+	pop.catch = catch
+	-- Hover strip: from the slot to the picker's far end so the mouse can cross; hover mode only
+	local strip = CreateFrame("Frame", nil, pop, "SecureFrameTemplate")
+	strip:SetFrameLevel(pop:GetFrameLevel() + 1)
+	strip:EnableMouse(true)
+	strip:SetAttribute("sf-pick", s.index)
+	strip:Hide()
+	pop.strip = strip
+	SecureHandlerSetFrameRef(picker, "strip" .. s.index, strip)
+	SecureHandlerSetFrameRef(picker, "slot" .. s.index, s.button)
+end
 
 for index, el in ipairs(ELEMENTS) do
 	local slot = SLOT[el]
@@ -447,6 +495,7 @@ for index, el in ipairs(ELEMENTS) do
 	b:SetAttribute("totem-slot", slot)
 	b:SetAttribute("sf-pick", index)
 	wrapClick(b, SLOT_CLICK)
+	follow(b)
 	s.button = b
 
 	local v = CreateFrame("Frame", nil, bar)
@@ -459,7 +508,7 @@ for index, el in ipairs(ELEMENTS) do
 	badge:SetFrameLevel(b:GetFrameLevel() + 6)
 	badge.icon = badge:CreateTexture(nil, "ARTWORK")
 	badge.icon:SetAllPoints()
-	ns.cropIcon(badge.icon)
+	W.cropIcon(badge.icon)
 	badge:Hide()
 	s.badge = badge
 	-- End flashes on their own frames (the slot's look can be invisible); each has its own secret gate
@@ -473,7 +522,7 @@ for index, el in ipairs(ELEMENTS) do
 	v.bg:SetAllPoints()
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
-	ns.cropIconExact(v.icon)
+	W.cropIconExact(v.icon)
 	s.timer = ns.Timer.new(v, "totembar", "uptime", { anchor = v, school = el })
 	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 1)
 	s.timer.bar:SetFrameLevel(b:GetFrameLevel() + TIME_BAR_LEVEL)
@@ -482,64 +531,23 @@ for index, el in ipairs(ELEMENTS) do
 	s.gcd = gcdSweep(v)
 	s.command = "CLICK ShamanForeverKeyCast" .. NAME[el] .. ":LeftButton"
 
-	local ar = CreateFrame("Button", nil, bar, "SecureActionButtonTemplate")
-	-- Above every open picker's catch button, so another slot's arrow opens in one click
-	ar:SetFrameStrata("HIGH")
-	ar:RegisterForClicks("AnyUp")
-	ar:SetAttribute("sf-pick", index)
-	wrapClick(ar, ARROW_CLICK)
-	s.arrow = ar
-	local av = TB.makeArrowLook(bar)
-	av:SetAllPoints(ar)
-	av:SetFrameLevel(ar:GetFrameLevel() + 2)
-	av:EnableMouse(false)
-	av:SetAlpha(0)
-	s.arrowVis = av
-
-	-- Popout: protected, so the snippets can show and hide it in combat
-	local pop = CreateFrame("Frame", "ShamanForeverTotemPopout" .. NAME[el], bar, "SecureFrameTemplate")
-	pop:Hide()
-	pop:SetSize(1, 1)
-	pop.bg = pop:CreateTexture(nil, "BACKGROUND")
-	pop.bg:SetAllPoints()
-	pop.bg:SetColorTexture(TB.POP_FILL[1], TB.POP_FILL[2], TB.POP_FILL[3], TB.POP_FILL[4])
-	pop:SetFrameStrata("HIGH")
-	pop.buttons = {}
-	s.popout = pop
-	SecureHandlerSetFrameRef(picker, "pop" .. index, pop)
-	-- Catch button: screen-wide, under the pickers, closes an open one
-	local catch = CreateFrame("Button", nil, pop, "SecureActionButtonTemplate")
-	catch:SetAllPoints(UIParent)
-	catch:SetFrameLevel(pop:GetFrameLevel() + 1)
-	catch:RegisterForClicks("AnyUp")
-	catch:SetAttribute("sf-pick", index)
-	wrapClick(catch, CATCH_CLICK)
-	pop.catch = catch
-	-- Hover strip: from the slot to the picker's far end so the mouse can cross; hover mode only
-	local strip = CreateFrame("Frame", nil, pop, "SecureFrameTemplate")
-	strip:SetFrameLevel(pop:GetFrameLevel() + 1)
-	strip:EnableMouse(true)
-	strip:SetAttribute("sf-pick", index)
-	strip:Hide()
-	pop.strip = strip
-	SecureHandlerSetFrameRef(picker, "strip" .. index, strip)
-	SecureHandlerSetFrameRef(picker, "slot" .. index, b)
-end
-
--- Close every picker (out of combat): one hidden through the bar would come back open
-local function closePopouts()
-	if InCombatLockdown() then return end
-	for _, el in ipairs(ELEMENTS) do slots[el].popout:Hide() end
+	makePicker(s, NAME[el])
 end
 
 -- Key bindings: each a CLICK binding to its own invisible secure button, so keys work with the bar
 -- off. "Dismiss all" runs a macro that /clicks four dismiss helpers (a click sends a release, so
 -- those act on release): no spell, so no global cooldown and no mana back.
-local CALL, RECALL = ns.Spells.DEFS.call.ids[1], ns.Spells.DEFS.recall.ids[1]
+local CALL, RECALL = SET_CALL[1], ns.Spells.DEFS.recall.ids[1]
+local function knows(spell)
+	local ok, v = ns.try("totem bar: spell known", C_SpellBook.IsSpellKnown, spell)
+	return ok and v == true
+end
 _G.BINDING_HEADER_SHAMANFOREVER_TOTEMS = "Totems"
 _G["BINDING_NAME_CLICK ShamanForeverKeyDismissAll:LeftButton"] = "Dismiss all totems"
+_G["BINDING_NAME_CLICK ShamanForeverKeyNextSet:LeftButton"] = "Next totem set"
 local function nameBindings()
-	_G["BINDING_NAME_CLICK ShamanForeverKeyCall:LeftButton"] = ns.Spells.name("call")
+	local callName = knows(SET_CALL[2]) and "Call the active totem set" or ns.Spells.name("call")
+	_G["BINDING_NAME_CLICK ShamanForeverKeyCall:LeftButton"] = callName
 	_G["BINDING_NAME_CLICK ShamanForeverKeyRecall:LeftButton"] = ns.Spells.name("recall")
 end
 nameBindings()
@@ -556,6 +564,7 @@ for _, el in ipairs(ELEMENTS) do
 	local slot = SLOT[el]
 	castKeys[el] = keyButton("ShamanForeverKeyCast" .. NAME[el], "action")
 	castKeys[el]:SetAttribute("action", multiAction(slot))
+	follow(castKeys[el])
 	_G["BINDING_NAME_CLICK ShamanForeverKeyCast" .. NAME[el] .. ":LeftButton"] = "Cast " .. NAME[el] .. " totem"
 	keyButton("ShamanForeverKeyDismiss" .. NAME[el], "destroytotem"):SetAttribute("totem-slot", slot)
 	_G["BINDING_NAME_CLICK ShamanForeverKeyDismiss" .. NAME[el] .. ":LeftButton"] = "Dismiss " .. NAME[el] .. " totem"
@@ -564,16 +573,14 @@ for _, el in ipairs(ELEMENTS) do
 	h:SetAttribute("totem-slot", slot)
 	table.insert(dismissAll, "/click ShamanForeverKeyDismissAll" .. slot)
 end
-keyButton("ShamanForeverKeyCall", "spell"):SetAttribute("spell", CALL)
+local callKey = keyButton("ShamanForeverKeyCall", "spell")
+callKey:SetAttribute("spell", CALL)
 keyButton("ShamanForeverKeyRecall", "spell"):SetAttribute("spell", RECALL)
 local DISMISS_ALL = table.concat(dismissAll, "\n")
 keyButton("ShamanForeverKeyDismissAll", "macro"):SetAttribute("macrotext", DISMISS_ALL)
 
--- Call of the Elements and Totemic Recall: Recall always shows, greyed until learned
-local function knows(spell)
-	local ok, v = pcall(C_SpellBook.IsSpellKnown, spell)
-	return ok and v == true
-end
+-- Call of the Elements (the active set's Call) and Totemic Recall: Recall always shows, greyed
+-- until learned
 local extras = {}
 for _, e in ipairs({ { "Call", CALL }, { "Recall", RECALL } }) do
 	local key, spell = e[1], e[2]
@@ -585,18 +592,103 @@ for _, e in ipairs({ { "Call", CALL }, { "Recall", RECALL } }) do
 	v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL)
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
-	ns.cropIconExact(v.icon)
+	W.cropIconExact(v.icon)
 	extras[key] = { key = key, spell = spell, button = b, vis = v, keys = keyLayer(v), gcd = gcdSweep(v),
 		command = "CLICK ShamanForeverKey" .. key .. ":LeftButton" }
 end
 extras.Recall.button:SetAttribute("*type2", "macro")
 extras.Recall.button:SetAttribute("macrotext", DISMISS_ALL)
+local call = extras.Call
+for set, id in ipairs(SET_CALL) do
+	call.button:SetAttribute("sf-spell" .. set, id)
+	callKey:SetAttribute("sf-spell" .. set, id)
+end
+follow(call.button)
+follow(callKey)
+
+-- Asked to switch sets while they can't switch
+local cueAt = 0
+local function lockedCue()
+	if TS.switchInCombat() or TS.count() < 2 or not ns.inCombat() then return end
+	if GetTime() - cueAt < 1 then return end
+	cueAt = GetTime()
+	local errors = _G.UIErrorsFrame
+	if errors then errors:AddMessage("Totem sets can't switch in combat", 1, 0.1, 0.1)
+	else ns.say("totem sets can't switch in combat") end
+end
+
+-- The Call button switches sets: Alt+click, its arrow or hover open a picker of the known sets
+-- (picker 5), or right-click goes to the next
+local SET_PICK = 5
+local setSlot = { index = SET_PICK, button = call.button }
+makePicker(setSlot, "Sets")
+local SET_CLICK = [[
+	if button == "LeftButton" then owner:RunAttribute("sf-switch", self:GetAttribute("sf-set")) end
+	owner:RunAttribute("sf-close", self:GetAttribute("sf-pick"))
+	return false
+]]
+for set, id in ipairs(SET_CALL) do
+	local p = CreateFrame("Button", nil, setSlot.popout, "SecureActionButtonTemplate")
+	p:RegisterForClicks("AnyUp")
+	p:SetAttribute("sf-pick", SET_PICK)
+	p:SetAttribute("sf-set", set)
+	p:Hide()   -- until its Call is known
+	wrapClick(p, SET_CLICK)
+	p:SetFrameLevel(setSlot.popout:GetFrameLevel() + 5)
+	p.icon = p:CreateTexture(nil, "ARTWORK")
+	p.icon:SetAllPoints()
+	W.cropIcon(p.icon)
+	p.on = p:CreateTexture(nil, "OVERLAY")
+	p.on:SetAllPoints()
+	p.on:SetTexture("Interface\\Buttons\\CheckButtonHilight")
+	p.on:SetBlendMode("ADD")
+	p:SetScript("OnEnter", function(self)
+		local c = cfg()
+		if c.tips == "never" or (c.tips == "ooc" and InCombatLockdown()) then return end
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		if not ns.try("totem bar: tooltip", GameTooltip.SetSpellByID, GameTooltip, id) then
+			GameTooltip:SetText(C_Spell.GetSpellName(id) or "")
+		end
+		GameTooltip:Show()
+	end)
+	p:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	p:SetScript("PostClick", function(_, button)
+		if button == "LeftButton" and set ~= TS.active() then lockedCue() end
+	end)
+	wrapHover(p)   -- after its scripts: setting a script later would drop the wrap
+	setSlot.popout.buttons[set] = p
+end
+wrapClick(call.button, SLOT_CLICK .. [[
+	if button == "RightButton" and self:GetAttribute("sf-cycle") then
+		if not down then owner:RunAttribute("sf-switch", 0) end
+		return false
+	end
+]])
+call.button:SetScript("PostClick", function(_, button, down)
+	if button == "RightButton" and not down and cfg().setSwitch == "cycle" then lockedCue() end
+end)
+call.num = W.makeKeyText(call.keys)
+call.num:SetTextColor(1, 1, 1)
+
+-- Close every picker (out of combat): one hidden through the bar would come back open
+local function closePopouts()
+	if InCombatLockdown() then return end
+	for _, el in ipairs(ELEMENTS) do slots[el].popout:Hide() end
+	setSlot.popout:Hide()
+end
+
+-- Next totem set: a key only
+local nextSet = CreateFrame("Button", "ShamanForeverKeyNextSet", UIParent,
+	"SecureActionButtonTemplate")
+nextSet:RegisterForClicks("AnyDown", "AnyUp")
+wrapClick(nextSet, [[ if not down then owner:RunAttribute("sf-switch", 0) end return false ]])
+nextSet:SetScript("PostClick", function(_, _, down) if not down then lockedCue() end end)
 
 local function refreshKeys()
 	local on = cfg().keys
 	local function draw(layer, command)
 		local key = on and GetBindingKey(command)
-		layer.text:SetText(ns.keyLabel(key))
+		layer.text:SetText(W.keyLabel(key))
 	end
 	for _, el in ipairs(ELEMENTS) do draw(slots[el].keys, slots[el].command) end
 	for _, e in pairs(extras) do draw(e.keys, e.command) end
@@ -605,7 +697,7 @@ end
 -- The GCD on each casting button when the bar's Global cooldown style is on; only while the
 -- button's own cooldown is the GCD (isOnGCD, vouched for inside SPELL_UPDATE_COOLDOWN)
 local function gcdOf(getInfo, getDuration, id)
-	local ok, info = pcall(getInfo, id)
+	local ok, info = ns.try("totem bar: cooldown", getInfo, id)
 	if not ok or type(info) ~= "table" or isSecret(info.isOnGCD) or info.isOnGCD ~= true then return nil end
 	local dok, d = ns.try("totem bar: GCD", getDuration, id)
 	return dok and d or nil
@@ -643,8 +735,17 @@ local function extraSides()
 	return before, after
 end
 TB.extraSides = extraSides
-function TB.extraTexture(key) return C_Spell.GetSpellTexture(key == "Call" and CALL or RECALL) end
+function TB.extraTexture(key)
+	return C_Spell.GetSpellTexture(key == "Call" and SET_CALL[TS.active()] or RECALL)
+end
 function TB.extraLearned(key) return knows(key == "Call" and CALL or RECALL) end
+-- Which Calls and Recall are known: with the known totems (ns.Totems), the spells the layout reads
+function TB.resolve()
+	local sig = {}
+	for _, id in ipairs(SET_CALL) do table.insert(sig, knows(id) and "1" or "0") end
+	table.insert(sig, knows(RECALL) and "1" or "0")
+	return table.concat(sig)
+end
 
 local function hover(s, arrows)
 	if arrows == nil then arrows = feat("arrows") end
@@ -659,18 +760,27 @@ local function pickSpell(slot)
 	return id
 end
 
--- warnOver is keyed by the client's rank-less spell name; the English name counts too (older profiles)
+-- expire.over is keyed by the client's rank-less spell name; the English name counts too (older
+-- profiles)
 local function warnSecs(c, id)
-	if not id then return c.warn end
+	local x = c.expire
+	if not id then return x.secs end
 	local name = ns.Spells.nameOf(id)
-	local v = name and c.warnOver[name]
+	local v = name and x.over[name]
 	if v == nil then
 		local key = ns.Spells.keyOf(id)
 		local def = key and ns.Spells.DEFS[key]
-		v = def and c.warnOver[def.en]
+		v = def and x.over[def.en]
 	end
-	return v or c.warn
+	return v or x.secs
 end
+-- Expiring's options for a slot holding id (nil: the bar's own time), as the bar shows them
+local function expireOpts(c, id)
+	local x = c.expire
+	return { secs = warnSecs(c, id), grey = x.grey, ring = x.ring, fade = x.fade, glow = x.glow }
+end
+TB.expireOpts = expireOpts
+function TB.pickSpell(el) return pickSpell(SLOT[el]) end
 
 local anyDown = false
 local kbOpen = false
@@ -685,7 +795,7 @@ function TB.drawTimeLeft(s)
 		local ok, a = ns.try("totem bar: time bar", d.EvaluateRemainingDuration, d, ns.CURVE_LIVE)
 		if ok then tbar:SetAlpha(a) end
 	end
-	if TB.range then TB.range.drawTimeLeft(s) end
+	TB.range.drawTimeLeft(s)
 end
 
 -- The slot's expiring warning over the range strip, once: see the frame levels above
@@ -698,9 +808,33 @@ local function liftWarning(s)
 	g:SetFrameLevel(lv + 1)
 	if g.inner then g.inner:SetFrameLevel(lv + 2) end
 	for _, parts in pairs(g.parts or {}) do
-		if parts then ns.Looks.levelParts(parts) end
+		if parts then ns.StyleArt.levelParts(parts) end
 	end
 	x.sfLifted = true
+end
+
+-- A slot's look with its totem down, and empty (pick: its pick's icon, may be secret); v: the slot's
+-- look, or the options header's icon (icon, bg)
+function TB.paintDown(v)
+	v:SetAlpha(1)
+	v.icon:SetDesaturated(false)
+	v.icon:SetAlpha(1)
+	v.bg:SetColorTexture(0, 0, 0, 1)
+end
+function TB.paintEmpty(v, c, el, pick)
+	if c.empty == "pick" and (isSecret(pick) or pick) then
+		ns.try("totem bar: pick icon", v.icon.SetTexture, v.icon, pick)
+		v.icon:SetDesaturated(c.idleGrey)
+		v.icon:SetAlpha(c.idleAlpha)
+		v.bg:SetColorTexture(0, 0, 0, 0.6 * c.idleAlpha)
+	elseif c.empty ~= "blank" then
+		local col = ns.THEME.color[el]
+		v.icon:SetTexture(nil)
+		v.bg:SetColorTexture(col[1] * 0.35, col[2] * 0.35, col[3] * 0.35, 0.8)
+	else
+		v.icon:SetTexture(nil)
+		v.bg:SetColorTexture(0, 0, 0, 0)
+	end
 end
 
 local function refreshSlot(s)
@@ -715,10 +849,7 @@ local function refreshSlot(s)
 			s.expired:setIcon(icon)
 		end
 		s.killed.mark:Hide()
-		v:SetAlpha(1)
-		v.icon:SetDesaturated(false)
-		v.icon:SetAlpha(1)
-		v.bg:SetColorTexture(0, 0, 0, 1)
+		TB.paintDown(v)
 		s.timer:set(d)
 		local down = ns.Totems.downSpell(s.slot)
 		local pick = down and c.offPick and c.mode == "everything" and pickSpell(s.slot)
@@ -727,7 +858,7 @@ local function refreshSlot(s)
 			s.badge:Show()
 		else s.badge:Hide() end
 		s.dur = d
-		s.timer:setExpire({ secs = warnSecs(c, down), grey = c.warnGrey, ring = c.warnRing, pulse = c.warnPulse, glow = c.warnGlow })
+		s.timer:setExpire(expireOpts(c, down))
 		liftWarning(s)
 		if iok and (isSecret(icon) or icon) then s.timer:setExpireIcon(icon) end
 		TB.drawTimeLeft(s)
@@ -740,20 +871,7 @@ local function refreshSlot(s)
 	-- Active totems: the slot keeps its place (secure buttons can't move in combat); a plain frame's
 	-- alpha, so it works in combat
 	v:SetAlpha((c.mode == "everything" or kbOpen) and 1 or 0)
-	local tex = c.empty == "pick" and C_ActionBar.GetActionTexture(multiAction(s.slot))
-	if isSecret(tex) or tex then
-		ns.try("totem bar: pick icon", v.icon.SetTexture, v.icon, tex)
-		v.icon:SetDesaturated(c.idleGrey)
-		v.icon:SetAlpha(c.idleAlpha)
-		v.bg:SetColorTexture(0, 0, 0, 0.6 * c.idleAlpha)
-	elseif c.empty ~= "blank" then
-		local col = ns.SCHOOL_COLOR[s.el]
-		v.icon:SetTexture(nil)
-		v.bg:SetColorTexture(col[1] * 0.35, col[2] * 0.35, col[3] * 0.35, 0.8)
-	else
-		v.icon:SetTexture(nil)
-		v.bg:SetColorTexture(0, 0, 0, 0)
-	end
+	TB.paintEmpty(v, c, s.el, c.empty == "pick" and C_ActionBar.GetActionTexture(multiAction(s.slot)))
 	return false
 end
 
@@ -764,9 +882,50 @@ local function refreshSlots()
 		local s = slots[el]
 		s.down = refreshSlot(s)
 		if s.down then down = true end
-		if TB.range then TB.range.refresh(s) end
+		TB.range.refresh(s)
 	end
 	anyDown = down
+end
+
+-- The active set: the picker header's sf-set, written by the switch snippet or by writeSet (out of
+-- combat); a hook keeps the plain side in step, in combat too
+local applying = false
+-- The Call's icon and number; in combat while sets can't switch, the other sets greyed in its
+-- picker
+local function paintSets()
+	local set = TS.active()
+	local locked = not TS.switchInCombat() and ns.inCombat()
+	call.vis.icon:SetTexture(C_Spell.GetSpellTexture(SET_CALL[set]))
+	call.num:SetText(set)
+	call.num:SetShown(cfg().setNumber and TS.count() > 1)
+	for i, p in ipairs(setSlot.popout.buttons) do
+		local off = locked and i ~= set
+		p.on:SetShown(i == set)
+		p.icon:SetDesaturated(off)
+		p.icon:SetAlpha(off and 0.5 or 1)
+	end
+end
+local function setActive(set, chosen)
+	TS.setActive(set, chosen)
+	call.spell = SET_CALL[set]
+	paintSets()
+	refreshSlots()
+	refreshGCD()
+	if chosen and not InCombatLockdown() then ns.changed() end
+end
+picker:HookScript("OnAttributeChanged", function(_, name, value)
+	if name ~= "sf-set" or isSecret(value) or type(value) ~= "number" then return end
+	setActive(value, not applying)
+end)
+local function writeSet(set)
+	applying = true
+	for _, b in ipairs(follows) do
+		local action, spell = b:GetAttribute("sf-action" .. set), b:GetAttribute("sf-spell" .. set)
+		if action then b:SetAttribute("action", action) end
+		if spell then b:SetAttribute("spell", spell) end
+	end
+	picker:SetAttribute("sf-set", set)
+	applying = false
 end
 
 local layout
@@ -776,12 +935,7 @@ local function refresh()
 	if anyDown ~= wasDown and cfg().show == "active" then layout() end
 end
 
-local ticker = CreateFrame("Frame")
-ticker.t = 0
-ticker:SetScript("OnUpdate", function(self, elapsed)
-	self.t = self.t + elapsed
-	if self.t < 0.1 then return end
-	self.t = 0
+local ticker = ns.ticker(0.1, function()
 	if not bar:IsShown() then return end
 	local arrows = feat("arrows")
 	for _, el in ipairs(ELEMENTS) do
@@ -789,6 +943,7 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
 		hover(s, arrows)
 		if s.down and not preview then TB.drawTimeLeft(s) end
 	end
+	if setSlot.on then hover(setSlot, arrows) end
 end)
 
 -- Blizzard's totem frames
@@ -796,7 +951,7 @@ end)
 -- hiding it would re-lay out PlayerFrame and PetFrame from addon code. Blizzard's layout sets its
 -- alpha back to 1 when it shows its frames, so a hidden TotemFrame hides again whenever alpha is set.
 local function totemFrameOurs()
-	if not ns.getDB() or not TotemFrame then return false end
+	if not P.getDB() or not TotemFrame then return false end
 	local roots = { PlayerFrame or false, _G.PlayerBottomManagedFrameContainer or false }
 	local p = TotemFrame:GetParent()
 	while p do
@@ -853,11 +1008,25 @@ local function applyActionBar()
 end
 
 -- Layout (out of combat only)
-local mover
+local movable
 local saidWait = false
-local classDone = false
 local hasTotems = false
 local paintPreview
+
+-- The popout beside its button, and the hover strip from the button's picker side to the
+-- popout's far end
+local AHEAD = { up = "TOP", down = "BOTTOM", right = "RIGHT", left = "LEFT" }
+local BACK = { up = "BOTTOM", down = "TOP", right = "LEFT", left = "RIGHT" }
+local function placePicker(pop, b, n, size, psz)
+	TB.placePopout(pop, b, n, psz)
+	TB.skin.stylePopout(pop, n, psz)
+	local strip, dir = pop.strip, TB.eff().pop
+	local across = math.max(size, select(4, popDims(psz)))
+	strip:ClearAllPoints()
+	strip:SetPoint(BACK[dir], b, AHEAD[dir])
+	strip:SetPoint(AHEAD[dir], pop, AHEAD[dir])
+	if dir == "up" or dir == "down" then strip:SetWidth(across) else strip:SetHeight(across) end
+end
 
 local function layoutPopout(s, size, known)
 	local pop = s.popout
@@ -865,7 +1034,6 @@ local function layoutPopout(s, size, known)
 	local ids = { 0 }
 	for _, id in ipairs(known) do table.insert(ids, id) end
 	local psz = TB.popButtonSize(size)
-	local action = multiAction(slot)
 	for i, id in ipairs(ids) do
 		local p = pop.buttons[i]
 		if not p then
@@ -879,7 +1047,7 @@ local function layoutPopout(s, size, known)
 			p:SetFrameLevel(pop:GetFrameLevel() + 5)
 			p.icon = p:CreateTexture(nil, "ARTWORK")
 			p.icon:SetAllPoints()
-			ns.cropIcon(p.icon)
+			W.cropIcon(p.icon)
 			p.none = p:CreateFontString(nil, "OVERLAY", "GameFontDisable")
 			p.none:SetPoint("CENTER")
 			p.none:SetText("X")
@@ -892,10 +1060,11 @@ local function layoutPopout(s, size, known)
 			end)
 			p:SetScript("OnLeave", function() GameTooltip:Hide() end)
 			wrapHover(p)   -- after its scripts: setting a script later would drop the wrap
+			follow(p)
 			pop.buttons[i] = p
 		end
 		p.spellID = id
-		p:SetAttribute("action", action)
+		followSlot(p, slot)
 		p:SetAttribute("spell", id)
 		TB.placePopButton(p, pop, i, psz)
 		if id ~= 0 then
@@ -908,65 +1077,72 @@ local function layoutPopout(s, size, known)
 		p:Show()
 	end
 	for i = #ids + 1, #pop.buttons do pop.buttons[i]:Hide() end
-	TB.placePopout(pop, s.button, #ids, psz)
-	TB.skin.stylePopout(pop, #ids, psz)
-	local strip, dir, b = pop.strip, TB.eff().pop, s.button
-	local across = math.max(size, select(4, popDims(psz)))
-	strip:ClearAllPoints()
-	if dir == "up" then strip:SetPoint("BOTTOM", b, "TOP"); strip:SetPoint("TOP", pop, "TOP"); strip:SetWidth(across)
-	elseif dir == "down" then strip:SetPoint("TOP", b, "BOTTOM"); strip:SetPoint("BOTTOM", pop, "BOTTOM"); strip:SetWidth(across)
-	elseif dir == "right" then strip:SetPoint("LEFT", b, "RIGHT"); strip:SetPoint("RIGHT", pop, "RIGHT"); strip:SetHeight(across)
-	else strip:SetPoint("RIGHT", b, "LEFT"); strip:SetPoint("LEFT", pop, "LEFT"); strip:SetHeight(across) end
+	placePicker(pop, s.button, #ids, size, psz)
 end
 
-local function layoutArrow(s)
+local function layoutArrow(s, shown)
+	if shown == nil then shown = feat("arrows") end
 	local ar = s.arrow
 	TB.placeArrow(ar, s.button, s.arrowVis.glyph)
 	TB.skin.styleArrow(s.arrowVis)
-	ar:SetShown(feat("arrows"))
+	ar:SetShown(shown)
 	ar:SetFrameLevel(s.popout.catch:GetFrameLevel() + 2)
-	s.arrowVis:SetShown(feat("arrows"))
+	s.arrowVis:SetShown(shown)
+end
+
+-- The known sets' Calls, at the slots' picker size
+local function layoutSetPicker(size)
+	local pop, n = setSlot.popout, 0
+	local psz = TB.popButtonSize(size)
+	for set, p in ipairs(pop.buttons) do
+		p:SetShown(TS.known(set))
+		if TS.known(set) then
+			n = n + 1
+			TB.placePopButton(p, pop, n, psz)
+			p.icon:SetTexture(C_Spell.GetSpellTexture(SET_CALL[set]))
+		end
+	end
+	placePicker(pop, call.button, n, size, psz)
 end
 
 local function ownDriver()
 	local c = cfg()
 	if preview then return barOn() and (hasTotems or preview.all) and "show" or "hide" end
 	if not barOn() or not hasTotems then return "hide" end
-	if kbOpen or not ns.getAccount().locked then return "show" end
-	if c.show == "combat" then return "[petbattle] hide; [combat] show; hide" end
-	if c.show == "target" then return "[petbattle] hide; [combat] show; [@target,exists,harm,nodead] show; hide" end
-	if c.show == "active" then return "[petbattle] hide; [combat] show; " .. (anyDown and "show" or "hide") end
-	return "[petbattle] hide; show"
+	if kbOpen or not P.getAccount().locked then return "show" end
+	if c.show == "active" then return "[combat] show; " .. (anyDown and "show" or "hide") end
+	return Bars.SHOW_WHEN[c.show] or "show"
 end
 local afterCombat
 local function visibilityDriver()
-	if ns.AfterCombat.held(afterCombat) and barOn() and ns.getAccount().locked and not kbOpen
+	if ns.AfterCombat.held(afterCombat) and barOn() and P.getAccount().locked and not kbOpen
 		and cfg().show ~= "always" then
-		return "[petbattle] hide; show"
+		return "show"
 	end
 	return ownDriver()
 end
-local lastDriver
-local function drive()
-	local driver = visibilityDriver()
-	if driver ~= lastDriver then
-		lastDriver = driver
-		RegisterStateDriver(bar, "visibility", driver)
-	end
-end
+local function drive() ns.setVisibilityDriver(bar, visibilityDriver(), "totem bar driver") end
 
 function layout()
 	if ns.deferInCombat("totem bar layout", layout) then return end
-	if classDone then return end
 	-- Any open picker closes first: it would come back open later
 	closePopouts()
 	local c = cfg()
+	local hadSets = TS.count()
+	local set = TS.update(picker, knows)
+	if TS.count() ~= hadSets then ns.changed() end
+	for _, el in ipairs(ELEMENTS) do
+		followSlot(slots[el].button, SLOT[el])
+		followSlot(castKeys[el], SLOT[el])
+	end
+	-- At once, so the slots and keys cast whatever follows; again at the end for new picker buttons
+	writeSet(set)
 	local size, border, extrasBorder = look()
 	-- Scale and opacity first: sizes, gaps and position are whole screen pixels at it
 	bar:SetScale(c.scale)
 	bar:SetAlpha(c.alpha)
-	local px = ns.pixel(bar)
-	size = ns.roundPx(size, px)
+	local px = W.pixel(bar)
+	size = W.roundPx(size, px)
 	-- With no totem known the bar hides (Call and Recall too, in positioning mode as well)
 	local shown, known = {}, {}
 	local had = hasTotems
@@ -975,10 +1151,11 @@ function layout()
 		known[el] = ns.Totems.knownTotems(SLOT[el])
 		if #known[el] > 0 then hasTotems = true end
 	end
-	if hasTotems ~= had then ns.Options.refresh() end
+	if hasTotems ~= had then ns.changed() end
 	for _, el in ipairs(c.order) do
 		local s = slots[el]
-		local on = barOn() and not c.hidden[el] and (#known[el] > 0 or not GetMultiCastTotemSpells or (preview and preview.all))
+		local on = barOn() and not c.hidden[el]
+			and (#known[el] > 0 or not GetMultiCastTotemSpells or (preview and preview.all))
 		s.button:SetShown(on)
 		s.vis:SetShown(on)
 		if not on then s.killed.mark:Hide() end
@@ -1003,14 +1180,15 @@ function layout()
 		local kt = keyTexts[b]
 		if kt then
 			local k = c.keyColor
-			ns.Media.setFont(kt, "totembar", ns.keyTextSize(sz, c.keySize))
+			ns.Media.setFont(kt, "totembar", W.keyTextSize(sz, c.keySize))
 			kt:ClearAllPoints()
 			kt:SetPoint("TOPRIGHT", c.keyX, c.keyY)
 			kt:SetTextColor(k[1], k[2], k[3], k[4] or 1)
 		end
 		b:ClearAllPoints()
-		local side = ns.roundPx((across - sz) / 2, px)
-		if row then b:SetPoint("TOPLEFT", bar, "TOPLEFT", it.offset, -side) else b:SetPoint("TOPLEFT", bar, "TOPLEFT", side, -it.offset) end
+		local side = W.roundPx((across - sz) / 2, px)
+		if row then b:SetPoint("TOPLEFT", bar, "TOPLEFT", it.offset, -side)
+		else b:SetPoint("TOPLEFT", bar, "TOPLEFT", side, -it.offset) end
 	end
 	for key, e in pairs(extras) do
 		local show = on[key] ~= nil
@@ -1025,18 +1203,30 @@ function layout()
 			TB.fitLook(e.vis, e.button, extrasBorder, on[key])
 		end
 	end
+	-- The set switch: with more than one set known
+	local switch = on.Call ~= nil and TS.count() > 1
+	local pickSet = switch and c.setSwitch == "popout"
+	call.button:SetAttribute("sf-pick", pickSet and SET_PICK or nil)
+	call.button:SetAttribute("sf-altpick", pickSet)
+	call.button:SetAttribute("sf-cycle", switch and c.setSwitch == "cycle")
+	setSlot.on = pickSet
+	if pickSet then layoutSetPicker(size) end
+	layoutArrow(setSlot, pickSet and feat("arrows"))
+	if on.Call then
+		ns.Media.setFont(call.num, "totembar", W.keyTextSize(on.Call, c.keySize))
+		call.num:ClearAllPoints()
+		call.num:SetPoint("BOTTOMRIGHT", -1, 2)
+	end
 	local hoverMode = feat("pickHover") and not kbOpen
 	picker:SetAttribute("sf-hovermode", hoverMode)
-	for _, el in ipairs(ELEMENTS) do
-		slots[el].popout.catch:SetShown(not hoverMode)
-		slots[el].popout.strip:SetShown(hoverMode)
+	for _, s in ipairs({ slots.earth, slots.fire, slots.water, slots.air, setSlot }) do
+		s.popout.catch:SetShown(not hoverMode)
+		s.popout.strip:SetShown(hoverMode)
 	end
 	for _, s in ipairs(shown) do
 		local b = s.button
 		b:SetAttribute("*type1", feat("cast") and "action" or nil)
 		b:SetAttribute("sf-altpick", barOn() and cfg().mode == "everything")
-		b:SetAttribute("action", multiAction(s.slot))
-		castKeys[s.el]:SetAttribute("action", multiAction(s.slot))
 		s.inset = TB.fitLook(s.vis, b, border, size)
 		s.killed.fitSize, s.expired.fitSize = size - 2 * s.inset, size - 2 * s.inset
 		s.timer:apply()
@@ -1052,25 +1242,26 @@ function layout()
 		if not s.button:IsShown() then sealed[s.button] = true end
 	end
 	TB.skin.layoutBar(bar, boxes, size, row, sealed)
-	ns.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
-	if TB.range then TB.range.layout(size) end
+	W.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
+	TB.range.layout(size)
+	writeSet(set)
+	paintSets()
 	refreshSlots()
 	refreshKeys()
 	refreshGCD()
-	ns.refitRings()
+	W.refitRings()
 	drive()
 	applyTotemFrame()
 	applyActionBar()
-	if mover then mover.update() end
+	movable.update()
 	if preview then paintPreview() end
-	if ns.otherClass() then classDone = true end
 end
 TB.layout = layout
 TB.afterGroups = layout
 
 afterCombat = ns.AfterCombat.new({
 	secs = function()
-		if not ns.getDB() or not barOn() or kbOpen or not ns.getAccount().locked then return 0 end
+		if not P.getDB() or not barOn() or kbOpen or not P.getAccount().locked then return 0 end
 		local c = cfg()
 		return c.show ~= "always" and c.fadeAfter or 0
 	end,
@@ -1086,12 +1277,14 @@ function TB.applyTimers()
 		s.timer:apply()
 		TB.skin.styleTimer(s.timer, s.vis, size)
 	end
+	-- Off clears the sweep; on, the next cast shows it (a refresh here could cut one short)
+	if not ns.Style.value("totembar", "gcd", "show") then refreshGCD() end
 end
 
 function TB.applySettings()
 	cfgTable = nil
 	local c = cfg()
-	if not (c.killed and c.killedMark) then
+	if not (c.killed.flash and c.killed.mark) then
 		for _, el in ipairs(ELEMENTS) do slots[el].killed.mark:Hide() end
 	end
 	if InCombatLockdown() then
@@ -1105,79 +1298,19 @@ function TB.applySettings()
 end
 
 -- Positioning
-mover = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-mover:SetFrameStrata("DIALOG")
-mover:SetBackdrop(ns.BACKDROP)
-mover:SetBackdropColor(0, 0, 0, 0.4)
-mover:SetBackdropBorderColor(0.2, 0.6, 1, 0.9)
-mover:EnableMouse(true)
-mover:EnableMouseWheel(true)
-mover:RegisterForDrag("LeftButton")
-mover:SetMovable(true)
-mover:SetClampedToScreen(true)
-mover:Hide()
-mover.label = mover:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-mover.label:SetPoint("BOTTOMLEFT", mover, "TOPLEFT", 0, 2)
-mover.label:SetText("Totem bar")
-local movable = { frame = bar }
-mover:SetScript("OnDragStart", function(self)
-	if InCombatLockdown() then return end
-	ns.Positioning.selectMovable(movable)
-	self:StartMoving()
-end)
-mover:SetScript("OnDragStop", function(self)
-	self:StopMovingOrSizing()
-	if InCombatLockdown() then return end
-	local c = cfg()
-	local x, y = self:GetCenter()
-	local ux, uy = UIParent:GetCenter()
-	local scale = self:GetEffectiveScale() / UIParent:GetEffectiveScale()
-	c.point, c.x, c.y = "CENTER", x * scale - ux, y * scale - uy
-	layout()
-end)
-mover:SetScript("OnMouseUp", function(_, button)
-	if InCombatLockdown() then return end
-	if button == "LeftButton" then ns.Positioning.selectMovable(movable)
-	elseif button == "RightButton" and ns.Options.open then ns.Options.open("totembar") end
-end)
-mover:SetScript("OnMouseWheel", function(self, delta)
-	if InCombatLockdown() then return end
-	local c = cfg()
-	local function step(key) c[key] = clamp(math.floor((c[key] + delta * 0.05) * 100 + 0.5) / 100, RANGES[key]) end
-	if IsControlKeyDown() then step("alpha")
-	elseif IsShiftKeyDown() then step("scale")
-	else
+movable = ns.Positioning.mover({ frame = bar, label = "Totem bar", cfg = cfg, ranges = RANGES,
+	size = { key = "size", step = 2, from = function(c)
 		local from = look()
 		c.sizeFollow = false
-		c.size = clamp(from + delta * 2, RANGES.size)
-	end
-	layout()
-	self.label:SetText(string.format("Totem bar: size %d, scale %.2f, opacity %.0f%%", (look()), c.scale, c.alpha * 100))
-	ns.Options.refresh()
-end)
-function mover.update()
-	local on = barOn() and (hasTotems or (preview and preview.all)) and not ns.getAccount().locked and not InCombatLockdown()
-	if on then
-		mover:ClearAllPoints()
-		mover:SetPoint("TOPLEFT", bar, "TOPLEFT", -2, 2)
-		mover:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 2, -2)
-		if ns.Positioning.isSelected(movable) then mover:SetBackdropBorderColor(1, 0.82, 0, 1)
-		else mover:SetBackdropBorderColor(0.2, 0.6, 1, 0.9) end
-		mover.label:SetText("Totem bar")
-	end
-	mover:SetShown(on)
-end
-
-function movable.nudge(dx, dy)
-	local c = cfg()
-	c.x, c.y = c.x + dx, c.y + dy
-	ns.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
-end
-function movable.lock()
-	mover:Hide()
-	ns.retryAfterCombat("totem bar layout", layout)
-end
-ns.Positioning.addMovable(movable)
+		return from
+	end },
+	shown = function() return barOn() and (hasTotems or (preview and preview.all)) end,
+	place = layout,
+	lock = function() ns.retryAfterCombat("totem bar layout", layout) end,
+	describe = function()
+		local c = cfg()
+		return string.format("Totem bar: size %d, scale %.2f, opacity %.0f%%", (look()), c.scale, c.alpha * 100)
+	end })
 
 -- Quick Keybind Mode (Blizzard's): the bar shows, empty slots included. Keys are caught on our own
 -- plain frame and bound with SetBinding: calling Blizzard's QuickKeybindButtonTemplateMixin from
@@ -1234,7 +1367,8 @@ end
 local function kbBind(input)
 	local command = catcher.command
 	if not command or InCombatLockdown() then return end
-	local ctx = C_KeyBindings and C_KeyBindings.GetBindingContextForAction and C_KeyBindings.GetBindingContextForAction(command)
+	local ctx = C_KeyBindings and C_KeyBindings.GetBindingContextForAction
+		and C_KeyBindings.GetBindingContextForAction(command)
 	local key1, key2 = GetBindingKey(command, nil, ctx)
 	if input == "ESCAPE" then
 		if not key1 then return end
@@ -1303,14 +1437,10 @@ local function hookQuickKeybind()
 	if f:IsShown() then setKeybindMode(true) end
 end
 local kbEvents = CreateFrame("Frame")
-for _, e in ipairs({ "PLAYER_LOGIN", "ADDON_LOADED", "PLAYER_REGEN_DISABLED" }) do ns.registerEvent(kbEvents, e) end
-kbEvents:SetScript("OnEvent", function(self, event, name)
-	if event == "PLAYER_REGEN_DISABLED" then
-		kbLeave()   -- never left over the bar in combat, taking the keyboard
-	elseif event == "PLAYER_LOGIN" or name == "Blizzard_QuickKeybind" then
-		hookQuickKeybind()
-		if kbHooked then self:UnregisterEvent("PLAYER_LOGIN"); self:UnregisterEvent("ADDON_LOADED") end
-	end
+kbEvents:SetScript("OnEvent", function(self, _, name)
+	if name ~= "Blizzard_QuickKeybind" then return end
+	hookQuickKeybind()
+	if kbHooked then self:UnregisterEvent("ADDON_LOADED") end
 end)
 
 -- Tooltips and hover on the slot buttons
@@ -1321,15 +1451,15 @@ for _, el in ipairs(ELEMENTS) do
 		if kbEnter(self, s.command, s.keys) then return end
 		local c = cfg()
 		if c.tips == "never" or (c.tips == "ooc" and InCombatLockdown()) then return end
-		local ok, d = pcall(GetTotemDuration, s.slot)
+		local ok, d = ns.try("totem bar: tooltip", GetTotemDuration, s.slot)
 		if not (ok and d) and c.mode ~= "everything" then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 		if ok and d then
-			pcall(GameTooltip.SetTotem, GameTooltip, s.slot)
+			ns.try("totem bar: tooltip", GameTooltip.SetTotem, GameTooltip, s.slot)
 		else
 			local action = multiAction(s.slot)
-			if C_ActionBar.HasAction(action) then pcall(GameTooltip.SetAction, GameTooltip, action)
-			else GameTooltip:SetText(NAME[el] .. ": no totem picked") end
+			if not C_ActionBar.HasAction(action) then GameTooltip:SetText(NAME[el] .. ": no totem picked")
+			else ns.try("totem bar: tooltip", GameTooltip.SetAction, GameTooltip, action) end
 		end
 		GameTooltip:Show()
 	end)
@@ -1353,18 +1483,48 @@ SecureHandlerWrapScript(onShow, "OnShow", picker, [[
 
 for _, e in pairs(extras) do
 	e.button:SetScript("OnEnter", function(self)
+		if e == call then hover(setSlot) end
 		if kbEnter(self, e.command, e.keys) then return end
 		local c = cfg()
 		if c.tips == "never" or (c.tips == "ooc" and InCombatLockdown()) then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		if not pcall(GameTooltip.SetSpellByID, GameTooltip, e.spell) then GameTooltip:SetText(C_Spell.GetSpellName(e.spell) or e.key) end
+		if not ns.try("totem bar: tooltip", GameTooltip.SetSpellByID, GameTooltip, e.spell) then
+			GameTooltip:SetText(C_Spell.GetSpellName(e.spell) or e.key)
+		end
 		if e.key == "Recall" then
 			if not knows(e.spell) then GameTooltip:AddLine("Not learned yet", 0.6, 0.6, 0.6) end
 			GameTooltip:AddLine("Right-click: dismiss all totems (no GCD, but no mana returned)", 1, 0.82, 0, true)
+		elseif TS.count() > 1 then
+			if not TS.switchInCombat() and ns.inCombat() then
+				GameTooltip:AddLine("Totem sets switch out of combat", 0.6, 0.6, 0.6)
+			elseif c.setSwitch == "cycle" then
+				GameTooltip:AddLine("Right-click: next totem set", 1, 0.82, 0, true)
+			else
+				GameTooltip:AddLine("Alt+click: choose a totem set", 1, 0.82, 0, true)
+			end
 		end
 		GameTooltip:Show()
 	end)
-	e.button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	e.button:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+		if e == call then hover(setSlot) end
+	end)
+end
+setSlot.arrow:SetScript("OnEnter", function() hover(setSlot) end)
+setSlot.arrow:SetScript("OnLeave", function() hover(setSlot) end)
+-- After the scripts above, as the slots'
+wrapHover(call.button, HOVER_ENTER)
+wrapHover(setSlot.arrow, HOVER_ENTER)
+wrapHover(setSlot.popout.strip)
+
+-- A slot's end flashes as ns.Totems.endOptions says (dur: the totem's last duration object; nil in
+-- previews)
+local function playEnds(s, dur, ended, killed)
+	local c = cfg()
+	local o = ended and ns.Totems.endOptions(c.ended, "ended")
+	if o then s.expired:play(dur, o) end
+	o = killed and ns.Totems.endOptions(c.killed, "killed")
+	if o then s.killed:play(dur, o) end
 end
 
 -- Killed early: a slot's last duration object says how much time the totem had left; endFlash
@@ -1373,20 +1533,12 @@ end
 ns.Totems.subscribe(function(event, slot, was)
 	if event ~= "gone" or preview then return end
 	local s = bySlot[slot]
-	local c = cfg()
 	if not s.button:IsShown() then return end
-	if s.button:IsVisible() then ns.Sounds.play(c.goneSound, "totembar", nil, true) end
-	if c.expiredPop then s.expired:play(was, { expired = true, pop = true }) end
-	if c.killed then s.killed:play(was, { pop = c.killedPop, glow = c.killedGlow, mark = c.killedMark }) end
+	if s.button:IsVisible() then ns.Sounds.play(cfg().ended.sound, "totembar", nil, true) end
+	playEnds(s, was, true, true)
 end)
 
 -- Events
-local ev = CreateFrame("Frame")
-for _, e in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_TOTEM_UPDATE", "PLAYER_REGEN_ENABLED",
-		"SPELLS_CHANGED", "ACTIONBAR_SLOT_CHANGED", "UPDATE_MULTI_CAST_ACTIONBAR", "UPDATE_BINDINGS", "SPELL_UPDATE_COOLDOWN" }) do
-	ns.registerEvent(ev, e)
-end
-ns.registerEvent(ev, "UNIT_SPELLCAST_SUCCEEDED", "player")
 -- After one of our casts: refresh once ns.Totems has recorded the slot (its handler may run after ours)
 local casts, refreshQueued = {}, false
 local function refreshAfterCast(spell)
@@ -1405,16 +1557,7 @@ local function refreshAfterCast(spell)
 	end)
 end
 
-ev:SetScript("OnEvent", function(_, event, arg1, ...)
-	if not ns.getDB() then return end
-	if ns.otherClass() then
-		layout()
-		if classDone then
-			ev:UnregisterAllEvents()
-			ticker:SetScript("OnUpdate", nil)
-		end
-		return
-	end
+local function onEvent(_, event, arg1, ...)
 	if event == "PLAYER_TOTEM_UPDATE" then
 		refresh()
 	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
@@ -1422,21 +1565,47 @@ ev:SetScript("OnEvent", function(_, event, arg1, ...)
 		if isSecret(spell) or type(spell) ~= "number" then return end
 		refreshAfterCast(spell)
 	elseif event == "ACTIONBAR_SLOT_CHANGED" then
-		local base = multiAction(1) - 1
-		if not isSecret(arg1) and type(arg1) == "number" and (arg1 == 0 or (arg1 > base and arg1 <= base + 12)) then refresh() end
+		local base = multiAction(1, 1) - 1
+		if not isSecret(arg1) and type(arg1) == "number" and (arg1 == 0 or (arg1 > base and arg1 <= base + 12)) then
+			refresh()
+		end
 	elseif event == "UPDATE_BINDINGS" then
 		refreshKeys()
 	elseif event == "SPELL_UPDATE_COOLDOWN" then
 		refreshGCD()
-	elseif event == "PLAYER_REGEN_ENABLED" then
-		saidWait = false
-		closePopouts()
-		if mover then mover.update() end
+	elseif event == "SPELLS_CHANGED" then
+		-- A newly known totem, Call or Recall changes the resolve signatures: main lays out again
+		nameBindings()
 	else
-		if event == "PLAYER_LOGIN" or event == "SPELLS_CHANGED" then nameBindings() end
 		layout()
 	end
-end)
+end
+
+-- Only for the class; its first layout comes with the HUD's
+function TB.start()
+	local ev = CreateFrame("Frame")
+	for _, e in ipairs({ "PLAYER_ENTERING_WORLD", "PLAYER_TOTEM_UPDATE", "SPELLS_CHANGED",
+			"ACTIONBAR_SLOT_CHANGED", "UPDATE_MULTI_CAST_ACTIONBAR", "UPDATE_BINDINGS",
+			"SPELL_UPDATE_COOLDOWN" }) do
+		ns.registerEvent(ev, e)
+	end
+	ns.registerEvent(ev, "UNIT_SPELLCAST_SUCCEEDED", "player")
+	ev:SetScript("OnEvent", onEvent)
+	-- Never left over the bar in combat, taking the keyboard
+	ns.onCombatStart(kbLeave)
+	ns.onCombatStart(paintSets)
+	ns.onCombatEnd(function()
+		saidWait = false
+		closePopouts()
+		movable.update()
+		paintSets()
+	end)
+	ticker:Show()
+	TB.range.start()
+	hookQuickKeybind()
+	if not kbHooked then ns.registerEvent(kbEvents, "ADDON_LOADED") end
+	nameBindings()
+end
 
 TB.MODES = { { "blizzard", "Blizzard's" }, { "active", "Active totems" }, { "everything", "Everything" } }
 function TB.setMode(mode)
@@ -1462,14 +1631,18 @@ function TB.hasTotems() return hasTotems end
 
 -- Preview mode: slots drawn in the requested states on plain frames; showing slots and the bar
 -- happens in layout()
-TB.PREVIEW_STATES = { "down", "expiring", "killed", "ranout", "empty" }
+local PREVIEW_STATES = { "down", "expiring", "killed", "ranout", "empty" }
+local PREVIEW_WARNING = { earth = { "empty" }, fire = { "empty" }, water = { "down", range = true },
+	air = { "down", range = true } }
+-- Each slot's totem in a preview: seconds left of its length
+TB.PREVIEW_LEFT = { earth = { 250, 300 }, fire = { 38, 55 }, water = { 83, 300 }, air = { 165, 300 } }
 
 local function paintSlot(s, rec)
 	local c, v, st = cfg(), s.vis, rec.st
 	local shown = s.button:IsShown()
 	local pick = GetActionTexture and GetActionTexture(multiAction(s.slot))
 	if isSecret(pick) then pick = nil end
-	local icon = pick or ns.Look.TOTEM_ICON[s.el]
+	local icon = pick or TOTEM_ICON[s.el]
 	s.badge:Hide()
 	s.killed:setIcon(icon)
 	s.expired:setIcon(icon)
@@ -1491,7 +1664,7 @@ local function paintSlot(s, rec)
 			strip:SetSize(w, h)
 		else
 			strip:SetPoint("TOPLEFT", s.button, "TOPLEFT", 0, 0)
-			strip:SetSize(size, ns.linePx(strip, c.rangeHeight))
+			strip:SetSize(size, W.linePx(strip, c.rangeHeight))
 		end
 		if not TB.skin.paintMark(strip, w, h, s.vis) then
 			local k = c.rangeOut
@@ -1502,31 +1675,17 @@ local function paintSlot(s, rec)
 	v.icon:SetTexture(icon)
 	if st == "down" or st == "expiring" then
 		s.killed.mark:Hide()
-		v:SetAlpha(1)
-		v.icon:SetDesaturated(false)
-		v.icon:SetAlpha(1)
-		v.bg:SetColorTexture(0, 0, 0, 1)
-		local left, life = ns.Look.PREVIEW_LEFT[s.el][1], ns.Look.PREVIEW_LEFT[s.el][2]
+		TB.paintDown(v)
+		local left, life = TB.PREVIEW_LEFT[s.el][1], TB.PREVIEW_LEFT[s.el][2]
 		if st == "expiring" then left = 5 end
-		s.timer:setExpire({ secs = c.warn, grey = c.warnGrey, ring = c.warnRing, pulse = c.warnPulse, glow = c.warnGlow }, icon)
+		s.timer:setExpire(expireOpts(c, pickSpell(s.slot)), icon)
 		liftWarning(s)
 		s.timer:setTime(rec.at - (life - left), life)
 		return rec.at + left
 	end
 	s.timer:clear()
 	v:SetAlpha(c.mode == "everything" and 1 or 0)
-	if c.empty == "pick" and pick then
-		v.icon:SetDesaturated(c.idleGrey)
-		v.icon:SetAlpha(c.idleAlpha)
-		v.bg:SetColorTexture(0, 0, 0, 0.6 * c.idleAlpha)
-	elseif c.empty ~= "blank" then
-		local col = ns.SCHOOL_COLOR[s.el]
-		v.icon:SetTexture(nil)
-		v.bg:SetColorTexture(col[1] * 0.35, col[2] * 0.35, col[3] * 0.35, 0.8)
-	else
-		v.icon:SetTexture(nil)
-		v.bg:SetColorTexture(0, 0, 0, 0)
-	end
+	TB.paintEmpty(v, c, s.el, pick)
 end
 
 function paintPreview()
@@ -1536,13 +1695,14 @@ function paintPreview()
 	end
 end
 
-function TB.preview(p)
-	if p then
-		preview = { all = p.all, states = preview and preview.states or {} }
-		if TB.range then TB.range.preview(true) end
+-- opts: the preview's (unlearned: show every slot); nil as it ends
+local function showPreview(opts)
+	if opts then
+		preview = { all = opts.unlearned, states = preview and preview.states or {} }
+		TB.range.preview(true)
 	elseif preview then
 		preview = nil
-		if TB.range then TB.range.preview(false) end
+		TB.range.preview(false)
 		for _, el in ipairs(ELEMENTS) do
 			local s = slots[el]
 			s.killed:stop()
@@ -1555,24 +1715,27 @@ function TB.preview(p)
 			end
 			s.dur = nil
 		end
-		lastDriver = nil
 	end
 end
 
-function TB.previewSlot(el, st, at, range, moment)
+local function previewSteps(el, mode)
+	if mode == "busy" then
+		local steps = {}
+		for _, st in ipairs(PREVIEW_STATES) do table.insert(steps, { st }) end
+		return steps
+	end
+	return { mode == "warnings" and PREVIEW_WARNING[el] or { "down" } }
+end
+
+local function previewSlot(el, st, at, range, moment)
 	if not preview then return end
 	local rec = { st = st, at = at, range = range }
 	preview.states[el] = rec
-	local s, c = slots[el], cfg()
+	local s = slots[el]
 	if st ~= "killed" then s.killed:stop() end
 	if st ~= "ranout" then s.expired:stop() end
 	local ends = paintSlot(s, rec)
-	moment = moment and s.button:IsShown()
-	if moment and st == "killed" and c.killed then
-		s.killed:play(nil, { pop = c.killedPop, glow = c.killedGlow, mark = c.killedMark })
-	elseif moment and st == "ranout" and c.expiredPop then
-		s.expired:play(nil, { expired = true, pop = true })
-	end
+	if moment and s.button:IsShown() then playEnds(s, nil, st == "ranout", st == "killed") end
 	return ends
 end
 
@@ -1583,11 +1746,25 @@ function TB.debug()
 	local gok, ginfo = pcall(C_ActionBar.GetActionCooldown, multiAction(SLOT.earth))
 	local g = not gok and "error" or type(ginfo) ~= "table" and "none"
 		or isSecret(ginfo.isOnGCD) and "secret" or tostring(ginfo.isOnGCD)
-	ns.say("totem bar mode %s, show %s, driver %s, shown %s, totems known %s, earth isOnGCD %s; TotemFrame parent %s alpha %s; Totem Action Bar parent %s",
-		c.mode, c.show, tostring(lastDriver), tostring(bar:IsShown()), tostring(hasTotems), g,
+	local driver, wants = ns.visibilityDriverOf(bar), visibilityDriver()
+	driver = tostring(driver) .. (driver ~= wants and " (wants " .. tostring(wants) .. ")" or "")
+	ns.say("totem bar mode %s, show %s, driver %s, shown %s, totems known %s, set %d of %d, "
+		.. "earth isOnGCD %s; TotemFrame parent %s alpha %s; Totem Action Bar parent %s",
+		c.mode, c.show, driver, tostring(bar:IsShown()), tostring(hasTotems),
+		TS.active(), TS.count(), g,
 		TotemFrame and TotemFrame:GetParent() and (TotemFrame:GetParent():GetName() or "?") or "none",
 		TotemFrame and string.format("%.2f", TotemFrame:GetAlpha()) or "-",
-		mc and (mc:GetParent() == hiddenParent and "hidden" or (mc:GetParent() and mc:GetParent():GetName() or "?")) or "none")
+		mc and (mc:GetParent() == hiddenParent and "hidden" or (mc:GetParent() and mc:GetParent():GetName() or "?"))
+			or "none")
 end
 
-ns.registerModule(TB)
+Bars.register("totembar", { label = "Totem bar", cfg = cfg, saved = "totemBar", defaults = TB.DEFAULTS,
+	ranges = TB.RANGES, choices = CHOICES, on = barOn,
+	parts = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
+	-- Its theme can draw its own border
+	ownLabel = function(part)
+		if part == "border" and TB.skin.owns("border") then return "Totem bar (its theme)" end
+	end,
+	movable = movable,
+	hud = { show = showPreview, slots = ELEMENTS, steps = previewSteps, step = previewSlot } })
+MOD.register(TB)

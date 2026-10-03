@@ -2,11 +2,12 @@
 -- Fed duration objects, so nothing here reads a time: secret values go straight to widgets and curves.
 
 local _, ns = ...
+local W = ns.Widgets
 
 local T = {}
 ns.Timer = T
 
-T.KINDS = { "cooldown", "uptime" }
+T.PARTS = { "cooldown", "uptime" }
 -- Tenths: seconds below which the countdown shows tenths (0: never)
 local function timeColors()
 	return {
@@ -26,27 +27,32 @@ T.DEFAULTS = {
 		bar = true, barHeight = 8, barElement = true, barColor = { 0.46, 1, 0.35, 1 }, barEdge = "bottom",
 	},
 }
-for _, kind in ipairs(T.KINDS) do
-	for k, v in pairs(timeColors()) do T.DEFAULTS[kind][k] = v end
+for _, part in ipairs(T.PARTS) do
+	for k, v in pairs(timeColors()) do T.DEFAULTS[part][k] = v end
 end
 -- Parts an element's timer can't have, and why (shown on its page); filled as elements register
 T.CANT = {}
-function T.cant(key, kind)
+function T.cant(key, part)
 	local c, out = key and T.CANT[key], {}
 	if not c then return out end
 	for k, v in pairs(c) do if type(v) == "string" then out[k] = v end end
-	if type(c[kind]) == "table" then for k, v in pairs(c[kind]) do out[k] = v end end
+	if type(c[part]) == "table" then for k, v in pairs(c[part]) do out[k] = v end end
 	return out
 end
 
-local WHITE = "Interface\\Buttons\\WHITE8x8"
+local WHITE = ns.WHITE
 local TIMER_REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime or 1
 local TIMER_IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
 T.AURA_BAR = { interpolation = TIMER_IMMEDIATE, direction = TIMER_REMAINING }
 
+-- abbrev: seconds under which minutes read 1:31 (0: never)
+local RANGES = { textSize = { 6, 48, 1 }, abbrev = { 0, 3600, 60 }, swipeAlpha = { 0.1, 1, 0.05 },
+	barHeight = { 1, 20, 1 }, soon = { 1, 60, 1 }, now = { 1, 60, 1 }, tenths = { 0, 10, 1 } }
+local NAMES = { cooldown = { "Cooldown timer", "cooldown", 1 }, uptime = { "Time left timer", "time left", 2 } }
 local S = ns.Style
-for _, kind in ipairs(T.KINDS) do
-	S.register(kind, { defaults = T.DEFAULTS[kind], path = { "timers", kind } })
+for _, part in ipairs(T.PARTS) do
+	S.register(part, { defaults = T.DEFAULTS[part], ranges = RANGES, path = { "timers", part }, elements = true,
+		label = NAMES[part][1], short = NAMES[part][2], order = NAMES[part][3] })
 end
 
 -- The countdown's formatter
@@ -55,9 +61,10 @@ end
 -- format. Everything rounds up.
 local ROUND_UP = Enum and Enum.NumericRuleFormatRounding and Enum.NumericRuleFormatRounding.Up or 1
 
-local function secsIn(v, lo, hi)
-	if type(v) ~= "number" or v ~= v then return lo end
-	return math.min(math.max(v, lo), hi)
+local function secsIn(v, field)
+	local r = RANGES[field]
+	if type(v) ~= "number" or v ~= v then return r[1] end
+	return math.min(math.max(v, r[1]), r[2])
 end
 
 local function formatRules(abbrev, tenths)
@@ -79,14 +86,11 @@ local function formatRules(abbrev, tenths)
 	return rules
 end
 
-local function colorCode(c)
-	local function byte(v) return math.floor(math.min(math.max(v, 0), 1) * 255 + 0.5) end
-	return string.format("|cff%02x%02x%02x", byte(c[1]), byte(c[2]), byte(c[3]))
-end
+local colorCode = ns.colorCode
 
 local function breakpoints(s, abbrev, tenths)
 	local rules = formatRules(abbrev, tenths)
-	local soon, now = secsIn(s.soon, 0, 3600), secsIn(s.now, 0, 3600)
+	local soon, now = secsIn(s.soon, "soon"), secsIn(s.now, "now")
 	local soonCode, nowCode = colorCode(s.soonColor), colorCode(s.nowColor)
 	local cuts, list = {}, {}
 	for _, r in ipairs(rules) do cuts[r.threshold] = true end
@@ -106,27 +110,22 @@ local function breakpoints(s, abbrev, tenths)
 	return out
 end
 
--- One formatter per look; a timer keeps its own, so dropping the cache never frees one in use
-local formatters, cached = {}, 0
+-- One formatter per style; a timer keeps its own, so dropping the cache never frees one in use
+local formatters = ns.cache(32, function(s, abbrev, tenths)
+	local ok, made = ns.try("timer formatter", function()
+		local fm = C_StringUtil.CreateNumericRuleFormatter()
+		fm:SetBreakpoints(breakpoints(s, abbrev, tenths))
+		return fm
+	end)
+	return ok and made or false
+end)
 local function formatterFor(s)
 	if not s.timeColors then return nil end
-	local tenths = math.floor(secsIn(s.tenths, 0, 10))
-	local abbrev = secsIn(s.abbrev, 0, 3600)
+	local tenths = math.floor(secsIn(s.tenths, "tenths"))
+	local abbrev = secsIn(s.abbrev, "abbrev")
 	local key = string.format("%s|%d|%d|%s|%s|%s|%s", tostring(s.timeColors), abbrev, tenths,
 		tostring(s.soon), tostring(s.now), colorCode(s.soonColor), colorCode(s.nowColor))
-	local f = formatters[key]
-	if f == nil then
-		local ok, made = pcall(function()
-			local fm = C_StringUtil.CreateNumericRuleFormatter()
-			fm:SetBreakpoints(breakpoints(s, abbrev, tenths))
-			return fm
-		end)
-		if not ok then ns.noteError("timer formatter", made) end
-		if cached >= 32 then wipe(formatters); cached = 0 end
-		f = ok and made or false
-		formatters[key], cached = f, cached + 1
-	end
-	return f or nil
+	return formatters(key, s, abbrev, tenths) or nil
 end
 
 -- The widget
@@ -136,9 +135,9 @@ local fonts = 0
 
 -- opts: anchor, cd (an existing Cooldown), dual, school, aura (on Blizzard's aura button: it
 -- drives the bar, so it is never fed a duration here), barInset
-function T.new(parent, key, kind, opts)
+function T.new(parent, key, part, opts)
 	opts = opts or {}
-	local t = setmetatable({ key = key, kind = kind, parent = parent, anchor = opts.anchor or parent, dual = opts.dual,
+	local t = setmetatable({ key = key, part = part, parent = parent, anchor = opts.anchor or parent, dual = opts.dual,
 		school = opts.school, aura = opts.aura, barInset = opts.barInset }, Timer)
 	local cd = opts.cd
 	if not cd then
@@ -146,7 +145,7 @@ function T.new(parent, key, kind, opts)
 		cd:SetAllPoints(t.anchor)
 	end
 	cd:SetDrawEdge(false)
-	cd:SetDrawBling(kind == "cooldown")
+	cd:SetDrawBling(part == "cooldown")
 	cd:SetSwipeTexture(WHITE)
 	t.cd = cd
 	fonts = fonts + 1
@@ -172,14 +171,14 @@ end
 
 local function schoolColor(t)
 	local school = type(t.school) == "function" and t.school() or t.school
-	local c = school and ns.SCHOOL_BAR_COLOR[school]
+	local c = school and ns.THEME.barColor[school]
 	return c or { 0.46, 1, 0.35 }
 end
 
--- Safe any time for our own frames; the shield's Cooldown is restyled out of combat only by its caller
+-- Safe any time for our own frames; one on Blizzard's aura button is restyled by its caller, out of combat
 function Timer:apply()
-	local s = S.get(self.key, self.kind)
-	local cant = T.cant(self.key, self.kind)
+	local s = S.get(self.key, self.part)
+	local cant = T.cant(self.key, self.part)
 	local cd = self.cd
 	cd:SetDrawSwipe(s.swipe and not cant.swipe)
 	cd:SetSwipeColor(0, 0, 0, s.swipeAlpha)
@@ -192,13 +191,13 @@ function Timer:apply()
 		self.formatter = fm
 		ns.try("timer formatter", cd.SetCountdownFormatter, cd, fm)
 	end
-	local ms = (text and not fm) and math.floor(secsIn(s.tenths, 0, 10)) or 0
+	local ms = (text and not fm) and math.floor(secsIn(s.tenths, "tenths")) or 0
 	if ms ~= (self.ms or 0) then
 		self.ms = ms
 		pcall(cd.SetCountdownMillisecondsThreshold, cd, ms)
 	end
 	local c = s.textColor
-	ns.Media.setFontObject(self.font, self.key, s.textSize)
+	ns.Media.setFont(self.font, self.key, s.textSize)
 	self.font:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 	cd:SetCountdownFont(self.fontName)
 	self.barOn = self.bar ~= nil and s.bar and not cant.bar
@@ -220,32 +219,36 @@ function Timer:apply()
 		elseif not self.barOn then bar:Hide() end
 	end
 	if self.last then self:set(self.last) end
-	local fs = self.fs
-	if fs then
-		local pos = s.textPos
-		if pos == "auto" then pos = (self.dual and self.kind == "uptime") and "topleft" or "center" end
-		local a = self.anchor
-		fs:ClearAllPoints()
-		if pos == "topleft" then
-			local y = (self.barOn and s.barEdge == "top") and -(s.barHeight + 1) or -1
-			fs:SetPoint("TOPLEFT", a, "TOPLEFT", 1, y); fs:SetJustifyH("LEFT")
-		elseif pos == "bottom" then
-			local y = (self.barOn and s.barEdge == "bottom") and (s.barHeight + 1) or 1
-			fs:SetPoint("BOTTOM", a, "BOTTOM", 0, y); fs:SetJustifyH("CENTER")
-		else
-			fs:SetPoint("CENTER", a, "CENTER", 0, 0); fs:SetJustifyH("CENTER")
-		end
+	if self.fs then
+		T.placeText(self.fs, self.anchor, s, self.barOn, self.dual and self.part == "uptime")
+	end
+end
+
+-- The countdown's place on anchor for timer style s, clear of a bar; dual: an uptime sharing its
+-- icon with a cooldown
+function T.placeText(fs, anchor, s, barOn, dual)
+	local pos = s.textPos
+	if pos == "auto" then pos = dual and "topleft" or "center" end
+	fs:ClearAllPoints()
+	if pos == "topleft" then
+		local y = (barOn and s.barEdge == "top") and -(s.barHeight + 1) or -1
+		fs:SetPoint("TOPLEFT", anchor, "TOPLEFT", 1, y); fs:SetJustifyH("LEFT")
+	elseif pos == "bottom" then
+		local y = (barOn and s.barEdge == "bottom") and (s.barHeight + 1) or 1
+		fs:SetPoint("BOTTOM", anchor, "BOTTOM", 0, y); fs:SetJustifyH("CENTER")
+	else
+		fs:SetPoint("CENTER", anchor, "CENTER", 0, 0); fs:SetJustifyH("CENTER")
 	end
 end
 
 function Timer:barRGB()
-	local s = S.get(self.key, self.kind)
+	local s = S.get(self.key, self.part)
 	return s.barElement and schoolColor(self) or s.barColor
 end
 
 function Timer:set(d)
 	if not d then return self:clear() end
-	self.last = d
+	self.last, self.held = d, nil
 	ns.try("timer cooldown", self.cd.SetCooldownFromDurationObject, self.cd, d, true)
 	local bar = self.bar
 	if bar and self.barOn then
@@ -260,6 +263,7 @@ function Timer:set(d)
 end
 
 function Timer:setTime(start, length)
+	self.held = nil
 	if C_DurationUtil and C_DurationUtil.CreateDuration then
 		self.own = self.own or C_DurationUtil.CreateDuration()
 		local ok = ns.try("timer time", self.own.SetTimeFromStart, self.own, start, length)
@@ -275,14 +279,16 @@ function Timer:setTime(start, length)
 end
 
 function Timer:clear()
-	self.last = nil
+	self.last, self.held = nil, nil
 	if self.exp then self.exp:SetAlpha(0) end
 	self.cd:Clear()
 	if self.bar then self.bar:Hide() end
 end
 
+-- Frozen frac of the way through; a setExpire after it lights the warning if the time held is in it
 function Timer:static(frac, length)
 	length = length or 30
+	self.last, self.held = nil, (1 - frac) * length
 	self.cd:SetCooldown(GetTime() - frac * length, length)
 	pcall(self.cd.Pause, self.cd)
 	if self.bar then
@@ -296,39 +302,35 @@ end
 -- Expiring: a warning over the icon in a timer's last seconds. Its alpha is the time left through
 -- a curve, evaluated ten times a second, so it works in combat.
 local warning = {}
-local ticker = CreateFrame("Frame")
-ticker.t = 0
-ticker:Hide()
-ticker:SetScript("OnUpdate", function(self, elapsed)
-	self.t = self.t + elapsed
-	if self.t < 0.1 then return end
-	self.t = 0
+local ticker = ns.ticker(0.1, function()
 	for t in pairs(warning) do
 		local d = t.last
 		if d then
-			-- pcall, not ns.try: ten times a second, must not allocate
-			local ok, a = pcall(d.EvaluateRemainingDuration, d, t.expCurve)
-			if ok then t.exp:SetAlpha(a) else t.exp:SetAlpha(0); ns.noteError("timer expiring", a) end
+			local ok, a = ns.try("timer expiring", d.EvaluateRemainingDuration, d, t.expCurve)
+			if ok then t.exp:SetAlpha(a) else t.exp:SetAlpha(0) end
 		else t.exp:SetAlpha(0) end
 	end
 end)
 
-T.EXPIRE_DEFAULTS = { secs = 5, grey = false, ring = false, pulse = true, glow = false }
+-- The expire part (ns.registerPart): Expiring's settings for a kind that sets def.expires,
+-- def.expireLooks (the looks it offers; default all) and def.expireRange (Warn in the last)
+local EXPIRE = { secs = 5, grey = false, ring = false, fade = true, glow = false }
+local EXPIRE_LOOKS = { "grey", "ring", "fade", "glow" }
+ns.registerPart("expire", {
+	kinds = { cooldown = {}, buff = {} },
+	has = function(def) return def.expires end,
+	defaults = function(def)
+		local e = { secs = EXPIRE.secs }
+		for _, look in ipairs(def.expireLooks or EXPIRE_LOOKS) do e[look] = EXPIRE[look] end
+		return { expire = e }
+	end,
+	ranges = function(def) return { expire = { secs = def.expireRange or { 0, 30, 1 } } } end,
+	glow = function(def) return def.defaults.expire.glow ~= nil end,
+})
 
-function T.expireOpts(key)
-	local o = ns.elementOpts(key).expire
-	local own = ns.elementDefault(key, "expire")
-	local out = {}
-	for k, v in pairs(T.EXPIRE_DEFAULTS) do
-		if type(own) == "table" and type(own[k]) == type(v) then v = own[k] end
-		if type(o) == "table" and type(o[k]) == type(v) then out[k] = o[k] else out[k] = v end
-	end
-	return out
-end
-
--- e: { secs, grey, ring, pulse, glow } (secs 0: off)
+-- e: { secs, grey, ring, fade, glow } (secs 0: off), an element's or a bar's expire
 function Timer:setExpire(e, icon)
-	if not e or e.secs <= 0 or not ns.lastSeconds(e.secs) then
+	if not e or (e.secs or 0) <= 0 or not ns.lastSeconds(e.secs) then
 		warning[self] = nil
 		if next(warning) == nil then ticker:Hide() end
 		local x = self.exp
@@ -348,30 +350,39 @@ function Timer:setExpire(e, icon)
 		x:SetAlpha(0)
 		x.grey = x:CreateTexture(nil, "ARTWORK")
 		x.grey:SetAllPoints()
-		ns.cropIconExact(x.grey)
+		W.cropIconExact(x.grey)
 		x.grey:SetDesaturated(true)
-		x.ring = ns.makeRing(x, x)
+		x.ring = W.makeRing(x, x)
 		x.dim = x:CreateTexture(nil, "OVERLAY")
 		x.dim:SetAllPoints()
 		x.dim:SetColorTexture(0, 0, 0, 1)
 		x.dim:SetAlpha(0)
-		x.pulse = ns.makePulse(x.dim, "dim")
+		x.pulse = W.makePulse(x.dim, "dim")
 		-- A hidden ancestor stops the pulse: start it again on show
 		x:SetScript("OnShow", function(s) if s.pulseOn then s.pulse:Play() end end)
 		x.glow = ns.Effects.glow(x, self.anchor, self.key)
 		self.exp = x
-		ns.Looks.followMask(self.anchor, x.grey, x.dim)
+		ns.StyleArt.followMask(self.anchor, x.grey, x.dim)
 	end
 	x.glow:fit(self.anchor:GetWidth())
-	x.glow:SetShown(e.glow)
+	-- A look the owner doesn't declare is nil: off
+	x.glow:SetShown(e.glow and true or false)
 	if icon then x.grey:SetTexture(icon) end
-	x.grey:SetShown(e.grey)
-	x.ring:show(e.ring)
-	x.pulseOn = e.pulse and true or false
+	x.grey:SetShown(e.grey and true or false)
+	x.ring:show(e.ring and true or false)
+	x.pulseOn = e.fade and true or false
 	-- Callers repeat this: a running pulse isn't restarted
-	if not e.pulse then x.pulse:Stop(); x.dim:SetAlpha(0)
+	if not e.fade then x.pulse:Stop(); x.dim:SetAlpha(0)
 	elseif not x.pulse:IsPlaying() then x.pulse:Play() end
 	self.expCurve = ns.lastSeconds(e.secs)
+	if self.held and not self.last then
+		-- Frozen: lit once here, never ticked
+		local ok, a = pcall(self.expCurve.Evaluate, self.expCurve, self.held)
+		x:SetAlpha(ok and a or 0)
+		warning[self] = nil
+		if next(warning) == nil then ticker:Hide() end
+		return
+	end
 	warning[self] = true
 	ticker:Show()
 	local d = self.last

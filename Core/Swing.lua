@@ -1,6 +1,8 @@
 -- Swing timer
 
 local _, ns = ...
+local W = ns.Widgets
+local E, MOD, Bars, P = ns.Elements, ns.Modules, ns.Bars, ns.Profiles
 local say, isSecret = ns.say, ns.isSecret
 local Spells = ns.Spells
 
@@ -9,12 +11,17 @@ ns.Swing = SW
 
 local MAIN_HAND = Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.MainHand or 0
 local ELAPSED = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.ElapsedTime or 0
-local REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime or 1
-local IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
+local REMAINING, IMMEDIATE = ns.Timer.AURA_BAR.direction, ns.Timer.AURA_BAR.interpolation
 SW.ICON = Spells.icon("attack") or 135274
 
-local IMBUE_SCHOOL = { rockbiter = "earth", flametongue = "fire", frostbrand = "water", windfury = "air" }
-local NO_IMBUE = { 0.7, 0.7, 0.7 }
+-- Colour: custom, or an element's that offers one to a bar (its barColor), the first by default:
+-- only elements whose files load before this one (TOC order)
+local COLOR_BY = {}
+for _, key in ipairs(E.KEYS) do
+	if E.ALL[key].barColor then table.insert(COLOR_BY, key) end
+end
+table.insert(COLOR_BY, "custom")
+SW.COLOR_BY = COLOR_BY
 
 -- Settings
 SW.DEFAULTS = {
@@ -23,40 +30,24 @@ SW.DEFAULTS = {
 	width = 220, height = 7,
 	scale = 1,
 	alpha = 0.75,
-	colorBy = "imbue", color = { 1, 0.8, 0.25, 1 },
+	colorBy = COLOR_BY[1], color = { 1, 0.8, 0.25, 1 },
 	fillFrom = "left",
 	deplete = false,
 	countdown = false, countdownSize = 12, countdownColor = { 1, 1, 1, 1 },
 	countdownPos = "center",
 }
-local RANGES = { width = { 40, 400 }, height = { 4, 40 }, scale = { 0.5, 3 }, alpha = { 0.1, 1 },
-	countdownSize = { 8, 40 } }
+local RANGES = { width = { 40, 400, 4 }, height = { 4, 40, 1 }, scale = { 0.5, 3, 0.05 }, alpha = { 0.1, 1, 0.05 },
+	countdownSize = { 8, 40, 1 } }
 SW.RANGES = RANGES
-local CHOICES = { show = { "combat", "always", "never" }, colorBy = { "imbue", "custom" },
+local CHOICES = { show = { "combat", "always", "never" }, colorBy = COLOR_BY,
 	fillFrom = { "left", "right" }, countdownPos = { "center", "left", "right" } }
-local function finite(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
-local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
 
+-- What the profile's cleaning can't declare, once per saved table
 local cfgTable
 local function cfg()
-	local db = ns.getDB()
-	if type(db.swingBar) ~= "table" then db.swingBar = {} end
-	local t = db.swingBar
+	local t = P.getDB().swingBar
 	if t ~= cfgTable then
-		for k, v in pairs(SW.DEFAULTS) do
-			if type(t[k]) ~= type(v) then t[k] = type(v) == "table" and CopyTable(v) or v end
-		end
-		for k, r in pairs(RANGES) do
-			if t[k] ~= t[k] then t[k] = SW.DEFAULTS[k] else t[k] = clamp(t[k], r) end
-		end
-		for k, list in pairs(CHOICES) do
-			if not tContains(list, t[k]) then t[k] = list[1] end
-		end
-		for _, k in ipairs({ "color", "countdownColor" }) do
-			if not ns.isColor(t[k]) then t[k] = CopyTable(SW.DEFAULTS[k]) end
-		end
-		if not finite(t.x) then t.x = SW.DEFAULTS.x end
-		if not finite(t.y) then t.y = SW.DEFAULTS.y end
+		P.fillDefaults(t, SW.DEFAULTS)
 		if not ns.POINTS[t.point] then t.point, t.x, t.y = SW.DEFAULTS.point, SW.DEFAULTS.x, SW.DEFAULTS.y end
 		cfgTable = t
 	end
@@ -64,10 +55,7 @@ local function cfg()
 end
 SW.cfg = cfg
 
-function SW.isOn() return ns.isActive() and cfg().show ~= "never" end
-ns.Style.registerBar("swing", { cfg = cfg, DEFAULTS = SW.DEFAULTS, label = "Swing timer", on = SW.isOn,
-	kinds = { "border", "text", "bar" } })
-
+function SW.isOn() return E.isActive() and cfg().show ~= "never" end
 
 SW.BACKGROUND = { 0, 0, 0, 0.6 }
 function SW.makeBar(parent)
@@ -90,7 +78,7 @@ function SW.styleBar(b)
 	b.spark:ClearAllPoints()
 	b.spark:SetPoint("TOP" .. side, fill, "TOP" .. side, 0, 0)
 	b.spark:SetPoint("BOTTOM" .. side, fill, "BOTTOM" .. side, 0, 0)
-	b.spark:SetWidth(ns.linePx(b, 2))
+	b.spark:SetWidth(W.linePx(b, 2))
 end
 
 local font = CreateFont(ns.NAME .. "SwingFont")
@@ -100,7 +88,7 @@ local TEXT_SIDE = { left = "LEFT", center = "CENTER", right = "RIGHT" }
 function SW.styleCountdown()
 	local c = cfg()
 	local k = c.countdownColor
-	ns.Media.setFontObject(font, "swing", c.countdownSize)
+	ns.Media.setFont(font, "swing", c.countdownSize)
 	font:SetTextColor(k[1], k[2], k[3], k[4] or 1)
 end
 function SW.placeCountdown(fs, anchor)
@@ -110,12 +98,11 @@ function SW.placeCountdown(fs, anchor)
 	fs:SetJustifyH(side)
 end
 
-function SW.border() return ns.Style.get("swing", "border") end
+function SW.border() return E.borderFor("swing") end
 
 local f = CreateFrame("Frame", nil, UIParent)
 f:SetSize(SW.DEFAULTS.width, SW.DEFAULTS.height)
 f:Hide()
-SW.frame = f
 local face = CreateFrame("Frame", nil, f)
 face:SetAllPoints()
 face:Hide()
@@ -142,9 +129,8 @@ local pv = { mode = nil, action = "swing", count = 0, nextAt = 0 }
 
 local function fillColor()
 	local c = cfg()
-	if c.colorBy == "custom" then return c.color end
-	local school = IMBUE_SCHOOL[ns.Imbue.mainHand() or ""]
-	return school and ns.SCHOOL_BAR_COLOR[school] or NO_IMBUE
+	local e = E.ALL[c.colorBy]
+	return e and e.barColor and e.barColor.color() or c.color
 end
 SW.fillColor = fillColor
 local function paintFill()
@@ -152,7 +138,7 @@ local function paintFill()
 	bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
 end
 
-local function drawFace() face:SetShown(bar:IsShown() or not ns.getAccount().locked) end
+local function drawFace() face:SetShown(bar:IsShown() or not P.getAccount().locked) end
 
 local function clearSwing()
 	state.endsAt = nil
@@ -215,7 +201,7 @@ local function onEvent(_, event, a1, a2)
 	elseif event == "UNIT_SPELLCAST_START" then onCastStart()
 	elseif event == "UNIT_INVENTORY_CHANGED" then
 		paintFill()
-		ns.Options.refresh()
+		ns.changed()
 	elseif event == "PLAYER_LEAVE_COMBAT" or event == "PLAYER_DEAD" then clearSwing()
 	end
 end
@@ -232,22 +218,14 @@ local function listen(on)
 end
 
 -- Visibility
-local mover
+local movable
 local function visibilityDriver()
 	if not SW.isOn() then return "hide" end
 	if pv.mode then return "show" end
-	if not ns.getAccount().locked then return "show" end
-	if cfg().show == "combat" then return "[petbattle] hide; [combat] show; hide" end
-	return "[petbattle] hide; show"
+	if not P.getAccount().locked then return "show" end
+	return Bars.SHOW_WHEN[cfg().show] or "show"
 end
-local lastDriver
-local function drive()
-	local driver = visibilityDriver()
-	if driver ~= lastDriver then
-		lastDriver = driver
-		RegisterStateDriver(f, "visibility", driver)
-	end
-end
+local function drive() ns.setVisibilityDriver(f, visibilityDriver(), "swing timer driver") end
 
 -- Layout (out of combat)
 local function layout()
@@ -256,10 +234,10 @@ local function layout()
 	listen(SW.isOn())
 	f:SetScale(c.scale)
 	f:SetAlpha(c.alpha)
-	local px = ns.pixel(f)
-	f:SetSize(math.max(ns.roundPx(c.width, px), px), math.max(ns.roundPx(c.height, px), px))
-	ns.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
-	ns.applyBorder(face, SW.border(), "bar")
+	local px = W.pixel(f)
+	f:SetSize(math.max(W.roundPx(c.width, px), px), math.max(W.roundPx(c.height, px), px))
+	W.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
+	ns.StyleArt.applyBorder(face, SW.border(), "bar")
 	SW.styleBar(bar)
 	paintFill()
 	SW.styleCountdown()
@@ -268,7 +246,7 @@ local function layout()
 	if cdText then SW.placeCountdown(cdText, face) end
 	if state.endsAt then drawSwing() else drawFace() end
 	drive()
-	mover.update()
+	movable.update()
 end
 
 function SW.apply()
@@ -306,7 +284,9 @@ pvFrame:SetScript("OnUpdate", function()
 	end
 end)
 
-function SW.preview(mode)
+-- opts: the preview's (its mode); nil as it ends
+local function showPreview(opts)
+	local mode = opts and opts.mode
 	if mode and not PREVIEW_SWINGS[mode] then mode = nil end
 	local was = pv.mode
 	pv.mode, pv.action, pv.count, pv.nextAt = mode, "swing", 0, 0
@@ -316,90 +296,14 @@ function SW.preview(mode)
 end
 
 -- Positioning
-mover = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-mover:SetFrameStrata("DIALOG")
-mover:SetBackdrop(ns.BACKDROP)
-mover:SetBackdropColor(0, 0, 0, 0.4)
-mover:EnableMouse(true)
-mover:EnableMouseWheel(true)
-mover:RegisterForDrag("LeftButton")
-mover:Hide()
-mover.label = mover:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-mover.label:SetPoint("BOTTOMLEFT", mover, "TOPLEFT", 0, 2)
-
-local movable = { frame = f }
-function movable.nudge(dx, dy)
-	local c = cfg()
-	c.x, c.y = c.x + dx, c.y + dy
-	ns.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
-end
-function movable.lock()
-	mover:SetScript("OnUpdate", nil)
-	mover:Hide()
-	ns.Positioning.endSnap()
-	drawFace()
-end
-ns.Positioning.addMovable(movable)
-
-local function dragUpdate(self)
-	if InCombatLockdown() then movable.lock() return end
-	local ui = UIParent:GetEffectiveScale()
-	local cx, cy = GetCursorPosition()
-	local x, y = ns.Positioning.snap(f, cx / ui + self.dragDX, cy / ui + self.dragDY)
-	local c = cfg()
-	local ux, uy = UIParent:GetCenter()
-	c.point, c.x, c.y = "CENTER", x - ux, y - uy
-	ns.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
-end
-mover:SetScript("OnDragStart", function(self)
-	if InCombatLockdown() then return end
-	ns.Positioning.selectMovable(movable)
-	local ui = UIParent:GetEffectiveScale()
-	local s = f:GetEffectiveScale() / ui
-	local fx, fy = f:GetCenter()
-	local cx, cy = GetCursorPosition()
-	self.dragDX, self.dragDY = fx * s - cx / ui, fy * s - cy / ui
-	self:SetScript("OnUpdate", dragUpdate)
-end)
-mover:SetScript("OnDragStop", function(self)
-	self:SetScript("OnUpdate", nil)
-	ns.Positioning.endSnap()
-	if not InCombatLockdown() then layout() end
-end)
-mover:SetScript("OnMouseUp", function(_, button)
-	if InCombatLockdown() then return end
-	if button == "LeftButton" then ns.Positioning.selectMovable(movable)
-	elseif button == "RightButton" then ns.Options.open("swing") end
-end)
-local function describe()
-	local c = cfg()
-	return string.format("Swing timer: %d x %d, scale %.2f, opacity %.0f%%", c.width, c.height, c.scale, c.alpha * 100)
-end
-mover:SetScript("OnMouseWheel", function(self, delta)
-	if InCombatLockdown() then return end
-	local c = cfg()
-	local function step(key) c[key] = clamp(math.floor((c[key] + delta * 0.05) * 100 + 0.5) / 100, RANGES[key]) end
-	if IsControlKeyDown() then step("alpha")
-	elseif IsShiftKeyDown() then step("scale")
-	else c.width = clamp(c.width + delta * 4, RANGES.width)
-	end
-	layout()
-	self.label:SetText(describe())
-	ns.Options.refresh()
-end)
-function mover.update()
-	local on = SW.isOn() and not ns.getAccount().locked and not InCombatLockdown()
-	if on then
-		mover:ClearAllPoints()
-		mover:SetPoint("TOPLEFT", f, "TOPLEFT", -2, 2)
-		mover:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 2, -2)
-		local chosen = ns.Positioning.isSelected(movable)
-		if chosen then mover:SetBackdropBorderColor(1, 0.82, 0, 1)
-		else mover:SetBackdropBorderColor(0.2, 0.6, 1, 0.9) end
-		mover.label:SetText("Swing timer")
-	end
-	mover:SetShown(on)
-end
+movable = ns.Positioning.mover({ frame = f, label = "Swing timer", cfg = cfg, ranges = RANGES,
+	size = { key = "width", step = 4 }, shown = SW.isOn, place = layout,
+	lock = drawFace,
+	describe = function()
+		local c = cfg()
+		return string.format("Swing timer: %d x %d, scale %.2f, opacity %.0f%%", c.width, c.height, c.scale,
+			c.alpha * 100)
+	end })
 
 SW.afterGroups = layout
 
@@ -416,4 +320,7 @@ function SW.debug()
 		left and (left > 0 and string.format("next in %.1f s", left) or "due") or "no swing under way")
 end
 
-ns.registerModule(SW)
+Bars.register("swing", { label = "Swing timer", cfg = cfg, saved = "swingBar", defaults = SW.DEFAULTS,
+	ranges = RANGES, choices = CHOICES, on = SW.isOn, parts = { "border", "text", "bar" }, movable = movable,
+	hud = { show = showPreview } })
+MOD.register(SW)

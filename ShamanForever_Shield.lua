@@ -6,28 +6,29 @@
 -- never a false warning.
 
 local _, ns = ...
+local P = ns.Profiles
+local W = ns.Widgets
+local E, MOD = ns.Elements, ns.Modules
 local say, isSecret, safe = ns.say, ns.isSecret, ns.safe
 local Spells = ns.Spells
-local FR = ns.Frames
+local FR, Count = ns.Frames, W.Count
 
 local SH = { name = "shield" }
 ns.Shield = SH
 
--- Only one shield can be on at a time; Water Shield is a talent here (408510: its cast and buff)
+-- Only one shield can be on at a time; Water Shield is a talent here
 local SHIELDS = {
 	lightning = { spell = "lightningShield", icon = 136051, school = "air" },
 	water     = { spell = "waterShield",     icon = 132315, school = "water" },
 }
 local SHIELD_ORDER = { "lightning", "water" }
 
-local shield = ns.newElementIcon("shield")
+local shield = E.newIcon("shield")
 -- Blizzard's container hangs from this: its alpha changes only out of combat (an ancestor of the button)
 local gate = CreateFrame("Frame", nil, shield)
 gate:SetAllPoints(shield)
 -- The element's border while Blizzard's button isn't made
-local edge = CreateFrame("Frame", nil, gate)
-edge:SetAllPoints(shield)
-edge.owner = "shield"
+local edge = FR.edge(gate, shield, "shield")
 local IDLE_CHOICES = {
 	{ "never", "Never", "It always shows in full" },
 	{ "up", "Shield up", "Idle while your shield is up", "Shown in full only as No shield." },
@@ -36,14 +37,22 @@ local IDLE_CHOICES = {
 			.. "It shows in full at 1 charge and as No shield at 0",
 		"Shown in full at 1 charge and as No shield." },
 }
-ns.Profiles.addRanges({ countSize = { 8, 64 }, chargeBarHeight = { 1, 20 } })
-ns.registerElement("shield", { frame = shield, label = "Shields", paint = function(t) t:SetTexture(SH.icon()) end,
+local COUNT_POS, TRACK = {}, { "either" }
+for pos in pairs(W.COUNT_JUSTIFY) do table.insert(COUNT_POS, pos) end
+for _, key in ipairs(SHIELD_ORDER) do table.insert(TRACK, key) end
+E.register("shield", { frame = shield, label = "Shields", paint = function(t) t:SetTexture(SH.icon()) end,
 	learned = function() return SH.learned() end,
-	defaults = { idleWhen = "never", idleAlpha = 0.3, removedSound = "none" },
+	defaults = { idleWhen = "never", idleAlpha = 0.3,
+		track = "lightning",   -- lightning | water | either
+		count = { bar = true, barHeight = 8, barColor = { 0.42, 0.84, 1, 1 }, number = false, pos = "CENTER",
+			size = 20, mark = false, markColor = { 1, 0.25, 0.2, 1 } },
+		warn = { grey = true, ring = true, fade = false, tint = false, glow = true, sound = "none" } },
+	ranges = { count = { size = { 8, 64, 1 }, barHeight = { 1, 20, 1 } } },
+	choices = { track = TRACK, count = { pos = COUNT_POS } },
 	styles = { glow = { look = "soft" },
 		uptime = { text = false, swipe = false, swipeAlpha = 0.5, swipeReverse = false, bar = false, barEdge = "top" } },
 	def = { key = "shield", idleChoices = IDLE_CHOICES },
-	effects = { glow = { "missing" }, pop = {} },
+	effects = { glow = true, pop = false },
 	borderHost = edge,
 	standInBorder = true,
 	kind = "shield", icon = 136051, school = "spirit", blurb = "Charges and time left. Warns when it's gone.",
@@ -59,8 +68,11 @@ local upShield
 local native
 local copy   -- one-charge copy's aura slot
 
+local own = E.settingsOf("shield")
+local function count(field) return own("count", field) end
+
 local function tracksShield(key)
-	local track = ns.getDB().shieldTrack
+	local track = own("track")
 	return track == "either" or track == key
 end
 local function believedUp()
@@ -68,28 +80,15 @@ local function believedUp()
 	return upShield ~= "none" and tracksShield(upShield)
 end
 
-local COUNT_NUDGE = { CENTER = { 0, 0 }, TOPLEFT = { -2, 2 }, TOPRIGHT = { 2, 2 }, BOTTOMLEFT = { -2, -2 },
-	BOTTOMRIGHT = { 2, -2 } }
-local COUNT_POS_SAVED = { center = "CENTER", corner = "BOTTOMRIGHT" }
+local CHARGES = 3
+local function placeCount(fs, icon) Count.place(fs, icon, count("pos")) end
 
-function SH.placeCount(fs, icon)
-	local pos = ns.getDB().countPos
-	local nudge = COUNT_NUDGE[pos]
-	fs:ClearAllPoints()
-	fs:SetPoint(pos, icon, pos, nudge[1], nudge[2])
-	fs:SetJustifyH(ns.COUNT_JUSTIFY[pos])
-end
-
-function SH.sanitize(db, acct)
-	if db.shieldTrack ~= "either" and not SHIELDS[db.shieldTrack] then db.shieldTrack = "lightning" end
-	db.countPos = COUNT_POS_SAVED[db.countPos] or db.countPos
-	if not ns.COUNT_JUSTIFY[db.countPos] then db.countPos = "CENTER" end
+function SH.sanitize(_, acct)
 	if not SHIELDS[acct.lastShield] then acct.lastShield = "lightning" end
-	if not ns.isColor(db.countLastColor) then db.countLastColor = CopyTable(ns.DEFAULTS.countLastColor) end
 end
 
 local function shownShield()
-	local track, last = ns.getDB().shieldTrack, ns.getAccount().lastShield
+	local track, last = own("track"), P.getAccount().lastShield
 	if SHIELDS[track] then return track end
 	if SHIELDS[last] and SHIELDS[last].known then return last end
 	for _, key in ipairs(SHIELD_ORDER) do if SHIELDS[key].known then return key end end
@@ -148,8 +147,7 @@ local driven = false
 local function driveHolder()
 	if driven or InCombatLockdown() then return end
 	driven = true
-	local ok, err = pcall(RegisterStateDriver, holder, "visibility", "[@player,dead] hide; show")
-	if not ok then ns.noteError("shield warning holder", err) end
+	ns.setVisibilityDriver(holder, "[@player,dead] hide; show", "shield warning holder")
 end
 local look
 local lookOn, lookState, watching = false, nil, false
@@ -158,9 +156,6 @@ local lookOn, lookState, watching = false, nil, false
 -- LOAD_HOLD: after a loading screen, until the client lists the auras again
 local CAST_HOLD, LOAD_HOLD = 0.3, 1
 local holdUntil = 0
-local fighting = false
-
-local function aurasUnread() return fighting or InCombatLockdown() or ns.aurasSecret() end
 
 local function blocked()
 	return ns.cantAct() or ns.plainYes(UnitInVehicle, "player")
@@ -168,10 +163,10 @@ end
 
 local function stateNow()
 	if not lookOn or standIn then return nil end
-	if aurasUnread() then
+	if not ns.aurasReadNow() then
 		if GetTime() < holdUntil then return nil end
 	elseif believedUp() ~= false then return nil end
-	if blocked() then return ns.getDB().emptyGrey and "grey" or nil end
+	if blocked() then return own("warn", "grey") and "grey" or nil end
 	return "warn"
 end
 
@@ -179,9 +174,9 @@ end
 local function setLook(st)
 	if st ~= nil and lookState == nil then look:wait() end
 	lookState = st
-	local db, warn = ns.getDB(), st == "warn"
-	look:setParts(db.emptyGrey, warn and db.emptyTint, warn and db.emptyRing,
-		warn and db.emptyPulse, warn and db.emptyGlow)
+	local w = st == "warn"
+	local grey, tint, ring, fade, glow = W.warnParts("shield", "warn")
+	look:setParts(grey, w and tint, w and ring, w and fade, w and glow)
 	look:want(st ~= nil)
 end
 
@@ -191,7 +186,7 @@ local watch
 local function guard(self)
 	local st = stateNow()
 	if st ~= lookState then setLook(st) end
-	if not (aurasUnread() or GetTime() < holdUntil) then
+	if ns.aurasReadNow() and GetTime() >= holdUntil then
 		self:SetScript("OnUpdate", nil)
 		watching = false
 	end
@@ -211,14 +206,13 @@ local function placeLook()
 	look:style()
 	lookEdge:SetFrameLevel(lv)
 	FR.dress(lookEdge, "shield", lv)
-	if lookEdge.frameOverlay then lookEdge.frameOverlay:Hide() end
 end
 
 -- Idle
 -- Idle puts the gate, and with it Blizzard's button, at the Idle opacity: set out of combat, held
 -- through a fight. The No shield look doesn't hang from the gate and shows in full.
 local function idleWhen()
-	local w = ns.elementSetting("shield", "idleWhen")
+	local w = own("idleWhen")
 	return (w == "up" or w == "charges") and w or "never"
 end
 local copyReady, full
@@ -227,9 +221,9 @@ local gateNow = 1
 local function applyIdle()
 	if InCombatLockdown() then return end
 	local when = idleWhen()
-	local on = when ~= "never" and lookOn and ns.getAccount().locked
+	local on = when ~= "never" and lookOn and P.getAccount().locked
 		and (when ~= "charges" or copyReady())
-	gateNow = on and ns.idleAlpha("shield") or 1
+	gateNow = on and E.idleAlpha("shield") or 1
 	gate:SetAlpha(gateNow)
 	full:SetAlpha((on and when == "charges") and 1 or 0)
 end
@@ -255,7 +249,7 @@ function SH.applyEmptyLook()
 		glowSchool = school
 		look.glow:restyle()
 	end
-	lookOn = (known and covered and ns.isEnabled("shield")) and true or false
+	lookOn = (known and covered and E.isEnabled("shield")) and true or false
 	if standIn then
 		-- The stand-in draws the state shown over everything, at full opacity while the real shield may be
 		-- up under it
@@ -271,6 +265,7 @@ local function setUpShield(key)
 	SH.applyEmptyLook()
 end
 
+-- Water Shield's buff may be the client's second copy of the spell: both count
 local function shieldIDMap()
 	local map = {}
 	for key, s in pairs(SHIELDS) do
@@ -278,20 +273,21 @@ local function shieldIDMap()
 			for id in pairs(Spells.ids(s.spell)) do map[id] = true end
 		end
 	end
+	if tracksShield("water") then
+		for _, id in ipairs(Spells.extra("waterShieldCopy")) do map[id] = true end
+	end
 	return map
 end
 
 -- The sensor hangs from the element's frame, not the gate (which is 0 at Idle 0%)
-look = ns.makeClipLook(shield, {
+look = W.makeClipLook(shield, {
 	key = "shield", parent = holder, sensorParent = shield, ids = shieldIDMap, owner = "shield",
 	sites = {
 		container = "shield warning sensor", style = "shield warning style",
 		filter = "shield warning filter",
 	},
 })
-lookEdge = CreateFrame("Frame", nil, look.art)
-lookEdge:SetAllPoints(shield)
-lookEdge.owner = "shield"
+lookEdge = FR.edge(look.art, shield, "shield", { overlay = false })
 
 -- A sensor missing a tracked ID would stay empty over that shield, so the look waits
 local function checkIDs() look:checkIDs() end
@@ -319,14 +315,9 @@ local function learnShieldID(key, id)
 end
 
 -- Charges spent, cancelled or run out; a recast over a live shield stays silent
-local WATER_COPY = 408511
 function SH.applyRemovedSound()
-	local ids = {}
-	if ns.isEnabled("shield") then
-		for id in pairs(shieldIDMap()) do ids[id] = true end
-		if tracksShield("water") then ids[WATER_COPY] = true end
-	end
-	ns.Sounds.setAuraSound("shield", ns.elementSetting("shield", "removedSound"), ids)
+	local ids = E.isEnabled("shield") and shieldIDMap() or nil
+	ns.Sounds.setAuraSound("shield", own("warn", "sound"), ids)
 end
 
 function SH.resolve()
@@ -356,129 +347,60 @@ function SH.applyTimers()
 	look:reshape()
 end
 
+local function barColor()
+	local c = count("barColor")
+	return ns.isColor(c) and c or E.default("shield", "count", "barColor")
+end
+local function markColor()
+	local c = count("markColor")
+	return ns.isColor(c) and c or E.default("shield", "count", "markColor")
+end
+
+local function countFont(fs, icon)
+	ns.Media.setFont(fs, nil, count("size"))
+	placeCount(fs, icon)
+end
+
 local function buildNative(slot, button, cd)
-	local db = ns.getDB()
-	local size = ns.sizeOf("shield")
-	slot.edge = CreateFrame("Frame", nil, button)
-	slot.edge:SetAllPoints(button)
-	slot.edge.owner = "shield"
+	slot.edge = FR.edge(button, button, "shield", { overlay = false })
 	local overlay = CreateFrame("Frame", nil, button)
 	overlay:SetAllPoints()
 	overlay:SetFrameLevel(cd:GetFrameLevel() + 2)
 	slot.overlay = overlay
-
-	-- Blizzard writes the count on registration: font first
-	local fs = overlay:CreateFontString(nil, "OVERLAY", nil, 7)
-	ns.Media.setFont(fs, nil, db.countSize)
-	SH.placeCount(fs, button)
-	button:SetApplicationCount(fs)
-	slot.fs = fs
-
+	Count.text(slot, button, overlay, function(fs) countFont(fs, button) end, "shield count")
 	-- min 0: one charge is one third, not empty
-	local bar = CreateFrame("StatusBar", nil, overlay)
-	bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 0, 0)
-	bar:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 0)
-	bar:SetHeight(db.chargeBarHeight)
-	bar:SetStatusBarTexture(ns.Media.barTexture())
-	bar:SetStatusBarColor(db.chargeBarColor[1], db.chargeBarColor[2], db.chargeBarColor[3], db.chargeBarColor[4] or 1)
-	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
-	bar.bg:SetAllPoints()
-	bar.bg:SetColorTexture(0, 0, 0, 0.6)
-	local maxCharges = 3
-	button:SetApplicationBar(bar, { minApplications = 0, maxApplications = maxCharges })
-	slot.bar = bar
-	local ticks = CreateFrame("Frame", nil, overlay)
-	ticks:SetAllPoints(bar)
-	ticks:SetFrameLevel(bar:GetFrameLevel() + 1)
-	slot.tickTextures, slot.maxCharges = {}, maxCharges
-	for i = 1, maxCharges - 1 do
-		local t = ticks:CreateTexture(nil, "OVERLAY")
-		t:SetColorTexture(0, 0, 0, 0.9)
-		t:SetWidth(1)
-		t:SetPoint("TOP", ticks, "TOPLEFT", size * i / maxCharges, 0)
-		t:SetPoint("BOTTOM", ticks, "BOTTOMLEFT", size * i / maxCharges, 0)
-		table.insert(slot.tickTextures, t)
-	end
-	slot.ticks = ticks
-
-	bar:SetAlpha(db.showBar and 1 or 0)
-	ticks:SetAlpha(db.showBar and 1 or 0)
-	fs:SetAlpha(db.showCount and 1 or 0)
+	local bar = Count.bar(slot, overlay, button)
+	ns.try("shield count bar", button.SetApplicationBar, button, bar, { minApplications = 0, maxApplications = CHARGES })
+	Count.styleBar(slot, E.sizeOf("shield"), CHARGES, count("barHeight"), barColor(), count("bar"))
+	slot.fs:SetAlpha(count("number") and 1 or 0)
 end
 
--- Without a formatter Blizzard prints a count only from 2: a numeric rule formatter is used, tried
--- on counts 0 to 3 first (an error would stop Blizzard's aura update); nil falls back to its count
-local lastFormatters, made = {}, 0
-local function byte(v) return math.floor(math.min(math.max(v, 0), 1) * 255 + 0.5) end
-local function countOptions()
-	local db = ns.getDB()
-	if not (db.showCount and C_StringUtil and C_StringUtil.CreateNumericRuleFormatter) then return nil end
-	local code = ""
-	if db.countOne then
-		local c = db.countLastColor
-		code = string.format("|cff%02x%02x%02x", byte(c[1]), byte(c[2]), byte(c[3]))
-	end
-	local fm = lastFormatters[code]
-	if fm == nil then
-		if made >= 8 then wipe(lastFormatters); made = 0 end
-		made = made + 1
-		local ok, f = ns.try("shield count formatter", function()
-			local new = C_StringUtil.CreateNumericRuleFormatter()
-			local lastFormat = code ~= "" and (code .. "%d|r") or "%d"
-			new:SetBreakpoints({ { threshold = 0, format = "%d" }, { threshold = 1, format = lastFormat },
-				{ threshold = 2, format = "%d" } })
-			for n = 0, 3 do
-				local text = new:FormatNumber(n)
-				if type(text) ~= "string" or isSecret(text)
-					or (n == 1 and code ~= "" and not text:lower():find(code, 1, true)) then
-					error(string.format("formatted %d as %s", n, tostring(text)))
-				end
-			end
-			return new
-		end)
-		fm = ok and f or false
-		lastFormatters[code] = fm
-	end
-	return fm and { formatter = fm } or nil
-end
+-- The last charge in its colour; off, Blizzard prints a count only from 2
 local function applyCountFormat(slot)
-	local opts = countOptions()
-	local fm = opts and opts.formatter or nil
-	if fm == slot.countFormatter then return end
-	if ns.try("shield count", slot.button.SetApplicationCount, slot.button, slot.fs, opts) then slot.countFormatter = fm end
+	local fm = count("number") and Count.formatter(count("mark") and markColor() or nil, 1, CHARGES,
+		"shield count formatter")
+	Count.setFormat(slot, fm, "shield count")
 end
 
 local function styleNative(slot, size)
-	local db = ns.getDB()
 	ns.try("shield border", FR.dress, slot.edge, "shield")
-	if slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
 	applyCountFormat(slot)
-	for i, t in ipairs(slot.tickTextures or {}) do
-		t:ClearAllPoints()
-		t:SetPoint("TOP", slot.ticks, "TOPLEFT", size * i / slot.maxCharges, 0)
-		t:SetPoint("BOTTOM", slot.ticks, "BOTTOMLEFT", size * i / slot.maxCharges, 0)
-	end
-	slot.bar:SetHeight(db.chargeBarHeight)
-	slot.bar:SetStatusBarTexture(ns.Media.barTexture())
-	slot.bar:SetStatusBarColor(db.chargeBarColor[1], db.chargeBarColor[2], db.chargeBarColor[3], db.chargeBarColor[4] or 1)
-	slot.bar:SetAlpha(db.showBar and 1 or 0)
-	slot.ticks:SetAlpha(db.showBar and 1 or 0)
-	slot.fs:SetAlpha(db.showCount and 1 or 0)
-	ns.Media.setFont(slot.fs, nil, db.countSize)
-	SH.placeCount(slot.fs, slot.button)
+	Count.styleBar(slot, size, CHARGES, count("barHeight"), barColor(), count("bar"))
+	slot.fs:SetAlpha(count("number") and 1 or 0)
+	countFont(slot.fs, slot.button)
 	SH.applyEmptyLook()
 end
 
 -- The time bar sits on the charge bar, which is drawn over it
-function SH.timeBarInset()
-	local db = ns.getDB()
-	return db.showBar and db.chargeBarHeight or 0
+local function timeBarInset()
+	return count("bar") and count("barHeight") or 0
 end
 
-native = ns.makeAuraSlot(shield, {
-	key = "shield", slot = "shield", ids = shieldIDMap, name = "ShamanForeverAuraContainer", parent = gate,
+native = W.makeAuraSlot(shield, {
+	key = "shield", slot = "shield", ids = shieldIDMap, parent = gate,
+	name = ns.NAME .. "AuraContainer",
 	sites = { container = "shield container", style = "shield style", filter = "shield filter" },
-	barInset = SH.timeBarInset,
+	barInset = timeBarInset,
 	onButton = buildNative, onStyle = styleNative,
 	onError = function(err)
 		say("Blizzard aura container failed on this client; the shield icon will not update: %s", err)
@@ -493,21 +415,20 @@ native = ns.makeAuraSlot(shield, {
 -- It counts (copyReady) only once made, sized and matching every tracked shield; until then the gate
 -- stays full.
 local IDLE_LEVEL = 8   -- levels above the shield's button and its parts
-local WHITE = "Interface\\Buttons\\WHITE8x8"
-local SI = Enum and Enum.StatusBarInterpolation
-local IMMEDIATE = SI and SI.Immediate or 0
+local WHITE = ns.WHITE
+local IMMEDIATE = ns.Timer.AURA_BAR.interpolation
 
 full = CreateFrame("Frame", nil, shield)
 full:SetAllPoints(shield)
 full:SetAlpha(0)
 
 local function placeClip(slot, button, size)
-	local reach = math.ceil(ns.Looks.outerEdge(shield)) + 2
+	local reach = math.ceil(ns.StyleArt.outerEdge(shield)) + 2
 	local step = size + 2 * reach + 2
 	local bar, clip = slot.sensor, slot.clip
 	bar:ClearAllPoints()
 	bar:SetPoint("TOPLEFT", button, "TOPLEFT", -reach, reach)
-	bar:SetSize(3 * step, 2)
+	bar:SetSize(CHARGES * step, 2)
 	clip:ClearAllPoints()
 	clip:SetPoint("TOPLEFT", bar:GetStatusBarTexture(), "TOPRIGHT", -step, 0)
 	clip:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", reach, -reach)
@@ -517,84 +438,49 @@ local function copyHost(slot, button)
 	local bar = CreateFrame("StatusBar", nil, button)
 	bar:SetStatusBarTexture(WHITE)
 	bar:SetStatusBarColor(0, 0, 0, 0)
-	bar:SetMinMaxValues(0, 3)
+	bar:SetMinMaxValues(0, CHARGES)
 	bar:SetValue(0)
 	slot.sensor = bar
 	local clip = CreateFrame("Frame", nil, button, "DisableUntrustedLayoutScriptsTemplate")
 	clip:SetClipsChildren(true)
 	slot.clip = clip
-	placeClip(slot, button, ns.sizeOf("shield"))
+	placeClip(slot, button, E.sizeOf("shield"))
 	slot.sensed = ns.try("shield copy sensor", button.SetApplicationBar, button, bar,
-		{ minApplications = 0, maxApplications = 3, interpolation = IMMEDIATE })
+		{ minApplications = 0, maxApplications = CHARGES, interpolation = IMMEDIATE })
 	local host = CreateFrame("Frame", nil, clip)
 	host:SetAllPoints(button)
 	return host
 end
 
 local function styleCopy(slot, size)
-	local db = ns.getDB()
 	placeClip(slot, slot.button, size)
 	ns.try("shield copy border", FR.dress, slot.edge, "shield")
-	if slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
-	local bar = slot.bar
-	bar:SetHeight(db.chargeBarHeight)
-	bar:SetStatusBarTexture(ns.Media.barTexture())
-	local c = db.chargeBarColor
-	bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
-	bar:SetAlpha(db.showBar and 1 or 0)
-	for i, t in ipairs(slot.tickTextures) do
-		t:ClearAllPoints()
-		t:SetPoint("TOP", bar, "TOPLEFT", size * i / 3, 0)
-		t:SetPoint("BOTTOM", bar, "BOTTOMLEFT", size * i / 3, 0)
-		t:SetAlpha(db.showBar and 1 or 0)
-	end
+	Count.styleBar(slot, size, CHARGES, count("barHeight"), barColor(), count("bar"))
 	applyCountFormat(slot)
-	ns.Media.setFont(slot.fs, nil, db.countSize)
-	SH.placeCount(slot.fs, slot.host)
-	slot.fs:SetAlpha(db.showCount and 1 or 0)
+	countFont(slot.fs, slot.host)
+	slot.fs:SetAlpha(count("number") and 1 or 0)
 end
 
 local function buildCopy(slot, button)
 	slot.button = button
 	local host = slot.host
-	slot.edge = CreateFrame("Frame", nil, host)
-	slot.edge:SetAllPoints(host)
-	slot.edge.owner = "shield"
+	slot.edge = FR.edge(host, host, "shield", { overlay = false })
 	local parts = CreateFrame("Frame", nil, host)
 	parts:SetAllPoints(host)
 	-- Levels under the button may read secret: a failed read leaves the default
 	ns.try("shield copy level", function() parts:SetFrameLevel(slot.cd:GetFrameLevel() + 2) end)
 	slot.parts = parts
-	local db = ns.getDB()
-	-- Font first: Blizzard writes the count as it takes the font string
-	local fs = parts:CreateFontString(nil, "OVERLAY", nil, 7)
-	ns.Media.setFont(fs, nil, db.countSize)
-	SH.placeCount(fs, host)
-	button:SetApplicationCount(fs)
-	slot.fs = fs
-	local bar = CreateFrame("StatusBar", nil, parts)
-	bar:SetPoint("BOTTOMLEFT", host, "BOTTOMLEFT", 0, 0)
-	bar:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", 0, 0)
-	bar:SetMinMaxValues(0, 3)
+	Count.text(slot, button, parts, function(fs) countFont(fs, host) end, "shield count")
+	local bar = Count.bar(slot, parts, host)
+	bar:SetMinMaxValues(0, CHARGES)
 	bar:SetValue(1)
-	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
-	bar.bg:SetAllPoints()
-	bar.bg:SetColorTexture(0, 0, 0, 0.6)
-	slot.bar = bar
-	slot.tickTextures = {}
-	for i = 1, 2 do
-		local t = parts:CreateTexture(nil, "OVERLAY")
-		t:SetColorTexture(0, 0, 0, 0.9)
-		t:SetWidth(1)
-		slot.tickTextures[i] = t
-	end
-	slot.built = ns.try("shield copy style", styleCopy, slot, ns.sizeOf("shield"))
+	slot.built = ns.try("shield copy style", styleCopy, slot, E.sizeOf("shield"))
 	C_Timer.After(0, SH.applyEmptyLook)
 end
 
-copy = ns.makeAuraSlot(shield, {
+copy = W.makeAuraSlot(shield, {
 	key = "shield", slot = "shieldcopy", ids = shieldIDMap, parent = full, level = IDLE_LEVEL,
-	host = copyHost, barInset = SH.timeBarInset,
+	host = copyHost, barInset = timeBarInset,
 	sites = { container = "shield copy container", style = "shield copy style",
 		filter = "shield copy filter" },
 	onButton = function(slot, button) buildCopy(slot, button) end,
@@ -608,7 +494,7 @@ copy = ns.makeAuraSlot(shield, {
 -- While a restyle for a new Size is queued the answer stays: a dragged Size slider mustn't flicker the gate
 local readyLast = false
 copyReady = function()
-	local ready = copy.built and copy.sensed and copy.size == ns.sizeOf("shield") and copy.filtered ~= nil
+	local ready = copy.built and copy.sensed and copy.size == E.sizeOf("shield") and copy.filtered ~= nil
 	if not ready and copy.built and copy.sensed and copy.size and copy.filtered and copy.styleSoon then
 		ready = readyLast
 	end
@@ -628,10 +514,8 @@ function copy:refilter()
 end
 
 -- Auras can be secret out of combat too: keep the last read
-local function aurasReadable() return not InCombatLockdown() and not ns.aurasSecret() end
-
 local function refreshAura()
-	if not aurasReadable() then return end
+	if not ns.aurasReadable() then return end
 	local upKey
 	for _, key in ipairs(SHIELD_ORDER) do
 		local s = SHIELDS[key]
@@ -644,14 +528,14 @@ local function refreshAura()
 			end
 		end
 	end
-	if upKey then ns.getAccount().lastShield = upKey end
+	if upKey then P.getAccount().lastShield = upKey end
 	setUpShield(upKey or "none")
 end
 
 function SH.onCast(spellID)
 	local cast = castOf(spellID)
 	if not cast then return end
-	ns.getAccount().lastShield = cast
+	P.getAccount().lastShield = cast
 	if tracksShield(cast) then
 		holdUntil = GetTime() + CAST_HOLD
 		watch()
@@ -661,12 +545,12 @@ function SH.onCast(spellID)
 end
 
 -- The GCD gets its own sweep above the button (Blizzard's button owns the shield's time left)
-local shieldGCD = ns.makeGCDSweep(shield)
+local shieldGCD = W.makeGCDSweep(shield)
 shieldGCD:SetParent(gate)
 -- inCooldownEvent: from SPELL_UPDATE_COOLDOWN
 local function refreshGCD(inCooldownEvent)
-	local id = ns.isEnabled("shield") and ns.Style.value("shield", "gcd", "show")
-		and Spells.known(SHIELDS[shownShield()].spell)
+	local id = E.isEnabled("shield") and ns.Style.value("shield", "gcd", "show")
+		and SHIELDS[shownShield()].spellID
 	local d
 	if id and ns.Cooldowns.onGCD(id) then
 		local ok, dur = safe(C_Spell.GetSpellCooldownDuration, id)
@@ -681,11 +565,10 @@ local function refreshGCD(inCooldownEvent)
 end
 
 function SH.applyLayout()
+	SH.applyRemovedSound()
 	native:setup()
 	look:setup()
-	if idleWhen() == "charges" and ns.isEnabled("shield") then copy:setup() end
-	if native.container and not native.filtered then native:refilter() end
-	if copy.container and not copy.filtered then copy:refilter() end
+	if idleWhen() == "charges" and E.isEnabled("shield") then copy:setup() end
 	SH.style()
 	SH.applyEmptyLook()
 end
@@ -695,8 +578,6 @@ function SH.afterGroups()
 	SH.applyEmptyLook()
 end
 function SH.refresh()
-	if native.container and not native.filtered then native:refilter() end
-	if copy.container and not copy.filtered then copy:refilter() end
 	checkIDs()
 	refreshAura()
 	refreshGCD(false)
@@ -706,27 +587,14 @@ SH.onCooldowns = refreshGCD
 function SH.start()
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "UNIT_AURA", "player")
-	ns.registerEvent(ev, "PLAYER_REGEN_DISABLED")
-	ns.registerEvent(ev, "PLAYER_REGEN_ENABLED")
 	ns.registerEvent(ev, "PLAYER_ENTERING_WORLD")
 	ns.registerEvent(ev, "UNIT_ENTERED_VEHICLE", "player")
 	ns.registerEvent(ev, "UNIT_EXITED_VEHICLE", "player")
-	-- Auras may turn secret out of combat: the button becomes the switch
-	ns.registerEvent(ev, "ADDON_RESTRICTION_STATE_CHANGED")
 	ev:SetScript("OnEvent", function(_, event)
 		if event == "PLAYER_ENTERING_WORLD" then
 			holdUntil = math.max(holdUntil, GetTime() + LOAD_HOLD)
 			watch()
 			return
-		elseif event == "ADDON_RESTRICTION_STATE_CHANGED" then
-			watch()
-			return
-		elseif event == "PLAYER_REGEN_DISABLED" then
-			fighting = true
-			checkIDs()
-		elseif event == "PLAYER_REGEN_ENABLED" then
-			fighting = false
-			refreshAura()
 		elseif event == "UNIT_ENTERED_VEHICLE" or event == "UNIT_EXITED_VEHICLE" then
 			watch()
 		else
@@ -735,16 +603,22 @@ function SH.start()
 		end
 		SH.applyEmptyLook()
 	end)
+	-- Auras may turn secret out of combat: the button becomes the switch
+	ns.onRestrictionChange(function() watch() end)
+	ns.onCombatStart(function()
+		checkIDs()
+		SH.applyEmptyLook()
+	end)
 	ns.onCanActChange(SH.applyEmptyLook)
 end
 
 -- /sf debug
 function SH.debug()
 	local up = believedUp()
-	say("shield tracking %s (last %s), up at the last read %s (shield up %s)", ns.getDB().shieldTrack,
-		ns.getAccount().lastShield, up == nil and "unknown" or tostring(up), tostring(upShield))
+	say("shield tracking %s (last %s), up at the last read %s (shield up %s)", own("track"),
+		P.getAccount().lastShield, up == nil and "unknown" or tostring(up), tostring(upShield))
 	say("no-shield look: %s, %s, state %s; button %s, cast hold %s", lookOn and "on" or "off",
-		aurasUnread() and "sensor decides" or "read decides too", tostring(lookState),
+		ns.aurasReadNow() and "read decides too" or "sensor decides", tostring(lookState),
 		native.button and "made" or "not made", GetTime() < holdUntil and "on" or "off")
 	for _, key in ipairs(SHIELD_ORDER) do
 		local s = SHIELDS[key]
@@ -755,18 +629,52 @@ function SH.debug()
 		native.err and (", error: " .. native.err) or "")
 	say("no-shield sensor: %s", look:describe())
 	say("idle %s at %.2f, gate %.2f; one-charge copy %s%s, button %s, sensor %s, counts %s",
-		idleWhen(), ns.idleAlpha("shield"), gateNow, copy.container and "made" or "not made",
+		idleWhen(), E.idleAlpha("shield"), gateNow, copy.container and "made" or "not made",
 		copy.err and (" (error: " .. copy.err .. ")") or "", copy.built and "built" or "not made",
 		tostring(copy.sensed), tostring(copyReady()))
 	local t = {} for id in pairs(shieldIDMap()) do table.insert(t, tostring(id)) end table.sort(t)
 	say("tracked spell IDs: %s", table.concat(t, ","))
 end
 
--- Preview: Blizzard's button can't be shown or hidden by addon code, so a stand-in draws over it
+-- Preview (ns.registerKind): Blizzard's button can't be shown or hidden by addon code, so a stand-in
+-- draws over it (hold)
 shield.aboveProtected = true
-function SH.preview(icon)
-	standIn = icon
-	SH.applyEmptyLook()
-end
+local PREVIEW = {
+	uptime = true, barInset = timeBarInset,
+	warning = "down",
+	states = { { "up3", "3 charges" }, { "up2", "2 charges" }, { "up1", "1 charge" },
+		{ "down", "No shield" } },
+	render = function(ic, st, kit)
+		kit.reset(ic, SHIELDS[own("track") == "water" and "water" or "lightning"].icon)
+		if st == "down" then
+			ic:SetWarnParts(W.warnParts("shield", "warn"))
+			return
+		end
+		local n = st == "up3" and 3 or st == "up2" and 2 or 1
+		kit.frozen(ic.upT, 0.38, 600)
+		if count("bar") then
+			local c = barColor()
+			ic.bar:SetHeight(count("barHeight"))
+			kit.setBar(ic, CHARGES, n, c[1], c[2], c[3], c[4])
+		end
+		if count("number") then
+			ns.Media.setFont(ic.count, nil, count("size"))
+			placeCount(ic.count, ic)
+			ic.count:SetText(n)
+			ic.count:Show()
+			local c = (n == 1 and count("mark")) and count("markColor") or { 1, 1, 1 }
+			ic.count:SetTextColor(c[1], c[2], c[3])
+		end
+	end,
+	idles = function(st, when)
+		if when == "up" then return st ~= "down" end
+		return when == "charges" and (st == "up3" or st == "up2")
+	end,
+	hold = function(icon)
+		standIn = icon
+		SH.applyEmptyLook()
+	end,
+}
+ns.registerKind("shield", { preview = function() return PREVIEW end })
 
-ns.registerModule(SH)
+MOD.register(SH)

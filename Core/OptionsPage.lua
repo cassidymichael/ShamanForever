@@ -1,6 +1,8 @@
 -- Page kit: scrolling pages of rows grouped into foldable blocks
 
 local _, ns = ...
+local W = ns.Widgets
+local E, G, Bars, P = ns.Elements, ns.Groups, ns.Bars, ns.Profiles
 
 local Page = {}
 Page.__index = Page
@@ -15,8 +17,8 @@ local SLIDER_SPAN_W = 400
 local TEXT_MAX_W = 600
 local PANEL_PAD, PANEL_PAD_B, BLOCK_GAP = 10, 6, 10
 -- Fold state is saved per page and header text; an untouched block starts folded unless it is
--- -- the page's first, under an open section, or its page or header says open.
-local function folded() return ns.getAccount().foldedBlocks end
+-- the page's first, under an open section, or its page or header says open.
+local function folded() return P.getAccount().foldedBlocks end
 local function isFolded(b)
 	local v = folded()[b.key]
 	if v == nil then return b.startFolded end
@@ -25,20 +27,7 @@ end
 local allPages = {}
 local SUB_INDENT, SUB_MAX, RULE_X = 24, 2, 12
 
-function Page.setTip(frame, title, text, above)
-	if not text then return end
-	frame:SetScript("OnEnter", function(self)
-		if above then
-			GameTooltip:SetOwner(self, "ANCHOR_NONE")
-			GameTooltip:ClearAllPoints()
-			GameTooltip:SetPoint("BOTTOMLEFT", self, "TOPLEFT", 0, 2)
-		else GameTooltip:SetOwner(self, "ANCHOR_RIGHT") end
-		GameTooltip:SetText(title)
-		GameTooltip:AddLine(text, 1, 1, 1, true)
-		GameTooltip:Show()
-	end)
-	frame:SetScript("OnLeave", function() GameTooltip:Hide() end)
-end
+Page.setTip = W.setTip
 
 -- Pages
 function Page.new(win, key, title, indent)
@@ -67,7 +56,7 @@ function Page.new(win, key, title, indent)
 	end)
 	content:SetScript("OnSizeChanged", function() scroll:UpdateScrollChildRect() end)
 	-- Blizzard's handler re-sets the position from its scroll bar's fraction: the held place is put
-	-- -- back after it.
+	-- back after it.
 	scroll:HookScript("OnScrollRangeChanged", function() if page.hold then page:keepScroll() end end)
 	scroll:Hide()
 	table.insert(allPages, page)
@@ -75,8 +64,8 @@ function Page.new(win, key, title, indent)
 end
 
 -- Resizing feeds back on itself (the range follows the frame, the position the range) and can send
--- -- the page to the top: from the grip's press until two frames after its release the page holds
--- -- its place, and it is laid out once at the end.
+-- the page to the top: from the grip's press until two frames after its release the page holds
+-- its place, and it is laid out once at the end.
 local resized
 
 function Page.startResize(page)
@@ -346,7 +335,7 @@ local function onList(b)
 	return table.concat(on, ", ")
 end
 
--- A client without the trainer's atlases gets the totem bar's arrow.
+-- A client without the trainer's atlases gets Blizzard's older arrow.
 local ARROW_BOX = 14
 local arrowAtlas = {}
 local function paintArrow(t, shut)
@@ -467,7 +456,7 @@ end
 
 function Page:label(f, text, tip)
 	f:EnableMouse(true)
-	Page.setTip(f, text, tip, true)
+	Page.setTip(f, text, tip, "above")
 	local fs = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	fs:SetPoint("LEFT", 4, 0)
 	fs:SetWidth(LABEL_W - 8)
@@ -477,7 +466,8 @@ function Page:label(f, text, tip)
 end
 
 -- What a block owns: refs to its settings, to tell whether it differs and to reset it.
--- Ref kinds: elem, general, bar, group, style; optional after, default, changed, reset, label.
+-- Ref kinds: elem, general, bar, group, style; optional field (elem and bar: one field of a state
+-- or event table), after, default, changed, reset, label.
 local REF = {}
 
 function Page.refKind(kind, spec) REF[kind] = spec end
@@ -493,7 +483,6 @@ local function same(a, b)
 	for k in pairs(b) do if a[k] == nil then return false end end
 	return true
 end
-Page.same = same
 
 local function defaultOf(r)
 	if r.default then return r.default() end
@@ -513,7 +502,7 @@ local function refChanged(r)
 end
 
 -- The same path as a change by hand, so combat rules hold: layout waits, aura buttons restyle
--- -- after combat, and what can't change in combat is left, said once.
+-- after combat, and what can't change in combat is left, said once.
 local function resetRefs(list)
 	local afters, seen, refused = {}, {}, {}
 	for _, r in ipairs(list) do
@@ -551,25 +540,34 @@ local function askReset(name, run) StaticPopup_Show(ns.POPUP .. "RESET_SETTINGS"
 Page.refKind("elem", {
 	id = function(r) return r.elem .. "." .. r.name .. (r.field and "." .. r.field or "") end,
 	holder = function(r)
-		local o = ns.elementOpts(r.elem)
+		local o = E.opts(r.elem)
 		if not r.field then return o end
 		return type(o[r.name]) == "table" and o[r.name] or nil
 	end,
 	slot = function(r) return r.field or r.name end,
-	default = function(r) return ns.elementDefault(r.elem, r.name) end,
+	default = function(r) return E.default(r.elem, r.name, r.field) end,
 	unset = true,
 })
 Page.refKind("general", {
 	id = function(r) return r.general end,
-	holder = function() return ns.getDB() end,
+	holder = function() return P.getDB() end,
 	slot = function(r) return r.general end,
-	default = function(r) return ns.DEFAULTS[r.general] end,
+	default = function(r) return P.DEFAULTS[r.general] end,
 })
 Page.refKind("bar", {
-	id = function(r) return r.bar .. "." .. r.name end,
-	holder = function(r) return ns.Style.bar(r.bar).cfg() end,
-	slot = function(r) return r.name end,
-	default = function(r) return ns.Style.bar(r.bar).DEFAULTS[r.name] end,
+	id = function(r) return r.bar .. "." .. r.name .. (r.field and "." .. r.field or "") end,
+	holder = function(r)
+		local c = Bars.get(r.bar).cfg()
+		if not r.field then return c end
+		return type(c[r.name]) == "table" and c[r.name] or nil
+	end,
+	slot = function(r) return r.field or r.name end,
+	default = function(r)
+		local d = Bars.get(r.bar).defaults[r.name]
+		if not r.field then return d end
+		if type(d) ~= "table" then return nil end
+		return d[r.field]
+	end,
 })
 local function groupOf(r) if type(r.group) == "function" then return r.group() end return r.group end
 Page.refKind("group", {
@@ -578,12 +576,12 @@ Page.refKind("group", {
 	slot = function(r) return r.name end,
 	default = function(r)
 		local g = groupOf(r)
-		for _, shipped in ipairs(g and ns.DEFAULTS.groups or {}) do
+		for _, shipped in ipairs(g and ns.CLASS.layout or {}) do
 			if shipped.id == g.id and shipped.name == g.name and shipped[r.name] ~= nil then
 				return shipped[r.name]
 			end
 		end
-		return ns.GROUP_DEFAULTS[r.name]
+		return G.DEFAULTS[r.name]
 	end,
 })
 
@@ -597,16 +595,16 @@ end
 Page.refKind("style", {
 	id = function(r) return r.style .. "." .. tostring(r.owner) end,
 	changed = function(r)
-		local St = ns.Style
+		local S = ns.Style
 		local o, chosen = styleOwner(r)
 		if not chosen then return false end
-		local follows, shipped = St.readShipped(o, r.style)
+		local follows, shipped = S.readShipped(o, r.style)
 		if o ~= nil then
-			local now = St.follows(o, r.style)
+			local now = S.follows(o, r.style)
 			if now ~= follows then return true end
 			if now then return false end
 		end
-		return not same(St.read(o, r.style), shipped)
+		return not same(S.read(o, r.style), shipped)
 	end,
 	reset = function(r)
 		local o, chosen = styleOwner(r)
@@ -685,7 +683,7 @@ function Page:header(text, shown, note, icon, opts)
 		f.icon:SetSize(20, 20)
 		f.icon:SetPoint("BOTTOMLEFT", x, 5)
 		f.icon:SetTexture(icon)
-		ns.cropIcon(f.icon)
+		W.cropIcon(f.icon)
 	end
 	f.text:SetText(text)
 	if note then
@@ -918,7 +916,7 @@ function Page:dropdown(label, tip, choices, get, set, shown, width, menu)
 	end
 	f.dropdown = dd
 	-- Never while the list is open: Blizzard rebuilds it in place and a scrolling one keeps old rows
-	-- -- (blank gaps); a change waits for it to close.
+	-- (blank gaps); a change waits for it to close.
 	local was
 	local function update()
 		local now = tostring(get())
@@ -943,7 +941,7 @@ function Page:color(label, tip, get, set, shown, opaque)
 	local b = CreateFrame("Button", nil, f, "BackdropTemplate")
 	b:SetSize(22, 22)
 	b:SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
-	b:SetBackdrop(ns.BACKDROP)
+	b:SetBackdrop(W.BACKDROP)
 	b:SetBackdropColor(0.5, 0.5, 0.5, 1)
 	b:SetBackdropBorderColor(1, 1, 1, 0.6)
 	b.swatch = b:CreateTexture(nil, "ARTWORK")
@@ -967,22 +965,6 @@ function Page:color(label, tip, get, set, shown, opaque)
 		local c = get() or { 0.5, 0.5, 0.5, 1 }
 		b.swatch:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
 	end)
-end
-
-function Page:button(textFn, onClick, tip, width, shown)
-	local f = self:row(32)
-	local btn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-	btn:SetSize(width or 160, 22)
-	btn:SetPoint("LEFT", 0, 0)
-	btn:SetScript("OnClick", onClick)
-	btn:SetScript("OnEnter", function(button)
-		GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
-		GameTooltip:SetText(textFn())
-		GameTooltip:AddLine(tip, 1, 1, 1, true)
-		GameTooltip:Show()
-	end)
-	btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
-	return self:add(f, 32, shown, function() btn:SetText(textFn()) end)
 end
 
 function Page:buttons(list, shown)
@@ -1013,16 +995,16 @@ function Page:pin(h)
 	h:SetPoint("TOPRIGHT", win, "TOPRIGHT", -22, PAGE_TOP)
 	h:Hide()
 	self.fixed = h
-	self.scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, PAGE_TOP - (h.heroH or ns.Look.HERO_H))
+	self.scroll:SetPoint("TOPLEFT", win, "TOPLEFT", NAV_W + 18, PAGE_TOP - (h.heroH or ns.OptionsArt.HERO_H))
 	return h
 end
 
 function Page:hero(key)
-	return self:pin(ns.Look.buildHero(self.win, key))
+	return self:pin(ns.OptionsArt.buildHero(self.win, key))
 end
 
 function Page.panelBackdrop(f, r, g, b)
-	f:SetBackdrop(ns.BACKDROP)
+	f:SetBackdrop(W.BACKDROP)
 	f:SetBackdropColor(0.09, 0.075, 0.06, 1)
 	f:SetBackdropBorderColor(r or 0.23, g or 0.17, b or 0.10, 1)
 end
@@ -1041,12 +1023,12 @@ function Page:cards(label, tip, choices, get, set, shown)
 		b.icon:SetSize(34, 34)
 		b.icon:SetPoint("TOP", 0, -8)
 		b.icon:SetTexture(c[3])
-		ns.cropIcon(b.icon)
+		W.cropIcon(b.icon)
 		b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		b.text:SetPoint("TOP", b.icon, "BOTTOM", 0, -5)
 		b.text:SetWidth(CARD_W - 6)
 		b.text:SetText(c[2])
-		local badge = c[4] and ns.Look.expBadge(b, c[4]) or c.tag and ns.Look.tagBadge(b, c.tag)
+		local badge = c[4] and ns.OptionsArt.expBadge(b, c[4]) or c.tag and ns.OptionsArt.tagBadge(b, c.tag)
 		if badge then
 			badge:SetScale(0.8)
 			badge:SetPoint("BOTTOM", 0, 5)
@@ -1078,7 +1060,7 @@ function Page:bigButtons(list)
 		b.icon:SetSize(36, 36)
 		b.icon:SetPoint("LEFT", 12, 0)
 		b.icon:SetTexture(t[1])
-		ns.cropIcon(b.icon)
+		W.cropIcon(b.icon)
 		b.title = b:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 		b.title:SetPoint("TOPLEFT", b.icon, "TOPRIGHT", 10, -1)
 		b.sub = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -1155,7 +1137,6 @@ function Page:experimental(name, where)
 end
 
 -- Drag and drop in a list
--- K 952 1058
 function Page.dragGhost(onMove)
 	local ghost = CreateFrame("Frame", nil, UIParent)
 	ghost:SetFrameStrata("TOOLTIP")
@@ -1164,7 +1145,7 @@ function Page.dragGhost(onMove)
 	ghost.icon = ghost:CreateTexture(nil, "ARTWORK")
 	ghost.icon:SetSize(20, 20)
 	ghost.icon:SetPoint("LEFT", 2, 0)
-	ns.cropIcon(ghost.icon)
+	W.cropIcon(ghost.icon)
 	ghost.text = ghost:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	ghost.text:SetPoint("LEFT", ghost.icon, "RIGHT", 6, 0)
 	ghost:Hide()

@@ -1,13 +1,13 @@
 -- Sounds
 
 local _, ns = ...
+local E, P = ns.Elements, ns.Profiles
 
-local S = {}
-ns.Sounds = S
+local SN = {}
+ns.Sounds = SN
 
 local GAP = 2   -- seconds
 local SAME = 0.5   -- seconds
-local QUIET = 3   -- seconds after a loading screen
 
 local GAME = {
 	{ "raid", "Raid warning", "RAID_WARNING", 567397 },
@@ -24,26 +24,19 @@ local GAME = {
 local gameByName = {}
 for _, g in ipairs(GAME) do gameByName[g[1]] = g end
 
-S.CHANNELS = { { "Master", "Master" }, { "SFX", "Sound effects" }, { "Dialog", "Dialog" } }
+SN.CHANNELS = { { "Master", "Master" }, { "SFX", "Sound effects" }, { "Dialog", "Dialog" } }
 local CHANNEL_OK = { Master = true, SFX = true, Dialog = true }
 
 local function kit(g) return SOUNDKIT and SOUNDKIT[g[3]] end
 
--- LibSharedMedia, if loaded
-local LSM
-local function lsm()
-	local LibStub = _G.LibStub
-	if LSM == nil and LibStub then LSM = LibStub("LibSharedMedia-3.0", true) end
-	return LSM
-end
 local function lsmSound(name)
 	if name == "None" then return nil end
-	local l = lsm()
+	local l = ns.Media.lsm()
 	return l and l:Fetch("sound", name, true) or nil
 end
 
 -- A sound file ID, for engine-played sounds (aura sounds); nil when the value has none
-function S.fileID(value)
+function SN.fileID(value)
 	local g = gameByName[value]
 	if g then return kit(g) and g[4] or nil end
 	local f = lsmSound(value)
@@ -63,25 +56,24 @@ local function resolve(value)
 	if path then return "file", path end
 end
 
-function S.channel()
-	local c = ns.getAccount().soundChannel
+function SN.channel()
+	local c = P.getAccount().soundChannel
 	return CHANNEL_OK[c] and c or "Master"
 end
 
 local function emit(value)
 	local how, what = resolve(value)
-	if how == "kit" then pcall(PlaySound, what, S.channel())
-	elseif how == "file" then pcall(PlaySoundFile, what, S.channel()) end
+	if how == "kit" then ns.try("sound", PlaySound, what, SN.channel())
+	elseif how == "file" then ns.try("sound", PlaySoundFile, what, SN.channel()) end
 end
 
-local quietUntil = 0
 local lastByAlert, lastBySound = {}, {}
 
--- zoning: an end a loading screen can cause (totem gone, imbue read empty) waits until after it
-function S.play(value, alert, gap, zoning)
-	if not resolve(value) or not ns.isActive() then return end
+-- zoning: an end a loading screen can cause waits until after it
+function SN.play(value, alert, gap, zoning)
+	if not resolve(value) or not E.isActive() then return end
+	if (zoning and ns.zoning()) or ns.cantAct() then return end
 	local now = GetTime()
-	if (zoning and now < quietUntil) or ns.cantAct() then return end
 	alert = alert or value
 	if lastByAlert[alert] and now - lastByAlert[alert] < (gap or GAP) then return end
 	lastByAlert[alert] = now
@@ -90,11 +82,13 @@ function S.play(value, alert, gap, zoning)
 	emit(value)
 end
 
-function S.element(key, name, zoning)
-	if ns.isEnabled(key) then S.play(ns.elementSetting(key, name), key .. ":" .. name, nil, zoning) end
+-- An element's sound for a state or event (its sound field)
+function SN.element(key, event, zoning)
+	if E.isEnabled(key) then SN.play(E.setting(key, event, "sound"), key .. ":" .. event, nil, zoning) end
 end
 
-function S.test(value) emit(value) end
+function SN.test(value) emit(value) end
+function SN.playable(value) return resolve(value) ~= nil end
 
 -- Aura sounds: the engine plays them, so they work in combat. Set out of combat only.
 local REMOVED = 2   -- Enum.UnitAuraSoundTrigger.Removed
@@ -102,19 +96,21 @@ local auraSounds = {}   -- owner -> { value, ids, trigger, sig, handles }
 
 local function dropAura(a)
 	if not (C_UnitAuras and C_UnitAuras.RemoveAuraSound) then return end
-	for _, h in ipairs(a.handles) do pcall(C_UnitAuras.RemoveAuraSound, h) end
+	for _, h in ipairs(a.handles) do
+		ns.try("aura sound: remove", C_UnitAuras.RemoveAuraSound, h)
+	end
 	wipe(a.handles)
 end
 
 local function applyAura(owner)
 	local a = auraSounds[owner]
-	local file = S.fileID(a.value)
+	local file = SN.fileID(a.value)
 	local list = {}
 	if file then
 		for id in pairs(a.ids) do table.insert(list, id) end
 		table.sort(list)
 	end
-	local sig = #list > 0 and (file .. ":" .. S.channel() .. ":" .. a.trigger .. ":" .. table.concat(list, ",")) or ""
+	local sig = #list > 0 and (file .. ":" .. SN.channel() .. ":" .. a.trigger .. ":" .. table.concat(list, ",")) or ""
 	if sig == a.sig then return end
 	if ns.deferInCombat("aura sound " .. owner, function() applyAura(owner) end) then return end
 	a.sig = sig
@@ -125,15 +121,15 @@ local function applyAura(owner)
 	local trigger = enum and enum[a.trigger] or (a.trigger == "Removed" and REMOVED or nil)
 	if not trigger then return end
 	for _, id in ipairs(list) do
-		local ok, h = pcall(add, trigger, { unitToken = "player", spellID = id, soundFileID = file,
-			outputChannel = S.channel(), throttleSeconds = 1 })
+		local ok, h = ns.try("aura sound: add", add, trigger, { unitToken = "player", spellID = id,
+			soundFileID = file, outputChannel = SN.channel(), throttleSeconds = 1 })
 		if ok and type(h) == "number" and not ns.isSecret(h) then table.insert(a.handles, h) end
 	end
 end
 
 -- owner: a key of the caller's; ids: a set of the player's aura spell IDs (empty or nil for none);
 -- trigger: an Enum.UnitAuraSoundTrigger name, "Removed" by default
-function S.setAuraSound(owner, value, ids, trigger)
+function SN.setAuraSound(owner, value, ids, trigger)
 	local a = auraSounds[owner]
 	if not a then
 		a = { sig = "", handles = {} }
@@ -143,79 +139,35 @@ function S.setAuraSound(owner, value, ids, trigger)
 	applyAura(owner)
 end
 
-local function applyAllAuras()
+-- The engine's aura sounds are set again on the new channel
+function SN.setChannel(channel)
+	P.getAccount().soundChannel = channel
 	for owner in pairs(auraSounds) do applyAura(owner) end
 end
 
 local ev = CreateFrame("Frame")
-ns.registerEvent(ev, "PLAYER_LEAVING_WORLD")
-ns.registerEvent(ev, "PLAYER_ENTERING_WORLD")
 ns.registerEvent(ev, "PLAYER_LOGOUT")
-ev:SetScript("OnEvent", function(_, event)
-	if event == "PLAYER_LOGOUT" then
-		for _, a in pairs(auraSounds) do dropAura(a) end
-		return
-	end
-	-- Slot or enchant may read empty around a loading screen
-	quietUntil = event == "PLAYER_LEAVING_WORLD" and math.huge or GetTime() + QUIET
+ev:SetScript("OnEvent", function()
+	for _, a in pairs(auraSounds) do dropAura(a) end
 end)
 
 -- The options
-function S.choices(current)
+function SN.choices(current)
 	local out = { { "none", "None" } }
 	for _, g in ipairs(GAME) do
 		if kit(g) then table.insert(out, { g[1], g[2] }) end
 	end
-	local l = lsm()
-	if l then
-		local more = {}
-		for name in pairs(l:HashTable("sound")) do
-			if type(name) == "string" and name ~= "None" and not gameByName[name] then table.insert(more, { name, name }) end
-		end
-		table.sort(more, function(a, b) return a[1] < b[1] end)
-		for _, m in ipairs(more) do table.insert(out, m) end
-	end
-	if type(current) == "string" and current ~= "none" and current ~= "" then
-		local listed = false
-		for _, c in ipairs(out) do if c[1] == current then listed = true break end end
-		if not listed then table.insert(out, { current, current }) end
-	end
-	return out
+	local listed = type(current) == "string" and current ~= "none" and current ~= "" and current or nil
+	return ns.Media.withShared(out, "sound", function(name)
+		if name ~= "None" and not gameByName[name] then return { name, name } end
+	end, listed)
 end
 
 -- Only the sounds the engine can play from a file ID
-function S.fileChoices(current)
+function SN.fileChoices(current)
 	local out = {}
-	for _, c in ipairs(S.choices(current)) do
-		if c[1] == "none" or S.fileID(c[1]) then table.insert(out, c) end
+	for _, c in ipairs(SN.choices(current)) do
+		if c[1] == "none" or SN.fileID(c[1]) then table.insert(out, c) end
 	end
 	return out
-end
-
-function S.row(p, label, tip, get, set, shown, choices)
-	choices = choices or S.choices
-	local row = p:dropdown(label, tip, function() return choices(get()) end, function() return get() or "none" end,
-		function(v) set(v); S.test(v) end, shown, 200)
-	local play = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-	play:SetSize(60, 22)
-	play:SetPoint("LEFT", row.dropdown, "RIGHT", 8, 0)
-	play:SetText("Play")
-	play:SetScript("OnClick", function() S.test(get()) end)
-	local item = p.items[#p.items]
-	local refresh = item.refresh
-	item.refresh = function()
-		refresh()
-		play:SetEnabled(resolve(get()) ~= nil)
-	end
-	return row
-end
-
-function S.generalBlock(p)
-	p:header("Sounds")
-	p:text("Elements and the totem bar pick their own sounds, on their pages. All start at None.")
-	p:dropdown("Channel", "Master plays even with sound effects off.", S.CHANNELS, S.channel, function(v)
-		ns.getAccount().soundChannel = v
-		applyAllAuras()
-		ns.Options.refresh()
-	end, nil, 160)
 end

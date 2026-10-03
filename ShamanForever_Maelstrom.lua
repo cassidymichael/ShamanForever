@@ -7,8 +7,11 @@
 -- handler or reads back.
 
 local _, ns = ...
+local P = ns.Profiles
+local W = ns.Widgets
+local E, G, MOD = ns.Elements, ns.Groups, ns.Modules
 local say, isSecret, safe = ns.say, ns.isSecret, ns.safe
-local Spells = ns.Spells
+local Spells, Count = ns.Spells, W.Count
 
 -- The buff's seed ID, kept out of Spells.DEFS: it shares its name with the talent, and two keys with
 -- one name would make the name lookup file a new ID under either at random
@@ -21,38 +24,44 @@ local function buffIcon()
 	end
 end
 
-local M = { name = "maelstrom" }
-ns.Maelstrom = M
+local MW = { name = "maelstrom" }
+ns.Maelstrom = MW
 
 local KEY = "maelstrom"
-local WHITE = "Interface\\Buttons\\WHITE8x8"
-local SI = Enum and Enum.StatusBarInterpolation
-local IMMEDIATE = SI and SI.Immediate or 0
+local WHITE = ns.WHITE
+local IMMEDIATE = ns.Timer.AURA_BAR.interpolation
 
-M.DEFAULTS = {
+-- count: the stack bar and number (pos: BOTTOMRIGHT | CENTER; mark: the number in markColor at
+-- five); active: five stacks
+MW.DEFAULTS = {
 	idleWhen = "notup", idleAlpha = 0,
-	stackBar = true, stackBarHeight = 6, stackBarColor = { 0.52, 0.69, 1, 1 },
-	stackCount = true, countPos = "center", countSize = 18,
-	fullCount = true, fullCountColor = { 1, 0.82, 0.25, 1 },
-	fullPop = true,
-	fullGlow = true,
+	count = { bar = true, barHeight = 6, barColor = { 0.52, 0.69, 1, 1 }, number = true, pos = "CENTER", size = 18,
+		mark = true, markColor = { 1, 0.82, 0.25, 1 } },
+	active = { pop = true, glow = true },
 }
-M.RANGES = { stackBarHeight = { 1, 20 }, countSize = { 8, 40 } }
-local CHOICES = { countPos = { corner = true, center = true },
-	idleWhen = { never = true, notup = true, five = true } }
+MW.RANGES = { count = { barHeight = { 1, 20, 1 }, size = { 8, 40, 1 } } }
+local CHOICES = { idleWhen = { "never", "notup", "five" }, count = { pos = { "BOTTOMRIGHT", "CENTER" } } }
+-- spellID: the talent's, once known
+local DEF = { key = KEY, idleChoices = {
+	{ "never", "Never", "It always shows in full" },
+	{ "notup", "Not up", "Idle while it isn't up" },
+	{ "five", "Below five stacks", "Idle while it's below five stacks or not up",
+		"Below five stacks: shown in full only at five." },
+} }
 
-local function setting(name) return ns.elementSetting(KEY, name) end
-local function color(name)
-	local c = setting(name)
-	return ns.isColor(c) and c or M.DEFAULTS[name]
+local own = E.settingsOf(KEY)
+local function count(field) return own("count", field) end
+local function color(field)
+	local c = count(field)
+	return ns.isColor(c) and c or MW.DEFAULTS.count[field]
 end
-local function number(name)
-	local v, r = setting(name), M.RANGES[name]
-	if type(v) ~= "number" or v ~= v then v = M.DEFAULTS[name] end
+local function number(field)
+	local v, r = count(field), MW.RANGES.count[field]
+	if type(v) ~= "number" or v ~= v then v = MW.DEFAULTS.count[field] end
 	return math.min(math.max(v, r[1]), r[2])
 end
 
--- M.follow can point the same parts at another stacking aura (to try the looks without the talent)
+-- What the parts follow: the buff, or the stacking aura MW.follow gives
 local BUFF = {
 	ids = function()
 		local t = {}
@@ -60,100 +69,50 @@ local BUFF = {
 		return t
 	end,
 	max = 5,
-	learned = function() return M.spellID ~= nil end,
+	learned = function() return DEF.spellID ~= nil end,
 }
 local src = BUFF
 
-M.icon = buffIcon() or 237584
-local f = ns.newElementIcon(KEY, { effects = true })
-f.tex:SetTexture(M.icon)
+MW.icon = buffIcon() or 237584
+local f = E.newIcon(KEY, { effects = true })
+f.tex:SetTexture(MW.icon)
 f.aboveProtected = true   -- Blizzard's buttons sit on it: alpha only changes out of combat
 f.stack()
 
-ns.registerElement(KEY, { frame = f, label = Spells.name("maelstromWeapon"), defaults = M.DEFAULTS,
-	learned = function() return src.learned() end, paint = function(t) t:SetTexture(M.icon) end,
-	effects = { glow = { "full" }, pop = { "full" } },
+E.register(KEY, { frame = f, label = Spells.name("maelstromWeapon"), defaults = MW.DEFAULTS, ranges = MW.RANGES,
+	choices = CHOICES,
+	learned = function() return src.learned() end, paint = function(t) t:SetTexture(MW.icon) end,
+	effects = { glow = true, pop = true },
 	standInBorder = true,
 	styles = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
 	timerCant = { bar = "Its timer is Blizzard's own; a time bar can't follow it." },
-	kind = "maelstrom", def = M, spell = "maelstromWeapon", icon = M.icon, school = "air",
+	kind = "maelstrom", def = DEF, spell = "maelstromWeapon", icon = MW.icon, school = "air",
 	blurb = "Its stacks, with a pop and a glow at five.", experimental = "Maelstrom Weapon" })
-M.key = KEY
-M.idleChoices = {
-	{ "never", "Never", "It always shows in full" },
-	{ "notup", "Not up", "Idle while it isn't up" },
-	{ "five", "Below five stacks", "Idle while it's below five stacks or not up",
-		"Below five stacks: shown in full only at five." },
-}
 local function idleWhen()
-	local w = setting("idleWhen")
-	return CHOICES.idleWhen[w] and w or "notup"
+	local w = own("idleWhen")
+	return tContains(CHOICES.idleWhen, w) and w or "notup"
 end
-
 
 -- Containers sit at the text level + 5; parts are set from that, never read back
 local function baseLevel() return f.textFrame:GetFrameLevel() + 5 end
 
--- The stack number
--- A rule formatter: one rule per count, the most in its colour. Tried on every count first: an
--- error would stop Blizzard's aura update.
-local formatters, made = {}, 0
-local function byte(v) return math.floor(math.min(math.max(v, 0), 1) * 255 + 0.5) end
-local function countOptions()
-	if not (C_StringUtil and C_StringUtil.CreateNumericRuleFormatter) then return nil end
-	local code = ""
-	if setting("fullCount") then
-		local c = color("fullCountColor")
-		code = string.format("|cff%02x%02x%02x", byte(c[1]), byte(c[2]), byte(c[3]))
-	end
-	local id = code .. ":" .. src.max
-	local fm = formatters[id]
-	if fm == nil then
-		if made >= 8 then wipe(formatters); made = 0 end
-		made = made + 1
-		local ok, new = ns.try("maelstrom count formatter", function()
-			local x = C_StringUtil.CreateNumericRuleFormatter()
-			local rules = { { threshold = 0, format = "%d" } }
-			if code ~= "" then table.insert(rules, { threshold = src.max, format = code .. "%d|r" }) end
-			x:SetBreakpoints(rules)
-			for n = 0, src.max do
-				local text = x:FormatNumber(n)
-				local coloured = code ~= "" and n == src.max
-				if type(text) ~= "string" or isSecret(text) or (coloured and not text:lower():find(code, 1, true)) then
-					error(string.format("formatted %d as %s", n, tostring(text)))
-				end
-			end
-			return x
-		end)
-		fm = ok and new or false
-		formatters[id] = fm
-	end
-	return fm and { formatter = fm } or nil
-end
+-- The stack number, the most in its colour
 local function applyCountFormat(slot)
-	local opts = countOptions()
-	local fm = opts and opts.formatter or false
-	if fm == slot.countFormatter then return end
-	if ns.try("maelstrom count", slot.button.SetApplicationCount, slot.button, slot.fs, opts) then
-		slot.countFormatter = fm
-	end
+	local fm = Count.formatter(count("mark") and color("markColor") or nil, src.max, src.max,
+		"maelstrom count formatter")
+	Count.setFormat(slot, fm, "maelstrom count")
 end
 
 local function placeCount(fs, button)
-	ns.Media.setFont(fs, nil, number("countSize"))
-	fs:ClearAllPoints()
-	if setting("countPos") == "corner" then
-		local y = -2 + (setting("stackBar") and (number("stackBarHeight") + 1) or 0)
-		fs:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 2, y); fs:SetJustifyH("RIGHT")
-	else
-		fs:SetPoint("CENTER", button, "CENTER", 0, 0); fs:SetJustifyH("CENTER")
-	end
+	ns.Media.setFont(fs, nil, number("size"))
+	local pos = count("pos") == "BOTTOMRIGHT" and "BOTTOMRIGHT" or "CENTER"
+	Count.place(fs, button, pos, count("bar") and (number("barHeight") + 1) or 0)
 end
 
 -- 1. The stacks
 -- slot.copy: the copy at five, its parts slot.levelUp higher, its bar always full
 local function styleStacks(slot, size)
-	local on = setting("stackBar")
+	local on = count("bar")
 	local base = baseLevel() + (slot.levelUp or 0)
 	slot.overlay:SetFrameLevel(base + 4)
 	slot.bar:SetFrameLevel(base + 5)
@@ -162,11 +121,7 @@ local function styleStacks(slot, size)
 	slot.edge:SetFrameLevel(base + 8)
 	-- The copy at five frames itself only over idled stacks: else the stacks' frame shows
 	ns.try("maelstrom border", ns.Frames.dress, slot.edge, KEY, base + 8, slot.copy and idleWhen() ~= "five")
-	if slot.copy and slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
-	local c = color("stackBarColor")
-	slot.bar:SetHeight(number("stackBarHeight"))
-	slot.bar:SetStatusBarTexture(ns.Media.barTexture())   -- before the colour
-	slot.bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
+	Count.styleBar(slot, size, src.max, number("barHeight"), color("barColor"), on)
 	if slot.copy then
 		slot.bar:SetMinMaxValues(0, src.max)
 		slot.bar:SetValue(src.max)
@@ -174,23 +129,7 @@ local function styleStacks(slot, size)
 		ns.try("maelstrom stack bar", slot.button.SetApplicationBar, slot.button, slot.bar,
 			{ minApplications = 0, maxApplications = src.max })
 	end
-	for i = 1, src.max - 1 do
-		local t = slot.ticks[i]
-		if not t then
-			t = slot.tickFrame:CreateTexture(nil, "OVERLAY")
-			t:SetColorTexture(0, 0, 0, 0.9)
-			t:SetWidth(1)
-			slot.ticks[i] = t
-		end
-		t:ClearAllPoints()
-		t:SetPoint("TOP", slot.tickFrame, "TOPLEFT", size * i / src.max, 0)
-		t:SetPoint("BOTTOM", slot.tickFrame, "BOTTOMLEFT", size * i / src.max, 0)
-		t:Show()
-	end
-	for i = src.max, #slot.ticks do slot.ticks[i]:Hide() end
-	slot.bar:SetAlpha(on and 1 or 0)
-	slot.tickFrame:SetAlpha(on and 1 or 0)
-	slot.fs:SetAlpha(setting("stackCount") and 1 or 0)
+	slot.fs:SetAlpha(count("number") and 1 or 0)
 	placeCount(slot.fs, slot.button)
 	applyCountFormat(slot)
 end
@@ -199,40 +138,23 @@ end
 local function buildStacks(slot, button, into)
 	slot.button = button
 	into = into or button
-	slot.edge = CreateFrame("Frame", nil, into)
-	slot.edge:SetAllPoints(button)
-	slot.edge.owner = KEY
+	slot.edge = ns.Frames.edge(into, button, KEY, { overlay = false })
 	local overlay = CreateFrame("Frame", nil, into)
 	overlay:SetAllPoints(button)
 	slot.overlay = overlay
 	local numFrame = CreateFrame("Frame", nil, into)
 	numFrame:SetAllPoints(button)
 	slot.numFrame = numFrame
-	-- Font first: Blizzard writes the count at once
-	local fs = numFrame:CreateFontString(nil, "OVERLAY", nil, 7)
-	placeCount(fs, button)
-	slot.fs = fs
-	ns.try("maelstrom count", button.SetApplicationCount, button, fs)
-	slot.countFormatter = false
-	local bar = CreateFrame("StatusBar", nil, overlay)
-	bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 0, 0)
-	bar:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 0)
-	bar:SetStatusBarTexture(ns.Media.barTexture())
-	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
-	bar.bg:SetAllPoints()
-	bar.bg:SetColorTexture(0, 0, 0, 0.6)
-	slot.bar = bar
-	slot.tickFrame = CreateFrame("Frame", nil, overlay)
-	slot.tickFrame:SetAllPoints(bar)
-	slot.ticks = {}
-	ns.try("maelstrom stacks build", styleStacks, slot, ns.sizeOf(KEY))
+	Count.text(slot, button, numFrame, function(fs) placeCount(fs, button) end, "maelstrom count")
+	Count.bar(slot, overlay, button)
+	ns.try("maelstrom stacks build", styleStacks, slot, E.sizeOf(KEY))
 end
 
 -- The stacks' button hangs from this gate (Idle opacity); out of combat only
 local gate = CreateFrame("Frame", nil, f.effects)
 gate:SetAllPoints(f)
 
-local stacks = ns.makeAuraSlot(f, {
+local stacks = W.makeAuraSlot(f, {
 	key = KEY, slot = "stacks", ids = function() return src.ids() end, parent = gate,
 	sites = { container = "maelstrom container", style = "maelstrom style", filter = "maelstrom filter" },
 	onButton = function(slot, button) buildStacks(slot, button) end,
@@ -246,12 +168,11 @@ local POP_LEVEL, GLOW_LEVEL, LIGHT_LEVEL = 19, 22, 24
 local SHORTEST = 0.01
 
 local fx = ns.Effects.host(f, KEY, { aura = { popOnly = true, popLevel = 5 + LIGHT_LEVEL,
-	popOn = function() return setting("fullPop") end } })
+	popOn = function() return own("active", "pop") end } })
 
 local quiet = false
 local function stylePop(slot, size)
 	ns.try("maelstrom pop border", ns.Frames.dress, slot.edge, KEY)
-	if slot.edge.frameOverlay then slot.edge.frameOverlay:Hide() end
 	fx:setQuiet(quiet)
 	fx:stylePop(size)
 	local len = fx:motionLength()
@@ -280,7 +201,7 @@ local function buildPop(slot, button)
 		table.insert(slot.holds, g)
 		ns.try("maelstrom pop hand-off", button.AddAuraAssignedAnimation, button, g)
 	end
-	ns.try("maelstrom pop build", stylePop, slot, ns.sizeOf(KEY))
+	ns.try("maelstrom pop build", stylePop, slot, E.sizeOf(KEY))
 end
 
 local function unseenHost(_, button)
@@ -294,9 +215,9 @@ end
 -- first stack and pop there
 local nowhere = CreateFrame("Frame")
 nowhere:Hide()
-local pop = ns.makeAuraSlot(f, {
+local pop = W.makeAuraSlot(f, {
 	key = KEY, slot = "pop", ids = function() return src.ids() end, parent = nowhere, level = POP_LEVEL,
-	noTimer = true, ownIcon = function() return M.icon end, host = unseenHost,
+	noTimer = true, ownIcon = function() return MW.icon end, host = unseenHost,
 	sites = { container = "maelstrom pop container", style = "maelstrom pop style",
 		filter = "maelstrom pop filter" },
 	onButton = function(slot, button) buildPop(slot, button) end,
@@ -336,8 +257,8 @@ local gateSlot
 local QUIET = 2
 local quietToken
 local function restylePop()
-	if pop.button and not InCombatLockdown() and not ns.aurasSecret() then
-		ns.try("maelstrom pop quiet", stylePop, pop, ns.sizeOf(KEY))
+	if pop.button and ns.aurasReadable() then
+		ns.try("maelstrom pop quiet", stylePop, pop, E.sizeOf(KEY))
 	end
 	pop:style()
 end
@@ -357,13 +278,13 @@ end
 -- Made from the layout or restyle, never as Blizzard makes a button (frames made there can't run
 -- scripts); out of combat with auras readable
 local function setupPop()
-	if pop.container or pop.err or not (gateSlot.gated and setting("fullPop")) then return end
+	if pop.container or pop.err or not (gateSlot.gated and own("active", "pop")) then return end
 	pop.opts.parent = gateSlot.gateBar
 	quietPop()   -- before the container exists: its first assignment plays nothing
 	pop:setup()
 end
 
-gateSlot = ns.makeAuraSlot(f, {
+gateSlot = W.makeAuraSlot(f, {
 	key = KEY, slot = "gate", ids = function() return src.ids() end, parent = f.effects,
 	noTimer = true, host = unseenHost,
 	sites = { container = "maelstrom pop gate container", style = "maelstrom pop gate style",
@@ -382,7 +303,7 @@ local FIVE_LEVEL, HOST_LEVEL, COPY_UP = 9, 12, 10
 
 -- Sensor bar src.max steps long; the clip covers the icon and its reach only at the most stacks
 local function placeFive(slot, button, size)
-	local reach = math.ceil(REACH * (size + 2 * ns.Looks.outerEdge(f)) - size / 2)
+	local reach = math.ceil(REACH * (size + 2 * ns.StyleArt.outerEdge(f)) - size / 2)
 	local step = size + 2 * reach + 2
 	local bar, clip = slot.sensor, slot.clip
 	bar:ClearAllPoints()
@@ -405,7 +326,7 @@ local function fiveHost(slot, button)
 	clip:SetClipsChildren(true)
 	clip:SetFrameLevel(baseLevel() + HOST_LEVEL)
 	slot.clip = clip
-	placeFive(slot, button, ns.sizeOf(KEY))
+	placeFive(slot, button, E.sizeOf(KEY))
 	slot.sensed = ns.try("maelstrom five sensor", button.SetApplicationBar, button, bar,
 		{ minApplications = 0, maxApplications = src.max, interpolation = IMMEDIATE })
 	local host = CreateFrame("Frame", nil, clip)
@@ -428,7 +349,7 @@ local function styleFive(slot, size)
 	g:restyle()
 	g:fit(size)
 	-- Shown only when its sensor works: a bar the button refused would leave the clip empty
-	g:SetShown((setting("fullGlow") and slot.sensed) and true or false)
+	g:SetShown((own("active", "glow") and slot.sensed) and true or false)
 end
 
 local applyIdle
@@ -440,11 +361,11 @@ local function buildFive(slot, button)
 	slot.glow = g
 	slot.copy, slot.levelUp = true, COPY_UP
 	buildStacks(slot, button, slot.host)
-	slot.built = ns.try("maelstrom five build", styleFive, slot, ns.sizeOf(KEY))
+	slot.built = ns.try("maelstrom five build", styleFive, slot, E.sizeOf(KEY))
 	C_Timer.After(0, function() applyIdle() end)
 end
 
-local five = ns.makeAuraSlot(f, {
+local five = W.makeAuraSlot(f, {
 	key = KEY, slot = "five", ids = function() return src.ids() end, parent = f.effects, level = FIVE_LEVEL,
 	host = fiveHost,
 	sites = { container = "maelstrom five container", style = "maelstrom five style",
@@ -462,7 +383,7 @@ local five = ns.makeAuraSlot(f, {
 local readyLast = false
 local function copyReady()
 	local ok = five.built and five.sensed and five.applied ~= nil and five.applied == stacks.applied
-	local ready = ok and five.size == ns.sizeOf(KEY)
+	local ready = ok and five.size == E.sizeOf(KEY)
 	if ok and not ready and five.styleSoon then ready = readyLast end
 	readyLast = ready and true or false
 	return readyLast
@@ -471,9 +392,9 @@ end
 function applyIdle()
 	-- Refused in combat and while auras are secret: run again when readable
 	if ns.deferWhileAurasSecret("maelstrom idle", applyIdle) then return end
-	local on = idleWhen() == "five" and src.learned() and ns.isEnabled(KEY) and ns.getAccount().locked
+	local on = idleWhen() == "five" and src.learned() and E.isEnabled(KEY) and P.getAccount().locked
 		and copyReady()
-	gate:SetAlpha(on and ns.idleAlpha(KEY) or 1)
+	gate:SetAlpha(on and E.idleAlpha(KEY) or 1)
 	if five.host then five.host:SetAlpha(on and 1 or 0) end
 end
 
@@ -482,130 +403,101 @@ local SLOTS = { stacks, gateSlot, pop, five }
 -- The icon under Blizzard's buttons: the look while the buff isn't up
 local function refresh()
 	applyIdle()
-	if not ns.isEnabled(KEY) then return end
-	f.tex:SetTexture(M.icon)
+	if not E.isEnabled(KEY) then return end
+	f.tex:SetTexture(MW.icon)
 	if not src.learned() then
 		f.tex:SetDesaturated(true)
-		ns.fadeTo(f, 1)
+		W.fadeTo(f, 1)
 		return
 	end
 	f.tex:SetDesaturated(false)
 	-- The buttons say when it's up, on the effects layer, which ignores this icon's alpha
-	ns.fadeTo(f, (ns.getAccount().locked and idleWhen() ~= "never") and ns.idleAlpha(KEY) or 1)
+	W.fadeTo(f, (P.getAccount().locked and idleWhen() ~= "never") and E.idleAlpha(KEY) or 1)
 end
 
 local function styleAll() for _, s in ipairs(SLOTS) do s:style() end end
 
-function M.follow(s)
+function MW.follow(s)
 	src = s or BUFF
-	wipe(formatters); made = 0
 	quietPop()
 	for _, slot in ipairs(SLOTS) do slot:refilter() end
-	ns.applyLayout()
-	ns.refreshAll()
+	G.applyLayout()
+	E.refreshAll()
 end
-function M.maxStacks() return src.max end
-
--- The options' preview: the same parts, drawn by us for n stacks
-local function previewParts(ic)
-	if ic.mw then return ic.mw end
-	local p = CreateFrame("Frame", nil, ic.textFrame)
-	p:SetAllPoints(ic)
-	p:SetFrameLevel(ic.textFrame:GetFrameLevel() + 1)
-	p.bg = p:CreateTexture(nil, "BACKGROUND")
-	p.segs = {}
-	ic.mw = p
-	return p
-end
-
-function M.drawPreview(ic, n)
-	local p = previewParts(ic)
+-- The preview (ns.registerKind): the same parts, drawn by us for n stacks
+local function drawPreview(ic, n, kit)
 	local max = src.max
-	local w, h = ic:GetWidth(), number("stackBarHeight")
-	local barOn = n > 0 and setting("stackBar")
-	p.bg:ClearAllPoints()
-	p.bg:SetPoint("BOTTOMLEFT", ic, "BOTTOMLEFT", 0, 0)
-	p.bg:SetSize(w, h)
-	p.bg:SetColorTexture(0, 0, 0, 0.6)
-	p.bg:SetShown(barOn)
-	local c = color("stackBarColor")
-	local path, atlas = ns.Media.barOf(ns.Style.value(nil, "bar", "texture"))
-	local segW = (w - (max - 1)) / max
-	for i = 1, math.max(max, #p.segs) do
-		local t = p.segs[i]
-		if not t then t = p:CreateTexture(nil, "ARTWORK"); p.segs[i] = t end
-		t:ClearAllPoints()
-		t:SetPoint("BOTTOMLEFT", ic, "BOTTOMLEFT", (i - 1) * (segW + 1), 0)
-		t:SetSize(segW, h)
-		if atlas then t:SetAtlas(path) else t:SetTexture(path) end
-		t:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
-		t:SetShown(barOn and i <= n)
+	if n > 0 and count("bar") then
+		local c = color("barColor")
+		ic.bar:SetHeight(number("barHeight"))
+		kit.setBar(ic, max, n, c[1], c[2], c[3], c[4])
 	end
-	if n > 0 and setting("stackCount") then
-		local fc = color("fullCountColor")
+	if n > 0 and count("number") then
+		local fc = color("markColor")
 		placeCount(ic.count, ic)
 		ic.count:SetText(n)
-		if n == max and setting("fullCount") then ic.count:SetTextColor(fc[1], fc[2], fc[3], 1)
+		if n == max and count("mark") then ic.count:SetTextColor(fc[1], fc[2], fc[3], 1)
 		else ic.count:SetTextColor(1, 1, 1, 1) end
 		ic.count:Show()
 	end
-	ic:SetGlowShown(n >= max and setting("fullGlow"))
+	ic:SetGlowShown(n >= max and own("active", "glow"))
 end
+local PREVIEW = {
+	uptime = true,
+	states = { { "s1", "1 stack" }, { "s4", "4 stacks" }, { "s5", "5 stacks" },
+		{ "idle", "Not up" } },
+	pop = function(ic, st) if st == "s5" and own("active", "pop") then ic:Pop("ready") end end,
+	render = function(ic, st, kit)
+		kit.reset(ic, MW.icon)
+		local n = ({ s1 = 1, s4 = src.max - 1, s5 = src.max })[st] or 0
+		drawPreview(ic, n, kit)
+		if n > 0 then kit.frozen(ic.upT, 0.3, 30) end
+		local when = own("idleWhen")
+		if (n == 0 and when ~= "never") or (when == "five" and n < src.max) then kit.idle(ic, KEY) end
+	end,
+}
+ns.registerKind("maelstrom", { preview = function() return PREVIEW end })
 
-function M.resolve()
-	ns.ELEMENTS[KEY].label = Spells.name("maelstromWeapon")
-	M.spellID = Spells.known("maelstromWeapon")
-	return tostring(M.spellID)
-end
-
-function M.sanitize(db)
-	local o = type(db.elementOpts) == "table" and db.elementOpts[KEY]
-	if type(o) ~= "table" then return end
-	for name, r in pairs(M.RANGES) do
-		local v = o[name]
-		if v ~= nil and (type(v) ~= "number" or v ~= v) then o[name] = nil
-		elseif v ~= nil then o[name] = math.min(math.max(v, r[1]), r[2]) end
-	end
-	for _, name in ipairs({ "stackBarColor", "fullCountColor" }) do
-		if o[name] ~= nil and not ns.isColor(o[name]) then o[name] = nil end
-	end
-	for name, ok in pairs(CHOICES) do
-		if o[name] ~= nil and not ok[o[name]] then o[name] = nil end
-	end
+function MW.resolve()
+	E.ALL[KEY].label = Spells.name("maelstromWeapon")
+	DEF.spellID = Spells.known("maelstromWeapon")
+	return tostring(DEF.spellID)
 end
 
 -- A loading screen sends a full aura update: the buff is assigned to the pop again
-local worldEv = CreateFrame("Frame")
-ns.registerEvent(worldEv, "PLAYER_ENTERING_WORLD")
-worldEv:SetScript("OnEvent", function()
-	if pop.container then quietPop() end
-end)
+function MW.start()
+	local ev = CreateFrame("Frame")
+	ns.registerEvent(ev, "PLAYER_ENTERING_WORLD")
+	ev:SetScript("OnEvent", function()
+		if pop.container then quietPop() end
+	end)
+end
 
-M.applyTimers = styleAll
+MW.applyTimers = styleAll
 -- Containers made once (only for a character with the buff); the gate and pop container only
 -- while Pop is on, the one at five only for its glow or Idle: Blizzard registers an unused one for
 -- every player UNIT_AURA
 local popWasOn = false
-function M.applyLayout()
-	local popOn = src.learned() and ns.isEnabled(KEY) and setting("fullPop") and true or false
+function MW.applyLayout()
+	local popOn = src.learned() and E.isEnabled(KEY) and own("active", "pop") and true or false
 	if popOn and not popWasOn and pop.container then quietPop() end
 	popWasOn = popOn
-	if src.learned() and ns.isEnabled(KEY) then
+	if src.learned() and E.isEnabled(KEY) then
 		stacks:setup()
-		if setting("fullPop") then
+		if own("active", "pop") then
 			gateSlot:setup()
 			setupPop()
 		end
-		if setting("fullGlow") or idleWhen() == "five" then five:setup() end
+		if own("active", "glow") or idleWhen() == "five" then five:setup() end
 	end
 	styleAll()
 	refresh()
 end
-M.afterGroups = styleAll
-M.refresh = refresh
+MW.afterGroups = styleAll
+MW.refresh = refresh
 
 -- /sf debug
-function M.debug()
+function MW.debug()
 	local ids = {}
 	for id in pairs(src.ids()) do table.insert(ids, tostring(id)) end
 	table.sort(ids)
@@ -616,10 +508,10 @@ function M.debug()
 	say("maelstrom: spell %s, following %s (%d stacks), stacks container %s, pop gate container %s "
 		.. "(gated %s), pop container %s (%s), container at five %s (sensor %s, glow %s); idle %s, "
 		.. "copy counts %s",
-		tostring(M.spellID), table.concat(ids, ","), src.max, state(stacks), state(gateSlot),
+		tostring(DEF.spellID), table.concat(ids, ","), src.max, state(stacks), state(gateSlot),
 		tostring(gateSlot.gated), state(pop), fx:describe(), state(five),
 		tostring(five.sensed), five.glow and five.glow.look and five.glow.look.key or "none",
 		idleWhen(), tostring(copyReady()))
 end
 
-ns.registerModule(M)
+MOD.register(MW)
