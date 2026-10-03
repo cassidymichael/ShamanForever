@@ -937,7 +937,7 @@ local function readyBlock(p, owner, opts)
 	soundRow(p, s, "ready", "Sound", "The moment the cooldown ends.")
 end
 
--- active: opts.title, text, extra(s) (rows under its glow); shown with a text even with no fields
+-- active: opts.title, text, extra(s, p) (rows under its glow); shown with a text even with no fields
 local function activeBlock(p, owner, opts)
 	local s = store(p, owner, opts.after)
 	if not (s.has("active") or opts.text) then return end
@@ -945,7 +945,7 @@ local function activeBlock(p, owner, opts)
 	if opts.text then p:text(opts.text) end
 	check(p, s, "active", "pop", "Pop", tipOf(opts, "pop"))
 	check(p, s, "active", "glow", "Pulsing glow", tipOf(opts, "glow"))
-	if opts.extra then opts.extra(s) end
+	if opts.extra then opts.extra(s, p) end
 	soundRow(p, s, "active", "Sound", tipOf(opts, "sound"))
 end
 
