@@ -463,7 +463,10 @@ for _, def in ipairs(COOLDOWNS) do
 	end
 	popWhenReady(def.frame, def.key, gate)
 	if not def.noReady then soundWhenReady(def.frame, def.key, gate) end
-	def.frame.cd:HookScript("OnCooldownDone", function() C_Timer.After(0, function() refreshCooldown(def) end) end)
+	-- The swipe's end, and the spell's own (the time bar's), which can end inside a GCD
+	for _, cd in ipairs({ def.frame.cd, def.frame.ownCd }) do
+		cd:HookScript("OnCooldownDone", function() C_Timer.After(0, function() refreshCooldown(def) end) end)
+	end
 end
 
 local function styleCooldown(def)

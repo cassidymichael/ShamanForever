@@ -109,6 +109,8 @@ end
 
 CD.popWhenReady(shock, "shock")
 CD.soundWhenReady(shock, "shock")
+-- The time bar runs the shock's own cooldown, which can end inside a GCD
+shock.ownCd:HookScript("OnCooldownDone", function() C_Timer.After(0, refreshCooldown) end)
 
 -- Ready glow
 local function refreshGlow()
