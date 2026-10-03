@@ -101,7 +101,8 @@ end
 -- it draws that style itself); movable (from ns.Positioning.mover: frame, nudge(dx, dy), lock(),
 -- update(); a right-click on it opens the bar's page); hud = { show(opts), slots, steps(slot, mode),
 -- step(slot, state, at, range, moment) }: /sf preview on the bar itself, show(nil) as it ends, each
--- slot looping through its steps like an element, step returning when it ends.
+-- slot looping through its steps like an element, step returning when it ends; secure: its frames are
+-- protected (its top frame's parent is Bars.parent(true)).
 -- Options: icon, school, blurb, tags() and preview (its page header: a stage, as _Kinds says); page
 -- = { order, build } (titled and iconned as the bar); experiments = { { name, where } } (About's
 -- list); ownSize() (its icon size isn't Global's); tiles = { icon, schools, border() } (its style
@@ -138,6 +139,17 @@ function Bars.register(key, spec)
 			build = spec.page.build })
 	end
 end
+-- A bar's top frame goes in a holder under root, hidden while off: Bars.parent(true) for protected
+-- frames (that holder waits for combat to end), Bars.parent() for the rest
+local barHolders = {}
+for _, kind in ipairs({ "plain", "secure" }) do
+	local h = CreateFrame("Frame", nil, root)
+	h:SetAllPoints()
+	-- The level a bar had as UIParent's child: groups stay above it
+	h:SetFrameLevel(UIParent:GetFrameLevel())
+	barHolders[kind] = h
+end
+function Bars.parent(secure) return secure and barHolders.secure or barHolders.plain end
 
 -- An element's icon: opts.effects gives it an effects layer that ignores the icon's alpha (glows and
 -- flashes stay full when it idles) and takes its group's opacity instead (layoutGroup). f.stack()

@@ -321,7 +321,7 @@ function TB.fitLook(v, b, border, size)
 end
 
 -- Frames: created at file load, allowed even during a /reload in combat
-local bar = CreateFrame("Frame", "ShamanForeverTotemBar", UIParent)
+local bar = CreateFrame("Frame", "ShamanForeverTotemBar", Bars.parent(true))
 bar:SetSize(1, 1)
 bar:SetPoint("CENTER", 0, -120)
 bar:SetFrameStrata("MEDIUM")
@@ -1796,7 +1796,7 @@ function TB.debug()
 end
 
 Bars.register("totembar", { label = "Totem bar", cfg = cfg, saved = "totemBar", defaults = TB.DEFAULTS,
-	ranges = TB.RANGES, choices = CHOICES, on = barOn,
+	ranges = TB.RANGES, choices = CHOICES, on = barOn, secure = true,
 	parts = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
 	-- Its theme can draw its own border
 	ownLabel = function(part)
