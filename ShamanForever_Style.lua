@@ -5,15 +5,25 @@ local _, ns = ...
 local S = {}
 ns.Style = S
 
--- Kinds, and their names in the order they register
+-- Kinds, and their names by their order, then as they register
 S.KINDS, S.ORDER = {}, {}
+local registered = {}
+local function before(a, b)
+	local x, y = S.KINDS[a].order or math.huge, S.KINDS[b].order or math.huge
+	if x ~= y then return x < y end
+	return registered[a] < registered[b]
+end
 -- Kind spec: defaults; ranges (its numbers' { min, max, step }: S.clean holds them there); path (where
 -- it is saved); groups, elements (groups or elements can have their own); label and short: its name
--- in an element's list of own styles, none to leave it out
+-- in an element's list of own styles, none to leave it out; order: its place there, as on the pages
 function S.register(kind, spec)
-	if not S.KINDS[kind] then table.insert(S.ORDER, kind) end
+	if not S.KINDS[kind] then
+		table.insert(S.ORDER, kind)
+		registered[kind] = #S.ORDER
+	end
 	S.KINDS[kind] = spec
 	spec.users = {}
+	table.sort(S.ORDER, before)
 end
 
 -- Owners whose page offers their own style of a kind
@@ -28,14 +38,14 @@ S.register("glow", {
 	ranges = { speed = { 0.2, 2, 0.1 }, low = { 0, 1, 0.05 }, width = { 0.1, 0.5, 0.05 }, strength = { 0.2, 2.5, 0.1 },
 		lap = { 0.6, 4, 0.1 }, scale = { 0.5, 2, 0.1 }, drift = { 0.25, 3, 0.05 } },
 	path = { "glowStyle" },
-	elements = true, label = "Pulsing glow", short = "glow",
+	elements = true, label = "Pulsing glow", short = "glow", order = 3,
 })
 S.register("pop", {
 	defaults = { colorBy = "event", flash = "plain", burst = "star", motion = "shakeV", size = 1.4, speed = 1,
 		reach = 1 },
 	ranges = { size = { 1.1, 1.8, 0.05 }, speed = { 0.5, 2, 0.1 }, reach = { 0.6, 1.3, 0.05 } },
 	path = { "popStyle" },   -- not "pop": a bar may have its own setting of that name
-	elements = true, label = "Pop", short = "pop",
+	elements = true, label = "Pop", short = "pop", order = 4,
 })
 -- Global cooldown sweep
 S.register("gcd", {
@@ -48,14 +58,14 @@ S.register("border", {
 		capColor = { 0.85, 0.68, 0.39, 1 } },
 	ranges = { size = { 1, 8, 1 }, capSize = { 1, 8, 1 } },
 	path = { "border" },
-	elements = true, label = "Border", short = "border",
+	elements = true, label = "Border", short = "border", order = 5,
 })
 -- Art frames: round each element, and round a group or bar
 S.register("frame", {
 	defaults = { look = "none", color = { 1, 1, 1, 1 }, alpha = 1 },
 	ranges = { alpha = { 0.1, 1, 0.05 } },
 	path = { "frameStyle" },
-	elements = true, label = "Frame", short = "frame",
+	elements = true, label = "Frame", short = "frame", order = 6,
 })
 S.register("groupframe", {
 	defaults = { look = "none", color = { 1, 1, 1, 1 }, alpha = 1 },
