@@ -174,6 +174,8 @@ local function buildGlobal(p)
 	p:text("Every border. " .. K.ownersText("Elements", "border"))
 	K.borderRows(p, nil)
 	K.ownLine(p, "border")
+	K.glowBlock(p, nil)
+	K.popBlock(p, nil, "ready")
 	p:header("Art frame style")
 	p:anchor("frame")
 	p:text("Art round each icon. " .. K.ownersText("Elements", "frame"))
@@ -184,8 +186,6 @@ local function buildGlobal(p)
 	p:text("Art round a whole group. " .. K.ownersText("Groups", "groupframe"))
 	K.frameRows(p, nil, "groupframe")
 	K.ownLine(p, "groupframe")
-	K.glowBlock(p, nil)
-	K.popBlock(p, nil, "ready")
 end
 
 local nameAction

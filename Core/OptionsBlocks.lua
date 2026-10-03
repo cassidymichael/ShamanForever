@@ -371,9 +371,9 @@ end
 local function glowBlock(p, owner)
 	local after = reglow
 	p:header("Pulsing glow style")
+	p:anchor("glow")
 	local r = styleRows(p, owner, "glow", after)
 	if owner == nil then
-		p:anchor("glow")
 		p:text("Every pulsing glow. " .. ownersText("Elements", "glow"))
 	else followRow(p, owner, "glow", after) end
 	local own = showWhen(r.own)
@@ -429,6 +429,7 @@ local function popBlock(p, owner, kind)
 		if f and f:IsVisible() then playPop() end
 	end)
 	p:header("Pop style")
+	p:anchor("pop")
 	local r = styleRows(p, owner, "pop", after)
 	-- Colour is for Ready and Ran out only; a warning's pop keeps its own.
 	local colored = ns.StyleArt.POP_KINDS[kind].byStyle
@@ -437,7 +438,6 @@ local function popBlock(p, owner, kind)
 		return (colored and r.style().colorBy == "school") or burst().bySchool or false
 	end
 	if owner == nil then
-		p:anchor("pop")
 		p:text("The burst when something happens: " .. ns.CLASS.help.pop .. ". "
 			.. ownersText("Elements", "pop"))
 	else followRow(p, owner, "pop", after) end
@@ -686,7 +686,11 @@ local SHOW_TIP_PAGE = "Choosing Always or In combat again puts it back where it 
 	.. "the Groups & Layout page; an element shows only when both allow it. Everything visible shows while "
 	.. "positioning is unlocked."
 
--- Every element page in one order: header, Display, Idle, own settings, standard blocks.
+-- Every element and bar page's two sections: what it does, then how it looks
+function K.behaviourSection(p) p:section("Functionality and behaviour") end
+function K.styleSection(p) p:section("Style") end
+
+-- Every element page in one order: header, Display, Idle, its own settings and states, then Style.
 local function elementDisplay(p, key)
 	p.resetAll = {
 		text = function() return "Reset " .. ns.OptionsArt.elementName(key) end,
@@ -697,6 +701,7 @@ local function elementDisplay(p, key)
 		function() return not E.isLearned(key) and not ns.Spells.otherRace(E.ALL[key].race) end)
 	p:callout("Not your race. It shows on screen only for the races that have this spell.",
 		function() return not E.isLearned(key) and ns.Spells.otherRace(E.ALL[key].race) end)
+	K.behaviourSection(p)
 	p:header("Display", nil, nil, nil, { open = true })
 	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return E.showMode(key) end,
 		function(v) E.setShow(key, v) end, nil, 140)
@@ -761,12 +766,15 @@ local function idleBlock(p, def)
 		choices and showWhen(function() return not never() end) or nil, "idleAlpha")
 end
 
-local function styleBlocks(p, key)
+-- The Style section: timers() (its timer blocks), then the style blocks
+local function styleBlocks(p, key, timers)
 	local e = E.ALL[key]
-	if e.effects.glow then glowBlock(p, key) end
-	if e.effects.pop then popBlock(p, key, e.effects.popKind or "ready") end
+	K.styleSection(p)
+	if timers then timers() end
 	p:header("Border style")
 	K.borderRows(p, key, relayout)
+	if e.effects.glow then glowBlock(p, key) end
+	if e.effects.pop then popBlock(p, key, e.effects.popKind or "ready") end
 	p:header("Art frame style")
 	K.frameRows(p, key, "frame", relayout)
 end
@@ -1026,12 +1034,17 @@ K.soundsBlock, K.groupMenu = soundsBlock, groupMenu
 K.warnBlock, K.readyBlock, K.activeBlock, K.expiringBlock, K.killedBlock = warnBlock, readyBlock, activeBlock,
 	expiringBlock, killedBlock
 
--- A parts page's builders: a slot's block, fn(p, def, words), and a block a part asks for in the own
--- slot, fn(p, def, spec); the standard ones are below, calling the kit's blocks as they stand
-local SLOTS, OWNS = {}, {}
-function K.registerSlot(name, fn) SLOTS[name] = fn end
+-- A parts page's builders: a slot's block, fn(p, def, words) (style: it goes in the Style section),
+-- and a block a part asks for in the own slot, fn(p, def, spec); the standard ones are below,
+-- calling the kit's blocks as they stand
+local SLOTS, OWNS, STYLED = {}, {}, {}
+function K.registerSlot(name, fn, style)
+	SLOTS[name] = fn
+	STYLED[name] = style or nil
+end
 function K.registerOwn(name, fn) OWNS[name] = fn end
 function K.slotBuilder(name) return SLOTS[name] end
+function K.styleSlot(name) return STYLED[name] == true end
 function K.ownBuilder(name) return OWNS[name] end
 -- An own block's name: the spec itself, or its first field
 function K.ownName(b) return type(b) == "table" and b[1] or b end
@@ -1045,10 +1058,10 @@ K.registerSlot("own", function(p, def, list)
 	end
 end)
 K.registerSlot("warn", function(p, def, o) K.warnBlock(p, def.key, o) end)
-K.registerSlot("cooldown", function(p, def, title) K.timerSettings(p, title, def.key, "cooldown") end)
-K.registerSlot("gcd", function(p, def) K.gcdBlock(p, def.key) end)
-K.registerSlot("uptime", function(p, def, title) K.timerSettings(p, title, def.key, "uptime") end)
 K.registerSlot("ready", function(p, def, o) K.readyBlock(p, def.key, o) end)
 K.registerSlot("active", function(p, def, o) K.activeBlock(p, def.key, o) end)
 K.registerSlot("expire", function(p, def, o) K.expiringBlock(p, def.key, o) end)
 K.registerSlot("killed", function(p, def, o) K.killedBlock(p, def.key, o) end)
+K.registerSlot("cooldown", function(p, def, title) K.timerSettings(p, title, def.key, "cooldown") end, true)
+K.registerSlot("gcd", function(p, def) K.gcdBlock(p, def.key) end, true)
+K.registerSlot("uptime", function(p, def, title) K.timerSettings(p, title, def.key, "uptime") end, true)

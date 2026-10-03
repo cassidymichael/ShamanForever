@@ -107,7 +107,7 @@ ns.registerPart("proc", {
 local EXPIRE_RANGE = { 0, 120, 5 }
 ns.registerKind("buff", {
 	parts = { "buff", "breath", "proc" },
-	slots = { "own", "warn", "uptime", "expire", "active" },
+	slots = { "own", "warn", "active", "expire", "uptime" },
 	prepare = function(def)
 		def.expires = not def.proc
 		def.expireRange = EXPIRE_RANGE
