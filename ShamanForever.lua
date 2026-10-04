@@ -1066,18 +1066,7 @@ local function changeableLine()
 		local bar = BARS[key]
 		if bar.movable then table.insert(list, bar.label:lower() .. " " .. changeable(bar.movable.frame)) end
 	end
-	local held = {}
-	for _, g in ipairs(db.groups) do
-		local gf = groupFrames[g.id]
-		for _, key in ipairs(g.members) do
-			if gf and ELEMENTS[key].frame.auraButton then
-				table.insert(held, g.id .. " " .. changeable(gf))
-				break
-			end
-		end
-	end
-	say("can move, show or hide now (else after combat): %s%s", table.concat(list, ", "),
-		#held > 0 and "; groups with an aura button: " .. table.concat(held, ", ") or "")
+	say("can move, show or hide now (else after combat): %s", table.concat(list, ", "))
 end
 function E.debugReport()
 	say("in combat %s", tostring(InCombatLockdown()))
