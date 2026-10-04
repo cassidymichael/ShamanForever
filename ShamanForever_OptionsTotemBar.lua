@@ -451,14 +451,10 @@ local function build(p)
 		showWhen(function() return (c().call or c().recall) and not TB.skin.owns("extras") end, full), 180)
 	own("extrasScale")
 	own("stoneExtrasScale")
-	local function bosses() return TB.skin.extrasScaleKey() == "bossExtrasScale" end
 	K.rangeSlider(p, TB.RANGES.extrasScale, "Call and Recall size", "As a share of the slots' size.",
 		pct, function() return TB.eff().extrasScale end,
 		function(v) c()[TB.skin.extrasScaleKey()] = v; changed() end,
-		showWhen(function() return (c().call or c().recall) and not bosses() end, full))
-	K.rangeSlider(p, TB.RANGES.bossExtrasScale, "Boss size", "The round bosses that hold Call and Recall, as a share "
-		.. "of the slots' size.", pct, tget("bossExtrasScale"), tset("bossExtrasScale"),
-		showWhen(function() return (c().call or c().recall) and bosses() end, full))
+		showWhen(function() return c().call or c().recall end, full))
 	tslider("Call and Recall gap", "From the slots. Below 0 they overlap.", px, "extrasGap",
 		showWhen(function() return (c().call or c().recall) and not TB.skin.owns("spacing") end, full))
 	tslider("Gap between them", "Between Call and Recall when both sit on one side.", px, "extrasSpacing",

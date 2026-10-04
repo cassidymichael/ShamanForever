@@ -77,12 +77,11 @@ local function borderStyle(look, size)
 	return S.clean({ show = true, look = look, size = size }, k.defaults, k.ranges)
 end
 
--- Border styles only themes use: nothing (the theme's own art frames the slot), the bosses that
--- hold Call and Recall, a slim carved wood frame, and an iron edge with an ember line
+-- Border styles only themes use
 local IRON, EMBER = { 0.16, 0.15, 0.15, 1 }, { 0.95, 0.42, 0.1, 1 }
 S.addLook("border", "totembare", { name = "None", group = "lines", hidden = true })
-S.addLook("border", "boss", { name = "Boss", group = "painted", hidden = true, credit = "ai",
-	mask = { file = ROUND }, swipe = ROUND, art = { file = TOTEMS .. "Boss", inset = { 0.5, 0.5, 0.5, 0.5 } } })
+S.addLook("border", "roundicon", { name = "Round", group = "lines", hidden = true,
+	mask = { file = ROUND }, swipe = ROUND })
 S.addLook("border", "woodedge", { name = "Slim wood", group = "painted", hidden = true, credit = "ai",
 	rings = { { color = BLACK } }, art = { file = MEDIA .. "Frame-Wood", margin = 22, px = 4 } })
 S.addLook("border", "ironedge", { name = "Iron edge", group = "lines", hidden = true,
@@ -163,10 +162,10 @@ add("stone", {
 add("bosses", {
 	name = "Stone bosses",
 	plinth = "bosses",
-	owns = plinthOwns(function() return { extrasGapShare = 0.06, extrasScale = TB.cfg().bossExtrasScale } end),
-	border = borderStyle("line", 1), extrasBorder = borderStyle("boss"),
+	owns = plinthOwns(function() return { extrasGapShare = TB.cfg().extrasScale / 2 + 0.06 } end),
+	border = borderStyle("line", 1), extrasBorder = borderStyle("roundicon"), dress = "boss",
 	behind = "plinth", picker = "plinth", arrow = "plinth", fixedSlots = true,
-	extrasScaleKey = "bossExtrasScale", badgeGap = belowPlinth,
+	badgeGap = belowPlinth,
 })
 
 -- Wood and bone: carved wood between bone rails, Call and Recall in carved wood frames
@@ -486,6 +485,19 @@ local function plateDress(v, el, w)
 	f:Show()
 end
 
+-- Call and Recall's boss: twice the icon, round it, no mouse
+local function bossDress(v, w)
+	local d = dressParts(v)
+	local t = d.boss or v:CreateTexture(nil, "OVERLAY", nil, 5)
+	d.boss = t
+	t:SetTexture(TOTEMS .. "Boss")
+	local o = w / 2
+	t:ClearAllPoints()
+	t:SetPoint("TOPLEFT", v, "TOPLEFT", -o, o)
+	t:SetPoint("BOTTOMRIGHT", v, "BOTTOMRIGHT", o, -o)
+	t:Show()
+end
+
 function TH.dressSlot(v, el, w)
 	local kind = TH.current().dress
 	local d = v.skinDress
@@ -493,7 +505,8 @@ function TH.dressSlot(v, el, w)
 		for _, t in pairs(d) do t:Hide() end
 	end
 	if kind == "blizzard" then blizzardDress(v, el, w)
-	elseif kind == "plates" then plateDress(v, el, w) end
+	elseif kind == "plates" then plateDress(v, el, w)
+	elseif kind == "boss" and not el then bossDress(v, w) end
 end
 
 -- "tip": a bright line where the fill ends, on the fill's own texture so it moves with the time

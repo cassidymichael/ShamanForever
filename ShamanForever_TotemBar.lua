@@ -81,7 +81,6 @@ TB.DEFAULTS = {
 	pixelEdge = 1,
 	stonePlinth = "normal",   -- slim | normal | grand
 	stoneExtrasScale = 1,
-	bossExtrasScale = 1.6,
 	barPlace = "in",   -- in | out
 }
 
@@ -96,7 +95,7 @@ local RANGES = {
 	idleAlpha = { 0.1, 1, 0.05 }, badgeSize = { 0.25, 0.8, 0.05 }, badgeAlpha = { 0.1, 1, 0.05 },
 	badgeSat = { 0, 1, 0.05 }, badgeX = { -30, 30, 1 }, badgeY = { -30, 30, 1 }, rangeHeight = { 1, 12, 1 },
 	fadeAfter = { 0, 10, 1 }, keySize = { 6, 30, 1 }, keyX = { -20, 20, 1 }, keyY = { -20, 20, 1 },
-	pixelEdge = { 1, 4, 1 }, bossExtrasScale = { 1, 2, 0.05 },
+	pixelEdge = { 1, 4, 1 },
 	expire = { secs = EXPIRE_SECS },
 }
 TB.RANGES = RANGES
