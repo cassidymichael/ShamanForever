@@ -32,7 +32,7 @@ FR.addStyle("bronzewood", { name = "Bronze and wood", group = "blizzard", weight
 FR.addStyle("slate", { name = "Slate", group = "blizzard", weight = "solid", tint = true,
 	art = { file = 4820990, size = { 256, 128 } }, hole = { 105, 42, 46, 45 }, shown = { 64, 24, 191, 103 } })
 FR.addStyle("roughstone", { name = "Rough stone", group = "blizzard", weight = "solid", tint = true,
-	art = { atlas = "ZoneAbility-Generic-IconBorder", size = { 63, 65 } }, hole = { 13, 15, 37, 35 },
+	art = { atlas = "ZoneAbility-Generic-IconBorder", size = { 63, 65 } }, hole = { 14, 15, 35, 35 },
 	shown = { 1, 2, 62, 63 } })
 FR.addStyle("gildedleaf", { name = "Gilded leaf", group = "blizzard", weight = "solid",
 	art = { atlas = "spellbook-item-iconframe", size = { 138, 131 } }, hole = { 39, 16, 84, 84 },
@@ -40,7 +40,7 @@ FR.addStyle("gildedleaf", { name = "Gilded leaf", group = "blizzard", weight = "
 FR.addStyle("earthen", { name = "Earthen", group = "painted", weight = "solid", credit = "ai",
 	art = { path = "Earthen", size = { 128, 128 } }, hole = { 32, 32, 64, 64 } })
 FR.addStyle("bonehide", { name = "Bone and hide", group = "painted", weight = "solid", credit = "ai",
-	art = { path = "BoneHide", size = { 128, 128 } }, hole = { 30, 30, 68, 68 } })
+	art = { path = "BoneHide", size = { 128, 128 } }, hole = { 33, 33, 62, 62 } })
 
 -- Round a group
 FR.addGroupStyle("midnight", { name = "Midnight", group = "blizzard", weight = "solid", tint = true,
