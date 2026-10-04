@@ -27,7 +27,7 @@ FR.addStyle("storm", { name = "Storm", group = "blizzard", weight = "wispy",
 	art = { file = 4861473, size = { 256, 128 } }, hole = { 108, 44, 41, 42 }, shown = { 38, 11, 224, 119 } })
 FR.addStyle("palestorm", { name = "Pale storm", group = "blizzard", weight = "wispy", tint = true,
 	art = { file = 6017378, size = { 256, 128 } }, hole = { 108, 44, 41, 42 }, shown = { 38, 11, 225, 119 } })
-FR.addStyle("bronzewood", { name = "Bronze and wood", group = "blizzard", weight = "solid",
+FR.addStyle("bronzewood", { name = "Bronze and wood", group = "blizzard", weight = "wispy", layer = "under",
 	art = { file = 1016657, size = { 256, 128 } }, hole = { 109, 43, 43, 44 }, shown = { 53, 23, 207, 108 } })
 FR.addStyle("slate", { name = "Slate", group = "blizzard", weight = "solid", tint = true,
 	art = { file = 4820990, size = { 256, 128 } }, hole = { 105, 42, 46, 45 }, shown = { 64, 24, 191, 103 } })
