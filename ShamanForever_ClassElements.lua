@@ -52,8 +52,7 @@ ns.CLASS.cooldowns = {
 		blurb = "Cooldown, and a bar while your target takes more Nature damage.",
 		styles = barTimer(), timerCant = ONE_SWIPE,
 		primed = { spends = { "lightningBolt", "chainLightning", "earthShock" }, duration = 12,
-			text = "From your cast for 12 s, or until your next Lightning Bolt, Chain Lightning or Earth Shock. " ..
-				"Other Nature damage on the target can also use it up, which can't be seen." },
+			text = "From your cast for 12 s, or until your next Lightning Bolt, Chain Lightning or Earth Shock." },
 		primedLooks = false, expireLooks = false, readyGlow = true, cd = 8,
 		experimental = "Stormstrike" },
 	{ key = "riptide", power = true, spellKey = "riptide", icon = 252995, school = "water", blurb = "Cooldown.",
