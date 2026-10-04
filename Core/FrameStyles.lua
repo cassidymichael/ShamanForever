@@ -72,3 +72,26 @@ FR.addGroupStyle("stonelinks", { name = "Stone link band", group = "painted", we
 		last = { path = LINKS, coords = { 325 / 512, 509 / 512, 0, 168 / 256 }, size = { 184, 168 } },
 		hole = { 38, 40, 88, 88 },
 	} })
+
+FR.addGroupStyle("diamondsteel", { name = "Diamond steel", group = "blizzard", weight = "solid", tint = true,
+	pieces = {
+		tl = { atlas = "UI-Frame-DiamondMetal-CornerTopLeft", size = { 128, 128 } },
+		tr = { atlas = "UI-Frame-DiamondMetal-CornerTopRight", size = { 128, 128 } },
+		bl = { atlas = "UI-Frame-DiamondMetal-CornerBottomLeft", size = { 128, 128 } },
+		br = { atlas = "UI-Frame-DiamondMetal-CornerBottomRight", size = { 128, 128 } },
+		t = { atlas = "_UI-Frame-DiamondMetal-EdgeTop", size = { 128, 128 } },
+		b = { atlas = "_UI-Frame-DiamondMetal-EdgeBottom", size = { 128, 128 } },
+		l = { atlas = "!UI-Frame-DiamondMetal-EdgeLeft", size = { 128, 128 } },
+		r = { atlas = "!UI-Frame-DiamondMetal-EdgeRight", size = { 128, 128 } },
+	}, edges = "tile", rim = 24, scale = 0.32, gap = 4 })
+FR.addGroupStyle("gilded", { name = "Gilded", group = "blizzard", weight = "solid",
+	pieces = {
+		tl = { atlas = "plunderstorm-nineslice-cornertopleft", size = { 166, 166 } },
+		tr = { atlas = "plunderstorm-nineslice-cornertopright", size = { 166, 166 } },
+		bl = { atlas = "plunderstorm-nineslice-cornerbottomleft", size = { 166, 166 } },
+		br = { atlas = "plunderstorm-nineslice-cornerbottomright", size = { 166, 166 } },
+		t = { atlas = "_plunderstorm-nineslice-edgetop", size = { 256, 30 } },
+		b = { atlas = "_plunderstorm-nineslice-edgebottom", size = { 256, 30 } },
+		l = { atlas = "!plunderstorm-nineslice-edgeleft", size = { 30, 256 } },
+		r = { atlas = "!plunderstorm-nineslice-edgeright", size = { 30, 256 } },
+	}, edges = "tile", rim = 24, scale = 0.32, gap = 7 })
