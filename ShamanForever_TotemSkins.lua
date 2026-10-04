@@ -276,6 +276,13 @@ function TH.border()
 end
 function TH.extrasBorder() return TH.current().extrasBorder end
 
+-- The picture's size inside a button whose border art frames it smaller (a medallion), for text
+function TH.faceSize(b, sz, frame)
+	local look = b and b.show and S.look("border", b.look)
+	if not (look and look.art and look.art.inset) then return sz end
+	return sz - 2 * ns.StyleArt.inset(frame, b, sz)
+end
+
 function TH.spacing(size)
 	local o = ownsNow()
 	local share = o and o.spacing

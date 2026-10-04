@@ -1235,7 +1235,8 @@ function layout()
 		local kt = keyTexts[b]
 		if kt then
 			local k = c.keyColor
-			ns.Media.setFont(kt, "totembar", W.keyTextSize(sz, c.keySize))
+			local face = TB.skin.faceSize(it.extra and extrasBorder or border, sz, b)
+			ns.Media.setFont(kt, "totembar", W.keyTextSize(face, c.keySize))
 			kt:ClearAllPoints()
 			kt:SetPoint("TOPRIGHT", c.keyX, c.keyY)
 			kt:SetTextColor(k[1], k[2], k[3], k[4] or 1)
@@ -1268,7 +1269,8 @@ function layout()
 	if pickSet then layoutSetPicker(size) end
 	layoutArrow(setSlot, pickSet and feat("arrows"))
 	if on.Call then
-		ns.Media.setFont(call.num, "totembar", W.keyTextSize(on.Call, c.keySize))
+		local face = TB.skin.faceSize(extrasBorder, on.Call, call.button)
+		ns.Media.setFont(call.num, "totembar", W.keyTextSize(face, c.keySize))
 		call.num:ClearAllPoints()
 		call.num:SetPoint("BOTTOMRIGHT", -1, 2)
 	end
