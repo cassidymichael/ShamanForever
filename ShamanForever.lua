@@ -1076,7 +1076,7 @@ local function changeableLine()
 			end
 		end
 	end
-	say("can change now (else after combat): %s%s", table.concat(list, ", "),
+	say("can move, show or hide now (else after combat): %s%s", table.concat(list, ", "),
 		#held > 0 and "; groups with an aura button: " .. table.concat(held, ", ") or "")
 end
 function E.debugReport()
