@@ -102,7 +102,7 @@ FR.addGroupStyle("gilded", { name = "Gilded", group = "blizzard", weight = "soli
 FR.addGroupStyle("bonehide", { name = "Bone and hide", group = "painted", weight = "solid", credit = "ai",
 	pieces = FR.cut({ path = "BoneHide", size = { 128, 128 } }, 48), edges = "stretch", rim = 30, scale = 0.5, gap = 2 })
 FR.addGroupStyle("earthen", { name = "Earthen", group = "painted", weight = "solid", credit = "ai",
-	pieces = FR.cut({ path = "Earthen", size = { 128, 128 } }, 32), edges = "stretch", rim = 32, scale = 0.45, gap = 1 })
+	pieces = FR.cut({ path = "Earthen", size = { 128, 128 } }, 32), edges = "tile", rim = 32, scale = 0.45, gap = 1 })
 
 local BAND = "TotemBand"
 FR.addGroupStyle("totemband", { name = "Totem band", group = "painted", weight = "solid", credit = "ai",
