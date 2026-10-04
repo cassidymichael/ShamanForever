@@ -23,6 +23,20 @@ FR.addStyle("brackets", { name = "Corner brackets", group = "blizzard", weight =
 	art = { atlas = "ConduitIconFrame-Corners", size = { 64, 64 } }, hole = { 7, 7, 50, 50 }, shown = { 1, 1, 63, 63 } })
 FR.addStyle("runewood", { name = "Runed wood", group = "painted", weight = "solid", credit = "ai",
 	art = { path = "Runewood", size = { 256, 256 } }, hole = { 64, 64, 128, 128 } })
+FR.addStyle("storm", { name = "Storm", group = "blizzard", weight = "wispy",
+	art = { file = 4861473, size = { 256, 128 } }, hole = { 108, 44, 41, 42 }, shown = { 38, 11, 224, 119 } })
+FR.addStyle("palestorm", { name = "Pale storm", group = "blizzard", weight = "wispy", tint = true,
+	art = { file = 6017378, size = { 256, 128 } }, hole = { 108, 44, 41, 42 }, shown = { 38, 11, 225, 119 } })
+FR.addStyle("bronzewood", { name = "Bronze and wood", group = "blizzard", weight = "solid",
+	art = { file = 1016657, size = { 256, 128 } }, hole = { 109, 43, 43, 44 }, shown = { 53, 23, 207, 108 } })
+FR.addStyle("slate", { name = "Slate", group = "blizzard", weight = "solid", tint = true,
+	art = { file = 4820990, size = { 256, 128 } }, hole = { 105, 42, 46, 45 }, shown = { 64, 24, 191, 103 } })
+FR.addStyle("roughstone", { name = "Rough stone", group = "blizzard", weight = "solid", tint = true,
+	art = { atlas = "ZoneAbility-Generic-IconBorder", size = { 63, 65 } }, hole = { 13, 15, 37, 35 },
+	shown = { 1, 2, 62, 63 } })
+FR.addStyle("gildedleaf", { name = "Gilded leaf", group = "blizzard", weight = "solid",
+	art = { atlas = "spellbook-item-iconframe", size = { 138, 131 } }, hole = { 39, 16, 84, 84 },
+	shown = { 4, 3, 136, 128 } })
 
 -- Round a group
 FR.addGroupStyle("midnight", { name = "Midnight", group = "blizzard", weight = "solid", tint = true,
