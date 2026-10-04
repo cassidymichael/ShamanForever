@@ -634,9 +634,11 @@ function TH.styleArrow(t, el)
 		-- Blizzard's tab carries its own arrow, drawn at its shape against the slot
 		local pop = TB.eff().pop
 		blizzPiece(bg, (pop == "down" and BZ.down or BZ.up)[el or "spell"])
-		local w = (TB.look()) - 2
-		local h = math.min(w * 18 / 28, TB.eff().arrowSize)
-		w = h * 28 / 18
+		-- As deep as the tab, as wide as its shape allows within the tab (a slot's, or Call's)
+		local size = TB.look()
+		if not el then size = math.floor(size * TB.eff().extrasScale + 0.5) end
+		local h = TB.eff().arrowSize
+		local w = math.min(size - 2, h * 28 / 18)
 		bg:ClearAllPoints()
 		bg:SetSize(w, h)
 		bg:SetPoint(pop == "down" and "TOP" or "BOTTOM")
