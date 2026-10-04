@@ -652,10 +652,10 @@ function TH.styleArrow(t, el)
 	t.glyph:SetVertexColor(ARROW_BRONZE[1], ARROW_BRONZE[2], ARROW_BRONZE[3], 1)
 end
 
-local function place(t, pop, y, h)
+local function place(t, pop, y, h, dx)
 	t:ClearAllPoints()
-	t:SetPoint("BOTTOMLEFT", pop, "BOTTOMLEFT", 0, y)
-	t:SetPoint("BOTTOMRIGHT", pop, "BOTTOMRIGHT", 0, y)
+	t:SetPoint("BOTTOMLEFT", pop, "BOTTOMLEFT", dx or 0, y)
+	t:SetPoint("BOTTOMRIGHT", pop, "BOTTOMRIGHT", dx or 0, y)
 	t:SetHeight(h)
 	t:Show()
 end
@@ -672,27 +672,29 @@ local function plinthPicker(pop, p, n, psz)
 	local x1, x2, x4 = pl.slotX[1], pl.slotX[2], pl.slotX[4]
 	local w = pl.rect[3]
 	local cut = art.capCut
+	-- The openings sit off the plinth's middle: shifted so each centres on its button
+	local dx = (pl.slotY + PL_SLOT / 2 - pl.rect[4] / 2) * psz / PL_SLOT
 	turnedPiece(f.foot, cut and w - cut or x4 + PL_SLOT, w)
-	place(f.foot, pop, 0, first)
+	place(f.foot, pop, 0, first, dx)
 	local y = first
 	for i = 1, n do
 		local t = f.tiles[i] or pop:CreateTexture(nil, "BACKGROUND", nil, 1)
 		f.tiles[i] = t
 		turnedPiece(t, x1, x1 + PL_SLOT)
-		place(t, pop, y, psz)
+		place(t, pop, y, psz, dx)
 		y = y + psz
 		if i < n then
 			local d = f.divs[i] or pop:CreateTexture(nil, "BACKGROUND", nil, 1)
 			f.divs[i] = d
 			turnedPiece(d, x1 + PL_SLOT, x2)
-			place(d, pop, y, gap)
+			place(d, pop, y, gap, dx)
 			y = y + gap
 		end
 	end
 	for i = n + 1, #f.tiles do f.tiles[i]:Hide() end
 	for i = math.max(n, 1), #f.divs do f.divs[i]:Hide() end
 	turnedPiece(f.head, 0, cut or x1)
-	place(f.head, pop, y, last)
+	place(f.head, pop, y, last, dx)
 end
 
 -- Blizzard's flyout: its middle stretched, its edge at the far end and, turned, at the near one
