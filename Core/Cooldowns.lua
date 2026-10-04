@@ -134,10 +134,13 @@ ns.registerPart("window", {
 	},
 })
 -- Primed by our cast until spent: { spends, duration, buffKey, text }; primedLooks false:
--- no pop or glow of its own
+-- no pop or glow of its own. Its switch off (active.on), it's a plain cooldown
+local function primedOn(def) return setting(def.key, "active", "on") ~= false end
 ns.registerPart("primed", {
 	defaults = function(def)
-		return def.primedLooks ~= false and { active = { pop = true, glow = true } } or nil
+		local a = { on = true }
+		if def.primedLooks ~= false then a.pop, a.glow = true, true end
+		return { active = a }
 	end,
 	glow = function(def) return def.primedLooks ~= false end,
 	pop = function(def) return def.primedLooks ~= false end,
@@ -145,13 +148,14 @@ ns.registerPart("primed", {
 	page = {
 		uptime = function(def) return def.primed.duration and "Primed time left" or nil end,
 		active = function(def)
-			return { title = "Primed", text = def.primed.text,
+			return { title = "Primed", text = def.primed.text, on = { "Show it", "Off, it's just a cooldown." },
 				tips = { pop = "The moment it's primed.", glow = "While it's primed." } }
 		end,
 	},
 	preview = {
 		uptime = function(def) return def.primed.duration ~= nil end,
 		states = { { "primed", "Primed", 60 } },
+		shown = function(st, def) return st ~= "primed" or primedOn(def) end,
 		render = function(ic, st, def, kit)
 			if st ~= "primed" then return end
 			ic:SetGlowShown(setting(def.key, "active", "glow"))
@@ -420,7 +424,7 @@ end
 local CAST_GRACE = 1.5
 local function readPrimedBuff(def, fromAura)
 	local buffKey = def.primed and def.primed.buffKey
-	if not buffKey or not ns.aurasReadable() or not C_UnitAuras then return end
+	if not buffKey or not primedOn(def) or not ns.aurasReadable() or not C_UnitAuras then return end
 	local found
 	local function usable(ok, a)
 		return ok and type(a) == "table" and not isSecret(a.expirationTime) and not isSecret(a.duration)
@@ -475,6 +479,7 @@ function refreshCooldown(def, inEvent)
 	local dur, bar = cooldownFor(f, def.key, def.spellID, inEvent)
 	if dur then f.cdTimer:set(dur, bar) end
 	f.tex:SetDesaturated(false)
+	if def.primed and not primedOn(def) then endActive(def) end
 	local held = isActive(def)
 	if def.primed then showPrimed(def, held) end
 	if def.reagent then
@@ -643,7 +648,7 @@ function CD.onCast(spellID)
 			if key == def.spellKey then CD.noteCast(def.frame, def.spellID) end
 			if def.window and key == def.spellKey then
 				startActive(def, now, def.window)
-			elseif def.primed then
+			elseif def.primed and primedOn(def) then
 				if key == def.spellKey then
 					def.castAt = now
 					startActive(def, now, def.primed.duration, def.activeUntil ~= nil)
@@ -708,6 +713,7 @@ function CD.debug()
 			extra = def.activeUntil and string.format(", %s for %s", def.primed and "primed" or "window",
 				def.activeUntil == math.huge and "until spent"
 					or string.format("%.1f s", def.activeUntil - GetTime())) or ", not active"
+			if def.primed and not primedOn(def) then extra = ", primed off" end
 		end
 		if def.reagent then
 			extra = string.format("%s, reagent %s (takes it: %s, Reagent Economy %s)", extra,

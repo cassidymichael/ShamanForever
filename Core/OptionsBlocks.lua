@@ -993,16 +993,23 @@ local function readyBlock(p, owner, opts)
 	soundRow(p, s, "ready", "Sound", "The moment the cooldown ends.")
 end
 
--- active: opts.title, text, extra(s, p) (rows under its glow); shown with a text even with no fields
+-- active: opts.title, text, on = { label, tip } (its switch, when it has one), extra(s, p) (rows under
+-- its glow); shown with a text even with no fields
+local function activeRows(p, s, opts)
+	check(p, s, "active", "pop", "Pop", tipOf(opts, "pop"))
+	check(p, s, "active", "glow", "Pulsing glow", tipOf(opts, "glow"))
+	if opts.extra then opts.extra(s, p) end
+	soundRow(p, s, "active", "Sound", tipOf(opts, "sound"))
+end
 local function activeBlock(p, owner, opts)
 	local s = store(p, owner, opts.after)
 	if not (s.has("active") or opts.text) then return end
 	p:header(opts.title)
 	if opts.text then p:text(opts.text) end
-	check(p, s, "active", "pop", "Pop", tipOf(opts, "pop"))
-	check(p, s, "active", "glow", "Pulsing glow", tipOf(opts, "glow"))
-	if opts.extra then opts.extra(s, p) end
-	soundRow(p, s, "active", "Sound", tipOf(opts, "sound"))
+	if not s.has("active", "on") then return activeRows(p, s, opts) end
+	local get, set = s.opt("active", "on")
+	local on = p:checkbox(opts.on[1], opts.on[2], get, set)
+	p:sub(on, get, function() activeRows(p, s, opts) end)
 end
 
 -- ended (it ran out); its sound plays for either end

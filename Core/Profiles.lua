@@ -26,7 +26,8 @@ local SHARE_VERSION = 7
 -- Element settings (db.elementOpts[key]). A state or event is a table of fields, named the same on
 -- every element; an element's defaults declare the fields it has, and pages offer those.
 --   warn    = { on, grey, ring, fade, tint, glow, pop, sound }   something is missing (a buff)
---   active  = { pop, glow, text, sound }   something to use or act on (primed, a proc, five stacks)
+--   active  = { on, pop, glow, text, sound }   something to use or act on (primed, a proc, five stacks);
+--             on: it's followed at all (off, the element leaves the state out)
 --   ready   = { pop, glow, sound, blocked }   the cooldown ends; glow while it's ready; blocked: the
 --             pop when it ends but can't be used now (grey | none)
 --   expire  = { secs, grey, ring, fade, glow, bar, barColor, text, over }   the last seconds
