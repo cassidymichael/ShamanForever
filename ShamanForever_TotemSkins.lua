@@ -444,11 +444,8 @@ end
 -- bright foot
 local function plateFill(t, col)
 	t:SetColorTexture(1, 1, 1, 1)
-	local ok = pcall(function()
-		t:SetGradient("VERTICAL", CreateColor(col[1] * 0.5, col[2] * 0.5, col[3] * 0.5, 0.95),
-			CreateColor(col[1] * 0.12, col[2] * 0.12, col[3] * 0.12, 0.92))
-	end)
-	if not ok then t:SetColorTexture(col[1] * 0.25, col[2] * 0.25, col[3] * 0.25, 0.92) end
+	t:SetGradient("VERTICAL", CreateColor(col[1] * 0.5, col[2] * 0.5, col[3] * 0.5, 0.95),
+		CreateColor(col[1] * 0.12, col[2] * 0.12, col[3] * 0.12, 0.92))
 end
 local function plateDress(v, el, w)
 	local d = dressParts(v)
