@@ -126,8 +126,11 @@ ns.registerPart("lowMana", {
 			f.lowManaGlow:SetAlpha(CD.readyAlpha(def.spellID, cantAct))
 		end,
 		debug = function(def)
-			if not lowManaOn(def) then return "low mana glow off" end
-			return string.format("low mana glow under %d%%", setting(def.key, "lowMana", "under"))
+			if setting(def.key, "lowMana", "glow") ~= true then return "low mana glow off" end
+			local under = string.format("low mana glow under %d%%", setting(def.key, "lowMana", "under"))
+			if not def.spellID then return under .. " (not learned)" end
+			if not E.isEnabled(def.key) then return under .. " (not shown)" end
+			return under
 		end,
 	},
 })
