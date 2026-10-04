@@ -37,6 +37,10 @@ FR.addStyle("roughstone", { name = "Rough stone", group = "blizzard", weight = "
 FR.addStyle("gildedleaf", { name = "Gilded leaf", group = "blizzard", weight = "solid",
 	art = { atlas = "spellbook-item-iconframe", size = { 138, 131 } }, hole = { 39, 16, 84, 84 },
 	shown = { 4, 3, 136, 128 } })
+FR.addStyle("earthen", { name = "Earthen", group = "painted", weight = "solid", credit = "ai",
+	art = { path = "Earthen", size = { 128, 128 } }, hole = { 32, 32, 64, 64 } })
+FR.addStyle("bonehide", { name = "Bone and hide", group = "painted", weight = "solid", credit = "ai",
+	art = { path = "BoneHide", size = { 128, 128 } }, hole = { 30, 30, 68, 68 } })
 
 -- Round a group
 FR.addGroupStyle("midnight", { name = "Midnight", group = "blizzard", weight = "solid", tint = true,
@@ -95,3 +99,16 @@ FR.addGroupStyle("gilded", { name = "Gilded", group = "blizzard", weight = "soli
 		l = { atlas = "!plunderstorm-nineslice-edgeleft", size = { 30, 256 } },
 		r = { atlas = "!plunderstorm-nineslice-edgeright", size = { 30, 256 } },
 	}, edges = "tile", rim = 24, scale = 0.32, gap = 7 })
+FR.addGroupStyle("bonehide", { name = "Bone and hide", group = "painted", weight = "solid", credit = "ai",
+	pieces = FR.cut({ path = "BoneHide", size = { 128, 128 } }, 48), edges = "stretch", rim = 30, scale = 0.5, gap = 2 })
+FR.addGroupStyle("earthen", { name = "Earthen", group = "painted", weight = "solid", credit = "ai",
+	pieces = FR.cut({ path = "Earthen", size = { 128, 128 } }, 32), edges = "stretch", rim = 32, scale = 0.45, gap = 1 })
+
+local BAND = "TotemBand"
+FR.addGroupStyle("totemband", { name = "Totem band", group = "painted", weight = "solid", credit = "ai",
+	cells = {
+		first = { path = BAND, coords = { 0, 144 / 512, 0, 127 / 128 }, size = { 144, 127 } },
+		unit = { path = BAND, coords = { 144 / 512, 226 / 512, 0, 127 / 128 }, size = { 82, 127 } },
+		last = { path = BAND, coords = { 226 / 512, 370 / 512, 0, 127 / 128 }, size = { 144, 127 } },
+		hole = { 75, 28, 56, 56 },
+	} })
