@@ -90,6 +90,7 @@ function KD.slots(kind) return listOf(kind, "slots") end
 --   idles(st, when)    whether st goes idle once its moment has played, at Idle when = when
 --   standIn(ic)        /sf preview made ic, its stand-in: add what render expects on it
 --   hold(ic)           /sf preview paints ic over the element (nil: it ended)
+--   stateShown(st)     false: the state is off in its settings, its button and /sf preview step left out
 --   reach(ic)          how far parts drawn outside the icon reach out of ic on its left, right, top
 --                      and bottom, in pixels: the header's preview grows for them
 -- A bar's preview, drawn on its page's header instead: stage, heroH, build(h), render(h, st, kit),
@@ -122,7 +123,8 @@ function KD.get(kind) return KINDS[kind] end
 --   page              by slot: a title (timers), the slot's block options, or for own a block
 --                     ("reagent", { "toggle", ... }) or a list of them
 --   preview           states ({ id, label, order }), uptime, cooldown, typical, warning, labels
---                     (state labels over other parts'), render(ic, st, def, kit, pv) (every state),
+--                     (state labels over other parts'), shown(st, def) (false: st is off now),
+--                     render(ic, st, def, kit, pv) (every state),
 --                     pop(ic, st, def, kit), idles(st, def, when) (nil: no say), rest(ic, def, kit,
 --                     keep) (the kind's look while nothing of its own is going on)
 --   runtime           hooks its kind's engine calls on the HUD (listed where the kind registers)
@@ -340,6 +342,13 @@ local function preview(kind, def)
 	end
 	function pv.rest(ic, kit, keep)
 		if own and own.rest then own.rest(ic, def, kit, keep) end
+	end
+	function pv.stateShown(st)
+		for _, p in ipairs(list) do
+			local f = p.preview and p.preview.shown
+			if f and f(st, def) == false then return false end
+		end
+		return true
 	end
 	return pv
 end
