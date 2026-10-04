@@ -71,23 +71,9 @@ ns.registerPart("readyGlow", { defaults = { ready = { glow = false } }, glow = t
 -- Low mana: a pulsing glow while it's ready and your mana is under a percentage. Mana is secret even
 -- out of combat: its percent goes through a curve straight into an alpha, and nothing else reads it
 local MANA = Enum.PowerType and Enum.PowerType.Mana or 0
-local STEP = Enum.LuaCurveType and Enum.LuaCurveType.Step or 1
-local lowCurves = {}
--- 1 under the percentage, 0 from it up (a Step curve takes a point's value at the point)
-local function lowCurve(under)
-	local c = lowCurves[under]
-	if c == nil then
-		c = false
-		if C_CurveUtil and C_CurveUtil.CreateCurve then
-			c = C_CurveUtil.CreateCurve()
-			c:SetType(STEP)
-			c:AddPoint(0, 1)
-			c:AddPoint(under / 100, 0)
-		end
-		lowCurves[under] = c
-	end
-	return c or nil
-end
+-- 1 under the percentage, 0 from it up
+local lowCurves = ns.cache(32, function(under) return ns.curve({ 0, 1, under / 100, 0 }, "Step") or false end)
+local function lowCurve(under) return lowCurves(under, under) or nil end
 local function lowManaOn(def)
 	return def.spellID ~= nil and E.isEnabled(def.key) and setting(def.key, "lowMana", "glow") == true
 end
