@@ -298,13 +298,15 @@ local function frameRows(p, owner, part, after, opts)
 			if l.weight ~= "solid" or not FR.usable(l) then return nil end
 			local g = G.of(o)
 			if not (g and #g.members > 1) then return nil end
-			local rc, size = l.reach, G.size(g)
+			local rc, size = l.drawn or l.reach, G.size(g)
 			local n = g.orientation == "vertical" and rc.top + rc.bottom or rc.left + rc.right
 			n = math.ceil(n * size)
 			return n > 0 and n or nil
 		end
 		p:text(function()
-			return string.format("Needs about %d spacing in its group to clear its neighbours.", room() or 0)
+			local n = room() or 0
+			if n > P.GROUP_RANGES.spacing[2] then return "Its art runs over its neighbours at any spacing." end
+			return string.format("Needs about %d spacing in its group to clear its neighbours.", n)
 		end,
 			showWhen(function() return room() ~= nil end, own))
 	end
