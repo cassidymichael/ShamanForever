@@ -47,13 +47,11 @@ ns.CLASS.cooldowns = {
 		grounded = true, ranOut = true, cd = 15, defaults = { idleWhen = "offcd" },
 		experimental = "Grounding Totem" },
 	-- Rotation
-	-- Stormstrike: timed from the cast, spent by our own casts only (auras are secret in combat).
+	-- Stormstrike: its debuff on your target (targetDebuff, _Target)
 	{ key = "stormstrike", power = true, range = true, spellKey = "stormstrike", icon = 135963, school = "air",
-		blurb = "Cooldown, and a bar while your target takes more Nature damage.",
+		blurb = "Cooldown, and a bar while your debuff is on your target.",
 		styles = barTimer(), timerCant = ONE_SWIPE,
-		primed = { spends = { "lightningBolt", "chainLightning", "earthShock" }, duration = 12,
-			text = "From your cast for 12 s, or until your next Lightning Bolt, Chain Lightning or Earth Shock." },
-		primedLooks = false, expireLooks = false, readyGlow = true, cd = 8,
+		targetDebuff = { length = 12 }, expireLooks = false, readyGlow = true, cd = 8,
 		experimental = "Stormstrike" },
 	{ key = "riptide", power = true, spellKey = "riptide", icon = 252995, school = "water", blurb = "Cooldown.",
 		readyGlow = true, cd = 6, experimental = "Riptide" },

@@ -173,6 +173,7 @@ ns.registerPart("primed", {
 --                                chosen) or nil (neither)
 --   readyGate(def)               the Ready glow's alpha (may be secret); nil: it can't show
 --   make(def, f)                 adds what it draws to the icon f as it's made
+--   uptime(def)                  its own Time left timer, on a frame of its own (the icon has none)
 --   ticks(def)                   whether tick is wanted now
 --   tick(def, cantAct)           ten times a second while any part ticks: redraws a look with no
 --                                event to follow (cantAct: the player can't act)
@@ -186,7 +187,7 @@ ns.registerPart("primed", {
 
 local function checkFrames(def)
 	local f, missing = def.frame, nil
-	if hasUptime(def) and not f.upTimer then missing = "upTimer"
+	if hasUptime(def) and not f.upTimer and not KD.hook("cooldown", def, "uptime") then missing = "upTimer"
 	elseif KD.words("cooldown", def, "warn") and not f.warn then missing = "warn"
 	elseif KD.hook("cooldown", def, "readyGate") and not f.readyGate then missing = "readyGate" end
 	if missing then

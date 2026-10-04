@@ -331,6 +331,120 @@ ns.registerPart("skipLong", {
 	end } },
 })
 
+-- Cooldown rows with targetDebuff = { length } (the preview's): its Debuff state and time bar are your
+-- own debuff of the spell on your hostile target, drawn by Blizzard's button over the icon, in combat
+-- too. Its switch off (active.on), it's a plain cooldown
+local DEBUFFS = {}
+local function debuffOn(def)
+	return def.spellID ~= nil and E.isEnabled(def.key) and setting(def.key, "active", "on") ~= false
+end
+local function debuffAlpha(x)
+	if not ns.try("target debuff alpha", x.host.SetAlpha, x.host, x.stale and 0 or 1) then
+		ns.retryAfterCombat("target debuff alpha", function() debuffAlpha(x) end)
+	end
+end
+local function styleDebuff(x)
+	if not x.container or x.err then return end
+	local site = "target debuff style " .. x.def.key
+	if ns.deferWhileAurasSecret(site, function() styleDebuff(x) end) then return end
+	local ok = ns.try(site, function()
+		local f, size = x.def.frame, E.sizeOf(x.def.key)
+		x.container:SetSize(size, size)
+		x.container:SetFrameStrata(f:GetFrameStrata())
+		x.container:SetFrameLevel(f.textFrame:GetFrameLevel() + 5)
+		if x.button then x.button:SetSize(size, size) end
+		if x.timer then x.timer:apply() end
+	end)
+	if not ok then ns.retryAfterCombat(site, function() styleDebuff(x) end) end
+end
+-- Blizzard's button: no picture of its own, only the time bar and countdown it drives
+local function initDebuff(x, button)
+	W.noMouse(button)
+	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
+	local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
+	cd:SetAllPoints()
+	x.timer = ns.Timer.new(button, x.def.key, "uptime", { cd = cd, anchor = button, dual = true, aura = true,
+		school = x.def.school })
+	if not ns.try("target debuff bar", button.SetDurationBar, button, x.timer.bar, ns.Timer.AURA_BAR) then
+		x.timer.bar:Hide()
+		x.timer.bar = nil
+	end
+	button:SetDurationCooldown(cd)
+	x.button = button
+	styleDebuff(x)
+end
+-- Out of combat, auras readable; made once, while it's on and learned
+local function makeDebuff(x)
+	local def = x.def
+	if x.container or x.err or not debuffOn(def) then return end
+	local site = "target debuff " .. def.key
+	if ns.deferWhileAurasSecret(site, function() makeDebuff(x) end) then return end
+	local ok, err = pcall(function()
+		local f = def.frame
+		x.host = CreateFrame("Frame", nil, f)
+		x.host:SetAllPoints(f)
+		local c = CreateFrame("AuraContainer", nil, x.host, "CustomAuraContainerTemplate")
+		x.container = c
+		c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+		c:SetUnit("none")
+		pcall(c.EnableMouse, c, false)
+		c:AddAuraSlot(def.key, "HARMFUL|PLAYER", { candidateFilters = { includeSpellIDs = Spells.ids(def.spellKey) },
+			initializeFrame = function(button) ns.try(site .. " button", initDebuff, x, button) end })
+	end)
+	if not ok then
+		x.err = tostring(err)
+		if x.container then x.container:Hide() end
+		ns.noteError(site, x.err)
+		return
+	end
+	-- Its group's layout waits while it can't restyle the button, as for an aura element
+	def.frame.auraButton = true
+	ns.setVisibilityDriver(x.host, TG.HOSTILE, site .. " driver")
+	styleDebuff(x)
+	TG.follow(x)
+end
+for _, def in ipairs(ns.CLASS.cooldowns or {}) do
+	if def.targetDebuff then
+		local x = { def = def, restyle = debuffAlpha }
+		x.wanted = function() return debuffOn(def) end
+		DEBUFFS[def.key] = x
+	end
+end
+ns.registerPart("targetDebuff", {
+	kind = "cooldown",
+	defaults = { active = { on = true } },
+	page = {
+		uptime = "Debuff time left",
+		active = function(def)
+			return { title = "Debuff", text = "While your " .. Spells.name(def.spellKey) .. " is on your target.",
+				on = { "Show it", "Off, it's just a cooldown." } }
+		end,
+	},
+	preview = {
+		uptime = true,
+		states = { { "debuff", "Debuff", 60 } },
+		shown = function(st, def) return st ~= "debuff" or setting(def.key, "active", "on") ~= false end,
+		render = function(ic, st, def, kit)
+			if st == "debuff" then kit.frozen(ic.upT, 0.3, def.targetDebuff.length) end
+		end,
+	},
+	runtime = {
+		uptime = function(def) return DEBUFFS[def.key].timer end,
+		debug = function(def)
+			local x = DEBUFFS[def.key]
+			if not debuffOn(def) then return "debuff off" end
+			return string.format("debuff container %s%s, unit %s%s", x.container and "made" or "not made",
+				x.err and (", error: " .. x.err) or "", tostring(x.pointedAt), x.stale and " (hidden until one works)" or "")
+		end,
+	},
+})
+local function debuffsLayout()
+	for _, x in pairs(DEBUFFS) do
+		makeDebuff(x)
+		styleDebuff(x)
+	end
+end
+
 -- 0 while the container may show the last target's aura (stale)
 function gateAlpha(def)
 	ns.try("target gate alpha", def.gate.SetAlpha, def.gate, def.stale and 0 or 1)
@@ -575,6 +689,7 @@ end
 
 function TG.applyTimers()
 	for _, def in ipairs(ROWS) do def.aura:style() end
+	for _, x in pairs(DEBUFFS) do styleDebuff(x) end
 	styleLooks()
 	styleUp()
 end
@@ -598,6 +713,8 @@ function TG.applyLayout()
 	styleLooks()
 	styleUp()
 	checkAll()
+	debuffsLayout()
+	followAll()
 end
 
 function TG.afterGroups()
@@ -605,6 +722,7 @@ function TG.afterGroups()
 		def.aura:style()
 		if def.holder then holderAlpha(def) end
 	end
+	for _, x in pairs(DEBUFFS) do styleDebuff(x) end
 	styleLooks()
 	styleUp()
 	for _, def in ipairs(ROWS) do refreshAura(def) end
