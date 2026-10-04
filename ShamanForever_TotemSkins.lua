@@ -187,7 +187,7 @@ add("iron", {
 -- Elements: each slot on a plate of its element's colour and pattern
 add("elements", {
 	name = "Elements",
-	owns = { border = true, spacing = 0.42, extrasGapShare = 0.42 },
+	owns = { border = true, spacing = 0.42, extrasGapShare = 0.42, barPlace = true },
 	border = borderStyle("line", 1), extrasBorder = borderStyle("line", 1),
 	dress = "plates", timeBar = "tip", picker = "element", arrow = "element",
 	badgeGap = function(size) return math.floor(size * 0.16 + 0.5) end,
