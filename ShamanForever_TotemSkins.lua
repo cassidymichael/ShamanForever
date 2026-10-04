@@ -429,7 +429,8 @@ local function blizzardDress(v, el, w)
 	ring:SetPoint("TOPLEFT", v, "TOPLEFT", -o, o)
 	ring:SetPoint("BOTTOMRIGHT", v, "BOTTOMRIGHT", o, -o)
 	ring:Show()
-	if el then
+	-- Only bare: under a dimmed pick it muddies the pick
+	if el and TB.cfg().empty == "blank" then
 		local empty = d.empty or v:CreateTexture(nil, "BACKGROUND", nil, -8)
 		d.empty = empty
 		blizzPiece(empty, BZ.empty[el])
