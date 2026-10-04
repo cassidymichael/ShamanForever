@@ -25,7 +25,7 @@ local THEME = ns.THEME
 local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Art\\Looks\\"
 local TOTEMS = "Interface\\AddOns\\" .. ADDON .. "\\Art\\Totems\\"
 local ROUND = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
--- Blizzard's own Totem Action Bar art (128x256): pieces by element, in texels
+-- Blizzard's Totem Action Bar art (128x256), in texels
 local BLIZZ = "Interface\\Buttons\\UI-TotemBar"
 local BZ = {
 	empty = { earth = { 66, 96, 3, 33 }, fire = { 67, 97, 100, 130 }, water = { 39, 69, 209, 239 },
@@ -48,10 +48,7 @@ local function blizzPiece(t, r, flip)
 	t:SetTexCoord(r[1] / 128, r[2] / 128, top, bottom)
 end
 
--- Plinths: one-piece art for four slots, drawn once, for a slot PL_SLOT texels wide. Per size:
--- rect { x, y, w, h }, each opening's left edge and the openings' top; plug: the piece that seals a
--- socket; capCut: a picker's ends, in texels (else the plinth's own ends); arrowCols: the columns
--- the arrow tab takes (else the right end)
+-- One-piece plinths for four slots of PL_SLOT texels: rect, openings' left edges and top, per size
 local PL_SLOT = 48
 local PLINTH_ART = {
 	stone = { file = MEDIA .. "Plinth", w = 512, h = 256, plug = { 391, 1, 48, 48 }, sizes = {
@@ -90,7 +87,7 @@ S.addLook("border", "ironedge", { name = "Iron edge", group = "lines", hidden = 
 -- The looks, in the order the options offer them. Entry fields: name, experimental, owns, border,
 -- extrasBorder, behind, plinth (PLINTH_ART key) and plinthSize(), extrasScaleKey, fixedSlots (every
 -- element keeps a place; unshown ones are sealed sockets), dress (per-button art: "blizzard",
--- "plates"), timeBar, mark, picker, arrow, badgeGap(size), rangeText
+-- "plates", "boss"), timeBar, mark, picker, arrow, badgeGap(size), rangeText
 TH.LIST, TH.byKey = {}, {}
 local function add(key, entry)
 	entry.key = key
@@ -104,7 +101,6 @@ function TH.current()
 	return TH.byKey[TB.cfg().skin] or DEFAULT
 end
 
--- The current look's plinth at its size, and its art
 local function plinthNow()
 	local look = TH.current()
 	local art = PLINTH_ART[look.plinth] or PLINTH_ART.stone
@@ -121,7 +117,6 @@ local function plinthReach(size)
 end
 local function belowPlinth(size) return select(2, plinthReach(size)) end
 
--- A carved plinth: the art sets the spacing; a row, pickers up, Call and Recall one at each end
 local function plinthOwns(extra, beyond)
 	return function()
 		local gap, cap = shares(plinthNow())
@@ -145,7 +140,8 @@ add("pixel", {
 	rangeText = "Out of range, for totems that buff you: a red edge along the top of the slot.",
 })
 
--- Stone and bronze: a carved plinth in three sizes, Call and Recall in bronze medallions
+-- Stone and bronze: a carved plinth (fixed art sets the spacing, a row, pickers up), Call and Recall
+-- in bronze medallions
 add("stone", {
 	name = "Stone and bronze",
 	plinth = "stone", plinthSize = function() return TB.cfg().stonePlinth end,
@@ -158,7 +154,6 @@ add("stone", {
 	extrasScaleKey = "stoneExtrasScale", badgeGap = belowPlinth,
 })
 
--- Stone bosses: a slim stone bar ending in round bosses that hold Call and Recall, one piece
 add("bosses", {
 	name = "Stone bosses",
 	plinth = "bosses",
@@ -168,7 +163,6 @@ add("bosses", {
 	badgeGap = belowPlinth,
 })
 
--- Wood and bone: carved wood between bone rails, Call and Recall in carved wood frames
 add("wood", {
 	name = "Wood and bone",
 	plinth = "wood", owns = plinthOwns(nil, -0.3),
@@ -176,7 +170,6 @@ add("wood", {
 	behind = "plinth", picker = "plinth", arrow = "plinth", fixedSlots = true, badgeGap = belowPlinth,
 })
 
--- Iron and ember: riveted iron with glowing cracks, Call and Recall edged in iron and ember
 add("iron", {
 	name = "Iron and ember",
 	plinth = "iron", owns = plinthOwns(nil, 0.06),
@@ -184,7 +177,6 @@ add("iron", {
 	behind = "plinth", picker = "plinth", arrow = "plinth", fixedSlots = true, badgeGap = belowPlinth,
 })
 
--- Elements: each slot on a plate of its element's colour and pattern
 add("elements", {
 	name = "Elements",
 	owns = { border = true, spacing = 0.42, extrasGapShare = 0.42, barPlace = true },
@@ -193,8 +185,6 @@ add("elements", {
 	badgeGap = function(size) return math.floor(size * 0.16 + 0.5) end,
 })
 
--- Blizzard's totem bar: its element rings, empty-slot totems, pickers and arrow tabs, from the
--- game's own art; a row, as Blizzard's
 add("blizzard", {
 	name = "Blizzard's totem bar",
 	owns = { border = true, spacing = 8 / 30, extrasGapShare = 8 / 30, dir = "row", extras = "ends" },
@@ -216,7 +206,7 @@ end
 
 function TH.extrasScaleKey() return TH.current().extrasScaleKey or "extrasScale" end
 
--- Blizzard's picker: its flyout's edge at each end, a button 24 of its 32 texels wide
+-- Blizzard's flyout: edge and gap as shares of its 24-texel button, which is 32 texels wide
 local BZ_EDGE, BZ_GAP = 6 / 24, 2 / 24
 
 -- A plinth picker is a small plinth stood on end: the plinth's pieces turned a quarter, an
@@ -408,8 +398,7 @@ function TH.layoutBar(host, boxes, size, row, sealed)
 	plinth(host, boxes, size, look.behind == "plinth" and row and #boxes == 4, sealed)
 end
 
--- Per-button art on a slot's or Call's and Recall's look v (w wide: its size can read secret under a
--- secure button); el: the slot's element, nil for Call and Recall
+-- el: nil for Call and Recall; w: v's width, passed as it can read secret under a secure button
 local function dressParts(v)
 	local d = v.skinDress
 	if not d then
@@ -440,8 +429,6 @@ local function blizzardDress(v, el, w)
 	end
 end
 
--- A plate under the slot: its element's colour, darker to the top, its pattern, an edge and a
--- bright foot
 local function plateFill(t, col)
 	t:SetColorTexture(1, 1, 1, 1)
 	t:SetGradient("VERTICAL", CreateColor(col[1] * 0.5, col[2] * 0.5, col[3] * 0.5, 0.95),
@@ -484,7 +471,7 @@ local function plateDress(v, el, w)
 	f:Show()
 end
 
--- Call and Recall's boss: twice the icon, round it, no mouse
+-- Art only: Call and Recall keep their own clickable size
 local function bossDress(v, w)
 	local d = dressParts(v)
 	local t = d.boss or v:CreateTexture(nil, "OVERLAY", nil, 5)
@@ -628,10 +615,9 @@ function TH.styleArrow(t, el)
 	t:SetBackdropBorderColor(0, 0, 0, 0)
 	local bg = arrowBg(t)
 	if kind == "blizzard" then
-		-- Blizzard's tab carries its own arrow, drawn at its shape against the slot
+		-- Blizzard's tab carries its own arrow
 		local pop = TB.eff().pop
 		blizzPiece(bg, (pop == "down" and BZ.down or BZ.up)[el or "spell"])
-		-- As deep as the tab, as wide as its shape allows within the tab (a slot's, or Call's)
 		local size = TB.look()
 		if not el then size = math.floor(size * TB.eff().extrasScale + 0.5) end
 		local h = TB.eff().arrowSize
@@ -669,7 +655,7 @@ local function plinthPicker(pop, p, n, psz)
 	local x1, x2, x4 = pl.slotX[1], pl.slotX[2], pl.slotX[4]
 	local w = pl.rect[3]
 	local cut = art.capCut
-	-- The openings sit off the plinth's middle: shifted so each centres on its button
+	-- The openings sit off the plinth's middle
 	local dx = (pl.slotY + PL_SLOT / 2 - pl.rect[4] / 2) * psz / PL_SLOT
 	turnedPiece(f.foot, cut and w - cut or x4 + PL_SLOT, w)
 	place(f.foot, pop, 0, first, dx)
@@ -694,7 +680,6 @@ local function plinthPicker(pop, p, n, psz)
 	place(f.head, pop, y, last, dx)
 end
 
--- Blizzard's flyout: its middle stretched, its edge at the far end and, turned, at the near one
 local function blizzardPicker(pop, p, n, psz, el)
 	local f = p.blizz
 	if not f then
