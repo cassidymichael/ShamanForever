@@ -544,7 +544,6 @@ local function build(p)
 		function() return c().mana.on end, function(v) c().mana.on = v; changed() end, "power")
 	p.gate = TB.barOn
 
-	-- Defaults use spell names that may not have loaded yet: TB.overChanged accepts either.
 	local function over() return c().expire.over end
 	local function overRows()
 		p:owns({ bar = "totembar", name = "expire", field = "over", after = changed,
