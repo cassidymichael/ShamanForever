@@ -531,19 +531,26 @@ function CD.resolve()
 	return table.concat(sig, ",")
 end
 
+-- Expiring ticks only for a row that's on
 function CD.applyTimers()
 	for _, def in ipairs(COOLDOWNS) do
 		local f = def.frame
 		f.cdTimer:apply()
 		if f.upTimer then
 			f.upTimer:apply()
-			f.upTimer:setExpire(E.event(def.key, "expire"), def.iconID or def.icon)
+			f.upTimer:setExpire(E.isEnabled(def.key) and E.event(def.key, "expire") or nil, def.iconID or def.icon)
 		end
 	end
 end
 
+local events   -- set(on): the reagent rows' events, from start
 function CD.applyLayout()
-	for _, def in ipairs(COOLDOWNS) do styleCooldown(def) end
+	local reagents = false
+	for _, def in ipairs(COOLDOWNS) do
+		styleCooldown(def)
+		if def.reagent and E.isEnabled(def.key) then reagents = true end
+	end
+	if events then events(reagents) end
 	refreshCooldowns()
 	syncReadyTicker()
 end
@@ -570,8 +577,7 @@ end
 
 function CD.start()
 	local ev = CreateFrame("Frame")
-	ns.registerEvent(ev, "BAG_UPDATE_DELAYED")
-	ns.registerEvent(ev, "UNIT_AURA", "player")
+	events = ns.eventsWhile(ev, { "BAG_UPDATE_DELAYED", { "UNIT_AURA", "player" } })
 	ev:SetScript("OnEvent", function(_, event)
 		if event == "BAG_UPDATE_DELAYED" then
 			for _, def in ipairs(COOLDOWNS) do if def.reagent then refreshCooldown(def) end end
