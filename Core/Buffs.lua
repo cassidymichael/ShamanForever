@@ -410,10 +410,14 @@ local function mirrorCount(def)
 	local shown = fs:IsShown()
 	o:SetShown(shown)
 	if not shown then return end
+	-- R.draw and W.placeScaledText keep what the count shows and where
+	local copied = tostring(fs.shown) .. "|" .. tostring(fs.placed)
+	if def.countCopied == copied then return end
 	local font, size, flags = fs:GetFont()
 	if font then o:SetFont(font, size, flags) end
 	o:SetText(fs:GetText())
 	o:SetTextColor(fs:GetTextColor())
+	def.countCopied = font and copied or nil
 end
 -- Over the button's parts: its Expiring parts and countdown reach 15 levels over the icon's text layer
 local COUNT_OVER = 16
@@ -1390,6 +1394,10 @@ function B.debug()
 		if def.breath then state = state .. ", breath bar " .. tostring(breathing) end
 		if def.lengthOff then state = state .. ", another length (no Expiring bar)" end
 		say("%s: spell %s, %s", def.spell, tostring(def.spellID), state)
+		if def.countLook then
+			say("%s count over the button: %s; %s", def.spell, def.countOver:IsShown()
+				and ("shown " .. describeArg(def.countOver:GetText())) or "hidden", def.countLook:describe())
+		end
 	end
 	for _, x in ipairs(PARTIES) do
 		local made, errs = 0, {}
