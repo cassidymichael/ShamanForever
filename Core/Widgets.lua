@@ -344,7 +344,7 @@ end
 -- Its button: the aura's picture (ownIcon(): the element's), host(slot, button) the frame its parts go on,
 -- its time left (noTimer: none; barInset(); anchor, default its host, and dual as ns.Timer's). noIcon: no
 -- picture, the icon keeps its own; ownIcon and host unused, its time left on the icon (anchor default
--- frame) sharing the icon's cooldown (dual unless false). With host or extras its time bar stays in the icon.
+-- frame) sharing the icon's cooldown (dual unless false). With host its time bar stays in the icon.
 -- setup() makes it once (if it waits, it doesn't call back); Blizzard makes the buttons inside it, where
 -- they are set up (a noIcon one styled too). It sets frame.auraButton: the layout waits for its restyle.
 -- Errors are noted under sites.container: setup's (slot.err, the container hidden), and a button's set-up's
@@ -352,9 +352,8 @@ end
 -- Then style() or styleNow() and refilter(), each waiting as its comment says; fade(site, alpha), describe().
 -- Fields callers read: container, err, button, timer, cd, icon, host, holder, extras, size, filtered, applied.
 function W.makeAuraSlot(frame, opts)
-	-- A host of the caller's may clip the button's parts to the icon, and extra buttons carry the
-	-- caller's own parts over it
-	if (opts.host or opts.extras) and not opts.noTimer then ns.Timer.keepIn(opts.key) end
+	-- A host of the caller's may clip the button's parts to the icon
+	if opts.host and not opts.noTimer then ns.Timer.keepIn(opts.key) end
 	return setmetatable({ frame = frame, opts = opts }, AuraSlot)
 end
 
