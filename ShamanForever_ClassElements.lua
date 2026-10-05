@@ -97,7 +97,7 @@ local TEXT_TIMER = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 
 -- cast states on the icon too, for when it's down and you would recast
 local function ownBuff(row)
 	row.proc, row.noPop, row.noGlow, row.engineExpire = true, true, true, true
-	row.auraKey, row.filter, row.castUnder = row.spellKey, "HELPFUL|PLAYER", true
+	row.auraKey, row.filter, row.castUnder, row.ownSpell = row.spellKey, "HELPFUL|PLAYER", true, true
 	return row
 end
 ns.CLASS.buffs = {

@@ -355,7 +355,7 @@ ns.registerPart("engineExpire", {
 -- (else "HELPFUL"), candidates(def) (candidate filters, else the aura's IDs), auraKey or buffKey
 -- (the aura's spell, any rank), ownIcon (the row's icon, not the aura's), noTimer (no time left),
 -- noGlow and noPop (without its own glow or pop; with neither, no effect host), charges (above),
--- swingMark (below), reagent (its count over the button: countOver), castUnder (its cast states also
+-- swingMark (below), ownSpell (above), reagent (its count over the button: countOver), castUnder (its cast states also
 -- on the icon under the button, for when the aura is down).
 -- A part's runtime hooks for them (each optional; parts from other files bring their own):
 --   make(def)                  at load, after the icon, before the aura slot: frames of its own;
@@ -385,12 +385,18 @@ local function makeBuffIcon(def)
 	return f
 end
 
--- The aura's IDs: any rank of its spell
+-- The aura's IDs: any rank of its spell; ownSpell: only those you know (an item's spell of the same name,
+-- once cast, is matched by name too)
+local function knownID(id) return ns.plain(safe(C_SpellBook.IsSpellKnown, id)) == true end
 local function auraIDs(def)
 	if not def.ids then
 		def.ids = {}
 		local key = def.auraKey or def.buffKey
-		if key then for id in pairs(Spells.ids(key)) do def.ids[id] = true end end
+		if key then
+			for id in pairs(Spells.ids(key)) do
+				if not def.ownSpell or id == def.spellID or knownID(id) then def.ids[id] = true end
+			end
+		end
 	end
 	return def.ids
 end
