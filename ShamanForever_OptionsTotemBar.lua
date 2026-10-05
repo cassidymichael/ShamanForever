@@ -468,10 +468,21 @@ local function build(p)
 
 	p.gate = full
 	p:header("Buttons")
-	p:checkbox("Left-click casts your pick", "Left-click a slot to drop that element's picked totem.", tget("cast"),
-		tset("cast"))
-	local arrows = p:checkbox("Arrow opens a totem picker", "A tab on each slot opens its totems. Works in combat.",
-		tget("arrows"), tset("arrows"))
+	-- Refused in combat: the box goes back to the setting
+	local function buttonSet(key, label)
+		own(key, { label = label, reset = function() return TB.setButtonSetting(key, TB.DEFAULTS[key]) end })
+		return function(v)
+			if TB.setButtonSetting(key, v) then changed()
+			else
+				ns.say("totem bar changes wait until combat ends")
+				ns.Options.refresh()
+			end
+		end
+	end
+	local CAST, ARROWS = "Left-click casts your pick", "Arrow opens a totem picker"
+	p:checkbox(CAST, "Left-click a slot to drop that element's picked totem.", tget("cast"), buttonSet("cast", CAST))
+	local arrows = p:checkbox(ARROWS, "A tab on each slot opens its totems. Works in combat.",
+		tget("arrows"), buttonSet("arrows", ARROWS))
 	p:sub(arrows, tget("arrows"), function()
 		tslider("Arrow size", "How deep the tab is.", px, "arrowSize")
 	end)

@@ -1665,6 +1665,13 @@ function TB.setMode(mode)
 	if mode == "everything" then c.cast, c.arrows, c.call, c.recall = true, true, true, true end
 	return true
 end
+-- Left-click casting and the arrows are secure attributes and buttons, set at layout: refused in
+-- combat as the mode is, so the drawn bar never disagrees with what a click does
+function TB.setButtonSetting(key, on)
+	if ns.inCombat() then return false end
+	cfg()[key] = on
+	return true
+end
 function TB.modeName()
 	for _, m in ipairs(TB.MODES) do if m[1] == cfg().mode then return m[2] end end
 	return "?"
