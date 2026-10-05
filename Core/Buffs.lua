@@ -193,10 +193,8 @@ ns.registerPart("charges", {
 	},
 })
 
--- Expiring drawn by the engine, on an aura button: a clip-framed bar over the time bar's last seconds of
--- the aura's full length, under a cover bar, and the countdown turned red by a curve. Set out of combat
--- only. x holds its frames (redBar, coverBar, textHolder, durText, textHanded) and lengthOff (a plain read
--- of another length turns the bar off); def has its settings.
+-- Expiring drawn by the engine on an aura button, set out of combat: a clip-framed bar over the time bar's
+-- last seconds under a cover bar, and a red countdown. x holds its frames and lengthOff; def its settings
 local EXPIRE_FAST = 240   -- the cover crosses its clip in a 240th of the aura's length
 local EXPIRE_RED = { 1, 0.2, 0.2, 1 }
 local REMAINING = Enum and Enum.DurationTextBindingProperty and Enum.DurationTextBindingProperty.RemainingDuration or 0
@@ -304,9 +302,7 @@ local function styleExpire(x, def, length, size, slot)
 	styleExpireText(x, def, slot, st, secs)
 end
 
--- An aura button's Expiring parts: extras (slots of their own on its container, one bar each), the
--- countdown's holder on its button (its font set before it's handed over: Blizzard writes at once), and
--- its style
+-- Its extra slots (one bar each), its countdown's holder (font set first: Blizzard writes at once), style
 B.expiring = {
 	extras = function(x, def)
 		return {
@@ -565,9 +561,8 @@ local function styleState(x)
 	end)
 	if not ok then ns.retryAfterCombat(site, function() styleState(x) end) end
 end
--- Blizzard's engine plays the pop at each assignment of the aura, also of one already up (login, /reload,
--- a loading screen, a new container): for QUIET seconds after one, the pop's parts stay off. Out of
--- combat only; in combat such a pop can play
+-- The engine pops at each assignment, also of an aura already up (login, a loading screen, a new
+-- container): its parts stay off for QUIET seconds after one, set out of combat only
 local QUIET = 2
 local function quietState(x)
 	if not x.fx or not ns.aurasReadable() then return end
@@ -580,8 +575,7 @@ local function quietState(x)
 		styleState(x)
 	end)
 end
--- Blizzard's button: no picture of its own (the icon keeps the cooldown), only the time left it drives
--- and the pop handed to it
+-- Blizzard's button: no picture (the icon keeps the cooldown), only the time left and the pop handed to it
 local function initState(x, button)
 	local def = x.def
 	W.noMouse(button)
