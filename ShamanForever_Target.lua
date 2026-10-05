@@ -363,7 +363,8 @@ local function initDebuff(x, button)
 	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
 	local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
 	cd:SetAllPoints()
-	x.timer = ns.Timer.new(button, x.def.key, "uptime", { cd = cd, anchor = button, dual = true, aura = true,
+	-- Placed on the icon, the same box: a border's picture inset is the icon's
+	x.timer = ns.Timer.new(button, x.def.key, "uptime", { cd = cd, anchor = x.def.frame, dual = true, aura = true,
 		school = x.def.school })
 	if not ns.try("target debuff bar", button.SetDurationBar, button, x.timer.bar, ns.Timer.AURA_BAR) then
 		x.timer.bar:Hide()
