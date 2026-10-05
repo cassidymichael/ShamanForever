@@ -244,8 +244,7 @@ local function learn()
 end
 
 function RG.layout(size)
-	-- Blizzard's containers refuse addon calls while auras are secret: their part waits, the layout
-	-- reruns after
+	-- The containers' part waits while auras are secret; the layout reruns after
 	local blocked = ns.deferWhileAurasSecret("totem range layout", function() RG.layout(size) end)
 	local want = enabled() and ns.isClass()
 	for _, el in ipairs(TB.ELEMENTS) do
@@ -266,8 +265,8 @@ end
 
 -- The holder: shown while one of your buff totems is down in the slot, so a buff lingering after its
 -- totem goes can't keep Blizzard's part lit. Out of combat its alpha stays 1 and a state driver
--- hides it, showing it as combat starts (an addon Show on a frame holding Blizzard's button is
--- dropped in combat); in combat its alpha hides it. The red is held by the same frame.
+-- hides it, showing it as combat starts; in combat its alpha hides it. The red is held by the same
+-- frame.
 local EMPTY = "[combat] show; hide"
 local function showStrip(s, on)
 	local h = s.rangeHold

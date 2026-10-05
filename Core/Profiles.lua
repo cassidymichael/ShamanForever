@@ -107,12 +107,14 @@ local RENAMED = {
 	},
 }
 
--- Retired settings, dropped or converted as a profile loads or is imported (folds: as the account
+-- Retired settings, dropped or converted as a profile loads or is imported (account and folds: as the account
 -- loads). Drop after launch, with RENAMED, retireGroups, retireTotemBar, retireStyles and retireOwnLooks.
 local RETIRED = {
 	-- Profile keys from before styles
 	root = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "glowSize", "popMotion", "popSize", "popSpeed",
 		"popFlash", "popRing", "popStar", "popTint" },
+	-- Account keys no longer used
+	account = { "minimalArt", "settingsVersion", "testMode" },
 	-- Fold keys of pages that no longer fold, and of blocks that were renamed (a page's key, then its title)
 	folds = { "^layout:", ":Frame style$", ":Group frame style$", "^styles:Border look$", "^styles:Element frame$",
 		"^styles:Group frame$", "^totembar:Totems$", "^totembar:Not your pick$", "^purge:Track$",
@@ -313,6 +315,7 @@ function P.load()
 	_G[SAVED] = a
 	if type(a.profiles) ~= "table" then wipe(a) end
 	P.fillDefaults(a, ACCOUNT_DEFAULTS)
+	for _, k in ipairs(RETIRED.account) do a[k] = nil end
 	if type(a.foldedBlocks) ~= "table" then a.foldedBlocks = {} end
 	for key in pairs(a.foldedBlocks) do
 		for _, gone in ipairs(RETIRED.folds) do

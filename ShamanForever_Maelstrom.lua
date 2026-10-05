@@ -392,7 +392,7 @@ local function copyReady()
 end
 
 function applyIdle()
-	-- Refused in combat and while auras are secret: run again when readable
+	-- The copy at five is a frame under Blizzard's button: set while auras are readable
 	if ns.deferWhileAurasSecret("maelstrom idle", applyIdle) then return end
 	local on = idleWhen() == "five" and src.learned() and E.isEnabled(KEY) and P.getAccount().locked
 		and copyReady()

@@ -287,7 +287,7 @@ function W.attachSide(key, side, column)
 end
 
 -- Aura slot: Blizzard's aura container on an element icon, the one way to show an aura in combat.
--- Calls it refuses in combat or while auras are secret wait (ns.deferWhileAurasSecret).
+-- Its setup and restyles wait for combat's end and for readable auras (ns.deferWhileAurasSecret).
 -- Scripts under its button never run: it only plays animations handed to it.
 local AuraSlot = {}
 AuraSlot.__index = AuraSlot
