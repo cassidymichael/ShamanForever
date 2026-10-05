@@ -335,19 +335,22 @@ function W.noMouse(b)
 	pcall(b.SetMouseMotionEnabled, b, false)
 end
 
--- opts: key, slot (its name), unit (default player), filter (default HELPFUL), ids() or candidates(),
--- extras ({ key, init(slot, button) }: more slots on its container, their buttons over its own), level,
--- sites = { container, style, filter, bar }; onButton(slot, button, cd), onStyle(slot, size),
--- onError(err).
--- Its container: parent (default frame), or layer: in a frame of its own on that layer over the icon
--- (slot.holder, whose alpha the caller owns; frame.effects stays at full over an idle icon, frame fades
--- with it).
--- Its button: the aura's picture (ownIcon: the element's), its time left (noTimer: none; anchor and
--- dual: where its text and bar go, as ns.Timer's), host (a frame of the caller's for its parts),
--- barInset. noIcon: no picture, the element's icon keeps its own; nothing of it is set up or styled
--- before its restyle, which waits for combat's end like every other. Its set-up's errors are noted under
--- the container's site and "button" (its extras' under their key).
--- Its calls: setup() (made once), style() (next frame) or styleNow(), refilter(); each waits as below.
+-- opts (required: key, the element; slot, its name; ids() or candidates(); sites.container, .style, .filter;
+-- onError(err)): unit (default player), filter (default HELPFUL), name, level (over the icon's text layer
+-- +5), extras ({ key, init(slot, button) }: more slots on its container, their buttons over its own),
+-- sites.bar, onButton(slot, button, cd), onStyle(slot, size).
+-- Its container: parent (default frame), or layer: in a holder of its own on that layer over the icon
+-- (slot.holder; frame.effects stays at full over an idle icon, frame fades with it).
+-- Its button: the aura's picture (ownIcon(): the element's), host(slot, button) the frame its parts go on,
+-- its time left (noTimer: none; barInset(); anchor, default its host, and dual as ns.Timer's). noIcon: no
+-- picture, the icon keeps its own; ownIcon and host unused, its time left on the icon (anchor default
+-- frame) sharing the icon's cooldown (dual unless false). With host or extras its time bar stays in the icon.
+-- setup() makes it once (if it waits, it doesn't call back); Blizzard makes the buttons inside it, where
+-- they are set up (a noIcon one styled too). It sets frame.auraButton: the layout waits for its restyle.
+-- Errors are noted under sites.container: setup's (slot.err, the container hidden), and a button's set-up's
+-- with " button" or the extra's key added.
+-- Then style() or styleNow() and refilter(), each waiting as its comment says; fade(site, alpha), describe().
+-- Fields callers read: container, err, button, timer, cd, icon, host, holder, extras, size, filtered, applied.
 function W.makeAuraSlot(frame, opts)
 	-- A host of the caller's may clip the button's parts to the icon, and extra buttons carry the
 	-- caller's own parts over it
