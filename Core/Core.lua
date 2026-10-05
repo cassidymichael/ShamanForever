@@ -29,6 +29,21 @@ function ns.registerEvent(frame, event, unit)
 	end)
 	if not ok then ns.say("event %s not available on this client", event) end
 end
+-- Events a frame listens to only while its work is wanted: events = { "EVENT" or { "EVENT", unit } }.
+-- Returns set(on), which registers or unregisters them when on changes (modules' applyLayout).
+function ns.eventsWhile(frame, events)
+	local listening = false
+	return function(on)
+		on = on and true or false
+		if on == listening then return end
+		listening = on
+		for _, e in ipairs(events) do
+			local name, unit = e, nil
+			if type(e) == "table" then name, unit = e[1], e[2] end
+			if on then ns.registerEvent(frame, name, unit) else frame:UnregisterEvent(name) end
+		end
+	end
+end
 
 -- A colour's text escape, "|cffrrggbb"
 local function byte(v) return math.floor(math.min(math.max(v, 0), 1) * 255 + 0.5) end

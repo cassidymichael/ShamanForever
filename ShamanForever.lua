@@ -218,7 +218,12 @@ end
 --   resolve()              after a spellbook scan; returns a signature
 --   sanitize(db, acct)     a profile loaded
 --   applyTimers()          every timer takes its current style
---   applyLayout()          after a layout
+--   applyLayout()          after a layout. Every change to which elements are in use (E.isEnabled:
+--                          switched, grouped, learned, a profile) ends in one, then a refresh: a module
+--                          starts and stops its elements' work here (events: ns.eventsWhile, tickers,
+--                          aura containers, engine sounds, state drivers). An element not in use runs
+--                          nothing, and refresh reads its state anew when it's back. The preview's Show
+--                          not learned lays out only: work that reads the game waits for the spell too.
 --   afterGroups()          the groups were just laid out
 --   refresh()              read everything again
 --   onCooldowns(inEvent)   a cast, a cooldown or a module's own state changed
