@@ -316,7 +316,6 @@ function Page:paint()
 	for _, b in ipairs(self.blockList) do
 		if not b.head.shown or b.head.shown() then heads = heads + 1 end
 	end
-	self.heads = heads
 	local y, bottom = self:placeFoldRow(heads >= 2, self:scales()), 0
 	local width = self.content:GetWidth()
 	local open, gap = nil, false
@@ -894,26 +893,15 @@ function Page:header(text, shown, note, icon)
 		f:EnableMouse(true)
 		f:SetScript("OnEnter", function()
 			f.text:SetTextColor(1, 0.93, 0.6)
-			if (self.heads or 0) < 2 then return end
-			GameTooltip:SetOwner(f, "ANCHOR_NONE")
-			GameTooltip:ClearAllPoints()
-			-- The offset in the tooltip's own units: the page may have a size of its own
-			local k = f:GetEffectiveScale() / GameTooltip:GetEffectiveScale()
-			GameTooltip:SetPoint("BOTTOMLEFT", f, "TOPLEFT", f.textX * k, -4 * k)
-			GameTooltip:SetText(text)
-			GameTooltip:AddLine("Shift-click to expand or collapse every block.", 1, 1, 1, true)
-			GameTooltip:Show()
 		end)
 		f:SetScript("OnLeave", function()
 			f.text:SetTextColor(r, g, bl)
-			GameTooltip:Hide()
 		end)
 		f:SetScript("OnMouseUp", function(_, button)
 			if button ~= "LeftButton" then return end
 			local link = f.reset
 			if link:IsShown() and link:IsMouseOver(RESET_PAD_Y, -RESET_PAD_Y, -RESET_PAD_X, RESET_PAD_X) then return end
-			local fold = not isFolded(block)
-			if IsShiftKeyDown() then self:foldAll(fold) else self:setFolded(block, fold) end
+			self:setFolded(block, not isFolded(block))
 		end)
 	end
 	return f
