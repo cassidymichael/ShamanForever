@@ -346,8 +346,16 @@ function P.load()
 	_G[SAVED] = a
 	if type(a.profiles) ~= "table" then wipe(a) end
 	P.fillDefaults(a, ACCOUNT_DEFAULTS)
+	for k, v in pairs(ACCOUNT_DEFAULTS) do
+		if type(a[k]) ~= type(v) then a[k] = type(v) == "table" and CopyTable(v) or v end
+	end
+	for name in pairs(a.profiles) do
+		if type(name) ~= "string" then a.profiles[name] = nil end
+	end
+	for key, c in pairs(a.chars) do
+		if type(key) ~= "string" or type(c) ~= "table" then a.chars[key] = nil end
+	end
 	for _, k in ipairs(RETIRED.account) do a[k] = nil end
-	if type(a.foldedBlocks) ~= "table" then a.foldedBlocks = {} end
 	for key in pairs(a.foldedBlocks) do
 		for _, gone in ipairs(RETIRED.folds) do
 			if type(key) == "string" and key:find(gone) then a.foldedBlocks[key] = nil end
@@ -355,8 +363,11 @@ function P.load()
 	end
 	mergeCharKeys(a)
 	for _, c in pairs(a.chars) do
-		if type(c) == "table" and c.off ~= true then c.off = nil end
+		if c.off ~= true then c.off = nil end
+		if type(c.profile) ~= "string" then c.profile = nil end
 	end
+	-- Every profile, not only the one selected: none keeps the old names once the map goes
+	for _, profile in pairs(a.profiles) do P.migrate(profile) end
 	return a
 end
 
@@ -373,7 +384,21 @@ local function checkNewName(name)
 	if acct().profiles[name] then return "there is already a profile called " .. name end
 end
 
+-- Profile changes are refused in combat, before anything changes: settings would apply while the layout waits
+function P.refusedInCombat()
+	if not ns.inCombat() then return false end
+	ns.say("layout changes wait until combat ends")
+	return true
+end
+
+-- The player's pick of a profile for this character
+function P.switch(name)
+	if P.refusedInCombat() then return end
+	P.use(name)
+end
+
 function P.new(name, source)
+	if P.refusedInCombat() then return end
 	name = strtrim(name or "")
 	local err = checkNewName(name)
 	if err then return err end
@@ -395,6 +420,7 @@ function P.rename(name)
 end
 
 function P.delete()
+	if P.refusedInCombat() then return end
 	local name = P.currentName()
 	if name == DEFAULT_PROFILE then return end
 	local a = acct()
@@ -403,9 +429,12 @@ function P.delete()
 	P.use(DEFAULT_PROFILE)
 end
 
+-- True once reset
 function P.reset()
+	if P.refusedInCombat() then return false end
 	wipe(P.getDB())
 	P.use(P.currentName())
+	return true
 end
 
 -- Sharing

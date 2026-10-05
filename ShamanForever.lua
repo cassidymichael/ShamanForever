@@ -459,13 +459,14 @@ local function fixNames()
 end
 
 -- Makes db.groups consistent: fills fields, ids and names, drops unknown and duplicate members,
--- places elements never seen before
+-- places elements never seen before. db.known[key]: true once seen, or the id of the group an
+-- unregistered element was dropped from (a file that failed to load, an older version), to go back to
 local function sanitize()
 	P.cleanSettings(db)
 	each("sanitize", db, acct)
 	if type(db.groups) ~= "table" then db.groups = {} end
 	if type(db.known) ~= "table" then db.known = {} end
-	local seen = {}
+	local seen, away = {}, {}
 	for _, g in ipairs(db.groups) do
 		for k, v in pairs(GROUP_DEFAULTS) do if g[k] == nil then g[k] = v end end
 		if g.show ~= "combat" and g.show ~= "target" then g.show = "always" end
@@ -474,16 +475,21 @@ local function sanitize()
 			if ELEMENTS[key] and not seen[key] then
 				table.insert(kept, key)
 				seen[key], db.known[key] = true, true
+			elseif type(key) == "string" and not ELEMENTS[key] then
+				away[key] = g
 			end
 		end
 		g.members = kept
 	end
 	fixIds()
+	for key, g in pairs(away) do db.known[key] = g.id end
 	fixNames()
 	local fresh = {}
 	for _, key in ipairs(ELEMENT_KEYS) do
-		if not seen[key] and not db.known[key] then
-			table.insert(fresh, key)
+		local was = db.known[key]
+		if not seen[key] and was ~= true then
+			local home = type(was) == "number" and groupById(was)
+			if home then table.insert(home.members, key) else table.insert(fresh, key) end
 			db.known[key] = true
 		end
 	end
@@ -1118,6 +1124,12 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 	if event == "ADDON_LOADED" then
 		if arg1 ~= ADDON then return end
 		ns.try("kinds", ns.Kinds.finish)
+		-- A shipped element that never registered: its file failed to load, which /sf debug should say
+		for _, dg in ipairs(ns.CLASS.layout) do
+			for _, key in ipairs(dg.members) do
+				if not ELEMENTS[key] then ns.noteError("element missing: " .. key, "not registered") end
+			end
+		end
 		acct = P.load()
 		selectProfile(P.saved())
 		ns.Options.build()
