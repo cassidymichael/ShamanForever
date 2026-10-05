@@ -200,6 +200,19 @@ function W.scrollLine(parent)
 	return line
 end
 
+-- A scrolling list's top and bottom shades, fading into the panel's colour where more lies past an end
+function W.moreShades(parent, height, right)
+	local function shade(point, from, to)
+		local t = parent:CreateTexture(nil, "OVERLAY")
+		t:SetPoint(point .. "LEFT"); t:SetPoint(point .. "RIGHT", -right, 0)
+		t:SetHeight(height)
+		t:SetColorTexture(1, 1, 1, 1)
+		t:SetGradient("VERTICAL", CreateColor(0.09, 0.075, 0.06, from), CreateColor(0.09, 0.075, 0.06, to))
+		return t
+	end
+	return shade("TOP", 0, 0.95), shade("BOTTOM", 0.95, 0)
+end
+
 -- Anchors on a whole screen pixel so texture, border and swipe agree on edges.
 function W.placeOnPixels(frame, point, x, y)
 	local px = W.pixel(frame)
