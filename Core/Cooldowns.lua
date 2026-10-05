@@ -122,11 +122,8 @@ ns.registerPart("lowMana", {
 })
 -- A buff window from our own cast (window: its seconds)
 ns.registerPart("window", {
-	defaults = function(def)
-		return def.expires and { expire = { sound = "none" }, ended = { sound = "none" } } or nil
-	end,
 	idle = { held = "not active", also = " and it isn't active" },
-	page = { uptime = "Time left", expire = { tips = { endSound = "The moment its time is up." } } },
+	page = { uptime = "Time left" },
 	preview = {
 		uptime = true,
 		states = { { "active", "Active", 61 }, { "expiring", "Expiring", 62 } },
@@ -393,14 +390,12 @@ local function showPrimed(def, on, pop)
 	if on and pop and setting(key, "active", "pop") then f:Pop("ready") end
 end
 
--- ranOut: its time is up (a window's end sound)
-local function endActive(def, ranOut)
+local function endActive(def)
 	if not def.activeUntil then return end
 	def.activeUntil, def.activeToken = nil, nil
 	local f = def.frame
 	if f.upTimer then f.upTimer:clear(); f.activeHolder:SetAlpha(0) end
 	if def.primed then showPrimed(def, false) end
-	if ranOut and def.window and f:IsVisible() then ns.Sounds.element(def.key, "ended") end
 end
 
 -- quiet: already known (an aura read confirming it), so no pop
@@ -416,20 +411,13 @@ local function startActive(def, start, length, quiet)
 	if def.primed then showPrimed(def, true, not quiet) end
 	if length then
 		C_Timer.After(math.max(start + length - GetTime(), 0) + 0.05, function()
-			if def.activeToken == token then endActive(def, true); refreshCooldown(def) end
-		end)
-	end
-	-- A window's Expiring sound, at the moment its warning starts
-	local secs = def.window and length and setting(def.key, "expire", "secs") or 0
-	if secs > 0 and start + length - secs > GetTime() then
-		C_Timer.After(start + length - secs - GetTime(), function()
-			if def.activeToken == token and f:IsVisible() then ns.Sounds.element(def.key, "expire") end
+			if def.activeToken == token then endActive(def); refreshCooldown(def) end
 		end)
 	end
 end
 
 local function isActive(def)
-	if def.activeUntil and GetTime() >= def.activeUntil then endActive(def, true) end
+	if def.activeUntil and GetTime() >= def.activeUntil then endActive(def) end
 	return def.activeUntil ~= nil
 end
 

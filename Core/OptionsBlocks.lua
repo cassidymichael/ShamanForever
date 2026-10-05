@@ -1046,7 +1046,6 @@ local function expiringBlock(p, owner, opts)
 		p:color("Colour", nil, get, set, showWhen(s.get("expire", "bar"), warns))
 	end
 	check(p, s, "expire", "text", "Red countdown", "The countdown turns red in the last seconds.", warns)
-	soundRow(p, s, "expire", "Sound", tipOf(opts, "sound", "The moment it starts expiring."), warns)
 	ranOutBlock(p, owner, opts)
 end
 
