@@ -378,12 +378,16 @@ end
 -- Visibility
 local movable
 local function visibilityDriver()
-	if not SW.isOn() then return "hide" end
 	if pv.mode then return "show" end
 	if not P.getAccount().locked then return "show" end
 	return Bars.SHOW_WHEN[cfg().show] or "show"
 end
-local function drive() ns.setVisibilityDriver(f, visibilityDriver(), "swing timer driver") end
+-- Off: no driver, hidden (out of combat: the layout's)
+local function drive()
+	local on = SW.isOn()
+	ns.setVisibilityDriver(f, on and visibilityDriver() or nil, "swing timer driver")
+	if not on then f:Hide() end
+end
 
 -- Layout (out of combat)
 local function layout()
@@ -403,8 +407,10 @@ local function layout()
 	cd:SetHideCountdownNumbers(not c.countdown)
 	if cdText then SW.placeCountdown(cdText, face) end
 	if state.endsAt then drawSwing() else drawFace() end
+	-- A mark that's off is hidden, not only faded: a shown container still follows every aura change
 	for _, m in pairs(marks) do
 		makeMark(m)
+		if m.host then m.host:SetShown(markOn(m.key)) end
 		styleMark(m)
 		markAlpha(m)
 	end

@@ -49,7 +49,7 @@ local function refreshCooldown(inEvent)
 	if not shockSpellID or not E.isEnabled("shock") then
 		idleDef.cdRunning, idleDef.idle, idleDef.idleAt = nil, nil, nil
 		W.fadeTo(shock, 1)
-		return CD.resetReady(shock)
+		return CD.resetReady(shock, true)
 	end
 	local dur, bar = CD.cooldownFor(shock, "shock", shockSpellID, inEvent)
 	if dur then shock.cdTimer:set(dur, bar) end
@@ -231,9 +231,11 @@ local function makeMark(m)
 	placeMarks()
 end
 
--- A new rank's ID after a spellbook scan
+-- A new rank's ID after a spellbook scan; a mark not wanted is refiltered as it comes back (layout)
 local function refilterMark(m)
 	if not m.container or m.err then return end
+	m.refilterDue = not m.wanted() or nil
+	if m.refilterDue then return end
 	local site = "shock mark filter " .. m.key
 	if ns.deferWhileAurasSecret(site, function() refilterMark(m) end) then return end
 	local ids = Spells.ids(m.spell)
@@ -387,7 +389,10 @@ function SK.afterGroups() placeMarks() end
 
 function SK.applyLayout()
 	syncGlowTicker()
-	for _, m in ipairs(MARKS) do makeMark(m) end
+	for _, m in ipairs(MARKS) do
+		makeMark(m)
+		if m.refilterDue then refilterMark(m) end
+	end
 	placeMarks()
 end
 

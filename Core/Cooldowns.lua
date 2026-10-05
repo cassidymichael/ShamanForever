@@ -278,11 +278,12 @@ local function armRunning(f, spellID, st, own)
 	local zok, zero = safe(own.IsZero, own)
 	if zok and not isSecret(zero) and zero == false then arm(r) end
 end
--- Forgets a pending ready, and the login's first look: a cast we didn't see can't leave one armed
-function CD.resetReady(f)
+-- Forgets a pending ready, and the login's first look: a cast we didn't see can't leave one armed.
+-- off: the element went off, so its next look, once it's back, is a first look as at a login
+function CD.resetReady(f, off)
 	local r = f.ready
 	if not r then return end
-	r.armed, r.by, r.castAt, r.fresh = nil, nil, nil, nil
+	r.armed, r.by, r.castAt, r.fresh = nil, nil, nil, off or nil
 	f.ownCd:Clear()
 end
 function CD.readyNow(f) return f.ready ~= nil and f.ready.at == GetTime() end
@@ -377,7 +378,7 @@ local noTimeLeftCurve = ns.CURVE_OVER
 function refreshCooldown(def, inEvent)
 	if not E.isEnabled(def.key) then
 		def.cdRunning = nil
-		CD.resetReady(def.frame)
+		CD.resetReady(def.frame, true)
 		return
 	end
 	local f = def.frame
@@ -531,19 +532,26 @@ function CD.resolve()
 	return table.concat(sig, ",")
 end
 
+-- Expiring ticks only for a row that's on
 function CD.applyTimers()
 	for _, def in ipairs(COOLDOWNS) do
 		local f = def.frame
 		f.cdTimer:apply()
 		if f.upTimer then
 			f.upTimer:apply()
-			f.upTimer:setExpire(E.event(def.key, "expire"), def.iconID or def.icon)
+			f.upTimer:setExpire(E.isEnabled(def.key) and E.event(def.key, "expire") or nil, def.iconID or def.icon)
 		end
 	end
 end
 
+local events   -- set(on): the reagent rows' events, from start
 function CD.applyLayout()
-	for _, def in ipairs(COOLDOWNS) do styleCooldown(def) end
+	local reagents = false
+	for _, def in ipairs(COOLDOWNS) do
+		styleCooldown(def)
+		if def.reagent and E.isEnabled(def.key) then reagents = true end
+	end
+	if events then events(reagents) end
 	refreshCooldowns()
 	syncReadyTicker()
 end
@@ -570,8 +578,7 @@ end
 
 function CD.start()
 	local ev = CreateFrame("Frame")
-	ns.registerEvent(ev, "BAG_UPDATE_DELAYED")
-	ns.registerEvent(ev, "UNIT_AURA", "player")
+	events = ns.eventsWhile(ev, { "BAG_UPDATE_DELAYED", { "UNIT_AURA", "player" } })
 	ev:SetScript("OnEvent", function(_, event)
 		if event == "BAG_UPDATE_DELAYED" then
 			for _, def in ipairs(COOLDOWNS) do if def.reagent then refreshCooldown(def) end end
