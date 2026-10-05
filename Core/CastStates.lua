@@ -237,7 +237,7 @@ local function syncChecks()
 	if not C_Spell.EnableSpellRangeCheck then return end
 	local want = {}
 	for _, w in ipairs(WATCHES) do
-		if isOn(w, "range") then
+		if isOn(w, "range") and enabled(w) then
 			local _, id = w.spells()
 			if id then want[id] = true end
 		end
@@ -250,16 +250,24 @@ local function syncChecks()
 	end
 end
 
--- Other spells' checks fire too: the ticker covers ours
+-- Other spells' checks fire too: the ticker covers ours. Each state's events only while a watch that
+-- is in use has it on.
 local rangeTicker = ns.ticker(0.25, function() ns.try("range refresh", refresh, "range") end)
+local powerEvents, rangeEvents   -- set(on), from start
 local function syncTicker()
-	local want = false
+	local want = { power = false, range = false }
 	if E.isActive() then
 		for _, w in ipairs(WATCHES) do
-			if isOn(w, "range") and enabled(w) then want = true end
+			for state in pairs(want) do
+				if isOn(w, state) and enabled(w) then want[state] = true end
+			end
 		end
 	end
-	rangeTicker:SetShown(want)
+	rangeTicker:SetShown(want.range)
+	if powerEvents then
+		powerEvents(want.power)
+		rangeEvents(want.range)
+	end
 end
 
 -- A style may have changed: repainted, unless nothing is or was painted
@@ -297,10 +305,8 @@ end
 
 function CS.start()
 	local ev = CreateFrame("Frame")
-	ns.registerEvent(ev, "SPELL_UPDATE_USABLE")
-	ns.registerEvent(ev, "UNIT_POWER_UPDATE", "player")
-	ns.registerEvent(ev, "PLAYER_TARGET_CHANGED")
-	ns.registerEvent(ev, "SPELL_RANGE_CHECK_UPDATE")
+	powerEvents = ns.eventsWhile(ev, { "SPELL_UPDATE_USABLE", { "UNIT_POWER_UPDATE", "player" } })
+	rangeEvents = ns.eventsWhile(ev, { "PLAYER_TARGET_CHANGED", "SPELL_RANGE_CHECK_UPDATE" })
 	ev:SetScript("OnEvent", function(_, event)
 		if event == "SPELL_UPDATE_USABLE" or event == "UNIT_POWER_UPDATE" then refresh("power")
 		else refresh("range") end
