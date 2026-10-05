@@ -60,22 +60,26 @@ root:SetAllPoints(UIParent)
 local ELEMENT_KEYS = {}
 -- key -> { frame, label, paint(texture), getSize(size), stack(), learned(), borderHost, shape,
 -- standInBorder, defaults, effects, ownSchool(), spell, icon, school, blurb, experimental, experiments,
--- kind, def }
+-- kind, def, race }
 -- experiments: the names of experimental features its parts add (_Kinds), listed in About
 -- getSize: width and height for the group's icon size (elements need not be square); borderHost:
 -- the part its border is drawn on; shape "bar": a bar, not an icon (takes only the border
 -- parts that fit a bar); paint: what stands in for it in the options and while dragging;
 -- standInBorder: preview's stand-in draws its border; learned(): none means always; kind: its options
 -- page and preview (ns.registerKind); a kind made of parts fills defaults, ranges and effects from
--- def's parts (_Kinds); defaults: its settings' defaults, which also declare the fields of each
--- state and event it has (_Profiles has the vocabulary); ranges: its numbers' { min, max, step },
--- shaped as its defaults; choices: the values a named setting may take, a list, shaped as its
--- defaults; effects = { glow, pop, popKind }: whether it has a pulsing glow and a pop
+-- def's parts (_Kinds); defaults: its settings' defaults (BASE adds on and show), which also declare
+-- the fields of each state and event it has (_Profiles has the vocabulary); ranges: its numbers'
+-- { min, max, step }, shaped as its defaults; choices: the values a named setting may take, a list,
+-- shaped as its defaults; effects = { glow, pop, popKind }: whether it has a pulsing glow and a pop
 -- (its page then offers their styles), and the pop it plays;
 -- ownSchool(): the school its pop and glow take now, where that follows its state; styles: its own
 -- shipped styles, { part = fields }; timerCant: timer parts it can't have, and why; barColor = { label,
 -- text, color() }: a colour a bar can follow; swingMark = { max, ids(), color() }: its aura's charges
--- (up to max, the aura's spell IDs as a set) as pips on the swing timer (_Swing)
+-- (up to max, the aura's spell IDs as a set) as pips on the swing timer (_Swing); race: the races
+-- (UnitRace IDs) whose racial it is, never drawn for another (Not your race)
+-- Its frame's flags: holdsAuraButton, Blizzard's aura button sits over it and draws its border (the
+-- layout frames the button; the preview leaves it under its stand-in); auraButton, an aura container in
+-- use is on it (its group's layout waits while auras are secret)
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
 local NO_EFFECTS = { glow = false, pop = false }
@@ -107,10 +111,10 @@ end
 -- update(); a right-click on it opens the bar's page); hud = { show(opts), slots, steps(slot, mode),
 -- step(slot, state, at, range, moment) }: /sf preview on the bar itself, show(nil) as it ends, each
 -- slot looping through its steps like an element, step returning when it ends; secure: its frames are
--- protected (its top frame's parent is Bars.parent(true)); whileOff = { frame, noun() }: a protected
--- frame shown while off and hidden while on (by the on-off toggle in combat too, else out of combat),
--- and how a sentence names what it brings back (nil when it brings nothing back now); stays():
--- what stays on screen while on until combat ends (nil when nothing does).
+-- protected (its top frame's parent is Bars.parent(true)); whileOff = { frame, noun(), stays() }: a
+-- protected frame shown while off and hidden while on (by the on-off toggle in combat too, else out of
+-- combat), how a sentence names what it brings back (nil when it brings nothing back now), and what
+-- stays on screen while on until combat ends (nil when nothing does).
 -- Options: icon, school, blurb, tags() and preview (its page header: a stage, as _Kinds says); page
 -- = { order, build } (titled and iconned as the bar); experiments = { { name, where } } (About's
 -- list); ownSize() (its icon size isn't Global's); tiles = { icon, schools, border() } (its style
