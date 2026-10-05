@@ -466,7 +466,7 @@ ns.registerPart("buffBar", {
 
 -- Rows with party (and proc): also shown while a party member has the aura. Its switch, party, starts
 -- off. A container per party unit on the icon, under the player's, its button drawing the row's icon
--- only: no time, glow or pop, and not who.
+-- only: no time, glow or pop, and not who. Made the first time it's on; hidden while off.
 local PARTY_UNITS = { "party1", "party2", "party3", "party4" }
 local PARTIES = {}
 for _, def in ipairs(ROWS) do
@@ -483,6 +483,11 @@ local function partyAlpha(x)
 	if not ns.try("party alpha", x.host.SetAlpha, x.host, a) then
 		ns.retryAfterCombat("party alpha", function() partyAlpha(x) end)
 	end
+end
+-- Hidden while off, so its containers stop listening; shown or hidden out of combat
+local function partyShown(x)
+	if not x.host or ns.deferInCombat("party shown " .. x.def.key, function() partyShown(x) end) then return end
+	x.host:SetShown(partyOn(x))
 end
 local function dressParty(x, unit)
 	local edge = x.edges[unit]
@@ -521,6 +526,7 @@ local function partyLayout()
 			slot:style()
 		end
 		partyAlpha(x)
+		partyShown(x)
 	end
 end
 -- A party member joined or left: each unit may now be someone else
