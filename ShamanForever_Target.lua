@@ -484,10 +484,13 @@ local function glowWants()
 		for what, look in pairs(g.looks) do look:want(glowOn(g, what) and not ns.Preview.isOn()) end
 	end
 end
-local function glowsFollow(unit)
+-- The debuff's look on the target while chosen, else at no unit. ifMoved: only when it isn't there
+-- yet (a follow holds the look off for two frames); its container may come late, after combat
+local function glowsFollow(unit, ifMoved)
 	for _, g in pairs(GLOWS) do
 		local look = g.looks.debuff
-		if look.container and not look:follow(glowOn(g, "debuff") and unit or "none") then
+		local want = glowOn(g, "debuff") and unit or "none"
+		if look.container and not (ifMoved and look.unit == want) and not look:follow(want) then
 			ns.retryAfterCombat("target retarget", function() retarget() end)
 		end
 	end
@@ -506,6 +509,7 @@ local function glowsLayout()
 			end
 		end
 	end
+	glowsFollow(wantedUnit(), true)
 	glowWants()
 end
 ns.registerPart("glowWhile", {
@@ -817,7 +821,6 @@ function TG.applyLayout()
 	debuffsLayout()
 	followAll()
 	glowsLayout()
-	glowsFollow(wantedUnit())
 end
 
 function TG.afterGroups()
@@ -836,6 +839,7 @@ function TG.refresh()
 	checkAll()
 	for _, def in ipairs(ROWS) do refreshAura(def) end
 	followAll()
+	glowsFollow(wantedUnit(), true)
 	glowWants()
 end
 TG.tick = TG.refresh
@@ -855,6 +859,7 @@ function TG.start()
 	ns.onCombatEnd(function()
 		styleLooks()
 		styleUp()
+		glowsLayout()
 	end)
 	ns.onCanActChange(function() missingRows() end)
 end
