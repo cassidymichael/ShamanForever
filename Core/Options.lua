@@ -303,13 +303,16 @@ local function buildAbout(p)
 	p:text(ns.CLASS.credits .. " Corner and divider ornaments: public domain / CC0, Wikimedia Commons. "
 		.. "Link icons: Simple Icons, CC0. The Carved stone, Aged bronze and Carved wood borders: made with an AI image "
 		.. "model (Google Gemini).")
-	local ai = {}
+	local ai, listed = {}, {}
 	for _, part in ipairs({ "frame", "groupframe" }) do
 		for _, e in ipairs(ns.Style.choices(part, "look")) do
-			if e.credit == "ai" and not e.hidden then table.insert(ai, e.name) end
+			if e.credit == "ai" and not e.hidden and not listed[e.name] then
+				listed[e.name] = true
+				table.insert(ai, e.name)
+			end
 		end
 	end
-	if #ai > 0 then p:text("Art frames made with the same model: " .. table.concat(ai, ", ") .. ".") end
+	if #ai > 0 then p:text("Art frames made with an AI image model (Google Gemini): " .. table.concat(ai, ", ") .. ".") end
 end
 
 -- Key stays "general": it is saved as the last page and in folded blocks' keys.

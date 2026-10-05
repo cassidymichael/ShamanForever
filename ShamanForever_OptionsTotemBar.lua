@@ -144,6 +144,7 @@ PREVIEW = {
 			if it.extra then
 				local ic = h.extras[it.key]
 				local o = ns.StyleArt.fit(ic, extrasBorder, it.size)
+				TB.skin.dressSlot(ic, nil, it.size - 2 * o)
 				ic:ClearAllPoints()
 				place(ic, it.offset + o, (line - it.size) / 2 + o)
 				local learned = TB.extraLearned(it.key)
@@ -152,7 +153,8 @@ PREVIEW = {
 				ic.tex:SetAlpha(learned and 1 or 0.6)
 				if ic.num then
 					local set, count = ns.TotemSets.active(), ns.TotemSets.count()
-					ns.Media.setFont(ic.num, "totembar", W.keyTextSize(it.size, c.keySize))
+					local face = TB.skin.faceSize(extrasBorder, it.size, ic)
+					ns.Media.setFont(ic.num, "totembar", W.keyTextSize(face, c.keySize))
 					ic.num:ClearAllPoints()
 					ic.num:SetPoint("BOTTOMRIGHT", -1, 2)
 					ic.num:SetText(set)
@@ -173,6 +175,7 @@ PREVIEW = {
 				place(ic.box, slotAt[placeIdx[el]], (line - size) / 2)
 				ic.school = el
 				local o = ns.StyleArt.fit(ic, border, size)
+				TB.skin.dressSlot(ic, el, size - 2 * o)
 				ic:ClearAllPoints()
 				place(ic, slotAt[placeIdx[el]] + o, (line - size) / 2 + o)
 				local pick = TB.pickTexture(el)
@@ -254,10 +257,10 @@ PREVIEW = {
 		if picking then
 			local first = h.slots[1]
 			TB.placeArrow(h.tab, first.box, h.tab.glyph)
-			TB.skin.styleArrow(h.tab)
+			TB.skin.styleArrow(h.tab, els[1])
 			local p = h.pop
 			TB.placePopout(p, first.box, items, psz)
-			TB.skin.stylePopout(p, items, psz)
+			TB.skin.stylePopout(p, items, psz, els[1])
 			for i, it in ipairs(p.items) do
 				it:SetShown(i <= items)
 				TB.placePopButton(it, p, i, psz)
@@ -618,7 +621,7 @@ local function build(p)
 		tset("skin"), nil, 190)
 	local expRow = p:row(22)
 	ns.OptionsArt.expBadge(expRow, "Totem themes"):SetPoint("LEFT", expRow, "LEFT", LABEL_W, 0)
-	p:add(expRow, 22, function() return TB.skin.current().experimental or false end)
+	p:add(expRow, 22, TB.skin.experimental)
 	local function theme(key) return function() return TB.skin.current().key == key end end
 	p:checkbox("Tray", "A dark tray edged in gold behind the slots.", tget("pixelTray"), tset("pixelTray"),
 		theme("pixel"))
@@ -664,6 +667,7 @@ Bars.register("totembar", { icon = "Interface\\Icons\\Spell_Shaman_DropAll_01",
 	end,
 	preview = PREVIEW, page = { order = 50, build = build },
 	ownSize = function() return not ns.TotemBar.cfg().sizeFollow end,
-	experiments = { { "Totem sets", "Totem sets, once you know a second Call" } },
+	experiments = { { "Totem sets", "Totem sets, once you know a second Call" },
+		ns.TotemBar.skin.experimental() and { "Totem themes", "Totem theme" } or nil },
 	tiles = { icon = ns.TotemBar.TOTEM_ICON.earth, schools = ns.TotemBar.ELEMENTS,
 		border = function() return select(2, ns.TotemBar.look()) end } })

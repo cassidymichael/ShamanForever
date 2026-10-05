@@ -1053,9 +1053,25 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 end)
 
 -- /sf debug
+-- Whether our code may move, show or hide a frame now: protected ones refuse it in combat
+local function changeable(f)
+	local ok, yes = ns.try("debug: protected check", C_RestrictedActions.CheckAllowProtectedFunctions, f, true)
+	if not ok or isSecret(yes) then return "?" end
+	return yes and "yes" or "no"
+end
+local function changeableLine()
+	local list = { "HUD " .. changeable(root), "bars' holder " .. changeable(barHolders.plain),
+		"protected bars' holder " .. changeable(barHolders.secure) }
+	for _, key in ipairs(BAR_ORDER) do
+		local bar = BARS[key]
+		if bar.movable then table.insert(list, bar.label:lower() .. " " .. changeable(bar.movable.frame)) end
+	end
+	say("can move, show or hide now (else after combat): %s", table.concat(list, ", "))
+end
 function E.debugReport()
 	say("in combat %s", tostring(InCombatLockdown()))
 	if ns.isOff() then say("off (%s disable)", ns.CLASS.slash[1]) end
+	changeableLine()
 	local known, otherRace = {}, {}
 	for _, e in pairs(ELEMENTS) do
 		if e.spell and Spells.otherRace(e.race) then otherRace[e.spell] = true end

@@ -33,8 +33,9 @@ ns.CLASS = {
 		"Derby, Vesuvius from Portici (fire); Frederic Edwin Church, Rainy Season in the Tropics (water) and Aurora " ..
 		"Borealis (spirit); Francisque Millet, Mountain Landscape with Lightning (air). " ..
 		"Logo: Blizzard's shaman crest, redrawn, over the same paintings and Ivan Aivazovsky, Breaking Wave; wood " ..
-		"texture CC0, ambientCG. The Emblem pop burst and the plinth and medallions of the Stone and bronze totem " ..
-		"theme: made with an AI image model (Google Gemini).",
+		"texture CC0, ambientCG. The Emblem pop burst, and the art of the Stone and bronze, Stone bosses, Wood and " ..
+		"bone and Iron and ember totem themes: made with an AI image model (Google Gemini). The totem theme after " ..
+		"Blizzard's totem bar uses Blizzard's own art.",
 	sharePrefix = "!SF1!",
 	help = {
 		uptime = "A totem, shield or imbue running.",

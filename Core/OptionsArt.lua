@@ -459,6 +459,25 @@ function OA.buildHero(parent, key)
 	heroes[key] = h
 
 	-- Taller for what sits above or below the preview's icon; the page moves its content with it
+	-- The state buttons in a column, centred; a state its settings turn off (stateShown) left out
+	local function placeButtons(self)
+		local shown, first, cur = {}, nil, false
+		for _, b in ipairs(self.stateButtons) do
+			local show = not def.stateShown or def.stateShown(b.state)
+			b:SetShown(show)
+			if show then
+				table.insert(shown, b)
+				first = first or b.state
+				cur = cur or b.state == previewState[key]
+			end
+		end
+		local colH = #shown * (BTN_H + 3) - 3
+		for i, b in ipairs(shown) do
+			b:ClearAllPoints()
+			b:SetPoint("TOPRIGHT", -8, -(PANEL_H - colH) / 2 - (i - 1) * (BTN_H + 3))
+		end
+		if not cur and first then previewState[key] = first end
+	end
 	local function setHeight(self, want)
 		if def.stage or want == self.heroH then return end
 		-- Not while a slider is dragged: the header settles once the button is let go
@@ -475,10 +494,7 @@ function OA.buildHero(parent, key)
 		self.heroH = want
 		self:SetHeight(want - 14)
 		p:SetHeight(PANEL_H)
-		for i, b in ipairs(self.stateButtons) do
-			b:ClearAllPoints()
-			b:SetPoint("TOPRIGHT", -8, -(PANEL_H - listH) / 2 - (i - 1) * (BTN_H + 3))
-		end
+		placeButtons(self)
 		if self.onHeight then self.onHeight() end
 	end
 	if not def.stage then
@@ -513,6 +529,7 @@ function OA.buildHero(parent, key)
 			self.tags:SetText(string.format("%s  ·  %s%s", g and g.name or "Ungrouped", shows[E.showMode(key)] or "",
 				E.isLearned(key) and "" or "  ·  " .. E.notLearnedText(key)))
 		end
+		if not def.stage then placeButtons(self) end
 		if def.stage and def.stateShown then
 			local count = 0
 			for _, b in ipairs(self.stateButtons) do if def.stateShown(b.state) then count = count + 1 end end

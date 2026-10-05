@@ -324,7 +324,6 @@ function Page:paint()
 	for _, b in ipairs(self.blockList) do
 		if not b.head.shown or b.head.shown() then heads = heads + 1 end
 	end
-	self.heads = heads
 	local y, bottom = self:placeFoldRow(heads >= 2, self:scales()), 0
 	local width = self.content:GetWidth()
 	local open, gap = nil, false
@@ -545,14 +544,21 @@ end
 
 -- Page size: the current one white, the others links
 local SIZE_GAP = 8
+local function tintSizes(row)
+	local now = savedScale()
+	for _, b in ipairs(row.sizes) do
+		local v = b.value == now and 1 or LINK_GREY
+		b.text:SetTextColor(v, v, v)
+	end
+end
+-- Disabling the button under the mouse fires its OnLeave at once, so OnLeave only recolours
 local function paintSizes(row)
 	local now = savedScale()
 	for _, b in ipairs(row.sizes) do
-		local on = b.value == now
-		b:SetEnabled(not on)
-		local v = on and 1 or LINK_GREY
-		b.text:SetTextColor(v, v, v)
+		local live = b.value ~= now
+		if b:IsEnabled() ~= live then b:SetEnabled(live) end
 	end
+	tintSizes(row)
 end
 function Page:setSize(v)
 	if not scaleOK(v) then return end
@@ -564,7 +570,7 @@ local function makeSizes(page, row)
 	for i, c in ipairs(Page.SCALES) do
 		local b = textLink(row, c[2], function() page:setSize(c[1]) end)
 		b:SetScript("OnEnter", function() if b:IsEnabled() then b.text:SetTextColor(1, 0.82, 0) end end)
-		b:SetScript("OnLeave", function() paintSizes(row) end)
+		b:SetScript("OnLeave", function() tintSizes(row) end)
 		b.value = c[1]
 		row.sizes[i] = b
 	end
@@ -895,26 +901,15 @@ function Page:header(text, shown, note, icon)
 		f:EnableMouse(true)
 		f:SetScript("OnEnter", function()
 			f.text:SetTextColor(1, 0.93, 0.6)
-			if (self.heads or 0) < 2 then return end
-			GameTooltip:SetOwner(f, "ANCHOR_NONE")
-			GameTooltip:ClearAllPoints()
-			-- The offset in the tooltip's own units: the page may have a size of its own
-			local k = f:GetEffectiveScale() / GameTooltip:GetEffectiveScale()
-			GameTooltip:SetPoint("BOTTOMLEFT", f, "TOPLEFT", f.textX * k, -4 * k)
-			GameTooltip:SetText(text)
-			GameTooltip:AddLine("Shift-click to expand or collapse every block.", 1, 1, 1, true)
-			GameTooltip:Show()
 		end)
 		f:SetScript("OnLeave", function()
 			f.text:SetTextColor(r, g, bl)
-			GameTooltip:Hide()
 		end)
 		f:SetScript("OnMouseUp", function(_, button)
 			if button ~= "LeftButton" then return end
 			local link = f.reset
 			if link:IsShown() and link:IsMouseOver(RESET_PAD_Y, -RESET_PAD_Y, -RESET_PAD_X, RESET_PAD_X) then return end
-			local fold = not isFolded(block)
-			if IsShiftKeyDown() then self:foldAll(fold) else self:setFolded(block, fold) end
+			self:setFolded(block, not isFolded(block))
 		end)
 	end
 	return f

@@ -216,11 +216,12 @@ actEvents:SetScript("OnEvent", function(_, event)
 	if control then C_Timer.After(1, function() tellAct(event) end) end
 end)
 
--- Curves: a duration's remaining time -> a value for SetAlpha, for a time that may be secret
-function ns.curve(points)
+-- Curves: a duration's remaining time -> a value for SetAlpha, for a time that may be secret; kind:
+-- a LuaCurveType name ("Linear" by default; a "Step" curve takes a point's value at the point)
+function ns.curve(points, kind)
 	if not (C_CurveUtil and C_CurveUtil.CreateCurve) then return nil end
 	local c = C_CurveUtil.CreateCurve()
-	if Enum and Enum.LuaCurveType then c:SetType(Enum.LuaCurveType.Linear) end
+	if Enum and Enum.LuaCurveType then c:SetType(Enum.LuaCurveType[kind or "Linear"]) end
 	for i = 1, #points, 2 do c:AddPoint(points[i], points[i + 1]) end
 	return c
 end
