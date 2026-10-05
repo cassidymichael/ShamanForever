@@ -85,14 +85,15 @@ function KD.slots(kind) return listOf(kind, "slots") end
 --   states             { { id, label }, ... }; the first is shown first
 --   typical, warning   the state /sf preview shows in Preview and in Warnings (else the first)
 --   cooldown, uptime   the timers its icon carries; barInset() lifts the time bar (a bar under it)
---   render(ic, st, kit) draws state st on icon ic from scratch, with the preview kit (ns.OptionsArt.kit)
---   pop(ic, st, kit)   the state's moment: its pop or flash
+--   render(ic, st, kit) draws state st on icon ic from scratch, with the preview kit (ns.OptionsArt.kit),
+--                      as the player's settings have it: a look switched off isn't drawn
+--   pop(ic, st, kit)   the state's moment: its pop or flash, as its settings have it
 --   idles(st, when)    whether st goes idle once its moment has played, at Idle when = when
 --   standIn(ic)        /sf preview made ic, its stand-in: add what render expects on it
 --   hold(ic)           /sf preview paints ic over the element (nil: it ended)
 --   stateShown(st)     false: the state can't exist for it now (a mode without it), its button and
 --                      /sf preview step left out. A setting turned off never hides one: previewing it
---                      shows what it would look like
+--                      draws no more than the HUD would
 --   reach(ic)          how far parts drawn outside the icon reach out of ic on its left, right, top
 --                      and bottom, in pixels: the header's preview grows for them
 -- A bar's preview, drawn on its page's header instead: stage, heroH, build(h), render(h, st, kit),

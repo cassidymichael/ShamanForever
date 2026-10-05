@@ -18,7 +18,7 @@ PREVIEW = {
 	states = { { "idle", "Totem not down" }, { "down", "Totems down" }, { "expiring", "Expiring" },
 		{ "killed", "Killed early" }, { "range", "Out of range" }, { "offpick", "Different totem down" },
 		{ "picking", "Picking" }, { "mana", ns.CLASS.power.name } },
-	-- Only what the mode can't show is left out: a state switched off still previews
+	-- Only what the mode can't show is left out: a state switched off draws as the bar would
 	stateShown = function(st)
 		local mode = ns.TotemBar.cfg().mode
 		if mode == "blizzard" then return false end
@@ -184,7 +184,7 @@ PREVIEW = {
 				ic.killed:setIcon(pick or TB.TOTEM_ICON[el])
 				if st ~= "killed" or el ~= expEl then ic.killed:stop() end
 				ic.badge:Hide()
-				if st == "range" then
+				if st == "range" and c.range then
 					local f = ic.rangeF
 					f:ClearAllPoints()
 					local x, y, mw, mh = TB.skin.markRect(f, size, o)
@@ -201,7 +201,7 @@ PREVIEW = {
 						f:Show()
 					end
 				end
-				TB.paintLow(ic, st == "mana" and i == 1)
+				TB.paintLow(ic, st == "mana" and i == 1 and c.cast == true and c.mana.on == true)
 				if st == "offpick" and i == 1 then
 					local other
 					for _, id in ipairs(TB.known(el)) do
