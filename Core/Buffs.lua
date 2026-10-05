@@ -103,13 +103,15 @@ local function placeCharges(def, fs, anchor)
 	local lift = charge(def, "bar") and chargesLift(def) + 1 or 0
 	Count.place(fs, anchor, charge(def, "pos"), lift, ns.StyleArt.pictureInset(anchor))
 end
-local function styleCharges(def, slot, size)
+local function styleCharges(def, slot, size, button)
 	local site = "proc charges " .. def.key
-	-- Every count from 1: Blizzard's own prints only from 2
-	Count.setFormat(slot, Count.formatter(nil, def.charges, def.charges, site .. " formatter"), site)
 	Count.styleBar(slot, size, def.charges, charge(def, "barHeight"), charge(def, "barColor"), charge(def, "bar"))
 	slot.fs:SetAlpha(charge(def, "number") and 1 or 0)
-	placeCharges(def, slot.fs, slot.button)
+	placeCharges(def, slot.fs, button or slot.button)
+	-- Every count from 1 (Blizzard's own prints only from 2), once the slot has its button
+	if slot.button then
+		Count.setFormat(slot, Count.formatter(nil, def.charges, def.charges, site .. " formatter"), site)
+	end
 end
 ns.registerPart("charges", {
 	kind = "buff", after = "proc",
@@ -164,7 +166,7 @@ ns.registerPart("charges", {
 			local bar = Count.bar(slot, overlay, button)
 			ns.try(site .. " bar", button.SetApplicationBar, button, bar,
 				{ minApplications = 0, maxApplications = def.charges })
-			ns.try(site, styleCharges, def, slot, slot.size)
+			ns.try(site, styleCharges, def, slot, slot.size, button)
 		end,
 		style = function(def, size, slot) if slot.fs then styleCharges(def, slot, size) end end,
 	},
