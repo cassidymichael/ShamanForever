@@ -184,6 +184,167 @@ ns.registerPart("charges", {
 	},
 })
 
+-- Expiring drawn by the engine, on an aura button: a clip-framed bar over the time bar's last seconds of
+-- the aura's full length, under a cover bar, and the countdown turned red by a curve. Set out of combat
+-- only. x holds its frames (redBar, coverBar, textHolder, durText, textHanded) and lengthOff (a plain read
+-- of another length turns the bar off); def has its settings.
+local EXPIRE_FAST = 240   -- the cover crosses its clip in a 240th of the aura's length
+local EXPIRE_RED = { 1, 0.2, 0.2, 1 }
+local REMAINING = Enum and Enum.DurationTextBindingProperty and Enum.DurationTextBindingProperty.RemainingDuration or 0
+local function expireSite(def, what) return (def.unit == "target" and "target " or "") .. what .. " " .. def.key end
+
+local function makeExpireBar(button, def)
+	local x = {}
+	x.clip = CreateFrame("Frame", nil, button)
+	x.clip:SetClipsChildren(true)
+	x.clip:Hide()
+	x.bar = CreateFrame("StatusBar", nil, x.clip)
+	x.bar:SetStatusBarTexture(ns.WHITE)
+	x.ok = ns.try(expireSite(def, "expiring bar"), button.SetDurationBar, button, x.bar, ns.Timer.AURA_BAR)
+	return x
+end
+
+-- Step colour curve: red under secs, colour c from there
+local expireCurves = ns.cache(32, function(secs, c)
+	local curve = C_CurveUtil.CreateColorCurve()
+	if Enum and Enum.LuaCurveType then pcall(curve.SetType, curve, Enum.LuaCurveType.Step) end
+	curve:AddPoint(0, CreateColor(EXPIRE_RED[1], EXPIRE_RED[2], EXPIRE_RED[3], EXPIRE_RED[4]))
+	curve:AddPoint(secs, CreateColor(c[1], c[2], c[3], c[4] or 1))
+	return curve
+end)
+local function expireTextCurve(secs, c)
+	if not (C_CurveUtil and C_CurveUtil.CreateColorCurve and CreateColor) then return nil end
+	return expireCurves(string.format("%d:%.3f:%.3f:%.3f:%.3f", secs, c[1], c[2], c[3], c[4] or 1), secs, c)
+end
+
+local function styleExpireText(x, def, slot, st, secs)
+	local key, t = def.key, slot.timer
+	local fs, b = x.durText, slot.button
+	local textOn = secs > 0 and setting(key, "expire", "text") and st.text and fs ~= nil
+		and expireTextCurve(secs, st.textColor)
+	if textOn then
+		x.textHolder:SetFrameLevel(def.frame.textFrame:GetFrameLevel() + 15)
+		ns.Media.setFont(fs, key, st.textSize)
+		ns.Timer.placeText(fs, b, st, t and t.barIn, t and t.dual, ns.StyleArt.pictureInset(slot.host))
+		if ns.try(expireSite(def, "countdown"), b.SetDurationText, b, fs,
+			{ textColor = { curve = textOn, property = REMAINING } }) then
+			x.textHanded = true
+			fs:Show()
+			if t then t.cd:SetHideCountdownNumbers(true) end
+			return
+		end
+	end
+	if fs then
+		ns.try(expireSite(def, "countdown"), b.ClearDurationText, b)
+		fs:Hide()
+	end
+	x.textHanded = false
+end
+
+-- slot: { button, timer, host (the border's picture inset) }; length: the aura's full length
+local function styleExpire(x, def, length, size, slot)
+	local key, t = def.key, slot.timer
+	local st = ns.Style.get(key, "uptime")
+	local secs, r = setting(key, "expire", "secs"), def.ranges.expire.secs
+	if type(secs) ~= "number" or secs ~= secs then secs = def.defaults.expire.secs end
+	secs = math.min(math.max(math.floor(secs + 0.5), r[1]), r[2])
+	local red, cover = x.redBar, x.coverBar
+	-- The cover must hide the Expiring colour completely: no see-through colour
+	local k = t and t:barRGB()
+	local barOn = secs > 0 and setting(key, "expire", "bar") and t and t.barOn and red and cover and red.ok and cover.ok
+		and ns.isColor(k) and (k[4] or 1) >= 1 and not x.lengthOff and type(length) == "number" and length > 0
+	-- Both hidden first, shown together last: an Expiring colour without its cover would warn for the
+	-- whole aura
+	for _, bar in ipairs({ red, cover }) do if bar then bar.clip:Hide() end end
+	if not barOn then return styleExpireText(x, def, slot, st, secs) end
+	local c = setting(key, "expire", "barColor")
+	if not ns.isColor(c) then c = def.defaults.expire.barColor end
+	local part = math.min(secs, length) / length
+	local placed = ns.try(expireSite(def, "expiring place"), function()
+		local h, top = st.barHeight, st.barEdge == "top"
+		local edge = top and "TOPLEFT" or "BOTTOMLEFT"
+		-- On the time bar, inside the border's picture
+		local pic = ns.StyleArt.pictureInset(slot.host)
+		local inner, y = size - 2 * pic, pic > 0 and (top and -pic or pic) or 0
+		local w = inner * part
+		-- Levels: Expiring colour under the cover; glow and countdown above both
+		local base = def.frame.textFrame:GetFrameLevel()
+		red.clip:SetFrameLevel(base + 10); red.bar:SetFrameLevel(base + 11)
+		cover.clip:SetFrameLevel(base + 12); cover.bar:SetFrameLevel(base + 13)
+		for _, bar in ipairs({ cover, red }) do
+			bar.clip:ClearAllPoints()
+			bar.clip:SetPoint(edge, slot.button, edge, pic, y)
+			bar.clip:SetSize(w, h)
+			bar.bar:ClearAllPoints()
+		end
+		local tex = ns.Media.barTexture(t.key)
+		cover.bar:SetStatusBarTexture(tex)
+		red.bar:SetStatusBarTexture(tex)
+		local long = w * EXPIRE_FAST
+		cover.bar:SetSize(long, h)
+		cover.bar:SetPoint("TOPLEFT", cover.clip, "TOPLEFT", w - long * part, 0)
+		cover.bar:SetStatusBarColor(k[1], k[2], k[3], 1)
+		red.bar:SetSize(inner, h)
+		red.bar:SetPoint("TOPLEFT", red.clip, "TOPLEFT", 0, 0)
+		red.bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
+	end)
+	if placed then
+		cover.clip:Show()
+		red.clip:Show()
+	end
+	styleExpireText(x, def, slot, st, secs)
+end
+
+-- An aura button's Expiring parts: extras (slots of their own on its container, one bar each), the
+-- countdown's holder on its button (its font set before it's handed over: Blizzard writes at once), and
+-- its style
+B.expiring = {
+	extras = function(x, def)
+		return {
+			{ key = "expire", init = function(_, b) x.redBar = makeExpireBar(b, def) end },
+			{ key = "cover", init = function(_, b) x.coverBar = makeExpireBar(b, def) end },
+		}
+	end,
+	button = function(x, button)
+		x.textHolder = CreateFrame("Frame", nil, button)
+		x.textHolder:SetAllPoints(button)
+		x.durText = x.textHolder:CreateFontString(nil, "OVERLAY")
+		x.durText:SetFont(STANDARD_TEXT_FONT, 12, "OUTLINE")
+		x.durText:Hide()
+	end,
+	style = function(x, def, length, size, slot)
+		ns.try(expireSite(def, "expiring"), styleExpire, x, def, length, size, slot)
+	end,
+	-- Its settings: off until Warn in the last is set, then a red bar part and a red countdown
+	defaults = { expire = { secs = 0, bar = true, barColor = EXPIRE_RED, text = true } },
+	range = { 0, 30, 1 },
+}
+
+-- engineExpire (with proc and duration, the aura's full length): Expiring drawn by the engine. Its length
+-- is checked by a plain read: on you here, on another unit only with missing's read (and its aura's key)
+local function lengthChecked(def)
+	return not def.unit or (def.missing and (def.auraKey or def.buffKey) ~= nil) or false
+end
+ns.registerPart("engineExpire", {
+	kind = "buff", after = "missing",
+	has = function(def)
+		return def.engineExpire and def.proc and type(def.duration) == "number" and lengthChecked(def) or false
+	end,
+	defaults = B.expiring.defaults,
+	ranges = function(def) return { expire = { secs = def.expireRange or B.expiring.range } } end,
+	preview = {
+		states = { { "expiring", "Expiring", 20 } },
+		render = function(ic, st, def, kit)
+			if st == "expiring" then kit.engineExpire(ic, def.key, def.duration) end
+		end,
+	},
+	runtime = {
+		make = function(def) return { extras = B.expiring.extras(def, def) } end,
+		button = function(def, _, button) B.expiring.button(def, button) end,
+		style = function(def, size, slot) B.expiring.style(def, def, def.duration, size, slot) end,
+	},
+})
+
 -- Rows with proc are shown by Blizzard's aura container. The builder reads their fields: filter
 -- (else "HELPFUL"), candidates(def) (candidate filters, else the aura's IDs), auraKey or buffKey
 -- (the aura's spell, any rank), ownIcon (the row's icon, not the aura's), noTimer (no time left),
