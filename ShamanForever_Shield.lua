@@ -323,11 +323,11 @@ local function checkIDs()
 	if cover then cover:checkIDs() end
 end
 
--- Filters only change while auras are readable, and while Shields is in use (stale: again when it's back)
-local stale = false
+-- Filters only change while auras are readable, and while Shields is in use (else again when it's back)
+local refilterDue = false
 local function applyShieldFilter()
-	if not inUse() then stale = true return end
-	stale = false
+	if not inUse() then refilterDue = true return end
+	refilterDue = false
 	native:refilter()
 	look:refilter()
 	if cover then cover:refilter() end
@@ -609,7 +609,7 @@ function SH.applyLayout()
 		native:setup()
 		look:setup()
 		if idleWhen() == "charges" then copy:setup() end
-		if stale then applyShieldFilter() end
+		if refilterDue then applyShieldFilter() end
 	end
 	SH.style()
 	SH.applyEmptyLook()

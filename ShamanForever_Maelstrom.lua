@@ -423,10 +423,10 @@ local function styleAll()
 	for _, s in ipairs(SLOTS) do s:style() end
 end
 
-local stale = false   -- a refilter asked while not in use: done as it's back
+local refilterDue = false   -- a refilter asked while not in use: done as it's back
 local function refilterAll()
-	stale = not inUse()
-	if stale then return end
+	refilterDue = not inUse()
+	if refilterDue then return end
 	for _, slot in ipairs(SLOTS) do slot:refilter() end
 end
 function MW.follow(s)
@@ -497,7 +497,7 @@ function MW.applyLayout()
 	if popOn and not popWasOn and pop.container then quietPop() end
 	popWasOn = popOn
 	if inUse() then
-		if stale then refilterAll() end
+		if refilterDue then refilterAll() end
 		stacks:setup()
 		if own("active", "pop") then
 			gateSlot:setup()
