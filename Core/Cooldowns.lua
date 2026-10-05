@@ -532,14 +532,14 @@ function CD.resolve()
 	return table.concat(sig, ",")
 end
 
--- Expiring ticks only for a row that's on
+-- Expiring ticks only for a row in use
 function CD.applyTimers()
 	for _, def in ipairs(COOLDOWNS) do
 		local f = def.frame
 		f.cdTimer:apply()
 		if f.upTimer then
 			f.upTimer:apply()
-			f.upTimer:setExpire(E.isEnabled(def.key) and E.event(def.key, "expire") or nil, def.iconID or def.icon)
+			f.upTimer:setExpire(E.inUse(def.key) and E.event(def.key, "expire") or nil, def.iconID or def.icon)
 		end
 	end
 end

@@ -351,7 +351,7 @@ end
 
 -- Any removal, so another shield or rank replacing one too; a recast of the same spell stays silent
 function SH.applyRemovedSound()
-	ns.Sounds.elementAura("shield", "warn", E.isEnabled("shield") and shieldIDMap() or nil)
+	ns.Sounds.elementAura("shield", "warn", shieldIDMap())
 end
 
 function SH.resolve()
@@ -586,7 +586,7 @@ local shieldGCD = W.makeGCDSweep(shield)
 shieldGCD:SetParent(gate)
 -- inCooldownEvent: from SPELL_UPDATE_COOLDOWN
 local function refreshGCD(inCooldownEvent)
-	local id = E.isEnabled("shield") and ns.Style.value("shield", "gcd", "show")
+	local id = E.inUse("shield") and ns.Style.value("shield", "gcd", "show")
 		and SHIELDS[shownShield()].spellID
 	local d
 	if id and ns.Cooldowns.onGCD(id) then
