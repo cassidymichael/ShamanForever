@@ -528,9 +528,9 @@ function AuraSlot:styleNow()
 		if not self.button then return end
 		self.button:SetSize(size, size)
 		self.size = size
-		-- Own try: a style the button refuses mustn't stop the timer and the caller's parts.
+		-- Own tries: a style or timer the button refuses mustn't stop what follows (the caller's parts).
 		if not o.noIcon then ns.try(o.sites.style .. ": style", ns.StyleArt.auraStyle, self, size) end
-		if self.timer then self.timer:apply() end
+		if self.timer then ns.try(o.sites.style .. ": timer", self.timer.apply, self.timer) end
 		if o.onStyle then o.onStyle(self, size) end
 	end)
 	if not ok then ns.retryAfterCombat(o.sites.style, function() self:styleNow() end) end
