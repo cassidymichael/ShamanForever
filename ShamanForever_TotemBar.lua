@@ -271,7 +271,6 @@ function TB.plainArrow(t)
 	t.glyph:SetVertexColor(1, 1, 1, 1)
 end
 local GLYPH_TURN = { up = 0, down = math.pi, right = -math.pi / 2, left = math.pi / 2 }
-TB.GLYPH_TURN = GLYPH_TURN
 function TB.placeArrow(tab, anchor, glyph)
 	local c = TB.eff()
 	local deep = c.arrowSize
@@ -723,7 +722,6 @@ local function refreshGCD()
 		if d then e.gcd:SetCooldownFromDurationObject(d) else e.gcd:Clear() end
 	end
 end
-TB.refreshGCD = refreshGCD
 
 local keyTexts = {}
 for _, el in ipairs(ELEMENTS) do keyTexts[slots[el].button] = slots[el].keys.text end

@@ -227,7 +227,7 @@ ns.Spells.add({
 	tremor          = { ids = { 8143 }, en = "Tremor Totem" },   -- level 18
 	curePoison      = { ids = { 526 }, en = "Cure Poison" },   -- level 16
 	cureDisease     = { ids = { 2870 }, en = "Cure Disease" },   -- level 22
-	-- Talents or above the level-20 cap: seeds from foreverdiff.com, found on the client with the right name
+	-- Talents and higher-level spells: seeds from foreverdiff.com, found on the client with the right name
 	naturesSwiftness = { ids = { 16188 }, en = "Nature's Swiftness" },   -- the buff has the same ID
 	manaTide        = { ids = { 16190 }, en = "Mana Tide Totem" },
 	grounding       = { ids = { 8177 }, en = "Grounding Totem" },
