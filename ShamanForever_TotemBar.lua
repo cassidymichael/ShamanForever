@@ -156,6 +156,11 @@ TB.cfg = cfg
 local function barOn() return ns.isClass() and cfg().mode ~= "blizzard" end
 local function feat(key) local c = cfg(); return barOn() and c.mode == "everything" and c[key] or false end
 TB.barOn, TB.feat = barOn, feat
+-- No tooltips by the player's choice, and none while off (the bar may be there, invisible, in combat)
+local function noTips()
+	local c = cfg()
+	return ns.isOff() or c.tips == "never" or (c.tips == "ooc" and InCombatLockdown())
+end
 
 -- The player's settings, or the theme's where it owns one
 local effective = setmetatable({}, { __index = function(_, k)
@@ -321,7 +326,7 @@ function TB.fitLook(v, b, border, size)
 end
 
 -- Frames: created at file load, allowed even during a /reload in combat
-local bar = CreateFrame("Frame", "ShamanForeverTotemBar", UIParent)
+local bar = CreateFrame("Frame", "ShamanForeverTotemBar", Bars.parent(true))
 bar:SetSize(1, 1)
 bar:SetPoint("CENTER", 0, -120)
 bar:SetFrameStrata("MEDIUM")
@@ -646,8 +651,7 @@ for set, id in ipairs(SET_CALL) do
 	p.on:SetTexture("Interface\\Buttons\\CheckButtonHilight")
 	p.on:SetBlendMode("ADD")
 	p:SetScript("OnEnter", function(self)
-		local c = cfg()
-		if c.tips == "never" or (c.tips == "ooc" and InCombatLockdown()) then return end
+		if noTips() then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 		if not ns.try("totem bar: tooltip", GameTooltip.SetSpellByID, GameTooltip, id) then
 			GameTooltip:SetText(C_Spell.GetSpellName(id) or "")
@@ -973,7 +977,8 @@ local function refresh()
 end
 
 local ticker = ns.ticker(0.1, function()
-	if not bar:IsShown() then return end
+	-- Visible, not shown: the bar's holder hides it while off
+	if not bar:IsVisible() then return end
 	local arrows = feat("arrows")
 	for _, el in ipairs(ELEMENTS) do
 		local s = slots[el]
@@ -997,6 +1002,9 @@ local function totemFrameOurs()
 	end
 	return false
 end
+-- Blizzard's totem frames are hidden only while ours can show: on, and its holder shown (that waits
+-- for combat to end after /sf enable)
+local function replacesBlizzard() return barOn() and not ns.isOff() and bar:GetParent():IsShown() end
 local totemFrameHidden, settingAlpha = false, false
 local function setTotemFrameHidden(hide)
 	totemFrameHidden = hide
@@ -1023,19 +1031,22 @@ local function applyTotemFrame()
 		if totemFrameHidden then setTotemFrameHidden(false) end
 		return
 	end
-	local hide = barOn()
+	local hide = replacesBlizzard()
 	if not hide and not totemFrameHidden then return end
 	setTotemFrameHidden(hide)
 end
 if TotemFrame and TotemFrame.Update then hooksecurefunc(TotemFrame, "Update", applyTotemFrame) end
 
-local hiddenParent = CreateFrame("Frame")
+-- Where the Totem Action Bar waits while ours replaces it: protected and the size of UIParent, so the
+-- on-off toggle can show it in place in combat (the bar's whileOff)
+local hiddenParent = CreateFrame("Frame", nil, UIParent, "SecureFrameTemplate")
+hiddenParent:SetAllPoints()
 hiddenParent:Hide()
 local actionBarParent
 local function applyActionBar()
 	local f = MultiCastActionBarFrame
 	if not f or InCombatLockdown() then return end
-	local hide = barOn() and cfg().mode == "everything"
+	local hide = replacesBlizzard() and cfg().mode == "everything"
 	if hide and f:GetParent() ~= hiddenParent then
 		actionBarParent = f:GetParent()
 		f:SetParent(hiddenParent)
@@ -1043,6 +1054,12 @@ local function applyActionBar()
 		f:SetParent(actionBarParent or UIParent)
 	end
 end
+-- Off and on, and the holder shown or hidden later (ns.offApplied): at once (the Totem Action Bar
+-- out of combat). No script hooks on the holder: the toggle's secure click hides it
+ns.onOffChange(function()
+	applyTotemFrame()
+	applyActionBar()
+end)
 
 -- Layout (out of combat only)
 local movable
@@ -1089,7 +1106,7 @@ local function layoutPopout(s, size, known)
 			p.none:SetPoint("CENTER")
 			p.none:SetText("X")
 			p:SetScript("OnEnter", function(self)
-				if cfg().tips == "never" or (cfg().tips == "ooc" and InCombatLockdown()) then return end
+				if noTips() then return end
 				GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 				if self.spellID and self.spellID > 0 then GameTooltip:SetSpellByID(self.spellID)
 				else GameTooltip:SetText("No totem") end
@@ -1486,8 +1503,8 @@ for _, el in ipairs(ELEMENTS) do
 	s.button:SetScript("OnEnter", function(self)
 		hover(s)
 		if kbEnter(self, s.command, s.keys) then return end
+		if noTips() then return end
 		local c = cfg()
-		if c.tips == "never" or (c.tips == "ooc" and InCombatLockdown()) then return end
 		local ok, d = ns.try("totem bar: tooltip", GetTotemDuration, s.slot)
 		if not (ok and d) and c.mode ~= "everything" then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -1517,13 +1534,15 @@ local onShow = CreateFrame("Frame", nil, bar, "SecureFrameTemplate")
 SecureHandlerWrapScript(onShow, "OnShow", picker, [[
 	if owner:GetAttribute("sf-hovermode") then owner:RunAttribute("sf-open", 0) end
 ]])
+-- The holder hidden (off, the on-off toggle in combat too): every picker closes, so none comes back open
+SecureHandlerWrapScript(bar:GetParent(), "OnHide", picker, [[ owner:RunAttribute("sf-open", 0) ]])
 
 for _, e in pairs(extras) do
 	e.button:SetScript("OnEnter", function(self)
 		if e == call then hover(setSlot) end
 		if kbEnter(self, e.command, e.keys) then return end
+		if noTips() then return end
 		local c = cfg()
-		if c.tips == "never" or (c.tips == "ooc" and InCombatLockdown()) then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 		if not ns.try("totem bar: tooltip", GameTooltip.SetSpellByID, GameTooltip, e.spell) then
 			GameTooltip:SetText(C_Spell.GetSpellName(e.spell) or e.key)
@@ -1796,7 +1815,15 @@ function TB.debug()
 end
 
 Bars.register("totembar", { label = "Totem bar", cfg = cfg, saved = "totemBar", defaults = TB.DEFAULTS,
-	ranges = TB.RANGES, choices = CHOICES, on = barOn,
+	ranges = TB.RANGES, choices = CHOICES, on = barOn, secure = true,
+	whileOff = { frame = hiddenParent, noun = function()
+		local f = MultiCastActionBarFrame
+		return f and f:GetParent() == hiddenParent and "Blizzard's Totem Action Bar" or nil
+	end, stays = function()
+		local f = MultiCastActionBarFrame
+		return f and replacesBlizzard() and cfg().mode == "everything" and f:GetParent() ~= hiddenParent
+			and "Blizzard's Totem Action Bar" or nil
+	end },
 	parts = { "border", "uptime", "gcd", "text", "bar", "glow", "pop" },
 	-- Its theme can draw its own border
 	ownLabel = function(part)

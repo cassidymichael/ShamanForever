@@ -1,5 +1,7 @@
-<!-- Totem bar key bindings (their names are set in ShamanForever_TotemBar.lua) -->
+<!-- Key bindings: the on-off toggle (named in ShamanForever.lua), then the totem bar's (named in
+     ShamanForever_TotemBar.lua) -->
 <Bindings>
+	<Binding name="CLICK ShamanForeverToggle:LeftButton" header="SHAMANFOREVER_GENERAL" category="ShamanForever"/>
 	<Binding name="CLICK ShamanForeverKeyCastEarth:LeftButton" header="SHAMANFOREVER_TOTEMS" category="ShamanForever"/>
 	<Binding name="CLICK ShamanForeverKeyCastFire:LeftButton" category="ShamanForever"/>
 	<Binding name="CLICK ShamanForeverKeyCastWater:LeftButton" category="ShamanForever"/>

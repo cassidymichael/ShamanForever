@@ -292,7 +292,8 @@ function P.saved()
 	return name and a.profiles[name] and name or DEFAULT_PROFILE
 end
 
--- This character's own saved table, outside profiles; nil until the game knows the character
+-- This character's own saved table, outside profiles; nil until the game knows the character. Shared
+-- fields: profile (its profile's name), off (true while /sf disable holds)
 function P.char()
 	local key = charKey()
 	if not key then return nil end
@@ -323,6 +324,9 @@ function P.load()
 		end
 	end
 	mergeCharKeys(a)
+	for _, c in pairs(a.chars) do
+		if type(c) == "table" and c.off ~= true then c.off = nil end
+	end
 	return a
 end
 

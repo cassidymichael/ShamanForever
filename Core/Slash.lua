@@ -67,9 +67,13 @@ SlashCmdList[SLASH] = function(msg)
 		ns.Preview.toggle()
 	elseif cmd == "debug" then
 		E.debugReport()
+	elseif cmd == "disable" then
+		E.setOff(true)
+	elseif cmd == "enable" then
+		E.setOff(false)
 	else
 		say("%s opens the options. Also: %s lock (lock or unlock positioning), %s preview (the whole HUD in a typical "
-			.. "moment), %s debug",
-			CMD, CMD, CMD, CMD)
+			.. "moment), %s disable (nothing shows or plays until %s enable), %s debug",
+			CMD, CMD, CMD, CMD, CMD, CMD)
 	end
 end

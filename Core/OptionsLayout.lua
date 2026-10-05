@@ -381,7 +381,8 @@ local function buildList()
 	local s = list.scroll
 	s:ClearAllPoints()
 	s:SetPoint("TOPLEFT", page.win, "TOPLEFT", NAV_W + 18, PAGE_TOP)
-	s:SetPoint("BOTTOMLEFT", page.win, "BOTTOMLEFT", NAV_W + 18, 12)
+	s:SetPoint("BOTTOMLEFT", page.win, "BOTTOMLEFT", NAV_W + 18, Page.bottomY())
+	list.bottom = { "BOTTOMLEFT", NAV_W + 18 }
 	if s.ScrollBar then
 		s.ScrollBar:ClearAllPoints()
 		s.ScrollBar:SetPoint("TOPLEFT", s, "TOPRIGHT", 4, 0)
