@@ -394,7 +394,7 @@ end
 function applyIdle()
 	-- The copy at five is a frame under Blizzard's button: set while auras are readable
 	if ns.deferWhileAurasSecret("maelstrom idle", applyIdle) then return end
-	local on = idleWhen() == "five" and src.learned() and E.isEnabled(KEY) and P.getAccount().locked
+	local on = idleWhen() == "five" and E.inUse(KEY) and P.getAccount().locked
 		and copyReady()
 	gate:SetAlpha(on and E.idleAlpha(KEY) or 1)
 	if five.host then five.host:SetAlpha(on and 1 or 0) end

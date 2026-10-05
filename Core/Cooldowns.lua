@@ -76,7 +76,7 @@ local MANA = Enum.PowerType and Enum.PowerType.Mana or 0
 local lowCurves = ns.cache(32, function(under) return ns.curve({ 0, 1, under / 100, 0 }, "Step") or false end)
 local function lowCurve(under) return lowCurves(under, under) or nil end
 local function lowManaOn(def)
-	return def.spellID ~= nil and E.isEnabled(def.key) and setting(def.key, "lowMana", "glow") == true
+	return E.inUse(def.key) and setting(def.key, "lowMana", "glow") == true
 end
 ns.registerPart("lowMana", {
 	defaults = { lowMana = { glow = false, under = 30 } },
@@ -475,7 +475,7 @@ end
 CD.readyAlpha = readyAlpha
 local function refreshReadyGlow(def, cantAct)
 	local f = def.frame
-	local on = def.spellID and E.isEnabled(def.key) and setting(def.key, "ready", "glow") and hasTimeLeftCurve
+	local on = E.inUse(def.key) and setting(def.key, "ready", "glow") and hasTimeLeftCurve
 		and noTimeLeftCurve
 	f.readyGlow:SetShown(on and true or false)
 	if not on then return end
@@ -562,7 +562,7 @@ function CD.onCast(spellID)
 	local key = Spells.keyOf(spellID)
 	if not key then return end
 	for _, def in ipairs(COOLDOWNS) do
-		if def.spellID and E.isEnabled(def.key) and key == def.spellKey then CD.noteCast(def.frame, def.spellID) end
+		if E.inUse(def.key) and key == def.spellKey then CD.noteCast(def.frame, def.spellID) end
 	end
 end
 

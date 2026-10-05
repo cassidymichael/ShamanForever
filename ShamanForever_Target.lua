@@ -589,7 +589,7 @@ end
 
 local function applyIdle(def)
 	if not def.idle then return end
-	local on = def.spellID and E.isEnabled(def.key) and P.getAccount().locked
+	local on = E.inUse(def.key) and P.getAccount().locked
 		and setting(def.key, "idleWhen") == "target"
 	def.idle:SetAlpha(on and E.idleAlpha(def.key) or 1)
 end
@@ -611,7 +611,7 @@ end
 local function refreshAura(def)
 	local f, key = def.frame, def.key
 	if def.fx then
-		def.fx:glow(not def.noGlow and def.spellID ~= nil and E.isEnabled(key) and setting(key, "active", "glow")
+		def.fx:glow(not def.noGlow and E.inUse(key) and setting(key, "active", "glow")
 			and not ns.Preview.isOn())
 	end
 	if not E.isEnabled(key) then return end

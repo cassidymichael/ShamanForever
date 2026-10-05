@@ -345,9 +345,9 @@ local function sizeOf(key)
 	return box - 2 * ns.StyleArt.inset(e.borderHost or e.frame, E.borderFor(key), box, e.shape)
 end
 
--- Whether the element is in use: on, in a group, and on the HUD. What it draws is gated on this.
+-- Whether the element is drawn: on, in a group, and on the HUD. What it draws is gated on this.
 local function isEnabled(key) return groupOf(key) ~= nil and isOn(key) and onHUD(key) end
--- In use and learned: the gate for work that reads the game (the preview can draw an unlearned one)
+-- In use: drawn and learned, the gate for work that reads the game (the preview can draw an unlearned one)
 local function inUse(key) return isEnabled(key) and isLearned(key) end
 
 local function removeElement(key)
