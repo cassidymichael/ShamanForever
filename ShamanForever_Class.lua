@@ -239,6 +239,11 @@ ns.Spells.add({
 	-- Maelstrom Weapon's buff has the talent's name, so it stays out of this map (two keys with one
 	-- name make the name lookup file a new ID under either); Maelstrom.lua tracks it by ID
 	maelstromWeapon = { ids = { 408498 }, en = "Maelstrom Weapon" },
+	-- Talents whose buff has the talent's name: the buff is matched by ID
+	flurry          = { ids = { 16256 }, en = "Flurry" },
+	flurryBuff      = { ids = { 16257 }, byID = true, en = "Flurry" },
+	improvedStormstrike = { ids = { 1223031 }, en = "Improved Stormstrike" },
+	improvedStormstrikeBuff = { ids = { 1238931 }, byID = true, en = "Improved Stormstrike" },
 	-- Spells that spend a primed effect
 	healingWave     = { ids = { 331 }, en = "Healing Wave" },
 	lesserHealingWave = { ids = { 8004 }, en = "Lesser Healing Wave" },
