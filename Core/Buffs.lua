@@ -343,7 +343,8 @@ ns.registerPart("engineExpire", {
 -- (else "HELPFUL"), candidates(def) (candidate filters, else the aura's IDs), auraKey or buffKey
 -- (the aura's spell, any rank), ownIcon (the row's icon, not the aura's), noTimer (no time left),
 -- noGlow and noPop (without its own glow or pop; with neither, no effect host), charges (above),
--- swingMark (below), reagent (its count over the button: countOver).
+-- swingMark (below), reagent (its count over the button: countOver), castUnder (its cast states also
+-- on the icon under the button, for when the aura is down).
 -- A part's runtime hooks for them (each optional; parts from other files bring their own):
 --   make(def)                  at load, after the icon, before the aura slot: frames of its own;
 --                              returns { looks, extras }: aura looks set up, refiltered and checked
@@ -489,7 +490,7 @@ local function auraCover(def)
 	return { parent = def.idle or g.parent, sensorParent = g.parent, unit = g.unit, needUnit = g.needUnit,
 		filter = def.filter, ids = function() return auraIDs(def) end,
 		candidates = def.candidates and function() return def.candidates(def) end, slot = def.aura,
-		note = def.castNote, tips = def.castTips,
+		note = def.castNote, tips = def.castTips, icon = def.castUnder,
 		-- Refiltered and pointed with the row's own looks while attached
 		attach = function(look) table.insert(def.looks, look) end,
 		detach = function(look)

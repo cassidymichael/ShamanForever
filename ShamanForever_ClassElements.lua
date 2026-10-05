@@ -93,10 +93,11 @@ ns.CLASS.cooldowns = {
 local PROC_SWIPE = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } }
 local TEXT_TIMER = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 },
 	textPos = "center", swipe = false, bar = true } }
--- A buff you cast, shown from your own aura (duration: its full length, for Expiring's bar part)
+-- A buff you cast, shown from your own aura (duration: its full length, for Expiring's bar part); its
+-- cast states on the icon too, for when it's down and you would recast
 local function ownBuff(row)
 	row.proc, row.noPop, row.noGlow, row.engineExpire = true, true, true, true
-	row.auraKey, row.filter = row.spellKey, "HELPFUL|PLAYER"
+	row.auraKey, row.filter, row.castUnder = row.spellKey, "HELPFUL|PLAYER", true
 	return row
 end
 ns.CLASS.buffs = {
