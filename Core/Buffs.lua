@@ -1230,7 +1230,12 @@ function B.start()
 	ev:SetScript("OnEvent", function(_, event, timer, _, _, scale)
 		if event == "GROUP_ROSTER_UPDATE" then return partyRoster() end
 		if event == "UNIT_AURA" then
-			if not InCombatLockdown() then B.refresh() end   -- secret in combat
+			if InCombatLockdown() then return end   -- secret in combat
+			-- The Reagent Economy perk may have just come as its aura
+			for _, def in ipairs(BUFFS) do
+				if def.reagent and E.inUse(def.key) then ns.Reagents.auraChanged() break end
+			end
+			B.refresh()
 			return
 		end
 		if isSecret(timer) or timer ~= "BREATH" then return end
