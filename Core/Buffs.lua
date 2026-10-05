@@ -63,10 +63,9 @@ ns.registerPart("buff", {
 })
 -- breath: warns under water without it
 ns.registerPart("breath", {
-	defaults = { warn = { on = true, ring = true, fade = true, glow = false, sound = "none" } },
+	defaults = { warn = { on = true, ring = true, fade = true, glow = false } },
 	page = { warn = { title = "Under water",
-		on = { "Warn without it", "While your breath bar drains and it isn't up." },
-		tips = { sound = "The moment your breath bar starts draining." } } },
+		on = { "Warn without it", "While your breath bar drains and it isn't up." } } },
 	preview = {
 		warning = "underwater",
 		states = { { "underwater", "Under water", 80 } },
@@ -440,9 +439,6 @@ function B.start()
 		breathing = event == "MIRROR_TIMER_START" and type(scale) == "number" and not isSecret(scale) and scale < 0
 		if breathing then for _, def in ipairs(BUFFS) do if def.breath then setDown(def) end end end
 		refreshAll()
-		for _, def in ipairs(BUFFS) do
-			if def.spellID and underWaterWarns(def) and def.frame:IsVisible() then ns.Sounds.element(def.key, "warn") end
-		end
 	end)
 end
 
