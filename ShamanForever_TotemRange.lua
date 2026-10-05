@@ -92,7 +92,7 @@ local previewOn = false
 local PART, PART_FILTER = "own", "HELPFUL|PLAYER"
 
 -- partLive keeps the mark dark until our mark and Blizzard's part are styled alike (a layout can't
--- reach the part while auras are secret)
+-- reach the part while auras are secret); a theme picked in combat keeps both on the old look
 local function styledFor(s)
 	return TB.skin.current().key .. ":" .. tostring(s.rangeW) .. "x" .. tostring(s.rangeH)
 end
@@ -166,7 +166,7 @@ end
 
 local function partLive(s)
 	return s.rangeShown and not s.rangeError and s.rangePart ~= nil and s.rangeSlotOK == true
-		and s.rangeStyled == styledFor(s)
+		and s.rangeStyled ~= nil and s.rangeStyled == s.rangeMarked
 end
 
 local function place(s, size, ownOnly)
@@ -181,6 +181,7 @@ local function place(s, size, ownOnly)
 		s.rangeMark.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
 	end
 	s.rangeW, s.rangeH, s.rangeSize = w, h, size - 2 * o
+	s.rangeMarked = styledFor(s)
 	local ct = s.rangeContainer
 	if not ct or ownOnly then return end
 	ct:ClearAllPoints()
