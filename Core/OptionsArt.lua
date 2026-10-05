@@ -461,7 +461,7 @@ function OA.buildHero(parent, key)
 	heroes[key] = h
 
 	-- State buttons
-	local STEP = BTN_H + 3
+	local STEP, SHADE_H = BTN_H + 3, 12
 	local function listed(st) return not def.stateShown or def.stateShown(st) end
 	local placeStates
 	local function onWheel(_, delta)
@@ -469,9 +469,12 @@ function OA.buildHero(parent, key)
 		placeStates(h)
 	end
 	function placeStates(self)
-		-- Centred in its room and kept inside the banner (on an element's page, the panel)
-		local host, right, y0, room, inner = p, -8, 0, PANEL_H, PANEL_H - 2
-		if def.stage then host, right, y0, room, inner = self, -40, 58, heroH - 14 - 58 - 12, heroH - 14 - 58 - 1 end
+		-- Centred in its room; one that scrolls keeps clear of the banner's foot (an element page's panel edges)
+		local host, right, y0, room, inner = p, -8, 0, PANEL_H, PANEL_H - 4
+		if def.stage then
+			host, right, y0, room = self, -40, 58, heroH - 14 - 58 - 12
+			inner = room
+		end
 		local list = {}
 		for _, b in ipairs(self.stateButtons) do
 			if listed(b.state) then table.insert(list, b) else b:Hide() end
@@ -502,7 +505,7 @@ function OA.buildHero(parent, key)
 		end
 		local line = self.stateLine
 		if fits then
-			if line then line:Hide(); line.wheel:Hide() end
+			if line then line:Hide(); line.wheel:Hide(); line.shades:Hide() end
 			return
 		end
 		if not line then
@@ -516,6 +519,9 @@ function OA.buildHero(parent, key)
 				b:EnableMouseWheel(true)
 				b:SetScript("OnMouseWheel", onWheel)
 			end
+			line.shades = CreateFrame("Frame", nil, host)
+			line.shades:SetFrameLevel(list[1]:GetFrameLevel() + 2)
+			line.above, line.below = W.moreShades(line.shades, SHADE_H, 0)
 			self.stateLine = line
 		end
 		local colH = vis * STEP - 3
@@ -527,6 +533,12 @@ function OA.buildHero(parent, key)
 		line.wheel:SetPoint("TOPRIGHT", host, "TOPRIGHT", 0, -top)
 		line.wheel:SetSize(BTN_W - right, colH)
 		line.wheel:Show()
+		line.shades:ClearAllPoints()
+		line.shades:SetPoint("TOPRIGHT", host, "TOPRIGHT", right, -top)
+		line.shades:SetSize(BTN_W, colH)
+		line.above:SetShown(firstShown > 1)
+		line.below:SetShown(firstShown + vis - 1 < n)
+		line.shades:Show()
 	end
 
 	-- Taller for what sits above or below the preview's icon; the page moves its content with it
