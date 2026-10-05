@@ -335,8 +335,9 @@ ns.registerPart("skipLong", {
 -- own debuff of the spell on your hostile target, drawn by Blizzard's button over the icon, in combat
 -- too. Its switch off (active.on), it's a plain cooldown
 local DEBUFFS = {}
+local function debuffShown(def) return setting(def.key, "active", "on") ~= false end
 local function debuffOn(def)
-	return def.spellID ~= nil and E.isEnabled(def.key) and setting(def.key, "active", "on") ~= false
+	return def.spellID ~= nil and E.isEnabled(def.key) and debuffShown(def)
 end
 local function debuffAlpha(x)
 	if not ns.try("target debuff alpha", x.host.SetAlpha, x.host, x.stale and 0 or 1) then
@@ -425,7 +426,7 @@ ns.registerPart("targetDebuff", {
 		uptime = true,
 		states = { { "debuff", "Debuff", 60 } },
 		render = function(ic, st, def, kit)
-			if st == "debuff" and setting(def.key, "active", "on") ~= false then
+			if st == "debuff" and debuffShown(def) then
 				kit.frozen(ic.upT, 0.3, def.targetDebuff.length)
 			end
 		end,
