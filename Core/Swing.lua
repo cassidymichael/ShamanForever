@@ -407,8 +407,10 @@ local function layout()
 	cd:SetHideCountdownNumbers(not c.countdown)
 	if cdText then SW.placeCountdown(cdText, face) end
 	if state.endsAt then drawSwing() else drawFace() end
+	-- A mark that's off is hidden, not only faded: a shown container still follows every aura change
 	for _, m in pairs(marks) do
 		makeMark(m)
+		if m.host then m.host:SetShown(markOn(m.key)) end
 		styleMark(m)
 		markAlpha(m)
 	end
