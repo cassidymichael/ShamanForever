@@ -431,6 +431,7 @@ function OA.buildHero(parent, key)
 	end
 	h.stateButtons = {}
 	previewState[key] = previewState[key] or def.states[1][1]
+	local firstShown, revealed = 1, nil
 	for _, st in ipairs(def.states) do
 		local b = CreateFrame("Button", nil, def.stage and h or p, "BackdropTemplate")
 		if def.stage then
@@ -449,6 +450,7 @@ function OA.buildHero(parent, key)
 		b.state = st[1]
 		b:SetScript("OnClick", function(self)
 			previewState[key] = self.state
+			revealed = nil
 			h:refresh()
 			if def.pop then def.pop(def.stage and h or h.previewIcon, self.state, OA.kit) end
 			if not def.stage and OA.idles(key, self.state) then idleSoon(h.previewIcon, key, self.state) end
@@ -458,26 +460,88 @@ function OA.buildHero(parent, key)
 	h.preview = p
 	heroes[key] = h
 
-	-- Taller for what sits above or below the preview's icon; the page moves its content with it
-	-- The state buttons in a column, centred; a state its settings turn off (stateShown) left out
-	local function placeButtons(self)
-		local shown, first, cur = {}, nil, false
+	-- State buttons
+	local STEP, SHADE_H = BTN_H + 3, 12
+	local function listed(st) return not def.stateShown or def.stateShown(st) end
+	local placeStates
+	local function onWheel(_, delta)
+		firstShown = firstShown - delta
+		placeStates(h)
+	end
+	function placeStates(self)
+		-- Centred in its room; one that scrolls keeps clear of the banner's foot (an element page's panel edges)
+		local host, right, y0, room, inner = p, -8, 0, PANEL_H, PANEL_H - 4
+		if def.stage then
+			host, right, y0, room = self, -40, 58, heroH - 14 - 58 - 12
+			inner = room
+		end
+		local list = {}
 		for _, b in ipairs(self.stateButtons) do
-			local show = not def.stateShown or def.stateShown(b.state)
-			b:SetShown(show)
-			if show then
-				table.insert(shown, b)
-				first = first or b.state
-				cur = cur or b.state == previewState[key]
+			if listed(b.state) then table.insert(list, b) else b:Hide() end
+		end
+		local n = #list
+		local fits = n * STEP - 3 <= inner
+		local vis = fits and n or math.max(math.floor((inner + 3) / STEP), 1)
+		firstShown = fits and 1 or math.min(math.max(firstShown, 1), n - vis + 1)
+		-- A state picked, or a new set of them, brings the chosen one into view; the wheel's place holds
+		local sel = previewState[key]
+		local now = tostring(sel) .. "/" .. n
+		if now ~= revealed then
+			revealed = now
+			for i, b in ipairs(list) do
+				if b.state == sel then firstShown = math.max(math.min(firstShown, i), i - vis + 1) end
 			end
 		end
-		local colH = #shown * (BTN_H + 3) - 3
-		for i, b in ipairs(shown) do
-			b:ClearAllPoints()
-			b:SetPoint("TOPRIGHT", -8, -(PANEL_H - colH) / 2 - (i - 1) * (BTN_H + 3))
+		local top = y0 + math.max((room - (vis * STEP - 3)) / 2, 0)
+		for i, b in ipairs(list) do
+			local slot = i - firstShown
+			if slot >= 0 and slot < vis then
+				b:ClearAllPoints()
+				b:SetPoint("TOPRIGHT", host, "TOPRIGHT", right, -(top + slot * STEP))
+				b:Show()
+			else
+				b:Hide()
+			end
 		end
-		if not cur and first then previewState[key] = first end
+		local line = self.stateLine
+		if fits then
+			if line then line:Hide(); line.wheel:Hide(); line.shades:Hide() end
+			return
+		end
+		if not line then
+			line = W.scrollLine(host)
+			line:SetFrameLevel(list[1]:GetFrameLevel())
+			line.wheel = CreateFrame("Frame", nil, host)
+			line.wheel:SetFrameLevel(math.max(list[1]:GetFrameLevel() - 1, host:GetFrameLevel()))
+			line.wheel:EnableMouseWheel(true)
+			line.wheel:SetScript("OnMouseWheel", onWheel)
+			for _, b in ipairs(self.stateButtons) do
+				b:EnableMouseWheel(true)
+				b:SetScript("OnMouseWheel", onWheel)
+			end
+			line.shades = CreateFrame("Frame", nil, host)
+			line.shades:SetFrameLevel(list[1]:GetFrameLevel() + 2)
+			line.above, line.below = W.moreShades(line.shades, SHADE_H, 0)
+			self.stateLine = line
+		end
+		local colH = vis * STEP - 3
+		line:ClearAllPoints()
+		line:SetPoint("TOPLEFT", host, "TOPRIGHT", right + 3, -top)
+		line:update(colH, (firstShown - 1) / n, vis / n)
+		line:Show()
+		line.wheel:ClearAllPoints()
+		line.wheel:SetPoint("TOPRIGHT", host, "TOPRIGHT", 0, -top)
+		line.wheel:SetSize(BTN_W - right, colH)
+		line.wheel:Show()
+		line.shades:ClearAllPoints()
+		line.shades:SetPoint("TOPRIGHT", host, "TOPRIGHT", right, -top)
+		line.shades:SetSize(BTN_W, colH)
+		line.above:SetShown(firstShown > 1)
+		line.below:SetShown(firstShown + vis - 1 < n)
+		line.shades:Show()
 	end
+
+	-- Taller for what sits above or below the preview's icon; the page moves its content with it
 	local function setHeight(self, want)
 		if def.stage or want == self.heroH then return end
 		-- Not while a slider is dragged: the header settles once the button is let go
@@ -494,7 +558,7 @@ function OA.buildHero(parent, key)
 		self.heroH = want
 		self:SetHeight(want - 14)
 		p:SetHeight(PANEL_H)
-		placeButtons(self)
+		placeStates(self)
 		if self.onHeight then self.onHeight() end
 	end
 	if not def.stage then
@@ -529,30 +593,21 @@ function OA.buildHero(parent, key)
 			self.tags:SetText(string.format("%s  ·  %s%s", g and g.name or "Ungrouped", shows[E.showMode(key)] or "",
 				E.isLearned(key) and "" or "  ·  " .. E.notLearnedText(key)))
 		end
-		if not def.stage then placeButtons(self) end
-		if def.stage and def.stateShown then
-			local count = 0
-			for _, b in ipairs(self.stateButtons) do if def.stateShown(b.state) then count = count + 1 end end
-			local colH = count * (BTN_H + 3) - 3
-			local top = 58 + math.max(((heroH - 14) - 58 - 12 - colH) / 2, 0)
+		if def.stage then
 			self.stateW = BTN_W + 16
 			if self.area then self.area:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -40 - self.stateW, 12) end
-			local n, first, cur = 0, nil, false
-			for _, b in ipairs(self.stateButtons) do
-				local show = def.stateShown(b.state)
-				b:SetShown(show)
-				if show then
-					b:ClearAllPoints()
-					b:SetPoint("TOPRIGHT", self, "TOPRIGHT", -40, -(top + n * (BTN_H + 3)))
-					n = n + 1
-					first = first or b.state
-					if b.state == previewState[key] then cur = true end
-				end
-			end
-			if not cur and first then
-				previewState[key] = (def.fallback and def.stateShown(def.fallback)) and def.fallback or first
+		end
+		local first, cur = nil, false
+		for _, b in ipairs(self.stateButtons) do
+			if listed(b.state) then
+				first = first or b.state
+				if b.state == previewState[key] then cur = true end
 			end
 		end
+		if not cur and first then
+			previewState[key] = (def.fallback and listed(def.fallback)) and def.fallback or first
+		end
+		placeStates(self)
 		for _, b in ipairs(self.stateButtons) do OA.paintChoice(b, b.state == previewState[key]) end
 		if not def.stage then
 			local ic = self.previewIcon
@@ -585,7 +640,7 @@ function OA.setPreview(key, state)
 	local h = heroes[key]
 	if not h then return false end
 	for _, b in ipairs(h.stateButtons) do
-		if b.state == state then b:Click() return true end
+		if b.state == state then b:GetScript("OnClick")(b, "LeftButton") return true end
 	end
 	return false
 end
