@@ -23,6 +23,7 @@ local GROUP_DEFAULTS = {
 	show = "always",
 	fadeAfter = 0,   -- seconds (0: none)
 }
+-- Also saved, dropped by an import: fresh (true: placed by an update, not shown yet; settleFresh)
 -- A group's Show as its state driver's conditions; "harm" is any target you can attack, alive
 local SHOW_WHEN = {
 	combat = "[combat] show; hide",
@@ -483,6 +484,7 @@ local function sanitize()
 	for _, g in ipairs(db.groups) do
 		for k, v in pairs(GROUP_DEFAULTS) do if g[k] == nil then g[k] = v end end
 		if g.show ~= "combat" and g.show ~= "target" then g.show = "always" end
+		if g.fresh ~= true then g.fresh = nil end
 		local kept = {}
 		for _, key in ipairs(type(g.members) == "table" and g.members or {}) do
 			if ELEMENTS[key] and not seen[key] then
