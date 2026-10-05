@@ -1209,9 +1209,9 @@ function E.debugReport()
 	say("profile %s", tostring(profileName))
 	local function listed(key)
 		local tags = {}
-		if not isOn(key) then table.insert(tags, "off") end
 		if not isLearned(key) then table.insert(tags, E.notLearnedText(key):lower()) end
-		if showMode(key) ~= "always" then table.insert(tags, showMode(key)) end
+		if not isOn(key) then table.insert(tags, "off") end
+		if showMode(key) == "combat" then table.insert(tags, "in combat") end
 		return #tags == 0 and key or (key .. " (" .. table.concat(tags, ", ") .. ")")
 	end
 	for _, g in ipairs(db.groups) do
