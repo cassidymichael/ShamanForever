@@ -430,7 +430,8 @@ ns.registerPart("buffBar", {
 	page = { own = function(def)
 		local timeLeft = KD.words("cooldown", def, "uptime") or "Time left"
 		return { "toggle", name = "buffBar", title = Spells.name(def.buffBar.buffKey), label = "Time left bar",
-			tip = "While it's up, on the icon's other edge from the " .. timeLeft .. " bar." }
+			tip = "While it's up, on the icon's other edge from the " .. timeLeft .. " bar.",
+			unlearned = function() return not B.buffBarLearned(def) end }
 	end },
 	preview = {
 		states = function(def) return { { "buffBar", Spells.name(def.buffBar.buffKey), 63 } } end,

@@ -527,6 +527,7 @@ ns.registerPart("glowWhile", {
 		local exp = def.glowWhile.experimental
 		return { "choice", name = "glowWhile", title = "Pulsing glow", label = "Glow while", choices = choices,
 			text = "The same glow as Ready's: either lights it.",
+			unlearned = function(v) return v == "buff" and not ns.Buffs.buffBarLearned(def) end,
 			badge = exp and { value = exp, name = "Glow while " .. (exp == "buff" and buff or exp) } or nil }
 	end },
 	preview = {
