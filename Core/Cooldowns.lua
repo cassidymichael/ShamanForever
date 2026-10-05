@@ -17,7 +17,7 @@ local setting = E.setting
 
 -- Elements: the class's rows (ns.CLASS.cooldowns). A row's fields: key, spellKey, icon, school,
 -- blurb, experimental; its parts' flags (this file's parts: window (seconds from our cast), primed,
--- readyGlow, lowMana, noReady; others' below); expireLooks (which looks Expiring offers; false: none), race
+-- readyGlow, lowMana, noReadyPop; others' below); expireLooks (which looks Expiring offers; false: none), race
 -- (race IDs; others see "Not your race"), cd and duration (preview only), defaults (over the
 -- parts'), styles and timerCant (see E.register).
 local COOLDOWNS = ns.CLASS.cooldowns or {}
@@ -62,10 +62,11 @@ ns.registerPart("cooldown", {
 		end,
 	},
 })
+-- Every cooldown has its ready sound; noReadyPop: without the pop
 ns.registerPart("ready", {
-	has = function(def) return not def.noReady end,
-	defaults = { ready = { pop = true, sound = "none" } },
-	pop = true,
+	has = function() return true end,
+	defaults = function(def) return { ready = { pop = not def.noReadyPop or nil, sound = "none" } } end,
+	pop = function(def) return not def.noReadyPop end,
 })
 ns.registerPart("readyGlow", { defaults = { ready = { glow = false } }, glow = true })
 -- Low mana: a pulsing glow while it's ready and your mana is under a percentage. Mana is secret even
@@ -525,7 +526,7 @@ for _, def in ipairs(COOLDOWNS) do
 		return "ready"
 	end
 	popWhenReady(def.frame, def.key, gate)
-	if not def.noReady then soundWhenReady(def.frame, def.key, gate) end
+	soundWhenReady(def.frame, def.key, gate)
 	-- The swipe's end, and the spell's own (the time bar's), which can end inside a GCD
 	for _, cd in ipairs({ def.frame.cd, def.frame.ownCd }) do
 		cd:HookScript("OnCooldownDone", function() C_Timer.After(0, function() refreshCooldown(def) end) end)

@@ -68,7 +68,7 @@ ns.CLASS.cooldowns = {
 	{ key = "reincarnation", spellKey = "reincarnation", icon = 136080, school = "spirit",
 		blurb = "Cooldown, and your Ankhs when they run low.",
 		styles = { gcd = { show = false } },   -- never needs the sweep
-		reagent = 17030, noReady = true, cd = 3600,
+		reagent = 17030, noReadyPop = true, cd = 3600,
 		defaults = { idleAlpha = 0, idleWhen = "offcd" }, experimental = "Reincarnation" },
 	-- Racials (race IDs: Orc 2, Dwarf 3, Tauren 6, Troll 8, Windshaper Skyborne 96)
 	windowBuff({ key = "bloodfury", spellKey = "bloodFury", icon = 135726, race = { 2 }, window = 15,
