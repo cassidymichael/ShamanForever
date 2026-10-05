@@ -7,9 +7,6 @@ ns.Profiles = P
 -- Account-wide, outside profiles
 local ACCOUNT_DEFAULTS = {
 	locked = true,
-	snap = true,
-	grid = true,
-	gridSize = 32,
 	hideIssueReporter = false,
 	keepOptionsOpen = false,
 	foldedBlocks = {},
@@ -201,6 +198,17 @@ local function retireTotemBar(t)
 		if type(t.border) == "table" then t.border.follow = false end
 	elseif t.follow == true then t.size, t.border = nil, nil end
 	for _, k in ipairs(RETIRED.totemBar) do t[k] = nil end
+	-- Per-totem Expiring times under a spell's English name (older profiles, or shared from an
+	-- English client) go under the client's name
+	local over = type(t.expire) == "table" and t.expire.over
+	if type(over) ~= "table" then return end
+	for key, d in pairs(ns.Spells.DEFS) do
+		local name = ns.Spells.name(key)
+		if d.en and name ~= d.en and over[d.en] ~= nil then
+			if over[name] == nil then over[name] = over[d.en] end
+			over[d.en] = nil
+		end
+	end
 end
 
 -- Wherever a style is kept: the profile (Global), each element's settings, each bar's and group's

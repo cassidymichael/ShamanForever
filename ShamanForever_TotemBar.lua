@@ -115,7 +115,6 @@ function TB.overChanged(over)
 	local seen = {}
 	for key, secs in pairs(EXPIRE_OVER) do
 		local name = ns.Spells.name(key)
-		if over[name] == nil then name = ns.Spells.DEFS[key].en end
 		if over[name] ~= secs then return true end
 		seen[name] = true
 	end
@@ -272,7 +271,6 @@ function TB.plainArrow(t)
 	t.glyph:SetVertexColor(1, 1, 1, 1)
 end
 local GLYPH_TURN = { up = 0, down = math.pi, right = -math.pi / 2, left = math.pi / 2 }
-TB.GLYPH_TURN = GLYPH_TURN
 function TB.placeArrow(tab, anchor, glyph)
 	local c = TB.eff()
 	local deep = c.arrowSize
@@ -724,7 +722,6 @@ local function refreshGCD()
 		if d then e.gcd:SetCooldownFromDurationObject(d) else e.gcd:Clear() end
 	end
 end
-TB.refreshGCD = refreshGCD
 
 local keyTexts = {}
 for _, el in ipairs(ELEMENTS) do keyTexts[slots[el].button] = slots[el].keys.text end
@@ -767,19 +764,12 @@ local function pickSpell(slot)
 	return id
 end
 
--- expire.over is keyed by the client's rank-less spell name; the English name counts too (older
--- profiles)
+-- expire.over is keyed by the client's rank-less spell name
 local function warnSecs(c, id)
 	local x = c.expire
 	if not id then return x.secs end
 	local name = ns.Spells.nameOf(id)
-	local v = name and x.over[name]
-	if v == nil then
-		local key = ns.Spells.keyOf(id)
-		local def = key and ns.Spells.DEFS[key]
-		v = def and x.over[def.en]
-	end
-	return v or x.secs
+	return name and x.over[name] or x.secs
 end
 -- Expiring's options for a slot holding id (nil: the bar's own time), as the bar shows them
 local function expireOpts(c, id)
@@ -1673,6 +1663,13 @@ function TB.setMode(mode)
 	local c = cfg()
 	c.mode = mode
 	if mode == "everything" then c.cast, c.arrows, c.call, c.recall = true, true, true, true end
+	return true
+end
+-- Left-click casting and the arrows are secure attributes and buttons, set at layout: refused in
+-- combat as the mode is, so the drawn bar never disagrees with what a click does
+function TB.setButtonSetting(key, on)
+	if ns.inCombat() then return false end
+	cfg()[key] = on
 	return true
 end
 function TB.modeName()

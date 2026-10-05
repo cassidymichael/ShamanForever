@@ -1,4 +1,4 @@
--- Totem bar themes (a "look" in the code, `skin` in its settings)
+-- Totem bar themes (a "look" in the code, `skin` in its settings), and the Totem band group art frame
 -- Each look is a data entry; the bar, its range strip and the options' preview call the functions
 -- below, which leave everything as it was for Default and take down what another look drew.
 -- A look can own some of the bar's settings (`owns`): the options hide them, the player's own value
@@ -14,7 +14,7 @@ local TB = ns.TotemBar
 local TH = {}
 TB.skin = TH
 
-local S = ns.Style
+local S, FR = ns.Style, ns.Frames
 local BLACK = { 0, 0, 0, 1 }
 local GOLD = ns.StyleArt.GOLD
 local RED = { 0.9, 0.12, 0.08, 1 }
@@ -83,6 +83,16 @@ S.addLook("border", "woodedge", { name = "Slim wood", group = "painted", hidden 
 	rings = { { color = BLACK } }, art = { file = MEDIA .. "Frame-Wood", margin = 22, px = 4 } })
 S.addLook("border", "ironedge", { name = "Iron edge", group = "lines", hidden = true,
 	rings = { { color = BLACK }, { px = 2, color = IRON }, { color = EMBER } } })
+
+-- A group art frame, offered for any group
+local BAND = "TotemBand"
+FR.addGroupStyle("totemband", { name = "Totem band", group = "painted", credit = "ai",
+	cells = {
+		first = { path = BAND, coords = { 0, 144 / 512, 0, 127 / 128 }, size = { 144, 127 } },
+		unit = { path = BAND, coords = { 144 / 512, 226 / 512, 0, 127 / 128 }, size = { 82, 127 } },
+		last = { path = BAND, coords = { 226 / 512, 370 / 512, 0, 127 / 128 }, size = { 144, 127 } },
+		hole = { 75, 28, 56, 56 },
+	} })
 
 -- The looks, in the order the options offer them. Entry fields: name, experimental, owns, border,
 -- extrasBorder, behind, plinth (PLINTH_ART key) and plinthSize(), extrasScaleKey, fixedSlots (every

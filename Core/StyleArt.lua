@@ -33,7 +33,7 @@ end
 function SA.elementSchool(key, own)
 	local e = ns.Elements.ALL[key]
 	if not e then return THEME.fallback end
-	if not own and ns.Profiles.getDB and ns.Profiles.getDB() then
+	if not own and ns.Profiles.getDB() then
 		local pick = ns.Elements.setting(key, "popSchool")
 		if THEME.color[pick] then return pick end
 	end
