@@ -225,8 +225,7 @@ for _, def in ipairs(ns.CLASS.cooldowns or {}) do
 			key = key, slot = key, unit = "none", filter = "HARMFUL|PLAYER", layer = f, noIcon = true, anchor = f,
 			dual = true, ids = function() return Spells.ids(def.spellKey) end,
 			sites = { container = "target debuff " .. key, style = "target debuff style " .. key,
-				filter = "target debuff filter " .. key, button = "target debuff " .. key .. " button",
-				bar = "target debuff bar" },
+				filter = "target debuff filter " .. key, bar = "target debuff bar" },
 			onError = function(err) ns.noteError("target debuff " .. key, err) end,
 		})
 		DEBUFFS[key] = x

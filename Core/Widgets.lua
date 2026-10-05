@@ -337,7 +337,7 @@ end
 
 -- opts: key, slot (its name), unit (default player), filter (default HELPFUL), ids() or candidates(),
 -- extras ({ key, init(slot, button) }: more slots on its container, their buttons over its own), level,
--- sites = { container, style, filter, button, bar }; onButton(slot, button, cd), onStyle(slot, size),
+-- sites = { container, style, filter, bar }; onButton(slot, button, cd), onStyle(slot, size),
 -- onError(err).
 -- Its container: parent (default frame), or layer: in a frame of its own on that layer over the icon
 -- (slot.holder, whose alpha the caller owns; frame.effects stays at full over an idle icon, frame fades
@@ -345,20 +345,14 @@ end
 -- Its button: the aura's picture (ownIcon: the element's), its time left (noTimer: none; anchor and
 -- dual: where its text and bar go, as ns.Timer's), host (a frame of the caller's for its parts),
 -- barInset. noIcon: no picture, the element's icon keeps its own; nothing of it is set up or styled
--- before its restyle, which waits for combat's end like every other. sites.button: its set-up runs
--- under it (its extras' under the container's site and their key).
+-- before its restyle, which waits for combat's end like every other. Its set-up's errors are noted under
+-- the container's site and "button" (its extras' under their key).
 -- Its calls: setup() (made once), style() (next frame) or styleNow(), refilter(); each waits as below.
 function W.makeAuraSlot(frame, opts)
 	-- A host of the caller's may clip the button's parts to the icon, and extra buttons carry the
 	-- caller's own parts over it
 	if (opts.host or opts.extras) and not opts.noTimer then ns.Timer.keepIn(opts.key) end
 	return setmetatable({ frame = frame, opts = opts }, AuraSlot)
-end
-
--- With sites.button its set-up can't stop the container's
-local function initGuarded(o, site, fn, ...)
-	if o.sites.button then return ns.try(site, fn, ...) end
-	return fn(...)
 end
 
 local function initAuraButton(slot, button)
@@ -477,13 +471,13 @@ function AuraSlot:setup()
 		local init = o.noIcon and initOverlayButton or initAuraButton
 		c:AddAuraSlot(o.slot, o.filter or "HELPFUL", {
 			candidateFilters = filters,
-			initializeFrame = function(button) initGuarded(o, o.sites.button, init, self, button) end,
+			initializeFrame = function(button) ns.try(o.sites.container .. " button", init, self, button) end,
 		})
 		for _, x in ipairs(o.extras or {}) do
 			c:AddAuraSlot(o.slot .. "-" .. x.key, o.filter or "HELPFUL", {
 				candidateFilters = filters,
 				initializeFrame = function(button)
-					initGuarded(o, o.sites.container .. " " .. x.key, initExtraButton, self, x, button)
+					ns.try(o.sites.container .. " " .. x.key, initExtraButton, self, x, button)
 				end,
 			})
 		end

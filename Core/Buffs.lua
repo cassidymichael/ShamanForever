@@ -647,7 +647,7 @@ for _, x in ipairs(STATE_LIST) do
 		noTimer = not s.length, anchor = f, dual = true, ids = function() return stateIDs(x) end,
 		extras = s.length and B.expiring.extras(x, def) or nil,
 		sites = { container = "aura state " .. key, style = "aura state style " .. key,
-			filter = "aura state filter " .. key, button = "aura state " .. key .. " button", bar = "aura state bar " .. key },
+			filter = "aura state filter " .. key, bar = "aura state bar " .. key },
 		onButton = function(_, button)
 			if s.length then B.expiring.button(x, button) end
 			if x.fx then x.fx:bind(button) end
@@ -820,8 +820,7 @@ for _, x in ipairs(BUFF_BARS) do
 	x.slot = W.makeAuraSlot(f, {
 		key = key, slot = key .. "-buff", layer = f, noIcon = true, noTimer = true,
 		ids = function() return Spells.ids(x.spec.buffKey) end,
-		sites = { container = "buff bar " .. key, style = "buff bar style " .. key, filter = "buff bar filter " .. key,
-			button = "buff bar " .. key .. " button" },
+		sites = { container = "buff bar " .. key, style = "buff bar style " .. key, filter = "buff bar filter " .. key },
 		onButton = function(_, button)
 			local bar = newBuffBar(button)
 			if ns.try("buff bar " .. key, button.SetDurationBar, button, bar, ns.Timer.AURA_BAR) then x.bar = bar
