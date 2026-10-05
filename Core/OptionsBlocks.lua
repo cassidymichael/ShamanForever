@@ -715,7 +715,7 @@ local function groupMenu(key, after)
 	end
 end
 
-local ON_TIP = "Off, it leaves the screen. Its group and settings are kept."
+local ON_TIP = "Turned off, it keeps its group and settings."
 local SHOW_TIP_PAGE = "Groups have their own Show on the Groups & Layout page; an element shows only when both "
 	.. "allow it. Everything visible shows while positioning is unlocked."
 
