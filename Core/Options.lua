@@ -127,7 +127,7 @@ end
 local function buildGlobal(p)
 	p:pageTitle("Global settings")
 
-	p:section("General", true)
+	p:section("General")
 	p:header("Minimap")
 	p:checkbox("Show the minimap button", "Click it to open these options. Also listed in the minimap's addon menu.",
 		function() return not (acct().minimap and acct().minimap.hide) end,
@@ -220,7 +220,7 @@ local function buildProfiles(p)
 			"Every setting in this profile back to defaults, including the layout.", 90 },
 	})
 
-	p:header("Share", nil, nil, nil, { open = true })
+	p:header("Share")
 	p:buttons({
 		{ "Export", function() OP.showShare("export") end, "This profile as text, to share.", 90 },
 		{ "Import", function() OP.showShare("import") end, "Profile text from someone else. It becomes a new profile.", 90 },
@@ -275,7 +275,7 @@ local function buildAbout(p)
 	link(p, "Discord", links.discord, "discord")
 	link(p, "CurseForge", links.curseforge .. "/comments", "curseforge")
 	link(p, "GitHub", links.repo .. "/issues", "github")
-	p:header("Support", nil, nil, "Interface\\Icons\\INV_Misc_Coin_01", { open = true })
+	p:header("Support", nil, nil, "Interface\\Icons\\INV_Misc_Coin_01")
 	p:text("If you'd like to support this addon, please feel free to buy me a coffee. I have spent many hours "
 		.. "working on this project (and many millions of AI tokens). Thank you!")
 	link(p, "Ko-fi", links.kofi, "kofi")
