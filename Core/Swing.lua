@@ -190,10 +190,16 @@ local function markOn(key)
 	local e = E.ALL[key]
 	return cfg().marks[key] == true and e.learned ~= nil and e.learned() and SW.isOn()
 end
--- Our frame over Blizzard's button: its opacity is ours to set in combat too
+-- What a mark's pips are drawn for: the bar's size and direction
+local function markShape()
+	local c = cfg()
+	return c.width .. "x" .. c.height .. c.fillFrom
+end
+-- Our frame over Blizzard's button: its opacity is ours to set in combat too. Hidden while its pips
+-- wait to be drawn for the bar as it is (a restyle waits while auras are secret)
 local function markAlpha(m)
 	if not m.host then return end
-	local a = (markOn(m.key) and not pv.mode and face:IsShown()) and 1 or 0
+	local a = (markOn(m.key) and not pv.mode and face:IsShown() and m.shape == markShape()) and 1 or 0
 	if not ns.try("swing mark alpha", m.host.SetAlpha, m.host, a) then
 		ns.retryAfterCombat("swing mark alpha", function() markAlpha(m) end)
 	end
@@ -209,9 +215,13 @@ local function styleMark(m)
 		m.container:SetFrameLevel(face:GetFrameLevel() + 3)
 		if not m.button then return end
 		m.button:SetSize(f:GetSize())
-		if m.pips then SW.stylePips(m.pips, m.button, spec.max, spec.color(), f) end
+		if m.pips then
+			SW.stylePips(m.pips, m.button, spec.max, spec.color(), f)
+			m.shape = markShape()
+		end
 	end)
 	if not ok then ns.retryAfterCombat(site, function() styleMark(m) end) end
+	markAlpha(m)
 end
 -- Blizzard's button: no picture of its own, only the pips it fills
 local function initMark(m, button)
@@ -367,12 +377,6 @@ local function drive() ns.setVisibilityDriver(f, visibilityDriver(), "swing time
 -- Layout (out of combat)
 local function layout()
 	if ns.deferInCombat("swing layout", layout) then return end
-	-- A mark's button can't be resized while auras are secret: the bar waits with it
-	if ns.aurasSecret() then
-		for _, m in pairs(marks) do
-			if m.container then ns.retryAfterCombat("swing layout", layout) return end
-		end
-	end
 	local c = cfg()
 	listen(SW.isOn())
 	f:SetScale(c.scale)
