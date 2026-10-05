@@ -313,17 +313,29 @@ B.expiring = {
 	defaults = { expire = { secs = 0, bar = true, barColor = EXPIRE_RED, text = true } },
 	range = { 0, 30, 1 },
 }
+-- Time left's page says what its countdown keeps once the engine draws it (T.CANT, a copy: rows share theirs)
+function B.expiring.note(key)
+	local cant = ns.Timer.CANT[key] or {}
+	local up = {}
+	for k, v in pairs(type(cant.uptime) == "table" and cant.uptime or {}) do up[k] = v end
+	up.format = "With Red countdown on, the countdown keeps only its size, colour and position."
+	local out = {}
+	for k, v in pairs(cant) do out[k] = v end
+	out.uptime = up
+	ns.Timer.CANT[key] = out
+end
 
 -- engineExpire (with proc and duration, the aura's full length): Expiring drawn by the engine. Its length
 -- is checked by a plain read: on you here, on another unit only with missing's read (and its aura's key)
 local function lengthChecked(def)
 	return not def.unit or (def.missing and (def.auraKey or def.buffKey) ~= nil) or false
 end
+local function engineExpires(def)
+	return def.engineExpire and def.proc and type(def.duration) == "number" and lengthChecked(def) or false
+end
 ns.registerPart("engineExpire", {
 	kind = "buff", after = "missing",
-	has = function(def)
-		return def.engineExpire and def.proc and type(def.duration) == "number" and lengthChecked(def) or false
-	end,
+	has = engineExpires,
 	defaults = B.expiring.defaults,
 	ranges = function(def) return { expire = { secs = def.expireRange or B.expiring.range } } end,
 	preview = {
@@ -518,6 +530,7 @@ for _, def in ipairs(ROWS) do
 		ranges = def.ranges, choices = def.charges and { count = { pos = COUNT_POS } } or nil,
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
 		experimental = def.experimental, styles = def.styles, swingMark = swingMarkOf(def) })
+	if engineExpires(def) then B.expiring.note(def.key) end
 	if not KD.hook("buff", def, "engine") then table.insert(BUFFS, def) end
 	if def.power or def.range then CS.watchRow(def, def.proc and auraCover(def) or nil) end
 end
@@ -714,7 +727,10 @@ end
 for _, x in ipairs(STATE_LIST) do
 	local def, key = x.def, x.def.key
 	-- Expiring's bar part is clipped to the time bar in the icon
-	if x.spec.length then ns.Timer.keepIn(key) end
+	if x.spec.length then
+		ns.Timer.keepIn(key)
+		B.expiring.note(key)
+	end
 	if x.spec.active then
 		x.fx = ns.Effects.host(def.frame, key, { aura = {
 			slot = x, parent = def.frame.effects, unit = "player", filter = stateFilter(x),
