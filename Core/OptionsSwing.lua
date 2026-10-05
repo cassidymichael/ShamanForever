@@ -33,6 +33,7 @@ local PREVIEW = {
 		over:SetFrameLevel(box:GetFrameLevel() + 2)
 		box.text = over:CreateFontString(nil, "OVERLAY")
 		box.text:SetFontObject(ns.Swing.font)
+		box.over, box.pips = over, {}
 		h.swing = box
 		h.fitNote = h:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 		h.fitNote:SetPoint("TOPRIGHT", h.area, "TOPRIGHT", 0, 0)
@@ -61,8 +62,28 @@ local PREVIEW = {
 		box.bar:SetValue(c.deplete and 1 - filled or filled)
 		box.text:SetText(string.format("%.1f", LENGTH * (1 - FILL)))
 		box.text:SetShown(c.countdown and not due)
+		-- Marks switched on, full; a mark's own state shows it switched off too
+		for _, key in ipairs(SW.MARKS) do
+			local pips = box.pips[key]
+			local on = c.marks[key] == true or st == "mark-" .. key
+			if on and not pips then
+				pips = SW.makePips(box.over)
+				box.pips[key] = pips
+			end
+			if on then
+				local spec = E.ALL[key].swingMark
+				SW.stylePips(pips, box, spec.max, spec.color())
+				pips:SetMinMaxValues(0, spec.max)
+				pips:SetValue(spec.max)
+			end
+			if pips then pips:SetShown(on) end
+		end
 	end,
 }
+
+-- A state per mark, named as its row in Marks
+local function markName(key) return E.ALL[key].label .. " charges" end
+for _, key in ipairs(ns.Swing.MARKS) do table.insert(PREVIEW.states, { "mark-" .. key, markName(key) }) end
 
 local function build(p)
 	local SW, K = ns.Swing, ns.Options.kit
@@ -114,6 +135,21 @@ local function build(p)
 	slider(p, R.countdownSize, "Text size", nil, int, get("countdownSize"), set("countdownSize"), text)
 	p:color("Text colour", nil, get("countdownColor"), set("countdownColor"), text)
 
+	if #SW.MARKS > 0 then
+		p:header("Marks")
+		for _, key in ipairs(SW.MARKS) do
+			local e = E.ALL[key]
+			local function markGet() return c().marks[key] end
+			p:owns({ bar = "swing", name = "marks", field = key, after = changed })
+			p:checkbox(markName(key), "Pips along the top of the bar while it's up, one per charge.", markGet,
+				function(v) c().marks[key] = v; changed() end)
+			local badge = p:row(22)
+			ns.OptionsArt.expBadge(badge, markName(key)):SetPoint("LEFT", badge, "LEFT", ns.Page.LABEL_W, 0)
+			p:add(badge, 22)
+			p:text("Not learned yet.", showWhen(function() return not (e.learned and e.learned()) end))
+		end
+	end
+
 	K.styleSection(p)
 	K.textBlock(p, "swing", changed)
 	p:header("Bar texture")
@@ -126,7 +162,11 @@ local function build(p)
 	end
 end
 
+local experiments = {}
+for _, key in ipairs(ns.Swing.MARKS) do
+	table.insert(experiments, { markName(key), "Marks" })
+end
 Bars.register("swing", { icon = ns.Swing.ICON, school = ns.THEME.fallback,
-	blurb = "Time to your next melee swing.",
+	blurb = "Time to your next melee swing.", experiments = experiments,
 	tags = function() return SHOW_NAME[ns.Swing.cfg().show] or "" end,
 	preview = PREVIEW, page = { order = 60, build = build } })

@@ -19,7 +19,7 @@ local setting = E.setting
 -- blurb, experimental; its parts' flags (this file's parts: window (seconds from our cast), primed,
 -- readyGlow, lowMana, noReadyPop; others' below); expireLooks (which looks Expiring offers; false: none), race
 -- (race IDs; others see "Not your race"), cd and duration (preview only), defaults (over the
--- parts'), styles and timerCant (see E.register).
+-- parts'), choices, styles and timerCant (see E.register).
 local COOLDOWNS = ns.CLASS.cooldowns or {}
 
 -- The kind and its parts (ns.registerPart); a row's flags name its parts. Other files' parts join
@@ -156,7 +156,6 @@ ns.registerPart("primed", {
 	preview = {
 		uptime = function(def) return def.primed.duration ~= nil end,
 		states = { { "primed", "Primed", 60 } },
-		shown = function(st, def) return st ~= "primed" or primedOn(def) end,
 		render = function(ic, st, def, kit)
 			if st ~= "primed" then return end
 			ic:SetGlowShown(setting(def.key, "active", "glow"))
@@ -233,7 +232,7 @@ for _, def in ipairs(COOLDOWNS) do
 	def.frame = makeCooldownIcon(def)
 	E.register(def.key, { frame = def.frame, label = def.spell,
 		defaults = def.defaults or {}, learned = function() return def.spellID ~= nil end,
-		paint = function(t) t:SetTexture(def.iconID or def.icon) end, ranges = def.ranges,
+		paint = function(t) t:SetTexture(def.iconID or def.icon) end, ranges = def.ranges, choices = def.choices,
 		kind = "cooldown", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
 		experimental = def.experimental, race = def.race, styles = def.styles, timerCant = def.timerCant })
 	if def.power or def.range then CS.watchRow(def) end

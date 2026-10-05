@@ -63,7 +63,7 @@ ns.CLASS.layout = {
 	{ id = 4, name = "Procs", point = "CENTER", x = 0, y = -142, scale = 1, alpha = 0.9,
 		sizeFollow = false, size = 50,
 		orientation = "horizontal", growth = "forward", spacing = 2,
-		members = { "elementalfocus", "maelstrom" } },
+		members = { "elementalfocus", "maelstrom", "flurry", "improvedstormstrike" } },
 	{ id = 5, name = "Tremor", point = "CENTER", x = -252 / 1.25, y = 58 / 1.25, scale = 1.25, alpha = 0.9,
 		orientation = "horizontal", growth = "forward", spacing = 2, members = { "tremor" } },
 	{ id = 6, name = "Cooldowns", point = "CENTER", x = -526, y = -60, scale = 1, alpha = 0.8,
@@ -240,6 +240,11 @@ ns.Spells.add({
 	-- Maelstrom Weapon's buff has the talent's name, so it stays out of this map (two keys with one
 	-- name make the name lookup file a new ID under either); Maelstrom.lua tracks it by ID
 	maelstromWeapon = { ids = { 408498 }, en = "Maelstrom Weapon" },
+	-- Talents whose buff has the talent's name: the buff is matched by ID
+	flurry          = { ids = { 16256 }, en = "Flurry" },
+	flurryBuff      = { ids = { 16257 }, byID = true, en = "Flurry" },
+	improvedStormstrike = { ids = { 1223031 }, en = "Improved Stormstrike" },
+	improvedStormstrikeBuff = { ids = { 1238931 }, byID = true, en = "Improved Stormstrike" },
 	-- Spells that spend a primed effect
 	healingWave     = { ids = { 331 }, en = "Healing Wave" },
 	lesserHealingWave = { ids = { 8004 }, en = "Lesser Healing Wave" },
