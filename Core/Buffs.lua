@@ -492,10 +492,12 @@ end
 local function makeParty(x)
 	local def = x.def
 	if x.host or not partyOn(x) then return end
-	local f, site = def.frame, "party " .. def.key
+	local f = def.frame
 	x.host = CreateFrame("Frame", nil, f.effects)
 	x.host:SetAllPoints(f)
 	for _, unit in ipairs(PARTY_UNITS) do
+		-- One site per unit: work waiting for combat's end is kept by site
+		local site = "party " .. def.key .. " " .. unit
 		x.slots[unit] = W.makeAuraSlot(f, {
 			key = def.key, slot = "party", unit = unit, filter = def.filter, parent = x.host, level = -1,
 			ids = function() return auraIDs(def) end,
