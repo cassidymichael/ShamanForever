@@ -49,7 +49,7 @@ local function refreshCooldown(inEvent)
 	if not shockSpellID or not E.isEnabled("shock") then
 		idleDef.cdRunning, idleDef.idle, idleDef.idleAt = nil, nil, nil
 		W.fadeTo(shock, 1)
-		return CD.resetReady(shock)
+		return CD.resetReady(shock, true)
 	end
 	local dur, bar = CD.cooldownFor(shock, "shock", shockSpellID, inEvent)
 	if dur then shock.cdTimer:set(dur, bar) end
