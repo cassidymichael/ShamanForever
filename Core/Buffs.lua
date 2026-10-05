@@ -77,17 +77,6 @@ ns.registerPart("breath", {
 		end,
 	},
 })
--- breathEnds (breath, with proc): the Under water warning's sound, only as its aura ends while you're under
--- water: the breath bar starts while the aura still reads as up (the bar starts as the aura goes, before
--- its aura event). Auras read out of combat only: in combat it's silent
-ns.registerPart("breathEnds", {
-	kind = "buff", after = "breath",
-	has = function(def) return def.breath and def.proc and true or false end,
-	defaults = { warn = { sound = "none" } },
-	experiment = "Ending under water sound",
-	page = { warn = { soundBadge = "Ending under water sound",
-		tips = { sound = "As it ends while you're under water, out of combat." } } },
-})
 -- procSound (with proc): a sound as its aura comes, played by the engine; experimental
 ns.registerPart("procSound", {
 	kind = "buff", after = "proc",
@@ -1092,32 +1081,20 @@ local function underWaterWarns(def)
 	return def.breath and breathing and setting(def.key, "warn", "on") and not ns.cantAct()
 end
 
--- Read at rest: whether it's up (breathEnds' moment) and its length (Expiring's bar part, as engineExpire's
--- on the target: another length turns it off)
-local function readUp(def)
-	if not (def.spellID and ns.aurasReadable() and C_UnitAuras) then return nil end
+-- Read at rest: another length than the row's turns Expiring's bar part off (as engineExpire's on the target)
+local function readAura(def)
+	if not (def.spellID and ns.aurasReadable() and C_UnitAuras) then return end
 	for id in pairs(auraIDs(def)) do
 		local ok, a = safe(C_UnitAuras.GetPlayerAuraBySpellID, id)
-		if not ok or isSecret(a) then return nil end
-		if type(a) == "table" then return true, a.duration end
-	end
-	return false
-end
-local function readAura(def)
-	local up, dur = readUp(def)
-	if up and def.engineExpire and type(dur) == "number" and not isSecret(dur) and dur > 0 then
-		local off = math.abs(dur - def.duration) > 0.05
-		if off ~= (def.lengthOff or false) then
-			def.lengthOff = off
-			def.aura:style()
-		end
-	end
-end
--- The breath bar started
-local function breathStarted()
-	for _, def in ipairs(BUFFS) do
-		if def.breath and def.proc and E.isEnabled(def.key) and setting(def.key, "warn", "on") then
-			if readUp(def) then ns.Sounds.element(def.key, "warn") end
+		if not ok or isSecret(a) then return end
+		local dur = type(a) == "table" and a.duration
+		if type(dur) == "number" and not isSecret(dur) and dur > 0 then
+			local off = math.abs(dur - def.duration) > 0.05
+			if off ~= (def.lengthOff or false) then
+				def.lengthOff = off
+				def.aura:style()
+			end
+			return
 		end
 	end
 end
@@ -1277,7 +1254,7 @@ function B.refresh()
 	readBreath()
 	watchBreath()
 	for _, def in ipairs(BUFFS) do
-		if def.breath or def.engineExpire then readAura(def) end
+		if def.engineExpire then readAura(def) end
 	end
 	refreshAll()
 end
@@ -1310,7 +1287,6 @@ function B.start()
 		end
 		if isSecret(timer) or timer ~= "BREATH" then return end
 		breathing = event == "MIRROR_TIMER_START" and type(scale) == "number" and not isSecret(scale) and scale < 0
-		if breathing then breathStarted() end
 		watchBreath()
 		refreshAll()
 	end)
