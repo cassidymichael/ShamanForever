@@ -412,7 +412,9 @@ local function readSlots(report)
 		if ok then
 			local was = lastDur[slot]
 			lastDur[slot] = d
-			if report and was and not d then TO.slotEmptied(slot, was) end
+			if report and was and not d then TO.slotEmptied(slot, was)
+			-- Listening again: a totem that ended unheard leaves no owner behind
+			elseif not report and not d then owner[slot], spells[slot] = nil, nil end
 		end
 	end
 end
