@@ -424,7 +424,6 @@ ns.registerPart("targetDebuff", {
 	preview = {
 		uptime = true,
 		states = { { "debuff", "Debuff", 60 } },
-		shown = function(st, def) return st ~= "debuff" or setting(def.key, "active", "on") ~= false end,
 		render = function(ic, st, def, kit)
 			if st == "debuff" then kit.frozen(ic.upT, 0.3, def.targetDebuff.length) end
 		end,
@@ -456,11 +455,7 @@ local function glowSites(key, what)
 	return { container = site, style = site .. " style", filter = site .. " filter" }
 end
 for _, def in ipairs(ns.CLASS.cooldowns or {}) do
-	if def.glowWhile and def.targetDebuff then
-		GLOWS[def.key] = { def = def, looks = {} }
-		-- Its buff's preview state shows for the glow too
-		if def.buffBar then def.buffBar.shown = function() return setting(def.key, "glowWhile") == "buff" end end
-	end
+	if def.glowWhile and def.targetDebuff then GLOWS[def.key] = { def = def, looks = {} } end
 end
 local function makeGlowLook(g, what)
 	local def = g.def

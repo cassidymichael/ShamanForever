@@ -155,7 +155,6 @@ ns.registerPart("primed", {
 	preview = {
 		uptime = function(def) return def.primed.duration ~= nil end,
 		states = { { "primed", "Primed", 60 } },
-		shown = function(st, def) return st ~= "primed" or primedOn(def) end,
 		render = function(ic, st, def, kit)
 			if st ~= "primed" then return end
 			ic:SetGlowShown(setting(def.key, "active", "glow"))

@@ -18,12 +18,11 @@ PREVIEW = {
 	states = { { "idle", "Totem not down" }, { "down", "Totems down" }, { "expiring", "Expiring" },
 		{ "killed", "Killed early" }, { "range", "Out of range" }, { "offpick", "Different totem down" },
 		{ "picking", "Picking" }, { "mana", ns.CLASS.power.name } },
+	-- Only what the mode can't show is left out: a state switched off still previews
 	stateShown = function(st)
-		local c = ns.TotemBar.cfg()
-		local mode = c.mode
+		local mode = ns.TotemBar.cfg().mode
 		if mode == "blizzard" then return false end
-		if st == "range" then return c.range end
-		if st == "mana" then return mode == "everything" and c.cast and c.mana.on end
+		if st == "mana" then return mode == "everything" end
 		return mode == "everything" or (st ~= "offpick" and st ~= "picking")
 	end,
 	fallback = "down",
