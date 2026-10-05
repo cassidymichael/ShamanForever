@@ -826,7 +826,7 @@ local function newBuffBar(parent)
 	bar.bg:SetColorTexture(0, 0, 0, 0.6)
 	return bar
 end
-local function buffBarAlpha(x) x.slot:fade("buff bar alpha", x.alpha) end
+local function buffBarAlpha(x) x.slot:fade("buff bar alpha " .. x.def.key, x.alpha) end
 -- Made once, while it's on, out of combat with auras readable
 local function makeBuffBar(x)
 	local slot = x.slot
