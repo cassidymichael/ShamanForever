@@ -1139,16 +1139,12 @@ local function castBlocks(p, key, extras)
 end
 
 -- A setting switched on, with a number under it: b = { title, name, label, tip, sub = { name, label,
--- tip, unit }, unlearned() (Not learned under it while that says so), badge = { name } (the
--- experimental badge), text (help under it), waits (it takes effect only once combat ends) }
+-- tip, unit }, unlearned() (Not learned under it while that says so), badge (as soundBadge), text
+-- (help under it), waits (it takes effect only once combat ends) }
 local function toggleBlock(p, key, b)
 	p:header(b.title)
 	local on = p:checkbox(b.label, b.tip, eopt(p, key, b.name))
-	if b.badge then
-		local f = p:row(22)
-		ns.OptionsArt.expBadge(f, b.badge.name):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
-		p:add(f, 22)
-	end
+	if b.badge then badgeRow(p, b.badge) end
 	if b.unlearned then p:text("Not learned yet.", showWhen(b.unlearned)) end
 	if b.text then p:text(b.text) end
 	if b.waits then p:text("Turned on in combat, it waits until combat ends.", ns.inCombat) end

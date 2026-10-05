@@ -559,7 +559,7 @@ ns.registerPart("party", {
 	defaults = { party = false },
 	page = { own = { "toggle", name = "party", title = "Your party", label = "Show it",
 		text = "Also shows while a party member has one: the icon only, not who has it.",
-		badge = { name = "Your party" }, waits = true } },
+		badge = "Your party", waits = true } },
 	preview = {
 		states = { { "party", "Your party", 15 } },
 		-- The buff part draws its icon alone; with the switch off the HUD shows nothing new
