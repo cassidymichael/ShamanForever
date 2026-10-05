@@ -17,7 +17,7 @@ local setting = E.setting
 
 -- Elements: the class's rows (ns.CLASS.cooldowns). A row's fields: key, spellKey, icon, school,
 -- blurb, experimental; its parts' flags (this file's parts: window (seconds from our cast), primed,
--- readyGlow, lowMana, noReadyPop, readyAtReset; others' below); expireLooks (which looks Expiring
+-- readyGlow, lowMana, noReadyPop, readyAtReset; others' below, auraState in _Buffs); expireLooks (which looks Expiring
 -- offers; false: none), race (race IDs; others see "Not your race"), cd and duration (preview only),
 -- defaults (over the parts'), choices, styles and timerCant (see E.register).
 local COOLDOWNS = ns.CLASS.cooldowns or {}
@@ -202,7 +202,8 @@ ns.registerKind("cooldown", {
 	parts = { "cooldown", "ready", "readyGlow", "lowMana", "window", "primed" },
 	slots = { "own", "warn", "cast", "ready", "lowMana", "active", "expire", "killed", "cooldown", "gcd", "uptime" },
 	prepare = function(def)
-		def.expires = hasUptime(def) and def.expireLooks ~= false
+		-- auraState's Expiring is the engine's (_Buffs)
+		def.expires = hasUptime(def) and def.expireLooks ~= false and not def.auraState
 		checkFrames(def)
 	end,
 })

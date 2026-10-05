@@ -17,6 +17,12 @@ local function windowBuff(row)
 	row.defaults = { expire = { secs = 0, fade = true } }
 	return row
 end
+-- A buff your cast puts on you, drawn from the aura itself (auraState, _Buffs)
+local function auraBuff(row)
+	row.blurb = "Cooldown, and time left while it's on."
+	row.timerCant, row.readyGlow = ONE_SWIPE, true
+	return row
+end
 ns.CLASS.cooldowns = {
 	{ key = "earthbind", power = true, spellKey = "earthbind", icon = 136102, totemSlot = 2, duration = 45, cd = 15,
 		school = "earth",
@@ -85,8 +91,8 @@ ns.CLASS.cooldowns = {
 		experimental = "Rapid Regeneration" },
 	{ key = "warstomp", spellKey = "warStomp", icon = 132368, race = { 6 }, school = "earth",
 		blurb = "Cooldown.", readyGlow = true, cd = 120, experimental = "War Stomp" },
-	windowBuff({ key = "stoneform", spellKey = "stoneform", icon = 136225, race = { 3 }, window = 8,
-		school = "earth", cd = 180, experimental = "Stoneform" }),
+	auraBuff({ key = "stoneform", spellKey = "stoneform", icon = 136225, race = { 3 }, auraState = { length = 8 },
+		school = "earth", cd = 180 }),
 	-- Walk on Air: cooldown only, its real length is unseen
 	{ key = "walkonair", spellKey = "walkOnAir", icon = 132845, race = { 96 }, school = "air",
 		blurb = "Cooldown.", readyGlow = true, cd = 120, experimental = "Walk on Air" },
