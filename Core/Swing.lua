@@ -366,6 +366,12 @@ local function drive() ns.setVisibilityDriver(f, visibilityDriver(), "swing time
 -- Layout (out of combat)
 local function layout()
 	if ns.deferInCombat("swing layout", layout) then return end
+	-- A mark's button can't be resized while auras are secret: the bar waits with it
+	if ns.aurasSecret() then
+		for _, m in pairs(marks) do
+			if m.container then ns.retryAfterCombat("swing layout", layout) return end
+		end
+	end
 	local c = cfg()
 	listen(SW.isOn())
 	f:SetScale(c.scale)
