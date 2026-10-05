@@ -355,6 +355,20 @@ function W.makeAuraSlot(frame, opts)
 	return setmetatable({ frame = frame, opts = opts }, AuraSlot)
 end
 
+-- Its time left on parent, driven by the button; a client that refuses the time bar gets none rather than
+-- a still one
+local function addTimer(slot, button, parent, cd)
+	local o = slot.opts
+	local e = ns.Elements.ALL[o.key]
+	slot.timer = ns.Timer.new(parent, o.key, "uptime", { cd = cd, anchor = o.anchor or slot.host, dual = o.dual,
+		aura = true, school = e and e.school, barInset = o.barInset })
+	if not ns.try(o.sites.bar or "aura time bar", button.SetDurationBar, button, slot.timer.bar, ns.Timer.AURA_BAR) then
+		slot.timer.bar:Hide()
+		slot.timer.bar = nil
+	end
+	button:SetDurationCooldown(cd)
+end
+
 local function initAuraButton(slot, button)
 	local o = slot.opts
 	local size = ns.Elements.sizeOf(o.key)
@@ -373,42 +387,26 @@ local function initAuraButton(slot, button)
 	local cd = CreateFrame("Cooldown", nil, host, "CooldownFrameTemplate")
 	cd:SetAllPoints()
 	slot.cd = cd
-	if o.noTimer then
-		cd:SetHideCountdownNumbers(true)
-		if o.onButton then o.onButton(slot, button, cd) end
-		slot.button = button
-		return
+	if o.noTimer then cd:SetHideCountdownNumbers(true)
+	else
+		addTimer(slot, button, host, cd)
+		slot.timer:apply()
 	end
-	-- A client that refuses the time bar gets none rather than a still one.
-	local e = ns.Elements.ALL[o.key]
-	slot.timer = ns.Timer.new(host, o.key, "uptime", { cd = cd, anchor = o.anchor or host, dual = o.dual, aura = true,
-		school = e and e.school, barInset = o.barInset })
-	if not ns.try(o.sites.bar or "aura time bar", button.SetDurationBar, button, slot.timer.bar, ns.Timer.AURA_BAR) then
-		slot.timer.bar:Hide()
-		slot.timer.bar = nil
-	end
-	slot.timer:apply()
-	button:SetDurationCooldown(cd)
 	if o.onButton then o.onButton(slot, button, cd) end
 	slot.button = button
 end
 
+-- The icon under it is the box its parts are placed on
 local function initOverlayButton(slot, button)
 	local o = slot.opts
 	W.noMouse(button)
 	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
+	slot.host = o.anchor or slot.frame
 	if not o.noTimer then
 		local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
 		cd:SetAllPoints()
 		slot.cd = cd
-		local e = ns.Elements.ALL[o.key]
-		slot.timer = ns.Timer.new(button, o.key, "uptime", { cd = cd, anchor = o.anchor, dual = o.dual, aura = true,
-			school = e and e.school, barInset = o.barInset })
-		if not ns.try(o.sites.bar or "aura time bar", button.SetDurationBar, button, slot.timer.bar, ns.Timer.AURA_BAR) then
-			slot.timer.bar:Hide()
-			slot.timer.bar = nil
-		end
-		button:SetDurationCooldown(cd)
+		addTimer(slot, button, button, cd)
 	end
 	if o.onButton then o.onButton(slot, button, slot.cd) end
 	slot.button = button

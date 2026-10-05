@@ -237,7 +237,7 @@ local function styleExpireText(x, def, slot, st, secs)
 	x.textHanded = false
 end
 
--- slot: { button, timer, host (the border's picture inset) }; length: the aura's full length
+-- slot: its aura slot (W.makeAuraSlot); length: the aura's full length
 local function styleExpire(x, def, length, size, slot)
 	local key, t = def.key, slot.timer
 	local st = ns.Style.get(key, "uptime")
@@ -657,10 +657,7 @@ for _, x in ipairs(STATE_LIST) do
 				x.fx:setQuiet(x.quiet)
 				x.fx:stylePop(size)
 			end
-			-- Placed on the icon, the same box: a border's picture inset is the icon's
-			if slot.timer then
-				B.expiring.style(x, def, s.length, size, { button = slot.button, timer = slot.timer, host = f })
-			end
+			if slot.timer then B.expiring.style(x, def, s.length, size, slot) end
 		end,
 		onError = function(err) ns.noteError("aura state " .. key, err) end,
 	})
