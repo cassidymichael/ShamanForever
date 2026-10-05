@@ -210,9 +210,10 @@ local function plainCooldown(spellID)
 	if isSecret(info.isOnGCD) then return nil end
 	return info.isOnGCD == true and "gcd" or "own"
 end
--- Arms the next ready only when our own cast starts the cooldown, never on a guess: a missed
--- ready beats a false one.
+-- Arms the next ready only when our own cast starts the cooldown, or at the first look after a
+-- login, never on a guess: a missed ready beats a false one.
 local READY_GRACE, ARM_AFTER_CAST = 0.5, 1.5
+local function arm(r) r.armed, r.by, r.castAt = true, nil, nil end
 -- Still armed, still ready and its tracker still running once the grace is over: the cooldown ended
 -- early (a reset), so this is its ready. Only for rows with readyAtReset
 local function endedEarly(f, spellID, by)
@@ -232,7 +233,7 @@ local function noteReady(f, st, inEvent, spellID)
 			if r.atReset then C_Timer.After(READY_GRACE, function() endedEarly(f, spellID, by) end) end
 		end
 	elseif st == "own" and inEvent and r.castAt and GetTime() - r.castAt <= ARM_AFTER_CAST then
-		r.armed, r.by, r.castAt = true, nil, nil
+		arm(r)
 	end
 end
 -- Ready tracker: a Cooldown fed the spell's own cooldown (ignoreGCD). An end just after the icon
@@ -240,7 +241,7 @@ end
 local JUST_SHOWN = 0.2
 local function watchEnds(f)
 	if f.ready then return end
-	local r = { fns = {} }
+	local r = { fns = {}, fresh = true }
 	f.ready = r
 	local t = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
 	t:SetAllPoints()
@@ -262,13 +263,26 @@ function CD.noteCast(f, spellID)
 	watchEnds(f)
 	local r = f.ready
 	r.castAt = GetTime()
-	if plainCooldown(spellID) == "own" then r.armed, r.by, r.castAt = true, nil, nil end
+	if plainCooldown(spellID) == "own" then arm(r) end
 end
--- Forgets a pending ready: a cast we didn't see can't leave one armed
+-- A cooldown already running at the first look after a login arms its ready, only out of combat, where
+-- its start and length read plain; a GCD alone leaves the spell's own duration empty
+local function armRunning(f, spellID, st, own)
+	local r = f.ready
+	if not r.fresh then return end
+	r.fresh = nil
+	if st ~= "own" or not own or ns.inCombat() or not f.ownCd:IsShown() then return end
+	local ok, info = safe(C_Spell.GetSpellCooldown, spellID)
+	if not ok or type(info) ~= "table" or isSecret(info.startTime) or isSecret(info.duration) then return end
+	if type(info.duration) ~= "number" or info.duration <= 0 then return end
+	local zok, zero = safe(own.IsZero, own)
+	if zok and not isSecret(zero) and zero == false then arm(r) end
+end
+-- Forgets a pending ready, and the login's first look: a cast we didn't see can't leave one armed
 function CD.resetReady(f)
 	local r = f.ready
 	if not r then return end
-	r.armed, r.by, r.castAt = nil, nil, nil
+	r.armed, r.by, r.castAt, r.fresh = nil, nil, nil, nil
 	f.ownCd:Clear()
 end
 function CD.readyNow(f) return f.ready ~= nil and f.ready.at == GetTime() end
@@ -289,6 +303,7 @@ local function cooldownFor(f, key, spellID, inEvent)
 	if st == "own" and ok and own then
 		ns.try("ready tracker", f.ownCd.SetCooldownFromDurationObject, f.ownCd, own, true)
 	elseif st == "ready" and not f.ready.armed then f.ownCd:Clear() end
+	armRunning(f, spellID, st, ok and own)
 	if ns.Style.value(key, "gcd", "show") then
 		local gok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID)
 		if not (gok and dur) then return nil end
