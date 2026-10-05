@@ -318,7 +318,7 @@ function B.expiring.note(key)
 	local cant = ns.Timer.CANT[key] or {}
 	local up = {}
 	for k, v in pairs(type(cant.uptime) == "table" and cant.uptime or {}) do up[k] = v end
-	up.format = "With Red countdown on, the countdown keeps only its size, colour and position."
+	up.format = "While Expiring warns with Red countdown, the countdown keeps only its font, size, colour and position."
 	local out = {}
 	for k, v in pairs(cant) do out[k] = v end
 	out.uptime = up
