@@ -15,8 +15,6 @@ local GAME = {
 	{ "alarm", "Alarm clock", "ALARM_CLOCK_WARNING_3" },
 	{ "emote", "Boss emote", "RAID_BOSS_EMOTE_WARNING" },
 	{ "queue", "Queue pop", "PVP_THROUGH_QUEUE" },
-	{ "whisper", "Whisper", "TELL_MESSAGE" },
-	{ "ping", "Map ping", "MAP_PING" },
 	{ "invite", "Group invite", "IG_PLAYER_INVITE" },
 	{ "quest", "Quest complete", "IG_QUEST_LIST_COMPLETE" },
 	{ "toast", "Friend online", "UI_BNET_TOAST" },
