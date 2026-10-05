@@ -136,6 +136,8 @@ local function anyTrackedShieldKnown()
 	return false
 end
 SH.learned = anyTrackedShieldKnown
+-- On, grouped and learned: what it runs waits for all three (the preview may show it unlearned)
+local function inUse() return E.isEnabled("shield") and E.isLearned("shield") end
 function SH.knows(key) return SHIELDS[key] ~= nil and SHIELDS[key].known == true end
 
 local standIn
@@ -148,7 +150,7 @@ local holder = CreateFrame("Frame", nil, shield)
 holder:SetAllPoints(shield)
 local function driveHolder()
 	if InCombatLockdown() then return end
-	ns.setVisibilityDriver(holder, E.isEnabled("shield") and "[@player,dead] hide; show" or nil,
+	ns.setVisibilityDriver(holder, inUse() and "[@player,dead] hide; show" or nil,
 		"shield warning holder")
 end
 local look
@@ -268,7 +270,7 @@ function SH.applyEmptyLook()
 		standIn:SetIgnoreParentAlpha(covered and believedUp() ~= false)
 	end
 	setLook(stateNow())
-	if E.isEnabled("shield") then watch() end
+	if inUse() then watch() end
 	applyIdle()
 end
 
@@ -324,7 +326,7 @@ end
 -- Filters only change while auras are readable, and while Shields is in use (stale: again when it's back)
 local stale = false
 local function applyShieldFilter()
-	if not E.isEnabled("shield") then stale = true return end
+	if not inUse() then stale = true return end
 	stale = false
 	native:refilter()
 	look:refilter()
@@ -370,7 +372,7 @@ function SH.resolve()
 end
 
 function SH.style()
-	if not E.isEnabled("shield") then return end
+	if not inUse() then return end
 	native:style()
 	copy:style()
 end
@@ -549,7 +551,7 @@ end
 
 -- Auras can be secret out of combat too: keep the last read
 local function refreshAura()
-	if not ns.aurasReadable() or not E.isEnabled("shield") then return end
+	if not ns.aurasReadable() or not inUse() then return end
 	local upKey
 	for _, key in ipairs(SHIELD_ORDER) do
 		local s = SHIELDS[key]
@@ -571,7 +573,7 @@ function SH.onCast(spellID)
 	local cast = castOf(spellID)
 	if not cast then return end
 	P.getAccount().lastShield = cast
-	if tracksShield(cast) and E.isEnabled("shield") then
+	if tracksShield(cast) and inUse() then
 		holdUntil = GetTime() + CAST_HOLD
 		watch()
 	end
@@ -600,7 +602,7 @@ local function refreshGCD(inCooldownEvent)
 end
 
 function SH.applyLayout()
-	local on = E.isEnabled("shield")
+	local on = inUse()
 	if events then events(on) end
 	SH.applyRemovedSound()
 	if on then
@@ -618,7 +620,7 @@ function SH.afterGroups()
 	SH.applyEmptyLook()
 end
 function SH.refresh()
-	if E.isEnabled("shield") then checkIDs() end
+	if inUse() then checkIDs() end
 	refreshAura()
 	refreshGCD(false)
 	SH.applyRemovedSound()
@@ -642,13 +644,13 @@ function SH.start()
 		SH.applyEmptyLook()
 	end)
 	-- Auras may turn secret out of combat: the button becomes the switch
-	ns.onRestrictionChange(function() if E.isEnabled("shield") then watch() end end)
+	ns.onRestrictionChange(function() if inUse() then watch() end end)
 	ns.onCombatStart(function()
-		if not E.isEnabled("shield") then return end
+		if not inUse() then return end
 		checkIDs()
 		SH.applyEmptyLook()
 	end)
-	ns.onCanActChange(function() if E.isEnabled("shield") then SH.applyEmptyLook() end end)
+	ns.onCanActChange(function() if inUse() then SH.applyEmptyLook() end end)
 end
 
 -- /sf debug
