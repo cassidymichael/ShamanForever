@@ -155,13 +155,14 @@ ns.registerPart("primed", {
 	preview = {
 		uptime = function(def) return def.primed.duration ~= nil end,
 		states = { { "primed", "Primed", 60 } },
+		-- Its switch off, nothing of it: the plain cooldown
 		render = function(ic, st, def, kit)
-			if st ~= "primed" then return end
+			if st ~= "primed" or not primedOn(def) then return end
 			ic:SetGlowShown(setting(def.key, "active", "glow"))
 			if def.primed.duration then kit.frozen(ic.upT, 0.3, def.primed.duration) end
 		end,
 		pop = function(ic, st, def)
-			if st == "primed" and setting(def.key, "active", "pop") then ic:Pop("ready") end
+			if st == "primed" and primedOn(def) and setting(def.key, "active", "pop") then ic:Pop("ready") end
 		end,
 	},
 })
