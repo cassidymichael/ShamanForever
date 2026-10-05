@@ -357,6 +357,8 @@ ns.registerPart("engineExpire", {
 -- noGlow and noPop (without its own glow or pop; with neither, no effect host), charges (above),
 -- swingMark (below), ownSpell (above), reagent (its count over the button: countOver), castUnder (its cast states also
 -- on the icon under the button, for when the aura is down).
+-- Page texts, each optional: idleText (the Idle block), procHeader, popTip and glowTip (its active state's
+-- block), upLabel and idleLabel (its preview states), castNote and castTips (its cast states').
 -- A part's runtime hooks for them (each optional; parts from other files bring their own):
 --   make(def)                  at load, after the icon, before the aura slot: frames of its own;
 --                              returns { looks, extras }: aura looks set up, refiltered and checked
@@ -410,10 +412,14 @@ local function mirrorCount(def)
 	local shown = fs:IsShown()
 	o:SetShown(shown)
 	if not shown then return end
+	-- R.draw and W.placeScaledText keep what the count shows and where
+	local copied = tostring(fs.shown) .. "|" .. tostring(fs.placed)
+	if def.countCopied == copied then return end
 	local font, size, flags = fs:GetFont()
 	if font then o:SetFont(font, size, flags) end
 	o:SetText(fs:GetText())
 	o:SetTextColor(fs:GetTextColor())
+	def.countCopied = font and copied or nil
 end
 -- Over the button's parts: its Expiring parts and countdown reach 15 levels over the icon's text layer
 local COUNT_OVER = 16
@@ -842,9 +848,10 @@ for _, def in ipairs(ns.CLASS.cooldowns or {}) do
 	if def.buffBar then table.insert(BUFF_BARS, { def = def, spec = def.buffBar }) end
 end
 local barsPreviewing = false
+local function buffBarShown(def) return setting(def.key, "buffBar") == true end
 local function buffBarOn(x)
 	local def = x.def
-	return x.learned and def.spellID ~= nil and E.isEnabled(def.key) and setting(def.key, "buffBar") == true
+	return x.learned and def.spellID ~= nil and E.isEnabled(def.key) and buffBarShown(def)
 end
 -- Where it sits on anchor, in Time left's style: the edge its bar doesn't use, inside the picture of
 -- icon (the element's icon, the same box: Blizzard's button has no border of its own)
@@ -954,7 +961,7 @@ ns.registerPart("buffBar", {
 		render = function(ic, st, def, kit)
 			local bar = ic.buffBar
 			if st == "buffBar" then kit.frozen(ic.cdT, 0.4, def.cd or 60) end
-			if st ~= "buffBar" or setting(def.key, "buffBar") ~= true then
+			if st ~= "buffBar" or not buffBarShown(def) then
 				if bar then bar:Hide() end
 				return
 			end
@@ -972,7 +979,7 @@ ns.registerPart("buffBar", {
 		debug = function(def)
 			local x = buffBarOf(def)
 			local name = Spells.name(def.buffBar.buffKey)
-			if setting(def.key, "buffBar") ~= true then return name .. " bar off" end
+			if not buffBarShown(def) then return name .. " bar off" end
 			if not x.learned then return name .. " bar: talent not learned" end
 			return string.format("%s bar: container %s%s", name, x.container and "made" or "not made",
 				x.err and (", error: " .. x.err) or "")
@@ -1390,6 +1397,10 @@ function B.debug()
 		if def.breath then state = state .. ", breath bar " .. tostring(breathing) end
 		if def.lengthOff then state = state .. ", another length (no Expiring bar)" end
 		say("%s: spell %s, %s", def.spell, tostring(def.spellID), state)
+		if def.countLook then
+			say("%s count over the button: %s; %s", def.spell, def.countOver:IsShown()
+				and ("shown " .. describeArg(def.countOver:GetText())) or "hidden", def.countLook:describe())
+		end
 	end
 	for _, x in ipairs(PARTIES) do
 		local made, errs = 0, {}
