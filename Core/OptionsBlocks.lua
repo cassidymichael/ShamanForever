@@ -715,9 +715,9 @@ local function groupMenu(key, after)
 	end
 end
 
-local SHOW_TIP_PAGE = "Choosing Always or In combat again puts it back where it was. Groups have their own Show on "
-	.. "the Groups & Layout page; an element shows only when both allow it. Everything visible shows while "
-	.. "positioning is unlocked."
+local ON_TIP = "Off, it leaves the screen. Its group and settings are kept."
+local SHOW_TIP_PAGE = "Groups have their own Show on the Groups & Layout page; an element shows only when both "
+	.. "allow it. Everything visible shows while positioning is unlocked."
 
 -- Every element and bar page's two sections: what it does, then how it looks
 function K.behaviourSection(p) p:section("Functionality and behaviour") end
@@ -736,14 +736,21 @@ local function elementDisplay(p, key)
 		function() return not E.isLearned(key) and ns.Spells.otherRace(E.ALL[key].race) end)
 	K.behaviourSection(p)
 	p:header("Display")
-	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return E.showMode(key) end,
-		function(v) E.setShow(key, v) end, nil, 140)
-	local function showDefault() return E.default(key, "show") or "always" end
-	p:owns({ elem = key, name = "show", label = "Show", default = showDefault, reset = function()
+	-- Refused in combat: the box goes back to the setting
+	local on = p:checkbox("On", ON_TIP, function() return E.isOn(key) end,
+		function(v) if not E.setOn(key, v) then ns.Options.refresh() end end)
+	p:owns({ elem = key, name = "on", label = "On", reset = function()
 		if InCombatLockdown() then return false end
-		E.setShow(key, showDefault())
+		E.setOn(key, E.default(key, "on"))
 	end })
-	p:text("Hidden keeps its place in its group.")
+	p:sub(on, function() return E.isOn(key) end, function()
+		p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return E.showMode(key) end,
+			function(v) E.setShow(key, v) end, nil, 140)
+	end)
+	p:owns({ elem = key, name = "show", label = "Show", reset = function()
+		if InCombatLockdown() then return false end
+		E.setShow(key, E.default(key, "show"))
+	end })
 	local groupRow = p:dropdown("Group",
 		"Which group it sits in. Groups are arranged on the Groups & Layout page; ungrouped elements aren't on screen.",
 		{}, function() local g = G.of(key); return g and g.id .. ":" .. g.name or "" end, function() end, nil, 140,

@@ -326,7 +326,7 @@ OP.registerPage("about", { title = "About", icon = "Interface\\Icons\\INV_Misc_B
 	build = buildAbout })
 
 -- Show choices
-local SHOW_CHOICES = { { "always", "Always" }, { "combat", "In combat" }, { "never", "Hidden" } }
+local SHOW_CHOICES = { { "always", "Always" }, { "combat", "In combat" } }
 local COMBAT_SHOW = { { "always", "Always" }, { "combat", "In combat" },
 	{ "target", "In combat or with an enemy target" } }
 local STAY_TIP = "Seconds it stays once combat ends, then it fades out."
