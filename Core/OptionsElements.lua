@@ -27,8 +27,8 @@ local function byName()
 end
 EP.ordered = byName
 
-local SHOW_TIP = "Whether the element is on, and when it is drawn. Groups have their own Show on the Groups & "
-	.. "Layout page; an element shows only when both it and its group allow it."
+local SHOW_TIP = "On or off, and when it shows. Groups have their own Show on the Groups & Layout page; an "
+	.. "element shows only when both allow it."
 
 -- Elements overview
 local function tableCell(parent, width, font)

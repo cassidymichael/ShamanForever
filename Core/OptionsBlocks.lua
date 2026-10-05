@@ -732,7 +732,7 @@ local function elementDisplay(p, key)
 	p:hero(key)
 	p:callout("Not learned yet, so it isn't on screen.",
 		function() return not E.isLearned(key) and not ns.Spells.otherRace(E.ALL[key].race) end)
-	p:callout("Not your race. It shows on screen only for the races that have this spell.",
+	p:callout("Not your race, so it isn't on screen.",
 		function() return not E.isLearned(key) and ns.Spells.otherRace(E.ALL[key].race) end)
 	K.behaviourSection(p)
 	p:header("Display")

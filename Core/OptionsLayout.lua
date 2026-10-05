@@ -591,7 +591,7 @@ local function buildSettings(p)
 		{ "Centre on screen", function() askAbout(ns.POPUP .. "CENTER", sel()) end,
 			"Moves the group to the middle of the screen.", 130 },
 		{ "Turn all off", function() askAbout(ns.POPUP .. "ALLOFF", sel()) end,
-			"Turns off every element in the group. They stay in it, with their settings.", 100 },
+			"They keep their group and settings.", 100 },
 	})
 	p:buttons({
 		{ "Delete group", function() askDelete(sel()) end,
