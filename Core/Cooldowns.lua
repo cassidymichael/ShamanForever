@@ -507,7 +507,7 @@ local function syncReadyTicker()
 	local want = false
 	if E.isActive() then
 		for _, def in ipairs(COOLDOWNS) do
-			if def.frame.readyGate and E.isEnabled(def.key) and setting(def.key, "ready", "glow") then want = true end
+			if def.frame.readyGate and E.inUse(def.key) and setting(def.key, "ready", "glow") then want = true end
 			if partTicks(def) then want = true end
 		end
 	end

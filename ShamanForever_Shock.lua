@@ -75,7 +75,7 @@ local function refreshGlow()
 end
 local glowTicker = ns.ticker(0.1, refreshGlow)
 local function syncGlowTicker()
-	local want = E.isActive() and E.isEnabled("shock") and own("ready", "glow")
+	local want = E.isActive() and E.inUse("shock") and own("ready", "glow")
 	glowTicker:SetShown(want and true or false)
 	if not want then refreshGlow() end
 end
