@@ -347,6 +347,7 @@ end
 -- barInset. noIcon: no picture, the element's icon keeps its own; nothing of it is set up or styled
 -- before its restyle, which waits for combat's end like every other. sites.button: its set-up runs
 -- under it (its extras' under the container's site and their key).
+-- Its calls: setup() (made once), style() (next frame) or styleNow(), refilter(); each waits as below.
 function W.makeAuraSlot(frame, opts)
 	-- A host of the caller's may clip the button's parts to the icon, and extra buttons carry the
 	-- caller's own parts over it
