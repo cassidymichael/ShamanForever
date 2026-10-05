@@ -173,7 +173,8 @@ ns.registerPart("charges", {
 -- Rows with proc are shown by Blizzard's aura container. The builder reads their fields: filter
 -- (else "HELPFUL"), candidates(def) (candidate filters, else the aura's IDs), auraKey or buffKey
 -- (the aura's spell, any rank), ownIcon (the row's icon, not the aura's), noTimer (no time left),
--- noGlow and noPop (without its own glow or pop; with neither, no effect host), charges (above).
+-- noGlow and noPop (without its own glow or pop; with neither, no effect host), charges (above),
+-- swingMark (below).
 -- A part's runtime hooks for them (each optional; parts from other files bring their own):
 --   make(def)                  at load, after the icon, before the aura slot: frames of its own;
 --                              returns { looks, extras }: aura looks set up, refiltered and checked
@@ -290,6 +291,13 @@ local function auraCover(def)
 		end }
 end
 
+-- swingMark (with charges): its charges offered to the swing timer as pips
+local function swingMarkOf(def)
+	if not (def.swingMark and def.charges) then return nil end
+	return { max = def.charges, ids = function() return auraIDs(def) end,
+		color = function() return ns.THEME.barColor[def.school] or ns.THEME.barColor[ns.THEME.fallback] end }
+end
+
 for _, def in ipairs(ROWS) do
 	def.spell = Spells.name(def.spellKey)
 	def.icon = Spells.icon(def.buffKey or def.spellKey) or def.icon
@@ -302,7 +310,7 @@ for _, def in ipairs(ROWS) do
 		standInBorder = def.proc, borderHost = def.borderHost,
 		ranges = def.ranges, choices = def.charges and { count = { pos = COUNT_POS } } or nil,
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
-		experimental = def.experimental, styles = def.styles })
+		experimental = def.experimental, styles = def.styles, swingMark = swingMarkOf(def) })
 	if not KD.hook("buff", def, "engine") then table.insert(BUFFS, def) end
 	if def.power or def.range then CS.watchRow(def, def.proc and auraCover(def) or nil) end
 end

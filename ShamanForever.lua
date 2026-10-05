@@ -72,7 +72,8 @@ local ELEMENT_KEYS = {}
 -- (its page then offers their styles), and the pop it plays;
 -- ownSchool(): the school its pop and glow take now, where that follows its state; styles: its own
 -- shipped styles, { part = fields }; timerCant: timer parts it can't have, and why; barColor = { label,
--- text, color() }: a colour a bar can follow
+-- text, color() }: a colour a bar can follow; swingMark = { max, ids(), color() }: its aura's charges
+-- (up to max, the aura's spell IDs as a set) as pips on the swing timer (_Swing)
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
 local NO_EFFECTS = { glow = false, pop = false }
