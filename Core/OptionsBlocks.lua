@@ -987,12 +987,18 @@ local function readyBlock(p, owner, opts)
 end
 
 -- active: opts.title, text, on = { label, tip } (its switch, when it has one), extra(s, p) (rows under
--- its glow); shown with a text even with no fields
+-- its glow), soundBadge (an experimental badge under its sound: the feature's name); shown with a text
+-- even with no fields
 local function activeRows(p, s, opts)
 	check(p, s, "active", "pop", "Pop", tipOf(opts, "pop"))
 	check(p, s, "active", "glow", "Pulsing glow", tipOf(opts, "glow"))
 	if opts.extra then opts.extra(s, p) end
-	soundRow(p, s, "active", "Sound", tipOf(opts, "sound"))
+	local sound = soundRow(p, s, "active", "Sound", tipOf(opts, "sound"))
+	if sound and opts.soundBadge then
+		local f = p:row(22)
+		ns.OptionsArt.expBadge(f, opts.soundBadge):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
+		p:add(f, 22)
+	end
 end
 local function activeBlock(p, owner, opts)
 	local s = store(p, owner, opts.after)

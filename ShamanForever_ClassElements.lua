@@ -104,7 +104,7 @@ ns.CLASS.buffs = {
 		styles = TEXT_TIMER,
 		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, fade = false } },
 		experimental = "Water Breathing" },
-	{ key = "elementalfocus", spellKey = "elementalFocus", buffKey = "clearcasting", icon = 136170,
+	{ key = "elementalfocus", spellKey = "elementalFocus", buffKey = "clearcasting", icon = 136170, procSound = true,
 		school = "spirit", blurb = "Shows while " .. ns.Spells.name("clearcasting") .. " is up.",
 		proc = true, defaults = { idleAlpha = 0 },
 		styles = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false,

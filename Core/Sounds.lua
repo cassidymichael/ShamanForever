@@ -105,10 +105,15 @@ local function dropAura(a)
 	return #kept == 0
 end
 
--- now: in combat too (going off and on)
+-- No arrival sounds from a loading screen (the login's too) until its quiet ends: an aura already up isn't new
+local entered, leaving = false, false
+local function arrivalsHeld() return not entered or leaving or ns.zoning() end
+
+-- now: in combat too (going off and on, a loading screen)
 local function applyAura(owner, now)
 	local a = auraSounds[owner]
 	local file = not ns.isOff() and SN.fileID(a.value) or nil
+	if a.trigger == "Added" and arrivalsHeld() then file = nil end
 	local list = {}
 	if file then
 		for id in pairs(a.ids) do table.insert(list, id) end
@@ -167,10 +172,31 @@ ns.onOffChange(function()
 	for owner in pairs(auraSounds) do applyAura(owner, true) end
 end)
 
+local function applyArrivals()
+	for owner, a in pairs(auraSounds) do
+		if a.trigger == "Added" then applyAura(owner, true) end
+	end
+end
+-- Once the quiet after a loading screen is over
+local function arrivalsAfterZoning()
+	if ns.zoning() then C_Timer.After(1, arrivalsAfterZoning) return end
+	applyArrivals()
+end
+
 local ev = CreateFrame("Frame")
 ns.registerEvent(ev, "PLAYER_LOGOUT")
-ev:SetScript("OnEvent", function()
-	for _, a in pairs(auraSounds) do dropAura(a) end
+ns.registerEvent(ev, "PLAYER_LEAVING_WORLD")
+ns.registerEvent(ev, "PLAYER_ENTERING_WORLD")
+ev:SetScript("OnEvent", function(_, event)
+	if event == "PLAYER_LOGOUT" then
+		for _, a in pairs(auraSounds) do dropAura(a) end
+	elseif event == "PLAYER_LEAVING_WORLD" then
+		leaving = true
+		applyArrivals()
+	else
+		entered, leaving = true, false
+		C_Timer.After(1, arrivalsAfterZoning)
+	end
 end)
 
 -- The options

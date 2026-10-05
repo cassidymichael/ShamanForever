@@ -128,6 +128,7 @@ function KD.get(kind) return KINDS[kind] end
 --                     pop(ic, st, def, kit), idles(st, def, when) (nil: no say), rest(ic, def, kit,
 --                     keep) (the kind's look while nothing of its own is going on)
 --   runtime           hooks its kind's engine calls on the HUD (listed where the kind registers)
+--   experiment        the name of an experimental feature it adds (About lists it under the element)
 function ns.registerPart(name, spec)
 	PARTS[name] = merge(PARTS[name] or {}, spec)
 	PARTS[name].name = name
@@ -255,6 +256,12 @@ local function finishOne(e)
 		pop = pop or value(p.pop, def) and true or false
 	end
 	e.effects = { glow = glow, pop = pop }
+	local exps = {}
+	for _, p in ipairs(list) do
+		local x = value(p.experiment, def)
+		if x then table.insert(exps, x) end
+	end
+	e.experiments = #exps > 0 and exps or nil
 	fillIdle(def, list)
 end
 -- Each element on its own: one that fails is noted and the rest go on

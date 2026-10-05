@@ -77,6 +77,15 @@ ns.registerPart("breath", {
 		end,
 	},
 })
+-- procSound (with proc): a sound as its aura comes, played by the engine; experimental
+ns.registerPart("procSound", {
+	kind = "buff", after = "proc",
+	defaults = { active = { sound = "none" } },
+	experiment = function(def) return procName(def) .. " sound" end,
+	page = { active = function(def)
+		return { soundBadge = procName(def) .. " sound", tips = { sound = "The moment it procs." } }
+	end },
+})
 -- proc: shown by Blizzard's aura container while the aura is up (noPop, noGlow: without its own)
 ns.registerPart("proc", {
 	has = function(def) return def.proc and not (def.noPop and def.noGlow) end,
@@ -341,6 +350,11 @@ local function refreshAll()
 	for _, def in ipairs(BUFFS) do refreshBuff(def) end
 end
 
+-- Its sound as its aura comes (any rank's ID), while it's learned
+local function applyProcSound(def)
+	if def.procSound then ns.Sounds.elementAura(def.key, "active", def.spellID and auraIDs(def) or nil, "Added") end
+end
+
 function B.resolve()
 	ns.Reagents.readPerk()
 	local sig = {}
@@ -352,6 +366,7 @@ function B.resolve()
 		def.spellID = known
 		if def.proc then B.resolveAura(def) end
 		if not def.proc then def.iconID = icon end
+		applyProcSound(def)
 		table.insert(sig, tostring(known))
 	end
 	return table.concat(sig, ",")
@@ -375,6 +390,7 @@ end
 
 function B.applyLayout()
 	for _, def in ipairs(BUFFS) do
+		applyProcSound(def)
 		if def.proc and def.spellID and E.isEnabled(def.key) then B.setupAura(def) end
 		if def.proc then
 			def.aura:style()
