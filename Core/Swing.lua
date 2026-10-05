@@ -247,6 +247,7 @@ local function makeMark(m)
 		return
 	end
 	styleMark(m)
+	markAlpha(m)
 end
 for _, key in ipairs(MARKS) do marks[key] = { key = key } end
 -- /sf preview: our own pips, full, in place of the button's
