@@ -1118,6 +1118,12 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 	if event == "ADDON_LOADED" then
 		if arg1 ~= ADDON then return end
 		ns.try("kinds", ns.Kinds.finish)
+		-- A shipped element that never registered: its file failed to load, which /sf debug should say
+		for _, dg in ipairs(ns.CLASS.layout) do
+			for _, key in ipairs(dg.members) do
+				if not ELEMENTS[key] then ns.noteError("element missing: " .. key, "not registered") end
+			end
+		end
 		acct = P.load()
 		selectProfile(P.saved())
 		ns.Options.build()
