@@ -123,7 +123,8 @@ local RETIRED = {
 	folds = { "^layout:", ":Frame style$", ":Group frame style$", "^styles:Border look$", "^styles:Element frame$",
 		"^styles:Group frame$", "^totembar:Totems$", "^totembar:Not your pick$", "^purge:Track$",
 		"^purge:Something to purge$", "^purge:Tracking$", "^purge:Magic buff$", "^maelstrom:Five stacks$",
-		"^tremor:When it warns$", "^tremor:Tremor warning watchlist$" },
+		"^tremor:When it warns$", "^tremor:Tremor warning watchlist$",
+		"^waterbreathing:Under water$" },
 	-- The totem bar's switches from before its mode, and follow from before sizeFollow
 	totemBar = { "enabled", "hideTotemFrame", "hideActionBar", "killedPulse", "follow" },
 	-- Style choices that went, to their nearest: part -> field -> old -> new

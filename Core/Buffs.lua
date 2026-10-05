@@ -62,14 +62,14 @@ ns.registerPart("buff", {
 ns.registerPart("breath", {
 	defaults = { warn = { on = true, ring = true, fade = true, glow = false }, breath = { sound = "none" } },
 	glow = true,
-	page = { warn = { title = "Under water",
-		on = { "Warn without it", "While your breath bar drains and it isn't up." } },
+	page = { warn = { title = "Under water without it",
+		on = { "Warn", "While your breath bar drains, which it never does while it's up." } },
 		own = { "sound", name = "breath", title = "Low breath", tip = "When your breath bar has 10 seconds left.",
 			badge = "Low breath sound" } },
 	experiment = "Low breath sound",
 	preview = {
 		warning = "underwater",
-		states = { { "underwater", "Under water", 80 } },
+		states = { { "underwater", "Under water without it", 80 } },
 		render = function(ic, st, def, kit)
 			if st ~= "underwater" then return end
 			if setting(def.key, "warn", "on") then ic:SetWarnParts(W.warnParts(def.key, "warn"))
