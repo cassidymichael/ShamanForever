@@ -277,6 +277,14 @@ local function placeBar(t, s, side)
 	end
 end
 
+-- Its bar's length along the way it drains, as placed on side (placeBar's)
+function Timer:barLength(side)
+	local box, inset = self:boxInset()
+	local size = box - 2 * inset
+	if OUT_POINTS[side] then return size + 2 * (W.roundPx(inset, W.pixel(self.anchor)) - self:edge()) end
+	return size - 2 * ns.StyleArt.pictureInset(self.anchor)
+end
+
 -- Safe any time for our own frames; one on Blizzard's aura button is restyled by its caller, out of combat
 function Timer:apply()
 	local s = S.get(self.key, self.part)

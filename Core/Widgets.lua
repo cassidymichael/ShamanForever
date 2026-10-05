@@ -335,30 +335,40 @@ function W.noMouse(b)
 	pcall(b.SetMouseMotionEnabled, b, false)
 end
 
--- opts: key, slot (its name), unit (default player), filter (default HELPFUL), ids() or candidates(),
--- extras ({ key, init(slot, button) }: more slots on its container, their buttons over its own), level,
--- sites = { container, style, filter, button, bar }; onButton(slot, button, cd), onStyle(slot, size),
--- onError(err).
--- Its container: parent (default frame), or layer: in a frame of its own on that layer over the icon
--- (slot.holder, whose alpha the caller owns; frame.effects stays at full over an idle icon, frame fades
--- with it).
--- Its button: the aura's picture (ownIcon: the element's), its time left (noTimer: none; anchor and
--- dual: where its text and bar go, as ns.Timer's), host (a frame of the caller's for its parts),
--- barInset. noIcon: no picture, the element's icon keeps its own; nothing of it is set up or styled
--- before its restyle, which waits for combat's end like every other. sites.button: its set-up runs
--- under it (its extras' under the container's site and their key).
--- Its calls: setup() (made once), style() (next frame) or styleNow(), refilter(); each waits as below.
+-- opts (required: key, the element; slot, its name; ids() or candidates(); sites.container, .style, .filter;
+-- onError(err)): unit (default player), filter (default HELPFUL), name, level (over the icon's text layer
+-- +5), extras ({ key, init(slot, button) }: more slots on its container, their buttons over its own),
+-- sites.bar, onButton(slot, button, cd), onStyle(slot, size).
+-- Its container: parent (default frame), or layer: in a holder of its own on that layer over the icon
+-- (slot.holder; frame.effects stays at full over an idle icon, frame fades with it).
+-- Its button: the aura's picture (ownIcon(): the element's), host(slot, button) the frame its parts go on,
+-- its time left (noTimer: none; barInset(); anchor, default its host, and dual as ns.Timer's). noIcon: no
+-- picture, the icon keeps its own; ownIcon and host unused, its time left on the icon (anchor default
+-- frame) sharing the icon's cooldown (dual unless false). With host its time bar stays in the icon.
+-- setup() makes it once (if it waits, it doesn't call back); Blizzard makes the buttons inside it, where
+-- they are set up (a noIcon one styled too). It sets frame.auraButton: the layout waits for its restyle.
+-- Errors are noted under sites.container: setup's (slot.err, the container hidden), and a button's set-up's
+-- with " button" or the extra's key added.
+-- Then style() or styleNow() and refilter(), each waiting as its comment says; fade(site, alpha), describe().
+-- Fields callers read: container, err, button, timer, cd, icon, host, holder, extras, size, filtered, applied.
 function W.makeAuraSlot(frame, opts)
-	-- A host of the caller's may clip the button's parts to the icon, and extra buttons carry the
-	-- caller's own parts over it
-	if (opts.host or opts.extras) and not opts.noTimer then ns.Timer.keepIn(opts.key) end
+	-- A host of the caller's may clip the button's parts to the icon
+	if opts.host and not opts.noTimer then ns.Timer.keepIn(opts.key) end
 	return setmetatable({ frame = frame, opts = opts }, AuraSlot)
 end
 
--- With sites.button its set-up can't stop the container's
-local function initGuarded(o, site, fn, ...)
-	if o.sites.button then return ns.try(site, fn, ...) end
-	return fn(...)
+-- Its time left on parent, driven by the button; a client that refuses the time bar gets none rather than
+-- a still one
+local function addTimer(slot, button, parent, cd, dual)
+	local o = slot.opts
+	local e = ns.Elements.ALL[o.key]
+	slot.timer = ns.Timer.new(parent, o.key, "uptime", { cd = cd, anchor = o.anchor or slot.host, dual = dual,
+		aura = true, school = e and e.school, barInset = o.barInset })
+	if not ns.try(o.sites.bar or "aura time bar", button.SetDurationBar, button, slot.timer.bar, ns.Timer.AURA_BAR) then
+		slot.timer.bar:Hide()
+		slot.timer.bar = nil
+	end
+	button:SetDurationCooldown(cd)
 end
 
 local function initAuraButton(slot, button)
@@ -379,42 +389,26 @@ local function initAuraButton(slot, button)
 	local cd = CreateFrame("Cooldown", nil, host, "CooldownFrameTemplate")
 	cd:SetAllPoints()
 	slot.cd = cd
-	if o.noTimer then
-		cd:SetHideCountdownNumbers(true)
-		if o.onButton then o.onButton(slot, button, cd) end
-		slot.button = button
-		return
+	if o.noTimer then cd:SetHideCountdownNumbers(true)
+	else
+		addTimer(slot, button, host, cd, o.dual)
+		slot.timer:apply()
 	end
-	-- A client that refuses the time bar gets none rather than a still one.
-	local e = ns.Elements.ALL[o.key]
-	slot.timer = ns.Timer.new(host, o.key, "uptime", { cd = cd, anchor = o.anchor or host, dual = o.dual, aura = true,
-		school = e and e.school, barInset = o.barInset })
-	if not ns.try(o.sites.bar or "aura time bar", button.SetDurationBar, button, slot.timer.bar, ns.Timer.AURA_BAR) then
-		slot.timer.bar:Hide()
-		slot.timer.bar = nil
-	end
-	slot.timer:apply()
-	button:SetDurationCooldown(cd)
 	if o.onButton then o.onButton(slot, button, cd) end
 	slot.button = button
 end
 
+-- Its parts are placed on the icon under it, whose cooldown its time left shares (dual)
 local function initOverlayButton(slot, button)
 	local o = slot.opts
 	W.noMouse(button)
 	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
+	slot.host = o.anchor or slot.frame
 	if not o.noTimer then
 		local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
 		cd:SetAllPoints()
 		slot.cd = cd
-		local e = ns.Elements.ALL[o.key]
-		slot.timer = ns.Timer.new(button, o.key, "uptime", { cd = cd, anchor = o.anchor, dual = o.dual, aura = true,
-			school = e and e.school, barInset = o.barInset })
-		if not ns.try(o.sites.bar or "aura time bar", button.SetDurationBar, button, slot.timer.bar, ns.Timer.AURA_BAR) then
-			slot.timer.bar:Hide()
-			slot.timer.bar = nil
-		end
-		button:SetDurationCooldown(cd)
+		addTimer(slot, button, button, cd, o.dual ~= false)
 	end
 	if o.onButton then o.onButton(slot, button, slot.cd) end
 	slot.button = button
@@ -477,13 +471,13 @@ function AuraSlot:setup()
 		local init = o.noIcon and initOverlayButton or initAuraButton
 		c:AddAuraSlot(o.slot, o.filter or "HELPFUL", {
 			candidateFilters = filters,
-			initializeFrame = function(button) initGuarded(o, o.sites.button, init, self, button) end,
+			initializeFrame = function(button) ns.try(o.sites.container .. " button", init, self, button) end,
 		})
 		for _, x in ipairs(o.extras or {}) do
 			c:AddAuraSlot(o.slot .. "-" .. x.key, o.filter or "HELPFUL", {
 				candidateFilters = filters,
 				initializeFrame = function(button)
-					initGuarded(o, o.sites.container .. " " .. x.key, initExtraButton, self, x, button)
+					ns.try(o.sites.container .. " " .. x.key, initExtraButton, self, x, button)
 				end,
 			})
 		end
@@ -528,9 +522,9 @@ function AuraSlot:styleNow()
 		if not self.button then return end
 		self.button:SetSize(size, size)
 		self.size = size
-		-- Own try: a style the button refuses mustn't stop the timer and the caller's parts.
+		-- Own tries: a style or timer the button refuses mustn't stop what follows (the caller's parts).
 		if not o.noIcon then ns.try(o.sites.style .. ": style", ns.StyleArt.auraStyle, self, size) end
-		if self.timer then self.timer:apply() end
+		if self.timer then ns.try(o.sites.style .. ": timer", self.timer.apply, self.timer) end
 		if o.onStyle then o.onStyle(self, size) end
 	end)
 	if not ok then ns.retryAfterCombat(o.sites.style, function() self:styleNow() end) end
@@ -557,6 +551,18 @@ function AuraSlot:refilter()
 	end
 	if ok then self.filtered, self.applied = filters.includeSpellIDs, sig
 	else ns.retryAfterCombat(o.sites.filter, function() self:refilter() end) end
+end
+
+-- Its holder's alpha (layer); a refused call is tried again after combat, reading alpha() then
+function AuraSlot:fade(site, alpha)
+	local h = self.holder
+	if not h then return end
+	if not ns.try(site, h.SetAlpha, h, alpha()) then ns.retryAfterCombat(site, function() self:fade(site, alpha) end) end
+end
+
+-- For /sf debug
+function AuraSlot:describe()
+	return "container " .. (self.container and "made" or "not made") .. (self.err and (", error: " .. self.err) or "")
 end
 
 -- Counts on an aura button: Blizzard writes the number and fills the bar; nothing here reads them
