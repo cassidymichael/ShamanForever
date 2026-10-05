@@ -796,68 +796,40 @@ local function newBuffBar(parent)
 	return bar
 end
 local function buffBarAlpha(x)
-	if not x.host then return end
+	local h = x.slot.holder
+	if not h then return end
 	local a = (buffBarOn(x) and not barsPreviewing) and 1 or 0
-	if not ns.try("buff bar alpha", x.host.SetAlpha, x.host, a) then
+	if not ns.try("buff bar alpha", h.SetAlpha, h, a) then
 		ns.retryAfterCombat("buff bar alpha", function() buffBarAlpha(x) end)
 	end
 end
--- Out of combat, auras readable
-local function styleBuffBar(x)
-	if not x.container or x.err then return end
-	local def = x.def
-	local site = "buff bar style " .. def.key
-	if ns.deferWhileAurasSecret(site, function() styleBuffBar(x) end) then return end
-	local ok = ns.try(site, function()
-		local f, size = def.frame, E.sizeOf(def.key)
-		x.container:SetSize(size, size)
-		x.container:SetFrameStrata(f:GetFrameStrata())
-		x.container:SetFrameLevel(f.textFrame:GetFrameLevel() + 5)
-		if not x.button then return end
-		x.button:SetSize(size, size)
-		if x.bar then placeBuffBar(x.bar, x.button, def.key, x.spec.school, f) end
-	end)
-	if not ok then ns.retryAfterCombat(site, function() styleBuffBar(x) end) end
-end
--- Blizzard's button: no picture of its own, only the bar it drives
-local function initBuffBar(x, button)
-	W.noMouse(button)
-	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
-	x.button = button
-	local bar = newBuffBar(button)
-	if ns.try("buff bar " .. x.def.key, button.SetDurationBar, button, bar, ns.Timer.AURA_BAR) then x.bar = bar
-	else bar:Hide() end
-	styleBuffBar(x)
-end
 -- Made once, while it's on, out of combat with auras readable
 local function makeBuffBar(x)
-	local def = x.def
-	if x.container or x.err or not buffBarOn(x) then return end
-	local site = "buff bar " .. def.key
-	if ns.deferWhileAurasSecret(site, function() makeBuffBar(x) end) then return end
-	local ok, err = pcall(function()
-		local f = def.frame
-		x.host = CreateFrame("Frame", nil, f)
-		x.host:SetAllPoints(f)
-		local c = CreateFrame("AuraContainer", nil, x.host, "CustomAuraContainerTemplate")
-		x.container = c
-		c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
-		c:SetUnit("player")
-		pcall(c.EnableMouse, c, false)
-		c:AddAuraSlot(def.key .. "-buff", "HELPFUL", {
-			candidateFilters = { includeSpellIDs = Spells.ids(x.spec.buffKey) },
-			initializeFrame = function(button) ns.try(site .. " button", initBuffBar, x, button) end })
-	end)
-	if not ok then
-		x.err = tostring(err)
-		if x.container then x.container:Hide() end
-		ns.noteError(site, x.err)
-		return
-	end
-	-- Its group's layout waits while it can't restyle the button
-	def.frame.auraButton = true
-	styleBuffBar(x)
+	local slot = x.slot
+	if slot.container or slot.err or not buffBarOn(x) then return end
+	if ns.deferWhileAurasSecret(slot.opts.sites.container, function() makeBuffBar(x) end) then return end
+	slot:setup()
+	if not slot.container or slot.err then return end
+	slot:styleNow()
 	buffBarAlpha(x)
+end
+for _, x in ipairs(BUFF_BARS) do
+	local def, key = x.def, x.def.key
+	local f = def.frame
+	-- No picture of its own, only the bar it drives
+	x.slot = W.makeAuraSlot(f, {
+		key = key, slot = key .. "-buff", layer = f, noIcon = true, noTimer = true,
+		ids = function() return Spells.ids(x.spec.buffKey) end,
+		sites = { container = "buff bar " .. key, style = "buff bar style " .. key, filter = "buff bar filter " .. key,
+			button = "buff bar " .. key .. " button" },
+		onButton = function(_, button)
+			local bar = newBuffBar(button)
+			if ns.try("buff bar " .. key, button.SetDurationBar, button, bar, ns.Timer.AURA_BAR) then x.bar = bar
+			else bar:Hide() end
+		end,
+		onStyle = function(slot) if x.bar then placeBuffBar(x.bar, slot.button, key, x.spec.school, f) end end,
+		onError = function(err) ns.noteError("buff bar " .. key, err) end,
+	})
 end
 local function buffBarOf(def)
 	for _, x in ipairs(BUFF_BARS) do if x.def == def then return x end end
@@ -901,8 +873,8 @@ ns.registerPart("buffBar", {
 			local name = Spells.name(def.buffBar.buffKey)
 			if not buffBarShown(def) then return name .. " bar off" end
 			if not x.learned then return name .. " bar: talent not learned" end
-			return string.format("%s bar: container %s%s", name, x.container and "made" or "not made",
-				x.err and (", error: " .. x.err) or "")
+			return string.format("%s bar: container %s%s", name, x.slot.container and "made" or "not made",
+				x.slot.err and (", error: " .. x.slot.err) or "")
 		end,
 	},
 })
@@ -1170,7 +1142,7 @@ function B.applyTimers()
 			styleGlow(def)
 		end
 	end
-	for _, x in ipairs(BUFF_BARS) do styleBuffBar(x) end
+	for _, x in ipairs(BUFF_BARS) do x.slot:styleNow() end
 	for _, x in ipairs(PARTIES) do
 		for _, slot in pairs(x.slots) do slot:style() end
 		partyGlows(x)
@@ -1190,7 +1162,7 @@ function B.applyLayout()
 	refreshAll()
 	for _, x in ipairs(BUFF_BARS) do
 		makeBuffBar(x)
-		styleBuffBar(x)
+		x.slot:styleNow()
 		buffBarAlpha(x)
 	end
 	partyLayout()
@@ -1203,7 +1175,7 @@ function B.afterGroups()
 			styleGlow(def)
 		end
 	end
-	for _, x in ipairs(BUFF_BARS) do styleBuffBar(x) end
+	for _, x in ipairs(BUFF_BARS) do x.slot:styleNow() end
 	for _, x in ipairs(PARTIES) do
 		for _, slot in pairs(x.slots) do slot:style() end
 		partyGlows(x)
