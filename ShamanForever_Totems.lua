@@ -9,7 +9,7 @@ local Spells = ns.Spells
 local TO = { name = "totems" }
 ns.Totems = TO
 
--- Grounding Totem's end when it takes a spell
+-- Grounding Totem's early end
 ns.StyleArt.addPopKind("grounded", { color = { 0.56, 0.76, 0.92 }, tick = true })
 
 -- Slots: 1 fire, 2 earth, 3 water, 4 air
@@ -215,16 +215,15 @@ ns.registerPart("totemSlot", {
 	page = {
 		uptime = "Time left",
 		expire = { tips = { endPop = "The totem pops and fades the moment it runs out.",
-			endSound = "When it runs out or is killed. Not when you dismiss it." } },
+			endSound = "When it runs out or ends early. Not when you dismiss it." } },
 		killed = function(def)
 			if def.grounded then
 				return { title = "Grounded", tips = { glow = "In blue." }, flash = {
-					"Flash when it takes a spell",
-					"The totem flashes blue over its icon when it ends early: it took a spell, "
-						.. "or was destroyed." } }
+					"Flash when it ends early",
+					"The totem flashes blue over its icon: it took a spell, or was destroyed." } }
 			end
-			return { flash = { "Flash when it dies early",
-				"The dead totem flashes red over its icon. Not when you dismiss it or it runs out." }
+			return { flash = { "Flash when it ends early",
+				"The totem flashes red over its icon. Not when you dismiss it or it runs out." }
 			}
 		end,
 	},

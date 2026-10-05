@@ -45,7 +45,7 @@ local function buildShield(p, def)
 	end)
 	warnBlock(p, key, { title = "No shield",
 		tips = { glow = "A glow that pulses, in the Pulsing glow style.",
-			sound = "When the shield goes: charges spent, cancelled or run out." } })
+			sound = "When the shield goes, also when another shield or rank replaces it, and at death." } })
 	K.castBlocks(p, key)
 	styleBlocks(p, key, function()
 		gcdBlock(p, key)

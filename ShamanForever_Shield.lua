@@ -343,7 +343,7 @@ local function learnShieldID(key, id)
 	else applyShieldFilter() end
 end
 
--- Charges spent, cancelled or run out; a recast over a live shield stays silent
+-- Any removal, so another shield or rank replacing one too; a recast of the same spell stays silent
 function SH.applyRemovedSound()
 	ns.Sounds.elementAura("shield", "warn", E.isEnabled("shield") and shieldIDMap() or nil)
 end
