@@ -229,7 +229,7 @@ end
 --                          sounds, state drivers), gated on E.inUse (the preview's Show not learned lays
 --                          out only). An element not in use runs nothing, and refresh reads its state
 --                          anew when it's back. A bar's own switches don't come here: a bar that shares
---                          work with elements (cast states, totem slots) has it synced from its own layout.
+--                          work with elements (cast states, a class module's watch) has it synced from its own layout.
 --   afterGroups()          the groups were just laid out
 --   refresh()              read everything again
 --   onCooldowns(inEvent)   a cast, a cooldown or a module's own state changed
