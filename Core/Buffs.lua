@@ -750,6 +750,7 @@ ns.registerPart("auraState", {
 	},
 	preview = {
 		uptime = function(def) return def.auraState.length ~= nil end,
+		uptimeOver = true,
 		states = function(def)
 			local s = def.auraState
 			local list = { { "active", s.active and s.active.title or "Active", 61 } }
@@ -768,6 +769,10 @@ ns.registerPart("auraState", {
 			if st == "active" and def.auraState.active and stateActiveOn(def) and setting(def.key, "active", "pop") then
 				ic:Pop("ready")
 			end
+		end,
+		-- As the HUD: the cast starts its cooldown, so it's idle under Cooling down and not under Ready
+		idles = function(st, def, when)
+			if st == "active" or st == "expiring" then return KD.idleMode(def, when) == "oncd" end
 		end,
 	},
 	runtime = {

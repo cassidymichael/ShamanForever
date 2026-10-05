@@ -84,7 +84,8 @@ function KD.slots(kind) return listOf(kind, "slots") end
 -- A preview, whether made by hand or from parts:
 --   states             { { id, label }, ... }; the first is shown first
 --   typical, warning   the state /sf preview shows in Preview and in Warnings (else the first)
---   cooldown, uptime   the timers its icon carries; barInset() lifts the time bar (a bar under it)
+--   cooldown, uptime   the timers its icon carries; barInset() lifts the time bar (a bar under it);
+--                      uptimeOver: its time left doesn't fade with an idle icon (as on the HUD's effects layer)
 --   render(ic, st, kit) draws state st on icon ic from scratch, with the preview kit (ns.OptionsArt.kit),
 --                      as the player's settings have it: a look switched off isn't drawn
 --   pop(ic, st, kit)   the state's moment: its pop or flash, as its settings have it
@@ -125,7 +126,7 @@ function KD.get(kind) return KINDS[kind] end
 --                     keeps it shown, for its kind's own choices), also, text, extra
 --   page              by slot: a title (timers), the slot's block options, or for own a block
 --                     ("reagent", { "toggle", ... }) or a list of them
---   preview           states ({ id, label, order }), uptime, cooldown, typical, warning, labels
+--   preview           states ({ id, label, order }), uptime, uptimeOver, cooldown, typical, warning, labels
 --                     (state labels over other parts'), render(ic, st, def, kit, pv) (every state),
 --                     pop(ic, st, def, kit), idles(st, def, when) (nil: no say), rest(ic, def, kit,
 --                     keep) (the kind's look while nothing of its own is going on)
@@ -316,6 +317,7 @@ local function preview(kind, def)
 				table.insert(states, { s[1], s[2], s[3] or 0, #states })
 			end
 			if value(x.uptime, def) then pv.uptime = true end
+			if value(x.uptimeOver, def) then pv.uptimeOver = true end
 			if value(x.cooldown, def) then pv.cooldown = true end
 			merge(labels, x.labels or NONE)
 		end
