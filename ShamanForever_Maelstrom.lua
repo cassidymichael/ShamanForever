@@ -417,7 +417,7 @@ local function refresh()
 	W.fadeTo(f, (P.getAccount().locked and idleWhen() ~= "never") and E.idleAlpha(KEY) or 1)
 end
 
-local function inUse() return src.learned() and E.isEnabled(KEY) end
+local function inUse() return E.inUse(KEY) end
 local function styleAll()
 	if not inUse() then return end
 	for _, s in ipairs(SLOTS) do s:style() end

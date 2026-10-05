@@ -137,7 +137,7 @@ local function anyTrackedShieldKnown()
 end
 SH.learned = anyTrackedShieldKnown
 -- On, grouped and learned: what it runs waits for all three (the preview may show it unlearned)
-local function inUse() return E.isEnabled("shield") and E.isLearned("shield") end
+local function inUse() return E.inUse("shield") end
 function SH.knows(key) return SHIELDS[key] ~= nil and SHIELDS[key].known == true end
 
 local standIn

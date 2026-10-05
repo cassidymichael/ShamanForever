@@ -366,9 +366,14 @@ function Timer:barRGB()
 end
 
 -- barD: the bar's own duration where it differs (a cooldown's without the GCD; false: no bar)
+local warning, ticker
 function Timer:set(d, barD)
 	if not d then return self:clear() end
 	self.last, self.lastBar, self.held = d, barD, nil
+	if self.expOn and not warning[self] then
+		warning[self] = true
+		ticker:Show()
+	end
 	ns.try("timer cooldown", self.cd.SetCooldownFromDurationObject, self.cd, d, true)
 	local bar = self.bar
 	if barD ~= nil then d = barD end
@@ -421,16 +426,20 @@ function Timer:static(frac, length)
 end
 
 -- Expiring: a warning over the icon in a timer's last seconds. Its alpha is the time left through
--- a curve, evaluated ten times a second, so it works in combat.
-local warning = {}
-local ticker = ns.ticker(0.1, function()
+-- a curve, evaluated ten times a second for the timers running, so it works in combat.
+warning = {}
+ticker = ns.ticker(0.1, function(self)
 	for t in pairs(warning) do
 		local d = t.last
 		if d then
 			local ok, a = ns.try("timer expiring", d.EvaluateRemainingDuration, d, t.expCurve)
 			if ok then t.exp:SetAlpha(a) else t.exp:SetAlpha(0) end
-		else t.exp:SetAlpha(0) end
+		else
+			t.exp:SetAlpha(0)
+			warning[t] = nil
+		end
 	end
+	if next(warning) == nil then self:Hide() end
 end)
 
 -- The expire part (ns.registerPart): Expiring's settings for the cooldown kind, which sets def.expires,
@@ -451,6 +460,7 @@ ns.registerPart("expire", {
 
 -- e: { secs, grey, ring, fade, glow } (secs 0: off), an element's or a bar's expire
 function Timer:setExpire(e, icon)
+	self.expOn = nil
 	if not e or (e.secs or 0) <= 0 or not ns.lastSeconds(e.secs) then
 		warning[self] = nil
 		if next(warning) == nil then ticker:Hide() end
@@ -507,6 +517,7 @@ function Timer:setExpire(e, icon)
 		if next(warning) == nil then ticker:Hide() end
 		return
 	end
+	self.expOn = true
 	warning[self] = true
 	ticker:Show()
 	local d = self.last

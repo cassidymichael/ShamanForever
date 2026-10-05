@@ -404,24 +404,49 @@ TO.subscribe(function(event, slot, arg)
 	end
 end)
 
--- A slot's change refreshes the elements reading slots (def.totemSlot, needsTotem or readsTotems), only
--- while one of them is on
-local events   -- set(on), from start
+-- A slot that empties is told as "gone" (TO.slotEmptied) with its last duration object
+local lastDur = {}
+local function readSlots(report)
+	for slot = 1, 4 do
+		local ok, d = ns.try("totems: duration", GetTotemDuration, slot)
+		if ok then
+			local was = lastDur[slot]
+			lastDur[slot] = d
+			if report and was and not d then TO.slotEmptied(slot, was) end
+		end
+	end
+end
+
+-- A slot's change refreshes the elements reading slots (def.totemSlot, needsTotem or readsTotems) and
+-- tells the ends, while one is on or TO.wants says so (a bar, which calls TO.sync from its layout)
+local wants = {}
+function TO.wants(fn) table.insert(wants, fn) end
+local events, listening = nil, false   -- set(on), from start
 function TO.start()
 	local ev = CreateFrame("Frame")
-	events = ns.eventsWhile(ev, { "PLAYER_TOTEM_UPDATE" })
-	ev:SetScript("OnEvent", function() E.refreshCooldownsSoon() end)
+	-- A loading screen empties the slots without a slot event (no end told then: TO.slotEmptied)
+	events = ns.eventsWhile(ev, { "PLAYER_TOTEM_UPDATE", "PLAYER_ENTERING_WORLD" })
+	ev:SetScript("OnEvent", function(_, event)
+		readSlots(true)
+		if event == "PLAYER_TOTEM_UPDATE" then E.refreshCooldownsSoon() end
+	end)
 end
-function TO.applyLayout()
+function TO.sync()
+	if not events then return end
 	local want = false
 	for _, key in ipairs(E.KEYS) do
 		local def = E.ALL[key].def
-		if type(def) == "table" and (def.totemSlot or def.needsTotem or def.readsTotems) and E.isEnabled(key) then
+		if type(def) == "table" and (def.totemSlot or def.needsTotem or def.readsTotems) and E.inUse(key) then
 			want = true
 		end
 	end
-	if events then events(want) end
+	for _, fn in ipairs(wants) do want = want or fn() and true or false end
+	events(want)
+	-- Back on: the slots as they are now, no end told for one that emptied meanwhile
+	if want and not listening then readSlots(false) elseif not want then wipe(lastDur) end
+	listening = want
 end
+TO.applyLayout = TO.sync
 
 -- /sf debug
 function TO.debug()

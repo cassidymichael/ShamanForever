@@ -90,7 +90,7 @@ local previewing = false
 
 local function markOn(m) return m.spellID ~= nil and own("marks", m.key) and true or false end
 local function marksWanted()
-	if not E.isEnabled("shock") then return false end
+	if not E.inUse("shock") then return false end
 	for _, m in ipairs(MARKS) do if markOn(m) then return true end end
 	return false
 end

@@ -965,6 +965,18 @@ function ClipLook:follow(unit)
 	return ok
 end
 
+-- Hidden while its owner is off, so its sensor stops following auras (out of combat)
+function ClipLook:setShown(on)
+	local c = self.container
+	if not c or self.err then return end
+	local site = self.opts.sites.container .. " shown"
+	if ns.deferInCombat(site, function() self:setShown(on) end) then return end
+	on = on and true or false
+	if c:IsShown() == on then return end
+	c:SetShown(on)
+	if on then self:wait() end
+end
+
 -- up: the glow's level over the look (2 over a look whose edge carries an art frame)
 function ClipLook:setLevel(lv, up)
 	for _, f in ipairs({ self.hold, self.clip, self.look, self.art }) do
