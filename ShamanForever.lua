@@ -218,12 +218,13 @@ end
 --   resolve()              after a spellbook scan; returns a signature
 --   sanitize(db, acct)     a profile loaded
 --   applyTimers()          every timer takes its current style
---   applyLayout()          after a layout. Every change to which elements are in use (E.isEnabled:
---                          switched, grouped, learned, a profile) ends in one, then a refresh: a module
---                          starts and stops its elements' work here (events: ns.eventsWhile, tickers,
---                          aura containers, engine sounds, state drivers). An element not in use runs
---                          nothing, and refresh reads its state anew when it's back. The preview's Show
---                          not learned lays out only: work that reads the game waits for the spell too.
+--   applyLayout()          after a layout. Every change to which elements are in use (switched, grouped,
+--                          learned, a profile) ends in one, then a refresh: a module starts and stops its
+--                          elements' work here (events: ns.eventsWhile, tickers, aura containers, engine
+--                          sounds, state drivers), gated on E.inUse (the preview's Show not learned lays
+--                          out only). An element not in use runs nothing, and refresh reads its state
+--                          anew when it's back. A bar's own switches don't come here: a bar that shares
+--                          work with elements (cast states, totem slots) has it synced from its own layout.
 --   afterGroups()          the groups were just laid out
 --   refresh()              read everything again
 --   onCooldowns(inEvent)   a cast, a cooldown or a module's own state changed
@@ -340,8 +341,10 @@ local function sizeOf(key)
 	return box - 2 * ns.StyleArt.inset(e.borderHost or e.frame, E.borderFor(key), box, e.shape)
 end
 
--- Whether the element is in use: on, in a group, and on the HUD. What runs for it is gated on this.
+-- Whether the element is in use: on, in a group, and on the HUD. What it draws is gated on this.
 local function isEnabled(key) return groupOf(key) ~= nil and isOn(key) and onHUD(key) end
+-- In use and learned: the gate for work that reads the game (the preview can draw an unlearned one)
+local function inUse(key) return isEnabled(key) and isLearned(key) end
 
 local function removeElement(key)
 	local g, i = groupOf(key)
@@ -1097,8 +1100,8 @@ P.use, P.select, P.fillDefaults, P.fillParts = useProfile, selectProfile, fillDe
 P.DEFAULTS, G.DEFAULTS = DEFAULTS, GROUP_DEFAULTS
 E.ALL, E.KEYS = ELEMENTS, ELEMENT_KEYS
 function E.isActive() return isActive end
-E.isEnabled, E.isOn, E.showMode, E.isLearned, E.setShow, E.setOn = isEnabled, isOn, showMode, isLearned, setShow,
-	setOn
+E.isEnabled, E.inUse, E.isOn, E.showMode, E.isLearned, E.setShow, E.setOn = isEnabled, inUse, isOn, showMode, isLearned,
+	setShow, setOn
 E.BASE = BASE
 E.opts, E.setting, E.default, E.idleAlpha = elementOpts, elementSetting, elementDefault, idleAlpha
 E.setSetting, E.event, E.range = setElementSetting, elementEvent, elementRange

@@ -250,7 +250,7 @@ function IM.applyTimers()
 end
 local events   -- set(on), from start
 function IM.applyLayout()
-	if events then events(E.isEnabled("imbue") and anyKnown) end
+	if events then events(E.inUse("imbue")) end
 	IM.refresh()
 end
 IM.tick = IM.refresh

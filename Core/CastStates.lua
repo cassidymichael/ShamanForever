@@ -80,7 +80,7 @@ local function isOn(w, state)
 end
 local function enabled(w)
 	if w.enabled then return w.enabled() end
-	return E.isEnabled(w.key)
+	return E.inUse(w.key)
 end
 
 -- The paint on an icon of ours, the preview's too; overlay: only the overlay

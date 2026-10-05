@@ -203,7 +203,7 @@ local plates = {}
 local feared = false
 local holdUntil = 0
 local controlSeen = {}
-local function watching() return E.isEnabled(KEY) and def.spellID ~= nil end
+local function watching() return E.inUse(KEY) end
 
 local function checkTarget()
 	targetListed = watching() and own("tremorTarget") and listed("target") == true or false

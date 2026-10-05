@@ -416,7 +416,7 @@ function TO.applyLayout()
 	local want = false
 	for _, key in ipairs(E.KEYS) do
 		local def = E.ALL[key].def
-		if type(def) == "table" and (def.totemSlot or def.needsTotem or def.readsTotems) and E.isEnabled(key) then
+		if type(def) == "table" and (def.totemSlot or def.needsTotem or def.readsTotems) and E.inUse(key) then
 			want = true
 		end
 	end

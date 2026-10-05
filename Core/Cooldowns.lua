@@ -549,7 +549,7 @@ function CD.applyLayout()
 	local reagents = false
 	for _, def in ipairs(COOLDOWNS) do
 		styleCooldown(def)
-		if def.reagent and E.isEnabled(def.key) then reagents = true end
+		if def.reagent and E.inUse(def.key) then reagents = true end
 	end
 	if events then events(reagents) end
 	refreshCooldowns()
