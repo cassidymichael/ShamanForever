@@ -91,7 +91,8 @@ ns.CLASS.cooldowns = {
 		blurb = "Cooldown.", readyGlow = true, cd = 120, experimental = "Skysight" },
 }
 
--- Buffs: time left as text in the middle
+-- Buffs: time left as text in the middle; a proc's as a swipe
+local PROC_SWIPE = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } }
 local TEXT_TIMER = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 },
 	textPos = "center", swipe = false, bar = true } }
 ns.CLASS.buffs = {
@@ -107,6 +108,10 @@ ns.CLASS.buffs = {
 	{ key = "elementalfocus", spellKey = "elementalFocus", buffKey = "clearcasting", icon = 136170,
 		school = "spirit", blurb = "Shows while " .. ns.Spells.name("clearcasting") .. " is up.",
 		proc = true, defaults = { idleAlpha = 0 },
-		styles = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false,
-			bar = false } } },
+		styles = PROC_SWIPE },
+	-- Procs on every few swings or casts: no pop or glow by default
+	{ key = "flurry", spellKey = "flurry", buffKey = "flurryBuff", icon = 132152, school = "air",
+		blurb = "Shows while " .. ns.Spells.name("flurryBuff") .. " is up, with its charges.",
+		proc = true, charges = 3, defaults = { idleAlpha = 0, active = { pop = false, glow = false } },
+		styles = PROC_SWIPE },
 }

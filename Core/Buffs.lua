@@ -88,10 +88,92 @@ ns.registerPart("proc", {
 		end,
 	},
 })
+-- charges: the most its aura can have, shown on Blizzard's button as a number and a bar (ns.Count)
+local Count = W.Count
+local COUNT_POS = {}
+for pos in pairs(W.COUNT_JUSTIFY) do table.insert(COUNT_POS, pos) end
+local function charge(def, field)
+	local v = setting(def.key, "count", field)
+	if v == nil then v = def.defaults.count[field] end
+	return v
+end
+local function chargesLift(def) return charge(def, "bar") and charge(def, "barHeight") or 0 end
+local function placeCharges(def, fs, anchor)
+	ns.Media.setFont(fs, nil, charge(def, "size"))
+	local lift = charge(def, "bar") and chargesLift(def) + 1 or 0
+	Count.place(fs, anchor, charge(def, "pos"), lift, ns.StyleArt.pictureInset(anchor))
+end
+local function styleCharges(def, slot, size)
+	local site = "proc charges " .. def.key
+	-- Every count from 1: Blizzard's own prints only from 2
+	Count.setFormat(slot, Count.formatter(nil, def.charges, def.charges, site .. " formatter"), site)
+	Count.styleBar(slot, size, def.charges, charge(def, "barHeight"), charge(def, "barColor"), charge(def, "bar"))
+	slot.fs:SetAlpha(charge(def, "number") and 1 or 0)
+	placeCharges(def, slot.fs, slot.button)
+end
+ns.registerPart("charges", {
+	kind = "buff", after = "proc",
+	defaults = { count = { number = true, pos = "CENTER", size = 18, bar = false, barHeight = 5,
+		barColor = { 1, 1, 1, 1 } } },
+	ranges = { count = { size = { 8, 40, 1 }, barHeight = { 1, 20, 1 } } },
+	-- Its rows sit in the proc's block, under its glow
+	page = { active = { extra = function(s, p)
+		local K, Page = ns.Options.kit, ns.Page
+		local numberGet, numberSet = s.opt("count", "number")
+		local number = p:checkbox("Charge number", nil, numberGet, numberSet)
+		p:sub(number, numberGet, function()
+			local posGet, posSet = s.opt("count", "pos")
+			p:dropdown("Number position", nil, K.COUNT_POINTS, posGet, posSet, nil, 150)
+			local sizeGet, sizeSet = s.opt("count", "size")
+			K.rangeSlider(p, s.range("count", "size"), "Number size", nil, Page.int, sizeGet, sizeSet)
+		end)
+		local barGet, barSet = s.opt("count", "bar")
+		local bar = p:checkbox("Charge bar", "One segment per charge.", barGet, barSet)
+		p:sub(bar, barGet, function()
+			local heightGet, heightSet = s.opt("count", "barHeight")
+			K.rangeSlider(p, s.range("count", "barHeight"), "Bar height", nil, Page.px, heightGet, heightSet)
+			local colorGet, colorSet = s.opt("count", "barColor")
+			p:color("Bar colour", nil, colorGet, colorSet)
+		end)
+	end } },
+	preview = {
+		render = function(ic, st, def, kit)
+			if st ~= "up" then return end
+			local n = def.charges
+			if charge(def, "bar") then
+				local c = charge(def, "barColor")
+				ic.bar:SetHeight(charge(def, "barHeight"))
+				kit.setBar(ic, n, n, c[1], c[2], c[3], c[4])
+			end
+			if charge(def, "number") then
+				placeCharges(def, ic.count, ic)
+				ic.count:SetText(n)
+				ic.count:SetTextColor(1, 1, 1, 1)
+				ic.count:Show()
+			end
+		end,
+	},
+	runtime = {
+		button = function(def, slot, button)
+			local site = "proc charges " .. def.key
+			local overlay = CreateFrame("Frame", nil, button)
+			overlay:SetAllPoints()
+			overlay:SetFrameLevel(slot.cd:GetFrameLevel() + 2)
+			Count.text(slot, button, overlay, function(fs) placeCharges(def, fs, button) end, site)
+			-- min 0: one charge is a third, not empty
+			local bar = Count.bar(slot, overlay, button)
+			ns.try(site .. " bar", button.SetApplicationBar, button, bar,
+				{ minApplications = 0, maxApplications = def.charges })
+			ns.try(site, styleCharges, def, slot, slot.size)
+		end,
+		style = function(def, size, slot) if slot.fs then styleCharges(def, slot, size) end end,
+	},
+})
+
 -- Rows with proc are shown by Blizzard's aura container. The builder reads their fields: filter
 -- (else "HELPFUL"), candidates(def) (candidate filters, else the aura's IDs), auraKey or buffKey
 -- (the aura's spell, any rank), ownIcon (the row's icon, not the aura's), noTimer (no time left),
--- noGlow and noPop (without its own glow or pop; with neither, no effect host).
+-- noGlow and noPop (without its own glow or pop; with neither, no effect host), charges (above).
 -- A part's runtime hooks for them (each optional; parts from other files bring their own):
 --   make(def)                  at load, after the icon, before the aura slot: frames of its own;
 --                              returns { looks, extras }: aura looks set up, refiltered and checked
@@ -172,6 +254,8 @@ local function buildAura(def)
 		key = key, slot = where.slot, unit = where.unit, filter = def.filter, parent = where.parent,
 		ids = ids, candidates = candidates,
 		ownIcon = def.ownIcon and function() return def.icon end, noTimer = def.noTimer,
+		-- The time bar sits on the charge bar
+		barInset = def.charges and function() return chargesLift(def) end,
 		extras = #def.extras > 0 and def.extras or nil,
 		sites = { container = site .. " container " .. key, style = site .. " style " .. key,
 			filter = site .. " filter " .. key },
@@ -216,7 +300,7 @@ for _, def in ipairs(ROWS) do
 		defaults = def.defaults or {}, learned = function() return def.spellID ~= nil end,
 		paint = function(t) t:SetTexture(def.icon) end,
 		standInBorder = def.proc, borderHost = def.borderHost,
-		ranges = def.ranges,
+		ranges = def.ranges, choices = def.charges and { count = { pos = COUNT_POS } } or nil,
 		kind = "buff", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
 		experimental = def.experimental, styles = def.styles })
 	if not KD.hook("buff", def, "engine") then table.insert(BUFFS, def) end
