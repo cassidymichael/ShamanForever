@@ -357,10 +357,10 @@ end
 
 -- Its time left on parent, driven by the button; a client that refuses the time bar gets none rather than
 -- a still one
-local function addTimer(slot, button, parent, cd)
+local function addTimer(slot, button, parent, cd, dual)
 	local o = slot.opts
 	local e = ns.Elements.ALL[o.key]
-	slot.timer = ns.Timer.new(parent, o.key, "uptime", { cd = cd, anchor = o.anchor or slot.host, dual = o.dual,
+	slot.timer = ns.Timer.new(parent, o.key, "uptime", { cd = cd, anchor = o.anchor or slot.host, dual = dual,
 		aura = true, school = e and e.school, barInset = o.barInset })
 	if not ns.try(o.sites.bar or "aura time bar", button.SetDurationBar, button, slot.timer.bar, ns.Timer.AURA_BAR) then
 		slot.timer.bar:Hide()
@@ -389,14 +389,14 @@ local function initAuraButton(slot, button)
 	slot.cd = cd
 	if o.noTimer then cd:SetHideCountdownNumbers(true)
 	else
-		addTimer(slot, button, host, cd)
+		addTimer(slot, button, host, cd, o.dual)
 		slot.timer:apply()
 	end
 	if o.onButton then o.onButton(slot, button, cd) end
 	slot.button = button
 end
 
--- The icon under it is the box its parts are placed on
+-- Its parts are placed on the icon under it, whose cooldown its time left shares (dual)
 local function initOverlayButton(slot, button)
 	local o = slot.opts
 	W.noMouse(button)
@@ -406,7 +406,7 @@ local function initOverlayButton(slot, button)
 		local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
 		cd:SetAllPoints()
 		slot.cd = cd
-		addTimer(slot, button, button, cd)
+		addTimer(slot, button, button, cd, o.dual ~= false)
 	end
 	if o.onButton then o.onButton(slot, button, slot.cd) end
 	slot.button = button

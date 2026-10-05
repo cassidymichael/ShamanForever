@@ -644,7 +644,7 @@ for _, x in ipairs(STATE_LIST) do
 	-- No picture: the icon keeps the cooldown; its time left, Expiring's parts and the pop on the button
 	x.slot = W.makeAuraSlot(f, {
 		key = key, slot = key .. "-state", filter = stateFilter(x), layer = f.effects, noIcon = true,
-		noTimer = not s.length, anchor = f, dual = true, ids = function() return stateIDs(x) end,
+		noTimer = not s.length, ids = function() return stateIDs(x) end,
 		extras = s.length and B.expiring.extras(x, def) or nil,
 		sites = { container = "aura state " .. key, style = "aura state style " .. key,
 			filter = "aura state filter " .. key, bar = "aura state bar " .. key },
