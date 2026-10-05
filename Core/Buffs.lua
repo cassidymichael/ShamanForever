@@ -557,6 +557,7 @@ ns.registerPart("party", {
 	kind = "buff", after = "proc",
 	has = function(def) return def.party and def.proc and true or false end,
 	defaults = { party = false },
+	experiment = "Your party",
 	page = { own = { "toggle", name = "party", title = "Your party", label = "Show it",
 		text = "Also shows while a party member has one: the icon only, not who has it.",
 		badge = "Your party", waits = true } },
