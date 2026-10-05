@@ -1122,7 +1122,7 @@ end
 
 -- A setting switched on, with a number under it: b = { title, name, label, tip, sub = { name, label,
 -- tip, unit }, unlearned() (Not learned under it while that says so), badge = { name } (the
--- experimental badge), text (help under it) }
+-- experimental badge), text (help under it), waits (it takes effect only once combat ends) }
 local function toggleBlock(p, key, b)
 	p:header(b.title)
 	local on = p:checkbox(b.label, b.tip, eopt(p, key, b.name))
@@ -1133,6 +1133,7 @@ local function toggleBlock(p, key, b)
 	end
 	if b.unlearned then p:text("Not learned yet.", showWhen(b.unlearned)) end
 	if b.text then p:text(b.text) end
+	if b.waits then p:text("Turned on in combat, it waits until combat ends.", ns.inCombat) end
 	local sub = b.sub
 	if not sub then return end
 	p:sub(on, eread(key, b.name), function()
@@ -1155,6 +1156,7 @@ local function choiceBlock(p, key, b)
 	end
 	if b.unlearned then p:text("Not learned yet.", showWhen(function() return b.unlearned(get()) end)) end
 	if b.text then p:text(b.text) end
+	if b.waits then p:text("Turned on in combat, it waits until combat ends.", ns.inCombat) end
 end
 
 K.eread, K.eslider, K.COUNT_POINTS = eread, eslider, COUNT_POINTS
