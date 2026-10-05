@@ -263,16 +263,7 @@ local function frameRows(p, owner, part, after, opts)
 				end
 				first = false
 				for _, e in ipairs(sec.list) do
-					local item = root:CreateRadio(e.name, function() return look() == e end, function() set(e.key) end)
-					if e.weight then
-						item:AddInitializer(function(button)
-							if not button.AttachFontString then return end
-							local fs = button:AttachFontString()
-							fs:SetFontObject("GameFontDisableSmall")
-							fs:SetPoint("RIGHT", button, "RIGHT", -4, 0)
-							fs:SetText(e.weight)
-						end)
-					end
+					root:CreateRadio(e.name, function() return look() == e end, function() set(e.key) end)
 				end
 			end
 		end
