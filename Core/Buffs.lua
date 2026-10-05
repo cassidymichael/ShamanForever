@@ -343,7 +343,7 @@ ns.registerPart("engineExpire", {
 -- (else "HELPFUL"), candidates(def) (candidate filters, else the aura's IDs), auraKey or buffKey
 -- (the aura's spell, any rank), ownIcon (the row's icon, not the aura's), noTimer (no time left),
 -- noGlow and noPop (without its own glow or pop; with neither, no effect host), charges (above),
--- swingMark (below), reagent (its count stays over the button).
+-- swingMark (below), reagent (its count over the button: countOver).
 -- A part's runtime hooks for them (each optional; parts from other files bring their own):
 --   make(def)                  at load, after the icon, before the aura slot: frames of its own;
 --                              returns { looks, extras }: aura looks set up, refiltered and checked
@@ -364,8 +364,6 @@ ns.registerKind("buff", {
 })
 
 local NONE = {}
--- A reagent's count is on the icon's text layer: the button goes just under it
-local REAGENT_UNDER = -6
 
 local function makeBuffIcon(def)
 	local f = E.newIcon(def.key, { effects = true })
@@ -384,6 +382,49 @@ local function auraIDs(def)
 	return def.ids
 end
 B.auraIDs = auraIDs
+
+-- countOver (reagent, with proc): the reagent count over Blizzard's button while the aura is up, on a look
+-- its own sensor shows, so an idle icon doesn't fade it and the button's parts don't cover it
+local function mirrorCount(def)
+	local fs, o = def.frame.count, def.countOver
+	if not o then return end
+	local shown = fs:IsShown()
+	o:SetShown(shown)
+	if not shown then return end
+	local font, size, flags = fs:GetFont()
+	if font then o:SetFont(font, size, flags) end
+	o:SetText(fs:GetText())
+	o:SetTextColor(fs:GetTextColor())
+end
+-- Over the button's parts: its Expiring parts and countdown reach 15 levels over the icon's text layer
+local COUNT_OVER = 16
+ns.registerPart("countOver", {
+	kind = "buff", after = "proc",
+	has = function(def) return def.reagent and def.proc and not def.unit and true or false end,
+	runtime = {
+		make = function(def)
+			local f, key = def.frame, def.key
+			local site = "reagent over " .. key
+			local look = W.makeClipLook(f, { key = key, owner = key, invert = true, glowOnly = true, noGlow = true,
+				parent = f.effects, sensorParent = f.effects, filter = def.filter,
+				ids = function() return auraIDs(def) end,
+				sites = { container = site, style = site .. " style", filter = site .. " filter" } })
+			def.countLook = look
+			def.countOver = look.look:CreateFontString(nil, "OVERLAY", nil, 7)
+			def.countOver:SetShadowOffset(1, -1)
+			def.countOver:SetShadowColor(0, 0, 0, 1)
+			-- Placed on the count itself: the same font and text fill the same box
+			def.countOver:SetPoint("CENTER", f.count, "CENTER", 0, 0)
+			def.countOver:Hide()
+			return { looks = { look } }
+		end,
+		style = function(def)
+			local look = def.countLook
+			look:setLevel(def.frame.textFrame:GetFrameLevel() + COUNT_OVER)
+			look:style()
+		end,
+	},
+})
 
 -- An aura element's button: its pop, its border (the button draws the border's art), then parts'
 local function buildButton(def, slot, button, site)
@@ -420,7 +461,6 @@ local function buildAura(def)
 		key = key, slot = where.slot, unit = where.unit, filter = def.filter, parent = where.parent,
 		ids = ids, candidates = candidates,
 		ownIcon = def.ownIcon and function() return def.icon end, noTimer = def.noTimer,
-		level = def.reagent and REAGENT_UNDER or nil,
 		-- The time bar sits on the charge bar
 		barInset = def.charges and function() return chargesLift(def) end,
 		extras = #def.extras > 0 and def.extras or nil,
@@ -1115,6 +1155,7 @@ local function refreshBuff(def)
 		f:SetPulsing(false)
 		if def.glowing then f:SetGlowShown(false); def.glowing = false end
 		f.count:Hide()
+		if def.countOver then def.countOver:Hide() end
 		W.fadeTo(f, 1)
 		return
 	end
@@ -1127,6 +1168,10 @@ local function refreshBuff(def)
 	-- Set each look once: re-setting a pulse restarts it
 	local held, ring, pulse, glow = false, false, false, false
 	if def.reagent then held, ring, pulse = ns.Reagents.refresh(def) end
+	if def.countLook then
+		mirrorCount(def)
+		def.countLook:want(not previewing)
+	end
 	if underWaterWarns(def) then
 		ring, pulse, held = setting(key, "warn", "ring"), setting(key, "warn", "fade"), true
 		glow = setting(key, "warn", "glow")
