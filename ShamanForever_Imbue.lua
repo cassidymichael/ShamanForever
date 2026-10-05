@@ -248,12 +248,15 @@ function IM.applyTimers()
 	imbue.upTimer:apply()
 	ns.Media.setFont(imbue.timer, nil, 16)
 end
-IM.applyLayout = IM.refresh
+local events   -- set(on), from start
+function IM.applyLayout()
+	if events then events(E.isEnabled("imbue")) end
+	IM.refresh()
+end
 IM.tick = IM.refresh
 function IM.start()
 	local ev = CreateFrame("Frame")
-	ns.registerEvent(ev, "UNIT_INVENTORY_CHANGED", "player")
-	ns.registerEvent(ev, "PLAYER_EQUIPMENT_CHANGED")
+	events = ns.eventsWhile(ev, { { "UNIT_INVENTORY_CHANGED", "player" }, "PLAYER_EQUIPMENT_CHANGED" })
 	ev:SetScript("OnEvent", function() IM.refresh() end)
 	ns.onCanActChange(function() IM.refresh() end)
 end
