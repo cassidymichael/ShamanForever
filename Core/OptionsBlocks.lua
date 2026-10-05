@@ -943,13 +943,11 @@ local function lookRows(p, s, name, opts, shown)
 	end
 end
 
--- A state's looks, then its sound, in a block of the page's own (the fields owner's defaults declare
--- under name); opts as lookRows', tips.sound its sound's
-function K.stateRows(p, owner, name, opts, shown)
+-- A state's looks in a block of the page's own (the fields owner's defaults declare under name); opts
+-- as lookRows'
+function K.lookRows(p, owner, name, opts, shown)
 	opts = opts or {}
-	local s = store(p, owner, opts.after)
-	lookRows(p, s, name, opts, shown)
-	soundRow(p, s, name, "Sound", tipOf(opts, "sound"), shown)
+	lookRows(p, store(p, owner, opts.after), name, opts, shown)
 end
 
 -- warn: opts.title, text (a line above its looks), on = { label, tip } (its switch, when it has

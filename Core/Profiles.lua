@@ -30,7 +30,7 @@ local SHARE_VERSION = 7
 --             on: it's followed at all (off, the element leaves the state out)
 --   ready   = { pop, glow, sound, blocked }   the cooldown ends; glow while it's ready; blocked: the
 --             pop when it ends but can't be used now (grey | none)
---   expire  = { secs, grey, ring, fade, glow, bar, barColor, text, over, sound }   the last seconds
+--   expire  = { secs, grey, ring, fade, glow, bar, barColor, text, over }   the last seconds
 --   ended   = { flash, pop, glow, sound }   it ran out
 --   killed  = { flash, pop, glow, mark }   it ended early
 --   swing   = { sound }   a main-hand swing (the swing timer's)
