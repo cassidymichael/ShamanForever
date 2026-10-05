@@ -868,7 +868,6 @@ end
 
 local function refreshSlot(s)
 	local c, v = cfg(), s.vis
-	local was = s.dur
 	local ok, d = ns.try("totem bar: duration", GetTotemDuration, s.slot)
 	if ok and d then
 		local iok, _, _, _, _, icon = ns.try("totem bar: totem info", GetTotemInfo, s.slot)
@@ -894,7 +893,6 @@ local function refreshSlot(s)
 		return true
 	end
 	s.dur = nil
-	if was then ns.Totems.slotEmptied(s.slot, was) end
 	s.badge:Hide()
 	s.timer:clear()
 	-- Active totems: the slot keeps its place (secure buttons can't move in combat); a plain frame's
@@ -1291,6 +1289,7 @@ function layout()
 	TB.skin.layoutBar(bar, boxes, size, row, sealed)
 	W.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
 	TB.range.layout(size)
+	ns.Totems.sync()
 	writeSet(set)
 	paintSets()
 	refreshSlots()
@@ -1578,7 +1577,8 @@ end
 
 -- Killed early: a slot's last duration object says how much time the totem had left; endFlash
 -- turns that into a curve, so a totem that ran out shows no flash. Our own dismissals and an
--- immediate recast don't flash.
+-- immediate recast don't flash. ns.Totems tells the ends while the bar is on (synced from layout).
+ns.Totems.wants(barOn)
 ns.Totems.subscribe(function(event, slot, was)
 	if event ~= "gone" or preview then return end
 	local s = bySlot[slot]
