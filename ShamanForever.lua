@@ -842,7 +842,7 @@ local function refreshCooldownsSoon()
 end
 
 -- Layout edits for the options: each leaves db.groups consistent and relays out; refused in combat.
--- full: it may switch an element on or off, so modules set its sounds, containers and tickers again
+-- full: an element may leave the HUD or come back, so modules set its sounds, containers and tickers again
 local function edit(fn, full)
 	return function(...)
 		if InCombatLockdown() then say("layout changes wait until combat ends"); return false end
@@ -910,7 +910,7 @@ end, true)
 
 local setShow = edit(function(key, mode)
 	elementOpts(key).show = mode ~= (elementDefault(key, "show") or "always") and mode or nil
-end, true)
+end)
 
 local setOn = edit(function(key, on)
 	on = on and true or false
