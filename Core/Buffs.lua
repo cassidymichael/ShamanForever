@@ -357,6 +357,8 @@ ns.registerPart("engineExpire", {
 -- noGlow and noPop (without its own glow or pop; with neither, no effect host), charges (above),
 -- swingMark (below), ownSpell (above), reagent (its count over the button: countOver), castUnder (its cast states also
 -- on the icon under the button, for when the aura is down).
+-- Page texts, each optional: idleText (the Idle block), procHeader, popTip and glowTip (its active state's
+-- block), upLabel and idleLabel (its preview states), castNote and castTips (its cast states').
 -- A part's runtime hooks for them (each optional; parts from other files bring their own):
 --   make(def)                  at load, after the icon, before the aura slot: frames of its own;
 --                              returns { looks, extras }: aura looks set up, refiltered and checked

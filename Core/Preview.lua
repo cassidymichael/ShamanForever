@@ -1,6 +1,6 @@
 -- Preview mode (/sf preview): the HUD in a made-up moment, drawn on stand-ins; nothing is saved and
--- it ends when combat starts. Elements holding Blizzard's protected button stay under their
--- stand-in rather than parked (no change to it in combat).
+-- it ends when combat starts. An element flagged holdsAuraButton (Blizzard's button draws its border)
+-- stays under its stand-in rather than parked; any other is parked, even one holding an aura button.
 
 local _, ns = ...
 local W = ns.Widgets
