@@ -605,15 +605,16 @@ local function styleState(x)
 	if not ok then ns.retryAfterCombat(site, function() styleState(x) end) end
 end
 -- The engine pops at each assignment, also of an aura already up (login, a loading screen, a new
--- container): its parts stay off for QUIET seconds after one, set out of combat only
+-- container): its parts stay off for QUIET seconds after one, started out of combat only
 local QUIET = 2
 local function quietState(x)
 	if not x.fx or not ns.aurasReadable() then return end
 	local token = {}
 	x.quiet, x.quietToken = true, token
 	styleState(x)
+	-- Its end in a fight restyles once combat ends (styleState waits): a missed pop, never one stuck off
 	C_Timer.After(QUIET, function()
-		if x.quietToken ~= token or not ns.aurasReadable() then return end
+		if x.quietToken ~= token then return end
 		x.quiet = false
 		styleState(x)
 	end)
