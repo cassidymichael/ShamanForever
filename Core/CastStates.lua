@@ -220,8 +220,10 @@ local function refresh(which)
 	end
 end
 
--- Its spell changed: owner's watches only (an element's key, a follow's owner)
+-- Its spell or a bar's own switch changed (a bar syncs here): owner's watches only (an element's key, a follow's)
+local syncTicker
 function CS.reread(owner)
+	syncTicker()
 	for _, w in ipairs(WATCHES) do
 		if w.key == owner or w.owner == owner then
 			readPower(w)
@@ -254,7 +256,7 @@ end
 -- is in use has it on.
 local rangeTicker = ns.ticker(0.25, function() ns.try("range refresh", refresh, "range") end)
 local powerEvents, rangeEvents   -- set(on), from start
-local function syncTicker()
+function syncTicker()
 	local want = { power = false, range = false }
 	if E.isActive() then
 		for _, w in ipairs(WATCHES) do
