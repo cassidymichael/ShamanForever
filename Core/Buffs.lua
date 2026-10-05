@@ -464,6 +464,95 @@ ns.registerPart("buffBar", {
 	},
 })
 
+-- Rows with party (and proc): also shown while a party member has the aura. Its switch, party, starts
+-- off. A container per party unit on the icon, under the player's, its button drawing the row's icon
+-- only: no time, glow or pop, and not who.
+local PARTY_UNITS = { "party1", "party2", "party3", "party4" }
+local PARTIES = {}
+for _, def in ipairs(ROWS) do
+	if def.party and def.proc then table.insert(PARTIES, { def = def, slots = {}, edges = {} }) end
+end
+local partyPreviewing = false
+local function partyOn(x)
+	local def = x.def
+	return def.spellID ~= nil and E.isEnabled(def.key) and setting(def.key, "party") == true
+end
+local function partyAlpha(x)
+	if not x.host then return end
+	local a = (partyOn(x) and not partyPreviewing) and 1 or 0
+	if not ns.try("party alpha", x.host.SetAlpha, x.host, a) then
+		ns.retryAfterCombat("party alpha", function() partyAlpha(x) end)
+	end
+end
+local function dressParty(x, unit)
+	local edge = x.edges[unit]
+	if edge then ns.try("party border " .. x.def.key, ns.Frames.dress, edge, x.def.key) end
+end
+-- Made once switched on; each container waits for combat's end and readable auras (W.makeAuraSlot)
+local function makeParty(x)
+	local def = x.def
+	if x.host or not partyOn(x) then return end
+	local f, site = def.frame, "party " .. def.key
+	x.host = CreateFrame("Frame", nil, f.effects)
+	x.host:SetAllPoints(f)
+	for _, unit in ipairs(PARTY_UNITS) do
+		x.slots[unit] = W.makeAuraSlot(f, {
+			key = def.key, slot = "party", unit = unit, filter = def.filter, parent = x.host, level = -1,
+			ids = function() return auraIDs(def) end,
+			candidates = def.candidates and function() return def.candidates(def) end,
+			ownIcon = def.ownIcon and function() return def.icon end, noTimer = true,
+			sites = { container = site .. " container", style = site .. " style", filter = site .. " filter" },
+			onButton = function(_, button)
+				x.edges[unit] = ns.Frames.edge(button, button, def.key, { overlay = false })
+				dressParty(x, unit)
+			end,
+			onStyle = function() dressParty(x, unit) end,
+			onError = function(err) ns.noteError(site .. " container", err) end,
+		})
+	end
+end
+local function partyLayout()
+	for _, x in ipairs(PARTIES) do
+		makeParty(x)
+		for _, slot in pairs(x.slots) do
+			slot:setup()
+			slot:style()
+		end
+		partyAlpha(x)
+	end
+end
+-- A party member joined or left: each unit may now be someone else
+local function partyRoster()
+	for _, x in ipairs(PARTIES) do
+		for _, slot in pairs(x.slots) do
+			local c = slot.container
+			if c and not ns.try("party refresh " .. x.def.key, c.UpdateAllAuras, c) then
+				ns.retryAfterCombat("party refresh", partyRoster)
+			end
+		end
+	end
+end
+ns.registerPart("party", {
+	kind = "buff", after = "proc",
+	has = function(def) return def.party and def.proc and true or false end,
+	defaults = { party = false },
+	page = { active = { extra = function(s, p)
+		local get, set = s.opt("party")
+		p:checkbox("Your party", nil, get, set)
+		local f = p:row(22)
+		ns.OptionsArt.expBadge(f, "Your party"):SetPoint("LEFT", f, "LEFT", ns.Page.LABEL_W, 0)
+		p:add(f, 22)
+		p:text("Also shows while a party member has one: the icon alone, without who, its time, glow or pop.")
+	end } },
+	preview = {
+		states = { { "party", "Your party", 15 } },
+		-- The buff part draws its icon alone; with the switch off the HUD shows nothing new
+		render = function(ic, st, def, kit)
+			if st == "party" and setting(def.key, "party") ~= true then kit.idle(ic, def.key) end
+		end,
+	},
+})
+
 -- An aura element's steps, for whichever module runs it
 -- Its slot, looks and host made (out of combat, auras readable: they wait otherwise)
 function B.setupAura(def)
@@ -616,6 +705,9 @@ function B.applyTimers()
 		end
 	end
 	for _, x in ipairs(BUFF_BARS) do styleBuffBar(x) end
+	for _, x in ipairs(PARTIES) do
+		for _, slot in pairs(x.slots) do slot:style() end
+	end
 end
 
 function B.applyLayout()
@@ -632,6 +724,7 @@ function B.applyLayout()
 		styleBuffBar(x)
 		buffBarAlpha(x)
 	end
+	partyLayout()
 end
 function B.afterGroups()
 	for _, def in ipairs(BUFFS) do
@@ -641,6 +734,9 @@ function B.afterGroups()
 		end
 	end
 	for _, x in ipairs(BUFF_BARS) do styleBuffBar(x) end
+	for _, x in ipairs(PARTIES) do
+		for _, slot in pairs(x.slots) do slot:style() end
+	end
 end
 
 local function readBreath()
@@ -682,7 +778,9 @@ function B.start()
 	ns.registerEvent(ev, "UNIT_AURA", "player")
 	ns.registerEvent(ev, "MIRROR_TIMER_START")
 	ns.registerEvent(ev, "MIRROR_TIMER_STOP")
+	if #PARTIES > 0 then ns.registerEvent(ev, "GROUP_ROSTER_UPDATE") end
 	ev:SetScript("OnEvent", function(_, event, timer, _, _, scale)
+		if event == "GROUP_ROSTER_UPDATE" then return partyRoster() end
 		if event == "UNIT_AURA" then
 			if not InCombatLockdown() then B.refresh() end   -- secret in combat
 			return
@@ -699,6 +797,8 @@ function B.onPreview(shown)
 	refreshAll()
 	barsPreviewing = shown
 	for _, x in ipairs(BUFF_BARS) do buffBarAlpha(x) end
+	partyPreviewing = shown
+	for _, x in ipairs(PARTIES) do partyAlpha(x) end
 end
 
 -- /sf debug
@@ -716,6 +816,15 @@ function B.debug()
 			if def.breath then state = state .. ", breath bar " .. tostring(breathing) end
 		end
 		say("%s: spell %s, %s", def.spell, tostring(def.spellID), state)
+	end
+	for _, x in ipairs(PARTIES) do
+		local made, errs = 0, {}
+		for _, slot in pairs(x.slots) do
+			if slot.container then made = made + 1 end
+			if slot.err then table.insert(errs, slot.err) end
+		end
+		say("%s party: %s, containers %d of %d%s", x.def.spell, setting(x.def.key, "party") and "on" or "off", made,
+			#PARTY_UNITS, #errs > 0 and (", error: " .. errs[1]) or "")
 	end
 end
 

@@ -128,10 +128,11 @@ ns.CLASS.buffs = {
 -- aura on you can't be filtered by spell ID.
 local function cure(key, spellKey, icon, dispel, what, state, experimental)
 	table.insert(ns.CLASS.buffs, { key = key, spellKey = spellKey, icon = icon, school = "water", power = true,
-		proc = true, filter = "HARMFUL", ownIcon = true,
+		proc = true, filter = "HARMFUL", ownIcon = true, party = true,
 		candidates = function() return { includeDispelTypes = { [dispel] = true } } end,
 		blurb = "Shows while a " .. what .. " is on you.", procHeader = state, upLabel = state,
-		idleLabel = "Not " .. state:lower(), idleText = "Idle while no " .. what .. " is on you",
+		idleLabel = "Not " .. state:lower(),
+		idleText = "Idle while no " .. what .. " is on you (or your party, with Your party on)",
 		popTip = "When you get one.", glowTip = "While one is on you.",
 		castNote = "Only while a " .. what .. " is on you.",
 		defaults = { idleAlpha = 0, active = { pop = true, glow = false } },
