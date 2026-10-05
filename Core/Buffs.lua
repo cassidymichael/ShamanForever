@@ -480,8 +480,9 @@ end
 local function partyAlpha(x)
 	if not x.host then return end
 	local a = (partyOn(x) and not partyPreviewing) and 1 or 0
-	if not ns.try("party alpha", x.host.SetAlpha, x.host, a) then
-		ns.retryAfterCombat("party alpha", function() partyAlpha(x) end)
+	local site = "party alpha " .. x.def.key
+	if not ns.try(site, x.host.SetAlpha, x.host, a) then
+		ns.retryAfterCombat(site, function() partyAlpha(x) end)
 	end
 end
 -- Hidden while off, so its containers stop listening; shown or hidden out of combat
