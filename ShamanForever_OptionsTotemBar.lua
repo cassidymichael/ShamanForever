@@ -293,7 +293,7 @@ local function build(p)
 	end
 
 	p:hero("totembar")
-	p:callout("Not learned yet. It shows on screen once your character knows a totem.",
+	p:callout("No totems learned yet, so it isn't on screen.",
 		function() return TB.barOn() and not TB.hasTotems() end)
 	local full = function() return c().mode == "everything" end
 	K.behaviourSection(p)
