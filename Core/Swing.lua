@@ -92,8 +92,7 @@ function SW.styleBar(b)
 	b.spark:SetWidth(W.linePx(b, 2))
 end
 
--- A strip of max pips along anchor's top, a dark line between them: filled one pip a charge. ref:
--- the frame its pixels are read from (else anchor); never one under Blizzard's aura button
+-- Pips: a strip filled one pip a charge, a dark tick between
 function SW.makePips(parent)
 	local b = CreateFrame("StatusBar", nil, parent)
 	b.bg = b:CreateTexture(nil, "BACKGROUND")
@@ -102,6 +101,8 @@ function SW.makePips(parent)
 	b.ticks = {}
 	return b
 end
+-- max pips along anchor's top; ref: the frame its pixels are read from (else anchor), never one under
+-- Blizzard's aura button
 function SW.stylePips(b, anchor, max, color, ref)
 	local c = cfg()
 	ref = ref or anchor

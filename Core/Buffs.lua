@@ -88,7 +88,7 @@ ns.registerPart("proc", {
 		end,
 	},
 })
--- charges: the most its aura can have, shown on Blizzard's button as a number and a bar (ns.Count)
+-- charges: the most its aura can have, shown on Blizzard's button as a number and a bar (W.Count)
 local Count = W.Count
 local COUNT_POS = {}
 for pos in pairs(W.COUNT_JUSTIFY) do table.insert(COUNT_POS, pos) end
