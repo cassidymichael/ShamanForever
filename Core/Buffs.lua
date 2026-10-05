@@ -619,6 +619,24 @@ local function quietState(x)
 		x.slot:styleNow()
 	end)
 end
+-- Its handed pop quiet for QUIET seconds as its container shows again (its end waits for readable auras)
+function B.quietAura(def)
+	if not (def.fx and ns.aurasReadable()) then return end
+	local token = {}
+	def.quietToken = token
+	def.fx:setQuiet(true)
+	local function done()
+		if def.quietToken ~= token then return end
+		if ns.deferWhileAurasSecret("aura quiet " .. def.key, done) then return end
+		def.fx:setQuiet(false)
+	end
+	C_Timer.After(QUIET, done)
+end
+-- Not in use: its holder hidden, so its container stops following auras (out of combat)
+local function holderShown(slot, site, on)
+	if not slot.holder or ns.deferInCombat(site, function() holderShown(slot, site, on) end) then return end
+	slot.holder:SetShown(on())
+end
 -- Made once, while it's on, out of combat with auras readable
 local function makeState(x)
 	local slot = x.slot
@@ -739,6 +757,9 @@ ns.registerPart("auraState", {
 local function statesLayout()
 	for _, x in ipairs(STATE_LIST) do
 		local on = stateOn(x)
+		-- Back in use: a container shown again plays its pop for an aura already up
+		if on and x.wasOn == false and x.slot.container then quietState(x) end
+		x.wasOn = on
 		makeState(x)
 		if on and x.stale then
 			x.stale = false
@@ -747,11 +768,13 @@ local function statesLayout()
 		end
 		if on then x.slot:styleNow() end
 		stateAlpha(x)
+		holderShown(x.slot, "aura state shown " .. x.def.key, function() return stateOn(x) end)
 		if x.fx then
 			if on then
 				x.fx:setup()
 				B.styleGlow(x)
 			end
+			if x.fx.up then x.fx.up:setShown(on) end
 			stateGlow(x)
 		end
 	end
@@ -1186,7 +1209,10 @@ function B.applyLayout()
 	statesLayout()
 	for _, def in ipairs(BUFFS) do
 		applyProcSound(def)
-		if def.proc and E.inUse(def.key) then
+		local on = E.inUse(def.key)
+		if on and def.wasOn == false and def.aura and def.aura.container then B.quietAura(def) end
+		def.wasOn = on
+		if def.proc and on then
 			B.setupAura(def)
 			if def.stale then
 				def.stale = false
@@ -1209,6 +1235,7 @@ function B.applyLayout()
 			x.slot:styleNow()
 		end
 		buffBarAlpha(x)
+		holderShown(x.slot, "buff bar shown " .. x.def.key, function() return buffBarOn(x) end)
 	end
 	partyLayout()
 	syncEvents()
