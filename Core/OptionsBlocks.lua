@@ -986,6 +986,13 @@ local function readyBlock(p, owner, opts)
 	soundRow(p, s, "ready", "Sound", "The moment the cooldown ends.")
 end
 
+-- An experimental badge under the row just added (feature: its name in About's list)
+local function badgeRow(p, feature)
+	local f = p:row(22)
+	ns.OptionsArt.expBadge(f, feature):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
+	p:add(f, 22)
+end
+
 -- active: opts.title, text, on = { label, tip } (its switch, when it has one), extra(s, p) (rows under
 -- its glow), soundBadge (an experimental badge under its sound: the feature's name); shown with a text
 -- even with no fields
@@ -994,11 +1001,7 @@ local function activeRows(p, s, opts)
 	check(p, s, "active", "glow", "Pulsing glow", tipOf(opts, "glow"))
 	if opts.extra then opts.extra(s, p) end
 	local sound = soundRow(p, s, "active", "Sound", tipOf(opts, "sound"))
-	if sound and opts.soundBadge then
-		local f = p:row(22)
-		ns.OptionsArt.expBadge(f, opts.soundBadge):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
-		p:add(f, 22)
-	end
+	if sound and opts.soundBadge then badgeRow(p, opts.soundBadge) end
 end
 local function activeBlock(p, owner, opts)
 	local s = store(p, owner, opts.after)
@@ -1053,12 +1056,13 @@ local function expiringBlock(p, owner, opts)
 	ranOutBlock(p, owner, opts)
 end
 
--- An event whose one setting is its sound: opts.title, tip, after
+-- An event whose one setting is its sound: opts.title, tip, after, badge (as soundBadge)
 local function soundBlock(p, owner, name, opts)
 	local s = store(p, owner, opts.after)
 	if not s.has(name, "sound") then return end
 	p:header(opts.title)
 	soundRow(p, s, name, "Sound", opts.tip)
+	if opts.badge then badgeRow(p, opts.badge) end
 end
 
 -- killed: opts.title, flash = { label, tip }, noun, after
@@ -1216,7 +1220,7 @@ K.registerSlot("killed", function(p, def, o) K.killedBlock(p, def.key, o) end)
 K.registerSlot("cooldown", function(p, def, title) K.timerSettings(p, title, def.key, "cooldown") end, true)
 K.registerSlot("gcd", function(p, def) K.gcdBlock(p, def.key) end, true)
 K.registerSlot("uptime", function(p, def, title) K.timerSettings(p, title, def.key, "uptime") end, true)
--- An event with only a sound, drawn after the warnings: b = { "sound", name, title, tip }
+-- An event with only a sound, drawn after the warnings: b = { "sound", name, title, tip, badge }
 K.registerOwn("sound", function() end, function(p, def, b) K.soundBlock(p, def.key, b.name, b) end)
 
 -- lowMana: a pulsing glow while it's ready and your mana is under a percentage

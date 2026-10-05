@@ -66,7 +66,9 @@ ns.registerPart("breath", {
 	defaults = { warn = { on = true, ring = true, fade = true, glow = false }, breath = { sound = "none" } },
 	page = { warn = { title = "Under water",
 		on = { "Warn without it", "While your breath bar drains and it isn't up." } },
-		own = { "sound", name = "breath", title = "Low breath", tip = "When your breath bar has 10 seconds left." } },
+		own = { "sound", name = "breath", title = "Low breath", tip = "When your breath bar has 10 seconds left.",
+			badge = "Low breath sound" } },
+	experiment = "Low breath sound",
 	preview = {
 		warning = "underwater",
 		states = { { "underwater", "Under water", 80 } },
