@@ -211,11 +211,12 @@ function SN.choices(current)
 	end, listed)
 end
 
--- Only the sounds the engine can play from a file ID
+-- Only the sounds the engine can play from a file ID; the current one too, marked, so it shows
 function SN.fileChoices(current)
 	local out = {}
 	for _, c in ipairs(SN.choices(current)) do
-		if c[1] == "none" or SN.fileID(c[1]) then table.insert(out, c) end
+		if c[1] == "none" or SN.fileID(c[1]) then table.insert(out, c)
+		elseif c[1] == current then table.insert(out, { c[1], c[2] .. " (can't play here)" }) end
 	end
 	return out
 end
