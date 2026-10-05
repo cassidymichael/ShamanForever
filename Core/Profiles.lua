@@ -7,9 +7,6 @@ ns.Profiles = P
 -- Account-wide, outside profiles
 local ACCOUNT_DEFAULTS = {
 	locked = true,
-	snap = true,
-	grid = true,
-	gridSize = 32,
 	hideIssueReporter = false,
 	keepOptionsOpen = false,
 	foldedBlocks = {},

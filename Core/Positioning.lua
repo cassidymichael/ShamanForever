@@ -2,7 +2,7 @@
 
 local _, ns = ...
 local W = ns.Widgets
-local E, G, P = ns.Elements, ns.Groups, ns.Profiles
+local E, G, P, MOD = ns.Elements, ns.Groups, ns.Profiles, ns.Modules
 local say = ns.say
 
 local PO = {}
@@ -18,6 +18,20 @@ local function uiScale() return UIParent:GetEffectiveScale() end
 local function db() return P.getDB() end
 local function acct() return P.getAccount() end
 
+-- Account keys only positioning reads: snap, grid, gridSize (UI units, within GRID_RANGE)
+local GRID_RANGE = { 8, 128, 4 }
+local GRID_DEFAULT = 32
+local function gridSize()
+	local v, r = acct().gridSize, GRID_RANGE
+	if type(v) ~= "number" or v ~= v then return GRID_DEFAULT end
+	return clamp(v, r[1], r[2])
+end
+MOD.register({ name = "positioning", sanitize = function(_, a)
+	if type(a.snap) ~= "boolean" then a.snap = true end
+	if type(a.grid) ~= "boolean" then a.grid = true end
+	a.gridSize = gridSize()
+end })
+
 -- Grid and snap guides
 local grid = CreateFrame("Frame", nil, UIParent)
 grid:SetAllPoints(UIParent)
@@ -27,7 +41,7 @@ grid.lines = {}
 
 local function drawGrid()
 	local w, h = UIParent:GetSize()
-	local gs = acct().gridSize
+	local gs = gridSize()
 	local n = 0
 	local function line(vertical, offset)
 		n = n + 1
@@ -123,7 +137,7 @@ local function snap(frame, x, y)
 			if G.byId(id) then target(f) end
 		end
 		for _, m in ipairs(movables) do target(m.frame) end
-		local gs = a.grid and a.gridSize or nil
+		local gs = a.grid and gridSize() or nil
 		x, gx = snapAxis(x, frame:GetWidth() * s / 2, tx, w / 2, gs)
 		y, gy = snapAxis(y, frame:GetHeight() * s / 2, ty, h / 2, gs)
 	end
@@ -457,7 +471,8 @@ do
 		b:SetText(text)
 		b:SetScript("OnClick", function()
 			local a = acct()
-			a.gridSize = math.min(math.max(a.gridSize + delta, 8), 128)
+			local r = GRID_RANGE
+			a.gridSize = clamp(gridSize() + delta * r[3], r[1], r[2])
 			G.layoutElements()
 		end)
 		return b
@@ -465,12 +480,12 @@ do
 	tray.gridLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	tray.gridLabel:SetPoint("LEFT", tray.grid.Text, "RIGHT", 16, 0)
 	tray.gridLabel:SetText("Grid size")
-	tray.gridDown = stepper("-", -4)
+	tray.gridDown = stepper("-", -1)
 	tray.gridDown:SetPoint("LEFT", tray.gridLabel, "RIGHT", 6, 0)
 	tray.gridValue = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	tray.gridValue:SetPoint("LEFT", tray.gridDown, "RIGHT", 4, 0)
 	tray.gridValue:SetWidth(26)
-	tray.gridUp = stepper("+", 4)
+	tray.gridUp = stepper("+", 1)
 	tray.gridUp:SetPoint("LEFT", tray.gridValue, "RIGHT", 4, 0)
 	local lock = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
 	lock:SetSize(70, 22)
@@ -518,7 +533,7 @@ function PO.update()
 	tray.preview:SetText(ns.Preview.isOn() and "Hide preview" or "Show preview")
 	stepOptionsAside(unlocked)
 	tray.grid:SetChecked(a.grid)
-	tray.gridValue:SetText(a.gridSize)
+	tray.gridValue:SetText(gridSize())
 	grid:SetShown(unlocked and a.grid)
 	if unlocked and a.grid then drawGrid() end
 	if not unlocked then showGuides() end
