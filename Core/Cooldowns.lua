@@ -583,7 +583,7 @@ function CD.start()
 		if event == "BAG_UPDATE_DELAYED" then
 			for _, def in ipairs(COOLDOWNS) do if def.reagent then refreshCooldown(def) end end
 		elseif event == "UNIT_AURA" then
-			if InCombatLockdown() then return end   -- secret in combat
+			if not ns.aurasReadable() then return end
 			local perkUnknown = R.auraChanged()
 			for _, def in ipairs(COOLDOWNS) do
 				if def.reagent and perkUnknown then refreshCooldown(def) end
