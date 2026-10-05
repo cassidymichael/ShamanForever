@@ -1667,10 +1667,13 @@ function TB.start()
 end
 
 TB.MODES = { { "blizzard", "Blizzard's" }, { "active", "Active totems" }, { "everything", "Everything" } }
+-- Refused in combat (false): the slots would draw the new mode while their buttons keep the old one
 function TB.setMode(mode)
+	if ns.inCombat() then return false end
 	local c = cfg()
 	c.mode = mode
 	if mode == "everything" then c.cast, c.arrows, c.call, c.recall = true, true, true, true end
+	return true
 end
 function TB.modeName()
 	for _, m in ipairs(TB.MODES) do if m[1] == cfg().mode then return m[2] end end

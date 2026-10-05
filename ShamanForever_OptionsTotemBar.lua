@@ -298,12 +298,14 @@ local function build(p)
 	local full = function() return c().mode == "everything" end
 	K.behaviourSection(p)
 	p:header("Totem mode")
-	own("mode", { reset = function() TB.setMode(TB.DEFAULTS.mode) end })
+	own("mode", { label = "Totem mode", reset = function() return TB.setMode(TB.DEFAULTS.mode) end })
 	p:cards("Use", nil, {
 		{ "blizzard", "Blizzard's", "Interface\\Icons\\INV_Misc_Gear_01" },
 		{ "active", "Active totems", "Interface\\Icons\\Spell_Nature_TimeStop" },
 		{ "everything", "Everything", "Interface\\Icons\\Spell_Shaman_DropAll_01", tag = "RECOMMENDED" },
-	}, tget("mode"), function(v) TB.setMode(v); changed() end)
+	}, tget("mode"), function(v)
+		if TB.setMode(v) then changed() else ns.say("totem bar changes wait until combat ends") end
+	end)
 	local KEYS = "Keys: Options > Keybindings > " .. ns.NAME .. "."
 	local BAR_KEYS = "Keys: Options > Keybindings > " .. ns.NAME .. ", or hover the bar in Quick Keybind Mode."
 	p:text(ns.NAME .. "'s totem bar is off. Blizzard's totem bar and active totems display are on.\n"
