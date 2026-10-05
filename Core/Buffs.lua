@@ -545,14 +545,9 @@ ns.registerPart("party", {
 	kind = "buff", after = "proc",
 	has = function(def) return def.party and def.proc and true or false end,
 	defaults = { party = false },
-	page = { active = { extra = function(s, p)
-		local get, set = s.opt("party")
-		p:checkbox("Your party", nil, get, set)
-		local f = p:row(22)
-		ns.OptionsArt.expBadge(f, "Your party"):SetPoint("LEFT", f, "LEFT", ns.Page.LABEL_W, 0)
-		p:add(f, 22)
-		p:text("Also shows while a party member has one: the icon alone, without who, its time, glow or pop.")
-	end } },
+	page = { own = { "toggle", name = "party", title = "Your party", label = "Show it",
+		text = "Also shows while a party member has one: the icon alone, without who, its time, glow or pop.",
+		badge = { name = "Your party" } } },
 	preview = {
 		states = { { "party", "Your party", 15 } },
 		-- The buff part draws its icon alone; with the switch off the HUD shows nothing new

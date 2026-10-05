@@ -1121,11 +1121,18 @@ local function castBlocks(p, key, extras)
 end
 
 -- A setting switched on, with a number under it: b = { title, name, label, tip, sub = { name, label,
--- tip, unit }, unlearned() (Not learned under it while that says so) }
+-- tip, unit }, unlearned() (Not learned under it while that says so), badge = { name } (the
+-- experimental badge), text (help under it) }
 local function toggleBlock(p, key, b)
 	p:header(b.title)
 	local on = p:checkbox(b.label, b.tip, eopt(p, key, b.name))
+	if b.badge then
+		local f = p:row(22)
+		ns.OptionsArt.expBadge(f, b.badge.name):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
+		p:add(f, 22)
+	end
 	if b.unlearned then p:text("Not learned yet.", showWhen(b.unlearned)) end
+	if b.text then p:text(b.text) end
 	local sub = b.sub
 	if not sub then return end
 	p:sub(on, eread(key, b.name), function()
