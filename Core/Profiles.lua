@@ -33,7 +33,6 @@ local SHARE_VERSION = 7
 --   expire  = { secs, grey, ring, fade, glow, bar, barColor, text, over }   the last seconds
 --   ended   = { flash, pop, glow, sound }   it ran out
 --   killed  = { flash, pop, glow, mark }   it ended early
---   swing   = { sound }   a main-hand swing (the swing timer's)
 --   count   = { bar, barHeight, barColor, number, pos, size, mark, markColor }   charges or stacks
 --   reagent = { when, low, lowKeepsShown, color, lowColor, size, pos, x, y, ring, fade }
 --   mana    = { on }   its spell's cost can't be paid (_CastStates); its style (part power) is kept beside
@@ -41,7 +40,7 @@ local SHARE_VERSION = 7
 --   lowMana = { glow, under }   it's ready and your mana is under a percentage (under): a look only
 -- grey, ring, fade, tint and glow are the looks a state shows; pop and sound play once, as it
 -- starts: warn.pop and warn.sound as the warning begins (a buff lost). A bar's own settings use the
--- same tables (expire, ended, killed, mana, swing). The effect and pop kind names (warning, ranout, expired,
+-- same tables (expire, ended, killed, mana). The effect and pop kind names (warning, ranout, expired,
 -- killed, primed, ready and a class's own) are a separate runtime set.
 
 -- Renamed settings, moved as a profile loads or is imported. Drop after launch.

@@ -113,7 +113,6 @@ local function build(p)
 	p:dropdown("Position", nil, TEXT_POS, get("countdownPos"), set("countdownPos"), text, 160)
 	slider(p, R.countdownSize, "Text size", nil, int, get("countdownSize"), set("countdownSize"), text)
 	p:color("Text colour", nil, get("countdownColor"), set("countdownColor"), text)
-	K.soundBlock(p, "swing", "swing", { title = "Swinging", tip = "Each main-hand swing.", after = changed })
 
 	K.styleSection(p)
 	K.textBlock(p, "swing", changed)
