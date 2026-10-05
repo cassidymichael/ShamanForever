@@ -907,9 +907,16 @@ local function refreshSlots()
 	local down = false
 	for _, el in ipairs(ELEMENTS) do
 		local s = slots[el]
-		s.down = refreshSlot(s)
+		if barOn() then
+			s.down = refreshSlot(s)
+			TB.range.refresh(s)
+		elseif s.down ~= false then
+			-- Blizzard's mode: nothing read or ticking
+			s.down, s.dur = false, nil
+			s.timer:setExpire(nil)
+			s.timer:clear()
+		end
 		if s.down then down = true end
-		TB.range.refresh(s)
 	end
 	anyDown = down
 	-- A pick or set may have changed: its cost is read again
@@ -958,14 +965,15 @@ local function writeSet(set)
 end
 
 local layout
+local events   -- set(on), from start: the bar's own events, while it's on
 local function refresh()
 	local wasDown = anyDown
 	refreshSlots()
 	if anyDown ~= wasDown and cfg().show == "active" then layout() end
 end
 
+-- Runs while the bar shows (its holder hides it while off)
 local ticker = ns.ticker(0.1, function()
-	-- Visible, not shown: the bar's holder hides it while off
 	if not bar:IsVisible() then return end
 	local arrows = feat("arrows")
 	for _, el in ipairs(ELEMENTS) do
@@ -1163,7 +1171,12 @@ local function visibilityDriver()
 	end
 	return ownDriver()
 end
-local function drive() ns.setVisibilityDriver(bar, visibilityDriver(), "totem bar driver") end
+-- Blizzard's mode: no driver, hidden (out of combat: the layout's)
+local function drive()
+	local on = barOn()
+	ns.setVisibilityDriver(bar, on and visibilityDriver() or nil, "totem bar driver")
+	if not on then bar:Hide() end
+end
 
 function layout()
 	if ns.deferInCombat("totem bar layout", layout) then return end
@@ -1290,6 +1303,7 @@ function layout()
 	W.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
 	TB.range.layout(size)
 	ns.Totems.sync()
+	if events then events(barOn()) end
 	writeSet(set)
 	paintSets()
 	refreshSlots()
@@ -1633,13 +1647,12 @@ end
 -- Only for the class; its first layout comes with the HUD's
 function TB.start()
 	local ev = CreateFrame("Frame")
-	for _, e in ipairs({ "PLAYER_ENTERING_WORLD", "PLAYER_TOTEM_UPDATE", "SPELLS_CHANGED",
-			"ACTIONBAR_SLOT_CHANGED", "UPDATE_MULTI_CAST_ACTIONBAR", "UPDATE_BINDINGS",
-			"SPELL_UPDATE_COOLDOWN" }) do
-		ns.registerEvent(ev, e)
-	end
-	ns.registerEvent(ev, "UNIT_SPELLCAST_SUCCEEDED", "player")
+	events = ns.eventsWhile(ev, { "PLAYER_ENTERING_WORLD", "PLAYER_TOTEM_UPDATE", "SPELLS_CHANGED",
+		"ACTIONBAR_SLOT_CHANGED", "UPDATE_MULTI_CAST_ACTIONBAR", "UPDATE_BINDINGS", "SPELL_UPDATE_COOLDOWN",
+		{ "UNIT_SPELLCAST_SUCCEEDED", "player" } })
 	ev:SetScript("OnEvent", onEvent)
+	-- Now, not at the first layout: after a /reload in combat that waits for the fight to end
+	events(barOn())
 	-- Never left over the bar in combat, taking the keyboard
 	ns.onCombatStart(kbLeave)
 	ns.onCombatStart(paintSets)
@@ -1649,7 +1662,9 @@ function TB.start()
 		movable.update()
 		paintSets()
 	end)
-	ticker:Show()
+	bar:HookScript("OnShow", function() ticker:Show() end)
+	bar:HookScript("OnHide", function() ticker:Hide() end)
+	ticker:SetShown(bar:IsVisible())
 	TB.range.start()
 	hookQuickKeybind()
 	if not kbHooked then ns.registerEvent(kbEvents, "ADDON_LOADED") end
