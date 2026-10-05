@@ -132,7 +132,7 @@ local RETIRED = {
 	-- style part): it keeps them, the rest at the part's defaults (what it showed)
 	ownLooks = { shock = { mana = "power", range = "range" } },
 	-- Game sounds no longer offered (silent on the client): a saved one becomes None
-	sounds = { whisper = true, ping = true },
+	sounds = { whisper = true },
 }
 
 -- Every sound field under t
