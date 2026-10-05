@@ -544,9 +544,9 @@ end
 -- Cooldown rows with auraState = { key, filter, length, active }: the buff its cast puts on you, drawn
 -- by Blizzard's aura button over the icon, in combat too; nothing read. key: the aura's spell (default
 -- the row's), any rank, by ID; filter: default HELPFUL|PLAYER (yours only); length: its full length in
--- seconds, for its time left and Expiring (nil: until spent, no time left); active = { title, text }: a
--- state with its switch (active.on), pop and glow from the same aura. On the effects layer, so an idle
--- icon fades under it. Made and styled out of combat with auras readable.
+-- seconds, for its time left and Expiring (nil: until spent, no time left); active = { title, text,
+-- tips = { pop, glow } }: a state with its switch (active.on), pop and glow from the same aura. On the
+-- effects layer, so an idle icon fades under it. Made and styled out of combat with auras readable.
 local STATES, STATE_LIST = {}, {}
 for _, def in ipairs(ns.CLASS.cooldowns or {}) do
 	if def.auraState then
@@ -766,9 +766,8 @@ ns.registerPart("auraState", {
 		active = function(def)
 			local a = def.auraState.active
 			if not a then return nil end
-			local state = a.title:lower()
 			return { title = a.title, text = a.text, on = { "Show it", "Off, it's just a cooldown." },
-				tips = { pop = "The moment it's " .. state .. ".", glow = "While it's " .. state .. "." } }
+				tips = a.tips or { pop = "The moment it's up.", glow = "While it's up." } }
 		end,
 	},
 	preview = {

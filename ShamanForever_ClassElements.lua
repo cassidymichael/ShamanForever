@@ -29,7 +29,8 @@ ns.CLASS.cooldowns = {
 	-- Emergency cooldowns
 	{ key = "naturesswiftness", spellKey = "naturesSwiftness", icon = 136076, school = "water",
 		blurb = "Cooldown, and a glow while your next Nature spell is instant.",
-		auraState = { active = { title = "Primed", text = "While your next Nature spell is instant." } },
+		auraState = { active = { title = "Primed", text = "While your next Nature spell is instant.",
+			tips = { pop = "The moment it's primed.", glow = "While it's primed." } } },
 		cd = 180, experimental = "Nature's Swiftness" },
 	{ key = "manatide", power = true, spellKey = "manaTide", icon = 135861, totemSlot = 3, duration = 13, school = "water",
 		blurb = "Cooldown, and time left while it's down.",

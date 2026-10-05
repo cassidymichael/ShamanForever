@@ -128,7 +128,8 @@ ns.registerPart("lowMana", {
 --                                chosen) or nil (neither)
 --   readyGate(def)               the Ready glow's alpha (may be secret); nil: it can't show
 --   make(def, f)                 adds what it draws to the icon f as it's made
---   uptime(def)                  its own Time left timer, on a frame of its own (the icon has none)
+--   uptime(def)                  its own Time left timer, on a frame of its own (the icon has none);
+--                                its Expiring is its own too (no Expiring looks of _Timers' part)
 --   ticks(def)                   whether tick is wanted now
 --   tick(def, cantAct)           ten times a second while any part ticks: redraws a look with no
 --                                event to follow (cantAct: the player can't act)
@@ -138,7 +139,7 @@ ns.registerPart("lowMana", {
 -- The icon (def.frame) has upTimer in activeHolder when its page has a Time left block, warn when
 -- it has a Warning block, and readyGlow in readyGate with the readyGlow part or a readyGate hook.
 -- Icons are made as this file loads, so a part that needs one of these registers before it;
--- prepare notes one that didn't.
+-- prepare notes one that didn't. A part with an uptime hook registers after them on purpose.
 
 local function checkFrames(def)
 	local f, missing = def.frame, nil
@@ -154,8 +155,7 @@ ns.registerKind("cooldown", {
 	parts = { "cooldown", "ready", "readyGlow", "lowMana" },
 	slots = { "own", "warn", "cast", "ready", "lowMana", "active", "expire", "killed", "cooldown", "gcd", "uptime" },
 	prepare = function(def)
-		-- auraState's Expiring is the engine's (_Buffs)
-		def.expires = hasUptime(def) and def.expireLooks ~= false and not def.auraState
+		def.expires = hasUptime(def) and def.expireLooks ~= false and not KD.hook("cooldown", def, "uptime")
 		checkFrames(def)
 	end,
 })
