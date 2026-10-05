@@ -1651,7 +1651,7 @@ function TB.start()
 		"ACTIONBAR_SLOT_CHANGED", "UPDATE_MULTI_CAST_ACTIONBAR", "UPDATE_BINDINGS", "SPELL_UPDATE_COOLDOWN",
 		{ "UNIT_SPELLCAST_SUCCEEDED", "player" } })
 	ev:SetScript("OnEvent", onEvent)
-	-- Now, not at the first layout: after a /reload in combat that waits for the fight to end
+	-- At start, not at the first layout, which waits out a fight if the load comes in one
 	events(barOn())
 	-- Never left over the bar in combat, taking the keyboard
 	ns.onCombatStart(kbLeave)

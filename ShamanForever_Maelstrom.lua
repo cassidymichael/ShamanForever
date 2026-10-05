@@ -394,7 +394,7 @@ end
 function applyIdle()
 	-- The copy at five is a frame under Blizzard's button: set while auras are readable
 	if ns.deferWhileAurasSecret("maelstrom idle", applyIdle) then return end
-	local on = idleWhen() == "five" and src.learned() and E.isEnabled(KEY) and P.getAccount().locked
+	local on = idleWhen() == "five" and E.inUse(KEY) and P.getAccount().locked
 		and copyReady()
 	gate:SetAlpha(on and E.idleAlpha(KEY) or 1)
 	if five.host then five.host:SetAlpha(on and 1 or 0) end
@@ -423,10 +423,10 @@ local function styleAll()
 	for _, s in ipairs(SLOTS) do s:style() end
 end
 
-local stale = false   -- a refilter asked while not in use: done as it's back
+local refilterDue = false   -- a refilter asked while not in use: done as it's back
 local function refilterAll()
-	stale = not inUse()
-	if stale then return end
+	refilterDue = not inUse()
+	if refilterDue then return end
 	for _, slot in ipairs(SLOTS) do slot:refilter() end
 end
 function MW.follow(s)
@@ -497,7 +497,7 @@ function MW.applyLayout()
 	if popOn and not popWasOn and pop.container then quietPop() end
 	popWasOn = popOn
 	if inUse() then
-		if stale then refilterAll() end
+		if refilterDue then refilterAll() end
 		stacks:setup()
 		if own("active", "pop") then
 			gateSlot:setup()

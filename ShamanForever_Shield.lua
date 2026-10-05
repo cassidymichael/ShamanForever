@@ -323,11 +323,11 @@ local function checkIDs()
 	if cover then cover:checkIDs() end
 end
 
--- Filters only change while auras are readable, and while Shields is in use (stale: again when it's back)
-local stale = false
+-- Filters only change while auras are readable, and while Shields is in use (else again when it's back)
+local refilterDue = false
 local function applyShieldFilter()
-	if not inUse() then stale = true return end
-	stale = false
+	if not inUse() then refilterDue = true return end
+	refilterDue = false
 	native:refilter()
 	look:refilter()
 	if cover then cover:refilter() end
@@ -351,7 +351,7 @@ end
 
 -- Any removal, so another shield or rank replacing one too; a recast of the same spell stays silent
 function SH.applyRemovedSound()
-	ns.Sounds.elementAura("shield", "warn", E.isEnabled("shield") and shieldIDMap() or nil)
+	ns.Sounds.elementAura("shield", "warn", shieldIDMap())
 end
 
 function SH.resolve()
@@ -586,7 +586,7 @@ local shieldGCD = W.makeGCDSweep(shield)
 shieldGCD:SetParent(gate)
 -- inCooldownEvent: from SPELL_UPDATE_COOLDOWN
 local function refreshGCD(inCooldownEvent)
-	local id = E.isEnabled("shield") and ns.Style.value("shield", "gcd", "show")
+	local id = E.inUse("shield") and ns.Style.value("shield", "gcd", "show")
 		and SHIELDS[shownShield()].spellID
 	local d
 	if id and ns.Cooldowns.onGCD(id) then
@@ -609,7 +609,7 @@ function SH.applyLayout()
 		native:setup()
 		look:setup()
 		if idleWhen() == "charges" then copy:setup() end
-		if stale then applyShieldFilter() end
+		if refilterDue then applyShieldFilter() end
 	end
 	SH.style()
 	SH.applyEmptyLook()

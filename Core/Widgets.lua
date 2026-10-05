@@ -324,8 +324,8 @@ end
 -- frame) sharing the icon's cooldown (dual unless false). With host its time bar stays in the icon.
 -- setup() makes it once (if it waits, it doesn't call back); Blizzard makes the buttons inside it, where
 -- they are set up (a noIcon one styled too). It sets frame.auraButton: the layout waits for its restyle.
--- Errors are noted under sites.container: setup's (slot.err, the container hidden), and a button's set-up's
--- with " button" or the extra's key added.
+-- setup's error (slot.err, the container hidden) is told to onError(err); a button's set-up's is noted under
+-- sites.container with " button" or the extra's key added.
 -- Then style() or styleNow() and refilter(), each waiting as its comment says; fade(site, alpha), describe().
 -- Fields callers read: container, err, button, timer, cd, icon, host, holder, extras, size, filtered, applied.
 function W.makeAuraSlot(frame, opts)

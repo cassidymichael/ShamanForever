@@ -195,7 +195,7 @@ local function debuffShown(def) return setting(def.key, "active", "on") ~= false
 local function debuffOn(def)
 	return E.inUse(def.key) and debuffShown(def)
 end
-local function debuffAlpha(x) x.slot:fade("target debuff alpha", x.alpha) end
+local function debuffAlpha(x) x.slot:fade("target debuff alpha " .. x.def.key, x.alpha) end
 -- Out of combat, auras readable; made once, while it's on and learned
 local function makeDebuff(x)
 	local slot, def = x.slot, x.def
@@ -221,7 +221,7 @@ for _, def in ipairs(ns.CLASS.cooldowns or {}) do
 			key = key, slot = key, unit = "none", filter = "HARMFUL|PLAYER", layer = f, noIcon = true,
 			ids = function() return Spells.ids(def.spellKey) end,
 			sites = { container = "target debuff " .. key, style = "target debuff style " .. key,
-				filter = "target debuff filter " .. key, bar = "target debuff bar" },
+				filter = "target debuff filter " .. key, bar = "target debuff bar " .. key },
 			onError = function(err) ns.noteError("target debuff " .. key, err) end,
 		})
 		DEBUFFS[key] = x
@@ -589,7 +589,7 @@ end
 
 local function applyIdle(def)
 	if not def.idle then return end
-	local on = def.spellID and E.isEnabled(def.key) and P.getAccount().locked
+	local on = E.inUse(def.key) and P.getAccount().locked
 		and setting(def.key, "idleWhen") == "target"
 	def.idle:SetAlpha(on and E.idleAlpha(def.key) or 1)
 end
@@ -611,7 +611,7 @@ end
 local function refreshAura(def)
 	local f, key = def.frame, def.key
 	if def.fx then
-		def.fx:glow(not def.noGlow and def.spellID ~= nil and E.isEnabled(key) and setting(key, "active", "glow")
+		def.fx:glow(not def.noGlow and E.inUse(key) and setting(key, "active", "glow")
 			and not ns.Preview.isOn())
 	end
 	if not E.isEnabled(key) then return end
@@ -686,7 +686,7 @@ local function rowLayout(def)
 	ns.Buffs.setupAura(def)
 	if def.refilterDue then
 		def.refilterDue = false
-		ns.Buffs.resolveAura(def)
+		ns.Buffs.refilterAura(def)
 	end
 end
 

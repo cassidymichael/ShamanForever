@@ -84,7 +84,7 @@ end
 
 -- An element's sound for a state or event (its sound field); gap: seconds between its plays
 function SN.element(key, event, zoning, gap)
-	if E.isEnabled(key) then SN.play(E.setting(key, event, "sound"), key .. ":" .. event, gap, zoning) end
+	if E.inUse(key) then SN.play(E.setting(key, event, "sound"), key .. ":" .. event, gap, zoning) end
 end
 
 function SN.test(value) emit(value) end
@@ -161,12 +161,12 @@ function SN.setAuraSound(owner, value, ids, trigger)
 	applyAura(owner)
 end
 
--- An element's state or event whose sound the engine plays: its sound field, while it's on the HUD
+-- An element's state or event whose sound the engine plays: its sound field, while it's in use
 local byEngine = {}
 function SN.elementAura(key, event, ids, trigger)
 	local owner = key .. ":" .. event
 	byEngine[owner] = true
-	SN.setAuraSound(owner, E.setting(key, event, "sound"), E.isEnabled(key) and ids or nil, trigger)
+	SN.setAuraSound(owner, E.setting(key, event, "sound"), E.inUse(key) and ids or nil, trigger)
 end
 
 -- The engine's aura sounds are set again on the new channel

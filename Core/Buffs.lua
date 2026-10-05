@@ -607,6 +607,7 @@ end
 -- The engine pops at each assignment, also of an aura already up (login, a loading screen, a new
 -- container): its parts stay off for QUIET seconds after one, started out of combat only
 local QUIET = 2
+-- A flag its style applies, not B.quietAura's direct call: the rig comes with a button, often after the quiet starts
 local function quietState(x)
 	if not x.fx or not ns.aurasReadable() then return end
 	local token = {}
@@ -825,7 +826,7 @@ local function newBuffBar(parent)
 	bar.bg:SetColorTexture(0, 0, 0, 0.6)
 	return bar
 end
-local function buffBarAlpha(x) x.slot:fade("buff bar alpha", x.alpha) end
+local function buffBarAlpha(x) x.slot:fade("buff bar alpha " .. x.def.key, x.alpha) end
 -- Made once, while it's on, out of combat with auras readable
 local function makeBuffBar(x)
 	local slot = x.slot
@@ -1075,6 +1076,13 @@ function B.resolveAura(def)
 	for _, look in ipairs(def.looks) do look:checkIDs() end
 	if def.fx then def.fx:checkIDs() end
 end
+-- Back in use after a scan while off: every filter read again (each skips when unchanged)
+function B.refilterAura(def)
+	def.ids = nil
+	def.aura:refilter()
+	for _, look in ipairs(def.looks) do look:refilter(); look:checkIDs() end
+	if def.fx then def.fx:refilter(); def.fx:checkIDs() end
+end
 -- Its glow's level and look (out of combat: the host restyles its sensor)
 function B.styleGlow(def)
 	if not def.fx or InCombatLockdown() then return end
@@ -1216,9 +1224,7 @@ function B.applyLayout()
 			B.setupAura(def)
 			if def.refilterDue then
 				def.refilterDue = false
-				def.aura:refilter()
-				for _, look in ipairs(def.looks) do look:refilter(); look:checkIDs() end
-				if def.fx then def.fx:refilter(); def.fx:checkIDs() end
+				B.refilterAura(def)
 			end
 			def.aura:style()
 			styleGlow(def)
@@ -1327,7 +1333,7 @@ function B.start()
 	ev:SetScript("OnEvent", function(_, event, timer, _, _, scale)
 		if event == "GROUP_ROSTER_UPDATE" then return partyRoster() end
 		if event == "UNIT_AURA" then
-			if InCombatLockdown() then return end   -- secret in combat
+			if not ns.aurasReadable() then return end
 			-- The Reagent Economy perk may have just come as its aura
 			for _, def in ipairs(BUFFS) do
 				if def.reagent and E.inUse(def.key) then ns.Reagents.auraChanged() break end

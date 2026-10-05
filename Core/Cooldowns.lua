@@ -76,7 +76,7 @@ local MANA = Enum.PowerType and Enum.PowerType.Mana or 0
 local lowCurves = ns.cache(32, function(under) return ns.curve({ 0, 1, under / 100, 0 }, "Step") or false end)
 local function lowCurve(under) return lowCurves(under, under) or nil end
 local function lowManaOn(def)
-	return def.spellID ~= nil and E.isEnabled(def.key) and setting(def.key, "lowMana", "glow") == true
+	return E.inUse(def.key) and setting(def.key, "lowMana", "glow") == true
 end
 ns.registerPart("lowMana", {
 	defaults = { lowMana = { glow = false, under = 30 } },
@@ -475,7 +475,7 @@ end
 CD.readyAlpha = readyAlpha
 local function refreshReadyGlow(def, cantAct)
 	local f = def.frame
-	local on = def.spellID and E.isEnabled(def.key) and setting(def.key, "ready", "glow") and hasTimeLeftCurve
+	local on = E.inUse(def.key) and setting(def.key, "ready", "glow") and hasTimeLeftCurve
 		and noTimeLeftCurve
 	f.readyGlow:SetShown(on and true or false)
 	if not on then return end
@@ -507,7 +507,7 @@ local function syncReadyTicker()
 	local want = false
 	if E.isActive() then
 		for _, def in ipairs(COOLDOWNS) do
-			if def.frame.readyGate and E.isEnabled(def.key) and setting(def.key, "ready", "glow") then want = true end
+			if def.frame.readyGate and E.inUse(def.key) and setting(def.key, "ready", "glow") then want = true end
 			if partTicks(def) then want = true end
 		end
 	end
@@ -532,14 +532,14 @@ function CD.resolve()
 	return table.concat(sig, ",")
 end
 
--- Expiring ticks only for a row that's on
+-- Expiring ticks only for a row in use
 function CD.applyTimers()
 	for _, def in ipairs(COOLDOWNS) do
 		local f = def.frame
 		f.cdTimer:apply()
 		if f.upTimer then
 			f.upTimer:apply()
-			f.upTimer:setExpire(E.isEnabled(def.key) and E.event(def.key, "expire") or nil, def.iconID or def.icon)
+			f.upTimer:setExpire(E.inUse(def.key) and E.event(def.key, "expire") or nil, def.iconID or def.icon)
 		end
 	end
 end
@@ -562,7 +562,7 @@ function CD.onCast(spellID)
 	local key = Spells.keyOf(spellID)
 	if not key then return end
 	for _, def in ipairs(COOLDOWNS) do
-		if def.spellID and E.isEnabled(def.key) and key == def.spellKey then CD.noteCast(def.frame, def.spellID) end
+		if E.inUse(def.key) and key == def.spellKey then CD.noteCast(def.frame, def.spellID) end
 	end
 end
 
@@ -583,7 +583,7 @@ function CD.start()
 		if event == "BAG_UPDATE_DELAYED" then
 			for _, def in ipairs(COOLDOWNS) do if def.reagent then refreshCooldown(def) end end
 		elseif event == "UNIT_AURA" then
-			if InCombatLockdown() then return end   -- secret in combat
+			if not ns.aurasReadable() then return end
 			local perkUnknown = R.auraChanged()
 			for _, def in ipairs(COOLDOWNS) do
 				if def.reagent and perkUnknown then refreshCooldown(def) end

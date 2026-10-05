@@ -392,7 +392,7 @@ local function checkNewName(name)
 	if acct().profiles[name] then return "there is already a profile called " .. name end
 end
 
--- Profile changes are refused in combat, before anything changes: settings would apply while the layout waits
+-- Layout and profile changes are refused in combat, before anything changes: they'd apply while the layout waits
 function P.refusedInCombat()
 	if not ns.inCombat() then return false end
 	ns.say("layout changes wait until combat ends")

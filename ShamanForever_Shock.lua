@@ -46,7 +46,7 @@ CS.watch("shock", { frame = shock, power = true, range = true,
 	spells = function() return manaSpellID, shockSpellID end })
 
 local function refreshCooldown(inEvent)
-	if not shockSpellID or not E.isEnabled("shock") then
+	if not E.inUse("shock") then
 		idleDef.cdRunning, idleDef.idle, idleDef.idleAt = nil, nil, nil
 		W.fadeTo(shock, 1)
 		return CD.resetReady(shock, true)
@@ -67,7 +67,7 @@ shock.ownCd:HookScript("OnCooldownDone", function() C_Timer.After(0, refreshCool
 
 -- Ready glow
 local function refreshGlow()
-	local on = shockSpellID and E.isEnabled("shock") and own("ready", "glow") and ns.CURVE_OVER
+	local on = E.inUse("shock") and own("ready", "glow") and ns.CURVE_OVER
 	shock.glowF:SetShown(on and true or false)
 	if not on then return end
 	shock.glowF:fit(shock:GetWidth())
@@ -75,7 +75,7 @@ local function refreshGlow()
 end
 local glowTicker = ns.ticker(0.1, refreshGlow)
 local function syncGlowTicker()
-	local want = E.isActive() and E.isEnabled("shock") and own("ready", "glow")
+	local want = E.isActive() and E.inUse("shock") and own("ready", "glow")
 	glowTicker:SetShown(want and true or false)
 	if not want then refreshGlow() end
 end
@@ -408,7 +408,7 @@ SK.onCooldowns = refreshCooldown
 local SHOCK_KEY = {}
 for _, spell in pairs(SHOCK_SPELL) do SHOCK_KEY[spell] = true end
 function SK.onCast(spellID)
-	if shockSpellID and E.isEnabled("shock") and SHOCK_KEY[Spells.keyOf(spellID)] then CD.noteCast(shock, shockSpellID) end
+	if E.inUse("shock") and SHOCK_KEY[Spells.keyOf(spellID)] then CD.noteCast(shock, shockSpellID) end
 end
 
 function SK.tick() ns.try("shock refresh", refreshCooldown) end

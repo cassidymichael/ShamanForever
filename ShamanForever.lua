@@ -23,6 +23,7 @@ local GROUP_DEFAULTS = {
 	show = "always",
 	fadeAfter = 0,   -- seconds (0: none)
 }
+-- Also saved, dropped by an import: fresh (true: placed by an update, not shown yet; settleFresh)
 -- A group's Show as its state driver's conditions; "harm" is any target you can attack, alive
 local SHOW_WHEN = {
 	combat = "[combat] show; hide",
@@ -223,12 +224,13 @@ end
 --   sanitize(db, acct)     a profile loaded
 --   applyTimers()          every timer takes its current style
 --   applyLayout()          after a layout. Every change to which elements are in use (switched, grouped,
---                          learned, a profile) ends in one, then a refresh: a module starts and stops its
+--                          learned, a profile) ends in one, then a refresh; a part's own switch (an aura
+--                          state's Show it, a buff bar) ends in one alone. A module starts and stops its
 --                          elements' work here (events: ns.eventsWhile, tickers, aura containers, engine
 --                          sounds, state drivers), gated on E.inUse (the preview's Show not learned lays
 --                          out only). An element not in use runs nothing, and refresh reads its state
 --                          anew when it's back. A bar's own switches don't come here: a bar that shares
---                          work with elements (cast states, totem slots) has it synced from its own layout.
+--                          work with elements (cast states, a class module's watch) has it synced from its own layout.
 --   afterGroups()          the groups were just laid out
 --   refresh()              read everything again
 --   onCooldowns(inEvent)   a cast, a cooldown or a module's own state changed
@@ -345,9 +347,9 @@ local function sizeOf(key)
 	return box - 2 * ns.StyleArt.inset(e.borderHost or e.frame, E.borderFor(key), box, e.shape)
 end
 
--- Whether the element is in use: on, in a group, and on the HUD. What it draws is gated on this.
+-- Whether the element is drawn: on, in a group, and on the HUD. What it draws is gated on this.
 local function isEnabled(key) return groupOf(key) ~= nil and isOn(key) and onHUD(key) end
--- In use and learned: the gate for work that reads the game (the preview can draw an unlearned one)
+-- In use: drawn and learned, the gate for work that reads the game (the preview can draw an unlearned one)
 local function inUse(key) return isEnabled(key) and isLearned(key) end
 
 local function removeElement(key)
@@ -482,6 +484,7 @@ local function sanitize()
 	for _, g in ipairs(db.groups) do
 		for k, v in pairs(GROUP_DEFAULTS) do if g[k] == nil then g[k] = v end end
 		if g.show ~= "combat" and g.show ~= "target" then g.show = "always" end
+		if g.fresh ~= true then g.fresh = nil end
 		local kept = {}
 		for _, key in ipairs(type(g.members) == "table" and g.members or {}) do
 			if ELEMENTS[key] and not seen[key] then
@@ -863,7 +866,7 @@ end
 -- full: an element may leave the HUD or come back, so modules set its sounds, containers and tickers again
 local function edit(fn, full)
 	return function(...)
-		if InCombatLockdown() then say("layout changes wait until combat ends"); return false end
+		if P.refusedInCombat() then return false end
 		local result = fn(...)
 		if full then
 			applyLayout()
@@ -927,7 +930,7 @@ local deleteGroup = edit(function(id)
 end, true)
 
 local setShow = edit(function(key, mode)
-	elementOpts(key).show = mode ~= (elementDefault(key, "show") or "always") and mode or nil
+	elementOpts(key).show = mode ~= elementDefault(key, "show") and mode or nil
 end)
 
 local setOn = edit(function(key, on)
