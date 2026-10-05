@@ -329,10 +329,11 @@ local function buffBarOn(x)
 	local def = x.def
 	return x.learned and def.spellID ~= nil and E.isEnabled(def.key) and setting(def.key, "buffBar") == true
 end
--- Where it sits on anchor, in Time left's style s: the edge its bar doesn't use, inside the picture
-local function placeBuffBar(bar, anchor, key, school)
+-- Where it sits on anchor, in Time left's style: the edge its bar doesn't use, inside the picture of
+-- icon (the element's icon, the same box: Blizzard's button has no border of its own)
+local function placeBuffBar(bar, anchor, key, school, icon)
 	local s = ns.Style.get(key, "uptime")
-	local pic = ns.StyleArt.pictureInset(anchor)
+	local pic = ns.StyleArt.pictureInset(icon or anchor)
 	local edge = s.barEdge == "top" and "BOTTOM" or "TOP"
 	local y = edge == "TOP" and -pic or pic
 	bar:ClearAllPoints()
@@ -370,7 +371,7 @@ local function styleBuffBar(x)
 		x.container:SetFrameLevel(f.textFrame:GetFrameLevel() + 5)
 		if not x.button then return end
 		x.button:SetSize(size, size)
-		if x.bar then placeBuffBar(x.bar, x.button, def.key, x.spec.school) end
+		if x.bar then placeBuffBar(x.bar, x.button, def.key, x.spec.school, f) end
 	end)
 	if not ok then ns.retryAfterCombat(site, function() styleBuffBar(x) end) end
 end
