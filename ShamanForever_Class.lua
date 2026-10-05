@@ -249,7 +249,7 @@ ns.Spells.add({
 	flurryBuff      = { ids = { 16257 }, byID = true, en = "Flurry" },
 	improvedStormstrike = { ids = { 1223031 }, en = "Improved Stormstrike" },
 	improvedStormstrikeBuff = { ids = { 1238931 }, byID = true, en = "Improved Stormstrike" },
-	-- Spells that spend a primed effect
+	-- Other spells
 	healingWave     = { ids = { 331 }, en = "Healing Wave" },
 	lesserHealingWave = { ids = { 8004 }, en = "Lesser Healing Wave" },
 	chainHeal       = { ids = { 1064 }, en = "Chain Heal" },

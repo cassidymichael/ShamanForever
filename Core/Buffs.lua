@@ -719,8 +719,9 @@ ns.registerPart("auraState", {
 		active = function(def)
 			local a = def.auraState.active
 			if not a then return nil end
+			local state = a.title:lower()
 			return { title = a.title, text = a.text, on = { "Show it", "Off, it's just a cooldown." },
-				tips = { pop = "The moment it's up.", glow = "While it's up." } }
+				tips = { pop = "The moment it's " .. state .. ".", glow = "While it's " .. state .. "." } }
 		end,
 	},
 	preview = {

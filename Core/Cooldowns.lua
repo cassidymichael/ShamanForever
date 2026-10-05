@@ -1,7 +1,6 @@
 -- Cooldown elements: the cooldown kind, its parts and its engine
 -- No secret is read: durations go to widgets, alphas from curves to SetAlpha.
--- Buff windows and primed states are inferred from our own casts (a primed buff is corrected from
--- its aura when readable).
+-- Buff windows are inferred from our own casts.
 
 local _, ns = ...
 local P = ns.Profiles
@@ -16,7 +15,7 @@ ns.Cooldowns = CD
 local setting = E.setting
 
 -- Elements: the class's rows (ns.CLASS.cooldowns). A row's fields: key, spellKey, icon, school,
--- blurb, experimental; its parts' flags (this file's parts: window (seconds from our cast), primed,
+-- blurb, experimental; its parts' flags (this file's parts: window (seconds from our cast),
 -- readyGlow, lowMana, noReadyPop, readyAtReset; others' below, auraState in _Buffs); expireLooks (which looks Expiring
 -- offers; false: none), race (race IDs; others see "Not your race"), cd and duration (preview only),
 -- defaults (over the parts'), choices, styles and timerCant (see E.register).
@@ -35,7 +34,7 @@ local function heldChoices(held)
 		{ IDLE_ONCD[1], "Cooling down, " .. held, IDLE_ONCD[3], IDLE_ONCD[4] } }
 end
 
--- Time left: its page has a Time left block (a window, a primed state with a length, a part's)
+-- Time left: its page has a Time left block (a window, a part's)
 local function hasUptime(def) return KD.words("cooldown", def, "uptime") ~= nil end
 
 ns.registerPart("cooldown", {
@@ -136,39 +135,6 @@ ns.registerPart("window", {
 		end,
 	},
 })
--- Primed by our cast until spent: { spends, duration, buffKey, text }; primedLooks false:
--- no pop or glow of its own. Its switch off (active.on), it's a plain cooldown
-local function primedOn(def) return setting(def.key, "active", "on") ~= false end
-ns.registerPart("primed", {
-	defaults = function(def)
-		local a = { on = true }
-		if def.primedLooks ~= false then a.pop, a.glow = true, true end
-		return { active = a }
-	end,
-	glow = function(def) return def.primedLooks ~= false end,
-	pop = function(def) return def.primedLooks ~= false end,
-	idle = { held = "not primed", also = " and it isn't primed" },
-	page = {
-		uptime = function(def) return def.primed.duration and "Primed time left" or nil end,
-		active = function(def)
-			return { title = "Primed", text = def.primed.text, on = { "Show it", "Off, it's just a cooldown." },
-				tips = { pop = "The moment it's primed.", glow = "While it's primed." } }
-		end,
-	},
-	preview = {
-		uptime = function(def) return def.primed.duration ~= nil end,
-		states = { { "primed", "Primed", 60 } },
-		-- Its switch off, nothing of it: the plain cooldown
-		render = function(ic, st, def, kit)
-			if st ~= "primed" or not primedOn(def) then return end
-			ic:SetGlowShown(setting(def.key, "active", "glow"))
-			if def.primed.duration then kit.frozen(ic.upT, 0.3, def.primed.duration) end
-		end,
-		pop = function(ic, st, def)
-			if st == "primed" and primedOn(def) and setting(def.key, "active", "pop") then ic:Pop("ready") end
-		end,
-	},
-})
 -- A part's runtime hooks (each optional; parts from other files bring their own):
 --   refresh(def, inEvent, held)  draws its state on def.frame; returns held, or true where its
 --                                state keeps the element shown (its Idle choices applied)
@@ -199,7 +165,7 @@ local function checkFrames(def)
 end
 
 ns.registerKind("cooldown", {
-	parts = { "cooldown", "ready", "readyGlow", "lowMana", "window", "primed" },
+	parts = { "cooldown", "ready", "readyGlow", "lowMana", "window" },
 	slots = { "own", "warn", "cast", "ready", "lowMana", "active", "expire", "killed", "cooldown", "gcd", "uptime" },
 	prepare = function(def)
 		-- auraState's Expiring is the engine's (_Buffs)
@@ -384,7 +350,7 @@ end
 local function fadeTo(def, alpha) W.fadeTo(def.frame, alpha) end
 
 -- def needs key, frame, spellID and refresh (other engines pass such a table too); held: something
--- of its own keeps it shown (a window or primed buff, low reagents, a part's state)
+-- of its own keeps it shown (a window, low reagents, a part's state)
 local function applyIdle(def, held, inEvent)
 	local when = setting(def.key, "idleWhen")
 	local running, certain = ownCooldownRunning(def, inEvent)
@@ -406,72 +372,29 @@ CD.applyIdle = applyIdle
 -- Remaining seconds -> alpha
 local noTimeLeftCurve = ns.CURVE_OVER
 
--- Buff windows and primed buffs
-local function showPrimed(def, on, pop)
-	local f, key = def.frame, def.key
-	f:SetGlowShown(on and setting(key, "active", "glow"))
-	if on and pop and setting(key, "active", "pop") then f:Pop("ready") end
-end
+-- Buff windows
 
 local function endActive(def)
 	if not def.activeUntil then return end
 	def.activeUntil, def.activeToken = nil, nil
 	local f = def.frame
 	if f.upTimer then f.upTimer:clear(); f.activeHolder:SetAlpha(0) end
-	if def.primed then showPrimed(def, false) end
 end
 
--- quiet: already known (an aura read confirming it), so no pop
-local function startActive(def, start, length, quiet)
+local function startActive(def, start, length)
 	local f = def.frame
-	def.activeUntil = length and start + length or math.huge
+	def.activeUntil = start + length
 	local token = {}
 	def.activeToken = token
-	if f.upTimer then
-		if length then f.upTimer:setTime(start, length); f.activeHolder:SetAlpha(1)
-		else f.upTimer:clear(); f.activeHolder:SetAlpha(0) end
-	end
-	if def.primed then showPrimed(def, true, not quiet) end
-	if length then
-		C_Timer.After(math.max(start + length - GetTime(), 0) + 0.05, function()
-			if def.activeToken == token then endActive(def); refreshCooldown(def) end
-		end)
-	end
+	if f.upTimer then f.upTimer:setTime(start, length); f.activeHolder:SetAlpha(1) end
+	C_Timer.After(math.max(start + length - GetTime(), 0) + 0.05, function()
+		if def.activeToken == token then endActive(def); refreshCooldown(def) end
+	end)
 end
 
 local function isActive(def)
 	if def.activeUntil and GetTime() >= def.activeUntil then endActive(def) end
 	return def.activeUntil ~= nil
-end
-
--- A missing buff within a moment of our cast doesn't end it (the aura can arrive after the cast event)
-local CAST_GRACE = 1.5
-local function readPrimedBuff(def, fromAura)
-	local buffKey = def.primed and def.primed.buffKey
-	if not buffKey or not primedOn(def) or not ns.aurasReadable() or not C_UnitAuras then return end
-	local found
-	local function usable(ok, a)
-		return ok and type(a) == "table" and not isSecret(a.expirationTime) and not isSecret(a.duration)
-	end
-	for id in pairs(Spells.ids(buffKey)) do
-		local ok, a = safe(C_UnitAuras.GetPlayerAuraBySpellID, id)
-		if usable(ok, a) then found = a break end
-	end
-	if not found then
-		local ok, a = safe(C_UnitAuras.GetAuraDataBySpellName, "player", Spells.name(buffKey), "HELPFUL")
-		if usable(ok, a) then found = a end
-	end
-	if not found then
-		if not (def.castAt and GetTime() - def.castAt < CAST_GRACE) then endActive(def) end
-		return
-	end
-	-- Just spent: an aura event can still carry the buff; don't bring it back
-	if not def.activeUntil and def.spentAt and GetTime() - def.spentAt < CAST_GRACE then return end
-	local exp, dur = found.expirationTime, found.duration
-	local was = def.activeUntil ~= nil
-	if type(exp) == "number" and type(dur) == "number" and exp > 0 and dur > 0 then
-		if not was or math.abs(def.activeUntil - exp) > 0.2 then startActive(def, exp - dur, dur, was or not fromAura) end
-	elseif not was then startActive(def, GetTime(), nil, not fromAura) end
 end
 
 function refreshCooldown(def, inEvent)
@@ -503,9 +426,7 @@ function refreshCooldown(def, inEvent)
 	local dur, bar = cooldownFor(f, def.key, def.spellID, inEvent)
 	if dur then f.cdTimer:set(dur, bar) end
 	f.tex:SetDesaturated(false)
-	if def.primed and not primedOn(def) then endActive(def) end
 	local held = isActive(def)
-	if def.primed then showPrimed(def, held) end
 	if def.reagent then
 		local hold, ring, pulse = R.refresh(def)
 		if hold then held = true end
@@ -538,10 +459,6 @@ CD.soundWhenReady = soundWhenReady
 
 for _, def in ipairs(COOLDOWNS) do
 	def.refresh = refreshCooldown
-	if def.primed then
-		def.spends = {}
-		for _, k in ipairs(def.primed.spends) do def.spends[k] = true end
-	end
 	local function gate()
 		local g = KD.hook("cooldown", def, "gate")
 		if g then return g(def) end
@@ -657,12 +574,7 @@ function CD.applyLayout()
 	syncReadyTicker()
 end
 
-function CD.refresh()
-	for _, def in ipairs(COOLDOWNS) do
-		if def.spellID and def.primed then readPrimedBuff(def) end
-	end
-	refreshCooldowns()
-end
+function CD.refresh() refreshCooldowns() end
 
 function CD.onCast(spellID)
 	local key = Spells.keyOf(spellID)
@@ -671,17 +583,7 @@ function CD.onCast(spellID)
 	for _, def in ipairs(COOLDOWNS) do
 		if def.spellID and E.isEnabled(def.key) then
 			if key == def.spellKey then CD.noteCast(def.frame, def.spellID) end
-			if def.window and key == def.spellKey then
-				startActive(def, now, def.window)
-			elseif def.primed and primedOn(def) then
-				if key == def.spellKey then
-					def.castAt = now
-					startActive(def, now, def.primed.duration, def.activeUntil ~= nil)
-				elseif def.activeUntil and def.spends[key] then
-					def.spentAt = now
-					endActive(def)
-				end
-			end
+			if def.window and key == def.spellKey then startActive(def, now, def.window) end
 		end
 	end
 end
@@ -707,9 +609,7 @@ function CD.start()
 			if InCombatLockdown() then return end   -- secret in combat
 			local perkUnknown = R.auraChanged()
 			for _, def in ipairs(COOLDOWNS) do
-				if def.spellID and def.primed and def.primed.buffKey and E.isEnabled(def.key) then
-					readPrimedBuff(def, true); refreshCooldown(def)
-				elseif def.reagent and perkUnknown then refreshCooldown(def) end
+				if def.reagent and perkUnknown then refreshCooldown(def) end
 			end
 		end
 	end)
@@ -717,7 +617,7 @@ function CD.start()
 	ns.onCanActChange(function(event)
 		if event ~= "PLAYER_DEAD" then return end
 		for _, def in ipairs(COOLDOWNS) do
-			if def.window or (def.primed and def.primed.buffKey) then
+			if def.window then
 				endActive(def)
 				refreshCooldown(def)
 			end
@@ -734,11 +634,8 @@ function CD.debug()
 			if d then words = words .. d(def) .. ", " end
 		end
 		local extra = ""
-		if def.window or def.primed then
-			extra = def.activeUntil and string.format(", %s for %s", def.primed and "primed" or "window",
-				def.activeUntil == math.huge and "until spent"
-					or string.format("%.1f s", def.activeUntil - GetTime())) or ", not active"
-			if def.primed and not primedOn(def) then extra = ", primed off" end
+		if def.window then
+			extra = def.activeUntil and string.format(", window for %.1f s", def.activeUntil - GetTime()) or ", not active"
 		end
 		if def.reagent then
 			extra = string.format("%s, reagent %s (takes it: %s, Reagent Economy %s)", extra,
