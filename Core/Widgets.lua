@@ -497,10 +497,11 @@ function Count.text(slot, button, parent, place, site)
 	return fs
 end
 
-local formatters = ns.cache(8, function(code, markAt, max, site)
+local formatters = ns.cache(8, function(code, markAt, max, site, from)
 	local ok, new = ns.try(site, function()
 		local x = C_StringUtil.CreateNumericRuleFormatter()
-		local rules = { { threshold = 0, format = "%d" } }
+		local rules = { { threshold = 0, format = from > 0 and "" or "%d" } }
+		if from > 0 then table.insert(rules, { threshold = from, format = "%d" }) end
 		if code ~= "" then
 			table.insert(rules, { threshold = markAt, format = code .. "%d|r" })
 			if markAt < max then table.insert(rules, { threshold = markAt + 1, format = "%d" }) end
@@ -509,7 +510,8 @@ local formatters = ns.cache(8, function(code, markAt, max, site)
 		for n = 0, max do
 			local text = x:FormatNumber(n)
 			local coloured = code ~= "" and n == markAt
-			if type(text) ~= "string" or ns.isSecret(text) or (coloured and not text:lower():find(code, 1, true)) then
+			local blank = n < from and text ~= ""
+			if type(text) ~= "string" or ns.isSecret(text) or blank or (coloured and not text:lower():find(code, 1, true)) then
 				error(string.format("formatted %d as %s", n, tostring(text)))
 			end
 		end
@@ -517,12 +519,14 @@ local formatters = ns.cache(8, function(code, markAt, max, site)
 	end)
 	return ok and new or false
 end)
--- Prints every count from 0 (without one Blizzard prints from 2), markAt in markColor (nil: none).
--- Tried on 0 to max first: an error would stop Blizzard's aura update. nil if the client can't.
-function Count.formatter(markColor, markAt, max, site)
+-- Prints every count from 0, or from `from` (nothing below it; without one Blizzard prints from 2),
+-- markAt in markColor (nil: none). Tried on 0 to max first: an error would stop Blizzard's aura
+-- update. nil if the client can't.
+function Count.formatter(markColor, markAt, max, site, from)
 	if not (C_StringUtil and C_StringUtil.CreateNumericRuleFormatter) then return nil end
 	local code = markColor and ns.colorCode(markColor) or ""
-	return formatters(code .. ":" .. tostring(markAt) .. ":" .. max, code, markAt, max, site) or nil
+	from = from or 0
+	return formatters(code .. ":" .. tostring(markAt) .. ":" .. max .. ":" .. from, code, markAt, max, site, from) or nil
 end
 
 -- Hands the button a formatter (nil: Blizzard's own count), once per change

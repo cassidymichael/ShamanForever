@@ -108,9 +108,9 @@ local function styleCharges(def, slot, size, button)
 	Count.styleBar(slot, size, def.charges, charge(def, "barHeight"), charge(def, "barColor"), charge(def, "bar"))
 	slot.fs:SetAlpha(charge(def, "number") and 1 or 0)
 	placeCharges(def, slot.fs, button or slot.button)
-	-- Every count from 1 (Blizzard's own prints only from 2), once the slot has its button
+	-- Every count from 1 (Blizzard's own prints only from 2), none at 0, once the slot has its button
 	if slot.button then
-		Count.setFormat(slot, Count.formatter(nil, def.charges, def.charges, site .. " formatter"), site)
+		Count.setFormat(slot, Count.formatter(nil, def.charges, def.charges, site .. " formatter", 1), site)
 	end
 end
 ns.registerPart("charges", {
