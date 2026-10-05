@@ -60,7 +60,7 @@ for key, m in pairs(IMBUES) do
 end
 
 local imbueState = { on = nil, key = nil, expiresAt = nil, total = nil, unreadable = false, read = "not checked",
-	castKey = nil, castAt = 0, changedAt = 0 }
+	castKey = nil, castAt = 0, changedAt = 0, item = nil, itemAt = 0 }
 
 imbue.upTimer = ns.Timer.new(imbue, "imbue", "uptime", { cd = imbue.cd, school = "spirit" })
 imbue.timer = imbue.textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
@@ -88,11 +88,13 @@ local function readMainHand()
 	return false
 end
 
-local function hasWeapon()
+-- nil with no weapon, false when it can't be read
+local function mainHandItem()
 	local ok, id = ns.safe(GetInventoryItemID, "player", MAIN_HAND_SLOT)
-	if not ok or isSecret(id) then return true end
-	return id ~= nil
+	if not ok or isSecret(id) then return false end
+	return id
 end
+local function hasWeapon() return mainHandItem() ~= nil end
 
 local function imbueKeyFor(w)
 	local key = P.getAccount().imbueIDs[w.enchantID] or imbueByID[w.enchantID]
@@ -180,6 +182,8 @@ function IM.refresh()
 	if not anyKnown then drawNotLearned() return end
 	local acct = P.getAccount()
 	local now = GetTime()
+	local item = mainHandItem()
+	if item ~= false and item ~= imbueState.item then imbueState.item, imbueState.itemAt = item, now end
 	local r = readMainHand()
 	-- An enchant read empty around a loading screen: the last state stays
 	if r == false and imbueState.on and ns.zoning() then return end
@@ -208,10 +212,10 @@ function IM.refresh()
 		imbueState.expiresAt = r.timeLeft > 0 and now + left or nil
 		if key then acct.imbueLast = key end
 	end
-	-- No weapon still warns
+	-- No weapon still warns, but a weapon taken off keeps its imbue: no lost pop for a changed weapon
 	local quiet = ns.cantAct()
 	drawImbue(now, quiet)
-	if had and r == false and not quiet then
+	if had and r == false and not quiet and now - imbueState.itemAt >= 1 then
 		if warn("pop") then imbue:Pop("lost") end
 		if imbue:IsVisible() then ns.Sounds.element("imbue", "warn") end
 	end
