@@ -760,6 +760,8 @@ end
 local function notSchooled(e) return not e.bySchool end
 
 function SP.build(p)
+	-- Samples at their real size, laid out to the page's width by their own scale
+	p.fullSize = true
 	header(p)
 	p:header("Border style")
 	settingsNote(p, "Its settings are on each element's page and in", "border")
