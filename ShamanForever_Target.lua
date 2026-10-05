@@ -597,6 +597,7 @@ function TG.resolve()
 		ns.Buffs.resolveAura(def)
 		table.insert(sig, tostring(def.spellID))
 	end
+	for _, x in pairs(DEBUFFS) do x.slot:refilter() end
 	return table.concat(sig, ",")
 end
 

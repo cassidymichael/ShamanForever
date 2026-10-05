@@ -1111,6 +1111,7 @@ function B.resolve()
 	end
 	for _, x in ipairs(BUFF_BARS) do
 		x.learned = Spells.known(x.spec.talentKey) ~= nil
+		x.slot:refilter()
 		table.insert(sig, tostring(x.learned))
 	end
 	return table.concat(sig, ",")
