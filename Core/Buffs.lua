@@ -846,9 +846,10 @@ for _, def in ipairs(ns.CLASS.cooldowns or {}) do
 	if def.buffBar then table.insert(BUFF_BARS, { def = def, spec = def.buffBar }) end
 end
 local barsPreviewing = false
+local function buffBarShown(def) return setting(def.key, "buffBar") == true end
 local function buffBarOn(x)
 	local def = x.def
-	return x.learned and def.spellID ~= nil and E.isEnabled(def.key) and setting(def.key, "buffBar") == true
+	return x.learned and def.spellID ~= nil and E.isEnabled(def.key) and buffBarShown(def)
 end
 -- Where it sits on anchor, in Time left's style: the edge its bar doesn't use, inside the picture of
 -- icon (the element's icon, the same box: Blizzard's button has no border of its own)
@@ -958,7 +959,7 @@ ns.registerPart("buffBar", {
 		render = function(ic, st, def, kit)
 			local bar = ic.buffBar
 			if st == "buffBar" then kit.frozen(ic.cdT, 0.4, def.cd or 60) end
-			if st ~= "buffBar" or setting(def.key, "buffBar") ~= true then
+			if st ~= "buffBar" or not buffBarShown(def) then
 				if bar then bar:Hide() end
 				return
 			end
@@ -976,7 +977,7 @@ ns.registerPart("buffBar", {
 		debug = function(def)
 			local x = buffBarOf(def)
 			local name = Spells.name(def.buffBar.buffKey)
-			if setting(def.key, "buffBar") ~= true then return name .. " bar off" end
+			if not buffBarShown(def) then return name .. " bar off" end
 			if not x.learned then return name .. " bar: talent not learned" end
 			return string.format("%s bar: container %s%s", name, x.container and "made" or "not made",
 				x.err and (", error: " .. x.err) or "")
