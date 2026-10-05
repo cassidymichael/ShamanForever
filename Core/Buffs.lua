@@ -970,6 +970,7 @@ end
 local function partyLayout()
 	for _, x in ipairs(PARTIES) do
 		makeParty(x)
+		if not partyOn(x) then x.members = nil end
 		if partyOn(x) then
 			for _, slot in pairs(x.slots) do
 				slot:setup()
@@ -981,17 +982,29 @@ local function partyLayout()
 		partyGlows(x)
 	end
 end
--- A party member joined or left: each unit may now be someone else
+-- Who a party unit is: its GUID, "" for nobody; nil when it can't be told (secret), which always reads again
+local function memberOf(unit)
+	local ok, guid = safe(UnitGUID, unit)
+	if not ok or isSecret(guid) then return nil end
+	return type(guid) == "string" and guid or ""
+end
+-- Only a unit that is now someone else is read again: a lit glow on one who stayed doesn't blink
 local function partyRoster()
 	for _, x in ipairs(PARTIES) do
-		for _, slot in pairs(x.slots) do
-			local c = slot.container
-			if c and not ns.try("party refresh " .. x.def.key, c.UpdateAllAuras, c) then
-				ns.retryAfterCombat("party refresh", partyRoster)
+		if partyOn(x) then
+			x.members = x.members or {}
+			for _, unit in ipairs(PARTY_UNITS) do
+				local who = memberOf(unit)
+				if who == nil or who ~= x.members[unit] then
+					local ok = true
+					local c = x.slots[unit] and x.slots[unit].container
+					if c then ok = ns.try("party refresh " .. x.def.key, c.UpdateAllAuras, c) end
+					local look = x.glows and x.glows[unit]
+					if look and not look:follow(unit) then ok = false end
+					x.members[unit] = ok and who or nil
+					if not ok then ns.retryAfterCombat("party refresh", partyRoster) end
+				end
 			end
-		end
-		for unit, look in pairs(x.glows or {}) do
-			if not look:follow(unit) then ns.retryAfterCombat("party refresh", partyRoster) end
 		end
 	end
 end
