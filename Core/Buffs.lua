@@ -607,6 +607,7 @@ end
 -- The engine pops at each assignment, also of an aura already up (login, a loading screen, a new
 -- container): its parts stay off for QUIET seconds after one, started out of combat only
 local QUIET = 2
+-- A flag its style applies, not B.quietAura's direct call: the rig comes with a button, often after the quiet starts
 local function quietState(x)
 	if not x.fx or not ns.aurasReadable() then return end
 	local token = {}
