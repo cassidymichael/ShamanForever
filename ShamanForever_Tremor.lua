@@ -197,15 +197,16 @@ local function listed(unit)
 	return nil
 end
 
--- Watching
+-- Watching: only while it's on and learned
 local targetListed = false
 local plates = {}
 local feared = false
 local holdUntil = 0
 local controlSeen = {}
+local function watching() return E.isEnabled(KEY) and def.spellID ~= nil end
 
 local function checkTarget()
-	targetListed = own("tremorTarget") and listed("target") == true or false
+	targetListed = watching() and own("tremorTarget") and listed("target") == true or false
 end
 
 local function checkPlate(unit)
@@ -213,7 +214,7 @@ local function checkPlate(unit)
 end
 local function checkAllPlates()
 	wipe(plates)
-	if not own("tremorPlates") then return end
+	if not (watching() and own("tremorPlates")) then return end
 	for i = 1, 40 do checkPlate("nameplate" .. i) end
 end
 
@@ -236,6 +237,7 @@ end
 local function readControl()
 	local was = feared
 	feared = false
+	if not watching() then return end
 	local C = C_LossOfControl
 	local n = C and plain(safe(C.GetActiveLossOfControlDataCount))
 	for i = 1, type(n) == "number" and n or 0 do
@@ -407,7 +409,9 @@ end
 
 function TR.afterGroups() styleWord(f.word, f) end
 
+local events   -- set(on), from start
 function TR.applyLayout()
+	if events then events(watching()) end
 	styleWord(f.word, f)
 	checkTarget()
 	checkAllPlates()
@@ -418,6 +422,7 @@ end
 TR.onCooldowns = refresh
 
 function TR.tick()
+	if not watching() then return end
 	checkTarget()
 	if feared then readControl() end
 	refresh()
@@ -427,12 +432,8 @@ function TR.start()
 	for _, id in ipairs(TR.SPELLS) do tremorSpells[id] = true end
 	rebuild()
 	local ev = CreateFrame("Frame")
-	for _, event in ipairs({ "PLAYER_TARGET_CHANGED", "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED",
-		"PLAYER_ENTERING_WORLD" }) do
-		ns.registerEvent(ev, event)
-	end
-	ns.registerEvent(ev, "LOSS_OF_CONTROL_ADDED", "player")
-	ns.registerEvent(ev, "LOSS_OF_CONTROL_UPDATE", "player")
+	events = ns.eventsWhile(ev, { "PLAYER_TARGET_CHANGED", "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED",
+		"PLAYER_ENTERING_WORLD", { "LOSS_OF_CONTROL_ADDED", "player" }, { "LOSS_OF_CONTROL_UPDATE", "player" } })
 	ev:SetScript("OnEvent", function(_, event, unit)
 		if event == "PLAYER_TARGET_CHANGED" then checkTarget()
 		elseif event == "NAME_PLATE_UNIT_ADDED" then
@@ -446,9 +447,6 @@ function TR.start()
 		else readControl() end
 		refresh()
 	end)
-	checkTarget()
-	checkAllPlates()
-	readControl()
 	ns.onCanActChange(refresh)
 end
 
