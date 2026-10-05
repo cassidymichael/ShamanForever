@@ -134,10 +134,18 @@ local function applyAura(owner, now)
 	local enum = Enum and Enum.UnitAuraSoundTrigger
 	local trigger = enum and enum[a.trigger] or (a.trigger == "Removed" and REMOVED or nil)
 	if not trigger then return end
+	local declined, secret = false, false
 	for _, id in ipairs(list) do
 		local ok, h = ns.try("aura sound: add", add, trigger, { unitToken = "player", spellID = id,
 			soundFileID = file, outputChannel = SN.channel(), throttleSeconds = 1 })
-		if ok and type(h) == "number" and not ns.isSecret(h) then table.insert(a.handles, h) end
+		if ok and ns.isSecret(h) then secret = true
+		elseif ok and type(h) == "number" then table.insert(a.handles, h)
+		elseif ok and h == nil then declined = true end
+	end
+	-- Declined: all of it again after combat or the restriction, never past a secret (unremovable) handle
+	if declined and not secret then
+		a.sig = false
+		ns.retryAfterCombat("aura sound " .. owner, function() applyAura(owner) end)
 	end
 end
 
