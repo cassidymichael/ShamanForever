@@ -76,7 +76,7 @@ local src = BUFF
 MW.icon = buffIcon() or 237584
 local f = E.newIcon(KEY, { effects = true })
 f.tex:SetTexture(MW.icon)
-f.aboveProtected = true   -- Blizzard's buttons sit on it: alpha only changes out of combat
+f.holdsAuraButton = true
 f.stack()
 
 E.register(KEY, { frame = f, label = Spells.name("maelstromWeapon"), defaults = MW.DEFAULTS, ranges = MW.RANGES,
@@ -103,10 +103,11 @@ local function applyCountFormat(slot)
 	Count.setFormat(slot, fm, "maelstrom count")
 end
 
-local function placeCount(fs, button)
+-- pic: how far in its border's picture starts
+local function placeCount(fs, button, pic)
 	ns.Media.setFont(fs, nil, number("size"))
 	local pos = count("pos") == "BOTTOMRIGHT" and "BOTTOMRIGHT" or "CENTER"
-	Count.place(fs, button, pos, count("bar") and (number("barHeight") + 1) or 0)
+	Count.place(fs, button, pos, count("bar") and (number("barHeight") + 1) or 0, pic)
 end
 
 -- 1. The stacks
@@ -130,7 +131,7 @@ local function styleStacks(slot, size)
 			{ minApplications = 0, maxApplications = src.max })
 	end
 	slot.fs:SetAlpha(count("number") and 1 or 0)
-	placeCount(slot.fs, slot.button)
+	placeCount(slot.fs, slot.button, ns.StyleArt.pictureInset(slot.host))
 	applyCountFormat(slot)
 end
 
@@ -145,7 +146,8 @@ local function buildStacks(slot, button, into)
 	local numFrame = CreateFrame("Frame", nil, into)
 	numFrame:SetAllPoints(button)
 	slot.numFrame = numFrame
-	Count.text(slot, button, numFrame, function(fs) placeCount(fs, button) end, "maelstrom count")
+	local pic = ns.StyleArt.pictureInset(slot.host)
+	Count.text(slot, button, numFrame, function(fs) placeCount(fs, button, pic) end, "maelstrom count")
 	Count.bar(slot, overlay, button)
 	ns.try("maelstrom stacks build", styleStacks, slot, E.sizeOf(KEY))
 end
@@ -434,7 +436,7 @@ local function drawPreview(ic, n, kit)
 	end
 	if n > 0 and count("number") then
 		local fc = color("markColor")
-		placeCount(ic.count, ic)
+		placeCount(ic.count, ic, ns.StyleArt.pictureInset(ic))
 		ic.count:SetText(n)
 		if n == max and count("mark") then ic.count:SetTextColor(fc[1], fc[2], fc[3], 1)
 		else ic.count:SetTextColor(1, 1, 1, 1) end
