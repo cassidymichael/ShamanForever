@@ -178,9 +178,14 @@ local function chipMenu(chip)
 		end
 		root:CreateDivider()
 		root:CreateCheckbox("On", function() return E.isOn(key) end, function() E.setOn(key, not E.isOn(key)) end)
+		if not E.isOn(key) then return end
 		root:CreateTitle("Show")
 		for _, c in ipairs(K.SHOW_CHOICES) do
-			root:CreateRadio(c[2], function() return E.showMode(key) == c[1] end, function() E.setShow(key, c[1]) end)
+			local r = root:CreateRadio(c[2], function() return E.showMode(key) == c[1] end, function()
+				E.setShow(key, c[1])
+			end)
+			-- the menu stays open when On is unticked
+			r:SetEnabled(function() return E.isOn(key) end)
 		end
 	end)
 end

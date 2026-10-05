@@ -148,12 +148,15 @@ function EP.buildOverview(p)
 				E.setOn(key, not E.isOn(key))
 				ns.Options.refresh()
 			end)
+			if not E.isOn(key) then return end
 			root:CreateDivider()
 			for _, c in ipairs(SHOW_CHOICES) do
-				root:CreateRadio(c[2], function() return E.showMode(key) == c[1] end, function()
+				local r = root:CreateRadio(c[2], function() return E.showMode(key) == c[1] end, function()
 					E.setShow(key, c[1])
 					ns.Options.refresh()
 				end)
+				-- the menu stays open when On is unticked
+				r:SetEnabled(function() return E.isOn(key) end)
 			end
 		end)
 		show:HookScript("OnEnter", function(self)
