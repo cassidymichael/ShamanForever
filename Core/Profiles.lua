@@ -373,7 +373,21 @@ local function checkNewName(name)
 	if acct().profiles[name] then return "there is already a profile called " .. name end
 end
 
+-- Profile changes are refused in combat, before anything changes: settings would apply while the layout waits
+function P.refusedInCombat()
+	if not ns.inCombat() then return false end
+	ns.say("layout changes wait until combat ends")
+	return true
+end
+
+-- The player's pick of a profile for this character
+function P.switch(name)
+	if P.refusedInCombat() then return end
+	P.use(name)
+end
+
 function P.new(name, source)
+	if P.refusedInCombat() then return end
 	name = strtrim(name or "")
 	local err = checkNewName(name)
 	if err then return err end
@@ -395,6 +409,7 @@ function P.rename(name)
 end
 
 function P.delete()
+	if P.refusedInCombat() then return end
 	local name = P.currentName()
 	if name == DEFAULT_PROFILE then return end
 	local a = acct()
@@ -403,9 +418,12 @@ function P.delete()
 	P.use(DEFAULT_PROFILE)
 end
 
+-- True once reset
 function P.reset()
+	if P.refusedInCombat() then return false end
 	wipe(P.getDB())
 	P.use(P.currentName())
+	return true
 end
 
 -- Sharing
