@@ -123,3 +123,20 @@ ns.CLASS.buffs = {
 		proc = true, defaults = { idleAlpha = 0, active = { pop = false, glow = false } },
 		styles = PROC_SWIPE, experimental = "Improved Stormstrike" },
 }
+
+-- Cures: shown while a debuff of the type they cure is on you. Picked by dispel type: a harmful
+-- aura on you can't be filtered by spell ID.
+local function cure(key, spellKey, icon, dispel, what, state, experimental)
+	table.insert(ns.CLASS.buffs, { key = key, spellKey = spellKey, icon = icon, school = "water", power = true,
+		proc = true, filter = "HARMFUL", ownIcon = true, party = true,
+		candidates = function() return { includeDispelTypes = { [dispel] = true } } end,
+		blurb = "Shows while a " .. what .. " is on you.", procHeader = state, upLabel = state,
+		idleLabel = "Not " .. state:lower(),
+		idleText = "Idle while no " .. what .. " is on you (or your party, with Your party on)",
+		popTip = "When you get one.", glowTip = "While one is on you, or on a party member with Your party on.",
+		castNote = "Only while a " .. what .. " is on you.",
+		defaults = { idleAlpha = 0, active = { pop = true, glow = false } },
+		styles = PROC_SWIPE, experimental = experimental })
+end
+cure("curepoison", "curePoison", 136067, "Poison", "poison", "Poisoned", "Cure Poison")
+cure("curedisease", "cureDisease", 136083, "Disease", "disease", "Diseased", "Cure Disease")
