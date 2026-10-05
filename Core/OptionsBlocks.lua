@@ -1140,8 +1140,22 @@ local function toggleBlock(p, key, b)
 	end)
 end
 
+-- A named setting's choice: b = { title, label, tip, name, choices ({ value, label } each), text (help
+-- under it), badge = { value, name } (the experimental badge while that value is chosen) }
+local function choiceBlock(p, key, b)
+	p:header(b.title)
+	local get, set = eopt(p, key, b.name)
+	p:dropdown(b.label, b.tip, b.choices, get, set, nil, 220)
+	if b.badge then
+		local f = p:row(22)
+		ns.OptionsArt.expBadge(f, b.badge.name):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
+		p:add(f, 22, showWhen(function() return get() == b.badge.value end))
+	end
+	if b.text then p:text(b.text) end
+end
+
 K.eread, K.eslider, K.COUNT_POINTS = eread, eslider, COUNT_POINTS
-K.toggleBlock, K.castBlocks = toggleBlock, castBlocks
+K.toggleBlock, K.choiceBlock, K.castBlocks = toggleBlock, choiceBlock, castBlocks
 K.elementDisplay, K.idleBlock, K.styleBlocks = elementDisplay, idleBlock, styleBlocks
 K.reagentBlock, K.noneLeftBlock = reagentBlock, noneLeftBlock
 K.soundsBlock, K.groupMenu = soundsBlock, groupMenu
@@ -1176,6 +1190,7 @@ end
 
 K.registerOwn("reagent", function(p, def) K.reagentBlock(p, def) end, function(p, def) K.noneLeftBlock(p, def) end)
 K.registerOwn("toggle", function(p, def, b) K.toggleBlock(p, def.key, b) end)
+K.registerOwn("choice", function(p, def, b) K.choiceBlock(p, def.key, b) end)
 K.registerSlot("own", function(p, def, list)
 	for _, b in ipairs(list) do
 		local build = OWNS[K.ownName(b)]
