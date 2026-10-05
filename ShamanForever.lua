@@ -928,7 +928,7 @@ local deleteGroup = edit(function(id)
 end, true)
 
 local setShow = edit(function(key, mode)
-	elementOpts(key).show = mode ~= (elementDefault(key, "show") or "always") and mode or nil
+	elementOpts(key).show = mode ~= elementDefault(key, "show") and mode or nil
 end)
 
 local setOn = edit(function(key, on)
