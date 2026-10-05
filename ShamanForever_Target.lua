@@ -193,7 +193,7 @@ ns.registerPart("skipLong", {
 local DEBUFFS = {}
 local function debuffShown(def) return setting(def.key, "active", "on") ~= false end
 local function debuffOn(def)
-	return def.spellID ~= nil and E.isEnabled(def.key) and debuffShown(def)
+	return E.inUse(def.key) and debuffShown(def)
 end
 local function debuffAlpha(x) x.slot:fade("target debuff alpha", x.alpha) end
 -- Out of combat, auras readable; made once, while it's on and learned
@@ -257,10 +257,19 @@ ns.registerPart("targetDebuff", {
 		end,
 	},
 })
+-- Off: no driver and its holder hidden, so its container stops following auras (out of combat)
+local function driveDebuff(x)
+	local h = x.slot.holder
+	if not h or ns.deferInCombat("target debuff shown " .. x.def.key, function() driveDebuff(x) end) then return end
+	local on = debuffOn(x.def)
+	ns.setVisibilityDriver(h, on and TG.HOSTILE or nil, x.slot.opts.sites.container .. " driver")
+	if not on then h:Hide() end
+end
 local function debuffsLayout()
 	for _, x in pairs(DEBUFFS) do
 		makeDebuff(x)
-		x.slot:styleNow()
+		if debuffOn(x.def) then x.slot:styleNow() end
+		driveDebuff(x)
 	end
 end
 
@@ -290,7 +299,7 @@ local function makeGlowLook(g, what)
 end
 local function glowOn(g, what)
 	local def = g.def
-	return setting(def.key, "glowWhile") == what and def.spellID ~= nil and E.isEnabled(def.key)
+	return setting(def.key, "glowWhile") == what and E.inUse(def.key)
 		and (what ~= "buff" or ns.Buffs.buffBarLearned(def))
 end
 -- Lit while wanted; never in /sf preview, which draws the icon itself
@@ -305,7 +314,8 @@ local function glowsFollow(unit, ifMoved)
 	for _, g in pairs(GLOWS) do
 		local look = g.looks.debuff
 		local want = glowOn(g, "debuff") and unit or "none"
-		if look and look.container and not (ifMoved and look.unit == want) and not look:follow(want) then
+		local still = look and look.unit == want and (ifMoved or want == "none")
+		if look and look.container and not still and not look:follow(want) then
 			ns.retryAfterCombat("target retarget", function() retarget() end)
 		end
 	end
@@ -320,11 +330,14 @@ local function glowsLayout()
 			local look = g.looks[what] or (on and makeGlowLook(g, what))
 			if on then look:setup() end
 			if look and not InCombatLockdown() then
-				look:setLevel(f.textFrame:GetFrameLevel() + 11)
 				look:setParts(false, false, false, false, on)
-				look:reshape()
-				look:style()
+				if on then
+					look:setLevel(f.textFrame:GetFrameLevel() + 11)
+					look:reshape()
+					look:style()
+				end
 			end
+			if look then look:setShown(on) end
 		end
 	end
 	glowsFollow(wantedUnit(), true)
@@ -391,6 +404,15 @@ end
 -- container may come later.
 local FOLLOWERS = {}
 local function unitFor(x, unit) return (not x.wanted or x.wanted()) and unit or "none" end
+-- Whether anything in use follows the target: a row, a follower that wants it, a glow on its debuff
+local function anyWants()
+	for _, def in ipairs(ROWS) do if E.inUse(def.key) then return true end end
+	for _, x in ipairs(FOLLOWERS) do if not x.wanted or x.wanted() then return true end end
+	for _, g in pairs(GLOWS) do if glowOn(g, "debuff") then return true end end
+	return false
+end
+-- The unit to follow, read only while something wants one
+local function followedUnit() return anyWants() and wantedUnit() or "none" end
 
 -- Slots follow the target: pointed at it while attackable, refreshed on a change between targets,
 -- at no unit otherwise. A failed call leaves x.pointedAt nil, so the next refresh retries.
@@ -416,11 +438,12 @@ local function pointAt(x, c, unit, restyle)
 end
 
 function retarget(only)
-	local unit = wantedUnit()
+	local unit = followedUnit()
 	for _, def in ipairs(ROWS) do
-		local c = (only == nil or only == def) and def.aura.container
+		local mine = (only == nil or only == def) and E.inUse(def.key)
+		local c = mine and def.aura.container
 		if c then pointAt(def, c, unit, gateAlpha) end
-		if only == nil or only == def then
+		if mine then
 			for _, look in ipairs(sensors(def)) do
 				if not look:follow(unit) then
 					ns.retryAfterCombat("target retarget", function() retarget() end)
@@ -436,8 +459,19 @@ function retarget(only)
 end
 
 -- Followers not on the unit they want yet (a new one, a call that failed, a change of wanted())
+local events, auraEvents   -- set(on), from start
+local function syncEvents()
+	if not events then return end
+	events(anyWants())
+	local reads = false
+	for _, def in ipairs(ROWS) do
+		if readsAura(def) and E.inUse(def.key) then reads = true end
+	end
+	auraEvents(reads)
+end
 local function followAll()
-	local unit = wantedUnit()
+	syncEvents()
+	local unit = followedUnit()
 	for _, x in ipairs(FOLLOWERS) do
 		local want = unitFor(x, unit)
 		if x.container and x.pointedAt ~= want then pointAt(x, x.container, want, x.restyle) end
@@ -460,6 +494,19 @@ local function driveGate(def)
 			"target warning " .. def.key)
 		ns.setVisibilityDriver(def.idleEdge, "[@target,harm,nodead] hide; show",
 			"target border " .. def.key)
+	end
+end
+-- Not in use: no drivers, the gate hidden (out of combat); driveGate sets them again as it's back
+local function undriveGate(def)
+	if not def.driven or ns.deferInCombat("target undrive " .. def.key, function() undriveGate(def) end) then return end
+	if E.inUse(def.key) then return end
+	def.driven = nil
+	ns.setVisibilityDriver(def.gate, nil, "target gate " .. def.key)
+	def.gate:Hide()
+	if def.holder then
+		ns.setVisibilityDriver(def.holder, nil, "target warning " .. def.key)
+		def.holder:Hide()
+		ns.setVisibilityDriver(def.idleEdge, nil, "target border " .. def.key)
 	end
 end
 
@@ -485,12 +532,12 @@ local function auraOnTarget(def)
 end
 
 local function readWanted(def)
-	return def.spellID and E.isEnabled(def.key) and ns.aurasReadNow() and hostileTarget()
+	return E.inUse(def.key) and ns.aurasReadNow() and hostileTarget()
 end
 
 local function stateLook(def)
 	local a = def.aura
-	local on = a.container and not a.err and def.spellID and E.isEnabled(def.key)
+	local on = a.container and not a.err and E.inUse(def.key)
 	def.holder.on = on and true or false
 	def.missLook:want(def.holder.on)
 	holderAlpha(def)
@@ -509,14 +556,19 @@ local function styleLook(def)
 	look:style()
 	stateLook(def)
 end
+-- Only rows in use: the rest wait until they're back (TG.applyLayout)
 local function styleLooks()
 	for _, def in ipairs(ROWS) do
-		if readsAura(def) then styleLook(def) end
+		if readsAura(def) then
+			if E.inUse(def.key) then styleLook(def) else stateLook(def) end
+		end
 	end
 end
 
 local function styleUp()
-	for _, def in ipairs(ROWS) do ns.Buffs.styleGlow(def) end
+	for _, def in ipairs(ROWS) do
+		if E.inUse(def.key) then ns.Buffs.styleGlow(def) end
+	end
 end
 
 local function checkMissing(def)
@@ -563,7 +615,7 @@ local function refreshAura(def)
 			and not ns.Preview.isOn())
 	end
 	if not E.isEnabled(key) then return end
-	if def.aura.container then
+	if def.aura.container and E.inUse(key) then
 		driveGate(def)
 		local unit = wantedUnit()
 		local off = def.pointedAt ~= unit
@@ -594,26 +646,56 @@ function TG.resolve()
 		def.spell = Spells.name(def.spellKey)
 		E.ALL[def.key].label = def.spell
 		def.spellID = Spells.known(def.spellKey)
-		ns.Buffs.resolveAura(def)
+		-- A row not in use refilters as it's back (TG.applyLayout)
+		if E.inUse(def.key) then ns.Buffs.resolveAura(def) else def.ids, def.refilterDue = nil, true end
 		table.insert(sig, tostring(def.spellID))
 	end
-	for _, x in pairs(DEBUFFS) do x.slot:refilter() end
+	for _, x in pairs(DEBUFFS) do
+		x.refilterDue = not debuffOn(x.def)
+		if not x.refilterDue then x.slot:refilter() end
+	end
 	return table.concat(sig, ",")
 end
 
 function TG.applyTimers()
-	for _, def in ipairs(ROWS) do def.aura:style() end
-	for _, x in pairs(DEBUFFS) do x.slot:styleNow() end
+	for _, def in ipairs(ROWS) do
+		if E.inUse(def.key) then def.aura:style() end
+	end
+	for _, x in pairs(DEBUFFS) do
+		if debuffOn(x.def) then x.slot:styleNow() end
+	end
 	styleLooks()
 	styleUp()
 end
 
+-- Off: at no unit, no drivers. Back: refiltered, its pop quiet as its container shows again
+local function rowLayout(def)
+	local on = E.inUse(def.key)
+	if not on then
+		local c = def.aura.container
+		if c and def.pointedAt ~= "none" then pointAt(def, c, "none", gateAlpha) end
+		for _, look in ipairs(sensors(def)) do
+			if look.unit ~= "none" then look:follow("none") end
+		end
+		undriveGate(def)
+	elseif def.wasOn == false and def.aura.container then
+		ns.Buffs.quietAura(def)
+	end
+	def.wasOn = on
+	if not on then return end
+	ns.Buffs.setupAura(def)
+	if def.refilterDue then
+		def.refilterDue = false
+		ns.Buffs.resolveAura(def)
+	end
+end
+
 function TG.applyLayout()
 	for _, def in ipairs(ROWS) do
-		if def.spellID and E.isEnabled(def.key) then ns.Buffs.setupAura(def) end
+		rowLayout(def)
 		-- SetAuraSlotCandidateFilters changes a made slot's filters in place; the call waits for combat
 		-- and secret auras
-		if def.candidates and def.aura.container then
+		if def.candidates and def.aura.container and E.inUse(def.key) then
 			local longest = TG.longest(def) or false
 			if def.longestApplied ~= nil and def.longestApplied ~= longest then
 				def.aura:refilter()
@@ -621,12 +703,18 @@ function TG.applyLayout()
 			end
 			def.longestApplied = longest
 		end
-		def.aura:style()
+		if E.inUse(def.key) then def.aura:style() end
 		refreshAura(def)
 	end
 	styleLooks()
 	styleUp()
 	checkAll()
+	for _, x in pairs(DEBUFFS) do
+		if x.refilterDue and debuffOn(x.def) then
+			x.refilterDue = false
+			x.slot:refilter()
+		end
+	end
 	debuffsLayout()
 	followAll()
 	glowsLayout()
@@ -634,10 +722,12 @@ end
 
 function TG.afterGroups()
 	for _, def in ipairs(ROWS) do
-		def.aura:style()
+		if E.inUse(def.key) then def.aura:style() end
 		if def.holder then holderAlpha(def) end
 	end
-	for _, x in pairs(DEBUFFS) do x.slot:styleNow() end
+	for _, x in pairs(DEBUFFS) do
+		if debuffOn(x.def) then x.slot:styleNow() end
+	end
 	glowsLayout()
 	styleLooks()
 	styleUp()
@@ -648,16 +738,15 @@ function TG.refresh()
 	checkAll()
 	for _, def in ipairs(ROWS) do refreshAura(def) end
 	followAll()
-	glowsFollow(wantedUnit(), true)
+	glowsFollow(followedUnit(), true)
 	glowWants()
 end
 TG.tick = TG.refresh
 
 function TG.start()
 	local ev = CreateFrame("Frame")
-	ns.registerEvent(ev, "PLAYER_TARGET_CHANGED")
-	ns.registerEvent(ev, "UNIT_FACTION", "target")
-	ns.registerEvent(ev, "UNIT_AURA", "target")
+	events = ns.eventsWhile(ev, { "PLAYER_TARGET_CHANGED", { "UNIT_FACTION", "target" } })
+	auraEvents = ns.eventsWhile(ev, { { "UNIT_AURA", "target" } })
 	ev:SetScript("OnEvent", function(_, event)
 		if event == "UNIT_AURA" then return missingRows(true) end
 		retarget()
