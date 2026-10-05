@@ -592,14 +592,7 @@ local function stateOn(x)
 	local def = x.def
 	return def.spellID ~= nil and E.isEnabled(def.key) and (not x.spec.active or stateActiveOn(def))
 end
-local function stateAlpha(x)
-	local h = x.slot.holder
-	if not h then return end
-	local site = "aura state alpha " .. x.def.key
-	if not ns.try(site, h.SetAlpha, h, (stateOn(x) and not statesPreviewing) and 1 or 0) then
-		ns.retryAfterCombat(site, function() stateAlpha(x) end)
-	end
-end
+local function stateAlpha(x) x.slot:fade("aura state alpha " .. x.def.key, x.alpha) end
 local function stateGlow(x)
 	if not x.fx then return end
 	local def = x.def
@@ -641,6 +634,7 @@ for _, x in ipairs(STATE_LIST) do
 	local def, key, s = x.def, x.def.key, x.spec
 	local f = def.frame
 	if s.length then B.expiring.note(key) end
+	x.alpha = function() return (stateOn(x) and not statesPreviewing) and 1 or 0 end
 	-- No picture: the icon keeps the cooldown; its time left, Expiring's parts and the pop on the button
 	x.slot = W.makeAuraSlot(f, {
 		key = key, slot = key .. "-state", filter = stateFilter(x), layer = f.effects, noIcon = true,
@@ -729,8 +723,7 @@ ns.registerPart("auraState", {
 		debug = function(def)
 			local x = STATES[def.key]
 			if not stateOn(x) then return "buff off" end
-			local words = string.format("buff container %s%s", x.slot.container and "made" or "not made",
-				x.slot.err and (", error: " .. x.slot.err) or "")
+			local words = "buff " .. x.slot:describe()
 			if x.lengthOff then words = words .. ", another length (no Expiring bar)" end
 			if x.fx then words = words .. "; " .. x.fx:describe() end
 			return words
@@ -792,14 +785,7 @@ local function newBuffBar(parent)
 	bar.bg:SetColorTexture(0, 0, 0, 0.6)
 	return bar
 end
-local function buffBarAlpha(x)
-	local h = x.slot.holder
-	if not h then return end
-	local a = (buffBarOn(x) and not barsPreviewing) and 1 or 0
-	if not ns.try("buff bar alpha", h.SetAlpha, h, a) then
-		ns.retryAfterCombat("buff bar alpha", function() buffBarAlpha(x) end)
-	end
-end
+local function buffBarAlpha(x) x.slot:fade("buff bar alpha", x.alpha) end
 -- Made once, while it's on, out of combat with auras readable
 local function makeBuffBar(x)
 	local slot = x.slot
@@ -813,6 +799,7 @@ end
 for _, x in ipairs(BUFF_BARS) do
 	local def, key = x.def, x.def.key
 	local f = def.frame
+	x.alpha = function() return (buffBarOn(x) and not barsPreviewing) and 1 or 0 end
 	-- No picture of its own, only the bar it drives
 	x.slot = W.makeAuraSlot(f, {
 		key = key, slot = key .. "-buff", layer = f, noIcon = true, noTimer = true,
@@ -869,8 +856,7 @@ ns.registerPart("buffBar", {
 			local name = Spells.name(def.buffBar.buffKey)
 			if not buffBarShown(def) then return name .. " bar off" end
 			if not x.learned then return name .. " bar: talent not learned" end
-			return string.format("%s bar: container %s%s", name, x.slot.container and "made" or "not made",
-				x.slot.err and (", error: " .. x.slot.err) or "")
+			return name .. " bar: " .. x.slot:describe()
 		end,
 	},
 })
@@ -1265,8 +1251,7 @@ end
 function B.debug()
 	for _, def in ipairs(BUFFS) do
 		local a = def.aura
-		local state = a and string.format("container %s%s; %s", a.container and "made" or "not made",
-			a.err and (", error: " .. a.err) or "", def.fx and def.fx:describe() or "no glow or pop") or "no container"
+		local state = a and (a:describe() .. "; " .. (def.fx and def.fx:describe() or "no glow or pop")) or "no container"
 		if def.reagent then state = string.format("%s, reagent %s (takes it: %s, Reagent Economy %s)", state,
 			describeArg(def.reagentRead), tostring(def.takesReagent), tostring(ns.Reagents.perkKnown())) end
 		if def.breath then state = state .. ", breath bar " .. tostring(breathing) end

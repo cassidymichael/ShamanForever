@@ -551,6 +551,18 @@ function AuraSlot:refilter()
 	else ns.retryAfterCombat(o.sites.filter, function() self:refilter() end) end
 end
 
+-- Its holder's alpha (layer); a refused call is tried again after combat, reading alpha() then
+function AuraSlot:fade(site, alpha)
+	local h = self.holder
+	if not h then return end
+	if not ns.try(site, h.SetAlpha, h, alpha()) then ns.retryAfterCombat(site, function() self:fade(site, alpha) end) end
+end
+
+-- For /sf debug
+function AuraSlot:describe()
+	return "container " .. (self.container and "made" or "not made") .. (self.err and (", error: " .. self.err) or "")
+end
+
 -- Counts on an aura button: Blizzard writes the number and fills the bar; nothing here reads them
 local Count = {}
 W.Count = Count

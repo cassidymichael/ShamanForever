@@ -195,12 +195,7 @@ local function debuffShown(def) return setting(def.key, "active", "on") ~= false
 local function debuffOn(def)
 	return def.spellID ~= nil and E.isEnabled(def.key) and debuffShown(def)
 end
-local function debuffAlpha(x)
-	local h = x.slot.holder
-	if not ns.try("target debuff alpha", h.SetAlpha, h, x.stale and 0 or 1) then
-		ns.retryAfterCombat("target debuff alpha", function() debuffAlpha(x) end)
-	end
-end
+local function debuffAlpha(x) x.slot:fade("target debuff alpha", x.alpha) end
 -- Out of combat, auras readable; made once, while it's on and learned
 local function makeDebuff(x)
 	local slot, def = x.slot, x.def
@@ -219,6 +214,7 @@ for _, def in ipairs(ns.CLASS.cooldowns or {}) do
 		local key, f = def.key, def.frame
 		local x = { def = def, restyle = debuffAlpha }
 		x.wanted = function() return debuffOn(def) end
+		x.alpha = function() return x.stale and 0 or 1 end
 		-- No picture of its own, only the time bar and countdown it drives, placed on the icon (the same box:
 		-- a border's picture inset is the icon's)
 		x.slot = W.makeAuraSlot(f, {
@@ -256,8 +252,8 @@ ns.registerPart("targetDebuff", {
 			local x = DEBUFFS[def.key]
 			local slot = x.slot
 			if not debuffOn(def) then return "debuff off" end
-			return string.format("debuff container %s%s, unit %s%s", slot.container and "made" or "not made",
-				slot.err and (", error: " .. slot.err) or "", tostring(x.pointedAt), x.stale and " (hidden until one works)" or "")
+			return string.format("debuff %s, unit %s%s", slot:describe(), tostring(x.pointedAt),
+				x.stale and " (hidden until one works)" or "")
 		end,
 	},
 })
@@ -680,9 +676,8 @@ end
 function TG.debug()
 	for _, def in ipairs(ROWS) do
 		local a = def.aura
-		say("%s: spell %s, container %s%s, unit %s, gate driver %s, failed unit calls %d%s", def.spell,
-			tostring(def.spellID), a.container and "made" or "not made", a.err and (", error: " .. a.err) or "",
-			tostring(def.pointedAt), tostring(def.driven), def.failed or 0,
+		say("%s: spell %s, %s, unit %s, gate driver %s, failed unit calls %d%s", def.spell, tostring(def.spellID),
+			a:describe(), tostring(def.pointedAt), tostring(def.driven), def.failed or 0,
 			def.stale and " (hidden until one works)" or "")
 	end
 	say("target attackable %s", tostring(hostileTarget()))
