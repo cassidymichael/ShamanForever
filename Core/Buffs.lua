@@ -428,7 +428,10 @@ ns.registerPart("buffBar", {
 	end },
 	preview = {
 		states = function(def) return { { "buffBar", Spells.name(def.buffBar.buffKey), 63 } } end,
-		shown = function(st, def) return st ~= "buffBar" or setting(def.key, "buffBar") == true end,
+		-- Also while a glow follows it (a part's glowWhile = "buff")
+		shown = function(st, def)
+			return st ~= "buffBar" or setting(def.key, "buffBar") == true or setting(def.key, "glowWhile") == "buff"
+		end,
 		-- Drawn on the preview icon by hand: a frozen bar, the cooldown under way
 		render = function(ic, st, def, kit)
 			local bar = ic.buffBar
@@ -437,6 +440,10 @@ ns.registerPart("buffBar", {
 				return
 			end
 			kit.frozen(ic.cdT, 0.4, def.cd or 60)
+			if setting(def.key, "buffBar") ~= true then
+				if bar then bar:Hide() end
+				return
+			end
 			if not bar then
 				bar = newBuffBar(ic.textFrame)
 				ic.buffBar = bar

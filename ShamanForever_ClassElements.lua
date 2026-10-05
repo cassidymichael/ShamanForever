@@ -47,12 +47,14 @@ ns.CLASS.cooldowns = {
 		grounded = true, ranOut = true, cd = 15, defaults = { idleWhen = "offcd" },
 		experimental = "Grounding Totem" },
 	-- Rotation
-	-- Stormstrike: its debuff on your target (targetDebuff, _Target); Improved Stormstrike's buff (buffBar, _Buffs)
+	-- Stormstrike: its debuff on your target (targetDebuff, _Target); Improved Stormstrike's buff (buffBar,
+	-- _Buffs); a glow while either is up (glowWhile, _Target)
 	{ key = "stormstrike", power = true, range = true, spellKey = "stormstrike", icon = 135963, school = "air",
 		blurb = "Cooldown, and a bar while your debuff is on your target.",
 		styles = barTimer(), timerCant = ONE_SWIPE,
 		targetDebuff = { length = 12 }, expireLooks = false, readyGlow = true, cd = 8,
 		buffBar = { buffKey = "improvedStormstrikeBuff", talentKey = "improvedStormstrike", school = "water" },
+		glowWhile = { experimental = "buff" }, choices = { glowWhile = { "none", "debuff", "buff" } },
 		experimental = "Stormstrike" },
 	{ key = "riptide", power = true, spellKey = "riptide", icon = 252995, school = "water", blurb = "Cooldown.",
 		readyGlow = true, cd = 6, experimental = "Riptide" },

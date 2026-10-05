@@ -446,6 +446,100 @@ local function debuffsLayout()
 	end
 end
 
+-- Cooldown rows with glowWhile = { experimental (the value badged) } and targetDebuff: a pulsing glow
+-- while one chosen aura is up, its debuff on your target or its buffBar buff on you. Both are secret
+-- in combat, so each is a clip look: a sensor of Blizzard's container lighting a glow of ours. One at
+-- a time, none by default.
+local GLOWS = {}
+local function glowSites(key, what)
+	local site = "glow while " .. what .. " " .. key
+	return { container = site, style = site .. " style", filter = site .. " filter" }
+end
+for _, def in ipairs(ns.CLASS.cooldowns or {}) do
+	if def.glowWhile and def.targetDebuff then
+		local f = def.frame
+		local function look(what, o)
+			o.key, o.owner, o.invert, o.glowOnly = def.key, def.key, true, true
+			o.parent, o.sensorParent, o.sites = f.effects, f.effects, glowSites(def.key, what)
+			return W.makeClipLook(f, o)
+		end
+		local g = { def = def, looks = {} }
+		g.looks.debuff = look("debuff", { unit = "none", needUnit = "target", filter = "HARMFUL|PLAYER",
+			ids = function() return Spells.ids(def.spellKey) end })
+		if def.buffBar then
+			g.looks.buff = look("buff", { unit = "player", filter = "HELPFUL",
+				ids = function() return Spells.ids(def.buffBar.buffKey) end })
+		end
+		GLOWS[def.key] = g
+	end
+end
+local function glowOn(g, what)
+	local def = g.def
+	return setting(def.key, "glowWhile") == what and def.spellID ~= nil and E.isEnabled(def.key)
+		and (what ~= "buff" or g.talent == true)
+end
+-- Lit while wanted; never in /sf preview, which draws the icon itself
+local function glowWants()
+	for _, g in pairs(GLOWS) do
+		for what, look in pairs(g.looks) do look:want(glowOn(g, what) and not ns.Preview.isOn()) end
+	end
+end
+local function glowsFollow(unit)
+	for _, g in pairs(GLOWS) do
+		local look = g.looks.debuff
+		if look.container and not look:follow(glowOn(g, "debuff") and unit or "none") then
+			ns.retryAfterCombat("target retarget", function() retarget() end)
+		end
+	end
+end
+-- Out of combat: made once chosen, levelled with the aura route's glows, the glow lit
+local function glowsLayout()
+	for _, g in pairs(GLOWS) do
+		local f = g.def.frame
+		for what, look in pairs(g.looks) do
+			if glowOn(g, what) then look:setup() end
+			if not InCombatLockdown() then
+				look:setLevel(f.textFrame:GetFrameLevel() + 11)
+				look:setParts(false, false, false, false, true)
+				look:reshape()
+				look:style()
+			end
+		end
+	end
+	glowWants()
+end
+ns.registerPart("glowWhile", {
+	kind = "cooldown",
+	defaults = { glowWhile = "none" },
+	page = { own = function(def)
+		local choices = { { "none", "Never" },
+			{ "debuff", "Your " .. Spells.name(def.spellKey) .. " is on your target" } }
+		local buff = def.buffBar and Spells.name(def.buffBar.buffKey)
+		if buff then table.insert(choices, { "buff", buff .. " is up" }) end
+		local exp = def.glowWhile.experimental
+		return { "choice", name = "glowWhile", title = "Pulsing glow", label = "Glow while", choices = choices,
+			text = "The same glow as Ready's: either lights it.",
+			badge = exp and { value = exp, name = "Glow while " .. (exp == "buff" and buff or exp) } or nil }
+	end },
+	preview = {
+		render = function(ic, st, def)
+			local what = setting(def.key, "glowWhile")
+			if (st == "debuff" and what == "debuff") or (st == "buffBar" and what == "buff") then
+				ic:SetGlowShown(true)
+			end
+		end,
+	},
+	runtime = {
+		debug = function(def)
+			local g = GLOWS[def.key]
+			local what = setting(def.key, "glowWhile")
+			local look = g and g.looks[what]
+			if not look then return "glow while: never" end
+			return "glow while " .. what .. ": " .. look:describe()
+		end,
+	},
+})
+
 -- 0 while the container may show the last target's aura (stale)
 function gateAlpha(def)
 	ns.try("target gate alpha", def.gate.SetAlpha, def.gate, def.stale and 0 or 1)
@@ -514,6 +608,7 @@ function retarget(only)
 	for _, x in ipairs(FOLLOWERS) do
 		if x.container then pointAt(x, x.container, unitFor(x, unit), x.restyle) end
 	end
+	glowsFollow(unit)
 end
 
 -- Followers not on the unit they want yet (a new one, a call that failed, a change of wanted())
@@ -678,6 +773,11 @@ end
 
 function TG.resolve()
 	local sig = {}
+	for _, g in pairs(GLOWS) do
+		local bb = g.def.buffBar
+		g.talent = bb ~= nil and Spells.known(bb.talentKey) ~= nil
+		table.insert(sig, tostring(g.talent))
+	end
 	for _, def in ipairs(ROWS) do
 		def.spell = Spells.name(def.spellKey)
 		E.ALL[def.key].label = def.spell
@@ -716,6 +816,8 @@ function TG.applyLayout()
 	checkAll()
 	debuffsLayout()
 	followAll()
+	glowsLayout()
+	glowsFollow(wantedUnit())
 end
 
 function TG.afterGroups()
@@ -724,6 +826,7 @@ function TG.afterGroups()
 		if def.holder then holderAlpha(def) end
 	end
 	for _, x in pairs(DEBUFFS) do styleDebuff(x) end
+	glowsLayout()
 	styleLooks()
 	styleUp()
 	for _, def in ipairs(ROWS) do refreshAura(def) end
@@ -733,6 +836,7 @@ function TG.refresh()
 	checkAll()
 	for _, def in ipairs(ROWS) do refreshAura(def) end
 	followAll()
+	glowWants()
 end
 TG.tick = TG.refresh
 
