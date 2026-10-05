@@ -114,4 +114,8 @@ ns.CLASS.buffs = {
 		blurb = "Shows while " .. ns.Spells.name("flurryBuff") .. " is up, with its charges.",
 		proc = true, charges = 3, defaults = { idleAlpha = 0, active = { pop = false, glow = false } },
 		styles = PROC_SWIPE },
+	{ key = "improvedstormstrike", spellKey = "improvedStormstrike", buffKey = "improvedStormstrikeBuff",
+		icon = 237581, school = "water", blurb = "Shows while its mana regeneration is up.",
+		proc = true, defaults = { idleAlpha = 0, active = { pop = false, glow = false } },
+		styles = PROC_SWIPE, experimental = "Improved Stormstrike" },
 }

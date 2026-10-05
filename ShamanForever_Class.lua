@@ -62,7 +62,7 @@ ns.CLASS.layout = {
 	{ id = 4, name = "Procs", point = "CENTER", x = 0, y = -142, scale = 1, alpha = 0.9,
 		sizeFollow = false, size = 50,
 		orientation = "horizontal", growth = "forward", spacing = 2,
-		members = { "elementalfocus", "maelstrom", "flurry" } },
+		members = { "elementalfocus", "maelstrom", "flurry", "improvedstormstrike" } },
 	{ id = 5, name = "Tremor", point = "CENTER", x = -252 / 1.25, y = 58 / 1.25, scale = 1.25, alpha = 0.9,
 		orientation = "horizontal", growth = "forward", spacing = 2, members = { "tremor" } },
 	{ id = 6, name = "Cooldowns", point = "CENTER", x = -526, y = -60, scale = 1, alpha = 0.8,
