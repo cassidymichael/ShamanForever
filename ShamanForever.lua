@@ -835,12 +835,16 @@ local function refreshCooldownsSoon()
 	C_Timer.After(0, flushIfDirty)
 end
 
--- Layout edits for the options: each leaves db.groups consistent and relays out; refused in combat
-local function edit(fn)
+-- Layout edits for the options: each leaves db.groups consistent and relays out; refused in combat.
+-- full: it may switch an element on or off, so modules set its sounds, containers and tickers again
+local function edit(fn, full)
 	return function(...)
 		if InCombatLockdown() then say("layout changes wait until combat ends"); return false end
 		local result = fn(...)
-		layoutElements()
+		if full then
+			applyLayout()
+			refreshAll()
+		else layoutElements() end
 		return true, result
 	end
 end
@@ -876,7 +880,7 @@ local placeElement = edit(function(key, target, index)
 		removeElement(key)
 		g.members = list
 	end
-end)
+end, true)
 
 -- Allowed in combat: only positioning's labels show it on screen, and their layout waits
 local function renameGroup(id, name)
@@ -896,16 +900,16 @@ end)
 local deleteGroup = edit(function(id)
 	local _, i = groupById(id)
 	if i then table.remove(db.groups, i) end
-end)
+end, true)
 
 local setShow = edit(function(key, mode)
 	elementOpts(key).show = mode ~= (elementDefault(key, "show") or "always") and mode or nil
-end)
+end, true)
 
 local hideGroup = edit(function(id)
 	local g = groupById(id)
 	for _, key in ipairs(g and g.members or {}) do elementOpts(key).show = "never" end
-end)
+end, true)
 local centerGroup = edit(function(id)
 	local g = groupById(id)
 	if g then g.point, g.x, g.y, g.fresh = "CENTER", 0, 0, nil end
