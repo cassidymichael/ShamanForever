@@ -357,6 +357,8 @@ function P.load()
 	for _, c in pairs(a.chars) do
 		if type(c) == "table" and c.off ~= true then c.off = nil end
 	end
+	-- Every profile, not only the one selected: none keeps the old names once the map goes
+	for _, profile in pairs(a.profiles) do P.migrate(profile) end
 	return a
 end
 
