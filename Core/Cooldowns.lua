@@ -257,10 +257,23 @@ end
 -- Arms the next ready only when our own cast starts the cooldown, never on a guess: a missed
 -- ready beats a false one.
 local READY_GRACE, ARM_AFTER_CAST = 0.5, 1.5
-local function noteReady(f, st, inEvent)
+-- Still armed and still ready once the grace is over: the cooldown ended early (a reset), so this
+-- is its ready
+local function endedEarly(f, spellID, by)
+	local r = f.ready
+	if not r.armed or r.by ~= by or plainCooldown(spellID) ~= "ready" then return end
+	r.armed, r.by = nil, nil
+	r.at = GetTime()
+	for _, fn in ipairs(r.fns) do fn() end
+end
+local function noteReady(f, st, inEvent, spellID)
 	local r = f.ready
 	if st == "ready" then
-		if r.armed and not r.by then r.by = GetTime() + READY_GRACE end
+		if r.armed and not r.by then
+			local by = GetTime() + READY_GRACE
+			r.by = by
+			C_Timer.After(READY_GRACE, function() endedEarly(f, spellID, by) end)
+		end
 	elseif st == "own" and inEvent and r.castAt and GetTime() - r.castAt <= ARM_AFTER_CAST then
 		r.armed, r.by, r.castAt = true, nil, nil
 	end
@@ -270,7 +283,7 @@ end
 local JUST_SHOWN = 0.2
 local function watchEnds(f)
 	if f.ready then return end
-	local r = {}
+	local r = { fns = {} }
 	f.ready = r
 	local t = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
 	t:SetAllPoints()
@@ -302,13 +315,19 @@ function CD.resetReady(f)
 	f.ownCd:Clear()
 end
 function CD.readyNow(f) return f.ready ~= nil and f.ready.at == GetTime() end
+-- fn() at the tracker's end and at an early end; it checks CD.readyNow itself
+local function onReady(f, fn)
+	watchEnds(f)
+	table.insert(f.ready.fns, fn)
+	f.ownCd:HookScript("OnCooldownDone", fn)
+end
 -- Timer duration by the Global cooldown style, then the time bar's: the spell's own cooldown only,
 -- never the GCD (false: none); nil when unreadable. Duration objects only go to widgets (secret in
 -- combat).
 local function cooldownFor(f, key, spellID, inEvent)
 	watchEnds(f)
 	local st = plainCooldown(spellID)
-	noteReady(f, st, inEvent)
+	noteReady(f, st, inEvent, spellID)
 	local ok, own = safe(C_Spell.GetSpellCooldownDuration, spellID, true)
 	if st == "own" and ok and own then
 		ns.try("ready tracker", f.ownCd.SetCooldownFromDurationObject, f.ownCd, own, true)
@@ -327,8 +346,7 @@ CD.cooldownFor = cooldownFor
 
 -- Pop when ready. gate(): "ready", "blocked" (a greyed pop, if chosen) or nil (none); no gate: ready
 local function popWhenReady(f, key, gate)
-	watchEnds(f)
-	f.ownCd:HookScript("OnCooldownDone", function()
+	onReady(f, function()
 		if not CD.readyNow(f) then return end
 		if not (E.isEnabled(key) and setting(key, "ready", "pop")) then return end
 		if ns.cantAct() then return end
@@ -505,7 +523,7 @@ end
 -- into view; gate as popWhenReady's
 local function soundWhenReady(f, key, gate)
 	f:HookScript("OnShow", function() f.shownAt = GetTime() end)
-	f.ownCd:HookScript("OnCooldownDone", function()
+	onReady(f, function()
 		if not f:IsVisible() or GetTime() - (f.shownAt or 0) < JUST_SHOWN then return end
 		if not CD.readyNow(f) then return end
 		if gate and gate() ~= "ready" then return end
