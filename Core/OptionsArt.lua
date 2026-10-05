@@ -460,7 +460,7 @@ function OA.buildHero(parent, key)
 	h.preview = p
 	heroes[key] = h
 
-	-- State buttons: a column; one too long for the banner scrolls a button at a time, a line beside it
+	-- State buttons
 	local STEP = BTN_H + 3
 	local function listed(st) return not def.stage or not def.stateShown or def.stateShown(st) end
 	local placeStates
@@ -628,7 +628,7 @@ function OA.setPreview(key, state)
 	local h = heroes[key]
 	if not h then return false end
 	for _, b in ipairs(h.stateButtons) do
-		if b.state == state then b:Click() return true end
+		if b.state == state then b:GetScript("OnClick")(b, "LeftButton") return true end
 	end
 	return false
 end
