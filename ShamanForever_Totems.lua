@@ -215,15 +215,15 @@ ns.registerPart("totemSlot", {
 	page = {
 		uptime = "Time left",
 		expire = { tips = { endPop = "The totem pops and fades the moment it runs out.",
-			endSound = "When it runs out or is killed. Not when you dismiss it." } },
+			endSound = "When it runs out or ends early. Not when you dismiss it." } },
 		killed = function(def)
 			if def.grounded then
 				return { title = "Grounded", tips = { glow = "In blue." }, flash = {
 					"Flash when it ends early",
 					"The totem flashes blue over its icon: it took a spell, or was destroyed." } }
 			end
-			return { flash = { "Flash when it dies early",
-				"The dead totem flashes red over its icon. Not when you dismiss it or it runs out." }
+			return { flash = { "Flash when it ends early",
+				"The totem flashes red over its icon. Not when you dismiss it or it runs out." }
 			}
 		end,
 	},

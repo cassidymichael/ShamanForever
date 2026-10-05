@@ -607,9 +607,9 @@ local function build(p)
 	end
 	K.expiringBlock(p, "totembar", { after = changed, noun = "slot", afterSecs = overRows, warns = warns,
 		tips = { endPop = "The totem pops and fades the moment it runs out.",
-			endSound = "When a totem runs out or is killed. Not when you dismiss it." } })
-	K.killedBlock(p, "totembar", { after = changed, noun = "slot", flash = { "Flash when a totem dies early",
-		"The dead totem flashes red over its slot. Not when you dismiss it or it runs out." } })
+			endSound = "When a totem runs out or ends early. Not when you dismiss it." } })
+	K.killedBlock(p, "totembar", { after = changed, noun = "slot", flash = { "Flash when a totem ends early",
+		"The totem flashes red over its slot. Not when you dismiss it or it runs out." } })
 
 	p.gate = TB.barOn
 	K.styleSection(p)
