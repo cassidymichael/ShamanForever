@@ -475,17 +475,21 @@ function OA.buildHero(parent, key)
 			host, right, y0, room = self, -40, 58, heroH - 14 - 58 - 12
 			inner = room
 		end
-		local list = {}
+		local sel = previewState[key]
+		local list, now = {}, tostring(sel)
 		for _, b in ipairs(self.stateButtons) do
-			if listed(b.state) then table.insert(list, b) else b:Hide() end
+			if listed(b.state) then
+				table.insert(list, b)
+				now = now .. "/" .. b.state
+			else
+				b:Hide()
+			end
 		end
 		local n = #list
 		local fits = n * STEP - 3 <= inner
 		local vis = fits and n or math.max(math.floor((inner + 3) / STEP), 1)
 		firstShown = fits and 1 or math.min(math.max(firstShown, 1), n - vis + 1)
 		-- A state picked, or a new set of them, brings the chosen one into view; the wheel's place holds
-		local sel = previewState[key]
-		local now = tostring(sel) .. "/" .. n
 		if now ~= revealed then
 			revealed = now
 			for i, b in ipairs(list) do
