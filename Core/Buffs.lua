@@ -63,9 +63,12 @@ ns.registerPart("buff", {
 })
 -- breath: warns under water without it
 ns.registerPart("breath", {
-	defaults = { warn = { on = true, ring = true, fade = true, glow = false } },
+	defaults = { warn = { on = true, ring = true, fade = true, glow = false }, breath = { sound = "none" } },
 	page = { warn = { title = "Under water",
-		on = { "Warn without it", "While your breath bar drains and it isn't up." } } },
+		on = { "Warn without it", "While your breath bar drains and it isn't up." } },
+		own = { "sound", name = "breath", title = "Low breath", tip = "When your breath bar has 10 seconds left.",
+			badge = "Low breath sound" } },
+	experiment = "Low breath sound",
 	preview = {
 		warning = "underwater",
 		states = { { "underwater", "Under water", 80 } },
@@ -75,6 +78,15 @@ ns.registerPart("breath", {
 			else kit.idle(ic, def.key) end
 		end,
 	},
+})
+-- procSound (with proc): a sound as its aura comes, played by the engine; experimental
+ns.registerPart("procSound", {
+	kind = "buff", after = "proc",
+	defaults = { active = { sound = "none" } },
+	experiment = function(def) return procName(def) .. " sound" end,
+	page = { active = function(def)
+		return { soundBadge = procName(def) .. " sound", tips = { sound = "The moment it procs." } }
+	end },
 })
 -- proc: shown by Blizzard's aura container while the aura is up (noPop, noGlow: without its own)
 ns.registerPart("proc", {
@@ -434,14 +446,14 @@ ns.registerPart("buffBar", {
 	end },
 	preview = {
 		states = function(def) return { { "buffBar", Spells.name(def.buffBar.buffKey), 63 } } end,
-		-- Drawn on the preview icon by hand, with the switch off too: a frozen bar, the cooldown under way
+		-- Drawn on the preview icon by hand: the cooldown under way, a frozen bar while its switch is on
 		render = function(ic, st, def, kit)
 			local bar = ic.buffBar
-			if st ~= "buffBar" then
+			if st == "buffBar" then kit.frozen(ic.cdT, 0.4, def.cd or 60) end
+			if st ~= "buffBar" or setting(def.key, "buffBar") ~= true then
 				if bar then bar:Hide() end
 				return
 			end
-			kit.frozen(ic.cdT, 0.4, def.cd or 60)
 			if not bar then
 				bar = newBuffBar(ic.textFrame)
 				ic.buffBar = bar
@@ -674,6 +686,11 @@ local function refreshAll()
 	for _, def in ipairs(BUFFS) do refreshBuff(def) end
 end
 
+-- Its sound as its aura comes (any rank's ID), while it's learned
+local function applyProcSound(def)
+	if def.procSound then ns.Sounds.elementAura(def.key, "active", def.spellID and auraIDs(def) or nil, "Added") end
+end
+
 function B.resolve()
 	ns.Reagents.readPerk()
 	local sig = {}
@@ -685,6 +702,7 @@ function B.resolve()
 		def.spellID = known
 		if def.proc then B.resolveAura(def) end
 		if not def.proc then def.iconID = icon end
+		applyProcSound(def)
 		table.insert(sig, tostring(known))
 	end
 	for _, x in ipairs(BUFF_BARS) do
@@ -716,6 +734,7 @@ end
 
 function B.applyLayout()
 	for _, def in ipairs(BUFFS) do
+		applyProcSound(def)
 		if def.proc and def.spellID and E.isEnabled(def.key) then B.setupAura(def) end
 		if def.proc then
 			def.aura:style()
@@ -754,8 +773,24 @@ local function readBreath()
 	end
 end
 
+-- Low breath: its sound once as the breath bar passes LOW_BREATH seconds left, again after it refills
+local LOW_BREATH = 10   -- seconds
+local breathLow = false
+local breathWatch = ns.ticker(0.25, function()
+	local ok, ms = safe(GetMirrorTimerProgress, "BREATH")
+	if not ok or isSecret(ms) or type(ms) ~= "number" then return end
+	if ms > (LOW_BREATH + 1) * 1000 then breathLow = false end
+	if breathLow or ms > LOW_BREATH * 1000 then return end
+	breathLow = true
+	for _, def in ipairs(BUFFS) do
+		if def.breath and def.spellID then ns.Sounds.element(def.key, "breath") end
+	end
+end)
+local function watchBreath() breathWatch:SetShown(breathing) end
+
 function B.refresh()
 	readBreath()
+	watchBreath()
 	for _, def in ipairs(BUFFS) do
 		if not def.proc then readAura(def) end
 	end
@@ -777,6 +812,7 @@ end
 
 function B.start()
 	readBreath()
+	watchBreath()
 	ns.onCanActChange(refreshAll)
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "UNIT_AURA", "player")
@@ -792,6 +828,7 @@ function B.start()
 		if isSecret(timer) or timer ~= "BREATH" then return end
 		breathing = event == "MIRROR_TIMER_START" and type(scale) == "number" and not isSecret(scale) and scale < 0
 		if breathing then for _, def in ipairs(BUFFS) do if def.breath then setDown(def) end end end
+		watchBreath()
 		refreshAll()
 	end)
 end

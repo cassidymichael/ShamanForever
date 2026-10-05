@@ -345,8 +345,7 @@ end
 
 -- Charges spent, cancelled or run out; a recast over a live shield stays silent
 function SH.applyRemovedSound()
-	local ids = E.isEnabled("shield") and shieldIDMap() or nil
-	ns.Sounds.setAuraSound("shield", own("warn", "sound"), ids)
+	ns.Sounds.elementAura("shield", "warn", E.isEnabled("shield") and shieldIDMap() or nil)
 end
 
 function SH.resolve()

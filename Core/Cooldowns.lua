@@ -17,9 +17,9 @@ local setting = E.setting
 
 -- Elements: the class's rows (ns.CLASS.cooldowns). A row's fields: key, spellKey, icon, school,
 -- blurb, experimental; its parts' flags (this file's parts: window (seconds from our cast), primed,
--- readyGlow, lowMana, noReady; others' below); expireLooks (which looks Expiring offers; false: none), race
--- (race IDs; others see "Not your race"), cd and duration (preview only), defaults (over the
--- parts'), choices, styles and timerCant (see E.register).
+-- readyGlow, lowMana, noReadyPop, readyAtReset; others' below); expireLooks (which looks Expiring
+-- offers; false: none), race (race IDs; others see "Not your race"), cd and duration (preview only),
+-- defaults (over the parts'), choices, styles and timerCant (see E.register).
 local COOLDOWNS = ns.CLASS.cooldowns or {}
 
 -- The kind and its parts (ns.registerPart); a row's flags name its parts. Other files' parts join
@@ -62,12 +62,15 @@ ns.registerPart("cooldown", {
 		end,
 	},
 })
+-- Every cooldown has its ready sound; noReadyPop: without the pop
 ns.registerPart("ready", {
-	has = function(def) return not def.noReady end,
-	defaults = { ready = { pop = true, sound = "none" } },
-	pop = true,
+	has = function() return true end,
+	defaults = function(def) return { ready = { pop = not def.noReadyPop or nil, sound = "none" } } end,
+	pop = function(def) return not def.noReadyPop end,
 })
 ns.registerPart("readyGlow", { defaults = { ready = { glow = false } }, glow = true })
+-- readyAtReset: its ready also when its cooldown ends early (a talent's reset); experimental
+ns.registerPart("readyAtReset", { kind = "cooldown", experiment = "Ready at a reset" })
 -- Low mana: a pulsing glow while it's ready and your mana is under a percentage. Mana is secret even
 -- out of combat: its percent goes through a curve straight into an alpha, and nothing else reads it
 local MANA = Enum.PowerType and Enum.PowerType.Mana or 0
@@ -155,13 +158,14 @@ ns.registerPart("primed", {
 	preview = {
 		uptime = function(def) return def.primed.duration ~= nil end,
 		states = { { "primed", "Primed", 60 } },
+		-- Its switch off, nothing of it: the plain cooldown
 		render = function(ic, st, def, kit)
-			if st ~= "primed" then return end
+			if st ~= "primed" or not primedOn(def) then return end
 			ic:SetGlowShown(setting(def.key, "active", "glow"))
 			if def.primed.duration then kit.frozen(ic.upT, 0.3, def.primed.duration) end
 		end,
 		pop = function(ic, st, def)
-			if st == "primed" and setting(def.key, "active", "pop") then ic:Pop("ready") end
+			if st == "primed" and primedOn(def) and setting(def.key, "active", "pop") then ic:Pop("ready") end
 		end,
 	},
 })
@@ -255,10 +259,24 @@ end
 -- Arms the next ready only when our own cast starts the cooldown, never on a guess: a missed
 -- ready beats a false one.
 local READY_GRACE, ARM_AFTER_CAST = 0.5, 1.5
-local function noteReady(f, st, inEvent)
+-- Still armed, still ready and its tracker still running once the grace is over: the cooldown ended
+-- early (a reset), so this is its ready. Only for rows with readyAtReset
+local function endedEarly(f, spellID, by)
+	local r = f.ready
+	if not r.armed or r.by ~= by or not f.ownCd:IsShown() or ns.zoning() or ns.cantAct() then return end
+	if plainCooldown(spellID) ~= "ready" then return end
+	r.armed, r.by = nil, nil
+	r.at = GetTime()
+	for _, fn in ipairs(r.fns) do fn() end
+end
+local function noteReady(f, st, inEvent, spellID)
 	local r = f.ready
 	if st == "ready" then
-		if r.armed and not r.by then r.by = GetTime() + READY_GRACE end
+		if r.armed and not r.by then
+			local by = GetTime() + READY_GRACE
+			r.by = by
+			if r.atReset then C_Timer.After(READY_GRACE, function() endedEarly(f, spellID, by) end) end
+		end
 	elseif st == "own" and inEvent and r.castAt and GetTime() - r.castAt <= ARM_AFTER_CAST then
 		r.armed, r.by, r.castAt = true, nil, nil
 	end
@@ -268,7 +286,7 @@ end
 local JUST_SHOWN = 0.2
 local function watchEnds(f)
 	if f.ready then return end
-	local r = {}
+	local r = { fns = {} }
 	f.ready = r
 	local t = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
 	t:SetAllPoints()
@@ -300,13 +318,19 @@ function CD.resetReady(f)
 	f.ownCd:Clear()
 end
 function CD.readyNow(f) return f.ready ~= nil and f.ready.at == GetTime() end
+-- fn() at the tracker's end and at an early end; it checks CD.readyNow itself
+local function onReady(f, fn)
+	watchEnds(f)
+	table.insert(f.ready.fns, fn)
+	f.ownCd:HookScript("OnCooldownDone", fn)
+end
 -- Timer duration by the Global cooldown style, then the time bar's: the spell's own cooldown only,
 -- never the GCD (false: none); nil when unreadable. Duration objects only go to widgets (secret in
 -- combat).
 local function cooldownFor(f, key, spellID, inEvent)
 	watchEnds(f)
 	local st = plainCooldown(spellID)
-	noteReady(f, st, inEvent)
+	noteReady(f, st, inEvent, spellID)
 	local ok, own = safe(C_Spell.GetSpellCooldownDuration, spellID, true)
 	if st == "own" and ok and own then
 		ns.try("ready tracker", f.ownCd.SetCooldownFromDurationObject, f.ownCd, own, true)
@@ -325,8 +349,7 @@ CD.cooldownFor = cooldownFor
 
 -- Pop when ready. gate(): "ready", "blocked" (a greyed pop, if chosen) or nil (none); no gate: ready
 local function popWhenReady(f, key, gate)
-	watchEnds(f)
-	f.ownCd:HookScript("OnCooldownDone", function()
+	onReady(f, function()
 		if not CD.readyNow(f) then return end
 		if not (E.isEnabled(key) and setting(key, "ready", "pop")) then return end
 		if ns.cantAct() then return end
@@ -503,7 +526,7 @@ end
 -- into view; gate as popWhenReady's
 local function soundWhenReady(f, key, gate)
 	f:HookScript("OnShow", function() f.shownAt = GetTime() end)
-	f.ownCd:HookScript("OnCooldownDone", function()
+	onReady(f, function()
 		if not f:IsVisible() or GetTime() - (f.shownAt or 0) < JUST_SHOWN then return end
 		if not CD.readyNow(f) then return end
 		if gate and gate() ~= "ready" then return end
@@ -524,7 +547,8 @@ for _, def in ipairs(COOLDOWNS) do
 		return "ready"
 	end
 	popWhenReady(def.frame, def.key, gate)
-	if not def.noReady then soundWhenReady(def.frame, def.key, gate) end
+	soundWhenReady(def.frame, def.key, gate)
+	def.frame.ready.atReset = def.readyAtReset or nil
 	-- The swipe's end, and the spell's own (the time bar's), which can end inside a GCD
 	for _, cd in ipairs({ def.frame.cd, def.frame.ownCd }) do
 		cd:HookScript("OnCooldownDone", function() C_Timer.After(0, function() refreshCooldown(def) end) end)

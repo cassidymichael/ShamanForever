@@ -425,7 +425,9 @@ ns.registerPart("targetDebuff", {
 		uptime = true,
 		states = { { "debuff", "Debuff", 60 } },
 		render = function(ic, st, def, kit)
-			if st == "debuff" then kit.frozen(ic.upT, 0.3, def.targetDebuff.length) end
+			if st == "debuff" and setting(def.key, "active", "on") ~= false then
+				kit.frozen(ic.upT, 0.3, def.targetDebuff.length)
+			end
 		end,
 	},
 	runtime = {

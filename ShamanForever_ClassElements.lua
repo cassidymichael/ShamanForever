@@ -55,7 +55,7 @@ ns.CLASS.cooldowns = {
 		targetDebuff = { length = 12 }, expireLooks = false, readyGlow = true, cd = 8,
 		buffBar = { buffKey = "improvedStormstrikeBuff", talentKey = "improvedStormstrike", school = "water" },
 		glowWhile = { experimental = { "debuff", "buff" } }, choices = { glowWhile = { "none", "debuff", "buff" } },
-		experimental = "Stormstrike" },
+		readyAtReset = true, experimental = "Stormstrike" },
 	{ key = "riptide", power = true, spellKey = "riptide", icon = 252995, school = "water", blurb = "Cooldown.",
 		readyGlow = true, cd = 6, experimental = "Riptide" },
 	-- Short cooldowns: no Ready pop by default
@@ -71,7 +71,7 @@ ns.CLASS.cooldowns = {
 	{ key = "reincarnation", spellKey = "reincarnation", icon = 136080, school = "spirit",
 		blurb = "Cooldown, and your Ankhs when they run low.",
 		styles = { gcd = { show = false } },   -- never needs the sweep
-		reagent = 17030, noReady = true, cd = 3600,
+		reagent = 17030, noReadyPop = true, cd = 3600,
 		defaults = { idleAlpha = 0, idleWhen = "offcd" }, experimental = "Reincarnation" },
 	-- Racials (race IDs: Orc 2, Dwarf 3, Tauren 6, Troll 8, Windshaper Skyborne 96)
 	windowBuff({ key = "bloodfury", spellKey = "bloodFury", icon = 135726, race = { 2 }, window = 15,
@@ -108,7 +108,7 @@ ns.CLASS.buffs = {
 		styles = TEXT_TIMER,
 		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, fade = false } },
 		experimental = "Water Breathing" },
-	{ key = "elementalfocus", spellKey = "elementalFocus", buffKey = "clearcasting", icon = 136170,
+	{ key = "elementalfocus", spellKey = "elementalFocus", buffKey = "clearcasting", icon = 136170, procSound = true,
 		school = "spirit", blurb = "Shows while " .. ns.Spells.name("clearcasting") .. " is up.",
 		proc = true, defaults = { idleAlpha = 0 },
 		styles = PROC_SWIPE },

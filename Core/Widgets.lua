@@ -177,6 +177,42 @@ function W.linePx(frame, n)
 	return count * W.pixel(frame)
 end
 
+-- A thin scroll bar line, in the options nav list's colours: line:update(height, from, shown), from and
+-- shown being the part in view as fractions of the whole
+local SCROLL_LINE_PX = 3
+function W.scrollLine(parent)
+	local line = CreateFrame("Frame", nil, parent)
+	line.bg = line:CreateTexture(nil, "BACKGROUND")
+	line.bg:SetAllPoints()
+	line.bg:SetColorTexture(1, 1, 1, 0.06)
+	line.thumb = line:CreateTexture(nil, "ARTWORK")
+	line.thumb:SetColorTexture(0.88, 0.66, 0.29, 0.55)
+	function line.update(self, height, from, shown)
+		self:SetSize(W.linePx(self, SCROLL_LINE_PX), height)
+		local th = math.max(height * math.min(shown, 1), math.min(height, 8))
+		local rest = 1 - shown
+		local y = rest > 0 and -(height - th) * math.min(from / rest, 1) or 0
+		self.thumb:ClearAllPoints()
+		self.thumb:SetPoint("TOPLEFT", self, "TOPLEFT", 0, y)
+		self.thumb:SetPoint("TOPRIGHT", self, "TOPRIGHT", 0, y)
+		self.thumb:SetHeight(th)
+	end
+	return line
+end
+
+-- A scrolling list's top and bottom shades, fading into the panel's colour where more lies past an end
+function W.moreShades(parent, height, right)
+	local function shade(point, from, to)
+		local t = parent:CreateTexture(nil, "OVERLAY")
+		t:SetPoint(point .. "LEFT"); t:SetPoint(point .. "RIGHT", -right, 0)
+		t:SetHeight(height)
+		t:SetColorTexture(1, 1, 1, 1)
+		t:SetGradient("VERTICAL", CreateColor(0.09, 0.075, 0.06, from), CreateColor(0.09, 0.075, 0.06, to))
+		return t
+	end
+	return shade("TOP", 0, 0.95), shade("BOTTOM", 0.95, 0)
+end
+
 -- Anchors on a whole screen pixel so texture, border and swipe agree on edges.
 function W.placeOnPixels(frame, point, x, y)
 	local px = W.pixel(frame)

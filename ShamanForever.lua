@@ -59,7 +59,9 @@ root:SetAllPoints(UIParent)
 -- Every element, in the order they register (TOC order)
 local ELEMENT_KEYS = {}
 -- key -> { frame, label, paint(texture), getSize(size), stack(), learned(), borderHost, shape,
--- standInBorder, defaults, effects, ownSchool(), spell, icon, school, blurb, experimental, kind, def }
+-- standInBorder, defaults, effects, ownSchool(), spell, icon, school, blurb, experimental, experiments,
+-- kind, def }
+-- experiments: the names of experimental features its parts add (_Kinds), listed in About
 -- getSize: width and height for the group's icon size (elements need not be square); borderHost:
 -- the part its border is drawn on; shape "bar": a bar, not an icon (takes only the border
 -- parts that fit a bar); paint: what stands in for it in the options and while dragging;

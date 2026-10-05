@@ -121,14 +121,18 @@ function TO.onCast(spellID)
 	notify("cast", slot, key)
 end
 
+-- Death, a flight path and a loading screen end every totem: nothing killed them
+local function noEnd() return ns.cantAct() or ns.zoning() end
+
 -- dur: the gone totem's last duration object (killed early vs ran out)
 function TO.slotEmptied(slot, dur)
+	local quiet = noEnd()
 	C_Timer.After(0.1, function()
 		local mine = dismissedAt[slot] and GetTime() - dismissedAt[slot] < 1.5
 		local ok, d = ns.try("totems: duration", GetTotemDuration, slot)
 		local refilled = ok and d ~= nil
 		if refilled then return end
-		if not mine then notify("gone", slot, dur) end
+		if not (mine or quiet or noEnd()) then notify("gone", slot, dur) end
 		if ok then owner[slot], spells[slot] = nil, nil end
 	end)
 end

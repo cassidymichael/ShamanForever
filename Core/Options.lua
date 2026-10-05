@@ -286,6 +286,7 @@ local function buildAbout(p)
 	for _, key in ipairs(E.KEYS) do
 		local e = E.ALL[key]
 		if e.experimental then p:experimental(e.experimental, "Elements > " .. e.label) end
+		for _, x in ipairs(e.experiments or {}) do p:experimental(x, "Elements > " .. e.label) end
 	end
 	p:experimental("Art frames", "Art frame and Group art frame styles")
 	for _, key in ipairs(Bars.list()) do
@@ -480,15 +481,7 @@ local function buildNav()
 	local over = CreateFrame("Frame", nil, list)
 	over:SetAllPoints()
 	over:SetFrameLevel(child:GetFrameLevel() + 5)
-	local function shade(point, from, to)
-		local t = over:CreateTexture(nil, "OVERLAY")
-		t:SetPoint(point .. "LEFT"); t:SetPoint(point .. "RIGHT", -8, 0)
-		t:SetHeight(18)
-		t:SetColorTexture(1, 1, 1, 1)
-		t:SetGradient("VERTICAL", CreateColor(0.09, 0.075, 0.06, from), CreateColor(0.09, 0.075, 0.06, to))
-		return t
-	end
-	list.moreAbove, list.moreBelow = shade("TOP", 0, 0.95), shade("BOTTOM", 0.95, 0)
+	list.moreAbove, list.moreBelow = W.moreShades(over, 18, 8)
 	local track = CreateFrame("Button", nil, over)
 	track:SetPoint("TOPRIGHT", -1, 0)
 	track:SetPoint("BOTTOMRIGHT", -1, 0)

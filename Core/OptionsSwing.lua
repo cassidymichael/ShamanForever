@@ -62,10 +62,10 @@ local PREVIEW = {
 		box.bar:SetValue(c.deplete and 1 - filled or filled)
 		box.text:SetText(string.format("%.1f", LENGTH * (1 - FILL)))
 		box.text:SetShown(c.countdown and not due)
-		-- Marks switched on, full; a mark's own state shows it switched off too
+		-- Marks switched on, full
 		for _, key in ipairs(SW.MARKS) do
 			local pips = box.pips[key]
-			local on = c.marks[key] == true or st == "mark-" .. key
+			local on = c.marks[key] == true
 			if on and not pips then
 				pips = SW.makePips(box.over)
 				box.pips[key] = pips
