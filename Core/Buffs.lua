@@ -1,6 +1,6 @@
 -- Buff elements
--- A buff with a timer: auras are secret in combat, so the timer runs on from the last read.
--- A proc: only Blizzard's aura container can show one in combat, on the player or another unit.
+-- Each is shown by Blizzard's aura container while its aura is up (proc): only the container can show
+-- an aura in combat, on the player or another unit. Nothing here times a buff from a cast.
 
 local _, ns = ...
 local P = ns.Profiles
@@ -40,8 +40,7 @@ ns.registerPart("buff", {
 		uptime = true,
 		labels = { low = "Not up, few left", out = "Not up, none left" },
 		states = function(def)
-			local states = { { "up", def.proc and (def.upLabel or procName(def)) or "Up", 10 } }
-			if not def.proc then table.insert(states, { "expiring", "Expiring", 20 }) end
+			local states = { { "up", def.upLabel or procName(def) or "Up", 10 } }
 			table.insert(states, { "idle", def.idleLabel or "Not up", 40 })
 			return states
 		end,
@@ -49,11 +48,9 @@ ns.registerPart("buff", {
 			local key = def.key
 			kit.reset(ic, def.icon)
 			if st == "up" then
-				if def.proc then
-					if not def.noTimer then kit.frozen(ic.upT, 0.3, 15) end
-					ic:SetGlowShown(setting(key, "active", "glow"))
-				else kit.frozen(ic.upT, 0.3, 600) end
-			elseif st == "expiring" and not def.engineExpire then kit.expiring(ic, key, 600)
+				-- A buff on you at its own length; on another unit, one of 15 s
+				if not def.noTimer then kit.frozen(ic.upT, 0.3, not def.unit and def.duration or 15) end
+				ic:SetGlowShown(setting(key, "active", "glow"))
 			elseif st == "idle" then
 				if setting(key, "idleWhen") ~= "never" then kit.idle(ic, key) end
 			end
@@ -61,9 +58,10 @@ ns.registerPart("buff", {
 		rest = function(ic, def, kit, keep) if not keep then kit.idle(ic, def.key) end end,
 	},
 })
--- breath: warns under water without it
+-- breath: warns under water without it (the breath bar runs only while no water breathing is up)
 ns.registerPart("breath", {
 	defaults = { warn = { on = true, ring = true, fade = true, glow = false }, breath = { sound = "none" } },
+	glow = true,
 	page = { warn = { title = "Under water",
 		on = { "Warn without it", "While your breath bar drains and it isn't up." } },
 		own = { "sound", name = "breath", title = "Low breath", tip = "When your breath bar has 10 seconds left.",
@@ -78,6 +76,17 @@ ns.registerPart("breath", {
 			else kit.idle(ic, def.key) end
 		end,
 	},
+})
+-- breathEnds (breath, with proc): the Under water warning's sound, only as its aura ends while you're under
+-- water: the breath bar starts while the aura still reads as up (the bar starts as the aura goes, before
+-- its aura event). Auras read out of combat only: in combat it's silent
+ns.registerPart("breathEnds", {
+	kind = "buff", after = "breath",
+	has = function(def) return def.breath and def.proc and true or false end,
+	defaults = { warn = { sound = "none" } },
+	experiment = "Ending under water sound",
+	page = { warn = { soundBadge = "Ending under water sound",
+		tips = { sound = "As it ends while you're under water, out of combat." } } },
 })
 -- procSound (with proc): a sound as its aura comes, played by the engine; experimental
 ns.registerPart("procSound", {
@@ -349,7 +358,7 @@ ns.registerPart("engineExpire", {
 -- (else "HELPFUL"), candidates(def) (candidate filters, else the aura's IDs), auraKey or buffKey
 -- (the aura's spell, any rank), ownIcon (the row's icon, not the aura's), noTimer (no time left),
 -- noGlow and noPop (without its own glow or pop; with neither, no effect host), charges (above),
--- swingMark (below).
+-- swingMark (below), reagent (its count stays over the button).
 -- A part's runtime hooks for them (each optional; parts from other files bring their own):
 --   make(def)                  at load, after the icon, before the aura slot: frames of its own;
 --                              returns { looks, extras }: aura looks set up, refiltered and checked
@@ -366,20 +375,16 @@ local EXPIRE_RANGE = { 0, 120, 5 }
 ns.registerKind("buff", {
 	parts = { "buff", "breath", "proc" },
 	slots = { "own", "warn", "cast", "active", "expire", "uptime" },
-	prepare = function(def)
-		def.expires = not def.proc
-		def.expireRange = EXPIRE_RANGE
-	end,
+	prepare = function(def) def.expireRange = EXPIRE_RANGE end,
 })
 
 local NONE = {}
+-- A reagent's count is on the icon's text layer: the button goes just under it
+local REAGENT_UNDER = -6
 
 local function makeBuffIcon(def)
 	local f = E.newIcon(def.key, { effects = true })
 	f.tex:SetTexture(def.icon)
-	if not def.proc then
-		f.upTimer = ns.Timer.new(f, def.key, "uptime", { cd = f.cd, school = def.school })
-	end
 	f.stack()
 	return f
 end
@@ -430,6 +435,7 @@ local function buildAura(def)
 		key = key, slot = where.slot, unit = where.unit, filter = def.filter, parent = where.parent,
 		ids = ids, candidates = candidates,
 		ownIcon = def.ownIcon and function() return def.icon end, noTimer = def.noTimer,
+		level = def.reagent and REAGENT_UNDER or nil,
 		-- The time bar sits on the charge bar
 		barInset = def.charges and function() return chargesLift(def) end,
 		extras = #def.extras > 0 and def.extras or nil,
@@ -683,6 +689,8 @@ local function readStateLength(x)
 end
 for _, x in ipairs(STATE_LIST) do
 	local def, key = x.def, x.def.key
+	-- Expiring's bar part is clipped to the time bar in the icon
+	if x.spec.length then ns.Timer.keepIn(key) end
 	if x.spec.active then
 		x.fx = ns.Effects.host(def.frame, key, { aura = {
 			slot = x, parent = def.frame.effects, unit = "player", filter = stateFilter(x),
@@ -952,42 +960,40 @@ function B.styleGlow(def)
 end
 local styleGlow = B.styleGlow
 
--- A timed buff's time
-local function setUp(def, start, length)
-	def.upUntil = start + length
-	def.frame.upTimer:setTime(start, length)
-end
-local function setDown(def)
-	def.upUntil = nil
-	def.frame.upTimer:clear()
-end
-
-local function readAura(def)
-	if not ns.aurasReadable() or not C_UnitAuras then return end
-	local ok, a = safe(C_UnitAuras.GetAuraDataBySpellName, "player", def.spell, "HELPFUL")
-	if not ok then return end
-	if type(a) ~= "table" then setDown(def) return end
-	local exp, dur = a.expirationTime, a.duration
-	if isSecret(exp) or isSecret(dur) or type(exp) ~= "number" or type(dur) ~= "number" or exp <= 0 or dur <= 0 then
-		return
-	end
-	def.duration = dur
-	if not def.upUntil or math.abs(def.upUntil - exp) > 0.2 then setUp(def, exp - dur, dur) end
-end
-
-local function castOnSelf()
-	local ok, exists = safe(UnitExists, "target")
-	if not ok or isSecret(exists) or not exists then return true end
-	if ns.plain(safe(UnitIsUnit, "target", "player")) then return true end
-	local fok, friend = safe(UnitIsFriend, "player", "target")
-	if not fok or isSecret(friend) then return true end
-	return not friend
-end
-
--- Under water without the breath buff
+-- Under water: the breath bar drains (never while water breathing is up)
 local breathing = false
 local function underWaterWarns(def)
-	return def.breath and breathing and not def.upUntil and setting(def.key, "warn", "on") and not ns.cantAct()
+	return def.breath and breathing and setting(def.key, "warn", "on") and not ns.cantAct()
+end
+
+-- Read at rest: whether it's up (breathEnds' moment) and its length (Expiring's bar part, as engineExpire's
+-- on the target: another length turns it off)
+local function readUp(def)
+	if not (def.spellID and ns.aurasReadable() and C_UnitAuras) then return nil end
+	for id in pairs(auraIDs(def)) do
+		local ok, a = safe(C_UnitAuras.GetPlayerAuraBySpellID, id)
+		if not ok or isSecret(a) then return nil end
+		if type(a) == "table" then return true, a.duration end
+	end
+	return false
+end
+local function readAura(def)
+	local up, dur = readUp(def)
+	if up and def.engineExpire and type(dur) == "number" and not isSecret(dur) and dur > 0 then
+		local off = math.abs(dur - def.duration) > 0.05
+		if off ~= (def.lengthOff or false) then
+			def.lengthOff = off
+			def.aura:style()
+		end
+	end
+end
+-- The breath bar started
+local function breathStarted()
+	for _, def in ipairs(BUFFS) do
+		if def.breath and def.proc and E.isEnabled(def.key) and setting(def.key, "warn", "on") then
+			if readUp(def) then ns.Sounds.element(def.key, "warn") end
+		end
+	end
 end
 
 local previewing = false
@@ -1010,12 +1016,11 @@ local function refreshBuff(def)
 		return
 	end
 	f.tex:SetDesaturated(false)
-	if def.proc then
-		if def.fx then def.fx:glow(setting(key, "active", "glow") and not previewing) end
+	if def.fx then def.fx:glow(setting(key, "active", "glow") and not previewing) end
+	if not (def.reagent or def.breath) then
 		W.fadeTo(f, P.getAccount().locked and E.idleAlpha(key) or 1)
 		return
 	end
-	if def.upUntil and GetTime() >= def.upUntil then setDown(def) end
 	-- Set each look once: re-setting a pulse restarts it
 	local held, ring, pulse, glow = false, false, false, false
 	if def.reagent then held, ring, pulse = ns.Reagents.refresh(def) end
@@ -1029,7 +1034,8 @@ local function refreshBuff(def)
 		def.glowing = glow and true or false
 		f:SetGlowShown(def.glowing)
 	end
-	local busy = not P.getAccount().locked or def.upUntil ~= nil or held
+	-- Its button shows it while up, on the effects layer
+	local busy = not P.getAccount().locked or held
 	W.fadeTo(f, busy and 1 or E.idleAlpha(key))
 end
 
@@ -1052,11 +1058,10 @@ function B.resolve()
 	for _, def in ipairs(BUFFS) do
 		def.spell = Spells.name(def.spellKey)
 		E.ALL[def.key].label = def.spell
-		local known, icon = Spells.known(def.spellKey)
+		local known = Spells.known(def.spellKey)
 		if known ~= def.spellID then def.takesReagent = nil end
 		def.spellID = known
 		if def.proc then B.resolveAura(def) end
-		if not def.proc then def.iconID = icon end
 		applyProcSound(def)
 		table.insert(sig, tostring(known))
 	end
@@ -1069,13 +1074,6 @@ end
 
 function B.applyTimers()
 	statesStyle()
-	for _, def in ipairs(BUFFS) do
-		local t = def.frame.upTimer
-		if t then
-			t:apply()
-			t:setExpire(E.event(def.key, "expire"), def.iconID or def.icon)
-		end
-	end
 	for _, def in ipairs(BUFFS) do
 		if def.proc then
 			def.aura:style()
@@ -1144,23 +1142,12 @@ function B.refresh()
 	readBreath()
 	watchBreath()
 	for _, def in ipairs(BUFFS) do
-		if not def.proc then readAura(def) end
+		if def.breath or def.engineExpire then readAura(def) end
 	end
 	refreshAll()
 end
 
 B.tick = refreshAll
-
-function B.onCast(spellID)
-	local key = Spells.keyOf(spellID)
-	if not key or ns.aurasReadable() then return end
-	for _, def in ipairs(BUFFS) do
-		if not def.proc and key == def.spellKey and def.spellID and castOnSelf() then
-			setUp(def, GetTime(), def.duration)
-			refreshBuff(def)
-		end
-	end
-end
 
 function B.start()
 	-- A loading screen (login and /reload too) assigns every aura again: no pop for one already up
@@ -1183,7 +1170,7 @@ function B.start()
 		end
 		if isSecret(timer) or timer ~= "BREATH" then return end
 		breathing = event == "MIRROR_TIMER_START" and type(scale) == "number" and not isSecret(scale) and scale < 0
-		if breathing then for _, def in ipairs(BUFFS) do if def.breath then setDown(def) end end end
+		if breathing then breathStarted() end
 		watchBreath()
 		refreshAll()
 	end)
@@ -1204,17 +1191,13 @@ end
 -- /sf debug
 function B.debug()
 	for _, def in ipairs(BUFFS) do
-		local state
-		if def.proc then
-			local a = def.aura
-			state = string.format("container %s%s; %s", a.container and "made" or "not made",
-				a.err and (", error: " .. a.err) or "", def.fx and def.fx:describe() or "no glow or pop")
-		else
-			state = def.upUntil and string.format("up, %.0f s left", def.upUntil - GetTime()) or "not up"
-			if def.reagent then state = string.format("%s, reagent %s (takes it: %s, Reagent Economy %s)", state,
-				describeArg(def.reagentRead), tostring(def.takesReagent), tostring(ns.Reagents.perkKnown())) end
-			if def.breath then state = state .. ", breath bar " .. tostring(breathing) end
-		end
+		local a = def.aura
+		local state = a and string.format("container %s%s; %s", a.container and "made" or "not made",
+			a.err and (", error: " .. a.err) or "", def.fx and def.fx:describe() or "no glow or pop") or "no container"
+		if def.reagent then state = string.format("%s, reagent %s (takes it: %s, Reagent Economy %s)", state,
+			describeArg(def.reagentRead), tostring(def.takesReagent), tostring(ns.Reagents.perkKnown())) end
+		if def.breath then state = state .. ", breath bar " .. tostring(breathing) end
+		if def.lengthOff then state = state .. ", another length (no Expiring bar)" end
 		say("%s: spell %s, %s", def.spell, tostring(def.spellID), state)
 	end
 end

@@ -104,16 +104,19 @@ ns.CLASS.cooldowns = {
 local PROC_SWIPE = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } }
 local TEXT_TIMER = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 },
 	textPos = "center", swipe = false, bar = true } }
+-- A buff you cast, shown from your own aura (duration: its full length, for Expiring's bar part)
+local function ownBuff(row)
+	row.proc, row.noPop, row.noGlow, row.engineExpire = true, true, true, true
+	row.auraKey, row.filter = row.spellKey, "HELPFUL|PLAYER"
+	return row
+end
 ns.CLASS.buffs = {
-	{ key = "waterwalking", power = true, spellKey = "waterWalking", icon = 135863, school = "water", reagent = 17058,
-		duration = 600, blurb = "Time left while it's up.", styles = TEXT_TIMER,
-		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, fade = false } },
-		experimental = "Water Walking" },
-	{ key = "waterbreathing", power = true, spellKey = "waterBreathing", icon = 136148, school = "water", reagent = 17057,
-		duration = 600, breath = true, blurb = "Time left while it's up. Warns under water without it.",
-		styles = TEXT_TIMER,
-		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, fade = false } },
-		experimental = "Water Breathing" },
+	ownBuff({ key = "waterwalking", power = true, spellKey = "waterWalking", icon = 135863, school = "water",
+		reagent = 17058, duration = 600, blurb = "Time left while it's up.", styles = TEXT_TIMER,
+		defaults = { idleAlpha = 0, expire = { secs = 30 } }, experimental = "Water Walking" }),
+	ownBuff({ key = "waterbreathing", power = true, spellKey = "waterBreathing", icon = 136148, school = "water",
+		reagent = 17057, duration = 600, breath = true, blurb = "Time left while it's up. Warns under water without it.",
+		styles = TEXT_TIMER, defaults = { idleAlpha = 0, expire = { secs = 30 } } }),
 	{ key = "elementalfocus", spellKey = "elementalFocus", buffKey = "clearcasting", icon = 136170, procSound = true,
 		school = "spirit", blurb = "Shows while " .. ns.Spells.name("clearcasting") .. " is up.",
 		proc = true, defaults = { idleAlpha = 0 },
