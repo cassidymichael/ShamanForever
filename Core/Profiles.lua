@@ -21,10 +21,13 @@ local SAVED = ns.NAME .. "DB"
 local DEFAULT_PROFILE = "Default"
 P.DEFAULT_NAME = DEFAULT_PROFILE
 -- Share strings carry it: one from a newer version is refused
-local SHARE_VERSION = 7
+local SHARE_VERSION = 8
 
 -- Element settings (db.elementOpts[key]). A state or event is a table of fields, named the same on
 -- every element; an element's defaults declare the fields it has, and pages offer those.
+-- Every element has these two (main's BASE):
+--   on      the player's switch; off, it isn't on screen and keeps its group and settings
+--   show    always | combat: when it shows while on
 --   warn    = { on, grey, ring, fade, tint, glow, pop, sound }   something is missing (a buff)
 --   active  = { on, pop, glow, text, sound }   something to use or act on (primed, a proc, five stacks);
 --             on: it's followed at all (off, the element leaves the state out)
@@ -111,8 +114,8 @@ local RENAMED = {
 }
 
 -- Retired settings, dropped or converted as a profile loads or is imported (account and folds: as the account
--- loads). Drop after launch, with RENAMED, retireGroups, retireTotemBar, retireStyles, retireOwnLooks and
--- retireSounds.
+-- loads). Drop after launch, with RENAMED, retireGroups, retireTotemBar, retireStyles, retireOwnLooks,
+-- retireSounds and the values loop in P.migrate.
 local RETIRED = {
 	-- Profile keys from before styles
 	root = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "glowSize", "popMotion", "popSize", "popSpeed",
@@ -134,6 +137,9 @@ local RETIRED = {
 	ownLooks = { shock = { mana = "power", range = "range" } },
 	-- Game sounds no longer offered (silent on the client): a saved one becomes None
 	sounds = { whisper = true },
+	-- Element values that became another setting: name -> old value -> { setting, value }. The old one
+	-- goes, so that name takes its default.
+	values = { show = { never = { "on", false } } },
 }
 
 -- Every sound field under t
@@ -253,6 +259,13 @@ function P.migrate(profile)
 	end
 	for _, o in pairs(opts) do
 		if type(o) == "table" then
+			for name, map in pairs(RETIRED.values) do
+				local to = map[o[name]]
+				if to then
+					o[name] = nil
+					if o[to[1]] == nil then o[to[1]] = to[2] end
+				end
+			end
 			rename(o, RENAMED.element)
 			for name, fields in pairs(RENAMED.values) do
 				local t = o[name]
@@ -490,7 +503,10 @@ function P.cleanSettings(profile)
 		for key, o in pairs(opts) do
 			local e = ns.Elements.ALL[key]
 			if type(key) ~= "string" or type(o) ~= "table" then opts[key] = nil
-			elseif e then cleanOwner(o, e) end
+			elseif e then
+				cleanOwner(o, e)
+				cleanOwner(o, ns.Elements.BASE)
+			end
 		end
 	end
 	for _, name in ipairs(ns.Bars.list()) do

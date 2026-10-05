@@ -27,9 +27,8 @@ local function byName()
 end
 EP.ordered = byName
 
-local SHOW_TIP = "When the element is drawn. Hidden keeps its place in its group, so choosing Always or In combat "
-	.. "again puts it back where it was. Groups have their own Show on the Groups & Layout page; an element shows "
-	.. "only when both it and its group allow it."
+local SHOW_TIP = "Whether the element is on, and when it is drawn. Groups have their own Show on the Groups & "
+	.. "Layout page; an element shows only when both it and its group allow it."
 
 -- Elements overview
 local function tableCell(parent, width, font)
@@ -145,6 +144,11 @@ function EP.buildOverview(p)
 		unknown:SetText(E.notLearnedText(key))
 		local group = menuCell(f, 120, K.groupMenu(key, function() ns.Options.refresh() end))
 		local show = menuCell(f, 86, function(_, root)
+			root:CreateCheckbox("On", function() return E.isOn(key) end, function()
+				E.setOn(key, not E.isOn(key))
+				ns.Options.refresh()
+			end)
+			root:CreateDivider()
 			for _, c in ipairs(SHOW_CHOICES) do
 				root:CreateRadio(c[2], function() return E.showMode(key) == c[1] end, function()
 					E.setShow(key, c[1])
@@ -221,7 +225,8 @@ function EP.buildOverview(p)
 			icon:SetDesaturated(not learned)
 			local g = G.of(key)
 			group.text:SetText(g and g.name or "Ungrouped")
-			local mode = E.showMode(key)
+			local mode = E.isOn(key) and E.showMode(key)
+			show.text:SetText("Off")
 			for _, c in ipairs(SHOW_CHOICES) do if c[1] == mode then show.text:SetText(c[2]) end end
 			for _, cell in ipairs(cells) do
 				cell[1]:ClearAllPoints()

@@ -80,6 +80,8 @@ local ELEMENTS = {}
 local function iconSize(size) return size, size end
 local NO_EFFECTS = { glow = false, pop = false }
 local BASE_RANGES = { idleAlpha = { 0, 1, 0.05 } }
+-- Every element's own settings beside its defaults (_Profiles has the vocabulary)
+local BASE = { defaults = { on = true, show = "always" }, choices = { show = { "always", "combat" } } }
 function E.register(key, e)
 	e.getSize = e.getSize or iconSize
 	e.effects = e.effects or NO_EFFECTS
@@ -270,10 +272,11 @@ local function elementOpts(key)
 end
 
 -- An element's settings: one value (show, idleWhen), or a state or event table read by field
--- (warn, grey). Unset falls back to the element's defaults.
+-- (warn, grey). Unset falls back to the element's defaults, then to every element's (BASE).
 local function elementDefault(key, name, field)
 	local own = ELEMENTS[key] and ELEMENTS[key].defaults
 	local v = own and own[name]
+	if v == nil and ELEMENTS[key] then v = BASE.defaults[name] end
 	if field == nil then return v end
 	if type(v) ~= "table" then return nil end
 	return v[field]
@@ -317,7 +320,9 @@ local function idleAlpha(key)
 	return math.min(math.max(v, 0), 1)
 end
 
-local function showMode(key) return elementOpts(key).show or "always" end
+local function showMode(key) return elementSetting(key, "show") end
+-- The player's switch; isEnabled adds its group and the HUD
+local function isOn(key) return elementSetting(key, "on") ~= false end
 
 local function groupSize(g) return (g and not g.sizeFollow and g.size) or db.iconSize end
 -- An element's box (its Size, border included) and its picture's size, in whole pixels
@@ -330,7 +335,8 @@ local function sizeOf(key)
 	return box - 2 * ns.StyleArt.inset(e.borderHost or e.frame, E.borderFor(key), box, e.shape)
 end
 
-local function isEnabled(key) return groupOf(key) ~= nil and showMode(key) ~= "never" and onHUD(key) end
+-- Whether the element is in use: on, in a group, and on the HUD. What runs for it is gated on this.
+local function isEnabled(key) return groupOf(key) ~= nil and isOn(key) and onHUD(key) end
 
 local function removeElement(key)
 	local g, i = groupOf(key)
@@ -598,7 +604,7 @@ local function layoutGroup(g)
 		if f:GetParent() ~= gf then f:SetParent(gf) end
 		f:SetFrameLevel(level)
 		if e.stack then e.stack() end
-		if showMode(key) == "never" or not onHUD(key) then
+		if not isOn(key) or not onHUD(key) then
 			hideFrame(f)
 		else
 			local w, h = e.getSize(groupSize(g))
@@ -906,9 +912,15 @@ local setShow = edit(function(key, mode)
 	elementOpts(key).show = mode ~= (elementDefault(key, "show") or "always") and mode or nil
 end, true)
 
-local hideGroup = edit(function(id)
+local setOn = edit(function(key, on)
+	on = on and true or false
+	if on == elementDefault(key, "on") then on = nil end
+	elementOpts(key).on = on
+end, true)
+
+local groupOff = edit(function(id)
 	local g = groupById(id)
-	for _, key in ipairs(g and g.members or {}) do elementOpts(key).show = "never" end
+	for _, key in ipairs(g and g.members or {}) do elementOpts(key).on = false end
 end, true)
 local centerGroup = edit(function(id)
 	local g = groupById(id)
@@ -1074,7 +1086,9 @@ P.use, P.select, P.fillDefaults, P.fillParts = useProfile, selectProfile, fillDe
 P.DEFAULTS, G.DEFAULTS = DEFAULTS, GROUP_DEFAULTS
 E.ALL, E.KEYS = ELEMENTS, ELEMENT_KEYS
 function E.isActive() return isActive end
-E.isEnabled, E.showMode, E.isLearned, E.setShow = isEnabled, showMode, isLearned, setShow
+E.isEnabled, E.isOn, E.showMode, E.isLearned, E.setShow, E.setOn = isEnabled, isOn, showMode, isLearned, setShow,
+	setOn
+E.BASE = BASE
 E.opts, E.setting, E.default, E.idleAlpha = elementOpts, elementSetting, elementDefault, idleAlpha
 E.setSetting, E.event, E.range = setElementSetting, elementEvent, elementRange
 E.sizeOf, E.boxOf, E.setOff = sizeOf, boxOf, setOff
@@ -1083,7 +1097,7 @@ E.applyTimers, E.resolveSpells, E.refreshAll, E.refreshCooldownsSoon = applyTime
 G.of, G.byId, G.frames, G.size = groupOf, groupById, groupFrames, groupSize
 G.setCenter, G.screenCenter = setGroupCenter, screenCenter
 G.layoutElements, G.applyLayout, G.placeElement = layoutElements, applyLayout, placeElement
-G.add, G.rename, G.delete, G.hide, G.center = addGroup, renameGroup, deleteGroup, hideGroup, centerGroup
+G.add, G.rename, G.delete, G.allOff, G.center = addGroup, renameGroup, deleteGroup, groupOff, centerGroup
 function E.borderFor(key)
 	return ns.Style.get(key, "border")
 end
@@ -1194,8 +1208,11 @@ function E.debugReport()
 	each("debug")
 	say("profile %s", tostring(profileName))
 	local function listed(key)
-		local mode = isLearned(key) and showMode(key) or E.notLearnedText(key):lower()
-		return mode == "always" and key or (key .. " (" .. mode .. ")")
+		local tags = {}
+		if not isOn(key) then table.insert(tags, "off") end
+		if not isLearned(key) then table.insert(tags, E.notLearnedText(key):lower()) end
+		if showMode(key) ~= "always" then table.insert(tags, showMode(key)) end
+		return #tags == 0 and key or (key .. " (" .. table.concat(tags, ", ") .. ")")
 	end
 	for _, g in ipairs(db.groups) do
 		local names = {}
