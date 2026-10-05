@@ -238,7 +238,7 @@ local function styleExpireText(x, def, slot, st, secs)
 end
 
 -- slot: its aura slot (W.makeAuraSlot); length: the aura's full length
-local function styleExpire(x, def, length, size, slot)
+local function styleExpire(x, def, length, slot)
 	local key, t = def.key, slot.timer
 	local st = ns.Style.get(key, "uptime")
 	local secs, r = setting(key, "expire", "secs"), def.ranges.expire.secs
@@ -257,31 +257,37 @@ local function styleExpire(x, def, length, size, slot)
 	if not ns.isColor(c) then c = def.defaults.expire.barColor end
 	local part = math.min(secs, length) / length
 	local placed = ns.try(expireSite(def, "expiring place"), function()
-		local h, top = st.barHeight, st.barEdge == "top"
-		local edge = top and "TOPLEFT" or "BOTTOMLEFT"
-		-- On the time bar, inside the border's picture
-		local pic = ns.StyleArt.pictureInset(slot.host)
-		local inner, y = size - 2 * pic, pic > 0 and (top and -pic or pic) or 0
-		local w = inner * part
+		-- Over the time bar wherever it sits, from the end it drains to: its left, an upright one's bottom
+		local h, upright = st.barHeight, t.side == "left" or t.side == "right"
+		local len = t:barLength(t.side)
+		local w = len * part
 		-- Levels: Expiring colour under the cover; glow and countdown above both
 		local base = def.frame.textFrame:GetFrameLevel()
 		red.clip:SetFrameLevel(base + 10); red.bar:SetFrameLevel(base + 11)
 		cover.clip:SetFrameLevel(base + 12); cover.bar:SetFrameLevel(base + 13)
+		local function along(f, l) if upright then f:SetSize(h, l) else f:SetSize(l, h) end end
 		for _, bar in ipairs({ cover, red }) do
 			bar.clip:ClearAllPoints()
-			bar.clip:SetPoint(edge, slot.button, edge, pic, y)
-			bar.clip:SetSize(w, h)
+			bar.clip:SetPoint("BOTTOMLEFT", t.bar, "BOTTOMLEFT", 0, 0)
+			along(bar.clip, w)
 			bar.bar:ClearAllPoints()
+			if upright ~= (x.upright or false) then
+				bar.bar:SetOrientation(upright and "VERTICAL" or "HORIZONTAL")
+				bar.bar:SetRotatesTexture(upright)
+			end
 		end
+		x.upright = upright
 		local tex = ns.Media.barTexture(t.key)
 		cover.bar:SetStatusBarTexture(tex)
 		red.bar:SetStatusBarTexture(tex)
+		-- The cover, far longer than its clip, slides off it in its last 240th of the aura's length
 		local long = w * EXPIRE_FAST
-		cover.bar:SetSize(long, h)
-		cover.bar:SetPoint("TOPLEFT", cover.clip, "TOPLEFT", w - long * part, 0)
+		local off = w - long * part
+		along(cover.bar, long)
+		cover.bar:SetPoint("BOTTOMLEFT", cover.clip, "BOTTOMLEFT", upright and 0 or off, upright and off or 0)
 		cover.bar:SetStatusBarColor(k[1], k[2], k[3], 1)
-		red.bar:SetSize(inner, h)
-		red.bar:SetPoint("TOPLEFT", red.clip, "TOPLEFT", 0, 0)
+		along(red.bar, len)
+		red.bar:SetPoint("BOTTOMLEFT", red.clip, "BOTTOMLEFT", 0, 0)
 		red.bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
 	end)
 	if placed then
@@ -306,8 +312,8 @@ B.expiring = {
 		x.durText:SetFont(STANDARD_TEXT_FONT, 12, "OUTLINE")
 		x.durText:Hide()
 	end,
-	style = function(x, def, length, size, slot)
-		ns.try(expireSite(def, "expiring"), styleExpire, x, def, length, size, slot)
+	style = function(x, def, length, slot)
+		ns.try(expireSite(def, "expiring"), styleExpire, x, def, length, slot)
 	end,
 	-- Its settings: off until Warn in the last is set, then a red bar part and a red countdown
 	defaults = { expire = { secs = 0, bar = true, barColor = EXPIRE_RED, text = true } },
@@ -369,7 +375,7 @@ ns.registerPart("engineExpire", {
 	runtime = {
 		make = function(def) return { extras = B.expiring.extras(def, def) } end,
 		button = function(def, _, button) B.expiring.button(def, button) end,
-		style = function(def, size, slot) B.expiring.style(def, def, def.duration, size, slot) end,
+		style = function(def, _, slot) B.expiring.style(def, def, def.duration, slot) end,
 	},
 })
 
@@ -651,7 +657,7 @@ for _, x in ipairs(STATE_LIST) do
 				x.fx:setQuiet(x.quiet)
 				x.fx:stylePop(size)
 			end
-			if slot.timer then B.expiring.style(x, def, s.length, size, slot) end
+			if slot.timer then B.expiring.style(x, def, s.length, slot) end
 		end,
 		onError = function(err) ns.noteError("aura state " .. key, err) end,
 	})
