@@ -142,14 +142,14 @@ local standIn
 local glowSchool
 
 -- The No shield look
--- Dead: a state driver hides it, in combat too; it shows nothing, never a false warning
+-- Dead: a state driver hides it, in combat too; it shows nothing, never a false warning. None while
+-- Shields is off.
 local holder = CreateFrame("Frame", nil, shield)
 holder:SetAllPoints(shield)
-local driven = false
 local function driveHolder()
-	if driven or InCombatLockdown() then return end
-	driven = true
-	ns.setVisibilityDriver(holder, "[@player,dead] hide; show", "shield warning holder")
+	if InCombatLockdown() then return end
+	ns.setVisibilityDriver(holder, E.isEnabled("shield") and "[@player,dead] hide; show" or nil,
+		"shield warning holder")
 end
 local look
 local lookOn, lookState, watching = false, nil, false
@@ -183,6 +183,7 @@ local function setLook(st)
 end
 
 local watch
+local events   -- set(on): its events, from start
 
 -- Every frame while auras can't be read or a hold hasn't ended; otherwise events decide
 local function guard(self)
@@ -267,7 +268,7 @@ function SH.applyEmptyLook()
 		standIn:SetIgnoreParentAlpha(covered and believedUp() ~= false)
 	end
 	setLook(stateNow())
-	watch()
+	if E.isEnabled("shield") then watch() end
 	applyIdle()
 end
 
@@ -320,8 +321,11 @@ local function checkIDs()
 	if cover then cover:checkIDs() end
 end
 
--- Filters only change while auras are readable
+-- Filters only change while auras are readable, and while Shields is in use (stale: again when it's back)
+local stale = false
 local function applyShieldFilter()
+	if not E.isEnabled("shield") then stale = true return end
+	stale = false
 	native:refilter()
 	look:refilter()
 	if cover then cover:refilter() end
@@ -366,6 +370,7 @@ function SH.resolve()
 end
 
 function SH.style()
+	if not E.isEnabled("shield") then return end
 	native:style()
 	copy:style()
 end
@@ -544,7 +549,7 @@ end
 
 -- Auras can be secret out of combat too: keep the last read
 local function refreshAura()
-	if not ns.aurasReadable() then return end
+	if not ns.aurasReadable() or not E.isEnabled("shield") then return end
 	local upKey
 	for _, key in ipairs(SHIELD_ORDER) do
 		local s = SHIELDS[key]
@@ -566,7 +571,7 @@ function SH.onCast(spellID)
 	local cast = castOf(spellID)
 	if not cast then return end
 	P.getAccount().lastShield = cast
-	if tracksShield(cast) then
+	if tracksShield(cast) and E.isEnabled("shield") then
 		holdUntil = GetTime() + CAST_HOLD
 		watch()
 	end
@@ -595,10 +600,15 @@ local function refreshGCD(inCooldownEvent)
 end
 
 function SH.applyLayout()
+	local on = E.isEnabled("shield")
+	if events then events(on) end
 	SH.applyRemovedSound()
-	native:setup()
-	look:setup()
-	if idleWhen() == "charges" and E.isEnabled("shield") then copy:setup() end
+	if on then
+		native:setup()
+		look:setup()
+		if idleWhen() == "charges" then copy:setup() end
+		if stale then applyShieldFilter() end
+	end
 	SH.style()
 	SH.applyEmptyLook()
 end
@@ -608,7 +618,7 @@ function SH.afterGroups()
 	SH.applyEmptyLook()
 end
 function SH.refresh()
-	checkIDs()
+	if E.isEnabled("shield") then checkIDs() end
 	refreshAura()
 	refreshGCD(false)
 	SH.applyRemovedSound()
@@ -616,10 +626,8 @@ end
 SH.onCooldowns = refreshGCD
 function SH.start()
 	local ev = CreateFrame("Frame")
-	ns.registerEvent(ev, "UNIT_AURA", "player")
-	ns.registerEvent(ev, "PLAYER_ENTERING_WORLD")
-	ns.registerEvent(ev, "UNIT_ENTERED_VEHICLE", "player")
-	ns.registerEvent(ev, "UNIT_EXITED_VEHICLE", "player")
+	events = ns.eventsWhile(ev, { { "UNIT_AURA", "player" }, "PLAYER_ENTERING_WORLD",
+		{ "UNIT_ENTERED_VEHICLE", "player" }, { "UNIT_EXITED_VEHICLE", "player" } })
 	ev:SetScript("OnEvent", function(_, event)
 		if event == "PLAYER_ENTERING_WORLD" then
 			holdUntil = math.max(holdUntil, GetTime() + LOAD_HOLD)
@@ -634,12 +642,13 @@ function SH.start()
 		SH.applyEmptyLook()
 	end)
 	-- Auras may turn secret out of combat: the button becomes the switch
-	ns.onRestrictionChange(function() watch() end)
+	ns.onRestrictionChange(function() if E.isEnabled("shield") then watch() end end)
 	ns.onCombatStart(function()
+		if not E.isEnabled("shield") then return end
 		checkIDs()
 		SH.applyEmptyLook()
 	end)
-	ns.onCanActChange(SH.applyEmptyLook)
+	ns.onCanActChange(function() if E.isEnabled("shield") then SH.applyEmptyLook() end end)
 end
 
 -- /sf debug
