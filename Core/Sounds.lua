@@ -15,8 +15,6 @@ local GAME = {
 	{ "alarm", "Alarm clock", "ALARM_CLOCK_WARNING_3" },
 	{ "emote", "Boss emote", "RAID_BOSS_EMOTE_WARNING" },
 	{ "queue", "Queue pop", "PVP_THROUGH_QUEUE" },
-	{ "whisper", "Whisper", "TELL_MESSAGE" },
-	{ "ping", "Map ping", "MAP_PING" },
 	{ "invite", "Group invite", "IG_PLAYER_INVITE" },
 	{ "quest", "Quest complete", "IG_QUEST_LIST_COMPLETE" },
 	{ "toast", "Friend online", "UI_BNET_TOAST" },
@@ -82,9 +80,9 @@ function SN.play(value, alert, gap, zoning)
 	emit(value)
 end
 
--- An element's sound for a state or event (its sound field)
-function SN.element(key, event, zoning)
-	if E.isEnabled(key) then SN.play(E.setting(key, event, "sound"), key .. ":" .. event, nil, zoning) end
+-- An element's sound for a state or event (its sound field); gap: seconds between its plays
+function SN.element(key, event, zoning, gap)
+	if E.isEnabled(key) then SN.play(E.setting(key, event, "sound"), key .. ":" .. event, gap, zoning) end
 end
 
 function SN.test(value) emit(value) end
@@ -105,10 +103,15 @@ local function dropAura(a)
 	return #kept == 0
 end
 
--- now: in combat too (going off and on)
+-- No arrival sounds from a loading screen (the login's too) until its quiet ends: an aura already up isn't new
+local entered, leaving = false, false
+local function arrivalsHeld() return not entered or leaving or ns.zoning() end
+
+-- now: in combat too (going off and on, a loading screen)
 local function applyAura(owner, now)
 	local a = auraSounds[owner]
 	local file = not ns.isOff() and SN.fileID(a.value) or nil
+	if a.trigger == "Added" and arrivalsHeld() then file = nil end
 	local list = {}
 	if file then
 		for id in pairs(a.ids) do table.insert(list, id) end
@@ -148,6 +151,14 @@ function SN.setAuraSound(owner, value, ids, trigger)
 	applyAura(owner)
 end
 
+-- An element's state or event whose sound the engine plays: its sound field, while it's on the HUD
+local byEngine = {}
+function SN.elementAura(key, event, ids, trigger)
+	local owner = key .. ":" .. event
+	byEngine[owner] = true
+	SN.setAuraSound(owner, E.setting(key, event, "sound"), E.isEnabled(key) and ids or nil, trigger)
+end
+
 -- The engine's aura sounds are set again on the new channel
 function SN.setChannel(channel)
 	P.getAccount().soundChannel = channel
@@ -159,10 +170,31 @@ ns.onOffChange(function()
 	for owner in pairs(auraSounds) do applyAura(owner, true) end
 end)
 
+local function applyArrivals()
+	for owner, a in pairs(auraSounds) do
+		if a.trigger == "Added" then applyAura(owner, true) end
+	end
+end
+-- Once the quiet after a loading screen is over
+local function arrivalsAfterZoning()
+	if ns.zoning() then C_Timer.After(1, arrivalsAfterZoning) return end
+	applyArrivals()
+end
+
 local ev = CreateFrame("Frame")
 ns.registerEvent(ev, "PLAYER_LOGOUT")
-ev:SetScript("OnEvent", function()
-	for _, a in pairs(auraSounds) do dropAura(a) end
+ns.registerEvent(ev, "PLAYER_LEAVING_WORLD")
+ns.registerEvent(ev, "PLAYER_ENTERING_WORLD")
+ev:SetScript("OnEvent", function(_, event)
+	if event == "PLAYER_LOGOUT" then
+		for _, a in pairs(auraSounds) do dropAura(a) end
+	elseif event == "PLAYER_LEAVING_WORLD" then
+		leaving = true
+		applyArrivals()
+	else
+		entered, leaving = true, false
+		C_Timer.After(1, arrivalsAfterZoning)
+	end
 end)
 
 -- The options
@@ -177,11 +209,17 @@ function SN.choices(current)
 	end, listed)
 end
 
--- Only the sounds the engine can play from a file ID
+-- Only the sounds the engine can play from a file ID; the current one too, marked, so it shows
 function SN.fileChoices(current)
 	local out = {}
 	for _, c in ipairs(SN.choices(current)) do
-		if c[1] == "none" or SN.fileID(c[1]) then table.insert(out, c) end
+		if c[1] == "none" or SN.fileID(c[1]) then table.insert(out, c)
+		elseif c[1] == current then table.insert(out, { c[1], c[2] .. " (can't play here)" }) end
 	end
 	return out
+end
+
+-- A sound setting's menu (owner: an element's key or a bar's name; event: its state or event)
+function SN.choicesFor(owner, event)
+	return byEngine[owner .. ":" .. event] and SN.fileChoices or SN.choices
 end

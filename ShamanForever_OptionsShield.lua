@@ -43,7 +43,7 @@ local function buildShield(p, def)
 			p:color("Last charge colour", nil, eopt(p, key, "count", "markColor"))
 		end)
 	end)
-	warnBlock(p, key, { title = "No shield", sounds = ns.Sounds.fileChoices,
+	warnBlock(p, key, { title = "No shield",
 		tips = { glow = "A glow that pulses, in the Pulsing glow style.",
 			sound = "When the shield goes: charges spent, cancelled or run out." } })
 	K.castBlocks(p, key)

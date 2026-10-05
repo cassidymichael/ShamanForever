@@ -33,6 +33,7 @@ local SHARE_VERSION = 7
 --   expire  = { secs, grey, ring, fade, glow, bar, barColor, text, over }   the last seconds
 --   ended   = { flash, pop, glow, sound }   it ran out
 --   killed  = { flash, pop, glow, mark }   it ended early
+--   breath  = { sound }   your breath bar is nearly out
 --   count   = { bar, barHeight, barColor, number, pos, size, mark, markColor }   charges or stacks
 --   reagent = { when, low, lowKeepsShown, color, lowColor, size, pos, x, y, ring, fade }
 --   mana    = { on }   its spell's cost can't be paid (_CastStates); its style (part power) is kept beside
@@ -110,7 +111,8 @@ local RENAMED = {
 }
 
 -- Retired settings, dropped or converted as a profile loads or is imported (account and folds: as the account
--- loads). Drop after launch, with RENAMED, retireGroups, retireTotemBar, retireStyles and retireOwnLooks.
+-- loads). Drop after launch, with RENAMED, retireGroups, retireTotemBar, retireStyles, retireOwnLooks and
+-- retireSounds.
 local RETIRED = {
 	-- Profile keys from before styles
 	root = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "glowSize", "popMotion", "popSize", "popSpeed",
@@ -129,7 +131,17 @@ local RETIRED = {
 	-- Looks an element kept as its own before Global had a style for them (element -> state name ->
 	-- style part): it keeps them, the rest at the part's defaults (what it showed)
 	ownLooks = { shock = { mana = "power", range = "range" } },
+	-- Game sounds no longer offered (silent on the client): a saved one becomes None
+	sounds = { whisper = true, ping = true },
 }
+
+-- Every sound field under t
+local function retireSounds(t)
+	for k, v in pairs(t) do
+		if k == "sound" and RETIRED.sounds[v] then t[k] = "none"
+		elseif type(v) == "table" then retireSounds(v) end
+	end
+end
 
 local function put(t, name, field, v)
 	if field == nil then t[name] = v return end
@@ -252,7 +264,9 @@ function P.migrate(profile)
 	if type(profile.totemBar) == "table" then
 		rename(profile.totemBar, RENAMED.totemBar)
 		retireTotemBar(profile.totemBar)
+		retireSounds(profile.totemBar)
 	end
+	retireSounds(opts)
 	retireOwnLooks(opts)
 	retireGroups(profile)
 	retireStyles(profile)

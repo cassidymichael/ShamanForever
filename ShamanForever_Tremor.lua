@@ -270,7 +270,7 @@ local function setAlert(on)
 	f.word:SetShown(on and own("active", "text") and true or false)
 	if on and not alerting then
 		if own("active", "pop") then f:Pop("ready") end
-		ns.Sounds.play(own("active", "sound"), KEY, SOUND_GAP)
+		ns.Sounds.element(KEY, "active", nil, SOUND_GAP)
 	end
 	alerting = on
 end

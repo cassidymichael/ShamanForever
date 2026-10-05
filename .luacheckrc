@@ -79,6 +79,7 @@ read_globals = {
     "GetCursorPosition",
     "GetInventoryItemID",
     "GetMirrorTimerInfo",
+    "GetMirrorTimerProgress",
     "GetMultiCastBarIndex",
     "GetMultiCastTotemSpells",
     "GetNormalizedRealmName",

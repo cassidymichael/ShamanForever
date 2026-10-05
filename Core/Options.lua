@@ -286,6 +286,7 @@ local function buildAbout(p)
 	for _, key in ipairs(E.KEYS) do
 		local e = E.ALL[key]
 		if e.experimental then p:experimental(e.experimental, "Elements > " .. e.label) end
+		for _, x in ipairs(e.experiments or {}) do p:experimental(x, "Elements > " .. e.label) end
 	end
 	p:experimental("Art frames", "Art frame and Group art frame styles")
 	for _, key in ipairs(Bars.list()) do
