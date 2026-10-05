@@ -448,30 +448,27 @@ end
 
 -- Cooldown rows with glowWhile = { experimental (the value badged) } and targetDebuff: a pulsing glow
 -- while one chosen aura is up, its debuff on your target or its buffBar buff on you. Both are secret
--- in combat, so each is a clip look: a sensor of Blizzard's container lighting a glow of ours. One at
--- a time, none by default.
+-- in combat, so each is a clip look: a sensor of Blizzard's container lighting a glow of ours, made
+-- the first time it is chosen. One at a time, none by default.
 local GLOWS = {}
 local function glowSites(key, what)
 	local site = "glow while " .. what .. " " .. key
 	return { container = site, style = site .. " style", filter = site .. " filter" }
 end
 for _, def in ipairs(ns.CLASS.cooldowns or {}) do
-	if def.glowWhile and def.targetDebuff then
-		local f = def.frame
-		local function look(what, o)
-			o.key, o.owner, o.invert, o.glowOnly = def.key, def.key, true, true
-			o.parent, o.sensorParent, o.sites = f.effects, f.effects, glowSites(def.key, what)
-			return W.makeClipLook(f, o)
-		end
-		local g = { def = def, looks = {} }
-		g.looks.debuff = look("debuff", { unit = "none", needUnit = "target", filter = "HARMFUL|PLAYER",
-			ids = function() return Spells.ids(def.spellKey) end })
-		if def.buffBar then
-			g.looks.buff = look("buff", { unit = "player", filter = "HELPFUL",
-				ids = function() return Spells.ids(def.buffBar.buffKey) end })
-		end
-		GLOWS[def.key] = g
+	if def.glowWhile and def.targetDebuff then GLOWS[def.key] = { def = def, looks = {} } end
+end
+local function makeGlowLook(g, what)
+	local def = g.def
+	local o = { unit = "player", filter = "HELPFUL", ids = function() return Spells.ids(def.buffBar.buffKey) end }
+	if what == "debuff" then
+		o = { unit = "none", needUnit = "target", filter = "HARMFUL|PLAYER",
+			ids = function() return Spells.ids(def.spellKey) end }
 	end
+	o.key, o.owner, o.invert, o.glowOnly = def.key, def.key, true, true
+	o.parent, o.sensorParent, o.sites = def.frame.effects, def.frame.effects, glowSites(def.key, what)
+	g.looks[what] = W.makeClipLook(def.frame, o)
+	return g.looks[what]
 end
 local function glowOn(g, what)
 	local def = g.def
@@ -490,20 +487,23 @@ local function glowsFollow(unit, ifMoved)
 	for _, g in pairs(GLOWS) do
 		local look = g.looks.debuff
 		local want = glowOn(g, "debuff") and unit or "none"
-		if look.container and not (ifMoved and look.unit == want) and not look:follow(want) then
+		if look and look.container and not (ifMoved and look.unit == want) and not look:follow(want) then
 			ns.retryAfterCombat("target retarget", function() retarget() end)
 		end
 	end
 end
--- Out of combat: made once chosen, levelled with the aura route's glows, the glow lit
+-- Made once chosen (its container out of combat, auras readable), levelled with the aura route's
+-- glows; the glow drawn only on the chosen one
 local function glowsLayout()
 	for _, g in pairs(GLOWS) do
 		local f = g.def.frame
-		for what, look in pairs(g.looks) do
-			if glowOn(g, what) then look:setup() end
-			if not InCombatLockdown() then
+		for _, what in ipairs({ "debuff", "buff" }) do
+			local on = glowOn(g, what)
+			local look = g.looks[what] or (on and makeGlowLook(g, what))
+			if on then look:setup() end
+			if look and not InCombatLockdown() then
 				look:setLevel(f.textFrame:GetFrameLevel() + 11)
-				look:setParts(false, false, false, false, true)
+				look:setParts(false, false, false, false, on)
 				look:reshape()
 				look:style()
 			end
@@ -537,8 +537,9 @@ ns.registerPart("glowWhile", {
 		debug = function(def)
 			local g = GLOWS[def.key]
 			local what = setting(def.key, "glowWhile")
-			local look = g and g.looks[what]
-			if not look then return "glow while: never" end
+			if not g or what == "none" then return "glow while: never" end
+			local look = g.looks[what]
+			if not look then return "glow while " .. what .. ": not made (not learned)" end
 			return "glow while " .. what .. ": " .. look:describe()
 		end,
 	},
