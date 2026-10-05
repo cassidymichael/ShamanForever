@@ -510,8 +510,8 @@ local formatters = ns.cache(8, function(code, markAt, max, site, from)
 		for n = 0, max do
 			local text = x:FormatNumber(n)
 			local coloured = code ~= "" and n == markAt
-			local blank = n < from and text ~= ""
-			if type(text) ~= "string" or ns.isSecret(text) or blank or (coloured and not text:lower():find(code, 1, true)) then
+			if type(text) ~= "string" or ns.isSecret(text) or (n < from and text ~= "")
+				or (coloured and not text:lower():find(code, 1, true)) then
 				error(string.format("formatted %d as %s", n, tostring(text)))
 			end
 		end
