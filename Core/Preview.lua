@@ -25,11 +25,13 @@ local function stepsFor(key)
 	local def = OA.PREVIEW[key]
 	local steps, valid = {}, {}
 	for _, st in ipairs(def.states) do
-		table.insert(steps, { st[1] })
-		valid[st[1]] = true
+		if not def.stateShown or def.stateShown(st[1]) then
+			table.insert(steps, { st[1] })
+			valid[st[1]] = true
+		end
 	end
 	if opts.mode == "busy" then return steps end
-	local typical = valid[def.typical] and def.typical or def.states[1][1]
+	local typical = valid[def.typical] and def.typical or steps[1][1]
 	return { { opts.mode == "warnings" and valid[def.warning] and def.warning or typical } }
 end
 

@@ -36,6 +36,17 @@ SW.DEFAULTS = {
 	countdown = false, countdownSize = 12, countdownColor = { 1, 1, 1, 1 },
 	countdownPos = "center",
 }
+-- Marks: elements offering their aura's charges as pips (an element's swingMark, main), each with a
+-- switch in marks, off by default
+local MARKS = {}
+SW.DEFAULTS.marks = {}
+for _, key in ipairs(E.KEYS) do
+	if E.ALL[key].swingMark then
+		table.insert(MARKS, key)
+		SW.DEFAULTS.marks[key] = false
+	end
+end
+SW.MARKS = MARKS
 local RANGES = { width = { 40, 400, 4 }, height = { 4, 40, 1 }, scale = { 0.5, 3, 0.05 }, alpha = { 0.1, 1, 0.05 },
 	countdownSize = { 8, 40, 1 } }
 SW.RANGES = RANGES
@@ -47,7 +58,7 @@ local cfgTable
 local function cfg()
 	local t = P.getDB().swingBar
 	if t ~= cfgTable then
-		P.fillDefaults(t, SW.DEFAULTS)
+		P.fillParts(t, SW.DEFAULTS)
 		if not ns.POINTS[t.point] then t.point, t.x, t.y = SW.DEFAULTS.point, SW.DEFAULTS.x, SW.DEFAULTS.y end
 		cfgTable = t
 	end
@@ -79,6 +90,41 @@ function SW.styleBar(b)
 	b.spark:SetPoint("TOP" .. side, fill, "TOP" .. side, 0, 0)
 	b.spark:SetPoint("BOTTOM" .. side, fill, "BOTTOM" .. side, 0, 0)
 	b.spark:SetWidth(W.linePx(b, 2))
+end
+
+-- Pips: a strip filled one pip a charge, a dark tick between
+function SW.makePips(parent)
+	local b = CreateFrame("StatusBar", nil, parent)
+	b.bg = b:CreateTexture(nil, "BACKGROUND")
+	b.bg:SetAllPoints()
+	b.bg:SetColorTexture(0, 0, 0, 0.5)
+	b.ticks = {}
+	return b
+end
+-- max pips along anchor's top; ref: the frame its pixels are read from (else anchor), never one under
+-- Blizzard's aura button
+function SW.stylePips(b, anchor, max, color, ref)
+	local c = cfg()
+	ref = ref or anchor
+	local px = W.pixel(ref)
+	b:ClearAllPoints()
+	b:SetPoint("TOPLEFT", anchor, "TOPLEFT", 0, 0)
+	b:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", 0, 0)
+	b:SetHeight(math.max(W.roundPx(c.height / 3, px), 2 * px))
+	b:SetStatusBarTexture(ns.Media.barTexture("swing"))
+	b:SetStatusBarColor(color[1], color[2], color[3], color[4] or 1)
+	b:SetReverseFill(c.fillFrom == "right")
+	for i = 1, max - 1 do
+		local t = b.ticks[i] or b:CreateTexture(nil, "OVERLAY")
+		b.ticks[i] = t
+		t:SetColorTexture(0, 0, 0, 1)
+		t:ClearAllPoints()
+		t:SetPoint("TOP", b, "TOPLEFT", W.roundPx(c.width * i / max, px), 0)
+		t:SetPoint("BOTTOM", b, "BOTTOMLEFT", W.roundPx(c.width * i / max, px), 0)
+		t:SetWidth(W.linePx(ref, 1))
+		t:Show()
+	end
+	for i = max, #b.ticks do b.ticks[i]:Hide() end
 end
 
 local font = CreateFont(ns.NAME .. "SwingFont")
@@ -138,7 +184,113 @@ local function paintFill()
 	bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
 end
 
-local function drawFace() face:SetShown(bar:IsShown() or not P.getAccount().locked) end
+-- Marks: each on its own aura container under f (shown by its state driver, never by Show in combat)
+local marks = {}
+local function markOn(key)
+	local e = E.ALL[key]
+	return cfg().marks[key] == true and e.learned ~= nil and e.learned() and SW.isOn()
+end
+-- What a mark's pips are drawn for: the bar's size and direction
+local function markShape()
+	local c = cfg()
+	return c.width .. "x" .. c.height .. c.fillFrom
+end
+-- Our frame over Blizzard's button: its opacity is ours to set in combat too. Hidden while its pips
+-- wait to be drawn for the bar as it is (a restyle waits while auras are secret)
+local function markAlpha(m)
+	if not m.host then return end
+	local a = (markOn(m.key) and not pv.mode and face:IsShown() and m.shape == markShape()) and 1 or 0
+	if not ns.try("swing mark alpha", m.host.SetAlpha, m.host, a) then
+		ns.retryAfterCombat("swing mark alpha", function() markAlpha(m) end)
+	end
+end
+-- Out of combat, auras readable
+local function styleMark(m)
+	if not m.container or m.err then return end
+	local site = "swing mark style " .. m.key
+	if ns.deferWhileAurasSecret(site, function() styleMark(m) end) then return end
+	local ok = ns.try(site, function()
+		local spec = E.ALL[m.key].swingMark
+		m.container:SetFrameStrata(f:GetFrameStrata())
+		m.container:SetFrameLevel(face:GetFrameLevel() + 3)
+		if not m.button then return end
+		m.button:SetSize(f:GetSize())
+		if m.pips then
+			SW.stylePips(m.pips, m.button, spec.max, spec.color(), f)
+			m.shape = markShape()
+		end
+	end)
+	if not ok then ns.retryAfterCombat(site, function() styleMark(m) end) end
+	markAlpha(m)
+end
+-- Blizzard's button: no picture of its own, only the pips it fills
+local function initMark(m, button)
+	W.noMouse(button)
+	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
+	m.button = button
+	local pips = SW.makePips(button)
+	if ns.try("swing mark " .. m.key, button.SetApplicationBar, button, pips,
+		{ minApplications = 0, maxApplications = E.ALL[m.key].swingMark.max }) then m.pips = pips
+	else pips:Hide() end
+	styleMark(m)
+end
+-- Made once, while it's on
+local function makeMark(m)
+	if m.container or m.err or not markOn(m.key) then return end
+	local site = "swing mark " .. m.key
+	if ns.deferWhileAurasSecret(site, function() makeMark(m) end) then return end
+	local ok, err = pcall(function()
+		m.host = CreateFrame("Frame", nil, f)
+		m.host:SetAllPoints(f)
+		local c = CreateFrame("AuraContainer", nil, m.host, "CustomAuraContainerTemplate")
+		m.container = c
+		c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+		c:SetUnit("player")
+		pcall(c.EnableMouse, c, false)
+		c:AddAuraSlot("swing-" .. m.key, "HELPFUL", {
+			candidateFilters = { includeSpellIDs = E.ALL[m.key].swingMark.ids() },
+			initializeFrame = function(button) ns.try(site .. " button", initMark, m, button) end })
+	end)
+	if not ok then
+		m.err = tostring(err)
+		if m.container then m.container:Hide() end
+		ns.noteError(site, m.err)
+		return
+	end
+	styleMark(m)
+	markAlpha(m)
+end
+for _, key in ipairs(MARKS) do marks[key] = { key = key } end
+-- /sf preview: our own pips in place of the button's: full while a mark is on; in Busy, which plays
+-- every state, each mark's spent one a swing, switched off too. A mark not learned too, with Show
+-- not learned
+local pvPips = {}
+local function previewMarks()
+	for _, key in ipairs(MARKS) do
+		local e = E.ALL[key]
+		local learned = e.learned ~= nil and e.learned()
+		local shown = pv.mode ~= nil and (cfg().marks[key] == true or pv.mode == "busy") and SW.isOn()
+			and (learned or ns.Preview.showsUnlearned())
+		local b = pvPips[key]
+		if shown and not b then
+			b = SW.makePips(face)
+			b:SetFrameLevel(face:GetFrameLevel() + 3)
+			pvPips[key] = b
+		end
+		if shown then
+			local spec = E.ALL[key].swingMark
+			SW.stylePips(b, face, spec.max, spec.color())
+			b:SetMinMaxValues(0, spec.max)
+			b:SetValue(pv.mode == "busy" and math.min(math.max(spec.max + 1 - pv.count, 1), spec.max) or spec.max)
+		end
+		if b then b:SetShown(shown) end
+	end
+end
+
+local function drawFace()
+	face:SetShown(bar:IsShown() or not P.getAccount().locked)
+	for _, m in pairs(marks) do markAlpha(m) end
+end
 
 local function clearSwing()
 	state.endsAt = nil
@@ -245,6 +397,12 @@ local function layout()
 	cd:SetHideCountdownNumbers(not c.countdown)
 	if cdText then SW.placeCountdown(cdText, face) end
 	if state.endsAt then drawSwing() else drawFace() end
+	for _, m in pairs(marks) do
+		makeMark(m)
+		styleMark(m)
+		markAlpha(m)
+	end
+	previewMarks()
 	drive()
 	movable.update()
 end
@@ -277,6 +435,7 @@ pvFrame:SetScript("OnUpdate", function()
 	end
 	startSwing(p.speed)
 	pv.count = pv.count + 1
+	previewMarks()
 	if p.swings and pv.count > p.swings then
 		pv.action, pv.nextAt = "cast", now + p.speed * p.cutAt
 	else
@@ -318,6 +477,11 @@ function SW.debug()
 	say("swing: %s; %d swings seen, %d with a secret duration, %d cast starts; %s",
 		listening and "on" or "off", state.swings, state.secret, state.casts,
 		left and (left > 0 and string.format("next in %.1f s", left) or "due") or "no swing under way")
+	for _, key in ipairs(MARKS) do
+		local m = marks[key]
+		say("swing mark %s: %s, container %s%s", key, cfg().marks[key] and "on" or "off",
+			m.container and "made" or "not made", m.err and (", error: " .. m.err) or "")
+	end
 end
 
 Bars.register("swing", { label = "Swing timer", cfg = cfg, saved = "swingBar", defaults = SW.DEFAULTS,

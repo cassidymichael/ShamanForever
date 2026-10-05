@@ -331,6 +331,220 @@ ns.registerPart("skipLong", {
 	end } },
 })
 
+-- Cooldown rows with targetDebuff = { length } (the preview's): its Debuff state and time bar are your
+-- own debuff of the spell on your hostile target, drawn by Blizzard's button over the icon, in combat
+-- too. Its switch off (active.on), it's a plain cooldown
+local DEBUFFS = {}
+local function debuffOn(def)
+	return def.spellID ~= nil and E.isEnabled(def.key) and setting(def.key, "active", "on") ~= false
+end
+local function debuffAlpha(x)
+	if not ns.try("target debuff alpha", x.host.SetAlpha, x.host, x.stale and 0 or 1) then
+		ns.retryAfterCombat("target debuff alpha", function() debuffAlpha(x) end)
+	end
+end
+local function styleDebuff(x)
+	if not x.container or x.err then return end
+	local site = "target debuff style " .. x.def.key
+	if ns.deferWhileAurasSecret(site, function() styleDebuff(x) end) then return end
+	local ok = ns.try(site, function()
+		local f, size = x.def.frame, E.sizeOf(x.def.key)
+		x.container:SetSize(size, size)
+		x.container:SetFrameStrata(f:GetFrameStrata())
+		x.container:SetFrameLevel(f.textFrame:GetFrameLevel() + 5)
+		if x.button then x.button:SetSize(size, size) end
+		if x.timer then x.timer:apply() end
+	end)
+	if not ok then ns.retryAfterCombat(site, function() styleDebuff(x) end) end
+end
+-- Blizzard's button: no picture of its own, only the time bar and countdown it drives
+local function initDebuff(x, button)
+	W.noMouse(button)
+	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
+	local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
+	cd:SetAllPoints()
+	-- Placed on the icon, the same box: a border's picture inset is the icon's
+	x.timer = ns.Timer.new(button, x.def.key, "uptime", { cd = cd, anchor = x.def.frame, dual = true, aura = true,
+		school = x.def.school })
+	if not ns.try("target debuff bar", button.SetDurationBar, button, x.timer.bar, ns.Timer.AURA_BAR) then
+		x.timer.bar:Hide()
+		x.timer.bar = nil
+	end
+	button:SetDurationCooldown(cd)
+	x.button = button
+	styleDebuff(x)
+end
+-- Out of combat, auras readable; made once, while it's on and learned
+local function makeDebuff(x)
+	local def = x.def
+	if x.container or x.err or not debuffOn(def) then return end
+	local site = "target debuff " .. def.key
+	if ns.deferWhileAurasSecret(site, function() makeDebuff(x) end) then return end
+	local ok, err = pcall(function()
+		local f = def.frame
+		x.host = CreateFrame("Frame", nil, f)
+		x.host:SetAllPoints(f)
+		local c = CreateFrame("AuraContainer", nil, x.host, "CustomAuraContainerTemplate")
+		x.container = c
+		c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+		c:SetUnit("none")
+		pcall(c.EnableMouse, c, false)
+		c:AddAuraSlot(def.key, "HARMFUL|PLAYER", { candidateFilters = { includeSpellIDs = Spells.ids(def.spellKey) },
+			initializeFrame = function(button) ns.try(site .. " button", initDebuff, x, button) end })
+	end)
+	if not ok then
+		x.err = tostring(err)
+		if x.container then x.container:Hide() end
+		ns.noteError(site, x.err)
+		return
+	end
+	-- Its group's layout waits while it can't restyle the button, as for an aura element
+	def.frame.auraButton = true
+	ns.setVisibilityDriver(x.host, TG.HOSTILE, site .. " driver")
+	styleDebuff(x)
+	TG.follow(x)
+end
+for _, def in ipairs(ns.CLASS.cooldowns or {}) do
+	if def.targetDebuff then
+		local x = { def = def, restyle = debuffAlpha }
+		x.wanted = function() return debuffOn(def) end
+		DEBUFFS[def.key] = x
+	end
+end
+ns.registerPart("targetDebuff", {
+	kind = "cooldown",
+	defaults = { active = { on = true } },
+	page = {
+		uptime = "Debuff time left",
+		active = function(def)
+			return { title = "Debuff", text = "While your " .. Spells.name(def.spellKey) .. " is on your target.",
+				on = { "Show it", "Off, it's just a cooldown." } }
+		end,
+	},
+	preview = {
+		uptime = true,
+		states = { { "debuff", "Debuff", 60 } },
+		render = function(ic, st, def, kit)
+			if st == "debuff" then kit.frozen(ic.upT, 0.3, def.targetDebuff.length) end
+		end,
+	},
+	runtime = {
+		uptime = function(def) return DEBUFFS[def.key].timer end,
+		debug = function(def)
+			local x = DEBUFFS[def.key]
+			if not debuffOn(def) then return "debuff off" end
+			return string.format("debuff container %s%s, unit %s%s", x.container and "made" or "not made",
+				x.err and (", error: " .. x.err) or "", tostring(x.pointedAt), x.stale and " (hidden until one works)" or "")
+		end,
+	},
+})
+local function debuffsLayout()
+	for _, x in pairs(DEBUFFS) do
+		makeDebuff(x)
+		styleDebuff(x)
+	end
+end
+
+-- Cooldown rows with glowWhile = { experimental (the values badged) } and targetDebuff: a pulsing glow
+-- while one chosen aura is up, its debuff on your target or its buffBar buff on you. Both are secret
+-- in combat, so each is a clip look: a sensor of Blizzard's container lighting a glow of ours, made
+-- the first time it is chosen. One at a time, none by default.
+local GLOWS = {}
+local function glowSites(key, what)
+	local site = "glow while " .. what .. " " .. key
+	return { container = site, style = site .. " style", filter = site .. " filter" }
+end
+for _, def in ipairs(ns.CLASS.cooldowns or {}) do
+	if def.glowWhile and def.targetDebuff then GLOWS[def.key] = { def = def, looks = {} } end
+end
+local function makeGlowLook(g, what)
+	local def = g.def
+	local o = { unit = "player", filter = "HELPFUL", ids = function() return Spells.ids(def.buffBar.buffKey) end }
+	if what == "debuff" then
+		o = { unit = "none", needUnit = "target", filter = "HARMFUL|PLAYER",
+			ids = function() return Spells.ids(def.spellKey) end }
+	end
+	o.key, o.owner, o.invert, o.glowOnly = def.key, def.key, true, true
+	o.parent, o.sensorParent, o.sites = def.frame.effects, def.frame.effects, glowSites(def.key, what)
+	g.looks[what] = W.makeClipLook(def.frame, o)
+	return g.looks[what]
+end
+local function glowOn(g, what)
+	local def = g.def
+	return setting(def.key, "glowWhile") == what and def.spellID ~= nil and E.isEnabled(def.key)
+		and (what ~= "buff" or ns.Buffs.buffBarLearned(def))
+end
+-- Lit while wanted; never in /sf preview, which draws the icon itself
+local function glowWants()
+	for _, g in pairs(GLOWS) do
+		for what, look in pairs(g.looks) do look:want(glowOn(g, what) and not ns.Preview.isOn()) end
+	end
+end
+-- The debuff's look on the target while chosen, else at no unit. ifMoved: only when it isn't there
+-- yet (a follow holds the look off for two frames); its container may come late, after combat
+local function glowsFollow(unit, ifMoved)
+	for _, g in pairs(GLOWS) do
+		local look = g.looks.debuff
+		local want = glowOn(g, "debuff") and unit or "none"
+		if look and look.container and not (ifMoved and look.unit == want) and not look:follow(want) then
+			ns.retryAfterCombat("target retarget", function() retarget() end)
+		end
+	end
+end
+-- Made once chosen (its container out of combat, auras readable), levelled with the aura route's
+-- glows; the glow drawn only on the chosen one
+local function glowsLayout()
+	for _, g in pairs(GLOWS) do
+		local f = g.def.frame
+		for _, what in ipairs({ "debuff", "buff" }) do
+			local on = glowOn(g, what)
+			local look = g.looks[what] or (on and makeGlowLook(g, what))
+			if on then look:setup() end
+			if look and not InCombatLockdown() then
+				look:setLevel(f.textFrame:GetFrameLevel() + 11)
+				look:setParts(false, false, false, false, on)
+				look:reshape()
+				look:style()
+			end
+		end
+	end
+	glowsFollow(wantedUnit(), true)
+	glowWants()
+end
+ns.registerPart("glowWhile", {
+	kind = "cooldown",
+	defaults = { glowWhile = "none" },
+	page = { own = function(def)
+		local choices = { { "none", "Never" },
+			{ "debuff", "Your " .. Spells.name(def.spellKey) .. " is on your target" } }
+		local buff = def.buffBar and Spells.name(def.buffBar.buffKey)
+		if buff then table.insert(choices, { "buff", buff .. " is up" }) end
+		local exp = def.glowWhile.experimental
+		return { "choice", name = "glowWhile", title = "Pulsing glow", label = "Glow while", choices = choices,
+			text = "The same glow as Ready's: either lights it.",
+			unlearned = function(v) return v == "buff" and not ns.Buffs.buffBarLearned(def) end,
+			badge = exp and { values = exp, name = "Pulsing glow while" } or nil }
+	end },
+	preview = {
+		render = function(ic, st, def)
+			local what = setting(def.key, "glowWhile")
+			if (st == "debuff" and what == "debuff") or (st == "buffBar" and what == "buff") then
+				ic:SetGlowShown(true)
+			end
+		end,
+	},
+	runtime = {
+		debug = function(def)
+			local g = GLOWS[def.key]
+			local what = setting(def.key, "glowWhile")
+			if not g or what == "none" then return "glow while: never" end
+			local look = g.looks[what]
+			if not look then return "glow while " .. what .. ": not made (not learned)" end
+			return "glow while " .. what .. ": " .. look:describe()
+		end,
+	},
+})
+
 -- 0 while the container may show the last target's aura (stale)
 function gateAlpha(def)
 	ns.try("target gate alpha", def.gate.SetAlpha, def.gate, def.stale and 0 or 1)
@@ -399,6 +613,7 @@ function retarget(only)
 	for _, x in ipairs(FOLLOWERS) do
 		if x.container then pointAt(x, x.container, unitFor(x, unit), x.restyle) end
 	end
+	glowsFollow(unit)
 end
 
 -- Followers not on the unit they want yet (a new one, a call that failed, a change of wanted())
@@ -575,6 +790,7 @@ end
 
 function TG.applyTimers()
 	for _, def in ipairs(ROWS) do def.aura:style() end
+	for _, x in pairs(DEBUFFS) do styleDebuff(x) end
 	styleLooks()
 	styleUp()
 end
@@ -598,6 +814,9 @@ function TG.applyLayout()
 	styleLooks()
 	styleUp()
 	checkAll()
+	debuffsLayout()
+	followAll()
+	glowsLayout()
 end
 
 function TG.afterGroups()
@@ -605,6 +824,8 @@ function TG.afterGroups()
 		def.aura:style()
 		if def.holder then holderAlpha(def) end
 	end
+	for _, x in pairs(DEBUFFS) do styleDebuff(x) end
+	glowsLayout()
 	styleLooks()
 	styleUp()
 	for _, def in ipairs(ROWS) do refreshAura(def) end
@@ -614,6 +835,8 @@ function TG.refresh()
 	checkAll()
 	for _, def in ipairs(ROWS) do refreshAura(def) end
 	followAll()
+	glowsFollow(wantedUnit(), true)
+	glowWants()
 end
 TG.tick = TG.refresh
 
@@ -632,6 +855,7 @@ function TG.start()
 	ns.onCombatEnd(function()
 		styleLooks()
 		styleUp()
+		glowsLayout()
 	end)
 	ns.onCanActChange(function() missingRows() end)
 end

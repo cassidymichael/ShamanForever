@@ -17,9 +17,9 @@ local setting = E.setting
 
 -- Elements: the class's rows (ns.CLASS.cooldowns). A row's fields: key, spellKey, icon, school,
 -- blurb, experimental; its parts' flags (this file's parts: window (seconds from our cast), primed,
--- readyGlow, noReady; others' below); expireLooks (which looks Expiring offers; false: none), race
+-- readyGlow, lowMana, noReady; others' below); expireLooks (which looks Expiring offers; false: none), race
 -- (race IDs; others see "Not your race"), cd and duration (preview only), defaults (over the
--- parts'), styles and timerCant (see E.register).
+-- parts'), choices, styles and timerCant (see E.register).
 local COOLDOWNS = ns.CLASS.cooldowns or {}
 
 -- The kind and its parts (ns.registerPart); a row's flags name its parts. Other files' parts join
@@ -68,6 +68,58 @@ ns.registerPart("ready", {
 	pop = true,
 })
 ns.registerPart("readyGlow", { defaults = { ready = { glow = false } }, glow = true })
+-- Low mana: a pulsing glow while it's ready and your mana is under a percentage. Mana is secret even
+-- out of combat: its percent goes through a curve straight into an alpha, and nothing else reads it
+local MANA = Enum.PowerType and Enum.PowerType.Mana or 0
+-- 1 under the percentage, 0 from it up
+local lowCurves = ns.cache(32, function(under) return ns.curve({ 0, 1, under / 100, 0 }, "Step") or false end)
+local function lowCurve(under) return lowCurves(under, under) or nil end
+local function lowManaOn(def)
+	return def.spellID ~= nil and E.isEnabled(def.key) and setting(def.key, "lowMana", "glow") == true
+end
+ns.registerPart("lowMana", {
+	defaults = { lowMana = { glow = false, under = 30 } },
+	ranges = { lowMana = { under = { 5, 90, 5 } } },
+	glow = true,
+	page = { lowMana = {} },
+	preview = {
+		states = { { "lowMana", "Low mana", 15 } },
+		render = function(ic, st, def)
+			if st == "lowMana" then ic:SetGlowShown(setting(def.key, "lowMana", "glow")) end
+		end,
+		idles = function(st, def, when)
+			if st == "lowMana" then return KD.idleMode(def, when) == "offcd" end
+		end,
+	},
+	runtime = {
+		make = function(def, f)
+			f.lowManaGate = CreateFrame("Frame", nil, f.effects)
+			f.lowManaGate:SetAllPoints()
+			f.lowManaGlow = ns.Effects.glow(f.lowManaGate, f, def.key)
+			f.lowManaGlow:Hide()
+		end,
+		ticks = lowManaOn,
+		-- The gate's alpha follows mana, the glow's the cooldown; they multiply, and neither is read
+		tick = function(def, cantAct)
+			local f = def.frame
+			local curve = lowCurve(setting(def.key, "lowMana", "under"))
+			local on = lowManaOn(def) and curve ~= nil
+			f.lowManaGlow:SetShown(on)
+			if not on then f.lowManaGate:SetAlpha(0) return end
+			f.lowManaGlow:fit(f:GetWidth())
+			local ok, a = ns.try("low mana", UnitPowerPercent, "player", MANA, false, curve)
+			if ok then f.lowManaGate:SetAlpha(a) else f.lowManaGate:SetAlpha(0) end
+			f.lowManaGlow:SetAlpha(CD.readyAlpha(def.spellID, cantAct))
+		end,
+		debug = function(def)
+			if setting(def.key, "lowMana", "glow") ~= true then return "low mana glow off" end
+			local under = string.format("low mana glow under %d%%", setting(def.key, "lowMana", "under"))
+			if not def.spellID then return under .. " (not learned)" end
+			if not E.isEnabled(def.key) then return under .. " (not shown)" end
+			return under
+		end,
+	},
+})
 -- A buff window from our own cast (window: its seconds)
 ns.registerPart("window", {
 	idle = { held = "not active", also = " and it isn't active" },
@@ -82,10 +134,13 @@ ns.registerPart("window", {
 	},
 })
 -- Primed by our cast until spent: { spends, duration, buffKey, text }; primedLooks false:
--- no pop or glow of its own
+-- no pop or glow of its own. Its switch off (active.on), it's a plain cooldown
+local function primedOn(def) return setting(def.key, "active", "on") ~= false end
 ns.registerPart("primed", {
 	defaults = function(def)
-		return def.primedLooks ~= false and { active = { pop = true, glow = true } } or nil
+		local a = { on = true }
+		if def.primedLooks ~= false then a.pop, a.glow = true, true end
+		return { active = a }
 	end,
 	glow = function(def) return def.primedLooks ~= false end,
 	pop = function(def) return def.primedLooks ~= false end,
@@ -93,7 +148,7 @@ ns.registerPart("primed", {
 	page = {
 		uptime = function(def) return def.primed.duration and "Primed time left" or nil end,
 		active = function(def)
-			return { title = "Primed", text = def.primed.text,
+			return { title = "Primed", text = def.primed.text, on = { "Show it", "Off, it's just a cooldown." },
 				tips = { pop = "The moment it's primed.", glow = "While it's primed." } }
 		end,
 	},
@@ -116,9 +171,14 @@ ns.registerPart("primed", {
 --   gate(def)                    the Ready pop and sound: "ready", "blocked" (the greyed pop, if
 --                                chosen) or nil (neither)
 --   readyGate(def)               the Ready glow's alpha (may be secret); nil: it can't show
+--   make(def, f)                 adds what it draws to the icon f as it's made
+--   uptime(def)                  its own Time left timer, on a frame of its own (the icon has none)
+--   ticks(def)                   whether tick is wanted now
+--   tick(def, cantAct)           ten times a second while any part ticks: redraws a look with no
+--                                event to follow (cantAct: the player can't act)
 --   debug(def)                   its words in /sf debug
--- refresh and debug run for every part, in parts order; gate and readyGate come from the first
--- part that gives one.
+-- refresh, make, tick and debug run for every part, in parts order; gate and readyGate come from
+-- the first part that gives one.
 -- The icon (def.frame) has upTimer in activeHolder when its page has a Time left block, warn when
 -- it has a Warning block, and readyGlow in readyGate with the readyGlow part or a readyGate hook.
 -- Icons are made as this file loads, so a part that needs one of these registers before it;
@@ -126,7 +186,7 @@ ns.registerPart("primed", {
 
 local function checkFrames(def)
 	local f, missing = def.frame, nil
-	if hasUptime(def) and not f.upTimer then missing = "upTimer"
+	if hasUptime(def) and not f.upTimer and not KD.hook("cooldown", def, "uptime") then missing = "upTimer"
 	elseif KD.words("cooldown", def, "warn") and not f.warn then missing = "warn"
 	elseif KD.hook("cooldown", def, "readyGate") and not f.readyGate then missing = "readyGate" end
 	if missing then
@@ -135,8 +195,8 @@ local function checkFrames(def)
 end
 
 ns.registerKind("cooldown", {
-	parts = { "cooldown", "ready", "readyGlow", "window", "primed" },
-	slots = { "own", "warn", "cast", "ready", "active", "expire", "killed", "cooldown", "gcd", "uptime" },
+	parts = { "cooldown", "ready", "readyGlow", "lowMana", "window", "primed" },
+	slots = { "own", "warn", "cast", "ready", "lowMana", "active", "expire", "killed", "cooldown", "gcd", "uptime" },
 	prepare = function(def)
 		def.expires = hasUptime(def) and def.expireLooks ~= false
 		checkFrames(def)
@@ -160,6 +220,7 @@ local function makeCooldownIcon(def)
 		f.readyGlow = ns.Effects.glow(f.readyGate, f, def.key)
 	end
 	if KD.words("cooldown", def, "warn") then f.warn = W.makeWarnOverlay(f) end
+	KD.eachHook("cooldown", def, "make", f)
 	f.stack()
 	return f
 end
@@ -170,7 +231,7 @@ for _, def in ipairs(COOLDOWNS) do
 	def.frame = makeCooldownIcon(def)
 	E.register(def.key, { frame = def.frame, label = def.spell,
 		defaults = def.defaults or {}, learned = function() return def.spellID ~= nil end,
-		paint = function(t) t:SetTexture(def.iconID or def.icon) end, ranges = def.ranges,
+		paint = function(t) t:SetTexture(def.iconID or def.icon) end, ranges = def.ranges, choices = def.choices,
 		kind = "cooldown", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
 		experimental = def.experimental, race = def.race, styles = def.styles, timerCant = def.timerCant })
 	if def.power or def.range then CS.watchRow(def) end
@@ -363,7 +424,7 @@ end
 local CAST_GRACE = 1.5
 local function readPrimedBuff(def, fromAura)
 	local buffKey = def.primed and def.primed.buffKey
-	if not buffKey or not ns.aurasReadable() or not C_UnitAuras then return end
+	if not buffKey or not primedOn(def) or not ns.aurasReadable() or not C_UnitAuras then return end
 	local found
 	local function usable(ok, a)
 		return ok and type(a) == "table" and not isSecret(a.expirationTime) and not isSecret(a.duration)
@@ -418,6 +479,7 @@ function refreshCooldown(def, inEvent)
 	local dur, bar = cooldownFor(f, def.key, def.spellID, inEvent)
 	if dur then f.cdTimer:set(dur, bar) end
 	f.tex:SetDesaturated(false)
+	if def.primed and not primedOn(def) then endActive(def) end
 	local held = isActive(def)
 	if def.primed then showPrimed(def, held) end
 	if def.reagent then
@@ -478,7 +540,8 @@ local function styleCooldown(def)
 	w:setParts(W.warnParts(def.key, "warn"))
 end
 
--- Ready glows ("use me"), all off by default; re-read ten times a second while on
+-- Ready glows ("use me"), all off by default; re-read ten times a second while on, with the parts'
+-- ticks
 local hasTimeLeftCurve = ns.CURVE_LIVE
 -- 1 while off cooldown (maybe secret: only given to SetAlpha); 0 while the player can't act. Not
 -- IsSpellUsable: mana would remove it.
@@ -512,7 +575,15 @@ local function refreshReadyGlows()
 	local cantAct = ns.cantAct()
 	for _, def in ipairs(COOLDOWNS) do
 		if def.frame.readyGate then refreshReadyGlow(def, cantAct) end
+		KD.eachHook("cooldown", def, "tick", cantAct)
 	end
+end
+local function partTicks(def)
+	for _, p in ipairs(KD.partsOf("cooldown", def)) do
+		local t = p.runtime and p.runtime.ticks
+		if t and t(def) then return true end
+	end
+	return false
 end
 local readyTicker = ns.ticker(0.1, refreshReadyGlows)
 local function syncReadyTicker()
@@ -520,6 +591,7 @@ local function syncReadyTicker()
 	if E.isActive() then
 		for _, def in ipairs(COOLDOWNS) do
 			if def.frame.readyGate and E.isEnabled(def.key) and setting(def.key, "ready", "glow") then want = true end
+			if partTicks(def) then want = true end
 		end
 	end
 	readyTicker:SetShown(want and true or false)
@@ -576,7 +648,7 @@ function CD.onCast(spellID)
 			if key == def.spellKey then CD.noteCast(def.frame, def.spellID) end
 			if def.window and key == def.spellKey then
 				startActive(def, now, def.window)
-			elseif def.primed then
+			elseif def.primed and primedOn(def) then
 				if key == def.spellKey then
 					def.castAt = now
 					startActive(def, now, def.primed.duration, def.activeUntil ~= nil)
@@ -641,6 +713,7 @@ function CD.debug()
 			extra = def.activeUntil and string.format(", %s for %s", def.primed and "primed" or "window",
 				def.activeUntil == math.huge and "until spent"
 					or string.format("%.1f s", def.activeUntil - GetTime())) or ", not active"
+			if def.primed and not primedOn(def) then extra = ", primed off" end
 		end
 		if def.reagent then
 			extra = string.format("%s, reagent %s (takes it: %s, Reagent Economy %s)", extra,

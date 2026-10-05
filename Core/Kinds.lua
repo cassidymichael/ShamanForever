@@ -90,6 +90,9 @@ function KD.slots(kind) return listOf(kind, "slots") end
 --   idles(st, when)    whether st goes idle once its moment has played, at Idle when = when
 --   standIn(ic)        /sf preview made ic, its stand-in: add what render expects on it
 --   hold(ic)           /sf preview paints ic over the element (nil: it ended)
+--   stateShown(st)     false: the state can't exist for it now (a mode without it), its button and
+--                      /sf preview step left out. A setting turned off never hides one: previewing it
+--                      shows what it would look like
 --   reach(ic)          how far parts drawn outside the icon reach out of ic on its left, right, top
 --                      and bottom, in pixels: the header's preview grows for them
 -- A bar's preview, drawn on its page's header instead: stage, heroH, build(h), render(h, st, kit),

@@ -72,7 +72,8 @@ local ELEMENT_KEYS = {}
 -- (its page then offers their styles), and the pop it plays;
 -- ownSchool(): the school its pop and glow take now, where that follows its state; styles: its own
 -- shipped styles, { part = fields }; timerCant: timer parts it can't have, and why; barColor = { label,
--- text, color() }: a colour a bar can follow
+-- text, color() }: a colour a bar can follow; swingMark = { max, ids(), color() }: its aura's charges
+-- (up to max, the aura's spell IDs as a set) as pips on the swing timer (_Swing)
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
 local NO_EFFECTS = { glow = false, pop = false }
@@ -152,7 +153,8 @@ function Bars.register(key, spec)
 end
 -- A bar's top frame goes in a holder under root, hidden while off: Bars.parent(true) for protected
 -- frames (that holder is protected itself, so the on-off toggle can hide it in combat; anything
--- else waits for combat to end), Bars.parent() for the rest
+-- else waits for combat to end), Bars.parent() for the rest (set at once, and again as combat ends:
+-- a bar holding Blizzard's aura button may make it refuse a change in combat)
 local barHolders = {}
 for _, kind in ipairs({ "plain", "secure" }) do
 	local h = CreateFrame("Frame", nil, root, kind == "secure" and "SecureFrameTemplate" or nil)
@@ -815,6 +817,7 @@ local function holdSecureBars()
 	if ns.deferInCombat("off: bars", holdSecureBars) then return end
 	local off = ns.isOff()
 	toggleHead:SetAttribute("sf-off", off)
+	barHolders.plain:SetShown(not off)
 	for _, w in ipairs(whileOffs) do w.frame:SetShown(off) end
 	local changed = barHolders.secure:IsShown() == off
 	barHolders.secure:SetShown(not off)
@@ -1053,9 +1056,25 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 end)
 
 -- /sf debug
+-- Whether our code may move, show or hide a frame now: protected ones refuse it in combat
+local function changeable(f)
+	local ok, yes = ns.try("debug: protected check", C_RestrictedActions.CheckAllowProtectedFunctions, f, true)
+	if not ok or isSecret(yes) then return "?" end
+	return yes and "yes" or "no"
+end
+local function changeableLine()
+	local list = { "HUD " .. changeable(root), "bars' holder " .. changeable(barHolders.plain),
+		"protected bars' holder " .. changeable(barHolders.secure) }
+	for _, key in ipairs(BAR_ORDER) do
+		local bar = BARS[key]
+		if bar.movable then table.insert(list, bar.label:lower() .. " " .. changeable(bar.movable.frame)) end
+	end
+	say("can move, show or hide now (else after combat): %s", table.concat(list, ", "))
+end
 function E.debugReport()
 	say("in combat %s", tostring(InCombatLockdown()))
 	if ns.isOff() then say("off (%s disable)", ns.CLASS.slash[1]) end
+	changeableLine()
 	local known, otherRace = {}, {}
 	for _, e in pairs(ELEMENTS) do
 		if e.spell and Spells.otherRace(e.race) then otherRace[e.spell] = true end

@@ -462,7 +462,7 @@ function OA.buildHero(parent, key)
 
 	-- State buttons
 	local STEP = BTN_H + 3
-	local function listed(st) return not def.stage or not def.stateShown or def.stateShown(st) end
+	local function listed(st) return not def.stateShown or def.stateShown(st) end
 	local placeStates
 	local function onWheel(_, delta)
 		firstShown = firstShown - delta
@@ -584,16 +584,16 @@ function OA.buildHero(parent, key)
 		if def.stage then
 			self.stateW = BTN_W + 16
 			if self.area then self.area:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -40 - self.stateW, 12) end
-			local first, cur = nil, false
-			for _, b in ipairs(self.stateButtons) do
-				if listed(b.state) then
-					first = first or b.state
-					if b.state == previewState[key] then cur = true end
-				end
+		end
+		local first, cur = nil, false
+		for _, b in ipairs(self.stateButtons) do
+			if listed(b.state) then
+				first = first or b.state
+				if b.state == previewState[key] then cur = true end
 			end
-			if not cur and first then
-				previewState[key] = (def.fallback and listed(def.fallback)) and def.fallback or first
-			end
+		end
+		if not cur and first then
+			previewState[key] = (def.fallback and listed(def.fallback)) and def.fallback or first
 		end
 		placeStates(self)
 		for _, b in ipairs(self.stateButtons) do OA.paintChoice(b, b.state == previewState[key]) end

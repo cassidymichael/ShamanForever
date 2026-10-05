@@ -1234,7 +1234,8 @@ function layout()
 		local kt = keyTexts[b]
 		if kt then
 			local k = c.keyColor
-			ns.Media.setFont(kt, "totembar", W.keyTextSize(sz, c.keySize))
+			local face = TB.skin.faceSize(it.extra and extrasBorder or border, sz, b)
+			ns.Media.setFont(kt, "totembar", W.keyTextSize(face, c.keySize))
 			kt:ClearAllPoints()
 			kt:SetPoint("TOPRIGHT", c.keyX, c.keyY)
 			kt:SetTextColor(k[1], k[2], k[3], k[4] or 1)
@@ -1254,7 +1255,7 @@ function layout()
 			e.vis.icon:SetTexture(C_Spell.GetSpellTexture(e.spell))
 			e.vis.icon:SetDesaturated(not learned)
 			e.vis.icon:SetAlpha(learned and 1 or 0.6)
-			TB.fitLook(e.vis, e.button, extrasBorder, on[key])
+			TB.skin.dressSlot(e.vis, nil, on[key] - 2 * TB.fitLook(e.vis, e.button, extrasBorder, on[key]))
 		end
 	end
 	-- The set switch: with more than one set known
@@ -1267,7 +1268,8 @@ function layout()
 	if pickSet then layoutSetPicker(size) end
 	layoutArrow(setSlot, pickSet and feat("arrows"))
 	if on.Call then
-		ns.Media.setFont(call.num, "totembar", W.keyTextSize(on.Call, c.keySize))
+		local face = TB.skin.faceSize(extrasBorder, on.Call, call.button)
+		ns.Media.setFont(call.num, "totembar", W.keyTextSize(face, c.keySize))
 		call.num:ClearAllPoints()
 		call.num:SetPoint("BOTTOMRIGHT", -1, 2)
 	end
@@ -1282,6 +1284,7 @@ function layout()
 		b:SetAttribute("*type1", feat("cast") and "action" or nil)
 		b:SetAttribute("sf-altpick", barOn() and cfg().mode == "everything")
 		s.inset = TB.fitLook(s.vis, b, border, size)
+		TB.skin.dressSlot(s.vis, s.el, size - 2 * s.inset)
 		s.killed.fitSize, s.expired.fitSize = size - 2 * s.inset, size - 2 * s.inset
 		s.timer:apply()
 		TB.skin.styleTimer(s.timer, s.vis, size)
