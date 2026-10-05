@@ -715,7 +715,7 @@ local function groupMenu(key, after)
 	end
 end
 
-local ON_TIP = "Off, it leaves the screen. Its group and settings are kept."
+local ON_TIP = "Turned off, it keeps its group and settings."
 local SHOW_TIP_PAGE = "Groups have their own Show on the Groups & Layout page; an element shows only when both "
 	.. "allow it. Everything visible shows while positioning is unlocked."
 
@@ -730,7 +730,7 @@ local function elementDisplay(p, key)
 		ask = function() ns.ElementPages.askReset(key) end,
 	}
 	p:hero(key)
-	p:callout("Not learned yet. It shows on screen once your character knows the spell.",
+	p:callout("Not learned yet, so it isn't on screen.",
 		function() return not E.isLearned(key) and not ns.Spells.otherRace(E.ALL[key].race) end)
 	p:callout("Not your race. It shows on screen only for the races that have this spell.",
 		function() return not E.isLearned(key) and ns.Spells.otherRace(E.ALL[key].race) end)

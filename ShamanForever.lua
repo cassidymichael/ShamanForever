@@ -842,7 +842,7 @@ local function refreshCooldownsSoon()
 end
 
 -- Layout edits for the options: each leaves db.groups consistent and relays out; refused in combat.
--- full: it may switch an element on or off, so modules set its sounds, containers and tickers again
+-- full: an element may leave the HUD or come back, so modules set its sounds, containers and tickers again
 local function edit(fn, full)
 	return function(...)
 		if InCombatLockdown() then say("layout changes wait until combat ends"); return false end
@@ -910,7 +910,7 @@ end, true)
 
 local setShow = edit(function(key, mode)
 	elementOpts(key).show = mode ~= (elementDefault(key, "show") or "always") and mode or nil
-end, true)
+end)
 
 local setOn = edit(function(key, on)
 	on = on and true or false
@@ -1209,9 +1209,9 @@ function E.debugReport()
 	say("profile %s", tostring(profileName))
 	local function listed(key)
 		local tags = {}
-		if not isOn(key) then table.insert(tags, "off") end
 		if not isLearned(key) then table.insert(tags, E.notLearnedText(key):lower()) end
-		if showMode(key) ~= "always" then table.insert(tags, showMode(key)) end
+		if not isOn(key) then table.insert(tags, "off") end
+		if showMode(key) == "combat" then table.insert(tags, "in combat") end
 		return #tags == 0 and key or (key .. " (" .. table.concat(tags, ", ") .. ")")
 	end
 	for _, g in ipairs(db.groups) do
