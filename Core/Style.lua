@@ -1,6 +1,83 @@
--- Styles: each part's style set once on Global, which owners follow or replace with their own
+-- What a class must supply, checked; then styles: each part's style set once on Global, which owners
+-- follow or replace with their own
 
 local _, ns = ...
+
+-- What shared code reads from the class (_Class) with no default; Style is its first reader. A class
+-- missing any is named in one error, then takes stand-ins so the rest loads, and never runs.
+do
+	local function is(kind) return function(v) return type(v) == kind end end
+	local TEXT = { is = is("string"), new = function() return "?" end }
+	local TABLE = { is = is("table"), new = function() return {} end }
+	local ICON = { is = function(v) return type(v) == "string" or type(v) == "number" end,
+		new = function() return 134400 end }
+	local COLOR = { is = function(v) return type(v) == "table" and type(v[1]) == "number"
+		and type(v[2]) == "number" and type(v[3]) == "number" end, new = function() return { 1, 1, 1 } end }
+	local REQUIRED = {
+		{ "CLASS.token", TEXT }, { "CLASS.plural", TEXT }, { "CLASS.slash.1", TEXT }, { "CLASS.icon", ICON },
+		{ "CLASS.blurb", TEXT }, { "CLASS.credits", TEXT }, { "CLASS.sharePrefix", TEXT },
+		{ "CLASS.links.repo", TEXT }, { "CLASS.links.curseforge", TEXT }, { "CLASS.links.discord", TEXT },
+		{ "CLASS.links.kofi", TEXT }, { "CLASS.help.uptime", TEXT }, { "CLASS.help.pop", TEXT },
+		{ "CLASS.help.popColour", TEXT }, { "CLASS.help.bars", TEXT }, { "CLASS.help.glowColour", TEXT },
+		{ "CLASS.power.name", TEXT }, { "CLASS.power.on", TEXT }, { "CLASS.layout", TABLE },
+		{ "THEME.axis.name", TEXT }, { "THEME.axis.lower", TEXT }, { "THEME.axis.one", TEXT },
+	}
+	-- For each key of THEME.order (barColor only when the class gives it); then at THEME.fallback
+	local PER_KEY = { { "color", COLOR }, { "name", TEXT }, { "icon", ICON }, { "banner", TEXT },
+		{ "barColor", COLOR, true } }
+	local AT_FALLBACK = { "material", "shape", "burst" }
+
+	local gaps, quiet, made = {}, false, {}
+	local function gap(path)
+		if not quiet and not tContains(gaps, path) then table.insert(gaps, path) end
+	end
+	-- The value at path, else a stand-in there; a gap is named at its first missing table
+	local function need(path, kind)
+		local keys = {}
+		for key in path:gmatch("[^.]+") do table.insert(keys, tonumber(key) or key) end
+		local t, at, missing = ns, "ns", nil
+		for i, key in ipairs(keys) do
+			at = at .. "." .. key
+			local last, v = i == #keys, t[key]
+			if not (last and kind.is(v) or not last and type(v) == "table") then
+				if not made[t] then missing = missing or at end
+				v = last and kind.new() or {}
+				if not last then made[v] = true end
+				t[key] = v
+			end
+			t = v
+		end
+		if missing then gap(missing) end
+	end
+
+	for _, row in ipairs(REQUIRED) do need(row[1], row[2]) end
+	for i in ipairs(ns.CLASS.layout) do need("CLASS.layout." .. i .. ".members", TABLE) end
+	local T = ns.THEME
+	quiet = made[T]   -- a stand-in theme is named already
+	local hasOrder = type(T.order) == "table" and T.order[1] ~= nil
+	if not hasOrder then
+		gap("ns.THEME.order")
+		T.order = { type(T.fallback) == "string" and T.fallback or "?" }
+	end
+	for _, field in ipairs({ "fallback", "sample" }) do
+		if not tContains(T.order, T[field]) then
+			if T[field] == nil then gap("ns.THEME." .. field)
+			elseif hasOrder then gap("ns.THEME." .. field .. " as a key of ns.THEME.order") end
+			T[field] = T.order[1]
+		end
+	end
+	quiet = quiet or not hasOrder   -- under a stand-in order, the keys' gaps are noise
+	for _, key in ipairs(T.order) do
+		for _, row in ipairs(PER_KEY) do
+			if not row[3] or T[row[1]] ~= nil then need("THEME." .. row[1] .. "." .. key, row[2]) end
+		end
+	end
+	for _, field in ipairs(AT_FALLBACK) do need("THEME." .. field .. "." .. T.fallback, TABLE) end
+	if #gaps > 0 then
+		ns.CLASS.token = false   -- no player's class: the class gate stays shut
+		geterrorhandler()(ns.NAME .. ": the class doesn't supply " .. table.concat(gaps, ", "))
+	end
+end
 
 local S = {}
 ns.Style = S
