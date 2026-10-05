@@ -20,7 +20,7 @@ local ROWS = ns.CLASS.buffs or {}
 local BUFFS = {}
 
 -- The kind and its parts (ns.registerPart); a row's flags name its parts. Other files' rows and
--- parts join it: the reagent's (_Reagents), Expiring's (_Timers), a class's own.
+-- parts join it: the reagent's (_Reagents), a class's own.
 local function procName(def) return def.buffKey and Spells.name(def.buffKey) end
 ns.registerPart("buff", {
 	idle = { text = function(def)
@@ -1177,7 +1177,7 @@ local function refreshBuff(def)
 		if def.fx then def.fx:glow(false) end
 		return
 	end
-	f.tex:SetTexture(def.iconID or def.icon)
+	f.tex:SetTexture(def.icon)
 	if not def.spellID then
 		f.tex:SetDesaturated(true)
 		f:SetRingShown(false)

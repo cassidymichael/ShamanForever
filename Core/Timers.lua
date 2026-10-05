@@ -425,12 +425,12 @@ local ticker = ns.ticker(0.1, function()
 	end
 end)
 
--- The expire part (ns.registerPart): Expiring's settings for a kind that sets def.expires,
+-- The expire part (ns.registerPart): Expiring's settings for the cooldown kind, which sets def.expires,
 -- def.expireLooks (the looks it offers; default all) and def.expireRange (Warn in the last)
 local EXPIRE = { secs = 5, grey = false, ring = false, fade = true, glow = false }
 local EXPIRE_LOOKS = { "grey", "ring", "fade", "glow" }
 ns.registerPart("expire", {
-	kinds = { cooldown = {}, buff = {} },
+	kinds = { cooldown = {} },
 	has = function(def) return def.expires end,
 	defaults = function(def)
 		local e = { secs = EXPIRE.secs }
