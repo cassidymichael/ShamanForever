@@ -261,14 +261,15 @@ local function makeMark(m)
 	markAlpha(m)
 end
 for _, key in ipairs(MARKS) do marks[key] = { key = key } end
--- /sf preview: our own pips, full, in place of the button's (a mark not learned too, with Show not
--- learned)
+-- /sf preview: our own pips in place of the button's: full while a mark is on; in Busy, which plays
+-- every state, each mark's spent one a swing, switched off too. A mark not learned too, with Show
+-- not learned
 local pvPips = {}
 local function previewMarks()
 	for _, key in ipairs(MARKS) do
 		local e = E.ALL[key]
 		local learned = e.learned ~= nil and e.learned()
-		local shown = pv.mode ~= nil and cfg().marks[key] == true and SW.isOn()
+		local shown = pv.mode ~= nil and (cfg().marks[key] == true or pv.mode == "busy") and SW.isOn()
 			and (learned or ns.Preview.showsUnlearned())
 		local b = pvPips[key]
 		if shown and not b then
@@ -280,7 +281,7 @@ local function previewMarks()
 			local spec = E.ALL[key].swingMark
 			SW.stylePips(b, face, spec.max, spec.color())
 			b:SetMinMaxValues(0, spec.max)
-			b:SetValue(spec.max)
+			b:SetValue(pv.mode == "busy" and math.min(math.max(spec.max + 1 - pv.count, 1), spec.max) or spec.max)
 		end
 		if b then b:SetShown(shown) end
 	end
@@ -434,6 +435,7 @@ pvFrame:SetScript("OnUpdate", function()
 	end
 	startSwing(p.speed)
 	pv.count = pv.count + 1
+	previewMarks()
 	if p.swings and pv.count > p.swings then
 		pv.action, pv.nextAt = "cast", now + p.speed * p.cutAt
 	else

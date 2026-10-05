@@ -62,10 +62,10 @@ local PREVIEW = {
 		box.bar:SetValue(c.deplete and 1 - filled or filled)
 		box.text:SetText(string.format("%.1f", LENGTH * (1 - FILL)))
 		box.text:SetShown(c.countdown and not due)
-		-- Marks switched on, full
+		-- Marks switched on, full; a mark's own state shows it switched off too
 		for _, key in ipairs(SW.MARKS) do
 			local pips = box.pips[key]
-			local on = c.marks[key] == true
+			local on = c.marks[key] == true or st == "mark-" .. key
 			if on and not pips then
 				pips = SW.makePips(box.over)
 				box.pips[key] = pips
@@ -80,6 +80,10 @@ local PREVIEW = {
 		end
 	end,
 }
+
+-- A state per mark, named as its row in Marks
+local function markName(key) return E.ALL[key].label .. " charges" end
+for _, key in ipairs(ns.Swing.MARKS) do table.insert(PREVIEW.states, { "mark-" .. key, markName(key) }) end
 
 local function build(p)
 	local SW, K = ns.Swing, ns.Options.kit
@@ -137,10 +141,10 @@ local function build(p)
 			local e = E.ALL[key]
 			local function markGet() return c().marks[key] end
 			p:owns({ bar = "swing", name = "marks", field = key, after = changed })
-			p:checkbox(e.label .. " charges", "Pips along the top of the bar while it's up, one per charge.", markGet,
+			p:checkbox(markName(key), "Pips along the top of the bar while it's up, one per charge.", markGet,
 				function(v) c().marks[key] = v; changed() end)
 			local badge = p:row(22)
-			ns.OptionsArt.expBadge(badge, e.label .. " charges"):SetPoint("LEFT", badge, "LEFT", ns.Page.LABEL_W, 0)
+			ns.OptionsArt.expBadge(badge, markName(key)):SetPoint("LEFT", badge, "LEFT", ns.Page.LABEL_W, 0)
 			p:add(badge, 22)
 			p:text("Not learned yet.", showWhen(function() return not (e.learned and e.learned()) end))
 		end
@@ -160,7 +164,7 @@ end
 
 local experiments = {}
 for _, key in ipairs(ns.Swing.MARKS) do
-	table.insert(experiments, { E.ALL[key].label .. " charges", "Marks" })
+	table.insert(experiments, { markName(key), "Marks" })
 end
 Bars.register("swing", { icon = ns.Swing.ICON, school = ns.THEME.fallback,
 	blurb = "Time to your next melee swing.", experiments = experiments,
