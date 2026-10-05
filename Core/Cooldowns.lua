@@ -212,6 +212,7 @@ end
 -- Arms the next ready only when our own cast starts the cooldown, never on a guess: a missed
 -- ready beats a false one.
 local READY_GRACE, ARM_AFTER_CAST = 0.5, 1.5
+local function arm(r) r.armed, r.by, r.castAt = true, nil, nil end
 -- Still armed, still ready and its tracker still running once the grace is over: the cooldown ended
 -- early (a reset), so this is its ready. Only for rows with readyAtReset
 local function endedEarly(f, spellID, by)
@@ -231,7 +232,7 @@ local function noteReady(f, st, inEvent, spellID)
 			if r.atReset then C_Timer.After(READY_GRACE, function() endedEarly(f, spellID, by) end) end
 		end
 	elseif st == "own" and inEvent and r.castAt and GetTime() - r.castAt <= ARM_AFTER_CAST then
-		r.armed, r.by, r.castAt = true, nil, nil
+		arm(r)
 	end
 end
 -- Ready tracker: a Cooldown fed the spell's own cooldown (ignoreGCD). An end just after the icon
@@ -261,7 +262,7 @@ function CD.noteCast(f, spellID)
 	watchEnds(f)
 	local r = f.ready
 	r.castAt = GetTime()
-	if plainCooldown(spellID) == "own" then r.armed, r.by, r.castAt = true, nil, nil end
+	if plainCooldown(spellID) == "own" then arm(r) end
 end
 -- Forgets a pending ready: a cast we didn't see can't leave one armed
 function CD.resetReady(f)
