@@ -38,7 +38,7 @@ ns.CLASS.cooldowns = {
 		ranOut = true, lowMana = true, cd = 300,
 		defaults = { expire = { secs = 3, glow = true, fade = false } }, experimental = "Mana Tide Totem" },
 	{ key = "grounding", power = true, spellKey = "grounding", icon = 136039, totemSlot = 4, duration = 45, school = "air",
-		blurb = "Cooldown, time left, and a flash when it takes a spell.",
+		blurb = "Cooldown, time left, and a flash when it ends early.",
 		styles = barTimer(), timerCant = ONE_SWIPE,
 		grounded = true, ranOut = true, cd = 15, defaults = { idleWhen = "offcd" },
 		experimental = "Grounding Totem" },
