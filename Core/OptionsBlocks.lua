@@ -1192,6 +1192,8 @@ K.registerSlot("killed", function(p, def, o) K.killedBlock(p, def.key, o) end)
 K.registerSlot("cooldown", function(p, def, title) K.timerSettings(p, title, def.key, "cooldown") end, true)
 K.registerSlot("gcd", function(p, def) K.gcdBlock(p, def.key) end, true)
 K.registerSlot("uptime", function(p, def, title) K.timerSettings(p, title, def.key, "uptime") end, true)
+-- An event with only a sound, drawn after the warnings: b = { "sound", name, title, tip }
+K.registerOwn("sound", function() end, function(p, def, b) K.soundBlock(p, def.key, b.name, b) end)
 
 -- lowMana: a pulsing glow while it's ready and your mana is under a percentage
 local function lowManaBlock(p, owner, opts)

@@ -33,6 +33,7 @@ local SHARE_VERSION = 7
 --   expire  = { secs, grey, ring, fade, glow, bar, barColor, text, over }   the last seconds
 --   ended   = { flash, pop, glow, sound }   it ran out
 --   killed  = { flash, pop, glow, mark }   it ended early
+--   breath  = { sound }   your breath bar is nearly out
 --   count   = { bar, barHeight, barColor, number, pos, size, mark, markColor }   charges or stacks
 --   reagent = { when, low, lowKeepsShown, color, lowColor, size, pos, x, y, ring, fade }
 --   mana    = { on }   its spell's cost can't be paid (_CastStates); its style (part power) is kept beside

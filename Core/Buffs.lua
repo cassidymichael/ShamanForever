@@ -63,9 +63,10 @@ ns.registerPart("buff", {
 })
 -- breath: warns under water without it
 ns.registerPart("breath", {
-	defaults = { warn = { on = true, ring = true, fade = true, glow = false } },
+	defaults = { warn = { on = true, ring = true, fade = true, glow = false }, breath = { sound = "none" } },
 	page = { warn = { title = "Under water",
-		on = { "Warn without it", "While your breath bar drains and it isn't up." } } },
+		on = { "Warn without it", "While your breath bar drains and it isn't up." } },
+		own = { "sound", name = "breath", title = "Low breath", tip = "When your breath bar has 10 seconds left." } },
 	preview = {
 		warning = "underwater",
 		states = { { "underwater", "Under water", 80 } },
@@ -402,8 +403,24 @@ local function readBreath()
 	end
 end
 
+-- Low breath: its sound once as the breath bar passes LOW_BREATH seconds left, again after it refills
+local LOW_BREATH = 10   -- seconds
+local breathLow = false
+local breathWatch = ns.ticker(0.25, function()
+	local ok, ms = safe(GetMirrorTimerProgress, "BREATH")
+	if not ok or isSecret(ms) or type(ms) ~= "number" then return end
+	if ms > (LOW_BREATH + 1) * 1000 then breathLow = false end
+	if breathLow or ms > LOW_BREATH * 1000 then return end
+	breathLow = true
+	for _, def in ipairs(BUFFS) do
+		if def.breath and def.spellID then ns.Sounds.element(def.key, "breath") end
+	end
+end)
+local function watchBreath() breathWatch:SetShown(breathing) end
+
 function B.refresh()
 	readBreath()
+	watchBreath()
 	for _, def in ipairs(BUFFS) do
 		if not def.proc then readAura(def) end
 	end
@@ -425,6 +442,7 @@ end
 
 function B.start()
 	readBreath()
+	watchBreath()
 	ns.onCanActChange(refreshAll)
 	local ev = CreateFrame("Frame")
 	ns.registerEvent(ev, "UNIT_AURA", "player")
@@ -438,6 +456,7 @@ function B.start()
 		if isSecret(timer) or timer ~= "BREATH" then return end
 		breathing = event == "MIRROR_TIMER_START" and type(scale) == "number" and not isSecret(scale) and scale < 0
 		if breathing then for _, def in ipairs(BUFFS) do if def.breath then setDown(def) end end end
+		watchBreath()
 		refreshAll()
 	end)
 end
