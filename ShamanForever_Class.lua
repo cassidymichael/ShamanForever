@@ -87,6 +87,8 @@ ns.CLASS.layout = {
 		orientation = "vertical", growth = "forward", spacing = 2,
 		members = { "bloodfury", "shattercurse", "berserking", "rapidregeneration", "warstomp",
 			"stoneform", "walkonair", "skysight" } },
+	{ id = 12, name = "Cleanse", point = "CENTER", x = 252 / 1.25, y = 58 / 1.25, scale = 1.25, alpha = 0.9,
+		orientation = "horizontal", growth = "forward", spacing = 2, members = { "curepoison", "curedisease" } },
 }
 
 -- The art theme: what a class supplies for its icons' colour, art and effects. Every table is
@@ -223,6 +225,8 @@ ns.Spells.add({
 	callSpirits     = { ids = { 66844 }, en = "Call of the Spirits" },   -- level 40
 	recall          = { ids = { 36936 }, en = "Totemic Recall" },
 	tremor          = { ids = { 8143 }, en = "Tremor Totem" },   -- level 18
+	curePoison      = { ids = { 526 }, en = "Cure Poison" },   -- level 16
+	cureDisease     = { ids = { 2870 }, en = "Cure Disease" },   -- level 22
 	-- Talents or above the level-20 cap: seeds from foreverdiff.com, found on the client with the right name
 	naturesSwiftness = { ids = { 16188 }, en = "Nature's Swiftness" },   -- the buff has the same ID
 	manaTide        = { ids = { 16190 }, en = "Mana Tide Totem" },

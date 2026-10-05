@@ -201,7 +201,7 @@ PREVIEW = {
 						f:Show()
 					end
 				end
-				TB.paintLow(ic, st == "mana" and i == 1 and c.cast == true and c.mana.on == true)
+				TB.paintLow(ic, st == "mana" and i == 1 and TB.feat("cast") and c.mana.on == true)
 				if st == "offpick" and i == 1 then
 					local other
 					for _, id in ipairs(TB.known(el)) do

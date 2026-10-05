@@ -62,16 +62,16 @@ local PREVIEW = {
 		box.bar:SetValue(c.deplete and 1 - filled or filled)
 		box.text:SetText(string.format("%.1f", LENGTH * (1 - FILL)))
 		box.text:SetShown(c.countdown and not due)
-		-- Marks switched on, full
+		-- Marks switched on and learned, full
 		for _, key in ipairs(SW.MARKS) do
-			local pips = box.pips[key]
-			local on = c.marks[key] == true
+			local pips, e = box.pips[key], E.ALL[key]
+			local on = c.marks[key] == true and e.learned ~= nil and e.learned() and true or false
 			if on and not pips then
 				pips = SW.makePips(box.over)
 				box.pips[key] = pips
 			end
 			if on then
-				local spec = E.ALL[key].swingMark
+				local spec = e.swingMark
 				SW.stylePips(pips, box, spec.max, spec.color())
 				pips:SetMinMaxValues(0, spec.max)
 				pips:SetValue(spec.max)

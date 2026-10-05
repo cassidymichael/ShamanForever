@@ -15,6 +15,7 @@ local GAME = {
 	{ "alarm", "Alarm clock", "ALARM_CLOCK_WARNING_3" },
 	{ "emote", "Boss emote", "RAID_BOSS_EMOTE_WARNING" },
 	{ "queue", "Queue pop", "PVP_THROUGH_QUEUE" },
+	{ "ping", "Map ping", "MAP_PING", 567416, byFile = true },   -- its kit plays too quietly
 	{ "invite", "Group invite", "IG_PLAYER_INVITE" },
 	{ "quest", "Quest complete", "IG_QUEST_LIST_COMPLETE" },
 	{ "toast", "Friend online", "UI_BNET_TOAST" },
@@ -47,6 +48,7 @@ local function resolve(value)
 	local g = gameByName[value]
 	if g then
 		local id = kit(g)
+		if id and g.byFile then return "file", g[4] end
 		if id then return "kit", id end
 		return nil
 	end
