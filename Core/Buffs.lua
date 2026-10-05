@@ -596,7 +596,7 @@ local function stateFilter(x) return x.spec.filter or "HELPFUL|PLAYER" end
 local function stateActiveOn(def) return setting(def.key, "active", "on") ~= false end
 local function stateOn(x)
 	local def = x.def
-	return def.spellID ~= nil and E.isEnabled(def.key) and (not x.spec.active or stateActiveOn(def))
+	return E.inUse(def.key) and (not x.spec.active or stateActiveOn(def))
 end
 local function stateAlpha(x) x.slot:fade("aura state alpha " .. x.def.key, x.alpha) end
 local function stateGlow(x)
@@ -634,7 +634,7 @@ end
 -- Its length guard (B.expiring)
 local function readStateLength(x)
 	local length = x.spec.length
-	if length and x.def.spellID and B.expiring.readOnPlayer(x, stateIDs(x), length) then x.slot:styleNow() end
+	if length and stateOn(x) and B.expiring.readOnPlayer(x, stateIDs(x), length) then x.slot:styleNow() end
 end
 for _, x in ipairs(STATE_LIST) do
 	local def, key, s = x.def, x.def.key, x.spec
@@ -738,20 +738,31 @@ ns.registerPart("auraState", {
 })
 local function statesLayout()
 	for _, x in ipairs(STATE_LIST) do
+		local on = stateOn(x)
 		makeState(x)
-		x.slot:styleNow()
+		if on and x.stale then
+			x.stale = false
+			x.slot:refilter()
+			if x.fx then x.fx:refilter(); x.fx:checkIDs() end
+		end
+		if on then x.slot:styleNow() end
 		stateAlpha(x)
 		if x.fx then
-			if stateOn(x) then x.fx:setup() end
-			B.styleGlow(x)
+			if on then
+				x.fx:setup()
+				B.styleGlow(x)
+			end
 			stateGlow(x)
 		end
 	end
 end
+-- Only those in use: the rest wait until they're back (statesLayout)
 local function statesStyle()
 	for _, x in ipairs(STATE_LIST) do
-		x.slot:styleNow()
-		if x.fx then B.styleGlow(x) end
+		if stateOn(x) then
+			x.slot:styleNow()
+			if x.fx then B.styleGlow(x) end
+		end
 	end
 end
 
@@ -767,7 +778,7 @@ local barsPreviewing = false
 local function buffBarShown(def) return setting(def.key, "buffBar") == true end
 local function buffBarOn(x)
 	local def = x.def
-	return x.learned and def.spellID ~= nil and E.isEnabled(def.key) and buffBarShown(def)
+	return x.learned and E.inUse(def.key) and buffBarShown(def)
 end
 -- Where it sits on anchor, in Time left's style: the edge its bar doesn't use, inside the picture of
 -- icon (the element's icon, the same box: Blizzard's button has no border of its own)
@@ -879,7 +890,7 @@ end
 local partyPreviewing = false
 local function partyOn(x)
 	local def = x.def
-	return def.spellID ~= nil and E.isEnabled(def.key) and setting(def.key, "party") == true
+	return E.inUse(def.key) and setting(def.key, "party") == true
 end
 local function partyAlpha(x)
 	if not x.host then return end
@@ -927,6 +938,10 @@ end
 local function partyGlowOn(x) return partyOn(x) and setting(x.def.key, "active", "glow") == true end
 local function partyGlows(x)
 	local def = x.def
+	if not partyOn(x) then
+		for _, look in pairs(x.glows or {}) do look:want(false) end
+		return
+	end
 	if not x.glows and x.host and partyGlowOn(x) then
 		x.glows = {}
 		for _, unit in ipairs(PARTY_UNITS) do
@@ -955,9 +970,11 @@ end
 local function partyLayout()
 	for _, x in ipairs(PARTIES) do
 		makeParty(x)
-		for _, slot in pairs(x.slots) do
-			slot:setup()
-			slot:style()
+		if partyOn(x) then
+			for _, slot in pairs(x.slots) do
+				slot:setup()
+				slot:style()
+			end
 		end
 		partyAlpha(x)
 		partyShown(x)
@@ -1038,7 +1055,7 @@ end
 
 -- Its length guard (B.expiring)
 local function readAura(def)
-	if def.spellID and B.expiring.readOnPlayer(def, auraIDs(def), def.duration) then def.aura:style() end
+	if E.inUse(def.key) and B.expiring.readOnPlayer(def, auraIDs(def), def.duration) then def.aura:style() end
 end
 
 local previewing = false
@@ -1102,8 +1119,11 @@ function B.resolve()
 	ns.Reagents.readPerk()
 	local sig = {}
 	for _, x in ipairs(STATE_LIST) do
-		x.slot:refilter()
-		if x.fx then x.fx:refilter(); x.fx:checkIDs() end
+		x.stale = not stateOn(x)
+		if not x.stale then
+			x.slot:refilter()
+			if x.fx then x.fx:refilter(); x.fx:checkIDs() end
+		end
 	end
 	for _, def in ipairs(BUFFS) do
 		def.spell = Spells.name(def.spellKey)
@@ -1111,39 +1131,56 @@ function B.resolve()
 		local known = Spells.known(def.spellKey)
 		if known ~= def.spellID then def.takesReagent = nil end
 		def.spellID = known
-		if def.proc then B.resolveAura(def) end
+		-- A row not in use refilters as it's back (B.applyLayout)
+		if def.proc and E.inUse(def.key) then B.resolveAura(def)
+		elseif def.proc then def.ids, def.stale = nil, true end
 		applyProcSound(def)
 		table.insert(sig, tostring(known))
 	end
 	for _, x in ipairs(BUFF_BARS) do
 		x.learned = Spells.known(x.spec.talentKey) ~= nil
-		x.slot:refilter()
+		x.stale = not buffBarOn(x)
+		if not x.stale then x.slot:refilter() end
 		table.insert(sig, tostring(x.learned))
 	end
 	return table.concat(sig, ",")
 end
 
-function B.applyTimers()
+-- Restyles reach only what's in use: the rest wait until they're back (B.applyLayout)
+local function styleInUse()
 	statesStyle()
 	for _, def in ipairs(BUFFS) do
-		if def.proc then
+		if def.proc and E.inUse(def.key) then
 			def.aura:style()
 			styleGlow(def)
 		end
 	end
-	for _, x in ipairs(BUFF_BARS) do x.slot:styleNow() end
+	for _, x in ipairs(BUFF_BARS) do
+		if buffBarOn(x) then x.slot:styleNow() end
+	end
 	for _, x in ipairs(PARTIES) do
-		for _, slot in pairs(x.slots) do slot:style() end
+		if partyOn(x) then
+			for _, slot in pairs(x.slots) do slot:style() end
+		end
 		partyGlows(x)
 	end
 end
+B.applyTimers = styleInUse
+B.afterGroups = styleInUse
 
+local syncEvents
 function B.applyLayout()
 	statesLayout()
 	for _, def in ipairs(BUFFS) do
 		applyProcSound(def)
-		if def.proc and def.spellID and E.isEnabled(def.key) then B.setupAura(def) end
-		if def.proc then
+		if def.proc and E.inUse(def.key) then
+			B.setupAura(def)
+			if def.stale then
+				def.stale = false
+				def.aura:refilter()
+				for _, look in ipairs(def.looks) do look:refilter(); look:checkIDs() end
+				if def.fx then def.fx:refilter(); def.fx:checkIDs() end
+			end
 			def.aura:style()
 			styleGlow(def)
 		end
@@ -1151,28 +1188,28 @@ function B.applyLayout()
 	refreshAll()
 	for _, x in ipairs(BUFF_BARS) do
 		makeBuffBar(x)
-		x.slot:styleNow()
+		if buffBarOn(x) then
+			if x.stale then
+				x.stale = false
+				x.slot:refilter()
+			end
+			x.slot:styleNow()
+		end
 		buffBarAlpha(x)
 	end
 	partyLayout()
-end
-function B.afterGroups()
-	statesStyle()
-	for _, def in ipairs(BUFFS) do
-		if def.proc then
-			def.aura:style()
-			styleGlow(def)
-		end
-	end
-	for _, x in ipairs(BUFF_BARS) do x.slot:styleNow() end
-	for _, x in ipairs(PARTIES) do
-		for _, slot in pairs(x.slots) do slot:style() end
-		partyGlows(x)
-	end
+	syncEvents()
 end
 
+local function breathOn()
+	for _, def in ipairs(BUFFS) do
+		if def.breath and E.inUse(def.key) then return true end
+	end
+	return false
+end
 local function readBreath()
 	breathing = false
+	if not breathOn() then return end
 	for i = 1, 3 do
 		local ok, name, _, _, scale = safe(GetMirrorTimerInfo, i)
 		if ok and not isSecret(name) and name == "BREATH" and type(scale) == "number" and not isSecret(scale)
@@ -1195,7 +1232,7 @@ local breathWatch = ns.ticker(0.25, function()
 		if def.breath and def.spellID then ns.Sounds.element(def.key, "breath") end
 	end
 end)
-local function watchBreath() breathWatch:SetShown(breathing) end
+local function watchBreath() breathWatch:SetShown(breathing and breathOn()) end
 
 function B.refresh()
 	for _, x in ipairs(STATE_LIST) do readStateLength(x) end
@@ -1209,22 +1246,42 @@ end
 
 B.tick = refreshAll
 
+-- Each event only while something in use needs it
+local auraEvents, breathEvents, rosterEvents, zoneEvents   -- set(on), from start
+function syncEvents()
+	if not auraEvents then return end
+	local aura, zone, roster = false, false, false
+	for _, def in ipairs(BUFFS) do
+		if E.inUse(def.key) then aura = true end
+	end
+	for _, x in ipairs(STATE_LIST) do
+		if stateOn(x) then
+			zone = true
+			if x.spec.length then aura = true end
+		end
+	end
+	for _, x in ipairs(PARTIES) do
+		if partyOn(x) then roster = true end
+	end
+	auraEvents(aura)
+	breathEvents(breathOn())
+	rosterEvents(roster)
+	zoneEvents(zone)
+end
+
 function B.start()
 	-- A loading screen (login and /reload too) assigns every aura again: no pop for one already up
 	local zone = CreateFrame("Frame")
-	ns.registerEvent(zone, "PLAYER_ENTERING_WORLD")
+	zoneEvents = ns.eventsWhile(zone, { "PLAYER_ENTERING_WORLD" })
 	zone:SetScript("OnEvent", function()
 		for _, x in ipairs(STATE_LIST) do if x.slot.container then quietState(x) end end
 	end)
-	readBreath()
-	watchBreath()
 	ns.onCanActChange(refreshAll)
 	local ev = CreateFrame("Frame")
-	ns.registerEvent(ev, "UNIT_AURA", "player")
-	ns.registerEvent(ev, "MIRROR_TIMER_START")
-	ns.registerEvent(ev, "MIRROR_TIMER_STOP")
+	auraEvents = ns.eventsWhile(ev, { { "UNIT_AURA", "player" } })
+	breathEvents = ns.eventsWhile(ev, { "MIRROR_TIMER_START", "MIRROR_TIMER_STOP" })
+	rosterEvents = ns.eventsWhile(ev, { "GROUP_ROSTER_UPDATE" })
 	if #PARTIES > 0 then
-		ns.registerEvent(ev, "GROUP_ROSTER_UPDATE")
 		ns.onCombatEnd(function() for _, x in ipairs(PARTIES) do partyGlows(x) end end)
 	end
 	ev:SetScript("OnEvent", function(_, event, timer, _, _, scale)
