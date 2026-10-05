@@ -342,7 +342,7 @@ local function onWeaponSwap()
 end
 
 -- Events
-local ev, listening = nil, false
+local events, listening = nil, false   -- set(on), from start
 local EVENTS = {
 	{ "PLAYER_SWING" },
 	{ "UNIT_SPELLCAST_START", "player" },
@@ -365,14 +365,10 @@ local function onEvent(_, event, a1, a2)
 end
 
 local function listen(on)
-	if not ev or on == listening then return end
+	if not events or on == listening then return end
 	listening = on
-	if on then
-		for _, e in ipairs(EVENTS) do ns.registerEvent(ev, e[1], e[2]) end
-	else
-		ev:UnregisterAllEvents()
-		clearSwing()
-	end
+	events(on)
+	if not on then clearSwing() end
 end
 
 -- Visibility
@@ -479,8 +475,9 @@ movable = ns.Positioning.mover({ frame = f, label = "Swing timer", cfg = cfg, ra
 SW.afterGroups = layout
 
 function SW.start()
-	ev = CreateFrame("Frame")
+	local ev = CreateFrame("Frame")
 	ev:SetScript("OnEvent", onEvent)
+	events = ns.eventsWhile(ev, EVENTS)
 end
 
 -- /sf debug
