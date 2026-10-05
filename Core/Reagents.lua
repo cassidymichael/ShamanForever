@@ -133,8 +133,11 @@ local function fewLeft(key)
 	local v = setting(key, "reagent", "low")
 	return math.max(type(v) == "number" and v == v and v or 2, 1)
 end
-local function look(ic, key, n)
+-- own: its own state (Few left, None left) draws its look; in another the count only, over what
+-- earlier parts drew (a warning's ring and fade)
+local function look(ic, key, n, own)
 	local _, ring, pulse = R.draw(ic, key, n)
+	if not own then return end
 	ic:SetRingShown(ring)
 	ic:SetPulsing(pulse)
 end
@@ -152,7 +155,8 @@ ns.registerPart("reagent", {
 			if st == "low" or st == "out" then
 				pv.rest(ic, kit, setting(key, "reagent", "lowKeepsShown"))
 			end
-			look(ic, key, st == "out" and 0 or st == "low" and fewLeft(key) or PLENTY)
+			local own = st == "low" or st == "out"
+			look(ic, key, st == "out" and 0 or st == "low" and fewLeft(key) or PLENTY, own)
 		end,
 		idles = function(st, def, when)
 			if st ~= "low" and st ~= "out" then return nil end
