@@ -325,6 +325,28 @@ function B.expiring.note(key)
 	ns.Timer.CANT[key] = out
 end
 
+-- The length guard: an aura read at another length than its row's turns Expiring's bar part off until a
+-- read gives the row's again (never placed on a guess). dur: a plain read's; true when x.lengthOff changed
+local function plainLength(dur) return type(dur) == "number" and not isSecret(dur) and dur > 0 end
+function B.expiring.checkLength(x, dur, length)
+	if not plainLength(dur) or type(length) ~= "number" then return false end
+	local off = math.abs(dur - length) > 0.05
+	if off == (x.lengthOff or false) then return false end
+	x.lengthOff = off
+	return true
+end
+-- A plain read on you at rest: the first of ids up decides; a failed or secret read, nothing
+function B.expiring.readOnPlayer(x, ids, length)
+	if not (ns.aurasReadable() and C_UnitAuras) then return false end
+	for id in pairs(ids) do
+		local ok, a = safe(C_UnitAuras.GetPlayerAuraBySpellID, id)
+		if not ok or isSecret(a) then return false end
+		local dur = type(a) == "table" and a.duration
+		if plainLength(dur) then return B.expiring.checkLength(x, dur, length) end
+	end
+	return false
+end
+
 -- engineExpire (with proc and duration, the aura's full length): Expiring drawn by the engine. Its length
 -- is checked by a plain read: on you here, on another unit only with missing's read (and its aura's key)
 local function lengthChecked(def)
@@ -552,11 +574,12 @@ end
 -- the row's), any rank, by ID; filter: default HELPFUL|PLAYER (yours only); length: its full length in
 -- seconds, for its time left and Expiring (nil: until spent, no time left); active = { title, text,
 -- tips = { pop, glow } }: a state with its switch (active.on), pop and glow from the same aura. On the
--- effects layer, so an idle icon fades under it. Made and styled out of combat with auras readable.
+-- effects layer, so an idle icon fades under it. An aura slot (W.makeAuraSlot): made and styled out of
+-- combat with auras readable.
 local STATES, STATE_LIST = {}, {}
 for _, def in ipairs(ns.CLASS.cooldowns or {}) do
 	if def.auraState then
-		local x = { def = def, spec = def.auraState, extraButtons = {} }
+		local x = { def = def, spec = def.auraState }
 		STATES[def.key] = x
 		table.insert(STATE_LIST, x)
 	end
@@ -564,22 +587,16 @@ end
 local statesPreviewing = false
 local function stateIDs(x) return Spells.ids(x.spec.key or x.def.spellKey) end
 local function stateFilter(x) return x.spec.filter or "HELPFUL|PLAYER" end
--- Its filters' signature, written as an aura slot's (W.makeAuraSlot): its effect host's sensor agrees
-local function stateSig(ids)
-	local list = {}
-	for id, on in pairs(ids) do if on then table.insert(list, tostring(id)) end end
-	table.sort(list)
-	return "includeSpellIDs=" .. table.concat(list, ",")
-end
 local function stateActiveOn(def) return setting(def.key, "active", "on") ~= false end
 local function stateOn(x)
 	local def = x.def
 	return def.spellID ~= nil and E.isEnabled(def.key) and (not x.spec.active or stateActiveOn(def))
 end
 local function stateAlpha(x)
-	if not x.host then return end
+	local h = x.slot.holder
+	if not h then return end
 	local site = "aura state alpha " .. x.def.key
-	if not ns.try(site, x.host.SetAlpha, x.host, (stateOn(x) and not statesPreviewing) and 1 or 0) then
+	if not ns.try(site, h.SetAlpha, h, (stateOn(x) and not statesPreviewing) and 1 or 0) then
 		ns.retryAfterCombat(site, function() stateAlpha(x) end)
 	end
 end
@@ -588,34 +605,6 @@ local function stateGlow(x)
 	local def = x.def
 	x.fx:glow(stateOn(x) and setting(def.key, "active", "glow") and not statesPreviewing)
 end
--- Out of combat, auras readable
-local function styleState(x)
-	if not x.container or x.err then return end
-	local def = x.def
-	local site = "aura state style " .. def.key
-	if ns.deferWhileAurasSecret(site, function() styleState(x) end) then return end
-	local ok = ns.try(site, function()
-		local f, size = def.frame, E.sizeOf(def.key)
-		local base = f.textFrame:GetFrameLevel()
-		x.container:SetSize(size, size)
-		x.container:SetFrameStrata(f:GetFrameStrata())
-		x.container:SetFrameLevel(base + 5)
-		for i, b in ipairs(x.extraButtons) do
-			b:SetSize(size, size)
-			b:SetFrameLevel(base + 5 + 2 * i + 2)
-		end
-		if not x.button then return end
-		x.button:SetSize(size, size)
-		if x.fx then
-			x.fx:setQuiet(x.quiet)
-			x.fx:stylePop(size)
-		end
-		if not x.timer then return end
-		x.timer:apply()
-		B.expiring.style(x, def, x.spec.length, size, { button = x.button, timer = x.timer, host = f })
-	end)
-	if not ok then ns.retryAfterCombat(site, function() styleState(x) end) end
-end
 -- The engine pops at each assignment, also of an aura already up (login, a loading screen, a new
 -- container): its parts stay off for QUIET seconds after one, started out of combat only
 local QUIET = 2
@@ -623,130 +612,61 @@ local function quietState(x)
 	if not x.fx or not ns.aurasReadable() then return end
 	local token = {}
 	x.quiet, x.quietToken = true, token
-	styleState(x)
-	-- Its end in a fight restyles once combat ends (styleState waits): a missed pop, never one stuck off
+	x.slot:styleNow()
+	-- Its end in a fight restyles once combat ends (the restyle waits): a missed pop, never one stuck off
 	C_Timer.After(QUIET, function()
 		if x.quietToken ~= token then return end
 		x.quiet = false
-		styleState(x)
+		x.slot:styleNow()
 	end)
-end
--- Blizzard's button: no picture (the icon keeps the cooldown), only the time left and the pop handed to it
-local function initState(x, button)
-	local def = x.def
-	W.noMouse(button)
-	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
-	if x.spec.length then
-		local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
-		cd:SetAllPoints()
-		-- Placed on the icon, the same box: a border's picture inset is the icon's
-		x.timer = ns.Timer.new(button, def.key, "uptime", { cd = cd, anchor = def.frame, dual = true, aura = true,
-			school = def.school })
-		if not ns.try("aura state bar " .. def.key, button.SetDurationBar, button, x.timer.bar, ns.Timer.AURA_BAR) then
-			x.timer.bar:Hide()
-			x.timer.bar = nil
-		end
-		button:SetDurationCooldown(cd)
-		B.expiring.button(x, button)
-	end
-	if x.fx then x.fx:bind(button) end
-	x.button = button
-	styleState(x)
-end
-local function initStateExtra(x, extra, button)
-	W.noMouse(button)
-	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
-	table.insert(x.extraButtons, button)
-	extra.init(x, button)
 end
 -- Made once, while it's on, out of combat with auras readable
 local function makeState(x)
-	local def = x.def
-	if x.container or x.err or not stateOn(x) then return end
-	local site = "aura state " .. def.key
-	if ns.deferWhileAurasSecret(site, function() makeState(x) end) then return end
+	local slot = x.slot
+	if slot.container or slot.err or not stateOn(x) then return end
+	if ns.deferWhileAurasSecret(slot.opts.sites.container, function() makeState(x) end) then return end
 	-- Its first assignment plays no pop
 	quietState(x)
-	local ids = stateIDs(x)
-	local filters, filter = { includeSpellIDs = ids }, stateFilter(x)
-	local extras = x.spec.length and B.expiring.extras(x, def) or NONE
-	local ok, err = pcall(function()
-		local f = def.frame
-		x.host = CreateFrame("Frame", nil, f.effects)
-		x.host:SetAllPoints(f)
-		local c = CreateFrame("AuraContainer", nil, x.host, "CustomAuraContainerTemplate")
-		x.container = c
-		c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
-		c:SetUnit("player")
-		pcall(c.EnableMouse, c, false)
-		local slot = def.key .. "-state"
-		c:AddAuraSlot(slot, filter, { candidateFilters = filters,
-			initializeFrame = function(button) ns.try(site .. " button", initState, x, button) end })
-		for _, extra in ipairs(extras) do
-			c:AddAuraSlot(slot .. "-" .. extra.key, filter, { candidateFilters = filters,
-				initializeFrame = function(button) ns.try(site .. " " .. extra.key, initStateExtra, x, extra, button) end })
-		end
-	end)
-	if not ok then
-		x.err = tostring(err)
-		if x.container then x.container:Hide() end
-		ns.noteError(site, x.err)
-		return
-	end
-	x.applied = stateSig(ids)
-	-- Its group's layout waits while it can't restyle the button
-	def.frame.auraButton = true
-	styleState(x)
+	slot:setup()
+	if not slot.container or slot.err then return end
+	slot:styleNow()
 	stateAlpha(x)
 end
--- A new rank's ID refilters it
-local function refilterState(x)
-	if not x.container or x.err then return end
-	local def = x.def
-	local site = "aura state filter " .. def.key
-	if ns.deferWhileAurasSecret(site, function() refilterState(x) end) then return end
-	local ids = stateIDs(x)
-	local sig = stateSig(ids)
-	if sig == x.applied then return end
-	x.applied = nil
-	local filters, slot = { includeSpellIDs = ids }, def.key .. "-state"
-	local ok = ns.try(site, x.container.SetAuraSlotCandidateFilters, x.container, slot, filters)
-	-- Last to first: the cover after the Expiring colour, so one stopping part way hides nothing it shouldn't
-	local extras = x.spec.length and { "cover", "expire" } or NONE
-	for _, name in ipairs(extras) do
-		if ok then
-			ok = ns.try(site, x.container.SetAuraSlotCandidateFilters, x.container, slot .. "-" .. name, filters)
-		end
-	end
-	if ok then x.applied = sig else ns.retryAfterCombat(site, function() refilterState(x) end) end
-end
--- A plain read at rest: the aura at another length turns Expiring's bar part off (never placed on a guess)
+-- Its length guard (B.expiring)
 local function readStateLength(x)
 	local length = x.spec.length
-	if not length or not x.def.spellID or not ns.aurasReadable() then return end
-	for id in pairs(stateIDs(x)) do
-		local ok, a = safe(C_UnitAuras.GetPlayerAuraBySpellID, id)
-		local dur = ok and type(a) == "table" and a.duration
-		if type(dur) == "number" and not isSecret(dur) and dur > 0 then
-			local off = math.abs(dur - length) > 0.05
-			if off ~= (x.lengthOff or false) then
-				x.lengthOff = off
-				styleState(x)
-			end
-			return
-		end
-	end
+	if length and x.def.spellID and B.expiring.readOnPlayer(x, stateIDs(x), length) then x.slot:styleNow() end
 end
 for _, x in ipairs(STATE_LIST) do
-	local def, key = x.def, x.def.key
-	-- Expiring's bar part is clipped to the time bar in the icon
-	if x.spec.length then
-		ns.Timer.keepIn(key)
-		B.expiring.note(key)
-	end
-	if x.spec.active then
-		x.fx = ns.Effects.host(def.frame, key, { aura = {
-			slot = x, parent = def.frame.effects, unit = "player", filter = stateFilter(x),
+	local def, key, s = x.def, x.def.key, x.spec
+	local f = def.frame
+	if s.length then B.expiring.note(key) end
+	-- No picture: the icon keeps the cooldown; its time left, Expiring's parts and the pop on the button
+	x.slot = W.makeAuraSlot(f, {
+		key = key, slot = key .. "-state", filter = stateFilter(x), layer = f.effects, noIcon = true,
+		noTimer = not s.length, anchor = f, dual = true, ids = function() return stateIDs(x) end,
+		extras = s.length and B.expiring.extras(x, def) or nil,
+		sites = { container = "aura state " .. key, style = "aura state style " .. key,
+			filter = "aura state filter " .. key, button = "aura state " .. key .. " button", bar = "aura state bar " .. key },
+		onButton = function(_, button)
+			if s.length then B.expiring.button(x, button) end
+			if x.fx then x.fx:bind(button) end
+		end,
+		onStyle = function(slot, size)
+			if x.fx then
+				x.fx:setQuiet(x.quiet)
+				x.fx:stylePop(size)
+			end
+			-- Placed on the icon, the same box: a border's picture inset is the icon's
+			if slot.timer then
+				B.expiring.style(x, def, s.length, size, { button = slot.button, timer = slot.timer, host = f })
+			end
+		end,
+		onError = function(err) ns.noteError("aura state " .. key, err) end,
+	})
+	if s.active then
+		x.fx = ns.Effects.host(f, key, { aura = {
+			slot = x.slot, parent = f.effects, unit = "player", filter = stateFilter(x),
 			ids = function() return stateIDs(x) end,
 			popOn = function() return stateOn(x) and setting(key, "active", "pop") end,
 			sites = { container = "aura state glow sensor " .. key, style = "aura state glow style " .. key,
@@ -804,7 +724,7 @@ ns.registerPart("auraState", {
 		end,
 	},
 	runtime = {
-		uptime = function(def) return STATES[def.key].timer end,
+		uptime = function(def) return STATES[def.key].slot.timer end,
 		refresh = function(def, _, held)
 			stateGlow(STATES[def.key])
 			return held
@@ -812,8 +732,8 @@ ns.registerPart("auraState", {
 		debug = function(def)
 			local x = STATES[def.key]
 			if not stateOn(x) then return "buff off" end
-			local words = string.format("buff container %s%s", x.container and "made" or "not made",
-				x.err and (", error: " .. x.err) or "")
+			local words = string.format("buff container %s%s", x.slot.container and "made" or "not made",
+				x.slot.err and (", error: " .. x.slot.err) or "")
 			if x.lengthOff then words = words .. ", another length (no Expiring bar)" end
 			if x.fx then words = words .. "; " .. x.fx:describe() end
 			return words
@@ -823,7 +743,7 @@ ns.registerPart("auraState", {
 local function statesLayout()
 	for _, x in ipairs(STATE_LIST) do
 		makeState(x)
-		styleState(x)
+		x.slot:styleNow()
 		stateAlpha(x)
 		if x.fx then
 			if stateOn(x) then x.fx:setup() end
@@ -834,7 +754,7 @@ local function statesLayout()
 end
 local function statesStyle()
 	for _, x in ipairs(STATE_LIST) do
-		styleState(x)
+		x.slot:styleNow()
 		if x.fx then B.styleGlow(x) end
 	end
 end
@@ -876,68 +796,40 @@ local function newBuffBar(parent)
 	return bar
 end
 local function buffBarAlpha(x)
-	if not x.host then return end
+	local h = x.slot.holder
+	if not h then return end
 	local a = (buffBarOn(x) and not barsPreviewing) and 1 or 0
-	if not ns.try("buff bar alpha", x.host.SetAlpha, x.host, a) then
+	if not ns.try("buff bar alpha", h.SetAlpha, h, a) then
 		ns.retryAfterCombat("buff bar alpha", function() buffBarAlpha(x) end)
 	end
 end
--- Out of combat, auras readable
-local function styleBuffBar(x)
-	if not x.container or x.err then return end
-	local def = x.def
-	local site = "buff bar style " .. def.key
-	if ns.deferWhileAurasSecret(site, function() styleBuffBar(x) end) then return end
-	local ok = ns.try(site, function()
-		local f, size = def.frame, E.sizeOf(def.key)
-		x.container:SetSize(size, size)
-		x.container:SetFrameStrata(f:GetFrameStrata())
-		x.container:SetFrameLevel(f.textFrame:GetFrameLevel() + 5)
-		if not x.button then return end
-		x.button:SetSize(size, size)
-		if x.bar then placeBuffBar(x.bar, x.button, def.key, x.spec.school, f) end
-	end)
-	if not ok then ns.retryAfterCombat(site, function() styleBuffBar(x) end) end
-end
--- Blizzard's button: no picture of its own, only the bar it drives
-local function initBuffBar(x, button)
-	W.noMouse(button)
-	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
-	x.button = button
-	local bar = newBuffBar(button)
-	if ns.try("buff bar " .. x.def.key, button.SetDurationBar, button, bar, ns.Timer.AURA_BAR) then x.bar = bar
-	else bar:Hide() end
-	styleBuffBar(x)
-end
 -- Made once, while it's on, out of combat with auras readable
 local function makeBuffBar(x)
-	local def = x.def
-	if x.container or x.err or not buffBarOn(x) then return end
-	local site = "buff bar " .. def.key
-	if ns.deferWhileAurasSecret(site, function() makeBuffBar(x) end) then return end
-	local ok, err = pcall(function()
-		local f = def.frame
-		x.host = CreateFrame("Frame", nil, f)
-		x.host:SetAllPoints(f)
-		local c = CreateFrame("AuraContainer", nil, x.host, "CustomAuraContainerTemplate")
-		x.container = c
-		c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
-		c:SetUnit("player")
-		pcall(c.EnableMouse, c, false)
-		c:AddAuraSlot(def.key .. "-buff", "HELPFUL", {
-			candidateFilters = { includeSpellIDs = Spells.ids(x.spec.buffKey) },
-			initializeFrame = function(button) ns.try(site .. " button", initBuffBar, x, button) end })
-	end)
-	if not ok then
-		x.err = tostring(err)
-		if x.container then x.container:Hide() end
-		ns.noteError(site, x.err)
-		return
-	end
-	-- Its group's layout waits while it can't restyle the button
-	def.frame.auraButton = true
-	styleBuffBar(x)
+	local slot = x.slot
+	if slot.container or slot.err or not buffBarOn(x) then return end
+	if ns.deferWhileAurasSecret(slot.opts.sites.container, function() makeBuffBar(x) end) then return end
+	slot:setup()
+	if not slot.container or slot.err then return end
+	slot:styleNow()
 	buffBarAlpha(x)
+end
+for _, x in ipairs(BUFF_BARS) do
+	local def, key = x.def, x.def.key
+	local f = def.frame
+	-- No picture of its own, only the bar it drives
+	x.slot = W.makeAuraSlot(f, {
+		key = key, slot = key .. "-buff", layer = f, noIcon = true, noTimer = true,
+		ids = function() return Spells.ids(x.spec.buffKey) end,
+		sites = { container = "buff bar " .. key, style = "buff bar style " .. key, filter = "buff bar filter " .. key,
+			button = "buff bar " .. key .. " button" },
+		onButton = function(_, button)
+			local bar = newBuffBar(button)
+			if ns.try("buff bar " .. key, button.SetDurationBar, button, bar, ns.Timer.AURA_BAR) then x.bar = bar
+			else bar:Hide() end
+		end,
+		onStyle = function(slot) if x.bar then placeBuffBar(x.bar, slot.button, key, x.spec.school, f) end end,
+		onError = function(err) ns.noteError("buff bar " .. key, err) end,
+	})
 end
 local function buffBarOf(def)
 	for _, x in ipairs(BUFF_BARS) do if x.def == def then return x end end
@@ -981,8 +873,8 @@ ns.registerPart("buffBar", {
 			local name = Spells.name(def.buffBar.buffKey)
 			if not buffBarShown(def) then return name .. " bar off" end
 			if not x.learned then return name .. " bar: talent not learned" end
-			return string.format("%s bar: container %s%s", name, x.container and "made" or "not made",
-				x.err and (", error: " .. x.err) or "")
+			return string.format("%s bar: container %s%s", name, x.slot.container and "made" or "not made",
+				x.slot.err and (", error: " .. x.slot.err) or "")
 		end,
 	},
 })
@@ -1156,22 +1048,9 @@ local function underWaterWarns(def)
 	return def.breath and breathing and setting(def.key, "warn", "on") and not ns.cantAct()
 end
 
--- Read at rest: another length than the row's turns Expiring's bar part off (as engineExpire's on the target)
+-- Its length guard (B.expiring)
 local function readAura(def)
-	if not (def.spellID and ns.aurasReadable() and C_UnitAuras) then return end
-	for id in pairs(auraIDs(def)) do
-		local ok, a = safe(C_UnitAuras.GetPlayerAuraBySpellID, id)
-		if not ok or isSecret(a) then return end
-		local dur = type(a) == "table" and a.duration
-		if type(dur) == "number" and not isSecret(dur) and dur > 0 then
-			local off = math.abs(dur - def.duration) > 0.05
-			if off ~= (def.lengthOff or false) then
-				def.lengthOff = off
-				def.aura:style()
-			end
-			return
-		end
-	end
+	if def.spellID and B.expiring.readOnPlayer(def, auraIDs(def), def.duration) then def.aura:style() end
 end
 
 local previewing = false
@@ -1235,7 +1114,7 @@ function B.resolve()
 	ns.Reagents.readPerk()
 	local sig = {}
 	for _, x in ipairs(STATE_LIST) do
-		refilterState(x)
+		x.slot:refilter()
 		if x.fx then x.fx:refilter(); x.fx:checkIDs() end
 	end
 	for _, def in ipairs(BUFFS) do
@@ -1263,7 +1142,7 @@ function B.applyTimers()
 			styleGlow(def)
 		end
 	end
-	for _, x in ipairs(BUFF_BARS) do styleBuffBar(x) end
+	for _, x in ipairs(BUFF_BARS) do x.slot:styleNow() end
 	for _, x in ipairs(PARTIES) do
 		for _, slot in pairs(x.slots) do slot:style() end
 		partyGlows(x)
@@ -1283,7 +1162,7 @@ function B.applyLayout()
 	refreshAll()
 	for _, x in ipairs(BUFF_BARS) do
 		makeBuffBar(x)
-		styleBuffBar(x)
+		x.slot:styleNow()
 		buffBarAlpha(x)
 	end
 	partyLayout()
@@ -1296,7 +1175,7 @@ function B.afterGroups()
 			styleGlow(def)
 		end
 	end
-	for _, x in ipairs(BUFF_BARS) do styleBuffBar(x) end
+	for _, x in ipairs(BUFF_BARS) do x.slot:styleNow() end
 	for _, x in ipairs(PARTIES) do
 		for _, slot in pairs(x.slots) do slot:style() end
 		partyGlows(x)
@@ -1346,7 +1225,7 @@ function B.start()
 	local zone = CreateFrame("Frame")
 	ns.registerEvent(zone, "PLAYER_ENTERING_WORLD")
 	zone:SetScript("OnEvent", function()
-		for _, x in ipairs(STATE_LIST) do if x.container then quietState(x) end end
+		for _, x in ipairs(STATE_LIST) do if x.slot.container then quietState(x) end end
 	end)
 	readBreath()
 	watchBreath()
