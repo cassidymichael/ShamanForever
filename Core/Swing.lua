@@ -378,12 +378,16 @@ end
 -- Visibility
 local movable
 local function visibilityDriver()
-	if not SW.isOn() then return "hide" end
 	if pv.mode then return "show" end
 	if not P.getAccount().locked then return "show" end
 	return Bars.SHOW_WHEN[cfg().show] or "show"
 end
-local function drive() ns.setVisibilityDriver(f, visibilityDriver(), "swing timer driver") end
+-- Off: no driver, hidden (out of combat: the layout's)
+local function drive()
+	local on = SW.isOn()
+	ns.setVisibilityDriver(f, on and visibilityDriver() or nil, "swing timer driver")
+	if not on then f:Hide() end
+end
 
 -- Layout (out of combat)
 local function layout()
