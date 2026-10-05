@@ -686,7 +686,7 @@ local function rowLayout(def)
 	ns.Buffs.setupAura(def)
 	if def.refilterDue then
 		def.refilterDue = false
-		ns.Buffs.resolveAura(def)
+		ns.Buffs.refilterAura(def)
 	end
 end
 

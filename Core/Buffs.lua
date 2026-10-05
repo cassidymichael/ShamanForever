@@ -1075,6 +1075,13 @@ function B.resolveAura(def)
 	for _, look in ipairs(def.looks) do look:checkIDs() end
 	if def.fx then def.fx:checkIDs() end
 end
+-- Back in use after a scan while off: every filter read again (each skips when unchanged)
+function B.refilterAura(def)
+	def.ids = nil
+	def.aura:refilter()
+	for _, look in ipairs(def.looks) do look:refilter(); look:checkIDs() end
+	if def.fx then def.fx:refilter(); def.fx:checkIDs() end
+end
 -- Its glow's level and look (out of combat: the host restyles its sensor)
 function B.styleGlow(def)
 	if not def.fx or InCombatLockdown() then return end
@@ -1216,9 +1223,7 @@ function B.applyLayout()
 			B.setupAura(def)
 			if def.refilterDue then
 				def.refilterDue = false
-				def.aura:refilter()
-				for _, look in ipairs(def.looks) do look:refilter(); look:checkIDs() end
-				if def.fx then def.fx:refilter(); def.fx:checkIDs() end
+				B.refilterAura(def)
 			end
 			def.aura:style()
 			styleGlow(def)
