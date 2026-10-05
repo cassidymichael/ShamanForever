@@ -292,10 +292,10 @@ local function frameRows(p, owner, part, after, opts)
 	p:color("Art frame colour", "Tints the art. White keeps its own colours.", r.get("color"), r.set("color"), tints, true)
 	styleSlider(p, part, "alpha", "Art frame opacity", nil, pct, r.get("alpha"), r.set("alpha"), showWhen(framed, own))
 	if part == "frame" and owner ~= nil then
-		-- What a solid style's wings need from its group's spacing
+		-- The spacing a style's art needs to clear its neighbours; art drawn under them needs none
 		local function room()
 			local o, l = resolve(owner), look()
-			if l.weight ~= "solid" or not FR.usable(l) then return nil end
+			if l.layer == "under" or not FR.usable(l) then return nil end
 			local g = G.of(o)
 			if not (g and #g.members > 1) then return nil end
 			local rc, size = l.drawn or l.reach, G.size(g)
