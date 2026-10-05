@@ -456,7 +456,11 @@ local function glowSites(key, what)
 	return { container = site, style = site .. " style", filter = site .. " filter" }
 end
 for _, def in ipairs(ns.CLASS.cooldowns or {}) do
-	if def.glowWhile and def.targetDebuff then GLOWS[def.key] = { def = def, looks = {} } end
+	if def.glowWhile and def.targetDebuff then
+		GLOWS[def.key] = { def = def, looks = {} }
+		-- Its buff's preview state shows for the glow too
+		if def.buffBar then def.buffBar.shown = function() return setting(def.key, "glowWhile") == "buff" end end
+	end
 end
 local function makeGlowLook(g, what)
 	local def = g.def
@@ -473,7 +477,7 @@ end
 local function glowOn(g, what)
 	local def = g.def
 	return setting(def.key, "glowWhile") == what and def.spellID ~= nil and E.isEnabled(def.key)
-		and (what ~= "buff" or g.talent == true)
+		and (what ~= "buff" or ns.Buffs.buffBarLearned(def))
 end
 -- Lit while wanted; never in /sf preview, which draws the icon itself
 local function glowWants()
@@ -778,11 +782,6 @@ end
 
 function TG.resolve()
 	local sig = {}
-	for _, g in pairs(GLOWS) do
-		local bb = g.def.buffBar
-		g.talent = bb ~= nil and Spells.known(bb.talentKey) ~= nil
-		table.insert(sig, tostring(g.talent))
-	end
 	for _, def in ipairs(ROWS) do
 		def.spell = Spells.name(def.spellKey)
 		E.ALL[def.key].label = def.spell

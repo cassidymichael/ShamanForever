@@ -317,9 +317,11 @@ for _, def in ipairs(ROWS) do
 	if def.power or def.range then CS.watchRow(def, def.proc and auraCover(def) or nil) end
 end
 
--- Cooldown rows with buffBar = { buffKey, talentKey, school }: a bar on the icon while that buff of
--- yours is up, drawn by Blizzard's aura button (a proc can't be timed from a cast). It takes Time
--- left's style and the icon's other edge from Time left's bar. Its switch, buffBar, starts off.
+-- Cooldown rows with buffBar = { buffKey, talentKey, school, shown(def) }: a bar on the icon while that
+-- buff of yours is up, drawn by Blizzard's aura button (a proc can't be timed from a cast). It takes
+-- Time left's style and the icon's other edge from Time left's bar. Its switch, buffBar, starts off.
+-- Its preview state shows while the switch is on, or while shown(def) says so (another part drawing
+-- on it); B.buffBarLearned(def) says whether its talent is learned.
 local BUFF_BARS = {}
 for _, def in ipairs(ns.CLASS.cooldowns or {}) do
 	if def.buffBar then table.insert(BUFF_BARS, { def = def, spec = def.buffBar }) end
@@ -418,6 +420,10 @@ end
 local function buffBarOf(def)
 	for _, x in ipairs(BUFF_BARS) do if x.def == def then return x end end
 end
+function B.buffBarLearned(def)
+	local x = buffBarOf(def)
+	return x ~= nil and x.learned == true
+end
 ns.registerPart("buffBar", {
 	kind = "cooldown",
 	defaults = { buffBar = false },
@@ -428,9 +434,9 @@ ns.registerPart("buffBar", {
 	end },
 	preview = {
 		states = function(def) return { { "buffBar", Spells.name(def.buffBar.buffKey), 63 } } end,
-		-- Also while a glow follows it (a part's glowWhile = "buff")
 		shown = function(st, def)
-			return st ~= "buffBar" or setting(def.key, "buffBar") == true or setting(def.key, "glowWhile") == "buff"
+			local also = def.buffBar.shown
+			return st ~= "buffBar" or setting(def.key, "buffBar") == true or (also ~= nil and also(def) == true)
 		end,
 		-- Drawn on the preview icon by hand: a frozen bar, the cooldown under way
 		render = function(ic, st, def, kit)
