@@ -348,6 +348,7 @@ local EVENTS = {
 	{ "UNIT_SPELLCAST_START", "player" },
 	{ "UNIT_INVENTORY_CHANGED", "player" },
 	{ "WEAPON_SLOT_CHANGED" },
+	{ "WEAPON_ENCHANT_CHANGED" },
 	{ "PLAYER_LEAVE_COMBAT" },
 	{ "PLAYER_DEAD" },
 }
@@ -356,7 +357,7 @@ local function onEvent(_, event, a1, a2)
 	if event == "PLAYER_SWING" then onSwing(a1, a2)
 	elseif event == "UNIT_SPELLCAST_START" then onCastStart()
 	elseif event == "WEAPON_SLOT_CHANGED" then onWeaponSwap()
-	elseif event == "UNIT_INVENTORY_CHANGED" then
+	elseif event == "UNIT_INVENTORY_CHANGED" or event == "WEAPON_ENCHANT_CHANGED" then
 		paintFill()
 		ns.changed()
 	elseif event == "PLAYER_LEAVE_COMBAT" or event == "PLAYER_DEAD" then clearSwing()
