@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.14.0 (2026-10-06)
+
+- Flurry (experimental): a new element that shows while Flurry is up, with its charges
+  counting down 3, 2, 1 as you swing. Optional charge bar, glow and pop. Its charges can also
+  show as three pips on the swing timer (Swing timer > Marks).
+- Improved Stormstrike (experimental): a new element that shows while its mana regeneration
+  buff is up, with the time left.
+- Stormstrike has two new options (experimental): Glow while, to make the icon glow while
+  your Stormstrike debuff is on your target or while Improved Stormstrike's buff is up, and a
+  Time left bar for that buff on the Stormstrike icon itself.
+- Cure Poison and Cure Disease (experimental): two new elements that appear when a poison or
+  disease is on you, with its time left, a pop and an optional glow. Turn on Your party to
+  have them light up when a party member has one too.
+- Sounds, all off by default: any cooldown can play a sound when it comes ready. New
+  experimental sounds for a Clearcasting proc, for your breath running low under water, and
+  for Stormstrike coming ready early after a dodge or parry.
+- /sf disable turns the whole addon off, and /sf enable turns it back on.
+- Smaller changes: buff timers on racials and utility buffs now end the moment the buff does,
+  totems no longer show Killed early when you die or zone, idle fades now work in a fight,
+  and there are more totem bar themes and art frames to try (experimental).
+- Many other minor fixes and improvements.
+
 ## 0.13.0 (2026-10-03)
 
 - Groundwork for other classes: the addon's code and structure is being transitioned to work
