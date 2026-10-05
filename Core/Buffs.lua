@@ -307,6 +307,147 @@ for _, def in ipairs(ROWS) do
 	if def.power or def.range then CS.watchRow(def, def.proc and auraCover(def) or nil) end
 end
 
+-- Cooldown rows with buffBar = { buffKey, talentKey, school }: a bar on the icon while that buff of
+-- yours is up, drawn by Blizzard's aura button (a proc can't be timed from a cast). It takes Time
+-- left's style and the icon's other edge from Time left's bar. Its switch, buffBar, starts off.
+local BUFF_BARS = {}
+for _, def in ipairs(ns.CLASS.cooldowns or {}) do
+	if def.buffBar then table.insert(BUFF_BARS, { def = def, spec = def.buffBar }) end
+end
+local barsPreviewing = false
+local function buffBarOn(x)
+	local def = x.def
+	return x.learned and def.spellID ~= nil and E.isEnabled(def.key) and setting(def.key, "buffBar") == true
+end
+-- Where it sits on anchor, in Time left's style s: the edge its bar doesn't use, inside the picture
+local function placeBuffBar(bar, anchor, key, school)
+	local s = ns.Style.get(key, "uptime")
+	local pic = ns.StyleArt.pictureInset(anchor)
+	local edge = s.barEdge == "top" and "BOTTOM" or "TOP"
+	local y = edge == "TOP" and -pic or pic
+	bar:ClearAllPoints()
+	bar:SetPoint(edge .. "LEFT", anchor, edge .. "LEFT", pic, y)
+	bar:SetPoint(edge .. "RIGHT", anchor, edge .. "RIGHT", -pic, y)
+	bar:SetHeight(s.barHeight)
+	bar:SetStatusBarTexture(ns.Media.barTexture(key))
+	local c = ns.THEME.barColor[school] or ns.THEME.barColor[ns.THEME.fallback]
+	bar:SetStatusBarColor(c[1], c[2], c[3], 1)
+end
+local function newBuffBar(parent)
+	local bar = CreateFrame("StatusBar", nil, parent)
+	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
+	bar.bg:SetAllPoints()
+	bar.bg:SetColorTexture(0, 0, 0, 0.6)
+	return bar
+end
+local function buffBarAlpha(x)
+	if not x.host then return end
+	local a = (buffBarOn(x) and not barsPreviewing) and 1 or 0
+	if not ns.try("buff bar alpha", x.host.SetAlpha, x.host, a) then
+		ns.retryAfterCombat("buff bar alpha", function() buffBarAlpha(x) end)
+	end
+end
+-- Out of combat, auras readable
+local function styleBuffBar(x)
+	if not x.container or x.err then return end
+	local def = x.def
+	local site = "buff bar style " .. def.key
+	if ns.deferWhileAurasSecret(site, function() styleBuffBar(x) end) then return end
+	local ok = ns.try(site, function()
+		local f, size = def.frame, E.sizeOf(def.key)
+		x.container:SetSize(size, size)
+		x.container:SetFrameStrata(f:GetFrameStrata())
+		x.container:SetFrameLevel(f.textFrame:GetFrameLevel() + 5)
+		if not x.button then return end
+		x.button:SetSize(size, size)
+		if x.bar then placeBuffBar(x.bar, x.button, def.key, x.spec.school) end
+	end)
+	if not ok then ns.retryAfterCombat(site, function() styleBuffBar(x) end) end
+end
+-- Blizzard's button: no picture of its own, only the bar it drives
+local function initBuffBar(x, button)
+	W.noMouse(button)
+	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
+	x.button = button
+	local bar = newBuffBar(button)
+	if ns.try("buff bar " .. x.def.key, button.SetDurationBar, button, bar, ns.Timer.AURA_BAR) then x.bar = bar
+	else bar:Hide() end
+	styleBuffBar(x)
+end
+-- Made once, while it's on, out of combat with auras readable
+local function makeBuffBar(x)
+	local def = x.def
+	if x.container or x.err or not buffBarOn(x) then return end
+	local site = "buff bar " .. def.key
+	if ns.deferWhileAurasSecret(site, function() makeBuffBar(x) end) then return end
+	local ok, err = pcall(function()
+		local f = def.frame
+		x.host = CreateFrame("Frame", nil, f)
+		x.host:SetAllPoints(f)
+		local c = CreateFrame("AuraContainer", nil, x.host, "CustomAuraContainerTemplate")
+		x.container = c
+		c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+		c:SetUnit("player")
+		pcall(c.EnableMouse, c, false)
+		c:AddAuraSlot(def.key .. "-buff", "HELPFUL", {
+			candidateFilters = { includeSpellIDs = Spells.ids(x.spec.buffKey) },
+			initializeFrame = function(button) ns.try(site .. " button", initBuffBar, x, button) end })
+	end)
+	if not ok then
+		x.err = tostring(err)
+		if x.container then x.container:Hide() end
+		ns.noteError(site, x.err)
+		return
+	end
+	-- Its group's layout waits while it can't restyle the button
+	def.frame.auraButton = true
+	styleBuffBar(x)
+	buffBarAlpha(x)
+end
+local function buffBarOf(def)
+	for _, x in ipairs(BUFF_BARS) do if x.def == def then return x end end
+end
+ns.registerPart("buffBar", {
+	kind = "cooldown",
+	defaults = { buffBar = false },
+	page = { own = function(def)
+		local timeLeft = KD.words("cooldown", def, "uptime") or "Time left"
+		return { "toggle", name = "buffBar", title = Spells.name(def.buffBar.buffKey), label = "Time left bar",
+			tip = "While it's up, on the icon's other edge from the " .. timeLeft .. " bar." }
+	end },
+	preview = {
+		states = function(def) return { { "buffBar", Spells.name(def.buffBar.buffKey), 63 } } end,
+		shown = function(st, def) return st ~= "buffBar" or setting(def.key, "buffBar") == true end,
+		-- Drawn on the preview icon by hand: a frozen bar, the cooldown under way
+		render = function(ic, st, def, kit)
+			local bar = ic.buffBar
+			if st ~= "buffBar" then
+				if bar then bar:Hide() end
+				return
+			end
+			kit.frozen(ic.cdT, 0.4, def.cd or 60)
+			if not bar then
+				bar = newBuffBar(ic.textFrame)
+				ic.buffBar = bar
+			end
+			placeBuffBar(bar, ic, def.key, def.buffBar.school)
+			bar:SetMinMaxValues(0, 1)
+			bar:SetValue(0.7)
+			bar:Show()
+		end,
+	},
+	runtime = {
+		debug = function(def)
+			local x = buffBarOf(def)
+			local name = Spells.name(def.buffBar.buffKey)
+			if setting(def.key, "buffBar") ~= true then return name .. " bar off" end
+			if not x.learned then return name .. " bar: talent not learned" end
+			return string.format("%s bar: container %s%s", name, x.container and "made" or "not made",
+				x.err and (", error: " .. x.err) or "")
+		end,
+	},
+})
+
 -- An aura element's steps, for whichever module runs it
 -- Its slot, looks and host made (out of combat, auras readable: they wait otherwise)
 function B.setupAura(def)
@@ -437,6 +578,10 @@ function B.resolve()
 		if not def.proc then def.iconID = icon end
 		table.insert(sig, tostring(known))
 	end
+	for _, x in ipairs(BUFF_BARS) do
+		x.learned = Spells.known(x.spec.talentKey) ~= nil
+		table.insert(sig, tostring(x.learned))
+	end
 	return table.concat(sig, ",")
 end
 
@@ -454,6 +599,7 @@ function B.applyTimers()
 			styleGlow(def)
 		end
 	end
+	for _, x in ipairs(BUFF_BARS) do styleBuffBar(x) end
 end
 
 function B.applyLayout()
@@ -465,6 +611,11 @@ function B.applyLayout()
 		end
 	end
 	refreshAll()
+	for _, x in ipairs(BUFF_BARS) do
+		makeBuffBar(x)
+		styleBuffBar(x)
+		buffBarAlpha(x)
+	end
 end
 function B.afterGroups()
 	for _, def in ipairs(BUFFS) do
@@ -473,6 +624,7 @@ function B.afterGroups()
 			styleGlow(def)
 		end
 	end
+	for _, x in ipairs(BUFF_BARS) do styleBuffBar(x) end
 end
 
 local function readBreath()
@@ -529,6 +681,8 @@ end
 function B.onPreview(shown)
 	previewing = shown
 	refreshAll()
+	barsPreviewing = shown
+	for _, x in ipairs(BUFF_BARS) do buffBarAlpha(x) end
 end
 
 -- /sf debug
