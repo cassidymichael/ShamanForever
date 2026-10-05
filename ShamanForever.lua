@@ -863,7 +863,7 @@ end
 -- full: an element may leave the HUD or come back, so modules set its sounds, containers and tickers again
 local function edit(fn, full)
 	return function(...)
-		if InCombatLockdown() then say("layout changes wait until combat ends"); return false end
+		if P.refusedInCombat() then return false end
 		local result = fn(...)
 		if full then
 			applyLayout()

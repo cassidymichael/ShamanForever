@@ -119,7 +119,7 @@ local function updateDragFeedback()
 end
 
 local function startDrag(chip)
-	if InCombatLockdown() then ns.say("layout changes wait until combat ends"); return end
+	if P.refusedInCombat() then return end
 	drag.key = chip.key
 	chip:SetAlpha(0.35)
 	E.ALL[chip.key].paint(drag.ghost.icon)

@@ -740,7 +740,7 @@ local function elementDisplay(p, key)
 	local on = p:checkbox("On", ON_TIP, function() return E.isOn(key) end,
 		function(v) if not E.setOn(key, v) then ns.Options.refresh() end end)
 	p:owns({ elem = key, name = "on", label = "On", reset = function()
-		if InCombatLockdown() then return false end
+		if ns.inCombat() then return false end
 		E.setOn(key, E.default(key, "on"))
 	end })
 	p:sub(on, function() return E.isOn(key) end, function()
@@ -748,7 +748,7 @@ local function elementDisplay(p, key)
 			function(v) E.setShow(key, v) end, nil, 140)
 	end)
 	p:owns({ elem = key, name = "show", label = "Show", reset = function()
-		if InCombatLockdown() then return false end
+		if ns.inCombat() then return false end
 		E.setShow(key, E.default(key, "show"))
 	end })
 	local groupRow = p:dropdown("Group",
