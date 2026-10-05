@@ -761,8 +761,8 @@ local function statesLayout()
 		if on and x.wasOn == false and x.slot.container then quietState(x) end
 		x.wasOn = on
 		makeState(x)
-		if on and x.stale then
-			x.stale = false
+		if on and x.refilterDue then
+			x.refilterDue = false
 			x.slot:refilter()
 			if x.fx then x.fx:refilter(); x.fx:checkIDs() end
 		end
@@ -1155,8 +1155,8 @@ function B.resolve()
 	ns.Reagents.readPerk()
 	local sig = {}
 	for _, x in ipairs(STATE_LIST) do
-		x.stale = not stateOn(x)
-		if not x.stale then
+		x.refilterDue = not stateOn(x)
+		if not x.refilterDue then
 			x.slot:refilter()
 			if x.fx then x.fx:refilter(); x.fx:checkIDs() end
 		end
@@ -1169,14 +1169,14 @@ function B.resolve()
 		def.spellID = known
 		-- A row not in use refilters as it's back (B.applyLayout)
 		if def.proc and E.inUse(def.key) then B.resolveAura(def)
-		elseif def.proc then def.ids, def.stale = nil, true end
+		elseif def.proc then def.ids, def.refilterDue = nil, true end
 		applyProcSound(def)
 		table.insert(sig, tostring(known))
 	end
 	for _, x in ipairs(BUFF_BARS) do
 		x.learned = Spells.known(x.spec.talentKey) ~= nil
-		x.stale = not buffBarOn(x)
-		if not x.stale then x.slot:refilter() end
+		x.refilterDue = not buffBarOn(x)
+		if not x.refilterDue then x.slot:refilter() end
 		table.insert(sig, tostring(x.learned))
 	end
 	return table.concat(sig, ",")
@@ -1214,8 +1214,8 @@ function B.applyLayout()
 		def.wasOn = on
 		if def.proc and on then
 			B.setupAura(def)
-			if def.stale then
-				def.stale = false
+			if def.refilterDue then
+				def.refilterDue = false
 				def.aura:refilter()
 				for _, look in ipairs(def.looks) do look:refilter(); look:checkIDs() end
 				if def.fx then def.fx:refilter(); def.fx:checkIDs() end
@@ -1228,8 +1228,8 @@ function B.applyLayout()
 	for _, x in ipairs(BUFF_BARS) do
 		makeBuffBar(x)
 		if buffBarOn(x) then
-			if x.stale then
-				x.stale = false
+			if x.refilterDue then
+				x.refilterDue = false
 				x.slot:refilter()
 			end
 			x.slot:styleNow()
