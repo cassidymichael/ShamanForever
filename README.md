@@ -32,7 +32,7 @@ Some highlights include:
 
 **Swing timer**: Melee swing timer shown as a bar.
 
-**Dedicated ability and proc trackers**: Custom made indicators for shaman abilities such as Stormstrike, Fire Nova, Chain Lightning, Riptide, Rage of the Farseer, Nature's Swiftness, Mana Tide Totem, Earthbind Totem, Tremor Totem, Grounding Totem, Stoneclaw Totem, Totemic Projection, Elemental Focus, Maelstrom Weapon. Not just cooldowns, also event, duration and condition-based warnings and animation styles.
+**Dedicated ability and proc trackers**: Custom made indicators for shaman abilities such as Stormstrike, Fire Nova, Chain Lightning, Riptide, Rage of the Farseer, Nature's Swiftness, Mana Tide Totem, Earthbind Totem, Tremor Totem, Grounding Totem, Stoneclaw Totem, Totemic Projection, Elemental Focus, Maelstrom Weapon, Flurry, Improved Stormstrike. Not just cooldowns, also event, duration and condition-based warnings and animation styles.
 
 **Utility and reagent trackers**: Water Walking, Water Breathing, Reincarnation. Know when you are low on reagents, see Reincarnation cooldown, get warnings on buff expiry or when drowning.
 
