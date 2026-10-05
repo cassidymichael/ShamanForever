@@ -346,8 +346,16 @@ function P.load()
 	_G[SAVED] = a
 	if type(a.profiles) ~= "table" then wipe(a) end
 	P.fillDefaults(a, ACCOUNT_DEFAULTS)
+	for k, v in pairs(ACCOUNT_DEFAULTS) do
+		if type(a[k]) ~= type(v) then a[k] = type(v) == "table" and CopyTable(v) or v end
+	end
+	for name in pairs(a.profiles) do
+		if type(name) ~= "string" then a.profiles[name] = nil end
+	end
+	for key, c in pairs(a.chars) do
+		if type(key) ~= "string" or type(c) ~= "table" then a.chars[key] = nil end
+	end
 	for _, k in ipairs(RETIRED.account) do a[k] = nil end
-	if type(a.foldedBlocks) ~= "table" then a.foldedBlocks = {} end
 	for key in pairs(a.foldedBlocks) do
 		for _, gone in ipairs(RETIRED.folds) do
 			if type(key) == "string" and key:find(gone) then a.foldedBlocks[key] = nil end
@@ -355,7 +363,8 @@ function P.load()
 	end
 	mergeCharKeys(a)
 	for _, c in pairs(a.chars) do
-		if type(c) == "table" and c.off ~= true then c.off = nil end
+		if c.off ~= true then c.off = nil end
+		if type(c.profile) ~= "string" then c.profile = nil end
 	end
 	-- Every profile, not only the one selected: none keeps the old names once the map goes
 	for _, profile in pairs(a.profiles) do P.migrate(profile) end
