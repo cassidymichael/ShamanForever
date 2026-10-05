@@ -263,16 +263,7 @@ local function frameRows(p, owner, part, after, opts)
 				end
 				first = false
 				for _, e in ipairs(sec.list) do
-					local item = root:CreateRadio(e.name, function() return look() == e end, function() set(e.key) end)
-					if e.weight then
-						item:AddInitializer(function(button)
-							if not button.AttachFontString then return end
-							local fs = button:AttachFontString()
-							fs:SetFontObject("GameFontDisableSmall")
-							fs:SetPoint("RIGHT", button, "RIGHT", -4, 0)
-							fs:SetText(e.weight)
-						end)
-					end
+					root:CreateRadio(e.name, function() return look() == e end, function() set(e.key) end)
 				end
 			end
 		end
@@ -292,19 +283,21 @@ local function frameRows(p, owner, part, after, opts)
 	p:color("Art frame colour", "Tints the art. White keeps its own colours.", r.get("color"), r.set("color"), tints, true)
 	styleSlider(p, part, "alpha", "Art frame opacity", nil, pct, r.get("alpha"), r.set("alpha"), showWhen(framed, own))
 	if part == "frame" and owner ~= nil then
-		-- What a solid style's wings need from its group's spacing
+		-- The spacing a style's art needs to clear its neighbours; art drawn under them needs none
 		local function room()
 			local o, l = resolve(owner), look()
-			if l.weight ~= "solid" or not FR.usable(l) then return nil end
+			if l.layer == "under" or not FR.usable(l) then return nil end
 			local g = G.of(o)
 			if not (g and #g.members > 1) then return nil end
-			local rc, size = l.reach, G.size(g)
+			local rc, size = l.drawn or l.reach, G.size(g)
 			local n = g.orientation == "vertical" and rc.top + rc.bottom or rc.left + rc.right
 			n = math.ceil(n * size)
 			return n > 0 and n or nil
 		end
 		p:text(function()
-			return string.format("Needs about %d spacing in its group to clear its neighbours.", room() or 0)
+			local n = room() or 0
+			if n > P.GROUP_RANGES.spacing[2] then return "Its art runs over its neighbours at any spacing." end
+			return string.format("Needs about %d spacing in its group to clear its neighbours.", n)
 		end,
 			showWhen(function() return room() ~= nil end, own))
 	end

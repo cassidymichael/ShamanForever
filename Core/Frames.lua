@@ -22,7 +22,6 @@ S.addField("groupframe", "look", { name = "Group art frame style", where = "Glob
 -- Validation
 local ROTATE = { [0] = true, [90] = true, [180] = true, [270] = true }
 local BLEND = { BLEND = true, ADD = true }
-local WEIGHT = { solid = true, wispy = true }
 local LAYER = { over = true, under = true }
 local EDGES = { tile = true, stretch = true }
 local PIECES = { "tl", "tr", "bl", "br", "t", "b", "l", "r", "center" }
@@ -70,7 +69,6 @@ end
 
 local function commonError(e)
 	if type(e.name) ~= "string" or e.name == "" then return "no name" end
-	if e.weight ~= nil and not WEIGHT[e.weight] then return "weight is solid or wispy" end
 	if e.variants ~= nil and type(e.variants) ~= "table" then return "variants is a table" end
 	return listError(e.madeFor, "madeFor") or listError(e.classes, "classes")
 end
