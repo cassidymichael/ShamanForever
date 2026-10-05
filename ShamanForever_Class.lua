@@ -249,14 +249,8 @@ ns.Spells.add({
 	flurryBuff      = { ids = { 16257 }, byID = true, en = "Flurry" },
 	improvedStormstrike = { ids = { 1223031 }, en = "Improved Stormstrike" },
 	improvedStormstrikeBuff = { ids = { 1238931 }, byID = true, en = "Improved Stormstrike" },
-	-- Spells that spend a primed effect
-	healingWave     = { ids = { 331 }, en = "Healing Wave" },
-	lesserHealingWave = { ids = { 8004 }, en = "Lesser Healing Wave" },
-	chainHeal       = { ids = { 1064 }, en = "Chain Heal" },
-	lightningBolt   = { ids = { 403 }, en = "Lightning Bolt" },
+	-- Other spells
 	chainLightning  = { ids = { 421, 930, 2860, 10605 }, en = "Chain Lightning" },   -- ranks 1 to 4
-	ghostWolf       = { ids = { 2645, 1238640 }, en = "Ghost Wolf" },   -- 1238640: the spellbook's
-	farSight        = { ids = { 6196 }, en = "Far Sight" },
 })
 
 ns.Spells.addExtra({

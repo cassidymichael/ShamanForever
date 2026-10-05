@@ -9,12 +9,10 @@ local _, ns = ...
 local ONE_SWIPE = { uptime = {
 	swipe = "The cooldown has the swipe; time left shows as text or a bar." } }
 local function barTimer() return { uptime = { text = false, bar = true } } end
--- A buff window from our cast: time left while it's on, grey and faded at its end
-local function windowBuff(row)
+-- A buff your cast puts on you, drawn from the aura itself (auraState, _Buffs)
+local function auraBuff(row)
 	row.blurb = "Cooldown, and time left while it's on."
 	row.timerCant, row.readyGlow = ONE_SWIPE, true
-	row.expireLooks = { "grey", "fade" }
-	row.defaults = { expire = { secs = 0, fade = true } }
 	return row
 end
 ns.CLASS.cooldowns = {
@@ -31,10 +29,8 @@ ns.CLASS.cooldowns = {
 	-- Emergency cooldowns
 	{ key = "naturesswiftness", spellKey = "naturesSwiftness", icon = 136076, school = "water",
 		blurb = "Cooldown, and a glow while your next Nature spell is instant.",
-		primed = { spends = { "healingWave", "lesserHealingWave", "chainHeal", "lightningBolt", "chainLightning",
-			"ghostWolf", "farSight" },
-			buffKey = "naturesSwiftness",
-			text = "From your cast until your next Nature spell with a cast time." },
+		auraState = { active = { title = "Primed", text = "While your next Nature spell is instant.",
+			tips = { pop = "The moment it's primed.", glow = "While it's primed." } } },
 		cd = 180, experimental = "Nature's Swiftness" },
 	{ key = "manatide", power = true, spellKey = "manaTide", icon = 135861, totemSlot = 3, duration = 13, school = "water",
 		blurb = "Cooldown, and time left while it's down.",
@@ -64,8 +60,8 @@ ns.CLASS.cooldowns = {
 	{ key = "chainlightning", power = true, range = true, spellKey = "chainLightning", icon = 136015, school = "air",
 		blurb = "Cooldown.", readyGlow = true, cd = 6, defaults = { ready = { pop = false } },
 		experimental = "Chain Lightning" },
-	windowBuff({ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, window = 25, school = "air",
-		cd = 180, experimental = "Rage of the Farseer" }),
+	auraBuff({ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, auraState = { length = 25 },
+		school = "air", cd = 180, experimental = "Rage of the Farseer" }),
 	{ key = "projection", power = true, spellKey = "totemicProjection", icon = 136099, school = "spirit",
 		blurb = "Cooldown.", cd = 60, defaults = { idleWhen = "offcd" }, experimental = "Totemic Projection" },
 	{ key = "reincarnation", spellKey = "reincarnation", icon = 136080, school = "spirit",
@@ -74,19 +70,19 @@ ns.CLASS.cooldowns = {
 		reagent = 17030, noReadyPop = true, cd = 3600,
 		defaults = { idleAlpha = 0, idleWhen = "offcd" }, experimental = "Reincarnation" },
 	-- Racials (race IDs: Orc 2, Dwarf 3, Tauren 6, Troll 8, Windshaper Skyborne 96)
-	windowBuff({ key = "bloodfury", spellKey = "bloodFury", icon = 135726, race = { 2 }, window = 15,
+	auraBuff({ key = "bloodfury", spellKey = "bloodFury", icon = 135726, race = { 2 }, auraState = { length = 15 },
 		school = "fire", cd = 120, experimental = "Blood Fury" }),
-	windowBuff({ key = "shattercurse", spellKey = "shatterCurse", icon = 136082, race = { 2 }, window = 8,
-		school = "spirit", cd = 180, experimental = "Shatter Curse" }),
-	windowBuff({ key = "berserking", spellKey = "berserking", icon = 135727, race = { 8 }, window = 10,
+	auraBuff({ key = "shattercurse", spellKey = "shatterCurse", icon = 136082, race = { 2 },
+		auraState = { length = 8 }, school = "spirit", cd = 180, experimental = "Shatter Curse" }),
+	auraBuff({ key = "berserking", spellKey = "berserking", icon = 135727, race = { 8 }, auraState = { length = 10 },
 		school = "fire", cd = 180, experimental = "Berserking" }),
 	{ key = "rapidregeneration", spellKey = "rapidRegeneration", icon = 1850550, race = { 8 },
 		school = "water", blurb = "Cooldown.", readyGlow = true, cd = 180,
 		experimental = "Rapid Regeneration" },
 	{ key = "warstomp", spellKey = "warStomp", icon = 132368, race = { 6 }, school = "earth",
 		blurb = "Cooldown.", readyGlow = true, cd = 120, experimental = "War Stomp" },
-	windowBuff({ key = "stoneform", spellKey = "stoneform", icon = 136225, race = { 3 }, window = 8,
-		school = "earth", cd = 180, experimental = "Stoneform" }),
+	auraBuff({ key = "stoneform", spellKey = "stoneform", icon = 136225, race = { 3 }, auraState = { length = 8 },
+		school = "earth", cd = 180 }),
 	-- Walk on Air: cooldown only, its real length is unseen
 	{ key = "walkonair", spellKey = "walkOnAir", icon = 132845, race = { 96 }, school = "air",
 		blurb = "Cooldown.", readyGlow = true, cd = 120, experimental = "Walk on Air" },
@@ -98,16 +94,20 @@ ns.CLASS.cooldowns = {
 local PROC_SWIPE = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } }
 local TEXT_TIMER = { uptime = { text = true, textSize = 14, textColor = { 1, 1, 1, 1 },
 	textPos = "center", swipe = false, bar = true } }
+-- A buff you cast, shown from your own aura (duration: its full length, for Expiring's bar part); its
+-- cast states on the icon too, for when it's down and you would recast
+local function ownBuff(row)
+	row.proc, row.noPop, row.noGlow, row.engineExpire = true, true, true, true
+	row.auraKey, row.filter, row.castUnder, row.ownSpell = row.spellKey, "HELPFUL|PLAYER", true, true
+	return row
+end
 ns.CLASS.buffs = {
-	{ key = "waterwalking", power = true, spellKey = "waterWalking", icon = 135863, school = "water", reagent = 17058,
-		duration = 600, blurb = "Time left while it's up.", styles = TEXT_TIMER,
-		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, fade = false } },
-		experimental = "Water Walking" },
-	{ key = "waterbreathing", power = true, spellKey = "waterBreathing", icon = 136148, school = "water", reagent = 17057,
-		duration = 600, breath = true, blurb = "Time left while it's up. Warns under water without it.",
-		styles = TEXT_TIMER,
-		defaults = { idleAlpha = 0, expire = { secs = 30, glow = true, fade = false } },
-		experimental = "Water Breathing" },
+	ownBuff({ key = "waterwalking", power = true, spellKey = "waterWalking", icon = 135863, school = "water",
+		reagent = 17058, duration = 600, blurb = "Time left while it's up.", styles = TEXT_TIMER,
+		defaults = { idleAlpha = 0, expire = { secs = 30 } }, experimental = "Water Walking" }),
+	ownBuff({ key = "waterbreathing", power = true, spellKey = "waterBreathing", icon = 136148, school = "water",
+		reagent = 17057, duration = 600, breath = true, blurb = "Time left while it's up. Warns under water without it.",
+		styles = TEXT_TIMER, defaults = { idleAlpha = 0, expire = { secs = 30 } } }),
 	{ key = "elementalfocus", spellKey = "elementalFocus", buffKey = "clearcasting", icon = 136170, procSound = true,
 		school = "spirit", blurb = "Shows while " .. ns.Spells.name("clearcasting") .. " is up.",
 		proc = true, defaults = { idleAlpha = 0 },

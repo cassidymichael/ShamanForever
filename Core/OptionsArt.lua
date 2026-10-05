@@ -124,7 +124,14 @@ local function makePreviewIcon(parent, key, preview, box)
 			placeOut = out })
 	end
 	if preview.uptime then
-		ic.upT = ns.Timer.new(ic.textFrame, key, "uptime", { anchor = ic, dual = preview.cooldown,
+		-- Over the icon from its parent: an idle icon fades under it
+		local holder = ic.textFrame
+		if preview.uptimeOver then
+			holder = CreateFrame("Frame", nil, parent)
+			holder:SetAllPoints(ic)
+			ic.upOver = holder
+		end
+		ic.upT = ns.Timer.new(holder, key, "uptime", { anchor = ic, dual = preview.cooldown,
 			cd = not preview.cooldown and ic.cd or nil, school = school, barInset = preview.barInset, box = box,
 			column = column, placeOut = out })
 	end

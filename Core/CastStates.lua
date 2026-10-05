@@ -29,13 +29,13 @@ local makeCover, draw
 -- the player), needUnit, filter, ids, candidates, slot (the button's aura slot, whose filters the
 -- sensor's must match), level (over the icon's text, else 10), attach(look) and detach(look) (the
 -- element refilters and points it with its own sensors while attached), note (the page's line on
--- when it shows), tips (its switches' tips) }.
+-- when it shows), tips (its switches' tips), icon (the icon under the button is painted too) }.
 local WATCHES, HAS = {}, {}
 function CS.watch(key, w)
 	w.key, w.unit = key, w.unit or "target"
 	w.drawn = ""
 	-- Its own warning's tint came off: the paint's goes back on
-	if not w.cover and w.frame then
+	if (not w.cover or w.cover.icon) and w.frame then
 		w.frame.onWarnTint = function()
 			if w.drawn ~= "" then w.drawn = nil; draw(w) end
 		end
@@ -196,8 +196,10 @@ function draw(w)
 	if now == w.drawn then return end
 	w.drawn = now
 	if w.draw then w.draw(w.out, w.low)
-	elseif w.cover then drawCover(w, w.out, w.low)
-	else CS.paint(w.frame, w.key, w.out, w.low) end
+	else
+		if w.cover then drawCover(w, w.out, w.low) end
+		if not w.cover or w.cover.icon then CS.paint(w.frame, w.key, w.out, w.low) end
+	end
 end
 
 local function readPower(w)

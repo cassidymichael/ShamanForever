@@ -5,8 +5,6 @@
 -- attackable), and a state driver ([@target,harm,nodead]) hides it for friendly targets.
 -- A failed call sets the gate to alpha 0: nothing shows rather than the last
 -- target's aura.
--- Expiring drawn by the engine is a clip-framed bar over the time bar's first N seconds of the
--- row's duration, with a cover bar; all set out of combat only.
 
 local _, ns = ...
 local P = ns.Profiles
@@ -21,8 +19,8 @@ local setting = E.setting
 
 -- Rows: the class's target elements
 -- Rows of the buff kind (_Buffs lists the aura fields its builder reads). Here: unit = "target",
--- which needs proc = true; parts missing (needs auraKey), engineExpire (needs missing and duration,
--- the aura's full length), skipLong (below), power and range (_CastStates); page texts idleText,
+-- which needs proc = true; parts missing (needs auraKey), engineExpire (_Buffs; missing's read checks
+-- the aura's length), skipLong (below), power and range (_CastStates); page texts idleText,
 -- procHeader, popTip, glowTip, upLabel, idleLabel, castNote and castTips (its cast states').
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
@@ -85,123 +83,12 @@ local function hostileTarget()
 end
 local function wantedUnit() return hostileTarget() and "target" or "none" end
 
--- Expiring, drawn by the engine
--- A plain read of another length turns the bar cue off (auraOnTarget)
-local FAST = 240   -- the cover crosses its clip in a 240th of the aura's length
-local WHITE = ns.WHITE
-local RED = { 1, 0.2, 0.2, 1 }
-local REMAINING = Enum and Enum.DurationTextBindingProperty and Enum.DurationTextBindingProperty.RemainingDuration or 0
-
-local function makeExpireBar(button, key)
-	local x = {}
-	x.clip = CreateFrame("Frame", nil, button)
-	x.clip:SetClipsChildren(true)
-	x.clip:Hide()
-	x.bar = CreateFrame("StatusBar", nil, x.clip)
-	x.bar:SetStatusBarTexture(WHITE)
-	x.ok = ns.try("target expiring bar " .. key, button.SetDurationBar, button, x.bar, ns.Timer.AURA_BAR)
-	return x
-end
-
--- Step colour curve: red under secs, colour c from there
-local curves = ns.cache(32, function(secs, c)
-	local curve = C_CurveUtil.CreateColorCurve()
-	if Enum and Enum.LuaCurveType then pcall(curve.SetType, curve, Enum.LuaCurveType.Step) end
-	curve:AddPoint(0, CreateColor(RED[1], RED[2], RED[3], RED[4]))
-	curve:AddPoint(secs, CreateColor(c[1], c[2], c[3], c[4] or 1))
-	return curve
-end)
-local function textCurve(secs, c)
-	if not (C_CurveUtil and C_CurveUtil.CreateColorCurve and CreateColor) then return nil end
-	return curves(string.format("%d:%.3f:%.3f:%.3f:%.3f", secs, c[1], c[2], c[3], c[4] or 1), secs, c)
-end
-
-local styleExpireText
-
-local function styleExpire(def, size, slot)
-	local key, t, length = def.key, slot.timer, def.duration
-	local st = ns.Style.get(key, "uptime")
-	local secs, r = setting(key, "expire", "secs"), def.ranges.expire.secs
-	if type(secs) ~= "number" or secs ~= secs then secs = def.defaults.expire.secs end
-	secs = math.min(math.max(math.floor(secs + 0.5), r[1]), r[2])
-	local red, cover = def.redBar, def.coverBar
-	-- The cover must hide the Expiring colour completely: no see-through colour
-	local k = t and t:barRGB()
-	local barOn = secs > 0 and setting(key, "expire", "bar") and t and t.barOn and red and cover and red.ok and cover.ok
-		and ns.isColor(k) and (k[4] or 1) >= 1 and not def.lengthOff and type(length) == "number" and length > 0
-	-- Both hidden first, shown together last: an Expiring colour without its cover would warn for the
-	-- whole aura
-	for _, x in ipairs({ red, cover }) do if x then x.clip:Hide() end end
-	if not barOn then return styleExpireText(def, slot, st, secs) end
-	local c = setting(key, "expire", "barColor")
-	if not ns.isColor(c) then c = def.defaults.expire.barColor end
-	local placed = ns.try("target expiring place " .. key, function()
-		local h, top = st.barHeight, st.barEdge == "top"
-		local edge = top and "TOPLEFT" or "BOTTOMLEFT"
-		-- On the time bar, inside the border's picture
-		local pic = ns.StyleArt.pictureInset(slot.host)
-		local inner, y = size - 2 * pic, pic > 0 and (top and -pic or pic) or 0
-		local w = inner * secs / length
-		-- Levels: Expiring colour under the cover; glow and countdown above both
-		local base = def.frame.textFrame:GetFrameLevel()
-		red.clip:SetFrameLevel(base + 10); red.bar:SetFrameLevel(base + 11)
-		cover.clip:SetFrameLevel(base + 12); cover.bar:SetFrameLevel(base + 13)
-		for _, x in ipairs({ cover, red }) do
-			x.clip:ClearAllPoints()
-			x.clip:SetPoint(edge, slot.button, edge, pic, y)
-			x.clip:SetSize(w, h)
-			x.bar:ClearAllPoints()
-		end
-		local tex = ns.Media.barTexture(t.key)
-		cover.bar:SetStatusBarTexture(tex)
-		red.bar:SetStatusBarTexture(tex)
-		local long = w * FAST
-		cover.bar:SetSize(long, h)
-		cover.bar:SetPoint("TOPLEFT", cover.clip, "TOPLEFT", w - long * secs / length, 0)
-		cover.bar:SetStatusBarColor(k[1], k[2], k[3], 1)
-		red.bar:SetSize(inner, h)
-		red.bar:SetPoint("TOPLEFT", red.clip, "TOPLEFT", 0, 0)
-		red.bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
-	end)
-	if placed then
-		cover.clip:Show()
-		red.clip:Show()
-	end
-	styleExpireText(def, slot, st, secs)
-end
-
-function styleExpireText(def, slot, st, secs)
-	local key, t = def.key, slot.timer
-	local fs, b = def.durText, slot.button
-	local textOn = secs > 0 and setting(key, "expire", "text") and st.text and fs ~= nil and textCurve(secs, st.textColor)
-	if textOn then
-		def.textHolder:SetFrameLevel(def.frame.textFrame:GetFrameLevel() + 15)
-		ns.Media.setFont(fs, key, st.textSize)
-		ns.Timer.placeText(fs, b, st, t and t.barIn, t and t.dual, ns.StyleArt.pictureInset(slot.host))
-		if ns.try("target countdown " .. key, b.SetDurationText, b, fs,
-			{ textColor = { curve = textOn, property = REMAINING } }) then
-			def.textHanded = true
-			fs:Show()
-			if t then t.cd:SetHideCountdownNumbers(true) end
-			return
-		end
-	end
-	if fs then
-		ns.try("target countdown " .. key, b.ClearDurationText, b)
-		fs:Hide()
-	end
-	def.textHanded = false
-end
-
 -- Parts (ns.registerPart), with their runtime hooks (_Buffs). onTarget comes first: its gate holds
 -- the other parts' frames.
 -- A part a row lacks the fields for is left out: never a look on a guess
 local function onTarget(def) return def.unit == "target" and def.proc and true or false end
 local function readsAura(def)
 	return onTarget(def) and def.missing and (def.auraKey or def.buffKey) ~= nil or false
-end
-local function expiresHere(def)
-	return def.engineExpire and readsAura(def) and type(def.duration) == "number" or false
 end
 -- onTarget: its aura is read on your hostile target; this engine runs it
 ns.registerPart("onTarget", {
@@ -279,37 +166,6 @@ ns.registerPart("missing", {
 			def.missLook.tex:SetTexture(def.icon)
 			def.lookEdge = ns.Frames.edge(def.missLook.art, f, def.key, { overlay = false })
 			return { looks = { def.missLook } }
-		end,
-	},
-})
--- engineExpire: Expiring drawn by the engine, on its time bar and countdown; missing's read checks
--- the aura's length
-ns.registerPart("engineExpire", {
-	kind = "buff", after = "missing",
-	has = expiresHere,
-	preview = {
-		states = { { "expiring", "Expiring", 20 } },
-		render = function(ic, st, def, kit)
-			if st == "expiring" then kit.engineExpire(ic, def.key, def.duration) end
-		end,
-	},
-	runtime = {
-		make = function(def)
-			return { extras = {
-				{ key = "expire", init = function(_, b) def.redBar = makeExpireBar(b, def.key) end },
-				{ key = "cover", init = function(_, b) def.coverBar = makeExpireBar(b, def.key) end },
-			} }
-		end,
-		-- Font set before it's handed over (Blizzard writes at once)
-		button = function(def, _, button)
-			def.textHolder = CreateFrame("Frame", nil, button)
-			def.textHolder:SetAllPoints(button)
-			def.durText = def.textHolder:CreateFontString(nil, "OVERLAY")
-			def.durText:SetFont(STANDARD_TEXT_FONT, 12, "OUTLINE")
-			def.durText:Hide()
-		end,
-		style = function(def, size, slot)
-			ns.try("target expiring " .. def.key, styleExpire, def, size, slot)
 		end,
 	},
 })
@@ -880,7 +736,7 @@ function TG.debug()
 				or "not read (combat, secret auras or no target)")
 			say("%s Not on target: sensor %s", def.spell, def.missLook:describe())
 		end
-		if expiresHere(def) then say("%s red countdown handed %s", def.spell, tostring(def.textHanded)) end
+		if def.engineExpire then say("%s red countdown handed %s", def.spell, tostring(def.textHanded)) end
 	end
 	for _, def in ipairs(ROWS) do
 		if def.fx then say("%s: %s", def.spell, def.fx:describe()) end
