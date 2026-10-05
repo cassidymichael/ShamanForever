@@ -446,7 +446,7 @@ local function debuffsLayout()
 	end
 end
 
--- Cooldown rows with glowWhile = { experimental (the value badged) } and targetDebuff: a pulsing glow
+-- Cooldown rows with glowWhile = { experimental (the values badged) } and targetDebuff: a pulsing glow
 -- while one chosen aura is up, its debuff on your target or its buffBar buff on you. Both are secret
 -- in combat, so each is a clip look: a sensor of Blizzard's container lighting a glow of ours, made
 -- the first time it is chosen. One at a time, none by default.
@@ -528,7 +528,7 @@ ns.registerPart("glowWhile", {
 		return { "choice", name = "glowWhile", title = "Pulsing glow", label = "Glow while", choices = choices,
 			text = "The same glow as Ready's: either lights it.",
 			unlearned = function(v) return v == "buff" and not ns.Buffs.buffBarLearned(def) end,
-			badge = exp and { value = exp, name = "Glow while " .. (exp == "buff" and buff or exp) } or nil }
+			badge = exp and { values = exp, name = "Pulsing glow while" } or nil }
 	end },
 	preview = {
 		render = function(ic, st, def)

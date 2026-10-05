@@ -1142,7 +1142,7 @@ local function toggleBlock(p, key, b)
 end
 
 -- A named setting's choice: b = { title, label, tip, name, choices ({ value, label } each), text (help
--- under it), badge = { value, name } (the experimental badge while that value is chosen),
+-- under it), badge = { values, name } (the experimental badge while one of those values is chosen),
 -- unlearned(value) (Not learned under it while that says so) }
 local function choiceBlock(p, key, b)
 	p:header(b.title)
@@ -1151,7 +1151,7 @@ local function choiceBlock(p, key, b)
 	if b.badge then
 		local f = p:row(22)
 		ns.OptionsArt.expBadge(f, b.badge.name):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
-		p:add(f, 22, showWhen(function() return get() == b.badge.value end))
+		p:add(f, 22, showWhen(function() return tContains(b.badge.values, get()) end))
 	end
 	if b.unlearned then p:text("Not learned yet.", showWhen(function() return b.unlearned(get()) end)) end
 	if b.text then p:text(b.text) end
