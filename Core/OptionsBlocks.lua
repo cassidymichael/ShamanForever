@@ -950,8 +950,15 @@ function K.lookRows(p, owner, name, opts, shown)
 	lookRows(p, store(p, owner, opts.after), name, opts, shown)
 end
 
+-- An experimental badge under the row just added (feature: its name in About's list)
+local function badgeRow(p, feature)
+	local f = p:row(22)
+	ns.OptionsArt.expBadge(f, feature):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
+	p:add(f, 22)
+end
+
 -- warn: opts.title, text (a line above its looks), on = { label, tip } (its switch, when it has
--- one), noun, after
+-- one), noun, after, soundBadge (as active's)
 local function warnBlock(p, owner, opts)
 	local s = store(p, owner, opts.after)
 	if not s.has("warn") then return end
@@ -960,7 +967,8 @@ local function warnBlock(p, owner, opts)
 	local function rows()
 		lookRows(p, s, "warn", opts)
 		check(p, s, "warn", "pop", "Pop", tipOf(opts, "pop"))
-		soundRow(p, s, "warn", "Sound", tipOf(opts, "sound"))
+		local sound = soundRow(p, s, "warn", "Sound", tipOf(opts, "sound"))
+		if sound and opts.soundBadge then badgeRow(p, opts.soundBadge) end
 	end
 	if s.has("warn", "on") then
 		local get, set = s.opt("warn", "on")
@@ -984,13 +992,6 @@ local function readyBlock(p, owner, opts)
 	end
 	check(p, s, "ready", "glow", "Pulsing glow", opts.glowTip or "While it's off cooldown.")
 	soundRow(p, s, "ready", "Sound", "The moment the cooldown ends.")
-end
-
--- An experimental badge under the row just added (feature: its name in About's list)
-local function badgeRow(p, feature)
-	local f = p:row(22)
-	ns.OptionsArt.expBadge(f, feature):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
-	p:add(f, 22)
 end
 
 -- active: opts.title, text, on = { label, tip } (its switch, when it has one), extra(s, p) (rows under
