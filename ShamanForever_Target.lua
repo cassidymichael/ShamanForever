@@ -517,14 +517,7 @@ local function auraOnTarget(def)
 		local id, name, dur = a.spellId, a.name, a.duration
 		if isSecret(id) or isSecret(name) then return nil end
 		if ids[id] or (key and Spells.keyOf(id) == key) or (want and name == want) then
-			-- Another length turns the Expiring bar off until a read gives the row's again
-			if def.duration and not isSecret(dur) and type(dur) == "number" and dur > 0 then
-				local off = math.abs(dur - def.duration) > 0.05
-				if off ~= (def.lengthOff or false) then
-					def.lengthOff = off
-					def.aura:style()
-				end
-			end
+			if ns.Buffs.expiring.checkLength(def, dur, def.duration) then def.aura:style() end
 			return true
 		end
 	end

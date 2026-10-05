@@ -325,6 +325,28 @@ function B.expiring.note(key)
 	ns.Timer.CANT[key] = out
 end
 
+-- The length guard: an aura read at another length than its row's turns Expiring's bar part off until a
+-- read gives the row's again (never placed on a guess). dur: a plain read's; true when x.lengthOff changed
+local function plainLength(dur) return type(dur) == "number" and not isSecret(dur) and dur > 0 end
+function B.expiring.checkLength(x, dur, length)
+	if not plainLength(dur) or type(length) ~= "number" then return false end
+	local off = math.abs(dur - length) > 0.05
+	if off == (x.lengthOff or false) then return false end
+	x.lengthOff = off
+	return true
+end
+-- A plain read on you at rest: the first of ids up decides; a failed or secret read, nothing
+function B.expiring.readOnPlayer(x, ids, length)
+	if not (ns.aurasReadable() and C_UnitAuras) then return false end
+	for id in pairs(ids) do
+		local ok, a = safe(C_UnitAuras.GetPlayerAuraBySpellID, id)
+		if not ok or isSecret(a) then return false end
+		local dur = type(a) == "table" and a.duration
+		if plainLength(dur) then return B.expiring.checkLength(x, dur, length) end
+	end
+	return false
+end
+
 -- engineExpire (with proc and duration, the aura's full length): Expiring drawn by the engine. Its length
 -- is checked by a plain read: on you here, on another unit only with missing's read (and its aura's key)
 local function lengthChecked(def)
@@ -610,22 +632,10 @@ local function makeState(x)
 	slot:styleNow()
 	stateAlpha(x)
 end
--- A plain read at rest: the aura at another length turns Expiring's bar part off (never placed on a guess)
+-- Its length guard (B.expiring)
 local function readStateLength(x)
 	local length = x.spec.length
-	if not length or not x.def.spellID or not ns.aurasReadable() then return end
-	for id in pairs(stateIDs(x)) do
-		local ok, a = safe(C_UnitAuras.GetPlayerAuraBySpellID, id)
-		local dur = ok and type(a) == "table" and a.duration
-		if type(dur) == "number" and not isSecret(dur) and dur > 0 then
-			local off = math.abs(dur - length) > 0.05
-			if off ~= (x.lengthOff or false) then
-				x.lengthOff = off
-				x.slot:styleNow()
-			end
-			return
-		end
-	end
+	if length and x.def.spellID and B.expiring.readOnPlayer(x, stateIDs(x), length) then x.slot:styleNow() end
 end
 for _, x in ipairs(STATE_LIST) do
 	local def, key, s = x.def, x.def.key, x.spec
@@ -1066,22 +1076,9 @@ local function underWaterWarns(def)
 	return def.breath and breathing and setting(def.key, "warn", "on") and not ns.cantAct()
 end
 
--- Read at rest: another length than the row's turns Expiring's bar part off (as engineExpire's on the target)
+-- Its length guard (B.expiring)
 local function readAura(def)
-	if not (def.spellID and ns.aurasReadable() and C_UnitAuras) then return end
-	for id in pairs(auraIDs(def)) do
-		local ok, a = safe(C_UnitAuras.GetPlayerAuraBySpellID, id)
-		if not ok or isSecret(a) then return end
-		local dur = type(a) == "table" and a.duration
-		if type(dur) == "number" and not isSecret(dur) and dur > 0 then
-			local off = math.abs(dur - def.duration) > 0.05
-			if off ~= (def.lengthOff or false) then
-				def.lengthOff = off
-				def.aura:style()
-			end
-			return
-		end
-	end
+	if def.spellID and B.expiring.readOnPlayer(def, auraIDs(def), def.duration) then def.aura:style() end
 end
 
 local previewing = false
