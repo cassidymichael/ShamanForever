@@ -55,7 +55,7 @@ ns.CLASS.cooldowns = {
 		targetDebuff = { length = 12 }, expireLooks = false, readyGlow = true, cd = 8,
 		buffBar = { buffKey = "improvedStormstrikeBuff", talentKey = "improvedStormstrike", school = "water" },
 		glowWhile = { experimental = { "debuff", "buff" } }, choices = { glowWhile = { "none", "debuff", "buff" } },
-		experimental = "Stormstrike" },
+		readyAtReset = true, experimental = "Stormstrike" },
 	{ key = "riptide", power = true, spellKey = "riptide", icon = 252995, school = "water", blurb = "Cooldown.",
 		readyGlow = true, cd = 6, experimental = "Riptide" },
 	-- Short cooldowns: no Ready pop by default
