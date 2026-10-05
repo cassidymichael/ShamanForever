@@ -95,6 +95,12 @@ local function add(key, entry)
 	TH.byKey[key] = entry
 end
 
+-- The Totem theme setting is labelled experimental while any theme is
+function TH.experimental()
+	for _, e in ipairs(TH.LIST) do if e.experimental then return true end end
+	return false
+end
+
 local DEFAULT
 function TH.current()
 	if not P.getDB() then return DEFAULT end
@@ -131,7 +137,7 @@ add("default", { name = "Default" })
 DEFAULT = TH.byKey.default
 
 add("pixel", {
-	name = "Pixel",
+	name = "Pixel", experimental = true,
 	owns = { border = true, range = true },
 	border = function() return borderStyle("schooledge", TB.cfg().pixelEdge) end,
 	extrasBorder = borderStyle("hairline"),
@@ -143,7 +149,7 @@ add("pixel", {
 -- Stone and bronze: a carved plinth (fixed art sets the spacing, a row, pickers up), Call and Recall
 -- in bronze medallions
 add("stone", {
-	name = "Stone and bronze",
+	name = "Stone and bronze", experimental = true,
 	plinth = "stone", plinthSize = function() return TB.cfg().stonePlinth end,
 	owns = plinthOwns(function()
 		local _, cap = shares(plinthNow())
@@ -155,7 +161,7 @@ add("stone", {
 })
 
 add("bosses", {
-	name = "Stone bosses",
+	name = "Stone bosses", experimental = true,
 	plinth = "bosses",
 	owns = plinthOwns(function() return { extrasGapShare = TB.cfg().extrasScale / 2 + 0.06 } end),
 	border = borderStyle("line", 1), extrasBorder = borderStyle("roundicon"), dress = "boss",
@@ -164,21 +170,21 @@ add("bosses", {
 })
 
 add("wood", {
-	name = "Wood and bone",
+	name = "Wood and bone", experimental = true,
 	plinth = "wood", owns = plinthOwns(nil, -0.3),
 	border = borderStyle("line", 1), extrasBorder = borderStyle("woodedge"),
 	behind = "plinth", picker = "plinth", arrow = "plinth", fixedSlots = true, badgeGap = belowPlinth,
 })
 
 add("iron", {
-	name = "Iron and ember",
+	name = "Iron and ember", experimental = true,
 	plinth = "iron", owns = plinthOwns(nil, 0.06),
 	border = borderStyle("line", 1), extrasBorder = borderStyle("ironedge"),
 	behind = "plinth", picker = "plinth", arrow = "plinth", fixedSlots = true, badgeGap = belowPlinth,
 })
 
 add("elements", {
-	name = "Elements",
+	name = "Elements", experimental = true,
 	owns = { border = true, spacing = 0.42, extrasGapShare = 0.42, barPlace = true },
 	border = borderStyle("line", 1), extrasBorder = borderStyle("line", 1),
 	dress = "plates", timeBar = "tip", picker = "element", arrow = "element",
@@ -186,7 +192,7 @@ add("elements", {
 })
 
 add("blizzard", {
-	name = "Blizzard's totem bar",
+	name = "Blizzard's totem bar", experimental = true,
 	owns = { border = true, spacing = 8 / 30, extrasGapShare = 8 / 30, dir = "row", extras = "ends" },
 	border = borderStyle("totembare"), extrasBorder = borderStyle("totembare"),
 	dress = "blizzard", picker = "blizzard", arrow = "blizzard",

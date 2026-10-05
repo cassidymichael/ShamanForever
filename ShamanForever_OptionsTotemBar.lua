@@ -621,7 +621,7 @@ local function build(p)
 		tset("skin"), nil, 190)
 	local expRow = p:row(22)
 	ns.OptionsArt.expBadge(expRow, "Totem themes"):SetPoint("LEFT", expRow, "LEFT", LABEL_W, 0)
-	p:add(expRow, 22, function() return TB.skin.current().experimental or false end)
+	p:add(expRow, 22, TB.skin.experimental)
 	local function theme(key) return function() return TB.skin.current().key == key end end
 	p:checkbox("Tray", "A dark tray edged in gold behind the slots.", tget("pixelTray"), tset("pixelTray"),
 		theme("pixel"))
@@ -667,6 +667,7 @@ Bars.register("totembar", { icon = "Interface\\Icons\\Spell_Shaman_DropAll_01",
 	end,
 	preview = PREVIEW, page = { order = 50, build = build },
 	ownSize = function() return not ns.TotemBar.cfg().sizeFollow end,
-	experiments = { { "Totem sets", "Totem sets, once you know a second Call" } },
+	experiments = { { "Totem sets", "Totem sets, once you know a second Call" },
+		ns.TotemBar.skin.experimental() and { "Totem themes", "Totem theme" } or nil },
 	tiles = { icon = ns.TotemBar.TOTEM_ICON.earth, schools = ns.TotemBar.ELEMENTS,
 		border = function() return select(2, ns.TotemBar.look()) end } })
