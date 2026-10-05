@@ -9,14 +9,6 @@ local _, ns = ...
 local ONE_SWIPE = { uptime = {
 	swipe = "The cooldown has the swipe; time left shows as text or a bar." } }
 local function barTimer() return { uptime = { text = false, bar = true } } end
--- A buff window from our cast: time left while it's on, grey and faded at its end
-local function windowBuff(row)
-	row.blurb = "Cooldown, and time left while it's on."
-	row.timerCant, row.readyGlow = ONE_SWIPE, true
-	row.expireLooks = { "grey", "fade" }
-	row.defaults = { expire = { secs = 0, fade = true } }
-	return row
-end
 -- A buff your cast puts on you, drawn from the aura itself (auraState, _Buffs)
 local function auraBuff(row)
 	row.blurb = "Cooldown, and time left while it's on."
@@ -67,8 +59,8 @@ ns.CLASS.cooldowns = {
 	{ key = "chainlightning", power = true, range = true, spellKey = "chainLightning", icon = 136015, school = "air",
 		blurb = "Cooldown.", readyGlow = true, cd = 6, defaults = { ready = { pop = false } },
 		experimental = "Chain Lightning" },
-	windowBuff({ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, window = 25, school = "air",
-		cd = 180, experimental = "Rage of the Farseer" }),
+	auraBuff({ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, auraState = { length = 25 },
+		school = "air", cd = 180, experimental = "Rage of the Farseer" }),
 	{ key = "projection", power = true, spellKey = "totemicProjection", icon = 136099, school = "spirit",
 		blurb = "Cooldown.", cd = 60, defaults = { idleWhen = "offcd" }, experimental = "Totemic Projection" },
 	{ key = "reincarnation", spellKey = "reincarnation", icon = 136080, school = "spirit",
@@ -77,11 +69,11 @@ ns.CLASS.cooldowns = {
 		reagent = 17030, noReadyPop = true, cd = 3600,
 		defaults = { idleAlpha = 0, idleWhen = "offcd" }, experimental = "Reincarnation" },
 	-- Racials (race IDs: Orc 2, Dwarf 3, Tauren 6, Troll 8, Windshaper Skyborne 96)
-	windowBuff({ key = "bloodfury", spellKey = "bloodFury", icon = 135726, race = { 2 }, window = 15,
+	auraBuff({ key = "bloodfury", spellKey = "bloodFury", icon = 135726, race = { 2 }, auraState = { length = 15 },
 		school = "fire", cd = 120, experimental = "Blood Fury" }),
-	windowBuff({ key = "shattercurse", spellKey = "shatterCurse", icon = 136082, race = { 2 }, window = 8,
-		school = "spirit", cd = 180, experimental = "Shatter Curse" }),
-	windowBuff({ key = "berserking", spellKey = "berserking", icon = 135727, race = { 8 }, window = 10,
+	auraBuff({ key = "shattercurse", spellKey = "shatterCurse", icon = 136082, race = { 2 },
+		auraState = { length = 8 }, school = "spirit", cd = 180, experimental = "Shatter Curse" }),
+	auraBuff({ key = "berserking", spellKey = "berserking", icon = 135727, race = { 8 }, auraState = { length = 10 },
 		school = "fire", cd = 180, experimental = "Berserking" }),
 	{ key = "rapidregeneration", spellKey = "rapidRegeneration", icon = 1850550, race = { 8 },
 		school = "water", blurb = "Cooldown.", readyGlow = true, cd = 180,

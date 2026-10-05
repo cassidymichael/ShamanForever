@@ -1,6 +1,5 @@
 -- Cooldown elements: the cooldown kind, its parts and its engine
 -- No secret is read: durations go to widgets, alphas from curves to SetAlpha.
--- Buff windows are inferred from our own casts.
 
 local _, ns = ...
 local P = ns.Profiles
@@ -15,9 +14,9 @@ ns.Cooldowns = CD
 local setting = E.setting
 
 -- Elements: the class's rows (ns.CLASS.cooldowns). A row's fields: key, spellKey, icon, school,
--- blurb, experimental; its parts' flags (this file's parts: window (seconds from our cast),
--- readyGlow, lowMana, noReadyPop, readyAtReset; others' below, auraState in _Buffs); expireLooks (which looks Expiring
--- offers; false: none), race (race IDs; others see "Not your race"), cd and duration (preview only),
+-- blurb, experimental; its parts' flags (this file's parts: readyGlow, lowMana, noReadyPop,
+-- readyAtReset; others' below, auraState in _Buffs); expireLooks (which looks Expiring offers; false:
+-- none), race (race IDs; others see "Not your race"), cd and duration (preview only),
 -- defaults (over the parts'), choices, styles and timerCant (see E.register).
 local COOLDOWNS = ns.CLASS.cooldowns or {}
 
@@ -34,7 +33,7 @@ local function heldChoices(held)
 		{ IDLE_ONCD[1], "Cooling down, " .. held, IDLE_ONCD[3], IDLE_ONCD[4] } }
 end
 
--- Time left: its page has a Time left block (a window, a part's)
+-- Time left: its page has a Time left block (a part's)
 local function hasUptime(def) return KD.words("cooldown", def, "uptime") ~= nil end
 
 ns.registerPart("cooldown", {
@@ -122,19 +121,6 @@ ns.registerPart("lowMana", {
 		end,
 	},
 })
--- A buff window from our own cast (window: its seconds)
-ns.registerPart("window", {
-	idle = { held = "not active", also = " and it isn't active" },
-	page = { uptime = "Time left" },
-	preview = {
-		uptime = true,
-		states = { { "active", "Active", 61 }, { "expiring", "Expiring", 62 } },
-		render = function(ic, st, def, kit)
-			if st == "active" then kit.frozen(ic.upT, 0.3, def.window)
-			elseif st == "expiring" then kit.expiring(ic, def.key, def.window) end
-		end,
-	},
-})
 -- A part's runtime hooks (each optional; parts from other files bring their own):
 --   refresh(def, inEvent, held)  draws its state on def.frame; returns held, or true where its
 --                                state keeps the element shown (its Idle choices applied)
@@ -165,7 +151,7 @@ local function checkFrames(def)
 end
 
 ns.registerKind("cooldown", {
-	parts = { "cooldown", "ready", "readyGlow", "lowMana", "window" },
+	parts = { "cooldown", "ready", "readyGlow", "lowMana" },
 	slots = { "own", "warn", "cast", "ready", "lowMana", "active", "expire", "killed", "cooldown", "gcd", "uptime" },
 	prepare = function(def)
 		-- auraState's Expiring is the engine's (_Buffs)
@@ -350,7 +336,7 @@ end
 local function fadeTo(def, alpha) W.fadeTo(def.frame, alpha) end
 
 -- def needs key, frame, spellID and refresh (other engines pass such a table too); held: something
--- of its own keeps it shown (a window, low reagents, a part's state)
+-- of its own keeps it shown (low reagents, a part's state)
 local function applyIdle(def, held, inEvent)
 	local when = setting(def.key, "idleWhen")
 	local running, certain = ownCooldownRunning(def, inEvent)
@@ -372,36 +358,9 @@ CD.applyIdle = applyIdle
 -- Remaining seconds -> alpha
 local noTimeLeftCurve = ns.CURVE_OVER
 
--- Buff windows
-
-local function endActive(def)
-	if not def.activeUntil then return end
-	def.activeUntil, def.activeToken = nil, nil
-	local f = def.frame
-	if f.upTimer then f.upTimer:clear(); f.activeHolder:SetAlpha(0) end
-end
-
-local function startActive(def, start, length)
-	local f = def.frame
-	def.activeUntil = start + length
-	local token = {}
-	def.activeToken = token
-	if f.upTimer then f.upTimer:setTime(start, length); f.activeHolder:SetAlpha(1) end
-	C_Timer.After(math.max(start + length - GetTime(), 0) + 0.05, function()
-		if def.activeToken == token then endActive(def); refreshCooldown(def) end
-	end)
-end
-
-local function isActive(def)
-	if def.activeUntil and GetTime() >= def.activeUntil then endActive(def) end
-	return def.activeUntil ~= nil
-end
-
 function refreshCooldown(def, inEvent)
 	if not E.isEnabled(def.key) then
-		-- Casts aren't followed while off: a window could be spent unseen, so it ends here
 		def.cdRunning = nil
-		endActive(def)
 		CD.resetReady(def.frame)
 		return
 	end
@@ -418,7 +377,6 @@ function refreshCooldown(def, inEvent)
 		f:SetPulsing(false)
 		f.cdTimer:clear()
 		f.count:Hide()
-		endActive(def)
 		if f.upTimer then f.upTimer:clear() end
 		if f.warn then f.warn:SetAlpha(0) end
 		return
@@ -426,7 +384,7 @@ function refreshCooldown(def, inEvent)
 	local dur, bar = cooldownFor(f, def.key, def.spellID, inEvent)
 	if dur then f.cdTimer:set(dur, bar) end
 	f.tex:SetDesaturated(false)
-	local held = isActive(def)
+	local held = false
 	if def.reagent then
 		local hold, ring, pulse = R.refresh(def)
 		if hold then held = true end
@@ -579,12 +537,8 @@ function CD.refresh() refreshCooldowns() end
 function CD.onCast(spellID)
 	local key = Spells.keyOf(spellID)
 	if not key then return end
-	local now = GetTime()
 	for _, def in ipairs(COOLDOWNS) do
-		if def.spellID and E.isEnabled(def.key) then
-			if key == def.spellKey then CD.noteCast(def.frame, def.spellID) end
-			if def.window and key == def.spellKey then startActive(def, now, def.window) end
-		end
+		if def.spellID and E.isEnabled(def.key) and key == def.spellKey then CD.noteCast(def.frame, def.spellID) end
 	end
 end
 
@@ -613,16 +567,6 @@ function CD.start()
 			end
 		end
 	end)
-	-- Death ends our buffs, also where auras can't be read afterwards
-	ns.onCanActChange(function(event)
-		if event ~= "PLAYER_DEAD" then return end
-		for _, def in ipairs(COOLDOWNS) do
-			if def.window then
-				endActive(def)
-				refreshCooldown(def)
-			end
-		end
-	end)
 end
 
 -- /sf debug
@@ -634,9 +578,6 @@ function CD.debug()
 			if d then words = words .. d(def) .. ", " end
 		end
 		local extra = ""
-		if def.window then
-			extra = def.activeUntil and string.format(", window for %.1f s", def.activeUntil - GetTime()) or ", not active"
-		end
 		if def.reagent then
 			extra = string.format("%s, reagent %s (takes it: %s, Reagent Economy %s)", extra,
 				describeArg(def.reagentRead), tostring(def.takesReagent), tostring(R.perkKnown()))
