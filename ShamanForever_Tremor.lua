@@ -40,7 +40,7 @@ local function styleWord(fs, icon)
 	fs:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 end
 
-local def = { key = KEY, spellKey = "tremor", icon = 136108, school = "earth", duration = 300,
+local def = { key = KEY, spellKey = "tremor", icon = 136108, school = "earth", duration = 300, readsTotems = true,
 	defaults = { idleAlpha = 0, idleWhen = "nowarning", tremorTarget = true, tremorPlates = true, tremorFeared = false,
 		active = { pop = true, glow = true, text = true, sound = "none" },
 		wordSize = 16, wordColor = CopyTable(WORD_COLOR), wordPos = "below", wordX = 0, wordY = 0,

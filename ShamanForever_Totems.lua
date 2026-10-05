@@ -404,10 +404,23 @@ TO.subscribe(function(event, slot, arg)
 	end
 end)
 
+-- A slot's change refreshes the elements reading slots (def.totemSlot, needsTotem or readsTotems), only
+-- while one of them is on
+local events   -- set(on), from start
 function TO.start()
 	local ev = CreateFrame("Frame")
-	ns.registerEvent(ev, "PLAYER_TOTEM_UPDATE")
+	events = ns.eventsWhile(ev, { "PLAYER_TOTEM_UPDATE" })
 	ev:SetScript("OnEvent", function() E.refreshCooldownsSoon() end)
+end
+function TO.applyLayout()
+	local want = false
+	for _, key in ipairs(E.KEYS) do
+		local def = E.ALL[key].def
+		if type(def) == "table" and (def.totemSlot or def.needsTotem or def.readsTotems) and E.isEnabled(key) then
+			want = true
+		end
+	end
+	if events then events(want) end
 end
 
 -- /sf debug
