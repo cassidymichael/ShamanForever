@@ -26,7 +26,8 @@ local SHARE_VERSION = 7
 -- Element settings (db.elementOpts[key]). A state or event is a table of fields, named the same on
 -- every element; an element's defaults declare the fields it has, and pages offer those.
 --   warn    = { on, grey, ring, fade, tint, glow, pop, sound }   something is missing (a buff)
---   active  = { pop, glow, text, sound }   something to use or act on (primed, a proc, five stacks)
+--   active  = { on, pop, glow, text, sound }   something to use or act on (primed, a proc, five stacks);
+--             on: it's followed at all (off, the element leaves the state out)
 --   ready   = { pop, glow, sound, blocked }   the cooldown ends; glow while it's ready; blocked: the
 --             pop when it ends but can't be used now (grey | none)
 --   expire  = { secs, grey, ring, fade, glow, bar, barColor, text, over }   the last seconds
@@ -36,6 +37,7 @@ local SHARE_VERSION = 7
 --   reagent = { when, low, lowKeepsShown, color, lowColor, size, pos, x, y, ring, fade }
 --   mana    = { on }   its spell's cost can't be paid (_CastStates); its style (part power) is kept beside
 --   range   = { on }   its target is out of its spell's range; its style (part range) is kept beside
+--   lowMana = { glow, under }   it's ready and your mana is under a percentage (under): a look only
 -- grey, ring, fade, tint and glow are the looks a state shows; pop and sound play once, as it
 -- starts: warn.pop and warn.sound as the warning begins (a buff lost). A bar's own settings use the
 -- same tables (expire, ended, killed, mana). The effect and pop kind names (warning, ranout, expired,
