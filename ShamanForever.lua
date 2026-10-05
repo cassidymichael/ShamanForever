@@ -223,7 +223,8 @@ end
 --   sanitize(db, acct)     a profile loaded
 --   applyTimers()          every timer takes its current style
 --   applyLayout()          after a layout. Every change to which elements are in use (switched, grouped,
---                          learned, a profile) ends in one, then a refresh: a module starts and stops its
+--                          learned, a profile) ends in one, then a refresh; a part's own switch (an aura
+--                          state's Show it, a buff bar) ends in one alone. A module starts and stops its
 --                          elements' work here (events: ns.eventsWhile, tickers, aura containers, engine
 --                          sounds, state drivers), gated on E.inUse (the preview's Show not learned lays
 --                          out only). An element not in use runs nothing, and refresh reads its state
