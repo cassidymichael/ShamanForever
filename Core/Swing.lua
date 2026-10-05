@@ -261,15 +261,14 @@ local function makeMark(m)
 	markAlpha(m)
 end
 for _, key in ipairs(MARKS) do marks[key] = { key = key } end
--- /sf preview: our own pips in place of the button's: full while a mark is on; in Busy, which plays
--- every state, each mark's spent one a swing, switched off too. A mark not learned too, with Show
--- not learned
+-- /sf preview: our own pips in place of the button's while a mark is on: full, or in Busy one spent
+-- a swing. A mark not learned too, with Show not learned
 local pvPips = {}
 local function previewMarks()
 	for _, key in ipairs(MARKS) do
 		local e = E.ALL[key]
 		local learned = e.learned ~= nil and e.learned()
-		local shown = pv.mode ~= nil and (cfg().marks[key] == true or pv.mode == "busy") and SW.isOn()
+		local shown = pv.mode ~= nil and cfg().marks[key] == true and SW.isOn()
 			and (learned or ns.Preview.showsUnlearned())
 		local b = pvPips[key]
 		if shown and not b then
