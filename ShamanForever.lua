@@ -391,7 +391,8 @@ local function newGroup(template)
 end
 
 -- Where an element new to a profile goes: with the elements it sits beside in the default layout,
--- else a group made like that default (once per pass), else the first group
+-- else a group made like that default (once per pass), else the first group. A group made here stays
+-- fresh until it first shows (settleFresh).
 local function placeNew(key, made)
 	for _, dg in ipairs(ns.CLASS.layout) do
 		for _, k in ipairs(dg.members) do
@@ -404,6 +405,7 @@ local function placeNew(key, made)
 				if not g then
 					g = newGroup(dg)
 					g.name = uniqueName(dg.name, g) or g.name
+					g.fresh = true
 					made[dg] = g
 				end
 				table.insert(g.members, key)
@@ -483,10 +485,11 @@ local function sanitize()
 	for _, key in ipairs(fresh) do placeNew(key, made) end
 end
 
+-- A group the player places is theirs: no longer fresh
 local function setGroupCenter(g, sx, sy)
 	local ui = UIParent:GetEffectiveScale()
 	local w, h = UIParent:GetSize()
-	g.point = "CENTER"
+	g.point, g.fresh = "CENTER", nil
 	g.x = (sx / ui - w / 2) / g.scale
 	g.y = (sy / ui - h / 2) / g.scale
 end
@@ -653,6 +656,96 @@ local function layoutGroup(g)
 	if n > 0 then showFrame(gf, groupWhen(g, gf)) else hideFrame(gf) end
 end
 
+-- New default groups
+local CLEAR = 8   -- UI units between a stepped group and its neighbours
+-- { left, bottom, right, top } in UI units of a box whose point is at (x, y) from the screen's
+local function boxAt(point, x, y, w, h)
+	local pw, ph = UIParent:GetSize()
+	local fx = point:find("LEFT") and 0 or point:find("RIGHT") and 1 or 0.5
+	local fy = point:find("BOTTOM") and 0 or point:find("TOP") and 1 or 0.5
+	local l, b = fx * pw + x - fx * w, fy * ph + y - fy * h
+	return { l, b, l + w, b + h }
+end
+-- A group's frame as laid out, nil when it shows nothing
+local function groupBox(g)
+	local gf = groupFrames[g.id]
+	if not (gf and gf.laidOut) then return nil end
+	local w, h = gf:GetSize()
+	local s = g.scale
+	return boxAt(g.point, g.x * s, g.y * s, w * s, h * s)
+end
+-- Within the screen, as the client keeps a group frame
+local function onScreen(b)
+	local pw, ph = UIParent:GetSize()
+	local dx = b[1] < 0 and -b[1] or b[3] > pw and pw - b[3] or 0
+	local dy = b[2] < 0 and -b[2] or b[4] > ph and ph - b[4] or 0
+	return { b[1] + dx, b[2] + dy, b[3] + dx, b[4] + dy }
+end
+local function hits(b, list, gap)
+	gap = gap - 0.01
+	for _, o in ipairs(list) do
+		if b[1] < o[3] + gap and o[1] < b[3] + gap and b[2] < o[4] + gap and o[2] < b[4] + gap then return true end
+	end
+	return false
+end
+-- The nearest clear centre for b, or nil: on each axis it is b's own or touches an edge in the way
+local function clearSpot(b, list)
+	local pw, ph = UIParent:GetSize()
+	local w, h = b[3] - b[1], b[4] - b[2]
+	if w > pw or h > ph then return nil end
+	local x0, y0 = (b[1] + b[3]) / 2, (b[2] + b[4]) / 2
+	local xs, ys = { x0, w / 2, pw - w / 2 }, { y0, h / 2, ph - h / 2 }
+	for _, o in ipairs(list) do
+		table.insert(xs, o[1] - CLEAR - w / 2); table.insert(xs, o[3] + CLEAR + w / 2)
+		table.insert(ys, o[2] - CLEAR - h / 2); table.insert(ys, o[4] + CLEAR + h / 2)
+	end
+	table.sort(xs); table.sort(ys)
+	local best, bx, by
+	for _, x in ipairs(xs) do
+		if x >= w / 2 - 0.01 and x <= pw - w / 2 + 0.01 then
+			for _, y in ipairs(ys) do
+				local d = (x - x0) ^ 2 + (y - y0) ^ 2
+				if y >= h / 2 - 0.01 and y <= ph - h / 2 + 0.01 and (not best or d < best)
+					and not hits({ x - w / 2, y - h / 2, x + w / 2, y + h / 2 }, list, CLEAR) then
+					best, bx, by = d, x, y
+				end
+			end
+		end
+	end
+	return bx, by
+end
+-- Once, as it first shows: a fresh group over a group or a bar steps to the nearest clear place, else stays
+local function settleFresh()
+	if not isActive then return end
+	for _, g in ipairs(db.groups) do
+		local b = g.fresh and groupBox(g)
+		if b then
+			g.fresh = nil
+			local list = {}
+			for _, o in ipairs(db.groups) do
+				local ob = o ~= g and groupBox(o)
+				if ob then table.insert(list, onScreen(ob)) end
+			end
+			for _, key in ipairs(BAR_ORDER) do
+				local bar = BARS[key]
+				if bar.movable and bar.cfg and (not bar.on or bar.on()) then
+					local c = bar.cfg()
+					local w, h = bar.movable.frame:GetSize()
+					table.insert(list, onScreen(boxAt(c.point, c.x, c.y, w * c.scale, h * c.scale)))
+				end
+			end
+			b = onScreen(b)
+			local x, y
+			if hits(b, list, 0) then x, y = clearSpot(b, list) end
+			if x then
+				local ui = UIParent:GetEffectiveScale()
+				setGroupCenter(g, x * ui, y * ui)
+				W.placeOnPixels(groupFrames[g.id], g.point, g.x, g.y)
+			end
+		end
+	end
+end
+
 -- Deferred in combat: a group can be an ancestor of Blizzard's protected aura button
 local function layoutElements()
 	if ns.deferInCombat("layout", layoutElements) then return end
@@ -661,11 +754,14 @@ local function layoutElements()
 	end
 	-- A group holding Blizzard's aura button also waits while auras are secret out of combat
 	local secret = ns.aurasSecret()
-	local live = {}
+	local live, waits = {}, false
 	for _, g in ipairs(db.groups) do
 		local held = false
 		for _, key in ipairs(g.members) do if ELEMENTS[key].frame.auraButton then held = true end end
-		if held and secret then ns.retryAfterCombat("layout", layoutElements) else layoutGroup(g) end
+		if held and secret then
+			waits = true
+			ns.retryAfterCombat("layout", layoutElements)
+		else layoutGroup(g) end
 		live[g.id] = true
 	end
 	for id, gf in pairs(groupFrames) do
@@ -675,6 +771,8 @@ local function layoutElements()
 		end
 	end
 	each("afterGroups")
+	-- After the bars' layout: their sizes are their frames'
+	if not waits then settleFresh() end
 	ns.Timer.placeAll()
 	W.refitRings()
 	ns.Positioning.update()
@@ -810,7 +908,7 @@ local hideGroup = edit(function(id)
 end)
 local centerGroup = edit(function(id)
 	local g = groupById(id)
-	if g then g.point, g.x, g.y = "CENTER", 0, 0 end
+	if g then g.point, g.x, g.y, g.fresh = "CENTER", 0, 0, nil end
 end)
 
 -- Off (/sf disable): root's alpha, which takes on protected frames in combat, hides the HUD; the
