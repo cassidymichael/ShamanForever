@@ -153,7 +153,8 @@ function Bars.register(key, spec)
 end
 -- A bar's top frame goes in a holder under root, hidden while off: Bars.parent(true) for protected
 -- frames (that holder is protected itself, so the on-off toggle can hide it in combat; anything
--- else waits for combat to end), Bars.parent() for the rest
+-- else waits for combat to end), Bars.parent() for the rest (set at once, and again as combat ends:
+-- a bar holding Blizzard's aura button may make it refuse a change in combat)
 local barHolders = {}
 for _, kind in ipairs({ "plain", "secure" }) do
 	local h = CreateFrame("Frame", nil, root, kind == "secure" and "SecureFrameTemplate" or nil)
@@ -816,6 +817,7 @@ local function holdSecureBars()
 	if ns.deferInCombat("off: bars", holdSecureBars) then return end
 	local off = ns.isOff()
 	toggleHead:SetAttribute("sf-off", off)
+	barHolders.plain:SetShown(not off)
 	for _, w in ipairs(whileOffs) do w.frame:SetShown(off) end
 	local changed = barHolders.secure:IsShown() == off
 	barHolders.secure:SetShown(not off)
