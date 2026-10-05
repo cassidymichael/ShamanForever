@@ -434,14 +434,14 @@ ns.registerPart("buffBar", {
 	end },
 	preview = {
 		states = function(def) return { { "buffBar", Spells.name(def.buffBar.buffKey), 63 } } end,
-		-- Drawn on the preview icon by hand, with the switch off too: a frozen bar, the cooldown under way
+		-- Drawn on the preview icon by hand: the cooldown under way, a frozen bar while its switch is on
 		render = function(ic, st, def, kit)
 			local bar = ic.buffBar
-			if st ~= "buffBar" then
+			if st == "buffBar" then kit.frozen(ic.cdT, 0.4, def.cd or 60) end
+			if st ~= "buffBar" or setting(def.key, "buffBar") ~= true then
 				if bar then bar:Hide() end
 				return
 			end
-			kit.frozen(ic.cdT, 0.4, def.cd or 60)
 			if not bar then
 				bar = newBuffBar(ic.textFrame)
 				ic.buffBar = bar
