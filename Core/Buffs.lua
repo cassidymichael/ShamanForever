@@ -478,7 +478,8 @@ ns.registerPart("buffBar", {
 
 -- Rows with party (and proc): also shown while a party member has the aura. Its switch, party, starts
 -- off. A container per party unit on the icon, under the player's, its button drawing the row's icon
--- only: no time, glow or pop, and not who. Made the first time it's on; hidden while off.
+-- only: no time or pop, and not who. Made the first time it's on; hidden while off. With the glow on
+-- too, a glow sensor per party unit lights the element's glow as the player's does.
 local PARTY_UNITS = { "party1", "party2", "party3", "party4" }
 local PARTIES = {}
 for _, def in ipairs(ROWS) do
@@ -531,6 +532,35 @@ local function makeParty(x)
 		})
 	end
 end
+-- Its glow for party members: made once Your party and the glow are both on; restyled out of combat
+local function partyGlowOn(x) return partyOn(x) and setting(x.def.key, "active", "glow") == true end
+local function partyGlows(x)
+	local def = x.def
+	if not x.glows and x.host and partyGlowOn(x) then
+		x.glows = {}
+		for _, unit in ipairs(PARTY_UNITS) do
+			local site = "party glow " .. def.key .. " " .. unit
+			x.glows[unit] = W.makeClipLook(def.frame, {
+				key = def.key, owner = def.key, invert = true, glowOnly = true, parent = x.host, sensorParent = x.host,
+				unit = unit, filter = def.filter, ids = function() return auraIDs(def) end,
+				candidates = def.candidates and function() return def.candidates(def) end,
+				sites = { container = site, style = site .. " style", filter = site .. " filter" },
+			})
+		end
+	end
+	local on = partyGlowOn(x)
+	for _, look in pairs(x.glows or {}) do
+		look:setup()
+		if not InCombatLockdown() then
+			-- Level with the player's glow (_Effects' host)
+			look:setLevel(def.frame.textFrame:GetFrameLevel() + 11)
+			look:setParts(false, false, false, false, on)
+			look:reshape()
+			look:style()
+		end
+		look:want(on)
+	end
+end
 local function partyLayout()
 	for _, x in ipairs(PARTIES) do
 		makeParty(x)
@@ -540,6 +570,7 @@ local function partyLayout()
 		end
 		partyAlpha(x)
 		partyShown(x)
+		partyGlows(x)
 	end
 end
 -- A party member joined or left: each unit may now be someone else
@@ -551,6 +582,9 @@ local function partyRoster()
 				ns.retryAfterCombat("party refresh", partyRoster)
 			end
 		end
+		for unit, look in pairs(x.glows or {}) do
+			if not look:follow(unit) then ns.retryAfterCombat("party refresh", partyRoster) end
+		end
 	end
 end
 ns.registerPart("party", {
@@ -559,13 +593,16 @@ ns.registerPart("party", {
 	defaults = { party = false },
 	experiment = "Your party",
 	page = { own = { "toggle", name = "party", title = "Your party", label = "Show it",
-		text = "Also shows while a party member has one: the icon only, not who has it.",
+		text = "Also shows while a party member has one, glowing if Pulsing glow is on: no time or pop, and not"
+			.. " who has it.",
 		badge = "Your party", waits = true } },
 	preview = {
 		states = { { "party", "Your party", 15 } },
 		-- The buff part draws its icon alone; with the switch off the HUD shows nothing new
 		render = function(ic, st, def, kit)
-			if st == "party" and setting(def.key, "party") ~= true then kit.idle(ic, def.key) end
+			if st ~= "party" then return end
+			if setting(def.key, "party") ~= true then kit.idle(ic, def.key)
+			else ic:SetGlowShown(setting(def.key, "active", "glow")) end
 		end,
 	},
 })
@@ -730,6 +767,7 @@ function B.applyTimers()
 	for _, x in ipairs(BUFF_BARS) do styleBuffBar(x) end
 	for _, x in ipairs(PARTIES) do
 		for _, slot in pairs(x.slots) do slot:style() end
+		partyGlows(x)
 	end
 end
 
@@ -760,6 +798,7 @@ function B.afterGroups()
 	for _, x in ipairs(BUFF_BARS) do styleBuffBar(x) end
 	for _, x in ipairs(PARTIES) do
 		for _, slot in pairs(x.slots) do slot:style() end
+		partyGlows(x)
 	end
 end
 
@@ -819,7 +858,10 @@ function B.start()
 	ns.registerEvent(ev, "UNIT_AURA", "player")
 	ns.registerEvent(ev, "MIRROR_TIMER_START")
 	ns.registerEvent(ev, "MIRROR_TIMER_STOP")
-	if #PARTIES > 0 then ns.registerEvent(ev, "GROUP_ROSTER_UPDATE") end
+	if #PARTIES > 0 then
+		ns.registerEvent(ev, "GROUP_ROSTER_UPDATE")
+		ns.onCombatEnd(function() for _, x in ipairs(PARTIES) do partyGlows(x) end end)
+	end
 	ev:SetScript("OnEvent", function(_, event, timer, _, _, scale)
 		if event == "GROUP_ROSTER_UPDATE" then return partyRoster() end
 		if event == "UNIT_AURA" then
@@ -865,8 +907,14 @@ function B.debug()
 			if slot.container then made = made + 1 end
 			if slot.err then table.insert(errs, slot.err) end
 		end
-		say("%s party: %s, containers %d of %d%s", x.def.spell, setting(x.def.key, "party") and "on" or "off", made,
-			#PARTY_UNITS, #errs > 0 and (", error: " .. errs[1]) or "")
+		local sensors = 0
+		for _, look in pairs(x.glows or {}) do
+			if look.container then sensors = sensors + 1 end
+			if look.err then table.insert(errs, look.err) end
+		end
+		say("%s party: %s, containers %d of %d, glow sensors %d%s", x.def.spell,
+			setting(x.def.key, "party") and "on" or "off", made, #PARTY_UNITS, sensors,
+			#errs > 0 and (", error: " .. errs[1]) or "")
 	end
 end
 

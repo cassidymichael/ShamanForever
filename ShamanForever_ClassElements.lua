@@ -133,7 +133,7 @@ local function cure(key, spellKey, icon, dispel, what, state, experimental)
 		blurb = "Shows while a " .. what .. " is on you.", procHeader = state, upLabel = state,
 		idleLabel = "Not " .. state:lower(),
 		idleText = "Idle while no " .. what .. " is on you (or your party, with Your party on)",
-		popTip = "When you get one.", glowTip = "While one is on you.",
+		popTip = "When you get one.", glowTip = "While one is on you, or on a party member with Your party on.",
 		castNote = "Only while a " .. what .. " is on you.",
 		defaults = { idleAlpha = 0, active = { pop = true, glow = false } },
 		styles = PROC_SWIPE, experimental = experimental })
