@@ -64,8 +64,6 @@ ns.CLASS.layout = {
 		sizeFollow = false, size = 50,
 		orientation = "horizontal", growth = "forward", spacing = 2,
 		members = { "elementalfocus", "maelstrom", "flurry", "improvedstormstrike" } },
-	{ id = 5, name = "Tremor", point = "CENTER", x = -252 / 1.25, y = 58 / 1.25, scale = 1.25, alpha = 0.9,
-		orientation = "horizontal", growth = "forward", spacing = 2, members = { "tremor" } },
 	{ id = 6, name = "Cooldowns", point = "CENTER", x = -526, y = -60, scale = 1, alpha = 0.8,
 		orientation = "vertical", growth = "forward", spacing = 2,
 		members = { "naturesswiftness", "manatide", "farseer" } },
@@ -88,7 +86,7 @@ ns.CLASS.layout = {
 		members = { "bloodfury", "shattercurse", "berserking", "rapidregeneration", "warstomp",
 			"stoneform", "walkonair", "skysight" } },
 	{ id = 12, name = "Cleanse", point = "CENTER", x = 252 / 1.25, y = 58 / 1.25, scale = 1.25, alpha = 0.9,
-		orientation = "horizontal", growth = "forward", spacing = 2, members = { "curepoison", "curedisease" } },
+		orientation = "horizontal", growth = "forward", spacing = 2, members = { "tremor", "curepoison", "curedisease" } },
 }
 
 -- The art theme: what a class supplies for its icons' colour, art and effects. Every table is
