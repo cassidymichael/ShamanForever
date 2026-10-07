@@ -1,9 +1,8 @@
 -- Maelstrom Weapon options page
 local _, ns = ...
-local E = ns.Elements
 
 local Page, K = ns.Page, ns.Options.kit
-local showWhen, int, px = Page.showWhen, Page.int, Page.px
+local int, px = Page.int, Page.px
 local elementDisplay, idleBlock, styleBlocks = K.elementDisplay, K.idleBlock, K.styleBlocks
 local activeBlock, timerSettings, eopt, eread = K.activeBlock, K.timerSettings, K.eopt, K.eread
 local eslider = K.eslider
@@ -13,24 +12,22 @@ local function buildMaelstrom(p, def)
 	elementDisplay(p, key)
 	idleBlock(p, def)
 	p:header("Stacks")
-	p:checkbox("Stack bar", "One segment per stack.", eopt(p, key, "count", "bar"))
-	local barOn = showWhen(eread(key, "count", "bar"))
-	eslider(p, key, "Bar height", nil, px, barOn, "count", "barHeight")
-	local barColorGet, barColorSet = eopt(p, key, "count", "barColor")
-	p:color("Bar colour", nil, barColorGet, barColorSet, barOn)
-	p:checkbox("Stack number", nil, eopt(p, key, "count", "number"))
-	local numberOn = showWhen(eread(key, "count", "number"))
-	local posGet, posSet = eopt(p, key, "count", "pos")
-	local POS = { { "BOTTOMRIGHT", "Corner" }, { "CENTER", "Centre" } }
-	p:dropdown("Number position", nil, POS, posGet, posSet, numberOn)
-	eslider(p, key, "Number size", nil, int, numberOn, "count", "size")
-	local markGet, markSet = eopt(p, key, "count", "mark")
-	p:checkbox("Colour at five", "The number takes its own colour at five stacks.", markGet, markSet,
-		numberOn)
-	local markColorGet, markColorSet = eopt(p, key, "count", "markColor")
-	p:color("Five colour", nil, markColorGet, markColorSet, showWhen(function()
-		return E.setting(key, "count", "number") and E.setting(key, "count", "mark")
-	end))
+	local bar = p:checkbox("Stack bar", "One segment per stack.", eopt(p, key, "count", "bar"))
+	p:sub(bar, eread(key, "count", "bar"), function()
+		eslider(p, key, "Bar height", nil, px, nil, "count", "barHeight")
+		p:color("Bar colour", nil, eopt(p, key, "count", "barColor"))
+	end)
+	local number = p:checkbox("Stack number", nil, eopt(p, key, "count", "number"))
+	p:sub(number, eread(key, "count", "number"), function()
+		local POS = { { "BOTTOMRIGHT", "Corner" }, { "CENTER", "Centre" } }
+		p:dropdown("Number position", nil, POS, eopt(p, key, "count", "pos"))
+		eslider(p, key, "Number size", nil, int, nil, "count", "size")
+		local mark = p:checkbox("Colour at five", "The number takes its own colour at five stacks.",
+			eopt(p, key, "count", "mark"))
+		p:sub(mark, eread(key, "count", "mark"), function()
+			p:color("Five colour", nil, eopt(p, key, "count", "markColor"))
+		end)
+	end)
 	activeBlock(p, key, { title = "5 stacks",
 		tips = { pop = "The moment it reaches five.", glow = "While at five." } })
 	styleBlocks(p, key, function() timerSettings(p, "Time left", key, "uptime") end)

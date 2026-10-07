@@ -3,7 +3,7 @@ local _, ns = ...
 local E = ns.Elements
 
 local Page, K = ns.Page, ns.Options.kit
-local showWhen, setTip, panelBackdrop = Page.showWhen, Page.setTip, Page.panelBackdrop
+local setTip, panelBackdrop = Page.setTip, Page.panelBackdrop
 local int, px = Page.int, Page.px
 local elementDisplay, styleBlocks, activeBlock = K.elementDisplay, K.styleBlocks, K.activeBlock
 local timerSettings, eopt, eread, eslider = K.timerSettings, K.eopt, K.eread, K.eslider
@@ -151,8 +151,8 @@ local function buildTremor(p)
 	K.idleBlock(p, E.ALL[key].def)
 	p:header("Warn when")
 	p:checkbox("Your target is on the list", nil, opt("tremorTarget"))
-	p:checkbox("A mob on the list is near", "Its nameplate is on screen.", opt("tremorPlates"))
-	p:text("Needs enemy nameplates on.", showWhen(eread(key, "tremorPlates")))
+	local plates = p:checkbox("A mob on the list is near", "Its nameplate is on screen.", opt("tremorPlates"))
+	p:sub(plates, eread(key, "tremorPlates"), function() p:text("Needs enemy nameplates on.") end)
 	p:checkbox("You're feared, charmed or asleep", "And for 10 s after, in case it comes again.",
 		opt("tremorFeared"))
 	p:text("The game hides party members' crowd control, so this covers only you.")

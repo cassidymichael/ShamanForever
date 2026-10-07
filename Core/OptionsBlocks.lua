@@ -774,9 +774,9 @@ end
 local function idleBlock(p, def)
 	local key, choices = def.key, def.idleChoices
 	local function when() return E.setting(key, "idleWhen") end
-	local function never() return choices ~= nil and when() == "never" end
 	p:header("Idle")
 	local hidden = ". At 0% it's hidden and keeps its place in the group."
+	local whenRow
 	if choices then
 		local options, tips = {}, {}
 		for _, c in ipairs(choices) do
@@ -792,18 +792,19 @@ local function idleBlock(p, def)
 			return ""
 		end)
 		local whenGet, whenSet = eopt(p, key, "idleWhen")
-		p:dropdown("Idle when", table.concat(tips, " "), options, whenGet, whenSet, nil, 230)
+		whenRow = p:dropdown("Idle when", table.concat(tips, " "), options, whenGet, whenSet, nil, 230)
 	else
 		p:text((def.idleText or "Idle while it isn't up") .. hidden)
 	end
-	local extra = def.idleExtra
-	if extra then
-		local extraGet, extraSet = eopt(p, key, extra.name, extra.field)
-		p:dropdown(extra.label, extra.tip, extra.choices, extraGet, extraSet,
-			choices and showWhen(function() return not never() end) or nil, 230)
+	local function rows()
+		local extra = def.idleExtra
+		if extra then
+			local extraGet, extraSet = eopt(p, key, extra.name, extra.field)
+			p:dropdown(extra.label, extra.tip, extra.choices, extraGet, extraSet, nil, 230)
+		end
+		eslider(p, key, "Idle opacity", "The icon's opacity while idle.", pct, nil, "idleAlpha")
 	end
-	eslider(p, key, "Idle opacity", "The icon's opacity while idle.", pct,
-		choices and showWhen(function() return not never() end) or nil, "idleAlpha")
+	if whenRow then p:sub(whenRow, function() return when() ~= "never" end, rows) else rows() end
 end
 
 -- The Style section: timers() (its timer blocks), then the style blocks
@@ -983,11 +984,12 @@ local function readyBlock(p, owner, opts)
 	local s = store(p, owner, opts.after)
 	if not s.has("ready") then return end
 	p:header("Ready")
-	check(p, s, "ready", "pop", "Pop", "The moment the cooldown ends.")
-	if opts.blocked and s.has("ready", "blocked") then
-		local get, set = s.opt("ready", "blocked")
-		local popOn = showWhen(s.get("ready", "pop"))
-		p:dropdown(opts.blocked[1], opts.blocked[2], BLOCKED, get, set, popOn, 150)
+	local pop = check(p, s, "ready", "pop", "Pop", "The moment the cooldown ends.")
+	if pop and opts.blocked and s.has("ready", "blocked") then
+		p:sub(pop, s.get("ready", "pop"), function()
+			local get, set = s.opt("ready", "blocked")
+			p:dropdown(opts.blocked[1], opts.blocked[2], BLOCKED, get, set, nil, 150)
+		end)
 	end
 	check(p, s, "ready", "glow", "Pulsing glow", opts.glowTip or "While it's off cooldown.")
 	soundRow(p, s, "ready", "Sound", "The moment the cooldown ends.")
@@ -1040,8 +1042,8 @@ local function ranOutBlock(p, owner, opts)
 	soundRow(p, s, "ended", "Sound when it ends", tipOf(opts, "endSound"))
 end
 
--- expire, then Ran out: opts.afterSecs(s) (rows under Warn in the last), warns() (whether its looks
--- can show; default: Warn in the last isn't off), noun, after
+-- expire, then Ran out: opts.afterSecs(s) (rows of its own first in the run under Warn in the last),
+-- warns() (whether its looks can show; default: Warn in the last isn't off), noun, after
 local function expiringBlock(p, owner, opts)
 	opts = opts or {}
 	local s = store(p, owner, opts.after)
@@ -1049,17 +1051,22 @@ local function expiringBlock(p, owner, opts)
 	p:header("Expiring")
 	local r = s.range("expire", "secs")
 	local secs, setSecs = s.opt("expire", "secs")
-	rangeSlider(p, r, "Warn in the last", "Seconds before it runs out. Zero turns the warning off.",
+	local warnIn = rangeSlider(p, r, "Warn in the last", "Seconds before it runs out. Zero turns the warning off.",
 		function(v) return v == 0 and "Off" or string.format("%d s", v) end, secs, setSecs)
-	if opts.afterSecs then opts.afterSecs(s) end
-	local warns = showWhen(opts.warns or function() return (secs() or 0) > 0 end)
-	lookRows(p, s, "expire", opts, warns)
-	local bar = check(p, s, "expire", "bar", "Bar colour", "The time bar takes this colour in the last seconds.", warns)
-	if bar and s.has("expire", "barColor") then
-		local get, set = s.opt("expire", "barColor")
-		p:color("Colour", nil, get, set, showWhen(s.get("expire", "bar"), warns))
-	end
-	check(p, s, "expire", "text", "Red countdown", "The countdown turns red in the last seconds.", warns)
+	local warns = opts.warns or function() return (secs() or 0) > 0 end
+	p:sub(warnIn, nil, function()
+		if opts.afterSecs then opts.afterSecs(s) end
+		lookRows(p, s, "expire", opts, warns)
+		local bar = check(p, s, "expire", "bar", "Bar colour", "The time bar takes this colour in the last seconds.",
+			warns)
+		if bar and s.has("expire", "barColor") then
+			p:sub(bar, s.get("expire", "bar"), function()
+				local get, set = s.opt("expire", "barColor")
+				p:color("Colour", nil, get, set)
+			end)
+		end
+		check(p, s, "expire", "text", "Red countdown", "The countdown turns red in the last seconds.", warns)
+	end)
 	ranOutBlock(p, owner, opts)
 end
 
@@ -1118,8 +1125,8 @@ local function noneLeftBlock(p, def)
 	lookRows(p, store(p, def.key), "reagent", {})
 end
 
--- Cast states: each the element has, its switch with a link to its style (_CastStates); extras[state](on):
--- rows of its own under the switch, shown while on() is
+-- Cast states: each the element has, its switch with a link to its style (_CastStates); extras[state]():
+-- rows of its own in a run under the switch (not on an element drawn over Blizzard's button: its notes sit there)
 local function castBlocks(p, key, extras)
 	local CS = ns.CastStates
 	for _, state in ipairs(CS.ORDER) do
@@ -1137,10 +1144,11 @@ local function castBlocks(p, key, extras)
 					if v and ns.inCombat() then ns.say("%s waits until combat ends", st.name) end
 				end
 			end
-			styleLink(p, p:checkbox(st.on, tip, get, set), st.part, get)
+			local on = p:checkbox(st.on, tip, get, set)
+			styleLink(p, on, st.part, get)
 			if cover and cover.note then p:text(cover.note) end
 			if cover then p:text("Turned on in combat, it waits until combat ends.", ns.inCombat) end
-			if extras and extras[state] then extras[state](get) end
+			if extras and extras[state] then p:sub(on, get, extras[state]) end
 		end
 	end
 end
@@ -1169,13 +1177,15 @@ end
 local function choiceBlock(p, key, b)
 	p:header(b.title)
 	local get, set = eopt(p, key, b.name)
-	p:dropdown(b.label, b.tip, b.choices, get, set, nil, 220)
+	local menu = p:dropdown(b.label, b.tip, b.choices, get, set, nil, 220)
 	if b.badge then
 		local f = p:row(22)
 		ns.OptionsArt.expBadge(f, b.badge.name):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
 		p:add(f, 22, showWhen(function() return tContains(b.badge.values, get()) end))
 	end
-	if b.unlearned then p:text("Not learned yet.", showWhen(function() return b.unlearned(get()) end)) end
+	if b.unlearned then
+		p:sub(menu, function() return b.unlearned(get()) end, function() p:text("Not learned yet.") end)
+	end
 	if b.text then p:text(b.text) end
 	if b.waits then p:text("Turned on in combat, it waits until combat ends.", ns.inCombat) end
 end

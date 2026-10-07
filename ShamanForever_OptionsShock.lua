@@ -32,8 +32,10 @@ local function buildShock(p, def)
 	local anyOn = {}
 	for _, m in ipairs(SK.MARKS) do
 		local get, set = eopt(p, key, "marks", m.key)
-		p:checkbox(SK.SHOCKS[m.key], nil, get, set)
-		p:text(SK.SHOCKS[m.key] .. ": not learned yet.", function() return get() and not SK.knows(m.key) end)
+		local box = p:checkbox(SK.SHOCKS[m.key], nil, get, set)
+		p:sub(box, get, function()
+			p:text(SK.SHOCKS[m.key] .. ": not learned yet.", function() return not SK.knows(m.key) end)
+		end)
 		table.insert(anyOn, get)
 	end
 	local marksShown = showWhen(function()
@@ -46,12 +48,12 @@ local function buildShock(p, def)
 	eslider(p, key, "Gap", "From the icon, at the default icon size; it grows with the icon.", Page.px, marksShown,
 		"marks", "gap")
 
-	K.castBlocks(p, key, { power = function(on)
+	K.castBlocks(p, key, { power = function()
 		local manaChoices = { { "tracked", "Tracked shock" } }
 		for _, shock in ipairs(SK.ORDER) do table.insert(manaChoices, { shock, SK.SHOCKS[shock] }) end
 		local get, set = eopt(p, key, "manaSpell", nil, respell)
-		p:dropdown("Mana check", nil, manaChoices, get, set, showWhen(on), 180)
-		p:text("The spell whose cost turns the icon blue when you're short of mana.", showWhen(on))
+		p:dropdown("Mana check", nil, manaChoices, get, set, nil, 180)
+		p:text("The spell whose cost turns the icon blue when you're short of mana.")
 	end })
 	readyBlock(p, key)
 	styleBlocks(p, key, function()
