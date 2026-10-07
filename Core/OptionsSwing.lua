@@ -96,7 +96,6 @@ local function build(p)
 		return function(v) c()[key] = v; changed() end
 	end
 	local function custom() return c().colorBy == "custom" end
-	local text = showWhen(get("countdown"))
 
 	p:hero("swing")
 	K.behaviourSection(p)
@@ -122,18 +121,23 @@ local function build(p)
 		local e = E.ALL[key]
 		table.insert(colors, { key, e and e.barColor.label or "Custom" })
 	end
-	p:dropdown("Colour", nil, colors, get("colorBy"), set("colorBy"), nil, 160)
-	p:text(function()
-		local e = E.ALL[c().colorBy]
-		return e and e.barColor.text or ""
-	end, showWhen(function() return not custom() end))
-	p:color("Custom colour", nil, get("color"), set("color"), showWhen(custom))
+	local colour = p:dropdown("Colour", nil, colors, get("colorBy"), set("colorBy"), nil, 160)
+	p:sub(colour, nil, function()
+		p:text(function()
+			local e = E.ALL[c().colorBy]
+			return e and e.barColor.text or ""
+		end, function() return not custom() end)
+		p:color("Custom colour", nil, get("color"), set("color"), custom)
+	end)
 
 	p:header("Countdown")
-	p:checkbox("Countdown text", "The time to the next swing, on the bar.", get("countdown"), set("countdown"))
-	p:dropdown("Position", nil, TEXT_POS, get("countdownPos"), set("countdownPos"), text, 160)
-	slider(p, R.countdownSize, "Text size", nil, int, get("countdownSize"), set("countdownSize"), text)
-	p:color("Text colour", nil, get("countdownColor"), set("countdownColor"), text)
+	local text = p:checkbox("Countdown text", "The time to the next swing, on the bar.", get("countdown"),
+		set("countdown"))
+	p:sub(text, get("countdown"), function()
+		p:dropdown("Position", nil, TEXT_POS, get("countdownPos"), set("countdownPos"), nil, 160)
+		slider(p, R.countdownSize, "Text size", nil, int, get("countdownSize"), set("countdownSize"))
+		p:color("Text colour", nil, get("countdownColor"), set("countdownColor"))
+	end)
 
 	if #SW.MARKS > 0 then
 		p:header("Marks")
