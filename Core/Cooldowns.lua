@@ -213,23 +213,32 @@ end
 -- ready beats a false one.
 local READY_GRACE, ARM_AFTER_CAST = 0.5, 1.5
 -- Still armed, still ready and its tracker still running once the grace is over: the cooldown ended
--- early (a reset), so this is its ready. Only for rows with readyAtReset
+-- early (a reset), so this is its ready; a GCD alone counts as ready. Only for rows with readyAtReset
 local function endedEarly(f, spellID, by)
 	local r = f.ready
-	if not r.armed or r.by ~= by or not f.ownCd:IsShown() or ns.zoning() or ns.cantAct() then return end
-	if plainCooldown(spellID) ~= "ready" then return end
-	r.armed, r.by = nil, nil
-	r.at = GetTime()
-	for _, fn in ipairs(r.fns) do fn() end
+	if not r.armed or r.by ~= by then return end
+	local st = plainCooldown(spellID)
+	if not f.ownCd:IsShown() or ns.zoning() or ns.cantAct() then
+		r.armed, r.by = nil, nil
+	elseif st == "ready" or st == "gcd" then
+		r.armed, r.by = nil, nil
+		r.at = GetTime()
+		for _, fn in ipairs(r.fns) do fn() end
+	else
+		r.by = nil   -- a later read of its end may try again
+	end
+end
+-- Its own cooldown read over: the tracker's end within the grace is its ready, a later one isn't
+local function startGrace(f, spellID)
+	local r = f.ready
+	local by = GetTime() + READY_GRACE
+	r.by = by
+	if r.atReset then C_Timer.After(READY_GRACE, function() endedEarly(f, spellID, by) end) end
 end
 local function noteReady(f, st, inEvent, spellID)
 	local r = f.ready
 	if st == "ready" then
-		if r.armed and not r.by then
-			local by = GetTime() + READY_GRACE
-			r.by = by
-			if r.atReset then C_Timer.After(READY_GRACE, function() endedEarly(f, spellID, by) end) end
-		end
+		if r.armed and not r.by then startGrace(f, spellID) end
 	elseif st == "own" and inEvent and r.castAt and GetTime() - r.castAt <= ARM_AFTER_CAST then
 		r.armed, r.by, r.castAt = true, nil, nil
 	end
