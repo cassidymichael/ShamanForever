@@ -382,8 +382,12 @@ local function layout()
 	-- A mark that's off is hidden, not only faded: a shown container still follows every aura change
 	for _, m in pairs(marks) do
 		makeMark(m)
-		local slot = m.slot
-		if slot.holder then slot.holder:SetShown(markOn(m.key)) end
+		local on, slot = markOn(m.key), m.slot
+		if on and m.refilterDue then
+			m.refilterDue = false
+			slot:refilter()
+		end
+		if slot.holder then slot.holder:SetShown(on) end
 		slot:styleNow()
 		markAlpha(m)
 	end
@@ -450,6 +454,14 @@ movable = ns.Positioning.mover({ frame = f, label = "Swing timer", cfg = cfg, ra
 	end })
 
 SW.afterGroups = layout
+
+-- A mark that's off refilters as it's back (layout)
+function SW.resolve()
+	for _, m in pairs(marks) do
+		m.refilterDue = not markOn(m.key)
+		if not m.refilterDue then m.slot:refilter() end
+	end
+end
 
 function SW.start()
 	local ev = CreateFrame("Frame")
