@@ -628,16 +628,19 @@ local function build(p)
 	p:header("Totem theme")
 	local skins = {}
 	for _, e in ipairs(TB.skin.LIST) do table.insert(skins, { e.key, e.name }) end
-	p:dropdown("Theme", "How the whole bar is drawn.", skins, function() return TB.skin.current().key end,
-		tset("skin"), nil, 190)
+	local themeRow = p:dropdown("Theme", "How the whole bar is drawn.", skins,
+		function() return TB.skin.current().key end, tset("skin"), nil, 190)
 	local expRow = p:row(22)
 	ns.OptionsArt.expBadge(expRow, "Totem themes"):SetPoint("LEFT", expRow, "LEFT", LABEL_W, 0)
 	p:add(expRow, 22, TB.skin.experimental)
 	local function theme(key) return function() return TB.skin.current().key == key end end
-	p:checkbox("Tray", "A dark tray edged in gold behind the slots.", tget("pixelTray"), tset("pixelTray"),
-		theme("pixel"))
-	tslider("Edge thickness", "The element-coloured edge round each slot, in pixels.", px, "pixelEdge", theme("pixel"))
-	p:dropdown("Plinth", nil, TB.skin.PLINTHS, tget("stonePlinth"), tset("stonePlinth"), theme("stone"), 140)
+	p:sub(themeRow, nil, function()
+		p:checkbox("Tray", "A dark tray edged in gold behind the slots.", tget("pixelTray"), tset("pixelTray"),
+			theme("pixel"))
+		tslider("Edge thickness", "The element-coloured edge round each slot, in pixels.", px, "pixelEdge",
+			theme("pixel"))
+		p:dropdown("Plinth", nil, TB.skin.PLINTHS, tget("stonePlinth"), tset("stonePlinth"), theme("stone"), 140)
+	end)
 
 	p.gate = full
 	K.gcdBlock(p, "totembar")
