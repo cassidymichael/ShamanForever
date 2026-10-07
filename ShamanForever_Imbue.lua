@@ -28,7 +28,7 @@ E.register("imbue", { frame = imbue, label = "Weapon Imbue",
 		showUnderMins = 5,   -- time left shows under this (0: never)
 		warn = { grey = true, ring = true, fade = true, glow = true, pop = true, sound = "none" },
 		expire = { glow = false },   -- while running low (under showUnderMins)
-		mana = { on = false } },
+		mana = { on = true } },
 	ranges = { showUnderMins = { 0, 30, 1 } },
 	styles = { uptime = { text = true, textSize = 16, textColor = { 1, 1, 1, 1 }, textPos = "center", swipe = false,
 		bar = false } },

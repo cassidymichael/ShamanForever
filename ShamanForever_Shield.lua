@@ -48,7 +48,7 @@ E.register("shield", { frame = shield, label = "Shields", paint = function(t) t:
 		count = { bar = true, barHeight = 8, barColor = { 0.42, 0.84, 1, 1 }, number = false, pos = "CENTER",
 			size = 20, mark = false, markColor = { 1, 0.25, 0.2, 1 } },
 		warn = { grey = true, ring = true, fade = false, tint = false, glow = true, sound = "none" },
-		mana = { on = false } },
+		mana = { on = true } },
 	ranges = { count = { size = { 8, 64, 1 }, barHeight = { 1, 20, 1 } } },
 	choices = { track = TRACK, count = { pos = COUNT_POS } },
 	styles = { glow = { look = "soft" },
