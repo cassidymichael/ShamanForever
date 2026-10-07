@@ -44,7 +44,7 @@ local def = { key = KEY, spellKey = "tremor", icon = 136108, school = "earth", d
 	defaults = { idleAlpha = 0, idleWhen = "nowarning", tremorTarget = true, tremorPlates = true, tremorFeared = false,
 		active = { pop = true, glow = true, text = true, sound = "none" },
 		wordSize = 16, wordColor = CopyTable(WORD_COLOR), wordPos = "below", wordX = 0, wordY = 0,
-		mana = { on = false } },
+		mana = { on = true } },
 	ranges = { wordSize = { 8, 40, 1 }, wordX = { -100, 100, 1 }, wordY = { -100, 100, 1 } },
 	-- Its page's Idle: value, name, sentence, tip
 	idleChoices = {

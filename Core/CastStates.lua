@@ -366,7 +366,7 @@ local function part(state, order)
 	local st = STATES[state]
 	return {
 		kinds = { cooldown = {}, buff = {} },
-		defaults = { [st.saved] = { on = false } },
+		defaults = { [st.saved] = { on = state == "power" } },
 		page = { cast = { [state] = true } },
 		preview = {
 			states = { { state, st.name, order } },

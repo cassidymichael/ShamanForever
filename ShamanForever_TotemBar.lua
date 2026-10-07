@@ -70,7 +70,7 @@ TB.DEFAULTS = {
 	expire = { secs = 10, grey = false, ring = false, fade = true, glow = false, over = {} },
 	ended = { pop = true, sound = "none" },
 	killed = { flash = true, pop = true, glow = true, mark = true },
-	mana = { on = false },   -- a slot's pick it can't pay for, in Global's style for it
+	mana = { on = true },   -- a slot's pick it can't pay for, in Global's style for it
 	range = true,
 	rangeHeight = 5,
 	rangeIn = { 0.2, 0.8, 0.25, 0 },
