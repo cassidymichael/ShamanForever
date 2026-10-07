@@ -1143,7 +1143,7 @@ local function noneLeftBlock(p, def)
 end
 
 -- Cast states: each the element has, its switch with a link to its style (_CastStates); extras[state]():
--- rows of its own in a run under the switch (not on an element drawn over Blizzard's button: its notes sit there)
+-- rows of its own in a run under the switch, above the notes of an element drawn over Blizzard's button
 local function castBlocks(p, key, extras)
 	local CS = ns.CastStates
 	for _, state in ipairs(CS.ORDER) do
@@ -1163,9 +1163,9 @@ local function castBlocks(p, key, extras)
 			end
 			local on = p:checkbox(st.on, tip, get, set)
 			styleLink(p, on, st.part, get)
+			if extras and extras[state] then p:sub(on, get, extras[state]) end
 			if cover and cover.note then p:text(cover.note) end
 			if cover then p:text("Turned on in combat, it waits until combat ends.", ns.inCombat) end
-			if extras and extras[state] then p:sub(on, get, extras[state]) end
 		end
 	end
 end
