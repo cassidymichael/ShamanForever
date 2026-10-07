@@ -87,7 +87,7 @@ local function choiceRows(p, r, part, field, label, tip, shown)
 		for _, e in ipairs(S.offered(part, field, key())) do table.insert(out, { e.key, e.name }) end
 		return out
 	end
-	p:dropdown(label, tip, list, key, set, shown, 190, function(_, root)
+	local row = p:dropdown(label, tip, list, key, set, shown, 190, function(_, root)
 		root:SetScrollMode(400)
 		for i, sec in ipairs(S.sections(part, field, key())) do
 			if sec.name then
@@ -102,7 +102,7 @@ local function choiceRows(p, r, part, field, label, tip, shown)
 	local f = p:row(22)
 	ns.OptionsArt.expBadge(f, S.field(part, field).name):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
 	p:add(f, 22, showWhen(function() return now().experimental end, shown))
-	return now
+	return now, row
 end
 
 local function reloadLine(p, keys, verb, shown)
@@ -174,7 +174,6 @@ local function borderRows(p, owner, after, label, shown)
 	after = after or relayout
 	local r = styleRows(p, owner, "border", after)
 	if owner ~= nil then followRow(p, owner, "border", after, label, shown) end
-	local bordered = function() return r.own() and r.style().show end
 	local look
 	local tiles = tilesOf(owner)
 	if not tiles or tiles.icon then
@@ -183,12 +182,18 @@ local function borderRows(p, owner, after, label, shown)
 		local sync = previewTiles(f, owner, LABEL_W + 24, function() return look().bySchool end)
 		p:add(f, 52, showWhen(r.own, shown), sync)
 	end
-	p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"), showWhen(r.own, shown))
-	look = choiceRows(p, r, "border", "look", "Border style", nil, showWhen(bordered, shown))
-	local function uses(field) return function() return bordered() and ns.StyleArt.uses(look(), field) end end
-	styleSlider(p, "border", "size", "Border size", "Thickness in screen pixels.", px, r.get("size"), r.set("size"),
-		showWhen(uses("size"), shown))
-	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), showWhen(uses("color"), shown))
+	local border = p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"),
+		showWhen(r.own, shown))
+	p:sub(border, function() return r.style().show end, function()
+		local menu
+		look, menu = choiceRows(p, r, "border", "look", "Border style")
+		local function uses(field) return function() return ns.StyleArt.uses(look(), field) end end
+		p:sub(menu, nil, function()
+			styleSlider(p, "border", "size", "Border size", "Thickness in screen pixels.", px, r.get("size"),
+				r.set("size"), uses("size"))
+			p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), uses("color"))
+		end)
+	end)
 end
 
 -- Art frames: part "frame" round each icon, "groupframe" round a group or bar.
@@ -268,7 +273,7 @@ local function frameRows(p, owner, part, after, opts)
 			end
 		end
 	end
-	p:dropdown(fields.name, nil, function()
+	local styleRow = p:dropdown(fields.name, nil, function()
 		local out = {}
 		for _, e in ipairs(offered(showAll)) do table.insert(out, { e.key, e.name }) end
 		return out
@@ -276,59 +281,60 @@ local function frameRows(p, owner, part, after, opts)
 	local exp = p:row(22)
 	ns.OptionsArt.expBadge(exp, fields.name):SetPoint("LEFT", exp, "LEFT", LABEL_W, 0)
 	p:add(exp, 22, showWhen(function() return look().experimental end, own))
-	p:checkbox("Show all styles", "Also styles made for something else.", function() return showAll end,
-		function(v) showAll = v; OP.refresh() end,
-		showWhen(function() return #offered(true) > #offered(false) end, own))
-	local tints = showWhen(function() return framed() and look().uses.color end, own)
-	p:color("Art frame colour", "Tints the art. White keeps its own colours.", r.get("color"), r.set("color"), tints, true)
-	styleSlider(p, part, "alpha", "Art frame opacity", nil, pct, r.get("alpha"), r.set("alpha"), showWhen(framed, own))
-	if part == "frame" and owner ~= nil then
-		-- The spacing a style's art needs to clear its neighbours; art drawn under them needs none
-		local function room()
-			local o, l = resolve(owner), look()
-			if l.layer == "under" or not FR.usable(l) then return nil end
-			local g = G.of(o)
-			if not (g and #g.members > 1) then return nil end
-			local rc, size = l.drawn or l.reach, G.size(g)
-			local n = g.orientation == "vertical" and rc.top + rc.bottom or rc.left + rc.right
-			n = math.ceil(n * size)
-			return n > 0 and n or nil
+	p:sub(styleRow, nil, function()
+		p:checkbox("Show all styles", "Also styles made for something else.", function() return showAll end,
+			function(v) showAll = v; OP.refresh() end, function() return #offered(true) > #offered(false) end)
+		local function tints() return framed() and look().uses.color end
+		p:color("Art frame colour", "Tints the art. White keeps its own colours.", r.get("color"), r.set("color"), tints,
+			true)
+		styleSlider(p, part, "alpha", "Art frame opacity", nil, pct, r.get("alpha"), r.set("alpha"), framed)
+		if part == "frame" and owner ~= nil then
+			-- The spacing a style's art needs to clear its neighbours; art drawn under them needs none
+			local function room()
+				local o, l = resolve(owner), look()
+				if l.layer == "under" or not FR.usable(l) then return nil end
+				local g = G.of(o)
+				if not (g and #g.members > 1) then return nil end
+				local rc, size = l.drawn or l.reach, G.size(g)
+				local n = g.orientation == "vertical" and rc.top + rc.bottom or rc.left + rc.right
+				n = math.ceil(n * size)
+				return n > 0 and n or nil
+			end
+			p:text(function()
+				local n = room() or 0
+				if n > P.GROUP_RANGES.spacing[2] then return "Its art runs over its neighbours at any spacing." end
+				return string.format("Needs about %d spacing in its group to clear its neighbours.", n)
+			end, function() return room() ~= nil end)
 		end
-		p:text(function()
-			local n = room() or 0
-			if n > P.GROUP_RANGES.spacing[2] then return "Its art runs over its neighbours at any spacing." end
-			return string.format("Needs about %d spacing in its group to clear its neighbours.", n)
-		end,
-			showWhen(function() return room() ~= nil end, own))
-	end
-	local sp = opts.spacing
-	if sp then
-		local function fit()
-			local l = look()
-			if l.none or not FR.usable(l) then return nil end
-			local n = FR.fitSpacing(l, sp.size())
-			return n and math.floor(n + 0.5)
+		local sp = opts.spacing
+		if sp then
+			local function fit()
+				local l = look()
+				if l.none or not FR.usable(l) then return nil end
+				local n = FR.fitSpacing(l, sp.size())
+				return n and math.floor(n + 0.5)
+			end
+			local f = p:row(28)
+			f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+			f.text:SetTextColor(0.72, 0.72, 0.72)
+			f.text:SetPoint("LEFT", 4, 0)
+			local use = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+			use:SetSize(60, 22)
+			use:SetText("Use")
+			use:SetPoint("LEFT", f.text, "RIGHT", 10, 0)
+			use:SetScript("OnClick", function()
+				local n = fit()
+				if n then sp.set(math.min(math.max(n, sp.min), sp.max)) end
+			end)
+			setTip(use, "Use", "Sets Spacing to this.")
+			p:add(f, 28, function() return fit() ~= nil end, function()
+				local n = fit() or 0
+				f.text:SetText(string.format("Fits at Spacing %d.", n))
+				use:SetEnabled(sp.get() ~= n and (not sp.enabled or sp.enabled()))
+			end)
 		end
-		local f = p:row(28)
-		f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-		f.text:SetTextColor(0.72, 0.72, 0.72)
-		f.text:SetPoint("LEFT", 4, 0)
-		local use = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-		use:SetSize(60, 22)
-		use:SetText("Use")
-		use:SetPoint("LEFT", f.text, "RIGHT", 10, 0)
-		use:SetScript("OnClick", function()
-			local n = fit()
-			if n then sp.set(math.min(math.max(n, sp.min), sp.max)) end
-		end)
-		setTip(use, "Use", "Sets Spacing to this.")
-		p:add(f, 28, showWhen(function() return fit() ~= nil end, own), function()
-			local n = fit() or 0
-			f.text:SetText(string.format("Fits at Spacing %d.", n))
-			use:SetEnabled(sp.get() ~= n and (not sp.enabled or sp.enabled()))
-		end)
-	end
-	if opts.note then p:text(opts.note, showWhen(framed, own)) end
+		if opts.note then p:text(opts.note, framed) end
+	end)
 end
 
 -- Whether a bar draws a group frame of its own
@@ -446,20 +452,23 @@ local function popBlock(p, owner, kind)
 	end)
 	if isElement(owner) then popSchoolRow(p, owner, showWhen(bySchool)) end
 	if colored then
-		local color = choiceRows(p, r, "pop", "colorBy", "Colour", ns.CLASS.help.popColour, own)
-		p:text("By school suits this burst.",
-			showWhen(function() return color().key == "event" and burst().bySchool end, own))
+		local color, colorRow = choiceRows(p, r, "pop", "colorBy", "Colour", ns.CLASS.help.popColour, own)
+		p:sub(colorRow, function() return color().key == "event" and burst().bySchool end, function()
+			p:text("By school suits this burst.")
+		end)
 	end
 	choiceRows(p, r, "pop", "flash", "Flash", "Over the icon.", own)
 	local axis = ns.THEME.axis
-	choiceRows(p, r, "pop", "burst", "Burst", "Around the icon. " .. axis.name .. " effect: each " .. axis.lower
-		.. " its own.", own)
-	styleSlider(p, "pop", "reach", "Reach", "How far the burst spreads.", pct, r.get("reach"), r.set("reach"),
-		showWhen(function() return burst().uses.reach end, own))
-	local motion = choiceRows(p, r, "pop", "motion", "Motion", "How the icon moves.", own)
-	local moves = showWhen(function() return motion().uses.size end, own)
-	styleSlider(p, "pop", "size", "Motion distance", "How far it grows, hops or shakes.", pct, r.get("size"),
-		r.set("size"), moves)
+	local _, burstRow = choiceRows(p, r, "pop", "burst", "Burst", "Around the icon. " .. axis.name .. " effect: each "
+		.. axis.lower .. " its own.", own)
+	p:sub(burstRow, function() return burst().uses.reach end, function()
+		styleSlider(p, "pop", "reach", "Reach", "How far the burst spreads.", pct, r.get("reach"), r.set("reach"))
+	end)
+	local motion, motionRow = choiceRows(p, r, "pop", "motion", "Motion", "How the icon moves.", own)
+	p:sub(motionRow, function() return motion().uses.size end, function()
+		styleSlider(p, "pop", "size", "Motion distance", "How far it grows, hops or shakes.", pct, r.get("size"),
+			r.set("size"))
+	end)
 	styleSlider(p, "pop", "speed", "Speed", nil, pct, r.get("speed"), r.set("speed"), own)
 	if owner == nil then ownLine(p, "pop") end
 end
@@ -479,18 +488,22 @@ local function castStyleBlock(p, owner, state, cover)
 	if cover and cover.note then p:text(cover.note) end
 	local ranged = owner == nil or CS.has(owner, "range")
 	local own = showWhen(r.own)
-	local function uses(field)
-		return showWhen(function()
-			local v = r.style().look
-			return cover or v == field or v == "both"
-		end, own)
+	if cover then
+		styleSlider(p, part, "overlay", "Overlay", nil, pct, r.get("overlay"), r.set("overlay"), own)
+	else
+		local showAs = p:dropdown("Show as", state == "power" and ranged and "Out of range wins over this." or nil,
+			CAST_LOOKS, r.get("look"), r.set("look"), own, 140)
+		local function uses(field)
+			return function()
+				local v = r.style().look
+				return v == field or v == "both"
+			end
+		end
+		p:sub(showAs, nil, function()
+			styleSlider(p, part, "overlay", "Overlay", nil, pct, r.get("overlay"), r.set("overlay"), uses("overlay"))
+			styleSlider(p, part, "tint", "Tint", nil, pct, r.get("tint"), r.set("tint"), uses("tint"))
+		end)
 	end
-	if not cover then
-		p:dropdown("Show as", state == "power" and ranged and "Out of range wins over this." or nil, CAST_LOOKS,
-			r.get("look"), r.set("look"), own, 140)
-	end
-	styleSlider(p, part, "overlay", "Overlay", nil, pct, r.get("overlay"), r.set("overlay"), uses("overlay"))
-	if not cover then styleSlider(p, part, "tint", "Tint", nil, pct, r.get("tint"), r.set("tint"), uses("tint")) end
 	if state == "power" then
 		styleSlider(p, part, "ring", "Ring", ranged and "The blue ring, shown even when out of range." or "The blue ring.",
 			pct, r.get("ring"), r.set("ring"), own)
@@ -524,12 +537,14 @@ local function textBlock(p, owner, after)
 	local function problem() return ns.Media.fontProblem(r.style().font) end
 	-- Remade only when the font list is new: a repaint asks for it every time
 	local fonts, choices
-	p:dropdown("Font", nil, function()
+	local font = p:dropdown("Font", nil, function()
 		local now = ns.Media.fonts(r.style().font)
 		if now ~= fonts then fonts, choices = now, fontChoices(now) end
 		return choices
 	end, r.get("font"), r.set("font"), own, 200)
-	p:text(function() return problem() or "" end, showWhen(function() return r.own() and problem() ~= nil end))
+	p:sub(font, function() return problem() ~= nil end, function()
+		p:text(function() return problem() or "" end)
+	end)
 	p:dropdown("Outline", nil, ns.Media.OUTLINES, r.get("outline"), r.set("outline"), own, 160)
 	p:checkbox("Shadow", "A dark shadow under the text.", r.get("shadow"), r.set("shadow"), own)
 	if owner == nil then ownLine(p, "text") end
@@ -542,7 +557,7 @@ local function barRows(p, owner, after)
 	local own = showWhen(r.own)
 	local c = ns.THEME.color[ns.THEME.sample]
 	local bars, choices
-	p:dropdown("Texture", nil, function()
+	local texture = p:dropdown("Texture", nil, function()
 		local now = ns.Media.bars(owner)
 		if now == bars then return choices end
 		local out = {}
@@ -560,7 +575,9 @@ local function barRows(p, owner, after)
 		return out
 	end, r.get("texture"), r.set("texture"), own, 200)
 	local function problem() return ns.Media.barProblem(owner) end
-	p:text(function() return problem() or "" end, showWhen(function() return r.own() and problem() ~= nil end))
+	p:sub(texture, function() return problem() ~= nil end, function()
+		p:text(function() return problem() or "" end)
+	end)
 end
 local function barBlock(p)
 	p:header("Bar texture")
