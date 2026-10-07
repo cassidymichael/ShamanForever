@@ -179,6 +179,8 @@ function Page:add(frame, height, shown, refresh)
 	return frame
 end
 
+-- The rows build() adds, indented under the row parent (added before them) on a rule, shown while it shows
+-- and active() is true; active nil: each row says when it shows (a menu's rows for some of its choices)
 function Page:sub(parent, active, build)
 	local parentItem
 	for i = #self.items, 1, -1 do
@@ -341,7 +343,7 @@ function Page:paint()
 		local show = not (b and not it.head and b.head.visible and isFolded(b))
 		show = show and (not it.shown or it.shown())
 		local sub = it.sub
-		if show and sub then show = sub.parent.visible and sub.active() and true or false end
+		if show and sub then show = sub.parent.visible and (not sub.active or sub.active()) and true or false end
 		it.visible = show
 		it.frame:SetShown(show)
 		if show then
