@@ -313,9 +313,10 @@ function W.noMouse(b)
 end
 
 -- opts (required: key, the element; slot, its name; ids() or candidates(); sites.container, .style, .filter;
--- onError(err)): unit (default player), filter (default HELPFUL), name, level (over the icon's text layer
--- +5), extras ({ key, init(slot, button) }: more slots on its container, their buttons over its own),
--- sites.bar, onButton(slot, button, cd), onStyle(slot, size).
+-- onError(err)): unit (default player), filter (default HELPFUL), name, level (over levelFrom(), default
+-- the icon's text layer +5), size() (width and height, default the element's icon; slot.size and
+-- onStyle's size its width), extras ({ key, init(slot, button) }: more slots on its container, their
+-- buttons over its own), sites.bar, onButton(slot, button, cd), onStyle(slot, size).
 -- Its container: parent (default frame), or layer: in a holder of its own on that layer over the icon
 -- (slot.holder; frame.effects stays at full over an idle icon, frame fades with it).
 -- Its button: the aura's picture (ownIcon(): the element's), host(slot, button) the frame its parts go on,
@@ -323,7 +324,8 @@ end
 -- picture, the icon keeps its own; ownIcon and host unused, its time left on the icon (anchor default
 -- frame) sharing the icon's cooldown (dual unless false). With host its time bar stays in the icon.
 -- setup() makes it once (if it waits, it doesn't call back); Blizzard makes the buttons inside it, where
--- they are set up (a noIcon one styled too). It sets frame.auraButton: the layout waits for its restyle.
+-- they are set up (a noIcon one styled too). It sets frame.auraButton, the layout waiting for its restyle,
+-- unless noLayoutWait (frame isn't an element's icon).
 -- setup's error (slot.err, the container hidden) is told to onError(err); a button's set-up's is noted under
 -- sites.container with " button" or the extra's key added.
 -- Then style() or styleNow() and refilter(), each waiting as its comment says; fade(site, alpha), describe().
@@ -332,6 +334,18 @@ function W.makeAuraSlot(frame, opts)
 	-- A host of the caller's may clip the button's parts to the icon
 	if opts.host and not opts.noTimer then ns.Timer.keepIn(opts.key) end
 	return setmetatable({ frame = frame, opts = opts }, AuraSlot)
+end
+
+local function slotSize(o)
+	if o.size then return o.size() end
+	local size = ns.Elements.sizeOf(o.key)
+	return size, size
+end
+-- The level its level and its extras' count from
+local function baseLevel(slot)
+	local o = slot.opts
+	if o.levelFrom then return o.levelFrom() end
+	return slot.frame.textFrame:GetFrameLevel() + 5
 end
 
 -- Its time left on parent, driven by the button; a client that refuses the time bar gets none rather than
@@ -350,9 +364,9 @@ end
 
 local function initAuraButton(slot, button)
 	local o = slot.opts
-	local size = ns.Elements.sizeOf(o.key)
-	button:SetSize(size, size)
-	slot.size = size
+	local w, h = slotSize(o)
+	button:SetSize(w, h)
+	slot.size = w
 	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
 	W.noMouse(button)
 	local host = o.host and o.host(slot, button) or button
@@ -393,8 +407,7 @@ local function initOverlayButton(slot, button)
 end
 
 local function initExtraButton(slot, x, button)
-	local size = ns.Elements.sizeOf(slot.opts.key)
-	button:SetSize(size, size)
+	button:SetSize(slotSize(slot.opts))
 	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
 	W.noMouse(button)
 	slot.extras = slot.extras or {}
@@ -427,7 +440,7 @@ function AuraSlot:setup()
 	if ns.deferWhileAurasSecret(o.sites.container, function() self:setup() end) then return end
 	local filters = candidates(o)
 	local ok, err = pcall(function()
-		local size, parent = ns.Elements.sizeOf(o.key), o.parent or f
+		local parent = o.parent or f
 		if o.layer then
 			self.holder = CreateFrame("Frame", nil, o.layer)
 			self.holder:SetAllPoints(f)
@@ -437,14 +450,15 @@ function AuraSlot:setup()
 		c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
 		-- A picture's buttons are made at its level; a noIcon one is placed by its first restyle
 		if not o.noIcon then
-			c:SetSize(size, size)
+			c:SetSize(slotSize(o))
 			c:SetFrameStrata(f:GetFrameStrata())
-			c:SetFrameLevel(f.textFrame:GetFrameLevel() + 5 + (o.level or 0))
+			c:SetFrameLevel(baseLevel(self) + (o.level or 0))
 		end
 		c:SetUnit(o.unit or "player")
 		pcall(c.EnableMouse, c, false)   -- unlocked drags start on the group frame underneath
 		self.container = c
-		f.auraButton = true   -- the layout waits while it can't restyle the button (layoutElements)
+		-- The layout waits while it can't restyle the button (layoutElements)
+		if not o.noLayoutWait then f.auraButton = true end
 		local init = o.noIcon and initOverlayButton or initAuraButton
 		c:AddAuraSlot(o.slot, o.filter or "HELPFUL", {
 			candidateFilters = filters,
@@ -485,24 +499,25 @@ function AuraSlot:styleNow()
 	local o = self.opts
 	if ns.deferWhileAurasSecret(o.sites.style, function() self:styleNow() end) then return end
 	local ok = ns.try(o.sites.style, function()
-		local size, f, c = ns.Elements.sizeOf(o.key), self.frame, self.container
-		c:SetSize(size, size)
+		local w, h = slotSize(o)
+		local f, c, base = self.frame, self.container, baseLevel(self)
+		c:SetSize(w, h)
 		c:SetFrameStrata(f:GetFrameStrata())
-		c:SetFrameLevel(f.textFrame:GetFrameLevel() + 5 + (o.level or 0))
+		c:SetFrameLevel(base + (o.level or 0))
 		for i, x in ipairs(o.extras or {}) do
 			local b = self.extras and self.extras[x.key]
 			if b then
-				b:SetSize(size, size)
-				b:SetFrameLevel(f.textFrame:GetFrameLevel() + 5 + 2 * i + 2)
+				b:SetSize(w, h)
+				b:SetFrameLevel(base + 2 * i + 2)
 			end
 		end
 		if not self.button then return end
-		self.button:SetSize(size, size)
-		self.size = size
+		self.button:SetSize(w, h)
+		self.size = w
 		-- Own tries: a style or timer the button refuses mustn't stop what follows (the caller's parts).
-		if not o.noIcon then ns.try(o.sites.style .. ": style", ns.StyleArt.auraStyle, self, size) end
+		if not o.noIcon then ns.try(o.sites.style .. ": style", ns.StyleArt.auraStyle, self, w) end
 		if self.timer then ns.try(o.sites.style .. ": timer", self.timer.apply, self.timer) end
-		if o.onStyle then o.onStyle(self, size) end
+		if o.onStyle then o.onStyle(self, w) end
 	end)
 	if not ok then ns.retryAfterCombat(o.sites.style, function() self:styleNow() end) end
 end
