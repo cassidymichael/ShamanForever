@@ -513,12 +513,12 @@ local function build(p)
 	p.gate = full
 	p:header("Totem not down")
 	local look = p:dropdown("Show as", "How a slot shows while its totem isn't down.",
-		{ { "pick", "Your pick" }, { "frame", "Element colour" }, { "blank", "Blank" } }, tget("empty"), tset("empty"), nil,
+		{ { "pick", "Your pick" }, { "frame", "School colour" }, { "blank", "Blank" } }, tget("empty"), tset("empty"), nil,
 		180)
 	p:sub(look, function() return c().empty == "pick" end, function()
 		p:checkbox("Greyed", "Off: the pick in colour.", tget("idleGrey"), tset("idleGrey"))
 		tslider("Opacity", nil, pct, "idleAlpha")
-		p:text("With No totem picked, the slot shows its element colour.")
+		p:text("With No totem picked, the slot shows its school colour.")
 	end)
 
 	p:header("Different totem down")
@@ -637,7 +637,7 @@ local function build(p)
 	p:sub(themeRow, nil, function()
 		p:checkbox("Tray", "A dark tray edged in gold behind the slots.", tget("pixelTray"), tset("pixelTray"),
 			theme("pixel"))
-		tslider("Edge thickness", "The element-coloured edge round each slot, in pixels.", px, "pixelEdge",
+		tslider("Edge thickness", "The school-coloured edge round each slot, in pixels.", px, "pixelEdge",
 			theme("pixel"))
 		p:dropdown("Plinth", nil, TB.skin.PLINTHS, tget("stonePlinth"), tset("stonePlinth"), theme("stone"), 140)
 	end)
