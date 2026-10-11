@@ -300,9 +300,9 @@ local FIRE_LEFT = 12
 ns.registerPart("needsTotem", {
 	kind = "cooldown", after = "readyGlow",
 	defaults = { warn = { grey = true, ring = false, fade = false },
-		ready = { glow = false, blocked = "grey" } },
+		ready = { glow = false, blocked = "grey" }, idleKeep = { ready = false } },
 	glow = true,
-	idle = { choices = FIRE_NOVA_CHOICES },
+	idle = { choices = FIRE_NOVA_CHOICES, keep = { "ready", "Ready glow", "Only while its glow is on." } },
 	page = {
 		warn = { title = "No fire totem" },
 		uptime = "Fire totem's time left",
@@ -311,7 +311,7 @@ ns.registerPart("needsTotem", {
 				"The pop when the cooldown ends with no fire totem down." } },
 	},
 	preview = {
-		uptime = true, typical = "out", warning = "nototem",
+		uptime = true, typical = "out", warning = "nototem", keeps = { ready = "ready" },
 		states = { { "nototem", "No fire totem", 20 }, { "out", "Fire totem out", 21 },
 			{ "expiring", "Expiring", 22 } },
 		render = function(ic, st, def, kit)

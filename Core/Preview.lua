@@ -91,9 +91,11 @@ end
 local runs = {}
 local barRuns = {}   -- a bar's slots, each looping through its steps like an element
 
-local function setAlpha(f, a)
+-- The stand-in at alpha a, and the frames over it that the player keeps in full
+local function setAlpha(f, key, st, a)
 	f:SetAlpha(a)
 	W.fadeTo(f, a)
+	OA.holdersAlpha(f, a, key, st)
 end
 
 local function paintElement(key, r, moment)
@@ -102,8 +104,8 @@ local function paintElement(key, r, moment)
 	local ends = OA.paint(ic, key, st, r.at)
 	local pv = OA.PREVIEW[key]
 	if pv.hold then pv.hold(ic) end
-	if idles(key, st) and not (r.idleAt and GetTime() < r.idleAt) then setAlpha(ic, OA.idleAlpha(key))
-	else setAlpha(ic, ic:GetAlpha()) end
+	if idles(key, st) and not (r.idleAt and GetTime() < r.idleAt) then setAlpha(ic, key, st, OA.idleAlpha(key))
+	else setAlpha(ic, key, st, ic:GetAlpha()) end
 	local pop = pv.pop
 	if moment and pop then ns.try("preview pop " .. key, pop, ic, st, OA.kit) end
 	return ends
@@ -202,7 +204,7 @@ local ticker = ns.ticker(0.1, function()
 			if now >= r.nextAt then ns.try("preview step", advance, key, r)
 			elseif r.idleAt and now >= r.idleAt then
 				r.idleAt = nil
-				W.fadeTo(standIns[key], OA.idleAlpha(key))
+				OA.fadeIcon(standIns[key], key, r.steps[r.i][1], OA.idleAlpha(key), true)
 			end
 		end
 	end

@@ -85,7 +85,9 @@ function KD.slots(kind) return listOf(kind, "slots") end
 --   states             { { id, label }, ... }; the first is shown first
 --   typical, warning   the state /sf preview shows in Preview and in Warnings (else the first)
 --   cooldown, uptime   the timers its icon carries; barInset() lifts the time bar (a bar under it);
---                      uptimeOver: its time left doesn't fade with an idle icon (as on the HUD's effects layer)
+--                      keeps: { state = field }, the states whose looks the player may keep in full
+--                      while the icon idles (idleKeep.field); the icon then has ic.over, a frame over it
+--                      with its glow, time left and bars, faded to the icon's alpha unless kept
 --   render(ic, st, kit) draws state st on icon ic from scratch, with the preview kit (ns.OptionsArt.kit),
 --                      as the player's settings have it: a look switched off isn't drawn
 --   pop(ic, st, kit)   the state's moment: its pop or flash, as its settings have it
@@ -123,10 +125,13 @@ function KD.get(kind) return KINDS[kind] end
 --                     blocks)
 --   idle              words for the Idle block: choices ({ value, label, text, tip, counts };
 --                     counts: the kind's own choice it counts as in the engine), held (what
---                     keeps it shown, for its kind's own choices), also, text, extra
+--                     keeps it shown, for its kind's own choices), also, text, extra, keep ({ field,
+--                     label, tip }: a part the player may keep in full while the element is idle; field
+--                     is its idleKeep setting, declared in the part's defaults, and its looks hang
+--                     from f.keepHolder(field))
 --   page              by slot: a title (timers), the slot's block options, or for own a block
 --                     ("reagent", { "toggle", ... }) or a list of them
---   preview           states ({ id, label, order }), uptime, uptimeOver, cooldown, typical, warning, labels
+--   preview           states ({ id, label, order }), uptime, keeps, cooldown, typical, warning, labels
 --                     (state labels over other parts'), render(ic, st, def, kit, pv) (every state),
 --                     pop(ic, st, def, kit), idles(st, def, when) (nil: no say), rest(ic, def, kit,
 --                     keep) (the kind's look while nothing of its own is going on)
@@ -190,6 +195,19 @@ local function firstOf(list, get)
 	if list[1] then return get(list[1]) end
 end
 
+-- The parts the player may keep in full over an idle element, one { field, label, tip } each
+local function keepWords(def, list)
+	local out
+	for _, p in ipairs(list) do
+		local k = p.idle and value(p.idle.keep, def)
+		if k then
+			out = out or {}
+			table.insert(out, k)
+		end
+	end
+	return out
+end
+
 local function fillIdle(def, list)
 	local function word(field)
 		return firstOf(list, function(p) return p.idle and p.idle[field] end)
@@ -199,6 +217,7 @@ local function fillIdle(def, list)
 	if def.idleText == nil then def.idleText = value(word("text"), def) end
 	if def.idleExtra == nil then def.idleExtra = value(word("extra"), def) end
 	if def.idleChoices == nil then def.idleChoices = value(word("choices"), def) end
+	if def.idleKeep == nil then def.idleKeep = keepWords(def, list) end
 end
 
 -- The engine's Idle choice for def's choice when: what its row counts as, else when
@@ -317,7 +336,11 @@ local function preview(kind, def)
 				table.insert(states, { s[1], s[2], s[3] or 0, #states })
 			end
 			if value(x.uptime, def) then pv.uptime = true end
-			if value(x.uptimeOver, def) then pv.uptimeOver = true end
+			local keeps = value(x.keeps, def)
+			if keeps then
+				pv.keeps = pv.keeps or {}
+				merge(pv.keeps, keeps)
+			end
 			if value(x.cooldown, def) then pv.cooldown = true end
 			merge(labels, x.labels or NONE)
 		end

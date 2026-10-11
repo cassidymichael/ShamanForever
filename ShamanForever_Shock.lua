@@ -35,10 +35,11 @@ E.register("shock", { frame = shock, label = "Shocks", paint = function(t) t:Set
 		mana = { on = true }, range = { on = true },
 		-- side: above or below in a row group, right or left in a column; size: of the icon's
 		marks = { frost = true, flame = true, side = "above", size = 0.44, gap = 2 },
-		ready = { pop = true, glow = false, sound = "none" } },
+		ready = { pop = true, glow = false, sound = "none" }, idleKeep = { ready = false, marks = false } },
 	ranges = { marks = { size = { 0.3, 0.5, 0.02 }, gap = { 0, 20, 1 } } },
 	choices = { marks = { side = { "above", "below" } } },
-	def = { key = "shock", idleChoices = CD.IDLE_CHOICES },
+	def = { key = "shock", idleChoices = CD.IDLE_CHOICES, idleKeep = {
+		{ "ready", "Ready glow", "Only while its glow is on." }, { "marks", "On target", "Its marks on your target." } } },
 	effects = { glow = true, pop = true },
 	kind = "shock", icon = 136026, school = "spirit", blurb = "Cooldown, range and mana." })
 
@@ -300,7 +301,7 @@ function placeMarks()
 	ns.Target.refollow()
 end
 
--- The preview's marks: on ic's parent, so they don't fade with it; placed as on the HUD
+-- The preview's marks: on ic's parent, faded with it by OA.holdersAlpha (kept: not); placed as on the HUD
 local PREVIEW_MARK = { frost = { 8, 0.6 }, flame = { 12, 0.75 } }   -- length, share left
 -- On the HUD only what it can show, unless the preview shows what isn't learned
 local function previewOn(ic, m)
@@ -335,6 +336,9 @@ local function previewMarks(ic)
 			list[i] = x
 		end
 		ic.shockMarks = list
+		-- Faded with an idle icon unless kept, as the HUD's marks are
+		ic.keepFrames = { marks = {} }
+		for _, x in ipairs(list) do table.insert(ic.keepFrames.marks, x.frame) end
 	end
 	local where, size, out, o = previewPlace(ic)
 	for i, m in ipairs(MARKS) do
@@ -445,6 +449,7 @@ end
 local PREVIEW = {
 	warning = "both",
 	cooldown = true,
+	keeps = { ready = "ready" },
 	standIn = function(ic) ic.marksOnHUD = true end,
 	reach = function(ic) return previewReach(ic) end,
 	states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", CS.STATES.power.name },

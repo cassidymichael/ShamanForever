@@ -66,7 +66,10 @@ ns.registerPart("ready", {
 	defaults = function(def) return { ready = { pop = not def.noReadyPop or nil, sound = "none" } } end,
 	pop = function(def) return not def.noReadyPop end,
 })
-ns.registerPart("readyGlow", { defaults = { ready = { glow = false } }, glow = true })
+-- The Ready glow, kept in full over an idle element when the player says so (idleKeep.ready)
+local GLOW_ONLY = "Only while its glow is on."
+ns.registerPart("readyGlow", { defaults = { ready = { glow = false }, idleKeep = { ready = false } }, glow = true,
+	idle = { keep = { "ready", "Ready glow", GLOW_ONLY } }, preview = { keeps = { ready = "ready" } } })
 -- readyAtReset: its ready also when its cooldown ends early (a talent's reset); experimental
 ns.registerPart("readyAtReset", { kind = "cooldown", experiment = "Ready at a reset" })
 -- Low mana: a pulsing glow while it's ready and your mana is under a percentage. Mana is secret even
@@ -79,9 +82,10 @@ local function lowManaOn(def)
 	return E.inUse(def.key) and setting(def.key, "lowMana", "glow") == true
 end
 ns.registerPart("lowMana", {
-	defaults = { lowMana = { glow = false, under = 30 } },
+	defaults = { lowMana = { glow = false, under = 30 }, idleKeep = { lowMana = false } },
 	ranges = { lowMana = { under = { 5, 90, 5 } } },
 	glow = true,
+	idle = { keep = { "lowMana", "Low mana glow", GLOW_ONLY } },
 	page = { lowMana = {} },
 	preview = {
 		states = { { "lowMana", "Low mana", 15 } },
@@ -91,6 +95,7 @@ ns.registerPart("lowMana", {
 		idles = function(st, def, when)
 			if st == "lowMana" then return KD.idleMode(def, when) == "offcd" end
 		end,
+		keeps = { lowMana = "lowMana" },
 	},
 	runtime = {
 		make = function(def, f)

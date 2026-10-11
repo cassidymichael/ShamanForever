@@ -857,7 +857,7 @@ local function elementDisplay(p, key)
 	end
 end
 
--- Idle block, from the element's def (idleChoices, idleText, idleExtra).
+-- Idle block, from the element's def (idleChoices, idleText, idleExtra, idleKeep).
 local function idleBlock(p, def)
 	local key, choices = def.key, def.idleChoices
 	local function when() return E.setting(key, "idleWhen") end
@@ -889,7 +889,14 @@ local function idleBlock(p, def)
 			local extraGet, extraSet = eopt(p, key, extra.name, extra.field)
 			p:dropdown(extra.label, extra.tip, extra.choices, extraGet, extraSet, nil, 230)
 		end
-		eslider(p, key, "Idle opacity", "The icon's opacity while idle.", pct, nil, "idleAlpha")
+		eslider(p, key, "Idle opacity", "Its opacity while idle, every part.", pct, nil, "idleAlpha")
+		local keeps = def.idleKeep
+		if not keeps then return end
+		p:text("Kept in full while idle:")
+		for _, k in ipairs(keeps) do
+			local keepGet, keepSet = eopt(p, key, "idleKeep", k[1])
+			p:checkbox(k[2], k[3], keepGet, keepSet)
+		end
 	end
 	if whenRow then p:sub(whenRow, function() return when() ~= "never" end, rows) else rows() end
 end

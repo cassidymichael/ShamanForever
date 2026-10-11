@@ -726,9 +726,16 @@ ns.registerPart("auraState", {
 	defaults = function(def)
 		local s, d = def.auraState, {}
 		if s.length then d.expire = B.expiring.defaults.expire end
-		if s.active then d.active = { on = true, pop = true, glow = true } end
+		if s.active then
+			d.active = { on = true, pop = true, glow = true }
+			d.idleKeep = { active = false }
+		end
 		return d
 	end,
+	idle = { keep = function(def)
+		local a = def.auraState.active
+		return a and { "active", a.title, "Its glow and pop." } or nil
+	end },
 	ranges = function(def)
 		if def.auraState.length then return { expire = { secs = B.expiring.range } } end
 	end,
@@ -745,7 +752,7 @@ ns.registerPart("auraState", {
 	},
 	preview = {
 		uptime = function(def) return def.auraState.length ~= nil end,
-		uptimeOver = true,
+		keeps = function(def) return def.auraState.active and { active = "active" } or nil end,
 		states = function(def)
 			local s = def.auraState
 			local list = { { "active", s.active and s.active.title or "Active", 61 } }
@@ -895,7 +902,8 @@ function B.buffBarLearned(def)
 end
 ns.registerPart("buffBar", {
 	kind = "cooldown",
-	defaults = { buffBar = false },
+	defaults = { buffBar = false, idleKeep = { buffBar = false } },
+	idle = { keep = function(def) return { "buffBar", Spells.name(def.buffBar.buffKey), "Its bar and glow." } end },
 	page = { own = function(def)
 		local timeLeft = KD.words("cooldown", def, "uptime") or "Time left"
 		return { "toggle", name = "buffBar", title = Spells.name(def.buffBar.buffKey), label = "Time left bar",
@@ -904,6 +912,8 @@ ns.registerPart("buffBar", {
 	end },
 	preview = {
 		states = function(def) return { { "buffBar", Spells.name(def.buffBar.buffKey), 63 } } end,
+		keeps = { buffBar = "buffBar" },
+		idles = function(st, _, when) if st == "buffBar" then return when ~= "never" end end,
 		-- Drawn on the preview icon by hand: the cooldown under way, a frozen bar while its switch is on
 		render = function(ic, st, def, kit)
 			local bar = ic.buffBar
@@ -913,7 +923,7 @@ ns.registerPart("buffBar", {
 				return
 			end
 			if not bar then
-				bar = newBuffBar(ic.textFrame)
+				bar = newBuffBar(ic.over or ic.textFrame)
 				ic.buffBar = bar
 			end
 			placeBuffBar(bar, ic, def.key, def.buffBar.school)

@@ -229,7 +229,8 @@ for _, def in ipairs(ns.CLASS.cooldowns or {}) do
 end
 ns.registerPart("targetDebuff", {
 	kind = "cooldown",
-	defaults = { active = { on = true } },
+	defaults = { active = { on = true }, idleKeep = { active = false } },
+	idle = { keep = { "active", "Debuff", "Its bar, countdown and glow." } },
 	page = {
 		uptime = "Debuff time left",
 		active = function(def)
@@ -239,7 +240,10 @@ ns.registerPart("targetDebuff", {
 	},
 	preview = {
 		uptime = true,
+		keeps = { debuff = "active" },
 		states = { { "debuff", "Debuff", 60 } },
+		-- Its debuff is on your target whatever its cooldown does
+		idles = function(st, _, when) if st == "debuff" then return when ~= "never" end end,
 		render = function(ic, st, def, kit)
 			if st == "debuff" and debuffShown(def) then
 				kit.frozen(ic.upT, 0.3, def.targetDebuff.length)

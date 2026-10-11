@@ -39,6 +39,8 @@ local SHARE_VERSION = 9
 --   mana    = { on }   its spell's cost can't be paid (_CastStates); its style (part power) is kept beside
 --   range   = { on }   its target is out of its spell's range; its style (part range) is kept beside
 --   lowMana = { glow, under }   it's ready and your mana is under a percentage (under): a look only
+--   idleKeep = { <state or setting> }   which of its looks stay in full while it's idle (ready, lowMana, active,
+--             buffBar, marks); an element declares just the ones it has, for the Idle block
 -- grey, ring, fade, tint and glow are the looks a state shows; pop and sound play once, as it
 -- starts: warn.pop and warn.sound as the warning begins (a buff lost). A bar's own settings use the
 -- same tables (expire, ended, killed, mana). The effect and pop kind names (warning, ranout, expired,
