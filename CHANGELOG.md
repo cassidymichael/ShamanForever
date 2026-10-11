@@ -1,19 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.15.0 (2026-10-11)
 
-- Every element has an On switch at the top of its page, in the Elements list and on the layout's
-  menus. Turned off, it leaves the screen but keeps its group and settings; a group's Turn all off
-  does the same for all of its elements. Show now picks Always or In combat, and elements that were
-  Hidden load turned off.
-- Time left's bar can sit outside the icon again (Bar position, Bar gap) on Water Walking, Water
-  Breathing, Flame Shock, your racials and Rage of the Farseer.
-- The No mana look, a blue tint while you can't pay an ability's cost, is now on by default (the
-  totem bar keeps your saved setting).
+- Elements now have a full on/off switch in its page's header and in the Elements list page.
+- Elements with a "Time left bar" can style it to sit outside the icon again (Bar position, Bar
+  gap).
+- The No mana look, a blue tint while you can't pay an ability's cost, is now on by default.
 - A cooldown already running when you log in or /reload now gives its Ready pop and sound when it
   finishes.
-- Stormstrike's Ready pop and sound after a dodge or parry no longer go missing when you use
-  another ability at the same moment.
+- Stormstrike glows when it's ready by default, and its Ready pop and sound after a dodge or parry
+  no longer go missing when you use another ability at the same moment.
+- New profiles start with different global default styles for Pop and Pulsing-glow.
 - Many other minor fixes and improvements.
 
 ## 0.14.0 (2026-10-06)
