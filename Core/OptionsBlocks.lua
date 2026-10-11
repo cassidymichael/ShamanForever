@@ -380,37 +380,41 @@ local function glowBlock(p, owner)
 	p:add(f, 64, own, function()
 		for _, t in ipairs(sync()) do t:glow(true) end
 	end)
-	look = choiceRows(p, r, "glow", "look", "Style", nil, own)
 	if isElement(owner) then popSchoolRow(p, owner, showWhen(function() return look().bySchool end)) end
+	local menu
+	look, menu = choiceRows(p, r, "glow", "look", "Style", nil, own)
+	local function uses(field)
+		return function() local l = look(); return l.uses[field] and not (l.fields and l.fields[field]) end
+	end
+	p:sub(menu, nil, function()
+		p:color("Colour", "Colour and opacity. " .. ns.CLASS.help.glowColour, r.get("color"), r.set("color"),
+			uses("color"))
+		local function secs(v) return string.format("%.1f s", v) end
+		styleSlider(p, "glow", "speed", "Pulse length", "One pulse, in seconds.", secs, r.get("speed"), r.set("speed"),
+			uses("speed"))
+		for _, e in ipairs(ns.Style.choices("glow", "look")) do
+			local names = {}
+			for field in pairs(e.fields or {}) do table.insert(names, field) end
+			table.sort(names)
+			for _, field in ipairs(names) do
+				local fd = e.fields[field]
+				local fmt = type(fd.format) == "function" and fd.format
+					or function(v) return string.format(fd.format, v) end
+				styleSlider(p, "glow", field, fd.name, fd.tip, fmt, r.get(field), r.set(field),
+					function() return look() == e end)
+			end
+		end
+		local setLow = r.set("low")
+		-- Shows 1 - low: right only while low ranges 0 to 1
+		styleSlider(p, "glow", "low", "Pulse depth", "How much it fades between pulses. 0% is steady.", pct,
+			function() return 1 - r.style().low end, function(v) setLow(1 - v) end, uses("low"))
+		styleSlider(p, "glow", "width", "Thickness", "How far in from the edges it reaches.", pct, r.get("width"),
+			r.set("width"), uses("width"))
+		styleSlider(p, "glow", "strength", "Intensity", "How bright it is. Above 100% it adds light.", pct,
+			r.get("strength"), r.set("strength"), uses("strength"))
+	end)
 	reloadLine(p, function() return ns.Effects.auraGlowStale(owner) end,
 		function(n) return n == 1 and "changes glow" or "change glow" end, own)
-	local function uses(field)
-		return showWhen(function() local l = look(); return l.uses[field] and not (l.fields and l.fields[field]) end, own)
-	end
-	p:color("Colour", "Colour and opacity. " .. ns.CLASS.help.glowColour, r.get("color"), r.set("color"), uses("color"))
-	local function secs(v) return string.format("%.1f s", v) end
-	styleSlider(p, "glow", "speed", "Pulse length", "One pulse, in seconds.", secs, r.get("speed"), r.set("speed"),
-		uses("speed"))
-	for _, e in ipairs(ns.Style.choices("glow", "look")) do
-		local names = {}
-		for field in pairs(e.fields or {}) do table.insert(names, field) end
-		table.sort(names)
-		for _, field in ipairs(names) do
-			local fd = e.fields[field]
-			local fmt = type(fd.format) == "function" and fd.format
-				or function(v) return string.format(fd.format, v) end
-			styleSlider(p, "glow", field, fd.name, fd.tip, fmt, r.get(field), r.set(field),
-				showWhen(function() return look() == e end, own))
-		end
-	end
-	local setLow = r.set("low")
-	-- Shows 1 - low: right only while low ranges 0 to 1
-	styleSlider(p, "glow", "low", "Pulse depth", "How much it fades between pulses. 0% is steady.", pct,
-		function() return 1 - r.style().low end, function(v) setLow(1 - v) end, uses("low"))
-	styleSlider(p, "glow", "width", "Thickness", "How far in from the edges it reaches.", pct, r.get("width"),
-		r.set("width"), uses("width"))
-	styleSlider(p, "glow", "strength", "Intensity", "How bright it is. Above 100% it adds light.", pct,
-		r.get("strength"), r.set("strength"), uses("strength"))
 	if owner == nil then ownLine(p, "glow") end
 end
 
