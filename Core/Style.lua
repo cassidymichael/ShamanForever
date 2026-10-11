@@ -112,7 +112,7 @@ function S.addUser(part, owner)
 end
 
 S.register("glow", {
-	defaults = { look = "soft", color = { 1, 0.8, 0.25, 1 }, speed = 0.5, low = 0.25, width = 0.2, strength = 1,
+	defaults = { look = "spark", color = { 1, 0.8, 0.25, 1 }, speed = 0.5, low = 0.25, width = 0.2, strength = 1,
 		lap = 1.6, scale = 1.5, drift = 1 },
 	ranges = { speed = { 0.2, 2, 0.1 }, low = { 0, 1, 0.05 }, width = { 0.1, 0.5, 0.05 }, strength = { 0.2, 2.5, 0.1 },
 		lap = { 0.6, 4, 0.1 }, scale = { 0.5, 2, 0.1 }, drift = { 0.25, 3, 0.05 } },
@@ -120,7 +120,7 @@ S.register("glow", {
 	elements = true, label = "Pulsing glow", short = "glow", order = 4,
 })
 S.register("pop", {
-	defaults = { colorBy = "event", flash = "plain", burst = "star", motion = "shakeV", size = 1.4, speed = 1,
+	defaults = { colorBy = "event", flash = "edge", burst = "both", motion = "shakeV", size = 1.6, speed = 1,
 		reach = 1 },
 	ranges = { size = { 1.1, 1.8, 0.05 }, speed = { 0.5, 2, 0.1 }, reach = { 0.6, 1.3, 0.05 } },
 	path = { "popStyle" },   -- not "pop": a bar may have its own setting of that name
