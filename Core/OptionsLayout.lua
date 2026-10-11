@@ -82,7 +82,7 @@ local function fillChip(chip, key)
 end
 
 local function dropIndex()
-	return Page.dropPosition(view.inner.shown, function(chip) return chip.key == drag.key end)
+	return Page.dropPosition(view.inner.chips, function(chip) return chip.key == drag.key end)
 end
 
 local function targetUnderCursor()
@@ -213,8 +213,8 @@ local function newChip(parent)
 end
 
 local function placeChips(block, keys, top)
-	block.shown = block.shown or {}
-	wipe(block.shown)
+	block.chips = block.chips or {}
+	wipe(block.chips)
 	for i, key in ipairs(keys) do
 		local chip = block.pool[i]
 		if not chip then
@@ -226,7 +226,7 @@ local function placeChips(block, keys, top)
 		chip:SetPoint("TOPLEFT", block, "TOPLEFT", 0, -top - (i - 1) * CHIP_STEP)
 		chip:SetPoint("RIGHT", block, "RIGHT", 0, 0)
 		chip:Show()
-		block.shown[i] = chip
+		block.chips[i] = chip
 	end
 	for i = #keys + 1, #block.pool do block.pool[i]:Hide() end
 	return #keys * CHIP_STEP
