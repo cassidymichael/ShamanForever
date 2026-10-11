@@ -379,6 +379,7 @@ local function fadeElement(key, a)
 	local e = ELEMENTS[key]
 	local f = e and e.frame
 	if not f then return end
+	f.idleTarget = a
 	W.fadeTo(f, a)
 	if not f.idleLayer then return end
 	W.fadeTo(f.idleLayer, a)
@@ -1291,6 +1292,22 @@ function E.debugReport()
 	table.sort(known)
 	say("spells: %s", table.concat(known, ", "))
 	each("debug")
+	local resting = {}
+	for _, key in ipairs(ELEMENT_KEYS) do
+		local f = ELEMENTS[key].frame
+		if f and f.idleTarget and f.idleTarget < 1 then
+			local kept = {}
+			for _, holders in ipairs({ f.keep or {}, f.keepOut or {} }) do
+				for field in pairs(holders) do
+					if elementSetting(key, "idleKeep", field) == true then table.insert(kept, field) end
+				end
+			end
+			table.sort(kept)
+			table.insert(resting, string.format("%s %.0f%%%s", key, f.idleTarget * 100,
+				#kept > 0 and (" (kept: " .. table.concat(kept, ", ") .. ")") or ""))
+		end
+	end
+	if #resting > 0 then say("resting: %s", table.concat(resting, ", ")) end
 	say("profile %s", tostring(profileName))
 	local function listed(key)
 		local tags = {}
