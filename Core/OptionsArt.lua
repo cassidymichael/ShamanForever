@@ -334,6 +334,7 @@ local function panelFor(base, top, bottom)
 	return math.max(base, 2 * (top + half - 6 + CAP_ROOM), 2 * (bottom + half + 6 + FOOT_ROOM))
 end
 
+-- h.afterRefresh(), when set, runs after each of its refreshes
 function OA.buildHero(parent, key)
 	local e = identity(key)
 	local school = OA.SCHOOL[e.school]
@@ -644,6 +645,7 @@ function OA.buildHero(parent, key)
 			end
 			self.shownState = st
 		end
+		if self.afterRefresh then self.afterRefresh() end
 	end
 	return h
 end
