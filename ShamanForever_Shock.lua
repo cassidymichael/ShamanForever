@@ -20,6 +20,8 @@ local SHOCK_ICON = { earth = 136026, flame = 135813, frost = 135849 }
 SK.SHOCKS, SK.ORDER, SK.ICONS = SHOCKS, SHOCK_ORDER, SHOCK_ICON
 
 local shock = E.newIcon("shock", { effects = true })
+-- Its Ready glow is the icon's pulsing glow: it can be kept in full over an idle Shocks (idleKeep.ready)
+shock.glowF:SetParent(shock.keepHolder("ready"))
 shock.cdTimer = ns.Timer.new(shock, "shock", "cooldown", { cd = shock.cd, school = "spirit" })
 shock.stack()
 local shockIcon = 136026
@@ -48,7 +50,7 @@ CS.watch("shock", { frame = shock, power = true, range = true,
 local function refreshCooldown(inEvent)
 	if not E.inUse("shock") then
 		idleDef.cdRunning, idleDef.idle, idleDef.idleAt = nil, nil, nil
-		W.fadeTo(shock, 1)
+		E.fade("shock", 1)
 		return CD.resetReady(shock, true)
 	end
 	local dur, bar = CD.cooldownFor(shock, "shock", shockSpellID, inEvent)
@@ -81,11 +83,15 @@ local function syncGlowTicker()
 end
 
 -- On-target marks: Frost Shock and Flame Shock, each an aura container on your hostile target
--- On the group frame, not the icon, so they don't idle with it
+-- On the group frame, not the icon: the icon's alpha doesn't reach them, E.fade does
 local MARKS = { { key = "frost", spell = "frostShock" }, { key = "flame", spell = "flameShock" } }
 SK.MARKS = MARKS
 local marksHost = CreateFrame("Frame", nil, shock:GetParent())
 marksHost:Hide()
+-- What the marks hang from: it fades with an idle Shocks (idleKeep.marks), the host shows and hides them
+local marksIdle = CreateFrame("Frame", nil, marksHost)
+marksIdle:SetAllPoints()
+shock.keepOut.marks = marksIdle
 local previewing = false
 
 local function markOn(m) return m.spellID ~= nil and own("marks", m.key) and true or false end
@@ -209,8 +215,8 @@ local function makeMark(m)
 	local ok, err = pcall(function()
 		-- The container sizes itself to its layout (nothing, for a slot): only its top left places the
 		-- button, so it hangs from a frame of the mark's own place and size
-		m.place = m.place or CreateFrame("Frame", nil, marksHost)
-		local c = CreateFrame("AuraContainer", nil, marksHost, "CustomAuraContainerTemplate")
+		m.place = m.place or CreateFrame("Frame", nil, marksIdle)
+		local c = CreateFrame("AuraContainer", nil, marksIdle, "CustomAuraContainerTemplate")
 		m.container = c
 		c:SetPoint("TOPLEFT", m.place, "TOPLEFT", 0, 0)
 		c:SetFrameStrata(marksHost:GetFrameStrata())
@@ -263,6 +269,7 @@ function placeMarks()
 	end
 	if marksHost:GetParent() ~= gf then marksHost:SetParent(gf) end
 	marksHost:SetFrameLevel(shock:GetFrameLevel())
+	marksIdle:SetFrameLevel(marksHost:GetFrameLevel())
 	marksHost:ClearAllPoints()
 	local point, rel, relPoint, x, y = shock:GetPoint(1)
 	if point then marksHost:SetPoint(point, rel, relPoint, x, y) end

@@ -462,7 +462,7 @@ end
 B.auraIDs = auraIDs
 
 -- countOver (reagent, with proc): the reagent count over Blizzard's button while the aura is up, on a look
--- its own sensor shows, so an idle icon doesn't fade it and the button's parts don't cover it
+-- its own sensor shows on the effects layer, so an idle icon doesn't fade it and the button's parts don't cover it
 local function mirrorCount(def)
 	local fs, o = def.frame.count, def.countOver
 	if not o then return end
@@ -609,8 +609,8 @@ end
 -- the row's), any rank, by ID; filter: default HELPFUL|PLAYER (yours only); length: its full length in
 -- seconds, for its time left and Expiring (nil: until spent, no time left); active = { title, text,
 -- tips = { pop, glow } }: a state with its switch (active.on), pop and glow from the same aura. On the
--- effects layer, so an idle icon fades under it. An aura slot (W.makeAuraSlot): made and styled out of
--- combat with auras readable.
+-- idle layer, so an idle element fades whole (active: on its keep holder, idleKeep.active). An aura slot
+-- (W.makeAuraSlot): made and styled out of combat with auras readable.
 local STATES, STATE_LIST = {}, {}
 for _, def in ipairs(ns.CLASS.cooldowns or {}) do
 	if def.auraState then
@@ -689,9 +689,11 @@ for _, x in ipairs(STATE_LIST) do
 	local f = def.frame
 	if s.length then B.expiring.note(key) end
 	x.alpha = function() return (stateOn(x) and not statesPreviewing) and 1 or 0 end
+	-- Primed can be kept in full over an idle element (idleKeep.active); a time left fades with it
+	x.layer = s.active and f.keepHolder("active") or f.idleLayer
 	-- No picture: the icon keeps the cooldown; its time left, Expiring's parts and the pop on the button
 	x.slot = W.makeAuraSlot(f, {
-		key = key, slot = key .. "-state", filter = stateFilter(x), layer = f.effects, noIcon = true,
+		key = key, slot = key .. "-state", filter = stateFilter(x), layer = x.layer, noIcon = true,
 		noTimer = not s.length, ids = function() return stateIDs(x) end,
 		extras = s.length and B.expiring.extras(x, def) or nil,
 		sites = { container = "aura state " .. key, style = "aura state style " .. key,
@@ -711,7 +713,7 @@ for _, x in ipairs(STATE_LIST) do
 	})
 	if s.active then
 		x.fx = ns.Effects.host(f, key, { aura = {
-			slot = x.slot, parent = f.effects, unit = "player", filter = stateFilter(x),
+			slot = x.slot, parent = x.layer, unit = "player", filter = stateFilter(x),
 			ids = function() return stateIDs(x) end,
 			popOn = function() return stateOn(x) and setting(key, "active", "pop") end,
 			sites = { container = "aura state glow sensor " .. key, style = "aura state glow style " .. key,
@@ -872,7 +874,7 @@ for _, x in ipairs(BUFF_BARS) do
 	x.alpha = function() return (buffBarOn(x) and not barsPreviewing) and 1 or 0 end
 	-- No picture of its own, only the bar it drives
 	x.slot = W.makeAuraSlot(f, {
-		key = key, slot = key .. "-buff", layer = f, noIcon = true, noTimer = true,
+		key = key, slot = key .. "-buff", layer = f.keepHolder("buffBar"), noIcon = true, noTimer = true,
 		ids = function() return Spells.ids(x.spec.buffKey) end,
 		sites = { container = "buff bar " .. key, style = "buff bar style " .. key, filter = "buff bar filter " .. key },
 		onButton = function(_, button)
@@ -1148,13 +1150,13 @@ local function refreshBuff(def)
 		if def.glowing then f:SetGlowShown(false); def.glowing = false end
 		f.count:Hide()
 		if def.countOver then def.countOver:Hide() end
-		W.fadeTo(f, 1)
+		E.fade(key, 1)
 		return
 	end
 	f.tex:SetDesaturated(false)
 	if def.fx then def.fx:glow(setting(key, "active", "glow") and not previewing) end
 	if not (def.reagent or def.breath) then
-		W.fadeTo(f, P.getAccount().locked and E.idleAlpha(key) or 1)
+		E.fade(key, P.getAccount().locked and E.idleAlpha(key) or 1)
 		return
 	end
 	-- Set each look once: re-setting a pulse restarts it
@@ -1174,9 +1176,9 @@ local function refreshBuff(def)
 		def.glowing = glow and true or false
 		f:SetGlowShown(def.glowing)
 	end
-	-- Its button shows it while up, on the effects layer
+	-- Its button shows it while up, on the effects layer (the wake: no idle fade)
 	local busy = not P.getAccount().locked or held
-	W.fadeTo(f, busy and 1 or E.idleAlpha(key))
+	E.fade(key, busy and 1 or E.idleAlpha(key))
 end
 
 local function refreshAll()

@@ -96,7 +96,7 @@ ns.registerPart("onTarget", {
 	has = onTarget,
 	runtime = {
 		engine = true,
-		-- On the effects layer: idle fades only the icon under the button
+		-- On the effects layer, the wake: idle fades only the icon under the button
 		make = function(def)
 			table.insert(ROWS, def)
 			def.gate = CreateFrame("Frame", nil, def.frame.effects)
@@ -218,7 +218,7 @@ for _, def in ipairs(ns.CLASS.cooldowns or {}) do
 		-- No picture of its own, only the time bar and countdown it drives, placed on the icon (the same box:
 		-- a border's picture inset is the icon's)
 		x.slot = W.makeAuraSlot(f, {
-			key = key, slot = key, unit = "none", filter = "HARMFUL|PLAYER", layer = f, noIcon = true,
+			key = key, slot = key, unit = "none", filter = "HARMFUL|PLAYER", layer = f.keepHolder("active"), noIcon = true,
 			ids = function() return Spells.ids(def.spellKey) end,
 			sites = { container = "target debuff " .. key, style = "target debuff style " .. key,
 				filter = "target debuff filter " .. key, bar = "target debuff bar " .. key },
@@ -293,7 +293,8 @@ local function makeGlowLook(g, what)
 			ids = function() return Spells.ids(def.spellKey) end }
 	end
 	o.key, o.owner, o.invert, o.glowOnly = def.key, def.key, true, true
-	o.parent, o.sensorParent, o.sites = def.frame.effects, def.frame.effects, glowSites(def.key, what)
+	local holder = def.frame.keepHolder(what == "debuff" and "active" or "buffBar")
+	o.parent, o.sensorParent, o.sites = holder, holder, glowSites(def.key, what)
 	g.looks[what] = W.makeClipLook(def.frame, o)
 	return g.looks[what]
 end
@@ -603,7 +604,7 @@ local function combatStarts()
 			applyIdle(def)
 			local f, a = def.frame, frameAlpha(def)
 			f:SetAlpha(a)
-			W.fadeTo(f, a)
+			E.fade(def.key, a)
 		end
 	end
 end
@@ -626,7 +627,7 @@ local function refreshAura(def)
 	end
 	f.tex:SetTexture(def.icon)
 	f.tex:SetDesaturated(not def.spellID)
-	W.fadeTo(f, frameAlpha(def))
+	E.fade(key, frameAlpha(def))
 	applyIdle(def)
 end
 

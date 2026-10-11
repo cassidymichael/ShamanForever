@@ -318,7 +318,8 @@ end
 -- onStyle's size its width), extras ({ key, init(slot, button) }: more slots on its container, their
 -- buttons over its own), sites.bar, onButton(slot, button, cd), onStyle(slot, size).
 -- Its container: parent (default frame), or layer: in a holder of its own on that layer over frame
--- (slot.holder; over an element's icon, frame.effects stays at full while frame fades with it).
+-- (slot.holder; over an element's icon, frame.idleLayer fades with the element and a keep holder
+-- (frame.keepHolder) stays in full when the player keeps its part, while frame.effects stays at full).
 -- Its button: the aura's picture (ownIcon(): the element's), host(slot, button) the frame its parts go on,
 -- its time left (noTimer: none; barInset(); anchor, default its host, and dual as ns.Timer's). noIcon: no
 -- picture, the icon keeps its own; ownIcon and host unused, its time left on the icon (anchor default

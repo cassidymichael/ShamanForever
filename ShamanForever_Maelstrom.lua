@@ -413,7 +413,8 @@ local function refresh()
 		return
 	end
 	f.tex:SetDesaturated(false)
-	-- The buttons say when it's up, on the effects layer, which ignores this icon's alpha
+	-- The buttons say when it's up, on the effects layer, which ignores this icon's alpha; the icon stays
+	-- faint under them, so no idle layer fades with it (a glow and pop at five show in full)
 	W.fadeTo(f, (P.getAccount().locked and idleWhen() ~= "never") and E.idleAlpha(KEY) or 1)
 end
 

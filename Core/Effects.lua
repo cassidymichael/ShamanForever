@@ -270,7 +270,7 @@ local function newRig(f, icon, level)
 			r.iconMove[i] = anim(r.iconMotion, "Translation", i)
 		end
 	end
-	local fx = CreateFrame("Frame", nil, f.effects or f)
+	local fx = CreateFrame("Frame", nil, f.idleLayer or f)
 	fx:SetAllPoints()
 	fx:EnableMouse(false)
 	r.fx = fx

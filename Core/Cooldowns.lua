@@ -94,7 +94,7 @@ ns.registerPart("lowMana", {
 	},
 	runtime = {
 		make = function(def, f)
-			f.lowManaGate = CreateFrame("Frame", nil, f.effects)
+			f.lowManaGate = CreateFrame("Frame", nil, f.keepHolder("lowMana"))
 			f.lowManaGate:SetAllPoints()
 			f.lowManaGlow = ns.Effects.glow(f.lowManaGate, f, def.key)
 			f.lowManaGlow:Hide()
@@ -162,7 +162,7 @@ ns.registerKind("cooldown", {
 })
 
 local function makeCooldownIcon(def)
-	-- The effects layer ignores the icon's alpha, so an idle icon doesn't fade them
+	-- The effects layer ignores the icon's alpha; its idle layer and holders fade with an idle icon
 	local f = E.newIcon(def.key, { effects = true })
 	f.tex:SetTexture(def.icon)
 	if hasUptime(def) then
@@ -173,7 +173,7 @@ local function makeCooldownIcon(def)
 	f.cdTimer = ns.Timer.new(f, def.key, "cooldown", { cd = f.cd, school = def.school })
 	if def.readyGlow or KD.hook("cooldown", def, "readyGate") then
 		-- Ready glow alpha: off cooldown; the gate's alpha multiplies it
-		f.readyGate = CreateFrame("Frame", nil, f.effects)
+		f.readyGate = CreateFrame("Frame", nil, f.keepHolder("ready"))
 		f.readyGate:SetAllPoints()
 		f.readyGlow = ns.Effects.glow(f.readyGate, f, def.key)
 	end
@@ -394,7 +394,7 @@ local function ownCooldownRunning(def, inEvent)
 	end
 	return def.cdRunning, true
 end
-local function fadeTo(def, alpha) W.fadeTo(def.frame, alpha) end
+local function fadeTo(def, alpha) E.fade(def.key, alpha) end
 
 -- def needs key, frame, spellID and refresh (other engines pass such a table too); held: something
 -- of its own keeps it shown (low reagents, a part's state)

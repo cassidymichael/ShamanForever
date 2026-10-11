@@ -162,7 +162,7 @@ local function drawImbue(now, quiet)
 	-- Idle fades by alpha, not Hide (keeps its place)
 	local when = own("idleWhen")
 	local idle = P.getAccount().locked and on and (when == "on" or (when == "notlow" and not showTime))
-	W.fadeTo(imbue, idle and E.idleAlpha("imbue") or 1)
+	E.fade("imbue", idle and E.idleAlpha("imbue") or 1)
 end
 
 local function drawNotLearned()
@@ -171,7 +171,7 @@ local function drawNotLearned()
 	imbue:SetWarnParts(true, false, false, false, false)
 	imbue.timer:Hide()
 	imbue.upTimer:clear()
-	W.fadeTo(imbue, 1)
+	E.fade("imbue", 1)
 end
 
 function IM.refresh()

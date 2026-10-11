@@ -199,9 +199,12 @@ local TOGGLE_BINDING = "CLICK " .. ns.NAME .. "Toggle:LeftButton"
 _G["BINDING_NAME_" .. TOGGLE_BINDING] = "Turn " .. ns.NAME .. " on or off"
 _G["BINDING_HEADER_" .. ns.NAME:upper() .. "_GENERAL"] = "General"
 
--- An element's icon: opts.effects gives it an effects layer that ignores the icon's alpha (glows and
--- flashes stay full when it idles) and takes its group's opacity instead (layoutGroup). f.stack()
--- restates frame levels (W.stackIcon); layoutGroup calls it after regrouping.
+-- An element's icon: opts.effects gives it an effects layer that ignores the icon's alpha and takes its
+-- group's opacity instead (layoutGroup), and under it the idle layer, which E.fade fades with the icon:
+-- parts of the element hang from the idle layer, so Idle fades the whole element. What stays in full
+-- over an idle element hangs from the effects layer itself: a look shown only while the element is awake
+-- (a proc's button, a warning), or a holder (f.keepHolder) of a part the player may keep (idleKeep).
+-- f.stack() restates frame levels (W.stackIcon); layoutGroup calls it after regrouping.
 function E.newIcon(key, opts)
 	local f = W.makeIcon(root, DEFAULTS.iconSize, key)
 	f.count:Hide()
@@ -209,10 +212,30 @@ function E.newIcon(key, opts)
 		f.effects = CreateFrame("Frame", nil, f)
 		f.effects:SetAllPoints()
 		f.effects:SetIgnoreParentAlpha(true)
-		f.glowF:SetParent(f.effects)
+		f.idleLayer = CreateFrame("Frame", nil, f.effects)
+		f.idleLayer:SetAllPoints()
+		f.idleLayer:SetFrameLevel(f.effects:GetFrameLevel())
+		f.glowF:SetParent(f.idleLayer)
+		f.keep, f.keepOut = {}, {}
+		-- The holder of the part idleKeep[field] keeps: made once, a plain frame beside the idle layer
+		function f.keepHolder(field)
+			local h = f.keep[field]
+			if not h then
+				h = CreateFrame("Frame", nil, f.effects)
+				h:SetAllPoints()
+				h:SetFrameLevel(f.effects:GetFrameLevel())
+				f.keep[field] = h
+			end
+			return h
+		end
 	end
 	function f.stack()
-		if f.effects then f.effects:SetFrameLevel(f:GetFrameLevel()) end
+		if f.effects then
+			local level = f:GetFrameLevel()
+			f.effects:SetFrameLevel(level)
+			f.idleLayer:SetFrameLevel(level)
+			for _, h in pairs(f.keep) do h:SetFrameLevel(level) end
+		end
 		W.stackIcon(f)
 	end
 	return f
@@ -330,6 +353,21 @@ local function idleAlpha(key)
 	local v = elementSetting(key, "idleAlpha")
 	if type(v) ~= "number" or v ~= v then v = elementDefault(key, "idleAlpha") end
 	return math.min(math.max(v, 0), 1)
+end
+-- An element at Idle opacity a: its icon, its idle layer and each holder fade together, and a holder whose
+-- part the player keeps (idleKeep) stays in full. Every fade of an element goes through here.
+local function fadeElement(key, a)
+	local e = ELEMENTS[key]
+	local f = e and e.frame
+	if not f then return end
+	W.fadeTo(f, a)
+	if not f.idleLayer then return end
+	W.fadeTo(f.idleLayer, a)
+	for _, holders in ipairs({ f.keep, f.keepOut }) do
+		for field, h in pairs(holders) do
+			W.fadeTo(h, (a < 1 and elementSetting(key, "idleKeep", field) == true) and 1 or a)
+		end
+	end
 end
 
 local function showMode(key) return elementSetting(key, "show") end
@@ -1111,6 +1149,7 @@ E.isEnabled, E.inUse, E.isOn, E.showMode, E.isLearned, E.setShow, E.setOn = isEn
 	setShow, setOn
 E.BASE = BASE
 E.opts, E.setting, E.default, E.idleAlpha = elementOpts, elementSetting, elementDefault, idleAlpha
+E.fade = fadeElement
 E.setSetting, E.event, E.range = setElementSetting, elementEvent, elementRange
 E.sizeOf, E.boxOf, E.setOff = sizeOf, boxOf, setOff
 E.applyTimers, E.resolveSpells, E.refreshAll, E.refreshCooldownsSoon = applyTimers, resolveSpells, refreshAll,

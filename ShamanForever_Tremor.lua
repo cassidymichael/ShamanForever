@@ -287,7 +287,7 @@ local function refresh()
 		f.tex:SetDesaturated(true)
 		f.upTimer:clear()
 		setAlert(false)
-		W.fadeTo(f, 1)
+		E.fade(KEY, 1)
 		return
 	end
 	f.tex:SetDesaturated(false)
@@ -301,7 +301,7 @@ local function refresh()
 	end
 	setAlert(want)
 	local busy = want or not P.getAccount().locked or (out and own("idleWhen") == "notdown")
-	W.fadeTo(f, busy and 1 or E.idleAlpha(KEY))
+	E.fade(KEY, busy and 1 or E.idleAlpha(KEY))
 end
 TR.refresh = refresh
 
