@@ -602,14 +602,13 @@ local function barPosition(p, key, tg, ts)
 			{ "out top", col and "Right of the icon" or "Above the icon" } }
 	end
 	local place, edge, setPlace, setEdge = tg("barPlace"), tg("barEdge"), ts("barPlace"), ts("barEdge")
-	p:dropdown("Bar position", nil, choices,
+	return p:dropdown("Bar position", nil, choices,
 		function() return (place() == "out" and "out" or "in") .. " " .. (edge() == "top" and "top" or "bottom") end,
 		function(v)
 			local where, side = v:match("^(%a+) (%a+)$")
 			setPlace(where)
 			setEdge(side)
 		end, nil, 180)
-	if key == nil then p:text("In a column group: left of the icon for below, right for above.") end
 end
 
 local function timerSettings(p, title, key, part, after, note, first, barPlaced)
@@ -659,9 +658,12 @@ local function timerSettings(p, title, key, part, after, note, first, barPlaced)
 	p:sub(bar, on("bar"), function()
 		styleSlider(p, part, "barHeight", "Bar height", nil, px, tg("barHeight"), ts("barHeight"))
 		if key == nil or ns.Timer.canPlaceOut(key) then
-			barPosition(p, key, tg, ts)
-			styleSlider(p, part, "barGap", "Bar gap", "From the icon, at the default icon size; it grows with the icon.",
-				px, tg("barGap"), ts("barGap"), showWhen(function() return style().barPlace == "out" end))
+			local position = barPosition(p, key, tg, ts)
+			p:sub(position, function() return style().barPlace == "out" end, function()
+				styleSlider(p, part, "barGap", "Bar gap",
+					"From the icon, at the default icon size; it grows with the icon.", px, tg("barGap"), ts("barGap"))
+			end)
+			if key == nil then p:text("In a column group: left of the icon for below, right for above.") end
 		else
 			p:dropdown("Bar edge", nil, { { "bottom", "Bottom" }, { "top", "Top" } }, tg("barEdge"), ts("barEdge"),
 				function() return not (barPlaced and barPlaced()) end, 140)
