@@ -45,6 +45,10 @@ end
 -- Elements whose time bar stays in the icon: their own frames there would cut or miss one outside
 local IN_ICON = {}
 function T.keepIn(key) IN_ICON[key] = true end
+-- Elements whose time bar on an aura button may be clipped (Expiring's split): made in a frame of its own,
+-- since the button forbids a new parent once it drives the bar; set before the row's aura slot is made
+local HELD = {}
+function T.holdBar(key) HELD[key] = true end
 -- Bars place their own
 function T.canPlaceOut(key)
 	return key ~= nil and not IN_ICON[key] and not ns.Bars.get(key) and ns.Elements.ALL[key] ~= nil
@@ -150,6 +154,11 @@ local function formatterFor(s)
 end
 
 -- The widget
+local function background(bar)
+	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
+	bar.bg:SetAllPoints()
+	bar.bg:SetColorTexture(0, 0, 0, 0.6)
+end
 local Timer = {}
 Timer.__index = Timer
 local fonts = 0
@@ -184,12 +193,15 @@ function T.new(parent, key, part, opts)
 		t.fs = fs
 		pcall(fs.SetDrawLayer, fs, "OVERLAY", 7)
 	end
-	local bar = CreateFrame("StatusBar", nil, parent)
+	if opts.aura and HELD[key] then
+		t.holder = CreateFrame("Frame", nil, parent, "DisableUntrustedLayoutScriptsTemplate")
+		t.holder:SetAllPoints(parent)
+		t.holder:SetFrameLevel(cd:GetFrameLevel())
+	end
+	local bar = CreateFrame("StatusBar", nil, t.holder or parent)
 	bar:SetStatusBarTexture(WHITE)
 	bar:SetFrameLevel(cd:GetFrameLevel() + 1)
-	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
-	bar.bg:SetAllPoints()
-	bar.bg:SetColorTexture(0, 0, 0, 0.6)
+	background(bar)
 	bar:Hide()
 	t.bar = bar
 	live[t] = true
@@ -241,13 +253,19 @@ end
 function Timer:reach()
 	return self:outset() + 2 * self:edge() + S.get(self.key, self.part).barHeight
 end
+-- Its edge on bar (out: out of the icon); was: whether bar has one
+local function edgeOn(bar, out, was)
+	if out or was then ns.StyleArt.applyBorder(bar, out and OUT_EDGE or nil, "bar") end
+	return out
+end
+local function turn(bar, upright)
+	bar:SetOrientation(upright and "VERTICAL" or "HORIZONTAL")
+	bar:SetRotatesTexture(upright)
+end
 local function placeBar(t, s, side)
 	local bar, a = t.bar, t.anchor
 	local out = OUT_POINTS[side]
-	if out or t.edged then
-		ns.StyleArt.applyBorder(bar, out and OUT_EDGE or nil, "bar")
-		t.edged = out ~= nil
-	end
+	t.edged = edgeOn(bar, out ~= nil, t.edged)
 	bar:ClearAllPoints()
 	-- In the icon it keeps inside the picture
 	local pic = ns.StyleArt.pictureInset(a)
@@ -272,8 +290,19 @@ local function placeBar(t, s, side)
 	if upright then bar:SetWidth(s.barHeight) else bar:SetHeight(s.barHeight) end
 	if upright ~= (t.upright or false) then
 		t.upright = upright
-		bar:SetOrientation(upright and "VERTICAL" or "HORIZONTAL")
-		bar:SetRotatesTexture(upright)
+		turn(bar, upright)
+	end
+end
+
+-- Another bar drawn as its bar is, to lie on it: texture, background, edge and direction
+function Timer:dress(bar)
+	if not bar.bg then background(bar) end
+	bar:SetStatusBarTexture(ns.Media.barTexture(self.key))
+	bar.edged = edgeOn(bar, OUT_POINTS[self.side] ~= nil, bar.edged)
+	local upright = self.upright or false
+	if upright ~= (bar.upright or false) then
+		bar.upright = upright
+		turn(bar, upright)
 	end
 end
 
@@ -540,9 +569,26 @@ function Timer:levelExpire()
 	x.glow:SetFrameLevel(base + L.expireGlow)
 	x.ringHost:SetFrameLevel(base + L.warnRing)
 end
+-- Its bar just over its swipe, in its holder if it has one
+local function levelBar(t)
+	local level = t.cd:GetFrameLevel()
+	if t.holder then t.holder:SetFrameLevel(level) end
+	t.bar:SetFrameLevel(level + 1)
+end
 -- On an icon (W.stackIcon): its expiring warning, a swipe of its own (a second timer's) and its bar
 function Timer:restack()
 	self:levelExpire()
 	if self.ownSwipe then self.cd:SetFrameLevel(self.anchor:GetFrameLevel() + W.LEVELS.upSwipe) end
-	if self.bar then self.bar:SetFrameLevel(self.cd:GetFrameLevel() + 1) end
+	if self.bar then levelBar(self) end
+end
+-- Its bar's holder (T.holdBar): the caller has placed it and it clips the bar (on), or it holds the bar
+-- whole; out of combat
+function Timer:clipBar(on)
+	local h = self.holder
+	if not h then return end
+	if not on then
+		h:ClearAllPoints()
+		h:SetAllPoints(self.parent)
+	end
+	h:SetClipsChildren(on)
 end

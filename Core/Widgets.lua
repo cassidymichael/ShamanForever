@@ -532,8 +532,8 @@ function AuraSlot:refilter()
 	if sig == self.applied then return end
 	self.applied = nil
 	local ok = ns.try(o.sites.filter, self.container.SetAuraSlotCandidateFilters, self.container, o.slot, filters)
-	-- Last to first: a part covering another comes after it, so a refilter stopping part way leaves
-	-- nothing uncovered.
+	-- Last to first: a part that gates another comes after it, so a refilter stopping part way shows
+	-- nothing early.
 	local extras = o.extras or {}
 	for i = #extras, 1, -1 do
 		if ok then
