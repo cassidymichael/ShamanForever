@@ -404,7 +404,7 @@ local function fadeTo(def, alpha) E.fade(def.key, alpha) end
 -- def needs key, frame, spellID and refresh (other engines pass such a table too); held: something
 -- of its own keeps it shown (low reagents, a part's state)
 local function applyIdle(def, held, inEvent)
-	local when = setting(def.key, "idleWhen")
+	local when = E.idleWhen(def.key)
 	local running, certain = ownCooldownRunning(def, inEvent)
 	local busy
 	if KD.idleMode(def, when) == "oncd" then busy = not (running and certain) else busy = running end

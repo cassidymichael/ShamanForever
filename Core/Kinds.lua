@@ -285,6 +285,7 @@ local function finishOne(e)
 	end
 	e.experiments = #exps > 0 and exps or nil
 	fillIdle(def, list)
+	ns.Elements.declareIdle(e)
 end
 -- Each element on its own: one that fails is noted and the rest go on
 function KD.finish()

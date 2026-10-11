@@ -87,7 +87,19 @@ local NO_EFFECTS = { glow = false, pop = false }
 local BASE_RANGES = { idleAlpha = { 0, 1, 0.05 } }
 -- Every element's own settings beside its defaults (_Profiles has the vocabulary)
 local BASE = { defaults = { on = true, show = "always" }, choices = { show = { "always", "combat" } } }
+-- Idle when takes the values its Idle choices list (def.idleChoices, set by its module or filled from its parts
+-- by _Kinds), so _Profiles drops any other
+local function declareIdle(e)
+	local choices = e.def and e.def.idleChoices
+	if not choices then return end
+	local list = {}
+	for _, c in ipairs(choices) do table.insert(list, c[1]) end
+	e.choices = e.choices or {}
+	e.choices.idleWhen = list
+end
+E.declareIdle = declareIdle
 function E.register(key, e)
+	declareIdle(e)
 	e.getSize = e.getSize or iconSize
 	e.effects = e.effects or NO_EFFECTS
 	e.ranges = e.ranges or {}
@@ -353,6 +365,13 @@ local function idleAlpha(key)
 	local v = elementSetting(key, "idleAlpha")
 	if type(v) ~= "number" or v ~= v then v = elementDefault(key, "idleAlpha") end
 	return math.min(math.max(v, 0), 1)
+end
+-- Its Idle when, or the default for a value its choices don't list
+local function idleWhen(key)
+	local v = elementSetting(key, "idleWhen")
+	local list = ELEMENTS[key] and ELEMENTS[key].choices and ELEMENTS[key].choices.idleWhen
+	if list and not tContains(list, v) then v = elementDefault(key, "idleWhen") end
+	return v
 end
 -- An element at Idle opacity a: its icon, its idle layer and each holder fade together, and a holder whose
 -- part the player keeps (idleKeep) stays in full. Every fade of an element goes through here.
@@ -1149,7 +1168,7 @@ E.isEnabled, E.inUse, E.isOn, E.showMode, E.isLearned, E.setShow, E.setOn = isEn
 	setShow, setOn
 E.BASE = BASE
 E.opts, E.setting, E.default, E.idleAlpha = elementOpts, elementSetting, elementDefault, idleAlpha
-E.fade = fadeElement
+E.fade, E.idleWhen = fadeElement, idleWhen
 E.setSetting, E.event, E.range = setElementSetting, elementEvent, elementRange
 E.sizeOf, E.boxOf, E.setOff = sizeOf, boxOf, setOff
 E.applyTimers, E.resolveSpells, E.refreshAll, E.refreshCooldownsSoon = applyTimers, resolveSpells, refreshAll,

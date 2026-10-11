@@ -52,9 +52,8 @@ local def = { key = KEY, spellKey = "tremor", icon = 136108, school = "earth", d
 		{ "notdown", "Totem not down and no warning", "Idle while nothing warns",
 			"Totem not down and no warning: its time left shows while it's down." },
 	},
-	choices = { wordPos = {}, idleWhen = {} } }
+	choices = { wordPos = {} } }
 for pos in pairs(WORD_POINTS) do table.insert(def.choices.wordPos, pos) end
-for _, c in ipairs(def.idleChoices) do table.insert(def.choices.idleWhen, c[1]) end
 def.spell = Spells.name(def.spellKey)
 def.icon = Spells.icon(def.spellKey) or def.icon
 

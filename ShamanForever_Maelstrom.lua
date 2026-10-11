@@ -40,7 +40,7 @@ MW.DEFAULTS = {
 	active = { pop = true, glow = true },
 }
 MW.RANGES = { count = { barHeight = { 1, 20, 1 }, size = { 8, 40, 1 } } }
-local CHOICES = { idleWhen = { "never", "notup", "five" }, count = { pos = { "BOTTOMRIGHT", "CENTER" } } }
+local CHOICES = { count = { pos = { "BOTTOMRIGHT", "CENTER" } } }
 -- spellID: the talent's, once known
 local DEF = { key = KEY, idleChoices = {
 	{ "never", "Never", "It always shows in full" },
@@ -88,10 +88,7 @@ E.register(KEY, { frame = f, label = Spells.name("maelstromWeapon"), defaults = 
 	timerCant = { bar = "Its timer is Blizzard's own; a time bar can't follow it." },
 	kind = "maelstrom", def = DEF, spell = "maelstromWeapon", icon = MW.icon, school = "air",
 	blurb = "Its stacks, with a pop and a glow at five.", experimental = "Maelstrom Weapon" })
-local function idleWhen()
-	local w = own("idleWhen")
-	return tContains(CHOICES.idleWhen, w) and w or "notup"
-end
+local function idleWhen() return E.idleWhen(KEY) end
 
 -- Containers sit at the text level + 5; parts are set from that, never read back
 local function baseLevel() return f.textFrame:GetFrameLevel() + 5 end
