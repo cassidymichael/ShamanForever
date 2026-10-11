@@ -46,7 +46,7 @@ end
 local IN_ICON = {}
 function T.keepIn(key) IN_ICON[key] = true end
 -- Elements whose time bar on an aura button may be clipped (Expiring's split): made in a frame of its own,
--- since the button forbids a new parent once it drives the bar
+-- since the button forbids a new parent once it drives the bar; set before the row's aura slot is made
 local HELD = {}
 function T.holdBar(key) HELD[key] = true end
 -- Bars place their own
