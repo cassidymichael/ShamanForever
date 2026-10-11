@@ -329,6 +329,13 @@ function Rig:home()
 	local level = self.level or f:GetFrameLevel() + 12
 	self.fx:SetFrameLevel(level)
 	front:SetFrameLevel(level)
+	-- The bursts hang from the group's frame and ignore its alpha: they play at the group's opacity and
+	-- the element's idle alpha, as the flash on the icon does
+	if f.idleLayer then
+		local a = f.effects:GetAlpha() * f.idleLayer:GetAlpha()
+		front:SetAlpha(a)
+		back:SetAlpha(a)
+	end
 end
 
 function Rig:scaleStep(i, a, b, dur, smoothing)
