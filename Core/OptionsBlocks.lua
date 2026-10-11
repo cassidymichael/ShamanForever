@@ -739,6 +739,73 @@ local function groupMenu(key, after)
 end
 
 local ON_TIP = "Turned off, it keeps its group and settings."
+K.ON_TIP = ON_TIP
+
+-- Power badge on the header icon while off
+local BADGE, BADGE_FACE, BADGE_SIGN, OFF_ALPHA = 20, { 0.09, 0.075, 0.06 }, { 0.75, 0.73, 0.7 }, 0.4
+local BADGE_EDGE, BADGE_EDGE_HOVER = { 0.36, 0.29, 0.19 }, { 0.72, 0.58, 0.34 }
+local BANNER_OFF = 0.6
+local function powerBadge(parent, title, tip)
+	local b = CreateFrame("Button", nil, parent)
+	setTip(b, title, tip)
+	b:SetSize(BADGE, BADGE)
+	b.edge = Page.disc(b, "ARTWORK", 0)
+	b.edge:SetAllPoints()
+	local face = { Page.disc(b, "ARTWORK", 1), Page.disc(b, "ARTWORK", 3), b:CreateTexture(nil, "ARTWORK", nil, 4) }
+	face[1]:SetSize(BADGE - 2, BADGE - 2)
+	face[1]:SetPoint("CENTER")
+	local sign = { Page.disc(b, "ARTWORK", 2), b:CreateTexture(nil, "ARTWORK", nil, 5) }
+	sign[1]:SetSize(12, 12)
+	sign[1]:SetPoint("CENTER", 0, -1)
+	face[2]:SetSize(8, 8)
+	face[2]:SetPoint("CENTER", sign[1])
+	face[3]:SetSize(6, 5)
+	face[3]:SetPoint("BOTTOM", sign[1], "TOP", 0, -4)
+	sign[2]:SetSize(2, 7)
+	sign[2]:SetPoint("BOTTOM", sign[1], "CENTER", 0, 0)
+	for _, t in ipairs(face) do t:SetColorTexture(BADGE_FACE[1], BADGE_FACE[2], BADGE_FACE[3], 1) end
+	for _, t in ipairs(sign) do t:SetColorTexture(BADGE_SIGN[1], BADGE_SIGN[2], BADGE_SIGN[3], 1) end
+	local function edge(c) b.edge:SetColorTexture(c[1], c[2], c[3], 1) end
+	edge(BADGE_EDGE)
+	b:HookScript("OnEnter", function() edge(BADGE_EDGE_HOVER) end)
+	b:HookScript("OnLeave", function() edge(BADGE_EDGE) end)
+	return b
+end
+-- On in the page header: never in a folding block
+local function heroSwitch(h, key)
+	if not h.previewIcon then return end
+	local function get() return E.isOn(key) end
+	local function set(v) E.setOn(key, v) end
+	local sw = Page.pillSwitch(h, get, set, "On", ON_TIP, "GameFontNormalLarge")
+	sw:SetPoint("TOPLEFT", h.tags, "BOTTOMLEFT", -2, -6)
+	sw:SetFrameLevel(h:GetFrameLevel() + 6)
+	local flip = sw.flip
+	local function title() return E.isOn(key) and "Turn off" or "Turn on" end
+	local hit = CreateFrame("Button", nil, h)
+	hit:SetAllPoints(h.icon)
+	hit:SetFrameLevel(h:GetFrameLevel() + 5)
+	hit:SetScript("OnClick", flip)
+	setTip(hit, title, ON_TIP)
+	local lit = hit:CreateTexture(nil, "HIGHLIGHT")
+	lit:SetAllPoints()
+	lit:SetColorTexture(1, 1, 1, 0.08)
+	local badge = powerBadge(h, title, ON_TIP)
+	badge:SetPoint("CENTER", h.icon, "BOTTOMRIGHT", -2, 2)
+	badge:SetFrameLevel(h:GetFrameLevel() + 7)
+	badge:SetScript("OnClick", flip)
+	function h.afterRefresh()
+		local on = E.isOn(key)
+		sw:show(on)
+		h.icon:SetDesaturated(not on)
+		h.icon:SetAlpha(on and 1 or OFF_ALPHA)
+		h.iconEdge:SetAlpha(on and 1 or OFF_ALPHA)
+		h.banner:SetDesaturated(not on)
+		local v = on and 1 or BANNER_OFF
+		h.banner:SetVertexColor(v, v, v)
+		badge:SetShown(not on)
+	end
+	h.afterRefresh()
+end
 local SHOW_TIP_PAGE = "Groups have their own Show on the Groups & Layout page; an element shows only when both "
 	.. "allow it. Everything visible shows while positioning is unlocked."
 
@@ -752,24 +819,21 @@ local function elementDisplay(p, key)
 		text = function() return "Reset " .. ns.OptionsArt.elementName(key) end,
 		ask = function() ns.ElementPages.askReset(key) end,
 	}
-	p:hero(key)
+	heroSwitch(p:hero(key), key)
+	-- On sits in the header, so the page's Reset all resets it, not Display's
+	p:owns({ elem = key, name = "on", label = "On", reset = function()
+		if ns.inCombat() then return false end
+		E.setOn(key, E.default(key, "on"))
+	end })
 	p:callout("Not learned yet, so it isn't on screen.",
 		function() return not E.isLearned(key) and not ns.Spells.otherRace(E.ALL[key].race) end)
 	p:callout("Not your race, so it isn't on screen.",
 		function() return not E.isLearned(key) and ns.Spells.otherRace(E.ALL[key].race) end)
 	K.behaviourSection(p)
 	p:header("Display")
-	-- Refused in combat: the box goes back to the setting
-	local on = p:checkbox("On", ON_TIP, function() return E.isOn(key) end,
-		function(v) if not E.setOn(key, v) then ns.Options.refresh() end end)
-	p:owns({ elem = key, name = "on", label = "On", reset = function()
-		if ns.inCombat() then return false end
-		E.setOn(key, E.default(key, "on"))
-	end })
-	p:sub(on, function() return E.isOn(key) end, function()
-		p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return E.showMode(key) end,
-			function(v) E.setShow(key, v) end, nil, 140)
-	end)
+	-- Offered while off too: a choice to set before turning it on
+	p:dropdown("Show", SHOW_TIP_PAGE, SHOW_CHOICES, function() return E.showMode(key) end,
+		function(v) E.setShow(key, v) end, nil, 140)
 	p:owns({ elem = key, name = "show", label = "Show", reset = function()
 		if ns.inCombat() then return false end
 		E.setShow(key, E.default(key, "show"))
