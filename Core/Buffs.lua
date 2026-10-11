@@ -365,6 +365,7 @@ end
 local function plainLength(dur) return type(dur) == "number" and not isSecret(dur) and dur > 0 end
 function B.expiring.checkLength(x, dur, length)
 	if not plainLength(dur) or type(length) ~= "number" then return false end
+	x.readLength = dur
 	local off = math.abs(dur - length) > 0.05
 	if off == (x.lengthOff or false) then return false end
 	x.lengthOff = off
@@ -679,6 +680,10 @@ local function makeState(x)
 	slot:styleNow()
 	stateAlpha(x)
 end
+-- Awake for the buff's length after our own cast (a plain clock, never read from the aura): a cancel or a
+-- purge only keeps it shown longer; a cast it didn't see leaves it resting
+local function windowLength(x) return x.lengthOff and x.readLength or x.spec.length end
+local function windowHeld(x) return x.heldUntil ~= nil and GetTime() < x.heldUntil end
 -- Its length guard (B.expiring)
 local function readStateLength(x)
 	local length = x.spec.length
@@ -772,22 +777,35 @@ ns.registerPart("auraState", {
 				ic:Pop("ready")
 			end
 		end,
-		-- As the HUD: the cast starts its cooldown, so it's idle under Cooling down and not under Ready
-		idles = function(st, def, when)
-			if st == "active" or st == "expiring" then return KD.idleMode(def, when) == "oncd" end
-		end,
+		-- As the HUD: awake for the buff's length after the cast, under either choice
+		idles = function(st) if st == "active" or st == "expiring" then return false end end,
 	},
 	runtime = {
 		uptime = function(def) return STATES[def.key].slot.timer end,
 		refresh = function(def, _, held)
-			stateGlow(STATES[def.key])
-			return held
+			local x = STATES[def.key]
+			stateGlow(x)
+			return held or (stateOn(x) and windowHeld(x))
+		end,
+		cast = function(def)
+			local x = STATES[def.key]
+			local len = x.spec.length and windowLength(x)
+			if not len then return end
+			local at = GetTime() + len
+			x.heldUntil = at
+			C_Timer.After(len + 0.05, function()
+				if x.heldUntil == at then def.refresh(def) end
+			end)
 		end,
 		debug = function(def)
 			local x = STATES[def.key]
 			if not stateOn(x) then return "buff off" end
 			local words = "buff " .. x.slot:describe()
 			if x.lengthOff then words = words .. ", another length (no Expiring bar)" end
+			if x.spec.length then
+				words = words .. (windowHeld(x) and string.format(", awake for its buff until %.0f s",
+					x.heldUntil - GetTime()) or ", not held")
+			end
 			if x.fx then words = words .. "; " .. x.fx:describe() end
 			return words
 		end,
