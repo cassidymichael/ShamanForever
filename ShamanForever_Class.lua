@@ -105,13 +105,13 @@ ns.CLASS.layout = {
 --                    A part: name, art, from, to (icon heights), then optional dur, delay, spin,
 --                    a, color, sy, rise, slow, dark, front. art = "shape" is the school's shape
 --                    file; any other art is a file name
---   burstTip         the tooltip of the Element effect burst
+--   burstTip         the tooltip of the School effect burst
 -- Art each key needs, named by its key: Art/Banner-<Key>.jpg and, in Art/Looks, Mat-<Key>,
 -- Shape-<Key> and Burst-<Key> (.tga). Also a class's own: Art/Logo-Icon.tga, Art/Elements.tga.
 ns.THEME = {
 	order = { "earth", "fire", "water", "air", "spirit" },
 	fallback = "spirit",
-	axis = { name = "Element", lower = "element", one = "an element" },
+	axis = { name = "School", lower = "school", one = "a school" },
 	sample = "water",
 	name = { earth = "Earth", fire = "Fire", water = "Water", air = "Air", spirit = "Spirit" },
 	color = {
@@ -197,7 +197,7 @@ ns.THEME = {
 			},
 		},
 	},
-	burstTip = "Each element its own effect: earth slams, fire flares, water ripples, "
+	burstTip = "Each school its own effect: earth slams, fire flares, water ripples, "
 		.. "air spins, spirit gathers.",
 }
 
