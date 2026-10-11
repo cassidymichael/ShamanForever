@@ -139,7 +139,8 @@ local RETIRED = {
 	values = { show = { never = { "on", false } } },
 	-- Element defaults that changed, by the share version they changed in: element -> setting -> the old
 	-- default, which a profile from before keeps where it has none
-	defaults = { [9] = { flurry = { on = true }, improvedstormstrike = { on = true } } },
+	defaults = { [9] = { flurry = { on = true }, improvedstormstrike = { on = true },
+		flameshock = { on = true } } },
 }
 
 -- Every sound field under t

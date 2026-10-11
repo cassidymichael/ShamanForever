@@ -40,7 +40,7 @@ local TARGET = {
 		noPop = true,
 		noGlow = true, upLabel = "On target", idleLabel = "No target",
 		missing = true, engineExpire = true,
-		defaults = { idleWhen = "notarget", idleAlpha = 0,
+		defaults = { on = false, idleWhen = "notarget", idleAlpha = 0,
 			warn = { grey = true, ring = false, fade = false, glow = true },
 			expire = { secs = 3, bar = true, barColor = { 1, 0.2, 0.8, 1 }, text = false } },
 		ranges = { expire = { secs = { 0, 10, 1 } } } },
