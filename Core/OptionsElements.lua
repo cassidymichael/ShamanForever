@@ -1,6 +1,6 @@
 -- Element pages
 local _, ns = ...
-local W = ns.Widgets
+local W, Page = ns.Widgets, ns.Page
 local E, G = ns.Elements, ns.Groups
 
 local EP = {}
@@ -27,8 +27,10 @@ local function byName()
 end
 EP.ordered = byName
 
-local SHOW_TIP = "On or off, and when it shows. Groups have their own Show on the Groups & Layout page; an "
-	.. "element shows only when both allow it."
+local SHOW_TIP = "When it shows. Groups have their own Show on the Groups & Layout page; an element shows only "
+	.. "when both allow it."
+-- Off rows fade, but their switch
+local OFF_ALPHA, BOX, COG = 0.45, 26, "QuestLog-icon-setting"
 
 -- Elements overview
 local function tableCell(parent, width, font)
@@ -70,9 +72,10 @@ function EP.buildOverview(p)
 		.. " always fit inside one \"group\", and \"groups\" get moved around the screen in the unlocked"
 		.. " mode.")
 	local COLS = {
-		{ key = "name", label = "Element", min = 150, grow = 0.25, x0 = 32 },
+		{ key = "on", label = "On", min = BOX + 4, grow = 0 },
+		{ key = "name", label = "Element", min = 150, grow = 0.25 },
 		{ key = "group", label = "Group", min = 100, grow = 0.25, max = 200 },
-		{ key = "link", label = "Group settings", min = 100, grow = 0 },
+		{ key = "link", label = "", min = 20, grow = 0 },
 		{ key = "show", label = "Show", min = 80, grow = 0.1, max = 130 },
 		{ key = "styles", label = "Own styles", min = 120, grow = 0.4 },
 	}
@@ -109,7 +112,7 @@ function EP.buildOverview(p)
 			local pos = place(p:width())
 			for _, c in ipairs(COLS) do
 				local fs = heads[c.key]
-				local inset = (c.key == "name" and 32) or (c.key == "link" and 0) or 6
+				local inset = (c.key == "name" and 32) or (c.key == "on" and 0) or 6
 				fs:ClearAllPoints()
 				fs:SetPoint("BOTTOMLEFT", pos[c.key].x + inset, 4)
 				fs:SetWidth(pos[c.key].w - inset)
@@ -131,32 +134,25 @@ function EP.buildOverview(p)
 	for _, key in ipairs(rowKeys) do
 		local e = E.ALL[key]
 		local f = p:row(34)
+		local switch = Page.boxSwitch(f, BOX, function() return E.isOn(key) end, function(v) E.setOn(key, v) end,
+			"On", K.ON_TIP)
 		local icon = f:CreateTexture(nil, "ARTWORK")
 		icon:SetSize(22, 22)
-		icon:SetPoint("LEFT", 4, 0)
 		W.cropIcon(icon)
 		local name = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-		name:SetPoint("LEFT", 32, 0)
 		name:SetJustifyH("LEFT")
 		name:SetWordWrap(false)
 		local unknown = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 		unknown:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -1)
 		unknown:SetText(E.notLearnedText(key))
 		local group = menuCell(f, 120, K.groupMenu(key, function() ns.Options.refresh() end))
+		-- Open while off too, as on its page
 		local show = menuCell(f, 86, function(_, root)
-			root:CreateCheckbox("On", function() return E.isOn(key) end, function()
-				E.setOn(key, not E.isOn(key))
-				ns.Options.refresh()
-			end)
-			if not E.isOn(key) then return end
-			root:CreateDivider()
 			for _, c in ipairs(SHOW_CHOICES) do
-				local r = root:CreateRadio(c[2], function() return E.showMode(key) == c[1] end, function()
+				root:CreateRadio(c[2], function() return E.showMode(key) == c[1] end, function()
 					E.setShow(key, c[1])
 					ns.Options.refresh()
 				end)
-				-- the menu stays open when On is unticked
-				r:SetEnabled(function() return E.isOn(key) end)
 			end
 		end)
 		show:HookScript("OnEnter", function(self)
@@ -168,32 +164,26 @@ function EP.buildOverview(p)
 		show:HookScript("OnLeave", function() GameTooltip:Hide() end)
 		local function openPage() if EP.pageOf(key) then ns.Options.open(EP.pageOf(key)) end end
 		local open = CreateFrame("Button", nil, f)
-		open:SetPoint("TOPLEFT", 0, 0)
 		open:SetPoint("BOTTOMRIGHT", name, "BOTTOMRIGHT", 4, -8)
 		open:SetScript("OnClick", openPage)
 		open:SetScript("OnEnter", function() name:SetTextColor(1, 0.82, 0) end)
 		open:SetScript("OnLeave", function() name:SetTextColor(1, 1, 1) end)
+		-- Blizzard's settings cog, lit on hover as its own icon buttons are
 		local groupOpen = CreateFrame("Button", nil, f)
-		groupOpen:SetHeight(20)
-		groupOpen.text = groupOpen:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-		groupOpen.text:SetPoint("LEFT", 0, 0)
-		groupOpen.text:SetText("Open group >")
-		groupOpen.text:SetTextColor(0.6, 0.6, 0.6)
+		groupOpen:SetSize(20, 20)
+		groupOpen.icon = groupOpen:CreateTexture(nil, "ARTWORK")
+		groupOpen.icon:SetAtlas(COG, true)
+		groupOpen.icon:SetPoint("CENTER")
+		local lit = groupOpen:CreateTexture(nil, "HIGHLIGHT")
+		lit:SetAtlas(COG, true)
+		lit:SetPoint("CENTER", groupOpen.icon)
+		lit:SetBlendMode("ADD")
+		lit:SetAlpha(0.4)
 		groupOpen:SetScript("OnClick", function()
 			local g = G.of(key)
 			if g then ns.Options.openGroup(g.id) end
 		end)
-		groupOpen:SetScript("OnEnter", function(self)
-			self.text:SetTextColor(1, 0.82, 0)
-			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-			GameTooltip:SetText("Group settings")
-			GameTooltip:AddLine("This group's settings on the Groups & Layout page.", 1, 1, 1, true)
-			GameTooltip:Show()
-		end)
-		groupOpen:SetScript("OnLeave", function(self)
-			self.text:SetTextColor(0.6, 0.6, 0.6)
-			GameTooltip:Hide()
-		end)
+		W.setTip(groupOpen, "Group settings", "This group's settings on the Groups & Layout page.")
 		local styles = CreateFrame("Frame", nil, f)
 		styles:EnableMouse(true)
 		styles:SetHeight(20)
@@ -215,27 +205,35 @@ function EP.buildOverview(p)
 			GameTooltip:Show()
 		end)
 		styles:SetScript("OnLeave", function() GameTooltip:Hide() end)
-		local cells = { { group, "group" }, { show, "show" }, { groupOpen, "link" }, { styles, "styles" } }
+		local cells = { { group, "group" }, { show, "show" }, { styles, "styles" } }
 		p:add(f, 34, nil, function()
 			e.paint(icon)
-			local learned = E.isLearned(key)
+			local learned, on = E.isLearned(key), E.isOn(key)
 			local pos = place(p:width())
+			switch:ClearAllPoints()
+			switch:SetPoint("LEFT", pos.on.x, 0)
+			switch:show(on)
+			icon:ClearAllPoints()
+			icon:SetPoint("LEFT", pos.name.x + 4, 0)
 			name:SetWidth(pos.name.w - 36)
 			name:SetText(e.label)
 			name:ClearAllPoints()
-			name:SetPoint("LEFT", 32, learned and 0 or 6)
+			name:SetPoint("LEFT", pos.name.x + 32, learned and 0 or 6)
+			open:SetPoint("TOPLEFT", pos.name.x, 0)
 			unknown:SetShown(not learned)
 			icon:SetDesaturated(not learned)
 			local g = G.of(key)
 			group.text:SetText(g and g.name or "Ungrouped")
-			local mode = E.isOn(key) and E.showMode(key)
-			show.text:SetText("Off")
-			for _, c in ipairs(SHOW_CHOICES) do if c[1] == mode then show.text:SetText(c[2]) end end
+			for _, c in ipairs(SHOW_CHOICES) do if c[1] == E.showMode(key) then show.text:SetText(c[2]) end end
 			for _, cell in ipairs(cells) do
 				cell[1]:ClearAllPoints()
 				cell[1]:SetPoint("LEFT", pos[cell[2]].x, 0)
 				cell[1]:SetWidth(pos[cell[2]].w)
 			end
+			groupOpen:ClearAllPoints()
+			groupOpen:SetPoint("LEFT", pos.link.x, 0)
+			local a = on and 1 or OFF_ALPHA
+			for _, part in ipairs({ icon, name, unknown, group, show, groupOpen, styles }) do part:SetAlpha(a) end
 			local short = ownStyles(key, "short")
 			if #short == 0 then
 				styles.text:SetText("Global")
