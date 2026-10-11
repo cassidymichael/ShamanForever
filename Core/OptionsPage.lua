@@ -179,6 +179,8 @@ function Page:add(frame, height, shown, refresh)
 	return frame
 end
 
+-- The rows build() adds, indented under the row parent (added before them) on a rule, shown while it shows
+-- and active() is true; active nil: each row says when it shows (a menu's rows for some of its choices)
 function Page:sub(parent, active, build)
 	local parentItem
 	for i = #self.items, 1, -1 do
@@ -341,7 +343,7 @@ function Page:paint()
 		local show = not (b and not it.head and b.head.visible and isFolded(b))
 		show = show and (not it.shown or it.shown())
 		local sub = it.sub
-		if show and sub then show = sub.parent.visible and sub.active() and true or false end
+		if show and sub then show = sub.parent.visible and (not sub.active or sub.active()) and true or false end
 		it.visible = show
 		it.frame:SetShown(show)
 		if show then
@@ -439,10 +441,22 @@ function Page:reveal(frame)
 	end
 end
 
+-- A box in a run under another box is that box's detail; under a menu or slider it counts while it shows
+local function listed(it)
+	if not it.says or (it.shown and not it.shown()) then return false end
+	local run = it.sub
+	while run do
+		local parent = run.parent
+		if parent.says or (parent.shown and not parent.shown()) or (run.active and not run.active()) then return false end
+		run = run.outer
+	end
+	return true
+end
+
 local function onList(b)
 	local on = {}
 	for _, it in ipairs(b.items) do
-		if it.says and not it.sub and (not it.shown or it.shown()) then
+		if listed(it) then
 			local s = it.says()
 			if s then table.insert(on, s) end
 		end

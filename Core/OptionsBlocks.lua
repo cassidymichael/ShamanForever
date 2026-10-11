@@ -87,7 +87,7 @@ local function choiceRows(p, r, part, field, label, tip, shown)
 		for _, e in ipairs(S.offered(part, field, key())) do table.insert(out, { e.key, e.name }) end
 		return out
 	end
-	p:dropdown(label, tip, list, key, set, shown, 190, function(_, root)
+	local row = p:dropdown(label, tip, list, key, set, shown, 190, function(_, root)
 		root:SetScrollMode(400)
 		for i, sec in ipairs(S.sections(part, field, key())) do
 			if sec.name then
@@ -102,7 +102,7 @@ local function choiceRows(p, r, part, field, label, tip, shown)
 	local f = p:row(22)
 	ns.OptionsArt.expBadge(f, S.field(part, field).name):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
 	p:add(f, 22, showWhen(function() return now().experimental end, shown))
-	return now
+	return now, row
 end
 
 local function reloadLine(p, keys, verb, shown)
@@ -174,7 +174,6 @@ local function borderRows(p, owner, after, label, shown)
 	after = after or relayout
 	local r = styleRows(p, owner, "border", after)
 	if owner ~= nil then followRow(p, owner, "border", after, label, shown) end
-	local bordered = function() return r.own() and r.style().show end
 	local look
 	local tiles = tilesOf(owner)
 	if not tiles or tiles.icon then
@@ -183,12 +182,18 @@ local function borderRows(p, owner, after, label, shown)
 		local sync = previewTiles(f, owner, LABEL_W + 24, function() return look().bySchool end)
 		p:add(f, 52, showWhen(r.own, shown), sync)
 	end
-	p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"), showWhen(r.own, shown))
-	look = choiceRows(p, r, "border", "look", "Border style", nil, showWhen(bordered, shown))
-	local function uses(field) return function() return bordered() and ns.StyleArt.uses(look(), field) end end
-	styleSlider(p, "border", "size", "Border size", "Thickness in screen pixels.", px, r.get("size"), r.set("size"),
-		showWhen(uses("size"), shown))
-	p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), showWhen(uses("color"), shown))
+	local border = p:checkbox("Border", "A border around each icon.", r.get("show"), r.set("show"),
+		showWhen(r.own, shown))
+	p:sub(border, function() return r.style().show end, function()
+		local menu
+		look, menu = choiceRows(p, r, "border", "look", "Border style")
+		local function uses(field) return function() return ns.StyleArt.uses(look(), field) end end
+		p:sub(menu, nil, function()
+			styleSlider(p, "border", "size", "Border size", "Thickness in screen pixels.", px, r.get("size"),
+				r.set("size"), uses("size"))
+			p:color("Border colour", "Colour and opacity.", r.get("color"), r.set("color"), uses("color"))
+		end)
+	end)
 end
 
 -- Art frames: part "frame" round each icon, "groupframe" round a group or bar.
@@ -268,7 +273,7 @@ local function frameRows(p, owner, part, after, opts)
 			end
 		end
 	end
-	p:dropdown(fields.name, nil, function()
+	local styleRow = p:dropdown(fields.name, nil, function()
 		local out = {}
 		for _, e in ipairs(offered(showAll)) do table.insert(out, { e.key, e.name }) end
 		return out
@@ -276,59 +281,60 @@ local function frameRows(p, owner, part, after, opts)
 	local exp = p:row(22)
 	ns.OptionsArt.expBadge(exp, fields.name):SetPoint("LEFT", exp, "LEFT", LABEL_W, 0)
 	p:add(exp, 22, showWhen(function() return look().experimental end, own))
-	p:checkbox("Show all styles", "Also styles made for something else.", function() return showAll end,
-		function(v) showAll = v; OP.refresh() end,
-		showWhen(function() return #offered(true) > #offered(false) end, own))
-	local tints = showWhen(function() return framed() and look().uses.color end, own)
-	p:color("Art frame colour", "Tints the art. White keeps its own colours.", r.get("color"), r.set("color"), tints, true)
-	styleSlider(p, part, "alpha", "Art frame opacity", nil, pct, r.get("alpha"), r.set("alpha"), showWhen(framed, own))
-	if part == "frame" and owner ~= nil then
-		-- The spacing a style's art needs to clear its neighbours; art drawn under them needs none
-		local function room()
-			local o, l = resolve(owner), look()
-			if l.layer == "under" or not FR.usable(l) then return nil end
-			local g = G.of(o)
-			if not (g and #g.members > 1) then return nil end
-			local rc, size = l.drawn or l.reach, G.size(g)
-			local n = g.orientation == "vertical" and rc.top + rc.bottom or rc.left + rc.right
-			n = math.ceil(n * size)
-			return n > 0 and n or nil
+	p:sub(styleRow, nil, function()
+		p:checkbox("Show all styles", "Also styles made for something else.", function() return showAll end,
+			function(v) showAll = v; OP.refresh() end, function() return #offered(true) > #offered(false) end)
+		local function tints() return framed() and look().uses.color end
+		p:color("Art frame colour", "Tints the art. White keeps its own colours.", r.get("color"), r.set("color"), tints,
+			true)
+		styleSlider(p, part, "alpha", "Art frame opacity", nil, pct, r.get("alpha"), r.set("alpha"), framed)
+		if part == "frame" and owner ~= nil then
+			-- The spacing a style's art needs to clear its neighbours; art drawn under them needs none
+			local function room()
+				local o, l = resolve(owner), look()
+				if l.layer == "under" or not FR.usable(l) then return nil end
+				local g = G.of(o)
+				if not (g and #g.members > 1) then return nil end
+				local rc, size = l.drawn or l.reach, G.size(g)
+				local n = g.orientation == "vertical" and rc.top + rc.bottom or rc.left + rc.right
+				n = math.ceil(n * size)
+				return n > 0 and n or nil
+			end
+			p:text(function()
+				local n = room() or 0
+				if n > P.GROUP_RANGES.spacing[2] then return "Its art runs over its neighbours at any spacing." end
+				return string.format("Needs about %d spacing in its group to clear its neighbours.", n)
+			end, function() return room() ~= nil end)
 		end
-		p:text(function()
-			local n = room() or 0
-			if n > P.GROUP_RANGES.spacing[2] then return "Its art runs over its neighbours at any spacing." end
-			return string.format("Needs about %d spacing in its group to clear its neighbours.", n)
-		end,
-			showWhen(function() return room() ~= nil end, own))
-	end
-	local sp = opts.spacing
-	if sp then
-		local function fit()
-			local l = look()
-			if l.none or not FR.usable(l) then return nil end
-			local n = FR.fitSpacing(l, sp.size())
-			return n and math.floor(n + 0.5)
+		local sp = opts.spacing
+		if sp then
+			local function fit()
+				local l = look()
+				if l.none or not FR.usable(l) then return nil end
+				local n = FR.fitSpacing(l, sp.size())
+				return n and math.floor(n + 0.5)
+			end
+			local f = p:row(28)
+			f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+			f.text:SetTextColor(0.72, 0.72, 0.72)
+			f.text:SetPoint("LEFT", 4, 0)
+			local use = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+			use:SetSize(60, 22)
+			use:SetText("Use")
+			use:SetPoint("LEFT", f.text, "RIGHT", 10, 0)
+			use:SetScript("OnClick", function()
+				local n = fit()
+				if n then sp.set(math.min(math.max(n, sp.min), sp.max)) end
+			end)
+			setTip(use, "Use", "Sets Spacing to this.")
+			p:add(f, 28, function() return fit() ~= nil end, function()
+				local n = fit() or 0
+				f.text:SetText(string.format("Fits at Spacing %d.", n))
+				use:SetEnabled(sp.get() ~= n and (not sp.enabled or sp.enabled()))
+			end)
 		end
-		local f = p:row(28)
-		f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-		f.text:SetTextColor(0.72, 0.72, 0.72)
-		f.text:SetPoint("LEFT", 4, 0)
-		local use = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-		use:SetSize(60, 22)
-		use:SetText("Use")
-		use:SetPoint("LEFT", f.text, "RIGHT", 10, 0)
-		use:SetScript("OnClick", function()
-			local n = fit()
-			if n then sp.set(math.min(math.max(n, sp.min), sp.max)) end
-		end)
-		setTip(use, "Use", "Sets Spacing to this.")
-		p:add(f, 28, showWhen(function() return fit() ~= nil end, own), function()
-			local n = fit() or 0
-			f.text:SetText(string.format("Fits at Spacing %d.", n))
-			use:SetEnabled(sp.get() ~= n and (not sp.enabled or sp.enabled()))
-		end)
-	end
-	if opts.note then p:text(opts.note, showWhen(framed, own)) end
+		if opts.note then p:text(opts.note, framed) end
+	end)
 end
 
 -- Whether a bar draws a group frame of its own
@@ -374,37 +380,41 @@ local function glowBlock(p, owner)
 	p:add(f, 64, own, function()
 		for _, t in ipairs(sync()) do t:glow(true) end
 	end)
-	look = choiceRows(p, r, "glow", "look", "Style", nil, own)
 	if isElement(owner) then popSchoolRow(p, owner, showWhen(function() return look().bySchool end)) end
+	local menu
+	look, menu = choiceRows(p, r, "glow", "look", "Style", nil, own)
+	local function uses(field)
+		return function() local l = look(); return l.uses[field] and not (l.fields and l.fields[field]) end
+	end
+	p:sub(menu, nil, function()
+		p:color("Colour", "Colour and opacity. " .. ns.CLASS.help.glowColour, r.get("color"), r.set("color"),
+			uses("color"))
+		local function secs(v) return string.format("%.1f s", v) end
+		styleSlider(p, "glow", "speed", "Pulse length", "One pulse, in seconds.", secs, r.get("speed"), r.set("speed"),
+			uses("speed"))
+		for _, e in ipairs(ns.Style.choices("glow", "look")) do
+			local names = {}
+			for field in pairs(e.fields or {}) do table.insert(names, field) end
+			table.sort(names)
+			for _, field in ipairs(names) do
+				local fd = e.fields[field]
+				local fmt = type(fd.format) == "function" and fd.format
+					or function(v) return string.format(fd.format, v) end
+				styleSlider(p, "glow", field, fd.name, fd.tip, fmt, r.get(field), r.set(field),
+					function() return look() == e end)
+			end
+		end
+		local setLow = r.set("low")
+		-- Shows 1 - low: right only while low ranges 0 to 1
+		styleSlider(p, "glow", "low", "Pulse depth", "How much it fades between pulses. 0% is steady.", pct,
+			function() return 1 - r.style().low end, function(v) setLow(1 - v) end, uses("low"))
+		styleSlider(p, "glow", "width", "Thickness", "How far in from the edges it reaches.", pct, r.get("width"),
+			r.set("width"), uses("width"))
+		styleSlider(p, "glow", "strength", "Intensity", "How bright it is. Above 100% it adds light.", pct,
+			r.get("strength"), r.set("strength"), uses("strength"))
+	end)
 	reloadLine(p, function() return ns.Effects.auraGlowStale(owner) end,
 		function(n) return n == 1 and "changes glow" or "change glow" end, own)
-	local function uses(field)
-		return showWhen(function() local l = look(); return l.uses[field] and not (l.fields and l.fields[field]) end, own)
-	end
-	p:color("Colour", "Colour and opacity. " .. ns.CLASS.help.glowColour, r.get("color"), r.set("color"), uses("color"))
-	local function secs(v) return string.format("%.1f s", v) end
-	styleSlider(p, "glow", "speed", "Pulse length", "One pulse, in seconds.", secs, r.get("speed"), r.set("speed"),
-		uses("speed"))
-	for _, e in ipairs(ns.Style.choices("glow", "look")) do
-		local names = {}
-		for field in pairs(e.fields or {}) do table.insert(names, field) end
-		table.sort(names)
-		for _, field in ipairs(names) do
-			local fd = e.fields[field]
-			local fmt = type(fd.format) == "function" and fd.format
-				or function(v) return string.format(fd.format, v) end
-			styleSlider(p, "glow", field, fd.name, fd.tip, fmt, r.get(field), r.set(field),
-				showWhen(function() return look() == e end, own))
-		end
-	end
-	local setLow = r.set("low")
-	-- Shows 1 - low: right only while low ranges 0 to 1
-	styleSlider(p, "glow", "low", "Pulse depth", "How much it fades between pulses. 0% is steady.", pct,
-		function() return 1 - r.style().low end, function(v) setLow(1 - v) end, uses("low"))
-	styleSlider(p, "glow", "width", "Thickness", "How far in from the edges it reaches.", pct, r.get("width"),
-		r.set("width"), uses("width"))
-	styleSlider(p, "glow", "strength", "Intensity", "How bright it is. Above 100% it adds light.", pct,
-		r.get("strength"), r.set("strength"), uses("strength"))
 	if owner == nil then ownLine(p, "glow") end
 end
 
@@ -446,20 +456,23 @@ local function popBlock(p, owner, kind)
 	end)
 	if isElement(owner) then popSchoolRow(p, owner, showWhen(bySchool)) end
 	if colored then
-		local color = choiceRows(p, r, "pop", "colorBy", "Colour", ns.CLASS.help.popColour, own)
-		p:text("By school suits this burst.",
-			showWhen(function() return color().key == "event" and burst().bySchool end, own))
+		local color, colorRow = choiceRows(p, r, "pop", "colorBy", "Colour", ns.CLASS.help.popColour, own)
+		p:sub(colorRow, function() return color().key == "event" and burst().bySchool end, function()
+			p:text("By school suits this burst.")
+		end)
 	end
 	choiceRows(p, r, "pop", "flash", "Flash", "Over the icon.", own)
 	local axis = ns.THEME.axis
-	choiceRows(p, r, "pop", "burst", "Burst", "Around the icon. " .. axis.name .. " effect: each " .. axis.lower
-		.. " its own.", own)
-	styleSlider(p, "pop", "reach", "Reach", "How far the burst spreads.", pct, r.get("reach"), r.set("reach"),
-		showWhen(function() return burst().uses.reach end, own))
-	local motion = choiceRows(p, r, "pop", "motion", "Motion", "How the icon moves.", own)
-	local moves = showWhen(function() return motion().uses.size end, own)
-	styleSlider(p, "pop", "size", "Motion distance", "How far it grows, hops or shakes.", pct, r.get("size"),
-		r.set("size"), moves)
+	local _, burstRow = choiceRows(p, r, "pop", "burst", "Burst", "Around the icon. " .. axis.name .. " effect: each "
+		.. axis.lower .. " its own.", own)
+	p:sub(burstRow, function() return burst().uses.reach end, function()
+		styleSlider(p, "pop", "reach", "Reach", "How far the burst spreads.", pct, r.get("reach"), r.set("reach"))
+	end)
+	local motion, motionRow = choiceRows(p, r, "pop", "motion", "Motion", "How the icon moves.", own)
+	p:sub(motionRow, function() return motion().uses.size end, function()
+		styleSlider(p, "pop", "size", "Motion distance", "How far it grows, hops or shakes.", pct, r.get("size"),
+			r.set("size"))
+	end)
 	styleSlider(p, "pop", "speed", "Speed", nil, pct, r.get("speed"), r.set("speed"), own)
 	if owner == nil then ownLine(p, "pop") end
 end
@@ -479,18 +492,22 @@ local function castStyleBlock(p, owner, state, cover)
 	if cover and cover.note then p:text(cover.note) end
 	local ranged = owner == nil or CS.has(owner, "range")
 	local own = showWhen(r.own)
-	local function uses(field)
-		return showWhen(function()
-			local v = r.style().look
-			return cover or v == field or v == "both"
-		end, own)
+	if cover then
+		styleSlider(p, part, "overlay", "Overlay", nil, pct, r.get("overlay"), r.set("overlay"), own)
+	else
+		local showAs = p:dropdown("Show as", state == "power" and ranged and "Out of range wins over this." or nil,
+			CAST_LOOKS, r.get("look"), r.set("look"), own, 140)
+		local function uses(field)
+			return function()
+				local v = r.style().look
+				return v == field or v == "both"
+			end
+		end
+		p:sub(showAs, nil, function()
+			styleSlider(p, part, "overlay", "Overlay", nil, pct, r.get("overlay"), r.set("overlay"), uses("overlay"))
+			styleSlider(p, part, "tint", "Tint", nil, pct, r.get("tint"), r.set("tint"), uses("tint"))
+		end)
 	end
-	if not cover then
-		p:dropdown("Show as", state == "power" and ranged and "Out of range wins over this." or nil, CAST_LOOKS,
-			r.get("look"), r.set("look"), own, 140)
-	end
-	styleSlider(p, part, "overlay", "Overlay", nil, pct, r.get("overlay"), r.set("overlay"), uses("overlay"))
-	if not cover then styleSlider(p, part, "tint", "Tint", nil, pct, r.get("tint"), r.set("tint"), uses("tint")) end
 	if state == "power" then
 		styleSlider(p, part, "ring", "Ring", ranged and "The blue ring, shown even when out of range." or "The blue ring.",
 			pct, r.get("ring"), r.set("ring"), own)
@@ -524,12 +541,14 @@ local function textBlock(p, owner, after)
 	local function problem() return ns.Media.fontProblem(r.style().font) end
 	-- Remade only when the font list is new: a repaint asks for it every time
 	local fonts, choices
-	p:dropdown("Font", nil, function()
+	local font = p:dropdown("Font", nil, function()
 		local now = ns.Media.fonts(r.style().font)
 		if now ~= fonts then fonts, choices = now, fontChoices(now) end
 		return choices
 	end, r.get("font"), r.set("font"), own, 200)
-	p:text(function() return problem() or "" end, showWhen(function() return r.own() and problem() ~= nil end))
+	p:sub(font, function() return problem() ~= nil end, function()
+		p:text(function() return problem() or "" end)
+	end)
 	p:dropdown("Outline", nil, ns.Media.OUTLINES, r.get("outline"), r.set("outline"), own, 160)
 	p:checkbox("Shadow", "A dark shadow under the text.", r.get("shadow"), r.set("shadow"), own)
 	if owner == nil then ownLine(p, "text") end
@@ -542,7 +561,7 @@ local function barRows(p, owner, after)
 	local own = showWhen(r.own)
 	local c = ns.THEME.color[ns.THEME.sample]
 	local bars, choices
-	p:dropdown("Texture", nil, function()
+	local texture = p:dropdown("Texture", nil, function()
 		local now = ns.Media.bars(owner)
 		if now == bars then return choices end
 		local out = {}
@@ -560,7 +579,9 @@ local function barRows(p, owner, after)
 		return out
 	end, r.get("texture"), r.set("texture"), own, 200)
 	local function problem() return ns.Media.barProblem(owner) end
-	p:text(function() return problem() or "" end, showWhen(function() return r.own() and problem() ~= nil end))
+	p:sub(texture, function() return problem() ~= nil end, function()
+		p:text(function() return problem() or "" end)
+	end)
 end
 local function barBlock(p)
 	p:header("Bar texture")
@@ -581,14 +602,13 @@ local function barPosition(p, key, tg, ts)
 			{ "out top", col and "Right of the icon" or "Above the icon" } }
 	end
 	local place, edge, setPlace, setEdge = tg("barPlace"), tg("barEdge"), ts("barPlace"), ts("barEdge")
-	p:dropdown("Bar position", nil, choices,
+	return p:dropdown("Bar position", nil, choices,
 		function() return (place() == "out" and "out" or "in") .. " " .. (edge() == "top" and "top" or "bottom") end,
 		function(v)
 			local where, side = v:match("^(%a+) (%a+)$")
 			setPlace(where)
 			setEdge(side)
 		end, nil, 180)
-	if key == nil then p:text("In a column group: left of the icon for below, right for above.") end
 end
 
 local function timerSettings(p, title, key, part, after, note, first, barPlaced)
@@ -638,9 +658,12 @@ local function timerSettings(p, title, key, part, after, note, first, barPlaced)
 	p:sub(bar, on("bar"), function()
 		styleSlider(p, part, "barHeight", "Bar height", nil, px, tg("barHeight"), ts("barHeight"))
 		if key == nil or ns.Timer.canPlaceOut(key) then
-			barPosition(p, key, tg, ts)
-			styleSlider(p, part, "barGap", "Bar gap", "From the icon, at the default icon size; it grows with the icon.",
-				px, tg("barGap"), ts("barGap"), showWhen(function() return style().barPlace == "out" end))
+			local position = barPosition(p, key, tg, ts)
+			p:sub(position, function() return style().barPlace == "out" end, function()
+				styleSlider(p, part, "barGap", "Bar gap",
+					"From the icon, at the default icon size; it grows with the icon.", px, tg("barGap"), ts("barGap"))
+			end)
+			if key == nil then p:text("In a column group: left of the icon for below, right for above.") end
 		else
 			p:dropdown("Bar edge", nil, { { "bottom", "Bottom" }, { "top", "Top" } }, tg("barEdge"), ts("barEdge"),
 				function() return not (barPlaced and barPlaced()) end, 140)
@@ -774,9 +797,9 @@ end
 local function idleBlock(p, def)
 	local key, choices = def.key, def.idleChoices
 	local function when() return E.setting(key, "idleWhen") end
-	local function never() return choices ~= nil and when() == "never" end
 	p:header("Idle")
 	local hidden = ". At 0% it's hidden and keeps its place in the group."
+	local whenRow
 	if choices then
 		local options, tips = {}, {}
 		for _, c in ipairs(choices) do
@@ -792,18 +815,19 @@ local function idleBlock(p, def)
 			return ""
 		end)
 		local whenGet, whenSet = eopt(p, key, "idleWhen")
-		p:dropdown("Idle when", table.concat(tips, " "), options, whenGet, whenSet, nil, 230)
+		whenRow = p:dropdown("Idle when", table.concat(tips, " "), options, whenGet, whenSet, nil, 230)
 	else
 		p:text((def.idleText or "Idle while it isn't up") .. hidden)
 	end
-	local extra = def.idleExtra
-	if extra then
-		local extraGet, extraSet = eopt(p, key, extra.name, extra.field)
-		p:dropdown(extra.label, extra.tip, extra.choices, extraGet, extraSet,
-			choices and showWhen(function() return not never() end) or nil, 230)
+	local function rows()
+		local extra = def.idleExtra
+		if extra then
+			local extraGet, extraSet = eopt(p, key, extra.name, extra.field)
+			p:dropdown(extra.label, extra.tip, extra.choices, extraGet, extraSet, nil, 230)
+		end
+		eslider(p, key, "Idle opacity", "The icon's opacity while idle.", pct, nil, "idleAlpha")
 	end
-	eslider(p, key, "Idle opacity", "The icon's opacity while idle.", pct,
-		choices and showWhen(function() return not never() end) or nil, "idleAlpha")
+	if whenRow then p:sub(whenRow, function() return when() ~= "never" end, rows) else rows() end
 end
 
 -- The Style section: timers() (its timer blocks), then the style blocks
@@ -983,11 +1007,12 @@ local function readyBlock(p, owner, opts)
 	local s = store(p, owner, opts.after)
 	if not s.has("ready") then return end
 	p:header("Ready")
-	check(p, s, "ready", "pop", "Pop", "The moment the cooldown ends.")
-	if opts.blocked and s.has("ready", "blocked") then
-		local get, set = s.opt("ready", "blocked")
-		local popOn = showWhen(s.get("ready", "pop"))
-		p:dropdown(opts.blocked[1], opts.blocked[2], BLOCKED, get, set, popOn, 150)
+	local pop = check(p, s, "ready", "pop", "Pop", "The moment the cooldown ends.")
+	if pop and opts.blocked and s.has("ready", "blocked") then
+		p:sub(pop, s.get("ready", "pop"), function()
+			local get, set = s.opt("ready", "blocked")
+			p:dropdown(opts.blocked[1], opts.blocked[2], BLOCKED, get, set, nil, 150)
+		end)
 	end
 	check(p, s, "ready", "glow", "Pulsing glow", opts.glowTip or "While it's off cooldown.")
 	soundRow(p, s, "ready", "Sound", "The moment the cooldown ends.")
@@ -1040,8 +1065,8 @@ local function ranOutBlock(p, owner, opts)
 	soundRow(p, s, "ended", "Sound when it ends", tipOf(opts, "endSound"))
 end
 
--- expire, then Ran out: opts.afterSecs(s) (rows under Warn in the last), warns() (whether its looks
--- can show; default: Warn in the last isn't off), noun, after
+-- expire, then Ran out: opts.afterSecs(s) (rows of its own first in the run under Warn in the last),
+-- warns() (whether its looks can show; default: Warn in the last isn't off), noun, after
 local function expiringBlock(p, owner, opts)
 	opts = opts or {}
 	local s = store(p, owner, opts.after)
@@ -1049,17 +1074,22 @@ local function expiringBlock(p, owner, opts)
 	p:header("Expiring")
 	local r = s.range("expire", "secs")
 	local secs, setSecs = s.opt("expire", "secs")
-	rangeSlider(p, r, "Warn in the last", "Seconds before it runs out. Zero turns the warning off.",
+	local warnIn = rangeSlider(p, r, "Warn in the last", "Seconds before it runs out. Zero turns the warning off.",
 		function(v) return v == 0 and "Off" or string.format("%d s", v) end, secs, setSecs)
-	if opts.afterSecs then opts.afterSecs(s) end
-	local warns = showWhen(opts.warns or function() return (secs() or 0) > 0 end)
-	lookRows(p, s, "expire", opts, warns)
-	local bar = check(p, s, "expire", "bar", "Bar colour", "The time bar takes this colour in the last seconds.", warns)
-	if bar and s.has("expire", "barColor") then
-		local get, set = s.opt("expire", "barColor")
-		p:color("Colour", nil, get, set, showWhen(s.get("expire", "bar"), warns))
-	end
-	check(p, s, "expire", "text", "Red countdown", "The countdown turns red in the last seconds.", warns)
+	local warns = opts.warns or function() return (secs() or 0) > 0 end
+	p:sub(warnIn, nil, function()
+		if opts.afterSecs then opts.afterSecs(s) end
+		lookRows(p, s, "expire", opts, warns)
+		local bar = check(p, s, "expire", "bar", "Bar colour", "The time bar takes this colour in the last seconds.",
+			warns)
+		if bar and s.has("expire", "barColor") then
+			p:sub(bar, s.get("expire", "bar"), function()
+				local get, set = s.opt("expire", "barColor")
+				p:color("Colour", nil, get, set)
+			end)
+		end
+		check(p, s, "expire", "text", "Red countdown", "The countdown turns red in the last seconds.", warns)
+	end)
 	ranOutBlock(p, owner, opts)
 end
 
@@ -1097,29 +1127,30 @@ local function reagentBlock(p, def)
 	local key = def.key
 	p:header("Reagent")
 	p:text("Only counted if the spell still needs one.")
-	local countGet, countSet = eopt(p, key, "reagent", "when")
-	p:dropdown("Show count", "How many you carry, on the icon.", COUNT_WHEN, countGet, countSet, nil, 170)
-	local counted = showWhen(function() return countGet() ~= "never" end)
 	eslider(p, key, "Low at",
 		"At this many or fewer, the count takes the low colour, and Idle can count it as running low.",
 		int, nil, "reagent", "low")
-	local posGet, posSet = eopt(p, key, "reagent", "pos")
-	p:dropdown("Position", nil, COUNT_POINTS, posGet, posSet, counted, 150)
-	eslider(p, key, "Text size", "At the default icon size; it grows with the icon.", int, counted, "reagent", "size")
-	local colorGet, colorSet = eopt(p, key, "reagent", "color")
-	p:color("Count colour", "While you have enough.", colorGet, colorSet, counted)
-	local lowGet, lowSet = eopt(p, key, "reagent", "lowColor")
-	p:color("Low colour", "At the Low mark or below, and at none.", lowGet, lowSet, counted)
-	eslider(p, key, "Text X offset", nil, px, counted, "reagent", "x")
-	eslider(p, key, "Text Y offset", nil, px, counted, "reagent", "y")
+	local countGet, countSet = eopt(p, key, "reagent", "when")
+	local count = p:dropdown("Show count", "How many you carry, on the icon.", COUNT_WHEN, countGet, countSet, nil, 170)
+	p:sub(count, function() return countGet() ~= "never" end, function()
+		local posGet, posSet = eopt(p, key, "reagent", "pos")
+		p:dropdown("Position", nil, COUNT_POINTS, posGet, posSet, nil, 150)
+		eslider(p, key, "Text size", "At the default icon size; it grows with the icon.", int, nil, "reagent", "size")
+		local colorGet, colorSet = eopt(p, key, "reagent", "color")
+		p:color("Count colour", "While you have enough.", colorGet, colorSet)
+		local lowGet, lowSet = eopt(p, key, "reagent", "lowColor")
+		p:color("Low colour", "At the Low mark or below, and at none.", lowGet, lowSet)
+		eslider(p, key, "Text X offset", nil, px, nil, "reagent", "x")
+		eslider(p, key, "Text Y offset", nil, px, nil, "reagent", "y")
+	end)
 end
 local function noneLeftBlock(p, def)
 	p:header("None left")
 	lookRows(p, store(p, def.key), "reagent", {})
 end
 
--- Cast states: each the element has, its switch with a link to its style (_CastStates); extras[state](on):
--- rows of its own under the switch, shown while on() is
+-- Cast states: each the element has, its switch with a link to its style (_CastStates); extras[state]():
+-- rows of its own in a run under the switch, above the notes of an element drawn over Blizzard's button
 local function castBlocks(p, key, extras)
 	local CS = ns.CastStates
 	for _, state in ipairs(CS.ORDER) do
@@ -1137,10 +1168,11 @@ local function castBlocks(p, key, extras)
 					if v and ns.inCombat() then ns.say("%s waits until combat ends", st.name) end
 				end
 			end
-			styleLink(p, p:checkbox(st.on, tip, get, set), st.part, get)
+			local on = p:checkbox(st.on, tip, get, set)
+			styleLink(p, on, st.part, get)
+			if extras and extras[state] then p:sub(on, get, extras[state]) end
 			if cover and cover.note then p:text(cover.note) end
 			if cover then p:text("Turned on in combat, it waits until combat ends.", ns.inCombat) end
-			if extras and extras[state] then extras[state](get) end
 		end
 	end
 end
@@ -1169,13 +1201,15 @@ end
 local function choiceBlock(p, key, b)
 	p:header(b.title)
 	local get, set = eopt(p, key, b.name)
-	p:dropdown(b.label, b.tip, b.choices, get, set, nil, 220)
+	local menu = p:dropdown(b.label, b.tip, b.choices, get, set, nil, 220)
 	if b.badge then
 		local f = p:row(22)
 		ns.OptionsArt.expBadge(f, b.badge.name):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
 		p:add(f, 22, showWhen(function() return tContains(b.badge.values, get()) end))
 	end
-	if b.unlearned then p:text("Not learned yet.", showWhen(function() return b.unlearned(get()) end)) end
+	if b.unlearned then
+		p:sub(menu, function() return b.unlearned(get()) end, function() p:text("Not learned yet.") end)
+	end
 	if b.text then p:text(b.text) end
 	if b.waits then p:text("Turned on in combat, it waits until combat ends.", ns.inCombat) end
 end
