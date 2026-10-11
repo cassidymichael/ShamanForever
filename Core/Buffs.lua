@@ -182,21 +182,35 @@ ns.registerPart("charges", {
 	},
 })
 
--- Expiring drawn by the engine on an aura button, set out of combat: a clip-framed bar over the time bar's
--- last seconds under a cover bar, and a red countdown. x holds its frames and lengthOff; def its settings
-local EXPIRE_FAST = 240   -- the cover crosses its clip in a 240th of the aura's length
+-- Expiring drawn by the engine on an aura button, set out of combat: a bar in the Expiring colour in a clip
+-- opened by an invisible driver bar's fill end at the threshold, and a red countdown. x holds its frames and
+-- lengthOff; def its settings
+local EXPIRE_FAST = 240   -- the driver's fill end crosses the time bar in a 240th of the aura's length
 local EXPIRE_RED = { 1, 0.2, 0.2, 1 }
 local REMAINING = Enum and Enum.DurationTextBindingProperty and Enum.DurationTextBindingProperty.RemainingDuration or 0
 local function expireSite(def, what) return (def.unit == "target" and "target " or "") .. what .. " " .. def.key end
 
+-- A bar of ours on parent that the button drives with its aura's time left
+local function boundBar(button, parent, def, what)
+	local bar = CreateFrame("StatusBar", nil, parent)
+	bar:SetStatusBarTexture(ns.WHITE)
+	return bar, ns.try(expireSite(def, what), button.SetDurationBar, button, bar, ns.Timer.AURA_BAR)
+end
+-- The Expiring colour: its bar in a clip hung from the driver's fill end
 local function makeExpireBar(button, def)
 	local x = {}
-	x.clip = CreateFrame("Frame", nil, button)
+	x.clip = CreateFrame("Frame", nil, button, "DisableUntrustedLayoutScriptsTemplate")
 	x.clip:SetClipsChildren(true)
 	x.clip:Hide()
-	x.bar = CreateFrame("StatusBar", nil, x.clip)
-	x.bar:SetStatusBarTexture(ns.WHITE)
-	x.ok = ns.try(expireSite(def, "expiring bar"), button.SetDurationBar, button, x.bar, ns.Timer.AURA_BAR)
+	x.bar, x.ok = boundBar(button, x.clip, def, "expiring bar")
+	return x
+end
+-- The driver: never drawn, only its fill end is used
+local function makeDriver(button, def)
+	local x = {}
+	x.bar, x.ok = boundBar(button, button, def, "expiring driver")
+	x.bar:SetStatusBarColor(0, 0, 0, 0)
+	x.fill = x.bar:GetStatusBarTexture()
 	return x
 end
 
@@ -244,65 +258,67 @@ local function styleExpire(x, def, length, slot)
 	local secs, r = setting(key, "expire", "secs"), def.ranges.expire.secs
 	if type(secs) ~= "number" or secs ~= secs then secs = def.defaults.expire.secs end
 	secs = math.min(math.max(math.floor(secs + 0.5), r[1]), r[2])
-	local red, cover = x.redBar, x.coverBar
-	-- The cover must hide the Expiring colour completely: no see-through colour
-	local k = t and t:barRGB()
-	local barOn = secs > 0 and setting(key, "expire", "bar") and t and t.barOn and red and cover and red.ok and cover.ok
-		and ns.isColor(k) and (k[4] or 1) >= 1 and not x.lengthOff and type(length) == "number" and length > 0
-	-- Both hidden first, shown together last: an Expiring colour without its cover would warn for the
-	-- whole aura
-	for _, bar in ipairs({ red, cover }) do if bar then bar.clip:Hide() end end
+	local red, driver = x.redBar, x.driver
+	local barOn = secs > 0 and setting(key, "expire", "bar") and t and t.barOn and red and driver and red.ok
+		and driver.ok and driver.fill ~= nil and not x.lengthOff and type(length) == "number" and length > 0
+	-- Hidden first, shown last once placed
+	if red then red.clip:Hide() end
 	if not barOn then return styleExpireText(x, def, slot, st, secs) end
 	local c = setting(key, "expire", "barColor")
 	if not ns.isColor(c) then c = def.defaults.expire.barColor end
 	local part = math.min(secs, length) / length
 	local placed = ns.try(expireSite(def, "expiring place"), function()
-		-- Over the time bar wherever it sits, from the end it drains to: its left, an upright one's bottom
-		local h, upright = st.barHeight, t.side == "left" or t.side == "right"
+		-- Along the time bar wherever it sits, from the end it drains to: its left, an upright one's bottom
+		local upright = t.side == "left" or t.side == "right"
 		local len = t:barLength(t.side)
-		local w = len * part
-		-- Levels: Expiring colour under the cover; glow and countdown above both
+		-- Levels: the Expiring colour over the time bar; glow and countdown above it
 		local base = def.frame.textFrame:GetFrameLevel()
 		red.clip:SetFrameLevel(base + 10); red.bar:SetFrameLevel(base + 11)
-		cover.clip:SetFrameLevel(base + 12); cover.bar:SetFrameLevel(base + 13)
-		local function along(f, l) if upright then f:SetSize(h, l) else f:SetSize(l, h) end end
-		for _, bar in ipairs({ cover, red }) do
-			bar.clip:ClearAllPoints()
-			bar.clip:SetPoint("BOTTOMLEFT", t.bar, "BOTTOMLEFT", 0, 0)
-			along(bar.clip, w)
-			bar.bar:ClearAllPoints()
-			if upright ~= (x.upright or false) then
-				bar.bar:SetOrientation(upright and "VERTICAL" or "HORIZONTAL")
-				bar.bar:SetRotatesTexture(upright)
+		driver.bar:SetFrameLevel(base + 12)
+		local d, fill = driver.bar, driver.fill
+		if upright ~= (x.upright or false) then
+			for _, bar in ipairs({ d, red.bar }) do
+				bar:SetOrientation(upright and "VERTICAL" or "HORIZONTAL")
+				bar:SetRotatesTexture(upright)
 			end
+			x.upright = upright
 		end
-		x.upright = upright
-		local tex = ns.Media.barTexture(t.key)
-		cover.bar:SetStatusBarTexture(tex)
-		red.bar:SetStatusBarTexture(tex)
-		-- The cover, far longer than its clip, slides off it in its last 240th of the aura's length
-		local long = w * EXPIRE_FAST
-		local off = w - long * part
-		along(cover.bar, long)
-		cover.bar:SetPoint("BOTTOMLEFT", cover.clip, "BOTTOMLEFT", upright and 0 or off, upright and off or 0)
-		cover.bar:SetStatusBarColor(k[1], k[2], k[3], 1)
-		along(red.bar, len)
-		red.bar:SetPoint("BOTTOMLEFT", red.clip, "BOTTOMLEFT", 0, 0)
+		-- The driver, far longer than the time bar: its fill end reaches the bar's far end a 240th of the
+		-- aura's length before the threshold and its draining end at the threshold
+		local long = len * EXPIRE_FAST
+		local off = -long * part
+		d:ClearAllPoints()
+		red.clip:ClearAllPoints()
+		if upright then
+			d:SetPoint("BOTTOMLEFT", t.bar, "BOTTOMLEFT", 0, off)
+			d:SetPoint("BOTTOMRIGHT", t.bar, "BOTTOMRIGHT", 0, off)
+			d:SetHeight(long)
+			red.clip:SetPoint("BOTTOMLEFT", fill, "TOPLEFT", 0, 0)
+			red.clip:SetPoint("TOPRIGHT", t.bar, "TOPRIGHT", 0, 0)
+		else
+			d:SetPoint("TOPLEFT", t.bar, "TOPLEFT", off, 0)
+			d:SetPoint("BOTTOMLEFT", t.bar, "BOTTOMLEFT", off, 0)
+			d:SetWidth(long)
+			red.clip:SetPoint("TOPLEFT", fill, "TOPRIGHT", 0, 0)
+			red.clip:SetPoint("BOTTOMRIGHT", t.bar, "BOTTOMRIGHT", 0, 0)
+		end
+		-- The Expiring colour's bar lies on the time bar and follows the same aura
+		red.bar:ClearAllPoints()
+		red.bar:SetAllPoints(t.bar)
+		red.bar:SetStatusBarTexture(ns.Media.barTexture(t.key))
 		red.bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
 	end)
-	if placed then
-		cover.clip:Show()
-		red.clip:Show()
-	end
+	if placed then red.clip:Show() end
 	styleExpireText(x, def, slot, st, secs)
 end
 
--- Its extra slots (one bar each), its countdown's holder (font set first: Blizzard writes at once), style
+-- Its extra slots (the Expiring colour, then the driver: a refilter stopped part way leaves no colour), its
+-- countdown's holder (font set first: Blizzard writes at once), style
 B.expiring = {
 	extras = function(x, def)
 		return {
 			{ key = "expire", init = function(_, b) x.redBar = makeExpireBar(b, def) end },
-			{ key = "cover", init = function(_, b) x.coverBar = makeExpireBar(b, def) end },
+			{ key = "driver", init = function(_, b) x.driver = makeDriver(b, def) end },
 		}
 	end,
 	button = function(x, button)
