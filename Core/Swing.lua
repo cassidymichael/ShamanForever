@@ -184,7 +184,7 @@ local function paintFill()
 	bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
 end
 
--- Marks: each on its own aura container under f (shown by its state driver, never by Show in combat)
+-- Marks: each on its own aura slot over f, no picture, only the pips its button fills
 local marks = {}
 local function markOn(key)
 	local e = E.ALL[key]
@@ -196,71 +196,48 @@ local function markShape()
 	return c.width .. "x" .. c.height .. c.fillFrom
 end
 -- Our frame over Blizzard's button: its opacity is ours to set in combat too. Hidden while its pips
--- wait to be drawn for the bar as it is (a restyle waits while auras are secret)
-local function markAlpha(m)
-	if not m.host then return end
-	local a = (markOn(m.key) and not pv.mode and face:IsShown() and m.shape == markShape()) and 1 or 0
-	if not ns.try("swing mark alpha", m.host.SetAlpha, m.host, a) then
-		ns.retryAfterCombat("swing mark alpha", function() markAlpha(m) end)
-	end
-end
--- Out of combat, auras readable
-local function styleMark(m)
-	if not m.container or m.err then return end
-	local site = "swing mark style " .. m.key
-	if ns.deferWhileAurasSecret(site, function() styleMark(m) end) then return end
-	local ok = ns.try(site, function()
-		local spec = E.ALL[m.key].swingMark
-		m.container:SetFrameStrata(f:GetFrameStrata())
-		m.container:SetFrameLevel(face:GetFrameLevel() + 3)
-		if not m.button then return end
-		m.button:SetSize(f:GetSize())
-		if m.pips then
-			SW.stylePips(m.pips, m.button, spec.max, spec.color(), f)
-			m.shape = markShape()
-		end
-	end)
-	if not ok then ns.retryAfterCombat(site, function() styleMark(m) end) end
-	markAlpha(m)
-end
--- Blizzard's button: no picture of its own, only the pips it fills
-local function initMark(m, button)
-	W.noMouse(button)
-	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
-	m.button = button
-	local pips = SW.makePips(button)
-	if ns.try("swing mark " .. m.key, button.SetApplicationBar, button, pips,
-		{ minApplications = 0, maxApplications = E.ALL[m.key].swingMark.max }) then m.pips = pips
-	else pips:Hide() end
-	styleMark(m)
-end
+-- wait to be drawn for the bar as it is (a restyle waits while auras are secret). A site each: a retry
+-- after combat is kept by site
+local function markAlpha(m) m.slot:fade(m.alphaSite, m.alpha) end
 -- Made once, while it's on
 local function makeMark(m)
-	if m.container or m.err or not markOn(m.key) then return end
-	local site = "swing mark " .. m.key
-	if ns.deferWhileAurasSecret(site, function() makeMark(m) end) then return end
-	local ok, err = pcall(function()
-		m.host = CreateFrame("Frame", nil, f)
-		m.host:SetAllPoints(f)
-		local c = CreateFrame("AuraContainer", nil, m.host, "CustomAuraContainerTemplate")
-		m.container = c
-		c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
-		c:SetUnit("player")
-		pcall(c.EnableMouse, c, false)
-		c:AddAuraSlot("swing-" .. m.key, "HELPFUL", {
-			candidateFilters = { includeSpellIDs = E.ALL[m.key].swingMark.ids() },
-			initializeFrame = function(button) ns.try(site .. " button", initMark, m, button) end })
-	end)
-	if not ok then
-		m.err = tostring(err)
-		if m.container then m.container:Hide() end
-		ns.noteError(site, m.err)
-		return
-	end
-	styleMark(m)
+	local slot = m.slot
+	if slot.container or slot.err or not markOn(m.key) then return end
+	if ns.deferWhileAurasSecret(slot.opts.sites.container, function() makeMark(m) end) then return end
+	slot:setup()
+	if not slot.container or slot.err then return end
+	slot:styleNow()
 	markAlpha(m)
 end
-for _, key in ipairs(MARKS) do marks[key] = { key = key } end
+for _, key in ipairs(MARKS) do
+	local m = { key = key, alphaSite = "swing mark alpha " .. key }
+	marks[key] = m
+	m.alpha = function()
+		return (markOn(key) and not pv.mode and face:IsShown() and m.shape == markShape()) and 1 or 0
+	end
+	local site, spec = "swing mark " .. key, E.ALL[key].swingMark
+	m.slot = W.makeAuraSlot(f, {
+		key = key, slot = "swing-" .. key, layer = f, noIcon = true, noTimer = true, noLayoutWait = true,
+		size = function() return f:GetSize() end,
+		levelFrom = function() return face:GetFrameLevel() end, level = 3,
+		ids = spec.ids,
+		sites = { container = site, style = "swing mark style " .. key, filter = "swing mark filter " .. key },
+		onButton = function(_, button)
+			local pips = SW.makePips(button)
+			local ok = ns.try(site, button.SetApplicationBar, button, pips,
+				{ minApplications = 0, maxApplications = spec.max })
+			if ok then m.pips = pips else pips:Hide() end
+		end,
+		onStyle = function(slot)
+			if m.pips then
+				SW.stylePips(m.pips, slot.button, spec.max, spec.color(), f)
+				m.shape = markShape()
+			end
+			markAlpha(m)
+		end,
+		onError = function(err) ns.noteError(site, err) end,
+	})
+end
 -- /sf preview: our own pips in place of the button's while a mark is on: full, or in Busy one spent
 -- a swing. A mark not learned too, with Show not learned
 local pvPips = {}
@@ -406,8 +383,13 @@ local function layout()
 	-- A mark that's off is hidden, not only faded: a shown container still follows every aura change
 	for _, m in pairs(marks) do
 		makeMark(m)
-		if m.host then m.host:SetShown(markOn(m.key)) end
-		styleMark(m)
+		local on, slot = markOn(m.key), m.slot
+		if on and m.refilterDue then
+			m.refilterDue = false
+			slot:refilter()
+		end
+		if slot.holder then slot.holder:SetShown(on) end
+		slot:styleNow()
 		markAlpha(m)
 	end
 	previewMarks()
@@ -474,6 +456,14 @@ movable = ns.Positioning.mover({ frame = f, label = "Swing timer", cfg = cfg, ra
 
 SW.afterGroups = layout
 
+-- A mark that's off refilters as it's back (layout)
+function SW.resolve()
+	for _, m in pairs(marks) do
+		m.refilterDue = not markOn(m.key)
+		if not m.refilterDue then m.slot:refilter() end
+	end
+end
+
 function SW.start()
 	local ev = CreateFrame("Frame")
 	ev:SetScript("OnEvent", onEvent)
@@ -487,9 +477,7 @@ function SW.debug()
 		listening and "on" or "off", state.swings, state.secret, state.casts,
 		left and (left > 0 and string.format("next in %.1f s", left) or "due") or "no swing under way")
 	for _, key in ipairs(MARKS) do
-		local m = marks[key]
-		say("swing mark %s: %s, container %s%s", key, cfg().marks[key] and "on" or "off",
-			m.container and "made" or "not made", m.err and (", error: " .. m.err) or "")
+		say("swing mark %s: %s, %s", key, cfg().marks[key] and "on" or "off", marks[key].slot:describe())
 	end
 end
 
