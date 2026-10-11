@@ -293,17 +293,19 @@ local function build(p)
 	end
 
 	p:hero("totembar")
-	p:callout("Not learned yet. It shows on screen once your character knows a totem.",
+	p:callout("No totems learned yet, so it isn't on screen.",
 		function() return TB.barOn() and not TB.hasTotems() end)
 	local full = function() return c().mode == "everything" end
 	K.behaviourSection(p)
 	p:header("Totem mode")
-	own("mode", { reset = function() TB.setMode(TB.DEFAULTS.mode) end })
+	own("mode", { label = "Totem mode", reset = function() return TB.setMode(TB.DEFAULTS.mode) end })
 	p:cards("Use", nil, {
 		{ "blizzard", "Blizzard's", "Interface\\Icons\\INV_Misc_Gear_01" },
 		{ "active", "Active totems", "Interface\\Icons\\Spell_Nature_TimeStop" },
 		{ "everything", "Everything", "Interface\\Icons\\Spell_Shaman_DropAll_01", tag = "RECOMMENDED" },
-	}, tget("mode"), function(v) TB.setMode(v); changed() end)
+	}, tget("mode"), function(v)
+		if TB.setMode(v) then changed() else ns.say("totem bar changes wait until combat ends") end
+	end)
 	local KEYS = "Keys: Options > Keybindings > " .. ns.NAME .. "."
 	local BAR_KEYS = "Keys: Options > Keybindings > " .. ns.NAME .. ", or hover the bar in Quick Keybind Mode."
 	p:text(ns.NAME .. "'s totem bar is off. Blizzard's totem bar and active totems display are on.\n"
@@ -466,10 +468,21 @@ local function build(p)
 
 	p.gate = full
 	p:header("Buttons")
-	p:checkbox("Left-click casts your pick", "Left-click a slot to drop that element's picked totem.", tget("cast"),
-		tset("cast"))
-	local arrows = p:checkbox("Arrow opens a totem picker", "A tab on each slot opens its totems. Works in combat.",
-		tget("arrows"), tset("arrows"))
+	-- Refused in combat: the box goes back to the setting
+	local function buttonSet(key, label)
+		own(key, { label = label, reset = function() return TB.setButtonSetting(key, TB.DEFAULTS[key]) end })
+		return function(v)
+			if TB.setButtonSetting(key, v) then changed()
+			else
+				ns.say("totem bar changes wait until combat ends")
+				ns.Options.refresh()
+			end
+		end
+	end
+	local CAST, ARROWS = "Left-click casts your pick", "Arrow opens a totem picker"
+	p:checkbox(CAST, "Left-click a slot to drop that element's picked totem.", tget("cast"), buttonSet("cast", CAST))
+	local arrows = p:checkbox(ARROWS, "A tab on each slot opens its totems. Works in combat.",
+		tget("arrows"), buttonSet("arrows", ARROWS))
 	p:sub(arrows, tget("arrows"), function()
 		tslider("Arrow size", "How deep the tab is.", px, "arrowSize")
 	end)
@@ -500,12 +513,12 @@ local function build(p)
 	p.gate = full
 	p:header("Totem not down")
 	local look = p:dropdown("Show as", "How a slot shows while its totem isn't down.",
-		{ { "pick", "Your pick" }, { "frame", "Element colour" }, { "blank", "Blank" } }, tget("empty"), tset("empty"), nil,
+		{ { "pick", "Your pick" }, { "frame", "School colour" }, { "blank", "Blank" } }, tget("empty"), tset("empty"), nil,
 		180)
 	p:sub(look, function() return c().empty == "pick" end, function()
 		p:checkbox("Greyed", "Off: the pick in colour.", tget("idleGrey"), tset("idleGrey"))
 		tslider("Opacity", nil, pct, "idleAlpha")
-		p:text("With No totem picked, the slot shows its element colour.")
+		p:text("With No totem picked, the slot shows its school colour.")
 	end)
 
 	p:header("Different totem down")
@@ -542,7 +555,6 @@ local function build(p)
 		function() return c().mana.on end, function(v) c().mana.on = v; changed() end, "power")
 	p.gate = TB.barOn
 
-	-- Defaults use spell names that may not have loaded yet: TB.overChanged accepts either.
 	local function over() return c().expire.over end
 	local function overRows()
 		p:owns({ bar = "totembar", name = "expire", field = "over", after = changed,
@@ -607,25 +619,28 @@ local function build(p)
 	end
 	K.expiringBlock(p, "totembar", { after = changed, noun = "slot", afterSecs = overRows, warns = warns,
 		tips = { endPop = "The totem pops and fades the moment it runs out.",
-			endSound = "When a totem runs out or is killed. Not when you dismiss it." } })
-	K.killedBlock(p, "totembar", { after = changed, noun = "slot", flash = { "Flash when a totem dies early",
-		"The dead totem flashes red over its slot. Not when you dismiss it or it runs out." } })
+			endSound = "When a totem runs out or ends early. Not when you dismiss it." } })
+	K.killedBlock(p, "totembar", { after = changed, noun = "slot", flash = { "Flash when a totem ends early",
+		"The totem flashes red over its slot. Not when you dismiss it or it runs out." } })
 
 	p.gate = TB.barOn
 	K.styleSection(p)
 	p:header("Totem theme")
 	local skins = {}
 	for _, e in ipairs(TB.skin.LIST) do table.insert(skins, { e.key, e.name }) end
-	p:dropdown("Theme", "How the whole bar is drawn.", skins, function() return TB.skin.current().key end,
-		tset("skin"), nil, 190)
+	local themeRow = p:dropdown("Theme", "How the whole bar is drawn.", skins,
+		function() return TB.skin.current().key end, tset("skin"), nil, 190)
 	local expRow = p:row(22)
 	ns.OptionsArt.expBadge(expRow, "Totem themes"):SetPoint("LEFT", expRow, "LEFT", LABEL_W, 0)
 	p:add(expRow, 22, TB.skin.experimental)
 	local function theme(key) return function() return TB.skin.current().key == key end end
-	p:checkbox("Tray", "A dark tray edged in gold behind the slots.", tget("pixelTray"), tset("pixelTray"),
-		theme("pixel"))
-	tslider("Edge thickness", "The element-coloured edge round each slot, in pixels.", px, "pixelEdge", theme("pixel"))
-	p:dropdown("Plinth", nil, TB.skin.PLINTHS, tget("stonePlinth"), tset("stonePlinth"), theme("stone"), 140)
+	p:sub(themeRow, nil, function()
+		p:checkbox("Tray", "A dark tray edged in gold behind the slots.", tget("pixelTray"), tset("pixelTray"),
+			theme("pixel"))
+		tslider("Edge thickness", "The school-coloured edge round each slot, in pixels.", px, "pixelEdge",
+			theme("pixel"))
+		p:dropdown("Plinth", nil, TB.skin.PLINTHS, tget("stonePlinth"), tset("stonePlinth"), theme("stone"), 140)
+	end)
 
 	p.gate = full
 	K.gcdBlock(p, "totembar")

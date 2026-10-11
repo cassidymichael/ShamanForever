@@ -7,9 +7,6 @@ ns.Profiles = P
 -- Account-wide, outside profiles
 local ACCOUNT_DEFAULTS = {
 	locked = true,
-	snap = true,
-	grid = true,
-	gridSize = 32,
 	hideIssueReporter = false,
 	keepOptionsOpen = false,
 	foldedBlocks = {},
@@ -21,10 +18,13 @@ local SAVED = ns.NAME .. "DB"
 local DEFAULT_PROFILE = "Default"
 P.DEFAULT_NAME = DEFAULT_PROFILE
 -- Share strings carry it: one from a newer version is refused
-local SHARE_VERSION = 7
+local SHARE_VERSION = 9
 
 -- Element settings (db.elementOpts[key]). A state or event is a table of fields, named the same on
 -- every element; an element's defaults declare the fields it has, and pages offer those.
+-- Every element has these two (main's BASE):
+--   on      the player's switch; off, it isn't on screen and keeps its group and settings
+--   show    always | combat: when it shows while on
 --   warn    = { on, grey, ring, fade, tint, glow, pop, sound }   something is missing (a buff)
 --   active  = { on, pop, glow, text, sound }   something to use or act on (primed, a proc, five stacks);
 --             on: it's followed at all (off, the element leaves the state out)
@@ -111,8 +111,8 @@ local RENAMED = {
 }
 
 -- Retired settings, dropped or converted as a profile loads or is imported (account and folds: as the account
--- loads). Drop after launch, with RENAMED, retireGroups, retireTotemBar, retireStyles, retireOwnLooks and
--- retireSounds.
+-- loads). Drop after launch, with RENAMED, retireGroups, retireTotemBar, retireStyles, retireOwnLooks,
+-- retireSounds, the values loop in P.migrate, and keepOldDefaults with the account's defaultsVersion.
 local RETIRED = {
 	-- Profile keys from before styles
 	root = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "glowSize", "popMotion", "popSize", "popSpeed",
@@ -134,6 +134,13 @@ local RETIRED = {
 	ownLooks = { shock = { mana = "power", range = "range" } },
 	-- Game sounds no longer offered (silent on the client): a saved one becomes None
 	sounds = { whisper = true },
+	-- Element values that became another setting: name -> old value -> { setting, value }. The old one
+	-- goes, so that name takes its default.
+	values = { show = { never = { "on", false } } },
+	-- Element defaults that changed, by the share version they changed in: element -> setting -> the old
+	-- default, which a profile from before keeps where it has none
+	defaults = { [9] = { flurry = { on = true }, improvedstormstrike = { on = true },
+		flameshock = { on = true } } },
 }
 
 -- Every sound field under t
@@ -195,6 +202,17 @@ local function retireTotemBar(t)
 		if type(t.border) == "table" then t.border.follow = false end
 	elseif t.follow == true then t.size, t.border = nil, nil end
 	for _, k in ipairs(RETIRED.totemBar) do t[k] = nil end
+	-- Per-totem Expiring times under a spell's English name (older profiles, or shared from an
+	-- English client) go under the client's name
+	local over = type(t.expire) == "table" and t.expire.over
+	if type(over) ~= "table" then return end
+	for key, d in pairs(ns.Spells.DEFS) do
+		local name = ns.Spells.name(key)
+		if d.en and name ~= d.en and over[d.en] ~= nil then
+			if over[name] == nil then over[name] = over[d.en] end
+			over[d.en] = nil
+		end
+	end
 end
 
 -- Wherever a style is kept: the profile (Global), each element's settings, each bar's and group's
@@ -253,6 +271,13 @@ function P.migrate(profile)
 	end
 	for _, o in pairs(opts) do
 		if type(o) == "table" then
+			for name, map in pairs(RETIRED.values) do
+				local to = map[o[name]]
+				if to then
+					o[name] = nil
+					if o[to[1]] == nil then o[to[1]] = to[2] end
+				end
+			end
 			rename(o, RENAMED.element)
 			for name, fields in pairs(RENAMED.values) do
 				local t = o[name]
@@ -271,6 +296,20 @@ function P.migrate(profile)
 	retireOwnLooks(opts)
 	retireGroups(profile)
 	retireStyles(profile)
+end
+
+-- A profile from version v, after P.migrate: the defaults that changed since stay as it had them
+local function keepOldDefaults(profile, v)
+	local opts = profile.elementOpts
+	if v ~= v or v < 0 then v = 0 end
+	for at = math.floor(v) + 1, SHARE_VERSION do
+		for key, names in pairs(RETIRED.defaults[at] or {}) do
+			if type(opts[key]) ~= "table" then opts[key] = {} end
+			for name, old in pairs(names) do
+				if opts[key][name] == nil then opts[key][name] = old end
+			end
+		end
+	end
 end
 
 local function acct() return P.getAccount() end
@@ -333,8 +372,16 @@ function P.load()
 	_G[SAVED] = a
 	if type(a.profiles) ~= "table" then wipe(a) end
 	P.fillDefaults(a, ACCOUNT_DEFAULTS)
+	for k, v in pairs(ACCOUNT_DEFAULTS) do
+		if type(a[k]) ~= type(v) then a[k] = type(v) == "table" and CopyTable(v) or v end
+	end
+	for name in pairs(a.profiles) do
+		if type(name) ~= "string" then a.profiles[name] = nil end
+	end
+	for key, c in pairs(a.chars) do
+		if type(key) ~= "string" or type(c) ~= "table" then a.chars[key] = nil end
+	end
 	for _, k in ipairs(RETIRED.account) do a[k] = nil end
-	if type(a.foldedBlocks) ~= "table" then a.foldedBlocks = {} end
 	for key in pairs(a.foldedBlocks) do
 		for _, gone in ipairs(RETIRED.folds) do
 			if type(key) == "string" and key:find(gone) then a.foldedBlocks[key] = nil end
@@ -342,8 +389,17 @@ function P.load()
 	end
 	mergeCharKeys(a)
 	for _, c in pairs(a.chars) do
-		if type(c) == "table" and c.off ~= true then c.off = nil end
+		if c.off ~= true then c.off = nil end
+		if type(c.profile) ~= "string" then c.profile = nil end
 	end
+	-- Every profile, not only the one selected: none keeps the old names once the map goes. Profiles
+	-- saved before a default changed keep the old one, once (none saved yet: they start new)
+	local since = type(a.defaultsVersion) == "number" and a.defaultsVersion or 0
+	for _, profile in pairs(a.profiles) do
+		P.migrate(profile)
+		if type(profile) == "table" then keepOldDefaults(profile, since) end
+	end
+	a.defaultsVersion = SHARE_VERSION
 	return a
 end
 
@@ -360,7 +416,21 @@ local function checkNewName(name)
 	if acct().profiles[name] then return "there is already a profile called " .. name end
 end
 
+-- Layout and profile changes are refused in combat, before anything changes: they'd apply while the layout waits
+function P.refusedInCombat()
+	if not ns.inCombat() then return false end
+	ns.say("layout changes wait until combat ends")
+	return true
+end
+
+-- The player's pick of a profile for this character
+function P.switch(name)
+	if P.refusedInCombat() then return end
+	P.use(name)
+end
+
 function P.new(name, source)
+	if P.refusedInCombat() then return end
 	name = strtrim(name or "")
 	local err = checkNewName(name)
 	if err then return err end
@@ -382,6 +452,7 @@ function P.rename(name)
 end
 
 function P.delete()
+	if P.refusedInCombat() then return end
 	local name = P.currentName()
 	if name == DEFAULT_PROFILE then return end
 	local a = acct()
@@ -390,9 +461,12 @@ function P.delete()
 	P.use(DEFAULT_PROFILE)
 end
 
+-- True once reset
 function P.reset()
+	if P.refusedInCombat() then return false end
 	wipe(P.getDB())
 	P.use(P.currentName())
+	return true
 end
 
 -- Sharing
@@ -490,7 +564,10 @@ function P.cleanSettings(profile)
 		for key, o in pairs(opts) do
 			local e = ns.Elements.ALL[key]
 			if type(key) ~= "string" or type(o) ~= "table" then opts[key] = nil
-			elseif e then cleanOwner(o, e) end
+			elseif e then
+				cleanOwner(o, e)
+				cleanOwner(o, ns.Elements.BASE)
+			end
 		end
 	end
 	for _, name in ipairs(ns.Bars.list()) do
@@ -562,5 +639,7 @@ function P.decode(text)
 	if type(data.v) == "number" and data.v > SHARE_VERSION then
 		return nil, "that profile needs a newer version of " .. ns.NAME
 	end
-	return cleanProfile(data.profile)
+	local profile = cleanProfile(data.profile)
+	keepOldDefaults(profile, type(data.v) == "number" and data.v or 0)
+	return profile
 end

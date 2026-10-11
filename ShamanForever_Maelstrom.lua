@@ -394,7 +394,7 @@ end
 function applyIdle()
 	-- The copy at five is a frame under Blizzard's button: set while auras are readable
 	if ns.deferWhileAurasSecret("maelstrom idle", applyIdle) then return end
-	local on = idleWhen() == "five" and src.learned() and E.isEnabled(KEY) and P.getAccount().locked
+	local on = idleWhen() == "five" and E.inUse(KEY) and P.getAccount().locked
 		and copyReady()
 	gate:SetAlpha(on and E.idleAlpha(KEY) or 1)
 	if five.host then five.host:SetAlpha(on and 1 or 0) end
@@ -417,12 +417,22 @@ local function refresh()
 	W.fadeTo(f, (P.getAccount().locked and idleWhen() ~= "never") and E.idleAlpha(KEY) or 1)
 end
 
-local function styleAll() for _, s in ipairs(SLOTS) do s:style() end end
+local function inUse() return E.inUse(KEY) end
+local function styleAll()
+	if not inUse() then return end
+	for _, s in ipairs(SLOTS) do s:style() end
+end
 
+local refilterDue = false   -- a refilter asked while not in use: done as it's back
+local function refilterAll()
+	refilterDue = not inUse()
+	if refilterDue then return end
+	for _, slot in ipairs(SLOTS) do slot:refilter() end
+end
 function MW.follow(s)
 	src = s or BUFF
 	quietPop()
-	for _, slot in ipairs(SLOTS) do slot:refilter() end
+	refilterAll()
 	G.applyLayout()
 	E.refreshAll()
 end
@@ -467,9 +477,10 @@ function MW.resolve()
 end
 
 -- A loading screen sends a full aura update: the buff is assigned to the pop again
+local events   -- set(on), from start
 function MW.start()
 	local ev = CreateFrame("Frame")
-	ns.registerEvent(ev, "PLAYER_ENTERING_WORLD")
+	events = ns.eventsWhile(ev, { "PLAYER_ENTERING_WORLD" })
 	ev:SetScript("OnEvent", function()
 		if pop.container then quietPop() end
 	end)
@@ -481,10 +492,12 @@ MW.applyTimers = styleAll
 -- every player UNIT_AURA
 local popWasOn = false
 function MW.applyLayout()
-	local popOn = src.learned() and E.isEnabled(KEY) and own("active", "pop") and true or false
+	if events then events(inUse()) end
+	local popOn = inUse() and own("active", "pop") and true or false
 	if popOn and not popWasOn and pop.container then quietPop() end
 	popWasOn = popOn
-	if src.learned() and E.isEnabled(KEY) then
+	if inUse() then
+		if refilterDue then refilterAll() end
 		stacks:setup()
 		if own("active", "pop") then
 			gateSlot:setup()

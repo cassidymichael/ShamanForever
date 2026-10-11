@@ -334,6 +334,7 @@ local function panelFor(base, top, bottom)
 	return math.max(base, 2 * (top + half - 6 + CAP_ROOM), 2 * (bottom + half + 6 + FOOT_ROOM))
 end
 
+-- h.afterRefresh(), when set, runs after each of its refreshes
 function OA.buildHero(parent, key)
 	local e = identity(key)
 	local school = OA.SCHOOL[e.school]
@@ -600,8 +601,9 @@ function OA.buildHero(parent, key)
 		self.blurb:SetWidth(def.stage and 300 or math.max(w - 40 - 60 - 14 - 40 - PANEL_W - padL - padR - 12, 120))
 		if e.tags then self.tags:SetText(e.tags()) else
 			local g = G.of(key)
-			local shows = { always = "Always", combat = "In combat", never = "Hidden" }
-			self.tags:SetText(string.format("%s  ·  %s%s", g and g.name or "Ungrouped", shows[E.showMode(key)] or "",
+			local shows = { always = "Always", combat = "In combat" }
+			self.tags:SetText(string.format("%s  ·  %s%s", g and g.name or "Ungrouped",
+				E.isOn(key) and shows[E.showMode(key)] or "Off",
 				E.isLearned(key) and "" or "  ·  " .. E.notLearnedText(key)))
 		end
 		if def.stage then
@@ -643,6 +645,7 @@ function OA.buildHero(parent, key)
 			end
 			self.shownState = st
 		end
+		if self.afterRefresh then self.afterRefresh() end
 	end
 	return h
 end

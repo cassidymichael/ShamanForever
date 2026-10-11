@@ -206,25 +206,35 @@ local function buildProfiles(p)
 		local t = {}
 		for _, name in ipairs(P.names()) do table.insert(t, { name, name }) end
 		return t
-	end, P.currentName, P.use)
+	end, P.currentName, P.switch)
 	p:buttons({
-		{ "New", function() askName("Name for the new profile:", nil, function(n) return P.new(n) end) end,
-			"A new profile with default settings.", 90 },
-		{ "Copy",
-			function() askName("Name for the copy:", P.currentName() .. " copy", function(n) return P.new(n, P.getDB()) end) end,
-			"A new profile with this one's settings.", 90 },
+		{ "New", function()
+			if P.refusedInCombat() then return end
+			askName("Name for the new profile:", nil, function(n) return P.new(n) end)
+		end, "A new profile with default settings.", 90 },
+		{ "Copy", function()
+			if P.refusedInCombat() then return end
+			askName("Name for the copy:", P.currentName() .. " copy", function(n) return P.new(n, P.getDB()) end)
+		end, "A new profile with this one's settings.", 90 },
 		{ "Rename", function() askName("New name:", P.currentName(), P.rename) end,
 			"Default can't be renamed.", 90, notDefault },
-		{ "Delete", function() StaticPopup_Show(ns.POPUP .. "DELETE_PROFILE", P.currentName()) end,
-			"Characters using it go back to Default. Default can't be deleted.", 90, notDefault },
-		{ "Reset", function() StaticPopup_Show(ns.POPUP .. "RESET", P.currentName()) end,
-			"Every setting in this profile back to defaults, including the layout.", 90 },
+		{ "Delete", function()
+			if P.refusedInCombat() then return end
+			StaticPopup_Show(ns.POPUP .. "DELETE_PROFILE", P.currentName())
+		end, "Characters using it go back to Default. Default can't be deleted.", 90, notDefault },
+		{ "Reset", function()
+			if P.refusedInCombat() then return end
+			StaticPopup_Show(ns.POPUP .. "RESET", P.currentName())
+		end, "Every setting in this profile back to defaults, including the layout.", 90 },
 	})
 
 	p:header("Share")
 	p:buttons({
 		{ "Export", function() OP.showShare("export") end, "This profile as text, to share.", 90 },
-		{ "Import", function() OP.showShare("import") end, "Profile text from someone else. It becomes a new profile.", 90 },
+		{ "Import", function()
+			if P.refusedInCombat() then return end
+			OP.showShare("import")
+		end, "Profile text from someone else. It becomes a new profile.", 90 },
 	})
 	p:text("Have you made an amazing HUD you think might make for a good future preset in " .. ns.NAME
 		.. "? Export and share it with me! Thanks!")
@@ -326,7 +336,7 @@ OP.registerPage("about", { title = "About", icon = "Interface\\Icons\\INV_Misc_B
 	build = buildAbout })
 
 -- Show choices
-local SHOW_CHOICES = { { "always", "Always" }, { "combat", "In combat" }, { "never", "Hidden" } }
+local SHOW_CHOICES = { { "always", "Always" }, { "combat", "In combat" } }
 local COMBAT_SHOW = { { "always", "Always" }, { "combat", "In combat" },
 	{ "target", "In combat or with an enemy target" } }
 local STAY_TIP = "Seconds it stays once combat ends, then it fades out."
@@ -712,7 +722,7 @@ local function buildWindow()
 end
 
 confirm(ns.POPUP .. "RESET", "Reset profile %s to defaults?\nIts layout and every setting are lost.", "Reset",
-	function() P.reset(); ns.say("profile reset to defaults") end)
+	function() if P.reset() then ns.say("profile reset to defaults") end end)
 confirm(ns.POPUP .. "RESET_SETTINGS", "Reset %s to defaults?", "Reset", function(run) run() end)
 confirm(ns.POPUP .. "DELETE_PROFILE", "Delete profile %s?\nCharacters using it go back to Default.", "Delete",
 	function() P.delete() end)
@@ -808,6 +818,8 @@ local function buildShare()
 	end)
 	f.primary:SetScript("OnClick", function()
 		if f.mode == "export" then f:Hide(); return end
+		-- Kept open with its text
+		if P.refusedInCombat() then return end
 		local settings, err = P.decode(e:GetText())
 		if not settings then
 			f.note:SetText(err:gsub("^%l", string.upper) .. ".")

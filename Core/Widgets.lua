@@ -1,31 +1,8 @@
 -- Widgets
 
-local ADDON, ns = ...
+local _, ns = ...
 local W = {}
 ns.Widgets = W
-
--- What shared code reads from the class (_Class) with no default; the first reader is _StyleArt
-do
-	local function has(path)
-		local t = ns
-		for key in path:gmatch("[^.]+") do
-			if type(t) ~= "table" then return false end
-			t = t[tonumber(key) or key]
-		end
-		return t ~= nil
-	end
-	local gaps = {}
-	for _, path in ipairs({ "CLASS.token", "CLASS.plural", "CLASS.slash.1", "CLASS.icon", "CLASS.blurb",
-		"CLASS.links.repo", "CLASS.links.curseforge", "CLASS.links.discord", "CLASS.links.kofi", "CLASS.credits",
-		"CLASS.sharePrefix", "CLASS.help.uptime", "CLASS.help.pop", "CLASS.help.popColour", "CLASS.help.bars",
-		"CLASS.help.glowColour", "CLASS.layout", "THEME.axis.name", "THEME.axis.lower", "THEME.axis.one" }) do
-		if not has(path) then table.insert(gaps, "ns." .. path) end
-	end
-	if not (has("THEME.color") and has("THEME.sample") and ns.THEME.color[ns.THEME.sample]) then
-		table.insert(gaps, "ns.THEME.color[ns.THEME.sample]")
-	end
-	if #gaps > 0 then error(ADDON .. ": the class doesn't supply " .. table.concat(gaps, ", ")) end
-end
 
 -- A class may give its own bar colours; else each colour a little brighter
 if not ns.THEME.barColor then
@@ -322,7 +299,7 @@ function W.attachSide(key, side, column)
 	return ACROSS[side == "below" and "below" or "above"][column and "column" or "row"]
 end
 
--- Aura slot: Blizzard's aura container on an element icon, the one way to show an aura in combat.
+-- Aura slot: Blizzard's aura container on an element icon or a bar, the one way to show an aura in combat.
 -- Its setup and restyles wait for combat's end and for readable auras (ns.deferWhileAurasSecret).
 -- Scripts under its button never run: it only plays animations handed to it.
 local AuraSlot = {}
@@ -335,18 +312,61 @@ function W.noMouse(b)
 	pcall(b.SetMouseMotionEnabled, b, false)
 end
 
+-- opts (required: key, the element; slot, its name; ids() or candidates(); sites.container, .style, .filter;
+-- onError(err)): unit (default player), filter (default HELPFUL), name, level (over levelFrom(), default
+-- the icon's text layer +5), size() (width and height, default the element's icon; slot.size and
+-- onStyle's size its width), extras ({ key, init(slot, button) }: more slots on its container, their
+-- buttons over its own), sites.bar, onButton(slot, button, cd), onStyle(slot, size).
+-- Its container: parent (default frame), or layer: in a holder of its own on that layer over frame
+-- (slot.holder; over an element's icon, frame.effects stays at full while frame fades with it).
+-- Its button: the aura's picture (ownIcon(): the element's), host(slot, button) the frame its parts go on,
+-- its time left (noTimer: none; barInset(); anchor, default its host, and dual as ns.Timer's). noIcon: no
+-- picture, the icon keeps its own; ownIcon and host unused, its time left on the icon (anchor default
+-- frame) sharing the icon's cooldown (dual unless false). With host its time bar stays in the icon.
+-- setup() makes it once (if it waits, it doesn't call back); Blizzard makes the buttons inside it, where
+-- they are set up (a noIcon one styled too). It sets frame.auraButton, the layout waiting for its restyle,
+-- unless noLayoutWait (frame isn't an element's icon).
+-- setup's error (slot.err, the container hidden) is told to onError(err); a button's set-up's is noted under
+-- sites.container with " button" or the extra's key added.
+-- Then style() or styleNow() and refilter(), each waiting as its comment says; fade(site, alpha), describe().
+-- Fields callers read: container, err, button, timer, cd, icon, host, holder, extras, size, filtered, applied.
 function W.makeAuraSlot(frame, opts)
-	-- A host of the caller's may clip the button's parts to the icon, and extra buttons carry the
-	-- caller's own parts over it
-	if (opts.host or opts.extras) and not opts.noTimer then ns.Timer.keepIn(opts.key) end
+	-- A host of the caller's may clip the button's parts to the icon
+	if opts.host and not opts.noTimer then ns.Timer.keepIn(opts.key) end
 	return setmetatable({ frame = frame, opts = opts }, AuraSlot)
+end
+
+local function slotSize(o)
+	if o.size then return o.size() end
+	local size = ns.Elements.sizeOf(o.key)
+	return size, size
+end
+-- The level its level and its extras' count from
+local function baseLevel(slot)
+	local o = slot.opts
+	if o.levelFrom then return o.levelFrom() end
+	return slot.frame.textFrame:GetFrameLevel() + 5
+end
+
+-- Its time left on parent, driven by the button; a client that refuses the time bar gets none rather than
+-- a still one
+local function addTimer(slot, button, parent, cd, dual)
+	local o = slot.opts
+	local e = ns.Elements.ALL[o.key]
+	slot.timer = ns.Timer.new(parent, o.key, "uptime", { cd = cd, anchor = o.anchor or slot.host, dual = dual,
+		aura = true, school = e and e.school, barInset = o.barInset })
+	if not ns.try(o.sites.bar or "aura time bar", button.SetDurationBar, button, slot.timer.bar, ns.Timer.AURA_BAR) then
+		slot.timer.bar:Hide()
+		slot.timer.bar = nil
+	end
+	button:SetDurationCooldown(cd)
 end
 
 local function initAuraButton(slot, button)
 	local o = slot.opts
-	local size = ns.Elements.sizeOf(o.key)
-	button:SetSize(size, size)
-	slot.size = size
+	local w, h = slotSize(o)
+	button:SetSize(w, h)
+	slot.size = w
 	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
 	W.noMouse(button)
 	local host = o.host and o.host(slot, button) or button
@@ -360,29 +380,34 @@ local function initAuraButton(slot, button)
 	local cd = CreateFrame("Cooldown", nil, host, "CooldownFrameTemplate")
 	cd:SetAllPoints()
 	slot.cd = cd
-	if o.noTimer then
-		cd:SetHideCountdownNumbers(true)
-		if o.onButton then o.onButton(slot, button, cd) end
-		slot.button = button
-		return
+	if o.noTimer then cd:SetHideCountdownNumbers(true)
+	else
+		addTimer(slot, button, host, cd, o.dual)
+		slot.timer:apply()
 	end
-	-- A client that refuses the time bar gets none rather than a still one.
-	local e = ns.Elements.ALL[o.key]
-	slot.timer = ns.Timer.new(host, o.key, "uptime", { cd = cd, anchor = host, aura = true,
-		school = e and e.school, barInset = o.barInset })
-	if not ns.try("aura time bar", button.SetDurationBar, button, slot.timer.bar, ns.Timer.AURA_BAR) then
-		slot.timer.bar:Hide()
-		slot.timer.bar = nil
-	end
-	slot.timer:apply()
-	button:SetDurationCooldown(cd)
 	if o.onButton then o.onButton(slot, button, cd) end
 	slot.button = button
 end
 
+-- Its parts are placed on the icon under it, whose cooldown its time left shares (dual)
+local function initOverlayButton(slot, button)
+	local o = slot.opts
+	W.noMouse(button)
+	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
+	slot.host = o.anchor or slot.frame
+	if not o.noTimer then
+		local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
+		cd:SetAllPoints()
+		slot.cd = cd
+		addTimer(slot, button, button, cd, o.dual ~= false)
+	end
+	if o.onButton then o.onButton(slot, button, slot.cd) end
+	slot.button = button
+	slot:styleNow()
+end
+
 local function initExtraButton(slot, x, button)
-	local size = ns.Elements.sizeOf(slot.opts.key)
-	button:SetSize(size, size)
+	button:SetSize(slotSize(slot.opts))
 	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
 	W.noMouse(button)
 	slot.extras = slot.extras or {}
@@ -415,24 +440,36 @@ function AuraSlot:setup()
 	if ns.deferWhileAurasSecret(o.sites.container, function() self:setup() end) then return end
 	local filters = candidates(o)
 	local ok, err = pcall(function()
-		local size = ns.Elements.sizeOf(o.key)
-		local c = CreateFrame("AuraContainer", o.name, o.parent or f, "CustomAuraContainerTemplate")
+		local parent = o.parent or f
+		if o.layer then
+			self.holder = CreateFrame("Frame", nil, o.layer)
+			self.holder:SetAllPoints(f)
+			parent = self.holder
+		end
+		local c = CreateFrame("AuraContainer", o.name, parent, "CustomAuraContainerTemplate")
 		c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
-		c:SetSize(size, size)
-		c:SetFrameStrata(f:GetFrameStrata())
-		c:SetFrameLevel(f.textFrame:GetFrameLevel() + 5 + (o.level or 0))
+		-- A picture's buttons are made at its level; a noIcon one is placed by its first restyle
+		if not o.noIcon then
+			c:SetSize(slotSize(o))
+			c:SetFrameStrata(f:GetFrameStrata())
+			c:SetFrameLevel(baseLevel(self) + (o.level or 0))
+		end
 		c:SetUnit(o.unit or "player")
 		pcall(c.EnableMouse, c, false)   -- unlocked drags start on the group frame underneath
 		self.container = c
-		f.auraButton = true   -- the layout waits while it can't restyle the button (layoutElements)
+		-- The layout waits while it can't restyle the button (layoutElements)
+		if not o.noLayoutWait then f.auraButton = true end
+		local init = o.noIcon and initOverlayButton or initAuraButton
 		c:AddAuraSlot(o.slot, o.filter or "HELPFUL", {
 			candidateFilters = filters,
-			initializeFrame = function(button) initAuraButton(self, button) end,
+			initializeFrame = function(button) ns.try(o.sites.container .. " button", init, self, button) end,
 		})
 		for _, x in ipairs(o.extras or {}) do
 			c:AddAuraSlot(o.slot .. "-" .. x.key, o.filter or "HELPFUL", {
 				candidateFilters = filters,
-				initializeFrame = function(button) initExtraButton(self, x, button) end,
+				initializeFrame = function(button)
+					ns.try(o.sites.container .. " " .. x.key, initExtraButton, self, x, button)
+				end,
 			})
 		end
 	end)
@@ -456,28 +493,31 @@ function AuraSlot:style()
 		self:styleNow()
 	end)
 end
+-- At once (the container alone until its button comes)
 function AuraSlot:styleNow()
-	if not self.button then return end
+	if not self.button and (not self.container or self.err) then return end
 	local o = self.opts
 	if ns.deferWhileAurasSecret(o.sites.style, function() self:styleNow() end) then return end
 	local ok = ns.try(o.sites.style, function()
-		local size, f, c = ns.Elements.sizeOf(o.key), self.frame, self.container
-		c:SetSize(size, size)
+		local w, h = slotSize(o)
+		local f, c, base = self.frame, self.container, baseLevel(self)
+		c:SetSize(w, h)
 		c:SetFrameStrata(f:GetFrameStrata())
-		c:SetFrameLevel(f.textFrame:GetFrameLevel() + 5 + (o.level or 0))
-		self.button:SetSize(size, size)
-		self.size = size
+		c:SetFrameLevel(base + (o.level or 0))
 		for i, x in ipairs(o.extras or {}) do
 			local b = self.extras and self.extras[x.key]
 			if b then
-				b:SetSize(size, size)
-				b:SetFrameLevel(f.textFrame:GetFrameLevel() + 5 + 2 * i + 2)
+				b:SetSize(w, h)
+				b:SetFrameLevel(base + 2 * i + 2)
 			end
 		end
-		-- Own try: a style the button refuses mustn't stop the timer and the caller's parts.
-		ns.try(o.sites.style .. ": style", ns.StyleArt.auraStyle, self, size)
-		if self.timer then self.timer:apply() end
-		if o.onStyle then o.onStyle(self, size) end
+		if not self.button then return end
+		self.button:SetSize(w, h)
+		self.size = w
+		-- Own tries: a style or timer the button refuses mustn't stop what follows (the caller's parts).
+		if not o.noIcon then ns.try(o.sites.style .. ": style", ns.StyleArt.auraStyle, self, w) end
+		if self.timer then ns.try(o.sites.style .. ": timer", self.timer.apply, self.timer) end
+		if o.onStyle then o.onStyle(self, w) end
 	end)
 	if not ok then ns.retryAfterCombat(o.sites.style, function() self:styleNow() end) end
 end
@@ -492,8 +532,8 @@ function AuraSlot:refilter()
 	if sig == self.applied then return end
 	self.applied = nil
 	local ok = ns.try(o.sites.filter, self.container.SetAuraSlotCandidateFilters, self.container, o.slot, filters)
-	-- Last to first: a part covering another comes after it, so a refilter stopping part way leaves
-	-- nothing uncovered.
+	-- Last to first: a part that gates another comes after it, so a refilter stopping part way shows
+	-- nothing early.
 	local extras = o.extras or {}
 	for i = #extras, 1, -1 do
 		if ok then
@@ -503,6 +543,18 @@ function AuraSlot:refilter()
 	end
 	if ok then self.filtered, self.applied = filters.includeSpellIDs, sig
 	else ns.retryAfterCombat(o.sites.filter, function() self:refilter() end) end
+end
+
+-- Its holder's alpha (layer); a refused call is tried again after combat, reading alpha() then
+function AuraSlot:fade(site, alpha)
+	local h = self.holder
+	if not h then return end
+	if not ns.try(site, h.SetAlpha, h, alpha()) then ns.retryAfterCombat(site, function() self:fade(site, alpha) end) end
+end
+
+-- For /sf debug
+function AuraSlot:describe()
+	return "container " .. (self.container and "made" or "not made") .. (self.err and (", error: " .. self.err) or "")
 end
 
 -- Counts on an aura button: Blizzard writes the number and fills the bar; nothing here reads them
@@ -926,6 +978,18 @@ function ClipLook:follow(unit)
 	self.unit = ok and unit or nil
 	self:wait()
 	return ok
+end
+
+-- Hidden while its owner is off, so its sensor stops following auras (out of combat)
+function ClipLook:setShown(on)
+	local c = self.container
+	if not c or self.err then return end
+	local site = self.opts.sites.container .. " shown"
+	if ns.deferInCombat(site, function() self:setShown(on) end) then return end
+	on = on and true or false
+	if c:IsShown() == on then return end
+	c:SetShown(on)
+	if on then self:wait() end
 end
 
 -- up: the glow's level over the look (2 over a look whose edge carries an art frame)

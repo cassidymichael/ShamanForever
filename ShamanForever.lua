@@ -23,6 +23,7 @@ local GROUP_DEFAULTS = {
 	show = "always",
 	fadeAfter = 0,   -- seconds (0: none)
 }
+-- Also saved, dropped by an import: fresh (true: placed by an update, not shown yet; settleFresh)
 -- A group's Show as its state driver's conditions; "harm" is any target you can attack, alive
 local SHOW_WHEN = {
 	combat = "[combat] show; hide",
@@ -60,26 +61,32 @@ root:SetAllPoints(UIParent)
 local ELEMENT_KEYS = {}
 -- key -> { frame, label, paint(texture), getSize(size), stack(), learned(), borderHost, shape,
 -- standInBorder, defaults, effects, ownSchool(), spell, icon, school, blurb, experimental, experiments,
--- kind, def }
+-- kind, def, race }
 -- experiments: the names of experimental features its parts add (_Kinds), listed in About
 -- getSize: width and height for the group's icon size (elements need not be square); borderHost:
 -- the part its border is drawn on; shape "bar": a bar, not an icon (takes only the border
 -- parts that fit a bar); paint: what stands in for it in the options and while dragging;
 -- standInBorder: preview's stand-in draws its border; learned(): none means always; kind: its options
 -- page and preview (ns.registerKind); a kind made of parts fills defaults, ranges and effects from
--- def's parts (_Kinds); defaults: its settings' defaults, which also declare the fields of each
--- state and event it has (_Profiles has the vocabulary); ranges: its numbers' { min, max, step },
--- shaped as its defaults; choices: the values a named setting may take, a list, shaped as its
--- defaults; effects = { glow, pop, popKind }: whether it has a pulsing glow and a pop
+-- def's parts (_Kinds); defaults: its settings' defaults (BASE adds on and show), which also declare
+-- the fields of each state and event it has (_Profiles has the vocabulary); ranges: its numbers'
+-- { min, max, step }, shaped as its defaults; choices: the values a named setting may take, a list,
+-- shaped as its defaults; effects = { glow, pop, popKind }: whether it has a pulsing glow and a pop
 -- (its page then offers their styles), and the pop it plays;
 -- ownSchool(): the school its pop and glow take now, where that follows its state; styles: its own
 -- shipped styles, { part = fields }; timerCant: timer parts it can't have, and why; barColor = { label,
 -- text, color() }: a colour a bar can follow; swingMark = { max, ids(), color() }: its aura's charges
--- (up to max, the aura's spell IDs as a set) as pips on the swing timer (_Swing)
+-- (up to max, the aura's spell IDs as a set) as pips on the swing timer (_Swing); race: the races
+-- (UnitRace IDs) whose racial it is, never drawn for another (Not your race)
+-- Its frame's flags: holdsAuraButton, Blizzard's aura button sits over it and draws its border (the
+-- layout frames the button; the preview leaves it under its stand-in); auraButton, an aura container in
+-- use is on it (its group's layout waits while auras are secret)
 local ELEMENTS = {}
 local function iconSize(size) return size, size end
 local NO_EFFECTS = { glow = false, pop = false }
 local BASE_RANGES = { idleAlpha = { 0, 1, 0.05 } }
+-- Every element's own settings beside its defaults (_Profiles has the vocabulary)
+local BASE = { defaults = { on = true, show = "always" }, choices = { show = { "always", "combat" } } }
 function E.register(key, e)
 	e.getSize = e.getSize or iconSize
 	e.effects = e.effects or NO_EFFECTS
@@ -105,10 +112,10 @@ end
 -- update(); a right-click on it opens the bar's page); hud = { show(opts), slots, steps(slot, mode),
 -- step(slot, state, at, range, moment) }: /sf preview on the bar itself, show(nil) as it ends, each
 -- slot looping through its steps like an element, step returning when it ends; secure: its frames are
--- protected (its top frame's parent is Bars.parent(true)); whileOff = { frame, noun() }: a protected
--- frame shown while off and hidden while on (by the on-off toggle in combat too, else out of combat),
--- and how a sentence names what it brings back (nil when it brings nothing back now); stays():
--- what stays on screen while on until combat ends (nil when nothing does).
+-- protected (its top frame's parent is Bars.parent(true)); whileOff = { frame, noun(), stays() }: a
+-- protected frame shown while off and hidden while on (by the on-off toggle in combat too, else out of
+-- combat), how a sentence names what it brings back (nil when it brings nothing back now), and what
+-- stays on screen while on until combat ends (nil when nothing does).
 -- Options: icon, school, blurb, tags() and preview (its page header: a stage, as _Kinds says); page
 -- = { order, build } (titled and iconned as the bar); experiments = { { name, where } } (About's
 -- list); ownSize() (its icon size isn't Global's); tiles = { icon, schools, border() } (its style
@@ -216,7 +223,14 @@ end
 --   resolve()              after a spellbook scan; returns a signature
 --   sanitize(db, acct)     a profile loaded
 --   applyTimers()          every timer takes its current style
---   applyLayout()          after a layout
+--   applyLayout()          after a layout. Every change to which elements are in use (switched, grouped,
+--                          learned, a profile) ends in one, then a refresh; a part's own switch (an aura
+--                          state's Show it, a buff bar) ends in one alone. A module starts and stops its
+--                          elements' work here (events: ns.eventsWhile, tickers, aura containers, engine
+--                          sounds, state drivers), gated on E.inUse (the preview's Show not learned lays
+--                          out only). An element not in use runs nothing, and refresh reads its state
+--                          anew when it's back. A bar's own switches don't come here: a bar that shares
+--                          work with elements (cast states, a class module's watch) has it synced from its own layout.
 --   afterGroups()          the groups were just laid out
 --   refresh()              read everything again
 --   onCooldowns(inEvent)   a cast, a cooldown or a module's own state changed
@@ -270,10 +284,11 @@ local function elementOpts(key)
 end
 
 -- An element's settings: one value (show, idleWhen), or a state or event table read by field
--- (warn, grey). Unset falls back to the element's defaults.
+-- (warn, grey). Unset falls back to the element's defaults, then to every element's (BASE).
 local function elementDefault(key, name, field)
 	local own = ELEMENTS[key] and ELEMENTS[key].defaults
 	local v = own and own[name]
+	if v == nil and ELEMENTS[key] then v = BASE.defaults[name] end
 	if field == nil then return v end
 	if type(v) ~= "table" then return nil end
 	return v[field]
@@ -317,7 +332,9 @@ local function idleAlpha(key)
 	return math.min(math.max(v, 0), 1)
 end
 
-local function showMode(key) return elementOpts(key).show or "always" end
+local function showMode(key) return elementSetting(key, "show") end
+-- The player's switch; isEnabled adds its group and the HUD
+local function isOn(key) return elementSetting(key, "on") ~= false end
 
 local function groupSize(g) return (g and not g.sizeFollow and g.size) or db.iconSize end
 -- An element's box (its Size, border included) and its picture's size, in whole pixels
@@ -330,7 +347,10 @@ local function sizeOf(key)
 	return box - 2 * ns.StyleArt.inset(e.borderHost or e.frame, E.borderFor(key), box, e.shape)
 end
 
-local function isEnabled(key) return groupOf(key) ~= nil and showMode(key) ~= "never" and onHUD(key) end
+-- Whether the element is drawn: on, in a group, and on the HUD. What it draws is gated on this.
+local function isEnabled(key) return groupOf(key) ~= nil and isOn(key) and onHUD(key) end
+-- In use: drawn and learned, the gate for work that reads the game (the preview can draw an unlearned one)
+local function inUse(key) return isEnabled(key) and isLearned(key) end
 
 local function removeElement(key)
 	local g, i = groupOf(key)
@@ -391,7 +411,8 @@ local function newGroup(template)
 end
 
 -- Where an element new to a profile goes: with the elements it sits beside in the default layout,
--- else a group made like that default (once per pass), else the first group
+-- else a group made like that default (once per pass), else the first group. A group made here stays
+-- fresh until it first shows (settleFresh).
 local function placeNew(key, made)
 	for _, dg in ipairs(ns.CLASS.layout) do
 		for _, k in ipairs(dg.members) do
@@ -404,6 +425,7 @@ local function placeNew(key, made)
 				if not g then
 					g = newGroup(dg)
 					g.name = uniqueName(dg.name, g) or g.name
+					g.fresh = true
 					made[dg] = g
 				end
 				table.insert(g.members, key)
@@ -451,31 +473,38 @@ local function fixNames()
 end
 
 -- Makes db.groups consistent: fills fields, ids and names, drops unknown and duplicate members,
--- places elements never seen before
+-- places elements never seen before. db.known[key]: true once seen, or the id of the group an
+-- unregistered element was dropped from (a file that failed to load, an older version), to go back to
 local function sanitize()
 	P.cleanSettings(db)
 	each("sanitize", db, acct)
 	if type(db.groups) ~= "table" then db.groups = {} end
 	if type(db.known) ~= "table" then db.known = {} end
-	local seen = {}
+	local seen, away = {}, {}
 	for _, g in ipairs(db.groups) do
 		for k, v in pairs(GROUP_DEFAULTS) do if g[k] == nil then g[k] = v end end
 		if g.show ~= "combat" and g.show ~= "target" then g.show = "always" end
+		if g.fresh ~= true then g.fresh = nil end
 		local kept = {}
 		for _, key in ipairs(type(g.members) == "table" and g.members or {}) do
 			if ELEMENTS[key] and not seen[key] then
 				table.insert(kept, key)
 				seen[key], db.known[key] = true, true
+			elseif type(key) == "string" and not ELEMENTS[key] then
+				away[key] = g
 			end
 		end
 		g.members = kept
 	end
 	fixIds()
+	for key, g in pairs(away) do db.known[key] = g.id end
 	fixNames()
 	local fresh = {}
 	for _, key in ipairs(ELEMENT_KEYS) do
-		if not seen[key] and not db.known[key] then
-			table.insert(fresh, key)
+		local was = db.known[key]
+		if not seen[key] and was ~= true then
+			local home = type(was) == "number" and groupById(was)
+			if home then table.insert(home.members, key) else table.insert(fresh, key) end
 			db.known[key] = true
 		end
 	end
@@ -483,10 +512,11 @@ local function sanitize()
 	for _, key in ipairs(fresh) do placeNew(key, made) end
 end
 
+-- A group the player places is theirs: no longer fresh
 local function setGroupCenter(g, sx, sy)
 	local ui = UIParent:GetEffectiveScale()
 	local w, h = UIParent:GetSize()
-	g.point = "CENTER"
+	g.point, g.fresh = "CENTER", nil
 	g.x = (sx / ui - w / 2) / g.scale
 	g.y = (sy / ui - h / 2) / g.scale
 end
@@ -595,7 +625,7 @@ local function layoutGroup(g)
 		if f:GetParent() ~= gf then f:SetParent(gf) end
 		f:SetFrameLevel(level)
 		if e.stack then e.stack() end
-		if showMode(key) == "never" or not onHUD(key) then
+		if not isOn(key) or not onHUD(key) then
 			hideFrame(f)
 		else
 			local w, h = e.getSize(groupSize(g))
@@ -653,6 +683,96 @@ local function layoutGroup(g)
 	if n > 0 then showFrame(gf, groupWhen(g, gf)) else hideFrame(gf) end
 end
 
+-- New default groups
+local CLEAR = 8   -- UI units between a stepped group and its neighbours
+-- { left, bottom, right, top } in UI units of a box whose point is at (x, y) from the screen's
+local function boxAt(point, x, y, w, h)
+	local pw, ph = UIParent:GetSize()
+	local fx = point:find("LEFT") and 0 or point:find("RIGHT") and 1 or 0.5
+	local fy = point:find("BOTTOM") and 0 or point:find("TOP") and 1 or 0.5
+	local l, b = fx * pw + x - fx * w, fy * ph + y - fy * h
+	return { l, b, l + w, b + h }
+end
+-- A group's frame as laid out, nil when it shows nothing
+local function groupBox(g)
+	local gf = groupFrames[g.id]
+	if not (gf and gf.laidOut) then return nil end
+	local w, h = gf:GetSize()
+	local s = g.scale
+	return boxAt(g.point, g.x * s, g.y * s, w * s, h * s)
+end
+-- Within the screen, as the client keeps a group frame
+local function onScreen(b)
+	local pw, ph = UIParent:GetSize()
+	local dx = b[1] < 0 and -b[1] or b[3] > pw and pw - b[3] or 0
+	local dy = b[2] < 0 and -b[2] or b[4] > ph and ph - b[4] or 0
+	return { b[1] + dx, b[2] + dy, b[3] + dx, b[4] + dy }
+end
+local function hits(b, list, gap)
+	gap = gap - 0.01
+	for _, o in ipairs(list) do
+		if b[1] < o[3] + gap and o[1] < b[3] + gap and b[2] < o[4] + gap and o[2] < b[4] + gap then return true end
+	end
+	return false
+end
+-- The nearest clear centre for b, or nil: on each axis it is b's own or touches an edge in the way
+local function clearSpot(b, list)
+	local pw, ph = UIParent:GetSize()
+	local w, h = b[3] - b[1], b[4] - b[2]
+	if w > pw or h > ph then return nil end
+	local x0, y0 = (b[1] + b[3]) / 2, (b[2] + b[4]) / 2
+	local xs, ys = { x0, w / 2, pw - w / 2 }, { y0, h / 2, ph - h / 2 }
+	for _, o in ipairs(list) do
+		table.insert(xs, o[1] - CLEAR - w / 2); table.insert(xs, o[3] + CLEAR + w / 2)
+		table.insert(ys, o[2] - CLEAR - h / 2); table.insert(ys, o[4] + CLEAR + h / 2)
+	end
+	table.sort(xs); table.sort(ys)
+	local best, bx, by
+	for _, x in ipairs(xs) do
+		if x >= w / 2 - 0.01 and x <= pw - w / 2 + 0.01 then
+			for _, y in ipairs(ys) do
+				local d = (x - x0) ^ 2 + (y - y0) ^ 2
+				if y >= h / 2 - 0.01 and y <= ph - h / 2 + 0.01 and (not best or d < best)
+					and not hits({ x - w / 2, y - h / 2, x + w / 2, y + h / 2 }, list, CLEAR) then
+					best, bx, by = d, x, y
+				end
+			end
+		end
+	end
+	return bx, by
+end
+-- Once, as it first shows: a fresh group over a group or a bar steps to the nearest clear place, else stays
+local function settleFresh()
+	if not isActive then return end
+	for _, g in ipairs(db.groups) do
+		local b = g.fresh and groupBox(g)
+		if b then
+			g.fresh = nil
+			local list = {}
+			for _, o in ipairs(db.groups) do
+				local ob = o ~= g and groupBox(o)
+				if ob then table.insert(list, onScreen(ob)) end
+			end
+			for _, key in ipairs(BAR_ORDER) do
+				local bar = BARS[key]
+				if bar.movable and bar.cfg and (not bar.on or bar.on()) then
+					local c = bar.cfg()
+					local w, h = bar.movable.frame:GetSize()
+					table.insert(list, onScreen(boxAt(c.point, c.x, c.y, w * c.scale, h * c.scale)))
+				end
+			end
+			b = onScreen(b)
+			local x, y
+			if hits(b, list, 0) then x, y = clearSpot(b, list) end
+			if x then
+				local ui = UIParent:GetEffectiveScale()
+				setGroupCenter(g, x * ui, y * ui)
+				W.placeOnPixels(groupFrames[g.id], g.point, g.x, g.y)
+			end
+		end
+	end
+end
+
 -- Deferred in combat: a group can be an ancestor of Blizzard's protected aura button
 local function layoutElements()
 	if ns.deferInCombat("layout", layoutElements) then return end
@@ -661,11 +781,14 @@ local function layoutElements()
 	end
 	-- A group holding Blizzard's aura button also waits while auras are secret out of combat
 	local secret = ns.aurasSecret()
-	local live = {}
+	local live, waits = {}, false
 	for _, g in ipairs(db.groups) do
 		local held = false
 		for _, key in ipairs(g.members) do if ELEMENTS[key].frame.auraButton then held = true end end
-		if held and secret then ns.retryAfterCombat("layout", layoutElements) else layoutGroup(g) end
+		if held and secret then
+			waits = true
+			ns.retryAfterCombat("layout", layoutElements)
+		else layoutGroup(g) end
 		live[g.id] = true
 	end
 	for id, gf in pairs(groupFrames) do
@@ -675,6 +798,8 @@ local function layoutElements()
 		end
 	end
 	each("afterGroups")
+	-- After the bars' layout: their sizes are their frames'
+	if not waits then settleFresh() end
 	ns.Timer.placeAll()
 	W.refitRings()
 	ns.Positioning.update()
@@ -737,12 +862,16 @@ local function refreshCooldownsSoon()
 	C_Timer.After(0, flushIfDirty)
 end
 
--- Layout edits for the options: each leaves db.groups consistent and relays out; refused in combat
-local function edit(fn)
+-- Layout edits for the options: each leaves db.groups consistent and relays out; refused in combat.
+-- full: an element may leave the HUD or come back, so modules set its sounds, containers and tickers again
+local function edit(fn, full)
 	return function(...)
-		if InCombatLockdown() then say("layout changes wait until combat ends"); return false end
+		if P.refusedInCombat() then return false end
 		local result = fn(...)
-		layoutElements()
+		if full then
+			applyLayout()
+			refreshAll()
+		else layoutElements() end
 		return true, result
 	end
 end
@@ -778,7 +907,7 @@ local placeElement = edit(function(key, target, index)
 		removeElement(key)
 		g.members = list
 	end
-end)
+end, true)
 
 -- Allowed in combat: only positioning's labels show it on screen, and their layout waits
 local function renameGroup(id, name)
@@ -798,19 +927,25 @@ end)
 local deleteGroup = edit(function(id)
 	local _, i = groupById(id)
 	if i then table.remove(db.groups, i) end
-end)
+end, true)
 
 local setShow = edit(function(key, mode)
-	elementOpts(key).show = mode ~= (elementDefault(key, "show") or "always") and mode or nil
+	elementOpts(key).show = mode ~= elementDefault(key, "show") and mode or nil
 end)
 
-local hideGroup = edit(function(id)
+local setOn = edit(function(key, on)
+	on = on and true or false
+	if on == elementDefault(key, "on") then on = nil end
+	elementOpts(key).on = on
+end, true)
+
+local groupOff = edit(function(id)
 	local g = groupById(id)
-	for _, key in ipairs(g and g.members or {}) do elementOpts(key).show = "never" end
-end)
+	for _, key in ipairs(g and g.members or {}) do elementOpts(key).on = false end
+end, true)
 local centerGroup = edit(function(id)
 	local g = groupById(id)
-	if g then g.point, g.x, g.y = "CENTER", 0, 0 end
+	if g then g.point, g.x, g.y, g.fresh = "CENTER", 0, 0, nil end
 end)
 
 -- Off (/sf disable): root's alpha, which takes on protected frames in combat, hides the HUD; the
@@ -972,7 +1107,9 @@ P.use, P.select, P.fillDefaults, P.fillParts = useProfile, selectProfile, fillDe
 P.DEFAULTS, G.DEFAULTS = DEFAULTS, GROUP_DEFAULTS
 E.ALL, E.KEYS = ELEMENTS, ELEMENT_KEYS
 function E.isActive() return isActive end
-E.isEnabled, E.showMode, E.isLearned, E.setShow = isEnabled, showMode, isLearned, setShow
+E.isEnabled, E.inUse, E.isOn, E.showMode, E.isLearned, E.setShow, E.setOn = isEnabled, inUse, isOn, showMode, isLearned,
+	setShow, setOn
+E.BASE = BASE
 E.opts, E.setting, E.default, E.idleAlpha = elementOpts, elementSetting, elementDefault, idleAlpha
 E.setSetting, E.event, E.range = setElementSetting, elementEvent, elementRange
 E.sizeOf, E.boxOf, E.setOff = sizeOf, boxOf, setOff
@@ -981,7 +1118,7 @@ E.applyTimers, E.resolveSpells, E.refreshAll, E.refreshCooldownsSoon = applyTime
 G.of, G.byId, G.frames, G.size = groupOf, groupById, groupFrames, groupSize
 G.setCenter, G.screenCenter = setGroupCenter, screenCenter
 G.layoutElements, G.applyLayout, G.placeElement = layoutElements, applyLayout, placeElement
-G.add, G.rename, G.delete, G.hide, G.center = addGroup, renameGroup, deleteGroup, hideGroup, centerGroup
+G.add, G.rename, G.delete, G.allOff, G.center = addGroup, renameGroup, deleteGroup, groupOff, centerGroup
 function E.borderFor(key)
 	return ns.Style.get(key, "border")
 end
@@ -1002,6 +1139,12 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 	if event == "ADDON_LOADED" then
 		if arg1 ~= ADDON then return end
 		ns.try("kinds", ns.Kinds.finish)
+		-- A shipped element that never registered: its file failed to load, which /sf debug should say
+		for _, dg in ipairs(ns.CLASS.layout) do
+			for _, key in ipairs(dg.members) do
+				if not ELEMENTS[key] then ns.noteError("element missing: " .. key, "not registered") end
+			end
+		end
 		acct = P.load()
 		selectProfile(P.saved())
 		ns.Options.build()
@@ -1092,8 +1235,11 @@ function E.debugReport()
 	each("debug")
 	say("profile %s", tostring(profileName))
 	local function listed(key)
-		local mode = isLearned(key) and showMode(key) or E.notLearnedText(key):lower()
-		return mode == "always" and key or (key .. " (" .. mode .. ")")
+		local tags = {}
+		if not isLearned(key) then table.insert(tags, E.notLearnedText(key):lower()) end
+		if not isOn(key) then table.insert(tags, "off") end
+		if showMode(key) == "combat" then table.insert(tags, "in combat") end
+		return #tags == 0 and key or (key .. " (" .. table.concat(tags, ", ") .. ")")
 	end
 	for _, g in ipairs(db.groups) do
 		local names = {}

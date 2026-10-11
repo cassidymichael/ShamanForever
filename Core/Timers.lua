@@ -45,6 +45,10 @@ end
 -- Elements whose time bar stays in the icon: their own frames there would cut or miss one outside
 local IN_ICON = {}
 function T.keepIn(key) IN_ICON[key] = true end
+-- Elements whose time bar on an aura button may be clipped (Expiring's split): made in a frame of its own,
+-- since the button forbids a new parent once it drives the bar; set before the row's aura slot is made
+local HELD = {}
+function T.holdBar(key) HELD[key] = true end
 -- Bars place their own
 function T.canPlaceOut(key)
 	return key ~= nil and not IN_ICON[key] and not ns.Bars.get(key) and ns.Elements.ALL[key] ~= nil
@@ -150,6 +154,11 @@ local function formatterFor(s)
 end
 
 -- The widget
+local function background(bar)
+	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
+	bar.bg:SetAllPoints()
+	bar.bg:SetColorTexture(0, 0, 0, 0.6)
+end
 local Timer = {}
 Timer.__index = Timer
 local fonts = 0
@@ -184,12 +193,15 @@ function T.new(parent, key, part, opts)
 		t.fs = fs
 		pcall(fs.SetDrawLayer, fs, "OVERLAY", 7)
 	end
-	local bar = CreateFrame("StatusBar", nil, parent)
+	if opts.aura and HELD[key] then
+		t.holder = CreateFrame("Frame", nil, parent, "DisableUntrustedLayoutScriptsTemplate")
+		t.holder:SetAllPoints(parent)
+		t.holder:SetFrameLevel(cd:GetFrameLevel())
+	end
+	local bar = CreateFrame("StatusBar", nil, t.holder or parent)
 	bar:SetStatusBarTexture(WHITE)
 	bar:SetFrameLevel(cd:GetFrameLevel() + 1)
-	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
-	bar.bg:SetAllPoints()
-	bar.bg:SetColorTexture(0, 0, 0, 0.6)
+	background(bar)
 	bar:Hide()
 	t.bar = bar
 	live[t] = true
@@ -241,13 +253,19 @@ end
 function Timer:reach()
 	return self:outset() + 2 * self:edge() + S.get(self.key, self.part).barHeight
 end
+-- Its edge on bar (out: out of the icon); was: whether bar has one
+local function edgeOn(bar, out, was)
+	if out or was then ns.StyleArt.applyBorder(bar, out and OUT_EDGE or nil, "bar") end
+	return out
+end
+local function turn(bar, upright)
+	bar:SetOrientation(upright and "VERTICAL" or "HORIZONTAL")
+	bar:SetRotatesTexture(upright)
+end
 local function placeBar(t, s, side)
 	local bar, a = t.bar, t.anchor
 	local out = OUT_POINTS[side]
-	if out or t.edged then
-		ns.StyleArt.applyBorder(bar, out and OUT_EDGE or nil, "bar")
-		t.edged = out ~= nil
-	end
+	t.edged = edgeOn(bar, out ~= nil, t.edged)
 	bar:ClearAllPoints()
 	-- In the icon it keeps inside the picture
 	local pic = ns.StyleArt.pictureInset(a)
@@ -272,9 +290,28 @@ local function placeBar(t, s, side)
 	if upright then bar:SetWidth(s.barHeight) else bar:SetHeight(s.barHeight) end
 	if upright ~= (t.upright or false) then
 		t.upright = upright
-		bar:SetOrientation(upright and "VERTICAL" or "HORIZONTAL")
-		bar:SetRotatesTexture(upright)
+		turn(bar, upright)
 	end
+end
+
+-- Another bar drawn as its bar is, to lie on it: texture, background, edge and direction
+function Timer:dress(bar)
+	if not bar.bg then background(bar) end
+	bar:SetStatusBarTexture(ns.Media.barTexture(self.key))
+	bar.edged = edgeOn(bar, OUT_POINTS[self.side] ~= nil, bar.edged)
+	local upright = self.upright or false
+	if upright ~= (bar.upright or false) then
+		bar.upright = upright
+		turn(bar, upright)
+	end
+end
+
+-- Its bar's length along the way it drains, as placed on side (placeBar's)
+function Timer:barLength(side)
+	local box, inset = self:boxInset()
+	local size = box - 2 * inset
+	if OUT_POINTS[side] then return size + 2 * (W.roundPx(inset, W.pixel(self.anchor)) - self:edge()) end
+	return size - 2 * ns.StyleArt.pictureInset(self.anchor)
 end
 
 -- Safe any time for our own frames; one on Blizzard's aura button is restyled by its caller, out of combat
@@ -358,9 +395,14 @@ function Timer:barRGB()
 end
 
 -- barD: the bar's own duration where it differs (a cooldown's without the GCD; false: no bar)
+local warning, ticker
 function Timer:set(d, barD)
 	if not d then return self:clear() end
 	self.last, self.lastBar, self.held = d, barD, nil
+	if self.expOn and not warning[self] then
+		warning[self] = true
+		ticker:Show()
+	end
 	ns.try("timer cooldown", self.cd.SetCooldownFromDurationObject, self.cd, d, true)
 	local bar = self.bar
 	if barD ~= nil then d = barD end
@@ -413,16 +455,20 @@ function Timer:static(frac, length)
 end
 
 -- Expiring: a warning over the icon in a timer's last seconds. Its alpha is the time left through
--- a curve, evaluated ten times a second, so it works in combat.
-local warning = {}
-local ticker = ns.ticker(0.1, function()
+-- a curve, evaluated ten times a second for the timers running, so it works in combat.
+warning = {}
+ticker = ns.ticker(0.1, function(self)
 	for t in pairs(warning) do
 		local d = t.last
 		if d then
 			local ok, a = ns.try("timer expiring", d.EvaluateRemainingDuration, d, t.expCurve)
 			if ok then t.exp:SetAlpha(a) else t.exp:SetAlpha(0) end
-		else t.exp:SetAlpha(0) end
+		else
+			t.exp:SetAlpha(0)
+			warning[t] = nil
+		end
 	end
+	if next(warning) == nil then self:Hide() end
 end)
 
 -- The expire part (ns.registerPart): Expiring's settings for the cooldown kind, which sets def.expires,
@@ -443,6 +489,7 @@ ns.registerPart("expire", {
 
 -- e: { secs, grey, ring, fade, glow } (secs 0: off), an element's or a bar's expire
 function Timer:setExpire(e, icon)
+	self.expOn = nil
 	if not e or (e.secs or 0) <= 0 or not ns.lastSeconds(e.secs) then
 		warning[self] = nil
 		if next(warning) == nil then ticker:Hide() end
@@ -499,6 +546,7 @@ function Timer:setExpire(e, icon)
 		if next(warning) == nil then ticker:Hide() end
 		return
 	end
+	self.expOn = true
 	warning[self] = true
 	ticker:Show()
 	local d = self.last
@@ -521,9 +569,26 @@ function Timer:levelExpire()
 	x.glow:SetFrameLevel(base + L.expireGlow)
 	x.ringHost:SetFrameLevel(base + L.warnRing)
 end
+-- Its bar just over its swipe, in its holder if it has one
+local function levelBar(t)
+	local level = t.cd:GetFrameLevel()
+	if t.holder then t.holder:SetFrameLevel(level) end
+	t.bar:SetFrameLevel(level + 1)
+end
 -- On an icon (W.stackIcon): its expiring warning, a swipe of its own (a second timer's) and its bar
 function Timer:restack()
 	self:levelExpire()
 	if self.ownSwipe then self.cd:SetFrameLevel(self.anchor:GetFrameLevel() + W.LEVELS.upSwipe) end
-	if self.bar then self.bar:SetFrameLevel(self.cd:GetFrameLevel() + 1) end
+	if self.bar then levelBar(self) end
+end
+-- Its bar's holder (T.holdBar): the caller has placed it and it clips the bar (on), or it holds the bar
+-- whole; out of combat
+function Timer:clipBar(on)
+	local h = self.holder
+	if not h then return end
+	if not on then
+		h:ClearAllPoints()
+		h:SetAllPoints(self.parent)
+	end
+	h:SetClipsChildren(on)
 end

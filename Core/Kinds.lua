@@ -214,21 +214,21 @@ end
 local checked = {}
 local function site(kind, name) return "kinds: " .. kind .. ": " .. tostring(name) end
 local function check(kind, def, list)
-	local K = ns.Options and ns.Options.kit
+	local K = ns.Options.kit
 	if not checked[kind] then
 		checked[kind] = true
 		for _, name in ipairs(listOf(kind, "parts")) do
 			if not PARTS[name] then ns.noteError(site(kind, name), "no part") end
 		end
 		for _, slot in ipairs(listOf(kind, "slots")) do
-			if K and not K.slotBuilder(slot) then ns.noteError(site(kind, slot), "no slot") end
+			if not K.slotBuilder(slot) then ns.noteError(site(kind, slot), "no slot") end
 		end
 	end
 	for _, p in ipairs(list) do
 		local own = p.page and value(p.page.own, def)
 		if type(own) ~= "table" or type(own[1]) ~= "table" then own = { own } end
 		for _, b in ipairs(own) do
-			local name = K and b and K.ownName(b)
+			local name = b and K.ownName(b)
 			if name and not K.ownBuilder(name) then
 				ns.noteError(site(kind, name), "no own block")
 			end

@@ -70,7 +70,7 @@ TB.DEFAULTS = {
 	expire = { secs = 10, grey = false, ring = false, fade = true, glow = false, over = {} },
 	ended = { pop = true, sound = "none" },
 	killed = { flash = true, pop = true, glow = true, mark = true },
-	mana = { on = false },   -- a slot's pick it can't pay for, in Global's style for it
+	mana = { on = true },   -- a slot's pick it can't pay for, in Global's style for it
 	range = true,
 	rangeHeight = 5,
 	rangeIn = { 0.2, 0.8, 0.25, 0 },
@@ -115,7 +115,6 @@ function TB.overChanged(over)
 	local seen = {}
 	for key, secs in pairs(EXPIRE_OVER) do
 		local name = ns.Spells.name(key)
-		if over[name] == nil then name = ns.Spells.DEFS[key].en end
 		if over[name] ~= secs then return true end
 		seen[name] = true
 	end
@@ -272,7 +271,6 @@ function TB.plainArrow(t)
 	t.glyph:SetVertexColor(1, 1, 1, 1)
 end
 local GLYPH_TURN = { up = 0, down = math.pi, right = -math.pi / 2, left = math.pi / 2 }
-TB.GLYPH_TURN = GLYPH_TURN
 function TB.placeArrow(tab, anchor, glyph)
 	local c = TB.eff()
 	local deep = c.arrowSize
@@ -724,7 +722,6 @@ local function refreshGCD()
 		if d then e.gcd:SetCooldownFromDurationObject(d) else e.gcd:Clear() end
 	end
 end
-TB.refreshGCD = refreshGCD
 
 local keyTexts = {}
 for _, el in ipairs(ELEMENTS) do keyTexts[slots[el].button] = slots[el].keys.text end
@@ -767,19 +764,12 @@ local function pickSpell(slot)
 	return id
 end
 
--- expire.over is keyed by the client's rank-less spell name; the English name counts too (older
--- profiles)
+-- expire.over is keyed by the client's rank-less spell name
 local function warnSecs(c, id)
 	local x = c.expire
 	if not id then return x.secs end
 	local name = ns.Spells.nameOf(id)
-	local v = name and x.over[name]
-	if v == nil then
-		local key = ns.Spells.keyOf(id)
-		local def = key and ns.Spells.DEFS[key]
-		v = def and x.over[def.en]
-	end
-	return v or x.secs
+	return name and x.over[name] or x.secs
 end
 -- Expiring's options for a slot holding id (nil: the bar's own time), as the bar shows them
 local function expireOpts(c, id)
@@ -878,7 +868,6 @@ end
 
 local function refreshSlot(s)
 	local c, v = cfg(), s.vis
-	local was = s.dur
 	local ok, d = ns.try("totem bar: duration", GetTotemDuration, s.slot)
 	if ok and d then
 		local iok, _, _, _, _, icon = ns.try("totem bar: totem info", GetTotemInfo, s.slot)
@@ -904,7 +893,6 @@ local function refreshSlot(s)
 		return true
 	end
 	s.dur = nil
-	if was then ns.Totems.slotEmptied(s.slot, was) end
 	s.badge:Hide()
 	s.timer:clear()
 	-- Active totems: the slot keeps its place (secure buttons can't move in combat); a plain frame's
@@ -919,9 +907,16 @@ local function refreshSlots()
 	local down = false
 	for _, el in ipairs(ELEMENTS) do
 		local s = slots[el]
-		s.down = refreshSlot(s)
+		if barOn() then
+			s.down = refreshSlot(s)
+			TB.range.refresh(s)
+		elseif s.down ~= false then
+			-- Blizzard's mode: nothing read or ticking
+			s.down, s.dur = false, nil
+			s.timer:setExpire(nil)
+			s.timer:clear()
+		end
 		if s.down then down = true end
-		TB.range.refresh(s)
 	end
 	anyDown = down
 	-- A pick or set may have changed: its cost is read again
@@ -970,14 +965,15 @@ local function writeSet(set)
 end
 
 local layout
+local events   -- set(on), from start: the bar's own events, while it's on
 local function refresh()
 	local wasDown = anyDown
 	refreshSlots()
 	if anyDown ~= wasDown and cfg().show == "active" then layout() end
 end
 
+-- Runs while the bar shows (its holder hides it while off)
 local ticker = ns.ticker(0.1, function()
-	-- Visible, not shown: the bar's holder hides it while off
 	if not bar:IsVisible() then return end
 	local arrows = feat("arrows")
 	for _, el in ipairs(ELEMENTS) do
@@ -1175,7 +1171,12 @@ local function visibilityDriver()
 	end
 	return ownDriver()
 end
-local function drive() ns.setVisibilityDriver(bar, visibilityDriver(), "totem bar driver") end
+-- Blizzard's mode: no driver, hidden (out of combat: the layout's)
+local function drive()
+	local on = barOn()
+	ns.setVisibilityDriver(bar, on and visibilityDriver() or nil, "totem bar driver")
+	if not on then bar:Hide() end
+end
 
 function layout()
 	if ns.deferInCombat("totem bar layout", layout) then return end
@@ -1301,6 +1302,8 @@ function layout()
 	TB.skin.layoutBar(bar, boxes, size, row, sealed)
 	W.placeOnPixels(bar, c.point, c.x / c.scale, c.y / c.scale)
 	TB.range.layout(size)
+	ns.Totems.sync()
+	if events then events(barOn()) end
 	writeSet(set)
 	paintSets()
 	refreshSlots()
@@ -1588,7 +1591,8 @@ end
 
 -- Killed early: a slot's last duration object says how much time the totem had left; endFlash
 -- turns that into a curve, so a totem that ran out shows no flash. Our own dismissals and an
--- immediate recast don't flash.
+-- immediate recast don't flash. ns.Totems tells the ends while the bar is on (synced from layout).
+ns.Totems.wants(barOn)
 ns.Totems.subscribe(function(event, slot, was)
 	if event ~= "gone" or preview then return end
 	local s = bySlot[slot]
@@ -1643,13 +1647,12 @@ end
 -- Only for the class; its first layout comes with the HUD's
 function TB.start()
 	local ev = CreateFrame("Frame")
-	for _, e in ipairs({ "PLAYER_ENTERING_WORLD", "PLAYER_TOTEM_UPDATE", "SPELLS_CHANGED",
-			"ACTIONBAR_SLOT_CHANGED", "UPDATE_MULTI_CAST_ACTIONBAR", "UPDATE_BINDINGS",
-			"SPELL_UPDATE_COOLDOWN" }) do
-		ns.registerEvent(ev, e)
-	end
-	ns.registerEvent(ev, "UNIT_SPELLCAST_SUCCEEDED", "player")
+	events = ns.eventsWhile(ev, { "PLAYER_ENTERING_WORLD", "PLAYER_TOTEM_UPDATE", "SPELLS_CHANGED",
+		"ACTIONBAR_SLOT_CHANGED", "UPDATE_MULTI_CAST_ACTIONBAR", "UPDATE_BINDINGS", "SPELL_UPDATE_COOLDOWN",
+		{ "UNIT_SPELLCAST_SUCCEEDED", "player" } })
 	ev:SetScript("OnEvent", onEvent)
+	-- At start, not at the first layout, which waits out a fight if the load comes in one
+	events(barOn())
 	-- Never left over the bar in combat, taking the keyboard
 	ns.onCombatStart(kbLeave)
 	ns.onCombatStart(paintSets)
@@ -1659,7 +1662,9 @@ function TB.start()
 		movable.update()
 		paintSets()
 	end)
-	ticker:Show()
+	bar:HookScript("OnShow", function() ticker:Show() end)
+	bar:HookScript("OnHide", function() ticker:Hide() end)
+	ticker:SetShown(bar:IsVisible())
 	TB.range.start()
 	hookQuickKeybind()
 	if not kbHooked then ns.registerEvent(kbEvents, "ADDON_LOADED") end
@@ -1667,10 +1672,20 @@ function TB.start()
 end
 
 TB.MODES = { { "blizzard", "Blizzard's" }, { "active", "Active totems" }, { "everything", "Everything" } }
+-- Refused in combat (false): the slots would draw the new mode while their buttons keep the old one
 function TB.setMode(mode)
+	if ns.inCombat() then return false end
 	local c = cfg()
 	c.mode = mode
 	if mode == "everything" then c.cast, c.arrows, c.call, c.recall = true, true, true, true end
+	return true
+end
+-- Left-click casting and the arrows are secure attributes and buttons, set at layout: refused in
+-- combat as the mode is, so the drawn bar never disagrees with what a click does
+function TB.setButtonSetting(key, on)
+	if ns.inCombat() then return false end
+	cfg()[key] = on
+	return true
 end
 function TB.modeName()
 	for _, m in ipairs(TB.MODES) do if m[1] == cfg().mode then return m[2] end end

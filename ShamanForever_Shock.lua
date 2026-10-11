@@ -46,10 +46,10 @@ CS.watch("shock", { frame = shock, power = true, range = true,
 	spells = function() return manaSpellID, shockSpellID end })
 
 local function refreshCooldown(inEvent)
-	if not shockSpellID or not E.isEnabled("shock") then
+	if not E.inUse("shock") then
 		idleDef.cdRunning, idleDef.idle, idleDef.idleAt = nil, nil, nil
 		W.fadeTo(shock, 1)
-		return CD.resetReady(shock)
+		return CD.resetReady(shock, true)
 	end
 	local dur, bar = CD.cooldownFor(shock, "shock", shockSpellID, inEvent)
 	if dur then shock.cdTimer:set(dur, bar) end
@@ -67,7 +67,7 @@ shock.ownCd:HookScript("OnCooldownDone", function() C_Timer.After(0, refreshCool
 
 -- Ready glow
 local function refreshGlow()
-	local on = shockSpellID and E.isEnabled("shock") and own("ready", "glow") and ns.CURVE_OVER
+	local on = E.inUse("shock") and own("ready", "glow") and ns.CURVE_OVER
 	shock.glowF:SetShown(on and true or false)
 	if not on then return end
 	shock.glowF:fit(shock:GetWidth())
@@ -75,7 +75,7 @@ local function refreshGlow()
 end
 local glowTicker = ns.ticker(0.1, refreshGlow)
 local function syncGlowTicker()
-	local want = E.isActive() and E.isEnabled("shock") and own("ready", "glow")
+	local want = E.isActive() and E.inUse("shock") and own("ready", "glow")
 	glowTicker:SetShown(want and true or false)
 	if not want then refreshGlow() end
 end
@@ -90,7 +90,7 @@ local previewing = false
 
 local function markOn(m) return m.spellID ~= nil and own("marks", m.key) and true or false end
 local function marksWanted()
-	if not E.isEnabled("shock") then return false end
+	if not E.inUse("shock") then return false end
 	for _, m in ipairs(MARKS) do if markOn(m) then return true end end
 	return false
 end
@@ -231,9 +231,11 @@ local function makeMark(m)
 	placeMarks()
 end
 
--- A new rank's ID after a spellbook scan
+-- A new rank's ID after a spellbook scan; a mark not wanted is refiltered as it comes back (layout)
 local function refilterMark(m)
 	if not m.container or m.err then return end
+	m.refilterDue = not m.wanted() or nil
+	if m.refilterDue then return end
 	local site = "shock mark filter " .. m.key
 	if ns.deferWhileAurasSecret(site, function() refilterMark(m) end) then return end
 	local ids = Spells.ids(m.spell)
@@ -387,7 +389,10 @@ function SK.afterGroups() placeMarks() end
 
 function SK.applyLayout()
 	syncGlowTicker()
-	for _, m in ipairs(MARKS) do makeMark(m) end
+	for _, m in ipairs(MARKS) do
+		makeMark(m)
+		if m.refilterDue then refilterMark(m) end
+	end
 	placeMarks()
 end
 
@@ -403,7 +408,7 @@ SK.onCooldowns = refreshCooldown
 local SHOCK_KEY = {}
 for _, spell in pairs(SHOCK_SPELL) do SHOCK_KEY[spell] = true end
 function SK.onCast(spellID)
-	if shockSpellID and E.isEnabled("shock") and SHOCK_KEY[Spells.keyOf(spellID)] then CD.noteCast(shock, shockSpellID) end
+	if E.inUse("shock") and SHOCK_KEY[Spells.keyOf(spellID)] then CD.noteCast(shock, shockSpellID) end
 end
 
 function SK.tick() ns.try("shock refresh", refreshCooldown) end

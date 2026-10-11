@@ -76,7 +76,7 @@ local MANA = Enum.PowerType and Enum.PowerType.Mana or 0
 local lowCurves = ns.cache(32, function(under) return ns.curve({ 0, 1, under / 100, 0 }, "Step") or false end)
 local function lowCurve(under) return lowCurves(under, under) or nil end
 local function lowManaOn(def)
-	return def.spellID ~= nil and E.isEnabled(def.key) and setting(def.key, "lowMana", "glow") == true
+	return E.inUse(def.key) and setting(def.key, "lowMana", "glow") == true
 end
 ns.registerPart("lowMana", {
 	defaults = { lowMana = { glow = false, under = 30 } },
@@ -128,8 +128,9 @@ ns.registerPart("lowMana", {
 --                                chosen) or nil (neither)
 --   readyGate(def)               the Ready glow's alpha (may be secret); nil: it can't show
 --   make(def, f)                 adds what it draws to the icon f as it's made
---   uptime(def)                  its own Time left timer, on a frame of its own (the icon has none);
---                                its Expiring is its own too (no Expiring looks of _Timers' part)
+--   uptime(def)                  only its presence is read: the part draws its own Time left timer, on a
+--                                frame of its own (the icon has none), and its own Expiring (no Expiring
+--                                looks of _Timers' part)
 --   ticks(def)                   whether tick is wanted now
 --   tick(def, cantAct)           ten times a second while any part ticks: redraws a look with no
 --                                event to follow (cantAct: the player can't act)
@@ -209,38 +210,44 @@ local function plainCooldown(spellID)
 	if isSecret(info.isOnGCD) then return nil end
 	return info.isOnGCD == true and "gcd" or "own"
 end
--- Arms the next ready only when our own cast starts the cooldown, never on a guess: a missed
--- ready beats a false one.
+-- Arms the next ready only when our own cast starts the cooldown, or at the first look after a
+-- login, never on a guess: a missed ready beats a false one.
 local READY_GRACE, ARM_AFTER_CAST = 0.5, 1.5
+local function arm(r) r.armed, r.by, r.castAt = true, nil, nil end
 -- Still armed, still ready and its tracker still running once the grace is over: the cooldown ended
--- early (a reset), so this is its ready. Only for rows with readyAtReset
+-- early (a reset), so this is its ready; a GCD alone counts as ready. Only for rows with readyAtReset
 local function endedEarly(f, spellID, by)
 	local r = f.ready
-	if not r.armed or r.by ~= by or not f.ownCd:IsShown() or ns.zoning() or ns.cantAct() then return end
-	if plainCooldown(spellID) ~= "ready" then return end
-	r.armed, r.by = nil, nil
-	r.at = GetTime()
-	for _, fn in ipairs(r.fns) do fn() end
+	if not r.armed or r.by ~= by then return end
+	local st = plainCooldown(spellID)
+	if not f.ownCd:IsShown() or ns.zoning() or ns.cantAct() then
+		r.armed, r.by = nil, nil
+	elseif st == "ready" or st == "gcd" then
+		r.armed, r.by = nil, nil
+		r.at = GetTime()
+		for _, fn in ipairs(r.fns) do fn() end
+	else
+		r.by = nil   -- a later read of its end may try again
+	end
+end
+-- Its own cooldown read over: the tracker's end within the grace is its ready, a later one isn't
+local function startGrace(f, spellID)
+	local r = f.ready
+	local by = GetTime() + READY_GRACE
+	r.by = by
+	if not r.atReset then return end
+	r.over = true
+	C_Timer.After(READY_GRACE, function() endedEarly(f, spellID, by) end)
 end
 local function noteReady(f, st, inEvent, spellID)
 	local r = f.ready
 	if st == "ready" then
-		if r.armed and not r.by then
-			local by = GetTime() + READY_GRACE
-			r.by = by
-			if r.atReset then C_Timer.After(READY_GRACE, function() endedEarly(f, spellID, by) end) end
-		end
+		if r.armed and not r.by then startGrace(f, spellID) end
 	elseif st == "own" and inEvent and r.castAt and GetTime() - r.castAt <= ARM_AFTER_CAST then
-		r.armed, r.by, r.castAt = true, nil, nil
+		arm(r)
 	end
 end
--- Ready tracker: a Cooldown fed the spell's own cooldown (ignoreGCD). An end just after the icon
--- comes into view is never a ready (a hidden Cooldown's end can come late).
-local JUST_SHOWN = 0.2
-local function watchEnds(f)
-	if f.ready then return end
-	local r = { fns = {} }
-	f.ready = r
+local function quietCooldown(f)
 	local t = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
 	t:SetAllPoints()
 	t:SetDrawSwipe(false)
@@ -248,6 +255,16 @@ local function watchEnds(f)
 	t:SetDrawBling(false)
 	t:SetHideCountdownNumbers(true)
 	t.noCooldownCount = true
+	return t
+end
+-- Ready tracker: a Cooldown fed the spell's own cooldown (ignoreGCD). An end just after the icon
+-- comes into view is never a ready (a hidden Cooldown's end can come late).
+local JUST_SHOWN = 0.2
+local function watchEnds(f)
+	if f.ready then return end
+	local r = { fns = {}, fresh = true }
+	f.ready = r
+	local t = quietCooldown(f)
 	f.ownCd = t
 	t:HookScript("OnShow", function() r.shownAt = GetTime() end)
 	t:HookScript("OnCooldownDone", function()
@@ -257,17 +274,56 @@ local function watchEnds(f)
 		r.armed, r.by = nil, nil
 	end)
 end
+-- A reset inside a GCD reads "gcd" until that GCD ends, when nothing reads it: a second tracker on
+-- the cooldown with the GCD, which never ends before the spell's own, starts the grace at its end
+local function watchGCD(f, spellID)
+	local r = f.ready
+	local g = r.gcdCd
+	if not g then
+		g = quietCooldown(f)
+		g:Hide()
+		r.gcdCd = g
+		g:HookScript("OnCooldownDone", function()
+			if r.armed and not r.by then startGrace(f, r.gcdSpell) end
+		end)
+	end
+	if g:IsShown() then return end
+	local ok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID)
+	if not (ok and dur) then return end
+	r.gcdSpell = spellID
+	ns.try("ready at a reset", g.SetCooldownFromDurationObject, g, dur, true)
+end
+-- Its own cooldown runs again (a cast): what was seen of the last one's end is gone
+local function restarted(r)
+	r.over = nil
+	if r.gcdCd then r.gcdCd:Clear() end
+end
 function CD.noteCast(f, spellID)
 	watchEnds(f)
 	local r = f.ready
+	restarted(r)
 	r.castAt = GetTime()
-	if plainCooldown(spellID) == "own" then r.armed, r.by, r.castAt = true, nil, nil end
+	if plainCooldown(spellID) == "own" then arm(r) end
 end
--- Forgets a pending ready: a cast we didn't see can't leave one armed
-function CD.resetReady(f)
+-- A cooldown already running at the first look after a login arms its ready, only out of combat, where
+-- its start and length read plain; a GCD alone leaves the spell's own duration empty
+local function armRunning(f, spellID, st, own)
+	local r = f.ready
+	if not r.fresh then return end
+	r.fresh = nil
+	if st ~= "own" or not own or ns.inCombat() or not f.ownCd:IsShown() then return end
+	local ok, info = safe(C_Spell.GetSpellCooldown, spellID)
+	if not ok or type(info) ~= "table" or isSecret(info.startTime) or isSecret(info.duration) then return end
+	if type(info.duration) ~= "number" or info.duration <= 0 then return end
+	local zok, zero = safe(own.IsZero, own)
+	if zok and not isSecret(zero) and zero == false then arm(r) end
+end
+-- Forgets a pending ready, and the login's first look: a cast we didn't see can't leave one armed.
+-- off: the element went off, so its next look, once it's back, is a first look as at a login
+function CD.resetReady(f, off)
 	local r = f.ready
 	if not r then return end
-	r.armed, r.by, r.castAt = nil, nil, nil
+	r.armed, r.by, r.castAt, r.fresh = nil, nil, nil, off or nil
 	f.ownCd:Clear()
 end
 function CD.readyNow(f) return f.ready ~= nil and f.ready.at == GetTime() end
@@ -282,12 +338,17 @@ end
 -- combat).
 local function cooldownFor(f, key, spellID, inEvent)
 	watchEnds(f)
+	local r = f.ready
 	local st = plainCooldown(spellID)
 	noteReady(f, st, inEvent, spellID)
+	if r.atReset and r.armed and st == "gcd" then watchGCD(f, spellID) end
+	if r.atReset and st == "own" and inEvent then restarted(r) end
 	local ok, own = safe(C_Spell.GetSpellCooldownDuration, spellID, true)
-	if st == "own" and ok and own then
+	-- Once its end was seen, "own" outside the event is a GCD ending: its empty duration would clear the tracker
+	if st == "own" and ok and own and (inEvent or not (r.over and f.ownCd:IsShown())) then
 		ns.try("ready tracker", f.ownCd.SetCooldownFromDurationObject, f.ownCd, own, true)
 	elseif st == "ready" and not f.ready.armed then f.ownCd:Clear() end
+	armRunning(f, spellID, st, ok and own)
 	if ns.Style.value(key, "gcd", "show") then
 		local gok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID)
 		if not (gok and dur) then return nil end
@@ -361,7 +422,7 @@ local noTimeLeftCurve = ns.CURVE_OVER
 function refreshCooldown(def, inEvent)
 	if not E.isEnabled(def.key) then
 		def.cdRunning = nil
-		CD.resetReady(def.frame)
+		CD.resetReady(def.frame, true)
 		return
 	end
 	local f = def.frame
@@ -458,7 +519,7 @@ end
 CD.readyAlpha = readyAlpha
 local function refreshReadyGlow(def, cantAct)
 	local f = def.frame
-	local on = def.spellID and E.isEnabled(def.key) and setting(def.key, "ready", "glow") and hasTimeLeftCurve
+	local on = E.inUse(def.key) and setting(def.key, "ready", "glow") and hasTimeLeftCurve
 		and noTimeLeftCurve
 	f.readyGlow:SetShown(on and true or false)
 	if not on then return end
@@ -490,7 +551,7 @@ local function syncReadyTicker()
 	local want = false
 	if E.isActive() then
 		for _, def in ipairs(COOLDOWNS) do
-			if def.frame.readyGate and E.isEnabled(def.key) and setting(def.key, "ready", "glow") then want = true end
+			if def.frame.readyGate and E.inUse(def.key) and setting(def.key, "ready", "glow") then want = true end
 			if partTicks(def) then want = true end
 		end
 	end
@@ -515,19 +576,26 @@ function CD.resolve()
 	return table.concat(sig, ",")
 end
 
+-- Expiring ticks only for a row in use
 function CD.applyTimers()
 	for _, def in ipairs(COOLDOWNS) do
 		local f = def.frame
 		f.cdTimer:apply()
 		if f.upTimer then
 			f.upTimer:apply()
-			f.upTimer:setExpire(E.event(def.key, "expire"), def.iconID or def.icon)
+			f.upTimer:setExpire(E.inUse(def.key) and E.event(def.key, "expire") or nil, def.iconID or def.icon)
 		end
 	end
 end
 
+local events   -- set(on): the reagent rows' events, from start
 function CD.applyLayout()
-	for _, def in ipairs(COOLDOWNS) do styleCooldown(def) end
+	local reagents = false
+	for _, def in ipairs(COOLDOWNS) do
+		styleCooldown(def)
+		if def.reagent and E.inUse(def.key) then reagents = true end
+	end
+	if events then events(reagents) end
 	refreshCooldowns()
 	syncReadyTicker()
 end
@@ -538,7 +606,7 @@ function CD.onCast(spellID)
 	local key = Spells.keyOf(spellID)
 	if not key then return end
 	for _, def in ipairs(COOLDOWNS) do
-		if def.spellID and E.isEnabled(def.key) and key == def.spellKey then CD.noteCast(def.frame, def.spellID) end
+		if E.inUse(def.key) and key == def.spellKey then CD.noteCast(def.frame, def.spellID) end
 	end
 end
 
@@ -554,13 +622,12 @@ end
 
 function CD.start()
 	local ev = CreateFrame("Frame")
-	ns.registerEvent(ev, "BAG_UPDATE_DELAYED")
-	ns.registerEvent(ev, "UNIT_AURA", "player")
+	events = ns.eventsWhile(ev, { "BAG_UPDATE_DELAYED", { "UNIT_AURA", "player" } })
 	ev:SetScript("OnEvent", function(_, event)
 		if event == "BAG_UPDATE_DELAYED" then
 			for _, def in ipairs(COOLDOWNS) do if def.reagent then refreshCooldown(def) end end
 		elseif event == "UNIT_AURA" then
-			if InCombatLockdown() then return end   -- secret in combat
+			if not ns.aurasReadable() then return end
 			local perkUnknown = R.auraChanged()
 			for _, def in ipairs(COOLDOWNS) do
 				if def.reagent and perkUnknown then refreshCooldown(def) end

@@ -38,8 +38,7 @@ local function askAbout(which, g)
 end
 K.confirm(ns.POPUP .. "CENTER", "Move %s to the middle of the screen?\nIts current position is lost.", "Centre",
 	function(id) G.center(id) end)
-K.confirm(ns.POPUP .. "HIDEALL", "Hide every element in %s?\nEach one's Show setting becomes Hidden.", "Hide all",
-	function(id) G.hide(id) end)
+K.confirm(ns.POPUP .. "ALLOFF", "Turn off every element in %s?", "Turn all off", function(id) G.allOff(id) end)
 K.confirm(ns.POPUP .. "DELETE_GROUP", "Delete the group %s?\n%s", "Delete", function(id)
 	local _, i = G.byId(id)
 	if not (i and G.delete(id)) then return end
@@ -67,9 +66,8 @@ local function elementName(key) return ns.OptionsArt.elementName(key) end
 local function chipText(key)
 	local tags = {}
 	if not E.isLearned(key) then table.insert(tags, E.notLearnedText(key):lower()) end
-	local mode = E.showMode(key)
-	if mode == "never" then table.insert(tags, "hidden")
-	elseif mode == "combat" then table.insert(tags, "in combat") end
+	if not E.isOn(key) then table.insert(tags, "off")
+	elseif E.showMode(key) == "combat" then table.insert(tags, "in combat") end
 	if #tags == 0 then return elementName(key) end
 	return elementName(key) .. "  |cff888888(" .. table.concat(tags, ", ") .. ")|r"
 end
@@ -80,11 +78,11 @@ local function fillChip(chip, key)
 	local learned = E.isLearned(key)
 	chip.icon:SetDesaturated(not learned)
 	chip.text:SetText(chipText(key))
-	chip:SetAlpha((learned and E.showMode(key) ~= "never") and 1 or 0.6)
+	chip:SetAlpha((learned and E.isOn(key)) and 1 or 0.6)
 end
 
 local function dropIndex()
-	return Page.dropPosition(view.inner.shown, function(chip) return chip.key == drag.key end)
+	return Page.dropPosition(view.inner.chips, function(chip) return chip.key == drag.key end)
 end
 
 local function targetUnderCursor()
@@ -121,7 +119,7 @@ local function updateDragFeedback()
 end
 
 local function startDrag(chip)
-	if InCombatLockdown() then ns.say("layout changes wait until combat ends"); return end
+	if P.refusedInCombat() then return end
 	drag.key = chip.key
 	chip:SetAlpha(0.35)
 	E.ALL[chip.key].paint(drag.ghost.icon)
@@ -179,6 +177,7 @@ local function chipMenu(chip)
 			end)
 		end
 		root:CreateDivider()
+		root:CreateButton(E.isOn(key) and "Turn off" or "Turn on", function() E.setOn(key, not E.isOn(key)) end)
 		root:CreateTitle("Show")
 		for _, c in ipairs(K.SHOW_CHOICES) do
 			root:CreateRadio(c[2], function() return E.showMode(key) == c[1] end, function() E.setShow(key, c[1]) end)
@@ -214,8 +213,8 @@ local function newChip(parent)
 end
 
 local function placeChips(block, keys, top)
-	block.shown = block.shown or {}
-	wipe(block.shown)
+	block.chips = block.chips or {}
+	wipe(block.chips)
 	for i, key in ipairs(keys) do
 		local chip = block.pool[i]
 		if not chip then
@@ -227,7 +226,7 @@ local function placeChips(block, keys, top)
 		chip:SetPoint("TOPLEFT", block, "TOPLEFT", 0, -top - (i - 1) * CHIP_STEP)
 		chip:SetPoint("RIGHT", block, "RIGHT", 0, 0)
 		chip:Show()
-		block.shown[i] = chip
+		block.chips[i] = chip
 	end
 	for i = #keys + 1, #block.pool do block.pool[i]:Hide() end
 	return #keys * CHIP_STEP
@@ -290,7 +289,7 @@ local function fillRow(r, g, w)
 		local key = g.members[i]
 		E.ALL[key].paint(t)
 		t:SetDesaturated(not E.isLearned(key))
-		t:SetAlpha(E.showMode(key) == "never" and 0.45 or 1)
+		t:SetAlpha(E.isOn(key) and 1 or 0.45)
 		t:Show()
 	end
 	for i = shown + 1, #r.icons do r.icons[i]:Hide() end
@@ -586,9 +585,8 @@ local function buildSettings(p)
 	p:buttons({
 		{ "Centre on screen", function() askAbout(ns.POPUP .. "CENTER", sel()) end,
 			"Moves the group to the middle of the screen.", 130 },
-		{ "Hide all", function() askAbout(ns.POPUP .. "HIDEALL", sel()) end,
-			"Sets every element in the group to Hidden. They keep their places; set one back to Always to bring it back.",
-			90 },
+		{ "Turn all off", function() askAbout(ns.POPUP .. "ALLOFF", sel()) end,
+			"They keep their group and settings.", 100 },
 	})
 	p:buttons({
 		{ "Delete group", function() askDelete(sel()) end,
@@ -608,7 +606,7 @@ function rowMenu(r)
 			ns.Options.openGroup(g.id)
 			startRename()
 		end)
-		root:CreateButton("Hide all", function() askAbout(ns.POPUP .. "HIDEALL", g) end)
+		root:CreateButton("Turn all off", function() askAbout(ns.POPUP .. "ALLOFF", g) end)
 		root:CreateButton("Delete group", function() askDelete(g) end)
 	end)
 end

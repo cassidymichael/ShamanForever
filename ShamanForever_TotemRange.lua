@@ -51,7 +51,11 @@ for el, list in pairs(BUFF_TOTEMS) do
 	ns.Spells.addCheck(el .. " totems and buffs", all)
 end
 
-local function enabled() return P.getDB() ~= nil and TB.cfg().range end
+-- Out of range on, on a bar that's in use (not Blizzard's)
+local function enabled()
+	local bar = ns.Bars.get("totembar")
+	return P.getDB() ~= nil and TB.cfg().range and bar ~= nil and bar.on() and true or false
+end
 
 local function isBuffTotem(el, id)
 	if type(id) ~= "number" or isSecret(id) then return false end
@@ -87,6 +91,7 @@ local function makeMark(s)
 end
 
 local previewOn = false
+local events   -- set(on): UNIT_AURA, while the strip is in use (RG.start)
 
 -- Blizzard's part: lit while you have the buff
 local PART, PART_FILTER = "own", "HELPFUL|PLAYER"
@@ -248,6 +253,7 @@ function RG.layout(size)
 	-- The containers' part waits while auras are secret; the layout reruns after
 	local blocked = ns.deferWhileAurasSecret("totem range layout", function() RG.layout(size) end)
 	local want = enabled() and ns.isClass()
+	if events then events(want) end
 	for _, el in ipairs(TB.ELEMENTS) do
 		local s = TB.slots[el]
 		local on = want and s.button:IsShown()
@@ -271,6 +277,13 @@ end
 local EMPTY = "[combat] show; hide"
 local function showStrip(s, on)
 	local h = s.rangeHold
+	if not enabled() then
+		-- Off: no driver, hidden (as combat ends, if it went off in one)
+		if ns.deferInCombat("totem range: off " .. s.el, function() showStrip(s, false) end) then return end
+		ns.setVisibilityDriver(h, nil, "totem range: holder")
+		h:Hide()
+		return
+	end
 	if InCombatLockdown() then
 		ns.try("totem range: holder alpha", h.SetAlpha, h, on and 1 or 0)
 		return
@@ -306,7 +319,8 @@ end
 -- Called by the totem bar's start
 function RG.start()
 	local ev = CreateFrame("Frame")
-	ns.registerEvent(ev, "UNIT_AURA", "player")
+	events = ns.eventsWhile(ev, { { "UNIT_AURA", "player" } })
+	events(enabled() and ns.isClass())
 	ev:SetScript("OnEvent", learn)
 	ns.onCombatEnd(function()
 		for _, el in ipairs(TB.ELEMENTS) do RG.refresh(TB.slots[el]) end

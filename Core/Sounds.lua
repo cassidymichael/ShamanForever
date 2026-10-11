@@ -84,7 +84,7 @@ end
 
 -- An element's sound for a state or event (its sound field); gap: seconds between its plays
 function SN.element(key, event, zoning, gap)
-	if E.isEnabled(key) then SN.play(E.setting(key, event, "sound"), key .. ":" .. event, gap, zoning) end
+	if E.inUse(key) then SN.play(E.setting(key, event, "sound"), key .. ":" .. event, gap, zoning) end
 end
 
 function SN.test(value) emit(value) end
@@ -134,10 +134,18 @@ local function applyAura(owner, now)
 	local enum = Enum and Enum.UnitAuraSoundTrigger
 	local trigger = enum and enum[a.trigger] or (a.trigger == "Removed" and REMOVED or nil)
 	if not trigger then return end
+	local declined, secret = false, false
 	for _, id in ipairs(list) do
 		local ok, h = ns.try("aura sound: add", add, trigger, { unitToken = "player", spellID = id,
 			soundFileID = file, outputChannel = SN.channel(), throttleSeconds = 1 })
-		if ok and type(h) == "number" and not ns.isSecret(h) then table.insert(a.handles, h) end
+		if ok and ns.isSecret(h) then secret = true
+		elseif ok and type(h) == "number" then table.insert(a.handles, h)
+		elseif ok and h == nil then declined = true end
+	end
+	-- Declined: all of it again after combat or the restriction, never past a secret (unremovable) handle
+	if declined and not secret then
+		a.sig = false
+		ns.retryAfterCombat("aura sound " .. owner, function() applyAura(owner) end)
 	end
 end
 
@@ -153,12 +161,12 @@ function SN.setAuraSound(owner, value, ids, trigger)
 	applyAura(owner)
 end
 
--- An element's state or event whose sound the engine plays: its sound field, while it's on the HUD
+-- An element's state or event whose sound the engine plays: its sound field, while it's in use
 local byEngine = {}
 function SN.elementAura(key, event, ids, trigger)
 	local owner = key .. ":" .. event
 	byEngine[owner] = true
-	SN.setAuraSound(owner, E.setting(key, event, "sound"), E.isEnabled(key) and ids or nil, trigger)
+	SN.setAuraSound(owner, E.setting(key, event, "sound"), E.inUse(key) and ids or nil, trigger)
 end
 
 -- The engine's aura sounds are set again on the new channel

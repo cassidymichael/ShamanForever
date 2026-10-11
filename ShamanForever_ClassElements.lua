@@ -38,7 +38,7 @@ ns.CLASS.cooldowns = {
 		ranOut = true, lowMana = true, cd = 300,
 		defaults = { expire = { secs = 3, glow = true, fade = false } }, experimental = "Mana Tide Totem" },
 	{ key = "grounding", power = true, spellKey = "grounding", icon = 136039, totemSlot = 4, duration = 45, school = "air",
-		blurb = "Cooldown, time left, and a flash when it takes a spell.",
+		blurb = "Cooldown, time left, and a flash when it ends early.",
 		styles = barTimer(), timerCant = ONE_SWIPE,
 		grounded = true, ranOut = true, cd = 15, defaults = { idleWhen = "offcd" },
 		experimental = "Grounding Totem" },
@@ -49,6 +49,7 @@ ns.CLASS.cooldowns = {
 		blurb = "Cooldown, and a bar while your debuff is on your target.",
 		styles = barTimer(), timerCant = ONE_SWIPE,
 		targetDebuff = { length = 12 }, expireLooks = false, readyGlow = true, cd = 8,
+		defaults = { ready = { glow = true } },
 		buffBar = { buffKey = "improvedStormstrikeBuff", talentKey = "improvedStormstrike", school = "water" },
 		glowWhile = { experimental = { "debuff", "buff" } }, choices = { glowWhile = { "none", "debuff", "buff" } },
 		readyAtReset = true, experimental = "Stormstrike" },
@@ -112,15 +113,15 @@ ns.CLASS.buffs = {
 		school = "spirit", blurb = "Shows while " .. ns.Spells.name("clearcasting") .. " is up.",
 		proc = true, defaults = { idleAlpha = 0 },
 		styles = PROC_SWIPE },
-	-- Procs on every few swings or casts: no pop or glow by default
+	-- Procs on every few swings or casts: off by default, and no pop or glow
 	{ key = "flurry", spellKey = "flurry", buffKey = "flurryBuff", icon = 132152, school = "air",
 		blurb = "Shows while " .. ns.Spells.name("flurryBuff") .. " is up, with its charges.",
 		proc = true, charges = 3, swingMark = true,
-		defaults = { idleAlpha = 0, active = { pop = false, glow = false } },
+		defaults = { on = false, idleAlpha = 0, active = { pop = false, glow = false } },
 		styles = PROC_SWIPE, experimental = "Flurry" },
 	{ key = "improvedstormstrike", spellKey = "improvedStormstrike", buffKey = "improvedStormstrikeBuff",
 		icon = 237581, school = "water", blurb = "Shows while its mana regeneration is up.",
-		proc = true, defaults = { idleAlpha = 0, active = { pop = false, glow = false } },
+		proc = true, defaults = { on = false, idleAlpha = 0, active = { pop = false, glow = false } },
 		styles = PROC_SWIPE, experimental = "Improved Stormstrike" },
 }
 

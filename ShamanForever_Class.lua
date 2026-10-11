@@ -64,8 +64,6 @@ ns.CLASS.layout = {
 		sizeFollow = false, size = 50,
 		orientation = "horizontal", growth = "forward", spacing = 2,
 		members = { "elementalfocus", "maelstrom", "flurry", "improvedstormstrike" } },
-	{ id = 5, name = "Tremor", point = "CENTER", x = -252 / 1.25, y = 58 / 1.25, scale = 1.25, alpha = 0.9,
-		orientation = "horizontal", growth = "forward", spacing = 2, members = { "tremor" } },
 	{ id = 6, name = "Cooldowns", point = "CENTER", x = -526, y = -60, scale = 1, alpha = 0.8,
 		orientation = "vertical", growth = "forward", spacing = 2,
 		members = { "naturesswiftness", "manatide", "farseer" } },
@@ -88,7 +86,7 @@ ns.CLASS.layout = {
 		members = { "bloodfury", "shattercurse", "berserking", "rapidregeneration", "warstomp",
 			"stoneform", "walkonair", "skysight" } },
 	{ id = 12, name = "Cleanse", point = "CENTER", x = 252 / 1.25, y = 58 / 1.25, scale = 1.25, alpha = 0.9,
-		orientation = "horizontal", growth = "forward", spacing = 2, members = { "curepoison", "curedisease" } },
+		orientation = "horizontal", growth = "forward", spacing = 2, members = { "tremor", "curepoison", "curedisease" } },
 }
 
 -- The art theme: what a class supplies for its icons' colour, art and effects. Every table is
@@ -107,13 +105,13 @@ ns.CLASS.layout = {
 --                    A part: name, art, from, to (icon heights), then optional dur, delay, spin,
 --                    a, color, sy, rise, slow, dark, front. art = "shape" is the school's shape
 --                    file; any other art is a file name
---   burstTip         the tooltip of the Element effect burst
+--   burstTip         the tooltip of the School effect burst
 -- Art each key needs, named by its key: Art/Banner-<Key>.jpg and, in Art/Looks, Mat-<Key>,
 -- Shape-<Key> and Burst-<Key> (.tga). Also a class's own: Art/Logo-Icon.tga, Art/Elements.tga.
 ns.THEME = {
 	order = { "earth", "fire", "water", "air", "spirit" },
 	fallback = "spirit",
-	axis = { name = "Element", lower = "element", one = "an element" },
+	axis = { name = "School", lower = "school", one = "a school" },
 	sample = "water",
 	name = { earth = "Earth", fire = "Fire", water = "Water", air = "Air", spirit = "Spirit" },
 	color = {
@@ -199,7 +197,7 @@ ns.THEME = {
 			},
 		},
 	},
-	burstTip = "Each element its own effect: earth slams, fire flares, water ripples, "
+	burstTip = "Each school its own effect: earth slams, fire flares, water ripples, "
 		.. "air spins, spirit gathers.",
 }
 
@@ -227,7 +225,7 @@ ns.Spells.add({
 	tremor          = { ids = { 8143 }, en = "Tremor Totem" },   -- level 18
 	curePoison      = { ids = { 526 }, en = "Cure Poison" },   -- level 16
 	cureDisease     = { ids = { 2870 }, en = "Cure Disease" },   -- level 22
-	-- Talents or above the level-20 cap: seeds from foreverdiff.com, found on the client with the right name
+	-- Talents and higher-level spells: seeds from foreverdiff.com, found on the client with the right name
 	naturesSwiftness = { ids = { 16188 }, en = "Nature's Swiftness" },   -- the buff has the same ID
 	manaTide        = { ids = { 16190 }, en = "Mana Tide Totem" },
 	grounding       = { ids = { 8177 }, en = "Grounding Totem" },

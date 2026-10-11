@@ -48,7 +48,7 @@ E.register("shield", { frame = shield, label = "Shields", paint = function(t) t:
 		count = { bar = true, barHeight = 8, barColor = { 0.42, 0.84, 1, 1 }, number = false, pos = "CENTER",
 			size = 20, mark = false, markColor = { 1, 0.25, 0.2, 1 } },
 		warn = { grey = true, ring = true, fade = false, tint = false, glow = true, sound = "none" },
-		mana = { on = false } },
+		mana = { on = true } },
 	ranges = { count = { size = { 8, 64, 1 }, barHeight = { 1, 20, 1 } } },
 	choices = { track = TRACK, count = { pos = COUNT_POS } },
 	styles = { glow = { look = "soft" },
@@ -136,20 +136,22 @@ local function anyTrackedShieldKnown()
 	return false
 end
 SH.learned = anyTrackedShieldKnown
+-- On, grouped and learned: what it runs waits for all three (the preview may show it unlearned)
+local function inUse() return E.inUse("shield") end
 function SH.knows(key) return SHIELDS[key] ~= nil and SHIELDS[key].known == true end
 
 local standIn
 local glowSchool
 
 -- The No shield look
--- Dead: a state driver hides it, in combat too; it shows nothing, never a false warning
+-- Dead: a state driver hides it, in combat too; it shows nothing, never a false warning. None while
+-- Shields is off.
 local holder = CreateFrame("Frame", nil, shield)
 holder:SetAllPoints(shield)
-local driven = false
 local function driveHolder()
-	if driven or InCombatLockdown() then return end
-	driven = true
-	ns.setVisibilityDriver(holder, "[@player,dead] hide; show", "shield warning holder")
+	if InCombatLockdown() then return end
+	ns.setVisibilityDriver(holder, inUse() and "[@player,dead] hide; show" or nil,
+		"shield warning holder")
 end
 local look
 local lookOn, lookState, watching = false, nil, false
@@ -183,6 +185,7 @@ local function setLook(st)
 end
 
 local watch
+local events   -- set(on): its events, from start
 
 -- Every frame while auras can't be read or a hold hasn't ended; otherwise events decide
 local function guard(self)
@@ -267,7 +270,7 @@ function SH.applyEmptyLook()
 		standIn:SetIgnoreParentAlpha(covered and believedUp() ~= false)
 	end
 	setLook(stateNow())
-	watch()
+	if inUse() then watch() end
 	applyIdle()
 end
 
@@ -320,8 +323,11 @@ local function checkIDs()
 	if cover then cover:checkIDs() end
 end
 
--- Filters only change while auras are readable
+-- Filters only change while auras are readable, and while Shields is in use (else again when it's back)
+local refilterDue = false
 local function applyShieldFilter()
+	if not inUse() then refilterDue = true return end
+	refilterDue = false
 	native:refilter()
 	look:refilter()
 	if cover then cover:refilter() end
@@ -343,9 +349,9 @@ local function learnShieldID(key, id)
 	else applyShieldFilter() end
 end
 
--- Charges spent, cancelled or run out; a recast over a live shield stays silent
+-- Any removal, so another shield or rank replacing one too; a recast of the same spell stays silent
 function SH.applyRemovedSound()
-	ns.Sounds.elementAura("shield", "warn", E.isEnabled("shield") and shieldIDMap() or nil)
+	ns.Sounds.elementAura("shield", "warn", shieldIDMap())
 end
 
 function SH.resolve()
@@ -366,6 +372,7 @@ function SH.resolve()
 end
 
 function SH.style()
+	if not inUse() then return end
 	native:style()
 	copy:style()
 end
@@ -544,7 +551,7 @@ end
 
 -- Auras can be secret out of combat too: keep the last read
 local function refreshAura()
-	if not ns.aurasReadable() then return end
+	if not ns.aurasReadable() or not inUse() then return end
 	local upKey
 	for _, key in ipairs(SHIELD_ORDER) do
 		local s = SHIELDS[key]
@@ -566,7 +573,7 @@ function SH.onCast(spellID)
 	local cast = castOf(spellID)
 	if not cast then return end
 	P.getAccount().lastShield = cast
-	if tracksShield(cast) then
+	if tracksShield(cast) and inUse() then
 		holdUntil = GetTime() + CAST_HOLD
 		watch()
 	end
@@ -579,7 +586,7 @@ local shieldGCD = W.makeGCDSweep(shield)
 shieldGCD:SetParent(gate)
 -- inCooldownEvent: from SPELL_UPDATE_COOLDOWN
 local function refreshGCD(inCooldownEvent)
-	local id = E.isEnabled("shield") and ns.Style.value("shield", "gcd", "show")
+	local id = E.inUse("shield") and ns.Style.value("shield", "gcd", "show")
 		and SHIELDS[shownShield()].spellID
 	local d
 	if id and ns.Cooldowns.onGCD(id) then
@@ -595,10 +602,15 @@ local function refreshGCD(inCooldownEvent)
 end
 
 function SH.applyLayout()
+	local on = inUse()
+	if events then events(on) end
 	SH.applyRemovedSound()
-	native:setup()
-	look:setup()
-	if idleWhen() == "charges" and E.isEnabled("shield") then copy:setup() end
+	if on then
+		native:setup()
+		look:setup()
+		if idleWhen() == "charges" then copy:setup() end
+		if refilterDue then applyShieldFilter() end
+	end
 	SH.style()
 	SH.applyEmptyLook()
 end
@@ -608,7 +620,7 @@ function SH.afterGroups()
 	SH.applyEmptyLook()
 end
 function SH.refresh()
-	checkIDs()
+	if inUse() then checkIDs() end
 	refreshAura()
 	refreshGCD(false)
 	SH.applyRemovedSound()
@@ -616,10 +628,8 @@ end
 SH.onCooldowns = refreshGCD
 function SH.start()
 	local ev = CreateFrame("Frame")
-	ns.registerEvent(ev, "UNIT_AURA", "player")
-	ns.registerEvent(ev, "PLAYER_ENTERING_WORLD")
-	ns.registerEvent(ev, "UNIT_ENTERED_VEHICLE", "player")
-	ns.registerEvent(ev, "UNIT_EXITED_VEHICLE", "player")
+	events = ns.eventsWhile(ev, { { "UNIT_AURA", "player" }, "PLAYER_ENTERING_WORLD",
+		{ "UNIT_ENTERED_VEHICLE", "player" }, { "UNIT_EXITED_VEHICLE", "player" } })
 	ev:SetScript("OnEvent", function(_, event)
 		if event == "PLAYER_ENTERING_WORLD" then
 			holdUntil = math.max(holdUntil, GetTime() + LOAD_HOLD)
@@ -634,12 +644,13 @@ function SH.start()
 		SH.applyEmptyLook()
 	end)
 	-- Auras may turn secret out of combat: the button becomes the switch
-	ns.onRestrictionChange(function() watch() end)
+	ns.onRestrictionChange(function() if inUse() then watch() end end)
 	ns.onCombatStart(function()
+		if not inUse() then return end
 		checkIDs()
 		SH.applyEmptyLook()
 	end)
-	ns.onCanActChange(SH.applyEmptyLook)
+	ns.onCanActChange(function() if inUse() then SH.applyEmptyLook() end end)
 end
 
 -- /sf debug

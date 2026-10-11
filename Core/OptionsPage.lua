@@ -179,6 +179,8 @@ function Page:add(frame, height, shown, refresh)
 	return frame
 end
 
+-- The rows build() adds, indented under the row parent (added before them) on a rule, shown while it shows
+-- and active() is true; active nil: each row says when it shows (a menu's rows for some of its choices)
 function Page:sub(parent, active, build)
 	local parentItem
 	for i = #self.items, 1, -1 do
@@ -341,7 +343,7 @@ function Page:paint()
 		local show = not (b and not it.head and b.head.visible and isFolded(b))
 		show = show and (not it.shown or it.shown())
 		local sub = it.sub
-		if show and sub then show = sub.parent.visible and sub.active() and true or false end
+		if show and sub then show = sub.parent.visible and (not sub.active or sub.active()) and true or false end
 		it.visible = show
 		it.frame:SetShown(show)
 		if show then
@@ -439,10 +441,22 @@ function Page:reveal(frame)
 	end
 end
 
+-- A box in a run under another box is that box's detail; under a menu or slider it counts while it shows
+local function listed(it)
+	if not it.says or (it.shown and not it.shown()) then return false end
+	local run = it.sub
+	while run do
+		local parent = run.parent
+		if parent.says or (parent.shown and not parent.shown()) or (run.active and not run.active()) then return false end
+		run = run.outer
+	end
+	return true
+end
+
 local function onList(b)
 	local on = {}
 	for _, it in ipairs(b.items) do
-		if it.says and not it.sub and (not it.shown or it.shown()) then
+		if listed(it) then
 			local s = it.says()
 			if s then table.insert(on, s) end
 		end
@@ -1020,6 +1034,174 @@ function Page:checkbox(label, tip, get, set, shown)
 	self:add(f, 30, shown, function() cb:SetChecked(get() and true or false) end)
 	self.items[#self.items].says = function() return get() and label or nil end
 	return f
+end
+
+-- Switches (Page.pillSwitch, Page.boxSwitch): show(on), nudge(), and flip(), the click; a refused one
+-- shakes and stays as get() says
+local ROUND = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+local SLIDE, SHAKE = 0.12, 0.24
+local GOLD_TEXT, GREY_TEXT = { 1, 0.82, 0 }, { 0.5, 0.5, 0.5 }
+local Switch = {}
+
+-- A round texture: a colour under the client's round portrait mask
+function Page.disc(parent, layer, sub)
+	local t = parent:CreateTexture(nil, layer, nil, sub)
+	local m = parent:CreateMaskTexture()
+	m:SetTexture(ROUND, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+	m:SetAllPoints(t)
+	t:AddMaskTexture(m)
+	return t
+end
+local function mix(a, b, f) return a + (b - a) * f end
+
+-- One ticker moves every switch in motion, made at the first
+local moving, mover = {}, nil
+local function slideStep(t)
+	local now, any = GetTime(), false
+	for sw in pairs(moving) do
+		local f = math.min((now - sw.t0) / sw.dur, 1)
+		if sw.dur == SHAKE then sw.shake = math.sin(f * math.pi * 2) * (1 - f)
+		else sw.at = mix(sw.from, sw.goal, f) end
+		if f >= 1 then
+			sw.shake, moving[sw] = nil, nil
+			sw.at = sw.goal
+		else any = true end
+		sw:paint()
+	end
+	if not any then t:Hide() end
+end
+local function move(sw, dur)
+	sw.from, sw.t0, sw.dur, sw.shake = sw.at, GetTime(), dur, nil
+	moving[sw] = true
+	mover = mover or ns.ticker(0, slideStep)
+	mover:Show()
+end
+
+function Switch:show(on)
+	local goal = on and 1 or 0
+	if self.text then
+		local c = on and GOLD_TEXT or GREY_TEXT
+		self.text:SetText(on and "On" or "Off")
+		self.text:SetTextColor(c[1], c[2], c[3])
+	end
+	if goal == self.goal and self.at ~= nil then
+		if not moving[self] then self:paint() end
+		return
+	end
+	self.goal = goal
+	if self.at == nil or self.instant or not self:IsVisible() then
+		self.at, moving[self], self.shake = goal, nil, nil
+		self:paint()
+	else move(self, SLIDE) end
+end
+function Switch:nudge()
+	if self:IsVisible() and not moving[self] then move(self, SHAKE) end
+end
+
+local function makeSwitch(parent, get, set, title, tip, word)
+	local sw = CreateFrame("Button", nil, parent)
+	for k, fn in pairs(Switch) do sw[k] = fn end
+	function sw.flip()
+		local was = get() and true or false
+		set(not was)
+		local now = get() and true or false
+		sw:show(now)
+		if now == was then sw:nudge() end
+	end
+	sw:SetScript("OnClick", sw.flip)
+	Page.setTip(sw, title, tip)
+	sw:HookScript("OnEnter", function(self) self.hover = true; if self.at then self:paint() end end)
+	sw:HookScript("OnLeave", function(self) self.hover = nil; if self.at then self:paint() end end)
+	if word then
+		-- The word is part of the click
+		sw.text = sw:CreateFontString(nil, "OVERLAY", word)
+		sw.text:SetPoint("LEFT", sw, "RIGHT", 6, 0)
+		sw:SetHitRectInsets(0, -44, 0, 0)
+	end
+	return sw
+end
+
+-- Pill: Blizzard's widget status bar; 70 wide, the narrowest without cutting its art
+local BAR, PILL_W, PILL_H, FILL_IN, FILL_H, KNOB = "UI-Frame-Bar-", 70, 31, 8, 15, 21
+local KNOB_RIM, KNOB_HI = { 0.25, 0.16, 0.05 }, { 1, 1, 1, 0.45 }
+local KNOB_ON, KNOB_OFF = { { 0.72, 0.47, 0.12 }, { 1, 0.9, 0.55 } }, { { 0.36, 0.36, 0.36 }, { 0.8, 0.8, 0.8 } }
+local function slices(sw, part, layer, sub, inset, blend)
+	local l, c, r = sw:CreateTexture(nil, layer, nil, sub), sw:CreateTexture(nil, layer, nil, sub),
+		sw:CreateTexture(nil, layer, nil, sub)
+	l:SetAtlas(BAR .. part .. "Left", true)
+	r:SetAtlas(BAR .. part .. "Right", true)
+	c:SetAtlas(BAR .. part .. "Center", false)
+	l:SetPoint("LEFT", inset, 0)
+	r:SetPoint("RIGHT", -inset, 0)
+	c:SetPoint("TOPLEFT", l, "TOPRIGHT")
+	c:SetPoint("BOTTOMRIGHT", r, "BOTTOMLEFT")
+	if blend then for _, t in ipairs({ l, c, r }) do t:SetBlendMode(blend) end end
+	return { l, c, r }
+end
+local function paintPill(self)
+	local at = self.at
+	local travel = PILL_W - 2 * FILL_IN - FILL_H
+	local x = FILL_IN + FILL_H / 2 + travel * at + (self.shake or 0) * 4
+	self.knob:ClearAllPoints()
+	self.knob:SetPoint("CENTER", self, "LEFT", x, 0)
+	self.fill:SetWidth(math.max(x - FILL_IN, 0.01))
+	self.fill:SetShown(at > 0)
+	local lo, hi, offLo, offHi = KNOB_ON[1], KNOB_ON[2], KNOB_OFF[1], KNOB_OFF[2]
+	self.knobFace:SetGradient("VERTICAL",
+		CreateColor(mix(offLo[1], lo[1], at), mix(offLo[2], lo[2], at), mix(offLo[3], lo[3], at), 1),
+		CreateColor(mix(offHi[1], hi[1], at), mix(offHi[2], hi[2], at), mix(offHi[3], hi[3], at), 1))
+	for _, t in ipairs(self.glow) do t:SetAlpha(self.hover and 0.5 or 0) end
+end
+function Page.pillSwitch(parent, get, set, title, tip, word)
+	local sw = makeSwitch(parent, get, set, title, tip, word)
+	sw:SetSize(PILL_W, PILL_H)
+	sw.paint = paintPill
+	slices(sw, "BG", "BACKGROUND", 0, 6)
+	sw.glow = slices(sw, "Glow", "BACKGROUND", -1, 0, "ADD")
+	slices(sw, "Border", "ARTWORK", 2, 0)
+	sw.fill = sw:CreateTexture(nil, "ARTWORK", nil, 0)
+	sw.fill:SetAtlas(BAR .. "Fill-Yellow", false)
+	sw.fill:SetPoint("LEFT", FILL_IN, 0)
+	sw.fill:SetHeight(FILL_H)
+	sw.knob = Page.disc(sw, "OVERLAY", 0)
+	sw.knob:SetSize(KNOB, KNOB)
+	sw.knob:SetColorTexture(KNOB_RIM[1], KNOB_RIM[2], KNOB_RIM[3], 1)
+	sw.knobFace = Page.disc(sw, "OVERLAY", 1)
+	sw.knobFace:SetSize(KNOB - 2, KNOB - 2)
+	sw.knobFace:SetPoint("CENTER", sw.knob)
+	sw.knobFace:SetColorTexture(1, 1, 1, 1)
+	local hi = Page.disc(sw, "OVERLAY", 2)
+	hi:SetSize(KNOB / 2, KNOB / 3)
+	hi:SetPoint("TOP", sw.knob, "TOP", 0, -2)
+	hi:SetColorTexture(KNOB_HI[1], KNOB_HI[2], KNOB_HI[3], KNOB_HI[4])
+	return sw
+end
+
+-- Box: Blizzard's checkbox; it changes at once
+local BOX = "Interface\\Buttons\\UI-CheckBox-"
+local function paintBox(self)
+	local dx = (self.shake or 0) * 3
+	for _, t in ipairs(self.parts) do
+		t:ClearAllPoints()
+		t:SetPoint("CENTER", dx, 0)
+	end
+	self.tick:SetShown(self.at >= 0.5)
+end
+function Page.boxSwitch(parent, size, get, set, title, tip)
+	local sw = makeSwitch(parent, get, set, title, tip)
+	sw:SetSize(size, size)
+	sw.paint, sw.instant = paintBox, true
+	sw.box = sw:CreateTexture(nil, "ARTWORK")
+	sw.box:SetTexture(BOX .. "Up")
+	sw.tick = sw:CreateTexture(nil, "OVERLAY")
+	sw.tick:SetTexture(BOX .. "Check")
+	sw.parts = { sw.box, sw.tick }
+	for _, t in ipairs(sw.parts) do t:SetSize(size, size) end
+	local lit = sw:CreateTexture(nil, "HIGHLIGHT")
+	lit:SetTexture(BOX .. "Highlight")
+	lit:SetAllPoints()
+	lit:SetBlendMode("ADD")
+	return sw
 end
 
 function Page.pct(v) return string.format("%.0f%%", v * 100) end

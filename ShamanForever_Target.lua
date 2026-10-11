@@ -40,7 +40,7 @@ local TARGET = {
 		noPop = true,
 		noGlow = true, upLabel = "On target", idleLabel = "No target",
 		missing = true, engineExpire = true,
-		defaults = { idleWhen = "notarget", idleAlpha = 0,
+		defaults = { on = false, idleWhen = "notarget", idleAlpha = 0,
 			warn = { grey = true, ring = false, fade = false, glow = true },
 			expire = { secs = 3, bar = true, barColor = { 1, 0.2, 0.8, 1 }, text = false } },
 		ranges = { expire = { secs = { 0, 10, 1 } } } },
@@ -193,79 +193,38 @@ ns.registerPart("skipLong", {
 local DEBUFFS = {}
 local function debuffShown(def) return setting(def.key, "active", "on") ~= false end
 local function debuffOn(def)
-	return def.spellID ~= nil and E.isEnabled(def.key) and debuffShown(def)
+	return E.inUse(def.key) and debuffShown(def)
 end
-local function debuffAlpha(x)
-	if not ns.try("target debuff alpha", x.host.SetAlpha, x.host, x.stale and 0 or 1) then
-		ns.retryAfterCombat("target debuff alpha", function() debuffAlpha(x) end)
-	end
-end
-local function styleDebuff(x)
-	if not x.container or x.err then return end
-	local site = "target debuff style " .. x.def.key
-	if ns.deferWhileAurasSecret(site, function() styleDebuff(x) end) then return end
-	local ok = ns.try(site, function()
-		local f, size = x.def.frame, E.sizeOf(x.def.key)
-		x.container:SetSize(size, size)
-		x.container:SetFrameStrata(f:GetFrameStrata())
-		x.container:SetFrameLevel(f.textFrame:GetFrameLevel() + 5)
-		if x.button then x.button:SetSize(size, size) end
-		if x.timer then x.timer:apply() end
-	end)
-	if not ok then ns.retryAfterCombat(site, function() styleDebuff(x) end) end
-end
--- Blizzard's button: no picture of its own, only the time bar and countdown it drives
-local function initDebuff(x, button)
-	W.noMouse(button)
-	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
-	local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
-	cd:SetAllPoints()
-	-- Placed on the icon, the same box: a border's picture inset is the icon's
-	x.timer = ns.Timer.new(button, x.def.key, "uptime", { cd = cd, anchor = x.def.frame, dual = true, aura = true,
-		school = x.def.school })
-	if not ns.try("target debuff bar", button.SetDurationBar, button, x.timer.bar, ns.Timer.AURA_BAR) then
-		x.timer.bar:Hide()
-		x.timer.bar = nil
-	end
-	button:SetDurationCooldown(cd)
-	x.button = button
-	styleDebuff(x)
-end
+local function debuffAlpha(x) x.slot:fade("target debuff alpha " .. x.def.key, x.alpha) end
 -- Out of combat, auras readable; made once, while it's on and learned
 local function makeDebuff(x)
-	local def = x.def
-	if x.container or x.err or not debuffOn(def) then return end
-	local site = "target debuff " .. def.key
+	local slot, def = x.slot, x.def
+	if slot.container or slot.err or not debuffOn(def) then return end
+	local site = slot.opts.sites.container
 	if ns.deferWhileAurasSecret(site, function() makeDebuff(x) end) then return end
-	local ok, err = pcall(function()
-		local f = def.frame
-		x.host = CreateFrame("Frame", nil, f)
-		x.host:SetAllPoints(f)
-		local c = CreateFrame("AuraContainer", nil, x.host, "CustomAuraContainerTemplate")
-		x.container = c
-		c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
-		c:SetUnit("none")
-		pcall(c.EnableMouse, c, false)
-		c:AddAuraSlot(def.key, "HARMFUL|PLAYER", { candidateFilters = { includeSpellIDs = Spells.ids(def.spellKey) },
-			initializeFrame = function(button) ns.try(site .. " button", initDebuff, x, button) end })
-	end)
-	if not ok then
-		x.err = tostring(err)
-		if x.container then x.container:Hide() end
-		ns.noteError(site, x.err)
-		return
-	end
-	-- Its group's layout waits while it can't restyle the button, as for an aura element
-	def.frame.auraButton = true
-	ns.setVisibilityDriver(x.host, TG.HOSTILE, site .. " driver")
-	styleDebuff(x)
+	slot:setup()
+	if not slot.container or slot.err then return end
+	x.container = slot.container
+	ns.setVisibilityDriver(slot.holder, TG.HOSTILE, site .. " driver")
+	slot:styleNow()
 	TG.follow(x)
 end
 for _, def in ipairs(ns.CLASS.cooldowns or {}) do
 	if def.targetDebuff then
+		local key, f = def.key, def.frame
 		local x = { def = def, restyle = debuffAlpha }
 		x.wanted = function() return debuffOn(def) end
-		DEBUFFS[def.key] = x
+		x.alpha = function() return x.stale and 0 or 1 end
+		-- No picture of its own, only the time bar and countdown it drives, placed on the icon (the same box:
+		-- a border's picture inset is the icon's)
+		x.slot = W.makeAuraSlot(f, {
+			key = key, slot = key, unit = "none", filter = "HARMFUL|PLAYER", layer = f, noIcon = true,
+			ids = function() return Spells.ids(def.spellKey) end,
+			sites = { container = "target debuff " .. key, style = "target debuff style " .. key,
+				filter = "target debuff filter " .. key, bar = "target debuff bar " .. key },
+			onError = function(err) ns.noteError("target debuff " .. key, err) end,
+		})
+		DEBUFFS[key] = x
 	end
 end
 ns.registerPart("targetDebuff", {
@@ -288,19 +247,29 @@ ns.registerPart("targetDebuff", {
 		end,
 	},
 	runtime = {
-		uptime = function(def) return DEBUFFS[def.key].timer end,
+		uptime = function(def) return DEBUFFS[def.key].slot.timer end,
 		debug = function(def)
 			local x = DEBUFFS[def.key]
+			local slot = x.slot
 			if not debuffOn(def) then return "debuff off" end
-			return string.format("debuff container %s%s, unit %s%s", x.container and "made" or "not made",
-				x.err and (", error: " .. x.err) or "", tostring(x.pointedAt), x.stale and " (hidden until one works)" or "")
+			return string.format("debuff %s, unit %s%s", slot:describe(), tostring(x.pointedAt),
+				x.stale and " (hidden until one works)" or "")
 		end,
 	},
 })
+-- Off: no driver and its holder hidden, so its container stops following auras (out of combat)
+local function driveDebuff(x)
+	local h = x.slot.holder
+	if not h or ns.deferInCombat("target debuff shown " .. x.def.key, function() driveDebuff(x) end) then return end
+	local on = debuffOn(x.def)
+	ns.setVisibilityDriver(h, on and TG.HOSTILE or nil, x.slot.opts.sites.container .. " driver")
+	if not on then h:Hide() end
+end
 local function debuffsLayout()
 	for _, x in pairs(DEBUFFS) do
 		makeDebuff(x)
-		styleDebuff(x)
+		if debuffOn(x.def) then x.slot:styleNow() end
+		driveDebuff(x)
 	end
 end
 
@@ -330,7 +299,7 @@ local function makeGlowLook(g, what)
 end
 local function glowOn(g, what)
 	local def = g.def
-	return setting(def.key, "glowWhile") == what and def.spellID ~= nil and E.isEnabled(def.key)
+	return setting(def.key, "glowWhile") == what and E.inUse(def.key)
 		and (what ~= "buff" or ns.Buffs.buffBarLearned(def))
 end
 -- Lit while wanted; never in /sf preview, which draws the icon itself
@@ -345,7 +314,8 @@ local function glowsFollow(unit, ifMoved)
 	for _, g in pairs(GLOWS) do
 		local look = g.looks.debuff
 		local want = glowOn(g, "debuff") and unit or "none"
-		if look and look.container and not (ifMoved and look.unit == want) and not look:follow(want) then
+		local still = look and look.unit == want and (ifMoved or want == "none")
+		if look and look.container and not still and not look:follow(want) then
 			ns.retryAfterCombat("target retarget", function() retarget() end)
 		end
 	end
@@ -360,11 +330,14 @@ local function glowsLayout()
 			local look = g.looks[what] or (on and makeGlowLook(g, what))
 			if on then look:setup() end
 			if look and not InCombatLockdown() then
-				look:setLevel(f.textFrame:GetFrameLevel() + 11)
 				look:setParts(false, false, false, false, on)
-				look:reshape()
-				look:style()
+				if on then
+					look:setLevel(f.textFrame:GetFrameLevel() + 11)
+					look:reshape()
+					look:style()
+				end
 			end
+			if look then look:setShown(on) end
 		end
 	end
 	glowsFollow(wantedUnit(), true)
@@ -431,6 +404,15 @@ end
 -- container may come later.
 local FOLLOWERS = {}
 local function unitFor(x, unit) return (not x.wanted or x.wanted()) and unit or "none" end
+-- Whether anything in use follows the target: a row, a follower that wants it, a glow on its debuff
+local function anyWants()
+	for _, def in ipairs(ROWS) do if E.inUse(def.key) then return true end end
+	for _, x in ipairs(FOLLOWERS) do if not x.wanted or x.wanted() then return true end end
+	for _, g in pairs(GLOWS) do if glowOn(g, "debuff") then return true end end
+	return false
+end
+-- The unit to follow, read only while something wants one
+local function followedUnit() return anyWants() and wantedUnit() or "none" end
 
 -- Slots follow the target: pointed at it while attackable, refreshed on a change between targets,
 -- at no unit otherwise. A failed call leaves x.pointedAt nil, so the next refresh retries.
@@ -456,11 +438,12 @@ local function pointAt(x, c, unit, restyle)
 end
 
 function retarget(only)
-	local unit = wantedUnit()
+	local unit = followedUnit()
 	for _, def in ipairs(ROWS) do
-		local c = (only == nil or only == def) and def.aura.container
+		local mine = (only == nil or only == def) and E.inUse(def.key)
+		local c = mine and def.aura.container
 		if c then pointAt(def, c, unit, gateAlpha) end
-		if only == nil or only == def then
+		if mine then
 			for _, look in ipairs(sensors(def)) do
 				if not look:follow(unit) then
 					ns.retryAfterCombat("target retarget", function() retarget() end)
@@ -476,8 +459,19 @@ function retarget(only)
 end
 
 -- Followers not on the unit they want yet (a new one, a call that failed, a change of wanted())
+local events, auraEvents   -- set(on), from start
+local function syncEvents()
+	if not events then return end
+	events(anyWants())
+	local reads = false
+	for _, def in ipairs(ROWS) do
+		if readsAura(def) and E.inUse(def.key) then reads = true end
+	end
+	auraEvents(reads)
+end
 local function followAll()
-	local unit = wantedUnit()
+	syncEvents()
+	local unit = followedUnit()
 	for _, x in ipairs(FOLLOWERS) do
 		local want = unitFor(x, unit)
 		if x.container and x.pointedAt ~= want then pointAt(x, x.container, want, x.restyle) end
@@ -502,6 +496,19 @@ local function driveGate(def)
 			"target border " .. def.key)
 	end
 end
+-- Not in use: no drivers, the gate hidden (out of combat); driveGate sets them again as it's back
+local function undriveGate(def)
+	if not def.driven or ns.deferInCombat("target undrive " .. def.key, function() undriveGate(def) end) then return end
+	if E.inUse(def.key) then return end
+	def.driven = nil
+	ns.setVisibilityDriver(def.gate, nil, "target gate " .. def.key)
+	def.gate:Hide()
+	if def.holder then
+		ns.setVisibilityDriver(def.holder, nil, "target warning " .. def.key)
+		def.holder:Hide()
+		ns.setVisibilityDriver(def.idleEdge, nil, "target border " .. def.key)
+	end
+end
 
 -- Not on target (rows with missing)
 
@@ -517,14 +524,7 @@ local function auraOnTarget(def)
 		local id, name, dur = a.spellId, a.name, a.duration
 		if isSecret(id) or isSecret(name) then return nil end
 		if ids[id] or (key and Spells.keyOf(id) == key) or (want and name == want) then
-			-- Another length turns the Expiring bar off until a read gives the row's again
-			if def.duration and not isSecret(dur) and type(dur) == "number" and dur > 0 then
-				local off = math.abs(dur - def.duration) > 0.05
-				if off ~= (def.lengthOff or false) then
-					def.lengthOff = off
-					def.aura:style()
-				end
-			end
+			if ns.Buffs.expiring.checkLength(def, dur, def.duration) then def.aura:style() end
 			return true
 		end
 	end
@@ -532,12 +532,12 @@ local function auraOnTarget(def)
 end
 
 local function readWanted(def)
-	return def.spellID and E.isEnabled(def.key) and ns.aurasReadNow() and hostileTarget()
+	return E.inUse(def.key) and ns.aurasReadNow() and hostileTarget()
 end
 
 local function stateLook(def)
 	local a = def.aura
-	local on = a.container and not a.err and def.spellID and E.isEnabled(def.key)
+	local on = a.container and not a.err and E.inUse(def.key)
 	def.holder.on = on and true or false
 	def.missLook:want(def.holder.on)
 	holderAlpha(def)
@@ -556,14 +556,19 @@ local function styleLook(def)
 	look:style()
 	stateLook(def)
 end
+-- Only rows in use: the rest wait until they're back (TG.applyLayout)
 local function styleLooks()
 	for _, def in ipairs(ROWS) do
-		if readsAura(def) then styleLook(def) end
+		if readsAura(def) then
+			if E.inUse(def.key) then styleLook(def) else stateLook(def) end
+		end
 	end
 end
 
 local function styleUp()
-	for _, def in ipairs(ROWS) do ns.Buffs.styleGlow(def) end
+	for _, def in ipairs(ROWS) do
+		if E.inUse(def.key) then ns.Buffs.styleGlow(def) end
+	end
 end
 
 local function checkMissing(def)
@@ -584,7 +589,7 @@ end
 
 local function applyIdle(def)
 	if not def.idle then return end
-	local on = def.spellID and E.isEnabled(def.key) and P.getAccount().locked
+	local on = E.inUse(def.key) and P.getAccount().locked
 		and setting(def.key, "idleWhen") == "target"
 	def.idle:SetAlpha(on and E.idleAlpha(def.key) or 1)
 end
@@ -606,11 +611,11 @@ end
 local function refreshAura(def)
 	local f, key = def.frame, def.key
 	if def.fx then
-		def.fx:glow(not def.noGlow and def.spellID ~= nil and E.isEnabled(key) and setting(key, "active", "glow")
+		def.fx:glow(not def.noGlow and E.inUse(key) and setting(key, "active", "glow")
 			and not ns.Preview.isOn())
 	end
 	if not E.isEnabled(key) then return end
-	if def.aura.container then
+	if def.aura.container and E.inUse(key) then
 		driveGate(def)
 		local unit = wantedUnit()
 		local off = def.pointedAt ~= unit
@@ -641,25 +646,56 @@ function TG.resolve()
 		def.spell = Spells.name(def.spellKey)
 		E.ALL[def.key].label = def.spell
 		def.spellID = Spells.known(def.spellKey)
-		ns.Buffs.resolveAura(def)
+		-- A row not in use refilters as it's back (TG.applyLayout)
+		if E.inUse(def.key) then ns.Buffs.resolveAura(def) else def.ids, def.refilterDue = nil, true end
 		table.insert(sig, tostring(def.spellID))
+	end
+	for _, x in pairs(DEBUFFS) do
+		x.refilterDue = not debuffOn(x.def)
+		if not x.refilterDue then x.slot:refilter() end
 	end
 	return table.concat(sig, ",")
 end
 
 function TG.applyTimers()
-	for _, def in ipairs(ROWS) do def.aura:style() end
-	for _, x in pairs(DEBUFFS) do styleDebuff(x) end
+	for _, def in ipairs(ROWS) do
+		if E.inUse(def.key) then def.aura:style() end
+	end
+	for _, x in pairs(DEBUFFS) do
+		if debuffOn(x.def) then x.slot:styleNow() end
+	end
 	styleLooks()
 	styleUp()
 end
 
+-- Off: at no unit, no drivers. Back: refiltered, its pop quiet as its container shows again
+local function rowLayout(def)
+	local on = E.inUse(def.key)
+	if not on then
+		local c = def.aura.container
+		if c and def.pointedAt ~= "none" then pointAt(def, c, "none", gateAlpha) end
+		for _, look in ipairs(sensors(def)) do
+			if look.unit ~= "none" then look:follow("none") end
+		end
+		undriveGate(def)
+	elseif def.wasOn == false and def.aura.container then
+		ns.Buffs.quietAura(def)
+	end
+	def.wasOn = on
+	if not on then return end
+	ns.Buffs.setupAura(def)
+	if def.refilterDue then
+		def.refilterDue = false
+		ns.Buffs.refilterAura(def)
+	end
+end
+
 function TG.applyLayout()
 	for _, def in ipairs(ROWS) do
-		if def.spellID and E.isEnabled(def.key) then ns.Buffs.setupAura(def) end
+		rowLayout(def)
 		-- SetAuraSlotCandidateFilters changes a made slot's filters in place; the call waits for combat
 		-- and secret auras
-		if def.candidates and def.aura.container then
+		if def.candidates and def.aura.container and E.inUse(def.key) then
 			local longest = TG.longest(def) or false
 			if def.longestApplied ~= nil and def.longestApplied ~= longest then
 				def.aura:refilter()
@@ -667,12 +703,18 @@ function TG.applyLayout()
 			end
 			def.longestApplied = longest
 		end
-		def.aura:style()
+		if E.inUse(def.key) then def.aura:style() end
 		refreshAura(def)
 	end
 	styleLooks()
 	styleUp()
 	checkAll()
+	for _, x in pairs(DEBUFFS) do
+		if x.refilterDue and debuffOn(x.def) then
+			x.refilterDue = false
+			x.slot:refilter()
+		end
+	end
 	debuffsLayout()
 	followAll()
 	glowsLayout()
@@ -680,10 +722,12 @@ end
 
 function TG.afterGroups()
 	for _, def in ipairs(ROWS) do
-		def.aura:style()
+		if E.inUse(def.key) then def.aura:style() end
 		if def.holder then holderAlpha(def) end
 	end
-	for _, x in pairs(DEBUFFS) do styleDebuff(x) end
+	for _, x in pairs(DEBUFFS) do
+		if debuffOn(x.def) then x.slot:styleNow() end
+	end
 	glowsLayout()
 	styleLooks()
 	styleUp()
@@ -694,16 +738,15 @@ function TG.refresh()
 	checkAll()
 	for _, def in ipairs(ROWS) do refreshAura(def) end
 	followAll()
-	glowsFollow(wantedUnit(), true)
+	glowsFollow(followedUnit(), true)
 	glowWants()
 end
 TG.tick = TG.refresh
 
 function TG.start()
 	local ev = CreateFrame("Frame")
-	ns.registerEvent(ev, "PLAYER_TARGET_CHANGED")
-	ns.registerEvent(ev, "UNIT_FACTION", "target")
-	ns.registerEvent(ev, "UNIT_AURA", "target")
+	events = ns.eventsWhile(ev, { "PLAYER_TARGET_CHANGED", { "UNIT_FACTION", "target" } })
+	auraEvents = ns.eventsWhile(ev, { { "UNIT_AURA", "target" } })
 	ev:SetScript("OnEvent", function(_, event)
 		if event == "UNIT_AURA" then return missingRows(true) end
 		retarget()
@@ -723,9 +766,8 @@ end
 function TG.debug()
 	for _, def in ipairs(ROWS) do
 		local a = def.aura
-		say("%s: spell %s, container %s%s, unit %s, gate driver %s, failed unit calls %d%s", def.spell,
-			tostring(def.spellID), a.container and "made" or "not made", a.err and (", error: " .. a.err) or "",
-			tostring(def.pointedAt), tostring(def.driven), def.failed or 0,
+		say("%s: spell %s, %s, unit %s, gate driver %s, failed unit calls %d%s", def.spell, tostring(def.spellID),
+			a:describe(), tostring(def.pointedAt), tostring(def.driven), def.failed or 0,
 			def.stale and " (hidden until one works)" or "")
 	end
 	say("target attackable %s", tostring(hostileTarget()))

@@ -103,12 +103,3 @@ FR.addGroupStyle("bonehide", { name = "Bone and hide", group = "painted", credit
 	pieces = FR.cut({ path = "BoneHide", size = { 128, 128 } }, 48), edges = "stretch", rim = 30, scale = 0.5, gap = 2 })
 FR.addGroupStyle("earthen", { name = "Earthen", group = "painted", credit = "ai",
 	pieces = FR.cut({ path = "Earthen", size = { 128, 128 } }, 32), edges = "tile", rim = 32, scale = 0.45, gap = 1 })
-
-local BAND = "TotemBand"
-FR.addGroupStyle("totemband", { name = "Totem band", group = "painted", credit = "ai",
-	cells = {
-		first = { path = BAND, coords = { 0, 144 / 512, 0, 127 / 128 }, size = { 144, 127 } },
-		unit = { path = BAND, coords = { 144 / 512, 226 / 512, 0, 127 / 128 }, size = { 82, 127 } },
-		last = { path = BAND, coords = { 226 / 512, 370 / 512, 0, 127 / 128 }, size = { 144, 127 } },
-		hole = { 75, 28, 56, 56 },
-	} })
