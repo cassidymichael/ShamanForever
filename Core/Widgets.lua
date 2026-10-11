@@ -299,7 +299,7 @@ function W.attachSide(key, side, column)
 	return ACROSS[side == "below" and "below" or "above"][column and "column" or "row"]
 end
 
--- Aura slot: Blizzard's aura container on an element icon, the one way to show an aura in combat.
+-- Aura slot: Blizzard's aura container on an element icon or a bar, the one way to show an aura in combat.
 -- Its setup and restyles wait for combat's end and for readable auras (ns.deferWhileAurasSecret).
 -- Scripts under its button never run: it only plays animations handed to it.
 local AuraSlot = {}
@@ -317,8 +317,8 @@ end
 -- the icon's text layer +5), size() (width and height, default the element's icon; slot.size and
 -- onStyle's size its width), extras ({ key, init(slot, button) }: more slots on its container, their
 -- buttons over its own), sites.bar, onButton(slot, button, cd), onStyle(slot, size).
--- Its container: parent (default frame), or layer: in a holder of its own on that layer over the icon
--- (slot.holder; frame.effects stays at full over an idle icon, frame fades with it).
+-- Its container: parent (default frame), or layer: in a holder of its own on that layer over frame
+-- (slot.holder; over an element's icon, frame.effects stays at full while frame fades with it).
 -- Its button: the aura's picture (ownIcon(): the element's), host(slot, button) the frame its parts go on,
 -- its time left (noTimer: none; barInset(); anchor, default its host, and dual as ns.Timer's). noIcon: no
 -- picture, the icon keeps its own; ownIcon and host unused, its time left on the icon (anchor default
