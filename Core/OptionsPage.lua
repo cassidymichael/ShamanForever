@@ -441,10 +441,22 @@ function Page:reveal(frame)
 	end
 end
 
+-- A box in a run under another box is that box's detail; under a menu or slider it counts while it shows
+local function listed(it)
+	if not it.says or (it.shown and not it.shown()) then return false end
+	local run = it.sub
+	while run do
+		local parent = run.parent
+		if parent.says or (parent.shown and not parent.shown()) or (run.active and not run.active()) then return false end
+		run = run.outer
+	end
+	return true
+end
+
 local function onList(b)
 	local on = {}
 	for _, it in ipairs(b.items) do
-		if it.says and not it.sub and (not it.shown or it.shown()) then
+		if listed(it) then
 			local s = it.says()
 			if s then table.insert(on, s) end
 		end
