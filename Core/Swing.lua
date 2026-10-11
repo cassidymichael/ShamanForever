@@ -196,8 +196,9 @@ local function markShape()
 	return c.width .. "x" .. c.height .. c.fillFrom
 end
 -- Our frame over Blizzard's button: its opacity is ours to set in combat too. Hidden while its pips
--- wait to be drawn for the bar as it is (a restyle waits while auras are secret)
-local function markAlpha(m) m.slot:fade("swing mark alpha", m.alpha) end
+-- wait to be drawn for the bar as it is (a restyle waits while auras are secret). A site each: a retry
+-- after combat is kept by site
+local function markAlpha(m) m.slot:fade(m.alphaSite, m.alpha) end
 -- Made once, while it's on
 local function makeMark(m)
 	local slot = m.slot
@@ -209,7 +210,7 @@ local function makeMark(m)
 	markAlpha(m)
 end
 for _, key in ipairs(MARKS) do
-	local m = { key = key }
+	local m = { key = key, alphaSite = "swing mark alpha " .. key }
 	marks[key] = m
 	m.alpha = function()
 		return (markOn(key) and not pv.mode and face:IsShown() and m.shape == markShape()) and 1 or 0
