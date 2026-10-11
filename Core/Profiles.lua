@@ -18,7 +18,7 @@ local SAVED = ns.NAME .. "DB"
 local DEFAULT_PROFILE = "Default"
 P.DEFAULT_NAME = DEFAULT_PROFILE
 -- Share strings carry it: one from a newer version is refused
-local SHARE_VERSION = 8
+local SHARE_VERSION = 9
 
 -- Element settings (db.elementOpts[key]). A state or event is a table of fields, named the same on
 -- every element; an element's defaults declare the fields it has, and pages offer those.
@@ -112,7 +112,7 @@ local RENAMED = {
 
 -- Retired settings, dropped or converted as a profile loads or is imported (account and folds: as the account
 -- loads). Drop after launch, with RENAMED, retireGroups, retireTotemBar, retireStyles, retireOwnLooks,
--- retireSounds and the values loop in P.migrate.
+-- retireSounds, the values loop in P.migrate, and keepOldDefaults with the account's defaultsVersion.
 local RETIRED = {
 	-- Profile keys from before styles
 	root = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "glowSize", "popMotion", "popSize", "popSpeed",
@@ -137,6 +137,9 @@ local RETIRED = {
 	-- Element values that became another setting: name -> old value -> { setting, value }. The old one
 	-- goes, so that name takes its default.
 	values = { show = { never = { "on", false } } },
+	-- Element defaults that changed, by the share version they changed in: element -> setting -> the old
+	-- default, which a profile from before keeps where it has none
+	defaults = { [9] = { flurry = { on = true }, improvedstormstrike = { on = true } } },
 }
 
 -- Every sound field under t
@@ -294,6 +297,20 @@ function P.migrate(profile)
 	retireStyles(profile)
 end
 
+-- A profile from version v, after P.migrate: the defaults that changed since stay as it had them
+local function keepOldDefaults(profile, v)
+	local opts = profile.elementOpts
+	if v ~= v or v < 0 then v = 0 end
+	for at = math.floor(v) + 1, SHARE_VERSION do
+		for key, names in pairs(RETIRED.defaults[at] or {}) do
+			if type(opts[key]) ~= "table" then opts[key] = {} end
+			for name, old in pairs(names) do
+				if opts[key][name] == nil then opts[key][name] = old end
+			end
+		end
+	end
+end
+
 local function acct() return P.getAccount() end
 
 -- Characters
@@ -374,8 +391,14 @@ function P.load()
 		if c.off ~= true then c.off = nil end
 		if type(c.profile) ~= "string" then c.profile = nil end
 	end
-	-- Every profile, not only the one selected: none keeps the old names once the map goes
-	for _, profile in pairs(a.profiles) do P.migrate(profile) end
+	-- Every profile, not only the one selected: none keeps the old names once the map goes. Profiles
+	-- saved before a default changed keep the old one, once (none saved yet: they start new)
+	local since = type(a.defaultsVersion) == "number" and a.defaultsVersion or 0
+	for _, profile in pairs(a.profiles) do
+		P.migrate(profile)
+		if type(profile) == "table" then keepOldDefaults(profile, since) end
+	end
+	a.defaultsVersion = SHARE_VERSION
 	return a
 end
 
@@ -615,5 +638,7 @@ function P.decode(text)
 	if type(data.v) == "number" and data.v > SHARE_VERSION then
 		return nil, "that profile needs a newer version of " .. ns.NAME
 	end
-	return cleanProfile(data.profile)
+	local profile = cleanProfile(data.profile)
+	keepOldDefaults(profile, type(data.v) == "number" and data.v or 0)
+	return profile
 end

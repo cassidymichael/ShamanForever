@@ -112,15 +112,15 @@ ns.CLASS.buffs = {
 		school = "spirit", blurb = "Shows while " .. ns.Spells.name("clearcasting") .. " is up.",
 		proc = true, defaults = { idleAlpha = 0 },
 		styles = PROC_SWIPE },
-	-- Procs on every few swings or casts: no pop or glow by default
+	-- Procs on every few swings or casts: off by default, and no pop or glow
 	{ key = "flurry", spellKey = "flurry", buffKey = "flurryBuff", icon = 132152, school = "air",
 		blurb = "Shows while " .. ns.Spells.name("flurryBuff") .. " is up, with its charges.",
 		proc = true, charges = 3, swingMark = true,
-		defaults = { idleAlpha = 0, active = { pop = false, glow = false } },
+		defaults = { on = false, idleAlpha = 0, active = { pop = false, glow = false } },
 		styles = PROC_SWIPE, experimental = "Flurry" },
 	{ key = "improvedstormstrike", spellKey = "improvedStormstrike", buffKey = "improvedStormstrikeBuff",
 		icon = 237581, school = "water", blurb = "Shows while its mana regeneration is up.",
-		proc = true, defaults = { idleAlpha = 0, active = { pop = false, glow = false } },
+		proc = true, defaults = { on = false, idleAlpha = 0, active = { pop = false, glow = false } },
 		styles = PROC_SWIPE, experimental = "Improved Stormstrike" },
 }
 
