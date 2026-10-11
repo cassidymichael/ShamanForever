@@ -42,7 +42,7 @@ local TARGET = {
 		missing = true, engineExpire = true,
 		defaults = { on = false, idleWhen = "notarget", idleAlpha = 0,
 			warn = { grey = true, ring = false, fade = false, glow = true },
-			expire = { secs = 3, bar = true, barColor = { 1, 0.2, 0.8, 1 }, text = false } },
+			expire = { secs = 4, bar = true, barColor = { 1, 0.2, 0.8, 1 }, text = false } },
 		ranges = { expire = { secs = { 0, 10, 1 } } } },
 	{ key = "purge", spellKey = "purge", filter = "HELPFUL", unit = "target", proc = true,
 		icon = 136075, school = "spirit",
