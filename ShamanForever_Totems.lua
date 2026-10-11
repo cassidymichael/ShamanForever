@@ -293,7 +293,7 @@ local FIRE_NOVA_CHOICES = {
 	{ "oncdany", "Cooling down", "Idle while it's cooling down, with or without a fire totem out",
 		"With or without a fire totem out.", counts = "oncd" },
 	{ "oncd", "Cooling down, no fire totem", "Idle while it's cooling down and no fire totem is out",
-		"Shown in full only while it's ready." },
+		"Shown in full while it's ready and while a fire totem is out." },
 }
 -- The preview's fire totem time left: under the shortest fire totem's (Magma Totem, 20 s)
 local FIRE_LEFT = 12

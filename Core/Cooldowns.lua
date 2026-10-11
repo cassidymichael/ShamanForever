@@ -30,7 +30,8 @@ CD.IDLE_CHOICES = { IDLE_NEVER, IDLE_OFFCD, IDLE_ONCD }
 -- held: what keeps it shown (a totem's "no totem out")
 local function heldChoices(held)
 	return { IDLE_NEVER, { IDLE_OFFCD[1], "Ready, " .. held, IDLE_OFFCD[3] },
-		{ IDLE_ONCD[1], "Cooling down, " .. held, IDLE_ONCD[3], IDLE_ONCD[4] } }
+		{ IDLE_ONCD[1], "Cooling down, " .. held, IDLE_ONCD[3], "Shown in full while it's ready and while its totem "
+			.. "is out." } }
 end
 
 -- Time left: its page has a Time left block (a part's)
