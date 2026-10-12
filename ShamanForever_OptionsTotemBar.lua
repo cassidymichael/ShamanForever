@@ -192,7 +192,7 @@ PREVIEW = {
 					f:ClearAllPoints()
 					f:SetPoint("TOPLEFT", ic.box, "TOPLEFT", x, y)
 					f:SetSize(mw, mh)
-					TB.range.paint(f, ic)
+					TB.range.paint(f)
 					f:Show()
 				end
 				TB.paintLow(ic, st == "mana" and i == 1 and TB.feat("cast") and c.mana.on == true)
@@ -529,17 +529,12 @@ local function build(p)
 
 	p.gate = TB.barOn
 	p:header("Out of range")
-	p:text("A strip along the top of a slot shows whether you're getting your own totem's buff, for totems that buff "
-		.. "you. In range shows nothing at 0% opacity, the default.",
-		free("range"))
-	p:text(function() return TB.skin.rangeText() or "" end, owned("range"))
+	p:text("Shows when you're out of range of your totems that buff you.")
 	local range = p:checkbox("Show", nil, tget("range"), tset("range"))
 	p:sub(range, tget("range"), function()
-		tslider("Height", "In pixels.", px, "rangeHeight", free("rangeHeight"))
-		p:color("In range", "Colour and opacity.", tget("rangeIn"), tset("rangeIn"), free("range"))
-		p:color("Out of range", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"), free("range"))
-		p:text("A buff lingers a few seconds after you leave its range. Another shaman's totem of the same type can "
-			.. "replace your buff, so yours shows as out of range.")
+		tslider("Height", "In pixels.", px, "rangeHeight")
+		p:color("Colour", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"))
+		p:text("It can take a few seconds to show you've left range.")
 	end)
 
 	p.gate = full

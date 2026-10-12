@@ -73,7 +73,6 @@ TB.DEFAULTS = {
 	mana = { on = true },   -- a slot's pick it can't pay for, in Global's style for it
 	range = true,
 	rangeHeight = 5,
-	rangeIn = { 0.2, 0.8, 0.25, 0 },
 	rangeOut = { 0.9, 0.12, 0.08, 0.85 },
 	pickHover = true,
 	skin = "default",

@@ -93,9 +93,8 @@ local function newMark(parent, v, lv)
 end
 RG.newMark = newMark
 
--- The player's out of range colour on a mark (v: the picture it's on)
-function RG.paint(m, v)
-	if TB.skin.paintMark(m, true, true, v) then return end
+-- The player's out of range colour on a mark
+function RG.paint(m)
 	local k = TB.cfg().rangeOut
 	m.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
 end
@@ -128,7 +127,7 @@ local function place(s, size)
 	m:ClearAllPoints()
 	m:SetPoint("TOPLEFT", g.area, "TOPLEFT", e, -1)
 	m:SetSize(w, h)
-	RG.paint(m, s.vis)
+	RG.paint(m)
 	g:resize(cw, ch, string.format("%.3f:%.3f", cw, ch))
 end
 
@@ -283,7 +282,7 @@ function RG.standIn(s, on, size)
 	m:ClearAllPoints()
 	m:SetPoint("TOPLEFT", s.button, "TOPLEFT", x, y)
 	m:SetSize(w, h)
-	RG.paint(m, s.vis)
+	RG.paint(m)
 	m:Show()
 end
 

@@ -127,8 +127,9 @@ local RETIRED = {
 		"^purge:Something to purge$", "^purge:Tracking$", "^purge:Magic buff$", "^maelstrom:Five stacks$",
 		"^tremor:When it warns$", "^tremor:Tremor warning watchlist$",
 		"^waterbreathing:Under water$" },
-	-- The totem bar's switches from before its mode, and follow from before sizeFollow
-	totemBar = { "enabled", "hideTotemFrame", "hideActionBar", "killedPulse", "follow" },
+	-- The totem bar's switches from before its mode, follow from before sizeFollow, and the out of range
+	-- strip's in range colour
+	totemBar = { "enabled", "hideTotemFrame", "hideActionBar", "killedPulse", "follow", "rangeIn" },
 	-- Style choices that went, to their nearest: part -> field -> old -> new
 	styles = { pop = { burst = { shapes = "painted" } }, border = { look = { caps = "line" } } },
 	-- Looks an element kept as its own before Global had a style for them (element -> state name ->

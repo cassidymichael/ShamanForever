@@ -1,10 +1,9 @@
 -- Totem bar themes (a "look" in the code, `skin` in its settings), and the Totem band group art frame
--- Each look is a data entry; the bar, its range strip and the options' preview call the functions
--- below, which leave everything as it was for Default and take down what another look drew.
+-- Each look is a data entry; the bar and the options' preview call the functions below, which leave
+-- everything as it was for Default and take down what another look drew.
 -- A look can own some of the bar's settings (`owns`): the options hide them, the player's own value
 -- stays saved.
--- Nothing here reads a totem or an aura. The out-of-range mark keeps the strip's rule: it sits under
--- Blizzard's aura button.
+-- Nothing here reads a totem or an aura.
 
 local ADDON, ns = ...
 local W = ns.Widgets
@@ -17,7 +16,6 @@ TB.skin = TH
 local S, FR = ns.Style, ns.Frames
 local BLACK = { 0, 0, 0, 1 }
 local GOLD = ns.StyleArt.GOLD
-local RED = { 0.9, 0.12, 0.08, 1 }
 local TRAY = { 0.047, 0.035, 0.024 }
 local THEME = ns.THEME
 
@@ -97,7 +95,7 @@ FR.addGroupStyle("totemband", { name = "Totem band", group = "painted", credit =
 -- The looks, in the order the options offer them. Entry fields: name, experimental, owns, border,
 -- extrasBorder, behind, plinth (PLINTH_ART key) and plinthSize(), extrasScaleKey, fixedSlots (every
 -- element keeps a place; unshown ones are sealed sockets), dress (per-button art: "blizzard",
--- "plates", "boss"), timeBar, mark, picker, arrow, badgeGap(size), rangeText
+-- "plates", "boss"), timeBar, picker, arrow, badgeGap(size)
 TH.LIST, TH.byKey = {}, {}
 local function add(key, entry)
 	entry.key = key
@@ -148,12 +146,11 @@ DEFAULT = TH.byKey.default
 
 add("pixel", {
 	name = "Pixel", experimental = true,
-	owns = { border = true, range = true },
+	owns = { border = true },
 	border = function() return borderStyle("schooledge", TB.cfg().pixelEdge) end,
 	extrasBorder = borderStyle("hairline"),
-	behind = "tray", timeBar = "tip", mark = "edge",
+	behind = "tray", timeBar = "tip",
 	picker = "tray",
-	rangeText = "Out of range, for totems that buff you: a red edge along the top of the slot.",
 })
 
 -- Stone and bronze: a carved plinth (fixed art sets the spacing, a row, pickers up), Call and Recall
@@ -209,17 +206,6 @@ add("blizzard", {
 	badgeGap = function(size) return math.floor(size * 2 / 30 + 0.5) end,
 })
 
-function TH.mark()
-	local m = TH.current().mark
-	if type(m) == "function" then return m() end
-	return m
-end
-function TH.rangeText()
-	local t = TH.current().rangeText
-	if type(t) == "function" then return t() end
-	return t
-end
-
 function TH.extrasScaleKey() return TH.current().extrasScaleKey or "extrasScale" end
 
 -- Blizzard's flyout: edge and gap as shares of its 24-texel button, which is 32 texels wide
@@ -241,7 +227,7 @@ end
 
 function TH.fixedSlots() return TH.current().fixedSlots == true end
 
--- Settings a look owns: border, spacing, extrasGapShare, dir, pop, range, rangeHeight, barPlace, extras,
+-- Settings a look owns: border, spacing, extrasGapShare, dir, pop, barPlace, extras,
 -- extrasScale. Dir, pop, extras and extrasScale reach the layout through TB.eff(); spacing and
 -- extrasGapShare are shares of the icon size, read through TH.spacing
 local function ownsNow()
@@ -754,48 +740,4 @@ function TH.stylePopout(pop, n, psz, el)
 		pop.bg:SetColorTexture(TRAY[1], TRAY[2], TRAY[3], 0.9)
 		insetRings(pop, p.lines, { { 1, BLACK }, { 1, GOLD } })
 	end
-end
-
--- Out of range: where the look's mark sits, or nil: the strip along the top. A mark over the
--- picture is the strip, as Default sizes it: Blizzard's part covers the mark in range with the
--- buff's icon, which can be another totem's. No whole-picture mark: in combat our texture under
--- Blizzard's part refuses SetTexture and SetAlpha, and a MOD tint under a parent at alpha 0 still
--- tints.
-function TH.markRect(frame, size, inset)
-	local kind = TH.mark()
-	if not kind then return nil end
-	return inset, -inset, size - 2 * inset, W.linePx(frame, TB.cfg().rangeHeight)
-end
-
-local function markParts(m, icon)
-	local p = m.skinParts
-	if p then return p end
-	p = { shade = m:CreateTexture(nil, "ARTWORK", nil, 1) }
-	p.shade:SetAllPoints()
-	if icon then ns.StyleArt.followMask(icon, p.shade) end
-	m.skinParts = p
-	return p
-end
-
-function TH.paintMark(m, w, h, icon)
-	local kind = w and TH.mark()
-	local p = m.skinParts
-	if not kind then
-		if p then
-			p.shade:Hide()
-			m.bg:Show()
-		end
-		return false
-	end
-	p = markParts(m, icon)
-	m.bg:Hide()
-	p.shade:SetColorTexture(RED[1], RED[2], RED[3], RED[4])
-	p.shade:Show()
-	return true
-end
-
-function TH.styleRangeButton(p, s)
-	if not TH.mark() then return false end
-	p.over.bg:SetColorTexture(0, 0, 0, 0)
-	return true
 end
