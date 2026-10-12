@@ -114,7 +114,7 @@ local RENAMED = {
 
 -- Retired settings, dropped or converted as a profile loads or is imported (account and folds: as the account
 -- loads). Drop after launch, with RENAMED, retireGroups, retireTotemBar, retireStyles, retireOwnLooks,
--- retireSounds, the values loop in P.migrate, and keepOldDefaults with the account's defaultsVersion.
+-- retireSounds, the values and fields loops in P.migrate, and keepOldDefaults with the account's defaultsVersion.
 local RETIRED = {
 	-- Profile keys from before styles
 	root = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "glowSize", "popMotion", "popSize", "popSpeed",
@@ -126,7 +126,7 @@ local RETIRED = {
 		"^styles:Group frame$", "^totembar:Totems$", "^totembar:Not your pick$", "^purge:Track$",
 		"^purge:Something to purge$", "^purge:Tracking$", "^purge:Magic buff$", "^maelstrom:Five stacks$",
 		"^tremor:When it warns$", "^tremor:Tremor warning watchlist$",
-		"^waterbreathing:Under water$" },
+		"^waterbreathing:Under water$", "^curepoison:Your party$", "^curedisease:Your party$" },
 	-- The totem bar's switches from before its mode, and follow from before sizeFollow
 	totemBar = { "enabled", "hideTotemFrame", "hideActionBar", "killedPulse", "follow" },
 	-- Style choices that went, to their nearest: part -> field -> old -> new
@@ -139,6 +139,8 @@ local RETIRED = {
 	-- Element values that became another setting: name -> old value -> { setting, value }. The old one
 	-- goes, so that name takes its default.
 	values = { show = { never = { "on", false } } },
+	-- Element settings that went: element -> names
+	fields = { curepoison = { "party" }, curedisease = { "party" } },
 	-- Element defaults that changed, by the share version they changed in: element -> setting -> the old
 	-- default, which a profile from before keeps where it has none
 	defaults = { [9] = { flurry = { on = true }, improvedstormstrike = { on = true },
@@ -269,6 +271,12 @@ function P.migrate(profile)
 			if r[4] == nil then
 				if o[r[3]] == nil then o[r[3]] = v end
 			elseif type(o[r[3]]) ~= "table" or o[r[3]][r[4]] == nil then put(o, r[3], r[4], v) end
+		end
+	end
+	for key, names in pairs(RETIRED.fields) do
+		local o = opts[key]
+		if type(o) == "table" then
+			for _, name in ipairs(names) do o[name] = nil end
 		end
 	end
 	for _, o in pairs(opts) do
