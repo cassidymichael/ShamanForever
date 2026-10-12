@@ -90,8 +90,8 @@ ns.registerPart("readyGlow", { defaults = { ready = { glow = false }, idleKeep =
 -- Its pop and sound take the place of Ready's when it plays; the pop has a style of its own, which an
 -- element ships different from its Pop style (resetpop); its text is the player's words by the icon for a
 -- set time (the word's look: W.WORD's settings); experimental
-local RESET_POP = { colorBy = "event", flash = "plain", burst = "star", motion = "bounce", size = 1.6, speed = 1,
-	reach = 1 }
+local RESET_POP = { colorBy = "event", flash = "edge", burst = "both", motion = "bounce", size = 1.8, speed = 1,
+	reach = 1.3 }
 local RESET_WORDS, RESET_WORDS_MAX, WORD_FADE = "Reset!", 24, 0.2
 CD.RESET_WORDS, CD.RESET_WORDS_MAX = RESET_WORDS, RESET_WORDS_MAX
 local function resetWords(key)
@@ -143,6 +143,7 @@ end
 local function resetDefaults()
 	local d = { reset = { pop = true, text = false, words = RESET_WORDS, secs = 1.5, sound = "none" } }
 	for name, v in pairs(W.WORD.defaults) do d[name] = type(v) == "table" and CopyTable(v) or v end
+	d.wordPos = "above"
 	return d
 end
 ns.registerPart("reset", {
