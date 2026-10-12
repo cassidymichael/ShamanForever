@@ -49,7 +49,7 @@ ns.CLASS.cooldowns = {
 		blurb = "Cooldown, and a bar while your debuff is on your target.",
 		styles = barTimer(), timerCant = ONE_SWIPE,
 		targetDebuff = { length = 12 }, expireLooks = false, readyGlow = true, cd = 8,
-		defaults = { ready = { glow = true } },
+		defaults = { ready = { glow = true }, range = { on = true } },
 		buffBar = { buffKey = "improvedStormstrikeBuff", talentKey = "improvedStormstrike", school = "water" },
 		glowWhile = { experimental = { "debuff", "buff" } }, choices = { glowWhile = { "none", "debuff", "buff" } },
 		reset = { talent = "improvedStormstrike" }, experimental = "Stormstrike" },
