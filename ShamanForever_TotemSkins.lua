@@ -28,7 +28,7 @@ local BLIZZ = "Interface\\Buttons\\UI-TotemBar"
 local BZ = {
 	empty = { earth = { 66, 96, 3, 33 }, fire = { 67, 97, 100, 130 }, water = { 39, 69, 209, 239 },
 		air = { 66, 96, 36, 66 } },
-	ring = { earth = { 1, 35, 172, 206 }, fire = { 36, 70, 172, 206 }, water = { 1, 35, 207, 240 },
+	ring = { earth = { 1, 35, 172, 206 }, fire = { 36, 70, 172, 206 }, water = { 1, 35, 207, 241 },
 		air = { 36, 70, 137, 171 }, spell = { 1, 35, 137, 171 } },
 	top = { earth = { 0, 32, 46, 68 }, fire = { 33, 65, 46, 68 }, water = { 0, 32, 1, 23 },
 		air = { 0, 32, 91, 113 }, spell = { 33, 65, 1, 23 } },
