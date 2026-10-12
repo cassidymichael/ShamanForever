@@ -95,7 +95,8 @@ FR.addGroupStyle("totemband", { name = "Totem band", group = "painted", credit =
 -- The looks, in the order the options offer them. Entry fields: name, experimental, owns, border,
 -- extrasBorder, behind, plinth (PLINTH_ART key) and plinthSize(), extrasScaleKey, fixedSlots (every
 -- element keeps a place; unshown ones are sealed sockets), dress (per-button art: "blizzard",
--- "plates", "boss"), timeBar, picker, arrow, badgeGap(size)
+-- "plates", "boss"), dressInset (the share of the picture its dress covers from the edge), timeBar,
+-- picker, arrow, badgeGap(size)
 TH.LIST, TH.byKey = {}, {}
 local function add(key, entry)
 	entry.key = key
@@ -202,7 +203,7 @@ add("blizzard", {
 	name = "Blizzard's totem bar", experimental = true,
 	owns = { border = true, spacing = 8 / 30, extrasGapShare = 8 / 30, dir = "row", extras = "ends" },
 	border = borderStyle("totembare"), extrasBorder = borderStyle("totembare"),
-	dress = "blizzard", picker = "blizzard", arrow = "blizzard",
+	dress = "blizzard", dressInset = 3 / 30, picker = "blizzard", arrow = "blizzard",
 	badgeGap = function(size) return math.floor(size * 2 / 30 + 0.5) end,
 })
 
@@ -272,6 +273,14 @@ function TH.faceSize(b, sz, frame)
 	local look = b and b.show and S.look("border", b.look)
 	if not (look and look.art and look.art.inset) then return sz end
 	return sz - 2 * ns.StyleArt.inset(frame, b, sz)
+end
+
+-- How far in from the edge of v's picture (w wide) its dress covers it, in whole pixels
+function TH.dressInset(v, w)
+	local share = TH.current().dressInset
+	if not share then return 0 end
+	local px = W.pixel(v)
+	return math.ceil(w * share / px - 0.01) * px
 end
 
 function TH.spacing(size)

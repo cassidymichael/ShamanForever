@@ -65,15 +65,15 @@ local function isBuffTotem(el, id)
 	return v
 end
 
--- The mark: a strip along the picture's top edge, inside its border's art; along the bottom while the
--- time bar runs along the top. Its rect from the slot box's top left.
+-- The mark: a strip along the picture's top edge, inside its border's art and a theme's ring; along the
+-- bottom while the time bar runs along the top. Its rect from the slot box's top left.
 local function timeBarOnTop()
 	local S = ns.Style
 	return TB.skin.barPlace() ~= "out" and S.value("totembar", "uptime", "bar") == true
 		and S.value("totembar", "uptime", "barEdge") == "top"
 end
 function RG.rect(v, size, inset)
-	local d = inset + ns.StyleArt.pictureInset(v)
+	local d = inset + ns.StyleArt.pictureInset(v) + TB.skin.dressInset(v, size - 2 * inset)
 	local w, h = size - 2 * d, W.linePx(v, TB.cfg().rangeHeight)
 	return d, timeBarOnTop() and -(size - d - h) or -d, w, h
 end
