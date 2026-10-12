@@ -508,13 +508,17 @@ ns.registerPart("countOver", {
 	},
 })
 
--- An aura element's button: its pop, its border (the button draws the border's art), then parts'
-local function buildButton(def, slot, button, site)
-	if def.fx then def.fx:bind(button, slot.icon) end
-	def.edge = def.fx and def.fx:makeEdge(button)
-		or ns.Frames.edge(button, button, def.key, { overlay = false })
+-- A button's pop and border (the button draws the border's art); o is a row or an aura state
+local function dressButton(o, key, slot, button, site)
+	if o.fx then o.fx:bind(button, slot.icon) end
+	o.edge = o.fx and o.fx:makeEdge(button) or ns.Frames.edge(button, button, key, { overlay = false })
 	-- Dressed now too: its styling may wait for the fight to end
-	ns.try(site .. " border " .. def.key, ns.Frames.dress, def.edge, def.key)
+	ns.try(site .. " border " .. key, ns.Frames.dress, o.edge, key)
+end
+
+-- An aura element's button: its pop and border, then parts'
+local function buildButton(def, slot, button, site)
+	dressButton(def, def.key, slot, button, site)
 	KD.eachHook("buff", def, "button", slot, button)
 end
 
@@ -698,10 +702,7 @@ for _, x in ipairs(STATE_LIST) do
 		sites = { container = "aura state " .. key, style = "aura state style " .. key,
 			filter = "aura state filter " .. key, bar = "aura state bar " .. key },
 		onButton = function(slot, button)
-			if x.fx then x.fx:bind(button, slot.icon) end
-			-- The button draws the border's art; this edge its lines and art frame
-			x.edge = x.fx and x.fx:makeEdge(button) or ns.Frames.edge(button, button, key, { overlay = false })
-			ns.try("aura state border " .. key, ns.Frames.dress, x.edge, key)
+			dressButton(x, key, slot, button, "aura state")
 			if s.length then B.expiring.button(x, button) end
 		end,
 		onStyle = function(slot, size)
