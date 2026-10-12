@@ -479,10 +479,11 @@ end
 
 -- kind: a StyleArt.POP_KINDS key ("blocked": a dimmer flash). Nothing on a hidden frame: it would play
 -- on its next show. Returns how long it plays.
+local NO_STYLE = {}
 function FX.pop(f, kind, owner)
 	if not f:IsVisible() then return 0 end
 	kind = kind or "ready"
-	local st = ns.Style.get(owner, "pop")
+	local st = ns.Style.get(owner, (ns.StyleArt.POP_KINDS[kind] or NO_STYLE).style or "pop")
 	local school = ns.StyleArt.effectSchool(f)
 	local c = popColor(st, kind, school)
 	f.popRig = f.popRig or newRig(f)

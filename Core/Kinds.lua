@@ -136,6 +136,7 @@ function KD.get(kind) return KINDS[kind] end
 --                     pop(ic, st, def, kit), idles(st, def, when) (nil: no say), rest(ic, def, kit,
 --                     keep) (the kind's look while nothing of its own is going on)
 --   runtime           hooks its kind's engine calls on the HUD (listed where the kind registers)
+--   styles            { part = fields }: styles its elements ship of their own (ns.Style.setOwnerDefaults)
 --   experiment        the name of an experimental feature it adds (About lists it under the element)
 function ns.registerPart(name, spec)
 	PARTS[name] = merge(PARTS[name] or {}, spec)
@@ -271,6 +272,8 @@ local function finishOne(e)
 		if d then ns.Profiles.fillParts(e.defaults, d) end
 		local r = value(p.ranges, def)
 		if r then ns.Profiles.fillParts(e.ranges, r) end
+		local st = value(p.styles, def)
+		if st then ns.Style.setOwnerDefaults(def.key, st) end
 	end
 	local glow, pop = false, false
 	for _, p in ipairs(list) do

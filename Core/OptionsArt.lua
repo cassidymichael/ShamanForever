@@ -720,7 +720,7 @@ end
 -- Style tiles: an icon wearing a style that isn't saved anywhere, drawn by the HUD's own code.
 
 do
-	local PARTS = { "border", "glow", "pop", "frame" }
+	local PARTS = { "border", "glow", "pop", "resetpop", "frame" }
 	local Tile = {}
 	Tile.__index = Tile
 

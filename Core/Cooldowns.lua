@@ -86,9 +86,17 @@ ns.registerPart("ready", {
 local GLOW_ONLY = "Only while its glow is on."
 ns.registerPart("readyGlow", { defaults = { ready = { glow = false }, idleKeep = { ready = false } }, glow = true,
 	idle = { keep = { "ready", "Ready glow", GLOW_ONLY } }, preview = { keeps = { ready = "ready" } } })
--- reset = { talent }: a Reset event (the cooldown ends early, by that talent), and its ready then;
--- experimental
-ns.registerPart("reset", { kind = "cooldown", experiment = "Reset" })
+-- reset = { talent }: a Reset event (the cooldown ends early, by that talent), and its ready then.
+-- Its pop and sound take the place of Ready's when it plays; the pop has a style of its own, which an
+-- element ships different from its Pop style (resetpop); experimental
+local RESET_POP = { colorBy = "event", flash = "plain", burst = "star", motion = "bounce", size = 1.6, speed = 1,
+	reach = 1 }
+ns.registerPart("reset", {
+	kind = "cooldown", experiment = "Reset",
+	defaults = { reset = { pop = true, sound = "none" } },
+	styles = { resetpop = RESET_POP },
+	page = { reset = {} },
+})
 -- Low mana: a pulsing glow while it's ready and your mana is under a percentage. Mana is secret even
 -- out of combat: its percent goes through a curve straight into an alpha, and nothing else reads it
 local MANA = Enum.PowerType and Enum.PowerType.Mana or 0
@@ -176,7 +184,8 @@ end
 
 ns.registerKind("cooldown", {
 	parts = { "cooldown", "ready", "readyGlow", "lowMana" },
-	slots = { "own", "warn", "cast", "ready", "lowMana", "active", "expire", "killed", "cooldown", "gcd", "uptime" },
+	slots = { "own", "warn", "cast", "ready", "reset", "lowMana", "active", "expire", "killed", "cooldown", "gcd",
+		"uptime" },
 	prepare = function(def)
 		def.expires = hasUptime(def) and def.expireLooks ~= false and not KD.hook("cooldown", def, "uptime")
 		checkFrames(def)
@@ -424,19 +433,22 @@ local function cooldownFor(f, key, spellID, inEvent)
 end
 CD.cooldownFor = cooldownFor
 
--- Pop when ready. gate(): "ready", "blocked" (a greyed pop, if chosen) or nil (none); no gate: ready
+-- Pop when ready. gate(): "ready", "blocked" (a greyed pop, if chosen) or nil (none); no gate: ready.
+-- At a Reset, the Reset's pop takes the place of Ready's, which plays when the Reset's is off.
 local function popWhenReady(f, key, gate)
 	onReady(f, function()
 		if not CD.readyNow(f) then return end
-		if not (E.isEnabled(key) and setting(key, "ready", "pop")) then return end
+		if not E.isEnabled(key) then return end
+		local reset = CD.resetNow(f) and setting(key, "reset", "pop") == true
+		if not (reset or setting(key, "ready", "pop")) then return end
 		if ns.cantAct() then return end
 		local g = "ready"
 		if gate then g = gate() end
-		local grey = g == "blocked" and setting(key, "ready", "blocked") == "grey"
+		local grey = not reset and g == "blocked" and setting(key, "ready", "blocked") == "grey"
 		if g ~= "ready" and not grey then return end
 		-- Its refresh comes a frame later: a pop that wakes the element plays at the awake alpha
 		E.fade(key, 1)
-		if grey then f:Pop("blocked") else f:Pop() end
+		if reset then f:Pop("reset") elseif grey then f:Pop("blocked") else f:Pop() end
 	end)
 end
 CD.popWhenReady = popWhenReady
@@ -530,7 +542,8 @@ local function soundWhenReady(f, key, gate)
 		if not f:IsVisible() or GetTime() - (f.shownAt or 0) < JUST_SHOWN then return end
 		if not CD.readyNow(f) then return end
 		if gate and gate() ~= "ready" then return end
-		ns.Sounds.element(key, "ready")
+		local reset = CD.resetNow(f) and setting(key, "reset", "sound") ~= "none"
+		ns.Sounds.element(key, reset and "reset" or "ready")
 	end)
 end
 CD.soundWhenReady = soundWhenReady
