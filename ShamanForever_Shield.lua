@@ -32,11 +32,11 @@ gate:SetAllPoints(shield)
 local edge = FR.edge(gate, shield, "shield")
 local IDLE_CHOICES = {
 	{ "never", "Never", "It always shows in full" },
-	{ "up", "Shield up", "Idle while your shield is up", "Shown in full only as No shield." },
+	{ "up", "Shield up", "Idle while your shield is up", "Shield up: shown in full only as No shield." },
 	{ "charges", "2 or more charges",
 		"Idle while your shield has 2 or more charges. "
 			.. "It shows in full at 1 charge and as No shield at 0",
-		"Shown in full at 1 charge and as No shield." },
+		"2 or more charges: shown in full at 1 charge and as No shield." },
 }
 local COUNT_POS, TRACK = {}, { "either" }
 for pos in pairs(W.COUNT_JUSTIFY) do table.insert(COUNT_POS, pos) end

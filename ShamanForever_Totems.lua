@@ -287,13 +287,13 @@ ns.registerPart("totemSlot", {
 local FIRE_NOVA_CHOICES = {
 	{ "never", "Never", "It always shows in full" },
 	{ "nototem", "No fire totem", "Idle while it's ready and no fire totem is out",
-		"Idle only while it can't be cast.", counts = "offcd" },
+		"No fire totem: idle only while it can't be cast.", counts = "offcd" },
 	{ "offcd", "Ready", "Idle while it's ready, with or without a fire totem out",
-		"With or without a fire totem out." },
+		"Ready: with or without a fire totem out." },
 	{ "oncdany", "Cooling down", "Idle while it's cooling down, with or without a fire totem out",
-		"With or without a fire totem out.", counts = "oncd" },
+		"Cooling down: with or without a fire totem out.", counts = "oncd" },
 	{ "oncd", "Cooling down, no fire totem", "Idle while it's cooling down and no fire totem is out",
-		"Shown in full while it's ready and while a fire totem is out." },
+		"Cooling down, no fire totem: shown in full while it's ready and while a fire totem is out." },
 }
 -- The preview's fire totem time left: under the shortest fire totem's (Magma Totem, 20 s)
 local FIRE_LEFT = 12
