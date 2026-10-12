@@ -34,14 +34,21 @@ local BUFF_TOTEMS = {
 	},
 }
 
+-- Seen giving their buff in game: their marks never wait to see it (any rank)
+local PROVEN = { 8075, 8071, 5394 }
+
 local buffIDs = {}
-local buffTotem = {}
+local buffEntry = {}
+local totemEntry = {}
 for el, list in pairs(BUFF_TOTEMS) do
 	buffIDs[el] = {}
 	local all = {}
 	for _, e in ipairs(list) do
 		table.insert(all, e.totem)
-		for _, id in ipairs(e.buffs) do buffIDs[el][id] = true; table.insert(all, id) end
+		for _, id in ipairs(e.buffs) do
+			buffIDs[el][id], buffEntry[id] = true, e
+			table.insert(all, id)
+		end
 	end
 	ns.Spells.addCheck(el .. " totems and buffs", all)
 end
@@ -52,17 +59,31 @@ local function enabled()
 	return P.getDB() ~= nil and TB.cfg().range and bar ~= nil and bar.on() and true or false
 end
 
-local function isBuffTotem(el, id)
-	if type(id) ~= "number" or isSecret(id) then return false end
-	local v = buffTotem[id]
+-- The BUFF_TOTEMS entry of a totem (any rank), or nil
+local function entryOf(el, id)
+	if type(id) ~= "number" or isSecret(id) then return nil end
+	local v = totemEntry[id]
 	if v == nil then
 		v = false
 		for _, e in ipairs(BUFF_TOTEMS[el] or {}) do
-			if ns.Spells.same(id, e.totem) then v = true end
+			if ns.Spells.same(id, e.totem) then v = e end
 		end
-		buffTotem[id] = v
+		totemEntry[id] = v
 	end
-	return v
+	return v or nil
+end
+local function isBuffTotem(el, id) return entryOf(el, id) ~= nil end
+
+-- A totem's marks show only once its buff has been seen on you (per rank): acct.rangeSeen[totem ID]
+local proven = {}
+local function seen(id)
+	if proven[id] == nil then
+		proven[id] = false
+		for _, t in ipairs(PROVEN) do
+			if ns.Spells.same(id, t) then proven[id] = true end
+		end
+	end
+	return proven[id] or P.getAccount().rangeSeen[id] == true
 end
 
 -- The mark: a strip along the picture's top edge, inside its border's art and a theme's ring; along the
@@ -131,8 +152,13 @@ local function place(s, size)
 	g:resize(cw, ch, string.format("%.3f:%.3f", cw, ch))
 end
 
--- Learned ranks, kept for the account: acct.rangeBuffIDs[el][id]
+-- Learned ranks, kept for the account: acct.rangeBuffIDs[el][id]; totems seen giving their buff,
+-- acct.rangeSeen[totem ID]
 local function sanitize(_, acct)
+	if type(acct.rangeSeen) ~= "table" then acct.rangeSeen = {} end
+	for id, on in pairs(acct.rangeSeen) do
+		if type(id) ~= "number" or on ~= true then acct.rangeSeen[id] = nil end
+	end
 	if type(acct.rangeBuffIDs) ~= "table" then acct.rangeBuffIDs = {} end
 	local saved = acct.rangeBuffIDs
 	for el, ids in pairs(saved) do
@@ -207,6 +233,7 @@ local DISMISS = 2
 local function plainOpen(s)
 	return s.rangeOn == true and not previewOn and s.down == true and not ns.zoning()
 		and GetTime() >= (s.rangeShutUntil or 0) and isBuffTotem(s.el, ns.Totems.downSpell(s.slot))
+		and seen(ns.Totems.downSpell(s.slot))
 end
 
 -- The gate's want, from plain reads only
@@ -244,10 +271,46 @@ local function shut(s)
 	s.rangeShutUntil = GetTime() + DISMISS
 	if s.outGate then RG.refresh(s) end
 end
+-- Whether your own buff from entry e's totem is on you (at rest, auras readable)
+local function buffOn(el, e)
+	local name = ns.Spells.nameOf(e.buffs[1])
+	for i = 1, 40 do
+		local aok, a = ns.safe(C_UnitAuras.GetAuraDataByIndex, "player", i, "HELPFUL|PLAYER")
+		if not aok or not a then break end
+		local id = a.spellId
+		if not isSecret(id) and type(id) == "number" and (buffEntry[id] == e
+			or (buffIDs[el][id] and not buffEntry[id] and name ~= nil and ns.Spells.nameOf(id) == name)) then
+			return true
+		end
+	end
+	return false
+end
+
+-- After your cast of a covered totem not yet seen, at rest: look for its buff on you for a few seconds
+local function lookForBuff(s, id, tries)
+	if ns.inCombat() or not ns.aurasReadable() or not enabled() or ns.Totems.downSpell(s.slot) ~= id then return end
+	local e = entryOf(s.el, id)
+	if not e or seen(id) then return end
+	if buffOn(s.el, e) then
+		P.getAccount().rangeSeen[id] = true
+		RG.refresh(s)
+	elseif tries > 1 then
+		C_Timer.After(1, function() lookForBuff(s, id, tries - 1) end)
+	end
+end
+
 ns.Totems.subscribe(function(event, slot)
-	if event ~= "dismissed" then return end
 	for _, el in ipairs(TB.ELEMENTS) do
-		if TB.slots[el].slot == slot then shut(TB.slots[el]) end
+		local s = TB.slots[el]
+		if s.slot == slot then
+			if event == "dismissed" then shut(s)
+			elseif event == "cast" then
+				local id = ns.Totems.downSpell(slot)
+				if enabled() and isBuffTotem(el, id) and not seen(id) then
+					C_Timer.After(1, function() lookForBuff(s, id, 3) end)
+				end
+			end
+		end
 	end
 end)
 
@@ -286,7 +349,8 @@ function RG.debug()
 		if s.outGate then
 			local id = s.down and ns.Totems.downSpell(s.slot)
 			ns.say("totem range %s: %s, totem %s, open %s; %s", el, s.rangeOn and "on" or "off",
-				not s.down and "none" or isBuffTotem(el, id) and "with a buff" or "without a buff",
+				not s.down and "none" or not isBuffTotem(el, id) and "without a buff"
+				or seen(id) and "with a buff" or "with a buff, not confirmed yet",
 				tostring(s.rangeOpen == true), s.outGate:describe())
 		end
 	end
