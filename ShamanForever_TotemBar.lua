@@ -72,8 +72,8 @@ TB.DEFAULTS = {
 	killed = { flash = true, pop = true, glow = true, mark = true },
 	mana = { on = true },   -- a slot's pick it can't pay for, in Global's style for it
 	range = true,
-	rangeHeight = 5,
-	rangeOut = { 0.9, 0.12, 0.08, 0.85 },
+	rangeHeight = 7,
+	rangeOut = { 0.9, 0.12, 0.08, 1 },
 	pickHover = true,
 	skin = "default",
 	pixelTray = true,
