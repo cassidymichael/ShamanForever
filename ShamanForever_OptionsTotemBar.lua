@@ -39,16 +39,17 @@ PREVIEW = {
 		bar:SetFrameLevel(h:GetFrameLevel() + 5)
 		h.barFrame = bar
 		h.slots = {}
+		local L = ns.TotemBar.LAYER
 		for i = 1, 4 do
 			local ic = OA.makePreviewIcon(bar, "totembar", PREVIEW)
 			ic.box = CreateFrame("Frame", nil, bar)
 			ic.badge = CreateFrame("Frame", nil, bar)
-			ic.badge:SetFrameLevel(ic:GetFrameLevel() + 6)
+			ic.badge:SetFrameLevel(ic:GetFrameLevel() + L.badge - L.look)
 			ic.badge.icon = ic.badge:CreateTexture(nil, "ARTWORK")
 			ic.badge.icon:SetAllPoints()
 			W.cropIcon(ic.badge.icon)
 			ic.rangeF = CreateFrame("Frame", nil, bar)
-			ic.rangeF:SetFrameLevel(ic:GetFrameLevel() + 7)
+			ic.rangeF:SetFrameLevel(ic:GetFrameLevel() + L.mark - L.look)
 			ic.rangeF.bg = ic.rangeF:CreateTexture(nil, "ARTWORK")
 			ic.rangeF.bg:SetAllPoints()
 			ns.StyleArt.followMask(ic, ic.rangeF.bg)

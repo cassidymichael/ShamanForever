@@ -467,7 +467,7 @@ local function plateDress(v, el, w)
 		f.lines = {}
 		d.plate = f
 	end
-	f:SetFrameLevel(math.max(v:GetFrameLevel() - 1, 0))
+	f:SetFrameLevel(math.max(v:GetFrameLevel() - (TB.LAYER.look - TB.LAYER.plate), 0))
 	local pad = W.roundPx(w * 0.16, W.pixel(v))
 	f:ClearAllPoints()
 	f:SetPoint("TOPLEFT", v, "TOPLEFT", -pad, pad)

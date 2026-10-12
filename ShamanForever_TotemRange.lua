@@ -78,7 +78,7 @@ local function makeMark(s)
 	hold:EnableMouse(false)
 	s.rangeHold = hold
 	local gate = CreateFrame("Frame", nil, hold)
-	gate:SetFrameLevel(b:GetFrameLevel() + TB.RANGE_LEVEL)
+	gate:SetFrameLevel(b:GetFrameLevel() + TB.LAYER.mark)
 	gate:EnableMouse(false)
 	gate:SetAlpha(0)
 	local m = CreateFrame("Frame", nil, gate)
@@ -154,7 +154,7 @@ local function makeContainer(s)
 	local ok, err = ns.try("totem range: container", function()
 		local c = CreateFrame("AuraContainer", "ShamanForeverRange" .. TB.NAME[s.el], s.rangeHold,
 			"CustomAuraContainerTemplate")
-		c:SetFrameLevel(s.button:GetFrameLevel() + TB.RANGE_LEVEL + 1)
+		c:SetFrameLevel(s.button:GetFrameLevel() + TB.LAYER.mark + 1)
 		c:SetUnit("player")
 		pcall(c.EnableMouse, c, false)
 		s.rangeContainer = c

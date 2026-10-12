@@ -411,22 +411,24 @@ local slots = {}
 local bySlot = {}
 TB.slots, TB.frame = slots, bar
 
--- Frame levels over a slot's button, bottom to top: look +2, range strip +9 to +12, expiring
--- warning +13 to +15, time bar +16, then everything over the icon (GCD sweep, timer Cooldown, key,
--- end flashes). The strip's in-range part is opaque, so the warning sits over it; a bar along the
--- top edge hides the strip under it (a missed mark, never a false one).
-TB.RANGE_LEVEL = 9
-local WARN_LEVEL = TB.RANGE_LEVEL + 4
-local TIME_BAR_LEVEL = TB.RANGE_LEVEL + 7
-local OVER_RANGE = TB.RANGE_LEVEL + 8
-local LOOK_LEVEL = 2
-local LOOK_OVER_RANGE = OVER_RANGE - LOOK_LEVEL
+-- A slot's layers, frame levels over its button, bottom up: a theme's plate under the picture; the
+-- picture (look: its background, No mana tint and ring); the Different-totem badge, outside it; the
+-- out of range mark, over the picture; the border's art and a theme's ring, over the mark so it
+-- never covers the frame; the expiring warning (+13 to +15) and the time bar, over both (a bar along
+-- the mark's edge hides it: a missed mark, never a false one); the GCD sweep, the timer's swipe and
+-- its numbers, the key text and the end flashes over everything. The options header's icons take the
+-- same levels over their picture (less look).
+TB.LAYER = { plate = 1, look = 2, badge = 6, mark = 9, art = 10, warn = 13, bar = 16, sweep = 17, swipe = 18,
+	key = 20, flash = 21 }
+local L = TB.LAYER
+-- Over the picture's own level
+local function overLook(name) return L[name] - L.look end
 
 local KEY_HIGHLIGHT = "UI-HUD-ActionBar-IconFrame-Mouseover"
 local function keyLayer(v)
 	local f = CreateFrame("Frame", nil, v)
 	f:SetAllPoints()
-	f:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 3)
+	f:SetFrameLevel(v:GetFrameLevel() + overLook("key"))
 	f.text = W.makeKeyText(f)
 	f.glow = f:CreateTexture(nil, "OVERLAY")
 	f.glow:SetAllPoints()
@@ -438,7 +440,7 @@ end
 
 local function gcdSweep(v)
 	local cd = W.makeGCDSweep(v)
-	cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE)
+	cd:SetFrameLevel(v:GetFrameLevel() + overLook("sweep"))
 	return cd
 end
 
@@ -506,12 +508,12 @@ for index, el in ipairs(ELEMENTS) do
 
 	local v = CreateFrame("Frame", nil, bar)
 	v:SetAllPoints(b)
-	v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL)
+	v:SetFrameLevel(b:GetFrameLevel() + L.look)
 	v:EnableMouse(false)
 	s.vis = v
 	v.school = el
 	local badge = CreateFrame("Frame", nil, bar)
-	badge:SetFrameLevel(b:GetFrameLevel() + 6)
+	badge:SetFrameLevel(b:GetFrameLevel() + L.badge)
 	badge.icon = badge:CreateTexture(nil, "ARTWORK")
 	badge.icon:SetAllPoints()
 	W.cropIcon(badge.icon)
@@ -521,8 +523,8 @@ for index, el in ipairs(ELEMENTS) do
 	local kf = ns.Effects.endFlash(bar, b, "totembar", v)
 	s.expired = ns.Effects.endFlash(bar, b, "totembar", v)
 	s.killed = kf
-	kf:SetFrameLevel(b:GetFrameLevel() + OVER_RANGE + 4)
-	s.expired:SetFrameLevel(b:GetFrameLevel() + OVER_RANGE + 4)
+	kf:SetFrameLevel(b:GetFrameLevel() + L.flash)
+	s.expired:SetFrameLevel(b:GetFrameLevel() + L.flash)
 	for _, flash in ipairs({ kf, s.expired }) do flash:ClearAllPoints(); flash:SetAllPoints(v) end
 	v.bg = v:CreateTexture(nil, "BACKGROUND")
 	v.bg:SetAllPoints()
@@ -530,8 +532,8 @@ for index, el in ipairs(ELEMENTS) do
 	v.icon:SetAllPoints()
 	W.cropIconExact(v.icon)
 	s.timer = ns.Timer.new(v, "totembar", "uptime", { anchor = v, school = el })
-	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 1)
-	s.timer.bar:SetFrameLevel(b:GetFrameLevel() + TIME_BAR_LEVEL)
+	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + overLook("swipe"))
+	s.timer.bar:SetFrameLevel(b:GetFrameLevel() + L.bar)
 	v.cd = s.timer.cd
 	s.keys = keyLayer(v)
 	s.gcd = gcdSweep(v)
@@ -595,7 +597,7 @@ for _, e in ipairs({ { "Call", CALL }, { "Recall", RECALL } }) do
 	b:SetAttribute("spell", spell)
 	local v = CreateFrame("Frame", nil, bar)
 	v:SetAllPoints(b)
-	v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL)
+	v:SetFrameLevel(b:GetFrameLevel() + L.look)
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
 	W.cropIconExact(v.icon)
@@ -826,11 +828,11 @@ function TB.drawTimeLeft(s)
 	TB.range.drawTimeLeft(s)
 end
 
--- The slot's expiring warning over the range strip, once: see the frame levels above
+-- The slot's expiring warning at its layer (TB.LAYER), once
 local function liftWarning(s)
 	local x = s.timer.exp
 	if not x or x.sfLifted then return end
-	local lv = s.button:GetFrameLevel() + WARN_LEVEL
+	local lv = s.button:GetFrameLevel() + L.warn
 	x:SetFrameLevel(lv)
 	x.ringHost:SetFrameLevel(lv)
 	local g = x.glow
@@ -1730,7 +1732,7 @@ local function paintSlot(s, rec)
 			strip.bg:SetAllPoints()
 			s.previewRange = strip
 		end
-		strip:SetFrameLevel(s.button:GetFrameLevel() + TB.RANGE_LEVEL + 3)
+		strip:SetFrameLevel(s.button:GetFrameLevel() + L.mark + 3)
 		strip:ClearAllPoints()
 		local x, y, w, h = TB.skin.markRect(strip, size, s.inset or 0)
 		if x then
