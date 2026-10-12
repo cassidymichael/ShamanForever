@@ -1008,13 +1008,20 @@ function Page:goTo(name)
 end
 
 local HELP_GREY = 0.72
-function Page:text(str, shown)
+-- tipTitle, tip: a tooltip on hovering the text
+function Page:text(str, shown, tipTitle, tip)
 	local f = self:row(20)
 	f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	f.text:SetTextColor(HELP_GREY, HELP_GREY, HELP_GREY)
 	f.text:SetPoint("TOPLEFT", 4, -4)
 	f.text:SetJustifyH("LEFT")
 	f.text:SetSpacing(2)
+	if tip then
+		local hit = CreateFrame("Frame", nil, f)
+		hit:SetAllPoints(f.text)
+		hit:EnableMouse(true)
+		Page.setTip(hit, tipTitle, tip, "above")
+	end
 	return self:add(f, function() return f.text:GetStringHeight() + 12 end, shown, function()
 		f.text:SetWidth(math.min(self:width() - 8, TEXT_MAX_W))
 		f.text:SetText(type(str) == "function" and str() or str)

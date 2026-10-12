@@ -39,7 +39,8 @@ E.register("shock", { frame = shock, label = "Shocks", paint = function(t) t:Set
 	ranges = { marks = { size = { 0.3, 0.5, 0.02 }, gap = { 0, 20, 1 } } },
 	choices = { marks = { side = { "above", "below" } } },
 	def = { key = "shock", idleChoices = CD.IDLE_CHOICES, idleKeep = {
-		{ "ready", "Ready glow", "Only while its glow is on." }, { "marks", "On target", "Its marks on your target." } } },
+		{ "ready", "Ready glow", "Only while its glow is on." },
+		{ "marks", "Icons for Frost and Flame Shock on target" } } },
 	effects = { glow = true, pop = true },
 	kind = "shock", icon = 136026, school = "spirit", blurb = "Cooldown, range and mana." })
 
