@@ -278,7 +278,8 @@ end
 --                          work with elements (cast states, a class module's watch) has it synced from its own layout.
 --   afterGroups()          the groups were just laid out
 --   refresh()              read everything again
---   onCooldowns(inEvent)   a cast, a cooldown or a module's own state changed
+--   onCooldowns(inEvent, spellID, baseID)   a cast, a cooldown or a module's own state changed; from
+--                          SPELL_UPDATE_COOLDOWN, the spell it names
 --   tick()                 once a second
 --   onCast(spellID)        our own successful cast
 --   debug()                its part of /sf debug
@@ -928,9 +929,9 @@ end
 -- SPELL_UPDATE_COOLDOWN refreshes at once (isOnGCD is only vouched for inside it), the others wait
 -- a frame, by then with what the cast changed
 local cooldownsDirty = false
-local function flushCooldowns(inEvent)
+local function flushCooldowns(inEvent, spellID, baseID)
 	cooldownsDirty = false
-	each("onCooldowns", inEvent)
+	each("onCooldowns", inEvent, spellID, baseID)
 end
 local function flushIfDirty() if cooldownsDirty then flushCooldowns(false) end end
 local function refreshCooldownsSoon()
@@ -1269,7 +1270,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		if not isSecret(spellID) then each("onCast", spellID) end
 		refreshCooldownsSoon()
 	elseif event == "SPELL_UPDATE_COOLDOWN" then
-		ns.try("cooldown refresh", flushCooldowns, true)
+		ns.try("cooldown refresh", flushCooldowns, true, arg1, arg2)
 	elseif event == "SPELLS_CHANGED" then
 		-- Fires often (shapeshifts, zoning): relayout only when a tracked spell changed
 		local found = resolveSpells()

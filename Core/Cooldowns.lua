@@ -15,7 +15,7 @@ local setting = E.setting
 
 -- Elements: the class's rows (ns.CLASS.cooldowns). A row's fields: key, spellKey, icon, school,
 -- blurb, experimental; its parts' flags (this file's parts: readyGlow, lowMana, noReadyPop,
--- readyAtReset; others' below, auraState in _Buffs); expireLooks (which looks Expiring offers; false:
+-- reset; others' below, auraState in _Buffs); expireLooks (which looks Expiring offers; false:
 -- none), race (race IDs; others see "Not your race"), cd and duration (preview only),
 -- defaults (over the parts'), choices, styles and timerCant (see E.register).
 local COOLDOWNS = ns.CLASS.cooldowns or {}
@@ -86,8 +86,9 @@ ns.registerPart("ready", {
 local GLOW_ONLY = "Only while its glow is on."
 ns.registerPart("readyGlow", { defaults = { ready = { glow = false }, idleKeep = { ready = false } }, glow = true,
 	idle = { keep = { "ready", "Ready glow", GLOW_ONLY } }, preview = { keeps = { ready = "ready" } } })
--- readyAtReset: its ready also when its cooldown ends early (a talent's reset); experimental
-ns.registerPart("readyAtReset", { kind = "cooldown", experiment = "Ready at a reset" })
+-- reset = { talent }: a Reset event (the cooldown ends early, by that talent), and its ready then;
+-- experimental
+ns.registerPart("reset", { kind = "cooldown", experiment = "Reset" })
 -- Low mana: a pulsing glow while it's ready and your mana is under a percentage. Mana is secret even
 -- out of combat: its percent goes through a curve straight into an alpha, and nothing else reads it
 local MANA = Enum.PowerType and Enum.PowerType.Mana or 0
@@ -236,7 +237,8 @@ end
 local READY_GRACE, ARM_AFTER_CAST = 0.5, 1.5
 local function arm(r) r.armed, r.by, r.castAt = true, nil, nil end
 -- Still armed, still ready and its tracker still running once the grace is over: the cooldown ended
--- early (a reset), so this is its ready; a GCD alone counts as ready. Only for rows with readyAtReset
+-- early (a reset the event didn't show), so this is its ready; a GCD alone counts as ready. Only for rows
+-- with a reset
 local function endedEarly(f, spellID, by)
 	local r = f.ready
 	if not r.armed or r.by ~= by then return end
@@ -268,6 +270,43 @@ local function noteReady(f, st, inEvent, spellID)
 		arm(r)
 	end
 end
+-- Reset: its ready begins while the cooldown our own cast started is provably not over. The event names
+-- the spell, our tracker is still shown, the read isn't its own cooldown running, and the cast clock says
+-- more than a GCD can hide is left. Any read that fails or is secret is no Reset.
+local READY_LEFT = 0.5
+local function plainNumber(v) return type(v) == "number" and not isSecret(v) and v == v and v or nil end
+-- How much of the cooldown must be left for a read of a GCD: the GCD, the cast event's lag, and spare
+local function gcdMargin(spellID)
+	local ok, _, gcd = safe(GetSpellBaseCooldown, spellID)
+	gcd = ok and plainNumber(gcd)
+	return (gcd and gcd > 0 and gcd / 1000 or 1.5) + 1
+end
+local function cooldownLength(spellID)
+	local ok, ms = safe(GetSpellBaseCooldown, spellID)
+	ms = ok and plainNumber(ms)
+	return ms and ms > 0 and ms / 1000 or nil
+end
+local function namesSpell(def, id)
+	return plainNumber(id) ~= nil and (id == def.spellID or Spells.keyOf(id) == def.spellKey)
+end
+local function checkReset(def, spellID, baseID)
+	local f = def.frame
+	local r = f.ready
+	if not (r and r.armed and r.cast and def.spellID and def.resetKnown) then return end
+	if not (namesSpell(def, spellID) or namesSpell(def, baseID)) then return end
+	if not f.ownCd:IsShown() or ns.zoning() or ns.cantAct() then return end
+	local st = plainCooldown(def.spellID)
+	if st == nil or st == "own" then return end
+	local len = cooldownLength(def.spellID)
+	if not len then return end
+	local left = r.cast + len - GetTime()
+	if left <= (st == "ready" and READY_LEFT or gcdMargin(def.spellID)) then return end
+	r.armed, r.by, r.castAt = nil, nil, nil
+	r.at = GetTime()
+	r.reset = r.at
+	for _, fn in ipairs(r.fns) do fn() end
+end
+
 local function quietCooldown(f)
 	local t = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
 	t:SetAllPoints()
@@ -324,6 +363,7 @@ function CD.noteCast(f, spellID)
 	local r = f.ready
 	restarted(r)
 	r.castAt = GetTime()
+	r.cast = r.castAt
 	if plainCooldown(spellID) == "own" then arm(r) end
 end
 -- A cooldown already running at the first look after a login arms its ready, only out of combat, where
@@ -344,10 +384,12 @@ end
 function CD.resetReady(f, off)
 	local r = f.ready
 	if not r then return end
-	r.armed, r.by, r.castAt, r.fresh = nil, nil, nil, off or nil
+	r.armed, r.by, r.castAt, r.cast, r.fresh = nil, nil, nil, nil, off or nil
 	f.ownCd:Clear()
 end
 function CD.readyNow(f) return f.ready ~= nil and f.ready.at == GetTime() end
+-- readyNow, and it is a Reset
+function CD.resetNow(f) return f.ready ~= nil and f.ready.reset == GetTime() and f.ready.at == GetTime() end
 -- fn() at the tracker's end and at an early end; it checks CD.readyNow itself
 local function onReady(f, fn)
 	watchEnds(f)
@@ -502,7 +544,7 @@ for _, def in ipairs(COOLDOWNS) do
 	end
 	popWhenReady(def.frame, def.key, gate)
 	soundWhenReady(def.frame, def.key, gate)
-	def.frame.ready.atReset = def.readyAtReset or nil
+	def.frame.ready.atReset = def.reset ~= nil or nil
 	-- The swipe's end, and the spell's own (the time bar's), which can end inside a GCD
 	for _, cd in ipairs({ def.frame.cd, def.frame.ownCd }) do
 		cd:HookScript("OnCooldownDone", function() C_Timer.After(0, function() refreshCooldown(def) end) end)
@@ -588,6 +630,7 @@ function CD.resolve()
 		end
 		if known ~= def.spellID then def.takesReagent = nil end
 		def.spellID, def.iconID = known, knownIcon
+		def.resetKnown = def.reset ~= nil and Spells.known(def.reset.talent) ~= nil
 		table.insert(sig, tostring(def.spellID)); table.insert(sig, tostring(def.iconID))
 	end
 	return table.concat(sig, ",")
@@ -627,8 +670,13 @@ function CD.onCast(spellID)
 	end
 end
 
--- inEvent: from SPELL_UPDATE_COOLDOWN
-function CD.onCooldowns(inEvent)
+-- inEvent: from SPELL_UPDATE_COOLDOWN, with the spell it names
+function CD.onCooldowns(inEvent, spellID, baseID)
+	if inEvent then
+		for _, def in ipairs(COOLDOWNS) do
+			if def.reset and E.isEnabled(def.key) then checkReset(def, spellID, baseID) end
+		end
+	end
 	refreshCooldowns(inEvent)
 end
 
