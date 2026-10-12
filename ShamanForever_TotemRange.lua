@@ -487,15 +487,23 @@ end
 
 -- /sf debug
 function RG.debug()
+	if P.getDB() then
+		local c = TB.cfg()
+		ns.say("totem range: %s, %s, %s", c.rangeShape, TB.skin.place("rangePlace") == "out" and "beside" or "in the icon",
+			c.rangeShow == "both" and "in range too" or "out of range only")
+	end
 	for _, el in ipairs(TB.ELEMENTS) do
 		local s = TB.slots[el]
 		if s.outGate then
 			local id = s.down and ns.Totems.downSpell(s.slot)
 			local why = s.down and weaponShut(id)
+			local e = s.down and entryOf(el, id)
+			local mine = not e and "" or (ns.inCombat() or not ns.aurasReadable()) and ", your buff unreadable now"
+				or buffOn(el, e) and ", your buff on you" or ", your buff not on you"
 			ns.say("totem range %s: %s, totem %s, open %s; %s", el, s.rangeOn and "on" or "off",
 				(not s.down and "none" or not isBuffTotem(el, id) and "without a buff"
-				or seen(id) and "with a buff" or "with a buff, not confirmed yet") .. (why and (", shut: " .. why) or ""),
-				tostring(s.rangeOpen == true), s.outGate:describe())
+				or seen(id) and "with a buff" or "with a buff, not confirmed yet") .. mine
+				.. (why and (", shut: " .. why) or ""), tostring(s.rangeOpen == true), s.outGate:describe())
 			if s.inGate and s.rangeInOn then ns.say("totem range %s in range: %s", el, s.inGate:describe()) end
 		end
 	end
