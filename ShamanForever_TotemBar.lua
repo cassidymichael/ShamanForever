@@ -73,11 +73,11 @@ TB.DEFAULTS = {
 	mana = { on = true },   -- a slot's pick it can't pay for, in Global's style for it
 	range = true,
 	rangeHeight = 7,
-	rangeOut = { 0.9, 0.12, 0.08, 1 },
+	rangeOut = { 0.9, 0.12, 0.08, 0.8 },
 	rangeShow = "out",   -- out | both: out of range only, or in range too
-	rangeInColor = { 0.2, 0.8, 0.25, 1 },
+	rangeInColor = { 0.2, 0.8, 0.25, 0.8 },
 	rangeShape = "strip",   -- strip | dot
-	rangeDotSize = 6,   -- screen pixels
+	rangeDotSize = 12,   -- screen pixels
 	rangeDotX = 0, rangeDotY = 0,   -- from the dot's place, kept in or beside the icon
 	rangePlace = "in",   -- in | out (beside the icon)
 	rangeGap = 3,   -- beside: from what's inside it
@@ -101,7 +101,7 @@ local RANGES = {
 	extrasGap = { -10, 30, 1 }, extrasSpacing = { -10, 20, 1 },
 	idleAlpha = { 0.1, 1, 0.05 }, badgeSize = { 0.25, 0.8, 0.05 }, badgeAlpha = { 0.1, 1, 0.05 },
 	badgeSat = { 0, 1, 0.05 }, badgeX = { -30, 30, 1 }, badgeY = { -30, 30, 1 }, rangeHeight = { 1, 12, 1 },
-	rangeGap = { 0, 20, 1 }, rangeDotSize = { 3, 16, 1 }, rangeDotX = { -48, 48, 1 }, rangeDotY = { -48, 48, 1 },
+	rangeGap = { 0, 20, 1 }, rangeDotSize = { 3, 30, 1 }, rangeDotX = { -48, 48, 1 }, rangeDotY = { -48, 48, 1 },
 	fadeAfter = { 0, 10, 1 }, keySize = { 6, 30, 1 }, keyX = { -20, 20, 1 }, keyY = { -20, 20, 1 },
 	pixelEdge = { 1, 4, 1 },
 	expire = { secs = EXPIRE_SECS },
