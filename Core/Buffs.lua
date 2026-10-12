@@ -896,19 +896,24 @@ function B.buffBarLearned(def)
 	local x = buffBarOf(def)
 	return x ~= nil and x.learned == true
 end
+-- Its title: the buff's name, with the row's note when it has one
+local function buffBarTitle(def)
+	local name, note = Spells.name(def.buffBar.buffKey), def.buffBar.note
+	return note and (name .. " (" .. note .. ")") or name
+end
 ns.registerPart("buffBar", {
 	kind = "cooldown",
 	defaults = { buffBar = false, idleKeep = { buffBar = false } },
 	idle = { keep = function(def)
-		return { "buffBar", Spells.name(def.buffBar.buffKey), "Its bar and glow, while either is on.",
+		return { "buffBar", buffBarTitle(def), "Its bar and glow, while either is on.",
 			function() return not B.buffBarLearned(def) end }
 	end },
 	page = { buffBar = function(def)
-		return { title = Spells.name(def.buffBar.buffKey), text = "A bar at the top of the icon while it's up.",
+		return { title = buffBarTitle(def), text = "A bar at the top of the icon while it's up.",
 			unlearned = function() return not B.buffBarLearned(def) end }
 	end },
 	preview = {
-		states = function(def) return { { "buffBar", Spells.name(def.buffBar.buffKey), 63 } } end,
+		states = function(def) return { { "buffBar", buffBarTitle(def), 63 } } end,
 		keeps = { buffBar = "buffBar" },
 		-- Drawn on a ready icon: it idles where the cooldown does
 		idles = function(st, def, when) if st == "buffBar" then return KD.idleMode(def, when) == "offcd" end end,
