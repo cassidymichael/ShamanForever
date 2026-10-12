@@ -236,6 +236,9 @@ function E.newIcon(key, opts)
 				h = CreateFrame("Frame", nil, f.effects)
 				h:SetAllPoints()
 				h:SetFrameLevel(f.effects:GetFrameLevel())
+				-- Made after the element went idle: it starts where E.fade would put it
+				local a = f.idleTarget
+				if a and a < 1 then h:SetAlpha(E.setting(key, "idleKeep", field) == true and 1 or a) end
 				f.keep[field] = h
 			end
 			return h
