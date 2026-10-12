@@ -1,8 +1,7 @@
 -- Totem bar: out of range
--- Nothing can measure the distance to a totem and buffs are secret in combat, so per slot an aura gate
--- (W.makeAuraGate) shows our red mark only while one of your buff totems is down in the slot and none
--- of that element's totem buffs is on you, from anyone.
--- The buff lingers after you leave range, so the mark comes late. Totems without a buff get no mark.
+-- Per slot an aura gate (W.makeAuraGate) shows the red mark while your buff totem is down and none of its
+-- element's buffs is on you, from anyone; the in range mark shows while your own is.
+-- A totem waits until its buff has been seen on you once, at rest. The buff lingers, so marks come late.
 
 local _, ns = ...
 local W = ns.Widgets
@@ -93,9 +92,7 @@ local function seen(id)
 	return proven[id] or P.getAccount().rangeSeen[id] == true
 end
 
--- The mark, in the icon: a strip along the picture's top edge, or a dot at its middle, inside its
--- border's art and a theme's ring; along the bottom while the time bar runs along the top. Its rect from
--- the slot box's top left.
+-- The mark's rect in the icon, from the slot box's top left
 local function timeBarOnTop()
 	local S = ns.Style
 	return TB.skin.place("barPlace") ~= "out" and S.value("totembar", "uptime", "bar") == true
@@ -155,8 +152,7 @@ end
 local previewOn = false
 local events   -- set(on): UNIT_AURA, while the mark is in use (RG.start)
 
--- A mark: a texture for each shape and place, shown by RG.paint; in the icon (bg, and the dot), in the
--- picture's shape (v: the slot's look or the options header's icon)
+-- A mark: a texture per shape and place, in the picture's shape (v: the slot's look or the header's icon)
 local function newMark(parent, v, lv)
 	local m = CreateFrame("Frame", nil, parent)
 	m.v = v
@@ -183,8 +179,7 @@ local function texture(m, kind)
 	return t
 end
 
--- The player's colour on the mark's texture for kind (default: the last): which, "in" for in range
--- (default out of range)
+-- Paints the mark's texture for kind (default: the last); which "in" is the in range colour
 function RG.paint(m, kind, which)
 	m.drawn = kind or m.drawn or "strip"
 	for _, key in ipairs(KINDS) do
@@ -222,9 +217,8 @@ function RG.weaponNames()
 	return out
 end
 
--- Per slot, made the first time it's on (out of combat): its gate, and the mark in it. Out of range: open
--- while none of the element's buffs is on you, from anyone. In range (inverted): open while your own is,
--- since another shaman's would show it out of your range.
+-- Per slot, made at rest: out of range opens while none of the element's buffs is on you; in range
+-- (inverted) while your own is, as another shaman's would show it out of your range
 local function makeGate(s, inRange)
 	local el = s.el
 	local site = "totem range: " .. el .. (inRange and " in range" or "")
@@ -253,8 +247,7 @@ local function place(s, g, m, size, which)
 	g:resize(cw, ch, string.format("%.3f:%.3f", cw, ch))
 end
 
--- Learned ranks, kept for the account: acct.rangeBuffIDs[el][id]; totems seen giving their buff,
--- acct.rangeSeen[totem ID]
+-- Learned ranks acct.rangeBuffIDs[el][id]; totems seen giving their buff acct.rangeSeen[totem ID]
 local function sanitize(_, acct)
 	if type(acct.rangeSeen) ~= "table" then acct.rangeSeen = {} end
 	for id, on in pairs(acct.rangeSeen) do
@@ -354,8 +347,7 @@ end
 -- After a cancelling imbue's cast, its totem's marks stay shut this long (until the enchant reads)
 local IMBUE_CAST = 3
 local imbueCast = {}
--- Why a main-hand totem's buff can't be yours now (the imbue, or a form or no weapon: its buff works on
--- the main hand's attacks), or nil; an unreadable read shuts it
+-- Why a main-hand totem's buff can't be yours now, or nil; an unreadable read shuts it
 local function weaponShut(id)
 	local key = cancelOf(id)
 	if not key then return nil end
