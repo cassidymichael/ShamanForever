@@ -412,8 +412,8 @@ end
 
 local function blizzardDress(v, el, w)
 	local d = dressParts(v)
-	-- Under the warning rings (sublevel 6)
-	local ring = d.ring or v:CreateTexture(nil, "OVERLAY", nil, 5)
+	-- On the slot's art frame, over the out of range mark
+	local ring = d.ring or (v.art or v):CreateTexture(nil, "OVERLAY", nil, 5)
 	d.ring = ring
 	blizzPiece(ring, BZ.ring[el or "spell"])
 	local o = w * 2 / 30

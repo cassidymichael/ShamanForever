@@ -319,6 +319,7 @@ function TB.fitLook(v, b, border, size)
 	v:SetPoint("TOPLEFT", b, "TOPLEFT", o, -o)
 	v:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -o, o)
 	ns.StyleArt.applyBorder(v, border)
+	if v.art then ns.StyleArt.overlay(v.art, border) end
 	return o
 end
 
@@ -537,6 +538,11 @@ for index, el in ipairs(ELEMENTS) do
 	s.keys = keyLayer(v)
 	s.gcd = gcdSweep(v)
 	s.command = "CLICK ShamanForeverKeyCast" .. NAME[el] .. ":LeftButton"
+	-- The border's art and a theme's ring, over the out of range mark
+	v.art = CreateFrame("Frame", nil, v)
+	v.art:SetAllPoints()
+	v.art:SetFrameLevel(b:GetFrameLevel() + L.art)
+	v.noOverlay = true
 
 	makePicker(s, NAME[el])
 end

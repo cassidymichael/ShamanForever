@@ -55,6 +55,11 @@ PREVIEW = {
 			ic.bg = ic:CreateTexture(nil, "BACKGROUND")
 			ic.bg:SetAllPoints()
 			ic.killed = ns.Effects.endFlash(bar, ic, "totembar", ic)
+			-- As the bar's slot: the border's art and a theme's ring over the mark
+			ic.art = CreateFrame("Frame", nil, ic)
+			ic.art:SetAllPoints()
+			ic.art:SetFrameLevel(ic:GetFrameLevel() + L.art - L.look)
+			ic.noOverlay = true
 			h.slots[i] = ic
 		end
 		h.extras = {}
@@ -173,6 +178,7 @@ PREVIEW = {
 				place(ic.box, slotAt[placeIdx[el]], (line - size) / 2)
 				ic.school = el
 				local o = ns.StyleArt.fit(ic, border, size)
+				ns.StyleArt.overlay(ic.art, border)
 				TB.skin.dressSlot(ic, el, size - 2 * o)
 				ic:ClearAllPoints()
 				place(ic, slotAt[placeIdx[el]] + o, (line - size) / 2 + o)
