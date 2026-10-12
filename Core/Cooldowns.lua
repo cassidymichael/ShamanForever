@@ -180,7 +180,8 @@ ns.registerPart("reset", {
 			ns.Media.setFont(f.resetWord, nil, 16)
 		end,
 		debug = function(def)
-			return def.resetKnown and "reset known" or "reset (talent not learned)"
+			if not def.resetKnown then return "reset (talent not learned)" end
+			return "reset known" .. (def.resetLog and "; resets: " .. table.concat(def.resetLog, ", ") or "")
 		end,
 	},
 })
@@ -358,6 +359,10 @@ local function checkReset(def, spellID, baseID)
 	r.armed, r.by, r.castAt = nil, nil, nil
 	r.at = GetTime()
 	r.reset = r.at
+	local log = def.resetLog or {}
+	def.resetLog = log
+	table.insert(log, string.format("%.0f (%s, %s) %s", GetTime(), tostring(spellID), tostring(baseID), st))
+	if #log > 5 then table.remove(log, 1) end
 	for _, fn in ipairs(r.fns) do fn() end
 end
 
