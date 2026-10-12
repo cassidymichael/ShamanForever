@@ -1297,10 +1297,11 @@ function E.debugReport()
 	table.sort(known)
 	say("spells: %s", table.concat(known, ", "))
 	each("debug")
-	local resting = {}
+	-- The icons E.fade holds below full (an aura row's sits there under its button)
+	local faded = {}
 	for _, key in ipairs(ELEMENT_KEYS) do
 		local f = ELEMENTS[key].frame
-		if f and f.idleTarget and f.idleTarget < 1 then
+		if f and f.idleTarget and f.idleTarget < 1 and inUse(key) then
 			local kept = {}
 			for _, holders in ipairs({ f.keep or {}, f.keepOut or {} }) do
 				for field in pairs(holders) do
@@ -1308,11 +1309,11 @@ function E.debugReport()
 				end
 			end
 			table.sort(kept)
-			table.insert(resting, string.format("%s %.0f%%%s", key, f.idleTarget * 100,
+			table.insert(faded, string.format("%s %.0f%%%s", key, f.idleTarget * 100,
 				#kept > 0 and (" (kept: " .. table.concat(kept, ", ") .. ")") or ""))
 		end
 	end
-	if #resting > 0 then say("resting: %s", table.concat(resting, ", ")) end
+	if #faded > 0 then say("at Idle opacity: %s", table.concat(faded, ", ")) end
 	say("profile %s", tostring(profileName))
 	local function listed(key)
 		local tags = {}
