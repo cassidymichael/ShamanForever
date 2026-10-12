@@ -53,7 +53,7 @@ ns.CLASS.cooldowns = {
 		buffBar = { buffKey = "improvedStormstrikeBuff", talentKey = "improvedStormstrike", school = "water",
 			note = "mana regen buff" },
 		glowWhile = { experimental = { "debuff", "buff" } }, choices = { glowWhile = { "none", "debuff", "buff" } },
-		reset = { talent = "improvedStormstrike" }, experimental = "Stormstrike" },
+		reset = { talent = "improvedStormstrike" } },
 	{ key = "riptide", power = true, spellKey = "riptide", icon = 252995, school = "water", blurb = "Cooldown.",
 		readyGlow = true, cd = 6, experimental = "Riptide" },
 	-- Short cooldowns: no Ready pop by default
@@ -65,7 +65,7 @@ ns.CLASS.cooldowns = {
 	auraBuff({ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, auraState = { length = 25 },
 		school = "air", cd = 180, experimental = "Rage of the Farseer" }),
 	{ key = "projection", power = true, spellKey = "totemicProjection", icon = 136099, school = "spirit",
-		blurb = "Cooldown.", cd = 60, defaults = { idleWhen = "offcd" }, experimental = "Totemic Projection" },
+		blurb = "Cooldown.", cd = 60, defaults = { idleWhen = "offcd" } },
 	{ key = "reincarnation", spellKey = "reincarnation", icon = 136080, school = "spirit",
 		blurb = "Cooldown, and your Ankhs when they run low.",
 		styles = { gcd = { show = false } },   -- never needs the sweep
