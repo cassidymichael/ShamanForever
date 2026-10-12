@@ -41,7 +41,8 @@ local function styleWord(fs, icon)
 end
 
 local def = { key = KEY, spellKey = "tremor", icon = 136108, school = "earth", duration = 300, readsTotems = true,
-	defaults = { idleAlpha = 0, idleWhen = "nowarning", tremorTarget = true, tremorPlates = true, tremorFeared = false,
+	defaults = { on = false, idleAlpha = 0, idleWhen = "nowarning", tremorTarget = true, tremorPlates = true,
+		tremorFeared = false,
 		active = { pop = true, glow = true, text = true, sound = "none" },
 		wordSize = 16, wordColor = CopyTable(WORD_COLOR), wordPos = "below", wordX = 0, wordY = 0,
 		mana = { on = true } },
