@@ -217,6 +217,8 @@ _G["BINDING_HEADER_" .. ns.NAME:upper() .. "_GENERAL"] = "General"
 -- over an idle element hangs from the effects layer itself: a look shown only while the element is awake
 -- (a proc's button, a warning), or a holder (f.keepHolder) of a part the player may keep (idleKeep).
 -- A kept part outside the effects layer puts its own frame in f.keepOut[field]; E.fade treats it as a holder.
+-- Pops hang from the pop layer: f.holdAwake(secs) keeps it at the awake alpha while one plays, then it
+-- rejoins the idle layer's fade.
 -- f.stack() restates frame levels (W.stackIcon); layoutGroup calls it after regrouping.
 function E.newIcon(key, opts)
 	local f = W.makeIcon(root, DEFAULTS.iconSize, key)
@@ -229,6 +231,20 @@ function E.newIcon(key, opts)
 		f.idleLayer:SetAllPoints()
 		f.idleLayer:SetFrameLevel(f.effects:GetFrameLevel())
 		f.glowF:SetParent(f.idleLayer)
+		f.popLayer = CreateFrame("Frame", nil, f.effects)
+		f.popLayer:SetAllPoints()
+		f.popLayer:SetFrameLevel(f.effects:GetFrameLevel())
+		function f.holdAwake(secs)
+			local ends = GetTime() + secs
+			if f.awakeUntil and f.awakeUntil >= ends then return end
+			f.awakeUntil = ends
+			W.fadeTo(f.popLayer, 1)
+			C_Timer.After(secs, function()
+				if f.awakeUntil ~= ends then return end
+				f.awakeUntil = nil
+				W.fadeLike(f.popLayer, f.idleLayer)
+			end)
+		end
 		f.keep, f.keepOut = {}, {}
 		-- The holder of the part idleKeep[field] keeps: made once, a plain frame beside the idle layer
 		function f.keepHolder(field)
@@ -250,6 +266,7 @@ function E.newIcon(key, opts)
 			local level = f:GetFrameLevel()
 			f.effects:SetFrameLevel(level)
 			f.idleLayer:SetFrameLevel(level)
+			f.popLayer:SetFrameLevel(level)
 			for _, h in pairs(f.keep) do h:SetFrameLevel(level) end
 		end
 		W.stackIcon(f)
@@ -387,6 +404,7 @@ local function fadeElement(key, a)
 	W.fadeTo(f, a)
 	if not f.idleLayer then return end
 	W.fadeTo(f.idleLayer, a)
+	if not f.awakeUntil then W.fadeTo(f.popLayer, a) end
 	for _, holders in ipairs({ f.keep, f.keepOut }) do
 		for field, h in pairs(holders) do
 			W.fadeTo(h, (a < 1 and elementSetting(key, "idleKeep", field) == true) and 1 or a)

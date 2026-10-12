@@ -139,6 +139,12 @@ function W.fadeTo(f, alpha)
 	fading[f] = alpha
 	fader:Show()
 end
+-- f joins other's alpha and fade where it is
+function W.fadeLike(f, other)
+	f:SetAlpha(other:GetAlpha())
+	fading[f] = fading[other]
+	if fading[f] then fader:Show() end
+end
 
 -- Screen-pixel lines
 function W.pixel(frame)

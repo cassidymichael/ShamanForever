@@ -383,7 +383,7 @@ ns.registerPart("needsTotem", {
 -- Totem ends on the elements with a totem of their own, gated on the time left
 local function playEnd(f, field, def, dur, opts)
 	if not opts then return end
-	if not f[field] then f[field] = ns.Effects.endFlash(f.idleLayer, f, def.key) end
+	if not f[field] then f[field] = ns.Effects.endFlash(f.popLayer, f, def.key) end
 	f[field]:setIcon(def.iconID or def.icon)
 	f[field]:play(dur, opts)
 end
