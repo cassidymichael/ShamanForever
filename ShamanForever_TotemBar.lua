@@ -74,6 +74,8 @@ TB.DEFAULTS = {
 	range = true,
 	rangeHeight = 7,
 	rangeOut = { 0.9, 0.12, 0.08, 1 },
+	rangeShow = "out",   -- out | both: out of range only, or in range too
+	rangeInColor = { 0.2, 0.8, 0.25, 1 },
 	rangeShape = "strip",   -- strip | dot
 	rangeDotSize = 6,   -- screen pixels
 	rangeDotX = 0, rangeDotY = 0,   -- from the dot's place, kept in or beside the icon
@@ -107,7 +109,8 @@ local RANGES = {
 TB.RANGES = RANGES
 local CHOICES = { mode = { "blizzard", "active", "everything" }, show = { "always", "active", "combat", "target" },
 	barPlace = { "in", "out" }, setSwitch = { "popout", "cycle" }, stonePlinth = { "slim", "normal", "grand" },
-	rangeShape = { "strip", "dot" }, rangePlace = { "in", "out" }, rangeOrder = { "after", "before" } }
+	rangeShow = { "out", "both" }, rangeShape = { "strip", "dot" }, rangePlace = { "in", "out" },
+	rangeOrder = { "after", "before" } }
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
 
 local EXPIRE_OVER = { earthbind = 5, stoneclaw = 5, manaTide = 3 }
@@ -1726,7 +1729,7 @@ function TB.hasTotems() return hasTotems end
 -- happens in layout()
 local PREVIEW_STATES = { "down", "expiring", "killed", "ranout", "empty" }
 local PREVIEW_WARNING = { earth = { "empty" }, fire = { "empty" }, water = { "down", range = true },
-	air = { "down", range = true } }
+	air = { "down", range = "in" } }
 -- Each slot's totem in a preview: seconds left of its length (fire's under Magma Totem's 20 s, the shortest)
 TB.PREVIEW_LEFT = { earth = { 250, 300 }, fire = { 12, 30 }, water = { 83, 300 }, air = { 165, 300 } }
 
@@ -1739,10 +1742,12 @@ local function paintSlot(s, rec)
 	s.badge:Hide()
 	s.killed:setIcon(icon)
 	s.expired:setIcon(icon)
-	-- The out of range mark where the bar draws it, over a pick that buffs you (or none picked)
+	-- The out of range mark where the bar draws it, over a pick that buffs you (or none picked); in range
+	-- while it's on
 	local id = pickSpell(s.slot)
-	TB.range.standIn(s, rec.range and c.range and shown and (id == nil or TB.range.covers(s.el, id)),
-		s.button:GetWidth())
+	local which = rec.range == "in" and "in" or "out"
+	TB.range.standIn(s, rec.range and c.range and shown and (id == nil or TB.range.covers(s.el, id))
+		and (which == "out" or c.rangeShow == "both"), s.button:GetWidth(), which)
 	v.icon:SetTexture(icon)
 	if st == "down" or st == "expiring" then
 		s.killed.mark:Hide()

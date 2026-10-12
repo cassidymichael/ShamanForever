@@ -190,16 +190,19 @@ PREVIEW = {
 				ic.killed:setIcon(pick or TB.TOTEM_ICON[el])
 				if st ~= "killed" or el ~= expEl then ic.killed:stop() end
 				ic.badge:Hide()
-				-- Out of range as the bar draws it: on the first slot whose pick buffs you (or has none)
-				local pickID = st == "range" and c.range and not marked and TB.pickSpell(el)
-				if st == "range" and c.range and not marked and (pickID == nil or TB.range.covers(el, pickID)) then
+				-- Out of range as the bar draws it: on the first slot whose pick buffs you (or has none); in
+				-- range on the others like it, while that's on
+				local pickID = st == "range" and c.range and TB.pickSpell(el)
+				if st == "range" and c.range and (not marked or c.rangeShow == "both")
+					and (pickID == nil or TB.range.covers(el, pickID)) then
+					local which = marked and "in" or "out"
 					marked = true
 					local f = ic.rangeF
 					local x, y, mw, mh, kind = TB.range.rect(ic, size, o)
 					f:ClearAllPoints()
 					f:SetPoint("TOPLEFT", ic.box, "TOPLEFT", x, y)
 					f:SetSize(mw, mh)
-					TB.range.paint(f, kind)
+					TB.range.paint(f, kind, which)
 					f:Show()
 				end
 				TB.paintLow(ic, st == "mana" and i == 1 and TB.feat("cast") and c.mana.on == true)
@@ -548,6 +551,11 @@ local function build(p)
 	end
 	local range = p:checkbox("Show", nil, tget("range"), tset("range"))
 	p:sub(range, tget("range"), function()
+		local marks = p:dropdown("Marks", nil, { { "out", "Out of range only" }, { "both", "Out of range and in range" } },
+			tget("rangeShow"), tset("rangeShow"), nil, 240)
+		p:sub(marks, function() return c().rangeShow == "both" end, function()
+			p:color("In range colour", "While your own totem's buff is on you.", tget("rangeInColor"), tset("rangeInColor"))
+		end)
 		p:color("Colour", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"))
 		local shape = p:dropdown("Shape", nil, { { "strip", "Strip" }, { "dot", "Dot" } }, tget("rangeShape"),
 			tset("rangeShape"), nil, 190)

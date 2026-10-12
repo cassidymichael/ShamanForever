@@ -183,14 +183,16 @@ local function texture(m, kind)
 	return t
 end
 
--- The player's out of range colour on the mark's texture for kind (default: the last)
-function RG.paint(m, kind)
+-- The player's colour on the mark's texture for kind (default: the last): which, "in" for in range
+-- (default out of range)
+function RG.paint(m, kind, which)
 	m.drawn = kind or m.drawn or "strip"
 	for _, key in ipairs(KINDS) do
 		local t = key == "strip" and m.bg or m[key]
 		if t and key ~= m.drawn then t:Hide() end
 	end
-	local t, k = texture(m, m.drawn), TB.cfg().rangeOut
+	local c = TB.cfg()
+	local t, k = texture(m, m.drawn), which == "in" and c.rangeInColor or c.rangeOut
 	t:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
 	t:Show()
 end
@@ -208,23 +210,25 @@ function RG.untested()
 	return out
 end
 
--- Per slot, made the first time it's on (out of combat): its gate, and the mark in it
-local function makeGate(s)
+-- Per slot, made the first time it's on (out of combat): its gate, and the mark in it. Out of range: open
+-- while none of the element's buffs is on you, from anyone. In range (inverted): open while your own is,
+-- since another shaman's would show it out of your range.
+local function makeGate(s, inRange)
 	local el = s.el
-	local site = "totem range: " .. el
+	local site = "totem range: " .. el .. (inRange and " in range" or "")
 	local g = W.makeAuraGate({ frame = s.button, parent = TB.frame, sensorParent = TB.frame, unit = "player",
-		filter = "HELPFUL", ids = function() return CopyTable(buffIDs[el]) end,
-		name = "ShamanForeverRange" .. TB.NAME[el], group = "range",
+		filter = inRange and "HELPFUL|PLAYER" or "HELPFUL", ids = function() return CopyTable(buffIDs[el]) end,
+		invert = inRange, name = "ShamanForeverRange" .. (inRange and "In" or "") .. TB.NAME[el], group = "range",
 		sites = { container = site .. " sensor", style = site .. " layout", filter = site .. " filter" } })
 	local lv = s.button:GetFrameLevel() + TB.LAYER.mark
 	g:setLevel(lv)
-	s.outGate, s.rangeHold, s.rangeMark = g, g.hold, newMark(g.area, s.vis, lv)
+	if inRange then s.inGate, s.rangeInMark = g, newMark(g.area, s.vis, lv)
+	else s.outGate, s.rangeHold, s.rangeMark = g, g.hold, newMark(g.area, s.vis, lv) end
 end
 
 -- The cell: the mark's rect, and the gate's edge on the left and a unit on the other sides (a thin
 -- mark keeps its rows at a fractional scale)
-local function place(s, size)
-	local g, m = s.outGate, s.rangeMark
+local function place(s, g, m, size, which)
 	local x, y, w, h, kind = RG.rect(s.vis, size, s.inset or 0)
 	local e = W.AURA_GATE_EDGE
 	local cw, ch = w + e + 1, h + 2
@@ -233,7 +237,7 @@ local function place(s, size)
 	m:ClearAllPoints()
 	m:SetPoint("TOPLEFT", g.area, "TOPLEFT", e, -1)
 	m:SetSize(w, h)
-	RG.paint(m, kind)
+	RG.paint(m, kind, which)
 	g:resize(cw, ch, string.format("%.3f:%.3f", cw, ch))
 end
 
@@ -283,8 +287,9 @@ local function learn()
 			local saved = P.getAccount().rangeBuffIDs
 			saved[el] = saved[el] or {}
 			saved[el][id] = true
-			local g = TB.slots[el].outGate
-			if g then g:refilter() end
+			local s = TB.slots[el]
+			if s.outGate then s.outGate:refilter() end
+			if s.inGate then s.inGate:refilter() end
 		end
 	end
 end
@@ -296,14 +301,18 @@ function RG.layout(size)
 	for _, el in ipairs(TB.ELEMENTS) do
 		local s = TB.slots[el]
 		local on = want and s.button:IsShown()
-		s.rangeOn = on
+		local both = on and TB.cfg().rangeShow == "both"
+		s.rangeOn, s.rangeInOn = on, both
 		if on and not s.outGate then makeGate(s) end
-		local g = s.outGate
-		if g then
-			g:setShown(on)
-			if on then
-				place(s, size)
-				g:refilter()
+		if both and not s.inGate then makeGate(s, true) end
+		for _, k in ipairs({ { s.outGate, s.rangeMark, on, "out" }, { s.inGate, s.rangeInMark, both, "in" } }) do
+			local g = k[1]
+			if g then
+				g:setShown(k[3])
+				if k[3] then
+					place(s, g, k[2], size, k[4])
+					g:refilter()
+				end
 			end
 		end
 		RG.refresh(s)
@@ -364,17 +373,19 @@ local function follow(s)
 	s.rangeOpen = open
 	local on = open and GetTime() >= s.rangeSettled
 	if on ~= s.outGate.wanted then s.outGate:want(on) end
+	local g = s.inGate
+	if g and (on and s.rangeInOn) ~= g.wanted then g:want(on and s.rangeInOn) end
 end
 
 -- Values from the duration object may be secret: only ever straight to SetAlpha
 function RG.refresh(s)
 	if not s.outGate then return end
 	follow(s)
-	local m, d = s.rangeMark, s.dur
-	if d and ns.CURVE_LIVE then
-		local ok, a = ns.try("totem range: time", d.EvaluateRemainingDuration, d, ns.CURVE_LIVE)
-		m:SetAlpha(ok and a or 0)
-	else m:SetAlpha(0) end
+	local d = s.dur
+	local ok, a = false, 0
+	if d and ns.CURVE_LIVE then ok, a = ns.try("totem range: time", d.EvaluateRemainingDuration, d, ns.CURVE_LIVE) end
+	s.rangeMark:SetAlpha(ok and a or 0)
+	if s.rangeInMark then s.rangeInMark:SetAlpha(ok and a or 0) end
 end
 
 -- A slot's totem changed (nil: any slot's): the gate settles again
@@ -455,7 +466,7 @@ function RG.preview(on)
 		if not on and s.rangeStandIn then s.rangeStandIn:Hide() end
 	end
 end
-function RG.standIn(s, on, size)
+function RG.standIn(s, on, size, which)
 	local m = s.rangeStandIn
 	if not on then
 		if m then m:Hide() end
@@ -470,7 +481,7 @@ function RG.standIn(s, on, size)
 	m:ClearAllPoints()
 	m:SetPoint("TOPLEFT", s.button, "TOPLEFT", x, y)
 	m:SetSize(w, h)
-	RG.paint(m, kind)
+	RG.paint(m, kind, which)
 	m:Show()
 end
 
@@ -485,6 +496,7 @@ function RG.debug()
 				(not s.down and "none" or not isBuffTotem(el, id) and "without a buff"
 				or seen(id) and "with a buff" or "with a buff, not confirmed yet") .. (why and (", shut: " .. why) or ""),
 				tostring(s.rangeOpen == true), s.outGate:describe())
+			if s.inGate and s.rangeInOn then ns.say("totem range %s in range: %s", el, s.inGate:describe()) end
 		end
 	end
 end
