@@ -393,7 +393,7 @@ function applyIdle()
 	if ns.deferWhileAurasSecret("maelstrom idle", applyIdle) then return end
 	local on = idleWhen() == "five" and E.inUse(KEY) and P.getAccount().locked
 		and copyReady()
-	gate:SetAlpha(on and E.idleAlpha(KEY) or 1)
+	W.fadeTo(gate, on and E.idleAlpha(KEY) or 1, E.idleFade())
 	if five.host then five.host:SetAlpha(on and 1 or 0) end
 end
 

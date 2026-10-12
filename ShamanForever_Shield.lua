@@ -228,7 +228,7 @@ local function applyIdle()
 	local on = when ~= "never" and lookOn and P.getAccount().locked
 		and (when ~= "charges" or copyReady())
 	gateNow = on and E.idleAlpha("shield") or 1
-	gate:SetAlpha(gateNow)
+	W.fadeTo(gate, gateNow, E.idleFade())
 	full:SetAlpha((on and when == "charges") and 1 or 0)
 end
 

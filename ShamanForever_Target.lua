@@ -595,19 +595,17 @@ local function applyIdle(def)
 	if not def.idle then return end
 	local on = E.inUse(def.key) and P.getAccount().locked
 		and E.idleWhen(def.key) == "target"
-	def.idle:SetAlpha(on and E.idleAlpha(def.key) or 1)
+	W.fadeTo(def.idle, on and E.idleAlpha(def.key) or 1, E.idleFade())
 end
 
--- Combat starts: icon to its idle alpha at once
+-- Combat starts: the icon to its idle alpha
 local function combatStarts()
 	styleLooks()
 	styleUp()
 	for _, def in ipairs(ROWS) do
 		if readsAura(def) then
 			applyIdle(def)
-			local f, a = def.frame, frameAlpha(def)
-			f:SetAlpha(a)
-			E.fade(def.key, a)
+			E.fade(def.key, frameAlpha(def))
 		end
 	end
 end
