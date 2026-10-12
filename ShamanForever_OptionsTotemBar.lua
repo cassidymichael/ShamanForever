@@ -554,7 +554,8 @@ local function build(p)
 		local marks = p:dropdown("Marks", nil, { { "out", "Out of range only" }, { "both", "Out of range and in range" } },
 			tget("rangeShow"), tset("rangeShow"), nil, 240)
 		p:sub(marks, function() return c().rangeShow == "both" end, function()
-			p:color("In range colour", "While your own totem's buff is on you.", tget("rangeInColor"), tset("rangeInColor"))
+			p:color("In range colour", "Colour and opacity.", tget("rangeInColor"), tset("rangeInColor"))
+			p:text("Shows while your own totem's buff is on you.")
 		end)
 		p:color("Colour", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"))
 		local shape = p:dropdown("Shape", nil, { { "strip", "Strip" }, { "dot", "Dot" } }, tget("rangeShape"),
