@@ -137,6 +137,11 @@ local function buildGlobal(p)
 			acct().minimap.hide = not v
 			ns.applyMinimapButton()
 		end)
+	p:header("Idle")
+	K.rangeSlider(p, P.RANGES.idleAfter, "Idle after", nil, Page.secs, gopt(p, "idleAfter"))
+	p:text("How long a ready element waits before it goes idle.")
+	K.rangeSlider(p, P.RANGES.idleFade, "Idle fade", nil, Page.secs, gopt(p, "idleFade"))
+	p:text("How long elements take to fade when they go idle.")
 	K.soundsBlock(p)
 	local hasReporter = ns.IssueReporter.has
 	p:header("Beta", hasReporter)

@@ -1215,6 +1215,7 @@ function Page.pct(v) return string.format("%.0f%%", v * 100) end
 function Page.times(v) return string.format("%.2fx", v) end
 function Page.int(v) return string.format("%d", v) end
 function Page.px(v) return string.format("%d px", v) end
+function Page.secs(v) return string.format("%.1f s", v) end
 local NUMBER = "%-?%d*%.?%d+"
 local BOX_W, BOX_GAP = 52, 10
 

@@ -32,6 +32,8 @@ local SHOW_WHEN = {
 
 local DEFAULTS = {
 	iconSize = W.BASE_ICON_SIZE,
+	idleAfter = 1,   -- seconds a ready element waits before it rests
+	idleFade = 0.3,   -- seconds its fade down takes
 	border = CopyTable(ns.Style.PARTS.border.defaults),
 	glowStyle = CopyTable(ns.Style.PARTS.glow.defaults),
 	popStyle = CopyTable(ns.Style.PARTS.pop.defaults),
@@ -387,6 +389,15 @@ local function idleAlpha(key)
 	if type(v) ~= "number" or v ~= v then v = elementDefault(key, "idleAlpha") end
 	return math.min(math.max(v, 0), 1)
 end
+-- Idle after and Idle fade (Global), in seconds within their ranges
+local function idleSecs(name)
+	local v = db and db[name]
+	if type(v) ~= "number" or v ~= v then v = DEFAULTS[name] end
+	local r = P.RANGES[name]
+	return math.min(math.max(v, r[1]), r[2])
+end
+local function idleAfter() return idleSecs("idleAfter") end
+local function idleFade() return idleSecs("idleFade") end
 -- Its Idle when, or the default for a value its choices don't list
 local function idleWhen(key)
 	local v = elementSetting(key, "idleWhen")
@@ -401,13 +412,14 @@ local function fadeElement(key, a)
 	local f = e and e.frame
 	if not f then return end
 	f.idleTarget = a
-	W.fadeTo(f, a)
+	local secs = idleFade()
+	W.fadeTo(f, a, secs)
 	if not f.idleLayer then return end
-	W.fadeTo(f.idleLayer, a)
-	if not f.awakeUntil then W.fadeTo(f.popLayer, a) end
+	W.fadeTo(f.idleLayer, a, secs)
+	if not f.awakeUntil then W.fadeTo(f.popLayer, a, secs) end
 	for _, holders in ipairs({ f.keep, f.keepOut }) do
 		for field, h in pairs(holders) do
-			W.fadeTo(h, (a < 1 and elementSetting(key, "idleKeep", field) == true) and 1 or a)
+			W.fadeTo(h, (a < 1 and elementSetting(key, "idleKeep", field) == true) and 1 or a, secs)
 		end
 	end
 end
@@ -1191,7 +1203,7 @@ E.isEnabled, E.inUse, E.isOn, E.showMode, E.isLearned, E.setShow, E.setOn = isEn
 	setShow, setOn
 E.BASE = BASE
 E.opts, E.setting, E.default, E.idleAlpha = elementOpts, elementSetting, elementDefault, idleAlpha
-E.fade, E.idleWhen = fadeElement, idleWhen
+E.fade, E.idleWhen, E.idleAfter, E.idleFade = fadeElement, idleWhen, idleAfter, idleFade
 E.setSetting, E.event, E.range = setElementSetting, elementEvent, elementRange
 E.sizeOf, E.boxOf, E.setOff = sizeOf, boxOf, setOff
 E.applyTimers, E.resolveSpells, E.refreshAll, E.refreshCooldownsSoon = applyTimers, resolveSpells, refreshAll,

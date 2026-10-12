@@ -184,7 +184,7 @@ local function reset(ic, icon)
 	ic.tex:SetVertexColor(1, 1, 1)
 	ic.warnTint = nil
 	ic.tex:SetAlpha(1)
-	ic:SetAlpha(1)
+	W.fadeTo(ic, 1)
 	OA.holdersAlpha(ic, 1)
 	ic.bodyOverlay:Hide()
 	if ic.paintRing then ic.paintRing:show(false) end
@@ -235,11 +235,11 @@ local previewState = {}
 
 local FAINT = 0.12
 function OA.idleAlpha(key) return math.max(E.idleAlpha(key), FAINT) end
--- The frames over a preview icon (ic.keepOver, ic.keepFrames[field]) at a, each as the HUD's holder is
+-- The frames over a preview icon (ic.keepOver, ic.keepFrames[field]) at a, each as the HUD's holder is;
+-- ease: over the Idle fade
 function OA.holdersAlpha(ic, a, key, st, ease)
-	local function put(f, v)
-		if ease then W.fadeTo(f, v) else f:SetAlpha(v) end
-	end
+	local secs = ease and E.idleFade() or nil
+	local function put(f, v) W.fadeTo(f, v, secs) end
 	local pv = a < 1 and OA.PREVIEW[key]
 	local function kept(field)
 		return a < 1 and field ~= nil and E.setting(key, "idleKeep", field) == true
@@ -251,9 +251,11 @@ function OA.holdersAlpha(ic, a, key, st, ease)
 end
 -- A preview icon at alpha a in state st: the icon, and what the player keeps in full over it
 function OA.fadeIcon(ic, key, st, a, ease)
-	if ease then W.fadeTo(ic, a) else ic:SetAlpha(a) end
+	W.fadeTo(ic, a, ease and E.idleFade() or nil)
 	OA.holdersAlpha(ic, a, key, st, ease)
 end
+-- A pop still playing on a preview icon: it rests once the pop ends, as the HUD's pop plays in full
+function OA.popping(ic) return ic.popEnds ~= nil and GetTime() < ic.popEnds end
 local function idleLook(ic, key, st) OA.fadeIcon(ic, key, st, OA.idleAlpha(key)) end
 -- Whether a state goes idle once its moment has played (the preview's own rule)
 function OA.idles(key, st)
@@ -263,13 +265,15 @@ function OA.idles(key, st)
 	return pv and pv.idles and pv.idles(st, when) and true or false
 end
 
-local IDLE_DELAY = ns.IDLE_DELAY
 local function idleSoon(ic, key, st)
 	local token = {}
 	ic.idleToken = token
-	C_Timer.After(IDLE_DELAY, function()
-		if ic.idleToken == token and previewState[key] == st then idleLook(ic, key, st) end
-	end)
+	local function rest()
+		if ic.idleToken ~= token or previewState[key] ~= st then return end
+		if OA.popping(ic) then C_Timer.After(ic.popEnds - GetTime(), rest) return end
+		OA.fadeIcon(ic, key, st, OA.idleAlpha(key), true)
+	end
+	C_Timer.After(E.idleAfter(), rest)
 end
 
 OA.PREVIEW = {}

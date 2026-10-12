@@ -117,32 +117,33 @@ function W.keyLabel(key)
 	return label
 end
 
-local FADE_OUT = 0.8
-local fading = {}
+local fading, rates = {}, {}
 local fader = CreateFrame("Frame")
 fader:Hide()
 fader:SetScript("OnUpdate", function(self, elapsed)
 	for f, target in pairs(fading) do
-		local a = math.max(target, f:GetAlpha() - elapsed / FADE_OUT)
+		local a = math.max(target, f:GetAlpha() - elapsed * rates[f])
 		f:SetAlpha(a)
-		if a == target then fading[f] = nil end
+		if a == target then fading[f], rates[f] = nil, nil end
 	end
 	if next(fading) == nil then self:Hide() end
 end)
--- A rise is at once; a fall eases
-function W.fadeTo(f, alpha)
-	if alpha > f:GetAlpha() - 0.005 then
-		fading[f] = nil
+-- f to alpha: a rise at once, a fall over secs (none: at once)
+function W.fadeTo(f, alpha, secs)
+	local a = f:GetAlpha()
+	if alpha > a - 0.005 or not secs or secs <= 0 then
+		fading[f], rates[f] = nil, nil
 		f:SetAlpha(alpha)
 		return
 	end
-	fading[f] = alpha
+	if fading[f] == alpha then return end
+	fading[f], rates[f] = alpha, (a - alpha) / secs
 	fader:Show()
 end
 -- f joins other's alpha and fade where it is
 function W.fadeLike(f, other)
 	f:SetAlpha(other:GetAlpha())
-	fading[f] = fading[other]
+	fading[f], rates[f] = fading[other], rates[other]
 	if fading[f] then fader:Show() end
 end
 

@@ -389,8 +389,7 @@ local function glowBlock(p, owner)
 	p:sub(menu, nil, function()
 		p:color("Colour", "Colour and opacity. " .. ns.CLASS.help.glowColour, r.get("color"), r.set("color"),
 			uses("color"))
-		local function secs(v) return string.format("%.1f s", v) end
-		styleSlider(p, "glow", "speed", "Pulse length", "One pulse, in seconds.", secs, r.get("speed"), r.set("speed"),
+		styleSlider(p, "glow", "speed", "Pulse length", "One pulse, in seconds.", Page.secs, r.get("speed"), r.set("speed"),
 			uses("speed"))
 		for _, e in ipairs(ns.Style.choices("glow", "look")) do
 			local names = {}

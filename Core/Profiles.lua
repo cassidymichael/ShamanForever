@@ -495,7 +495,7 @@ function P.export()
 end
 
 -- { min, max, step }: clamped; NaN takes the default. Elements' numbers use their registered ranges.
-local RANGES = { iconSize = { 24, 96, 1 } }
+local RANGES = { iconSize = { 24, 96, 1 }, idleAfter = { 0, 3, 0.1 }, idleFade = { 0, 1, 0.1 } }
 local GROUP_RANGES = { scale = { 0.5, 3, 0.05 }, alpha = { 0.1, 1, 0.05 }, spacing = { -20, 40, 1 },
 	size = { 24, 96, 1 }, x = { -10000, 10000, 1 }, y = { -10000, 10000, 1 }, fadeAfter = { 0, 10, 1 } }
 P.RANGES, P.GROUP_RANGES = RANGES, GROUP_RANGES
