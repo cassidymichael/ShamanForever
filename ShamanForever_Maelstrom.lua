@@ -85,7 +85,7 @@ E.register(KEY, { frame = f, label = Spells.name("maelstromWeapon"), defaults = 
 	effects = { glow = true, pop = true },
 	standInBorder = true,
 	styles = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
-	timerCant = { bar = "Its timer is Blizzard's own; a time bar can't follow it." },
+	timerCant = { bar = "It has no time bar." },
 	kind = "maelstrom", def = DEF, spell = "maelstromWeapon", icon = MW.icon, school = "air",
 	blurb = "Its stacks, with a pop and a glow at five.", experimental = "Maelstrom Weapon" })
 local function idleWhen() return E.idleWhen(KEY) end

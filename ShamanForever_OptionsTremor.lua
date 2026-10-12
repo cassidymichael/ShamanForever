@@ -155,12 +155,12 @@ local function buildTremor(p)
 	p:sub(plates, eread(key, "tremorPlates"), function() p:text("Needs enemy nameplates on.") end)
 	p:checkbox("You're feared, charmed or asleep", "And for 10 s after, in case it comes again.",
 		opt("tremorFeared"))
-	p:text("The game hides party members' crowd control, so this covers only you.")
+	p:text("Only your own fear, charm or sleep, not your party's.")
 	p:text("None of these while your Tremor Totem is down, or while you're dead, on a flight path or "
 		.. "in a vehicle.")
 	p:header("Watchlist")
-	p:callout("In dungeons and raids the game hides mob names from addons, so the watchlist can't "
-		.. "work there. Only \"You're feared, charmed or asleep\" can, when it's on.")
+	p:callout("The watchlist doesn't work in dungeons and raids. Only \"You're feared, charmed or asleep\" "
+		.. "does, when it's on.")
 	p:text("Mobs that cast fear, charm or sleep.")
 	mobList(p)
 	linkLine(p, "Suggest a mob for the default list", "Opens Feedback, on the About page.",

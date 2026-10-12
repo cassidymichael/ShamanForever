@@ -25,8 +25,7 @@ local setting = E.setting
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
 		power = true, range = true, unit = "target",
-		castNote = "Only while your " .. Spells.name("flameShock") .. " is on your target, as an overlay: Blizzard's "
-			.. "own button draws this icon.",
+		castNote = "Only while your " .. Spells.name("flameShock") .. " is on your target.",
 		castTips = { range = "While your " .. Spells.name("flameShock") .. " is on your target and it's out of "
 			.. "range." }, proc = true, duration = 12,
 		icon = 135813, school = "fire", blurb = "Shows while your Flame Shock is on your target.",
