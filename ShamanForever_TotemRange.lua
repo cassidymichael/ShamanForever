@@ -245,18 +245,12 @@ local function shut(s)
 	s.rangeShutUntil = GetTime() + DISMISS
 	if s.outGate then RG.refresh(s) end
 end
-if DestroyTotem then
-	hooksecurefunc("DestroyTotem", function(slot)
-		for _, el in ipairs(TB.ELEMENTS) do
-			if TB.slots[el].slot == slot then shut(TB.slots[el]) end
-		end
-	end)
-end
--- One of our casts (the totem bar's events)
-function RG.onCast(spell)
-	if ns.Spells.keyOf(spell) ~= "recall" then return end
-	for _, el in ipairs(TB.ELEMENTS) do shut(TB.slots[el]) end
-end
+ns.Totems.subscribe(function(event, slot)
+	if event ~= "dismissed" then return end
+	for _, el in ipairs(TB.ELEMENTS) do
+		if TB.slots[el].slot == slot then shut(TB.slots[el]) end
+	end
+end)
 
 -- Preview: the gates shut while it runs; a slot's stand-in shows the mark where the gate would
 function RG.preview(on)

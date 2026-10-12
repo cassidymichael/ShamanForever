@@ -1634,7 +1634,6 @@ local function onEvent(_, event, arg1, ...)
 	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
 		local _, spell = ...
 		if isSecret(spell) or type(spell) ~= "number" then return end
-		TB.range.onCast(spell)
 		refreshAfterCast(spell)
 	elseif event == "ACTIONBAR_SLOT_CHANGED" then
 		local base = multiAction(1, 1) - 1
