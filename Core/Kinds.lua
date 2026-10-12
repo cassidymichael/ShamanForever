@@ -134,8 +134,9 @@ function KD.get(kind) return KINDS[kind] end
 --                     ("reagent", { "toggle", ... }) or a list of them
 --   preview           states ({ id, label, order }), uptime, keeps, cooldown, typical, warning, labels
 --                     (state labels over other parts'), render(ic, st, def, kit, pv) (every state),
---                     pop(ic, st, def, kit), idles(st, def, when) (nil: no say), rest(ic, def, kit,
---                     keep) (the kind's look while nothing of its own is going on)
+--                     pop(ic, st, def, kit), idles(st, def, when) (nil: no say), standIn(ic, def) (what
+--                     /sf preview's stand-in gets), rest(ic, def, kit, keep) (the kind's look while
+--                     nothing of its own is going on)
 --   runtime           hooks its kind's engine calls on the HUD (listed where the kind registers)
 --   styles            { part = fields }: styles its elements ship of their own (ns.Style.setOwnerDefaults)
 --   experiment        the name of an experimental feature it adds (About lists it under the element)
@@ -378,6 +379,13 @@ local function preview(kind, def)
 			local f = p.preview and p.preview.pop
 			if f then f(ic, st, def, kit) end
 		end
+	end
+	local standIns = {}
+	for _, p in ipairs(list) do
+		if p.preview and p.preview.standIn then table.insert(standIns, p.preview.standIn) end
+	end
+	if #standIns > 0 then
+		function pv.standIn(ic) for _, fn in ipairs(standIns) do fn(ic, def) end end
 	end
 	function pv.idles(st, when)
 		return firstOf(list, function(p)

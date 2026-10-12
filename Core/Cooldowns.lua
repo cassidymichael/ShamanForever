@@ -116,6 +116,19 @@ local function showWord(f, key, secs)
 	end)
 	if f.holdAwake then f.holdAwake(secs + WORD_FADE) end
 end
+-- A preview icon's word: clipped to its panel, unless /sf preview's stand-in made one of its own
+local function previewWord(ic)
+	if not ic.resetWord then
+		local clip = CreateFrame("Frame", nil, ic:GetParent())
+		clip:SetAllPoints(ic:GetParent())
+		clip:SetClipsChildren(true)
+		clip:SetFrameLevel(ic.textFrame:GetFrameLevel() + 1)
+		ic.resetWord = clip:CreateFontString(nil, "OVERLAY")
+		ns.Media.setFont(ic.resetWord, nil, 20)
+	end
+	ic.resetWord:Hide()
+	return ic.resetWord
+end
 local function resetDefaults()
 	local d = { reset = { pop = true, text = false, words = RESET_WORDS, secs = 1.5, sound = "none" } }
 	for name, v in pairs(W.WORD.defaults) do d[name] = type(v) == "table" and CopyTable(v) or v end
@@ -132,6 +145,32 @@ ns.registerPart("reset", {
 	choices = W.WORD.choices,
 	styles = { resetpop = RESET_POP },
 	page = { reset = {} },
+	-- The state: Ready as it looks, the Reset's pop, and the words while the state is shown (the HUD's
+	-- last a set time)
+	preview = {
+		states = { { "reset", "Reset", 12 } },
+		render = function(ic, st, def)
+			if st ~= "reset" then return end
+			ic:SetGlowShown(setting(def.key, "ready", "glow"))
+			local word = previewWord(ic)
+			word:SetText(resetWords(def.key))
+			W.styleWord(word, ic, E.settingsOf(def.key))
+			word:SetShown(setting(def.key, "reset", "text") == true)
+		end,
+		pop = function(ic, st, def)
+			if st ~= "reset" then return end
+			if setting(def.key, "reset", "pop") then ic:Pop("reset")
+			elseif setting(def.key, "ready", "pop") then ic:Pop() end
+		end,
+		idles = function(st, def, when)
+			if st == "reset" then return KD.idleMode(def, when) == "offcd" and not setting(def.key, "reset", "text") end
+		end,
+		standIn = function(ic)
+			ic.resetWord = ic.textFrame:CreateFontString(nil, "OVERLAY")
+			ns.Media.setFont(ic.resetWord, nil, 16)
+			ic.resetWord:Hide()
+		end,
+	},
 	runtime = {
 		make = function(def, f)
 			f.resetHost = CreateFrame("Frame", nil, f.popLayer)
