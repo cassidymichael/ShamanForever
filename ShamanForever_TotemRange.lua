@@ -1,13 +1,8 @@
 -- Totem bar: out of range
--- Nothing can measure the distance to a totem and buffs are secret in combat, so per slot an aura
--- slot (HELPFUL|PLAYER, that element's buffs) lets Blizzard's container show a green strip while
--- you have the buff. Under it, our red "out of range" mark shows only while one of your buff totems
--- is down in the slot and Blizzard's part is there to cover it; until auras are readable the strip
--- stays off (red alone would always read out of range).
--- Nothing addon-side may change the button in combat: the container hangs off the strip's holder,
--- anchored to the secure slot button.
--- The buff lingers after the totem goes and after leaving range, so "out of range" shows late.
--- Totems without a buff get no mark. Another shaman's same buff makes yours read out of range.
+-- Nothing can measure the distance to a totem and buffs are secret in combat, so per slot an aura gate
+-- (W.makeAuraGate) shows our red mark only while one of your buff totems is down in the slot and none
+-- of that element's totem buffs is on you, from anyone.
+-- The buff lingers after you leave range, so the mark comes late. Totems without a buff get no mark.
 
 local _, ns = ...
 local W = ns.Widgets
@@ -70,139 +65,58 @@ local function isBuffTotem(el, id)
 	return v
 end
 
--- Frames: per slot, our red part under Blizzard's container (made while auras are readable)
-local function makeMark(s)
-	local b = s.button
-	local hold = CreateFrame("Frame", nil, TB.frame)
-	hold:SetAllPoints(b)
-	hold:EnableMouse(false)
-	s.rangeHold = hold
-	local gate = CreateFrame("Frame", nil, hold)
-	gate:SetFrameLevel(b:GetFrameLevel() + TB.LAYER.mark)
-	gate:EnableMouse(false)
-	gate:SetAlpha(0)
-	local m = CreateFrame("Frame", nil, gate)
-	m:SetAllPoints()
+-- The mark: a strip along the picture's top edge, inside its border's art; along the bottom while the
+-- time bar runs along the top. Its rect from the slot box's top left.
+local function timeBarOnTop()
+	local S = ns.Style
+	return TB.skin.barPlace() ~= "out" and S.value("totembar", "uptime", "bar") == true
+		and S.value("totembar", "uptime", "barEdge") == "top"
+end
+function RG.rect(v, size, inset)
+	local d = inset + ns.StyleArt.pictureInset(v)
+	local w, h = size - 2 * d, W.linePx(v, TB.cfg().rangeHeight)
+	return d, timeBarOnTop() and -(size - d - h) or -d, w, h
+end
+
+local previewOn = false
+local events   -- set(on): UNIT_AURA, while the mark is in use (RG.start)
+
+-- Per slot, made the first time it's on (out of combat): its gate, and the mark in it
+local function makeGate(s)
+	local el = s.el
+	local site = "totem range: " .. el
+	local g = W.makeAuraGate({ frame = s.button, parent = TB.frame, sensorParent = TB.frame, unit = "player",
+		filter = "HELPFUL", ids = function() return CopyTable(buffIDs[el]) end,
+		name = "ShamanForeverRange" .. TB.NAME[el], group = "range",
+		sites = { container = site .. " sensor", style = site .. " layout", filter = site .. " filter" } })
+	local lv = s.button:GetFrameLevel() + TB.LAYER.mark
+	g:setLevel(lv)
+	local m = CreateFrame("Frame", nil, g.area)
+	m:SetFrameLevel(lv)
 	m:SetAlpha(0)
 	m.bg = m:CreateTexture(nil, "ARTWORK")
 	m.bg:SetAllPoints()
 	ns.StyleArt.followMask(s.vis, m.bg)
-	s.rangeGate, s.rangeMark = gate, m
+	s.outGate, s.rangeHold, s.rangeMark = g, g.hold, m
 end
 
-local previewOn = false
-local events   -- set(on): UNIT_AURA, while the strip is in use (RG.start)
-
--- Blizzard's part: lit while you have the buff
-local PART, PART_FILTER = "own", "HELPFUL|PLAYER"
-
--- partLive keeps the mark dark until our mark and Blizzard's part are styled alike (a layout can't
--- reach the part while auras are secret); a theme picked in combat keeps both on the old look
-local function styledFor(s)
-	return TB.skin.current().key .. ":" .. tostring(s.rangeW) .. "x" .. tostring(s.rangeH)
-end
-
--- Under the colour, the slice of the buff's icon the strip covers (opaque): what's below is always
--- hidden, so colours can be see-through
-local function styleButton(s)
-	local c, p = TB.cfg(), s.rangePart
-	local ok = ns.try("totem range: style", function()
-		p.button:SetSize(s.rangeW, s.rangeH)
-		local share = math.min(s.rangeH / math.max(s.rangeSize, 1), 1)
-		p.icon:SetTexCoord(0.08, 0.92, 0.08, 0.08 + 0.84 * share)
-		if TB.skin.styleRangeButton(p, s) then return end
-		local k = c.rangeIn
-		p.over.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
-	end)
-	s.rangeStyled = ok and styledFor(s) or nil
-end
-
-local function initButton(s, button)
-	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
-	button:SetFrameLevel(s.rangeContainer:GetFrameLevel() + 1)
-	W.noMouse(button)
-	local icon = button:CreateTexture(nil, "ARTWORK")
-	icon:SetAllPoints()
-	button:SetIcon(icon)
-	local over = CreateFrame("Frame", nil, button)
-	over:SetAllPoints()
-	over:SetFrameLevel(button:GetFrameLevel() + 1)
-	over.bg = over:CreateTexture(nil, "ARTWORK")
-	over.bg:SetAllPoints()
-	s.rangePart = { button = button, icon = icon, over = over }
-	if s.rangeW then styleButton(s) end
-	if previewOn then icon:SetAlpha(0); over:SetAlpha(0) end
-end
-
--- Preview: hide our parts on Blizzard's button (never the container), back at once when it ends
-function RG.preview(on)
-	previewOn = on
-	for _, el in ipairs(TB.ELEMENTS) do
-		local p = TB.slots[el].rangePart
-		if p then
-			-- p.icon and p.over sit on Blizzard's aura button, which can be forbidden while auras are secret:
-			-- guarded so a refusal can't break the preview's start
-			ns.try("totem range: preview", function()
-				p.icon:SetAlpha(on and 0 or 1)
-				p.over:SetAlpha(on and 0 or 1)
-			end)
-		end
-	end
-end
-
-local function makeContainer(s)
-	local ok, err = ns.try("totem range: container", function()
-		local c = CreateFrame("AuraContainer", "ShamanForeverRange" .. TB.NAME[s.el], s.rangeHold,
-			"CustomAuraContainerTemplate")
-		c:SetFrameLevel(s.button:GetFrameLevel() + TB.LAYER.mark + 1)
-		c:SetUnit("player")
-		pcall(c.EnableMouse, c, false)
-		s.rangeContainer = c
-		s.rangeSlotOK = ns.try("totem range: slot", c.AddAuraSlot, c, PART, PART_FILTER, {
-			candidateFilters = { includeSpellIDs = CopyTable(buffIDs[s.el]) },
-			initializeFrame = function(button) initButton(s, button) end,
-		})
-	end)
-	if not ok then
-		s.rangeError = tostring(err)
-		if s.rangeContainer then s.rangeContainer:Hide() end
-	end
-end
-
-local function partLive(s)
-	return s.rangeShown and not s.rangeError and s.rangePart ~= nil and s.rangeSlotOK == true
-		and s.rangeStyled ~= nil and s.rangeStyled == s.rangeMarked
-end
-
-local function place(s, size, ownOnly)
-	local c, b, gate, o = TB.cfg(), s.button, s.rangeGate, s.inset or 0
-	gate:ClearAllPoints()
-	local x, y, w, h = TB.skin.markRect(gate, size, o)
-	if not x then x, y, w, h = o, -o, size - 2 * o, W.linePx(gate, c.rangeHeight) end
-	gate:SetPoint("TOPLEFT", b, "TOPLEFT", x, y)
-	gate:SetSize(w, h)
-	if not TB.skin.paintMark(s.rangeMark, w, h, s.vis) then
+-- The cell: the mark's rect, and the gate's edge on the left and a unit on the other sides (a thin
+-- mark keeps its rows at a fractional scale)
+local function place(s, size)
+	local c, g, m = TB.cfg(), s.outGate, s.rangeMark
+	local x, y, w, h = RG.rect(s.vis, size, s.inset or 0)
+	local e = W.AURA_GATE_EDGE
+	local cw, ch = w + e + 1, h + 2
+	g.cell:ClearAllPoints()
+	g.cell:SetPoint("TOPLEFT", s.button, "TOPLEFT", x - e, y + 1)
+	m:ClearAllPoints()
+	m:SetPoint("TOPLEFT", g.area, "TOPLEFT", e, -1)
+	m:SetSize(w, h)
+	if not TB.skin.paintMark(m, w, h, s.vis) then
 		local k = c.rangeOut
-		s.rangeMark.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
+		m.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
 	end
-	s.rangeW, s.rangeH, s.rangeSize = w, h, size - 2 * o
-	s.rangeMarked = styledFor(s)
-	local ct = s.rangeContainer
-	if not ct or ownOnly then return end
-	ct:ClearAllPoints()
-	ct:SetPoint("TOPLEFT", gate, "TOPLEFT", 0, 0)
-	ct:SetSize(w, h)
-	ct:SetAlpha(1)
-	ct:Show()
-	s.rangeShown = true
-	if s.rangePart then styleButton(s) end
-end
-
-local function applyFilter(s)
-	local c = s.rangeContainer
-	if not c or not s.rangeSlotOK or not ns.aurasReadable() then return end
-	ns.try("totem range: filter", c.SetAuraSlotCandidateFilters, c, PART,
-		{ includeSpellIDs = CopyTable(buffIDs[s.el]) })
+	g:resize(cw, ch, string.format("%.3f:%.3f", cw, ch))
 end
 
 -- Learned ranks, kept for the account: acct.rangeBuffIDs[el][id]
@@ -244,76 +158,111 @@ local function learn()
 			local saved = P.getAccount().rangeBuffIDs
 			saved[el] = saved[el] or {}
 			saved[el][id] = true
-			applyFilter(TB.slots[el])
+			local g = TB.slots[el].outGate
+			if g then g:refilter() end
 		end
 	end
 end
 
+-- On as the last layout applied it (a change in combat waits for its end: a miss, never a false mark)
 function RG.layout(size)
-	-- The containers' part waits while auras are secret; the layout reruns after
-	local blocked = ns.deferWhileAurasSecret("totem range layout", function() RG.layout(size) end)
 	local want = enabled() and ns.isClass()
 	if events then events(want) end
 	for _, el in ipairs(TB.ELEMENTS) do
 		local s = TB.slots[el]
 		local on = want and s.button:IsShown()
-		if on and not s.rangeGate then makeMark(s) end
-		if not blocked and on and not s.rangeContainer and not s.rangeError then makeContainer(s) end
-		if s.rangeGate then s.rangeGate:SetShown(on) end
-		if not blocked and s.rangeContainer and not on then s.rangeContainer:Hide(); s.rangeShown = false end
-		if on then
-			place(s, size, blocked)
-			if not blocked then applyFilter(s) end
+		s.rangeOn = on
+		if on and not s.outGate then makeGate(s) end
+		local g = s.outGate
+		if g then
+			g:setShown(on)
+			if on then
+				place(s, size)
+				g:refilter()
+			end
 		end
 		RG.refresh(s)
 	end
-	if not blocked then learn() end
+	learn()
 end
 
--- The holder: shown while one of your buff totems is down in the slot, so a buff lingering after its
--- totem goes can't keep Blizzard's part lit. Out of combat its alpha stays 1 and a state driver
--- hides it, showing it as combat starts; in combat its alpha hides it. The red is held by the same
--- frame.
-local EMPTY = "[combat] show; hide"
-local function showStrip(s, on)
-	local h = s.rangeHold
-	if not enabled() then
-		-- Off: no driver, hidden (as combat ends, if it went off in one)
-		if ns.deferInCombat("totem range: off " .. s.el, function() showStrip(s, false) end) then return end
-		ns.setVisibilityDriver(h, nil, "totem range: holder")
-		h:Hide()
-		return
-	end
-	if InCombatLockdown() then
-		ns.try("totem range: holder alpha", h.SetAlpha, h, on and 1 or 0)
-		return
-	end
-	h:SetAlpha(1)
-	ns.setVisibilityDriver(h, not on and EMPTY or nil, "totem range: holder")
-	if on then h:Show() end
+-- Shut after any change from shut to open (a totem landing, a dismissal's hold, a loading screen
+-- ending) for this long: the buff may reach you a moment after the totem does
+local SETTLE = 1
+-- After a dismissal, while its slot and buff go
+local DISMISS = 2
+
+local function plainOpen(s)
+	return s.rangeOn == true and not previewOn and s.down == true and not ns.zoning()
+		and GetTime() >= (s.rangeShutUntil or 0) and isBuffTotem(s.el, ns.Totems.downSpell(s.slot))
 end
 
-local function buffTotemDown(s)
-	return s.down and isBuffTotem(s.el, ns.Totems.downSpell(s.slot))
+-- The gate's want, from plain reads only
+local function follow(s)
+	local open = plainOpen(s)
+	if open and not s.rangeOpen then s.rangeSettled = GetTime() + SETTLE end
+	s.rangeOpen = open
+	local on = open and GetTime() >= s.rangeSettled
+	if on ~= s.outGate.wanted then s.outGate:want(on) end
 end
 
--- The mark's gate: only over Blizzard's part (red alone would always say out of range)
-function RG.refresh(s)
-	if not s.rangeGate then return end
-	local on = enabled() and partLive(s) and buffTotemDown(s)
-	s.rangeGate:SetAlpha(on and 1 or 0)
-	showStrip(s, on)
-	RG.drawTimeLeft(s)
-end
-
+-- Values from the duration object may be secret: only ever straight to SetAlpha
 function RG.drawTimeLeft(s)
-	local m = s.rangeMark
-	if not m then return end
-	local d = s.dur
+	if not s.outGate then return end
+	follow(s)
+	local m, d = s.rangeMark, s.dur
 	if d and ns.CURVE_LIVE then
 		local ok, a = ns.try("totem range: time", d.EvaluateRemainingDuration, d, ns.CURVE_LIVE)
 		m:SetAlpha(ok and a or 0)
 	else m:SetAlpha(0) end
+end
+RG.refresh = RG.drawTimeLeft
+
+-- A slot's totem changed (nil: any slot's): the gate settles again
+function RG.totemChanged(slot)
+	for _, el in ipairs(TB.ELEMENTS) do
+		local s = TB.slots[el]
+		if (slot == nil or s.slot == slot) and s.outGate then
+			s.rangeOpen = false
+			RG.refresh(s)
+		end
+	end
+end
+
+local function shut(s)
+	s.rangeShutUntil = GetTime() + DISMISS
+	if s.outGate then RG.refresh(s) end
+end
+if DestroyTotem then
+	hooksecurefunc("DestroyTotem", function(slot)
+		for _, el in ipairs(TB.ELEMENTS) do
+			if TB.slots[el].slot == slot then shut(TB.slots[el]) end
+		end
+	end)
+end
+-- One of our casts (the totem bar's events)
+function RG.onCast(spell)
+	if ns.Spells.keyOf(spell) ~= "recall" then return end
+	for _, el in ipairs(TB.ELEMENTS) do shut(TB.slots[el]) end
+end
+
+-- Preview: the gates shut while it runs
+function RG.preview(on)
+	previewOn = on
+	for _, el in ipairs(TB.ELEMENTS) do RG.refresh(TB.slots[el]) end
+end
+
+-- /sf debug
+function RG.debug()
+	for _, el in ipairs(TB.ELEMENTS) do
+		local s = TB.slots[el]
+		if s.outGate then
+			local id = s.down and ns.Totems.downSpell(s.slot)
+			ns.say("totem range %s: %s, totem %s, open %s; %s", el, s.rangeOn and "on" or "off",
+				not s.down and "none" or isBuffTotem(el, id) and "with a buff" or "without a buff",
+				tostring(s.rangeOpen == true), s.outGate:describe())
+		end
+	end
 end
 
 -- Called by the totem bar's start
@@ -322,18 +271,4 @@ function RG.start()
 	events = ns.eventsWhile(ev, { { "UNIT_AURA", "player" } })
 	events(enabled() and ns.isClass())
 	ev:SetScript("OnEvent", learn)
-	ns.onCombatEnd(function()
-		for _, el in ipairs(TB.ELEMENTS) do RG.refresh(TB.slots[el]) end
-	end)
-	-- Drop any holder whose slot has no buff totem of ours down (a lingering buff from a totem
-	-- that went out of combat would show at the pull)
-	ns.onCombatStart(function()
-		for _, el in ipairs(TB.ELEMENTS) do
-			local s = TB.slots[el]
-			local h = s.rangeHold
-			if h and not buffTotemDown(s) then
-				ns.try("totem range: holder alpha", h.SetAlpha, h, 0)
-			end
-		end
-	end)
 end

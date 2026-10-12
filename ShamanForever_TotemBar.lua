@@ -1624,10 +1624,12 @@ end
 
 local function onEvent(_, event, arg1, ...)
 	if event == "PLAYER_TOTEM_UPDATE" then
+		TB.range.totemChanged(not isSecret(arg1) and arg1 or nil)
 		refresh()
 	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
 		local _, spell = ...
 		if isSecret(spell) or type(spell) ~= "number" then return end
+		TB.range.onCast(spell)
 		refreshAfterCast(spell)
 	elseif event == "ACTIONBAR_SLOT_CHANGED" then
 		local base = multiAction(1, 1) - 1
@@ -1722,7 +1724,6 @@ local function paintSlot(s, rec)
 	s.badge:Hide()
 	s.killed:setIcon(icon)
 	s.expired:setIcon(icon)
-	if s.rangeGate then s.rangeGate:SetAlpha(0) end
 	local size = s.button:GetWidth()
 	local strip = s.previewRange
 	if rec.range and c.range and shown then
@@ -1832,6 +1833,7 @@ function TB.debug()
 		TotemFrame and string.format("%.2f", TotemFrame:GetAlpha()) or "-",
 		mc and (mc:GetParent() == hiddenParent and "hidden" or (mc:GetParent() and mc:GetParent():GetName() or "?"))
 			or "none")
+	TB.range.debug()
 end
 
 Bars.register("totembar", { label = "Totem bar", cfg = cfg, saved = "totemBar", defaults = TB.DEFAULTS,
