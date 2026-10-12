@@ -536,6 +536,15 @@ local function build(p)
 	p.gate = TB.barOn
 	p:header("Out of range")
 	p:text("Shows when you're out of range of your totems that buff you.")
+	local untested = TB.range.untested()
+	if #untested > 0 then
+		local expRange = p:row(22)
+		local names = expRange:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		names:SetPoint("LEFT", 4, 0)
+		names:SetText(table.concat(untested, ", "))
+		ns.OptionsArt.expBadge(expRange, "Out of range"):SetPoint("LEFT", names, "RIGHT", 10, 0)
+		p:add(expRange, 22)
+	end
 	local range = p:checkbox("Show", nil, tget("range"), tset("range"))
 	p:sub(range, tget("range"), function()
 		tslider("Height", "In pixels.", px, "rangeHeight")
@@ -663,6 +672,12 @@ local function build(p)
 	p.gate = nil
 end
 
+local experiments = { { "Totem sets", "Totem sets, once you know a second Call" } }
+local untested = ns.TotemBar.range.untested()
+if #untested > 0 then
+	table.insert(experiments, { "Out of range for " .. table.concat(untested, ", "), "Out of range" })
+end
+if ns.TotemBar.skin.experimental() then table.insert(experiments, { "Totem themes", "Totem theme" }) end
 Bars.register("totembar", { icon = "Interface\\Icons\\Spell_Shaman_DropAll_01",
 	school = ns.THEME.fallback,
 	blurb = "Your totems, their timers, and a pick for each element.",
@@ -676,7 +691,6 @@ Bars.register("totembar", { icon = "Interface\\Icons\\Spell_Shaman_DropAll_01",
 	end,
 	preview = PREVIEW, page = { order = 50, build = build },
 	ownSize = function() return not ns.TotemBar.cfg().sizeFollow end,
-	experiments = { { "Totem sets", "Totem sets, once you know a second Call" },
-		ns.TotemBar.skin.experimental() and { "Totem themes", "Totem theme" } or nil },
+	experiments = experiments,
 	tiles = { icon = ns.TotemBar.TOTEM_ICON.earth, schools = ns.TotemBar.ELEMENTS,
 		border = function() return select(2, ns.TotemBar.look()) end } })

@@ -21,21 +21,26 @@ local BUFF_TOTEMS = {
 	},
 	fire = {
 		{ totem = 8181, buffs = { 8182, 10476, 10477 } },   -- Frost Resistance
+		{ totem = 8227, buffs = { 8230, 8250, 10521, 15036 } },   -- Flametongue Totem
 	},
 	water = {
 		{ totem = 5394, buffs = { 5672, 6371, 6372, 10460, 10461 } },   -- Healing Stream
 		{ totem = 5675, buffs = { 5677, 10491, 10493, 10494 } },   -- Mana Spring
 		{ totem = 8184, buffs = { 8185, 10534, 10535 } },   -- Fire Resistance
+		{ totem = 16190, buffs = { 16191, 17355, 17360 } },   -- Mana Tide
 	},
 	air = {
 		{ totem = 8835, buffs = { 8836, 10626, 25360 } },   -- Grace of Air
 		{ totem = 10595, buffs = { 10596, 10598, 10599 } },   -- Nature Resistance
 		{ totem = 15107, buffs = { 15108, 15109, 15110 } },   -- Windwall
+		{ totem = 8512, buffs = { 8515, 10609, 10612 } },   -- Windfury Totem
 	},
 }
 
 -- Seen giving their buff in game: their marks never wait to see it (any rank)
 local PROVEN = { 8075, 8071, 5394 }
+-- Not yet tested in game: labelled experimental
+local UNTESTED = { 8227, 8512, 16190 }
 
 local buffIDs = {}
 local buffEntry = {}
@@ -123,6 +128,16 @@ end
 -- Whether id (a totem down or picked) buffs you, so has a mark
 function RG.covers(el, id) return isBuffTotem(el, id) end
 
+-- The untested totems' names, in the client's language
+function RG.untested()
+	local out = {}
+	for _, id in ipairs(UNTESTED) do
+		local n = ns.Spells.nameOf(id)
+		if n then table.insert(out, n) end
+	end
+	return out
+end
+
 -- Per slot, made the first time it's on (out of combat): its gate, and the mark in it
 local function makeGate(s)
 	local el = s.el
@@ -171,8 +186,9 @@ local function sanitize(_, acct)
 end
 MOD.register({ name = "totem range", sanitize = sanitize })
 
--- Ranks not listed: a buff whose name is the client's name for a listed buff is another rank of it.
--- Kept for the account: one read out of combat serves later sessions.
+-- Ranks not listed: a buff whose name is the client's name for a listed buff is another rank of it,
+-- if it has no duration as every totem's buff (the client has short procs of the same name). Kept for
+-- the account: one read out of combat serves later sessions.
 local names = {}
 local function learn()
 	if not ns.aurasReadable() or not ns.isClass() or not enabled() then return end
@@ -191,7 +207,8 @@ local function learn()
 		if not aok or not a then break end
 		local el = not isSecret(a.name) and names[a.name]
 		local id = a.spellId
-		if el and not isSecret(id) and type(id) == "number" and not buffIDs[el][id] then
+		if el and not isSecret(id) and type(id) == "number" and not buffIDs[el][id]
+			and not isSecret(a.duration) and a.duration == 0 then
 			buffIDs[el][id] = true
 			local saved = P.getAccount().rangeBuffIDs
 			saved[el] = saved[el] or {}
