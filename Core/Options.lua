@@ -143,7 +143,7 @@ local function buildGlobal(p)
 	K.rangeSlider(p, P.RANGES.idleFade, "Idle fade", nil, Page.secs, gopt(p, "idleFade", OP.refresh))
 	p:text("How long an element takes to fade when it goes idle. Some elements can't follow this because of "
 		.. "addon limitations and go idle at once: those that light up for a buff or debuff, such as procs, "
-		.. "cures, Maelstrom Weapon, Flame Shock and Purge.")
+		.. "cures, Shields, Maelstrom Weapon, Flame Shock and Purge.")
 	K.soundsBlock(p)
 	local hasReporter = ns.IssueReporter.has
 	p:header("Beta", hasReporter)

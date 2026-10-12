@@ -216,21 +216,18 @@ end
 -- Idle
 -- Idle puts the gate, and with it Blizzard's button, at the Idle opacity. The No shield look doesn't
 -- hang from the gate and shows in full.
--- While the shield is known to be down the gate waits in full, so the button fades as it comes up.
 local function idleWhen()
 	local w = own("idleWhen")
 	return (w == "up" or w == "charges") and w or "never"
 end
 local copyReady, full
 local gateNow = 1
-local castUp = false   -- our cast of a tracked shield since the last read
 
 local function applyIdle()
 	local when = idleWhen()
 	local on = when ~= "never" and lookOn and P.getAccount().locked
 		and (when ~= "charges" or copyReady())
-	local rests = on and (castUp or believedUp() ~= false)
-	gateNow = rests and E.idleAlpha("shield") or 1
+	gateNow = on and E.idleAlpha("shield") or 1
 	W.fadeTo(gate, gateNow, E.idleFade())
 	full:SetAlpha((on and when == "charges") and 1 or 0)
 end
@@ -568,7 +565,6 @@ local function refreshAura()
 		end
 	end
 	if upKey then P.getAccount().lastShield = upKey end
-	castUp = false
 	noteShown()
 	setUpShield(upKey or "none")
 end
@@ -579,7 +575,6 @@ function SH.onCast(spellID)
 	P.getAccount().lastShield = cast
 	if tracksShield(cast) and inUse() then
 		holdUntil = GetTime() + CAST_HOLD
-		castUp = true
 		watch()
 	end
 	learnShieldID(cast, spellID)
